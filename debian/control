@@ -38,3 +38,25 @@ Description: Source for the VirtualBox module
  Linux, FreeBSD, DOS, OpenBSD and others.
  .
   Homepage: <http://www.virtualbox.org/>
+
+Package: virtualbox-ose-guest-utils
+Architecture: amd64 i386
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: virtualbox-ose-guest-modules, virtualbox-ose-guest-source
+Description: Utilitlies for Guest Hosts
+ Ths packages contains several utilities which could be needed on a Debian
+ guest host. E.g. in order to m ount shared-folders or to use the clipboard.
+ .
+ This package is not meant to be installed on a normal Debian System, only on 
+ Debian Hosts inside of virtualbox.
+ .
+  Homepage: <http://www.virtualbox.org/>
+
+Package: virtualbox-ose-guest-source
+Architecture: all
+Depends: debhelper (>=5 ), dpatch, module-assistant, bzip2, kbuild
+Description: Source for the VirtualBox Guest modules
+ This package provides the source code for the virtualbox kernel modules for guest
+ systems. Kernel source or headers are required in order to compile these modules.
+ .
+  Homepage: <http://www.virtualbox.org/>
