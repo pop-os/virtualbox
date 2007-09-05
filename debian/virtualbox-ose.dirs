@@ -1,0 +1,5 @@
+usr/bin
+usr/sbin
+usr/lib
+etc/vbox
+usr/share/lintian/overrides

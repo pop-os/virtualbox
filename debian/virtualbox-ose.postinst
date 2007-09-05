@@ -1,0 +1,22 @@
+#!/bin/sh -e
+
+action="$1"
+oldversion="$2"
+
+if [ "$action" != configure ]
+  then
+  exit 0
+fi
+
+
+setup_vboxusers_group() {
+        if ! getent group vboxusers >/dev/null; then
+                addgroup --quiet --system vboxusers
+        fi
+}
+
+setup_vboxusers_group
+
+#DEBHELPER#
+
+exit 0

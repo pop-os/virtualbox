@@ -1,0 +1,191 @@
+#!/usr/bin/make -f
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+include /usr/share/dpatch/dpatch.make
+
+# some default definitions, important!
+#
+# Name of the source package
+psource:=virtualbox-ose-source
+
+# The short upstream name, used for the module source directory
+sname:=virtualbox-ose
+
+### KERNEL SETUP
+### Setup the stuff needed for making kernel module packages
+### taken from /usr/share/kernel-package/sample.module.rules
+
+# prefix of the target package name
+PACKAGE=virtualbox-ose-modules
+# modifieable for experiments or debugging m-a
+MA_DIR ?= /usr/share/modass
+# load generic variable handling
+-include $(MA_DIR)/include/generic.make
+# load default rules, including kdist, kdist_image, ...
+-include $(MA_DIR)/include/common-rules.make
+
+# module assistant calculates all needed things for us and sets
+# following variables:
+# KSRC (kernel source directory), KVERS (kernel version string), KDREV
+# (revision of the Debian kernel-image package), CC (the correct
+# compiler), VERSION (the final package version string), PKGNAME (full
+# package name with KVERS included), DEB_DESTDIR (path to store DEBs)
+
+# The kdist_configure target is called by make-kpkg modules_config and
+# by kdist* rules by dependency. It should configure the module so it is
+# ready for compilation (mostly useful for calling configure).
+# prep-deb-files from module-assistant creates the neccessary debian/ files
+kdist_configure: prep-deb-files
+
+# the kdist_clean target is called by make-kpkg modules_clean and from
+# kdist* rules. It is responsible for cleaning up any changes that have
+# been made by the other kdist_commands (except for the .deb files created)
+kdist_clean: clean
+	$(MAKE) $(MFLAGS) -f debian/rules clean
+#
+### end  KERNEL SETUP
+
+MAKE:=kmk
+
+config.status: patch configure
+	dh_testdir
+	 ./configure --with-linux="/usr"
+
+build: build-stamp
+build-stamp: config.status
+	dh_testdir
+
+	# Building package
+	$(MAKE) BUILD_TYPE=release
+
+	touch build-stamp
+
+clean: unpatch
+	dh_testdir
+	dh_testroot
+	rm -f build-stamp
+
+	# Cleaning package
+	rm -rf out
+	rm -f AutoConfig.kmk configure.log env.sh
+
+	dh_clean
+
+#Rebuild the orig.tar.gz
+#Please note: you can't execute this as debian/rules dfsg-free 
+#this won't work. 
+#This should be only a simple docu what to remove and what to do
+#in order to repack the orig tarball.
+dfsg-free:
+	rm -rf ./kBuild
+	rm -rf ./tools
+	rm -rf ./src/VBox/Additions
+	rm -f ./src/VBox/HostDrivers/VBoxTAP/VBoxTAP.rc
+	rm -f ./src/VBox/HostDrivers/Support/darwin/load.sh
+	rm -rf ./src/VBox/Installer/
+	rm -f ./include/VBox/VBoxGuest.inc
+	rm -f ./include/VBox/VBoxGuest16.h
+	rm -f ./include/VBox/VBoxGuest.mac
+	rm -f ./src/libs/xpcom18a4/xpcom/MoreFiles/FSCopyObject.c
+	rm -f ./src/libs/xpcom18a4/xpcom/MoreFiles/FSCopyObject.h
+	rm -rf ./debian/
+	find . -type d -name '.svn' |xargs rm -rf;
+	( cd .. & mv Virtualbox-OSE-1.5.0 virtualbox-ose-1.5.0-dfsg & \
+		tar cfz --exclude=debian/ virtualbox-ose-1.5.0-dfsg.orig.tar.gz virtualbox-1.5.0-dfsg )
+
+install: DH_OPTIONS=
+install: build
+	dh_testdir
+	dh_testroot
+	dh_clean -k
+	dh_installdirs
+
+	#FIXME: If I have enough time, remove this crap and replace with dh_* 
+	install -p -m 0644 $(CURDIR)/debian/$(sname).lintian-overrides       \
+        $(CURDIR)/debian/$(sname)/usr/share/lintian/overrides/$(sname)
+
+	# Installing virtualbox
+	cp -r out/linux.*/release/bin debian/$(sname)/usr/lib/virtualbox
+	install -D -m 0755  debian/VBox.sh debian/$(sname)/usr/lib/virtualbox
+
+	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/vboxmanage
+	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/vboxsdl
+	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/virtualbox
+
+	install -D -m 0644 debian/desktop/virtualbox.desktop debian/$(sname)/usr/share/applications/virtualbox.desktop
+	install -D -m 0644 src/VBox/Frontends/VirtualBox/images/ico32x01.png debian/$(sname)/usr/share/icons/virtualbox.png
+	install -D -m 0644 debian/pixmap/virtualbox.xpm debian/$(sname)/usr/share/pixmaps/virtualbox.xpm
+
+	echo "# VirtualBox installation directory" > $(CURDIR)/debian/$(sname)/etc/vbox/vbox.cfg
+	echo "INSTALL_DIR="\"/usr/lib/virtualbox\" >> $(CURDIR)/debian/$(sname)/etc/vbox/vbox.cfg
+
+	# Installing virtualbox-ose-source
+	mkdir -p debian/$(psource)/usr/src/modules
+	mv debian/$(sname)/usr/lib/virtualbox/src debian/$(psource)/usr/src/modules/$(sname)
+
+	mkdir -p debian/$(psource)/usr/src/modules/$(sname)/debian
+	cp debian/*modules.in* debian/control debian/rules debian/changelog debian/copyright debian/compat  debian/$(psource)/usr/src/modules/$(sname)/debian
+
+	cd debian/$(psource)/usr/src && tar c modules | bzip2 -9 > $(sname).tar.bz2 && rm -rf modules
+
+	dh_install
+
+binary-modules: prep-deb-files
+	dh_testroot
+	dh_clean -k
+
+	# Build the module
+	$(MAKE) all KSRC=$(KSRC) KVER=$(KVERS) KERN_DIR=$(KSRC)
+
+	# Install the module
+	dh_install vboxdrv.ko /lib/modules/$(KVERS)/misc/
+
+	dh_installdocs
+	dh_installchangelogs
+	dh_compress
+	dh_fixperms
+	dh_installmodules
+	dh_installdeb
+	dh_gencontrol -- -v$(VERSION)
+	dh_md5sums
+	dh_builddeb --destdir=$(DEB_DESTDIR)
+	dh_clean -k
+
+binary-arch: build install
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs
+	dh_installdocs
+	dh_install
+	dh_link
+	dh_strip
+	dh_compress
+	dh_fixperms -X=/usr/lib/virtualbox/VBox.sh
+	dh_installudev
+	dh_installdeb
+	dh_shlibdeps
+	dh_gencontrol
+	dh_md5sums
+	dh_builddeb
+
+#binary-indep: build install
+#	dh_testdir#
+#	dh_testroot
+#	dh_installchangelogs
+#	dh_installdocs
+#	dh_install
+#	dh_installmenu
+#	dh_installman
+#	dh_link
+#	dh_strip
+#	dh_compress
+#	dh_fixperms
+#	dh_shlibdeps
+#	dh_gencontrol
+#	dh_md5sums
+#	dh_builddeb
+
+binary: binary-arch
+.PHONY: build clean binary-arch binary install binary-modules kdist kdist_configure kdist_image kdist_clean

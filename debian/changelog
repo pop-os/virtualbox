@@ -1,0 +1,71 @@
+virtualbox-ose (1.5.0-dfsg2-1) unstable; urgency=low
+
+  * Packaging new upstream version
+  * Improved README.Debian for virtualbox-ose-source (Closes: #440793 )
+  * Fixed error using different kernel sourcen than the one which is running
+    (Closes: #440693 )
+    Thanks to Stefan Lippers-Hollmann
+  * The kernel module for virtualbox will only build on amd64 and i386
+    (Closes: #440564)
+  * Merge some changes which Daniel Baumann does made in a own package before.
+    Thanks. 
+  * Set the alioth ML as maintainer address, since this list will be used to
+    discuss issues from now on.
+
+ -- Patrick Winnertz <patrick.winnertz@skolelinux.org>  Wed, 05 Sep 2007 14:03:46 +0200
+
+virtualbox-ose (1.4.0svn4130-dfsg-1) unstable; urgency=low
+
+  [ Patrick Winnertz ]
+  * Rename virtualbox to virtualbox-ose since innotek has a trademark on this
+    name and they prohibit us to use this name together with the open-source edition.
+    See http://www.virtualbox.org/wiki/Licensing_FAQ point 8 for details.
+  * If module is not loadable on this kernel don't fail to install kernel
+    module. (Closes: #440509)
+  * Adjusted Upstream Authors name. The name of the company has changed.
+  * Adjusted copyright. virtualbox is GPLv2 *only*.
+
+  [ Michael Meskes ]
+  * Added Build-Dependancy to g++-multilib on amd64.
+
+ -- Michael Meskes <meskes@debian.org>  Mon, 03 Sep 2007 14:27:30 +0200
+
+virtualbox (1.4.0svn4130-dfsg-1) unstable; urgency=low
+
+  [ Daniel Baumann ]
+  * Initial release (Closes: #406992, #407001, #409711).
+  
+  [ Philipp Hug ]
+  * Stripped kbuild and yasm from source tarball
+  * Use Debian's kbuild and yasm instead
+  * Added myself as uploader
+  * Build target for module is now all instead of module
+  * Build against correct kernel source
+  * Integrated changes by Patrick Winnertz
+  * clean: rm env.sh AutoConfig.kmk configure.log
+  * Install udev rules to automatically create device
+  * Automatically create vboxusers group
+  * Binary names are now lowercase
+  * Disabled stripping for VMM because it breaks VirtualBox
+  * Don't require kernel module, recommend it instead
+
+  [ Patrick Winnertz ]
+  * Remove Microsoft license stuff from orig.tar.gz (repackaged it )
+    See dfsg-free section in debian/rules for details.
+  * Added patch to use own yasm
+  * Added patch to remove Additions from the Makefile.kmk
+  * Remove ./src/libs/xpcom18a4/nsprpub/build/autoconf from source tarball.
+  * Doesn't depend on gcc-3.4 and g++-3.4 since they are going to be removed from
+    debian. Use default instead.
+    Therefore I removed the patch, too.
+  * Don't call dh_installdeb twice.  (build-dep & build-indep)
+  * Added section to create dfsg tarball automatically to debian/rules (experimental!!)
+  * Added lintian.overrides for -fPIC since somehow virtualbox doesn't work with
+  * Added patch to prevent building modules and kernel code when building the
+    gui.
+  * Install udev rule with virtualbox and not with the module, since several
+    modules for several kernels could be there.
+  * Improved copyright statements in copyright file.
+  * Corrected .desktop file
+
+ -- Patrick Winnertz <patrick.winnertz@skolelinux.org>  Thu, 30 Aug 2007 12:35:51 +0200

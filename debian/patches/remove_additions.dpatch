@@ -1,0 +1,31 @@
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## by Patrick Winnertz <patrick.winnertz@skolelinux.org>>
+## DP: Remove subdir "Additions" from makefile since we had to
+## DP: remove this, because of license problems
+
+@DPATCH@
+--- ./src/VBox/Makefile.kmk	2007-08-02 10:58:42.000000000 +0200
++++ ./src/VBox/Makefile.kmk	2007-08-02 10:59:01.000000000 +0200
+@@ -41,16 +41,16 @@
+ SUBDIRS += RDP
+ endif
+ 
+-ifneq ($(VBOX_WITH_WIN32_ADDITIONS)$(VBOX_WITH_LINUX_ADDITIONS),)
+-SUBDIRS += Additions
+-endif
++#ifneq ($(VBOX_WITH_WIN32_ADDITIONS)$(VBOX_WITH_LINUX_ADDITIONS),)
++#SUBDIRS += Additions
++#endif
+ 
+ SUBDIRS += Frontends
+ 
+ # This must be the last one.
+-ifdef VBOX_WITH_INSTALLER
+-SUBDIRS += Installer
+-endif
++#ifdef VBOX_WITH_INSTALLER
++#SUBDIRS += Installer
++#endif
+ 
+ include $(PATH_KBUILD)/footer.kmk
+ 

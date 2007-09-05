@@ -1,0 +1,5 @@
+03-configure.dpatch
+04-host-module.dpatch
+config-kmk.dpatch
+remove_additions.dpatch
+localconf-kmk.dpatch

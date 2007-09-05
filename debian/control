@@ -1,0 +1,40 @@
+Source: virtualbox-ose
+Section: misc
+Priority: optional
+Maintainer: Debian Virtualbox Team  <pkg-virtualbox-devel@lists.alioth.debian.org> 
+Uploaders: Philipp Hug <debian@hug.cx>, Marvin Stark <marv@der-marv.de>, Michael Meskes <meskes@debian.org>, Patrick Winnertz <patrick.winnertz@skolelinux.org>, Daniel Baumann <daniel@debian.org>
+Build-Depends: debhelper (>= 5), dpatch, bcc, bin86, bzip2, iasl, libacl1-dev, libasound-dev, libidl-dev, libqt3-mt-dev, libsdl1.2-dev, libxalan110-dev, libxerces27-dev, libxcursor-dev, uuid-dev, xalan, xsltproc, zlib1g-dev, yasm, kbuild, libhal-dev, libc6-dev-i386 [amd64], g++-multilib [amd64]
+Standards-Version: 3.7.2
+
+Package: virtualbox-ose
+Provides: virtualbox
+Conflicts: virtualbox
+Replaces: virtualbox
+Architecture: i386 amd64
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Recommends: virtualbox-ose-source, virtualbox-ose-modules
+Description: PC virtualization solution
+ VirtualBox is a free PC virtualization solution allowing you to run a wide
+ range of PC operating systems on your Linux system. This includes Windows,
+ Linux, FreeBSD, DOS, OpenBSD and others.
+ .
+ This packages contains the Open Source Edition of VirtualBox.
+ .
+  Homepage: <http://www.virtualbox.org/>
+
+Package: virtualbox-ose-source
+Provides: virtualbox-source
+Conflicts: virtualbox-source
+Replaces: virtualbox-source
+Architecture: all
+Depends: debhelper (>= 5), dpatch, module-assistant, bzip2, kbuild
+Description: Source for the VirtualBox module
+ This package provides the source code for the virtualbox kernel modules.
+ The virtualbox package is also required in order to make use of these
+ modules. Kernel source or headers are required to compile these modules.
+ .
+ VirtualBox is a free PC virtualization solution allowing you to run a wide
+ range of PC operating systems on your Linux system. This includes Windows,
+ Linux, FreeBSD, DOS, OpenBSD and others.
+ .
+  Homepage: <http://www.virtualbox.org/>
