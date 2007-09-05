@@ -10,6 +10,7 @@ virtualbox-ose (1.5.0-dfsg2-1) UNRELEASED; urgency=low
     Thanks. 
   * Set the alioth ML as maintainer address, since this list will be used to
     discuss issues from now on.
+  * Removed one patch for makefile. Instead use now variables.
 
  -- Patrick Winnertz <patrick.winnertz@skolelinux.org>  Wed, 05 Sep 2007 14:03:46 +0200
 
