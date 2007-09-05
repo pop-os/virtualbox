@@ -1,10 +1,5 @@
 virtualbox-ose (1.5.0-dfsg2-1) UNRELEASED; urgency=low
 
-
-DO NOT UPLOAD YET
-
-
-  * Packaging new upstream version
   * Improved README.Debian for virtualbox-ose-source (Closes: #440793 )
   * Fixed error using different kernel sourcen than the one which is running
     (Closes: #440693 )
