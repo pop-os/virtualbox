@@ -1,0 +1,5 @@
+This things have to be done _before_ a 1.5.0 upload:
+
+ check license statements in ./src/VBox/Additions/* 
+ and add them to the debian/copyright
+
