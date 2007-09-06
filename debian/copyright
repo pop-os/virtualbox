@@ -96,6 +96,23 @@ The following files are licensed under GPLv2:
 ./src/VBox/Devices/PC/Etherboot-src/util/getopt.c
         Copyright (c) 1990-1995 by Eberhard Mattes
 
+./src/VBox/Additions/linux/xgraphics/vboxvideo_13.c
+./src/VBox/Additions/linux/xgraphics/vboxvideo_68.c
+./src/VBox/Additions/linux/xgraphics/vboxvideo_70.c
+./src/VBox/Additions/linux/xgraphics/vboxvideo.h
+        Copyright: 2006-2007 innotek GmbH
+        Copyright: 2000 by Conectiva S.A.
+                dual licensed under BSD
+
+./src/VBox/Additions/linux/xmouse/xorg70/mouse.c
+./src/VBox/Additions/linux/xmouse/xorg71/mouse.c
+        Copyright: 2006-2007 innotek GmbH 
+        Copyright: 1990,91 by Thomas Roell, Dinkelscherben, Germany
+        Copyright: 1993 by David Dawes <dawes@xfree86.org>
+        Copyright: 2002 by SuSE Linux AG, Author: Egbert Eich
+        Copyright: 1994-2002 by The XFree86 Project, Inc 
+        Copyright: 2002 by Paul Elliott
+
 On Debian systems, the complete text of the GNU General Public License
 can be found in /usr/share/common-licenses/GPL-2 file.
 
@@ -111,13 +128,13 @@ The license is attached below.
 
 The BSD License applies to the complete subtree of:
 
- - ./src/libs/liblzf-1.51/
+./src/libs/liblzf-1.51/
         Copyright (c) 2000-2005 Marc Alexander Lehmann
 
- - ./src/VBox/Devices/Audio/coreaudio.h
+./src/VBox/Devices/Audio/coreaudio.h
         Copyright (c) 2005 Mike Kronenberg
 
- - ./src/VBox/Devices/Network/slirp
+./src/VBox/Devices/Network/slirp
         Copyright (c),  1995,1996 Danny Gasparovski
         Slirp uses code that is copyrighted by the following people:
                 Juha Pirkola.
@@ -128,57 +145,145 @@ The BSD License applies to the complete subtree of:
                 RSA Data Security, Inc.
 
 
- - ./src/VBox/HostDrivers/Support/freebsd/SUPDrv-freebsd.c
- - ./src/VBox/HostDrivers/Support/os2/SUPDrv-os2.cpp
- - ./src/VBox/Runtime/r0drv/freebsd/
- - ./src/VBox/Runtime/r0drv/os2/
- - ./src/VBox/Runtime/r3/os2/time-os2.cpp
- - ./src/VBox/Runtime/r0drv/freebsd/memobj-r0drv-freebsd.c
- - ./src/VBox/Runtime/r0drv/freebsd/time-r0drv-freebsd.c
- - ./src/VBox/Runtime/r0drv/freebsd/timer-r0drv-freebsd.c
+./src/VBox/HostDrivers/Support/freebsd/SUPDrv-freebsd.c
+./src/VBox/HostDrivers/Support/os2/SUPDrv-os2.cpp
+./src/VBox/Runtime/r0drv/freebsd/
+./src/VBox/Runtime/r0drv/os2/
+./src/VBox/Runtime/r3/os2/time-os2.cpp
+./src/VBox/Runtime/r0drv/freebsd/memobj-r0drv-freebsd.c
+./src/VBox/Runtime/r0drv/freebsd/time-r0drv-freebsd.c
+./src/VBox/Runtime/r0drv/freebsd/timer-r0drv-freebsd.c
         Copyright (c) 2007 knut st. osmundsen <bird-src-spam@anduin.net>
 
- - ./src/VBox/Runtime/include/internal/ldrELF32.h
- - ./src/VBox/Runtime/include/internal/lldrELF64.h
- - ./src/VBox/Runtime/include/internal/lldrELFAmd64.h
- - ./src/VBox/Runtime/include/internal/lldrELFCommon.h
- - ./src/VBox/Runtime/include/internal/lldrELFi386.h
+./src/VBox/Runtime/include/internal/ldrELF32.h
+./src/VBox/Runtime/include/internal/lldrELF64.h
+./src/VBox/Runtime/include/internal/lldrELFAmd64.h
+./src/VBox/Runtime/include/internal/lldrELFCommon.h
+./src/VBox/Runtime/include/internal/lldrELFi386.h
         Copyright (c) 1996-1998 John D. Polstra.
 
- - ./src/VBox/Devices/Audio/alsaaudio.c
- - ./src/VBox/Devices/Audio/audio.c
- - ./src/VBox/Devices/Audio/audio.h
- - ./src/VBox/Devices/Audio/audio_int.h
- - ./src/VBox/Devices/Audio/audio_template.h
- - ./src/VBox/Devices/Audio/dsoundaudio.c
- - ./src/VBox/Devices/Audio/dsound_template.h
- - ./src/VBox/Devices/Audio/mixeng_template.h
- - ./src/VBox/Devices/Audio/noaudio.c
- - ./src/VBox/Devices/Audio/ossaudio.c
+./src/VBox/Devices/Audio/alsaaudio.c
+./src/VBox/Devices/Audio/audio.c
+./src/VBox/Devices/Audio/audio.h
+./src/VBox/Devices/Audio/audio_int.h
+./src/VBox/Devices/Audio/audio_template.h
+./src/VBox/Devices/Audio/dsoundaudio.c
+./src/VBox/Devices/Audio/dsound_template.h
+./src/VBox/Devices/Audio/mixeng_template.h
+./src/VBox/Devices/Audio/noaudio.c
+./src/VBox/Devices/Audio/ossaudio.c
         Copyright (c) 2005 Vassili Karpov (malc)
 
- - ./src/VBox/Devices/Audio/mixeng.c
- - ./src/VBox/Devices/Audio/reate_template.h
+./src/VBox/Devices/Audio/mixeng.c
+./src/VBox/Devices/Audio/reate_template.h
         Copyright (c) 2005 Vassili Karpov (malc)
         Copyright 1998 Fabrice Bellard
 
- - ./src/VBox/Devices/Audio/sys-queue.h
- - ./src/VBox/Runtime/math/gcc/*
+./src/VBox/Devices/Audio/sys-queue.h
+./src/VBox/Runtime/math/gcc/*
+./src/VBox/Additions/linux/x11include/1.3/xorg/bstore.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/bstorestr.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/mibstore.h
         Copyright (c) 1991, 1993 The Regents of the University of California. 
 
- - ./src/VBox/Runtime/testcase/soundcard.h
+./src/VBox/Runtime/testcase/soundcard.h
         Copyright by Hannu Savolainen 1993-1997
 
- - ./src/VBox/Devices/Network/slirp/tftp.c
-        Copyright: (c) 2004 Magnus Damm
+./src/VBox/Devices/Network/slirp/tftp.c
+     Copyright: (c) 2004 Magnus Damm
 
- - ./src/VBox/Devices/PC/Etherboot-src/core/proto_fsp.c
-        Copyright: (c) 2005 by Radim Kolar
- 
- - ./include/Box/HostServices/glext.h
- - ./include/VBox/HostServices/wglext.h
- - ./include/VBox/HostServices/glxext.h
+./src/VBox/Devices/PC/Etherboot-src/core/proto_fsp.c
+     Copyright: (c) 2005 by Radim Kolar
+
+./include/Box/HostServices/glext.h
+./include/VBox/HostServices/wglext.h
+./include/VBox/HostServices/glxext.h
         Copyright: (c) 2007 The Khronos Group Inc
+
+./src/VBox/Additions/linux/xmouse/mouse.c
+        Copyright: 1990,91 by Thomas Roell, Dinkelscherben, Germany
+        Copyright: 1993 by David Dawes <dawes@xfree86.org> 
+        Copyright: 1994-2001 by The XFree86 Project, Inc
+
+./src/VBox/Additions/linux/xmouse/mouse.c
+./src/VBox/Additions/linux/xmouse/mousePriv.h
+./src/VBox/Additions/linux/xmouse/xorg70/mouse.h
+./src/VBox/Additions/linux/xmouse/xorg70/mousePriv.h
+./src/VBox/Additions/linux/xmouse/xorg71/mouse.h
+./src/VBox/Additions/linux/xmouse/xorg71/mousePriv.h
+./src/VBox/Additions/linux/x11include/1.3/X11/fonts/fontproto.h
+        Copyright: (c) 1997-1999 by The XFree86 Project, Inc
+
+./src/VBox/Additions/linux/xmouse/pnp.c
+./src/VBox/Additions/linux/xmouse/xorg70/pnp.c
+./src/VBox/Additions/linux/xmouse/xorg71/pnp.c
+        Copyright: 1998 by Kazutaka YOKOTA <yokota@zodiac.mech.utsunomiya-u.ac.jp>
+
+./src/VBox/Additions/linux/x11include/1.3/X11/extensions/dpms.h
+./src/VBox/Additions/linux/x11include/1.3/X11/fonts/fontstruct.h
+./src/VBox/Additions/linux/x11include/1.3/X11/fonts/font.h
+        Copyright: (c) 1996 Digital Equipment Corporation, Maynard, Massachusetts
+
+./src/VBox/Additions/linux/x11include/1.3/X11/extensions/randr.h
+        Copyright: (c) 2000 Compaq Computer Corporation
+        Copyright: (c) 2002 Hewlett Packard Company
+        Copyright: (c) 2006 Intel Corporation 
+
+./src/VBox/Additions/linux/x11include/1.3/X11/extensions/render.h
+./src/VBox/Additions/linux/x11include/1.3/X11/extensions/renderproto.h
+        Copyright: (c) 2000 SuSE, Inc 
+
+./src/VBox/Additions/linux/x11include/1.3/X11/fonts/fsmasks.h
+        Copyright: 1990, 1991 Network Computing Devices
+        Copyright: 1987 by Digital Equipment Corporation
+
+
+./src/VBox/Additions/linux/x11include/1.3/X11/Xfuncproto.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/colormap.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/colormapst.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/cursor.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/cursorstr.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/damage.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/dix.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/gc.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/gcstruct.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/input.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/mfb.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/migc.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/mi.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/mipointer.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/misc.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/miscstruct.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/opaque.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/os.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/pixmap.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/pixmapstr.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/property.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/propertyst.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/region.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/regionstr.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/resource.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/screenint.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/scrnintstr.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/servermd.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/validate.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/window.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/windowstr.h
+        Copyright 1989, 1991, 1998  The Open Group
+
+./src/VBox/Additions/linux/x11include/1.3/xorg/afb.h
+        Copyright: (c) 1987 X Consortium 
+
+
+./src/VBox/Additions/linux/x11include/1.3/xorg/damage.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/damagestr.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/fb.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/fbrop.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/shadow.h
+        Copyright: (c) 2003 Keith Packard 
+
+
+
 
 On Debian systems, the complete text of the BSD License
 can be found in /usr/share/common-licenses/BSD file.
@@ -187,7 +292,7 @@ can be found in /usr/share/common-licenses/BSD file.
 
 The LGPL applies to the complete subtree of:
 
- - ./src/recompiler/
+./src/recompiler/
          Copyright (c) 2003 Fabrice Bellard
     with the exeption of:
         ./src/recompiler/InnoTek (GPLv2)
@@ -199,19 +304,19 @@ The LGPL applies to the complete subtree of:
         ./src/recompiler/dyngen.c (GPLv2)
                 Copyright: (c) 2003 Fabrice Bellard
 
- - ./src/recompiler/fpu 
+./src/recompiler/fpu 
         Copyright (C)  John R. Hauser.
 
 
- - ./src/VBox/Devices/Graphics/BIOS 
+./src/VBox/Devices/Graphics/BIOS 
         Copyright (c) 2004 Makoto Suzuki (suzu)
         Copyright (C) 2002 Jeroen Janssen
 
- - ./src/VBox/Devices/PC/BIOS/
+./src/VBox/Devices/PC/BIOS/
         Copyright (C) 2004 Fabrice Bellard
         Copyright (C) 2005 Struan Bartlett
 
- - ./src/VBox/Frontends/src/linux/keyboard.c
+./src/VBox/Frontends/src/linux/keyboard.c
         Copyright 1993 Bob Amstadt
         Copyright 1996 Albrecht Kleine
         Copyright 1997 David Faure
@@ -219,12 +324,12 @@ The LGPL applies to the complete subtree of:
         Copyright 1998 Ulrich Weigand
         Copyright 1999 Ove Kåven
 
- - ./src/VBox/Frontends/src/linux/keyboard_outofwine.h
+./src/VBox/Frontends/src/linux/keyboard_outofwine.h
 
- - ./src/VBox/Runtime/math/x86/fenv-x86.c
+./src/VBox/Runtime/math/x86/fenv-x86.c
         Copyright (c) 2004-2005 David Schultz <das@FreeBSD.ORG>
 
- - ./src/VBox/Devices/Graphics/BIOS/vgabios.c
+./src/VBox/Devices/Graphics/BIOS/vgabios.c
         Copyright: 2001,2002 the LGPL VGABios developers Team
 
 On Debian systems, the complete text of the LGPL License
@@ -233,18 +338,16 @@ can be found in /usr/share/common-licenses/LGPL file.
 -------------------------------------------------------------------------------
 The Cygwin License applies to:
 
-. ./src/recompiler/a.out.h
+./src/recompiler/a.out.h
         Copyright 1997, 1998, 1999, 2001 Red Hat, Inc.
-
 
 A copy of this license is appended below.
 
 -------------------------------------------------------------------------------
 
-Due to license issues, the complete Guest Additions have to be removed from the 
+Due to license issues, parts of the Guest Additions have to be removed from the 
 sourcecode. Some of the files were (c) Microsoft with an license which have to be
 considered non-free.
-
 
 Below a copy of the MPL:
 ###############################################################################
