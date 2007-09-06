@@ -11,6 +11,7 @@ virtualbox-ose (1.5.0-dfsg2-1) unstable; urgency=low
   * Set the alioth ML as maintainer address, since this list will be used to
     discuss issues from now on.
   * Removed one patch for makefile. Instead use now variables.
+    - Improved patch localconfig-kmk.dpatch
   * Upload of 1.5.0 fixes scrolling issue. (Closes: #440773 )
 
  -- Patrick Winnertz <patrick.winnertz@skolelinux.org>  Thu, 06 Sep 2007 09:52:48 +0200
