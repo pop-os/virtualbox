@@ -113,6 +113,15 @@ The following files are licensed under GPLv2:
         Copyright: 1994-2002 by The XFree86 Project, Inc 
         Copyright: 2002 by Paul Elliott
 
+./src/VBox/Additions/linux/x11include/1.3/xorg/edid.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/xf86DDC.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/xf86int10.ih
+./src/VBox/Additions/linux/x11include/1.3/xorg/vbe.h
+        Copyright: 1998-1999 Egbert Eich
+
+./src/VBox/Additions/linux/x11include/1.3/xorg/xf86i2c.h
+        Copyright: 1998 Itai Nahshon, Michael Schimek
+
 On Debian systems, the complete text of the GNU General Public License
 can be found in /usr/share/common-licenses/GPL-2 file.
 
@@ -143,7 +152,6 @@ The BSD License applies to the complete subtree of:
                 Carnegie Mellon University.
                 The Australian National University.
                 RSA Data Security, Inc.
-
 
 ./src/VBox/HostDrivers/Support/freebsd/SUPDrv-freebsd.c
 ./src/VBox/HostDrivers/Support/os2/SUPDrv-os2.cpp
@@ -205,15 +213,6 @@ The BSD License applies to the complete subtree of:
         Copyright: 1993 by David Dawes <dawes@xfree86.org> 
         Copyright: 1994-2001 by The XFree86 Project, Inc
 
-./src/VBox/Additions/linux/xmouse/mouse.c
-./src/VBox/Additions/linux/xmouse/mousePriv.h
-./src/VBox/Additions/linux/xmouse/xorg70/mouse.h
-./src/VBox/Additions/linux/xmouse/xorg70/mousePriv.h
-./src/VBox/Additions/linux/xmouse/xorg71/mouse.h
-./src/VBox/Additions/linux/xmouse/xorg71/mousePriv.h
-./src/VBox/Additions/linux/x11include/1.3/X11/fonts/fontproto.h
-        Copyright: (c) 1997-1999 by The XFree86 Project, Inc
-
 ./src/VBox/Additions/linux/xmouse/pnp.c
 ./src/VBox/Additions/linux/xmouse/xorg70/pnp.c
 ./src/VBox/Additions/linux/xmouse/xorg71/pnp.c
@@ -231,12 +230,14 @@ The BSD License applies to the complete subtree of:
 
 ./src/VBox/Additions/linux/x11include/1.3/X11/extensions/render.h
 ./src/VBox/Additions/linux/x11include/1.3/X11/extensions/renderproto.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/glyphstr.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/picturestr.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/picture.h
         Copyright: (c) 2000 SuSE, Inc 
 
 ./src/VBox/Additions/linux/x11include/1.3/X11/fonts/fsmasks.h
         Copyright: 1990, 1991 Network Computing Devices
         Copyright: 1987 by Digital Equipment Corporation
-
 
 ./src/VBox/Additions/linux/x11include/1.3/X11/Xfuncproto.h
 ./src/VBox/Additions/linux/x11include/1.3/xorg/colormap.h
@@ -274,7 +275,6 @@ The BSD License applies to the complete subtree of:
 ./src/VBox/Additions/linux/x11include/1.3/xorg/afb.h
         Copyright: (c) 1987 X Consortium 
 
-
 ./src/VBox/Additions/linux/x11include/1.3/xorg/damage.h
 ./src/VBox/Additions/linux/x11include/1.3/xorg/damagestr.h
 ./src/VBox/Additions/linux/x11include/1.3/xorg/fb.h
@@ -282,8 +282,38 @@ The BSD License applies to the complete subtree of:
 ./src/VBox/Additions/linux/x11include/1.3/xorg/shadow.h
         Copyright: (c) 2003 Keith Packard 
 
+./src/VBox/Additions/linux/xmouse/mouse.c
+./src/VBox/Additions/linux/xmouse/mousePriv.h
+./src/VBox/Additions/linux/xmouse/xorg70/mouse.h
+./src/VBox/Additions/linux/xmouse/xorg70/mousePriv.h
+./src/VBox/Additions/linux/xmouse/xorg71/mouse.h
+./src/VBox/Additions/linux/xmouse/xorg71/mousePriv.h
+./src/VBox/Additions/linux/x11include/1.3/X11/fonts/fontproto.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/xf86Version.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/xf86str.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/xf86Resources.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/xf86PciInfo.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/xf86Opt.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/xf86Module.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/xf86.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/xf86cmap.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/vgaHW.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/micoord.h
+        Copyright: (c) 1994-2003 by The XFree86 Project, Inc
 
+./src/VBox/Additions/linux/x11include/1.3/xorg/compiler.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/xf86_OSproc.h
+        Copyright: 1990,91 by Thomas Roell, Dinkelscherben, Germany 
 
+./src/VBox/Additions/linux/x11include/1.3/xorg/xf86Pci.h
+./src/VBox/Additions/linux/x11include/1.3/xorg/Pci.h
+        Copyright: 1998 by Concurrent Computer Corporation
+
+./src/VBox/Additions/linux/x11include/1.3/xorg/mibank.h
+        Copyright: 1997 through 2004 by Marc Aurele La France (TSI @ UQV), tsi@xfree86.org
+
+./src/VBox/Additions/linux/x11include/1.3/xorg/vbeModes.h
+        Copyright: (c) 2002 David Dawes 
 
 On Debian systems, the complete text of the BSD License
 can be found in /usr/share/common-licenses/BSD file.
@@ -306,7 +336,6 @@ The LGPL applies to the complete subtree of:
 
 ./src/recompiler/fpu 
         Copyright (C)  John R. Hauser.
-
 
 ./src/VBox/Devices/Graphics/BIOS 
         Copyright (c) 2004 Makoto Suzuki (suzu)
