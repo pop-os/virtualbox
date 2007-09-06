@@ -7,12 +7,13 @@ virtualbox-ose (1.5.0-dfsg2-1) unstable; urgency=low
   * The kernel module for virtualbox will only build on amd64 and i386
     (Closes: #440564)
   * Merge some changes which Daniel Baumann does made in a own package before.
-    Thanks. 
+    Thanks.
   * Set the alioth ML as maintainer address, since this list will be used to
     discuss issues from now on.
   * Removed one patch for makefile. Instead use now variables.
+  * Upload of 1.5.0 fixes scrolling issue. (Closes: #440773 )
 
- -- Patrick Winnertz <patrick.winnertz@skolelinux.org>  Wed, 05 Sep 2007 14:03:46 +0200
+ -- Patrick Winnertz <patrick.winnertz@skolelinux.org>  Thu, 06 Sep 2007 09:52:48 +0200
 
 virtualbox-ose (1.4.0svn4130-dfsg-1) unstable; urgency=low
 
