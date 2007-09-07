@@ -7,7 +7,7 @@
 @DPATCH@
 --- /dev/null	2013-04-05 12:00:39.992030371 +0200
 +++ ./LocalConfig.kmk	2007-09-06 10:16:51.000000000 +0200
-@@ -0,0 +1,11 @@
+@@ -0,0 +1,8 @@
 +VBOX_WITH_VBOXDRV = 
 +VBOX_WITH_LINUX_ONLY =
 +VBOX_ADDITIONS_LINUX_ONLY =
@@ -15,7 +15,4 @@
 +VBOX_WITH_LINUX_ADDITIONS =
 +VBOX_WITH_TESTCASES =
 +VBOX_WITH_TESTSUITE =
-+DEFS += RTPATH_APP_DOCS=\"/usr/share/doc/virtualbox\"
-+DEFS += RTPATH_APP_PRIVATE_ARCH=\"/usr/lib/virtualbox\"
-+DEFS += RTPATH_APP_PRIVATE=\"/usr/share/virtualbox\"
-+DEFS += RTPATH_SHARED_LIBS=\"/usr/lib\"
++VBOX_WITH_USB =
