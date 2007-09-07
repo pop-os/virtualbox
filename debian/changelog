@@ -1,16 +1,16 @@
 virtualbox-ose (1.5.0-dfsg2-1) unstable; urgency=low
 
   * Improved README.Debian for virtualbox-ose-source (Closes: #440793 )
-  * Fixed error using different kernel sourcen than the one which is running
+  * Fixed error using different kernel sources than the one which is running
     (Closes: #440693 )
     Thanks to Stefan Lippers-Hollmann
   * The kernel module for virtualbox will only build on amd64 and i386
     (Closes: #440564)
-  * Merge some changes which Daniel Baumann does made in a own package before.
+  * Merge some changes that Daniel Baumann made in his own package before.
     Thanks.
   * Set the alioth ML as maintainer address, since this list will be used to
     discuss issues from now on.
-  * Removed one patch for makefile. Instead use now variables.
+  * Removed one patch for makefile. Instead use variables now.
     - Improved patch localconfig-kmk.dpatch
   * Upload of 1.5.0 fixes scrolling issue. (Closes: #440773 )
 
