@@ -1,0 +1,19 @@
+#!/bin/sh -e
+
+action="$1"
+oldversion="$2"
+
+remove_vboxusers_group() {
+        if ! getent group vboxusers >/dev/null; then
+                delgroup --quiet --system vboxusers
+        fi
+}
+
+if [ "$action" == purge ]; then
+        remove_vboxusers_group ();
+fi
+
+
+#DEBHELPER#
+
+exit 0

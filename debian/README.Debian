@@ -1,0 +1,13 @@
+Due to compatibility issues between version 1.4.0-svn4130 and 1.5.x the configuration files 
+are incompatible. 
+
+In order to fix this issue please delete the complete 
+
+        <Uart> 
+                <Port .... />
+                <Port ... />
+        </Uart>
+
+section in the xml file.
+
+ -- Patrick Winnertz <patrick.winnertz@skolelinux.org>  Wed, 19 Sep 2007 23:29:32 +0200

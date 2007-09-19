@@ -1,3 +1,15 @@
+virtualbox-ose (1.5.0-dfsg2-2) unstable; urgency=low
+
+  * Added README.Debian to virtualbox-ose in order to document that the
+    configuration xml files of the machines are not compatible between
+    1.4.0-svn4130 and the 1.5.0 release. (Closes: #441634)
+  * Build in binary-dep only binary-dep and in binary-indep only binary-indep
+    packages.
+  * Added postrm to virtualbox-ose in order to remove the vboxusers group on
+    purge. (Closes: #442396)
+
+ -- Patrick Winnertz <patrick.winnertz@skolelinux.org>  Wed, 19 Sep 2007 23:37:16 +0200
+
 virtualbox-ose (1.5.0-dfsg2-1) unstable; urgency=low
 
   * Improved README.Debian for virtualbox-ose-source (Closes: #440793 )
