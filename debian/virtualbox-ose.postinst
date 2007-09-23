@@ -17,6 +17,11 @@ setup_vboxusers_group() {
 
 setup_vboxusers_group
 
+# just in case the system is running without inotify tell udev to reload the rules
+if [ -x /sbin/udevcontrol ]; then
+	/sbin/udevcontrol reload_rules || true;
+fi
+
 #DEBHELPER#
 
 exit 0
