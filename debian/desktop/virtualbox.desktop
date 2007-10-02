@@ -1,7 +1,7 @@
 [Desktop Entry]
 Encoding=UTF-8
-Name=InnoTek VirtualBox
-GenericName=Virtual Machine
+Name=VirtualBox
+GenericName=PC virtualization solution
 Type=Application
 Comment=Run several virtual systems on a single host computer
 Exec=virtualbox

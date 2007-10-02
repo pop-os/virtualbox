@@ -163,6 +163,7 @@ binary-arch: build install
 	dh_installchangelogs -a
 	dh_installdocs -a
 	dh_install -a 
+	dh_installmenu -a
 	dh_link -a 
 	dh_strip -a 
 	dh_compress -a 
