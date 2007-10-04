@@ -3,6 +3,8 @@ virtualbox-ose (1.5.0-dfsg2-3) unstable; urgency=low
   * Made build process install menu file, closes: #444842
   * Move virtualbox to Apps/System.
   * Syncronized desktop and menu file.
+  * Documented features missing in Open-Source-Edition in
+    README.Debian, closes: #444941
 
  -- Michael Meskes <meskes@debian.org>  Tue, 02 Oct 2007 09:40:25 +0200
 
