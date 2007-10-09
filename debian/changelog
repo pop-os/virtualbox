@@ -27,6 +27,8 @@ virtualbox-ose (1.5.0-dfsg2-3) UNRELEASED; urgency=low
     in debhelper anyway, see #109642 for more information.
   * Fixed spelling error and improved language in
     virtualbox-ose.README.rebuild.
+  * Cleaned, simplified and refractored postinst.modules.in,
+    virtualbox-ose.postinst and virtualbox-ose.postrm.
 
  -- Daniel Baumann <daniel@debian.org>  Tue,  2 Oct 2007 13:57:00 +0200
 

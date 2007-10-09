@@ -1,20 +1,23 @@
-#!/bin/sh -e
+#!/bin/sh
+
+set -e
+
+case "${1}" in
+	configure)
+		modprobe vboxdrv || true
+		invoke-rc.d udev reload
+		;;
+
+	abort-upgrade|abort-deconfigure|abort-remove)
+
+		;;
+
+	*)
+		echo "${0} called with unknown argument \`${1}'" 1>&2
+		exit 1
+		;;
+esac
 
 #DEBHELPER#
-
-case "$1" in
-    configure)
-    	modprobe vboxdrv || true
-    	invoke-rc.d udev reload
-	;;
-
-    abort-upgrade|abort-deconfigure|abort-remove)
-	;;
-
-    *)
-	echo "$0 called with unknown argument \`$1'" 1>&2
-	exit 1
-	;;
-esac
 
 exit 0
