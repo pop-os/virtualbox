@@ -20,6 +20,7 @@ virtualbox-ose (1.5.0-dfsg2-3) UNRELEASED; urgency=low
   * Renaming README.Debian and README.rebuild to virtualbox-ose.README.Debian
     and virtualbox-ose.README.rebuild for consistency reasons.
   * Rediffed, cleaned up and properly named all dpatches.
+  * Added forgotton changelog from the 1.5.0-dfsg-1 upload.
 
  -- Daniel Baumann <daniel@debian.org>  Tue,  2 Oct 2007 13:57:00 +0200
 
@@ -57,6 +58,19 @@ virtualbox-ose (1.5.0-dfsg2-1) unstable; urgency=low
   * Upload of 1.5.0 fixes scrolling issue. (Closes: #440773 )
 
  -- Patrick Winnertz <patrick.winnertz@skolelinux.org>  Thu, 06 Sep 2007 09:52:48 +0200
+
+virtualbox-ose (1.5.0-dfsg-1) unstable; urgency=low
+
+  * New upstream release.
+  * Re-added myself as co-maintainer as I'm the original maintainer.
+  * Updated dfsg-free target in rules for new upstream version.
+  * Don't forkbomb in dfsg-free target, use xargs.
+  * Don't do a subshell in dfsg-free target, not required.
+  * Cleaned the 'dh_make'-template header in postinst.modules.in.
+  * Rediffed all patches with the same diff options.
+  * Properly named all patches and adjusted their dpatch headers.
+
+ -- Daniel Baumann <daniel@debian.org>  Wed,  5 Sep 2007 06:58:00 +0200
 
 virtualbox-ose (1.4.0svn4130-dfsg-1) unstable; urgency=low
 
