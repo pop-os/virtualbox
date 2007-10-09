@@ -14,7 +14,8 @@ virtualbox-ose (1.5.0-dfsg2-3) UNRELEASED; urgency=low
   * Sorting control fields.
   * Adding VCS control fields.
   * Adding Homepage control fields.
-  * Renaming virtualbox.desktop to virtualbox-ose.desktop
+  * Renaming virtualbox.desktop and virtualbox.xpm to virtualbox-ose.desktop
+    and virtualbox-ose.xpm.
   * Using the term 'VirtualBox OSE' consistently in virtualbox-ose.desktop,
     virtualbox-ose-source.README.Debian and virtualbox-ose.menu.
   * Renaming README.Debian and README.rebuild to virtualbox-ose.README.Debian

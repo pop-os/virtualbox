@@ -118,7 +118,7 @@ install: build
 
 	install -D -m 0644 debian/desktop/virtualbox-ose.desktop debian/$(sname)/usr/share/applications/virtualbox-ose.desktop
 	install -D -m 0644 src/VBox/Frontends/VirtualBox/images/ico32x01.png debian/$(sname)/usr/share/icons/virtualbox.png
-	install -D -m 0644 debian/pixmap/virtualbox.xpm debian/$(sname)/usr/share/pixmaps/virtualbox.xpm
+	install -D -m 0644 debian/pixmap/virtualbox-ose.xpm debian/$(sname)/usr/share/pixmaps/virtualbox-ose.xpm
 
 	echo "# VirtualBox installation directory" > $(CURDIR)/debian/$(sname)/etc/vbox/vbox.cfg
 	echo "INSTALL_DIR="\"/usr/lib/virtualbox\" >> $(CURDIR)/debian/$(sname)/etc/vbox/vbox.cfg

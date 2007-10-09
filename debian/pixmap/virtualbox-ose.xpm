@@ -1,5 +1,5 @@
 /* XPM */
-static char * virtualbox_xpm[] = {
+static char * virtualbox_ose_xpm[] = {
 "32 32 816 2",
 "  	c None",
 ". 	c #A1C5D2",
