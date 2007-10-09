@@ -7,12 +7,12 @@ Build-Depends: debhelper (>= 5), dpatch, bcc, bin86, bzip2, g++-multilib [amd64]
 Standards-Version: 3.7.2
 
 Package: virtualbox-ose
-Provides: virtualbox
-Conflicts: virtualbox
-Replaces: virtualbox
 Architecture: i386 amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Recommends: virtualbox-ose-source, virtualbox-ose-modules
+Conflicts: virtualbox
+Replaces: virtualbox
+Provides: virtualbox
 Description: PC virtualization solution
  VirtualBox is a free PC virtualization solution allowing you to run a wide
  range of PC operating systems on your Linux system. This includes Windows,
@@ -23,11 +23,11 @@ Description: PC virtualization solution
   Homepage: <http://www.virtualbox.org/>
 
 Package: virtualbox-ose-source
-Provides: virtualbox-source
-Conflicts: virtualbox-source
-Replaces: virtualbox-source
 Architecture: all
 Depends: debhelper (>= 5), dpatch, module-assistant, bzip2, kbuild
+Conflicts: virtualbox-source
+Replaces: virtualbox-source
+Provides: virtualbox-source
 Description: Source for the VirtualBox module
  This package provides the source code for the virtualbox kernel modules.
  The virtualbox package is also required in order to make use of these
