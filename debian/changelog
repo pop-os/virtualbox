@@ -22,6 +22,8 @@ virtualbox-ose (1.5.0-dfsg2-3) UNRELEASED; urgency=low
   * Rediffed, cleaned up and properly named all dpatches.
   * Added forgotton changelog from the 1.5.0-dfsg-1 upload.
   * Using install -D call to install the lintian override.
+  * Removed comment in rules about "dh_lintian"; this will not be implemented
+    in debhelper anyway, see #109642 for more information.
 
  -- Daniel Baumann <daniel@debian.org>  Tue,  2 Oct 2007 13:57:00 +0200
 

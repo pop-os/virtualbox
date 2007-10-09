@@ -105,7 +105,6 @@ install: build
 	dh_clean -k
 	dh_installdirs
 
-	#FIXME: If I have enough time, remove this crap and replace with dh_*
 	install -D -m 0644 $(CURDIR)/debian/$(sname).lintian-overrides       \
         $(CURDIR)/debian/$(sname)/usr/share/lintian/overrides/$(sname)
 
