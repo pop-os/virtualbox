@@ -1,12 +1,16 @@
-virtualbox-ose (1.5.0-dfsg2-3) unstable; urgency=low
+virtualbox-ose (1.5.0-dfsg2-3) UNRELEASED; urgency=low
 
+  [ Michael Meskes ]
   * Made build process install menu file, closes: #444842
   * Move virtualbox to Apps/System.
   * Syncronized desktop and menu file.
   * Documented features missing in Open-Source-Edition in
     README.Debian, closes: #444941
 
- -- Michael Meskes <meskes@debian.org>  Tue, 02 Oct 2007 09:40:25 +0200
+  [ Daniel Baumann ]
+  * Removing useless whitespaces at EOL and EOF in debian/*.
+
+ -- Daniel Baumann <daniel@debian.org>  Tue,  2 Oct 2007 13:57:00 +0200
 
 virtualbox-ose (1.5.0-dfsg2-2) unstable; urgency=low
 
@@ -63,7 +67,7 @@ virtualbox (1.4.0svn4130-dfsg-1) unstable; urgency=low
 
   [ Daniel Baumann ]
   * Initial release (Closes: #406992, #407001, #409711).
-  
+
   [ Philipp Hug ]
   * Stripped kbuild and yasm from source tarball
   * Use Debian's kbuild and yasm instead

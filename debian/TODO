@@ -1,3 +1,2 @@
-- check license statements in ./src/VBox/Additions/* 
+- check license statements in ./src/VBox/Additions/*
   and add them to the debian/copyright and add those additions to the package
-

@@ -77,8 +77,8 @@ clean: unpatch
 	dh_clean
 
 #Rebuild the orig.tar.gz
-#Please note: you can't execute this as debian/rules dfsg-free 
-#this won't work. 
+#Please note: you can't execute this as debian/rules dfsg-free
+#this won't work.
 #This should be only a simple docu what to remove and what to do
 #in order to repack the orig tarball.
 dfsg-free:
@@ -105,7 +105,7 @@ install: build
 	dh_clean -k
 	dh_installdirs
 
-	#FIXME: If I have enough time, remove this crap and replace with dh_* 
+	#FIXME: If I have enough time, remove this crap and replace with dh_*
 	install -p -m 0644 $(CURDIR)/debian/$(sname).lintian-overrides       \
         $(CURDIR)/debian/$(sname)/usr/share/lintian/overrides/$(sname)
 
@@ -159,36 +159,36 @@ binary-modules: prep-deb-files
 
 binary-arch: build install
 	dh_testdir -a
-	dh_testroot -a 
+	dh_testroot -a
 	dh_installchangelogs -a
 	dh_installdocs -a
-	dh_install -a 
+	dh_install -a
 	dh_installmenu -a
-	dh_link -a 
-	dh_strip -a 
-	dh_compress -a 
+	dh_link -a
+	dh_strip -a
+	dh_compress -a
 	dh_fixperms -X=/usr/lib/virtualbox/VBox.sh -a
-	dh_installudev -a 
-	dh_installdeb -a 
-	dh_shlibdeps -a 
-	dh_gencontrol -a 
-	dh_md5sums -a 
-	dh_builddeb -a 
+	dh_installudev -a
+	dh_installdeb -a
+	dh_shlibdeps -a
+	dh_gencontrol -a
+	dh_md5sums -a
+	dh_builddeb -a
 
 binary-indep: build install
 	dh_testdir -i
-	dh_testroot -i 
+	dh_testroot -i
 	dh_installchangelogs -i
 	dh_installdocs -i
-	dh_install -i 
-	dh_installmenu -i 
-	dh_installman -i 
-	dh_link -i 
-	dh_compress -i 
-	dh_fixperms -i 
-	dh_shlibdeps -i 
+	dh_install -i
+	dh_installmenu -i
+	dh_installman -i
+	dh_link -i
+	dh_compress -i
+	dh_fixperms -i
+	dh_shlibdeps -i
 	dh_gencontrol -i
-	dh_md5sums -i 
+	dh_md5sums -i
 	dh_builddeb -i
 
 binary: binary-arch binary-indep

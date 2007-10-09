@@ -3,23 +3,23 @@ Closed-source features are:
 
 The following list shows the enterprise features that are only present in the closed-source edition. Note that this list may change over time as some of these features will eventually be made available with the open-source version as well.
 
-    * Remote Display Protocol (RDP) Server 
+    * Remote Display Protocol (RDP) Server
 
     This component implements a complete RDP server on top of the virtual
     hardware and allows users to connect to a virtual machine remotely using
     any RDP compatible client.
 
-    * USB support 
+    * USB support
 
     VirtualBox implements a virtual USB controller and supports passing through
     USB 1.1 and USB 2.0 devices to virtual machines.
 
-    * USB over RDP 
+    * USB over RDP
 
     This is a combination of the RDP server and USB support allowing users to
     make USB devices available to virtual machines running remotely.
 
-    * iSCSI initiator 
+    * iSCSI initiator
 
     VirtualBox contains a builtin iSCSI initiator making it possible to use
     iSCSI targets as virtual disks without the guest requiring support for
@@ -27,12 +27,12 @@ The following list shows the enterprise features that are only present in the cl
 
  -- Michael Meskes <meskes@debian.org>  Thu, 04 Oct 2007 09:23:11 +0200
 
-Due to compatibility issues between version 1.4.0-svn4130 and 1.5.x the configuration files 
-are incompatible. 
+Due to compatibility issues between version 1.4.0-svn4130 and 1.5.x the configuration files
+are incompatible.
 
-In order to fix this issue please delete the complete 
+In order to fix this issue please delete the complete
 
-        <Uart> 
+        <Uart>
                 <Port .... />
                 <Port ... />
         </Uart>
