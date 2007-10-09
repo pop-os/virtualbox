@@ -9,6 +9,7 @@ virtualbox-ose (1.5.0-dfsg2-3) UNRELEASED; urgency=low
 
   [ Daniel Baumann ]
   * Removing useless whitespaces at EOL and EOF in debian/*.
+  * Sorting architectures.
   * Sorting build-depends.
   * Sorting control fields.
   * Adding VCS control fields.

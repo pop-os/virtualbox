@@ -10,7 +10,7 @@ XS-Vcs-Svn: svn://svn.debian.org/svn/pkg-virtualbox/trunk
 XS-Vcs-Browse: http://svn.debian.org/wsvn/pkg-virtualbox/trunk
 
 Package: virtualbox-ose
-Architecture: i386 amd64
+Architecture: amd64 i386
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Recommends: virtualbox-ose-source, virtualbox-ose-modules
 Conflicts: virtualbox
