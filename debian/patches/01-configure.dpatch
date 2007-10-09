@@ -1,0 +1,30 @@
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 01-configure.dpatch by Patrick Winnertz <patrick.winnertz@skolelinux.org>
+##
+## DP: Use Debians kbuild instead; doesn't build module
+
+@DPATCH@
+
+diff -Naurp virtualbox-ose-1.5.0-dfsg2.orig/configure virtualbox-ose-1.5.0-dfsg2/configure
+--- virtualbox-ose-1.5.0-dfsg2.orig/configure	2007-08-31 12:42:12.000000000 +0000
++++ virtualbox-ose-1.5.0-dfsg2/configure	2007-10-09 12:24:17.000000000 +0000
+@@ -248,8 +248,8 @@ check_environment()
+       exit 1
+       ;;
+   esac
+-  DEVDIR_BIN="$DEVDIR/$OS.$BUILD_MACHINE/bin"
+-  KBUILDDIR_BIN="$KBUILDDIR/bin/$OS.$BUILD_MACHINE"
++  DEVDIR_BIN="/usr/bin"
++  KBUILDDIR_BIN="/usr/bin"
+   log_success "Determined build machine: $OS.$BUILD_MACHINE, target machine: $OS.$TARGET_MACHINE"
+ 
+   # Automatically disable XPCOM on darwin.
+@@ -1335,7 +1335,7 @@ check_gcc
+ 
+ # Linux-specific
+ if [ "$OS" = "linux" ]; then
+-  check_linux
++#  check_linux
+   check_alsa
+   check_compiler_h
+   [ "$BUILD_MACHINE" = "amd64" ] && check_32bit

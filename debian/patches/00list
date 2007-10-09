@@ -1,4 +1,4 @@
-03-configure.dpatch
-04-host-module.dpatch
-config-kmk.dpatch
-localconf-kmk.dpatch
+01-configure.dpatch
+02-host-module.dpatch
+03-config-kmk.dpatch
+04-localconf-kmk.dpatch
