@@ -5,6 +5,7 @@ Maintainer: Debian Virtualbox Team  <pkg-virtualbox-devel@lists.alioth.debian.or
 Uploaders: Philipp Hug <debian@hug.cx>, Marvin Stark <marv@der-marv.de>, Michael Meskes <meskes@debian.org>, Patrick Winnertz <patrick.winnertz@skolelinux.org>, Daniel Baumann <daniel@debian.org>
 Build-Depends: debhelper (>= 5), dpatch, bcc, bin86, bzip2, g++-multilib [amd64], iasl, kbuild, libacl1-dev, libasound-dev, libc6-dev-i386 [amd64], libhal-dev, libidl-dev, libqt3-mt-dev, libsdl1.2-dev, libxalan110-dev, libxerces27-dev, libxcursor-dev, uuid-dev, xalan, xsltproc, yasm, zlib1g-dev
 Standards-Version: 3.7.2
+XS-Homepage: http://www.virtualbox.org/
 XS-Vcs-Svn: svn://svn.debian.org/svn/pkg-virtualbox/trunk
 XS-Vcs-Browse: http://svn.debian.org/wsvn/pkg-virtualbox/trunk
 
@@ -21,8 +22,6 @@ Description: PC virtualization solution
  Linux, FreeBSD, DOS, OpenBSD and others.
  .
  This packages contains the Open Source Edition of VirtualBox.
- .
-  Homepage: <http://www.virtualbox.org/>
 
 Package: virtualbox-ose-source
 Architecture: all
@@ -38,5 +37,3 @@ Description: Source for the VirtualBox module
  VirtualBox is a free PC virtualization solution allowing you to run a wide
  range of PC operating systems on your Linux system. This includes Windows,
  Linux, FreeBSD, DOS, OpenBSD and others.
- .
-  Homepage: <http://www.virtualbox.org/>
