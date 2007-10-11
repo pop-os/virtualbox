@@ -31,6 +31,7 @@ virtualbox-ose (1.5.0-dfsg2-3) UNRELEASED; urgency=low
     virtualbox-ose.postinst and virtualbox-ose.postrm.
   * Added m-a override link for virtualbox-ose-source.
   * Re-applied improvements to dfsg-target in rules from 1.5.0-dfsg-1 upload.
+  * Removing not needed debhelper calls in binary-indep target in rules.
 
  -- Daniel Baumann <daniel@debian.org>  Tue,  2 Oct 2007 13:57:00 +0200
 
