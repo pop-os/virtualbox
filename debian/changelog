@@ -30,6 +30,7 @@ virtualbox-ose (1.5.0-dfsg2-3) UNRELEASED; urgency=low
   * Cleaned, simplified and refractored postinst.modules.in,
     virtualbox-ose.postinst and virtualbox-ose.postrm.
   * Added m-a override link for virtualbox-ose-source.
+  * Re-applied improvements to dfsg-target in rules from 1.5.0-dfsg-1 upload.
 
  -- Daniel Baumann <daniel@debian.org>  Tue,  2 Oct 2007 13:57:00 +0200
 
