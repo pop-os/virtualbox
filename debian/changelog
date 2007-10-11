@@ -29,6 +29,7 @@ virtualbox-ose (1.5.0-dfsg2-3) UNRELEASED; urgency=low
     virtualbox-ose.README.rebuild.
   * Cleaned, simplified and refractored postinst.modules.in,
     virtualbox-ose.postinst and virtualbox-ose.postrm.
+  * Added m-a override link for virtualbox-ose-source.
 
  -- Daniel Baumann <daniel@debian.org>  Tue,  2 Oct 2007 13:57:00 +0200
 
