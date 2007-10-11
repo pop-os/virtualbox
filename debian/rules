@@ -105,7 +105,7 @@ install: build
 	dh_clean -k
 	dh_installdirs
 
-	install -D -m 0644 $(CURDIR)/debian/$(sname).lintian-overrides       \
+	install -D -m 0644 $(CURDIR)/debian/lintian/$(sname) \
         $(CURDIR)/debian/$(sname)/usr/share/lintian/overrides/$(sname)
 
 	# Installing virtualbox
