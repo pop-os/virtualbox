@@ -35,6 +35,7 @@ virtualbox-ose (1.5.0-dfsg2-3) UNRELEASED; urgency=low
   * Moving debian/virtualbox-ose.lintian-overrides to
     debian/lintian/virtualbox-ose for consistency reasons.
   * Moving debian/VBox.sh to debian/scripts/VBox.sh for consistency reasons.
+  * Updated menu file to new menu policy.
 
  -- Daniel Baumann <daniel@debian.org>  Tue,  2 Oct 2007 13:57:00 +0200
 
