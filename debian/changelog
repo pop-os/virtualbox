@@ -9,7 +9,6 @@ virtualbox-ose (1.5.2-dfsg-1) UNRELEASED; urgency=low
   * Changed priority to extra.
 
   [ Daniel Baumann ]
-  * New upstream release.
   * Removing useless whitespaces at EOL and EOF in debian/*.
   * Sorting architectures.
   * Sorting build-depends.
@@ -38,6 +37,9 @@ virtualbox-ose (1.5.2-dfsg-1) UNRELEASED; urgency=low
     debian/lintian/virtualbox-ose for consistency reasons.
   * Moving debian/VBox.sh to debian/scripts/VBox.sh for consistency reasons.
   * Updated menu file to new menu policy.
+  * New upstream release:
+    - Updating dfsg-free target in rules.
+    - Updating 01-configure.dpatch.
 
  -- Daniel Baumann <daniel@debian.org>  Thu, 18 Oct 2007 21:45:00 +0200
 

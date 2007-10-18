@@ -5,10 +5,10 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-1.5.0-dfsg2.orig/configure virtualbox-ose-1.5.0-dfsg2/configure
---- virtualbox-ose-1.5.0-dfsg2.orig/configure	2007-08-31 12:42:12.000000000 +0000
-+++ virtualbox-ose-1.5.0-dfsg2/configure	2007-10-09 12:24:17.000000000 +0000
-@@ -248,8 +248,8 @@ check_environment()
+diff -Naurp virtualbox-ose-1.5.2-dfsg.orig/configure virtualbox-ose-1.5.2-dfsg/configure
+--- virtualbox-ose-1.5.2-dfsg.orig/configure	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg/configure	2007-10-18 20:09:49.000000000 +0000
+@@ -265,8 +265,8 @@ check_environment()
        exit 1
        ;;
    esac
@@ -16,15 +16,15 @@ diff -Naurp virtualbox-ose-1.5.0-dfsg2.orig/configure virtualbox-ose-1.5.0-dfsg2
 -  KBUILDDIR_BIN="$KBUILDDIR/bin/$OS.$BUILD_MACHINE"
 +  DEVDIR_BIN="/usr/bin"
 +  KBUILDDIR_BIN="/usr/bin"
+   KBUILD_SED="$KBUILDDIR_BIN/kmk_sed"
    log_success "Determined build machine: $OS.$BUILD_MACHINE, target machine: $OS.$TARGET_MACHINE"
  
-   # Automatically disable XPCOM on darwin.
-@@ -1335,7 +1335,7 @@ check_gcc
+@@ -1450,7 +1450,7 @@ check_gcc
  
  # Linux-specific
  if [ "$OS" = "linux" ]; then
 -  check_linux
-+#  check_linux
++  #check_linux
    check_alsa
    check_compiler_h
    [ "$BUILD_MACHINE" = "amd64" ] && check_32bit
