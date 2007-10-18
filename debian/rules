@@ -95,8 +95,8 @@ dfsg-free:
 	rm -f ./src/libs/xpcom18a4/xpcom/MoreFiles/FSCopyObject.h
 	rm -rf ./debian/
 	find . -type d -name '.svn' | xargs rm -rf;
-	cd .. && mv VirtualBox-1.5.0_OSE virtualbox-ose-1.5.0-dfsg && \
-		tar cfz virtualbox-ose_1.5.0-dfsg.orig.tar.gz virtualbox-ose-1.5.0-dfsg
+	cd .. && mv VirtualBox-1.5.2_OSE virtualbox-ose-1.5.2-dfsg && \
+		tar cfz virtualbox-ose_1.5.2-dfsg.orig.tar.gz virtualbox-ose-1.5.2-dfsg
 
 install: DH_OPTIONS=
 install: build

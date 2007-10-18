@@ -1,4 +1,4 @@
-virtualbox-ose (1.5.0-dfsg2-3) UNRELEASED; urgency=low
+virtualbox-ose (1.5.2-dfsg-1) UNRELEASED; urgency=low
 
   [ Michael Meskes ]
   * Made build process install menu file, closes: #444842
@@ -9,6 +9,7 @@ virtualbox-ose (1.5.0-dfsg2-3) UNRELEASED; urgency=low
   * Changed priority to extra.
 
   [ Daniel Baumann ]
+  * New upstream release.
   * Removing useless whitespaces at EOL and EOF in debian/*.
   * Sorting architectures.
   * Sorting build-depends.
@@ -38,7 +39,7 @@ virtualbox-ose (1.5.0-dfsg2-3) UNRELEASED; urgency=low
   * Moving debian/VBox.sh to debian/scripts/VBox.sh for consistency reasons.
   * Updated menu file to new menu policy.
 
- -- Michael Meskes <meskes@debian.org>  Fri, 12 Oct 2007 09:40:13 +0200
+ -- Daniel Baumann <daniel@debian.org>  Thu, 18 Oct 2007 21:45:00 +0200
 
 virtualbox-ose (1.5.0-dfsg2-2) unstable; urgency=low
 
