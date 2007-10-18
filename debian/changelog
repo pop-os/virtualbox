@@ -37,6 +37,7 @@ virtualbox-ose (1.5.2-dfsg-1) UNRELEASED; urgency=low
     debian/lintian/virtualbox-ose for consistency reasons.
   * Moving debian/VBox.sh to debian/scripts/VBox.sh for consistency reasons.
   * Updated menu file to new menu policy.
+  * Updated fsf address in copyright.
   * New upstream release:
     - Updating dfsg-free target in rules.
     - Updating 01-configure.dpatch.
