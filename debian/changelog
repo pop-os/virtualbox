@@ -1,4 +1,4 @@
-virtualbox-ose (1.5.2-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (1.5.2-dfsg-1) unstable; urgency=low
 
   [ Michael Meskes ]
   * Made build process install menu file, closes: #444842
@@ -6,7 +6,7 @@ virtualbox-ose (1.5.2-dfsg-1) UNRELEASED; urgency=low
   * Syncronized desktop and menu file.
   * Documented features missing in Open-Source-Edition in
     README.Debian, closes: #444941
-  * Changed priority to extra.
+  * Changed menu section to Applications/Emulators.
 
   [ Daniel Baumann ]
   * Removing useless whitespaces at EOL and EOF in debian/*.
@@ -42,7 +42,7 @@ virtualbox-ose (1.5.2-dfsg-1) UNRELEASED; urgency=low
     - Updating dfsg-free target in rules.
     - Updating 01-configure.dpatch.
 
- -- Daniel Baumann <daniel@debian.org>  Thu, 18 Oct 2007 21:45:00 +0200
+ -- Michael Meskes <meskes@debian.org>  Fri, 19 Oct 2007 10:19:49 +0200
 
 virtualbox-ose (1.5.0-dfsg2-2) unstable; urgency=low
 
