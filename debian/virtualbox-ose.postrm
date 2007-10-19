@@ -5,7 +5,10 @@ set -e
 case "${1}" in
 	purge)
 		# Removing vboxusers group
-		delgroup --quiet --system vboxusers
+		if [ -x /usr/sbin/delgroup ]
+		then
+			delgroup --quiet --system vboxusers
+		fi
 		;;
 
 	remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
