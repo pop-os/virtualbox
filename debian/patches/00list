@@ -2,3 +2,4 @@
 02-host-module.dpatch
 03-config-kmk.dpatch
 04-localconf-kmk.dpatch
+05-vboxdrv-references.dpatch

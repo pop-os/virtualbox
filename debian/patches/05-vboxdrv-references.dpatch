@@ -1,0 +1,34 @@
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 05-vboxdrv-references.dpatch by Daniel Hahler <ubuntu@thequod.de>
+##
+## DP: Change error messages for vboxdrv failure, according to
+## DP: virtualbox-ose-modules.
+
+@DPATCH@
+
+diff -Naurp virtualbox-ose-1.5.2-dfsg.orig/src/VBox/VMM/VM.cpp virtualbox-ose-1.5.2-dfsg/src/VBox/VMM/VM.cpp
+--- virtualbox-ose-1.5.2-dfsg.orig/src/VBox/VMM/VM.cpp	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg/src/VBox/VMM/VM.cpp	2007-10-19 19:33:52.000000000 +0000
+@@ -314,8 +314,8 @@ VMR3DECL(int)   VMR3Create(PFNVMATERROR 
+ #ifdef RT_OS_LINUX
+                 pszError = N_("VirtualBox kernel driver not loaded. The vboxdrv kernel module "
+ 		              "was either not loaded or /dev/vboxdrv is not set up properly. "
+-			      "Re-setup the kernel module by executing "
+-			      "'/etc/init.d/vboxdrv setup' as root");
++                              "Please install the virtualbox-ose-modules package for your "
++                              "kernel and execute '/etc/init.d/vboxdrv start' as root");
+ #else
+                 pszError = N_("VirtualBox kernel driver not loaded.");
+ #endif
+@@ -337,8 +337,9 @@ VMR3DECL(int)   VMR3Create(PFNVMATERROR 
+ #ifdef RT_OS_LINUX
+                 pszError = N_("VirtualBox kernel driver not installed. The vboxdrv kernel module "
+ 		              "was either not loaded or /dev/vboxdrv was not created for some "
+-			      "reason. Re-setup the kernel module by executing "
+-			      "'/etc/init.d/vboxdrv setup' as root");
++			      "reason. "
++                              "Please install the virtualbox-ose-modules package for your "
++                              "kernel and execute '/etc/init.d/vboxdrv start' as root");
+ #else
+                 pszError = N_("VirtualBox kernel driver not installed");
+ #endif
