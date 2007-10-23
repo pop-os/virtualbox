@@ -164,7 +164,7 @@ binary-arch: build install
 	dh_install -a
 	dh_installmenu -a
 	dh_link -a
-	dh_strip -a
+	dh_strip -a --dbg-package=virtualbox-ose-dbg
 	dh_compress -a
 	dh_fixperms -X=/usr/lib/virtualbox/VBox.sh -a
 	dh_installudev -a

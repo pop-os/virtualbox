@@ -23,6 +23,19 @@ Description: PC virtualization solution
  .
  This packages contains the Open Source Edition of VirtualBox.
 
+Package: virtualbox-ose-dbg
+Section: devel
+Priority: extra
+Architecture: amd64 i386
+Depends: virtualbox-ose (= ${binary:Version})
+Description: PC virtualization solution (debug)
+ VirtualBox is a free PC virtualization solution allowing you to run a wide
+ range of PC operating systems on your Linux system. This includes Windows,
+ Linux, FreeBSD, DOS, OpenBSD and others.
+ .
+ This packages contains the debugging symbols for the Open Source Edition of
+ VirtualBox.
+
 Package: virtualbox-ose-source
 Architecture: all
 Depends: debhelper (>= 5), dpatch, module-assistant, bzip2, kbuild
