@@ -1,8 +1,12 @@
 virtualbox-ose (1.5.2-dfsg-3) UNRELEASED; urgency=low
 
+  [ Daniel Baumann ]
   * Added debug package.
 
- -- Daniel Baumann <daniel@debian.org>  Tue, 23 Oct 2007 12:34:00 +0200
+  [ Michael Meskes ]
+  * Made sure modules postinst calls debmod before modprobe.
+
+ -- Michael Meskes <meskes@debian.org>  Sat, 27 Oct 2007 12:44:54 +0200
 
 virtualbox-ose (1.5.2-dfsg-2) unstable; urgency=low
 

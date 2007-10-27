@@ -2,6 +2,8 @@
 
 set -e
 
+#DEBHELPER#
+
 case "${1}" in
 	configure)
 		modprobe vboxdrv || true
@@ -17,7 +19,5 @@ case "${1}" in
 		exit 1
 		;;
 esac
-
-#DEBHELPER#
 
 exit 0
