@@ -5,9 +5,9 @@ Maintainer: Debian Virtualbox Team <pkg-virtualbox-devel@lists.alioth.debian.org
 Uploaders: Philipp Hug <debian@hug.cx>, Marvin Stark <marv@der-marv.de>, Michael Meskes <meskes@debian.org>, Patrick Winnertz <patrick.winnertz@skolelinux.org>, Daniel Baumann <daniel@debian.org>
 Build-Depends: debhelper (>= 5), dpatch, kbuild
 Standards-Version: 3.7.2
-XS-Homepage: http://www.virtualbox.org/
-XS-Vcs-Svn: svn://svn.debian.org/svn/pkg-virtualbox/trunk
-XS-Vcs-Browse: http://svn.debian.org/wsvn/pkg-virtualbox/trunk
+Homepage: http://www.virtualbox.org/
+Vcs-Svn: svn://svn.debian.org/svn/pkg-virtualbox/trunk
+Vcs-Browser: http://svn.debian.org/wsvn/pkg-virtualbox/trunk
 
 Package: virtualbox-ose-modules-_KVERS_
 Architecture: amd64 i386
