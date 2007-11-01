@@ -1,4 +1,5 @@
 usr/bin
 usr/sbin
 usr/lib
+usr/share/virtualbox
 etc/vbox

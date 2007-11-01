@@ -40,3 +40,8 @@ In order to fix this issue please delete the complete
 section in the xml file.
 
  -- Patrick Winnertz <patrick.winnertz@skolelinux.org>  Wed, 19 Sep 2007 23:29:32 +0200
+
+Please see also http://wiki.debian.org/VirtualBox for additinal information.
+
+ -- Michael Meskes <meskes@debian.org>  Thu, 01 Nov 2007 14:46:39 +0100
+

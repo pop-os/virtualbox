@@ -110,6 +110,10 @@ install: build
 
 	# Installing virtualbox
 	cp -r out/linux.*/release/bin debian/$(sname)/usr/lib/virtualbox
+	# move architecture independant files to /usr/share/virtualbox instead of /usr/lib/virtualbox
+	mv debian/$(sname)/usr/lib/virtualbox/nls debian/$(sname)/usr/share/virtualbox
+	mv debian/$(sname)/usr/lib/virtualbox/sdk debian/$(sname)/usr/share/virtualbox
+
 	install -D -m 0755  debian/scripts/VBox.sh debian/$(sname)/usr/lib/virtualbox
 
 	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/vboxmanage
