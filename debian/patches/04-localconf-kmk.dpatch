@@ -14,12 +14,12 @@ diff -Naurp virtualbox-ose-1.5.0-dfsg2.orig/LocalConfig.kmk virtualbox-ose-1.5.0
 +VBOX_WITH_VBOXDRV =
 +VBOX_WITH_LINUX_ONLY =
 +VBOX_ADDITIONS_LINUX_ONLY =
-+VBOX_WITH_INSTALLER =
-+VBOX_WITH_LINUX_ADDITIONS =
++VBOX_WITH_INSTALLER = 1
++VBOX_WITH_LINUX_ADDITIONS = 1
 +VBOX_WITH_TESTCASES =
 +VBOX_WITH_TESTSUITE =
 +VBOX_WITH_USB =
 +DEFS += RTPATH_APP_DOCS=\"/usr/share/doc/virtualbox\"
 +DEFS += RTPATH_APP_PRIVATE_ARCH=\"/usr/lib/virtualbox\"
 +DEFS += RTPATH_APP_PRIVATE=\"/usr/share/virtualbox\"
-+DEFS += RTPATH_SHARED_LIBS=\"/usr/lib\"
++DEFS += RTPATH_SHARED_LIBS=\"/usr/lib/virtualbox\"

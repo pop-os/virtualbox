@@ -22,6 +22,9 @@ This applies to the complete sourcetree with the execptions mentioned below:
 
 The following files are licensed under GPLv2:
 
+./src/VBox/Installer/linux/tunctl.c
+	Copyright 2002 Jeff Dike
+
 ./src/VBox/HostDrivers/VBoxTAP/
         Copyright (C) Damion K. Wilson, 2003
 
@@ -235,6 +238,12 @@ The Cygwin License applies to:
         Copyright 1997, 1998, 1999, 2001 Red Hat, Inc.
 
 A copy of this license is appended below.
+
+-------------------------------------------------------------------------------
+The complete subtree ./src/VBox/Additions/Linux/x11include is taken from the X
+sources and still carries the original license. Some work under
+./src/VBox/Additions/Linux was derived from the X sources and carries both, the
+original X license and the innotek GPL license.
 
 -------------------------------------------------------------------------------
 

@@ -1,4 +1,4 @@
-virtualbox-ose (1.5.2-dfsg-3) UNRELEASED; urgency=low
+virtualbox-ose (1.5.2-dfsg2-1) unstable; urgency=low
 
   [ Daniel Baumann ]
   * Added debug package.
@@ -7,7 +7,12 @@ virtualbox-ose (1.5.2-dfsg-3) UNRELEASED; urgency=low
   [ Michael Meskes ]
   * Made sure modules postinst calls debmod before modprobe.
   * Added reference to http://wiki.debian.org/VirtualBox to README.Debian.
-  * Moved architecture independant files from /usr/lib to /usr/share.
+  * Moved architecture independant files from /usr/lib to /usr/share, closes: #448951
+  * Checked license of linux installer and additions.
+  * Repackaged dfsg orig tarball accordingly.
+  * Added linux installer, closes: #448749
+  * Added linux additions, closes: #440517
+  * Provide programs with upstream upper/lower case mix as used by upstream.
 
  -- Michael Meskes <meskes@debian.org>  Thu, 01 Nov 2007 14:47:10 +0100
 
