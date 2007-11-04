@@ -113,20 +113,25 @@ install: build
 	rm -r debian/$(sname)/usr/lib/virtualbox/additions/src
 
 	mkdir -p debian/$(psource)/usr/src/modules/$(sname)/debian
-	cp debian/*.modules.in* debian/control debian/changelog debian/copyright debian/compat  debian/$(psource)/usr/src/modules/$(sname)/debian
-	cp debian/$(psource).rules  debian/$(psource)/usr/src/modules/$(sname)/debian/rules
-
-	mkdir -p debian/$(gsource)/usr/src/modules/$(gname)/debian
-	cp debian/*.modules.in* debian/control debian/changelog debian/copyright debian/compat  debian/$(gsource)/usr/src/modules/$(gname)/debian
-	cp debian/$(gsource).rules  debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
+	cp debian/control debian/changelog debian/copyright debian/compat debian/$(psource)/usr/src/modules/$(sname)/debian
+	cp debian/$(psource).control.modules.in debian/$(psource)/usr/src/modules/$(sname)/debian/control.modules.in
+	cp debian/$(psource).postinst.modules.in debian/$(psource)/usr/src/modules/$(sname)/debian/postinst.modules.in
+	cp debian/$(psource).rules debian/$(psource)/usr/src/modules/$(sname)/debian/rules
 
 	cd debian/$(psource)/usr/src && tar c modules | bzip2 -9 > $(sname).tar.bz2 && rm -rf modules
+
+	mkdir -p debian/$(gsource)/usr/src/modules/$(gname)/debian
+	cp debian/control debian/changelog debian/copyright debian/compat debian/$(gsource)/usr/src/modules/$(gname)/debian
+	cp debian/$(gsource).control.modules.in debian/$(gsource)/usr/src/modules/$(gname)/debian/control.modules.in
+	cp debian/$(gsource).postinst.modules.in debian/$(gsource)/usr/src/modules/$(gname)/debian/postinst.modules.in
+	cp debian/$(gsource).rules  debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
+
 	cd debian/$(gsource)/usr/src && tar c modules | bzip2 -9 > $(gname).tar.bz2 && rm -rf modules
 
 	# Install virtualbox guest additions
 	mkdir -p debian/$(uname)/usr/lib/virtualbox
 	mv debian/$(sname)/usr/lib/virtualbox/additions debian/$(uname)/usr/lib/virtualbox
-
+	
 	dh_install
 
 binary-arch: build install

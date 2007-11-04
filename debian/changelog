@@ -1,4 +1,4 @@
-virtualbox-ose (1.5.2-dfsg2-1) unstable; urgency=low
+virtualbox-ose (1.5.2-dfsg2-1) UNRELEASED; urgency=low
 
   [ Daniel Baumann ]
   * Added debug package.
@@ -11,8 +11,8 @@ virtualbox-ose (1.5.2-dfsg2-1) unstable; urgency=low
   * Checked license of linux installer and additions.
   * Repackaged dfsg orig tarball accordingly.
   * Added linux installer, closes: #448749
-  * Added linux additions, closes: #440517
   * Provide programs with upstream upper/lower case mix as used by upstream.
+  * Added linux additions in two seperate packages, closes: #440517
 
  -- Michael Meskes <meskes@debian.org>  Thu, 01 Nov 2007 14:47:10 +0100
 
