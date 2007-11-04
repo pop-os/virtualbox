@@ -130,7 +130,13 @@ install: build
 
 	# Install virtualbox guest additions
 	mkdir -p debian/$(uname)/usr/lib/virtualbox
-	mv debian/$(sname)/usr/lib/virtualbox/additions debian/$(uname)/usr/lib/virtualbox
+	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxvideo_drv_14.so debian/$(uname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
+	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/mouse/vboxmouse_drv.so
+	mv debian/$(sname)/usr/lib/virtualbox/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
+	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxadd-timesync debian/$(uname)/usr/sbin/vboxadd-timesync
+	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxadd-xclient debian/$(uname)/usr/sbin/vboxadd-xclient
+	install -m 755 src/VBox/Additions/linux/installer/x11config.pl debian/$(uname)/usr/lib/virtualbox/
+	rm -r debian/$(sname)/usr/lib/virtualbox/additions
 	
 	dh_install
 
@@ -143,8 +149,6 @@ binary-arch: build install
 	dh_installmenu -a
 	dh_link -a
 	dh_strip -a --dbg-package=$(sname)-dbg
-	# remove debug symbols belonging to libs that get installed inside the virtual machine
-	rm -r debian/$(sname)-dbg/usr/lib/debug/usr/lib/virtualbox/additions
 	dh_compress -a
 	dh_fixperms -X=/usr/lib/virtualbox/VBox.sh -a
 	dh_installudev -a
