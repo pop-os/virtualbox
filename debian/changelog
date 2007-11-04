@@ -16,10 +16,10 @@ virtualbox-ose (1.5.2-dfsg2-1) UNRELEASED; urgency=low
     TODO:	- guests-utils need an init script
     		- device creation in guest-modules postinst is a hack and
 		  won't last over a reboot the way it is now
-		- get guest additions to work, my first try resulted in no
-		  mouse pointer at all
+		- add vboxnet initscript for network config?
+		- test vboxvfs
 
- -- Michael Meskes <meskes@debian.org>  Thu, 01 Nov 2007 14:47:10 +0100
+ -- Michael Meskes <meskes@debian.org>  Sun, 04 Nov 2007 19:58:39 +0100
 
 virtualbox-ose (1.5.2-dfsg-2) unstable; urgency=low
 

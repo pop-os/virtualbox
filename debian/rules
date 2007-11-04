@@ -131,7 +131,7 @@ install: build
 	# Install virtualbox guest additions
 	mkdir -p debian/$(uname)/usr/lib/virtualbox
 	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxvideo_drv_14.so debian/$(uname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
-	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/mouse/vboxmouse_drv.so
+	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
 	mv debian/$(sname)/usr/lib/virtualbox/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
 	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxadd-timesync debian/$(uname)/usr/sbin/vboxadd-timesync
 	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxadd-xclient debian/$(uname)/usr/sbin/vboxadd-xclient
