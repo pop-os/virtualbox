@@ -3,3 +3,6 @@
 03-config-kmk.dpatch
 04-localconf-kmk.dpatch
 05-vboxdrv-references.dpatch
+06-vboxadd-udev.dpatch
+07-xsession.dpatch
+

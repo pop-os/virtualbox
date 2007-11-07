@@ -1,0 +1,89 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 06-vboxadd-udev.dpatch by  <meskes@debian.org>
+## basic idea taken from http://blino.org/blog/mandriva/kernel
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Make vboxadd module register /dev/vboxadd correctly
+
+@DPATCH@
+
+--- virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/vboxmod.c.orig	2007-11-06 16:13:36.000000000 +0100
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/vboxmod.c	2007-11-06 16:15:00.000000000 +0100
+@@ -23,6 +23,7 @@
+ #include "vboxmod.h"
+ #include "waitcompat.h"
+ #include <VBox/log.h>
++#include <linux/miscdevice.h>
+ 
+ #define VERSION "0.5"
+ 
+@@ -411,6 +412,13 @@
+     .llseek  = no_llseek
+ };
+ 
++static struct miscdevice vbox_dev =
++{
++    minor:      MISC_DYNAMIC_MINOR,
++    name:       "vboxadd",
++    fops:       &vbox_fops,
++};
++
+ #ifndef IRQ_RETVAL
+ /* interrupt handlers in 2.4 kernels don't return anything */
+ # define irqreturn_t void
+@@ -685,17 +693,22 @@
+     }
+ 
+     /* register a character device */
+-    err = register_chrdev(vbox_major, "vboxadd", &vbox_fops);
+-    if (err < 0 || ((vbox_major & err) || (!vbox_major && !err)))
++    if (vbox_major > 0)
+     {
+-        printk(KERN_ERR "vboxadd: register_chrdev failed: vbox_major: %d, err = %d\n",
+-               vbox_major, err);
+-        PCI_DEV_PUT(pcidev);
+-        return -ENODEV;
++	err = register_chrdev(vbox_major, "vboxadd", &vbox_fops);
++	if (err < 0 || ((vbox_major & err) || (!vbox_major && !err)))
++	{
++		printk(KERN_ERR "vboxadd: register_chrdev failed: vbox_major: %d, err = %d\n",
++		       vbox_major, err);
++		PCI_DEV_PUT(pcidev);
++		return -ENODEV;
++	}
++	/* if no major code was set, take the return value */
++	if (!vbox_major)
++		vbox_major = err;
+     }
+-    /* if no major code was set, take the return value */
+-    if (!vbox_major)
+-        vbox_major = err;
++    else
++	err = misc_register(&vbox_dev);
+ 
+     /* allocate and initialize device extension */
+     vboxDev = kmalloc(sizeof(*vboxDev), GFP_KERNEL);
+@@ -829,7 +842,10 @@
+ fail:
+     PCI_DEV_PUT(pcidev);
+     free_resources();
+-    unregister_chrdev(vbox_major, "vboxadd");
++    if (vbox_major > 0)
++	unregister_chrdev(vbox_major, "vboxadd");
++    else
++    	misc_deregister(&vbox_dev);
+     return err;
+ }
+ 
+@@ -841,7 +857,10 @@
+ {
+     printk(KERN_DEBUG "vboxadd: unloading...\n");
+ 
+-    unregister_chrdev(vbox_major, "vboxadd");
++    if (vbox_major > 0)
++	unregister_chrdev(vbox_major, "vboxadd");
++    else
++    	misc_deregister(&vbox_dev);
+     free_resources();
+     vboxadd_cmc_fini ();
+     printk(KERN_DEBUG "vboxadd: unloaded\n");

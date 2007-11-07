@@ -10,16 +10,11 @@ virtualbox-ose (1.5.2-dfsg2-1) UNRELEASED; urgency=low
   * Moved architecture independant files from /usr/lib to /usr/share, closes: #448951
   * Checked license of linux installer and additions.
   * Repackaged dfsg orig tarball accordingly.
-  * Added linux installer, closes: #448749
+  * Added linux installer tools, closes: #448749
   * Provide programs with upstream upper/lower case mix as used by upstream.
-  * Added linux additions in two seperate packages, closes: #440517
-    TODO:	- guests-utils need an init script
-    		- device creation in guest-modules postinst is a hack and
-		  won't last over a reboot the way it is now
-		- add vboxnet initscript for network config?
-		- test vboxvfs
+  * Added linux additions in two seperate packages, closes: #440517, #449315
 
- -- Michael Meskes <meskes@debian.org>  Sun, 04 Nov 2007 19:58:39 +0100
+ -- Michael Meskes <meskes@debian.org>  Tue, 06 Nov 2007 20:26:35 +0100
 
 virtualbox-ose (1.5.2-dfsg-2) unstable; urgency=low
 

@@ -1,0 +1,17 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 07-Xsession.dpatch by  <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Create a start script in Xsession.d
+
+@DPATCH@
+
+--- virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/installer/98vboxadd-xclient.orig	2007-11-06 16:29:23.000000000 +0100
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/installer/98vboxadd-xclient	2007-11-06 16:28:15.000000000 +0100
+@@ -0,0 +1,6 @@
++# (C) 2007
++# Michael Meskes <meskes@debian.org>
++# Placed under GPL
++# I had to rewrite this simple file because of some license restrictions
++
++/usr/bin/vboxadd-xclient || true

@@ -11,30 +11,6 @@ case "${1}" in
 		modprobe vboxadd || true
 		modprobe vboxvfs || true
 		invoke-rc.d udev reload
-		if [ ! -c $dev ]; then
-		        maj=`sed -n 's;\([0-9]\+\) vboxadd;\1;p' /proc/devices`
-		        if [ ! -z "$maj" ]; then
-		            min=0
-			else
-			    min=`sed -n 's;\([0-9]\+\) vboxadd;\1;p' /proc/misc`
-			    if [ ! -z "$min" ]; then
-				maj=10
-			    fi
-			fi
-			test -z "$maj" && {
-				rmmod vboxvfs
-				rmmod vboxadd
-				echo "Cannot locate the VirtualBox device"
-				exit 1
-			}
-
-			mknod -m 0664 $dev c $maj $min || {
-				rmmod vboxvfs
-				rmmod vboxadd
-				echo "Cannot create device $dev with major $maj and minor $min"
-				exit 1
-			}
-		fi
 		;;
 
 	abort-upgrade|abort-deconfigure|abort-remove)

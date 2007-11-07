@@ -72,6 +72,7 @@ install: build
 	dh_testroot
 	dh_clean -k
 	dh_installdirs
+	dh_installinit
 
 	install -D -m 0644 $(CURDIR)/debian/lintian/$(sname) \
         $(CURDIR)/debian/$(sname)/usr/share/lintian/overrides/$(sname)
@@ -116,7 +117,7 @@ install: build
 	cp debian/control debian/changelog debian/copyright debian/compat debian/$(psource)/usr/src/modules/$(sname)/debian
 	cp debian/$(psource).control.modules.in debian/$(psource)/usr/src/modules/$(sname)/debian/control.modules.in
 	cp debian/$(psource).postinst.modules.in debian/$(psource)/usr/src/modules/$(sname)/debian/postinst.modules.in
-	cp debian/$(psource).rules debian/$(psource)/usr/src/modules/$(sname)/debian/rules
+	install -m 755 debian/$(psource).rules debian/$(psource)/usr/src/modules/$(sname)/debian/rules
 
 	cd debian/$(psource)/usr/src && tar c modules | bzip2 -9 > $(sname).tar.bz2 && rm -rf modules
 
@@ -124,7 +125,8 @@ install: build
 	cp debian/control debian/changelog debian/copyright debian/compat debian/$(gsource)/usr/src/modules/$(gname)/debian
 	cp debian/$(gsource).control.modules.in debian/$(gsource)/usr/src/modules/$(gname)/debian/control.modules.in
 	cp debian/$(gsource).postinst.modules.in debian/$(gsource)/usr/src/modules/$(gname)/debian/postinst.modules.in
-	cp debian/$(gsource).rules  debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
+	cp debian/$(gsource).udev debian/$(gsource)/usr/src/modules/$(gname)/debian/udev
+	install -m 755 debian/$(gsource).rules  debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
 
 	cd debian/$(gsource)/usr/src && tar c modules | bzip2 -9 > $(gname).tar.bz2 && rm -rf modules
 
@@ -134,8 +136,9 @@ install: build
 	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
 	mv debian/$(sname)/usr/lib/virtualbox/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
 	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxadd-timesync debian/$(uname)/usr/sbin/vboxadd-timesync
-	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxadd-xclient debian/$(uname)/usr/sbin/vboxadd-xclient
+	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxadd-xclient debian/$(uname)/usr/bin/vboxadd-xclient
 	install -m 755 src/VBox/Additions/linux/installer/x11config.pl debian/$(uname)/usr/lib/virtualbox/
+	install -m 644 src/VBox/Additions/linux/installer/98vboxadd-xclient debian/$(uname)/etc/X11/Xsession.d
 	rm -r debian/$(sname)/usr/lib/virtualbox/additions
 	
 	dh_install
@@ -149,6 +152,7 @@ binary-arch: build install
 	dh_installmenu -a
 	dh_link -a
 	dh_strip -a --dbg-package=$(sname)-dbg
+	rm -r debian/$(sname)-dbg/usr/lib/debug/usr/sbin debian/$(sname)-dbg/usr/lib/debug/sbin
 	dh_compress -a
 	dh_fixperms -X=/usr/lib/virtualbox/VBox.sh -a
 	dh_installudev -a
