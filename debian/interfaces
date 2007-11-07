@@ -1,0 +1,4 @@
+# Linux static host networking interface configuration
+#
+# <interface> <user> <bridge>
+# vbox0 guest br0
