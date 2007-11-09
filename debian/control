@@ -75,4 +75,3 @@ Description: PC virtualization solution - guest utils
  .
  This packages contains the guest utilities of the Open Source Edition of
  VirtualBox. These utilities are supposed to be run inside the virtual machine.
-

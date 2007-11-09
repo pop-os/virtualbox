@@ -48,7 +48,7 @@ clean:
 	(cd vboxadd; $(MAKE) clean)
 	(cd vboxvfs; $(MAKE) clean)
 	dh_clean
-	
+
 binary-modules: prep-deb-files
 	dh_testroot
 	dh_clean -k

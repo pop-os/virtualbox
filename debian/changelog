@@ -3,6 +3,7 @@ virtualbox-ose (1.5.2-dfsg2-1) UNRELEASED; urgency=low
   [ Daniel Baumann ]
   * Added debug package.
   * Converting XS-* fields to their official counterparts.
+  * Removed some re-imported useless whitespaces.
 
   [ Michael Meskes ]
   * Made sure modules postinst calls debmod before modprobe.
