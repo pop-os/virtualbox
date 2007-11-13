@@ -15,8 +15,9 @@ virtualbox-ose (1.5.2-dfsg2-1) UNRELEASED; urgency=low
   * Provide programs with upstream upper/lower case mix as used by upstream.
   * Added linux additions in two seperate packages, closes: #440517, #449315
   * Install vboxnet.sh as init script.
+  * Changed build system to work wihtou kernel sources. 
 
- -- Michael Meskes <meskes@debian.org>  Tue, 06 Nov 2007 20:26:35 +0100
+ -- Michael Meskes <meskes@debian.org>  Tue, 12 Nov 2007 20:26:35 +0100
 
 virtualbox-ose (1.5.2-dfsg-2) unstable; urgency=low
 

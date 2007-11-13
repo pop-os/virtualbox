@@ -5,4 +5,5 @@
 05-vboxdrv-references.dpatch
 06-vboxadd-udev.dpatch
 07-xsession.dpatch
+08-no-kernel.dpatch
 
