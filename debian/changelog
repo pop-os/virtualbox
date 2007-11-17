@@ -4,6 +4,7 @@ virtualbox-ose (1.5.2-dfsg2-2) unstable; urgency=low
     packages are brought in by libqt3-mt-dev anyway.
   * Also removed build dependency on libxerces27-dev because libxalan110-dev
     depends on it.
+  * Remove guest libs from debug package.
 
  -- Michael Meskes <meskes@debian.org>  Thu, 15 Nov 2007 11:35:04 +0100
 

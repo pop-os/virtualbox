@@ -153,7 +153,7 @@ binary-arch: build install
 	dh_installmenu -a
 	dh_link -a
 	dh_strip -a --dbg-package=$(sname)-dbg
-	rm -r debian/$(sname)-dbg/usr/lib/debug/usr/sbin debian/$(sname)-dbg/usr/lib/debug/sbin
+	rm -r debian/$(sname)-dbg/usr/lib/debug/usr/sbin debian/$(sname)-dbg/usr/lib/debug/sbin debian/$(sname)-dbg/usr/lib/debug/usr/lib/xorg
 	dh_compress -a
 	dh_fixperms -X=/usr/lib/virtualbox/VBox.sh -a
 	dh_installudev -a
