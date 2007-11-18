@@ -1,5 +1,6 @@
 virtualbox-ose (1.5.2-dfsg2-2) unstable; urgency=low
 
+  [ Michael Meskes ]
   * Removed superfluous build dependencies:
     - libqt3-mt-dev depends on zlib1g-dev and libxcursor-dev
     - libxalan110-dev depends on libxerces27-dev
@@ -11,7 +12,11 @@ virtualbox-ose (1.5.2-dfsg2-2) unstable; urgency=low
   * Do not start guest utils if not inside the vm.
   * Disabled modprobing of vboxadd because udev seems to be able to handle it.
 
- -- Michael Meskes <meskes@debian.org>  Thu, 15 Nov 2007 11:35:04 +0100
+  [ Daniel Baumann ]
+  * Removing again whitespaces at EOL.
+  * Removing empty virtualbox-ose-guest-utils.postrm.
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 18 Nov 2007 23:48:00 +0100
 
 virtualbox-ose (1.5.2-dfsg2-1) unstable; urgency=low
 
