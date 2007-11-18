@@ -21,8 +21,8 @@ set -e
 case "$1" in
   start)
   	log_action_begin_msg 'Starting VirtualBox Additions';
-	# this may already be loaded, but let's play it safe
-	modprobe vboxadd
+	# udev should have already handled thismodule
+	# modprobe vboxadd
 
 	start-stop-daemon --start --quiet --exec /usr/sbin/vboxadd-timesync -- --daemonize
 	log_end_msg 0
