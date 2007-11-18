@@ -16,6 +16,8 @@ PATH=$PATH:/bin:/sbin:/usr/sbin
 
 set -e
 
+(lspci|grep -q 80ee:beef) || exit 0 # not inside a vm
+
 case "$1" in
   start)
   	log_action_begin_msg 'Starting VirtualBox Additions';

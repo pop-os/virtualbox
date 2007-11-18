@@ -8,6 +8,7 @@ virtualbox-ose (1.5.2-dfsg2-2) unstable; urgency=low
   * Call "invoke-rc.d udev reload" conditionally in modules postinst.
   * Do not call modprobe in postinst script, closes: #451743, #451742
   * Made grep command in vboxnet.sh be quiet, closes: #451741
+  * Do not start guest utils if not inside the vm.
 
  -- Michael Meskes <meskes@debian.org>  Thu, 15 Nov 2007 11:35:04 +0100
 
