@@ -1,9 +1,9 @@
 virtualbox-ose (1.5.2-dfsg2-2) unstable; urgency=low
 
-  * Removed build dependency on zlib1g-dev and libxcursor-dev because these
-    packages are brought in by libqt3-mt-dev anyway.
-  * Also removed build dependency on libxerces27-dev because libxalan110-dev
-    depends on it.
+  * Removed superfluous build dependencies:
+    . libqt3-mt-dev depends on zlib1g-dev and libxcursor-dev
+    . libxalan110-dev depends on libxerces27-dev
+    . bcc depends on bin86
   * Remove guest libs from debug package.
   * Call "invoke-rc.d udev reload" conditionally in modules postinst.
   * Do not call modprobe in postinst script, closes: #451743, #451742
