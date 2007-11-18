@@ -6,8 +6,13 @@ set -e
 
 case "${1}" in
 	configure)
-		modprobe vboxdrv || true
-		invoke-rc.d udev reload
+		if [ -x /etc/init.d/udev ]; then
+			if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
+				invoke-rc.d udev reload || /bin/true
+			else
+				/etc/init.d/udev reload || /bin/true
+			fi
+		fi
 		;;
 
 	abort-upgrade|abort-deconfigure|abort-remove)

@@ -1,0 +1,19 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 09-quiet-grep.dpatch by  <michael@feivel.credativ.de>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Make grep be quiet
+
+@DPATCH@
+
+--- ./src/VBox/Installer/linux/vboxnet.sh.orig	2007-11-18 12:29:09.000000000 +0100
++++ ./src/VBox/Installer/linux/vboxnet.sh	2007-11-18 12:29:41.000000000 +0100
+@@ -236,7 +236,7 @@
+     done < "$CONFIG"
+     # Set /dev/net/tun to belong to the group vboxusers if it exists and does
+     # yet belong to a group.
+-    if ls -g "$TAPDEV" 2>/dev/null | grep root
++    if ls -g "$TAPDEV" 2>/dev/null | grep -q root
+     then
+       chgrp vboxusers "$TAPDEV"
+       chmod 0660 "$TAPDEV"
