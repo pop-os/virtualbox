@@ -11,12 +11,14 @@ virtualbox-ose (1.5.2-dfsg2-2) unstable; urgency=low
   * Made grep command in vboxnet.sh be quiet, closes: #451741
   * Do not start guest utils if not inside the vm.
   * Disabled modprobing of vboxadd because udev seems to be able to handle it.
+  * Applied patch by Kel Modderman <kel@otaku42.de> improving
+    guest utils init script.
 
   [ Daniel Baumann ]
   * Removing again whitespaces at EOL.
   * Removing empty virtualbox-ose-guest-utils.postrm.
 
- -- Daniel Baumann <daniel@debian.org>  Sun, 18 Nov 2007 23:48:00 +0100
+ -- Michael Meskes <meskes@debian.org>  Mon, 19 Nov 2007 10:56:31 +0100
 
 virtualbox-ose (1.5.2-dfsg2-1) unstable; urgency=low
 
