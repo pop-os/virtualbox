@@ -13,6 +13,7 @@ virtualbox-ose (1.5.2-dfsg2-2) unstable; urgency=low
   * Disabled modprobing of vboxadd because udev seems to be able to handle it.
   * Applied patch by Kel Modderman <kel@otaku42.de> improving
     guest utils init script.
+  * Do not change xorg.conf in postinst, closes: #451745
 
   [ Daniel Baumann ]
   * Removing again whitespaces at EOL.

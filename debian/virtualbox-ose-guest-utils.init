@@ -17,9 +17,7 @@ PATH=$PATH:/bin:/sbin:/usr/sbin
 in_virtual_machine()
 {
 	if [ -z "$(lspci -d 80ee:beef)" ]; then
-		log_action_begin_msg 'VirtualBox Additions Disabled';
-		log_warning_msg 'not in a Virtual Machine environemnt';
-		log_end_msg 0
+		log_warning_msg 'VirtualBox Additions Disabled, not in a Virtual Machine';
 		return 1
 	fi
 
