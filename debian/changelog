@@ -1,3 +1,9 @@
+virtualbox-ose (1.5.2-dfsg2-3) unstable; urgency=low
+
+  * Added patch to remove registration form, closes: #447626, #453784
+
+ -- Michael Meskes <meskes@debian.org>  Sun, 02 Dec 2007 18:06:27 +0100
+
 virtualbox-ose (1.5.2-dfsg2-2) unstable; urgency=low
 
   [ Michael Meskes ]
