@@ -1,0 +1,44 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 11-module-build.dpatch by  <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Build module correctly in linux-modules-extra
+
+@DPATCH@
+
+diff -ruN virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/module/Makefile.module virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/Makefile.module
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/module/Makefile.module	2007-10-18 13:07:28.000000000 +0200
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/Makefile.module	2007-12-03 13:35:34.000000000 +0100
+@@ -14,7 +14,7 @@
+ #  be useful, but WITHOUT ANY WARRANTY of any kind.
+ 
+ #
+-MODULE = vboxadd
++override MODULE = vboxadd
+ OBJS   = \
+ 	cmc.o \
+ 	hgcmcall.o \
+diff -ruN virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/sharedfolders/Makefile.module virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/sharedfolders/Makefile.module
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/sharedfolders/Makefile.module	2007-10-18 13:07:28.000000000 +0200
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/sharedfolders/Makefile.module	2007-12-03 13:35:46.000000000 +0100
+@@ -14,7 +14,7 @@
+ #  be useful, but WITHOUT ANY WARRANTY of any kind.
+ 
+ #
+-MODULE = vboxvfs
++override MODULE = vboxvfs
+ OBJS   = \
+ 	vfsmod.o \
+ 	vfs-utils.o \
+diff -ruN virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/HostDrivers/Support/linux/Makefile virtualbox-ose-1.5.2-dfsg2/src/VBox/HostDrivers/Support/linux/Makefile
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/HostDrivers/Support/linux/Makefile	2007-10-18 13:07:28.000000000 +0200
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/HostDrivers/Support/linux/Makefile	2007-12-03 13:33:25.000000000 +0100
+@@ -40,7 +40,7 @@
+ endif
+ 
+ 
+-MODULE = vboxdrv
++override MODULE = vboxdrv
+ OBJS   = \
+ 	linux/SUPDrv-linux.o \
+ 	SUPDRVShared.o \

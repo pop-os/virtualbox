@@ -8,4 +8,5 @@
 08-no-kernel.dpatch
 09-quiet-grep.dpatch
 10-no-registration.dpatch
+11-module-build.dpatch
 
