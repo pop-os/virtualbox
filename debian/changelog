@@ -1,3 +1,9 @@
+virtualbox-ose (1.5.2-dfsg2-4) unstable; urgency=low
+
+  * Changed my maintainer address 
+
+ -- Patrick Winnertz <winnie@debian.org>  Wed, 05 Dec 2007 17:00:39 +0100
+
 virtualbox-ose (1.5.2-dfsg2-3) unstable; urgency=low
 
   * Added patch to remove registration form, closes: #447626, #453784
