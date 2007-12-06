@@ -1,8 +1,18 @@
 virtualbox-ose (1.5.2-dfsg2-4) unstable; urgency=low
 
-  * Changed my maintainer address 
+  [ Patrick Winnertz ]
+  * Changed my maintainer address
 
- -- Patrick Winnertz <winnie@debian.org>  Wed, 05 Dec 2007 17:00:39 +0100
+  [ meskes@debian.org ]
+  * Made virtualbox-ose-guest-source compile under linux-modules-extra.
+  * Made virtualbox-ose-guest-modules i386 only.
+  * Re-encoded copyright file in UTF-8.
+  * Removed empty /usr/sbin directory in virtualbox-ose package.
+  * Removed /usr/lib/virtualbox/VBox.png, doesn't seem to be needed.
+  * Also removed override for this file.
+  * Moved binary file xpidl from /usr/share back to /usr/lib.
+
+ -- Michael Meskes <meskes@debian.org>  Thu, 06 Dec 2007 09:11:51 +0100
 
 virtualbox-ose (1.5.2-dfsg2-3) unstable; urgency=low
 

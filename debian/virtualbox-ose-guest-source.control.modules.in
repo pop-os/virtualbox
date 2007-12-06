@@ -10,7 +10,7 @@ Vcs-Svn: svn://svn.debian.org/svn/pkg-virtualbox/trunk
 Vcs-Browser: http://svn.debian.org/wsvn/pkg-virtualbox/trunk
 
 Package: virtualbox-ose-guest-modules-_KVERS_
-Architecture: amd64 i386
+Architecture: i386
 Depends: linux-modules-_KVERS_ | linux-image-_KVERS_
 Provides: virtualbox-ose-guest-modules
 Description: VirtualBox guest addition modules for Linux (kernel _KVERS_)

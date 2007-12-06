@@ -81,6 +81,8 @@ install: build
 	# move architecture independant files to /usr/share/virtualbox instead of /usr/lib/virtualbox
 	mv debian/$(sname)/usr/lib/virtualbox/nls debian/$(sname)/usr/share/virtualbox
 	mv debian/$(sname)/usr/lib/virtualbox/sdk debian/$(sname)/usr/share/virtualbox
+	mv debian/$(sname)/usr/share/virtualbox/sdk/bin/xpidl debian/$(sname)/usr/lib/virtualbox/
+	ln -s debian/$(sname)/usr/lib/virtualbox/xpidl debian/$(sname)/usr/share/virtualbox/sdk/bin
 
 	install -D -m 0755  debian/scripts/VBox.sh debian/$(sname)/usr/lib/virtualbox
 	mv debian/$(sname)/usr/lib/virtualbox/VBoxTunctl debian/$(sname)/usr/bin/
@@ -96,7 +98,7 @@ install: build
 	ln -s VBoxTAP debian/$(sname)/usr/bin/VBoxDeleteIF
 
 	install -D -m 0644 debian/desktop/virtualbox-ose.desktop debian/$(sname)/usr/share/applications/virtualbox-ose.desktop
-	install -D -m 0644 src/VBox/Frontends/VirtualBox/images/ico32x01.png debian/$(sname)/usr/share/icons/virtualbox.png
+	mv debian/$(sname)/usr/lib/virtualbox/VBox.png debian/$(sname)/usr/share/icons/virtualbox.png
 	install -D -m 0644 debian/pixmap/virtualbox-ose.xpm debian/$(sname)/usr/share/pixmaps/virtualbox-ose.xpm
 	install -D -m 644 src/VBox/Installer/linux/vboxnet.sh debian/$(sname).init
 	install -D -m 644 debian/interfaces debian/$(sname)/etc/vbox
@@ -127,6 +129,7 @@ install: build
 	cp debian/$(gsource).control.modules.in debian/$(gsource)/usr/src/modules/$(gname)/debian/control.modules.in
 	cp debian/$(gsource).postinst.modules.in debian/$(gsource)/usr/src/modules/$(gname)/debian/postinst.modules.in
 	cp debian/$(gsource).udev debian/$(gsource)/usr/src/modules/$(gname)/debian/udev
+	cp debian/$(gsource).Makefile debian/$(gsource)/usr/src/modules/$(gname)/Makefile
 	install -m 755 debian/$(gsource).rules  debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
 
 	cd debian/$(gsource)/usr/src && tar c modules | bzip2 -9 > $(gname).tar.bz2 && rm -rf modules

@@ -19,5 +19,4 @@ virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/tstMicroGC.gc
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedClipboard.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedFolders.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedOpenGL.so
-virtualbox-ose: image-file-in-usr-lib usr/lib/virtualbox/VBox.png
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxKeyboard.so
