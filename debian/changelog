@@ -1,3 +1,9 @@
+virtualbox-ose (1.5.2-dfsg2-5) UNRELEASED; urgency=low
+
+  * Upgrading virtualbox-ose-modules recommends to depends.
+
+ -- Daniel Baumann <daniel@debian.org>  Fri,  7 Dec 2007 13:46:00 +0100
+
 virtualbox-ose (1.5.2-dfsg2-4) unstable; urgency=low
 
   [ Patrick Winnertz ]
