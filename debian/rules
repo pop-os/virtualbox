@@ -88,6 +88,7 @@ install: build
 	mv debian/$(sname)/usr/lib/virtualbox/VBoxTunctl debian/$(sname)/usr/bin/
 	mv debian/$(sname)/usr/lib/virtualbox/VBoxAddIF.sh debian/$(sname)/usr/bin/VBoxTAP
 
+	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/vditool
 	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/vboxmanage
 	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/vboxsdl
 	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/virtualbox

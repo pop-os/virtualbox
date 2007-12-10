@@ -73,23 +73,17 @@ export LD_LIBRARY_PATH="$INSTALL_DIR"
 APP=`which $0`
 APP=${APP##/*/}
 case "$APP" in
-  virtualbox)
+  VirtualBox|virtualbox)
     exec "$INSTALL_DIR/VirtualBox" "$@"
   ;;
-  VirtualBox)
-    exec "$INSTALL_DIR/VirtualBox" "$@"
-  ;;
-  vboxmanage)
+  VBoxManage|vboxmanage)
     exec "$INSTALL_DIR/VBoxManage" "$@"
   ;;
-  VBoxManage)
-    exec "$INSTALL_DIR/VBoxManage" "$@"
-  ;;
-  vboxsdl)
+  VBoxSDL|vboxsdl)
     exec "$INSTALL_DIR/VBoxSDL" "$@"
   ;;
-  VBoxSDL)
-    exec "$INSTALL_DIR/VBoxSDL" "$@"
+  vditool)
+    exec "$INSTALL_DIR/vditool" "$@"
   ;;
   *)
     echo "Unknown application - $APP"

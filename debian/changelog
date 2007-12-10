@@ -1,10 +1,14 @@
 virtualbox-ose (1.5.2-dfsg2-5) UNRELEASED; urgency=low
 
+  [ Daniel Baumann ]
   * Upgrading virtualbox-ose-modules recommends to depends.
   * Downgrading virtualbox-ose-source recommends to suggests.
   * Bumping policy version, no other changes needed.
 
- -- Daniel Baumann <daniel@debian.org>  Fri,  7 Dec 2007 13:46:00 +0100
+  [ Hilko Bengen ]
+  * Added support for vditool to VBox.sh
+
+ -- Hilko Bengen <bengen@debian.org>  Mon, 10 Dec 2007 16:33:16 +0100
 
 virtualbox-ose (1.5.2-dfsg2-4) unstable; urgency=low
 
