@@ -18,17 +18,18 @@ uname:=virtualbox-ose-guest-utils
 
 MAKE:=kmk
 
-config.status: patch configure
+config-stamp: env.sh
+env.sh: patch-stamp
 	dh_testdir
-	 ./configure --with-linux="/usr"
+	./configure --with-linux="/usr"
 
 build: build-stamp
-build-stamp: config.status
+build-stamp: config-stamp
 	dh_testdir
 
 	# Building package
 	$(MAKE) BUILD_TYPE=release
-	# make sure VBoxAddIF.sh is build too
+	# make sure VBoxAddIF.sh is built, too
 	(cd src/VBox/Installer/linux; $(MAKE) `echo $(CURDIR)/out/linux.*/release/bin`/VBoxAddIF.sh)
 
 	touch build-stamp
@@ -36,7 +37,6 @@ build-stamp: config.status
 clean: unpatch
 	dh_testdir
 	dh_testroot
-	rm -f build-stamp debian/$(sname).init
 
 	# Cleaning package
 	rm -rf out
@@ -82,42 +82,27 @@ install: build
 	mv debian/$(sname)/usr/lib/virtualbox/nls debian/$(sname)/usr/share/virtualbox
 	mv debian/$(sname)/usr/lib/virtualbox/sdk debian/$(sname)/usr/share/virtualbox
 	mv debian/$(sname)/usr/share/virtualbox/sdk/bin/xpidl debian/$(sname)/usr/lib/virtualbox/
-	ln -s debian/$(sname)/usr/lib/virtualbox/xpidl debian/$(sname)/usr/share/virtualbox/sdk/bin
 
 	install -D -m 0755  debian/scripts/VBox.sh debian/$(sname)/usr/lib/virtualbox
 	mv debian/$(sname)/usr/lib/virtualbox/VBoxTunctl debian/$(sname)/usr/bin/
 	mv debian/$(sname)/usr/lib/virtualbox/VBoxAddIF.sh debian/$(sname)/usr/bin/VBoxTAP
 
-	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/vditool
-	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/vboxmanage
-	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/vboxsdl
-	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/virtualbox
-	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/VBoxManage
-	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/VBoxSDL
-	ln -s ../lib/virtualbox/VBox.sh debian/$(sname)/usr/bin/VirtualBox
-	ln -s VBoxTAP debian/$(sname)/usr/bin/VBoxAddIF
-	ln -s VBoxTAP debian/$(sname)/usr/bin/VBoxDeleteIF
-
 	install -D -m 0644 debian/desktop/virtualbox-ose.desktop debian/$(sname)/usr/share/applications/virtualbox-ose.desktop
 	mv debian/$(sname)/usr/lib/virtualbox/VBox.png debian/$(sname)/usr/share/icons/virtualbox.png
 	install -D -m 0644 debian/pixmap/virtualbox-ose.xpm debian/$(sname)/usr/share/pixmaps/virtualbox-ose.xpm
-	install -D -m 644 src/VBox/Installer/linux/vboxnet.sh debian/$(sname).init
 	install -D -m 644 debian/interfaces debian/$(sname)/etc/vbox
 
 	echo "# VirtualBox installation directory" > $(CURDIR)/debian/$(sname)/etc/vbox/vbox.cfg
 	echo "INSTALL_DIR="\"/usr/lib/virtualbox\" >> $(CURDIR)/debian/$(sname)/etc/vbox/vbox.cfg
 
 	# Install virtualbox-ose-source
-	mkdir -p debian/$(psource)/usr/src/modules/
 	mv debian/$(sname)/usr/lib/virtualbox/src debian/$(psource)/usr/src/modules/$(sname)
 
 	# Install virtualbox-ose-guest-source
-	mkdir -p debian/$(gsource)/usr/src/modules/$(gname)
 	mv debian/$(sname)/usr/lib/virtualbox/additions/src/vboxadd debian/$(gsource)/usr/src/modules/$(gname)
 	mv debian/$(sname)/usr/lib/virtualbox/additions/src/vboxvfs debian/$(gsource)/usr/src/modules/$(gname)
 	rm -r debian/$(sname)/usr/lib/virtualbox/additions/src
 
-	mkdir -p debian/$(psource)/usr/src/modules/$(sname)/debian
 	cp debian/control debian/changelog debian/copyright debian/compat debian/$(psource)/usr/src/modules/$(sname)/debian
 	cp debian/$(psource).control.modules.in debian/$(psource)/usr/src/modules/$(sname)/debian/control.modules.in
 	cp debian/$(psource).postinst.modules.in debian/$(psource)/usr/src/modules/$(sname)/debian/postinst.modules.in
@@ -125,7 +110,6 @@ install: build
 
 	cd debian/$(psource)/usr/src && tar c modules | bzip2 -9 > $(sname).tar.bz2 && rm -rf modules
 
-	mkdir -p debian/$(gsource)/usr/src/modules/$(gname)/debian
 	cp debian/control debian/changelog debian/copyright debian/compat debian/$(gsource)/usr/src/modules/$(gname)/debian
 	cp debian/$(gsource).control.modules.in debian/$(gsource)/usr/src/modules/$(gname)/debian/control.modules.in
 	cp debian/$(gsource).postinst.modules.in debian/$(gsource)/usr/src/modules/$(gname)/debian/postinst.modules.in
@@ -136,7 +120,6 @@ install: build
 	cd debian/$(gsource)/usr/src && tar c modules | bzip2 -9 > $(gname).tar.bz2 && rm -rf modules
 
 	# Install virtualbox guest additions
-	mkdir -p debian/$(uname)/usr/lib/virtualbox
 	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxvideo_drv_14.so debian/$(uname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
 	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
 	mv debian/$(sname)/usr/lib/virtualbox/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
@@ -182,4 +165,6 @@ binary-indep: build install
 	dh_builddeb -i
 
 binary: binary-arch binary-indep
-.PHONY: build clean binary-arch binary-indep binary install binary-modules kdist kdist_configure kdist_image kdist_clean
+.PHONY: patch unpatch \
+	config-stamp build clean binary-arch binary-indep binary install \
+	binary-modules kdist kdist_configure kdist_image kdist_clean

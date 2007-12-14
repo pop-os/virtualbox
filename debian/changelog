@@ -7,8 +7,13 @@ virtualbox-ose (1.5.2-dfsg2-5) UNRELEASED; urgency=low
 
   [ Hilko Bengen ]
   * Added support for vditool to VBox.sh
+  * Build system:
+    - Cleaned up patch/config phase
+    - Added copy of init script to debian directory -- no longer copy it
+      from src/VBox/Installer/linux/vboxnet.sh
+    - symlinks/directories in packages are now created using debhelper
 
- -- Hilko Bengen <bengen@debian.org>  Mon, 10 Dec 2007 16:33:16 +0100
+ -- Hilko Bengen <bengen@debian.org>  Fri, 14 Dec 2007 17:57:22 +0100
 
 virtualbox-ose (1.5.2-dfsg2-4) unstable; urgency=low
 

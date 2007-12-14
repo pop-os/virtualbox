@@ -1,0 +1,13 @@
+/usr/lib/virtualbox/xpidl /usr/share/virtualbox/sdk/bin/xpidl
+
+/usr/lib/virtualbox/VBox.sh /usr/bin/vditool	  
+/usr/lib/virtualbox/VBox.sh /usr/bin/vboxmanage
+/usr/lib/virtualbox/VBox.sh /usr/bin/vboxsdl	  
+/usr/lib/virtualbox/VBox.sh /usr/bin/virtualbox
+/usr/lib/virtualbox/VBox.sh /usr/bin/VBoxManage
+/usr/lib/virtualbox/VBox.sh /usr/bin/VBoxSDL	  
+/usr/lib/virtualbox/VBox.sh /usr/bin/VirtualBox
+
+/usr/bin/VboxTAP /usr/bin/VBoxAddIF
+/usr/bin/VboxTAP /usr/bin/VBoxDeleteIF
+
