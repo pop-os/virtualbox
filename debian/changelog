@@ -13,7 +13,12 @@ virtualbox-ose (1.5.2-dfsg2-5) UNRELEASED; urgency=low
       from src/VBox/Installer/linux/vboxnet.sh
     - symlinks/directories in packages are now created using debhelper
 
- -- Hilko Bengen <bengen@debian.org>  Fri, 14 Dec 2007 17:57:22 +0100
+  [ Patrick Winnertz ]
+  * Moved initscript again out of debian, we should use the upstream one
+    and created a patch for this one. (in order to fix lintian warning)
+  * Add description to 02-host-module.dpatch
+
+ -- Patrick Winnertz <winnie@debian.org>  Sun, 16 Dec 2007 12:48:24 +0100
 
 virtualbox-ose (1.5.2-dfsg2-4) unstable; urgency=low
 

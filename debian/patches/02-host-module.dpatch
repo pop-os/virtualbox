@@ -1,7 +1,7 @@
 #!/bin/sh /usr/share/dpatch/dpatch-run
 ## 02-host-module.dpatch by Torsten Werner <twerner@debian.org>
 ##
-## DP: No description.
+## DP: Added KERN_DIR to the HostDrivers Makefile.
 
 @DPATCH@
 

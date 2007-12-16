@@ -6,7 +6,6 @@
 06-vboxadd-udev.dpatch
 07-xsession.dpatch
 08-no-kernel.dpatch
-09-quiet-grep.dpatch
+09-fix-initscript.dpatch
 10-no-registration.dpatch
 11-module-build.dpatch
-
