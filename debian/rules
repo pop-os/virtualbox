@@ -40,7 +40,7 @@ clean: unpatch
 
 	# Cleaning package
 	rm -rf out
-	rm -f AutoConfig.kmk configure.log env.sh
+	rm -f AutoConfig.kmk configure.log env.sh debian/$(sname).init
 
 	dh_clean
 
