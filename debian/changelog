@@ -17,8 +17,10 @@ virtualbox-ose (1.5.2-dfsg2-5) unstable; urgency=low
   * Moved initscript again out of debian, we should use the upstream one
     and created a patch for this one. (in order to fix lintian warning)
   * Add description to 02-host-module.dpatch
-
- -- Patrick Winnertz <winnie@debian.org>  Sun, 16 Dec 2007 12:48:24 +0100
+  
+  * Add 2.6.24 compatibility fix (Closes: #456464)
+  
+ -- Hilko Bengen <bengen@debian.org>  Mon, 17 Dec 2007 17:25:04 +0100
 
 virtualbox-ose (1.5.2-dfsg2-4) unstable; urgency=low
 

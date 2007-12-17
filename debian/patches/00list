@@ -9,3 +9,4 @@
 09-fix-initscript.dpatch
 10-no-registration.dpatch
 11-module-build.dpatch
+12-kcompat-2.6.24.dpatch
