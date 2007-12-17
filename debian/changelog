@@ -1,4 +1,4 @@
-virtualbox-ose (1.5.2-dfsg2-5) UNRELEASED; urgency=low
+virtualbox-ose (1.5.2-dfsg2-5) unstable; urgency=low
 
   [ Daniel Baumann ]
   * Upgrading virtualbox-ose-modules recommends to depends.
