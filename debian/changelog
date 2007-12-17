@@ -12,15 +12,14 @@ virtualbox-ose (1.5.2-dfsg2-5) unstable; urgency=low
     - Added copy of init script to debian directory -- no longer copy it
       from src/VBox/Installer/linux/vboxnet.sh
     - symlinks/directories in packages are now created using debhelper
+  * Add 2.6.24 compatibility fix (Closes: #456464)
 
   [ Patrick Winnertz ]
   * Moved initscript again out of debian, we should use the upstream one
     and created a patch for this one. (in order to fix lintian warning)
   * Add description to 02-host-module.dpatch
-  
-  * Add 2.6.24 compatibility fix (Closes: #456464)
-  
- -- Hilko Bengen <bengen@debian.org>  Mon, 17 Dec 2007 17:25:04 +0100
+
+ -- Patrick Winnertz <winnie@debian.org>  Mon, 17 Dec 2007 17:37:52 +0100
 
 virtualbox-ose (1.5.2-dfsg2-4) unstable; urgency=low
 
