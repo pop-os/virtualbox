@@ -3,6 +3,7 @@ virtualbox-ose (1.5.2-dfsg2-6) UNRELEASED; urgency=low
   * Again removing reimported useless whitespaces at EOL and EOF in debian/*.
   * Fixing dpatch headers.
   * Rediffed dpatches 6-12.
+  * Removed svn:executable on dpatch 9 and 12.
 
  -- Daniel Baumann <daniel@debian.org>  Tue, 18 Dec 2007 15:44:00 +0100
 
