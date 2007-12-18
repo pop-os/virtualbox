@@ -1,5 +1,5 @@
 #! /bin/sh /usr/share/dpatch/dpatch-run
-## 09-quiet-grep.dpatch by  <michael@feivel.credativ.de>
+## 09-quiet-grep.dpatch by  <meskes@debian.org>
 ## modified by Patrick Winnert <winnie@debian.org>
 ##
 ## All lines beginning with `## DP:' are a description of the patch.
