@@ -98,6 +98,7 @@ install: build
 
 	# Install virtualbox-ose-source
 	mv debian/$(sname)/usr/lib/virtualbox/src/* debian/$(psource)/usr/src/modules/$(sname)
+	rm -r debian/$(sname)/usr/lib/virtualbox/src
 
 	# Install virtualbox-ose-guest-source
 	mv debian/$(sname)/usr/lib/virtualbox/additions/src/vboxadd debian/$(gsource)/usr/src/modules/$(gname)
