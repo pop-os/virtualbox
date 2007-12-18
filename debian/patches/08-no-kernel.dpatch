@@ -5,10 +5,10 @@
 
 @DPATCH@
 
-diff --exclude .svn -ruN technik/sources/archive/pkg-virtualbox/build-area/virtualbox-ose-1.5.2-dfsg2/Config.kmk virtualbox-ose-1.5.2-dfsg2/Config.kmk
---- technik/sources/archive/pkg-virtualbox/build-area/virtualbox-ose-1.5.2-dfsg2/Config.kmk	2007-10-18 14:16:17.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/Config.kmk	2007-11-13 10:04:00.000000000 +0100
-@@ -630,7 +630,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/Config.kmk virtualbox-ose-1.5.2-dfsg2/Config.kmk
+--- virtualbox-ose-1.5.2-dfsg2.orig/Config.kmk	2007-10-18 12:16:17.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/Config.kmk	2007-12-18 14:50:32.000000000 +0000
+@@ -630,7 +630,7 @@ endif
  #
  # Note! The __SOMETHING__ #defines are deprecated as they violate the C/C++ specs.
  #
@@ -17,10 +17,32 @@ diff --exclude .svn -ruN technik/sources/archive/pkg-virtualbox/build-area/virtu
  DEFS += VBOX
  DEFS.debug := DEBUG DEBUG_$(subst $(subst _, ,_),_,$(USERNAME)) DEBUG_USERNAME=$(subst $(subst _, ,_),_,$(USERNAME))
  DEFS.profile = VBOX_WITH_STATISTICS
-diff --exclude .svn -ruN technik/sources/archive/pkg-virtualbox/build-area/virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/daemon/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/daemon/Makefile.kmk
---- technik/sources/archive/pkg-virtualbox/build-area/virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/daemon/Makefile.kmk	2007-08-30 17:16:27.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/daemon/Makefile.kmk	2007-11-12 17:00:39.000000000 +0100
-@@ -24,7 +24,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/Makefile.kmk
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/Makefile.kmk	2007-08-30 15:16:27.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/Makefile.kmk	2007-12-18 14:50:33.000000000 +0000
+@@ -52,12 +52,12 @@ else ifdef VBOX_ADDITIONS_WIN32_ONLY
+ endif
+ 
+ # Include sub-makefiles.
+-include $(PATH_SUB_CURRENT)/common/Makefile.kmk
+-ifdef VBOX_WITH_WIN32_ADDITIONS
+- ifndef VBOX_REMOTE_WIN32_ADDITIONS_BUILD
+-  include $(PATH_SUB_CURRENT)/WINNT/Makefile.kmk
+- endif
+-endif
++#include $(PATH_SUB_CURRENT)/common/Makefile.kmk
++#ifdef VBOX_WITH_WIN32_ADDITIONS
++# ifndef VBOX_REMOTE_WIN32_ADDITIONS_BUILD
++#  include $(PATH_SUB_CURRENT)/WINNT/Makefile.kmk
++# endif
++#endif
+ 
+ ifdef VBOX_WITH_LINUX_ADDITIONS
+  SUBDIRS      += linux
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/daemon/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/daemon/Makefile.kmk
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/daemon/Makefile.kmk	2007-08-30 15:16:27.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/daemon/Makefile.kmk	2007-12-18 14:50:32.000000000 +0000
+@@ -24,7 +24,7 @@ vboxadd-timesync_TEMPLATE = VBOXLNX32GUE
  vboxadd-timesync_SOURCES  = \
      vboxadd_timesync.c \
      supc++.c
@@ -29,11 +51,10 @@ diff --exclude .svn -ruN technik/sources/archive/pkg-virtualbox/build-area/virtu
      $(PATH_LIB)/RuntimeLnx32GuestR3.a
  vboxadd-timesync_DEFS     = _GNU_SOURCE
  
-diff --exclude .svn -ruN technik/sources/archive/pkg-virtualbox/build-area/virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/Makefile.kmk
---- technik/sources/archive/pkg-virtualbox/build-area/virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/Makefile.kmk	2007-08-30 17:16:27.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/Makefile.kmk	2007-11-13 09:58:46.000000000 +0100
-@@ -17,10 +17,10 @@
- DEPTH = ../../../../..
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/module/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/Makefile.kmk
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/module/Makefile.kmk	2007-08-30 15:16:27.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/Makefile.kmk	2007-12-18 14:50:33.000000000 +0000
+@@ -18,9 +18,9 @@ DEPTH = ../../../../..
  include	$(PATH_KBUILD)/header.kmk
  
  INSTALLS = vboxmod-bin vboxmod-sh
@@ -46,7 +67,7 @@ diff --exclude .svn -ruN technik/sources/archive/pkg-virtualbox/build-area/virtu
  
  #
  # Populate FILES_VBOXADD_NOBIN and FILES_VBOXADD_BIN
-@@ -38,12 +38,12 @@
+@@ -38,12 +38,12 @@ vboxmod-sh_SOURCES  = $(subst ",,$(FILES
  #
  # The module (for syntax checking).
  #
@@ -65,9 +86,9 @@ diff --exclude .svn -ruN technik/sources/archive/pkg-virtualbox/build-area/virtu
  
  include	$(PATH_KBUILD)/footer.kmk
  
-diff --exclude .svn -ruN technik/sources/archive/pkg-virtualbox/build-area/virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/sharedfolders/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/sharedfolders/Makefile.kmk
---- technik/sources/archive/pkg-virtualbox/build-area/virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/sharedfolders/Makefile.kmk	2007-08-30 17:16:27.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/sharedfolders/Makefile.kmk	2007-11-13 09:39:34.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/sharedfolders/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/sharedfolders/Makefile.kmk
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/sharedfolders/Makefile.kmk	2007-08-30 15:16:27.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/sharedfolders/Makefile.kmk	2007-12-18 14:50:33.000000000 +0000
 @@ -17,9 +17,9 @@
  DEPTH = ../../../../..
  include	$(PATH_KBUILD)/header.kmk
@@ -81,7 +102,7 @@ diff --exclude .svn -ruN technik/sources/archive/pkg-virtualbox/build-area/virtu
  PROGRAMS = mountvboxsf
  INSTALLS = vboxvfs-bin vboxvfs-sh
  
-@@ -42,23 +42,23 @@
+@@ -42,23 +42,23 @@ vboxvfs-sh_SOURCES      = $(subst ",,$(F
  #
  # The module (for syntax checking).
  #
@@ -114,33 +135,10 @@ diff --exclude .svn -ruN technik/sources/archive/pkg-virtualbox/build-area/virtu
                              $(if $(wildcard $(inc)/linux/utsrelease.h),\
                                $(if $(shell if grep -q '"2.6.18.*el5.*"' $(inc)/linux/utsrelease.h;\
                                  then echo yes; fi),KERNEL_FC6,),))
-Binärdateien technik/sources/archive/pkg-virtualbox/build-area/virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/xclient/.clipboard.cpp.swp and virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/xclient/.clipboard.cpp.swp sind verschieden.
-diff --exclude .svn -ruN technik/sources/archive/pkg-virtualbox/build-area/virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/Makefile.kmk
---- technik/sources/archive/pkg-virtualbox/build-area/virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/Makefile.kmk	2007-08-30 17:16:27.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/Makefile.kmk	2007-11-13 09:29:46.000000000 +0100
-@@ -52,12 +52,12 @@
- endif
- 
- # Include sub-makefiles.
--include $(PATH_SUB_CURRENT)/common/Makefile.kmk
--ifdef VBOX_WITH_WIN32_ADDITIONS
-- ifndef VBOX_REMOTE_WIN32_ADDITIONS_BUILD
--  include $(PATH_SUB_CURRENT)/WINNT/Makefile.kmk
-- endif
--endif
-+#include $(PATH_SUB_CURRENT)/common/Makefile.kmk
-+#ifdef VBOX_WITH_WIN32_ADDITIONS
-+# ifndef VBOX_REMOTE_WIN32_ADDITIONS_BUILD
-+#  include $(PATH_SUB_CURRENT)/WINNT/Makefile.kmk
-+# endif
-+#endif
- 
- ifdef VBOX_WITH_LINUX_ADDITIONS
-  SUBDIRS      += linux
-diff --exclude .svn -ruN technik/sources/archive/pkg-virtualbox/build-area/virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/Makefile.kmk
---- technik/sources/archive/pkg-virtualbox/build-area/virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/Makefile.kmk	2007-08-30 17:16:25.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/Makefile.kmk	2007-11-13 09:50:48.000000000 +0100
-@@ -37,7 +37,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/Makefile.kmk
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/Makefile.kmk	2007-08-30 15:16:25.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/Makefile.kmk	2007-12-18 14:50:33.000000000 +0000
+@@ -37,7 +37,7 @@ else
   ifdef VBOX_WITH_LINUX_ADDITIONS
    LIBRARIES += RuntimeLnx32GuestR3
    ifdef VBOX_WITH_LINUX_ADDITIONS_32BIT_R0

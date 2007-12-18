@@ -6,8 +6,9 @@
 
 @DPATCH@
 
---- virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/vboxmod.c.orig	2007-11-06 16:13:36.000000000 +0100
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/vboxmod.c	2007-11-06 16:15:00.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/module/vboxmod.c virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/vboxmod.c
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/module/vboxmod.c	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/vboxmod.c	2007-12-18 14:48:37.000000000 +0000
 @@ -23,6 +23,7 @@
  #include "vboxmod.h"
  #include "waitcompat.h"
@@ -16,7 +17,7 @@
  
  #define VERSION "0.5"
  
-@@ -411,6 +412,13 @@
+@@ -411,6 +412,13 @@ static struct file_operations vbox_fops 
      .llseek  = no_llseek
  };
  
@@ -30,7 +31,7 @@
  #ifndef IRQ_RETVAL
  /* interrupt handlers in 2.4 kernels don't return anything */
  # define irqreturn_t void
-@@ -685,17 +693,22 @@
+@@ -685,17 +693,22 @@ static __init int init(void)
      }
  
      /* register a character device */
@@ -62,7 +63,7 @@
  
      /* allocate and initialize device extension */
      vboxDev = kmalloc(sizeof(*vboxDev), GFP_KERNEL);
-@@ -829,7 +842,10 @@
+@@ -829,7 +842,10 @@ static __init int init(void)
  fail:
      PCI_DEV_PUT(pcidev);
      free_resources();
@@ -74,7 +75,7 @@
      return err;
  }
  
-@@ -841,7 +857,10 @@
+@@ -841,7 +857,10 @@ static __exit void fini(void)
  {
      printk(KERN_DEBUG "vboxadd: unloading...\n");
  

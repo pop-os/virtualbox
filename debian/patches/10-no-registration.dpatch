@@ -5,9 +5,10 @@
 
 @DPATCH@
 
---- virtualbox-ose-1.5.2-dfsg2/src/VBox/Frontends/VirtualBox/Makefile.kmk	2007-10-18 13:07:28.000000000 +0200
-+++ ../virtualbox-ose-1.5.2-dfsg2/src/VBox/Frontends/VirtualBox/Makefile.kmk	2007-12-02 18:02:03.000000000 +0100
-@@ -38,9 +38,9 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Frontends/VirtualBox/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Frontends/VirtualBox/Makefile.kmk
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Frontends/VirtualBox/Makefile.kmk	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Frontends/VirtualBox/Makefile.kmk	2007-12-18 14:53:06.000000000 +0000
+@@ -38,9 +38,9 @@ include $(PATH_KBUILD)/header.kmk
  #
  # exclude inappropriate UI content
  #

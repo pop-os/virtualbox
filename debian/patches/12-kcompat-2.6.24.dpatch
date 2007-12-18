@@ -5,10 +5,10 @@
 
 @DPATCH@
 
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/Config.kmk virtualbox-ose-1.5.2-dfsg2/Config.kmk
---- virtualbox-ose-1.5.2-dfsg2~/Config.kmk	2007-10-18 14:16:17.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/Config.kmk	2007-12-11 18:46:39.000000000 +0100
-@@ -1204,7 +1204,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/Config.kmk virtualbox-ose-1.5.2-dfsg2/Config.kmk
+--- virtualbox-ose-1.5.2-dfsg2.orig/Config.kmk	2007-10-18 12:16:17.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/Config.kmk	2007-12-18 14:54:48.000000000 +0000
+@@ -1204,7 +1204,7 @@ ifneq ($(filter linux,$(BUILD_TARGET)),)
     kernelpath := $(VBOX_LINUX_SRC)
    endif
    ifeq ($(BUILD_TARGET_ARCH),x86)
@@ -17,10 +17,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/Config.kmk virtualbox-ose-1.5.2-dfsg2/Co
    endif
   endif
  endif
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/VBoxDev.h virtualbox-ose-1.5.2-dfsg2/include/VBox/VBoxDev.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/VBoxDev.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/VBoxDev.h	2007-12-11 18:46:39.000000000 +0100
-@@ -24,33 +24,33 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/VBoxDev.h virtualbox-ose-1.5.2-dfsg2/include/VBox/VBoxDev.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/VBoxDev.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/VBoxDev.h	2007-12-18 14:54:48.000000000 +0000
+@@ -24,33 +24,33 @@ __BEGIN_DECLS
  /** Mouse capability bits
   * @{ */
  /** the guest requests absolute mouse coordinates (guest additions installed) */
@@ -63,10 +63,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/VBoxDev.h virtualbox-ose-1.
  /** @} */
  
  /** Size of VMMDev RAM region accessible by guest.
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/VBoxGuest.h virtualbox-ose-1.5.2-dfsg2/include/VBox/VBoxGuest.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/VBoxGuest.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/VBoxGuest.h	2007-12-11 18:46:39.000000000 +0100
-@@ -77,13 +77,13 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/VBoxGuest.h virtualbox-ose-1.5.2-dfsg2/include/VBox/VBoxGuest.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/VBoxGuest.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/VBoxGuest.h	2007-12-18 14:54:48.000000000 +0000
+@@ -77,13 +77,13 @@ typedef uint32_t vmmDevHypPhys;
   */
  
  /** guest can (== wants to) handle absolute coordinates */
@@ -84,7 +84,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/VBoxGuest.h virtualbox-ose-
  
  /** fictive start address of the hypervisor physical memory for MmMapIoSpace */
  #define HYPERVISOR_PHYSICAL_START  0xf8000000
-@@ -915,17 +915,17 @@
+@@ -915,17 +915,17 @@ typedef struct
   */
  
  /** Host mouse capabilities has been changed. */
@@ -108,7 +108,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/VBoxGuest.h virtualbox-ose-
  
  
  /** @} */
-@@ -1144,26 +1144,26 @@
+@@ -1144,26 +1144,26 @@ typedef struct _VBoxGuestHGCMCallInfo
  #define VMMDEV_CREDENTIALS_STRLEN           128
  
  /** query from host whether credentials are present */
@@ -145,10 +145,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/VBoxGuest.h virtualbox-ose-
  
  /** credentials request structure */
  #pragma pack(4)
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/cpum.h virtualbox-ose-1.5.2-dfsg2/include/VBox/cpum.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/cpum.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/cpum.h	2007-12-11 18:46:39.000000000 +0100
-@@ -592,17 +592,17 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/cpum.h virtualbox-ose-1.5.2-dfsg2/include/VBox/cpum.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/cpum.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/cpum.h	2007-12-18 14:54:48.000000000 +0000
+@@ -592,17 +592,17 @@ CPUMDECL(int) CPUMRestoreHostFPUState(PV
   * to clear them is REM!
   * @{
   */
@@ -177,10 +177,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/cpum.h virtualbox-ose-1.5.2
  /** @} */
  
  /**
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/dbg.h virtualbox-ose-1.5.2-dfsg2/include/VBox/dbg.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/dbg.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/dbg.h	2007-12-11 18:46:39.000000000 +0100
-@@ -152,7 +152,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/dbg.h virtualbox-ose-1.5.2-dfsg2/include/VBox/dbg.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/dbg.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/dbg.h	2007-12-18 14:54:48.000000000 +0000
+@@ -152,7 +152,7 @@ typedef const DBGCVARDESC *PCDBGCVARDESC
  /** Variable descriptor flags.
   * @{ */
  /** Indicates that the variable depends on the previous being present. */
@@ -189,10 +189,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/dbg.h virtualbox-ose-1.5.2-
  /** @} */
  
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/dbgf.h virtualbox-ose-1.5.2-dfsg2/include/VBox/dbgf.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/dbgf.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/dbgf.h	2007-12-11 18:46:39.000000000 +0100
-@@ -134,11 +134,11 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/dbgf.h virtualbox-ose-1.5.2-dfsg2/include/VBox/dbgf.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/dbgf.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/dbgf.h	2007-12-18 14:54:48.000000000 +0000
+@@ -134,11 +134,11 @@ typedef const DBGFADDRESS *PCDBGFADDRESS
  #define DBGFADDRESS_FLAGS_TYPE_MASK     3
  
  /** Set if the address is valid. */
@@ -206,7 +206,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/dbgf.h virtualbox-ose-1.5.2
  
  /** Checks if the mixed address is flat or not. */
  #define DBGFADDRESS_IS_FLAT(pAddress)    ( ((pAddress)->fFlags & DBGFADDRESS_FLAGS_TYPE_MASK) == DBGFADDRESS_FLAGS_FLAT )
-@@ -832,7 +832,7 @@
+@@ -832,7 +832,7 @@ typedef FNDBGFHANDLEREXT  *PFNDBGFHANDLE
  /** @name Flags for the info registration functions.
   * @{ */
  /** The handler must run on the EMT. */
@@ -215,7 +215,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/dbgf.h virtualbox-ose-1.5.2
  /** @} */
  
  
-@@ -1320,14 +1320,14 @@
+@@ -1320,14 +1320,14 @@ typedef struct DBGFSTACKFRAME
   * @{ */
  /** Set if the content of the frame is filled in by DBGFR3StackWalk() and can be used
   * to construct the next frame. */
@@ -234,7 +234,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/dbgf.h virtualbox-ose-1.5.2
  /** @} */
  
  /**
-@@ -1391,17 +1391,17 @@
+@@ -1391,17 +1391,17 @@ DBGFR3DECL(void) DBGFR3StackWalkEnd(PVM 
  /** Flags to pass to DBGFR3DisasInstrEx().
   * @{ */
  /** Disassemble the current guest instruction, with annotations. */
@@ -258,10 +258,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/dbgf.h virtualbox-ose-1.5.2
  /** @} */
  
  /** Special flat selector. */
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/dis.h virtualbox-ose-1.5.2-dfsg2/include/VBox/dis.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/dis.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/dis.h	2007-12-11 18:46:39.000000000 +0100
-@@ -57,63 +57,63 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/dis.h virtualbox-ose-1.5.2-dfsg2/include/VBox/dis.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/dis.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/dis.h	2007-12-18 14:54:48.000000000 +0000
+@@ -57,63 +57,63 @@ __BEGIN_DECLS
  /**
   * Operand type.
   */
@@ -374,7 +374,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/dis.h virtualbox-ose-1.5.2-
  
  #define USE_IMMEDIATE                   (USE_IMMEDIATE8|USE_IMMEDIATE16|USE_IMMEDIATE32|USE_IMMEDIATE64|USE_IMMEDIATE8_REL|USE_IMMEDIATE16_REL|USE_IMMEDIATE32_REL|USE_IMMEDIATE_ADDR_0_32|USE_IMMEDIATE_ADDR_16_32|USE_IMMEDIATE_ADDR_0_16|USE_IMMEDIATE_ADDR_16_16|USE_IMMEDIATE16_SX8|USE_IMMEDIATE32_SX8)
  
-@@ -213,12 +213,12 @@
+@@ -213,12 +213,12 @@ __BEGIN_DECLS
  /** Used by DISQueryParamVal & EMIQueryParamVal
   * @{
   */
@@ -393,9 +393,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/dis.h virtualbox-ose-1.5.2-
  
  #define PARMTYPE_REGISTER      1
  #define PARMTYPE_ADDRESS       2
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/hwacc_svm.h virtualbox-ose-1.5.2-dfsg2/include/VBox/hwacc_svm.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/hwacc_svm.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/hwacc_svm.h	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/hwacc_svm.h virtualbox-ose-1.5.2-dfsg2/include/VBox/hwacc_svm.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/hwacc_svm.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/hwacc_svm.h	2007-12-18 14:54:48.000000000 +0000
 @@ -229,69 +229,69 @@
   * @{
   */
@@ -548,9 +548,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/hwacc_svm.h virtualbox-ose-
  /** @} */
  
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/hwacc_vmx.h virtualbox-ose-1.5.2-dfsg2/include/VBox/hwacc_vmx.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/hwacc_vmx.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/hwacc_vmx.h	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/hwacc_vmx.h virtualbox-ose-1.5.2-dfsg2/include/VBox/hwacc_vmx.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/hwacc_vmx.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/hwacc_vmx.h	2007-12-18 14:54:48.000000000 +0000
 @@ -321,9 +321,9 @@
   * @{
   */
@@ -701,10 +701,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/hwacc_vmx.h virtualbox-ose-
  /* Bits 4-11, 13 and 15-63 are reserved. */
  
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/mm.h virtualbox-ose-1.5.2-dfsg2/include/VBox/mm.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/mm.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/mm.h	2007-12-11 18:46:39.000000000 +0100
-@@ -46,7 +46,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/mm.h virtualbox-ose-1.5.2-dfsg2/include/VBox/mm.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/mm.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/mm.h	2007-12-18 14:54:48.000000000 +0000
+@@ -46,7 +46,7 @@ __BEGIN_DECLS
   * @remarks The current implementation will always reserve backing 
   *          memory for reserved  ranges to simplify things.
   */
@@ -713,7 +713,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/mm.h virtualbox-ose-1.5.2-d
  /** ROM - Read Only Memory.
   * The page have a HC physical address which contains the BIOS code. All write
   * access is trapped and ignored.
-@@ -54,35 +54,35 @@
+@@ -54,35 +54,35 @@ __BEGIN_DECLS
   * HACK: Writable shadow ROM is indicated by both ROM and MMIO2 being 
   *       set. (We're out of bits.)
   */
@@ -760,10 +760,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/mm.h virtualbox-ose-1.5.2-d
  
  /** The shift used to get the reference count. */
  #define MM_RAM_FLAGS_CREFS_SHIFT        62
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/patm.h virtualbox-ose-1.5.2-dfsg2/include/VBox/patm.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/patm.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/patm.h	2007-12-11 18:46:39.000000000 +0100
-@@ -34,18 +34,18 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/patm.h virtualbox-ose-1.5.2-dfsg2/include/VBox/patm.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/patm.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/patm.h	2007-12-18 14:54:48.000000000 +0000
+@@ -34,18 +34,18 @@ __BEGIN_DECLS
   * Flags for specifying the type of patch to install with PATMR3InstallPatch
   * @{
   */
@@ -793,10 +793,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/patm.h virtualbox-ose-1.5.2
  /* no more room -> change PATMInternal.h if more is needed!! */
  
  /*
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/pdmdev.h virtualbox-ose-1.5.2-dfsg2/include/VBox/pdmdev.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/pdmdev.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/pdmdev.h	2007-12-11 18:46:39.000000000 +0100
-@@ -331,43 +331,43 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/pdmdev.h virtualbox-ose-1.5.2-dfsg2/include/VBox/pdmdev.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/pdmdev.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/pdmdev.h	2007-12-18 14:54:48.000000000 +0000
+@@ -331,43 +331,43 @@ typedef PDMDEVREG const *PCPDMDEVREG;
   * The order is important, lower bit earlier instantiation.
   * @{ */
  /** Architecture device. */
@@ -859,7 +859,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/pdmdev.h virtualbox-ose-1.5
  /** @} */
  
  
-@@ -375,11 +375,11 @@
+@@ -375,11 +375,11 @@ typedef PDMDEVREG const *PCPDMDEVREG;
   * @{
   */
  /** Assert the IRQ (can assume value 1). */
@@ -873,10 +873,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/pdmdev.h virtualbox-ose-1.5
  /** @} */
  
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/pdmdrv.h virtualbox-ose-1.5.2-dfsg2/include/VBox/pdmdrv.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/pdmdrv.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/pdmdrv.h	2007-12-11 18:46:39.000000000 +0100
-@@ -221,35 +221,35 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/pdmdrv.h virtualbox-ose-1.5.2-dfsg2/include/VBox/pdmdrv.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/pdmdrv.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/pdmdrv.h	2007-12-18 14:54:48.000000000 +0000
+@@ -221,35 +221,35 @@ typedef PDMDRVREG const *PCPDMDRVREG;
  /** PDM Driver Classes.
   * @{ */
  /** Mouse input driver. */
@@ -927,10 +927,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/pdmdrv.h virtualbox-ose-1.5
  /** @} */
  
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/pdmifs.h virtualbox-ose-1.5.2-dfsg2/include/VBox/pdmifs.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/pdmifs.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/pdmifs.h	2007-12-11 18:46:39.000000000 +0100
-@@ -189,9 +189,9 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/pdmifs.h virtualbox-ose-1.5.2-dfsg2/include/VBox/pdmifs.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/pdmifs.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/pdmifs.h	2007-12-18 14:54:48.000000000 +0000
+@@ -189,9 +189,9 @@ typedef struct PDMIMOUSEPORT
  
  /** Mouse button defines for PDMIMOUSEPORT::pfnPutEvent.
   * @{ */
@@ -943,7 +943,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/pdmifs.h virtualbox-ose-1.5
  /** @} */
  
  
-@@ -1809,13 +1809,13 @@
+@@ -1809,13 +1809,13 @@ typedef union PDMLEDCORE
  /** LED bit masks for the u32 view.
   * @{ */
  /** Reading/Receiving indicator. */
@@ -961,10 +961,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/pdmifs.h virtualbox-ose-1.5
  /** @} */
  
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/selm.h virtualbox-ose-1.5.2-dfsg2/include/VBox/selm.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/selm.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/selm.h	2007-12-11 18:46:39.000000000 +0100
-@@ -147,9 +147,9 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/selm.h virtualbox-ose-1.5.2-dfsg2/include/VBox/selm.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/selm.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/selm.h	2007-12-18 14:54:48.000000000 +0000
+@@ -147,9 +147,9 @@ SELMDECL(RTGCPTR) SELMToFlat(PVM pVM, X8
  /** Flags for SELMToFlatEx().
   * @{ */
  /** Don't check the RPL,DPL or CPL. */
@@ -976,7 +976,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/selm.h virtualbox-ose-1.5.2
  /** CPL is 3. */
  #define SELMTOFLAT_FLAGS_CPL3       3
  /** CPL is 2. */
-@@ -161,7 +161,7 @@
+@@ -161,7 +161,7 @@ SELMDECL(RTGCPTR) SELMToFlat(PVM pVM, X8
  /** Get the CPL from the flags. */
  #define SELMTOFLAT_FLAGS_CPL(fFlags)    ((fFlags) & X86_SEL_RPL)
  /** Allow converting using Hypervisor GDT entries. */
@@ -985,9 +985,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/selm.h virtualbox-ose-1.5.2
  /** @} */
  
  /**
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/vm.h virtualbox-ose-1.5.2-dfsg2/include/VBox/vm.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/vm.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/vm.h	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/vm.h virtualbox-ose-1.5.2-dfsg2/include/VBox/vm.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/vm.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/vm.h	2007-12-18 14:54:48.000000000 +0000
 @@ -42,57 +42,57 @@
   * @{
   */
@@ -1067,10 +1067,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/vm.h virtualbox-ose-1.5.2-d
  
  /** Externally forced actions. Used to quit the idle/wait loop. */
  #define VM_FF_EXTERNAL_SUSPENDED_MASK   (VM_FF_TERMINATE | VM_FF_DBGF | VM_FF_REQUEST)
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/vusb.h virtualbox-ose-1.5.2-dfsg2/include/VBox/vusb.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/vusb.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/vusb.h	2007-12-11 18:46:39.000000000 +0100
-@@ -32,9 +32,9 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/vusb.h virtualbox-ose-1.5.2-dfsg2/include/VBox/vusb.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/vusb.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/vusb.h	2007-12-18 14:54:48.000000000 +0000
+@@ -32,9 +32,9 @@ __BEGIN_DECLS
  /** @name USB Standard version flags.
   * @{ */
  /** Indicates USB 1.1 support. */
@@ -1082,10 +1082,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/vusb.h virtualbox-ose-1.5.2
  /** @} */
  
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-dfsg2/include/VBox/x86.h
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/x86.h	2007-12-11 18:46:39.000000000 +0100
-@@ -115,39 +115,39 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/x86.h virtualbox-ose-1.5.2-dfsg2/include/VBox/x86.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/x86.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/x86.h	2007-12-18 14:54:48.000000000 +0000
+@@ -115,39 +115,39 @@ typedef const X86EFLAGS *PCX86EFLAGS;
   * @{
   */
  /** Bit 0 - CF - Carry flag - Status flag. */
@@ -1142,7 +1142,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  /** IOPL shift. */
  #define X86_EFL_IOPL_SHIFT  12
  /** The the IOPL level from the flags. */
-@@ -290,87 +290,87 @@
+@@ -290,87 +290,87 @@ typedef const X86CPUIDFEATEDX *PCX86CPUI
   * @{
   */
  /** ECX Bit 0 - SSE3 - Supports SSE3 or not. */
@@ -1270,7 +1270,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  /** @} */
  
  
-@@ -379,84 +379,84 @@
+@@ -379,84 +379,84 @@ typedef const X86CPUIDFEATEDX *PCX86CPUI
   * @{
   */
  /** Bit 0 - FPU - x87 FPU on Chip. */
@@ -1394,7 +1394,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  
  /** @} */
  
-@@ -464,47 +464,47 @@
+@@ -464,47 +464,47 @@ typedef const X86CPUIDFEATEDX *PCX86CPUI
  /** @name CR0
   * @{ */
  /** Bit 0 - PE - Protection Enabled */
@@ -1466,7 +1466,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  /** Bits 12-31 - - Page directory page number. */
  #define X86_CR3_PAGE_MASK                   (0xfffff000)
  /** Bits  5-31 - - PAE Page directory page number. */
-@@ -515,77 +515,77 @@
+@@ -515,77 +515,77 @@ typedef const X86CPUIDFEATEDX *PCX86CPUI
  /** @name CR4
   * @{ */
  /** Bit 0 - VME - Virtual-8086 Mode Extensions. */
@@ -1574,7 +1574,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  /** Bit 16 & 17 - R/W0 - Read write field 0. Values X86_DR7_RW_*. */
  #define X86_DR7_RW0_MASK                    (3 << 16)
  /** Bit 18 & 19 - LEN0 - Length field 0. Values X86_DR7_LEN_*. */
-@@ -604,7 +604,7 @@
+@@ -604,7 +604,7 @@ typedef const X86CPUIDFEATEDX *PCX86CPUI
  #define X86_DR7_LEN3_MASK                   (3 << 30)
  
  /** Bits which must be 1s. */
@@ -1583,7 +1583,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  
  /** Calcs the L bit of Nth breakpoint.
   * @param   iBp     The breakpoint number [0..3].
-@@ -649,7 +649,7 @@
+@@ -649,7 +649,7 @@ typedef const X86CPUIDFEATEDX *PCX86CPUI
  #define X86_DR7_LEN(iBp, cb)                ( (cb) << ((iBp) * 4 + 18) )
  
  /** Mask used to check if any breakpoints are enabled. */
@@ -1592,7 +1592,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  
  /** @} */
  
-@@ -659,8 +659,8 @@
+@@ -659,8 +659,8 @@ typedef const X86CPUIDFEATEDX *PCX86CPUI
   */
  /** CPU Feature control. */
  #define MSR_IA32_FEATURE_CONTROL            0x3A
@@ -1603,7 +1603,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  
  
  #ifndef MSR_IA32_SYSENTER_CS /* qemu cpu.h klugde */
-@@ -704,19 +704,19 @@
+@@ -704,19 +704,19 @@ typedef const X86CPUIDFEATEDX *PCX86CPUI
  #define MSR_K6_EFER                         0xc0000080
  /** @todo document EFER */
  /** Bit 0 - SCE - System call extensions (SYSCALL / SYSRET). (R/W) */
@@ -1630,7 +1630,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  /** K6 STAR - SYSCALL/RET targets. */
  #define MSR_K6_STAR                         0xc0000081
  /** Shift value for getting the SYSRET CS and SS value. */
-@@ -767,7 +767,7 @@
+@@ -767,7 +767,7 @@ typedef const X86CPUIDFEATEDX *PCX86CPUI
  #define MSR_K8_TOP_MEM1                     0xc001001a
  #define MSR_K8_TOP_MEM2                     0xc001001d
  #define MSR_K8_VM_CR                        0xc0010114
@@ -1639,7 +1639,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  
  #define MSR_K8_IGNNE                        0xc0010115
  #define MSR_K8_SMM_CTL                      0xc0010116
-@@ -840,25 +840,25 @@
+@@ -840,25 +840,25 @@ typedef X86PGPAEUINT *PX86PGPAEUINT;
   * @{
   */
  /** Bit 0 -  P  - Present bit. */
@@ -1675,7 +1675,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  /** Bits 12-31 - - Physical Page number of the next level. */
  #define X86_PTE_PG_MASK                     ( 0xfffff000 )
  
-@@ -869,7 +869,7 @@
+@@ -869,7 +869,7 @@ typedef X86PGPAEUINT *PX86PGPAEUINT;
  #define X86_PTE_PAE_PG_MASK                 ( 0x000ffffffffff000ULL )
  #endif
  /** Bits 63 - NX - PAE - No execution flag. */
@@ -1684,7 +1684,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  
  /**
   * Page table entry.
-@@ -1033,22 +1033,22 @@
+@@ -1033,22 +1033,22 @@ typedef const X86PTPAE *PCX86PTPAE;
   * @{
   */
  /** Bit 0 -  P  - Present bit. */
@@ -1715,7 +1715,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  /** Bits 12-31 -  - Physical Page number of the next level. */
  #define X86_PDE_PG_MASK                     ( 0xfffff000 )
  
-@@ -1059,7 +1059,7 @@
+@@ -1059,7 +1059,7 @@ typedef const X86PTPAE *PCX86PTPAE;
  #define X86_PDE_PAE_PG_MASK                 ( 0x000ffffffffff000ULL )
  #endif
  /** Bits 63 - NX - PAE - No execution flag. */
@@ -1724,7 +1724,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  
  /**
   * Page directory entry.
-@@ -1143,27 +1143,27 @@
+@@ -1143,27 +1143,27 @@ typedef const X86PDEPAEBITS *PCX86PDEPAE
   * @{
   */
  /** Bit 0 -  P  - Present bit. */
@@ -1763,7 +1763,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  /** Shift to get from X86_PTE_PAT to X86_PDE4M_PAT. */
  #define X86_PDE4M_PAT_SHIFT                 (12 - 7)
  /** Bits 22-31 - - Physical Page number. */
-@@ -1176,7 +1176,7 @@
+@@ -1176,7 +1176,7 @@ typedef const X86PDEPAEBITS *PCX86PDEPAE
  /** Bits 12-51 - - PAE - Physical Page number. */
  #define X86_PDE4M_PAE_PG_MASK               ( 0x000fffffffc00000ULL )
  /** Bits 63 - NX - PAE - No execution flag. */
@@ -1772,7 +1772,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  
  /**
   * 4MB page directory entry.
-@@ -1356,19 +1356,19 @@
+@@ -1356,19 +1356,19 @@ typedef const X86PDPAE *PCX86PDPAE;
   * @{
   */
  /** Bit 0 -  P  - Present bit. */
@@ -1799,7 +1799,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  /** Bits 12-51 - - PAE - Physical Page number of the next level. */
  #if 1 /* we're using this internally and have to mask of the top 16-bit. */
  #define X86_PDPE_PG_MASK                    ( 0x0000fffffffff000ULL )
-@@ -1376,7 +1376,7 @@
+@@ -1376,7 +1376,7 @@ typedef const X86PDPAE *PCX86PDPAE;
  #define X86_PDPE_PG_MASK                    ( 0x000ffffffffff000ULL )
  #endif
  /** Bits 63 - NX - PAE - No execution flag. */
@@ -1808,7 +1808,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  
  /**
   * Page directory pointer table entry.
-@@ -1463,19 +1463,19 @@
+@@ -1463,19 +1463,19 @@ typedef const X86PDPTR *PCX86PDPTR;
   * @{
   */
  /** Bit 0 -  P  - Present bit. */
@@ -1835,7 +1835,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  /** Bits 12-51 - - PAE - Physical Page number of the next level. */
  #if 1 /* we're using this internally and have to mask of the top 16-bit. */
  #define X86_PML4E_PG_MASK                   ( 0x0000fffffffff000ULL )
-@@ -1483,7 +1483,7 @@
+@@ -1483,7 +1483,7 @@ typedef const X86PDPTR *PCX86PDPTR;
  #define X86_PML4E_PG_MASK                   ( 0x000ffffffffff000ULL )
  #endif
  /** Bits 63 - NX - PAE - No execution flag. */
@@ -1844,7 +1844,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  
  /**
   * Page Map Level-4 Entry
-@@ -1948,7 +1948,7 @@
+@@ -1948,7 +1948,7 @@ typedef X86DESC     *PX86DESCHC;
  /** Code(=set)/Data(=clear) bit. */
  #define X86_SEL_TYPE_CODE                   8
  /** Memory(=set)/System(=clear) bit. */
@@ -1853,7 +1853,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  /** Accessed bit. */
  #define X86_SEL_TYPE_ACCESSED               1
  /** Expand down bit (for data selectors only). */
-@@ -2053,20 +2053,20 @@
+@@ -2053,20 +2053,20 @@ typedef X86DESC     *PX86DESCHC;
   * These are for the 2nd 32-bit word of a descriptor.
   * @{ */
  /** Bits 8-11 - TYPE - Descriptor type mask. */
@@ -1881,7 +1881,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  /** @} */
  
  /** @} */
-@@ -2180,15 +2180,15 @@
+@@ -2180,15 +2180,15 @@ typedef const X86XCPT *PCX86XCPT;
   * @{
   */
  /** Bit 0 -   P - Not present (clear) or page level protection (set) fault. */
@@ -1902,9 +1902,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.h virtualbox-ose-1.5.2-
  /** @} */
  
  #pragma pack(1)
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.mac virtualbox-ose-1.5.2-dfsg2/include/VBox/x86.mac
---- virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.mac	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/VBox/x86.mac	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/x86.mac virtualbox-ose-1.5.2-dfsg2/include/VBox/x86.mac
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/VBox/x86.mac	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/VBox/x86.mac	2007-12-18 14:54:48.000000000 +0000
 @@ -1,156 +1,156 @@
 -%define X86_EFL_CF          BIT(0)
 -%define X86_EFL_PF          BIT(2)
@@ -2419,10 +2419,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/VBox/x86.mac virtualbox-ose-1.5.
 +%define X86_TRAP_PF_US              RT_BIT(2)
 +%define X86_TRAP_PF_RSVD            RT_BIT(3)
 +%define X86_TRAP_PF_ID              RT_BIT(4)
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/asm.h virtualbox-ose-1.5.2-dfsg2/include/iprt/asm.h
---- virtualbox-ose-1.5.2-dfsg2~/include/iprt/asm.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/iprt/asm.h	2007-12-11 18:46:39.000000000 +0100
-@@ -1999,7 +1999,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/asm.h virtualbox-ose-1.5.2-dfsg2/include/iprt/asm.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/asm.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/iprt/asm.h	2007-12-18 14:54:48.000000000 +0000
+@@ -1999,7 +1999,7 @@ DECLASM(uint128_t) ASMAtomicXchgU128(vol
  # else
  DECLINLINE(uint128_t) ASMAtomicXchgU128(volatile uint128_t *pu128, uint128_t u128)
  {
@@ -2431,9 +2431,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/asm.h virtualbox-ose-1.5.2-
     {
         /** @todo this is clumsy code */
         RTUINT128U u128Ret;
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/asmdefs.mac virtualbox-ose-1.5.2-dfsg2/include/iprt/asmdefs.mac
---- virtualbox-ose-1.5.2-dfsg2~/include/iprt/asmdefs.mac	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/iprt/asmdefs.mac	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/asmdefs.mac virtualbox-ose-1.5.2-dfsg2/include/iprt/asmdefs.mac
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/asmdefs.mac	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/iprt/asmdefs.mac	2007-12-18 14:54:48.000000000 +0000
 @@ -18,7 +18,7 @@
  
  ;;
@@ -2443,9 +2443,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/asmdefs.mac virtualbox-ose-
  
  ;;
  ; Align code, pad with INT3.
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/cdefs.h virtualbox-ose-1.5.2-dfsg2/include/iprt/cdefs.h
---- virtualbox-ose-1.5.2-dfsg2~/include/iprt/cdefs.h	2007-10-18 13:07:28.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/iprt/cdefs.h	2007-12-11 18:47:32.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/cdefs.h virtualbox-ose-1.5.2-dfsg2/include/iprt/cdefs.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/cdefs.h	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/iprt/cdefs.h	2007-12-18 14:54:48.000000000 +0000
 @@ -1036,12 +1036,6 @@
   * Define RT_NO_DEPRECATED_MACROS to not define deprecated macros.
   */
@@ -2459,10 +2459,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/cdefs.h virtualbox-ose-1.5.
  /** @copydoc RT_ALIGN_P
   * @deprecated use RT_ALIGN_P. */
  # define ALIGNP(pv, uAlignment)         RT_ALIGN_P(pv, uAlignment)
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/ldr.h virtualbox-ose-1.5.2-dfsg2/include/iprt/ldr.h
---- virtualbox-ose-1.5.2-dfsg2~/include/iprt/ldr.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/iprt/ldr.h	2007-12-11 18:46:39.000000000 +0100
-@@ -231,7 +231,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/ldr.h virtualbox-ose-1.5.2-dfsg2/include/iprt/ldr.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/ldr.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/iprt/ldr.h	2007-12-18 14:54:48.000000000 +0000
+@@ -231,7 +231,7 @@ RTDECL(int) RTLdrEnumSymbols(RTLDRMOD hL
  /** @name RTLdrEnumSymbols flags.
   * @{ */
  /** Returns ALL kinds of symbols. The default is to only return public/exported symbols. */
@@ -2471,10 +2471,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/ldr.h virtualbox-ose-1.5.2-
  /** @} */
  
  __END_DECLS
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/path.h virtualbox-ose-1.5.2-dfsg2/include/iprt/path.h
---- virtualbox-ose-1.5.2-dfsg2~/include/iprt/path.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/iprt/path.h	2007-12-11 18:46:39.000000000 +0100
-@@ -482,7 +482,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/path.h virtualbox-ose-1.5.2-dfsg2/include/iprt/path.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/path.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/iprt/path.h	2007-12-18 14:54:48.000000000 +0000
+@@ -482,7 +482,7 @@ RTR3DECL(int) RTPathGetOwner(const char 
  /** @name RTPathRename, RTDirRename & RTFileRename flags.
   * @{ */
  /** This will replace attempt any target which isn't a directory. */
@@ -2483,10 +2483,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/path.h virtualbox-ose-1.5.2
  /** @} */
  
  /**
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/string.h virtualbox-ose-1.5.2-dfsg2/include/iprt/string.h
---- virtualbox-ose-1.5.2-dfsg2~/include/iprt/string.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/iprt/string.h	2007-12-11 18:46:39.000000000 +0100
-@@ -325,7 +325,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/string.h virtualbox-ose-1.5.2-dfsg2/include/iprt/string.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/string.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/iprt/string.h	2007-12-18 14:54:48.000000000 +0000
+@@ -325,7 +325,7 @@ RTDECL(char *) RTStrPutCpInternal(char *
  DECLINLINE(RTUNICP) RTStrGetCp(const char *psz)
  {
      const unsigned char uch = *(const unsigned char *)psz;
@@ -2495,7 +2495,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/string.h virtualbox-ose-1.5
          return uch;
      return RTStrGetCpInternal(psz);
  }
-@@ -346,7 +346,7 @@
+@@ -346,7 +346,7 @@ DECLINLINE(RTUNICP) RTStrGetCp(const cha
  DECLINLINE(int) RTStrGetCpEx(const char **ppsz, PRTUNICP pCp)
  {
      const unsigned char uch = **(const unsigned char **)ppsz;
@@ -2504,10 +2504,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/string.h virtualbox-ose-1.5
      {
          (*ppsz)++;
          *pCp = uch;
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/thread.h virtualbox-ose-1.5.2-dfsg2/include/iprt/thread.h
---- virtualbox-ose-1.5.2-dfsg2~/include/iprt/thread.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/iprt/thread.h	2007-12-11 18:46:39.000000000 +0100
-@@ -172,12 +172,12 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/thread.h virtualbox-ose-1.5.2-dfsg2/include/iprt/thread.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/thread.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/iprt/thread.h	2007-12-18 14:54:48.000000000 +0000
+@@ -172,12 +172,12 @@ typedef enum RTTHREADFLAGS
       * This flag is used to keep the thread structure around so it can
       * be waited on after termination.
       */
@@ -2522,10 +2522,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/thread.h virtualbox-ose-1.5
  } RTTHREADFLAGS;
  
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/time.h virtualbox-ose-1.5.2-dfsg2/include/iprt/time.h
---- virtualbox-ose-1.5.2-dfsg2~/include/iprt/time.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/iprt/time.h	2007-12-11 18:46:39.000000000 +0100
-@@ -568,15 +568,15 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/time.h virtualbox-ose-1.5.2-dfsg2/include/iprt/time.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/time.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/iprt/time.h	2007-12-18 14:54:48.000000000 +0000
+@@ -568,15 +568,15 @@ typedef const RTTIME *PCRTTIME;
  
  /** Set if the time is local and daylight saving time is in effect.
   * Not bit is not valid if RTTIME_FLAGS_NO_DST_DATA is set. */
@@ -2545,10 +2545,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/time.h virtualbox-ose-1.5.2
  /** @} */
  
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/timer.h virtualbox-ose-1.5.2-dfsg2/include/iprt/timer.h
---- virtualbox-ose-1.5.2-dfsg2~/include/iprt/timer.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/iprt/timer.h	2007-12-11 18:46:39.000000000 +0100
-@@ -105,7 +105,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/timer.h virtualbox-ose-1.5.2-dfsg2/include/iprt/timer.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/timer.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/iprt/timer.h	2007-12-18 14:54:48.000000000 +0000
+@@ -105,7 +105,7 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *pp
  /** Any CPU is fine. (Must be 0.) */
  #define RTTIMER_FLAGS_CPU_ANY        0
  /** One specific CPU */
@@ -2557,9 +2557,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/timer.h virtualbox-ose-1.5.
  /** All online CPUs. */
  #define RTTIMER_FLAGS_CPU_ALL        ( RTTIMER_FLAGS_CPU_MASK | RTTIMER_FLAGS_CPU_SPECIFIC )
  /** CPU mask. */
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/types.h virtualbox-ose-1.5.2-dfsg2/include/iprt/types.h
---- virtualbox-ose-1.5.2-dfsg2~/include/iprt/types.h	2007-10-18 13:07:28.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/iprt/types.h	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/types.h virtualbox-ose-1.5.2-dfsg2/include/iprt/types.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/types.h	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/iprt/types.h	2007-12-18 14:54:48.000000000 +0000
 @@ -58,8 +58,9 @@
      /*
       * Kludge for the linux kernel:
@@ -2583,10 +2583,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/types.h virtualbox-ose-1.5.
  #  undef false
  #  undef true
  #  undef bool
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/uni.h virtualbox-ose-1.5.2-dfsg2/include/iprt/uni.h
---- virtualbox-ose-1.5.2-dfsg2~/include/iprt/uni.h	2007-08-30 17:16:21.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/include/iprt/uni.h	2007-12-11 18:46:39.000000000 +0100
-@@ -91,13 +91,13 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/uni.h virtualbox-ose-1.5.2-dfsg2/include/iprt/uni.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/include/iprt/uni.h	2007-08-30 15:16:21.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/include/iprt/uni.h	2007-12-18 14:54:48.000000000 +0000
+@@ -91,13 +91,13 @@ typedef const RTUNICASERANGE *PCRTUNICAS
  /** @name Unicode Code Point Flags.
   * @internal
   * @{ */
@@ -2607,10 +2607,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/include/iprt/uni.h virtualbox-ose-1.5.2-
  /** @} */
  
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Debugger/DBGConsole.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Debugger/DBGConsole.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Debugger/DBGConsole.cpp	2007-08-30 17:16:25.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Debugger/DBGConsole.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -886,10 +886,10 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Debugger/DBGConsole.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Debugger/DBGConsole.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Debugger/DBGConsole.cpp	2007-08-30 15:16:25.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Debugger/DBGConsole.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -886,10 +886,10 @@ static uint32_t g_bmOperatorChars[256 / 
   * @{
   */
  /** If set the register set is the hypervisor and not the guest one. */
@@ -2623,7 +2623,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Debugger/DBGConsole.cpp virtual
  /** The shift value to calc the size of a register symbol from the uUser value. */
  #define SYMREG_SIZE_SHIFT       (24)
  /** Get the offset */
-@@ -2576,7 +2576,7 @@
+@@ -2576,7 +2576,7 @@ static int dbgcCmdDumpDTWorker32(PDBGCCM
              "ConfER", /* E Conforming, Execute/Readable */
              "ConfER"  /* F Conforming, Execute/Readable - Accessed */
          };
@@ -2632,7 +2632,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Debugger/DBGConsole.cpp virtual
          const char *pszGranularity = pDesc->Gen.u1Granularity ? "G" : " ";
          const char *pszBig = pDesc->Gen.u1DefBig ? "BIG" : "   ";
          uint32_t u32Base = pDesc->Gen.u16BaseLow
-@@ -2631,7 +2631,7 @@
+@@ -2631,7 +2631,7 @@ static int dbgcCmdDumpDTWorker32(PDBGCCM
              case X86_SEL_TYPE_SYS_LDT:
              {
                  const char *pszGranularity = pDesc->Gen.u1Granularity ? "G" : " ";
@@ -2641,7 +2641,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Debugger/DBGConsole.cpp virtual
                  const char *pszBig = pDesc->Gen.u1DefBig ? "BIG" : "   ";
                  uint32_t u32Base = pDesc->Gen.u16BaseLow
                                   | ((uint32_t)pDesc->Gen.u8BaseHigh1 << 16)
-@@ -2660,7 +2660,7 @@
+@@ -2660,7 +2660,7 @@ static int dbgcCmdDumpDTWorker32(PDBGCCM
              case X86_SEL_TYPE_SYS_386_CALL_GATE:
              {
                  unsigned cParams = pDesc->au8[0] & 0x1f;
@@ -2650,7 +2650,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Debugger/DBGConsole.cpp virtual
                  RTSEL sel = pDesc->au16[1];
                  uint32_t off = pDesc->au16[0] | ((uint32_t)pDesc->au16[3] << 16);
                  rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "%04x %s Sel:Off=%04x:%08x     DPL=%d %s %s=%d%s\n",
-@@ -3429,12 +3429,12 @@
+@@ -3429,12 +3429,12 @@ static DECLCALLBACK(int) dbgcCmdDumpPage
                               Pde.n.u1Write          ? "w"   : "r",
                               Pde.n.u1User           ? "u"   : "s", 
                               Pde.n.u1Accessed       ? "a "  : "na", 
@@ -2666,10 +2666,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Debugger/DBGConsole.cpp virtual
                               Pde.n.u1NoExecute      ? (fNXE ? "nx" : "NX") : "  ");
          if (Pde.u & UINT64_C(0x7fff000000000000))
              DBGCCmdHlpPrintf(pCmdHlp, " weird=%RX64", (Pde.u & UINT64_C(0x7fff000000000000)));
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Audio/DevIchAc97.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Audio/DevIchAc97.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Audio/DevIchAc97.cpp	2007-10-18 13:07:28.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Audio/DevIchAc97.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -79,45 +79,45 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Devices/Audio/DevIchAc97.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Audio/DevIchAc97.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Devices/Audio/DevIchAc97.cpp	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Audio/DevIchAc97.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -79,45 +79,45 @@ enum {
  #else
  #undef  SOFT_VOLUME
  #endif
@@ -2745,7 +2745,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Audio/DevIchAc97.cpp vi
  #define GS_RO_MASK (GS_B3S12|                   \
                      GS_B2S12|                   \
                      GS_B1S12|                   \
-@@ -129,12 +129,12 @@
+@@ -129,12 +129,12 @@ enum {
                      GS_RSRVD|                   \
                      GS_MOINT|                   \
                      GS_MIINT)
@@ -2761,7 +2761,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Audio/DevIchAc97.cpp vi
  
  #define EACS_VRA 1
  #define EACS_VRM 8
-@@ -212,8 +212,8 @@
+@@ -212,8 +212,8 @@ typedef struct AC97LinkState
  
  enum
  {
@@ -2772,7 +2772,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Audio/DevIchAc97.cpp vi
  };
  
  typedef struct PCIAC97LinkState
-@@ -512,10 +512,10 @@
+@@ -512,10 +512,10 @@ static void set_volume (AC97LinkState *s
       *
       *  Linux ALSA depends on this behavior.
       */
@@ -2787,10 +2787,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Audio/DevIchAc97.cpp vi
  #endif
  
      mixer_store (s, index, val);
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Network/DevPCNet.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Network/DevPCNet.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Network/DevPCNet.cpp	2007-10-18 13:07:28.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Network/DevPCNet.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -1900,7 +1900,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Devices/Network/DevPCNet.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Network/DevPCNet.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Devices/Network/DevPCNet.cpp	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Network/DevPCNet.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -1900,7 +1900,7 @@ static void pcnetXmitFailTMDLinkDown(PCN
      /* make carrier error - hope this is correct. */
      pData->cLinkDownReported++;
      pTmd->tmd2.lcar = pTmd->tmd1.err = 1;
@@ -2799,7 +2799,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Network/DevPCNet.cpp vi
      pData->Led.Asserted.s.fError = pData->Led.Actual.s.fError = 1;
      Log(("#%d pcnetTransmit: Signaling send error. swstyle=%#x\n",
           PCNETSTATE_2_DEVINS(pData)->iInstance, pData->aBCR[BCR_SWS]));
-@@ -1913,7 +1913,7 @@
+@@ -1913,7 +1913,7 @@ static void pcnetXmitFailTMDGeneric(PCNe
  {
      /* make carrier error - hope this is correct. */
      pTmd->tmd2.lcar = pTmd->tmd1.err = 1;
@@ -2808,7 +2808,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Network/DevPCNet.cpp vi
      pData->Led.Asserted.s.fError = pData->Led.Actual.s.fError = 1;
      Log(("#%d pcnetTransmit: Signaling send error. swstyle=%#x\n",
           PCNETSTATE_2_DEVINS(pData)->iInstance, pData->aBCR[BCR_SWS]));
-@@ -3513,7 +3513,7 @@
+@@ -3513,7 +3513,7 @@ static DECLCALLBACK(void) pcnetTimerRest
                      pDevIns->iInstance));
              Log(("#%d pcnetTimerRestore: Clearing ERR and CERR after load. cLinkDownReported=%d\n",
                   pDevIns->iInstance, pData->cLinkDownReported));
@@ -2817,7 +2817,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Network/DevPCNet.cpp vi
              pData->Led.Actual.s.fError = 0;
          }
      }
-@@ -3664,18 +3664,18 @@
+@@ -3664,18 +3664,18 @@ static DECLCALLBACK(void) pcnetInfo(PPDM
      pHlp->pfnPrintf(pHlp,
                      "CSR3=%#06x: BSWP=%d EMBA=%d DXMT2PD=%d LAPPEN=%d DXSUFLO=%d IDONM=%d TINTM=%d RINTM=%d MERRM=%d MISSM=%d BABLM=%d\n",
                      pData->aCSR[3],
@@ -2843,7 +2843,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Network/DevPCNet.cpp vi
  
      pHlp->pfnPrintf(pHlp,
                      "CSR5=%#06x:\n",
-@@ -3708,10 +3708,10 @@
+@@ -3708,10 +3708,10 @@ static DECLCALLBACK(void) pcnetInfo(PPDM
                      "CSR15=%#06x: DXR=%d DTX=%d LOOP=%d DXMTFCS=%d FCOLL=%d DRTY=%d INTL=%d PORTSEL=%d LTR=%d\n"
                      "              MENDECL=%d DAPC=%d DLNKTST=%d DRCVPV=%d DRCVBC=%d PROM=%d\n",
                      pData->aCSR[15],
@@ -2858,7 +2858,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Network/DevPCNet.cpp vi
  
      pHlp->pfnPrintf(pHlp,
                      "CSR46=%#06x: POLL=%#06x (Poll Time Counter)\n",
-@@ -3730,7 +3730,7 @@
+@@ -3730,7 +3730,7 @@ static DECLCALLBACK(void) pcnetInfo(PPDM
                      : (pData->aCSR[58] & 0x7f) == 2 ? "PCNet-PCI II"
                      : (pData->aCSR[58] & 0x7f) == 3 ? "PCNet-PCI II controller"
                      : "!!reserved!!",
@@ -2867,7 +2867,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Network/DevPCNet.cpp vi
  
      pHlp->pfnPrintf(pHlp,
                      "CSR112=%04RX32: MFC=%04x (Missed receive Frame Count)\n",
-@@ -3738,11 +3738,11 @@
+@@ -3738,11 +3738,11 @@ static DECLCALLBACK(void) pcnetInfo(PPDM
  
      pHlp->pfnPrintf(pHlp,
                      "CSR122=%04RX32: RCVALGN=%04x (Receive Frame Align)\n",
@@ -2881,7 +2881,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Network/DevPCNet.cpp vi
  
  
      /*
-@@ -3955,7 +3955,7 @@
+@@ -3955,7 +3955,7 @@ static DECLCALLBACK(int) pcnetLoadExec(P
      {
          pData->fLinkTempDown = true;
          pData->cLinkDownReported = 0;
@@ -2890,7 +2890,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Network/DevPCNet.cpp vi
          pData->Led.Asserted.s.fError = pData->Led.Actual.s.fError = 1;
          return TMTimerSetMillies(pData->pTimerRestore, 5000);
      }
-@@ -4120,14 +4120,14 @@
+@@ -4120,14 +4120,14 @@ static DECLCALLBACK(int) pcnetSetLinkSta
          if (fLinkUp)
          {
              /* connect */
@@ -2907,9 +2907,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Network/DevPCNet.cpp vi
              pData->Led.Asserted.s.fError = pData->Led.Actual.s.fError = 1;
          }
          Assert(!PDMCritSectIsOwner(&pData->CritSect));
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/PC/DevACPI.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/PC/DevACPI.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/PC/DevACPI.cpp	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/PC/DevACPI.cpp	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Devices/PC/DevACPI.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/PC/DevACPI.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Devices/PC/DevACPI.cpp	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/PC/DevACPI.cpp	2007-12-18 14:54:48.000000000 +0000
 @@ -64,44 +64,44 @@
  #define ACPI_RESET_BLK  0x00004050
  
@@ -2982,22 +2982,23 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/PC/DevACPI.cpp virtualb
  
  enum
  {
-@@ -138,15 +138,15 @@
+@@ -138,15 +138,15 @@ enum
  #define BAT_TECH_PRIMARY                        1
  #define BAT_TECH_SECONDARY                      2
  
 -#define BAT_STATUS_DISCHARGING_MASK             BIT (0)
 -#define BAT_STATUS_CHARGING_MASK                BIT (1)
 -#define BAT_STATUS_CRITICAL_MASK                BIT (2)
-+#define BAT_STATUS_DISCHARGING_MASK             RT_BIT(0)
-+#define BAT_STATUS_CHARGING_MASK                RT_BIT(1)
-+#define BAT_STATUS_CRITICAL_MASK                RT_BIT(2)
- 
+-
 -#define STA_DEVICE_PRESENT_MASK                 BIT (0)
 -#define STA_DEVICE_ENABLED_MASK                 BIT (1)
 -#define STA_DEVICE_SHOW_IN_UI_MASK              BIT (2)
 -#define STA_DEVICE_FUNCTIONING_PROPERLY_MASK    BIT (3)
 -#define STA_BATTERY_PRESENT_MASK                BIT (4)
++#define BAT_STATUS_DISCHARGING_MASK             RT_BIT(0)
++#define BAT_STATUS_CHARGING_MASK                RT_BIT(1)
++#define BAT_STATUS_CRITICAL_MASK                RT_BIT(2)
++
 +#define STA_DEVICE_PRESENT_MASK                 RT_BIT(0)
 +#define STA_DEVICE_ENABLED_MASK                 RT_BIT(1)
 +#define STA_DEVICE_SHOW_IN_UI_MASK              RT_BIT(2)
@@ -3006,7 +3007,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/PC/DevACPI.cpp virtualb
  
  struct ACPIState
  {
-@@ -308,32 +308,32 @@
+@@ -308,32 +308,32 @@ struct ACPITBLFADT
      uint8_t             u8MonAlarm;             /**< RTC CMOS RAM index of month-of-year alarm */
      uint8_t             u8Century;              /**< RTC CMOS RAM index of century */
      uint16_t            u16IAPCBOOTARCH;        /**< IA-PC boot architecture flags */
@@ -3062,10 +3063,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/PC/DevACPI.cpp virtualb
      ACPIGENADDR         ResetReg;               /**< ext addr of reset register */
      uint8_t             u8ResetVal;             /**< ResetReg value to reset the system */
  #define ACPI_RESET_REG_VAL  0x10
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/PC/DevPcBios.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/PC/DevPcBios.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/PC/DevPcBios.cpp	2007-10-18 13:07:28.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/PC/DevPcBios.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -452,9 +452,9 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Devices/PC/DevPcBios.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/PC/DevPcBios.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Devices/PC/DevPcBios.cpp	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/PC/DevPcBios.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -452,9 +452,9 @@ static DECLCALLBACK(int) pcbiosInitCompl
          case 2: u32 = 0x41; break;      /* floppy installed, 2 drives. */
          default:u32 = 0;    break;      /* floppy not installed. */
      }
@@ -3078,7 +3079,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/PC/DevPcBios.cpp virtua
      pcbiosCmosWrite(pDevIns, 0x14, u32);                                        /* 14h - Equipment Byte */
  
      /*
-@@ -759,15 +759,15 @@
+@@ -759,15 +759,15 @@ static void pcbiosPlantDMITable(uint8_t 
      pBIOSInf->u8Release          = iStrNr++;
      STRCPY(pszStr, "12/01/2006");
      pBIOSInf->u8ROMSize          = 1; /* 128K */
@@ -3101,10 +3102,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/PC/DevPcBios.cpp virtua
                                       /* any more?? */
                                       ;
      pBIOSInf->u8CharacteristicsByte2 = 0
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Storage/VBoxHDD-new.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Storage/VBoxHDD-new.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Storage/VBoxHDD-new.cpp	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Storage/VBoxHDD-new.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -57,9 +57,9 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Devices/Storage/VBoxHDD-new.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Storage/VBoxHDD-new.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Devices/Storage/VBoxHDD-new.cpp	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Storage/VBoxHDD-new.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -57,9 +57,9 @@ typedef struct VDIMAGE
  /**
   * uModified bit flags.
   */
@@ -3117,10 +3118,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Storage/VBoxHDD-new.cpp
  
  
  /**
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Storage/VDICore.h virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Storage/VDICore.h
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Storage/VDICore.h	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Storage/VDICore.h	2007-12-11 18:46:39.000000000 +0100
-@@ -421,9 +421,9 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Devices/Storage/VDICore.h virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Storage/VDICore.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Devices/Storage/VDICore.h	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Storage/VDICore.h	2007-12-18 14:54:48.000000000 +0000
+@@ -421,9 +421,9 @@ DECLINLINE(PRTUUID) getImageParentModifi
  /**
   * fModified bit flags.
   */
@@ -3133,10 +3134,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Storage/VDICore.h virtu
  
  /**
   * Image structure
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Storage/fdc.c virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Storage/fdc.c
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Storage/fdc.c	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Storage/fdc.c	2007-12-11 18:46:39.000000000 +0100
-@@ -788,10 +788,10 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Devices/Storage/fdc.c virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Storage/fdc.c
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Devices/Storage/fdc.c	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Devices/Storage/fdc.c	2007-12-18 14:54:48.000000000 +0000
+@@ -788,10 +788,10 @@ static uint32_t fdctrl_read_dor (fdctrl_
  #else
      /* bit4: 0 = drive 0 motor off/1 = on */
      if (drv0(fdctrl)->drflags & FDRIVE_MOTOR_ON)
@@ -3149,9 +3150,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Devices/Storage/fdc.c virtualbo
  #endif
      /* DMA enable */
      retval |= fdctrl->dma_en << 3;
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Frontends/VBoxManage/VBoxManage.h virtualbox-ose-1.5.2-dfsg2/src/VBox/Frontends/VBoxManage/VBoxManage.h
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Frontends/VBoxManage/VBoxManage.h	2007-08-30 17:16:23.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Frontends/VBoxManage/VBoxManage.h	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Frontends/VBoxManage/VBoxManage.h virtualbox-ose-1.5.2-dfsg2/src/VBox/Frontends/VBoxManage/VBoxManage.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Frontends/VBoxManage/VBoxManage.h	2007-08-30 15:16:23.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Frontends/VBoxManage/VBoxManage.h	2007-12-18 14:54:48.000000000 +0000
 @@ -21,46 +21,46 @@
  
  /** Syntax diagram category. */
@@ -3235,10 +3236,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Frontends/VBoxManage/VBoxManage
  #endif /* !VBOX_OSE */
  #define USAGE_ALL                   (~(uint64_t)0)
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/HostDrivers/Support/SUPDRVShared.c virtualbox-ose-1.5.2-dfsg2/src/VBox/HostDrivers/Support/SUPDRVShared.c
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/HostDrivers/Support/SUPDRVShared.c	2007-10-18 13:07:28.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/HostDrivers/Support/SUPDRVShared.c	2007-12-11 18:46:39.000000000 +0100
-@@ -65,23 +65,23 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/HostDrivers/Support/SUPDRVShared.c virtualbox-ose-1.5.2-dfsg2/src/VBox/HostDrivers/Support/SUPDRVShared.c
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/HostDrivers/Support/SUPDRVShared.c	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/HostDrivers/Support/SUPDRVShared.c	2007-12-18 14:54:48.000000000 +0000
+@@ -65,23 +65,23 @@ typedef enum VMMR0OPERATION
  *******************************************************************************/
  /* from x86.h - clashes with linux thus this duplication */
  #undef X86_CR0_PG
@@ -3270,7 +3271,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/HostDrivers/Support/SUPDRVShare
  
  
  /** The frequency by which we recalculate the u32UpdateHz and
-@@ -4127,9 +4127,9 @@
+@@ -4127,9 +4127,9 @@ static int supdrvIOCtl_GetPagingMode(PSU
              {
                  uint64_t efer = ASMRdMsr(MSR_K6_EFER);
                  if ((fAmdFeatures & X86_CPUID_AMD_FEATURE_EDX_NX)        && (efer & MSR_K6_EFER_NXE))
@@ -3282,7 +3283,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/HostDrivers/Support/SUPDRVShare
              }
          }
  
-@@ -4147,7 +4147,7 @@
+@@ -4147,7 +4147,7 @@ static int supdrvIOCtl_GetPagingMode(PSU
                  pOut->enmMode = SUPPAGINGMODE_PAE;
                  break;
  
@@ -3291,7 +3292,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/HostDrivers/Support/SUPDRVShare
                  pOut->enmMode = SUPPAGINGMODE_PAE_NX;
                  break;
  
-@@ -4155,23 +4155,23 @@
+@@ -4155,23 +4155,23 @@ static int supdrvIOCtl_GetPagingMode(PSU
                  pOut->enmMode = SUPPAGINGMODE_PAE_GLOBAL;
                  break;
  
@@ -3320,7 +3321,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/HostDrivers/Support/SUPDRVShare
                  pOut->enmMode = SUPPAGINGMODE_AMD64_GLOBAL_NX;
                  break;
  
-@@ -4518,7 +4518,7 @@
+@@ -4518,7 +4518,7 @@ static SUPGIPMODE supdrvGipDeterminTscMo
              if (uEAX >= 0x80000007)
              {
                  ASMCpuId(0x80000007, &uEAX, &uEBX, &uECX, &uEDX);
@@ -3329,10 +3330,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/HostDrivers/Support/SUPDRVShare
                      &&  (uEDX & 0x3e))  /* STC|TM|THERMTRIP|VID|FID. Ignore TS. */
                      return SUPGIPMODE_ASYNC_TSC;
              }
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/alloc/heapsimple.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/alloc/heapsimple.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/alloc/heapsimple.cpp	2007-08-30 17:16:25.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/alloc/heapsimple.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -60,11 +60,11 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/alloc/heapsimple.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/alloc/heapsimple.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/alloc/heapsimple.cpp	2007-08-30 15:16:25.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/alloc/heapsimple.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -60,11 +60,11 @@ typedef struct RTHEAPSIMPLEBLOCK
  AssertCompileSizeAlignment(RTHEAPSIMPLEBLOCK, 16);
  
  /** The block is free if this flag is set. When cleared it's allocated. */
@@ -3346,10 +3347,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/alloc/heapsimple.cpp vi
  
  /**
   * Checks if the specified block is valid or not.
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/include/internal/thread.h virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/include/internal/thread.h
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/include/internal/thread.h	2007-08-30 17:16:24.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/include/internal/thread.h	2007-12-11 18:46:39.000000000 +0100
-@@ -132,14 +132,14 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/include/internal/thread.h virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/include/internal/thread.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/include/internal/thread.h	2007-08-30 15:16:24.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/include/internal/thread.h	2007-12-18 14:54:48.000000000 +0000
+@@ -132,14 +132,14 @@ typedef struct RTTHREADINT
   * @{ */
  /** Set if the thread is an alien thread.
   * Clear if the thread was created by IPRT. */
@@ -3367,10 +3368,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/include/internal/thread
  /** @} */
  
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/r0drv/alloc-r0drv.h virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/r0drv/alloc-r0drv.h
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/r0drv/alloc-r0drv.h	2007-08-30 17:16:24.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/r0drv/alloc-r0drv.h	2007-12-11 18:46:39.000000000 +0100
-@@ -42,11 +42,11 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/r0drv/alloc-r0drv.h virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/r0drv/alloc-r0drv.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/r0drv/alloc-r0drv.h	2007-08-30 15:16:24.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/r0drv/alloc-r0drv.h	2007-12-18 14:54:48.000000000 +0000
+@@ -42,11 +42,11 @@ typedef struct RTMEMHDR
  
  /** @name RTMEMHDR::fFlags.
   * @{ */
@@ -3386,10 +3387,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/r0drv/alloc-r0drv.h vir
  #endif
  /** @} */
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/strformatrt.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/strformatrt.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/strformatrt.cpp	2007-08-30 17:16:25.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/strformatrt.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -644,7 +644,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/strformatrt.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/strformatrt.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/strformatrt.cpp	2007-08-30 15:16:25.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/strformatrt.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -644,7 +644,7 @@ size_t rtstrFormatRt(PFNRTSTROUTPUT pfnO
                      RTST_TIMESPEC
                  } RTST;
  /** Set if it's a pointer */
@@ -3398,10 +3399,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/strformatrt.cpp virtual
                  static const struct
                  {
                      uint8_t     cch;        /**< the length of the string. */
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/testcase/tstBitOperations.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/testcase/tstBitOperations.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/testcase/tstBitOperations.cpp	2007-08-30 17:16:24.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/testcase/tstBitOperations.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -263,7 +263,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/testcase/tstBitOperations.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/testcase/tstBitOperations.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/testcase/tstBitOperations.cpp	2007-08-30 15:16:24.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/testcase/tstBitOperations.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -263,7 +263,7 @@ int main()
      CHECK(ASMBitLastSetU32(1) == 1);
      CHECK(ASMBitLastSetU32(0x80000000) == 32);
      CHECK(ASMBitLastSetU32(0xffffffff) == 32);
@@ -3410,7 +3411,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/testcase/tstBitOperatio
      for (i = 0; i < 32; i++)
          CHECK(ASMBitLastSetU32(1 << i) == (unsigned)i + 1);
  
-@@ -271,7 +271,7 @@
+@@ -271,7 +271,7 @@ int main()
      CHECK(ASMBitFirstSetU32(1) == 1);
      CHECK(ASMBitFirstSetU32(0x80000000) == 32);
      CHECK(ASMBitFirstSetU32(0xffffffff) == 1);
@@ -3419,10 +3420,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/testcase/tstBitOperatio
      for (i = 0; i < 32; i++)
          CHECK(ASMBitFirstSetU32(1 << i) == (unsigned)i + 1);
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/testcase/tstInlineAsm.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/testcase/tstInlineAsm.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/testcase/tstInlineAsm.cpp	2007-08-30 17:16:24.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/testcase/tstInlineAsm.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -184,49 +184,49 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/testcase/tstInlineAsm.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/testcase/tstInlineAsm.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/testcase/tstInlineAsm.cpp	2007-08-30 15:16:24.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/testcase/tstInlineAsm.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -184,49 +184,49 @@ void tstASMCpuId(void)
                   (s.uEBX >>  0) & 0xff);
  
          RTPrintf("Features EDX:                   ");
@@ -3508,7 +3509,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/testcase/tstInlineAsm.c
                  RTPrintf(" %d", iBit);
          RTPrintf("\n");
      }
-@@ -276,48 +276,48 @@
+@@ -276,48 +276,48 @@ void tstASMCpuId(void)
                   s.uEBX & 0xfff);
  
          RTPrintf("Features EDX:                   ");
@@ -3595,7 +3596,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/testcase/tstInlineAsm.c
                  RTPrintf(" %d", iBit);
          RTPrintf("\n");
      }
-@@ -386,17 +386,17 @@
+@@ -386,17 +386,17 @@ void tstASMCpuId(void)
       {
           ASMCpuId(0x80000007, &s.uEAX, &s.uEBX, &s.uECX, &s.uEDX);
           RTPrintf("APM Features:                   ");
@@ -3623,10 +3624,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/testcase/tstInlineAsm.c
                   RTPrintf(" %d", iBit);
           RTPrintf("\n");
       }
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/utf-8.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp	2007-08-30 17:16:25.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/utf-8.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -47,19 +47,19 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/utf-8.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/utf-8.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/utf-8.cpp	2007-08-30 15:16:25.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/utf-8.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -47,19 +47,19 @@ static int rtUtf8Length(const char *psz,
          const unsigned char uch = *puch;
          if (!uch)
              break;
@@ -3652,7 +3653,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-os
                  cb = 6;
              else
              {
-@@ -78,15 +78,15 @@
+@@ -78,15 +78,15 @@ static int rtUtf8Length(const char *psz,
              switch (cb)
              {
                  case 6:
@@ -3673,7 +3674,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-os
                     break;
              }
  
-@@ -193,24 +193,24 @@
+@@ -193,24 +193,24 @@ static int rtUtf8Decode(const char *psz,
          }
  
          /* decode and recode the code point */
@@ -3702,7 +3703,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-os
          {
              *pCp++ = (puch[2] & 0x3f)
                     | ((uint16_t)(puch[1] & 0x3f) << 6)
-@@ -218,7 +218,7 @@
+@@ -218,7 +218,7 @@ static int rtUtf8Decode(const char *psz,
              puch += 3;
              cch -= 3;
          }
@@ -3711,7 +3712,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-os
          {
              *pCp++ = (puch[3] & 0x3f)
                     | ((RTUNICP)(puch[2] & 0x3f) << 6)
-@@ -227,7 +227,7 @@
+@@ -227,7 +227,7 @@ static int rtUtf8Decode(const char *psz,
              puch += 4;
              cch -= 4;
          }
@@ -3720,7 +3721,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-os
          {
              *pCp++ = (puch[4] & 0x3f)
                     | ((RTUNICP)(puch[3] & 0x3f) << 6)
-@@ -239,7 +239,7 @@
+@@ -239,7 +239,7 @@ static int rtUtf8Decode(const char *psz,
          }
          else
          {
@@ -3729,7 +3730,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-os
              *pCp++ = (puch[5] & 0x3f)
                     | ((RTUNICP)(puch[4] & 0x3f) << 6)
                     | ((RTUNICP)(puch[3] & 0x3f) << 12)
-@@ -393,7 +393,7 @@
+@@ -393,7 +393,7 @@ static int rtUtf8CalcUtf16Length(const c
          const unsigned char uch = *puch;
          if (!uch)
              break;
@@ -3738,7 +3739,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-os
          {
               /* one ASCII byte */
              cwc++;
-@@ -404,15 +404,15 @@
+@@ -404,15 +404,15 @@ static int rtUtf8CalcUtf16Length(const c
          {
              /* figure sequence length and validate the first byte */
              unsigned cb;
@@ -3759,7 +3760,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-os
                  cb = 6;
              else
              {
-@@ -431,15 +431,15 @@
+@@ -431,15 +431,15 @@ static int rtUtf8CalcUtf16Length(const c
              switch (cb)
              {
                  case 6:
@@ -3780,7 +3781,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-os
                     break;
              }
  
-@@ -545,13 +545,13 @@
+@@ -545,13 +545,13 @@ static int rtUtf8RecodeAsUtf16(const cha
          }
  
          /* decode and recode the code point */
@@ -3796,7 +3797,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-os
          {
              uint16_t uc = (puch[1] & 0x3f)
                      | ((uint16_t)(uch     & 0x1f) << 6);
-@@ -559,7 +559,7 @@
+@@ -559,7 +559,7 @@ static int rtUtf8RecodeAsUtf16(const cha
              puch += 2;
              cch -= 2;
          }
@@ -3805,7 +3806,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-os
          {
              uint16_t uc = (puch[2] & 0x3f)
                      | ((uint16_t)(puch[1] & 0x3f) << 6)
-@@ -571,7 +571,7 @@
+@@ -571,7 +571,7 @@ static int rtUtf8RecodeAsUtf16(const cha
          else
          {
              /* generate surrugate pair */
@@ -3814,7 +3815,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-os
              RTUNICP uc =           (puch[3] & 0x3f)
                         | ((RTUNICP)(puch[2] & 0x3f) << 6)
                         | ((RTUNICP)(puch[1] & 0x3f) << 12)
-@@ -746,24 +746,24 @@
+@@ -746,24 +746,24 @@ RTDECL(int) RTStrGetCpExInternal(const c
      RTUNICP             uc;
  
      /* ASCII ? */
@@ -3846,7 +3847,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-os
              cb = 6;
          else
          {
-@@ -928,9 +928,9 @@
+@@ -928,9 +928,9 @@ RTDECL(char *) RTStrPrevCp(const char *p
          /* simple char? */
          const unsigned char *puch = (const unsigned char *)psz;
          unsigned uch = *--puch;
@@ -3858,10 +3859,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Runtime/utf-8.cpp virtualbox-os
  
          /* two or more. */
          uint32_t uMask = 0xffffffc0;
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/CPUM.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/CPUM.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/CPUM.cpp	2007-10-18 13:07:28.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/CPUM.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -1083,58 +1083,58 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/CPUM.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/CPUM.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/CPUM.cpp	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/CPUM.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -1083,58 +1083,58 @@ static DECLCALLBACK(void) cpumR3CpuIdInf
          {
              uint32_t uEDX = Guest.edx;
              pHlp->pfnPrintf(pHlp, "Features EDX:                   ");
@@ -3967,7 +3968,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/CPUM.cpp virtualbox-ose-1.5
                      pHlp->pfnPrintf(pHlp, " %d", iBit);
              pHlp->pfnPrintf(pHlp, "\n");
          }
-@@ -1255,56 +1255,56 @@
+@@ -1255,56 +1255,56 @@ static DECLCALLBACK(void) cpumR3CpuIdInf
          {
              uint32_t uEDX = Guest.edx;
              pHlp->pfnPrintf(pHlp, "Features EDX:                   ");
@@ -4069,7 +4070,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/CPUM.cpp virtualbox-ose-1.5
                      pHlp->pfnPrintf(pHlp, " %d", iBit);
              pHlp->pfnPrintf(pHlp, "\n");
          }
-@@ -1315,54 +1315,54 @@
+@@ -1315,54 +1315,54 @@ static DECLCALLBACK(void) cpumR3CpuIdInf
              uint32_t uEdxGst = Guest.edx;
              uint32_t uEdxHst = Host.edx;
              pHlp->pfnPrintf(pHlp, "Mnemonic - Description                 = guest (host)\n");
@@ -4168,7 +4169,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/CPUM.cpp virtualbox-ose-1.5
              pHlp->pfnPrintf(pHlp, "31:14 - Reserved                       = %#x (%#x)\n",   uEcxGst >> 14,          uEcxHst >> 14);
          }
      }
-@@ -1462,14 +1462,14 @@
+@@ -1462,14 +1462,14 @@ static DECLCALLBACK(void) cpumR3CpuIdInf
          uint32_t uEDX = pVM->cpum.s.aGuestCpuIdExt[7].edx;
  
          pHlp->pfnPrintf(pHlp, "APM Features:                   ");
@@ -4190,9 +4191,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/CPUM.cpp virtualbox-ose-1.5
                  pHlp->pfnPrintf(pHlp, " %d", iBit);
          pHlp->pfnPrintf(pHlp, "\n");
      }
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/CPUMInternal.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/CPUMInternal.h
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/CPUMInternal.h	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/CPUMInternal.h	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/CPUMInternal.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/CPUMInternal.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/CPUMInternal.h	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/CPUMInternal.h	2007-12-18 14:54:48.000000000 +0000
 @@ -49,7 +49,7 @@
  /** Type mask. */
  #define CPUM_HANDLER_TYPEMASK           0xff
@@ -4227,9 +4228,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/CPUMInternal.h virtualbox-o
  /** @} */
  
  /* Sanity check. */
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/CPUMInternal.mac virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/CPUMInternal.mac
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/CPUMInternal.mac	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/CPUMInternal.mac	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/CPUMInternal.mac virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/CPUMInternal.mac
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/CPUMInternal.mac	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/CPUMInternal.mac	2007-12-18 14:54:48.000000000 +0000
 @@ -16,12 +16,12 @@
  
  %include "VBox/asmdefs.mac"
@@ -4258,10 +4259,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/CPUMInternal.mac virtualbox
  
  %define VMMGCRET_USED_FPU       040000000h
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/HWACCMInternal.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/HWACCMInternal.h
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/HWACCMInternal.h	2007-10-18 13:07:28.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/HWACCMInternal.h	2007-12-11 18:46:39.000000000 +0100
-@@ -52,18 +52,18 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/HWACCMInternal.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/HWACCMInternal.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/HWACCMInternal.h	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/HWACCMInternal.h	2007-12-18 14:54:48.000000000 +0000
+@@ -52,18 +52,18 @@ __BEGIN_DECLS
   * have been changed since last they were reset.
   * @{
   */
@@ -4292,7 +4293,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/HWACCMInternal.h virtualbox
  
  #define HWACCM_CHANGED_ALL                  (   HWACCM_CHANGED_GUEST_SEGMENT_REGS \
                                              |   HWACCM_CHANGED_GUEST_CR0          \
-@@ -97,10 +97,10 @@
+@@ -97,10 +97,10 @@ __BEGIN_DECLS
   *  Currently #NM and #PF only
   */
  #ifdef VBOX_STRICT
@@ -4305,9 +4306,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/HWACCMInternal.h virtualbox
  #define HWACCM_SVM_TRAP_MASK                HWACCM_VMX_TRAP_MASK
  #endif
  /** @} */
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PATM/CSAMInternal.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/CSAMInternal.h
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PATM/CSAMInternal.h	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/CSAMInternal.h	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/PATM/CSAMInternal.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/CSAMInternal.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/PATM/CSAMInternal.h	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/CSAMInternal.h	2007-12-18 14:54:48.000000000 +0000
 @@ -35,7 +35,7 @@
  #ifndef PGM_PTFLAGS_CSAM_VALIDATED
  /** Scanned and approved by CSAM (tm). */
@@ -4317,9 +4318,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PATM/CSAMInternal.h virtual
  #endif
  
  /** @} */
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PATM/PATMA.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/PATMA.h
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PATM/PATMA.h	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/PATMA.h	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/PATM/PATMA.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/PATMA.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/PATM/PATMA.h	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/PATMA.h	2007-12-18 14:54:48.000000000 +0000
 @@ -95,9 +95,9 @@
  #define PATM_ACTION_MAGIC                       0xABCD4321
  
@@ -4333,9 +4334,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PATM/PATMA.h virtualbox-ose
  
  typedef struct
  {
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PATM/PATMA.mac virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/PATMA.mac
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PATM/PATMA.mac	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/PATMA.mac	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/PATM/PATMA.mac virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/PATMA.mac
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/PATM/PATMA.mac	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/PATMA.mac	2007-12-18 14:54:48.000000000 +0000
 @@ -92,9 +92,9 @@
  ;/* Magic dword found in ecx for patm pending actions. */
  %define PATM_ACTION_MAGIC          0xABCD4321
@@ -4349,9 +4350,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PATM/PATMA.mac virtualbox-o
  
  
  ;/* For indirect calls/jump (identical in PATMA.h & PATMA.mac!) */
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PATM/PATMInternal.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/PATMInternal.h
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PATM/PATMInternal.h	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/PATMInternal.h	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/PATM/PATMInternal.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/PATMInternal.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/PATM/PATMInternal.h	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PATM/PATMInternal.h	2007-12-18 14:54:48.000000000 +0000
 @@ -40,32 +40,32 @@
  #define MAX_PATCH_SIZE                     (1024*4)
  
@@ -4409,10 +4410,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PATM/PATMInternal.h virtual
  
  #define SIZEOF_NEARJUMP8                   2 //opcode byte + 1 byte relative offset
  #define SIZEOF_NEARJUMP16                  3 //opcode byte + 2 byte relative offset
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGM.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PGM.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGM.cpp	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PGM.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -2522,7 +2522,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/PGM.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PGM.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/PGM.cpp	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PGM.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -2522,7 +2522,7 @@ static int  pgmR3DumpHierarchyHCPaePT(PV
                              Pte.n.u1PAT         ? "AT" : "--",
                              Pte.n.u1NoExecute   ? "NX" : "--",
                              Pte.u & PGM_PTFLAGS_TRACK_DIRTY   ? 'd' : '-',
@@ -4421,7 +4422,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGM.cpp virtualbox-ose-1.5.
                              Pte.u & PGM_PTFLAGS_CSAM_VALIDATED? 'v' : '-',
                              Pte.u & X86_PTE_PAE_PG_MASK);
          }
-@@ -2573,7 +2573,7 @@
+@@ -2573,7 +2573,7 @@ static int  pgmR3DumpHierarchyHCPaePD(PV
                                  Pde.b.u1CacheDisable? "CD" : "--",
                                  Pde.b.u1PAT         ? "AT" : "--",
                                  Pde.b.u1NoExecute   ? "NX" : "--",
@@ -4430,7 +4431,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGM.cpp virtualbox-ose-1.5.
                                  Pde.u & PGM_PDFLAGS_MAPPING     ? 'm' : '-',
                                  Pde.u & PGM_PDFLAGS_TRACK_DIRTY ? 'd' : '-',
                                  Pde.u & X86_PDE_PAE_PG_MASK);
-@@ -2592,7 +2592,7 @@
+@@ -2592,7 +2592,7 @@ static int  pgmR3DumpHierarchyHCPaePD(PV
                                  Pde.n.u1WriteThru   ? "WT" : "--",
                                  Pde.n.u1CacheDisable? "CD" : "--",
                                  Pde.n.u1NoExecute   ? "NX" : "--",
@@ -4439,7 +4440,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGM.cpp virtualbox-ose-1.5.
                                  Pde.u & PGM_PDFLAGS_MAPPING     ? 'm' : '-',
                                  Pde.u & PGM_PDFLAGS_TRACK_DIRTY ? 'd' : '-',
                                  Pde.u & X86_PDE_PAE_PG_MASK);
-@@ -2679,9 +2679,9 @@
+@@ -2679,9 +2679,9 @@ static int  pgmR3DumpHierarchyHCPaePDPTR
                                  Pdpe.n.u1CacheDisable? "CD" : "--",
                                  Pdpe.n.u3Reserved & 2? "!"  : "..",/* mbz */
                                  Pdpe.n.u1NoExecute   ? "NX" : "--",
@@ -4451,7 +4452,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGM.cpp virtualbox-ose-1.5.
                                  Pdpe.u & X86_PDPE_PG_MASK);
              else
                  pHlp->pfnPrintf(pHlp,      /*P R  S  A  D  G  WT CD AT NX 4M a p ?  */
-@@ -2696,9 +2696,9 @@
+@@ -2696,9 +2696,9 @@ static int  pgmR3DumpHierarchyHCPaePDPTR
                                  Pdpe.n.u1CacheDisable? "CD" : "--",
                                  Pdpe.n.u3Reserved & 2? "!"  : "..",/* mbz */
                                  Pdpe.n.u1NoExecute   ? "NX" : "--",
@@ -4463,7 +4464,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGM.cpp virtualbox-ose-1.5.
                                  Pdpe.u & X86_PDPE_PG_MASK);
              if (cMaxDepth >= 1)
              {
-@@ -2751,9 +2751,9 @@
+@@ -2751,9 +2751,9 @@ static int pgmR3DumpHierarchyHcPaePML4(P
                              Pml4e.n.u1CacheDisable? "CD" : "--",
                              Pml4e.n.u3Reserved & 2? "!"  : "..",/* mbz */
                              Pml4e.n.u1NoExecute   ? "NX" : "--",
@@ -4475,7 +4476,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGM.cpp virtualbox-ose-1.5.
                              Pml4e.u & X86_PML4E_PG_MASK);
  
              if (cMaxDepth >= 1)
-@@ -2796,7 +2796,7 @@
+@@ -2796,7 +2796,7 @@ int  pgmR3DumpHierarchyHC32BitPT(PVM pVM
                              Pte.n.u1CacheDisable? "CD" : "--",
                              Pte.n.u1PAT         ? "AT" : "--",
                              Pte.u & PGM_PTFLAGS_TRACK_DIRTY     ? 'd' : '-',
@@ -4484,7 +4485,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGM.cpp virtualbox-ose-1.5.
                              Pte.u & PGM_PTFLAGS_CSAM_VALIDATED  ? 'v' : '-',
                              Pte.u & X86_PDE_PG_MASK);
          }
-@@ -2843,7 +2843,7 @@
+@@ -2843,7 +2843,7 @@ int  pgmR3DumpHierarchyHC32BitPD(PVM pVM
                                  Pde.b.u1WriteThru   ? "WT" : "--",
                                  Pde.b.u1CacheDisable? "CD" : "--",
                                  Pde.b.u1PAT         ? "AT" : "--",
@@ -4493,7 +4494,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGM.cpp virtualbox-ose-1.5.
                                  Pde.u & PGM_PDFLAGS_MAPPING     ? 'm' : '-',
                                  Pde.u & PGM_PDFLAGS_TRACK_DIRTY ? 'd' : '-',
                                  Pde.u & X86_PDE4M_PG_MASK);
-@@ -2859,7 +2859,7 @@
+@@ -2859,7 +2859,7 @@ int  pgmR3DumpHierarchyHC32BitPD(PVM pVM
                                  Pde.n.u1Reserved1   ? '?'  : '.', /* ignored */
                                  Pde.n.u1WriteThru   ? "WT" : "--",
                                  Pde.n.u1CacheDisable? "CD" : "--",
@@ -4502,7 +4503,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGM.cpp virtualbox-ose-1.5.
                                  Pde.u & PGM_PDFLAGS_MAPPING     ? 'm' : '-',
                                  Pde.u & PGM_PDFLAGS_TRACK_DIRTY ? 'd' : '-',
                                  Pde.u & X86_PDE_PG_MASK);
-@@ -2926,7 +2926,7 @@
+@@ -2926,7 +2926,7 @@ int pgmR3DumpHierarchyGC32BitPT(PVM pVM,
                   Pte.n.u1CacheDisable? "CD" : "--",
                   Pte.n.u1PAT         ? "AT" : "--",
                   Pte.u & PGM_PTFLAGS_TRACK_DIRTY     ? 'd' : '-',
@@ -4511,7 +4512,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGM.cpp virtualbox-ose-1.5.
                   Pte.u & PGM_PTFLAGS_CSAM_VALIDATED  ? 'v' : '-',
                   Pte.u & X86_PDE_PG_MASK));
  
-@@ -3006,9 +3006,9 @@
+@@ -3006,9 +3006,9 @@ PGMR3DECL(int) PGMR3DumpHierarchyGC(PVM 
                       Pde.b.u1WriteThru   ? "WT" : "--",
                       Pde.b.u1CacheDisable? "CD" : "--",
                       Pde.b.u1PAT         ? "AT" : "--",
@@ -4524,7 +4525,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGM.cpp virtualbox-ose-1.5.
                       Pde.u & X86_PDE4M_PG_MASK));
              /** @todo PhysSearch */
              else
-@@ -3023,9 +3023,9 @@
+@@ -3023,9 +3023,9 @@ PGMR3DECL(int) PGMR3DumpHierarchyGC(PVM 
                       Pde.n.u1Reserved1   ? '?'  : '.', /* ignored */
                       Pde.n.u1WriteThru   ? "WT" : "--",
                       Pde.n.u1CacheDisable? "CD" : "--",
@@ -4537,9 +4538,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGM.cpp virtualbox-ose-1.5.
                       Pde.u & X86_PDE_PG_MASK));
                  ////if (cMaxDepth >= 1)
                  {
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGMInternal.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PGMInternal.h
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGMInternal.h	2007-08-31 14:42:12.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PGMInternal.h	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/PGMInternal.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PGMInternal.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/PGMInternal.h	2007-08-31 12:42:12.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/PGMInternal.h	2007-12-18 14:54:48.000000000 +0000
 @@ -167,7 +167,7 @@
   * @{ */
  /** The entry is a permanent one and it's must always be present.
@@ -4577,7 +4578,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGMInternal.h virtualbox-os
  #endif
  /** @} */
  
-@@ -415,11 +415,11 @@
+@@ -415,11 +415,11 @@ typedef PGMPHYS2VIRTHANDLER *PPGMPHYS2VI
  
  /** The bit in PGMPHYS2VIRTHANDLER::offNextAlias used to indicate that the
   * node is in the tree. */
@@ -4591,7 +4592,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGMInternal.h virtualbox-os
  /** The mask to apply to PGMPHYS2VIRTHANDLER::offNextAlias to get the offset. */
  #define PGMPHYS2VIRTHANDLER_OFF_MASK    (~(int32_t)3)
  
-@@ -1734,13 +1734,13 @@
+@@ -1734,13 +1734,13 @@ typedef struct PGM
   * @{
   */
  /** Updates the MM_RAM_FLAGS_VIRTUAL_HANDLER page bit. */
@@ -4609,10 +4610,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/PGMInternal.h virtualbox-os
  /** @} */
  
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/TM.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/TM.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/TM.cpp	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/TM.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -522,7 +522,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/TM.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/TM.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/TM.cpp	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/TM.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -522,7 +522,7 @@ static bool tmR3HasFixedTSC(void)
              if (uEAX >= 0x80000007)
              {
                  ASMCpuId(0x80000007, &uEAX, &uEBX, &uECX, &uEDX);
@@ -4621,10 +4622,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/TM.cpp virtualbox-ose-1.5.2
                      return true;
              }
          }
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/TRPMInternal.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/TRPMInternal.h
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/TRPMInternal.h	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/TRPMInternal.h	2007-12-11 18:46:39.000000000 +0100
-@@ -59,9 +59,9 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/TRPMInternal.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/TRPMInternal.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/TRPMInternal.h	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/TRPMInternal.h	2007-12-18 14:54:48.000000000 +0000
+@@ -59,9 +59,9 @@ __BEGIN_DECLS
  /** Traps on IRET. */
  #define TRPM_TRAP_IN_IRET       5
  /** Set if this is a V86 resume. */
@@ -4636,9 +4637,9 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/TRPMInternal.h virtualbox-o
  /** @} */
  
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/TRPMInternal.mac virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/TRPMInternal.mac
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/TRPMInternal.mac	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/TRPMInternal.mac	2007-12-11 18:46:39.000000000 +0100
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/TRPMInternal.mac virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/TRPMInternal.mac
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/TRPMInternal.mac	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/TRPMInternal.mac	2007-12-18 14:54:48.000000000 +0000
 @@ -22,8 +22,8 @@
  %define TRPM_TRAP_IN_MOV_ES     3
  %define TRPM_TRAP_IN_MOV_DS     4
@@ -4650,10 +4651,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/TRPMInternal.mac virtualbox
  
  
  struc TRPM
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMAll/PGMAllBth.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMAll/PGMAllBth.h
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMAll/PGMAllBth.h	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMAll/PGMAllBth.h	2007-12-11 18:46:39.000000000 +0100
-@@ -1955,7 +1955,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMAll/PGMAllBth.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMAll/PGMAllBth.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMAll/PGMAllBth.h	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMAll/PGMAllBth.h	2007-12-18 14:54:48.000000000 +0000
+@@ -1955,7 +1955,7 @@ PGM_BTH_DECL(int, SyncPT)(PVM pVM, unsig
          {
              GCPhys = PdeSrc.u & GST_PDE4M_PG_MASK;
  # if PGM_SHW_TYPE == PGM_TYPE_PAE && PGM_GST_TYPE == PGM_TYPE_32BIT
@@ -4662,7 +4663,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMAll/PGMAllBth.h virtualb
  # endif
              rc = pgmPoolAlloc(pVM, GCPhys, BTH_PGMPOOLKIND_PT_FOR_BIG, SHW_POOL_ROOT_IDX, iPDDst, &pShwPage);
          }
-@@ -3012,7 +3012,7 @@
+@@ -3012,7 +3012,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVM pV
                  }
                  GCPhysGst = PdeSrc.u & GST_PDE4M_PG_MASK;
  # if PGM_SHW_TYPE == PGM_TYPE_PAE && PGM_GST_TYPE == PGM_TYPE_32BIT
@@ -4671,10 +4672,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMAll/PGMAllBth.h virtualb
  # endif
              }
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMGC/DBGFGC.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMGC/DBGFGC.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMGC/DBGFGC.cpp	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMGC/DBGFGC.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -53,7 +53,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMGC/DBGFGC.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMGC/DBGFGC.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMGC/DBGFGC.cpp	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMGC/DBGFGC.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -53,7 +53,7 @@ DBGFGCDECL(int) DBGFGCTrap01Handler(PVM 
          Assert(X86_DR6_B0 == 1 && X86_DR6_B1 == 2 && X86_DR6_B2 == 4 && X86_DR6_B3 == 8);
          for (unsigned iBp = 0; iBp < ELEMENTS(pVM->dbgf.s.aHwBreakpoints); iBp++)
          {
@@ -4683,10 +4684,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMGC/DBGFGC.cpp virtualbox
                  &&  pVM->dbgf.s.aHwBreakpoints[iBp].enmType == DBGFBPTYPE_REG)
              {
                  pVM->dbgf.s.iActiveBp = pVM->dbgf.s.aHwBreakpoints[iBp].iBp;
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/DBGFR0.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/DBGFR0.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/DBGFR0.cpp	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/DBGFR0.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -51,7 +51,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMR0/DBGFR0.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/DBGFR0.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMR0/DBGFR0.cpp	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/DBGFR0.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -51,7 +51,7 @@ DBGFR0DECL(int) DBGFR0Trap01Handler(PVM 
          Assert(X86_DR6_B0 == 1 && X86_DR6_B1 == 2 && X86_DR6_B2 == 4 && X86_DR6_B3 == 8);
          for (unsigned iBp = 0; iBp < ELEMENTS(pVM->dbgf.s.aHwBreakpoints); iBp++)
          {
@@ -4695,10 +4696,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/DBGFR0.cpp virtualbox
                  &&  pVM->dbgf.s.aHwBreakpoints[iBp].enmType == DBGFBPTYPE_REG)
              {
                  pVM->dbgf.s.iActiveBp = pVM->dbgf.s.aHwBreakpoints[iBp].iBp;
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWACCMR0A.asm virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWACCMR0A.asm
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWACCMR0A.asm	2007-10-18 13:07:28.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWACCMR0A.asm	2007-12-11 18:46:39.000000000 +0100
-@@ -180,7 +180,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMR0/HWACCMR0A.asm virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWACCMR0A.asm
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMR0/HWACCMR0A.asm	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWACCMR0A.asm	2007-12-18 14:54:48.000000000 +0000
+@@ -180,7 +180,7 @@ BEGINPROC VMXStartVM
      ; * - LDTR (reset to 0)
      ; * - DRx (presumably not changed at all)
      ; * - DR7 (reset to 0x400)
@@ -4707,7 +4708,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWACCMR0A.asm virtual
      ; *
      ; */
  
-@@ -359,7 +359,7 @@
+@@ -359,7 +359,7 @@ BEGINPROC VMXResumeVM
      ; * - LDTR (reset to 0)
      ; * - DRx (presumably not changed at all)
      ; * - DR7 (reset to 0x400)
@@ -4716,10 +4717,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWACCMR0A.asm virtual
      ; *
      ; */
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWSVMR0.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWSVMR0.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWSVMR0.cpp	2007-10-18 13:07:28.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWSVMR0.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -64,16 +64,16 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMR0/HWSVMR0.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWSVMR0.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMR0/HWSVMR0.cpp	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWSVMR0.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -64,16 +64,16 @@ HWACCMR0DECL(int) SVMR0Setup(PVM pVM)
      /* Program the control fields. Most of them never have to be changed again. */
      /* CR0/3/4 reads must be intercepted, our shadow values are not necessarily the same as the guest's. */
      /** @note CR0 & CR4 can be safely read when guest and shadow copies are identical. */
@@ -4740,7 +4741,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWSVMR0.cpp virtualbo
  
      /* Currently we don't care about DRx reads or writes. DRx registers are trashed.
       * All breakpoints are automatically cleared when the VM exits.
-@@ -379,7 +379,7 @@
+@@ -379,7 +379,7 @@ HWACCMR0DECL(int) SVMR0LoadGuestState(PV
                  /* Also catch floating point exceptions as we need to report them to the guest in a different way. */
                  if (!pVM->hwaccm.s.fFPUOldStyleOverride)
                  {
@@ -4749,7 +4750,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWSVMR0.cpp virtualbo
                      pVM->hwaccm.s.fFPUOldStyleOverride = true;
                  }
              }
-@@ -436,7 +436,7 @@
+@@ -436,7 +436,7 @@ HWACCMR0DECL(int) SVMR0LoadGuestState(PV
      {
          /** @todo DR0-6 */
          val  = pCtx->dr7;
@@ -4758,7 +4759,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWSVMR0.cpp virtualbo
          val |= 0x400;                                       /* must be one */
  #ifdef VBOX_STRICT
          val = 0x400;
-@@ -480,9 +480,9 @@
+@@ -480,9 +480,9 @@ HWACCMR0DECL(int) SVMR0LoadGuestState(PV
  #ifdef DEBUG
      /* Intercept X86_XCPT_DB if stepping is enabled */
      if (DBGFIsStepping(pVM))
@@ -4770,10 +4771,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWSVMR0.cpp virtualbo
  #endif
  
      /* Done. */
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWVMXR0.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWVMXR0.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWVMXR0.cpp	2007-10-18 13:07:28.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWVMXR0.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -683,7 +683,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMR0/HWVMXR0.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWVMXR0.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMR0/HWVMXR0.cpp	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWVMXR0.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -683,7 +683,7 @@ HWACCMR0DECL(int) VMXR0LoadGuestState(PV
                  /* Also catch floating point exceptions as we need to report them to the guest in a different way. */
                  if (!pVM->hwaccm.s.fFPUOldStyleOverride)
                  {
@@ -4782,7 +4783,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWVMXR0.cpp virtualbo
                      AssertRC(rc);
                      pVM->hwaccm.s.fFPUOldStyleOverride = true;
                  }
-@@ -774,7 +774,7 @@
+@@ -774,7 +774,7 @@ HWACCMR0DECL(int) VMXR0LoadGuestState(PV
      {
          /** @todo DR0-6 */
          val  = pCtx->dr7;
@@ -4791,7 +4792,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWVMXR0.cpp virtualbo
          val |= 0x400;                                       /* must be one */
  #ifdef VBOX_STRICT
          val = 0x400;
-@@ -1037,7 +1037,7 @@
+@@ -1037,7 +1037,7 @@ ResumeExecution:
       * - LDTR (reset to 0)
       * - DRx (presumably not changed at all)
       * - DR7 (reset to 0x400)
@@ -4800,10 +4801,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWVMXR0.cpp virtualbo
       *
       */
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWVMXR0.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWVMXR0.h
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWVMXR0.h	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWVMXR0.h	2007-12-11 18:46:39.000000000 +0100
-@@ -102,7 +102,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMR0/HWVMXR0.h virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWVMXR0.h
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMR0/HWVMXR0.h	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMR0/HWVMXR0.h	2007-12-18 14:54:48.000000000 +0000
+@@ -102,7 +102,7 @@ HWACCMR0DECL(int) VMXR0RunGuestCode(PVM 
          if (pCtx->reg && pCtx->reg##Hid.Attr.n.u1Present == 1)                                  \
              val = pCtx->reg##Hid.Attr.u | X86_SEL_TYPE_ACCESSED;                                \
          else                                                                                    \
@@ -4812,10 +4813,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMR0/HWVMXR0.h virtualbox-
                                                                                                  \
          rc |= VMXWriteVMCS(VMX_VMCS_GUEST_##REG##_ACCESS_RIGHTS, val);
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMSwitcher/PAEand32Bit.mac virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMSwitcher/PAEand32Bit.mac
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMSwitcher/PAEand32Bit.mac	2007-10-18 13:07:28.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMSwitcher/PAEand32Bit.mac	2007-12-11 18:46:39.000000000 +0100
-@@ -326,7 +326,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMSwitcher/PAEand32Bit.mac virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMSwitcher/PAEand32Bit.mac
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/VMMSwitcher/PAEand32Bit.mac	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/VMMSwitcher/PAEand32Bit.mac	2007-12-18 14:54:48.000000000 +0000
+@@ -326,7 +326,7 @@ htg_debug_regs_guest_no:
      mov     ecx, MSR_K7_PERFCTR3
      wrmsr
  
@@ -4824,7 +4825,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMSwitcher/PAEand32Bit.mac
      mov     ecx, MSR_K7_EVNTSEL0
      wrmsr
      mov     eax, 02329B000h
-@@ -340,7 +340,7 @@
+@@ -340,7 +340,7 @@ htg_debug_regs_guest_no:
      mov     dword [eax], 0400h          ; APIC_DM_NMI
  
      xor     edx, edx
@@ -4833,10 +4834,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/VMMSwitcher/PAEand32Bit.mac
      mov     ecx, MSR_K7_EVNTSEL0
      wrmsr
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/testcase/tstCompiler.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/testcase/tstCompiler.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/testcase/tstCompiler.cpp	2007-08-30 17:16:22.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/testcase/tstCompiler.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -130,7 +130,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/testcase/tstCompiler.cpp virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/testcase/tstCompiler.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/VMM/testcase/tstCompiler.cpp	2007-08-30 15:16:22.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/VMM/testcase/tstCompiler.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -130,7 +130,7 @@ void SetWriteDirtyAccessedClearAVL(PX86P
      pPte->n.u1Write = 1;
      pPte->n.u1Dirty = 1;
      pPte->n.u1Accessed = 1;
@@ -4845,7 +4846,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/testcase/tstCompiler.cpp vi
  }
  
  
-@@ -139,31 +139,31 @@
+@@ -139,31 +139,31 @@ void SetWriteDirtyAccessedClearAVL64(PX8
      pPte->n.u1Write = 1;
      pPte->n.u1Dirty = 1;
      pPte->n.u1Accessed = 1;
@@ -4882,10 +4883,10 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/VMM/testcase/tstCompiler.cpp vi
  }
  
  
-diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/recompiler/VBoxREMWrapper.cpp virtualbox-ose-1.5.2-dfsg2/src/recompiler/VBoxREMWrapper.cpp
---- virtualbox-ose-1.5.2-dfsg2~/src/recompiler/VBoxREMWrapper.cpp	2007-10-18 13:07:28.000000000 +0200
-+++ virtualbox-ose-1.5.2-dfsg2/src/recompiler/VBoxREMWrapper.cpp	2007-12-11 18:46:39.000000000 +0100
-@@ -246,7 +246,7 @@
+diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/recompiler/VBoxREMWrapper.cpp virtualbox-ose-1.5.2-dfsg2/src/recompiler/VBoxREMWrapper.cpp
+--- virtualbox-ose-1.5.2-dfsg2.orig/src/recompiler/VBoxREMWrapper.cpp	2007-10-18 11:07:28.000000000 +0000
++++ virtualbox-ose-1.5.2-dfsg2/src/recompiler/VBoxREMWrapper.cpp	2007-12-18 14:54:48.000000000 +0000
+@@ -246,7 +246,7 @@ typedef const REMPARMDESC *PCREMPARMDESC
  /** The parameter type mask. */
  #define REMPARMDESC_FLAGS_TYPE_MASK     15
  /** The parameter size field is valid. */
@@ -4894,7 +4895,7 @@ diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/recompiler/VBoxREMWrapper.cpp virtua
  /** @} */
  
  /**
-@@ -286,9 +286,9 @@
+@@ -286,9 +286,9 @@ typedef const REMFNDESC *PCREMFNDESC;
  /** The return type mask. */
  #define REMFNDESC_FLAGS_RET_TYPE_MASK   7
  /** The argument list contains one or more va_list arguments (i.e. problems). */
