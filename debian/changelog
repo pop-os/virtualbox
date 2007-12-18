@@ -1,3 +1,10 @@
+virtualbox-ose (1.5.2-dfsg2-7) UNRELEASED; urgency=low
+
+  * Do only recommends the virtualbox-ose-modules package.. maybe someone
+    would like to compile it on it's own, or not with m-a. (Closes: #456989) 
+
+ -- Patrick Winnertz <winnie@debian.org>  Tue, 18 Dec 2007 23:51:34 +0100
+
 virtualbox-ose (1.5.2-dfsg2-6) unstable; urgency=low
 
   [ Daniel Baumann ]
