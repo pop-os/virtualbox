@@ -1,11 +1,15 @@
 virtualbox-ose (1.5.2-dfsg2-6) UNRELEASED; urgency=low
 
+  [ Daniel Baumann ]
   * Again removing reimported useless whitespaces at EOL and EOF in debian/*.
   * Fixing dpatch headers.
   * Rediffed dpatches 6-12.
   * Removed svn:executable on dpatch 9 and 12.
 
- -- Daniel Baumann <daniel@debian.org>  Tue, 18 Dec 2007 15:44:00 +0100
+  [ Michael Meskes ]
+  * Fixed rules file to correctly install module sources, closes: #456916
+
+ -- Michael Meskes <meskes@debian.org>  Tue, 18 Dec 2007 16:21:33 +0100
 
 virtualbox-ose (1.5.2-dfsg2-5) unstable; urgency=low
 
