@@ -1,7 +1,6 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-## 11-module-build.dpatch by  <meskes@debian.org>
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 11-module-build.dpatch by Michael Meskes <meskes@debian.org>
 ##
-## All lines beginning with `## DP:' are a description of the patch.
 ## DP: Build module correctly in linux-modules-extra
 
 @DPATCH@

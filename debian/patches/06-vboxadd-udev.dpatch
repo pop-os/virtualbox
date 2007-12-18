@@ -1,8 +1,7 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-## 06-vboxadd-udev.dpatch by  <meskes@debian.org>
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 06-vboxadd-udev.dpatch by Michael Meskes <meskes@debian.org>
 ## basic idea taken from http://blino.org/blog/mandriva/kernel
 ##
-## All lines beginning with `## DP:' are a description of the patch.
 ## DP: Make vboxadd module register /dev/vboxadd correctly
 
 @DPATCH@

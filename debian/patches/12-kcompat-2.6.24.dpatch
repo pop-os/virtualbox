@@ -1,10 +1,10 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
+#!/bin/sh /usr/share/dpatch/dpatch-run
 ## 12-kcompat-2.6.24.dpatch by Stefan Lippers-Hollmann <s.l-h@gmx.de>
 ##
-## All lines beginning with `## DP:' are a description of the patch.
 ## DP: six kernel 2.6.24 compatibility.
 
 @DPATCH@
+
 diff -urNad virtualbox-ose-1.5.2-dfsg2~/Config.kmk virtualbox-ose-1.5.2-dfsg2/Config.kmk
 --- virtualbox-ose-1.5.2-dfsg2~/Config.kmk	2007-10-18 14:16:17.000000000 +0200
 +++ virtualbox-ose-1.5.2-dfsg2/Config.kmk	2007-12-11 18:46:39.000000000 +0100

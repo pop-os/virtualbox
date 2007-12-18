@@ -1,12 +1,12 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-## 09-quiet-grep.dpatch by  <meskes@debian.org>
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 09-quiet-grep.dpatch by Michael Meskes <meskes@debian.org>
 ## modified by Patrick Winnert <winnie@debian.org>
 ##
-## All lines beginning with `## DP:' are a description of the patch.
 ## DP: Make grep be quiet
 ## DP: Add an short description to make lintian silent.
 
 @DPATCH@
+
 diff -urNad virtualbox-ose-1.5.2-dfsg2~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose-1.5.2-dfsg2/src/VBox/Installer/linux/vboxnet.sh
 --- virtualbox-ose-1.5.2-dfsg2~/src/VBox/Installer/linux/vboxnet.sh	2007-12-16 12:43:28.000000000 +0100
 +++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Installer/linux/vboxnet.sh	2007-12-16 12:44:51.000000000 +0100

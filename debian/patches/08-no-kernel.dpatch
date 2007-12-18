@@ -1,7 +1,6 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-## 08-no-kernel.dpatch by  <meskes@debian.org>
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 08-no-kernel.dpatch by Michael Meskes <meskes@debian.org>
 ##
-## All lines beginning with `## DP:' are a description of the patch.
 ## DP: Build without kernel sources.
 
 @DPATCH@

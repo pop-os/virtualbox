@@ -1,6 +1,7 @@
 virtualbox-ose (1.5.2-dfsg2-6) UNRELEASED; urgency=low
 
   * Again removing reimported useless whitespaces at EOL and EOF in debian/*.
+  * Fixing dpatch headers.
 
  -- Daniel Baumann <daniel@debian.org>  Tue, 18 Dec 2007 15:44:00 +0100
 

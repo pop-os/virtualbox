@@ -1,7 +1,6 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-## 10-no-registration.dpatch by  <meskes@debian.org>
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 10-no-registration.dpatch by Michael Meskes <meskes@debian.org>
 ##
-## All lines beginning with `## DP:' are a description of the patch.
 ## DP: Do not ask for registration
 
 @DPATCH@
