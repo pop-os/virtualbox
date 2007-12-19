@@ -68,7 +68,8 @@ Description: Source for the VirtualBox Guest Addition module
 Package: virtualbox-ose-guest-utils
 Architecture: amd64 i386
 Depends: ${shlibs:Depends}, ${misc:Depends}, pciutils
-Recommends: virtualbox-ose-guest-modules, virtualbox-ose-guest-source
+Recommends: virtualbox-ose-guest-modules
+Suggests: virtualbox-ose-guest-source
 Description: PC virtualization solution - guest utils
  VirtualBox is a free PC virtualization solution allowing you to run a wide
  range of PC operating systems on your Linux system. This includes Windows,
