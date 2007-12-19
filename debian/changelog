@@ -5,13 +5,16 @@ virtualbox-ose (1.5.2-dfsg2-7) UNRELEASED; urgency=low
     would like to compile it on it's own, or not with m-a. (Closes: #456989)
 
   [ Hilko Bengen ]
-  * install vbox.cfg using dh_install
+  * Build system: a large move towards using dh_install
+    - This requires that we force the build output dir to a fixed location.
+    - The dh_install call needs to go to the `install' target.
+  * Leave out code/data for test cases from virtualbox-ose binary package
 
   [ Michael Meskes ]
   * Only suggest guest-sources in guest-utils. With l-m-e expected to include
     the guest-modules in the near future, this should be sufficient.
 
- -- Michael Meskes <meskes@debian.org>  Wed, 19 Dec 2007 12:51:40 +0100
+ -- Hilko Bengen <bengen@debian.org>  Wed, 19 Dec 2007 20:00:35 +0100
 
 virtualbox-ose (1.5.2-dfsg2-6) unstable; urgency=low
 

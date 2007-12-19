@@ -1,0 +1,2 @@
+out/bin/additions/vboxadd-timesync /usr/sbin
+out/bin/additions/vboxadd-xclient /usr/bin

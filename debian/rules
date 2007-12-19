@@ -18,19 +18,21 @@ uname:=virtualbox-ose-guest-utils
 
 MAKE:=kmk
 
-config-stamp: env.sh
 env.sh: patch-stamp
 	dh_testdir
 	./configure --with-linux="/usr"
 
 build: build-stamp
-build-stamp: config-stamp
+build-stamp: env.sh
 	dh_testdir
 
 	# Building package
-	$(MAKE) BUILD_TYPE=release
+	$(MAKE) \
+		BUILD_TYPE=release \
+		PATH_OUT=$(abspath out)
 	# make sure VBoxAddIF.sh is built, too
-	$(MAKE) -C src/VBox/Installer/linux `echo $(CURDIR)/out/linux.*/release/bin`/VBoxAddIF.sh
+	$(MAKE) -C src/VBox/Installer/linux $(abspath out/bin/VBoxAddIF.sh) \
+		PATH_OUT=$(abspath out)
 
 	touch build-stamp
 
@@ -66,49 +68,26 @@ dfsg-free:
 	cd .. && mv VirtualBox-1.5.2_OSE virtualbox-ose-1.5.2-dfsg2 && \
 		tar cfz virtualbox-ose_1.5.2-dfsg2.orig.tar.gz virtualbox-ose-1.5.2-dfsg2
 
-install: DH_OPTIONS=
+# install: DH_OPTIONS=
 install: build
 	dh_testdir
 	dh_testroot
 	dh_clean -k
 	dh_installdirs
 
-	install -D -m 0644 $(CURDIR)/debian/lintian/$(sname) \
-        $(CURDIR)/debian/$(sname)/usr/share/lintian/overrides/$(sname)
-
 	# Installing virtualbox
-	cp -r out/linux.*/release/bin debian/$(sname)/usr/lib/virtualbox
-	# move architecture independant files to /usr/share/virtualbox instead of /usr/lib/virtualbox
-	mv debian/$(sname)/usr/lib/virtualbox/nls debian/$(sname)/usr/share/virtualbox
-	mv debian/$(sname)/usr/lib/virtualbox/sdk debian/$(sname)/usr/share/virtualbox
-	mv debian/$(sname)/usr/share/virtualbox/sdk/bin/xpidl debian/$(sname)/usr/lib/virtualbox/
+	install -m 0755 debian/scripts/VBox.sh debian/$(sname)/usr/lib/virtualbox
 
-	install -D -m 0755  debian/scripts/VBox.sh debian/$(sname)/usr/lib/virtualbox
-	mv debian/$(sname)/usr/lib/virtualbox/VBoxTunctl debian/$(sname)/usr/bin/
-	mv debian/$(sname)/usr/lib/virtualbox/VBoxAddIF.sh debian/$(sname)/usr/bin/VBoxTAP
-
-	install -D -m 0644 debian/desktop/virtualbox-ose.desktop debian/$(sname)/usr/share/applications/virtualbox-ose.desktop
-	mv debian/$(sname)/usr/lib/virtualbox/VBox.png debian/$(sname)/usr/share/icons/virtualbox.png
-	install -D -m 0644 debian/pixmap/virtualbox-ose.xpm debian/$(sname)/usr/share/pixmaps/virtualbox-ose.xpm
-	install -D -m 644 src/VBox/Installer/linux/vboxnet.sh debian/$(sname).init
-	install -D -m 644 debian/interfaces debian/$(sname)/etc/vbox
+	# This will get installed into the package by dh_installinit
+	install -m 644 src/VBox/Installer/linux/vboxnet.sh debian/$(sname).init
 
 	# Install virtualbox-ose-source
-	mv debian/$(sname)/usr/lib/virtualbox/src/* debian/$(psource)/usr/src/modules/$(sname)
-	rm -r debian/$(sname)/usr/lib/virtualbox/src
-
-	# Install virtualbox-ose-guest-source
-	mv debian/$(sname)/usr/lib/virtualbox/additions/src/vboxadd debian/$(gsource)/usr/src/modules/$(gname)
-	mv debian/$(sname)/usr/lib/virtualbox/additions/src/vboxvfs debian/$(gsource)/usr/src/modules/$(gname)
-	rm -r debian/$(sname)/usr/lib/virtualbox/additions/src
-
 	cp debian/control debian/changelog debian/copyright debian/compat debian/$(psource)/usr/src/modules/$(sname)/debian
 	cp debian/$(psource).control.modules.in debian/$(psource)/usr/src/modules/$(sname)/debian/control.modules.in
 	cp debian/$(psource).postinst.modules.in debian/$(psource)/usr/src/modules/$(sname)/debian/postinst.modules.in
 	install -m 755 debian/$(psource).rules debian/$(psource)/usr/src/modules/$(sname)/debian/rules
 
-	cd debian/$(psource)/usr/src && tar c modules | bzip2 -9 > $(sname).tar.bz2 && rm -rf modules
-
+	# Install virtualbox-ose-guest-source
 	cp debian/control debian/changelog debian/copyright debian/compat debian/$(gsource)/usr/src/modules/$(gname)/debian
 	cp debian/$(gsource).control.modules.in debian/$(gsource)/usr/src/modules/$(gname)/debian/control.modules.in
 	cp debian/$(gsource).postinst.modules.in debian/$(gsource)/usr/src/modules/$(gname)/debian/postinst.modules.in
@@ -116,26 +95,29 @@ install: build
 	cp debian/$(gsource).Makefile debian/$(gsource)/usr/src/modules/$(gname)/Makefile
 	install -m 755 debian/$(gsource).rules  debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
 
-	cd debian/$(gsource)/usr/src && tar c modules | bzip2 -9 > $(gname).tar.bz2 && rm -rf modules
-
 	# Install virtualbox guest additions
-	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxvideo_drv_14.so debian/$(uname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
-	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
-	mv debian/$(sname)/usr/lib/virtualbox/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
-	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxadd-timesync debian/$(uname)/usr/sbin/vboxadd-timesync
-	mv debian/$(sname)/usr/lib/virtualbox/additions/vboxadd-xclient debian/$(uname)/usr/bin/vboxadd-xclient
+	install -m644 out/bin/additions/vboxvideo_drv_14.so debian/$(uname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
+	install -m644 out/bin/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
+
+	install -m755 out/bin//additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
 	install -m 755 src/VBox/Additions/linux/installer/x11config.pl debian/$(uname)/usr/lib/virtualbox/
 	install -m 644 src/VBox/Additions/linux/installer/98vboxadd-xclient debian/$(uname)/etc/X11/Xsession.d
-	rm -r debian/$(sname)/usr/lib/virtualbox/additions
 
 	dh_install
+
+	# Create .tar.bz2 for virtualbox*source
+	cd debian/$(psource)/usr/src && \
+		tar -cjf $(sname).tar.bz2 modules && \
+		rm -rf modules
+	cd debian/$(gsource)/usr/src && \
+		tar -cjf $(gname).tar.bz2 modules && \
+		rm -rf modules
 
 binary-arch: build install
 	dh_testdir -a
 	dh_testroot -a
 	dh_installchangelogs -a
 	dh_installdocs -a
-	dh_install -a
 	dh_installmenu -a
 	dh_link -a
 	dh_strip -a --dbg-package=$(sname)-dbg
@@ -155,7 +137,6 @@ binary-indep: build install
 	dh_testroot -i
 	dh_installchangelogs -i
 	dh_installdocs -i
-	dh_install -i
 	dh_link -i
 	dh_compress -i
 	dh_fixperms -i
@@ -165,5 +146,5 @@ binary-indep: build install
 
 binary: binary-arch binary-indep
 .PHONY: patch unpatch \
-	config-stamp build clean binary-arch binary-indep binary install \
+	build clean binary-arch binary-indep binary install \
 	binary-modules kdist kdist_configure kdist_image kdist_clean
