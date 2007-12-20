@@ -1,1 +1,4 @@
 out/bin/src/* /usr/src/modules/virtualbox-ose
+
+debian/control debian/changelog debian/copyright debian/compat /usr/src/modules/virtualbox-ose/debian
+debian/virtualbox-ose-source.files/* /usr/src/modules/virtualbox-ose/debian

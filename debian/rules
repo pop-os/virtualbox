@@ -75,25 +75,8 @@ install: build
 	dh_clean -k
 	dh_installdirs
 
-	# Installing virtualbox
-	install -m 755 debian/scripts/VBox.sh debian/$(sname)/usr/lib/virtualbox
-
 	# This will get installed into the package by dh_installinit
 	install -m 644 src/VBox/Installer/linux/vboxnet.sh debian/$(sname).init
-
-	# Install virtualbox-ose-source
-	cp debian/control debian/changelog debian/copyright debian/compat debian/$(psource)/usr/src/modules/$(sname)/debian
-	cp debian/$(psource).control.modules.in debian/$(psource)/usr/src/modules/$(sname)/debian/control.modules.in
-	cp debian/$(psource).postinst.modules.in debian/$(psource)/usr/src/modules/$(sname)/debian/postinst.modules.in
-	install -m 755 debian/$(psource).rules debian/$(psource)/usr/src/modules/$(sname)/debian/rules
-
-	# Install virtualbox-ose-guest-source
-	cp debian/control debian/changelog debian/copyright debian/compat debian/$(gsource)/usr/src/modules/$(gname)/debian
-	cp debian/$(gsource).control.modules.in debian/$(gsource)/usr/src/modules/$(gname)/debian/control.modules.in
-	cp debian/$(gsource).postinst.modules.in debian/$(gsource)/usr/src/modules/$(gname)/debian/postinst.modules.in
-	cp debian/$(gsource).udev debian/$(gsource)/usr/src/modules/$(gname)/debian/udev
-	cp debian/$(gsource).Makefile debian/$(gsource)/usr/src/modules/$(gname)/Makefile
-	install -m 755 debian/$(gsource).rules  debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
 
 	# Install virtualbox guest additions
 	install -m 644 out/bin/additions/vboxvideo_drv_14.so debian/$(uname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so

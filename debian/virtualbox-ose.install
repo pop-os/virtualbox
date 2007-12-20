@@ -1,8 +1,8 @@
-debian/vbox.cfg /etc/vbox
-debian/interfaces /etc/vbox
-
-debian/desktop/virtualbox-ose.desktop /usr/share/applications
-debian/pixmap/virtualbox-ose.xpm /usr/share/pixmaps
+debian/virtualbox-ose.files/vbox.cfg /etc/vbox
+debian/virtualbox-ose.files/interfaces /etc/vbox
+debian/virtualbox-ose.files/VBox.sh /usr/lib/virtualbox
+debian/virtualbox-ose.files/virtualbox-ose.desktop /usr/share/applications
+debian/virtualbox-ose.files/virtualbox-ose.xpm /usr/share/pixmaps
 
 debian/lintian/virtualbox-ose /usr/share/lintian/overrides
 

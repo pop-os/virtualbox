@@ -1,7 +1,7 @@
 virtualbox-ose (1.5.2-dfsg2-7) UNRELEASED; urgency=low
 
   [ Patrick Winnertz ]
-  * Do only recommends the virtualbox-ose-modules package. Maybe someone
+  * Do only recommend the virtualbox-ose-modules package. Maybe someone
     would like to compile it on it's own, or not with m-a. (Closes: #456989)
 
   [ Hilko Bengen ]
@@ -13,8 +13,9 @@ virtualbox-ose (1.5.2-dfsg2-7) UNRELEASED; urgency=low
   [ Michael Meskes ]
   * Only suggest guest-sources in guest-utils. With l-m-e expected to include
     the guest-modules in the near future, this should be sufficient.
+  * Rearranged parts of the debian dir.
 
- -- Hilko Bengen <bengen@debian.org>  Wed, 19 Dec 2007 20:00:35 +0100
+ -- Michael Meskes <meskes@debian.org>  Thu, 20 Dec 2007 09:55:48 +0100
 
 virtualbox-ose (1.5.2-dfsg2-6) unstable; urgency=low
 
