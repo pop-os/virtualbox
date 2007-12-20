@@ -1,2 +1,2 @@
 out/bin/additions/src/vboxadd /usr/src/modules/virtualbox-ose-guest
-out/bin//additions/src/vboxvfs /usr/src/modules/virtualbox-ose-guest
+out/bin/additions/src/vboxvfs /usr/src/modules/virtualbox-ose-guest

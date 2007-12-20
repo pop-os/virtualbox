@@ -76,7 +76,7 @@ install: build
 	dh_installdirs
 
 	# Installing virtualbox
-	install -m 0755 debian/scripts/VBox.sh debian/$(sname)/usr/lib/virtualbox
+	install -m 755 debian/scripts/VBox.sh debian/$(sname)/usr/lib/virtualbox
 
 	# This will get installed into the package by dh_installinit
 	install -m 644 src/VBox/Installer/linux/vboxnet.sh debian/$(sname).init
@@ -96,12 +96,9 @@ install: build
 	install -m 755 debian/$(gsource).rules  debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
 
 	# Install virtualbox guest additions
-	install -m644 out/bin/additions/vboxvideo_drv_14.so debian/$(uname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
-	install -m644 out/bin/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
-
-	install -m755 out/bin//additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
-	install -m 755 src/VBox/Additions/linux/installer/x11config.pl debian/$(uname)/usr/lib/virtualbox/
-	install -m 644 src/VBox/Additions/linux/installer/98vboxadd-xclient debian/$(uname)/etc/X11/Xsession.d
+	install -m 644 out/bin/additions/vboxvideo_drv_14.so debian/$(uname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
+	install -m 644 out/bin/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
+	install -m 755 out/bin/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
 
 	dh_install
 
