@@ -20,7 +20,7 @@ MAKE:=kmk
 
 env.sh: patch-stamp
 	dh_testdir
-	./configure --with-linux="/usr"
+	./configure --with-linux="/usr" --disable-kmods
 
 build: build-stamp
 build-stamp: env.sh
@@ -84,6 +84,9 @@ install: build
 	install -m 755 out/bin/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
 
 	dh_install
+
+	# These files have incorrect permissions, fixing it.
+	chmod 755 debian/$(uname)/usr/lib/virtualbox/x11config.pl
 
 	# Create .tar.bz2 for virtualbox*source
 	cd debian/$(psource)/usr/src && \

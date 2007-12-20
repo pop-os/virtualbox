@@ -7,13 +7,20 @@ debian/virtualbox-ose.files/virtualbox-ose.xpm /usr/share/pixmaps
 debian/lintian/virtualbox-ose /usr/share/lintian/overrides
 
 out/bin/components /usr/lib/virtualbox
-out/bin/SUP* out/bin/VBoxAddIF.sh out/bin/VBoxBFE /usr/lib/virtualbox
-out/bin/VBoxManage out/bin/VBoxSDL out/bin/VBox.sh /usr/lib/virtualbox
-out/bin/VBoxSVC out/bin/VBoxTunctl out/bin/VBoxXPCOM* /usr/lib/virtualbox
-out/bin/vditool out/bin/VirtualBox* /usr/lib/virtualbox
-
-out/bin/VBox*.so out/bin/VBox*.gc out/bin/VBox*.r0 /usr/lib/virtualbox
-
+out/bin/SUP* /usr/lib/virtualbox
+out/bin/VBox*.so /usr/lib/virtualbox
+out/bin/VBox*.gc /usr/lib/virtualbox
+out/bin/VBox*.r0 /usr/lib/virtualbox
+out/bin/VBoxAddIF.sh /usr/lib/virtualbox
+out/bin/VBoxBFE /usr/lib/virtualbox
+out/bin/VBoxManage /usr/lib/virtualbox
+out/bin/VBoxREM2.rel /usr/lib/virtualbox
+out/bin/VBoxSDL /usr/lib/virtualbox
+out/bin/VBoxSVC /usr/lib/virtualbox
+out/bin/VBoxTunctl /usr/lib/virtualbox
+out/bin/VBoxXPCOM* /usr/lib/virtualbox
+out/bin/vditool /usr/lib/virtualbox
+out/bin/VirtualBox* /usr/lib/virtualbox
 out/bin/VirtualBox* /usr/lib/virtualbox
 out/bin/VMM* /usr/lib/virtualbox
 

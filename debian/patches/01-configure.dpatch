@@ -19,12 +19,3 @@ diff -Naurp virtualbox-ose-1.5.2-dfsg.orig/configure virtualbox-ose-1.5.2-dfsg/c
    KBUILD_SED="$KBUILDDIR_BIN/kmk_sed"
    log_success "Determined build machine: $OS.$BUILD_MACHINE, target machine: $OS.$TARGET_MACHINE"
  
-@@ -1450,7 +1450,7 @@ check_gcc
- 
- # Linux-specific
- if [ "$OS" = "linux" ]; then
--  check_linux
-+  #check_linux
-   check_alsa
-   check_compiler_h
-   [ "$BUILD_MACHINE" = "amd64" ] && check_32bit

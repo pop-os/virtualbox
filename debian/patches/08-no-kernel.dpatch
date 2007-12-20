@@ -1,149 +1,51 @@
 #!/bin/sh /usr/share/dpatch/dpatch-run
 ## 08-no-kernel.dpatch by Michael Meskes <meskes@debian.org>
 ##
-## DP: Build without kernel sources.
+## DP: Build without kernel sources. New configure option taken from SVN.
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/Config.kmk virtualbox-ose-1.5.2-dfsg2/Config.kmk
---- virtualbox-ose-1.5.2-dfsg2.orig/Config.kmk	2007-10-18 12:16:17.000000000 +0000
-+++ virtualbox-ose-1.5.2-dfsg2/Config.kmk	2007-12-18 14:50:32.000000000 +0000
-@@ -630,7 +630,7 @@ endif
- #
- # Note! The __SOMETHING__ #defines are deprecated as they violate the C/C++ specs.
- #
--INCS += $(PATH_ROOT)/include $(PATH_OUT)
-+INCS += $(PATH_ROOT)/include /usr/include $(PATH_OUT)
- DEFS += VBOX
- DEFS.debug := DEBUG DEBUG_$(subst $(subst _, ,_),_,$(USERNAME)) DEBUG_USERNAME=$(subst $(subst _, ,_),_,$(USERNAME))
- DEFS.profile = VBOX_WITH_STATISTICS
-diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/Makefile.kmk
---- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/Makefile.kmk	2007-08-30 15:16:27.000000000 +0000
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/Makefile.kmk	2007-12-18 14:50:33.000000000 +0000
-@@ -52,12 +52,12 @@ else ifdef VBOX_ADDITIONS_WIN32_ONLY
- endif
+diff -Naurp virtualbox-ose-1.5.2-dfsg.orig/configure virtualbox-ose-1.5.2-dfsg/configure
+--- virtualbox-ose-1.5.2-dfsg.orig/configure	2007-12-20 11:27:07.000000000 +0100
++++ virtualbox-ose-1.5.2-dfsg/configure	2007-12-20 11:28:35.000000000 +0100
+@@ -36,6 +36,7 @@
+ WITH_SDL=1
+ WITH_SDL_TTF=1
+ WITH_X11=1
++WITH_KMODS=1
+ CC="gcc"
+ CC32=""
+ CC64=""
+@@ -1216,6 +1217,7 @@
+   --nofatal                don't abort on errors
+   --disable-xpcom          disable XPCOM and related stuff
+   --disable-sdl-ttf        disable SDL_ttf detection
++  --disable-kmods          don't build Linux kernel modules (host and guest)
+   --build-xalan            build xalan & xerces from shipped sources
+   --setup-wine             setup a Wine directory and register the hhc hack
  
- # Include sub-makefiles.
--include $(PATH_SUB_CURRENT)/common/Makefile.kmk
--ifdef VBOX_WITH_WIN32_ADDITIONS
-- ifndef VBOX_REMOTE_WIN32_ADDITIONS_BUILD
--  include $(PATH_SUB_CURRENT)/WINNT/Makefile.kmk
-- endif
--endif
-+#include $(PATH_SUB_CURRENT)/common/Makefile.kmk
-+#ifdef VBOX_WITH_WIN32_ADDITIONS
-+# ifndef VBOX_REMOTE_WIN32_ADDITIONS_BUILD
-+#  include $(PATH_SUB_CURRENT)/WINNT/Makefile.kmk
-+# endif
-+#endif
+@@ -1307,6 +1309,9 @@
+     --disable-qt)
+       WITH_QT=0
+       ;;
++    --disable-kmods)
++      WITH_KMODS=0
++      ;;
+     --build-debug|-d)
+       BUILD_TYPE=debug
+       ;;
+@@ -1450,7 +1455,13 @@
  
- ifdef VBOX_WITH_LINUX_ADDITIONS
-  SUBDIRS      += linux
-diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/daemon/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/daemon/Makefile.kmk
---- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/daemon/Makefile.kmk	2007-08-30 15:16:27.000000000 +0000
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/daemon/Makefile.kmk	2007-12-18 14:50:32.000000000 +0000
-@@ -24,7 +24,7 @@ vboxadd-timesync_TEMPLATE = VBOXLNX32GUE
- vboxadd-timesync_SOURCES  = \
-     vboxadd_timesync.c \
-     supc++.c
--vboxadd-timesync_LIBS     = \
-+vboxadd-timesync_LIBS     = #\
-     $(PATH_LIB)/RuntimeLnx32GuestR3.a
- vboxadd-timesync_DEFS     = _GNU_SOURCE
- 
-diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/module/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/Makefile.kmk
---- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/module/Makefile.kmk	2007-08-30 15:16:27.000000000 +0000
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/Makefile.kmk	2007-12-18 14:50:33.000000000 +0000
-@@ -18,9 +18,9 @@ DEPTH = ../../../../..
- include	$(PATH_KBUILD)/header.kmk
- 
- INSTALLS = vboxmod-bin vboxmod-sh
--ifdef VBOX_WITH_LINUX_ADDITIONS_32BIT_R0
--SYSMODS = vboxadd
--endif
-+#ifdef VBOX_WITH_LINUX_ADDITIONS_32BIT_R0
-+#SYSMODS = vboxadd
-+#endif
- 
- #
- # Populate FILES_VBOXADD_NOBIN and FILES_VBOXADD_BIN
-@@ -38,12 +38,12 @@ vboxmod-sh_SOURCES  = $(subst ",,$(FILES
- #
- # The module (for syntax checking).
- #
--vboxadd_TEMPLATE = VBOXLNX32GUESTR0
--vboxadd_DEFS     = KBUILD_MODNAME=KBUILD_STR\(vboxadd\) KBUILD_BASENAME=KBUILD_STR\(vboxadd\) MODULE IN_RING0 IN_RT_R0 VBGL_VBOXGUEST EXPORT_SYMTAB VBGL_HGCM VBOX_HGCM
--vboxadd_LIBS     = $(PATH_LIB)/VBoxGuestLibBaseLinux.a $(PATH_LIB)/RuntimeLnx32GuestR0.a
--vboxadd_SOURCES  = vboxmod.c cmc.c hgcmcall.c
--vboxadd_INCS     = $(PATH_ROOT)/src/VBox/Runtime/r0drv/linux
--vboxadd_NOINST   = 1
-+#vboxadd_TEMPLATE = VBOXLNX32GUESTR0
-+#vboxadd_DEFS     = KBUILD_MODNAME=KBUILD_STR\(vboxadd\) KBUILD_BASENAME=KBUILD_STR\(vboxadd\) MODULE IN_RING0 IN_RT_R0 VBGL_VBOXGUEST EXPORT_SYMTAB VBGL_HGCM VBOX_HGCM
-+#vboxadd_LIBS     = $(PATH_LIB)/VBoxGuestLibBaseLinux.a $(PATH_LIB)/RuntimeLnx32GuestR0.a
-+#vboxadd_SOURCES  = vboxmod.c cmc.c hgcmcall.c
-+#vboxadd_INCS     = $(PATH_ROOT)/src/VBox/Runtime/r0drv/linux
-+#vboxadd_NOINST   = 1
- 
- include	$(PATH_KBUILD)/footer.kmk
- 
-diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/sharedfolders/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/sharedfolders/Makefile.kmk
---- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/sharedfolders/Makefile.kmk	2007-08-30 15:16:27.000000000 +0000
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/sharedfolders/Makefile.kmk	2007-12-18 14:50:33.000000000 +0000
-@@ -17,9 +17,9 @@
- DEPTH = ../../../../..
- include	$(PATH_KBUILD)/header.kmk
- 
--ifdef VBOX_WITH_LINUX_ADDITIONS_32BIT_R0
--SYSMODS  = vboxvfs
--endif
-+#ifdef VBOX_WITH_LINUX_ADDITIONS_32BIT_R0
-+#SYSMODS  = vboxvfs
-+#endif
- PROGRAMS = mountvboxsf
- INSTALLS = vboxvfs-bin vboxvfs-sh
- 
-@@ -42,23 +42,23 @@ vboxvfs-sh_SOURCES      = $(subst ",,$(F
- #
- # The module (for syntax checking).
- #
--vboxvfs_TEMPLATE        = VBOXLNX32GUESTR0
--vboxvfs_DEFS           := KBUILD_MODNAME=KBUILD_STR\(vboxadd\) KBUILD_BASENAME=KBUILD_STR\(vboxadd\) MODULE IN_RING0 IN_RT_R0 VBOXGUEST VBOX_HGCM
--vboxvfs_LIBS            = $(PATH_LIB)/VBoxGuestLibLinux.a $(PATH_LIB)/RuntimeLnx32GuestR0.a
--vboxvfs_SOURCES         = vfsmod.c vfs-utils.c
--vboxvfs_NOINST          = 1
--vboxvfs_CFLAGS         += -fshort-wchar
--vboxvfs_INCS           += \
-+#vboxvfs_TEMPLATE        = VBOXLNX32GUESTR0
-+#vboxvfs_DEFS           := KBUILD_MODNAME=KBUILD_STR\(vboxadd\) KBUILD_BASENAME=KBUILD_STR\(vboxadd\) MODULE IN_RING0 IN_RT_R0 VBOXGUEST VBOX_HGCM
-+#vboxvfs_LIBS            = $(PATH_LIB)/VBoxGuestLibLinux.a $(PATH_LIB)/RuntimeLnx32GuestR0.a
-+#vboxvfs_SOURCES         = vfsmod.c vfs-utils.c
-+#vboxvfs_NOINST          = 1
-+#vboxvfs_CFLAGS         += -fshort-wchar
-+#vboxvfs_INCS           += \
- 	../../common/VBoxGuestLib \
- 	$(PATH_ROOT)/src/VBox/Runtime/r0drv/linux
- 
- # detect fc6 2.6.18
--vboxvfs_DEFS           += $(foreach inc,$(VBOX_LINUX_INCS),\
-+#vboxvfs_DEFS           += $(foreach inc,$(VBOX_LINUX_INCS),\
-                             $(if $(wildcard $(inc)/linux/utsrelease.h),\
-                               $(if $(shell if grep -q '"2.6.18.*fc6.*"' $(inc)/linux/utsrelease.h;\
-                                 then echo yes; fi),KERNEL_FC6,),))
- # detect rhel5 2.6.18
--vboxvfs_DEFS           += $(foreach inc,$(VBOX_LINUX_INCS),\
-+#vboxvfs_DEFS           += $(foreach inc,$(VBOX_LINUX_INCS),\
-                             $(if $(wildcard $(inc)/linux/utsrelease.h),\
-                               $(if $(shell if grep -q '"2.6.18.*el5.*"' $(inc)/linux/utsrelease.h;\
-                                 then echo yes; fi),KERNEL_FC6,),))
-diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/Makefile.kmk
---- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Runtime/Makefile.kmk	2007-08-30 15:16:25.000000000 +0000
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Runtime/Makefile.kmk	2007-12-18 14:50:33.000000000 +0000
-@@ -37,7 +37,7 @@ else
-  ifdef VBOX_WITH_LINUX_ADDITIONS
-   LIBRARIES += RuntimeLnx32GuestR3
-   ifdef VBOX_WITH_LINUX_ADDITIONS_32BIT_R0
--   LIBRARIES += RuntimeLnx32GuestR0
-+   #LIBRARIES += RuntimeLnx32GuestR0
-   endif
-  endif
-  ifdef VBOX_WITH_OS2_ADDITIONS
+ # Linux-specific
+ if [ "$OS" = "linux" ]; then
+-  check_linux
++  if [ $WITH_KMODS -eq 1 ]; then
++    check_linux
++  else
++    cnf_append "VBOX_LINUX_SRC" ""
++    cnf_append "VBOX_WITH_VBOXDRV" ""
++    cnf_append "VBOX_WITH_LINUX_ADDITIONS_32BIT_R0" ""
++  fi
+   check_alsa
+   check_compiler_h
+   [ "$BUILD_MACHINE" = "amd64" ] && check_32bit
