@@ -17,6 +17,9 @@ virtualbox-ose (1.5.2-dfsg2-7) unstable; urgency=low
   * Replaced our patch to not need kernel sources by new configure option
     taken from svn.
 
+  [ Daniel Baumann ]
+  * Bumping policy also in module controls, no other changes needed.
+
  -- Michael Meskes <meskes@debian.org>  Thu, 20 Dec 2007 15:51:13 +0100
 
 virtualbox-ose (1.5.2-dfsg2-6) unstable; urgency=low
