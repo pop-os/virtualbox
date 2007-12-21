@@ -8,13 +8,13 @@ debian/lintian/virtualbox-ose /usr/share/lintian/overrides
 
 out/bin/components /usr/lib/virtualbox
 out/bin/SUP* /usr/lib/virtualbox
+out/bin/VBoxREM* /usr/lib/virtualbox
 out/bin/VBox*.so /usr/lib/virtualbox
 out/bin/VBox*.gc /usr/lib/virtualbox
 out/bin/VBox*.r0 /usr/lib/virtualbox
 out/bin/VBoxAddIF.sh /usr/lib/virtualbox
 out/bin/VBoxBFE /usr/lib/virtualbox
 out/bin/VBoxManage /usr/lib/virtualbox
-out/bin/VBoxREM2.rel /usr/lib/virtualbox
 out/bin/VBoxSDL /usr/lib/virtualbox
 out/bin/VBoxSVC /usr/lib/virtualbox
 out/bin/VBoxTunctl /usr/lib/virtualbox
