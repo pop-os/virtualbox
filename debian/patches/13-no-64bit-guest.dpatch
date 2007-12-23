@@ -1,0 +1,50 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 13-no-64bit-guest.dpatch by Michael Meskes <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Do not build guest utils on 64 bit architectures
+
+@DPATCH@
+
+--- virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/Makefile.kmk.orig	2007-10-18 13:07:28.000000000 +0200
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/Makefile.kmk	2007-12-23 13:49:48.000000000 +0100
+@@ -22,10 +22,13 @@
+ ifeq ($(filter-out linux l4, $(BUILD_TARGET)),)
+ SUBDIRS += \
+ 	module \
++	sharedfolders
++endif
++ifeq ($(filter-out x86, $(BUILD_TARGET_ARCH)),)
++SUBDIRS += \
+ 	daemon \
+ 	xgraphics \
+ 	xmouse \
+-	sharedfolders \
+ 	xclient
+ endif
+ 
+--- virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/sharedfolders/Makefile.kmk.orig	2007-08-30 17:16:27.000000000 +0200
++++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/sharedfolders/Makefile.kmk	2007-12-23 13:50:36.000000000 +0100
+@@ -20,7 +20,10 @@
+ ifdef VBOX_WITH_LINUX_ADDITIONS_32BIT_R0
+ SYSMODS  = vboxvfs
+ endif
+-PROGRAMS = mountvboxsf
++PROGRAMS =
++ifeq ($(filter-out x86, $(BUILD_TARGET_ARCH)),)
++PROGRAMS += mountvboxsf
++endif
+ INSTALLS = vboxvfs-bin vboxvfs-sh
+ 
+ #
+--- virtualbox-ose-1.5.2-dfsg2/configure.orig	2007-12-23 15:15:43.000000000 +0100
++++ virtualbox-ose-1.5.2-dfsg2/configure	2007-12-23 15:16:44.000000000 +0100
+@@ -230,7 +230,7 @@
+ check_environment()
+ {
+   test_header environment
+-  BUILD_CPU=`uname -m`
++  BUILD_CPU=`dpkg --print-architecture`
+   case "$BUILD_CPU" in
+     i[3456789]86|x86|i86pc)
+       BUILD_MACHINE='x86'

@@ -1,3 +1,11 @@
+virtualbox-ose (1.5.2-dfsg2-8) UNRELEASED; urgency=low
+
+  * Do not build guest-utils on amd64 because 64bit guests are nor support
+    yet.
+  * Removed build time dependency on i32-libs that is not really needed.
+
+ -- Michael Meskes <meskes@debian.org>  Sun, 23 Dec 2007 14:12:44 +0100
+
 virtualbox-ose (1.5.2-dfsg2-7) unstable; urgency=low
 
   [ Patrick Winnertz ]
