@@ -1,10 +1,14 @@
 virtualbox-ose (1.5.2-dfsg2-8) UNRELEASED; urgency=low
 
+  [ Michael Meskes ]
   * Do not build guest-utils on amd64 because 64bit guests are nor support
     yet.
   * Removed build time dependency on i32-libs that is not really needed.
 
- -- Michael Meskes <meskes@debian.org>  Sun, 23 Dec 2007 14:12:44 +0100
+  [ Hilko Bengen ]
+  * Make dh_strip ignore symlink(s) in /usr/share
+
+ -- Hilko Bengen <bengen@debian.org>  Wed, 26 Dec 2007 00:43:45 +0100
 
 virtualbox-ose (1.5.2-dfsg2-7) unstable; urgency=low
 

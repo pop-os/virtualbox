@@ -94,7 +94,7 @@ binary-arch: build install
 		install -m 755 out/bin/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf; \
 		dh_strip -p$(uname); \
 	fi
-	dh_strip -p$(sname) --dbg-package=$(sname)-dbg
+	dh_strip -p$(sname) --dbg-package=$(sname)-dbg -X/usr/share/virtualbox/sdk/bin/xpidl
 	dh_link -a
 	dh_compress -a
 	dh_fixperms -X=/usr/lib/virtualbox/VBox.sh -a
