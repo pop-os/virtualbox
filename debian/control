@@ -18,7 +18,7 @@ Conflicts: virtualbox
 Replaces: virtualbox
 Provides: virtualbox
 Description: PC virtualization solution
- VirtualBox is a free PC virtualization solution allowing you to run a wide
+ VirtualBox is a free x86 virtualization solution allowing you to run a wide
  range of PC operating systems on your Linux system. This includes Windows,
  Linux, FreeBSD, DOS, OpenBSD and others.
  .
