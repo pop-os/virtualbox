@@ -18,6 +18,8 @@ virtualbox-ose (1.5.4-dfsg-1) UNRELEASED; urgency=low
   * Rediffed and renumbered the remaining patches.
   * Added build dependency on libpulse-dev.
   * Moved shell scripts from /usr/lib to /usr/share.
+  * g++-multilib on amd64 depends on libc6-dev-i386, no need to specify both
+    as build dependency.
 
   [ Hilko Bengen ]
   * Make dh_strip ignore symlink(s) in /usr/share

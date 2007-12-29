@@ -16,6 +16,7 @@ virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VMMR0.r0
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/testcase/tstLdrObj.gc
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/testcase/tstLdrObjR0.r0
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/tstMicroGC.gc
+virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxREM2.rel
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedClipboard.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedFolders.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedOpenGL.so
