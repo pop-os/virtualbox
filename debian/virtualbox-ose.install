@@ -1,6 +1,6 @@
 debian/virtualbox-ose.files/vbox.cfg /etc/vbox
 debian/virtualbox-ose.files/interfaces /etc/vbox
-debian/virtualbox-ose.files/VBox.sh /usr/lib/virtualbox
+debian/virtualbox-ose.files/*.sh /usr/share/virtualbox
 debian/virtualbox-ose.files/virtualbox-ose.desktop /usr/share/applications
 debian/virtualbox-ose.files/virtualbox-ose.xpm /usr/share/pixmaps
 
@@ -12,7 +12,6 @@ out/bin/VBoxREM* /usr/lib/virtualbox
 out/bin/VBox*.so /usr/lib/virtualbox
 out/bin/VBox*.gc /usr/lib/virtualbox
 out/bin/VBox*.r0 /usr/lib/virtualbox
-out/bin/VBoxAddIF.sh /usr/lib/virtualbox
 out/bin/VBoxBFE /usr/lib/virtualbox
 out/bin/VBoxManage /usr/lib/virtualbox
 out/bin/VBoxSDL /usr/lib/virtualbox

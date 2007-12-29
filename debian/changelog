@@ -5,11 +5,23 @@ virtualbox-ose (1.5.4-dfsg-1) UNRELEASED; urgency=low
     yet.
   * Removed build time dependency on i32-libs that is not really needed.
   * New upstream version.
+  * Removed some new files because of licensing problems:
+    ./src/VBox/Additions/linux/selinux-fedora 
+    ./src/VBox/Additions/linux/xmouse/Imakefile
+    ./src/VBox/HostServices/SharedClipboard/linux-stub.cpp
+  * Removed the following patches because they are not needed anymore:
+    01-configure.dpatch
+    08-no-kernel.dpatch
+    09-fix-initscript.dpatch
+    12-kcompat-2.6.24.dpatch
+  * Rediffed and renumbered the remaining patches.
+  * Added build dependency on libpulse-dev.
+  * Moved shell scripts from /usr/lib to /usr/share.
 
   [ Hilko Bengen ]
   * Make dh_strip ignore symlink(s) in /usr/share
 
- -- Hilko Bengen <bengen@debian.org>  Wed, 26 Dec 2007 00:43:45 +0100
+ -- Michael Meskes <meskes@debian.org>  Sat, 29 Dec 2007 14:52:41 +0100
 
 virtualbox-ose (1.5.2-dfsg2-7) unstable; urgency=low
 

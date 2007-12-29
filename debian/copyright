@@ -50,6 +50,7 @@ The following files are licensed under GPLv2:
 ./src/VBox/Runtime/table/avlu32.cpp
 ./src/VBox/Runtime/table/avlul.cpp
 ./src/VBox/Runtime/table/table.cpp
+./src/VBox/Devices/VBoxDDUDeps.cpp
         Copyright (c) 2005-2007 knut st. osmundsen <bird-src-spam@anduin.net>
 
 ./include/avl.h
@@ -240,10 +241,11 @@ The Cygwin License applies to:
 A copy of this license is appended below.
 
 -------------------------------------------------------------------------------
-The complete subtree ./src/VBox/Additions/Linux/x11include is taken from the X
+Large part of the ./src/VBox/Additions/Linux/ subtree is taken from the X
 sources and still carries the original license. Some work under
 ./src/VBox/Additions/Linux was derived from the X sources and carries both, the
-original X license and the innotek GPL license.
+original X license and the innotek GPL license. The remaining sources under
+./src/VBox/Additions/Linux only carry the innotek GPL license.
 
 -------------------------------------------------------------------------------
 

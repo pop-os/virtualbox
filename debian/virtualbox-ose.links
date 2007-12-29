@@ -1,12 +1,12 @@
 /usr/lib/virtualbox/xpidl /usr/share/virtualbox/sdk/bin/xpidl
 
-/usr/lib/virtualbox/VBox.sh /usr/bin/vditool
-/usr/lib/virtualbox/VBox.sh /usr/bin/vboxmanage
-/usr/lib/virtualbox/VBox.sh /usr/bin/vboxsdl
-/usr/lib/virtualbox/VBox.sh /usr/bin/virtualbox
-/usr/lib/virtualbox/VBox.sh /usr/bin/VBoxManage
-/usr/lib/virtualbox/VBox.sh /usr/bin/VBoxSDL
-/usr/lib/virtualbox/VBox.sh /usr/bin/VirtualBox
+/usr/share/virtualbox/VBox.sh /usr/bin/vditool
+/usr/share/virtualbox/VBox.sh /usr/bin/vboxmanage
+/usr/share/virtualbox/VBox.sh /usr/bin/vboxsdl
+/usr/share/virtualbox/VBox.sh /usr/bin/virtualbox
+/usr/share/virtualbox/VBox.sh /usr/bin/VBoxManage
+/usr/share/virtualbox/VBox.sh /usr/bin/VBoxSDL
+/usr/share/virtualbox/VBox.sh /usr/bin/VirtualBox
 
 /usr/bin/VboxTAP /usr/bin/VBoxAddIF
 /usr/bin/VboxTAP /usr/bin/VBoxDeleteIF
@@ -14,4 +14,4 @@
 /usr/share/virtualbox/VBox.png /usr/share/icons/virtualbox.png
 
 /usr/lib/virtualbox/VBoxTunctl /usr/bin/VBoxTunctl
-/usr/lib/virtualbox/VBoxAddIF.sh /usr/bin/VBoxTAP
+/usr/share/virtualbox/VBoxAddIF.sh /usr/bin/VBoxTAP

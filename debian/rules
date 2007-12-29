@@ -63,6 +63,9 @@ dfsg-free:
 	rm -f ./include/VBox/VBoxGuest.mac
 	rm -f ./src/libs/xpcom18a4/xpcom/MoreFiles/FSCopyObject.c
 	rm -f ./src/libs/xpcom18a4/xpcom/MoreFiles/FSCopyObject.h
+	rm -f ./src/VBox/HostServices/SharedClipboard/linux-stub.cpp
+	rm -f ./src/VBox/Additions/linux/xmouse/Imakefile
+	rm -rf ./src/VBox/Additions/linux/selinux-fedora
 	rm -rf ./debian/
 	find . -type d -name '.svn' | xargs rm -rf;
 	cd .. && mv VirtualBox-1.5.4_OSE virtualbox-ose-1.5.4-dfsg && \
