@@ -1,5 +1,5 @@
 #! /bin/sh /usr/share/dpatch/dpatch-run
-## 13-no-64bit-guest.dpatch by Michael Meskes <meskes@debian.org>
+## 01-no-64bit-guest.dpatch by Michael Meskes <meskes@debian.org>
 ##
 ## All lines beginning with `## DP:' are a description of the patch.
 ## DP: Do not build guest utils on 64 bit architectures
@@ -37,14 +37,14 @@
  INSTALLS = vboxvfs-bin vboxvfs-sh
  
  #
---- virtualbox-ose-1.5.2-dfsg2/configure.orig	2007-12-23 15:15:43.000000000 +0100
-+++ virtualbox-ose-1.5.2-dfsg2/configure	2007-12-23 15:16:44.000000000 +0100
-@@ -230,7 +230,7 @@
- check_environment()
- {
-   test_header environment
+--- virtualbox-ose-1.5.4-dfsg/configure.orig	2007-12-29 16:44:20.000000000 +0100
++++ virtualbox-ose-1.5.4-dfsg/configure	2007-12-29 16:44:37.000000000 +0100
+@@ -248,7 +248,7 @@
+       exit 1
+       ;;
+   esac
 -  BUILD_CPU=`uname -m`
 +  BUILD_CPU=`dpkg --print-architecture`
+   [ "$OS" = "solaris" ] && BUILD_CPU=`isainfo | cut -f 1 -d ' '`
    case "$BUILD_CPU" in
      i[3456789]86|x86|i86pc)
-       BUILD_MACHINE='x86'

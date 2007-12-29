@@ -14,6 +14,7 @@ virtualbox-ose (1.5.4-dfsg-1) UNRELEASED; urgency=low
     08-no-kernel.dpatch
     09-fix-initscript.dpatch
     12-kcompat-2.6.24.dpatch
+  * Replaced our registration patch by the new config option taken from SVN.
   * Rediffed and renumbered the remaining patches.
   * Added build dependency on libpulse-dev.
   * Moved shell scripts from /usr/lib to /usr/share.

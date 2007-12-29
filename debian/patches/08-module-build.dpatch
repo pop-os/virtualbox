@@ -1,5 +1,5 @@
 #!/bin/sh /usr/share/dpatch/dpatch-run
-## 11-module-build.dpatch by Michael Meskes <meskes@debian.org>
+## 08-module-build.dpatch by Michael Meskes <meskes@debian.org>
 ##
 ## DP: Build module correctly in linux-modules-extra
 

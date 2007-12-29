@@ -1,22 +1,55 @@
 #!/bin/sh /usr/share/dpatch/dpatch-run
-## 10-no-registration.dpatch by Michael Meskes <meskes@debian.org>
+## 09-no-registration.dpatch by Michael Meskes <meskes@debian.org>
 ##
 ## DP: Do not ask for registration
+## This is taken from SVN and can safely be removed as soon as the files in SVN are realeased.
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Frontends/VirtualBox/Makefile.kmk virtualbox-ose-1.5.2-dfsg2/src/VBox/Frontends/VirtualBox/Makefile.kmk
---- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Frontends/VirtualBox/Makefile.kmk	2007-10-18 11:07:28.000000000 +0000
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Frontends/VirtualBox/Makefile.kmk	2007-12-18 14:53:06.000000000 +0000
-@@ -38,9 +38,9 @@ include $(PATH_KBUILD)/header.kmk
+--- virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk.orig	2007-12-29 16:33:24.000000000 +0100
++++ virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk	2007-12-29 16:34:41.000000000 +0100
+@@ -31,6 +31,9 @@
+ TRANSLATIONS :=
+ IMAGES :=
+ 
++VBOX_WITH_REGISTRATION := 1
++VBOX_WITH_REGISTRATION_REQUEST := 1
++
+ DEPTH = ../../../..
+ include $(PATH_KBUILD)/header.kmk
+ 
+@@ -38,10 +41,6 @@
  #
  # exclude inappropriate UI content
  #
 -#ifndef VBOX_OSE
-+ifndef VBOX_OSE
- VBOX_WITH_REGISTRATION := 1
+-VBOX_WITH_REGISTRATION := 1
 -#endif
-+endif
- 
+-
  ifndef VBOX_WITH_REGISTRATION
  VirtualBox_QT_UISRCS := $(filter-out ui/VBoxRegistrationDlg.ui,$(VirtualBox_QT_UISRCS))
+ endif
+--- virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp.orig	2007-12-29 16:34:53.000000000 +0100
++++ virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	2007-12-29 16:35:23.000000000 +0100
+@@ -929,7 +929,9 @@
+     mIsOpenViewFinished = true;
+     LogFlowFuncLeave();
+ 
++#ifdef VBOX_WITH_REGISTRATION_REQUEST
+     vboxGlobal().showRegistrationDialog (false /* aForce */);
++#endif
+ }
+ 
+ /**
+--- virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/src/main.cpp.orig	2007-12-29 16:35:28.000000000 +0100
++++ virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/src/main.cpp	2007-12-29 16:36:05.000000000 +0100
+@@ -242,7 +242,9 @@
+             {
+                 a.setMainWidget (&vboxGlobal().selectorWnd());
+                 vboxGlobal().selectorWnd().show();
++#ifdef VBOX_WITH_REGISTRATION_REQUEST
+                 vboxGlobal().showRegistrationDialog (false /* aForce */);
++#endif
+                 vboxGlobal().startEnumeratingMedia();
+                 rc = a.exec();
+             }

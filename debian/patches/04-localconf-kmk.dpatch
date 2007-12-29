@@ -10,7 +10,7 @@
 diff -Naurp virtualbox-ose-1.5.0-dfsg2.orig/LocalConfig.kmk virtualbox-ose-1.5.0-dfsg2/LocalConfig.kmk
 --- virtualbox-ose-1.5.0-dfsg2.orig/LocalConfig.kmk	1970-01-01 00:00:00.000000000 +0000
 +++ virtualbox-ose-1.5.0-dfsg2/LocalConfig.kmk	2007-10-09 12:26:59.000000000 +0000
-@@ -0,0 +1,12 @@
+@@ -0,0 +1,13 @@
 +VBOX_WITH_VBOXDRV =
 +VBOX_WITH_LINUX_ONLY =
 +VBOX_ADDITIONS_LINUX_ONLY =
@@ -19,6 +19,7 @@ diff -Naurp virtualbox-ose-1.5.0-dfsg2.orig/LocalConfig.kmk virtualbox-ose-1.5.0
 +VBOX_WITH_TESTCASES =
 +VBOX_WITH_TESTSUITE =
 +VBOX_WITH_USB =
++VBOX_WITH_REGISTRATION_REQUEST =
 +DEFS += RTPATH_APP_DOCS=\"/usr/share/doc/virtualbox\"
 +DEFS += RTPATH_APP_PRIVATE_ARCH=\"/usr/lib/virtualbox\"
 +DEFS += RTPATH_APP_PRIVATE=\"/usr/share/virtualbox\"
