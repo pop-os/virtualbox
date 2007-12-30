@@ -6,7 +6,7 @@ virtualbox-ose (1.5.4-dfsg-1) UNRELEASED; urgency=low
   * Removed build time dependency on i32-libs that is not really needed.
   * New upstream version.
   * Removed some new files because of licensing problems:
-    ./src/VBox/Additions/linux/selinux-fedora 
+    ./src/VBox/Additions/linux/selinux-fedora
     ./src/VBox/Additions/linux/xmouse/Imakefile
     ./src/VBox/HostServices/SharedClipboard/linux-stub.cpp
   * Removed the following patches because they are not needed anymore:
@@ -26,6 +26,7 @@ virtualbox-ose (1.5.4-dfsg-1) UNRELEASED; urgency=low
 
   [ Daniel Baumann ]
   * Again fixing dpatch headers.
+  * Again removing reimported useless whitespaces at EOL and EOF in debian/*.
 
  -- Michael Meskes <meskes@debian.org>  Sat, 29 Dec 2007 14:52:41 +0100
 
