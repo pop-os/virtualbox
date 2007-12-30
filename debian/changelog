@@ -15,11 +15,12 @@ virtualbox-ose (1.5.4-dfsg-1) UNRELEASED; urgency=low
     09-fix-initscript.dpatch
     12-kcompat-2.6.24.dpatch
   * Replaced our registration patch by the new config option taken from SVN.
-  * Rediffed and renumbered the remaining patches.
+  * Rediffed and renumbered some of the remaining patches.
   * Added build dependency on libpulse-dev.
   * Moved shell scripts from /usr/lib to /usr/share.
   * g++-multilib on amd64 depends on libc6-dev-i386, no need to specify both
     as build dependency.
+  * Manually install missing include files for guest-sources.
 
   [ Hilko Bengen ]
   * Make dh_strip ignore symlink(s) in /usr/share
@@ -31,7 +32,7 @@ virtualbox-ose (1.5.4-dfsg-1) UNRELEASED; urgency=low
   * Syncronising Uploaders of control with control.module.in.
   * Rediffed all patches properly.
 
- -- Michael Meskes <meskes@debian.org>  Sat, 29 Dec 2007 14:52:41 +0100
+ -- Michael Meskes <meskes@debian.org>  Sun, 30 Dec 2007 14:45:07 +0100
 
 virtualbox-ose (1.5.2-dfsg2-7) unstable; urgency=low
 

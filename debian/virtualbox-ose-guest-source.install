@@ -1,5 +1,10 @@
 out/bin/additions/src/vboxadd /usr/src/modules/virtualbox-ose-guest
+out/bin/src/include/iprt/heap.h /usr/src/modules/virtualbox-ose-guest/vboxadd/include/iprt
+out/bin/src/include/iprt/spinlock.h /usr/src/modules/virtualbox-ose-guest/vboxadd/include/iprt
+
 out/bin/additions/src/vboxvfs /usr/src/modules/virtualbox-ose-guest
+out/bin/src/include/iprt/heap.h /usr/src/modules/virtualbox-ose-guest/vboxvfs/include/iprt
+out/bin/src/include/iprt/spinlock.h /usr/src/modules/virtualbox-ose-guest/vboxvfs/include/iprt
 
 debian/control debian/changelog debian/copyright debian/compat /usr/src/modules/virtualbox-ose-guest/debian
 debian/virtualbox-ose-guest-source.files/Makefile /usr/src/modules/virtualbox-ose-guest
