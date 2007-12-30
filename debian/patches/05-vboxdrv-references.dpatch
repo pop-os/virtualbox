@@ -6,9 +6,9 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-1.5.2-dfsg.orig/src/VBox/VMM/VM.cpp virtualbox-ose-1.5.2-dfsg/src/VBox/VMM/VM.cpp
---- virtualbox-ose-1.5.2-dfsg.orig/src/VBox/VMM/VM.cpp	2007-10-18 11:07:28.000000000 +0000
-+++ virtualbox-ose-1.5.2-dfsg/src/VBox/VMM/VM.cpp	2007-10-19 19:33:52.000000000 +0000
+diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/VMM/VM.cpp virtualbox-ose-1.5.4-dfsg/src/VBox/VMM/VM.cpp
+--- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/VMM/VM.cpp	2007-12-04 13:14:26.000000000 +0000
++++ virtualbox-ose-1.5.4-dfsg/src/VBox/VMM/VM.cpp	2007-12-30 06:31:00.000000000 +0000
 @@ -314,8 +314,8 @@ VMR3DECL(int)   VMR3Create(PFNVMATERROR 
  #ifdef RT_OS_LINUX
                  pszError = N_("VirtualBox kernel driver not loaded. The vboxdrv kernel module "

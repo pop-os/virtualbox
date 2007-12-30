@@ -5,9 +5,9 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/module/Makefile.module virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/Makefile.module
---- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/module/Makefile.module	2007-10-18 11:07:28.000000000 +0000
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/module/Makefile.module	2007-12-18 14:54:07.000000000 +0000
+diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/module/Makefile.module virtualbox-ose-1.5.4-dfsg/src/VBox/Additions/linux/module/Makefile.module
+--- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/module/Makefile.module	2007-09-24 20:13:56.000000000 +0000
++++ virtualbox-ose-1.5.4-dfsg/src/VBox/Additions/linux/module/Makefile.module	2007-12-30 06:33:32.000000000 +0000
 @@ -14,7 +14,7 @@
  #  be useful, but WITHOUT ANY WARRANTY of any kind.
  
@@ -26,9 +26,9 @@ diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/module/Make
   INCL    += $(addprefix -I$(KBUILD_EXTMOD),/ /include /r0drv/linux)
   export INCL
  endif
-diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/sharedfolders/Makefile.module virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/sharedfolders/Makefile.module
---- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/sharedfolders/Makefile.module	2007-10-18 11:07:28.000000000 +0000
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/sharedfolders/Makefile.module	2007-12-18 14:54:07.000000000 +0000
+diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/sharedfolders/Makefile.module virtualbox-ose-1.5.4-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.module
+--- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/sharedfolders/Makefile.module	2007-09-24 20:13:56.000000000 +0000
++++ virtualbox-ose-1.5.4-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.module	2007-12-30 06:33:32.000000000 +0000
 @@ -14,7 +14,7 @@
  #  be useful, but WITHOUT ANY WARRANTY of any kind.
  
@@ -47,9 +47,9 @@ diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/sharedfolde
   INCL    += $(addprefix -I$(KBUILD_EXTMOD),/ /include /r0drv/linux)
   export INCL
  endif
-diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/HostDrivers/Support/linux/Makefile virtualbox-ose-1.5.2-dfsg2/src/VBox/HostDrivers/Support/linux/Makefile
---- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/HostDrivers/Support/linux/Makefile	2007-10-18 11:07:28.000000000 +0000
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/HostDrivers/Support/linux/Makefile	2007-12-18 14:54:07.000000000 +0000
+diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/HostDrivers/Support/linux/Makefile virtualbox-ose-1.5.4-dfsg/src/VBox/HostDrivers/Support/linux/Makefile
+--- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/HostDrivers/Support/linux/Makefile	2007-10-12 21:19:22.000000000 +0000
++++ virtualbox-ose-1.5.4-dfsg/src/VBox/HostDrivers/Support/linux/Makefile	2007-12-30 06:33:32.000000000 +0000
 @@ -40,7 +40,7 @@ ifeq ($(BUILD_TARGET_ARCH),)
  endif
  

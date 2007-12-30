@@ -6,39 +6,10 @@
 
 @DPATCH@
 
-Index:virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp
-===================================================================
----virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	(revision 27037)
-+++virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	(working copy)
-@@ -929,7 +929,9 @@
-     mIsOpenViewFinished = true;
-     LogFlowFuncLeave();
- 
-+#ifdef VBOX_WITH_REGISTRATION_REQUEST
-     vboxGlobal().showRegistrationDialog (false /* aForce */);
-+#endif
- }
- 
- /**
-Index:virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/src/main.cpp
-===================================================================
----virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/src/main.cpp	(revision 27037)
-+++virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/src/main.cpp	(working copy)
-@@ -242,7 +242,9 @@
-             {
-                 a.setMainWidget (&vboxGlobal().selectorWnd());
-                 vboxGlobal().selectorWnd().show();
-+#ifdef VBOX_WITH_REGISTRATION_REQUEST
-                 vboxGlobal().showRegistrationDialog (false /* aForce */);
-+#endif
-                 vboxGlobal().startEnumeratingMedia();
-                 rc = a.exec();
-             }
-Index:virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk
-===================================================================
----virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk	(revision 27037)
-+++virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk	(working copy)
-@@ -31,6 +31,9 @@
+diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Frontends/VirtualBox/Makefile.kmk virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk
+--- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Frontends/VirtualBox/Makefile.kmk	2007-12-17 14:38:59.000000000 +0000
++++ virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk	2007-12-30 06:33:53.000000000 +0000
+@@ -31,6 +31,9 @@ FORMS :=
  TRANSLATIONS :=
  IMAGES :=
  
@@ -48,7 +19,7 @@ Index:virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk
  DEPTH = ../../../..
  include $(PATH_KBUILD)/header.kmk
  
-@@ -38,10 +41,6 @@
+@@ -38,10 +41,6 @@ include $(PATH_KBUILD)/header.kmk
  #
  # exclude inappropriate UI content
  #
@@ -59,7 +30,7 @@ Index:virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk
  ifndef VBOX_WITH_REGISTRATION
  VirtualBox_QT_UISRCS := $(filter-out ui/VBoxRegistrationDlg.ui,$(VirtualBox_QT_UISRCS))
  endif
-@@ -217,6 +216,9 @@
+@@ -217,6 +216,9 @@ endif
  ifdef VBOX_WITH_REGISTRATION
   VirtualBox_DEFS         += VBOX_WITH_REGISTRATION
  endif
@@ -69,3 +40,29 @@ Index:virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk
  ifdef VBOX_WITH_ALSA
   VirtualBox_DEFS         += VBOX_WITH_ALSA
  endif
+diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp
+--- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	2007-10-18 07:23:36.000000000 +0000
++++ virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	2007-12-30 06:33:53.000000000 +0000
+@@ -929,7 +929,9 @@ void VBoxConsoleWnd::finalizeOpenView()
+     mIsOpenViewFinished = true;
+     LogFlowFuncLeave();
+ 
++#ifdef VBOX_WITH_REGISTRATION_REQUEST
+     vboxGlobal().showRegistrationDialog (false /* aForce */);
++#endif
+ }
+ 
+ /**
+diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Frontends/VirtualBox/src/main.cpp virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/src/main.cpp
+--- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Frontends/VirtualBox/src/main.cpp	2007-12-28 08:15:25.000000000 +0000
++++ virtualbox-ose-1.5.4-dfsg/src/VBox/Frontends/VirtualBox/src/main.cpp	2007-12-30 06:33:53.000000000 +0000
+@@ -242,7 +242,9 @@ int main (int argc, char **argv)
+             {
+                 a.setMainWidget (&vboxGlobal().selectorWnd());
+                 vboxGlobal().selectorWnd().show();
++#ifdef VBOX_WITH_REGISTRATION_REQUEST
+                 vboxGlobal().showRegistrationDialog (false /* aForce */);
++#endif
+                 vboxGlobal().startEnumeratingMedia();
+                 rc = a.exec();
+             }

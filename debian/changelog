@@ -29,6 +29,7 @@ virtualbox-ose (1.5.4-dfsg-1) UNRELEASED; urgency=low
   * Again removing reimported useless whitespaces at EOL and EOF in debian/*.
   * Correcting the name of Phillip in copyright.
   * Syncronising Uploaders of control with control.module.in.
+  * Rediffed all patches properly.
 
  -- Michael Meskes <meskes@debian.org>  Sat, 29 Dec 2007 14:52:41 +0100
 

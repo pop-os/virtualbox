@@ -5,9 +5,9 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/installer/98vboxadd-xclient virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/installer/98vboxadd-xclient
---- virtualbox-ose-1.5.2-dfsg2.orig/src/VBox/Additions/linux/installer/98vboxadd-xclient	1970-01-01 00:00:00.000000000 +0000
-+++ virtualbox-ose-1.5.2-dfsg2/src/VBox/Additions/linux/installer/98vboxadd-xclient	2007-12-18 14:49:45.000000000 +0000
+diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/installer/98vboxadd-xclient virtualbox-ose-1.5.4-dfsg/src/VBox/Additions/linux/installer/98vboxadd-xclient
+--- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/installer/98vboxadd-xclient	1970-01-01 00:00:00.000000000 +0000
++++ virtualbox-ose-1.5.4-dfsg/src/VBox/Additions/linux/installer/98vboxadd-xclient	2007-12-30 06:32:40.000000000 +0000
 @@ -0,0 +1,6 @@
 +# (C) 2007
 +# Michael Meskes <meskes@debian.org>
