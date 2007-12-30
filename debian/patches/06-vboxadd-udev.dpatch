@@ -2,7 +2,7 @@
 ## 06-vboxadd-udev.dpatch by Michael Meskes <meskes@debian.org>
 ## basic idea taken from http://blino.org/blog/mandriva/kernel
 ##
-## DP: Make vboxadd module register /dev/vboxadd correctly
+## DP: Make vboxadd module register /dev/vboxadd correctly.
 
 @DPATCH@
 

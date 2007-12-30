@@ -24,6 +24,9 @@ virtualbox-ose (1.5.4-dfsg-1) UNRELEASED; urgency=low
   [ Hilko Bengen ]
   * Make dh_strip ignore symlink(s) in /usr/share
 
+  [ Daniel Baumann ]
+  * Again fixing dpatch headers.
+
  -- Michael Meskes <meskes@debian.org>  Sat, 29 Dec 2007 14:52:41 +0100
 
 virtualbox-ose (1.5.2-dfsg2-7) unstable; urgency=low

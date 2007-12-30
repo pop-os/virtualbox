@@ -2,8 +2,8 @@
 ## 04-localconf-kmk.dpatch by Patrick Winnertz <patrick.winnertz@skolelinux.org>
 ## expanded my Michael Meskes <meskes@debian.org> to set paths
 ##
-## DP: Don't build the module for testing and don't build any guest additions
-## DP: both depends on kernel headers, which are not available atm
+## DP: Don't build the module for testing and don't build any guest additions.
+## DP: both depends on kernel headers, which are not available atm.
 
 @DPATCH@
 

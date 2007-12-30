@@ -1,8 +1,7 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
+#!/bin/sh /usr/share/dpatch/dpatch-run
 ## 01-no-64bit-guest.dpatch by Michael Meskes <meskes@debian.org>
 ##
-## All lines beginning with `## DP:' are a description of the patch.
-## DP: Do not build guest utils on 64 bit architectures
+## DP: Do not build guest utils on 64 bit architectures.
 
 @DPATCH@
 

@@ -1,7 +1,7 @@
 #!/bin/sh /usr/share/dpatch/dpatch-run
 ## 07-Xsession.dpatch by Michael Meskes <meskes@debian.org>
 ##
-## DP: Create a start script in Xsession.d
+## DP: Create a start script in Xsession.d.
 
 @DPATCH@
 

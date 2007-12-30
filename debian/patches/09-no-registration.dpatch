@@ -1,8 +1,7 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
+#!/bin/sh /usr/share/dpatch/dpatch-run
 ## 09-no-registration.dpatch by Frank Mehnert <frank@innotek.de>
 ##
-## All lines beginning with `## DP:' are a description of the patch.
-## DP: Do not ask for registration. This is taken from SVN and can safely be 
+## DP: Do not ask for registration. This is taken from SVN and can safely be
 ## DP: removed as soon as the files in SVN are realeased.
 
 @DPATCH@
