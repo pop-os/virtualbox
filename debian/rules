@@ -122,6 +122,7 @@ binary-indep: build install
 	# These files have incorrect permissions, fixing it.
 	chmod 755 debian/$(psource)/usr/src/modules/$(sname)/debian/rules
 	chmod 755 debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
+	dh_link -i
 	# Create .tar.bz2 for virtualbox*source
 	cd debian/$(psource)/usr/src && \
 		tar -cjf $(sname).tar.bz2 modules && \
@@ -129,7 +130,6 @@ binary-indep: build install
 	cd debian/$(gsource)/usr/src && \
 		tar -cjf $(gname).tar.bz2 modules && \
 		rm -rf modules
-	dh_link -i
 	dh_compress -i
 	dh_fixperms -i
 	dh_gencontrol -i

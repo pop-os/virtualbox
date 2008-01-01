@@ -1,1 +1,5 @@
 usr/src/modules/virtualbox-ose-guest/debian
+usr/src/modules/virtualbox-ose-guest/include/iprt
+usr/src/modules/virtualbox-ose-guest/include/VBox
+usr/src/modules/virtualbox-ose-guest/include/internal
+usr/src/modules/virtualbox-ose-guest/r0drv/linux

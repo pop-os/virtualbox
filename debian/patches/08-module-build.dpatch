@@ -1,7 +1,7 @@
 #!/bin/sh /usr/share/dpatch/dpatch-run
 ## 08-module-build.dpatch by Michael Meskes <meskes@debian.org>
 ##
-## DP: Build module correctly in linux-modules-extra.
+## DP: Build module with correct name in linux-modules-extra.
 
 @DPATCH@
 
@@ -17,15 +17,6 @@ diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/module/Makef
  OBJS   = \
  	cmc.o \
  	hgcmcall.o \
-@@ -92,6 +92,8 @@ ifndef INCL
-  ifndef KBUILD_EXTMOD
-   KBUILD_EXTMOD := $(shell pwd)
-  endif
-+# make sure we have a correct path
-+ KBUILD_EXTMOD := $(subst $(MODULE),,$(KBUILD_EXTMOD))/$(MODULE)
-  INCL    += $(addprefix -I$(KBUILD_EXTMOD),/ /include /r0drv/linux)
-  export INCL
- endif
 diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/sharedfolders/Makefile.module virtualbox-ose-1.5.4-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.module
 --- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/sharedfolders/Makefile.module	2007-09-24 20:13:56.000000000 +0000
 +++ virtualbox-ose-1.5.4-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.module	2007-12-30 06:33:32.000000000 +0000
@@ -38,15 +29,6 @@ diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/sharedfolder
  OBJS   = \
  	vfsmod.o \
  	vfs-utils.o \
-@@ -99,6 +99,8 @@ ifndef INCL
-  ifndef KBUILD_EXTMOD
-   KBUILD_EXTMOD := $(shell pwd)
-  endif
-+# make sure we have a correct path
-+ KBUILD_EXTMOD := $(subst $(MODULE),,$(KBUILD_EXTMOD))/$(MODULE)
-  INCL    += $(addprefix -I$(KBUILD_EXTMOD),/ /include /r0drv/linux)
-  export INCL
- endif
 diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/HostDrivers/Support/linux/Makefile virtualbox-ose-1.5.4-dfsg/src/VBox/HostDrivers/Support/linux/Makefile
 --- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/HostDrivers/Support/linux/Makefile	2007-10-12 21:19:22.000000000 +0000
 +++ virtualbox-ose-1.5.4-dfsg/src/VBox/HostDrivers/Support/linux/Makefile	2007-12-30 06:33:32.000000000 +0000
