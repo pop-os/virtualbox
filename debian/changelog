@@ -1,3 +1,9 @@
+virtualbox-ose (1.5.4-dfsg-2) unstable; urgency=low
+
+  * Rediffed 02-module-in-kernel.dpatch.
+
+ -- Daniel Baumann <daniel@debian.org>  Wed,  2 Jan 2008 00:41:00 +0100
+
 virtualbox-ose (1.5.4-dfsg-1) unstable; urgency=low
 
   [ Michael Meskes ]
