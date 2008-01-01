@@ -1,4 +1,4 @@
-virtualbox-ose (1.5.4-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (1.5.4-dfsg-1) unstable; urgency=low
 
   [ Michael Meskes ]
   * Do not build guest-utils on amd64 because 64bit guests are nor support
