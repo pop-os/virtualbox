@@ -1,8 +1,13 @@
 virtualbox-ose (1.5.4-dfsg-2) unstable; urgency=low
 
+  [ Daniel Baumann ]
   * Rediffed 02-module-in-kernel.dpatch.
 
- -- Daniel Baumann <daniel@debian.org>  Wed,  2 Jan 2008 00:41:00 +0100
+  [ Michael Meskes ]
+  * Removed two additional include files from guest-sources again because they
+    were only needed for amd64.
+
+ -- Michael Meskes <meskes@debian.org>  Wed, 02 Jan 2008 10:37:38 +0100
 
 virtualbox-ose (1.5.4-dfsg-1) unstable; urgency=low
 

@@ -7,8 +7,6 @@ out/bin/additions/src/vboxvfs/build_in_tmp /usr/src/modules/virtualbox-ose-guest
 out/bin/additions/src/vboxvfs/Makefile /usr/src/modules/virtualbox-ose-guest/vboxvfs
 
 out/bin/additions/src/vboxadd/include/iprt/* /usr/src/modules/virtualbox-ose-guest/include/iprt
-out/bin/src/include/iprt/heap.h /usr/src/modules/virtualbox-ose-guest/include/iprt
-out/bin/src/include/iprt/spinlock.h /usr/src/modules/virtualbox-ose-guest/include/iprt
 out/bin/additions/src/vboxadd/include/VBox/* /usr/src/modules/virtualbox-ose-guest/include/VBox
 out/bin/additions/src/vboxadd/include/internal/* /usr/src/modules/virtualbox-ose-guest/include/internal
 
