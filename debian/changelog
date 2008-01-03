@@ -1,3 +1,9 @@
+virtualbox-ose (1.5.4-dfsg-3) unstable; urgency=low
+
+  * Added debian/watch
+
+ -- Hilko Bengen <bengen@debian.org>  Thu, 03 Jan 2008 16:59:27 +0100
+
 virtualbox-ose (1.5.4-dfsg-2) unstable; urgency=low
 
   [ Daniel Baumann ]
