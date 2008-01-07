@@ -1,27 +1,19 @@
-virtualbox-ose (1.5.4-dfsg-3) unstable; urgency=low
+virtualbox-ose (1.5.4-dfsg-2) UNRELEASED; urgency=low
 
   [ Hilko Bengen ]
   * Added debian/watch
 
-  [ Michael Meskes ]
-  * Install VBoxAddIF.sh which was lost during transition, closes: #458991.
-  * Added a recommend to libhal, see #448347 for details.
-
-  [ Daniel Baumann ]
-  * Again removing reimported useless whitespaces at EOL and EOF in debian/*.
-
- -- Michael Meskes <meskes@debian.org>  Fri, 04 Jan 2008 10:51:03 +0100
-
-virtualbox-ose (1.5.4-dfsg-2) unstable; urgency=low
-
   [ Daniel Baumann ]
   * Rediffed 02-module-in-kernel.dpatch.
+  * Again removing reimported useless whitespaces at EOL and EOF in debian/*.
 
   [ Michael Meskes ]
   * Removed two additional include files from guest-sources again because they
     were only needed for amd64.
+  * Install VBoxAddIF.sh which was lost during transition, closes: #458991.
+  * Added a recommend to libhal, see #448347 for details.
 
- -- Michael Meskes <meskes@debian.org>  Wed, 02 Jan 2008 10:37:38 +0100
+ -- Michael Meskes <meskes@debian.org>  Fri, 04 Jan 2008 10:51:03 +0100
 
 virtualbox-ose (1.5.4-dfsg-1) unstable; urgency=low
 
