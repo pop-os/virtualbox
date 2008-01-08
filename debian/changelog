@@ -1,4 +1,4 @@
-virtualbox-ose (1.5.4-dfsg-2) UNRELEASED; urgency=low
+virtualbox-ose (1.5.4-dfsg-2) unstable; urgency=low
 
   [ Hilko Bengen ]
   * Added debian/watch
