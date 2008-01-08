@@ -17,7 +17,6 @@ diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/VMM/VM.cpp virtualbox-ose-1.
 -			      "'/etc/init.d/vboxdrv setup' as root");
 +                              "Please install the virtualbox-ose-modules package for your "
 +                              "kernel and execute 'modprobe vboxdrv' as root");
-
  #else
                  pszError = N_("VirtualBox kernel driver not loaded.");
  #endif
