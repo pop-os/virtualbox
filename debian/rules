@@ -18,6 +18,8 @@ uname:=virtualbox-ose-guest-utils
 
 MAKE:=kmk
 
+upstreamversion=$(shell dpkg-parsechangelog | grep Version | cut -d" " -f2 | cut -d"-" -f1)
+
 env.sh: patch-stamp
 	dh_testdir
 	./configure --with-linux="/usr" --disable-kmods
@@ -42,7 +44,10 @@ clean: unpatch
 
 	# Cleaning package
 	rm -rf out
-	rm -f AutoConfig.kmk configure.log env.sh debian/$(sname).init
+	rm -f AutoConfig.kmk configure.log env.sh
+	rm -f debian/$(sname).init debian/$(sname).preinst
+
+	debconf-updatepo
 
 	dh_clean
 
@@ -68,8 +73,8 @@ dfsg-free:
 	rm -rf ./src/VBox/Additions/linux/selinux-fedora
 	rm -rf ./debian/
 	find . -type d -name '.svn' | xargs rm -rf;
-	cd .. && mv VirtualBox-1.5.4_OSE virtualbox-ose-1.5.4-dfsg && \
-		tar cfz virtualbox-ose_1.5.4-dfsg.orig.tar.gz virtualbox-ose-1.5.4-dfsg
+	cd .. && mv VirtualBox-$(upstreamversion)_OSE virtualbox-ose-$(upstreamversion)-dfsg && \
+		tar cfz virtualbox-ose_$(upstreamversion)-dfsg.orig.tar.gz virtualbox-ose-$(upstreamversion)-dfsg
 
 # install: DH_OPTIONS=
 install: build
@@ -80,6 +85,9 @@ install: build
 
 	# This will get installed into the package by dh_installinit
 	install -m 644 src/VBox/Installer/linux/vboxnet.sh debian/$(sname).init
+
+	# We also need to build a preinst file
+	sed -e 's/UPSTREAM/"$(upstreamversion)"/' < debian/$(sname).preinst.in > debian/$(sname).preinst
 
 binary-arch: build install
 	dh_testdir -a
@@ -102,6 +110,7 @@ binary-arch: build install
 	dh_compress -a
 	dh_fixperms -a
 	dh_installudev -a
+	dh_installdebconf -a
 	dh_installinit -a
 	dh_installdeb -a
 	dh_shlibdeps -a

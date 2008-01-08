@@ -16,7 +16,8 @@ diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/VMM/VM.cpp virtualbox-ose-1.
 -			      "Re-setup the kernel module by executing "
 -			      "'/etc/init.d/vboxdrv setup' as root");
 +                              "Please install the virtualbox-ose-modules package for your "
-+                              "kernel and execute '/etc/init.d/vboxdrv start' as root");
++                              "kernel and execute 'modprobe vboxdrv' as root");
+
  #else
                  pszError = N_("VirtualBox kernel driver not loaded.");
  #endif
@@ -28,7 +29,7 @@ diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/VMM/VM.cpp virtualbox-ose-1.
 -			      "'/etc/init.d/vboxdrv setup' as root");
 +			      "reason. "
 +                              "Please install the virtualbox-ose-modules package for your "
-+                              "kernel and execute '/etc/init.d/vboxdrv start' as root");
++                              "kernel and execute 'modprobe vboxdrv' as root");
  #else
                  pszError = N_("VirtualBox kernel driver not installed");
  #endif

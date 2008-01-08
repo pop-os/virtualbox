@@ -12,8 +12,12 @@ virtualbox-ose (1.5.4-dfsg-2) UNRELEASED; urgency=low
     were only needed for amd64.
   * Install VBoxAddIF.sh which was lost during transition, closes: #458991.
   * Added a recommend to libhal, see #448347 for details.
+  * Added debconf support.
+  * Tell the user about losing snapshots and ask via debconf whether to
+    proceed, closes: #458842.
+  * Clarified error message coming up if module is not loaded, closes: #459440.
 
- -- Michael Meskes <meskes@debian.org>  Fri, 04 Jan 2008 10:51:03 +0100
+ -- Michael Meskes <meskes@debian.org>  Mon, 07 Jan 2008 17:41:32 +0100
 
 virtualbox-ose (1.5.4-dfsg-1) unstable; urgency=low
 

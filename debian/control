@@ -3,7 +3,7 @@ Section: misc
 Priority: extra
 Maintainer: Debian Virtualbox Team  <pkg-virtualbox-devel@lists.alioth.debian.org>
 Uploaders: Philipp Hug <debian@hug.cx>, Marvin Stark <marv@der-marv.de>, Michael Meskes <meskes@debian.org>, Patrick Winnertz <winnie@debian.org>, Daniel Baumann <daniel@debian.org>, Hilko Bengen <bengen@debian.org>
-Build-Depends: debhelper (>= 5), dpatch, bcc, bzip2, g++-multilib [amd64], iasl, kbuild, libacl1-dev, libasound-dev, libhal-dev, libidl-dev, libqt3-mt-dev, libsdl1.2-dev, libxalan110-dev, uuid-dev, xalan, xsltproc, yasm, libpulse-dev
+Build-Depends: debhelper (>= 5), dpatch, bcc, bzip2, g++-multilib [amd64], iasl, kbuild, libacl1-dev, libasound-dev, libhal-dev, libidl-dev, libqt3-mt-dev, libsdl1.2-dev, libxalan110-dev, uuid-dev, xalan, xsltproc, yasm, libpulse-dev, po-debconf (>= 0.5.0)
 Standards-Version: 3.7.3
 Homepage: http://www.virtualbox.org/
 Vcs-Svn: svn://svn.debian.org/svn/pkg-virtualbox/trunk
@@ -12,7 +12,7 @@ Vcs-Browser: http://svn.debian.org/wsvn/pkg-virtualbox/trunk
 Package: virtualbox-ose
 Architecture: amd64 i386
 Depends: ${shlibs:Depends}, ${misc:Depends}, adduser
-Recommends: virtualbox-ose-modules, libhal1
+Recommends: virtualbox-ose-modules
 Suggests: virtualbox-ose-source
 Conflicts: virtualbox
 Replaces: virtualbox
