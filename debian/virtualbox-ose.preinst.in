@@ -5,7 +5,7 @@ old=`echo $2 | cut -f1 -d"-"`
 
 . /usr/share/debconf/confmodule
 
-if [ $new != $old ]; then
+if [ "$new" != "$old" ]; then
 	db_title Upgrading virtualbox-ose
 	db_fset virtualbox-ose/upstream_version_change seen false
 	db_input high virtualbox-ose/upstream_version_change || true
