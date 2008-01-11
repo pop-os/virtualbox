@@ -2,6 +2,8 @@ virtualbox-ose (1.5.4-dfsg-3) unstable; urgency=low
 
   * Added patch from SVN send by Frank Mehnert <frank@innotek.de> to fix
     runtime assertions.
+  * Improved debconf text.
+  * Check for package upgrade in preinst.
 
  -- Michael Meskes <meskes@debian.org>  Thu, 10 Jan 2008 15:14:26 +0100
 

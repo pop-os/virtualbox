@@ -4,5 +4,5 @@ Default: false
 _Description: Proceed with virtualbox-ose upgrade despite losing snapshots?
  You are currently upgrading virtualbox-ose to a new upstream version. All
  snapshots will be discarded by this upgrade, because snapshots are version
- specific.
+ specific. Please select 'no' if you want to merge snapshot data into the base image first.
 
