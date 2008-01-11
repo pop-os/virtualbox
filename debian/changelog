@@ -4,6 +4,7 @@ virtualbox-ose (1.5.4-dfsg-3) unstable; urgency=low
     runtime assertions.
   * Improved debconf text.
   * Check for package upgrade in preinst.
+  * Pre-Depend on debconf.
 
  -- Michael Meskes <meskes@debian.org>  Thu, 10 Jan 2008 15:14:26 +0100
 
