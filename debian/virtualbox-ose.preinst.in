@@ -19,4 +19,3 @@ if [ "$1" = "upgrade" -a "$new" != "$old" ]; then
 fi
 
 #DEBHELPER#
-

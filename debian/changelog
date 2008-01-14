@@ -1,3 +1,9 @@
+virtualbox-ose (1.5.4-dfsg-4) unstable; urgency=low
+
+  * Again removing reimported useless whitespaces at EOL and EOF in debian/*.
+
+ -- Daniel Baumann <daniel@debian.org>  Mon, 14 Jan 2008 15:08:00 +0200
+
 virtualbox-ose (1.5.4-dfsg-3) unstable; urgency=low
 
   * Added patch from SVN send by Frank Mehnert <frank@innotek.de> to fix
