@@ -8,8 +8,8 @@
 /usr/share/virtualbox/VBox.sh /usr/bin/VBoxSDL
 /usr/share/virtualbox/VBox.sh /usr/bin/VirtualBox
 
-/usr/bin/VboxTAP /usr/bin/VBoxAddIF
-/usr/bin/VboxTAP /usr/bin/VBoxDeleteIF
+/usr/bin/VBoxTAP /usr/bin/VBoxAddIF
+/usr/bin/VBoxTAP /usr/bin/VBoxDeleteIF
 
 /usr/share/virtualbox/VBox.png /usr/share/icons/virtualbox.png
 
