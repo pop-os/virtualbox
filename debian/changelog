@@ -1,5 +1,9 @@
 virtualbox-ose (1.5.4-dfsg-5) unstable; urgency=low
 
+  [ Daniel Baumann ]
+  * Again removing reimported useless whitespaces at EOL and EOF in debian/*.
+
+  [ Michael Meskes ]
   * Added basque debconf translation, closes: #460348
 
  -- Michael Meskes <meskes@debian.org>  Tue, 15 Jan 2008 17:21:38 +0100

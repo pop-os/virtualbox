@@ -35,4 +35,3 @@ msgstr ""
 "Egoera argazki guztiak ezingo dira erabili bertsio berri honekin egoera-argazkiak "
 "bertsio zehatz batetararako dira era. Mesedez 'ez' hauatatu honen aurretik "
 "egoera-argazki batenbat instalazio oinarrira gehitu nahi baduzu."
-
