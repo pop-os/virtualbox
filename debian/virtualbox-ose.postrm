@@ -7,7 +7,9 @@ case "${1}" in
 		# Removing vboxusers group
 		if [ -x /usr/sbin/delgroup ]
 		then
-			delgroup --quiet --system vboxusers
+			# delgroup may return error status 3 if there is a non-system group
+			# "vboxusers". The postrm should not fail in this case!
+			/usr/sbin/delgroup --quiet --system vboxusers || true
 		fi
 		;;
 

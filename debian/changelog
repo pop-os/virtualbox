@@ -6,7 +6,11 @@ virtualbox-ose (1.5.4-dfsg-5) UNRELEASED; urgency=low
   [ Michael Meskes ]
   * Added basque debconf translation, closes: #460348
 
- -- Michael Meskes <meskes@debian.org>  Tue, 15 Jan 2008 17:21:38 +0100
+  [ Patrick Winnertz ]
+  * Fix error of postrm if vboxusers is a non-system group (maybe added
+    manually before installation of virtualbox-ose). (Closes: #462885) 
+
+ -- Patrick Winnertz <winnie@debian.org>  Mon, 28 Jan 2008 08:41:56 +0100
 
 virtualbox-ose (1.5.4-dfsg-4) unstable; urgency=low
 
