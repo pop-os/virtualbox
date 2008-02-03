@@ -6,10 +6,10 @@
 
 @DPATCH@
 
-Index: virtualbox-1.5.4/srcVBox/VMM/VMReq.cpp
+Index: virtualbox-1.5.4/src/VBox/VMM/VMReq.cpp
 ===================================================================
---- virtualbox-1.5.4/srcVBox/VMM/VMReq.cpp	(revision 27120)
-+++ virtualbox-1.5.4/srcVBox/VMM/VMReq.cpp	(revision 27121)
+--- virtualbox-1.5.4/src/VBox/VMM/VMReq.cpp	(revision 27120)
++++ virtualbox-1.5.4/src/VBox/VMM/VMReq.cpp	(revision 27121)
 @@ -525,9 +525,16 @@
          return VERR_VM_REQUEST_INVALID_TYPE;
      }
@@ -52,8 +52,7 @@ Index: virtualbox-1.5.4/srcVBox/VMM/VMReq.cpp
 -        if (!(pReq->fFlags & VMREQFLAGS_NO_WAIT))
 +        if (!(fFlags & VMREQFLAGS_NO_WAIT))
              rc = VMR3ReqWait(pReq, cMillies);
-         LogFlow(("VMR3ReqQueue: returns %Vrc
-", rc));
+         LogFlow(("VMR3ReqQueue: returns %Vrc\n", rc));
      }
 @@ -558,7 +565,7 @@
           * The requester was EMT, just execute it.
@@ -61,7 +60,6 @@ Index: virtualbox-1.5.4/srcVBox/VMM/VMReq.cpp
          pReq->enmState = VMREQSTATE_QUEUED;
 -        rc = vmR3ReqProcessOne(pReq->pVM, pReq);
 +        rc = vmR3ReqProcessOne(pVM, pReq);
-         LogFlow(("VMR3ReqQueue: returns %Vrc (processed)
-", rc));
+         LogFlow(("VMR3ReqQueue: returns %Vrc (processed)\n", rc));
      }
      return rc;

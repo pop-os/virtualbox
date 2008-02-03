@@ -5,6 +5,11 @@ virtualbox-ose (1.5.4-dfsg-5) UNRELEASED; urgency=low
 
   [ Michael Meskes ]
   * Added basque debconf translation, closes: #460348
+  * Really use runtime assertion patch.
+  * Replaced two patches for module build process by upstream changes taken
+    from SVN.
+  * Added ARCH setting to virtualbox-ose-source rules file so we can cross
+    compile the module.
 
   [ Patrick Winnertz ]
   * Fix error of postrm if vboxusers is a non-system group (maybe added
