@@ -27,7 +27,7 @@ msgstr ""
 #: ../virtualbox-ose.templates:2001
 msgid ""
 "You are currently upgrading virtualbox-ose to a new upstream version. All "
-"snapshots will be discarded by this upgrade, because snapshots are  version-"
+"snapshots will be discarded by this upgrade, because snapshots are version-"
 "specific."
 msgstr ""
 "Está a actualizar virtualbox-ose a unha nova versión. Esta actualización ha "

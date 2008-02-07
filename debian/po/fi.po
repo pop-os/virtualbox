@@ -21,6 +21,6 @@ msgstr "Jatketaanko virtualbox-osen päivitystä, vaikka tilannevedokset menetet
 #. Type: boolean
 #. Description
 #: ../virtualbox-ose.templates:2001
-msgid "You are currently upgrading virtualbox-ose to a new upstream version. All snapshots will be discarded by this upgrade, because snapshots are  version-specific."
+msgid "You are currently upgrading virtualbox-ose to a new upstream version. All snapshots will be discarded by this upgrade, because snapshots are version-specific."
 msgstr "Olet päivittämässä virtualbox-osea uuteen versioon. Kaikki olemassa olevat tilannevedokset hylätään päivityksen toimesta, koska ne ovat versiospesifisiä."
 

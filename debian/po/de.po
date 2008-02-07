@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: virtualbox-ose-1.5.4-dfsg-2\n"
 "Report-Msgid-Bugs-To: virtualbox-ose@packages.debian.org\n"
-"POT-Creation-Date: 2008-01-11 10:53+0100\n"
+"POT-Creation-Date: 2008-02-03 17:53+0100\n"
 "PO-Revision-Date: 2008-01-07 17:16+0100\n"
 "Last-Translator: Michael Meskes <meskes@debian.org>\n"
 "Language-Team: German <debian-l10n-german@lists.debian.org>\n"
@@ -16,21 +16,19 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../virtualbox-ose.templates:1001
+#: ../virtualbox-ose.templates:2001
 msgid "Proceed with virtualbox-ose upgrade despite losing snapshots?"
 msgstr ""
 "Mit der Aktualisierung fortfahren obwohl alle Snapshots verloren gehen?"
 
 #. Type: boolean
 #. Description
-#: ../virtualbox-ose.templates:1001
+#: ../virtualbox-ose.templates:2001
 msgid ""
 "You are currently upgrading virtualbox-ose to a new upstream version. All "
-"snapshots will be discarded by this upgrade, because snapshots are version "
-"specific. Please select 'no' if you want to merge snapshot data into the "
-"base image first."
+"snapshots will be discarded by this upgrade, because snapshots are version-"
+"specific."
 msgstr ""
 "Sie aktualisieren virtualbox-ose gerade auf eine neue Entwicklerversion. "
 "Alle Snapshots werden durch diese Aktualisierung unbrauchbar, da Snapshots "
-"versionsabhängig sind. Bitte wählen Sie 'Nein', um die Snapshots in das Basis "
-"Image zu überführen. "
+"versionsabhängig sind."

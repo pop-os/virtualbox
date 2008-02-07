@@ -27,6 +27,6 @@ msgstr "Tiếp tục nâng cấp virtualbox-ose bất chấp mất bản chụp 
 #: ../virtualbox-ose.templates:2001
 msgid ""
 "You are currently upgrading virtualbox-ose to a new upstream version. All "
-"snapshots will be discarded by this upgrade, because snapshots are  version-"
+"snapshots will be discarded by this upgrade, because snapshots are version-"
 "specific."
 msgstr "Hiện thời bạn đang nâng cấp virtualbox-ose lên một phiên bản gốc mới. Tất cả các bản chụp ảnh đều sẽ bị hủy trong tiến trình nâng cấp này, vì bản chụp ảnh có đặc trưng cho phiên bản."

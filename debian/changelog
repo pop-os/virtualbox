@@ -4,7 +4,8 @@ virtualbox-ose (1.5.4-dfsg-5) UNRELEASED; urgency=low
   * Again removing reimported useless whitespaces at EOL and EOF in debian/*.
 
   [ Michael Meskes ]
-  * Added basque debconf translation, closes: #460348
+  * Added Basque debconf translation, closes: #460348
+  * Updated German translation.
   * Really use runtime assertion patch.
   * Replaced two patches for module build process by upstream changes taken
     from SVN.

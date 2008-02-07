@@ -26,7 +26,7 @@ msgstr "Pokračovat v aktualizaci virtualbox-ose i přes ztrátu snímků?"
 #: ../virtualbox-ose.templates:2001
 msgid ""
 "You are currently upgrading virtualbox-ose to a new upstream version. All "
-"snapshots will be discarded by this upgrade, because snapshots are  version-"
+"snapshots will be discarded by this upgrade, because snapshots are version-"
 "specific."
 msgstr ""
 "Právě aktualizujete virtualbox-ose na novou hlavní verzi. Všechny snímky "
