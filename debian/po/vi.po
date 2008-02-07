@@ -1,0 +1,32 @@
+# Vietnamese translation for Virtual Box OSE.
+# Copyright © 2008 Free Software Foundation, Inc.
+# Clytie Siddall <clytie@riverland.net.au>, 2008.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: virtualbox-ose 1.5.4-dfsg-3\n"
+"Report-Msgid-Bugs-To: virtualbox-ose@packages.debian.org\n"
+"POT-Creation-Date: 2008-02-03 17:53+0100\n"
+"PO-Revision-Date: 2008-02-07 19:52+1030\n"
+"Last-Translator: Clytie Siddall <clytie@riverland.net.au>\n"
+"Language-Team: Vietnamese <vi-VN@googlegroups.com>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: LocFactoryEditor 1.7b1\n"
+
+#. Type: boolean
+#. Description
+#: ../virtualbox-ose.templates:2001
+msgid "Proceed with virtualbox-ose upgrade despite losing snapshots?"
+msgstr "Tiếp tục nâng cấp virtualbox-ose bất chấp mất bản chụp ảnh không?"
+
+#. Type: boolean
+#. Description
+#: ../virtualbox-ose.templates:2001
+msgid ""
+"You are currently upgrading virtualbox-ose to a new upstream version. All "
+"snapshots will be discarded by this upgrade, because snapshots are  version-"
+"specific."
+msgstr "Hiện thời bạn đang nâng cấp virtualbox-ose lên một phiên bản gốc mới. Tất cả các bản chụp ảnh đều sẽ bị hủy trong tiến trình nâng cấp này, vì bản chụp ảnh có đặc trưng cho phiên bản."

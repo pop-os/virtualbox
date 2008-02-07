@@ -18,24 +18,25 @@ Suggests: virtualbox-ose-source
 Conflicts: virtualbox
 Replaces: virtualbox
 Provides: virtualbox
-Description: PC virtualization solution
- VirtualBox is a free x86 virtualization solution allowing you to run a wide
- range of PC operating systems on your Linux system. This includes Windows,
- Linux, FreeBSD, DOS, OpenBSD and others.
+Description: x86 virtualization solution - binaries
+ VirtualBox is a free x86 virtualization solution allowing a wide range
+ of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
+ Linux system.
  .
- This packages contains the Open Source Edition of VirtualBox.
+ This package provides the binaries for the Open Source Edition of
+ VirtualBox.
 
 Package: virtualbox-ose-dbg
 Section: devel
 Priority: extra
 Architecture: amd64 i386
 Depends: virtualbox-ose (= ${binary:Version})
-Description: PC virtualization solution (debug)
- VirtualBox is a free PC virtualization solution allowing you to run a wide
- range of PC operating systems on your Linux system. This includes Windows,
- Linux, FreeBSD, DOS, OpenBSD and others.
+Description: x86 virtualization solution - debugging symbols
+ VirtualBox is a free x86 virtualization solution allowing a wide range
+ of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
+ Linux system.
  .
- This packages contains the debugging symbols for the Open Source Edition of
+ This package provides the debugging symbols for the Open Source Edition of
  VirtualBox.
 
 Package: virtualbox-ose-source
@@ -44,37 +45,37 @@ Depends: debhelper (>= 5), dpatch, module-assistant, bzip2, kbuild
 Conflicts: virtualbox-source
 Replaces: virtualbox-source
 Provides: virtualbox-source
-Description: Source for the VirtualBox module
+Description: x86 virtualization solution - kernel module source
+ VirtualBox is a free x86 virtualization solution allowing a wide range
+ of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
+ Linux system.
+ .
  This package provides the source code for the virtualbox kernel module.
  The virtualbox-ose package is also required in order to make use of these
- modules. Kernel source or headers are required to compile this module.
- .
- VirtualBox is a free PC virtualization solution allowing you to run a wide
- range of PC operating systems on your Linux system. This includes Windows,
- Linux, FreeBSD, DOS, OpenBSD and others.
+ modules. Kernel sources or headers are required to compile this module.
 
 Package: virtualbox-ose-guest-source
 Architecture: all
 Depends: debhelper (>= 5), dpatch, module-assistant, bzip2, kbuild
-Description: Source for the VirtualBox Guest Addition module
- This package provides the source code for the virtualbox guest addition kernel
- modules.  The virtualbox-ose-guest package is also required in order to make
- use of these modules. Kernel source or headers are required to compile these
- modules.
+Description: x86 virtualization solution - guest addition module source
+ VirtualBox is a free x86 virtualization solution allowing a wide range
+ of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
+ Linux system.
  .
- VirtualBox is a free PC virtualization solution allowing you to run a wide
- range of PC operating systems on your Linux system. This includes Windows,
- Linux, FreeBSD, DOS, OpenBSD and others.
+ This package provides the source code for the virtualbox guest addition kernel
+ modules. The virtualbox-ose-guest package is also required in order to make
+ use of these modules. Kernel sources or headers are required to compile these
+ modules.
 
 Package: virtualbox-ose-guest-utils
 Architecture: i386
 Depends: ${shlibs:Depends}, ${misc:Depends}, pciutils
 Recommends: virtualbox-ose-guest-modules
 Suggests: virtualbox-ose-guest-source
-Description: PC virtualization solution - guest utils
- VirtualBox is a free PC virtualization solution allowing you to run a wide
- range of PC operating systems on your Linux system. This includes Windows,
- Linux, FreeBSD, DOS, OpenBSD and others.
+Description: x86 virtualization solution - guest utilities
+ VirtualBox is a free x86 virtualization solution allowing a wide range
+ of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
+ Linux system.
  .
- This packages contains the guest utilities of the Open Source Edition of
- VirtualBox. These utilities are supposed to be run inside the virtual machine.
+ This package provides the guest utilities of the Open Source Edition of
+ VirtualBox. These utilities are meant to be run inside the virtual machine.
