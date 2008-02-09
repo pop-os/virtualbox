@@ -96,7 +96,7 @@ binary-arch: build install
 	dh_installdocs -a
 	dh_installmenu -a
 	dh_install -p$(sname)
-	chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh; 
+	chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh;
 	if [ "`dpkg --print-architecture`" = "i386" ]; then \
 		dh_install -p$(uname); \
 		chmod 755 debian/$(uname)/usr/share/virtualbox/x11config.pl; \
