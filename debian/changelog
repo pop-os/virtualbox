@@ -4,6 +4,8 @@ virtualbox-ose (1.5.4-dfsg-5) UNRELEASED; urgency=low
   * Again removing reimported useless whitespaces at EOL and EOF in debian/*.
   * Unified headers of debconf template translations.
   * Rediffed patches and again fixed their headers.
+  * Added Portuguese debconf translation from Ricardo Silva <ardoric@gmail.com>
+    (Closes: #464761).
 
   [ Michael Meskes ]
   * Added Basque debconf translation, closes: #460348
