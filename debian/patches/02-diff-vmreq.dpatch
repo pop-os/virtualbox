@@ -1,16 +1,14 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-## 10-diff-vmreq.dpatch by Michael Meskes <meskes@debian.org>
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 02-diff-vmreq.dpatch by Michael Meskes <meskes@debian.org>
 ##
-## All lines beginning with `## DP:' are a description of the patch.
 ## DP: Fix runtime assertions
 
 @DPATCH@
 
-Index: virtualbox-1.5.4/src/VBox/VMM/VMReq.cpp
-===================================================================
---- virtualbox-1.5.4/src/VBox/VMM/VMReq.cpp	(revision 27120)
-+++ virtualbox-1.5.4/src/VBox/VMM/VMReq.cpp	(revision 27121)
-@@ -525,9 +525,16 @@
+diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/VMM/VMReq.cpp virtualbox-ose-1.5.4-dfsg/src/VBox/VMM/VMReq.cpp
+--- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/VMM/VMReq.cpp	2007-12-19 13:25:48.000000000 +0000
++++ virtualbox-ose-1.5.4-dfsg/src/VBox/VMM/VMReq.cpp	2008-02-09 06:45:12.000000000 +0000
+@@ -525,9 +525,16 @@ VMR3DECL(int) VMR3ReqQueue(PVMREQ pReq, 
          return VERR_VM_REQUEST_INVALID_TYPE;
      }
  
@@ -28,7 +26,7 @@ Index: virtualbox-1.5.4/src/VBox/VMM/VMReq.cpp
          /*
           * Insert it.
           */
-@@ -535,20 +542,20 @@
+@@ -535,20 +542,20 @@ VMR3DECL(int) VMR3ReqQueue(PVMREQ pReq, 
          PVMREQ pNext;
          do
          {
@@ -54,7 +52,7 @@ Index: virtualbox-1.5.4/src/VBox/VMM/VMReq.cpp
              rc = VMR3ReqWait(pReq, cMillies);
          LogFlow(("VMR3ReqQueue: returns %Vrc\n", rc));
      }
-@@ -558,7 +565,7 @@
+@@ -558,7 +565,7 @@ VMR3DECL(int) VMR3ReqQueue(PVMREQ pReq, 
           * The requester was EMT, just execute it.
           */
          pReq->enmState = VMREQSTATE_QUEUED;
