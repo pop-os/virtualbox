@@ -35,7 +35,7 @@ MA_DIR ?= /usr/share/modass
 # compiler), VERSION (the final package version string), PKGNAME (full
 # package name with KVERS included), DEB_DESTDIR (path to store DEBs)
 
-# Set ARCH so we can cross compile 
+# Set ARCH so we can cross compile
 ifneq ($(shell echo $(KVERS)|cut -f 3 -d"-"),amd64)
 	ARCH := i386
 else
