@@ -1,6 +1,6 @@
-# Galician translation of virtualbox-ose's debconf templates
+# Galizian translation of virtualbox-ose templates.
+# Copyright (C) 2008 Jacobo Tarrio <jtarrio@debian.org>
 # This file is distributed under the same license as the virtualbox-ose package.
-# Jacobo Tarrio <jtarrio@debian.org>, 2008.
 #
 msgid ""
 msgstr ""

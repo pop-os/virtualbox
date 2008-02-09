@@ -1,4 +1,4 @@
-# Euskarian translation of virtualbox-ose templates.
+# Euskarian translation of virtualbox-ose debconf templates.
 # Copyright (C) 2008 Piarres Beobide <pi@beobide.net>
 # This file is distributed under the same license as the virtualbox-ose package.
 #

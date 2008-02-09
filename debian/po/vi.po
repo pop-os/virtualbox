@@ -1,6 +1,6 @@
-# Vietnamese translation for Virtual Box OSE.
-# Copyright © 2008 Free Software Foundation, Inc.
-# Clytie Siddall <clytie@riverland.net.au>, 2008.
+# Vietnamese translation of virtualbox-ose debconf templates.
+# Copyright (C) 2008 Clytie Siddall <clytie@riverland.net.au>
+# This file is distributed under the same license as the virtualbox-ose package.
 #
 msgid ""
 msgstr ""

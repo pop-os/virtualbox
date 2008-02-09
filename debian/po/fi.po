@@ -1,3 +1,7 @@
+# Finnish translation of virtualbox-ose debconf templates.
+# Copyright (C) 2008 Esko Arajärvi <edu@iki.fi>
+# This file is distributed under the same license as the virtualbox-ose package.
+#
 msgid ""
 msgstr ""
 "Project-Id-Version: virtualbox-ose\n"
@@ -23,4 +27,3 @@ msgstr "Jatketaanko virtualbox-osen päivitystä, vaikka tilannevedokset menetet
 #: ../virtualbox-ose.templates:2001
 msgid "You are currently upgrading virtualbox-ose to a new upstream version. All snapshots will be discarded by this upgrade, because snapshots are version-specific."
 msgstr "Olet päivittämässä virtualbox-osea uuteen versioon. Kaikki olemassa olevat tilannevedokset hylätään päivityksen toimesta, koska ne ovat versiospesifisiä."
-

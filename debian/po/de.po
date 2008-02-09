@@ -1,4 +1,4 @@
-# German translation of virtualbox-ose templates.
+# German translation of virtualbox-ose debconf templates.
 # Copyright (C) 2008 Michael Meskes <meskes@debian.org>
 # This file is distributed under the same license as the virtualbox-ose package.
 #
