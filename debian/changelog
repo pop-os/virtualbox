@@ -20,11 +20,11 @@ virtualbox-ose (1.5.4-dfsg-5) UNRELEASED; urgency=low
   * Fix error of postrm if vboxusers is a non-system group (maybe added
     manually before installation of virtualbox-ose). (Closes: #462885)
   * Added reviewed debconf templates and translations.
-    (Closes: #463283) Thanks to Christian Perrier
-    (Closes: #463828) Thanks to Jacobo Tarrio.
-    (Closes: #463959) Thanks to Esko Arajärvi
-    (Closes: #464043) Thanks to Miroslav Kure
-    (Closes: #464509) Thanks to Clytie Siddall
+      (Closes: #463283) Thanks to Christian Perrier
+      (Closes: #463828) Thanks to Jacobo Tarrio.
+      (Closes: #463959) Thanks to Esko Arajärvi
+      (Closes: #464043) Thanks to Miroslav Kure
+      (Closes: #464509) Thanks to Clytie Siddall
 
  -- Patrick Winnertz <winnie@debian.org>  Thu, 07 Feb 2008 10:58:09 +0100
 
