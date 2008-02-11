@@ -6,6 +6,8 @@ virtualbox-ose (1.5.4-dfsg-5) UNRELEASED; urgency=low
   * Rediffed patches and again fixed their headers.
   * Added Portuguese debconf translation from Ricardo Silva <ardoric@gmail.com>
     (Closes: #464761).
+  * Removed extra whitespace in maintainer field of control, thanks to
+    Christoph Berg <myon@debian.org> (Closes: #465327).
 
   [ Michael Meskes ]
   * Added Basque debconf translation, closes: #460348
