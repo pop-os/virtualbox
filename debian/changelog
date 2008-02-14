@@ -11,6 +11,7 @@ virtualbox-ose (1.5.4-dfsg-5) UNRELEASED; urgency=low
 
   [ Michael Meskes ]
   * Added Basque debconf translation, closes: #460348
+  * Added Japanese debconf translation, closes: #465682
   * Updated German translation.
   * Really use runtime assertion patch.
   * Replaced two patches for module build process by upstream changes taken
