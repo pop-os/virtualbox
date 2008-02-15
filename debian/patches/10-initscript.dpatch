@@ -1,0 +1,24 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 10-initscript.dpatch by Michael Meskes <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Add modprobe to initscript
+
+@DPATCH@
+
+--- virtualbox-ose-1.5.4-dfsg/src/VBox/Installer/linux/vboxnet.sh.orig	2007-11-21 20:54:35.000000000 +0100
++++ virtualbox-ose-1.5.4-dfsg/src/VBox/Installer/linux/vboxnet.sh	2008-02-15 10:20:31.000000000 +0100
+@@ -383,10 +383,13 @@
+ 
+ case "$1" in
+ start)
++    # try to insert module but do not fail if not possible
++    /sbin/modprobe -q vboxdrv || true
+     start
+     ;;
+ stop)
+     stop
++    /sbin/modprobe -qr vboxdrv
+     ;;
+ restart)
+     restart
