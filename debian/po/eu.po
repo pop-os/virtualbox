@@ -1,13 +1,14 @@
-# Euskarian translation of virtualbox-ose debconf templates.
-# Copyright (C) 2008 Piarres Beobide <pi@beobide.net>
-# This file is distributed under the same license as the virtualbox-ose package.
+# translation of eu.po to Euskara
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
 #
+# Piarres Beobide <pi@beobide.net>, 2008.
 msgid ""
 msgstr ""
 "Project-Id-Version: eu\n"
 "Report-Msgid-Bugs-To: virtualbox-ose@packages.debian.org\n"
-"POT-Creation-Date: 2008-01-11 10:53+0100\n"
-"PO-Revision-Date: 2008-01-15 13:15+0100\n"
+"POT-Creation-Date: 2008-02-04 18:02+0100\n"
+"PO-Revision-Date: 2008-02-14 22:17+0100\n"
 "Last-Translator: Piarres Beobide <pi@beobide.net>\n"
 "Language-Team: Euskara <Librezale@librezale.org>\n"
 "MIME-Version: 1.0\n"
@@ -17,20 +18,19 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../virtualbox-ose.templates:1001
+#: ../virtualbox-ose.templates:2001
 msgid "Proceed with virtualbox-ose upgrade despite losing snapshots?"
 msgstr "Virtualbox-ose bertsio-berritzearekin jarraitu nahiz egoera-argazkiak galdu?"
 
 #. Type: boolean
 #. Description
-#: ../virtualbox-ose.templates:1001
+#: ../virtualbox-ose.templates:2001
 msgid ""
 "You are currently upgrading virtualbox-ose to a new upstream version. All "
-"snapshots will be discarded by this upgrade, because snapshots are version "
-"specific. Please select 'no' if you want to merge snapshot data into the "
-"base image first."
+"snapshots will be discarded by this upgrade, because snapshots are version-"
+"specific."
 msgstr ""
-"Une honetan virtualbox-ose bertsio berri batetara bertsio-berritzen ari zara. "
-"Egoera argazki guztiak ezingo dira erabili bertsio berri honekin egoera-argazkiak "
-"bertsio zehatz batetararako dira era. Mesedez 'ez' hauatatu honen aurretik "
-"egoera-argazki batenbat instalazio oinarrira gehitu nahi baduzu."
+"Une honetan virtualbox-ose jatorrizko bertsio berri batetara bertsio-berritzen "
+"ari zara. Egoera argazki guztiak ezingo dira erabili bertsio berri honekin "
+"egoera-argazkiak bertsio zehatz batetararako dira eta."
+
