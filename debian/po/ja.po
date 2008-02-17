@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: virtualbox-ose 1.5.4-dfsg-4\n"
 "Report-Msgid-Bugs-To: virtualbox-ose@packages.debian.org\n"
-"POT-Creation-Date: 2008-02-17 13:52+0100\n"
+"POT-Creation-Date: 2008-02-17 19:09+0100\n"
 "PO-Revision-Date: 2008-02-09 00:26+0900\n"
 "Last-Translator: Hideki Yamane (Debian-JP) <henrich@debian.or.jp>\n"
 "Language-Team: Japanese <debian-japanese@lists.debian.org>\n"
@@ -24,7 +24,7 @@ msgstr "スナップショットを失いますが、virtualbox-ose をアップ
 #. Description
 #: ../virtualbox-ose.templates:2001
 msgid ""
-"You are currently upgrading virtualbox-ose to a new upstream version. All"
+"You are currently upgrading virtualbox-ose to a new upstream version. All "
 "snapshots will be discarded by this upgrade, because snapshots are version-"
 "specific."
 msgstr ""
