@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 1.5.4-dfsg-3\n"
 "Report-Msgid-Bugs-To: virtualbox-ose@packages.debian.org\n"
-"POT-Creation-Date: 2008-02-03 17:53+0100\n"
+"POT-Creation-Date: 2008-02-17 13:52+0100\n"
 "PO-Revision-Date: 2008-02-05 20:59+0300\n"
 "Last-Translator: Yuri Kozlov <kozlov.y@gmail.com>\n"
 "Language-Team: Russian <debian-l10n-russian@lists.debian.org>\n"
@@ -15,7 +15,8 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Generator: KBabel 1.11.4\n"
-"Plural-Forms:  nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"Plural-Forms:  nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%"
+"10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
 #. Type: boolean
 #. Description
@@ -27,11 +28,10 @@ msgstr "Продолжить обновление virtualbox-ose несмотр�
 #. Description
 #: ../virtualbox-ose.templates:2001
 msgid ""
-"You are currently upgrading virtualbox-ose to a new upstream version. All "
-"snapshots will be discarded by this upgrade, because snapshots are  version-"
+"You are currently upgrading virtualbox-ose to a new upstream version. All"
+"snapshots will be discarded by this upgrade, because snapshots are version-"
 "specific."
 msgstr ""
 "Производится обновление virtualbox-ose до новой оригинальной версии. Все "
-"снапшоты при обновлении будут удалены, так как они работают только "
-"в старой версии."
-
+"снапшоты при обновлении будут удалены, так как они работают только в старой "
+"версии."

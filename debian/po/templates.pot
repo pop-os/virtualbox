@@ -2,7 +2,6 @@
 # Copyright (C) YEAR NAME <EMAIL>
 # This file is distributed under the same license as the virtualbox-ose package.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
@@ -25,7 +24,7 @@ msgstr ""
 #. Description
 #: ../virtualbox-ose.templates:1001
 msgid ""
-"You are currently upgrading virtualbox-ose to a new upstream version. All "
+"You are currently upgrading virtualbox-ose to a new upstream version. All"
 "snapshots will be discarded by this upgrade, because snapshots are version "
 "specific. Please select 'no' if you want to merge snapshot data into the "
 "base image first."

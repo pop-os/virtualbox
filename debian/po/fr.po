@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: virtualbox-ose-20080204.relu-bubulle\n"
 "Report-Msgid-Bugs-To: virtualbox-ose@packages.debian.org\n"
-"POT-Creation-Date: 2008-02-03 17:53+0100\n"
+"POT-Creation-Date: 2008-02-17 13:52+0100\n"
 "PO-Revision-Date: 2008-02-06 23:37+0100\n"
 "Last-Translator: David Kremer\n"
 "Language-Team: French <debian-l10n-french@lists.debian.org>\n"
@@ -21,17 +21,18 @@ msgstr ""
 #. Description
 #: ../virtualbox-ose.templates:2001
 msgid "Proceed with virtualbox-ose upgrade despite losing snapshots?"
-msgstr "Faut-il mettre virtualbox-ose à jour malgré une perte possible des sessions enregistrées (« snapshots ») ?"
+msgstr ""
+"Faut-il mettre virtualbox-ose à jour malgré une perte possible des sessions "
+"enregistrées (« snapshots ») ?"
 
 #. Type: boolean
 #. Description
 #: ../virtualbox-ose.templates:2001
 msgid ""
-"You are currently upgrading virtualbox-ose to a new upstream version. All "
-"snapshots will be discarded by this upgrade, because snapshots are  version-"
+"You are currently upgrading virtualbox-ose to a new upstream version. All"
+"snapshots will be discarded by this upgrade, because snapshots are version-"
 "specific."
 msgstr ""
 "Vous êtes en train de mettre virtualbox-ose à jour. Toutes les sessions "
 "enregistrées (« snapshots ») deviendront inutilisables après cette mise à "
 "jour, car celles-ci sont spécifiques à chaque version."
-
