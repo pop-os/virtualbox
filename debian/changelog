@@ -23,7 +23,6 @@ virtualbox-ose (1.5.4-dfsg-5) UNRELEASED; urgency=low
   * Added ARCH setting to virtualbox-ose-source rules file so we can cross
     compile the module.
   * Insert module in initscript.
-  * New uploaded closes: #465029
 
   [ Patrick Winnertz ]
   * Fix error of postrm if vboxusers is a non-system group (maybe added
