@@ -1,3 +1,9 @@
+virtualbox-ose (1.5.4-dfsg-6) UNRELEASED; urgency=low
+
+  * Fixed LSB headers in init.d scripts, closes: #466311
+
+ -- Michael Meskes <meskes@debian.org>  Tue, 19 Feb 2008 15:12:32 +0100
+
 virtualbox-ose (1.5.4-dfsg-5) unstable; urgency=low
 
   [ Daniel Baumann ]

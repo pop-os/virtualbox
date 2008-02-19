@@ -8,6 +8,21 @@
 
 --- virtualbox-ose-1.5.4-dfsg/src/VBox/Installer/linux/vboxnet.sh.orig	2007-11-21 20:54:35.000000000 +0100
 +++ virtualbox-ose-1.5.4-dfsg/src/VBox/Installer/linux/vboxnet.sh	2008-02-15 10:20:31.000000000 +0100
+@@ -19,10 +19,10 @@
+ #
+ ### BEGIN INIT INFO
+ # Provides:       vboxnet
+-# Required-Start: $network
+-# Required-Stop:
+-# Default-Start:  3 5
+-# Default-Stop:
++# Required-Start: $remote_fs $network
++# Required-Stop:  $remote_fs
++# Default-Start:  2 3 4 5
++# Default-Stop:   0 1 6
+ # Description:    VirtualBox permanent host networking setup
+ ### END INIT INFO
+
 @@ -383,10 +383,13 @@
  
  case "$1" in

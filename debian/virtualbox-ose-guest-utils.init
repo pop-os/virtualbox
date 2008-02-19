@@ -4,8 +4,8 @@
 ### BEGIN INIT INFO
 # Provides:          vboxadd
 # Short-Description: VirtualBox Linux Additions
-# Required-Start:
-# Required-Stop:
+# Required-Start:    $remote_fs
+# Required-Stop:     $remote_fs
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 ### END INIT INFO
@@ -29,7 +29,7 @@ case "$1" in
   	in_virtual_machine || exit 0
   	log_action_begin_msg 'Starting VirtualBox Additions';
 	# udev should have already handled this module
-	# double check kernel support is present or die
+	# double check if kernel support is present or die
 	modprobe --quiet vboxadd
 	if [ "$?" -ne 0 ]; then
 		# vboxadd not installed, or has a problem
