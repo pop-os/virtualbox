@@ -5,9 +5,9 @@
 ## DP: Add modprobe to initscript
 
 @DPATCH@
-
---- virtualbox-ose-1.5.4-dfsg/src/VBox/Installer/linux/vboxnet.sh.orig	2007-11-21 20:54:35.000000000 +0100
-+++ virtualbox-ose-1.5.4-dfsg/src/VBox/Installer/linux/vboxnet.sh	2008-02-15 10:20:31.000000000 +0100
+diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose/src/VBox/Installer/linux/vboxnet.sh
+--- virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh	2008-02-20 14:47:20.000000000 +0100
++++ virtualbox-ose/src/VBox/Installer/linux/vboxnet.sh	2008-02-21 00:57:47.000000000 +0100
 @@ -19,10 +19,10 @@
  #
  ### BEGIN INIT INFO
@@ -22,18 +22,34 @@
 +# Default-Stop:   0 1 6
  # Description:    VirtualBox permanent host networking setup
  ### END INIT INFO
-
-@@ -383,10 +383,13 @@
+ 
+@@ -32,6 +32,11 @@
+ VARFILE="/var/run/VirtualBox/vboxnet"
+ TAPDEV="/dev/net/tun"
+ 
++# Include virtualbox-ose defaults if available
++if [ -f /etc/default/virtualbox-ose ] ; then
++    . /etc/default/virtualbox-ose
++fi
++
+ if [ -f /etc/redhat-release ]; then
+     system=redhat
+ elif [ -f /etc/SuSE-release ]; then
+@@ -382,10 +387,17 @@
  
  case "$1" in
  start)
 +    # try to insert module but do not fail if not possible
-+    /sbin/modprobe -q vboxdrv || true
++    if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
++        /sbin/modprobe -q vboxdrv || true
++    fi
      start
      ;;
  stop)
      stop
-+    /sbin/modprobe -qr vboxdrv
++    if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
++        /sbin/modprobe -qr vboxdrv
++    fi
      ;;
  restart)
      restart

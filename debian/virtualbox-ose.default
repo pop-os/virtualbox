@@ -1,0 +1,11 @@
+# Defaults for virtualbox-ose initscript
+# sourced by /etc/init.d/virtualbox-ose
+# installed at /etc/default/virtualbox-ose by the maintainer scripts
+
+#
+# This is a POSIX shell fragment
+#
+
+# Set this to 1 if you would like the vboxdrv module to be loaded by
+# the init script.
+LOAD_VBOXDRV_MODULE=0
