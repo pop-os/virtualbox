@@ -23,6 +23,12 @@ upstreamversion=$(shell dpkg-parsechangelog | grep Version | cut -d" " -f2 | cut
 env.sh: patch-stamp
 	dh_testdir
 	./configure --with-linux="/usr" --disable-kmods
+	if [ "`dpkg --print-architecture`" = "i386" ]; then \
+		echo "VBOX_WITH_X11_ADDITIONS=1" >> LocalConfig.kmk; \
+	else \
+		echo "VBOX_WITH_X11_ADDITIONS=" >> LocalConfig.kmk; \
+	fi
+	
 
 build: build-stamp
 build-stamp: env.sh

@@ -17,24 +17,6 @@ diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/configure virtualbox-ose-1.5.4-dfsg/c
    [ "$OS" = "solaris" ] && BUILD_CPU=`isainfo | cut -f 1 -d ' '`
    case "$BUILD_CPU" in
      i[3456789]86|x86|i86pc)
-diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/Makefile.kmk virtualbox-ose-1.5.4-dfsg/src/VBox/Additions/linux/Makefile.kmk
---- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/Makefile.kmk	2007-10-22 21:24:00.000000000 +0000
-+++ virtualbox-ose-1.5.4-dfsg/src/VBox/Additions/linux/Makefile.kmk	2007-12-30 06:28:14.000000000 +0000
-@@ -22,10 +22,13 @@ SUBDIRS =
- ifeq ($(filter-out linux l4, $(BUILD_TARGET)),)
- SUBDIRS += \
- 	module \
-+	sharedfolders
-+endif
-+ifeq ($(filter-out x86, $(BUILD_TARGET_ARCH)),)
-+SUBDIRS += \
- 	daemon \
- 	xgraphics \
- 	xmouse \
--	sharedfolders \
- 	xclient
- endif
- 
 diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/sharedfolders/Makefile.kmk virtualbox-ose-1.5.4-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.kmk
 --- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/sharedfolders/Makefile.kmk	2007-08-14 12:26:25.000000000 +0000
 +++ virtualbox-ose-1.5.4-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.kmk	2007-12-30 06:28:14.000000000 +0000

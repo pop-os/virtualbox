@@ -1,11 +1,8 @@
 01-no-64bit-guest.dpatch
-02-diff-vmreq.dpatch
 03-config-kmk.dpatch
 04-localconf-kmk.dpatch
 05-vboxdrv-references.dpatch
 06-vboxadd-udev.dpatch
 07-xsession.dpatch
-08-module-build.dpatch
-09-no-registration.dpatch
 10-initscript.dpatch
 
