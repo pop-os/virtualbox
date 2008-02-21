@@ -48,7 +48,7 @@ diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose/s
  stop)
      stop
 +    if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
-+        /sbin/modprobe -qr vboxdrv
++        /sbin/modprobe -qr vboxdrv || true
 +    fi
      ;;
  restart)
