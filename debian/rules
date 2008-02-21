@@ -62,7 +62,7 @@ clean: unpatch
 #this won't work.
 #This should be only a simple docu what to remove and what to do
 #in order to repack the orig tarball.
-dfsg-free:
+dfsg-free: clean
 	rm -rf ./kBuild
 	rm -rf ./tools
 	rm -rf ./src/VBox/Additions/os2
@@ -77,10 +77,20 @@ dfsg-free:
 	rm -f ./src/VBox/HostServices/SharedClipboard/linux-stub.cpp
 	rm -f ./src/VBox/Additions/linux/xmouse/Imakefile
 	rm -rf ./src/VBox/Additions/linux/selinux-fedora
-	rm -rf ./debian/
-	find . -type d -name '.svn' | xargs rm -rf;
-	cd .. && mv VirtualBox-$(upstreamversion)_OSE virtualbox-ose-$(upstreamversion)-dfsg && \
-		tar cfz virtualbox-ose_$(upstreamversion)-dfsg.orig.tar.gz virtualbox-ose-$(upstreamversion)-dfsg
+
+	ln -s . virtualbox-ose-$(upstreamversion)-dfsg
+	tar czf ../virtualbox-ose_$(upstreamversion)-dfsg.orig.tar.gz \
+		virtualbox-ose-$(upstreamversion)-dfsg/Config.kmk \
+		virtualbox-ose-$(upstreamversion)-dfsg/configure \
+		virtualbox-ose-$(upstreamversion)-dfsg/configure.vbs \
+		virtualbox-ose-$(upstreamversion)-dfsg/COPYING \
+		virtualbox-ose-$(upstreamversion)-dfsg/doc \
+		virtualbox-ose-$(upstreamversion)-dfsg/Doxyfile.Core \
+		virtualbox-ose-$(upstreamversion)-dfsg/include \
+		virtualbox-ose-$(upstreamversion)-dfsg/Makefile.kmk \
+		virtualbox-ose-$(upstreamversion)-dfsg/src
+
+	rm -f virtualbox-ose-$(upstreamversion)-dfsg
 
 # install: DH_OPTIONS=
 install: build
