@@ -79,7 +79,8 @@ dfsg-free: clean
 	rm -rf ./src/VBox/Additions/linux/selinux-fedora
 
 	ln -s . virtualbox-ose-$(upstreamversion)-dfsg
-	tar czf ../virtualbox-ose_$(upstreamversion)-dfsg.orig.tar.gz \
+	tar --exclude .svn --exclude '.git*' \
+		-czf ../virtualbox-ose_$(upstreamversion)-dfsg.orig.tar.gz \
 		virtualbox-ose-$(upstreamversion)-dfsg/Config.kmk \
 		virtualbox-ose-$(upstreamversion)-dfsg/configure \
 		virtualbox-ose-$(upstreamversion)-dfsg/configure.vbs \
