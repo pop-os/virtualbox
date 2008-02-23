@@ -6,7 +6,8 @@ virtualbox-ose (1.5.6-dfsg-1) unstable; urgency=low
   * list x11config.pl with correct path in README file, closes: #466621
   * Added last changes made by the translation projects, thanks to
     Christian Perrier <bubulle@debian.org>.
-  * Tweaked dfsg-free target in rules file so it is really executable.
+  * Tweaked dfsg-free target in rules file so it is really executable, first
+    steps made by Hilko.
 
   [ Hilko Bengen ]
   * Make module loading in initscript configurable (disabled by default).
