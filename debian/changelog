@@ -1,9 +1,12 @@
-virtualbox-ose (1.5.6-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (1.5.6-dfsg-1) unstable; urgency=low
 
   [ Michael Meskes ]
   * New upstream version
   * Fixed LSB headers in init.d scripts, closes: #466311
   * list x11config.pl with correct path in README file, closes: #466621
+  * Added last changes made by the translation projects, thanks to
+    Christian Perrier <bubulle@debian.org>.
+  * Tweaked dfsg-free target in rules file so it is really executable.
 
   [ Hilko Bengen ]
   * Make module loading in initscript configurable (disabled by default).
@@ -11,7 +14,7 @@ virtualbox-ose (1.5.6-dfsg-1) UNRELEASED; urgency=low
   [ Patrick Winnertz ]
   * prevent initscript from failing if module doesn't exist. (Closes: #466851)
 
- -- Patrick Winnertz <winnie@debian.org>  Thu, 21 Feb 2008 14:26:08 +0100
+ -- Michael Meskes <meskes@debian.org>  Sat, 23 Feb 2008 10:49:28 +0100
 
 virtualbox-ose (1.5.4-dfsg-5) unstable; urgency=low
 

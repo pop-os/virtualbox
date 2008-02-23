@@ -20,7 +20,8 @@ msgstr ""
 #. Description
 #: ../virtualbox-ose.templates:2001
 msgid "Proceed with virtualbox-ose upgrade despite losing snapshots?"
-msgstr "Virtualbox-ose bertsio-berritzearekin jarraitu nahiz egoera-argazkiak galdu?"
+msgstr ""
+"Virtualbox-ose bertsio-berritzearekin jarraitu nahiz egoera-argazkiak galdu?"
 
 #. Type: boolean
 #. Description
@@ -30,7 +31,6 @@ msgid ""
 "snapshots will be discarded by this upgrade, because snapshots are version-"
 "specific."
 msgstr ""
-"Une honetan virtualbox-ose jatorrizko bertsio berri batetara bertsio-berritzen "
-"ari zara. Egoera argazki guztiak ezingo dira erabili bertsio berri honekin "
-"egoera-argazkiak bertsio zehatz batetararako dira eta."
-
+"Une honetan virtualbox-ose jatorrizko bertsio berri batetara bertsio-"
+"berritzen ari zara. Egoera argazki guztiak ezingo dira erabili bertsio berri "
+"honekin egoera-argazkiak bertsio zehatz batetararako dira eta."

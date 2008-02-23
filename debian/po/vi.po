@@ -1,12 +1,12 @@
-# Vietnamese translation of virtualbox-ose debconf templates.
-# Copyright (C) 2008 Clytie Siddall <clytie@riverland.net.au>
-# This file is distributed under the same license as the virtualbox-ose package.
+# Vietnamese translation for Virtual Box OSE.
+# Copyright © 2008 Free Software Foundation, Inc.
+# Clytie Siddall <clytie@riverland.net.au>, 2008.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: virtualbox-ose 1.5.4-dfsg-3\n"
 "Report-Msgid-Bugs-To: virtualbox-ose@packages.debian.org\n"
-"POT-Creation-Date: 2008-02-03 17:53+0100\n"
+"POT-Creation-Date: 2008-02-04 18:02+0100\n"
 "PO-Revision-Date: 2008-02-07 19:52+1030\n"
 "Last-Translator: Clytie Siddall <clytie@riverland.net.au>\n"
 "Language-Team: Vietnamese <vi-VN@googlegroups.com>\n"
@@ -29,4 +29,7 @@ msgid ""
 "You are currently upgrading virtualbox-ose to a new upstream version. All "
 "snapshots will be discarded by this upgrade, because snapshots are version-"
 "specific."
-msgstr "Hiện thời bạn đang nâng cấp virtualbox-ose lên một phiên bản gốc mới. Tất cả các bản chụp ảnh đều sẽ bị hủy trong tiến trình nâng cấp này, vì bản chụp ảnh có đặc trưng cho phiên bản."
+msgstr ""
+"Hiện thời bạn đang nâng cấp virtualbox-ose lên một phiên bản gốc mới. Tất cả "
+"các bản chụp ảnh đều sẽ bị hủy trong tiến trình nâng cấp này, vì bản chụp "
+"ảnh có đặc trưng cho phiên bản."

@@ -1,12 +1,13 @@
-# Portuguese translation of virtualbox-ose debconf templates.
-# Copyright (C) 2008 Ricardo Silva <ardoric@gmail.com>
+# Portuguese translation of virtualbox-ose's debconf templates.
+# Copyright (C) 2008
 # This file is distributed under the same license as the virtualbox-ose package.
+# Ricardo Silva <ardoric@gmail.com>, 2008.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: virtualbox-ose 1.5.4-dfsg-3\n"
 "Report-Msgid-Bugs-To: virtualbox-ose@packages.debian.org\n"
-"POT-Creation-Date: 2008-02-17 19:09+0100\n"
+"POT-Creation-Date: 2008-02-04 18:02+0100\n"
 "PO-Revision-Date: 2008-02-08 20:43+0000\n"
 "Last-Translator: Ricardo Silva <ardoric@gmail.com>\n"
 "Language-Team: Portuguese <traduz@debianpt.org>\n"

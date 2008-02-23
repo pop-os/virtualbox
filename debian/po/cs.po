@@ -1,12 +1,13 @@
-# Czech translation of virtualbox-ose debconf templates.
-# Copyright (C) 2008 Miroslav Kure <kurem@debian.cz>
+# Czech translation of virtualbox-ose debconf messages.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
 # This file is distributed under the same license as the virtualbox-ose package.
+# Miroslav Kure <kurem@debian.cz>, 2008
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: virtualbox-ose\n"
 "Report-Msgid-Bugs-To: virtualbox-ose@packages.debian.org\n"
-"POT-Creation-Date: 2008-02-03 17:53+0100\n"
+"POT-Creation-Date: 2008-02-04 18:02+0100\n"
 "PO-Revision-Date: 2008-02-04 21:57+0100\n"
 "Last-Translator: Miroslav Kure <kurem@debian.cz>\n"
 "Language-Team: Czech <debian-l10n-czech@lists.debian.org>\n"
