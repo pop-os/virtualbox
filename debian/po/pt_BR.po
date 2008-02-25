@@ -1,0 +1,38 @@
+# virtualbox-ose Brazilian Portuguese translation
+# Copyright (c) 2008 virtualbox-ose's COPYRIGHT HOLDER
+# This file is distributed under the same license as the virtualbox-ose package.
+# Eder L. Marques (frolic) <frolic@debian-ce.org>, 2008.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: virtualbox-ose 1.5.4-dfsg-3\n"
+"Report-Msgid-Bugs-To: virtualbox-ose@packages.debian.org\n"
+"POT-Creation-Date: 2008-02-04 18:02+0100\n"
+"PO-Revision-Date: 2008-02-08 15:53-0300\n"
+"Last-Translator: Eder L. Marques (frolic) <frolic@debian-ce.org>\n"
+"Language-Team: l10n Portuguese <debian-l10n-portuguese@lists.debian.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"pt_BR utf-8\n"
+"X-Generator: KBabel 1.11.4\n"
+"Plural-Forms:  nplurals=2; plural=(n > 1);\n"
+
+#. Type: boolean
+#. Description
+#: ../virtualbox-ose.templates:2001
+msgid "Proceed with virtualbox-ose upgrade despite losing snapshots?"
+msgstr ""
+"Proceder com a atualização do virtualbox-ose mesmo perdendo os snapshots?"
+
+#. Type: boolean
+#. Description
+#: ../virtualbox-ose.templates:2001
+msgid ""
+"You are currently upgrading virtualbox-ose to a new upstream version. All "
+"snapshots will be discarded by this upgrade, because snapshots are version-"
+"specific."
+msgstr ""
+"Você está atualmente atualizando o virtualbox-ose para uma nova versão do "
+"desenvolvedor (\"upstream version\"). Todos os snapshots serão descartados "
+"por esta atualização, devido eles serem específicos para cada versão."

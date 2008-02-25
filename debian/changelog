@@ -1,3 +1,10 @@
+virtualbox-ose (1.5.6-dfsg-2) UNRELEASED; urgency=low
+
+  * Added Brazilian-Portuguese debconf translation from Eder L. Marques
+    <eder@edermarques.net> (Closes: #467452).
+
+ -- Daniel Baumann <daniel@debian.org>  Mon, 25 Feb 2008 19:53:00 +0100
+
 virtualbox-ose (1.5.6-dfsg-1) unstable; urgency=low
 
   [ Michael Meskes ]
