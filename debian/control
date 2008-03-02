@@ -14,7 +14,7 @@ Architecture: amd64 i386
 Depends: ${shlibs:Depends}, ${misc:Depends}, adduser
 Pre-Depends: debconf | debconf-2.0
 Recommends: virtualbox-ose-modules
-Suggests: virtualbox-ose-source
+Suggests: virtualbox-ose-source, bridge-utils
 Conflicts: virtualbox
 Replaces: virtualbox
 Provides: virtualbox
