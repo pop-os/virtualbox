@@ -1,4 +1,5 @@
 01-no-64bit-guest.dpatch
+02-2.6.25.dpatch
 03-config-kmk.dpatch
 04-localconf-kmk.dpatch
 05-vboxdrv-references.dpatch

@@ -1,9 +1,14 @@
 virtualbox-ose (1.5.6-dfsg-2) UNRELEASED; urgency=low
 
+  [ Daniel Baumann ]
   * Added Brazilian-Portuguese debconf translation from Eder L. Marques
     <eder@edermarques.net> (Closes: #467452).
 
- -- Daniel Baumann <daniel@debian.org>  Mon, 25 Feb 2008 19:53:00 +0100
+  [ Michael Meskes ]
+  * Added patch by Frans Pop <elendil@planet.nl> to make modules compile with
+    kernel 2.6.25, closes: #468864
+
+ -- Michael Meskes <meskes@debian.org>  Sun, 02 Mar 2008 10:38:31 +0100
 
 virtualbox-ose (1.5.6-dfsg-1) unstable; urgency=low
 
