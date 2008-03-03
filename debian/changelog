@@ -8,6 +8,8 @@ virtualbox-ose (1.5.6-dfsg-2) UNRELEASED; urgency=low
   * Added patch by Frans Pop <elendil@planet.nl> to make modules compile with
     kernel 2.6.25, closes: #468864
   * Suggest bridge-utils which is needed for static host networking.
+  * Added patch against init script to remove newly created file again on
+    failure, closes: #468419
 
  -- Michael Meskes <meskes@debian.org>  Sun, 02 Mar 2008 10:38:31 +0100
 

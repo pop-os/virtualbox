@@ -1,0 +1,18 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 08-init-fail.dpatch by Michael Meskes <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Remove created file on failure
+
+@DPATCH@
+
+--- virtualbox-ose-1.5.6-dfsg/src/VBox/Installer/linux/vboxnet.sh.orig	2008-03-03 13:47:31.000000000 +0100
++++ virtualbox-ose-1.5.6-dfsg/src/VBox/Installer/linux/vboxnet.sh	2008-03-03 13:47:46.000000000 +0100
+@@ -97,6 +97,7 @@
+ 
+ if [ "$system" = "other" ]; then
+     fail_msg() {
++    	[ -f "$VARFILE" ] && rm $VARFILE
+         echo " ...fail!"
+     }
+ 
