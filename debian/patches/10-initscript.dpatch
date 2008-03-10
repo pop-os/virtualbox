@@ -2,7 +2,7 @@
 ## 10-initscript.dpatch by Michael Meskes <meskes@debian.org>
 ##
 ## All lines beginning with `## DP:' are a description of the patch.
-## DP: Add modprobe to initscript
+## DP: Some changes to initscript.
 
 @DPATCH@
 diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose/src/VBox/Installer/linux/vboxnet.sh
@@ -35,6 +35,44 @@ diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose/s
  if [ -f /etc/redhat-release ]; then
      system=redhat
  elif [ -f /etc/SuSE-release ]; then
+@@ -173,15 +173,6 @@
+       fail_msg
+       return 1
+     fi
+-    # Fail if we don't have the kernel tun device
+-    # Make sure that the tun module is loaded (Ubuntu 7.10 needs this)
+-    modprobe tun > /dev/null 2>&1
+-    if ! cat /proc/misc 2>/dev/null | grep tun > /dev/null
+-    then
+-      fail_msg
+-      return 1
+-    fi
+-    succ_msg
+     # Read the configuration file entries line by line and create the
+     # interfaces
+     while read line
+@@ -195,6 +186,21 @@
+         if ((! expr match "$2" "#" > /dev/null) &&
+             (test -z "$4" || expr match "$4" "#" > /dev/null))
+         then
++	  if [ "$module_available" != 1 ]
++	  then
++		# Fail if we don't have the kernel tun device
++		# Make sure that the tun module is loaded (Ubuntu 7.10 needs this)
++		# We only test do once, but we have to do it here, because otherwise an empty
++		# configuration file would trigger the modprobe too.
++		modprobe tun > /dev/null 2>&1
++		if ! cat /proc/misc 2>/dev/null | grep tun > /dev/null
++		then
++			fail_msg
++			return 1
++          	fi
++          	succ_msg
++		module_available=1
++	  fi
+           case $user in
+             +*)
+                 group=`echo $2 | cut -c2-`
 @@ -382,10 +387,17 @@
  
  case "$1" in
