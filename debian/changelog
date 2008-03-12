@@ -1,10 +1,15 @@
-virtualbox-ose (1.5.6-dfsg-3) unstable; urgency=low
+virtualbox-ose (1.5.6-dfsg-3) UNRELEASED; urgency=low
 
+  [ Michael Meskes ]
   * Fixed architecture check in virtualbox-ose-source rules file, closes: #469882
   * Added just another patch to the initscript. This patch makes sure the tun
     module is only loaded if it is needed, closes: #470172
 
- -- Michael Meskes <meskes@debian.org>  Mon, 10 Mar 2008 11:35:44 +0100
+  [ Hilko Bengen ]
+  * Added scripts for managing `vbox' interfaces from
+    /etc/network/interfaces
+
+ -- Hilko Bengen <bengen@debian.org>  Wed, 12 Mar 2008 22:53:07 +0100
 
 virtualbox-ose (1.5.6-dfsg-2) unstable; urgency=low
 

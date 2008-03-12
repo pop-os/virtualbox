@@ -1,0 +1,23 @@
+#!/bin/sh
+
+set -e
+
+case "${IFACE}" in
+    vbox*)
+        ARGS="-t ${IFACE}"
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+
+test -x /usr/lib/virtualbox/VBoxTunctl || exit 0
+
+if [ -n "${IF_VIRTUALBOX_USER}" ]; then
+    ARGS="-u ${IF_VIRTUALBOX_USER} $ARGS"
+fi
+# if [ -n "${IF_VIRTUALBOX_GROUP}" ]; then
+#     ARGS="-g ${IF_VIRTUALBOX_GROUP} $ARGS"
+# fi
+
+/usr/lib/virtualbox/VBoxTunctl $ARGS

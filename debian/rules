@@ -92,6 +92,9 @@ install: build
 	# We also need to build a preinst file
 	sed -e 's/UPSTREAM/"$(upstreamversion)"/' < debian/$(sname).preinst.in > debian/$(sname).preinst
 
+	# Install helper scripts for vbox* interfaces
+	dh_installifupdown -p${sname}
+
 binary-arch: build install
 	dh_testdir -a
 	dh_testroot -a
