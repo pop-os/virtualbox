@@ -1,10 +1,9 @@
 [Desktop Entry]
-Encoding=UTF-8
 Name=VirtualBox OSE
 GenericName=PC virtualization solution
 Type=Application
 Comment=Run several virtual systems on a single host computer
 Exec=virtualbox
 TryExec=virtualbox
-Icon=virtualbox.png
+Icon=virtualbox
 Categories=Emulator;System;
