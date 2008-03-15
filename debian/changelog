@@ -1,10 +1,13 @@
 virtualbox-ose (1.5.6-dfsg-3) UNRELEASED; urgency=low
 
   [ Michael Meskes ]
-  * Fixed architecture check in virtualbox-ose-source rules file, closes: #469882
+  * Fixed arch check in virtualbox-ose-source rules file, closes: #469882
   * Added just another patch to the initscript. This patch makes sure the tun
     module is only loaded if it is needed, closes: #470172
   * Made desktop file comply to the Free Desktop specification, closes: #470937
+  * Replaced $(PWD) with $(CURDIR) in rules file.
+  * Bumped build dependency for debhelper to version >= 5.0.44~ because of
+    dh_installifupdown.
 
   [ Hilko Bengen ]
   * Added scripts for managing `vbox' interfaces from

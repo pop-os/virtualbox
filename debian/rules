@@ -74,7 +74,7 @@ dfsg-free: clean
 	rm -f ./src/VBox/Additions/linux/xmouse/Imakefile
 	rm -rf ./src/VBox/Additions/linux/selinux-fedora
 
-	(cd ..; mv $(PWD) virtualbox-ose-$(upstreamversion)-dfsg; \
+	(cd ..; mv $(CURDIR) virtualbox-ose-$(upstreamversion)-dfsg; \
 	 tar --exclude .svn --exclude '.git*' --exclude debian \
 		-czf virtualbox-ose_$(upstreamversion)-dfsg.orig.tar.gz \
 		virtualbox-ose-$(upstreamversion)-dfsg)
