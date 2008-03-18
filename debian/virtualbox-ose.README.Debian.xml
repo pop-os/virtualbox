@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE article PUBLIC "-//OASIS//DTD DocBook XML V4.4//EN"
+                         "http://www.docbook.org/xml/4.4/docbookx.dtd">
+<article>
+  <title>Virtualbox OSE for Debian</title>
+  <section>
+    <title>Different versions</title>
+    <para>
+      This Open Source Edition contains most but not all features of
+      the innotek Virtualbox product. Some of the features only
+      present in the closed-source version available from
+      <olink>http://virtualbox.org/wiki/Downloads</olink>:
+    </para>
+    <itemizedlist>
+      <listitem>
+        <para>
+          Remote Display Protocol (RDP) Server
+        </para>
+        <para>
+          This component implements a complete RDP server on top of
+          the virtual hardware and allows users to connect to a
+          virtual machine remotely using any RDP compatible client.
+        </para>
+      </listitem>
+      <listitem>
+        <para>USB support</para>
+        <para>
+          VirtualBox implements a virtual USB controller and supports
+          passing through USB 1.1 and USB 2.0 devices to virtual
+          machines.
+        </para>
+      </listitem>
+      <listitem>
+        <para>USB over RDP</para>
+        <para>
+          This is a combination of the RDP server and USB support
+          allowing users to make USB devices available to virtual
+          machines running remotely.
+        </para>
+      </listitem>
+      <listitem>
+        <para>iSCSI initiator</para>
+        <para>
+          VirtualBox contains a builtin iSCSI initiator making it
+          possible to use iSCSI targets as virtual disks without the
+          guest requiring support for iSCSI.
+        </para>
+      </listitem>
+      <listitem>
+        <para>Emulation for Intel e1000 network device</para>
+      </listitem>
+    </itemizedlist>
+  </section>
+  <section>
+    <title>Networking</title>
+    <para>
+      By default VirtualBox uses NAT for the network interfaces of virtual
+      machines and use an internal DHCP server to obtain an IP address. This
+      works well but the disadvantage is that the machine will not have an IP
+      address visible outside the VM and so you cannot connect to it from the
+      host system or from other systems.
+    </para>
+    <para>
+      By attaching the VM's interface to "Host Interface" and creating a
+      corresponding tun/tap interface the VM can be made visible on the local
+      network. 
+    </para>
+    <para>
+      The name for such an interface must start with
+      <code>vbox</code>.
+    </para>
+    <para>
+      There are different ways to create an interface:
+    </para>
+    <section>
+      <title>
+        Using VBoxAddIF
+      </title>
+      <para>
+        In this case you only need to "define" an interface for use by a
+        particular user once. All defined interfaces are "remembered" in the
+        file /etc/vbox/interfaces and recreated by the VirtualBox init script
+        every time the host system is booted.
+        <figure>
+          <title>Configuration of tun/tap interface for VirtualBox</title>
+          <para>
+            <programlisting>
+	VBoxAddIF vbox0 USER br0
+            </programlisting>
+          </para>
+        </figure>
+      </para>
+      <para>
+        You can of course create multiple interfaces per users, but all
+        interfaces should have unique names.
+      </para>
+    </section>
+    <section>
+      <title>
+        Using ifupdown
+      </title>
+      <para>
+        Starting with version 1.5.6-3, the virtualbox-ose package
+        contains helper scripts that allow tap interfaces for
+        host-based networking to be configured from
+        <filename>/etc/network/interfaces</filename>.
+      </para>
+      <para>
+        The owner <!-- and group --> for this interface can be
+        configured using the <code>virtualbox-user</code> <!-- and
+        <code>virtualbox-group</code>keywords respectively.-->
+        keyword.
+        <figure>
+          <title>Configuration of tun/tap interface for VirtualBox</title>
+          <para>
+            <programlisting>
+iface vbox0 inet static
+	address 192.168.3.1
+	netmask 255.255.255.0
+	virtualbox-user USER
+<!-- #virtualbox-group vboxusers -->
+            </programlisting>
+          </para>
+        </figure>
+      </para>
+    </section>
+  </section>
+  <section>
+    <title>Incompatibilities with previous versions</title>
+    <para>
+      Unfortunately, the configuration files between version version
+      1.4.0-svn4130 and 1.5.0 the configuration files are
+      incompatible.
+    </para>
+    <para>
+      In order to fix this issue please delete the complete
+      <![CDATA[<Uart>]]> section in your
+      <filename>~/.VirtualBox/Machines/NAME/NAME.xml</filename> file.
+    </para>
+  </section>
+  <section>
+    <title>Additional information</title>
+    <para>
+      Please see the
+      <ulink url="http://wiki.debian.org/VirtualBox">VirtualBox page</ulink>
+      in the Debian Wiki for additional or updated information.
+    </para>
+  </section>
+</article>

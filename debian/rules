@@ -20,6 +20,19 @@ MAKE:=kmk
 
 upstreamversion=$(shell dpkg-parsechangelog | grep Version | cut -d" " -f2 | cut -d"-" -f1)
 
+# Generate README.Debian as text/html ...
+debian/virtualbox-ose.README.Debian.html: debian/virtualbox-ose.README.Debian.xml
+	xsltproc --nonet --stringparam section.autolabel 1 \
+	-o $@ \
+	/usr/share/xml/docbook/stylesheet/nwalsh/html/docbook.xsl \
+	$<
+
+# ... and text/plain
+debian/virtualbox-ose.README.Debian: debian/virtualbox-ose.README.Debian.html
+	chmod 755 debian/lynx-dump-postprocess
+	(LANG=C; lynx -force_html -dump $< | ./debian/lynx-dump-postprocess > $@.tmp)
+	mv $@.tmp $@
+
 env.sh: patch-stamp
 	dh_testdir
 	./configure --with-linux="/usr" --disable-kmods
@@ -52,6 +65,7 @@ clean: unpatch
 	rm -rf out
 	rm -f AutoConfig.kmk configure.log env.sh
 	rm -f debian/$(sname).init debian/$(sname).preinst
+	rm -f debian/README.Debian debian/README.Debian.html
 
 	debconf-updatepo
 
@@ -80,7 +94,7 @@ dfsg-free: clean
 		virtualbox-ose-$(upstreamversion)-dfsg)
 
 # install: DH_OPTIONS=
-install: build
+install: build debian/virtualbox-ose.README.Debian debian/virtualbox-ose.README.Debian.html
 	dh_testdir
 	dh_testroot
 	dh_clean -k
