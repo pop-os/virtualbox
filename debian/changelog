@@ -16,7 +16,11 @@ virtualbox-ose (1.5.6-dfsg-3) unstable; urgency=low
   * Added scripts for managing `vbox' interfaces from
     /etc/network/interfaces
 
- -- Michael Meskes <meskes@debian.org>  Tue, 18 Mar 2008 15:13:39 +0100
+  [ Patrick Winnertz ]
+  * Improve init.d script patch to write done also on the first startup.
+    (Closes: #473059)
+
+ -- Patrick Winnertz <winnie@debian.org>  Fri, 28 Mar 2008 16:35:24 +0100
 
 virtualbox-ose (1.5.6-dfsg-2) unstable; urgency=low
 
