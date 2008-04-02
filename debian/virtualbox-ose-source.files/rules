@@ -36,6 +36,7 @@ MA_DIR ?= /usr/share/modass
 # package name with KVERS included), DEB_DESTDIR (path to store DEBs)
 
 # Set ARCH so we can cross compile Debian kernel
+ARCH := `uname -m`
 ifneq ($(shell echo $(KVERS) | grep 86), )
 	ARCH := i386
 endif
