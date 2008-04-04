@@ -1,3 +1,10 @@
+virtualbox-ose (1.5.6-dfsg-5) unstable; urgency=low
+
+  * Don't fail in guest-utils init script if the vboxadd module cannot
+    get loaded (Closes: #474195)
+
+ -- Hilko Bengen <bengen@debian.org>  Fri, 04 Apr 2008 09:02:12 +0200
+
 virtualbox-ose (1.5.6-dfsg-4) unstable; urgency=low
 
   [ Michael Meskes  ]
