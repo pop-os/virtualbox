@@ -6,6 +6,8 @@ virtualbox-ose (1.5.6-dfsg-5) unstable; urgency=low
 
   [ Michael Meskes ]
   * Fixed default ARCH setting in module Makefile, closes: #474196
+  * Made initscript even more LSB compliant by using LSB logging
+    functions, closes: #474089
 
  -- Michael Meskes <meskes@debian.org>  Fri, 04 Apr 2008 10:16:48 +0200
 

@@ -6,5 +6,6 @@
 06-vboxadd-udev.dpatch
 07-xsession.dpatch
 08-init-fail.dpatch
+09-init-lsb.dpatch
 10-initscript.dpatch
 

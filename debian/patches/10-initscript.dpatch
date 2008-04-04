@@ -8,21 +8,6 @@
 diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose/src/VBox/Installer/linux/vboxnet.sh
 --- virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh	2008-02-20 14:47:20.000000000 +0100
 +++ virtualbox-ose/src/VBox/Installer/linux/vboxnet.sh	2008-02-21 00:57:47.000000000 +0100
-@@ -19,10 +19,10 @@
- #
- ### BEGIN INIT INFO
- # Provides:       vboxnet
--# Required-Start: $network
--# Required-Stop:
--# Default-Start:  3 5
--# Default-Stop:
-+# Required-Start: $remote_fs $network
-+# Required-Stop:  $remote_fs
-+# Default-Start:  2 3 4 5
-+# Default-Stop:   0 1 6
- # Description:    VirtualBox permanent host networking setup
- ### END INIT INFO
- 
 @@ -32,6 +32,11 @@
  VARFILE="/var/run/VirtualBox/vboxnet"
  TAPDEV="/dev/net/tun"
@@ -59,7 +44,7 @@ diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose/s
 +	  then
 +		# Fail if we don't have the kernel tun device
 +		# Make sure that the tun module is loaded (Ubuntu 7.10 needs this)
-+		# We only test do once, but we have to do it here, because otherwise an empty
++		# We only test this once, but we have to do it here, because otherwise an empty
 +		# configuration file would trigger the modprobe too.
 +		modprobe tun > /dev/null 2>&1
 +		if ! cat /proc/misc 2>/dev/null | grep tun > /dev/null
