@@ -37,6 +37,9 @@ MA_DIR ?= /usr/share/modass
 
 # Set ARCH so we can cross compile Debian kernel
 ARCH := `uname -m`
+ifneq ($(shell echo $(ARCH) | grep 86), )
+        ARCH := i386
+endif
 ifneq ($(shell echo $(KVERS) | grep 86), )
 	ARCH := i386
 endif

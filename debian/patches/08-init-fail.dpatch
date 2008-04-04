@@ -16,11 +16,3 @@ diff -urNad virtualbox-ose-1.5.6-dfsg~/src/VBox/Installer/linux/vboxnet.sh virtu
          echo " ...fail!"
      }
  
-@@ -258,6 +259,7 @@
-       chgrp vboxusers "$TAPDEV"
-       chmod 0660 "$TAPDEV"
-     fi
-+    succ_msg
-     return 0
- }
- 

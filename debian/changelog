@@ -1,14 +1,19 @@
 virtualbox-ose (1.5.6-dfsg-5) unstable; urgency=low
 
+  [ Hilko Bengen ]
   * Don't fail in guest-utils init script if the vboxadd module cannot
     get loaded (Closes: #474195)
 
- -- Hilko Bengen <bengen@debian.org>  Fri, 04 Apr 2008 09:02:12 +0200
+  [ Michael Meskes ]
+  * Fixed default ARCH setting in module Makefile, closes: #474196
+
+ -- Michael Meskes <meskes@debian.org>  Fri, 04 Apr 2008 10:16:48 +0200
 
 virtualbox-ose (1.5.6-dfsg-4) unstable; urgency=low
 
   [ Michael Meskes  ]
   * Set default architecture in debian/rules for module source package.
+  * Fixed and rearranged patches against init script.
 
   [ Patrick Winnertz ]
   * Improve init.d script patch to write done also on the first startup.

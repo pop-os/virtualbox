@@ -51,7 +51,7 @@ diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose/s
      # Read the configuration file entries line by line and create the
      # interfaces
      while read line
-@@ -195,6 +186,21 @@
+@@ -195,6 +186,20 @@
          if ((! expr match "$2" "#" > /dev/null) &&
              (test -z "$4" || expr match "$4" "#" > /dev/null))
          then
@@ -67,12 +67,19 @@ diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose/s
 +			fail_msg
 +			return 1
 +          	fi
-+          	succ_msg
 +		module_available=1
 +	  fi
            case $user in
              +*)
                  group=`echo $2 | cut -c2-`
+@@ -258,6 +259,7 @@
+       chgrp vboxusers "$TAPDEV"
+       chmod 0660 "$TAPDEV"
+     fi
++    succ_msg
+     return 0
+ }
+
 @@ -382,10 +387,17 @@
  
  case "$1" in
