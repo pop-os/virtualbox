@@ -8,4 +8,5 @@
 08-init-fail.dpatch
 09-init-lsb.dpatch
 10-initscript.dpatch
-
+11-workaround-gcc-ice
+12-gcc-4.3

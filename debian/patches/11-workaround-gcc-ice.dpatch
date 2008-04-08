@@ -1,0 +1,22 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 11-workaround-gcc-ice.dpatch by Michael Meskes <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Use -O3 wot workaround gcc-4.3 problem
+
+@DPATCH@
+
+--- virtualbox-ose-1.5.6-dfsg/src/recompiler/Makefile.kmk.orig	2008-04-08 09:35:57.000000000 +0200
++++ virtualbox-ose-1.5.6-dfsg/src/recompiler/Makefile.kmk	2008-04-08 09:36:23.000000000 +0200
+@@ -231,9 +231,9 @@
+ 
+ # Extra flags for these source modules.
+ target-i386/op.c_CFLAGS         = -O2 -fno-strict-aliasing -fomit-frame-pointer -falign-functions=0 -fno-reorder-blocks -fno-optimize-sibling-calls
+-target-i386/op.c_CFLAGS.x86     = -fno-gcse -fno-instrument-functions -mpreferred-stack-boundary=2
++target-i386/op.c_CFLAGS.x86     = -O3 -fno-gcse -fno-instrument-functions -mpreferred-stack-boundary=2
+ target-i386/op.c_CFLAGS.darwin.x86 = -m128bit-long-double -mpreferred-stack-boundary=4
+-target-i386/helper.c_CFLAGS.x86 = -O2 -fomit-frame-pointer -fno-strict-aliasing -fno-gcse
++target-i386/helper.c_CFLAGS.x86 = -O3 -fomit-frame-pointer -fno-strict-aliasing -fno-gcse
+ cpu-exec.c_CFLAGS.x86           = -O2 -fomit-frame-pointer -fno-strict-aliasing -fno-gcse
+ 
+ 

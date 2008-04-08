@@ -1,0 +1,50 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 12-gcc-4.3.dpatch by Michael Meskes <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Some changes needed by gcc-4.3
+
+@DPATCH@
+
+--- virtualbox-ose-1.5.6-dfsg/src/VBox/Main/VMMDevInterface.cpp.orig
++++ virtualbox-ose-1.5.6-dfsg/src/VBox/Main/VMMDevInterface.cpp
+@@ -27,6 +27,7 @@
+ #include <VBox/VBoxGuest.h>
+ #include <VBox/shflsvc.h>
+ #include <iprt/asm.h>
++#include <stdio.h>
+ 
+ #ifdef VBOX_HGCM
+ #include "hgcm/HGCM.h"
+--- virtualbox-ose-1.5.6-dfsg/src/VBox/Additions/linux/xclient/main.cpp.orig
++++ virtualbox-ose-1.5.6-dfsg/src/VBox/Additions/linux/xclient/main.cpp
+@@ -30,6 +30,7 @@ using std::endl;
+ #include <sys/types.h>
+ #include <unistd.h>
+ #include <getopt.h>
++#include <stdlib.h>
+ 
+ #include <X11/Xlib.h>
+ #include <X11/Intrinsic.h>
+--- virtualbox-ose-1.5.6-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxGlobal.cpp.orig
++++ virtualbox-ose-1.5.6-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxGlobal.cpp
+@@ -28,6 +28,8 @@
+ #include "VBoxRegistrationDlg.h"
+ #endif
+ 
++#include <stdlib.h>
++
+ #include <qapplication.h>
+ #include <qmessagebox.h>
+ #include <qpixmap.h>
+--- virtualbox-ose-1.5.6-dfsg/src/recompiler/InnoTek/op-validate.sed.orig
++++ virtualbox-ose-1.5.6-dfsg/src/recompiler/InnoTek/op-validate.sed
+@@ -63,6 +63,8 @@ s/^[[:blank:]]*ret[[:blank:]]*\n*[[:blan
+ /\.Lfe[0-9][0-9]*:/d
+ /\.LFE[0-9][0-9]*:/d
+ /size[[:space:]]/d
++/p2align[[:space:]]/d
++/^[/#][[:space:]]0[[:space:]]\"\"[[:space:]]2[[:space:]]*$/d
+ /^[/#]NO_APP[[:space:]]*$/d
+ /^$/!b bad
+ b end
