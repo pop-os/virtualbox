@@ -2,7 +2,7 @@
 ## 08-init-fail.dpatch by Michael Meskes <meskes@debian.org>
 ##
 ## All lines beginning with `## DP:' are a description of the patch.
-## DP: Remove created file on failure
+## DP: Fix some failures in init script.
 
 @DPATCH@
 diff -urNad virtualbox-ose-1.5.6-dfsg~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose-1.5.6-dfsg/src/VBox/Installer/linux/vboxnet.sh
@@ -15,4 +15,21 @@ diff -urNad virtualbox-ose-1.5.6-dfsg~/src/VBox/Installer/linux/vboxnet.sh virtu
 +    	[ -f "$VARFILE" ] && rm $VARFILE
          echo " ...fail!"
      }
- 
+
+@@ -226,13 +226,13 @@
+                 then
+                   if brctl addif "$3" "$1" 2> /dev/null
+                   then
+-                    echo "$1 $2 $3" > "$VARFILE"
++                    echo "$1 $2 $3" >> "$VARFILE"
+                   else
+-                    echo "$1 $2" > "$VARFILE"
++                    echo "$1 $2" >> "$VARFILE"
+                     echo "Warning - failed to add interface $1 to the bridge $3"
+                   fi
+                 else
+-                  echo "$1 $2" > $VARFILE
++                  echo "$1 $2" >> $VARFILE
+                 fi
+                 i=20
+               else
