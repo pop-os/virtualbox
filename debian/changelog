@@ -1,3 +1,9 @@
+virtualbox-ose (1.5.6-dfsg-7) unstable; urgency=low
+
+  * Made virtualbox-ose-modules recommend virtualbox-ose-guest-utils.
+
+ -- Michael Meskes <meskes@debian.org>  Wed, 23 Apr 2008 16:56:49 +0200
+
 virtualbox-ose (1.5.6-dfsg-6) unstable; urgency=low
 
   * Added two patches from upstream SVN to make virtualbox-ose build with
