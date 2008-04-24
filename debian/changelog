@@ -3,6 +3,11 @@ virtualbox-ose (1.5.6-dfsg-7) unstable; urgency=low
   * Made virtualbox-ose-modules recommend virtualbox-ose-guest-utils.
   * Added patch by Pascal Volk <user@localhost.localdomain.org> to prevent
     init script from overwriting values, closes: #475193
+  * Added recommendation on up-to-date xserver-xorg-core and conflict on
+    older versions to guest-utils, closes: #476526
+  * Provide xserver-xorg-input-2 and xserver-xorg-video-2 with guest-utils.
+  * Removed watch file, I couldn't find a way to get the orig tarball without
+    first accepting a license.
 
  -- Michael Meskes <meskes@debian.org>  Wed, 23 Apr 2008 16:56:49 +0200
 
