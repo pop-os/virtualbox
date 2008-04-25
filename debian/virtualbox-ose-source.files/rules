@@ -35,18 +35,6 @@ MA_DIR ?= /usr/share/modass
 # compiler), VERSION (the final package version string), PKGNAME (full
 # package name with KVERS included), DEB_DESTDIR (path to store DEBs)
 
-# Set ARCH so we can cross compile Debian kernel
-ARCH := `uname -m`
-ifneq ($(shell echo $(ARCH) | grep 86), )
-        ARCH := i386
-endif
-ifneq ($(shell echo $(KVERS) | grep 86), )
-	ARCH := i386
-endif
-ifneq ($(shell echo $(KVERS) | grep amd64), )
-	ARCH := x86_64
-endif
-
 # The kdist_configure target is called by make-kpkg modules_config and
 # by kdist* rules by dependency. It should configure the module so it is
 # ready for compilation (mostly useful for calling configure).
@@ -68,7 +56,7 @@ binary-modules: prep-deb-files
 	dh_clean -k
 
 	# Build the module
-	$(MAKE) all KSRC=$(KSRC) KVER=$(KVERS) KERN_DIR=$(KSRC) ARCH=$(ARCH)
+	$(MAKE) -C $(KSRC) M=$(CURDIR)
 
 	# Install the module
 	dh_install vboxdrv.ko /lib/modules/$(KVERS)/misc/

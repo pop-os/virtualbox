@@ -8,6 +8,9 @@ virtualbox-ose (1.5.6-dfsg-7) unstable; urgency=low
   * Provide xserver-xorg-input-2 and xserver-xorg-video-2 with guest-utils.
   * Removed watch file, I couldn't find a way to get the orig tarball without
     first accepting a license.
+  * Rewrote debian/rules for virtuabox-ose-source partially, hopefully this
+    finally closes: #469882
+  * Patched module Makefile to allow amd64 build in linux-modules-extra-2.6.
 
  -- Michael Meskes <meskes@debian.org>  Wed, 23 Apr 2008 16:56:49 +0200
 

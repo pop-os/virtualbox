@@ -1,0 +1,39 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 13-make-module.dpatch by Michael Meskes <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Fix ARCH setting in module Makefile
+
+@DPATCH@
+
+--- virtualbox-ose-1.5.6-dfsg/src/VBox/HostDrivers/Support/linux/Makefile.orig	2008-02-19 12:49:05.000000000 +0100
++++ virtualbox-ose-1.5.6-dfsg/src/VBox/HostDrivers/Support/linux/Makefile	2008-04-25 11:49:43.000000000 +0200
+@@ -28,12 +28,24 @@
+   BUILD_TARGET_ARCH := amd64
+  else
+   ifeq ($(ARCH),i386)
+-   BUILD_TARGET_ARCH := x86
++   ifeq ($(CONFIG_X86_32),y)
++     BUILD_TARGET_ARCH := x86
++   else
++     BUILD_TARGET_ARCH := amd64
++   endif
+   else
+-   ifeq ($(filter-out x86_64 amd64 AMD64,$(shell uname -m)),)
+-    BUILD_TARGET_ARCH := amd64
++   ifeq ($(ARCH),x86)
++    ifeq ($(CONFIG_X86_32),y)
++     BUILD_TARGET_ARCH := x86
++    else
++     BUILD_TARGET_ARCH := amd64
++    endif
+    else
+-    BUILD_TARGET_ARCH := x86
++    ifeq ($(filter-out x86_64 amd64 AMD64,$(shell uname -m)),)
++     BUILD_TARGET_ARCH := amd64
++    else
++     BUILD_TARGET_ARCH := x86
++    endif
+    endif
+   endif
+  endif
