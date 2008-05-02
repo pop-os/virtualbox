@@ -10,8 +10,7 @@
 diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/LocalConfig.kmk virtualbox-ose-1.5.4-dfsg/LocalConfig.kmk
 --- virtualbox-ose-1.5.4-dfsg.orig/LocalConfig.kmk	1970-01-01 00:00:00.000000000 +0000
 +++ virtualbox-ose-1.5.4-dfsg/LocalConfig.kmk	2007-12-30 06:30:31.000000000 +0000
-@@ -0,0 +1,12 @@
-+VBOX_WITH_LINUX_ONLY =
+@@ -0,0 +1,11 @@
 +VBOX_ADDITIONS_LINUX_ONLY =
 +VBOX_WITH_INSTALLER = 1
 +VBOX_WITH_LINUX_ADDITIONS = 1

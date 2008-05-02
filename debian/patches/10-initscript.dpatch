@@ -5,67 +5,64 @@
 ## DP: Some changes to initscript.
 
 @DPATCH@
-diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose/src/VBox/Installer/linux/vboxnet.sh
---- virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh	2008-02-20 14:47:20.000000000 +0100
-+++ virtualbox-ose/src/VBox/Installer/linux/vboxnet.sh	2008-02-21 00:57:47.000000000 +0100
-@@ -32,6 +32,11 @@
- VARFILE="/var/run/VirtualBox/vboxnet"
+diff -urNad virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in.orig virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in
+--- virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in.orig	2008-05-01 18:45:05.000000000 +0200
++++ virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in	2008-05-01 18:52:17.000000000 +0200
+@@ -34,6 +34,11 @@
  TAPDEV="/dev/net/tun"
+ NOLSB=%NOLSB%
  
 +# Include virtualbox-ose defaults if available
 +if [ -f /etc/default/virtualbox-ose ] ; then
-+    . /etc/default/virtualbox-ose
++	. /etc/default/virtualbox-ose
 +fi
 +
- if [ -f /etc/redhat-release ]; then
-     system=redhat
- elif [ -f /etc/SuSE-release ]; then
-@@ -173,15 +173,6 @@
-       fail_msg
-       return 1
+ [ -f /lib/lsb/init-functions ] || NOLSB=yes
+ 
+ if [ -n "$NOLSB" ]; then
+@@ -162,13 +168,6 @@
+     if ! VBoxTunctl -h 2>&1 | grep VBoxTunctl > /dev/null; then
+       failure "VBoxTunctl not found"
      fi
 -    # Fail if we don't have the kernel tun device
 -    # Make sure that the tun module is loaded (Ubuntu 7.10 needs this)
 -    modprobe tun > /dev/null 2>&1
--    if ! cat /proc/misc 2>/dev/null | grep tun > /dev/null
--    then
--      fail_msg
--      return 1
+-    if ! cat /proc/misc 2>/dev/null | grep tun > /dev/null; then
+-      failure "Linux tun/tap subsystem not available"
 -    fi
 -    succ_msg
      # Read the configuration file entries line by line and create the
      # interfaces
-     while read line
-@@ -195,6 +186,20 @@
+     while read line; do
+@@ -179,6 +178,19 @@
+         # or two non-comment entries, possibly followed by a comment).
          if ((! expr match "$2" "#" > /dev/null) &&
-             (test -z "$4" || expr match "$4" "#" > /dev/null))
-         then
+             (test -z "$4" || expr match "$4" "#" > /dev/null)); then
 +	  if [ "$module_available" != 1 ]
 +	  then
-+		# Fail if we don't have the kernel tun device
++	  	# Fail if we don't have the kernel tun device
 +		# Make sure that the tun module is loaded (Ubuntu 7.10 needs this)
 +		# We only test this once, but we have to do it here, because otherwise an empty
 +		# configuration file would trigger the modprobe too.
 +		modprobe tun > /dev/null 2>&1
 +		if ! cat /proc/misc 2>/dev/null | grep tun > /dev/null
 +		then
-+			fail_msg
-+			return 1
-+          	fi
++			failure "Linux tun/tap subsystem not available"
++		fi
 +		module_available=1
 +	  fi
-           case $user in
-             +*)
-                 group=`echo $2 | cut -c2-`
-@@ -258,6 +259,7 @@
+           # As the very first thing, try delete the interface. Might already
+           # exist with different configuration. Ignore errors.
+           VBoxTunctl -d $1 > /dev/null 2>&1
+@@ -234,6 +246,7 @@
        chgrp vboxusers "$TAPDEV"
        chmod 0660 "$TAPDEV"
      fi
 +    succ_msg
      return 0
  }
-
-@@ -382,10 +387,17 @@
+ 
+@@ -327,10 +340,17 @@
  
  case "$1" in
  start)
@@ -73,13 +70,13 @@ diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose/s
 +    if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
 +        /sbin/modprobe -q vboxdrv || true
 +    fi
-     start
+     start_network
      ;;
  stop)
-     stop
+     stop_network
 +    if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
-+        /sbin/modprobe -qr vboxdrv || true
++    	/sbin/modprobe -qr vboxdrv || true
 +    fi
      ;;
- restart)
-     restart
+ restart|reload)
+     stop_network && start_network

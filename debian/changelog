@@ -1,6 +1,6 @@
-virtualbox-ose (1.5.6-dfsg-7) unstable; urgency=low
+virtualbox-ose (1.6.0-dfsg-1) unstable; urgency=low
 
-  [ Michael Meskes ]
+  * New upstream version, closes: #478373, #478333
   * Made virtualbox-ose-modules recommend virtualbox-ose-guest-utils.
   * Added patch by Pascal Volk <user@localhost.localdomain.org> to prevent
     init script from overwriting values, closes: #475193
@@ -9,15 +9,14 @@ virtualbox-ose (1.5.6-dfsg-7) unstable; urgency=low
   * Provide xserver-xorg-input-2 and xserver-xorg-video-2 with guest-utils.
   * Removed watch file, I couldn't find a way to get the orig tarball without
     first accepting a license.
-  * Rewrote debian/rules for virtuabox-ose-source partially, hopefully this
+  * Rewrote debian/rules for virtualbox-ose-source partially, hopefully this
     finally closes: #469882
   * Patched module Makefile to allow amd64 build in linux-modules-extra-2.6.
+  * Removed unneeded xalan build dependency.
+  * Added build dependency on libxslt and libxml.
+  * Fixed LocalConfig.kmk to list new variables.
 
-  [ Patrick Winnertz ]
-  * Added patch to make virtualbox-ose-guest-source build with kernels >=
-    2.6.25. Thanks to Stefan Lippers-Hollmann. (Closes: 478373, 478333)
-
- -- Patrick Winnertz <winnie@debian.org>  Wed, 30 Apr 2008 10:41:51 +0200
+ -- Michael Meskes <meskes@debian.org>  Fri, 02 May 2008 10:14:01 +0200
 
 virtualbox-ose (1.5.6-dfsg-6) unstable; urgency=low
 

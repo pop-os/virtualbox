@@ -6,29 +6,31 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/VMM/VM.cpp virtualbox-ose-1.5.4-dfsg/src/VBox/VMM/VM.cpp
---- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/VMM/VM.cpp	2007-12-04 13:14:26.000000000 +0000
-+++ virtualbox-ose-1.5.4-dfsg/src/VBox/VMM/VM.cpp	2007-12-30 06:31:00.000000000 +0000
-@@ -314,8 +314,8 @@ VMR3DECL(int)   VMR3Create(PFNVMATERROR 
+--- virtualbox-ose-1.6.0-dfsg/src/VBox/VMM/VM.cpp.orig	2008-05-01 18:27:14.000000000 +0200
++++ virtualbox-ose-1.6.0-dfsg/src/VBox/VMM/VM.cpp	2008-05-01 18:28:25.000000000 +0200
+@@ -257,10 +257,8 @@
+             {
+                 case VERR_VM_DRIVER_LOAD_ERROR:
  #ifdef RT_OS_LINUX
-                 pszError = N_("VirtualBox kernel driver not loaded. The vboxdrv kernel module "
- 		              "was either not loaded or /dev/vboxdrv is not set up properly. "
--			      "Re-setup the kernel module by executing "
--			      "'/etc/init.d/vboxdrv setup' as root");
-+                              "Please install the virtualbox-ose-modules package for your "
-+                              "kernel and execute 'modprobe vboxdrv' as root");
+-                    pszError = N_("VirtualBox kernel driver not loaded. The vboxdrv kernel module "
+-                                  "was either not loaded or /dev/vboxdrv is not set up properly. "
+-                                  "Re-setup the kernel module by executing "
+-                                  "'/etc/init.d/vboxdrv setup' as root");
++                    pszError = N_("Please install the virtualbox-ose-modules package for your "
++		    		  "kernel and execute 'modprobe vboxdrv' as root");
  #else
-                 pszError = N_("VirtualBox kernel driver not loaded.");
+                     pszError = N_("VirtualBox kernel driver not loaded");
  #endif
-@@ -337,8 +337,9 @@ VMR3DECL(int)   VMR3Create(PFNVMATERROR 
+@@ -280,10 +278,8 @@
+                     break;
+                 case VERR_VM_DRIVER_NOT_INSTALLED:
  #ifdef RT_OS_LINUX
-                 pszError = N_("VirtualBox kernel driver not installed. The vboxdrv kernel module "
- 		              "was either not loaded or /dev/vboxdrv was not created for some "
--			      "reason. Re-setup the kernel module by executing "
--			      "'/etc/init.d/vboxdrv setup' as root");
-+			      "reason. "
-+                              "Please install the virtualbox-ose-modules package for your "
-+                              "kernel and execute 'modprobe vboxdrv' as root");
+-                    pszError = N_("VirtualBox kernel driver not installed. The vboxdrv kernel module "
+-                                  "was either not loaded or /dev/vboxdrv was not created for some "
+-                                  "reason. Re-setup the kernel module by executing "
+-                                  "'/etc/init.d/vboxdrv setup' as root");
++                    pszError = N_("Please install the virtualbox-ose-modules package for your "
++		    		  "kernel and execute 'modprobe vboxdrv' as root");
  #else
-                 pszError = N_("VirtualBox kernel driver not installed");
+                     pszError = N_("VirtualBox kernel driver not installed");
  #endif

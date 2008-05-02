@@ -5,9 +5,9 @@
 ## DP: Make initscript lsb cmpliant.
 
 @DPATCH@
-diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose/src/VBox/Installer/linux/vboxnet.sh
---- virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh	2008-02-20 14:47:20.000000000 +0100
-+++ virtualbox-ose/src/VBox/Installer/linux/vboxnet.sh	2008-02-21 00:57:47.000000000 +0100
+diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh.in virtualbox-ose/src/VBox/Installer/linux/vboxnet.sh.in
+--- virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh.in	2008-02-20 14:47:20.000000000 +0100
++++ virtualbox-ose/src/VBox/Installer/linux/vboxnet.sh.in	2008-02-21 00:57:47.000000000 +0100
 @@ -19,10 +19,10 @@
  #
  ### BEGIN INIT INFO
@@ -23,26 +23,22 @@ diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose/s
  # Description:    VirtualBox permanent host networking setup
  ### END INIT INFO
  
-@@ -101,17 +101,19 @@
- fi
- 
- if [ "$system" = "other" ]; then
-+    . /lib/lsb/init-functions
-+
+@@ -49,15 +49,14 @@
+ if [ -z "$NOLSB" ]; then
+     . /lib/lsb/init-functions
      fail_msg() {
-     	[ -f "$VARFILE" ] && rm $VARFILE
--        echo " ...fail!"
-+        log_action_end_msg 1
+         [ -f "$VARFILE" ] && rm $VARFILE
+-        echo ""
+-        log_failure_msg "$1"
++    	log_action_end_msg 1
      }
- 
      succ_msg() {
--        echo " ...done."
+-        log_success_msg " done."
 +        log_action_end_msg 0
      }
- 
-     begin() {
--        echo -n $1
-+       log_action_begin_msg $1 
+     begin_msg() {
+-        log_daemon_msg "$@"
++    	log_action_begin_msg $1
      }
- fi
- 
+ else
+     if [ "$system" = "redhat" ]; then

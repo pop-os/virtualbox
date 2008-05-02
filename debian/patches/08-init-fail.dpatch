@@ -5,31 +5,14 @@
 ## DP: Fix some failures in init script.
 
 @DPATCH@
-diff -urNad virtualbox-ose-1.5.6-dfsg~/src/VBox/Installer/linux/vboxnet.sh virtualbox-ose-1.5.6-dfsg/src/VBox/Installer/linux/vboxnet.sh
---- virtualbox-ose-1.5.6-dfsg~/src/VBox/Installer/linux/vboxnet.sh	2008-02-19 12:49:05.000000000 +0100
-+++ virtualbox-ose-1.5.6-dfsg/src/VBox/Installer/linux/vboxnet.sh	2008-03-28 16:34:55.000000000 +0100
-@@ -97,6 +97,7 @@
- 
- if [ "$system" = "other" ]; then
+diff -urNad virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in.orig virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in
+--- virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in.orig	2008-05-01 18:37:12.000000000 +0200
++++ virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in	2008-05-01 18:38:51.000000000 +0200
+@@ -49,6 +49,7 @@
+ if [ -z "$NOLSB" ]; then
+     . /lib/lsb/init-functions
      fail_msg() {
-+    	[ -f "$VARFILE" ] && rm $VARFILE
-         echo " ...fail!"
++        [ -f "$VARFILE" ] && rm $VARFILE
+         echo ""
+         log_failure_msg "$1"
      }
-
-@@ -226,13 +226,13 @@
-                 then
-                   if brctl addif "$3" "$1" 2> /dev/null
-                   then
--                    echo "$1 $2 $3" > "$VARFILE"
-+                    echo "$1 $2 $3" >> "$VARFILE"
-                   else
--                    echo "$1 $2" > "$VARFILE"
-+                    echo "$1 $2" >> "$VARFILE"
-                     echo "Warning - failed to add interface $1 to the bridge $3"
-                   fi
-                 else
--                  echo "$1 $2" > $VARFILE
-+                  echo "$1 $2" >> $VARFILE
-                 fi
-                 i=20
-               else

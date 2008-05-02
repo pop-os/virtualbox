@@ -6,18 +6,18 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/module/vboxmod.c virtualbox-ose-1.5.4-dfsg/src/VBox/Additions/linux/module/vboxmod.c
---- virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/module/vboxmod.c	2007-12-12 15:13:12.000000000 +0000
-+++ virtualbox-ose-1.5.4-dfsg/src/VBox/Additions/linux/module/vboxmod.c	2007-12-30 06:32:01.000000000 +0000
-@@ -23,6 +23,7 @@
- #include "vboxmod.h"
- #include "waitcompat.h"
- #include <VBox/log.h>
+diff -Naurp virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/module/vboxmod.c.orig virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/module/vboxmod.c
+--- virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/module/vboxmod.c.orig	2008-05-01 18:30:44.000000000 +0200
++++ virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/module/vboxmod.c	2008-05-01 18:35:30.000000000 +0200
+@@ -71,6 +71,7 @@
+ #include <VBox/VBoxDev.h>
+ #include <iprt/asm.h>
+ #include <iprt/assert.h>
 +#include <linux/miscdevice.h>
  
  #define xstr(s) str(s)
  #define str(s) #s
-@@ -412,6 +413,13 @@ static struct file_operations vbox_fops 
+@@ -582,6 +583,13 @@
      .llseek  = no_llseek
  };
  
@@ -31,29 +31,29 @@ diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/module/vboxm
  #ifndef IRQ_RETVAL
  /* interrupt handlers in 2.4 kernels don't return anything */
  # define irqreturn_t void
-@@ -684,17 +692,22 @@ static __init int init(void)
-     }
- 
+@@ -851,17 +859,22 @@
+     LogRel(("Starting VirtualBox version %s Guest Additions\n",
+             VBOX_VERSION_STRING));
      /* register a character device */
 -    err = register_chrdev(vbox_major, "vboxadd", &vbox_fops);
 -    if (err < 0 || ((vbox_major & err) || (!vbox_major && !err)))
 +    if (vbox_major > 0)
      {
--        printk(KERN_ERR "vboxadd: register_chrdev failed: vbox_major: %d, err = %d\n",
--               vbox_major, err);
+-        LogRelFunc(("register_chrdev failed: vbox_major: %d, err = %d\n",
+-                     vbox_major, err));
 -        PCI_DEV_PUT(pcidev);
 -        return -ENODEV;
 +	err = register_chrdev(vbox_major, "vboxadd", &vbox_fops);
 +	if (err < 0 || ((vbox_major & err) || (!vbox_major && !err)))
 +	{
-+		printk(KERN_ERR "vboxadd: register_chrdev failed: vbox_major: %d, err = %d\n",
-+		       vbox_major, err);
-+		PCI_DEV_PUT(pcidev);
-+		return -ENODEV;
++	    LogRelFunc(("register_chrdev failed: vbox_major: %d, err = %d\n",
++		     vbox_major, err));
++	    PCI_DEV_PUT(pcidev);
++	    return -ENODEV;
 +	}
 +	/* if no major code was set, take the return value */
 +	if (!vbox_major)
-+		vbox_major = err;
++	    vbox_major = err;
      }
 -    /* if no major code was set, take the return value */
 -    if (!vbox_major)
@@ -63,7 +63,7 @@ diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/module/vboxm
  
      /* allocate and initialize device extension */
      vboxDev = kmalloc(sizeof(*vboxDev), GFP_KERNEL);
-@@ -831,7 +844,10 @@ static __init int init(void)
+@@ -1029,7 +1042,10 @@
  fail:
      PCI_DEV_PUT(pcidev);
      free_resources();
@@ -75,15 +75,15 @@ diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/src/VBox/Additions/linux/module/vboxm
      return err;
  }
  
-@@ -843,7 +859,10 @@ static __exit void fini(void)
+@@ -1039,7 +1055,10 @@
+  */
+ static __exit void fini(void)
  {
-     printk(KERN_DEBUG "vboxadd: unloading...\n");
- 
 -    unregister_chrdev(vbox_major, "vboxadd");
 +    if (vbox_major > 0)
 +	unregister_chrdev(vbox_major, "vboxadd");
 +    else
-+    	misc_deregister(&vbox_dev);
++	misc_deregister(&vbox_dev);
      free_resources();
      vboxadd_cmc_fini ();
-     printk(KERN_DEBUG "vboxadd: unloaded\n");
+ }
