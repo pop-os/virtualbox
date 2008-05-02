@@ -1,5 +1,6 @@
 virtualbox-ose (1.5.6-dfsg-7) unstable; urgency=low
 
+  [ Michael Meskes ]
   * Made virtualbox-ose-modules recommend virtualbox-ose-guest-utils.
   * Added patch by Pascal Volk <user@localhost.localdomain.org> to prevent
     init script from overwriting values, closes: #475193
@@ -12,7 +13,11 @@ virtualbox-ose (1.5.6-dfsg-7) unstable; urgency=low
     finally closes: #469882
   * Patched module Makefile to allow amd64 build in linux-modules-extra-2.6.
 
- -- Michael Meskes <meskes@debian.org>  Wed, 23 Apr 2008 16:56:49 +0200
+  [ Patrick Winnertz ]
+  * Added patch to make virtualbox-ose-guest-source build with kernels >=
+    2.6.25. Thanks to Stefan Lippers-Hollmann. (Closes: 478373, 478333)
+
+ -- Patrick Winnertz <winnie@debian.org>  Wed, 30 Apr 2008 10:41:51 +0200
 
 virtualbox-ose (1.5.6-dfsg-6) unstable; urgency=low
 

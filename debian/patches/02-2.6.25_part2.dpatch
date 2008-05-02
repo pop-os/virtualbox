@@ -1,0 +1,108 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 02-2.6.25_part2.dpatch by Stefan Lippers-Hollmann <s.l-h@gmx.de>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: fix building virtualbox-ose-modules against kernel 2.6.25
+## DP: taken from SUN/ Innotek upstream SVN r7550:
+## DP: "attempt to fix vfsmod for Linux >= 2.6.25"
+
+@DPATCH@
+diff -urNad virtualbox-ose-1.5.6-dfsg~/src/VBox/Additions/linux/sharedfolders/dirops.c virtualbox-ose-1.5.6-dfsg/src/VBox/Additions/linux/sharedfolders/dirops.c
+--- virtualbox-ose-1.5.6-dfsg~/src/VBox/Additions/linux/sharedfolders/dirops.c	2008-02-19 12:49:06.000000000 +0100
++++ virtualbox-ose-1.5.6-dfsg/src/VBox/Additions/linux/sharedfolders/dirops.c	2008-04-28 21:24:26.000000000 +0200
+@@ -286,7 +286,11 @@
+                 }
+ 
+                 ino = iunique (parent->i_sb, 1);
++#if LINUX_VERSION_CODE >= KERNEL_VERSION (2, 6, 25)
++                inode = iget_locked (parent->i_sb, ino);
++#else
+                 inode = iget (parent->i_sb, ino);
++#endif
+                 if (!inode) {
+                         elog2 ("iget failed\n");
+                         err = -ENOMEM;          /* XXX: ??? */
+@@ -296,6 +300,10 @@
+                 SET_INODE_INFO (inode, sf_new_i);
+                 sf_init_inode (sf_g, inode, &fsinfo);
+                 sf_new_i->path = path;
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION (2, 6, 25)
++                unlock_new_inode(inode);
++#endif
+         }
+ 
+         sf_i->force_restat = 0;
+@@ -338,7 +346,11 @@
+         }
+ 
+         ino = iunique (parent->i_sb, 1);
++#if LINUX_VERSION_CODE >= KERNEL_VERSION (2, 6, 25)
++        inode = iget_locked (parent->i_sb, ino);
++#else
+         inode = iget (parent->i_sb, ino);
++#endif
+         if (!inode) {
+                 elog3 ("%s: %s: iget failed\n", caller, __func__);
+                 err = -ENOMEM;
+@@ -354,6 +366,11 @@
+         sf_new_i->force_restat = 1;
+ 
+         d_instantiate (dentry, inode);
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION (2, 6, 25)
++                unlock_new_inode(inode);
++#endif
++
+         return 0;
+ 
+  fail1:
+diff -urNad virtualbox-ose-1.5.6-dfsg~/src/VBox/Additions/linux/sharedfolders/vfsmod.c virtualbox-ose-1.5.6-dfsg/src/VBox/Additions/linux/sharedfolders/vfsmod.c
+--- virtualbox-ose-1.5.6-dfsg~/src/VBox/Additions/linux/sharedfolders/vfsmod.c	2007-12-12 16:13:12.000000000 +0100
++++ virtualbox-ose-1.5.6-dfsg/src/VBox/Additions/linux/sharedfolders/vfsmod.c	2008-04-28 21:26:42.000000000 +0200
+@@ -257,7 +257,11 @@
+         sb->s_blocksize = 1024;
+         sb->s_op = &sf_super_ops;
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION (2, 6, 25)
++        iroot = iget_locked (sb, 0);
++#else
+         iroot = iget (sb, 0);
++#endif
+         if (!iroot) {
+                 err = -ENOMEM;  /* XXX */
+                 elog2 ("could not get root inode\n");
+@@ -267,6 +271,10 @@
+         sf_init_inode (sf_g, iroot, &fsinfo);
+         SET_INODE_INFO (iroot, sf_i);
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION (2, 6, 25)
++        unlock_new_inode(iroot);
++#endif
++
+         droot = d_alloc_root (iroot);
+         if (!droot) {
+                 err = -ENOMEM;  /* XXX */
+@@ -329,10 +337,12 @@
+    the only thing that is known about inode at this point is its index
+    hence we can't do anything here, and let lookup/whatever with the
+    job to properly fill then [inode] */
++#if LINUX_VERSION_CODE < KERNEL_VERSION (2, 6, 25)
+ static void
+ sf_read_inode (struct inode *inode)
+ {
+ }
++#endif
+ 
+ /* vfs is done with [sb] (umount called) call [sf_glob_free] to unmap
+    the folder and free [sf_g] */
+@@ -370,7 +380,9 @@
+ 
+ static struct super_operations sf_super_ops = {
+         .clear_inode = sf_clear_inode,
++#if LINUX_VERSION_CODE < KERNEL_VERSION (2, 6, 25)
+         .read_inode  = sf_read_inode,
++#endif
+         .put_super   = sf_put_super,
+         .statfs      = sf_statfs,
+         .remount_fs  = sf_remount_fs
