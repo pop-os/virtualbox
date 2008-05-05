@@ -87,6 +87,7 @@ dfsg-free: clean
 	rm -f ./include/VBox/VBoxGuest.mac
 	rm -f ./src/libs/xpcom18a4/xpcom/MoreFiles/FSCopyObject.c
 	rm -f ./src/libs/xpcom18a4/xpcom/MoreFiles/FSCopyObject.h
+	rm -f ./src/libs/ffmpeg-20060710
 	rm -f ./src/VBox/HostServices/SharedClipboard/linux-stub.cpp
 	rm -f ./src/VBox/Additions/linux/xmouse/Imakefile
 	rm -rf ./src/VBox/Additions/linux/selinux-fedora
