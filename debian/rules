@@ -54,6 +54,9 @@ build-stamp: env.sh
 	# make sure VBoxAddIF.sh is built, too
 	$(MAKE) -C src/VBox/Installer/linux $(abspath out/bin/VBoxAddIF.sh) \
 		PATH_OUT=$(abspath out)
+	# and vboxnet.sh
+	$(MAKE) -C src/VBox/Installer/linux $(abspath out/obj/src/VBox/Installer/linux/vboxnet.sh) \
+		PATH_OUT=$(abspath out)
 
 	touch build-stamp
 
@@ -101,7 +104,7 @@ install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
 	dh_installdirs
 
 	# This will get installed into the package by dh_installinit
-	install -m 644 src/VBox/Installer/linux/vboxnet.sh debian/$(sname).init
+	install -m 644 out/obj/src/VBox/Installer/linux/vboxnet.sh debian/$(sname).init
 
 	# We also need to build a preinst file
 	sed -e 's/UPSTREAM/"$(upstreamversion)"/' < debian/$(sname).preinst.in > debian/$(sname).preinst
