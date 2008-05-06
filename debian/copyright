@@ -101,6 +101,8 @@ The following files are licensed under GPLv2:
 ./src/VBox/Devices/PC/Etherboot-src/util/getopt.c
         Copyright (c) 1990-1995 by Eberhard Mattes
 
+./src/VBox/RDP
+	Copyright (C) Matthew Chapman 1999-2000
 
 On Debian systems, the complete text of the GNU General Public License
 can be found in /usr/share/common-licenses/GPL-2 file.
