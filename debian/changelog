@@ -22,6 +22,7 @@ virtualbox-ose (1.6.0-dfsg-1) unstable; urgency=low
   * Correcting wrong module-assistant manpage section in
     virtualbox-ose-*source.README.Debian.
   * Removing some reimported useless whitespaces.
+  * Removing ffmpeg recursively in dfsg-free target in rules.
 
  -- Michael Meskes <meskes@debian.org>  Fri, 02 May 2008 10:14:01 +0200
 
