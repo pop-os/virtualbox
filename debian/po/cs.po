@@ -1,7 +1,6 @@
 # Czech translation of virtualbox-ose debconf messages.
-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# 2008 Miroslav Kure <kurem@debian.cz>
 # This file is distributed under the same license as the virtualbox-ose package.
-# Miroslav Kure <kurem@debian.cz>, 2008
 #
 msgid ""
 msgstr ""
@@ -12,7 +11,7 @@ msgstr ""
 "Last-Translator: Miroslav Kure <kurem@debian.cz>\n"
 "Language-Team: Czech <debian-l10n-czech@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
 #. Type: boolean

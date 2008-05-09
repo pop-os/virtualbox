@@ -1,11 +1,10 @@
-# virtualbox-ose translation to spanish
+# Spanish translation of virtualbox-ose debconf templates.
 # Copyright (C) 2008 Software in the Public Interest, SPI Inc.
 # This file is distributed under the same license as the virtualbox-ose package.
 #
 # Changes:
 # - Initial translation
 #       Fernando C. Estrada , 2008
-#
 #
 #  Traductores, si no conoce el formato PO, merece la pena leer la
 #  documentación de gettext, especialmente las secciones dedicadas a este
@@ -38,7 +37,7 @@ msgstr ""
 "Last-Translator: Fernando C. Estrada <fcestrada@fcestrada.com>\n"
 "Language-Team: Debian Spanish <debian-l10n-spanish@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
 #. Type: boolean

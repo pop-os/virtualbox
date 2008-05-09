@@ -1,7 +1,6 @@
-# virtualbox-ose Brazilian Portuguese translation
-# Copyright (c) 2008 virtualbox-ose's COPYRIGHT HOLDER
+# Brazilian Portuguese translation of virtualbox-ose debconf templates.
+# 2008 Eder L. Marques <frolic@debian-ce.org>
 # This file is distributed under the same license as the virtualbox-ose package.
-# Eder L. Marques (frolic) <frolic@debian-ce.org>, 2008.
 #
 msgid ""
 msgstr ""
@@ -12,7 +11,7 @@ msgstr ""
 "Last-Translator: Eder L. Marques (frolic) <frolic@debian-ce.org>\n"
 "Language-Team: l10n Portuguese <debian-l10n-portuguese@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "pt_BR utf-8\n"
 "X-Generator: KBabel 1.11.4\n"

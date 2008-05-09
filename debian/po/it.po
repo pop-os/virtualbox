@@ -1,7 +1,7 @@
-# Italian translation of the virtualbox-ose debconf template
-# This file is distributed under the same license as the virtualbox-ose package
+# Italian translation of virtualbox-ose debconf templates.
+# 2008 Luca Monducci <luca.mo@tiscali.it>
 # Copyright (C) 2008 Free Software Foundation, Inc.
-# Luca Monducci <luca.mo@tiscali.it>, 2008.
+# This file is distributed under the same license as the virtualbox-ose package.
 #
 msgid ""
 msgstr ""
@@ -12,7 +12,7 @@ msgstr ""
 "Last-Translator: Luca Monducci <luca.mo@tiscali.it>\n"
 "Language-Team: Italian <debian-l10n-italian@lists.debian.org>\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
 #. Type: boolean
