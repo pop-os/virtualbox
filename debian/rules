@@ -90,6 +90,7 @@ dfsg-free: clean
 	rm -rf ./src/libs/libpng*
 	rm -rf ./src/libs/libxml2*
 	rm -rf ./src/libs/libxslt*
+	rm -rf ./src/libs/zlib*
 	rm -f ./src/VBox/HostServices/SharedClipboard/linux-stub.cpp
 	rm -f ./src/VBox/Additions/linux/xmouse/Imakefile
 	rm -rf ./src/VBox/Additions/linux/selinux-fedora

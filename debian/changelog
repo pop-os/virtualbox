@@ -29,6 +29,7 @@ virtualbox-ose (1.6.0-dfsg-1) unstable; urgency=low
   * Stripping off embedded copy of libpng in dfsg-free target of rules.
   * Stripping off embedded copy of libxml2 in dfsg-free target of rules.
   * Stripping off embedded copy of libxslt in dfsg-free target of rules.
+  * Stripping off embedded copy of zlib in dfsg-free target of rules.
 
  -- Michael Meskes <meskes@debian.org>  Fri, 02 May 2008 10:14:01 +0200
 
