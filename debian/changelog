@@ -26,6 +26,7 @@ virtualbox-ose (1.6.0-dfsg-1) unstable; urgency=low
   * Rediffing all patches.
   * Renumbering all patches.
   * Sanitizing dpatch headers.
+  * Stripping off embedded copy of libpng in dfsg-free target of rules.
 
  -- Michael Meskes <meskes@debian.org>  Fri, 02 May 2008 10:14:01 +0200
 
