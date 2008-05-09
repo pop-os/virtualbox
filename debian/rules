@@ -41,7 +41,6 @@ env.sh: patch-stamp
 	else \
 		echo "VBOX_WITH_X11_ADDITIONS=" >> LocalConfig.kmk; \
 	fi
-	
 
 build: build-stamp
 build-stamp: env.sh
