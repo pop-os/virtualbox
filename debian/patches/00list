@@ -7,6 +7,6 @@
 07-init-fail.dpatch
 08-init-lsb.dpatch
 09-initscript.dpatch
-10-workaround-gcc-ice
-11-gcc-4.3
-12-make-module
+10-workaround-gcc-ice.dpatch
+11-gcc-4.3.dpatch
+12-make-module.dpatch

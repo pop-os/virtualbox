@@ -1,7 +1,6 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-## 11-workaround-gcc-ice.dpatch by Michael Meskes <meskes@debian.org>
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 10-workaround-gcc-ice.dpatch by Michael Meskes <meskes@debian.org>
 ##
-## All lines beginning with `## DP:' are a description of the patch.
 ## DP: Use -O3 wot workaround gcc-4.3 problem
 
 @DPATCH@

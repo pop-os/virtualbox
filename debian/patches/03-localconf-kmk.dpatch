@@ -1,5 +1,5 @@
 #!/bin/sh /usr/share/dpatch/dpatch-run
-## 04-localconf-kmk.dpatch by Patrick Winnertz <patrick.winnertz@skolelinux.org>
+## 03-localconf-kmk.dpatch by Patrick Winnertz <patrick.winnertz@skolelinux.org>
 ## expanded my Michael Meskes <meskes@debian.org> to set paths
 ##
 ## DP: Don't build the module for testing and don't build any guest additions.

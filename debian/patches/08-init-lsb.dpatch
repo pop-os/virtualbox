@@ -1,7 +1,6 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-## 09-init-lsb.dpatch by Michael Meskes <meskes@debian.org>
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 08-init-lsb.dpatch by Michael Meskes <meskes@debian.org>
 ##
-## All lines beginning with `## DP:' are a description of the patch.
 ## DP: Make initscript lsb cmpliant.
 
 @DPATCH@

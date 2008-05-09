@@ -1,7 +1,6 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-## 13-make-module.dpatch by Michael Meskes <meskes@debian.org>
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 12-make-module.dpatch by Michael Meskes <meskes@debian.org>
 ##
-## All lines beginning with `## DP:' are a description of the patch.
 ## DP: Fix ARCH setting in module Makefile
 
 @DPATCH@

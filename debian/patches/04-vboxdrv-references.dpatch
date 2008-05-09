@@ -1,5 +1,5 @@
 #!/bin/sh /usr/share/dpatch/dpatch-run
-## 05-vboxdrv-references.dpatch by Daniel Hahler <ubuntu@thequod.de>
+## 04-vboxdrv-references.dpatch by Daniel Hahler <ubuntu@thequod.de>
 ##
 ## DP: Change error messages for vboxdrv failure, according to
 ## DP: virtualbox-ose-modules.

@@ -1,7 +1,6 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-## 12-gcc-4.3.dpatch by Michael Meskes <meskes@debian.org>
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 11-gcc-4.3.dpatch by Michael Meskes <meskes@debian.org>
 ##
-## All lines beginning with `## DP:' are a description of the patch.
 ## DP: Some changes needed by gcc-4.3
 
 @DPATCH@

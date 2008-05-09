@@ -1,5 +1,5 @@
 #!/bin/sh /usr/share/dpatch/dpatch-run
-## 03-config-kmk.dpatch by Patrick Winnertz <patrick.winnertz@skolelinux.org>
+## 02-config-kmk.dpatch by Patrick Winnertz <patrick.winnertz@skolelinux.org>
 ##
 ## DP: Some patches for Config.kmk to build with the debian tools
 ## DP: XPCOM setup for all but win32.
