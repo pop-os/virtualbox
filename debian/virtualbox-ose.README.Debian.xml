@@ -63,7 +63,7 @@
     <para>
       By attaching the VM's interface to "Host Interface" and creating a
       corresponding tun/tap interface the VM can be made visible on the local
-      network. 
+      network.
     </para>
     <para>
       The name for such an interface must start with

@@ -7,7 +7,7 @@
 #       Fernando C. Estrada , 2008
 #
 #
-#  Traductores, si no conoce el formato PO, merece la pena leer la 
+#  Traductores, si no conoce el formato PO, merece la pena leer la
 #  documentación de gettext, especialmente las secciones dedicadas a este
 #  formato, por ejemplo ejecutando:
 #         info -n '(gettext)PO Files'

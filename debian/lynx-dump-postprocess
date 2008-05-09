@@ -10,8 +10,8 @@ open IN, '<&STDIN';
 }
 close IN;
 
-($title,$body,$links) = 
-  ($content =~ 
+($title,$body,$links) =
+  ($content =~
    /^(.*)\n\s+_+\n\n
     (\s+Table\ of\ Contents.*)
     (References\n\n\s+1\..*)/sx);
