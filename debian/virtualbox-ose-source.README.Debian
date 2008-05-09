@@ -3,7 +3,7 @@ virtualbox-ose for Debian
 
 The Debian virtualbox-ose-source package can be used in several ways,
 
- - Using module-assistant(1) commands provided by the module-assistant Debian
+ - Using module-assistant(8) commands provided by the module-assistant Debian
    package:
 
 	# module-assistant prepare virtualbox-ose
