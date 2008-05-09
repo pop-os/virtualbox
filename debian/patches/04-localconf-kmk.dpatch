@@ -7,9 +7,9 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-1.5.4-dfsg.orig/LocalConfig.kmk virtualbox-ose-1.5.4-dfsg/LocalConfig.kmk
---- virtualbox-ose-1.5.4-dfsg.orig/LocalConfig.kmk	1970-01-01 00:00:00.000000000 +0000
-+++ virtualbox-ose-1.5.4-dfsg/LocalConfig.kmk	2007-12-30 06:30:31.000000000 +0000
+diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/LocalConfig.kmk virtualbox-ose-1.6.0-dfsg/LocalConfig.kmk
+--- virtualbox-ose-1.6.0-dfsg.orig/LocalConfig.kmk	1970-01-01 00:00:00.000000000 +0000
++++ virtualbox-ose-1.6.0-dfsg/LocalConfig.kmk	2008-05-09 09:25:16.000000000 +0000
 @@ -0,0 +1,12 @@
 +VBOX_WITH_ADDITION_DRIVERS =
 +VBOX_ADDITIONS_LINUX_ONLY =

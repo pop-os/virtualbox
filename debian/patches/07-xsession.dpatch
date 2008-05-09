@@ -6,8 +6,8 @@
 @DPATCH@
 
 diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Additions/x11/installer/98vboxadd-xclient virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/x11/installer/98vboxadd-xclient
---- virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Additions/x11/installer/98vboxadd-xclient	2008-05-05 13:34:31.000000000 +0200
-+++ virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/x11/installer/98vboxadd-xclient	2008-05-05 13:34:49.000000000 +0200
+--- virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Additions/x11/installer/98vboxadd-xclient	2008-04-30 14:05:59.000000000 +0000
++++ virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/x11/installer/98vboxadd-xclient	2008-05-09 09:26:59.000000000 +0000
 @@ -17,5 +17,5 @@
  # additional information or have any questions.
  #

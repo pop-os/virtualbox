@@ -6,10 +6,10 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/module/vboxmod.c.orig virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/module/vboxmod.c
---- virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/module/vboxmod.c.orig	2008-05-01 18:30:44.000000000 +0200
-+++ virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/module/vboxmod.c	2008-05-01 18:35:30.000000000 +0200
-@@ -71,6 +71,7 @@
+diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Additions/linux/module/vboxmod.c virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/module/vboxmod.c
+--- virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Additions/linux/module/vboxmod.c	2008-04-30 14:05:58.000000000 +0000
++++ virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/module/vboxmod.c	2008-05-09 09:26:26.000000000 +0000
+@@ -71,6 +71,7 @@ do { \
  #include <VBox/VBoxDev.h>
  #include <iprt/asm.h>
  #include <iprt/assert.h>
@@ -17,7 +17,7 @@ diff -Naurp virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/module/vboxmod.c.
  
  #define xstr(s) str(s)
  #define str(s) #s
-@@ -582,6 +583,13 @@
+@@ -582,6 +583,13 @@ static struct file_operations vbox_fops 
      .llseek  = no_llseek
  };
  
@@ -31,7 +31,7 @@ diff -Naurp virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/module/vboxmod.c.
  #ifndef IRQ_RETVAL
  /* interrupt handlers in 2.4 kernels don't return anything */
  # define irqreturn_t void
-@@ -851,17 +859,22 @@
+@@ -851,17 +859,22 @@ static __init int init(void)
      LogRel(("Starting VirtualBox version %s Guest Additions\n",
              VBOX_VERSION_STRING));
      /* register a character device */
@@ -63,7 +63,7 @@ diff -Naurp virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/module/vboxmod.c.
  
      /* allocate and initialize device extension */
      vboxDev = kmalloc(sizeof(*vboxDev), GFP_KERNEL);
-@@ -1029,7 +1042,10 @@
+@@ -1029,7 +1042,10 @@ static __init int init(void)
  fail:
      PCI_DEV_PUT(pcidev);
      free_resources();
@@ -75,7 +75,7 @@ diff -Naurp virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/module/vboxmod.c.
      return err;
  }
  
-@@ -1039,7 +1055,10 @@
+@@ -1039,7 +1055,10 @@ fail:
   */
  static __exit void fini(void)
  {

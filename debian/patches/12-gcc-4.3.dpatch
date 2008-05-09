@@ -6,19 +6,10 @@
 
 @DPATCH@
 
---- virtualbox-ose-1.6.0-dfsg/src/VBox/Main/VMMDevInterface.cpp.orig
-+++ virtualbox-ose-1.6.0-dfsg/src/VBox/Main/VMMDevInterface.cpp
-@@ -27,6 +27,7 @@
- #include <VBox/VBoxGuest.h>
- #include <VBox/shflsvc.h>
- #include <iprt/asm.h>
-+#include <stdio.h>
- 
- #ifdef VBOX_HGCM
- #include "hgcm/HGCM.h"
---- virtualbox-ose-1.5.6-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxGlobal.cpp.orig
-+++ virtualbox-ose-1.5.6-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxGlobal.cpp
-@@ -28,6 +28,8 @@
+diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/VBoxGlobal.cpp virtualbox-ose-1.6.0-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxGlobal.cpp
+--- virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/VBoxGlobal.cpp	2008-04-30 14:05:33.000000000 +0000
++++ virtualbox-ose-1.6.0-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxGlobal.cpp	2008-05-09 09:31:08.000000000 +0000
+@@ -33,6 +33,8 @@
  #include "VBoxRegistrationDlg.h"
  #endif
  
@@ -27,8 +18,20 @@
  #include <qapplication.h>
  #include <qmessagebox.h>
  #include <qpixmap.h>
---- virtualbox-ose-1.5.6-dfsg/src/recompiler/Sun/op-validate.sed.orig
-+++ virtualbox-ose-1.5.6-dfsg/src/recompiler/Sun/op-validate.sed
+diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Main/VMMDevInterface.cpp virtualbox-ose-1.6.0-dfsg/src/VBox/Main/VMMDevInterface.cpp
+--- virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Main/VMMDevInterface.cpp	2008-04-30 14:05:49.000000000 +0000
++++ virtualbox-ose-1.6.0-dfsg/src/VBox/Main/VMMDevInterface.cpp	2008-05-09 09:31:08.000000000 +0000
+@@ -31,6 +31,7 @@
+ #include <VBox/VBoxGuest.h>
+ #include <VBox/shflsvc.h>
+ #include <iprt/asm.h>
++#include <stdio.h>
+ 
+ #ifdef VBOX_HGCM
+ #include "hgcm/HGCM.h"
+diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/src/recompiler/Sun/op-validate.sed virtualbox-ose-1.6.0-dfsg/src/recompiler/Sun/op-validate.sed
+--- virtualbox-ose-1.6.0-dfsg.orig/src/recompiler/Sun/op-validate.sed	2008-04-30 14:05:14.000000000 +0000
++++ virtualbox-ose-1.6.0-dfsg/src/recompiler/Sun/op-validate.sed	2008-05-09 09:31:08.000000000 +0000
 @@ -63,6 +63,8 @@ s/^[[:blank:]]*ret[[:blank:]]*\n*[[:blan
  /\.Lfe[0-9][0-9]*:/d
  /\.LFE[0-9][0-9]*:/d

@@ -5,9 +5,10 @@
 
 @DPATCH@
 
---- virtualbox-ose-1.6.0-dfsg.orig/configure	2007-12-28 16:28:21.000000000 +0000
-+++ virtualbox-ose-1.6.0-dfsg/configure	2007-12-30 06:28:14.000000000 +0000
-@@ -248,7 +248,7 @@ check_environment()
+diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/configure virtualbox-ose-1.6.0-dfsg/configure
+--- virtualbox-ose-1.6.0-dfsg.orig/configure	2008-04-30 14:06:04.000000000 +0000
++++ virtualbox-ose-1.6.0-dfsg/configure	2008-05-09 09:23:52.000000000 +0000
+@@ -263,7 +263,7 @@ check_environment()
        exit 1
        ;;
    esac
@@ -16,9 +17,10 @@
    [ "$OS" = "solaris" ] && BUILD_CPU=`isainfo | cut -f 1 -d ' '`
    case "$BUILD_CPU" in
      i[3456789]86|x86|i86pc)
---- virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.kmk.orig	2008-05-01 18:19:25.000000000 +0200
-+++ virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.kmk	2008-05-01 18:19:57.000000000 +0200
-@@ -23,7 +23,9 @@
+diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Additions/linux/sharedfolders/Makefile.kmk virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.kmk
+--- virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Additions/linux/sharedfolders/Makefile.kmk	2008-04-30 14:05:58.000000000 +0000
++++ virtualbox-ose-1.6.0-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.kmk	2008-05-09 09:23:52.000000000 +0000
+@@ -23,7 +23,9 @@ DEPTH ?= ../../../../..
  SUB_DEPTH = ../..
  include	$(PATH_KBUILD)/subheader.kmk
  

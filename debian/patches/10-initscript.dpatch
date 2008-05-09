@@ -5,10 +5,11 @@
 ## DP: Some changes to initscript.
 
 @DPATCH@
-diff -urNad virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in.orig virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in
---- virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in.orig	2008-05-01 18:45:05.000000000 +0200
-+++ virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in	2008-05-01 18:52:17.000000000 +0200
-@@ -34,6 +34,11 @@
+
+diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.in virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in
+--- virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.in	2008-05-09 09:28:41.000000000 +0000
++++ virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in	2008-05-09 09:29:40.000000000 +0000
+@@ -34,6 +34,11 @@ VARFILE="/var/run/VirtualBox/vboxnet"
  TAPDEV="/dev/net/tun"
  NOLSB=%NOLSB%
  
@@ -20,7 +21,7 @@ diff -urNad virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in.ori
  [ -f /lib/lsb/init-functions ] || NOLSB=yes
  
  if [ -n "$NOLSB" ]; then
-@@ -162,13 +168,6 @@
+@@ -162,13 +167,6 @@ start_network()
      if ! VBoxTunctl -h 2>&1 | grep VBoxTunctl > /dev/null; then
        failure "VBoxTunctl not found"
      fi
@@ -34,7 +35,7 @@ diff -urNad virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in.ori
      # Read the configuration file entries line by line and create the
      # interfaces
      while read line; do
-@@ -179,6 +178,19 @@
+@@ -179,6 +177,19 @@ start_network()
          # or two non-comment entries, possibly followed by a comment).
          if ((! expr match "$2" "#" > /dev/null) &&
              (test -z "$4" || expr match "$4" "#" > /dev/null)); then
@@ -54,7 +55,7 @@ diff -urNad virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in.ori
            # As the very first thing, try delete the interface. Might already
            # exist with different configuration. Ignore errors.
            VBoxTunctl -d $1 > /dev/null 2>&1
-@@ -234,6 +246,7 @@
+@@ -234,6 +245,7 @@ start_network()
        chgrp vboxusers "$TAPDEV"
        chmod 0660 "$TAPDEV"
      fi
@@ -62,7 +63,7 @@ diff -urNad virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in.ori
      return 0
  }
  
-@@ -327,10 +340,17 @@
+@@ -327,10 +339,17 @@ force_stop_network()
  
  case "$1" in
  start)

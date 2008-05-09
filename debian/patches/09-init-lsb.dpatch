@@ -5,10 +5,11 @@
 ## DP: Make initscript lsb cmpliant.
 
 @DPATCH@
-diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh.in virtualbox-ose/src/VBox/Installer/linux/vboxnet.sh.in
---- virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh.in	2008-02-20 14:47:20.000000000 +0100
-+++ virtualbox-ose/src/VBox/Installer/linux/vboxnet.sh.in	2008-02-21 00:57:47.000000000 +0100
-@@ -19,10 +19,10 @@
+
+diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.in virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in
+--- virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.in	2008-05-09 09:28:11.000000000 +0000
++++ virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in	2008-05-09 09:28:41.000000000 +0000
+@@ -20,10 +20,10 @@
  #
  ### BEGIN INIT INFO
  # Provides:       vboxnet
@@ -23,8 +24,7 @@ diff -urNad virtualbox-ose~/src/VBox/Installer/linux/vboxnet.sh.in virtualbox-os
  # Description:    VirtualBox permanent host networking setup
  ### END INIT INFO
  
-@@ -49,15 +49,14 @@
- if [ -z "$NOLSB" ]; then
+@@ -50,14 +50,13 @@ if [ -z "$NOLSB" ]; then
      . /lib/lsb/init-functions
      fail_msg() {
          [ -f "$VARFILE" ] && rm $VARFILE
