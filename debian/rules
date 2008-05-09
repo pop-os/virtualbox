@@ -88,6 +88,7 @@ dfsg-free: clean
 	rm -f ./src/libs/xpcom18a4/xpcom/MoreFiles/FSCopyObject.h
 	rm -rf ./src/libs/ffmpeg-20060710
 	rm -rf ./src/libs/libpng*
+	rm -rf ./src/libs/libxml2*
 	rm -f ./src/VBox/HostServices/SharedClipboard/linux-stub.cpp
 	rm -f ./src/VBox/Additions/linux/xmouse/Imakefile
 	rm -rf ./src/VBox/Additions/linux/selinux-fedora
