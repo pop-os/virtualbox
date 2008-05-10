@@ -49,8 +49,6 @@ kdist_clean: clean
 #
 ### end  KERNEL SETUP
 
-MAKE:=kmk
-
 binary-modules: prep-deb-files
 	dh_testroot
 	dh_clean -k
