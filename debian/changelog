@@ -44,7 +44,7 @@ virtualbox-ose (1.5.6-dfsg-7) unstable; urgency=low
 
   [ Patrick Winnertz ]
   * Added patch to make virtualbox-ose-guest-source build with kernels >=
-    2.6.25. Thanks to Stefan Lippers-Hollmann. (Closes: 478373, 478333)
+    2.6.25. Thanks to Stefan Lippers-Hollmann. (Closes: 478373, 478333, 480736)
 
  -- Michael Meskes <meskes@debian.org>  Sun, 11 May 2008 22:48:50 +0200
 
