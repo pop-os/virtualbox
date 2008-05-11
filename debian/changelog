@@ -1,7 +1,27 @@
 virtualbox-ose (1.6.0-dfsg-1) unstable; urgency=low
 
   [ Michael Meskes ]
-  * New upstream version, closes: #475193, #478373, #478333, #479744
+  * New upstream version, closes: #479744
+  * Removed unneeded xalan build dependency.
+  * Added build dependency on libxslt and libxml.
+  * Fixed LocalConfig.kmk to list new variables.
+  * Use upstream provided X session file, put patch our changes in there.
+
+  [ Daniel Baumann ]
+  * Removing ffmpeg recursively in dfsg-free target in rules.
+  * Rediffing all patches.
+  * Renumbering all patches.
+  * Sanitizing dpatch headers.
+  * Stripping off embedded copy of libpng in dfsg-free target of rules.
+  * Stripping off embedded copy of libxml2 in dfsg-free target of rules.
+  * Stripping off embedded copy of libxslt in dfsg-free target of rules.
+  * Stripping off embedded copy of zlib in dfsg-free target of rules.
+
+ -- Michael Meskes <meskes@debian.org>  Sun, 11 May 2008 22:48:59 +0200
+
+virtualbox-ose (1.5.6-dfsg-7) unstable; urgency=low
+
+  [ Michael Meskes ]
   * Made virtualbox-ose-modules recommend virtualbox-ose-guest-utils.
   * Added recommendation on up-to-date xserver-xorg-core and conflict on
     older versions to guest-utils, closes: #476526
@@ -11,27 +31,20 @@ virtualbox-ose (1.6.0-dfsg-1) unstable; urgency=low
   * Rewrote debian/rules for both source packages, hopefully this
     finally closes: #469882
   * Patched module Makefile to allow amd64 build in linux-modules-extra-2.6.
-  * Removed unneeded xalan build dependency.
-  * Added build dependency on libxslt and libxml.
-  * Fixed LocalConfig.kmk to list new variables.
-  * Use upstream provided X session file, put patch our changes in there.
-  * Do not use kmk to build modules, closes: #480012
+  * Added patch by Pascal Volk <user@localhost.localdomain.org> to prevent
+    init script from overwriting values, closes: #475193
 
   [ Daniel Baumann ]
   * Correcting wrong module-assistant manpage section in
     virtualbox-ose-*source.README.Debian.
   * Removing some reimported useless whitespaces.
-  * Removing ffmpeg recursively in dfsg-free target in rules.
-  * Rediffing all patches.
-  * Renumbering all patches.
-  * Sanitizing dpatch headers.
-  * Stripping off embedded copy of libpng in dfsg-free target of rules.
-  * Stripping off embedded copy of libxml2 in dfsg-free target of rules.
-  * Stripping off embedded copy of libxslt in dfsg-free target of rules.
-  * Stripping off embedded copy of zlib in dfsg-free target of rules.
   * Sanitizing all po headers.
 
- -- Michael Meskes <meskes@debian.org>  Fri, 02 May 2008 10:14:01 +0200
+  [ Patrick Winnertz ]
+  * Added patch to make virtualbox-ose-guest-source build with kernels >=
+    2.6.25. Thanks to Stefan Lippers-Hollmann. (Closes: 478373, 478333)
+
+ -- Michael Meskes <meskes@debian.org>  Sun, 11 May 2008 22:48:50 +0200
 
 virtualbox-ose (1.5.6-dfsg-6) unstable; urgency=low
 

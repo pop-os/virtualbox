@@ -42,6 +42,8 @@ kdist_clean: clean
 #
 ### end  KERNEL SETUP
 
+MAKE:=kmk
+
 clean:
 	(cd vboxadd; $(MAKE) clean)
 	(cd vboxvfs; $(MAKE) clean)
