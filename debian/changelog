@@ -33,8 +33,9 @@ virtualbox-ose (1.5.6-dfsg-7) unstable; urgency=low
   * Patched module Makefile to allow amd64 build in linux-modules-extra-2.6.
   * Added patch by Pascal Volk <user@localhost.localdomain.org> to prevent
     init script from overwriting values, closes: #475193
-  * Added patch from upstream SVN to fix FTBFS in xpcom, closes: #479910.
-
+  * Added patch from upstream SVN to fix FTBFS in xpcom, closes: #479910
+  * Took another change from SVN to update sed file for newer buildchain.
+  * Recompiled against latest libxalan110, closes: #480739
 
   [ Daniel Baumann ]
   * Correcting wrong module-assistant manpage section in
