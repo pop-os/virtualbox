@@ -1,7 +1,7 @@
-virtualbox-ose (1.6.0-dfsg-1) unstable; urgency=low
+virtualbox-ose (1.6.2-dfsg-1) unstable; urgency=low
 
   [ Michael Meskes ]
-  * New upstream version, closes: #479744
+  * New upstream version, closes: #479744, #482504
   * Removed unneeded xalan build dependency.
   * Added build dependency on libxslt and libxml.
   * Fixed LocalConfig.kmk to list new variables.

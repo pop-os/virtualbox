@@ -233,6 +233,9 @@ The LGPL applies to the complete subtree of:
 ./src/VBox/Devices/Graphics/BIOS/vgabios.c
         Copyright: 2001,2002 the LGPL VGABios developers Team
 
+./src/libs/kStuff
+	Copyright (C) 2007 Sun Microsystems, Inc.
+
 On Debian systems, the complete text of the LGPL License
 can be found in /usr/share/common-licenses/LGPL file.
 
