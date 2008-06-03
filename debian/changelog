@@ -1,4 +1,4 @@
-virtualbox-ose (1.6.2-dfsg-1) unstable; urgency=low
+virtualbox-ose (1.6.2-dfsg-1) UNRELEASED; urgency=low
 
   [ Michael Meskes ]
   * New upstream version, closes: #479744, #482504
@@ -16,6 +16,7 @@ virtualbox-ose (1.6.2-dfsg-1) unstable; urgency=low
   * Stripping off embedded copy of libxml2 in dfsg-free target of rules.
   * Stripping off embedded copy of libxslt in dfsg-free target of rules.
   * Stripping off embedded copy of zlib in dfsg-free target of rules.
+  * Improving long description of virtualbox-ose-guest-utils.
 
  -- Michael Meskes <meskes@debian.org>  Sun, 11 May 2008 22:48:59 +0200
 

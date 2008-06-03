@@ -81,3 +81,7 @@ Description: x86 virtualization solution - guest utilities
  .
  This package provides the guest utilities of the Open Source Edition of
  VirtualBox. These utilities are meant to be run inside the virtual machine.
+ They provide closer integration (e.g. mouse pointer, time synchronization),
+ improve the interactive performance (e.g. better video support), and allow to
+ share data through shared folders between the host system and the virtual
+ machine.
