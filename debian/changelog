@@ -19,6 +19,8 @@ virtualbox-ose (1.6.2-dfsg-1) UNRELEASED; urgency=low
   * Improving long description of virtualbox-ose-guest-utils.
   * Correcting wrong virtualbox-ose-guest-utils package name in long
     description of virtuabox-ose-guest-source.
+  * Adding note about kernel module requirement in virtualbox-ose long
+    description.
 
  -- Michael Meskes <meskes@debian.org>  Sun, 11 May 2008 22:48:59 +0200
 

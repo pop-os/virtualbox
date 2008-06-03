@@ -24,7 +24,8 @@ Description: x86 virtualization solution - binaries
  Linux system.
  .
  This package provides the binaries for the Open Source Edition of
- VirtualBox.
+ VirtualBox. The virtualbox-ose-source package is also required in order to
+ compile the kernel modules needed for virtualbox-ose.
 
 Package: virtualbox-ose-dbg
 Section: devel
