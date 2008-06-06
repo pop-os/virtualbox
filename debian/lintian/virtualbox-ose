@@ -7,6 +7,7 @@ virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDDU.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDD2.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDD.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxRT.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSettings.so
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxDD2GC.gc
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxDD2R0.r0
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxDDGC.gc
