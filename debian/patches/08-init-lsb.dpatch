@@ -14,12 +14,10 @@ diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.i
  # Provides:       vboxnet
 -# Required-Start: $network
 -# Required-Stop:
--# Default-Start:  3 5
--# Default-Stop:
 +# Required-Start: $remote_fs $network
 +# Required-Stop:  $remote_fs
-+# Default-Start:  2 3 4 5
-+# Default-Stop:   0 1 6
+ # Default-Start:  2 3 4 5
+ # Default-Stop:   0 1 6
  # Description:    VirtualBox permanent host networking setup
  ### END INIT INFO
  

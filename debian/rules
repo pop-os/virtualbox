@@ -35,7 +35,7 @@ debian/virtualbox-ose.README.Debian: debian/README.Debian.html
 
 env.sh: patch-stamp
 	dh_testdir
-	./configure --with-linux="/usr" --disable-kmods
+	./configure --with-linux="/usr" --disable-kmods --with-gcc=/usr/bin/gcc-4.2 --with-g++=/usr/bin/g++-4.2
 	if [ "`dpkg --print-architecture`" = "i386" ]; then \
 		echo "VBOX_WITH_X11_ADDITIONS=1" >> LocalConfig.kmk; \
 	else \
