@@ -1,12 +1,19 @@
 virtualbox-ose (1.6.2-dfsg-2) UNRELEASED; urgency=low
 
+  [ Daniel Baumann ]
   * Using dpkg-architecture rather than dpkg --print-architecture in
     01-no-64bit-guest.dpatch in order to be more accurate for ia32 subarchs
     like lpia, thanks to Loic Minier <lool@debian.org>.
   * Rediffing 02-config-kmk.dpatch.
 
- -- Daniel Baumann <daniel@debian.org>  Mon,  9 Jun 2008 19:39:00 +0200
+  [ Hilko Bengen ]
+  * Re-added watch file: sources can once again be downloaded directly
+    without having to click through an EULA-style page
+  * Enhanced README.Debian
 
+ -- Hilko Bengen <bengen@debian.org>  Tue, 10 Jun 2008 00:36:49 +0200
+
+ 
 virtualbox-ose (1.6.2-dfsg-1) unstable; urgency=low
 
   [ Michael Meskes ]

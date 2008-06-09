@@ -6,10 +6,11 @@
   <section>
     <title>Different versions</title>
     <para>
-      This Open Source Edition contains most but not all features of
-      the innotek Virtualbox product. Some of the features only
-      present in the closed-source version available from
-      <olink>http://virtualbox.org/wiki/Downloads</olink>:
+      The Open Source Edition of VirtualBox contains most but not all
+      features of the closed-source VirtualBox product that is
+      distributed under different terms and available from the
+      <ulink url="http://virtualbox.org/wiki/Downloads">
+	Virtualbox homepage</ulink>.
     </para>
     <itemizedlist>
       <listitem>
@@ -47,82 +48,113 @@
         </para>
       </listitem>
       <listitem>
-        <para>Emulation for Intel e1000 network device</para>
+        <para>Emulation for Intel e1000 network devices</para>
       </listitem>
+      <!-- FIXME web services? What else? -->
     </itemizedlist>
   </section>
   <section>
-    <title>Networking</title>
-    <para>
-      By default VirtualBox uses NAT for the network interfaces of virtual
-      machines and use an internal DHCP server to obtain an IP address. This
-      works well but the disadvantage is that the machine will not have an IP
-      address visible outside the VM and so you cannot connect to it from the
-      host system or from other systems.
-    </para>
-    <para>
-      By attaching the VM's interface to "Host Interface" and creating a
-      corresponding tun/tap interface the VM can be made visible on the local
-      network.
-    </para>
-    <para>
-      The name for such an interface must start with
-      <code>vbox</code>.
-    </para>
-    <para>
-      There are different ways to create an interface:
-    </para>
+    <title>How to provide networking to virtual machines</title>
     <section>
-      <title>
-        Using VBoxAddIF
-      </title>
+      <title>Mechanism</title>
       <para>
-        In this case you only need to "define" an interface for use by a
-        particular user once. All defined interfaces are "remembered" in the
-        file /etc/vbox/interfaces and recreated by the VirtualBox init script
-        every time the host system is booted.
-        <figure>
-          <title>Configuration of tun/tap interface for VirtualBox</title>
-          <para>
-            <programlisting>
-	VBoxAddIF vbox0 USER br0
-            </programlisting>
-          </para>
-        </figure>
+	VirtualBox can use three alternative mechanisms to provide
+	Ethernet networking to its virtual machines:b
       </para>
-      <para>
-        You can of course create multiple interfaces per users, but all
-        interfaces should have unique names.
-      </para>
+      <section>
+	<title>NAT</title>
+	<para>
+	  This is the easiest to use type of setup: The virtual
+	  ethernet interface is connected to a virtual NAT router
+	  including a DHCP server that is implemented within
+	  the VirtualBox host software.
+	</para>
+	<para>
+	  This is the default mode. It usually does not require
+	  any extra configuration on the host.
+	</para>
+      </section>
+      <section>
+	<title>Internal network</title>
+	<para>
+	  In this mode, there is only connectivity within an
+	  emulated network shared between two or more virtual
+	  machines running in the same VirtualBox instance.
+	</para>
+      </section>
+      <section>
+	<title>Host interface</title>
+	<para>
+	  The virtual ethernet interface is connected to a
+	  <emphasis>TAP</emphasis> device on the host. Adding this
+	  <emphasis>TAP</emphasis> device to a bridging or IP routing
+	  setup is the responsibility of the user.
+	</para>
+      </section>
     </section>
     <section>
-      <title>
-        Using ifupdown
-      </title>
+      <title>Host interface configuration</title>
       <para>
-        Starting with version 1.5.6-3, the virtualbox-ose package
-        contains helper scripts that allow tap interfaces for
-        host-based networking to be configured from
-        <filename>/etc/network/interfaces</filename>.
+	By attaching the VM's interface to "Host Interface" and
+	creating a corresponding <emphasis>TAP</emphasis> interface
+	the VM can be made visible on the local network.
       </para>
-      <para>
-        The owner <!-- and group --> for this interface can be
-        configured using the <code>virtualbox-user</code> <!-- and
-        <code>virtualbox-group</code>keywords respectively.-->
-        keyword.
-        <figure>
-          <title>Configuration of tun/tap interface for VirtualBox</title>
-          <para>
-            <programlisting>
+      <section>
+	<title>Using <command>VBoxAddIF</command></title>
+	<para>
+	  The VirtualBox includes a helper script,
+	  <command>VBoxAddIF</command> that sets up a
+	  <emphasis>TAP</emphasis> device for a specified user and
+	  optionally connects it to a bridge. This needs to be done
+	  only once for a particular user. Settings for all defined
+	  interfaces are stored in the file
+	  <filename>/etc/vbox/interfaces</filename> and created by the
+	  <filename>/etc/init.d/virtualbox-ose</filename> init script
+	  whenever the host system is booted.
+	  <figure>
+	    <title>Sample commandlines for permanently setting up
+	      <emphasis>TAP</emphasis> interface</title>
+	    <cmdsynopsis>
+	      <command># VBoxAddIF vbox0 luser1 br0</command>
+	      <command># VBoxAddIF vbox1 luser2</command>
+	    </cmdsynopsis>
+	  </figure>
+	  These interfaces can be removed using the
+	  <command>VBoxDeleteIF</command> command.
+	</para>
+	<para>
+	  You can of course create multiple interfaces per user, but
+	  interfaces must have unique names.
+	</para>
+      </section>
+      <section><title><command>ifup</command> /
+	  <command>ifdown</command></title>
+	<para>
+	  Starting with version 1.5.6-3, the virtualbox-ose package
+	  contains helper scripts that allow <emphasis>TAP</emphasis>
+	  interfaces for host-based networking to be configured from
+	  <filename>/etc/network/interfaces</filename>. The names for
+	  such interfaces must start with <code>vbox</code>. The
+	  owner <!-- and group --> for this interface can be set using
+	  the <code>virtualbox-user</code> <!-- and
+	  <code>virtualbox-group</code>keywords respectively.-->
+	  keyword.
+	  <figure>
+	    <title>Configuration of <emphasis>TAP</emphasis> interface
+	    for VirtualBox</title>
+	    <para>
+	      <programlisting>
 iface vbox0 inet static
 	address 192.168.3.1
 	netmask 255.255.255.0
-	virtualbox-user USER
+	virtualbox-user luser
 <!-- #virtualbox-group vboxusers -->
-            </programlisting>
-          </para>
-        </figure>
-      </para>
+	      </programlisting>
+	    </para>
+	  </figure>
+	</para>
+	<!-- FIXME: Bridging -->
+      </section>
     </section>
   </section>
   <section>
@@ -130,20 +162,32 @@ iface vbox0 inet static
     <para>
       Unfortunately, the configuration files between version version
       1.4.0-svn4130 and 1.5.0 the configuration files are
-      incompatible.
-    </para>
-    <para>
-      In order to fix this issue please delete the complete
-      <![CDATA[<Uart>]]> section in your
-      <filename>~/.VirtualBox/Machines/NAME/NAME.xml</filename> file.
+      incompatible. In order to fix this issue please delete the
+      complete <command><![CDATA[<Uart>]]></command> section in any
+      <filename>~/.VirtualBox/Machines/NAME/NAME.xml</filename> files.
     </para>
   </section>
   <section>
-    <title>Additional information</title>
+    <title>See also</title>
     <para>
-      Please see the
-      <ulink url="http://wiki.debian.org/VirtualBox">VirtualBox page</ulink>
-      in the Debian Wiki for additional or updated information.
+      Additional and updated information may be found on
+      <itemizedlist>
+	<listitem>
+	  <para>
+	    the
+	    <ulink url="http://virtualbox.org/wiki/End-user_documentation">
+	      End-user documentation</ulink> section of the official
+	    VirtualBox site.
+	  </para>
+	</listitem>
+	<listitem>
+	  <para>
+	    the
+	    <ulink url="http://wiki.debian.org/VirtualBox">VirtualBox</ulink>
+	    page in the Debian Wiki.
+	  </para>
+	</listitem>
+      </itemizedlist>
     </para>
   </section>
 </article>
