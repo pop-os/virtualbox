@@ -13,7 +13,7 @@ diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/configure virtualbox-ose-1.6.0-dfsg/c
        ;;
    esac
 -  BUILD_CPU=`uname -m`
-+  BUILD_CPU=`dpkg --print-architecture`
++  BUILD_CPU=`dpkg-architecture -qDEB_HOST_ARCH_CPU`
    [ "$OS" = "solaris" ] && BUILD_CPU=`isainfo | cut -f 1 -d ' '`
    case "$BUILD_CPU" in
      i[3456789]86|x86|i86pc)
