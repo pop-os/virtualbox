@@ -6,9 +6,10 @@
 
 @DPATCH@
 
---- virtualbox-ose-1.6.2-dfsg.orig/Config.kmk	2008-05-22 00:11:41.000000000 +0200
-+++ virtualbox-ose-1.6.2-dfsg/Config.kmk	2008-05-26 00:24:55.000000000 +0200
-@@ -957,7 +957,7 @@ VBOX_PATH_DIFX ?= $(PATH_DEVTOOLS)/win.$
+diff -Naurp virtualbox-ose-1.6.2-dfsg.orig/Config.kmk virtualbox-ose-1.6.2-dfsg/Config.kmk
+--- virtualbox-ose-1.6.2-dfsg.orig/Config.kmk	2008-05-31 17:22:52.000000000 +0000
++++ virtualbox-ose-1.6.2-dfsg/Config.kmk	2008-06-09 17:40:09.000000000 +0000
+@@ -969,7 +969,7 @@ VBOX_PATH_DIFX ?= $(PATH_DEVTOOLS)/win.$
  # We need to export YASM for OSE, but since it was converted to .zip we need to
  # allow for the location used by the zip to be properly cleaned up first.
  if1of ($(KBUILD_HOST).$(KBUILD_HOST_ARCH),  win.x86 linux.x86 solaris.x86)
@@ -17,7 +18,7 @@
  endif
  
  # XPCOM setup for all but win32.
-@@ -1459,7 +1459,7 @@ if1of ($(KBUILD_TARGET), linux)
+@@ -1480,7 +1480,7 @@ if1of ($(KBUILD_TARGET), linux)
     kernelsrc := $(shell $(SED_EXT) -ne 's+^KERNELSRC.*= *\(.*\)+\1+p' $(VBOX_LINUX_SRC)/Makefile)
     ifneq ($(kernelsrc),)
      kernelpath := $(realpath $(VBOX_LINUX_SRC)/$(kernelsrc))
