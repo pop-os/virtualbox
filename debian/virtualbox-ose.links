@@ -1,9 +1,11 @@
 /usr/lib/virtualbox/xpidl /usr/share/virtualbox/sdk/bin/xpidl
 
 /usr/share/virtualbox/VBox.sh /usr/bin/vditool
+/usr/share/virtualbox/VBox.sh /usr/bin/vboxheadless
 /usr/share/virtualbox/VBox.sh /usr/bin/vboxmanage
 /usr/share/virtualbox/VBox.sh /usr/bin/vboxsdl
 /usr/share/virtualbox/VBox.sh /usr/bin/virtualbox
+/usr/share/virtualbox/VBox.sh /usr/bin/VBoxHeadless
 /usr/share/virtualbox/VBox.sh /usr/bin/VBoxManage
 /usr/share/virtualbox/VBox.sh /usr/bin/VBoxSDL
 /usr/share/virtualbox/VBox.sh /usr/bin/VirtualBox
