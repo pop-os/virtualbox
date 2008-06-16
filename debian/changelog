@@ -13,7 +13,6 @@ virtualbox-ose (1.6.2-dfsg-2) UNRELEASED; urgency=low
 
  -- Hilko Bengen <bengen@debian.org>  Tue, 10 Jun 2008 00:36:49 +0200
 
- 
 virtualbox-ose (1.6.2-dfsg-1) unstable; urgency=low
 
   [ Michael Meskes ]
