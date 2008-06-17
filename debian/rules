@@ -47,9 +47,9 @@ build-stamp: env.sh
 	dh_testdir
 
 	# Building package
-	$(MAKE) \
+	(. env.sh; $(MAKE) \
 		BUILD_TYPE=release \
-		PATH_OUT=$(abspath out)
+		PATH_OUT=$(abspath out))
 	# make sure VBoxAddIF.sh is built, too
 	$(MAKE) -C src/VBox/Installer/linux $(abspath out/bin/VBoxAddIF.sh) \
 		PATH_OUT=$(abspath out)
