@@ -65,7 +65,7 @@ clean: unpatch
 
 	# Cleaning package
 	rm -rf out
-	rm -f AutoConfig.kmk configure.log env.sh
+	rm -f AutoConfig.kmk configure.log env.sh LocalConfig.kmk
 	rm -f debian/$(sname).init debian/$(sname).preinst
 	rm -f debian/virtualbox-ose.README.Debian debian/README.Debian.html
 
