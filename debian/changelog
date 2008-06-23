@@ -5,6 +5,8 @@ virtualbox-ose (1.6.2-dfsg-2) UNRELEASED; urgency=low
     01-no-64bit-guest.dpatch in order to be more accurate for ia32 subarchs
     like lpia, thanks to Loic Minier <lool@debian.org>.
   * Rediffing 02-config-kmk.dpatch.
+  * Adding patch to adjust failure message with Debian specific solution when
+    experiencing kernel module version mismatch.
 
   [ Hilko Bengen ]
   * Re-added watch file: sources can once again be downloaded directly
