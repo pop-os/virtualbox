@@ -129,17 +129,13 @@ binary-arch: build install
 	dh_installchangelogs -a
 	dh_installdocs -a
 	dh_installmenu -a
-	dh_install -p$(sname)
+	dh_install -s
 	chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh;
-	if [ "`dpkg --print-architecture`" = "i386" ]; then \
-		dh_install -p$(uname); \
-		chmod 755 debian/$(uname)/usr/share/virtualbox/x11config.pl; \
-		install -m 644 out/bin/additions/vboxvideo_drv_14.so debian/$(uname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so; \
-		install -m 644 out/bin/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/input/vboxmouse_drv.so; \
-		install -m 755 out/bin/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf; \
-		dh_strip -p$(uname); \
-	fi
-	dh_strip -p$(sname) --dbg-package=$(sname)-dbg -X/usr/share/virtualbox/sdk/bin/xpidl
+	-chmod 755 debian/$(uname)/usr/share/virtualbox/x11config.pl
+	-install -m 644 out/bin/additions/vboxvideo_drv_14.so debian/$(uname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
+	-install -m 644 out/bin/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
+	-install -m 755 out/bin/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
+	dh_strip -s --dbg-package=$(sname)-dbg -X/usr/share/virtualbox/sdk/bin/xpidl
 	dh_link -a
 	dh_compress -a
 	dh_fixperms -a
