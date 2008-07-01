@@ -22,6 +22,10 @@ virtualbox-ose (1.6.2-dfsg-2) UNRELEASED; urgency=low
   * Remove LocalConfig.kmk in clean target.
   * Source env.sh before starting to build.
 
+  [ Loic Minier ]
+  * Build virtualbox-ose, virtualbox-ose-dbg, and virtualbox-ose-guest-utils
+    for lpia.
+
  -- Michael Meskes <meskes@debian.org>  Tue, 17 Jun 2008 14:52:36 +0200
 
 virtualbox-ose (1.6.2-dfsg-1) unstable; urgency=low

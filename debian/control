@@ -10,7 +10,7 @@ Vcs-Svn: svn://svn.debian.org/svn/pkg-virtualbox/trunk
 Vcs-Browser: http://svn.debian.org/wsvn/pkg-virtualbox/trunk
 
 Package: virtualbox-ose
-Architecture: amd64 i386
+Architecture: amd64 i386 lpia
 Depends: ${shlibs:Depends}, ${misc:Depends}, adduser
 Pre-Depends: debconf | debconf-2.0
 Recommends: virtualbox-ose-modules
@@ -30,7 +30,7 @@ Description: x86 virtualization solution - binaries
 Package: virtualbox-ose-dbg
 Section: devel
 Priority: extra
-Architecture: amd64 i386
+Architecture: amd64 i386 lpia
 Depends: virtualbox-ose (= ${binary:Version})
 Description: x86 virtualization solution - debugging symbols
  VirtualBox is a free x86 virtualization solution allowing a wide range
@@ -69,7 +69,7 @@ Description: x86 virtualization solution - guest addition module source
  these modules.
 
 Package: virtualbox-ose-guest-utils
-Architecture: i386
+Architecture: i386 lpia
 Depends: ${shlibs:Depends}, ${misc:Depends}, pciutils
 Conflicts: xserver-xorg-core (< 2:1.4)
 Recommends: virtualbox-ose-guest-modules, xserver-xorg-core (>= 2:1.4)
