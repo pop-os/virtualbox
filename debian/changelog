@@ -35,6 +35,7 @@ virtualbox-ose (1.6.2-dfsg-2) UNRELEASED; urgency=low
   * Install files into virtualbox-ose-guest-utils unconditionally and ignore
     errors -- even if these exist, the package is disabled on amd64.
   * Cleanup rules slightly.
+  * Add ${misc:Depends} as this is recommended nowadays.
 
  -- Michael Meskes <meskes@debian.org>  Tue, 17 Jun 2008 14:52:36 +0200
 
