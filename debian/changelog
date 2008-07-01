@@ -27,6 +27,8 @@ virtualbox-ose (1.6.2-dfsg-2) UNRELEASED; urgency=low
     for lpia.
   * Wrap uploaders, bdeps, and deps on multiple lines to get cleaner diffs.
   * Cleanup upstreamversion computation and compute it only once.
+  * Set VBOX_WITH_X11_ADDITIONS in rules when the DEB_HOST_ARCH is i386 or
+    lpia instead of using dpkg --print-architecture.
 
  -- Michael Meskes <meskes@debian.org>  Tue, 17 Jun 2008 14:52:36 +0200
 
