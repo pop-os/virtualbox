@@ -1,8 +1,5 @@
 #!/usr/bin/make -f
 
-# Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
-
 include /usr/share/dpatch/dpatch.make
 
 # some default definitions, important!
@@ -20,7 +17,7 @@ uname:=virtualbox-ose-guest-utils
 ### taken from /usr/share/kernel-package/sample.module.rules
 
 # prefix of the target package name
-PACKAGE=virtualbox-ose-modules
+PACKAGE := virtualbox-ose-modules
 # modifieable for experiments or debugging m-a
 MA_DIR ?= /usr/share/modass
 # load generic variable handling
@@ -54,13 +51,10 @@ MAKE:=kmk
 binary-modules: prep-deb-files
 	dh_testroot
 	dh_clean -k
-
 	# Build the module
 	$(MAKE) -C $(KSRC) M=$(CURDIR)
-
 	# Install the module
 	dh_install vboxdrv.ko /lib/modules/$(KVERS)/misc/
-
 	dh_installdocs
 	dh_installchangelogs
 	dh_compress
