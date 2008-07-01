@@ -1,8 +1,5 @@
 #!/usr/bin/make -f
 
-# Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
-
 include /usr/share/dpatch/dpatch.make
 
 # some default definitions, important!
@@ -30,9 +27,9 @@ endif
 # Generate README.Debian as text/html ...
 debian/README.Debian.html: debian/virtualbox-ose.README.Debian.xml
 	xsltproc --nonet --stringparam section.autolabel 1 \
-	-o $@ \
-	/usr/share/xml/docbook/stylesheet/nwalsh/html/docbook.xsl \
-	$<
+	    -o $@ \
+	    /usr/share/xml/docbook/stylesheet/nwalsh/html/docbook.xsl \
+	    $<
 
 # ... and text/plain
 debian/virtualbox-ose.README.Debian: debian/README.Debian.html
@@ -42,17 +39,20 @@ debian/virtualbox-ose.README.Debian: debian/README.Debian.html
 
 env.sh: patch-stamp
 	dh_testdir
-	./configure --with-linux="/usr" --disable-kmods --with-gcc=/usr/bin/gcc-4.2 --with-g++=/usr/bin/g++-4.2
+	./configure \
+	    --with-linux="/usr" \
+	    --disable-kmods \
+	    --with-gcc=/usr/bin/gcc-4.2 \
+	    --with-g++=/usr/bin/g++-4.2
 ifeq ($(VBOX_WITH_X11_ADDITIONS),)
-		echo "VBOX_WITH_X11_ADDITIONS=" >>LocalConfig.kmk
+	echo "VBOX_WITH_X11_ADDITIONS=" >>LocalConfig.kmk
 else
-		echo "VBOX_WITH_X11_ADDITIONS=1" >>LocalConfig.kmk
+	echo "VBOX_WITH_X11_ADDITIONS=1" >>LocalConfig.kmk
 endif
 
 build: build-stamp
 build-stamp: env.sh
 	dh_testdir
-
 	# Building package
 	(. env.sh; $(MAKE) \
 		BUILD_TYPE=release \
@@ -63,21 +63,17 @@ build-stamp: env.sh
 	# and vboxnet.sh
 	$(MAKE) -C src/VBox/Installer/linux $(abspath out/obj/src/VBox/Installer/linux/vboxnet.sh) \
 		PATH_OUT=$(abspath out)
-
-	touch build-stamp
+	touch $@
 
 clean: unpatch
 	dh_testdir
 	dh_testroot
-
 	# Cleaning package
 	rm -rf out
 	rm -f AutoConfig.kmk configure.log env.sh LocalConfig.kmk
 	rm -f debian/$(sname).init debian/$(sname).preinst
 	rm -f debian/virtualbox-ose.README.Debian debian/README.Debian.html
-
 	debconf-updatepo
-
 	dh_clean
 
 #Rebuild the orig.tar.gz
@@ -101,11 +97,10 @@ dfsg-free: clean
 	rm -f ./src/VBox/HostServices/SharedClipboard/linux-stub.cpp
 	rm -f ./src/VBox/Additions/linux/xmouse/Imakefile
 	rm -rf ./src/VBox/Additions/linux/selinux-fedora
-
 	(cd ..; mv $(CURDIR) virtualbox-ose-$(upstreamversion)-dfsg; \
-	 tar --exclude .svn --exclude '.git*' --exclude debian \
-		-czf virtualbox-ose_$(upstreamversion)-dfsg.orig.tar.gz \
-		virtualbox-ose-$(upstreamversion)-dfsg)
+	    tar --exclude .svn --exclude '.git*' --exclude debian \
+	        -czf virtualbox-ose_$(upstreamversion)-dfsg.orig.tar.gz \
+	        virtualbox-ose-$(upstreamversion)-dfsg)
 
 # install: DH_OPTIONS=
 install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
@@ -113,15 +108,12 @@ install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
 	dh_testroot
 	dh_clean -k
 	dh_installdirs
-
 	# This will get installed into the package by dh_installinit
 	install -m 644 out/obj/src/VBox/Installer/linux/vboxnet.sh debian/$(sname).init
-
 	# We also need to build a preinst file
 	sed -e 's/UPSTREAM/"$(upstreamversion)"/' < debian/$(sname).preinst.in > debian/$(sname).preinst
-
 	# Install helper scripts for vbox* interfaces
-	dh_installifupdown -p${sname}
+	dh_installifupdown -p$(sname)
 
 binary-arch: build install
 	dh_testdir -s
@@ -130,7 +122,7 @@ binary-arch: build install
 	dh_installdocs -s
 	dh_installmenu -s
 	dh_install -s
-	chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh;
+	chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh
 	-chmod 755 debian/$(uname)/usr/share/virtualbox/x11config.pl
 	-install -m 644 out/bin/additions/vboxvideo_drv_14.so debian/$(uname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
 	-install -m 644 out/bin/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
@@ -160,11 +152,11 @@ binary-indep: build install
 	dh_link -i
 	# Create .tar.bz2 for virtualbox*source
 	cd debian/$(psource)/usr/src && \
-		tar -cjf $(sname).tar.bz2 modules && \
-		rm -rf modules
+	    tar -cjf $(sname).tar.bz2 modules && \
+	    rm -rf modules
 	cd debian/$(gsource)/usr/src && \
-		tar -cjf $(gname).tar.bz2 modules && \
-		rm -rf modules
+	    tar -cjf $(gname).tar.bz2 modules && \
+	    rm -rf modules
 	dh_compress -i
 	dh_fixperms -i
 	dh_gencontrol -i
