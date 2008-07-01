@@ -26,6 +26,7 @@ virtualbox-ose (1.6.2-dfsg-2) UNRELEASED; urgency=low
   * Build virtualbox-ose, virtualbox-ose-dbg, and virtualbox-ose-guest-utils
     for lpia.
   * Wrap uploaders, bdeps, and deps on multiple lines to get cleaner diffs.
+  * Cleanup upstreamversion computation and compute it only once.
 
  -- Michael Meskes <meskes@debian.org>  Tue, 17 Jun 2008 14:52:36 +0200
 

@@ -18,7 +18,7 @@ uname:=virtualbox-ose-guest-utils
 
 MAKE:=kmk
 
-upstreamversion=$(shell dpkg-parsechangelog | grep Version | cut -d" " -f2 | cut -d"-" -f1)
+upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)-.\+/\1/p')
 
 # Generate README.Debian as text/html ...
 debian/README.Debian.html: debian/virtualbox-ose.README.Debian.xml
