@@ -31,6 +31,7 @@ virtualbox-ose (1.6.2-dfsg-2) UNRELEASED; urgency=low
     lpia instead of using dpkg --print-architecture.
   * Use the -s flag to dh_ commands instead of 3 debhelper calls and a shell
     test; as a bonus, this provides additional detached symbols in -dbg.
+  * Move all -a flags to -s.
   * Install files into virtualbox-ose-guest-utils unconditionally and ignore
     errors -- even if these exist, the package is disabled on amd64.
 

@@ -124,11 +124,11 @@ install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
 	dh_installifupdown -p${sname}
 
 binary-arch: build install
-	dh_testdir -a
-	dh_testroot -a
-	dh_installchangelogs -a
-	dh_installdocs -a
-	dh_installmenu -a
+	dh_testdir -s
+	dh_testroot -s
+	dh_installchangelogs -s
+	dh_installdocs -s
+	dh_installmenu -s
 	dh_install -s
 	chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh;
 	-chmod 755 debian/$(uname)/usr/share/virtualbox/x11config.pl
@@ -136,16 +136,16 @@ binary-arch: build install
 	-install -m 644 out/bin/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
 	-install -m 755 out/bin/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
 	dh_strip -s --dbg-package=$(sname)-dbg -X/usr/share/virtualbox/sdk/bin/xpidl
-	dh_link -a
-	dh_compress -a
-	dh_fixperms -a
-	dh_installudev -a
-	dh_installdebconf -a
-	dh_installinit -a
-	dh_installdeb -a
-	dh_shlibdeps -a
+	dh_link -s
+	dh_compress -s
+	dh_fixperms -s
+	dh_installudev -s
+	dh_installdebconf -s
+	dh_installinit -s
+	dh_installdeb -s
+	dh_shlibdeps -s
 	dh_gencontrol -s
-	dh_md5sums -a
+	dh_md5sums -s
 	dh_builddeb -s
 
 binary-indep: build install
