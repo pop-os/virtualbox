@@ -9,8 +9,9 @@ virtualbox-ose (1.6.2-dfsg-2) UNRELEASED; urgency=low
     experiencing kernel module version mismatch.
 
   [ Hilko Bengen ]
-  * Re-added watch file: sources can once again be downloaded directly
-    without having to click through an EULA-style page
+  * Re-added watch file: Innotek/Sun still want us to use their INTERSHOP
+    system to download the tarball, but luckily, there is an alternative
+    download location.
   * Enhanced README.Debian
 
   [ Patrick Winnertz ]
