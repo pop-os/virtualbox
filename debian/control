@@ -2,8 +2,36 @@ Source: virtualbox-ose
 Section: misc
 Priority: extra
 Maintainer: Debian Virtualbox Team <pkg-virtualbox-devel@lists.alioth.debian.org>
-Uploaders: Philipp Hug <debian@hug.cx>, Marvin Stark <marv@der-marv.de>, Michael Meskes <meskes@debian.org>, Patrick Winnertz <winnie@debian.org>, Daniel Baumann <daniel@debian.org>, Hilko Bengen <bengen@debian.org>
-Build-Depends: debhelper (>= 5.0.44~), dpatch, bcc, bzip2, g++-4.2-multilib [amd64], iasl, kbuild, libacl1-dev, libasound-dev, libhal-dev, libidl-dev, libqt3-mt-dev, libsdl1.2-dev, libxslt1-dev, uuid-dev, yasm (>= 0.7.0), libpulse-dev, po-debconf (>= 0.5.0), docbook-xsl, xsltproc, lynx, docbook-xml, gcc-4.2, g++-4.2
+Uploaders: Philipp Hug <debian@hug.cx>,
+           Marvin Stark <marv@der-marv.de>,
+           Michael Meskes <meskes@debian.org>,
+           Patrick Winnertz <winnie@debian.org>,
+           Daniel Baumann <daniel@debian.org>,
+           Hilko Bengen <bengen@debian.org>
+Build-Depends: debhelper (>= 5.0.44~),
+               dpatch,
+               bcc,
+               bzip2,
+               g++-4.2-multilib [amd64],
+               iasl,
+               kbuild,
+               libacl1-dev,
+               libasound-dev,
+               libhal-dev,
+               libidl-dev,
+               libqt3-mt-dev,
+               libsdl1.2-dev,
+               libxslt1-dev,
+               uuid-dev,
+               yasm (>= 0.7.0),
+               libpulse-dev,
+               po-debconf (>= 0.5.0),
+               docbook-xsl,
+               xsltproc,
+               lynx,
+               docbook-xml,
+               gcc-4.2,
+               g++-4.2
 Standards-Version: 3.8.0
 Homepage: http://www.virtualbox.org/
 Vcs-Svn: svn://svn.debian.org/svn/pkg-virtualbox/trunk
@@ -11,7 +39,9 @@ Vcs-Browser: http://svn.debian.org/wsvn/pkg-virtualbox/trunk
 
 Package: virtualbox-ose
 Architecture: amd64 i386 lpia
-Depends: ${shlibs:Depends}, ${misc:Depends}, adduser
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         adduser
 Pre-Depends: debconf | debconf-2.0
 Recommends: virtualbox-ose-modules
 Suggests: virtualbox-ose-source, bridge-utils
@@ -42,7 +72,11 @@ Description: x86 virtualization solution - debugging symbols
 
 Package: virtualbox-ose-source
 Architecture: all
-Depends: debhelper (>= 5), dpatch, module-assistant, bzip2, kbuild
+Depends: debhelper (>= 5),
+         dpatch,
+         module-assistant,
+         bzip2,
+         kbuild
 Conflicts: virtualbox-source
 Replaces: virtualbox-source
 Provides: virtualbox-source
@@ -57,7 +91,11 @@ Description: x86 virtualization solution - kernel module source
 
 Package: virtualbox-ose-guest-source
 Architecture: all
-Depends: debhelper (>= 5), dpatch, module-assistant, bzip2, kbuild
+Depends: debhelper (>= 5),
+         dpatch,
+         module-assistant,
+         bzip2,
+         kbuild
 Description: x86 virtualization solution - guest addition module source
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -70,11 +108,15 @@ Description: x86 virtualization solution - guest addition module source
 
 Package: virtualbox-ose-guest-utils
 Architecture: i386 lpia
-Depends: ${shlibs:Depends}, ${misc:Depends}, pciutils
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         pciutils
 Conflicts: xserver-xorg-core (< 2:1.4)
-Recommends: virtualbox-ose-guest-modules, xserver-xorg-core (>= 2:1.4)
+Recommends: virtualbox-ose-guest-modules,
+            xserver-xorg-core (>= 2:1.4)
 Suggests: virtualbox-ose-guest-source
-Provides: xserver-xorg-video-2, xserver-xorg-input-2
+Provides: xserver-xorg-video-2,
+          xserver-xorg-input-2
 Description: x86 virtualization solution - guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
