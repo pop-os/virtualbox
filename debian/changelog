@@ -1,4 +1,4 @@
-virtualbox-ose (1.6.2-dfsg-2) UNRELEASED; urgency=low
+virtualbox-ose (1.6.2-dfsg-2) unstable; urgency=low
 
   [ Daniel Baumann ]
   * Using dpkg-architecture rather than dpkg --print-architecture in
@@ -21,6 +21,11 @@ virtualbox-ose (1.6.2-dfsg-2) UNRELEASED; urgency=low
   [ Michael Meskes ]
   * Remove LocalConfig.kmk in clean target.
   * Source env.sh before starting to build.
+  * Include our wiki page as simple html file under
+    /usr/share/doc/virtualbox-ose. (Closes: #484998)
+  * Install VBoxRandR into guest-utils package.
+  * Moved udev rule from virtualbox-ose-guest-modules package to
+    virtualbox-ose-guest-utils package. (Closes: #488455)
 
   [ Loic Minier ]
   * Build virtualbox-ose, virtualbox-ose-dbg, and virtualbox-ose-guest-utils

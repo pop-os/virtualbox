@@ -127,6 +127,7 @@ binary-arch: build install
 	-install -m 644 out/bin/additions/vboxvideo_drv_14.so debian/$(uname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
 	-install -m 644 out/bin/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
 	-install -m 755 out/bin/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
+	-install -m 755 src/VBox/Additions/x11/installer/VBoxRandR.sh debian/$(uname)/usr/bin/VBoxRandR
 	dh_strip -s --dbg-package=$(sname)-dbg -X/usr/share/virtualbox/sdk/bin/xpidl
 	dh_link -s
 	dh_compress -s

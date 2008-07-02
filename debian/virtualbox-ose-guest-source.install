@@ -21,4 +21,3 @@ debian/virtualbox-ose-guest-source.files/Makefile /usr/src/modules/virtualbox-os
 debian/virtualbox-ose-guest-source.files/control.modules.in /usr/src/modules/virtualbox-ose-guest/debian
 debian/virtualbox-ose-guest-source.files/postinst.modules.in /usr/src/modules/virtualbox-ose-guest/debian
 debian/virtualbox-ose-guest-source.files/rules /usr/src/modules/virtualbox-ose-guest/debian
-debian/virtualbox-ose-guest-source.files/udev /usr/src/modules/virtualbox-ose-guest/debian
