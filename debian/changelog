@@ -1,6 +1,6 @@
 virtualbox-ose (1.6.2-dfsg-3) UNRELEASED; urgency=low
 
-  * Removing trailing empty line in virtualbox-ose.postinst.
+  * Removing empty lines at EOF and whitespaces at EOL.
 
  -- Daniel Baumann <daniel@debian.org>  Wed,  2 Jul 2008 18:33:00 +0200
 
