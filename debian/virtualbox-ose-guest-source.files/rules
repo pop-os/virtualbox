@@ -42,8 +42,8 @@ kdist_clean: clean
 MAKE:=kmk
 
 clean:
-	(cd vboxadd; $(MAKE) clean)
-	(cd vboxvfs; $(MAKE) clean)
+	$(MAKE) -C vboxadd clean
+	$(MAKE) -C vboxvfs
 	dh_clean
 
 binary-modules: prep-deb-files

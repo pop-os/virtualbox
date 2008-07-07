@@ -34,7 +34,7 @@ debian/README.Debian.html: debian/virtualbox-ose.README.Debian.xml
 # ... and text/plain
 debian/virtualbox-ose.README.Debian: debian/README.Debian.html
 	chmod 755 debian/lynx-dump-postprocess
-	(LANG=C; lynx -force_html -dump $< | ./debian/lynx-dump-postprocess > $@.tmp)
+	export LANG=C; lynx -force_html -dump $< | ./debian/lynx-dump-postprocess > $@.tmp
 	mv $@.tmp $@
 
 env.sh: patch-stamp
@@ -54,9 +54,9 @@ build: build-stamp
 build-stamp: env.sh
 	dh_testdir
 	# Building package
-	(. env.sh; $(MAKE) \
+	. env.sh; $(MAKE) \
 		BUILD_TYPE=release \
-		PATH_OUT=$(abspath out))
+		PATH_OUT=$(abspath out)
 	# make sure VBoxAddIF.sh is built, too
 	$(MAKE) -C src/VBox/Installer/linux $(abspath out/bin/VBoxAddIF.sh) \
 		PATH_OUT=$(abspath out)
@@ -97,10 +97,10 @@ dfsg-free: clean
 	rm -f ./src/VBox/HostServices/SharedClipboard/linux-stub.cpp
 	rm -f ./src/VBox/Additions/linux/xmouse/Imakefile
 	rm -rf ./src/VBox/Additions/linux/selinux-fedora
-	(cd ..; mv $(CURDIR) virtualbox-ose-$(upstreamversion)-dfsg; \
+	cd ..; mv $(CURDIR) virtualbox-ose-$(upstreamversion)-dfsg; \
 	    tar --exclude .svn --exclude '.git*' --exclude debian \
 	        -czf virtualbox-ose_$(upstreamversion)-dfsg.orig.tar.gz \
-	        virtualbox-ose-$(upstreamversion)-dfsg)
+	        virtualbox-ose-$(upstreamversion)-dfsg
 
 # install: DH_OPTIONS=
 install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
