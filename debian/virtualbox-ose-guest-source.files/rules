@@ -43,7 +43,7 @@ MAKE:=kmk
 
 clean:
 	$(MAKE) -C vboxadd clean
-	$(MAKE) -C vboxvfs
+	$(MAKE) -C vboxvfs clean
 	dh_clean
 
 binary-modules: prep-deb-files
