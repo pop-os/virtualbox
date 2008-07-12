@@ -2,6 +2,9 @@ virtualbox-ose (1.6.2-dfsg-3) UNRELEASED; urgency=low
 
   [ Daniel Baumann ]
   * Removing empty lines at EOF and whitespaces at EOL.
+  * Including vboxvideo.ids in virtualbox-ose-guest-utils to allow xserver to
+    automagically detect the display adapter, thanks to Avi Rozen
+    <avi.rozen@gmail.com> (Closes: #490541).
 
   [ Loic Minier ]
   * Drop useless subshells in rules files and export environment vars
