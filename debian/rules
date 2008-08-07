@@ -54,7 +54,7 @@ build: build-stamp
 build-stamp: env.sh
 	dh_testdir
 	# Building package
-	. env.sh; $(MAKE) \
+	. ./env.sh; $(MAKE) \
 		BUILD_TYPE=release \
 		PATH_OUT=$(abspath out)
 	# make sure VBoxAddIF.sh is built, too
