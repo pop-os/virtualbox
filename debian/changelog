@@ -1,3 +1,12 @@
+virtualbox-ose (1.6.2-dfsg-4) UNRELEASED; urgency=medium
+
+  * Adding patch from Gonéri Le Bouder <goneri@rulezlan.org> to fix FTBFS with
+    dash as /bin/sh (Closes: #493402).
+  * Adding patch from Gonéri Le Bouder <goneri@rulezlan.org> to fix FTBFS with
+    LC_ALL set to fr_FR.UTF-8 (Closes: #494157).
+
+ -- Daniel Baumann <daniel@debian.org>  Thu,  7 Aug 2008 11:38:00 -0300
+
 virtualbox-ose (1.6.2-dfsg-3) unstable; urgency=medium
 
   [ Daniel Baumann ]
