@@ -1,0 +1,38 @@
+# Swedish translation of virtualbox-ose debconf templates.
+# Copyright (C) 2008 Martin Ågren <martin.agren@gmail.com>
+# This file is distributed under the same license as the virtualbox-ose package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: virtualbox-ose_1.6.2-dfsg-3_sv\n"
+"Report-Msgid-Bugs-To: virtualbox-ose@packages.debian.org\n"
+"POT-Creation-Date: 2008-02-17 19:22+0100\n"
+"PO-Revision-Date: 2008-07-24 08:36+0200\n"
+"Last-Translator: Martin Ågren <martin.agren@gmail.com>\n"
+"Language-Team: Swedish <debian-l10n-swedish@lists.debian.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: KBabel 1.11.4\n"
+"Plural-Forms:  nplurals=2; plural=(n != 1);\n"
+
+#. Type: boolean
+#. Description
+#: ../virtualbox-ose.templates:2001
+msgid "Proceed with virtualbox-ose upgrade despite losing snapshots?"
+msgstr ""
+"Fortsätt med uppgradering av virtualbox-ose trots att ögonblicksbilder "
+"kommer förloras?"
+
+#. Type: boolean
+#. Description
+#: ../virtualbox-ose.templates:2001
+msgid ""
+"You are currently upgrading virtualbox-ose to a new upstream version. All "
+"snapshots will be discarded by this upgrade, because snapshots are version-"
+"specific."
+msgstr ""
+"Du uppgraderar just nu virtualbox-ose till en ny uppströmsversion. "
+"Alla ögonblicksbilder kommer raderas av denna uppgradering "
+"eftersom ögonblicksbilder är versionsspecifika."
+

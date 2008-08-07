@@ -4,6 +4,8 @@ virtualbox-ose (1.6.2-dfsg-4) UNRELEASED; urgency=medium
     dash as /bin/sh (Closes: #493402).
   * Adding patch from Gonéri Le Bouder <goneri@rulezlan.org> to fix FTBFS with
     LC_ALL set to fr_FR.UTF-8 (Closes: #494157).
+  * Adding Swedish debconf translation from Martin Ågren
+    <martin.agren@gmail.com> (Closes: #492162).
 
  -- Daniel Baumann <daniel@debian.org>  Thu,  7 Aug 2008 11:38:00 -0300
 
