@@ -1,4 +1,4 @@
-virtualbox-ose (1.6.2-dfsg-4) UNRELEASED; urgency=medium
+virtualbox-ose (1.6.2-dfsg-4) unstable; urgency=medium
 
   * Adding patch from Gonéri Le Bouder <goneri@rulezlan.org> to fix FTBFS with
     dash as /bin/sh (Closes: #493402).
