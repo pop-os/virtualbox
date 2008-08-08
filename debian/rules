@@ -34,7 +34,7 @@ debian/README.Debian.html: debian/virtualbox-ose.README.Debian.xml
 # ... and text/plain
 debian/virtualbox-ose.README.Debian: debian/README.Debian.html
 	chmod 755 debian/lynx-dump-postprocess
-	export LC_ALL=C; export LANG=C; lynx -force_html -dump $< | ./debian/lynx-dump-postprocess > $@.tmp
+	export LC_ALL=C; lynx -force_html -dump $< | ./debian/lynx-dump-postprocess > $@.tmp
 	mv $@.tmp $@
 
 env.sh: patch-stamp

@@ -1,9 +1,3 @@
-virtualbox-ose (1.6.2-dfsg-5) unstable; urgency=low
-
-  * Set both, LC_ALL and LANG, to C when computing README.Debian.
-
- -- Michael Meskes <meskes@debian.org>  Fri, 08 Aug 2008 10:27:50 +0200
-
 virtualbox-ose (1.6.2-dfsg-4) unstable; urgency=medium
 
   * Adding patch from Gonéri Le Bouder <goneri@rulezlan.org> to fix FTBFS with
