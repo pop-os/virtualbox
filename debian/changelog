@@ -1,3 +1,9 @@
+virtualbox-ose (1.6.4-dfsg-1) UNRELEASED; urgency=low
+
+  * New upstream version.
+
+ -- Michael Meskes <meskes@debian.org>  Sat, 09 Aug 2008 21:46:44 +0200
+
 virtualbox-ose (1.6.2-dfsg-4) unstable; urgency=medium
 
   * Adding patch from Gonéri Le Bouder <goneri@rulezlan.org> to fix FTBFS with

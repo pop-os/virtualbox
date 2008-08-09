@@ -11,3 +11,5 @@
 11-gcc-4.3.dpatch
 12-make-module.dpatch
 13-module-mismatch.dpatch
+14_logging.dpatch
+15_makefiles.dpatch
