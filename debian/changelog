@@ -1,6 +1,10 @@
 virtualbox-ose (1.6.4-dfsg-1) UNRELEASED; urgency=low
 
+  [ Michael Meskes ]
   * New upstream version.
+
+  [ Loic Minier ]
+  * Demote module-assistant deps to Recommends; closes: #495671.
 
  -- Michael Meskes <meskes@debian.org>  Sat, 09 Aug 2008 21:46:44 +0200
 

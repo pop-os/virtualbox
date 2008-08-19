@@ -76,9 +76,9 @@ Architecture: all
 Depends: ${misc:Depends},
          debhelper (>= 5),
          dpatch,
-         module-assistant,
          bzip2,
          kbuild
+Recommends: module-assistant
 Conflicts: virtualbox-source
 Replaces: virtualbox-source
 Provides: virtualbox-source
@@ -96,9 +96,9 @@ Architecture: all
 Depends: ${misc:Depends},
          debhelper (>= 5),
          dpatch,
-         module-assistant,
          bzip2,
          kbuild
+Recommends: module-assistant
 Description: x86 virtualization solution - guest addition module source
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
