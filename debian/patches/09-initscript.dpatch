@@ -8,18 +8,20 @@
 diff -Naurp virtualbox-ose-1.6.4-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.in virtualbox-ose-1.6.4-dfsg/src/VBox/Installer/linux/vboxnet.sh.in
 --- virtualbox-ose-1.6.4-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.in       2008-08-06 09:28:41.000000000 +0000
 +++ virtualbox-ose-1.6.4-dfsg/src/VBox/Installer/linux/vboxnet.sh.in    2008-08-06 09:29:40.000000000 +0000
-@@ -34,6 +34,11 @@
+@@ -34,7 +34,12 @@
  TAPDEV="/dev/net/tun"
  NOLSB=%NOLSB%
  
+-[ -f /lib/lsb/init-functions ] || NOLSB=yes
 +# Include virtualbox-ose defaults if available
 +if [ -f /etc/default/virtualbox-ose ] ; then
 +	. /etc/default/virtualbox-ose
 +fi
 +
- [ -f /lib/lsb/init-functions ] || NOLSB=yes
++[ -f /lib/lsb/init-functions ] && NOLSB=
  
  if [ -n "$NOLSB" ]; then
+     if [ -f /etc/redhat-release ]; then
 @@ -162,13 +167,6 @@
      if ! VBoxTunctl -h 2>&1 | grep VBoxTunctl > /dev/null; then
        failure "VBoxTunctl not found"
