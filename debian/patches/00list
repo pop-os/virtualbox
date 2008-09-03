@@ -2,7 +2,6 @@
 02-config-kmk.dpatch
 03-localconf-kmk.dpatch
 04-vboxdrv-references.dpatch
-05-vboxadd-udev.dpatch
 06-xsession.dpatch
 07-init-fail.dpatch
 08-init-lsb.dpatch
@@ -11,5 +10,3 @@
 11-gcc-4.3.dpatch
 12-make-module.dpatch
 13-module-mismatch.dpatch
-14_logging.dpatch
-15_makefiles.dpatch

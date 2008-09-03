@@ -18,12 +18,3 @@ diff -Naurp virtualbox-ose-1.6.2-dfsg.orig/Config.kmk virtualbox-ose-1.6.2-dfsg/
  endif
  
  # XPCOM setup for all but win32.
-@@ -1480,7 +1480,7 @@ if1of ($(KBUILD_TARGET), linux)
-    kernelsrc := $(shell $(SED_EXT) -ne 's+^KERNELSRC.*= *\(.*\)+\1+p' $(VBOX_LINUX_SRC)/Makefile)
-    ifneq ($(kernelsrc),)
-     kernelpath := $(realpath $(VBOX_LINUX_SRC)/$(kernelsrc))
--    VBOX_LINUX_INCS                 += $(VBOX_LINUX_SRC)/include2 $(kernelpath)/include
-+    VBOX_LINUX_INCS                 += $(VBOX_LINUX_SRC)/include2 /usr/include
-    else
-     kernelpath := $(VBOX_LINUX_SRC)
-    endif
