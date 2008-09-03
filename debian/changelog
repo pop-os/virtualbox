@@ -1,8 +1,9 @@
-virtualbox-ose (1.6.4-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (1.6.6-dfsg-1) UNRELEASED; urgency=low
 
   [ Michael Meskes ]
   * New upstream version.
   * Updated initscript to better handle LSB compatibility, yet again closes: #474089
+  * Removed patch 05-vboxadd-udev which was applied by upstream.
 
   [ Loic Minier ]
   * Demote module-assistant deps to Recommends; closes: #495671.
