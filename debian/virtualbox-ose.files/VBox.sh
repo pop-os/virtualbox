@@ -69,7 +69,7 @@ EOF
     fi
 fi
 
-export LD_LIBRARY_PATH="$INSTALL_DIR"
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$INSTALL_DIR"
 
 APP=`which $0`
 APP=${APP##/*/}
