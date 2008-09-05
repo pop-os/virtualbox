@@ -168,6 +168,15 @@ iface vbox0 inet static
     </para>
   </section>
   <section>
+    <title>Other incompatibilities</title>
+    <para>
+      For reasons not yet known VirtualBox does not work reliably with 686
+      optimized linux kernel 2.6.26. If you experience any problem here, please
+      switch to the standard 486 optimized kernel for which these problems have
+      not been reported.
+    </para>
+  </section>
+  <section>
     <title>See also</title>
     <para>
       Additional and updated information may be found on

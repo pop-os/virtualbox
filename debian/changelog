@@ -1,9 +1,12 @@
 virtualbox-ose (1.6.6-dfsg-1) UNRELEASED; urgency=low
 
   [ Michael Meskes ]
-  * New upstream version.
+  * New upstream version
+    - no longer able to select disk in use for new VM, closes: #495028
   * Updated initscript to better handle LSB compatibility, yet again closes: #474089
   * Removed patch 05-vboxadd-udev which was applied by upstream.
+  * Added a short note to README.Debian asking user to use only the 486 version
+    of the 2.6.26 kernel.
 
   [ Loic Minier ]
   * Demote module-assistant deps to Recommends; closes: #495671.
