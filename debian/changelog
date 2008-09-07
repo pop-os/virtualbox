@@ -12,6 +12,7 @@ virtualbox-ose (1.6.6-dfsg-1) UNRELEASED; urgency=low
 
   [ Loic Minier ]
   * Demote module-assistant deps to Recommends; closes: #495671.
+  * Don't prepend current directory to LD_LIBRARY_PATH if it isn't set.
 
  -- Michael Meskes <meskes@debian.org>  Sat, 09 Aug 2008 21:46:44 +0200
 
