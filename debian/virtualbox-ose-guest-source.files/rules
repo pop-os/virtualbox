@@ -50,8 +50,7 @@ binary-modules: prep-deb-files
 	dh_testroot
 	dh_clean -k
 	# Build the modules
-	$(MAKE) -C $(KSRC) M=$(CURDIR)/vboxadd
-	$(MAKE) -C $(KSRC) M=$(CURDIR)/vboxvfs
+	$(MAKE) -C $(KSRC) M=$(CURDIR)
 	# Install the modules
 	dh_install vboxadd/vboxadd.ko /lib/modules/$(KVERS)/misc/
 	dh_install vboxvfs/vboxvfs.ko /lib/modules/$(KVERS)/misc/

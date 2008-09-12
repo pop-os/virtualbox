@@ -15,6 +15,8 @@ virtualbox-ose (1.6.2-dfsg-5) unstable; urgency=low
   * Added a short note to README.Debian asking user to use only the 486 version
     of the 2.6.26 kernel. This documents a workaround for #497505 and #497875.
   * In VBox.sh honor LD_LIBRARY_PATH if already set, closes: #496953
+  * Changed rules file for guest-module to correctly build modules with
+    symbols, thanks to Bastian Blank for the hint.
 
   [ Loic Minier ]
   * Demote module-assistant deps to Recommends; closes: #495671.
