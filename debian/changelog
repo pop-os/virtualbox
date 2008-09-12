@@ -3,11 +3,17 @@ virtualbox-ose (1.6.6-dfsg-1) UNRELEASED; urgency=low
   [ Michael Meskes ]
   * New upstream version
     - no longer able to select disk in use for new VM, closes: #495028
+  * Removed patch 05-vboxadd-udev which was applied by upstream.
+ 
+ -- Michael Meskes <meskes@debian.org>  Fri, 12 Sep 2008 10:17:59 +0200
+
+virtualbox-ose (1.6.2-dfsg-5) unstable; urgency=low
+
+  [ Michael Meskes ]
   * Updated initscript to better handle LSB compatibility, yet again
     closes: #474089
-  * Removed patch 05-vboxadd-udev which was applied by upstream.
   * Added a short note to README.Debian asking user to use only the 486 version
-    of the 2.6.26 kernel.
+    of the 2.6.26 kernel. This documents a workaround for #497505 and #497875.
   * In VBox.sh honor LD_LIBRARY_PATH if already set, closes: #496953
 
   [ Loic Minier ]
