@@ -7,6 +7,14 @@ virtualbox-ose (1.6.6-dfsg-1) UNRELEASED; urgency=low
  
  -- Michael Meskes <meskes@debian.org>  Fri, 12 Sep 2008 10:17:59 +0200
 
+virtualbox-ose (1.6.2-dfsg-6) unstable; urgency=medium
+
+  * Apply changesets 12299, 12303, 12305, 12307 and 12308 from upstream SVN
+    to fix errors running 2.6.26-686 kernels in a Virtual Machine. Patch
+    created by Frans Pop <fjp@debian.org>. Closes: #497505.
+
+ -- Michael Meskes <meskes@debian.org>  Mon, 15 Sep 2008 10:01:21 +0200
+
 virtualbox-ose (1.6.2-dfsg-5) unstable; urgency=low
 
   [ Michael Meskes ]

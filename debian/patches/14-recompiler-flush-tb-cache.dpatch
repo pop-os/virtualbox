@@ -1,0 +1,276 @@
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 14-recompiler-flush-tb-cache.dpatch by Frans Pop <fjp@debian.org>
+##
+## DP: Flush the recompilers translation block cache.
+
+@DPATCH@
+
+only in patch2:
+unchanged:
+--- virtualbox-ose-1.6.2-dfsg.orig/include/VBox/em.h
++++ virtualbox-ose-1.6.2-dfsg/include/VBox/em.h
+@@ -313,6 +313,13 @@
+  */
+ EMDECL(int) EMInterpretPortIO(PVM pVM, PCPUMCTXCORE pCtxCore, PDISCPUSTATE pCpu, uint32_t cbOp);
+ 
++/**
++ * Flushes the REM translation blocks the next time we execute code there.
++ *
++ * @param   pVM         The VM handle.
++ */
++EMDECL(void) EMFlushREMTBs(PVM pVM);
++
+ EMDECL(uint32_t) EMEmulateCmp(uint32_t u32Param1, uint32_t u32Param2, size_t cb);
+ EMDECL(uint32_t) EMEmulateAnd(uint32_t *pu32Param1, uint32_t u32Param2, size_t cb);
+ EMDECL(uint32_t) EMEmulateInc(uint32_t *pu32Param1, size_t cb);
+only in patch2:
+unchanged:
+--- virtualbox-ose-1.6.2-dfsg.orig/include/VBox/rem.h
++++ virtualbox-ose-1.6.2-dfsg/include/VBox/rem.h
+@@ -67,7 +67,7 @@
+ REMR3DECL(int)  REMR3Step(PVM pVM);
+ REMR3DECL(int)  REMR3BreakpointSet(PVM pVM, RTGCUINTPTR Address);
+ REMR3DECL(int)  REMR3BreakpointClear(PVM pVM, RTGCUINTPTR Address);
+-REMR3DECL(int)  REMR3State(PVM pVM);
++REMR3DECL(int)  REMR3State(PVM pVM, bool fFlushTBs);
+ REMR3DECL(int)  REMR3StateBack(PVM pVM);
+ REMR3DECL(void) REMR3StateUpdate(PVM pVM);
+ REMR3DECL(void) REMR3A20Set(PVM pVM, bool fEnable);
+only in patch2:
+unchanged:
+--- virtualbox-ose-1.6.2-dfsg.orig/src/VBox/VMM/EM.cpp
++++ virtualbox-ose-1.6.2-dfsg/src/VBox/VMM/EM.cpp
+@@ -720,11 +720,12 @@
+     /*
+      * Switch to REM, step instruction, switch back.
+      */
+-    int rc = REMR3State(pVM);
++    int rc = REMR3State(pVM, pVM->em.s.fREMFlushTBs);
+     if (VBOX_SUCCESS(rc))
+     {
+         rc = REMR3Step(pVM);
+         REMR3StateBack(pVM);
++        pVM->em.s.fREMFlushTBs = false;
+     }
+     LogFlow(("emR3RemStep: returns %Vrc cs:eip=%04x:%08x\n", rc, CPUMGetGuestCS(pVM),  CPUMGetGuestEIP(pVM)));
+     return rc;
+@@ -778,11 +779,12 @@
+         if (!fInREMState)
+         {
+             STAM_PROFILE_START(&pVM->em.s.StatREMSync, b);
+-            rc = REMR3State(pVM);
++            rc = REMR3State(pVM, pVM->em.s.fREMFlushTBs);
+             STAM_PROFILE_STOP(&pVM->em.s.StatREMSync, b);
+             if (VBOX_FAILURE(rc))
+                 break;
+             fInREMState = true;
++            pVM->em.s.fREMFlushTBs = false;
+ 
+             /*
+              * We might have missed the raising of VMREQ, TIMER and some other
+only in patch2:
+unchanged:
+--- virtualbox-ose-1.6.2-dfsg.orig/src/VBox/VMM/EMInternal.h
++++ virtualbox-ose-1.6.2-dfsg/src/VBox/VMM/EMInternal.h
+@@ -274,6 +274,12 @@
+     bool                    fTracing;
+ #endif
+ 
++    /* Set when the translation blocks in the recompiler cache need to be flushed. */
++    bool                    fREMFlushTBs;
++
++    /* Allignment fix from changeset 9387; not strictly needed */
++    uint8_t                 u8Padding[GC_ARCH_BITS == 64 ? 5 : 1];
++
+     /** Inhibit interrupts for this instruction. Valid only when VM_FF_INHIBIT_INTERRUPTS is set. */
+     RTGCUINTPTR             GCPtrInhibitInterrupts;
+ 
+only in patch2:
+unchanged:
+--- virtualbox-ose-1.6.2-dfsg.orig/src/VBox/VMM/PATM/VMMGC/CSAMGC.cpp
++++ virtualbox-ose-1.6.2-dfsg/src/VBox/VMM/PATM/VMMGC/CSAMGC.cpp
+@@ -70,6 +70,9 @@
+ 
+     Assert(pVM->csam.s.cDirtyPages < CSAM_MAX_DIRTY_PAGES);
+ 
++    /* Flush the recompilers translation block cache as the guest seems to be modifying instructions. */
++    EMFlushREMTBs(pVM);
++
+     pPATMGCState = PATMQueryGCState(pVM);
+     Assert(pPATMGCState);
+ 
+only in patch2:
+unchanged:
+--- virtualbox-ose-1.6.2-dfsg.orig/src/VBox/VMM/VMMAll/EMAll.cpp
++++ virtualbox-ose-1.6.2-dfsg/src/VBox/VMM/VMMAll/EMAll.cpp
+@@ -76,6 +76,16 @@
+     return pVM->em.s.enmState;
+ }
+ 
++/**
++ * Flushes the REM translation blocks the next time we execute code there.
++ *
++ * @param   pVM         The VM handle.
++ */
++EMDECL(void) EMFlushREMTBs(PVM pVM)
++{
++    Log(("EMFlushREMTBs\n"));
++    pVM->em.s.fREMFlushTBs = true;
++}
+ 
+ #ifndef IN_GC
+ /**
+only in patch2:
+unchanged:
+--- virtualbox-ose-1.6.2-dfsg.orig/src/recompiler/VBoxREMWrapper.cpp
++++ virtualbox-ose-1.6.2-dfsg/src/recompiler/VBoxREMWrapper.cpp
+@@ -332,7 +332,7 @@
+ static DECLCALLBACKPTR(int, pfnREMR3BreakpointClear)(PVM, RTGCUINTPTR);
+ static DECLCALLBACKPTR(int, pfnREMR3EmulateInstruction)(PVM);
+ static DECLCALLBACKPTR(int, pfnREMR3Run)(PVM);
+-static DECLCALLBACKPTR(int, pfnREMR3State)(PVM);
++static DECLCALLBACKPTR(int, pfnREMR3State)(PVM, bool fFlushTBs);
+ static DECLCALLBACKPTR(int, pfnREMR3StateBack)(PVM);
+ static DECLCALLBACKPTR(void, pfnREMR3StateUpdate)(PVM);
+ static DECLCALLBACKPTR(void, pfnREMR3A20Set)(PVM, bool);
+@@ -955,6 +955,11 @@
+     { REMPARMDESC_FLAGS_INT,        sizeof(size_t), NULL }
+ };
+ 
++static const REMPARMDESC g_aArgsState[] =
++{
++    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
++    { REMPARMDESC_FLAGS_INT,        sizeof(bool), NULL }
++};
+ 
+ /** @} */
+ 
+@@ -971,7 +976,7 @@
+     { "REMR3BreakpointClear",                   (void *)&pfnREMR3BreakpointClear,                   &g_aArgsBreakpoint[0],                      ELEMENTS(g_aArgsBreakpoint),                        REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
+     { "REMR3EmulateInstruction",                (void *)&pfnREMR3EmulateInstruction,                &g_aArgsVM[0],                              ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
+     { "REMR3Run",                               (void *)&pfnREMR3Run,                               &g_aArgsVM[0],                              ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
+-    { "REMR3State",                             (void *)&pfnREMR3State,                             &g_aArgsVM[0],                              ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
++    { "REMR3State",                             (void *)&pfnREMR3State,                             &g_aArgsState[0],                           ELEMENTS(g_aArgsState),                             REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
+     { "REMR3StateBack",                         (void *)&pfnREMR3StateBack,                         &g_aArgsVM[0],                              ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
+     { "REMR3StateUpdate",                       (void *)&pfnREMR3StateUpdate,                       &g_aArgsVM[0],                              ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
+     { "REMR3A20Set",                            (void *)&pfnREMR3A20Set,                            &g_aArgsA20Set[0],                          ELEMENTS(g_aArgsA20Set),                            REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
+@@ -1946,13 +1951,13 @@
+ #endif
+ }
+ 
+-REMR3DECL(int) REMR3State(PVM pVM)
++REMR3DECL(int) REMR3State(PVM pVM, bool fFlushTBs)
+ {
+ #ifdef USE_REM_STUBS
+     return VERR_NOT_IMPLEMENTED;
+ #else
+     Assert(VALID_PTR(pfnREMR3State));
+-    return pfnREMR3State(pVM);
++    return pfnREMR3State(pVM, fFlushTBs);
+ #endif
+ }
+ 
+only in patch2:
+unchanged:
+--- virtualbox-ose-1.6.2-dfsg.orig/src/recompiler/VBoxRecompiler.c
++++ virtualbox-ose-1.6.2-dfsg/src/recompiler/VBoxRecompiler.c
+@@ -137,6 +137,7 @@
+ static STAMCOUNTER    gStatREMTRChange;
+ static STAMCOUNTER    gStatSelOutOfSync[6];
+ static STAMCOUNTER    gStatSelOutOfSyncStateBack[6];
++static STAMCOUNTER    gStatFlushTBs;
+ #endif
+ 
+ /*
+@@ -367,6 +368,7 @@
+     STAM_REG(pVM, &gStatRefuseWP0,          STAMTYPE_COUNTER, "/REM/Refuse/WP0",      STAMUNIT_OCCURENCES,     "Raw mode refused because of WP=0");
+     STAM_REG(pVM, &gStatRefuseRing1or2,     STAMTYPE_COUNTER, "/REM/Refuse/Ring1or2", STAMUNIT_OCCURENCES,     "Raw mode refused because of ring 1/2 execution");
+     STAM_REG(pVM, &gStatRefuseCanExecute,   STAMTYPE_COUNTER, "/REM/Refuse/CanExecuteRaw", STAMUNIT_OCCURENCES,     "Raw mode refused because of cCanExecuteRaw");
++    STAM_REG(pVM, &gStatFlushTBs,           STAMTYPE_COUNTER, "/REM/FlushTB",         STAMUNIT_OCCURENCES,     "Number of TB flushes");
+ 
+     STAM_REG(pVM, &gStatREMGDTChange,       STAMTYPE_COUNTER, "/REM/Change/GDTBase",   STAMUNIT_OCCURENCES,     "GDT base changes");
+     STAM_REG(pVM, &gStatREMLDTRChange,      STAMTYPE_COUNTER, "/REM/Change/LDTR",      STAMUNIT_OCCURENCES,     "LDTR changes");
+@@ -730,7 +732,7 @@
+     /*
+      * Sync the state and enable single instruction / single stepping.
+      */
+-    int rc = REMR3State(pVM);
++    int rc = REMR3State(pVM, false /* no need to flush the TBs; we always compile. */);
+     if (VBOX_SUCCESS(rc))
+     {
+         int interrupt_request = pVM->rem.s.Env.interrupt_request;
+@@ -1348,6 +1350,7 @@
+  */
+ void remR3ProtectCode(CPUState *env, RTGCPTR GCPtr)
+ {
++#ifdef VBOX_REM_PROTECT_PAGES_FROM_SMC
+     Assert(env->pVM->rem.s.fInREM);
+     if (     (env->cr[0] & X86_CR0_PG)                      /* paging must be enabled */
+         &&  !(env->state & CPU_EMULATE_SINGLE_INSTR)        /* ignore during single instruction execution */
+@@ -1355,6 +1358,7 @@
+         &&  !(env->eflags & VM_MASK)                        /* no V86 mode */
+         &&  !HWACCMIsEnabled(env->pVM))
+         CSAMR3MonitorPage(env->pVM, GCPtr, CSAM_TAG_REM);
++#endif
+ }
+ 
+ /**
+@@ -1366,12 +1370,14 @@
+ void remR3UnprotectCode(CPUState *env, RTGCPTR GCPtr)
+ {
+     Assert(env->pVM->rem.s.fInREM);
++#ifdef VBOX_REM_PROTECT_PAGES_FROM_SMC
+     if (     (env->cr[0] & X86_CR0_PG)                      /* paging must be enabled */
+         &&  !(env->state & CPU_EMULATE_SINGLE_INSTR)        /* ignore during single instruction execution */
+         &&   (((env->hflags >> HF_CPL_SHIFT) & 3) == 0)     /* supervisor mode only */
+         &&  !(env->eflags & VM_MASK)                        /* no V86 mode */
+         &&  !HWACCMIsEnabled(env->pVM))
+         CSAMR3UnmonitorPage(env->pVM, GCPtr, CSAM_TAG_REM);
++#endif
+ }
+ 
+ 
+@@ -1579,12 +1585,13 @@
+  * @returns VBox status code.
+  *
+  * @param   pVM         VM Handle.
++ * @param   fFlushTBs   Flush all translation blocks before executing code
+  *
+  * @remark  The caller has to check for important FFs before calling REMR3Run. REMR3State will
+  *          no do this since the majority of the callers don't want any unnecessary of events
+  *          pending that would immediatly interrupt execution.
+  */
+-REMR3DECL(int) REMR3State(PVM pVM)
++REMR3DECL(int) REMR3State(PVM pVM, bool fFlushTBs)
+ {
+     Log2(("REMR3State:\n"));
+     STAM_PROFILE_START(&pVM->rem.s.StatsState, a);
+@@ -1595,6 +1602,12 @@
+     Assert(!pVM->rem.s.fInREM);
+     pVM->rem.s.fInStateSync = true;
+ 
++    if (fFlushTBs)
++    {
++        STAM_COUNTER_INC(&gStatFlushTBs);
++        tb_flush(&pVM->rem.s.Env);
++    }
++
+     /*
+      * Copy the registers which requires no special handling.
+      */
+@@ -2464,6 +2477,7 @@
+ 
+     VM_ASSERT_EMT(pVM);
+ 
++#ifdef VBOX_REM_PROTECT_PAGES_FROM_SMC
+     /*
+      * Get the physical page address.
+      */
+@@ -2482,6 +2496,7 @@
+ 
+         tb_invalidate_phys_page_range(PhysGC, PhysGC + PAGE_SIZE - 1, 0);
+     }
++#endif
+     return VINF_SUCCESS;
+ }
+ 
