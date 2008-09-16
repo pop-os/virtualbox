@@ -4,6 +4,7 @@ virtualbox-ose (1.6.6-dfsg-1) UNRELEASED; urgency=low
   * New upstream version
     - no longer able to select disk in use for new VM, closes: #495028
   * Removed patch 05-vboxadd-udev which was applied by upstream.
+  * Removed absolute paths in maintainer scripts.
  
  -- Michael Meskes <meskes@debian.org>  Tue, 16 Sep 2008 14:39:40 +0200
 
