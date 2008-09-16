@@ -14,7 +14,7 @@ case "${1}" in
 		# reload the rules
 		if [ -x /sbin/udevcontrol ]
 		then
-			/sbin/udevcontrol reload_rules || true
+			udevcontrol reload_rules || true
 		fi
 		;;
 

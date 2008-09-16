@@ -9,7 +9,7 @@ case "${1}" in
 		then
 			# delgroup may return error status 3 if there is a non-system group
 			# "vboxusers". The postrm should not fail in this case!
-			/usr/sbin/delgroup --quiet --system vboxusers || true
+			delgroup --quiet --system vboxusers || true
 		fi
 		;;
 
