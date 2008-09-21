@@ -6,7 +6,11 @@ virtualbox-ose (1.6.6-dfsg-1) UNRELEASED; urgency=low
   * Removed patch 05-vboxadd-udev which was applied by upstream.
   * Removed absolute paths in maintainer scripts.
  
- -- Michael Meskes <meskes@debian.org>  Tue, 16 Sep 2008 14:39:40 +0200
+  [ Patrick Winnertz ]
+  * New upstream version fixes compilation error of -modules with kernelversion
+    2.6.27 (Closes: #499623)
+
+ -- Patrick Winnertz <winnie@debian.org>  Sun, 21 Sep 2008 22:29:58 +0200
 
 virtualbox-ose (1.6.2-dfsg-6) unstable; urgency=medium
 
