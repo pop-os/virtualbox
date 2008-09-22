@@ -5,6 +5,7 @@ virtualbox-ose (1.6.6-dfsg-1) unstable; urgency=low
     - no longer able to select disk in use for new VM, closes: #495028
   * Removed patch 05-vboxadd-udev which was applied upstream.
   * Removed absolute paths in maintainer scripts.
+  * Override lintian error in RDP subdir because the client is not build anyway.
  
   [ Patrick Winnertz ]
   * New upstream version fixes compilation error of -modules with kernelversion
