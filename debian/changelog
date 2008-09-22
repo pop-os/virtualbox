@@ -1,9 +1,9 @@
-virtualbox-ose (1.6.6-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (1.6.6-dfsg-1) unstable; urgency=low
 
   [ Michael Meskes ]
   * New upstream version
     - no longer able to select disk in use for new VM, closes: #495028
-  * Removed patch 05-vboxadd-udev which was applied by upstream.
+  * Removed patch 05-vboxadd-udev which was applied upstream.
   * Removed absolute paths in maintainer scripts.
  
   [ Patrick Winnertz ]
