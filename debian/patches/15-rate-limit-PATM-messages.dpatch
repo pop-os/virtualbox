@@ -1,0 +1,38 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 15-rate-limit-PATM-messages.dpatch by Stefan Lippers-Hollmann <s.l-h@gmx.de>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: http://www.virtualbox.de/ticket/1775
+## DP: rediff the following upstream commits against virtualbox-ose 1.6.6-dfsg-1:
+## DP: - r12524
+## DP: - r12525
+## DP: - r12527
+## DP: - r12532
+## DP: - r12534
+
+@DPATCH@
+diff -urNad virtualbox-ose-1.6.6-dfsg~/src/VBox/VMM/PATM/PATM.cpp virtualbox-ose-1.6.6-dfsg/src/VBox/VMM/PATM/PATM.cpp
+--- virtualbox-ose-1.6.6-dfsg~/src/VBox/VMM/PATM/PATM.cpp	2008-06-25 17:47:15.000000000 +0200
++++ virtualbox-ose-1.6.6-dfsg/src/VBox/VMM/PATM/PATM.cpp	2008-09-28 18:19:19.000000000 +0200
+@@ -97,6 +97,9 @@
+ };
+ #endif
+ 
++/* Don't want to break saved states, so put it here as a global variable. */
++static unsigned int cIDTHandlersDisabled = 0;
++
+ /**
+  * Initializes the PATM.
+  *
+@@ -4962,7 +4965,8 @@
+             if (iGate != (uint32_t)~0)
+             {
+                 TRPMR3SetGuestTrapHandler(pVM, iGate, TRPM_INVALID_HANDLER);
+-                LogRel(("PATM: Disabling IDT %x patch handler %VGv
+", iGate, pInstrGC));
++                if (++cIDTHandlersDisabled < 256)
++                    LogRel(("PATM: Disabling IDT %x patch handler %VGv
+", iGate, pInstrGC));
+             }
+         }
+ 
