@@ -28,11 +28,9 @@ diff -urNad virtualbox-ose-1.6.6-dfsg~/src/VBox/VMM/PATM/PATM.cpp virtualbox-ose
              if (iGate != (uint32_t)~0)
              {
                  TRPMR3SetGuestTrapHandler(pVM, iGate, TRPM_INVALID_HANDLER);
--                LogRel(("PATM: Disabling IDT %x patch handler %VGv
-", iGate, pInstrGC));
+-                LogRel(("PATM: Disabling IDT %x patch handler %VGv ", iGate, pInstrGC));
 +                if (++cIDTHandlersDisabled < 256)
-+                    LogRel(("PATM: Disabling IDT %x patch handler %VGv
-", iGate, pInstrGC));
++                    LogRel(("PATM: Disabling IDT %x patch handler %VGv ", iGate, pInstrGC));
              }
          }
  
