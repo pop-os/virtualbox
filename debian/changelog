@@ -1,4 +1,4 @@
-virtualbox-ose (1.6.6-dfsg-3) unstable; urgency=low
+virtualbox-ose (1.6.6-dfsg-3) unstable; urgency=high
 
   * Added upstream patch to support kernel 2.6.27, closes: #502068
   * Added upstream patch to prevent potential symlink attack, closes: #504149
