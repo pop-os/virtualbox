@@ -34,8 +34,8 @@ Build-Depends: debhelper (>= 5.0.44~),
                g++-4.2
 Standards-Version: 3.8.0
 Homepage: http://www.virtualbox.org/
-Vcs-Svn: svn://svn.debian.org/svn/pkg-virtualbox/trunk
-Vcs-Browser: http://svn.debian.org/wsvn/pkg-virtualbox/trunk
+Vcs-Svn: svn://svn.debian.org/svn/pkg-virtualbox/virtualbox-ose/trunk
+Vcs-Browser: http://svn.debian.org/wsvn/pkg-virtualbox/virtualbox-ose/trunk
 
 Package: virtualbox-ose
 Architecture: amd64 i386 lpia
