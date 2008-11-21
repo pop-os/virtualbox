@@ -1,0 +1,19 @@
+#!/bin/sh /usr/share/dpatch/dpatch-run
+## 01-build-arch.dpatch by Michael Meskes <meskes@debian.org>
+##
+## DP: Correctly check build architecture.
+
+@DPATCH@
+
+diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/configure virtualbox-ose-1.6.0-dfsg/configure
+--- virtualbox-ose-1.6.0-dfsg.orig/configure	2008-04-30 14:06:04.000000000 +0000
++++ virtualbox-ose-1.6.0-dfsg/configure	2008-05-09 09:23:52.000000000 +0000
+@@ -263,7 +263,7 @@ check_environment()
+       exit 1
+       ;;
+   esac
+-  BUILD_CPU=`uname -m`
++  BUILD_CPU=`dpkg-architecture -qDEB_HOST_GNU_CPU`
+   [ "$OS" = "solaris" ] && BUILD_CPU=`isainfo | cut -f 1 -d ' '`
+   case "$BUILD_CPU" in
+     i[3456789]86|x86|i86pc)
