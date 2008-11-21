@@ -5,9 +5,9 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-1.6.4-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.in virtualbox-ose-1.6.4-dfsg/src/VBox/Installer/linux/vboxnet.sh.in
---- virtualbox-ose-1.6.4-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.in       2008-08-06 09:28:41.000000000 +0000
-+++ virtualbox-ose-1.6.4-dfsg/src/VBox/Installer/linux/vboxnet.sh.in    2008-08-06 09:29:40.000000000 +0000
+diff -Naurp virtualbox-ose-2.0.4-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.in virtualbox-ose-2.0.4-dfsg/src/VBox/Installer/linux/vboxnet.sh.in
+--- virtualbox-ose-2.0.4-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.in       2008-11-21 12:44:47.000000000 +0000
++++ virtualbox-ose-2.0.4-dfsg/src/VBox/Installer/linux/vboxnet.sh.in    2008-11-21 12:45:40.000000000 +0000
 @@ -34,7 +34,12 @@
  TAPDEV="/dev/net/tun"
  NOLSB=%NOLSB%
@@ -22,7 +22,7 @@ diff -Naurp virtualbox-ose-1.6.4-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.i
  
  if [ -n "$NOLSB" ]; then
      if [ -f /etc/redhat-release ]; then
-@@ -162,13 +167,6 @@
+@@ -168,13 +173,6 @@
      if ! VBoxTunctl -h 2>&1 | grep VBoxTunctl > /dev/null; then
        failure "VBoxTunctl not found"
      fi
@@ -36,7 +36,7 @@ diff -Naurp virtualbox-ose-1.6.4-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.i
      # Read the configuration file entries line by line and create the
      # interfaces
      while read line; do
-@@ -179,6 +177,19 @@
+@@ -185,6 +183,19 @@
          # or two non-comment entries, possibly followed by a comment).
          if ((! expr match "$2" "#" > /dev/null) &&
              (test -z "$4" || expr match "$4" "#" > /dev/null)); then
@@ -57,9 +57,9 @@ diff -Naurp virtualbox-ose-1.6.4-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.i
            interface=$1
            user=$2
 @@ -238,6 +249,7 @@
-       chgrp vboxusers "$TAPDEV"
-       chmod 0660 "$TAPDEV"
-     fi
+         fi
+       fi
+     done < "$CONFIG"
 +    succ_msg
      return 0
  }
