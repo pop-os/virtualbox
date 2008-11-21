@@ -1,6 +1,6 @@
 virtualbox-ose (2.0.4-dfsg-1) experimental-UNRELEASED; urgency=low
 
-  * New upstream version.
+  * New upstream version, closes: #497840  
 
  -- Michael Meskes <meskes@debian.org>  Thu, 20 Nov 2008 14:09:54 +0100
 

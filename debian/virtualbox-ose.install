@@ -29,4 +29,4 @@ out/bin/sdk /usr/share/virtualbox
 out/bin/VBox.png /usr/share/virtualbox
 out/bin/VBoxAddIF.sh /usr/share/virtualbox
 
-out/bin/sdk/bin/xpidl /usr/lib/virtualbox
+out/obj/xpidl /usr/lib/virtualbox
