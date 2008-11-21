@@ -43,7 +43,8 @@ Package: virtualbox-ose
 Architecture: amd64 i386 lpia
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         adduser
+         adduser,
+	 python
 Pre-Depends: debconf | debconf-2.0
 Recommends: virtualbox-ose-modules
 Suggests: virtualbox-ose-source, bridge-utils

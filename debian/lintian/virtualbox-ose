@@ -8,6 +8,16 @@ virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDD2.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDD.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxRT.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSettings.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxBFE.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxGuestPropSvc.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxHeadless.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxKeyboard3.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxPython.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSDL.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VirtualBox.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VirtualBox3.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/components/VBoxC.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/components/VBoxSVCM.so
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxDD2GC.gc
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxDD2R0.r0
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxDDGC.gc
