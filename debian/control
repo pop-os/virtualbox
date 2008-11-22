@@ -113,7 +113,7 @@ Description: x86 virtualization solution - guest addition module source
  these modules.
 
 Package: virtualbox-ose-guest-utils
-Architecture: i386 lpia
+Architecture: i386 amd64 lpia
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          pciutils
