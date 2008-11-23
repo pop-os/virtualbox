@@ -123,6 +123,10 @@ binary-arch: build install
 	dh_link -s
 	dh_compress -s
 	dh_fixperms -s
+	chmod +s debian/$(sname)/usr/lib/virtualbox/VirtualBox
+	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxSDL
+	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxBFE
+	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxHeadless
 	dh_installudev -s
 	dh_installdebconf -s
 	dh_installinit -s
