@@ -62,7 +62,7 @@ clean: unpatch
 	# Cleaning package
 	rm -rf out
 	rm -f AutoConfig.kmk configure.log env.sh LocalConfig.kmk
-	rm -f debian/$(sname).init debian/$(sname).preinst
+	rm -f debian/$(sname).init
 	rm -f debian/virtualbox-ose.README.Debian debian/README.Debian.html
 	debconf-updatepo
 	dh_clean
@@ -101,8 +101,6 @@ install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
 	dh_installdirs
 	# This will get installed into the package by dh_installinit
 	install -m 644 out/obj/src/VBox/Installer/linux/vboxnet.sh debian/$(sname).init
-	# We also need to build a preinst file
-	sed -e 's/UPSTREAM/"$(upstreamversion)"/' < debian/$(sname).preinst.in > debian/$(sname).preinst
 	# Install helper scripts for vbox* interfaces
 	dh_installifupdown -p$(sname)
 
