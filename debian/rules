@@ -19,11 +19,6 @@ upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)
 
 DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
 
-VBOX_WITH_X11_ADDITIONS :=
-ifeq ($(filter-out i386 lpia,$(DEB_HOST_ARCH)),)
-VBOX_WITH_X11_ADDITIONS := 1
-endif
-
 # Generate README.Debian as text/html ...
 debian/README.Debian.html: debian/virtualbox-ose.README.Debian.xml
 	xsltproc --nonet --stringparam section.autolabel 1 \
@@ -44,11 +39,6 @@ env.sh: patch-stamp
 	    --disable-kmods \
 	    --with-gcc=/usr/bin/gcc-4.2 \
 	    --with-g++=/usr/bin/g++-4.2
-ifeq ($(VBOX_WITH_X11_ADDITIONS),)
-	echo "VBOX_WITH_X11_ADDITIONS=" >>LocalConfig.kmk
-else
-	echo "VBOX_WITH_X11_ADDITIONS=1" >>LocalConfig.kmk
-endif
 
 build: build-stamp
 build-stamp: env.sh
