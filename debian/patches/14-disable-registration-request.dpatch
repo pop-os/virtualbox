@@ -1,0 +1,33 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 14-disable-registration-request.dpatch by Daniel Hahler <ubuntu@thequod.de>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Disable the registration request at startup (LP: #285684)
+## DP: This is probably not the right way to do it, but I have found no
+## DP: better way to undefine VBOX_WITH_REGISTRATION_REQUEST
+
+@DPATCH@
+diff -urNad virtualbox-ose-2.0.4-dfsg~/src/VBox/Frontends/VirtualBox/Makefile.kmk virtualbox-ose-2.0.4-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk
+--- virtualbox-ose-2.0.4-dfsg~/src/VBox/Frontends/VirtualBox/Makefile.kmk	2008-10-23 22:11:39.000000000 +0200
++++ virtualbox-ose-2.0.4-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk	2008-10-26 02:53:09.271786032 +0200
+@@ -27,7 +27,7 @@
+ #
+ VBOX_PATH_VIRTUALBOX3_SRC := $(PATH_SUB_CURRENT)
+ VBOX_WITH_REGISTRATION := 1
+-VBOX_WITH_REGISTRATION_REQUEST := 1
++#VBOX_WITH_REGISTRATION_REQUEST := 1
+ 
+ 
+ #
+diff -urNad virtualbox-ose-2.0.4-dfsg~/src/VBox/Frontends/VirtualBox4/Makefile.kmk virtualbox-ose-2.0.4-dfsg/src/VBox/Frontends/VirtualBox4/Makefile.kmk
+--- virtualbox-ose-2.0.4-dfsg~/src/VBox/Frontends/VirtualBox4/Makefile.kmk	2008-10-23 22:12:16.000000000 +0200
++++ virtualbox-ose-2.0.4-dfsg/src/VBox/Frontends/VirtualBox4/Makefile.kmk	2008-10-26 02:53:00.227785792 +0200
+@@ -32,7 +32,7 @@
+ 
+ # Ask the user to register at Sun. If this setting is disabled the user can
+ # still register using the menu if desired.
+-VBOX_WITH_REGISTRATION_REQUEST := 1
++#VBOX_WITH_REGISTRATION_REQUEST := 1
+ 
+ # Show the update notifier dialog during startup. If this setting is disabled
+ # the user can still update using the menu if desired.

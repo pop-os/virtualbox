@@ -21,7 +21,6 @@ out/bin/VBoxTunctl /usr/lib/virtualbox
 out/bin/VBoxXPCOM* /usr/lib/virtualbox
 out/bin/vditool /usr/lib/virtualbox
 out/bin/VirtualBox* /usr/lib/virtualbox
-out/bin/VirtualBox* /usr/lib/virtualbox
 out/bin/VMM* /usr/lib/virtualbox
 
 out/bin/nls /usr/share/virtualbox
