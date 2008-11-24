@@ -1,8 +1,10 @@
 virtualbox-ose (2.0.6-dfsg-1) experimental-UNRELEASED; urgency=low
 
-  * New upstream version, closes: #497840  
+  * New upstream version. Closes: #497840  
   * Do not warn user about losing snapshots anymore, this is supposed to be a
     thing of the past. Closes: #500101
+  * Made guest utils init script more verbose if module was not loadable.
+    Closes: #505586
 
  -- Michael Meskes <meskes@debian.org>  Thu, 20 Nov 2008 14:09:54 +0100
 

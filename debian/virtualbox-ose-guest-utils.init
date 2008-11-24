@@ -33,7 +33,7 @@ case "$1" in
 	modprobe --quiet vboxadd
 	if [ "$?" -ne 0 ]; then
 		# vboxadd not installed, or has a problem
-		log_failure_msg 'cannot modprobe vboxadd kernel module';
+		log_action_msg 'no guest utils available, kernel module not loadable';
 		log_end_msg 1
 		exit 0
 	fi
