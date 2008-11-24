@@ -1,4 +1,4 @@
-virtualbox-ose (2.0.4-dfsg-1) experimental-UNRELEASED; urgency=low
+virtualbox-ose (2.0.6-dfsg-1) experimental-UNRELEASED; urgency=low
 
   * New upstream version, closes: #497840  
   * Do not warn user about losing snapshots anymore, this is supposed to be a
