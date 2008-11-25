@@ -54,6 +54,29 @@
     </itemizedlist>
   </section>
   <section>
+    <title>64-bit guests</title>
+      Starting with version 2.0.0 VirtualBox also supports 64-bit guest operating systems,
+      under the following conditions:
+	<itemizedlist>
+	  <listitem>
+	    You need a 64-bit processor with hardware virtualization support
+	    and a 64-bit host operating system.
+	  </listitem>
+	  <listitem>
+	    You must run a 64-bit version of VirtualBox on that OS. This can
+	    then run both 32-bit and 64-bit VMs; a 32-bit VirtualBox can only run 32-bit
+	    VMs, regardless of the hardware.
+	  </listitem>
+          <listitem>
+	    You must enable hardware virtualization; software virtualization is not supported
+	    for 64-bit VMs.
+	  </listitem>
+	</itemizedlist>
+	There is no specific setting to enable 64-bit support for a guest.
+	However, you should enable the I/O APIC for virtual machines that you intend to
+	use in 64-bit mode.
+  </section>
+  <section>
     <title>How to provide networking to virtual machines</title>
     <section>
       <title>Mechanism</title>
