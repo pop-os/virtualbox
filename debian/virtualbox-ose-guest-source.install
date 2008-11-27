@@ -1,4 +1,5 @@
 out/bin/additions/src/vboxadd/*.* /usr/src/modules/virtualbox-ose-guest/vboxadd
+out/bin/additions/src/vboxadd/alloc /usr/src/modules/virtualbox-ose-guest/vboxadd
 out/bin/additions/src/vboxadd/build_in_tmp /usr/src/modules/virtualbox-ose-guest/vboxadd
 out/bin/additions/src/vboxadd/Makefile /usr/src/modules/virtualbox-ose-guest/vboxadd
 
