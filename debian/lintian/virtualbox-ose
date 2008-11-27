@@ -32,3 +32,8 @@ virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedClipboard.s
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedFolders.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedOpenGL.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxKeyboard.so
+virtualbox-ose: setuid-gid-binary usr/lib/virtualbox/VBoxBFE 6755 root/root
+virtualbox-ose: setuid-gid-binary usr/lib/virtualbox/VBoxHeadless 6755 root/root
+virtualbox-ose: setuid-gid-binary usr/lib/virtualbox/VBoxSDL 6755 root/root
+virtualbox-ose: setuid-gid-binary usr/lib/virtualbox/VirtualBox 6755 root/root
+
