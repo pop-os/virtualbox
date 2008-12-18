@@ -5,80 +5,42 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-2.0.4-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.in virtualbox-ose-2.0.4-dfsg/src/VBox/Installer/linux/vboxnet.sh.in
---- virtualbox-ose-2.0.4-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.in       2008-11-21 12:44:47.000000000 +0000
-+++ virtualbox-ose-2.0.4-dfsg/src/VBox/Installer/linux/vboxnet.sh.in    2008-11-21 12:45:40.000000000 +0000
-@@ -34,7 +34,12 @@
- TAPDEV="/dev/net/tun"
+diff -Naurp virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in virtualbox-ose-2.1.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in
+--- virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in	2008-12-18 16:30:08.000000000 +0100
++++ virtualbox-ose-2.1.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in		2008-12-18 16:36:51.000000000 +0100
+@@ -32,7 +32,8 @@
+ LOG="/var/log/vbox-install.log"
  NOLSB=%NOLSB%
  
 -[ -f /lib/lsb/init-functions ] || NOLSB=yes
 +# Include virtualbox-ose defaults if available
-+if [ -f /etc/default/virtualbox-ose ] ; then
-+	. /etc/default/virtualbox-ose
-+fi
-+
-+[ -f /lib/lsb/init-functions ] && NOLSB=
++[ -f /etc/default/virtualbox-ose ] && . /etc/default/virtualbox-ose
+ [ -f /etc/vbox/vbox.cfg ] && . /etc/vbox/vbox.cfg
  
- if [ -n "$NOLSB" ]; then
-     if [ -f /etc/redhat-release ]; then
-@@ -168,13 +173,6 @@
-     if ! VBoxTunctl -h 2>&1 | grep VBoxTunctl > /dev/null; then
-       failure "VBoxTunctl not found"
-     fi
--    # Fail if we don't have the kernel tun device
--    # Make sure that the tun module is loaded (Ubuntu 7.10 needs this)
--    modprobe tun > /dev/null 2>&1
--    if ! cat /proc/misc 2>/dev/null | grep tun > /dev/null; then
--      failure "Linux tun/tap subsystem not available"
--    fi
--    succ_msg
-     # Read the configuration file entries line by line and create the
-     # interfaces
-     while read line; do
-@@ -185,6 +183,19 @@
-         # or two non-comment entries, possibly followed by a comment).
-         if ((! expr match "$2" "#" > /dev/null) &&
-             (test -z "$4" || expr match "$4" "#" > /dev/null)); then
-+	  if [ "$module_available" != 1 ]
-+	  then
-+	 	# Fail if we don't have the kernel tun device
-+		# Make sure that the tun module is loaded (Ubuntu 7.10 needs this)
-+		# We only test this once, but we have to do it here, because otherwise an empty
-+		# configuration file would trigger the modprobe too.
-+		modprobe tun > /dev/null 2>&1
-+		if ! cat /proc/misc 2>/dev/null | grep tun > /dev/null
-+		then
-+			failure "Linux tun/tap subsystem not available"
-+		fi
-+		module_available=1
-+	  fi
-           # Name our parameters, to make this script slightly less unreadable
-           interface=$1
-           user=$2
-@@ -238,6 +249,7 @@
+ if [ -n "$INSTALL_DIR" ]; then
+@@ -150,8 +151,10 @@
+         if ! rm -f $DEVICE; then
+             failure "Cannot remove $DEVICE"
          fi
-       fi
-     done < "$CONFIG"
-+    succ_msg
-     return 0
+-        if ! modprobe vboxdrv > /dev/null 2>&1; then
+-            failure "modprobe vboxdrv failed. Please use 'dmesg' to find out why"
++	if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
++	        if ! modprobe vboxdrv > /dev/null 2>&1; then
++        	    failure "modprobe vboxdrv failed. Please use 'dmesg' to find out why"
++		fi
+         fi
+         sleep .2
+     fi
+@@ -181,8 +184,10 @@
+         rmmod vboxdrv 2>/dev/null
+         failure "Cannot change owner $GROUPNAME for device $DEVICE"
+     fi
+-    if ! modprobe vboxnetflt > /dev/null 2>&1; then
+-        failure "modprobe vboxnetflt failed. Please use 'dmesg' to find out why"
++    if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
++	if ! modprobe vboxnetflt > /dev/null 2>&1; then
++        	failure "modprobe vboxnetflt failed. Please use 'dmesg' to find out why"
++	fi
+     fi
+     succ_msg
  }
- 
-@@ -331,10 +343,17 @@
- 
- case "$1" in
- start)
-+    # try to insert module but do not fail if not possible
-+    if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
-+        /sbin/modprobe -q vboxdrv || true
-+    fi
-     start_network
-     ;;
- stop)
-     stop_network
-+    if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
-+    	/sbin/modprobe -qr vboxdrv || true
-+    fi
-     ;;
- restart|reload)
-     stop_network && start_network

@@ -5,26 +5,23 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.in virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in
---- virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Installer/linux/vboxnet.sh.in	2008-05-09 09:28:11.000000000 +0000
-+++ virtualbox-ose-1.6.0-dfsg/src/VBox/Installer/linux/vboxnet.sh.in	2008-05-09 09:28:41.000000000 +0000
-@@ -20,10 +20,10 @@
+diff -Naurp virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in virtualbox-ose-2.1.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in
+--- virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in	2008-05-09 09:28:11.000000000 +0000
++++ virtualbox-ose-2.1.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in	2008-05-09 09:28:41.000000000 +0000
+@@ -19,8 +19,8 @@
  #
  ### BEGIN INIT INFO
- # Provides:       vboxnet
--# Required-Start: $network
+ # Provides:       vboxdrv
+-# Required-Start: $syslog
 -# Required-Stop:
 +# Required-Start: $remote_fs $network
 +# Required-Stop:  $remote_fs
  # Default-Start:  2 3 4 5
  # Default-Stop:   0 1 6
- # Description:    VirtualBox permanent host networking setup
- ### END INIT INFO
- 
-@@ -50,14 +50,13 @@ if [ -z "$NOLSB" ]; then
+ # Short-Description: VirtualBox Linux kernel module
+@@ -61,13 +61,12 @@
      . /lib/lsb/init-functions
      fail_msg() {
-         [ -f "$VARFILE" ] && rm $VARFILE
 -        echo ""
 -        log_failure_msg "$1"
 +    	log_action_end_msg 1
