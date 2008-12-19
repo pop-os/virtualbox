@@ -19,13 +19,11 @@ out/bin/VBoxSDL /usr/lib/virtualbox
 out/bin/VBoxSVC /usr/lib/virtualbox
 out/bin/VBoxTunctl /usr/lib/virtualbox
 out/bin/VBoxXPCOM* /usr/lib/virtualbox
-out/bin/vditool /usr/lib/virtualbox
 out/bin/VirtualBox* /usr/lib/virtualbox
 out/bin/VMM* /usr/lib/virtualbox
 
 out/bin/nls /usr/share/virtualbox
 out/bin/sdk /usr/share/virtualbox
 out/bin/VBox.png /usr/share/virtualbox
-out/bin/VBoxAddIF.sh /usr/share/virtualbox
 
 out/obj/xpidl /usr/lib/virtualbox

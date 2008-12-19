@@ -1,0 +1,27 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 15_vboxnetflt.dpatch by Michael Meskes <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Do not build vboxnetflt module.
+
+@DPATCH@
+
+--- virtualbox-ose-2.1.0-dfsg/src/VBox/HostDrivers/Makefile.kmk.orig	2008-12-19 08:51:31.000000000 +0100
++++ virtualbox-ose-2.1.0-dfsg/src/VBox/HostDrivers/Makefile.kmk	2008-12-19 08:51:48.000000000 +0100
+@@ -32,11 +32,11 @@
+  ifdef VBOX_WITH_USB
+   include $(PATH_SUB_CURRENT)/VBoxUSB/Makefile.kmk
+  endif
+- if1of ($(KBUILD_TARGET), darwin solaris win linux)
+-  ifdef VBOX_WITH_NETFLT
+-   include $(PATH_SUB_CURRENT)/VBoxNetFlt/Makefile.kmk
+-  endif
+- endif
++# if1of ($(KBUILD_TARGET), darwin solaris win linux)
++#  ifdef VBOX_WITH_NETFLT
++#   include $(PATH_SUB_CURRENT)/VBoxNetFlt/Makefile.kmk
++#  endif
++# endif
+ 
+  ifeq ($(KBUILD_TARGET),linux)
+   #

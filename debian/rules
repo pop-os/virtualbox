@@ -48,11 +48,8 @@ build-stamp: env.sh
 	. ./env.sh; $(MAKE) \
 		BUILD_TYPE=release \
 		PATH_OUT=$(abspath out)
-	# make sure VBoxAddIF.sh is built, too
-	$(MAKE) -C src/VBox/Installer/linux $(abspath out/bin/VBoxAddIF.sh) \
-		PATH_OUT=$(abspath out)
-	# and vboxnet.sh
-	$(MAKE) -C src/VBox/Installer/linux $(abspath out/obj/src/VBox/Installer/linux/vboxnet.sh) \
+	# and vboxdrv.sh
+	$(MAKE) -C src/VBox/Installer/linux $(abspath out/obj/Installer/linux/vboxdrv.sh) \
 		PATH_OUT=$(abspath out)
 	touch $@
 
@@ -99,7 +96,7 @@ install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
 	dh_clean -k
 	dh_installdirs
 	# This will get installed into the package by dh_installinit
-	install -m 644 out/obj/src/VBox/Installer/linux/vboxnet.sh debian/$(sname).init
+	install -m 644 out/obj/Installer/linux/vboxdrv.sh debian/$(sname).init
 	# Install helper scripts for vbox* interfaces
 	dh_installifupdown -p$(sname)
 
