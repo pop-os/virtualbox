@@ -18,6 +18,12 @@ virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VirtualBox.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VirtualBox3.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/components/VBoxC.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/components/VBoxSVCM.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxREM32.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxREM64.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedClipboard.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedFolders.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedOpenGL.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxKeyboard.so
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxDD2GC.gc
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxDD2R0.r0
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxDDGC.gc
@@ -28,10 +34,6 @@ virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/testcase/tstLdr
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/testcase/tstLdrObjR0.r0
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/tstMicroGC.gc
 virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxREM2.rel
-virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedClipboard.so
-virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedFolders.so
-virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedOpenGL.so
-virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxKeyboard.so
 virtualbox-ose: setuid-gid-binary usr/lib/virtualbox/VBoxBFE 6755 root/root
 virtualbox-ose: setuid-gid-binary usr/lib/virtualbox/VBoxHeadless 6755 root/root
 virtualbox-ose: setuid-gid-binary usr/lib/virtualbox/VBoxSDL 6755 root/root
