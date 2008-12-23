@@ -6,22 +6,14 @@
 
 @DPATCH@
 
---- virtualbox-ose-2.1.0-dfsg/src/VBox/HostDrivers/Makefile.kmk.orig	2008-12-19 08:51:31.000000000 +0100
-+++ virtualbox-ose-2.1.0-dfsg/src/VBox/HostDrivers/Makefile.kmk	2008-12-19 08:51:48.000000000 +0100
-@@ -32,11 +32,11 @@
-  ifdef VBOX_WITH_USB
-   include $(PATH_SUB_CURRENT)/VBoxUSB/Makefile.kmk
-  endif
-- if1of ($(KBUILD_TARGET), darwin solaris win linux)
--  ifdef VBOX_WITH_NETFLT
--   include $(PATH_SUB_CURRENT)/VBoxNetFlt/Makefile.kmk
--  endif
-- endif
-+# if1of ($(KBUILD_TARGET), darwin solaris win linux)
-+#  ifdef VBOX_WITH_NETFLT
-+#   include $(PATH_SUB_CURRENT)/VBoxNetFlt/Makefile.kmk
-+#  endif
-+# endif
- 
-  ifeq ($(KBUILD_TARGET),linux)
-   #
+--- virtualbox-ose-2.1.0-dfsg/src/VBox/HostDrivers/VBoxNetFlt/Makefile.kmk.orig	2008-12-23 15:40:38.000000000 +0100
++++ virtualbox-ose-2.1.0-dfsg/src/VBox/HostDrivers/VBoxNetFlt/Makefile.kmk	2008-12-23 15:39:34.000000000 +0100
+@@ -221,7 +221,7 @@
+ # vboxnetflt(.ko/.o/) - The lower case driver.
+ # Note! On Solaris the name has to be <= 8 chars long.
+ #
+-SYSMODS += vboxnetflt
++#SYSMODS += vboxnetflt
+ vboxnetflt_TEMPLATE      = VBOXR0DRV
+ vboxnetflt_NAME.solaris  = vboxflt
+ vboxnetflt_DEFS.linux    = KBUILD_MODNAME=KBUILD_STR\(vboxnetflt\) KBUILD_BASENAME=KBUILD_STR\(vboxnetflt\) MODULE
