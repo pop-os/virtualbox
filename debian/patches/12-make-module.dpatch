@@ -5,9 +5,9 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-2.0.6-dfsg.orig/src/VBox/Additions/linux/module/Makefile.module virtualbox-ose-2.0.6-dfsg/src/VBox/Additions/linux/module/Makefile.module
---- virtualbox-ose-2.0.6-dfsg.orig/src/VBox/Additions/linux/module/Makefile.module	2008-11-27 14:45:57.000000000 +0100
-+++ virtualbox-ose-2.0.6-dfsg/src/VBox/Additions/linux/module/Makefile.module	2008-11-27 14:50:29.000000000 +0100
+diff -Naurp virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Additions/linux/module/Makefile.module virtualbox-ose-2.1.0-dfsg/src/VBox/Additions/linux/module/Makefile.module
+--- virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Additions/linux/module/Makefile.module	2008-12-13 23:00:20.000000000 +0100
++++ virtualbox-ose-2.1.0-dfsg/src/VBox/Additions/linux/module/Makefile.module	2008-12-28 17:23:27.000000000 +0100
 @@ -32,12 +32,24 @@ ifeq ($(BUILD_TARGET_ARCH),)
    BUILD_TARGET_ARCH := amd64
   else
@@ -37,9 +37,9 @@ diff -Naurp virtualbox-ose-2.0.6-dfsg.orig/src/VBox/Additions/linux/module/Makef
     endif
    endif
   endif
-diff -Naurp virtualbox-ose-2.0.6-dfsg.orig/src/VBox/Additions/linux/sharedfolders/Makefile.module virtualbox-ose-2.0.6-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.module
---- virtualbox-ose-2.0.6-dfsg.orig/src/VBox/Additions/linux/sharedfolders/Makefile.module	2008-11-27 14:45:57.000000000 +0100
-+++ virtualbox-ose-2.0.6-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.module	2008-11-27 14:51:08.000000000 +0100
+diff -Naurp virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Additions/linux/sharedfolders/Makefile.module virtualbox-ose-2.1.0-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.module
+--- virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Additions/linux/sharedfolders/Makefile.module	2008-12-13 23:00:20.000000000 +0100
++++ virtualbox-ose-2.1.0-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.module	2008-12-28 17:23:27.000000000 +0100
 @@ -32,12 +32,24 @@ ifeq ($(BUILD_TARGET_ARCH),)
    BUILD_TARGET_ARCH := amd64
   else
@@ -69,10 +69,42 @@ diff -Naurp virtualbox-ose-2.0.6-dfsg.orig/src/VBox/Additions/linux/sharedfolder
     endif
    endif
   endif
-diff -Naurp virtualbox-ose-2.0.6-dfsg.orig/src/VBox/HostDrivers/Support/linux/Makefile virtualbox-ose-2.0.6-dfsg/src/VBox/HostDrivers/Support/linux/Makefile
---- virtualbox-ose-2.0.6-dfsg.orig/src/VBox/HostDrivers/Support/linux/Makefile	2008-11-27 14:45:45.000000000 +0100
-+++ virtualbox-ose-2.0.6-dfsg/src/VBox/HostDrivers/Support/linux/Makefile	2008-11-27 14:49:00.000000000 +0100
+diff -Naurp virtualbox-ose-2.1.0-dfsg.orig/src/VBox/HostDrivers/Support/linux/Makefile virtualbox-ose-2.1.0-dfsg/src/VBox/HostDrivers/Support/linux/Makefile
+--- virtualbox-ose-2.1.0-dfsg.orig/src/VBox/HostDrivers/Support/linux/Makefile	2008-12-13 23:00:17.000000000 +0100
++++ virtualbox-ose-2.1.0-dfsg/src/VBox/HostDrivers/Support/linux/Makefile	2008-12-28 17:23:27.000000000 +0100
 @@ -43,12 +43,24 @@ ifeq ($(BUILD_TARGET_ARCH),)
+   BUILD_TARGET_ARCH := amd64
+  else
+   ifeq ($(ARCH),i386)
+-   BUILD_TARGET_ARCH := x86
++   ifeq ($(CONFIG_X86_32),y)
++     BUILD_TARGET_ARCH := x86
++   else
++     BUILD_TARGET_ARCH := amd64
++   endif
+   else
+-   ifeq ($(filter-out x86_64 amd64 AMD64,$(shell uname -m)),)
+-    BUILD_TARGET_ARCH := amd64
++   ifeq ($(ARCH),x86)
++    ifeq ($(CONFIG_X86_32),y)
++     BUILD_TARGET_ARCH := x86
++    else
++     BUILD_TARGET_ARCH := amd64
++    endif
+    else
+-    BUILD_TARGET_ARCH := x86
++    ifeq ($(filter-out x86_64 amd64 AMD64,$(shell uname -m)),)
++     BUILD_TARGET_ARCH := amd64
++    else
++     BUILD_TARGET_ARCH := x86
++    endif
+    endif
+   endif
+  endif
+diff -Naurp virtualbox-ose-2.1.0-dfsg.orig/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile virtualbox-ose-2.1.0-dfsg/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile
+--- virtualbox-ose-2.1.0-dfsg.orig/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile	2008-12-15 22:21:46.000000000 +0100
++++ virtualbox-ose-2.1.0-dfsg/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile	2008-12-28 17:23:49.000000000 +0100
+@@ -34,12 +34,24 @@ ifeq ($(BUILD_TARGET_ARCH),)
    BUILD_TARGET_ARCH := amd64
   else
    ifeq ($(ARCH),i386)
