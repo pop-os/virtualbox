@@ -17,7 +17,6 @@ out/bin/VBoxHeadless /usr/lib/virtualbox
 out/bin/VBoxManage /usr/lib/virtualbox
 out/bin/VBoxSDL /usr/lib/virtualbox
 out/bin/VBoxSVC /usr/lib/virtualbox
-out/bin/VBoxTunctl /usr/lib/virtualbox
 out/bin/VBoxXPCOM* /usr/lib/virtualbox
 out/bin/VirtualBox* /usr/lib/virtualbox
 out/bin/VMM* /usr/lib/virtualbox

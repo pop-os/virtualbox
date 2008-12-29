@@ -9,10 +9,4 @@
 /usr/share/virtualbox/VBox.sh /usr/bin/VBoxSDL
 /usr/share/virtualbox/VBox.sh /usr/bin/VirtualBox
 
-/usr/bin/VBoxTAP /usr/bin/VBoxAddIF
-/usr/bin/VBoxTAP /usr/bin/VBoxDeleteIF
-
 /usr/share/virtualbox/VBox.png /usr/share/icons/virtualbox.png
-
-/usr/lib/virtualbox/VBoxTunctl /usr/bin/VBoxTunctl
-/usr/share/virtualbox/VBoxAddIF.sh /usr/bin/VBoxTAP

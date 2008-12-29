@@ -2,7 +2,7 @@ virtualbox-ose (2.1.0-dfsg-1) experimental; urgency=low
 
   * New upstream version
     This one doesn't use /dev/net/tun anymore. Closes: #509524
-  * Removed obsoleted vditool and VBoxAddIF.sh.
+  * Removed obsoleted vditool, VBoxAddIF.sh and VBoxTunctl.
 
  -- Michael Meskes <meskes@debian.org>  Thu, 18 Dec 2008 12:49:34 +0100
 

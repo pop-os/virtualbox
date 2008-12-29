@@ -109,74 +109,8 @@
 	<title>Host interface</title>
 	<para>
 	  The virtual ethernet interface is connected to a
-	  <emphasis>TAP</emphasis> device on the host. Adding this
-	  <emphasis>TAP</emphasis> device to a bridging or IP routing
-	  setup is the responsibility of the user.
+	  real device on the host filtering out its traffic.
 	</para>
-      </section>
-    </section>
-    <section>
-      <title>Host interface configuration</title>
-      <para>
-	By attaching the VM's interface to "Host Interface" and
-	creating a corresponding <emphasis>TAP</emphasis> interface
-	the VM can be made visible on the local network.
-      </para>
-      <section>
-	<title>Using <command>VBoxAddIF</command></title>
-	<para>
-	  The VirtualBox includes a helper script,
-	  <command>VBoxAddIF</command> that sets up a
-	  <emphasis>TAP</emphasis> device for a specified user and
-	  optionally connects it to a bridge. This needs to be done
-	  only once for a particular user. Settings for all defined
-	  interfaces are stored in the file
-	  <filename>/etc/vbox/interfaces</filename> and created by the
-	  <filename>/etc/init.d/virtualbox-ose</filename> init script
-	  whenever the host system is booted.
-	  <figure>
-	    <title>Sample commandlines for permanently setting up
-	      <emphasis>TAP</emphasis> interface</title>
-	    <cmdsynopsis>
-	      <command># VBoxAddIF vbox0 luser1 br0</command>
-	      <command># VBoxAddIF vbox1 luser2</command>
-	    </cmdsynopsis>
-	  </figure>
-	  These interfaces can be removed using the
-	  <command>VBoxDeleteIF</command> command.
-	</para>
-	<para>
-	  You can of course create multiple interfaces per user, but
-	  interfaces must have unique names.
-	</para>
-      </section>
-      <section><title><command>ifup</command> /
-	  <command>ifdown</command></title>
-	<para>
-	  Starting with version 1.5.6-3, the virtualbox-ose package
-	  contains helper scripts that allow <emphasis>TAP</emphasis>
-	  interfaces for host-based networking to be configured from
-	  <filename>/etc/network/interfaces</filename>. The names for
-	  such interfaces must start with <code>vbox</code>. The
-	  owner <!-- and group --> for this interface can be set using
-	  the <code>virtualbox-user</code> <!-- and
-	  <code>virtualbox-group</code>keywords respectively.-->
-	  keyword.
-	  <figure>
-	    <title>Configuration of <emphasis>TAP</emphasis> interface
-	    for VirtualBox</title>
-	    <para>
-	      <programlisting>
-iface vbox0 inet static
-	address 192.168.3.1
-	netmask 255.255.255.0
-	virtualbox-user luser
-<!-- #virtualbox-group vboxusers -->
-	      </programlisting>
-	    </para>
-	  </figure>
-	</para>
-	<!-- FIXME: Bridging -->
       </section>
     </section>
   </section>
