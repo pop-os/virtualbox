@@ -28,7 +28,7 @@ out/bin/src/vboxdrv/VBox /usr/src/modules/virtualbox-ose
 out/bin/src/vboxnetflt/SUPR0IdcClientInternal.h /usr/src/modules/virtualbox-ose/
 
 debian/control debian/changelog debian/copyright debian/compat /usr/src/modules/virtualbox-ose/debian
-debian/virtualbox-ose-source.files/Makefile /usr/src/modules/virtualbox-ose/debian
+debian/virtualbox-ose-source.files/Makefile /usr/src/modules/virtualbox-ose
 debian/virtualbox-ose-source.files/control.modules.in /usr/src/modules/virtualbox-ose/debian
 debian/virtualbox-ose-source.files/postinst.modules.in /usr/src/modules/virtualbox-ose/debian
 debian/virtualbox-ose-source.files/rules /usr/src/modules/virtualbox-ose/debian
