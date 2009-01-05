@@ -1,6 +1,7 @@
 virtualbox-ose (2.1.0-dfsg-2) experimental; urgency=low
 
   * Added versioned build dependency for kbuild. Closes: #510736
+  * Added versioned build dependency for qt4. Closes: #510785
 
  -- Michael Meskes <meskes@debian.org>  Sun, 04 Jan 2009 16:58:38 +0100
 
