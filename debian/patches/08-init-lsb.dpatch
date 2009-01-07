@@ -8,8 +8,6 @@
 diff -Naurp virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in virtualbox-ose-2.1.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in
 --- virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in	2008-05-09 09:28:11.000000000 +0000
 +++ virtualbox-ose-2.1.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in	2008-05-09 09:28:41.000000000 +0000
---- vboxdrv.sh.in.orig	2009-01-07 13:20:59.000000000 +0100
-+++ vboxdrv.sh.in	2009-01-07 13:24:45.000000000 +0100
 @@ -19,8 +19,8 @@
  #
  ### BEGIN INIT INFO
