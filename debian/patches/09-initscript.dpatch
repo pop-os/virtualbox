@@ -8,17 +8,16 @@
 diff -Naurp virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in virtualbox-ose-2.1.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in
 --- virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in	2008-12-18 16:30:08.000000000 +0100
 +++ virtualbox-ose-2.1.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in		2008-12-18 16:36:51.000000000 +0100
-@@ -32,7 +32,8 @@
+@@ -32,6 +32,8 @@
  LOG="/var/log/vbox-install.log"
  NOLSB=%NOLSB%
  
--[ -f /lib/lsb/init-functions ] || NOLSB=yes
 +# Include virtualbox-ose defaults if available
 +[ -f /etc/default/virtualbox-ose ] && . /etc/default/virtualbox-ose
+ [ -f /lib/lsb/init-functions ] && NOLSB=
  [ -f /etc/vbox/vbox.cfg ] && . /etc/vbox/vbox.cfg
  
- if [ -n "$INSTALL_DIR" ]; then
-@@ -150,8 +151,10 @@
+@@ -153,8 +155,10 @@
          if ! rm -f $DEVICE; then
              failure "Cannot remove $DEVICE"
          fi
@@ -31,7 +30,7 @@ diff -Naurp virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
          fi
          sleep .2
      fi
-@@ -181,8 +184,10 @@
+@@ -184,8 +188,10 @@
          rmmod vboxdrv 2>/dev/null
          failure "Cannot change owner $GROUPNAME for device $DEVICE"
      fi

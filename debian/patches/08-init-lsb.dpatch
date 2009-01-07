@@ -8,6 +8,8 @@
 diff -Naurp virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in virtualbox-ose-2.1.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in
 --- virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in	2008-05-09 09:28:11.000000000 +0000
 +++ virtualbox-ose-2.1.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in	2008-05-09 09:28:41.000000000 +0000
+--- vboxdrv.sh.in.orig	2009-01-07 13:20:59.000000000 +0100
++++ vboxdrv.sh.in	2009-01-07 13:24:45.000000000 +0100
 @@ -19,8 +19,8 @@
  #
  ### BEGIN INIT INFO
@@ -19,7 +21,17 @@ diff -Naurp virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
  # Default-Start:  2 3 4 5
  # Default-Stop:   0 1 6
  # Short-Description: VirtualBox Linux kernel module
-@@ -61,13 +61,12 @@
+@@ -32,7 +32,7 @@
+ LOG="/var/log/vbox-install.log"
+ NOLSB=%NOLSB%
+ 
+-[ -f /lib/lsb/init-functions ] || NOLSB=yes
++[ -f /lib/lsb/init-functions ] && NOLSB=
+ [ -f /etc/vbox/vbox.cfg ] && . /etc/vbox/vbox.cfg
+ 
+ if [ -n "$INSTALL_DIR" ]; then
+@@ -60,14 +60,13 @@
+ if [ -z "$NOLSB" ]; then
      . /lib/lsb/init-functions
      fail_msg() {
 -        echo ""
