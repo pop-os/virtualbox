@@ -1,3 +1,9 @@
+virtualbox-ose (2.1.2-dfsg-1) experimental; urgency=low
+
+  * New upstream version.
+
+ -- Michael Meskes <meskes@debian.org>  Thu, 22 Jan 2009 11:47:53 +0100
+
 virtualbox-ose (2.1.0-dfsg-2) experimental; urgency=low
 
   * Added versioned build dependency for kbuild. Closes: #510736
