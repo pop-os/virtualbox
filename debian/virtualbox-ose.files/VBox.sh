@@ -72,6 +72,9 @@ case "$APP" in
   vditool)
     exec "$INSTALL_DIR/vditool" "$@"
   ;;
+  vboxwebserv)
+    exec "$INSTALL_DIR/vboxwebserv" "$@"
+  ;;
   *)
     echo "Unknown application - $APP"
   ;;
