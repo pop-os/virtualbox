@@ -39,7 +39,8 @@ env.sh: patch-stamp
 	    --disable-kmods \
 	    --disable-qt3 \
 	    --with-gcc=/usr/bin/gcc-4.2 \
-	    --with-g++=/usr/bin/g++-4.2
+	    --with-g++=/usr/bin/g++-4.2 \
+	    --enable-webservice
 
 build: build-stamp
 build-stamp: env.sh

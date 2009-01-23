@@ -20,6 +20,8 @@ out/bin/VBoxSVC /usr/lib/virtualbox
 out/bin/VBoxXPCOM* /usr/lib/virtualbox
 out/bin/VirtualBox* /usr/lib/virtualbox
 out/bin/VMM* /usr/lib/virtualbox
+out/bin/vboxwebsrv /usr/lib/virtualbox
+out/bin/webtest /usr/lib/virtualbox
 
 out/bin/nls /usr/share/virtualbox
 out/bin/sdk /usr/share/virtualbox
