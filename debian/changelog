@@ -2,6 +2,7 @@ virtualbox-ose (2.1.2-dfsg-1) experimental; urgency=low
 
   * New upstream version.
   * Enabled webservice.
+  * Install VBoxSysInfo script.
 
  -- Michael Meskes <meskes@debian.org>  Thu, 22 Jan 2009 11:47:53 +0100
 

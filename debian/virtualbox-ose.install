@@ -26,5 +26,6 @@ out/bin/webtest /usr/lib/virtualbox
 out/bin/nls /usr/share/virtualbox
 out/bin/sdk /usr/share/virtualbox
 out/bin/VBox.png /usr/share/virtualbox
+out/bin/VBoxSysInfo.sh /usr/share/virtualbox
 
 out/obj/xpidl /usr/lib/virtualbox
