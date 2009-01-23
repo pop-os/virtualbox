@@ -1,5 +1,4 @@
 debian/virtualbox-ose.files/vbox.cfg /etc/vbox
-debian/virtualbox-ose.files/interfaces /etc/vbox
 debian/virtualbox-ose.files/*.sh /usr/share/virtualbox
 debian/virtualbox-ose.files/virtualbox-ose.desktop /usr/share/applications
 debian/virtualbox-ose.files/virtualbox-ose.xpm /usr/share/pixmaps
