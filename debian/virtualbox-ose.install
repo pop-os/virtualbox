@@ -7,7 +7,6 @@ debian/virtualbox-ose.files/virtualbox-ose.xpm /usr/share/pixmaps
 debian/lintian/virtualbox-ose /usr/share/lintian/overrides
 
 out/bin/components /usr/lib/virtualbox
-out/bin/SUP* /usr/lib/virtualbox
 out/bin/VBoxREM* /usr/lib/virtualbox
 out/bin/VBox*.so /usr/lib/virtualbox
 out/bin/VBox*.gc /usr/lib/virtualbox
