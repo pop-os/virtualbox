@@ -8,6 +8,7 @@ virtualbox-ose (2.1.2-dfsg-1) experimental; urgency=low
     useful for anyone not developing virtualbox-ose.
   * Documented changes in network setup and removed useless scripts and
     configs. Closes: #512024
+  * Added missing architecture amd64 to guest source package. Closes: #512811
 
  -- Michael Meskes <meskes@debian.org>  Thu, 22 Jan 2009 11:47:53 +0100
 
