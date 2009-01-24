@@ -20,7 +20,7 @@ upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)
 DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
 
 # Generate README.Debian as text/html ...
-debian/README.Debian.html: debian/virtualbox-ose.README.Debian.xml
+debian/README.Debian.html: debian/virtualbox-ose.files/README.Debian.xml
 	xsltproc --nonet --stringparam section.autolabel 1 \
 	    -o $@ \
 	    /usr/share/xml/docbook/stylesheet/nwalsh/html/docbook.xsl \
