@@ -1,0 +1,434 @@
+; $Id: CPUMInternal.mac 15962 2009-01-15 12:33:49Z vboxsync $
+;; @file
+; CPUM - Internal header file (asm).
+;
+
+;
+; Copyright (C) 2006-2007 Sun Microsystems, Inc.
+;
+; This file is part of VirtualBox Open Source Edition (OSE), as
+; available from http://www.virtualbox.org. This file is free software;
+; you can redistribute it and/or modify it under the terms of the GNU
+; General Public License (GPL) as published by the Free Software
+; Foundation, in version 2 as it comes in the "COPYING" file of the
+; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+;
+; Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+; Clara, CA 95054 USA or visit http://www.sun.com if you need
+; additional information or have any questions.
+;
+
+%include "VBox/asmdefs.mac"
+
+%define CPUM_USED_FPU                   RT_BIT(0)
+%define CPUM_USED_FPU_SINCE_REM         RT_BIT(1)
+%define CPUM_USE_SYSENTER               RT_BIT(2)
+%define CPUM_USE_SYSCALL                RT_BIT(3)
+%define CPUM_USE_DEBUG_REGS_HOST        RT_BIT(4)
+%define CPUM_USE_DEBUG_REGS             RT_BIT(5)
+%define CPUM_SYNC_FPU_STATE             RT_BIT(7)
+%define CPUM_SYNC_DEBUG_STATE           RT_BIT(8)
+
+%define CPUM_HANDLER_DS                 1
+%define CPUM_HANDLER_ES                 2
+%define CPUM_HANDLER_FS                 3
+%define CPUM_HANDLER_GS                 4
+%define CPUM_HANDLER_IRET               5
+%define CPUM_HANDLER_TYPEMASK           0ffh
+%define CPUM_HANDLER_CTXCORE_IN_EBP     RT_BIT(31)
+
+%define VMMGCRET_USED_FPU               040000000h
+
+%define FPUSTATE_SIZE                   512
+
+;; if anyone figures how to do %if HC_ARCH_BITS == 64 || defined(VBOX_WITH_HYBRID_32BIT_KERNEL) in
+; nasm please tell / fix this hack.
+%ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
+ %define fVBOX_WITH_HYBRID_32BIT_KERNEL 1
+%else
+ %define fVBOX_WITH_HYBRID_32BIT_KERNEL 0
+%endif
+
+struc CPUM
+    ;
+    ; Hypervisor Context.
+    ;
+    alignb 64                           ; the padding
+    .Hyper.fpu            resb    FPUSTATE_SIZE
+
+    .Hyper.edi            resq    1
+    .Hyper.esi            resq    1
+    .Hyper.ebp            resq    1
+    .Hyper.eax            resq    1
+    .Hyper.ebx            resq    1
+    .Hyper.edx            resq    1
+    .Hyper.ecx            resq    1
+    .Hyper.esp            resq    1
+    .Hyper.lss_esp        resd    1
+    .Hyper.ss             resw    1
+    .Hyper.ssPadding      resw    1
+    .Hyper.gs             resw    1
+    .Hyper.gsPadding      resw    1
+    .Hyper.fs             resw    1
+    .Hyper.fsPadding      resw    1
+    .Hyper.es             resw    1
+    .Hyper.esPadding      resw    1
+    .Hyper.ds             resw    1
+    .Hyper.dsPadding      resw    1
+    .Hyper.cs             resw    1
+    .Hyper.csPadding      resw    3
+    .Hyper.eflags         resq    1
+    .Hyper.eip            resq    1
+    .Hyper.r8             resq    1
+    .Hyper.r9             resq    1
+    .Hyper.r10            resq    1
+    .Hyper.r11            resq    1
+    .Hyper.r12            resq    1
+    .Hyper.r13            resq    1
+    .Hyper.r14            resq    1
+    .Hyper.r15            resq    1
+
+    .Hyper.esHid.u64Base      resq    1
+    .Hyper.esHid.u32Limit     resd    1
+    .Hyper.esHid.Attr         resd    1
+
+    .Hyper.csHid.u64Base      resq    1
+    .Hyper.csHid.u32Limit     resd    1
+    .Hyper.csHid.Attr         resd    1
+
+    .Hyper.ssHid.u64Base      resq    1
+    .Hyper.ssHid.u32Limit     resd    1
+    .Hyper.ssHid.Attr         resd    1
+
+    .Hyper.dsHid.u64Base      resq    1
+    .Hyper.dsHid.u32Limit     resd    1
+    .Hyper.dsHid.Attr         resd    1
+
+    .Hyper.fsHid.u64Base      resq    1
+    .Hyper.fsHid.u32Limit     resd    1
+    .Hyper.fsHid.Attr         resd    1
+
+    .Hyper.gsHid.u64Base      resq    1
+    .Hyper.gsHid.u32Limit     resd    1
+    .Hyper.gsHid.Attr         resd    1
+
+    .Hyper.cr0            resq    1
+    .Hyper.cr2            resq    1
+    .Hyper.cr3            resq    1
+    .Hyper.cr4            resq    1
+
+    .Hyper.dr             resq    8
+
+    .Hyper.gdtr           resb    10          ; GDT limit + linear address
+    .Hyper.gdtrPadding    resw    1
+    .Hyper.idtr           resb    10          ; IDT limit + linear address
+    .Hyper.idtrPadding    resw    1
+    .Hyper.ldtr           resw    1
+    .Hyper.ldtrPadding    resw    1
+    .Hyper.tr             resw    1
+    .Hyper.trPadding      resw    1
+
+    .Hyper.SysEnter.cs        resb    8
+    .Hyper.SysEnter.eip       resb    8
+    .Hyper.SysEnter.esp       resb    8
+
+    .Hyper.msrEFER            resb    8
+    .Hyper.msrSTAR            resb    8
+    .Hyper.msrPAT             resb    8
+    .Hyper.msrLSTAR           resb    8
+    .Hyper.msrCSTAR           resb    8
+    .Hyper.msrSFMASK          resb    8
+    .Hyper.msrKERNELGSBASE    resb    8
+
+    .Hyper.ldtrHid.u64Base    resq    1
+    .Hyper.ldtrHid.u32Limit   resd    1
+    .Hyper.ldtrHid.Attr       resd    1
+
+    .Hyper.trHid.u64Base      resq    1
+    .Hyper.trHid.u32Limit     resd    1
+    .Hyper.trHid.Attr         resd    1
+
+    ;
+    ; Other stuff.
+    ;
+    alignb 64
+    ; hypervisor core context.
+    .pHyperCoreR3         RTR3PTR_RES   1
+    .pHyperCoreR0         RTR0PTR_RES   1
+    .pHyperCoreRC         RTRCPTR_RES   1
+    ;...
+    .ulOffCPUMCPU         resd    1
+    .fValidHiddenSelRegs  resd    1
+
+    ; CPUID eax=1
+    .CPUFeatures.edx      resd    1
+    .CPUFeatures.ecx      resd    1
+
+    ; CPUID eax=0x80000001
+    .CPUFeaturesExt.edx   resd    1
+    .CPUFeaturesExt.ecx   resd    1
+
+    .enmCPUVendor         resd    1
+
+    ; CR4 masks
+    .CR4.AndMask          resd    1
+    .CR4.OrMask           resd    1
+    ; entered rawmode?
+    .fRawEntered          resb    1
+%if RTHCPTR_CB == 8
+    .abPadding            resb    7
+%else
+    .abPadding            resb    3
+%endif
+
+    ; CPUID leafs
+    .aGuestCpuIdStd       resb    16*6
+    .aGuestCpuIdExt       resb    16*10
+    .aGuestCpuIdCentaur   resb    16*4
+    .GuestCpuIdDef        resb    16
+
+    alignb 64
+    ; CPUMCTX debug stuff...
+    .GuestEntry           resb   1024
+endstruc
+
+struc CPUMCPU
+    ;
+    ; Host context state
+    ;
+    .Host.fpu            resb    FPUSTATE_SIZE
+
+%if HC_ARCH_BITS == 64 || fVBOX_WITH_HYBRID_32BIT_KERNEL
+    ;.Host.rax            resq    1 - scratch
+    .Host.rbx            resq    1
+    ;.Host.rcx            resq    1 - scratch
+    ;.Host.rdx            resq    1 - scratch
+    .Host.rdi            resq    1
+    .Host.rsi            resq    1
+    .Host.rbp            resq    1
+    .Host.rsp            resq    1
+    ;.Host.r8             resq    1 - scratch
+    ;.Host.r9             resq    1 - scratch
+    .Host.r10            resq    1
+    .Host.r11            resq    1
+    .Host.r12            resq    1
+    .Host.r13            resq    1
+    .Host.r14            resq    1
+    .Host.r15            resq    1
+    ;.Host.rip            resd    1 - scratch
+    .Host.rflags         resq    1
+%endif
+%if HC_ARCH_BITS == 32
+    ;.Host.eax            resd    1 - scratch
+    .Host.ebx            resd    1
+    ;.Host.edx            resd    1 - scratch
+    ;.Host.ecx            resd    1 - scratch
+    .Host.edi            resd    1
+    .Host.esi            resd    1
+    .Host.ebp            resd    1
+    .Host.eflags         resd    1
+    ;.Host.eip            resd    1 - scratch
+    ; lss pair!
+    .Host.esp            resd    1
+%endif
+    .Host.ss             resw    1
+    .Host.ssPadding      resw    1
+    .Host.gs             resw    1
+    .Host.gsPadding      resw    1
+    .Host.fs             resw    1
+    .Host.fsPadding      resw    1
+    .Host.es             resw    1
+    .Host.esPadding      resw    1
+    .Host.ds             resw    1
+    .Host.dsPadding      resw    1
+    .Host.cs             resw    1
+    .Host.csPadding      resw    1
+
+%if HC_ARCH_BITS == 32 && fVBOX_WITH_HYBRID_32BIT_KERNEL == 0
+    .Host.cr0            resd    1
+    ;.Host.cr2            resd    1 - scratch
+    .Host.cr3            resd    1
+    .Host.cr4            resd    1
+
+    .Host.dr0            resd    1
+    .Host.dr1            resd    1
+    .Host.dr2            resd    1
+    .Host.dr3            resd    1
+    .Host.dr6            resd    1
+    .Host.dr7            resd    1
+
+    .Host.gdtr           resb    6           ; GDT limit + linear address
+    .Host.gdtrPadding    resw    1
+    .Host.idtr           resb    6           ; IDT limit + linear address
+    .Host.idtrPadding    resw    1
+    .Host.ldtr           resw    1
+    .Host.ldtrPadding    resw    1
+    .Host.tr             resw    1
+    .Host.trPadding      resw    1
+
+    .Host.SysEnterPadding resd   1
+    .Host.SysEnter.cs    resq    1
+    .Host.SysEnter.eip   resq    1
+    .Host.SysEnter.esp   resq    1
+    .Host.efer           resq    1
+
+%else ; 64-bit
+
+    .Host.cr0            resq    1
+    ;.Host.cr2            resq    1 - scratch
+    .Host.cr3            resq    1
+    .Host.cr4            resq    1
+    .Host.cr8            resq    1
+
+    .Host.dr0            resq    1
+    .Host.dr1            resq    1
+    .Host.dr2            resq    1
+    .Host.dr3            resq    1
+    .Host.dr6            resq    1
+    .Host.dr7            resq    1
+
+    .Host.gdtr           resb    10         ; GDT limit + linear address
+    .Host.gdtrPadding    resw    1
+    .Host.idtr           resb    10         ; IDT limit + linear address
+    .Host.idtrPadding    resw    1
+    .Host.ldtr           resw    1
+    .Host.ldtrPadding    resw    1
+    .Host.tr             resw    1
+    .Host.trPadding      resw    1
+
+    .Host.SysEnter.cs    resq    1
+    .Host.SysEnter.eip   resq    1
+    .Host.SysEnter.esp   resq    1
+    .Host.FSbase         resq    1
+    .Host.GSbase         resq    1
+    .Host.efer           resq    1
+%endif ; 64-bit
+
+%ifdef VBOX_WITH_CRASHDUMP_MAGIC
+    .aMagic              resb    56
+    .uMagic              resq    1
+%endif
+    ;
+    ; Guest context state
+    ; (Identical to the .Hyper chunk above.)
+    ;
+    alignb 64
+    .Guest.fpu            resb    FPUSTATE_SIZE
+
+    .Guest.edi            resq    1
+    .Guest.esi            resq    1
+    .Guest.ebp            resq    1
+    .Guest.eax            resq    1
+    .Guest.ebx            resq    1
+    .Guest.edx            resq    1
+    .Guest.ecx            resq    1
+    .Guest.esp            resq    1
+    .Guest.lss_esp        resd    1
+    .Guest.ss             resw    1
+    .Guest.ssPadding      resw    1
+    .Guest.gs             resw    1
+    .Guest.gsPadding      resw    1
+    .Guest.fs             resw    1
+    .Guest.fsPadding      resw    1
+    .Guest.es             resw    1
+    .Guest.esPadding      resw    1
+    .Guest.ds             resw    1
+    .Guest.dsPadding      resw    1
+    .Guest.cs             resw    1
+    .Guest.csPadding      resw    3
+    .Guest.eflags         resq    1
+    .Guest.eip            resq    1
+    .Guest.r8             resq    1
+    .Guest.r9             resq    1
+    .Guest.r10            resq    1
+    .Guest.r11            resq    1
+    .Guest.r12            resq    1
+    .Guest.r13            resq    1
+    .Guest.r14            resq    1
+    .Guest.r15            resq    1
+
+    .Guest.esHid.u64Base      resq    1
+    .Guest.esHid.u32Limit     resd    1
+    .Guest.esHid.Attr         resd    1
+
+    .Guest.csHid.u64Base      resq    1
+    .Guest.csHid.u32Limit     resd    1
+    .Guest.csHid.Attr         resd    1
+
+    .Guest.ssHid.u64Base      resq    1
+    .Guest.ssHid.u32Limit     resd    1
+    .Guest.ssHid.Attr         resd    1
+
+    .Guest.dsHid.u64Base      resq    1
+    .Guest.dsHid.u32Limit     resd    1
+    .Guest.dsHid.Attr         resd    1
+
+    .Guest.fsHid.u64Base      resq    1
+    .Guest.fsHid.u32Limit     resd    1
+    .Guest.fsHid.Attr         resd    1
+
+    .Guest.gsHid.u64Base      resq    1
+    .Guest.gsHid.u32Limit     resd    1
+    .Guest.gsHid.Attr         resd    1
+
+    .Guest.cr0            resq    1
+    .Guest.cr2            resq    1
+    .Guest.cr3            resq    1
+    .Guest.cr4            resq    1
+
+    .Guest.dr             resq    8
+
+    .Guest.gdtr.cbGdt     resw    1
+    .Guest.gdtr.pGdt      resq    1
+    .Guest.gdtrPadding    resw    1
+    .Guest.idtr.cbIdt     resw    1
+    .Guest.idtr.pIdt      resq    1
+    .Guest.idtrPadding    resw    1
+    .Guest.ldtr           resw    1
+    .Guest.ldtrPadding    resw    1
+    .Guest.tr             resw    1
+    .Guest.trPadding      resw    1
+
+    .Guest.SysEnter.cs        resb    8
+    .Guest.SysEnter.eip       resb    8
+    .Guest.SysEnter.esp       resb    8
+
+    .Guest.msrEFER            resb    8
+    .Guest.msrSTAR            resb    8
+    .Guest.msrPAT             resb    8
+    .Guest.msrLSTAR           resb    8
+    .Guest.msrCSTAR           resb    8
+    .Guest.msrSFMASK          resb    8
+    .Guest.msrKERNELGSBASE    resb    8
+
+    .Guest.ldtrHid.u64Base    resq    1
+    .Guest.ldtrHid.u32Limit   resd    1
+    .Guest.ldtrHid.Attr       resd    1
+
+    .Guest.trHid.u64Base      resq    1
+    .Guest.trHid.u32Limit     resd    1
+    .Guest.trHid.Attr         resd    1
+
+    .GuestMsr.au64            resq    64
+
+    .fUseFlags            resd    1
+    .fChanged             resd    1
+    .ulOffCPUM            resd    1
+    .u32RetCode           resd    1
+endstruc
+
+
+;;
+; Converts the CPUM pointer to CPUMCPU (for the first VMCPU)
+; @param   %1   register name
+%macro CPUMCPU_FROM_CPUM 1
+    add     %1, dword [%1 + CPUM.ulOffCPUMCPU]
+%endmacro
+
+;;
+; Converts the CPUMCPU pointer to CPUM (for the first VMCPU)
+; @param   %1   register name
+%macro CPUM_FROM_CPUMCPU 1
+    sub     %1, dword [%1 + CPUMCPU.ulOffCPUM]
+%endmacro

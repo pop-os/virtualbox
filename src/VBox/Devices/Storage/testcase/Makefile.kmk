@@ -1,0 +1,77 @@
+# $Id: Makefile.kmk 15366 2008-12-12 13:50:32Z vboxsync $
+## @file
+# Sub-Makefile for the storage device & driver testcases.
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../../..
+include	$(KBUILD_PATH)/subheader.kmk
+
+#
+# vditool - useful too for manipulating VDIs, but now pretty obsolete and
+# probably will go away soon. Testcase only now.
+#
+#ifdef VBOX_WITH_TESTCASES
+# PROGRAMS += vditool
+# ifeq ($(KBUILD_TARGET),l4)
+#  vditool_TEMPLATE = VBOXLNXHOSTR3EXE
+#  vditool_LIBS     = \
+#	$(PATH_LIB)/VBoxDDULnxHostR3.a \
+#	$(PATH_LIB)/RuntimeLnxHostR3.a
+# else
+#  vditool_TEMPLATE = VBOXR3TSTEXE
+#  vditool_LIBS     = $(LIB_DDU) $(LIB_RUNTIME)
+# endif
+# vditool_SOURCES   = vditool.cpp
+#endif
+
+
+#
+# Basic testcase for the VDI code.
+#
+#ifdef VBOX_WITH_TESTCASES
+# PROGRAMS += tstVDI
+# ifeq ($(KBUILD_TARGET),l4)
+#  tstVDI_TEMPLATE = VBOXLNXHOSTR3EXE
+# else
+#  tstVDI_TEMPLATE = VBOXR3TSTEXE
+# endif
+# tstVDI_LIBS     = $(vditool_LIBS)
+# tstVDI_SOURCES  = tstVDI.cpp
+#endif
+
+#
+# Basic testcases for the VD code.
+#
+ifdef VBOX_WITH_TESTCASES
+ PROGRAMS += tstVD tstVD-2
+ ifeq ($(KBUILD_TARGET),l4)
+  tstVD_TEMPLATE = VBOXLNXHOSTR3EXE
+  tstVD-2_TEMPLATE = VBOXLNXHOSTR3EXE
+ else
+  tstVD_TEMPLATE = VBOXR3TSTEXE
+  tstVD-2_TEMPLATE = VBOXR3TSTEXE
+ endif
+ tstVD_LIBS     = $(LIB_DDU) $(LIB_RUNTIME)
+ tstVD-2_LIBS   = $(LIB_DDU) $(LIB_RUNTIME)
+ tstVD_SOURCES  = tstVD.cpp
+ tstVD-2_SOURCES  = tstVD-2.cpp
+endif
+
+include	$(KBUILD_PATH)/subfooter.kmk
+

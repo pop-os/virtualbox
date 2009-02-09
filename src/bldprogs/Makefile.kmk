@@ -1,0 +1,34 @@
+# $Id: Makefile.kmk 13155 2008-10-10 08:07:41Z vboxsync $
+## @file
+# Sub-Makefile for various generic build tools (there is currently only one of them).
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../..
+include $(KBUILD_PATH)/subheader.kmk
+
+BLDPROGS += bin2c biossums
+
+bin2c_TEMPLATE = VBOXBLDPROG
+bin2c_SOURCES = bin2c.c
+
+biossums_TEMPLATE = VBOXBLDPROG
+biossums_SOURCES = biossums.c
+
+include $(KBUILD_PATH)/subfooter.kmk
+

@@ -1,0 +1,137 @@
+# $Id: Makefile.kmk 12446 2008-09-14 23:32:31Z vboxsync $
+## @file
+# Sub-Makefile for the common guest addition code library.
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../../..
+include	$(KBUILD_PATH)/subheader.kmk
+
+#
+# Target config.
+#
+LIBRARIES += \
+	VBoxGuestR0Lib \
+	VBoxGuestR0LibBase
+LIBRARIES += \
+	VBoxGuestR3Lib \
+	VBoxGuestR3LibShared
+if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd)
+ LIBRARIES += \
+  	VBoxGuestR3LibXFree86
+endif
+
+ifndef VBOX_WITH_ADDITION_DRIVERS
+ if1of ($(KBUILD_TARGET), linux l4) # All drivers are optional, can skip RuntimeGuestR0.
+  LIBRARIES := $(filter-out VBoxGuestR0Lib VBoxGuestR0LibBase, $(LIBRARIES))
+ endif
+endif
+
+
+#
+# VBoxGuestR0Lib
+#
+VBoxGuestR0Lib_TEMPLATE     = VBOXGUESTR0LIB
+VBoxGuestR0Lib_DEFS         = VBOX_WITH_HGCM
+VBoxGuestR0Lib_INCS         = \
+	$(PATH_VBoxGuestR0Lib)
+VBoxGuestR0Lib_SOURCES      = \
+	GenericRequest.cpp \
+	SysHlp.cpp \
+	PhysHeap.cpp \
+	Init.cpp \
+	VMMDev.cpp \
+	HGCM.cpp \
+	VBoxCalls.c
+
+#
+# VBoxGuestR0LibBase
+#
+VBoxGuestR0LibBase_TEMPLATE = VBOXGUESTR0LIB
+VBoxGuestR0LibBase_DEFS     = VBOX_WITH_HGCM VBGL_VBOXGUEST
+VBoxGuestR0LibBase_INCS     = $(VBoxGuestR0Lib_INCS)
+VBoxGuestR0LibBase_INCS.win = $(VBoxGuestR0Lib_INCS.win)
+VBoxGuestR0LibBase_SOURCES  = \
+	GenericRequest.cpp \
+	SysHlp.cpp \
+	PhysHeap.cpp \
+	Init.cpp \
+	VMMDev.cpp \
+	HGCMInternal.cpp
+
+#
+# VBoxGuestR3Lib
+#
+VBoxGuestR3Lib_TEMPLATE    = VBOXGUESTR3LIB
+VBoxGuestR3Lib_DEFS        = \
+	VBOX_WITH_HGCM \
+	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS,)
+VBoxGuestR3Lib_SOURCES     = \
+	VBoxGuestR3Lib.cpp \
+	VBoxGuestR3LibClipboard.cpp \
+	VBoxGuestR3LibDaemonize.cpp \
+	VBoxGuestR3LibGR.cpp \
+	$(if $(VBOX_WITH_GUEST_PROPS),VBoxGuestR3LibGuestProp.cpp,) \
+	VBoxGuestR3LibMouse.cpp \
+	VBoxGuestR3LibMisc.cpp \
+	VBoxGuestR3LibSeamless.cpp \
+	VBoxGuestR3LibTime.cpp \
+	VBoxGuestR3LibVideo.cpp
+ifeq ($(KBUILD_TARGET),win) ## @todo get rid of this hack (as soon as it's all implemented / #defined).
+ VBoxGuestR3Lib_SOURCES   = \
+	VBoxGuestR3Lib.cpp \
+	VBoxGuestR3LibGR.cpp \
+	$(if $(VBOX_WITH_GUEST_PROPS),VBoxGuestR3LibGuestProp.cpp,) \
+	VBoxGuestR3LibMisc.cpp
+endif
+
+
+#
+# VBoxGuestR3LibShared - a PIC variant of VBoxGuestR3Lib for linking into .so/.dll/.dylib.
+#
+VBoxGuestR3LibShared_TEMPLATE = VBOXGUESTR3DLL
+VBoxGuestR3LibShared_DEFS    := $(VBoxGuestR3Lib_DEFS)
+VBoxGuestR3LibShared_SOURCES := $(VBoxGuestR3Lib_SOURCES)
+VBoxGuestR3LibShared_INST    := $(INST_ADDITIONS_LIB)
+
+
+#
+# VBoxGuestR3LibXFree86 - a reduced version of the guest library which uses
+# the X server runtime instead of IPRT, for use with old servers where the
+# C library is not available.
+#
+VBoxGuestR3LibXFree86_TEMPLATE = VBOXGUESTR3LIB
+VBoxGuestR3LibXFree86_DEFS     = \
+	VBOX_WITH_HGCM VBOX_VBGLR3_XFREE86 \
+	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS,)
+VBoxGuestR3LibXFree86_SOURCES  = \
+	VBoxGuestR3Lib.cpp \
+	VBoxGuestR3LibGR.cpp \
+	$(if $(VBOX_WITH_GUEST_PROPS),VBoxGuestR3LibGuestProp.cpp,) \
+	VBoxGuestR3LibMouse.cpp \
+	VBoxGuestR3LibMisc.cpp \
+	VBoxGuestR3LibVideo.cpp
+VBoxGuestR3LibXFree86_INCS     = \
+        $(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/common/ \
+        $(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/os-support \
+        $(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/include \
+        $(VBOX_PATH_X11_XFREE_4_2)/exports/include/X11
+
+
+include	$(KBUILD_PATH)/subfooter.kmk
+

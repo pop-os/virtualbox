@@ -1,0 +1,55 @@
+# $Id: Makefile.kmk 14220 2008-11-14 15:05:30Z vboxsync $
+## @file
+# Sub-Makefile for the Guest Additions Command Line Management Interface.
+#
+
+#
+# Copyright (C) 2008 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../../..
+include	$(KBUILD_PATH)/subheader.kmk
+
+# Include sub-makefile(s).
+include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
+
+#
+# VBoxControl
+#
+PROGRAMS += VBoxControl
+VBoxControl_TEMPLATE = VBOXGUESTR3EXE
+ifeq ($(KBUILD_TARGET),win)
+ ifdef VBOX_SIGN_ADDITIONS # (See the main Windows Additions makefile.)
+  VBoxControl_NOINST  = true
+ endif
+endif
+VBoxControl_DEFS     += \
+	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS VBOX_WITH_HGCM,)
+VBoxControl_SOURCES = \
+	VBoxControl.cpp \
+	VBoxControlSVN.cpp
+VBoxControl_SOURCES.win = \
+	VBoxControl.rc
+VBoxControl_LIBS = \
+	$(VBOX_LIB_IPRT_GUEST_R3) \
+	$(VBOX_LIB_VBGL_R3) \
+	$(VBOX_LIB_IPRT_GUEST_R3)
+
+# VBoxControlSVN.cpp uses VBOX_SVN_REV.
+VBoxControlSVN.cpp_DEFS = VBOX_SVN_REV=$(VBOX_SVN_REV)
+VBoxControlSVN.cpp_DEPS = $(VBOX_SVN_REV_KMK)
+
+include	$(KBUILD_PATH)/subfooter.kmk
+

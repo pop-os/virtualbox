@@ -1,0 +1,220 @@
+# $Id: Makefile.kmk 16091 2009-01-20 16:53:58Z vboxsync $
+## @file
+# Sub-Makefile for the VBox Linux Additions X.org graphics driver.
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../../..
+include	$(KBUILD_PATH)/subheader.kmk
+
+#
+# vboxvideo_drv
+#
+if1of ($(KBUILD_TARGET), linux)
+ SYSMODS += vboxvideo_drv
+ vboxvideo_drv_TEMPLATE = VBOXGUESTR3XF86MOD
+ vboxvideo_drv_DEFS.linux = linux
+ vboxvideo_drv_DEFS.x86 = __i386__
+ vboxvideo_drv_DEFS = \
+	_POSIX_C_SOURCE=199309L _POSIX_SOURCE _XOPEN_SOURCE \
+	_BSD_SOURCE _SVID_SOURCE _GNU_SOURCE SHAPE XINPUT XKB LBX XAPPGROUP \
+	XCSECURITY TOGCUP XF86BIGFONT DPMSExtension PIXPRIV PANORAMIX RENDER \
+	GCCUSESGAS AVOID_GLYPHBLT PIXPRIV SINGLEDEPTH XFreeXDGA XvExtension \
+	XFree86LOADER XFree86Server XF86VIDMODE XvMCExtension SMART_SCHEDULE \
+	BUILDDEBUG X_BYTE_ORDER=X_LITTLE_ENDIAN DNDEBUG FUNCPROTO=15 NARROWPROTO \
+	IN_MODULE XFree86Module
+ vboxvideo_drv_CFLAGS.linux := \
+ 	-Wno-conversion -Wno-unused-parameter $(VBOX_GCC_Wno-variadic-macros)
+ ARGB_CURSORS=1
+ ifdef ARGB_CURSORS
+  vboxvideo_drv_INCS = \
+	$(VBOX_PATH_X11_XFREE_4_3)/include \
+	$(VBOX_PATH_X11_XFREE_4_3)/include/X11 \
+	$(VBOX_PATH_X11_XFREE_4_3)/include/X11/extensions \
+	$(VBOX_PATH_X11_XFREE_4_3)/include/fonts \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/afb \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/include \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/fb \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86 \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/common \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/ddc \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/int10 \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/i2c \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/os-support \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/vbe \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/os-support/bus \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/rac \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/ramdac \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/shadowfb \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/vgahw \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/xf1bpp \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/xf24_32bpp \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/xf4bpp \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/mfb \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/mi \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/miext/shadow \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/render \
+	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/Xext
+ else
+  vboxvideo_drv_INCS = \
+	$(VBOX_PATH_X11_XFREE_4_2)/exports/include/X11 \
+	$(VBOX_PATH_X11_XFREE_4_2)/include \
+	$(VBOX_PATH_X11_XFREE_4_2)/include/extensions \
+	$(VBOX_PATH_X11_XFREE_4_2)/include/fonts \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/afb \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/include \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/fb \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/common \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/ddc \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/int10 \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/i2c \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/os-support \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/os-support/bus \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/os-support/vbe \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/rac \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/ramdac \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/shadowfb \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/vgahw \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/xf1bpp \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/xf24_32bpp \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/hw/xfree86/xf4bpp \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/mfb \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/mi \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/miext/shadow \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/render \
+	$(VBOX_PATH_X11_XFREE_4_2)/programs/Xserver/Xext
+ endif
+ vboxvideo_drv_SOURCES = \
+	vboxvideo_68.c \
+	vboxutils_68.c
+endif   # target linux
+
+
+#
+# vboxvideo_drv_70
+#
+# Remark: The other X.org drivers below are derived from this one. So, to make
+#         that as simple as possible we do ifeq/if1of test here and extends the
+#         base keywords instead of using .solaris or .linux.
+#         Also it is *important* to use := and not = when deriving a properity.
+#
+DLLS += vboxvideo_drv_70
+vboxvideo_drv_70_TEMPLATE = VBOXGUESTR3XORGMOD
+if1of ($(KBUILD_TARGET), linux)
+ vboxvideo_drv_70_CFLAGS += \
+	-Wno-conversion -Wno-unused-parameter $(VBOX_GCC_Wno-variadic-macros) # template?
+endif
+vboxvideo_drv_70_DEFS := \
+	XFree86Server IN_MODULE XFree86Module XFree86LOADER XORG_7X RENDER=1
+ifeq ($(KBUILD_TARGET),solaris) # don't use .solaris or anything here.
+ vboxvideo_drv_70_DEFS += _XPG6 __EXTENSIONS__
+endif
+vboxvideo_drv_70_INCS = \
+	$(VBOX_PATH_X11_XORG_7_0) \
+	$(VBOX_PATH_X11_XORG_7_0)/X11 \
+	$(VBOX_PATH_X11_XORG_7_0)/xorg
+vboxvideo_drv_70_SOURCES  = \
+	vboxvideo_70.c \
+	vboxutils.c
+
+
+#
+# vboxvideo_drv_71
+#
+DLLS += vboxvideo_drv_71
+vboxvideo_drv_71_TEMPLATE = VBOXGUESTR3XORGMOD
+vboxvideo_drv_71_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
+vboxvideo_drv_71_DEFS := $(vboxvideo_drv_70_DEFS)
+vboxvideo_drv_71_INCS = \
+	$(VBOX_PATH_X11_XORG_7_1) \
+	$(VBOX_PATH_X11_XORG_7_1)/X11 \
+	$(VBOX_PATH_X11_XORG_7_1)/xorg
+vboxvideo_drv_71_SOURCES  = \
+	vboxvideo_70.c \
+	vboxutils.c
+
+
+#
+# vboxvideo_drv_13
+#
+DLLS += vboxvideo_drv_13
+vboxvideo_drv_13_TEMPLATE = VBOXGUESTR3XORGMOD
+vboxvideo_drv_13_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
+vboxvideo_drv_13_DEFS := $(vboxvideo_drv_70_DEFS)
+vboxvideo_drv_13_INCS = \
+	$(VBOX_PATH_X11_XORG_1_3) \
+	$(VBOX_PATH_X11_XORG_1_3)/X11 \
+	$(VBOX_PATH_X11_XORG_1_3)/xorg
+vboxvideo_drv_13_SOURCES = \
+	vboxvideo_13.c \
+	vboxutils.c
+
+
+#
+# vboxvideo_drv_14
+#
+# This uses the same code (vboxvideo_13.c) as 1.3, but is built
+# for 1.4 as well in case there should be any relevant header changes.
+#
+DLLS += vboxvideo_drv_14
+vboxvideo_drv_14_TEMPLATE = VBOXGUESTR3XORGMOD
+vboxvideo_drv_14_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
+vboxvideo_drv_14_DEFS := $(vboxvideo_drv_70_DEFS)
+vboxvideo_drv_14_INCS = \
+	$(VBOX_PATH_X11_XORG_1_4) \
+	$(VBOX_PATH_X11_XORG_1_4)/X11 \
+	$(VBOX_PATH_X11_XORG_1_4)/xorg
+vboxvideo_drv_14_SOURCES  = \
+	vboxvideo_13.c \
+	vboxutils.c
+
+
+#
+# vboxvideo_drv_15
+#
+DLLS += vboxvideo_drv_15
+vboxvideo_drv_15_TEMPLATE = VBOXGUESTR3XORGMOD
+vboxvideo_drv_15_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
+vboxvideo_drv_15_DEFS := $(vboxvideo_drv_70_DEFS) NO_ANSIC PCIACCESS VBOX_NO_LOW_COLOUR
+vboxvideo_drv_15_INCS = \
+	$(VBOX_PATH_X11_XORG_1_5) \
+	$(VBOX_PATH_X11_XORG_1_5)/X11 \
+	$(VBOX_PATH_X11_XORG_1_5)/xorg
+vboxvideo_drv_15_SOURCES  = \
+	vboxvideo_15.c \
+	vboxutils.c
+
+
+#
+# vboxvideo_drv_16
+#
+DLLS += vboxvideo_drv_16
+vboxvideo_drv_16_TEMPLATE = VBOXGUESTR3XORGMOD
+vboxvideo_drv_16_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
+vboxvideo_drv_16_DEFS := $(vboxvideo_drv_15_DEFS)
+vboxvideo_drv_16_INCS = \
+	$(VBOX_PATH_X11_XORG_1_6) \
+	$(VBOX_PATH_X11_XORG_1_6)/X11 \
+	$(VBOX_PATH_X11_XORG_1_6)/xorg
+vboxvideo_drv_16_SOURCES  = \
+	vboxvideo_15.c \
+	vboxutils.c
+
+
+include	$(KBUILD_PATH)/subfooter.kmk
+

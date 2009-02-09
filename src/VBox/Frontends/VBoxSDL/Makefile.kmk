@@ -1,0 +1,173 @@
+# $Id: Makefile.kmk 16012 2009-01-17 23:46:56Z vboxsync $
+## @file
+# Sub-Makefile for VBoxSDL (a simple frontend based on SDL).
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../..
+include $(KBUILD_PATH)/subheader.kmk
+if !defined(VBOX_WITH_HARDENING) || "$(KBUILD_TARGET)" != "darwin" # No hardened VBoxSDL on darwin.
+
+#
+# Targets.
+#
+ifdef VBOX_WITH_HARDENING
+ PROGRAMS += VBoxSDLHardened
+ DLLS += VBoxSDL
+else
+ PROGRAMS += VBoxSDL
+endif
+PROGRAMS += tstSDL
+
+
+#
+# Hardened VBoxSDL
+#
+VBoxSDLHardened_TEMPLATE = VBOXR3HARDENEDEXE
+VBoxSDLHardened_SOURCES = VBoxSDLHardened.cpp
+VBoxSDLHardened_NAME = VBoxSDL
+
+
+#
+# VBoxSDL
+#
+VBoxSDL_TEMPLATE  := $(if $(VBOX_WITH_HARDENING),VBOXMAINCLIENTDLL,VBOXMAINCLIENTEXE)
+VBoxSDL_SDKS       = LIBSDL
+VBoxSDL_SOURCES    = \
+	VBoxSDL.cpp \
+	Framebuffer.cpp \
+	Helper.cpp
+VBoxSDL_SOURCES.darwin = \
+	VBoxSDLMain-darwin.m
+ifndef VBOX_OSE
+ VBoxSDL_SOURCES.win = \
+	win32/WinUI.cpp \
+	win32/TitlebarButtons.cpp \
+	win32/VBoxSDL.rc
+win32/VBoxSDL.rc_INCS = $(PATH_VBoxSDL)
+win32/VBoxSDL.rc_DEPS = $(PATH_VBoxSDL)/VBoxSDL-icon.rc
+win32/VBoxSDL.rc_CLEAN = $(PATH_VBoxSDL)/VBoxSDL-icon.rc
+endif
+
+VBoxSDL_DEFS       =
+ifdef VBOX_WITH_SECURELABEL
+ VBoxSDL_DEFS     += VBOX_SECURELABEL
+endif
+ifdef VBOX_WITH_VRDP
+ VBoxSDL_DEFS     += VBOX_WITH_VRDP
+endif
+VBoxSDL_DEFS.freebsd = VBOXSDL_WITH_X11
+VBoxSDL_DEFS.linux = _GNU_SOURCE VBOXSDL_WITH_X11
+VBoxSDL_DEFS.solaris = VBOXSDL_WITH_X11
+ifdef VBOX_OPENGL
+ #VBoxSDL_DEFS.linux += VBOX_OPENGL
+endif
+ifndef VBOX_OSE
+# disable for now as this customer-specific GUI
+# VBoxSDL_DEFS.win  = VBOX_WIN32_UI
+endif
+VBoxSDL_DEFS.win.x86 = _WIN32_WINNT=0x0500
+VBoxSDL_DEFS.win.amd64 = _WIN32_WINNT=0x0510
+
+VBoxSDL_INCS = \
+	$(PATH_VBoxSDL)
+ifeq ($(filter-out freebsd linux netbsd openbsd solaris,$(KBUILD_TARGET)),) # X11
+VBoxSDL_INCS += \
+	$(VBOX_XCURSOR_INCS)
+endif
+ifneq ($(filter-out win solaris,$(KBUILD_TARGET)),)
+
+VBoxSDL_LIBS = \
+	$(LIB_SDK_LIBSDL_SDLMAIN)
+endif
+ifeq ($(filter-out freebsd linux netbsd openbsd solaris,$(KBUILD_TARGET)),) # X11
+VBoxSDL_LIBS += \
+	$(VBOX_XCURSOR_LIBS) \
+	X11
+VBoxSDL_LIBPATH = \
+	$(VBOX_LIBPATH_X11)
+endif
+ifdef VBOX_OPENGL
+ #VBoxSDL_LIBS.linux += GL
+endif
+
+VBoxSDL_LDFLAGS.darwin = \
+	-framework Foundation -framework AppKit
+
+VBoxSDL_CLEAN = $(PATH_VBoxSDL)/Ico64x01.h
+VBoxSDL_INTERMEDIATES = $(PATH_VBoxSDL)/Ico64x01.h
+
+
+# Convert the pnm-file to a byte array.
+$$(PATH_VBoxSDL)/Ico64x01.h: $(PATH_ROOT)/src/VBox/Frontends/VBoxSDL/ico64x01.pnm $(VBOX_BIN2C) | $$(dir $$@)
+	$(call MSG_TOOL,bin2c,VBoxSDL,$<,$@)
+	$(QUIET)$(VBOX_BIN2C) Ico64x01 $< $@
+
+# Icon include file.
+$$(PATH_VBoxSDL)/VBoxSDL-icon.rc: $(VBOX_WINDOWS_ICON_FILE) $$(VBoxSDL_PATH)/Makefile.kmk | $$(dir $$@)
+	$(RM) -f $@
+	$(APPEND) $@ 'IDI_VIRTUALBOX ICON DISCARDABLE "$(subst /,\\,$(VBOX_WINDOWS_ICON_FILE))"'
+
+
+
+#
+# tstSDL
+#
+tstSDL_TEMPLATE = VBOXR3NPEXE
+tstSDL_SDKS = LIBSDL
+tstSDL_INST = $(INST_TESTCASE)
+tstSDL_SOURCES = \
+	VBoxSDLTest.cpp
+tstSDL_SOURCES.darwin = \
+	VBoxSDLMain-darwin.m
+tstSDL_DEFS = IN_RING3 IN_RT_R3 _GNU_SOURCE
+tstSDL_DEFS.win.x86 = _WIN32_WINNT=0x0500
+ifdef VBOX_OPENGL
+tstSDL_DEFS.linux = VBOX_OPENGL
+endif
+tstSDL_INCS = \
+	$(PATH_tstSDL)
+
+tstSDL_LIBS = \
+	$(LIB_RUNTIME)
+ifneq ($(filter-out win solaris,$(KBUILD_TARGET)),)
+tstSDL_LIBS += \
+	$(LIB_SDK_LIBSDL_SDLMAIN)
+endif
+
+ifdef VBOX_OPENGL
+tstSDL_LIBS.linux += GL
+endif
+ifeq ($(filter-out freebsd linux netbsd openbsd solaris,$(KBUILD_TARGET)),) # X11
+tstSDL_LIBPATH = \
+	$(VBOX_LIBPATH_X11)
+endif
+
+tstSDL_LDFLAGS.darwin = \
+	-framework Foundation -framework AppKit
+
+tstSDL_CXXFLAGS.win = \
+	-EHsc
+tstSDL_CXXFLAGS.linux = \
+	-DNDEBUG -DTRIMMED -O -Wall -fno-rtti -fno-exceptions \
+	-Wno-non-virtual-dtor -Wno-long-long -fshort-wchar -pthread -pipe
+
+
+endif # !VBOX_WITH_HARDENING || "$(KBUILD_TARGET)" != "darwin"
+include $(KBUILD_PATH)/subfooter.kmk
+

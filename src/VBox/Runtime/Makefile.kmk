@@ -1,0 +1,1590 @@
+# $Id: Makefile.kmk 16015 2009-01-18 00:17:17Z vboxsync $
+## @file
+# Sub-Makefile for the IPRT (IPRT).
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# The contents of this file may alternatively be used under the terms
+# of the Common Development and Distribution License Version 1.0
+# (CDDL) only, as it comes in the "COPYING.CDDL" file of the
+# VirtualBox OSE distribution, in which case the provisions of the
+# CDDL are applicable instead of those of the GPL.
+#
+# You may elect to license modified versions of this file under the
+# terms and conditions of either the GPL or the CDDL or both.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../..
+include $(KBUILD_PATH)/subheader.kmk
+
+ifdef VBOX_ONLY_ADDITIONS
+ #
+ # Only build the additions, sort out the legacy names first.
+ #
+ LIBRARIES += RuntimeGuestR0 RuntimeGuestR3 RuntimeGuestR3Mini
+ #LIBRARIES.os2 = RuntimeGuestR0OS2Warp3
+ LIBRARIES.win.x86 += RuntimeGuestR0NT4
+ ifndef VBOX_WITH_ADDITION_DRIVERS
+  if1of ($(KBUILD_TARGET), linux l4) # All drivers are optional, can skip RuntimeGuestR0.
+   LIBRARIES := $(filter-out RuntimeGuestR0, $(LIBRARIES))
+  endif
+ endif
+
+else ifdef VBOX_ONLY_DOCS
+ #
+ # Build docs only - need just regular R3 runtime.
+ #
+ LIBRARIES += RuntimeR3
+ DLLS += VBoxRT
+
+else # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_DOCS
+
+ #
+ # Normal build.
+ #
+ include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
+
+ BLDPROGS += uniread
+ LIBRARIES += RuntimeR3 RuntimeR0 RuntimeGC RuntimeEFCPP RuntimeR3NoCRTGCC
+ ifdef VBOX_WITH_VBOXDRV
+  LIBRARIES += RuntimeR0Drv
+ endif
+ ifdef VBOX_WITH_ADDITIONS
+  LIBRARIES += RuntimeGuestR0 RuntimeGuestR3 RuntimeGuestR3Mini
+  #LIBRARIES.os2 += RuntimeGuestR0OS2Warp3
+  LIBRARIES.win.x86 += RuntimeGuestR0NT4
+  ifndef VBOX_WITH_ADDITION_DRIVERS
+   if1of ($(KBUILD_TARGET), linux l4) # All drivers are optional, can skip RuntimeGuestR0.
+    LIBRARIES := $(filter-out RuntimeGuestR0, $(LIBRARIES))
+   endif
+  endif
+ endif # VBOX_WITH_ADDITIONS
+ LIBRARIES.l4 += RuntimeR3L4 RuntimeLnxHostR3
+ DLLS += VBoxRT
+endif
+
+# Where the generated stuff goes.
+IPRT_OUT_DIR := $(PATH_TARGET)/Runtime
+BLDDIRS += $(IPRT_OUT_DIR)
+OTHER_CLEAN += \
+	$(IPRT_OUT_DIR)/errmsgdata.h \
+	$(IPRT_OUT_DIR)/errmsgcomdata.h \
+	$(IPRT_OUT_DIR)/errmsgvboxcomdata.h \
+	$(IPRT_OUT_DIR)/Doxyfile.iprt \
+	$(IPRT_OUT_DIR)/Doxyfile.iprt.dep \
+	$(IPRT_OUT_DIR)/docs.iprt
+
+
+#
+# Globals
+#
+VBOX_PATH_RUNTIME_SRC := $(PATH_SUB_CURRENT)
+
+
+#
+# Unicode Specification reader used to regenerate unidata.cpp.
+#
+uniread_TEMPLATE = VBOXBLDPROG
+uniread_SOURCES  = common/string/uniread.cpp
+uniread_INCS = include
+
+#
+# Win64 assembly sources.
+#
+RuntimeWin64ASM_SOURCES = \
+	win/amd64/ASMAtomicBitClear.asm \
+	win/amd64/ASMAtomicBitTestAndToggle.asm \
+	win/amd64/ASMAtomicBitToggle.asm \
+	win/amd64/ASMAtomicReadU64.asm \
+	win/amd64/ASMAtomicXchgU16.asm \
+	win/amd64/ASMAtomicXchgU8.asm \
+	win/amd64/ASMBitFirstClear.asm \
+	win/amd64/ASMBitFirstSet.asm \
+	win/amd64/ASMGetCS.asm \
+	win/amd64/ASMGetDS.asm \
+	win/amd64/ASMGetES.asm \
+	win/amd64/ASMGetFlags.asm \
+	win/amd64/ASMGetFS.asm \
+	win/amd64/ASMGetGS.asm \
+	win/amd64/ASMGetIDTR.asm \
+	win/amd64/ASMGetGDTR.asm \
+	win/amd64/ASMGetTR.asm \
+	win/amd64/ASMGetSS.asm \
+	win/amd64/ASMProbeReadByte.asm \
+	win/amd64/ASMSetFlags.asm \
+	win/amd64/ASMGetDR0.asm \
+	win/amd64/ASMGetDR1.asm \
+	win/amd64/ASMGetDR2.asm \
+	win/amd64/ASMGetDR3.asm \
+	win/amd64/ASMGetDR6.asm \
+	win/amd64/ASMGetDR7.asm \
+	common/asm/ASMMultU64ByU32DivByU32.asm
+
+#
+# Win32 assembly sources.
+#
+RuntimeWin32ASM_SOURCES = \
+	common/asm/ASMMultU64ByU32DivByU32.asm
+
+#
+# NoCRT sources (minus math stuff).
+#
+RuntimeNoCrt_SOURCES = \
+	common/misc/setjmp.asm \
+	common/string/memchr.asm \
+	common/string/memcmp.asm \
+	common/string/memcpy.asm \
+	common/string/mempcpy.asm \
+	common/string/memmove.asm \
+	common/string/memset.asm \
+	common/string/strchr.asm \
+	common/string/strcpy.asm \
+	common/string/strcmp.asm \
+	common/string/strlen.asm
+
+
+#
+# RuntimeR3 - Static Runtime for Ring-3 executables.
+#
+RuntimeR3_TEMPLATE      = VBOXR3EXE
+RuntimeR3_SDKS.win      = WINPSDK W2K3DDK
+RuntimeR3_DEFS          = IN_RT_R3 IN_SUP_R3 LDR_WITH_NATIVE LDR_WITH_ELF32 LDR_WITH_PE RT_WITH_VBOX
+ifdef IPRT_WITH_KSTUFF
+ RuntimeR3_DEFS        += LDR_WITH_KLDR
+endif
+ifdef VBOX_MAIN_RELEASE_LOG ## @todo (dmik): temporary, until RTThreadSelf/RTThreadAdopt are properly updated
+ RuntimeR3_DEFS         += RTCRITSECT_STRICT
+endif
+RuntimeR3_INCS          = \
+	include \
+	$(PATH_ROOT)/src/libs/liblzf-1.51
+ifdef IPRT_WITH_KSTUFF
+ RuntimeR3_INCS        += \
+	$(PATH_ROOT)/src/libs/kStuff/kStuff/include
+endif
+RuntimeR3_INCS.l4       = \
+	$(L4_INCDIR)
+
+# RuntimeR3_INCS.solaris  = \
+#    /usr/include
+
+RuntimeR3_SOURCES       = \
+	common/alloc/alloc.cpp \
+	common/alloc/heapsimple.cpp \
+	common/checksum/crc32.cpp \
+	common/checksum/crc64.cpp \
+	common/checksum/md5.cpp \
+	common/checksum/ipv4.cpp \
+	common/err/errmsg.cpp \
+	common/err/RTErrConvertFromErrno.cpp \
+	common/ldr/ldr.cpp \
+	common/ldr/ldrELF.cpp \
+	common/ldr/ldrEx.cpp \
+	common/ldr/ldrFile.cpp \
+	common/ldr/ldrNative.cpp \
+	common/ldr/ldrPE.cpp \
+	common/log/log.cpp \
+	common/log/logellipsis.cpp \
+	common/log/logrel.cpp \
+	common/log/logrelellipsis.cpp \
+	common/log/logcom.cpp \
+	common/log/logformat.cpp \
+	common/misc/assert.cpp \
+	common/misc/cache.cpp \
+	common/misc/cidr.cpp \
+	common/misc/getopt.cpp \
+	common/misc/handletable.cpp \
+	common/misc/handletablectx.cpp \
+	common/misc/handletablesimple.cpp \
+	common/misc/once.cpp \
+	common/misc/req.cpp \
+	common/misc/sanity-c.c \
+	common/misc/sanity-cpp.cpp \
+	common/misc/semspingpong.cpp \
+	common/misc/thread.cpp \
+	common/misc/zip.cpp \
+	common/rand/rand.cpp \
+	common/rand/randadv.cpp \
+	common/rand/randparkmiller.cpp \
+	common/string/RTStrNLen.cpp \
+	common/string/RTStrNLenEx.cpp \
+	common/string/simplepattern.cpp \
+	common/string/straprintf.cpp \
+	common/string/strformat.cpp \
+	common/string/strformatrt.cpp \
+	common/string/strformattype.cpp \
+	common/string/string.cpp \
+	common/string/strprintf.cpp \
+	common/string/strspace.cpp \
+	common/string/strstrip.cpp \
+	common/string/strtonum.cpp \
+	common/string/uni.cpp \
+	common/string/unidata.cpp \
+	common/string/utf-16.cpp \
+	common/string/utf-8.cpp \
+	common/table/avlgcptr.cpp \
+	common/table/avlhcphys.cpp \
+	common/table/avllu32.cpp \
+	common/table/avlou32.cpp \
+	common/table/avlogcphys.cpp \
+	common/table/avlogcptr.cpp \
+	common/table/avlohcphys.cpp \
+	common/table/avloioport.cpp \
+	common/table/avlpv.cpp \
+	common/table/avlrgcptr.cpp \
+	common/table/avlrogcphys.cpp \
+	common/table/avlrogcptr.cpp \
+	common/table/avlroioport.cpp \
+	common/table/avlroogcptr.cpp \
+	common/table/avlu32.cpp \
+	common/table/avlul.cpp \
+	common/table/table.cpp \
+	common/time/time.cpp \
+	common/time/timeprog.cpp \
+	common/time/timesup.cpp \
+	generic/critsect-generic.cpp \
+	generic/env-generic.cpp \
+	generic/RTFileCopy-generic.cpp \
+	generic/RTFileReadAll-generic.cpp \
+	generic/RTFileReadAllEx-generic.cpp \
+	generic/RTFileReadAllByHandle-generic.cpp \
+	generic/RTFileReadAllByHandleEx-generic.cpp \
+	generic/RTFileReadAllFree-generic.cpp \
+	generic/RTLogWriteStdErr-generic.cpp \
+	generic/RTLogWriteStdOut-generic.cpp \
+	generic/RTLogWriteUser-generic.cpp \
+	generic/RTTimerLRCreate-generic.cpp \
+	generic/semfastmutex-generic.cpp \
+	generic/spinlock-generic.cpp \
+	generic/timerlr-generic.cpp \
+	r3/alloc-ef.cpp \
+	r3/alloc.cpp \
+	r3/dir.cpp \
+	r3/fileio.cpp \
+	r3/fs.cpp \
+	r3/init.cpp \
+	r3/path.cpp \
+	r3/process.cpp \
+	r3/stream.cpp \
+	r3/tcp.cpp
+
+#if1of ($(KBUILD_TARGET_ARCH),amd64 x86)
+# RuntimeR3_SOURCES += common/time/timesupA.asm
+#else
+ RuntimeR3_SOURCES += common/time/timesupref.cpp
+#endif
+
+ifdef IPRT_WITH_KSTUFF
+ RuntimeR3_SOURCES += \
+	common/ldr/ldrkStuff.cpp
+endif
+
+# VBox specific stuff.
+RuntimeR3_SOURCES += \
+	VBox/strformat-vbox.cpp \
+	VBox/RTAssertShouldPanic-vbox.cpp \
+	VBox/log-vbox.cpp
+ifneq ($(KBUILD_TARGET),win)
+RuntimeR3_SOURCES += \
+	common/err/errmsgxpcom.cpp
+endif
+
+RuntimeR3_SOURCES.win = \
+	generic/RTDirQueryInfo-generic.cpp \
+	generic/RTDirSetTimes-generic.cpp \
+	generic/RTMpGetCurFrequency-generic.cpp \
+	generic/RTMpGetMaxFrequency-generic.cpp \
+	generic/RTRandAdvCreateSystemFaster-generic.cpp \
+	generic/RTRandAdvCreateSystemTruer-generic.cpp \
+	generic/mppresent-generic.cpp \
+	generic/semnoint-generic.cpp \
+	generic/semsrw-generic.cpp \
+	nt/RTErrConvertFromNtStatus.cpp \
+	r3/posix/env-posix.cpp \
+	r3/win/RTSystemQueryOSInfo-win.cpp \
+	r3/win/alloc-win.cpp \
+	r3/win/dir-win.cpp \
+	r3/win/fileio-win.cpp \
+	r3/win/fs-win.cpp \
+	r3/win/ldrNative-win.cpp \
+	r3/win/localipc-win.cpp \
+	r3/win/mp-win.cpp \
+	r3/win/path-win.cpp \
+	r3/win/process-win.cpp \
+	r3/win/RTLogWriteDebugger-win.cpp \
+	r3/win/rtProcInitExePath-win.cpp \
+	r3/win/sched-win.cpp \
+	r3/win/sems-win.cpp \
+	r3/win/thread-win.cpp \
+	r3/win/time-win.cpp \
+	r3/win/timer-win.cpp \
+	r3/win/tls-win.cpp \
+	r3/win/utf16locale-win.cpp \
+	r3/win/utf8-win.cpp \
+	r3/win/uuid-win.cpp \
+	r3/win/RTUuidCreate-win.cpp \
+	win/errmsgwin.cpp \
+	win/RTErrConvertFromWin32.cpp
+
+RuntimeR3_SOURCES.win.amd64 = $(RuntimeWin64ASM_SOURCES)
+RuntimeR3_SOURCES.win.x86   = $(RuntimeWin32ASM_SOURCES)
+
+RuntimeR3_SOURCES.linux = \
+	generic/pathhost-generic.cpp \
+	generic/RTDirQueryInfo-generic.cpp \
+	generic/RTDirSetTimes-generic.cpp \
+	generic/RTFileMove-generic.cpp \
+	generic/RTLogWriteDebugger-generic.cpp \
+	generic/RTTimeLocalNow-generic.cpp \
+	generic/RTTimerCreate-generic.cpp \
+	generic/RTUuidCreate-generic.cpp \
+	generic/mppresent-generic.cpp \
+	generic/utf16locale-generic.cpp \
+	generic/uuid-generic.cpp \
+	r3/linux/mp-linux.cpp \
+	r3/linux/rtProcInitExePath-linux.cpp \
+	r3/linux/sched-linux.cpp \
+	r3/linux/sysfs.cpp \
+	r3/linux/time-linux.cpp \
+	r3/posix/RTSystemQueryOSInfo-posix.cpp \
+	r3/posix/alloc-posix.cpp \
+	r3/posix/dir-posix.cpp \
+	r3/posix/env-posix.cpp \
+	r3/posix/fileio-posix.cpp \
+	r3/posix/filelock-posix.cpp \
+	r3/posix/fs-posix.cpp \
+	r3/posix/ldrNative-posix.cpp \
+	r3/posix/path-posix.cpp \
+	r3/posix/process-posix.cpp \
+	r3/posix/rand-posix.cpp \
+	r3/posix/RTTimeNow-posix.cpp \
+	r3/posix/semrw-posix.cpp \
+	r3/posix/thread-posix.cpp \
+	r3/posix/timelocal-posix.cpp \
+	r3/posix/timer-posix.cpp \
+	r3/posix/tls-posix.cpp \
+	r3/posix/utf8-posix.cpp
+RuntimeR3_SOURCES.linux.x86 += \
+	r3/posix/semevent-posix.cpp \
+	r3/posix/semeventmulti-posix.cpp \
+	r3/posix/semmutex-posix.cpp
+RuntimeR3_SOURCES.linux.amd64 += \
+	r3/linux/semevent-linux.cpp \
+	r3/linux/semeventmulti-linux.cpp
+ifdef RT_NEW_LINUX_MUTEX_CODE
+ RuntimeR3_SOURCES.linux.amd64 += \
+	r3/linux/semmutex-linux.cpp
+else
+ RuntimeR3_SOURCES.linux.amd64 += \
+	r3/posix/semmutex-posix.cpp
+endif
+
+RuntimeR3_SOURCES.os2   = \
+	generic/pathhost-generic.cpp \
+	generic/RTDirQueryInfo-generic.cpp \
+	generic/RTDirSetTimes-generic.cpp \
+	generic/RTFileMove-generic.cpp \
+	generic/RTLogWriteDebugger-generic.cpp \
+	generic/RTRandAdvCreateSystemFaster-generic.cpp \
+	generic/RTRandAdvCreateSystemTruer-generic.cpp \
+	generic/RTTimeLocalNow-generic.cpp \
+	generic/RTTimerCreate-generic.cpp \
+	generic/RTUuidCreate-generic.cpp \
+	generic/mppresent-generic.cpp \
+	generic/semnoint-generic.cpp \
+	generic/semsrw-generic.cpp \
+	generic/timer-generic.cpp \
+	generic/utf16locale-generic.cpp \
+	generic/uuid-generic.cpp \
+	generic/RTMpGetCurFrequency-generic.cpp \
+	generic/RTMpGetMaxFrequency-generic.cpp \
+	os2/RTErrConvertFromOS2.cpp \
+	r3/os2/filelock-os2.cpp \
+	r3/os2/mp-os2.cpp \
+	r3/os2/rtProcInitExePath-os2.cpp \
+	r3/os2/sched-os2.cpp \
+	r3/os2/sems-os2.cpp \
+	r3/os2/thread-os2.cpp \
+	r3/os2/time-os2.cpp \
+	r3/posix/RTSystemQueryOSInfo-posix.cpp \
+	r3/posix/alloc-posix.cpp \
+	r3/posix/dir-posix.cpp \
+	r3/posix/env-posix.cpp \
+	r3/posix/fileio-posix.cpp \
+	r3/posix/fs-posix.cpp \
+	r3/posix/ldrNative-posix.cpp \
+	r3/posix/path-posix.cpp \
+	r3/posix/process-posix.cpp \
+	r3/posix/RTTimeNow-posix.cpp \
+	r3/posix/timelocal-posix.cpp \
+	r3/posix/utf8-posix.cpp
+
+RuntimeR3_SOURCES.darwin = \
+	darwin/RTErrConvertFromDarwin.cpp \
+	darwin/RTErrConvertFromDarwinCOM.cpp \
+	darwin/RTErrConvertFromDarwinIO.cpp \
+	darwin/RTErrConvertFromDarwinKern.cpp \
+	generic/pathhost-generic.cpp \
+	generic/RTDirQueryInfo-generic.cpp \
+	generic/RTDirSetTimes-generic.cpp \
+	generic/RTFileMove-generic.cpp \
+	generic/RTLogWriteDebugger-generic.cpp \
+	generic/RTTimeLocalNow-generic.cpp \
+	generic/RTTimerCreate-generic.cpp \
+	generic/RTUuidCreate-generic.cpp \
+	generic/mppresent-generic.cpp \
+	generic/timer-generic.cpp \
+	generic/utf16locale-generic.cpp \
+	generic/uuid-generic.cpp\
+	r3/darwin/alloc-darwin.cpp \
+	r3/darwin/filelock-darwin.cpp \
+	r3/darwin/mp-darwin.cpp \
+	r3/darwin/rtProcInitExePath-darwin.cpp \
+	r3/darwin/sched-darwin.cpp \
+	r3/darwin/time-darwin.cpp \
+	r3/posix/RTSystemQueryOSInfo-posix.cpp \
+	r3/posix/dir-posix.cpp \
+	r3/posix/env-posix.cpp \
+	r3/posix/fileio-posix.cpp \
+	r3/posix/fs-posix.cpp \
+	r3/posix/ldrNative-posix.cpp \
+	r3/posix/path-posix.cpp \
+	r3/posix/process-posix.cpp \
+	r3/posix/rand-posix.cpp \
+	r3/posix/semevent-posix.cpp \
+	r3/posix/semeventmulti-posix.cpp \
+	r3/posix/semmutex-posix.cpp \
+	r3/posix/semrw-posix.cpp \
+	r3/posix/thread-posix.cpp \
+	r3/posix/timelocal-posix.cpp \
+	r3/posix/tls-posix.cpp \
+	r3/posix/utf8-posix.cpp
+
+## @todo Make BSD sched, implement RTMP*.
+RuntimeR3_SOURCES.freebsd = \
+	generic/pathhost-generic.cpp \
+	generic/RTDirQueryInfo-generic.cpp \
+	generic/RTDirSetTimes-generic.cpp \
+	generic/RTFileMove-generic.cpp \
+	generic/RTLogWriteDebugger-generic.cpp \
+	generic/RTTimeLocalNow-generic.cpp \
+	generic/RTTimerCreate-generic.cpp \
+	generic/RTUuidCreate-generic.cpp \
+	generic/mppresent-generic.cpp \
+	generic/sched-generic.cpp \
+	generic/utf16locale-generic.cpp \
+	generic/uuid-generic.cpp \
+	generic/RTMpGetCurFrequency-generic.cpp \
+	generic/RTMpGetMaxFrequency-generic.cpp \
+	generic/RTMpCpuId-generic.cpp \
+	generic/RTMpCpuIdFromSetIndex-generic.cpp \
+	generic/RTMpCpuIdToSetIndex-generic.cpp \
+	generic/RTMpIsCpuPossible-generic.cpp \
+	generic/RTMpGetMaxCpuId-generic.cpp \
+	generic/RTMpGetOnlineCount-generic.cpp \
+	generic/RTMpGetOnlineSet-generic.cpp \
+	generic/RTMpGetSet-generic.cpp \
+	generic/RTMpIsCpuOnline-generic.cpp \
+	r3/freebsd/alloc-freebsd.cpp \
+	r3/freebsd/rtProcInitExePath-freebsd.cpp \
+	r3/posix/RTSystemQueryOSInfo-posix.cpp \
+	r3/posix/dir-posix.cpp \
+	r3/posix/env-posix.cpp \
+	r3/posix/fileio-posix.cpp \
+	r3/posix/filelock-posix.cpp \
+	r3/posix/fs-posix.cpp \
+	r3/posix/ldrNative-posix.cpp \
+	r3/posix/path-posix.cpp \
+	r3/posix/process-posix.cpp \
+	r3/posix/rand-posix.cpp \
+	r3/posix/RTMpGetCount-posix.cpp \
+	r3/posix/RTTimeNow-posix.cpp \
+	r3/posix/semevent-posix.cpp \
+	r3/posix/semeventmulti-posix.cpp \
+	r3/posix/semmutex-posix.cpp \
+	r3/posix/semrw-posix.cpp \
+	r3/posix/thread-posix.cpp \
+	r3/posix/time-posix.cpp \
+	r3/posix/timelocal-posix.cpp \
+	r3/posix/timer-posix.cpp \
+	r3/posix/tls-posix.cpp \
+	r3/posix/utf8-posix.cpp
+
+RuntimeR3_SOURCES.solaris = \
+	generic/pathhost-generic.cpp \
+	generic/RTDirQueryInfo-generic.cpp \
+	generic/RTDirSetTimes-generic.cpp \
+	generic/RTFileMove-generic.cpp \
+	generic/RTLogWriteDebugger-generic.cpp \
+	generic/RTTimeLocalNow-generic.cpp \
+	generic/RTTimerCreate-generic.cpp \
+	generic/RTUuidCreate-generic.cpp \
+	generic/sched-generic.cpp \
+	generic/utf16locale-generic.cpp \
+	generic/uuid-generic.cpp \
+	r3/posix/RTSystemQueryOSInfo-posix.cpp \
+	r3/posix/dir-posix.cpp \
+	r3/posix/env-posix.cpp \
+	r3/posix/fileio-posix.cpp \
+	r3/posix/filelock-posix.cpp \
+	r3/posix/fs-posix.cpp \
+	r3/posix/ldrNative-posix.cpp \
+	r3/posix/path-posix.cpp \
+	r3/posix/process-posix.cpp \
+	r3/posix/rand-posix.cpp \
+	r3/posix/RTTimeNow-posix.cpp \
+	r3/posix/semevent-posix.cpp \
+	r3/posix/semeventmulti-posix.cpp \
+	r3/posix/semmutex-posix.cpp \
+	r3/posix/semrw-posix.cpp \
+	r3/posix/thread-posix.cpp \
+	r3/posix/time-posix.cpp \
+	r3/posix/timelocal-posix.cpp \
+	r3/posix/timer-posix.cpp \
+	r3/posix/tls-posix.cpp \
+	r3/posix/utf8-posix.cpp \
+	r3/solaris/alloc-solaris.cpp \
+	r3/solaris/mp-solaris.cpp \
+	r3/solaris/rtProcInitExePath-solaris.cpp
+
+## PORTME: Porters add their selection of platform specific files for Ring-3 here.
+
+
+#
+# L4 RuntimeR3 subtarget since L4 headers won't work with VBOXR3.
+#
+RuntimeR3L4_TEMPLATE      = VBOXR3NP
+RuntimeR3L4_DEFS          = IN_RT_R3 IN_SUP_R3 LDR_WITH_NATIVE LDR_WITH_ELF LDR_WITH_PE
+ifneq ($(KBUILD_TARGET_ARCH),amd64)
+RuntimeR3L4_DEFS         += __PIC__
+endif
+RuntimeR3L4_INCS          = \
+	include \
+	$(L4_INCDIR)
+
+RuntimeR3L4_SOURCES = \
+	generic/fs-stubs-generic.cpp \
+	generic/pathhost-generic.cpp \
+	generic/RTDirQueryInfo-generic.cpp \
+	generic/RTDirSetTimes-generic.cpp \
+	generic/RTFileMove-generic.cpp \
+	generic/RTLogWriteDebugger-generic.cpp \
+	generic/RTSystemQueryOSInfo-generic.cpp \
+	generic/RTTimeLocalNow-generic.cpp \
+	generic/RTUuidCreate-generic.cpp \
+	generic/mppresent-generic.cpp \
+	generic/sched-generic.cpp \
+	generic/semnoint-generic.cpp \
+	generic/semsrw-generic.cpp \
+	generic/utf16locale-generic.cpp \
+	generic/uuid-generic.cpp \
+	l4/l4-errno.cpp \
+	l4/rtProcInitExePath-l4.cpp \
+	l4/process-l4env.cpp \
+	l4/sems-l4env.cpp \
+	l4/thread-l4env.cpp \
+	l4/timer-l4env.cpp \
+	l4/utf8-l4env.cpp \
+	r3/posix/alloc-posix.cpp \
+	r3/posix/dir-posix.cpp \
+	r3/posix/env-posix.cpp \
+	r3/posix/fileio-posix.cpp \
+	r3/posix/filelock-posix.cpp \
+	r3/posix/ldrNative-posix.cpp \
+	r3/posix/path-posix.cpp \
+	r3/posix/rand-posix.cpp \
+	r3/posix/RTTimeNow-posix.cpp \
+	r3/posix/time-posix.cpp \
+	r3/posix/timelocal-posix.cpp
+
+
+#
+# RuntimeGuestR3 - Guest Additions Runtime (static).
+# (The KBUILD_HOST inheritance here is for l4 cross building the linux
+# additions, while .x86 is for cross building x86 while targeting amd64.)
+#
+RuntimeGuestR3_TEMPLATE                 := VBOXGUESTR3LIB
+## @todo change this to EXTEND the RuntimeR3 target.
+RuntimeGuestR3_SDKS.win                 := $(RuntimeR3_SDKS.win)
+RuntimeGuestR3_DEFS                     := $(filter-out RTCRITSECT_STRICT, $(RuntimeR3_DEFS))
+RuntimeGuestR3_DEFS.$(KBUILD_TARGET)    := $(RuntimeR3_DEFS.$(KBUILD_TARGET))
+RuntimeGuestR3_DEFS.$(KBUILD_HOST)	:= $(RuntimeR3_DEFS.$(KBUILD_HOST))
+RuntimeGuestR3_INCS                     := $(RuntimeR3_INCS)
+RuntimeGuestR3_INCS.$(KBUILD_TARGET)    := $(RuntimeR3_INCS.$(KBUILD_TARGET))
+RuntimeGuestR3_INCS.$(KBUILD_HOST)      := $(RuntimeR3_INCS.$(KBUILD_HOST))
+RuntimeGuestR3_SOURCES                  := $(filter-out \
+	common/time/timesupref.cpp \
+	common/time/timesupA.asm \
+	common/time/timesup.cpp \
+	generic/RTLogWriteUser-generic.cpp \
+	, $(RuntimeR3_SOURCES))
+RuntimeGuestR3_SOURCES              += \
+	common/time/timesysalias.cpp \
+	VBox/logbackdoor.cpp
+RuntimeGuestR3_SOURCES.$(KBUILD_TARGET)  := $(RuntimeR3_SOURCES.$(KBUILD_TARGET))
+RuntimeGuestR3_SOURCES.$(KBUILD_HOST)    := $(RuntimeR3_SOURCES.$(KBUILD_HOST))
+RuntimeGuestR3_SOURCES.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH) := $(RuntimeR3_SOURCES.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH))
+RuntimeGuestR3_SOURCES.$(KBUILD_HOST).$(KBUILD_TARGET_ARCH)   := $(RuntimeR3_SOURCES.$(KBUILD_HOST).$(KBUILD_TARGET_ARCH))
+
+
+#
+# RuntimeGuestR3Mini - Minimal Guest Additions Runtime which does not require
+#                      initialization and can be linked into an .so. Intended
+#                      for X11 drivers, GRADD and similar.
+#
+RuntimeGuestR3Mini_TEMPLATE                 := VBOXGUESTR3DLL
+## @todo change this to EXTEND the RuntimeGuestR3 target.
+RuntimeGuestR3Mini_INST                     := $(INST_ADDITIONS_LIB)
+RuntimeGuestR3Mini_SDKS.win                 := $(RuntimeR3_SDKS.win)
+RuntimeGuestR3Mini_DEFS                     := $(filter-out RTCRITSECT_STRICT, $(RuntimeR3_DEFS)) RT_MINI
+RuntimeGuestR3Mini_DEFS.$(KBUILD_TARGET)    := $(RuntimeR3_DEFS.$(KBUILD_TARGET))
+RuntimeGuestR3Mini_DEFS.$(KBUILD_HOST)      := $(RuntimeR3_DEFS.$(KBUILD_HOST))
+RuntimeGuestR3Mini_INCS                     := $(RuntimeR3_INCS)
+RuntimeGuestR3Mini_INCS.$(KBUILD_TARGET)    := $(RuntimeR3_INCS.$(KBUILD_TARGET))
+RuntimeGuestR3Mini_INCS.$(KBUILD_HOST)      := $(RuntimeR3_INCS.$(KBUILD_HOST))
+RuntimeGuestR3Mini_SOURCES = \
+	common/err/errmsg.cpp \
+	common/err/errmsgxpcom.cpp \
+	common/err/RTErrConvertFromErrno.cpp \
+	common/log/logformat.cpp \
+	common/misc/assert.cpp \
+	common/misc/sanity-c.c \
+	common/misc/sanity-cpp.cpp \
+	common/string/strformat.cpp \
+	common/string/strformatrt.cpp \
+	common/string/strformattype.cpp \
+	common/string/string.cpp \
+	common/string/strprintf.cpp \
+	common/string/strtonum.cpp \
+	common/string/unidata.cpp \
+	common/string/utf-8.cpp \
+	common/string/utf-16.cpp \
+	generic/pathhost-generic.cpp \
+	generic/RTAssertShouldPanic-generic.cpp \
+	r3/alloc.cpp \
+	r3/fileio.cpp \
+	r3/fs.cpp \
+	r3/path.cpp
+RuntimeGuestR3Mini_SOURCES.linux = \
+	r3/posix/fileio-posix.cpp \
+	r3/posix/path-posix.cpp \
+	r3/posix/utf8-posix.cpp
+RuntimeGuestR3Mini_SOURCES.solaris = \
+	r3/posix/fileio-posix.cpp \
+	r3/posix/path-posix.cpp \
+	r3/posix/utf8-posix.cpp
+RuntimeGuestR3Mini_SOURCES.freebsd = \
+	r3/posix/fileio-posix.cpp \
+	r3/posix/path-posix.cpp \
+	r3/posix/utf8-posix.cpp
+# VBox specific stuff.
+RuntimeGuestR3Mini_SOURCES += \
+	VBox/logbackdoor.cpp \
+	VBox/logbackdoor-redirect.cpp \
+	VBox/strformat-vbox.cpp
+
+
+#
+# RuntimeLnxHostR3 Linux host program runtime
+# (Only used when building L4.)
+#
+RuntimeLnxHostR3_TEMPLATE      = VBOXLNXHOSTR3LIB
+RuntimeLnxHostR3_DEFS          = IN_RT_R3 IN_SUP_R3 RT_WITH_VBOX RT_NO_GIP
+RuntimeLnxHostR3_SOURCES       = \
+	$(RuntimeR3_SOURCES.linux.$(KBUILD_TARGET_ARCH)) \
+	$(RuntimeR3_SOURCES.linux) \
+	$(RuntimeR3_SOURCES)
+RuntimeLnxHostR3_INCS          = \
+	$(RuntimeR3_INCS.linux.$(KBUILD_TARGET_ARCH)) \
+	$(RuntimeR3_INCS.linux) \
+	$(RuntimeR3_INCS)
+
+
+#
+# VBoxRT - Shared Object / DLL version.
+#
+VBoxRT_TEMPLATE                = VBOXR3
+VBoxRT_SDKS.win                = WINPSDK W2K3DDK VBOX_NTDLL
+ifeq ($(KBUILD_TARGET)$(VBOX_WITH_HARDENING),darwin)
+VBoxRT_INST                    = $(INST_DLL) $(INST_TESTCASE)
+endif
+VBoxRT_DEFS                    = $(RuntimeR3_DEFS) IN_SUP_R3 IN_SUP_R3
+VBoxRT_DEFS.$(KBUILD_TYPE)     = $(RuntimeR3_DEFS.$(KBUILD_TYPE))
+VBoxRT_SOURCES                 = \
+	VBox/VBoxRTDeps.cpp \
+	$(RuntimeR3_SOURCES)
+VBoxRT_SOURCES.$(KBUILD_TARGET) = $(RuntimeR3_SOURCES.$(KBUILD_TARGET))
+VBoxRT_SOURCES.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH) = $(RuntimeR3_SOURCES.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH))
+VBoxRT_SOURCES.win            += r3/win/dllmain-win.cpp
+VBoxRT_SOURCES.win.x86        += r3/win/VBoxRT-win32.def
+VBoxRT_SOURCES.win.amd64      += r3/win/VBoxRT-win64.def
+VBoxRT_INCS                    = $(RuntimeR3_INCS)
+VBoxRT_INCS.$(KBUILD_TARGET)   = $(RuntimeR3_INCS.$(KBUILD_TARGET))
+VBoxRT_INCS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH) = $(RuntimeR3_INCS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH))
+VBoxRT_LIBS                    = \
+	$(PATH_LIB)/SUPR3$(VBOX_SUFF_LIB) \
+	$(PATH_LIB)/VBox-liblzf$(VBOX_SUFF_LIB)
+ifdef IPRT_WITH_KSTUFF
+ VBoxRT_LIBS                  += \
+   	$(PATH_LIB)/VBox-kStuff$(VBOX_SUFF_LIB)
+endif
+VBoxRT_LIBS.darwin             = \
+	iconv
+VBoxRT_LIBS.freebsd            = \
+	iconv \
+	rt
+VBoxRT_LIBS.solaris            = \
+	kstat
+VBoxRT_LDFLAGS.darwin          = -framework IOKit -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxRT.dylib
+ifdef VBOX_USE_VCC80
+VBoxRT_LDFLAGS.win             = /MANIFEST
+endif
+VBoxRT_LDFLAGS.l4              = \
+	-Wl,-whole-archive \
+	$(PATH_LIB)/RuntimeR3L4$(VBOX_SUFF_LIB) \
+	-Wl,-no-whole-archive
+ifeq ($(KBUILD_TARGET),l4)
+VBoxRT_LIBS                   += \
+	$(L4_LIBDIR)/libl4sys.a \
+	$(L4_LIBDIR)/libl4sys.p.a
+endif
+VBoxRT_LIBS.l4                 = \
+	$(PATH_LIB)/RuntimeR3L4$(VBOX_SUFF_LIB)
+
+#
+# HACK ALLERT! Make testcase run during build on SELinux boxes.
+#              Create a dummy DLL that ensure that VBoxRT is installed
+#              during the DLL pass and cleaned up later.
+#
+ifeq ($(KBUILD_TARGET),linux)
+ if1of (VBoxRT, $(DLLS))
+  ifneq ($(wildcard /usr/bin/chcon),)
+VBoxRT_NOINST = true
+
+DLLS += VBoxRTDummy
+VBoxRTDummy_TEMPLATE = VBOXR3
+VBoxRTDummy_NOINST = true
+VBoxRTDummy_LIBS = $(PATH_BIN)/VBoxRT.so
+VBoxRTDummy_CLEAN= $(PATH_BIN)/VBoxRT.so
+BLDDIRS += $(PATH_BIN)
+
+$(PATH_BIN)/VBoxRT.so: $$(TARGET_VBoxRT) | $$(dir $$@)
+	$(INSTALL) $< $@
+	chcon -t texrel_shlib_t $@ || true
+
+  endif # chcon present.
+ endif # building VBoxRT
+endif # linux
+
+#
+# RuntimeR3NoCRTGCC - CRT replacement lib for VBoxREM.
+# This is used together with VBoxRT.
+#
+## @todo the *_alias.c stuff is busted, remove and use RT_WITH_NOCRT_ALIASES instead.
+RuntimeR3NoCRTGCC_TEMPLATE = VBOXNOCRTGCC
+RuntimeR3NoCRTGCC_LIBSUFF = $(VBOX_SUFF_LIB)
+RuntimeR3NoCRTGCC_INCS  = include
+RuntimeR3NoCRTGCC_SOURCES  = \
+	common/misc/sanity-cpp.cpp \
+	common/misc/sanity-c.c \
+	\
+	common/math/ceill.asm \
+	common/math/cosl.asm \
+	common/math/fabs.asm \
+	common/math/fabsf.asm \
+	common/math/fabsl.asm \
+	common/math/floor.asm \
+	common/math/floorf.asm \
+	common/math/floorl.asm \
+	common/math/ldexpl.asm \
+	common/math/llrint.asm \
+	common/math/llrintf.asm \
+	common/math/llrintl.asm \
+	common/math/logl.asm \
+	common/math/lrint.asm \
+	common/math/lrintf.asm \
+	common/math/lrintl.asm \
+	common/math/remainder.asm \
+	common/math/remainderf.asm \
+	common/math/remainderl.asm \
+	common/math/sinl.asm \
+	common/math/tanl.asm \
+	common/math/trunc.asm \
+	common/math/truncf.asm \
+	common/math/truncl.asm \
+	\
+	$(RuntimeNoCrt_SOURCES) \
+	\
+	common/string/memchr_alias.c \
+	common/string/memcmp_alias.c \
+	common/string/memcpy_alias.c \
+	common/string/memmove_alias.c \
+	common/string/memset_alias.c \
+	common/string/strchr_alias.c \
+	common/string/strcmp_alias.c \
+	common/string/strlen_alias.c
+
+RuntimeR3NoCRTGCC_SOURCES.x86 = \
+	common/math/x86/fenv-x86.c \
+	common/math/gcc/adddi3.c \
+	common/math/gcc/anddi3.c \
+	common/math/gcc/ashldi3.c \
+	common/math/gcc/ashrdi3.c \
+	common/math/gcc/cmpdi2.c \
+	common/math/gcc/divdi3.c \
+	common/math/gcc/iordi3.c \
+	common/math/gcc/lshldi3.c \
+	common/math/gcc/lshrdi3.c \
+	common/math/gcc/moddi3.c \
+	common/math/gcc/muldi3.c \
+	common/math/gcc/negdi2.c \
+	common/math/gcc/notdi2.c \
+	common/math/gcc/qdivrem.c \
+	common/math/gcc/subdi3.c \
+	common/math/gcc/ucmpdi2.c \
+	common/math/gcc/udivdi3.c \
+	common/math/gcc/umoddi3.c \
+	common/math/gcc/xordi3.c
+
+
+## @todo stop using the old memcpy.c and memset.c code.
+
+#
+# RuntimeR0 - Ring0 library for VMMR0.
+#
+RuntimeR0_TEMPLATE      = VBOXR0
+RuntimeR0_DEFS          = IN_RT_R0 RT_WITH_VBOX
+RuntimeR0_INCS          = include
+RuntimeR0_SOURCES       = \
+	common/checksum/crc32.cpp \
+	common/checksum/crc64.cpp \
+	common/checksum/md5.cpp \
+	common/checksum/ipv4.cpp \
+	common/log/logellipsis.cpp \
+	common/log/logrelellipsis.cpp \
+	common/log/logcom.cpp \
+	common/log/logformat.cpp \
+	common/misc/assert.cpp \
+	common/misc/handletable.cpp \
+	common/misc/handletablectx.cpp \
+	common/misc/handletablesimple.cpp \
+	common/misc/sanity-c.c \
+	common/misc/sanity-cpp.cpp \
+	common/misc/RTAssertMsg2.cpp \
+	common/string/strformat.cpp \
+	common/string/strformatrt.cpp \
+	common/string/strformattype.cpp \
+	common/string/strncmp.cpp \
+	common/string/strpbrk.cpp \
+	common/string/strprintf.cpp \
+	common/table/avlgcptr.cpp \
+	common/table/avlhcphys.cpp \
+	common/table/avllu32.cpp \
+	common/table/avlogcphys.cpp \
+	common/table/avlogcptr.cpp \
+	common/table/avlohcphys.cpp \
+	common/table/avloioport.cpp \
+	common/table/avlpv.cpp \
+	common/table/avlrogcphys.cpp \
+	common/table/avlrogcptr.cpp \
+	common/table/avlroioport.cpp \
+	common/table/avlroogcptr.cpp \
+	common/table/avlu32.cpp \
+	common/time/timesup.cpp \
+	generic/RTAssertShouldPanic-generic.cpp \
+	VBox/strformat-vbox.cpp \
+	\
+	$(RuntimeNoCrt_SOURCES)
+
+if1of ($(KBUILD_TARGET), darwin solaris freebsd)
+RuntimeR0_SOURCES += \
+	common/math/gcc/adddi3.c \
+	common/math/gcc/anddi3.c \
+	common/math/gcc/ashldi3.c \
+	common/math/gcc/ashrdi3.c \
+	common/math/gcc/cmpdi2.c \
+	common/math/gcc/divdi3.c \
+	common/math/gcc/iordi3.c \
+	common/math/gcc/lshldi3.c \
+	common/math/gcc/lshrdi3.c \
+	common/math/gcc/moddi3.c \
+	common/math/gcc/muldi3.c \
+	common/math/gcc/negdi2.c \
+	common/math/gcc/notdi2.c \
+	common/math/gcc/qdivrem.c \
+	common/math/gcc/subdi3.c \
+	common/math/gcc/ucmpdi2.c \
+	common/math/gcc/udivdi3.c \
+	common/math/gcc/umoddi3.c \
+	common/math/gcc/xordi3.c
+endif
+
+#if1of ($(KBUILD_TARGET_ARCH),amd64 x86)
+# RuntimeR0_SOURCES += common/time/timesupA.asm
+#else
+ RuntimeR0_SOURCES += common/time/timesupref.cpp
+#endif
+
+RuntimeR0_SOURCES.win.amd64 = $(RuntimeWin64ASM_SOURCES)
+RuntimeR0_SOURCES.win.x86   = $(RuntimeWin32ASM_SOURCES)
+
+RuntimeR0_SOURCES.os2 = \
+	os2/RTErrConvertFromOS2.cpp \
+	os2/sys0.asm
+
+
+#
+# RuntimeR0Drv - Ring0 library for host drivers.
+#
+RuntimeR0Drv_TEMPLATE   = VBOXR0DRV
+RuntimeR0Drv_SDKS.win   = W2K3DDK WINPSDKINCS
+RuntimeR0Drv_INCS      := $(PATH_SUB_CURRENT) include
+RuntimeR0Drv_DEFS       = IN_RT_R0 RT_WITH_VBOX RT_WITHOUT_NOCRT_WRAPPERS
+RuntimeR0Drv_DEFS.win   = IN_SUP_R0
+RuntimeR0Drv_DEFS.linux = MODULE KBUILD_MODNAME=KBUILD_STR\(vboxdrv\) KBUILD_BASENAME=KBUILD_STR\(vboxdrv\) IN_SUP_R0 # why is IN_SUP_R0 here? because!
+
+RuntimeR0Drv_INCS.linux = \
+	r0drv/linux
+ifdef VBOX_WITH_SOLARIS_VBI
+ RuntimeR0Drv_INCS.solaris = \
+ 	r0drv/solaris/vbi/i86pc
+endif
+
+RuntimeR0Drv_SOURCES    = \
+	common/alloc/alloc.cpp \
+	common/misc/RTAssertMsg2.cpp \
+	common/checksum/crc32.cpp \
+	common/checksum/crc64.cpp \
+	common/checksum/md5.cpp \
+	common/checksum/ipv4.cpp \
+	common/log/log.cpp \
+	common/log/logellipsis.cpp \
+	common/log/logrel.cpp \
+	common/log/logrelellipsis.cpp \
+	common/log/logcom.cpp \
+	common/log/logformat.cpp \
+	common/misc/assert.cpp \
+	common/misc/handletable.cpp \
+	common/misc/handletablectx.cpp \
+	common/misc/handletablesimple.cpp \
+	common/misc/sanity-c.c \
+	common/misc/sanity-cpp.cpp \
+	common/string/strformat.cpp \
+	common/string/strformatrt.cpp \
+	common/string/strformattype.cpp \
+	common/string/strprintf.cpp \
+	common/string/strtonum.cpp \
+	common/table/avlpv.cpp \
+	generic/RTLogWriteStdErr-stub-generic.cpp \
+	generic/RTLogWriteUser-generic.cpp \
+	generic/uuid-generic.cpp \
+	r0drv/alloc-r0drv.cpp \
+	r0drv/initterm-r0drv.cpp \
+	VBox/log-vbox.cpp \
+	VBox/strformat-vbox.cpp
+
+## @todo: Linking against RuntimeR0Drv on Linux will result in unresolved external
+## references to several string functions (e.g. strlen). We could include the
+## missing functions here but our own implementations conflict with declarations
+## of some Linux kernels (inline versus not inline, size_t versus unsigned int).
+##
+## The prototypes for the unresolved externals are declared in <linux/string.h>.
+## This file is not included with extern "C" { ... } and therefore the function
+## prototypes are mangled during C++ compilation. That's why we have to provide
+## implementations with mangled function names.
+##
+## bird: Why don't we just extern "C" {} that file then?
+RuntimeR0Drv_SOURCES.linux = \
+	common/alloc/heapsimple.cpp \
+	common/string/strpbrk.cpp \
+	common/err/RTErrConvertToErrno.cpp \
+	common/err/RTErrConvertFromErrno.cpp \
+	generic/RTAssertShouldPanic-generic.cpp \
+	generic/RTLogWriteStdOut-stub-generic.cpp \
+	generic/mppresent-generic.cpp \
+	r0drv/linux/alloc-r0drv-linux.c \
+	r0drv/linux/assert-r0drv-linux.c \
+	r0drv/linux/initterm-r0drv-linux.c \
+	r0drv/linux/memobj-r0drv-linux.c \
+	r0drv/linux/mp-r0drv-linux.c \
+	r0drv/linux/mpnotification-r0drv-linux.c \
+	r0drv/linux/process-r0drv-linux.c \
+	r0drv/linux/RTLogWriteDebugger-r0drv-linux.c \
+	r0drv/linux/RTThreadPreemptDisable-r0drv-linux.c \
+	r0drv/linux/RTThreadPreemptRestore-r0drv-linux.c \
+	r0drv/linux/semevent-r0drv-linux.c \
+	r0drv/linux/semeventmulti-r0drv-linux.c \
+	r0drv/linux/semfastmutex-r0drv-linux.c \
+	r0drv/linux/spinlock-r0drv-linux.c \
+	r0drv/linux/thread-r0drv-linux.c \
+	r0drv/linux/thread2-r0drv-linux.c \
+	r0drv/linux/time-r0drv-linux.c \
+	r0drv/linux/timer-r0drv-linux.c \
+	r0drv/memobj-r0drv.cpp \
+	r0drv/mpnotification-r0drv.c \
+	r0drv/powernotification-r0drv.c
+## @todo thread2-r0drv-linux.c and assert-r0drv-linux.c
+
+RuntimeR0Drv_SOURCES.win = \
+	common/misc/thread.cpp \
+	common/string/memcmp.asm \
+	common/string/memchr.asm \
+  	common/string/memcpy.asm \
+  	common/string/memset.asm \
+  	common/string/memmove.asm \
+  	common/string/strlen.asm \
+	common/string/strncmp.cpp \
+	common/string/strpbrk.cpp \
+	generic/RTAssertShouldPanic-generic.cpp \
+	generic/RTLogWriteStdOut-stub-generic.cpp \
+	generic/mppresent-generic.cpp \
+	nt/RTErrConvertFromNtStatus.cpp \
+	r0drv/memobj-r0drv.cpp \
+	r0drv/mpnotification-r0drv.c \
+	r0drv/powernotification-r0drv.c \
+	r0drv/nt/alloc-r0drv-nt.cpp \
+	r0drv/nt/assert-r0drv-nt.cpp \
+	r0drv/nt/initterm-r0drv-nt.cpp \
+	r0drv/nt/memobj-r0drv-nt.cpp \
+	r0drv/nt/mp-r0drv-nt.cpp \
+	r0drv/nt/mpnotification-r0drv-nt.cpp \
+	r0drv/nt/process-r0drv-nt.cpp \
+	r0drv/nt/RTLogWriteDebugger-r0drv-nt.cpp \
+	r0drv/nt/semevent-r0drv-nt.cpp \
+	r0drv/nt/semeventmulti-r0drv-nt.cpp \
+	r0drv/nt/semfastmutex-r0drv-nt.cpp \
+	r0drv/nt/semmutex-r0drv-nt.cpp \
+	r0drv/nt/spinlock-r0drv-nt.cpp \
+	r0drv/nt/thread-r0drv-nt.cpp \
+	r0drv/nt/thread2-r0drv-nt.cpp \
+	r0drv/nt/time-r0drv-nt.cpp \
+	r0drv/nt/timer-r0drv-nt.cpp
+
+RuntimeR0Drv_SOURCES.win.amd64 = $(RuntimeWin64ASM_SOURCES)
+RuntimeR0Drv_SOURCES.win.x86   = $(RuntimeWin32ASM_SOURCES)
+
+RuntimeR0Drv_SOURCES.darwin = \
+	common/err/RTErrConvertFromErrno.cpp \
+	common/misc/RTAssertMsg1Weak.cpp \
+	common/misc/RTAssertMsg2Weak.cpp \
+	common/misc/thread.cpp \
+	common/string/memchr.asm \
+	common/string/strpbrk.cpp \
+	darwin/RTErrConvertFromDarwin.cpp \
+	darwin/RTErrConvertFromDarwinIO.cpp \
+	darwin/RTErrConvertFromDarwinKern.cpp \
+	generic/RTAssertShouldPanic-generic.cpp \
+	generic/RTTimerCreate-generic.cpp \
+	generic/mppresent-generic.cpp \
+	generic/timer-generic.cpp \
+	r0drv/generic/RTThreadPreemptIsEnabled-r0drv-generic.cpp \
+	r0drv/generic/RTThreadPreemptDisable-r0drv-generic.cpp \
+	r0drv/generic/RTThreadPreemptRestore-r0drv-generic.cpp \
+	r0drv/generic/mpnotification-r0drv-generic.cpp \
+	r0drv/darwin/alloc-r0drv-darwin.cpp \
+	r0drv/darwin/assert-r0drv-darwin.cpp \
+	r0drv/darwin/initterm-r0drv-darwin.cpp \
+	r0drv/darwin/memobj-r0drv-darwin.cpp \
+	r0drv/darwin/mp-r0drv-darwin.cpp \
+	r0drv/darwin/process-r0drv-darwin.cpp \
+	r0drv/darwin/RTLogWriteDebugger-r0drv-darwin.cpp \
+	r0drv/darwin/RTLogWriteStdOut-r0drv-darwin.cpp \
+	r0drv/darwin/semaphore-r0drv-darwin.cpp \
+	r0drv/darwin/spinlock-r0drv-darwin.cpp \
+	r0drv/darwin/thread-r0drv-darwin.cpp \
+	r0drv/darwin/thread2-r0drv-darwin.cpp \
+	r0drv/darwin/time-r0drv-darwin.cpp \
+	r0drv/memobj-r0drv.cpp \
+	r0drv/powernotification-r0drv.c
+
+RuntimeR0Drv_SOURCES.os2 = \
+	common/string/memchr.asm \
+	common/string/memcmp.asm \
+	common/string/memcpy.asm \
+	common/string/mempcpy.asm \
+	common/string/memmove.asm \
+	common/string/memset.asm \
+	common/string/strchr.asm \
+	common/string/strcmp.asm \
+	common/string/strcpy.asm \
+	common/string/strlen.asm \
+	\
+	common/string/strncmp.cpp \
+	common/string/strpbrk.cpp \
+	\
+	common/misc/thread.cpp \
+	generic/RTAssertShouldPanic-generic.cpp \
+	generic/RTLogWriteDebugger-generic.cpp \
+	generic/RTLogWriteStdOut-stub-generic.cpp \
+	generic/RTMpCpuId-generic.cpp \
+	generic/RTMpCpuIdFromSetIndex-generic.cpp \
+	generic/RTMpCpuIdToSetIndex-generic.cpp \
+	generic/RTMpIsCpuPossible-generic.cpp \
+	generic/RTMpGetCount-generic.cpp \
+	generic/RTMpGetMaxCpuId-generic.cpp \
+	generic/RTMpGetOnlineCount-generic.cpp \
+	generic/RTMpGetOnlineSet-generic.cpp \
+	generic/RTMpGetSet-generic.cpp \
+	generic/RTMpIsCpuOnline-generic.cpp \
+	generic/RTTimerCreate-generic.cpp \
+	generic/mppresent-generic.cpp \
+	os2/RTErrConvertFromOS2.cpp \
+	os2/sys0.asm \
+	r0drv/generic/RTMpIsCpuWorkPending-r0drv-generic.cpp \
+	r0drv/generic/RTMpOn-r0drv-generic.cpp \
+	r0drv/generic/RTThreadPreemptIsEnabled-r0drv-generic.cpp \
+	r0drv/generic/RTThreadPreemptDisable-r0drv-generic.cpp \
+	r0drv/generic/RTThreadPreemptRestore-r0drv-generic.cpp \
+	r0drv/generic/mpnotification-r0drv-generic.cpp \
+	r0drv/memobj-r0drv.cpp \
+	r0drv/powernotification-r0drv.c \
+	r0drv/os2/alloc-r0drv-os2.cpp \
+	r0drv/os2/assert-r0drv-os2.cpp \
+	r0drv/os2/assertA-r0drv-os2.asm \
+	r0drv/os2/initterm-r0drv-os2.cpp \
+	r0drv/os2/memobj-r0drv-os2.cpp \
+	r0drv/os2/os2imports.imp \
+	r0drv/os2/process-r0drv-os2.cpp \
+	r0drv/os2/RTR0AssertPanicSystem-r0drv-os2.asm \
+	r0drv/os2/RTR0Os2DHQueryDOSVar.asm \
+	r0drv/os2/RTR0Os2DHVMGlobalToProcess.asm \
+	r0drv/os2/semevent-r0drv-os2.cpp \
+	r0drv/os2/semeventmulti-r0drv-os2.cpp \
+	r0drv/os2/semfastmutex-r0drv-os2.cpp \
+	r0drv/os2/spinlock-r0drv-os2.cpp \
+	r0drv/os2/thread-r0drv-os2.cpp \
+	r0drv/os2/thread2-r0drv-os2.cpp \
+	r0drv/os2/time-r0drv-os2.cpp \
+	r0drv/os2/timer-r0drv-os2.cpp \
+	r0drv/os2/timerA-r0drv-os2.asm
+
+RuntimeR0Drv_SOURCES.freebsd = \
+	common/err/RTErrConvertFromErrno.cpp \
+	common/err/RTErrConvertToErrno.cpp \
+	common/misc/thread.cpp \
+	common/string/memchr.asm \
+	common/string/memmove.asm \
+	common/string/strpbrk.cpp \
+	common/string/memcmp.asm \
+	common/string/strchr.asm \
+	generic/RTAssertShouldPanic-generic.cpp \
+	generic/RTLogWriteDebugger-generic.cpp \
+	generic/RTLogWriteStdOut-stub-generic.cpp \
+	generic/RTMpCpuId-generic.cpp \
+	generic/RTMpCpuIdFromSetIndex-generic.cpp \
+	generic/RTMpCpuIdToSetIndex-generic.cpp \
+	generic/RTMpIsCpuPossible-generic.cpp \
+	generic/RTMpGetCount-generic.cpp \
+	generic/RTMpGetMaxCpuId-generic.cpp \
+	generic/RTMpGetOnlineCount-generic.cpp \
+	generic/RTMpGetOnlineSet-generic.cpp \
+	generic/RTMpGetSet-generic.cpp \
+	generic/RTMpIsCpuOnline-generic.cpp \
+	generic/RTTimerCreate-generic.cpp \
+	generic/mppresent-generic.cpp \
+	r0drv/generic/RTMpIsCpuWorkPending-r0drv-generic.cpp \
+	r0drv/generic/RTMpOn-r0drv-generic.cpp \
+	r0drv/generic/RTThreadPreemptIsEnabled-r0drv-generic.cpp \
+	r0drv/generic/RTThreadPreemptDisable-r0drv-generic.cpp \
+	r0drv/generic/RTThreadPreemptRestore-r0drv-generic.cpp \
+	r0drv/generic/mpnotification-r0drv-generic.cpp \
+	r0drv/freebsd/alloc-r0drv-freebsd.c \
+	r0drv/freebsd/assert-r0drv-freebsd.c \
+	r0drv/freebsd/initterm-r0drv-freebsd.c \
+	r0drv/freebsd/memobj-r0drv-freebsd.c \
+	r0drv/freebsd/process-r0drv-freebsd.c \
+	r0drv/freebsd/semevent-r0drv-freebsd.c \
+	r0drv/freebsd/semeventmulti-r0drv-freebsd.c \
+	r0drv/freebsd/semfastmutex-r0drv-freebsd.c \
+	r0drv/freebsd/spinlock-r0drv-freebsd.c \
+	r0drv/freebsd/thread-r0drv-freebsd.c \
+	r0drv/freebsd/thread2-r0drv-freebsd.c \
+	r0drv/freebsd/time-r0drv-freebsd.c \
+	r0drv/freebsd/timer-r0drv-freebsd.c \
+	r0drv/memobj-r0drv.cpp \
+	r0drv/powernotification-r0drv.c
+
+RuntimeR0Drv_SOURCES.solaris = \
+	common/err/RTErrConvertFromErrno.cpp \
+	common/misc/thread.cpp \
+	common/string/memchr.asm \
+	generic/RTAssertShouldPanic-generic.cpp \
+	generic/RTLogWriteStdOut-stub-generic.cpp \
+	generic/RTTimerCreate-generic.cpp \
+	generic/mppresent-generic.cpp \
+	r0drv/memobj-r0drv.cpp \
+	r0drv/mpnotification-r0drv.c \
+	r0drv/powernotification-r0drv.c \
+ 	r0drv/solaris/assert-r0drv-solaris.c \
+ 	r0drv/solaris/initterm-r0drv-solaris.c \
+ 	r0drv/solaris/semevent-r0drv-solaris.c \
+ 	r0drv/solaris/semeventmulti-r0drv-solaris.c \
+ 	r0drv/solaris/semfastmutex-r0drv-solaris.c \
+ 	r0drv/solaris/spinlock-r0drv-solaris.c
+
+ifdef VBOX_WITH_SOLARIS_VBI
+ RuntimeR0Drv_SOURCES.solaris += \
+	r0drv/solaris/vbi/mpnotification-r0drv-solaris.c \
+ 	r0drv/solaris/vbi/alloc-r0drv-solaris.c \
+ 	r0drv/solaris/vbi/memobj-r0drv-solaris.c \
+ 	r0drv/solaris/vbi/mp-r0drv-solaris.c \
+ 	r0drv/solaris/vbi/process-r0drv-solaris.c \
+ 	r0drv/solaris/vbi/RTLogWriteDebugger-r0drv-solaris.c \
+ 	r0drv/solaris/vbi/thread-r0drv-solaris.c \
+ 	r0drv/solaris/vbi/thread2-r0drv-solaris.c \
+ 	r0drv/solaris/vbi/time-r0drv-solaris.c \
+ 	r0drv/solaris/vbi/timer-r0drv-solaris.c
+else  # !VBOX_WITH_SOLARIS_VBI
+ RuntimeR0Drv_SOURCES.solaris += \
+	r0drv/solaris/mpnotification-r0drv-solaris.c \
+ 	r0drv/solaris/alloc-r0drv-solaris.c \
+ 	r0drv/solaris/memobj-r0drv-solaris.c \
+ 	r0drv/solaris/process-r0drv-solaris.c \
+ 	r0drv/solaris/RTLogWriteDebugger-r0drv-solaris.c \
+ 	r0drv/solaris/thread-r0drv-solaris.c \
+ 	r0drv/solaris/thread2-r0drv-solaris.c \
+ 	r0drv/solaris/time-r0drv-solaris.c \
+ 	r0drv/solaris/timer-r0drv-solaris.c
+ # Don't use mp-r0drv-solaris.c because it will cause crashes due to incorrect memobj-r0drv-solaris.c code.
+ ifeq (0,0)
+  # Stub it. ## @todo limit the stubbing to RTMpOn*.
+  RuntimeR0Drv_SOURCES.solaris += \
+  	generic/RTMpCpuId-generic.cpp \
+  	generic/RTMpCpuIdFromSetIndex-generic.cpp \
+  	generic/RTMpCpuIdToSetIndex-generic.cpp \
+  	generic/RTMpIsCpuPossible-generic.cpp \
+  	generic/RTMpGetCount-generic.cpp \
+  	generic/RTMpGetMaxCpuId-generic.cpp \
+  	generic/RTMpGetOnlineCount-generic.cpp \
+  	generic/RTMpGetOnlineSet-generic.cpp \
+  	generic/RTMpGetSet-generic.cpp \
+  	generic/RTMpIsCpuOnline-generic.cpp \
+	r0drv/generic/RTMpIsCpuWorkPending-r0drv-generic.cpp \
+  	r0drv/generic/RTMpOn-r0drv-generic.cpp
+ else
+  # Use mp-r0drv-solaris.c.
+  RuntimeR0Drv_SOURCES.solaris += \
+ 	r0drv/solaris/mp-r0drv-solaris.c
+# 	r0drv/solaris/mpnotification-r0drv-solaris.c
+ endif
+
+endif # !VBOX_WITH_SOLARIS_VBI
+
+## PORTME: Porters create and add their selection of platform specific Ring-0 Driver files here.
+
+
+#
+# RuntimeGuestR0 - Guest driver runtime.
+#                  This is almost the same as the RuntimeR0Drv, the main difference
+#                  is in the backdoor logging and the lack of sup.h (which should be
+#                  made irrelevant even for RuntimeR0Drv).
+#
+RuntimeGuestR0_TEMPLATE  := VBOXGUESTR0LIB
+RuntimeGuestR0_SOURCES   := $(filter-out generic/RTLogWriteUser-generic.cpp, $(RuntimeR0Drv_SOURCES))
+RuntimeGuestR0_SOURCES   += VBox/logbackdoor.cpp
+RuntimeGuestR0_EXTENDS    = RuntimeR0Drv
+
+# HACK: no vbi for the solaris guest additions - yet.
+RuntimeGuestR0_SOURCES.solaris = \
+	common/err/RTErrConvertFromErrno.cpp \
+	common/err/RTErrConvertToErrno.cpp \
+	common/misc/thread.cpp \
+	common/string/memchr.asm \
+	generic/RTAssertShouldPanic-generic.cpp \
+	generic/RTTimerCreate-generic.cpp \
+	r0drv/memobj-r0drv.cpp \
+ 	generic/RTMpCpuId-generic.cpp \
+ 	generic/RTMpCpuIdFromSetIndex-generic.cpp \
+ 	generic/RTMpCpuIdToSetIndex-generic.cpp \
+ 	generic/RTMpIsCpuPossible-generic.cpp \
+ 	generic/RTMpGetCount-generic.cpp \
+ 	generic/RTMpGetMaxCpuId-generic.cpp \
+ 	generic/RTMpGetOnlineCount-generic.cpp \
+ 	generic/RTMpGetOnlineSet-generic.cpp \
+ 	generic/RTMpGetSet-generic.cpp \
+ 	generic/RTMpIsCpuOnline-generic.cpp \
+	generic/RTLogWriteStdOut-stub-generic.cpp \
+	generic/mppresent-generic.cpp \
+	r0drv/generic/RTMpIsCpuWorkPending-r0drv-generic.cpp \
+	r0drv/generic/RTMpOn-r0drv-generic.cpp \
+	r0drv/generic/mpnotification-r0drv-generic.cpp \
+ 	r0drv/solaris/alloc-r0drv-solaris.c \
+ 	r0drv/solaris/assert-r0drv-solaris.c \
+ 	r0drv/solaris/initterm-r0drv-solaris.c \
+ 	r0drv/solaris/memobj-r0drv-solaris.c \
+ 	r0drv/solaris/process-r0drv-solaris.c \
+ 	r0drv/solaris/RTLogWriteDebugger-r0drv-solaris.c \
+ 	r0drv/solaris/semevent-r0drv-solaris.c \
+ 	r0drv/solaris/semeventmulti-r0drv-solaris.c \
+ 	r0drv/solaris/semfastmutex-r0drv-solaris.c \
+ 	r0drv/solaris/spinlock-r0drv-solaris.c \
+ 	r0drv/solaris/thread-r0drv-solaris.c \
+ 	r0drv/solaris/thread2-r0drv-solaris.c \
+ 	r0drv/solaris/time-r0drv-solaris.c \
+ 	r0drv/solaris/timer-r0drv-solaris.c
+
+#
+# RuntimeGuestR0NT4 - Win32 NT4 guest driver runtime.
+#
+RuntimeGuestR0NT4_EXTENDS = RuntimeGuestR0
+RuntimeGuestR0NT4_EXTENDS_BY = appending
+RuntimeGuestR0NT4_DEFS = IPRT_TARGET_NT4
+
+
+#
+# RuntimeGC - Guest context library.
+#
+RuntimeGC_TEMPLATE      = VBOXGC
+RuntimeGC_DEFS          = IN_RT_GC RT_WITH_VBOX
+RuntimeGC_INCS          = include
+RuntimeGC_SOURCES       = \
+	common/log/log.cpp \
+	common/log/logellipsis.cpp \
+	common/log/logrel.cpp \
+	common/log/logrelellipsis.cpp \
+	common/log/logcom.cpp \
+	common/log/logformat.cpp \
+	common/misc/assert.cpp \
+	common/misc/sanity-c.c \
+	common/misc/sanity-cpp.cpp \
+	common/string/strformat.cpp \
+	common/string/strformatrt.cpp \
+	common/string/strformattype.cpp \
+	common/string/strncmp.cpp \
+	common/string/strpbrk.cpp \
+	common/string/strprintf.cpp \
+	common/table/avllu32.cpp \
+	common/table/avlou32.cpp \
+	common/table/avlogcphys.cpp \
+	common/table/avlogcptr.cpp \
+	common/table/avlohcphys.cpp \
+	common/table/avloioport.cpp \
+	common/table/avlrogcphys.cpp \
+	common/table/avlrogcptr.cpp \
+	common/table/avlroioport.cpp \
+	common/table/avlroogcptr.cpp \
+	common/table/avlu32.cpp \
+	common/time/timeprog.cpp \
+	common/time/timesup.cpp \
+	gc/initterm-gc.cpp \
+	generic/RTAssertShouldPanic-generic.cpp \
+	VBox/strformat-vbox.cpp \
+	\
+	$(RuntimeNoCrt_SOURCES)
+
+#if1of ($(KBUILD_TARGET_ARCH),amd64 x86)
+# RuntimeGC_SOURCES += common/time/timesupA.asm
+#else
+ RuntimeGC_SOURCES += common/time/timesupref.cpp
+#endif
+
+RuntimeGC_SOURCES.win.x86 = $(RuntimeWin32ASM_SOURCES)
+
+ifeq ($(VBOX_LDR_FMT32),lx)
+ RuntimeGC_SOURCES += os2/sys0.asm
+endif
+
+if1of ($(KBUILD_TARGET), darwin solaris freebsd)
+RuntimeGC_SOURCES += \
+	common/math/gcc/adddi3.c \
+	common/math/gcc/anddi3.c \
+	common/math/gcc/ashldi3.c \
+	common/math/gcc/ashrdi3.c \
+	common/math/gcc/cmpdi2.c \
+	common/math/gcc/divdi3.c \
+	common/math/gcc/iordi3.c \
+	common/math/gcc/lshldi3.c \
+	common/math/gcc/lshrdi3.c \
+	common/math/gcc/moddi3.c \
+	common/math/gcc/muldi3.c \
+	common/math/gcc/negdi2.c \
+	common/math/gcc/notdi2.c \
+	common/math/gcc/qdivrem.c \
+	common/math/gcc/subdi3.c \
+	common/math/gcc/ucmpdi2.c \
+	common/math/gcc/udivdi3.c \
+	common/math/gcc/umoddi3.c \
+	common/math/gcc/xordi3.c
+endif
+
+
+#
+# Static library for new & delete for the electric fence.
+#
+RuntimeEFCPP_TEMPLATE   = $(RuntimeR3_TEMPLATE)
+RuntimeEFCPP_SDKS       = $(RuntimeR3_SDKS)
+RuntimeEFCPP_SDKS.$(KBUILD_TARGET) = $(RuntimeR3_SDKS.$(KBUILD_TARGET))
+RuntimeEFCPP_DEFS       = $(RuntimeR3_DEFS)
+RuntimeEFCPP_DEFS.$(KBUILD_TARGET) = $(RuntimeR3_DEFS.$(KBUILD_TARGET))
+RuntimeEFCPP_INCS       = $(RuntimeR3_INCS)
+RuntimeEFCPP_INCS.$(KBUILD_TARGET) = $(RuntimeR3_INCS.$(KBUILD_TARGET))
+RuntimeEFCPP_SOURCES    = r3/alloc-ef-cpp.cpp
+
+
+
+#
+# errmsg.cpp depends on a generated header.
+#
+common/err/errmsg.cpp_DEPS = $(IPRT_OUT_DIR)/errmsgdata.h
+common/err/errmsg.cpp_INCS = $(IPRT_OUT_DIR)
+
+win/errmsgwin.cpp_DEPS = $(IPRT_OUT_DIR)/errmsgcomdata.h
+win/errmsgwin.cpp_INCS = $(IPRT_OUT_DIR)
+
+# Our COM errors only for R3 libraries on the host
+define def_errmsgwin_deps
+ $(lib)_win/errmsgwin.cpp_DEPS = $(IPRT_OUT_DIR)/errmsgvboxcomdata.h
+ $(lib)_common/err/errmsgxpcom.cpp_INCS = $(IPRT_OUT_DIR)
+ $(lib)_common/err/errmsgxpcom.cpp_DEPS = $(IPRT_OUT_DIR)/errmsgvboxcomdata.h
+endef
+$(foreach lib,RuntimeR3 VBoxRT RuntimeLnxHostR3,$(eval $(def_errmsgwin_deps)))
+
+
+#
+# Generate the rules (we're the to sub-makefile).
+#
+include $(KBUILD_PATH)/subfooter.kmk
+
+
+#
+# Generate the status code data.
+#
+$(IPRT_OUT_DIR)/errmsgdata.h: \
+		$(VBOX_PATH_RUNTIME_SRC)/common/err/errmsg.sed \
+		$(PATH_ROOT)/include/iprt/err.h \
+		$(PATH_ROOT)/include/VBox/err.h \
+		| $$(dir $$@)
+	$(call MSG_GENERATE,,$@,$(filter %.h,$^))
+	$(QUIET)$(REDIRECT) -wo $@ -- $(SED) -f $< $(filter %.h,$^)
+
+## @todo r=bird: rename this to indicate that it's not only COM errors, but all win32/64 errors.
+$(IPRT_OUT_DIR)/errmsgcomdata.h: \
+		$(VBOX_PATH_RUNTIME_SRC)/common/err/errmsgcom.sed \
+		$$(PATH_SDK_WINPSDK_INC)/WinError.h \
+		| $$(dir $$@)
+	$(call MSG_GENERATE,,$@,$(filter %.h,$^))
+	$(QUIET)$(REDIRECT) -wo $@ -- $(SED) -f $< $(filter %.h,$^)
+
+$(IPRT_OUT_DIR)/errmsgvboxcomdata.h: \
+		$(VBOX_PATH_RUNTIME_SRC)/VBox/errmsgvboxcom.xsl \
+		$(VBOX_PATH_RUNTIME_SRC)/../Main/idl/VirtualBox.xidl \
+		| $$(dir $$@)
+	$(call MSG_GENERATE,,$@,$(filter %.xidl,$^))
+	$(VBOX_XSLTPROC) -o $@ $< $(filter %.xidl,$^)
+
+
+#
+# Aliases for .cpp.h files so we can more easily do syntax checking from the editor.
+#
+ldrELFRelocatable.cpp.o: ldrELF.o
+ldrELFRelocatable.cpp.obj: ldrELF.obj
+
+
+#
+# Doxygen documentation.
+#
+IPRT_DOXYFILE_INPUT_DIRS = \
+	$(PATH_ROOT)/include/iprt \
+	$(PATH_ROOT)/include/iprt/nocrt \
+	$(PATH_ROOT)/include/iprt/nocrt/x86 \
+	$(PATH_ROOT)/include/iprt/nocrt/amd64 \
+	$(VBOX_PATH_RUNTIME_SRC)/include/internal \
+	$(VBOX_PATH_RUNTIME_SRC)/common/alloc \
+	$(VBOX_PATH_RUNTIME_SRC)/common/checksum \
+	$(VBOX_PATH_RUNTIME_SRC)/common/err \
+	$(VBOX_PATH_RUNTIME_SRC)/common/ldr \
+	$(VBOX_PATH_RUNTIME_SRC)/common/log \
+	$(VBOX_PATH_RUNTIME_SRC)/common/misc \
+	$(VBOX_PATH_RUNTIME_SRC)/common/string \
+	$(VBOX_PATH_RUNTIME_SRC)/common/table \
+	$(VBOX_PATH_RUNTIME_SRC)/common/time \
+	$(VBOX_PATH_RUNTIME_SRC)/VBox \
+	$(foreach dir, $(VBOX_PATH_RUNTIME_SRC) $(VBOX_PATH_RUNTIME_SRC)/r3 $(VBOX_PATH_RUNTIME_SRC)/r0drv,\
+		$(dir) \
+		$(dir)/darwin \
+		$(dir)/l4 \
+		$(dir)/linux \
+		$(dir)/nt \
+		$(dir)/os2 \
+		$(dir)/win \
+		$(dir)/win32 \
+		$(dir)/win64 \
+		$(dir)/generic \
+		)
+
+# These must come first in order to make things look nice.
+IPRT_DOXYFILE_INPUT_FIRST =\
+	$(PATH_ROOT)/include/iprt/cdefs.h \
+	$(PATH_ROOT)/include/iprt/types.h \
+	$(PATH_ROOT)/include/iprt/runtime.h \
+	$(PATH_ROOT)/include/iprt/param.h \
+	$(PATH_ROOT)/include/iprt/assert.h \
+	$(PATH_ROOT)/include/iprt/asm.h \
+
+IPRT_DOXYFILE_INPUT := \
+	$(filter-out %.cpp.h, $(sort $(wildcard $(addsuffix /*.h, $(IPRT_DOXYFILE_INPUT_DIRS)))) ) \
+	$(foreach dir, $(IPRT_DOXYFILE_INPUT_DIRS), $(wildcard $(dir)/*.cpp $(dir)/.c $(dir)/.asm))
+IPRT_DOXYFILE_INPUT := \
+	$(IPRT_DOXYFILE_INPUT_FIRST) \
+	$(filter-out $(IPRT_DOXYFILE_INPUT_FIRST), $(IPRT_DOXYFILE_INPUT))
+
+
+IPRT_DOXYFILE_OUTPUT = $(PATH_OUT)/docs/iprt
+BLDDIRS += $(IPRT_DOXYFILE_OUTPUT)
+
+includedep $(IPRT_OUT_DIR)/Doxyfile.iprt.dep
+
+# Generate the Doxyfile
+$(IPRT_OUT_DIR)/Doxyfile.iprt: \
+		$(VBOX_PATH_RUNTIME_SRC)/Doxyfile \
+		$(VBOX_PATH_RUNTIME_SRC)/Makefile.kmk \
+		$(comp-vars IPRT_DOXYFILE_INPUT,DOXYGEN_INPUT_PREV,FORCE) \
+		$(comp-vars IPRT_DOXYFILE_OUTPUT,DOXYGEN_OUTPUT_PREV,FORCE) \
+		| $$(dir $$@)
+	$(RM) -f $@ $@.tmp $@.dep
+	$(CP) -f $(VBOX_PATH_RUNTIME_SRC)/Doxyfile $@.tmp
+	$(APPEND) $@.tmp
+	$(APPEND) $@.tmp "OUTPUT_DIRECTORY = $(IPRT_DOXYFILE_OUTPUT)"
+	$(APPEND) $@.tmp "WARN_LOGFILE = $(IPRT_DOXYFILE_OUTPUT)/errors"
+	$(APPEND) $@.tmp "INCLUDE_PATH = $(PATH_ROOT)/include include . common/table"
+	$(APPEND) $@.tmp "INCLUDE_FILE_PATTERNS = *.cpp.h"
+	$(APPEND) $@.tmp "PREDEFINED += $(ARCH_BITS_DEFS)"
+	$(APPEND) $@.tmp
+	$(APPEND) $@.tmp "INPUT = $(IPRT_DOXYFILE_INPUT)"
+	$(APPEND) $@.tmp
+	$(MV) -f $@.tmp $@
+	@$(APPEND) $@.dep "DOXYGEN_OUTPUT_PREV = $(IPRT_DOXYFILE_OUTPUT)"
+	@$(APPEND) $@.dep "DOXYGEN_INPUT_PREV = $(IPRT_DOXYFILE_INPUT)"
+
+# Do the actual job.
+$(IPRT_OUT_DIR)/docs.iprt: $(IPRT_OUT_DIR)/Doxyfile.iprt $$(IPRT_DOXYFILE_INPUT) | $(IPRT_DOXYFILE_OUTPUT)/
+	$(RM) -f $(wildcard $(IPRT_DOXYFILE_OUTPUT)/html/*) $(IPRT_OUT_DIR)/docs.iprt
+	doxygen $(IPRT_OUT_DIR)/Doxyfile.iprt
+	$(APPEND) $(IPRT_OUT_DIR)/docs.iprt
+
+# aliases
+docs.iprt: $(IPRT_OUT_DIR)/docs.iprt
+if !defined(VBOX_ONLY_DOCS) && defined(VBOX_WITH_ALL_DOXYGEN_TARGETS)
+docs:      $(IPRT_OUT_DIR)/docs.iprt
+endif
+
+test-doxygen::
+	@echo test-$(comp-vars IPRT_DOXYFILE_OUTPUT,DOXYGEN_OUTPUT_PREV,FORCE)
+	@echo $(IPRT_DOXYFILE_OUTPUT)
+	@echo $(DOXYGEN_OUTPUT_PREV)
+	@echo $(IPRT_DOXYFILE_INPUT)
+

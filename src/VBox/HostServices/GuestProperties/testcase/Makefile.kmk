@@ -1,0 +1,55 @@
+# $Id: Makefile.kmk 14104 2008-11-11 19:16:32Z vboxsync $
+## @file
+# Sub-Makefile for the Guest Properties Host Service testcases.
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../../..
+include $(KBUILD_PATH)/subheader.kmk
+
+ifdef VBOX_WITH_TESTCASES
+#
+# Case conversion testcase.
+#
+PROGRAMS += tstGuestPropSvc
+tstGuestPropSvc_TEMPLATE = VBOXR3TSTEXE
+# The second define here is to ensure that the testcase will run fast, without
+# waiting for any thread synchronisation.
+tstGuestPropSvc_DEFS     = VBOX_WITH_HGCM VBOX_GUEST_PROP_TEST_NOTHREAD
+tstGuestPropSvc_SOURCES  = tstGuestPropSvc.cpp ../service.cpp
+tstGuestPropSvc_LIBS     = $(LIB_RUNTIME)
+# For now!
+tstGuestPropSvc_CXXFLAGS.win = -EHsc
+
+# Set this in LocalConfig.kmk if you are working on the guest property service
+# to automatically run the testcase at build time.
+ifdef VBOX_RUN_GUEST_PROPERTY_TEST
+ ifndef VBOX_ONLY_SDK
+  TESTING  += $(PATH_tstGuestPropSvc)/tstGuestPropSvc.run
+  OTHERS += $(PATH_tstGuestPropSvc)/tstGuestPropSvc.run
+$$(PATH_tstGuestPropSvc)/tstGuestPropSvc.run: $$(INSTARGET_tstGuestPropSvc)
+	export VBOX_LOG_DEST=nofile; $(INSTARGET_tstGuestPropSvc) quiet
+	$(QUIET)$(APPEND) -t "$@" "done"
+ endif
+endif
+
+endif # VBOX_WITH_TESTCASES
+
+
+include $(KBUILD_PATH)/subfooter.kmk
+

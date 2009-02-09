@@ -1,0 +1,129 @@
+; $Id: SUPR0.def 15838 2009-01-07 15:57:24Z vboxsync $
+;; @file
+; VirtualBox Support Driver - Built-in exports.
+;
+
+;
+; Copyright (C) 2006-2007 Sun Microsystems, Inc.
+;
+; This file is part of VirtualBox Open Source Edition (OSE), as
+; available from http://www.virtualbox.org. This file is free software;
+; you can redistribute it and/or modify it under the terms of the GNU
+; General Public License (GPL) as published by the Free Software
+; Foundation, in version 2 as it comes in the "COPYING" file of the
+; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+;
+; The contents of this file may alternatively be used under the terms
+; of the Common Development and Distribution License Version 1.0
+; (CDDL) only, as it comes in the "COPYING.CDDL" file of the
+; VirtualBox OSE distribution, in which case the provisions of the
+; CDDL are applicable instead of those of the GPL.
+;
+; You may elect to license modified versions of this file under the
+; terms and conditions of either the GPL or the CDDL or both.
+;
+; Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+; Clara, CA 95054 USA or visit http://www.sun.com if you need
+; additional information or have any questions.
+;
+
+LIBRARY SUPR0.dll
+
+EXPORTS
+    SUPR0AbsIs64bit
+    SUPR0Abs64bitKernelCS
+    SUPR0Abs64bitKernelSS
+    SUPR0Abs64bitKernelDS
+    SUPR0ComponentRegisterFactory
+    SUPR0ComponentDeregisterFactory
+    SUPR0ComponentQueryFactory
+    SUPR0ObjRegister
+    SUPR0ObjAddRef
+    SUPR0ObjAddRefEx
+    SUPR0ObjRelease
+    SUPR0ObjVerifyAccess
+    SUPR0LockMem
+    SUPR0UnlockMem
+    SUPR0ContAlloc
+    SUPR0ContFree
+    SUPR0LowAlloc
+    SUPR0LowFree
+    SUPR0MemAlloc
+    SUPR0MemGetPhys
+    SUPR0MemFree
+    SUPR0Printf
+    SUPR0GetPagingMode
+    SUPR0EnableVTx
+    RTMemAlloc
+    RTMemAllocZ
+    RTMemFree
+    RTMemRealloc
+    RTR0MemObjAllocLow
+    RTR0MemObjAllocPage
+    RTR0MemObjAllocPhys
+    RTR0MemObjAllocPhysNC
+    RTR0MemObjAllocCont
+    RTR0MemObjLockUser
+    RTR0MemObjMapKernel
+    RTR0MemObjMapUser
+    RTR0MemObjAddress
+    RTR0MemObjAddressR3
+    RTR0MemObjSize
+    RTR0MemObjIsMapping
+    RTR0MemObjGetPagePhysAddr
+    RTR0MemObjFree
+    ; broken - RTSemMutexCreate
+    ; broken - RTSemMutexRequest
+    ; broken - RTSemMutexRelease
+    ; broken - RTSemMutexDestroy
+    RTSemEventCreate
+    RTSemEventSignal
+    RTSemEventWait
+    RTSemEventWaitNoResume
+    RTSemEventDestroy
+    RTSemEventMultiCreate
+    RTSemEventMultiSignal
+    RTSemEventMultiReset
+    RTSemEventMultiWait
+    RTSemEventMultiWaitNoResume
+    RTSemEventMultiDestroy
+    RTSemFastMutexCreate
+    RTSemFastMutexDestroy
+    RTSemFastMutexRequest
+    RTSemFastMutexRelease
+    RTSpinlockCreate
+    RTSpinlockDestroy
+    RTSpinlockAcquire
+    RTSpinlockRelease
+    RTSpinlockAcquireNoInts
+    RTSpinlockReleaseNoInts
+    RTTimeNanoTS
+    RTTimeMillieTS
+    RTTimeSystemNanoTS
+    RTTimeSystemMillieTS
+    RTThreadSelf
+    RTThreadNativeSelf
+    RTThreadSleep
+    RTThreadYield
+    RTMpOnAll
+    RTMpOnOthers
+    RTMpOnSpecific
+    RTMpIsCpuOnline
+    RTMpGetCount
+    RTMpCpuIdToSetIndex
+    RTMpCpuId
+    RTMpIsCpuWorkPending
+    RTPowerNotificationRegister
+    RTPowerNotificationDeregister
+    RTLogDefaultInstance
+    RTLogRelDefaultInstance
+    RTLogSetDefaultInstanceThread
+    RTLogLoggerExV
+    RTLogPrintfV
+    AssertMsg1
+    AssertMsg2
+
+    ; data
+    g_SUPGlobalInfoPage DATA
+

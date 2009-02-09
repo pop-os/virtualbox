@@ -1,0 +1,55 @@
+# $Id: Makefile.kmk 14545 2008-11-24 21:15:01Z vboxsync $
+## @file
+# Top-level makefile for the VBox Host drivers.
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../..
+include $(KBUILD_PATH)/subheader.kmk
+
+# Include sub-makefiles.
+include $(PATH_SUB_CURRENT)/Support/Makefile.kmk
+
+ifndef VBOX_ONLY_DOCS
+ ifeq ($(KBUILD_TARGET),win)
+  include $(PATH_SUB_CURRENT)/VBoxTAP/Makefile.kmk
+ endif
+ ifdef VBOX_WITH_USB
+  include $(PATH_SUB_CURRENT)/VBoxUSB/Makefile.kmk
+ endif
+ if1of ($(KBUILD_TARGET), darwin solaris win linux)
+  ifdef VBOX_WITH_NETFLT
+   include $(PATH_SUB_CURRENT)/VBoxNetFlt/Makefile.kmk
+  endif
+ endif
+
+ ifeq ($(KBUILD_TARGET),linux)
+  #
+  # Install the Makefile for module compliation on Linux hosts
+  #
+  INSTALLS += HostDrivers-src
+  HostDrivers-src_INST    = bin/src/
+  HostDrivers-src_MODE    = a+r,u+w
+  HostDrivers-src_SOURCES = linux/Makefile
+ endif
+
+endif # !VBOX_ONLY_DOCS
+
+# Let kBuild generate the rules.
+include $(KBUILD_PATH)/subfooter.kmk
+

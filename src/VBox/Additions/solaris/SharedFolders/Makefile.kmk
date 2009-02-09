@@ -1,0 +1,55 @@
+# $Id: Makefile.kmk 12446 2008-09-14 23:32:31Z vboxsync $
+## @file
+# Sub-Makefile for the Solaris Shared folder kernel module.
+#
+
+#
+# Copyright (C) 2008 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../../..
+include	$(KBUILD_PATH)/subheader.kmk
+
+ifneq ($(KBUILD_HOST),solaris)
+$(error "The Solaris guest additions can only be built on Solaris!")
+endif
+
+#
+# vboxvfs - The Shared Folder Driver
+#
+SYSMODS.solaris      += vboxvfs
+vboxvfs_TEMPLATE      = VBOXGUESTR0
+vboxvfs_DEFS          = VBOX_WITH_HGCM
+vboxvfs_INCS         := \
+	.
+vboxvfs_SOURCES       = \
+	vboxvfs_vfsops.c \
+	vboxvfs_vnops.c \
+	vboxvfs_utils.c
+vboxvfs_LIBS          = \
+	$(VBOX_LIB_VBGL_R0) \
+	$(VBOX_LIB_IPRT_GUEST_R0)
+#@todo find out why the additions box freaks out with this...
+#vboxvfs_LDFLAGS      += -N drv/vboxguest
+
+#
+# mount - Userland mount wrapper for vboxvfs
+#
+PROGRAMS                += vboxvfsmount
+vboxvfsmount_TEMPLATE    = VBOXGUESTR3EXE
+vboxvfsmount_SOURCES     = vboxvfs_mount.c
+
+include	$(KBUILD_PATH)/subfooter.kmk
+

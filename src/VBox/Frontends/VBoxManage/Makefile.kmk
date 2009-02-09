@@ -1,0 +1,73 @@
+# $Id: Makefile.kmk 15492 2008-12-15 10:36:07Z vboxsync $
+## @file
+# Sub-Makefile for VBoxManage (the cli frontend).
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../..
+include $(KBUILD_PATH)/subheader.kmk
+
+PROGRAMS += VBoxManage
+ifdef VBOX_ONLY_DOCS
+ VBoxManage_TEMPLATE   = VBOXR3NPEXE
+ VBoxManage_DEFS      += VBOX_ONLY_DOCS
+ VBoxManage_SOURCES = \
+	VBoxManage.cpp \
+	VBoxManageSVN.cpp
+ VBoxManage_LIBS      += $(LIB_RUNTIME)
+else # !VBOX_ONLY_DOCS
+ VBoxManage_TEMPLATE   = VBOXMAINCLIENTEXE
+ VBoxManage_DEFS      += \
+ 	$(if $(VBOX_WITH_VRDP), VBOX_WITH_VRDP) \
+ 	$(if $(VBOX_WITH_ALSA), VBOX_WITH_ALSA) \
+ 	$(if $(VBOX_WITH_PULSE),VBOX_WITH_PULSE) \
+ 	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000) \
+ 	$(if $(VBOX_WITH_AHCI), VBOX_WITH_AHCI) \
+ 	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS) \
+ 	$(if $(VBOX_WITH_HOSTNETIF_API), VBOX_WITH_HOSTNETIF_API)
+ VBoxManage_DEFS.win   = _WIN32_WINNT=0x0500
+ VBoxManage_SOURCES = \
+ 	VBoxManage.cpp \
+ 	VBoxManageInfo.cpp \
+ 	VBoxManageMetrics.cpp \
+ 	VBoxManageList.cpp \
+ 	VBoxManageDisk.cpp \
+ 	VBoxInternalManage.cpp \
+ 	$(if $(VBOX_WITH_GUEST_PROPS),VBoxManageGuestProp.cpp) \
+ 	VBoxManageSVN.cpp
+endif # !VBOX_ONLY_DOCS
+ifneq ($(KBUILD_TARGET),win)
+ # Workaround for buggy gcc-4.3 compilers, see
+ #
+ #   http://gcc.gnu.org/bugzilla/show_bug.cgi?id=36474
+ #
+ # Some later revisions of version 4.3.1 are known to work so we assume
+ # that version 4.3.2 or later has this bug definitely fixed.
+ VBoxManage_CXXFLAGS.release += \
+	$(if $(VBOX_GCC_VERSION_CXX),$(if-expr $(VBOX_GCC_VERSION_CXX) < 40300 || $(VBOX_GCC_VERSION_CXX) > 40301,,--param max-fields-for-field-sensitive=0),)
+endif
+ifndef VBOX_ONLY_DOCS
+ VBoxManage_LIBS      += $(LIB_DDU)
+endif # !VBOX_ONLY_DOCS
+
+# VBoxManageSVN.cpp uses VBOX_SVN_REV.
+VBoxManageSVN.cpp_DEFS = VBOX_SVN_REV=$(VBOX_SVN_REV)
+VBoxManageSVN.cpp_DEPS = $(VBOX_SVN_REV_KMK)
+
+include $(KBUILD_PATH)/subfooter.kmk
+
