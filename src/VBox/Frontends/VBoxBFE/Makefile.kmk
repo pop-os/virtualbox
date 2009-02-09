@@ -1,0 +1,176 @@
+# $Id: Makefile.kmk 16012 2009-01-17 23:46:56Z vboxsync $
+## @file
+# Sub-Makefile for VBoxBFE (a basic frontend which doesn't make use of Main).
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../..
+include $(KBUILD_PATH)/subheader.kmk
+if !defined(VBOX_WITH_HARDENING) || "$(KBUILD_TARGET)" != "darwin"  # No hardened VBoxBFE on darwin (.m).
+
+#
+# Targets.
+#
+ifdef VBOX_WITH_HARDENING
+ PROGRAMS += VBoxBFEHardened
+ DLLS += VBoxBFE
+else
+ PROGRAMS += VBoxBFE
+endif
+
+
+#
+# Hardened VBoxBFE.
+#
+VBoxBFEHardened_TEMPLATE = VBOXR3HARDENEDEXE
+VBoxBFEHardened_SOURCES = VBoxBFEHardened.cpp
+VBoxBFEHardened_NAME = VBoxBFE
+
+
+#
+# VBoxBFE
+#
+VBoxBFE_TEMPLATE =
+VBoxBFE_TEMPLATE  := $(if $(VBOX_WITH_HARDENING),VBOXR3NP,VBOXR3NPEXE)
+#ifdef VBOX_WITH_SECURELABEL
+#VBoxBFE_DEFS += VBOX_SECURELABEL
+#endif
+ifdef VBOX_WITH_VRDP
+VBoxBFE_DEFS += VBOX_WITH_VRDP
+endif
+ifneq ($(KBUILD_TARGET).$(VBOX_WITHOUT_COM),win.)
+VBoxBFE_DEFS += VBOXBFE_WITHOUT_COM
+endif
+ifdef VBOX_WITHOUT_LINUX_COMPILER_H
+VBoxBFE_DEFS += VBOX_WITHOUT_LINUX_COMPILER_H
+endif
+VBoxBFE_DEFS.freebsd = VBOXBFE_WITH_X11
+VBoxBFE_DEFS.l4 = _GNU_SOURCE
+VBoxBFE_DEFS.linux = _GNU_SOURCE VBOXBFE_WITH_X11
+VBoxBFE_DEFS.solaris = VBOXBFE_WITH_X11
+ifdef VBOX_WITH_CROSSBOW
+ VBoxBFE_DEFS.solaris += VBOX_WITH_CROSSBOW
+endif
+VBoxBFE_DEFS.win.x86 = _WIN32_WINNT=0x0500
+
+VBoxBFE_SOURCES = \
+	VBoxBFE.cpp \
+	VMMDevInterface.cpp \
+	DisplayImpl.cpp \
+	MouseImpl.cpp \
+	KeyboardImpl.cpp \
+	StatusImpl.cpp \
+	MachineDebuggerImpl.cpp \
+	VMControl.cpp
+
+ifdef VBOX_WITH_HGCM
+VBoxBFE_DEFS += VBOX_WITH_HGCM
+VBoxBFE_SOURCES += \
+	HGCM.cpp \
+	HGCMThread.cpp \
+	HGCMObjects.cpp
+endif
+
+VBoxBFE_SOURCES.darwin = \
+	VBoxBFEMain-darwin.m
+
+VBoxBFE_SOURCES.l4 = \
+	L4Console.cpp \
+	L4Framebuffer.cpp \
+	L4IDLInterface.cpp \
+	EmulCpp.cpp
+
+# SDL
+ifneq ($(KBUILD_TARGET),l4)
+VBoxBFE_SDKS += LIBSDL
+VBoxBFE_DEFS += USE_SDL
+VBoxBFE_SOURCES += \
+	SDLConsole.cpp \
+	SDLFramebuffer.cpp
+endif
+
+# USB Support
+if1of ($(KBUILD_TARGET), l4 win)
+VBoxBFE_DEFS += VBOXBFE_WITH_USB
+VBoxBFE_SOURCES += \
+	HostUSBImpl.cpp \
+	HostUSBDeviceImpl.cpp \
+	USBProxyService.cpp
+VBoxBFE_SOURCES.l4 += \
+	USBProxyServiceLinux.cpp
+VBoxBFE_SOURCES.linux += \
+	USBProxyServiceLinux.cpp
+endif
+
+VBoxBFE_INCS = \
+	$(PATH_VBoxBFE) \
+	$(VBOX_PATH_SDK)/include
+ifneq ($(filter-out win os2 l4 darwin,$(KBUILD_TARGET)),) # X11
+VBoxBFE_INCS += \
+	$(VBOX_XCURSOR_INCS)
+endif
+
+VBoxBFE_LIBS = \
+	$(LIB_RUNTIME) \
+	$(LIB_VMM)
+ifneq ($(filter-out win os2 l4,$(KBUILD_TARGET)),)
+VBoxBFE_LIBS += \
+	$(LIB_REM)
+endif
+ifneq ($(filter-out win os2 l4 darwin,$(KBUILD_TARGET)),) # X11
+VBoxBFE_LIBS += \
+	$(VBOX_XCURSOR_LIBS) \
+	X11
+VBoxBFE_LIBPATH += \
+	$(VBOX_LIBPATH_X11)
+endif
+ifndef VBOX_WITHOUT_COM
+VBoxBFE_LIBS.win = \
+	$(PATH_TOOL_$(VBOX_VCC_TOOL)_ATLMFC_LIB)/atls.lib
+endif
+VBoxBFE_LIBS.l4 = \
+	$(L4_LIBDIR)/libl4con-idl.a \
+	$(L4_LIBDIR)/libconstream-server.a \
+	$(L4_LIBDIR)/libvboxctrl-server.a \
+	$(L4_LIBDIR)/libl4sys.a
+VBoxBFE_LIBS.darwin = \
+	$(LIB_SDK_LIBSDL_SDLMAIN)
+VBoxBFE_LDFLAGS.darwin = -framework Foundation -framework AppKit
+
+VBoxBFE_CXXFLAGS.win = \
+	-EHsc
+VBoxBFE_DEFS.linux = \
+	NDEBUG TRIMMED
+VBoxBFE_CXXFLAGS.linux =  \
+	-fno-rtti -fno-exceptions -fshort-wchar -pthread
+VBoxBFE_CXXFLAGS.l4 += -fno-rtti -nostdinc -Wno-non-virtual-dtor \
+	$(addprefix -I,$(VBOX_L4_GCC3_INCS) $(L4_INCDIR))
+
+VBoxBFE_CLEAN = $(PATH_VBoxBFE)/Ico64x01.h
+VBoxBFE_SDLConsole.cpp_DEPS = $(PATH_VBoxBFE)/Ico64x01.h
+
+# Convert the pnm-file to a byte array.
+$$(PATH_VBoxBFE)/Ico64x01.h: $(PATH_ROOT)/src/VBox/Frontends/VBoxBFE/ico64x01.pnm $(VBOX_BIN2C) | $$(dir $$@)
+	$(call MSG_TOOL,bin2c,VBoxBFE,$<,$@)
+	$(QUIET)$(VBOX_BIN2C) Ico64x01 $< $@
+
+
+endif # !VBOX_WITH_HARDENING || !darwin
+include $(KBUILD_PATH)/subfooter.kmk
+
+

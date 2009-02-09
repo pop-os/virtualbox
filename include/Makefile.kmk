@@ -1,0 +1,102 @@
+# $Id: Makefile.kmk 13721 2008-10-31 15:06:24Z vboxsync $
+## @file
+# Some hacks to allow syntax and prerequisite include checking of headers.
+# This makefile doesn't and shouldn't build successfully.
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+DEPTH = ..
+include $(KBUILD_PATH)/header.kmk
+
+LIBRARIES = SyntaxVBoxIncludeR3 SyntaxVBoxIncludeR0 SyntaxVBoxIncludeGC
+
+cpp_hdrs := \
+	VBox/dbggui.h \
+	VBox/settings.h \
+	iprt/autores.h \
+	iprt/cpputils.h \
+	iprt/lock.h
+
+r3_only_hdrs := \
+	VBox/vrdpapi.h \
+        VBox/vrdpusb.h \
+	VBox/VBoxHDD-new.h \
+	VBox/VBoxHDD.h \
+	iprt/tcp.h \
+	iprt/localipc.h
+
+hdrs := $(filter-out \
+	VBox/VBoxGuest16.h \
+	VBox/tapwin32.h \
+	VBox/usblib-win.h \
+	VBox/usblib-solaris.h, \
+	$(wildcard VBox/*.h iprt/*.h))
+
+hdrs.r3 := $(filter-out VBox/VBoxGuestLib.h, $(hdrs))
+hdrs.r0 := $(filter-out $(cpp_hdrs) $(r3_only_hdrs), $(hdrs))
+hdrs.gc := $(filter-out \
+	VBox/VBoxGuestLib.h \
+	VBox/gvm.h \
+	iprt/thread.h \
+	iprt/mem.h \
+	iprt/alloc.h \
+	$(cpp_hdrs) $(r3_only_hdrs), \
+	$(hdrs))
+
+SyntaxVBoxIncludeR3_TEMPLATE = VBOXMAINEXE
+SyntaxVBoxIncludeR3_DEFS = VBOX_WITH_HGCM
+SyntaxVBoxIncludeR3_SOURCES := \
+	$(addprefix $(PATH_TARGET)/,$(subst .h,-c.c,     $(subst /,_,$(hdrs.r3)))) \
+	$(addprefix $(PATH_TARGET)/,$(subst .h,-cpp.cpp, $(subst /,_,$(hdrs.r3))))
+
+SyntaxVBoxIncludeR0_TEMPLATE = VBOXR0
+SyntaxVBoxIncludeR0_DEFS = VBOX_WITH_HGCM
+SyntaxVBoxIncludeR0_SOURCES := \
+	$(addprefix $(PATH_TARGET)/,$(subst .h,-c.c,     $(subst /,_,$(hdrs.r0)))) \
+	$(addprefix $(PATH_TARGET)/,$(subst .h,-cpp.cpp, $(subst /,_,$(hdrs.r0))))
+
+SyntaxVBoxIncludeGC_TEMPLATE = VBOXGC
+SyntaxVBoxIncludeGC_DEFS = VBOX_WITH_HGCM
+SyntaxVBoxIncludeGC_SOURCES := \
+	$(addprefix $(PATH_TARGET)/,$(subst .h,-c.c,     $(subst /,_,$(hdrs.gc)))) \
+	$(addprefix $(PATH_TARGET)/,$(subst .h,-cpp.cpp, $(subst /,_,$(hdrs.gc))))
+
+
+
+include $(KBUILD_PATH)/footer.kmk
+
+
+define def_hdr
+$(eval flatname := $(subst /,_,$(basename $(hdr))))
+$$(PATH_TARGET)/$(flatname)-cpp.cpp: $$(PATH_TARGET)/
+	$$(APPEND) -t -n $$@ '#include <$(hdr)>' 'int main(int argc, char **argv) {(void)argc; (void)argv; return 0;}'
+
+$$(PATH_TARGET)/$(flatname)-c.c: Makefile.kmk | $$(PATH_TARGET)/
+ifn1of ($(hdr),$(cpp_hdrs))
+	$$(APPEND) -t -n $$@ '#include <$(hdr)>' 'int main(int argc, char **argv) {(void)argc; (void)argv; return 0;}'
+else
+	$$(APPEND) -t -n $$@ 'int main(int argc, char **argv) {(void)argc; (void)argv; return 0;}'
+endif
+
+$(subst .h,.o,$(notdir $(hdr)))::
+	$$(MAKE) -f $(MAKEFILE) $(flatname)-c.o $(flatname)-cpp.o
+
+endef
+
+$(foreach hdr,$(hdrs), $(eval $(def_hdr)))
+

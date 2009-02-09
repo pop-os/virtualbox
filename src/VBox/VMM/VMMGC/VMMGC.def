@@ -1,0 +1,88 @@
+;; @file
+; VMM Raw-mode Context DLL - Definition file.
+
+;
+; Copyright (C) 2006-2007 Sun Microsystems, Inc.
+;
+; This file is part of VirtualBox Open Source Edition (OSE), as
+; available from http://www.virtualbox.org. This file is free software;
+; you can redistribute it and/or modify it under the terms of the GNU
+; General Public License (GPL) as published by the Free Software
+; Foundation, in version 2 as it comes in the "COPYING" file of the
+; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+;
+; Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+; Clara, CA 95054 USA or visit http://www.sun.com if you need
+; additional information or have any questions.
+;
+
+LIBRARY VMMGC.gc
+EXPORTS
+    ; data
+
+    ; code
+    CPUMGCResumeGuest
+    CPUMGCResumeGuestV86
+    PDMCritSectEnter
+    PDMCritSectLeave
+    PDMQueueAlloc
+    PDMQueueFlush
+    PDMQueueInsert
+    PGMHandlerPhysicalPageTempOff
+    PGMShwModifyPage
+    RTLogDefaultInstance
+    RTLogRelDefaultInstance
+    RTTimeMilliTS
+    SELMGetHyperCS
+    TMTimerFromMilli
+    TMTimerFromMicro
+    TMTimerFromNano
+    TMTimerGet
+    TMTimerGetFreq
+    TMTimerIsActive
+    TMTimerSet
+    TMTimerSetMillies
+    TMTimerSetMicro
+    TMTimerSetNano
+    TMTimerStop
+    TRPMGCHandlerGeneric
+    TRPMGCHandlerInterupt
+    TRPMGCHandlerTrap08
+    TRPMGCHandlerTrap12
+    MMGCRamWriteNoTrapHandler
+    MMGCRamReadNoTrapHandler
+    VMMGetSvnRev
+    vmmGCLoggerFlush
+    vmmGCLoggerWrapper
+    vmmGCRelLoggerWrapper
+    vmmGCTestTrap0d_FaultEIP
+    vmmGCTestTrap0e_FaultEIP
+    vmmGCTestTrap3_FaultEIP
+    vmmGCTestTrap8_FaultEIP
+    VMSetError
+    VMSetErrorV
+    VMXGCStartVM64
+    SVMGCVMRun64
+    HWACCMSaveGuestFPU64
+    HWACCMSaveGuestDebug64
+    HWACCMTestSwitcher64
+
+    ; runtime
+    nocrt_memchr
+    nocrt_memcmp
+    nocrt_memcpy
+    memcpy=nocrt_memcpy                 ; not-os2
+    nocrt_memset
+    nocrt_strcpy
+    nocrt_strcmp
+    nocrt_strchr
+    AssertMsg1
+    AssertMsg2
+    RTAssertShouldPanic
+    RTTimeNanoTSLegacySync
+    RTTimeNanoTSLegacyAsync
+    RTTimeNanoTSLFenceSync
+    RTTimeNanoTSLFenceAsync
+    ASMMultU64ByU32DivByU32             ; not-os2
+

@@ -1,0 +1,91 @@
+# $Id: Makefile.kmk 14158 2008-11-13 02:53:38Z vboxsync $
+## @file
+# Top-level makefile for the src directory.
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ..
+include $(KBUILD_PATH)/subheader.kmk
+
+ifdef VBOX_SINGLE_MAKEFILE
+
+ifdef VBOX_ONLY_ADDITIONS
+ include $(PATH_SUB_CURRENT)/VBox/Makefile.kmk
+
+else if defined(VBOX_ONLY_DOCS) || defined(VBOX_ONLY_SDK)
+ include $(PATH_SUB_CURRENT)/bldprogs/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/VBox/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/libs/Makefile.kmk
+
+else # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_DOCS && !VBOX_ONLY_SDK
+ include $(PATH_SUB_CURRENT)/bldprogs/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/VBox/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/libs/Makefile.kmk
+ ifdef VBOX_WITH_NEW_RECOMPILER
+  include $(PATH_SUB_CURRENT)/recompiler_new/Makefile.kmk
+ else
+  include $(PATH_SUB_CURRENT)/recompiler/Makefile.kmk
+ endif
+ ifneq ($(wildcard $(PATH_SUB_CURRENT)/apps),)
+  include $(PATH_SUB_CURRENT)/apps/Makefile.kmk
+ endif
+ ifdef VBOX_WITH_TESTSUITE
+  include $(PATH_SUB_CURRENT)/tests/Makefile.kmk
+ endif
+ ifdef VBOX_WITH_TESTCASES
+  include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
+ endif
+endif # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_DOCS && !VBOX_ONLY_SDK
+
+else  # !VBOX_SINGLE_MAKEFILE
+DEPTH  = ..
+include $(KBUILD_PATH)/header.kmk
+
+ifdef VBOX_ONLY_ADDITIONS
+ SUBDIRS = VBox
+
+else ifdef VBOX_ONLY_DOCS
+ SUBDIRS = VBox/Runtime bldprogs libs VBox
+
+else ifdef VBOX_ONLY_SDK
+ SUBDIRS = bldprogs libs VBox
+
+else  # !VBOX_ONLY_ADDITIONS
+ # Build IPRT first because xpcom (IPC, nspr, python) depends on it.
+ SUBDIRS = VBox/Runtime	bldprogs libs VBox
+
+ ifdef VBOX_WITH_NEW_RECOMPILER
+   SUBDIRS += recompiler_new
+ else
+   SUBDIRS += recompiler
+ endif
+ ifneq ($(wildcard apps),)
+  SUBDIRS += apps
+ endif
+ ifdef VBOX_WITH_TESTSUITE
+  SUBDIRS += tests
+ endif
+ ifdef VBOX_WITH_TESTCASES
+  SUBDIRS += testcase
+ endif
+endif # !VBOX_ONLY_ADDITIONS
+
+endif # !VBOX_SINGLE_MAKEFILE
+
+include $(KBUILD_PATH)/subfooter.kmk
+

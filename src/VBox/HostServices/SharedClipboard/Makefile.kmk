@@ -1,0 +1,71 @@
+# $Id: Makefile.kmk 12250 2008-09-09 01:34:00Z vboxsync $
+## @file
+# Sub-Makefile for the Shared Clipboard Host Service.
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../..
+include $(KBUILD_PATH)/subheader.kmk
+
+#
+# The shared folder service DLL.
+#
+DLLS += VBoxSharedClipboard
+VBoxSharedClipboard_TEMPLATE  = VBOXR3
+VBoxSharedClipboard_DEFS      = VBOX_WITH_HGCM
+VBoxSharedClipboard_INCS.win  = \
+	$(VBOX_PATH_SDK)
+
+VBoxSharedClipboard_SOURCES = \
+	service.cpp
+VBoxSharedClipboard_SOURCES.win = \
+	VBoxClipboard-win.cpp
+VBoxSharedClipboard_SOURCES.darwin = \
+	darwin.cpp \
+	clipboard-helper.cpp \
+	darwin-pasteboard.cpp
+if1of ($(KBUILD_TARGET), linux solaris) ## @todo X11
+ ifndef VBOX_HEADLESS
+  VBoxSharedClipboard_SOURCES += \
+  	clipboard-helper.cpp \
+  	x11.cpp
+ else
+  VBoxSharedClipboard_SOURCES += \
+  	x11-stub.cpp
+ endif
+endif
+
+VBoxSharedClipboard_LIBS = \
+	$(LIB_VMM) \
+	$(LIB_RUNTIME) \
+	$(LIB_REM)
+if1of ($(KBUILD_TARGET), linux solaris)
+ ifndef VBOX_HEADLESS
+  VBoxSharedClipboard_LIBPATH = \
+	$(VBOX_LIBPATH_X11)
+  VBoxSharedClipboard_LIBS += \
+	Xt \
+	X11
+ endif
+endif
+
+VBoxSharedClipboard_LDFLAGS.darwin = \
+	-framework ApplicationServices -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxSharedClipboard.dylib
+
+include $(KBUILD_PATH)/subfooter.kmk
+

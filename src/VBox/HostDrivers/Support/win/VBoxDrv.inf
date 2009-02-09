@@ -1,0 +1,73 @@
+;
+; VBox host drivers - Ring-0 support drivers - Win32 host
+;
+; INF file for installing the Win32 driver
+;
+; Copyright (C) 2006-2007 Sun Microsystems, Inc.
+;
+; This file is part of VirtualBox Open Source Edition (OSE), as
+; available from http://www.virtualbox.org. This file is free software;
+; you can redistribute it and/or modify it under the terms of the GNU
+; General Public License (GPL) as published by the Free Software
+; Foundation, in version 2 as it comes in the "COPYING" file of the
+; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+;
+; The contents of this file may alternatively be used under the terms
+; of the Common Development and Distribution License Version 1.0
+; (CDDL) only, as it comes in the "COPYING.CDDL" file of the
+; VirtualBox OSE distribution, in which case the provisions of the
+; CDDL are applicable instead of those of the GPL.
+;
+; You may elect to license modified versions of this file under the
+; terms and conditions of either the GPL or the CDDL or both.
+;
+; Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+; Clara, CA 95054 USA or visit http://www.sun.com if you need
+; additional information or have any questions.
+;
+
+[Version]
+Signature="$Windows NT$"
+Class=System
+ClassGuid={ce4a90b5-1d8c-435d-b349-232ce55cb17f}
+Provider=%SUN%
+;edit-DriverVer=08/26/2008,2.00.0000
+DriverPackageType=KernelService
+;cat CatalogFile=VBoxDrv.cat
+
+[DestinationDirs]
+DefaultDestDir = 12
+
+[DefaultInstall]
+CopyFiles=VBoxDrv.CopyFiles
+
+[DefaultInstall.Services]
+AddService=VBoxDrv,0x00000002,VBoxDrv_Service
+
+[Manufacturer]
+;x86 %SUN%=SUN
+;amd64 %SUN%=SUN, NTamd64
+
+[SourceDisksFiles]
+VBoxDrv.sys=1
+
+[SourceDisksNames]
+1=%DISK_NAME%,
+
+[VBoxDrv.CopyFiles]
+VBoxDrv.sys
+
+[VBoxDrv_Service]
+DisplayName    = %VBoxDrv.SVCDESC%
+ServiceType    = 1                  ; SERVICE_KERNEL_DRIVER
+;StartType      = 3                  ; SERVICE_DEMAND_START
+StartType      = 1                  ; autostart to fix Vista problem
+ErrorControl   = 1                  ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\VBoxDrv.sys
+
+[Strings]
+SUN = "Sun Microsystems, Inc."
+VBoxDrv.SVCDESC = "VirtualBox Service"
+VBoxDrv.DRVDESC = "VirtualBox Driver"
+DISK_NAME = "VirtualBox Driver Installation Disk"

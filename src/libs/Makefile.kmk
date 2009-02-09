@@ -1,0 +1,79 @@
+# $Id: Makefile.kmk 15897 2009-01-12 14:31:42Z vboxsync $
+## @file
+# Top-level makefile for the external libraries.
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../..
+include $(KBUILD_PATH)/subheader.kmk
+
+#
+# Note! A number of the libs may be detected on the host system by the configure script.
+#       The usual way for testing for this is to see whether the Config.kmk default
+#       include path specific to the lib has been changed.
+#
+
+# Compression libs used by IPRT and <what was it again?>.
+include $(PATH_SUB_CURRENT)/liblzf-1.51/Makefile.kmk
+if !defined(VBOX_ONLY_SDK) \
+ && "$(SDK_VBOX_ZLIB_INCS)" == "$(PATH_ROOT)/src/libs/zlib-1.2.1"
+ include $(PATH_SUB_CURRENT)/zlib-1.2.1/Makefile.kmk
+endif
+
+# PNG support (for screenshots).
+if !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_SDK) \
+ && "$(SDK_VBOX_LIBPNG_INCS)" == "$(PATH_ROOT)/src/libs/libpng-1.2.8"
+ include $(PATH_SUB_CURRENT)/libpng-1.2.8/Makefile.kmk
+endif # !VBOX_ONLY_DOCS
+
+# The kStuff lib used by IPRT and the debugger.
+ifdef IPRT_WITH_KSTUFF
+ include $(PATH_SUB_CURRENT)/kStuff/Makefile.kmk
+endif
+
+# OpenSSL for VRDP.
+if defined(VBOX_WITH_VRDP) && !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_SDK) \
+ && "$(SDK_VBOX_OPENSSL_INCS)" == "$(SDK_VBOX_OPENSSL_DEFAULT_INCS)"
+ include $(PATH_SUB_CURRENT)/openssl-0.9.8j/Makefile.kmk
+endif
+
+
+# Main related things - XML and XSLT, XPCOM.
+if defined(VBOX_WITH_MAIN) && !defined(VBOX_ONLY_DOCS)
+
+ ifdef VBOX_WITH_XPCOM
+  include $(PATH_SUB_CURRENT)/xpcom18a4/Makefile.kmk
+ endif
+ ifeq ($(SDK_VBOX_LIBXML2_INCS),$(PATH_ROOT)/src/libs/libxml2-2.6.30/include)
+  include $(PATH_SUB_CURRENT)/libxml2-2.6.30/Makefile.kmk
+ endif
+ ifeq ($(SDK_VBOX_LIBXSLT_INCS),$(PATH_ROOT)/src/libs/libxslt-1.1.22)
+  include $(PATH_SUB_CURRENT)/libxslt-1.1.22/Makefile.kmk
+ endif
+
+ # FFmpeg for test videos.
+ if defined(VBOX_WITH_FFMPEG) && !defined(VBOX_OSE) && !defined(VBOX_WITH_SDK)
+  if1of ($(KBUILD_TARGET), darwin linux)
+   include $(PATH_SUB_CURRENT)/ffmpeg-20060710/Makefile.kmk
+  endif
+ endif
+
+endif # VBOX_WITH_MAIN && !VBOX_ONLY_DOCS
+
+include $(KBUILD_PATH)/subfooter.kmk
+

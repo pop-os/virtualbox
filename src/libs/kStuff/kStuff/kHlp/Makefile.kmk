@@ -1,0 +1,116 @@
+# $Id: Makefile.kmk 2 2007-11-16 16:07:14Z bird $
+## @file
+# kHlp - The Helper API, sub-makefile.
+#
+
+#
+# Copyright (c) 2007 knut st. osmundsen <bird-kStuff-spam@anduin.net>
+#
+# This file is part of kStuff.
+#
+# kStuff is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# kStuff is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with kStuff; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+#
+#
+
+DEPTH ?= ../..
+SUB_DEPTH = ..
+include $(PATH_KBUILD)/subheader.kmk
+
+#
+# kHlpBaseStatic
+#
+LIBRARIES += kHlpBareStatic
+kHlpBareStatic_TEMPLATE = kStuffLIB
+kHlpBareStatic_SOURCES = \
+	Generic/kHlpMemChr.c \
+	Generic/kHlpMemComp.c \
+	Generic/kHlpMemPComp.c \
+	Generic/kHlpMemICompAscii.c \
+	Generic/kHlpMemCopy.c \
+	Generic/kHlpMemPCopy.c \
+	Generic/kHlpMemMove.c \
+	Generic/kHlpMemPMove.c \
+	Generic/kHlpMemSet.c \
+	Generic/kHlpMemPSet.c \
+	Generic/kHlpStrCat.c \
+	Generic/kHlpStrPCat.c \
+	Generic/kHlpStrNCat.c \
+	Generic/kHlpStrNPCat.c \
+	Generic/kHlpStrChr.c \
+	Generic/kHlpStrRChr.c \
+	Generic/kHlpStrComp.c \
+	Generic/kHlpStrPComp.c \
+	Generic/kHlpStrNComp.c \
+	Generic/kHlpStrNPComp.c \
+	Generic/kHlpStrICompAscii.c \
+	Generic/kHlpStrIPCompAscii.c \
+	Generic/kHlpStrNICompAscii.c \
+	Generic/kHlpStrNIPCompAscii.c \
+	Generic/kHlpStrCopy.c \
+	Generic/kHlpStrPCopy.c \
+	Generic/kHlpStrLen.c \
+	Generic/kHlpStrNLen.c \
+	Generic/kHlpInt2Ascii.c \
+	\
+    Generic/kHlpGetEnvUZ.c \
+	\
+	Generic/kHlpGetExt.c \
+	Generic/kHlpGetFilename.c \
+	Generic/kHlpIsFilenameOnly.c \
+	\
+	Generic/kHlpPage.c \
+	\
+	Bare/kHlpBareAssert.c \
+	Bare/kHlpBareHeap.c \
+	Bare/kHlpBareEnv.c \
+	Bare/kHlpBareProcess.c \
+	Bare/kHlpBareThread.c \
+
+#
+# kCrtStatic
+#
+LIBRARIES += kHlpCRTStatic
+kHlpCRTStatic_TEMPLATE = kStuffLIB
+kHlpCRTStatic_SOURCES = \
+	Generic/kHlpMemPComp.c \
+	Generic/kHlpMemICompAscii.c \
+	Generic/kHlpStrPCat.c \
+	Generic/kHlpStrNPCat.c \
+	Generic/kHlpStrPComp.c \
+	Generic/kHlpStrNPComp.c \
+	Generic/kHlpStrICompAscii.c \
+	Generic/kHlpStrIPCompAscii.c \
+	Generic/kHlpStrNICompAscii.c \
+	Generic/kHlpStrNIPCompAscii.c \
+	Generic/kHlpStrPCopy.c \
+	Generic/kHlpStrNLen.c \
+	Generic/kHlpInt2Ascii.c \
+	\
+    Generic/kHlpGetEnvUZ.c \
+	\
+	Generic/kHlpGetExt.c \
+	Generic/kHlpGetFilename.c \
+	Generic/kHlpIsFilenameOnly.c \
+	\
+	Generic/kHlpPage.c \
+	\
+	CRT/kHlpCRTAlloc.cpp \
+	CRT/kHlpCRTEnv.cpp \
+	CRT/kHlpCRTString.cpp \
+
+
+# Generate the rules
+include $(PATH_KBUILD)/subfooter.kmk
+

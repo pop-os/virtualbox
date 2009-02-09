@@ -1,0 +1,136 @@
+# $Id: Makefile.kmk 14162 2008-11-13 08:55:50Z vboxsync $
+## @file
+# Top-level makefile for src/VBox.
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../..
+include $(KBUILD_PATH)/subheader.kmk
+
+ifdef VBOX_SINGLE_MAKEFILE
+
+ifdef VBOX_ONLY_ADDITIONS
+ include $(PATH_SUB_CURRENT)/Runtime/Makefile.kmk
+ ifdef VBOX_WITH_CROGL
+  include $(PATH_SUB_CURRENT)/GuestHost/Makefile.kmk
+ endif
+ include $(PATH_SUB_CURRENT)/Additions/Makefile.kmk
+
+else ifdef VBOX_ONLY_DOCS
+ include $(PATH_SUB_CURRENT)/Runtime/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/HostDrivers/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/Frontends/Makefile.kmk
+
+else ifdef VBOX_ONLY_SDK
+ include $(PATH_SUB_CURRENT)/Main/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/RDP/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/Installer/Makefile.kmk
+
+else
+ ifdef VBOX_WITH_MAIN
+  include $(PATH_SUB_CURRENT)/Main/Makefile.kmk 			# Do this one first because of soap.
+ endif
+ include $(PATH_SUB_CURRENT)/Runtime/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/VMM/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/Devices/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/Disassembler/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/HostDrivers/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/HostServices/Makefile.kmk
+ ifdef VBOX_WITH_DEBUGGER
+  include $(PATH_SUB_CURRENT)/Debugger/Makefile.kmk
+ endif
+ include $(PATH_SUB_CURRENT)/Frontends/Makefile.kmk
+ ifdef VBOX_WITH_VRDP
+  include $(PATH_SUB_CURRENT)/RDP/Makefile.kmk
+ endif
+ ifdef VBOX_WITH_CROGL
+  include $(PATH_SUB_CURRENT)/GuestHost/Makefile.kmk
+ endif
+ ifdef VBOX_WITH_ADDITIONS
+  include $(PATH_SUB_CURRENT)/Additions/Makefile.kmk
+ endif
+ ifdef VBOX_WITH_INSTALLER
+  include $(PATH_SUB_CURRENT)/Installer/Makefile.kmk 		        # Keep this last.
+ endif
+endif # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_DOCS
+
+else # !VBOX_SINGLE_MAKEFILE
+
+ifdef VBOX_ONLY_ADDITIONS
+ SUBDIRS = Runtime
+ ifdef VBOX_WITH_CROGL
+  SUBDIRS += GuestHost
+ endif
+ SUBDIRS += Additions
+
+else ifdef VBOX_ONLY_DOCS
+ SUBDIRS = \
+	Runtime \
+	Frontends \
+	HostDrivers
+
+else ifdef VBOX_ONLY_SDK
+  SUBDIRS = \
+        Main \
+        RDP \
+        Installer
+
+else  # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_DOCS
+ SUBDIRS_BLDPROGS = Devices Main
+
+ SUBDIRS = \
+	Runtime \
+	HostDrivers \
+	VMM \
+	Devices \
+	Disassembler
+
+ ifdef VBOX_WITH_CROGL
+  SUBDIRS += GuestHost
+ endif
+
+ SUBDIRS += HostServices
+
+ ifdef VBOX_WITH_DEBUGGER
+  SUBDIRS += Debugger
+ endif
+
+ ifdef VBOX_WITH_MAIN
+  SUBDIRS += Main
+ endif
+
+ ifdef VBOX_WITH_VRDP
+  SUBDIRS += RDP
+ endif
+
+ ifdef VBOX_WITH_ADDITIONS
+  SUBDIRS += Additions
+ endif
+
+ SUBDIRS += Frontends
+
+ # This must be the last one.
+ ifdef VBOX_WITH_INSTALLER
+  SUBDIRS += Installer
+ endif
+endif # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_DOCS
+
+endif # !VBOX_SINGLE_MAKEFILE
+
+include $(KBUILD_PATH)/subfooter.kmk
+

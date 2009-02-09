@@ -1,0 +1,65 @@
+; $Id: VMMInternal.mac 8155 2008-04-18 15:16:47Z vboxsync $
+;; @file
+; VMM - Internal header file.
+;
+
+;
+; Copyright (C) 2006-2007 Sun Microsystems, Inc.
+;
+; This file is part of VirtualBox Open Source Edition (OSE), as
+; available from http://www.virtualbox.org. This file is free software;
+; you can redistribute it and/or modify it under the terms of the GNU
+; General Public License (GPL) as published by the Free Software
+; Foundation, in version 2 as it comes in the "COPYING" file of the
+; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+;
+; Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+; Clara, CA 95054 USA or visit http://www.sun.com if you need
+; additional information or have any questions.
+;
+
+%include "VBox/asmdefs.mac"
+
+struc VMMR0JMPBUF
+%ifdef RT_ARCH_X86
+    ; traditional jmp_buf
+    .ebx            resd 1
+    .esi            resd 1
+    .edi            resd 1
+    .ebp            resd 1
+    .esp            resd 1
+    .eip            resd 1
+    .u32Padding     resd 1
+
+    ; additional state and stack info.
+    .fInRing3Call   resd 1
+    .cbSavedStack   resd 1
+    .pvSavedStack   resd 1
+    .SpCheck        resd 1
+    .SpResume       resd 1
+%endif
+%ifdef RT_ARCH_AMD64
+    ; traditional jmp_buf
+    .rbx            resq 1
+%ifdef RT_OS_WINDOWS
+    .rsi            resq 1
+    .rdi            resq 1
+%endif
+    .rbp            resq 1
+    .r12            resq 1
+    .r13            resq 1
+    .r14            resq 1
+    .r15            resq 1
+    .rsp            resq 1
+    .rip            resq 1
+
+    ; additional state and stack info.
+    .fInRing3Call   resd 1
+    .cbSavedStack   resd 1
+    .pvSavedStack   resq 1
+    .SpCheck        resq 1
+    .SpResume       resq 1
+%endif
+endstruc
+

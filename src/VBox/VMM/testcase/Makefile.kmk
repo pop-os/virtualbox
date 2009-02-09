@@ -1,0 +1,353 @@
+# $Id: Makefile.kmk 15236 2008-12-10 09:50:10Z vboxsync $
+## @file
+# Sub-Makefile for the VMM testcases.
+#
+
+#
+# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../..
+include	$(KBUILD_PATH)/subheader.kmk
+
+#
+# Target lists.
+#
+PROGRAMS   += tstVMStructSize tstVMStructGC tstAsmStructs tstAsmStructsGC tstVMM tstVMM-HwAccm tstGlobalConfig tstInstrEmul
+ifneq ($(KBUILD_TARGET),win)
+PROGRAMS   += tstVMMFork
+endif
+ifdef VBOX_WITH_TESTCASES
+ PROGRAMS  += tstCFGM tstSSM tstMMHyperHeap tstVMM-2 tstVMREQ tstMicro tstCompiler tstVMMR0CallHost-1
+ ifneq ($(KBUILD_TARGET),l4)
+  PROGRAMS += tstAnimate
+ endif
+ SYSMODS   += tstMicroGC
+endif # VBOX_WITH_TESTCASES
+
+ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
+ PROGRAMS  += tstPDMAsyncCompletion
+endif
+
+# Where we put our temporary files (just for simplicity)
+VBOX_VMM_TESTCASE_OUT_DIR := $(PATH_TARGET)/VMM
+BLDDIRS += $(VBOX_VMM_TESTCASE_OUT_DIR)
+
+#
+# We setup two 'other' targets for executing the two structure & alignment
+# validation testcases. Perhaps a bit hackish, but extremely useful.
+#
+ifeq ($(KBUILD_TARGET),$(KBUILD_HOST))
+ ifeq ($(filter-out x86.x86 amd64.amd64 x86.amd64, $(KBUILD_TARGET_ARCH).$(KBUILD_HOST_ARCH)),)
+  OTHERS += \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructs.run \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructSize.run \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstInstrEmul.run
+ endif
+endif
+
+# The normal testing pass.
+TESTING += \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructs.run \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructSize.run \
+        $(VBOX_VMM_TESTCASE_OUT_DIR)/tstInstrEmul.run
+
+OTHER_CLEAN += \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructs.run \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructSize.run \
+        $(VBOX_VMM_TESTCASE_OUT_DIR)/tstInstrEmul.run \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructs.h \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.o \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.mac \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.mac.o \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.mac.lst \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructs.h.dump \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsGC.h \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsHC.h \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructGC.h
+
+#
+# Globals
+#
+VBOX_PATH_VMM_SRC = $(PATH_ROOT)/src/VBox/VMM
+
+#
+# Targets
+#
+tstVMStructGC_TEMPLATE  = VBOXGCEXE
+tstVMStructGC_DEFS      = IN_VMM_RC IN_DIS IN_RT_RC IN_RT_GC
+ifdef VBOX_WITH_R0_LOGGING
+tstVMStructGC_DEFS     += VBOX_WITH_R0_LOGGING
+endif
+ifdef VBOX_WITH_NEW_RECOMPILER
+tstVMStructGC_DEFS     += VBOX_WITH_NEW_RECOMPILER
+endif
+tstVMStructGC_SOURCES   = tstVMStructGC.cpp
+tstVMStructGC_INCS      = $(VBOX_PATH_VMM_SRC) $(VBOX_PATH_VMM_SRC)/PATM
+
+tstVMStructSize_TEMPLATE= VBOXR3AUTOTST
+tstVMStructSize_DEFS    = IN_VMM_R3 IN_DIS
+tstVMStructSize_INCS    = $(VBOX_PATH_VMM_SRC) $(VBOX_PATH_VMM_SRC)/PATM $(VBOX_VMM_TESTCASE_OUT_DIR)
+tstVMStructSize_SOURCES = tstVMStructSize.cpp
+tstVMStructSize.cpp_DEPS= $(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructGC.h
+ifdef VBOX_WITH_R0_LOGGING
+tstVMStructSize_DEFS   += VBOX_WITH_R0_LOGGING
+endif
+ifdef VBOX_WITH_NEW_RECOMPILER
+tstVMStructSize_DEFS   += VBOX_WITH_NEW_RECOMPILER
+endif
+ifdef VBOX_WITH_VMI
+tstVMStructSize_DEFS   += VBOX_WITH_VMI
+tstVMStructSize_INCS   += $(VBOX_PATH_VMM_SRC)/PARAV
+endif
+
+tstAsmStructs_TEMPLATE  = VBOXR3AUTOTST
+tstAsmStructs_DEFS      = IN_VMM_R3 IN_DIS
+ifdef VBOX_WITH_R0_LOGGING
+tstAsmStructs_DEFS     += VBOX_WITH_R0_LOGGING
+endif
+ifdef VBOX_WITH_NEW_RECOMPILER
+tstAsmStruct_DEFS      += VBOX_WITH_NEW_RECOMPILER
+endif
+tstAsmStructs_INCS      = $(VBOX_PATH_VMM_SRC) $(VBOX_VMM_TESTCASE_OUT_DIR)
+tstAsmStructs_SOURCES   = tstAsmStructs.cpp
+
+tstAsmStructsGC_TEMPLATE= VBOXGCEXE
+tstAsmStructsGC_DEFS    = IN_VMM_RC IN_DIS IN_RT_RC IN_RT_GC
+ifdef VBOX_WITH_R0_LOGGING
+tstAsmStructsGC_DEFS   += VBOX_WITH_R0_LOGGING
+endif
+ifdef VBOX_WITH_NEW_RECOMPILER
+tstAsmStructGC_DEFS    += VBOX_WITH_NEW_RECOMPILER
+endif
+tstAsmStructsGC_INCS    = $(VBOX_PATH_VMM_SRC) $(VBOX_VMM_TESTCASE_OUT_DIR)
+tstAsmStructsGC_SOURCES = tstAsmStructs.cpp
+
+tstAsmStructs.cpp_DEPS  = $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsHC.h $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsGC.h
+
+
+tstGlobalConfig_TEMPLATE= VBOXR3TSTEXE
+tstGlobalConfig_SOURCES = tstGlobalConfig.cpp
+tstGlobalConfig_LIBS    = $(LIB_RUNTIME)
+
+tstMMHyperHeap_TEMPLATE = VBOXR3TSTEXE
+tstMMHyperHeap_SOURCES  = tstMMHyperHeap.cpp
+tstMMHyperHeap_LIBS     = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+tstSSM_TEMPLATE         = VBOXR3TSTEXE
+tstSSM_SOURCES          = tstSSM.cpp
+tstSSM_LIBS             = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+tstInstrEmul_TEMPLATE   = VBOXR3TSTEXE
+tstInstrEmul_SOURCES    = tstInstrEmul.cpp ../VMMAll/EMAllA.asm
+tstInstrEmul_LIBS       = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+tstCFGM_TEMPLATE        = VBOXR3TSTEXE
+tstCFGM_SOURCES         = tstCFGM.cpp
+tstCFGM_LIBS            = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+tstVMM_TEMPLATE         = VBOXR3EXE
+tstVMM_SOURCES          = tstVMM.cpp
+tstVMM_LIBS             = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+tstVMM-HwAccm_TEMPLATE  = VBOXR3EXE
+tstVMM-HwAccm_SOURCES   = tstVMM-HwAccm.cpp
+tstVMM-HwAccm_LIBS      = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+tstVMMFork_TEMPLATE     = VBOXR3EXE
+tstVMMFork_SOURCES      = tstVMMFork.cpp
+tstVMMFork_LIBS         = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+tstVMM-2_TEMPLATE       = VBOXR3EXE
+tstVMM-2_SOURCES        = tstVMM-2.cpp
+tstVMM-2_LIBS           = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+tstVMMR0CallHost-1_TEMPLATE = VBOXR3EXE
+tstVMMR0CallHost-1_INCS  = $(VBOX_PATH_VMM_SRC)
+tstVMMR0CallHost-1_SOURCES = \
+	tstVMMR0CallHost-1.cpp \
+	$(VBOX_PATH_VMM_SRC)/VMMR0/VMMR0A.asm
+tstVMMR0CallHost-1_LIBS  = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+tstVMREQ_TEMPLATE       = VBOXR3EXE
+tstVMREQ_SOURCES        = tstVMREQ.cpp
+tstVMREQ_LIBS           = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+tstAnimate_TEMPLATE     = VBOXR3EXE
+tstAnimate_SOURCES      = tstAnimate.cpp
+tstAnimate_LIBS         = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+tstCompiler_TEMPLATE    = VBOXR3TSTEXE
+tstCompiler_SOURCES     = tstCompiler.cpp
+tstCompiler_LIBS        = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+tstMicro_TEMPLATE       = VBOXR3EXE
+tstMicro_SOURCES        = tstMicro.cpp
+tstMicro_LIBS           = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+# tstMicroGC.gc
+tstMicroGC_TEMPLATE     = VBOXGC
+tstMicroGC_SOURCES      = tstMicroGC.cpp tstMicroGCA.asm
+tstMicroGC_DEFS         =
+tstMicroGC_INCS         = $(VBOX_PATH_VMM_SRC)/testcase
+ifeq ($(VBOX_LDR_FMT32),pe)
+tstMicroGC_LDFLAGS      = -Entry:tstMicroGC
+endif
+tstMicroGC_SYSSUFF      = .gc
+tstMicroGC_LIBS         = \
+	$(PATH_LIB)/DisasmGC$(VBOX_SUFF_LIB) \
+	$(PATH_LIB)/RuntimeGC$(VBOX_SUFF_LIB)
+ifeq ($(filter-out pe lx,$(VBOX_LDR_FMT32)),)
+tstMicroGC_LIBS        += \
+	$(PATH_LIB)/VMMGCBuiltin$(VBOX_SUFF_LIB) \
+	$(LIB_VMMGC)
+endif
+tstMicroGC_SOURCES.win = tstMicroGC.def
+
+ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
+tstPDMAsyncCompletion_TEMPLATE         = VBOXR3EXE
+tstPDMAsyncCompletion_SOURCES          = tstPDMAsyncCompletion.cpp
+tstPDMAsyncCompletion_LIBS             = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+endif
+
+include	$(KBUILD_PATH)/subfooter.kmk
+
+
+
+#
+# Some handcrafted support targets for tstAsmStructs.
+#
+
+ifeq ($(KBUILD_HOST),win)
+ ifndef TOOL_MINGW32
+  include $(KBUILD_PATH)/tools/MINGW32.kmk
+ endif
+ VBOX_NM ?= $(PATH_TOOL_MINGW32)/bin/nm.exe -p
+else
+ VBOX_NM ?= nm -p
+endif
+
+MY_ASA_ASM_STUFF = \
+		$(addprefix -D, \
+			$(DEFS) \
+			$(DEFS.$(KBUILD_TYPE)) \
+			$(DEFS.$(KBUILD_TARGET)) \
+			IN_RING3 $(ARCH_BITS_DEFS) \
+			$(DEFS.$(KBUILD_TARGET_ARCH)) \
+			$(DEFS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)) \
+		) \
+		-f $(if $(eq $(KBUILD_TARGET),darwin),macho,elf) \
+		$(foreach inc,$(INCS) $(VBOX_PATH_VMM_SRC)/testcase $(VBOX_VMM_TESTCASE_OUT_DIR),-I$(inc)/)
+
+# 1a. make a header file which makes all the structures+members globals.
+$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.mac: \
+		$(VBOX_PATH_VMM_SRC)/testcase/tstAsmStructsAsm.asm \
+		$(VBOX_PATH_VMM_SRC)/testcase/tstAsmStructsAsm-lst.sed \
+		$(DEPTH)/include/iprt/asmdefs.mac \
+		$(DEPTH)/include/VBox/cpum.mac \
+		$(DEPTH)/include/VBox/sup.mac \
+		$(DEPTH)/include/VBox/vm.mac \
+		$(VBOX_PATH_VMM_SRC)/CPUMInternal.mac \
+		$(VBOX_PATH_VMM_SRC)/TRPMInternal.mac \
+		$(VBOX_PATH_VMM_SRC)/HWACCMInternal.mac \
+		$(VBOX_PATH_VMM_SRC)/VMMInternal.mac \
+		$(VBOX_PATH_VMM_SRC)/testcase/Makefile.kmk \
+		$(PATH_ROOT)/Config.kmk $(LOCALCFG) $(AUTOCFG) \
+		| $$(dir $$@)
+	$(call MSG_GENERATE,tstVMStructSize,$@,$<)
+ifndef DONT_USE_YASM
+	$(QUIET)$(TOOL_YASM_AS) $(MY_ASA_ASM_STUFF) -o $@.o -l $@.lst $<
+	$(SED) -f $(VBOX_PATH_VMM_SRC)/testcase/tstAsmStructsAsm-lst.sed --output $@ $@.lst
+else
+	$(QUIET)$(TOOL_NASM_AS) -g $(MY_ASA_ASM_STUFF) -o $@.o -l $@.lst $<
+	$(VBOX_NM) $@.o | $(SED) \
+			-e '/[0-9a-fA-F][0-9a-fA-F]* [^a] /d' \
+			-e 's/[0-9a-fA-F][0-9a-fA-F]* a \([^ ]*\)/global \1/' \
+			> $@
+endif
+
+# 1b. make an elf/macho object containing the offsets.
+$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.o: \
+		$(VBOX_PATH_VMM_SRC)/testcase/tstAsmStructsAsm.asm \
+		$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.mac \
+		$(VBOX_PATH_VMM_SRC)/testcase/Makefile.kmk \
+		| $$(dir $$@)
+	$(call MSG_COMPILE,tstAsmStructsasm,$<,$@,AS)
+ifndef DONT_USE_YASM
+	$(QUIET)$(TOOL_YASM_AS) $(MY_ASA_ASM_STUFF) -DDO_GLOBALS -o $@ $<
+else
+	$(QUIET)$(TOOL_NASM_AS) $(MY_ASA_ASM_STUFF) -DDO_GLOBALS -o $@ $<
+endif
+
+# 2. use nm and sed to transform this into the header we want.
+$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsHC.h: $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.o
+	$(call MSG_GENERATE,tstVMStructSize,$@,$<)
+	$(QUIET)$(RM) -f $@ $@.dump $@.tmp
+	$(QUIET)$(REDIRECT) -wo $@.dump -- $(VBOX_NM) $<
+	$(QUIET)$(SED) -e '/STAMPROFILEADV/d' \
+	       -e '/00[0-9a-fA-F]* [aA] [^_.]*\./!d'       -e 's/\(00[0-9a-fA-F]*\) [aA] \([^.]*\)\.\(.*$$\)/    CHECK_OFF(\2, 0x0\1, \3);/' \
+	       --output $@.tmp $@.dump
+	$(QUIET)$(SED) -e '/VM_size$$/d' -e '/VMCPU_size$$/d' \
+	       -e '/00[0-9a-fA-F]* [aA] [^_.]*_size$$/!d'  -e 's/\(00[0-9a-fA-F]*\) [aA] \([^_.]*\)_size/    CHECK_SIZE(\2, 0x0\1);/' \
+	       --append $@.tmp $@.dump
+	$(QUIET)$(MV) -f $@.tmp $@
+	$(QUIET)$(RM) -f $@.dump
+
+# 3. transform the HC header into a GC one by omitting some HC only structures.
+$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsGC.h: $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsHC.h
+	$(call MSG_GENERATE,tstVMStructSize,$@,$<)
+	$(QUIET)$(SED) -e '/VMMSWITCHERDEF/d' --output $@ $^
+
+## @todo make this default kBuild behaviour.
+.SECONDEXPANSION:
+
+# 4. run it.
+$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructs.run: $$(INSTARGET_tstAsmStructs) $$(INSTARGET_tstAsmStructsGC)
+	$(QUIET)$(RM) -f $@
+	$(INSTARGET_tstAsmStructs)
+	$(INSTARGET_tstAsmStructsGC)
+	$(QUIET)$(APPEND) "$@" "done"
+
+
+
+#
+# Run rule for tstVMStructSize.
+#
+
+# 1. Manually dump selected structures and members.
+$(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructGC.h: $$(INSTARGET_tstVMStructGC) | $$(dir $$@)
+	$(call MSG_GENERATE,tstVMStructSize,$@)
+	$(QUIET)$(REDIRECT) -wo $@ -- $<
+
+# 2. run it.
+$(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructSize.run: $$(INSTARGET_tstVMStructSize) | $$(dir $$@)
+	$(QUIET)$(RM) -f $@
+	$<
+	$(QUIET)$(APPEND) "$@" "done"
+
+# alias for the two struct tests.
+run-struct-tests: $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructs.run $(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructSize.run
+
+
+#
+# Run rule for tstInstrEmul.
+#
+$(VBOX_VMM_TESTCASE_OUT_DIR)/tstInstrEmul.run: $$(INSTARGET_tstInstrEmul) | $$(dir $$@)
+	$(QUIET)$(RM) -f $@
+	$(QUIET)$(REDIRECT) -E 'VBOX_LOG_FLAGS=disabled' -E 'VBOX_LOG_DEST=nofile' \
+		$(if $(eq $(KBUILD_TARGET),darwin), -E 'DYLD_FALLBACK_LIBRARY_PATH=$(dir $(LIB_RUNTIME))') \
+		-- \
+		$(INSTARGET_tstInstrEmul)
+	$(QUIET)$(APPEND) "$@" "done"

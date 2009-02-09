@@ -1,0 +1,66 @@
+# $Id: Makefile.kmk 2 2007-11-16 16:07:14Z bird $
+## @file
+# kDbg - The Debug Info Reader, sub-makefile.
+#
+
+#
+# Copyright (c) 2007 knut st. osmundsen <bird-kStuff-spam@anduin.net>
+#
+# This file is part of kStuff.
+#
+# kStuff is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# kStuff is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with kStuff; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+#
+
+DEPTH ?= ../..
+SUB_DEPTH = ..
+include $(PATH_KBUILD)/subheader.kmk
+
+#
+# kDbg - The profiler module.
+#
+#DLLS += kDbg - disabled for now.
+kDbg_TEMPLATE = kStuffDLL
+kDbg_DEFS = KDBG_BUILDING KDBG_RESIDES_IN_DLL
+kDbg_SOURCES := \
+	kDbgModule.cpp \
+	kDbgLine.cpp \
+	kDbgSymbol.cpp
+
+kDbg_SOURCES.win += \
+	kDbgModWinDbgHelp.cpp
+
+#
+# kDbgStatic - The profiler module.
+#
+LIBRARIES += kDbgStatic
+kDbgStatic_TEMPLATE = kStuffLIB
+kDbgStatic_DEFS = KDBG_BUILDING
+kDbgStatic_SOURCES = $(kDbg_SOURCES)
+
+#
+# kDbgDump - Test program which dumps whatever is thrown at it.
+#
+PROGRAMS += kDbgDump
+kDbgDump_TEMPLATE = kStuffEXE
+kDbgDump_SOURCES = kDbgDump.cpp
+kDbgDump_LIBS = \
+	$(TARGET_kDbgStatic) \
+	$(subst kDbg,kLdr,$(TARGET_kDbgStatic)) \
+	$(subst kDbg,kRdr,$(TARGET_kDbgStatic)) \
+	$(subst kDbg,kHlpCRT,$(TARGET_kDbgStatic))
+
+# Generate the rules
+include $(PATH_KBUILD)/subfooter.kmk
+

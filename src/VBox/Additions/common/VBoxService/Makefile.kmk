@@ -1,0 +1,46 @@
+# $Id: Makefile.kmk 16014 2009-01-18 00:04:12Z vboxsync $
+## @file
+# Sub-Makefile for the Cross Platform Guest Addition Services.
+#
+
+#
+# Copyright (C) 2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../../..
+include	$(KBUILD_PATH)/subheader.kmk
+
+if "$(KBUILD_HOST)" != "os2" || defined(VBOX_WITH_OS2_ADDITIONS)
+ PROGRAMS += VBoxService
+endif
+
+#
+# VBoxService.exe
+#
+VBoxService_TEMPLATE      = VBOXGUESTR3EXE
+VBoxService_DEFS          = VBOXSERVICE_TIMESYNC
+VBoxService_DEFS.os2      = VBOX_WITH_HGCM VBOXSERVICE_CLIPBOARD
+VBoxService_SOURCES       = \
+	VBoxService.cpp \
+	VBoxServiceTimeSync.cpp
+VBoxService_SOURCES.os2   = \
+	VBoxService-os2.def \
+	VBoxServiceClipboard-os2.cpp
+VBoxService_LIBS          = \
+	$(VBOX_LIB_IPRT_GUEST_R3) \
+	$(VBOX_LIB_VBGL_R3)
+
+include	$(KBUILD_PATH)/subfooter.kmk
+

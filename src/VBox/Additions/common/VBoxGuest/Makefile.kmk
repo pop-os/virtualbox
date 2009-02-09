@@ -1,0 +1,121 @@
+# $Id: Makefile.kmk 16013 2009-01-17 23:58:41Z vboxsync $
+## @file
+# Makefile for the Cross Platform Guest Additions Driver.
+#
+
+#
+# Copyright (C) 2007 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../../..
+include	$(KBUILD_PATH)/subheader.kmk
+
+
+if1of ($(KBUILD_TARGET), \
+	freebsd \
+	$(if $(defined VBOX_WITH_OS2_ADDITIONS),os2,) \
+	$(if $(defined VBOX_WITH_ADDITION_DRIVERS),linux,) \
+	solaris) # linux is not yet using this code, just for syntax checking changes.
+ #
+ # VBoxGuest - The Guest Additions Driver (mixed case).
+ #
+ SYSMODS += VBoxGuest
+ VBoxGuest_TEMPLATE      = VBOXGUESTR0
+ VBoxGuest_NAME.freebsd  = vboxguest
+ VBoxGuest_NAME.linux    = vboxguest
+ VBoxGuest_NAME.solaris  = vboxguest
+ VBoxGuest_NOINST.linux  = true
+ VBoxGuest_DEFS.solaris  = VBOX_SVN_REV=$(VBOX_SVN_REV)
+ VBoxGuest_DEPS.solaris += $(VBOX_SVN_REV_KMK)
+ VBoxGuest_DEFS          = VBGL_VBOXGUEST VBOX_WITH_HGCM
+ VBoxGuest_INCS          = .
+ VBoxGuest_INCS.freebsd  = $(PATH_VBoxGuest)
+ ifneq ($(KBUILD_TARGET),os2)
+  ifn1of ($(KBUILD_TARGET), linux freebsd solaris)
+   VBoxGuest_SOURCES     = VBoxGuest-$(KBUILD_TARGET).cpp
+  else
+   VBoxGuest_SOURCES     = VBoxGuest-$(KBUILD_TARGET).c
+  endif
+  VBoxGuest_SOURCES     += VBoxGuest.cpp
+  VBoxGuest_LIBS          = \
+  	$(VBOX_LIB_VBGL_R0BASE) \
+  	$(VBOX_LIB_IPRT_GUEST_R0)
+  VBoxGuest_INTERMEDIATES.freebsd = \
+  	$(PATH_VBoxGuest)/pci_if.h \
+  	$(PATH_VBoxGuest)/bus_if.h \
+  	$(PATH_VBoxGuest)/device_if.h
+  VBoxGuest_CLEAN.freebsd = $(VBoxGuest_INTERMEDIATES.freebsd)
+
+ else # OS/2:
+  # The library order is crucial, so a bit of trickery is necessary.
+  # A library is used to make sure that VBoxGuestA-os2.asm is first in the link. (temporary hack?)
+  VBoxGuest_SOURCES       = \
+  	VBoxGuestA-os2.asm \
+  	VBoxGuest-os2.def
+  #VBoxGuest_LDFLAGS       = -s -t -v
+  VBoxGuest_LIBS          = \
+  	$(TARGET_VBoxGuestLibOs2Hack) \
+  	$(VBOX_LIB_VBGL_R0BASE) \
+  	$(VBOX_LIB_IPRT_GUEST_R0) \
+  	$(VBOX_GCC_LIBGCC) \
+  	end
+  ## When debugging init with kDrvTest:
+  #VBoxGuest_NAME          = VBoxGst
+
+  # see
+  LIBRARIES += VBoxGuestLibOs2Hack
+  VBoxGuestLibOs2Hack_TEMPLATE = VBOXGUESTR0LIB
+  VBoxGuestLibOs2Hack_NOINST = true
+  VBoxGuestLibOs2Hack_DEFS = $(VBoxGuest_DEFS)
+  VBoxGuestLibOs2Hack_INCS = \
+  	. \
+  	$(PATH_ROOT)/src/VBox/Runtime/include # for the os2ddk
+  VBoxGuestLibOs2Hack_SOURCES = \
+  	VBoxGuest-os2.cpp \
+  	VBoxGuest.cpp
+ endif # OS/2
+
+ ifeq ($(KBUILD_TARGET),freebsd)
+  #
+  # FreeBSD: Genereate bus, device and pci interface headers. (explain why)
+  #
+  # We cannot give a output path to the awk program, it will always generate
+  # the header next to the source. So, we'll have to temporarily copy the
+  # source file to the destination direction for it to work out correctly.
+  #
+  VBOX_AWK := /usr/bin/awk
+  $$(PATH_VBoxGuest)/bus_if.h: $(VBOX_FREEBSD_SRC)/kern/bus_if.m
+	$(call MSG_TOOL,awk,VBoxGuest,$<,$@)
+	$(QUIET)$(CP) -f $(VBOX_FREEBSD_SRC)/kern/bus_if.m $(PATH_VBoxGuest)/bus_if.m
+	$(QUIET)$(VBOX_AWK) -f $(VBOX_FREEBSD_SRC)/tools/makeobjops.awk $(PATH_VBoxGuest)/bus_if.m -h -p
+	$(QUIET)$(RM) $(PATH_VBoxGuest)/bus_if.m
+
+  $$(PATH_VBoxGuest)/device_if.h: $(VBOX_FREEBSD_SRC)/kern/device_if.m
+	$(call MSG_TOOL,awk,VBoxGuest,$<,$@)
+	$(QUIET)$(CP) -f $(VBOX_FREEBSD_SRC)/kern/device_if.m $(PATH_VBoxGuest)/device_if.m
+	$(QUIET)$(VBOX_AWK) -f $(VBOX_FREEBSD_SRC)/tools/makeobjops.awk $(PATH_VBoxGuest)/device_if.m -h -p
+	$(QUIET)$(RM) $(PATH_VBoxGuest)/device_if.m
+
+  $$(PATH_VBoxGuest)/pci_if.h: $(VBOX_FREEBSD_SRC)/dev/pci/pci_if.m
+	$(call MSG_TOOL,awk,VBoxGuest,$<,$@)
+	$(QUIET)$(CP) -f $(VBOX_FREEBSD_SRC)/dev/pci/pci_if.m $(PATH_VBoxGuest)/pci_if.m
+	$(QUIET)$(VBOX_AWK) -f $(VBOX_FREEBSD_SRC)/tools/makeobjops.awk $(PATH_VBoxGuest)/pci_if.m -h -p
+	$(QUIET)$(RM) $(PATH_VBoxGuest)/pci_if.m
+ endif # FreeBSD
+
+endif # enabled
+
+include	$(KBUILD_PATH)/subfooter.kmk
+
