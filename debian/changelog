@@ -1,9 +1,12 @@
 virtualbox-ose (2.1.2-dfsg-2) unstable; urgency=low
 
-  * Enabled OpenGL support, closes: #513533
+  * Enabled OpenGL support. Closes: #513533
   * Added patch to install WineD3D guest additions as provided by Robert Millan
-    <rmh@aybabtu.com>, closes: #514181
+    <rmh@aybabtu.com>. Closes: #514181
   * Fixed watch file yet again.
+  * Recompiled to bring 2.1.2 into unstable. This changes
+      - Network setup. Closes: #507169
+      - File and device ownership. Closes: #509014
 
  -- Michael Meskes <meskes@debian.org>  Mon, 16 Feb 2009 10:49:27 +0100
 
