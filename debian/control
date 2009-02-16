@@ -23,6 +23,8 @@ Build-Depends:	bcc,
 		libacl1-dev,
 		libasound-dev,
 		libcap2-dev,
+		libgl1-mesa-dev,
+		libglu1-mesa-dev,
 		libhal-dev,
 		libidl-dev,
 		libpng12-dev,
@@ -55,7 +57,7 @@ Depends: ${shlibs:Depends},
          adduser,
 	 python
 Pre-Depends: debconf | debconf-2.0
-Recommends: virtualbox-ose-modules
+Recommends: virtualbox-ose-modules, libgl1
 Suggests: virtualbox-ose-source, bridge-utils
 Conflicts: virtualbox
 Replaces: virtualbox
