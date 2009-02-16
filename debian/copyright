@@ -192,7 +192,7 @@ can be found in /usr/share/common-licenses/BSD file.
 
 -------------------------------------------------------------------------------
 
-The LGPL applies to the complete subtree of:
+The LGPL (v2.1 or later) applies to the complete subtree of:
 
 ./src/recompiler/
          Copyright (c) 2003 Fabrice Bellard
