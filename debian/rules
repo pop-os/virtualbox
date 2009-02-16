@@ -62,6 +62,7 @@ clean: unpatch
 	rm -f AutoConfig.kmk configure.log env.sh LocalConfig.kmk
 	rm -f debian/$(sname).init build-stamp
 	rm -f debian/virtualbox-ose.README.Debian debian/README.Debian.html
+	find . -name "*.pyc" -exec rm -f {} \;
 	dh_clean
 
 #Rebuild the orig.tar.gz
