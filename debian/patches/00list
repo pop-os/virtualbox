@@ -10,3 +10,4 @@
 12-make-module.dpatch
 13-module-mismatch.dpatch
 14-disable-registration-request.dpatch
+15_wined3d_guest_addition.dpatch

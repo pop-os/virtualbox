@@ -1,0 +1,124 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 15_wined3d_guest_addition.dpatch by Michael Meskes <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Add WineD3D guest additions
+
+@DPATCH@
+
+diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox4/include/VBoxConsoleWnd.h virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox4/include/VBoxConsoleWnd.h
+--- virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox4/include/VBoxConsoleWnd.h	2009-01-14 21:00:46.000000000 +0100
++++ virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox4/include/VBoxConsoleWnd.h	2009-02-03 23:25:14.000000000 +0100
+@@ -191,6 +191,7 @@
+     void devicesSwitchVrdp (bool);
+     void devicesOpenSFDialog();
+     void devicesInstallGuestAdditions();
++    void devicesInstallWineD3D();
+ 
+     void prepareFloppyMenu();
+     void prepareDVDMenu();
+@@ -265,6 +266,7 @@
+     QAction *mDevicesSwitchVrdpAction;
+     QAction *mDevicesSFDialogAction;
+     QAction *mDevicesInstallGuestToolsAction;
++    QAction *mDevicesInstallWineD3DAction;
+ 
+ #ifdef VBOX_WITH_DEBUGGER_GUI
+     /* Debugger actions */
+diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox4/src/VBoxConsoleWnd.cpp virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox4/src/VBoxConsoleWnd.cpp
+--- virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox4/src/VBoxConsoleWnd.cpp	2009-01-21 09:41:58.000000000 +0100
++++ virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox4/src/VBoxConsoleWnd.cpp	2009-02-04 02:10:36.000000000 +0100
+@@ -357,6 +357,10 @@
+     mDevicesInstallGuestToolsAction->setIcon (VBoxGlobal::iconSet (":/guesttools_16px.png",
+                                                                      ":/guesttools_disabled_16px.png"));
+ 
++    mDevicesInstallWineD3DAction = new QAction (mRunningActions);
++    mDevicesInstallWineD3DAction->setIcon (VBoxGlobal::iconSet (":/guesttools_16px.png",
++                                                                     ":/guesttools_disabled_16px.png"));
++
+ #ifdef VBOX_WITH_DEBUGGER_GUI
+     if (vboxGlobal().isDebuggerEnabled())
+     {
+@@ -452,6 +456,7 @@
+     mDevicesVRDPMenuSeparator = mDevicesMenu->addSeparator();
+ 
+     mDevicesMenu->addAction (mDevicesInstallGuestToolsAction);
++    mDevicesMenu->addAction (mDevicesInstallWineD3DAction);
+ 
+     /* reset the "context menu" flag */
+     mDevicesMountFloppyMenu->menuAction()->setData (false);
+@@ -610,6 +615,7 @@
+     connect (mDevicesSwitchVrdpAction, SIGNAL(toggled (bool)), this, SLOT(devicesSwitchVrdp (bool)));
+     connect (mDevicesSFDialogAction, SIGNAL(triggered()), this, SLOT(devicesOpenSFDialog()));
+     connect (mDevicesInstallGuestToolsAction, SIGNAL(triggered()), this, SLOT(devicesInstallGuestAdditions()));
++    connect (mDevicesInstallWineD3DAction, SIGNAL(triggered()), this, SLOT(devicesInstallWineD3D()));
+ 
+ 
+     connect (mDevicesMountFloppyMenu, SIGNAL(aboutToShow()), this, SLOT(prepareFloppyMenu()));
+@@ -1680,6 +1686,10 @@
+     mDevicesInstallGuestToolsAction->setStatusTip (
+         tr ("Mount the Guest Additions installation image"));
+ 
++    mDevicesInstallWineD3DAction->setText (tr ("Install &WineD3D (for Direct3D)..."));
++    mDevicesInstallWineD3DAction->setStatusTip (
++        tr ("Mount the WineD3D installation image. WineD3D provides Direct3D functionality on Windows guests."));
++
+ #ifdef VBOX_WITH_DEBUGGER_GUI
+     /* Debug actions */
+ 
+@@ -2855,6 +2865,55 @@
+     }
+ }
+ 
++/* Based on devicesInstallGuestAdditions() */
++void VBoxConsoleWnd::devicesInstallWineD3D()
++{
++#if defined (DEBUG_dmik) /* subscribe yourself here if you care for this behavior. */
++    QString src1 = qApp->applicationDirPath() + "/../../release/bin/wined3d.iso";
++    QString src2 = qApp->applicationDirPath() + "/../../release/bin/additions/wined3d.iso";
++#else
++    char szAppPrivPath [RTPATH_MAX];
++    int rc = RTPathAppPrivateNoArch (szAppPrivPath, sizeof (szAppPrivPath));
++    AssertRC (rc);
++
++    QString src1 = QString (szAppPrivPath) + "/wined3d.iso";
++    QString src2 = qApp->applicationDirPath() + "/additions/wined3d.iso";
++#endif
++
++    /* Check the standard image locations */
++    if (QFile::exists (src1))
++        return installGuestAdditionsFrom (src1);
++    else if (QFile::exists (src2))
++        return installGuestAdditionsFrom (src2);
++
++    /* Check for the already registered image */
++    CVirtualBox vbox = vboxGlobal().virtualBox();
++    QString name = QString ("wined3d.iso");
++
++    CDVDImage2Vector vec = vbox.GetDVDImages();
++    for (CDVDImage2Vector::ConstIterator it = vec.begin();
++         it != vec.end(); ++ it)
++    {
++        QString path = it->GetLocation();
++        /* Compare the name part ignoring the file case */
++        QString fn = QFileInfo (path).fileName();
++        if (RTPathCompare (name.toUtf8().constData(), fn.toUtf8().constData()) == 0)
++            return installGuestAdditionsFrom (path);
++    }
++
++    /* Download the required image */
++    {
++        QString source = QString ("http://aybabtu.com/rmh/wined3d/pub/latest/wined3d.iso");
++        QString target = QDir (vboxGlobal().virtualBox().GetHomeFolder())
++                               .absoluteFilePath (name);
++
++        VBoxAdditionsDownloader *dl =
++            new VBoxAdditionsDownloader (source, target, mDevicesInstallWineD3DAction);
++        statusBar()->addWidget (dl, 0);
++        dl->start();
++    }
++}
++
+ void VBoxConsoleWnd::installGuestAdditionsFrom (const QString &aSource)
+ {
+     CVirtualBox vbox = vboxGlobal().virtualBox();
