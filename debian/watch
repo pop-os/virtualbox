@@ -1,4 +1,4 @@
 version=3
 
 opts=dversionmangle=s/-dfsg\d*$//,uversionmangle=s/-.*// \
- http://www.virtualbox.org/download/([\d\.\-]+)/VirtualBox-([\d\.\-]+)-OSE.tar.bz2
+ http://download.virtualbox.org/virtualbox/([\d\.\-]+)/VirtualBox-([\d\.\-]+)-OSE.tar.bz2
