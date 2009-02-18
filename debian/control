@@ -47,8 +47,8 @@ Build-Depends:	bcc,
 		zlib1g-dev
 Standards-Version: 3.8.0
 Homepage: http://www.virtualbox.org/
-Vcs-Svn: svn://svn.debian.org/svn/pkg-virtualbox/virtualbox-ose/trunk
-Vcs-Browser: http://svn.debian.org/wsvn/pkg-virtualbox/virtualbox-ose/trunk
+Vcs-Git: git://git.debian.org/git/pkg-virtualbox/virtualbox-ose.git
+Vcs-Browser: http://git.debian.org/?p=pkg-virtualbox/virtualbox-ose.git
 
 Package: virtualbox-ose
 Architecture: amd64 i386 lpia
