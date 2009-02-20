@@ -1,6 +1,8 @@
 virtualbox-ose (2.1.2-dfsg-3) UNRELEASED; urgency=low
 
   * Updated control file to refer to git instead of svn.
+  * Made sure that init script does not fail if module loading is not enabled.
+    Closes: #516242
 
  -- Michael Meskes <meskes@debian.org>  Wed, 18 Feb 2009 12:55:59 +0100
 

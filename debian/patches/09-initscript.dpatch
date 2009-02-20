@@ -5,32 +5,47 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in virtualbox-ose-2.1.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in
---- virtualbox-ose-2.1.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in	2008-12-18 16:30:08.000000000 +0100
-+++ virtualbox-ose-2.1.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in		2008-12-18 16:36:51.000000000 +0100
+diff -Naurp virtualbox-ose-2.1.2-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in virtualbox-ose-2.1.2-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in
+--- virtualbox-ose-2.1.2-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in	2009-02-20 13:37:57.000000000 +0100
++++ virtualbox-ose-2.1.2-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in		2009-02-20 13:36:50.000000000 +0100
 @@ -32,6 +32,8 @@
  LOG="/var/log/vbox-install.log"
- NOLSB=%NOLSB%
+ NOLSB=yes
  
 +# Include virtualbox-ose defaults if available
 +[ -f /etc/default/virtualbox-ose ] && . /etc/default/virtualbox-ose
  [ -f /lib/lsb/init-functions ] && NOLSB=
  [ -f /etc/vbox/vbox.cfg ] && . /etc/vbox/vbox.cfg
  
-@@ -153,8 +155,10 @@
-         if ! rm -f $DEVICE; then
-             failure "Cannot remove $DEVICE"
-         fi
+@@ -147,14 +149,19 @@
+ {
+     begin_msg "Starting VirtualBox kernel module"
+     if ! running vboxdrv; then
+-        if ! find /lib/modules/`uname -r` -name "vboxdrv\.*" 2>/dev/null|grep -q vboxdrv; then
+-            failure "No suitable module for running kernel found"
+-        fi
+-        if ! rm -f $DEVICE; then
+-            failure "Cannot remove $DEVICE"
+-        fi
 -        if ! modprobe vboxdrv > /dev/null 2>&1; then
 -            failure "modprobe vboxdrv failed. Please use 'dmesg' to find out why"
 +	if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
++		if ! find /lib/modules/`uname -r` -name "vboxdrv\.*" 2>/dev/null|grep -q vboxdrv; then
++		    failure "No suitable module for running kernel found"
++		fi
++		if ! rm -f $DEVICE; then
++		    failure "Cannot remove $DEVICE"
++		fi
 +	        if ! modprobe vboxdrv > /dev/null 2>&1; then
 +        	    failure "modprobe vboxdrv failed. Please use 'dmesg' to find out why"
 +		fi
++	else
++		succ_msg
++		return
          fi
          sleep .2
      fi
-@@ -184,8 +188,10 @@
+@@ -184,8 +191,10 @@
          rmmod vboxdrv 2>/dev/null
          failure "Cannot change owner $GROUPNAME for device $DEVICE"
      fi
