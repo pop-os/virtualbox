@@ -1,4 +1,4 @@
-/* $Id: TRPMAll.cpp 13832 2008-11-05 02:01:12Z vboxsync $ */
+/* $Id: TRPMAll.cpp $ */
 /** @file
  * TRPM - Trap Monitor - Any Context.
  */

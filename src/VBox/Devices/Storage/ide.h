@@ -1,4 +1,4 @@
-/* $Id: ide.h 12931 2008-10-02 11:46:56Z vboxsync $ */
+/* $Id: ide.h $ */
 /** @file
  * VBox storage devices: ATA/ATAPI declarations
  */

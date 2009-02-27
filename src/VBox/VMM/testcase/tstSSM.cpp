@@ -1,4 +1,4 @@
-/* $Id: tstSSM.cpp 13818 2008-11-04 22:59:47Z vboxsync $ */
+/* $Id: tstSSM.cpp $ */
 /** @file
  * Saved State Manager Testcase.
  */

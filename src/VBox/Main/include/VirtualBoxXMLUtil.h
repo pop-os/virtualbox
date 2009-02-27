@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxXMLUtil.h 15708 2008-12-19 18:28:27Z vboxsync $ */
+/* $Id: VirtualBoxXMLUtil.h $ */
 
 /** @file
  *

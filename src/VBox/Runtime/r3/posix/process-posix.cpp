@@ -1,4 +1,4 @@
-/* $Id: process-posix.cpp 15026 2008-12-05 09:43:41Z vboxsync $ */
+/* $Id: process-posix.cpp $ */
 /** @file
  * IPRT - Process, POSIX.
  */

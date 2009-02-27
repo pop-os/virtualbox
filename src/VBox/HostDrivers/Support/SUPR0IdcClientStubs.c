@@ -1,4 +1,4 @@
-/* $Id: SUPR0IdcClientStubs.c 10258 2008-07-04 23:31:26Z vboxsync $ */
+/* $Id: SUPR0IdcClientStubs.c $ */
 /** @file
  * VirtualBox Support Driver - IDC Client Lib, Stubs for SUPR0 APIs.
  */

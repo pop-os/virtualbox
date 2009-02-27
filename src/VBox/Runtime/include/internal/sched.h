@@ -1,4 +1,4 @@
-/* $Id: sched.h 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: sched.h $ */
 /** @file
  * IPRT - Internal RTSched header.
  */

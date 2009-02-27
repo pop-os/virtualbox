@@ -97,7 +97,7 @@ void so_init _P((void));
 struct socket * solookup _P((struct socket *, struct in_addr, u_int, struct in_addr, u_int));
 struct socket * socreate _P((void));
 void sofree _P((PNATState, struct socket *));
-int soread _P((PNATState, struct socket *, int));
+int soread _P((PNATState, struct socket *));
 void sorecvoob _P((PNATState, struct socket *));
 int sosendoob _P((struct socket *));
 int sowrite _P((PNATState, struct socket *));

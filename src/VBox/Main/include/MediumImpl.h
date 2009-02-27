@@ -1,4 +1,4 @@
-/* $Id: MediumImpl.h 15051 2008-12-05 17:20:00Z vboxsync $ */
+/* $Id: MediumImpl.h $ */
 /** @file
  *
  * VirtualBox COM class implementation

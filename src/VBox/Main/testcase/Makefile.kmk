@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 15422 2008-12-13 07:46:20Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the VBox API testcases.
 #

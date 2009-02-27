@@ -1,4 +1,4 @@
-/* $Id: CPUM.cpp 15962 2009-01-15 12:33:49Z vboxsync $ */
+/* $Id: CPUM.cpp $ */
 /** @file
  * CPUM - CPU Monitor / Manager.
  */
@@ -1014,6 +1014,7 @@ static DECLCALLBACK(int) cpumR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Versio
 
     /*
      * Check that the basic cpuid id information is unchanged.
+     * @todo we should check the 64 bits capabilities too!
      */
     uint32_t au32CpuId[8] = {0};
     ASMCpuId(0, &au32CpuId[0], &au32CpuId[1], &au32CpuId[2], &au32CpuId[3]);
@@ -1022,9 +1023,14 @@ static DECLCALLBACK(int) cpumR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Versio
     rc = SSMR3GetMem(pSSM, &au32CpuIdSaved[0], sizeof(au32CpuIdSaved));
     if (RT_SUCCESS(rc))
     {
+        /* Ignore CPU stepping. */
+        au32CpuId[4]      &=  0xfffffff0;
+        au32CpuIdSaved[4] &=  0xfffffff0;
+
         /* Ignore APIC ID (AMD specs). */
         au32CpuId[5]      &= ~0xff000000;
         au32CpuIdSaved[5] &= ~0xff000000;
+
         /* Ignore the number of Logical CPUs (AMD specs). */
         au32CpuId[5]      &= ~0x00ff0000;
         au32CpuIdSaved[5] &= ~0x00ff0000;

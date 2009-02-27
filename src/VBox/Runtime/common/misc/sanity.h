@@ -1,4 +1,4 @@
-/* $Id: sanity.h 13832 2008-11-05 02:01:12Z vboxsync $ */
+/* $Id: sanity.h $ */
 /** @file
  * IPRT - Setup Sanity Checks, C and C++.
  */

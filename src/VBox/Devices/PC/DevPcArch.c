@@ -1,4 +1,4 @@
-/* $Id: DevPcArch.c 12977 2008-10-03 23:24:35Z vboxsync $ */
+/* $Id: DevPcArch.c $ */
 /** @file
  * DevPcArch - PC Architechture Device.
  */

@@ -1,4 +1,4 @@
-/* $Id: IOMAllMMIO.cpp 16037 2009-01-19 10:30:36Z vboxsync $ */
+/* $Id: IOMAllMMIO.cpp $ */
 /** @file
  * IOM - Input / Output Monitor - Any Context, MMIO & String I/O.
  */
@@ -1758,6 +1758,12 @@ VMMDECL(int) IOMMMIOModifyPage(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysRemapped
 
     Log(("IOMMMIOModifyPage %RGp -> %RGp flags=%RX64\n", GCPhys, GCPhysRemapped, fPageFlags));
 
+    /* This currently only works in real mode, protected mode without paging or with nested paging. */
+    if (    !HWACCMIsEnabled(pVM)       /* useless without VT-x/AMD-V */
+        ||  (   CPUMIsGuestInPagedProtectedMode(pVM)
+             && !HWACCMIsNestedPagingActive(pVM)))
+        return VINF_SUCCESS;    /* ignore */
+
     /*
      * Lookup the current context range node and statistics.
      */
@@ -1769,11 +1775,6 @@ VMMDECL(int) IOMMMIOModifyPage(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysRemapped
     GCPhys         &= ~(RTGCPHYS)0xfff;
     GCPhysRemapped &= ~(RTGCPHYS)0xfff;
 
-    /* This currently only works in real mode, protected mode without paging or with nested paging. */
-    if (    CPUMIsGuestInPagedProtectedMode(pVM)
-        && !HWACCMIsNestedPagingActive(pVM))
-        return VINF_SUCCESS;    /* ignore */
-
     int rc = PGMHandlerPhysicalPageAlias(pVM, pRange->GCPhys, GCPhys, GCPhysRemapped);
     AssertRCReturn(rc, rc);
 
@@ -1784,10 +1785,9 @@ VMMDECL(int) IOMMMIOModifyPage(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysRemapped
     Assert(rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
 #endif
 
-    /* Mark it as writable and present so reads and writes no longer fault. */
-    rc = PGMShwModifyPage(pVM, (RTGCPTR)GCPhys, 1, fPageFlags, ~fPageFlags);
+    /* @note this is a NOP in the EPT case; we'll just let it fault again to resync the page. */
+    rc = PGMPrefetchPage(pVM, (RTGCPTR)GCPhys);
     Assert(rc == VINF_SUCCESS || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
-
     return VINF_SUCCESS;
 }
 
@@ -1802,9 +1802,13 @@ VMMDECL(int) IOMMMIOModifyPage(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysRemapped
  */
 VMMDECL(int)  IOMMMIOResetRegion(PVM pVM, RTGCPHYS GCPhys)
 {
-    uint32_t cb;
-
     Log(("IOMMMIOResetRegion %RGp\n", GCPhys));
+
+    /* This currently only works in real mode, protected mode without paging or with nested paging. */
+    if (    !HWACCMIsEnabled(pVM)       /* useless without VT-x/AMD-V */
+        ||  (   CPUMIsGuestInPagedProtectedMode(pVM)
+             && !HWACCMIsNestedPagingActive(pVM)))
+        return VINF_SUCCESS;    /* ignore */
 
     /*
      * Lookup the current context range node and statistics.
@@ -1814,33 +1818,26 @@ VMMDECL(int)  IOMMMIOResetRegion(PVM pVM, RTGCPHYS GCPhys)
                     ("Handlers and page tables are out of sync or something! GCPhys=%RGp\n", GCPhys),
                     VERR_INTERNAL_ERROR);
 
-    /* This currently only works in real mode, protected mode without paging or with nested paging. */
-    if (    CPUMIsGuestInPagedProtectedMode(pVM)
-        && !HWACCMIsNestedPagingActive(pVM))
-        return VINF_SUCCESS;    /* ignore */
+    /* Reset the entire range by clearing all shadow page table entries. */
+    int rc = PGMHandlerPhysicalReset(pVM, pRange->GCPhys);
+    AssertRC(rc);
 
+#ifdef VBOX_STRICT
+    uint32_t cb = pRange->cb;
 
-    cb     = pRange->cb;
     GCPhys = pRange->GCPhys;
 
     while (cb)
     {
-        int rc = PGMHandlerPhysicalPageReset(pVM, pRange->GCPhys, GCPhys);
-        AssertRC(rc);
 
-        /* Mark it as not present again to intercept all read and write access. */
-        rc = PGMShwModifyPage(pVM, (RTGCPTR)GCPhys, 1, 0, ~(uint64_t)(X86_PTE_RW|X86_PTE_P));
-        Assert(rc == VINF_SUCCESS || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
-
-#ifdef VBOX_STRICT
         uint64_t fFlags;
         RTHCPHYS HCPhys;
         rc = PGMShwGetPage(pVM, (RTGCPTR)GCPhys, &fFlags, &HCPhys);
         Assert(rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
-#endif
         cb     -= PAGE_SIZE;
         GCPhys += PAGE_SIZE;
     }
+#endif
     return VINF_SUCCESS;
 }
 #endif /* !IN_RC */

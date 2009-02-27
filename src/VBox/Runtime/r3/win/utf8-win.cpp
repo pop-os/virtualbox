@@ -1,4 +1,4 @@
-/* $Id: utf8-win.cpp 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: utf8-win.cpp $ */
 /** @file
  * IPRT - UTF8 helpers.
  */

@@ -1,4 +1,4 @@
-/* $Id: IOMGC.cpp 12989 2008-10-06 02:15:39Z vboxsync $ */
+/* $Id: IOMGC.cpp $ */
 /** @file
  * IOM - Input / Output Monitor - Guest Context.
  */

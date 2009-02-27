@@ -1,4 +1,4 @@
-/* $Id: DisasmFormatBytes.cpp 9266 2008-05-31 02:32:20Z vboxsync $ */
+/* $Id: DisasmFormatBytes.cpp $ */
 /** @file
  * VBox Disassembler - Helper for formatting the opcode bytes.
  */

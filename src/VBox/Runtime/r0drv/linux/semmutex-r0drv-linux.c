@@ -1,4 +1,4 @@
-/* $Id: semmutex-r0drv-linux.c 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: semmutex-r0drv-linux.c $ */
 /** @file
  * IPRT - Mutex Semaphores, Ring-0 Driver, Linux.
  */

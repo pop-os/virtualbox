@@ -1,4 +1,4 @@
-/* $Id: GMMR0.cpp 14299 2008-11-18 13:25:40Z vboxsync $ */
+/* $Id: GMMR0.cpp $ */
 /** @file
  * GMM - Global Memory Manager.
  */

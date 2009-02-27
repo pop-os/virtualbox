@@ -1,4 +1,4 @@
-/* $Id: logrel.cpp 13832 2008-11-05 02:01:12Z vboxsync $ */
+/* $Id: logrel.cpp $ */
 /** @file
  * Runtime VBox - Logger.
  */

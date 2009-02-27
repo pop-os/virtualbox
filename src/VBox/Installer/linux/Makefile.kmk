@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 15670 2008-12-18 18:59:15Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Makefile for the Linux installer.
 #

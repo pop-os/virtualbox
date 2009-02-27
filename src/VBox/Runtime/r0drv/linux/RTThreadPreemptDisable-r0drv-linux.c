@@ -1,4 +1,4 @@
-/* $Id: RTThreadPreemptDisable-r0drv-linux.c 15801 2009-01-05 13:18:08Z vboxsync $ */
+/* $Id: RTThreadPreemptDisable-r0drv-linux.c $ */
 /** @file
  * IPRT - RTThreadPreemptDisable, Generic ring-0 driver implementation.
  */

@@ -1,4 +1,4 @@
-/* $Id: SupportErrorInfo.h 14556 2008-11-25 09:19:13Z vboxsync $ */
+/* $Id: SupportErrorInfo.h $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer:

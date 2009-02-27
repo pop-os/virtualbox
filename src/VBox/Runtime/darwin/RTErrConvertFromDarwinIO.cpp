@@ -1,4 +1,4 @@
-/* $Id: RTErrConvertFromDarwinIO.cpp 15459 2008-12-14 11:23:14Z vboxsync $ */
+/* $Id: RTErrConvertFromDarwinIO.cpp $ */
 /** @file
  * IPRT - Convert Darwin IOKit returns codes to iprt status codes.
  */

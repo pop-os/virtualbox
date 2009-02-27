@@ -1,4 +1,4 @@
-/* $Id: TRPMR0.cpp 15414 2008-12-13 04:33:30Z vboxsync $ */
+/* $Id: TRPMR0.cpp $ */
 /** @file
  * TRPM - The Trap Monitor - HC Ring 0
  */

@@ -1,4 +1,4 @@
-/* $Id: PATMSSM.cpp 14887 2008-12-02 10:15:21Z vboxsync $ */
+/* $Id: PATMSSM.cpp $ */
 /** @file
  * PATMSSM - Dynamic Guest OS Patching Manager; Save and load state
  *

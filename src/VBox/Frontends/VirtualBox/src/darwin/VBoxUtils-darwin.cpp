@@ -1,4 +1,4 @@
-/* $Id: VBoxUtils-darwin.cpp 8444 2008-04-29 08:38:27Z vboxsync $ */
+/* $Id: VBoxUtils-darwin.cpp $ */
 /** @file
  * Qt GUI - Utility Classes and Functions specific to Darwin.
  */

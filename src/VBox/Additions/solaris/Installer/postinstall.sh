@@ -19,13 +19,16 @@
 
 uncompress_files()
 {
+    # self-overwriting
     uncompress -f "$1/VBoxClient.Z" > /dev/null 2>&1
     uncompress -f "$1/VBoxService.Z" > /dev/null 2>&1
     uncompress -f "$1/VBoxControl.Z" > /dev/null 2>&1
     uncompress -f "$1/vboxvideo_drv_13.so.Z" > /dev/null 2>&1
     uncompress -f "$1/vboxvideo_drv_14.so.Z" > /dev/null 2>&1
+    uncompress -f "$1/vboxvideo_drv_15.so.Z" > /dev/null 2>&1
     uncompress -f "$1/vboxvideo_drv_71.so.Z" > /dev/null 2>&1
     uncompress -f "$1/vboxmouse_drv_14.so.Z" > /dev/null 2>&1
+    uncompress -f "$1/vboxmouse_drv_15.so.Z" > /dev/null 2>&1
     uncompress -f "$1/vboxmouse_drv_70.so.Z" > /dev/null 2>&1
     uncompress -f "$1/vboxmouse_drv_71.so.Z" > /dev/null 2>&1
 }
@@ -76,6 +79,10 @@ echo "Creating links..."
 # Install Xorg components to the required places
 xorgversion_long=`/usr/X11/bin/Xorg -version 2>&1 | grep "X Window System Version"`
 xorgversion=`/usr/bin/expr "${xorgversion_long}" : 'X Window System Version \([^ ]*\)'`
+if test -z "$xorgversion_long"; then
+    xorgversion_long=`/usr/X11/bin/Xorg -version 2>&1 | grep "X.Org X Server"`
+    xorgversion=`/usr/bin/expr "${xorgversion_long}" : 'X.Org X Server \([^ ]*\)'`
+fi
 
 vboxmouse_src=""
 vboxvideo_src=""
@@ -89,6 +96,10 @@ case "$xorgversion" in
         vboxmouse_src="vboxmouse_drv_14.so"
         vboxvideo_src="vboxvideo_drv_14.so"
         ;;
+    1.5.* )
+        vboxmouse_src="vboxmouse_drv_15.so"
+        vboxvideo_src="vboxvideo_drv_15.so"
+        ;;    
     7.1.* | *7.2.* )
         vboxmouse_src="vboxmouse_drv_71.so"
         vboxvideo_src="vboxvideo_drv_71.so"

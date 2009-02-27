@@ -1,4 +1,4 @@
-; $Id: tanl.asm 8256 2008-04-21 20:53:28Z vboxsync $
+; $Id: tanl.asm $
 ;; @file
 ; IPRT - No-CRT tanl - AMD64 & X86.
 ;

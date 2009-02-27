@@ -2099,10 +2099,12 @@ fi
 
 [ -n "$SETUP_WINE" ] && setup_wine
 
-if [ $WITH_GSOAP -eq 1 ]; then
-  check_gsoap
-else
-  cnf_append "VBOX_WITH_WEBSERVICES" ""
+if [ $OSE -ge 1 ]; then
+  if [ $WITH_GSOAP -eq 1 ]; then
+    check_gsoap
+  else
+    cnf_append "VBOX_WITH_WEBSERVICES" ""
+  fi
 fi
 
 # Darwin-specific

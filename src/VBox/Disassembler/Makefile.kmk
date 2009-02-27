@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 12989 2008-10-06 02:15:39Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the VBox Disassembler.
 #

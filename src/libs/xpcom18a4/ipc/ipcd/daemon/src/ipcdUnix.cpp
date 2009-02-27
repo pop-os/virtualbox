@@ -44,6 +44,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(VBOX) && !defined(XP_OS2)
+# include <sys/resource.h>
+# include <errno.h>
+#endif
+
 #include "prio.h"
 #include "prerror.h"
 #include "prthread.h"
@@ -520,6 +525,23 @@ int main(int argc, char **argv)
             PR_Open("/dev/null", O_WRONLY, 0);
 
             IPC_NotifyParent();
+
+#if defined(VBOX) && !defined(XP_OS2)
+            // Increase the file table size to 10240 or as high as possible.
+            struct rlimit lim;
+            if (getrlimit(RLIMIT_NOFILE, &lim) == 0)
+            {
+                if (    lim.rlim_cur < 10240
+                    &&  lim.rlim_cur < lim.rlim_max)
+                {
+                    lim.rlim_cur = lim.rlim_max <= 10240 ? lim.rlim_max : 10240;
+                    if (setrlimit(RLIMIT_NOFILE, &lim) == -1)
+                        printf("WARNING: failed to increase file descriptor limit. (%d)\n", errno);
+                }
+            }
+            else
+                printf("WARNING: failed to obtain per-process file-descriptor limit (%d).\n", errno);
+#endif
 
             PollLoop(listenFD);
         }

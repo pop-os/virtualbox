@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 13363 2008-10-17 07:41:23Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the Shared Folders Host Service testcases.
 #

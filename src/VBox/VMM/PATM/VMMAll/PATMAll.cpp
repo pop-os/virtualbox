@@ -1,4 +1,4 @@
-/* $Id: PATMAll.cpp 13832 2008-11-05 02:01:12Z vboxsync $ */
+/* $Id: PATMAll.cpp $ */
 /** @file
  * PATM - The Patch Manager, all contexts.
  */

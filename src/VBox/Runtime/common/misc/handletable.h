@@ -1,4 +1,4 @@
-/* $Id: handletable.h 10789 2008-07-21 17:22:32Z vboxsync $ */
+/* $Id: handletable.h $ */
 /** @file
  * IPRT - Handle Tables, internal header.
  */

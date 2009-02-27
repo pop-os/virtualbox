@@ -1,4 +1,4 @@
-; $Id: $
+; $Id:  $
 ;; @file
 ; IPRT - No-CRT fabs - AMD64 & X86.
 ;

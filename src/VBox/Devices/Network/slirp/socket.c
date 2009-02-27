@@ -96,7 +96,7 @@ sofree(PNATState pData, struct socket *so)
  * a read() of 0 (or less) means it's disconnected
  */
 int
-soread(PNATState pData, struct socket *so, int fCloseIfNothingRead)
+soread(PNATState pData, struct socket *so)
 {
     int n, nn, lss, total;
     struct sbuf *sb = &so->so_snd;
@@ -183,7 +183,12 @@ soread(PNATState pData, struct socket *so, int fCloseIfNothingRead)
          * www.youtube.com I see this very often. Closing the socket too early
          * would be dangerous.
          */
-        if (nn == 0 && !fCloseIfNothingRead)
+        int status, ignored;
+        unsigned long pending = 0;
+        status = WSAIoctl(so->s, FIONREAD, NULL, 0, &pending, sizeof(unsigned long), &ignored, NULL, NULL);
+        if (status < 0)
+            Log2(("error in WSAIoctl: %d\n", WSAGetLastError()));
+        if (nn == 0 && (pending != 0))
             return 0;
 #endif
         if (nn < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK))
@@ -251,7 +256,7 @@ sorecvoob(PNATState pData, struct socket *so)
      * urgent data, or the read() doesn't return all the
      * urgent data.
      */
-    soread(pData, so, /*fCloseIfNothingRead=*/false);
+    soread(pData, so);
     tp->snd_up = tp->snd_una + so->so_snd.sb_cc;
     tp->t_force = 1;
     tcp_output(pData, tp);
@@ -461,7 +466,7 @@ sorecvfrom(PNATState pData, struct socket *so)
             return;
         m->m_data += if_maxlinkhdr;
 #ifdef VBOX_WITH_SIMPLIFIED_SLIRP_SYNC
-        m->m_data += sizeof(struct udphdr) 
+        m->m_data += sizeof(struct udphdr)
                     + sizeof(struct ip); /*XXX: no options atm*/
 #endif
 
@@ -801,6 +806,7 @@ send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, c
     struct mbuf *m;
     struct icmp_msg *icm;
     uint8_t proto;
+    int type = 0;
 
     ip = (struct ip *)buff;
     hlen = (ip->ip_hl << 2);
@@ -814,8 +820,9 @@ send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, c
         return;
     }
 
-    if (   icp->icmp_type == ICMP_TIMXCEED
-        || icp->icmp_type == ICMP_UNREACH)
+    type = icp->icmp_type;
+    if (   type == ICMP_TIMXCEED
+        || type == ICMP_UNREACH)
     {
         ip = &icp->icmp_ip;
         DO_ALIAS(&ip->ip_dst);
@@ -863,8 +870,9 @@ send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, c
     ip->ip_p = IPPROTO_ICMP; /* the original package could be whatever, but we're response via ICMP*/
 
     icp = (struct icmp *)((char *)ip + (ip->ip_hl << 2));
-    if (   icp->icmp_type == ICMP_TIMXCEED
-        || icp->icmp_type == ICMP_UNREACH)
+    type = icp->icmp_type;
+    if (   type == ICMP_TIMXCEED
+        || type == ICMP_UNREACH)
     {
         /* according RFC 793 error messages required copy of initial IP header + 64 bit */
         memcpy(&icp->icmp_ip, ip_copy, old_ip_len);
@@ -877,8 +885,8 @@ send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, c
     LIST_REMOVE(icm, im_list);
     /* Don't call m_free here*/
 
-    if (   icp->icmp_type == ICMP_TIMXCEED
-        || icp->icmp_type == ICMP_UNREACH)
+    if (   type == ICMP_TIMXCEED
+        || type == ICMP_UNREACH)
     {
         icm->im_so->so_m = NULL;
         switch (proto)

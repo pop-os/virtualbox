@@ -1,4 +1,4 @@
-/* $Id: PDMThread.cpp 15540 2008-12-15 20:01:28Z vboxsync $ */
+/* $Id: PDMThread.cpp $ */
 /** @file
  * PDM Thread - VM Thread Management.
  */

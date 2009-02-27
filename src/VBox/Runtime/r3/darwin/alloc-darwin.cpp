@@ -1,4 +1,4 @@
-/* $Id: alloc-darwin.cpp 11019 2008-07-30 22:47:04Z vboxsync $ */
+/* $Id: alloc-darwin.cpp $ */
 /** @file
  * IPRT - Memory Allocation, POSIX.
  */

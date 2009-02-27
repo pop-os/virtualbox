@@ -1,4 +1,4 @@
-/* $Id: VBoxManageGuestProp.cpp 16104 2009-01-20 21:52:07Z vboxsync $ */
+/* $Id: VBoxManageGuestProp.cpp $ */
 /** @file
  * VBoxManage - The 'guestproperty' command.
  */

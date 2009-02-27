@@ -1,4 +1,4 @@
-/* $Id: CSAM.cpp 14755 2008-11-28 02:58:01Z vboxsync $ */
+/* $Id: CSAM.cpp $ */
 /** @file
  * CSAM - Guest OS Code Scanning and Analysis Manager
  */
@@ -1941,6 +1941,13 @@ static DECLCALLBACK(int) CSAMCodePageWriteHandler(PVM pVM, RTGCPTR GCPtr, void *
 
     Assert(enmAccessType == PGMACCESSTYPE_WRITE);
     Log(("CSAMCodePageWriteHandler: write to %RGv size=%zu\n", GCPtr, cbBuf));
+
+    if (    PAGE_ADDRESS(pvPtr) == PAGE_ADDRESS((uintptr_t)pvPtr + cbBuf - 1)
+         && !memcmp(pvPtr, pvBuf, cbBuf))
+    {
+        Log(("CSAMCodePageWriteHandler: dummy write -> ignore\n"));
+        return VINF_PGM_HANDLER_DO_DEFAULT;
+    }
 
     if (VM_IS_EMT(pVM))
     {

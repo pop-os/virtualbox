@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 12194 2008-09-08 02:12:23Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the external apps.
 #

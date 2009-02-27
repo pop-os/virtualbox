@@ -1,4 +1,4 @@
-/* $Id: RTThreadPreemptRestore-r0drv-linux.c 15801 2009-01-05 13:18:08Z vboxsync $ */
+/* $Id: RTThreadPreemptRestore-r0drv-linux.c $ */
 /** @file
  * IPRT - RTThreadPreemptRestore, Generic ring-0 driver implementation.
  */
