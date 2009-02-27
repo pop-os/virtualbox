@@ -1,4 +1,4 @@
-; $Id: 32BitToPAE.asm 8155 2008-04-18 15:16:47Z vboxsync $
+; $Id: 32BitToPAE.asm $
 ;; @file
 ; VMM - World Switchers, 32-Bit to 32-Bit.
 ;

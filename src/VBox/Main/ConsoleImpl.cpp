@@ -1,4 +1,4 @@
-/* $Id: ConsoleImpl.cpp 15991 2009-01-16 14:02:20Z vboxsync $ */
+/* $Id: ConsoleImpl.cpp $ */
 
 /** @file
  *
@@ -192,6 +192,10 @@ struct VMPowerUpTask : public VMProgressTask
     {
         /* No null output parameters in IPC*/
         MediaState_T dummy;
+
+        /* we may be holding important error info on the current thread;
+         * preserve it */
+        ErrorInfoKeeper eik;
 
         /* if the locked media list is not empty, treat as a failure and
          * unlock all */

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 15414 2008-12-13 04:33:30Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Top-level makefile for the VMM.
 #

@@ -1,4 +1,4 @@
-/* $Id: zip.cpp 14055 2008-11-10 22:57:43Z vboxsync $ */
+/* $Id: zip.cpp $ */
 /** @file
  * IPRT - Compression.
  */

@@ -1,4 +1,4 @@
-/* $Id: MMPhys.cpp 13841 2008-11-05 03:38:52Z vboxsync $ */
+/* $Id: MMPhys.cpp $ */
 /** @file
  * MM - Memory Manager - Physical Memory.
  *

@@ -1,4 +1,4 @@
-/* $Id: HostHardwareLinux.cpp 16137 2009-01-21 13:55:57Z vboxsync $ */
+/* $Id: HostHardwareLinux.cpp $ */
 /** @file
  * Classes for handling hardware detection under Linux.  Please feel free to
  * expand these to work for other systems (Solaris!) or to add new ones for
@@ -78,6 +78,9 @@ static int getDVDInfoFromMTab(char *mountTable, DriveInfoList *pList);
 /* These must be extern to be usable in the RTMemAutoPtr template */
 extern void VBoxHalShutdown (DBusConnection *pConnection);
 extern void VBoxHalShutdownPrivate (DBusConnection *pConnection);
+extern void VBoxDBusConnectionUnref(DBusConnection *pConnection);
+extern void VBoxDBusConnectionCloseAndUnref(DBusConnection *pConnection);
+extern void VBoxDBusMessageUnref(DBusMessage *pMessage);
 
 static int halInit(RTMemAutoPtr <DBusConnection, VBoxHalShutdown> *pConnection);
 static int halInitPrivate(RTMemAutoPtr <DBusConnection, VBoxHalShutdownPrivate> *pConnection);
@@ -108,7 +111,7 @@ int VBoxMainDriveInfo::updateDVDs ()
         mDVDList.clear ();
 #if defined(RT_OS_LINUX)
 #ifdef VBOX_WITH_DBUS
-        if (RT_SUCCESS (rc) && VBoxDBusCheckPresence() && (!success || testing()))
+        if (RT_SUCCESS (rc) && RT_SUCCESS(VBoxLoadDBusLib()) && (!success || testing()))
             rc = getDriveInfoFromHal(&mDVDList, true /* isDVD */, &success);
 #endif /* VBOX_WITH_DBUS defined */
         // On Linux without hal, the situation is much more complex. We will take a
@@ -153,7 +156,9 @@ int VBoxMainDriveInfo::updateFloppies ()
         mFloppyList.clear ();
 #if defined(RT_OS_LINUX)
 #ifdef VBOX_WITH_DBUS
-        if (RT_SUCCESS (rc) && VBoxDBusCheckPresence() && (!success || testing()))
+        if (   RT_SUCCESS (rc)
+            && RT_SUCCESS(VBoxLoadDBusLib())
+            && (!success || testing()))
             rc = getDriveInfoFromHal(&mFloppyList, false /* isDVD */, &success);
 #endif /* VBOX_WITH_DBUS defined */
         // As with the CDROMs, on Linux we have to take a multi-level approach
@@ -196,7 +201,9 @@ int VBoxMainUSBDeviceInfo::UpdateDevices ()
         mDeviceList.clear();
 #if defined(RT_OS_LINUX)
 #ifdef VBOX_WITH_DBUS
-        if (RT_SUCCESS (rc) && VBoxDBusCheckPresence() && (!success || testing()))
+        if (   RT_SUCCESS (rc)
+            && RT_SUCCESS(VBoxLoadDBusLib())
+            && (!success || testing()))
             rc = getUSBDeviceInfoFromHal(&mDeviceList, &halSuccess);
         /* Try the old API if the new one *succeeded* as only one of them will
          * pick up devices anyway. */
@@ -222,9 +229,11 @@ struct VBoxMainHotplugWaiter::Context
     RTMemAutoPtr <DBusConnection, VBoxHalShutdownPrivate> mConnection;
     /** Semaphore which is set when a device is hotplugged and reset when
      * it is read. */
-    bool mTriggered;
+    volatile bool mTriggered;
     /** A flag to say that we wish to interrupt the current wait. */
-    bool mInterrupt;
+    volatile bool mInterrupt;
+    /** Constructor */
+    Context() : mTriggered(false), mInterrupt(false) {}
 #endif  /* defined RT_OS_LINUX && defined VBOX_WITH_DBUS */
 };
 
@@ -237,9 +246,9 @@ VBoxMainHotplugWaiter::VBoxMainHotplugWaiter ()
 #if defined RT_OS_LINUX && defined VBOX_WITH_DBUS
     int rc = VINF_SUCCESS;
 
-    if (VBoxDBusCheckPresence())
+    mContext = new Context;
+    if (RT_SUCCESS(VBoxLoadDBusLib()))
     {
-        mContext = new Context;
         for (unsigned i = 0; RT_SUCCESS(rc) && i < 5 && !mContext->mConnection; ++i)
         {
             rc = halInitPrivate (&mContext->mConnection);
@@ -253,7 +262,7 @@ VBoxMainHotplugWaiter::VBoxMainHotplugWaiter ()
         if (   RT_SUCCESS (rc)
             && !dbus_connection_add_filter (mContext->mConnection.get(),
                                             dbusFilterFunction,
-                                            &mContext->mTriggered, NULL))
+                                            (void *) &mContext->mTriggered, NULL))
             rc = VERR_NO_MEMORY;
         if (RT_FAILURE (rc))
             mContext->mConnection.reset();
@@ -267,7 +276,7 @@ VBoxMainHotplugWaiter::~VBoxMainHotplugWaiter ()
 #if defined RT_OS_LINUX && defined VBOX_WITH_DBUS
     if (!!mContext->mConnection)
         dbus_connection_remove_filter (mContext->mConnection.get(), dbusFilterFunction,
-                                       &mContext->mTriggered);
+                                       (void *) &mContext->mTriggered);
     delete mContext;
 #endif /* defined RT_OS_LINUX && defined VBOX_WITH_DBUS */
 }
@@ -294,6 +303,8 @@ int VBoxMainHotplugWaiter::Wait(unsigned cMillies)
     {
         connected = dbus_connection_read_write_dispatch (mContext->mConnection.get(),
                                                          cRealMillies);
+        if (mContext->mInterrupt)
+            LogFlowFunc(("wait loop interrupted\n"));
         if (cMillies != RT_INDEFINITE_WAIT)
             mContext->mInterrupt = true;
     }
@@ -309,6 +320,7 @@ int VBoxMainHotplugWaiter::Wait(unsigned cMillies)
 void VBoxMainHotplugWaiter::Interrupt()
 {
 #if defined RT_OS_LINUX && defined VBOX_WITH_DBUS
+    LogFlowFunc(("\n"));
     mContext->mInterrupt = true;
 #endif  /* defined RT_OS_LINUX && defined VBOX_WITH_DBUS */
 }
@@ -616,7 +628,7 @@ int halInitPrivate (RTMemAutoPtr <DBusConnection, VBoxHalShutdownPrivate> *pConn
     bool halSuccess = true;
     autoDBusError dbusError;
 
-    RTMemAutoPtr <DBusConnection, VBoxDBusConnectionUnref> dbusConnection;
+    RTMemAutoPtr <DBusConnection, VBoxDBusConnectionCloseAndUnref> dbusConnection;
     dbusConnection = dbus_bus_get_private (DBUS_BUS_SYSTEM, &dbusError.get());
     if (!dbusConnection)
         halSuccess = false;
@@ -649,7 +661,7 @@ int halInitPrivate (RTMemAutoPtr <DBusConnection, VBoxHalShutdownPrivate> *pConn
  * Helper function for shutting down a connection to DBus and hal.
  * @param   pConnection  the connection handle
  */
-/* static */
+/* extern */
 void VBoxHalShutdown (DBusConnection *pConnection)
 {
     AssertReturnVoid(VALID_PTR (pConnection));
@@ -671,7 +683,7 @@ void VBoxHalShutdown (DBusConnection *pConnection)
  * Helper function for shutting down a private connection to DBus and hal.
  * @param   pConnection  the connection handle
  */
-/* static */
+/* extern */
 void VBoxHalShutdownPrivate (DBusConnection *pConnection)
 {
     AssertReturnVoid(VALID_PTR (pConnection));
@@ -688,6 +700,33 @@ void VBoxHalShutdownPrivate (DBusConnection *pConnection)
     dbus_connection_unref (pConnection);
     LogFlowFunc(("returning\n"));
     dbusError.FlowLog();
+}
+
+/** Wrapper around dbus_connection_unref.  We need this to use it as a real
+ * function in auto pointers, as a function pointer won't wash here. */
+/* extern */
+void VBoxDBusConnectionUnref(DBusConnection *pConnection)
+{
+    dbus_connection_unref(pConnection);
+}
+
+/**
+ * This function closes and unrefs a private connection to dbus.  It should
+ * only be called once no-one else is referencing the connection.
+ */
+/* extern */
+void VBoxDBusConnectionCloseAndUnref(DBusConnection *pConnection)
+{
+    dbus_connection_close(pConnection);
+    dbus_connection_unref(pConnection);
+}
+
+/** Wrapper around dbus_message_unref.  We need this to use it as a real
+ * function in auto pointers, as a function pointer won't wash here. */
+/* extern */
+void VBoxDBusMessageUnref(DBusMessage *pMessage)
+{
+    dbus_message_unref(pMessage);
 }
 
 /**
@@ -1169,7 +1208,7 @@ int getUSBInterfacesFromHal(std::vector <std::string> *pList,
 DBusHandlerResult dbusFilterFunction (DBusConnection *pConnection,
                                       DBusMessage *pMessage, void *pvUser)
 {
-    bool *pTriggered = reinterpret_cast<bool *> (pvUser);
+    volatile bool *pTriggered = reinterpret_cast<volatile bool *> (pvUser);
     if (   dbus_message_is_signal (pMessage, "org.freedesktop.Hal.Manager",
                                    "DeviceAdded")
         || dbus_message_is_signal (pMessage, "org.freedesktop.Hal.Manager",

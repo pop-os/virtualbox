@@ -1,4 +1,4 @@
-; $Id: memcpy.asm 14021 2008-11-10 16:31:22Z vboxsync $
+; $Id: memcpy.asm $
 ;; @file
 ; IPRT - No-CRT memcpy - AMD64 & X86.
 ;

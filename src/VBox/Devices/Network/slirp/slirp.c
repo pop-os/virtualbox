@@ -378,6 +378,9 @@ int slirp_init(PNATState *ppData, const char *pszNetAddr, uint32_t u32Netmask,
 
     inet_aton(pszNetAddr, &special_addr);
     alias_addr.s_addr = special_addr.s_addr | htonl(CTL_ALIAS);
+    /* @todo: add ability to configurate this staff */
+    pData->tftp_server.s_addr = htonl(ntohl(special_addr.s_addr) | CTL_TFTP);
+
     getouraddr(pData);
     return fNATfailed ? VINF_NAT_DNS : VINF_SUCCESS;
 }
@@ -771,7 +774,7 @@ void slirp_select_poll(PNATState pData, fd_set *readfds, fd_set *writefds, fd_se
                         continue;
                 }
 
-                ret = soread(pData, so, /*fCloseIfNothingRead=*/false);
+                ret = soread(pData, so);
                 /* Output it if we read something */
                 if (ret > 0)
                     tcp_output(pData, sototcpcb(so));
@@ -788,7 +791,7 @@ void slirp_select_poll(PNATState pData, fd_set *readfds, fd_set *writefds, fd_se
                  */
                 for (;;)
                 {
-                    ret = soread(pData, so, /*fCloseIfNothingRead=*/true);
+                    ret = soread(pData, so);
                     if (ret > 0)
                         tcp_output(pData, sototcpcb(so));
                     else
@@ -999,8 +1002,9 @@ void arp_input(PNATState pData, const uint8_t *pkt, int pkt_len)
         case ARPOP_REQUEST:
             if ((htip & pData->netmask) == ntohl(special_addr.s_addr))
             {
-                if (   (htip & ~pData->netmask) == CTL_DNS
-                    || (htip & ~pData->netmask) == CTL_ALIAS)
+                if (   CTL_CHECK(htip,CTL_DNS)
+                    || CTL_CHECK(htip, CTL_ALIAS)
+                    || CTL_CHECK(htip, CTL_TFTP))
                     goto arp_ok;
                 for (ex_ptr = exec_list; ex_ptr; ex_ptr = ex_ptr->ex_next)
                 {

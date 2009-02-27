@@ -1,4 +1,4 @@
-/* $Id: DevIchAc97.cpp 12978 2008-10-03 23:28:44Z vboxsync $ */
+/* $Id: DevIchAc97.cpp $ */
 /** @file
  * DevIchAc97 - VBox ICH AC97 Audio Controller.
  */

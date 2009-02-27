@@ -1,4 +1,4 @@
-/* $Id: VDICore.h 12639 2008-09-22 13:19:14Z vboxsync $ */
+/* $Id: VDICore.h $ */
 /** @file
  * Virtual Disk Image (VDI), Core Code Header (internal).
  */

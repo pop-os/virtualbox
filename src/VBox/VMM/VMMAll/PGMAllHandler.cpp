@@ -1,4 +1,4 @@
-/* $Id: PGMAllHandler.cpp 16047 2009-01-19 16:30:58Z vboxsync $ */
+/* $Id: PGMAllHandler.cpp $ */
 /** @file
  * PGM - Page Manager / Monitor, Access Handlers.
  */
@@ -818,6 +818,7 @@ VMMDECL(int)  PGMHandlerPhysicalReset(PVM pVM, RTGCPHYS GCPhys)
         {
             case PGMPHYSHANDLERTYPE_PHYSICAL_WRITE:
             case PGMPHYSHANDLERTYPE_PHYSICAL_ALL:
+            case PGMPHYSHANDLERTYPE_MMIO: /* @note Only use when clearing aliased mmio ranges! */
             {
                 /*
                  * Set the flags and flush shadow PT entries.
@@ -841,11 +842,6 @@ VMMDECL(int)  PGMHandlerPhysicalReset(PVM pVM, RTGCPHYS GCPhys)
             /*
              * Invalid.
              */
-            case PGMPHYSHANDLERTYPE_MMIO:
-                AssertMsgFailed(("Can't reset type %d!\n",  pCur->enmType));
-                rc = VERR_INTERNAL_ERROR;
-                break;
-
             default:
                 AssertMsgFailed(("Invalid type %d! Corruption!\n",  pCur->enmType));
                 rc = VERR_INTERNAL_ERROR;
@@ -1031,6 +1027,7 @@ VMMDECL(int)  PGMHandlerPhysicalPageReset(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCP
             int rc = pgmPhysGetPageEx(&pVM->pgm.s, GCPhysPage, &pPage);
             AssertRCReturn(rc, rc);
             PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, pgmHandlerPhysicalCalcState(pCur));
+
 #ifndef IN_RC
             HWACCMInvalidatePhysPage(pVM, GCPhysPage);
 #endif

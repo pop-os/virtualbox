@@ -1,4 +1,4 @@
-/* $Id: avlroioport.cpp 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: avlroioport.cpp $ */
 /** @file
  * IPRT - AVL tree, RTIOPORT, range, unique keys, offset pointers.
  */

@@ -1,4 +1,4 @@
-/* $Id: server.cpp 15904 2009-01-13 08:25:13Z vboxsync $ */
+/* $Id: server.cpp $ */
 /** @file
  * XPCOM server process (VBoxSVC) start point.
  */
@@ -59,6 +59,10 @@
 #include <unistd.h>
 #include <errno.h>
 #include <getopt.h>
+
+#ifndef RT_OS_OS2
+# include <sys/resource.h>
+#endif
 
 // for the backtrace signal handler
 #if defined(DEBUG) && defined(RT_OS_LINUX)
@@ -1155,6 +1159,23 @@ int main (int argc, char **argv)
             RTFileWrite(pidFile, lf, strlen(lf), NULL);
             RTFileClose(pidFile);
         }
+
+#ifndef RT_OS_OS2
+        // Increase the file table size to 10240 or as high as possible.
+        struct rlimit lim;
+        if (getrlimit(RLIMIT_NOFILE, &lim) == 0)
+        {
+            if (    lim.rlim_cur < 10240
+                &&  lim.rlim_cur < lim.rlim_max)
+            {
+                lim.rlim_cur = RT_MIN(lim.rlim_max, 10240);
+                if (setrlimit(RLIMIT_NOFILE, &lim) == -1)
+                    printf("WARNING: failed to increase file descriptor limit. (%d)\n", errno);
+            }
+        }
+        else
+            printf("WARNING: failed to obtain per-process file-descriptor limit (%d).\n", errno);
+#endif
 
         PLEvent *ev;
         while (gKeepRunning)

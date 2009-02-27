@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxErrorInfo.cpp 15051 2008-12-05 17:20:00Z vboxsync $ */
+/* $Id: VirtualBoxErrorInfo.cpp $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer:

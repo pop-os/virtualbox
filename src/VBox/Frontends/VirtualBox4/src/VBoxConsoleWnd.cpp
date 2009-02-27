@@ -384,7 +384,7 @@ VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent,
 
     ///// Menubar ///////////////////////////////////////////////////////////
 
-    mMainMenu = new QMenu (this);
+    mMainMenu = new QIMenu (this);
 
     /* Machine submenu */
 
@@ -1175,9 +1175,11 @@ void VBoxConsoleWnd::popupMainMenu (bool aCenter)
         pos.setY (pos.y() - mMainMenu->frameGeometry().height());
     }
 
-    mMainMenu->setActiveAction (mMainMenu->actions().first());
     mMainMenu->popup (pos);
+    mMainMenu->selectFirstAction();
+#ifdef Q_WS_WIN
     mMainMenu->activateWindow();
+#endif
 }
 
 //
@@ -1261,6 +1263,8 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *e)
     static const char *kPowerOff = "powerOff";
     static const char *kDiscardCurState = "discardCurState";
 
+    bool isACPIEnabled = csession.GetConsole().GetGuestEnteredACPIMode();
+
     if (!console)
     {
         e->accept();
@@ -1315,7 +1319,7 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *e)
             dlg.pmIcon->setPixmap (vboxGlobal().vmGuestOSTypeIcon (typeId));
 
             /* make the Discard checkbox invisible if there are no snapshots */
-            dlg.mCbDiscardCurState->setVisible ((cmachine.GetSnapshotCount() > 0));
+            dlg.mCbDiscardCurState->setVisible (cmachine.GetSnapshotCount() > 0);
 
             if (machine_state != KMachineState_Stuck)
             {
@@ -1323,28 +1327,24 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *e)
                 QStringList lastAction =
                     cmachine.GetExtraData (VBoxDefs::GUI_LastCloseAction).split (',');
                 AssertWrapperOk (cmachine);
-                if (lastAction [0] == kPowerOff)
-                {
-                    dlg.mRbPowerOff->setChecked (true);
-                    dlg.mRbPowerOff->setFocus();
-                }
-                else if (lastAction [0] == kShutdown)
-                {
-                    dlg.mRbShutdown->setChecked (true);
-                    dlg.mRbShutdown->setFocus();
-                }
-                else if (lastAction [0] == kSave)
+                if (lastAction [0] == kSave)
                 {
                     dlg.mRbSave->setChecked (true);
                     dlg.mRbSave->setFocus();
+                }
+                else if (lastAction [0] == kPowerOff || !isACPIEnabled)
+                {
+                    dlg.mRbShutdown->setEnabled (isACPIEnabled);
+                    dlg.mRbPowerOff->setChecked (true);
+                    dlg.mRbPowerOff->setFocus();
                 }
                 else /* the default is ACPI Shutdown */
                 {
                     dlg.mRbShutdown->setChecked (true);
                     dlg.mRbShutdown->setFocus();
                 }
-                dlg.mCbDiscardCurState->setChecked (
-                    lastAction.count() > 1 && lastAction [1] == kDiscardCurState);
+                dlg.mCbDiscardCurState->setChecked (lastAction.count() > 1 &&
+                                                    lastAction [1] == kDiscardCurState);
             }
             else
             {
@@ -1455,11 +1455,17 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *e)
 
                 if (success || wasShutdown)
                 {
+                    /* read the last user's choice for the given VM */
+                    QStringList prevAction =
+                        cmachine.GetExtraData (VBoxDefs::GUI_LastCloseAction).split (',');
                     /* memorize the last user's choice for the given VM */
                     QString lastAction = kPowerOff;
                     if (dlg.mRbSave->isChecked())
                         lastAction = kSave;
-                    else if (dlg.mRbShutdown->isChecked())
+                    else if (dlg.mRbShutdown->isChecked() ||
+                             (dlg.mRbPowerOff->isChecked() &&
+                              prevAction [0] == kShutdown &&
+                              !isACPIEnabled))
                         lastAction = kShutdown;
                     else if (dlg.mRbPowerOff->isChecked())
                         lastAction = kPowerOff;
@@ -1563,7 +1569,10 @@ bool VBoxConsoleWnd::x11Event (XEvent *event)
 }
 #endif
 
+#ifdef Q_WS_MAC
 extern void qt_set_sequence_auto_mnemonic ( bool on );
+#endif
+
 /**
  *  Sets the strings of the subwidgets using the current
  *  language.
@@ -1590,7 +1599,9 @@ void VBoxConsoleWnd::retranslateUi()
 
     /* VM actions */
 
+#ifdef Q_WS_MAC
     qt_set_sequence_auto_mnemonic (false);
+#endif
     mVmFullscreenAction->setText (VBoxGlobal::insertKeyToActionText (tr ("&Fullscreen Mode"), "F"));
     mVmFullscreenAction->setStatusTip (tr ("Switch to fullscreen mode" ));
 
@@ -2590,6 +2601,9 @@ void VBoxConsoleWnd::vmPause (bool on)
 
 void VBoxConsoleWnd::vmACPIShutdown()
 {
+    if (!csession.GetConsole().GetGuestEnteredACPIMode())
+        return vboxProblem().cannotSendACPIToMachine();
+
     if (console)
     {
         CConsole cconsole = console->console();

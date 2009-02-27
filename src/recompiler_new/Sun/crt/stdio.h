@@ -1,4 +1,4 @@
-/* $Id: stdio.h 16056 2009-01-19 19:19:02Z vboxsync $ */
+/* $Id: stdio.h $ */
 /** @file
  * Our minimal stdio
  */

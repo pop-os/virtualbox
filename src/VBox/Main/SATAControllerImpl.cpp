@@ -1,4 +1,4 @@
-/* $Id: SATAControllerImpl.cpp 14972 2008-12-04 12:10:37Z vboxsync $ */
+/* $Id: SATAControllerImpl.cpp $ */
 
 /** @file
  *

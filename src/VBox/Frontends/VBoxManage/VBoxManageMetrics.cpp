@@ -1,4 +1,4 @@
-/* $Id: VBoxManageMetrics.cpp 16052 2009-01-19 18:24:29Z vboxsync $ */
+/* $Id: VBoxManageMetrics.cpp $ */
 /** @file
  * VBoxManage - The 'metrics' command.
  */

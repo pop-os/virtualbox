@@ -1,4 +1,4 @@
-/** $Id: RTTimerLRCreate-generic.cpp 10944 2008-07-29 18:08:58Z vboxsync $ */
+/** $Id: RTTimerLRCreate-generic.cpp $ */
 /** @file
  * IPRT - Low Resolution Timers, Generic RTTimerLRCreate() Implementation.
  */

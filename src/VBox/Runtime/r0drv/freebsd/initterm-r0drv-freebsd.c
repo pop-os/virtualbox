@@ -1,4 +1,4 @@
-/* $Id: initterm-r0drv-freebsd.c 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: initterm-r0drv-freebsd.c $ */
 /** @file
  * IPRT - Initialization & Termination, Ring-0 Driver, FreeBSD.
  */

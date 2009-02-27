@@ -1,4 +1,4 @@
-/* $Id: SUPSvc-win.cpp 14303 2008-11-18 13:45:38Z vboxsync $ */
+/* $Id: SUPSvc-win.cpp $ */
 /** @file
  * VirtualBox Support Service - Windows Specific Code.
  */

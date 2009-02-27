@@ -1,4 +1,4 @@
-/* $Id: CPUMGC.cpp 13960 2008-11-07 13:04:45Z vboxsync $ */
+/* $Id: CPUMGC.cpp $ */
 /** @file
  * CPUM - Guest Context Code.
  */

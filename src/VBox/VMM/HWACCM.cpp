@@ -1,4 +1,4 @@
-/* $Id: HWACCM.cpp 16136 2009-01-21 13:17:41Z vboxsync $ */
+/* $Id: HWACCM.cpp $ */
 /** @file
  * HWACCM - Intel/AMD VM Hardware Support Manager
  */

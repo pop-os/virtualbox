@@ -1,4 +1,4 @@
-/* $Id: CFGM.cpp 14070 2008-11-10 23:45:24Z vboxsync $ */
+/* $Id: CFGM.cpp $ */
 /** @file
  * CFGM - Configuration Manager.
  */

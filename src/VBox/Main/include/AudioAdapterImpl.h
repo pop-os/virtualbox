@@ -1,4 +1,4 @@
-/* $Id: AudioAdapterImpl.h 14949 2008-12-03 15:17:16Z vboxsync $ */
+/* $Id: AudioAdapterImpl.h $ */
 
 /** @file
  *

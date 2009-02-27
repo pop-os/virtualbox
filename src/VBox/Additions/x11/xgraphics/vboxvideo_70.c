@@ -51,7 +51,34 @@
  * Authors: Paulo César Pereira de Andrade <pcpa@conectiva.com.br>
  */
 
-#define DEBUG_VERB 2
+#ifdef DEBUG_michael
+# define DEBUG_VIDEO 1
+#endif
+#ifdef DEBUG_VIDEO
+
+#define TRACE \
+do { \
+    xf86Msg(X_INFO, __PRETTY_FUNCTION__); \
+    xf86Msg(X_INFO, ": entering\n"); \
+} while(0)
+#define TRACE2 \
+do { \
+    xf86Msg(X_INFO, __PRETTY_FUNCTION__); \
+    xf86Msg(X_INFO, ": leaving\n"); \
+} while(0)
+#define TRACE3(...) \
+do { \
+    xf86Msg(X_INFO, __PRETTY_FUNCTION__); \
+    xf86Msg(X_INFO, __VA_ARGS__); \
+} while(0)
+
+#else  /* DEBUG_VIDEO not defined */
+
+#define TRACE       do { } while(0)
+#define TRACE2      do { } while(0)
+#define TRACE3(...) do { } while(0)
+
+#endif  /* DEBUG_VIDEO not defined */
 
 #ifdef XFree86LOADER
 # include "xorg-server.h"
@@ -885,8 +912,16 @@ static void
 VBOXAdjustFrame(int scrnIndex, int x, int y, int flags)
 {
     VBOXPtr pVBox = VBOXGetRec(xf86Screens[scrnIndex]);
+    ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
 
+    pVBox->viewportX = x;
+    pVBox->viewportY = y;
+    /* If VBVA is enabled the graphics card will not notice the change. */
+    if (pVBox->useVbva == TRUE)
+        vboxDisableVbva(pScrn);
     VBESetDisplayStart(pVBox->pVbe, x, y, TRUE);
+    if (pVBox->useVbva == TRUE)
+        vboxEnableVbva(pScrn);
 }
 
 static void

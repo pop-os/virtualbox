@@ -1,4 +1,4 @@
-; $Id: remainderf.asm 8256 2008-04-21 20:53:28Z vboxsync $
+; $Id: remainderf.asm $
 ;; @file
 ; IPRT - No-CRT remainderf - AMD64 & X86.
 ;

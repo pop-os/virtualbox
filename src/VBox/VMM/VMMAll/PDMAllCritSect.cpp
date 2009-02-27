@@ -1,4 +1,4 @@
-/* $Id: PDMAllCritSect.cpp 13898 2008-11-06 09:44:29Z vboxsync $ */
+/* $Id: PDMAllCritSect.cpp $ */
 /** @file
  * PDM - Critical Sections, All Contexts.
  */

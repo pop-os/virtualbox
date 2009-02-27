@@ -1,4 +1,4 @@
-/* $Id: NetIfList-win.cpp 15966 2009-01-15 13:14:53Z vboxsync $ */
+/* $Id: NetIfList-win.cpp $ */
 /** @file
  * Main - NetIfList, Windows implementation.
  */

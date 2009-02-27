@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 12446 2008-09-14 23:32:31Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the X11 Guest Additions.
 #

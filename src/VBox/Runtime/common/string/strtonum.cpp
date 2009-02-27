@@ -1,4 +1,4 @@
-/* $Id: strtonum.cpp 8279 2008-04-22 12:13:16Z vboxsync $ */
+/* $Id: strtonum.cpp $ */
 /** @file
  * IPRT - String To Number Convertion.
  */

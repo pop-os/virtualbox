@@ -1,4 +1,4 @@
-/* $Id: stream.cpp 14060 2008-11-10 23:10:48Z vboxsync $ */
+/* $Id: stream.cpp $ */
 /** @file
  * IPRT - I/O Stream.
  */

@@ -1,4 +1,4 @@
-/* $Id: DrvHostSerial.cpp 15836 2009-01-07 15:45:20Z vboxsync $ */
+/* $Id: DrvHostSerial.cpp $ */
 /** @file
  * VBox stream I/O devices: Host serial driver
  *
@@ -757,7 +757,7 @@ static DECLCALLBACK(int) drvHostSerialRecvThread(PPDMDRVINS pDrvIns, PPDMTHREAD 
             rc = RTFileRead(pThis->DeviceFileR, abBuffer, sizeof(abBuffer), &cbRead);
             if (RT_FAILURE(rc))
             {
-                LogRel(("HostSerial#%d: Read failed with %Rrc, terminating the worker thread.\n", pDrvIns->iInstance, rc));
+                LogRel(("HostSerial#%d: (1) Read failed with %Rrc, terminating the worker thread.\n", pDrvIns->iInstance, rc));
                 rcThread = rc;
                 break;
             }
@@ -795,7 +795,11 @@ static DECLCALLBACK(int) drvHostSerialRecvThread(PPDMDRVINS pDrvIns, PPDMTHREAD 
             rc = RTFileRead(pThis->DeviceFile, abBuffer, sizeof(abBuffer), &cbRead);
             if (RT_FAILURE(rc))
             {
-                LogRel(("HostSerial#%d: Read failed with %Rrc, terminating the worker thread.\n", pDrvIns->iInstance, rc));
+                /* don't terminate worker thread when data unavailable */
+                if (rc == VERR_TRY_AGAIN)
+                    continue;
+
+                LogRel(("HostSerial#%d: (2) Read failed with %Rrc, terminating the worker thread.\n", pDrvIns->iInstance, rc));
                 rcThread = rc;
                 break;
             }
@@ -963,7 +967,7 @@ static DECLCALLBACK(int) drvHostSerialMonitorThread(PPDMDRVINS pDrvIns, PPDMTHRE
         /*
          * Wait for status line change.
          */
-        rc = ioctl(pThis->DeviceFile, TIOCMIWAIT, &uStatusLinesToCheck);
+        rc = ioctl(pThis->DeviceFile, TIOCMIWAIT, uStatusLinesToCheck);
         if (pThread->enmState != PDMTHREADSTATE_RUNNING)
             break;
         if (rc < 0)

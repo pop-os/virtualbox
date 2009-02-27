@@ -1,4 +1,4 @@
-/* $Id: env-posix.cpp 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: env-posix.cpp $ */
 /** @file
  * IPRT - Environment, Posix.
  */
@@ -32,6 +32,11 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#ifdef RT_OS_DARWIN
+/* pick the correct prototype for unsetenv. */
+# define _POSIX_C_SOURCE 1
+#endif
+
 #include <iprt/env.h>
 #include <iprt/string.h>
 #include <iprt/alloca.h>
@@ -99,8 +104,22 @@ RTDECL(int) RTEnvUnset(const char *pszVar)
         return VINF_ENV_VAR_NOT_FOUND;
 
     /* Ok, try remove it. */
-    if (!putenv((char *)pszVar))
+#ifdef RT_OS_WINDOWS
+    /* Windows does not have unsetenv(). Clear the environment variable according to the MSN docs. */
+    char *pszBuf;
+    int rc = RTStrAPrintf(&pszBuf, "%s=", pszVar);
+    if (RT_FAILURE(rc))
+        return rc;
+    rc = putenv(pszBuf);
+    RTStrFree(pszBuf);
+    if (!rc)
         return VINF_SUCCESS;
+#else
+    /* This is the preferred function as putenv() like used above does neither work on Solaris nor on Darwin. */
+    if (!unsetenv((char*)pszVar))
+        return VINF_SUCCESS;
+#endif
+
     return RTErrConvertFromErrno(errno);
 }
 

@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.cpp 15874 2009-01-08 16:26:25Z vboxsync $ */
+/* $Id: DisplayImpl.cpp $ */
 
 /** @file
  *

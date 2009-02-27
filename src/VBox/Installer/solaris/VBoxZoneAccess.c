@@ -1,4 +1,4 @@
-/* $Id: VBoxZoneAccess.c 15550 2008-12-15 21:34:32Z vboxsync $ */
+/* $Id: VBoxZoneAccess.c $ */
 /** @file
  * VBoxZoneAccess - Hack that keeps vboxdrv referenced for granting zone access, Solaris hosts.
  */

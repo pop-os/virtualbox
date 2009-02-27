@@ -92,6 +92,7 @@ typedef struct NATState
     struct in_addr alias_addr;
     struct in_addr special_addr;
     struct in_addr dns_addr;
+    struct in_addr tftp_server;
     struct in_addr loopback_addr;
     uint32_t netmask;
     uint8_t client_ethaddr[6];

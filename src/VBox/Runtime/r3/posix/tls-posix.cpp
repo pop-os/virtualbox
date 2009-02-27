@@ -1,4 +1,4 @@
-/* $Id: tls-posix.cpp 11790 2008-08-28 19:53:30Z vboxsync $ */
+/* $Id: tls-posix.cpp $ */
 /** @file
  * IPRT - Thread Local Storage (TLS), POSIX.
  */

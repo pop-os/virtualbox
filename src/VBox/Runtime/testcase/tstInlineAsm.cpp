@@ -1,4 +1,4 @@
-/* $Id: tstInlineAsm.cpp 14831 2008-11-30 10:31:16Z vboxsync $ */
+/* $Id: tstInlineAsm.cpp $ */
 /** @file
  * IPRT Testcase - inline assembly.
  */

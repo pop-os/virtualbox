@@ -1,4 +1,4 @@
-/* $Id: VBoxDockIconPreview.cpp 15804 2009-01-05 14:55:35Z vboxsync $ */
+/* $Id: VBoxDockIconPreview.cpp $ */
 /** @file
  * Qt GUI - Realtime Dock Icon Preview
  */

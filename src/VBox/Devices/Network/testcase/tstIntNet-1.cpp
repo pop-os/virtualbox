@@ -1,4 +1,4 @@
-/* $Id: tstIntNet-1.cpp 11822 2008-08-29 14:21:03Z vboxsync $ */
+/* $Id: tstIntNet-1.cpp $ */
 /** @file
  * VBox - Testcase for internal networking, simple NetFlt trunk creation.
  */

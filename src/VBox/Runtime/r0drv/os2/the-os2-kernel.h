@@ -1,4 +1,4 @@
-/* $Id: the-os2-kernel.h 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: the-os2-kernel.h $ */
 /** @file
  * IPRT - Ring-0 Driver, The OS/2 Kernel Headers.
  */

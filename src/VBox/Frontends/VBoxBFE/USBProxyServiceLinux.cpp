@@ -1,4 +1,4 @@
-/* $Id: USBProxyServiceLinux.cpp 13837 2008-11-05 02:54:02Z vboxsync $ */
+/* $Id: USBProxyServiceLinux.cpp $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Implementation of USBProxyServiceLinux class

@@ -1,4 +1,4 @@
-/* $Id: RTSystemQueryOSInfo-generic.cpp 11350 2008-08-12 11:25:18Z vboxsync $ */
+/* $Id: RTSystemQueryOSInfo-generic.cpp $ */
 /** @file
  * IPRT - RTSystemQueryOSInfo, generic stub.
  */

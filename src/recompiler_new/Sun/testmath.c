@@ -1,4 +1,4 @@
-/* $Id: testmath.c 14916 2008-12-02 15:41:18Z vboxsync $ */
+/* $Id: testmath.c $ */
 /** @file
  * Testcase for the no-crt math stuff.
  */

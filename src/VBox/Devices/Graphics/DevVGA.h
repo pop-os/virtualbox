@@ -1,4 +1,4 @@
-/* $Id: DevVGA.h 15120 2008-12-08 16:53:53Z vboxsync $ */
+/* $Id: DevVGA.h $ */
 /** @file
  * DevVGA - VBox VGA/VESA device, internal header.
  */
