@@ -1,6 +1,6 @@
-virtualbox-ose (2.1.4-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (2.1.4-dfsg-1) unstable; urgency=high
 
-  * New Upstream Version
+  * New upstream version
   * Updated control file to refer to git instead of svn.
   * Made sure that init script does not fail if module loading is not enabled.
     Closes: #516242

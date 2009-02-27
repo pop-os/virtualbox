@@ -10,6 +10,7 @@ Uploaders: Philipp Hug <debian@hug.cx>,
            Hilko Bengen <bengen@debian.org>
 Build-Depends:	bcc,
 		bzip2,
+		chrpath,
 		debhelper (>= 5.0.44~),
 		docbook-xml,
 		docbook-xsl,

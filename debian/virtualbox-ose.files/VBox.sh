@@ -52,8 +52,6 @@ WARNING: The character device /dev/vboxdrv does not exist.
 EOF
 fi
 
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$INSTALL_DIR"
-
 APP=`which $0`
 APP=${APP##/*/}
 case "$APP" in
