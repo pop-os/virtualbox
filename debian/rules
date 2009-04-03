@@ -10,8 +10,10 @@ gsource:=virtualbox-ose-guest-source
 
 # The short upstream name
 sname:=virtualbox-ose
+sxname:=virtualbox-ose-qt
 gname:=virtualbox-ose-guest
 uname:=virtualbox-ose-guest-utils
+uxname:=virtualbox-ose-guest-x11
 
 MAKE:=kmk
 
@@ -109,25 +111,25 @@ binary-arch: build install
 	dh_installdocs -s
 	dh_installmenu -s
 	dh_install -s
-	chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh
-	-chmod 755 debian/$(uname)/usr/share/virtualbox/x11config.pl
-	-install -m 644 out/bin/additions/vboxvideo_drv_14.so debian/$(uname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
-	-install -m 644 out/bin/additions/vboxmouse_drv_14.so debian/$(uname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
+	-chmod 755 debian/$(uxname)/usr/share/virtualbox/x11config.pl
+	-install -m 644 out/bin/additions/vboxvideo_drv_14.so debian/$(uxname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
+	-install -m 644 out/bin/additions/vboxmouse_drv_14.so debian/$(uxname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
+	-install -m 755 src/VBox/Additions/x11/installer/VBoxRandR.sh debian/$(uxname)/usr/bin/VBoxRandR
+	-chrpath -d debian/$(uxname)/usr/bin/VBoxClient
+	-chrpath -d debian/$(uxname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
+	-chrpath -d debian/$(uxname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
 	-install -m 755 out/bin/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
-	-install -m 755 src/VBox/Additions/x11/installer/VBoxRandR.sh debian/$(uname)/usr/bin/VBoxRandR
 	-chrpath -d debian/$(uname)/sbin/mount.vboxsf 
-	-chrpath -d debian/$(uname)/usr/bin/VBoxClient
-	-chrpath -d debian/$(uname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
-	-chrpath -d debian/$(uname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
 	-chrpath -d debian/$(uname)/usr/sbin/vboxadd-timesync
+	-chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh
 	dh_strip -s --dbg-package=$(sname)-dbg
 	dh_link -s
 	dh_compress -s
 	dh_fixperms -s
-	chmod +s debian/$(sname)/usr/lib/virtualbox/VirtualBox
 	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxSDL
 	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxBFE
 	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxHeadless
+	chmod +s debian/$(sxname)/usr/lib/virtualbox/VirtualBox
 	dh_installudev -s
 	dh_installdebconf -s
 	dh_installinit -s

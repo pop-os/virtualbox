@@ -2,10 +2,6 @@
 /usr/share/virtualbox/VBox.sh /usr/bin/vboxmanage
 /usr/share/virtualbox/VBox.sh /usr/bin/vboxsdl
 /usr/share/virtualbox/VBox.sh /usr/bin/vboxwebsrv
-/usr/share/virtualbox/VBox.sh /usr/bin/virtualbox
 /usr/share/virtualbox/VBox.sh /usr/bin/VBoxHeadless
 /usr/share/virtualbox/VBox.sh /usr/bin/VBoxManage
 /usr/share/virtualbox/VBox.sh /usr/bin/VBoxSDL
-/usr/share/virtualbox/VBox.sh /usr/bin/VirtualBox
-
-/usr/share/virtualbox/VBox.png /usr/share/icons/virtualbox.png

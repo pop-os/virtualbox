@@ -1,0 +1,2 @@
+virtualbox-ose-qt: shlib-with-non-pic-code usr/lib/virtualbox/VirtualBox.so
+virtualbox-ose-qt: setuid-gid-binary usr/lib/virtualbox/VirtualBox 6755 root/root

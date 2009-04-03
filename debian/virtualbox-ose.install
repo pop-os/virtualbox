@@ -1,7 +1,5 @@
 debian/virtualbox-ose.files/vbox.cfg /etc/vbox
 debian/virtualbox-ose.files/*.sh /usr/share/virtualbox
-debian/virtualbox-ose.files/virtualbox-ose.desktop /usr/share/applications
-debian/virtualbox-ose.files/virtualbox-ose.xpm /usr/share/pixmaps
 
 debian/lintian/virtualbox-ose /usr/share/lintian/overrides
 
@@ -16,11 +14,8 @@ out/bin/VBoxManage /usr/lib/virtualbox
 out/bin/VBoxSDL /usr/lib/virtualbox
 out/bin/VBoxSVC /usr/lib/virtualbox
 out/bin/VBoxXPCOM* /usr/lib/virtualbox
-out/bin/VirtualBox* /usr/lib/virtualbox
 out/bin/VMM* /usr/lib/virtualbox
 out/bin/vboxwebsrv /usr/lib/virtualbox
 out/bin/webtest /usr/lib/virtualbox
 
-out/bin/nls /usr/share/virtualbox
-out/bin/VBox.png /usr/share/virtualbox
 out/bin/VBoxSysInfo.sh /usr/share/virtualbox

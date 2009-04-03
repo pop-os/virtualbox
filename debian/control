@@ -23,7 +23,7 @@ Build-Depends:	bcc,
 		kbuild (>= 1:0.1.5svn2243),
 		libacl1-dev,
 		libasound-dev,
-		libcap-dev,
+		libcap2-dev,
 		libgl1-mesa-dev,
 		libglu1-mesa-dev,
 		libhal-dev,
@@ -51,6 +51,21 @@ Homepage: http://www.virtualbox.org/
 Vcs-Git: git://git.debian.org/git/pkg-virtualbox/virtualbox-ose.git
 Vcs-Browser: http://git.debian.org/?p=pkg-virtualbox/virtualbox-ose.git
 
+Package: virtualbox-ose-qt
+Architecture: amd64 i386 lpia
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+	 virtualbox-ose
+Pre-Depends: debconf | debconf-2.0
+Replaces: virtualbox-ose
+Description: x86 virtualization solution - QT4 based user interface
+ VirtualBox is a free x86 virtualization solution allowing a wide range
+ of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
+ Linux system.
+ .
+ This package provides the binaries for the iQT4 based graphical user interface
+ of the Open Source Edition of VirtualBox.
+
 Package: virtualbox-ose
 Architecture: amd64 i386 lpia
 Depends: ${shlibs:Depends},
@@ -58,11 +73,13 @@ Depends: ${shlibs:Depends},
          adduser,
 	 python
 Pre-Depends: debconf | debconf-2.0
-Recommends: virtualbox-ose-modules, libgl1
-Suggests: virtualbox-ose-source, bridge-utils
+Recommends: virtualbox-ose-modules,
+	    virtualbox-ose-qt,
+	    libgl1
+Suggests: virtualbox-ose-source
 Conflicts: virtualbox
-Replaces: virtualbox
 Provides: virtualbox
+Replaces: virtualbox
 Description: x86 virtualization solution - binaries
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -73,7 +90,7 @@ Description: x86 virtualization solution - binaries
  compile the kernel modules needed for virtualbox-ose.
 
 Package: virtualbox-ose-dbg
-Section: debug
+Section: devel
 Priority: extra
 Architecture: amd64 i386 lpia
 Depends: ${misc:Depends},
@@ -124,25 +141,38 @@ Description: x86 virtualization solution - guest addition module source
  make use of these modules. Kernel sources or headers are required to compile
  these modules.
 
-Package: virtualbox-ose-guest-utils
+Package: virtualbox-ose-guest-x11
 Architecture: i386 amd64 lpia
 Depends: ${shlibs:Depends},
          ${misc:Depends},
+	 virtualbox-ose-guest-utils,
          pciutils
 Conflicts: xserver-xorg-core (< 2:1.4)
-Recommends: virtualbox-ose-guest-modules,
-            xserver-xorg-core (>= 2:1.4)
-Suggests: virtualbox-ose-guest-source
+Recommends: xserver-xorg-core (>= 2:1.4)
 Provides: xserver-xorg-video-2,
           xserver-xorg-input-2
-Description: x86 virtualization solution - guest utilities
+Description: x86 virtualization solution - X11 guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
  Linux system.
  .
- This package provides the guest utilities of the Open Source Edition of
+ This package provides the X11 guest utilities of the Open Source Edition of
  VirtualBox. These utilities are meant to be run inside the virtual machine.
- They provide closer integration (e.g. mouse pointer, time synchronization),
- improve the interactive performance (e.g. better video support), and allow to
- share data through shared folders between the host system and the virtual
- machine.
+ They provide closer integration and improve the interactive performance.
+
+Package: virtualbox-ose-guest-utils
+Architecture: i386 amd64 lpia
+Depends: ${shlibs:Depends},
+         ${misc:Depends}
+Recommends: virtualbox-ose-guest-modules,
+	    virtualbox-ose-guest-x11
+Suggests: virtualbox-ose-guest-source
+Description: x86 virtualization solution - non-X11 guest utilities
+ VirtualBox is a free x86 virtualization solution allowing a wide range
+ of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
+ Linux system.
+ .
+ This package provides the non-X11 guest utilities of the Open Source Edition of
+ VirtualBox. These utilities are meant to be run inside the virtual machine.
+ They provide closer integration and allow to share data through shared folders
+ between the host system and the virtual machine.

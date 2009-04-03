@@ -1,0 +1,9 @@
+debian/virtualbox-ose-qt.files/virtualbox-ose.desktop /usr/share/applications
+debian/virtualbox-ose-qt.files/virtualbox-ose.xpm /usr/share/pixmaps
+
+debian/lintian/virtualbox-ose-qt /usr/share/lintian/overrides
+
+out/bin/VirtualBox* /usr/lib/virtualbox
+
+out/bin/nls /usr/share/virtualbox
+out/bin/VBox.png /usr/share/virtualbox

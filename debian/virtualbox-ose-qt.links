@@ -1,0 +1,4 @@
+/usr/share/virtualbox/VBox.sh /usr/bin/virtualbox
+/usr/share/virtualbox/VBox.sh /usr/bin/VirtualBox
+
+/usr/share/virtualbox/VBox.png /usr/share/icons/virtualbox.png

@@ -1,5 +1,1 @@
 out/bin/additions/vboxadd-timesync /usr/sbin
-out/bin/additions/VBoxClient /usr/bin
-src/VBox/Additions/x11/installer/x11config.pl /usr/share/virtualbox
-src/VBox/Additions/x11/installer/98vboxadd-xclient /etc/X11/Xsession.d
-src/VBox/Additions/x11/installer/vboxvideo.ids /usr/share/xserver-xorg/pci
