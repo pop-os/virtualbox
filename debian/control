@@ -46,7 +46,7 @@ Build-Depends:	bcc,
 		yasm (>= 0.7.0),
 		xsltproc,
 		zlib1g-dev
-Standards-Version: 3.8.0
+Standards-Version: 3.8.1
 Homepage: http://www.virtualbox.org/
 Vcs-Git: git://git.debian.org/git/pkg-virtualbox/virtualbox-ose.git
 Vcs-Browser: http://git.debian.org/?p=pkg-virtualbox/virtualbox-ose.git

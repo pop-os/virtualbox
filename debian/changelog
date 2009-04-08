@@ -7,6 +7,7 @@ virtualbox-ose (2.2.0-dfsg-1) UNRELEASED; urgency=low
   * Documented problem with kernel 2.6.29, closes: #518739
   * Documented missing format attribute, closes: #517454
   * Added patch to disable checking for updates, closes: #516551
+  * Bumped Standards-Version to 3.8.1
 
  -- Michael Meskes <meskes@debian.org>  Wed, 08 Apr 2009 12:30:54 +0200
 
