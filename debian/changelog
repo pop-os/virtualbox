@@ -5,6 +5,7 @@ virtualbox-ose (2.2.0-dfsg-1) UNRELEASED; urgency=low
   * Move QT4 based user interface into seperate package, closes: #508395
   * Added new URL for WineD3D guest additions, closes: 522672
   * Documented problem with kernel 2.6.29, closes: #518739
+  * Documented missing format attribute, closes: #517454
 
  -- Michael Meskes <meskes@debian.org>  Wed, 08 Apr 2009 12:30:54 +0200
 

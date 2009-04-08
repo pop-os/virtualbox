@@ -1,9 +1,15 @@
 virtualbox-ose for Debian
 -------------------------
 
+When upgrading from a pre 2.0.0 version to virtualbox might complaing about a
+missing format attribute in the HardDisk tag of VirtualBox.xml. Manually adding
+'format="vdi"' solves this.
+
+ -- Michael Meskes <meskes@debian.org> Wed, 08 Apr 2009 12:52:40 +0200
+
 A bug appeared in in kernel 2.6.29 RC5 that broke virtualbox-ose. The fix was
 added in 2.6.29.1. If you happen to use 2.6.29 and epxerience problems starting
 your VMs please upgrade. In Debian all linux-image-2.6.29 versions starting
 with Debian version 2.6.29-2 are fine.
 
- -- Michael Meskes <meskes@debian.org> Wed, 08 Apr 2009 12:52:40 +0200
+ -- Michael Meskes <meskes@debian.org> Wed, 08 Apr 2009 13:03:43 +0200
