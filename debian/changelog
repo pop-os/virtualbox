@@ -1,8 +1,8 @@
 virtualbox-ose (2.2.0-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream version.
-  * Move X11 guest utils into seperate packages, closes: #520438
-  * Move QT4 based user interface into seperate package, closes: #508395
+  * Move X11 guest utils into separate packages, closes: #520438
+  * Move QT4 based user interface into separate package, closes: #508395
   * Added new URL for WineD3D guest additions, closes: 522672
   * Documented problem with kernel 2.6.29, closes: #518739
   * Documented missing format attribute, closes: #517454
@@ -600,7 +600,7 @@ virtualbox-ose (1.5.2-dfsg2-1) unstable; urgency=low
   * Repackaged dfsg orig tarball accordingly.
   * Added linux installer tools, closes: #448749
   * Provide programs with upstream upper/lower case mix as used by upstream.
-  * Added linux additions in two seperate packages, closes: #440517, #449315
+  * Added linux additions in two separate packages, closes: #440517, #449315
   * Install vboxnet.sh as init script.
   * Changed build system to work without kernel sources.
 
