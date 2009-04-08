@@ -90,7 +90,7 @@ Description: x86 virtualization solution - binaries
  compile the kernel modules needed for virtualbox-ose.
 
 Package: virtualbox-ose-dbg
-Section: devel
+Section: debug
 Priority: extra
 Architecture: amd64 i386 lpia
 Depends: ${misc:Depends},
