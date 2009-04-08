@@ -3,8 +3,9 @@ virtualbox-ose (2.2.0-dfsg-1) UNRELEASED; urgency=low
   * New upstream version.
   * Move X11 guest utils into seperate packages, closes: #520438
   * Move QT4 based user interface into seperate package, closes: #508395
+  * Added new URL for WineD3D guest additions, closes: 522672
 
- -- Michael Meskes <meskes@debian.org>  Fri, 03 Apr 2009 15:12:19 +0200
+ -- Michael Meskes <meskes@debian.org>  Wed, 08 Apr 2009 12:30:54 +0200
 
 virtualbox-ose (2.1.4-dfsg-1) unstable; urgency=high
 

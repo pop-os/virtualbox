@@ -108,7 +108,7 @@ diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox4/src/VBoxConsol
 +
 +    /* Download the required image */
 +    {
-+        QString source = QString ("http://aybabtu.com/rmh/wined3d/pub/latest/wined3d.iso");
++        QString source = QString ("http://download.savannah.nongnu.org/releases/wined3d/latest/wined3d.iso");
 +        QString target = QDir (vboxGlobal().virtualBox().GetHomeFolder())
 +                               .absoluteFilePath (name);
 +
