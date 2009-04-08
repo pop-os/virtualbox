@@ -1,0 +1,9 @@
+virtualbox-ose for Debian
+-------------------------
+
+A bug appeared in in kernel 2.6.29 RC5 that broke virtualbox-ose. The fix was
+added in 2.6.29.1. If you happen to use 2.6.29 and epxerience problems starting
+your VMs please upgrade. In Debian all linux-image-2.6.29 versions starting
+with Debian version 2.6.29-2 are fine.
+
+ -- Michael Meskes <meskes@debian.org> Wed, 08 Apr 2009 12:52:40 +0200
