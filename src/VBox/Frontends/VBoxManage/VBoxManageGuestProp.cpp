@@ -1,4 +1,4 @@
-/* $Id: VBoxManageGuestProp.cpp $ */
+/* $Id: VBoxManageGuestProp.cpp 18772 2009-04-06 15:09:26Z vboxsync $ */
 /** @file
  * VBoxManage - The 'guestproperty' command.
  */
@@ -23,17 +23,14 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-
-#if defined(VBOX_WITH_XPCOM) && !defined(RT_OS_DARWIN) && !defined(RT_OS_OS2)
-# define USE_XPCOM_QUEUE
-#endif
-
 #include "VBoxManage.h"
 
 #include <VBox/com/com.h>
 #include <VBox/com/string.h>
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
+#include <VBox/com/errorprint2.h>
+
 #include <VBox/com/VirtualBox.h>
 
 #include <VBox/log.h>
@@ -47,20 +44,24 @@
 
 using namespace com;
 
+/**
+ * IVirtualBoxCallback implementation for handling the GuestPropertyCallback in
+ * relation to the "guestproperty wait" command.
+ */
 class GuestPropertyCallback : public IVirtualBoxCallback
 {
 public:
     GuestPropertyCallback(const char *pszPatterns, Guid aUuid)
         : mSignalled(false), mPatterns(pszPatterns), mUuid(aUuid)
     {
-#if defined (RT_OS_WINDOWS)
+#ifndef VBOX_WITH_XPCOM
         refcnt = 0;
 #endif
     }
 
     virtual ~GuestPropertyCallback() {}
 
-#ifdef RT_OS_WINDOWS
+#ifndef VBOX_WITH_XPCOM
     STDMETHOD_(ULONG, AddRef)()
     {
         return ::InterlockedIncrement(&refcnt);
@@ -89,7 +90,7 @@ public:
         *ppObj = NULL;
         return E_NOINTERFACE;
     }
-#endif
+#endif /* !VBOX_WITH_XPCOM */
 
     NS_DECL_ISUPPORTS
 
@@ -121,12 +122,12 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(OnMediaRegistered) (IN_GUID mediaId,
-                                  DeviceType_T mediaType, BOOL registered)
+    STDMETHOD(OnMediaRegistered)(IN_GUID mediaId,
+                                 DeviceType_T mediaType, BOOL registered)
     {
-        NOREF (mediaId);
-        NOREF (mediaType);
-        NOREF (registered);
+        NOREF(mediaId);
+        NOREF(mediaType);
+        NOREF(registered);
         return S_OK;
     }
 
@@ -141,20 +142,20 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(OnSnapshotTaken) (IN_GUID aMachineId,
+    STDMETHOD(OnSnapshotTaken)(IN_GUID aMachineId,
+                               IN_GUID aSnapshotId)
+    {
+        return S_OK;
+    }
+
+    STDMETHOD(OnSnapshotDiscarded)(IN_GUID aMachineId,
+                                   IN_GUID aSnapshotId)
+    {
+        return S_OK;
+    }
+
+    STDMETHOD(OnSnapshotChange)(IN_GUID aMachineId,
                                 IN_GUID aSnapshotId)
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnSnapshotDiscarded) (IN_GUID aMachineId,
-                                    IN_GUID aSnapshotId)
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnSnapshotChange) (IN_GUID aMachineId,
-                                 IN_GUID aSnapshotId)
     {
         return S_OK;
     }
@@ -163,18 +164,18 @@ public:
                                      IN_BSTR name, IN_BSTR value,
                                      IN_BSTR flags)
     {
-        int rc = S_OK;
+        HRESULT rc = S_OK;
         Utf8Str utf8Name (name);
         Guid uuid(machineId);
         if (utf8Name.isNull())
             rc = E_OUTOFMEMORY;
         if (   SUCCEEDED (rc)
             && uuid == mUuid
-            && RTStrSimplePatternMultiMatch (mPatterns, RTSTR_MAX,
-                                             utf8Name.raw(), RTSTR_MAX, NULL))
+            && RTStrSimplePatternMultiMatch(mPatterns, RTSTR_MAX,
+                                            utf8Name.raw(), RTSTR_MAX, NULL))
         {
-            RTPrintf ("Name: %lS, value: %lS, flags: %lS\n", name, value,
-                      flags);
+            RTPrintf("Name: %lS, value: %lS, flags: %lS\n", name, value,
+                     flags);
             mSignalled = true;
         }
         return rc;
@@ -186,7 +187,7 @@ private:
     bool mSignalled;
     const char *mPatterns;
     Guid mUuid;
-#ifdef RT_OS_WINDOWS
+#ifndef VBOX_WITH_XPCOM
     long refcnt;
 #endif
 
@@ -200,16 +201,16 @@ NS_IMPL_ISUPPORTS1_CI(GuestPropertyCallback, IVirtualBoxCallback)
 void usageGuestProperty(void)
 {
     RTPrintf("VBoxManage guestproperty    get <vmname>|<uuid>\n"
-             "                            <property> [-verbose]\n"
+             "                            <property> [--verbose]\n"
              "\n");
     RTPrintf("VBoxManage guestproperty    set <vmname>|<uuid>\n"
-             "                            <property> [<value> [-flags <flags>]]\n"
+             "                            <property> [<value> [--flags <flags>]]\n"
              "\n");
     RTPrintf("VBoxManage guestproperty    enumerate <vmname>|<uuid>\n"
-             "                            [-patterns <patterns>]\n"
+             "                            [--patterns <patterns>]\n"
              "\n");
     RTPrintf("VBoxManage guestproperty    wait <vmname>|<uuid> <patterns>\n"
-             "                            [-timeout <timeout>]\n"
+             "                            [--timeout <timeout>]\n"
              "\n");
 }
 
@@ -218,7 +219,9 @@ static int handleGetGuestProperty(HandlerArg *a)
     HRESULT rc = S_OK;
 
     bool verbose = false;
-    if ((3 == a->argc) && (0 == strcmp(a->argv[2], "-verbose")))
+    if (    a->argc == 3
+        &&  (   !strcmp(a->argv[2], "--verbose")
+             || !strcmp(a->argv[2], "-verbose")))
         verbose = true;
     else if (a->argc != 2)
         return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
@@ -238,16 +241,16 @@ static int handleGetGuestProperty(HandlerArg *a)
 
         /* open a session for the VM - new or existing */
         if (FAILED (a->virtualBox->OpenSession(a->session, uuid)))
-            CHECK_ERROR_RET (a->virtualBox, OpenExistingSession(a->session, uuid), 1);
+            CHECK_ERROR_RET(a->virtualBox, OpenExistingSession(a->session, uuid), 1);
 
         /* get the mutable session machine */
         a->session->COMGETTER(Machine)(machine.asOutParam());
 
         Bstr value;
-        uint64_t u64Timestamp;
+        ULONG64 u64Timestamp;
         Bstr flags;
         CHECK_ERROR(machine, GetGuestProperty(Bstr(a->argv[1]), value.asOutParam(),
-                    &u64Timestamp, flags.asOutParam()));
+                                              &u64Timestamp, flags.asOutParam()));
         if (!value)
             RTPrintf("No value set!\n");
         if (value)
@@ -265,24 +268,23 @@ static int handleSetGuestProperty(HandlerArg *a)
 {
     HRESULT rc = S_OK;
 
-/*
- * Check the syntax.  We can deduce the correct syntax from the number of
- * arguments.
- */
+    /*
+     * Check the syntax.  We can deduce the correct syntax from the number of
+     * arguments.
+     */
     bool usageOK = true;
     const char *pszName = NULL;
     const char *pszValue = NULL;
     const char *pszFlags = NULL;
-    if (3 == a->argc)
-    {
+    if (a->argc == 3)
         pszValue = a->argv[2];
-    }
-    else if (4 == a->argc)
+    else if (a->argc == 4)
         usageOK = false;
-    else if (5 == a->argc)
+    else if (a->argc == 5)
     {
         pszValue = a->argv[2];
-        if (strcmp(a->argv[3], "-flags") != 0)
+        if (   !strcmp(a->argv[3], "--flags")
+            || !strcmp(a->argv[3], "-flags"))
             usageOK = false;
         pszFlags = a->argv[4];
     }
@@ -313,9 +315,9 @@ static int handleSetGuestProperty(HandlerArg *a)
         /* get the mutable session machine */
         a->session->COMGETTER(Machine)(machine.asOutParam());
 
-        if ((NULL == pszValue) && (NULL == pszFlags))
+        if (!pszValue && !pszFlags)
             CHECK_ERROR(machine, SetGuestPropertyValue(Bstr(pszName), NULL));
-        else if (NULL == pszFlags)
+        else if (!pszFlags)
             CHECK_ERROR(machine, SetGuestPropertyValue(Bstr(pszName), Bstr(pszValue)));
         else
             CHECK_ERROR(machine, SetGuestProperty(Bstr(pszName), Bstr(pszValue), Bstr(pszFlags)));
@@ -336,24 +338,27 @@ static int handleSetGuestProperty(HandlerArg *a)
  */
 static int handleEnumGuestProperty(HandlerArg *a)
 {
-/*
- * Check the syntax.  We can deduce the correct syntax from the number of
- * arguments.
- */
-    if ((a->argc < 1) || (2 == a->argc) ||
-        ((a->argc > 3) && strcmp(a->argv[1], "-patterns") != 0))
+    /*
+     * Check the syntax.  We can deduce the correct syntax from the number of
+     * arguments.
+     */
+    if (    a->argc < 1
+        ||  a->argc == 2
+        ||  (   a->argc > 3
+             && strcmp(a->argv[1], "--patterns")
+             && strcmp(a->argv[1], "-patterns")))
         return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
 
-/*
- * Pack the patterns
- */
+    /*
+     * Pack the patterns
+     */
     Utf8Str Utf8Patterns(a->argc > 2 ? a->argv[2] : "*");
-    for (ssize_t i = 3; i < a->argc; ++i)
+    for (int i = 3; i < a->argc; ++i)
         Utf8Patterns = Utf8StrFmt ("%s,%s", Utf8Patterns.raw(), a->argv[i]);
 
-/*
- * Make the actual call to Main.
- */
+    /*
+     * Make the actual call to Main.
+     */
     ComPtr<IMachine> machine;
     /* assume it's a UUID */
     HRESULT rc = a->virtualBox->GetMachine(Guid(a->argv[0]), machine.asOutParam());
@@ -368,7 +373,7 @@ static int handleEnumGuestProperty(HandlerArg *a)
         machine->COMGETTER(Id)(uuid.asOutParam());
 
         /* open a session for the VM - new or existing */
-        if (FAILED (a->virtualBox->OpenSession(a->session, uuid)))
+        if (FAILED(a->virtualBox->OpenSession(a->session, uuid)))
             CHECK_ERROR_RET (a->virtualBox, OpenExistingSession(a->session, uuid), 1);
 
         /* get the mutable session machine */
@@ -403,10 +408,9 @@ static int handleEnumGuestProperty(HandlerArg *a)
  */
 static int handleWaitGuestProperty(HandlerArg *a)
 {
-
-/*
- * Handle arguments
- */
+    /*
+     * Handle arguments
+     */
     const char *pszPatterns = NULL;
     uint32_t u32Timeout = RT_INDEFINITE_WAIT;
     bool usageOK = true;
@@ -426,7 +430,8 @@ static int handleWaitGuestProperty(HandlerArg *a)
         usageOK = false;
     for (int i = 2; usageOK && i < a->argc; ++i)
     {
-        if (strcmp(a->argv[i], "-timeout") == 0)
+        if (   !strcmp(a->argv[i], "--timeout")
+            || !strcmp(a->argv[i], "-timeout"))
         {
             if (   i + 1 >= a->argc
                 || RTStrToUInt32Full(a->argv[i + 1], 10, &u32Timeout)
@@ -442,9 +447,9 @@ static int handleWaitGuestProperty(HandlerArg *a)
     if (!usageOK)
         return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
 
-/*
- * Set up the callback and wait.
- */
+    /*
+     * Set up the callback and wait.
+     */
     Guid uuid;
     machine->COMGETTER(Id)(uuid.asOutParam());
     GuestPropertyCallback *callback = new GuestPropertyCallback(pszPatterns, uuid);
@@ -480,26 +485,27 @@ static int handleWaitGuestProperty(HandlerArg *a)
             if (callback->Signalled())
                 stop = true;
         }
-#else
+#else  /* !USE_XPCOM_QUEUE */
         /** @todo Use a semaphore.  But I currently don't have a Windows system
          * running to test on. */
+        /**@todo r=bird: get to it!*/
         RTThreadSleep(RT_MIN(1000, u32Timeout));
         if (callback->Signalled())
             stop = true;
-#endif /* USE_XPCOM_QUEUE */
+#endif /* !USE_XPCOM_QUEUE */
     }
 
-/*
- * Clean up the callback.
- */
-    a->virtualBox->UnregisterCallback (callback);
+    /*
+     * Clean up the callback.
+     */
+    a->virtualBox->UnregisterCallback(callback);
     if (!callback->Signalled())
         RTPrintf("Time out or interruption while waiting for a notification.\n");
-    callback->Release ();
+    callback->Release();
 
-/*
- * Done.
- */
+    /*
+     * Done.
+     */
     return 0;
 }
 
@@ -515,17 +521,20 @@ int handleGuestProperty(HandlerArg *a)
     arg.argc = a->argc - 1;
     arg.argv = a->argv + 1;
 
-    if (0 == a->argc)
+    if (a->argc == 0)
         return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
-    if (0 == strcmp(a->argv[0], "get"))
+
+    /* switch (cmd) */
+    if (strcmp(a->argv[0], "get") == 0)
         return handleGetGuestProperty(&arg);
-    else if (0 == strcmp(a->argv[0], "set"))
+    if (strcmp(a->argv[0], "set") == 0)
         return handleSetGuestProperty(&arg);
-    else if (0 == strcmp(a->argv[0], "enumerate"))
+    if (strcmp(a->argv[0], "enumerate") == 0)
         return handleEnumGuestProperty(&arg);
-    else if (0 == strcmp(a->argv[0], "wait"))
+    if (strcmp(a->argv[0], "wait") == 0)
         return handleWaitGuestProperty(&arg);
-    /* else */
+
+    /* default: */
     return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
 }
 

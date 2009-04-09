@@ -1,4 +1,4 @@
-/* $Id: kHlpAssert.h 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kHlpAssert.h 18 2009-01-30 06:26:49Z bird $ */
 /** @file
  * kHlpAssert - Assertion Macros.
  */
@@ -59,7 +59,7 @@ extern "C" {
         { \
             kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
             kHlpAssertBreakpoint(); \
-        }
+        } \
     } while (0)
 
 # define kHlpAssertReturn(expr, rcRet) \
@@ -69,7 +69,7 @@ extern "C" {
             kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
             kHlpAssertBreakpoint(); \
             return (rcRet); \
-        }
+        } \
     } while (0)
 
 # define kHlpAssertReturnVoid(expr) \
@@ -79,7 +79,7 @@ extern "C" {
             kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
             kHlpAssertBreakpoint(); \
             return; \
-        }
+        } \
     } while (0)
 
 # define kHlpAssertMsg(expr, msg) \
@@ -89,7 +89,7 @@ extern "C" {
             kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
             kHlpAssertMsg2 msg; \
             kHlpAssertBreakpoint(); \
-        }
+        } \
     } while (0)
 
 # define kHlpAssertMsgReturn(expr, msg, rcRet) \
@@ -100,7 +100,7 @@ extern "C" {
             kHlpAssertMsg2 msg; \
             kHlpAssertBreakpoint(); \
             return (rcRet); \
-        }
+        } \
     } while (0)
 
 # define kHlpAssertMsgReturnVoid(expr, msg) \
@@ -111,7 +111,7 @@ extern "C" {
             kHlpAssertMsg2 msg; \
             kHlpAssertBreakpoint(); \
             return; \
-        }
+        } \
     } while (0)
 
 #else   /* !K_STRICT */

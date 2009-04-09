@@ -211,6 +211,8 @@
 #define VINF_EM_RAW_STALE_SELECTOR          1138
 /** Reason for leaving GC: The IRET resuming guest code trapped. */
 #define VINF_EM_RAW_IRET_TRAP               1139
+/** Reason for leaving GC: Emulate (MM)IO intensive code in the recompiler. */
+#define VINF_EM_RAW_EMULATE_IO_BLOCK        1140
 /** The interpreter was unable to deal with the instruction at hand. */
 #define VERR_EM_INTERPRETER                 (-1148)
 /** Internal EM error caused by an unknown warning or informational status code. */
@@ -428,7 +430,24 @@
 #define VERR_PGM_PHYS_TLB_CATCH_ALL             (-1634)
 /** Catch write access and route it thru PGM. */
 #define VINF_PGM_PHYS_TLB_CATCH_WRITE           1635
-
+/** No CR3 root shadow page table.. */
+#define VERR_PGM_NO_CR3_SHADOW_ROOT             (-1636)
+/** Trying to free a page with an invalid Page ID. */
+#define VERR_PGM_PHYS_INVALID_PAGE_ID           (-1637)
+/** PGMPhysWrite/Read hit a handler in Ring-0 or raw-mode context. */
+#define VERR_PGM_PHYS_WR_HIT_HANDLER            (-1638)
+/** Trying to free a page that isn't RAM. */
+#define VERR_PGM_PHYS_NOT_RAM                   (-1639)
+/** Not ROM page. */
+#define VERR_PGM_PHYS_NOT_ROM                   (-1640)
+/** Not MMIO page. */
+#define VERR_PGM_PHYS_NOT_MMIO                  (-1641)
+/** Not MMIO2 page. */
+#define VERR_PGM_PHYS_NOT_MMIO2                 (-1642)
+/** Already aliased to a different page. */
+#define VERR_PGM_HANDLER_ALREADY_ALIASED        (-1643)
+/** Already aliased to the same page. */
+#define VINF_PGM_HANDLER_ALREADY_ALIASED        (1643)
 /** @} */
 
 
@@ -1062,6 +1081,8 @@
 #define VINF_VD_ASYNC_IO_FINISHED                   3209
 /** Asynchronous I/O is not finished yet. */
 #define VERR_VD_ASYNC_IO_IN_PROGRESS                (-3210)
+/** The image is too small or too large for this format. */
+#define VERR_VD_INVALID_SIZE                        (-3211)
 /** Generic: Invalid image file header. Use this for plugins. */
 #define VERR_VD_GEN_INVALID_HEADER                  (-3220)
 /** VDI: Invalid image file header. */
@@ -1080,6 +1101,10 @@
 #define VERR_VD_VMDK_VALUE_NOT_FOUND                (-3242)
 /** VMDK: Operation can't be done in current image state. */
 #define VERR_VD_VMDK_INVALID_STATE                  (-3243)
+/** VMDK: Format is invalid/inconsistent. */
+#define VERR_VD_VMDK_INVALID_FORMAT                 (-3244)
+/** VMDK: Invalid write position. */
+#define VERR_VD_VMDK_INVALID_WRITE                  (-3245)
 /** iSCSI: Invalid header, i.e. dummy for validity check. */
 #define VERR_VD_ISCSI_INVALID_HEADER                (-3250)
 /** iSCSI: Configuration value is unknown. This indicates misconfiguration. */

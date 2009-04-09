@@ -648,7 +648,8 @@ public:
     }
 
     /**
-     * Creates a deep copy of the given standard C++ container.
+     * Creates a deep copy of the given standard C++ container that stores
+     * T objects.
      *
      * @param aCntr Container object to copy.
      *
@@ -668,6 +669,37 @@ public:
             Copy (*it, m.arr [i]);
 #else
             Copy (*it, m.raw [i]);
+#endif
+    }
+
+    /**
+     * Creates a deep copy of the given standard C++ map that stores T objects
+     * as values.
+     *
+     * @param aMap  Map object to copy.
+     *
+     * @param C     Standard C++ map template class (normally deduced from
+     *              @c aCntr).
+     * @param L     Standard C++ compare class (deduced from @c aCntr).
+     * @param A     Standard C++ allocator class (deduced from @c aCntr).
+     * @param K     Map key class (deduced from @c aCntr).
+     */
+    template <template <typename, typename, typename, typename>
+              class C, class L, class A, class K>
+    SafeArray (const C <K, T, L, A> & aMap)
+    {
+        typedef C <K, T, L, A> Map;
+
+        resize (aMap.size());
+        AssertReturnVoid (!isNull());
+
+        int i = 0;
+        for (typename Map::const_iterator it = aMap.begin();
+             it != aMap.end(); ++ it, ++ i)
+#if defined (VBOX_WITH_XPCOM)
+            Copy (it->second, m.arr [i]);
+#else
+            Copy (it->second, m.raw [i]);
 #endif
     }
 
@@ -722,11 +754,11 @@ public:
      * This method is handy in cases where you want to assign a copy of the
      * existing value to the array element, for example:
      * <tt>Bstr string; array.push_back (string);</tt>. If you create a string
-     * just to put it to the array, you may find #appendedRaw() more useful.
+     * just to put it in the array, you may find #appendedRaw() more useful.
      *
      * @param aElement Element to append.
      *
-     * @return          @c true on success and false if there is not enough
+     * @return          @c true on success and @c false if there is not enough
      *                  memory for resizing.
      */
     bool push_back (const T &aElement)
@@ -756,8 +788,8 @@ public:
      * the safe array object.
      *
      * This method is handy for operations like
-     * <tt>Bstr ("foo").detacTo (array.appendedRaw());</tt>. Don't use it as
-     * l-value (<tt>array.appendedRaw() = SysAllocString (L"tralala");</tt>)
+     * <tt>Bstr ("foo").detachTo (array.appendedRaw());</tt>. Don't use it as
+     * an l-value (<tt>array.appendedRaw() = SysAllocString (L"tralala");</tt>)
      * since this doesn't check for a NULL condition; use #resize() and
      * #setRawAt() instead. If you need to assign a copy of the existing value
      * instead of transferring the ownership, look at #push_back().
@@ -782,12 +814,12 @@ public:
 
     /**
      * Resizes the array preserving its contents when possible. If the new size
-     * is larget than the old size, new elements are initialized with null
+     * is larger than the old size, new elements are initialized with null
      * values. If the new size is less than the old size, the contents of the
      * array beyond the new size is lost.
      *
      * @param aNewSize  New number of elements in the array.
-     * @return          @c true on success and false if there is not enough
+     * @return          @c true on success and @c false if there is not enough
      *                  memory for resizing.
      */
     bool resize (size_t aNewSize)
@@ -817,7 +849,7 @@ public:
      * of elements. The previous array contents is lost.
      *
      * @param aNewSize  New number of elements in the array.
-     * @return          @c true on success and false if there is not enough
+     * @return          @c true on success and @c false if there is not enough
      *                  memory for resizing.
      */
     bool reset (size_t aNewSize)
@@ -900,7 +932,7 @@ public:
      *
      * @note It is assumed that the ownership of the returned copy is
      * transferred to the caller of the method and he is responsible to free the
-     * array data when it is no more necessary.
+     * array data when it is no longer needed.
      *
      * @param aArg  Output method parameter to clone to.
      */
@@ -930,7 +962,7 @@ public:
      *
      * @note Since the ownership of the array data is transferred to the
      * caller of the method, he is responsible to free the array data when it is
-     * no more necessary.
+     * no longer needed.
      *
      * @param aArg  Location to detach to.
      */
@@ -970,7 +1002,7 @@ public:
         return *this;
     }
 
-    // public methods for internal purposes only
+    // Public methods for internal purposes only.
 
 #if defined (VBOX_WITH_XPCOM)
 
@@ -998,10 +1030,10 @@ protected:
     DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(SafeArray)
 
     /**
-     * Ensures that the array is big enough to contaon aNewSize elements.
+     * Ensures that the array is big enough to contain aNewSize elements.
      *
      * If the new size is greater than the current capacity, a new array is
-     * allocated and elements from the old array are copied over. The  size of
+     * allocated and elements from the old array are copied over. The size of
      * the array doesn't change, only the capacity increases (which is always
      * greater than the size). Note that the additionally allocated elements are
      * left uninitialized by this method.
@@ -1029,7 +1061,7 @@ protected:
         if (m.size == aNewSize && m.arr != NULL)
             return true;
 
-        /* allocate in 16-byte pieces */
+        /* Allocate in 16-byte pieces. */
         size_t newCapacity = RT_MAX ((aNewSize + 15) / 16 * 16, 16);
 
         if (m.capacity != newCapacity)
@@ -1041,15 +1073,15 @@ protected:
             {
                 if (m.size > aNewSize)
                 {
-                    /* truncation takes place, uninit exceeding elements and
-                     * shrink the size */
+                    /* Truncation takes place, uninit exceeding elements and
+                     * shrink the size. */
                     for (size_t i = aNewSize; i < m.size; ++ i)
                         Uninit (m.arr [i]);
 
                     m.size = aNewSize;
                 }
 
-                /* copy the old contents */
+                /* Copy the old contents. */
                 memcpy (newArr, m.arr, m.size * sizeof (T));
                 nsMemory::Free ((void *) m.arr);
             }
@@ -1060,8 +1092,8 @@ protected:
         {
             if (m.size > aNewSize)
             {
-                /* truncation takes place, uninit exceeding elements and
-                 * shrink the size */
+                /* Truncation takes place, uninit exceeding elements and
+                 * shrink the size. */
                 for (size_t i = aNewSize; i < m.size; ++ i)
                     Uninit (m.arr [i]);
 
@@ -1188,7 +1220,7 @@ protected:
  * you use ComSafeGUIDArrayIn* and ComSafeGUIDArrayOut* macros instead of
  * ComSafeArrayIn* and ComSafeArrayOut*. Another important nuance is that the
  * raw() array type is different (nsID **, or GUID ** on XPCOM and GUID * on MS
- * COM) so it is recommended to use operator[] instead that always returns a
+ * COM) so it is recommended to use operator[] instead which always returns a
  * GUID by value.
  *
  * Note that due to const modifiers, you cannot use SafeGUIDArray for input GUID
@@ -1244,8 +1276,8 @@ public:
 
     /**
      * Array access operator that returns an array element by reference. As a
-     * special case, the return value of this operator on XPCOM is a nsID (GUID)
-     * reference, instead of a nsID pointer (the actual SafeArray template
+     * special case, the return value of this operator on XPCOM is an nsID (GUID)
+     * reference, instead of an nsID pointer (the actual SafeArray template
      * argument), for compatibility with the MS COM version.
      *
      * The rest is equivalent to SafeArray<>::operator[].
@@ -1304,7 +1336,7 @@ public:
 
 private:
 
-    /* These are disabled because of const */
+    /* These are disabled because of const. */
     bool reset (size_t aNewSize) { NOREF (aNewSize); return false; }
 };
 
@@ -1428,8 +1460,8 @@ public:
      * </pre>
      *
      * Note that this constructor doesn't take the ownership of the array. In
-     * particular, it means that operations that operate on the ownership (e.g.
-     * #detachTo()) are forbidden and will assert.
+     * particular, this means that operations that operate on the ownership
+     * (e.g. #detachTo()) are forbidden and will assert.
      *
      * @param aArg  Input method parameter to attach to.
      */
@@ -1530,6 +1562,70 @@ public:
             Copy (*it, Base::m.arr [i]);
 #else
             Copy (*it, Base::m.raw [i]);
+#endif
+    }
+
+    /**
+     * Creates a deep copy of the given standard C++ map whose values are
+     * interface pointers stored as objects of the ComPtr <I> class.
+     *
+     * @param aMap  Map object to copy.
+     *
+     * @param C     Standard C++ map template class (normally deduced from
+     *              @c aCntr).
+     * @param L     Standard C++ compare class (deduced from @c aCntr).
+     * @param A     Standard C++ allocator class (deduced from @c aCntr).
+     * @param K     Map key class (deduced from @c aCntr).
+     * @param OI    Argument to the ComPtr template (deduced from @c aCntr).
+     */
+    template <template <typename, typename, typename, typename>
+              class C, class L, class A, class K, class OI>
+    SafeIfaceArray (const C <K, ComPtr <OI>, L, A> & aMap)
+    {
+        typedef C <K, ComPtr <OI>, L, A> Map;
+
+        Base::resize (aMap.size());
+        AssertReturnVoid (!Base::isNull());
+
+        int i = 0;
+        for (typename Map::const_iterator it = aMap.begin();
+             it != aMap.end(); ++ it, ++ i)
+#if defined (VBOX_WITH_XPCOM)
+            Copy (it->second, Base::m.arr [i]);
+#else
+            Copy (it->second, Base::m.raw [i]);
+#endif
+    }
+
+    /**
+     * Creates a deep copy of the given standard C++ map whose values are
+     * interface pointers stored as objects of the ComObjPtr <I> class.
+     *
+     * @param aMap  Map object to copy.
+     *
+     * @param C     Standard C++ map template class (normally deduced from
+     *              @c aCntr).
+     * @param L     Standard C++ compare class (deduced from @c aCntr).
+     * @param A     Standard C++ allocator class (deduced from @c aCntr).
+     * @param K     Map key class (deduced from @c aCntr).
+     * @param OI    Argument to the ComObjPtr template (deduced from @c aCntr).
+     */
+    template <template <typename, typename, typename, typename>
+              class C, class L, class A, class K, class OI>
+    SafeIfaceArray (const C <K, ComObjPtr <OI>, L, A> & aMap)
+    {
+        typedef C <K, ComObjPtr <OI>, L, A> Map;
+
+        Base::resize (aMap.size());
+        AssertReturnVoid (!Base::isNull());
+
+        int i = 0;
+        for (typename Map::const_iterator it = aMap.begin();
+             it != aMap.end(); ++ it, ++ i)
+#if defined (VBOX_WITH_XPCOM)
+            Copy (it->second, Base::m.arr [i]);
+#else
+            Copy (it->second, Base::m.raw [i]);
 #endif
     }
 };

@@ -1,4 +1,4 @@
-/* $Id: TRPM.cpp $ */
+/* $Id: TRPM.cpp 18617 2009-04-01 22:11:29Z vboxsync $ */
 /** @file
  * TRPM - The Trap Monitor.
  */
@@ -1319,8 +1319,9 @@ VMMR3DECL(bool) TRPMR3IsGateHandler(PVM pVM, RTRCPTR GCPtr)
          * Convert this page to a HC address.
          * (This function checks for not-present pages.)
          */
-        PVBOXIDTE   pIDTE;
-        int rc = PGMPhysGCPtr2R3Ptr(pVM, GCPtrIDTE, (void **)&pIDTE);
+        PCVBOXIDTE      pIDTE;
+        PGMPAGEMAPLOCK  Lock;
+        int rc = PGMPhysGCPtr2CCPtrReadOnly(pVM, GCPtrIDTE, (const void **)&pIDTE, &Lock);
         if (RT_SUCCESS(rc))
         {
             /*
@@ -1333,7 +1334,10 @@ VMMR3DECL(bool) TRPMR3IsGateHandler(PVM pVM, RTRCPTR GCPtr)
                 {
                     RTRCPTR GCPtrHandler = VBOXIDTE_OFFSET(*pIDTE);
                     if (GCPtr == GCPtrHandler)
+                    {
+                        PGMPhysReleasePageMappingLock(pVM, &Lock);
                         return true;
+                    }
                 }
 
                 /* next entry */
@@ -1347,6 +1351,7 @@ VMMR3DECL(bool) TRPMR3IsGateHandler(PVM pVM, RTRCPTR GCPtr)
                 GCPtrIDTE += sizeof(VBOXIDTE);
                 pIDTE++;
             }
+            PGMPhysReleasePageMappingLock(pVM, &Lock);
         }
         else
         {
@@ -1410,16 +1415,18 @@ VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, TRPMEVENT enmEvent)
             if (pVM->trpm.s.aGuestTrapHandler[u8Interrupt] != TRPM_INVALID_HANDLER)
             {
                 /* Must check pending forced actions as our IDT or GDT might be out of sync */
-                EMR3CheckRawForcedActions(pVM);
-
-                /* There's a handler -> let's execute it in raw mode */
-                rc = TRPMForwardTrap(pVM, CPUMCTX2CORE(pCtx), u8Interrupt, 0, TRPM_TRAP_NO_ERRORCODE, enmEvent, -1);
-                if (rc == VINF_SUCCESS /* Don't use RT_SUCCESS */)
+                rc = EMR3CheckRawForcedActions(pVM);
+                if (rc == VINF_SUCCESS)
                 {
-                    Assert(!VM_FF_ISPENDING(pVM, VM_FF_SELM_SYNC_GDT | VM_FF_SELM_SYNC_LDT | VM_FF_TRPM_SYNC_IDT | VM_FF_SELM_SYNC_TSS));
+                    /* There's a handler -> let's execute it in raw mode */
+                    rc = TRPMForwardTrap(pVM, CPUMCTX2CORE(pCtx), u8Interrupt, 0, TRPM_TRAP_NO_ERRORCODE, enmEvent, -1);
+                    if (rc == VINF_SUCCESS /* Don't use RT_SUCCESS */)
+                    {
+                        Assert(!VM_FF_ISPENDING(pVM, VM_FF_SELM_SYNC_GDT | VM_FF_SELM_SYNC_LDT | VM_FF_TRPM_SYNC_IDT | VM_FF_SELM_SYNC_TSS));
 
-                    STAM_COUNTER_INC(&pVM->trpm.s.paStatForwardedIRQR3[u8Interrupt]);
-                    return VINF_EM_RESCHEDULE_RAW;
+                        STAM_COUNTER_INC(&pVM->trpm.s.paStatForwardedIRQR3[u8Interrupt]);
+                        return VINF_EM_RESCHEDULE_RAW;
+                    }
                 }
             }
             else

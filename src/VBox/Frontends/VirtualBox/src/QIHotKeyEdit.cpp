@@ -21,12 +21,12 @@
  */
 
 #include "QIHotKeyEdit.h"
-
 #include "VBoxDefs.h"
 
-#include <qapplication.h>
-#include <qstyle.h>
-#include <qlineedit.h>
+/* Qt includes */
+#include <QApplication>
+#include <QStyleOption>
+#include <QStylePainter>
 
 #ifdef Q_WS_WIN
 /* VBox/cdefs.h defines these: */
@@ -38,7 +38,7 @@
 #endif
 
 #if defined (Q_WS_PM)
-QMap <int, QString> QIHotKeyEdit::sKeyNames;
+QMap<int, QString> QIHotKeyEdit::sKeyNames;
 #endif
 
 #ifdef Q_WS_X11
@@ -63,11 +63,17 @@ const int XKeyRelease = KeyRelease;
 #undef FocusIn
 #endif
 #include "XKeyboard.h"
-QMap <QString, QString> QIHotKeyEdit::sKeyNames;
+QMap<QString, QString> QIHotKeyEdit::sKeyNames;
+#include <QX11Info>
 #endif
 
 #ifdef Q_WS_MAC
-#include "DarwinKeyboard.h"
+# include "DarwinKeyboard.h"
+# include <Carbon/Carbon.h>
+# ifdef QT_MAC_USE_COCOA
+#  include "darwin/VBoxCocoaApplication.h"
+#  include "VBoxUtils.h"
+# endif
 #endif
 
 
@@ -107,53 +113,50 @@ int qi_distinguish_modifier_vkey (WPARAM wParam)
 
 const char *QIHotKeyEdit::kNoneSymbName = "<none>";
 
-QIHotKeyEdit::QIHotKeyEdit (QWidget *aParent, const char *aName) :
-    QLabel (aParent, aName)
+QIHotKeyEdit::QIHotKeyEdit (QWidget *aParent) :
+    QLabel (aParent)
 {
 #ifdef Q_WS_X11
-    // initialize the X keyboard subsystem
-    initXKeyboard (this->x11Display());
+    /* Initialize the X keyboard subsystem */
+    initXKeyboard (QX11Info::display());
 #endif
 
     clear();
 
-    setFrameStyle (LineEditPanel | Sunken);
-    setAlignment (AlignHCenter | AlignBottom);
-    setFocusPolicy (StrongFocus);
+    setFrameStyle (QFrame::StyledPanel | Sunken);
+    setAlignment (Qt::AlignCenter);
+    setFocusPolicy (Qt::StrongFocus);
+    setAutoFillBackground (true);
 
     QPalette p = palette();
-    p.setColor (QPalette::Active, QColorGroup::Foreground,
-        p.color (QPalette::Active, QColorGroup::HighlightedText));
-    p.setColor (QPalette::Active, QColorGroup::Background,
-        p.color (QPalette::Active, QColorGroup::Highlight));
-    p.setColor (QPalette::Inactive, QColorGroup::Foreground,
-        p.color (QPalette::Active, QColorGroup::Text));
-    p.setColor (QPalette::Inactive, QColorGroup::Background,
-        p.color (QPalette::Active, QColorGroup::Base));
-
-    mTrueACG = p.active();
-    p.setActive (p.inactive());
+    p.setColor (QPalette::Active, QPalette::Foreground,
+                p.color (QPalette::Active, QPalette::Text));
+    p.setColor (QPalette::Active, QPalette::Background,
+                p.color (QPalette::Active, QPalette::Base));
     setPalette (p);
 
 #ifdef Q_WS_MAC
     mDarwinKeyModifiers = GetCurrentEventKeyModifiers();
-
-    EventTypeSpec eventTypes[4];
-    eventTypes[0].eventClass = kEventClassKeyboard;
-    eventTypes[0].eventKind  = kEventRawKeyDown;
-    eventTypes[1].eventClass = kEventClassKeyboard;
-    eventTypes[1].eventKind  = kEventRawKeyUp;
-    eventTypes[2].eventClass = kEventClassKeyboard;
-    eventTypes[2].eventKind  = kEventRawKeyRepeat;
-    eventTypes[3].eventClass = kEventClassKeyboard;
-    eventTypes[3].eventKind  = kEventRawKeyModifiersChanged;
+# ifdef QT_MAC_USE_COCOA
+    ::VBoxCocoaApplication_setCallback (UINT32_MAX, QIHotKeyEdit::darwinEventHandlerProc, this);
+# else  /* !QT_MAC_USE_COCOA */
+    EventTypeSpec eventTypes [4];
+    eventTypes [0].eventClass = kEventClassKeyboard;
+    eventTypes [0].eventKind  = kEventRawKeyDown;
+    eventTypes [1].eventClass = kEventClassKeyboard;
+    eventTypes [1].eventKind  = kEventRawKeyUp;
+    eventTypes [2].eventClass = kEventClassKeyboard;
+    eventTypes [2].eventKind  = kEventRawKeyRepeat;
+    eventTypes [3].eventClass = kEventClassKeyboard;
+    eventTypes [3].eventKind  = kEventRawKeyModifiersChanged;
 
     EventHandlerUPP eventHandler = ::NewEventHandlerUPP (QIHotKeyEdit::darwinEventHandlerProc);
 
     mDarwinEventHandlerRef = NULL;
-    ::InstallApplicationEventHandler (eventHandler, RT_ELEMENTS( eventTypes ), &eventTypes[0],
+    ::InstallApplicationEventHandler (eventHandler, RT_ELEMENTS (eventTypes), &eventTypes [0],
                                       this, &mDarwinEventHandlerRef);
     ::DisposeEventHandlerUPP (eventHandler);
+# endif /* !QT_MAC_USE_COCOA */
     ::DarwinGrabKeyboard (false /* just modifiers */);
 #endif
 }
@@ -162,8 +165,12 @@ QIHotKeyEdit::~QIHotKeyEdit()
 {
 #ifdef Q_WS_MAC
     ::DarwinReleaseKeyboard();
+# ifdef QT_MAC_USE_COCOA
+    ::VBoxCocoaApplication_unsetCallback (UINT32_MAX, QIHotKeyEdit::darwinEventHandlerProc, this);
+# else
     ::RemoveEventHandler (mDarwinEventHandlerRef);
     mDarwinEventHandlerRef = NULL;
+# endif
 #endif
 }
 
@@ -201,14 +208,17 @@ void QIHotKeyEdit::setKey (int aKeyVal)
  */
 QSize QIHotKeyEdit::sizeHint() const
 {
-    constPolish();
+    ensurePolished();
     QFontMetrics fm (font());
-    int h = QMAX(fm.lineSpacing(), 14) + 2;
-    int w = fm.width( 'x' ) * 17; // "some"
+    int h = qMax (fm.lineSpacing(), 14) + 2;
+    int w = fm.width ('x') * 17; // "some"
     int m = frameWidth() * 2;
-    return (style().sizeFromContents (QStyle::CT_LineEdit, this,
-                                      QSize (w + m, h + m)
-                                      .expandedTo(QApplication::globalStrut())));
+    QStyleOption option;
+    option.initFrom (this);
+    return (style()->sizeFromContents (QStyle::CT_LineEdit, &option,
+                                       QSize (w + m, h + m)
+                                       .expandedTo (QApplication::globalStrut()),
+                                       this));
 }
 
 /**
@@ -216,22 +226,22 @@ QSize QIHotKeyEdit::sizeHint() const
  */
 QSize QIHotKeyEdit::minimumSizeHint() const
 {
-    constPolish();
+    ensurePolished();
     QFontMetrics fm = fontMetrics();
-    int h = fm.height() + QMAX (2, fm.leading());
+    int h = fm.height() + qMax (2, fm.leading());
     int w = fm.maxWidth();
     int m = frameWidth() * 2;
     return QSize (w + m, h + m);
 }
 
 #if defined (Q_WS_PM)
-/** 
+/**
  *  Returns the virtual key extracted from the QMSG structure.
  *
  *  This function tries to detect some extra virtual keys definitions missing
  *  in PM (like Left Shift, Left Ctrl, Win keys). In all other cases it simply
  *  returns SHORT2FROMMP (aMsg->mp2).
- * 
+ *
  *  @param aMsg  Pointer to the QMSG structure to extract the virtual key from.
  *  @return The extracted virtual key code or zero if there is no virtual key.
  */
@@ -280,10 +290,9 @@ int QIHotKeyEdit::virtualKey (QMSG *aMsg)
  *  Updates the associative array containing the translations of PM virtual
  *  keys to human readable key names.
  */
-/* static */
-void QIHotKeyEdit::languageChange()
+void QIHotKeyEdit::retranslateUi()
 {
-    /* Note: strings for the same key must match strings in languageChange()
+    /* Note: strings for the same key must match strings in retranslateUi()
      * versions for all platforms, to keep translators happy. */
 
     sKeyNames [VK_LSHIFT]        = tr ("Left Shift");
@@ -335,10 +344,9 @@ void QIHotKeyEdit::languageChange()
  *  Updates the associative array containing the translations of X11 key strings to human
  *  readable key names.
  */
-/* static */
-void QIHotKeyEdit::languageChange()
+void QIHotKeyEdit::retranslateUi()
 {
-    /* Note: strings for the same key must match strings in languageChange()
+    /* Note: strings for the same key must match strings in retranslateUi()
      * versions for all platforms, to keep translators happy. */
 
     sKeyNames ["Shift_L"]          = tr ("Left Shift");
@@ -376,21 +384,29 @@ QString QIHotKeyEdit::keyName (int aKeyVal)
     else
     {
 #if defined (Q_WS_WIN32)
-        /* stupid MapVirtualKey doesn't distinguish between right and left
-         * vkeys, even under XP, despite that it stated in msdn. do it by
-         * hand. */
+        /* Stupid MapVirtualKey doesn't distinguish between right and left
+         * vkeys, even under XP, despite that it stated in msdn. Do it by
+         * hands. Besides that it can't recognize such virtual keys as
+         * VK_DIVIDE & VK_PAUSE, this is also known bug. */
         int scan;
         switch (aKeyVal)
         {
+            /* Processing special keys... */
+            case VK_PAUSE: scan = 0x45 << 16; break;
             case VK_RSHIFT: scan = 0x36 << 16; break;
             case VK_RCONTROL: scan = (0x1D << 16) | (1 << 24); break;
             case VK_RMENU: scan = (0x38 << 16) | (1 << 24); break;
+            /* Processing extended keys... */
+            case VK_APPS:
+            case VK_LWIN:
+            case VK_RWIN:
+            case VK_NUMLOCK: scan = (::MapVirtualKey (aKeyVal, 0) | 256) << 16; break;
             default: scan = ::MapVirtualKey (aKeyVal, 0) << 16;
         }
-        TCHAR *str = new TCHAR[256];
+        TCHAR *str = new TCHAR [256];
         if (::GetKeyNameText (scan, str, 256))
         {
-            name = QString::fromUcs2 (str);
+            name = QString::fromUtf16 (str);
         }
         else
         {
@@ -536,41 +552,41 @@ void QIHotKeyEdit::clear()
 
 #if defined (Q_WS_WIN32)
 
-bool QIHotKeyEdit::winEvent (MSG *msg)
+bool QIHotKeyEdit::winEvent (MSG *aMsg, long* /* aResult */)
 {
-    if (!(msg->message == WM_KEYDOWN || msg->message == WM_SYSKEYDOWN ||
-          msg->message == WM_KEYUP || msg->message == WM_SYSKEYUP ||
-          msg->message == WM_CHAR || msg->message == WM_SYSCHAR ||
-          msg->message == WM_DEADCHAR || msg->message == WM_SYSDEADCHAR ||
-          msg->message == WM_CONTEXTMENU))
+    if (!(aMsg->message == WM_KEYDOWN || aMsg->message == WM_SYSKEYDOWN ||
+          aMsg->message == WM_KEYUP || aMsg->message == WM_SYSKEYUP ||
+          aMsg->message == WM_CHAR || aMsg->message == WM_SYSCHAR ||
+          aMsg->message == WM_DEADCHAR || aMsg->message == WM_SYSDEADCHAR ||
+          aMsg->message == WM_CONTEXTMENU))
         return false;
 
     /* ignore if not a valid hot key */
-    if (!isValidKey (msg->wParam))
+    if (!isValidKey (aMsg->wParam))
         return false;
 
 #if 0
     LogFlow (("%WM_%04X: vk=%04X rep=%05d scan=%02X ext=%01d"
               "rzv=%01X ctx=%01d prev=%01d tran=%01d\n",
-              msg->message, msg->wParam,
-              (msg->lParam & 0xFFFF),
-              ((msg->lParam >> 16) & 0xFF),
-              ((msg->lParam >> 24) & 0x1),
-              ((msg->lParam >> 25) & 0xF),
-              ((msg->lParam >> 29) & 0x1),
-              ((msg->lParam >> 30) & 0x1),
-              ((msg->lParam >> 31) & 0x1)));
+              aMsg->message, aMsg->wParam,
+              (aMsg->lParam & 0xFFFF),
+              ((aMsg->lParam >> 16) & 0xFF),
+              ((aMsg->lParam >> 24) & 0x1),
+              ((aMsg->lParam >> 25) & 0xF),
+              ((aMsg->lParam >> 29) & 0x1),
+              ((aMsg->lParam >> 30) & 0x1),
+              ((aMsg->lParam >> 31) & 0x1)));
 #endif
 
-    if (msg->message == WM_KEYDOWN || msg->message == WM_SYSKEYDOWN)
+    if (aMsg->message == WM_KEYDOWN || aMsg->message == WM_SYSKEYDOWN)
     {
         /* determine platform-dependent key */
-        mKeyVal = qi_distinguish_modifier_vkey (msg->wParam);
+        mKeyVal = qi_distinguish_modifier_vkey (aMsg->wParam);
         /* determine symbolic name */
         TCHAR *str = new TCHAR [256];
-        if (::GetKeyNameText (msg->lParam, str, 256))
+        if (::GetKeyNameText (aMsg->lParam, str, 256))
         {
-            mSymbName = QString::fromUcs2 (str);
+            mSymbName = QString::fromUtf16 (str);
         }
         else
         {
@@ -652,7 +668,19 @@ bool QIHotKeyEdit::x11Event (XEvent *event)
 }
 
 #elif defined (Q_WS_MAC)
+# ifdef QT_MAC_USE_COCOA
+/* static */
+bool QIHotKeyEdit::darwinEventHandlerProc (const void *pvCocoaEvent, const void *pvCarbonEvent, void *pvUser)
+{
+    QIHotKeyEdit *edit = (QIHotKeyEdit *) pvUser;
+    EventRef inEvent = (EventRef)pvCarbonEvent;
+    UInt32 EventClass = ::GetEventClass (inEvent);
+    if (EventClass == kEventClassKeyboard)
+        return edit->darwinKeyboardEvent (pvCocoaEvent, inEvent);
+    return false;
+}
 
+# else  /* !QT_MAC_USE_COCOA */
 /* static */
 pascal OSStatus QIHotKeyEdit::darwinEventHandlerProc (EventHandlerCallRef inHandlerCallRef,
                                                       EventRef inEvent, void *inUserData)
@@ -661,14 +689,19 @@ pascal OSStatus QIHotKeyEdit::darwinEventHandlerProc (EventHandlerCallRef inHand
     UInt32 EventClass = ::GetEventClass (inEvent);
     if (EventClass == kEventClassKeyboard)
     {
-        if (edit->darwinKeyboardEvent (inEvent))
+        if (edit->darwinKeyboardEvent (NULL, inEvent))
             return 0;
     }
     return CallNextEventHandler (inHandlerCallRef, inEvent);
 }
+# endif /* !QT_MAC_USE_COCOA */
 
-bool QIHotKeyEdit::darwinKeyboardEvent (EventRef inEvent)
+bool QIHotKeyEdit::darwinKeyboardEvent (const void *pvCocoaEvent, EventRef inEvent)
 {
+#if 0 /* for debugging */
+    ::darwinDebugPrintEvent("QIHotKeyEdit", inEvent);
+#endif
+
     /* ignore key changes unless we're the focus widget */
     if (!hasFocus())
         return false;
@@ -685,7 +718,7 @@ bool QIHotKeyEdit::darwinKeyboardEvent (EventRef inEvent)
             ::GetEventParameter (inEvent, kEventParamKeyModifiers, typeUInt32, NULL,
                                  sizeof (modifierMask), NULL, &modifierMask);
 
-            modifierMask = ::DarwinAdjustModifierMask (modifierMask);
+            modifierMask = ::DarwinAdjustModifierMask (modifierMask, pvCocoaEvent);
             UInt32 changed = mDarwinKeyModifiers ^ modifierMask;
             mDarwinKeyModifiers = modifierMask;
 
@@ -713,30 +746,42 @@ bool QIHotKeyEdit::darwinKeyboardEvent (EventRef inEvent)
 # warning "Port me!"
 #endif
 
-void QIHotKeyEdit::focusInEvent (QFocusEvent *)
+void QIHotKeyEdit::focusInEvent (QFocusEvent *aEvent)
 {
+    QLabel::focusInEvent (aEvent);
+
     QPalette p = palette();
-    p.setActive (mTrueACG);
+    p.setColor (QPalette::Active, QPalette::Foreground,
+                p.color (QPalette::Active, QPalette::HighlightedText));
+    p.setColor (QPalette::Active, QPalette::Background,
+                p.color (QPalette::Active, QPalette::Highlight));
     setPalette (p);
 }
 
-void QIHotKeyEdit::focusOutEvent (QFocusEvent *)
+void QIHotKeyEdit::focusOutEvent (QFocusEvent *aEvent)
 {
+    QLabel::focusOutEvent (aEvent);
+
     QPalette p = palette();
-    p.setActive (p.inactive());
+    p.setColor (QPalette::Active, QPalette::Foreground,
+                p.color (QPalette::Active, QPalette::Text));
+    p.setColor (QPalette::Active, QPalette::Background,
+                p.color (QPalette::Active, QPalette::Base));
     setPalette (p);
 }
 
-void QIHotKeyEdit::drawContents (QPainter * p)
+void QIHotKeyEdit::paintEvent (QPaintEvent *aEvent)
 {
-    QLabel::drawContents (p);
     if (hasFocus())
     {
-        style().drawPrimitive (
-            QStyle::PE_FocusRect, p, contentsRect(), colorGroup(),
-            QStyle::Style_Default,
-            QStyleOption( colorGroup().background()));
+        QStylePainter painter (this);
+        QStyleOptionFocusRect option;
+        option.initFrom (this);
+        option.backgroundColor = palette().color (QPalette::Background);
+        option.rect = contentsRect();
+        painter.drawPrimitive (QStyle::PE_FrameFocusRect, option);
     }
+    QLabel::paintEvent (aEvent);
 }
 
 // Private members
@@ -746,3 +791,4 @@ void QIHotKeyEdit::updateText()
 {
     setText (QString (" %1 ").arg (mSymbName));
 }
+

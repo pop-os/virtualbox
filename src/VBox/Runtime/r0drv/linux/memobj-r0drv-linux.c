@@ -1,4 +1,4 @@
-/* $Revision: 42342 $ */
+/* $Revision: 18522 $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, Linux.
  */
@@ -42,12 +42,25 @@
 #include <iprt/process.h>
 #include "internal/memobj.h"
 
+
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
 /* early 2.6 kernels */
 #ifndef PAGE_SHARED_EXEC
 # define PAGE_SHARED_EXEC PAGE_SHARED
 #endif
 #ifndef PAGE_READONLY_EXEC
 # define PAGE_READONLY_EXEC PAGE_READONLY
+#endif
+
+/*
+ * 2.6.29+ kernels don't work with remap_pfn_range() anymore because
+ * track_pfn_vma_new() is apparently not defined for non-RAM pages.
+ * It should be safe to use vm_insert_page() older kernels as well.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
+# define VBOX_USE_INSERT_PAGE
 #endif
 
 

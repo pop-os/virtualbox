@@ -1,4 +1,4 @@
-/* $Id: tstLdr-4.cpp $ */
+/* $Id: tstLdr-4.cpp 16933 2009-02-18 23:42:57Z vboxsync $ */
 /** @file
  * IPRT - Testcase for RTLdrOpen using ldrLdrObjR0.r0.
  */
@@ -66,6 +66,12 @@ static DECLCALLBACK(int) testGetImport(RTLDRMOD hLdrMod, const char *pszModule, 
         *pValue = (uintptr_t)AssertMsg2;
     else if (!strcmp(pszSymbol, "RTLogDefaultInstance") || !strcmp(pszSymbol, "_RTLogDefaultInstance"))
         *pValue = (uintptr_t)RTLogDefaultInstance;
+    else if (!strcmp(pszSymbol, "RTLogLoggerExV")       || !strcmp(pszSymbol, "_RTLogLoggerExV"))
+        *pValue = (uintptr_t)RTLogLoggerExV;
+    else if (!strcmp(pszSymbol, "RTLogPrintfV")         || !strcmp(pszSymbol, "_RTLogPrintfV"))
+        *pValue = (uintptr_t)RTLogPrintfV;
+    else if (!strcmp(pszSymbol, "RTR0AssertPanicSystem")|| !strcmp(pszSymbol, "_RTR0AssertPanicSystem"))
+        *pValue = (uintptr_t)0;
     else if (!strcmp(pszSymbol, "MyPrintf")             || !strcmp(pszSymbol, "_MyPrintf"))
         *pValue = (uintptr_t)RTPrintf;
     else
@@ -115,9 +121,9 @@ static int testLdrOne(const char *pszFilename)
     for (i = 0; i < RT_ELEMENTS(aLoads); i++)
     {
         if (!strncmp(aLoads[i].pszName, "kLdr-", sizeof("kLdr-") - 1))
-            rc = RTLdrOpenkLdr(pszFilename, &aLoads[i].hLdrMod);
+            rc = RTLdrOpenkLdr(pszFilename, 0, RTLDRARCH_WHATEVER, &aLoads[i].hLdrMod);
         else
-            rc = RTLdrOpen(pszFilename, &aLoads[i].hLdrMod);
+            rc = RTLdrOpen(pszFilename, 0, RTLDRARCH_WHATEVER, &aLoads[i].hLdrMod);
         if (RT_FAILURE(rc))
         {
             RTPrintf("tstLdr-4: Failed to open '%s'/%d, rc=%Rrc. aborting test.\n", pszFilename, i, rc);
@@ -137,7 +143,7 @@ static int testLdrOne(const char *pszFilename)
         cbImage = cb;
 
         /* Allocate bits. */
-        aLoads[i].pvBits = RTMemAlloc(cb);
+        aLoads[i].pvBits = RTMemExecAlloc(cb);
         if (!aLoads[i].pvBits)
         {
             RTPrintf("tstLdr-4: Out of memory '%s'/%d cbImage=%d. aborting test.\n", pszFilename, i, cbImage);
@@ -193,7 +199,7 @@ static int testLdrOne(const char *pszFilename)
     for (i = 0; i < RT_ELEMENTS(aLoads); i++)
     {
         if (aLoads[i].pvBits)
-            RTMemFree(aLoads[i].pvBits);
+            RTMemExecFree(aLoads[i].pvBits);
         if (aLoads[i].hLdrMod)
         {
             int rc = RTLdrClose(aLoads[i].hLdrMod);

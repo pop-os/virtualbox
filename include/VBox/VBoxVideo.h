@@ -33,14 +33,14 @@
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
 
-/* 
+/*
  * The last 4096 bytes of the guest VRAM contains the generic info for all
  * DualView chunks: sizes and offsets of chunks. This is filled by miniport.
  *
  * Last 4096 bytes of each chunk contain chunk specific data: framebuffer info,
  * etc. This is used exclusively by the corresponding instance of a display driver.
  *
- * The VRAM layout: 
+ * The VRAM layout:
  *     Last 4096 bytes - Adapter information area.
  *     4096 bytes aligned miniport heap (value specified in the config rouded up).
  *     Slack - what left after dividing the VRAM.
@@ -68,10 +68,10 @@
  *
  * VBE_DISPI_INDEX_VBOX_VIDEO is used to read the configuration information
  * from the host and issue commands to the host.
- * 
+ *
  * The guest writes the VBE_DISPI_INDEX_VBOX_VIDEO index register, the the
  * following operations with the VBE data register can be performed:
- * 
+ *
  * Operation            Result
  * write 16 bit value   NOP
  * read 16 bit value    count of monitors
@@ -85,8 +85,19 @@
 #define VBOX_VIDEO_MAX_SCREENS 64
 
 /* The size of the information. */
+#ifndef VBOX_WITH_HGSMI
 #define VBOX_VIDEO_ADAPTER_INFORMATION_SIZE  4096
 #define VBOX_VIDEO_DISPLAY_INFORMATION_SIZE  4096
+#else
+/*
+ * The minimum HGSMI heap size is PAGE_SIZE (4096 bytes) and is a restriction of the
+ * runtime heapsimple API. Use minimum 2 pages here, because the info area also may
+ * contain other data (for example HGSMIHOSTFLAGS structure).
+ */
+#define VBVA_ADAPTER_INFORMATION_SIZE  (8*_1K)
+#define VBVA_DISPLAY_INFORMATION_SIZE  (8*_1K)
+#define VBVA_MIN_BUFFER_SIZE           (64*_1K)
+#endif /* VBOX_WITH_HGSMI */
 
 
 /* The value for port IO to let the adapter to interpret the adapter memory. */
@@ -96,7 +107,7 @@
 #define VBOX_VIDEO_INTERPRET_ADAPTER_MEMORY      0x00000000
 
 /* The value for port IO to let the adapter to interpret the display memory.
- * The display number is encoded in low 16 bits. 
+ * The display number is encoded in low 16 bits.
  */
 #define VBOX_VIDEO_INTERPRET_DISPLAY_MEMORY_BASE 0x00010000
 
@@ -239,5 +250,130 @@ typedef struct _VBOXVIDEOINFOQUERYCONF32
 
 } VBOXVIDEOINFOQUERYCONF32;
 #pragma pack()
+
+#ifdef VBOX_WITH_HGSMI
+
+/* All structures are without alignment. */
+#pragma pack(1)
+
+typedef struct _VBVABUFFER
+{
+    uint32_t u32HostEvents;
+    uint32_t u32SupportedOrders;
+
+    /* The offset where the data start in the buffer. */
+    uint32_t off32Data;
+    /* The offset where next data must be placed in the buffer. */
+    uint32_t off32Free;
+
+    /* The queue of record descriptions. */
+    VBVARECORD aRecords[VBVA_MAX_RECORDS];
+    uint32_t indexRecordFirst;
+    uint32_t indexRecordFree;
+
+    /* Space to leave free in the buffer when large partial records are transferred. */
+    uint32_t cbPartialWriteThreshold;
+
+    uint32_t cbData;
+    uint8_t  au8Data[1]; /* variable size for the rest of the VBVABUFFER area in VRAM. */
+} VBVABUFFER;
+
+
+#define VBVA_QUERY_CONF32 1
+#define VBVA_SET_CONF32   2
+#define VBVA_INFO_VIEW    3
+#define VBVA_INFO_HEAP    4
+#define VBVA_FLUSH        5
+#define VBVA_INFO_SCREEN  6
+#define VBVA_ENABLE       7
+
+/* VBVACONF32::u32Index */
+#define VBOX_VBVA_CONF32_MONITOR_COUNT  0
+#define VBOX_VBVA_CONF32_HOST_HEAP_SIZE 1
+
+typedef struct _VBVACONF32
+{
+    uint32_t u32Index;
+    uint32_t u32Value;
+} VBVACONF32;
+
+typedef struct _VBVAINFOVIEW
+{
+    /* Index of the screen, assigned by the guest. */
+    uint32_t u32ViewIndex;
+
+    /* The screen offset in VRAM, the framebuffer starts here. */
+    uint32_t u32ViewOffset;
+
+    /* The size of the VRAM memory that can be used for the view. */
+    uint32_t u32ViewSize;
+
+    /* The recommended maximum size of the VRAM memory for the screen. */
+    uint32_t u32MaxScreenSize;
+} VBVAINFOVIEW;
+
+typedef struct _VBVAINFOHEAP
+{
+    /* Absolute offset in VRAM of the start of the heap. */
+    uint32_t u32HeapOffset;
+
+    /* The size of the heap. */
+    uint32_t u32HeapSize;
+
+} VBVAINFOHEAP;
+
+typedef struct _VBVAFLUSH
+{
+    uint32_t u32Reserved;
+
+} VBVAFLUSH;
+
+/* VBVAINFOSCREEN::u8Flags */
+#define VBVA_SCREEN_F_NONE   0x0000
+#define VBVA_SCREEN_F_ACTIVE 0x0001
+
+typedef struct _VBVAINFOSCREEN
+{
+    /* Which view contains the screen. */
+    uint32_t u32ViewIndex;
+
+    /* Physical X origin relative to the primary screen. */
+    int32_t i32OriginX;
+
+    /* Physical Y origin relative to the primary screen. */
+    int32_t i32OriginY;
+
+    /* The scan line size in bytes. */
+    uint32_t u32LineSize;
+
+    /* Width of the screen. */
+    uint32_t u32Width;
+
+    /* Height of the screen. */
+    uint32_t u32Height;
+
+    /* Color depth. */
+    uint16_t u16BitsPerPixel;
+
+    /* VBVA_SCREEN_F_* */
+    uint16_t u16Flags;
+} VBVAINFOSCREEN;
+
+
+/* VBVAENABLE::u32Flags */
+#define VBVA_F_NONE    0x00000000
+#define VBVA_F_ENABLE  0x00000001
+#define VBVA_F_DISABLE 0x00000002
+
+typedef struct _VBVAENABLE
+{
+    uint32_t u32Flags;
+    uint32_t u32Offset;
+
+} VBVAENABLE;
+
+#pragma pack()
+
+#endif /* VBOX_WITH_HGSMI */
 
 #endif

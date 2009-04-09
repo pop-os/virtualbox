@@ -32,20 +32,13 @@
 #include "QIHotKeyEdit.h"
 #endif
 
-#include <qapplication.h>
-#include <qstatusbar.h>
-#include <qlabel.h>
-#include <qpainter.h>
-#include <qpixmap.h>
-#include <qimage.h>
-#include <qbitmap.h>
-#include <qcursor.h>
-#include <qthread.h>
-
-#include <qmenudata.h>
-#include <qmenubar.h>
-#include <qwidgetlist.h>
-#include <qtimer.h>
+/* Qt includes */
+#include <QMenuBar>
+#include <QDesktopWidget>
+#include <QTimer>
+#include <QStatusBar>
+#include <QPainter>
+#include <QBitmap>
 
 #ifdef Q_WS_WIN
 // VBox/cdefs.h defines these:
@@ -57,6 +50,7 @@
 #endif
 
 #ifdef Q_WS_X11
+#include <QX11Info>
 // We need to capture some X11 events directly which
 // requires the XEvent structure to be defined. However,
 // including the Xlib header file will cause some nasty
@@ -85,11 +79,14 @@ const int XKeyRelease = KeyRelease;
 #endif // Q_WS_X11
 
 #if defined (Q_WS_MAC)
+# include "VBoxDockIconPreview.h"
 # include "DarwinKeyboard.h"
-# include "DarwinCursor.h"
-# ifdef VBOX_WITH_HACKED_QT
+# ifdef QT_MAC_USE_COCOA
+#  include "darwin/VBoxCocoaApplication.h"
+# elif defined(VBOX_WITH_HACKED_QT)
 #  include "QIApplication.h"
 # endif
+# include <Carbon/Carbon.h>
 # include <VBox/err.h>
 #endif /* defined (Q_WS_MAC) */
 
@@ -112,8 +109,67 @@ LRESULT CALLBACK VBoxConsoleView::lowLevelKeyboardProc (int nCode,
 #endif
 
 #if defined (Q_WS_MAC)
+# if defined (QT_MAC_USE_COCOA)
+/**
+ * Event handler callback for Mac OS X, Cocoa variant.
+ *
+ * (Registered with and called from VBoxCocoaApplication.)
+ *
+ * @returns true if the event should be dropped, false if it should be passed
+ *          along.
+ * @param   pvCocoaEvent    The Cocoa event object.
+ * @param   pvCarbonEvent   The Carbon event object reference.
+ * @param   pvUser          The user argument.
+ */
+/* static */
+bool VBoxConsoleView::darwinEventHandlerProc (const void *pvCocoaEvent,
+                                              const void *pvCarbonEvent,
+                                              void *pvUser)
+{
+    VBoxConsoleView    *view       = (VBoxConsoleView *)pvUser;
+    EventRef            inEvent    = (EventRef)pvCarbonEvent;
+    UInt32              eventClass = ::GetEventClass (inEvent);
 
-# ifndef VBOX_WITH_HACKED_QT
+#if 0
+    /* For debugging events. */
+    if (eventClass != 'cute')
+        ::VBoxCocoaApplication_printEvent ("view: ", pvCocoaEvent);
+#endif
+
+    /*
+     * Not sure but this seems an triggered event if the spotlight searchbar is
+     * displayed. So flag that the host key isn't pressed alone.
+     */
+    if (   eventClass == 'cgs '
+        && view->mIsHostkeyPressed
+        && ::GetEventKind (inEvent) == 0x15)
+        view->mIsHostkeyAlone = false;
+
+    /*
+     * All keyboard class events needs to be handled.
+     */
+    if (eventClass == kEventClassKeyboard)
+    {
+        if (view->darwinKeyboardEvent (pvCocoaEvent, inEvent))
+            return true;
+    }
+    /*
+     * Command-H and Command-Q aren't properly disabled yet, and it's still
+     * possible to use the left command key to invoke them when the keyboard
+     * is captured. We discard the events these if the keyboard is captured
+     * as a half measure to prevent unexpected behaviour. However, we don't
+     * get any key down/up events, so these combinations are dead to the guest...
+     */
+    else if (eventClass == kEventClassCommand)
+    {
+        if (view->mKbdCaptured)
+            return true;
+    }
+    /* Pass the event along. */
+    return false;
+}
+
+# elif !defined (VBOX_WITH_HACKED_QT)
 /**
  *  Event handler callback for Mac OS X.
  */
@@ -121,11 +177,25 @@ LRESULT CALLBACK VBoxConsoleView::lowLevelKeyboardProc (int nCode,
 pascal OSStatus VBoxConsoleView::darwinEventHandlerProc (EventHandlerCallRef inHandlerCallRef,
                                                          EventRef inEvent, void *inUserData)
 {
-    VBoxConsoleView *view = (VBoxConsoleView *)inUserData;
-    UInt32 EventClass = ::GetEventClass (inEvent);
-    if (EventClass == kEventClassKeyboard)
+    VBoxConsoleView *view = static_cast<VBoxConsoleView *> (inUserData);
+    UInt32 eventClass = ::GetEventClass (inEvent);
+
+    /* For debugging events */
+    /*
+    if (eventClass != 'cute')
+        ::darwinDebugPrintEvent ("view: ", inEvent);
+    */
+
+    /* Not sure but this seems an triggered event if the spotlight searchbar is
+     * displayed. So flag that the host key isn't pressed alone. */
+    if (   eventClass == 'cgs '
+        && view->mIsHostkeyPressed
+        && ::GetEventKind (inEvent) == 0x15)
+        view->mIsHostkeyAlone = false;
+
+    if (eventClass == kEventClassKeyboard)
     {
-        if (view->darwinKeyboardEvent (inEvent))
+        if (view->darwinKeyboardEvent (NULL, inEvent))
             return 0;
     }
     /*
@@ -135,7 +205,7 @@ pascal OSStatus VBoxConsoleView::darwinEventHandlerProc (EventHandlerCallRef inH
      * as a half measure to prevent unexpected behaviour. However, we don't
      * get any key down/up events, so these combinations are dead to the guest...
      */
-    else if (EventClass == kEventClassCommand)
+    else if (eventClass == kEventClassCommand)
     {
         if (view->mKbdCaptured)
             return 0;
@@ -144,7 +214,6 @@ pascal OSStatus VBoxConsoleView::darwinEventHandlerProc (EventHandlerCallRef inH
 }
 
 # else /* VBOX_WITH_HACKED_QT */
-
 /**
  *  Event handler callback for Mac OS X.
  */
@@ -157,9 +226,8 @@ bool VBoxConsoleView::macEventFilter (EventRef inEvent, void *inUserData)
 
     /* For debugging events */
     /*
-    if (!(eventKind == kEventWindowActivated ||
-          eventClass == 0x63757465))
-        ::DarwinDebugPrintEvent ("view: ", inEvent);
+    if (!(eventClass == 'cute'))
+        ::darwinDebugPrintEvent ("view: ", inEvent);
     */
 
     /* Not sure but this seems an triggered event if the spotlight searchbar is
@@ -170,7 +238,7 @@ bool VBoxConsoleView::macEventFilter (EventRef inEvent, void *inUserData)
 
     if (eventClass == kEventClassKeyboard)
     {
-        if (view->darwinKeyboardEvent (inEvent))
+        if (view->darwinKeyboardEvent (NULL, inEvent))
             return true;
     }
     return false;
@@ -284,14 +352,12 @@ private:
 class ActivateMenuEvent : public QEvent
 {
 public:
-    ActivateMenuEvent (QMenuData *menuData, uint index) :
+    ActivateMenuEvent (QAction *aData) :
         QEvent ((QEvent::Type) VBoxDefs::ActivateMenuEventType),
-        md (menuData), i (index) {}
-    QMenuData *menuData() const { return md; }
-    uint index() const { return i; }
+        mAction (aData) {}
+    QAction *action() const { return mAction; }
 private:
-    QMenuData *md;
-    uint i;
+    QAction *mAction;
 };
 
 /** VM Runtime error event */
@@ -449,7 +515,7 @@ public:
     {
         CGuest guest = mView->console().GetGuest();
         LogFlowFunc (("ver=%s, active=%d\n",
-                      guest.GetAdditionsVersion().latin1(),
+                      guest.GetAdditionsVersion().toLatin1().constData(),
                       guest.GetAdditionsActive()));
         QApplication::postEvent (mView,
                                  new GuestAdditionsEvent (
@@ -481,6 +547,14 @@ public:
     {
         QApplication::postEvent (mView,
             new NetworkAdapterChangeEvent (aNetworkAdapter));
+        return S_OK;
+    }
+
+    STDMETHOD(OnStorageControllerChange) ()
+    {
+        /* @todo */
+        //QApplication::postEvent (mView,
+        //    new StorageControllerChangeEvent ());
         return S_OK;
     }
 
@@ -532,8 +606,8 @@ public:
     {
         QApplication::postEvent (mView,
                                  new RuntimeErrorEvent (!!fatal,
-                                                        QString::fromUcs2 (id),
-                                                        QString::fromUcs2 (message)));
+                                                        QString::fromUtf16 (id),
+                                                        QString::fromUtf16 (message)));
         return S_OK;
     }
 
@@ -581,7 +655,7 @@ public:
 
 #else
         /* Return the ID of the top-level console window. */
-        *winId = (ULONG64) mView->topLevelWidget()->winId();
+        *winId = (ULONG64) mView->window()->winId();
 #endif
 
         return S_OK;
@@ -602,6 +676,24 @@ NS_DECL_CLASSINFO (VBoxConsoleCallback)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI (VBoxConsoleCallback, IConsoleCallback)
 #endif
 
+class VBoxViewport: public QWidget
+{
+public:
+    VBoxViewport (QWidget *aParent)
+        : QWidget (aParent)
+    {
+        /* No need for background drawing */
+        setAttribute (Qt::WA_OpaquePaintEvent);
+    }
+    virtual QPaintEngine * paintEngine() const
+    {
+        if (testAttribute (Qt::WA_PaintOnScreen))
+            return NULL;
+        else
+            return QWidget::paintEngine();
+    }
+};
+
 //
 // VBoxConsoleView class
 /////////////////////////////////////////////////////////////////////////////
@@ -615,8 +707,8 @@ NS_IMPL_THREADSAFE_ISUPPORTS1_CI (VBoxConsoleCallback, IConsoleCallback)
 VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
                                   const CConsole &console,
                                   VBoxDefs::RenderMode rm,
-                                  QWidget *parent, const char *name, WFlags f)
-    : QScrollView (parent, name, f | WStaticContents | WNoAutoErase)
+                                  QWidget *parent)
+    : QAbstractScrollArea (parent)
     , mMainWnd (mainWnd)
     , mConsole (console)
     , gs (vboxGlobal().settings())
@@ -630,6 +722,7 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
     , mIsHostkeyAlone (false)
     , mIgnoreMainwndResize (true)
     , mAutoresizeGuest (false)
+    , mIgnoreFrameBufferResize (false)
     , mDoResize (false)
     , mGuestSupportsGraphics (false)
     , mNumLock (false)
@@ -642,13 +735,16 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
     , mAlphaCursor (NULL)
 #endif
 #if defined(Q_WS_MAC)
-# ifndef VBOX_WITH_HACKED_QT
+# if !defined (VBOX_WITH_HACKED_QT) && !defined (QT_MAC_USE_COCOA)
     , mDarwinEventHandlerRef (NULL)
 # endif
     , mDarwinKeyModifiers (0)
-    , mVirtualBoxLogo (NULL)
+    , mKeyboardGrabbed (false)
+    , mDockIconEnabled (true)
 #endif
     , mDesktopGeo (DesktopGeo_Invalid)
+    , mPassCAD (false)
+    , mHideHostPointer (false)
 {
     Assert (!mConsole.isNull() &&
             !mConsole.GetDisplay().isNull() &&
@@ -657,8 +753,37 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
 
 #ifdef Q_WS_MAC
     /* Overlay logo for the dock icon */
-    mVirtualBoxLogo = ::DarwinQPixmapFromMimeSourceToCGImage ("VirtualBox_cube_42px.png");
-#endif
+    //mVirtualBoxLogo = ::darwinToCGImageRef ("VirtualBox_cube_42px.png");
+    QString osTypeId = mConsole.GetGuest().GetOSTypeId();
+    mDockIconPreview = new VBoxDockIconPreview (mMainWnd, vboxGlobal().vmGuestOSTypeIcon (osTypeId));
+
+# ifdef QT_MAC_USE_COCOA
+    /** @todo Carbon -> Cocoa */
+# else /* !QT_MAC_USE_COCOA */
+    /* Install the event handler which will proceed external window handling */
+    EventHandlerUPP eventHandler = ::NewEventHandlerUPP (::darwinOverlayWindowHandler);
+    EventTypeSpec eventTypes[] =
+    {
+        { kEventClassVBox, kEventVBoxShowWindow },
+        { kEventClassVBox, kEventVBoxHideWindow },
+        { kEventClassVBox, kEventVBoxMoveWindow },
+        { kEventClassVBox, kEventVBoxResizeWindow },
+        { kEventClassVBox, kEventVBoxDisposeWindow },
+        { kEventClassVBox, kEventVBoxUpdateDock }
+    };
+
+    mDarwinWindowOverlayHandlerRef = NULL;
+    ::InstallApplicationEventHandler (eventHandler, RT_ELEMENTS (eventTypes), &eventTypes[0],
+                                      this, &mDarwinWindowOverlayHandlerRef);
+    ::DisposeEventHandlerUPP (eventHandler);
+# endif /* !QT_MAC_USE_COCOA */
+#endif /* QT_WS_MAC */
+
+    /* No frame around the view */
+    setFrameStyle (QFrame::NoFrame);
+
+    VBoxViewport *pViewport = new VBoxViewport (this);
+    setViewport (pViewport);
 
     /* enable MouseMove events */
     viewport()->setMouseTracking (true);
@@ -677,21 +802,17 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
 
 #ifdef Q_WS_X11
     /* initialize the X keyboard subsystem */
-    initXKeyboard (this->x11Display());
+    initXKeyboard (QX11Info::display());
 #endif
 
     ::memset (mPressedKeys, 0, sizeof (mPressedKeys));
-
-    resize_hint_timer = new QTimer (this);
-    connect (resize_hint_timer, SIGNAL (timeout()),
-             this, SLOT (doResizeHint()));
 
     /* setup rendering */
 
     CDisplay display = mConsole.GetDisplay();
     Assert (!display.isNull());
 
-    mFrameBuf = 0;
+    mFrameBuf = NULL;
 
     LogFlowFunc (("Rendering mode: %d\n", mode));
 
@@ -704,10 +825,13 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
 #endif
 #if defined (VBOX_GUI_USE_SDL)
         case VBoxDefs::SDLMode:
+            /* Indicate that we are doing all
+             * drawing stuff ourself */
+            pViewport->setAttribute (Qt::WA_PaintOnScreen);
 # ifdef Q_WS_X11
             /* This is somehow necessary to prevent strange X11 warnings on
              * i386 and segfaults on x86_64. */
-            XFlush(this->x11Display());
+            XFlush(QX11Info::display());
 # endif
             mFrameBuf = new VBoxSDLFrameBuffer (this);
             /*
@@ -725,6 +849,9 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
 #endif
 #if defined (VBOX_GUI_USE_QUARTZ2D)
         case VBoxDefs::Quartz2DMode:
+            /* Indicate that we are doing all
+             * drawing stuff ourself */
+            pViewport->setAttribute (Qt::WA_PaintOnScreen);
             mFrameBuf = new VBoxQuartz2DFrameBuffer (this);
             break;
 #endif
@@ -756,12 +883,14 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
     mConsole.RegisterCallback (mCallback);
     AssertWrapperOk (mConsole);
 
-    viewport()->setEraseColor (black);
+    QPalette palette (viewport()->palette());
+    palette.setColor (viewport()->backgroundRole(), Qt::black);
+    viewport()->setPalette (palette);
 
     setSizePolicy (QSizePolicy (QSizePolicy::Maximum, QSizePolicy::Maximum));
     setMaximumSize (sizeHint());
 
-    setFocusPolicy (WheelFocus);
+    setFocusPolicy (Qt::WheelFocus);
 
     /* Remember the desktop geometry and register for geometry change
        events for telling the guest about video modes we like. */
@@ -782,9 +911,11 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
     connect (QApplication::desktop(), SIGNAL (resized (int)),
              this, SLOT (doResizeDesktop (int)));
 
-#if defined (VBOX_GUI_DEBUG) && defined (VBOX_GUI_FRAMEBUF_STAT)
-    VMCPUTimer::calibrate (200);
-#endif
+    QString passCAD = mConsole.GetMachine().GetExtraData (VBoxDefs::GUI_PassCAD);
+    if (!passCAD.isEmpty() &&
+        ((passCAD != "false") || (passCAD != "no"))
+       )
+        mPassCAD = true;
 
 #if defined (Q_WS_WIN)
     gView = this;
@@ -794,10 +925,6 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
     bool ok = VBoxHlpInstallKbdHook (0, winId(), UM_PREACCEL_CHAR);
     Assert (ok);
     NOREF (ok);
-#endif
-
-#ifdef Q_WS_MAC
-    DarwinCursorClearHandle (&mDarwinCursor);
 #endif
 }
 
@@ -825,12 +952,21 @@ VBoxConsoleView::~VBoxConsoleView()
         display.SetupInternalFramebuffer (0);
         /* release the reference */
         mFrameBuf->Release();
+        mFrameBuf = NULL;
     }
 
     mConsole.UnregisterCallback (mCallback);
 
-#ifdef Q_WS_MAC
-    CGImageRelease (mVirtualBoxLogo);
+#if defined (Q_WS_MAC)
+# if !defined (QT_MAC_USE_COCOA)
+    if (mDarwinWindowOverlayHandlerRef)
+    {
+        ::RemoveEventHandler (mDarwinWindowOverlayHandlerRef);
+        mDarwinWindowOverlayHandlerRef = NULL;
+    }
+# endif
+    delete mDockIconPreview;
+    mDockIconPreview = NULL;
 #endif
 }
 
@@ -893,10 +1029,10 @@ void VBoxConsoleView::normalizeGeometry (bool adjustPosition /* = false */)
 {
     /* Make no normalizeGeometry in case we are in manual resize
      * mode or main window is maximized */
-    if (mMainWnd->isMaximized() || mMainWnd->isFullScreen())
+    if (mMainWnd->isWindowMaximized() || mMainWnd->isWindowFullScreen())
         return;
 
-    QWidget *tlw = topLevelWidget();
+    QWidget *tlw = window();
 
     /* calculate client window offsets */
     QRect fr = tlw->frameGeometry();
@@ -911,12 +1047,21 @@ void VBoxConsoleView::normalizeGeometry (bool adjustPosition /* = false */)
 
     /* resize the frame to fit the contents */
     s -= tlw->size();
-    fr.rRight() += s.width();
-    fr.rBottom() += s.height();
+    fr.setRight (fr.right() + s.width());
+    fr.setBottom (fr.bottom() + s.height());
 
     if (adjustPosition)
     {
-        QRect ar = QApplication::desktop()->availableGeometry (tlw->pos());
+        QRegion ar;
+        QDesktopWidget *dwt = QApplication::desktop();
+        if (dwt->isVirtualDesktop())
+            /* Compose complex available region */
+            for (int i = 0; i < dwt->numScreens(); ++ i)
+                ar += dwt->availableGeometry (i);
+        else
+            /* Get just a simple available rectangle */
+            ar = dwt->availableGeometry (tlw->pos());
+
         fr = VBoxGlobal::normalizeGeometry (
             fr, ar, mode != VBoxDefs::SDLMode /* canResize */);
     }
@@ -984,7 +1129,7 @@ void VBoxConsoleView::setMouseIntegrationEnabled (bool enabled)
      * This notification is not possible right now due to there is
      * no the required API. */
     if (enabled)
-        viewport()->setCursor (QCursor (BlankCursor));
+        viewport()->setCursor (QCursor (Qt::BlankCursor));
 
     mMouseIntegration = enabled;
 
@@ -1069,8 +1214,26 @@ bool VBoxConsoleView::event (QEvent *e)
                           re->width(), re->height(), re->bitsPerPixel()));
 
                 /* do frame buffer dependent resize */
+#if defined (Q_WS_X11) && (QT_VERSION >= 0x040309) && (QT_VERSION < 0x040401)
+                /* restoreOverrideCursor() is broken in Qt 4.4.0 if WA_PaintOnScreen
+                 * widgets are present. This is the case on linux with SDL. As
+                 * workaround we save/restore the arrow cursor manually. See
+                 * http://trolltech.com/developer/task-tracker/index_html?id=206165&method=entry
+                 * for details. */
+                QCursor cursor;
+                if (!mHideHostPointer)
+                    cursor = viewport()->cursor();
+                else
+                    cursor = QCursor (Qt::BlankCursor);
                 mFrameBuf->resizeEvent (re);
-                viewport()->unsetCursor();
+                viewport()->setCursor (cursor);
+#else
+                mFrameBuf->resizeEvent (re);
+                if (!mHideHostPointer)
+                    viewport()->unsetCursor();
+                else
+                    viewport()->setCursor (QCursor (Qt::BlankCursor));
+#endif
 
                 /* This event appears in case of guest video was changed
                  * for somehow even without video resolution change.
@@ -1088,11 +1251,23 @@ bool VBoxConsoleView::event (QEvent *e)
                 maybeRestrictMinimumSize();
 
                 /* resize the guest canvas */
-                resizeContents (re->width(), re->height());
-                /* let our toplevel widget calculate its sizeHint properly */
-                QApplication::sendPostedEvents (0, QEvent::LayoutHint);
+                if (!mIgnoreFrameBufferResize)
+                    resize (re->width(), re->height());
+                updateSliders();
+                /* Let our toplevel widget calculate its sizeHint properly. */
+#ifdef Q_WS_X11
+                /* We use processEvents rather than sendPostedEvents & set the
+                 * time out value to max cause on X11 otherwise the layout
+                 * isn't calculated correctly. Dosn't find the bug in Qt, but
+                 * this could be triggered through the async nature of the X11
+                 * window event system. */
+                QCoreApplication::processEvents (QEventLoop::AllEvents, INT_MAX);
+#else /* Q_WS_X11 */
+                QCoreApplication::sendPostedEvents (0, QEvent::LayoutRequest);
+#endif /* Q_WS_X11 */
 
-                normalizeGeometry (true /* adjustPosition */);
+                if (!mIgnoreFrameBufferResize)
+                    normalizeGeometry (true /* adjustPosition */);
 
                 /* report to the VM thread that we finished resizing */
                 mConsole.GetDisplay().ResizeCompleted (0);
@@ -1114,21 +1289,26 @@ bool VBoxConsoleView::event (QEvent *e)
                  * but it is done every time to keep the code simpler. */
                 calculateDesktopGeometry();
 
+                /* Enable frame-buffer resize watching. */
+                if (mIgnoreFrameBufferResize)
+                {
+                    mIgnoreFrameBufferResize = false;
+                    doResizeHint (mNormalSize);
+                }
+
                 return true;
             }
 
-#if !defined (Q_WS_WIN) && !defined (Q_WS_PM)
-            /* see VBox[QImage|SDL]FrameBuffer::NotifyUpdate(). */
+            /* See VBox[QImage|SDL]FrameBuffer::NotifyUpdate(). */
             case VBoxDefs::RepaintEventType:
             {
                 VBoxRepaintEvent *re = (VBoxRepaintEvent *) e;
                 viewport()->repaint (re->x() - contentsX(),
                                      re->y() - contentsY(),
-                                     re->width(), re->height(), false);
+                                     re->width(), re->height());
                 /* mConsole.GetDisplay().UpdateCompleted(); - the event was acked already */
                 return true;
             }
-#endif
 
             case VBoxDefs::SetRegionEventType:
             {
@@ -1139,7 +1319,7 @@ bool VBoxConsoleView::event (QEvent *e)
                     mLastVisibleRegion = sre->region();
                     mMainWnd->setMask (sre->region());
                 }
-                else if (!mLastVisibleRegion.isNull() &&
+                else if (!mLastVisibleRegion.isEmpty() &&
                          !mMainWnd->isTrueSeamless())
                     mLastVisibleRegion = QRegion();
                 return true;
@@ -1153,6 +1333,11 @@ bool VBoxConsoleView::event (QEvent *e)
                  * mouse capability change that disables integration */
                 if (mMouseAbsolute)
                     setPointerShape (me);
+                else
+                    /* Note: actually we should still remember the requested
+                     * cursor shape.  If we can't do that, at least remember
+                     * the requested visiblilty. */
+                    mHideHostPointer = !me->isVisible();
                 return true;
             }
             case VBoxDefs::MouseCapabilityEventType:
@@ -1207,9 +1392,24 @@ bool VBoxConsoleView::event (QEvent *e)
                 GuestAdditionsEvent *ge = (GuestAdditionsEvent *) e;
                 LogFlowFunc (("AdditionsStateChangeEventType\n"));
 
+                /* Always send a size hint if we are in fullscreen or seamless
+                 * when the graphics capability is enabled, in case the host
+                 * resolution has changed since the VM was last run. */
+#if 0
+                if (!mDoResize && !mGuestSupportsGraphics &&
+                    ge->supportsGraphics() &&
+                    (mMainWnd->isTrueSeamless() || mMainWnd->isTrueFullscreen()))
+                    mDoResize = true;
+#endif
+
                 mGuestSupportsGraphics = ge->supportsGraphics();
 
                 maybeRestrictMinimumSize();
+
+#if 0
+                /* This will only be acted upon if mDoResize is true. */
+                doResizeHint();
+#endif
 
                 emit additionsStateChanged (ge->additionVersion(),
                                             ge->additionActive(),
@@ -1230,7 +1430,7 @@ bool VBoxConsoleView::event (QEvent *e)
             case VBoxDefs::ActivateMenuEventType:
             {
                 ActivateMenuEvent *ame = (ActivateMenuEvent *) e;
-                ame->menuData()->activateItemAt (ame->index());
+                ame->action()->trigger();
 
                 /*
                  *  The main window and its children can be destroyed at this
@@ -1238,11 +1438,10 @@ bool VBoxConsoleView::event (QEvent *e)
                  *  main window). Detect this situation to prevent calls to
                  *  destroyed widgets.
                  */
-                QWidgetList *list = QApplication::topLevelWidgets();
-                bool destroyed = list->find (mMainWnd) < 0;
-                delete list;
+                QWidgetList list = QApplication::topLevelWidgets();
+                bool destroyed = list.indexOf (mMainWnd) < 0;
                 if (!destroyed && mMainWnd->statusBar())
-                    mMainWnd->statusBar()->clear();
+                    mMainWnd->statusBar()->clearMessage();
 
                 return true;
             }
@@ -1319,11 +1518,11 @@ bool VBoxConsoleView::event (QEvent *e)
                      * between left and right shift here (too much hassle) */
                     const bool kShift = (gs.hostKey() == VK_SHIFT ||
                                         gs.hostKey() == VK_LSHIFT) &&
-                                        (ke->state() & ShiftButton);
+                                        (ke->state() & Qt::ShiftModifier);
                     /* define hot keys according to the Shift state */
-                    const int kAltTab      = kShift ? Key_Exclam     : Key_1;
-                    const int kAltShiftTab = kShift ? Key_At         : Key_2;
-                    const int kCtrlEsc     = kShift ? Key_AsciiTilde : Key_QuoteLeft;
+                    const int kAltTab      = kShift ? Qt::Key_Exclam     : Qt::Key_1;
+                    const int kAltShiftTab = kShift ? Qt::Key_At         : Qt::Key_2;
+                    const int kCtrlEsc     = kShift ? Qt::Key_AsciiTilde : Qt::Key_QuoteLeft;
 
                     /* Simulate Alt+Tab on Host+1 and Alt+Shift+Tab on Host+2 */
                     if (ke->key() == kAltTab || ke->key() == kAltShiftTab)
@@ -1387,23 +1586,23 @@ bool VBoxConsoleView::event (QEvent *e)
 
                 if (mIsHostkeyPressed && e->type() == QEvent::KeyPress)
                 {
-                    if (ke->key() >= Key_F1 && ke->key() <= Key_F12)
+                    if (ke->key() >= Qt::Key_F1 && ke->key() <= Qt::Key_F12)
                     {
-                        QValueVector <LONG> combo (6);
+                        QVector <LONG> combo (6);
                         combo [0] = 0x1d; /* Ctrl down */
                         combo [1] = 0x38; /* Alt  down */
                         combo [4] = 0xb8; /* Alt  up   */
                         combo [5] = 0x9d; /* Ctrl up   */
-                        if (ke->key() >= Key_F1 && ke->key() <= Key_F10)
+                        if (ke->key() >= Qt::Key_F1 && ke->key() <= Qt::Key_F10)
                         {
-                            combo [2] = 0x3b + (ke->key() - Key_F1); /* F1-F10 down */
-                            combo [3] = 0xbb + (ke->key() - Key_F1); /* F1-F10 up   */
+                            combo [2] = 0x3b + (ke->key() - Qt::Key_F1); /* F1-F10 down */
+                            combo [3] = 0xbb + (ke->key() - Qt::Key_F1); /* F1-F10 up   */
                         }
                         /* some scan slice */
-                        else if (ke->key() >= Key_F11 && ke->key() <= Key_F12)
+                        else if (ke->key() >= Qt::Key_F11 && ke->key() <= Qt::Key_F12)
                         {
-                            combo [2] = 0x57 + (ke->key() - Key_F11); /* F11-F12 down */
-                            combo [3] = 0xd7 + (ke->key() - Key_F11); /* F11-F12 up   */
+                            combo [2] = 0x57 + (ke->key() - Qt::Key_F11); /* F11-F12 down */
+                            combo [3] = 0xd7 + (ke->key() - Qt::Key_F11); /* F11-F12 up   */
                         }
                         else
                             Assert (0);
@@ -1411,20 +1610,30 @@ bool VBoxConsoleView::event (QEvent *e)
                         CKeyboard keyboard = mConsole.GetKeyboard();
                         keyboard.PutScancodes (combo);
                     }
-                    else if (ke->key() == Key_Home)
+                    else if (ke->key() == Qt::Key_Home)
                     {
-                        /* activate the main menu */
+                        /* Activate the main menu */
                         if (mMainWnd->isTrueSeamless() || mMainWnd->isTrueFullscreen())
                             mMainWnd->popupMainMenu (mMouseCaptured);
                         else
-                            mMainWnd->menuBar()->setFocus();
+                        {
+                            /* In Qt4 it is not enough to just set the focus to
+                             * menu-bar. So to get the menu-bar we have to send
+                             * Qt::Key_Alt press/release events directly. */
+                            QKeyEvent e1 (QEvent::KeyPress, Qt::Key_Alt,
+                                          Qt::NoModifier);
+                            QKeyEvent e2 (QEvent::KeyRelease, Qt::Key_Alt,
+                                          Qt::NoModifier);
+                            QApplication::sendEvent (mMainWnd->menuBar(), &e1);
+                            QApplication::sendEvent (mMainWnd->menuBar(), &e2);
+                        }
                     }
                     else
                     {
                         /* process hot keys not processed in keyEvent()
                          * (as in case of non-alphanumeric keys) */
                         processHotKey (QKeySequence (ke->key()),
-                                       mMainWnd->menuBar());
+                                       mMainWnd->menuBar()->actions());
                     }
                 }
                 else if (!mIsHostkeyPressed && e->type() == QEvent::KeyRelease)
@@ -1459,8 +1668,8 @@ bool VBoxConsoleView::event (QEvent *e)
                  *  what. So, I'll just always show & activate the stupid window to
                  *  make it get out of the dock when the user wishes to show a VM.
                  */
-                topLevelWidget()->show();
-                topLevelWidget()->setActiveWindow();
+                window()->show();
+                window()->activateWindow();
                 return true;
             }
 #endif
@@ -1469,7 +1678,7 @@ bool VBoxConsoleView::event (QEvent *e)
         }
     }
 
-    return QScrollView::event (e);
+    return QAbstractScrollArea::event (e);
 }
 
 bool VBoxConsoleView::eventFilter (QObject *watched, QEvent *e)
@@ -1485,8 +1694,8 @@ bool VBoxConsoleView::eventFilter (QObject *watched, QEvent *e)
             {
                 QMouseEvent *me = (QMouseEvent *) e;
                 if (mouseEvent (me->type(), me->pos(), me->globalPos(),
-                                me->button(), me->state(), me->stateAfter(),
-                                0, Horizontal))
+                                me->buttons(), me->modifiers(),
+                                0, Qt::Horizontal))
                     return true; /* stop further event handling */
                 break;
             }
@@ -1494,15 +1703,35 @@ bool VBoxConsoleView::eventFilter (QObject *watched, QEvent *e)
             {
                 QWheelEvent *we = (QWheelEvent *) e;
                 if (mouseEvent (we->type(), we->pos(), we->globalPos(),
-                                NoButton, we->state(), we->state(),
+                                we->buttons(), we->modifiers(),
                                 we->delta(), we->orientation()))
                     return true; /* stop further event handling */
                 break;
             }
+#ifdef Q_WS_MAC
+            case QEvent::Leave:
+            {
+                /* Enable mouse event compression if we leave the VM view. This
+                   is necessary for having smooth resizing of the VM/other
+                   windows. */
+                setMouseCoalescingEnabled (true);
+                break;
+            }
+            case QEvent::Enter:
+            {
+                /* Disable mouse event compression if we enter the VM view. So
+                   all mouse events are registered in the VM. Only do this if
+                   the keyboard/mouse is grabbed (this is when we have a valid
+                   event handler). */
+                setMouseCoalescingEnabled (false);
+                break;
+            }
+#endif /* Q_WS_MAC */
             case QEvent::Resize:
             {
                 if (mMouseCaptured)
                     updateMouseClipping();
+                break;
             }
             default:
                 break;
@@ -1566,7 +1795,23 @@ bool VBoxConsoleView::eventFilter (QObject *watched, QEvent *e)
                 mDoResize = mGuestSupportsGraphics || mMainWnd->isTrueFullscreen();
                 if (!mIgnoreMainwndResize &&
                     mGuestSupportsGraphics && mAutoresizeGuest)
-                    resize_hint_timer->start (300, TRUE);
+                    QTimer::singleShot (300, this, SLOT (doResizeHint()));
+                break;
+            }
+            case QEvent::WindowStateChange:
+            {
+                /* During minimizing and state restoring mMainWnd gets the focus
+                 * which belongs to console view window, so returning it properly. */
+                QWindowStateChangeEvent *ev = static_cast <QWindowStateChangeEvent*> (e);
+                if (ev->oldState() & Qt::WindowMinimized)
+                {
+                    if (QApplication::focusWidget())
+                    {
+                        QApplication::focusWidget()->clearFocus();
+                        qApp->processEvents();
+                    }
+                    QTimer::singleShot (0, this, SLOT (setFocus()));
+                }
                 break;
             }
 
@@ -1593,7 +1838,7 @@ bool VBoxConsoleView::eventFilter (QObject *watched, QEvent *e)
             case QEvent::KeyPress:
             {
                 QKeyEvent *ke = (QKeyEvent *) e;
-                if (ke->key() == Key_Escape && !(ke->state() & KeyButtonMask))
+                if (ke->key() == Qt::Key_Escape && (ke->modifiers() == Qt::NoModifier))
                     if (mMainWnd->menuBar()->hasFocus())
                         setFocus();
                 break;
@@ -1603,7 +1848,7 @@ bool VBoxConsoleView::eventFilter (QObject *watched, QEvent *e)
         }
     }
 
-    return QScrollView::eventFilter (watched, e);
+    return QAbstractScrollArea::eventFilter (watched, e);
 }
 
 #if defined(Q_WS_WIN32)
@@ -1662,7 +1907,8 @@ bool VBoxConsoleView::winLowKeyboardEvent (UINT msg, const KBDLLHOOKSTRUCT &even
         message.lParam &= ~0x1000000;
 
     /* we suppose here that this hook is always called on the main GUI thread */
-    return winEvent (&message);
+    long dummyResult;
+    return winEvent (&message, &dummyResult);
 }
 
 /**
@@ -1670,42 +1916,42 @@ bool VBoxConsoleView::winLowKeyboardEvent (UINT msg, const KBDLLHOOKSTRUCT &even
  * the keyboard events directly and bypass the harmful Qt translation. A
  * return value of @c true indicates to Qt that the event has been handled.
  */
-bool VBoxConsoleView::winEvent (MSG *msg)
+bool VBoxConsoleView::winEvent (MSG *aMsg, long* /* aResult */)
 {
     if (!mAttached || ! (
-        msg->message == WM_KEYDOWN || msg->message == WM_SYSKEYDOWN ||
-        msg->message == WM_KEYUP || msg->message == WM_SYSKEYUP
+        aMsg->message == WM_KEYDOWN || aMsg->message == WM_SYSKEYDOWN ||
+        aMsg->message == WM_KEYUP || aMsg->message == WM_SYSKEYUP
     ))
         return false;
 
     /* check for the special flag possibly set at the end of this function */
-    if (msg->lParam & (0x1 << 25))
+    if (aMsg->lParam & (0x1 << 25))
     {
-        msg->lParam &= ~(0x1 << 25);
+        aMsg->lParam &= ~(0x1 << 25);
         return false;
     }
 
 #if 0
     char buf [256];
     sprintf (buf, "WM_%04X: vk=%04X rep=%05d scan=%02X ext=%01d rzv=%01X ctx=%01d prev=%01d tran=%01d",
-             msg->message, msg->wParam,
-             (msg->lParam & 0xFFFF),
-             ((msg->lParam >> 16) & 0xFF),
-             ((msg->lParam >> 24) & 0x1),
-             ((msg->lParam >> 25) & 0xF),
-             ((msg->lParam >> 29) & 0x1),
-             ((msg->lParam >> 30) & 0x1),
-             ((msg->lParam >> 31) & 0x1));
+             aMsg->message, aMsg->wParam,
+             (aMsg->lParam & 0xFFFF),
+             ((aMsg->lParam >> 16) & 0xFF),
+             ((aMsg->lParam >> 24) & 0x1),
+             ((aMsg->lParam >> 25) & 0xF),
+             ((aMsg->lParam >> 29) & 0x1),
+             ((aMsg->lParam >> 30) & 0x1),
+             ((aMsg->lParam >> 31) & 0x1));
     mMainWnd->statusBar()->message (buf);
     LogFlow (("%s\n", buf));
 #endif
 
-    int scan = (msg->lParam >> 16) & 0x7F;
+    int scan = (aMsg->lParam >> 16) & 0x7F;
     /* scancodes 0x80 and 0x00 are ignored */
     if (!scan)
         return true;
 
-    int vkey = msg->wParam;
+    int vkey = aMsg->wParam;
 
     /* When one of the SHIFT keys is held and one of the cursor movement
      * keys is pressed, Windows duplicates SHIFT press/release messages,
@@ -1716,9 +1962,9 @@ bool VBoxConsoleView::winEvent (MSG *msg)
         return true;
 
     int flags = 0;
-    if (msg->lParam & 0x1000000)
+    if (aMsg->lParam & 0x1000000)
         flags |= KeyExtended;
-    if (!(msg->lParam & 0x80000000))
+    if (!(aMsg->lParam & 0x80000000))
         flags |= KeyPressed;
 
     switch (vkey)
@@ -1762,8 +2008,8 @@ bool VBoxConsoleView::winEvent (MSG *msg)
          * to let Qt process the message (to handle non-alphanumeric <HOST>+key
          * shortcuts for example). So send it direcltly to the window with the
          * special flag in the reserved area of lParam (to avoid recursion). */
-        ::SendMessage (msg->hwnd, msg->message,
-                       msg->wParam, msg->lParam | (0x1 << 25));
+        ::SendMessage (aMsg->hwnd, aMsg->message,
+                       aMsg->wParam, aMsg->lParam | (0x1 << 25));
         return true;
     }
 
@@ -1895,14 +2141,31 @@ bool VBoxConsoleView::pmEvent (QMSG *aMsg)
 #elif defined(Q_WS_X11)
 
 /**
+ * This function is a "predicate" for XCheckIfEvent().  It will check
+ * the XEvent passed to it to see if it is a keypress event matching
+ * the keyrelease event in @a pvArg.
+ * @returns True if the event matches, False otherwise
+ * @param   pEvent    the event to compare, taken from the event queue
+ * @param   pvArg     the keyrelease event we would like to compare against
+ */
+static Bool VBoxConsoleViewCompEvent(Display *, XEvent *pEvent,
+                                     XPointer pvArg)
+{
+    XEvent *pKeyEvent = (XEvent *) pvArg;
+    if ((pEvent->type == XKeyPress) &&
+        (pEvent->xkey.keycode == pKeyEvent->xkey.keycode))
+        return True;
+    else
+        return False;
+}
+
+/**
  *  This routine gets X11 events before they are processed by Qt. This is
  *  used for our platform specific keyboard implementation. A return value
  *  of TRUE indicates that the event has been processed by us.
  */
 bool VBoxConsoleView::x11Event (XEvent *event)
 {
-    static WINEKEYBOARDINFO wineKeyboardInfo;
-
     switch (event->type)
     {
         /* We have to handle XFocusOut right here as this event is not passed
@@ -1918,44 +2181,51 @@ bool VBoxConsoleView::x11Event (XEvent *event)
             if (mAttached)
                 break;
             /*  else fall through */
-        /// @todo (AH) later, we might want to handle these as well
-        case KeymapNotify:
-        case MappingNotify:
         default:
             return false; /* pass the event to Qt */
     }
 
-    /* perform the mega-complex translation using the wine algorithms */
-    handleXKeyEvent (this->x11Display(), event, &wineKeyboardInfo);
+    /* Translate the keycode to a PC scan code. */
+    unsigned scan = handleXKeyEvent (event);
 
 #if 0
     char buf [256];
-    sprintf (buf, "pr=%d kc=%08X st=%08X fl=%08lX scan=%04X",
+    sprintf (buf, "pr=%d kc=%08X st=%08X extended=%s scan=%04X",
              event->type == XKeyPress ? 1 : 0, event->xkey.keycode,
-             event->xkey.state, wineKeyboardInfo.dwFlags, wineKeyboardInfo.wScan);
+             event->xkey.state, scan >> 8 ? "true" : "false", scan & 0x7F);
     mMainWnd->statusBar()->message (buf);
     LogFlow (("### %s\n", buf));
 #endif
 
-    int scan = wineKeyboardInfo.wScan & 0x7F;
     // scancodes 0x00 (no valid translation) and 0x80 are ignored
-    if (!scan)
+    if (!scan & 0x7F)
         return true;
+
+    /* Fix for http://www.virtualbox.org/ticket/1296:
+     * when X11 sends events for repeated keys, it always inserts an
+     * XKeyRelease before the XKeyPress. */
+    XEvent returnEvent;
+    if ((event->type == XKeyRelease) &&
+        (XCheckIfEvent(event->xkey.display, &returnEvent,
+                       VBoxConsoleViewCompEvent, (XPointer) event) == True)) {
+        XPutBackEvent(event->xkey.display, &returnEvent);
+        /* Discard it, don't pass it to Qt. */
+        return true;
+    }
 
     KeySym ks = ::XKeycodeToKeysym (event->xkey.display, event->xkey.keycode, 0);
 
     int flags = 0;
-    if (wineKeyboardInfo.dwFlags & 0x0001)
+    if (scan >> 8)
         flags |= KeyExtended;
     if (event->type == XKeyPress)
         flags |= KeyPressed;
 
+    /* Remove the extended flag */
+    scan &= 0x7F;
+
     switch (ks)
     {
-        case XK_Num_Lock:
-            // Wine sets the extended bit for the NumLock key. Reset it.
-            flags &= ~KeyExtended;
-            break;
         case XK_Print:
             flags |= KeyPrint;
             break;
@@ -1973,11 +2243,12 @@ bool VBoxConsoleView::x11Event (XEvent *event)
  *  Invoked by VBoxConsoleView::darwinEventHandlerProc / VBoxConsoleView::macEventFilter when
  *  it receives a raw keyboard event.
  *
+ *  @param pvCocoaEvent The Cocoa keyboard event. Can be NULL in some configs.
  *  @param inEvent      The keyboard event.
  *
  *  @return true if the key was processed, false if it wasn't processed and should be passed on.
  */
-bool VBoxConsoleView::darwinKeyboardEvent (EventRef inEvent)
+bool VBoxConsoleView::darwinKeyboardEvent (const void *pvCocoaEvent, EventRef inEvent)
 {
     bool ret = false;
     UInt32 EventKind = ::GetEventKind (inEvent);
@@ -2001,7 +2272,7 @@ bool VBoxConsoleView::darwinKeyboardEvent (EventRef inEvent)
             /* get the unicode string (if present). */
             AssertCompileSize (wchar_t, 2);
             AssertCompileSize (UniChar, 2);
-            UInt32 cbWritten = 0;
+            ByteCount cbWritten = 0;
             wchar_t ucs[8];
             if (::GetEventParameter (inEvent, kEventParamKeyUnicodes, typeUnicodeText, NULL,
                                      sizeof (ucs), &cbWritten, &ucs[0]) != 0)
@@ -2017,7 +2288,7 @@ bool VBoxConsoleView::darwinKeyboardEvent (EventRef inEvent)
         UInt32 newMask = 0;
         ::GetEventParameter (inEvent, kEventParamKeyModifiers, typeUInt32, NULL,
                              sizeof (newMask), NULL, &newMask);
-        newMask = ::DarwinAdjustModifierMask (newMask);
+        newMask = ::DarwinAdjustModifierMask (newMask, pvCocoaEvent);
         UInt32 changed = newMask ^ mDarwinKeyModifiers;
         if (changed)
         {
@@ -2069,13 +2340,20 @@ bool VBoxConsoleView::darwinKeyboardEvent (EventRef inEvent)
  */
 void VBoxConsoleView::darwinGrabKeyboardEvents (bool fGrab)
 {
+    mKeyboardGrabbed = fGrab;
     if (fGrab)
     {
-        ::SetMouseCoalescingEnabled (false, NULL);      //??
-        ::CGSetLocalEventsSuppressionInterval (0.0);    //??
+        /* Disable mouse and keyboard event compression/delaying to make sure
+           we *really* get all of the events. */
+        ::CGSetLocalEventsSuppressionInterval (0.0);
+        setMouseCoalescingEnabled (false);
 
-#ifndef VBOX_WITH_HACKED_QT
+        /* Register the event callback/hook and grab the keyboard. */
+# ifdef QT_MAC_USE_COCOA
+        ::VBoxCocoaApplication_setCallback (UINT32_MAX, /** @todo fix mask */
+                                            VBoxConsoleView::darwinEventHandlerProc, this);
 
+# elif !defined (VBOX_WITH_HACKED_QT)
         EventTypeSpec eventTypes[6];
         eventTypes[0].eventClass = kEventClassKeyboard;
         eventTypes[0].eventKind  = kEventRawKeyDown;
@@ -2099,28 +2377,31 @@ void VBoxConsoleView::darwinGrabKeyboardEvents (bool fGrab)
                                           this, &mDarwinEventHandlerRef);
         ::DisposeEventHandlerUPP (eventHandler);
 
-#else /* VBOX_WITH_HACKED_QT */
+# else  /* VBOX_WITH_HACKED_QT */
         ((QIApplication *)qApp)->setEventFilter (VBoxConsoleView::macEventFilter, this);
-#endif /* VBOX_WITH_HACKED_QT */
+# endif /* VBOX_WITH_HACKED_QT */
 
         ::DarwinGrabKeyboard (false);
     }
     else
     {
         ::DarwinReleaseKeyboard();
-#ifndef VBOX_WITH_HACKED_QT
+# ifdef QT_MAC_USE_COCOA
+        ::VBoxCocoaApplication_unsetCallback (UINT32_MAX, /** @todo fix mask */
+                                              VBoxConsoleView::darwinEventHandlerProc, this);
+# elif !defined(VBOX_WITH_HACKED_QT)
         if (mDarwinEventHandlerRef)
         {
             ::RemoveEventHandler (mDarwinEventHandlerRef);
             mDarwinEventHandlerRef = NULL;
         }
-#else
+# else  /* VBOX_WITH_HACKED_QT */
         ((QIApplication *)qApp)->setEventFilter (NULL, NULL);
-#endif
+# endif /* VBOX_WITH_HACKED_QT */
     }
 }
 
-#endif // defined (Q_WS_WIN)
+#endif // defined (Q_WS_MAC)
 
 //
 // Private members
@@ -2185,9 +2466,9 @@ void VBoxConsoleView::fixModifierState (LONG *codes, uint *count)
     unsigned uKeyMaskNum = 0, uKeyMaskCaps = 0, uKeyMaskScroll = 0;
 
     uKeyMaskCaps          = LockMask;
-    XModifierKeymap* map  = XGetModifierMapping(qt_xdisplay());
-    KeyCode keyCodeNum    = XKeysymToKeycode(qt_xdisplay(), XK_Num_Lock);
-    KeyCode keyCodeScroll = XKeysymToKeycode(qt_xdisplay(), XK_Scroll_Lock);
+    XModifierKeymap* map  = XGetModifierMapping(QX11Info::display());
+    KeyCode keyCodeNum    = XKeysymToKeycode(QX11Info::display(), XK_Num_Lock);
+    KeyCode keyCodeScroll = XKeysymToKeycode(QX11Info::display(), XK_Scroll_Lock);
 
     for (int i = 0; i < 8; i++)
     {
@@ -2198,7 +2479,7 @@ void VBoxConsoleView::fixModifierState (LONG *codes, uint *count)
                  && map->modifiermap[map->max_keypermod * i] == keyCodeScroll)
             uKeyMaskScroll = 1 << i;
     }
-    XQueryPointer(qt_xdisplay(), DefaultRootWindow(qt_xdisplay()), &wDummy1, &wDummy2,
+    XQueryPointer(QX11Info::display(), DefaultRootWindow(QX11Info::display()), &wDummy1, &wDummy2,
                   &iDummy3, &iDummy4, &iDummy5, &iDummy6, &uMask);
     XFreeModifiermap(map);
 
@@ -2230,7 +2511,7 @@ void VBoxConsoleView::fixModifierState (LONG *codes, uint *count)
         codes[(*count)++] = 0x3a | 0x80;
     }
 
-#elif defined(Q_WS_MAC)
+#elif defined (Q_WS_MAC)
 
     /* if (muNumLockAdaptionCnt) ... - NumLock isn't implemented by Mac OS X so ignore it. */
     if (muCapsLockAdaptionCnt && (mCapsLock ^ !!(::GetCurrentEventKeyModifiers() & alphaLock)))
@@ -2242,7 +2523,7 @@ void VBoxConsoleView::fixModifierState (LONG *codes, uint *count)
 
 #else
 
-#warning Adapt VBoxConsoleView::fixModifierState
+//#warning Adapt VBoxConsoleView::fixModifierState
 
 #endif
 
@@ -2255,6 +2536,7 @@ void VBoxConsoleView::fixModifierState (LONG *codes, uint *count)
 void VBoxConsoleView::toggleFSMode (const QSize &aSize)
 {
     if ((mGuestSupportsGraphics && mAutoresizeGuest) ||
+        mMainWnd->isTrueSeamless() ||
         mMainWnd->isTrueFullscreen())
     {
         QSize newSize;
@@ -2369,8 +2651,9 @@ bool VBoxConsoleView::keyEvent (int aKey, uint8_t aScan, int aFlags,
                 fixModifierState (codes, &count);
             }
 
-            /* Check if it's C-A-D */
-            if (aScan == 0x53 /* Del */ &&
+            /* Check if it's C-A-D and GUI/PassCAD is not true */
+            if (!mPassCAD &&
+                aScan == 0x53 /* Del */ &&
                 ((mPressedKeys [0x38] & IsKeyPressed) /* Alt */ ||
                  (mPressedKeys [0x38] & IsExtKeyPressed)) &&
                 ((mPressedKeys [0x1d] & IsKeyPressed) /* Ctrl */ ||
@@ -2547,14 +2830,14 @@ bool VBoxConsoleView::keyEvent (int aKey, uint8_t aScan, int aFlags,
             if (!ToUnicodeEx (hotkey, 0, keys, &ch, 1, 0, list [i]) == 1)
                 ch = 0;
             if (ch)
-                processed = processHotKey (QKeySequence (UNICODE_ACCEL +
-                                                QChar (ch).upper().unicode()),
-                                           mMainWnd->menuBar());
+                processed = processHotKey (QKeySequence (Qt::UNICODE_ACCEL +
+                                                QChar (ch).toUpper().unicode()),
+                                           mMainWnd->menuBar()->actions());
         }
         delete[] list;
 #elif defined (Q_WS_X11)
         NOREF(aUniKey);
-        Display *display = x11Display();
+        Display *display = QX11Info::display();
         int keysyms_per_keycode = getKeysymsPerKeycode();
         KeyCode kc = XKeysymToKeycode (display, aKey);
         // iterate over the first level (not shifted) keysyms in every group
@@ -2567,16 +2850,16 @@ bool VBoxConsoleView::keyEvent (int aKey, uint8_t aScan, int aFlags,
             if (ch)
             {
                 QChar c = QString::fromLocal8Bit (&ch, 1) [0];
-                processed = processHotKey (QKeySequence (UNICODE_ACCEL +
-                                                c.upper().unicode()),
-                                           mMainWnd->menuBar());
+                processed = processHotKey (QKeySequence (Qt::UNICODE_ACCEL +
+                                                         c.toUpper().unicode()),
+                                           mMainWnd->menuBar()->actions());
             }
         }
 #elif defined (Q_WS_MAC)
         if (aUniKey && aUniKey [0] && !aUniKey [1])
-            processed = processHotKey (QKeySequence (UNICODE_ACCEL +
-                                                     QChar (aUniKey [0]).upper().unicode()),
-                                       mMainWnd->menuBar());
+            processed = processHotKey (QKeySequence (Qt::UNICODE_ACCEL +
+                                                     QChar (aUniKey [0]).toUpper().unicode()),
+                                       mMainWnd->menuBar()->actions());
 
         /* Don't consider the hot key as pressed since the guest never saw
          * it. (probably a generic thing) */
@@ -2616,10 +2899,8 @@ bool VBoxConsoleView::keyEvent (int aKey, uint8_t aScan, int aFlags,
     }
 #endif
 
-    QValueVector <LONG> scancodes (count);
-    for (size_t i = 0; i < count; ++i)
-        scancodes[i] = codes[i];
-    keyboard.PutScancodes (scancodes);
+    std::vector <LONG> scancodes(codes, &codes[count]);
+    keyboard.PutScancodes (QVector<LONG>::fromStdVector(scancodes));
 
     /* grab the key from Qt */
     return true;
@@ -2630,34 +2911,41 @@ bool VBoxConsoleView::keyEvent (int aKey, uint8_t aScan, int aFlags,
  *
  *  @return     true to consume the event and false to pass it to Qt
  */
-bool VBoxConsoleView::mouseEvent (int aType, const QPoint &aPos,
-                                  const QPoint &aGlobalPos, ButtonState aButton,
-                                  ButtonState aState, ButtonState aStateAfter,
-                                  int aWheelDelta, Orientation aWheelDir)
+bool VBoxConsoleView::mouseEvent (int aType, const QPoint &aPos, const QPoint &aGlobalPos,
+                                  Qt::MouseButtons aButtons, Qt::KeyboardModifiers aModifiers,
+                                  int aWheelDelta, Qt::Orientation aWheelDir)
 {
 #if 0
     char buf [256];
     sprintf (buf,
-             "MOUSE: type=%03d x=%03d y=%03d btn=%03d st=%08X stAfter=%08X "
+             "MOUSE: type=%03d x=%03d y=%03d btn=%03d btns=%08X mod=%08X "
              "wdelta=%03d wdir=%03d",
-             aType, aPos.x(), aPos.y(), aButton, aState, aStateAfter,
+             aType, aPos.x(), aPos.y(), aButtons, aModifiers,
              aWheelDelta, aWheelDir);
     mMainWnd->statusBar()->message (buf);
 #else
-    Q_UNUSED (aButton);
-    Q_UNUSED (aState);
+    Q_UNUSED (aModifiers);
 #endif
 
     int state = 0;
-    if (aStateAfter & LeftButton)
+    if (aButtons & Qt::LeftButton)
         state |= KMouseButtonState_LeftButton;
-    if (aStateAfter & RightButton)
+    if (aButtons & Qt::RightButton)
         state |= KMouseButtonState_RightButton;
-    if (aStateAfter & MidButton)
+    if (aButtons & Qt::MidButton)
         state |= KMouseButtonState_MiddleButton;
 
+#ifdef Q_WS_MAC
+    /* Simulate the right click on
+     * Host+Left Mouse */
+    if (mIsHostkeyPressed &&
+        mIsHostkeyAlone &&
+        state == KMouseButtonState_LeftButton)
+        state = KMouseButtonState_RightButton;
+#endif /* Q_WS_MAC */
+
     int wheel = 0;
-    if (aWheelDir == Vertical)
+    if (aWheelDir == Qt::Vertical)
     {
         /* the absolute value of wheel delta is 120 units per every wheel
          * move; positive deltas correspond to counterclockwize rotations
@@ -2689,9 +2977,9 @@ bool VBoxConsoleView::mouseEvent (int aType, const QPoint &aPos,
          * (Note, aPos seems to be unreliable, it caused endless recursion here at one points...)
          * (Note, synergy and other remote clients might not like this cursor warping.)
          */
-        QRect rect = viewport()->visibleRect();
+        QRect rect = viewport()->visibleRegion().boundingRect();
         QPoint pw = viewport()->mapToGlobal (viewport()->pos());
-        rect.moveBy (pw.x(), pw.y());
+        rect.translate (pw.x(), pw.y());
 
         QRect dpRect = QApplication::desktop()->screenGeometry (viewport());
         if (rect.intersects (dpRect))
@@ -2768,11 +3056,6 @@ bool VBoxConsoleView::mouseEvent (int aType, const QPoint &aPos,
     }
     else /* !mMouseCaptured */
     {
-#ifdef Q_WS_MAC
-        /* Update the mouse cursor; this is a bit excessive really... */
-        if (!DarwinCursorIsNull (&mDarwinCursor))
-            DarwinCursorSet (&mDarwinCursor);
-#endif
         if (mMainWnd->isTrueFullscreen())
         {
             if (mode != VBoxDefs::SDLMode)
@@ -2784,13 +3067,13 @@ bool VBoxConsoleView::mouseEvent (int aType, const QPoint &aPos,
                 int dx = 0, dy = 0;
                 if (scrGeo.width() < contentsWidth())
                 {
-                    if (scrGeo.rLeft() == aGlobalPos.x()) dx = -1;
-                    if (scrGeo.rRight() == aGlobalPos.x()) dx = +1;
+                    if (scrGeo.left() == aGlobalPos.x()) dx = -1;
+                    if (scrGeo.right() == aGlobalPos.x()) dx = +1;
                 }
                 if (scrGeo.height() < contentsHeight())
                 {
-                    if (scrGeo.rTop() == aGlobalPos.y()) dy = -1;
-                    if (scrGeo.rBottom() == aGlobalPos.y()) dy = +1;
+                    if (scrGeo.top() == aGlobalPos.y()) dy = -1;
+                    if (scrGeo.bottom() == aGlobalPos.y()) dy = +1;
                 }
                 if (dx || dy)
                     scrollBy (dx, dy);
@@ -2831,7 +3114,7 @@ bool VBoxConsoleView::mouseEvent (int aType, const QPoint &aPos,
         {
             if (hasFocus() &&
                 (aType == QEvent::MouseButtonRelease &&
-                 !aStateAfter))
+                 aButtons == Qt::NoButton))
             {
                 if (isPaused())
                 {
@@ -2884,7 +3167,7 @@ void VBoxConsoleView::onStateChange (KMachineState state)
                  *  Take a screen snapshot. Note that TakeScreenShot() always
                  *  needs a 32bpp image
                  */
-                QImage shot = QImage (mFrameBuf->width(), mFrameBuf->height(), 32, 0);
+                QImage shot = QImage (mFrameBuf->width(), mFrameBuf->height(), QImage::Format_RGB32);
                 CDisplay dsp = mConsole.GetDisplay();
                 dsp.TakeScreenShot (shot.bits(), shot.width(), shot.height());
                 /*
@@ -2895,9 +3178,9 @@ void VBoxConsoleView::onStateChange (KMachineState state)
                 if (dsp.isOk())
                 {
                     dimImage (shot);
-                    mPausedShot = shot;
+                    mPausedShot = QPixmap::fromImage (shot);
                     /* fully repaint to pick up mPausedShot */
-                    viewport()->repaint();
+                    repaint();
                 }
             }
             /* fall through */
@@ -2916,7 +3199,7 @@ void VBoxConsoleView::onStateChange (KMachineState state)
                 if (mode != VBoxDefs::TimerMode && mFrameBuf)
                 {
                     /* reset the pixmap to free memory */
-                    mPausedShot.resize (0, 0);
+                    mPausedShot = QPixmap ();
                     /*
                      *  ask for full guest display update (it will also update
                      *  the viewport through IFramebuffer::NotifyUpdate)
@@ -2939,49 +3222,68 @@ void VBoxConsoleView::onStateChange (KMachineState state)
 
 void VBoxConsoleView::doRefresh()
 {
-    repaintContents (false);
+    viewport()->repaint();
 }
 
-void VBoxConsoleView::viewportPaintEvent (QPaintEvent *pe)
+void VBoxConsoleView::resizeEvent (QResizeEvent *)
+{
+    updateSliders();
+#if defined(Q_WS_MAC) && !defined(QT_MAC_USE_COCOA)
+    QRect r = viewport()->geometry();
+//    printf ("qt resize: %d %d %d %d\n", r.x(), r.y(), r.width(), r.height());
+    PostBoundsChanged (r);
+#endif /* Q_WS_MAC */
+}
+
+void VBoxConsoleView::moveEvent (QMoveEvent *)
+{
+#if defined(Q_WS_MAC) && !defined(QT_MAC_USE_COCOA)
+    QRect r = viewport()->geometry();
+//    printf ("qt resize: %d %d %d %d\n", r.x(), r.y(), r.width(), r.height());
+    PostBoundsChanged (r);
+#endif /* Q_WS_MAC */
+}
+
+void VBoxConsoleView::paintEvent (QPaintEvent *pe)
 {
     if (mPausedShot.isNull())
     {
         /* delegate the paint function to the VBoxFrameBuffer interface */
-        mFrameBuf->paintEvent (pe);
+        if (mFrameBuf)
+            mFrameBuf->paintEvent (pe);
 #ifdef Q_WS_MAC
         /* Update the dock icon if we are in the running state */
         if (isRunning())
-        {
-# if defined (VBOX_GUI_USE_QUARTZ2D)
-            if (mode == VBoxDefs::Quartz2DMode)
-            {
-                /* If the render mode is Quartz2D we could use the
-                 * CGImageRef of the framebuffer for the dock icon creation.
-                 * This saves some conversion time. */
-                CGImageRef ir =
-                    static_cast <VBoxQuartz2DFrameBuffer *> (mFrameBuf)->imageRef();
-                ::DarwinUpdateDockPreview (ir, mVirtualBoxLogo);
-            }
-            else
-# endif
-                ::DarwinUpdateDockPreview (mFrameBuf, mVirtualBoxLogo);
-        }
+            updateDockIcon();
 #endif
         return;
     }
 
-    /* we have a snapshot for the paused state */
-    QRect r = pe->rect().intersect (viewport()->rect());
-    QPainter pnt (viewport());
-    pnt.drawPixmap (r.x(), r.y(), mPausedShot,
-                    r.x() + contentsX(), r.y() + contentsY(),
-                    r.width(), r.height());
-
-#ifdef Q_WS_MAC
-    ::DarwinUpdateDockPreview (DarwinQPixmapToCGImage (&mPausedShot),
-                               mVirtualBoxLogo,
-                               mMainWnd->dockImageState());
+#ifdef VBOX_GUI_USE_QUARTZ2D
+    if (mode == VBoxDefs::Quartz2DMode && mFrameBuf)
+    {
+        mFrameBuf->paintEvent (pe);
+        updateDockIcon();
+    }
+    else
 #endif
+    {
+        /* we have a snapshot for the paused state */
+        QRect r = pe->rect().intersect (viewport()->rect());
+        /* We have to disable paint on screen if we are using the regular painter */
+        bool paintOnScreen = viewport()->testAttribute (Qt::WA_PaintOnScreen);
+        viewport()->setAttribute (Qt::WA_PaintOnScreen, false);
+        QPainter pnt (viewport());
+        pnt.drawPixmap (r.x(), r.y(), mPausedShot,
+                        r.x() + contentsX(), r.y() + contentsY(),
+                        r.width(), r.height());
+        /* Restore the attribute to its previous state */
+        viewport()->setAttribute (Qt::WA_PaintOnScreen, paintOnScreen);
+#ifdef Q_WS_MAC
+        updateDockIcon();
+#endif
+    }
+
 }
 
 /**
@@ -3009,12 +3311,12 @@ void VBoxConsoleView::captureKbd (bool aCapture, bool aEmitSignal /* = true */)
     /**/
 #elif defined (Q_WS_X11)
 	if (aCapture)
-		XGrabKey (x11Display(), AnyKey, AnyModifier,
-                  topLevelWidget()->winId(), False,
+		XGrabKey (QX11Info::display(), AnyKey, AnyModifier,
+                  window()->winId(), False,
                   GrabModeAsync, GrabModeAsync);
 	else
-		XUngrabKey (x11Display(),  AnyKey, AnyModifier,
-                    topLevelWidget()->winId());
+		XUngrabKey (QX11Info::display(),  AnyKey, AnyModifier,
+                    window()->winId());
 #elif defined (Q_WS_MAC)
     if (aCapture)
     {
@@ -3058,13 +3360,13 @@ void VBoxConsoleView::captureMouse (bool aCapture, bool aEmitSignal /* = true */
         /* memorize the host position where the cursor was captured */
         mCapturedPos = QCursor::pos();
 #ifdef Q_WS_WIN32
-        viewport()->setCursor (QCursor (BlankCursor));
+        viewport()->setCursor (QCursor (Qt::BlankCursor));
         /* move the mouse to the center of the visible area */
-        QCursor::setPos (mapToGlobal (visibleRect().center()));
+        QCursor::setPos (mapToGlobal (visibleRegion().boundingRect().center()));
         mLastPos = QCursor::pos();
 #elif defined (Q_WS_MAC)
         /* move the mouse to the center of the visible area */
-        mLastPos = mapToGlobal (visibleRect().center());
+        mLastPos = mapToGlobal (visibleRegion().boundingRect().center());
         QCursor::setPos (mLastPos);
         /* grab all mouse events. */
         viewport()->grabMouse();
@@ -3095,48 +3397,31 @@ void VBoxConsoleView::captureMouse (bool aCapture, bool aEmitSignal /* = true */
  *  Searches for a menu item with a given hot key (shortcut). If the item
  *  is found, activates it and returns true. Otherwise returns false.
  */
-bool VBoxConsoleView::processHotKey (const QKeySequence &key,  QMenuData *data)
+bool VBoxConsoleView::processHotKey (const QKeySequence &aKey,
+                                     const QList <QAction*> &aData)
 {
-    if (!data) return false;
-
-    /*
-     *  Note: below, we use the internal class QMenuItem, that is subject
-     *  to change w/o notice... (the alternative would be to explicitly assign
-     *  specific IDs to all popup submenus in VBoxConsoleWnd and then
-     *  look through its children in order to find a popup with a given ID,
-     *  which is unconvenient).
-     */
-
-    for (uint i = 0; i < data->count(); i++)
+    foreach (QAction *pAction, aData)
     {
-        int id = data->idAt (i);
-        QMenuItem *item = data->findItem (id);
-        if (item->popup())
-        {
-            if (processHotKey (key, item->popup()))
-                return true;
-        }
-        else
-        {
-            QStringList list = QStringList::split ("\tHost+", data->text (id));
-            if (list.count() == 2)
-            {
-                if (key.matches (QKeySequence (list[1])) == Identical)
-                {
-                    /*
-                     *  we asynchronously post a special event instead of calling
-                     *  data->activateItemAt (i) directly, to let key presses
-                     *  and releases be processed correctly by Qt first.
-                     *  Note: we assume that nobody will delete the menu item
-                     *  corresponding to the key sequence, so that the pointer to
-                     *  menu data posted along with the event will remain valid in
-                     *  the event handler, at least until the main window is closed.
-                     */
+        if (QMenu *menu = pAction->menu())
+            return processHotKey (aKey, menu->actions());
 
-                    QApplication::postEvent (this,
-                                             new ActivateMenuEvent (data, i));
-                    return true;
-                }
+        QString hotkey = VBoxGlobal::extractKeyFromActionText (pAction->text());
+        if (pAction->isEnabled() && !hotkey.isEmpty())
+        {
+            if (aKey.matches (QKeySequence (hotkey)) == QKeySequence::ExactMatch)
+            {
+                /*
+                 *  we asynchronously post a special event instead of calling
+                 *  pAction->trigger() directly, to let key presses and
+                 *  releases be processed correctly by Qt first. Note: we
+                 *  assume that nobody will delete the menu item corresponding
+                 *  to the key sequence, so that the pointer to menu data
+                 *  posted along with the event will remain valid in the event
+                 *  handler, at least until the main window is closed.
+                 */
+                QApplication::postEvent (this,
+                                         new ActivateMenuEvent (pAction));
+                return true;
             }
         }
     }
@@ -3189,7 +3474,7 @@ void VBoxConsoleView::releaseAllPressedKeys (bool aReleaseHostKey /* = true*/)
                 keyboard.PutScancode (0xFE);
                 fSentRESEND = true;
             }
-            QValueVector <LONG> codes (2);
+            QVector <LONG> codes (2);
             codes[0] = 0xE0;
             codes[1] = i | 0x80;
             keyboard.PutScancodes (codes);
@@ -3219,7 +3504,7 @@ void VBoxConsoleView::sendChangedKeyStates()
 {
     AssertMsg (mAttached, ("Console must be attached"));
 
-    QValueVector <LONG> codes (2);
+    QVector <LONG> codes (2);
     CKeyboard keyboard = mConsole.GetKeyboard();
     for (uint i = 0; i < SIZEOF_ARRAY (mPressedKeys); ++ i)
     {
@@ -3249,7 +3534,7 @@ void VBoxConsoleView::updateMouseClipping()
 
     if (mMouseCaptured)
     {
-        viewport()->setCursor (QCursor (BlankCursor));
+        viewport()->setCursor (QCursor (Qt::BlankCursor));
 #ifdef Q_WS_WIN32
         QRect r = viewport()->rect();
         r.moveTopLeft (viewport()->mapToGlobal (QPoint (0, 0)));
@@ -3453,7 +3738,7 @@ void VBoxConsoleView::setPointerShape (MousePointerChangeEvent *me)
                 dstShapePtr += me->width();
             }
 
-            Cursor cur = XcursorImageLoadCursor (x11Display(), img);
+            Cursor cur = XcursorImageLoadCursor (QX11Info::display(), img);
             Assert (cur);
             if (cur)
             {
@@ -3466,31 +3751,42 @@ void VBoxConsoleView::setPointerShape (MousePointerChangeEvent *me)
 
 #elif defined(Q_WS_MAC)
 
-        /*
-         * Qt3/Mac only supports black/white cursors and it offers no way
-         * to create your own cursors here unlike on X11 and Windows.
-         * Which means we're pretty much forced to do it our own way.
-         */
-        int rc;
-
-        /* dispose of the old cursor. */
-        if (!DarwinCursorIsNull (&mDarwinCursor))
+        /* Create a ARGB image out of the shape data. */
+        QImage image  (me->width(), me->height(), QImage::Format_ARGB32);
+        const uint8_t* pbSrcMask = static_cast<const uint8_t*> (srcAndMaskPtr);
+        unsigned cbSrcMaskLine = RT_ALIGN (me->width(), 8) / 8;
+        for (unsigned int y = 0; y < me->height(); ++y)
         {
-            rc = DarwinCursorDestroy (&mDarwinCursor);
-            AssertRC (rc);
+            for (unsigned int x = 0; x < me->width(); ++x)
+            {
+               unsigned int color = ((unsigned int*)srcShapePtr)[y*me->width()+x];
+               /* If the alpha channel isn't in the shape data, we have to
+                * create them from the and-mask. This is a bit field where 1
+                * represent transparency & 0 opaque respectively. */
+               if (!me->hasAlpha())
+               {
+                   if (!(pbSrcMask[x / 8] & (1 << (7 - (x % 8)))))
+                       color  |= 0xff000000;
+                   else
+                   {
+                       /* This isn't quite right, but it's the best we can do I
+                        * think... */
+                       if (color & 0x00ffffff)
+                           color = 0xff000000;
+                       else
+                           color = 0x00000000;
+                   }
+               }
+               image.setPixel (x, y, color);
+            }
+            /* Move one scanline forward. */
+            pbSrcMask += cbSrcMaskLine;
         }
-
-        /* create the new cursor */
-        rc = DarwinCursorCreate (me->width(), me->height(), me->xHot(), me->yHot(), me->hasAlpha(),
-                                 srcAndMaskPtr, srcShapePtr, &mDarwinCursor);
-        AssertRC (rc);
-        if (RT_SUCCESS (rc))
-        {
-            /** @todo check current mouse coordinates. */
-            rc = DarwinCursorSet (&mDarwinCursor);
-            AssertRC (rc);
-        }
-        ok = RT_SUCCESS (rc);
+        /* Set the new cursor */
+        QCursor cursor (QPixmap::fromImage (image),
+                        me->xHot(), me->yHot());
+        viewport()->setCursor (cursor);
+        ok = true;
         NOREF (srcShapePtrScan);
 
 #else
@@ -3516,9 +3812,10 @@ void VBoxConsoleView::setPointerShape (MousePointerChangeEvent *me)
         }
         else
         {
-            viewport()->setCursor (QCursor::BlankCursor);
+            viewport()->setCursor (Qt::BlankCursor);
         }
     }
+    mHideHostPointer = !me->isVisible();
 }
 
 inline QRgb qRgbIntensity (QRgb rgb, int mul, int div)
@@ -3583,6 +3880,8 @@ void VBoxConsoleView::doResizeHint (const QSize &aToSize)
 
             mConsole.GetDisplay().SetVideoModeHint (sz.width(), sz.height(), 0, 0);
         }
+        /* we have resized now... */
+        mDoResize = false;
     }
 }
 
@@ -3606,7 +3905,6 @@ void VBoxConsoleView::setDesktopGeoHint (int aWidth, int aHeight)
     LogFlowThisFunc (("aWidth=%d, aHeight=%d\n", aWidth, aHeight));
     mLastSizeHint = QRect (0, 0, aWidth, aHeight);
 }
-
 
 /**
  * Do initial setup of desktop geometry restrictions on the guest framebuffer.
@@ -3721,3 +4019,105 @@ void VBoxConsoleView::maybeRestrictMinimumSize()
             setMinimumSize (0, 0);
     }
 }
+
+int VBoxConsoleView::contentsWidth() const
+{
+    return mFrameBuf->width();
+}
+
+int VBoxConsoleView::contentsHeight() const
+{
+    return mFrameBuf->height();
+}
+
+void VBoxConsoleView::updateSliders()
+{
+    QSize p = viewport()->size();
+    QSize m = maximumViewportSize();
+
+    QSize v = QSize (mFrameBuf->width(), mFrameBuf->height());
+    /* no scroll bars needed */
+    if (m.expandedTo(v) == m)
+        p = m;
+
+    horizontalScrollBar()->setRange(0, v.width() - p.width());
+    verticalScrollBar()->setRange(0, v.height() - p.height());
+    horizontalScrollBar()->setPageStep(p.width());
+    verticalScrollBar()->setPageStep(p.height());
+}
+
+void VBoxConsoleView::requestToResize (const QSize &aSize)
+{
+    mIgnoreFrameBufferResize = true;
+    mNormalSize = aSize;
+}
+
+#if defined(Q_WS_MAC)
+
+void VBoxConsoleView::updateDockIcon()
+{
+    if (mDockIconEnabled)
+    {
+        if (!mPausedShot.isNull())
+        {
+            CGImageRef pauseImg = ::darwinToCGImageRef (&mPausedShot);
+            /* Use the pause image as background */
+            mDockIconPreview->updateDockPreview (pauseImg);
+            CGImageRelease (pauseImg);
+        }
+        else
+        {
+# if defined (VBOX_GUI_USE_QUARTZ2D)
+            if (mode == VBoxDefs::Quartz2DMode)
+            {
+                /* If the render mode is Quartz2D we could use the CGImageRef
+                 * of the framebuffer for the dock icon creation. This saves
+                 * some conversion time. */
+                mDockIconPreview->updateDockPreview (static_cast <VBoxQuartz2DFrameBuffer *> (mFrameBuf)->imageRef());
+            }
+            else
+# endif
+                /* In image mode we have to create the image ref out of the
+                 * framebuffer */
+                mDockIconPreview->updateDockPreview (mFrameBuf);
+        }
+    }
+}
+
+void VBoxConsoleView::updateDockOverlay()
+{
+    /* Only to an update to the realtime preview if this is enabled by the user
+     * & we are in an state where the framebuffer is likely valid. Otherwise to
+     * the overlay stuff only. */
+    if (mDockIconEnabled &&
+        (mLastState == KMachineState_Running ||
+         mLastState == KMachineState_Paused ||
+         mLastState == KMachineState_Restoring ||
+         mLastState == KMachineState_Saving))
+        updateDockIcon();
+    else
+        mDockIconPreview->updateDockOverlay();
+}
+
+/**
+ * Wrapper for SetMouseCoalescingEnabled().
+ *
+ * Called by eventFilter() and darwinGrabKeyboardEvents().
+ *
+ * @param   aOn     Switch it on (true) or off (false).
+ */
+void VBoxConsoleView::setMouseCoalescingEnabled (bool aOn)
+{
+    /* Enable mouse event compression if we leave the VM view. This
+       is necessary for having smooth resizing of the VM/other
+       windows.
+       Disable mouse event compression if we enter the VM view. So
+       all mouse events are registered in the VM. Only do this if
+       the keyboard/mouse is grabbed (this is when we have a valid
+       event handler). */
+    if (aOn || mKeyboardGrabbed)
+        ::darwinSetMouseCoalescingEnabled (aOn);
+}
+
+#endif /* Q_WS_MAC */
+

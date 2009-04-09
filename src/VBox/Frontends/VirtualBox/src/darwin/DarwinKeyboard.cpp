@@ -20,11 +20,6 @@
  * additional information or have any questions.
  */
 
-
-
-#define USE_HID_FOR_MODIFIERS
-
-
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
@@ -48,7 +43,13 @@
 # include <IOKit/usb/USB.h>
 # include <CoreFoundation/CoreFoundation.h>
 #endif
+#include <ApplicationServices/ApplicationServices.h>
 #include <Carbon/Carbon.h>
+
+#ifndef USE_HID_FOR_MODIFIERS
+# include "VBoxCocoaApplication.h"
+#endif
+
 
 __BEGIN_DECLS
 /* Private interface in 10.3 and later. */
@@ -80,7 +81,7 @@ __END_DECLS
 #define QZ_RCTRL        0x3E
 /* Found the definition of the fn-key in:
  * http://stuff.mit.edu/afs/sipb/project/darwin/src/modules/IOHIDFamily/IOHIDSystem/IOHIKeyboardMapper.cpp &
- * http://stuff.mit.edu/afs/sipb/project/darwin/src/modules/AppleADBKeyboard/AppleADBKeyboard.cpp 
+ * http://stuff.mit.edu/afs/sipb/project/darwin/src/modules/AppleADBKeyboard/AppleADBKeyboard.cpp
  * Maybe we need this in the future.*/
 #define QZ_FN           0x3F
 #define QZ_NUMLOCK      0x47
@@ -97,7 +98,7 @@ __END_DECLS
 /** An attempt at catching reference leaks. */
 #define MY_CHECK_CREFS(cRefs)   do { AssertMsg(cRefs < 25, ("%ld\n", cRefs)); NOREF(cRefs); } while (0)
 
-#endif 
+#endif
 
 /*******************************************************************************
 *   Global Variables                                                           *
@@ -430,22 +431,22 @@ void DarwinDisableGlobalHotKeys(bool fDisable)
         g_fConnectedToCGS = true;
     }
 
-    /* 
-     * Get the current mode. 
+    /*
+     * Get the current mode.
      */
     CGSGlobalHotKeyOperatingMode enmMode = kCGSGlobalHotKeyInvalid;
     CGSGetGlobalHotKeyOperatingMode(g_CGSConnection, &enmMode);
-    if (    enmMode != kCGSGlobalHotKeyEnable 
+    if (    enmMode != kCGSGlobalHotKeyEnable
         &&  enmMode != kCGSGlobalHotKeyDisable)
     {
         AssertMsgFailed(("%d\n", enmMode));
         if (s_cComplaints++ < 32)
             LogRel(("DarwinDisableGlobalHotKeys: Unexpected enmMode=%d\n", enmMode));
-        return;                    
+        return;
     }
 
-    /* 
-     * Calc the new mode. 
+    /*
+     * Calc the new mode.
      */
     if (fDisable)
     {
@@ -460,8 +461,8 @@ void DarwinDisableGlobalHotKeys(bool fDisable)
         enmMode = kCGSGlobalHotKeyEnable;
     }
 
-    /* 
-     * Try set it and check the actual result. 
+    /*
+     * Try set it and check the actual result.
      */
     CGSSetGlobalHotKeyOperatingMode(g_CGSConnection, enmMode);
     CGSGlobalHotKeyOperatingMode enmNewMode = kCGSGlobalHotKeyInvalid;
@@ -475,10 +476,7 @@ void DarwinDisableGlobalHotKeys(bool fDisable)
     }
 }
 
-
-
 #ifdef USE_HID_FOR_MODIFIERS
-
 
 /**
  * Callback function for consuming queued events.
@@ -830,7 +828,7 @@ static void darwinHIDKeyboardCacheDestroyEntry(struct KeyboardCacheData *pKeyboa
 }
 
 
-/** 
+/**
  * Zap the keyboard cache.
  */
 static void darwinHIDKeyboardCacheZap(void)
@@ -962,65 +960,79 @@ static UInt32 darwinQueryHIDModifiers(void)
 
 #endif /* USE_HID_FOR_MODIFIERS */
 
-
-
 /**
  * Left / rigth adjust the modifier mask using the current
  * keyboard state.
  *
  * @returns left/right adjusted fModifiers.
  * @param   fModifiers      The mask to adjust.
+ * @param   pvCocoaEvent    The associated Cocoa keyboard event. This is NULL
+ *                          when using HID for modifier corrections.
+ *
  */
-UInt32 DarwinAdjustModifierMask(UInt32 fModifiers)
+UInt32 DarwinAdjustModifierMask(UInt32 fModifiers, const void *pvCocoaEvent)
 {
-#ifdef USE_HID_FOR_MODIFIERS
-    /*
-     * Update the keyboard cache.
-     */
-    darwinHIDKeyboardCacheUpdate();
-
     /*
      * Check if there is anything to adjust and perform the adjustment.
      */
     if (fModifiers & (shiftKey | rightShiftKey | controlKey | rightControlKey | optionKey | rightOptionKey | cmdKey | kEventKeyModifierRightCmdKeyMask))
     {
-        const UInt32 fHIDModifiers = g_fHIDModifierMask;
+#ifndef USE_HID_FOR_MODIFIERS
+        /*
+         * Convert the Cocoa modifiers to Carbon ones (the Cocoa modifier
+         * definitions are tucked away in Objective-C headers, unfortunately).
+         *
+         * Update: CGEventTypes.h includes what looks like the Cocoa modifiers
+         *         and the NX_* defines should be available as well. We should look
+         *         into ways to intercept the CG (core graphics) events in the Carbon
+         *         based setup and get rid of all this HID mess.
+         */
+        AssertPtr(pvCocoaEvent);
+        //VBoxCocoaApplication_printEvent("dbg-adjMods: ", pvCocoaEvent);
+        uint32_t fAltModifiers = VBoxCocoaApplication_getEventModifierFlagsXlated(pvCocoaEvent);
+
+#else  /* USE_HID_FOR_MODIFIERS */
+        /*
+         * Update the keyboard cache.
+         */
+        darwinHIDKeyboardCacheUpdate();
+        const UInt32 fAltModifiers = g_fHIDModifierMask;
+
+#endif /* USE_HID_FOR_MODIFIERS */
 #ifdef DEBUG_PRINTF
-        RTPrintf("dbg-fHIDModifier=%#x fModifiers=%#x", fHIDModifiers, fModifiers);
+        RTPrintf("dbg-fAltModifiers=%#x fModifiers=%#x", fAltModifiers, fModifiers);
 #endif
         if (   (fModifiers    & (rightShiftKey | shiftKey))
-            && (fHIDModifiers & (rightShiftKey | shiftKey)))
+            && (fAltModifiers & (rightShiftKey | shiftKey)))
         {
             fModifiers &= ~(rightShiftKey | shiftKey);
-            fModifiers |= fHIDModifiers & (rightShiftKey | shiftKey);
+            fModifiers |= fAltModifiers & (rightShiftKey | shiftKey);
         }
 
         if (   (fModifiers    & (rightControlKey | controlKey))
-            && (fHIDModifiers & (rightControlKey | controlKey)))
+            && (fAltModifiers & (rightControlKey | controlKey)))
         {
             fModifiers &= ~(rightControlKey | controlKey);
-            fModifiers |= fHIDModifiers & (rightControlKey | controlKey);
+            fModifiers |= fAltModifiers & (rightControlKey | controlKey);
         }
 
         if (   (fModifiers    & (optionKey | rightOptionKey))
-            && (fHIDModifiers & (optionKey | rightOptionKey)))
+            && (fAltModifiers & (optionKey | rightOptionKey)))
         {
             fModifiers &= ~(optionKey | rightOptionKey);
-            fModifiers |= fHIDModifiers & (optionKey | rightOptionKey);
+            fModifiers |= fAltModifiers & (optionKey | rightOptionKey);
         }
 
         if (   (fModifiers    & (cmdKey | kEventKeyModifierRightCmdKeyMask))
-            && (fHIDModifiers & (cmdKey | kEventKeyModifierRightCmdKeyMask)))
+            && (fAltModifiers & (cmdKey | kEventKeyModifierRightCmdKeyMask)))
         {
             fModifiers &= ~(cmdKey | kEventKeyModifierRightCmdKeyMask);
-            fModifiers |= fHIDModifiers & (cmdKey | kEventKeyModifierRightCmdKeyMask);
+            fModifiers |= fAltModifiers & (cmdKey | kEventKeyModifierRightCmdKeyMask);
         }
 #ifdef DEBUG_PRINTF
-        RTPrintf(" -> %#x", fModifiers);
+        RTPrintf(" -> %#x\n", fModifiers);
 #endif
     }
-#endif /* USE_HID_FOR_MODIFIERS */
-
     return fModifiers;
 }
 

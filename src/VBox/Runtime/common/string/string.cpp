@@ -1,4 +1,4 @@
-/* $Id: string.cpp $ */
+/* $Id: string.cpp 18096 2009-03-19 16:25:41Z vboxsync $ */
 /** @file
  * IPRT - String Manipulation.
  */
@@ -37,17 +37,6 @@
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include "internal/string.h"
-
-#include <locale.h>
-
-
-/**
- * Init C runtime locale
- * note: actually where is no need in this global var, use it only for
- * auto run of setlocale() func.
- */
-/** @todo rewrite this to do setlocale() from some proper init function. */
-static int g_RTLocaleInited = (setlocale(LC_CTYPE, "") != NULL);
 
 
 /**

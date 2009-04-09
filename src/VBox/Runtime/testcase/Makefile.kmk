@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 16999 2009-02-23 09:55:20Z vboxsync $
 ## @file
 # Sub-Makefile for the IPRT testcases.
 #
@@ -49,6 +49,7 @@ IPRT_OUT_DIR ?= $(PATH_TARGET)/Runtime
 #
 PROGRAMS += \
 	tstAvl \
+	tstBase64 \
 	tstBitOperations \
 	tstCidr \
 	tstCritSect \
@@ -103,6 +104,7 @@ PROGRAMS.win += \
 	ntGetTimerResolution
 PROGRAMS.linux += \
 	tstRTProcWait \
+	tstRTProcIsRunningByName \
 	tstBitOperationsPIC3 \
 	tstInlineAsmPIC \
 	tstInlineAsmPIC3 \
@@ -126,6 +128,9 @@ endif
 #
 
 tstAvl_SOURCES = tstAvl.cpp
+
+tstBase64_TEMPLATE = VBOXR3TSTEXE
+tstBase64_SOURCES = tstBase64.cpp
 
 tstBitOperations_TEMPLATE = VBOXR3TSTEXE
 tstBitOperations_SOURCES = tstBitOperations.cpp
@@ -291,6 +296,8 @@ tstRand_SOURCES = tstRand.cpp
 tstRTFsQueries_SOURCES = tstRTFsQueries.cpp
 
 tstRTProcWait_SOURCES = tstRTProcWait.cpp
+
+tstRTProcIsRunningByName_SOURCES = tstRTProcIsRunningByName.cpp
 
 tstSemMutex_SOURCES = tstSemMutex.cpp
 

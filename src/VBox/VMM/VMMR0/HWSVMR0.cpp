@@ -1,4 +1,4 @@
-/* $Id: HWSVMR0.cpp $ */
+/* $Id: HWSVMR0.cpp 18781 2009-04-06 15:51:30Z vboxsync $ */
 /** @file
  * HWACCM SVM - Host Context Ring 0.
  */
@@ -893,12 +893,12 @@ ResumeExecution:
     if (!DBGFIsStepping(pVM))
 #endif
     {
-        if (VM_FF_ISPENDING(pVM, VM_FF_TO_R3 | VM_FF_TIMER))
+        if (VM_FF_ISPENDING(pVM, VM_FF_HWACCM_TO_R3_MASK))
         {
             VM_FF_CLEAR(pVM, VM_FF_TO_R3);
             STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatSwitchToR3);
             STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatEntry, x);
-            rc = VINF_EM_RAW_TO_R3;
+            rc = RT_UNLIKELY(VM_FF_ISPENDING(pVM, VM_FF_PGM_NO_MEMORY)) ? VINF_EM_NO_MEMORY : VINF_EM_RAW_TO_R3;
             goto end;
         }
     }
@@ -1452,7 +1452,7 @@ ResumeExecution:
                 goto ResumeExecution;
             }
 #ifdef VBOX_STRICT
-            if (rc != VINF_EM_RAW_EMULATE_INSTR)
+            if (rc != VINF_EM_RAW_EMULATE_INSTR && rc != VINF_EM_RAW_EMULATE_IO_BLOCK)
                 LogFlow(("PGMTrap0eHandler failed with %d\n", rc));
 #endif
             /* Need to go back to the recompiler to emulate the instruction. */
@@ -1633,7 +1633,21 @@ ResumeExecution:
             STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit1, x);
             goto ResumeExecution;
         }
-        AssertMsgFailed(("EMU: rdtsc failed with %Rrc\n", rc));
+        rc = VINF_EM_RAW_EMULATE_INSTR;
+        break;
+    }
+
+    case SVM_EXIT_RDPMC:                /* Guest software attempted to execute RDPMC. */
+    {
+        Log2(("SVM: Rdpmc %x\n", pCtx->ecx));
+        STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitRdpmc);
+        rc = EMInterpretRdpmc(pVM, CPUMCTX2CORE(pCtx));
+        if (rc == VINF_SUCCESS)
+        {
+            /* Update EIP and continue execution. */
+            pCtx->rip += 2;             /* Note! hardcoded opcode size! */
+            goto ResumeExecution;
+        }
         rc = VINF_EM_RAW_EMULATE_INSTR;
         break;
     }
@@ -1712,7 +1726,7 @@ ResumeExecution:
             STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatFlushTLBCRxChange);
 
             /* Must be set by PGMSyncCR3 */
-            Assert(PGMGetGuestMode(pVM) <= PGMMODE_PROTECTED || pVCpu->hwaccm.s.fForceTLBFlush);
+            Assert(rc != VINF_SUCCESS || PGMGetGuestMode(pVM) <= PGMMODE_PROTECTED || pVCpu->hwaccm.s.fForceTLBFlush);
         }
         if (rc == VINF_SUCCESS)
         {
@@ -2047,7 +2061,6 @@ ResumeExecution:
     }
 
     case SVM_EXIT_MONITOR:
-    case SVM_EXIT_RDPMC:
     case SVM_EXIT_PAUSE:
     case SVM_EXIT_MWAIT_UNCOND:
     case SVM_EXIT_MWAIT_ARMED:

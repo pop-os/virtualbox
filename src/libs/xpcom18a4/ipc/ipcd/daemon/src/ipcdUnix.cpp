@@ -397,6 +397,9 @@ static void PollLoop(PRFileDesc *listenFD)
                 memset(&clientAddr, 0, sizeof(clientAddr));
                 PRFileDesc *clientFD;
 
+                // @todo : We need to handle errors from accept() especially something like
+                //          EMFILE, which happens when we run out of file descriptors.
+                //          and puts XPCOMIPCD in a poll/accept endless loop!
                 clientFD = PR_Accept(listenFD, &clientAddr, PR_INTERVAL_NO_WAIT);
                 if (clientFD == NULL) {
                     // ignore this error... perhaps the client disconnected.

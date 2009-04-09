@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-solaris.c $ */
+/* $Id: VBoxNetFlt-solaris.c 17188 2009-02-27 01:12:02Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Solaris Specific Code.
  */
@@ -40,6 +40,7 @@
 #include <iprt/thread.h>
 #include <iprt/spinlock.h>
 #include <iprt/crc32.h>
+#include <iprt/err.h>
 
 #include <inet/ip.h>
 #include <net/if.h>
@@ -126,6 +127,7 @@ static int VBoxNetFltSolarisModWritePut(queue_t *pQueue, mblk_t *pMsg);
 /**
  * OS specific hooks invoked from common VBoxNetFlt ring-0.
  */
+/** @todo r=bird: What are these doing here? */
 bool vboxNetFltPortOsIsPromiscuous(PVBOXNETFLTINS pThis);
 void vboxNetFltPortOsGetMacAddress(PVBOXNETFLTINS pThis, PRTMAC pMac);
 bool vboxNetFltPortOsIsHostMac(PVBOXNETFLTINS pThis, PCRTMAC pMac);
@@ -133,7 +135,7 @@ void vboxNetFltPortOsSetActive(PVBOXNETFLTINS pThis, bool fActive);
 int vboxNetFltOsDisconnectIt(PVBOXNETFLTINS pThis);
 int vboxNetFltOsConnectIt(PVBOXNETFLTINS pThis);
 void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis);
-int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis);
+int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext);
 int vboxNetFltOsPreInitInstance(PVBOXNETFLTINS pThis);
 
 
@@ -149,8 +151,8 @@ static struct module_info g_VBoxNetFltSolarisModInfo =
     DEVICE_NAME,
     0,                              /* min. packet size */
     INFPSZ,                         /* max. packet size */
-    0,                              /* hi-water mask */
-    0                               /* lo-water mask */
+    0,                              /* hi-water mark */
+    0                               /* lo-water mark */
 };
 
 /**
@@ -389,9 +391,6 @@ PVBOXNETFLTINS volatile g_VBoxNetFltSolarisInstance;
 /** Goes along with the instance to determine type of stream being opened/created. */
 VBOXNETFLTSTREAMTYPE volatile g_VBoxNetFltSolarisStreamType;
 
-/** GCC C++ hack. */
-unsigned __gxx_personality_v0 = 0xdecea5ed;
-
 
 /**
  * Kernel entry points
@@ -431,7 +430,7 @@ int _init(void)
              * for establishing the connect to the support driver.
              */
             memset(&g_VBoxNetFltSolarisGlobals, 0, sizeof(g_VBoxNetFltSolarisGlobals));
-            rc = vboxNetFltInitGlobals(&g_VBoxNetFltSolarisGlobals);
+            rc = vboxNetFltInitGlobalsAndIdc(&g_VBoxNetFltSolarisGlobals);
             if (RT_SUCCESS(rc))
             {
                 rc = mod_install(&g_VBoxNetFltSolarisModLinkage);
@@ -439,7 +438,7 @@ int _init(void)
                     return rc;
 
                 LogRel((DEVICE_NAME ":mod_install failed. rc=%d\n", rc));
-                vboxNetFltTryDeleteGlobals(&g_VBoxNetFltSolarisGlobals);
+                vboxNetFltTryDeleteIdcAndGlobals(&g_VBoxNetFltSolarisGlobals);
             }
             else
                 LogRel((DEVICE_NAME ":failed to initialize globals.\n"));
@@ -454,7 +453,7 @@ int _init(void)
         LogRel((DEVICE_NAME ":failed to initialize IPRT (rc=%d)\n", rc));
 
     memset(&g_VBoxNetFltSolarisGlobals, 0, sizeof(g_VBoxNetFltSolarisGlobals));
-    return -1;
+    return RTErrConvertToErrno(rc);
 }
 
 
@@ -466,7 +465,7 @@ int _fini(void)
     /*
      * Undo the work done during start (in reverse order).
      */
-    rc = vboxNetFltTryDeleteGlobals(&g_VBoxNetFltSolarisGlobals);
+    rc = vboxNetFltTryDeleteIdcAndGlobals(&g_VBoxNetFltSolarisGlobals);
     if (RT_FAILURE(rc))
     {
         LogRel((DEVICE_NAME ":_fini - busy!\n"));
@@ -1893,6 +1892,8 @@ static int vboxNetFltSolarisAttachIp4(PVBOXNETFLTINS pThis, bool fAttach)
                                             vboxNetFltSolarisCloseDev(pUdp4VNodeHeld, pUdp4User);
                                             ldi_close(ArpDevHandle, FREAD | FWRITE, kcred);
                                             ldi_close(Ip4DevHandle, FREAD | FWRITE, kcred);
+                                            releasef(Ip4MuxFd);
+                                            releasef(ArpMuxFd);
 
                                             LogFlow((DEVICE_NAME ":vboxNetFltSolarisAttachIp4: Success! %s %s@(IPv4:%d Arp:%d) "
                                                     "%s interface %s\n", fAttach ? "Injected" : "Ejected", StrMod.mod_name,
@@ -1939,6 +1940,9 @@ static int vboxNetFltSolarisAttachIp4(PVBOXNETFLTINS pThis, bool fAttach)
                             }
                             else
                                 LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachIp4: failed to find position. rc=%d rc2=%d\n", rc, rc2));
+
+                            releasef(Ip4MuxFd);
+                            releasef(ArpMuxFd);
                         }
                         else
                             LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachIp4: failed to get vnode from MuxFd.\n"));
@@ -2105,6 +2109,7 @@ static int vboxNetFltSolarisAttachIp6(PVBOXNETFLTINS pThis, bool fAttach)
                                          */
                                         vboxNetFltSolarisCloseDev(pUdp6VNodeHeld, pUdp6User);
                                         ldi_close(Ip6DevHandle, FREAD | FWRITE, kcred);
+                                        releasef(Ip6MuxFd);
 
                                         LogFlow((DEVICE_NAME ":vboxNetFltSolarisAttachIp6: Success! %s %s@(IPv6:%d) "
                                                 "%s interface %s\n", fAttach ? "Injected" : "Ejected", StrMod.mod_name,
@@ -2132,6 +2137,8 @@ static int vboxNetFltSolarisAttachIp6(PVBOXNETFLTINS pThis, bool fAttach)
                             }
                             else
                                 LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachIp6: failed to find position. rc=%d rc2=%d\n", rc, rc2));
+
+                            releasef(Ip6MuxFd);
                         }
                         else
                              LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachIp6: failed to get vnode from MuxFd.\n"));
@@ -2969,7 +2976,7 @@ static void vboxNetFltSolarisAnalyzeMBlk(mblk_t *pMsg)
         {
             int Pcp:3;
             int Cfi:1;
-            int Vid:12; 
+            int Vid:12;
         } VLANHEADER;
 
         VLANHEADER *pVlanHdr = (VLANHEADER *)(pMsg->b_rptr + sizeof(RTNETETHERHDR));
@@ -3083,7 +3090,7 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
 }
 
 
-int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis)
+int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
 {
     LogFlow((DEVICE_NAME ":vboxNetFltOsInitInstance pThis=%p\n"));
 
@@ -3104,6 +3111,7 @@ int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis)
     else
         LogRel((DEVICE_NAME ":vboxNetFltOsInitInstance failed to create mutex. rc=%Rrc\n", rc));
 
+    NOREF(pvContext);
     return rc;
 }
 

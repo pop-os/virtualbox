@@ -1,4 +1,4 @@
-/* $Id: ldr.cpp $ */
+/* $Id: ldr.cpp 17019 2009-02-23 13:34:39Z vboxsync $ */
 /** @file
  * IPRT - Binary Image Loader.
  */
@@ -60,9 +60,29 @@ typedef struct RTLDRREADERFILE
 } RTLDRREADERFILE, *PRTLDRREADERFILE;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+
+/**
+ * Checks if a library is loadable or not.
+ *
+ * This may attempt load and unload the library.
+ *
+ * @returns true/false accordingly.
+ * @param   pszFilename     Image filename.
+ */
+RTDECL(bool) RTLdrIsLoadable(const char *pszFilename)
+{
+    /*
+     * Try to load the library.
+     */
+    RTLDRMOD hLib;
+    int rc = RTLdrLoad(pszFilename, &hLib);
+    if (RT_SUCCESS(rc))
+    {
+        RTLdrClose(hLib);
+        return true;
+    }
+    return false;
+}
 
 
 /**

@@ -1,8 +1,8 @@
 #!/bin/sh
-# Sun xVM VirtualBox
+# Sun VirtualBox
 # VirtualBox pre-remove script for Solaris Guest Additions.
 #
-# Copyright (C) 2008 Sun Microsystems, Inc.
+# Copyright (C) 2008-2009 Sun Microsystems, Inc.
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -17,7 +17,7 @@
 # additional information or have any questions.
 #
 
-echo "Sun xVM VirtualBox Guest Additions - preremove script"
+echo "Sun VirtualBox Guest Additions - preremove script"
 echo "This script will unload the VirtualBox Guest kernel module..."
 
 # stop and unregister VBoxService daemon
@@ -28,7 +28,7 @@ echo "This script will unload the VirtualBox Guest kernel module..."
 pkill -INT VBoxClient
 
 # vboxguest.sh would've been installed, we just need to call it.
-/opt/VirtualBoxAdditions/vboxguest.sh stop
+/opt/VirtualBoxAdditions/vboxguest.sh stopall
 
 # remove devlink.tab entry for vboxguest
 sed -e '
@@ -43,6 +43,18 @@ fi
 # Try and restore xorg.conf!
 echo "Restoring Xorg..."
 /opt/VirtualBoxAdditions/x11restore.pl
+
+# Restore crogl symlink mess
+# 32-bit crogl opengl library replacement
+if test -f "/usr/lib/VBoxOGL.so" && test -f "/usr/X11/lib/mesa/libGL_original_.so.1"; then
+    mv -f /usr/X11/lib/mesa/libGL_original_.so.1 /usr/X11/lib/mesa/libGL.so.1
+fi
+
+# 64-bit crogl opengl library replacement
+if test -f "/usr/lib/amd64/VBoxOGL.so" && test -f "/usr/X11/lib/mesa/amd64/libGL_original_.so.1"; then
+    mv -f /usr/X11/lib/mesa/amd64/libGL_original_.so.1 /usr/X11/lib/mesa/amd64/libGL.so.1
+fi
+
 
 echo "Done."
 

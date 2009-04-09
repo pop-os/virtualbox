@@ -1,4 +1,4 @@
-/* $Id: GuestImpl.cpp $ */
+/* $Id: GuestImpl.cpp 18113 2009-03-20 12:54:04Z vboxsync $ */
 
 /** @file
  *
@@ -291,8 +291,10 @@ STDMETHODIMP Guest::GetStatistic(ULONG aCpuId, GuestStatisticType_T aStatistic, 
     CheckComArgExpr(aStatistic, aStatistic < GuestStatisticType_MaxVal);
     CheckComArgOutPointerValid(aStatVal);
 
-    /* not available or not yet reported? */
-    CheckComArgExpr(aStatistic, mCurrentGuestStat[aStatistic] != GUEST_STAT_INVALID);
+    /* Not available or not yet reported? In that case, just return with a proper error
+     * but don't use setError(). */
+    if (mCurrentGuestStat[aStatistic] == GUEST_STAT_INVALID)
+        return E_INVALIDARG;
 
     *aStatVal = mCurrentGuestStat[aStatistic];
     return S_OK;

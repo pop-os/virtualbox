@@ -98,7 +98,7 @@ int cpu_restore_state_copy(struct TranslationBlock *tb,
                            void *puc);
 void cpu_resume_from_signal(CPUState *env1, void *puc);
 void cpu_io_recompile(CPUState *env, void *retaddr);
-TranslationBlock *tb_gen_code(CPUState *env, 
+TranslationBlock *tb_gen_code(CPUState *env,
                               target_ulong pc, target_ulong cs_base, int flags,
                               int cflags);
 void cpu_exec_init(CPUState *env);
@@ -181,9 +181,6 @@ struct TranslationBlock {
 #ifdef USE_DIRECT_JUMP
     uint16_t tb_jmp_offset[4]; /* offset of jump instruction */
 #else
-# if defined(VBOX) && defined(RT_OS_DARWIN) && defined(RT_ARCH_AMD64)
-#  error "First 4GB aren't reachable. jmp dword [tb_next] wont work."
-# endif
     unsigned long tb_next[2]; /* address of jump generated code */
 #endif
     /* list of TBs jumping to this one. This is a circular list using
@@ -382,9 +379,6 @@ static inline target_ulong get_phys_addr_code(CPUState *env, target_ulong addr)
 #else
 # ifdef VBOX
 target_ulong remR3PhysGetPhysicalAddressCode(CPUState *env, target_ulong addr, CPUTLBEntry *pTLBEntry, target_phys_addr_t ioTLBEntry);
-#  if !defined(REM_PHYS_ADDR_IN_TLB)
-target_ulong remR3HCVirt2GCPhys(CPUState *env1, void *addr);
-#  endif
 # endif
 /* NOTE: this function can trigger an exception */
 /* NOTE2: the returned address is not exactly the physical address: it
@@ -407,7 +401,7 @@ DECLINLINE(target_ulong) get_phys_addr_code(CPUState *env1, target_ulong addr)
     if (pd > IO_MEM_ROM && !(pd & IO_MEM_ROMD)) {
 # ifdef VBOX
         /* deal with non-MMIO access handlers. */
-        return remR3PhysGetPhysicalAddressCode(env1, addr, 
+        return remR3PhysGetPhysicalAddressCode(env1, addr,
                                                &env1->tlb_table[mmu_idx][page_index],
                                                env1->iotlb[mmu_idx][page_index]);
 # elif defined(TARGET_SPARC) || defined(TARGET_MIPS)
@@ -420,7 +414,8 @@ DECLINLINE(target_ulong) get_phys_addr_code(CPUState *env1, target_ulong addr)
 # if defined(VBOX) && defined(REM_PHYS_ADDR_IN_TLB)
     return addr + env1->tlb_table[mmu_idx][page_index].addend;
 # elif defined(VBOX)
-    return remR3HCVirt2GCPhys(env1, (void *)(uintptr_t)(addr + env1->tlb_table[mmu_idx][page_index].addend));
+    Assert(env1->phys_addends[mmu_idx][page_index] != -1);
+    return addr + env1->phys_addends[mmu_idx][page_index];
 # else
     return addr + env1->tlb_table[mmu_idx][page_index].addend - (unsigned long)phys_ram_base;
 # endif

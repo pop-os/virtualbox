@@ -1,4 +1,4 @@
-/* $Id: kLdrModLX.c 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kLdrModLX.c 25 2009-02-19 00:56:15Z bird $ */
 /** @file
  * kLdr - The Module Interpreter for the Linear eXecutable (LX) Format.
  */
@@ -146,10 +146,14 @@ static int kldrModLXDoReloc(KU8 *pbPage, int off, KLDRADDR PageAddress, const st
  *          On failure, a non-zero OS specific error code is returned.
  * @param   pOps            Pointer to the registered method table.
  * @param   pRdr            The file provider instance to use.
+ * @param   fFlags          Flags, MBZ.
+ * @param   enmCpuArch      The desired CPU architecture. KCPUARCH_UNKNOWN means
+ *                          anything goes, but with a preference for the current
+ *                          host architecture.
  * @param   offNewHdr       The offset of the new header in MZ files. -1 if not found.
  * @param   ppMod           Where to store the module instance pointer.
  */
-static int kldrModLXCreate(PCKLDRMODOPS pOps, PKRDR pRdr, KLDRFOFF offNewHdr, PPKLDRMOD ppMod)
+static int kldrModLXCreate(PCKLDRMODOPS pOps, PKRDR pRdr, KU32 fFlags, KCPUARCH enmCpuArch, KLDRFOFF offNewHdr, PPKLDRMOD ppMod)
 {
     PKLDRMODLX pModLX;
     int rc;
@@ -160,10 +164,18 @@ static int kldrModLXCreate(PCKLDRMODOPS pOps, PKRDR pRdr, KLDRFOFF offNewHdr, PP
     rc = kldrModLXDoCreate(pRdr, offNewHdr, &pModLX);
     if (!rc)
     {
-        pModLX->pMod->pOps = pOps;
-        pModLX->pMod->u32Magic = KLDRMOD_MAGIC;
-        *ppMod = pModLX->pMod;
-        return 0;
+        /*
+         * Match up against the requested CPU architecture.
+         */
+        if (    enmCpuArch == KCPUARCH_UNKNOWN
+            ||  pModLX->pMod->enmArch == enmCpuArch)
+        {
+            pModLX->pMod->pOps = pOps;
+            pModLX->pMod->u32Magic = KLDRMOD_MAGIC;
+            *ppMod = pModLX->pMod;
+            return 0;
+        }
+        rc = KLDR_ERR_CPU_ARCH_MISMATCH;
     }
     kHlpFree(pModLX);
     return rc;
@@ -338,7 +350,7 @@ static int kldrModLXDoCreate(PKRDR pRdr, KLDRFOFF offNewHdr, PKLDRMODLX *ppModLX
     pModLX->f32Reserved = 0;
 
     pModLX->offHdr = offNewHdr >= 0 ? offNewHdr : 0;
-    pModLX->Hdr = Hdr;
+    kHlpMemCopy(&pModLX->Hdr, &Hdr, sizeof(Hdr));
 
     pModLX->pbLoaderSection = K_ALIGN_P(pMod->pszFilename + pMod->cchFilename + 1, 16);
     pModLX->pbLoaderSectionLast = pModLX->pbLoaderSection + pModLX->Hdr.e32_ldrsize - 1;

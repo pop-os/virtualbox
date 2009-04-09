@@ -43,85 +43,6 @@ __BEGIN_DECLS
  * @{
  */
 
-/** @name RAM Page Flags
- * Since internal ranges have a byte granularity it's possible for a
- * page be flagged for several uses. The access virtualization in PGM
- * will choose the most restricted one and use EM to emulate access to
- * the less restricted areas of the page.
- *
- * Bits 0-11 only since they are fitted into the offset part of a physical memory address.
- * @{
- */
-#if 1
-/** Reserved - Not RAM, ROM nor MMIO2.
- * If this bit is cleared the memory is assumed to be some kind of RAM.
- * Normal MMIO may set it but that depends on whether the RAM range was
- * created specially for the MMIO or not.
- *
- * @remarks The current implementation will always reserve backing
- *          memory for reserved  ranges to simplify things.
- */
-#define MM_RAM_FLAGS_RESERVED           RT_BIT(0)
-/** ROM - Read Only Memory.
- * The page have a HC physical address which contains the BIOS code. All write
- * access is trapped and ignored.
- *
- * HACK: Writable shadow ROM is indicated by both ROM and MMIO2 being
- *       set. (We're out of bits.)
- */
-#define MM_RAM_FLAGS_ROM                RT_BIT(1)
-/** MMIO - Memory Mapped I/O.
- * All access is trapped and emulated. No physical backing is required, but
- * might for various reasons be present.
- */
-#define MM_RAM_FLAGS_MMIO               RT_BIT(2)
-/** MMIO2 - Memory Mapped I/O, variation 2.
- * The virtualization is performed using real memory and only catching
- * a few accesses for like keeping track for dirty pages.
- * @remark Involved in the shadow ROM hack.
- */
-#define MM_RAM_FLAGS_MMIO2              RT_BIT(3)
-#endif
-
-#ifndef VBOX_WITH_NEW_PHYS_CODE
-/** Physical backing memory is allocated dynamically. Not set implies a one time static allocation. */
-#define MM_RAM_FLAGS_DYNAMIC_ALLOC      RT_BIT(11)
-#endif /* !VBOX_WITH_NEW_PHYS_CODE */
-
-/** The shift used to get the reference count. */
-#define MM_RAM_FLAGS_CREFS_SHIFT        62
-/** The mask applied to the the page pool idx after using MM_RAM_FLAGS_CREFS_SHIFT to shift it down. */
-#define MM_RAM_FLAGS_CREFS_MASK         0x3
-/** The (shifted) cRef value used to indiciate that the idx is the head of a
- * physical cross reference extent list. */
-#define MM_RAM_FLAGS_CREFS_PHYSEXT      MM_RAM_FLAGS_CREFS_MASK
-/** The shift used to get the page pool idx. (Apply MM_RAM_FLAGS_IDX_MASK to the result when shifting down). */
-#define MM_RAM_FLAGS_IDX_SHIFT          48
-/** The mask applied to the the page pool idx after using MM_RAM_FLAGS_IDX_SHIFT to shift it down. */
-#define MM_RAM_FLAGS_IDX_MASK           0x3fff
-/** The idx value when we're out of of extents or there are simply too many mappings of this page. */
-#define MM_RAM_FLAGS_IDX_OVERFLOWED     MM_RAM_FLAGS_IDX_MASK
-
-/** Mask for masking off any references to the page. */
-#define MM_RAM_FLAGS_NO_REFS_MASK       UINT64_C(0x0000ffffffffffff)
-/** @} */
-
-#ifndef VBOX_WITH_NEW_PHYS_CODE
-/** @name MMR3PhysRegisterEx registration type
- * @{
- */
-typedef enum
-{
-    /** Normal physical region (flags specify exact page type) */
-    MM_PHYS_TYPE_NORMAL               = 0,
-    /** Allocate part of a dynamically allocated physical region */
-    MM_PHYS_TYPE_DYNALLOC_CHUNK,
-
-    MM_PHYS_TYPE_32BIT_HACK = 0x7fffffff
-} MMPHYSREG;
-/** @} */
-#endif
-
 /**
  * Memory Allocation Tags.
  * For use with MMHyperAlloc(), MMR3HeapAlloc(), MMR3HeapAllocEx(),
@@ -184,6 +105,7 @@ typedef enum MMTAG
     MM_TAG_PGM,
     MM_TAG_PGM_CHUNK_MAPPING,
     MM_TAG_PGM_HANDLERS,
+    MM_TAG_PGM_MAPPINGS,
     MM_TAG_PGM_PHYS,
     MM_TAG_PGM_POOL,
 
@@ -323,6 +245,7 @@ VMMR3DECL(int)      MMR3HyperInitFinalize(PVM pVM);
 VMMR3DECL(int)      MMR3Term(PVM pVM);
 VMMR3DECL(void)     MMR3TermUVM(PUVM pUVM);
 VMMR3DECL(void)     MMR3Reset(PVM pVM);
+VMMR3DECL(int)      MMR3ReserveHandyPages(PVM pVM, uint32_t cHandyPages);
 VMMR3DECL(int)      MMR3IncreaseBaseReservation(PVM pVM, uint64_t cAddBasePages);
 VMMR3DECL(int)      MMR3AdjustFixedReservation(PVM pVM, int32_t cDeltaFixedPages, const char *pszDesc);
 VMMR3DECL(int)      MMR3UpdateShadowReservation(PVM pVM, uint32_t cShadowPages);
@@ -350,15 +273,9 @@ VMMR3DECL(int)      MMR3HyperReadGCVirt(PVM pVM, void *pvDst, RTGCPTR GCPtr, siz
 
 
 /** @defgroup grp_mm_phys   Guest Physical Memory Manager
+ * @todo retire this group, elimintating or moving MMR3PhysGetRamSize to PGMPhys.
  * @ingroup grp_mm_r3
  * @{ */
-VMMR3DECL(int)      MMR3PhysRegister(PVM pVM, void *pvRam, RTGCPHYS GCPhys, unsigned cb, unsigned fFlags, const char *pszDesc);
-#ifndef VBOX_WITH_NEW_PHYS_CODE
-VMMR3DECL(int)      MMR3PhysRegisterEx(PVM pVM, void *pvRam, RTGCPHYS GCPhys, unsigned cb, unsigned fFlags, MMPHYSREG enmType, const char *pszDesc);
-#endif
-VMMR3DECL(int)      MMR3PhysRomRegister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhys, RTUINT cbRange, const void *pvBinary, bool fShadow, const char *pszDesc);
-VMMR3DECL(int)      MMR3PhysRomProtect(PVM pVM, RTGCPHYS GCPhys, RTUINT cbRange);
-VMMR3DECL(int)      MMR3PhysReserve(PVM pVM, RTGCPHYS GCPhys, RTUINT cbRange, const char *pszDesc);
 VMMR3DECL(uint64_t) MMR3PhysGetRamSize(PVM pVM);
 /** @} */
 
@@ -396,6 +313,19 @@ VMMR3DECL(char *)   MMR3HeapAPrintfU(PUVM pUVM, MMTAG enmTag, const char *pszFor
 VMMR3DECL(char *)   MMR3HeapAPrintfV(PVM pVM, MMTAG enmTag, const char *pszFormat, va_list va);
 VMMR3DECL(char *)   MMR3HeapAPrintfVU(PUVM pUVM, MMTAG enmTag, const char *pszFormat, va_list va);
 VMMR3DECL(void)     MMR3HeapFree(void *pv);
+/** @} */
+
+/** @defgroup grp_mm_heap   User-kernel Heap Manager.
+ * @ingroup grp_mm_r3
+ *
+ * The memory is safely accessible from kernel context as well as user land.
+ *
+ * @{ */
+VMMR3DECL(void *)   MMR3UkHeapAlloc(PVM pVM, MMTAG enmTag, size_t cbSize, PRTR0PTR pR0Ptr);
+VMMR3DECL(int)      MMR3UkHeapAllocEx(PVM pVM, MMTAG enmTag, size_t cbSize, void **ppv, PRTR0PTR pR0Ptr);
+VMMR3DECL(void *)   MMR3UkHeapAllocZ(PVM pVM, MMTAG enmTag, size_t cbSize, PRTR0PTR pR0Ptr);
+VMMR3DECL(int)      MMR3UkHeapAllocZEx(PVM pVM, MMTAG enmTag, size_t cbSize, void **ppv, PRTR0PTR pR0Ptr);
+VMMR3DECL(void)     MMR3UkHeapFree(PVM pVM, void *pv, MMTAG enmTag);
 /** @} */
 
 /** @} */

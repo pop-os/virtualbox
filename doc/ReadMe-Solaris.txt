@@ -1,6 +1,6 @@
 
-Sun xVM VirtualBox for OpenSolaris (TM) Operating System
---------------------------------------------------------
+Sun VirtualBox for OpenSolaris (TM) Operating System
+----------------------------------------------------
 
 Upgrading:
 ----------
@@ -12,6 +12,15 @@ You should uninstall BOTH the VirtualBox base package as well as the VirtualBox 
 interface package before installing the new ones.
 
 Please refer to the "Uninstallation" section at the end of this document for the details.
+
+ +--------+
+ |  NOTE  |
+ +--------+
+ VirtualBox 2.2 includes experimental USB support and requires OpenSolaris build 109 or
+ higher. VirtualBox USB support on Solaris 10 is not supported due to limitations in the kernel.
+
+ "USB Filters" is not currently supported on any Solaris host due to restrictions in the
+ kernel/USB sub-system. USB devices are granted to the guest using "Devices->USB Devices" menu.
 
 
 Installing:

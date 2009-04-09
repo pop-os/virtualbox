@@ -1,0 +1,107 @@
+# $Id: Makefile.kmk 18137 2009-03-23 13:22:03Z vboxsync $
+## @file
+# Sub-Makefile for the VBox C Binding.
+#
+
+#
+# Copyright (C) 2009 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../..
+include $(KBUILD_PATH)/subheader.kmk
+
+
+if defined(VBOX_WITH_XPCOM) || defined(VBOX_ONLY_SDK)
+#
+# The samples
+#
+INSTALLS += XpComCSamples
+XpComCSamples_MODE = a+r,u+rw
+XpComCSamples_INST = \
+	$(INST_SDK)bindings/xpcom/cbinding/samples/
+XpComCSamples_SOURCES = \
+	tstXPCOMCGlue.c \
+	makefile.tstXPCOMCGlue=>Makefile
+
+INSTALLS += XpComCGlue
+XpComCGlue_MODE = a+r,u+rw
+XpComCGlue_INST = \
+	$(INST_SDK)bindings/xpcom/cbinding/
+XpComCGlue_SOURCES = \
+	VBoxXPCOMCGlue.c \
+	VBoxXPCOMCGlue.h
+
+INSTALLS += XpComCHeaders
+XpComCHeaders_MODE = a+r,u+rw
+XpComCHeaders_INST = $(INST_SDK)bindings/xpcom/include/
+XpComCHeaders_SOURCES = \
+	$(XpComCHeaders_0_OUTDIR)/VBoxCAPI_v2_2.h
+
+$$(XpComCHeaders_0_OUTDIR)/VBoxCAPI_v2_2.h: \
+		$(PATH_SUB_CURRENT)/xpcidl.xsl \
+		$(VBOX_XIDL_FILE) \
+		| $$(dir $$@)
+	$(VBOX_XSLTPROC) -o $@ $^
+
+endif # VBOX_WITH_XPCOM || SDK
+if !defined(VBOX_ONLY_SDK) && defined(VBOX_WITH_XPCOM)
+
+ #
+ # The C utility DLL
+ #
+ ifdef VBOX_WITH_XPCOM
+ DLLS += VBoxXPCOMC
+ VBoxXPCOMC_TEMPLATE = VBOXMAINDLL
+ VBoxXPCOMC_DEFS = IN_VBOXXPCOMC
+ VBoxXPCOMC_SOURCES = \
+ 	VBoxXPCOMC.cpp
+ VBoxXPCOMC_INTERMEDIATES = \
+ 	$(VBOX_PATH_SDK)/bindings/xpcom/include/VBoxCAPI_v2_2.h
+ endif
+
+ #
+ # The C glue library.
+ #
+ LIBRARIES += VBoxXPCOMCGlue
+ VBoxXPCOMCGlue_TEMPLATE = VBOXMAINEXE
+ VBoxXPCOMCGlue_DEFS = IN_VBOXXPCOMC
+ VBoxXPCOMCGlue_SOURCES = \
+ 	VBoxXPCOMCGlue.c
+ VBoxXPCOMCGlue_INTERMEDIATES = \
+ 	$(VBOX_PATH_SDK)/bindings/xpcom/include/VBoxCAPI_v2_2.h
+
+ if defined(VBOX_WITH_TESTCASES) && "$(KBUILD_TARGET)" != "darwin"
+  #
+  # The testcase (also in samples).
+  # C testcase using the dynamic glue.
+  #
+  PROGRAMS += tstXPCOMCGlue
+  tstXPCOMCGlue_TEMPLATE = VBOXR3EXE
+  tstXPCOMCGlue_INCS = \
+  	$(VBOX_PATH_SDK)/bindings/xpcom/include
+  tstXPCOMCGlue_INTERMEDIATES = \
+  	$(VBOX_PATH_SDK)/bindings/xpcom/include/VBoxCAPI_v2_2.h
+  tstXPCOMCGlue_SOURCES = \
+  	tstXPCOMCGlue.c
+  tstXPCOMCGlue_LIBS = \
+  	$(VBoxXPCOMCGlue_1_TARGET)
+
+ endif
+
+endif # ! VBOX_ONLY_SDK
+
+# generate rules.
+include $(KBUILD_PATH)/subfooter.kmk
+

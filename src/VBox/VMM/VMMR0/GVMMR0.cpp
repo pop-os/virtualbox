@@ -1,4 +1,4 @@
-/* $Id: GVMMR0.cpp $ */
+/* $Id: GVMMR0.cpp 18470 2009-03-28 23:25:58Z vboxsync $ */
 /** @file
  * GVMM - Global VM Manager.
  */
@@ -39,6 +39,7 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_GVMM
 #include <VBox/gvmm.h>
+#include <VBox/gmm.h>
 #include "GVMMR0Internal.h"
 #include <VBox/gvm.h>
 #include <VBox/vm.h>
@@ -578,13 +579,13 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCPUs, PVM *ppV
                         pGVM->pVM = NULL;
 
                         gvmmR0InitPerVMData(pGVM);
-                        /* GMMR0InitPerVMData(pGVM); - later */
+                        GMMR0InitPerVMData(pGVM);
 
                         /*
                          * Allocate the shared VM structure and associated page array.
                          */
-                        const size_t cbVM   = RT_UOFFSETOF(VM, aCpus[cCPUs]);
-                        const size_t cPages = RT_ALIGN(cbVM, PAGE_SIZE) >> PAGE_SHIFT;
+                        const uint32_t  cbVM   = RT_UOFFSETOF(VM, aCpus[cCPUs]);
+                        const uint32_t  cPages = RT_ALIGN_32(cbVM, PAGE_SIZE) >> PAGE_SHIFT;
                         rc = RTR0MemObjAllocLow(&pGVM->gvmm.s.VMMemObj, cPages << PAGE_SHIFT, false /* fExecutable */);
                         if (RT_SUCCESS(rc))
                         {
@@ -602,7 +603,7 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCPUs, PVM *ppV
                             if (RT_SUCCESS(rc))
                             {
                                 PSUPPAGE paPages = (PSUPPAGE)RTR0MemObjAddress(pGVM->gvmm.s.VMPagesMemObj); AssertPtr(paPages);
-                                for (size_t iPage = 0; iPage < cPages; iPage++)
+                                for (uint32_t iPage = 0; iPage < cPages; iPage++)
                                 {
                                     paPages[iPage].uReserved = 0;
                                     paPages[iPage].Phys = RTR0MemObjGetPagePhysAddr(pGVM->gvmm.s.VMMemObj, iPage);
@@ -867,7 +868,7 @@ GVMMR0DECL(int) GVMMR0DestroyVM(PVM pVM)
  *
  * @param   pGVM        The GVM pointer.
  */
-static void gmmR0CleanupVM(PGVM pGVM)
+static void gvmmR0CleanupVM(PGVM pGVM)
 {
     if (    pGVM->gvmm.s.fDoneVMMR0Init
         &&  !pGVM->gvmm.s.fDoneVMMR0Term)
@@ -875,12 +876,14 @@ static void gmmR0CleanupVM(PGVM pGVM)
         if (    pGVM->gvmm.s.VMMemObj != NIL_RTR0MEMOBJ
             &&  RTR0MemObjAddress(pGVM->gvmm.s.VMMemObj) == pGVM->pVM)
         {
-            LogFlow(("gmmR0CleanupVM: Calling VMMR0TermVM\n"));
+            LogFlow(("gvmmR0CleanupVM: Calling VMMR0TermVM\n"));
             VMMR0TermVM(pGVM->pVM, pGVM);
         }
         else
-            AssertMsgFailed(("gmmR0CleanupVM: VMMemObj=%p pVM=%p\n", pGVM->gvmm.s.VMMemObj, pGVM->pVM));
+            AssertMsgFailed(("gvmmR0CleanupVM: VMMemObj=%p pVM=%p\n", pGVM->gvmm.s.VMMemObj, pGVM->pVM));
     }
+
+    GMMR0CleanupVM(pGVM);
 }
 
 
@@ -974,7 +977,7 @@ static DECLCALLBACK(void) gvmmR0HandleObjDestructor(void *pvObj, void *pvGVMM, v
     if (    VALID_PTR(pGVM)
         &&  pGVM->u32Magic == GVM_MAGIC)
     {
-        gmmR0CleanupVM(pGVM);
+        gvmmR0CleanupVM(pGVM);
 
         /*
          * Do the GVMM cleanup - must be done last.
@@ -1288,7 +1291,7 @@ GVMMR0DECL(PVM) GVMMR0GetVMByEMT(RTNATIVETHREAD hEMT)
 static unsigned gvmmR0SchedDoWakeUps(PGVMM pGVMM, uint64_t u64Now)
 {
     /*
-     * The first pass will wake up VMs which has actually expired
+     * The first pass will wake up VMs which have actually expired
      * and look for VMs that should be woken up in the 2nd and 3rd passes.
      */
     unsigned cWoken = 0;

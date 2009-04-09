@@ -1,4 +1,4 @@
-/* $Id: DrvVD.cpp $ */
+/* $Id: DrvVD.cpp 18778 2009-04-06 15:33:28Z vboxsync $ */
 /** @file
  * DrvVD - Generic VBox disk media driver.
  */
@@ -24,7 +24,7 @@
 *   Header files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_VD
-#include <VBox/VBoxHDD-new.h>
+#include <VBox/VBoxHDD.h>
 #include <VBox/pdmdrv.h>
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
@@ -34,21 +34,21 @@
 #include <iprt/cache.h>
 #include <iprt/tcp.h>
 
-#ifndef VBOX_OSE
+#ifdef VBOX_WITH_INIP
 /* All lwip header files are not C++ safe. So hack around this. */
 __BEGIN_DECLS
 #include <lwip/inet.h>
 #include <lwip/tcp.h>
 #include <lwip/sockets.h>
 __END_DECLS
-#endif /* !VBOX_OSE */
+#endif /* VBOX_WITH_INIP */
 
 #include "Builtins.h"
 
-#ifndef VBOX_OSE
+#ifdef VBOX_WITH_INIP
 /* Small hack to get at lwIP initialized status */
 extern bool DevINIPConfigured(void);
-#endif /* !VBOX_OSE */
+#endif /* VBOX_WITH_INIP */
 
 
 /*******************************************************************************
@@ -115,6 +115,8 @@ typedef struct VBOXDISK
     PPDMDRVINS         pDrvIns;
     /** Flag whether suspend has changed image open mode to read only. */
     bool               fTempReadOnly;
+    /** Flag whether to use the runtime (true) or startup error facility. */
+    bool               fErrorUseRuntime;
     /** Pointer to list of VD interfaces. Per-disk. */
     PVDINTERFACE       pVDIfsDisk;
     /** Common structure for the supported error interface. */
@@ -155,7 +157,15 @@ static void drvvdErrorCallback(void *pvUser, int rc, RT_SRC_POS_DECL,
                                const char *pszFormat, va_list va)
 {
     PPDMDRVINS pDrvIns = (PPDMDRVINS)pvUser;
-    pDrvIns->pDrvHlp->pfnVMSetErrorV(pDrvIns, rc, RT_SRC_POS_ARGS, pszFormat, va);
+    PVBOXDISK pThis = PDMINS_2_DATA(pDrvIns, PVBOXDISK);
+    if (pThis->fErrorUseRuntime)
+        /* We must not pass VMSETRTERR_FLAGS_FATAL as it could lead to a
+         * deadlock: We are probably executed in a thread context != EMT
+         * and the EM thread would wait until every thread is suspended
+         * but we would wait for the EM thread ... */
+        pDrvIns->pDrvHlp->pfnVMSetRuntimeErrorV(pDrvIns, /* fFlags=*/ 0, "DrvVD", pszFormat, va);
+    else
+        pDrvIns->pDrvHlp->pfnVMSetErrorV(pDrvIns, rc, RT_SRC_POS_ARGS, pszFormat, va);
 }
 
 
@@ -304,7 +314,7 @@ static int drvvdCfgQuery(void *pvUser, const char *pszName, char *pszString, siz
 }
 
 
-#ifndef VBOX_OSE
+#ifdef VBOX_WITH_INIP
 /*******************************************************************************
 *   VD TCP network stack interface implementation - INIP case                  *
 *******************************************************************************/
@@ -459,7 +469,7 @@ static DECLCALLBACK(int) drvvdINIPFlush(RTSOCKET Sock)
                     (const char *)&fFlag, sizeof(fFlag));
     return VINF_SUCCESS;
 }
-#endif /* !VBOX_OSE */
+#endif /* VBOX_WITH_INIP */
 
 
 /*******************************************************************************
@@ -924,10 +934,10 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns,
         }
         else
         {
-#ifdef VBOX_OSE
+#ifndef VBOX_WITH_INIP
             rc = PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
-                                     RT_SRC_POS, N_("DrvVD: Configuration error: TCP over Internal Networking not supported in VirtualBox OSE"));
-#else /* !VBOX_OSE */
+                                     RT_SRC_POS, N_("DrvVD: Configuration error: TCP over Internal Networking not compiled in"));
+#else /* VBOX_WITH_INIP */
             pThis->VDITcpNetCallbacks.cbSize = sizeof(VDINTERFACETCPNET);
             pThis->VDITcpNetCallbacks.enmInterface = VDINTERFACETYPE_TCPNET;
             pThis->VDITcpNetCallbacks.pfnClientConnect = drvvdINIPClientConnect;
@@ -936,7 +946,7 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns,
             pThis->VDITcpNetCallbacks.pfnRead = drvvdINIPRead;
             pThis->VDITcpNetCallbacks.pfnWrite = drvvdINIPWrite;
             pThis->VDITcpNetCallbacks.pfnFlush = drvvdINIPFlush;
-#endif /* !VBOX_OSE */
+#endif /* VBOX_WITH_INIP */
         }
         if (RT_SUCCESS(rc))
         {
@@ -999,7 +1009,7 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns,
         if (pThis->pDrvMediaAsyncPort)
             uOpenFlags |= VD_OPEN_FLAGS_ASYNC_IO;
 
-        /** Try to open backend in asyc I/O mode first. */
+        /* Try to open backend in asyc I/O mode first. */
         rc = VDOpen(pThis->pDisk, pszFormat, pszName, uOpenFlags, pImage->pVDIfsImage);
         if (rc == VERR_NOT_SUPPORTED)
         {
@@ -1009,13 +1019,24 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns,
         }
 
         if (RT_SUCCESS(rc))
+        {
             Log(("%s: %d - Opened '%s' in %s mode\n", __FUNCTION__,
                  iLevel, pszName,
                  VDIsReadOnly(pThis->pDisk) ? "read-only" : "read-write"));
+            if (   VDIsReadOnly(pThis->pDisk)
+                && !fReadOnly
+                && iLevel == 0)
+            {
+                rc = PDMDrvHlpVMSetError(pDrvIns, VERR_VD_IMAGE_READ_ONLY, RT_SRC_POS,
+                                         N_("Failed to open image '%s' for writing due to wrong "
+                                            "permissions"), pszName);
+                break;
+            }
+        }
         else
         {
            rc = PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
-                                    N_("Failed to open image '%s' in %s mode rc=%Rrc\n"), pszName,
+                                    N_("Failed to open image '%s' in %s mode rc=%Rrc"), pszName,
                                     (uOpenFlags & VD_OPEN_FLAGS_READONLY) ? "readonly" : "read-write", rc);
            break;
         }
@@ -1095,6 +1116,9 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns,
             rc = RTCacheCreate(&pThis->pCache, 0, sizeof(DRVVDASYNCTASK), RTOBJCACHE_PROTECT_INSERT);
             AssertMsgRC(rc, ("Failed to create cache rc=%Rrc\n", rc));
         }
+
+        /* Switch to runtime error facility. */
+        pThis->fErrorUseRuntime = true;
     }
 
     LogFlow(("%s: returns %Rrc\n", __FUNCTION__, rc));

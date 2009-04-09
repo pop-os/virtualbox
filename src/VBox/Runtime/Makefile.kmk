@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 18750 2009-04-06 11:42:04Z vboxsync $
 ## @file
 # Sub-Makefile for the IPRT (IPRT).
 #
@@ -35,7 +35,7 @@ ifdef VBOX_ONLY_ADDITIONS
  #
  # Only build the additions, sort out the legacy names first.
  #
- LIBRARIES += RuntimeGuestR0 RuntimeGuestR3 RuntimeGuestR3Mini
+ LIBRARIES += RuntimeGuestR0 RuntimeGuestR3 RuntimeGuestR3Shared RuntimeGuestR3Mini
  #LIBRARIES.os2 = RuntimeGuestR0OS2Warp3
  LIBRARIES.win.x86 += RuntimeGuestR0NT4
  ifndef VBOX_WITH_ADDITION_DRIVERS
@@ -64,7 +64,7 @@ else # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_DOCS
   LIBRARIES += RuntimeR0Drv
  endif
  ifdef VBOX_WITH_ADDITIONS
-  LIBRARIES += RuntimeGuestR0 RuntimeGuestR3 RuntimeGuestR3Mini
+  LIBRARIES += RuntimeGuestR0 RuntimeGuestR3 RuntimeGuestR3Shared RuntimeGuestR3Mini
   #LIBRARIES.os2 += RuntimeGuestR0OS2Warp3
   LIBRARIES.win.x86 += RuntimeGuestR0NT4
   ifndef VBOX_WITH_ADDITION_DRIVERS
@@ -160,9 +160,9 @@ RuntimeNoCrt_SOURCES = \
 #
 # RuntimeR3 - Static Runtime for Ring-3 executables.
 #
-RuntimeR3_TEMPLATE      = VBOXR3EXE
+RuntimeR3_TEMPLATE      = VBOXR3STATIC
 RuntimeR3_SDKS.win      = WINPSDK W2K3DDK
-RuntimeR3_DEFS          = IN_RT_R3 IN_SUP_R3 LDR_WITH_NATIVE LDR_WITH_ELF32 LDR_WITH_PE RT_WITH_VBOX
+RuntimeR3_DEFS          = IN_RT_R3 IN_SUP_R3 LDR_WITH_NATIVE LDR_WITH_ELF32 LDR_WITH_PE RT_WITH_VBOX RT_NO_GIP
 ifdef IPRT_WITH_KSTUFF
  RuntimeR3_DEFS        += LDR_WITH_KLDR
 endif
@@ -171,7 +171,14 @@ ifdef VBOX_MAIN_RELEASE_LOG ## @todo (dmik): temporary, until RTThreadSelf/RTThr
 endif
 RuntimeR3_INCS          = \
 	include \
+	$(SDK_VBOX_ZLIB_INCS)
+ifdef VBOX_WITH_NEW_LIBLZF
+RuntimeR3_INCS         += \
+	$(PATH_ROOT)/src/libs/liblzf-3.4
+else
+RuntimeR3_INCS         += \
 	$(PATH_ROOT)/src/libs/liblzf-1.51
+endif
 ifdef IPRT_WITH_KSTUFF
  RuntimeR3_INCS        += \
 	$(PATH_ROOT)/src/libs/kStuff/kStuff/include
@@ -191,6 +198,7 @@ RuntimeR3_SOURCES       = \
 	common/checksum/ipv4.cpp \
 	common/err/errmsg.cpp \
 	common/err/RTErrConvertFromErrno.cpp \
+	common/err/RTErrConvertToErrno.cpp \
 	common/ldr/ldr.cpp \
 	common/ldr/ldrELF.cpp \
 	common/ldr/ldrEx.cpp \
@@ -222,6 +230,7 @@ RuntimeR3_SOURCES       = \
 	common/rand/randparkmiller.cpp \
 	common/string/RTStrNLen.cpp \
 	common/string/RTStrNLenEx.cpp \
+	common/string/base64.cpp \
 	common/string/simplepattern.cpp \
 	common/string/straprintf.cpp \
 	common/string/strformat.cpp \
@@ -280,6 +289,7 @@ RuntimeR3_SOURCES       = \
 	r3/path.cpp \
 	r3/process.cpp \
 	r3/stream.cpp \
+	r3/test.cpp \
 	r3/tcp.cpp
 
 #if1of ($(KBUILD_TARGET_ARCH),amd64 x86)
@@ -313,6 +323,7 @@ RuntimeR3_SOURCES.win = \
 	generic/mppresent-generic.cpp \
 	generic/semnoint-generic.cpp \
 	generic/semsrw-generic.cpp \
+	generic/RTProcIsRunningByName-generic.cpp \
 	nt/RTErrConvertFromNtStatus.cpp \
 	r3/posix/env-posix.cpp \
 	r3/win/RTSystemQueryOSInfo-win.cpp \
@@ -329,6 +340,7 @@ RuntimeR3_SOURCES.win = \
 	r3/win/rtProcInitExePath-win.cpp \
 	r3/win/sched-win.cpp \
 	r3/win/sems-win.cpp \
+	r3/win/rtFileNativeSetAttributes-win.cpp \
 	r3/win/thread-win.cpp \
 	r3/win/time-win.cpp \
 	r3/win/timer-win.cpp \
@@ -360,6 +372,7 @@ RuntimeR3_SOURCES.linux = \
 	r3/linux/sched-linux.cpp \
 	r3/linux/sysfs.cpp \
 	r3/linux/time-linux.cpp \
+	r3/linux/RTProcIsRunningByName-linux.cpp \
 	r3/posix/RTSystemQueryOSInfo-posix.cpp \
 	r3/posix/alloc-posix.cpp \
 	r3/posix/dir-posix.cpp \
@@ -412,6 +425,7 @@ RuntimeR3_SOURCES.os2   = \
 	generic/uuid-generic.cpp \
 	generic/RTMpGetCurFrequency-generic.cpp \
 	generic/RTMpGetMaxFrequency-generic.cpp \
+	generic/RTProcIsRunningByName-generic.cpp \
 	os2/RTErrConvertFromOS2.cpp \
 	r3/os2/filelock-os2.cpp \
 	r3/os2/mp-os2.cpp \
@@ -450,6 +464,7 @@ RuntimeR3_SOURCES.darwin = \
 	generic/timer-generic.cpp \
 	generic/utf16locale-generic.cpp \
 	generic/uuid-generic.cpp\
+	generic/RTProcIsRunningByName-generic.cpp \
 	r3/darwin/alloc-darwin.cpp \
 	r3/darwin/filelock-darwin.cpp \
 	r3/darwin/mp-darwin.cpp \
@@ -499,6 +514,7 @@ RuntimeR3_SOURCES.freebsd = \
 	generic/RTMpGetOnlineSet-generic.cpp \
 	generic/RTMpGetSet-generic.cpp \
 	generic/RTMpIsCpuOnline-generic.cpp \
+	generic/RTProcIsRunningByName-generic.cpp \
 	r3/freebsd/alloc-freebsd.cpp \
 	r3/freebsd/rtProcInitExePath-freebsd.cpp \
 	r3/posix/RTSystemQueryOSInfo-posix.cpp \
@@ -536,6 +552,7 @@ RuntimeR3_SOURCES.solaris = \
 	generic/sched-generic.cpp \
 	generic/utf16locale-generic.cpp \
 	generic/uuid-generic.cpp \
+	generic/RTProcIsRunningByName-generic.cpp \
 	r3/posix/RTSystemQueryOSInfo-posix.cpp \
 	r3/posix/dir-posix.cpp \
 	r3/posix/env-posix.cpp \
@@ -592,6 +609,7 @@ RuntimeR3L4_SOURCES = \
 	generic/semsrw-generic.cpp \
 	generic/utf16locale-generic.cpp \
 	generic/uuid-generic.cpp \
+	generic/RTProcIsRunningByName-generic.cpp \
 	l4/l4-errno.cpp \
 	l4/rtProcInitExePath-l4.cpp \
 	l4/process-l4env.cpp \
@@ -613,14 +631,14 @@ RuntimeR3L4_SOURCES = \
 
 
 #
-# RuntimeGuestR3 - Guest Additions Runtime (static).
+# RuntimeGuestR3 - Guest Additions Runtime (static/exe).
 # (The KBUILD_HOST inheritance here is for l4 cross building the linux
 # additions, while .x86 is for cross building x86 while targeting amd64.)
 #
 RuntimeGuestR3_TEMPLATE                 := VBOXGUESTR3LIB
 ## @todo change this to EXTEND the RuntimeR3 target.
 RuntimeGuestR3_SDKS.win                 := $(RuntimeR3_SDKS.win)
-RuntimeGuestR3_DEFS                     := $(filter-out RTCRITSECT_STRICT, $(RuntimeR3_DEFS))
+RuntimeGuestR3_DEFS                     := $(filter-out RTCRITSECT_STRICT RT_NO_GIP, $(RuntimeR3_DEFS))
 RuntimeGuestR3_DEFS.$(KBUILD_TARGET)    := $(RuntimeR3_DEFS.$(KBUILD_TARGET))
 RuntimeGuestR3_DEFS.$(KBUILD_HOST)	:= $(RuntimeR3_DEFS.$(KBUILD_HOST))
 RuntimeGuestR3_INCS                     := $(RuntimeR3_INCS)
@@ -642,6 +660,14 @@ RuntimeGuestR3_SOURCES.$(KBUILD_HOST).$(KBUILD_TARGET_ARCH)   := $(RuntimeR3_SOU
 
 
 #
+# RuntimeGuestR3Shared - Guest Additions Runtime (static/dll).
+#
+RuntimeGuestR3Shared_TEMPLATE           := VBOXGUESTR3DLL
+RuntimeGuestR3Shared_EXTENDS            := RuntimeGuestR3
+RuntimeGuestR3Shared_INST                = $(INST_ADDITIONS_LIB)
+
+
+#
 # RuntimeGuestR3Mini - Minimal Guest Additions Runtime which does not require
 #                      initialization and can be linked into an .so. Intended
 #                      for X11 drivers, GRADD and similar.
@@ -650,7 +676,7 @@ RuntimeGuestR3Mini_TEMPLATE                 := VBOXGUESTR3DLL
 ## @todo change this to EXTEND the RuntimeGuestR3 target.
 RuntimeGuestR3Mini_INST                     := $(INST_ADDITIONS_LIB)
 RuntimeGuestR3Mini_SDKS.win                 := $(RuntimeR3_SDKS.win)
-RuntimeGuestR3Mini_DEFS                     := $(filter-out RTCRITSECT_STRICT, $(RuntimeR3_DEFS)) RT_MINI
+RuntimeGuestR3Mini_DEFS                     := $(filter-out RTCRITSECT_STRICT RT_NO_GIP, $(RuntimeR3_DEFS)) RT_MINI
 RuntimeGuestR3Mini_DEFS.$(KBUILD_TARGET)    := $(RuntimeR3_DEFS.$(KBUILD_TARGET))
 RuntimeGuestR3Mini_DEFS.$(KBUILD_HOST)      := $(RuntimeR3_DEFS.$(KBUILD_HOST))
 RuntimeGuestR3Mini_INCS                     := $(RuntimeR3_INCS)
@@ -679,6 +705,10 @@ RuntimeGuestR3Mini_SOURCES = \
 	r3/fileio.cpp \
 	r3/fs.cpp \
 	r3/path.cpp
+RuntimeGuestR3Mini_SOURCES.freebsd = \
+	r3/posix/fileio-posix.cpp \
+	r3/posix/path-posix.cpp \
+	r3/posix/utf8-posix.cpp
 RuntimeGuestR3Mini_SOURCES.linux = \
 	r3/posix/fileio-posix.cpp \
 	r3/posix/path-posix.cpp \
@@ -687,10 +717,13 @@ RuntimeGuestR3Mini_SOURCES.solaris = \
 	r3/posix/fileio-posix.cpp \
 	r3/posix/path-posix.cpp \
 	r3/posix/utf8-posix.cpp
-RuntimeGuestR3Mini_SOURCES.freebsd = \
-	r3/posix/fileio-posix.cpp \
-	r3/posix/path-posix.cpp \
-	r3/posix/utf8-posix.cpp
+RuntimeGuestR3Mini_SOURCES.win = \
+	r3/win/fileio-win.cpp \
+	r3/win/path-win.cpp \
+	r3/win/utf8-win.cpp \
+	win/errmsgwin.cpp \
+	win/RTErrConvertFromWin32.cpp
+
 # VBox specific stuff.
 RuntimeGuestR3Mini_SOURCES += \
 	VBox/logbackdoor.cpp \
@@ -722,7 +755,7 @@ VBoxRT_SDKS.win                = WINPSDK W2K3DDK VBOX_NTDLL
 ifeq ($(KBUILD_TARGET)$(VBOX_WITH_HARDENING),darwin)
 VBoxRT_INST                    = $(INST_DLL) $(INST_TESTCASE)
 endif
-VBoxRT_DEFS                    = $(RuntimeR3_DEFS) IN_SUP_R3 IN_SUP_R3
+VBoxRT_DEFS                    = $(filter-out RT_NO_GIP,$(RuntimeR3_DEFS)) IN_SUP_R3 IN_SUP_R3
 VBoxRT_DEFS.$(KBUILD_TYPE)     = $(RuntimeR3_DEFS.$(KBUILD_TYPE))
 VBoxRT_SOURCES                 = \
 	VBox/VBoxRTDeps.cpp \
@@ -737,7 +770,8 @@ VBoxRT_INCS.$(KBUILD_TARGET)   = $(RuntimeR3_INCS.$(KBUILD_TARGET))
 VBoxRT_INCS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH) = $(RuntimeR3_INCS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH))
 VBoxRT_LIBS                    = \
 	$(PATH_LIB)/SUPR3$(VBOX_SUFF_LIB) \
-	$(PATH_LIB)/VBox-liblzf$(VBOX_SUFF_LIB)
+	$(PATH_LIB)/VBox-liblzf$(VBOX_SUFF_LIB) \
+	$(SDK_VBOX_ZLIB_LIBS)
 ifdef IPRT_WITH_KSTUFF
  VBoxRT_LIBS                  += \
    	$(PATH_LIB)/VBox-kStuff$(VBOX_SUFF_LIB)
@@ -786,6 +820,7 @@ $(PATH_BIN)/VBoxRT.so: $$(TARGET_VBoxRT) | $$(dir $$@)
 	$(INSTALL) $< $@
 	chcon -t texrel_shlib_t $@ || true
 
+VBoxRT:: VBoxRTDummy
   endif # chcon present.
  endif # building VBoxRT
 endif # linux
@@ -966,6 +1001,7 @@ endif
 
 RuntimeR0Drv_SOURCES    = \
 	common/alloc/alloc.cpp \
+	common/alloc/heapsimple.cpp \
 	common/misc/RTAssertMsg2.cpp \
 	common/checksum/crc32.cpp \
 	common/checksum/crc64.cpp \
@@ -981,8 +1017,12 @@ RuntimeR0Drv_SOURCES    = \
 	common/misc/handletable.cpp \
 	common/misc/handletablectx.cpp \
 	common/misc/handletablesimple.cpp \
+	common/misc/once.cpp \
 	common/misc/sanity-c.c \
 	common/misc/sanity-cpp.cpp \
+	common/rand/rand.cpp \
+	common/rand/randadv.cpp \
+	common/rand/randparkmiller.cpp \
 	common/string/strformat.cpp \
 	common/string/strformatrt.cpp \
 	common/string/strformattype.cpp \
@@ -991,6 +1031,7 @@ RuntimeR0Drv_SOURCES    = \
 	common/table/avlpv.cpp \
 	generic/RTLogWriteStdErr-stub-generic.cpp \
 	generic/RTLogWriteUser-generic.cpp \
+	generic/RTRandAdvCreateSystemFaster-generic.cpp \
 	generic/uuid-generic.cpp \
 	r0drv/alloc-r0drv.cpp \
 	r0drv/initterm-r0drv.cpp \
@@ -1009,7 +1050,6 @@ RuntimeR0Drv_SOURCES    = \
 ##
 ## bird: Why don't we just extern "C" {} that file then?
 RuntimeR0Drv_SOURCES.linux = \
-	common/alloc/heapsimple.cpp \
 	common/string/strpbrk.cpp \
 	common/err/RTErrConvertToErrno.cpp \
 	common/err/RTErrConvertFromErrno.cpp \
@@ -1220,6 +1260,7 @@ RuntimeR0Drv_SOURCES.freebsd = \
 
 RuntimeR0Drv_SOURCES.solaris = \
 	common/err/RTErrConvertFromErrno.cpp \
+	common/err/RTErrConvertToErrno.cpp \
 	common/misc/thread.cpp \
 	common/string/memchr.asm \
 	generic/RTAssertShouldPanic-generic.cpp \
@@ -1295,7 +1336,8 @@ endif # !VBOX_WITH_SOLARIS_VBI
 #
 RuntimeGuestR0_TEMPLATE  := VBOXGUESTR0LIB
 RuntimeGuestR0_SOURCES   := $(filter-out generic/RTLogWriteUser-generic.cpp, $(RuntimeR0Drv_SOURCES))
-RuntimeGuestR0_SOURCES   += VBox/logbackdoor.cpp
+RuntimeGuestR0_SOURCES   += \
+	VBox/logbackdoor.cpp
 RuntimeGuestR0_EXTENDS    = RuntimeR0Drv
 
 # HACK: no vbi for the solaris guest additions - yet.
@@ -1455,12 +1497,6 @@ $(foreach lib,RuntimeR3 VBoxRT RuntimeLnxHostR3,$(eval $(def_errmsgwin_deps)))
 
 
 #
-# Generate the rules (we're the to sub-makefile).
-#
-include $(KBUILD_PATH)/subfooter.kmk
-
-
-#
 # Generate the status code data.
 #
 $(IPRT_OUT_DIR)/errmsgdata.h: \
@@ -1481,7 +1517,7 @@ $(IPRT_OUT_DIR)/errmsgcomdata.h: \
 
 $(IPRT_OUT_DIR)/errmsgvboxcomdata.h: \
 		$(VBOX_PATH_RUNTIME_SRC)/VBox/errmsgvboxcom.xsl \
-		$(VBOX_PATH_RUNTIME_SRC)/../Main/idl/VirtualBox.xidl \
+		$(VBOX_XIDL_FILE_SRC) \
 		| $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$(filter %.xidl,$^))
 	$(VBOX_XSLTPROC) -o $@ $< $(filter %.xidl,$^)
@@ -1587,4 +1623,10 @@ test-doxygen::
 	@echo $(IPRT_DOXYFILE_OUTPUT)
 	@echo $(DOXYGEN_OUTPUT_PREV)
 	@echo $(IPRT_DOXYFILE_INPUT)
+
+
+#
+# Generate the rules (we're the to sub-makefile).
+#
+include $(KBUILD_PATH)/subfooter.kmk
 

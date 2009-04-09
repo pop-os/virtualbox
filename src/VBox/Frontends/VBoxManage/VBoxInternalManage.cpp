@@ -1,4 +1,4 @@
-/* $Id: VBoxInternalManage.cpp $ */
+/* $Id: VBoxInternalManage.cpp 18491 2009-03-29 01:40:31Z vboxsync $ */
 /** @file
  * VBoxManage - The 'internalcommands' command.
  *
@@ -32,10 +32,11 @@
 #include <VBox/com/string.h>
 #include <VBox/com/Guid.h>
 #include <VBox/com/ErrorInfo.h>
+#include <VBox/com/errorprint2.h>
 
 #include <VBox/com/VirtualBox.h>
 
-#include <VBox/VBoxHDD-new.h>
+#include <VBox/VBoxHDD.h>
 #include <VBox/sup.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
@@ -91,16 +92,28 @@ using namespace com;
 typedef struct HOSTPARTITION
 {
     unsigned        uIndex;
+    /** partition type */
     unsigned        uType;
+    /** CHS/cylinder of the first sector */
     unsigned        uStartCylinder;
+    /** CHS/head of the first sector */
     unsigned        uStartHead;
+    /** CHS/head of the first sector */
     unsigned        uStartSector;
+    /** CHS/cylinder of the last sector */
     unsigned        uEndCylinder;
+    /** CHS/head of the last sector */
     unsigned        uEndHead;
+    /** CHS/sector of the last sector */
     unsigned        uEndSector;
+    /** start sector of this partition relative to the beginning of the hard
+     * disk or relative to the beginning of the extended partition table */
     uint64_t        uStart;
+    /** numer of sectors of the partition */
     uint64_t        uSize;
+    /** start sector of this partition _table_ */
     uint64_t        uPartDataStart;
+    /** numer of sectors of this partition _table_ */
     uint64_t        cPartDataSectors;
 } HOSTPARTITION, *PHOSTPARTITION;
 
@@ -574,7 +587,7 @@ static int partRead(RTFILE File, PHOSTPARTITIONS pPart)
         if (PARTTYPE_IS_EXTENDED(p[4]))
         {
             if (uExtended == (unsigned)-1)
-                uExtended = pCP - pPart->aPartitions;
+                uExtended = (unsigned)(pCP - pPart->aPartitions);
             else
             {
                 RTPrintf("More than one extended partition. Aborting\n");
@@ -666,7 +679,8 @@ static int partRead(RTFILE File, PHOSTPARTITIONS pPart)
             {
                 RTPrintf("Two partitions start at the same place. Aborting\n");
                 return VERR_INVALID_PARAMETER;
-            } else if (pPart->aPartitions[j].uStart == 0)
+            }
+            else if (pPart->aPartitions[j].uStart == 0)
             {
                 RTPrintf("Partition starts at sector 0. Aborting\n");
                 return VERR_INVALID_PARAMETER;
@@ -1213,10 +1227,10 @@ static int CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aVirtualB
     LCHS.cCylinders = 0;
     LCHS.cHeads = 0;
     LCHS.cSectors = 0;
-    vrc = VDCreateBase(pDisk, "VMDK", Utf8Str(filename).raw(),
-                       VD_IMAGE_TYPE_FIXED, cbSize,
-                       VD_VMDK_IMAGE_FLAGS_RAWDISK, (char *)&RawDescriptor,
-		               &PCHS, &LCHS, NULL, VD_OPEN_FLAGS_NORMAL, NULL, NULL);
+    vrc = VDCreateBase(pDisk, "VMDK", Utf8Str(filename).raw(), cbSize,
+                       VD_IMAGE_FLAGS_FIXED | VD_VMDK_IMAGE_FLAGS_RAWDISK,
+                       (char *)&RawDescriptor, &PCHS, &LCHS, NULL,
+                       VD_OPEN_FLAGS_NORMAL, NULL, NULL);
     if (RT_FAILURE(vrc))
     {
         RTPrintf("Error while creating the raw disk VMDK: %Rrc\n", vrc);
@@ -1246,8 +1260,8 @@ static int CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aVirtualB
 
     if (fRegister)
     {
-        ComPtr<IHardDisk2> hardDisk;
-        CHECK_ERROR(aVirtualBox, OpenHardDisk2(filename, hardDisk.asOutParam()));
+        ComPtr<IHardDisk> hardDisk;
+        CHECK_ERROR(aVirtualBox, OpenHardDisk(filename, AccessMode_ReadWrite, hardDisk.asOutParam()));
     }
 
     return SUCCEEDED(rc) ? 0 : 1;
@@ -1321,7 +1335,7 @@ static int CmdRenameVMDK(int argc, char **argv, ComPtr<IVirtualBox> aVirtualBox,
         }
         else
         {
-            vrc = VDCopy(pDisk, 0, pDisk, "VMDK", Utf8Str(dst).raw(), true, 0, NULL, NULL, NULL, NULL);
+            vrc = VDCopy(pDisk, 0, pDisk, "VMDK", Utf8Str(dst).raw(), true, 0, VD_IMAGE_FLAGS_NONE, NULL, NULL, NULL, NULL);
             if (RT_FAILURE(vrc))
             {
                 RTPrintf("Error while renaming the image: %Rrc\n", vrc);
@@ -1598,7 +1612,7 @@ static int CmdConvertHardDisk(int argc, char **argv, ComPtr<IVirtualBox> aVirtua
 
         /* Create the output image */
         vrc = VDCopy(pSrcDisk, VD_LAST_IMAGE, pDstDisk, Utf8Str(dstformat).raw(),
-                     Utf8Str(dst).raw(), false, 0, NULL, NULL, NULL, NULL);
+                     Utf8Str(dst).raw(), false, 0, VD_VMDK_IMAGE_FLAGS_STREAM_OPTIMIZED, NULL, NULL, NULL, NULL);
         if (RT_FAILURE(vrc))
         {
             RTPrintf("Error while copying the image: %Rrc\n", vrc);

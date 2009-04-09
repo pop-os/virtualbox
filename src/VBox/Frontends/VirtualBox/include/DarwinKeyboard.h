@@ -21,11 +21,11 @@
  */
 
 
-#ifndef __DarwinKeyboard_h__
-#define __DarwinKeyboard_h__
+#ifndef ___DarwinKeyboard_h___
+#define ___DarwinKeyboard_h___
 
 #include <iprt/cdefs.h>
-#include <Carbon/Carbon.h>
+#include <CoreFoundation/CFBase.h>
 
 __BEGIN_DECLS
 
@@ -42,7 +42,7 @@ __BEGIN_DECLS
 #define VBOXKEY_LOCK                0x0800
 
 unsigned DarwinKeycodeToSet1Scancode(unsigned uKeyCode);
-UInt32   DarwinAdjustModifierMask(UInt32 fModifiers);
+UInt32   DarwinAdjustModifierMask(UInt32 fModifiers, const void *pvCocoaEvent);
 unsigned DarwinModifierMaskToSet1Scancode(UInt32 fModifiers);
 unsigned DarwinModifierMaskToDarwinKeycode(UInt32 fModifiers);
 UInt32   DarwinKeyCodeToDarwinModifierMask(unsigned uKeyCode);

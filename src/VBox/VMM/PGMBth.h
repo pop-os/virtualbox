@@ -1,4 +1,4 @@
-/* $Id: PGMBth.h $ */
+/* $Id: PGMBth.h 18289 2009-03-26 05:07:04Z vboxsync $ */
 /** @file
  * VBox - Page Manager / Monitor, Shadow+Guest Paging Template.
  */
@@ -35,6 +35,8 @@ PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVM pVM, RTGCPTR Addr, unsigned fPage, u
 PGM_BTH_DECL(int, InvalidatePage)(PVM pVM, RTGCPTR GCPtrPage);
 PGM_BTH_DECL(int, PrefetchPage)(PVM pVM, RTGCPTR GCPtrPage);
 PGM_BTH_DECL(unsigned, AssertCR3)(PVM pVM, uint64_t cr3, uint64_t cr4, RTGCPTR GCPtr = 0, RTGCPTR cb = ~(RTGCPTR)0);
+PGM_BTH_DECL(int, MapCR3)(PVM pVM, RTGCPHYS GCPhysCR3);
+PGM_BTH_DECL(int, UnmapCR3)(PVM pVM);
 __END_DECLS
 
 
@@ -61,6 +63,8 @@ PGM_BTH_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
 #ifdef VBOX_STRICT
     pModeData->pfnR3BthAssertCR3            = PGM_BTH_NAME(AssertCR3);
 #endif
+    pModeData->pfnR3BthMapCR3               = PGM_BTH_NAME(MapCR3);
+    pModeData->pfnR3BthUnmapCR3             = PGM_BTH_NAME(UnmapCR3);
 
     if (fResolveGCAndR0)
     {
@@ -84,6 +88,10 @@ PGM_BTH_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
         rc = PDMR3LdrGetSymbolRC(pVM, NULL,       PGM_BTH_NAME_RC_STR(AssertCR3),           &pModeData->pfnRCBthAssertCR3);
         AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_RC_STR(AssertCR3), rc), rc);
 # endif
+        rc = PDMR3LdrGetSymbolRC(pVM, NULL,       PGM_BTH_NAME_RC_STR(MapCR3),              &pModeData->pfnRCBthMapCR3);
+        AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_RC_STR(MapCR3), rc), rc);
+        rc = PDMR3LdrGetSymbolRC(pVM, NULL,       PGM_BTH_NAME_RC_STR(UnmapCR3),            &pModeData->pfnRCBthUnmapCR3);
+        AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_RC_STR(UnmapCR3), rc), rc);
 #endif /* Not AMD64 shadow paging. */
 
         /* Ring 0 */
@@ -103,6 +111,10 @@ PGM_BTH_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
         rc = PDMR3LdrGetSymbolR0(pVM, NULL,       PGM_BTH_NAME_R0_STR(AssertCR3),           &pModeData->pfnR0BthAssertCR3);
         AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_R0_STR(AssertCR3), rc), rc);
 #endif
+        rc = PDMR3LdrGetSymbolR0(pVM, NULL,       PGM_BTH_NAME_R0_STR(MapCR3),              &pModeData->pfnR0BthMapCR3);
+        AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_R0_STR(MapCR3), rc), rc);
+        rc = PDMR3LdrGetSymbolR0(pVM, NULL,       PGM_BTH_NAME_R0_STR(UnmapCR3),            &pModeData->pfnR0BthUnmapCR3);
+        AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_R0_STR(UnmapCR3), rc), rc);
     }
     return VINF_SUCCESS;
 }
@@ -117,8 +129,66 @@ PGM_BTH_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
  */
 PGM_BTH_DECL(int, Enter)(PVM pVM, RTGCPHYS GCPhysCR3)
 {
-    /* nothing special to do here - InitData does the job. */
+    /* Here we deal with allocation of the root shadow page table for real and protected mode during mode switches;
+     * Other modes rely on MapCR3/UnmapCR3 to setup the shadow root page tables.
+     */
+#if  (   (   PGM_SHW_TYPE == PGM_TYPE_32BIT \
+          || PGM_SHW_TYPE == PGM_TYPE_PAE    \
+          || PGM_SHW_TYPE == PGM_TYPE_AMD64) \
+      && (   PGM_GST_TYPE == PGM_TYPE_REAL   \
+          || PGM_GST_TYPE == PGM_TYPE_PROT))
+
+    Assert(!HWACCMIsNestedPagingActive(pVM));
+    /* Note: we only really need shadow paging in real and protected mode for VT-x and AMD-V (excluding nested paging/EPT modes),
+     *       but any calls to GC need a proper shadow page setup as well.
+     */
+    /* Free the previous root mapping if still active. */
+    PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
+    if (pVM->pgm.s.CTX_SUFF(pShwPageCR3))
+    {
+        Assert(pVM->pgm.s.pShwPageCR3R3->enmKind != PGMPOOLKIND_FREE);
+
+        /* Mark the page as unlocked; allow flushing again. */
+        pgmPoolUnlockPage(pPool, pVM->pgm.s.CTX_SUFF(pShwPageCR3));
+
+        /* Remove the hypervisor mappings from the shadow page table. */
+        pgmMapDeactivateCR3(pVM, pVM->pgm.s.CTX_SUFF(pShwPageCR3));
+
+        pgmPoolFreeByPage(pPool, pVM->pgm.s.pShwPageCR3R3, pVM->pgm.s.iShwUser, pVM->pgm.s.iShwUserTable);
+        pVM->pgm.s.pShwPageCR3R3 = 0;
+        pVM->pgm.s.pShwPageCR3RC = 0;
+        pVM->pgm.s.pShwPageCR3R0 = 0;
+        pVM->pgm.s.iShwUser      = 0;
+        pVM->pgm.s.iShwUserTable = 0;
+    }
+
+    /* contruct a fake address */
+    GCPhysCR3 = RT_BIT_64(63);
+    pVM->pgm.s.iShwUser      = SHW_POOL_ROOT_IDX;
+    pVM->pgm.s.iShwUserTable = GCPhysCR3 >> PAGE_SHIFT;
+    int rc = pgmPoolAlloc(pVM, GCPhysCR3, BTH_PGMPOOLKIND_ROOT, pVM->pgm.s.iShwUser, pVM->pgm.s.iShwUserTable, &pVM->pgm.s.pShwPageCR3R3);
+    if (rc == VERR_PGM_POOL_FLUSHED)
+    {
+        Log(("Bth-Enter: PGM pool flushed -> signal sync cr3\n"));
+        Assert(VM_FF_ISSET(pVM, VM_FF_PGM_SYNC_CR3));
+        return VINF_PGM_SYNC_CR3;
+    }
+    AssertRCReturn(rc, rc);
+
+    /* Mark the page as locked; disallow flushing. */
+    pgmPoolLockPage(pPool, pVM->pgm.s.pShwPageCR3R3);
+
+    pVM->pgm.s.pShwPageCR3R0 = MMHyperCCToR0(pVM, pVM->pgm.s.pShwPageCR3R3);
+    pVM->pgm.s.pShwPageCR3RC = MMHyperCCToRC(pVM, pVM->pgm.s.pShwPageCR3R3);
+
+    /* Set the current hypervisor CR3. */
+    CPUMSetHyperCR3(pVM, PGMGetHyperCR3(pVM));
+
+    /* Apply all hypervisor mappings to the new CR3. */
+    return pgmMapActivateCR3(pVM, pVM->pgm.s.CTX_SUFF(pShwPageCR3));
+#else
     return VINF_SUCCESS;
+#endif
 }
 
 

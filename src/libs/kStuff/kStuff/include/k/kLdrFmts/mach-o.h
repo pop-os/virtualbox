@@ -278,6 +278,10 @@ typedef struct mach_header_64
 #define CPU_SUBTYPE_POWERPC_SCVger  KI32_C(11)
 #define CPU_SUBTYPE_POWERPC_970     KI32_C(100)
 
+/* Subtype capability / feature bits, added in 10.5. X86 only? */
+#define CPU_SUBTYPE_MASK            KU32_C(0xff000000)
+#define CPU_SUBTYPE_LIB64           KU32_C(0x8000000)
+
 /** @} */
 
 
@@ -893,6 +897,22 @@ typedef enum reloc_type_generic
     GENERIC_RELOC_PB_LA_PTR,        /**< Prebound lazy pointer whatever that. */
     GENERIC_RELOC_LOCAL_SECTDIFF    /**< ??? */
 } reloc_type_generic_t;
+
+/**
+ * Relocation type values for AMD64 (for r_type).
+ */
+typedef enum reloc_type_x86_64
+{
+    X86_64_RELOC_UNSIGNED = 0,      /**< Absolute address. */
+    X86_64_RELOC_SIGNED,            /**< Signed displacement. */
+    X86_64_RELOC_BRANCH,            /**< Branch displacement (jmp/call, adj by size). */
+    X86_64_RELOC_GOT_LOAD,          /**< GOT entry load. */
+    X86_64_RELOC_GOT,               /**< GOT reference. */			// other GOT references
+    X86_64_RELOC_SUBTRACTOR,        /**< ??. */
+    X86_64_RELOC_SIGNED_1,          /**< Signed displacement with a -1 added. */
+    X86_64_RELOC_SIGNED_2,          /**< Signed displacement with a -2 added. */
+    X86_64_RELOC_SIGNED_4           /**< Signed displacement with a -4 added. */
+} reloc_type_x86_64_t;
 
 /** @} */
 

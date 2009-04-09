@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 18792 2009-04-06 18:40:52Z vboxsync $
 ## @file
 # Top-level makefile for the VMM.
 #
@@ -43,8 +43,9 @@ endif
 ifdef VBOX_WITH_NEW_RECOMPILER
 VMMR3_DEFS     += VBOX_WITH_NEW_RECOMPILER
 endif
-VMMR3_DEFS.darwin     = VBOX_WITH_2X_4GB_ADDR_SPACE   VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R3
-VMMR3_DEFS.darwin.x86 = VBOX_WITH_HYBRID_32BIT_KERNEL VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R3
+VMMR3_DEFS.darwin.x86 = \
+	VBOX_WITH_2X_4GB_ADDR_SPACE   VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R3 \
+	VBOX_WITH_HYBRID_32BIT_KERNEL VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R3
 VMMR3_INCS     := \
 	$(PATH_SUB_CURRENT) \
 	PATM
@@ -69,7 +70,7 @@ VMMR3_SOURCES   = \
 	MMHeap.cpp \
 	MMHyper.cpp \
 	MMPagePool.cpp \
-	MMPhys.cpp \
+	MMUkHeap.cpp \
 	PDM.cpp \
 	PDMDevice.cpp \
 	PDMDevHlp.cpp \
@@ -309,8 +310,11 @@ endif
 ifdef VBOX_WITH_NEW_RECOMPILER
 VMMGC_DEFS     += VBOX_WITH_NEW_RECOMPILER
 endif
-VMMGC_DEFS.darwin     = VBOX_WITH_2X_4GB_ADDR_SPACE   VBOX_WITH_2X_4GB_ADDR_SPACE_IN_RC
-VMMGC_DEFS.darwin.x86 = VBOX_WITH_HYBRID_32BIT_KERNEL VBOX_WITH_HYBRID_32BIT_KERNEL_IN_RC
+ifeq ($(KBUILD_TARGET_ARCH),x86)
+VMMGC_DEFS.darwin = \
+	VBOX_WITH_2X_4GB_ADDR_SPACE   VBOX_WITH_2X_4GB_ADDR_SPACE_IN_RC \
+	VBOX_WITH_HYBRID_32BIT_KERNEL VBOX_WITH_HYBRID_32BIT_KERNEL_IN_RC
+endif
 VMMGC_SYSSUFF   = .gc
 VMMGC_LIBS      = \
 	$(PATH_LIB)/DisasmGC$(VBOX_SUFF_LIB) \
@@ -409,8 +413,9 @@ endif
 ifdef VBOX_WITH_NEW_RECOMPILER
 VMMR0_DEFS     += VBOX_WITH_NEW_RECOMPILER
 endif
-VMMR0_DEFS.darwin     = VBOX_WITH_2X_4GB_ADDR_SPACE   VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-VMMR0_DEFS.darwin.x86 = VBOX_WITH_HYBRID_32BIT_KERNEL VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0
+VMMR0_DEFS.darwin.x86 = \
+	VBOX_WITH_2X_4GB_ADDR_SPACE   VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0 \
+	VBOX_WITH_HYBRID_32BIT_KERNEL VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0
 ifeq ($(VBOX_LDR_FMT),pe)
 VMMR0_LDFLAGS   = -Entry:VMMR0EntryEx
 endif
@@ -463,9 +468,11 @@ VMMR0_SOURCES   = \
 	VMMAll/TRPMAll.cpp \
 	VMMAll/VMAll.cpp \
 	VMMAll/VMMAll.cpp
-VMMR0_SOURCES.darwin = \
+VMMR0_SOURCES.darwin.x86 = \
 	VMMR0/PGMR0DynMap.cpp
 
+# disable annoying warnings about array subscript above array bounds in aPages[]
+VMMAll/PGMAllPool.cpp_CXXFLAGS = $(if-expr $(KBUILD_TARGET) == "win",,$(VBOX_GCC_Wno-array_bounds))
 
 ifeq ($(VBOX_LDR_FMT),pe)
 VMMR0_SOURCES += VMMR0/VMMR0.def
@@ -492,6 +499,7 @@ include	$(KBUILD_PATH)/subfooter.kmk
 
 
 # Alias the PGM templates to the object in which they are defined.
+PGMInternal.o \
 PGMBth.o   PGMGst.o   PGMShw.o \
 PGMBth.obj PGMGst.obj PGMShw.obj: PGM.o
 PGMAllBth.o   PGMAllGst.o   PGMAllShw.o \

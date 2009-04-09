@@ -1,10 +1,10 @@
-/* $Id: VDICore.h $ */
+/* $Id: VDICore.h 18265 2009-03-25 17:09:08Z vboxsync $ */
 /** @file
  * Virtual Disk Image (VDI), Core Code Header (internal).
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,7 @@
 #ifndef VBOX_VDICORE_VD
 #include <VBox/VBoxHDD.h>
 #else /* VBOX_VDICORE_VD */
-#include <VBox/VBoxHDD-new.h>
+#include <VBox/VBoxHDD.h>
 #endif /* VBOX_VDICORE_VD */
 #include <VBox/pdm.h>
 #include <VBox/mm.h>
@@ -50,7 +50,7 @@
 /** Image info, not handled anyhow.
  *  Must be less than 64 bytes in length, including the trailing 0.
  */
-#define VDI_IMAGE_FILE_INFO   "<<< Sun xVM VirtualBox Disk Image >>>\n"
+#define VDI_IMAGE_FILE_INFO   "<<< Sun VirtualBox Disk Image >>>\n"
 
 /** The Sector size.
  * Currently we support only 512 bytes sectors.

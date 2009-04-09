@@ -27,6 +27,7 @@
 #include <VBox/com/array.h>
 #include <VBox/com/Guid.h>
 #include <VBox/com/ErrorInfo.h>
+#include <VBox/com/errorprint_legacy.h>
 #include <VBox/com/EventQueue.h>
 
 #include <VBox/com/VirtualBox.h>
@@ -42,6 +43,7 @@ using namespace com;
 #include <iprt/path.h>
 #include <iprt/param.h>
 #include <iprt/stream.h>
+#include <iprt/thread.h>
 
 #define printf RTPrintf
 
@@ -267,6 +269,36 @@ int main(int argc, char *argv[])
     }
 
 #if 0
+    // Testing VirtualBox::COMGETTER(ProgressOperations).
+    // This is designed to be tested while running
+    // "./VBoxManage clonehd src.vdi clone.vdi" in parallel.
+    // It will then display the progress every 2 seconds.
+    ////////////////////////////////////////////////////////////////////////////
+    {
+        printf ("Testing VirtualBox::COMGETTER(ProgressOperations)...\n");
+
+        for (;;) {
+            com::SafeIfaceArray <IProgress> operations;
+
+            CHECK_ERROR_BREAK (virtualBox,
+                COMGETTER(ProgressOperations)(ComSafeArrayAsOutParam(operations)));
+
+            printf ("operations: %d\n", operations.size());
+            if (operations.size() == 0)
+                break; // No more operations left.
+
+            for (size_t i = 0; i < operations.size(); ++i) {
+                PRInt32 percent;
+
+                operations[i]->COMGETTER(Percent)(&percent);
+                printf ("operations[%u]: %ld\n", (unsigned)i, (long)percent);
+            }
+            RTThreadSleep (2000); // msec
+        }
+    }
+#endif
+
+#if 0
     // IUnknown identity test
     ////////////////////////////////////////////////////////////////////////////
     {
@@ -362,7 +394,7 @@ int main(int argc, char *argv[])
 
         com::SafeIfaceArray <IMachine> machines;
         CHECK_ERROR_BREAK (virtualBox,
-                           COMGETTER(Machines2) (ComSafeArrayAsOutParam (machines)));
+                           COMGETTER(Machines) (ComSafeArrayAsOutParam (machines)));
 
         printf ("%u machines registered (machines.isNull()=%d).\n",
                 machines.size(), machines.isNull());
@@ -529,7 +561,7 @@ int main(int argc, char *argv[])
         ComPtr <IHardDisk> hd;
         Bstr src = L"E:\\develop\\innotek\\images\\NewHardDisk.vdi";
         printf ("Opening the existing hard disk '%ls'...\n", src.raw());
-        CHECK_ERROR_BREAK (virtualBox, OpenHardDisk (src, hd.asOutParam()));
+        CHECK_ERROR_BREAK (virtualBox, OpenHardDisk (src, AccessMode_ReadWrite, hd.asOutParam()));
         printf ("Enter to continue...\n");
         getchar();
         printf ("Registering the existing hard disk '%ls'...\n", src.raw());
@@ -598,7 +630,7 @@ int main(int argc, char *argv[])
     ///////////////////////////////////////////////////////////////////////////
     do
     {
-        ComPtr <IHardDisk2> hd;
+        ComPtr <IHardDisk> hd;
         static const wchar_t *Names[] =
         {
 #ifndef RT_OS_LINUX
@@ -618,7 +650,7 @@ int main(int argc, char *argv[])
         {
             Bstr src = Names [i];
             printf ("Searching for hard disk '%ls'...\n", src.raw());
-            rc = virtualBox->FindHardDisk2 (src, hd.asOutParam());
+            rc = virtualBox->FindHardDisk (src, hd.asOutParam());
             if (SUCCEEDED (rc))
             {
                 Guid id;
@@ -868,9 +900,9 @@ int main(int argc, char *argv[])
     do
     {
         {
-            com::SafeIfaceArray <IHardDisk2> disks;
+            com::SafeIfaceArray <IHardDisk> disks;
             CHECK_ERROR_BREAK (virtualBox,
-                               COMGETTER(HardDisks2) (ComSafeArrayAsOutParam (disks)));
+                               COMGETTER(HardDisks)(ComSafeArrayAsOutParam (disks)));
 
             printf ("%u base hard disks registered (disks.isNull()=%d).\n",
                     disks.size(), disks.isNull());
@@ -922,13 +954,13 @@ int main(int argc, char *argv[])
                 {
                     for (size_t j = 0; j < ids.size(); ++ j)
                     {
-                        printf ("   {%Vuuid}\n", &ids [i]);
+                        printf ("   {%Vuuid}\n", &ids [j]);
                     }
                 }
             }
         }
         {
-            com::SafeIfaceArray <IDVDImage2> images;
+            com::SafeIfaceArray <IDVDImage> images;
             CHECK_ERROR_BREAK (virtualBox,
                                COMGETTER(DVDImages) (ComSafeArrayAsOutParam (images)));
 
@@ -978,7 +1010,7 @@ int main(int argc, char *argv[])
                 {
                     for (size_t j = 0; j < ids.size(); ++ j)
                     {
-                        printf ("   {%Vuuid}\n", &ids [i]);
+                        printf ("   {%Vuuid}\n", &ids [j]);
                     }
                 }
             }
@@ -1126,7 +1158,7 @@ int main(int argc, char *argv[])
     printf ("\n");
 #endif
 
-#if 1
+#if 0
     do {
         // Get host
         ComPtr <IHost> host;
@@ -1137,6 +1169,47 @@ int main(int argc, char *argv[])
         printf("Total memory (MB): %u\n", uMemSize);
         CHECK_ERROR_BREAK (host, COMGETTER(MemoryAvailable) (&uMemAvail));
         printf("Free memory (MB): %u\n", uMemAvail);
+    } while (0);
+#endif
+
+#if 0
+    do {
+        // Get host
+        ComPtr <IHost> host;
+        CHECK_ERROR_BREAK (virtualBox, COMGETTER(Host) (host.asOutParam()));
+
+        com::SafeIfaceArray <IHostNetworkInterface> hostNetworkInterfaces;
+        CHECK_ERROR_BREAK(host,
+                          COMGETTER(NetworkInterfaces) (ComSafeArrayAsOutParam (hostNetworkInterfaces)));
+        if (hostNetworkInterfaces.size() > 0)
+        {
+            ComPtr<IHostNetworkInterface> networkInterface = hostNetworkInterfaces[0];
+            Bstr interfaceName;
+            networkInterface->COMGETTER(Name)(interfaceName.asOutParam());
+            printf("Found %d network interfaces, testing with %lS...\n", hostNetworkInterfaces.size(), interfaceName.raw());
+            Guid interfaceGuid;
+            networkInterface->COMGETTER(Id)(interfaceGuid.asOutParam());
+            // Find the interface by its name
+            networkInterface.setNull();
+            CHECK_ERROR_BREAK(host,
+                              FindHostNetworkInterfaceByName (interfaceName, networkInterface.asOutParam()));
+            Guid interfaceGuid2;
+            networkInterface->COMGETTER(Id)(interfaceGuid2.asOutParam());
+            if (interfaceGuid2 != interfaceGuid)
+                printf("Failed to retrieve an interface by name %lS.\n", interfaceName.raw());
+            // Find the interface by its guid
+            networkInterface.setNull();
+            CHECK_ERROR_BREAK(host,
+                              FindHostNetworkInterfaceById (interfaceGuid, networkInterface.asOutParam()));
+            Bstr interfaceName2;
+            networkInterface->COMGETTER(Name)(interfaceName2.asOutParam());
+            if (interfaceName != interfaceName2)
+                printf("Failed to retrieve an interface by GUID %lS.\n", Bstr(interfaceGuid.toString()).raw());
+        }
+        else
+        {
+            printf("No network interfaces found!\n");
+        }
     } while (0);
 #endif
 
@@ -1254,6 +1327,104 @@ int main(int argc, char *argv[])
         session->Close();
     } while (false);
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
+#if 0
+    // check of OVF appliance handling
+    ///////////////////////////////////////////////////////////////////////////
+    do
+    {
+        Bstr ovf = argc > 1 ? argv [1] : "someOVF.ovf";
+        RTPrintf ("Try to open %ls ...\n", ovf.raw());
+
+        ComPtr <IAppliance> appliance;
+        CHECK_ERROR_BREAK (virtualBox,
+                           CreateAppliance (appliance.asOutParam()));
+        CHECK_ERROR_BREAK (appliance,
+                           Read (ovf));
+        Bstr path;
+        CHECK_ERROR_BREAK (appliance, COMGETTER (Path)(path.asOutParam()));
+        RTPrintf ("Successfully opened %ls.\n", path.raw());
+        CHECK_ERROR_BREAK (appliance,
+                           Interpret());
+        RTPrintf ("Successfully interpreted %ls.\n", path.raw());
+        RTPrintf ("Appliance:\n");
+        // Fetch all disks
+        com::SafeArray<BSTR> retDisks;
+        CHECK_ERROR_BREAK (appliance,
+                           COMGETTER (Disks)(ComSafeArrayAsOutParam  (retDisks)));
+        if (retDisks.size() > 0)
+        {
+            RTPrintf ("Disks:");
+            for (unsigned i = 0; i < retDisks.size(); i++)
+                printf (" %ls", Bstr (retDisks [i]).raw());
+            RTPrintf ("\n");
+        }
+        /* Fetch all virtual system descriptions */
+        com::SafeIfaceArray<IVirtualSystemDescription> retVSD;
+        CHECK_ERROR_BREAK (appliance,
+                           COMGETTER (VirtualSystemDescriptions) (ComSafeArrayAsOutParam (retVSD)));
+        if (retVSD.size() > 0)
+        {
+            for (unsigned i = 0; i < retVSD.size(); ++i)
+            {
+                com::SafeArray<VirtualSystemDescriptionType_T> retTypes;
+                com::SafeArray<BSTR> retRefValues;
+                com::SafeArray<BSTR> retOrigValues;
+                com::SafeArray<BSTR> retAutoValues;
+                com::SafeArray<BSTR> retConfiguration;
+                CHECK_ERROR_BREAK (retVSD [i],
+                                   GetDescription (ComSafeArrayAsOutParam (retTypes),
+                                                   ComSafeArrayAsOutParam (retRefValues),
+                                                   ComSafeArrayAsOutParam (retOrigValues),
+                                                   ComSafeArrayAsOutParam (retAutoValues),
+                                                   ComSafeArrayAsOutParam (retConfiguration)));
+
+                RTPrintf ("VirtualSystemDescription:\n");
+                for (unsigned a = 0; a < retTypes.size(); ++a)
+                {
+                    printf (" %d %ls %ls %ls\n",
+                            retTypes [a],
+                            Bstr (retOrigValues [a]).raw(),
+                            Bstr (retAutoValues [a]).raw(),
+                            Bstr (retConfiguration [a]).raw());
+                }
+                /* Show warnings from interpret */
+                com::SafeArray<BSTR> retWarnings;
+                CHECK_ERROR_BREAK (retVSD [i],
+                                   GetWarnings(ComSafeArrayAsOutParam (retWarnings)));
+                if (retWarnings.size() > 0)
+                {
+                    RTPrintf ("The following warnings occurs on interpret:\n");
+                    for (unsigned r = 0; r < retWarnings.size(); ++r)
+                        RTPrintf ("%ls\n", Bstr (retWarnings [r]).raw());
+                    RTPrintf ("\n");
+                }
+            }
+            RTPrintf ("\n");
+        }
+        RTPrintf ("Try to import the appliance ...\n");
+        ComPtr<IProgress> progress;
+        CHECK_ERROR_BREAK (appliance,
+                           ImportMachines (progress.asOutParam()));
+        CHECK_ERROR (progress, WaitForCompletion (-1));
+        if (SUCCEEDED (rc))
+        {
+            /* Check if the import was successfully */
+            progress->COMGETTER (ResultCode)(&rc);
+            if (FAILED (rc))
+            {
+                com::ProgressErrorInfo info (progress);
+                if (info.isBasicAvailable())
+                    RTPrintf ("Error: failed to import appliance. Error message: %lS\n", info.getText().raw());
+                else
+                    RTPrintf ("Error: failed to import appliance. No error message available!\n");
+            }else
+                RTPrintf ("Successfully imported the appliance.\n");
+        }
+
+    }
+    while (FALSE);
+    printf ("\n");
+#endif
 
     printf ("Press enter to release Session and VirtualBox instances...");
     getchar();
@@ -1371,3 +1542,4 @@ static void listAffectedMetrics(ComPtr<IVirtualBox> aVirtualBox,
 }
 
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
+/* vim: set shiftwidth=4 tabstop=4 expandtab: */

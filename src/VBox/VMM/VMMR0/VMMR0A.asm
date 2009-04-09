@@ -1,4 +1,4 @@
-; $Id: VMMR0A.asm $
+; $Id: VMMR0A.asm 14721 2008-11-27 16:34:10Z vboxsync $
 ;; @file
 ; VMM - R0 assembly routines.
 ;

@@ -1,4 +1,4 @@
-/* $Id: Builtins.cpp $ */
+/* $Id: Builtins.cpp 18068 2009-03-18 14:42:47Z vboxsync $ */
 /** @file
  * Built-in drivers & devices (part 1)
  */
@@ -80,6 +80,21 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
         return rc;
 #ifdef VBOX_WITH_HPET
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceHPET);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
+#ifdef VBOX_WITH_SMC
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceSMC);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
+#ifdef VBOX_WITH_LPC
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceLPC);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
+#ifdef VBOX_WITH_EFI
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceEFI);
     if (RT_FAILURE(rc))
         return rc;
 #endif
@@ -209,7 +224,7 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     if (RT_FAILURE(rc))
         return rc;
 #endif
-#if defined(RT_OS_L4) || defined(RT_OS_LINUX) || defined(RT_OS_OS2) || (defined(RT_OS_SOLARIS) && !defined(RT_OS_SOLARIS_10)) || defined(RT_OS_WINDOWS)
+#if defined(RT_OS_LINUX)
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostInterface);
     if (RT_FAILURE(rc))
         return rc;
@@ -302,4 +317,3 @@ extern "C" DECLEXPORT(int) VBoxUsbRegister(PCPDMUSBREGCB pCallbacks, uint32_t u3
     return VINF_SUCCESS;
 }
 #endif
-

@@ -1,4 +1,4 @@
-/* $Id: SUPSvcGrant.cpp $ */
+/* $Id: SUPSvcGrant.cpp 11725 2008-08-27 22:21:47Z vboxsync $ */
 /** @file
  * VirtualBox Support Service - The Grant Service.
  */

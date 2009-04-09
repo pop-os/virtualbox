@@ -22,14 +22,14 @@
 
 #include "QIWidgetValidator.h"
 
-#include "VBoxGlobal.h"
-
-#include <qobjectlist.h>
-#include <qlineedit.h>
-#include <qcombobox.h>
-#include <qlabel.h>
+/* Qt includes */
+#include <QLineEdit>
+#include <QComboBox>
+#include <QLabel>
 
 #include <iprt/assert.h>
+
+#include "VBoxGlobal.h"
 
 /** @class QIWidgetValidator
  *
@@ -80,9 +80,8 @@
  *
  *  @param aWidget  Widget whose children should be checked.
  */
-QIWidgetValidator::QIWidgetValidator (QWidget *aWidget, QObject *aParent,
-                                      const char *aName)
-    : QObject (aParent, aName)
+QIWidgetValidator::QIWidgetValidator (QWidget *aWidget, QObject *aParent)
+    : QObject (aParent)
     , mWidget (aWidget)
     , mOtherValid (true)
 {
@@ -97,9 +96,8 @@ QIWidgetValidator::QIWidgetValidator (QWidget *aWidget, QObject *aParent,
  *  @param aWidget  Widget whose children should be checked.
  */
 QIWidgetValidator::QIWidgetValidator (const QString &aCaption,
-                                      QWidget *aWidget, QObject *aParent,
-                                      const char *aName)
-    : QObject (aParent, aName)
+                                      QWidget *aWidget, QObject *aParent)
+    : QObject (aParent)
     , mCaption (aCaption)
     , mWidget (aWidget)
     , mOtherValid (true)
@@ -109,7 +107,7 @@ QIWidgetValidator::QIWidgetValidator (const QString &aCaption,
 
 /**
  *  Destructs this validator instance.
- *  Before desctruction, the #validityChanged() signal is emitted; the
+ *  Before destruction, the #validityChanged() signal is emitted; the
  *  value of #isValid() is always true at this time.
  */
 QIWidgetValidator::~QIWidgetValidator()
@@ -133,7 +131,7 @@ QIWidgetValidator::~QIWidgetValidator()
  *  false. Disabled children and children without validation
  *  are skipped and don't affect the result.
  *
- *  The method emits the #isValidRequested() signal before callig
+ *  The method emits the #isValidRequested() signal before calling
  *  #isOtherValid(), thus giving someone an opportunity to affect its result by
  *  calling #setOtherValid() from the signal handler. Note that #isOtherValid()
  *  returns true by default, until #setOtherValid( false ) is called.
@@ -155,11 +153,8 @@ bool QIWidgetValidator::isValid() const
 
     QValidator::State state = QValidator::Acceptable;
 
-    for (QValueList <Watched>::ConstIterator it = mWatched.begin();
-         it != mWatched.end(); ++ it)
+    foreach (Watched watched, mWatched)
     {
-        Watched watched = *it;
-
         if (watched.widget->inherits ("QLineEdit"))
         {
             QLineEdit *le = ((QLineEdit *) watched.widget);
@@ -201,7 +196,7 @@ bool QIWidgetValidator::isValid() const
  *     validation;
  *
  *  2) connects itself to those that can be validated, in order to emit the
- *     validityChanged() signal to give its receiver an oportunity to do
+ *     validityChanged() signal to give its receiver an opportunity to do
  *     useful actions.
  *
  *  Must be called every time a child widget is added or removed.
@@ -215,28 +210,38 @@ void QIWidgetValidator::rescan()
 
     Watched watched;
 
-    QObjectList *list = mWidget->queryList();
-    QObject *obj;
+    QList<QWidget *> list = mWidget->findChildren<QWidget *>();
+    QWidget *wgt;
 
     /* detect all widgets that support validation */
-    QObjectListIterator it (*list);
-    while ((obj = it.current()) != 0)
+    QListIterator<QWidget *> it (list);
+    while (it.hasNext())
     {
-        ++ it;
-        if (obj->inherits ("QLineEdit"))
+        wgt = it.next();
+
+        if (QLineEdit *le = qobject_cast<QLineEdit *> (wgt))
         {
-            QLineEdit *le = ((QLineEdit *) obj);
             if (!le->validator())
                 continue;
             /* disconnect to avoid duplicate connections */
+            disconnect (le, SIGNAL (editingFinished ()),
+                        this, SLOT (doRevalidate()));
+            disconnect (le, SIGNAL (cursorPositionChanged (int, int)),
+                        this, SLOT (doRevalidate()));
             disconnect (le, SIGNAL (textChanged (const QString &)),
                         this, SLOT (doRevalidate()));
+            /* Use all signals which indicate some change in the text. The
+             * textChanged signal isn't sufficient in Qt4. */
             connect (le, SIGNAL (textChanged (const QString &)),
                      this, SLOT (doRevalidate()));
+            connect (le, SIGNAL (cursorPositionChanged (int, int)),
+                     this, SLOT (doRevalidate()));
+            connect (le, SIGNAL (editingFinished ()),
+                     this, SLOT (doRevalidate()));
         }
-        else if (obj->inherits ("QComboBox"))
+        else if (QComboBox *cb = qobject_cast<QComboBox *> (wgt))
         {
-            QComboBox *cb = ((QComboBox *) obj);
+
             if (!cb->validator() || !cb->lineEdit())
                 continue;
             /* disconnect to avoid duplicate connections */
@@ -246,39 +251,33 @@ void QIWidgetValidator::rescan()
                      this, SLOT (doRevalidate()));
         }
 
-        watched.widget = (QWidget *) obj;
+        watched.widget = wgt;
 
         /* try to find a buddy widget in order to determine the title for
          * the watched widget which is used in the warning text */
-        QObjectListIterator it2 (*list);
-        while ((obj = it2.current()) != 0)
+        QListIterator<QWidget *> it2 (list);
+        while (it2.hasNext())
         {
-            ++ it2;
-            if (obj->inherits ("QLabel"))
-            {
-                QLabel *label = (QLabel *) obj;
+            wgt = it2.next();
+            if (QLabel *label = qobject_cast<QLabel *> (wgt))
                 if (label->buddy() == watched.widget)
                 {
                     watched.buddy = label;
                     break;
                 }
-            }
         }
 
         /* memorize */
         mWatched << watched;
     }
-
-    /* don't forget to delete the list */
-    delete list;
 }
 
-/** 
+/**
  *  Returns a message that describes the last detected error (invalid or
  *  incomplete input).
  *
  *  This message uses the caption text passed to the constructor as a page
- *  name to refer to. If the caption is NULL, this funciton will return a null
+ *  name to refer to. If the caption is NULL, this function will return a null
  *  string.
  *
  *  Also, if the failed widget has a buddy widget, this buddy widget's text
@@ -299,8 +298,14 @@ QString QIWidgetValidator::warningText() const
     if (mLastInvalid.buddy != NULL)
     {
         if (mLastInvalid.buddy->inherits ("QLabel"))
+        {
+            /* Remove '&' symbol from the buddy field name */
             title = VBoxGlobal::
                 removeAccelMark (((QLabel *) mLastInvalid.buddy)->text());
+
+            /* Remove ':' symbol from the buddy field name */
+            title = title.remove (':');
+        }
     }
 
     QString state;
@@ -330,7 +335,7 @@ QString QIWidgetValidator::warningText() const
 /** @fn QIWidgetValidator::isOtherValid()
  *
  *  Returns the current value of the generic validity flag.
- *  Thie generic validity flag is used by #isValid() to determine
+ *  This generic validity flag is used by #isValid() to determine
  *  the overall validity of the managed widget. This flag is true by default,
  *  until #setOtherValid( false ) is called.
  */
@@ -367,10 +372,10 @@ QValidator::State QIULongValidator::validate (QString &aInput, int &aPos) const
 {
     Q_UNUSED (aPos);
 
-    QString stripped = aInput.stripWhiteSpace();
+    QString stripped = aInput.trimmed();
 
     if (stripped.isEmpty() ||
-        stripped.upper() == QString ("0x").upper())
+        stripped.toUpper() == QString ("0x").toUpper())
         return Intermediate;
 
     bool ok;

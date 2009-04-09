@@ -1,4 +1,4 @@
-/* $Id: HWACCM.cpp $ */
+/* $Id: HWACCM.cpp 18770 2009-04-06 15:00:15Z vboxsync $ */
 /** @file
  * HWACCM - Intel/AMD VM Hardware Support Manager
  */
@@ -226,7 +226,7 @@ VMMR3DECL(int) HWACCMR3Init(PVM pVM)
 # else
         if (!pVM->hwaccm.s.fAllowed)
 # endif
-            return VM_SET_ERROR(pVM, VERR_INVALID_PARAMETER, "64-bit guest support was requested without also enabling VT-x.");
+            return VM_SET_ERROR(pVM, VERR_INVALID_PARAMETER, "64-bit guest support was requested without also enabling HWVirtEx (VT-x/AMD-V).");
     }
 #else
     /* On 64-bit hosts 64-bit guest support is enabled by default, but allow this to be overridden
@@ -306,10 +306,18 @@ VMMR3DECL(int) HWACCMR3InitCPU(PVM pVM)
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitInvd,               "/HWACCM/CPU%d/Exit/Instr/Invd");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitCpuid,              "/HWACCM/CPU%d/Exit/Instr/Cpuid");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitRdtsc,              "/HWACCM/CPU%d/Exit/Instr/Rdtsc");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitRdpmc,              "/HWACCM/CPU%d/Exit/Instr/Rdpmc");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitDRxWrite,           "/HWACCM/CPU%d/Exit/Instr/DR/Write");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitDRxRead,            "/HWACCM/CPU%d/Exit/Instr/DR/Read");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitCLTS,               "/HWACCM/CPU%d/Exit/Instr/CLTS");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitLMSW,               "/HWACCM/CPU%d/Exit/Instr/LMSW");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitCli,                "/HWACCM/CPU%d/Exit/Instr/Cli");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitSti,                "/HWACCM/CPU%d/Exit/Instr/Sti");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitPushf,              "/HWACCM/CPU%d/Exit/Instr/Pushf");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitPopf,               "/HWACCM/CPU%d/Exit/Instr/Popf");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitIret,               "/HWACCM/CPU%d/Exit/Instr/Iret");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitInt,                "/HWACCM/CPU%d/Exit/Instr/Int");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitHlt,                "/HWACCM/CPU%d/Exit/Instr/Hlt");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitIOWrite,            "/HWACCM/CPU%d/Exit/IO/Write");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitIORead,             "/HWACCM/CPU%d/Exit/IO/Read");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitIOStringWrite,      "/HWACCM/CPU%d/Exit/IO/WriteString");
@@ -415,16 +423,13 @@ static void hwaccmR3DisableRawMode(PVM pVM)
     VMMR3DisableSwitcher(pVM);
 
     /* Disable mapping of the hypervisor into the shadow page table. */
-    PGMR3ChangeShwPDMappings(pVM, false);
+    PGMR3MappingsDisable(pVM);
 
     /* Disable the switcher */
     VMMR3DisableSwitcher(pVM);
 
-    if (pVM->hwaccm.s.fNestedPaging)
-    {
-        /* Reinit the paging mode to force the new shadow mode. */
-        PGMR3ChangeMode(pVM, PGMMODE_REAL);
-    }
+    /* Reinit the paging mode to force the new shadow mode. */
+    PGMR3ChangeMode(pVM, PGMMODE_REAL);
 }
 
 /**
@@ -440,67 +445,23 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
     if (    !pVM->hwaccm.s.vmx.fSupported
         &&  !pVM->hwaccm.s.svm.fSupported)
     {
-        LogRel(("HWACCM: No VMX or SVM CPU extension found. Reason %Rrc\n", pVM->hwaccm.s.lLastError));
+        LogRel(("HWACCM: No VT-x or AMD-V CPU extension found. Reason %Rrc\n", pVM->hwaccm.s.lLastError));
         LogRel(("HWACCM: VMX MSR_IA32_FEATURE_CONTROL=%RX64\n", pVM->hwaccm.s.vmx.msr.feature_ctrl));
-#ifdef RT_OS_DARWIN
         if (VMMIsHwVirtExtForced(pVM))
             return VM_SET_ERROR(pVM, VERR_VMX_NO_VMX, "VT-x is not available.");
-#endif
         return VINF_SUCCESS;
     }
 
-    /*
-     * Note that we have a global setting for VT-x/AMD-V usage. VMX root mode changes the way the CPU operates. Our 64 bits switcher will trap
-     * because it turns off paging, which is not allowed in VMX root mode.
-     *
-     * To simplify matters we'll just force all running VMs to either use raw or VT-x mode. No mixing allowed in the VT-x case.
-     * There's no such problem with AMD-V. (@todo)
-     *
-     */
-    /* If we enabled or disabled hwaccm mode, then it can't be changed until all the VMs are shutdown. */
-    rc = SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_HWACC_ENABLE, (pVM->hwaccm.s.fAllowed) ? HWACCMSTATE_ENABLED : HWACCMSTATE_DISABLED, NULL);
+    if (!pVM->hwaccm.s.fAllowed)
+        return VINF_SUCCESS;    /* nothing to do */
+
+    /* Enable VT-x or AMD-V on all host CPUs. */
+    rc = SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_HWACC_ENABLE, 0, NULL);
     if (RT_FAILURE(rc))
     {
         LogRel(("HWACCMR3InitFinalize: SUPCallVMMR0Ex VMMR0_DO_HWACC_ENABLE failed with %Rrc\n", rc));
-        LogRel(("HWACCMR3InitFinalize: disallowed %s of HWACCM\n", pVM->hwaccm.s.fAllowed ? "enabling" : "disabling"));
-
-#ifdef RT_OS_DARWIN
-        /*
-         * This is 100% fatal if we didn't prepare for a HwVirtExt setup because of
-         * missing ring-0 allocations. For VMs that require HwVirtExt it doesn't normally
-         * make sense to try run them in software mode, so fail that too.
-         */
-        if (VMMIsHwVirtExtForced(pVM))
-            VM_SET_ERROR(pVM, rc, "An active VM already uses software virtualization. It is not allowed to "
-                         "simultaneously use VT-x.");
-        else
-            VM_SET_ERROR(pVM, rc, "An active VM already uses Intel VT-x hardware acceleration. It is not "
-                         "allowed to simultaneously use software virtualization.");
         return rc;
-
-#else  /* !RT_OS_DARWIN */
-
-        /* Invert the selection */
-        pVM->hwaccm.s.fAllowed ^= 1;
-        if (pVM->hwaccm.s.fAllowed)
-        {
-            if (pVM->hwaccm.s.vmx.fSupported)
-                VM_SET_ERROR(pVM, rc, "An active VM already uses Intel VT-x hardware acceleration. It is not allowed "
-                                      "to simultaneously use software virtualization.\n");
-            else
-                VM_SET_ERROR(pVM, rc, "An active VM already uses AMD-V hardware acceleration. It is not allowed to "
-                                      "simultaneously use software virtualization.\n");
-        }
-        else
-            VM_SET_ERROR(pVM, rc, "An active VM already uses software virtualization. It is not allowed to simultaneously "
-                                  "use VT-x or AMD-V.\n");
-        return rc;
-#endif /* !RT_OS_DARWIN */
     }
-
-    if (pVM->hwaccm.s.fAllowed == false)
-        return VINF_SUCCESS;    /* disabled */
-
     Assert(!pVM->fHWACCMEnabled || VMMIsHwVirtExtForced(pVM));
 
     if (pVM->hwaccm.s.vmx.fSupported)
@@ -883,16 +844,16 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
                     CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NXE);
                 }
                 LogRel((pVM->hwaccm.s.fAllow64BitGuests
-                        ? "HWACCM: 32-bit and 64-bit guest supported.\n"
-                        : "HWACCM: 32-bit guest supported.\n"));
+                        ? "HWACCM: 32-bit and 64-bit guests supported.\n"
+                        : "HWACCM: 32-bit guests supported.\n"));
 #else
-                LogRel(("HWACCM: 32-bit guest supported.\n"));
+                LogRel(("HWACCM: 32-bit guests supported.\n"));
 #endif
                 LogRel(("HWACCM: VMX enabled!\n"));
                 if (pVM->hwaccm.s.fNestedPaging)
                 {
                     LogRel(("HWACCM: Enabled nested paging\n"));
-                    LogRel(("HWACCM: EPT root page                 = %RHp\n", PGMGetEPTCR3(pVM)));
+                    LogRel(("HWACCM: EPT root page                 = %RHp\n", PGMGetHyperCR3(pVM)));
                 }
                 if (pVM->hwaccm.s.vmx.fVPID)
                     LogRel(("HWACCM: Enabled VPID\n"));
@@ -951,9 +912,9 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
 
             LogRel(("HWACMM: cpuid 0x80000001.u32AMDFeatureECX = %RX32\n", pVM->hwaccm.s.cpuid.u32AMDFeatureECX));
             LogRel(("HWACMM: cpuid 0x80000001.u32AMDFeatureEDX = %RX32\n", pVM->hwaccm.s.cpuid.u32AMDFeatureEDX));
-            LogRel(("HWACCM: SVM revision                      = %X\n", pVM->hwaccm.s.svm.u32Rev));
-            LogRel(("HWACCM: SVM max ASID                      = %d\n", pVM->hwaccm.s.uMaxASID));
-            LogRel(("HWACCM: SVM features                      = %X\n", pVM->hwaccm.s.svm.u32Features));
+            LogRel(("HWACCM: AMD-V revision                    = %X\n", pVM->hwaccm.s.svm.u32Rev));
+            LogRel(("HWACCM: AMD-V max ASID                    = %d\n", pVM->hwaccm.s.uMaxASID));
+            LogRel(("HWACCM: AMD-V features                    = %X\n", pVM->hwaccm.s.svm.u32Features));
 
             if (pVM->hwaccm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_NESTED_PAGING)
                 LogRel(("HWACCM:    AMD_CPUID_SVM_FEATURE_EDX_NESTED_PAGING\n"));
@@ -1234,6 +1195,32 @@ VMMR3DECL(void) HWACCMR3Reset(PVM pVM)
 }
 
 /**
+ * Force execution of the current IO code in the recompiler
+ *
+ * @returns VBox status code.
+ * @param   pVM         The VM to operate on.
+ * @param   pCtx        Partial VM execution context
+ */
+VMMR3DECL(int) HWACCMR3EmulateIoBlock(PVM pVM, PCPUMCTX pCtx)
+{
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+
+    Assert(pVM->fHWACCMEnabled);
+    Log(("HWACCMR3EmulateIoBlock\n"));
+
+    /* This is primarily intended to speed up Grub, so we don't care about paged protected mode. */
+    if (HWACCMCanEmulateIoBlockEx(pCtx))
+    {
+        Log(("HWACCMR3EmulateIoBlock -> enabled\n"));
+        pVCpu->hwaccm.s.EmulateIoBlock.fEnabled         = true;
+        pVCpu->hwaccm.s.EmulateIoBlock.GCPtrFunctionEip = pCtx->rip;
+        pVCpu->hwaccm.s.EmulateIoBlock.cr0              = pCtx->cr0;
+        return VINF_EM_RESCHEDULE_REM;
+    }
+    return VINF_SUCCESS;
+}
+
+/**
  * Checks if we can currently use hardware accelerated raw mode.
  *
  * @returns boolean
@@ -1242,9 +1229,20 @@ VMMR3DECL(void) HWACCMR3Reset(PVM pVM)
  */
 VMMR3DECL(bool) HWACCMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx)
 {
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+
     Assert(pVM->fHWACCMEnabled);
 
-    /* AMD SVM supports real & protected mode with or without paging. */
+    /* If we're still executing the IO code, then return false. */
+    if (    RT_UNLIKELY(pVCpu->hwaccm.s.EmulateIoBlock.fEnabled)
+        &&  pCtx->rip <  pVCpu->hwaccm.s.EmulateIoBlock.GCPtrFunctionEip + 0x200
+        &&  pCtx->rip >  pVCpu->hwaccm.s.EmulateIoBlock.GCPtrFunctionEip - 0x200
+        &&  pCtx->cr0 == pVCpu->hwaccm.s.EmulateIoBlock.cr0)
+        return false;
+
+    pVCpu->hwaccm.s.EmulateIoBlock.fEnabled = false;
+
+    /* AMD-V supports real & protected mode with or without paging. */
     if (pVM->hwaccm.s.svm.fEnabled)
     {
         pVM->hwaccm.s.fActive = true;

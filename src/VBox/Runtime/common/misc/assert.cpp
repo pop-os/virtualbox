@@ -1,4 +1,4 @@
-/* $Id: assert.cpp $ */
+/* $Id: assert.cpp 17410 2009-03-05 15:15:04Z vboxsync $ */
 /** @file
  * IPRT - Assertion Workers.
  */
@@ -41,9 +41,9 @@
 #endif
 
 
-#if defined(IN_GUEST_R0) && (defined(RT_OS_LINUX) || defined(RT_OS_WINDOWS)) 
-/* 
- * This is legacy that should be eliminated. OS specific code deals with 
+#if defined(IN_GUEST_R0) && (defined(RT_OS_LINUX) || defined(RT_OS_WINDOWS))
+/*
+ * This is legacy that should be eliminated. OS specific code deals with
  * R0 assertions now and it will do the backdoor printfs in addition to
  * proper OS specific printfs and panics / BSODs / IPEs.
  */
@@ -130,17 +130,26 @@ RTDECL(void)    AssertMsg1(const char *pszExpr, unsigned uLine, const char *pszF
                        "Expression: %s\n"
                        "Location  : %s(%d) %s\n",
                        pszExpr, pszFile, uLine, pszFunction);
+#ifndef IN_RC /* flushing is done automatically in RC */
         RTLogFlush(pLog);
+#endif
     }
 
-    pLog = RTLogDefaultInstance();
-    if (pLog)
+#ifndef LOG_ENABLED
+    if (!pLog)
+#endif
     {
-        RTLogPrintf("\n!!Assertion Failed!!\n"
-                    "Expression: %s\n"
-                    "Location  : %s(%d) %s\n",
-                    pszExpr, pszFile, uLine, pszFunction);
-        RTLogFlush(pLog);
+        pLog = RTLogDefaultInstance();
+        if (pLog)
+        {
+            RTLogPrintf("\n!!Assertion Failed!!\n"
+                        "Expression: %s\n"
+                        "Location  : %s(%d) %s\n",
+                        pszExpr, pszFile, uLine, pszFunction);
+#ifndef IN_RC /* flushing is done automatically in RC */
+            RTLogFlush(pLog);
+#endif
+        }
     }
 
 #ifdef IN_RING3
@@ -187,7 +196,9 @@ RTDECL(void)    AssertMsg2(const char *pszFormat, ...)
         va_start(args, pszFormat);
         RTLogRelPrintfV(pszFormat, args);
         va_end(args);
+#ifndef IN_RC /* flushing is done automatically in RC */
         RTLogFlush(pLog);
+#endif
     }
 
     pLog = RTLogDefaultInstance();
@@ -196,7 +207,9 @@ RTDECL(void)    AssertMsg2(const char *pszFormat, ...)
         va_start(args, pszFormat);
         RTLogPrintfV(pszFormat, args);
         va_end(args);
+#ifndef IN_RC /* flushing is done automatically in RC */
         RTLogFlush(pLog);
+#endif
     }
 
 #ifdef IN_RING3

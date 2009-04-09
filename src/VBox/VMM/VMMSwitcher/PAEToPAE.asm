@@ -1,4 +1,4 @@
-; $Id: PAEToPAE.asm $
+; $Id: PAEToPAE.asm 16859 2009-02-17 16:19:51Z vboxsync $
 ;; @file
 ; VMM - World Switchers, PAE to PAE
 ;
@@ -27,7 +27,6 @@
 %define NAME_OVERLOAD(name)         vmmR3SwitcherPAEToPAE_ %+ name
 %define SWITCHER_FIX_INTER_CR3_HC   FIX_INTER_PAE_CR3
 %define SWITCHER_FIX_INTER_CR3_GC   FIX_INTER_PAE_CR3
-%define SWITCHER_FIX_HYPER_CR3      FIX_HYPER_PAE_CR3
 
 ;*******************************************************************************
 ;* Header Files                                                                *

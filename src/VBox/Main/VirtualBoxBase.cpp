@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxBase.cpp $ */
+/* $Id: VirtualBoxBase.cpp 17911 2009-03-16 10:30:55Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,6 +21,9 @@
  * additional information or have any questions.
  */
 
+#include <iprt/semaphore.h>
+#include <iprt/asm.h>
+
 #if !defined (VBOX_WITH_XPCOM)
 #include <windows.h>
 #include <dbghelp.h>
@@ -33,9 +36,6 @@
 #include "VirtualBoxBase.h"
 #include "VirtualBoxErrorInfoImpl.h"
 #include "Logging.h"
-
-#include <iprt/semaphore.h>
-#include <iprt/asm.h>
 
 // VirtualBoxBaseProto methods
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,20 +260,21 @@ void VirtualBoxBaseProto::releaseCaller()
     {
         if (mStateChangeThread == RTThreadSelf())
         {
-            /* Called from the same thread that is doing AutoInitSpan or
-             * AutoUninitSpan, just succeed */
+            /* Called from the same thread that is doing AutoInitSpan,
+             * AutoMayUninitSpan or AutoUninitSpan: just succeed */
             return;
         }
 
-        if (mState == InUninit)
+        if (mState == MayUninit || mState == InUninit)
         {
-            /* the caller is being released after AutoUninitSpan has begun */
+            /* the caller is being released after AutoUninitSpan or
+             * AutoMayUninitSpan has begun */
             AssertMsgReturn (mCallers != 0, ("mCallers is ZERO!"), (void) 0);
             -- mCallers;
 
             if (mCallers == 0)
             {
-                /* inform the AutoUninitSpan ctor there are no more callers */
+                /* inform the Auto*UninitSpan ctor there are no more callers */
                 RTSemEventSignal (mZeroCallersSem);
             }
 
@@ -643,7 +644,7 @@ VirtualBoxBaseProto::AutoMayUninitSpan::~AutoMayUninitSpan()
  *  translation table and current context. The current context is determined
  *  by the context parameter. Additionally, a comment to the source text
  *  string text can be given. This comment (which is NULL by default)
- *  is helpful in sutuations where it is necessary to distinguish between
+ *  is helpful in situations where it is necessary to distinguish between
  *  two or more semantically different roles of the same source text in the
  *  same context.
  *
@@ -658,8 +659,8 @@ VirtualBoxBaseProto::AutoMayUninitSpan::~AutoMayUninitSpan()
  *      in the given context.
  */
 // static
-const char *VirtualBoxBase::translate (const char *context, const char *sourceText,
-                                       const char *comment)
+const char *VirtualBoxBase::translate (const char * /* context */, const char *sourceText,
+                                       const char * /* comment */)
 {
 #if 0
     Log(("VirtualBoxBase::translate:\n"
@@ -670,7 +671,6 @@ const char *VirtualBoxBase::translate (const char *context, const char *sourceTe
 #endif
 
     /// @todo (dmik) incorporate Qt translation file parsing and lookup
-
     return sourceText;
 }
 
@@ -1213,95 +1213,4 @@ void VirtualBoxBaseWithChildrenNEXT::doRemoveDependentChild (IUnknown *aUnk)
     NOREF (result);
 }
 
-// Settings API additions
-////////////////////////////////////////////////////////////////////////////////
-
-#if defined VBOX_MAIN_SETTINGS_ADDONS
-
-namespace settings
-{
-
-template<> stdx::char_auto_ptr
-ToString <com::Bstr> (const com::Bstr &aValue, unsigned int aExtra)
-{
-    stdx::char_auto_ptr result;
-
-    if (aValue.raw() == NULL)
-        throw ENoValue();
-
-    /* The only way to cause RTUtf16ToUtf8Ex return a number of bytes needed
-     * w/o allocating the result buffer itself is to provide that both cch
-     * and *ppsz are not NULL. */
-    char dummy [1];
-    char *dummy2 = dummy;
-    size_t strLen = 1;
-
-    int vrc = RTUtf16ToUtf8Ex (aValue.raw(), RTSTR_MAX,
-                               &dummy2, strLen, &strLen);
-    if (RT_SUCCESS (vrc))
-    {
-        /* the string only contains '\0' :) */
-        result.reset (new char [1]);
-        result.get() [0] = '\0';
-        return result;
-    }
-
-    if (vrc == VERR_BUFFER_OVERFLOW)
-    {
-        result.reset (new char [strLen + 1]);
-        char *buf = result.get();
-        vrc = RTUtf16ToUtf8Ex (aValue.raw(), RTSTR_MAX, &buf, strLen + 1, NULL);
-    }
-
-    if (RT_FAILURE (vrc))
-        throw xml::LogicError (RT_SRC_POS);
-
-    return result;
-}
-
-template<> com::Guid FromString <com::Guid> (const char *aValue)
-{
-    if (aValue == NULL)
-        throw ENoValue();
-
-    /* For settings, the format is always {XXX...XXX} */
-    char buf [RTUUID_STR_LENGTH];
-    if (aValue == NULL || *aValue != '{' ||
-        strlen (aValue) != RTUUID_STR_LENGTH + 1 ||
-        aValue [RTUUID_STR_LENGTH] != '}')
-        throw ENoConversion (FmtStr ("'%s' is not Guid", aValue));
-
-    /* strip { and } */
-    memcpy (buf, aValue + 1, RTUUID_STR_LENGTH - 1);
-    buf [RTUUID_STR_LENGTH - 1] = '\0';
-    /* we don't use Guid (const char *) because we want to throw
-     * ENoConversion on format error */
-    RTUUID uuid;
-    int vrc = RTUuidFromStr (&uuid, buf);
-    if (RT_FAILURE (vrc))
-        throw ENoConversion (FmtStr ("'%s' is not Guid (%Rrc)", aValue, vrc));
-
-    return com::Guid (uuid);
-}
-
-template<> stdx::char_auto_ptr
-ToString <com::Guid> (const com::Guid &aValue, unsigned int aExtra)
-{
-    /* For settings, the format is always {XXX...XXX} */
-    stdx::char_auto_ptr result (new char [RTUUID_STR_LENGTH + 2]);
-
-    int vrc = RTUuidToStr (aValue.raw(), result.get() + 1, RTUUID_STR_LENGTH);
-    if (RT_FAILURE (vrc))
-        throw xml::LogicError (RT_SRC_POS);
-
-    result.get() [0] = '{';
-    result.get() [RTUUID_STR_LENGTH] = '}';
-    result.get() [RTUUID_STR_LENGTH + 1] = '\0';
-
-    return result;
-}
-
-} /* namespace settings */
-
-#endif /* VBOX_MAIN_SETTINGS_ADDONS */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

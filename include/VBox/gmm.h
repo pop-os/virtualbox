@@ -107,6 +107,19 @@ __BEGIN_DECLS
 #endif
 
 
+/** @def GMM_GCPHYS_LAST
+ * The last of the valid guest physical address as it applies to GMM pages.
+ *
+ * This must reflect the constraints imposed by the RTGCPHYS type and
+ * the guest page frame number used internally in GMMPAGE.
+ *
+ * @note    Note this corresponds to GMM_PAGE_PFN_LAST. */
+#if HC_ARCH_BITS == 64
+# define GMM_GCPHYS_LAST            UINT64_C(0x00000fffffff0000)    /* 2^44 (16TB) - 0x10000 */
+#else
+# define GMM_GCPHYS_LAST            UINT64_C(0x0000000fffff0000)    /* 2^36 (64GB) - 0x10000 */
+#endif
+
 /**
  * Over-commitment policy.
  */
@@ -240,8 +253,13 @@ AssertCompileSize(GMMPAGEDESC, 16);
 /** Pointer to a page allocation. */
 typedef GMMPAGEDESC *PGMMPAGEDESC;
 
-/** GMMPAGEDESC::HCPhysGCPhys value that indicates that the page is shared. */
-#define GMM_GCPHYS_UNSHAREABLE  (RTHCPHYS)(0xfffffff0)
+/** GMMPAGEDESC::HCPhysGCPhys value that indicates that the page is unsharable.
+ * @note    This corresponds to GMM_PAGE_PFN_UNSHAREABLE. */
+#if HC_ARCH_BITS == 64
+# define GMM_GCPHYS_UNSHAREABLE     UINT64_C(0x00000fffffff1000)
+#else
+# define GMM_GCPHYS_UNSHAREABLE     UINT64_C(0x0000000fffff1000)
+#endif
 
 GMMR0DECL(int)  GMMR0Init(void);
 GMMR0DECL(void) GMMR0Term(void);
@@ -371,9 +389,9 @@ typedef struct GMMMAPUNMAPCHUNKREQ
 {
     /** The header. */
     SUPVMMR0REQHDR  Hdr;
-    /** The chunk to map, UINT32_MAX if unmap only. (IN) */
+    /** The chunk to map, NIL_GMM_CHUNKID if unmap only. (IN) */
     uint32_t        idChunkMap;
-    /** The chunk to unmap, UINT32_MAX if map only. (IN) */
+    /** The chunk to unmap, NIL_GMM_CHUNKID if map only. (IN) */
     uint32_t        idChunkUnmap;
     /** Where the mapping address is returned. (OUT) */
     RTR3PTR         pvR3;
@@ -396,7 +414,8 @@ GMMR3DECL(int)  GMMR3AllocatePagesPrepare(PVM pVM, PGMMALLOCATEPAGESREQ *ppReq, 
 GMMR3DECL(int)  GMMR3AllocatePagesPerform(PVM pVM, PGMMALLOCATEPAGESREQ pReq);
 GMMR3DECL(void) GMMR3AllocatePagesCleanup(PGMMALLOCATEPAGESREQ pReq);
 GMMR3DECL(int)  GMMR3FreePagesPrepare(PVM pVM, PGMMFREEPAGESREQ *ppReq, uint32_t cPages, GMMACCOUNT enmAccount);
-GMMR3DECL(int)  GMMR3FreePagesPerform(PVM pVM, PGMMFREEPAGESREQ pReq);
+GMMR3DECL(void) GMMR3FreePagesRePrep(PVM pVM, PGMMFREEPAGESREQ pReq, uint32_t cPages, GMMACCOUNT enmAccount);
+GMMR3DECL(int)  GMMR3FreePagesPerform(PVM pVM, PGMMFREEPAGESREQ pReq, uint32_t cActualPages);
 GMMR3DECL(void) GMMR3FreePagesCleanup(PGMMFREEPAGESREQ pReq);
 GMMR3DECL(void) GMMR3FreeAllocatedPages(PVM pVM, GMMALLOCATEPAGESREQ const *pAllocReq);
 GMMR3DECL(int)  GMMR3DeflatedBalloon(PVM pVM, uint32_t cPages);

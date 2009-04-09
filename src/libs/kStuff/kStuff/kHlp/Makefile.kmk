@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 2 2007-11-16 16:07:14Z bird $
+# $Id: Makefile.kmk 24 2009-02-08 13:58:54Z bird $
 ## @file
 # kHlp - The Helper API, sub-makefile.
 #
@@ -24,7 +24,7 @@
 #
 #
 
-DEPTH ?= ../..
+DEPTH ?= ..
 SUB_DEPTH = ..
 include $(PATH_KBUILD)/subheader.kmk
 
@@ -64,7 +64,7 @@ kHlpBareStatic_SOURCES = \
 	Generic/kHlpStrNLen.c \
 	Generic/kHlpInt2Ascii.c \
 	\
-    Generic/kHlpGetEnvUZ.c \
+	Generic/kHlpGetEnvUZ.c \
 	\
 	Generic/kHlpGetExt.c \
 	Generic/kHlpGetFilename.c \
@@ -77,6 +77,9 @@ kHlpBareStatic_SOURCES = \
 	Bare/kHlpBareEnv.c \
 	Bare/kHlpBareProcess.c \
 	Bare/kHlpBareThread.c \
+
+kHlpBareStatic_SOURCES.darwin = \
+	Bare/kHlpSys-darwin.c
 
 #
 # kCrtStatic
@@ -98,7 +101,7 @@ kHlpCRTStatic_SOURCES = \
 	Generic/kHlpStrNLen.c \
 	Generic/kHlpInt2Ascii.c \
 	\
-    Generic/kHlpGetEnvUZ.c \
+	Generic/kHlpGetEnvUZ.c \
 	\
 	Generic/kHlpGetExt.c \
 	Generic/kHlpGetFilename.c \
@@ -109,6 +112,9 @@ kHlpCRTStatic_SOURCES = \
 	CRT/kHlpCRTAlloc.cpp \
 	CRT/kHlpCRTEnv.cpp \
 	CRT/kHlpCRTString.cpp \
+
+kHlpCRTStatic_SOURCES.darwin = \
+	Bare/kHlpSys-darwin.c
 
 
 # Generate the rules

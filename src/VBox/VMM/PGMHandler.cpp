@@ -1,4 +1,4 @@
-/* $Id: PGMHandler.cpp $ */
+/* $Id: PGMHandler.cpp 18665 2009-04-02 19:44:18Z vboxsync $ */
 /** @file
  * PGM - Page Manager / Monitor, Access Handlers.
  */
@@ -96,26 +96,25 @@ VMMR3DECL(int) PGMR3HandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmType,
      */
     if (!pszModRC)
         pszModRC = VMMGC_MAIN_MODULE_NAME;
-
     if (!pszModR0)
         pszModR0 = VMMR0_MAIN_MODULE_NAME;
+    AssertPtrReturn(pfnHandlerR3, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszHandlerR0, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszHandlerRC, VERR_INVALID_POINTER);
 
     /*
      * Resolve the R0 handler.
      */
     R0PTRTYPE(PFNPGMR0PHYSHANDLER) pfnHandlerR0 = NIL_RTR0PTR;
     int rc = VINF_SUCCESS;
-    if (pszHandlerR0)
-        rc = PDMR3LdrGetSymbolR0Lazy(pVM, pszModR0, pszHandlerR0, &pfnHandlerR0);
+    rc = PDMR3LdrGetSymbolR0Lazy(pVM, pszModR0, pszHandlerR0, &pfnHandlerR0);
     if (RT_SUCCESS(rc))
     {
         /*
          * Resolve the GC handler.
          */
         RTRCPTR pfnHandlerRC = NIL_RTRCPTR;
-        if (pszHandlerRC)
-            rc = PDMR3LdrGetSymbolRCLazy(pVM, pszModRC, pszHandlerRC, &pfnHandlerRC);
-
+        rc = PDMR3LdrGetSymbolRCLazy(pVM, pszModRC, pszHandlerRC, &pfnHandlerRC);
         if (RT_SUCCESS(rc))
             return PGMHandlerPhysicalRegisterEx(pVM, enmType, GCPhys, GCPhysLast, pfnHandlerR3, pvUserR3,
                                                 pfnHandlerR0, pvUserR0, pfnHandlerRC, pvUserRC, pszDesc);
@@ -280,7 +279,7 @@ VMMDECL(int) PGMR3HandlerVirtualRegisterEx(PVM pVM, PGMVIRTHANDLERTYPE enmType, 
                                            RCPTRTYPE(PFNPGMRCVIRTHANDLER) pfnHandlerRC,
                                            R3PTRTYPE(const char *) pszDesc)
 {
-    Log(("PGMR3HandlerVirtualRegister: enmType=%d GCPtr=%RGv GCPtrLast=%RGv pfnInvalidateR3=%RHv pfnHandlerR3=%RHv pfnHandlerRC=%RGv pszDesc=%s\n",
+    Log(("PGMR3HandlerVirtualRegister: enmType=%d GCPtr=%RGv GCPtrLast=%RGv pfnInvalidateR3=%RHv pfnHandlerR3=%RHv pfnHandlerRC=%RRv pszDesc=%s\n",
          enmType, GCPtr, GCPtrLast, pfnInvalidateR3, pfnHandlerR3, pfnHandlerRC, pszDesc));
 
     /*
@@ -289,6 +288,11 @@ VMMDECL(int) PGMR3HandlerVirtualRegisterEx(PVM pVM, PGMVIRTHANDLERTYPE enmType, 
     switch (enmType)
     {
         case PGMVIRTHANDLERTYPE_ALL:
+            AssertReleaseMsgReturn(   (GCPtr     & PAGE_OFFSET_MASK) == 0
+                                   && (GCPtrLast & PAGE_OFFSET_MASK) == PAGE_OFFSET_MASK,
+                                   ("PGMVIRTHANDLERTYPE_ALL: GCPtr=%RGv GCPtrLast=%RGv\n", GCPtr, GCPtrLast),
+                                   VERR_NOT_IMPLEMENTED);
+            break;
         case PGMVIRTHANDLERTYPE_WRITE:
             if (!pfnHandlerR3)
             {

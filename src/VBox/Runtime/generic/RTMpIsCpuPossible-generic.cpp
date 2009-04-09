@@ -1,4 +1,4 @@
-/* $Id: RTMpIsCpuPossible-generic.cpp $ */
+/* $Id: RTMpIsCpuPossible-generic.cpp 9429 2008-06-05 15:22:37Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Generic RTMpIsCpuPossible.
  */

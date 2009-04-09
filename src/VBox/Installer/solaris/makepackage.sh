@@ -1,11 +1,11 @@
 #!/bin/sh
 ## @file
-# Sun xVM VirtualBox
+# Sun VirtualBox
 # VirtualBox package creation script, Solaris hosts.
 #
 
 #
-# Copyright (C) 2007-2008 Sun Microsystems, Inc.
+# Copyright (C) 2007-2009 Sun Microsystems, Inc.
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,7 @@
 HARDENED=""
 while test $# -ge 1;
 do
-    case "$1" in 
+    case "$1" in
         --hardened)
             HARDENED=1
             ;;
@@ -133,11 +133,23 @@ symlink_fixup  prototype '$2 == "none"'                                         
 filelist_fixup prototype '$3 == "opt/VirtualBox/i386/vboxdrv=i386/vboxdrv"'                             '$3 = "platform/i86pc/kernel/drv/vboxdrv=i386/vboxdrv"; $6 = "sys"'
 filelist_fixup prototype '$3 == "opt/VirtualBox/amd64/vboxdrv=amd64/vboxdrv"'                           '$3 = "platform/i86pc/kernel/drv/amd64/vboxdrv=amd64/vboxdrv"; $6 = "sys"'
 
+# NetFilter vboxflt
 filelist_fixup prototype '$3 == "opt/VirtualBox/i386/vboxflt=i386/vboxflt"'                             '$3 = "platform/i86pc/kernel/drv/vboxflt=i386/vboxflt"; $6 = "sys"'
 filelist_fixup prototype '$3 == "opt/VirtualBox/amd64/vboxflt=amd64/vboxflt"'                           '$3 = "platform/i86pc/kernel/drv/amd64/vboxflt=amd64/vboxflt"; $6 = "sys"'
 
+# NetAdapter vboxnet
+filelist_fixup prototype '$3 == "opt/VirtualBox/i386/vboxnet=i386/vboxnet"'                             '$3 = "platform/i86pc/kernel/drv/vboxnet=i386/vboxnet"; $6 = "sys"'
+filelist_fixup prototype '$3 == "opt/VirtualBox/amd64/vboxnet=amd64/vboxnet"'                           '$3 = "platform/i86pc/kernel/drv/amd64/vboxnet=amd64/vboxnet"; $6 = "sys"'
+
+# USB vboxusbmon
+filelist_fixup prototype '$3 == "opt/VirtualBox/i386/vboxusbmon=i386/vboxusbmon"'                       '$3 = "platform/i86pc/kernel/drv/vboxusbmon=i386/vboxusbmon"; $6 = "sys"'
+filelist_fixup prototype '$3 == "opt/VirtualBox/amd64/vboxusbmon=amd64/vboxusbmon"'                     '$3 = "platform/i86pc/kernel/drv/amd64/vboxusbmon=amd64/vboxusbmon"; $6 = "sys"'
+
+# All the driver conf files
 filelist_fixup prototype '$3 == "opt/VirtualBox/vboxdrv.conf=vboxdrv.conf"'                             '$3 = "platform/i86pc/kernel/drv/vboxdrv.conf=vboxdrv.conf"'
 filelist_fixup prototype '$3 == "opt/VirtualBox/vboxflt.conf=vboxflt.conf"'                             '$3 = "platform/i86pc/kernel/drv/vboxflt.conf=vboxflt.conf"'
+filelist_fixup prototype '$3 == "opt/VirtualBox/vboxnet.conf=vboxnet.conf"'                             '$3 = "platform/i86pc/kernel/drv/vboxnet.conf=vboxnet.conf"'
+filelist_fixup prototype '$3 == "opt/VirtualBox/vboxusbmon.conf=vboxusbmon.conf"'                       '$3 = "platform/i86pc/kernel/drv/vboxusbmon.conf=vboxusbmon.conf"'
 
 # hardening requires some executables to be marked setuid.
 if test -n "$HARDENED"; then
@@ -154,8 +166,21 @@ if test -n "$HARDENED"; then
             ||  $3 == "opt/VirtualBox/i386/VBoxBFE=i386/VBoxBFE" \
             ) \
        { $4 = "4755" } { print }' prototype > prototype2
-    mv -f prototype2 prototype    
+    mv -f prototype2 prototype
 fi
+
+# Other executables that need setuid root (hardened or otherwise)
+$VBOX_AWK 'NF == 6 \
+    && (    $3 == "opt/VirtualBox/amd64/VBoxUSBHelper=amd64/VBoxUSBHelper" \
+        ||  $3 == "opt/VirtualBox/i386/VBoxUSBHelper=i386/VBoxUSBHelper" \
+        ||  $3 == "opt/VirtualBox/amd64/VBoxNetAdpCtl=amd64/VBoxNetAdpCtl" \
+        ||  $3 == "opt/VirtualBox/i386/VBoxNetAdpCtl=i386/VBoxNetAdpCtl" \
+        ||  $3 == "opt/VirtualBox/amd64/VBoxNetDHCP=amd64/VBoxNetDHCP" \
+        ||  $3 == "opt/VirtualBox/i386/VBoxNetDHCP=i386/VBoxNetDHCP" \
+        ) \
+   { $4 = "4755" } { print }' prototype > prototype2
+mv -f prototype2 prototype
+
 
 # desktop links and icons
 filelist_fixup prototype '$3 == "opt/VirtualBox/virtualbox.desktop=virtualbox.desktop"'                 '$3 = "usr/share/applications/virtualbox.desktop=virtualbox.desktop"'
@@ -170,7 +195,7 @@ filelist_fixup prototype '$3 == "opt/VirtualBox/virtualbox-webservice.xml=virtua
 # webservice SMF start/stop script
 filelist_fixup prototype '$3 == "opt/VirtualBox/smf-vboxwebsrv.sh=smf-vboxwebsrv.sh"'                   '$3 = "opt/VirtualBox/smf-vboxwebsrv=smf-vboxwebsrv.sh"'
 
-echo " --- start of prototype  ---" 
+echo " --- start of prototype  ---"
 cat prototype
 echo " --- end of prototype --- "
 

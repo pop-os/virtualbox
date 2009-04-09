@@ -1,10 +1,10 @@
-/* $Id: VBoxNetFlt.c $ */
+/* $Id: VBoxNetFlt.c 18064 2009-03-18 12:52:38Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Common Code.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -221,12 +221,14 @@
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <iprt/assert.h>
-#include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/spinlock.h>
-#include <iprt/semaphore.h>
-#include <iprt/time.h>
 #include <iprt/uuid.h>
+#include <iprt/mem.h>
+#include <iprt/time.h>
+#include <iprt/semaphore.h>
+#include <iprt/thread.h>
+
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
@@ -235,9 +237,38 @@
     ( (PVBOXNETFLTINS)((uint8_t *)pIfPort - RT_OFFSETOF(VBOXNETFLTINS, MyPort)) )
 
 
+AssertCompileMemberSize(VBOXNETFLTINS, enmState, sizeof(uint32_t));
+
+/**
+ * Sets the enmState member atomically.
+ *
+ * Used for all updates.
+ *
+ * @param   pThis           The instance.
+ * @param   enmNewState     The new value.
+ */
+DECLINLINE(void) vboxNetFltSetState(PVBOXNETFLTINS pThis, VBOXNETFTLINSSTATE enmNewState)
+{
+    ASMAtomicWriteU32((uint32_t volatile *)&pThis->enmState, enmNewState);
+}
+
+
+/**
+ * Gets the enmState member atomically.
+ *
+ * Used for all reads.
+ *
+ * @returns The enmState value.
+ * @param   pThis           The instance.
+ */
+DECLINLINE(VBOXNETFTLINSSTATE) vboxNetFltGetState(PVBOXNETFLTINS pThis)
+{
+    return (VBOXNETFTLINSSTATE)ASMAtomicUoReadU32((uint32_t volatile *)&pThis->enmState);
+}
+
+
 /**
  * Finds a instance by its name, the caller does the locking.
- *
  *
  * @returns Pointer to the instance by the given name. NULL if not found.
  * @param   pGlobals        The globals.
@@ -255,6 +286,9 @@ static PVBOXNETFLTINS vboxNetFltFindInstanceLocked(PVBOXNETFLTGLOBALS pGlobals, 
 
 /**
  * Finds a instance by its name, will request the mutex.
+ *
+ * No reference to the instance is retained, we're assuming the caller to
+ * already have one but just for some reason doesn't have the pointer to it.
  *
  * @returns Pointer to the instance by the given name. NULL if not found.
  * @param   pGlobals        The globals.
@@ -296,36 +330,6 @@ static void vboxNetFltUnlinkLocked(PVBOXNETFLTGLOBALS pGlobals, PVBOXNETFLTINS p
         Assert(pCur);
     }
     pToUnlink->pNext = NULL;
-}
-
-
-AssertCompileMemberSize(VBOXNETFLTINS, enmState, sizeof(uint32_t));
-
-/**
- * Sets the enmState member atomically.
- *
- * Used for all updates.
- *
- * @param   pThis           The instance.
- * @param   enmNewState     The new value.
- */
-DECLINLINE(void) vboxNetFltSetState(PVBOXNETFLTINS pThis, VBOXNETFTLINSSTATE enmNewState)
-{
-    ASMAtomicWriteU32((uint32_t volatile *)&pThis->enmState, enmNewState);
-}
-
-
-/**
- * Gets the enmState member atomically.
- *
- * Used for all reads.
- *
- * @returns The enmState value.
- * @param   pThis           The instance.
- */
-DECLINLINE(VBOXNETFTLINSSTATE) vboxNetFltGetState(PVBOXNETFLTINS pThis)
-{
-    return (VBOXNETFTLINSSTATE)ASMAtomicUoReadU32((uint32_t volatile *)&pThis->enmState);
 }
 
 
@@ -610,16 +614,16 @@ NETFLT_DECL_CALLBACK(void) vboxNetFltPortDisconnectAndRelease(PINTNETTRUNKIFPORT
 /**
  * Destroy a device that has been disconnected from the switch.
  *
- * @return true iff the instance is destroyed, false otherwise
+ * @returns true if the instance is destroyed, false otherwise.
  * @param   pThis               The instance to be destroyed. This is
  *                              no longer valid when this function returns.
  */
-static bool vboxNetFltCheckDestroyInstance(PVBOXNETFLTINS pThis)
+static bool vboxNetFltDestroyInstance(PVBOXNETFLTINS pThis)
 {
     PVBOXNETFLTGLOBALS pGlobals = pThis->pGlobals;
-    int rc;
     uint32_t cRefs = ASMAtomicUoReadU32((uint32_t volatile *)&pThis->cRefs);
-    LogFlow(("vboxNetFltCheckDestroyInstance: pThis=%p (%s)\n", pThis, pThis->szName));
+    int rc;
+    LogFlow(("vboxNetFltDestroyInstance: pThis=%p (%s)\n", pThis, pThis->szName));
 
     /*
      * Validate the state.
@@ -637,17 +641,11 @@ static bool vboxNetFltCheckDestroyInstance(PVBOXNETFLTINS pThis)
     Assert(!pThis->pSwitchPort);
 
     /*
-     * Make sure the state is 'disconnecting' and let the OS specific code
-     * do its part of the cleanup outside the mutex.
+     * Make sure the state is 'disconnecting' / 'destroying' and let the OS
+     * specific code do its part of the cleanup outside the mutex.
      */
     rc = RTSemFastMutexRequest(pGlobals->hFastMtx); AssertRC(rc);
-    if(cRefs != 0)
-    {
-        Assert(cRefs < UINT32_MAX / 2);
-        RTSemFastMutexRelease(pGlobals->hFastMtx);
-        return false;
-    }
-    vboxNetFltSetState(pThis, kVBoxNetFltInsState_Destroying);
+    vboxNetFltSetState(pThis, kVBoxNetFltInsState_Disconnecting);
     RTSemFastMutexRelease(pGlobals->hFastMtx);
 
     vboxNetFltOsDeleteInstance(pThis);
@@ -665,6 +663,9 @@ static bool vboxNetFltCheckDestroyInstance(PVBOXNETFLTINS pThis)
     RTSpinlockDestroy(pThis->hSpinlock);
     pThis->hSpinlock = NIL_RTSPINLOCK;
     RTMemFree(pThis);
+
+    NOREF(cRefs);
+
     return true;
 }
 
@@ -715,7 +716,7 @@ DECLHIDDEN(void) vboxNetFltRelease(PVBOXNETFLTINS pThis, bool fBusy)
      */
     cRefs = ASMAtomicDecU32(&pThis->cRefs);
     if (!cRefs)
-        vboxNetFltCheckDestroyInstance(pThis);
+        vboxNetFltDestroyInstance(pThis);
     else
         Assert(cRefs < UINT32_MAX / 2);
 }
@@ -821,9 +822,7 @@ static int vboxNetFltConnectIt(PVBOXNETFLTINS pThis, PINTNETTRUNKSWPORT pSwitchP
     if (RT_SUCCESS(rc))
     {
         vboxNetFltSetState(pThis, kVBoxNetFltInsState_Connected);
-#ifdef VBOXNETFLT_STATIC_CONFIG
         *ppIfPort = &pThis->MyPort;
-#endif
     }
     else
         pThis->pSwitchPort = NULL;
@@ -845,13 +844,12 @@ static int vboxNetFltConnectIt(PVBOXNETFLTINS pThis, PINTNETTRUNKSWPORT pSwitchP
  * @param   pGlobals            The globals.
  * @param   pszName             The instance name.
  * @param   pSwitchPort         The port on the switch that we're connected with (dynamic only).
+ * @param   fNoPromisc          Do not attempt going into promiscuous mode.
+ * @param   pvContext           Context argument for vboxNetFltOsInitInstance.
  * @param   ppIfPort            Where to store the pointer to our port interface (dynamic only).
  */
-static int vboxNetFltNewInstance(PVBOXNETFLTGLOBALS pGlobals, const char *pszName, PINTNETTRUNKSWPORT pSwitchPort, PINTNETTRUNKIFPORT *ppIfPort
-#ifdef VBOXNETFLT_STATIC_CONFIG
-        , void * pContext
-#endif
-        )
+static int vboxNetFltNewInstance(PVBOXNETFLTGLOBALS pGlobals, const char *pszName, PINTNETTRUNKSWPORT pSwitchPort,
+                                 bool fNoPromisc, void *pvContext, PINTNETTRUNKIFPORT *ppIfPort)
 {
     /*
      * Allocate and initialize a new instance before requesting the mutex.
@@ -880,6 +878,7 @@ static int vboxNetFltNewInstance(PVBOXNETFLTGLOBALS pGlobals, const char *pszNam
     pNew->fActive                       = false;
     pNew->fDisconnectedFromHost         = false;
     pNew->fRediscoveryPending           = false;
+    pNew->fDisablePromiscuous           = fNoPromisc;
     pNew->NanoTSLastRediscovery         = INT64_MAX;
     pNew->cRefs                         = 1;
     pNew->cBusy                         = 0;
@@ -911,22 +910,21 @@ static int vboxNetFltNewInstance(PVBOXNETFLTGLOBALS pGlobals, const char *pszNam
                         /*
                          * Call the OS specific initialization code.
                          */
-                        rc = vboxNetFltOsInitInstance(pNew
-#ifdef VBOXNETFLT_STATIC_CONFIG
-                                , pContext
-#endif
-                                );
+                        rc = vboxNetFltOsInitInstance(pNew, pvContext);
                         RTSemFastMutexRequest(pGlobals->hFastMtx);
                         if (RT_SUCCESS(rc))
                         {
 #ifdef VBOXNETFLT_STATIC_CONFIG
-                            pNew->enmState = kVBoxNetFltInsState_Unconnected;
+                            /*
+                             * Static instances are unconnected at birth.
+                             */
                             Assert(!pSwitchPort);
-                            *ppIfPort = &pNew->MyPort;
+                            pNew->enmState = kVBoxNetFltInsState_Unconnected;
                             RTSemFastMutexRelease(pGlobals->hFastMtx);
+                            *ppIfPort = &pNew->MyPort;
                             return rc;
 
-#else
+#else  /* !VBOXNETFLT_STATIC_CONFIG */
                             /*
                              * Connect it as well, the OS specific bits has to be done outside
                              * the lock as they may call back to into intnet.
@@ -935,13 +933,13 @@ static int vboxNetFltNewInstance(PVBOXNETFLTGLOBALS pGlobals, const char *pszNam
                             if (RT_SUCCESS(rc))
                             {
                                 RTSemFastMutexRelease(pGlobals->hFastMtx);
-                                *ppIfPort = &pNew->MyPort;
+                                Assert(*ppIfPort == &pNew->MyPort);
                                 return rc;
                             }
 
                             /* Bail out (failed). */
                             vboxNetFltOsDeleteInstance(pNew);
-#endif
+#endif /* !VBOXNETFLT_STATIC_CONFIG */
                         }
                         vboxNetFltUnlinkLocked(pGlobals, pNew);
                     }
@@ -959,73 +957,149 @@ static int vboxNetFltNewInstance(PVBOXNETFLTGLOBALS pGlobals, const char *pszNam
     return rc;
 }
 
-#ifdef VBOXNETFLT_STATIC_CONFIG
 
+#ifdef VBOXNETFLT_STATIC_CONFIG
 /**
- * searches for the NetFlt instance by its name and creates the new one if not found
+ * Searches for the NetFlt instance by its name and creates the new one if not found.
  *
- * @return VINF_SUCCESS if new instance was created, VINF_ALREADY_INITIALIZED if an instanmce already exists,
- * VERR_xxx in case of a failure
+ * @returns VBox status code.
+ * @retval  VINF_SUCCESS and *ppInstance if a new instance was created.
+ * @retval  VINF_ALREADY_INITIALIZED and *ppInstance if an instance already exists.
+ *
+ * @param   pGlobal     Pointer to the globals.
+ * @param   pszName     The instance name.
+ * @param   ppInstance  Where to return the instance pointer on success.
+ * @param   pvContext   Context which needs to be passed along to vboxNetFltOsInitInstance.
  */
-DECLHIDDEN(int) vboxNetFltSearchCreateInstance(PVBOXNETFLTGLOBALS pGlobals, const char *pszName, PVBOXNETFLTINS *ppInstance, void * pContext)
+DECLHIDDEN(int) vboxNetFltSearchCreateInstance(PVBOXNETFLTGLOBALS pGlobals, const char *pszName, PVBOXNETFLTINS *ppInstance, void *pvContext)
 {
     PINTNETTRUNKIFPORT pIfPort;
+    PVBOXNETFLTINS pCur;
+    VBOXNETFTLINSSTATE enmState;
     int rc;
 
+    *ppInstance = NULL;
     rc = RTSemFastMutexRequest(pGlobals->hFastMtx);
     AssertRCReturn(rc, rc);
 
-    *ppInstance = vboxNetFltFindInstanceLocked(pGlobals, pszName);
-    if(*ppInstance)
+    /*
+     * Look for an existing instance in the list.
+     *
+     * There might be an existing one in the list if the driver was unbound
+     * while it was connected to an internal network. We're running into
+     * a destruction race that is a bit similar to the one in
+     * vboxNetFltFactoryCreateAndConnect, only the roles are reversed
+     * and we're not in a position to back down. Instead of backing down
+     * we'll delay a bit giving the other thread time to complete the
+     * destructor.
+     */
+    pCur = vboxNetFltFindInstanceLocked(pGlobals, pszName);
+    while (pCur)
     {
-        VBOXNETFTLINSSTATE enmState = vboxNetFltGetState(*ppInstance);
-        if(enmState != kVBoxNetFltInsState_Destroying && enmState != kVBoxNetFltInsState_Destroyed)
+        uint32_t cRefs = ASMAtomicIncU32(&pCur->cRefs);
+        if (cRefs > 1)
         {
-            vboxNetFltRetain(*ppInstance, false);
-            RTSemFastMutexRelease(pGlobals->hFastMtx);
-            return VINF_ALREADY_INITIALIZED;
+            enmState = vboxNetFltGetState(pCur);
+            switch (enmState)
+            {
+                case kVBoxNetFltInsState_Unconnected:
+                case kVBoxNetFltInsState_Connected:
+                case kVBoxNetFltInsState_Disconnecting:
+                    if (pCur->fDisconnectedFromHost)
+                    {
+                        /* Wait for it to exit the transitional disconnecting
+                           state. It might otherwise be running the risk of
+                           upsetting the OS specific code...  */
+                        /** @todo This reconnect stuff should be serialized correctly for static
+                         *        devices. Shouldn't it? In the dynamic case we're using the INTNET
+                         *        outbound thrunk lock, but that doesn't quite cut it here, or does
+                         *        it? We could either transition to initializing  or make a callback
+                         *        while owning the mutext here... */
+                        if (enmState == kVBoxNetFltInsState_Disconnecting)
+                        {
+                            do
+                            {
+                                RTSemFastMutexRelease(pGlobals->hFastMtx);
+                                RTThreadSleep(2); /* (2ms) */
+                                RTSemFastMutexRequest(pGlobals->hFastMtx);
+                                enmState = vboxNetFltGetState(pCur);
+                            }
+                            while (enmState == kVBoxNetFltInsState_Disconnecting);
+                            AssertMsg(enmState == kVBoxNetFltInsState_Unconnected, ("%d\n", enmState));
+                            Assert(pCur->fDisconnectedFromHost);
+                        }
+
+                        RTSemFastMutexRelease(pGlobals->hFastMtx);
+                        *ppInstance = pCur;
+                        return VINF_ALREADY_INITIALIZED;
+                    }
+                    /* fall thru */
+
+                default:
+                {
+                    bool fDfH = pCur->fDisconnectedFromHost;
+                    RTSemFastMutexRelease(pGlobals->hFastMtx);
+                    vboxNetFltRelease(pCur, false /* fBusy */);
+                    LogRel(("VBoxNetFlt: Huh? An instance of '%s' already exists! [pCur=%p cRefs=%d fDfH=%RTbool enmState=%d]\n",
+                            pszName, pCur, cRefs - 1, fDfH, enmState));
+                    *ppInstance = NULL;
+                    return VERR_INTNET_FLT_IF_BUSY;
+                }
+            }
         }
 
-        /*wait for the instance to be removed from the list */
+        /* Zero references, it's being destroyed. Delay a bit so the destructor
+           can finish its work and try again. (vboxNetFltNewInstance will fail
+           with duplicate name if we don't.) */
+# ifdef RT_STRICT
+        Assert(cRefs == 1);
+        enmState = vboxNetFltGetState(pCur);
+        AssertMsg(   enmState == kVBoxNetFltInsState_Unconnected
+                  || enmState == kVBoxNetFltInsState_Disconnecting
+                  || enmState == kVBoxNetFltInsState_Destroyed, ("%d\n", enmState));
+# endif
+        ASMAtomicDecU32(&pCur->cRefs);
+        RTSemFastMutexRelease(pGlobals->hFastMtx);
+        RTThreadSleep(2); /* (2ms) */
+        rc = RTSemFastMutexRequest(pGlobals->hFastMtx);
+        AssertRCReturn(rc, rc);
 
-        *ppInstance = NULL;
-
-        do
-        {
-            RTSemFastMutexRelease(pGlobals->hFastMtx);
-
-            RTSemEventWait(pGlobals->hTimerEvent, 2);
-
-            rc = RTSemFastMutexRequest(pGlobals->hFastMtx);
-            AssertRCReturn(rc, rc);
-        } while(vboxNetFltFindInstanceLocked(pGlobals, pszName));
+        /* try again */
+        pCur = vboxNetFltFindInstanceLocked(pGlobals, pszName);
     }
 
     RTSemFastMutexRelease(pGlobals->hFastMtx);
 
-    rc = vboxNetFltNewInstance(pGlobals, pszName, NULL, &pIfPort, pContext);
-    if(RT_SUCCESS(rc))
-        *ppInstance =  IFPORT_2_VBOXNETFLTINS(pIfPort);
+    /*
+     * Try create a new instance.
+     * (fNoPromisc is overridden in the vboxNetFltFactoryCreateAndConnect path, so pass true here.)
+     */
+    rc = vboxNetFltNewInstance(pGlobals, pszName, NULL, true /* fNoPromisc */, pvContext, &pIfPort);
+    if (RT_SUCCESS(rc))
+        *ppInstance = IFPORT_2_VBOXNETFLTINS(pIfPort);
     else
         *ppInstance = NULL;
 
     return rc;
 }
+#endif /* VBOXNETFLT_STATIC_CONFIG */
 
-#endif
 
 /**
  * @copydoc INTNETTRUNKFACTORY::pfnCreateAndConnect
  */
 static DECLCALLBACK(int) vboxNetFltFactoryCreateAndConnect(PINTNETTRUNKFACTORY pIfFactory, const char *pszName,
-                                                           PINTNETTRUNKSWPORT pSwitchPort, PINTNETTRUNKIFPORT *ppIfPort)
+                                                           PINTNETTRUNKSWPORT pSwitchPort, uint32_t fFlags,
+                                                           PINTNETTRUNKIFPORT *ppIfPort)
 {
     PVBOXNETFLTGLOBALS pGlobals = (PVBOXNETFLTGLOBALS)((uint8_t *)pIfFactory - RT_OFFSETOF(VBOXNETFLTGLOBALS, TrunkFactory));
     PVBOXNETFLTINS pCur;
     int rc;
 
-    LogFlow(("vboxNetFltFactoryCreateAndConnect: pszName=%p:{%s}\n", pszName, pszName));
+    LogFlow(("vboxNetFltFactoryCreateAndConnect: pszName=%p:{%s} fFlags=%#x\n", pszName, pszName, fFlags));
     Assert(pGlobals->cFactoryRefs > 0);
+    AssertMsgReturn(!(fFlags & ~(INTNETTRUNKFACTORY_FLAG_NO_PROMISC)),
+                    ("%#x\n", fFlags), VERR_INVALID_PARAMETER);
 
     /*
      * Static: Find instance, check if busy, connect if not.
@@ -1034,35 +1108,45 @@ static DECLCALLBACK(int) vboxNetFltFactoryCreateAndConnect(PINTNETTRUNKFACTORY p
     rc = RTSemFastMutexRequest(pGlobals->hFastMtx);
     AssertRCReturn(rc, rc);
 
+//#if defined(VBOXNETADP) && defined(RT_OS_WINDOWS)
+//    /* temporary hack to pick up the first adapter */
+//    pCur = pGlobals->pInstanceHead; /** @todo Don't for get to remove this temporary hack... :-) */
+//#else
     pCur = vboxNetFltFindInstanceLocked(pGlobals, pszName);
+//#endif
     if (pCur)
     {
 #ifdef VBOXNETFLT_STATIC_CONFIG
-        switch (vboxNetFltGetState(pCur))
+        /* Try grab a reference. If the count had already reached zero we're racing the
+           destructor code and must back down. */
+        uint32_t cRefs = ASMAtomicIncU32(&pCur->cRefs);
+        if (cRefs > 1)
         {
-            case kVBoxNetFltInsState_Unconnected:
-                /* instance can be destroyed when it is neither used by the IntNet nor by the ndis filter driver mechanism
-                 * (i.e. the driver is not bound to the specified adapter)*/
-                vboxNetFltRetain(pCur, false /* fBusy */); /** @todo who releases this on failure? */
+            if (vboxNetFltGetState(pCur) == kVBoxNetFltInsState_Unconnected)
+            {
+                pCur->fDisablePromiscuous = !!(fFlags & INTNETTRUNKFACTORY_FLAG_NO_PROMISC);
                 rc = vboxNetFltConnectIt(pCur, pSwitchPort, ppIfPort);
-                break;
-            case kVBoxNetFltInsState_Connected:
-                AssertFailed();
+                if (RT_SUCCESS(rc))
+                    pCur = NULL; /* Don't release it, reference given to the caller. */
+            }
+            else
                 rc = VERR_INTNET_FLT_IF_BUSY;
-                break;
-            case kVBoxNetFltInsState_Disconnecting:
-                AssertFailed();
-                rc = VERR_INTNET_FLT_IF_BUSY;
-                break;
-            default:
-                /** @todo what? */
-                rc = VERR_INTNET_FLT_IF_BUSY;
-                break;
         }
+        else
+        {
+            Assert(cRefs == 1);
+            ASMAtomicDecU32(&pCur->cRefs);
+            pCur = NULL; /* nothing to release */
+            rc = VERR_INTNET_FLT_IF_NOT_FOUND;
+        }
+
+        RTSemFastMutexRelease(pGlobals->hFastMtx);
+        if (pCur)
+            vboxNetFltRelease(pCur, false /* fBusy */);
 #else
         rc = VERR_INTNET_FLT_IF_BUSY;
-#endif
         RTSemFastMutexRelease(pGlobals->hFastMtx);
+#endif
         LogFlow(("vboxNetFltFactoryCreateAndConnect: returns %Rrc\n", rc));
         return rc;
     }
@@ -1075,7 +1159,12 @@ static DECLCALLBACK(int) vboxNetFltFactoryCreateAndConnect(PINTNETTRUNKFACTORY p
     /*
      * Dynamically create a new instance.
      */
-    rc = vboxNetFltNewInstance(pGlobals, pszName, pSwitchPort, ppIfPort);
+    rc = vboxNetFltNewInstance(pGlobals,
+                               pszName,
+                               pSwitchPort,
+                               !!(fFlags & INTNETTRUNKFACTORY_FLAG_NO_PROMISC),
+                               NULL,
+                               ppIfPort);
 #endif
     LogFlow(("vboxNetFltFactoryCreateAndConnect: returns %Rrc\n", rc));
     return rc;
@@ -1154,15 +1243,17 @@ DECLHIDDEN(bool) vboxNetFltCanUnload(PVBOXNETFLTGLOBALS pGlobals)
     return fRc;
 }
 
+
 /**
- * tries to deinitialize Idc
- * we separate the globals settings "base" which is actually
- * "general" globals settings except for Idc, and idc.
- * This is needed for windows filter driver, which gets loaded prior to VBoxDrv,
- * thus it's not possible to make idc initialization from the driver startup routine for it,
- * though the "base is still needed for the driver to functions".
- * @param pGlobals
- * @return VINF_SUCCESS on succes, VERR_WRONG_ORDER if we're busy.
+ * Try to close the IDC connection to SUPDRV if established.
+ *
+ * @returns VBox status code.
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_WRONG_ORDER if we're busy.
+ *
+ * @param   pGlobals        Pointer to the globals.
+ *
+ * @sa      vboxNetFltTryDeleteIdcAndGlobals()
  */
 DECLHIDDEN(int) vboxNetFltTryDeleteIdc(PVBOXNETFLTGLOBALS pGlobals)
 {
@@ -1176,118 +1267,43 @@ DECLHIDDEN(int) vboxNetFltTryDeleteIdc(PVBOXNETFLTGLOBALS pGlobals)
     if (!vboxNetFltCanUnload(pGlobals))
         return VERR_WRONG_ORDER;
 
-    /*
-     * Disconnect from SUPDRV and check that nobody raced us,
-     * reconnect if that should happen.
-     */
-    rc = SUPR0IdcComponentDeregisterFactory(&pGlobals->SupDrvIDC, &pGlobals->SupDrvFactory);
-    AssertRC(rc);
-    if (!vboxNetFltCanUnload(pGlobals))
+    if (!pGlobals->fIDCOpen)
+        rc = VINF_SUCCESS;
+    else
     {
-        rc = SUPR0IdcComponentRegisterFactory(&pGlobals->SupDrvIDC, &pGlobals->SupDrvFactory);
+        /*
+         * Disconnect from SUPDRV and check that nobody raced us,
+         * reconnect if that should happen.
+         */
+        rc = SUPR0IdcComponentDeregisterFactory(&pGlobals->SupDrvIDC, &pGlobals->SupDrvFactory);
         AssertRC(rc);
-        return VERR_WRONG_ORDER;
-    }
-
-    SUPR0IdcClose(&pGlobals->SupDrvIDC);
-
-    return rc;
-}
-
-/**
- * performs "base" globals deinitialization
- * we separate the globals settings "base" which is actually
- * "general" globals settings except for Idc, and idc.
- * This is needed for windows filter driver, which gets loaded prior to VBoxDrv,
- * thus it's not possible to make idc initialization from the driver startup routine for it,
- * though the "base is still needed for the driver to functions".
- * @param pGlobals
- * @return none
- */
-DECLHIDDEN(void) vboxNetFltDeleteGlobalsBase(PVBOXNETFLTGLOBALS pGlobals)
-{
-    /*
-     * Release resources.
-     */
-    RTSemFastMutexDestroy(pGlobals->hFastMtx);
-    pGlobals->hFastMtx = NIL_RTSEMFASTMUTEX;
-
-#ifdef VBOXNETFLT_STATIC_CONFIG
-    RTSemEventDestroy(pGlobals->hTimerEvent);
-    pGlobals->hTimerEvent = NIL_RTSEMEVENT;
-#endif
-
-}
-
-/**
- * Called by the native part when the OS wants the driver to unload.
- *
- * @returns VINF_SUCCESS on succes, VERR_WRONG_ORDER if we're busy.
- *
- * @param   pGlobals        Pointer to the globals.
- */
-DECLHIDDEN(int) vboxNetFltTryDeleteGlobals(PVBOXNETFLTGLOBALS pGlobals)
-{
-    int rc = vboxNetFltTryDeleteIdc(pGlobals);
-    if(RT_SUCCESS(rc))
-    {
-        vboxNetFltDeleteGlobalsBase(pGlobals);
-    }
-    return rc;
-}
-
-/**
- * performs the "base" globals initialization
- * we separate the globals initialization to globals "base" initialization which is actually
- * "general" globals initialization except for Idc not being initialized, and idc initialization.
- * This is needed for windows filter driver, which gets loaded prior to VBoxDrv,
- * thus it's not possible to make idc initialization from the driver startup routine for it.
- *
- * @returns VBox status code.
- * @param   pGlobals    Pointer to the globals. */
-DECLHIDDEN(int) vboxNetFltInitGlobalsBase(PVBOXNETFLTGLOBALS pGlobals)
-{
-    /*
-     * Initialize the common portions of the structure.
-     */
-    int rc = RTSemFastMutexCreate(&pGlobals->hFastMtx);
-    if (RT_SUCCESS(rc))
-    {
-#ifdef VBOXNETFLT_STATIC_CONFIG
-        rc = RTSemEventCreate(&pGlobals->hTimerEvent);
-        if (RT_SUCCESS(rc))
+        if (!vboxNetFltCanUnload(pGlobals))
         {
-#endif
-            pGlobals->pInstanceHead = NULL;
-
-            pGlobals->TrunkFactory.pfnRelease = vboxNetFltFactoryRelease;
-            pGlobals->TrunkFactory.pfnCreateAndConnect = vboxNetFltFactoryCreateAndConnect;
-
-            strcpy(pGlobals->SupDrvFactory.szName, "VBoxNetFlt");
-            pGlobals->SupDrvFactory.pfnQueryFactoryInterface = vboxNetFltQueryFactoryInterface;
-
-            return rc;
-#ifdef VBOXNETFLT_STATIC_CONFIG
+            rc = SUPR0IdcComponentRegisterFactory(&pGlobals->SupDrvIDC, &pGlobals->SupDrvFactory);
+            AssertRC(rc);
+            return VERR_WRONG_ORDER;
         }
-        RTSemFastMutexDestroy(pGlobals->hFastMtx);
-#endif
+
+        SUPR0IdcClose(&pGlobals->SupDrvIDC);
+        pGlobals->fIDCOpen = false;
     }
 
     return rc;
 }
 
+
 /**
- * performs the Idc initialization
- * we separate the globals initialization to globals "base" initialization which is actually
- * "general" globals initialization except for Idc not being initialized, and idc initialization.
- * This is needed for windows filter driver, which gets loaded prior to VBoxDrv,
- * thus it's not possible to make idc initialization from the driver startup routine for it.
+ * Establishes the IDC connection to SUPDRV and registers our component factory.
  *
  * @returns VBox status code.
- * @param   pGlobals    Pointer to the globals. */
+ * @param   pGlobals    Pointer to the globals.
+ * @sa      vboxNetFltInitGlobalsAndIdc().
+ */
 DECLHIDDEN(int) vboxNetFltInitIdc(PVBOXNETFLTGLOBALS pGlobals)
 {
     int rc;
+    Assert(!pGlobals->fIDCOpen);
+
     /*
      * Establish a connection to SUPDRV and register our component factory.
      */
@@ -1297,6 +1313,7 @@ DECLHIDDEN(int) vboxNetFltInitIdc(PVBOXNETFLTGLOBALS pGlobals)
         rc = SUPR0IdcComponentRegisterFactory(&pGlobals->SupDrvIDC, &pGlobals->SupDrvFactory);
         if (RT_SUCCESS(rc))
         {
+            pGlobals->fIDCOpen = true;
             Log(("VBoxNetFlt: pSession=%p\n", SUPR0IdcGetSession(&pGlobals->SupDrvIDC)));
             return rc;
         }
@@ -1309,31 +1326,102 @@ DECLHIDDEN(int) vboxNetFltInitIdc(PVBOXNETFLTGLOBALS pGlobals)
     return rc;
 }
 
+
 /**
- * Called by the native driver/kext module initialization routine.
+ * Deletes the globals.
  *
- * It will initialize the common parts of the globals, assuming the caller
- * has already taken care of the OS specific bits.
+ * This must be called after the IDC connection has been closed,
+ * see vboxNetFltTryDeleteIdc().
+ *
+ * @param   pGlobals        Pointer to the globals.
+ * @sa      vboxNetFltTryDeleteIdcAndGlobals()
+ */
+DECLHIDDEN(void) vboxNetFltDeleteGlobals(PVBOXNETFLTGLOBALS pGlobals)
+{
+    Assert(!pGlobals->fIDCOpen);
+
+    /*
+     * Release resources.
+     */
+    RTSemFastMutexDestroy(pGlobals->hFastMtx);
+    pGlobals->hFastMtx = NIL_RTSEMFASTMUTEX;
+}
+
+
+/**
+ * Initializes the globals.
  *
  * @returns VBox status code.
- * @param   pGlobals    Pointer to the globals.
+ * @param   pGlobals        Pointer to the globals.
+ * @sa      vboxNetFltInitGlobalsAndIdc().
  */
 DECLHIDDEN(int) vboxNetFltInitGlobals(PVBOXNETFLTGLOBALS pGlobals)
 {
     /*
      * Initialize the common portions of the structure.
      */
-    int rc = vboxNetFltInitGlobalsBase(pGlobals);
+    int rc = RTSemFastMutexCreate(&pGlobals->hFastMtx);
+    if (RT_SUCCESS(rc))
+    {
+        pGlobals->pInstanceHead = NULL;
+
+        pGlobals->TrunkFactory.pfnRelease = vboxNetFltFactoryRelease;
+        pGlobals->TrunkFactory.pfnCreateAndConnect = vboxNetFltFactoryCreateAndConnect;
+#if defined(RT_OS_WINDOWS) && defined(VBOXNETADP)
+        strcpy(pGlobals->SupDrvFactory.szName, "VBoxNetAdp");
+#else
+        strcpy(pGlobals->SupDrvFactory.szName, "VBoxNetFlt");
+#endif
+        pGlobals->SupDrvFactory.pfnQueryFactoryInterface = vboxNetFltQueryFactoryInterface;
+        pGlobals->fIDCOpen = false;
+
+        return rc;
+    }
+
+    return rc;
+}
+
+
+/**
+ * Called by the native part when the OS wants the driver to unload.
+ *
+ * @returns VINF_SUCCESS on success, VERR_WRONG_ORDER if we're busy.
+ *
+ * @param   pGlobals        Pointer to the globals.
+ */
+DECLHIDDEN(int) vboxNetFltTryDeleteIdcAndGlobals(PVBOXNETFLTGLOBALS pGlobals)
+{
+    int rc = vboxNetFltTryDeleteIdc(pGlobals);
+    if (RT_SUCCESS(rc))
+        vboxNetFltDeleteGlobals(pGlobals);
+    return rc;
+}
+
+
+/**
+ * Called by the native driver/kext module initialization routine.
+ *
+ * It will initialize the common parts of the globals, assuming the caller
+ * has already taken care of the OS specific bits, and establish the IDC
+ * connection to SUPDRV.
+ *
+ * @returns VBox status code.
+ * @param   pGlobals    Pointer to the globals.
+ */
+DECLHIDDEN(int) vboxNetFltInitGlobalsAndIdc(PVBOXNETFLTGLOBALS pGlobals)
+{
+    /*
+     * Initialize the common portions of the structure.
+     */
+    int rc = vboxNetFltInitGlobals(pGlobals);
     if (RT_SUCCESS(rc))
     {
         rc = vboxNetFltInitIdc(pGlobals);
         if (RT_SUCCESS(rc))
-        {
             return rc;
-        }
 
         /* bail out. */
-        vboxNetFltDeleteGlobalsBase(pGlobals);
+        vboxNetFltDeleteGlobals(pGlobals);
     }
 
     return rc;

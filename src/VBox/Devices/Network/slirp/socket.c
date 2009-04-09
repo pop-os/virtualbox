@@ -59,22 +59,27 @@ socreate()
 {
     struct socket *so;
 
-    so = (struct socket *)RTMemAlloc(sizeof(struct socket));
+    so = (struct socket *)RTMemAllocZ(sizeof(struct socket));
     if(so)
     {
-        memset(so, 0, sizeof(struct socket));
         so->so_state = SS_NOFDREF;
         so->s = -1;
+#if defined(VBOX_WITH_SIMPLIFIED_SLIRP_SYNC) && !defined(RT_OS_WINDOWS)
+        so->so_poll_index = -1;
+#endif
     }
     return so;
 }
 
 /*
  * remque and free a socket, clobber cache
+ * VBOX_WITH_SLIRP_MT: before sofree queue should be locked, because
+ *      in sofree we don't know from which queue item beeing removed.
  */
 void
 sofree(PNATState pData, struct socket *so)
 {
+    struct socket *so_prev = NULL;
     if (so == tcp_last_so)
         tcp_last_so = &tcb;
     else if (so == udp_last_so)
@@ -83,12 +88,26 @@ sofree(PNATState pData, struct socket *so)
     /* check if mbuf haven't been already freed  */
     if (so->so_m != NULL)
         m_free(pData, so->so_m);
-
+#ifndef VBOX_WITH_SLIRP_MT
     if(so->so_next && so->so_prev)
+    {
         remque(pData, so);  /* crashes if so is not in a queue */
+        NSOCK_DEC();
+    }
 
     RTMemFree(so);
+#else
+    so->so_deleted = 1;
+#endif
 }
+
+#ifdef VBOX_WITH_SLIRP_MT
+void
+soread_queue(PNATState pData, struct socket *so, int *ret)
+{
+    *ret = soread(pData, so);
+}
+#endif
 
 /*
  * Read from so's socket into sb_snd, updating all relevant sbuf fields
@@ -103,6 +122,9 @@ soread(PNATState pData, struct socket *so)
     size_t len = sb->sb_datalen - sb->sb_cc;
     struct iovec iov[2];
     int mss = so->so_tcpcb->t_maxseg;
+    QSOCKET_LOCK(tcb);
+    SOCKET_LOCK(so);
+    QSOCKET_UNLOCK(tcb);
 
     DEBUG_CALL("soread");
     DEBUG_ARG("so = %lx", (long )so);
@@ -171,7 +193,7 @@ soread(PNATState pData, struct socket *so)
     nn = readv(so->s, (struct iovec *)iov, n);
     DEBUG_MISC((dfd, " ... read nn = %d bytes\n", nn));
 #else
-    nn = recv(so->s, iov[0].iov_base, iov[0].iov_len,0);
+    nn = recv(so->s, iov[0].iov_base, iov[0].iov_len, 0);
 #endif
     if (nn <= 0)
     {
@@ -187,19 +209,26 @@ soread(PNATState pData, struct socket *so)
         unsigned long pending = 0;
         status = WSAIoctl(so->s, FIONREAD, NULL, 0, &pending, sizeof(unsigned long), &ignored, NULL, NULL);
         if (status < 0)
-            Log2(("error in WSAIoctl: %d\n", WSAGetLastError()));
+            LogRel(("NAT:error in WSAIoctl: %d\n", WSAGetLastError()));
         if (nn == 0 && (pending != 0))
+        {
+            SOCKET_UNLOCK(so);
             return 0;
+        }
 #endif
         if (nn < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK))
+        {
+            SOCKET_UNLOCK(so);
             return 0;
+        }
         else
         {
             /* nn == 0 means peer has performed an orderly shutdown */
             DEBUG_MISC((dfd, " --- soread() disconnected, nn = %d, errno = %d-%s\n",
-                        nn, errno,strerror(errno)));
+                        nn, errno, strerror(errno)));
             sofcantrcvmore(so);
             tcp_sockclosed(pData, sototcpcb(so));
+            SOCKET_UNLOCK(so);
             return -1;
         }
     }
@@ -217,7 +246,7 @@ soread(PNATState pData, struct socket *so)
     if (n == 2 && nn == iov[0].iov_len)
     {
         int ret;
-        ret = recv(so->s, iov[1].iov_base, iov[1].iov_len,0);
+        ret = recv(so->s, iov[1].iov_base, iov[1].iov_len, 0);
         if (ret > 0)
             nn += ret;
     }
@@ -230,6 +259,7 @@ soread(PNATState pData, struct socket *so)
     sb->sb_wptr += nn;
     if (sb->sb_wptr >= (sb->sb_data + sb->sb_datalen))
         sb->sb_wptr -= sb->sb_datalen;
+    SOCKET_UNLOCK(so);
     return nn;
 }
 
@@ -336,19 +366,24 @@ sosendoob(struct socket *so)
 int
 sowrite(PNATState pData, struct socket *so)
 {
-    int  n,nn;
+    int n, nn;
     struct sbuf *sb = &so->so_rcv;
     size_t len = sb->sb_cc;
     struct iovec iov[2];
 
     DEBUG_CALL("sowrite");
     DEBUG_ARG("so = %lx", (long)so);
-
+    QSOCKET_LOCK(tcb);
+    SOCKET_LOCK(so);
+    QSOCKET_UNLOCK(tcb);
     if (so->so_urgc)
     {
         sosendoob(so);
         if (sb->sb_cc == 0)
+        {
+            SOCKET_UNLOCK(so);
             return 0;
+        }
     }
 
     /*
@@ -395,7 +430,10 @@ sowrite(PNATState pData, struct socket *so)
 #endif
     /* This should never happen, but people tell me it does *shrug* */
     if (nn < 0 && (errno == EAGAIN || errno == EINTR || errno == EWOULDBLOCK))
+    {
+        SOCKET_UNLOCK(so);
         return 0;
+    }
 
     if (nn < 0 || (nn == 0 && iov[0].iov_len > 0))
     {
@@ -403,6 +441,7 @@ sowrite(PNATState pData, struct socket *so)
                    so->so_state, errno));
         sofcantsendmore(so);
         tcp_sockclosed(pData, sototcpcb(so));
+        SOCKET_UNLOCK(so);
         return -1;
     }
 
@@ -410,7 +449,7 @@ sowrite(PNATState pData, struct socket *so)
     if (n == 2 && nn == iov[0].iov_len)
     {
         int ret;
-        ret = send(so->s, iov[1].iov_base, iov[1].iov_len,0);
+        ret = send(so->s, iov[1].iov_base, iov[1].iov_len, 0);
         if (ret > 0)
             nn += ret;
     }
@@ -430,6 +469,7 @@ sowrite(PNATState pData, struct socket *so)
     if ((so->so_state & SS_FWDRAIN) && sb->sb_cc == 0)
         sofcantsendmore(so);
 
+    SOCKET_UNLOCK(so);
     return nn;
 }
 
@@ -462,8 +502,15 @@ sorecvfrom(PNATState pData, struct socket *so)
         size_t len;
         u_long n;
 
+        QSOCKET_LOCK(udb);
+        SOCKET_LOCK(so);
+        QSOCKET_UNLOCK(udb);
+
         if (!(m = m_get(pData)))
+        {
+            SOCKET_UNLOCK(so);
             return;
+        }
         m->m_data += if_maxlinkhdr;
 #ifdef VBOX_WITH_SIMPLIFIED_SLIRP_SYNC
         m->m_data += sizeof(struct udphdr)
@@ -489,8 +536,8 @@ sorecvfrom(PNATState pData, struct socket *so)
 
         m->m_len = recvfrom(so->s, m->m_data, len, 0,
                             (struct sockaddr *)&addr, &addrlen);
-        DEBUG_MISC((dfd, " did recvfrom %d, errno = %d-%s\n",
-                    m->m_len, errno,strerror(errno)));
+        Log2((" did recvfrom %d, errno = %d-%s\n",
+                    m->m_len, errno, strerror(errno)));
         if(m->m_len < 0)
         {
             u_char code = ICMP_UNREACH_PORT;
@@ -500,8 +547,9 @@ sorecvfrom(PNATState pData, struct socket *so)
             else if(errno == ENETUNREACH)
                 code = ICMP_UNREACH_NET;
 
-            DEBUG_MISC((dfd," rx error, tx icmp ICMP_UNREACH:%i\n", code));
-            icmp_error(pData, so->so_m, ICMP_UNREACH,code, 0,strerror(errno));
+            Log2((dfd," rx error, tx icmp ICMP_UNREACH:%i\n", code));
+            icmp_error(pData, so->so_m, ICMP_UNREACH, code, 0, strerror(errno));
+            so->so_m = NULL;
             m_free(pData, m);
         }
         else
@@ -512,6 +560,7 @@ sorecvfrom(PNATState pData, struct socket *so)
              * for the 4 minute (or whatever) timeout... So we time them
              * out much quicker (10 seconds  for now...)
              */
+#ifndef VBOX_WITH_SLIRP_DNS_PROXY
             if (so->so_expire)
             {
                 if (so->so_fport == htons(53))
@@ -519,6 +568,19 @@ sorecvfrom(PNATState pData, struct socket *so)
                 else
                     so->so_expire = curtime + SO_EXPIRE;
             }
+#else
+            if (so->so_expire)
+            {
+                if (so->so_fport != htons(53))
+                    so->so_expire = curtime + SO_EXPIRE;
+            }
+            /* 
+             *  last argument should be changed if Slirp will inject IP attributes
+             *  Note: Here we can't check if dnsproxy's sent initial request
+             */
+            if (so->so_fport == htons(53))
+                dnsproxy_answer(pData, so, m);  
+#endif
 
 #if 0
             if (m->m_len == len)
@@ -533,6 +595,7 @@ sorecvfrom(PNATState pData, struct socket *so)
              * make it look like that's where it came from, done by udp_output
              */
             udp_output(pData, so, m, &addr);
+            SOCKET_UNLOCK(so);
         } /* rx error */
     } /* if ping packet */
 }
@@ -577,11 +640,13 @@ sosendto(PNATState pData, struct socket *so, struct mbuf *m)
                 break;
 #endif
             case CTL_DNS:
+#ifndef VBOX_WITH_MULTI_DNS
                 if (!get_dns_addr(pData, &dns_addr))
                     addr.sin_addr = dns_addr;
                 else
                     addr.sin_addr = loopback_addr;
                 break;
+#endif
             case CTL_ALIAS:
             default:
                 if (last_byte == ~pData->netmask)
@@ -646,7 +711,13 @@ solisten(PNATState pData, u_int port, u_int32_t laddr, u_int lport, int flags)
         RTMemFree(so);
         return NULL;
     }
+
+    SOCKET_LOCK_CREATE(so);
+    SOCKET_LOCK(so);
+    QSOCKET_LOCK(tcb);
     insque(pData, so,&tcb);
+    NSOCK_INC();
+    QSOCKET_UNLOCK(tcb);
 
     /*
      * SS_FACCEPTONCE sockets must time out.
@@ -662,27 +733,31 @@ solisten(PNATState pData, u_int port, u_int32_t laddr, u_int lport, int flags)
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = port;
 
-    if (   ((s = socket(AF_INET,SOCK_STREAM,0)) < 0)
-        || (setsockopt(s,SOL_SOCKET,SO_REUSEADDR,(char *)&opt,sizeof(int)) < 0)
+    if (   ((s = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+        || (setsockopt(s, SOL_SOCKET, SO_REUSEADDR,(char *)&opt, sizeof(int)) < 0)
         || (bind(s,(struct sockaddr *)&addr, sizeof(addr)) < 0)
-        || (listen(s,1) < 0))
+        || (listen(s, 1) < 0))
     {
 #ifdef RT_OS_WINDOWS
         int tmperrno = WSAGetLastError(); /* Don't clobber the real reason we failed */
         closesocket(s);
+        QSOCKET_LOCK(tcb);
         sofree(pData, so);
+        QSOCKET_UNLOCK(tcb);
         /* Restore the real errno */
         WSASetLastError(tmperrno);
 #else
         int tmperrno = errno; /* Don't clobber the real reason we failed */
         close(s);
+        QSOCKET_LOCK(tcb);
         sofree(pData, so);
+        QSOCKET_UNLOCK(tcb);
         /* Restore the real errno */
         errno = tmperrno;
 #endif
         return NULL;
     }
-    setsockopt(s,SOL_SOCKET,SO_OOBINLINE,(char *)&opt,sizeof(int));
+    setsockopt(s, SOL_SOCKET, SO_OOBINLINE,(char *)&opt, sizeof(int));
 
     getsockname(s,(struct sockaddr *)&addr,&addrlen);
     so->so_fport = addr.sin_port;
@@ -692,6 +767,7 @@ solisten(PNATState pData, u_int port, u_int32_t laddr, u_int lport, int flags)
         so->so_faddr = addr.sin_addr;
 
     so->s = s;
+    SOCKET_UNLOCK(so);
     return so;
 }
 
@@ -745,7 +821,7 @@ sofcantrcvmore(struct  socket *so)
 {
     if ((so->so_state & SS_NOFDREF) == 0)
     {
-        shutdown(so->s,0);
+        shutdown(so->s, 0);
     }
     so->so_state &= ~(SS_ISFCONNECTING);
     if (so->so_state & SS_FCANTSENDMORE)
@@ -798,10 +874,10 @@ static void
 send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, const struct sockaddr_in *addr)
 {
     struct ip *ip;
-    uint32_t dst,src;
+    uint32_t dst, src;
     char ip_copy[256];
     struct icmp *icp;
-    int old_ip_len;
+    int old_ip_len = 0;
     int hlen, original_hlen = 0;
     struct mbuf *m;
     struct icmp_msg *icm;
@@ -951,6 +1027,7 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
             case IP_DEST_PORT_UNREACHABLE:
                 code = (code != ~0 ? code : ICMP_UNREACH_PORT);
                 icmp_error(pData, so->so_m, ICMP_UNREACH, code, 0, "Error occurred!!!");
+                so->so_m = NULL;
                 break;
             case IP_SUCCESS: /* echo replied */
                 m = m_get(pData);
@@ -1033,8 +1110,9 @@ static void sorecvfrom_icmp_unix(PNATState pData, struct socket *so)
             code = ICMP_UNREACH_NET;
 
         DEBUG_MISC((dfd," udp icmp rx errno = %d-%s\n",
-                    errno,strerror(errno)));
-        icmp_error(pData, so->so_m, ICMP_UNREACH,code, 0,strerror(errno));
+                    errno, strerror(errno)));
+        icmp_error(pData, so->so_m, ICMP_UNREACH, code, 0, strerror(errno));
+        so->so_m = NULL;
     }
     else
     {

@@ -1,12 +1,12 @@
-/* $Id: PerformanceImpl.h $ */
+/* $Id: PerformanceImpl.h 18252 2009-03-25 12:59:12Z vboxsync $ */
 
 /** @file
  *
- * VBox Performance COM Classes declaration.
+ * VBox Performance COM class implementation.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,9 +33,16 @@
 //#endif /* VBOX_WITH_RESOURCE_USAGE_API */
 
 #include <list>
-//#include <set>
 
-#include "Performance.h"
+namespace pm
+{
+    class Metric;
+    class BaseMetric;
+    class CollectorHAL;
+}
+
+#undef min
+#undef max
 
 /* Each second we obtain new CPU load stats. */
 #define VBOX_USAGE_SAMPLER_MIN_INTERVAL 1000
@@ -92,7 +99,10 @@ private:
     struct Data
     {
         /* Constructor. */
-        Data() : period(0), count(0), min(0), max(0) { }
+        Data()
+            : period(0), count(0), min(0), max(0)
+        {
+        }
 
         Bstr             name;
         ComPtr<IUnknown> object;

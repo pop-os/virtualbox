@@ -3,7 +3,7 @@
 # libraries VBox OSE depends on.
 
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2009 Sun Microsystems, Inc.
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -49,6 +49,9 @@ which_wrapper()
 #
 OSE=1
 ODIR="`pwd`/"
+ODIR_OVERRIDE=0
+OUT_PATH=""
+OUT_PATH_OVERRIDE=0
 SETUP_WINE=
 TARGET_MACHINE=""
 TARGET_CPU=""
@@ -56,7 +59,6 @@ WITH_XPCOM=1
 WITH_PYTHON=1
 WITH_LIBIDL=1
 WITH_GSOAP=0
-WITH_QT3=1
 WITH_QT4=1
 WITH_SDL=1
 WITH_SDL_TTF=1
@@ -65,6 +67,7 @@ WITH_ALSA=1
 WITH_PULSE=1
 WITH_DBUS=1
 WITH_KMODS=1
+WITH_OPENGL=1
 WITH_HARDENING=1
 CC="gcc"
 CC32=""
@@ -85,17 +88,18 @@ LIBCRYPTO="-lcrypto"
 LIBPTHREAD="-lpthread"
 LIBCAP="-lcap"
 GSOAP=""
+GSOAP_IMPORT=""
 LIBX11="-L/usr/X11R6/lib -L/usr/X11R6/lib64 -L/usr/local/lib -lXext -lX11"
 INCX11="/usr/local/include"
 LIBXCURSOR="-lXcursor"
+LIBXMU="-lXmu"
+MESA="-lGL"
 INCZ=""
 LIBZ="-lz"
 INCPNG=""
 LIBPNG="-lpng"
 PKGCONFIG="`which_wrapper pkg-config`"
 PYTHONDIR="/usr /usr/local"
-QT3DIR="/usr/qt/3 /usr/lib/qt3 /usr/lib/qt-3.3 /usr/share/qt3"
-QT3DIR="$QT3DIR /usr/lib64/qt-3.3 /usr/X11R6 /usr/lib/qt"
 QT4DIR="/usr/lib/qt4 /usr/share/qt4 /usr/lib64/qt4 /usr"
 QT4DIR_PKGCONFIG=1
 QT4UIC3DIR="/usr/bin"
@@ -129,7 +133,7 @@ fi
 
 cleanup()
 {
-  rm -f .tmp_src.cc .tmp_src.c .tmp_out .test_execute.log
+  rm -f $ODIR.tmp_src.cc $ODIR.tmp_src.c $ODIR.tmp_out $ODIR.test_execute.log
 }
 
 fail()
@@ -214,13 +218,17 @@ test_header()
 
 
 # Compile a test
+#  $1   compile flags/libs
+#  $2   library name
+#  $3   package name
+#  $4   if this argument is 'nofatal', don't abort
 test_compile()
 {
   echo "compiling the following source file:" >> $LOG
-  cat .tmp_src.cc >> $LOG
+  cat $ODIR.tmp_src.cc >> $LOG
   echo "using the following command line:" >> $LOG
-  echo "$CXX -O -Wall -o .tmp_out .tmp_src.cc \"$1\"" >> $LOG
-  $CXX -O -Wall -o .tmp_out .tmp_src.cc $1 >> $LOG 2>&1
+  echo "$CXX -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc \"$1\"" >> $LOG
+  $CXX -g -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc $1 >> $LOG 2>&1
   if [ $? -ne 0 ]; then
     if [ -z "$4" ]; then
       echo
@@ -242,9 +250,9 @@ test_compile()
 test_execute()
 {
   echo "executing the binary" >> $LOG
-  ./.tmp_out > .test_execute.log
+  $ODIR.tmp_out > $ODIR.test_execute.log
   rc=$?
-  cat .test_execute.log | tee -a $LOG
+  cat $ODIR.test_execute.log | tee -a $LOG
   if [ $rc -ne 0 ]; then
     fail $1
     return 1
@@ -259,9 +267,9 @@ test_execute()
 test_execute_path()
 {
   echo "executing the binary (LD_LIBRARY_PATH=$1)" >> $LOG
-  LD_LIBRARY_PATH=$1 ./.tmp_out > .test_execute.log
+  LD_LIBRARY_PATH=$1 $ODIR.tmp_out > $ODIR.test_execute.log
   rc=$?
-  cat .test_execute.log | tee -a $LOG
+  cat $ODIR.test_execute.log | tee -a $LOG
   if [ $rc -ne 0 ]; then
     fail
     return 1
@@ -450,19 +458,19 @@ check_bcc()
       fail
     else
       echo "compiling the following source file:" >> $LOG
-      cat > .tmp_src.c << EOF
+      cat > $ODIR.tmp_src.c << EOF
 int foo(a)
   int a;
 {
   return 0;
 }
 EOF
-      cat .tmp_src.c >> $LOG
+      cat $ODIR.tmp_src.c >> $LOG
       bcc_path=`which_wrapper $BCC`
       bcc_dir="`dirname $bcc_path`/"
       echo "using the following command line:" >> $LOG
-      echo "$BCC -B $bcc_dir -C-c -3 -S -o .tmp_out .tmp_src.c" >> $LOG
-      $BCC -B $bcc_dir -C-c -3 -S -o .tmp_out .tmp_src.c >> $LOG 2>&1
+      echo "$BCC -B $bcc_dir -C-c -3 -S -o $ODIR.tmp_out $ODIR.tmp_src.c" >> $LOG
+      $BCC -B $bcc_dir -C-c -3 -S -o $ODIR.tmp_out $ODIR.tmp_src.c >> $LOG 2>&1
       if [ $? -ne 0 ]; then
         log_failure "not found"
         fail
@@ -606,7 +614,7 @@ check_libxml2()
         FLGXML2=`pkg-config libxml-2.0 --cflags`
         INCXML2=`strip_I "$FLGXML2"`
         LIBXML2=`pkg-config libxml-2.0 --libs`
-        cat > .tmp_src.cc << EOF
+        cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <libxml/xmlversion.h>
 extern "C" int main(void)
@@ -639,7 +647,7 @@ EOF
         FLGXML2=`xml2-config --cflags`
         INCXML2=`strip_I "$FLGXML2"`
         LIBXML2=`xml2-config --libs`
-        cat > .tmp_src.cc << EOF
+        cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <libxml/xmlversion.h>
 extern "C" int main(void)
@@ -671,8 +679,9 @@ EOF
 
 
 #
-# Check for libxslt, needed by VBoxSettings. For now we depend on 1.1.17.
-# This library is available on Ubuntu Edgy which fulfils the minimal libxml2
+# Check for libxslt, needed by VBoxSettings. For now we depend on 1.1.15,
+# as Solaris right now has no newer version and it definitely works.
+# 1.1.17 is available on Ubuntu Edgy which fulfils the minimal libxml2
 # requirement (2.6.26).
 #
 check_libxslt()
@@ -688,7 +697,7 @@ check_libxslt()
         FLGXSLT=`pkg-config libxslt --cflags`
         INCXSLT=`strip_I "$FLGXSLT"`
         LIBXSLT=`pkg-config libxslt --libs`
-        cat > .tmp_src.cc << EOF
+        cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <libxslt/xsltconfig.h>
 extern "C" int main(void)
@@ -721,7 +730,7 @@ EOF
         FLGXSLT=`xslt-config --cflags`
         INCXSLT=`strip_I "$FLGXSLT"`
         LIBXSLT=`xslt-config --libs`
-        cat > .tmp_src.cc << EOF
+        cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <libxslt/xsltconfig.h>
 extern "C" int main(void)
@@ -788,7 +797,7 @@ check_libidl()
 check_ssl()
 {
   test_header ssl
-  cat > .tmp_src.cc << EOF
+  cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <openssl/opensslv.h>
 extern "C" int main(void)
@@ -818,7 +827,7 @@ EOF
 check_pthread()
 {
   test_header pthread
-  cat > .tmp_src.cc << EOF
+  cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <pthread.h>
 extern "C" int main(void)
@@ -853,7 +862,7 @@ EOF
 check_z()
 {
   test_header zlib
-  cat > .tmp_src.cc << EOF
+  cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <zlib.h>
 extern "C" int main(void)
@@ -884,7 +893,7 @@ EOF
 check_png()
 {
   test_header libpng
-  cat > .tmp_src.cc << EOF
+  cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <png.h>
 extern "C" int main(void)
@@ -920,7 +929,7 @@ EOF
 check_pam()
 {
   test_header pam
-  cat > .tmp_src.cc << EOF
+  cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <security/pam_appl.h>
 extern "C" int main(void)
@@ -944,7 +953,7 @@ EOF
     fi
   fi
   test_header linux_pam
-  cat > .tmp_src.cc << EOF
+  cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <security/pam_appl.h>
 extern "C" int main(void)
@@ -1001,7 +1010,7 @@ check_sdl()
   fi
   [ "$OS" = "linux" -o "$OS" = "darwin" -o "$OS" = "solaris" ] && LIBSDLMAIN=""
   if [ -n "$foundsdl" ]; then
-    cat > .tmp_src.cc << EOF
+    cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <SDL.h>
 #include <SDL_main.h>
@@ -1042,7 +1051,7 @@ EOF
 check_sdl_ttf()
 {
   test_header SDL_ttf
-  cat > .tmp_src.cc << EOF
+  cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <SDL_ttf.h>
 #ifndef SDL_TTF_MAJOR_VERSION
@@ -1079,7 +1088,7 @@ EOF
 check_alsa()
 {
   test_header ALSA
-  cat > .tmp_src.cc << EOF
+  cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <alsa/asoundlib.h>
 extern "C" int main(void)
@@ -1107,7 +1116,7 @@ EOF
 check_pulse()
 {
   test_header "PulseAudio"
-  cat > .tmp_src.cc << EOF
+  cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <pulse/version.h>
 extern "C" int main(void)
@@ -1129,37 +1138,12 @@ EOF
 
 
 #
-# Check for the Xcursor library, needed by VBoxSDL and VBoxBFE
-#
-check_xcursor()
-{
-  test_header Xcursor
-  cat > .tmp_src.cc << EOF
-#include <cstdio>
-#include <X11/Xlib.h>
-#include <X11/Xcursor/Xcursor.h>
-extern "C" int main(void)
-{
-  XcursorImage *cursor = XcursorImageCreate (10, 10);
-  XcursorImageDestroy(cursor);
-  return 0;
-}
-EOF
-  [ -n "$INCX11" ] && I_INCX11=`prefix_I "$INCX11"`
-  if test_compile "$LIBX11 $LIBXCURSOR $I_INCX11" Xcursor Xcursor; then
-    log_success "found"
-    cnf_append "VBOX_XCURSOR_LIBS" "`strip_l "$LIBXCURSOR"`"
-  fi
-}
-
-
-#
 # Check for the X libraries (Xext, X11)
 #
 check_x()
 {
   test_header "X libraries"
-  cat > .tmp_src.cc << EOF
+  cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <X11/Xlib.h>
 extern "C" int main(void)
@@ -1185,77 +1169,106 @@ EOF
 
 
 #
-# Check for the Qt3 library, needed by VirtualBox
+# Check for the Xcursor library, needed by VBoxSDL and VBoxBFE
 #
-check_qt3()
+check_xcursor()
 {
-  test_header Qt3
-  cat > .tmp_src.cc << EOF
+  test_header Xcursor
+  cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
-#include <qglobal.h>
+#include <X11/Xlib.h>
+#include <X11/Xcursor/Xcursor.h>
 extern "C" int main(void)
 {
-  printf("found version %s", QT_VERSION_STR);
-#if QT_VERSION >= 0x030305
-  printf(", OK.\n");
+  XcursorImage *cursor = XcursorImageCreate (10, 10);
+  XcursorImageDestroy(cursor);
   return 0;
-#elif QT_VERSION >= 0x030300
-  printf("\n  ** WARNING: QT < 3.3.5 has known problems!\n");
-#else
-  printf(", expected version 3.3.0 or higher\n");
-  return 1;
-#endif
 }
 EOF
-  found_qt=0
-  libs="lib"
-  [ "$LIB" = "lib64" ] && libs="$libs lib64"
-  for q in $QT3DIR; do
-    for l in $libs; do
-      echo "compiling the following source file:" >> $LOG
-      cat .tmp_src.cc >> $LOG
-      echo "using the following command line:" >> $LOG
-      echo "$CXX -O -Wall -o .tmp_out .tmp_src.cc -I$q/include -L$q/$l -lqt-mt $LIBPTHREAD" >> $LOG
-      $CXX -O -Wall -o .tmp_out .tmp_src.cc -I$q/include -L$q/$l -lqt-mt $LIBPTHREAD >> $LOG 2>&1
-      if [ $? -eq 0 ]; then
-        if test_execute; then
-          cnf_append "PATH_SDK_QT3" "`cd $q ; pwd`"
-          found_qt=1
-          break
-        fi
-      fi
-    done
-    if [ $found_qt -eq 1 ]; then
-      break
-    fi
-  done
-  if [ $found_qt -ne 1 ]; then
-    echo
-    echo "  Qt3 not found at \"$QT3DIR\" or Qt3 headers not found"
-    echo "  Check the file $LOG for detailed error information."
-    fail
-    return 1
-  fi
-  test_header "Qt3 devtools"
-  if check_avail "$q/bin/moc" QT3DIR/bin; then
-    moc_ver=`$q/bin/moc 2>&1 -v|sed 's+^.*(Qt \(.*\))+\1+'`
-    if [ $? -ne 0 ]; then
-      log_failure "not found"
-      fail
-    else
-      log_success "found version $moc_ver"
-      # cnf_append "VBOX_PATH_QT3" "$q" - later/never?
-      cnf_append "PATH_SDK_QT3"      "$q"
-      cnf_append "PATH_SDK_QT3_LIB"  "$q/$l"
-      cnf_append "PATH_SDK_QT3_INC"  "$q/include"
-      cnf_append "PATH_TOOL_QT3_BIN" "$q/bin"
-    fi
+  [ -n "$INCX11" ] && I_INCX11=`prefix_I "$INCX11"`
+  if test_compile "$LIBX11 $LIBXCURSOR $I_INCX11" Xcursor Xcursor; then
+    log_success "found"
+    cnf_append "VBOX_XCURSOR_LIBS" "`strip_l "$LIBXCURSOR"`"
   fi
 }
 
 
 #
-# Check for the Qt4 library, needed by VirtualBox4
+# Check for the Xmu library, needed by OpenGL
+#
+check_xmu()
+{
+  test_header Xmu
+  cat > $ODIR.tmp_src.cc << EOF
+#include <cstdio>
+#include <X11/Xatom.h>
+#include <X11/Xlib.h>
+#include <X11/Xutil.h>
+#include <X11/Xmu/StdCmap.h>
+extern "C" int main(void)
+{
+  Display *dpy;
+  int scrn_num;
+  Screen *scrn;
+
+  dpy = XOpenDisplay(NULL);
+  if (dpy)
+  {
+    scrn_num = DefaultScreen(dpy);
+    scrn     = ScreenOfDisplay(dpy, scrn_num);
+    Status status = XmuLookupStandardColormap(dpy, RootWindowOfScreen(scrn), 0,
+                    24, XA_RGB_DEFAULT_MAP, False, True);
+    printf("Status = %x\n", status);
+  }
+  return 0;
+}
+EOF
+  [ -n "$INCX11" ] && I_INCX11=`prefix_I "$INCX11"`
+  if test_compile "$LIBX11 $LIBXMU $I_INCX11" Xmu Xmu; then
+    log_success "found"
+    cnf_append "VBOX_XMU_LIBS" "`strip_l "$LIBXMU"`"
+  fi
+}
+
+
+#
+# Check for Mesa, needed by OpenGL
+#
+check_mesa()
+{
+  test_header "Mesa / GLU"
+  cat > $ODIR.tmp_src.cc << EOF
+#include <cstdio>
+#include <X11/Xlib.h>
+#include <GL/glx.h>
+#include <GL/glu.h>
+extern "C" int main(void)
+{
+  Display *dpy;
+  int major, minor;
+
+  dpy = XOpenDisplay(NULL);
+  if (dpy)
+  {
+    if (glXQueryVersion(dpy, &major, &minor))
+    {
+      printf("found version %u.%u, OK.\n", major, minor);
+      return 0;
+    }
+  }
+  printf("found (inactive), OK.\n");
+  return 0;
+}
+EOF
+  [ -n "$INCX11" ] && I_INCX11=`prefix_I "$INCX11"`
+  if test_compile "$LIBX11 $MESA $I_INCX11" Mesa Mesa; then
+    test_execute
+  fi
+}
+
+
+#
+# Check for the Qt4 library, needed by the VirtualBox frontend
 #
 # Currently not fatal.
 #
@@ -1275,7 +1288,7 @@ check_qt4()
       LIBQT4=
       FLGQT4="-framework QtCore"
     else
-      log_failure "Qt4 framework not found (can be disable using --disable-qt4)"
+      log_failure "Qt4 framework not found (can be disabled using --disable-qt4)"
       fail
     fi
   else
@@ -1306,7 +1319,7 @@ check_qt4()
       fi
     else
       # do it the old way (e.g. user has specified QT4DIR)
-      cat > .tmp_src.cc << EOF
+      cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <QtGlobal>
 extern "C" int main(void)
@@ -1325,7 +1338,7 @@ EOF
         INCQT4="$q/include $q/include/QtCore"
         FLGQT4="-DQT_SHARED"
         I_INCQT4=`prefix_I "$INCQT4"`
-        LIBQT4="-L$q/lib -lVBoxQtCore"
+        LIBQT4="-L$q/lib -lQtCoreVBox"
         if test_compile "$LIBQT4 $LIBPTHREAD $I_INCQT4 $FLGQT4" qt4 qt4 nofatal; then
           foundqt4=2
           break;
@@ -1339,7 +1352,7 @@ EOF
     fi
   fi
   if [ -n "$foundqt4" ]; then
-    cat > .tmp_src.cc << EOF
+    cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <QtGlobal>
 extern "C" int main(void)
@@ -1402,13 +1415,14 @@ EOF
 
 
 #
-# Check whether static libstdc++ is installed
+# Check whether static libstdc++ is installed. This library is required
+# for the Linux guest additions.
 #
 check_staticlibstdcxx()
 {
   test_header "static stc++ library"
   libstdcxx=`$CXX -print-file-name=libstdc++.a`
-  cat > .tmp_src.cc << EOF
+  cat > $ODIR.tmp_src.cc << EOF
 #include <string>
 
 extern "C" int main(void)
@@ -1429,7 +1443,7 @@ EOF
 check_linux()
 {
   test_header "Linux kernel sources"
-  cat > .tmp_src.c << EOF
+  cat > $ODIR.tmp_src.c << EOF
 #include <linux/version.h>
 int printf(const char *format, ...);
 int main(void)
@@ -1447,10 +1461,10 @@ int main(void)
 }
 EOF
   echo "compiling the following source file:" >> $LOG
-  cat .tmp_src.c >> $LOG
+  cat $ODIR.tmp_src.c >> $LOG
   echo "using the following command line:" >> $LOG
-  echo "$CC -O -Wall -o .tmp_out .tmp_src.c -nostdinc -I$LINUX/include" >> $LOG
-  $CC -O -Wall -o .tmp_out .tmp_src.c -nostdinc -I$LINUX/include >> $LOG 2>&1
+  echo "$CC -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.c -nostdinc -I$LINUX/include" >> $LOG
+  $CC -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.c -nostdinc -I$LINUX/include >> $LOG 2>&1
   if [ $? -ne 0 ]; then
     echo
     echo "  Linux kernel headers not found at $LINUX"
@@ -1546,7 +1560,7 @@ check_compiler_h()
 check_libcap()
 {
   test_header "libcap library"
-  cat > .tmp_src.cc << EOF
+  cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <sys/capability.h>
 
@@ -1571,7 +1585,7 @@ EOF
 check_32bit()
 {
   test_header "32-bit support"
-  cat > .tmp_src.c << EOF
+  cat > $ODIR.tmp_src.c << EOF
 #include <stdint.h>
 int main(void)
 {
@@ -1579,10 +1593,10 @@ int main(void)
 }
 EOF
   echo "compiling the following source file:" >> $LOG
-  cat .tmp_src.c >> $LOG
+  cat $ODIR.tmp_src.c >> $LOG
   echo "using the following command line:" >> $LOG
-  echo "$CC -m32 -O -Wall -o .tmp_out .tmp_src.c" >> $LOG
-  $CC -m32 -O -Wall -o .tmp_out .tmp_src.c >> $LOG 2>&1
+  echo "$CC -m32 -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.c" >> $LOG
+  $CC -m32 -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.c >> $LOG 2>&1
   if [ $? -ne 0 ]; then
     echo
     echo "  Cannot compile 32-bit applications (missing headers and/or libraries)!"
@@ -1599,7 +1613,7 @@ EOF
 check_python()
 {
   test_header "python support"
-  cat > .tmp_src.cc << EOF
+  cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <Python.h>
 extern "C" int main(void)
@@ -1620,10 +1634,10 @@ EOF
     for d in python2.6 python2.5 python2.4 python2.3; do
       for b in lib64 lib/64 lib; do
         echo "compiling the following source file:" >> $LOG
-        cat .tmp_src.cc >> $LOG
+        cat $ODIR.tmp_src.cc >> $LOG
         echo "using the following command line:" >> $LOG
-        echo "$CXX -O -Wall -o .tmp_out .tmp_src.cc -I$p/include/$d $p/$b/lib$d.so" >> $LOG
-        $CXX -O -Wall -o .tmp_out .tmp_src.cc -I$p/include/$d $p/$b/lib$d.so >> $LOG 2>&1
+        echo "$CXX -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc -I$p/include/$d $p/$b/lib$d.so" >> $LOG
+        $CXX -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc -I$p/include/$d $p/$b/lib$d.so >> $LOG 2>&1
         if [ $? -eq 0 ]; then
           found=1
           break
@@ -1695,19 +1709,44 @@ setup_wine()
 }
 
 #
-#
+# Check for gSOAP.
 #
 check_gsoap()
 {
   test_header "GSOAP compiler"
   if [ -z "$GSOAP" ]; then
-    GSOAP="/usr/bin"
+    GSOAP="/usr"
   fi
-  if which_wrapper "$GSOAP/soapcpp2" > /dev/null; then
-    if which_wrapper "$GSOAP/wsdl2h" > /dev/null; then
-      cnf_append "VBOX_GSOAP_INSTALLED" "1"
-      cnf_append "VBOX_PATH_GSOAP"      "$GSOAP"
-      log_success "found"
+  if which_wrapper "$GSOAP/bin/soapcpp2" > /dev/null; then
+    if which_wrapper "$GSOAP/bin/wsdl2h" > /dev/null; then
+      if [ -f "$GSOAP/include/stdsoap2.h" ]; then
+        # TODO: Check for libgsoap++.a/so
+
+        if [ -z "$GSOAP_IMPORT" ]; then
+          GSOAP_IMPORT="$GSOAP/share/gsoap/import"
+          if [ ! -d "$GSOAP_IMPORT"  -a  -d "$GSOAP/include/gsoap" ]; then
+            GSOAP_IMPORT="$GSOAP/include/gsoap"
+          fi
+        fi
+        if [ -f "$GSOAP_IMPORT/stlvector.h" ]; then
+          cnf_append "VBOX_GSOAP_INSTALLED"   "1"
+          cnf_append "VBOX_PATH_GSOAP"        "$GSOAP"
+          cnf_append "VBOX_PATH_GSOAP_IMPORT" "$GSOAP_IMPORT"
+          if [ -f "$GSOAP/share/gsoap/stdsoap2.cpp" ]; then
+            cnf_append "VBOX_GSOAP_CXX_SOURCES" "$GSOAP/share/gsoap/stdsoap2.cpp"
+          else
+            cnf_append "VBOX_GSOAP_CXX_SOURCES" ""
+          fi
+          cnf_append "VBOX_GSOAP_CXX_LIBS"    "libgsoap++"
+          log_success "found"
+        else
+          log_failure "stlvector.h not found -- disabling webservice"
+          cnf_append "VBOX_WITH_WEBSERVICES" ""
+        fi
+      else
+        log_failure "stdsoap2.h not found -- disabling webservice"
+        cnf_append "VBOX_WITH_WEBSERVICES" ""
+      fi
     else
       log_failure "wsdl2h not found -- disabling webservice"
       cnf_append "VBOX_WITH_WEBSERVICES" ""
@@ -1784,6 +1823,7 @@ Configuration:
   --disable-dbus           don't use DBus and hal for hardware detection
   --disable-kmods          don't build Linux kernel modules (host and guest)
   --disable-hardening      don't be strict about /dev/vboxdrv access
+  --disable-opengl         disable OpenGL support
   --enable-webservice      enable the webservice stuff
   --build-libxml2          build libxml2 from sources
   --build-libxslt          build libxslt from sources
@@ -1796,9 +1836,12 @@ Paths:
   --with-iasl=PATH         location of the iasl compiler [$IASL]
   --with-linux=DIR         Linux kernel source directory [$LINUX]
   --with-mkisofs=PATH      location of mkisofs [$MKISOFS]
-  --with-qt-dir=DIR        directory for Qt3 headers/libraries [$QT3DIR]
-  --with-qt4-dir=DIR       directory for Qt4 headers/libraries [pkgconfig]
-  --with-gsoap-dir=PATH    directory for SOAP compiler (soapcpp2 and wsdl2h)
+  --with-qt-dir=DIR        directory for Qt4 headers/libraries [pkgconfig]
+  --with-gsoap-dir=PATH    directory for gSOAP compiler/headers/libraries
+                           (soapcpp2 and wsdl2h, soapstd2.h, libgsoap++.a/so)
+  --with-gsoap-import=PATH directory for gSOAP import files (stlvector.h)
+  --out-path=PATH          the folder to which configuration and build output
+                           should go
 
 Build type:
   -d, --build-debug        build with debugging symbols and assertions
@@ -1838,15 +1881,15 @@ for option in $*; do
         exit 1
       fi
       ;;
-    --with-qt-dir=*)
-      QT3DIR=`echo $option | cut -d'=' -f2`
-      ;;
-    --with-qt4-dir=*)
+    --with-qt-dir=*|--with-qt4-dir=*)
       QT4DIR=`echo $option | cut -d'=' -f2`
       QT4DIR_PKGCONFIG=0
       ;;
     --with-gsoap-dir=*)
       GSOAP=`echo $option | cut -d'=' -f2`
+      ;;
+    --with-gsoap-import=*)
+      GSOAP_IMPORT=`echo $option | cut -d'=' -f2`
       ;;
     --with-iasl=*)
       IASL=`echo $option | cut -d'=' -f2`
@@ -1867,11 +1910,7 @@ for option in $*; do
       WITH_SDL_TTF=0
       ;;
     --disable-qt)
-      WITH_QT3=0
       WITH_QT4=0
-      ;;
-    --disable-qt3)
-      WITH_QT3=0
       ;;
     --disable-qt4)
       WITH_QT4=0
@@ -1887,6 +1926,9 @@ for option in $*; do
       ;;
     --disable-kmods)
       WITH_KMODS=0
+      ;;
+    --disable-opengl)
+      WITH_OPENGL=0
       ;;
     --disable-hardening)
       WITH_HARDENING=0
@@ -1914,7 +1956,7 @@ for option in $*; do
       WITH_SDL=0
       WITH_SDL_TTF=0
       WITH_X11=0
-      WITH_QT3=0
+      WITH_OPENGL=0
       WITH_QT4=0
       ;;
     --ose)
@@ -1922,6 +1964,24 @@ for option in $*; do
       ;;
     --odir=*)
       ODIR="`echo $option | cut -d'=' -f2`/"
+      ODIR_OVERRIDE=1
+      ;;
+    --out-path=*)
+      out_path="`echo $option | cut -d'=' -f2`/"
+      if [ -d $out_path ]; then
+        saved_path="`pwd`"
+        cd $out_path
+        OUT_PATH="`pwd`"
+        cd $saved_path
+        OUT_PATH_OVERRIDE=1
+        if [ $ODIR_OVERRIDE -eq 0 ]; then
+          # This variable has not *yet* been overridden.  That can still happen.
+          ODIR=$OUT_PATH/
+        fi
+      else
+        echo "Error: invalid folder \"$out_path\" in option \"$option\""
+        exit 1
+      fi
       ;;
     --setup-wine)
       SETUP_WINE=1
@@ -1994,6 +2054,13 @@ check_kbuild
 echo "$PATH" | grep -q "$DEVDIR_BIN" || PATH="$PATH:$DEVDIR_BIN"
 export PATH
 
+# if we will be writing to a different out directory then set this up now
+if [ $OUT_PATH_OVERRIDE -eq 1 ]; then
+  echo "export AUTOCFG=$OUT_PATH/AutoConfig.kmk" >> $ENV
+  echo "export LOCALCFG=$OUT_PATH/LocalConfig.kmk" >> $ENV
+  echo "export PATH_OUT_BASE=$OUT_PATH" >> $ENV
+fi
+
 # some things are not available in for OSE
 if [ $OSE -ge 1 ]; then
   cnf_append "VBOX_OSE" "1"
@@ -2013,6 +2080,10 @@ if [ -n "$HEADLESS" ]; then
   cnf_append "VBOX_HEADLESS" "1"
 fi
 
+if [ $WITH_OPENGL -eq 0 ]; then
+  cnf_append "VBOX_WITH_CROGL" ""
+fi
+
 if [ "$OS" = "darwin" ]; then
   # On Darwin we want to build against Qt4 only. WITH_QT4 is enabled by
   # default so disable Qt3. --disable-qt disables both Qt3 and Qt4 GUI now,
@@ -2020,21 +2091,14 @@ if [ "$OS" = "darwin" ]; then
   # Darwin as we disable the Qt3 here anyway.
   # (Qt3 builds for Intel Macs are usually not threaded or for X11. And they
   #  don't contain our patches, which means the result isn't really usable.)
-  WITH_QT3=0
   BUILD_LIBXSLT=1
   BUILD_LIBXML2=1
 fi
 
-if [ "$OS" = "freebsd" ]; then
-  # Qt3 will be gone before the FreeBSD port is completed, so just drop it.
-  WITH_QT3=0
-fi
-
 # emit disable directives corresponding to any --disable-xxx options.
-[ $WITH_XPCOM -eq 0 ]   && cnf_append "VBOX_WITH_MAIN" ""
-[ $WITH_QT3 -eq 0   ]   && cnf_append "VBOX_WITH_QTGUI" ""
-[ $WITH_QT4 -eq 0   ]   && cnf_append "VBOX_WITH_QT4GUI" ""
-[ $WITH_SDL_TTF -eq 0 ] && cnf_append "VBOX_WITH_SECURELABEL" ""
+[ $WITH_XPCOM -eq 0 ]     && cnf_append "VBOX_WITH_MAIN" ""
+[ $WITH_QT4 -eq 0   ]     && cnf_append "VBOX_WITH_QTGUI" ""
+[ $WITH_SDL_TTF -eq 0 ]   && cnf_append "VBOX_WITH_SECURELABEL" ""
 [ $WITH_HARDENING -eq 0 ] && cnf_append "VBOX_WITHOUT_HARDENING" "1"
 [ $WITH_HARDENING -eq 2 ] && cnf_append "VBOX_WITH_HARDENING" "2"
 
@@ -2061,17 +2125,19 @@ check_gcc
 [ $WITH_SDL -eq 1 ]    && check_sdl
 [ $WITH_SDL_TTF -eq 1 -a $OSE -eq 0 ] && check_sdl_ttf
 [ $WITH_X11    -eq 1 ] && check_x
-# TODO check for Xmu (X11/Xmu/StdCmap.h)
-# TODO check for mesa-common-dev (GL/glx.h)
-# TODO check for libglu1-mesa-dev (GL/glu.h)
+# TODO check for xcomposite-dev (X11/extensions/Xcomposite.h, additions only)
+# TODO check for libxdamange-dev (X11/extensions/Xdamage.h, additions only)
 [ $WITH_X11    -eq 1 ] && check_xcursor
-[ $WITH_QT3    -eq 1 ] && check_qt3
+[ $WITH_OPENGL -eq 1 ] && check_xmu
+[ $WITH_OPENGL -eq 1 ] && check_mesa
 [ $WITH_QT4    -eq 1 ] && check_qt4
 [ $WITH_PYTHON -eq 1 -a "$OS" != "darwin" ] && check_python
 
 # Linux-specific
 if [ "$OS" = "linux" ]; then
-  check_staticlibstdcxx
+  # don't check for the static libstdc++ in the PUEL version as we build the
+  # additions at a dedicated box
+  [ $OSE -ge 1 ] && check_staticlibstdcxx
   if [ $WITH_KMODS -eq 1 ]; then
     check_linux
   else
@@ -2122,9 +2188,14 @@ echo "  source $ENV"
 echo "  kmk"
 echo ""
 if [ "$OS" = "linux" ]; then
+    if [ $OUT_PATH_OVERRIDE -eq 1 ]; then
+      vbox_out_path=$OUT_PATH
+    else
+      vbox_out_path=./out
+    fi
     echo "To compile the kernel module, do:"
     echo ""
-    echo "  cd ./out/$OS.$TARGET_MACHINE/$BUILD_TYPE/bin/src/vboxdrv"
+    echo "  cd $vbox_out_path/$OS.$TARGET_MACHINE/$BUILD_TYPE/bin/src/vboxdrv"
     echo "  make"
     echo ""
 fi

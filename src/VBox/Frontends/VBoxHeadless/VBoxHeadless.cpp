@@ -24,6 +24,7 @@
 #include <VBox/com/string.h>
 #include <VBox/com/Guid.h>
 #include <VBox/com/ErrorInfo.h>
+#include <VBox/com/errorprint2.h>
 #include <VBox/com/EventQueue.h>
 
 #include <VBox/com/VirtualBox.h>
@@ -37,11 +38,13 @@ using namespace com;
 #ifdef VBOX_WITH_VRDP
 # include <VBox/vrdpapi.h>
 #endif
+#include <iprt/ctype.h>
 #include <iprt/initterm.h>
 #include <iprt/stream.h>
 #include <iprt/ldr.h>
 #include <iprt/getopt.h>
 #include <iprt/env.h>
+#include <VBox/err.h>
 
 #ifdef VBOX_FFMPEG
 #include <cstdlib>
@@ -67,7 +70,7 @@ using namespace com;
 #define LogError(m,rc) \
     do { \
         Log (("VBoxHeadless: ERROR: " m " [rc=0x%08X]\n", rc)); \
-        RTPrintf ("%s", m); \
+        RTPrintf ("%s\n", m); \
     } while (0)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -225,6 +228,11 @@ public:
         return S_OK;
     }
 
+    STDMETHOD(OnStorageControllerChange)()
+    {
+        return S_OK;
+    }
+
     STDMETHOD(OnUSBDeviceStateChange) (IUSBDevice *aDevice, BOOL aAttached,
                                       IVirtualBoxErrorInfo *aError)
     {
@@ -302,7 +310,7 @@ static void SaveState(int sig)
         rc = progress->COMGETTER(Completed)(&fCompleted);
         if (FAILED(rc) || fCompleted)
             break;
-        LONG cPercentNow;
+        ULONG cPercentNow;
         rc = progress->COMGETTER(Percent)(&cPercentNow);
         if (FAILED(rc))
             break;
@@ -459,7 +467,7 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
         OPT_COMMENT,
     };
 
-    static const RTOPTIONDEF g_aOptions[] =
+    static const RTGETOPTDEF s_aOptions[] =
     {
         { "-startvm", 's', RTGETOPT_REQ_STRING },
         { "--startvm", 's', RTGETOPT_REQ_STRING },
@@ -501,15 +509,11 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
 
     // parse the command line
     int ch;
-    int i = 1;
-    RTOPTIONUNION ValueUnion;
-    while ((ch = RTGetOpt(argc, argv, g_aOptions, RT_ELEMENTS(g_aOptions), &i, &ValueUnion)))
+    RTGETOPTUNION ValueUnion;
+    RTGETOPTSTATE GetState;
+    RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions), 1, 0 /* fFlags */);
+    while ((ch = RTGetOpt(&GetState, &ValueUnion)))
     {
-        if (ch < 0)
-        {
-            show_usage();
-            exit(-1);
-        }
         switch(ch)
         {
             case 's':
@@ -570,8 +574,29 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
                 pszFileNameParam = ValueUnion.psz;
                 break;
 #endif /* VBOX_FFMPEG defined */
-            default: /* comment */
+            case VINF_GETOPT_NOT_OPTION:
+                RTPrintf("Invalid parameter '%s'\n\n", ValueUnion.psz);
+                show_usage();
+                return -1;
+            case OPT_COMMENT:
+                /* nothing to do */
                 break;
+            default:
+                if (ch > 0)
+                {
+                    if (RT_C_IS_PRINT(ch))
+                        RTPrintf("Invalid option -%c\n\n", ch);
+                    else
+                        RTPrintf("Invalid option case %i\n\n", ch);
+                }
+                else if (ch == VERR_GETOPT_UNKNOWN_OPTION)
+                    RTPrintf("Unknown option: %s\n\n", ValueUnion.psz);
+                else if (ValueUnion.pDef)
+                    RTPrintf("%s: %Rrs\n\n", ValueUnion.pDef->pszLong, ch);
+                else
+                    RTPrintf("Error: %Rrs\n\n", ch);
+                show_usage();
+                return -1;
         }
     }
 
@@ -616,34 +641,37 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
     HRESULT rc;
 
     rc = com::Initialize();
-    if (FAILED (rc))
+    if (FAILED(rc))
+    {
+        RTPrintf("VBoxHeadless: ERROR: failed to initialize COM!\n");
         return rc;
+    }
 
     do
     {
-        ComPtr <IVirtualBox> virtualBox;
-        ComPtr <ISession> session;
+        ComPtr<IVirtualBox> virtualBox;
+        ComPtr<ISession> session;
 
-        /* create VirtualBox object */
-        rc = virtualBox.createLocalObject (CLSID_VirtualBox);
-        if (FAILED (rc))
+        rc = virtualBox.createLocalObject(CLSID_VirtualBox);
+        if (FAILED(rc))
+            RTPrintf("VBoxHeadless: ERROR: failed to create the VirtualBox object!\n");
+        else
         {
-            com::ErrorInfo info;
-            if (info.isFullAvailable())
-            {
-                RTPrintf("Failed to create VirtualBox object! Error info: '%lS' (component %lS).\n",
-                         info.getText().raw(), info.getComponent().raw());
-            }
-            else
-                RTPrintf("Failed to create VirtualBox object! No error information available (rc = 0x%x).\n", rc);
-            break;
+            rc = session.createInprocObject(CLSID_Session);
+            if (FAILED(rc))
+                RTPrintf("VBoxHeadless: ERROR: failed to create a session object!\n");
         }
 
-        /* create Session object */
-        rc = session.createInprocObject (CLSID_Session);
-        if (FAILED (rc))
+        if (FAILED(rc))
         {
-            LogError ("Cannot create Session object!", rc);
+            com::ErrorInfo info;
+            if (!info.isFullAvailable() && !info.isBasicAvailable())
+            {
+                com::GluePrintRCMessage(rc);
+                RTPrintf("Most likely, the VirtualBox COM server is not running or failed to start.\n");
+            }
+            else
+                GluePrintErrorInfo(info);
             break;
         }
 
@@ -944,7 +972,23 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
 int main (int argc, char **argv, char **envp)
 {
     // initialize VBox Runtime
-    RTR3InitAndSUPLib();
+    int rc = RTR3InitAndSUPLib();
+    if (RT_FAILURE(rc))
+    {
+        RTPrintf("VBoxHeadless: Runtime Error:\n"
+                 " %Rrc -- %Rrf\n", rc, rc);
+        switch (rc)
+        {
+            case VERR_VM_DRIVER_NOT_INSTALLED:
+                RTPrintf("Cannot access the kernel driver. Make sure the kernel module has been \n"
+                        "loaded successfully. Aborting ...\n");
+                break;
+            default:
+                break;
+        }
+        return 1;
+    }
+
     return TrustedMain (argc, argv, envp);
 }
 #endif /* !VBOX_WITH_HARDENING */

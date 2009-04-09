@@ -1,4 +1,4 @@
-/* $Id: VMMTests.cpp $ */
+/* $Id: VMMTests.cpp 16861 2009-02-17 16:37:45Z vboxsync $ */
 /** @file
  * VMM - The Virtual Machine Monitor Core, Tests.
  */
@@ -69,6 +69,7 @@ static int vmmR3DoGCTest(PVM pVM, VMMGCOPERATION enmTestcase, unsigned uVariatio
     CPUMPushHyper(pVM, 3 * sizeof(RTRCPTR));    /* stack frame size */
     CPUMPushHyper(pVM, RCPtrEP);                /* what to call */
     CPUMSetHyperEIP(pVM, pVM->vmm.s.pfnCallTrampolineRC);
+    Assert(CPUMGetHyperCR3(pVM) && CPUMGetHyperCR3(pVM) == PGMGetHyperCR3(pVM));
     rc = SUPCallVMMR0Fast(pVM->pVMR0, VMMR0_DO_RAW_RUN, 0);
     if (RT_LIKELY(rc == VINF_SUCCESS))
         rc = pVM->vmm.s.iLastGZRc;
@@ -106,6 +107,7 @@ static int vmmR3DoTrapTest(PVM pVM, uint8_t u8Trap, unsigned uVariation, int rcE
     CPUMPushHyper(pVM, 3 * sizeof(RTRCPTR));    /* stack frame size */
     CPUMPushHyper(pVM, RCPtrEP);                /* what to call */
     CPUMSetHyperEIP(pVM, pVM->vmm.s.pfnCallTrampolineRC);
+    Assert(CPUMGetHyperCR3(pVM) && CPUMGetHyperCR3(pVM) == PGMGetHyperCR3(pVM));
     rc = SUPCallVMMR0Fast(pVM->pVMR0, VMMR0_DO_RAW_RUN, 0);
     if (RT_LIKELY(rc == VINF_SUCCESS))
         rc = pVM->vmm.s.iLastGZRc;
@@ -349,6 +351,7 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
         i = 0;
         uint64_t    tsBegin = RTTimeNanoTS();
         uint64_t    TickStart = ASMReadTSC();
+        Assert(CPUMGetHyperCR3(pVM) && CPUMGetHyperCR3(pVM) == PGMGetHyperCR3(pVM));
         do
         {
             rc = SUPCallVMMR0Fast(pVM->pVMR0, VMMR0_DO_RAW_RUN, 0);
@@ -392,6 +395,7 @@ VMMR3DECL(int) VMMDoTest(PVM pVM)
         uint64_t TickMin = ~0;
         tsBegin = RTTimeNanoTS();
         TickStart = ASMReadTSC();
+        Assert(CPUMGetHyperCR3(pVM) && CPUMGetHyperCR3(pVM) == PGMGetHyperCR3(pVM));
         for (i = 0; i < 1000000; i++)
         {
             CPUMHyperSetCtxCore(pVM, NULL);
@@ -477,7 +481,13 @@ VMMR3DECL(int) VMMDoHwAccmTest(PVM pVM)
     VM_FF_CLEAR(pVM, VM_FF_SELM_SYNC_TSS);
 
     /* Enable mapping of the hypervisor into the shadow page table. */
-    PGMR3ChangeShwPDMappings(pVM, true);
+    uint32_t cb;
+    rc = PGMR3MappingsSize(pVM, &cb);
+    AssertRCReturn(rc, rc);
+
+    /* Pretend the mappings are now fixed; to force a refresh of the reserved PDEs. */
+    rc = PGMR3MappingsFix(pVM, MM_HYPER_AREA_ADDRESS, cb);
+    AssertRCReturn(rc, rc);
 
     CPUMQueryHyperCtxPtr(pVM, &pHyperCtx);
 

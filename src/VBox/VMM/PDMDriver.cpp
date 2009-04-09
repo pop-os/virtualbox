@@ -1,4 +1,4 @@
-/* $Id: PDMDriver.cpp $ */
+/* $Id: PDMDriver.cpp 18645 2009-04-02 15:38:31Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, Driver parts.
  */
@@ -789,22 +789,22 @@ static DECLCALLBACK(int) pdmR3DrvHlp_VMSetErrorV(PPDMDRVINS pDrvIns, int rc, RT_
 
 
 /** @copydoc PDMDRVHLP::pfnVMSetRuntimeError */
-static DECLCALLBACK(int) pdmR3DrvHlp_VMSetRuntimeError(PPDMDRVINS pDrvIns, bool fFatal, const char *pszErrorID, const char *pszFormat, ...)
+static DECLCALLBACK(int) pdmR3DrvHlp_VMSetRuntimeError(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, ...)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
     va_list args;
     va_start(args, pszFormat);
-    int rc = VMSetRuntimeErrorV(pDrvIns->Internal.s.pVM, fFatal, pszErrorID, pszFormat, args);
+    int rc = VMSetRuntimeErrorV(pDrvIns->Internal.s.pVM, fFlags, pszErrorId, pszFormat, args);
     va_end(args);
     return rc;
 }
 
 
 /** @copydoc PDMDRVHLP::pfnVMSetRuntimeErrorV */
-static DECLCALLBACK(int) pdmR3DrvHlp_VMSetRuntimeErrorV(PPDMDRVINS pDrvIns, bool fFatal, const char *pszErrorID, const char *pszFormat, va_list va)
+static DECLCALLBACK(int) pdmR3DrvHlp_VMSetRuntimeErrorV(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
-    int rc = VMSetRuntimeErrorV(pDrvIns->Internal.s.pVM, fFatal, pszErrorID, pszFormat, va);
+    int rc = VMSetRuntimeErrorV(pDrvIns->Internal.s.pVM, fFlags, pszErrorId, pszFormat, va);
     return rc;
 }
 
@@ -828,28 +828,8 @@ static DECLCALLBACK(int) pdmR3DrvHlp_PDMQueueCreate(PPDMDRVINS pDrvIns, RTUINT c
 static DECLCALLBACK(int) pdmR3DrvHlp_PDMPollerRegister(PPDMDRVINS pDrvIns, PFNPDMDRVPOLLER pfnPoller)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
-    LogFlow(("pdmR3DrvHlp_PDMPollerRegister: caller='%s'/%d: pfnPoller=%p\n",
-             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, pfnPoller));
-    VM_ASSERT_EMT(pDrvIns->Internal.s.pVM);
-
-    int rc = VINF_SUCCESS;
-    PVM pVM = pDrvIns->Internal.s.pVM;
-    if (pVM->pdm.s.cPollers < RT_ELEMENTS(pVM->pdm.s.apfnPollers))
-    {
-        pVM->pdm.s.apfnPollers[pVM->pdm.s.cPollers] = pfnPoller;
-        pVM->pdm.s.aDrvInsPollers[pVM->pdm.s.cPollers] = pDrvIns;
-        pVM->pdm.s.cPollers++;
-        if (pVM->pdm.s.cPollers == 1)
-            TMTimerSetMillies(pVM->pdm.s.pTimerPollers, 5);
-    }
-    else
-    {
-        AssertMsgFailed(("Too many pollers!\n"));
-        rc = VERR_INTERNAL_ERROR;
-    }
-
-    LogFlow(("pdmR3DrvHlp_PDMPollerRegister: caller='%s'/%d: returns %Rrc\n", pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, rc));
-    return rc;
+    AssertLogRelMsgFailedReturn(("pdmR3DrvHlp_PDMPollerRegister: caller='%s'/%d: pfnPoller=%p -> VERR_NOT_SUPPORTED\n", pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, pfnPoller),
+                                VERR_NOT_SUPPORTED);
 }
 
 

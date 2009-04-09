@@ -1,4 +1,4 @@
-/* $Id: DevPCNet.cpp $ */
+/* $Id: DevPCNet.cpp 18739 2009-04-06 09:28:14Z vboxsync $ */
 /** @file
  * DevPCNet - AMD PCnet-PCI II / PCnet-FAST III (Am79C970A / Am79C973) Ethernet Controller Emulation.
  *
@@ -803,6 +803,8 @@ DECLINLINE(int) pcnetRmdLoad(PCNetState *pThis, RMD *rmd, RTGCPHYS32 addr, bool 
     return !!rmd->rmd1.own;
 }
 
+#ifdef IN_RING3
+
 /**
  * Store receive message descriptor and hand it over to the host (the VM guest).
  * Make sure that all data are transmitted before we clear the own flag.
@@ -851,6 +853,29 @@ DECLINLINE(void) pcnetRmdStorePassHost(PCNetState *pThis, RMD *rmd, RTGCPHYS32 a
         PDMDevHlpPhysWrite(pDevIns, addr+7, (uint8_t*)rda + 7, 1);
     }
 }
+
+/**
+ * Read+Write a TX/RX descriptor to prevent PDMDevHlpPhysWrite() allocating
+ * pages later when we shouldn't schedule to EMT. Temporarily hack.
+ */
+static void pcnetDescTouch(PCNetState *pThis, RTGCPHYS32 addr)
+{
+    PPDMDEVINS pDevIns = PCNETSTATE_2_DEVINS(pThis);
+
+    if (!pThis->fPrivIfEnabled)
+    {
+        uint8_t aBuf[16];
+        size_t cbDesc;
+        if (RT_UNLIKELY(BCR_SWSTYLE(pThis) == 0))
+            cbDesc = 8;
+        else
+            cbDesc = 16;
+        PDMDevHlpPhysRead(pDevIns, addr, aBuf, cbDesc);
+        PDMDevHlpPhysWrite(pDevIns, addr, aBuf, cbDesc);
+    }
+}
+
+#endif /* IN_RING3 */
 
 /** Checks if it's a bad (as in invalid) RMD.*/
 #define IS_RMD_BAD(rmd)      ((rmd).rmd1.ones != 15 || (rmd).rmd2.zeros != 0)
@@ -1544,10 +1569,42 @@ static void pcnetInit(PCNetState *pThis)
     for (int i = CSR_RCVRL(pThis); i >= 1; i--)
     {
         RMD        rmd;
-        RTGCPHYS32 addr = pcnetRdraAddr(pThis, i);
+        RTGCPHYS32 rdaddr = PHYSADDR(pThis, pcnetRdraAddr(pThis, i));
+
+        pcnetDescTouch(pThis, rdaddr);
         /* At this time it is not guaranteed that the buffers are already initialized. */
-        if (pcnetRmdLoad(pThis, &rmd, PHYSADDR(pThis, addr), false))
-            cbRxBuffers += 4096-rmd.rmd1.bcnt;
+        if (pcnetRmdLoad(pThis, &rmd, rdaddr, false))
+        {
+            /* Hack: Make sure that all RX buffers are touched when the
+             * device is initialized. */
+            static char aBuf[4096];
+            RTGCPHYS32 rbadr = PHYSADDR(pThis, rmd.rmd0.rbadr);
+            uint32_t cbBuf = 4096U-rmd.rmd1.bcnt;
+            /* don't change the content */
+            PDMDevHlpPhysRead(pDevIns, rbadr, aBuf, RT_MIN(sizeof(aBuf), cbBuf));
+            PDMDevHlpPhysWrite(pDevIns, rbadr, aBuf, RT_MIN(sizeof(aBuf), cbBuf));
+            cbRxBuffers += cbBuf;
+        }
+    }
+
+    for (int i = CSR_XMTRL(pThis); i >= 1; i--)
+    {
+        TMD        tmd;
+        RTGCPHYS32 tdaddr = PHYSADDR(pThis, pcnetTdraAddr(pThis, i));
+
+        pcnetDescTouch(pThis, tdaddr);
+        if (pcnetTmdLoad(pThis, &tmd, tdaddr, false))
+        {
+            /* Hack: Make sure that all TX buffers are touched when the
+             * device is initialized. Of course it is unlikely that the
+             * TX buffers are already owned by the device right now. */
+            static char aBuf[4096];
+            uint32_t cbBuf = 4096U-tmd.tmd1.bcnt;
+            RTGCPHYS32 tbadr = PHYSADDR(pThis, tmd.tmd0.tbadr);
+            /* don't change the content */
+            PDMDevHlpPhysRead(pDevIns, tbadr, aBuf, RT_MIN(sizeof(aBuf), cbBuf));
+            PDMDevHlpPhysWrite(pDevIns, tbadr, aBuf, RT_MIN(sizeof(aBuf), cbBuf));
+        }
     }
 
     /*
@@ -1857,7 +1914,7 @@ static void pcnetReceiveNoSync(PCNetState *pThis, const uint8_t *buf, size_t siz
                 /* FCS at end of packet */
             }
             size += 4;
-            pkt_size = size;
+            pkt_size = (int)size;                           Assert((size_t)pkt_size == size);
 
 #ifdef PCNET_DEBUG_MATCH
             PRINT_PKTHDR(buf);
@@ -4957,11 +5014,11 @@ static DECLCALLBACK(int) pcnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
         if (rc == VINF_NAT_DNS)
         {
 #ifdef RT_OS_LINUX
-            VMSetRuntimeError(PDMDevHlpGetVM(pDevIns), false, "NoDNSforNAT",
-                              N_("A Domain Name Server (DNS) for NAT networking could not be determined. Please check your /etc/resolv.conf for <tt>nameserver</tt> entries. Either add one manually (<i>man resolv.conf</i>) or ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
+            PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "NoDNSforNAT",
+                                       N_("A Domain Name Server (DNS) for NAT networking could not be determined. Please check your /etc/resolv.conf for <tt>nameserver</tt> entries. Either add one manually (<i>man resolv.conf</i>) or ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
 #else
-            VMSetRuntimeError(PDMDevHlpGetVM(pDevIns), false, "NoDNSforNAT",
-                              N_("A Domain Name Server (DNS) for NAT networking could not be determined. Ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
+            PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "NoDNSforNAT",
+                                       N_("A Domain Name Server (DNS) for NAT networking could not be determined. Ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
 #endif
         }
         pThis->pDrv = (PPDMINETWORKCONNECTOR)

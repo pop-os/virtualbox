@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 18795 2009-04-07 01:49:55Z vboxsync $
 ## @file
 # Top-level makefile for the devices, drivers and services.
 #
@@ -35,6 +35,9 @@ include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
 include $(PATH_SUB_CURRENT)/Storage/testcase/Makefile.kmk
 ifndef VBOX_OSE
  include $(PATH_SUB_CURRENT)/Storage/VBoxHDDFormats/Makefile.kmk
+endif
+ifdef VBOX_WITH_EFI
+ include $(PATH_SUB_CURRENT)/EFI/Makefile.kmk
 endif
 ifdef VBOX_WITH_INTEL_PXE
  include $(PATH_SUB_CURRENT)/PC/PXE/Makefile.kmk
@@ -77,7 +80,7 @@ else
  VBoxDDU_SDKS.win        = WINPSDK
 endif
 VBoxDDU_SOURCES          = \
-	Storage/VBoxHDD-new.cpp \
+	Storage/VBoxHDD.cpp \
 	Storage/VDIHDDCore.cpp \
 	Storage/VHDHDDCore.cpp \
 	Storage/VmdkHDDCore.cpp \
@@ -136,15 +139,15 @@ ifdef VBOX_WITH_AHCI
 endif
 ifdef VBOX_WITH_ISCSI
  VBoxDD_DEFS           += VBOX_WITH_ISCSI
+ ifdef VBOX_WITH_INIP
+  VBoxDD_DEFS          += VBOX_WITH_INIP
+ endif
 endif
 ifdef VBOX_WITH_E1000
  VBoxDD_DEFS           += VBOX_WITH_E1000
 endif
 ifdef VBOX_WITH_BUSLOGIC
  VBoxDD_DEFS           += VBOX_WITH_BUSLOGIC
-endif
-ifndef VBOX_OSE
- VBoxDD_DEFS           += VBOX_WITH_INIP
 endif
 ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
  VBoxDD_DEFS           += VBOX_WITH_PDM_ASYNC_COMPLETION
@@ -154,6 +157,18 @@ ifdef VBOX_WITH_SCSI
 endif
 ifdef VBOX_WITH_LSILOGIC
  VBoxDD_DEFS           += VBOX_WITH_LSILOGIC
+endif
+ifdef VBOX_WITH_HPET
+ VBoxDD_DEFS           += VBOX_WITH_HPET
+endif
+ifdef VBOX_WITH_SMC
+ VBoxDD_DEFS           += VBOX_WITH_SMC
+endif
+ifdef VBOX_WITH_LPC
+ VBoxDD_DEFS           += VBOX_WITH_LPC
+endif
+ifdef VBOX_WITH_EFI
+ VBoxDD_DEFS           += VBOX_WITH_EFI
 endif
 ifdef VBOX_WITH_FAULT_INJECTION
  VBoxDD_DEFS           += VBOX_WITH_FAULT_INJECTION
@@ -239,7 +254,7 @@ VBoxDD2_LDFLAGS.l4      = -Wl,--no-undefined
 #
 DevicesR3_TEMPLATE      = VBOXR3
 DevicesR3_SDKS.win      = WINPSDK W2K3DDK
-DevicesR3_DEFS.darwin   = VBOX_WITH_2X_4GB_ADDR_SPACE
+DevicesR3_DEFS.darwin.x86 = VBOX_WITH_2X_4GB_ADDR_SPACE
 DevicesR3_DEFS         += VBOX_HGCM_HOST_CODE \
 			  $(if $(VBOX_WITH_VMI),VBOX_WITH_VMI,)
 DevicesR3_INCS         := \
@@ -273,7 +288,7 @@ ifdef VBOX_WITH_E1000
 	Network/DevEEPROM.cpp
 endif
 
-ifndef VBOX_OSE
+ifdef VBOX_WITH_INIP
 DevicesR3_INCS         += \
 	Network/lwip/src/include \
 	Network/lwip/src/include/ipv4 \
@@ -337,6 +352,20 @@ DevicesR3_DEFS          += VBOX_WITH_SMC
 DevicesR3_SOURCES       += PC/DevSMC.cpp
 endif
 
+ifdef VBOX_WITH_LPC
+DevicesR3_DEFS          += VBOX_WITH_LPC
+DevicesR3_SOURCES       += PC/DevLPC.cpp
+endif
+
+ifdef VBOX_WITH_EFI
+DevicesR3_DEFS            += VBOX_WITH_EFI
+DevicesR3_SOURCES         += EFI/DevEFI.cpp
+VBoxDD_LIBS               += $(PATH_LIB)/EfiThunk$(VBOX_SUFF_LIB)
+EFI/DevEFI.cpp_INCS	  += EFI/tools/include
+EFI/DevEFI.cpp_INCS.x86	  += EFI/tools/include/Ia32
+EFI/DevEFI.cpp_INCS.amd64 += EFI/tools/include/X64
+endif
+
 ifdef VBOX_WITH_USB
 DevicesR3_DEFS         += VBOX_WITH_USB IN_USB_R3
 
@@ -364,6 +393,9 @@ $$(PATH_DevicesR3)/vboxaml.hex: $(PATH_SUB_CURRENT)/PC/vbox.dsl | $$(dir $$@)
 	$(call MSG_TOOL,iasl,DevicesR3,$<,$@)
 	$(QUIET)$(VBOX_IASLCMD) -tc -vs -p $@ $<
 
+vboxaml.hex:: $$(PATH_DevicesR3)/vboxaml.hex
+
+
 # For finding PCIInternal.h from VBox/pci.h.
 Bus/DevPCI.cpp_INCS     = Bus
 
@@ -378,7 +410,9 @@ Graphics/DevVGA.cpp_DEPS = $(PATH_VgaBiosBin)/vbetables.h
 #
 VBoxDDGC_TEMPLATE       = VBOXGC
 VBoxDDGC_SYSSUFF        = .gc
-VBoxDDGC_DEFS.darwin    = VBOX_WITH_2X_4GB_ADDR_SPACE
+ifeq ($(KBUILD_TARGET_ARCH),x86)
+ VBoxDDGC_DEFS.darwin   = VBOX_WITH_2X_4GB_ADDR_SPACE
+endif
 VBoxDDGC_DEFS           =
 VBoxDDGC_INCS          := \
 	$(PATH_SUB_CURRENT)
@@ -454,7 +488,7 @@ endif
 #
 VBoxDDR0_TEMPLATE       = VBOXR0
 VBoxDDR0_SYSSUFF        = .r0
-VBoxDDR0_DEFS.darwin    = VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0 VBOX_WITH_2X_4GB_ADDR_SPACE
+VBoxDDR0_DEFS.darwin.x86= VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0 VBOX_WITH_2X_4GB_ADDR_SPACE
 VBoxDDR0_DEFS           = IN_RT_R0
 VBoxDDR0_INCS          := \
 	$(PATH_SUB_CURRENT)
@@ -623,15 +657,27 @@ VBOX_SLIRP_SOURCES = \
 	Network/slirp/tftp.c \
 	Network/slirp/udp.c
 
+VBOX_WITH_SLIRP_DNS_PROXY=1 
+
+ifdef VBOX_WITH_SLIRP_DNS_PROXY
+VBOX_SLIRP_SOURCES += \
+	Network/slirp/dnsproxy/hash.c \
+	Network/slirp/dnsproxy/dnsproxy.c
+endif
+
 # some day will be deleted
 VBOX_WITH_SIMPLIFIED_SLIRP_SYNC=1
+VBOX_WITH_MULTI_DNS=1
 
 Drivers_SOURCES += $(VBOX_SLIRP_SOURCES)
 define def_vbox_slirp_cflags
   $(file)_DEFS += \
       $(if $(VBOX_WITH_SIMPLIFIED_SLIRP_SYNC), VBOX_WITH_SIMPLIFIED_SLIRP_SYNC) \
       $(if $(VBOX_WITH_SLIRP_MEMORY_CHECK),RTMEM_WRAP_TO_EF_APIS,) \
-      $(if $(VBOX_WITH_DEBUG_NAT_SOCKETS),VBOX_WITH_DEBUG_NAT_SOCKETS,)
+      $(if $(VBOX_WITH_DEBUG_NAT_SOCKETS),VBOX_WITH_DEBUG_NAT_SOCKETS,)	\
+      $(if $(VBOX_WITH_MULTI_DNS),VBOX_WITH_MULTI_DNS,)	\
+      $(if $(VBOX_WITH_SLIRP_DNS_PROXY),VBOX_WITH_SLIRP_DNS_PROXY,)	\
+      $(if $(VBOX_WITH_SLIRP_MT),VBOX_WITH_SLIRP_MT,)
  ifeq ($(KBUILD_TARGET),win)
   $(file)_CFLAGS = -wd4018
  else
@@ -672,6 +718,7 @@ Drivers_SOURCES       = \
 	Storage/DrvVD.cpp \
 	PC/DrvACPI.cpp \
 	Network/DrvIntNet.cpp \
+	Network/DHCPServerRunner.cpp \
 	Network/DrvNetSniffer.cpp \
 	Network/Pcap.cpp \
 	Audio/audio.c \
@@ -680,7 +727,6 @@ Drivers_SOURCES       = \
 	Audio/audiosniffer.c
 
 Drivers_SOURCES.l4    = \
-	Network/DrvTAP.cpp \
 	Audio/ossaudio.c
 endif # l4
 
@@ -694,8 +740,6 @@ ifeq ($(KBUILD_TARGET),os2)
 Drivers_SOURCES      := $(filter-out \
 	Storage/DrvHost% \
 	, $(Drivers_SOURCES))
-Drivers_SOURCES.os2   = \
-	Network/DrvTAPOs2.cpp
 endif
 
 ifeq ($(KBUILD_TARGET),solaris)
@@ -704,7 +748,6 @@ Drivers_SOURCES      := $(filter-out \
 	, $(Drivers_SOURCES))
 Drivers_SOURCES.solaris = \
 	Audio/solaudio.c \
-	$(if $(VBOX_SOLARIS_10),,Network/DrvTAP.cpp) \
 	Storage/DrvHostBase.cpp \
 	Storage/DrvHostDVD.cpp \
 	Serial/DrvHostSerial.cpp
@@ -718,7 +761,6 @@ Drivers_SOURCES.solaris = \
 endif
 
 Drivers_SOURCES.win   = \
-	Network/DrvTAPWin.cpp \
 	Audio/dsoundaudio.c \
 	Serial/DrvHostSerial.cpp
 
@@ -726,7 +768,6 @@ if defined(VBOX_WITH_NETFLT)
  if defined(VBOX_NETFLT_ONDEMAND_BIND)
   Drivers_DEFS.win     += VBOX_NETFLT_ONDEMAND_BIND
  endif
- Drivers_SOURCES.win   += Network/win/DrvIntNet-win.cpp
 endif
 
 # -- features --

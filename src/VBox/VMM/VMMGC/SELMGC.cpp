@@ -1,4 +1,4 @@
-/* $Id: SELMGC.cpp $ */
+/* $Id: SELMGC.cpp 17144 2009-02-25 18:28:36Z vboxsync $ */
 /** @file
  * SELM - The Selector Manager, Guest Context.
  */
@@ -133,20 +133,13 @@ static int selmGCSyncGDTEntry(PVM pVM, PCPUMCTXCORE pRegFrame, unsigned iGDTEntr
     *pShadowDescr = Desc;
 
     /* Check if we change the LDT selector */
-    if (Sel == CPUMGetGuestLDTR(pVM))
+    if (Sel == CPUMGetGuestLDTR(pVM)) /** @todo this isn't correct in two(+) ways! 1. It shouldn't be done until the LDTR is reloaded. 2. It caused the next instruction to be emulated.  */
     {
         VM_FF_SET(pVM, VM_FF_SELM_SYNC_LDT);
         return VINF_EM_RAW_EMULATE_INSTR_LDT_FAULT;
     }
 
-    /* Or the TR selector */
-    if (Sel == CPUMGetGuestTR(pVM))
-    {
-        VM_FF_SET(pVM, VM_FF_SELM_SYNC_TSS);
-        return VINF_EM_RAW_EMULATE_INSTR_TSS_FAULT;
-    }
-
-#ifdef VBOX_STRICT
+#ifdef LOG_ENABLED
     if (Sel == (pRegFrame->cs & X86_SEL_MASK))
         Log(("GDT write to selector in CS register %04X\n", pRegFrame->cs));
     else if (Sel == (pRegFrame->ds & X86_SEL_MASK))
@@ -261,6 +254,31 @@ VMMRCDECL(int) selmRCGuestLDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
 
 
 /**
+ * Read wrapper used by selmRCGuestTSSWriteHandler.
+ * @returns VBox status code (appropriate for trap handling and GC return).
+ * @param   pVM         The VM handle
+ * @param   pvDst       Where to put the bits we read.
+ * @param   pvSrc       Guest address to read from.
+ * @param   cb          The number of bytes to read.
+ */
+DECLINLINE(int) selmRCReadTssBits(PVM pVM, void *pvDst, void const *pvSrc, size_t cb)
+{
+    int rc = MMGCRamRead(pVM, pvDst, (void *)pvSrc, cb);
+    if (RT_SUCCESS(rc))
+        return VINF_SUCCESS;
+
+    /** @todo use different fallback?    */
+    rc = PGMPrefetchPage(pVM, (uintptr_t)pvSrc);
+    AssertMsg(rc == VINF_SUCCESS, ("PGMPrefetchPage %p failed with %Rrc\n", &pvSrc, rc));
+    if (rc == VINF_SUCCESS)
+    {
+        rc = MMGCRamRead(pVM, pvDst, (void *)pvSrc, cb);
+        AssertMsg(rc == VINF_SUCCESS, ("MMGCRamRead %p failed with %Rrc\n", &pvSrc, rc));
+    }
+    return rc;
+}
+
+/**
  * \#PF Virtual Handler callback for Guest write access to the Guest's own current TSS.
  *
  * @returns VBox status code (appropriate for trap handling and GC return).
@@ -277,57 +295,108 @@ VMMRCDECL(int) selmRCGuestTSSWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
     LogFlow(("selmRCGuestTSSWriteHandler errcode=%x fault=%RGv offRange=%08x\n", (uint32_t)uErrorCode, pvFault, offRange));
 
     /*
-     * Try emulate the access and compare the R0 ss:esp with the shadow tss values.
-     *
-     * Note, that it's safe to access the TSS after a successfull instruction emulation,
-     * even if the stuff that was changed wasn't the ss0 or esp0 bits. The CPU insists
-     * on the TSS being all one physical page, so ASSUMING that we're not trapping
-     * I/O map accesses this is safe.
+     * Try emulate the access.
      */
     uint32_t cb;
     int rc = EMInterpretInstruction(pVM, pRegFrame, (RTGCPTR)(RTRCUINTPTR)pvFault, &cb);
     if (RT_SUCCESS(rc) && cb)
     {
-        PCVBOXTSS pGuestTSS = (PVBOXTSS)pVM->selm.s.GCPtrGuestTss;
-        if (    pGuestTSS->esp0 !=  pVM->selm.s.Tss.esp1
-            ||  pGuestTSS->ss0  != (pVM->selm.s.Tss.ss1 & ~1)) /* undo raw-r0 */
+        rc = VINF_SUCCESS;
+
+        /*
+         * If it's on the same page as the esp0 and ss0 fields or actually one of them,
+         * then check if any of these has changed.
+         */
+        PCVBOXTSS pGuestTss = (PVBOXTSS)pVM->selm.s.GCPtrGuestTss;
+        if (    PAGE_ADDRESS(&pGuestTss->esp0) == PAGE_ADDRESS(&pGuestTss->padding_ss0)
+            &&  PAGE_ADDRESS(&pGuestTss->esp0) == PAGE_ADDRESS((uint8_t *)pGuestTss + offRange)
+            &&  (    pGuestTss->esp0 !=  pVM->selm.s.Tss.esp1
+                 ||  pGuestTss->ss0  != (pVM->selm.s.Tss.ss1 & ~1)) /* undo raw-r0 */
+           )
         {
             Log(("selmRCGuestTSSWriteHandler: R0 stack: %RTsel:%RGv -> %RTsel:%RGv\n",
-                 (RTSEL)(pVM->selm.s.Tss.ss1 & ~1), (RTGCPTR)pVM->selm.s.Tss.esp1, (RTSEL)pGuestTSS->ss0, (RTGCPTR)pGuestTSS->esp0));
-            pVM->selm.s.Tss.esp1 = pGuestTSS->esp0;
-            pVM->selm.s.Tss.ss1 = pGuestTSS->ss0 | 1;
+                 (RTSEL)(pVM->selm.s.Tss.ss1 & ~1), (RTGCPTR)pVM->selm.s.Tss.esp1, (RTSEL)pGuestTss->ss0, (RTGCPTR)pGuestTss->esp0));
+            pVM->selm.s.Tss.esp1 = pGuestTss->esp0;
+            pVM->selm.s.Tss.ss1  = pGuestTss->ss0 | 1;
             STAM_COUNTER_INC(&pVM->selm.s.StatRCWriteGuestTSSHandledChanged);
         }
-        if (CPUMGetGuestCR4(pVM) & X86_CR4_VME)
+        /* Handle misaligned TSS in a safe manner (just in case). */
+        else if (   offRange >= RT_UOFFSETOF(VBOXTSS, esp0)
+                 && offRange < RT_UOFFSETOF(VBOXTSS, padding_ss0))
         {
-            uint32_t offIntRedirBitmap = pGuestTSS->offIoBitmap - sizeof(pVM->selm.s.Tss.IntRedirBitmap);
-
-            /** @todo not sure how the partial case is handled; probably not allowed */
-            if (   offIntRedirBitmap <= offRange
-                && offIntRedirBitmap + sizeof(pVM->selm.s.Tss.IntRedirBitmap) >= offRange + cb
-                && offIntRedirBitmap + sizeof(pVM->selm.s.Tss.IntRedirBitmap) <= pVM->selm.s.cbGuestTss)
+            struct
             {
-                Log(("offIoBitmap=%x offIntRedirBitmap=%x cbTSS=%x\n", pGuestTSS->offIoBitmap, offIntRedirBitmap, pVM->selm.s.cbGuestTss));
-                /** @todo only update the changed part. */
-                for (uint32_t i = 0; i < sizeof(pVM->selm.s.Tss.IntRedirBitmap) / 8;i++)
-                {
-                    rc = MMGCRamRead(pVM, &pVM->selm.s.Tss.IntRedirBitmap[i * 8], (uint8_t *)pGuestTSS + offIntRedirBitmap + i * 8, 8);
-                    if (RT_FAILURE(rc))
-                    {
-                        /* Shadow page table might be out of sync */
-                        rc = PGMPrefetchPage(pVM, (RTGCPTR)(RTRCUINTPTR)((uint8_t *)pGuestTSS + offIntRedirBitmap + i*8));
-                        if (RT_FAILURE(rc))
-                        {
-                            AssertMsg(rc == VINF_SUCCESS, ("PGMPrefetchPage %RGv failed with %Rrc\n", (RTGCPTR)((uintptr_t)pGuestTSS + offIntRedirBitmap + i*8), rc));
-                            break;
-                        }
-                        rc = MMGCRamRead(pVM, &pVM->selm.s.Tss.IntRedirBitmap[i * 8], (uint8_t *)pGuestTSS + offIntRedirBitmap + i * 8, 8);
-                    }
-                    AssertMsg(rc == VINF_SUCCESS, ("MMGCRamRead %RGv failed with %Rrc\n", (RTGCPTR)((uintptr_t)pGuestTSS + offIntRedirBitmap + i * 8), rc));
-                }
-                STAM_COUNTER_INC(&pVM->selm.s.StatRCWriteGuestTSSRedir);
+                uint32_t esp0;
+                uint16_t ss0;
+                uint16_t padding_ss0;
+            } s;
+            AssertCompileSize(s, 8);
+            rc = selmRCReadTssBits(pVM, &s, &pGuestTss->esp0, sizeof(s));
+            if (    rc == VINF_SUCCESS
+                &&  (    s.esp0 !=  pVM->selm.s.Tss.esp1
+                     ||  s.ss0  != (pVM->selm.s.Tss.ss1 & ~1)) /* undo raw-r0 */
+               )
+            {
+                Log(("selmRCGuestTSSWriteHandler: R0 stack: %RTsel:%RGv -> %RTsel:%RGv [x-page]\n",
+                     (RTSEL)(pVM->selm.s.Tss.ss1 & ~1), (RTGCPTR)pVM->selm.s.Tss.esp1, (RTSEL)s.ss0, (RTGCPTR)s.esp0));
+                pVM->selm.s.Tss.esp1 = s.esp0;
+                pVM->selm.s.Tss.ss1  = s.ss0 | 1;
+                STAM_COUNTER_INC(&pVM->selm.s.StatRCWriteGuestTSSHandledChanged);
             }
         }
+
+        /*
+         * If VME is enabled we need to check if the interrupt redirection bitmap
+         * needs updating.
+         */
+        if (    offRange >= RT_UOFFSETOF(VBOXTSS, offIoBitmap)
+            &&  (CPUMGetGuestCR4(pVM) & X86_CR4_VME))
+        {
+            if (offRange - RT_UOFFSETOF(VBOXTSS, offIoBitmap) < sizeof(pGuestTss->offIoBitmap))
+            {
+                uint16_t offIoBitmap = pGuestTss->offIoBitmap;
+                if (offIoBitmap != pVM->selm.s.offGuestIoBitmap)
+                {
+                    Log(("TSS offIoBitmap changed: old=%#x new=%#x -> resync in ring-3\n", pVM->selm.s.offGuestIoBitmap, offIoBitmap));
+                    VM_FF_SET(pVM, VM_FF_SELM_SYNC_TSS);
+                    VM_FF_SET(pVM, VM_FF_TO_R3);
+                }
+                else
+                    Log(("TSS offIoBitmap: old=%#x new=%#x [unchanged]\n", pVM->selm.s.offGuestIoBitmap, offIoBitmap));
+            }
+            else
+            {
+                /** @todo not sure how the partial case is handled; probably not allowed */
+                uint32_t offIntRedirBitmap = pVM->selm.s.offGuestIoBitmap - sizeof(pVM->selm.s.Tss.IntRedirBitmap);
+                if (   offIntRedirBitmap <= offRange
+                    && offIntRedirBitmap + sizeof(pVM->selm.s.Tss.IntRedirBitmap) >= offRange + cb
+                    && offIntRedirBitmap + sizeof(pVM->selm.s.Tss.IntRedirBitmap) <= pVM->selm.s.cbGuestTss)
+                {
+                    Log(("TSS IntRedirBitmap Changed: offIoBitmap=%x offIntRedirBitmap=%x cbTSS=%x offRange=%x cb=%x\n",
+                         pVM->selm.s.offGuestIoBitmap, offIntRedirBitmap, pVM->selm.s.cbGuestTss, offRange, cb));
+
+                    /** @todo only update the changed part. */
+                    for (uint32_t i = 0; i < sizeof(pVM->selm.s.Tss.IntRedirBitmap) / 8; i++)
+                    {
+                        rc = selmRCReadTssBits(pVM, &pVM->selm.s.Tss.IntRedirBitmap[i * 8],
+                                               (uint8_t *)pGuestTss + offIntRedirBitmap + i * 8, 8);
+                        if (rc != VINF_SUCCESS)
+                            break;
+                    }
+                    STAM_COUNTER_INC(&pVM->selm.s.StatRCWriteGuestTSSRedir);
+                }
+            }
+        }
+
+        /* Return to ring-3 for a full resync if any of the above fails... (?) */
+        if (rc != VINF_SUCCESS)
+        {
+            VM_FF_SET(pVM, VM_FF_SELM_SYNC_TSS);
+            VM_FF_SET(pVM, VM_FF_TO_R3);
+            if (RT_SUCCESS(rc))
+                rc = VINF_SUCCESS;
+        }
+
         STAM_COUNTER_INC(&pVM->selm.s.StatRCWriteGuestTSSHandled);
     }
     else
@@ -399,66 +468,3 @@ VMMRCDECL(int) selmRCShadowTSSWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCT
     return VERR_SELM_SHADOW_TSS_WRITE;
 }
 
-
-/**
- * Gets ss:esp for ring1 in main Hypervisor's TSS.
- *
- * @returns VBox status code.
- * @param   pVM     VM Handle.
- * @param   pSS     Ring1 SS register value.
- * @param   pEsp    Ring1 ESP register value.
- */
-VMMRCDECL(int) SELMGCGetRing1Stack(PVM pVM, uint32_t *pSS, uint32_t *pEsp)
-{
-    if (pVM->selm.s.fSyncTSSRing0Stack)
-    {
-        uint8_t *   GCPtrGuestTss = (uint8_t *)(uintptr_t)pVM->selm.s.GCPtrGuestTss;
-        bool        fTriedAlready = false;
-        int         rc;
-        VBOXTSS     tss;
-
-        Assert(pVM->selm.s.GCPtrGuestTss && pVM->selm.s.cbMonitoredGuestTss);
-
-l_tryagain:
-        rc  = MMGCRamRead(pVM, &tss.ss0,  GCPtrGuestTss + RT_OFFSETOF(VBOXTSS, ss0), sizeof(tss.ss0));
-        rc |= MMGCRamRead(pVM, &tss.esp0, GCPtrGuestTss + RT_OFFSETOF(VBOXTSS, esp0), sizeof(tss.esp0));
-#ifdef DEBUG
-        rc |= MMGCRamRead(pVM, &tss.offIoBitmap, GCPtrGuestTss + RT_OFFSETOF(VBOXTSS, offIoBitmap), sizeof(tss.offIoBitmap));
-#endif
-
-        if (RT_FAILURE(rc))
-        {
-            if (!fTriedAlready)
-            {
-                /* Shadow page might be out of sync. Sync and try again */
-                /** @todo might cross page boundary */
-                fTriedAlready = true;
-                rc = PGMPrefetchPage(pVM, (RTGCPTR)(uintptr_t)GCPtrGuestTss);
-                if (rc != VINF_SUCCESS)
-                    return rc;
-                goto l_tryagain;
-            }
-            AssertMsgFailed(("Unable to read TSS structure at %RRv\n", GCPtrGuestTss));
-            return rc;
-        }
-
-#ifdef LOG_ENABLED
-        uint32_t ssr0  = pVM->selm.s.Tss.ss1;
-        uint32_t espr0 = pVM->selm.s.Tss.esp1;
-        ssr0 &= ~1;
-
-        if (ssr0 != tss.ss0 || espr0 != tss.esp0)
-            Log(("SELMGetRing1Stack: Updating TSS ring 0 stack to %04X:%08X\n", tss.ss0, tss.esp0));
-
-        Log(("offIoBitmap=%#x\n", tss.offIoBitmap));
-#endif
-        /* Update our TSS structure for the guest's ring 1 stack */
-        SELMSetRing1Stack(pVM, tss.ss0 | 1, (RTGCPTR32)tss.esp0);
-        pVM->selm.s.fSyncTSSRing0Stack = false;
-    }
-
-    *pSS  = pVM->selm.s.Tss.ss1;
-    *pEsp = pVM->selm.s.Tss.esp1;
-
-    return VINF_SUCCESS;
-}

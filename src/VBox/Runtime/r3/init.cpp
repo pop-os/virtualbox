@@ -1,4 +1,4 @@
-/* $Id: init.cpp $ */
+/* $Id: init.cpp 18196 2009-03-24 15:19:20Z vboxsync $ */
 /** @file
  * IPRT - Init Ring-3.
  */
@@ -39,6 +39,7 @@
 #else
 # include <unistd.h>
 #endif
+#include <locale.h>
 
 #include <iprt/initterm.h>
 #include <iprt/asm.h>
@@ -54,6 +55,7 @@
 # include <VBox/sup.h>
 # include <stdlib.h>
 #endif
+
 #include "internal/path.h"
 #include "internal/process.h"
 #include "internal/thread.h"
@@ -214,7 +216,14 @@ static int rtR3Init(bool fInitSUPLib, const char *pszProgramPath)
          * Init GIP first.
          * (The more time for updates before real use, the better.)
          */
-        SUPR3Init(NULL);
+        rc = SUPR3Init(NULL);
+        if (RT_FAILURE(rc))
+        {
+            AssertMsgFailed(("Failed to initializeble the support library, rc=%Rrc!\n", rc));
+            ASMAtomicWriteBool(&g_fInitializing, false);
+            ASMAtomicDecS32(&g_cUsers);
+            return rc;
+        }
     }
 #endif
 
@@ -258,6 +267,11 @@ static int rtR3Init(bool fInitSUPLib, const char *pszProgramPath)
     g_u64ProgramStartNanoTS = RTTimeNanoTS();
     g_u64ProgramStartMicroTS = g_u64ProgramStartNanoTS / 1000;
     g_u64ProgramStartMilliTS = g_u64ProgramStartNanoTS / 1000000;
+
+    /*
+     * Init C runtime locale
+     */
+    setlocale(LC_CTYPE, "");
 
     /*
      * More stuff to come?

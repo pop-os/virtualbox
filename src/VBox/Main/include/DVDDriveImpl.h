@@ -1,4 +1,4 @@
-/* $Id: DVDDriveImpl.h $ */
+/* $Id: DVDDriveImpl.h 16853 2009-02-17 15:48:20Z vboxsync $ */
 
 /** @file
  *
@@ -54,7 +54,7 @@ public:
                     hostDrive.equalsTo (that.hostDrive));
         }
 
-        ComObjPtr <DVDImage2> image;
+        ComObjPtr<DVDImage> image;
         ComPtr <IHostDVDDrive> hostDrive;
         DriveState_T state;
         BOOL passthrough;
@@ -93,7 +93,7 @@ public:
     STDMETHOD(MountImage) (IN_GUID aImageId);
     STDMETHOD(CaptureHostDrive) (IHostDVDDrive *aHostDVDDrive);
     STDMETHOD(Unmount)();
-    STDMETHOD(GetImage) (IDVDImage2 **aDVDImage);
+    STDMETHOD(GetImage)(IDVDImage **aDVDImage);
     STDMETHOD(GetHostDrive) (IHostDVDDrive **aHostDVDDrive);
 
     // public methods only for internal purposes

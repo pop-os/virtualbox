@@ -1,4 +1,4 @@
-/* $Id: VBoxREMWrapper.cpp $ */
+/* $Id: VBoxREMWrapper.cpp 18661 2009-04-02 18:29:09Z vboxsync $ */
 /** @file
  *
  * VBoxREM Win64 DLL Wrapper.
@@ -332,6 +332,7 @@ static void    *g_pvREM2;
  * These are references from the assembly wrapper code.
  * @{ */
 static DECLCALLBACKPTR(int, pfnREMR3Init)(PVM);
+static DECLCALLBACKPTR(int, pfnREMR3InitFinalize)(PVM);
 static DECLCALLBACKPTR(int, pfnREMR3Term)(PVM);
 static DECLCALLBACKPTR(void, pfnREMR3Reset)(PVM);
 static DECLCALLBACKPTR(int, pfnREMR3Step)(PVM);
@@ -345,9 +346,8 @@ static DECLCALLBACKPTR(void, pfnREMR3StateUpdate)(PVM);
 static DECLCALLBACKPTR(void, pfnREMR3A20Set)(PVM, bool);
 static DECLCALLBACKPTR(void, pfnREMR3ReplayInvalidatedPages)(PVM);
 static DECLCALLBACKPTR(void, pfnREMR3ReplayHandlerNotifications)(PVM pVM);
-static DECLCALLBACKPTR(void, pfnREMR3NotifyPhysRamRegister)(PVM, RTGCPHYS, RTUINT, unsigned);
-static DECLCALLBACKPTR(void, pfnREMR3NotifyPhysRamChunkRegister)(PVM, RTGCPHYS, RTUINT, RTHCUINTPTR, unsigned);
-static DECLCALLBACKPTR(void, pfnREMR3NotifyPhysReserve)(PVM, RTGCPHYS, RTUINT);
+static DECLCALLBACKPTR(void, pfnREMR3NotifyPhysRamRegister)(PVM, RTGCPHYS, RTGCPHYS, unsigned);
+static DECLCALLBACKPTR(void, pfnREMR3NotifyPhysRamDeregister)(PVM, RTGCPHYS, RTUINT);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyPhysRomRegister)(PVM, RTGCPHYS, RTUINT, void *, bool);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyHandlerPhysicalModify)(PVM, PGMPHYSHANDLERTYPE, RTGCPHYS, RTGCPHYS, RTGCPHYS, bool, bool);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyHandlerPhysicalRegister)(PVM, PGMPHYSHANDLERTYPE, RTGCPHYS, RTGCPHYS, bool);
@@ -397,7 +397,7 @@ static const REMPARMDESC g_aArgsNotifyPhysRamRegister[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS), NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(RTUINT), NULL },
+    { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(void *), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(unsigned), NULL }
 };
@@ -410,6 +410,12 @@ static const REMPARMDESC g_aArgsNotifyPhysRamChunkRegister[] =
     { REMPARMDESC_FLAGS_INT,        sizeof(unsigned), NULL }
 };
 static const REMPARMDESC g_aArgsNotifyPhysReserve[] =
+{
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(RTUINT), NULL }
+};
+static const REMPARMDESC g_aArgsNotifyPhysRamDeregister[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS), NULL },
@@ -549,6 +555,11 @@ static const REMPARMDESC g_aArgsDBGFR3DisasInstrEx[] =
     { REMPARMDESC_FLAGS_INT,        sizeof(char *), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t *), NULL }
+};
+static const REMPARMDESC g_aArgsDBGFR3DisasInstrCurrentLogInternal[] =
+{
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(char *), NULL }
 };
 static const REMPARMDESC g_aArgsDBGFR3Info[] =
 {
@@ -709,21 +720,6 @@ static const REMPARMDESC g_aArgsPGMInvalidatePage[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
     { REMPARMDESC_FLAGS_GCPTR,      sizeof(RTGCPTR), NULL }
-};
-static const REMPARMDESC g_aArgsPGMPhysGCPhys2R3Ptr[] =
-{
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
-    { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS), NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(RTUINT), NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(PRTR3PTR), NULL }
-};
-static const REMPARMDESC g_aArgsPGMPhysGCPtr2R3PtrByGstCR3[] =
-{
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
-    { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS), NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(uint64_t), NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(unsigned), NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(PRTR3PTR), NULL }
 };
 static const REMPARMDESC g_aArgsPGM3PhysGrowRange[] =
 {
@@ -1012,8 +1008,9 @@ static const REMPARMDESC g_aArgsmemset[] =
  * Descriptors for the exported functions.
  */
 static const REMFNDESC g_aExports[] =
-{  /* pszName,                                  (void *)pv,                                         pParams,                                    cParams,                                            fFlags,                     cb,             pvWrapper. */
+{  /* pszName,                                  (void *)pv,                                         pParams,                                    cParams,                                               fFlags,                     cb,             pvWrapper. */
     { "REMR3Init",                              (void *)&pfnREMR3Init,                              &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
+    { "REMR3InitFinalize",                      (void *)&pfnREMR3InitFinalize,                      &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
     { "REMR3Term",                              (void *)&pfnREMR3Term,                              &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
     { "REMR3Reset",                             (void *)&pfnREMR3Reset,                             &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3Step",                              (void *)&pfnREMR3Step,                              &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
@@ -1028,8 +1025,7 @@ static const REMFNDESC g_aExports[] =
     { "REMR3ReplayInvalidatedPages",            (void *)&pfnREMR3ReplayInvalidatedPages,            &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3ReplayHandlerNotifications",        (void *)&pfnREMR3ReplayHandlerNotifications,        &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3NotifyPhysRamRegister",             (void *)&pfnREMR3NotifyPhysRamRegister,             &g_aArgsNotifyPhysRamRegister[0],           RT_ELEMENTS(g_aArgsNotifyPhysRamRegister),             REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
-    { "REMR3NotifyPhysRamChunkRegister",        (void *)&pfnREMR3NotifyPhysRamChunkRegister,        &g_aArgsNotifyPhysRamChunkRegister[0],      RT_ELEMENTS(g_aArgsNotifyPhysRamChunkRegister),        REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
-    { "REMR3NotifyPhysReserve",                 (void *)&pfnREMR3NotifyPhysReserve,                 &g_aArgsNotifyPhysReserve[0],               RT_ELEMENTS(g_aArgsNotifyPhysReserve),                 REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
+    { "REMR3NotifyPhysRamDeregister",           (void *)&pfnREMR3NotifyPhysRamDeregister,           &g_aArgsNotifyPhysRamDeregister[0],         RT_ELEMENTS(g_aArgsNotifyPhysRamDeregister),           REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3NotifyPhysRomRegister",             (void *)&pfnREMR3NotifyPhysRomRegister,             &g_aArgsNotifyPhysRomRegister[0],           RT_ELEMENTS(g_aArgsNotifyPhysRomRegister),             REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3NotifyHandlerPhysicalModify",       (void *)&pfnREMR3NotifyHandlerPhysicalModify,       &g_aArgsNotifyHandlerPhysicalModify[0],     RT_ELEMENTS(g_aArgsNotifyHandlerPhysicalModify),       REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3NotifyHandlerPhysicalRegister",     (void *)&pfnREMR3NotifyHandlerPhysicalRegister,     &g_aArgsNotifyHandlerPhysicalRegister[0],   RT_ELEMENTS(g_aArgsNotifyHandlerPhysicalRegister),     REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
@@ -1079,6 +1075,7 @@ static REMFNDESC g_aVMMImports[] =
     { "DBGCRegisterCommands",                   (void *)(uintptr_t)&DBGCRegisterCommands,           &g_aArgsDBGCRegisterCommands[0],            RT_ELEMENTS(g_aArgsDBGCRegisterCommands),              REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
 #endif
     { "DBGFR3DisasInstrEx",                     (void *)(uintptr_t)&DBGFR3DisasInstrEx,             &g_aArgsDBGFR3DisasInstrEx[0],              RT_ELEMENTS(g_aArgsDBGFR3DisasInstrEx),                REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
+    { "DBGFR3DisasInstrCurrentLogInternal",     (void *)(uintptr_t)&DBGFR3DisasInstrCurrentLogInternal, &g_aArgsDBGFR3DisasInstrCurrentLogInternal[0],  RT_ELEMENTS(g_aArgsDBGFR3DisasInstrCurrentLogInternal),REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "DBGFR3Info",                             (void *)(uintptr_t)&DBGFR3Info,                     &g_aArgsDBGFR3Info[0],                      RT_ELEMENTS(g_aArgsDBGFR3Info),                        REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "DBGFR3InfoLogRelHlp",                    (void *)(uintptr_t)&DBGFR3InfoLogRelHlp,            NULL,                                       0,                                                     REMFNDESC_FLAGS_RET_INT,    sizeof(void *),     NULL },
     { "DBGFR3SymbolByAddr",                     (void *)(uintptr_t)&DBGFR3SymbolByAddr,             &g_aArgsDBGFR3SymbolByAddr[0],              RT_ELEMENTS(g_aArgsDBGFR3SymbolByAddr),                REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
@@ -1111,11 +1108,6 @@ static REMFNDESC g_aVMMImports[] =
     { "PGMGetGuestMode",                        (void *)(uintptr_t)&PGMGetGuestMode,                &g_aArgsPGMGetGuestMode[0],                 RT_ELEMENTS(g_aArgsPGMGetGuestMode),                   REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "PGMGstGetPage",                          (void *)(uintptr_t)&PGMGstGetPage,                  &g_aArgsPGMGstGetPage[0],                   RT_ELEMENTS(g_aArgsPGMGstGetPage),                     REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "PGMInvalidatePage",                      (void *)(uintptr_t)&PGMInvalidatePage,              &g_aArgsPGMInvalidatePage[0],               RT_ELEMENTS(g_aArgsPGMInvalidatePage),                 REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
-    { "PGMPhysGCPhys2R3Ptr",                    (void *)(uintptr_t)&PGMPhysGCPhys2R3Ptr,            &g_aArgsPGMPhysGCPhys2R3Ptr[0],             RT_ELEMENTS(g_aArgsPGMPhysGCPhys2R3Ptr),               REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
-    { "PGMPhysGCPtr2R3PtrByGstCR3",             (void *)(uintptr_t)&PGMPhysGCPtr2R3PtrByGstCR3,     &g_aArgsPGMPhysGCPtr2R3PtrByGstCR3[0],      RT_ELEMENTS(g_aArgsPGMPhysGCPtr2R3PtrByGstCR3),        REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
-#ifndef VBOX_WITH_NEW_PHYS_CODE
-    { "PGM3PhysGrowRange",                      (void *)(uintptr_t)&PGM3PhysGrowRange,              &g_aArgsPGM3PhysGrowRange[0],               RT_ELEMENTS(g_aArgsPGM3PhysGrowRange),                 REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
-#endif
     { "PGMPhysIsGCPhysValid",                   (void *)(uintptr_t)&PGMPhysIsGCPhysValid,           &g_aArgsPGMPhysIsGCPhysValid[0],            RT_ELEMENTS(g_aArgsPGMPhysIsGCPhysValid),              REMFNDESC_FLAGS_RET_INT,    sizeof(bool),       NULL },
     { "PGMPhysIsA20Enabled",                    (void *)(uintptr_t)&PGMPhysIsA20Enabled,            &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(bool),       NULL },
     { "PGMPhysRead",                            (void *)(uintptr_t)&PGMPhysRead,                    &g_aArgsPGMPhysRead[0],                     RT_ELEMENTS(g_aArgsPGMPhysRead),                       REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
@@ -1840,7 +1832,7 @@ static int remLoadLinuxObj(void)
      * Load the VBoxREM2.rel object/DLL.
      */
     strcpy(&szPath[offFilename], "/VBoxREM2.rel");
-    rc = RTLdrOpen(szPath, &g_ModREM2);
+    rc = RTLdrOpen(szPath, 0, RTLDRARCH_HOST, &g_ModREM2);
     if (RT_SUCCESS(rc))
     {
         g_pvREM2 = RTMemExecAlloc(RTLdrSize(g_ModREM2));
@@ -2004,6 +1996,14 @@ REMR3DECL(int) REMR3Init(PVM pVM)
 #endif
 }
 
+REMR3DECL(int) REMR3InitFinalize(PVM pVM)
+{
+#ifndef USE_REM_STUBS
+    Assert(VALID_PTR(pfnREMR3InitFinalize));
+    return pfnREMR3InitFinalize(pVM);
+#endif
+}
+
 REMR3DECL(int) REMR3Term(PVM pVM)
 {
 #ifdef USE_REM_STUBS
@@ -2145,23 +2145,13 @@ REMR3DECL(int) REMR3NotifyCodePageChanged(PVM pVM, RTGCPTR pvCodePage)
 #endif
 }
 
-REMR3DECL(void) REMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, unsigned fFlags)
+REMR3DECL(void) REMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, unsigned fFlags)
 {
 #ifndef USE_REM_STUBS
     Assert(VALID_PTR(pfnREMR3NotifyPhysRamRegister));
     pfnREMR3NotifyPhysRamRegister(pVM, GCPhys, cb, fFlags);
 #endif
 }
-
-#ifndef VBOX_WITH_NEW_PHYS_CODE
-REMR3DECL(void) REMR3NotifyPhysRamChunkRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, RTHCUINTPTR pvRam, unsigned fFlags)
-{
-#ifndef USE_REM_STUBS
-    Assert(VALID_PTR(pfnREMR3NotifyPhysRamChunkRegister));
-    pfnREMR3NotifyPhysRamChunkRegister(pVM, GCPhys, cb, pvRam, fFlags);
-#endif
-}
-#endif
 
 REMR3DECL(void) REMR3NotifyPhysRomRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, void *pvCopy, bool fShadow)
 {
@@ -2171,11 +2161,11 @@ REMR3DECL(void) REMR3NotifyPhysRomRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, 
 #endif
 }
 
-REMR3DECL(void) REMR3NotifyPhysReserve(PVM pVM, RTGCPHYS GCPhys, RTUINT cb)
+REMR3DECL(void) REMR3NotifyPhysRamDeregister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb)
 {
 #ifndef USE_REM_STUBS
-    Assert(VALID_PTR(pfnREMR3NotifyPhysReserve));
-    pfnREMR3NotifyPhysReserve(pVM, GCPhys, cb);
+    Assert(VALID_PTR(pfnREMR3NotifyPhysRamDeregister));
+    pfnREMR3NotifyPhysRamDeregister(pVM, GCPhys, cb);
 #endif
 }
 

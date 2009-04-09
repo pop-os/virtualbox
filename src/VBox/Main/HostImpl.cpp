@@ -1,10 +1,10 @@
-/* $Id: HostImpl.cpp $ */
+/* $Id: HostImpl.cpp 18704 2009-04-03 16:59:22Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation: Host
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -76,7 +76,7 @@ extern "C" char *getfullrawname(char *);
 # include <guiddef.h>
 # include <devguid.h>
 # include <objbase.h>
-# include <setupapi.h>
+//# include <setupapi.h>
 # include <shlobj.h>
 # include <cfgmgr32.h>
 
@@ -95,15 +95,13 @@ extern "C" char *getfullrawname(char *);
 #include "VirtualBoxImpl.h"
 #include "MachineImpl.h"
 #include "Logging.h"
+#include "Performance.h"
 
 #ifdef RT_OS_DARWIN
 # include "darwin/iokit.h"
 #endif
 
 
-#include <VBox/usb.h>
-#include <VBox/x86.h>
-#include <VBox/err.h>
 #include <iprt/asm.h>
 #include <iprt/string.h>
 #include <iprt/mp.h>
@@ -118,6 +116,11 @@ extern "C" char *getfullrawname(char *);
 #ifdef VBOX_WITH_HOSTNETIF_API
 #include "netif.h"
 #endif
+
+#include <VBox/usb.h>
+#include <VBox/x86.h>
+#include <VBox/err.h>
+#include <VBox/settings.h>
 
 #if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NETFLT)
 # include <VBox/WinNetConfig.h>
@@ -288,9 +291,9 @@ void Host::uninit()
  * @returns COM status code
  * @param drives address of result pointer
  */
-STDMETHODIMP Host::COMGETTER(DVDDrives) (IHostDVDDriveCollection **aDrives)
+STDMETHODIMP Host::COMGETTER(DVDDrives) (ComSafeArrayOut (IHostDVDDrive *, aDrives))
 {
-    CheckComArgOutPointerValid(aDrives);
+    CheckComArgOutSafeArrayPointerValid(aDrives);
     AutoWriteLock alock (this);
     CHECK_READY();
     std::list <ComObjPtr <HostDVDDrive> > list;
@@ -396,10 +399,8 @@ STDMETHODIMP Host::COMGETTER(DVDDrives) (IHostDVDDriveCollection **aDrives)
     /* PORTME */
 #endif
 
-    ComObjPtr<HostDVDDriveCollection> collection;
-    collection.createObject();
-    collection->init (list);
-    collection.queryInterfaceTo(aDrives);
+    SafeIfaceArray <IHostDVDDrive> array (list);
+    array.detachTo(ComSafeArrayOutArg(aDrives));
     return rc;
 }
 
@@ -409,7 +410,7 @@ STDMETHODIMP Host::COMGETTER(DVDDrives) (IHostDVDDriveCollection **aDrives)
  * @returns COM status code
  * @param drives address of result pointer
  */
-STDMETHODIMP Host::COMGETTER(FloppyDrives) (IHostFloppyDriveCollection **aDrives)
+STDMETHODIMP Host::COMGETTER(FloppyDrives) (ComSafeArrayOut (IHostFloppyDrive *, aDrives))
 {
     CheckComArgOutPointerValid(aDrives);
     AutoWriteLock alock (this);
@@ -461,82 +462,10 @@ STDMETHODIMP Host::COMGETTER(FloppyDrives) (IHostFloppyDriveCollection **aDrives
     /* PORTME */
 #endif
 
-    ComObjPtr<HostFloppyDriveCollection> collection;
-    collection.createObject();
-    collection->init (list);
-    collection.queryInterfaceTo(aDrives);
+    SafeIfaceArray<IHostFloppyDrive> collection (list);
+    collection.detachTo(ComSafeArrayOutArg (aDrives));
     return rc;
 }
-
-#ifdef RT_OS_WINDOWS
-/**
- * Windows helper function for Host::COMGETTER(NetworkInterfaces).
- *
- * @returns true / false.
- *
- * @param   guid        The GUID.
- */
-static bool IsTAPDevice(const char *guid)
-{
-    HKEY hNetcard;
-    LONG status;
-    DWORD len;
-    int i = 0;
-    bool ret = false;
-
-    status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Control\\Class\\{4D36E972-E325-11CE-BFC1-08002BE10318}", 0, KEY_READ, &hNetcard);
-    if (status != ERROR_SUCCESS)
-        return false;
-
-    for (;;)
-    {
-        char szEnumName[256];
-        char szNetCfgInstanceId[256];
-        DWORD dwKeyType;
-        HKEY  hNetCardGUID;
-
-        len = sizeof(szEnumName);
-        status = RegEnumKeyExA(hNetcard, i, szEnumName, &len, NULL, NULL, NULL, NULL);
-        if (status != ERROR_SUCCESS)
-            break;
-
-        status = RegOpenKeyExA(hNetcard, szEnumName, 0, KEY_READ, &hNetCardGUID);
-        if (status == ERROR_SUCCESS)
-        {
-            len = sizeof(szNetCfgInstanceId);
-            status = RegQueryValueExA(hNetCardGUID, "NetCfgInstanceId", NULL, &dwKeyType, (LPBYTE)szNetCfgInstanceId, &len);
-            if (status == ERROR_SUCCESS && dwKeyType == REG_SZ)
-            {
-                char szNetProductName[256];
-                char szNetProviderName[256];
-
-                szNetProductName[0] = 0;
-                len = sizeof(szNetProductName);
-                status = RegQueryValueExA(hNetCardGUID, "ProductName", NULL, &dwKeyType, (LPBYTE)szNetProductName, &len);
-
-                szNetProviderName[0] = 0;
-                len = sizeof(szNetProviderName);
-                status = RegQueryValueExA(hNetCardGUID, "ProviderName", NULL, &dwKeyType, (LPBYTE)szNetProviderName, &len);
-
-                if (   !strcmp(szNetCfgInstanceId, guid)
-                    && !strcmp(szNetProductName, "VirtualBox TAP Adapter")
-                    && (   (!strcmp(szNetProviderName, "innotek GmbH"))
-                        || (!strcmp(szNetProviderName, "Sun Microsystems, Inc."))))
-                {
-                    ret = true;
-                    RegCloseKey(hNetCardGUID);
-                    break;
-                }
-            }
-            RegCloseKey(hNetCardGUID);
-        }
-        ++i;
-    }
-
-    RegCloseKey(hNetcard);
-    return ret;
-}
-#endif /* RT_OS_WINDOWS */
 
 #ifdef RT_OS_SOLARIS
 static void vboxSolarisAddHostIface(char *pszIface, int Instance, PCRTMAC pMac, void *pvHostNetworkInterfaceList)
@@ -611,7 +540,7 @@ static void vboxSolarisAddHostIface(char *pszIface, int Instance, PCRTMAC pMac, 
 
     ComObjPtr<HostNetworkInterface> IfObj;
     IfObj.createObject();
-    if (SUCCEEDED(IfObj->init(Bstr(szNICDesc), Guid(Uuid))))
+    if (SUCCEEDED(IfObj->init(Bstr(szNICDesc), Guid(Uuid), HostNetworkInterfaceType_Bridged)))
         pList->push_back(IfObj);
 }
 
@@ -726,8 +655,9 @@ static int vboxNetWinAddComponent(std::list <ComObjPtr <HostNetworkInterface> > 
             ComObjPtr <HostNetworkInterface> iface;
             iface.createObject();
             /* remove the curly bracket at the end */
-            if (SUCCEEDED (iface->init (name, Guid (IfGuid))))
+            if (SUCCEEDED (iface->init (name, Guid (IfGuid), HostNetworkInterfaceType_Bridged)))
             {
+//                iface->setVirtualBox(mParent);
                 pPist->push_back (iface);
                 rc = VINF_SUCCESS;
             }
@@ -741,9 +671,7 @@ static int vboxNetWinAddComponent(std::list <ComObjPtr <HostNetworkInterface> > 
 
     return rc;
 }
-
-#endif /* #if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NETFLT) */
-
+#endif /* defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NETFLT) */
 /**
  * Returns a list of host network interfaces.
  *
@@ -774,7 +702,7 @@ STDMETHODIMP Host::COMGETTER(NetworkInterfaces) (ComSafeArrayOut (IHostNetworkIn
     {
         ComObjPtr<HostNetworkInterface> IfObj;
         IfObj.createObject();
-        if (SUCCEEDED(IfObj->init(Bstr(pEtherNICs->szName), Guid(pEtherNICs->Uuid))))
+        if (SUCCEEDED(IfObj->init(Bstr(pEtherNICs->szName), Guid(pEtherNICs->Uuid), HostNetworkInterfaceType_Bridged)))
             list.push_back(IfObj);
 
         /* next, free current */
@@ -882,61 +810,7 @@ STDMETHODIMP Host::COMGETTER(NetworkInterfaces) (ComSafeArrayOut (IHostNetworkIn
 
 # elif defined RT_OS_WINDOWS
 #  ifndef VBOX_WITH_NETFLT
-    static const char *NetworkKey = "SYSTEM\\CurrentControlSet\\Control\\Network\\"
-                                    "{4D36E972-E325-11CE-BFC1-08002BE10318}";
-    HKEY hCtrlNet;
-    LONG status;
-    DWORD len;
-    status = RegOpenKeyExA (HKEY_LOCAL_MACHINE, NetworkKey, 0, KEY_READ, &hCtrlNet);
-    if (status != ERROR_SUCCESS)
-        return setError (E_FAIL, tr("Could not open registry key \"%s\""), NetworkKey);
-
-    for (int i = 0;; ++ i)
-    {
-        char szNetworkGUID [256];
-        HKEY hConnection;
-        char szNetworkConnection [256];
-
-        len = sizeof (szNetworkGUID);
-        status = RegEnumKeyExA (hCtrlNet, i, szNetworkGUID, &len, NULL, NULL, NULL, NULL);
-        if (status != ERROR_SUCCESS)
-            break;
-
-        if (!IsTAPDevice(szNetworkGUID))
-            continue;
-
-        RTStrPrintf (szNetworkConnection, sizeof (szNetworkConnection),
-                     "%s\\Connection", szNetworkGUID);
-        status = RegOpenKeyExA (hCtrlNet, szNetworkConnection, 0, KEY_READ,  &hConnection);
-        if (status == ERROR_SUCCESS)
-        {
-            DWORD dwKeyType;
-            status = RegQueryValueExW (hConnection, TEXT("Name"), NULL,
-                                       &dwKeyType, NULL, &len);
-            if (status == ERROR_SUCCESS && dwKeyType == REG_SZ)
-            {
-                size_t uniLen = (len + sizeof (OLECHAR) - 1) / sizeof (OLECHAR);
-                Bstr name (uniLen + 1 /* extra zero */);
-                status = RegQueryValueExW (hConnection, TEXT("Name"), NULL,
-                                           &dwKeyType, (LPBYTE) name.mutableRaw(), &len);
-                if (status == ERROR_SUCCESS)
-                {
-                    LogFunc(("Connection name %ls\n", name.mutableRaw()));
-                    /* put a trailing zero, just in case (see MSDN) */
-                    name.mutableRaw() [uniLen] = 0;
-                    /* create a new object and add it to the list */
-                    ComObjPtr <HostNetworkInterface> iface;
-                    iface.createObject();
-                    /* remove the curly bracket at the end */
-                    szNetworkGUID [strlen(szNetworkGUID) - 1] = '\0';
-                    if (SUCCEEDED (iface->init (name, Guid (szNetworkGUID + 1))))
-                        list.push_back (iface);
-                }
-            }
-            RegCloseKey (hConnection);
-        }
-    }
-    RegCloseKey (hCtrlNet);
+    hr = E_NOTIMPL;
 #  else /* #  if defined VBOX_WITH_NETFLT */
     INetCfg              *pNc;
     INetCfgComponent     *pMpNcc;
@@ -1055,7 +929,7 @@ STDMETHODIMP Host::COMGETTER(NetworkInterfaces) (ComSafeArrayOut (IHostNetworkIn
 
                         ComObjPtr<HostNetworkInterface> IfObj;
                         IfObj.createObject();
-                        if (SUCCEEDED(IfObj->init(Bstr(pReq->ifr_name), Guid(uuid))))
+                        if (SUCCEEDED(IfObj->init(Bstr(pReq->ifr_name), Guid(uuid), HostNetworkInterfaceType_Bridged)))
                             list.push_back(IfObj);
                     }
                 }
@@ -1065,6 +939,14 @@ STDMETHODIMP Host::COMGETTER(NetworkInterfaces) (ComSafeArrayOut (IHostNetworkIn
     }
 # endif /* RT_OS_LINUX */
 #endif
+
+    std::list <ComObjPtr <HostNetworkInterface> >::iterator it;
+    for (it = list.begin(); it != list.end(); ++it)
+    {
+        (*it)->setVirtualBox(mParent);
+    }
+
+
     SafeIfaceArray <IHostNetworkInterface> networkInterfaces (list);
     networkInterfaces.detachTo (ComSafeArrayOutArg (aNetworkInterfaces));
 
@@ -1076,10 +958,10 @@ STDMETHODIMP Host::COMGETTER(NetworkInterfaces) (ComSafeArrayOut (IHostNetworkIn
 #endif
 }
 
-STDMETHODIMP Host::COMGETTER(USBDevices)(IHostUSBDeviceCollection **aUSBDevices)
+STDMETHODIMP Host::COMGETTER(USBDevices)(ComSafeArrayOut (IHostUSBDevice *, aUSBDevices))
 {
 #ifdef VBOX_WITH_USB
-    CheckComArgOutPointerValid(aUSBDevices);
+    CheckComArgOutSafeArrayPointerValid(aUSBDevices);
 
     AutoWriteLock alock (this);
     CHECK_READY();
@@ -1087,7 +969,7 @@ STDMETHODIMP Host::COMGETTER(USBDevices)(IHostUSBDeviceCollection **aUSBDevices)
     MultiResult rc = checkUSBProxyService();
     CheckComRCReturnRC (rc);
 
-    return mUSBProxyService->getDeviceCollection (aUSBDevices);
+    return mUSBProxyService->getDeviceCollection (ComSafeArrayOutArg(aUSBDevices));
 
 #else
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
@@ -1097,10 +979,10 @@ STDMETHODIMP Host::COMGETTER(USBDevices)(IHostUSBDeviceCollection **aUSBDevices)
 #endif
 }
 
-STDMETHODIMP Host::COMGETTER(USBDeviceFilters) (IHostUSBDeviceFilterCollection **aUSBDeviceFilters)
+STDMETHODIMP Host::COMGETTER(USBDeviceFilters) (ComSafeArrayOut (IHostUSBDeviceFilter *, aUSBDeviceFilters))
 {
 #ifdef VBOX_WITH_USB
-    CheckComArgOutPointerValid(aUSBDeviceFilters);
+    CheckComArgOutSafeArrayPointerValid(aUSBDeviceFilters);
 
     AutoWriteLock alock (this);
     CHECK_READY();
@@ -1108,10 +990,8 @@ STDMETHODIMP Host::COMGETTER(USBDeviceFilters) (IHostUSBDeviceFilterCollection *
     MultiResult rc = checkUSBProxyService();
     CheckComRCReturnRC (rc);
 
-    ComObjPtr <HostUSBDeviceFilterCollection> collection;
-    collection.createObject();
-    collection->init (mUSBDeviceFilters);
-    collection.queryInterfaceTo (aUSBDeviceFilters);
+    SafeIfaceArray <IHostUSBDeviceFilter> collection (mUSBDeviceFilters);
+    collection.detachTo (ComSafeArrayOutArg (aUSBDeviceFilters));
 
     return rc;
 #else
@@ -1174,7 +1054,7 @@ STDMETHODIMP Host::GetProcessorSpeed(ULONG aCpuId, ULONG *aSpeed)
  * @param   cpu id to get info for.
  * @param   description address of result variable, NULL if known or aCpuId is invalid.
  */
-STDMETHODIMP Host::GetProcessorDescription(ULONG aCpuId, BSTR *aDescription)
+STDMETHODIMP Host::GetProcessorDescription(ULONG /* aCpuId */, BSTR *aDescription)
 {
     CheckComArgOutPointerValid(aDescription);
     AutoWriteLock alock (this);
@@ -1310,136 +1190,28 @@ STDMETHODIMP Host::COMGETTER(UTCTime)(LONG64 *aUTCTime)
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef RT_OS_WINDOWS
-/** @todo REMOVE. OBSOLETE NOW. */
-/**
- * Returns TRUE if the Windows version is 6.0 or greater (i.e. it's Vista and
- * later OSes) and it has the UAC (User Account Control) feature enabled.
- */
-static BOOL IsUACEnabled()
-{
-    LONG rc = 0;
-
-    OSVERSIONINFOEX info;
-    ZeroMemory (&info, sizeof (OSVERSIONINFOEX));
-    info.dwOSVersionInfoSize = sizeof (OSVERSIONINFOEX);
-    rc = GetVersionEx ((OSVERSIONINFO *) &info);
-    AssertReturn (rc != 0, FALSE);
-
-    LogFlowFunc (("dwMajorVersion=%d, dwMinorVersion=%d\n",
-                  info.dwMajorVersion, info.dwMinorVersion));
-
-    /* we are interested only in Vista (and newer versions...). In all
-     * earlier versions UAC is not present. */
-    if (info.dwMajorVersion < 6)
-        return FALSE;
-
-    /* the default EnableLUA value is 1 (Enabled) */
-    DWORD dwEnableLUA = 1;
-
-    HKEY hKey;
-    rc = RegOpenKeyExA (HKEY_LOCAL_MACHINE,
-                        "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
-                        0, KEY_QUERY_VALUE, &hKey);
-
-    Assert (rc == ERROR_SUCCESS || rc == ERROR_PATH_NOT_FOUND);
-    if (rc == ERROR_SUCCESS)
-    {
-
-        DWORD cbEnableLUA = sizeof (dwEnableLUA);
-        rc = RegQueryValueExA (hKey, "EnableLUA", NULL, NULL,
-                               (LPBYTE) &dwEnableLUA, &cbEnableLUA);
-
-        RegCloseKey (hKey);
-
-        Assert (rc == ERROR_SUCCESS || rc == ERROR_FILE_NOT_FOUND);
-    }
-
-    LogFlowFunc (("rc=%d, dwEnableLUA=%d\n", rc, dwEnableLUA));
-
-    return dwEnableLUA == 1;
-}
-
-struct NetworkInterfaceHelperClientData
-{
-    SVCHlpMsg::Code msgCode;
-    /* for SVCHlpMsg::CreateHostNetworkInterface */
-    Bstr name;
-    ComObjPtr <HostNetworkInterface> iface;
-    /* for SVCHlpMsg::RemoveHostNetworkInterface */
-    Guid guid;
-};
 
 STDMETHODIMP
-Host::CreateHostNetworkInterface (IN_BSTR aName,
-                                  IHostNetworkInterface **aHostNetworkInterface,
+Host::CreateHostOnlyNetworkInterface (IHostNetworkInterface **aHostNetworkInterface,
                                   IProgress **aProgress)
 {
-    CheckComArgNotNull(aName);
     CheckComArgOutPointerValid(aHostNetworkInterface);
     CheckComArgOutPointerValid(aProgress);
 
     AutoWriteLock alock (this);
     CHECK_READY();
 
-    HRESULT rc = S_OK;
-
-    /* first check whether an interface with the given name already exists */
+    int r = NetIfCreateHostOnlyNetworkInterface (mParent, aHostNetworkInterface, aProgress);
+    if(RT_SUCCESS(r))
     {
-        com::SafeIfaceArray <IHostNetworkInterface> hostNetworkInterfaces;
-        rc = COMGETTER(NetworkInterfaces) (ComSafeArrayAsOutParam (hostNetworkInterfaces));
-        CheckComRCReturnRC (rc);
-        for (size_t i = 0; i < hostNetworkInterfaces.size(); ++i)
-        {
-            Bstr name;
-            hostNetworkInterfaces[i]->COMGETTER(Name) (name.asOutParam());
-            if (name == aName)
-            {
-                return setError (E_INVALIDARG,
-                                 tr ("Host network interface '%ls' already exists"), aName);
-            }
-        }
+        return S_OK;
     }
 
-    /* create a progress object */
-    ComObjPtr <Progress> progress;
-    progress.createObject();
-    rc = progress->init (mParent, static_cast <IHost *> (this),
-                         Bstr (tr ("Creating host network interface")),
-                         FALSE /* aCancelable */);
-    CheckComRCReturnRC (rc);
-    progress.queryInterfaceTo (aProgress);
-
-    /* create a new uninitialized host interface object */
-    ComObjPtr <HostNetworkInterface> iface;
-    iface.createObject();
-    iface.queryInterfaceTo (aHostNetworkInterface);
-
-    /* create the networkInterfaceHelperClient() argument */
-    std::auto_ptr <NetworkInterfaceHelperClientData>
-        d (new NetworkInterfaceHelperClientData());
-    AssertReturn (d.get(), E_OUTOFMEMORY);
-
-    d->msgCode = SVCHlpMsg::CreateHostNetworkInterface;
-    d->name = aName;
-    d->iface = iface;
-
-    rc = mParent->startSVCHelperClient (
-        IsUACEnabled() == TRUE /* aPrivileged */,
-        networkInterfaceHelperClient,
-        static_cast <void *> (d.get()),
-        progress);
-
-    if (SUCCEEDED (rc))
-    {
-        /* d is now owned by networkInterfaceHelperClient(), so release it */
-        d.release();
-    }
-
-    return rc;
+    return r == VERR_NOT_IMPLEMENTED ? E_NOTIMPL : E_FAIL;
 }
 
 STDMETHODIMP
-Host::RemoveHostNetworkInterface (IN_GUID aId,
+Host::RemoveHostOnlyNetworkInterface (IN_GUID aId,
                                   IHostNetworkInterface **aHostNetworkInterface,
                                   IProgress **aProgress)
 {
@@ -1449,63 +1221,22 @@ Host::RemoveHostNetworkInterface (IN_GUID aId,
     AutoWriteLock alock (this);
     CHECK_READY();
 
-    HRESULT rc = S_OK;
-
     /* first check whether an interface with the given name already exists */
     {
-        com::SafeIfaceArray <IHostNetworkInterface> hostNetworkInterfaces;
-        rc = COMGETTER(NetworkInterfaces) (ComSafeArrayAsOutParam (hostNetworkInterfaces));
-        CheckComRCReturnRC (rc);
         ComPtr <IHostNetworkInterface> iface;
-        for (size_t i = 0; i < hostNetworkInterfaces.size(); ++i)
-        {
-            Guid guid;
-            hostNetworkInterfaces[i]->COMGETTER(Id) (guid.asOutParam());
-            if (guid == aId)
-            {
-                iface = hostNetworkInterfaces[i];
-                break;
-            }
-        }
-        if (iface.isNull())
+        if (FAILED (FindHostNetworkInterfaceById (aId, iface.asOutParam())))
             return setError (VBOX_E_OBJECT_NOT_FOUND,
                 tr ("Host network interface with UUID {%RTuuid} does not exist"),
                 Guid (aId).raw());
-
-        /* return the object to be removed to the caller */
-        iface.queryInterfaceTo (aHostNetworkInterface);
     }
 
-    /* create a progress object */
-    ComObjPtr <Progress> progress;
-    progress.createObject();
-    rc = progress->init (mParent, static_cast <IHost *> (this),
-                        Bstr (tr ("Removing host network interface")),
-                        FALSE /* aCancelable */);
-    CheckComRCReturnRC (rc);
-    progress.queryInterfaceTo (aProgress);
-
-    /* create the networkInterfaceHelperClient() argument */
-    std::auto_ptr <NetworkInterfaceHelperClientData>
-        d (new NetworkInterfaceHelperClientData());
-    AssertReturn (d.get(), E_OUTOFMEMORY);
-
-    d->msgCode = SVCHlpMsg::RemoveHostNetworkInterface;
-    d->guid = aId;
-
-    rc = mParent->startSVCHelperClient (
-        IsUACEnabled() == TRUE /* aPrivileged */,
-        networkInterfaceHelperClient,
-        static_cast <void *> (d.get()),
-        progress);
-
-    if (SUCCEEDED (rc))
+    int r = NetIfRemoveHostOnlyNetworkInterface (mParent, aId, aHostNetworkInterface, aProgress);
+    if(RT_SUCCESS(r))
     {
-        /* d is now owned by networkInterfaceHelperClient(), so release it */
-        d.release();
+        return S_OK;
     }
 
-    return rc;
+    return r == VERR_NOT_IMPLEMENTED ? E_NOTIMPL : E_FAIL;
 }
 
 #endif /* RT_OS_WINDOWS */
@@ -2327,9 +2058,12 @@ bool Host::validateDevice(const char *deviceNode, bool isCDROM)
 #ifdef VBOX_WITH_USB
 /**
  *  Checks for the presense and status of the USB Proxy Service.
- *  Returns S_OK when the Proxy is present and OK, or E_FAIL and a
- *  corresponding error message otherwise. Intended to be used by methods
- *  that rely on the Proxy Service availability.
+ *  Returns S_OK when the Proxy is present and OK, VBOX_E_HOST_ERROR (as a
+ *  warning) if the proxy service is not available due to the way the host is
+ *  configured (at present, that means that usbfs and hal/DBus are not
+ *  available on a Linux host) or E_FAIL and a corresponding error message
+ *  otherwise. Intended to be used by methods that rely on the Proxy Service
+ *  availability.
  *
  *  @note This method may return a warning result code. It is recommended to use
  *        MultiError to store the return value.
@@ -2347,18 +2081,24 @@ HRESULT Host::checkUSBProxyService()
         /* disable the USB controller completely to avoid assertions if the
          * USB proxy service could not start. */
 
-        Bstr message;
-        if (   SUCCEEDED(mUSBProxyService->getLastErrorMessage(message.asOutParam()))
-            && !message.isNull())
-            return setWarning (E_FAIL, Utf8Str(message).raw());
         if (mUSBProxyService->getLastError() == VERR_FILE_NOT_FOUND)
             return setWarning (E_FAIL,
                 tr ("Could not load the Host USB Proxy Service (%Rrc). "
                     "The service might not be installed on the host computer"),
                 mUSBProxyService->getLastError());
         if (mUSBProxyService->getLastError() == VINF_SUCCESS)
+#ifdef RT_OS_LINUX
+            return setWarning (VBOX_E_HOST_ERROR,
+# ifdef VBOX_WITH_DBUS
+                tr ("The USB Proxy Service could not be started, because neither the USB file system (usbfs) nor the hardware information service (hal) is available")
+# else
+                tr ("The USB Proxy Service could not be started, because the USB file system (usbfs) is not available")
+# endif
+                );
+#else  /* !RT_OS_LINUX */
             return setWarning (E_FAIL,
                 tr ("The USB Proxy Service has not yet been ported to this host"));
+#endif /* !RT_OS_LINUX */
         return setWarning (E_FAIL,
             tr ("Could not load the Host USB Proxy service (%Rrc)"),
             mUSBProxyService->getLastError());
@@ -2367,873 +2107,6 @@ HRESULT Host::checkUSBProxyService()
     return S_OK;
 }
 #endif /* VBOX_WITH_USB */
-
-#ifdef RT_OS_WINDOWS
-
-/* The original source of the VBoxTAP adapter creation/destruction code has the following copyright */
-/*
-   Copyright 2004 by the Massachusetts Institute of Technology
-
-   All rights reserved.
-
-   Permission to use, copy, modify, and distribute this software and its
-   documentation for any purpose and without fee is hereby granted,
-   provided that the above copyright notice appear in all copies and that
-   both that copyright notice and this permission notice appear in
-   supporting documentation, and that the name of the Massachusetts
-   Institute of Technology (M.I.T.) not be used in advertising or publicity
-   pertaining to distribution of the software without specific, written
-   prior permission.
-
-   M.I.T. DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE, INCLUDING
-   ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS, IN NO EVENT SHALL
-   M.I.T. BE LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR
-   ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
-   WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
-   ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
-   SOFTWARE.
-*/
-
-
-#define NETSHELL_LIBRARY _T("netshell.dll")
-
-/**
- *  Use the IShellFolder API to rename the connection.
- */
-static HRESULT rename_shellfolder (PCWSTR wGuid, PCWSTR wNewName)
-{
-    /* This is the GUID for the network connections folder. It is constant.
-     * {7007ACC7-3202-11D1-AAD2-00805FC1270E} */
-    const GUID CLSID_NetworkConnections = {
-        0x7007ACC7, 0x3202, 0x11D1, {
-            0xAA, 0xD2, 0x00, 0x80, 0x5F, 0xC1, 0x27, 0x0E
-        }
-    };
-
-    LPITEMIDLIST pidl = NULL;
-    IShellFolder *pShellFolder = NULL;
-    HRESULT hr;
-
-    /* Build the display name in the form "::{GUID}". */
-    if (wcslen (wGuid) >= MAX_PATH)
-        return E_INVALIDARG;
-    WCHAR szAdapterGuid[MAX_PATH + 2] = {0};
-    swprintf (szAdapterGuid, L"::%ls", wGuid);
-
-    /* Create an instance of the network connections folder. */
-    hr = CoCreateInstance (CLSID_NetworkConnections, NULL,
-                           CLSCTX_INPROC_SERVER, IID_IShellFolder,
-                           reinterpret_cast <LPVOID *> (&pShellFolder));
-    /* Parse the display name. */
-    if (SUCCEEDED (hr))
-    {
-        hr = pShellFolder->ParseDisplayName (NULL, NULL, szAdapterGuid, NULL,
-                                             &pidl, NULL);
-    }
-    if (SUCCEEDED (hr))
-    {
-        hr = pShellFolder->SetNameOf (NULL, pidl, wNewName, SHGDN_NORMAL,
-                                      &pidl);
-    }
-
-    CoTaskMemFree (pidl);
-
-    if (pShellFolder)
-        pShellFolder->Release();
-
-    return hr;
-}
-
-extern "C" HRESULT RenameConnection (PCWSTR GuidString, PCWSTR NewName)
-{
-    typedef HRESULT (WINAPI *lpHrRenameConnection) (const GUID *, PCWSTR);
-    lpHrRenameConnection RenameConnectionFunc = NULL;
-    HRESULT status;
-
-    /* First try the IShellFolder interface, which was unimplemented
-     * for the network connections folder before XP. */
-    status = rename_shellfolder (GuidString, NewName);
-    if (status == E_NOTIMPL)
-    {
-/** @todo that code doesn't seem to work! */
-        /* The IShellFolder interface is not implemented on this platform.
-         * Try the (undocumented) HrRenameConnection API in the netshell
-         * library. */
-        CLSID clsid;
-        HINSTANCE hNetShell;
-        status = CLSIDFromString ((LPOLESTR) GuidString, &clsid);
-        if (FAILED(status))
-            return E_FAIL;
-        hNetShell = LoadLibrary (NETSHELL_LIBRARY);
-        if (hNetShell == NULL)
-            return E_FAIL;
-        RenameConnectionFunc =
-          (lpHrRenameConnection) GetProcAddress (hNetShell,
-                                                 "HrRenameConnection");
-        if (RenameConnectionFunc == NULL)
-        {
-            FreeLibrary (hNetShell);
-            return E_FAIL;
-        }
-        status = RenameConnectionFunc (&clsid, NewName);
-        FreeLibrary (hNetShell);
-    }
-    if (FAILED (status))
-        return status;
-
-    return S_OK;
-}
-
-#define DRIVERHWID _T("vboxtap")
-
-#define SetErrBreak(strAndArgs) \
-    if (1) { \
-        aErrMsg = Utf8StrFmt strAndArgs; vrc = VERR_GENERAL_FAILURE; break; \
-    } else do {} while (0)
-
-/* static */
-int Host::createNetworkInterface (SVCHlpClient *aClient,
-                                  const Utf8Str &aName,
-                                  Guid &aGUID, Utf8Str &aErrMsg)
-{
-    LogFlowFuncEnter();
-    LogFlowFunc (("Network connection name = '%s'\n", aName.raw()));
-
-    AssertReturn (aClient, VERR_INVALID_POINTER);
-    AssertReturn (!aName.isNull(), VERR_INVALID_PARAMETER);
-
-    int vrc = VINF_SUCCESS;
-
-    HDEVINFO hDeviceInfo = INVALID_HANDLE_VALUE;
-    SP_DEVINFO_DATA DeviceInfoData;
-    DWORD ret = 0;
-    BOOL found = FALSE;
-    BOOL registered = FALSE;
-    BOOL destroyList = FALSE;
-    TCHAR pCfgGuidString [50];
-
-    do
-    {
-        BOOL ok;
-        GUID netGuid;
-        SP_DRVINFO_DATA DriverInfoData;
-        SP_DEVINSTALL_PARAMS  DeviceInstallParams;
-        TCHAR className [MAX_PATH];
-        DWORD index = 0;
-        PSP_DRVINFO_DETAIL_DATA pDriverInfoDetail;
-        /* for our purposes, 2k buffer is more
-         * than enough to obtain the hardware ID
-         * of the VBoxTAP driver. */
-        DWORD detailBuf [2048];
-
-        HKEY hkey = NULL;
-        DWORD cbSize;
-        DWORD dwValueType;
-
-        /* initialize the structure size */
-        DeviceInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
-        DriverInfoData.cbSize = sizeof(SP_DRVINFO_DATA);
-
-        /* copy the net class GUID */
-        memcpy(&netGuid, &GUID_DEVCLASS_NET, sizeof(GUID_DEVCLASS_NET));
-
-        /* create an empty device info set associated with the net class GUID */
-        hDeviceInfo = SetupDiCreateDeviceInfoList (&netGuid, NULL);
-        if (hDeviceInfo == INVALID_HANDLE_VALUE)
-            SetErrBreak (("SetupDiCreateDeviceInfoList failed (0x%08X)",
-                          GetLastError()));
-
-        /* get the class name from GUID */
-        ok = SetupDiClassNameFromGuid (&netGuid, className, MAX_PATH, NULL);
-        if (!ok)
-            SetErrBreak (("SetupDiClassNameFromGuid failed (0x%08X)",
-                          GetLastError()));
-
-        /* create a device info element and add the new device instance
-         * key to registry */
-        ok = SetupDiCreateDeviceInfo (hDeviceInfo, className, &netGuid, NULL, NULL,
-                                     DICD_GENERATE_ID, &DeviceInfoData);
-        if (!ok)
-            SetErrBreak (("SetupDiCreateDeviceInfo failed (0x%08X)",
-                          GetLastError()));
-
-        /* select the newly created device info to be the currently
-           selected member */
-        ok = SetupDiSetSelectedDevice (hDeviceInfo, &DeviceInfoData);
-        if (!ok)
-            SetErrBreak (("SetupDiSetSelectedDevice failed (0x%08X)",
-                          GetLastError()));
-
-        /* build a list of class drivers */
-        ok = SetupDiBuildDriverInfoList (hDeviceInfo, &DeviceInfoData,
-                                        SPDIT_CLASSDRIVER);
-        if (!ok)
-            SetErrBreak (("SetupDiBuildDriverInfoList failed (0x%08X)",
-                          GetLastError()));
-
-        destroyList = TRUE;
-
-        /* enumerate the driver info list */
-        while (TRUE)
-        {
-            BOOL ret;
-
-            ret = SetupDiEnumDriverInfo (hDeviceInfo, &DeviceInfoData,
-                                         SPDIT_CLASSDRIVER, index, &DriverInfoData);
-
-            /* if the function failed and GetLastError() returned
-             * ERROR_NO_MORE_ITEMS, then we have reached the end of the
-             * list.  Othewise there was something wrong with this
-             * particular driver. */
-            if (!ret)
-            {
-                if(GetLastError() == ERROR_NO_MORE_ITEMS)
-                    break;
-                else
-                {
-                    index++;
-                    continue;
-                }
-            }
-
-            pDriverInfoDetail = (PSP_DRVINFO_DETAIL_DATA) detailBuf;
-            pDriverInfoDetail->cbSize = sizeof(SP_DRVINFO_DETAIL_DATA);
-
-            /* if we successfully find the hardware ID and it turns out to
-             * be the one for the loopback driver, then we are done. */
-            if (SetupDiGetDriverInfoDetail (hDeviceInfo,
-                                            &DeviceInfoData,
-                                            &DriverInfoData,
-                                            pDriverInfoDetail,
-                                            sizeof (detailBuf),
-                                            NULL))
-            {
-                TCHAR * t;
-
-                /* pDriverInfoDetail->HardwareID is a MULTISZ string.  Go through the
-                 * whole list and see if there is a match somewhere. */
-                t = pDriverInfoDetail->HardwareID;
-                while (t && *t && t < (TCHAR *) &detailBuf [sizeof(detailBuf) / sizeof (detailBuf[0])])
-                {
-                    if (!_tcsicmp(t, DRIVERHWID))
-                        break;
-
-                    t += _tcslen(t) + 1;
-                }
-
-                if (t && *t && t < (TCHAR *) &detailBuf [sizeof(detailBuf) / sizeof (detailBuf[0])])
-                {
-                    found = TRUE;
-                    break;
-                }
-            }
-
-            index ++;
-        }
-
-        if (!found)
-            SetErrBreak ((tr ("Could not find Host Interface Networking driver! "
-                              "Please reinstall")));
-
-        /* set the loopback driver to be the currently selected */
-        ok = SetupDiSetSelectedDriver (hDeviceInfo, &DeviceInfoData,
-                                       &DriverInfoData);
-        if (!ok)
-            SetErrBreak (("SetupDiSetSelectedDriver failed (0x%08X)",
-                          GetLastError()));
-
-        /* register the phantom device to prepare for install */
-        ok = SetupDiCallClassInstaller (DIF_REGISTERDEVICE, hDeviceInfo,
-                                        &DeviceInfoData);
-        if (!ok)
-            SetErrBreak (("SetupDiCallClassInstaller failed (0x%08X)",
-                          GetLastError()));
-
-        /* registered, but remove if errors occur in the following code */
-        registered = TRUE;
-
-        /* ask the installer if we can install the device */
-        ok = SetupDiCallClassInstaller (DIF_ALLOW_INSTALL, hDeviceInfo,
-                                        &DeviceInfoData);
-        if (!ok)
-        {
-            if (GetLastError() != ERROR_DI_DO_DEFAULT)
-                SetErrBreak (("SetupDiCallClassInstaller (DIF_ALLOW_INSTALL) failed (0x%08X)",
-                              GetLastError()));
-            /* that's fine */
-        }
-
-        /* install the files first */
-        ok = SetupDiCallClassInstaller (DIF_INSTALLDEVICEFILES, hDeviceInfo,
-                                        &DeviceInfoData);
-        if (!ok)
-            SetErrBreak (("SetupDiCallClassInstaller (DIF_INSTALLDEVICEFILES) failed (0x%08X)",
-                          GetLastError()));
-
-        /* get the device install parameters and disable filecopy */
-        DeviceInstallParams.cbSize = sizeof(SP_DEVINSTALL_PARAMS);
-        ok = SetupDiGetDeviceInstallParams (hDeviceInfo, &DeviceInfoData,
-                                            &DeviceInstallParams);
-        if (ok)
-        {
-            DeviceInstallParams.Flags |= DI_NOFILECOPY;
-            ok = SetupDiSetDeviceInstallParams (hDeviceInfo, &DeviceInfoData,
-                                                &DeviceInstallParams);
-            if (!ok)
-                SetErrBreak (("SetupDiSetDeviceInstallParams failed (0x%08X)",
-                              GetLastError()));
-        }
-
-        /*
-         * Register any device-specific co-installers for this device,
-         */
-
-        ok = SetupDiCallClassInstaller (DIF_REGISTER_COINSTALLERS,
-                                        hDeviceInfo,
-                                        &DeviceInfoData);
-        if (!ok)
-            SetErrBreak (("SetupDiCallClassInstaller (DIF_REGISTER_COINSTALLERS) failed (0x%08X)",
-                          GetLastError()));
-
-        /*
-         * install any  installer-specified interfaces.
-         * and then do the real install
-         */
-        ok = SetupDiCallClassInstaller (DIF_INSTALLINTERFACES,
-                                        hDeviceInfo,
-                                        &DeviceInfoData);
-        if (!ok)
-            SetErrBreak (("SetupDiCallClassInstaller (DIF_INSTALLINTERFACES) failed (0x%08X)",
-                          GetLastError()));
-
-        ok = SetupDiCallClassInstaller (DIF_INSTALLDEVICE,
-                                        hDeviceInfo,
-                                        &DeviceInfoData);
-        if (!ok)
-            SetErrBreak (("SetupDiCallClassInstaller (DIF_INSTALLDEVICE) failed (0x%08X)",
-                          GetLastError()));
-
-        /* Figure out NetCfgInstanceId */
-        hkey = SetupDiOpenDevRegKey (hDeviceInfo,
-                                     &DeviceInfoData,
-                                     DICS_FLAG_GLOBAL,
-                                     0,
-                                     DIREG_DRV,
-                                     KEY_READ);
-        if (hkey == INVALID_HANDLE_VALUE)
-            SetErrBreak (("SetupDiOpenDevRegKey failed (0x%08X)",
-                          GetLastError()));
-
-        cbSize = sizeof (pCfgGuidString);
-        DWORD ret;
-        ret = RegQueryValueEx (hkey, _T ("NetCfgInstanceId"), NULL,
-                               &dwValueType, (LPBYTE) pCfgGuidString, &cbSize);
-        RegCloseKey (hkey);
-
-        ret = RenameConnection (pCfgGuidString, Bstr (aName));
-        if (FAILED (ret))
-            SetErrBreak (("Failed to set interface name (ret=0x%08X, "
-                          "pCfgGuidString='%ls', cbSize=%d)",
-                           ret, pCfgGuidString, cbSize));
-    }
-    while (0);
-
-    /*
-     * cleanup
-     */
-
-    if (hDeviceInfo != INVALID_HANDLE_VALUE)
-    {
-        /* an error has occured, but the device is registered, we must remove it */
-        if (ret != 0 && registered)
-            SetupDiCallClassInstaller (DIF_REMOVE, hDeviceInfo, &DeviceInfoData);
-
-        found = SetupDiDeleteDeviceInfo (hDeviceInfo, &DeviceInfoData);
-
-        /* destroy the driver info list */
-        if (destroyList)
-            SetupDiDestroyDriverInfoList (hDeviceInfo, &DeviceInfoData,
-                                          SPDIT_CLASSDRIVER);
-        /* clean up the device info set */
-        SetupDiDestroyDeviceInfoList (hDeviceInfo);
-    }
-
-    /* return the network connection GUID on success */
-    if (RT_SUCCESS (vrc))
-    {
-        /* remove the curly bracket at the end */
-        pCfgGuidString [_tcslen (pCfgGuidString) - 1] = '\0';
-        LogFlowFunc (("Network connection GUID string = {%ls}\n", pCfgGuidString + 1));
-
-        aGUID = Guid (Utf8Str (pCfgGuidString + 1));
-        LogFlowFunc (("Network connection GUID = {%RTuuid}\n", aGUID.raw()));
-        Assert (!aGUID.isEmpty());
-    }
-
-    LogFlowFunc (("vrc=%Rrc\n", vrc));
-    LogFlowFuncLeave();
-    return vrc;
-}
-
-/* static */
-int Host::removeNetworkInterface (SVCHlpClient *aClient,
-                                  const Guid &aGUID,
-                                  Utf8Str &aErrMsg)
-{
-    LogFlowFuncEnter();
-    LogFlowFunc (("Network connection GUID = {%RTuuid}\n", aGUID.raw()));
-
-    AssertReturn (aClient, VERR_INVALID_POINTER);
-    AssertReturn (!aGUID.isEmpty(), VERR_INVALID_PARAMETER);
-
-    int vrc = VINF_SUCCESS;
-
-    do
-    {
-        TCHAR lszPnPInstanceId [512] = {0};
-
-        /* We have to find the device instance ID through a registry search */
-
-        HKEY hkeyNetwork = 0;
-        HKEY hkeyConnection = 0;
-
-        do
-        {
-            char strRegLocation [256];
-            sprintf (strRegLocation,
-                     "SYSTEM\\CurrentControlSet\\Control\\Network\\"
-                     "{4D36E972-E325-11CE-BFC1-08002BE10318}\\{%s}",
-                     aGUID.toString().raw());
-            LONG status;
-            status = RegOpenKeyExA (HKEY_LOCAL_MACHINE, strRegLocation, 0,
-                                    KEY_READ, &hkeyNetwork);
-            if ((status != ERROR_SUCCESS) || !hkeyNetwork)
-                SetErrBreak ((
-                    tr ("Host interface network is not found in registry (%s) [1]"),
-                    strRegLocation));
-
-            status = RegOpenKeyExA (hkeyNetwork, "Connection", 0,
-                                    KEY_READ, &hkeyConnection);
-            if ((status != ERROR_SUCCESS) || !hkeyConnection)
-                SetErrBreak ((
-                    tr ("Host interface network is not found in registry (%s) [2]"),
-                    strRegLocation));
-
-            DWORD len = sizeof (lszPnPInstanceId);
-            DWORD dwKeyType;
-            status = RegQueryValueExW (hkeyConnection, L"PnPInstanceID", NULL,
-                                       &dwKeyType, (LPBYTE) lszPnPInstanceId, &len);
-            if ((status != ERROR_SUCCESS) || (dwKeyType != REG_SZ))
-                SetErrBreak ((
-                    tr ("Host interface network is not found in registry (%s) [3]"),
-                    strRegLocation));
-        }
-        while (0);
-
-        if (hkeyConnection)
-            RegCloseKey (hkeyConnection);
-        if (hkeyNetwork)
-            RegCloseKey (hkeyNetwork);
-
-        if (RT_FAILURE (vrc))
-            break;
-
-        /*
-         * Now we are going to enumerate all network devices and
-         * wait until we encounter the right device instance ID
-         */
-
-        HDEVINFO hDeviceInfo = INVALID_HANDLE_VALUE;
-
-        do
-        {
-            BOOL ok;
-            DWORD ret = 0;
-            GUID netGuid;
-            SP_DEVINFO_DATA DeviceInfoData;
-            DWORD index = 0;
-            BOOL found = FALSE;
-            DWORD size = 0;
-
-            /* initialize the structure size */
-            DeviceInfoData.cbSize = sizeof (SP_DEVINFO_DATA);
-
-            /* copy the net class GUID */
-            memcpy (&netGuid, &GUID_DEVCLASS_NET, sizeof (GUID_DEVCLASS_NET));
-
-            /* return a device info set contains all installed devices of the Net class */
-            hDeviceInfo = SetupDiGetClassDevs (&netGuid, NULL, NULL, DIGCF_PRESENT);
-
-            if (hDeviceInfo == INVALID_HANDLE_VALUE)
-                SetErrBreak (("SetupDiGetClassDevs failed (0x%08X)", GetLastError()));
-
-            /* enumerate the driver info list */
-            while (TRUE)
-            {
-                TCHAR *deviceHwid;
-
-                ok = SetupDiEnumDeviceInfo (hDeviceInfo, index, &DeviceInfoData);
-
-                if (!ok)
-                {
-                    if (GetLastError() == ERROR_NO_MORE_ITEMS)
-                        break;
-                    else
-                    {
-                        index++;
-                        continue;
-                    }
-                }
-
-                /* try to get the hardware ID registry property */
-                ok = SetupDiGetDeviceRegistryProperty (hDeviceInfo,
-                                                       &DeviceInfoData,
-                                                       SPDRP_HARDWAREID,
-                                                       NULL,
-                                                       NULL,
-                                                       0,
-                                                       &size);
-                if (!ok)
-                {
-                    if (GetLastError() != ERROR_INSUFFICIENT_BUFFER)
-                    {
-                        index++;
-                        continue;
-                    }
-
-                    deviceHwid = (TCHAR *) malloc (size);
-                    ok = SetupDiGetDeviceRegistryProperty (hDeviceInfo,
-                                                           &DeviceInfoData,
-                                                           SPDRP_HARDWAREID,
-                                                           NULL,
-                                                           (PBYTE)deviceHwid,
-                                                           size,
-                                                           NULL);
-                    if (!ok)
-                    {
-                        free (deviceHwid);
-                        deviceHwid = NULL;
-                        index++;
-                        continue;
-                    }
-                }
-                else
-                {
-                    /* something is wrong.  This shouldn't have worked with a NULL buffer */
-                    index++;
-                    continue;
-                }
-
-                for (TCHAR *t = deviceHwid;
-                     t && *t && t < &deviceHwid[size / sizeof(TCHAR)];
-                     t += _tcslen (t) + 1)
-                {
-                    if (!_tcsicmp (DRIVERHWID, t))
-                    {
-                          /* get the device instance ID */
-                          TCHAR devID [MAX_DEVICE_ID_LEN];
-                          if (CM_Get_Device_ID(DeviceInfoData.DevInst,
-                                               devID, MAX_DEVICE_ID_LEN, 0) == CR_SUCCESS)
-                          {
-                              /* compare to what we determined before */
-                              if (wcscmp(devID, lszPnPInstanceId) == 0)
-                              {
-                                  found = TRUE;
-                                  break;
-                              }
-                          }
-                    }
-                }
-
-                if (deviceHwid)
-                {
-                    free (deviceHwid);
-                    deviceHwid = NULL;
-                }
-
-                if (found)
-                    break;
-
-                index++;
-            }
-
-            if (found == FALSE)
-                SetErrBreak ((tr ("Host Interface Network driver not found (0x%08X)"),
-                              GetLastError()));
-
-            ok = SetupDiSetSelectedDevice (hDeviceInfo, &DeviceInfoData);
-            if (!ok)
-                SetErrBreak (("SetupDiSetSelectedDevice failed (0x%08X)",
-                              GetLastError()));
-
-            ok = SetupDiCallClassInstaller (DIF_REMOVE, hDeviceInfo, &DeviceInfoData);
-            if (!ok)
-                SetErrBreak (("SetupDiCallClassInstaller (DIF_REMOVE) failed (0x%08X)",
-                              GetLastError()));
-        }
-        while (0);
-
-        /* clean up the device info set */
-        if (hDeviceInfo != INVALID_HANDLE_VALUE)
-            SetupDiDestroyDeviceInfoList (hDeviceInfo);
-
-        if (RT_FAILURE (vrc))
-            break;
-    }
-    while (0);
-
-    LogFlowFunc (("vrc=%Rrc\n", vrc));
-    LogFlowFuncLeave();
-    return vrc;
-}
-
-#undef SetErrBreak
-
-/* static */
-HRESULT Host::networkInterfaceHelperClient (SVCHlpClient *aClient,
-                                            Progress *aProgress,
-                                            void *aUser, int *aVrc)
-{
-    LogFlowFuncEnter();
-    LogFlowFunc (("aClient={%p}, aProgress={%p}, aUser={%p}\n",
-                  aClient, aProgress, aUser));
-
-    AssertReturn ((aClient == NULL && aProgress == NULL && aVrc == NULL) ||
-                  (aClient != NULL && aProgress != NULL && aVrc != NULL),
-                  E_POINTER);
-    AssertReturn (aUser, E_POINTER);
-
-    std::auto_ptr <NetworkInterfaceHelperClientData>
-        d (static_cast <NetworkInterfaceHelperClientData *> (aUser));
-
-    if (aClient == NULL)
-    {
-        /* "cleanup only" mode, just return (it will free aUser) */
-        return S_OK;
-    }
-
-    HRESULT rc = S_OK;
-    int vrc = VINF_SUCCESS;
-
-    switch (d->msgCode)
-    {
-        case SVCHlpMsg::CreateHostNetworkInterface:
-        {
-            LogFlowFunc (("CreateHostNetworkInterface:\n"));
-            LogFlowFunc (("Network connection name = '%ls'\n", d->name.raw()));
-
-            /* write message and parameters */
-            vrc = aClient->write (d->msgCode);
-            if (RT_FAILURE (vrc)) break;
-            vrc = aClient->write (Utf8Str (d->name));
-            if (RT_FAILURE (vrc)) break;
-
-            /* wait for a reply */
-            bool endLoop = false;
-            while (!endLoop)
-            {
-                SVCHlpMsg::Code reply = SVCHlpMsg::Null;
-
-                vrc = aClient->read (reply);
-                if (RT_FAILURE (vrc)) break;
-
-                switch (reply)
-                {
-                    case SVCHlpMsg::CreateHostNetworkInterface_OK:
-                    {
-                        /* read the GUID */
-                        Guid guid;
-                        vrc = aClient->read (guid);
-                        if (RT_FAILURE (vrc)) break;
-
-                        LogFlowFunc (("Network connection GUID = {%RTuuid}\n", guid.raw()));
-
-                        /* initialize the object returned to the caller by
-                         * CreateHostNetworkInterface() */
-                        rc = d->iface->init (d->name, guid);
-                        endLoop = true;
-                        break;
-                    }
-                    case SVCHlpMsg::Error:
-                    {
-                        /* read the error message */
-                        Utf8Str errMsg;
-                        vrc = aClient->read (errMsg);
-                        if (RT_FAILURE (vrc)) break;
-
-                        rc = setError (E_FAIL, errMsg);
-                        endLoop = true;
-                        break;
-                    }
-                    default:
-                    {
-                        endLoop = true;
-                        ComAssertMsgFailedBreak ((
-                            "Invalid message code %d (%08lX)\n",
-                            reply, reply),
-                            rc = E_FAIL);
-                    }
-                }
-            }
-
-            break;
-        }
-        case SVCHlpMsg::RemoveHostNetworkInterface:
-        {
-            LogFlowFunc (("RemoveHostNetworkInterface:\n"));
-            LogFlowFunc (("Network connection GUID = {%RTuuid}\n", d->guid.raw()));
-
-            /* write message and parameters */
-            vrc = aClient->write (d->msgCode);
-            if (RT_FAILURE (vrc)) break;
-            vrc = aClient->write (d->guid);
-            if (RT_FAILURE (vrc)) break;
-
-            /* wait for a reply */
-            bool endLoop = false;
-            while (!endLoop)
-            {
-                SVCHlpMsg::Code reply = SVCHlpMsg::Null;
-
-                vrc = aClient->read (reply);
-                if (RT_FAILURE (vrc)) break;
-
-                switch (reply)
-                {
-                    case SVCHlpMsg::OK:
-                    {
-                        /* no parameters */
-                        rc = S_OK;
-                        endLoop = true;
-                        break;
-                    }
-                    case SVCHlpMsg::Error:
-                    {
-                        /* read the error message */
-                        Utf8Str errMsg;
-                        vrc = aClient->read (errMsg);
-                        if (RT_FAILURE (vrc)) break;
-
-                        rc = setError (E_FAIL, errMsg);
-                        endLoop = true;
-                        break;
-                    }
-                    default:
-                    {
-                        endLoop = true;
-                        ComAssertMsgFailedBreak ((
-                            "Invalid message code %d (%08lX)\n",
-                            reply, reply),
-                            rc = E_FAIL);
-                    }
-                }
-            }
-
-            break;
-        }
-        default:
-            ComAssertMsgFailedBreak ((
-                "Invalid message code %d (%08lX)\n",
-                d->msgCode, d->msgCode),
-                rc = E_FAIL);
-    }
-
-    if (aVrc)
-        *aVrc = vrc;
-
-    LogFlowFunc (("rc=0x%08X, vrc=%Rrc\n", rc, vrc));
-    LogFlowFuncLeave();
-    return rc;
-}
-
-/* static */
-int Host::networkInterfaceHelperServer (SVCHlpClient *aClient,
-                                        SVCHlpMsg::Code aMsgCode)
-{
-    LogFlowFuncEnter();
-    LogFlowFunc (("aClient={%p}, aMsgCode=%d\n", aClient, aMsgCode));
-
-    AssertReturn (aClient, VERR_INVALID_POINTER);
-
-    int vrc = VINF_SUCCESS;
-
-    switch (aMsgCode)
-    {
-        case SVCHlpMsg::CreateHostNetworkInterface:
-        {
-            LogFlowFunc (("CreateHostNetworkInterface:\n"));
-
-            Utf8Str name;
-            vrc = aClient->read (name);
-            if (RT_FAILURE (vrc)) break;
-
-            Guid guid;
-            Utf8Str errMsg;
-            vrc = createNetworkInterface (aClient, name, guid, errMsg);
-
-            if (RT_SUCCESS (vrc))
-            {
-                /* write success followed by GUID */
-                vrc = aClient->write (SVCHlpMsg::CreateHostNetworkInterface_OK);
-                if (RT_FAILURE (vrc)) break;
-                vrc = aClient->write (guid);
-                if (RT_FAILURE (vrc)) break;
-            }
-            else
-            {
-                /* write failure followed by error message */
-                if (errMsg.isEmpty())
-                    errMsg = Utf8StrFmt ("Unspecified error (%Rrc)", vrc);
-                vrc = aClient->write (SVCHlpMsg::Error);
-                if (RT_FAILURE (vrc)) break;
-                vrc = aClient->write (errMsg);
-                if (RT_FAILURE (vrc)) break;
-            }
-
-            break;
-        }
-        case SVCHlpMsg::RemoveHostNetworkInterface:
-        {
-            LogFlowFunc (("RemoveHostNetworkInterface:\n"));
-
-            Guid guid;
-            vrc = aClient->read (guid);
-            if (RT_FAILURE (vrc)) break;
-
-            Utf8Str errMsg;
-            vrc = removeNetworkInterface (aClient, guid, errMsg);
-
-            if (RT_SUCCESS (vrc))
-            {
-                /* write parameter-less success */
-                vrc = aClient->write (SVCHlpMsg::OK);
-                if (RT_FAILURE (vrc)) break;
-            }
-            else
-            {
-                /* write failure followed by error message */
-                if (errMsg.isEmpty())
-                    errMsg = Utf8StrFmt ("Unspecified error (%Rrc)", vrc);
-                vrc = aClient->write (SVCHlpMsg::Error);
-                if (RT_FAILURE (vrc)) break;
-                vrc = aClient->write (errMsg);
-                if (RT_FAILURE (vrc)) break;
-            }
-
-            break;
-        }
-        default:
-            AssertMsgFailedBreakStmt (
-                ("Invalid message code %d (%08lX)\n", aMsgCode, aMsgCode),
-                VERR_GENERAL_FAILURE);
-    }
-
-    LogFlowFunc (("vrc=%Rrc\n", vrc));
-    LogFlowFuncLeave();
-    return vrc;
-}
-
-#endif /* RT_OS_WINDOWS */
 
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
 void Host::registerMetrics (PerformanceCollector *aCollector)
@@ -3330,4 +2203,244 @@ void Host::unregisterMetrics (PerformanceCollector *aCollector)
     aCollector->unregisterBaseMetricsFor (this);
 };
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
+
+STDMETHODIMP Host::FindHostDVDDrive(IN_BSTR aName, IHostDVDDrive **aDrive)
+{
+    CheckComArgNotNull(aName);
+    CheckComArgOutPointerValid(aDrive);
+
+    *aDrive = NULL;
+
+    SafeIfaceArray <IHostDVDDrive> drivevec;
+    HRESULT rc = COMGETTER(DVDDrives) (ComSafeArrayAsOutParam(drivevec));
+    CheckComRCReturnRC (rc);
+
+    for (size_t i = 0; i < drivevec.size(); ++i)
+    {
+        Bstr name;
+        rc = drivevec[i]->COMGETTER(Name) (name.asOutParam());
+        CheckComRCReturnRC (rc);
+        if (name == aName)
+        {
+            ComObjPtr<HostDVDDrive> found;
+            found.createObject();
+            Bstr udi, description;
+            rc = drivevec[i]->COMGETTER(Udi) (udi.asOutParam());
+            CheckComRCReturnRC (rc);
+            rc = drivevec[i]->COMGETTER(Description) (description.asOutParam());
+            CheckComRCReturnRC (rc);
+            found->init(name, udi, description);
+            return found.queryInterfaceTo(aDrive);
+        }
+    }
+
+    return setError (VBOX_E_OBJECT_NOT_FOUND, HostDVDDrive::tr (
+        "The host DVD drive named '%ls' could not be found"), aName);
+}
+
+STDMETHODIMP Host::FindHostFloppyDrive(IN_BSTR aName, IHostFloppyDrive **aDrive)
+{
+    CheckComArgNotNull(aName);
+    CheckComArgOutPointerValid(aDrive);
+
+    *aDrive = NULL;
+
+    SafeIfaceArray <IHostFloppyDrive> drivevec;
+    HRESULT rc = COMGETTER(FloppyDrives) (ComSafeArrayAsOutParam(drivevec));
+    CheckComRCReturnRC (rc);
+
+    for (size_t i = 0; i < drivevec.size(); ++i)
+    {
+        Bstr name;
+        rc = drivevec[i]->COMGETTER(Name) (name.asOutParam());
+        CheckComRCReturnRC (rc);
+        if (name == aName)
+        {
+            ComObjPtr<HostFloppyDrive> found;
+            found.createObject();
+            Bstr udi, description;
+            rc = drivevec[i]->COMGETTER(Udi) (udi.asOutParam());
+            CheckComRCReturnRC (rc);
+            rc = drivevec[i]->COMGETTER(Description) (description.asOutParam());
+            CheckComRCReturnRC (rc);
+            found->init(name, udi, description);
+            return found.queryInterfaceTo(aDrive);
+        }
+    }
+
+    return setError (VBOX_E_OBJECT_NOT_FOUND, HostFloppyDrive::tr (
+        "The host floppy drive named '%ls' could not be found"), aName);
+}
+
+STDMETHODIMP Host::FindHostNetworkInterfaceByName(IN_BSTR name, IHostNetworkInterface **networkInterface)
+{
+#ifndef VBOX_WITH_HOSTNETIF_API
+    return E_NOTIMPL;
+#else
+    if (!name)
+        return E_INVALIDARG;
+    if (!networkInterface)
+        return E_POINTER;
+
+    *networkInterface = NULL;
+    ComObjPtr <HostNetworkInterface> found;
+    std::list <ComObjPtr <HostNetworkInterface> > list;
+    int rc = NetIfList(list);
+    if (RT_FAILURE(rc))
+    {
+        Log(("Failed to get host network interface list with rc=%Vrc\n", rc));
+        return E_FAIL;
+    }
+    std::list <ComObjPtr <HostNetworkInterface> >::iterator it;
+    for (it = list.begin(); it != list.end(); ++it)
+    {
+        Bstr n;
+        (*it)->COMGETTER(Name) (n.asOutParam());
+        if (n == name)
+            found = *it;
+    }
+
+    if (!found)
+        return setError (E_INVALIDARG, HostNetworkInterface::tr (
+                             "The host network interface with the given name could not be found"));
+
+    found->setVirtualBox(mParent);
+
+    return found.queryInterfaceTo (networkInterface);
+#endif
+}
+
+STDMETHODIMP Host::FindHostNetworkInterfaceById(IN_GUID id, IHostNetworkInterface **networkInterface)
+{
+#ifndef VBOX_WITH_HOSTNETIF_API
+    return E_NOTIMPL;
+#else
+    if (Guid(id).isEmpty())
+        return E_INVALIDARG;
+    if (!networkInterface)
+        return E_POINTER;
+
+    *networkInterface = NULL;
+    ComObjPtr <HostNetworkInterface> found;
+    std::list <ComObjPtr <HostNetworkInterface> > list;
+    int rc = NetIfList(list);
+    if (RT_FAILURE(rc))
+    {
+        Log(("Failed to get host network interface list with rc=%Vrc\n", rc));
+        return E_FAIL;
+    }
+    std::list <ComObjPtr <HostNetworkInterface> >::iterator it;
+    for (it = list.begin(); it != list.end(); ++it)
+    {
+        Guid g;
+        (*it)->COMGETTER(Id) (g.asOutParam());
+        if (g == Guid(id))
+            found = *it;
+    }
+
+    if (!found)
+        return setError (E_INVALIDARG, HostNetworkInterface::tr (
+                             "The host network interface with the given GUID could not be found"));
+
+    found->setVirtualBox(mParent);
+
+    return found.queryInterfaceTo (networkInterface);
+#endif
+}
+
+STDMETHODIMP Host::FindHostNetworkInterfacesOfType(HostNetworkInterfaceType_T type, ComSafeArrayOut (IHostNetworkInterface *, aNetworkInterfaces))
+{
+    std::list <ComObjPtr <HostNetworkInterface> > allList;
+    int rc = NetIfList(allList);
+    if(RT_FAILURE(rc))
+        return E_FAIL;
+
+    std::list <ComObjPtr <HostNetworkInterface> > resultList;
+
+    std::list <ComObjPtr <HostNetworkInterface> >::iterator it;
+    for (it = allList.begin(); it != allList.end(); ++it)
+    {
+        HostNetworkInterfaceType_T t;
+        HRESULT hr = (*it)->COMGETTER(InterfaceType)(&t);
+        if(FAILED(hr))
+            return hr;
+
+        if(t == type)
+        {
+            (*it)->setVirtualBox(mParent);
+            resultList.push_back (*it);
+        }
+    }
+
+    SafeIfaceArray <IHostNetworkInterface> filteredNetworkInterfaces (resultList);
+    filteredNetworkInterfaces.detachTo (ComSafeArrayOutArg (aNetworkInterfaces));
+
+    return S_OK;
+}
+
+STDMETHODIMP Host::FindUSBDeviceByAddress (IN_BSTR aAddress, IHostUSBDevice **aDevice)
+{
+#ifdef VBOX_WITH_USB
+    CheckComArgNotNull(aAddress);
+    CheckComArgOutPointerValid(aDevice);
+
+    *aDevice = NULL;
+
+    SafeIfaceArray <IHostUSBDevice> devsvec;
+    HRESULT rc = COMGETTER(USBDevices) (ComSafeArrayAsOutParam(devsvec));
+    CheckComRCReturnRC (rc);
+
+    for (size_t i = 0; i < devsvec.size(); ++i)
+    {
+        Bstr address;
+        rc = devsvec[i]->COMGETTER(Address) (address.asOutParam());
+        CheckComRCReturnRC (rc);
+        if (address == aAddress)
+        {
+            return ComObjPtr<IHostUSBDevice> (devsvec[i]).queryInterfaceTo (aDevice);
+        }
+    }
+
+    return setErrorNoLog (VBOX_E_OBJECT_NOT_FOUND, tr (
+        "Could not find a USB device with address '%ls'"),
+        aAddress);
+
+#else   /* !VBOX_WITH_USB */
+    return E_NOTIMPL;
+#endif  /* !VBOX_WITH_USB */
+}
+
+STDMETHODIMP Host::FindUSBDeviceById (IN_GUID aId, IHostUSBDevice **aDevice)
+{
+#ifdef VBOX_WITH_USB
+    CheckComArgExpr(aId, Guid (aId).isEmpty() == false);
+    CheckComArgOutPointerValid(aDevice);
+
+    *aDevice = NULL;
+
+    SafeIfaceArray <IHostUSBDevice> devsvec;
+    HRESULT rc = COMGETTER(USBDevices) (ComSafeArrayAsOutParam(devsvec));
+    CheckComRCReturnRC (rc);
+
+    for (size_t i = 0; i < devsvec.size(); ++i)
+    {
+        Guid id;
+        rc = devsvec[i]->COMGETTER(Id) (id.asOutParam());
+        CheckComRCReturnRC (rc);
+        if (id == aId)
+        {
+            return ComObjPtr<IHostUSBDevice> (devsvec[i]).queryInterfaceTo (aDevice);
+        }
+    }
+
+    return setErrorNoLog (VBOX_E_OBJECT_NOT_FOUND, tr (
+        "Could not find a USB device with uuid {%RTuuid}"),
+        Guid (aId).raw());
+
+#else   /* !VBOX_WITH_USB */
+    return E_NOTIMPL;
+#endif  /* !VBOX_WITH_USB */
+}
+
+
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

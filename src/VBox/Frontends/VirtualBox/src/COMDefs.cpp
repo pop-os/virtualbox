@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,8 +26,9 @@
 
 #else /* !defined (VBOX_WITH_XPCOM) */
 
-#include <qobject.h>
-#include <qsocketnotifier.h>
+/* Qt includes */
+#include <QObject>
+#include <QSocketNotifier>
 
 #include <nsEventQueueUtils.h>
 #include <nsIEventQueue.h>
@@ -63,8 +64,7 @@ public:
     {
         mEventQ = eq;
         mNotifier = new QSocketNotifier (mEventQ->GetEventQueueSelectFD(),
-                                         QSocketNotifier::Read, this,
-                                         "XPCOMEventQSocketNotifier");
+                                         QSocketNotifier::Read, this);
         QObject::connect (mNotifier, SIGNAL (activated (int)),
                           this, SLOT (processEvents()));
     }
@@ -186,49 +186,42 @@ HRESULT COMBase::CleanupCOM()
 }
 
 /* static */
-void COMBase::ToSafeArray (const QValueVector <QString> &aVec,
+void COMBase::ToSafeArray (const QVector <QString> &aVec,
                            com::SafeArray <BSTR> &aArr)
 {
     aArr.reset (aVec.size());
-    size_t i = 0;
-    for (QValueVector <QString>::const_iterator it = aVec.begin();
-         it != aVec.end(); ++ it, ++ i)
-        aArr [i] = SysAllocString ((const OLECHAR *) (*it).ucs2());
+    for (int i = 0; i < aVec.size(); ++ i)
+        aArr [i] = SysAllocString ((const OLECHAR *)
+            (aVec.at (i).isNull() ? 0 : aVec.at (i).utf16()));
 }
 
 /* static */
 void COMBase::FromSafeArray (const com::SafeArray <BSTR> &aArr,
-                             QValueVector <QString> &aVec)
+                             QVector <QString> &aVec)
 {
-    aVec = QValueVector <QString> (aArr.size());
-    size_t i = 0;
-    for (QValueVector <QString>::iterator it = aVec.begin();
-         it != aVec.end(); ++ it, ++ i)
-        *it = QString::fromUcs2 (aArr [i]);
+    aVec.resize (static_cast <int> (aArr.size()));
+    for (int i = 0; i < aVec.size(); ++ i)
+        aVec [i] = QString::fromUtf16 (aArr [i]);
 }
 
 /* static */
-void COMBase::ToSafeArray (const QValueVector <QUuid> &aVec,
+void COMBase::ToSafeArray (const QVector <QUuid> &aVec,
                            com::SafeGUIDArray &aArr)
 {
     AssertCompileSize (GUID, sizeof (QUuid));
     aArr.reset (aVec.size());
-    size_t i = 0;
-    for (QValueVector <QUuid>::const_iterator it = aVec.begin();
-         it != aVec.end(); ++ it, ++ i)
-        aArr [i] = *(GUID *) &(*it);
+    for (int i = 0; i < aVec.size(); ++ i)
+        aArr [i] = *(GUID*) &aVec [i];
 }
 
 /* static */
 void COMBase::FromSafeArray (const com::SafeGUIDArray &aArr,
-                             QValueVector <QUuid> &aVec)
+                             QVector <QUuid> &aVec)
 {
     AssertCompileSize (GUID, sizeof (QUuid));
-    aVec = QValueVector <QUuid> (aArr.size());
-    size_t i = 0;
-    for (QValueVector <QUuid>::iterator it = aVec.begin();
-         it != aVec.end(); ++ it, ++ i)
-        *it = *(QUuid *) &aArr [i];
+    aVec.resize (static_cast <int> (aArr.size()));
+    for (int i = 0; i < aVec.size(); ++ i)
+        aVec [i] = *(QUuid*) &aArr [i];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

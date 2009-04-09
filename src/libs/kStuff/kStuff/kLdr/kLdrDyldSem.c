@@ -1,4 +1,4 @@
-/* $Id: kLdrDyldSem.c 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kLdrDyldSem.c 24 2009-02-08 13:58:54Z bird $ */
 /** @file
  * kLdr - The Dynamic Loader, Semaphore Helper Functions.
  */
@@ -39,6 +39,7 @@
 
 #if K_OS == K_OS_DARWIN
 # include <mach/mach.h>
+# undef mach_task_self  /* don't use the macro (if we're using bare helpers ) */
 
 #elif K_OS == K_OS_OS2
 # define INCL_BASE

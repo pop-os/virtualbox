@@ -25,23 +25,20 @@
 #include "VBoxGlobal.h"
 #include "VBoxSelectorWnd.h"
 #include "VBoxConsoleWnd.h"
+#include "VBoxProgressDialog.h"
 
-#ifdef VBOX_OSE
-# include "VBoxAboutDlg.h"
-#else
-# include "VBoxAboutNonOSEDlg.h"
-#endif
+#include "VBoxAboutDlg.h"
 
 #include "QIHotKeyEdit.h"
 
-#include <qmessagebox.h>
-#include <qprogressdialog.h>
-#include <qcursor.h>
-#include <qprocess.h>
-#include <qeventloop.h>
-#include <qregexp.h>
 #ifdef Q_WS_MAC
-# include <qpushbutton.h>
+# include "VBoxUtils-darwin.h"
+#endif
+
+/* Qt includes */
+#include <QFileInfo>
+#ifdef Q_WS_MAC
+# include <QPushButton>
 #endif
 
 #include <iprt/err.h>
@@ -52,170 +49,9 @@
 #include <Htmlhelp.h>
 #endif
 
-/**
- *  A QProgressDialog enhancement that allows to:
- *
- *  1) prevent closing the dialog when it has no cancel button;
- *  2) effectively track the IProgress object completion
- *     (w/o using IProgress::waitForCompletion() and w/o blocking the UI thread
- *     in any other way for too long).
- *
- *  @note The CProgress instance is passed as a non-const reference to the
- *        constructor (to memorize COM errors if they happen), and therefore
- *        must not be destroyed before the created VBoxProgressDialog instance
- *        is destroyed.
- */
-class VBoxProgressDialog : public QProgressDialog
-{
-public:
-
-    VBoxProgressDialog (CProgress &aProgress, const QString &aTitle,
-                        int aMinDuration = 2000, QWidget *aCreator = 0,
-                        const char *aName = 0)
-        : QProgressDialog (aCreator, aName, true,
-                           WStyle_Customize | WStyle_DialogBorder | WStyle_Title)
-        , mProgress (aProgress)
-        , mCalcelEnabled (true)
-        , mOpCount (mProgress.GetOperationCount())
-        , mCurOp (mProgress.GetOperation() + 1)
-        , mLoopLevel (-1)
-        , mEnded (false)
-    {
-        if (mOpCount > 1)
-            setLabelText (QString (sOpDescTpl)
-                          .arg (mProgress.GetOperationDescription())
-                          .arg (mCurOp).arg (mOpCount));
-        else
-            setLabelText (QString ("%1...")
-                          .arg (mProgress.GetOperationDescription()));
-        setCancelButtonText (QString::null);
-        setTotalSteps (100);
-        setCaption (QString ("%1: %2")
-                    .arg (aTitle, mProgress.GetDescription()));
-        setMinimumDuration (aMinDuration);
-        setCancelEnabled (false);
-        setProgress (0);
-    }
-
-    int run (int aRefreshInterval);
-
-    bool cancelEnabled() const { return mCalcelEnabled; }
-    void setCancelEnabled (bool aEnabled) { mCalcelEnabled = aEnabled; }
-
-protected:
-
-    virtual void timerEvent (QTimerEvent *e);
-
-    virtual void reject() { if (mCalcelEnabled) QProgressDialog::reject(); };
-
-    virtual void closeEvent (QCloseEvent *e)
-    {
-        if (mCalcelEnabled)
-            QProgressDialog::closeEvent (e);
-        else
-            e->ignore();
-    }
-
-private:
-
-    CProgress &mProgress;
-    bool mCalcelEnabled;
-    const ulong mOpCount;
-    ulong mCurOp;
-    int mLoopLevel;
-    bool mEnded;
-
-    static const char *sOpDescTpl;
-};
-
-//static
-const char *VBoxProgressDialog::sOpDescTpl = "%1... (%2/%3)";
-
-int VBoxProgressDialog::run (int aRefreshInterval)
-{
-    if (mProgress.isOk())
-    {
-        /* start a refresh timer */
-        startTimer (aRefreshInterval);
-        mLoopLevel = qApp->eventLoop()->loopLevel();
-        /* enter the modal loop */
-        qApp->eventLoop()->enterLoop();
-        killTimers();
-        mLoopLevel = -1;
-        mEnded = false;
-        return result();
-    }
-    return Rejected;
-}
-
-//virtual
-void VBoxProgressDialog::timerEvent (QTimerEvent *e)
-{
-    bool justEnded = false;
-
-    if (!mEnded && (!mProgress.isOk() || mProgress.GetCompleted()))
-    {
-        /* dismiss the dialog -- the progress is no more valid */
-        killTimer (e->timerId());
-        if (mProgress.isOk())
-        {
-            setProgress (100);
-            setResult (Accepted);
-        }
-        else
-            setResult (Rejected);
-        mEnded = justEnded = true;
-    }
-
-    if (mEnded)
-    {
-        if (mLoopLevel != -1)
-        {
-            /* we've entered the loop in run() */
-            if (mLoopLevel + 1 == qApp->eventLoop()->loopLevel())
-            {
-                /* it's our loop, exit it */
-                qApp->eventLoop()->exitLoop();
-            }
-            else
-            {
-                Assert (mLoopLevel + 1 < qApp->eventLoop()->loopLevel());
-                /* restart the timer to watch for the loop level to drop */
-                if (justEnded)
-                    startTimer (50);
-            }
-        }
-        else
-            Assert (justEnded);
-        return;
-    }
-
-    /* update the progress dialog */
-    ulong newOp = mProgress.GetOperation() + 1;
-    if (newOp != mCurOp)
-    {
-        mCurOp = newOp;
-        setLabelText (QString (sOpDescTpl)
-            .arg (mProgress.GetOperationDescription())
-            .arg (mCurOp).arg (mOpCount));
-    }
-    setProgress (mProgress.GetPercent());
-}
-
-
-/** @class VBoxProblemReporter
- *
- *  The VBoxProblemReporter class is a central place to handle all
- *  problem/error situations that happen during application
- *  runtime and require the user's attention. Its role is to
- *  describe the problem and/or the cause of the error to the user and give
- *  him the opportunity to select an action (when appropriate).
- *
- *  Every problem sutiation has its own (correspondingly named) method in
- *  this class that takes a list of arguments necessary to describe the
- *  situation and to provide the appropriate actions. The method then
- *  returns the choice to the caller.
- */
+////////////////////////////////////////////////////////////////////////////////
+// VBoxProblemReporter class
+////////////////////////////////////////////////////////////////////////////////
 
 /**
  *  Returns a reference to the global VirtualBox problem reporter instance.
@@ -226,7 +62,7 @@ VBoxProblemReporter &VBoxProblemReporter::instance()
     return vboxProblem_instance;
 }
 
-bool VBoxProblemReporter::isValid()
+bool VBoxProblemReporter::isValid() const
 {
     return qApp != 0;
 }
@@ -289,7 +125,7 @@ int VBoxProblemReporter::message (QWidget *aParent, Type aType, const QString &a
                                   int aButton3 /* = 0 */,
                                   const QString &aText1 /* = QString::null */,
                                   const QString &aText2 /* = QString::null */,
-                                  const QString &aText3 /* = QString::null */)
+                                  const QString &aText3 /* = QString::null */) const
 {
     if (aButton1 == 0 && aButton2 == 0 && aButton3 == 0)
         aButton1 = QIMessageBox::Ok | QIMessageBox::Default;
@@ -300,8 +136,8 @@ int VBoxProblemReporter::message (QWidget *aParent, Type aType, const QString &a
     if (aAutoConfirmId)
     {
         vbox = vboxGlobal().virtualBox();
-        msgs = QStringList::split (',', vbox.GetExtraData (VBoxDefs::GUI_SuppressMessages));
-        if (msgs.findIndex (aAutoConfirmId) >= 0) {
+        msgs = vbox.GetExtraData (VBoxDefs::GUI_SuppressMessages).split (',');
+        if (msgs.contains (aAutoConfirmId)) {
             int rc = AutoConfirmed;
             if (aButton1 & QIMessageBox::Default)
                 rc |= (aButton1 & QIMessageBox::ButtonMask);
@@ -355,11 +191,8 @@ int VBoxProblemReporter::message (QWidget *aParent, Type aType, const QString &a
     if (!aText3.isNull())
         box->setButtonText (2, aText3);
 
-    if (aDetails)
-    {
+    if (!aDetails.isEmpty())
         box->setDetailsText (aDetails);
-        box->setDetailsShown (true);
-    }
 
     if (aAutoConfirmId)
     {
@@ -415,10 +248,10 @@ bool VBoxProblemReporter::showModalProgressDialog (
     CProgress &aProgress, const QString &aTitle, QWidget *aParent,
     int aMinDuration)
 {
-    QApplication::setOverrideCursor (QCursor (WaitCursor));
+    QApplication::setOverrideCursor (QCursor (Qt::WaitCursor));
 
     VBoxProgressDialog progressDlg (aProgress, aTitle, aMinDuration,
-                                    aParent, "progressDlg");
+                                    aParent);
 
     /* run the dialog with the 100 ms refresh interval */
     progressDlg.run (100);
@@ -432,7 +265,7 @@ bool VBoxProblemReporter::showModalProgressDialog (
  *  Returns what main window (selector or console) is now shown, or
  *  zero if none of them. The selector window takes precedence.
  */
-QWidget *VBoxProblemReporter::mainWindowShown()
+QWidget *VBoxProblemReporter::mainWindowShown() const
 {
     /* It may happen that this method is called during VBoxGlobal
      * initialization or even after it failed (for example, to show some
@@ -443,25 +276,70 @@ QWidget *VBoxProblemReporter::mainWindowShown()
 #if defined (VBOX_GUI_SEPARATE_VM_PROCESS)
     if (vboxGlobal().isVMConsoleProcess())
     {
-        if (vboxGlobal().consoleWnd().isShown())
+        if (vboxGlobal().consoleWnd().isVisible())
             return &vboxGlobal().consoleWnd();
     }
     else
     {
-        if (vboxGlobal().selectorWnd().isShown())
+        if (vboxGlobal().selectorWnd().isVisible())
             return &vboxGlobal().selectorWnd();
     }
 #else
-    if (vboxGlobal().consoleWnd().isShown())
+    if (vboxGlobal().consoleWnd().isVisible())
         return &vboxGlobal().consoleWnd();
-    if (vboxGlobal().selectorWnd().isShown())
+    if (vboxGlobal().selectorWnd().isVisible())
         return &vboxGlobal().selectorWnd();
 #endif
     return 0;
 }
 
-// Problem handlers
+// Generic Problem handlers
 /////////////////////////////////////////////////////////////////////////////
+
+bool VBoxProblemReporter::askForOverridingFileIfExists (const QString& aPath, QWidget *aParent /* = NULL */) const
+{
+    QFileInfo fi (aPath);
+    if (fi.exists())
+        return messageYesNo (aParent, Question, tr ("A file named <b>%1</b> already exists. Are you sure you want to replace it?<br /><br />The file already exists in \"%2\". Replacing it will overwrite its contents.").arg (fi.fileName()). arg (fi.absolutePath()));
+    else
+        return true;
+}
+
+bool VBoxProblemReporter::askForOverridingFilesIfExists (const QStringList& aPaths, QWidget *aParent /* = NULL */) const
+{
+    QStringList existingFiles;
+    foreach (const QString &file, aPaths)
+    {
+        QFileInfo fi (file);
+        if (fi.exists())
+            existingFiles << fi.absoluteFilePath();
+    }
+    if (existingFiles.size() == 1)
+        /* If it is only one file use the single question versions above */
+        return askForOverridingFileIfExists (existingFiles.at (0), aParent);
+    else if (existingFiles.size() > 1)
+        return messageYesNo (aParent, Question, tr ("The following files already exist:<br /><br />%1<br /><br />Are you sure you want to replace them? Replacing them will overwrite their contents.").arg (existingFiles.join ("<br />")));
+    else
+        return true;
+}
+
+void VBoxProblemReporter::cannotDeleteFile (const QString& path, QWidget *aParent /* = NULL */) const
+{
+    message (aParent, Error,
+             tr ("Failed to remove the file <b>%1</b>.<br /><br />Please try to remove that file yourself & try again.")
+             .arg (path));
+}
+
+// Special Problem handlers
+/////////////////////////////////////////////////////////////////////////////
+
+void VBoxProblemReporter::showBETAWarning()
+{
+    message
+        (0, Warning,
+         tr ("You are running a prerelease version of VirtualBox. "
+             "This version is not suitable for production use."));
+}
 
 #ifdef Q_WS_X11
 void VBoxProblemReporter::cannotFindLicenseFiles (const QString &aPath)
@@ -578,7 +456,7 @@ void VBoxProblemReporter::cannotLoadGlobalConfig (const CVirtualBox &vbox,
             "<p>The application will now terminate.</p>")
              .arg (vbox.GetSettingsFilePath()),
         !res.isOk() ? formatErrorInfo (res)
-                    : QString ("<p>%1</p>").arg (VBoxGlobal::highlight (error)));
+                    : QString ("<p>%1.</p>").arg (vboxGlobal().emphasize (error)));
 }
 
 void VBoxProblemReporter::cannotSaveGlobalConfig (const CVirtualBox &vbox)
@@ -601,15 +479,31 @@ void VBoxProblemReporter::cannotSetSystemProperties (const CSystemProperties &pr
         formatErrorInfo (props));
 }
 
-void VBoxProblemReporter::cannotAccessUSB (const COMBaseWithEI &obj)
+void VBoxProblemReporter::cannotAccessUSB (const COMBaseWithEI &aObj)
 {
     /* If IMachine::GetUSBController(), IHost::GetUSBDevices() etc. return
      * E_NOTIMPL, it means the USB support is intentionally missing
      * (as in the OSE version). Don't show the error message in this case. */
-    COMResult res (obj);
+    COMResult res (aObj);
     if (res.rc() == E_NOTIMPL)
         return;
 
+#ifdef RT_OS_LINUX
+    /* xxx There is no macro to turn an error into a warning, but we need
+     *     to do that here. */
+    if (res.rc() == (VBOX_E_HOST_ERROR & ~0x80000000))
+    {
+        message (mainWindowShown(), VBoxProblemReporter::Warning,
+                 tr ("Could not access USB on the host system, because "
+                     "neither the USB file system (usbfs) nor the DBus "
+                     "and hal services are currently available. If you "
+                     "wish to use host USB devices inside guest systems, "
+                     "you must correct this and restart VirtualBox."),
+                 formatErrorInfo (res),
+                 "cannotAccessUSB" /* aAutoConfirmId */);
+        return;
+    }
+#endif
     message (mainWindowShown(), res.isWarning() ? Warning : Error,
              tr ("Failed to access the USB subsystem."),
              formatErrorInfo (res),
@@ -845,6 +739,26 @@ void VBoxProblemReporter::cannotDiscardSavedState (const CConsole &console)
         formatErrorInfo (res));
 }
 
+void VBoxProblemReporter::cannotSendACPIToMachine()
+{
+    message (mainWindowShown(),  Warning,
+        tr ("You are trying to shut down the guest with the ACPI power "
+            "button. This is currently not possible because the guest "
+            "does not use the ACPI subsystem."));
+}
+
+bool VBoxProblemReporter::warnAboutVirtNotEnabled()
+{
+    return messageOkCancel (mainWindowShown(), Error,
+        tr ("<p>VT-x/AMD-V hardware acceleration has been enabled, but is "
+            "not operational. Your 64-bit guest will fail to detect a "
+            "64-bit CPU and will not be able to boot.</p><p>Please ensure "
+            "that you have enabled VT-x/AMD-V properly in the BIOS of your "
+            "host computer.</p>"),
+        0 /* aAutoConfirmId */,
+        tr ("Close VM"), tr ("Continue"));
+}
+
 void VBoxProblemReporter::cannotSetSnapshotFolder (const CMachine &aMachine,
                                                    const QString &aPath)
 {
@@ -856,6 +770,15 @@ void VBoxProblemReporter::cannotSetSnapshotFolder (const CMachine &aMachine,
             .arg (aMachine.GetName())
             .arg (aPath),
         formatErrorInfo (aMachine));
+}
+
+bool VBoxProblemReporter::askAboutSnapshotAndStateDiscarding()
+{
+    return messageOkCancel (mainWindowShown(), Question,
+        tr ("<p>Are you sure you wish to delete the selected snapshot "
+            "and saved state?</p>"),
+        "confirmSnapshotAndStateDiscarding" /* aAutoConfirmId */,
+        tr ("Discard"), tr ("Cancel"));
 }
 
 void VBoxProblemReporter::cannotDiscardSnapshot (const CConsole &aConsole,
@@ -992,8 +915,8 @@ bool VBoxProblemReporter::confirmMachineDeletion (const CMachine &machine)
     {
         /* this should be in sync with VBoxVMListBoxItem::recache() */
         QFileInfo fi (machine.GetSettingsFilePath());
-        name = fi.extension().lower() == "xml" ?
-               fi.baseName (true) : fi.fileName();
+        name = fi.suffix().toLower() == "xml" ?
+               fi.completeBaseName() : fi.fileName();
         msg = tr ("<p>Are you sure you want to unregister the inaccessible "
                   "virtual machine <b>%1</b>?</p>"
                   "<p>You will no longer be able to register it back from "
@@ -1023,6 +946,8 @@ bool VBoxProblemReporter::confirmReleaseMedium (QWidget *aParent,
                                                 const VBoxMedium &aMedium,
                                                 const QString &aUsage)
 {
+    /** @todo (translation-related): the gender of "the" in translations
+     * will depend on the gender of aMedium.type(). */
     return messageOkCancel (aParent, Question,
         tr ("<p>Are you sure you want to release the %1 "
             "<nobr><b>%2</b></nobr>?</p>"
@@ -1038,6 +963,8 @@ bool VBoxProblemReporter::confirmReleaseMedium (QWidget *aParent,
 bool VBoxProblemReporter::confirmRemoveMedium (QWidget *aParent,
                                                const VBoxMedium &aMedium)
 {
+    /** @todo (translation-related): the gender of "the" in translations
+     * will depend on the gender of aMedium.type(). */
     QString msg =
         tr ("<p>Are you sure you want to remove the %1 "
             "<nobr><b>%2</b></nobr> from the list of known media?</p>")
@@ -1102,30 +1029,42 @@ int VBoxProblemReporter::confirmDeleteHardDiskStorage (
 }
 
 void VBoxProblemReporter::cannotDeleteHardDiskStorage (QWidget *aParent,
-                                                       const CHardDisk2 &aHD,
+                                                       const CHardDisk &aHD,
                                                        const CProgress &aProgress)
 {
-    /* below, we use CHardDisk2 (aHD) to preserve current error info
+    /* below, we use CHardDisk (aHD) to preserve current error info
      * for formatErrorInfo() */
 
     message (aParent, Error,
         tr ("Failed to delete the storage unit of the hard disk <b>%1</b>.")
-            .arg (CHardDisk2 (aHD).GetLocation()),
+            .arg (CHardDisk (aHD).GetLocation()),
         !aHD.isOk() ? formatErrorInfo (aHD) :
         !aProgress.isOk() ? formatErrorInfo (aProgress) :
         formatErrorInfo (aProgress.GetErrorInfo()));
 }
 
-int VBoxProblemReporter::confirmDetachSATASlots (QWidget *aParent)
+int VBoxProblemReporter::confirmDetachAddControllerSlots (QWidget *aParent) const
 {
     return messageOkCancel (aParent, Question,
-        tr ("<p>There are hard disks attached to SATA ports of this virtual "
-            "machine. If you disable the SATA controller, all these hard disks "
+        tr ("<p>There are hard disks attached to ports of the additional controller. "
+            "If you disable the additional controller, all these hard disks "
             "will be automatically detached.</p>"
-            "<p>Are you sure that you want to "
-            "disable the SATA controller?</p>"),
+            "<p>Are you sure you want to "
+            "disable the additional controller?</p>"),
         0 /* aAutoConfirmId */,
         tr ("Disable", "hard disk"));
+}
+
+int VBoxProblemReporter::confirmChangeAddControllerSlots (QWidget *aParent) const
+{
+    return messageOkCancel (aParent, Question,
+        tr ("<p>There are hard disks attached to ports of the additional controller. "
+            "If you change the additional controller, all these hard disks "
+            "will be automatically detached.</p>"
+            "<p>Are you sure you want to "
+            "change the additional controller?</p>"),
+        0 /* aAutoConfirmId */,
+        tr ("Change", "hard disk"));
 }
 
 int VBoxProblemReporter::confirmRunNewHDWzdOrVDM (QWidget* aParent)
@@ -1147,7 +1086,7 @@ int VBoxProblemReporter::confirmRunNewHDWzdOrVDM (QWidget* aParent)
 
 void VBoxProblemReporter::cannotCreateHardDiskStorage (
     QWidget *aParent, const CVirtualBox &aVBox, const QString &aLocation,
-    const CHardDisk2 &aHD, const CProgress &aProgress)
+    const CHardDisk &aHD, const CProgress &aProgress)
 {
     message (aParent, Error,
         tr ("Failed to create the hard disk storage <nobr><b>%1</b>.</nobr>")
@@ -1188,6 +1127,8 @@ void VBoxProblemReporter::
 cannotMountMedium (QWidget *aParent, const CMachine &aMachine,
                    const VBoxMedium &aMedium, const COMResult &aResult)
 {
+    /** @todo (translation-related): the gender of "the" in translations
+     * will depend on the gender of aMedium.type(). */
     message (aParent, Error,
         tr ("Failed to mount the %1 <nobr><b>%2</b></nobr> "
             "to the machine <b>%3</b>.")
@@ -1201,6 +1142,8 @@ void VBoxProblemReporter::
 cannotUnmountMedium (QWidget *aParent, const CMachine &aMachine,
                      const VBoxMedium &aMedium, const COMResult &aResult)
 {
+    /** @todo (translation-related): the gender of "the" in translations
+     * will depend on the gender of aMedium.type(). */
     message (aParent, Error,
         tr ("Failed to unmount the %1 <nobr><b>%2</b></nobr> "
             "from the machine <b>%3</b>.")
@@ -1214,6 +1157,8 @@ void VBoxProblemReporter::cannotOpenMedium (
     QWidget *aParent, const CVirtualBox &aVBox,
     VBoxDefs::MediaType aType, const QString &aLocation)
 {
+    /** @todo (translation-related): the gender of "the" in translations
+     * will depend on the gender of aMedium.type(). */
     message (aParent, Error,
         tr ("Failed to open the %1 <nobr><b>%2</b></nobr>.")
             .arg (toAccusative (aType))
@@ -1224,6 +1169,8 @@ void VBoxProblemReporter::cannotOpenMedium (
 void VBoxProblemReporter::cannotCloseMedium (
     QWidget *aParent, const VBoxMedium &aMedium, const COMResult &aResult)
 {
+    /** @todo (translation-related): the gender of "the" in translations
+     * will depend on the gender of aMedium.type(). */
     message (aParent, Error,
         tr ("Failed to close the %1 <nobr><b>%2</b></nobr>.")
             .arg (toAccusative (aMedium.type()))
@@ -1274,21 +1221,35 @@ void VBoxProblemReporter::cannotGetMediaAccessibility (const VBoxMedium &aMedium
 
 #if defined Q_WS_WIN
 
+int VBoxProblemReporter::confirmDeletingHostInterface (const QString &aName,
+                                                       QWidget *aParent)
+{
+    return vboxProblem().message (aParent, VBoxProblemReporter::Question,
+        tr ("<p>Do you want to remove the selected host network interface "
+            "<nobr><b>%1</b>?</nobr></p>"
+            "<p><b>Note:</b> This interface may be in use by one or more "
+            "network adapters of this or another VM. After it is removed, these "
+            "adapters will no longer work until you correct their settings by "
+            "either choosing a different interface name or a different adapter "
+            "attachment type.</p>").arg (aName),
+        0, /* autoConfirmId */
+        QIMessageBox::Ok | QIMessageBox::Default,
+        QIMessageBox::Cancel | QIMessageBox::Escape);
+}
+
 void VBoxProblemReporter::cannotCreateHostInterface (
-    const CHost &host, const QString &name, QWidget *parent)
+    const CHost &host, QWidget *parent)
 {
     message (parent ? parent : mainWindowShown(), Error,
-        tr ("Failed to create the host network interface <b>%1</b>.")
-            .arg (name),
+        tr ("Failed to create the host-only network interface."),
         formatErrorInfo (host));
 }
 
 void VBoxProblemReporter::cannotCreateHostInterface (
-    const CProgress &progress, const QString &name, QWidget *parent)
+    const CProgress &progress, QWidget *parent)
 {
     message (parent ? parent : mainWindowShown(), Error,
-        tr ("Failed to create the host network interface <b>%1</b>.")
-            .arg (name),
+        tr ("Failed to create the host-only network interface."),
         formatErrorInfo (progress.GetErrorInfo()));
 }
 
@@ -1462,7 +1423,7 @@ void VBoxProblemReporter::cannotDownloadGuestAdditions (const QString &aURL,
 }
 
 bool VBoxProblemReporter::confirmDownloadAdditions (const QString &aURL,
-                                                   ulong aSize)
+                                                    ulong aSize)
 {
     return messageOkCancel (&vboxGlobal().consoleWnd(), Question,
         tr ("<p>Are you sure you want to download the VirtualBox "
@@ -1547,7 +1508,7 @@ void VBoxProblemReporter::cannotConnectRegister (QWidget *aParent,
 
     message (aParent, Error,
              tr ("<p>Failed to connect to the VirtualBox online "
-                 "registration service.</p><p>%1</p>")
+                 "registration service due to the following error:</p><p><b>%1</b></p>")
                  .arg (aReason));
 }
 
@@ -1563,6 +1524,33 @@ void VBoxProblemReporter::showRegisterResult (QWidget *aParent,
         message (aParent, Error,
                  tr ("<p>Failed to register the VirtualBox product</p><p>%1</p>")
                  .arg (aResult));
+}
+
+void VBoxProblemReporter::showUpdateSuccess (QWidget *aParent,
+                                             const QString &aVersion,
+                                             const QString &aLink)
+{
+    message (aParent, Info,
+             tr ("<p>A new version of VirtualBox has been released! Version <b>%1</b> is available at <a href=\"http://www.virtualbox.org/\">virtualbox.org</a>.</p>"
+                 "<p>You can download this version from this direct link:</p>"
+                 "<p><a href=%2>%3</a></p>")
+                 .arg (aVersion, aLink, aLink));
+}
+
+void VBoxProblemReporter::showUpdateFailure (QWidget *aParent,
+                                             const QString &aReason)
+{
+    message (aParent, Error,
+             tr ("<p>Unable to obtain the new version information "
+                 "due to the following error:</p><p><b>%1</b></p>")
+                 .arg (aReason));
+}
+
+void VBoxProblemReporter::showUpdateNotFound (QWidget *aParent)
+{
+    message (aParent, Info,
+             tr ("You have already installed the latest VirtualBox "
+                 "version. Please repeat the version check later."));
 }
 
 /**
@@ -1584,7 +1572,7 @@ bool VBoxProblemReporter::confirmInputCapture (bool *aAutoConfirmed /* = NULL */
             "keyboard and mouse (if it is captured) and return them to normal "
             "operation. The currently assigned host key is shown on the status bar "
             "at the bottom of the Virtual Machine window, next to the&nbsp;"
-            "<img src=hostkey_16px.png/>&nbsp;icon. This icon, together "
+            "<img src=:/hostkey_16px.png/>&nbsp;icon. This icon, together "
             "with the mouse icon placed nearby, indicate the current keyboard "
             "and mouse capture state."
             "</p>") +
@@ -1617,7 +1605,7 @@ void VBoxProblemReporter::remindAboutAutoCapture()
             "keyboard and mouse (if it is captured) and return them to normal "
             "operation. The currently assigned host key is shown on the status bar "
             "at the bottom of the Virtual Machine window, next to the&nbsp;"
-            "<img src=hostkey_16px.png/>&nbsp;icon. This icon, together "
+            "<img src=:/hostkey_16px.png/>&nbsp;icon. This icon, together "
             "with the mouse icon placed nearby, indicate the current keyboard "
             "and mouse capture state."
             "</p>") +
@@ -1658,7 +1646,7 @@ void VBoxProblemReporter::remindAboutMouseIntegration (bool aSupportsAbsolute)
                 "uncaptured."
                 "</p>"
                 "<p>The mouse icon on the status bar will look like&nbsp;"
-                "<img src=mouse_seamless_16px.png/>&nbsp;to inform you that mouse "
+                "<img src=:/mouse_seamless_16px.png/>&nbsp;to inform you that mouse "
                 "pointer integration is supported by the guest OS and is "
                 "currently turned on."
                 "</p>"
@@ -1727,37 +1715,67 @@ bool VBoxProblemReporter::remindAboutInaccessibleMedia()
  *
  * @param aFormatVersion    Recent settings file format version.
  * @param aFileList         List of auto-converted files (may use Qt HTML).
+ * @param aAfterRefresh     @true when called after the VM refresh.
  *
  * @return QIMessageBox::Yes (Save), QIMessageBox::No (Backup),
  *         QIMessageBox::Cancel (Exit)
  */
 int VBoxProblemReporter::warnAboutAutoConvertedSettings (const QString &aFormatVersion,
-                                                         const QString &aFileList)
+                                                         const QString &aFileList,
+                                                         bool aAfterRefresh)
 {
-    int rc = message (mainWindowShown(), Info,
-        tr ("<p>Your existing VirtualBox settings files were automatically "
-            "converted from the old format to a new format necessary for the "
-            "new version of VirtualBox.</p>"
-            "<p>Press <b>OK</b> to start VirtualBox now or press <b>More</b> if "
-            "you want to get more information about what files were converted "
-            "and access additional actions.</p>"
-            "<p>Press <b>Exit</b> to terminate the VirtualBox "
-            "application without saving the results of the conversion to "
-            "disk.</p>"),
-        NULL /* aAutoConfirmId */,
-        QIMessageBox::Ok | QIMessageBox::Default,
-        QIMessageBox::No,
-        QIMessageBox::Cancel | QIMessageBox::Escape,
-        0,
-        tr ("&More", "warnAboutAutoConvertedSettings message box"),
-        tr ("E&xit", "warnAboutAutoConvertedSettings message box"));
+    /* The aAfterRefresh parameter says if an item which was inaccessible is
+       become accessible after a refresh. For the time beeing we present the
+       old message dialog. This case should be rather unlikly. */
+    if (!aAfterRefresh)
+    {
+        int rc = message (mainWindowShown(), Info,
+            tr ("<p>Your existing VirtualBox settings files will be automatically "
+                "converted from the old format to a new format necessary for the "
+                "new version of VirtualBox.</p>"
+                "<p>Press <b>OK</b> to start VirtualBox now or press <b>Exit</b> if "
+                "you want to terminate the VirtualBox "
+                "application without any further actions.</p>"),
+            NULL /* aAutoConfirmId */,
+            QIMessageBox::Ok | QIMessageBox::Default,
+            QIMessageBox::Cancel | QIMessageBox::Escape,
+            0,
+            0,
+            tr ("E&xit", "warnAboutAutoConvertedSettings message box"));
 
-    /* in the simplest case we backup */
-    if (rc == QIMessageBox::Ok)
+        if (rc == QIMessageBox::Cancel)
+            return QIMessageBox::Cancel;
+
+        /* We backup in any case */
         return QIMessageBox::No;
 
-    if (rc == QIMessageBox::Cancel)
-        return QIMessageBox::Cancel;
+#if 0
+        int rc = message (mainWindowShown(), Info,
+            tr ("<p>Your existing VirtualBox settings files were automatically "
+                "converted from the old format to a new format necessary for the "
+                "new version of VirtualBox.</p>"
+                "<p>Press <b>OK</b> to start VirtualBox now or press <b>More</b> if "
+                "you want to get more information about what files were converted "
+                "and access additional actions.</p>"
+                "<p>Press <b>Exit</b> to terminate the VirtualBox "
+                "application without saving the results of the conversion to "
+                "disk.</p>"),
+            NULL /* aAutoConfirmId */,
+            QIMessageBox::Ok | QIMessageBox::Default,
+            QIMessageBox::No,
+            QIMessageBox::Cancel | QIMessageBox::Escape,
+            0,
+            tr ("&More", "warnAboutAutoConvertedSettings message box"),
+            tr ("E&xit", "warnAboutAutoConvertedSettings message box"));
+
+        /* in the simplest case we backup */
+        if (rc == QIMessageBox::Ok)
+            return QIMessageBox::No;
+
+        if (rc == QIMessageBox::Cancel)
+            return QIMessageBox::Cancel;
+#endif
+    }
 
     return message (mainWindowShown(), Info,
         tr ("<p>The following VirtualBox settings files have been "
@@ -1772,23 +1790,27 @@ int VBoxProblemReporter::warnAboutAutoConvertedSettings (const QString &aFormatV
             "creating backup copies (it will not be possible to use these "
             "settings files with an older version of VirtualBox "
             "afterwards);</li>"
-            "<li><b>Exit</b> to terminate VirtualBox without saving the "
-            "results of the conversion to disk.</li>"
+            "%2"
             "</ul>"
             "<p>It is recommended to always select <b>Backup</b> because in "
             "this case it will be possible to go back to the previous "
             "version of VirtualBox (if necessary) without losing your current "
             "settings. See the VirtualBox Manual for more information about "
             "downgrading.</p>")
-            .arg (aFormatVersion),
-        aFileList,
+            .arg (aFormatVersion)
+            .arg (aAfterRefresh ? QString::null :
+                  tr ("<li><b>Exit</b> to terminate VirtualBox without saving "
+                      "the results of the conversion to disk.</li>")),
+        QString ("<!--EOM-->%1").arg (aFileList),
         NULL /* aAutoConfirmId */,
         QIMessageBox::Yes,
-        QIMessageBox::No | QIMessageBox::Default,
-        QIMessageBox::Cancel | QIMessageBox::Escape,
+        aAfterRefresh ? (QIMessageBox::No | QIMessageBox::Default | QIMessageBox::Escape) :
+                        (QIMessageBox::No | QIMessageBox::Default),
+        aAfterRefresh ? 0 : (QIMessageBox::Cancel | QIMessageBox::Escape),
         tr ("O&verwrite", "warnAboutAutoConvertedSettings message box"),
         tr ("&Backup", "warnAboutAutoConvertedSettings message box"),
-        tr ("E&xit", "warnAboutAutoConvertedSettings message box"));
+        aAfterRefresh ? QString::null :
+            tr ("E&xit", "warnAboutAutoConvertedSettings message box"));
 }
 
 /**
@@ -1804,7 +1826,7 @@ bool VBoxProblemReporter::confirmGoingFullscreen (const QString &aHotKey)
             "<b>fullscreen</b> mode. "
             "You can go back to windowed mode at any time by pressing "
             "<b>%1</b>. Note that the <i>Host</i> key is currently "
-            "defined as <b>%1</b>.</p>"
+            "defined as <b>%2</b>.</p>"
             "<p>Note that the main menu bar is hidden in fullscreen mode. You "
             "can access it by pressing <b>Host+Home</b>.</p>")
             .arg (aHotKey)
@@ -1826,7 +1848,7 @@ bool VBoxProblemReporter::confirmGoingSeamless (const QString &aHotKey)
             "<b>Seamless</b> mode. "
             "You can go back to windowed mode at any time by pressing "
             "<b>%1</b>. Note that the <i>Host</i> key is currently "
-            "defined as <b>%1</b>.</p>"
+            "defined as <b>%2</b>.</p>"
             "<p>Note that the main menu bar is hidden in seamless mode. You "
             "can access it by pressing <b>Host+Home</b>.</p>")
             .arg (aHotKey)
@@ -1943,9 +1965,93 @@ void VBoxProblemReporter::cannotRunInSelectorMode()
             "<p>The application will now terminate.</p>"));
 }
 
+void VBoxProblemReporter::cannotImportAppliance (CAppliance *aAppliance, QWidget *aParent /* = NULL */) const
+{
+    if (aAppliance->isNull())
+    {
+        message (aParent ? aParent : mainWindowShown(),
+                 Error,
+                 tr ("Failed to open appliance."));
+    }else
+    {
+        /* Preserve the current error info before calling the object again */
+        COMResult res (*aAppliance);
+
+        /* Add the warnings in the case of an early error */
+        QVector<QString> w = aAppliance->GetWarnings();
+        QString wstr;
+        foreach (const QString &str, w)
+            wstr += QString ("<br />Warning: %1").arg (str);
+        if (!wstr.isEmpty())
+            wstr = "<br />" + wstr;
+
+        message (aParent ? aParent : mainWindowShown(),
+                 Error,
+                 tr ("Failed to open/interpret appliance <b>%1</b>.").arg (aAppliance->GetPath()),
+                 wstr +
+                 formatErrorInfo (res));
+    }
+}
+
+void VBoxProblemReporter::cannotImportAppliance (const CProgress &aProgress, CAppliance* aAppliance, QWidget *aParent /* = NULL */) const
+{
+    AssertWrapperOk (aProgress);
+
+    message (aParent ? aParent : mainWindowShown(),
+             Error,
+             tr ("Failed to import appliance <b>%1</b>.").arg (aAppliance->GetPath()),
+             formatErrorInfo (aProgress.GetErrorInfo()));
+}
+
+void VBoxProblemReporter::cannotExportAppliance (CAppliance *aAppliance, QWidget *aParent /* = NULL */) const
+{
+    if (aAppliance->isNull())
+    {
+        message (aParent ? aParent : mainWindowShown(),
+                 Error,
+                 tr ("Failed to create appliance."));
+    }else
+    {
+        /* Preserve the current error info before calling the object again */
+        COMResult res (*aAppliance);
+
+        message (aParent ? aParent : mainWindowShown(),
+                 Error,
+                 tr ("Failed to prepare the export of the appliance <b>%1</b>.").arg (aAppliance->GetPath()),
+                 formatErrorInfo (res));
+    }
+}
+
+void VBoxProblemReporter::cannotExportAppliance (const CMachine &aMachine, CAppliance *aAppliance, QWidget *aParent /* = NULL */) const
+{
+    if (aAppliance->isNull() ||
+        aMachine.isNull())
+    {
+        message (aParent ? aParent : mainWindowShown(),
+                 Error,
+                 tr ("Failed to create an appliance."));
+    }else
+    {
+        message (aParent ? aParent : mainWindowShown(),
+                 Error,
+                 tr ("Failed to prepare the export of the appliance <b>%1</b>.").arg (aAppliance->GetPath()),
+                 formatErrorInfo (aMachine));
+    }
+}
+
+void VBoxProblemReporter::cannotExportAppliance (const CProgress &aProgress, CAppliance* aAppliance, QWidget *aParent /* = NULL */) const
+{
+    AssertWrapperOk (aProgress);
+
+    message (aParent ? aParent : mainWindowShown(),
+             Error,
+             tr ("Failed to export appliance <b>%1</b>.").arg (aAppliance->GetPath()),
+             formatErrorInfo (aProgress.GetErrorInfo()));
+}
+
 void VBoxProblemReporter::showRuntimeError (const CConsole &aConsole, bool fatal,
                                             const QString &errorID,
-                                            const QString &errorMsg)
+                                            const QString &errorMsg) const
 {
     /// @todo (r=dmik) it's just a preliminary box. We need to:
     //  - for fatal errors and non-fatal with-retry errors, listen for a
@@ -1954,7 +2060,7 @@ void VBoxProblemReporter::showRuntimeError (const CConsole &aConsole, bool fatal
     //  - make warning messages modeless
     //  - add common buttons like Retry/Save/PowerOff/whatever
 
-    QCString autoConfimId = "showRuntimeError.";
+    QByteArray autoConfimId = "showRuntimeError.";
 
     CConsole console = aConsole;
     KMachineState state = console.GetState();
@@ -1984,16 +2090,12 @@ void VBoxProblemReporter::showRuntimeError (const CConsole &aConsole, bool fatal
         autoConfimId += "warning.";
     }
 
-    autoConfimId += errorID.utf8();
+    autoConfimId += errorID.toUtf8();
 
-    QString formatted;
+    QString formatted ("<!--EOM-->");
 
     if (!errorMsg.isEmpty())
-        formatted += QString ("<table bgcolor=#FFFFFF border=0 cellspacing=0 "
-                              "cellpadding=0 width=100%>"
-                              "<tr><td><p>%1.</p></td></tr>"
-                              "</table><p></p>")
-                              .arg (VBoxGlobal::highlight (errorMsg));
+        formatted.prepend (QString ("<p>%1.</p>").arg (vboxGlobal().emphasize (errorMsg)));
 
     if (!errorID.isEmpty())
         formatted += QString ("<table bgcolor=#EEEEEE border=0 cellspacing=0 "
@@ -2124,16 +2226,15 @@ QString VBoxProblemReporter::formatErrorInfo (const COMErrorInfo &aInfo,
 QString VBoxProblemReporter::doFormatErrorInfo (const COMErrorInfo &aInfo,
                                                 HRESULT aWrapperRC /* = S_OK */)
 {
+    /* Compose complex details string with internal <!--EOM--> delimiter to
+     * make it possible to split string into info & details parts which will
+     * be used separately in QIMessageBox */
     QString formatted;
 
-    if (aInfo.text())
-        formatted += QString ("<table bgcolor=#FFFFFF border=0 cellspacing=0 "
-                              "cellpadding=0 width=100%>"
-                              "<tr><td><p>%1.</p></td></tr>"
-                              "</table><p></p>")
-                              .arg (VBoxGlobal::highlight (aInfo.text()));
+    if (!aInfo.text().isEmpty())
+        formatted += QString ("<p>%1.</p>").arg (vboxGlobal().emphasize (aInfo.text()));
 
-    formatted += "<table bgcolor=#EEEEEE border=0 cellspacing=0 "
+    formatted += "<!--EOM--><table bgcolor=#EEEEEE border=0 cellspacing=0 "
                  "cellpadding=0 width=100%>";
 
     bool haveResultCode = false;
@@ -2164,7 +2265,7 @@ QString VBoxProblemReporter::doFormatErrorInfo (const COMErrorInfo &aInfo,
         if (haveInterfaceID)
         {
             QString s = aInfo.interfaceID();
-            if (aInfo.interfaceName())
+            if (!aInfo.interfaceName().isEmpty())
                 s = aInfo.interfaceName() + ' ' + s;
             formatted += QString ("<tr><td>%1</td><td>%2</td></tr>")
                 .arg (tr ("Interface: ", "error info"), s);
@@ -2173,7 +2274,7 @@ QString VBoxProblemReporter::doFormatErrorInfo (const COMErrorInfo &aInfo,
         if (!aInfo.calleeIID().isNull() && aInfo.calleeIID() != aInfo.interfaceID())
         {
             QString s = aInfo.calleeIID();
-            if (aInfo.calleeName())
+            if (!aInfo.calleeName().isEmpty())
                 s = aInfo.calleeName() + ' ' + s;
             formatted += QString ("<tr><td>%1</td><td>%2</td></tr>")
                 .arg (tr ("Callee: ", "error info"), s);
@@ -2191,8 +2292,7 @@ QString VBoxProblemReporter::doFormatErrorInfo (const COMErrorInfo &aInfo,
     formatted += "</table>";
 
     if (aInfo.next())
-        formatted = doFormatErrorInfo (*aInfo.next()) +  "<p></p>" +
-                    formatted;
+        formatted = formatted + "<!--EOP-->" + doFormatErrorInfo (*aInfo.next());
 
     return formatted;
 }
@@ -2208,44 +2308,33 @@ void VBoxProblemReporter::showHelpWebDialog()
 void VBoxProblemReporter::showHelpAboutDialog()
 {
     CVirtualBox vbox = vboxGlobal().virtualBox();
-    QString COMVersion = vbox.GetVersion();
+    QString fullVersion (QString ("%1 r%2").arg (vbox.GetVersion())
+                                          .arg (vbox.GetRevision()));
     AssertWrapperOk (vbox);
 
-#if VBOX_OSE
-    VBoxAboutDlg dlg (mainWindowShown(), "VBoxAboutDlg");
-#else
-    VBoxAboutNonOSEDlg dlg (mainWindowShown());
-#endif
-    dlg.setup (COMVersion);
-    dlg.exec();
+    // this (QWidget*) cast is necessary to work around a gcc-3.2 bug */
+    VBoxAboutDlg ((QWidget*)mainWindowShown(), fullVersion).exec();
 }
 
 void VBoxProblemReporter::showHelpHelpDialog()
 {
 #ifndef VBOX_OSE
-#if defined (Q_WS_WIN32)
-    QString fullHelpFilePath = qApp->applicationDirPath() + "/VirtualBox.chm";
-
-    HtmlHelp (GetDesktopWindow(), fullHelpFilePath.ucs2(),
+    QString manual = vboxGlobal().helpFile();
+# if defined (Q_WS_WIN32)
+    HtmlHelp (GetDesktopWindow(), manual.utf16(),
               HH_DISPLAY_TOPIC, NULL);
-#elif defined (Q_WS_X11)
-    char szDocsPath[RTPATH_MAX];
+# elif defined (Q_WS_X11)
     char szViewerPath[RTPATH_MAX];
     int rc;
 
-    rc = RTPathAppDocs (szDocsPath, sizeof (szDocsPath));
-    Assert(RT_SUCCESS(rc));
     rc = RTPathAppPrivateArch (szViewerPath, sizeof (szViewerPath));
+    AssertRC (rc);
 
-    QString fullProgPath = QString(szDocsPath);
-    QProcess kchmViewer (QString(szViewerPath) + "/kchmviewer");
-    kchmViewer.addArgument (fullProgPath + "/VirtualBox.chm");
-    kchmViewer.launch ("");
-#elif defined (Q_WS_MAC)
-    QProcess openApp (QString("/usr/bin/open"));
-    openApp.addArgument (qApp->applicationDirPath() + "/UserManual.pdf");
-    openApp.launch ("");
-#endif
+    QProcess::startDetached (QString(szViewerPath) + "/kchmviewer",
+                             QStringList (manual));
+# elif defined (Q_WS_MAC)
+    vboxGlobal().openURL ("file://" + manual);
+# endif
 #endif /* VBOX_OSE */
 }
 
@@ -2255,8 +2344,3 @@ void VBoxProblemReporter::resetSuppressedMessages()
     vbox.SetExtraData (VBoxDefs::GUI_SuppressMessages, QString::null);
 }
 
-/** @fn vboxProblem
- *
- *  Shortcut to the static VBoxProblemReporter::instance() method, for
- *  convenience.
- */

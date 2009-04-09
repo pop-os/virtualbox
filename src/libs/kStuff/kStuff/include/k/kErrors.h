@@ -1,4 +1,4 @@
-/* $Id: kErrors.h 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kErrors.h 25 2009-02-19 00:56:15Z bird $ */
 /** @file
  * kErrors - Status Codes.
  */
@@ -195,13 +195,19 @@
 #define KLDR_ERR_NOT_EXE                                (KLDR_ERR_BASE + 33)
 /** Not implemented yet. */
 #define KLDR_ERR_TODO                                   (KLDR_ERR_BASE + 34)
+/** No image matching the requested CPU. */
+#define KLDR_ERR_CPU_ARCH_MISMATCH                      (KLDR_ERR_BASE + 35)
+/** Invalid FAT image header. */
+#define KLDR_ERR_FAT_INVALID                            (KLDR_ERR_BASE + 36)
+/** Unsupported CPU subtype found in a FAT entry. */
+#define KLDR_ERR_FAT_UNSUPPORTED_CPU_SUBTYPE            (KLDR_ERR_BASE + 37)
 /** @} */
 
 /** @name kLdrModPE Specific
  * @{
  */
 /** The base of the kLdrModPE specific status codes. */
-#define KLDR_ERR_PE_BASE                                (KLDR_ERR_BASE + 35)
+#define KLDR_ERR_PE_BASE                                (KLDR_ERR_BASE + 38)
 /** The machine isn't supported by the interpreter. */
 #define KLDR_ERR_PE_UNSUPPORTED_MACHINE                 (KLDR_ERR_PE_BASE + 0)
 /** The file handler isn't valid. */
@@ -258,43 +264,45 @@
 #define KLDR_ERR_MACHO_BASE                             (KLDR_ERR_LX_BASE + 12)
 /** Only native endian Mach-O files are supported. */
 #define KLDR_ERR_MACHO_OTHER_ENDIAN_NOT_SUPPORTED       (KLDR_ERR_MACHO_BASE + 0)
-/** 64-bit Mach-O files aren't supported yet. */
-#define KLDR_ERR_MACHO_64BIT_NOT_SUPPORTED              (KLDR_ERR_MACHO_BASE + 1)
 /** The Mach-O header is bad or contains new and unsupported features. */
-#define KLDR_ERR_MACHO_BAD_HEADER                       (KLDR_ERR_MACHO_BASE + 2)
+#define KLDR_ERR_MACHO_BAD_HEADER                       (KLDR_ERR_MACHO_BASE + 1)
 /** The file type isn't supported. */
-#define KLDR_ERR_MACHO_UNSUPPORTED_FILE_TYPE            (KLDR_ERR_MACHO_BASE + 3)
+#define KLDR_ERR_MACHO_UNSUPPORTED_FILE_TYPE            (KLDR_ERR_MACHO_BASE + 2)
 /** The machine (cputype / cpusubtype combination) isn't supported. */
-#define KLDR_ERR_MACHO_UNSUPPORTED_MACHINE              (KLDR_ERR_MACHO_BASE + 4)
+#define KLDR_ERR_MACHO_UNSUPPORTED_MACHINE              (KLDR_ERR_MACHO_BASE + 3)
 /** Bad load command(s). */
-#define KLDR_ERR_MACHO_BAD_LOAD_COMMAND                 (KLDR_ERR_MACHO_BASE + 5)
+#define KLDR_ERR_MACHO_BAD_LOAD_COMMAND                 (KLDR_ERR_MACHO_BASE + 4)
 /** Encountered an unknown load command.*/
-#define KLDR_ERR_MACHO_UNKNOWN_LOAD_COMMAND             (KLDR_ERR_MACHO_BASE + 6)
+#define KLDR_ERR_MACHO_UNKNOWN_LOAD_COMMAND             (KLDR_ERR_MACHO_BASE + 5)
 /** Encountered a load command that's not implemented.*/
-#define KLDR_ERR_MACHO_UNSUPPORTED_LOAD_COMMAND         (KLDR_ERR_MACHO_BASE + 7)
+#define KLDR_ERR_MACHO_UNSUPPORTED_LOAD_COMMAND         (KLDR_ERR_MACHO_BASE + 6)
 /** Bad section. */
-#define KLDR_ERR_MACHO_BAD_SECTION                      (KLDR_ERR_MACHO_BASE + 8)
+#define KLDR_ERR_MACHO_BAD_SECTION                      (KLDR_ERR_MACHO_BASE + 7)
 /** Encountered a section type that's not implemented.*/
-#define KLDR_ERR_MACHO_UNSUPPORTED_SECTION              (KLDR_ERR_MACHO_BASE + 9)
+#define KLDR_ERR_MACHO_UNSUPPORTED_SECTION              (KLDR_ERR_MACHO_BASE + 8)
+/** Encountered a init function section.   */
+#define KLDR_ERR_MACHO_UNSUPPORTED_INIT_SECTION         (KLDR_ERR_MACHO_BASE + 9)
+/** Encountered a term function section.   */
+#define KLDR_ERR_MACHO_UNSUPPORTED_TERM_SECTION         (KLDR_ERR_MACHO_BASE + 10)
 /** Encountered a section type that's not known to the loader. (probably invalid) */
-#define KLDR_ERR_MACHO_UNKNOWN_SECTION                  (KLDR_ERR_MACHO_BASE + 10)
+#define KLDR_ERR_MACHO_UNKNOWN_SECTION                  (KLDR_ERR_MACHO_BASE + 11)
 /** The sections aren't ordered by segment as expected by the loader. */
-#define KLDR_ERR_MACHO_BAD_SECTION_ORDER                (KLDR_ERR_MACHO_BASE + 11)
+#define KLDR_ERR_MACHO_BAD_SECTION_ORDER                (KLDR_ERR_MACHO_BASE + 12)
 /** The image is 32-bit and contains 64-bit load commands or vise versa. */
-#define KLDR_ERR_MACHO_BIT_MIX                          (KLDR_ERR_MACHO_BASE + 12)
+#define KLDR_ERR_MACHO_BIT_MIX                          (KLDR_ERR_MACHO_BASE + 13)
 /** Bad MH_OBJECT file. */
-#define KLDR_ERR_MACHO_BAD_OBJECT_FILE                  (KLDR_ERR_MACHO_BASE + 13)
+#define KLDR_ERR_MACHO_BAD_OBJECT_FILE                  (KLDR_ERR_MACHO_BASE + 14)
 /** Bad symbol table entry. */
-#define KLDR_ERR_MACHO_BAD_SYMBOL                       (KLDR_ERR_MACHO_BASE + 14)
+#define KLDR_ERR_MACHO_BAD_SYMBOL                       (KLDR_ERR_MACHO_BASE + 15)
 /** Unsupported fixup type. */
-#define KLDR_ERR_MACHO_UNSUPPORTED_FIXUP_TYPE           (KLDR_ERR_MACHO_BASE + 15)
+#define KLDR_ERR_MACHO_UNSUPPORTED_FIXUP_TYPE           (KLDR_ERR_MACHO_BASE + 16)
 /** @} */
 
 /** @name kCpu Specific
  * @{
  */
 /** The base of the kCpu specific status codes. */
-#define KCPU_ERR_BASE                                   (KLDR_ERR_MACHO_BASE + 16)
+#define KCPU_ERR_BASE                                   (KLDR_ERR_MACHO_BASE + 18)
 /** The specified ARCH+CPU pairs aren't compatible. */
 #define KCPU_ERR_ARCH_CPU_NOT_COMPATIBLE                (KCPU_ERR_BASE + 0)
 /** @} */

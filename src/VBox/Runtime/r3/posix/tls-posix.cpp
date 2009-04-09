@@ -1,4 +1,4 @@
-/* $Id: tls-posix.cpp $ */
+/* $Id: tls-posix.cpp 16311 2009-01-28 13:46:41Z vboxsync $ */
 /** @file
  * IPRT - Thread Local Storage (TLS), POSIX.
  */
@@ -42,10 +42,10 @@
 #include <iprt/err.h>
 
 
-AssertCompile(sizeof(pthread_key_t) == sizeof(RTTLS));
+AssertCompile(sizeof(pthread_key_t) <= sizeof(RTTLS));
 
 
-RTR3DECL(int) RTTlsAlloc(void)
+RTR3DECL(RTTLS) RTTlsAlloc(void)
 {
     pthread_key_t iTls = (pthread_key_t)NIL_RTTLS;
     int rc = pthread_key_create(&iTls, NULL);

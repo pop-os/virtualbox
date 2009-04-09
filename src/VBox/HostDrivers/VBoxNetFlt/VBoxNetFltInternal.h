@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltInternal.h $ */
+/* $Id: VBoxNetFltInternal.h 18810 2009-04-07 12:02:39Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Internal Header.
  */
@@ -67,9 +67,6 @@ typedef enum VBOXNETFTLINSSTATE
     /** Disconnecting from the internal network and possibly the host network interface.
      * Partly for reasons of deadlock avoidance again. */
     kVBoxNetFltInsState_Disconnecting,
-    /** Destroying the instance
-     * Partly for reasons of deadlock avoidance again. */
-    kVBoxNetFltInsState_Destroying,
     /** The instance has been disconnected from both the host and the internal network. */
     kVBoxNetFltInsState_Destroyed,
 
@@ -118,6 +115,8 @@ typedef struct VBOXNETFLTINS
      * cBusy will never reach zero during rediscovery, so which
      * takes care of serializing rediscovery and disconnecting. */
     bool volatile fRediscoveryPending;
+    /** Whether we should not attempt to set promiscuous mode at all. */
+    bool fDisablePromiscuous;
 #if (ARCH_BITS == 32) && defined(__GNUC__)
     uint32_t u32Padding;    /**< Alignment padding, will assert in ASMAtomicUoWriteU64 otherwise. */
 #endif
@@ -211,6 +210,8 @@ typedef struct VBOXNETFLTINS
 #if defined(RT_OS_WINDOWS)
 # if defined(VBOX_NETFLT_ONDEMAND_BIND)
         uint8_t abPadding[192];
+# elif defined(VBOXNETADP)
+        uint8_t abPadding[256];
 # else
         uint8_t abPadding[1024];
 # endif
@@ -252,17 +253,21 @@ typedef struct VBOXNETFLTGLOBALS
     SUPDRVFACTORY SupDrvFactory;
     /** The number of current factory references. */
     int32_t volatile cFactoryRefs;
-#ifdef VBOXNETFLT_STATIC_CONFIG
-    /* wait timer event */
-    RTSEMEVENT hTimerEvent;
-#endif
+    /** Whether the IDC connection is open or not.
+     * This is only for cleaning up correctly after the separate IDC init on Windows. */
+    bool fIDCOpen;
     /** The SUPDRV IDC handle (opaque struct). */
     SUPDRVIDCHANDLE SupDrvIDC;
 } VBOXNETFLTGLOBALS;
 
 
+DECLHIDDEN(int) vboxNetFltInitGlobalsAndIdc(PVBOXNETFLTGLOBALS pGlobals);
 DECLHIDDEN(int) vboxNetFltInitGlobals(PVBOXNETFLTGLOBALS pGlobals);
-DECLHIDDEN(int) vboxNetFltTryDeleteGlobals(PVBOXNETFLTGLOBALS pGlobals);
+DECLHIDDEN(int) vboxNetFltInitIdc(PVBOXNETFLTGLOBALS pGlobals);
+DECLHIDDEN(int) vboxNetFltTryDeleteIdcAndGlobals(PVBOXNETFLTGLOBALS pGlobals);
+DECLHIDDEN(void) vboxNetFltDeleteGlobals(PVBOXNETFLTGLOBALS pGlobals);
+DECLHIDDEN(int) vboxNetFltTryDeleteIdc(PVBOXNETFLTGLOBALS pGlobals);
+
 DECLHIDDEN(bool) vboxNetFltCanUnload(PVBOXNETFLTGLOBALS pGlobals);
 DECLHIDDEN(PVBOXNETFLTINS) vboxNetFltFindInstance(PVBOXNETFLTGLOBALS pGlobals, const char *pszName);
 
@@ -271,11 +276,8 @@ DECLHIDDEN(void) vboxNetFltRelease(PVBOXNETFLTINS pThis, bool fBusy);
 
 #ifdef VBOXNETFLT_STATIC_CONFIG
 DECLHIDDEN(int) vboxNetFltSearchCreateInstance(PVBOXNETFLTGLOBALS pGlobals, const char *pszName, PVBOXNETFLTINS *ppInstance, void * pContext);
-DECLHIDDEN(int) vboxNetFltInitGlobalsBase(PVBOXNETFLTGLOBALS pGlobals);
-DECLHIDDEN(int) vboxNetFltInitIdc(PVBOXNETFLTGLOBALS pGlobals);
-DECLHIDDEN(void) vboxNetFltDeleteGlobalsBase(PVBOXNETFLTGLOBALS pGlobals);
-DECLHIDDEN(int) vboxNetFltTryDeleteIdc(PVBOXNETFLTGLOBALS pGlobals);
 #endif
+
 
 
 /** @name The OS specific interface.
@@ -397,14 +399,12 @@ DECLHIDDEN(void) vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis);
  *
  * @return  IPRT status code.
  * @param   pThis           The new instance.
+ * @param   pvContext       The user supplied context in the static config only.
+ *                          NULL in the dynamic config.
  *
  * @remarks Owns no locks.
  */
-DECLHIDDEN(int) vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis
-#ifdef VBOXNETFLT_STATIC_CONFIG
-        , void * pContext
-#endif
-        );
+DECLHIDDEN(int) vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext);
 
 /**
  * This is called to perform structure initializations.

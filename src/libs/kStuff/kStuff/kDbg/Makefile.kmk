@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 2 2007-11-16 16:07:14Z bird $
+# $Id: Makefile.kmk 6 2008-02-03 23:37:34Z bird $
 ## @file
 # kDbg - The Debug Info Reader, sub-makefile.
 #
@@ -23,7 +23,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #
 
-DEPTH ?= ../..
+DEPTH ?= ..
 SUB_DEPTH = ..
 include $(PATH_KBUILD)/subheader.kmk
 
@@ -35,6 +35,7 @@ kDbg_TEMPLATE = kStuffDLL
 kDbg_DEFS = KDBG_BUILDING KDBG_RESIDES_IN_DLL
 kDbg_SOURCES := \
 	kDbgModule.cpp \
+	kDbgModLdr.cpp \
 	kDbgLine.cpp \
 	kDbgSymbol.cpp
 
@@ -48,6 +49,7 @@ LIBRARIES += kDbgStatic
 kDbgStatic_TEMPLATE = kStuffLIB
 kDbgStatic_DEFS = KDBG_BUILDING
 kDbgStatic_SOURCES = $(kDbg_SOURCES)
+kDbgStatic_SOURCES.win = $(kDbg_SOURCES.win)
 
 #
 # kDbgDump - Test program which dumps whatever is thrown at it.

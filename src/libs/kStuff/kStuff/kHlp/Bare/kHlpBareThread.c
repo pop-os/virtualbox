@@ -1,4 +1,4 @@
-/* $Id: kHlpBareThread.c 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kHlpBareThread.c 24 2009-02-08 13:58:54Z bird $ */
 /** @file
  * kHlpBare - Thread Manipulation.
  */
@@ -36,6 +36,7 @@
 #include <k/kHlpThread.h>
 
 #if K_OS == K_OS_DARWIN
+# include <mach/mach_time.h>
 
 #elif K_OS == K_OS_LINUX
 # include <k/kHlpSys.h>
@@ -58,8 +59,27 @@
 void kHlpSleep(unsigned cMillies)
 {
 #if K_OS == K_OS_DARWIN
-    /** @todo mach_wait_until, see gen/nanosleep.c. */
-    usleep(cMillies * 1000);
+    static struct mach_timebase_info   s_Info;
+    static KBOOL                s_fNanoseconds = K_UNKNOWN;
+    KU64 uNow = mach_absolute_time();
+    KU64 uDeadline;
+    KU64 uPeriod;
+
+    if (s_fNanoseconds == K_UNKNOWN)
+    {
+        if (mach_timebase_info(&s_Info))
+            s_fNanoseconds = K_TRUE; /* the easy way out */
+        else if (s_Info.denom == s_Info.numer)
+            s_fNanoseconds = K_TRUE;
+        else
+            s_fNanoseconds = K_FALSE;
+    }
+
+    uPeriod = (KU64)cMillies * 1000 * 1000;
+    if (!s_fNanoseconds)
+        uPeriod = (double)uPeriod * s_Info.denom / s_Info.numer; /* Use double to avoid 32-bit trouble. */
+    uDeadline = uNow + uPeriod;
+    mach_wait_until(uDeadline);
 
 #elif K_OS == K_OS_LINUX
     /** @todo find the right syscall... */

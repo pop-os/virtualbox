@@ -1,4 +1,4 @@
-/* $Id: kAvlGetBestFit.h 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kAvlGetBestFit.h 7 2008-02-04 02:08:02Z bird $ */
 /** @file
  * kAvlTmpl - Templated AVL Trees, Get Best Fitting Node.
  */
@@ -36,23 +36,27 @@
  * Finds the best fitting node in the tree for the given Key value.
  *
  * @returns Pointer to the best fitting node found.
- * @param   ppTree      Pointer to Pointer to the tree root node.
- * @param   Key         The Key of which is to be found a best fitting match for..
- * @param   fAbove      K_TRUE:  Returned node is have the closest key to Key from above.
- *                      K_FALSE: Returned node is have the closest key to Key from below.
+ * @param   pRoot           Pointer to the AVL-tree root structure.
+ * @param   Key             The Key of which is to be found a best fitting match for..
+ * @param   fAbove          K_TRUE:  Returned node is have the closest key to Key from above.
+ *                          K_FALSE: Returned node is have the closest key to Key from below.
  * @sketch  The best fitting node is always located in the searchpath above you.
  *          >= (above): The node where you last turned left.
  *          <= (below): the node where you last turned right.
  */
-KAVL_DECL(KAVLNODE *) KAVL_FN(GetBestFit)(KAVLTREEPTR *ppTree, KAVLKEY Key, KBOOL fAbove)
+KAVL_DECL(KAVLNODE *) KAVL_FN(GetBestFit)(KAVLROOT *pRoot, KAVLKEY Key, KBOOL fAbove)
 {
     register KAVLNODE  *pNode;
     KAVLNODE           *pNodeLast;
 
-    if (*ppTree == KAVL_NULL)
+    KAVL_READ_LOCK(pLook);
+    if (pRoot->mpRoot == KAVL_NULL)
+    {
+        KAVL_READ_UNLOCK(pLook);
         return NULL;
+    }
 
-    pNode = KAVL_GET_POINTER(ppTree);
+    pNode = KAVL_GET_POINTER(&pRoot->mpRoot);
     pNodeLast = NULL;
     if (fAbove)
     {   /* pNode->mKey >= Key */
@@ -61,14 +65,20 @@ KAVL_DECL(KAVLNODE *) KAVL_FN(GetBestFit)(KAVLTREEPTR *ppTree, KAVLKEY Key, KBOO
             if (KAVL_G(pNode->mKey, Key))
             {
                 if (pNode->mpLeft == KAVL_NULL)
+                {
+                    KAVL_READ_UNLOCK(pLook);
                     return pNode;
+                }
                 pNodeLast = pNode;
                 pNode = KAVL_GET_POINTER(&pNode->mpLeft);
             }
             else
             {
                 if (pNode->mpRight == KAVL_NULL)
+                {
+                    KAVL_READ_UNLOCK(pLook);
                     return pNodeLast;
+                }
                 pNode = KAVL_GET_POINTER(&pNode->mpRight);
             }
         }
@@ -80,13 +90,19 @@ KAVL_DECL(KAVLNODE *) KAVL_FN(GetBestFit)(KAVLTREEPTR *ppTree, KAVLKEY Key, KBOO
             if (KAVL_G(pNode->mKey, Key))
             {
                 if (pNode->mpLeft == KAVL_NULL)
+                {
+                    KAVL_READ_UNLOCK(pLook);
                     return pNodeLast;
+                }
                 pNode = KAVL_GET_POINTER(&pNode->mpLeft);
             }
             else
             {
                 if (pNode->mpRight == KAVL_NULL)
+                {
+                    KAVL_READ_UNLOCK(pLook);
                     return pNode;
+                }
                 pNodeLast = pNode;
                 pNode = KAVL_GET_POINTER(&pNode->mpRight);
             }
@@ -94,6 +110,7 @@ KAVL_DECL(KAVLNODE *) KAVL_FN(GetBestFit)(KAVLTREEPTR *ppTree, KAVLKEY Key, KBOO
     }
 
     /* perfect match or nothing. */
+    KAVL_READ_UNLOCK(pLook);
     return pNode;
 }
 

@@ -1,9 +1,2633 @@
-<!DOCTYPE TS><TS>
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.0" language="sv">
+<defaultcodec></defaultcodec>
 <context>
-    <name>QAccel</name>
+    <name>PPDOptionsModel</name>
+    <message>
+        <source>Name</source>
+        <translation>Namn</translation>
+    </message>
+    <message>
+        <source>Value</source>
+        <translation>Värde</translation>
+    </message>
+</context>
+<context>
+    <name>Q3Accel</name>
+    <message>
+        <source>%1, %2 not defined</source>
+        <translation>%1, %2 är inte definierad</translation>
+    </message>
+    <message>
+        <source>Ambiguous %1 not handled</source>
+        <translation>Tvetydigt %1 hanteras inte</translation>
+    </message>
+</context>
+<context>
+    <name>Q3DataTable</name>
+    <message>
+        <source>True</source>
+        <translation>Sant</translation>
+    </message>
+    <message>
+        <source>False</source>
+        <translation>Falskt</translation>
+    </message>
+    <message>
+        <source>Insert</source>
+        <translation>Infoga</translation>
+    </message>
+    <message>
+        <source>Update</source>
+        <translation>Uppdatera</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Ta bort</translation>
+    </message>
+</context>
+<context>
+    <name>Q3FileDialog</name>
+    <message>
+        <source>Copy or Move a File</source>
+        <translation>Kopiera eller ta bort en fil</translation>
+    </message>
+    <message>
+        <source>Read: %1</source>
+        <translation>Läs: %1</translation>
+    </message>
+    <message>
+        <source>Write: %1</source>
+        <translation>Skriv: %1</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Avbryt</translation>
+    </message>
+    <message>
+        <source>All Files (*)</source>
+        <translation>Alla filer (*)</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>Namn</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation>Storlek</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <translation>Typ</translation>
+    </message>
+    <message>
+        <source>Date</source>
+        <translation>Datum</translation>
+    </message>
+    <message>
+        <source>Attributes</source>
+        <translation>Attribut</translation>
+    </message>
+    <message>
+        <source>&amp;OK</source>
+        <translation>&amp;OK</translation>
+    </message>
+    <message>
+        <source>Look &amp;in:</source>
+        <translation>Leta &amp;i:</translation>
+    </message>
+    <message>
+        <source>File &amp;name:</source>
+        <translation>Fil&amp;namn:</translation>
+    </message>
+    <message>
+        <source>File &amp;type:</source>
+        <translation>Fil&amp;typ:</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>Tillbaka</translation>
+    </message>
+    <message>
+        <source>One directory up</source>
+        <translation>En katalog uppåt</translation>
+    </message>
+    <message>
+        <source>Create New Folder</source>
+        <translation>Skapa ny mapp</translation>
+    </message>
+    <message>
+        <source>List View</source>
+        <translation>Listvy</translation>
+    </message>
+    <message>
+        <source>Detail View</source>
+        <translation>Detaljvy</translation>
+    </message>
+    <message>
+        <source>Preview File Info</source>
+        <translation>Förhandsgranska filinformation</translation>
+    </message>
+    <message>
+        <source>Preview File Contents</source>
+        <translation>Förhandsgranska filinnehåll</translation>
+    </message>
+    <message>
+        <source>Read-write</source>
+        <translation>Läs-skriv</translation>
+    </message>
+    <message>
+        <source>Read-only</source>
+        <translation>Skrivskyddad</translation>
+    </message>
+    <message>
+        <source>Write-only</source>
+        <translation>Lässkyddad</translation>
+    </message>
+    <message>
+        <source>Inaccessible</source>
+        <translation>Otillgänglig</translation>
+    </message>
+    <message>
+        <source>Symlink to File</source>
+        <translation>Symbolisk länk till fil</translation>
+    </message>
+    <message>
+        <source>Symlink to Directory</source>
+        <translation>Symbolisk länk till katalog</translation>
+    </message>
+    <message>
+        <source>Symlink to Special</source>
+        <translation>Symbolisk länk till special</translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation>Fil</translation>
+    </message>
+    <message>
+        <source>Dir</source>
+        <translation>Katalog</translation>
+    </message>
+    <message>
+        <source>Special</source>
+        <translation>Special</translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation>Öppna</translation>
+    </message>
+    <message>
+        <source>Save As</source>
+        <translation>Spara som</translation>
+    </message>
+    <message>
+        <source>&amp;Open</source>
+        <translation>&amp;Öppna</translation>
+    </message>
+    <message>
+        <source>&amp;Save</source>
+        <translation>&amp;Spara</translation>
+    </message>
+    <message>
+        <source>&amp;Rename</source>
+        <translation>&amp;Byt namn</translation>
+    </message>
+    <message>
+        <source>&amp;Delete</source>
+        <translation>&amp;Ta bort</translation>
+    </message>
+    <message>
+        <source>R&amp;eload</source>
+        <translation>Uppdat&amp;era</translation>
+    </message>
+    <message>
+        <source>Sort by &amp;Name</source>
+        <translation>Sortera efter &amp;namn</translation>
+    </message>
+    <message>
+        <source>Sort by &amp;Size</source>
+        <translation>Sortera efter &amp;storlek</translation>
+    </message>
+    <message>
+        <source>Sort by &amp;Date</source>
+        <translation>Sortera efter &amp;datum</translation>
+    </message>
+    <message>
+        <source>&amp;Unsorted</source>
+        <translation>&amp;Osorterad</translation>
+    </message>
+    <message>
+        <source>Sort</source>
+        <translation>Sortera</translation>
+    </message>
+    <message>
+        <source>Show &amp;hidden files</source>
+        <translation>Visa &amp;dolda filer</translation>
+    </message>
+    <message>
+        <source>the file</source>
+        <translation>filen</translation>
+    </message>
+    <message>
+        <source>the directory</source>
+        <translation>katalogen</translation>
+    </message>
+    <message>
+        <source>the symlink</source>
+        <translation>symboliska länken</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>Ta bort %1</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
+        <translation>&lt;qt&gt;Är du säker på att du vill ta bort %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation>&amp;Ja</translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation>&amp;Nej</translation>
+    </message>
+    <message>
+        <source>New Folder 1</source>
+        <translation>Ny mapp 1</translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation>Ny mapp</translation>
+    </message>
+    <message>
+        <source>New Folder %1</source>
+        <translation>Ny mapp %1</translation>
+    </message>
+    <message>
+        <source>Find Directory</source>
+        <translation>Hitta katalog</translation>
+    </message>
+    <message>
+        <source>Directories</source>
+        <translation>Kataloger</translation>
+    </message>
+    <message>
+        <source>Directory:</source>
+        <translation>Katalog:</translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <translation>Fel</translation>
+    </message>
+    <message>
+        <source>%1
+File not found.
+Check path and filename.</source>
+        <translation>%1
+Filen hittades inte. 
+Kontrollera sökväg och filnamn.</translation>
+    </message>
+    <message>
+        <source>All Files (*.*)</source>
+        <translation>Alla filer (*.*)</translation>
+    </message>
+    <message>
+        <source>Open </source>
+        <translation>Öppna</translation>
+    </message>
+    <message>
+        <source>Select a Directory</source>
+        <translation>Välj en katalog</translation>
+    </message>
+</context>
+<context>
+    <name>Q3LocalFs</name>
+    <message>
+        <source>Could not read directory
+%1</source>
+        <translation>Kunde inte läsa katalogen
+%1</translation>
+    </message>
+    <message>
+        <source>Could not create directory
+%1</source>
+        <translation>Kunde inte skapa katalogen 
+%1</translation>
+    </message>
+    <message>
+        <source>Could not remove file or directory
+%1</source>
+        <translation>Kunde inte ta bort filen eller katalogen 
+%1</translation>
+    </message>
+    <message>
+        <source>Could not rename
+%1
+to
+%2</source>
+        <translation>Kunde inte byta namn på 
+%1 
+till 
+%2</translation>
+    </message>
+    <message>
+        <source>Could not open
+%1</source>
+        <translation>Kunde inte öppna 
+%1</translation>
+    </message>
+    <message>
+        <source>Could not write
+%1</source>
+        <translation>Kunde inte skriva till 
+%1</translation>
+    </message>
+</context>
+<context>
+    <name>Q3MainWindow</name>
+    <message>
+        <source>Line up</source>
+        <translation>Rada upp</translation>
+    </message>
+    <message>
+        <source>Customize...</source>
+        <translation>Anpassa...</translation>
+    </message>
+</context>
+<context>
+    <name>Q3NetworkProtocol</name>
+    <message>
+        <source>Operation stopped by the user</source>
+        <translation>Åtgärden stoppades av användaren</translation>
+    </message>
+</context>
+<context>
+    <name>Q3ProgressDialog</name>
+    <message>
+        <source>Cancel</source>
+        <translation>Avbryt</translation>
+    </message>
+</context>
+<context>
+    <name>Q3TabDialog</name>
+    <message>
+        <source>OK</source>
+        <translation>OK</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>Verkställ</translation>
+    </message>
+    <message>
+        <source>Help</source>
+        <translation>Hjälp</translation>
+    </message>
+    <message>
+        <source>Defaults</source>
+        <translation>Standardvärden</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Avbryt</translation>
+    </message>
+</context>
+<context>
+    <name>Q3TextEdit</name>
+    <message>
+        <source>&amp;Undo</source>
+        <translation>&amp;Ångra</translation>
+    </message>
+    <message>
+        <source>&amp;Redo</source>
+        <translation>&amp;Gör om</translation>
+    </message>
+    <message>
+        <source>Cu&amp;t</source>
+        <translation>Klipp u&amp;t</translation>
+    </message>
+    <message>
+        <source>&amp;Copy</source>
+        <translation>&amp;Kopiera</translation>
+    </message>
+    <message>
+        <source>&amp;Paste</source>
+        <translation>Klistra &amp;in</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Töm</translation>
+    </message>
+    <message>
+        <source>Select All</source>
+        <translation>Markera alla</translation>
+    </message>
+</context>
+<context>
+    <name>Q3TitleBar</name>
+    <message>
+        <source>System</source>
+        <translation>System</translation>
+    </message>
+    <message>
+        <source>Restore up</source>
+        <translation>Återställ uppåt</translation>
+    </message>
+    <message>
+        <source>Minimize</source>
+        <translation>Minimera</translation>
+    </message>
+    <message>
+        <source>Restore down</source>
+        <translation>Återställ nedåt</translation>
+    </message>
+    <message>
+        <source>Maximize</source>
+        <translation>Maximera</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Stäng</translation>
+    </message>
+    <message>
+        <source>Contains commands to manipulate the window</source>
+        <translation>Innehåller kommandon för att manipulera fönstret</translation>
+    </message>
+    <message>
+        <source>Puts a minimized back to normal</source>
+        <translation>Återställer ett minimerat till normalt</translation>
+    </message>
+    <message>
+        <source>Moves the window out of the way</source>
+        <translation>Flyttar fönstret ur vägen</translation>
+    </message>
+    <message>
+        <source>Puts a maximized window back to normal</source>
+        <translation>Återställer ett maximerat fönster tillbaka till normalt</translation>
+    </message>
+    <message>
+        <source>Makes the window full screen</source>
+        <translation>Gör fönstret till helskärm</translation>
+    </message>
+    <message>
+        <source>Closes the window</source>
+        <translation>Stänger fönstret</translation>
+    </message>
+    <message>
+        <source>Displays the name of the window and contains controls to manipulate it</source>
+        <translation>Visar namnet på fönstret och innehåller kontroller för att manipulera det</translation>
+    </message>
+</context>
+<context>
+    <name>Q3ToolBar</name>
+    <message>
+        <source>More...</source>
+        <translation>Mer...</translation>
+    </message>
+</context>
+<context>
+    <name>Q3UrlOperator</name>
+    <message>
+        <source>The protocol `%1&apos; is not supported</source>
+        <translation>Protokollet \&quot;%1\&quot; stöds inte</translation>
+    </message>
+    <message>
+        <source>The protocol `%1&apos; does not support listing directories</source>
+        <translation>Protokollet \&quot;%1\&quot; har inte stöd för att lista kataloger</translation>
+    </message>
+    <message>
+        <source>The protocol `%1&apos; does not support creating new directories</source>
+        <translation>Protokollet \&quot;%1\&quot; har inte stöd för att skapa nya kataloger</translation>
+    </message>
+    <message>
+        <source>The protocol `%1&apos; does not support removing files or directories</source>
+        <translation>Protokollet \&quot;%1\&quot; har inte stöd för att ta bort filer eller kataloger</translation>
+    </message>
+    <message>
+        <source>The protocol `%1&apos; does not support renaming files or directories</source>
+        <translation>Protokollet \&quot;%1\&quot; har inte stöd för att byta namn på filer eller kataloger</translation>
+    </message>
+    <message>
+        <source>The protocol `%1&apos; does not support getting files</source>
+        <translation>Protokollet \&quot;%1\&quot; har inte stöd för att hämta filer</translation>
+    </message>
+    <message>
+        <source>The protocol `%1&apos; does not support putting files</source>
+        <translation>Protokollet \&quot;%1\&quot; har inte stöd för att lämna filer</translation>
+    </message>
+    <message>
+        <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
+        <translation>Protokollet \&quot;%1\&quot; har inte stöd för att kopiera eller flytta filer eller kataloger</translation>
+    </message>
+    <message>
+        <source>(unknown)</source>
+        <translation>(okänt)</translation>
+    </message>
+</context>
+<context>
+    <name>Q3Wizard</name>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation>&amp;Avbryt</translation>
+    </message>
+    <message>
+        <source>&lt; &amp;Back</source>
+        <translation>&lt; Till&amp;baka</translation>
+    </message>
+    <message>
+        <source>&amp;Next &gt;</source>
+        <translation>&amp;Nästa &gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Finish</source>
+        <translation>&amp;Färdig</translation>
+    </message>
+    <message>
+        <source>&amp;Help</source>
+        <translation>&amp;Hjälp</translation>
+    </message>
+</context>
+<context>
+    <name>QAbstractSocket</name>
+    <message>
+        <source>Host not found</source>
+        <translation>Värden hittades inte</translation>
+    </message>
+    <message>
+        <source>Connection refused</source>
+        <translation>Anslutningen nekades</translation>
+    </message>
+    <message>
+        <source>Socket operation timed out</source>
+        <translation>Tidsgräns för uttagsåtgärd överstegs</translation>
+    </message>
+    <message>
+        <source>Socket is not connected</source>
+        <translation>Uttaget är inte anslutet</translation>
+    </message>
+</context>
+<context>
+    <name>QAbstractSpinBox</name>
+    <message>
+        <source>&amp;Step up</source>
+        <translation>&amp;Stega uppåt</translation>
+    </message>
+    <message>
+        <source>Step &amp;down</source>
+        <translation>Stega &amp;nedåt</translation>
+    </message>
+    <message>
+        <source>&amp;Select All</source>
+        <translation>&amp;Markera allt</translation>
+    </message>
+</context>
+<context>
+    <name>QApplication</name>
+    <message>
+        <source>Activate</source>
+        <translation>Aktivera</translation>
+    </message>
+    <message>
+        <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
+        <translation>Binären \&quot;%1\&quot; kräver Qt %2, hittade Qt %3.</translation>
+    </message>
+    <message>
+        <source>Incompatible Qt Library Error</source>
+        <translation>Inkompatibelt Qt-biblioteksfel</translation>
+    </message>
+    <message>
+        <source>QT_LAYOUT_DIRECTION</source>
+        <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
+        <translation>LTR</translation>
+    </message>
+    <message>
+        <source>Activates the program&apos;s main window</source>
+        <translation>Aktiverar programmets huvudfönster</translation>
+    </message>
+</context>
+<context>
+    <name>QAxSelect</name>
+    <message>
+        <source>Select ActiveX Control</source>
+        <translation>Välj ActiveX Control</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation>OK</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation>&amp;Avbryt</translation>
+    </message>
+    <message>
+        <source>COM &amp;Object:</source>
+        <translation>COM-&amp;objekt:</translation>
+    </message>
+</context>
+<context>
+    <name>QCheckBox</name>
+    <message>
+        <source>Uncheck</source>
+        <translation>Avkryssa</translation>
+    </message>
+    <message>
+        <source>Check</source>
+        <translation>Kryssa</translation>
+    </message>
+    <message>
+        <source>Toggle</source>
+        <translation>Växla</translation>
+    </message>
+</context>
+<context>
+    <name>QColorDialog</name>
+    <message>
+        <source>Hu&amp;e:</source>
+        <translation>Nya&amp;ns:</translation>
+    </message>
+    <message>
+        <source>&amp;Sat:</source>
+        <translation>&amp;Mättnad:</translation>
+    </message>
+    <message>
+        <source>&amp;Val:</source>
+        <translation>&amp;Ljushet:</translation>
+    </message>
+    <message>
+        <source>&amp;Red:</source>
+        <translation>&amp;Röd:</translation>
+    </message>
+    <message>
+        <source>&amp;Green:</source>
+        <translation>&amp;Grön:</translation>
+    </message>
+    <message>
+        <source>Bl&amp;ue:</source>
+        <translation>Bl&amp;å:</translation>
+    </message>
+    <message>
+        <source>A&amp;lpha channel:</source>
+        <translation>Alfa&amp;kanal:</translation>
+    </message>
+    <message>
+        <source>&amp;Basic colors</source>
+        <translation>&amp;Basfärger</translation>
+    </message>
+    <message>
+        <source>&amp;Custom colors</source>
+        <translation>&amp;Anpassade färger</translation>
+    </message>
+    <message>
+        <source>&amp;Define Custom Colors &gt;&gt;</source>
+        <translation>&amp;Definiera anpassade färger &gt;&gt;</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation>OK</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Avbryt</translation>
+    </message>
+    <message>
+        <source>&amp;Add to Custom Colors</source>
+        <translation>&amp;Lägg till i anpassade färger</translation>
+    </message>
+    <message>
+        <source>Select color</source>
+        <translation>Välj färg</translation>
+    </message>
+</context>
+<context>
+    <name>QComboBox</name>
+    <message>
+        <source>Open</source>
+        <translation>Öppna</translation>
+    </message>
+    <message>
+        <source>False</source>
+        <translation>Falskt</translation>
+    </message>
+    <message>
+        <source>True</source>
+        <translation>Sant</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Stäng</translation>
+    </message>
+</context>
+<context>
+    <name>QDB2Driver</name>
+    <message>
+        <source>Unable to connect</source>
+        <translation>Kunde inte ansluta</translation>
+    </message>
+    <message>
+        <source>Unable to commit transaction</source>
+        <translation>Kunde inte verkställa transaktion</translation>
+    </message>
+    <message>
+        <source>Unable to rollback transaction</source>
+        <translation>Kunde inte rulla tillbaka transaktion</translation>
+    </message>
+    <message>
+        <source>Unable to set autocommit</source>
+        <translation>Kunde inte ställa in automatisk verkställning</translation>
+    </message>
+</context>
+<context>
+    <name>QDB2Result</name>
+    <message>
+        <source>Unable to execute statement</source>
+        <translation>Kunde inte köra frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to prepare statement</source>
+        <translation>Kunde inte förbereda frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to bind variable</source>
+        <translation>Kunde inte binda variabel</translation>
+    </message>
+    <message>
+        <source>Unable to fetch record %1</source>
+        <translation>Kunde inte hämta posten %1</translation>
+    </message>
+    <message>
+        <source>Unable to fetch next</source>
+        <translation>Kunde inte hämta nästa</translation>
+    </message>
+    <message>
+        <source>Unable to fetch first</source>
+        <translation>Kunde inte hämta första</translation>
+    </message>
+</context>
+<context>
+    <name>QDateTimeEdit</name>
+    <message>
+        <source>AM</source>
+        <translation>AM</translation>
+    </message>
+    <message>
+        <source>am</source>
+        <translation>am</translation>
+    </message>
+    <message>
+        <source>PM</source>
+        <translation>PM</translation>
+    </message>
+    <message>
+        <source>pm</source>
+        <translation>pm</translation>
+    </message>
+</context>
+<context>
+    <name>QDial</name>
+    <message>
+        <source>QDial</source>
+        <translation>QDial</translation>
+    </message>
+    <message>
+        <source>SpeedoMeter</source>
+        <translation>Hastighetsmätare</translation>
+    </message>
+    <message>
+        <source>SliderHandle</source>
+        <translation>Draglisthandtag</translation>
+    </message>
+</context>
+<context>
+    <name>QDialog</name>
+    <message>
+        <source>What&apos;s This?</source>
+        <translation>Vad är det här?</translation>
+    </message>
+</context>
+<context>
+    <name>QDialogButtonBox</name>
+    <message>
+        <source>OK</source>
+        <translation>OK</translation>
+    </message>
+    <message>
+        <source>Save</source>
+        <translation>Spara</translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation>Öppna</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Avbryt</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Stäng</translation>
+    </message>
+    <message>
+        <source>Apply</source>
+        <translation>Verkställ</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Återställ</translation>
+    </message>
+    <message>
+        <source>Help</source>
+        <translation>Hjälp</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Save</source>
+        <translation>Spara inte</translation>
+    </message>
+    <message>
+        <source>Discard</source>
+        <translation>Förkasta</translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation>&amp;Ja</translation>
+    </message>
+    <message>
+        <source>Yes to &amp;All</source>
+        <translation>Ja till &amp;alla</translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation>&amp;Nej</translation>
+    </message>
+    <message>
+        <source>N&amp;o to All</source>
+        <translation>N&amp;ej till alla</translation>
+    </message>
+    <message>
+        <source>Save All</source>
+        <translation>Spara alla</translation>
+    </message>
+    <message>
+        <source>Abort</source>
+        <translation>Avbryt</translation>
+    </message>
+    <message>
+        <source>Retry</source>
+        <translation>Försök igen</translation>
+    </message>
+    <message>
+        <source>Ignore</source>
+        <translation>Ignorera</translation>
+    </message>
+    <message>
+        <source>Restore Defaults</source>
+        <translation>Återställ standardvärden</translation>
+    </message>
+    <message>
+        <source>Close without Saving</source>
+        <translation>Stäng utan att spara</translation>
+    </message>
+</context>
+<context>
+    <name>QDirModel</name>
+    <message>
+        <source>Name</source>
+        <translation>Namn</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation>Storlek</translation>
+    </message>
+    <message>
+        <source>Kind</source>
+        <comment>Match OS X Finder</comment>
+        <translation>Sort</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <comment>All other platforms</comment>
+        <translation>Typ</translation>
+    </message>
+    <message>
+        <source>Date Modified</source>
+        <translation>Ändringsdatum</translation>
+    </message>
+</context>
+<context>
+    <name>QDockWidget</name>
+    <message>
+        <source>Close</source>
+        <translation>Stäng</translation>
+    </message>
+    <message>
+        <source>Dock</source>
+        <translation>Docka</translation>
+    </message>
+    <message>
+        <source>Float</source>
+        <translation>Flyta</translation>
+    </message>
+</context>
+<context>
+    <name>QDoubleSpinBox</name>
+    <message>
+        <source>More</source>
+        <translation>Mer</translation>
+    </message>
+    <message>
+        <source>Less</source>
+        <translation>Mindre</translation>
+    </message>
+</context>
+<context>
+    <name>QErrorMessage</name>
+    <message>
+        <source>Debug Message:</source>
+        <translation>Felsökningsmeddelande:</translation>
+    </message>
+    <message>
+        <source>Warning:</source>
+        <translation>Varning:</translation>
+    </message>
+    <message>
+        <source>Fatal Error:</source>
+        <translation>Ödesdigert fel:</translation>
+    </message>
+    <message>
+        <source>&amp;Show this message again</source>
+        <translation>&amp;Visa detta meddelande igen</translation>
+    </message>
+    <message>
+        <source>&amp;OK</source>
+        <translation>&amp;OK</translation>
+    </message>
+</context>
+<context>
+    <name>QFileDialog</name>
+    <message>
+        <source>All Files (*)</source>
+        <translation>Alla filer (*)</translation>
+    </message>
+    <message>
+        <source>Directories</source>
+        <translation>Kataloger</translation>
+    </message>
+    <message>
+        <source>&amp;Open</source>
+        <translation>&amp;Öppna</translation>
+    </message>
+    <message>
+        <source>&amp;Save</source>
+        <translation>&amp;Spara</translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation>Öppna</translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to replace it?</source>
+        <translation>%1 finns redan. 
+Vill du ersätta den?</translation>
+    </message>
+    <message>
+        <source>%1
+File not found.
+Please verify the correct file name was given.</source>
+        <translation>%1 
+Filen hittades inte. 
+Kontrollera att det korrekta filnamnet angavs.</translation>
+    </message>
+    <message>
+        <source>My Computer</source>
+        <translation>Min dator</translation>
+    </message>
+    <message>
+        <source>&amp;Rename</source>
+        <translation>&amp;Byt namn</translation>
+    </message>
+    <message>
+        <source>&amp;Delete</source>
+        <translation>&amp;Ta bort</translation>
+    </message>
+    <message>
+        <source>Show &amp;hidden files</source>
+        <translation>Visa &amp;dolda filer</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>Tillbaka</translation>
+    </message>
+    <message>
+        <source>Parent Directory</source>
+        <translation>Föräldrakatalog</translation>
+    </message>
+    <message>
+        <source>List View</source>
+        <translation>Listvy</translation>
+    </message>
+    <message>
+        <source>Detail View</source>
+        <translation>Detaljerad vy</translation>
+    </message>
+    <message>
+        <source>Files of type:</source>
+        <translation>Filer av typen:</translation>
+    </message>
+    <message>
+        <source>Directory:</source>
+        <translation>Katalog:</translation>
+    </message>
+    <message>
+        <source>
+File not found.
+Please verify the correct file name was given</source>
+        <translation>
+Filen hittades inte. 
+Kontrollera att det korrekta filnamnet angavs</translation>
+    </message>
+    <message>
+        <source>%1
+Directory not found.
+Please verify the correct directory name was given.</source>
+        <translation>%1 
+Katalogen hittades inte. 
+Kontrollera att det korrekta katalognamnet angavs.</translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is write protected.
+Do you want to delete it anyway?</source>
+        <translation>\&quot;%1\&quot; är skrivskyddad. 
+Vill du ta bort den ändå?</translation>
+    </message>
+    <message>
+        <source>Are sure you want to delete &apos;%1&apos;?</source>
+        <translation>Är du säker på att du vill ta bort \&quot;%1\&quot;?</translation>
+    </message>
+    <message>
+        <source>Could not delete directory.</source>
+        <translation>Kunde inte ta bort katalogen.</translation>
+    </message>
+    <message>
+        <source>All Files (*.*)</source>
+        <translation>Alla filer (*.*)</translation>
+    </message>
+    <message>
+        <source>Save As</source>
+        <translation>Spara som</translation>
+    </message>
+    <message>
+        <source>Drive</source>
+        <translation>Enhet</translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation>Fil</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation>Okänt</translation>
+    </message>
+    <message>
+        <source>Find Directory</source>
+        <translation>Hitta katalog</translation>
+    </message>
+    <message>
+        <source>Show </source>
+        <translation>Visa</translation>
+    </message>
+    <message>
+        <source>Forward</source>
+        <translation>Framåt</translation>
+    </message>
+    <message>
+        <source>New Folder</source>
+        <translation>Ny mapp</translation>
+    </message>
+    <message>
+        <source>&amp;New Folder</source>
+        <translation>&amp;Ny mapp</translation>
+    </message>
+    <message>
+        <source>&amp;Choose</source>
+        <translation>&amp;Välj</translation>
+    </message>
+    <message>
+        <source>Remove</source>
+        <translation>Ta bort</translation>
+    </message>
+    <message>
+        <source>File &amp;name:</source>
+        <translation>Fil&amp;namn:</translation>
+    </message>
+    <message>
+        <source>Look in:</source>
+        <translation>Leta i:</translation>
+    </message>
+    <message>
+        <source>Create New Folder</source>
+        <translation>Skapa ny mapp</translation>
+    </message>
+</context>
+<context>
+    <name>QFileSystemModel</name>
+    <message>
+        <source>%1 TB</source>
+        <translation>%1 TB</translation>
+    </message>
+    <message>
+        <source>%1 GB</source>
+        <translation>%1 GB</translation>
+    </message>
+    <message>
+        <source>%1 MB</source>
+        <translation>%1 MB</translation>
+    </message>
+    <message>
+        <source>%1 KB</source>
+        <translation>%1 KB</translation>
+    </message>
+    <message>
+        <source>%1 bytes</source>
+        <translation>%1 byte</translation>
+    </message>
+    <message>
+        <source>Invalid filename</source>
+        <translation>Ogiltigt filnamn</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;The name &quot;%1&quot; can not be used.&lt;/b&gt;&lt;p&gt;Try using another name, with fewer characters or no punctuations marks.</source>
+        <translation>&lt;b&gt;Namnet \&quot;%1&quot; kan inte användas.&lt;/b&gt;&lt;p&gt;Prova med ett annat namn med mindre antal tecken eller inga skiljetecken.</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>Namn</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation>Storlek</translation>
+    </message>
+    <message>
+        <source>Kind</source>
+        <comment>Match OS X Finder</comment>
+        <translation>Sort</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <comment>All other platforms</comment>
+        <translation>Typ</translation>
+    </message>
+    <message>
+        <source>Date Modified</source>
+        <translation>Ändringsdatum</translation>
+    </message>
+    <message>
+        <source>My Computer</source>
+        <translation>Min dator</translation>
+    </message>
+    <message>
+        <source>Computer</source>
+        <translation>Dator</translation>
+    </message>
+</context>
+<context>
+    <name>QFontDialog</name>
+    <message>
+        <source>&amp;Font</source>
+        <translation>&amp;Typsnitt</translation>
+    </message>
+    <message>
+        <source>Font st&amp;yle</source>
+        <translation>T&amp;ypsnittsstil</translation>
+    </message>
+    <message>
+        <source>&amp;Size</source>
+        <translation>&amp;Storlek</translation>
+    </message>
+    <message>
+        <source>Effects</source>
+        <translation>Effekter</translation>
+    </message>
+    <message>
+        <source>Stri&amp;keout</source>
+        <translation>Genomstru&amp;ken</translation>
+    </message>
+    <message>
+        <source>&amp;Underline</source>
+        <translation>&amp;Understruken</translation>
+    </message>
+    <message>
+        <source>Sample</source>
+        <translation>Test</translation>
+    </message>
+    <message>
+        <source>Wr&amp;iting System</source>
+        <translation>Skr&amp;ivsystem</translation>
+    </message>
+    <message>
+        <source>Select Font</source>
+        <translation>Välj typsnitt</translation>
+    </message>
+</context>
+<context>
+    <name>QFtp</name>
+    <message>
+        <source>Not connected</source>
+        <translation>Inte ansluten</translation>
+    </message>
+    <message>
+        <source>Host %1 not found</source>
+        <translation>Värden %1 hittades inte</translation>
+    </message>
+    <message>
+        <source>Connection refused to host %1</source>
+        <translation>Anslutningen till värden %1 vägrades</translation>
+    </message>
+    <message>
+        <source>Connected to host %1</source>
+        <translation>Ansluten till värden %1</translation>
+    </message>
+    <message>
+        <source>Connection refused for data connection</source>
+        <translation>Anslutning vägrades för dataanslutning</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Okänt fel</translation>
+    </message>
+    <message>
+        <source>Connecting to host failed:
+%1</source>
+        <translation>Anslutning till värden misslyckades: 
+%1</translation>
+    </message>
+    <message>
+        <source>Login failed:
+%1</source>
+        <translation>Inloggning misslyckades: 
+%1</translation>
+    </message>
+    <message>
+        <source>Listing directory failed:
+%1</source>
+        <translation>Listning av katalogen misslyckades: 
+%1</translation>
+    </message>
+    <message>
+        <source>Changing directory failed:
+%1</source>
+        <translation>Byte av katalog misslyckades: 
+%1</translation>
+    </message>
+    <message>
+        <source>Downloading file failed:
+%1</source>
+        <translation>Nedladdningen av filen misslyckades: 
+%1</translation>
+    </message>
+    <message>
+        <source>Uploading file failed:
+%1</source>
+        <translation>Uppladdningen av filen misslyckades: 
+%1</translation>
+    </message>
+    <message>
+        <source>Removing file failed:
+%1</source>
+        <translation>Borttagning av filen misslyckades: 
+%1</translation>
+    </message>
+    <message>
+        <source>Creating directory failed:
+%1</source>
+        <translation>Skapandet av katalogen misslyckades: 
+%1</translation>
+    </message>
+    <message>
+        <source>Removing directory failed:
+%1</source>
+        <translation>Borttagning av katalogen misslyckades: 
+%1</translation>
+    </message>
+    <message>
+        <source>Connection closed</source>
+        <translation>Anslutningen stängd</translation>
+    </message>
+    <message>
+        <source>Host %1 found</source>
+        <translation>Värden %1 hittades</translation>
+    </message>
+    <message>
+        <source>Connection to %1 closed</source>
+        <translation>Anslutningen till %1 stängdes</translation>
+    </message>
+    <message>
+        <source>Host found</source>
+        <translation>Värden hittades</translation>
+    </message>
+    <message>
+        <source>Connected to host</source>
+        <translation>Ansluten till värden</translation>
+    </message>
+</context>
+<context>
+    <name>QHostInfo</name>
+    <message>
+        <source>Unknown error</source>
+        <translation>Okänt fel</translation>
+    </message>
+</context>
+<context>
+    <name>QHostInfoAgent</name>
+    <message>
+        <source>Host not found</source>
+        <translation>Värden hittades inte</translation>
+    </message>
+    <message>
+        <source>Unknown address type</source>
+        <translation>Okänd adresstyp</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Okänt fel</translation>
+    </message>
+</context>
+<context>
+    <name>QHttp</name>
+    <message>
+        <source>Unknown error</source>
+        <translation>Okänt fel</translation>
+    </message>
+    <message>
+        <source>Request aborted</source>
+        <translation>Begäran avbröts</translation>
+    </message>
+    <message>
+        <source>No server set to connect to</source>
+        <translation>Ingen server inställd att ansluta till</translation>
+    </message>
+    <message>
+        <source>Wrong content length</source>
+        <translation>Fel innehållslängd</translation>
+    </message>
+    <message>
+        <source>Server closed connection unexpectedly</source>
+        <translation>Servern stängde oväntat anslutningen</translation>
+    </message>
+    <message>
+        <source>Connection refused</source>
+        <translation>Anslutningen nekades</translation>
+    </message>
+    <message>
+        <source>Host %1 not found</source>
+        <translation>Värden %1 hittades inte</translation>
+    </message>
+    <message>
+        <source>HTTP request failed</source>
+        <translation>HTTP-begäran misslyckades</translation>
+    </message>
+    <message>
+        <source>Invalid HTTP response header</source>
+        <translation>Ogiltig HTTP-svarshuvud</translation>
+    </message>
+    <message>
+        <source>Invalid HTTP chunked body</source>
+        <translation>Ogiltig HTTP chunked body</translation>
+    </message>
+    <message>
+        <source>Host %1 found</source>
+        <translation>Värden %1 hittades</translation>
+    </message>
+    <message>
+        <source>Connected to host %1</source>
+        <translation>Ansluten till värden %1</translation>
+    </message>
+    <message>
+        <source>Connection to %1 closed</source>
+        <translation>Anslutningen till %1 stängdes</translation>
+    </message>
+    <message>
+        <source>Host found</source>
+        <translation>Värden hittades</translation>
+    </message>
+    <message>
+        <source>Connected to host</source>
+        <translation>Ansluten till värd</translation>
+    </message>
+    <message>
+        <source>Connection closed</source>
+        <translation>Anslutningen stängd</translation>
+    </message>
+    <message>
+        <source>Proxy authentication required</source>
+        <translation>Proxyautentisering krävs</translation>
+    </message>
+    <message>
+        <source>Authentication required</source>
+        <translation>Autentisering krävs</translation>
+    </message>
+</context>
+<context>
+    <name>QHttpSocketEngine</name>
+    <message>
+        <source>Authentication required</source>
+        <translation>Autentisering krävs</translation>
+    </message>
+</context>
+<context>
+    <name>QIBaseDriver</name>
+    <message>
+        <source>Error opening database</source>
+        <translation>Fel vid öppning av databas</translation>
+    </message>
+    <message>
+        <source>Could not start transaction</source>
+        <translation>Kunde inte starta transaktion</translation>
+    </message>
+    <message>
+        <source>Unable to commit transaction</source>
+        <translation>Kunde inte verkställa transaktion</translation>
+    </message>
+    <message>
+        <source>Unable to rollback transaction</source>
+        <translation>Kunde inte rulla tillbaka transaktion</translation>
+    </message>
+</context>
+<context>
+    <name>QIBaseResult</name>
+    <message>
+        <source>Unable to create BLOB</source>
+        <translation>Kunde inte skapa BLOB</translation>
+    </message>
+    <message>
+        <source>Unable to write BLOB</source>
+        <translation>Kunde inte skriva BLOB</translation>
+    </message>
+    <message>
+        <source>Unable to open BLOB</source>
+        <translation>Kunde inte öppna BLOB</translation>
+    </message>
+    <message>
+        <source>Unable to read BLOB</source>
+        <translation>Kunde inte läsa BLOB</translation>
+    </message>
+    <message>
+        <source>Could not find array</source>
+        <translation>Kunde inte hitta kedja</translation>
+    </message>
+    <message>
+        <source>Could not get array data</source>
+        <translation>Kunde inte få kedjedata</translation>
+    </message>
+    <message>
+        <source>Could not get query info</source>
+        <translation>Kunde inte gå frågesatsinformation</translation>
+    </message>
+    <message>
+        <source>Could not start transaction</source>
+        <translation>Kunde inte starta transaktion</translation>
+    </message>
+    <message>
+        <source>Unable to commit transaction</source>
+        <translation>Kunde inte verkställa transaktion</translation>
+    </message>
+    <message>
+        <source>Could not allocate statement</source>
+        <translation>Kunde inte allokera frågesats</translation>
+    </message>
+    <message>
+        <source>Could not prepare statement</source>
+        <translation>Kunde inte förbereda frågesats</translation>
+    </message>
+    <message>
+        <source>Could not describe input statement</source>
+        <translation>Kunde inte beskriva inmatningsfrågesats</translation>
+    </message>
+    <message>
+        <source>Could not describe statement</source>
+        <translation>Kunde inte beskriva frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to close statement</source>
+        <translation>Kunde inte stänga frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to execute query</source>
+        <translation>Kunde inte köra frågesats</translation>
+    </message>
+    <message>
+        <source>Could not fetch next item</source>
+        <translation>Kunde inte hämta nästa post</translation>
+    </message>
+    <message>
+        <source>Could not get statement info</source>
+        <translation>Kunde inte få frågesatsinformation</translation>
+    </message>
+</context>
+<context>
+    <name>QIODevice</name>
+    <message>
+        <source>Permission denied</source>
+        <translation>Åtkomst nekad</translation>
+    </message>
+    <message>
+        <source>Too many open files</source>
+        <translation>För många öppna filer</translation>
+    </message>
+    <message>
+        <source>No such file or directory</source>
+        <translation>Ingen sådan fil eller katalog</translation>
+    </message>
+    <message>
+        <source>No space left on device</source>
+        <translation>Inget ledigt utrymme på enheten</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Okänt fel</translation>
+    </message>
+</context>
+<context>
+    <name>QInputContext</name>
+    <message>
+        <source>XIM</source>
+        <translation>XIM</translation>
+    </message>
+    <message>
+        <source>XIM input method</source>
+        <translation>XIM-inmatningsmetod</translation>
+    </message>
+    <message>
+        <source>Windows input method</source>
+        <translation>Windows-inmatningsmetod</translation>
+    </message>
+    <message>
+        <source>Mac OS X input method</source>
+        <translation>Mac OS X-inmatningsmetod</translation>
+    </message>
+</context>
+<context>
+    <name>QLibrary</name>
+    <message>
+        <source>QLibrary::load_sys: Cannot load %1 (%2)</source>
+        <translation>QLibrary::load_sys: Kan inte läsa in %1 (%2)</translation>
+    </message>
+    <message>
+        <source>QLibrary::unload_sys: Cannot unload %1 (%2)</source>
+        <translation>QLibrary::unload_sys: Kan inte läsa ur %1 (%2)</translation>
+    </message>
+    <message>
+        <source>QLibrary::resolve_sys: Symbol &quot;%1&quot; undefined in %2 (%3)</source>
+        <translation>QLibrary::resolve_sys: Symbolen &quot;%1&quot; är inte definierad i %2 (%3)</translation>
+    </message>
+    <message>
+        <source>Could not mmap &apos;%1&apos;: %2</source>
+        <translation>Kunde inte mmap \&quot;%1\&quot;: %2</translation>
+    </message>
+    <message>
+        <source>Plugin verification data mismatch in &apos;%1&apos;</source>
+        <translation>Dataverifiering av insticksmodul misslyckades i \&quot;%1\&quot;</translation>
+    </message>
+    <message>
+        <source>Could not unmap &apos;%1&apos;: %2</source>
+        <translation>Kunde inte unmap \&quot;%1\&quot;: %2</translation>
+    </message>
+    <message>
+        <source>The shared library was not found.</source>
+        <translation>Det delade biblioteket hittades inte.</translation>
+    </message>
+    <message>
+        <source>The file &apos;%1&apos; is not a valid Qt plugin.</source>
+        <translation>Filen \&quot;%1\&quot; är inte en giltig insticksmodul för Qt.</translation>
+    </message>
+    <message>
+        <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
+        <translation>Insticksmodulen \&quot;%1\&quot; använder ett inkompatibelt Qt-bibliotek. (%2.%3.%4) [%5]</translation>
+    </message>
+    <message>
+        <source>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</source>
+        <translation>Insticksmodulen \&quot;%1\&quot; använder ett inkompatibelt Qt-bibliotek. Förväntade byggnyckel \&quot;%2&quot;, fick &quot;%3&quot;</translation>
+    </message>
+    <message>
+        <source>The plugin &apos;%1&apos; uses incompatible Qt library. (Cannot mix debug and release libraries.)</source>
+        <translation>Insticksmodulen \&quot;%1\&quot; använder ett inkompatibelt Qt-bibliotek. (Kan inte blanda bibliotek för \&quot;debug\&quot; och \&quot;release\&quot;.)</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Okänt fel</translation>
+    </message>
+</context>
+<context>
+    <name>QLineEdit</name>
+    <message>
+        <source>&amp;Undo</source>
+        <translation>&amp;Ångra</translation>
+    </message>
+    <message>
+        <source>&amp;Redo</source>
+        <translation>&amp;Gör om</translation>
+    </message>
+    <message>
+        <source>Cu&amp;t</source>
+        <translation>Klipp &amp;ut</translation>
+    </message>
+    <message>
+        <source>&amp;Copy</source>
+        <translation>&amp;Kopiera</translation>
+    </message>
+    <message>
+        <source>&amp;Paste</source>
+        <translation>Klistra &amp;in</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Ta bort</translation>
+    </message>
+    <message>
+        <source>Select All</source>
+        <translation>Markera alla</translation>
+    </message>
+</context>
+<context>
+    <name>QMYSQLDriver</name>
+    <message>
+        <source>Unable to open database &apos;</source>
+        <translation>Kunde inte öppna databasen \&quot;</translation>
+    </message>
+    <message>
+        <source>Unable to connect</source>
+        <translation>Kunde inte ansluta</translation>
+    </message>
+    <message>
+        <source>Unable to begin transaction</source>
+        <translation>Kunde inte påbörja transaktion</translation>
+    </message>
+    <message>
+        <source>Unable to commit transaction</source>
+        <translation>Kunde inte verkställa transaktion</translation>
+    </message>
+    <message>
+        <source>Unable to rollback transaction</source>
+        <translation>Kunde inte rulla tillbaka transaktion</translation>
+    </message>
+</context>
+<context>
+    <name>QMYSQLResult</name>
+    <message>
+        <source>Unable to fetch data</source>
+        <translation>Kunde inte hämta data</translation>
+    </message>
+    <message>
+        <source>Unable to execute query</source>
+        <translation>Kunde inte köra frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to store result</source>
+        <translation>Kunde inte lagra resultat</translation>
+    </message>
+    <message>
+        <source>Unable to prepare statement</source>
+        <translation>Kunde inte förbereda frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to reset statement</source>
+        <translation>Kunde inte återställa frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to bind value</source>
+        <translation>Kunde inte binda värde</translation>
+    </message>
+    <message>
+        <source>Unable to execute statement</source>
+        <translation>Kunde inte köra frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to bind outvalues</source>
+        <translation>Kunde inte binda utvärden</translation>
+    </message>
+    <message>
+        <source>Unable to store statement results</source>
+        <translation>Kunde inte lagra resultat från frågesats</translation>
+    </message>
+</context>
+<context>
+    <name>QMdiSubWindow</name>
+    <message>
+        <source>%1 - [%2]</source>
+        <translation>%1 - [%2]</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Stäng</translation>
+    </message>
+    <message>
+        <source>Minimize</source>
+        <translation>Minimera</translation>
+    </message>
+    <message>
+        <source>Restore Down</source>
+        <translation>Återställ nedåt</translation>
+    </message>
+    <message>
+        <source>&amp;Restore</source>
+        <translation>Åte&amp;rställ</translation>
+    </message>
+    <message>
+        <source>&amp;Move</source>
+        <translation>&amp;Flytta</translation>
+    </message>
+    <message>
+        <source>&amp;Size</source>
+        <translation>&amp;Storlek</translation>
+    </message>
+    <message>
+        <source>Mi&amp;nimize</source>
+        <translation>Mi&amp;nimera</translation>
+    </message>
+    <message>
+        <source>Ma&amp;ximize</source>
+        <translation>Ma&amp;ximera</translation>
+    </message>
+    <message>
+        <source>Stay on &amp;Top</source>
+        <translation>Placera övers&amp;t</translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation>&amp;Stäng</translation>
+    </message>
+</context>
+<context>
+    <name>QMenu</name>
+    <message>
+        <source>Close</source>
+        <translation>Stäng</translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation>Öppna</translation>
+    </message>
+    <message>
+        <source>Execute</source>
+        <translation>Kör</translation>
+    </message>
+</context>
+<context>
+    <name>QMenuBar</name>
+    <message>
+        <source>About</source>
+        <translation>Om</translation>
+    </message>
+    <message>
+        <source>Config</source>
+        <translation>Konfiguration</translation>
+    </message>
+    <message>
+        <source>Preference</source>
+        <translation>Inställning</translation>
+    </message>
+    <message>
+        <source>Options</source>
+        <translation>Alternativ</translation>
+    </message>
+    <message>
+        <source>Setting</source>
+        <translation>Inställning</translation>
+    </message>
+    <message>
+        <source>Setup</source>
+        <translation>Konfigurera</translation>
+    </message>
+    <message>
+        <source>Quit</source>
+        <translation>Avsluta</translation>
+    </message>
+    <message>
+        <source>Exit</source>
+        <translation>Avsluta</translation>
+    </message>
+    <message>
+        <source>About %1</source>
+        <translation>Om %1</translation>
+    </message>
+    <message>
+        <source>About Qt</source>
+        <translation>Om Qt</translation>
+    </message>
+    <message>
+        <source>Preferences</source>
+        <translation>Inställningar</translation>
+    </message>
+    <message>
+        <source>Quit %1</source>
+        <translation>Avsluta %1</translation>
+    </message>
+</context>
+<context>
+    <name>QMessageBox</name>
+    <message>
+        <source>Help</source>
+        <translation>Hjälp</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation>OK</translation>
+    </message>
+    <message>
+        <source>About Qt</source>
+        <translation>Om Qt</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Detta program använder Qt version %1.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;h3&gt;About Qt&lt;/h3&gt;%1&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qtopia Core.&lt;/p&gt;&lt;p&gt;Qt is a Trolltech product. See &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; for more information.&lt;/p&gt;</source>
+        <translation>&lt;h3&gt;Om Qt&lt;/h3&gt;%1&lt;p&gt;Qt är ett C++-verktygssamling för utveckling av krossplattformsprogram.&lt;/p&gt;&lt;p&gt;Qt tillhandahåller portabilitet för samma källkod mellan MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, och alla andra stora kommersiella Unix-varianter. Qt finns också tillgängligt för inbäddade enheter som Qtopia Core.&lt;/p&gt;&lt;p&gt;Qt är en produkt från Trolltech. Se &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; för mer information.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Show Details...</source>
+        <translation>Visa detaljer...</translation>
+    </message>
+    <message>
+        <source>Hide Details...</source>
+        <translation>Dölj detaljer...</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This program uses Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition is intended for the development of Open Source applications. You need a commercial Qt license for development of proprietary (closed source) applications.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Detta program använder Qt Open Source Edition version %1.&lt;/p&gt;&lt;p&gt;Qt Open Source Edition är tänkt för utveckling av program med öppen källkod. Du behöver en kommersiell Qt-licens för utveckling av proprietära (stängd källkod) program.&lt;/p&gt;&lt;p&gt;Se &lt;a href=&quot;http://www.trolltech.com/company/model/&quot;&gt;www.trolltech.com/company/model/&lt;/a&gt; för information om licensiering av Qt.&lt;/p&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>QMultiInputContext</name>
+    <message>
+        <source>Select IM</source>
+        <translation>Välj inmatningsmetod</translation>
+    </message>
+</context>
+<context>
+    <name>QMultiInputContextPlugin</name>
+    <message>
+        <source>Multiple input method switcher</source>
+        <translation>Växlare för flera inmatningsmetoder</translation>
+    </message>
+    <message>
+        <source>Multiple input method switcher that uses the context menu of the text widgets</source>
+        <translation>Växlare för flera inmatningsmetoder som använder sammanhangsmenyn för textwidgar</translation>
+    </message>
+</context>
+<context>
+    <name>QNativeSocketEngine</name>
+    <message>
+        <source>The remote host closed the connection</source>
+        <translation>Fjärrvärden stängde anslutningen</translation>
+    </message>
+    <message>
+        <source>Network operation timed out</source>
+        <translation>Tidsgräns för nätverksåtgärd överstegs</translation>
+    </message>
+    <message>
+        <source>Out of resources</source>
+        <translation>Slut på resurser</translation>
+    </message>
+    <message>
+        <source>Unsupported socket operation</source>
+        <translation>Uttagsåtgärden stöds inte</translation>
+    </message>
+    <message>
+        <source>Protocol type not supported</source>
+        <translation>Protokolltypen stöds inte</translation>
+    </message>
+    <message>
+        <source>Invalid socket descriptor</source>
+        <translation>Ogiltig uttagsbeskrivare</translation>
+    </message>
+    <message>
+        <source>Network unreachable</source>
+        <translation>Nätverket är inte nåbart</translation>
+    </message>
+    <message>
+        <source>Permission denied</source>
+        <translation>Åtkomst nekad</translation>
+    </message>
+    <message>
+        <source>Connection timed out</source>
+        <translation>Tidsgränsen för anslutning överstegs</translation>
+    </message>
+    <message>
+        <source>Connection refused</source>
+        <translation>Anslutningen vägrades</translation>
+    </message>
+    <message>
+        <source>The bound address is already in use</source>
+        <translation>Bindningsadress används redan</translation>
+    </message>
+    <message>
+        <source>The address is not available</source>
+        <translation>Adressen är inte tillgänglig</translation>
+    </message>
+    <message>
+        <source>The address is protected</source>
+        <translation>Adressen är skyddad</translation>
+    </message>
+    <message>
+        <source>Unable to send a message</source>
+        <translation>Kunde inte skicka ett meddelande</translation>
+    </message>
+    <message>
+        <source>Unable to receive a message</source>
+        <translation>Kunde inte ta emot ett meddelande</translation>
+    </message>
+    <message>
+        <source>Unable to write</source>
+        <translation>Kunde inte skriva</translation>
+    </message>
+    <message>
+        <source>Network error</source>
+        <translation>Nätverksfel</translation>
+    </message>
+    <message>
+        <source>Another socket is already listening on the same port</source>
+        <translation>Ett annat uttag lyssnar redan på samma port</translation>
+    </message>
+    <message>
+        <source>Unable to initialize non-blocking socket</source>
+        <translation>Kunde inte initiera icke-blockerande uttag</translation>
+    </message>
+    <message>
+        <source>Unable to initialize broadcast socket</source>
+        <translation>Kunde inte initiera uttag för broadcast</translation>
+    </message>
+    <message>
+        <source>Attempt to use IPv6 socket on a platform with no IPv6 support</source>
+        <translation>Försök att använda IPv6-uttag på en plattform som saknar IPv6-stöd</translation>
+    </message>
+    <message>
+        <source>Host unreachable</source>
+        <translation>Värden är inte nåbar</translation>
+    </message>
+    <message>
+        <source>Datagram was too large to send</source>
+        <translation>Datagram för för stor för att skicka</translation>
+    </message>
+    <message>
+        <source>Operation on non-socket</source>
+        <translation>Åtgärd på icke-uttag</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Okänt fel</translation>
+    </message>
+</context>
+<context>
+    <name>QOCIDriver</name>
+    <message>
+        <source>Unable to logon</source>
+        <translation>Kunde inte logga in</translation>
+    </message>
+    <message>
+        <source>Unable to initialize</source>
+        <comment>QOCIDriver</comment>
+        <translation>Kunde inte initiera</translation>
+    </message>
+</context>
+<context>
+    <name>QOCIResult</name>
+    <message>
+        <source>Unable to bind column for batch execute</source>
+        <translation>Kunde inte binda kolumn för satskörning</translation>
+    </message>
+    <message>
+        <source>Unable to execute batch statement</source>
+        <translation>Kunde inte köra satsfråga</translation>
+    </message>
+    <message>
+        <source>Unable to goto next</source>
+        <translation>Kunde inte gå till nästa</translation>
+    </message>
+    <message>
+        <source>Unable to alloc statement</source>
+        <translation>Kunde inte allokera frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to prepare statement</source>
+        <translation>Kunde inte förbereda frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to bind value</source>
+        <translation>Kunde inte binda värde</translation>
+    </message>
+    <message>
+        <source>Unable to execute select statement</source>
+        <translation>Kunde inte köra \&quot;select\&quot;-frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to execute statement</source>
+        <translation>Kunde inte köra frågesats</translation>
+    </message>
+</context>
+<context>
+    <name>QODBCDriver</name>
+    <message>
+        <source>Unable to connect</source>
+        <translation>Kunde inte ansluta</translation>
+    </message>
+    <message>
+        <source>Unable to connect - Driver doesn&apos;t support all needed functionality</source>
+        <translation>Kunde inte ansluta - Drivrutinen har inte stöd för all nödvändig funktionalitet</translation>
+    </message>
+    <message>
+        <source>Unable to disable autocommit</source>
+        <translation>Kunde inte inaktivera automatisk verkställning</translation>
+    </message>
+    <message>
+        <source>Unable to commit transaction</source>
+        <translation>Kunde inte verkställa transaktion</translation>
+    </message>
+    <message>
+        <source>Unable to rollback transaction</source>
+        <translation>Kunde inte rulla tillbaka transaktion</translation>
+    </message>
+    <message>
+        <source>Unable to enable autocommit</source>
+        <translation>Kunde inte aktivera automatisk verkställning</translation>
+    </message>
+</context>
+<context>
+    <name>QODBCResult</name>
+    <message>
+        <source>QODBCResult::reset: Unable to set &apos;SQL_CURSOR_STATIC&apos; as statement attribute. Please check your ODBC driver configuration</source>
+        <translation>QODBCResult::reset: Kunde inte ställa in \&quot;SQL_CURSOR_STATIC\&quot; som frågesatsattribut. Kontrollera konfigurationen för din ODBC-drivrutin</translation>
+    </message>
+    <message>
+        <source>Unable to execute statement</source>
+        <translation>Kunde inte köra frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to fetch next</source>
+        <translation>Kunde inte hämta nästa</translation>
+    </message>
+    <message>
+        <source>Unable to prepare statement</source>
+        <translation>Kunde inte förbereda frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to bind variable</source>
+        <translation>Kunde inte binda variabel</translation>
+    </message>
+</context>
+<context>
+    <name>QObject</name>
+    <message>
+        <source>Home</source>
+        <translation>Hem</translation>
+    </message>
+</context>
+<context>
+    <name>QPSQLDriver</name>
+    <message>
+        <source>Unable to connect</source>
+        <translation>Kunde inte ansluta</translation>
+    </message>
+    <message>
+        <source>Could not begin transaction</source>
+        <translation>Kunde inte påbörja transaktion</translation>
+    </message>
+    <message>
+        <source>Could not commit transaction</source>
+        <translation>Kunde inte verkställa transaktion</translation>
+    </message>
+    <message>
+        <source>Could not rollback transaction</source>
+        <translation>Kunde inte rulla tillbaka transaktion</translation>
+    </message>
+</context>
+<context>
+    <name>QPSQLResult</name>
+    <message>
+        <source>Unable to create query</source>
+        <translation>Kunde inte skapa fråga</translation>
+    </message>
+</context>
+<context>
+    <name>QPluginLoader</name>
+    <message>
+        <source>The plugin was not loaded.</source>
+        <translation>Insticksmodulen lästes inte in.</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Okänt fel</translation>
+    </message>
+</context>
+<context>
+    <name>QPrintDialog</name>
+    <message>
+        <source>locally connected</source>
+        <translation>lokalt ansluten</translation>
+    </message>
+    <message>
+        <source>Aliases: %1</source>
+        <translation>Alias: %1</translation>
+    </message>
+    <message>
+        <source>unknown</source>
+        <translation>okänt</translation>
+    </message>
+    <message>
+        <source>Portrait</source>
+        <translation>Stående</translation>
+    </message>
+    <message>
+        <source>Landscape</source>
+        <translation>Liggande</translation>
+    </message>
+    <message>
+        <source>A0 (841 x 1189 mm)</source>
+        <translation>A0 (841 x 1189 mm)</translation>
+    </message>
+    <message>
+        <source>A1 (594 x 841 mm)</source>
+        <translation>A1 (594 x 841 mm)</translation>
+    </message>
+    <message>
+        <source>A2 (420 x 594 mm)</source>
+        <translation>A2 (420 x 594 mm)</translation>
+    </message>
+    <message>
+        <source>A3 (297 x 420 mm)</source>
+        <translation>A3 (297 x 420 mm)</translation>
+    </message>
+    <message>
+        <source>A4 (210 x 297 mm, 8.26 x 11.7 inches)</source>
+        <translation>A4 (210 x 297 mm, 8.26 x 11.7 tum)</translation>
+    </message>
+    <message>
+        <source>A5 (148 x 210 mm)</source>
+        <translation>A5 (148 x 210 mm)</translation>
+    </message>
+    <message>
+        <source>A6 (105 x 148 mm)</source>
+        <translation>A6 (105 x 148 mm)</translation>
+    </message>
+    <message>
+        <source>A7 (74 x 105 mm)</source>
+        <translation>A7 (74 x 105 mm)</translation>
+    </message>
+    <message>
+        <source>A8 (52 x 74 mm)</source>
+        <translation>A8 (52 x 74 mm)</translation>
+    </message>
+    <message>
+        <source>A9 (37 x 52 mm)</source>
+        <translation>A9 (37 x 52 mm)</translation>
+    </message>
+    <message>
+        <source>B0 (1000 x 1414 mm)</source>
+        <translation>B0 (1000 x 1414 mm)</translation>
+    </message>
+    <message>
+        <source>B1 (707 x 1000 mm)</source>
+        <translation>B1 (707 x 1000 mm)</translation>
+    </message>
+    <message>
+        <source>B2 (500 x 707 mm)</source>
+        <translation>B2 (500 x 707 mm)</translation>
+    </message>
+    <message>
+        <source>B3 (353 x 500 mm)</source>
+        <translation>B3 (353 x 500 mm)</translation>
+    </message>
+    <message>
+        <source>B4 (250 x 353 mm)</source>
+        <translation>B4 (250 x 353 mm)</translation>
+    </message>
+    <message>
+        <source>B5 (176 x 250 mm, 6.93 x 9.84 inches)</source>
+        <translation>B5 (176 x 250 mm, 6.93 x 9.84 tum)</translation>
+    </message>
+    <message>
+        <source>B6 (125 x 176 mm)</source>
+        <translation>B6 (125 x 176 mm)</translation>
+    </message>
+    <message>
+        <source>B7 (88 x 125 mm)</source>
+        <translation>B7 (88 x 125 mm)</translation>
+    </message>
+    <message>
+        <source>B8 (62 x 88 mm)</source>
+        <translation>B8 (62 x 88 mm)</translation>
+    </message>
+    <message>
+        <source>B9 (44 x 62 mm)</source>
+        <translation>B9 (44 x 62 mm)</translation>
+    </message>
+    <message>
+        <source>B10 (31 x 44 mm)</source>
+        <translation>B10 (31 x 44 mm)</translation>
+    </message>
+    <message>
+        <source>C5E (163 x 229 mm)</source>
+        <translation>C5E (163 x 229 mm)</translation>
+    </message>
+    <message>
+        <source>DLE (110 x 220 mm)</source>
+        <translation>DLE (110 x 220 mm)</translation>
+    </message>
+    <message>
+        <source>Executive (7.5 x 10 inches, 191 x 254 mm)</source>
+        <translation>Executive (7.5 x 10 tum, 191 x 254 mm)</translation>
+    </message>
+    <message>
+        <source>Folio (210 x 330 mm)</source>
+        <translation>Folio (210 x 330 mm)</translation>
+    </message>
+    <message>
+        <source>Ledger (432 x 279 mm)</source>
+        <translation>Ledger (432 x 279 mm)</translation>
+    </message>
+    <message>
+        <source>Legal (8.5 x 14 inches, 216 x 356 mm)</source>
+        <translation>Legal (8.5 x 14 tum, 216 x 356 mm)</translation>
+    </message>
+    <message>
+        <source>Letter (8.5 x 11 inches, 216 x 279 mm)</source>
+        <translation>Letter (8.5 x 11 tum, 216 x 279 mm)</translation>
+    </message>
+    <message>
+        <source>Tabloid (279 x 432 mm)</source>
+        <translation>Tabloid (279 x 432 mm)</translation>
+    </message>
+    <message>
+        <source>US Common #10 Envelope (105 x 241 mm)</source>
+        <translation>US Common #10 Envelope (105 x 241 mm)</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation>OK</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Avbryt</translation>
+    </message>
+    <message>
+        <source>Page size:</source>
+        <translation>Sidstorlek:</translation>
+    </message>
+    <message>
+        <source>Orientation:</source>
+        <translation>Orientering:</translation>
+    </message>
+    <message>
+        <source>Paper source:</source>
+        <translation>Papperskälla:</translation>
+    </message>
+    <message>
+        <source>Print</source>
+        <translation>Skriv ut</translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation>Fil</translation>
+    </message>
+    <message>
+        <source>Printer</source>
+        <translation>Skrivare</translation>
+    </message>
+    <message>
+        <source>Print To File ...</source>
+        <translation>Skriv ut till fil ...</translation>
+    </message>
+    <message>
+        <source>Print dialog</source>
+        <translation>Utskriftsdialog</translation>
+    </message>
+    <message>
+        <source>Paper format</source>
+        <translation>Pappersformat</translation>
+    </message>
+    <message>
+        <source>Size:</source>
+        <translation>Storlek:</translation>
+    </message>
+    <message>
+        <source>Properties</source>
+        <translation>Egenskaper</translation>
+    </message>
+    <message>
+        <source>Printer info:</source>
+        <translation>Skrivarinformation:</translation>
+    </message>
+    <message>
+        <source>Browse</source>
+        <translation>Bläddra</translation>
+    </message>
+    <message>
+        <source>Print to file</source>
+        <translation>Skriv ut till fil</translation>
+    </message>
+    <message>
+        <source>Print range</source>
+        <translation>Skriv ut intervall</translation>
+    </message>
+    <message>
+        <source>Print all</source>
+        <translation>Skriv ut alla</translation>
+    </message>
+    <message>
+        <source>Pages from</source>
+        <translation>Sidor från</translation>
+    </message>
+    <message>
+        <source>to</source>
+        <translation>till</translation>
+    </message>
+    <message>
+        <source>Selection</source>
+        <translation>Val</translation>
+    </message>
+    <message>
+        <source>Copies</source>
+        <translation>Kopior</translation>
+    </message>
+    <message>
+        <source>Number of copies:</source>
+        <translation>Antal kopior:</translation>
+    </message>
+    <message>
+        <source>Collate</source>
+        <translation>Sortera</translation>
+    </message>
+    <message>
+        <source>Print last page first</source>
+        <translation>Skriv ut sista sidan först</translation>
+    </message>
+    <message>
+        <source>Other</source>
+        <translation>Annat</translation>
+    </message>
+    <message>
+        <source>Print in color if available</source>
+        <translation>Skriv ut i färg om möjligt</translation>
+    </message>
+    <message>
+        <source>Double side printing</source>
+        <translation>Dubbelsidig utskrift</translation>
+    </message>
+    <message>
+        <source>File %1 is not writable.
+Please choose a different file name.</source>
+        <translation>Filen %1 är inte skrivbar. 
+Välj ett annat filnamn.</translation>
+    </message>
+    <message>
+        <source>%1 already exists.
+Do you want to overwrite it?</source>
+        <translation>%1 finns redan. 
+Vill du skriva över den?</translation>
+    </message>
+    <message>
+        <source>File exists</source>
+        <translation>Filen finns redan</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;Do you want to overwrite it?&lt;/qt&gt;</source>
+        <translation>&lt;qt&gt;Vill du skriva över den?&lt;/qt&gt;</translation>
+    </message>
+    <message>
+        <source>Print selection</source>
+        <translation>Skriv ut markering</translation>
+    </message>
+    <message>
+        <source>%1 is a directory.
+Please choose a different file name.</source>
+        <translation>%1 är en katalog.
+Välj ett annat filnamn.</translation>
+    </message>
+</context>
+<context>
+    <name>QPrintPropertiesDialog</name>
+    <message>
+        <source>PPD Properties</source>
+        <translation>PPD-egenskaper</translation>
+    </message>
+    <message>
+        <source>Save</source>
+        <translation>Spara</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation>OK</translation>
+    </message>
+</context>
+<context>
+    <name>QProgressDialog</name>
+    <message>
+        <source>Cancel</source>
+        <translation>Avbryt</translation>
+    </message>
+</context>
+<context>
+    <name>QPushButton</name>
+    <message>
+        <source>Open</source>
+        <translation>Öppna</translation>
+    </message>
+</context>
+<context>
+    <name>QRadioButton</name>
+    <message>
+        <source>Check</source>
+        <translation>Kryssa</translation>
+    </message>
+</context>
+<context>
+    <name>QRegExp</name>
+    <message>
+        <source>no error occurred</source>
+        <translation>inga fel inträffade</translation>
+    </message>
+    <message>
+        <source>disabled feature used</source>
+        <translation>inaktiverad funktion används</translation>
+    </message>
+    <message>
+        <source>bad char class syntax</source>
+        <translation>felaktig teckenklasssyntax</translation>
+    </message>
+    <message>
+        <source>bad lookahead syntax</source>
+        <translation>felaktig seframåtsyntax</translation>
+    </message>
+    <message>
+        <source>bad repetition syntax</source>
+        <translation>felaktig upprepningssyntax</translation>
+    </message>
+    <message>
+        <source>invalid octal value</source>
+        <translation>ogiltigt oktalt värde</translation>
+    </message>
+    <message>
+        <source>missing left delim</source>
+        <translation>saknar vänster avgränsare</translation>
+    </message>
+    <message>
+        <source>unexpected end</source>
+        <translation>oväntat slut</translation>
+    </message>
+    <message>
+        <source>met internal limit</source>
+        <translation>nådde intern gräns</translation>
+    </message>
+</context>
+<context>
+    <name>QSQLite2Driver</name>
+    <message>
+        <source>Error to open database</source>
+        <translation>Fel vid öppning av databas</translation>
+    </message>
+    <message>
+        <source>Unable to begin transaction</source>
+        <translation>Kunde inte påbörja transaktion</translation>
+    </message>
+    <message>
+        <source>Unable to commit transaction</source>
+        <translation>Kunde inte verkställa transaktion</translation>
+    </message>
+    <message>
+        <source>Unable to rollback Transaction</source>
+        <translation>Kunde inte rulla tillbaka transaktion</translation>
+    </message>
+</context>
+<context>
+    <name>QSQLite2Result</name>
+    <message>
+        <source>Unable to fetch results</source>
+        <translation>Kunde inte hämta resultat</translation>
+    </message>
+    <message>
+        <source>Unable to execute statement</source>
+        <translation>Kunde inte köra frågesats</translation>
+    </message>
+</context>
+<context>
+    <name>QSQLiteDriver</name>
+    <message>
+        <source>Error opening database</source>
+        <translation>Fel vid öppning av databas</translation>
+    </message>
+    <message>
+        <source>Error closing database</source>
+        <translation>Fel vid stängning av databas</translation>
+    </message>
+    <message>
+        <source>Unable to begin transaction</source>
+        <translation>Kunde inte påbörja transaktion</translation>
+    </message>
+    <message>
+        <source>Unable to commit transaction</source>
+        <translation>Kunde inte verkställa transaktion</translation>
+    </message>
+    <message>
+        <source>Unable to roll back transaction</source>
+        <translation>Kunde inte rulla tillbaka transaktion</translation>
+    </message>
+</context>
+<context>
+    <name>QSQLiteResult</name>
+    <message>
+        <source>Unable to fetch row</source>
+        <translation>Kunde inte hämta rad</translation>
+    </message>
+    <message>
+        <source>Unable to execute statement</source>
+        <translation>Kunde inte köra frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to reset statement</source>
+        <translation>Kunde inte återställa frågesats</translation>
+    </message>
+    <message>
+        <source>Unable to bind parameters</source>
+        <translation>Kunde inte binda parametrar</translation>
+    </message>
+    <message>
+        <source>Parameter count mismatch</source>
+        <translation>Parameterantal stämmer inte</translation>
+    </message>
+</context>
+<context>
+    <name>QScrollBar</name>
+    <message>
+        <source>Scroll here</source>
+        <translation>Rulla här</translation>
+    </message>
+    <message>
+        <source>Left edge</source>
+        <translation>Vänsterkant</translation>
+    </message>
+    <message>
+        <source>Top</source>
+        <translation>Överkant</translation>
+    </message>
+    <message>
+        <source>Right edge</source>
+        <translation>Högerkant</translation>
+    </message>
+    <message>
+        <source>Bottom</source>
+        <translation>Nederkant</translation>
+    </message>
+    <message>
+        <source>Page left</source>
+        <translation>Sida vänster</translation>
+    </message>
+    <message>
+        <source>Page up</source>
+        <translation>Sida uppåt</translation>
+    </message>
+    <message>
+        <source>Page right</source>
+        <translation>Sida höger</translation>
+    </message>
+    <message>
+        <source>Page down</source>
+        <translation>Sida nedåt</translation>
+    </message>
+    <message>
+        <source>Scroll left</source>
+        <translation>Rulla vänster</translation>
+    </message>
+    <message>
+        <source>Scroll up</source>
+        <translation>Rulla uppåt</translation>
+    </message>
+    <message>
+        <source>Scroll right</source>
+        <translation>Rulla höger</translation>
+    </message>
+    <message>
+        <source>Scroll down</source>
+        <translation>Rulla nedåt</translation>
+    </message>
+    <message>
+        <source>Line up</source>
+        <translation>Rada upp</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Position</translation>
+    </message>
+    <message>
+        <source>Line down</source>
+        <translation>Rad nedåt</translation>
+    </message>
+</context>
+<context>
+    <name>QShortcut</name>
     <message>
         <source>Space</source>
-        <translation>Blanksteg</translation>
+        <translation>Mellanslag</translation>
     </message>
     <message>
         <source>Esc</source>
@@ -15,7 +2639,7 @@
     </message>
     <message>
         <source>Backtab</source>
-        <translation>Bakåttab</translation>
+        <translation>Backtab</translation>
     </message>
     <message>
         <source>Backspace</source>
@@ -94,26 +2718,6 @@
         <translation>ScrollLock</translation>
     </message>
     <message>
-        <source>Ctrl</source>
-        <translation>Ctrl</translation>
-    </message>
-    <message>
-        <source>Alt</source>
-        <translation>Alt</translation>
-    </message>
-    <message>
-        <source>Shift</source>
-        <translation>Skift</translation>
-    </message>
-    <message>
-        <source>+</source>
-        <translation>+</translation>
-    </message>
-    <message>
-        <source>F%1</source>
-        <translation>F%1</translation>
-    </message>
-    <message>
         <source>Menu</source>
         <translation>Meny</translation>
     </message>
@@ -131,7 +2735,7 @@
     </message>
     <message>
         <source>Stop</source>
-        <translation>Stopp</translation>
+        <translation>Stoppa</translation>
     </message>
     <message>
         <source>Refresh</source>
@@ -139,55 +2743,55 @@
     </message>
     <message>
         <source>Volume Down</source>
-        <translation>Sänk volymen</translation>
+        <translation>Sänk volym</translation>
     </message>
     <message>
         <source>Volume Mute</source>
-        <translation>Tyst volym</translation>
+        <translation>Volym tyst</translation>
     </message>
     <message>
         <source>Volume Up</source>
-        <translation>Höj volymen</translation>
+        <translation>Höj volym</translation>
     </message>
     <message>
         <source>Bass Boost</source>
-        <translation>Basförstärkning</translation>
+        <translation>Förstärk bas</translation>
     </message>
     <message>
         <source>Bass Up</source>
-        <translation>Höj basen</translation>
+        <translation>Höj bas</translation>
     </message>
     <message>
         <source>Bass Down</source>
-        <translation>Sänk basen</translation>
+        <translation>Sänk bas</translation>
     </message>
     <message>
         <source>Treble Up</source>
-        <translation>Höj diskanten</translation>
+        <translation>Höj diskant</translation>
     </message>
     <message>
         <source>Treble Down</source>
-        <translation>Sänk diskanten</translation>
+        <translation>Sänk diskant</translation>
     </message>
     <message>
         <source>Media Play</source>
-        <translation>Spela media</translation>
+        <translation>Media spela upp</translation>
     </message>
     <message>
         <source>Media Stop</source>
-        <translation>Stoppa media</translation>
+        <translation>Media stopp</translation>
     </message>
     <message>
         <source>Media Previous</source>
-        <translation>Föregående media</translation>
+        <translation>Media föregående</translation>
     </message>
     <message>
         <source>Media Next</source>
-        <translation>Nästa media</translation>
+        <translation>Media nästa</translation>
     </message>
     <message>
         <source>Media Record</source>
-        <translation>Spela in media</translation>
+        <translation>Media spela in</translation>
     </message>
     <message>
         <source>Favorites</source>
@@ -199,15 +2803,15 @@
     </message>
     <message>
         <source>Standby</source>
-        <translation>Vänteläge</translation>
+        <translation>Avvakta</translation>
     </message>
     <message>
         <source>Open URL</source>
-        <translation>Öppna URL</translation>
+        <translation>Öppna url</translation>
     </message>
     <message>
         <source>Launch Mail</source>
-        <translation>Starta e-postklient</translation>
+        <translation>Starta e-post</translation>
     </message>
     <message>
         <source>Launch Media</source>
@@ -278,1285 +2882,157 @@
         <translation>Starta (F)</translation>
     </message>
     <message>
-        <source>Meta</source>
-        <translation>Meta</translation>
-    </message>
-</context>
-<context>
-    <name>QApplication</name>
-    <message>
-        <source>QT_LAYOUT_DIRECTION</source>
-        <comment>Translate this string to the string &apos;LTR&apos; in left-to-right languages or to &apos;RTL&apos; in right-to-left languages (such as Hebrew and Arabic) to get proper widget layout.</comment>
-        <translation>LTR</translation>
+        <source>Print Screen</source>
+        <translation>Print Screen</translation>
     </message>
     <message>
-        <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
-        <translation>Körbara filen &apos;%1&apos; kräver Qt %2, hittade Qt %3.</translation>
+        <source>Page Up</source>
+        <translation>Page Up</translation>
     </message>
     <message>
-        <source>Incompatible Qt Library Error</source>
-        <translation>Inkompatibelt Qt-biblioteksfel</translation>
-    </message>
-</context>
-<context>
-    <name>QAquaStyle</name>
-    <message>
-        <source>OK</source>
-        <translation>OK</translation>
+        <source>Page Down</source>
+        <translation>Page Down</translation>
     </message>
     <message>
-        <source>Cancel</source>
-        <translation>Avbryt</translation>
-    </message>
-</context>
-<context>
-    <name>QColorDialog</name>
-    <message>
-        <source>Hu&amp;e:</source>
-        <translation>N&amp;yans:</translation>
+        <source>Caps Lock</source>
+        <translation>Caps Lock</translation>
     </message>
     <message>
-        <source>&amp;Sat:</source>
-        <translation>&amp;Mättnad:</translation>
+        <source>Num Lock</source>
+        <translation>Num Lock</translation>
     </message>
     <message>
-        <source>&amp;Val:</source>
-        <translation>&amp;Lju:</translation>
+        <source>Number Lock</source>
+        <translation>Number Lock</translation>
     </message>
     <message>
-        <source>&amp;Red:</source>
-        <translation>&amp;Röd:</translation>
-    </message>
-    <message>
-        <source>&amp;Green:</source>
-        <translation>&amp;Grön:</translation>
-    </message>
-    <message>
-        <source>Bl&amp;ue:</source>
-        <translation>Bl&amp;å:</translation>
-    </message>
-    <message>
-        <source>A&amp;lpha channel:</source>
-        <translation>A&amp;lfakanal:</translation>
-    </message>
-    <message>
-        <source>&amp;Basic colors</source>
-        <translation>&amp;Grundfärger</translation>
-    </message>
-    <message>
-        <source>&amp;Custom colors</source>
-        <translation>A&amp;npassade färger</translation>
-    </message>
-    <message>
-        <source>&amp;Define Custom Colors &gt;&gt;</source>
-        <translation>&amp;Definiera anpassade färger &gt;&gt;</translation>
-    </message>
-    <message>
-        <source>OK</source>
-        <translation>OK</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Avbryt</translation>
-    </message>
-    <message>
-        <source>&amp;Add to Custom Colors</source>
-        <translation>&amp;Lägg till i anpassade färger</translation>
-    </message>
-    <message>
-        <source>Select color</source>
-        <translation>Välj färg</translation>
-    </message>
-</context>
-<context>
-    <name>QDataTable</name>
-    <message>
-        <source>True</source>
-        <translation>Sant</translation>
-    </message>
-    <message>
-        <source>False</source>
-        <translation>Falskt</translation>
+        <source>Scroll Lock</source>
+        <translation>Scroll Lock</translation>
     </message>
     <message>
         <source>Insert</source>
-        <translation>Infoga</translation>
-    </message>
-    <message>
-        <source>Update</source>
-        <translation>Uppdatera</translation>
+        <translation>Insert</translation>
     </message>
     <message>
         <source>Delete</source>
-        <translation>Ta bort</translation>
+        <translation>Delete</translation>
+    </message>
+    <message>
+        <source>Escape</source>
+        <translation>Escape</translation>
+    </message>
+    <message>
+        <source>System Request</source>
+        <translation>System Request</translation>
+    </message>
+    <message>
+        <source>Select</source>
+        <translation>Välj</translation>
+    </message>
+    <message>
+        <source>Yes</source>
+        <translation>Ja</translation>
+    </message>
+    <message>
+        <source>No</source>
+        <translation>Nej</translation>
+    </message>
+    <message>
+        <source>Context1</source>
+        <translation>Sammanhang1</translation>
+    </message>
+    <message>
+        <source>Context2</source>
+        <translation>Sammanhang2</translation>
+    </message>
+    <message>
+        <source>Context3</source>
+        <translation>Sammanhang3</translation>
+    </message>
+    <message>
+        <source>Context4</source>
+        <translation>Sammanhang4</translation>
+    </message>
+    <message>
+        <source>Call</source>
+        <translation>Ring upp</translation>
+    </message>
+    <message>
+        <source>Hangup</source>
+        <translation>Lägg på</translation>
+    </message>
+    <message>
+        <source>Flip</source>
+        <translation>Vänd</translation>
+    </message>
+    <message>
+        <source>Ctrl</source>
+        <translation>Ctrl</translation>
+    </message>
+    <message>
+        <source>Shift</source>
+        <translation>Shift</translation>
+    </message>
+    <message>
+        <source>Alt</source>
+        <translation>Alt</translation>
+    </message>
+    <message>
+        <source>Meta</source>
+        <translation>Meta</translation>
+    </message>
+    <message>
+        <source>+</source>
+        <translation>+</translation>
+    </message>
+    <message>
+        <source>F%1</source>
+        <translation>F%1</translation>
+    </message>
+    <message>
+        <source>Home Page</source>
+        <translation>Hemsida</translation>
     </message>
 </context>
 <context>
-    <name>QDialog</name>
+    <name>QSlider</name>
     <message>
-        <source>What&apos;s This?</source>
-        <translation>Vad är det här?</translation>
+        <source>Page left</source>
+        <translation>Sida vänster</translation>
+    </message>
+    <message>
+        <source>Page up</source>
+        <translation>Sida uppåt</translation>
+    </message>
+    <message>
+        <source>Position</source>
+        <translation>Position</translation>
+    </message>
+    <message>
+        <source>Page right</source>
+        <translation>Sida höger</translation>
+    </message>
+    <message>
+        <source>Page down</source>
+        <translation>Sida nedåt</translation>
     </message>
 </context>
 <context>
-    <name>QErrorMessage</name>
+    <name>QSocks5SocketEngine</name>
     <message>
-        <source>&amp;Show this message again</source>
-        <translation>&amp;Visa det här meddelandet igen</translation>
-    </message>
-    <message>
-        <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
-    </message>
-    <message>
-        <source>Debug Message:</source>
-        <translation>Felsökningsmeddelande:</translation>
-    </message>
-    <message>
-        <source>Warning:</source>
-        <translation>Varning:</translation>
-    </message>
-    <message>
-        <source>Fatal Error:</source>
-        <translation>Ödesdigert fel:</translation>
+        <source>Socks5 timeout error connecting to socks server</source>
+        <translation>Tidsgräns för Socks5 överstigen vid anslutningen till socks-server</translation>
     </message>
 </context>
 <context>
-    <name>QFileDialog</name>
+    <name>QSpinBox</name>
     <message>
-        <source>Copy or Move a File</source>
-        <translation>Kopiera eller flytta en fil</translation>
+        <source>More</source>
+        <translation>Mer</translation>
     </message>
     <message>
-        <source>Read: %1</source>
-        <translation>Läs: %1</translation>
-    </message>
-    <message>
-        <source>Write: %1</source>
-        <translation>Skriv: %1</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Avbryt</translation>
-    </message>
-    <message>
-        <source>All Files (*)</source>
-        <translation>Alla filer (*)</translation>
-    </message>
-    <message>
-        <source>Name</source>
-        <translation>Namn</translation>
-    </message>
-    <message>
-        <source>Size</source>
-        <translation>Storlek</translation>
-    </message>
-    <message>
-        <source>Type</source>
-        <translation>Typ</translation>
-    </message>
-    <message>
-        <source>Date</source>
-        <translation>Datum</translation>
-    </message>
-    <message>
-        <source>Attributes</source>
-        <translation>Attribut</translation>
-    </message>
-    <message>
-        <source>OK</source>
-        <translation>OK</translation>
-    </message>
-    <message>
-        <source>Look &amp;in:</source>
-        <translation>Leta &amp;i:</translation>
-    </message>
-    <message>
-        <source>File &amp;name:</source>
-        <translation>Fil&amp;namn:</translation>
-    </message>
-    <message>
-        <source>File &amp;type:</source>
-        <translation>Fil&amp;typ:</translation>
-    </message>
-    <message>
-        <source>Back</source>
-        <translation>Bakåt</translation>
-    </message>
-    <message>
-        <source>One directory up</source>
-        <translation>En katalog uppåt</translation>
-    </message>
-    <message>
-        <source>Create New Folder</source>
-        <translation>Skapa ny mapp</translation>
-    </message>
-    <message>
-        <source>List View</source>
-        <translation>Listvy</translation>
-    </message>
-    <message>
-        <source>Detail View</source>
-        <translation>Detaljvy</translation>
-    </message>
-    <message>
-        <source>Preview File Info</source>
-        <translation>Förhandsvisa filinfo</translation>
-    </message>
-    <message>
-        <source>Preview File Contents</source>
-        <translation>Förhandsvisa filinnehåll</translation>
-    </message>
-    <message>
-        <source>Read-write</source>
-        <translation>Läs-skriv</translation>
-    </message>
-    <message>
-        <source>Read-only</source>
-        <translation>Skrivskyddad</translation>
-    </message>
-    <message>
-        <source>Write-only</source>
-        <translation>Endast skriv</translation>
-    </message>
-    <message>
-        <source>Inaccessible</source>
-        <translation>Oåtkomlig</translation>
-    </message>
-    <message>
-        <source>Symlink to File</source>
-        <translation>Symbolisk länk till fil</translation>
-    </message>
-    <message>
-        <source>Symlink to Directory</source>
-        <translation>Symbolisk länk till katalog</translation>
-    </message>
-    <message>
-        <source>Symlink to Special</source>
-        <translation>Symbolisk länk till specialfil</translation>
-    </message>
-    <message>
-        <source>File</source>
-        <translation>Fil</translation>
-    </message>
-    <message>
-        <source>Dir</source>
-        <translation>Kat</translation>
-    </message>
-    <message>
-        <source>Special</source>
-        <translation>Specialfil</translation>
-    </message>
-    <message>
-        <source>Open</source>
-        <translation>Öppna</translation>
-    </message>
-    <message>
-        <source>Save As</source>
-        <translation>Spara som</translation>
-    </message>
-    <message>
-        <source>&amp;Open</source>
-        <translation>&amp;Öppna</translation>
-    </message>
-    <message>
-        <source>&amp;Save</source>
-        <translation>&amp;Spara</translation>
-    </message>
-    <message>
-        <source>&amp;Rename</source>
-        <translation>&amp;Byt namn</translation>
-    </message>
-    <message>
-        <source>&amp;Delete</source>
-        <translation>&amp;Ta bort</translation>
-    </message>
-    <message>
-        <source>R&amp;eload</source>
-        <translation>&amp;Uppdatera</translation>
-    </message>
-    <message>
-        <source>Sort by &amp;Name</source>
-        <translation>Sortera efter &amp;namn</translation>
-    </message>
-    <message>
-        <source>Sort by &amp;Size</source>
-        <translation>Sortera efter &amp;storlek</translation>
-    </message>
-    <message>
-        <source>Sort by &amp;Date</source>
-        <translation>Sortera efter &amp;datum</translation>
-    </message>
-    <message>
-        <source>&amp;Unsorted</source>
-        <translation>&amp;Osorterad</translation>
-    </message>
-    <message>
-        <source>Sort</source>
-        <translation>Sortera</translation>
-    </message>
-    <message>
-        <source>Show &amp;hidden files</source>
-        <translation>Visa &amp;dolda filer</translation>
-    </message>
-    <message>
-        <source>the file</source>
-        <translation>filen</translation>
-    </message>
-    <message>
-        <source>the directory</source>
-        <translation>katalogen</translation>
-    </message>
-    <message>
-        <source>the symlink</source>
-        <translation>symboliska länken</translation>
-    </message>
-    <message>
-        <source>Delete %1</source>
-        <translation>Ta bort %1</translation>
-    </message>
-    <message>
-        <source>&lt;qt&gt;Are you sure you wish to delete %1 &quot;%2&quot;?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Är du säker på att du vill ta bort %1 &quot;%2&quot;?&lt;/qt&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Yes</source>
-        <translation>&amp;Ja</translation>
-    </message>
-    <message>
-        <source>&amp;No</source>
-        <translation>&amp;Nej</translation>
-    </message>
-    <message>
-        <source>New Folder 1</source>
-        <translation>Ny mapp 1</translation>
-    </message>
-    <message>
-        <source>New Folder</source>
-        <translation>Ny mapp</translation>
-    </message>
-    <message>
-        <source>New Folder %1</source>
-        <translation>Ny mapp %1</translation>
-    </message>
-    <message>
-        <source>Find Directory</source>
-        <translation>Sök katalog</translation>
-    </message>
-    <message>
-        <source>Directories</source>
-        <translation>Kataloger</translation>
-    </message>
-    <message>
-        <source>Save</source>
-        <translation>Spara</translation>
-    </message>
-    <message>
-        <source>Error</source>
-        <translation>Fel</translation>
-    </message>
-    <message>
-        <source>%1
-File not found.
-Check path and filename.</source>
-        <translation>%1
-Filen hittades inte.
-Kontrollera sökväg och filnamn.</translation>
-    </message>
-    <message>
-        <source>All Files (*.*)</source>
-        <translation>Alla filer (*.*)</translation>
-    </message>
-    <message>
-        <source>Open </source>
-        <translation>Öppna </translation>
-    </message>
-    <message>
-        <source>Select a Directory</source>
-        <translation>Välj en katalog</translation>
-    </message>
-    <message>
-        <source>Directory:</source>
-        <translation>Katalog:</translation>
-    </message>
-</context>
-<context>
-    <name>QFont</name>
-    <message>
-        <source>Latin</source>
-        <translation>Latin</translation>
-    </message>
-    <message>
-        <source>Greek</source>
-        <translation>Grekisk</translation>
-    </message>
-    <message>
-        <source>Cyrillic</source>
-        <translation>Kyrillisk</translation>
-    </message>
-    <message>
-        <source>Armenian</source>
-        <translation>Armenisk</translation>
-    </message>
-    <message>
-        <source>Georgian</source>
-        <translation>Georgisk</translation>
-    </message>
-    <message>
-        <source>Runic</source>
-        <translation>Runic</translation>
-    </message>
-    <message>
-        <source>Ogham</source>
-        <translation>Ogham</translation>
-    </message>
-    <message>
-        <source>Hebrew</source>
-        <translation>Hebreisk</translation>
-    </message>
-    <message>
-        <source>Arabic</source>
-        <translation>Arabisk</translation>
-    </message>
-    <message>
-        <source>Syriac</source>
-        <translation>Syriac</translation>
-    </message>
-    <message>
-        <source>Thaana</source>
-        <translation>Thaana</translation>
-    </message>
-    <message>
-        <source>Devanagari</source>
-        <translation>Devanagari</translation>
-    </message>
-    <message>
-        <source>Bengali</source>
-        <translation>Bengalisk</translation>
-    </message>
-    <message>
-        <source>Gurmukhi</source>
-        <translation>Gurmukhi</translation>
-    </message>
-    <message>
-        <source>Gujarati</source>
-        <translation>Gujarati</translation>
-    </message>
-    <message>
-        <source>Oriya</source>
-        <translation>Oriya</translation>
-    </message>
-    <message>
-        <source>Tamil</source>
-        <translation>Tamil</translation>
-    </message>
-    <message>
-        <source>Telugu</source>
-        <translation>Telugu</translation>
-    </message>
-    <message>
-        <source>Kannada</source>
-        <translation>Kannada</translation>
-    </message>
-    <message>
-        <source>Malayalam</source>
-        <translation>Malayalam</translation>
-    </message>
-    <message>
-        <source>Sinhala</source>
-        <translation>Sinhala</translation>
-    </message>
-    <message>
-        <source>Thai</source>
-        <translation>Thai</translation>
-    </message>
-    <message>
-        <source>Lao</source>
-        <translation>Lao</translation>
-    </message>
-    <message>
-        <source>Tibetan</source>
-        <translation>Tibetan</translation>
-    </message>
-    <message>
-        <source>Myanmar</source>
-        <translation>Myanmar</translation>
-    </message>
-    <message>
-        <source>Khmer</source>
-        <translation>Khmer</translation>
-    </message>
-    <message>
-        <source>Han</source>
-        <translation>Han</translation>
-    </message>
-    <message>
-        <source>Hiragana</source>
-        <translation>Hiragana</translation>
-    </message>
-    <message>
-        <source>Katakana</source>
-        <translation>Katakana</translation>
-    </message>
-    <message>
-        <source>Hangul</source>
-        <translation>Hangul</translation>
-    </message>
-    <message>
-        <source>Bopomofo</source>
-        <translation>Bopomofo</translation>
-    </message>
-    <message>
-        <source>Yi</source>
-        <translation>Yi</translation>
-    </message>
-    <message>
-        <source>Ethiopic</source>
-        <translation>Ethiopisk</translation>
-    </message>
-    <message>
-        <source>Cherokee</source>
-        <translation>Cherokee</translation>
-    </message>
-    <message>
-        <source>Canadian Aboriginal</source>
-        <translation>Kanadensiska urinvånare</translation>
-    </message>
-    <message>
-        <source>Mongolian</source>
-        <translation>Mongolisk</translation>
-    </message>
-    <message>
-        <source>Currency Symbols</source>
-        <translation>Valutasymboler</translation>
-    </message>
-    <message>
-        <source>Letterlike Symbols</source>
-        <translation>Bokstavsliknande symboler</translation>
-    </message>
-    <message>
-        <source>Number Forms</source>
-        <translation>Talformer</translation>
-    </message>
-    <message>
-        <source>Mathematical Operators</source>
-        <translation>Matematiska operatorer</translation>
-    </message>
-    <message>
-        <source>Technical Symbols</source>
-        <translation>Tekniska symboler</translation>
-    </message>
-    <message>
-        <source>Geometric Symbols</source>
-        <translation>Geometriska symboler</translation>
-    </message>
-    <message>
-        <source>Miscellaneous Symbols</source>
-        <translation>Diverse symboler</translation>
-    </message>
-    <message>
-        <source>Enclosed and Square</source>
-        <translation>Enclosed and Square</translation>
-    </message>
-    <message>
-        <source>Braille</source>
-        <translation>Braille</translation>
-    </message>
-    <message>
-        <source>Unicode</source>
-        <translation>Unicode</translation>
-    </message>
-</context>
-<context>
-    <name>QFontDialog</name>
-    <message>
-        <source>&amp;Font</source>
-        <translation>&amp;Typsnitt</translation>
-    </message>
-    <message>
-        <source>Font st&amp;yle</source>
-        <translation>Typsnittsst&amp;il</translation>
-    </message>
-    <message>
-        <source>&amp;Size</source>
-        <translation>&amp;Storlek</translation>
-    </message>
-    <message>
-        <source>Effects</source>
-        <translation>Effekter</translation>
-    </message>
-    <message>
-        <source>Stri&amp;keout</source>
-        <translation>Genomstru&amp;ken</translation>
-    </message>
-    <message>
-        <source>&amp;Underline</source>
-        <translation>&amp;Understruken</translation>
-    </message>
-    <message>
-        <source>&amp;Color</source>
-        <translation>&amp;Färg</translation>
-    </message>
-    <message>
-        <source>Sample</source>
-        <translation>Exempel</translation>
-    </message>
-    <message>
-        <source>Scr&amp;ipt</source>
-        <translation>Skr&amp;ipt</translation>
-    </message>
-    <message>
-        <source>OK</source>
-        <translation>OK</translation>
-    </message>
-    <message>
-        <source>Apply</source>
-        <translation>Verkställ</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Avbryt</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation>Stäng</translation>
-    </message>
-    <message>
-        <source>Select Font</source>
-        <translation>Välj typsnitt</translation>
-    </message>
-</context>
-<context>
-    <name>QFtp</name>
-    <message>
-        <source>Host %1 found</source>
-        <translation>Värden %1 hittades</translation>
-    </message>
-    <message>
-        <source>Host found</source>
-        <translation>Värden hittades</translation>
-    </message>
-    <message>
-        <source>Connected to host %1</source>
-        <translation>Ansluten till värden %1</translation>
-    </message>
-    <message>
-        <source>Connected to host</source>
-        <translation>Ansluten till värd</translation>
-    </message>
-    <message>
-        <source>Connection to %1 closed</source>
-        <translation>Anslutningen till %1 stängdes</translation>
-    </message>
-    <message>
-        <source>Connection closed</source>
-        <translation>Anslutningen stängdes</translation>
-    </message>
-    <message>
-        <source>Host %1 not found</source>
-        <translation>Värden %1 hittades inte</translation>
-    </message>
-    <message>
-        <source>Connection refused to host %1</source>
-        <translation>Anslutningen nekades till värden %1</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Okänt fel</translation>
-    </message>
-    <message>
-        <source>Connecting to host failed:
-%1</source>
-        <translation>Anslutningen till värden misslyckades: 
-%1</translation>
-    </message>
-    <message>
-        <source>Login failed:
-%1</source>
-        <translation>Inloggningen misslyckades: 
-%1</translation>
-    </message>
-    <message>
-        <source>Listing directory failed:
-%1</source>
-        <translation>Kataloglistningen misslyckades: 
-%1</translation>
-    </message>
-    <message>
-        <source>Changing directory failed:
-%1</source>
-        <translation>Byte av katalog misslyckades:
-%1</translation>
-    </message>
-    <message>
-        <source>Downloading file failed:
-%1</source>
-        <translation>Hämtning av fil misslyckades:
-%1</translation>
-    </message>
-    <message>
-        <source>Uploading file failed:
-%1</source>
-        <translation>Sändning av fil misslyckades:
-%1</translation>
-    </message>
-    <message>
-        <source>Removing file failed:
-%1</source>
-        <translation>Borttagning av fil misslyckades:
-%1</translation>
-    </message>
-    <message>
-        <source>Creating directory failed:
-%1</source>
-        <translation>Skapandet av katalog misslyckades:
-%1</translation>
-    </message>
-    <message>
-        <source>Removing directory failed:
-%1</source>
-        <translation>Borttagning av katalog misslyckades:
-%1</translation>
-    </message>
-    <message>
-        <source>Not connected</source>
-        <translation>Inte ansluten</translation>
-    </message>
-    <message>
-        <source>Connection refused for data connection</source>
-        <translation>Anslutning för dataanslutning nekades</translation>
-    </message>
-</context>
-<context>
-    <name>QHeader</name>
-    <message>
-        <source>%1</source>
-        <translation>%1</translation>
-    </message>
-</context>
-<context>
-    <name>QHttp</name>
-    <message>
-        <source>Connection refused</source>
-        <translation>Anslutningen nekades</translation>
-    </message>
-    <message>
-        <source>Host %1 not found</source>
-        <translation>Värden %1 hittades inte</translation>
-    </message>
-    <message>
-        <source>Wrong content length</source>
-        <translation>Felaktig innehållslängd</translation>
-    </message>
-    <message>
-        <source>HTTP request failed</source>
-        <translation>HTTP-begäran misslyckades</translation>
-    </message>
-    <message>
-        <source>Host %1 found</source>
-        <translation>Värden %1 hittades</translation>
-    </message>
-    <message>
-        <source>Host found</source>
-        <translation>Värden hittades</translation>
-    </message>
-    <message>
-        <source>Connected to host %1</source>
-        <translation>Ansluten till värden %1</translation>
-    </message>
-    <message>
-        <source>Connected to host</source>
-        <translation>Ansluten till värden</translation>
-    </message>
-    <message>
-        <source>Connection to %1 closed</source>
-        <translation>Anslutningen till %1 stängdes</translation>
-    </message>
-    <message>
-        <source>Connection closed</source>
-        <translation>Anslutningen stängdes</translation>
-    </message>
-    <message>
-        <source>Unknown error</source>
-        <translation>Okänt fel</translation>
-    </message>
-    <message>
-        <source>Request aborted</source>
-        <translation>Begäran avbröts</translation>
-    </message>
-    <message>
-        <source>No server set to connect to</source>
-        <translation>Ingen server inställd att ansluta till</translation>
-    </message>
-    <message>
-        <source>Server closed connection unexpectedly</source>
-        <translation>Servern stängde oväntat anslutningen</translation>
-    </message>
-    <message>
-        <source>Invalid HTTP response header</source>
-        <translation>Ogiltigt HTTP-svarshuvud</translation>
-    </message>
-    <message>
-        <source>Invalid HTTP chunked body</source>
-        <translation>Ogiltig HTTP chunked body</translation>
-    </message>
-</context>
-<context>
-    <name>QInputDialog</name>
-    <message>
-        <source>OK</source>
-        <translation>OK</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Avbryt</translation>
-    </message>
-</context>
-<context>
-    <name>QLineEdit</name>
-    <message>
-        <source>&amp;Undo</source>
-        <translation>&amp;Ångra</translation>
-    </message>
-    <message>
-        <source>&amp;Redo</source>
-        <translation>&amp;Gör om</translation>
-    </message>
-    <message>
-        <source>Cu&amp;t</source>
-        <translation>Klipp &amp;ut</translation>
-    </message>
-    <message>
-        <source>&amp;Copy</source>
-        <translation>&amp;Kopiera</translation>
-    </message>
-    <message>
-        <source>&amp;Paste</source>
-        <translation>Klistra &amp;in</translation>
-    </message>
-    <message>
-        <source>Clear</source>
-        <translation>Töm</translation>
-    </message>
-    <message>
-        <source>Select All</source>
-        <translation>Markera allt</translation>
-    </message>
-</context>
-<context>
-    <name>QLocalFs</name>
-    <message>
-        <source>Could not rename
-%1
-to
-%2</source>
-        <translation>Kunde inte byta namn på
-%1
-till
-%2</translation>
-    </message>
-    <message>
-        <source>Could not open
-%1</source>
-        <translation>Kunde inte öppna
-%1</translation>
-    </message>
-    <message>
-        <source>Could not write
-%1</source>
-        <translation>Kunde inte skriva
-%1</translation>
-    </message>
-    <message>
-        <source>Could not read directory
-%1</source>
-        <translation>Kunde inte läsa katalogen
-%1</translation>
-    </message>
-    <message>
-        <source>Could not create directory
-%1</source>
-        <translation>Kunde inte skapa katalogen
-%1</translation>
-    </message>
-    <message>
-        <source>Could not remove file or directory
-%1</source>
-        <translation>Kunde inte ta bort fil eller katalog 
-%1</translation>
-    </message>
-</context>
-<context>
-    <name>QMainWindow</name>
-    <message>
-        <source>Line up</source>
-        <translation>Rada upp</translation>
-    </message>
-    <message>
-        <source>Customize...</source>
-        <translation>Anpassa...</translation>
-    </message>
-</context>
-<context>
-    <name>QMenuBar</name>
-    <message>
-        <source>About</source>
-        <translation>Om</translation>
-    </message>
-    <message>
-        <source>Config</source>
-        <translation>Konfiguration</translation>
-    </message>
-    <message>
-        <source>Preference</source>
-        <translation>Inställning</translation>
-    </message>
-    <message>
-        <source>Options</source>
-        <translation>Alternativ</translation>
-    </message>
-    <message>
-        <source>Setting</source>
-        <translation>Inställning</translation>
-    </message>
-    <message>
-        <source>Setup</source>
-        <translation>Konfigurera</translation>
-    </message>
-    <message>
-        <source>Quit</source>
-        <translation>Avsluta</translation>
-    </message>
-    <message>
-        <source>Exit</source>
-        <translation>Avsluta</translation>
-    </message>
-</context>
-<context>
-    <name>QMessageBox</name>
-    <message>
-        <source>OK</source>
-        <translation>OK</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Avbryt</translation>
-    </message>
-    <message>
-        <source>&amp;Yes</source>
-        <translation>&amp;Ja</translation>
-    </message>
-    <message>
-        <source>&amp;No</source>
-        <translation>&amp;Nej</translation>
-    </message>
-    <message>
-        <source>&amp;Abort</source>
-        <translation>&amp;Avbryt</translation>
-    </message>
-    <message>
-        <source>&amp;Retry</source>
-        <translation>&amp;Försök igen</translation>
-    </message>
-    <message>
-        <source>&amp;Ignore</source>
-        <translation>&amp;Ignorera</translation>
-    </message>
-    <message>
-        <source>&lt;h3&gt;About Qt&lt;/h3&gt;&lt;p&gt;This program uses Qt version %1.&lt;/p&gt;&lt;p&gt;Qt is a C++ toolkit for multiplatform GUI &amp;amp; application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants.&lt;br&gt;Qt is also available for embedded devices.&lt;/p&gt;&lt;p&gt;Qt is a Trolltech product. See &lt;tt&gt;http://www.trolltech.com/qt/&lt;/tt&gt; for more information.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Om Qt&lt;/h3&gt;&lt;p&gt;Det här programmet använder Qt version %1.&lt;/p&gt;&lt;p&gt;Qt är en C++-verktygslåda för grafiska gränssnitt för flera plattformar och programutveckling.&lt;/p&gt;&lt;p&gt;Qt erbjuder portabilitet för källkoden för MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux och alla större kommersiella Unix-varianter.&lt;br&gt;Qt finns även tillgängligt för inbäddade enheter.&lt;/p&gt;&lt;p&gt;Qt är en produkt från Trolltech. Se &lt;tt&gt;http://www.trolltech.com/qt/&lt;/tt&gt; för mer information.&lt;/p&gt;</translation>
-    </message>
-</context>
-<context>
-    <name>QNetworkProtocol</name>
-    <message>
-        <source>Operation stopped by the user</source>
-        <translation>Åtgärden stoppad av användaren</translation>
-    </message>
-</context>
-<context>
-    <name>QPrintDialog</name>
-    <message>
-        <source>locally connected</source>
-        <translation>lokalt ansluten</translation>
-    </message>
-    <message>
-        <source>Aliases: %1</source>
-        <translation>Alias: %1</translation>
-    </message>
-    <message>
-        <source>unknown</source>
-        <translation>okänd</translation>
-    </message>
-    <message>
-        <source>Unknown Location</source>
-        <translation>Okänd plats</translation>
-    </message>
-    <message>
-        <source>OK</source>
-        <translation>OK</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Avbryt</translation>
-    </message>
-    <message>
-        <source>Printer settings</source>
-        <translation>Skrivarinställningar</translation>
-    </message>
-    <message>
-        <source>Print in color if available</source>
-        <translation>Skriv ut i färg om möjligt</translation>
-    </message>
-    <message>
-        <source>Print in grayscale</source>
-        <translation>Skriv ut i gråskala</translation>
-    </message>
-    <message>
-        <source>Print destination</source>
-        <translation>Utskriftsmål</translation>
-    </message>
-    <message>
-        <source>Print to printer:</source>
-        <translation>Skriv ut på skrivaren:</translation>
-    </message>
-    <message>
-        <source>Printer</source>
-        <translation>Skrivare</translation>
-    </message>
-    <message>
-        <source>Host</source>
-        <translation>Värd</translation>
-    </message>
-    <message>
-        <source>Comment</source>
-        <translation>Kommentar</translation>
-    </message>
-    <message>
-        <source>Print to file:</source>
-        <translation>Skriv ut till fil:</translation>
-    </message>
-    <message>
-        <source>Browse...</source>
-        <translation>Bläddra...</translation>
-    </message>
-    <message>
-        <source>Options</source>
-        <translation>Alternativ</translation>
-    </message>
-    <message>
-        <source>Print all</source>
-        <translation>Skriv ut allt</translation>
-    </message>
-    <message>
-        <source>Print range</source>
-        <translation>Utskriftsintervall</translation>
-    </message>
-    <message>
-        <source>From page:</source>
-        <translation>Från sida:</translation>
-    </message>
-    <message>
-        <source>To page:</source>
-        <translation>Till sida:</translation>
-    </message>
-    <message>
-        <source>Print first page first</source>
-        <translation>Skriv ut först sidan först</translation>
-    </message>
-    <message>
-        <source>Print last page first</source>
-        <translation>Skriv ut sista sidan först</translation>
-    </message>
-    <message>
-        <source>Number of copies:</source>
-        <translation>Antal kopior:</translation>
-    </message>
-    <message>
-        <source>Paper format</source>
-        <translation>Pappersformat</translation>
-    </message>
-    <message>
-        <source>Portrait</source>
-        <translation>Stående</translation>
-    </message>
-    <message>
-        <source>Landscape</source>
-        <translation>Liggande</translation>
-    </message>
-    <message>
-        <source>A0 (841 x 1189 mm)</source>
-        <translation>A0 (841 x 1189 mm)</translation>
-    </message>
-    <message>
-        <source>A1 (594 x 841 mm)</source>
-        <translation>A1 (594 x 841 mm)</translation>
-    </message>
-    <message>
-        <source>A2 (420 x 594 mm)</source>
-        <translation>A2 (420 x 594 mm)</translation>
-    </message>
-    <message>
-        <source>A3 (297 x 420 mm)</source>
-        <translation>A3 (297 x 420 mm)</translation>
-    </message>
-    <message>
-        <source>A4 (210x297 mm, 8.26x11.7 inches)</source>
-        <translation>A4 (210x297 mm, 8.26x11.7 tum)</translation>
-    </message>
-    <message>
-        <source>A5 (148 x 210 mm)</source>
-        <translation>A5 (148 x 210 mm)</translation>
-    </message>
-    <message>
-        <source>A6 (105 x 148 mm)</source>
-        <translation>A6 (105 x 148 mm)</translation>
-    </message>
-    <message>
-        <source>A7 (74 x 105 mm)</source>
-        <translation>A7 (74 x 105 mm)</translation>
-    </message>
-    <message>
-        <source>A8 (52 x 74 mm)</source>
-        <translation>A8 (52 x 74 mm)</translation>
-    </message>
-    <message>
-        <source>A9 (37 x 52 mm)</source>
-        <translation>A9 (37 x 52 mm)</translation>
-    </message>
-    <message>
-        <source>B0 (1000 x 1414 mm)</source>
-        <translation>B0 (1000 x 1414 mm)</translation>
-    </message>
-    <message>
-        <source>B1 (707 x 1000 mm)</source>
-        <translation>B1 (707 x 1000 mm)</translation>
-    </message>
-    <message>
-        <source>B2 (500 x 707 mm)</source>
-        <translation>B2 (500 x 707 mm)</translation>
-    </message>
-    <message>
-        <source>B3 (353 x 500 mm)</source>
-        <translation>B3 (353 x 500 mm)</translation>
-    </message>
-    <message>
-        <source>B4 (250 x 353 mm)</source>
-        <translation>B4 (250 x 353 mm)</translation>
-    </message>
-    <message>
-        <source>B5 (176 x 250 mm, 6.93x9.84 inches)</source>
-        <translation>B5 (176 x 250 mm, 6.93x9.84 tum)</translation>
-    </message>
-    <message>
-        <source>B6 (125 x 176 mm)</source>
-        <translation>B6 (125 x 176 mm)</translation>
-    </message>
-    <message>
-        <source>B7 (88 x 125 mm)</source>
-        <translation>B7 (88 x 125 mm)</translation>
-    </message>
-    <message>
-        <source>B8 (62 x 88 mm)</source>
-        <translation>B8 (62 x 88 mm)</translation>
-    </message>
-    <message>
-        <source>B9 (44 x 62 mm)</source>
-        <translation>B9 (44 x 62 mm)</translation>
-    </message>
-    <message>
-        <source>B10 (31 x 44 mm)</source>
-        <translation>B10 (31 x 44 mm)</translation>
-    </message>
-    <message>
-        <source>C5E (163 x 229 mm)</source>
-        <translation>C5E (163 x 229 mm)</translation>
-    </message>
-    <message>
-        <source>DLE (110 x 220 mm)</source>
-        <translation>DLE (110 x 220 mm)</translation>
-    </message>
-    <message>
-        <source>Executive (7.5x10 inches, 191x254 mm)</source>
-        <translation>Executive (7.5x10 tum, 191x254 mm)</translation>
-    </message>
-    <message>
-        <source>Folio (210 x 330 mm)</source>
-        <translation>Folio (210 x 330 mm)</translation>
-    </message>
-    <message>
-        <source>Ledger (432 x 279 mm)</source>
-        <translation>Ledger (432 x 279 mm)</translation>
-    </message>
-    <message>
-        <source>Legal (8.5x14 inches, 216x356 mm)</source>
-        <translation>Legal (8.5x14 tum, 216x356 mm)</translation>
-    </message>
-    <message>
-        <source>Letter (8.5x11 inches, 216x279 mm)</source>
-        <translation>Letter (8.5x11 tum, 216x279 mm)</translation>
-    </message>
-    <message>
-        <source>Tabloid (279 x 432 mm)</source>
-        <translation>Tabloid (279 x 432 mm)</translation>
-    </message>
-    <message>
-        <source>US Common #10 Envelope (105 x 241 mm)</source>
-        <translation>US Common #10 Envelope (105 x 241 mm)</translation>
-    </message>
-    <message>
-        <source>Setup Printer</source>
-        <translation>Konfigurera skrivare</translation>
-    </message>
-    <message>
-        <source>PostScript Files (*.ps);;All Files (*)</source>
-        <translation>PostScript-filer (*.ps);;Alla filer (*)</translation>
-    </message>
-</context>
-<context>
-    <name>QProgressDialog</name>
-    <message>
-        <source>Cancel</source>
-        <translation>Avbryt</translation>
-    </message>
-</context>
-<context>
-    <name>QRegExp</name>
-    <message>
-        <source>no error occurred</source>
-        <translation>inget fel har inträffat</translation>
-    </message>
-    <message>
-        <source>disabled feature used</source>
-        <translation>inaktiverad funktion använd</translation>
-    </message>
-    <message>
-        <source>bad char class syntax</source>
-        <translation>felaktig teckenklassyntax</translation>
-    </message>
-    <message>
-        <source>bad lookahead syntax</source>
-        <translation>felaktig lookahead-syntax</translation>
-    </message>
-    <message>
-        <source>bad repetition syntax</source>
-        <translation>felaktig upprepningssyntax</translation>
-    </message>
-    <message>
-        <source>invalid octal value</source>
-        <translation>ogiltigt oktalvärde</translation>
-    </message>
-    <message>
-        <source>missing left delim</source>
-        <translation>vänster avgränsare saknas</translation>
-    </message>
-    <message>
-        <source>unexpected end</source>
-        <translation>oväntat slut</translation>
-    </message>
-    <message>
-        <source>met internal limit</source>
-        <translation>nådde intern begränsning</translation>
+        <source>Less</source>
+        <translation>Mindre</translation>
     </message>
 </context>
 <context>
@@ -1587,7 +3063,7 @@ till
     </message>
     <message>
         <source>Save edits?</source>
-        <translation>Spara ändringar?</translation>
+        <translation>Spara redigeringar?</translation>
     </message>
     <message>
         <source>Cancel</source>
@@ -1599,34 +3075,87 @@ till
     </message>
     <message>
         <source>Cancel your edits?</source>
-        <translation>Avbryt dina ändringar?</translation>
+        <translation>Avbryt dina redigeringar?</translation>
     </message>
 </context>
 <context>
-    <name>QTabDialog</name>
+    <name>QSslSocket</name>
     <message>
-        <source>OK</source>
-        <translation>OK</translation>
+        <source>Unable to write data: %1</source>
+        <translation>Kunde inte skriva data: %1</translation>
     </message>
     <message>
-        <source>Apply</source>
-        <translation>Verkställ</translation>
+        <source>Error while reading: %1</source>
+        <translation>Fel vid läsning: %1</translation>
     </message>
     <message>
-        <source>Help</source>
-        <translation>Hjälp</translation>
+        <source>Error during SSL handshake: %1</source>
+        <translation>Fel vid SSL-handskakning: %1</translation>
     </message>
     <message>
-        <source>Defaults</source>
-        <translation>Standardvärden</translation>
+        <source>Error creating SSL context (%1)</source>
+        <translation>Fel vid skapande av SSL-kontext (%1)</translation>
     </message>
     <message>
-        <source>Cancel</source>
-        <translation>Avbryt</translation>
+        <source>Invalid or empty cipher list (%1)</source>
+        <translation>Ogiltig eller tom chifferlista (%1)</translation>
+    </message>
+    <message>
+        <source>Error creating SSL session, %1</source>
+        <translation>Fel vid skapande av SSL-session, %1</translation>
+    </message>
+    <message>
+        <source>Error creating SSL session: %1</source>
+        <translation>Fel vid skapande av SSL-session: %1</translation>
+    </message>
+    <message>
+        <source>Cannot provide a certificate with no key, %1</source>
+        <translation>Kan inte tillhandahålla ett certifikat utan nyckel, %1</translation>
+    </message>
+    <message>
+        <source>Error loading local certificate, %1</source>
+        <translation>Fel vid inläsning av lokalt certifikat, %1</translation>
+    </message>
+    <message>
+        <source>Error loading private key, %1</source>
+        <translation>Fel vid inläsning av privat nyckel, %1</translation>
+    </message>
+    <message>
+        <source>Private key do not certificate public key, %1</source>
+        <translation>Privat nyckel certifierar inte publik nyckel, %1</translation>
     </message>
 </context>
 <context>
-    <name>QTextEdit</name>
+    <name>QTDSDriver</name>
+    <message>
+        <source>Unable to open connection</source>
+        <translation>Kunde inte öppna anslutning</translation>
+    </message>
+    <message>
+        <source>Unable to use database</source>
+        <translation>Kunde inte använda databasen</translation>
+    </message>
+</context>
+<context>
+    <name>QTabBar</name>
+    <message>
+        <source>Scroll Left</source>
+        <translation>Rulla vänster</translation>
+    </message>
+    <message>
+        <source>Scroll Right</source>
+        <translation>Rulla höger</translation>
+    </message>
+</context>
+<context>
+    <name>QTcpServer</name>
+    <message>
+        <source>Socket operation unsupported</source>
+        <translation>Uttagsåtgärd stöds inte</translation>
+    </message>
+</context>
+<context>
+    <name>QTextControl</name>
     <message>
         <source>&amp;Undo</source>
         <translation>&amp;Ångra</translation>
@@ -1637,177 +3166,174 @@ till
     </message>
     <message>
         <source>Cu&amp;t</source>
-        <translation>Klipp &amp;ut</translation>
+        <translation>Klipp u&amp;t</translation>
     </message>
     <message>
         <source>&amp;Copy</source>
         <translation>&amp;Kopiera</translation>
     </message>
     <message>
+        <source>Copy &amp;Link Location</source>
+        <translation>Kopiera &amp;länkplats</translation>
+    </message>
+    <message>
         <source>&amp;Paste</source>
         <translation>Klistra &amp;in</translation>
     </message>
     <message>
-        <source>Clear</source>
-        <translation>Töm</translation>
+        <source>Delete</source>
+        <translation>Ta bort</translation>
     </message>
     <message>
         <source>Select All</source>
-        <translation>Markera allt</translation>
+        <translation>Markera alla</translation>
     </message>
 </context>
 <context>
-    <name>QTitleBar</name>
+    <name>QToolButton</name>
     <message>
-        <source>System Menu</source>
-        <translation>Systemmeny</translation>
+        <source>Press</source>
+        <translation>Tryck</translation>
     </message>
     <message>
-        <source>Shade</source>
-        <translation>Skugga</translation>
-    </message>
-    <message>
-        <source>Unshade</source>
-        <translation>Avskugga</translation>
-    </message>
-    <message>
-        <source>Normalize</source>
-        <translation>Normalisera</translation>
-    </message>
-    <message>
-        <source>Minimize</source>
-        <translation>Minimera</translation>
-    </message>
-    <message>
-        <source>Maximize</source>
-        <translation>Maximera</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation>Stäng</translation>
+        <source>Open</source>
+        <translation>Öppna</translation>
     </message>
 </context>
 <context>
-    <name>QToolBar</name>
+    <name>QUdpSocket</name>
     <message>
-        <source>More...</source>
-        <translation>Mer...</translation>
+        <source>This platform does not support IPv6</source>
+        <translation>Denna plattform saknar stöd för IPv6</translation>
     </message>
 </context>
 <context>
-    <name>QUrlOperator</name>
+    <name>QUndoGroup</name>
     <message>
-        <source>The protocol `%1&apos; is not supported</source>
-        <translation>Protokollet \&quot;%1\&quot; stöds inte</translation>
+        <source>Undo</source>
+        <translation>Ångra</translation>
     </message>
     <message>
-        <source>The protocol `%1&apos; does not support listing directories</source>
-        <translation>Protokollet \&quot;%1\&quot; saknar stöd för att lista kataloger</translation>
-    </message>
-    <message>
-        <source>The protocol `%1&apos; does not support creating new directories</source>
-        <translation>Protokollet \&quot;%1\&quot; saknar stöd för att skapa nya kataloger</translation>
-    </message>
-    <message>
-        <source>The protocol `%1&apos; does not support removing files or directories</source>
-        <translation>Protokollet \&quot;%1\&quot; saknar stöd för att ta bort filer eller kataloger</translation>
-    </message>
-    <message>
-        <source>The protocol `%1&apos; does not support renaming files or directories</source>
-        <translation>Protokollet \&quot;%1\&quot; saknar stöd för att byta namn på filer eller kataloger</translation>
-    </message>
-    <message>
-        <source>The protocol `%1&apos; does not support getting files</source>
-        <translation>Protokollet \&quot;%1\&quot; saknar stöd för att hämta filer</translation>
-    </message>
-    <message>
-        <source>The protocol `%1&apos; does not support putting files</source>
-        <translation>Protokollet \&quot;%1\&quot; saknar stöd för att skicka filer</translation>
-    </message>
-    <message>
-        <source>The protocol `%1&apos; does not support copying or moving files or directories</source>
-        <translation>Protokollet \&quot;%1\&quot; saknar stöd för att kopiera eller flytta filer eller kataloger</translation>
-    </message>
-    <message>
-        <source>(unknown)</source>
-        <translation>(okänd)</translation>
+        <source>Redo</source>
+        <translation>Gör om</translation>
     </message>
 </context>
 <context>
-    <name>QWSDecoration</name>
+    <name>QUndoModel</name>
     <message>
-        <source>&amp;Restore</source>
-        <translation>&amp;Återställ</translation>
-    </message>
-    <message>
-        <source>&amp;Move</source>
-        <translation>&amp;Flytta</translation>
-    </message>
-    <message>
-        <source>&amp;Size</source>
-        <translation>&amp;Storlek</translation>
-    </message>
-    <message>
-        <source>Mi&amp;nimize</source>
-        <translation>Mi&amp;nimera</translation>
-    </message>
-    <message>
-        <source>Ma&amp;ximize</source>
-        <translation>Ma&amp;ximera</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation>Stäng</translation>
-    </message>
-    <message>
-        <source>Windows</source>
-        <translation>Windows</translation>
-    </message>
-    <message>
-        <source>KDE</source>
-        <translation>KDE</translation>
-    </message>
-    <message>
-        <source>KDE2</source>
-        <translation>KDE2</translation>
-    </message>
-    <message>
-        <source>BeOS</source>
-        <translation>BeOS</translation>
-    </message>
-    <message>
-        <source>Hydro</source>
-        <translation>Hydro</translation>
-    </message>
-    <message>
-        <source>Default</source>
-        <translation>Standard</translation>
+        <source>&lt;empty&gt;</source>
+        <translation>&lt;tom&gt;</translation>
     </message>
 </context>
 <context>
-    <name>QWhatsThisButton</name>
+    <name>QUndoStack</name>
     <message>
-        <source>What&apos;s this?</source>
+        <source>Undo</source>
+        <translation>Ångra</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>Gör om</translation>
+    </message>
+</context>
+<context>
+    <name>QUnicodeControlCharacterMenu</name>
+    <message>
+        <source>LRM Left-to-right mark</source>
+        <translation>U+200E</translation>
+    </message>
+    <message>
+        <source>RLM Right-to-left mark</source>
+        <translation>U+200F</translation>
+    </message>
+    <message>
+        <source>ZWJ Zero width joiner</source>
+        <translation>U+200D</translation>
+    </message>
+    <message>
+        <source>ZWNJ Zero width non-joiner</source>
+        <translation>U+200C</translation>
+    </message>
+    <message>
+        <source>ZWSP Zero width space</source>
+        <translation>U+200B</translation>
+    </message>
+    <message>
+        <source>LRE Start of left-to-right embedding</source>
+        <translation>U+202A</translation>
+    </message>
+    <message>
+        <source>RLE Start of right-to-left embedding</source>
+        <translation>U+202B</translation>
+    </message>
+    <message>
+        <source>LRO Start of left-to-right override</source>
+        <translation>U+202D</translation>
+    </message>
+    <message>
+        <source>RLO Start of right-to-left override</source>
+        <translation>U+202E</translation>
+    </message>
+    <message>
+        <source>PDF Pop directional formatting</source>
+        <translation>U+202C</translation>
+    </message>
+    <message>
+        <source>Insert Unicode control character</source>
+        <translation>Infoga unicode-kontrolltecken</translation>
+    </message>
+</context>
+<context>
+    <name>QWhatsThisAction</name>
+    <message>
+        <source>What&apos;s This?</source>
         <translation>Vad är det här?</translation>
+    </message>
+</context>
+<context>
+    <name>QWidget</name>
+    <message>
+        <source>*</source>
+        <translation>*</translation>
     </message>
 </context>
 <context>
     <name>QWizard</name>
     <message>
-        <source>&amp;Cancel</source>
-        <translation>&amp;Avbryt</translation>
+        <source>Go Back</source>
+        <translation>Gå tillbaka</translation>
+    </message>
+    <message>
+        <source>Continue</source>
+        <translation>Fortsätt</translation>
+    </message>
+    <message>
+        <source>Commit</source>
+        <translation>Verkställ</translation>
+    </message>
+    <message>
+        <source>Done</source>
+        <translation>Färdig</translation>
+    </message>
+    <message>
+        <source>Quit</source>
+        <translation>Avsluta</translation>
+    </message>
+    <message>
+        <source>Help</source>
+        <translation>Hjälp</translation>
     </message>
     <message>
         <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Bakåt</translation>
-    </message>
-    <message>
-        <source>&amp;Next &gt;</source>
-        <translation>&amp;Nästa &gt;</translation>
+        <translation>&lt; Till&amp;baka</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
         <translation>&amp;Färdigställ</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Avbryt</translation>
     </message>
     <message>
         <source>&amp;Help</source>
@@ -1818,7 +3344,7 @@ till
     <name>QWorkspace</name>
     <message>
         <source>&amp;Restore</source>
-        <translation>&amp;Återställ</translation>
+        <translation>Åte&amp;rställ</translation>
     </message>
     <message>
         <source>&amp;Move</source>
@@ -1842,7 +3368,7 @@ till
     </message>
     <message>
         <source>Stay on &amp;Top</source>
-        <translation>Alltid övers&amp;t</translation>
+        <translation>Stanna kvar övers&amp;t</translation>
     </message>
     <message>
         <source>Sh&amp;ade</source>
@@ -1873,11 +3399,11 @@ till
     <name>QXml</name>
     <message>
         <source>no error occurred</source>
-        <translation>inget fel inträffade</translation>
+        <translation>inga fel inträffade</translation>
     </message>
     <message>
         <source>error triggered by consumer</source>
-        <translation>fel utlöst av konsument</translation>
+        <translation>fel utlöstes av konsument</translation>
     </message>
     <message>
         <source>unexpected end of file</source>
@@ -1893,7 +3419,7 @@ till
     </message>
     <message>
         <source>tag mismatch</source>
-        <translation>taggen stämmer inte</translation>
+        <translation>tagg stämmer inte</translation>
     </message>
     <message>
         <source>error occurred while parsing content</source>
@@ -1905,27 +3431,27 @@ till
     </message>
     <message>
         <source>invalid name for processing instruction</source>
-        <translation>ogiltigt namn för behandlande instruktion</translation>
+        <translation>ogiltigt namn för behandlingsinstruktion</translation>
     </message>
     <message>
         <source>version expected while reading the XML declaration</source>
-        <translation>version väntades vid läsning av XML-deklarationen</translation>
+        <translation>version förväntades vid läsning av XML-deklareringen</translation>
     </message>
     <message>
         <source>wrong value for standalone declaration</source>
-        <translation>felaktigt värde för fristående deklaration</translation>
+        <translation>fel värde för fristående deklarering</translation>
     </message>
     <message>
         <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation>kodninsdeklaration eller fristående deklaration förväntades vid läsning av XML-deklarationen</translation>
+        <translation>kodningsdeklarering eller fristående deklarering förväntades vid läsning av XML-deklareringen</translation>
     </message>
     <message>
         <source>standalone declaration expected while reading the XML declaration</source>
-        <translation>fristående deklaration förväntades vid läsning av XML-deklarationen</translation>
+        <translation>fristående deklarering förväntades vid läsning av XML-deklarering</translation>
     </message>
     <message>
         <source>error occurred while parsing document type definition</source>
-        <translation>fel inträffade vid tolkning av dokumenttypsdefinitionen</translation>
+        <translation>fel inträffade vid tolkning av dokumenttypsdefinition</translation>
     </message>
     <message>
         <source>letter is expected</source>
@@ -1953,7 +3479,7 @@ till
     </message>
     <message>
         <source>unparsed entity reference in wrong context</source>
-        <translation>otolkad entitetsreferens i fel kontext</translation>
+        <translation>otolkad entitetsreferens i fel sammanhang</translation>
     </message>
     <message>
         <source>recursive entities</source>
@@ -1961,42 +3487,154 @@ till
     </message>
     <message>
         <source>error in the text declaration of an external entity</source>
-        <translation>fel i textdeklarationen av en extern entitet</translation>
+        <translation>fel i textdeklareringen av en extern entitet</translation>
     </message>
 </context>
 <context>
-    <name>QtMultiLineEdit</name>
+    <name>QXmlStream</name>
     <message>
-        <source>Undo</source>
-        <translation>Ångra</translation>
+        <source>Extra content at end of document.</source>
+        <translation>Extra innehåll vid dokumentets slut.</translation>
     </message>
     <message>
-        <source>Redo</source>
-        <translation>Gör om</translation>
+        <source>Invalid entity value.</source>
+        <translation>Ogiltigt värde för entitet.</translation>
     </message>
     <message>
-        <source>Cut</source>
-        <translation>Klipp ut</translation>
+        <source>Invalid XML character.</source>
+        <translation>Ogiltigt XML-tecken.</translation>
     </message>
     <message>
-        <source>Copy</source>
-        <translation>Kopiera</translation>
+        <source>Sequence &apos;]]&gt;&apos; not allowed in content.</source>
+        <translation>Sekvensen \&quot;]]&gt;\&quot; tillåts inte i innehåll.</translation>
     </message>
     <message>
-        <source>Paste</source>
-        <translation>Klistra in</translation>
+        <source>Namespace prefix &apos;%1&apos; not declared</source>
+        <translation>Namnrymdsprefixet \&quot;%1\&quot; är inte deklarerat</translation>
     </message>
     <message>
-        <source>Paste special...</source>
-        <translation>Klistra in special...</translation>
+        <source>Attribute redefined.</source>
+        <translation>Attributet omdefinierat.</translation>
     </message>
     <message>
-        <source>Clear</source>
-        <translation>Töm</translation>
+        <source>Unexpected character &apos;%1&apos; in public id literal.</source>
+        <translation>Oväntat tecken \&quot;%1\&quot; i publik id-literal.</translation>
     </message>
     <message>
-        <source>Select All</source>
-        <translation>Markera allt</translation>
+        <source>Invalid XML version string.</source>
+        <translation>Ogiltig XML-versionssträng.</translation>
+    </message>
+    <message>
+        <source>Unsupported XML version.</source>
+        <translation>XML-versionen stöds inte.</translation>
+    </message>
+    <message>
+        <source>%1 is an invalid encoding name.</source>
+        <translation>%1 är ett ogiltigt kodningsnamn.</translation>
+    </message>
+    <message>
+        <source>Encoding %1 is unsupported</source>
+        <translation>Kodningen %1 stöds inte</translation>
+    </message>
+    <message>
+        <source>Invalid XML encoding name.</source>
+        <translation>Ogiltigt XML-kodningsnamn.</translation>
+    </message>
+    <message>
+        <source>Standalone accepts only yes or no.</source>
+        <translation>Standalone accepterar endast yes eller no.</translation>
+    </message>
+    <message>
+        <source>Invalid attribute in XML declaration.</source>
+        <translation>Ogiltigt attribut i XML-deklaration.</translation>
+    </message>
+    <message>
+        <source>Premature end of document.</source>
+        <translation>För tidigt slut på dokumentet.</translation>
+    </message>
+    <message>
+        <source>Invalid document.</source>
+        <translation>Ogiltigt dokument.</translation>
+    </message>
+    <message>
+        <source>Expected </source>
+        <translation>Förväntade </translation>
+    </message>
+    <message>
+        <source>, but got &apos;</source>
+        <translation>, men fick &apos;</translation>
+    </message>
+    <message>
+        <source>Unexpected &apos;</source>
+        <translation>Oväntat &apos;</translation>
+    </message>
+    <message>
+        <source>Expected character data.</source>
+        <translation>Förväntade teckendata.</translation>
+    </message>
+    <message>
+        <source>Recursive entity detected.</source>
+        <translation>Rekursiv entitet upptäcktes.</translation>
+    </message>
+    <message>
+        <source>Start tag expected.</source>
+        <translation>Starttagg förväntades.</translation>
+    </message>
+    <message>
+        <source>XML declaration not at start of document.</source>
+        <translation>XML-deklaration inte i början av dokument.</translation>
+    </message>
+    <message>
+        <source>NDATA in parameter entity declaration.</source>
+        <translation>NDATA i deklaration av parameterentitet.</translation>
+    </message>
+    <message>
+        <source>%1 is an invalid processing instruction name.</source>
+        <translation>%1 är ett ogiltigt namn för processinstruktion.</translation>
+    </message>
+    <message>
+        <source>Invalid processing instruction name.</source>
+        <translation>Ogiltigt namn för processinstruktion.</translation>
+    </message>
+    <message>
+        <source>Illegal namespace declaration.</source>
+        <translation>Ogiltigt deklaration av namnrymd.</translation>
+    </message>
+    <message>
+        <source>Invalid XML name.</source>
+        <translation>Ogiltigt XML-namn.</translation>
+    </message>
+    <message>
+        <source>Opening and ending tag mismatch.</source>
+        <translation>Öppning- och slut-tagg stämmer inte.</translation>
+    </message>
+    <message>
+        <source>Reference to unparsed entity &apos;%1&apos;.</source>
+        <translation>Referens till otolkade entiteten \&quot;%1\&quot;.</translation>
+    </message>
+    <message>
+        <source>Entity &apos;%1&apos; not declared.</source>
+        <translation>Entiteten \&quot;%1\&quot; är inte deklarerad.</translation>
+    </message>
+    <message>
+        <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
+        <translation>Referens till externa entiteten \&quot;%1\&quot; i attributvärde.</translation>
+    </message>
+    <message>
+        <source>Invalid character reference.</source>
+        <translation>Ogiltig teckenreferens.</translation>
+    </message>
+    <message>
+        <source>Encountered incorrectly encoded content.</source>
+        <translation>Påträffade felaktigt kodat innehåll.</translation>
+    </message>
+    <message>
+        <source>The standalone pseudo attribute must appear after the encoding.</source>
+        <translation>Pseudoattributet standalone måste finnas efter kodningen.</translation>
+    </message>
+    <message>
+        <source>%1 is an invalid PUBLIC identifier.</source>
+        <translation>%1 är en ogiltig PUBLIC-identifierare.</translation>
     </message>
 </context>
 </TS>

@@ -20,15 +20,14 @@
  * additional information or have any questions.
  */
 
-#include <qglobal.h>
-#include <qstring.h>
-#include <qregexp.h>
+/* Qt includes */
+#include <QString>
+#include <QRegExp>
+#include <QVariant>
 
 #include "VBoxGlobalSettings.h"
 #include "QIHotKeyEdit.h"
 #include "COMDefs.h"
-
-#include <qvariant.h>
 
 /** @class VBoxGlobalSettingsData
  *
@@ -60,6 +59,8 @@ VBoxGlobalSettingsData::VBoxGlobalSettingsData()
     guiFeatures = QString::null;
     languageId  = QString::null;
     maxGuestRes = "auto";
+    trayIconEnabled = false;
+    dockPreviewEnabled = true;
 }
 
 VBoxGlobalSettingsData::VBoxGlobalSettingsData (const VBoxGlobalSettingsData &that)
@@ -69,6 +70,8 @@ VBoxGlobalSettingsData::VBoxGlobalSettingsData (const VBoxGlobalSettingsData &th
     guiFeatures = that.guiFeatures;
     languageId  = that.languageId;
     maxGuestRes = that.maxGuestRes;
+    trayIconEnabled = that.trayIconEnabled;
+    dockPreviewEnabled = that.dockPreviewEnabled;
 }
 
 VBoxGlobalSettingsData::~VBoxGlobalSettingsData()
@@ -82,7 +85,10 @@ bool VBoxGlobalSettingsData::operator== (const VBoxGlobalSettingsData &that) con
          autoCapture == that.autoCapture &&
          guiFeatures == that.guiFeatures &&
          languageId  == that.languageId &&
-         maxGuestRes == that.maxGuestRes);
+         maxGuestRes == that.maxGuestRes &&
+         trayIconEnabled == that.trayIconEnabled
+         && dockPreviewEnabled == that.dockPreviewEnabled
+        );
 }
 
 /** @class VBoxGlobalSettings
@@ -103,11 +109,15 @@ static struct
 }
 gPropertyMap[] =
 {
-    { "GUI/Input/HostKey",      "hostKey",      "\\d*[1-9]\\d*", true },
-    { "GUI/Input/AutoCapture",  "autoCapture",  "true|false", true },
-    { "GUI/Customizations",     "guiFeatures",  "\\S+", true },
-    { "GUI/LanguageID",         "languageId",   gVBoxLangIDRegExp, true },
-    { "GUI/MaxGuestResolution", "maxGuestRes",  "\\d*[1-9]\\d*,\\d*[1-9]\\d*|any|auto", true }
+    { "GUI/Input/HostKey",                         "hostKey",            "\\d*[1-9]\\d*", true },
+    { "GUI/Input/AutoCapture",                     "autoCapture",        "true|false", true },
+    { "GUI/Customizations",                        "guiFeatures",        "\\S+", true },
+    { "GUI/LanguageID",                            "languageId",         gVBoxLangIDRegExp, true },
+    { "GUI/MaxGuestResolution",                    "maxGuestRes",        "\\d*[1-9]\\d*,\\d*[1-9]\\d*|any|auto", true },
+    { "GUI/TrayIcon/Enabled",                      "trayIconEnabled",    "true|false", true },
+#ifdef Q_WS_MAC
+    { VBoxDefs::GUI_RealtimeDockIconUpdateEnabled, "dockPreviewEnabled", "true|false", true }
+#endif /* Q_WS_MAC */
 };
 
 void VBoxGlobalSettings::setHostKey (int key)
@@ -125,7 +135,7 @@ void VBoxGlobalSettings::setHostKey (int key)
 
 bool VBoxGlobalSettings::isFeatureActive (const char *aFeature) const
 {
-    QStringList featureList = QStringList::split (',', data()->guiFeatures);
+    QStringList featureList = data()->guiFeatures.split (',');
     return featureList.contains (aFeature);
 }
 
@@ -171,7 +181,7 @@ void VBoxGlobalSettings::save (CVirtualBox &vbox) const
     for (size_t i = 0; i < SIZEOF_ARRAY (gPropertyMap); i++)
     {
         QVariant value = property (gPropertyMap [i].name);
-        Assert (value.isValid() && value.canCast (QVariant::String));
+        Assert (value.isValid() && value.canConvert (QVariant::String));
 
         vbox.SetExtraData (gPropertyMap [i].publicName, value.toString());
         if (!vbox.isOk())
@@ -190,9 +200,9 @@ QString VBoxGlobalSettings::publicProperty (const QString &publicName) const
         if (gPropertyMap [i].publicName == publicName)
         {
             QVariant value = property (gPropertyMap [i].name);
-            Assert (value.isValid() && value.canCast (QVariant::String));
+            Assert (value.isValid() && value.canConvert (QVariant::String));
 
-            if (value.isValid() && value.canCast (QVariant::String))
+            if (value.isValid() && value.canConvert (QVariant::String))
                 return value.toString();
             else
                 break;
@@ -229,7 +239,7 @@ bool VBoxGlobalSettings::setPublicProperty (const QString &publicName, const QSt
     return false;
 }
 
-void VBoxGlobalSettings::setPropertyPrivate (int index, const QString &value)
+void VBoxGlobalSettings::setPropertyPrivate (size_t index, const QString &value)
 {
     if (value.isNull())
     {
@@ -253,9 +263,9 @@ void VBoxGlobalSettings::setPropertyPrivate (int index, const QString &value)
     }
 
     QVariant oldVal = property (gPropertyMap [index].name);
-    Assert (oldVal.isValid() && oldVal.canCast (QVariant::String));
+    Assert (oldVal.isValid() && oldVal.canConvert (QVariant::String));
 
-    if (oldVal.isValid() && oldVal.canCast (QVariant::String) &&
+    if (oldVal.isValid() && oldVal.canConvert (QVariant::String) &&
         oldVal.toString() != value)
     {
         bool ok = setProperty (gPropertyMap [index].name, value);

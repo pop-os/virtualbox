@@ -1,5 +1,5 @@
 /////////////////////////////////////////////////////////////////////////
-// $Id: rombios.c $
+// $Id: rombios.c,v 1.176 2006/12/30 17:13:17 vruppert Exp $
 /////////////////////////////////////////////////////////////////////////
 //
 //  Copyright (C) 2002  MandrakeSoft S.A.
@@ -219,7 +219,12 @@
 #endif
 
 #ifdef VBOX_WITH_SCSI
-#    define BX_MAX_SCSI_DEVICES 1
+/* Enough for now */
+#    define BX_MAX_SCSI_DEVICES 4
+
+/* A SCSI device starts always at BX_MAX_ATA_DEVICES. */
+#    define VBOX_IS_SCSI_DEVICE(device_id) (device_id >= BX_MAX_ATA_DEVICES)
+#    define VBOX_GET_SCSI_DEVICE(device_id) (device_id - BX_MAX_ATA_DEVICES)
 #endif
 
 #ifndef VBOX
@@ -330,7 +335,7 @@ typedef unsigned long  Bit32u;
       push di
 
       mov  cx, 10[bp] ; count
-      cmp  cx, #0x00
+      test cx, cx
       je   memsetb_end
       mov  ax, 4[bp] ; segment
       mov  es, ax
@@ -420,7 +425,7 @@ typedef unsigned long  Bit32u;
       push si
 
       mov  cx, 12[bp] ; count
-      cmp  cx, #0x0000
+      test cx, cx
       je   memcpyd_end
       mov  ax, 4[bp] ; dsegment
       mov  es, ax
@@ -467,8 +472,7 @@ typedef unsigned long  Bit32u;
       mov  ds, ax
       mov  bx, 6[bp] ; offset
       mov  ax, [bx]
-      inc  bx
-      inc  bx
+      add  bx, #2
       mov  dx, [bx]
       ;; ax = return value (word)
       ;; dx = return value (word)
@@ -497,8 +501,7 @@ typedef unsigned long  Bit32u;
       mov  bx, 6[bp] ; offset
       mov  ax, 8[bp] ; data word
       mov  [bx], ax  ; write data word
-      inc  bx
-      inc  bx
+      add  bx, #2
       mov  ax, 10[bp] ; data word
       mov  [bx], ax  ; write data word
       pop  ds
@@ -535,7 +538,7 @@ typedef unsigned long  Bit32u;
   lcmpul:
     and eax, #0x0000FFFF
     shl ebx, #16
-    add eax, ebx
+    or  eax, ebx
     shr ebx, #16
     SEG SS
       cmp eax, dword ptr [di]
@@ -555,7 +558,7 @@ typedef unsigned long  Bit32u;
   lmulul:
     and eax, #0x0000FFFF
     shl ebx, #16
-    add eax, ebx
+    or  eax, ebx
     SEG SS
     mul eax, dword ptr [di]
     mov ebx, eax
@@ -590,7 +593,7 @@ typedef unsigned long  Bit32u;
   ltstul:
     and eax, #0x0000FFFF
     shl ebx, #16
-    add eax, ebx
+    or  eax, ebx
     shr ebx, #16
     test eax, eax
     ret
@@ -601,7 +604,7 @@ typedef unsigned long  Bit32u;
     jcxz lsr_exit
     and  eax, #0x0000FFFF
     shl  ebx, #16
-    add  eax, ebx
+    or   eax, ebx
   lsr_loop:
     shr  eax, #1
     loop lsr_loop
@@ -617,7 +620,7 @@ typedef unsigned long  Bit32u;
     jcxz lsl_exit
     and  eax, #0x0000FFFF
     shl  ebx, #16
-    add  eax, ebx
+    or   eax, ebx
   lsl_loop:
     shl  eax, #1
     loop lsl_loop
@@ -639,7 +642,7 @@ typedef unsigned long  Bit32u;
   ldivul:
     and  eax, #0x0000FFFF
     shl  ebx, #16
-    add  eax, ebx
+    or   eax, ebx
     xor  edx, edx
     SEG SS
     mov  bx,  2[di]
@@ -701,8 +704,7 @@ typedef struct {
     Bit8u  device;       // Detected type of attached devices (hd/cd/none)
     Bit8u  removable;    // Removable device flag
     Bit8u  lock;         // Locks for removable devices
-    // Bit8u  lba_capable;  // LBA capable flag - always yes for bochs devices
-    Bit8u  mode;         // transfert mode : PIO 16/32 bits - IRQ - ISADMA - PCIDMA
+    Bit8u  mode;         // transfer mode : PIO 16/32 bits - IRQ - ISADMA - PCIDMA
     Bit16u blksize;      // block size
 
     Bit8u  translation;  // type of translation
@@ -1011,7 +1013,7 @@ static char bios_prefix_string[] = "BIOS: ";
 /* Do not use build timestamps in this string. Otherwise even rebuilding the
  * very same code will lead to compare errors when restoring saved state. */
 static char bios_cvs_version_string[] = "VirtualBox " VBOX_VERSION_STRING;
-#define BIOS_COPYRIGHT_STRING "Sun xVM VirtualBox BIOS"
+#define BIOS_COPYRIGHT_STRING "Sun VirtualBox BIOS"
 #else /* !VBOX */
 static char bios_cvs_version_string[] = "$Revision: 1.176 $ $Date: 2006/12/30 17:13:17 $";
 
@@ -1036,7 +1038,7 @@ static char bios_cvs_version_string[] = "$Revision: 1.176 $ $Date: 2006/12/30 17
 #  define BX_DEBUG(format, p...)
 #endif
 #ifdef VBOX
-#define BX_INFO(format, p...)   do { put_str(BIOS_PRINTF_INFO, bios_prefix_string); bios_printf(BIOS_PRINTF_INFO, format, ##p); } while (0)
+#define BX_INFO(format, p...)   do { put_str(BIOS_PRINTF_INFO, get_CS(), bios_prefix_string); bios_printf(BIOS_PRINTF_INFO, format, ##p); } while (0)
 #else /* !VBOX */
 #define BX_INFO(format, p...)   bios_printf(BIOS_PRINTF_INFO, format, ##p)
 #endif /* !VBOX */
@@ -1623,30 +1625,27 @@ put_luint(action, val, width, neg)
   send(action, val - (nval * 10) + '0');
 }
 
-#ifdef VBOX
-void put_str(action, s)
+void put_str(action, segment, offset)
   Bit16u action;
-  Bit8u *s;
+  Bit16u segment;
+  Bit16u offset;
 {
   Bit8u c;
-  if (!s)
-    s = "<NULL>";
 
-  while (c = read_byte(get_CS(), s)) {
+  while (c = read_byte(segment, offset)) {
     send(action, c);
-    s++;
+    offset++;
   }
 }
-#endif /* VBOX */
+
 
 //--------------------------------------------------------------------------
 // bios_printf()
-//   A compact variable argument printf function which prints its output via
-//   an I/O port so that it can be logged by Bochs/Plex.
-//   Currently, only %x is supported (or %02x, %04x, etc).
+//   A compact variable argument printf function.
 //
-//   Supports %[format_width][format]
-//   where format can be d,x,c,s
+//   Supports %[format_width][length]format
+//   where format can be x,X,u,d,s,S,c
+//   and the optional length modifier is l (ell)
 //--------------------------------------------------------------------------
   void
 bios_printf(action, s)
@@ -1657,7 +1656,7 @@ bios_printf(action, s)
   bx_bool  in_format;
   short i;
   Bit16u  *arg_ptr;
-  Bit16u   arg_seg, arg, nibble, hibyte, shift_count, format_width;
+  Bit16u   arg_seg, arg, nibble, hibyte, shift_count, format_width, hexadd;
 
   arg_ptr = &s;
   arg_seg = get_SS();
@@ -1684,12 +1683,16 @@ bios_printf(action, s)
       else {
         arg_ptr++; // increment to next arg
         arg = read_word(arg_seg, arg_ptr);
-        if (c == 'x') {
+        if (c == 'x' || c == 'X') {
           if (format_width == 0)
             format_width = 4;
+          if (c == 'x')
+            hexadd = 'a';
+          else
+            hexadd = 'A';
           for (i=format_width-1; i>=0; i--) {
             nibble = (arg >> (4 * i)) & 0x000f;
-            send (action, (nibble<=9)? (nibble+'0') : (nibble-10+'A'));
+            send (action, (nibble<=9)? (nibble+'0') : (nibble-10+hexadd));
             }
           }
         else if (c == 'u') {
@@ -1697,9 +1700,31 @@ bios_printf(action, s)
           }
         else if (c == 'l') {
           s++;
+          c = read_byte(get_CS(), s); /* is it ld,lx,lu? */
           arg_ptr++; /* increment to next arg */
           hibyte = read_word(arg_seg, arg_ptr);
-          put_luint(action, ((Bit32u) hibyte << 16) | arg, format_width, 0);
+          if (c == 'd') {
+            if (hibyte & 0x8000)
+              put_luint(action, 0L-(((Bit32u) hibyte << 16) | arg), format_width-1, 1);
+            else
+              put_luint(action, ((Bit32u) hibyte << 16) | arg, format_width, 0);
+           }
+          else if (c == 'u') {
+            put_luint(action, ((Bit32u) hibyte << 16) | arg, format_width, 0);
+           }
+          else if (c == 'x' || c == 'X')
+           {
+            if (format_width == 0)
+              format_width = 8;
+            if (c == 'x')
+              hexadd = 'a';
+            else
+              hexadd = 'A';
+            for (i=format_width-1; i>=0; i--) {
+              nibble = ((((Bit32u) hibyte <<16) | arg) >> (4 * i)) & 0x000f;
+              send (action, (nibble<=9)? (nibble+'0') : (nibble-10+hexadd));
+              }
+           }
           }
         else if (c == 'd') {
           if (arg & 0x8000)
@@ -1708,11 +1733,13 @@ bios_printf(action, s)
             put_int(action, arg, format_width, 0);
           }
         else if (c == 's') {
-#ifndef VBOX
-          bios_printf(action & (~BIOS_PRINTF_HALT), arg);
-#else /* VBOX */
-          put_str(action, arg);
-#endif /* VBOX */
+          put_str(action, get_CS(), arg);
+          }
+        else if (c == 'S') {
+          hibyte = arg;
+          arg_ptr++;
+          arg = read_word(arg_seg, arg_ptr);
+          put_str(action, hibyte, arg);
           }
         else if (c == 'c') {
           send(action, arg);
@@ -2268,7 +2295,9 @@ debugger_off()
 #define ATA_TYPE_UNKNOWN  0x01
 #define ATA_TYPE_ATA      0x02
 #define ATA_TYPE_ATAPI    0x03
+#ifdef VBOX
 #define ATA_TYPE_SCSI     0x04 // SCSI disk
+#endif
 
 #define ATA_DEVICE_NONE  0x00
 #define ATA_DEVICE_HD    0xFF
@@ -2413,7 +2442,6 @@ void ata_detect( )
       outb(iobase1+ATA_CB_DH, slave ? ATA_CB_DH_DEV1 : ATA_CB_DH_DEV0);
       sc = inb(iobase1+ATA_CB_SC);
       sn = inb(iobase1+ATA_CB_SN);
-
       if ((sc==0x01) && (sn==0x01)) {
         cl = inb(iobase1+ATA_CB_CL);
         ch = inb(iobase1+ATA_CB_CH);
@@ -2670,7 +2698,7 @@ void ata_detect( )
           for(i=0;i<20;i++){
             write_byte(get_SS(),model+(i*2),read_byte(get_SS(),buffer+(i*2)+54+1));
             write_byte(get_SS(),model+(i*2)+1,read_byte(get_SS(),buffer+(i*2)+54));
-            }
+          }
 
           // Reformat
           write_byte(get_SS(),model+40,0x00);
@@ -3748,7 +3776,7 @@ cdrom_boot()
     case 0x04:  // Harddrive
       write_word(ebda_seg,&EbdaData->cdemu.vdevice.spt,read_byte(boot_segment,446+6)&0x3f);
       write_word(ebda_seg,&EbdaData->cdemu.vdevice.cylinders,
-	      (read_byte(boot_segment,446+6)<<2) + read_byte(boot_segment,446+7) + 1);
+              (read_byte(boot_segment,446+6)<<2) + read_byte(boot_segment,446+7) + 1);
       write_word(ebda_seg,&EbdaData->cdemu.vdevice.heads,read_byte(boot_segment,446+5) + 1);
       break;
    }
@@ -4224,7 +4252,7 @@ protmode_switch:
 ASM_END
 
       break;
-#endif
+#endif /* VBOX */
 
     case 0x90:
       /* Device busy interrupt.  Called by Int 16h when no key available */
@@ -4582,7 +4610,7 @@ BX_DEBUG_INT15("returning cf = %u, ah = %02x\n", (unsigned)GET_CF(), (unsigned)r
       break;
     }
 }
-#endif
+#endif // BX_USE_PS2_MOUSE
 
 
 void set_e820_range(ES, DI, start, end, extra_start, extra_end, type)
@@ -4590,13 +4618,12 @@ void set_e820_range(ES, DI, start, end, extra_start, extra_end, type)
      Bit16u DI;
      Bit32u start;
      Bit32u end;
-     Bit8u  extra_start;
-     Bit8u  extra_end;
+     Bit8u extra_start;
+     Bit8u extra_end;
      Bit16u type;
 {
     write_word(ES, DI, start);
     write_word(ES, DI+2, start >> 16);
-    write_word(ES, DI+4, 0x00); /** @todo r=bird: why write it twice? */
     write_word(ES, DI+4, extra_start);
     write_word(ES, DI+6, 0x00);
 
@@ -4604,15 +4631,7 @@ void set_e820_range(ES, DI, start, end, extra_start, extra_end, type)
     extra_end -= extra_start;
     write_word(ES, DI+8, end);
     write_word(ES, DI+10, end >> 16);
-#ifdef VBOX
-    if (end == 0)
-        write_word(ES, DI+12, 0x0001);
-    else
-        /** @todo XXX: nike - is it really correct? see QEMU BIOS patch */
-        write_word(ES, DI+12, extra_end);
-#else /* !VBOX */
-    write_word(ES, DI+12, 0x0000);
-#endif /* !VBOX */
+    write_word(ES, DI+12, extra_end);
     write_word(ES, DI+14, 0x0000);
 
     write_word(ES, DI+16, type);
@@ -4625,13 +4644,9 @@ int15_function32(regs, ES, DS, FLAGS)
   Bit16u ES, DS, FLAGS;
 {
   Bit32u  extended_memory_size=0; // 64bits long
-#ifdef VBOX_WITH_MORE_THAN_4GB
   Bit32u  extra_lowbits_memory_size=0;
-#endif
   Bit16u  CX,DX;
-#ifdef VBOX_WITH_MORE_THAN_4GB
   Bit8u   extra_highbits_memory_size=0;
-#endif
 
 BX_DEBUG_INT15("int15 AX=%04x\n",regs.u.r16.ax);
 
@@ -4691,10 +4706,12 @@ ASM_END
                 extended_memory_size <<= 8;
                 extended_memory_size |= inb_cmos(0x34);
                 extended_memory_size *= 64;
+#ifndef VBOX /* The following excludes 0xf0000000 thru 0xffffffff. Trust DevPcBios.cpp to get this right. */
                 // greater than EFF00000???
                 if(extended_memory_size > 0x3bc000) {
                     extended_memory_size = 0x3bc000; // everything after this is reserved memory until we get to 0x100000000
                 }
+#endif /* !VBOX */
                 extended_memory_size *= 1024;
                 extended_memory_size += (16L * 1024 * 1024);
 
@@ -4703,36 +4720,45 @@ ASM_END
                     extended_memory_size <<= 8;
                     extended_memory_size |= inb_cmos(0x30);
                     extended_memory_size *= 1024;
+                    extended_memory_size += (1L * 1024 * 1024);
                 }
 
-#ifdef VBOX_WITH_MORE_THAN_4GB /* bird: later (btw. this ain't making sense complixity wise, unless its a AMI/AWARD/PHOENIX interface) */
-                extra_lowbits_memory_size = inb_cmos(0x61);
+#ifdef VBOX     /* We've already used the CMOS entries for SATA.
+                   BTW. This is the amount of memory above 4GB measured in 64KB units. */
+                extra_lowbits_memory_size = inb_cmos(0x62);
                 extra_lowbits_memory_size <<= 8;
-                extra_lowbits_memory_size |= inb_cmos(0x62);
+                extra_lowbits_memory_size |= inb_cmos(0x61);
+                extra_lowbits_memory_size <<= 16;
+                extra_highbits_memory_size = inb_cmos(0x63);
+                /* 0x64 and 0x65 can be used if we need to dig 1 TB or more at a later point. */
+#else
+                extra_lowbits_memory_size = inb_cmos(0x5c);
+                extra_lowbits_memory_size <<= 8;
+                extra_lowbits_memory_size |= inb_cmos(0x5b);
                 extra_lowbits_memory_size *= 64;
                 extra_lowbits_memory_size *= 1024;
-                extra_highbits_memory_size = inb_cmos(0x63);
-#endif
+                extra_highbits_memory_size = inb_cmos(0x5d);
+#endif /* !VBOX */
 
                 switch(regs.u.r16.bx)
                 {
                     case 0:
                         set_e820_range(ES, regs.u.r16.di,
+#ifndef VBOX /** @todo Upstream sugggests the following, needs checking. (see next as well) */
+                                       0x0000000L, 0x0009f000L, 0, 0, 1);
+#else
                                        0x0000000L, 0x0009fc00L, 0, 0, 1);
+#endif
                         regs.u.r32.ebx = 1;
-                        regs.u.r32.eax = 0x534D4150;
-                        regs.u.r32.ecx = 0x14;
-                        CLEAR_CF();
-                        return;
                         break;
                     case 1:
                         set_e820_range(ES, regs.u.r16.di,
+#ifndef VBOX /** @todo Upstream sugggests the following, needs checking. (see next as well) */
+                                       0x0009f000L, 0x000a0000L, 0, 0, 2);
+#else
                                        0x0009fc00L, 0x000a0000L, 0, 0, 2);
+#endif
                         regs.u.r32.ebx = 2;
-                        regs.u.r32.eax = 0x534D4150;
-                        regs.u.r32.ecx = 0x14;
-                        CLEAR_CF();
-                        return;
                         break;
                     case 2:
 #ifdef VBOX
@@ -4751,65 +4777,72 @@ ASM_END
                                        0x000e8000L, 0x00100000L, 0, 0, 2);
 #endif /* !VBOX */
                         regs.u.r32.ebx = 3;
-                        regs.u.r32.eax = 0x534D4150;
-                        regs.u.r32.ecx = 0x14;
-                        CLEAR_CF();
-                        return;
                         break;
                     case 3:
+#if BX_ROMBIOS32 || defined(VBOX)
                         set_e820_range(ES, regs.u.r16.di,
                                        0x00100000L,
                                        extended_memory_size - ACPI_DATA_SIZE, 0, 0, 1);
                         regs.u.r32.ebx = 4;
-                        regs.u.r32.eax = 0x534D4150;
-                        regs.u.r32.ecx = 0x14;
-                        CLEAR_CF();
-                        return;
+#else
+                        set_e820_range(ES, regs.u.r16.di,
+                                       0x00100000L,
+                                       extended_memory_size, 1);
+                        regs.u.r32.ebx = 5;
+#endif
                         break;
                     case 4:
                         set_e820_range(ES, regs.u.r16.di,
                                        extended_memory_size - ACPI_DATA_SIZE,
                                        extended_memory_size, 0, 0, 3); // ACPI RAM
                         regs.u.r32.ebx = 5;
-                        regs.u.r32.eax = 0x534D4150;
-                        regs.u.r32.ecx = 0x14;
-                        CLEAR_CF();
-                        return;
                         break;
                     case 5:
                         /* 256KB BIOS area at the end of 4 GB */
+#ifdef VBOX
+                        /* We don't set the end to 1GB here and rely on the 32-bit
+                           unsigned wrap around effect (0-0xfffc0000L). */
+#endif
                         set_e820_range(ES, regs.u.r16.di,
                                        0xfffc0000L, 0x00000000L, 0, 0, 2);
-#ifdef VBOX_WITH_MORE_THAN_4GB
                         if (extra_highbits_memory_size || extra_lowbits_memory_size)
                             regs.u.r32.ebx = 6;
                         else
-#endif
                             regs.u.r32.ebx = 0;
-                        regs.u.r32.eax = 0x534D4150;
-                        regs.u.r32.ecx = 0x14;
-                        CLEAR_CF();
-                        return;
-#ifdef VBOX_WITH_MORE_THAN_4GB
+                        break;
                     case 6:
-                        /* Mapping of memory above 4 GB */
-                        set_e820_range(ES, regs.u.r16.di,
-                                       0x00000000L, extra_lowbits_memory_size,
-                                       1, extra_highbits_memory_size + 1, 1);
+#ifdef VBOX /* Don't succeeded if no memory above 4 GB.  */
+                        /* Mapping of memory above 4 GB if present.
+                           Note: set_e820_range needs do no borrowing in the
+                                 subtraction because of the nice numbers. */
+                        if (extra_highbits_memory_size || extra_lowbits_memory_size)
+                        {
+                            set_e820_range(ES, regs.u.r16.di,
+                                           0x00000000L, extra_lowbits_memory_size,
+                                           1 /*GB*/, extra_highbits_memory_size + 1 /*GB*/, 1);
+                            regs.u.r32.ebx = 0;
+                            break;
+                        }
+                        /* fall thru */
+#else  /* !VBOX */
+                        /* Maping of memory above 4 GB */
+                        set_e820_range(ES, regs.u.r16.di, 0x00000000L,
+                        extra_lowbits_memory_size, 1, extra_highbits_memory_size
+                                       + 1, 1);
                         regs.u.r32.ebx = 0;
-                        regs.u.r32.eax = 0x534D4150;
-                        regs.u.r32.ecx = 0x14;
-                        CLEAR_CF();
-                        return;
-#endif
+                        break;
+#endif /* !VBOX */
                     default:  /* AX=E820, DX=534D4150, BX unrecognized */
                         goto int15_unimplemented;
                         break;
                 }
-	    } else {
-	      // if DX != 0x534D4150)
-	      goto int15_unimplemented;
-	    }
+                regs.u.r32.eax = 0x534D4150;
+                regs.u.r32.ecx = 0x14;
+                CLEAR_CF();
+            } else {
+              // if DX != 0x534D4150)
+              goto int15_unimplemented;
+            }
             break;
 
         case 0x01:
@@ -4841,8 +4874,8 @@ ASM_END
           regs.u.r16.ax = regs.u.r16.cx;
           regs.u.r16.bx = regs.u.r16.dx;
           break;
-	default:  /* AH=0xE8?? but not implemented */
-	  goto int15_unimplemented;
+        default:  /* AH=0xE8?? but not implemented */
+          goto int15_unimplemented;
        }
        break;
     int15_unimplemented:
@@ -4953,7 +4986,7 @@ ASM_END
               kbd_code |= (inb(0x60) << 8);
             }
           } while (--count>0);
-	}
+        }
       }
       BX=kbd_code;
       break;
@@ -4996,7 +5029,7 @@ ASM_END
 
     case 0x6F:
       if (GET_AL() == 0x08)
-	SET_AH(0x02); // unsupported, aka normal keyboard
+        SET_AH(0x02); // unsupported, aka normal keyboard
 
     default:
       BX_INFO("KBD: unsupported int 16h function %02x\n", GET_AH());
@@ -5223,7 +5256,7 @@ int09_function(DI, SI, BP, SP, BX, DX, CX, AX)
 
     default:
       if (scancode & 0x80) {
-          break; /* toss key releases ... */
+        break; /* toss key releases ... */
       }
       if (scancode > MAX_SCAN_CODE) {
         BX_INFO("KBD: int09h_handler(): unknown scancode read: 0x%02x!\n", scancode);
@@ -5410,7 +5443,7 @@ int13_harddisk(EHAX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS)
       /* SCSI controller does not need a reset. */
       if (!VBOX_IS_SCSI_DEVICE(device))
 #endif
-        ata_reset (device);
+      ata_reset (device);
       goto int13_success;
       break;
 
@@ -5538,11 +5571,25 @@ int13_harddisk(EHAX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS)
     case 0x08: /* read disk drive parameters */
 
       // Get logical geometry from table
-      nlc   = read_word(ebda_seg, &EbdaData->ata.devices[device].lchs.cylinders);
-      nlh   = read_word(ebda_seg, &EbdaData->ata.devices[device].lchs.heads);
-      nlspt = read_word(ebda_seg, &EbdaData->ata.devices[device].lchs.spt);
-      count = read_byte(ebda_seg, &EbdaData->ata.hdcount);
+#ifdef VBOX_WITH_SCSI
+      if (!VBOX_IS_SCSI_DEVICE(device))
+#endif
+      {
+        nlc   = read_word(ebda_seg, &EbdaData->ata.devices[device].lchs.cylinders);
+        nlh   = read_word(ebda_seg, &EbdaData->ata.devices[device].lchs.heads);
+        nlspt = read_word(ebda_seg, &EbdaData->ata.devices[device].lchs.spt);
+      }
+#ifdef VBOX_WITH_SCSI
+      else
+      {
+        Bit8u scsi_device = VBOX_GET_SCSI_DEVICE(device);
+        nlc   = read_word(ebda_seg, &EbdaData->scsi.devices[scsi_device].device_info.lchs.cylinders);
+        nlh   = read_word(ebda_seg, &EbdaData->scsi.devices[scsi_device].device_info.lchs.heads);
+        nlspt = read_word(ebda_seg, &EbdaData->scsi.devices[scsi_device].device_info.lchs.spt);
+      }
+#endif
 
+      count = read_byte(ebda_seg, &EbdaData->ata.hdcount);
 #ifndef VBOX
       nlc = nlc - 2; /* 0 based , last sector not used */
 #else /* VBOX */
@@ -5577,9 +5624,23 @@ int13_harddisk(EHAX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS)
     case 0x15: /* read disk drive size */
 
       // Get physical geometry from table
-      npc   = read_word(ebda_seg, &EbdaData->ata.devices[device].pchs.cylinders);
-      nph   = read_word(ebda_seg, &EbdaData->ata.devices[device].pchs.heads);
-      npspt = read_word(ebda_seg, &EbdaData->ata.devices[device].pchs.spt);
+#ifdef VBOX_WITH_SCSI
+      if (!VBOX_IS_SCSI_DEVICE(device))
+#endif
+      {
+        npc   = read_word(ebda_seg, &EbdaData->ata.devices[device].pchs.cylinders);
+        nph   = read_word(ebda_seg, &EbdaData->ata.devices[device].pchs.heads);
+        npspt = read_word(ebda_seg, &EbdaData->ata.devices[device].pchs.spt);
+      }
+#ifdef VBOX_WITH_SCSI
+      else
+      {
+        Bit8u scsi_device = VBOX_GET_SCSI_DEVICE(device);
+        npc   = read_word(ebda_seg, &EbdaData->scsi.devices[scsi_device].device_info.pchs.cylinders);
+        nph   = read_word(ebda_seg, &EbdaData->scsi.devices[scsi_device].device_info.pchs.heads);
+        npspt = read_word(ebda_seg, &EbdaData->scsi.devices[scsi_device].device_info.pchs.spt);
+      }
+#endif
 
       // Compute sector count seen by int13
 #ifndef VBOX
@@ -5713,11 +5774,27 @@ int13_harddisk(EHAX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS)
       if(size >= 0x1a) {
         Bit16u   blksize;
 
-        npc     = read_word(ebda_seg, &EbdaData->ata.devices[device].pchs.cylinders);
-        nph     = read_word(ebda_seg, &EbdaData->ata.devices[device].pchs.heads);
-        npspt   = read_word(ebda_seg, &EbdaData->ata.devices[device].pchs.spt);
-        lba     = read_dword(ebda_seg, &EbdaData->ata.devices[device].sectors);
-        blksize = read_word(ebda_seg, &EbdaData->ata.devices[device].blksize);
+#ifdef VBOX_WITH_SCSI
+        if (!VBOX_IS_SCSI_DEVICE(device))
+#endif
+        {
+          npc     = read_word(ebda_seg, &EbdaData->ata.devices[device].pchs.cylinders);
+          nph     = read_word(ebda_seg, &EbdaData->ata.devices[device].pchs.heads);
+          npspt   = read_word(ebda_seg, &EbdaData->ata.devices[device].pchs.spt);
+          lba     = read_dword(ebda_seg, &EbdaData->ata.devices[device].sectors);
+          blksize = read_word(ebda_seg, &EbdaData->ata.devices[device].blksize);
+        }
+#ifdef VBOX_WITH_SCSI
+        else
+        {
+          Bit8u scsi_device = VBOX_GET_SCSI_DEVICE(device);
+          npc     = read_word(ebda_seg, &EbdaData->scsi.devices[scsi_device].device_info.pchs.cylinders);
+          nph     = read_word(ebda_seg, &EbdaData->scsi.devices[scsi_device].device_info.pchs.heads);
+          npspt   = read_word(ebda_seg, &EbdaData->scsi.devices[scsi_device].device_info.pchs.spt);
+          lba     = read_dword(ebda_seg, &EbdaData->scsi.devices[scsi_device].device_info.sectors);
+          blksize = read_word(ebda_seg, &EbdaData->scsi.devices[scsi_device].device_info.blksize);
+        }
+#endif
 
         write_word(DS, SI+(Bit16u)&Int13DPT->size, 0x1a);
         write_word(DS, SI+(Bit16u)&Int13DPT->infos, 0x02); // geometry is valid
@@ -6039,7 +6116,7 @@ int13_cdrom(EHBX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS)
         mov  bp, sp
 
         mov ah, #0x52
-        int 15
+        int #0x15
         mov _int13_cdrom.status + 2[bp], ah
         jnc int13_cdrom_rme_end
         mov _int13_cdrom.status, #1
@@ -7108,7 +7185,7 @@ get_hd_geometry(drive, hd_cylinders, hd_heads, hd_sectors)
     hd_type = inb_cmos(0x12) & 0x0f;
     if (hd_type != 0x0f)
       BX_INFO(panic_msg_reg12h,1);
-    hd_type = inb_cmos(0x1a); // HD0: extended type
+    hd_type = inb_cmos(0x1a); // HD1: extended type
     if (hd_type != 47)
       BX_INFO(panic_msg_reg19h,0,0x1a);
     iobase = 0x24;
@@ -7127,6 +7204,7 @@ get_hd_geometry(drive, hd_cylinders, hd_heads, hd_sectors)
 
 #endif //else BX_USE_ATADRV
 
+#if BX_SUPPORT_FLOPPY
 
 //////////////////////
 // FLOPPY functions //
@@ -7407,7 +7485,6 @@ floppy_drive_exists(drive)
     return(1);
 }
 
-#if BX_SUPPORT_FLOPPY
   void
 int13_diskette_function(DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS)
   Bit16u DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS;
@@ -8707,9 +8784,9 @@ int1a_function(regs, ds, iret_addr)
         BX_INFO("bad PCI vendor ID %04x\n", regs.u.r16.dx);
       } else if (regs.u.r8.bl == 0x86) {
         if (regs.u.r8.al == 0x02) {
-        BX_INFO("PCI device %04x:%04x not found at index %d\n", regs.u.r16.dx, regs.u.r16.cx, regs.u.r16.si);
+          BX_INFO("PCI device %04x:%04x not found at index %d\n", regs.u.r16.dx, regs.u.r16.cx, regs.u.r16.si);
         } else {
-        BX_INFO("no PCI device with class code 0x%02x%04x found at index %d\n", regs.u.r8.cl, regs.u.r16.dx, regs.u.r16.si);
+          BX_INFO("no PCI device with class code 0x%02x%04x found at index %d\n", regs.u.r8.cl, regs.u.r16.dx, regs.u.r16.si);
         }
       }
       regs.u.r8.ah = regs.u.r8.bl;
@@ -9013,7 +9090,6 @@ int13_out:
   popa
   iret
 
-
 ;----------
 ;- INT18h -
 ;----------
@@ -9046,7 +9122,7 @@ bios_initiated_boot:
 #endif /* VBOX */
 
   ;; int19 was beginning to be really complex, so now it
-  ;; just calls an C function, that does the work
+  ;; just calls a C function that does the work
   ;; it returns in BL the boot drive, and in AX the boot segment
   ;; the boot segment will be 0x0000 if something has failed
 
@@ -9660,6 +9736,7 @@ int76_handler:
   pop   ds
   pop   ax
   iret
+
 
 ;--------------------
 #ifdef VBOX
@@ -10728,8 +10805,7 @@ pcibios_init_irqs:
   mov  dx, #0x0cfc
   mov  ax, #0x8080
   out  dx, ax ;; reset PIRQ route control
-  inc  dx
-  inc  dx
+  add  dx, #2
   out  dx, ax
   mov  ax, [si+6]
   sub  ax, #0x20
@@ -10806,7 +10882,7 @@ pci_init_end:
   pop  bp
   pop  ds
   ret
-#endif // BX_ROMBIOS32
+#endif // !BX_ROMBIOS32
 #endif // BX_PCIBIOS
 
 #if BX_ROMBIOS32
@@ -10918,7 +10994,7 @@ rombios32_gdt:
   dw 0xffff, 0, 0x9300, 0x00cf ; 32 bit flat data segment (0x18)
   dw 0xffff, 0, 0x9b0f, 0x0000 ; 16 bit code segment base=0xf0000 limit=0xffff
   dw 0xffff, 0, 0x9300, 0x0000 ; 16 bit data segment base=0x0 limit=0xffff
-#endif
+#endif // BX_ROMBIOS32
 
 
 ; parallel port detection: base address in DX, index in BX, timeout in CL
@@ -11188,11 +11264,9 @@ memory_cleared:
 
 post_default_ints:
   mov  [bx], ax
-  inc  bx
-  inc  bx
+  add  bx, #2
   mov  [bx], dx
-  inc  bx
-  inc  bx
+  add  bx, #2
   loop post_default_ints
 
   ;; set vector 0x79 to zero
@@ -11417,7 +11491,6 @@ post_default_ints:
 
   sti        ;; enable interrupts
   int  #0x19
-
 
 .org 0xe2c3 ; NMI Handler Entry Point
 nmi:
@@ -11651,7 +11724,7 @@ int09_handler:
   mov  BYTE [0x496], al
   jmp int09_done
 
-int09_check_pause:  ;; check for pause key
+int09_check_pause: ;; check for pause key
   cmp  al, #0xe1
   jne int09_process_key
   xor  ax, ax

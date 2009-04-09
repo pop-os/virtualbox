@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,82 +25,105 @@
 
 #include "COMDefs.h"
 
+#include "QIWithRetranslateUI.h"
+
 #include "VBoxGlobal.h"
+#include "VBoxProblemReporter.h"
+#include "VBoxHelpActions.h"
 
-#include <qapplication.h>
-#include <qmainwindow.h>
-#include <qlistbox.h>
-#include <qgroupbox.h>
-#include <qaction.h>
+/* Qt includes */
+#include <QMainWindow>
+#ifdef VBOX_GUI_WITH_SYSTRAY
+    #include <QSystemTrayIcon>
+#endif
 
-#include <qvaluelist.h>
-
-class VBoxVMListBox;
 class VBoxSnapshotsWgt;
 class VBoxVMDetailsView;
 class VBoxVMDescriptionPage;
 class VBoxVMLogViewer;
+class VBoxVMListView;
+class VBoxVMModel;
+class VBoxVMItem;
+class VBoxTrayIcon;
 
-class QLabel;
-class QTextBrowser;
 class QTabWidget;
-struct QUuid;
+class QListView;
+class QEvent;
 
-class VBoxSelectorWnd : public QMainWindow
+class VBoxSelectorWnd : public QIWithRetranslateUI2 <QMainWindow>
 {
-    Q_OBJECT
+    Q_OBJECT;
 
 public:
 
     VBoxSelectorWnd (VBoxSelectorWnd **aSelf,
-                     QWidget* aParent = 0, const char* aName = 0,
-                     WFlags aFlags = WType_TopLevel);
+                     QWidget* aParent = 0,
+                     Qt::WindowFlags aFlags = Qt::Window);
     virtual ~VBoxSelectorWnd();
 
-    bool startMachine (const QUuid &id);
+signals:
+
+    void closing();
 
 public slots:
 
     void fileMediaMgr();
+    void fileImportAppliance();
+    void fileExportAppliance();
     void fileSettings();
     void fileExit();
 
     void vmNew();
     void vmSettings (const QString &aCategory = QString::null,
-                     const QString &aControl = QString::null);
-    void vmDelete();
-    void vmStart();
-    void vmDiscard();
-    void vmPause (bool);
-    void vmRefresh();
-    void vmShowLogs();
+                     const QString &aControl = QString::null,
+                     const QUuid & = QUuid_null);
+    void vmDelete (const QUuid & = QUuid_null);
+    void vmStart (const QUuid & = QUuid_null);
+    void vmDiscard (const QUuid & = QUuid_null);
+    void vmPause (bool, const QUuid & = QUuid_null);
+    void vmRefresh (const QUuid & = QUuid_null);
+    void vmShowLogs (const QUuid & = QUuid_null);
 
     void refreshVMList();
     void refreshVMItem (const QUuid &aID, bool aDetails,
                                           bool aSnapshots,
                                           bool aDescription);
 
-    void showContextMenu (QListBoxItem *, const QPoint &);
+    void showContextMenu (const QPoint &aPoint);
+
+#ifdef VBOX_GUI_WITH_SYSTRAY
+    void trayIconActivated (QSystemTrayIcon::ActivationReason aReason);
+    void showWindow();
+#endif
+
+    const QAction *vmNewAction() const { return mVmNewAction; }
+    const QAction *vmConfigAction() const { return mVmConfigAction; }
+    const QAction *vmDeleteAction() const { return mVmDeleteAction; }
+    const QAction *vmStartAction() const { return mVmStartAction; }
+    const QAction *vmDiscardAction() const { return mVmDiscardAction; }
+    const QAction *vmPauseAction() const { return mVmPauseAction; }
+    const QAction *vmRefreshAction() const { return mVmRefreshAction; }
+    const QAction *vmShowLogsAction() const { return mVmShowLogsAction; }
 
 protected:
 
-    /* events */
-    bool event (QEvent *e);
+    /* Events */
+    bool event (QEvent *aEvent);
+    void closeEvent (QCloseEvent *aEvent);
+#if defined (Q_WS_MAC) && (QT_VERSION < 0x040402)
+    bool eventFilter (QObject *aObject, QEvent *aEvent);
+#endif /* defined (Q_WS_MAC) && (QT_VERSION < 0x040402) */
 
-protected slots:
-
-private:
-
-    void languageChange();
+    void retranslateUi();
 
 private slots:
 
-    void vmListBoxCurrentChanged (bool aRefreshDetails = true,
-                                  bool aRefreshSnapshots = true,
-                                  bool aRefreshDescription = true);
+    void vmListViewCurrentChanged (bool aRefreshDetails = true,
+                                   bool aRefreshSnapshots = true,
+                                   bool aRefreshDescription = true);
 
-    void mediaEnumStarted();
-    void mediaEnumFinished (const VBoxMediaList &);
+    void mediumEnumStarted();
+    void mediumEnumFinished (const VBoxMediaList &);
 
     /* VirtualBox callback events we're interested in */
 
@@ -109,43 +132,120 @@ private slots:
     void machineRegistered (const VBoxMachineRegisteredEvent &e);
     void sessionStateChanged (const VBoxSessionStateChangeEvent &e);
     void snapshotChanged (const VBoxSnapshotEvent &e);
+#ifdef VBOX_GUI_WITH_SYSTRAY
+    void mainWindowCountChanged (const VBoxMainWindowCountChangeEvent &aEvent);
+    void trayIconCanShow (const VBoxCanShowTrayIconEvent &e);
+    void trayIconShow (const VBoxShowTrayIconEvent &e);
+    void trayIconChanged (const VBoxChangeTrayIconEvent &e);
+#endif
 
 private:
 
-    /** VM list context menu */
-    QPopupMenu *mVMCtxtMenu;
+    /* Main menus */
+    QMenu *mFileMenu;
+    QMenu *mVMMenu;
+    QMenu *mHelpMenu;
 
-    /* actions */
-    QAction *fileMediaMgrAction;
-    QAction *fileSettingsAction;
-    QAction *fileExitAction;
-    QAction *vmNewAction;
-    QAction *vmConfigAction;
-    QAction *vmDeleteAction;
-    QAction *vmStartAction;
-    QAction *vmDiscardAction;
-    QAction *vmPauseAction;
-    QAction *vmRefreshAction;
-    QAction *vmShowLogsAction;
-    QAction *helpContentsAction;
-    QAction *helpWebAction;
-    QAction *helpRegisterAction;
-    QAction *helpAboutAction;
-    QAction *helpResetMessagesAction;
+    /* VM list context menu */
+    QMenu *mVMCtxtMenu;
 
-    /* widgets */
-    VBoxVMListBox *vmListBox;
-    QTabWidget *vmTabWidget;
-    VBoxVMDetailsView *vmDetailsView;
-    VBoxSnapshotsWgt *vmSnapshotsWgt;
-    VBoxVMDescriptionPage *vmDescriptionPage;
+    /* Actions */
+    QAction *mFileMediaMgrAction;
+    QAction *mFileApplianceImportAction;
+    QAction *mFileApplianceExportAction;
+    QAction *mFileSettingsAction;
+    QAction *mFileExitAction;
+    QAction *mVmNewAction;
+    QAction *mVmConfigAction;
+    QAction *mVmDeleteAction;
+    QAction *mVmStartAction;
+    QAction *mVmDiscardAction;
+    QAction *mVmPauseAction;
+    QAction *mVmRefreshAction;
+    QAction *mVmShowLogsAction;
 
-    QValueList <CSession> sessions;
+    VBoxHelpActions mHelpActions;
 
-    QPoint normal_pos;
-    QSize normal_size;
+#ifdef VBOX_GUI_WITH_SYSTRAY
+    /* The systray icon */
+    VBoxTrayIcon *mTrayIcon;
+#endif
 
-    bool doneInaccessibleWarningOnce : 1;
+    /* The vm list view/model */
+    VBoxVMListView *mVMListView;
+    VBoxVMModel *mVMModel;
+
+    /* The right information widgets */
+    QTabWidget *mVmTabWidget;
+    VBoxVMDetailsView *mVmDetailsView;
+    VBoxSnapshotsWgt *mVmSnapshotsWgt;
+    VBoxVMDescriptionPage *mVmDescriptionPage;
+
+    QRect mNormalGeo;
+
+    bool mDoneInaccessibleWarningOnce : 1;
 };
+
+#ifdef VBOX_GUI_WITH_SYSTRAY
+
+Q_DECLARE_METATYPE(QUuid);
+
+class VBoxTrayIcon : public QSystemTrayIcon
+{
+    Q_OBJECT;
+
+public:
+
+    VBoxTrayIcon (VBoxSelectorWnd* aParent, VBoxVMModel* aVMModel);
+    virtual ~VBoxTrayIcon ();
+
+    void refresh ();
+    void retranslateUi ();
+
+protected:
+
+    VBoxVMItem* GetItem (QObject* aObject);
+
+signals:
+
+public slots:
+
+    void trayIconShow (bool aShow = false);
+
+private slots:
+
+    void showSubMenu();
+    void hideSubMenu ();
+
+    void vmSettings();
+    void vmDelete();
+    void vmStart();
+    void vmDiscard();
+    void vmPause(bool aPause);
+    void vmRefresh();
+    void vmShowLogs();
+
+private:
+
+    bool mActive;           /* Is systray menu active/available? */
+
+    /* The vm list model */
+    VBoxVMModel *mVMModel;
+
+    VBoxSelectorWnd* mParent;
+    QMenu *mTrayIconMenu;
+
+    QAction *mShowSelectorAction;
+    QAction *mHideSystrayMenuAction;
+    QAction *mVmConfigAction;
+    QAction *mVmDeleteAction;
+    QAction *mVmStartAction;
+    QAction *mVmDiscardAction;
+    QAction *mVmPauseAction;
+    QAction *mVmRefreshAction;
+    QAction *mVmShowLogsAction;
+};
+
+#endif // VBOX_GUI_WITH_SYSTRAY
 
 #endif // __VBoxSelectorWnd_h__

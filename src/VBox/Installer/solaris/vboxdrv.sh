@@ -1,8 +1,8 @@
 #!/bin/sh
-# Sun xVM VirtualBox
+# Sun VirtualBox
 # VirtualBox kernel module control script, Solaris hosts.
 #
-# Copyright (C) 2007-2008 Sun Microsystems, Inc.
+# Copyright (C) 2007-2009 Sun Microsystems, Inc.
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,8 @@ ALWAYSREMDRV=""
 MODNAME="vboxdrv"
 VBIMODNAME="vbi"
 FLTMODNAME="vboxflt"
+NETMODNAME="vboxnet"
+USBMODNAME="vboxusbmon"
 MODDIR32="/platform/i86pc/kernel/drv"
 MODDIR64=$MODDIR32/amd64
 
@@ -94,7 +96,7 @@ module_loaded()
     if test -z "$loadentry"; then
         return 1
     fi
-    return 0    
+    return 0
 }
 
 vboxdrv_loaded()
@@ -118,6 +120,30 @@ vboxflt_loaded()
 vboxflt_added()
 {
     module_added $FLTMODNAME
+    return $?
+}
+
+vboxnet_added()
+{
+    module_added $NETMODNAME
+    return $?
+}
+
+vboxnet_loaded()
+{
+    module_loaded $NETMODNAME
+    return $?
+}
+
+vboxusbmon_added()
+{
+    module_added $USBMODNAME
+    return $?
+}
+
+vboxusbmon_loaded()
+{
+    module_loaded $USBMODNAME
     return $?
 }
 
@@ -238,6 +264,97 @@ stop_vboxflt()
     fi
 }
 
+
+start_vboxnet()
+{
+    if vboxnet_loaded; then
+        info "VirtualBox NetAdapter kernel module already loaded."
+    else
+        /usr/sbin/add_drv -m'* 0666 root sys' $NETMODNAME || abort "Failed to add VirtualBox NetAdapter Kernel module."
+        /usr/sbin/modload -p drv/$NETMODNAME
+        if test ! vboxnet_loaded; then
+            abort "Failed to load VirtualBox NetAdapter kernel module."
+        else
+            # Plumb the interface!
+            /sbin/ifconfig vboxnet0 plumb up
+            info "VirtualBox NetAdapter kernel module loaded."
+        fi
+    fi
+}
+
+stop_vboxnet()
+{
+    if vboxnet_loaded; then
+        vboxnet_mod_id=`/usr/sbin/modinfo | grep $NETMODNAME | cut -f 1 -d ' '`
+        if test -n "$vboxnet_mod_id"; then
+            /sbin/ifconfig vboxnet0 unplumb
+            /usr/sbin/modunload -i $vboxnet_mod_id
+
+            # see stop_vboxdrv() for why we have "alwaysremdrv".
+            if test -n "$ALWAYSREMDRV"; then
+                /usr/sbin/rem_drv $NETMODNAME
+            else
+                if test "$?" -eq 0; then
+                    /usr/sbin/rem_drv $NETMODNAME || abort "Unloaded VirtualBox NetAdapter kernel module, but failed to remove it!"
+                else
+                    abort "Failed to unload VirtualBox NetAdapter kernel module. Old one still active!!"
+                fi
+            fi
+
+            info "VirtualBox NetAdapter kernel module unloaded."
+        fi
+    elif vboxnet_added; then
+        /usr/sbin/rem_drv $NETMODNAME || abort "Unloaded VirtualBox NetAdapter kernel module, but failed to remove it!"
+        info "VirtualBox NetAdapter kernel module unloaded."
+    elif test -z "$SILENTUNLOAD"; then
+        info "VirtualBox NetAdapter kernel module not loaded."
+    fi
+}
+
+
+start_vboxusbmon()
+{
+    if vboxusbmon_loaded; then
+        info "VirtualBox USB Monitor kernel module already loaded."
+    else
+        /usr/sbin/add_drv -m'* 0666 root sys' $USBMODNAME || abort "Failed to add VirtualBox USB Monitor Kernel module."
+        /usr/sbin/modload -p drv/$USBMODNAME
+        if test ! vboxusbmon_loaded; then
+            abort "Failed to load VirtualBox USB kernel module."
+        else
+            info "VirtualBox USB kernel module loaded."
+        fi
+    fi
+}
+
+stop_vboxusbmon()
+{
+    if vboxusbmon_loaded; then
+        vboxusbmon_mod_id=`/usr/sbin/modinfo | grep $USBMODNAME | cut -f 1 -d ' '`
+        if test -n "$vboxusbmon_mod_id"; then
+            /usr/sbin/modunload -i $vboxusbmon_mod_id
+
+            # see stop_vboxdrv() for why we have "alwaysremdrv".
+            if test -n "$ALWAYSREMDRV"; then
+                /usr/sbin/rem_drv $USBMODNAME
+            else
+                if test "$?" -eq 0; then
+                    /usr/sbin/rem_drv $USBMODNAME || abort "Unloaded VirtualBox USB Monitor kernel module, but failed to remove it!"
+                else
+                    abort "Failed to unload VirtualBox USB Monitor kernel module. Old one still active!!"
+                fi
+            fi
+
+            info "VirtualBox USB kernel module unloaded."
+        fi
+    elif vboxusbmon_added; then
+        /usr/sbin/rem_drv $USBMODNAME || abort "Unloaded VirtualBox USB Monitor kernel module, but failed to remove it!"
+        info "VirtualBox USB kernel module unloaded."
+    elif test -z "$SILENTUNLOAD"; then
+        info "VirtualBox USB kernel module not loaded."
+    fi
+}
+
 status_vboxdrv()
 {
     if vboxdrv_loaded; then
@@ -251,6 +368,8 @@ status_vboxdrv()
 
 stop_all_modules()
 {
+    stop_vboxusbmon
+    stop_vboxnet
     stop_vboxflt
     stop_module
 }
@@ -259,6 +378,8 @@ start_all_modules()
 {
     start_module
     start_vboxflt
+    start_vboxnet
+    start_vboxusbmon
 }
 
 check_root
@@ -298,8 +419,20 @@ fltstart)
 fltstop)
     stop_vboxflt
     ;;
+usbstart)
+    start_vboxusbmon
+    ;;
+usbstop)
+    stop_vboxusbmon
+    ;;
+netstart)
+    start_vboxnet
+    ;;
+netstop)
+    stop_vboxnet
+    ;;
 *)
-    echo "Usage: $0 {start|stop|status|fltstart|fltstop|stopall|startall}"
+    echo "Usage: $0 {start|stop|status|fltstart|fltstop|usbstart|usbstop|netstart|netstop|stopall|startall}"
     exit 1
 esac
 

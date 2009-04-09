@@ -1,5 +1,5 @@
 #ifdef VBOX
-/* $Id: DevVGA.cpp $ */
+/* $Id: DevVGA.cpp 18769 2009-04-06 14:54:59Z vboxsync $ */
 /** @file
  * DevVGA - VBox VGA/VESA device.
  */
@@ -127,6 +127,7 @@
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/file.h>
+#include <iprt/time.h>
 #include <iprt/string.h>
 
 #include <VBox/VBoxGuest.h>
@@ -265,7 +266,6 @@ typedef WINHDR *PWINHDR;
 /* "Press F12 to select boot device." bitmap. */
 static const uint8_t g_abLogoF12BootText[] =
 {
-#ifdef VBOX_OSE
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x07, 0x0F, 0x7C,
@@ -299,41 +299,6 @@ static const uint8_t g_abLogoF12BootText[] =
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-#else
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F, 0xF8, 0xF0, 0x83,
-    0x07, 0x0F, 0xFE, 0x1F, 0x7E, 0x60, 0xC0, 0xFF, 0x8F, 0x07, 0xFF, 0x1F, 0x3C,
-    0xF8, 0xF0, 0xE0, 0xC1, 0x8F, 0xFF, 0x0F, 0x1E, 0x3C, 0xF8, 0xF1, 0xFF, 0x91,
-    0x83, 0x9F, 0x1F, 0x1E, 0x3C, 0xF8, 0x39, 0x7F, 0x7E, 0xCE, 0x9C, 0x39, 0xFF,
-    0xCF, 0x7F, 0x9E, 0xF3, 0xFF, 0xC9, 0x9C, 0xFF, 0x73, 0xE6, 0x7C, 0x9E, 0x33,
-    0xE7, 0xC9, 0xFF, 0x33, 0x73, 0xE6, 0x3C, 0xF9, 0x3F, 0x73, 0xCE, 0xC3, 0xCF,
-    0x73, 0xE6, 0x7C, 0xCE, 0x9F, 0x9F, 0xFF, 0xF3, 0xE7, 0xFF, 0xF3, 0x9F, 0xE7,
-    0xFF, 0x7F, 0x3E, 0xE7, 0xFF, 0xCF, 0xF9, 0x9F, 0xE7, 0xCF, 0x7F, 0xFE, 0xFF,
-    0xCC, 0x9C, 0x39, 0xCF, 0xFF, 0xCF, 0x9C, 0x7F, 0xE6, 0xF3, 0xFC, 0xF9, 0xFF,
-    0xF3, 0xE7, 0xE7, 0x3F, 0x7E, 0xFC, 0xFF, 0xFC, 0xE7, 0xF3, 0xFF, 0x9F, 0xCF,
-    0xF9, 0xFF, 0x78, 0xFE, 0xE7, 0xF9, 0xF3, 0x9F, 0xFF, 0x3F, 0x33, 0x67, 0xCE,
-    0xF3, 0xFF, 0x33, 0xE7, 0xCF, 0xF3, 0x3C, 0x7F, 0xFE, 0xFF, 0xFC, 0x99, 0x01,
-    0xE7, 0xCF, 0xFF, 0x3F, 0xFD, 0xF9, 0xF9, 0xFF, 0xE7, 0x73, 0xFE, 0x9F, 0x1F,
-    0xF0, 0x79, 0xC0, 0xFC, 0xE7, 0xFF, 0xCF, 0xCC, 0x99, 0xF3, 0xFC, 0xFF, 0xCC,
-    0x01, 0xF3, 0x3C, 0xCF, 0x1F, 0xF0, 0x3F, 0x78, 0x64, 0xCE, 0x9C, 0x39, 0xFF,
-    0x0F, 0x7F, 0xFE, 0xFC, 0xFF, 0xF9, 0x9C, 0xFF, 0x73, 0xE6, 0x7C, 0x9E, 0x33,
-    0xE7, 0xF9, 0xFF, 0x93, 0x73, 0xE6, 0x3C, 0xFF, 0x7F, 0x72, 0xCE, 0x3C, 0xCF,
-    0x73, 0xE6, 0xFC, 0xCF, 0x4C, 0x3C, 0x78, 0xF0, 0xE0, 0xFF, 0xD3, 0x9F, 0x7F,
-    0xFE, 0x1F, 0x78, 0xF0, 0xFF, 0xC1, 0x83, 0x9F, 0x0F, 0x1E, 0x1C, 0xF8, 0xFF,
-    0xF0, 0xC1, 0x83, 0x03, 0xFF, 0x3F, 0x3C, 0x38, 0xCF, 0xF1, 0xC1, 0x83, 0xFF,
-    0x33, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xDC, 0xE1, 0x3F, 0xFF, 0x9F, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xE7, 0xFF, 0xFF, 0x9F, 0xFF, 0x3F, 0xFF, 0xFF, 0xFF,
-    0xF3, 0xFF, 0x3F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xCC, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0x3F, 0xF3, 0x78, 0xCE, 0xFF, 0xE7, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xF9, 0xFF, 0xFF, 0xE7, 0xFF, 0xCF, 0xFF, 0xFF, 0xFF, 0xFC, 0xFF, 0xCF,
-    0xFF, 0xFF, 0x3F, 0xFF, 0xFF, 0xFF, 0x1F, 0xF8, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0x07, 0x7C, 0x3E, 0xF8, 0xFF, 0xFB, 0xFF, 0xFF, 0xFF, 0xFF, 0x3F, 0xFE, 0xFF,
-    0xFF, 0xFB, 0xFF, 0xF1, 0xFF, 0xFF, 0x7F, 0xFF, 0xFF, 0xF1, 0xFF, 0xFF, 0xCF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
-#endif
 };
 
 
@@ -883,6 +848,11 @@ static int vbe_ioport_write_data(void *opaque, uint32_t addr, uint32_t val)
             if (val == VBE_DISPI_ID_VBOX_VIDEO) {
                 s->vbe_regs[s->vbe_index] = val;
             }
+#ifdef VBOX_WITH_HGSMI
+            else if (val == VBE_DISPI_ID_HGSMI) {
+                s->vbe_regs[s->vbe_index] = val;
+            }
+#endif /* VBOX_WITH_HGSMI */
 #endif /* VBOX */
             break;
         case VBE_DISPI_INDEX_XRES:
@@ -1191,7 +1161,8 @@ uint32_t vga_mem_readb(void *opaque, target_phys_addr_t addr)
             && !vga_is_dirty(s, addr))
         {
             /** @todo only allow read access (doesn't work now) */
-            IOMMMIOModifyPage(PDMDevHlpGetVM(s->CTX_SUFF(pDevIns)), GCPhys, s->GCPhysVRAM + addr, X86_PTE_RW|X86_PTE_P);
+            STAM_COUNTER_INC(&s->StatMapPage);
+            IOMMMIOMapMMIO2Page(PDMDevHlpGetVM(s->CTX_SUFF(pDevIns)), GCPhys, s->GCPhysVRAM + addr, X86_PTE_RW|X86_PTE_P);
             /* Set as dirty as write accesses won't be noticed now. */
             vga_set_dirty(s, addr);
             s->fRemappedVGA = true;
@@ -1323,7 +1294,8 @@ int vga_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
             if (   (s->sr[2] & 3) == 3
                 && !vga_is_dirty(s, addr))
             {
-                IOMMMIOModifyPage(PDMDevHlpGetVM(s->CTX_SUFF(pDevIns)), GCPhys, s->GCPhysVRAM + addr, X86_PTE_RW | X86_PTE_P);
+                STAM_COUNTER_INC(&s->StatMapPage);
+                IOMMMIOMapMMIO2Page(PDMDevHlpGetVM(s->CTX_SUFF(pDevIns)), GCPhys, s->GCPhysVRAM + addr, X86_PTE_RW | X86_PTE_P);
                 s->fRemappedVGA = true;
             }
 # endif /* IN_RC */
@@ -1375,6 +1347,45 @@ int vga_mem_writeb(void *opaque, target_phys_addr_t addr, uint32_t val)
     } else {
         /* standard VGA latched access */
         VERIFY_VRAM_WRITE_OFF_RETURN(s, addr * 4 + 3);
+
+#ifdef IN_RING0
+        if (((++s->cLatchAccesses) & s->uMaskLatchAccess) == s->uMaskLatchAccess)
+        {
+            static uint32_t const s_aMask[5]  = {   0x3ff,   0x1ff,    0x7f,    0x3f,   0x1f};
+            static uint64_t const s_aDelta[5] = {10000000, 5000000, 2500000, 1250000, 625000};
+            if (PDMDevHlpCanEmulateIoBlock(s->CTX_SUFF(pDevIns)))
+            {
+                uint64_t u64CurTime = RTTimeSystemNanoTS();
+
+                /* About 1000 (or more) accesses per 10 ms will trigger a reschedule
+                * to the recompiler
+                */
+                if (u64CurTime - s->u64LastLatchedAccess < s_aDelta[s->iMask])
+                {
+                    s->u64LastLatchedAccess = 0;
+                    s->iMask                = RT_MIN(s->iMask + 1U, RT_ELEMENTS(s_aMask) - 1U);
+                    s->uMaskLatchAccess     = s_aMask[s->iMask];
+                    s->cLatchAccesses       = s->uMaskLatchAccess - 1;
+                    return VINF_EM_RAW_EMULATE_IO_BLOCK;
+                }
+                if (s->u64LastLatchedAccess)
+                {
+                    Log2(("Reset mask (was %d) delta %RX64 (limit %x)\n", s->iMask, u64CurTime - s->u64LastLatchedAccess, s_aDelta[s->iMask]));
+                    if (s->iMask)
+                        s->iMask--;
+                    s->uMaskLatchAccess     = s_aMask[s->iMask];
+                }
+                s->u64LastLatchedAccess = u64CurTime;
+            }
+            else
+            {
+                s->u64LastLatchedAccess = 0;
+                s->iMask                = 0;
+                s->uMaskLatchAccess     = s_aMask[s->iMask];
+                s->cLatchAccesses       = 0;
+            }
+        }
+#endif
 
         write_mode = s->gr[5] & 3;
         switch(write_mode) {
@@ -3090,6 +3101,29 @@ PDMBOTHCBDECL(int) vgaIOPortWriteVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOP
 
     NOREF(pvUser);
 
+#ifdef VBOX_WITH_HGSMI
+#ifdef IN_RING3
+    if (s->vbe_index == VBE_DISPI_INDEX_VBVA_GUEST)
+    {
+        HGSMIGuestWrite (s->pHGSMI, u32);
+        return VINF_SUCCESS;
+    }
+    if (s->vbe_index == VBE_DISPI_INDEX_VBVA_HOST)
+    {
+        HGSMIHostWrite (s->pHGSMI, u32);
+        return VINF_SUCCESS;
+    }
+#else
+    if (   s->vbe_index == VBE_DISPI_INDEX_VBVA_HOST
+        || s->vbe_index == VBE_DISPI_INDEX_VBVA_GUEST)
+    {
+        Log(("vgaIOPortWriteVBEData: %s - Switching to host...\n",
+             s->vbe_index == VBE_DISPI_INDEX_VBVA_HOST? "VBE_DISPI_INDEX_VBVA_HOST": "VBE_DISPI_INDEX_VBVA_GUEST"));
+        return VINF_IOM_HC_IOPORT_WRITE;
+    }
+#endif /* !IN_RING3 */
+#endif /* VBOX_WITH_HGSMI */
+
 #ifndef IN_RING3
     /*
      * This has to be done on the host in order to execute the connector callbacks.
@@ -3205,6 +3239,30 @@ PDMBOTHCBDECL(int) vgaIOPortWriteVBEIndex(PPDMDEVINS pDevIns, void *pvUser, RTIO
 PDMBOTHCBDECL(int) vgaIOPortReadVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
     NOREF(pvUser);
+
+#ifdef VBOX_WITH_HGSMI
+#ifdef IN_RING3
+    VGAState *s = PDMINS_2_DATA(pDevIns, PVGASTATE);
+
+    if (s->vbe_index == VBE_DISPI_INDEX_VBVA_GUEST)
+    {
+        *pu32 = HGSMIGuestRead (s->pHGSMI);
+        return VINF_SUCCESS;
+    }
+    if (s->vbe_index == VBE_DISPI_INDEX_VBVA_HOST)
+    {
+        *pu32 = HGSMIHostRead (s->pHGSMI);
+        return VINF_SUCCESS;
+    }
+#else
+    if (   Port == VBE_DISPI_INDEX_VBVA_HOST
+        || Port == VBE_DISPI_INDEX_VBVA_GUEST)
+    {
+       return VINF_IOM_HC_IOPORT_WRITE;
+    }
+#endif /* !IN_RING3 */
+#endif /* VBOX_WITH_HGSMI */
+
 #ifdef VBE_BYTEWISE_IO
     if (cb == 1)
     {
@@ -4114,10 +4172,17 @@ static void vbeShowBitmap(uint16_t cBits, uint16_t xLogo, uint16_t yLogo, uint16
                     pix = (c & 1) ? 0xFF : 0;
                     c >>= 1;
 
-                    *pu8TmpPtr++ = pix * iStep / LOGO_SHOW_STEPS;
-                    *pu8TmpPtr++ = pix * iStep / LOGO_SHOW_STEPS;
-                    *pu8TmpPtr++ = pix * iStep / LOGO_SHOW_STEPS;
-                    *pu8TmpPtr++;
+                    if (pix)
+                    {
+                        *pu8TmpPtr++ = pix * iStep / LOGO_SHOW_STEPS;
+                        *pu8TmpPtr++ = pix * iStep / LOGO_SHOW_STEPS;
+                        *pu8TmpPtr++ = pix * iStep / LOGO_SHOW_STEPS;
+                        *pu8TmpPtr++;
+                    }
+                    else
+                    {
+                        pu8TmpPtr += 4;
+                    }
 
                     j = (j + 1) % 8;
                     break;
@@ -4562,7 +4627,14 @@ static DECLCALLBACK(int) vgaPortUpdateDisplay(PPDMIDISPLAYPORT pInterface)
     PDMDEV_ASSERT_EMT(VGASTATE2DEVINS(pThis));
     PPDMDEVINS pDevIns = pThis->CTX_SUFF(pDevIns);
 
+#ifndef VBOX_WITH_HGSMI
     /* This should be called only in non VBVA mode. */
+#else
+    if (VBVAUpdateDisplay (pThis) == VINF_SUCCESS)
+    {
+        return VINF_SUCCESS;
+    }
+#endif /* VBOX_WITH_HGSMI */
 
     int rc = vga_update_display(pThis, false);
     if (rc != VINF_SUCCESS)
@@ -4720,7 +4792,7 @@ static DECLCALLBACK(int) vgaPortSnapshot(PPDMIDISPLAYPORT pInterface, void *pvDa
     pThis->fRenderVRAM = 1;             /* force the guest VRAM rendering to the given buffer. */
 
     /* make the snapshot.
-     * The second parameter is 'false' because the current display state, already updated by the 
+     * The second parameter is 'false' because the current display state, already updated by the
      * pfnUpdateDisplayAll call above, is being rendered to an external buffer using a fake connector.
      * That is if display is blanked, we expect a black screen in the external buffer.
      */
@@ -5245,6 +5317,12 @@ static DECLCALLBACK(void)  vgaR3Reset(PPDMDEVINS pDevIns)
     /* notify port handler */
     if (pThis->pDrv)
         pThis->pDrv->pfnReset(pThis->pDrv);
+
+    /* Reset latched access mask. */
+    pThis->uMaskLatchAccess     = 0x3ff;
+    pThis->cLatchAccesses       = 0;
+    pThis->u64LastLatchedAccess = 0;
+    pThis->iMask                = 0;
 }
 
 
@@ -5670,7 +5748,7 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     AssertReleaseMsg(g_cbVgaBiosBinary <= _64K && g_cbVgaBiosBinary >= 32*_1K, ("g_cbVgaBiosBinary=%#x\n", g_cbVgaBiosBinary));
     AssertReleaseMsg(RT_ALIGN_Z(g_cbVgaBiosBinary, PAGE_SIZE) == g_cbVgaBiosBinary, ("g_cbVgaBiosBinary=%#x\n", g_cbVgaBiosBinary));
     rc = PDMDevHlpROMRegister(pDevIns, 0x000c0000, g_cbVgaBiosBinary, &g_abVgaBiosBinary[0],
-                              false /* fShadow */, "VGA BIOS");
+                              PGMPHYS_ROM_FLAGS_PERMANENT_BINARY, "VGA BIOS");
     if (RT_FAILURE(rc))
         return rc;
 
@@ -6068,6 +6146,10 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     if (FileLogo != NIL_RTFILE)
         RTFileClose(FileLogo);
 
+#ifdef VBOX_WITH_HGSMI
+    VBVAInit (pThis);
+#endif /* VBOX_WITH_HGSMI */
+
     /*
      * Statistics.
      */
@@ -6075,7 +6157,10 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     STAM_REG(pVM, &pThis->StatR3MemoryRead,     STAMTYPE_PROFILE, "/Devices/VGA/R3/MMIO-Read",  STAMUNIT_TICKS_PER_CALL, "Profiling of the VGAGCMemoryRead() body.");
     STAM_REG(pVM, &pThis->StatRZMemoryWrite,    STAMTYPE_PROFILE, "/Devices/VGA/RZ/MMIO-Write", STAMUNIT_TICKS_PER_CALL, "Profiling of the VGAGCMemoryWrite() body.");
     STAM_REG(pVM, &pThis->StatR3MemoryWrite,    STAMTYPE_PROFILE, "/Devices/VGA/R3/MMIO-Write", STAMUNIT_TICKS_PER_CALL, "Profiling of the VGAGCMemoryWrite() body.");
+    STAM_REG(pVM, &pThis->StatMapPage,          STAMTYPE_COUNTER, "/Devices/VGA/MapPageCalls",  STAMUNIT_OCCURENCES,     "Calls to IOMMMIOMapMMIO2Page.");
 
+    /* Init latched access mask. */
+    pThis->uMaskLatchAccess = 0x3ff;
     return rc;
 }
 

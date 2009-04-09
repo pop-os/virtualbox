@@ -1,4 +1,4 @@
-/** $Id: VBoxServiceTimeSync.cpp $ */
+/** $Id: VBoxServiceTimeSync.cpp 18712 2009-04-03 20:15:26Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions TimeSync Service.
  */
@@ -125,6 +125,13 @@ static uint32_t g_TimeSyncMaxLatency = 250;
 /** The semaphore we're blocking on. */
 static RTSEMEVENTMULTI g_TimeSyncEvent = NIL_RTSEMEVENTMULTI;
 
+#ifdef RT_OS_WINDOWS
+/** Process token. */
+static HANDLE g_hTokenProcess = NULL;
+/** Old token privileges. */
+static TOKEN_PRIVILEGES g_OldTokenPrivileges;
+#endif
+
 
 /** @copydoc VBOXSERVICE::pfnPreInit */
 static DECLCALLBACK(int) VBoxServiceTimeSyncPreInit(void)
@@ -169,6 +176,51 @@ static DECLCALLBACK(int) VBoxServiceTimeSyncInit(void)
 
     int rc = RTSemEventMultiCreate(&g_TimeSyncEvent);
     AssertRC(rc);
+#ifdef RT_OS_WINDOWS
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Adjust priviledges of this process so we can make system time adjustments.
+         */
+        if (OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &g_hTokenProcess))
+        {
+            TOKEN_PRIVILEGES Tp;
+            RT_ZERO(Tp);
+            tp.PrivilegeCount = 1;
+            tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+            if (LookupPrivilegeValue(NULL, SE_SYSTEMTIME_NAME, &tp.Privileges[0].Luid))
+            {
+                DWORD cbRet = sizeof(g_OldTokenPrivileges);
+                if (!AdjustTokenPrivileges(g_hTokenProcess, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), &g_OldTokenPrivileges, &cbRet))
+                {
+                    DWORD dwErr = GetLastError();
+                    rc = RTErrConvertFromWin32(dwErr);
+                    VBoxServiceError("Adjusting token privileges (SE_SYSTEMTIME_NAME) failed with status code %u/%Rrc!\n", dwErr, rc);
+                }
+            }
+            else
+            {
+                DWORD dwErr = GetLastError();
+                rc = RTErrConvertFromWin32(dwErr);
+                VBoxServiceError("Looking up token privileges (SE_SYSTEMTIME_NAME) failed with status code %u/%Rrc!\n", dwErr, rc);
+            }
+
+            if (RT_FAILURE(rc))
+            {
+                CloseHandle(g_hTokenProcess);
+                g_hTokenProcess = NULL;
+            }
+        }
+        else
+        {
+            DWORD dwErr = GetLastError();
+            rc = RTErrConvertFromWin32(dwErr);
+            VBoxServiceError("Opening process token (SE_SYSTEMTIME_NAME) failed with status code %u/%Rrc!\n", dwErr, rc);
+            g_hTokenProcess = NULL;
+        }
+    }
+#endif /* RT_OS_WINDOWS */
+
     return rc;
 }
 
@@ -231,16 +283,16 @@ DECLCALLBACK(int) VBoxServiceTimeSyncWorker(bool volatile *pfShutdown)
                 if (RTTimeSpecGetMilli(&AbsDrift) > MinAdjust)
                 {
                     /*
-                     * The drift is to big, we have to make adjustments. :-/
+                     * The drift is too big, we have to make adjustments. :-/
                      * If we've got adjtime around, try that first - most
                      * *NIX systems have it. Fall back on settimeofday.
                      */
 #ifdef RT_OS_WINDOWS
-                    /* just make sure it compiles for now, but later:
+                    /* Just make sure it compiles for now, but later:
                      SetSystemTimeAdjustment and fall back on SetSystemTime.
                      */
-                    AssertFatalFailed();
-#else
+                    //AssertFatalFailed();
+#else  /* !RT_OS_WINDOWS */
                     struct timeval tv;
 # if !defined(RT_OS_OS2) /* PORTME */
                     RTTimeSpecGetTimeval(&Drift, &tv);
@@ -319,8 +371,27 @@ static DECLCALLBACK(void) VBoxServiceTimeSyncStop(void)
 /** @copydoc VBOXSERVICE::pfnTerm */
 static DECLCALLBACK(void) VBoxServiceTimeSyncTerm(void)
 {
-    RTSemEventMultiDestroy(g_TimeSyncEvent);
-    g_TimeSyncEvent = NIL_RTSEMEVENTMULTI;
+#ifdef RT_OS_WINDOWS
+    /*
+     * Restore the SE_SYSTEMTIME_NAME token privileges (if init succeeded).
+     */
+    if (g_hTokenProcess)
+    {
+        if (!AdjustTokenPrivileges(g_hTokenProcess, FALSE, &g_tpOld, sizeof(TOKEN_PRIVILEGES), NULL, NULL))
+        {
+            DWORD dwErr = GetLastError();
+            VBoxServiceError("Restoring token privileges (SE_SYSTEMTIME_NAME) failed with code %u!\n", dwErr);
+        }
+        CloseHandle(g_hTokenProcess);
+        g_hTokenProcess = NULL;
+    }
+#endif
+
+    if (g_TimeSyncEvent != NIL_RTSEMEVENTMULTI)
+    {
+        RTSemEventMultiDestroy(g_TimeSyncEvent);
+        g_TimeSyncEvent = NIL_RTSEMEVENTMULTI;
+    }
 }
 
 

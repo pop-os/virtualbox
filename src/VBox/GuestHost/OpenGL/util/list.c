@@ -1,8 +1,12 @@
 #include "cr_list.h"
-#include <assert.h>
+#include "cr_error.h"
+#include "cr_mem.h"
+
+#if CR_TESTING_LIST
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#endif
 
 struct CRListIterator {
 	void *element;
@@ -18,14 +22,14 @@ struct CRList {
 
 CRList *crAllocList( void )
 {
-	CRList *l = malloc( sizeof( CRList ) );
-	assert( l );
+	CRList *l = crAlloc( sizeof( CRList ) );
+	CRASSERT( l );
 
-	l->head = malloc( sizeof( CRListIterator ) );
-	assert( l->head );
+	l->head = crAlloc( sizeof( CRListIterator ) );
+	CRASSERT( l->head );
 
-	l->tail = malloc( sizeof( CRListIterator ) );
-	assert( l->tail );
+	l->tail = crAlloc( sizeof( CRListIterator ) );
+	CRASSERT( l->tail );
 
 	l->head->prev = NULL;
 	l->head->next = l->tail;
@@ -42,7 +46,7 @@ void crFreeList( CRList *l )
 {
 	CRListIterator *t1;
 
-	assert( l != NULL );
+	CRASSERT( l != NULL );
 	t1 = l->head;
 	while ( t1 != NULL )
 	{
@@ -51,10 +55,10 @@ void crFreeList( CRList *l )
 		t2->prev = NULL;
 		t2->next = NULL;
 		t2->element = NULL;
-		free( t2 );
+		crFree( t2 );
 	}
 	l->size = 0;
-	free( l );
+	crFree( l );
 }
 
 unsigned crListSize( const CRList *l )
@@ -64,7 +68,7 @@ unsigned crListSize( const CRList *l )
 
 int crListIsEmpty( const CRList *l )
 {
-	assert( l != NULL );
+	CRASSERT( l != NULL );
 	return l->size == 0;
 }
 
@@ -72,12 +76,12 @@ void crListInsert( CRList *l, CRListIterator *iter, void *elem )
 {
 	CRListIterator *p;
 
-	assert( l != NULL );
-	assert( iter != NULL );
-	assert( iter != l->head );
+	CRASSERT( l != NULL );
+	CRASSERT( iter != NULL );
+	CRASSERT( iter != l->head );
 
-	p = malloc( sizeof( CRListIterator ) );
-	assert( p != NULL );
+	p = crAlloc( sizeof( CRListIterator ) );
+	CRASSERT( p != NULL );
 	p->prev = iter->prev;
 	p->next = iter;
 	p->prev->next = p;
@@ -89,11 +93,11 @@ void crListInsert( CRList *l, CRListIterator *iter, void *elem )
 
 void crListErase( CRList *l, CRListIterator *iter )
 {
-	assert( l != NULL );
-	assert( iter != NULL );
-	assert( iter != l->head );
-	assert( iter != l->tail );
-	assert( l->size > 0 );
+	CRASSERT( l != NULL );
+	CRASSERT( iter != NULL );
+	CRASSERT( iter != l->head );
+	CRASSERT( iter != l->tail );
+	CRASSERT( l->size > 0 );
 
 	iter->next->prev = iter->prev;
 	iter->prev->next = iter->next;
@@ -101,14 +105,14 @@ void crListErase( CRList *l, CRListIterator *iter )
 	iter->prev = NULL;
 	iter->next = NULL;
 	iter->element = NULL;
-	free( iter );
+	crFree( iter );
 
 	l->size--;
 }
 
 void crListClear( CRList *l )
 {
-	assert( l != NULL );
+	CRASSERT( l != NULL );
 	while ( !crListIsEmpty( l ) )
 	{
 		crListPopFront( l );
@@ -117,80 +121,80 @@ void crListClear( CRList *l )
 
 void crListPushBack( CRList *l, void *elem )
 {
-	assert( l != NULL );
+	CRASSERT( l != NULL );
 	crListInsert( l, l->tail, elem );
 }
 
 void crListPushFront( CRList *l, void *elem )
 {
-	assert( l != NULL );
+	CRASSERT( l != NULL );
 	crListInsert( l, l->head->next, elem );
 }
 
 void crListPopBack( CRList *l )
 {
-	assert( l != NULL );
-	assert( l->size > 0 );
+	CRASSERT( l != NULL );
+	CRASSERT( l->size > 0 );
 	crListErase( l, l->tail->prev );
 }
 
 void crListPopFront( CRList *l )
 {
-	assert( l != NULL );
-	assert( l->size > 0 );
+	CRASSERT( l != NULL );
+	CRASSERT( l->size > 0 );
 	crListErase( l, l->head->next );
 }
 
 void *crListFront( CRList *l )
 {
-	assert( l != NULL );
-	assert( l->size > 0 );
-	assert( l->head != NULL );
-	assert( l->head->next != NULL );
+	CRASSERT( l != NULL );
+	CRASSERT( l->size > 0 );
+	CRASSERT( l->head != NULL );
+	CRASSERT( l->head->next != NULL );
 	return l->head->next->element;
 }
 
 void *crListBack( CRList *l )
 {
-	assert( l != NULL );
-	assert( l->size > 0 );
-	assert( l->tail != NULL );
-	assert( l->tail->prev != NULL );
+	CRASSERT( l != NULL );
+	CRASSERT( l->size > 0 );
+	CRASSERT( l->tail != NULL );
+	CRASSERT( l->tail->prev != NULL );
 	return l->tail->prev->element;
 }
 
 CRListIterator *crListBegin( CRList *l )
 {
-	assert( l != NULL );
-	assert( l->head != NULL );
-	assert( l->head->next != NULL );
+	CRASSERT( l != NULL );
+	CRASSERT( l->head != NULL );
+	CRASSERT( l->head->next != NULL );
 	return l->head->next;
 }
 
 CRListIterator *crListEnd( CRList *l )
 {
-	assert( l != NULL );
-	assert( l->tail != NULL );
+	CRASSERT( l != NULL );
+	CRASSERT( l->tail != NULL );
 	return l->tail;
 }
 
 CRListIterator *crListNext( CRListIterator *iter )
 {
-	assert( iter != NULL );
-	assert( iter->next != NULL );
+	CRASSERT( iter != NULL );
+	CRASSERT( iter->next != NULL );
 	return iter->next;
 }
 
 CRListIterator *crListPrev( CRListIterator *iter )
 {
-	assert( iter != NULL );
-	assert( iter->prev != NULL );
+	CRASSERT( iter != NULL );
+	CRASSERT( iter->prev != NULL );
 	return iter->prev;
 }
 
 void *crListElement( CRListIterator *iter )
 {
-	assert( iter != NULL );
+	CRASSERT( iter != NULL );
 	return iter->element;
 }
 
@@ -198,8 +202,8 @@ CRListIterator *crListFind( CRList *l, void *element, CRListCompareFunc compare 
 {
 	CRListIterator *iter;
 
-	assert( l != NULL );
-	assert( compare );
+	CRASSERT( l != NULL );
+	CRASSERT( compare );
 
 	for ( iter = crListBegin( l ); iter != crListEnd( l ); iter = crListNext( iter ) )
 	{
@@ -215,7 +219,7 @@ void crListApply( CRList *l, CRListApplyFunc apply, void *arg )
 {
 	CRListIterator *iter;
 
-	assert( l != NULL );
+	CRASSERT( l != NULL );
 	for ( iter = crListBegin( l ); iter != crListEnd( l ); iter = crListNext( iter ) )
 	{
 		apply( iter->element, arg );
@@ -229,14 +233,14 @@ static void printElement( void *elem, void *arg )
 	char *s = elem;
 	FILE *fp = arg;
 
-	assert( s != NULL );
-	assert( fp != NULL );
+	CRASSERT( s != NULL );
+	CRASSERT( fp != NULL );
 	fprintf( fp, "%s ", s );
 }
 
 static void printList( CRList *l )
 {
-	assert( l != NULL );
+	CRASSERT( l != NULL );
 	crListApply( l, printElement, stderr );
 	fprintf( stderr, "\n" );
 }
@@ -276,12 +280,12 @@ int main( void )
 	printList( l );
 
 	iter = crListFind( l, "c", elementCompare );
-	assert( iter != NULL );
+	CRASSERT( iter != NULL );
 	crListInsert( l, iter, "z" );
 	printList( l );
 
 	iter = crListFind( l, "d", elementCompare );
-	assert( iter != NULL );
+	CRASSERT( iter != NULL );
 	crListErase( l, iter );
 	printList( l );
 

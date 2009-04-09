@@ -1,4 +1,4 @@
-/* $Id: VBoxFBQuartz2D.cpp $ */
+/* $Id: VBoxFBQuartz2D.cpp 17201 2009-02-27 12:51:37Z vboxsync $ */
 /** @file
  * Qt GUI (aka VirtualBox) - Quartz2D framebuffer implementation.
  */
@@ -28,14 +28,12 @@
 #include "VBoxConsoleView.h"
 #include "VBoxProblemReporter.h"
 #include "VBoxGlobal.h"
+#include "VBoxUtils.h"
 /* Needed for checking against seamless mode */
 #include "VBoxConsoleWnd.h"
 #include "VBoxIChatTheaterWrapper.h"
 
-/* Qt includes */
-#include <qapplication.h>
-#include <qmainwindow.h>
-#include <qstatusbar.h>
+//#define COMP_WITH_SHADOW
 
 /** @class VBoxQuartz2DFrameBuffer
  *
@@ -134,7 +132,7 @@ STDMETHODIMP VBoxQuartz2DFrameBuffer::SetVisibleRegion (BYTE *aRectangles, ULONG
 
         CGRect *cgRct = &rgnRcts->rcts[rgnRcts->used];
         cgRct->origin.x = rect.x();
-        cgRct->origin.y = rect.y();
+        cgRct->origin.y = height() - rect.y() - rect.height();
         cgRct->size.width = rect.width();
         cgRct->size.height = rect.height();
 //        printf ("Region rect[%d - %d]: %d %d %d %d\n", rgnRcts->used, aCount, rect.x(), rect.y(), rect.height(), rect.width());
@@ -152,70 +150,59 @@ STDMETHODIMP VBoxQuartz2DFrameBuffer::SetVisibleRegion (BYTE *aRectangles, ULONG
     return S_OK;
 }
 
-void VBoxQuartz2DFrameBuffer::paintEvent (QPaintEvent *pe)
+void VBoxQuartz2DFrameBuffer::paintEvent (QPaintEvent *aEvent)
 {
-    /* Some general hints at the beginning:
-     * The console is not a real sub window of the main window. There is
-     * one real mac window only. This means all the drawing on the context has
-     * to pay attention to the statusbar, the scrollbars, the shifting spacers
-     * and any frame borders.
-     * Secondly the origin of the coordinate system is differently defined in
-     * Qt and Quartz2D. In Qt the point (0, 0) means top/left where this is
-     * bottom/left in Quartz2D. Use mapYOrigin to map from Qt to Quartz2D.
-     *
-     * For debugging /Developer/Applications/Performance Tools/Quartz Debug.app
-     * is a nice tool to see which parts of the screen are updated. */
+    /* For debugging /Developer/Applications/Performance Tools/Quartz
+     * Debug.app is a nice tool to see which parts of the screen are
+     * updated.*/
 
     Assert (mImage);
 
-    QWidget *pMain = qApp->mainWidget();
-    Assert (pMain);
-    /* Calculate the view rect to draw in */
-    QPoint p = mView->viewport()->mapTo (pMain, QPoint (0, 0));
-    QRect Q2DViewRect = mapYOrigin (QRect (p.x(), p.y(), mView->width(), mView->height()), pMain->height());
-    /* We have to pay special attention to the scrollbars */
-    if (mView->horizontalScrollBar()->isVisible())
-        Q2DViewRect.setY (Q2DViewRect.y() + (mView->horizontalScrollBar()->frameSize().height() + 2));
-    if (mView->verticalScrollBar()->isVisible())
-        Q2DViewRect.setWidth (Q2DViewRect.width() - (mView->verticalScrollBar()->frameSize().width() + 2));
+    VBoxConsoleWnd *main = qobject_cast <VBoxConsoleWnd *> (vboxGlobal().mainWindow());
+    Assert (VALID_PTR (main));
+    QWidget* viewport = mView->viewport();
+    Assert (VALID_PTR (viewport));
+    /* Get the dimensions of the viewport */
+    CGRect viewRect = ::darwinToCGRect (viewport->geometry());
+    /* Get the context of this window from Qt */
+    CGContextRef ctx = ::darwinToCGContextRef (viewport);
+    Assert (VALID_PTR (ctx));
 
-    /* Create the context to draw on */
-    WindowPtr window = static_cast <WindowPtr> (mView->viewport()->handle());
-    SetPortWindowPort (window);
-    CGContextRef ctx;
-    QDBeginCGContext (GetWindowPort (window), &ctx);
+    /* Flip the context */
+    CGContextTranslateCTM (ctx, 0, viewRect.size.height);
+    CGContextScaleCTM (ctx, 1.0, -1.0);
+
     /* We handle the seamless mode as a special case. */
-    if (static_cast <VBoxConsoleWnd*> (pMain)->isTrueSeamless())
+    if (main->isTrueSeamless())
     {
         /* Here we paint the windows without any wallpaper.
          * So the background would be set transparently. */
 
         /* Create a subimage of the current view.
          * Currently this subimage is the whole screen. */
-        CGImageRef subImage = CGImageCreateWithImageInRect (mImage, CGRectMake (mView->contentsX(), mView->contentsY(), mView->visibleWidth(), mView->visibleHeight()));
-        Assert (subImage);
+        CGImageRef subImage;
+        if (!mView->pauseShot().isNull())
+            subImage = CGImageCreateWithImageInRect (::darwinToCGImageRef (&mView->pauseShot()), CGRectMake (mView->contentsX(), mView->contentsY(), mView->visibleWidth(), mView->visibleHeight()));
+        else
+            subImage = CGImageCreateWithImageInRect (mImage, CGRectMake (mView->contentsX(), mView->contentsY(), mView->visibleWidth(), mView->visibleHeight()));
+        Assert (VALID_PTR (subImage));
         /* Clear the background (Make the rect fully transparent) */
-        Rect winRect;
-        GetPortBounds (GetWindowPort (window), &winRect);
-        CGContextClearRect (ctx, CGRectMake (winRect.left, winRect.top, winRect.right - winRect.left, winRect.bottom - winRect.top));
+        CGContextClearRect (ctx, viewRect);
+#ifdef COMP_WITH_SHADOW
+        /* Enable shadows */
+        CGContextSetShadow (ctx, CGSizeMake (10, -10), 10);
+        CGContextBeginTransparencyLayer (ctx, NULL);
+#endif
         /* Grab the current visible region. */
         RegionRects *rgnRcts = (RegionRects *) ASMAtomicXchgPtr ((void * volatile *) &mRegion, NULL);
         if (rgnRcts)
         {
             if (rgnRcts->used > 0)
             {
-                /* Save state for display fliping */
-                CGContextSaveGState (ctx);
-                /* Flip the y-coord */
-                CGContextScaleCTM (ctx, 1.0, -1.0);
-                CGContextTranslateCTM (ctx, Q2DViewRect.x(), -Q2DViewRect.height() - Q2DViewRect.y());
                 /* Add the clipping rects all at once. They are defined in
                  * SetVisibleRegion. */
                 CGContextBeginPath (ctx);
                 CGContextAddRects (ctx, rgnRcts->rcts, rgnRcts->used);
-                /* Restore the context state. Note that the
-                 * current path isn't destroyed. */
-                CGContextRestoreGState (ctx);
                 /* Now convert the path to a clipping path. */
                 CGContextClip (ctx);
             }
@@ -225,9 +212,12 @@ void VBoxQuartz2DFrameBuffer::paintEvent (QPaintEvent *pe)
                 RTMemFree (rgnRcts);
         }
         /* In any case clip the drawing to the view window */
-        CGContextClipToRect (ctx, QRectToCGRect (Q2DViewRect));
+        CGContextClipToRect (ctx, viewRect);
         /* At this point draw the real vm image */
-        CGContextDrawImage (ctx, QRectToCGRect (Q2DViewRect), subImage);
+        CGContextDrawImage (ctx, ::darwinFlipCGRect (viewRect, viewRect.size.height), subImage);
+#ifdef COMP_WITH_SHADOW
+        CGContextEndTransparencyLayer (ctx);
+#endif
     }
     else
     {
@@ -235,62 +225,48 @@ void VBoxQuartz2DFrameBuffer::paintEvent (QPaintEvent *pe)
 
         /* Create a subimage of the current view in the size
          * of the bounding box of the current paint event */
-        QRect ir = pe->rect();
+        QRect ir = aEvent->rect();
         QRect is = QRect (ir.x() + mView->contentsX(), ir.y() + mView->contentsY(), ir.width(), ir.height());
-        CGImageRef subImage = CGImageCreateWithImageInRect (mImage, QRectToCGRect (is));
-        Assert (subImage);
-
+        CGImageRef subImage;
+        if (!mView->pauseShot().isNull())
+            subImage = CGImageCreateWithImageInRect (::darwinToCGImageRef (&mView->pauseShot()), ::darwinToCGRect (is));
+        else
+            subImage = CGImageCreateWithImageInRect (mImage, ::darwinToCGRect (is));
+        Assert (VALID_PTR (subImage));
         /* Ok, for more performance we set a clipping path of the
          * regions given by this paint event. */
-        QMemArray <QRect> a = pe->region().rects();
-        if (a.size() > 0)
+        QVector<QRect> a = aEvent->region().rects();
+        if (!a.isEmpty())
         {
-            /* Save state for display fliping */
-            CGContextSaveGState (ctx);
-            /* Flip the y-coord */
-            CGContextScaleCTM (ctx, 1.0, -1.0);
-            CGContextTranslateCTM (ctx, Q2DViewRect.x(), -Q2DViewRect.height() - Q2DViewRect.y());
             CGContextBeginPath (ctx);
             /* Add all region rects to the current context as path components */
-            for (unsigned int i = 0; i < a.size(); ++i)
-                CGContextAddRect (ctx, QRectToCGRect (a[i]));
-            CGContextRestoreGState (ctx);
+            for (int i = 0; i < a.size(); ++i)
+                CGContextAddRect (ctx, ::darwinFlipCGRect (::darwinToCGRect (a[i]), viewRect.size.height));
             /* Now convert the path to a clipping path. */
             CGContextClip (ctx);
         }
 
         /* In any case clip the drawing to the view window */
-        CGContextClipToRect (ctx, QRectToCGRect (Q2DViewRect));
-        /* Draw the sub image to the right position */
-        QPoint p = mView->viewport()->mapTo (pMain, QPoint (ir.x(), ir.y()));
-        QRect cr = mapYOrigin (QRect (p.x(), p.y(), ir.width(), ir.height()), pMain->height());
-        CGContextDrawImage (ctx, QRectToCGRect (cr), subImage);
+        CGContextClipToRect (ctx, viewRect);
+        /* At this point draw the real vm image */
+        CGContextDrawImage (ctx, ::darwinFlipCGRect (::darwinToCGRect (ir), viewRect.size.height), subImage);
     }
-    QDEndCGContext (GetWindowPort (window), &ctx);
 }
-/* Save for later shadow stuff ... */
-//        CGContextSetShadow (myContext, myShadowOffset, 10);
-//        CGContextBeginTransparencyLayer (myContext, NULL);
-//        CGContextSetShadow (myContext, CGSizeMake (10, 5), 1);
-//        CGContextClipToRect (myContext, rect);
-//        QRect ir = pe->rect();
-//        CGContextClipToRect (myContext, CGRectMake (ir.y(), ir.x(), ir.width(), ir.height()));
-//        CGContextEndTransparencyLayer (myContext);
 
-void VBoxQuartz2DFrameBuffer::resizeEvent (VBoxResizeEvent *re)
+void VBoxQuartz2DFrameBuffer::resizeEvent (VBoxResizeEvent *aEvent)
 {
 #if 0
     printf ("fmt=%lu, vram=%X, bpp=%lu, bpl=%lu, width=%lu, height=%lu\n",
-           re->pixelFormat(), (unsigned int)re->VRAM(),
-           re->bitsPerPixel(), re->bytesPerLine(),
-           re->width(), re->height());
+           aEvent->pixelFormat(), (unsigned int)aEvent->VRAM(),
+           aEvent->bitsPerPixel(), aEvent->bytesPerLine(),
+           aEvent->width(), aEvent->height());
 #endif
 
     /* Clean out old stuff */
     clean();
 
-    mWdt = re->width();
-    mHgt = re->height();
+    mWdt = aEvent->width();
+    mHgt = aEvent->height();
 
     bool remind = false;
 
@@ -299,17 +275,17 @@ void VBoxQuartz2DFrameBuffer::resizeEvent (VBoxResizeEvent *re)
     /* Check if we support the pixel format/colordepth and can use the guest VRAM directly.
      * Mac OS X supports 16 bit also but not in the 565 mode. So we could use
      * 32 bit only. */
-    if (   re->pixelFormat() == FramebufferPixelFormat_FOURCC_RGB
-        && re->bitsPerPixel() == 32)
+    if (   aEvent->pixelFormat() == FramebufferPixelFormat_FOURCC_RGB
+        && aEvent->bitsPerPixel() == 32)
     {
 //        printf ("VRAM\n");
         CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
         /* Create the image copy of the framebuffer */
-        CGDataProviderRef dp = CGDataProviderCreateWithData (NULL, re->VRAM(), re->bitsPerPixel() / 8 * mWdt * mHgt, NULL);
-        mImage = CGImageCreate (mWdt, mHgt, 8, re->bitsPerPixel(), re->bytesPerLine(), cs,
+        CGDataProviderRef dp = CGDataProviderCreateWithData (NULL, aEvent->VRAM(), aEvent->bitsPerPixel() / 8 * mWdt * mHgt, NULL);
+        mImage = CGImageCreate (mWdt, mHgt, 8, aEvent->bitsPerPixel(), aEvent->bytesPerLine(), cs,
                                 kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Little, dp, 0, false,
                                 kCGRenderingIntentDefault);
-        mDataAddress = re->VRAM();
+        mDataAddress = aEvent->VRAM();
         CGDataProviderRelease (dp);
     }
     else
@@ -348,7 +324,7 @@ void VBoxQuartz2DFrameBuffer::resizeEvent (VBoxResizeEvent *re)
 //                vboxProblem().remindAboutWrongColorDepth (mRealBPP, 32);
 //            }
 //        };
-//        (new RemindEvent (re->bitsPerPixel()))->post();
+//        (new RemindEvent (aEvent->bitsPerPixel()))->post();
 //    }
 }
 

@@ -12,6 +12,8 @@
 
 #include "config.h"
 
+#define VBOX_ONLY(x) x
+
 #ifndef _MSC_VER
 #define qemu_snprintf(pszBuf, cbBuf, ...) RTStrPrintf((pszBuf), (cbBuf), __VA_ARGS__)
 #else
@@ -48,6 +50,8 @@
 #else /* !VBOX */
 
 #include <stdarg.h>
+
+#define VBOX_ONLY(x)
 
 #define qemu_snprintf snprintf   /* bird */
 #define qemu_vsnprintf vsnprintf /* bird */
@@ -181,7 +185,7 @@ typedef struct timeval qemu_timeval;
 #define SAVE_GLOBAL_REGISTER(reg, var)     __asm__ __volatile__ ("" : "=r" (var))
 #define RESTORE_GLOBAL_REGISTER(reg, var) __asm__ __volatile__ ("" : : "r" (var))
 #define DECLALWAYSINLINE(type) static always_inline type
-#define FORCE_RET() __asm__ __volatile__("" : : : "memory");
+#define FORCE_RET() ;
 #endif /* !_MSC_VER */
 #endif /* VBOX */
 

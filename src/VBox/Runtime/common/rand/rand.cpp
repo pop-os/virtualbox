@@ -1,4 +1,4 @@
-/* $Id: rand.cpp $ */
+/* $Id: rand.cpp 11557 2008-08-21 21:47:31Z vboxsync $ */
 /** @file
  * IPRT - Random Numbers.
  */

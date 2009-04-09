@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 18564 2009-03-31 12:20:05Z vboxsync $
 ## @file
 # Top-level makefile for the external libraries.
 #
@@ -29,7 +29,11 @@ include $(KBUILD_PATH)/subheader.kmk
 #
 
 # Compression libs used by IPRT and <what was it again?>.
-include $(PATH_SUB_CURRENT)/liblzf-1.51/Makefile.kmk
+ifdef VBOX_WITH_NEW_LIBLZF
+ include $(PATH_SUB_CURRENT)/liblzf-3.4/Makefile.kmk
+else
+ include $(PATH_SUB_CURRENT)/liblzf-1.51/Makefile.kmk
+endif
 if !defined(VBOX_ONLY_SDK) \
  && "$(SDK_VBOX_ZLIB_INCS)" == "$(PATH_ROOT)/src/libs/zlib-1.2.1"
  include $(PATH_SUB_CURRENT)/zlib-1.2.1/Makefile.kmk
@@ -49,7 +53,7 @@ endif
 # OpenSSL for VRDP.
 if defined(VBOX_WITH_VRDP) && !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_SDK) \
  && "$(SDK_VBOX_OPENSSL_INCS)" == "$(SDK_VBOX_OPENSSL_DEFAULT_INCS)"
- include $(PATH_SUB_CURRENT)/openssl-0.9.8j/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/openssl-0.9.8k/Makefile.kmk
 endif
 
 
@@ -74,6 +78,12 @@ if defined(VBOX_WITH_MAIN) && !defined(VBOX_ONLY_DOCS)
  endif
 
 endif # VBOX_WITH_MAIN && !VBOX_ONLY_DOCS
+
+if defined(VBOX_WITH_CROGL) && !defined(VBOX_OSE)
+ ifeq ($(KBUILD_TARGET),linux)
+  include $(PATH_SUB_CURRENT)/mesa-7.2/Makefile.kmk
+ endif
+endif
 
 include $(KBUILD_PATH)/subfooter.kmk
 

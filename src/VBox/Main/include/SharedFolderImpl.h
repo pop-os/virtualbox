@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +23,6 @@
 #define ____H_SHAREDFOLDERIMPL
 
 #include "VirtualBoxBase.h"
-#include "Collection.h"
 #include <VBox/shflsvc.h>
 
 class Machine;
@@ -42,9 +41,10 @@ public:
     {
         Data() {}
 
-        const Bstr mName;
-        const Bstr mHostPath;
-        BOOL       mWritable;
+        const Bstr name;
+        const Bstr hostPath;
+        BOOL       writable;
+        Bstr       lastAccessError;
     };
 
     VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (SharedFolder)
@@ -77,6 +77,7 @@ public:
     STDMETHOD(COMGETTER(HostPath)) (BSTR *aHostPath);
     STDMETHOD(COMGETTER(Accessible)) (BOOL *aAccessible);
     STDMETHOD(COMGETTER(Writable)) (BOOL *aWritable);
+    STDMETHOD(COMGETTER(LastAccessError)) (BSTR *aLastAccessError);
 
     // public methods for internal purposes only
     // (ensure there is a caller and a read lock before calling them!)
@@ -84,9 +85,9 @@ public:
     // public methods that don't need a lock (because access constant data)
     // (ensure there is a caller added before calling them!)
 
-    const Bstr &name() const { return mData.mName; }
-    const Bstr &hostPath() const { return mData.mHostPath; }
-    BOOL writable() const { return mData.mWritable; }
+    const Bstr &name() const { return m.name; }
+    const Bstr &hostPath() const { return m.hostPath; }
+    BOOL writable() const { return m.writable; }
 
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"SharedFolder"; }
@@ -105,38 +106,8 @@ private:
     const ComObjPtr <Console, ComWeakRef> mConsole;
     const ComObjPtr <VirtualBox, ComWeakRef> mVirtualBox;
 
-    Data mData;
+    Data m;
 };
-
-COM_DECL_READONLY_ENUM_AND_COLLECTION_BEGIN (SharedFolder)
-
-    STDMETHOD(FindByName) (IN_BSTR aName, ISharedFolder **aSharedFolder)
-    {
-        if (!aName)
-            return E_INVALIDARG;
-        if (!aSharedFolder)
-            return E_POINTER;
-
-        *aSharedFolder = NULL;
-        Vector::value_type found;
-        Vector::iterator it = vec.begin();
-        while (it != vec.end() && !found)
-        {
-            Bstr name;
-            (*it)->COMGETTER(Name) (name.asOutParam());
-            if (name == aName)
-                found = *it;
-            ++ it;
-        }
-
-        if (!found)
-            return setError (E_INVALIDARG, SharedFolderCollection::tr (
-                "Could not find the shared folder '%ls'"), aName);
-
-        return found.queryInterfaceTo (aSharedFolder);
-    }
-
-COM_DECL_READONLY_ENUM_AND_COLLECTION_END (SharedFolder)
 
 #endif // ____H_SHAREDFOLDERIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

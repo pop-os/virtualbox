@@ -1,4 +1,4 @@
-/* $Id: kProfileR3.cpp 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kProfileR3.cpp 9 2008-04-20 03:47:01Z bird $ */
 /** @file
  * kProfiler Mark 2 - The Ring-3 Implementation.
  */
@@ -28,7 +28,8 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#if defined(KPRF_OS_WINDOWS)
+#include <k/kDefs.h>
+#if K_OS == K_OS_WINDOWS
 # include <windows.h>
 # include <psapi.h>
 # include <malloc.h>
@@ -37,7 +38,7 @@
 #  define HAVE_INTRIN
 # endif
 
-#elif defined(KPRF_OS_LINUX) || defined(KPRF_OS_FREEBSD)
+#elif K_OS == K_OS_LINUX || K_OS == K_OS_FREEBSD
 # define KPRF_USE_PTHREAD
 # include <pthread.h>
 # include <stdint.h>
@@ -50,7 +51,7 @@
 #  define O_BINARY 0
 # endif
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
 # define INCL_BASE
 # include <os2.h>
 # include <stdint.h>
@@ -68,7 +69,7 @@
  */
 #define KPRF_NAME(Suffix)               KPrf##Suffix
 #define KPRF_TYPE(Prefix,Suffix)        Prefix##KPRF##Suffix
-#if defined(KPRF_OS_WINDOWS) || defined(KPRF_OS_OS2)
+#if K_OS == K_OS_WINDOWS || K_OS == K_OS_OS2
 # define KPRF_DECL_FUNC(type, name)     extern "C"  __declspec(dllexport) type __cdecl KPRF_NAME(name)
 #else
 # define KPRF_DECL_FUNC(type, name)     extern "C" type KPRF_NAME(name)
@@ -93,9 +94,9 @@
 /** Mutex lock type. */
 #if defined(KPRF_USE_PTHREAD)
 typedef pthread_mutex_t     KPRF_TYPE(,MUTEX);
-#elif defined(KPRF_OS_WINDOWS)
+#elif K_OS == K_OS_WINDOWS
 typedef CRITICAL_SECTION    KPRF_TYPE(,MUTEX);
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
 typedef struct _fmutex      KPRF_TYPE(,MUTEX);
 #endif
 /** Pointer to a mutex lock. */
@@ -105,7 +106,7 @@ typedef KPRF_TYPE(,MUTEX)  *KPRF_TYPE(P,MUTEX);
 #if defined(KPRF_USE_PTHREAD)
 /** Read/Write lock type. */
 typedef pthread_rwlock_t    KPRF_TYPE(,RWLOCK);
-#elif defined(KPRF_OS_WINDOWS) || defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_WINDOWS || K_OS == K_OS_OS2
 /** Read/Write lock state. */
 typedef enum KPRF_TYPE(,RWLOCKSTATE)
 {
@@ -131,12 +132,12 @@ typedef struct KPRF_TYPE(,RWLOCK)
     KU32                    cReadersWaiting;
     /** The current number of waiting writers. */
     KU32                    cWritersWaiting;
-# if defined(KPRF_OS_WINDOWS)
+# if K_OS == K_OS_WINDOWS
     /** The handle of the event object on which the waiting readers block. (manual reset). */
     HANDLE                  hevReaders;
     /** The handle of the event object on which the waiting writers block. (manual reset). */
     HANDLE                  hevWriters;
-# elif defined(KPRF_OS_OS2)
+# elif K_OS == K_OS_OS2
     /** The handle of the event semaphore on which the waiting readers block. */
     HEV                     hevReaders;
     /** The handle of the event semaphore on which the waiting writers block. */
@@ -155,13 +156,13 @@ typedef KPRF_TYPE(,RWLOCK) *KPRF_TYPE(P,RWLOCK);
 *   Global Variables                                                           *
 *******************************************************************************/
 /** The TLS index / key. */
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
 static DWORD                g_dwThreadTLS = TLS_OUT_OF_INDEXES;
 
 #elif defined(KPRF_USE_PTHREAD)
 static pthread_key_t        g_ThreadKey = (pthread_key_t)-1;
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
 static KPRF_TYPE(P,THREAD) *g_ppThread = NULL;
 
 #else
@@ -210,14 +211,14 @@ static inline KPRF_TYPE(P,THREAD) kPrfGetThread(void)
     KPRF_TYPE(P,THREAD) pThread;
 
 /* Win32/64 */
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     pThread = (KPRF_TYPE(P,THREAD))TlsGetValue(g_dwThreadTLS);
 
 /* Posix Threads */
 #elif defined(KPRF_USE_PTHREAD)
     pThread = (KPRF_TYPE(P,THREAD))pthread_getspecific(g_ThreadKey);
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     pThread = *g_ppThread;
 
 #else
@@ -238,14 +239,14 @@ static inline KPRF_TYPE(P,THREAD) kPrfGetThread(void)
 static inline KUPTR kPrfGetThreadId(void)
 {
 /* Win32/64 */
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     KUPTR ThreadId = (KUPTR)GetCurrentThreadId();
 
 /* Posix Threads */
 #elif defined(KPRF_USE_PTHREAD)
     KUPTR ThreadId = (KUPTR)pthread_self();
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     PTIB pTib;
     PPIB pPib;
     DosGetInfoBlocks(&pTib, &pPib);
@@ -268,10 +269,10 @@ static inline KUPTR kPrfGetThreadId(void)
 static inline KUPTR kPrfGetProcessId(void)
 {
 /* Win32/64 */
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     KUPTR ThreadId = (KUPTR)GetProcessId(GetCurrentProcess());
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     PTIB pTib;
     PPIB pPib;
     DosGetInfoBlocks(&pTib, &pPib);
@@ -298,14 +299,14 @@ static inline KUPTR kPrfGetProcessId(void)
 static inline void kPrfSetThread(KPRF_TYPE(P,THREAD) pThread)
 {
 /* Win32/64 */
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     BOOL fRc = TlsSetValue(g_dwThreadTLS, pThread);
 
 /* Posix Threads */
 #elif defined(KPRF_USE_PTHREAD)
     int rc = pthread_setspecific(g_ThreadKey, pThread);
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     *g_ppThread = pThread;
 
 #else
@@ -505,11 +506,11 @@ static int kPrfMutexInit(KPRF_TYPE(P,MUTEX) pMutex)
         return 0;
     return -1;
 
-#elif defined(KPRF_OS_WINDOWS)
+#elif K_OS == K_OS_WINDOWS
     InitializeCriticalSection(pMutex);
     return 0;
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     if (!_fmutex_create(pMutex, 0))
         return 0;
     return -1;
@@ -526,10 +527,10 @@ static void kPrfMutexDelete(KPRF_TYPE(P,MUTEX) pMutex)
 #if defined(KPRF_USE_PTHREAD)
     pthread_mutex_destroy(pMutex);
 
-#elif defined(KPRF_OS_WINDOWS)
+#elif K_OS == K_OS_WINDOWS
     DeleteCriticalSection(pMutex);
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     _fmutex_close(pMutex);
 #endif
 }
@@ -540,13 +541,13 @@ static void kPrfMutexDelete(KPRF_TYPE(P,MUTEX) pMutex)
  */
 static inline void kPrfMutexAcquire(KPRF_TYPE(P,MUTEX) pMutex)
 {
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     EnterCriticalSection(pMutex);
 
 #elif defined(KPRF_USE_PTHREAD)
     pthread_mutex_lock(pMutex);
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     fmutex_request(pMutex);
 #endif
 }
@@ -558,13 +559,13 @@ static inline void kPrfMutexAcquire(KPRF_TYPE(P,MUTEX) pMutex)
  */
 static inline void kPrfMutexRelease(KPRF_TYPE(P,MUTEX) pMutex)
 {
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     LeaveCriticalSection(pMutex);
 
 #elif defined(KPRF_USE_PTHREAD)
     pthread_mutex_lock(pMutex);
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     fmutex_request(pMutex);
 #endif
 }
@@ -591,14 +592,14 @@ static inline int kPrfRWLockInit(KPRF_TYPE(P,RWLOCK) pRWLock)
         return 0;
     return -1;
 
-#elif defined(KPRF_OS_WINDOWS) || defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_WINDOWS || K_OS == K_OS_OS2
     if (kPrfMutexInit(&pRWLock->Mutex))
         return -1;
     pRWLock->cReaders = 0;
     pRWLock->cReadersWaiting = 0;
     pRWLock->cWritersWaiting = 0;
     pRWLock->enmState = RWLOCK_STATE_SHARED;
-# if defined(KPRF_OS_WINDOWS)
+# if K_OS == K_OS_WINDOWS
     pRWLock->hevReaders = CreateEvent(NULL, TRUE, TRUE, NULL);
     pRWLock->hevWriters = CreateEvent(NULL, FALSE, FALSE, NULL);
     if (    pRWLock->hevReaders != INVALID_HANDLE_VALUE
@@ -607,7 +608,7 @@ static inline int kPrfRWLockInit(KPRF_TYPE(P,RWLOCK) pRWLock)
     CloseHandle(pRWLock->hevReaders);
     CloseHandle(pRWLock->hevWriters);
 
-# elif defined(KPRF_OS_OS2)
+# elif K_OS == K_OS_OS2
     APIRET rc = DosCreateEventSem(NULL, &pRWLock->hevReaders, 0, TRUE);
     if (!rc)
     {
@@ -637,7 +638,7 @@ static inline void kPrfRWLockDelete(KPRF_TYPE(P,RWLOCK) pRWLock)
 #if defined(KPRF_USE_PTHREAD)
     pthread_rwlock_destroy(pRWLock);
 
-#elif defined(KPRF_OS_WINDOWS) || defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_WINDOWS || K_OS == K_OS_OS2
     if (pRWLock->enmState == RWLOCK_STATE_UNINITIALIZED)
         return;
 
@@ -646,13 +647,13 @@ static inline void kPrfRWLockDelete(KPRF_TYPE(P,RWLOCK) pRWLock)
     pRWLock->cReaders = 0;
     pRWLock->cReadersWaiting = 0;
     pRWLock->cWritersWaiting = 0;
-# if defined(KPRF_OS_WINDOWS)
+# if K_OS == K_OS_WINDOWS
     CloseHandle(pRWLock->hevReaders);
     pRWLock->hevReaders = INVALID_HANDLE_VALUE;
     CloseHandle(pRWLock->hevWriters);
     pRWLock->hevWriters = INVALID_HANDLE_VALUE;
 
-# elif defined(KPRF_OS_OS2)
+# elif K_OS == K_OS_OS2
     DosCloseEventSem(pRWLock->hevReaders);
     pRWLock->hevReaders = NULLHANDLE;
     DosCloseEventSem(pRWLock->hevWriters);
@@ -671,7 +672,7 @@ static inline void kPrfRWLockAcquireRead(KPRF_TYPE(P,RWLOCK) pRWLock)
 #if defined(KPRF_USE_PTHREAD)
     pthread_rwlock_rdlock(pRWLock);
 
-#elif defined(KPRF_OS_WINDOWS) || defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_WINDOWS || K_OS == K_OS_OS2
     if (pRWLock->enmState == RWLOCK_STATE_UNINITIALIZED)
         return;
 
@@ -687,11 +688,11 @@ static inline void kPrfRWLockAcquireRead(KPRF_TYPE(P,RWLOCK) pRWLock)
     {
         /* have to wait */
         KPRF_ATOMIC_INC32(&pRWLock->cReadersWaiting);
-# if defined(KPRF_OS_WINDOWS)
+# if K_OS == K_OS_WINDOWS
         HANDLE hev = pRWLock->hevReaders;
         ResetEvent(hev);
 
-# elif defined(KPRF_OS_OS2)
+# elif K_OS == K_OS_OS2
         HEV    hev = pRWLock->hevReaders;
         ULONG cIgnored;
         DosResetEventSem(hev, &cIgnored);
@@ -699,7 +700,7 @@ static inline void kPrfRWLockAcquireRead(KPRF_TYPE(P,RWLOCK) pRWLock)
 # endif
         kPrfMutexRelease(&pRWLock->Mutex);
 
-# if defined(KPRF_OS_WINDOWS)
+# if K_OS == K_OS_WINDOWS
         switch (WaitForSingleObject(hev, INFINITE))
         {
             case WAIT_IO_COMPLETION:
@@ -711,7 +712,7 @@ static inline void kPrfRWLockAcquireRead(KPRF_TYPE(P,RWLOCK) pRWLock)
                 return;
         }
 
-# elif defined(KPRF_OS_OS2)
+# elif K_OS == K_OS_OS2
         switch (DosWaitEventSem(hev, SEM_INDEFINITE_WAIT))
         {
             case NO_ERROR:
@@ -746,7 +747,7 @@ static inline void kPrfRWLockReleaseRead(KPRF_TYPE(P,RWLOCK) pRWLock)
 #if defined(KPRF_USE_PTHREAD)
     pthread_rwlock_unlock(pRWLock);
 
-#elif defined(KPRF_OS_WINDOWS) || defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_WINDOWS || K_OS == K_OS_OS2
     if (pRWLock->enmState == RWLOCK_STATE_UNINITIALIZED)
         return;
 
@@ -770,9 +771,9 @@ static inline void kPrfRWLockReleaseRead(KPRF_TYPE(P,RWLOCK) pRWLock)
     /*
      * Wake up one (or more on OS/2) waiting writers.
      */
-# if defined(KPRF_OS_WINDOWS)
+# if K_OS == K_OS_WINDOWS
     SetEvent(pRWLock->hevWriters);
-# elif defined(KPRF_OS_OS2)
+# elif K_OS == K_OS_OS2
     DosPostEvent(pRWLock->hevwriters);
 # endif
     kPrfMutexRelease(&pRWLock->Mutex);
@@ -790,7 +791,7 @@ static inline void kPrfRWLockAcquireWrite(KPRF_TYPE(P,RWLOCK) pRWLock)
 #if defined(KPRF_USE_PTHREAD)
     pthread_rwlock_wrlock(pRWLock);
 
-#elif defined(KPRF_OS_WINDOWS) || defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_WINDOWS || K_OS == K_OS_OS2
     if (pRWLock->enmState == RWLOCK_STATE_UNINITIALIZED)
         return;
 
@@ -813,13 +814,13 @@ static inline void kPrfRWLockAcquireWrite(KPRF_TYPE(P,RWLOCK) pRWLock)
     KPRF_ATOMIC_INC32(&pRWLock->cWritersWaiting);
     for (;;)
     {
-# if defined(KPRF_OS_WINDOWS)
+# if K_OS == K_OS_WINDOWS
         HANDLE hev = pRWLock->hevWriters;
-# elif defined(KPRF_OS_OS2)
+# elif K_OS == K_OS_OS2
         HEV    hev = pRWLock->hevWriters;
 # endif
         kPrfMutexRelease(&pRWLock->Mutex);
-# if defined(KPRF_OS_WINDOWS)
+# if K_OS == K_OS_WINDOWS
         switch (WaitForSingleObject(hev, INFINITE))
         {
             case WAIT_IO_COMPLETION:
@@ -832,7 +833,7 @@ static inline void kPrfRWLockAcquireWrite(KPRF_TYPE(P,RWLOCK) pRWLock)
                 return;
         }
 
-# elif defined(KPRF_OS_OS2)
+# elif K_OS == K_OS_OS2
         switch (DosWaitEventSem(hev, SEM_INDEFINITE_WAIT))
         {
             case NO_ERROR:
@@ -876,7 +877,7 @@ static inline void kPrfRWLockReleaseWrite(KPRF_TYPE(P,RWLOCK) pRWLock)
 #if defined(KPRF_USE_PTHREAD)
     pthread_rwlock_unlock(pRWLock);
 
-#elif defined(KPRF_OS_WINDOWS) || defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_WINDOWS || K_OS == K_OS_OS2
     if (pRWLock->enmState == RWLOCK_STATE_UNINITIALIZED)
         return;
 
@@ -901,9 +902,9 @@ static inline void kPrfRWLockReleaseWrite(KPRF_TYPE(P,RWLOCK) pRWLock)
     /*
      * Someone is waiting, wake them up as we change the state.
      */
-# if defined(KPRF_OS_WINDOWS)
+# if K_OS == K_OS_WINDOWS
     HANDLE hev = INVALID_HANDLE_VALUE;
-# elif defined(KPRF_OS_OS2)
+# elif K_OS == K_OS_OS2
     HEV    hev = NULLHANDLE;
 # endif
 
@@ -917,9 +918,9 @@ static inline void kPrfRWLockReleaseWrite(KPRF_TYPE(P,RWLOCK) pRWLock)
         KPRF_RWLOCK_SETSTATE(pRWLock, RWLOCK_STATE_SHARED);
         hev = pRWLock->hevReaders;
     }
-# if defined(KPRF_OS_WINDOWS)
+# if K_OS == K_OS_WINDOWS
     SetEvent(hev);
-# elif defined(KPRF_OS_OS2)
+# elif K_OS == K_OS_OS2
     DosPostEvent(pRWLock->hevwriters);
 # endif
     kPrfMutexRelease(&pRWLock->Mutex);
@@ -942,7 +943,7 @@ static inline void kPrfRWLockReleaseWrite(KPRF_TYPE(P,RWLOCK) pRWLock)
 static int kPrfGetModSeg(KPRF_TYPE(,UPTR) uAddress, char *pszPath, KU32 cchPath, KU32 *piSegment,
                          KPRF_TYPE(P,UPTR) puBasePtr, KPRF_TYPE(P,UPTR) pcbSegmentMinusOne)
 {
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     /*
      * Enumerate the module handles.
      */
@@ -1060,7 +1061,7 @@ static int kPrfGetModSeg(KPRF_TYPE(,UPTR) uAddress, char *pszPath, KU32 cchPath,
         }
     }
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     /*
      * Just ask the loader.
      */
@@ -1141,7 +1142,7 @@ static KPRF_TYPE(P,THREAD) kPrfGetThreadAutoReg(void)
     /** @todo I'm sure Win32 has a way of obtaining the top and bottom of the stack, OS/2 did...
      * Some limit stuff in posix / ansi also comes to mind... */
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     PTIB pTib;
     PPIB pPib;
     DosGetInfoBlocks(&pTib, &pPib); /* never fails except if you give it bad input, thus 'Get' not 'Query'. */
@@ -1171,11 +1172,11 @@ static KPRF_TYPE(P,THREAD) kPrfGetThreadAutoReg(void)
  */
 static char *kPrfGetEnvString(const char *pszVar, char *pszValue, KU32 cchValue, const char *pszDefault)
 {
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     if (GetEnvironmentVariable(pszVar, pszValue, cchValue))
         return pszValue;
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     PSZ pszValue;
     if (    !DosScanEnv((PCSZ)pszVar, &pszValue)
         &&  !*pszValue)
@@ -1210,13 +1211,13 @@ static char *kPrfGetEnvString(const char *pszVar, char *pszValue, KU32 cchValue,
  */
 static KU32 kPrfGetEnvValue(const char *pszVar, KU32 uDefault)
 {
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     char szBuf[128];
     const char *pszValue = szBuf;
     if (!GetEnvironmentVariable(pszVar, szBuf, sizeof(szBuf)))
         pszValue = NULL;
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     PSZ pszValue;
     if (DosScanEnv((PCSZ)pszVar, &pszValue))
         pszValue = NULL;
@@ -1299,13 +1300,13 @@ static KU32 kPrfGetEnvValue(const char *pszVar, KU32 uDefault)
  */
 static void *kPrfAllocMem(KU32 cb)
 {
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     void *pv = VirtualAlloc(NULL, cb, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
 
 #elif defined(KPRF_USE_MMAN)
     void *pv = mmap(NULL, cb, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     void *pv;
 # ifdef INCL_DOSEXAPIS
     if (DosAllocMemEx(&pv, cb, PAG_READ | PAG_WRITE | PAG_EXECUTE | PAG_COMMIT | OBJ_FORK))s
@@ -1328,13 +1329,13 @@ static void *kPrfAllocMem(KU32 cb)
  */
 static void kPrfFreeMem(void *pv)
 {
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     VirtualFree(pv, 0, MEM_RELEASE);
 
 #elif defined(KPRF_USE_MMAN)
     munmap(pv, 0); /** @todo check if 0 is allowed here.. */
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
 # ifdef INCL_DOSEXAPIS
     DosFreeMemEx(&pv);
 # else
@@ -1362,7 +1363,7 @@ static void kPrfFreeMem(void *pv)
  */
 static int kPrfWriteFile(const char *pszName, const void *pvData, KU32 cbData)
 {
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     int rc = -1;
     HANDLE hFile = CreateFile(pszName,GENERIC_WRITE, FILE_SHARE_READ, NULL,
                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, INVALID_HANDLE_VALUE);
@@ -1376,7 +1377,7 @@ static int kPrfWriteFile(const char *pszName, const void *pvData, KU32 cbData)
     }
     return rc;
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     HFILE hFile;
     ULONG ulAction = 0;
     APIRET rc = DosOpen(pszName, &hFile, &ulAction, cbData, FILE_NORMAL,
@@ -1461,7 +1462,7 @@ int kPrfInitialize(void)
                     /*
                      * Allocate the TLS entry.
                      */
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
                     g_dwThreadTLS = TlsAlloc();
                     if (g_dwThreadTLS != TLS_OUT_OF_INDEXES)
 
@@ -1469,7 +1470,7 @@ int kPrfInitialize(void)
                     int rc = pthread_key_create(&g_ThreadKey, kPrfPThreadKeyDtor);
                     if (!rc)
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
                     int rc = DosAllocThreadLocalMemory(sizeof(void *), (PULONG*)&g_ppThread); /** @todo check if this is a count or a size. */
                     if (!rc)
 
@@ -1480,7 +1481,7 @@ int kPrfInitialize(void)
                          */
                         if (fAffinity)
                         {
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
                             SetProcessAffinityMask(GetCurrentProcess(), fAffinity);
 #endif
                         }
@@ -1524,9 +1525,9 @@ int kPrfTerminate(void)
     if (!pHdr)
         return -1;
 
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     Sleep(10);
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     DosSleep(10);
 #else
     usleep(10000);
@@ -1540,13 +1541,13 @@ int kPrfTerminate(void)
     /*
      * Use the stack space to fill in process details.
      */
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     /* all is one single string */
     const char *pszCommandLine = GetCommandLine();
     if (pszCommandLine)
         KPRF_NAME(SetCommandLine)(pHdr, 1, &pszCommandLine);
 
-#elif defined(KPRF_OS_OS2) || defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2 || K_OS == K_OS_OS2
     PTIB pTib;
     PPIB pPib;
     DosGetInfoBlocks(&pTib, &pPib);
@@ -1610,7 +1611,7 @@ int kPrfTerminate(void)
      * Free resources.
      */
     kPrfFreeMem(pHdr);
-#if defined(KPRF_OS_WINDOWS)
+#if K_OS == K_OS_WINDOWS
     TlsFree(g_dwThreadTLS);
     g_dwThreadTLS = TLS_OUT_OF_INDEXES;
 
@@ -1618,7 +1619,7 @@ int kPrfTerminate(void)
     pthread_key_delete(g_ThreadKey);
     g_ThreadKey = (pthread_key_t)-1;
 
-#elif defined(KPRF_OS_OS2)
+#elif K_OS == K_OS_OS2
     DosFreeThreadLocalMemory((PULONG)g_ppThread);
     g_ppThread = NULL;
 

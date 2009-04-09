@@ -1,4 +1,4 @@
-/* $Id: tstAvl.cpp $ */
+/* $Id: tstAvl.cpp 18468 2009-03-28 18:58:54Z vboxsync $ */
 /** @file
  * IPRT Testcase - Avl trees.
  */
@@ -654,7 +654,7 @@ int avlrogcphys(void)
 
         /* negative. */
         AVLROGCPHYSNODECORE Node = *pNode;
-        for (j = i + 3; j >= 0 && j > i - 32; j--)
+        for (j = i + 3; j > i - 32; j--)
         {
             for (k = i; k < i + 32; k++)
             {

@@ -23,29 +23,29 @@
 #ifndef __QIStatusBar_h__
 #define __QIStatusBar_h__
 
-#include <qstatusbar.h>
+/* Qt includes */
+#include <QStatusBar>
 
-class QPaintEvent;
-
+/**
+ *  The QIStatusBar class is a replacement of QStatusBar with disabling
+ *  drawing of sunken borders around every widget on the status bar.
+ */
 class QIStatusBar : public QStatusBar
 {
-    Q_OBJECT
+    Q_OBJECT;
 
 public:
 
-    QIStatusBar (QWidget *parent = 0, const char *name = 0);
-
-protected:
-
-    virtual void paintEvent (QPaintEvent *);
+    QIStatusBar (QWidget *aParent = 0);
 
 protected slots:
 
-    void rememberLastMessage (const QString &msg) { message = msg; }
+    void rememberLastMessage (const QString &aMsg) { mMessage = aMsg; }
 
 protected:
 
-    QString message;
+    QString mMessage;
 };
 
 #endif // __QIStatusBar_h__
+

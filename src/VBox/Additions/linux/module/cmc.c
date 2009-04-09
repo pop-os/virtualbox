@@ -81,6 +81,14 @@ DECLVBGL (int) vboxadd_cmc_call (void *opaque, uint32_t func, void *data)
             rc = VbglHGCMDisconnect (data, vboxadd_hgcm_callback, opaque, RT_INDEFINITE_WAIT);
             break;
 
+        case VBOXGUEST_IOCTL_GETVMMDEVPORT:
+        {
+            VBoxDevice *pDev = (VBoxDevice *)opaque;
+            VBoxGuestPortInfo *pInfo = (VBoxGuestPortInfo *)data;
+            pInfo->portAddress = pDev->io_port;
+            pInfo->pVMMDevMemory = pDev->pVMMDevMemory;
+            break;
+        }
         default:
             rc = VERR_VBGL_IOCTL_FAILED;
     }
@@ -89,7 +97,7 @@ DECLVBGL (int) vboxadd_cmc_call (void *opaque, uint32_t func, void *data)
 
 int vboxadd_cmc_init (void)
 {
-    return 0;
+    return VINF_SUCCESS;
 }
 
 void vboxadd_cmc_fini (void)

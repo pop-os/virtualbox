@@ -1,4 +1,4 @@
-/* $Id: KeyboardImpl.cpp $ */
+/* $Id: KeyboardImpl.cpp 15715 2008-12-22 13:15:30Z vboxsync $ */
 
 /** @file
  *

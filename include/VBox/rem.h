@@ -61,6 +61,7 @@ VMMDECL(void) REMFlushTBs(PVM pVM);
  * @{
  */
 REMR3DECL(int)  REMR3Init(PVM pVM);
+REMR3DECL(int)  REMR3InitFinalize(PVM pVM);
 REMR3DECL(int)  REMR3Term(PVM pVM);
 REMR3DECL(void) REMR3Reset(PVM pVM);
 REMR3DECL(int)  REMR3Run(PVM pVM);
@@ -76,12 +77,14 @@ REMR3DECL(int)  REMR3DisasEnableStepping(PVM pVM, bool fEnable);
 REMR3DECL(void) REMR3ReplayInvalidatedPages(PVM pVM);
 REMR3DECL(void) REMR3ReplayHandlerNotifications(PVM pVM);
 REMR3DECL(int)  REMR3NotifyCodePageChanged(PVM pVM, RTGCPTR pvCodePage);
-REMR3DECL(void) REMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, unsigned fFlags);
-#ifndef VBOX_WITH_NEW_PHYS_CODE
-REMR3DECL(void) REMR3NotifyPhysRamChunkRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, RTHCUINTPTR pvRam, unsigned fFlags);
-#endif
+REMR3DECL(void) REMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, unsigned fFlags);
+/** @name Flags for REMR3NotifyPhysRamRegister.
+ * @{ */
+#define REM_NOTIFY_PHYS_RAM_FLAGS_RAM    RT_BIT(16)
+#define REM_NOTIFY_PHYS_RAM_FLAGS_MMIO2  RT_BIT(17)
+/** @} */
 REMR3DECL(void) REMR3NotifyPhysRomRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, void *pvCopy, bool fShadow);
-REMR3DECL(void) REMR3NotifyPhysReserve(PVM pVM, RTGCPHYS GCPhys, RTUINT cb);
+REMR3DECL(void) REMR3NotifyPhysRamDeregister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb);
 REMR3DECL(void) REMR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler);
 REMR3DECL(void) REMR3NotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM);
 REMR3DECL(void) REMR3NotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhysOld, RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM);

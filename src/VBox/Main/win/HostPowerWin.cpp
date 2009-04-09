@@ -23,7 +23,11 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <windows.h>
+/* Some SDK versions lack the extern "C" and thus cause linking failures.
+ * This workaround isn't pretty, but there are not many options. */
+extern "C" {
 #include <PowrProf.h>
+}
 
 #include <VBox/com/ptr.h>
 #include "HostPower.h"
@@ -192,7 +196,7 @@ LRESULT CALLBACK HostPowerServiceWin::WndProc(HWND hwnd, UINT msg, WPARAM wParam
                 }
                 }
             }
-            return DefWindowProc (hwnd, msg, wParam, lParam);
+            return TRUE;
         }
 
         default:

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 18837 2009-04-07 17:30:46Z vboxsync $
 ## @file
 # Sub-Makefile for the VMM testcases.
 #
@@ -53,8 +53,7 @@ ifeq ($(KBUILD_TARGET),$(KBUILD_HOST))
  ifeq ($(filter-out x86.x86 amd64.amd64 x86.amd64, $(KBUILD_TARGET_ARCH).$(KBUILD_HOST_ARCH)),)
   OTHERS += \
 	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructs.run \
-	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructSize.run \
-	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstInstrEmul.run
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructSize.run
  endif
 endif
 
@@ -150,7 +149,7 @@ tstSSM_TEMPLATE         = VBOXR3TSTEXE
 tstSSM_SOURCES          = tstSSM.cpp
 tstSSM_LIBS             = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
 
-tstInstrEmul_TEMPLATE   = VBOXR3TSTEXE
+tstInstrEmul_TEMPLATE   = VBOXR3EXE
 tstInstrEmul_SOURCES    = tstInstrEmul.cpp ../VMMAll/EMAllA.asm
 tstInstrEmul_LIBS       = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
 
@@ -224,6 +223,17 @@ endif
 
 include	$(KBUILD_PATH)/subfooter.kmk
 
+
+#
+# Run rule for tstInstrEmul.
+#
+$(VBOX_VMM_TESTCASE_OUT_DIR)/tstInstrEmul.run: $$(INSTARGET_tstInstrEmul) | $$(dir $$@)
+	$(QUIET)$(RM) -f $@
+	$(QUIET)$(REDIRECT) -E 'VBOX_LOG_FLAGS=disabled' -E 'VBOX_LOG_DEST=nofile' \
+		$(if $(eq $(KBUILD_TARGET),darwin), -E 'DYLD_FALLBACK_LIBRARY_PATH=$(dir $(LIB_RUNTIME))') \
+		-- \
+		$(INSTARGET_tstInstrEmul)
+	$(QUIET)$(APPEND) "$@" "done"
 
 
 #
@@ -341,13 +351,3 @@ $(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructSize.run: $$(INSTARGET_tstVMStructSize) 
 run-struct-tests: $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructs.run $(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructSize.run
 
 
-#
-# Run rule for tstInstrEmul.
-#
-$(VBOX_VMM_TESTCASE_OUT_DIR)/tstInstrEmul.run: $$(INSTARGET_tstInstrEmul) | $$(dir $$@)
-	$(QUIET)$(RM) -f $@
-	$(QUIET)$(REDIRECT) -E 'VBOX_LOG_FLAGS=disabled' -E 'VBOX_LOG_DEST=nofile' \
-		$(if $(eq $(KBUILD_TARGET),darwin), -E 'DYLD_FALLBACK_LIBRARY_PATH=$(dir $(LIB_RUNTIME))') \
-		-- \
-		$(INSTARGET_tstInstrEmul)
-	$(QUIET)$(APPEND) "$@" "done"

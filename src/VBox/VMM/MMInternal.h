@@ -1,4 +1,4 @@
-/* $Id: MMInternal.h $ */
+/* $Id: MMInternal.h 18792 2009-04-06 18:40:52Z vboxsync $ */
 /** @file
  * MM - Internal header file.
  */
@@ -37,9 +37,15 @@
  * @{
  */
 
-/** @name VM Ring-3 Heap Internals
+
+/** @name MMR3Heap - VM Ring-3 Heap Internals
  * @{
  */
+
+/** @def MMR3HEAP_SIZE_ALIGNMENT
+ * The allocation size alignment of the MMR3Heap.
+ */
+#define MMR3HEAP_SIZE_ALIGNMENT     16
 
 /** @def MMR3HEAP_WITH_STATISTICS
  * Enable MMR3Heap statistics.
@@ -47,11 +53,6 @@
 #if !defined(MMR3HEAP_WITH_STATISTICS) && defined(VBOX_WITH_STATISTICS)
 # define MMR3HEAP_WITH_STATISTICS
 #endif
-
-/** @def MMR3HEAP_SIZE_ALIGNMENT
- * The allocation size alignment of the MMR3Heap.
- */
-#define MMR3HEAP_SIZE_ALIGNMENT     16
 
 /**
  * Heap statistics record.
@@ -122,6 +123,89 @@ typedef struct MMHEAP
 } MMHEAP;
 /** Pointer to MM Heap structure. */
 typedef MMHEAP *PMMHEAP;
+
+/** @} */
+
+
+/** @name MMUkHeap - VM User-kernel Heap Internals
+ * @{
+ */
+
+/** @def MMUKHEAP_SIZE_ALIGNMENT
+ * The allocation size alignment of the MMR3UkHeap.
+ */
+#define MMUKHEAP_SIZE_ALIGNMENT   16
+
+/** @def MMUKHEAP_WITH_STATISTICS
+ * Enable MMUkHeap statistics.
+ */
+#if !defined(MMUKHEAP_WITH_STATISTICS) && defined(VBOX_WITH_STATISTICS)
+# define MMUKHEAP_WITH_STATISTICS
+#endif
+
+
+/**
+ * Heap statistics record.
+ * There is one global and one per allocation tag.
+ */
+typedef struct MMUKHEAPSTAT
+{
+    /** Core avl node, key is the tag. */
+    AVLULNODECORE           Core;
+    /** Number of allocation. */
+    uint64_t                cAllocations;
+    /** Number of reallocations. */
+    uint64_t                cReallocations;
+    /** Number of frees. */
+    uint64_t                cFrees;
+    /** Failures. */
+    uint64_t                cFailures;
+    /** Number of bytes allocated (sum). */
+    uint64_t                cbAllocated;
+    /** Number of bytes freed. */
+    uint64_t                cbFreed;
+    /** Number of bytes currently allocated. */
+    size_t                  cbCurAllocated;
+} MMUKHEAPSTAT;
+/** Pointer to heap statistics record. */
+typedef MMUKHEAPSTAT *PMMUKHEAPSTAT;
+
+/**
+ * Sub heap tracking record.
+ */
+typedef struct MMUKHEAPSUB
+{
+    /** Pointer to the next sub-heap. */
+    struct MMUKHEAPSUB     *pNext;
+    /** The base address of the sub-heap. */
+    void                   *pv;
+    /** The size of the sub-heap.  */
+    size_t                  cb;
+    /** The handle of the simple block pointer. */
+    RTHEAPSIMPLE            hSimple;
+    /** The ring-0 address corresponding to MMUKHEAPSUB::pv. */
+    RTR0PTR                 pvR0;
+} MMUKHEAPSUB;
+/** Pointer to a sub-heap tracking record. */
+typedef MMUKHEAPSUB *PMMUKHEAPSUB;
+
+
+/** MM User-kernel Heap structure. */
+typedef struct MMUKHEAP
+{
+    /** Lock protecting the heap. */
+    RTCRITSECT              Lock;
+    /** Head of the sub-heap LIFO. */
+    PMMUKHEAPSUB            pSubHeapHead;
+    /** Heap per tag statistics tree. */
+    PAVLULNODECORE          pStatTree;
+    /** The VM handle. */
+    PUVM                    pUVM;
+    /** Heap global statistics. */
+    MMUKHEAPSTAT            Stat;
+} MMUKHEAP;
+/** Pointer to MM Heap structure. */
+typedef MMUKHEAP *PMMUKHEAP;
 
 /** @} */
 
@@ -492,109 +576,6 @@ typedef MMPPLOOKUPHCPHYS *PMMPPLOOKUPHCPHYS;
 /** @} */
 
 
-
-/**
- * Type of memory that's locked.
- */
-typedef enum MMLOCKEDTYPE
-{
-    /** Hypervisor: Ring-3 memory locked by MM. */
-    MM_LOCKED_TYPE_HYPER,
-    /** Hypervisor: Ring-3 memory locked by MM that shouldn't be freed up. */
-    MM_LOCKED_TYPE_HYPER_NOFREE,
-    /** Hypervisor: Pre-locked ring-3 pages. */
-    MM_LOCKED_TYPE_HYPER_PAGES,
-    /** Guest: Physical VM memory (RAM & MMIO2). */
-    MM_LOCKED_TYPE_PHYS
-} MMLOCKEDTYPE;
-/** Pointer to memory type. */
-typedef MMLOCKEDTYPE *PMMLOCKEDTYPE;
-
-
-/**
- * Converts a SUPPAGE pointer to a MMLOCKEDMEM pointer.
- * @returns Pointer to the MMLOCKEDMEM record the range is associated with.
- * @param   pSupPage    Pointer to SUPPAGE structure managed by MM.
- */
-#define MM_SUPRANGE_TO_MMLOCKEDMEM(pSupPage) ((PMMLOCKEDMEM)pSupPage->uReserved)
-
-
-/**
- * Locked memory record.
- */
-typedef struct MMLOCKEDMEM
-{
-    /** Address (host mapping). */
-    void                   *pv;
-    /** Size. */
-    size_t                  cb;
-    /** Next record. */
-    struct MMLOCKEDMEM     *pNext;
-    /** Record type. */
-    MMLOCKEDTYPE            eType;
-    /** Type specific data. */
-    union
-    {
-        /** Data for MM_LOCKED_TYPE_HYPER, MM_LOCKED_TYPE_HYPER_NOFREE and MM_LOCKED_TYPE_HYPER_PAGES. */
-        struct
-        {
-            unsigned        uNothing;
-        } hyper;
-
-        /** Data for MM_LOCKED_TYPE_PHYS. */
-        struct
-        {
-            /** The GC physical address.
-             * (Assuming that this is a linear range of GC physical pages.)
-             */
-            RTGCPHYS        GCPhys;
-        } phys;
-    } u;
-
-    /** Physical Page Array. (Variable length.)
-     * The uReserved field contains pointer to the MMLOCKMEM record.
-     * Use the macro MM_SUPPAGE_TO_MMLOCKEDMEM() to convert.
-     *
-     * For MM_LOCKED_TYPE_PHYS the low 12 bits of the pvPhys member
-     * are bits (MM_RAM_FLAGS_*) and not part of the physical address.
-     */
-    SUPPAGE                 aPhysPages[1];
-} MMLOCKEDMEM;
-/** Pointer to locked memory. */
-typedef MMLOCKEDMEM *PMMLOCKEDMEM;
-
-
-/**
- * A registered Rom range.
- *
- * This is used to track ROM registrations both for debug reasons
- * and for resetting shadow ROM at reset.
- *
- * This is allocated of the MMR3Heap and thus only accessibel from ring-3.
- */
-typedef struct MMROMRANGE
-{
-    /** Pointer to the next */
-    struct MMROMRANGE      *pNext;
-    /** Address of the range. */
-    RTGCPHYS                GCPhys;
-    /** Size of the range. */
-    uint32_t                cbRange;
-    /** Shadow ROM? */
-    bool                    fShadow;
-    /** Is the shadow ROM currently wriable? */
-    bool                    fWritable;
-    /** The address of the virgin ROM image for shadow ROM. */
-    const void             *pvBinary;
-    /** The address of the guest RAM that's shadowing the ROM. (lazy bird) */
-    void                   *pvCopy;
-    /** The ROM description. */
-    const char             *pszDesc;
-} MMROMRANGE;
-/** Pointer to a ROM range. */
-typedef MMROMRANGE *PMMROMRANGE;
-
-
 /**
  * Hypervisor memory mapping type.
  */
@@ -639,8 +620,8 @@ typedef struct MMLOOKUPHYPER
             R3PTRTYPE(void *)       pvR3;
             /** Host context ring-0 pointer. Optional. */
             RTR0PTR                 pvR0;
-            /** Pointer to the locked mem record. */
-            R3PTRTYPE(PMMLOCKEDMEM) pLockedMem;
+            /** Pointer to an array containing the physical address of each page. */
+            R3PTRTYPE(PRTHCPHYS)    paHCPhysPages;
         } Locked;
 
         /** Contiguous physical memory. */
@@ -742,8 +723,6 @@ typedef struct MM
     R3PTRTYPE(PMMPAGEPOOL)      pPagePoolR3;
     /** Page pool pages in low memory R3 Ptr. */
     R3PTRTYPE(PMMPAGEPOOL)      pPagePoolLowR3;
-    /** List of memory locks. (HC only) */
-    R3PTRTYPE(PMMLOCKEDMEM)     pLockedMem;
 
     /** Pointer to the dummy page.
      * The dummy page is a paranoia thingy used for instance for pure MMIO RAM ranges
@@ -759,13 +738,15 @@ typedef struct MM
      * @remarks Shadow ROMs will be counted twice (RAM+ROM), so it won't be 1:1 with
      *          what the guest sees. */
     uint64_t                    cBasePages;
+    /** The number of handy pages that PGM has reserved (GMM).
+     * These are kept out of cBasePages and thus out of the saved state. */
+    uint32_t                    cHandyPages;
     /** The number of shadow pages PGM has reserved (GMM). */
     uint32_t                    cShadowPages;
     /** The number of fixed pages we've reserved (GMM). */
     uint32_t                    cFixedPages;
-
-    /** The head of the ROM ranges. */
-    R3PTRTYPE(PMMROMRANGE)      pRomHead;
+    /** Padding. */
+    uint32_t                    u32Padding0;
 } MM;
 /** Pointer to MM Data (part of VM). */
 typedef MM *PMM;
@@ -778,6 +759,8 @@ typedef struct MMUSERPERVM
 {
     /** Pointer to the MM R3 Heap. */
     R3PTRTYPE(PMMHEAP)          pHeap;
+    /** Pointer to the MM Uk Heap. */
+    R3PTRTYPE(PMMUKHEAP)        pUkHeap;
 } MMUSERPERVM;
 /** Pointer to the MM data kept in the UVM. */
 typedef MMUSERPERVM *PMMUSERPERVM;
@@ -794,15 +777,14 @@ void mmR3PagePoolTerm(PVM pVM);
 int  mmR3HeapCreateU(PUVM pUVM, PMMHEAP *ppHeap);
 void mmR3HeapDestroy(PMMHEAP pHeap);
 
+void mmR3UkHeapDestroy(PMMUKHEAP pHeap);
+int  mmR3UkHeapCreateU(PUVM pUVM, PMMUKHEAP *ppHeap);
+
+
 int  mmR3HyperInit(PVM pVM);
 int  mmR3HyperInitPaging(PVM pVM);
 
-int  mmR3LockMem(PVM pVM, void *pv, size_t cb, MMLOCKEDTYPE eType, PMMLOCKEDMEM *ppLockedMem, bool fSilentFailure);
-int  mmR3MapLocked(PVM pVM, PMMLOCKEDMEM pLockedMem, RTGCPTR Addr, unsigned iPage, size_t cPages, unsigned fFlags);
-
 const char *mmR3GetTagName(MMTAG enmTag);
-
-void mmR3PhysRomReset(PVM pVM);
 
 /**
  * Converts a pool address to a physical address.

@@ -248,11 +248,7 @@ typedef union {
  */
 
 #ifdef VBOX
-void remAbort(int rc, const char *pszTip) __attribute__((__noreturn__));
-
-#ifndef VBOX_WITH_NEW_PHYS_CODE
-void     remR3GrowDynRange(unsigned long physaddr);
-#endif
+void        remAbort(int rc, const char *pszTip) __attribute__((__noreturn__));
 
 void        remR3PhysRead(RTGCPHYS SrcGCPhys, void *pvDst, unsigned cb);
 RTCCUINTREG remR3PhysReadU8(RTGCPHYS SrcGCPhys);
@@ -271,7 +267,6 @@ void        remR3PhysWriteU64(RTGCPHYS DstGCPhys, uint64_t val);
 
 #ifndef REM_PHYS_ADDR_IN_TLB
 void       *remR3TlbGCPhys2Ptr(CPUState *env1, target_ulong physAddr, int fWritable);
-target_ulong remR3HCVirt2GCPhys(CPUState *env1, void *addr);
 #endif
 
 #endif /* VBOX */
@@ -1186,7 +1181,7 @@ extern int phys_ram_size;
 #else /* VBOX */
 extern RTGCPHYS phys_ram_size;
 /** This is required for bounds checking the phys_ram_dirty accesses. */
-extern uint32_t phys_ram_dirty_size;
+extern RTGCPHYS phys_ram_dirty_size;
 #endif /* VBOX */
 #if !defined(VBOX)
 extern uint8_t *phys_ram_base;
@@ -1206,9 +1201,6 @@ extern uint8_t *phys_ram_dirty;
 #define IO_MEM_ROM         (1 << IO_MEM_SHIFT) /* hardcoded offset */
 #define IO_MEM_UNASSIGNED  (2 << IO_MEM_SHIFT)
 #define IO_MEM_NOTDIRTY    (3 << IO_MEM_SHIFT)
-#if defined(VBOX) && !defined(VBOX_WITH_NEW_PHYS_CODE)
-#define IO_MEM_RAM_MISSING (5 << IO_MEM_SHIFT) /* used internally, never use directly */
-#endif
 
 /* Acts like a ROM when read and like a device when written.  */
 #define IO_MEM_ROMD        (1)

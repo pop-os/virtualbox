@@ -1,4 +1,4 @@
-/* $Id: kDbgModWinDbgHelp.cpp 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kDbgModWinDbgHelp.cpp 6 2008-02-03 23:37:34Z bird $ */
 /** @file
  * kDbg - The Debug Info Reader, DbgHelp Based Reader.
  */
@@ -713,7 +713,7 @@ static int kdbgModDHOpen(PKDBGMOD *ppMod, PKRDR pRdr, KBOOL fCloseRdr, KFOFF off
 /**
  * Methods for a PE module.
  */
-const KDBGMODOPS g_kDbgModWinDbgHelpOpen =
+KDBGMODOPS const g_kDbgModWinDbgHelpOpen =
 {
     "Windows DbgHelp",
     NULL,

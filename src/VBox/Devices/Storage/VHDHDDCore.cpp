@@ -22,7 +22,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_VD_VHD
-#include "VBoxHDD-newInternal.h"
+#include "VBoxHDD-Internal.h"
 #include <VBox/err.h>
 
 #include <VBox/log.h>
@@ -140,8 +140,6 @@ typedef struct VHDIMAGE
 
     /** Open flags passed by VBoxHD layer. */
     unsigned        uOpenFlags;
-    /** Image type. */
-    VDIMAGETYPE     enmImageType;
     /** Image flags defined during creation or determined during open. */
     unsigned        uImageFlags;
     /** Total size of the image. */
@@ -250,7 +248,7 @@ static int vhdFilenameToUtf16(const char *pszFilename, void *pvBuf, uint32_t cbB
     }
     memcpy(pvBuf, tmp16, cTmp16Len * sizeof(*tmp16));
     if (pcbActualSize)
-        *pcbActualSize = cTmp16Len * sizeof(*tmp16);
+        *pcbActualSize = (uint32_t)(cTmp16Len * sizeof(*tmp16));
 
 out:
     if (tmp16)
@@ -278,7 +276,7 @@ static int vhdLocatorUpdate(PVHDIMAGE pImage, PVHDPLE pLocator, const char *pszF
     {
         case VHD_PLATFORM_CODE_WI2R:
             /* Update plain relative name. */
-            cb = strlen(pszFilename);
+            cb = (uint32_t)strlen(pszFilename);
             if (cb > cbMaxLen)
             {
                 rc = VERR_FILENAME_TOO_LONG;
@@ -292,7 +290,7 @@ static int vhdLocatorUpdate(PVHDIMAGE pImage, PVHDPLE pLocator, const char *pszF
             rc = RTPathAbs(pszFilename, (char *)pvBuf, cbMaxLen);
             if (RT_FAILURE(rc))
                 goto out;
-            pLocator->u32DataLength = RT_H2BE_U32(strlen((char *)pvBuf));
+            pLocator->u32DataLength = RT_H2BE_U32((uint32_t)strlen((const char *)pvBuf));
             break;
         case VHD_PLATFORM_CODE_W2RU:
             /* Update unicode relative name. */
@@ -429,17 +427,18 @@ static int vhdOpenImage(PVHDIMAGE pImage, unsigned uOpenFlags)
     {
         case VHD_FOOTER_DISK_TYPE_FIXED:
             {
-                pImage->enmImageType = VD_IMAGE_TYPE_FIXED;
+                pImage->uImageFlags |= VD_IMAGE_FLAGS_FIXED;
             }
             break;
         case VHD_FOOTER_DISK_TYPE_DYNAMIC:
             {
-                pImage->enmImageType = VD_IMAGE_TYPE_NORMAL;
+                pImage->uImageFlags &= ~VD_IMAGE_FLAGS_FIXED;
             }
             break;
         case VHD_FOOTER_DISK_TYPE_DIFFERENCING:
             {
-                pImage->enmImageType = VD_IMAGE_TYPE_DIFF;
+                pImage->uImageFlags |= VD_IMAGE_FLAGS_DIFF;
+                pImage->uImageFlags &= ~VD_IMAGE_FLAGS_FIXED;
             }
             break;
         default:
@@ -469,7 +468,7 @@ static int vhdOpenImage(PVHDIMAGE pImage, unsigned uOpenFlags)
     pImage->u64DataOffset = RT_BE2H_U64(vhdFooter.DataOffset);
     LogFlowFunc(("DataOffset=%llu\n", pImage->u64DataOffset));
 
-    if (pImage->enmImageType == VD_IMAGE_TYPE_NORMAL || pImage->enmImageType == VD_IMAGE_TYPE_DIFF)
+    if (!(pImage->uImageFlags & VD_IMAGE_FLAGS_FIXED))
         rc = vhdLoadDynamicDisk(pImage, pImage->u64DataOffset);
 
     return rc;
@@ -572,7 +571,7 @@ static int vhdLoadDynamicDisk(PVHDIMAGE pImage, uint64_t uDynamicDiskHeaderOffse
 
     RTMemFree(pBlockAllocationTable);
 
-    if (pImage->enmImageType == VD_IMAGE_TYPE_DIFF)
+    if (pImage->uImageFlags & VD_IMAGE_FLAGS_DIFF)
         memcpy(pImage->ParentUuid.au8, vhdDynamicDiskHeader.ParentUuid, sizeof(pImage->ParentUuid));
 
     return rc;
@@ -617,22 +616,6 @@ static unsigned vhdGetVersion(void *pBackendData)
         return 1; /**< @todo use correct version */
     else
         return 0;
-}
-
-static int vhdGetImageType(void *pBackendData, PVDIMAGETYPE penmImageType)
-{
-    PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    int rc = VINF_SUCCESS;
-
-    AssertPtr(pImage);
-    AssertPtr(penmImageType);
-
-    if (pImage)
-        *penmImageType = pImage->enmImageType;
-    else
-        rc = VERR_VD_NOT_OPENED;
-
-    return rc;
 }
 
 static int vhdGetPCHSGeometry(void *pBackendData, PPDMMEDIAGEOMETRY pPCHSGeometry)
@@ -903,7 +886,7 @@ static int vhdRead(void *pBackendData, uint64_t uOffset, void *pvBuf, size_t cbR
 
         /* Read in the block's bitmap. */
         rc = RTFileReadAt(pImage->File,
-            (uint64_t)pImage->pBlockAllocationTable[cBlockAllocationTableEntry] * VHD_SECTOR_SIZE,
+            ((uint64_t)pImage->pBlockAllocationTable[cBlockAllocationTableEntry]) * VHD_SECTOR_SIZE,
             pImage->pu8Bitmap, pImage->cbDataBlockBitmap, NULL);
         if (RT_SUCCESS(rc))
         {
@@ -974,7 +957,7 @@ static int vhdRead(void *pBackendData, uint64_t uOffset, void *pvBuf, size_t cbR
                 } while (cSectors < (cbRead / VHD_SECTOR_SIZE));
 
                 cbRead = cSectors * VHD_SECTOR_SIZE;
-                Log(("%s: Sectors free: uVhdOffset=%llu cbRead=%u\n", uVhdOffset, cbRead));
+                Log(("%s: Sectors free: uVhdOffset=%llu cbRead=%u\n", __FUNCTION__, uVhdOffset, cbRead));
                 rc = VERR_VD_BLOCK_FREE;
             }
         }
@@ -1060,7 +1043,7 @@ static int vhdWrite(void *pBackendData, uint64_t uOffset, const void *pvBuf, siz
 
         /* Read in the block's bitmap. */
         rc = RTFileReadAt(pImage->File,
-            (uint64_t)pImage->pBlockAllocationTable[cBlockAllocationTableEntry] * VHD_SECTOR_SIZE,
+            ((uint64_t)pImage->pBlockAllocationTable[cBlockAllocationTableEntry]) * VHD_SECTOR_SIZE,
             pImage->pu8Bitmap, pImage->cbDataBlockBitmap, NULL);
         if (RT_SUCCESS(rc))
         {
@@ -1077,7 +1060,7 @@ static int vhdWrite(void *pBackendData, uint64_t uOffset, const void *pvBuf, siz
 
             /* Write the bitmap back. */
             rc = RTFileWriteAt(pImage->File,
-                pImage->pBlockAllocationTable[cBlockAllocationTableEntry] * VHD_SECTOR_SIZE,
+                ((uint64_t)pImage->pBlockAllocationTable[cBlockAllocationTableEntry]) * VHD_SECTOR_SIZE,
                 pImage->pu8Bitmap, pImage->cbDataBlockBitmap, NULL);
         }
     }
@@ -1312,7 +1295,7 @@ static int vhdSetParentUuid(void *pBackendData, PCRTUUID pUuid)
 
     if (pImage && pImage->File != NIL_RTFILE)
     {
-        if (pImage->enmImageType != VD_IMAGE_TYPE_FIXED)
+        if (!(pImage->uImageFlags & VD_IMAGE_FLAGS_FIXED))
         {
             pImage->ParentUuid = *pUuid;
             pImage->fDynHdrNeedsUpdate = true;
@@ -1524,9 +1507,8 @@ static int vhdCreateDynamicImage(PVHDIMAGE pImage, uint64_t cbSize)
 /**
  * Internal: The actual code for VHD image creation, both fixed and dynamic.
  */
-static int vhdCreateImage(PVHDIMAGE pImage, VDIMAGETYPE enmType,
-                          uint64_t cbSize, unsigned uImageFlags,
-                          const char *pszComment,
+static int vhdCreateImage(PVHDIMAGE pImage, uint64_t cbSize,
+                          unsigned uImageFlags, const char *pszComment,
                           PCPDMMEDIAGEOMETRY pPCHSGeometry,
                           PCPDMMEDIAGEOMETRY pLCHSGeometry, PCRTUUID pUuid,
                           unsigned uOpenFlags,
@@ -1539,6 +1521,7 @@ static int vhdCreateImage(PVHDIMAGE pImage, VDIMAGETYPE enmType,
     RTTIMESPEC now;
 
     pImage->uOpenFlags = uOpenFlags;
+    pImage->uImageFlags = uImageFlags;
 
     pImage->pInterfaceError = VDInterfaceGet(pImage->pVDIfsDisk, VDINTERFACETYPE_ERROR);
     if (pImage->pInterfaceError)
@@ -1551,7 +1534,6 @@ static int vhdCreateImage(PVHDIMAGE pImage, VDIMAGETYPE enmType,
         return vhdError(pImage, rc, RT_SRC_POS, N_("VHD: cannot create image '%s'"), pImage->pszFilename);
     pImage->File = File;
 
-    pImage->enmImageType = enmType;
     pImage->cbSize = cbSize;
     pImage->ImageUuid = *pUuid;
     RTUuidClear(&pImage->ParentUuid);
@@ -1578,57 +1560,52 @@ static int vhdCreateImage(PVHDIMAGE pImage, VDIMAGETYPE enmType,
     memcpy(Footer.UniqueID, pImage->ImageUuid.au8, sizeof(Footer.UniqueID));
     Footer.SavedState = 0;
 
-    switch (enmType)
+    if (uImageFlags & VD_IMAGE_FLAGS_FIXED)
     {
-        case VD_IMAGE_TYPE_FIXED:
-            Footer.DiskType   = RT_H2BE_U32(VHD_FOOTER_DISK_TYPE_FIXED);
-            /*
-             * Initialize fixed image.
-             * "The size of the entire file is the size of the hard disk in
-             * the guest operating system plus the size of the footer."
-             */
-            pImage->u64DataOffset     = VHD_FOOTER_DATA_OFFSET_FIXED;
-            pImage->uCurrentEndOfFile = cbSize;
-            rc = RTFileSetSize(File, pImage->uCurrentEndOfFile + sizeof(VHDFooter));
-            if (RT_FAILURE(rc))
-            {
-                vhdError(pImage, rc, RT_SRC_POS, N_("VHD: cannot set the file size for '%s'"), pImage->pszFilename);
-                goto out;
-            }
-            break;
-        case VD_IMAGE_TYPE_NORMAL:
-        case VD_IMAGE_TYPE_DIFF:
-            /*
-             * Initialize dynamic image.
-             *
-             * The overall structure of dynamic disk is:
-             *
-             * [Copy of hard disk footer (512 bytes)]
-             * [Dynamic disk header (1024 bytes)]
-             * [BAT (Block Allocation Table)]
-             * [Parent Locators]
-             * [Data block 1]
-             * [Data block 2]
-             * ...
-             * [Data block N]
-             * [Hard disk footer (512 bytes)]
-             */
-            Footer.DiskType   = enmType == VD_IMAGE_TYPE_DIFF ?
-                RT_H2BE_U32(VHD_FOOTER_DISK_TYPE_DIFFERENCING) :
-                RT_H2BE_U32(VHD_FOOTER_DISK_TYPE_DYNAMIC);
-            /* We are half way thourgh with creation of image, let the caller know. */
-            if (pfnProgress)
-                pfnProgress(NULL /* WARNING! pVM=NULL  */, (uPercentStart + uPercentSpan) / 2, pvUser);
+        Footer.DiskType   = RT_H2BE_U32(VHD_FOOTER_DISK_TYPE_FIXED);
+        /*
+         * Initialize fixed image.
+         * "The size of the entire file is the size of the hard disk in
+         * the guest operating system plus the size of the footer."
+         */
+        pImage->u64DataOffset     = VHD_FOOTER_DATA_OFFSET_FIXED;
+        pImage->uCurrentEndOfFile = cbSize;
+        /** @todo r=klaus replace this with actual data writes, see the experience
+         * with VDI files on Windows, can cause long freezes when writing. */
+        rc = RTFileSetSize(File, pImage->uCurrentEndOfFile + sizeof(VHDFooter));
+        if (RT_FAILURE(rc))
+        {
+            vhdError(pImage, rc, RT_SRC_POS, N_("VHD: cannot set the file size for '%s'"), pImage->pszFilename);
+            goto out;
+        }
+    }
+    else
+    {
+        /*
+         * Initialize dynamic image.
+         *
+         * The overall structure of dynamic disk is:
+         *
+         * [Copy of hard disk footer (512 bytes)]
+         * [Dynamic disk header (1024 bytes)]
+         * [BAT (Block Allocation Table)]
+         * [Parent Locators]
+         * [Data block 1]
+         * [Data block 2]
+         * ...
+         * [Data block N]
+         * [Hard disk footer (512 bytes)]
+         */
+        Footer.DiskType   = (uImageFlags & VD_IMAGE_FLAGS_DIFF)
+                              ? RT_H2BE_U32(VHD_FOOTER_DISK_TYPE_DIFFERENCING)
+                              : RT_H2BE_U32(VHD_FOOTER_DISK_TYPE_DYNAMIC);
+        /* We are half way thourgh with creation of image, let the caller know. */
+        if (pfnProgress)
+            pfnProgress(NULL /* WARNING! pVM=NULL  */, (uPercentStart + uPercentSpan) / 2, pvUser);
 
-            rc = vhdCreateDynamicImage(pImage, cbSize);
-            if (RT_FAILURE(rc))
-                goto out;
-
-            break;
-        default:
-            /* Unknown/invalid image type. */
-            rc = VERR_NOT_IMPLEMENTED;
-            break;
+        rc = vhdCreateDynamicImage(pImage, cbSize);
+        if (RT_FAILURE(rc))
+            goto out;
     }
 
     Footer.DataOffset = RT_H2BE_U64(pImage->u64DataOffset);
@@ -1647,7 +1624,7 @@ static int vhdCreateImage(PVHDIMAGE pImage, VDIMAGETYPE enmType,
     }
 
     /* Dynamic images contain a copy of the footer at the very beginning of the file. */
-    if (enmType == VD_IMAGE_TYPE_NORMAL || enmType == VD_IMAGE_TYPE_DIFF)
+    if (!(uImageFlags & VD_IMAGE_FLAGS_FIXED))
     {
         /* Write the copy of the footer. */
         rc = RTFileWriteAt(File, 0, &Footer, sizeof(Footer), NULL);
@@ -1665,9 +1642,8 @@ out:
     return rc;
 }
 
-static int vhdCreate(const char *pszFilename, VDIMAGETYPE enmType,
-                     uint64_t cbSize, unsigned uImageFlags,
-                     const char *pszComment,
+static int vhdCreate(const char *pszFilename, uint64_t cbSize,
+                     unsigned uImageFlags, const char *pszComment,
                      PCPDMMEDIAGEOMETRY pPCHSGeometry,
                      PCPDMMEDIAGEOMETRY pLCHSGeometry, PCRTUUID pUuid,
                      unsigned uOpenFlags, unsigned uPercentStart,
@@ -1710,7 +1686,7 @@ static int vhdCreate(const char *pszFilename, VDIMAGETYPE enmType,
     pImage->File = NIL_RTFILE;
     pImage->pVDIfsDisk = NULL;
 
-    rc = vhdCreateImage(pImage, enmType, cbSize, uImageFlags, pszComment,
+    rc = vhdCreateImage(pImage, cbSize, uImageFlags, pszComment,
                         pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags,
                         pfnProgress, pvUser, uPercentStart, uPercentSpan);
 
@@ -1869,7 +1845,8 @@ VBOXHDDBACKEND g_VhdBackend =
     /* cbSize */
     sizeof(VBOXHDDBACKEND),
     /* uBackendCaps */
-    VD_CAP_UUID | VD_CAP_DIFF | VD_CAP_FILE,
+    VD_CAP_UUID | VD_CAP_DIFF | VD_CAP_FILE |
+    VD_CAP_CREATE_FIXED | VD_CAP_CREATE_DYNAMIC,
     /* papszFileExtensions */
     s_apszVhdFileExtensions,
     /* paConfigInfo */
@@ -1894,8 +1871,6 @@ VBOXHDDBACKEND g_VhdBackend =
     vhdFlush,
     /* pfnGetVersion */
     vhdGetVersion,
-    /* pfnGetImageType */
-    vhdGetImageType,
     /* pfnGetSize */
     vhdGetSize,
     /* pfnGetFileSize */

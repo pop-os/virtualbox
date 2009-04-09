@@ -1,4 +1,4 @@
-/* $Id: DevSB16.cpp $ */
+/* $Id: DevSB16.cpp 18645 2009-04-02 15:38:31Z vboxsync $ */
 /** @file
  * DevSB16 - VBox SB16 Audio Controller.
  *
@@ -1360,10 +1360,11 @@ static int write_audio (SB16State *s, int nchan, int dma_pos,
         int left = dma_len - dma_pos;
 #ifndef VBOX
         int copied;
+        size_t to_copy;
 #else
         uint32_t copied;
+        uint32_t to_copy;
 #endif
-        size_t to_copy;
 
         to_copy = audio_MIN (temp, left);
         if (to_copy > sizeof (tmpbuf)) {
@@ -1834,7 +1835,7 @@ static DECLCALLBACK(int) sb16Construct (PPDMDEVINS pDevIns, int iInstance, PCFGM
         AUD_close_out(&s->card, s->voice);
         s->voice = NULL;
         AUD_init_null();
-        PDMDevHlpVMSetRuntimeError(pDevIns, false, "HostAudioNotResponding",
+        PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "HostAudioNotResponding",
             N_("No audio devices could be opened. Selecting the NULL audio backend "
                "with the consequence that no sound is audible"));
     }

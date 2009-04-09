@@ -33,6 +33,7 @@
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
 #include <VBox/pgm.h>
+#include <VBox/cpum.h>
 #include <iprt/mp.h>
 
 
@@ -65,6 +66,15 @@ __BEGIN_DECLS
  */
 #define HWACCMIsEnabled(pVM)    ((pVM)->fHWACCMEnabled)
 
+ /**
+ * Check if the current CPU state is valid for emulating IO blocks in the recompiler
+ *
+ * @returns boolean
+ * @param   pCtx        CPU context
+ */
+#define HWACCMCanEmulateIoBlock(pVM)       (!CPUMIsGuestInPagedProtectedMode(pVM))
+#define HWACCMCanEmulateIoBlockEx(pCtx)    (!CPUMIsGuestInPagedProtectedModeEx(pCtx))
+
 VMMDECL(int)    HWACCMInvalidatePage(PVM pVM, RTGCPTR GCVirt);
 VMMDECL(bool)   HWACCMHasPendingIrq(PVM pVM);
 
@@ -89,7 +99,9 @@ VMMR0DECL(int)  HWACCMR0Init(void);
 VMMR0DECL(int)  HWACCMR0Term(void);
 VMMR0DECL(int)  HWACCMR0InitVM(PVM pVM);
 VMMR0DECL(int)  HWACCMR0TermVM(PVM pVM);
-VMMR0DECL(int)  HWACCMR0EnableAllCpus(PVM pVM, HWACCMSTATE enmNewHwAccmState);
+VMMR0DECL(int)  HWACCMR0EnableAllCpus(PVM pVM);
+VMMR0DECL(int)  HWACCMR0EnterSwitcher(PVM pVM, bool *pfVTxDisabled);
+VMMR0DECL(int)  HWACCMR0LeaveSwitcher(PVM pVM, bool fVTxDisabled);
 /** @} */
 #endif /* IN_RING0 */
 
@@ -117,6 +129,7 @@ VMMR3DECL(bool) HWACCMR3IsAllowed(PVM pVM);
 VMMR3DECL(void) HWACCMR3PagingModeChanged(PVM pVM, PGMMODE enmShadowMode, PGMMODE enmGuestMode);
 VMMR3DECL(bool) HWACCMR3IsVPIDActive(PVM pVM);
 VMMR3DECL(int)  HWACCMR3InjectNMI(PVM pVM);
+VMMR3DECL(int)  HWACCMR3EmulateIoBlock(PVM pVM, PCPUMCTX pCtx);
 
 /** @} */
 #endif /* IN_RING3 */

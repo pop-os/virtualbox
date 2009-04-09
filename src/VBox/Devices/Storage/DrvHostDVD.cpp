@@ -1,4 +1,4 @@
-/* $Id: DrvHostDVD.cpp $ */
+/* $Id: DrvHostDVD.cpp 18446 2009-03-28 03:17:32Z vboxsync $ */
 /** @file
  * DrvHostDVD - Host DVD block driver.
  */
@@ -31,8 +31,8 @@
 # include <Carbon/Carbon.h>
 # include <IOKit/IOKitLib.h>
 # include <IOKit/IOCFPlugIn.h>
-# include <IOKit/scsi-commands/SCSITaskLib.h>
-# include <IOKit/scsi-commands/SCSICommandOperationCodes.h>
+# include <IOKit/scsi/SCSITaskLib.h>
+# include <IOKit/scsi/SCSICommandOperationCodes.h>
 # include <IOKit/storage/IOStorageDeviceCharacteristics.h>
 # include <mach/mach_error.h>
 # define USE_MEDIA_POLLING
@@ -42,15 +42,18 @@
 
 #elif defined RT_OS_LINUX
 # include <sys/ioctl.h>
+# include <linux/version.h>
+/* All the following crap is apparently not necessary anymore since Linux
+ * version 2.6.29. */
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 /* This is a hack to work around conflicts between these linux kernel headers
  * and the GLIBC tcpip headers. They have different declarations of the 4
  * standard byte order functions. */
-# define _LINUX_BYTEORDER_GENERIC_H
+#  define _LINUX_BYTEORDER_GENERIC_H
 /* This is another hack for not bothering with C++ unfriendly byteswap macros. */
-# define _LINUX_BYTEORDER_SWAB_H
-# define _LINUX_BYTEORDER_SWABB_H
-/* Those macros that are needed are defined in the header below */
-# include "swab.h"
+/* Those macros that are needed are defined in the header below. */
+#  include "swab.h"
+# endif
 # include <linux/cdrom.h>
 # include <sys/fcntl.h>
 # include <errno.h>
@@ -395,7 +398,7 @@ DECLCALLBACK(int) drvHostDvdPoll(PDRVHOSTBASE pThis)
 
 /** @copydoc PDMIBLOCK::pfnSendCmd */
 static int drvHostDvdSendCmd(PPDMIBLOCK pInterface, const uint8_t *pbCmd,
-                             PDMBLOCKTXDIR enmTxDir, void *pvBuf, size_t *pcbBuf,
+                             PDMBLOCKTXDIR enmTxDir, void *pvBuf, uint32_t *pcbBuf,
                              uint8_t *pabSense, size_t cbSense, uint32_t cTimeoutMillies)
 {
     PDRVHOSTBASE pThis = PDMIBLOCK_2_DRVHOSTBASE(pInterface);
@@ -595,7 +598,7 @@ static int drvHostDvdSendCmd(PPDMIBLOCK pInterface, const uint8_t *pbCmd,
     Req.spt.DataIn = direction;
     Req.spt.TimeOutValue = (cTimeoutMillies + 999) / 1000; /* Convert to seconds */
     Assert(cbSense <= sizeof(Req.aSense));
-    Req.spt.SenseInfoLength = cbSense;
+    Req.spt.SenseInfoLength = (UCHAR)RT_MIN(sizeof(Req.aSense), cbSense);
     Req.spt.SenseInfoOffset = RT_OFFSETOF(struct _REQ, aSense);
     if (DeviceIoControl((HANDLE)pThis->FileDevice, IOCTL_SCSI_PASS_THROUGH_DIRECT,
                         &Req, sizeof(Req), &Req, sizeof(Req), &cbReturned, NULL))

@@ -1,4 +1,4 @@
-/* $Id: tstIntNet-1.cpp $ */
+/* $Id: tstIntNet-1.cpp 18457 2009-03-28 04:49:59Z vboxsync $ */
 /** @file
  * VBox - Testcase for internal networking, simple NetFlt trunk creation.
  */
@@ -53,9 +53,9 @@ static bool     g_fPingReply = false;
 static uint32_t g_cOtherPkts = 0;
 static uint32_t g_cArpPkts = 0;
 static uint32_t g_cIpv4Pkts = 0;
-static uint32_t     g_cUdpPkts = 0;
-static uint32_t         g_cDhcpPkts = 0;
-static uint32_t     g_cTcpPkts = 0;
+static uint32_t g_cUdpPkts = 0;
+static uint32_t g_cDhcpPkts = 0;
+static uint32_t g_cTcpPkts = 0;
 
 
 /**
@@ -294,7 +294,7 @@ static void doXmitFrame(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, PINTNETBUF 
      * Don't bother with dealing with overflows like DrvIntNet does, because
      * it's not supposed to happen here in this testcase.
      */
-    int rc = tstIntNetWriteFrame(pBuf, &pBuf->Send, pvFrame, cbFrame);
+    int rc = tstIntNetWriteFrame(pBuf, &pBuf->Send, pvFrame, (uint32_t)cbFrame);
     if (RT_SUCCESS(rc))
     {
         if (pFileRaw)
@@ -420,9 +420,9 @@ static void doXmitTest(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, PINTNETBUF p
 }
 
 
-static uint16_t icmpChecksum(PRTNETICMPV4HDR pHdr, int cbHdr)
+static uint16_t icmpChecksum(PRTNETICMPV4HDR pHdr, size_t cbHdr)
 {
-    int cbLeft = cbHdr;
+    size_t cbLeft = cbHdr;
     uint16_t *pbSrc = (uint16_t *)pHdr;
     uint16_t oddByte = 0;
     int cSum = 0;
@@ -480,7 +480,7 @@ static void doPingTest(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, PINTNETBUF p
     pIpHdr->ip_v = 4;
     pIpHdr->ip_hl = sizeof(*pIpHdr) / sizeof(uint32_t);
     pIpHdr->ip_tos = 0;
-    pIpHdr->ip_len = RT_H2BE_U16(sizeof(*pIcmpEcho) + cbPad + sizeof(*pIpHdr));
+    pIpHdr->ip_len = RT_H2BE_U16((uint16_t)(sizeof(*pIcmpEcho) + cbPad + sizeof(*pIpHdr)));
     pIpHdr->ip_id = (uint16_t)RTRandU32();
     pIpHdr->ip_off = 0;
     pIpHdr->ip_ttl = 255;
@@ -669,7 +669,7 @@ int main(int argc, char **argv)
      */
     RTR3Init();
 
-    static RTOPTIONDEF const s_aOptions[] =
+    static RTGETOPTDEF const s_aOptions[] =
     {
         { "--duration",     'd', RTGETOPT_REQ_UINT32 },
         { "--file",         'f', RTGETOPT_REQ_STRING },
@@ -716,8 +716,10 @@ int main(int argc, char **argv)
     int rc;
     int ch;
     int iArg = 1;
-    RTOPTIONUNION Value;
-    while ((ch = RTGetOpt(argc,argv, &s_aOptions[0], RT_ELEMENTS(s_aOptions), &iArg, &Value)))
+    RTGETOPTUNION Value;
+    RTGETOPTSTATE GetState;
+    RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions), 1, 0 /* fFlags */);
+    while ((ch = RTGetOpt(&GetState, &Value)))
         switch (ch)
         {
             case 'd':
@@ -804,7 +806,19 @@ int main(int argc, char **argv)
 
             case '?':
             case 'h':
-                RTPrintf("syntax: tstIntNet-1 [-pStx-] [-d <secs>] [-f <file>] [-r <size>] [-s <size>]\n");
+                RTPrintf("syntax: tstIntNet-1 <options>\n"
+                         "\n"
+                         "Options:\n");
+                for (size_t i = 0; i < RT_ELEMENTS(s_aOptions); i++)
+                    RTPrintf("    -%c,%s\n", s_aOptions[i].iShort, s_aOptions[i].pszLong);
+                RTPrintf("\n"
+                         "Examples:\n"
+                         "    tstIntNet-1 -r 8192 -s 4096 -xS\n"
+                         "    tstIntNet-1 -n VBoxNetDhcp -r 4096 -s 4096 -i \"\" -xS\n");
+                return 1;
+
+            case VINF_GETOPT_NOT_OPTION:
+                RTPrintf("tstIntNetR0: invalid argument: %s\n", Value.psz);
                 return 1;
 
             default:
@@ -816,12 +830,6 @@ int main(int argc, char **argv)
                     RTPrintf("tstIntNetR0: invalid argument: %Rrc - %s\n", ch, argv[iArg]);
                 return 1;
         }
-    if (iArg < argc)
-    {
-        RTPrintf("tstIntNetR0: invalid argument: %s\n", argv[iArg]);
-        return 1;
-    }
-
 
     RTPrintf("tstIntNet-1: TESTING...\n");
 
@@ -861,7 +869,7 @@ int main(int argc, char **argv)
     OpenReq.pSession = pSession;
     strncpy(OpenReq.szNetwork, pszNetwork, sizeof(OpenReq.szNetwork));
     strncpy(OpenReq.szTrunk, pszIf, sizeof(OpenReq.szTrunk));
-    OpenReq.enmTrunkType = kIntNetTrunkType_NetFlt;
+    OpenReq.enmTrunkType = *pszIf ? kIntNetTrunkType_NetFlt : kIntNetTrunkType_WhateverNone;
     OpenReq.fFlags = fMacSharing ? INTNET_OPEN_FLAGS_SHARED_MAC_ON_WIRE : 0;
     OpenReq.cbSend = cbSend;
     OpenReq.cbRecv = cbRecv;

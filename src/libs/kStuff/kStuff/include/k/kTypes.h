@@ -1,9 +1,9 @@
-/* $Id: kTypes.h 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kTypes.h 17 2009-01-24 02:03:50Z bird $ */
 /** @file
  *
  * kTypes - Typedefs And Related Constants And Macros.
  *
- * Copyright (c) 2007 knut st. osmundsen <bird-src-spam@anduin.net>
+ * Copyright (c) 2007-2009 knut st. osmundsen <bird-src-spam@anduin.net>
  *
  *
  * This file is part of kStuff.
@@ -379,6 +379,110 @@ typedef KBOOL const            *PCKBOOL;
 /** Boolean unknown constant (the third state). */
 #define K_UNKNOWN               KI8_C(-1)
 
+
+/**
+ * Integer union.
+ */
+typedef union KUINT
+{
+    KFOFF           iBig;               /**< The biggest member. */
+    KBOOL           fBool;              /**< Boolean. */
+    KU8             b;                  /**< unsigned 8-bit. */
+    KU8             u8;                 /**< unsigned 8-bit. */
+    KI8             i8;                 /**< signed 8-bit.  */
+    KU16            u16;                /**< unsigned 16-bit. */
+    KI16            i16;                /**< signed 16-bit. */
+    KU32            u32;                /**< unsigned 32-bit. */
+    KI32            i32;                /**< signed 32-bit. */
+    KU64            u64;                /**< unsigned 64-bit. */
+    KI64            i64;                /**< signed 64-bit. */
+    KSIZE           cbUnsign;           /**< unsigned size. */
+    KSSIZE          cbSign;             /**< signed size. */
+    KFOFF           offFile;            /**< file offset. */
+    KUPTR           uPtr;               /**< unsigned pointer. */
+    KIPTR           iPtr;               /**< signed pointer. */
+    void           *pv;                 /**< void pointer. */
+    char            ch;                 /**< char. */
+    unsigned char   uch;                /**< unsigned char. */
+    signed char     chSigned;           /**< signed char. */
+    unsigned short  uShort;             /**< Unsigned short. */
+    signed short    iShort;             /**< Signed short. */
+    unsigned int    uInt;               /**< Unsigned int. */
+    signed int      iInt;               /**< Signed int. */
+    unsigned long   uLong;              /**< Unsigned long. */
+    signed long     iLong;              /**< Signed long. */
+} KUINT;
+
+
+/**
+ * Integer pointer union.
+ */
+typedef union KPUINT
+{
+    KFOFF          *piBig;              /**< The biggest member. */
+    KBOOL          *pfBool;             /**< Boolean. */
+    KU8            *pb;                 /**< unsigned 8-bit. */
+    KU8            *pu8;                /**< unsigned 8-bit. */
+    KI8            *pi8;                /**< signed 8-bit. */
+    KU16           *pu16;               /**< unsigned 16-bit. */
+    KI16           *pi16;               /**< signed 16-bit. */
+    KU32           *pu32;               /**< unsigned 32-bit. */
+    KI32           *pi32;               /**< signed 32-bit. */
+    KU64           *pu64;               /**< unsigned 64-bit. */
+    KI64           *pi64;               /**< signed 64-bit. */
+    KSIZE          *pcbUnsign;          /**< unsigned size. */
+    KSSIZE         *pcbSign;            /**< signed size. */
+    KFOFF          *poffFile;           /**< file offset. */
+    KUPTR          *puPtr;              /**< unsigned pointer. */
+    KIPTR          *piPtr;              /**< signed pointer. */
+    void          **ppv;                /**< void pointer pointer. */
+    void           *pv;                 /**< void pointer. */
+    char           *pch;                /**< char. */
+    char           *psz;                /**< zero terminated string. */
+    unsigned char  *puch;               /**< unsigned char. */
+    signed char    *pchSigned;          /**< signed char. */
+    unsigned short *puShort;            /**< Unsigned short. */
+    signed short   *piShort;            /**< Signed short. */
+    unsigned int   *puInt;              /**< Unsigned int. */
+    signed int     *piInt;              /**< Signed int. */
+    unsigned long  *puLong;             /**< Unsigned long. */
+    signed long    *piLong;             /**< Signed long. */
+} KPUINT;
+
+/**
+ * Integer const pointer union.
+ */
+typedef union KPCUINT
+{
+    KFOFF  const   *piBig;              /**< The biggest member. */
+    KBOOL  const   *pfBool;             /**< Boolean. */
+    KU8    const   *pb;                 /**< byte.  */
+    KU8    const   *pu8;                /**< unsigned 8-bit.  */
+    KI8    const   *pi8;                /**< signed 8-bit.  */
+    KU16   const   *pu16;               /**< unsigned 16-bit. */
+    KI16   const   *pi16;               /**< signed 16-bit. */
+    KU32   const   *pu32;               /**< unsigned 32-bit. */
+    KI32   const   *pi32;               /**< signed 32-bit. */
+    KU64   const   *pu64;               /**< unsigned 64-bit. */
+    KI64   const   *pi64;               /**< signed 64-bit. */
+    KSIZE  const   *pcbUnsign;          /**< unsigned size. */
+    KSSIZE const   *pcbSign;            /**< signed size. */
+    KFOFF  const   *poffFile;           /**< file offset. */
+    KUPTR  const   *puPtr;              /**< unsigned pointer. */
+    KIPTR  const   *piPtr;              /**< signed pointer. */
+    void   const  **ppv;                /**< void pointer pointer. */
+    void   const   *pv;                 /**< void pointer. */
+    char   const   *pch;                /**< char. */
+    char   const   *psz;                /**< zero terminated string. */
+    unsigned char  const *puch;         /**< unsigned char. */
+    signed char    const *pchSigned;    /**< signed char. */
+    unsigned short const *puShort;      /**< Unsigned short. */
+    signed short   const *piShort;      /**< Signed short. */
+    unsigned int   const *puInt;        /**< Unsigned int. */
+    signed int     const *piInt;        /**< Signed int. */
+    unsigned long  const *puLong;       /**< Unsigned long. */
+    signed long    const *piLong;       /**< Signed long. */
+} KPCUINT;
 
 
 /** @name   Forward Declarations / Handle Types.

@@ -22,6 +22,8 @@
 
 #include <VBoxDefs.h>
 
+const QUuid QUuid_null;
+
 const char* VBoxDefs::GUI_LastWindowPosition = "GUI/LastWindowPostion";
 const char* VBoxDefs::GUI_LastWindowPosition_Max = "max";
 const char* VBoxDefs::GUI_Fullscreen = "GUI/Fullscreen";
@@ -37,5 +39,16 @@ const char* VBoxDefs::GUI_LicenseKey = "GUI/LicenseAgreed";
 #endif
 const char* VBoxDefs::GUI_RegistrationDlgWinID = "GUI/RegistrationDlgWinID";
 const char* VBoxDefs::GUI_RegistrationData = "GUI/RegistrationData";
+const char* VBoxDefs::GUI_UpdateDlgWinID = "GUI/UpdateDlgWinID";
+const char* VBoxDefs::GUI_UpdateDate = "GUI/UpdateDate";
+const char* VBoxDefs::GUI_UpdateCheckCount = "GUI/UpdateCheckCount";
 const char* VBoxDefs::GUI_LastVMSelected = "GUI/LastVMSelected";
 const char* VBoxDefs::GUI_InfoDlgState = "GUI/InfoDlgState";
+#ifdef VBOX_GUI_WITH_SYSTRAY
+const char* VBoxDefs::GUI_TrayIconWinID = "GUI/TrayIcon/WinID";
+const char* VBoxDefs::GUI_MainWindowCount = "GUI/MainWindowCount";
+#endif
+#ifdef Q_WS_MAC
+const char* VBoxDefs::GUI_RealtimeDockIconUpdateEnabled = "GUI/RealtimeDockIconUpdateEnabled";
+#endif /* Q_WS_MAC */
+const char* VBoxDefs::GUI_PassCAD = "GUI/PassCAD";

@@ -592,19 +592,30 @@ typedef struct INTNETTRUNKFACTORY
      * @param   pszName             The interface name (OS specific).
      * @param   pSwitchPort         Pointer to the port interface on the switch that
      *                              this interface is being connected to.
+     * @param   fFlags              Creation flags, see below.
      * @param   ppIfPort            Where to store the pointer to the interface port
      *                              on success.
      *
      * @remarks Called while owning the network and the out-bound trunk semaphores.
      */
     DECLR0CALLBACKMEMBER(int, pfnCreateAndConnect,(struct INTNETTRUNKFACTORY *pIfFactory, const char *pszName,
-                                                   PINTNETTRUNKSWPORT pSwitchPort, PINTNETTRUNKIFPORT *ppIfPort));
+                                                   PINTNETTRUNKSWPORT pSwitchPort, uint32_t fFlags,
+                                                   PINTNETTRUNKIFPORT *ppIfPort));
 } INTNETTRUNKFACTORY;
 /** Pointer to the trunk factory. */
 typedef INTNETTRUNKFACTORY *PINTNETTRUNKFACTORY;
 
 /** The UUID for the (current) trunk factory. (case sensitive) */
-#define INTNETTRUNKFACTORY_UUID_STR     "ae8fcb95-280c-42f4-a8f1-09f84e3bdab3"
+#define INTNETTRUNKFACTORY_UUID_STR     "449a2799-7564-464d-b4b2-7a877418fd0c"
+
+/** @name INTNETTRUNKFACTORY::pfnCreateAndConnect flags.
+ * @{ */
+/** Don't put the filtered interface in promiscuous mode.
+ * This is used for wireless interface since these can misbehave if
+ * we try to put them in promiscuous mode. (Wireless interfaces are
+ * normally bridged on level 3 instead of level 2.) */
+#define INTNETTRUNKFACTORY_FLAG_NO_PROMISC      RT_BIT_32(0)
+/** @} */
 
 
 /**
@@ -624,8 +635,8 @@ typedef enum INTNETTRUNKTYPE
     /** VirtualBox host network interface filter driver.
      * The trunk name is the name of the host network interface. */
     kIntNetTrunkType_NetFlt,
-    /** VirtualBox TAP host driver. */
-    kIntNetTrunkType_NetTap,
+    /** VirtualBox adapter host driver. */
+    kIntNetTrunkType_NetAdp,
     /** Nat service (ring-0). */
     kIntNetTrunkType_SrvNat,
     /** The end of valid types. */

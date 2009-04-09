@@ -1,0 +1,37 @@
+# $Id: Makefile.kmk 43187 2009-02-23 09:24:17Z michael $
+## @file
+# Sub-Makefile for the X11 linker stub (import) libraries.
+#
+
+#
+# Copyright (C) 2009 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../../..
+include $(KBUILD_PATH)/subheader.kmk
+
+
+#
+# libXcomposite import library.
+#
+IMPORT_LIBS += libXcomposite
+libXcomposite_TEMPLATE   = VBOXR3
+libXcomposite_INST       = $(INST_LIB)
+# This may need fixing later.
+libXcomposite_SONAME     = libXcomposite.so.1
+libXcomposite_SOURCES    = libXcomposite-1.0.0/libXcomposite.c
+
+include $(KBUILD_PATH)/subfooter.kmk
+

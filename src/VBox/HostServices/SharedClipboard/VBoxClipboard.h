@@ -22,13 +22,8 @@
 #ifndef __VBOXCLIPBOARD__H
 #define __VBOXCLIPBOARD__H
 
-#define LOG_GROUP LOG_GROUP_HGCM
+#define LOG_GROUP LOG_GROUP_SHARED_CLIPBOARD
 #include <VBox/log.h>
-
-enum {
-    /** The number of milliseconds before the clipboard times out. */
-    CLIPBOARDTIMEOUT = 5000
-};
 
 struct _VBOXCLIPBOARDCONTEXT;
 typedef struct _VBOXCLIPBOARDCONTEXT VBOXCLIPBOARDCONTEXT;

@@ -49,7 +49,7 @@
 #elif defined(RT_OS_SOLARIS) && defined(_KERNEL)
   /*
    * Same case as with FreeBSD kernel:
-   * The string.h stuff clashes with sys/systm.h
+   * The string.h stuff clashes with sys/system.h
    * ffs = find first set bit.
    */
 # define ffs ffs_string_h
@@ -70,6 +70,39 @@ void *memchr(const void *pv, int ch, size_t cb);
 char *strpbrk(const char *pszStr, const char *pszChars);
 __END_DECLS
 #endif
+
+/**
+ * Byte zero the specified object.
+ *
+ * This will use sizeof(Obj) to figure the size and will call memset, bzero
+ * or some compiler intrinsic to perform the actual zeroing.
+ *
+ * @param   Obj     The object to zero. Make sure to dereference pointers.
+ *
+ * @remarks Because the macro may use memset it has been placed in string.h
+ *          instead of cdefs.h to avoid build issues because someone forgot
+ *          to include this header.
+ *
+ * @ingroup grp_rt_cdefs
+ */
+#define RT_ZERO(Obj)        RT_BZERO(&(Obj), sizeof(Obj))
+
+/**
+ * Byte zero the specified memory area.
+ *
+ * This will call memset, bzero or some compiler intrinsic to clear the
+ * specified bytes of memory.
+ *
+ * @param   pv          Pointer to the memory.
+ * @param   cb          The number of bytes to clear. Please, don't pass 0.
+ *
+ * @remarks Because the macro may use memset it has been placed in string.h
+ *          instead of cdefs.h to avoid build issues because someone forgot
+ *          to include this header.
+ *
+ * @ingroup grp_rt_cdefs
+ */
+#define RT_BZERO(pv, cb)    do { memset((pv), 0, cb); } while (0)
 
 
 /** @defgroup grp_rt_str    RTStr - String Manipulation
@@ -159,7 +192,7 @@ RTDECL(int) RTStrValidateEncoding(const char *psz);
  * @returns iprt status code.
  * @param   psz         The string.
  * @param   cch         The max string length. Use RTSTR_MAX to process the entire string.
- * @param   fFlags      Teserved for future. Pass 0.
+ * @param   fFlags      Reserved for future. Pass 0.
  */
 RTDECL(int) RTStrValidateEncodingEx(const char *psz, size_t cch, uint32_t fFlags);
 
@@ -220,7 +253,7 @@ RTDECL(int) RTStrToUni(const char *pszString, PRTUNICP *ppUniString);
  *                          a buffer of the specified size, or pointer to a NULL pointer.
  *                          If *ppusz is NULL or cCps is zero a buffer of at least cCps items
  *                          will be allocated to hold the translated string.
- *                          If a buffer was requirest it must be freed using RTUtf16Free().
+ *                          If a buffer was requested it must be freed using RTUtf16Free().
  * @param   cCps            The number of code points in the unicode string. This includes the terminator.
  * @param   pcCps           Where to store the length of the translated string. (Optional)
  *                          This field will be updated even on failure, however the value is only
@@ -235,7 +268,7 @@ RTDECL(int)  RTStrToUniEx(const char *pszString, size_t cchString, PRTUNICP *ppa
  * This function will validate the string, and incorrectly encoded UTF-8
  * strings will be rejected. The primary purpose of this function is to
  * help allocate buffers for RTStrToUtf16Ex of the correct size. For most
- * other puroses RTStrCalcUtf16LenEx() should be used.
+ * other purposes RTStrCalcUtf16LenEx() should be used.
  *
  * @returns Number of RTUTF16 items.
  * @returns 0 if the string was incorrectly encoded.
@@ -279,7 +312,7 @@ RTDECL(int) RTStrToUtf16(const char *pszString, PRTUTF16 *ppwszString);
  *                          a buffer of the specified size, or pointer to a NULL pointer.
  *                          If *ppwsz is NULL or cwc is zero a buffer of at least cwc items
  *                          will be allocated to hold the translated string.
- *                          If a buffer was requirest it must be freed using RTUtf16Free().
+ *                          If a buffer was requested it must be freed using RTUtf16Free().
  * @param   cwc             The buffer size in RTUTF16s. This includes the terminator.
  * @param   pcwc            Where to store the length of the translated string. (Optional)
  *                          This field will be updated even on failure, however the value is only
@@ -329,15 +362,15 @@ RTDECL(int) RTStrGetCpNExInternal(const char **ppsz, size_t *pcch, PRTUNICP pCp)
  * Put the unicode code point at the given string position
  * and return the pointer to the char following it.
  *
- * This function will not consider anything at or following the the
+ * This function will not consider anything at or following the
  * buffer area pointed to by psz. It is therefore not suitable for
  * inserting code points into a string, only appending/overwriting.
  *
  * @returns pointer to the char following the written code point.
  * @param   psz         The string.
  * @param   CodePoint   The code point to write.
- *                      This sould not be RTUNICP_INVALID or any other charater
- *                      out of the UTF-8 range.
+ *                      This should not be RTUNICP_INVALID or any other
+ *                      character out of the UTF-8 range.
  *
  * @remark  This is a worker function for RTStrPutCp().
  *
@@ -427,15 +460,15 @@ DECLINLINE(int) RTStrGetCpNEx(const char **ppsz, size_t *pcch, PRTUNICP pCp)
  * Put the unicode code point at the given string position
  * and return the pointer to the char following it.
  *
- * This function will not consider anything at or following the the
+ * This function will not consider anything at or following the
  * buffer area pointed to by psz. It is therefore not suitable for
  * inserting code points into a string, only appending/overwriting.
  *
  * @returns pointer to the char following the written code point.
  * @param   psz         The string.
  * @param   CodePoint   The code point to write.
- *                      This sould not be RTUNICP_INVALID or any other charater
- *                      out of the UTF-8 range.
+ *                      This should not be RTUNICP_INVALID or any other
+ *                      character out of the UTF-8 range.
  *
  * @remark  We optimize this operation by using an inline function for
  *          the most frequent and simplest sequence, the rest is
@@ -850,6 +883,54 @@ RTDECL(int) RTStrICmp(const char *psz1, const char *psz2);
 RTDECL(int) RTStrNICmp(const char *psz1, const char *psz2, size_t cchMax);
 
 /**
+ * Locates a case sensitive substring.
+ *
+ * If any of the two strings are NULL, then NULL is returned. If the needle is
+ * an empty string, then the haystack is returned (i.e. matches anything).
+ *
+ * @returns Pointer to the first occurrence of the substring if found, NULL if
+ *          not.
+ *
+ * @param   pszHaystack The string to search.
+ * @param   pszNeedle   The substring to search for.
+ *
+ * @remarks The difference between this and strstr is the handling of NULL
+ *          pointers.
+ */
+RTDECL(char *) RTStrStr(const char *pszHaystack, const char *pszNeedle);
+
+/**
+ * Locates a case insensitive substring.
+ *
+ * If any of the two strings are NULL, then NULL is returned. If the needle is
+ * an empty string, then the haystack is returned (i.e. matches anything).
+ *
+ * @returns Pointer to the first occurrence of the substring if found, NULL if
+ *          not.
+ *
+ * @param   pszHaystack The string to search.
+ * @param   pszNeedle   The substring to search for.
+ *
+ */
+RTDECL(char *) RTStrIStr(const char *pszHaystack, const char *pszNeedle);
+
+/**
+ * Converts the string to lower case.
+ *
+ * @returns Pointer to the converted string.
+ * @param   psz     The string to convert.
+ */
+RTDECL(char *) RTStrToLower(char *psz);
+
+/**
+ * Converts the string to upper case.
+ *
+ * @returns Pointer to the converted string.
+ * @param   psz     The string to convert.
+ */
+RTDECL(char *) RTStrToUpper(char *psz);
+
+/**
  * Find the length of a zero-terminated byte string, given
  * a max string length.
  *
@@ -945,7 +1026,7 @@ RTDECL(bool) RTStrSimplePatternMultiMatch(const char *pszPatterns, size_t cchPat
  * Converts a string representation of a number to a 64-bit unsigned number.
  *
  * @returns iprt status code.
- *          Warnings are used to indicate convertion problems.
+ *          Warnings are used to indicate conversion problems.
  * @retval  VWRN_NUMBER_TOO_BIG
  * @retval  VWRN_NEGATIVE_UNSIGNED
  * @retval  VWRN_TRAILING_CHARS
@@ -966,7 +1047,7 @@ RTDECL(int) RTStrToUInt64Ex(const char *pszValue, char **ppszNext, unsigned uBas
  * making sure the full string is converted.
  *
  * @returns iprt status code.
- *          Warnings are used to indicate convertion problems.
+ *          Warnings are used to indicate conversion problems.
  * @retval  VWRN_NUMBER_TOO_BIG
  * @retval  VWRN_NEGATIVE_UNSIGNED
  * @retval  VINF_SUCCESS
@@ -1016,7 +1097,7 @@ RTDECL(int) RTStrToUInt32Ex(const char *pszValue, char **ppszNext, unsigned uBas
  * making sure the full string is converted.
  *
  * @returns iprt status code.
- *          Warnings are used to indicate convertion problems.
+ *          Warnings are used to indicate conversion problems.
  * @retval  VWRN_NUMBER_TOO_BIG
  * @retval  VWRN_NEGATIVE_UNSIGNED
  * @retval  VINF_SUCCESS
@@ -1066,7 +1147,7 @@ RTDECL(int) RTStrToUInt16Ex(const char *pszValue, char **ppszNext, unsigned uBas
  * making sure the full string is converted.
  *
  * @returns iprt status code.
- *          Warnings are used to indicate convertion problems.
+ *          Warnings are used to indicate conversion problems.
  * @retval  VWRN_NUMBER_TOO_BIG
  * @retval  VWRN_NEGATIVE_UNSIGNED
  * @retval  VINF_SUCCESS
@@ -1116,7 +1197,7 @@ RTDECL(int) RTStrToUInt8Ex(const char *pszValue, char **ppszNext, unsigned uBase
  * making sure the full string is converted.
  *
  * @returns iprt status code.
- *          Warnings are used to indicate convertion problems.
+ *          Warnings are used to indicate conversion problems.
  * @retval  VWRN_NUMBER_TOO_BIG
  * @retval  VWRN_NEGATIVE_UNSIGNED
  * @retval  VINF_SUCCESS
@@ -1165,7 +1246,7 @@ RTDECL(int) RTStrToInt64Ex(const char *pszValue, char **ppszNext, unsigned uBase
  * making sure the full string is converted.
  *
  * @returns iprt status code.
- *          Warnings are used to indicate convertion problems.
+ *          Warnings are used to indicate conversion problems.
  * @retval  VWRN_NUMBER_TOO_BIG
  * @retval  VINF_SUCCESS
  * @retval  VERR_TRAILING_CHARS
@@ -1213,7 +1294,7 @@ RTDECL(int) RTStrToInt32Ex(const char *pszValue, char **ppszNext, unsigned uBase
  * making sure the full string is converted.
  *
  * @returns iprt status code.
- *          Warnings are used to indicate convertion problems.
+ *          Warnings are used to indicate conversion problems.
  * @retval  VWRN_NUMBER_TOO_BIG
  * @retval  VINF_SUCCESS
  * @retval  VERR_TRAILING_CHARS
@@ -1261,7 +1342,7 @@ RTDECL(int) RTStrToInt16Ex(const char *pszValue, char **ppszNext, unsigned uBase
  * making sure the full string is converted.
  *
  * @returns iprt status code.
- *          Warnings are used to indicate convertion problems.
+ *          Warnings are used to indicate conversion problems.
  * @retval  VWRN_NUMBER_TOO_BIG
  * @retval  VINF_SUCCESS
  * @retval  VERR_TRAILING_CHARS
@@ -1309,7 +1390,7 @@ RTDECL(int) RTStrToInt8Ex(const char *pszValue, char **ppszNext, unsigned uBase,
  * making sure the full string is converted.
  *
  * @returns iprt status code.
- *          Warnings are used to indicate convertion problems.
+ *          Warnings are used to indicate conversion problems.
  * @retval  VWRN_NUMBER_TOO_BIG
  * @retval  VINF_SUCCESS
  * @retval  VERR_TRAILING_CHARS
@@ -1377,7 +1458,7 @@ typedef PPRTSTRSPACECORE    PRTSTRSPACE;
  * Inserts a string into a unique string space.
  *
  * @returns true on success.
- * @returns false if the string collieded with an existing string.
+ * @returns false if the string collided with an existing string.
  * @param   pStrSpace       The space to insert it into.
  * @param   pStr            The string node.
  */
@@ -1567,7 +1648,8 @@ RTDECL(PRTUTF16) RTUtf16ToUpper(PRTUTF16 pwsz);
  *
  * @returns iprt status code.
  * @param   pwszString      UTF-16 string to convert.
- * @param   ppszString      Receives pointer of allocated UTF-8 string.
+ * @param   ppszString      Receives pointer of allocated UTF-8 string on
+ *                          success, and is always set to NULL on failure.
  *                          The returned pointer must be freed using RTStrFree().
  */
 RTDECL(int)  RTUtf16ToUtf8(PCRTUTF16 pwszString, char **ppszString);
@@ -1578,14 +1660,14 @@ RTDECL(int)  RTUtf16ToUtf8(PCRTUTF16 pwszString, char **ppszString);
  *
  * @returns iprt status code.
  * @param   pwszString      The UTF-16 string to convert.
- * @param   cwcString       The number of RTUTF16 items to translation from pwszString.
- *                          The translate will stop when reaching cwcString or the terminator ('\\0').
+ * @param   cwcString       The number of RTUTF16 items to translate from pwszString.
+ *                          The translation will stop when reaching cwcString or the terminator ('\\0').
  *                          Use RTSTR_MAX to translate the entire string.
- * @param   ppsz            If cch is non-zero, this must either be pointing to pointer to
+ * @param   ppsz            If cch is non-zero, this must either be pointing to a pointer to
  *                          a buffer of the specified size, or pointer to a NULL pointer.
  *                          If *ppsz is NULL or cch is zero a buffer of at least cch chars
  *                          will be allocated to hold the translated string.
- *                          If a buffer was requirest it must be freed using RTUtf16Free().
+ *                          If a buffer was requested it must be freed using RTUtf16Free().
  * @param   cch             The buffer size in chars (the type). This includes the terminator.
  * @param   pcch            Where to store the length of the translated string. (Optional)
  *                          This field will be updated even on failure, however the value is only
@@ -1600,7 +1682,7 @@ RTDECL(int)  RTUtf16ToUtf8Ex(PCRTUTF16 pwszString, size_t cwcString, char **ppsz
  * This function will validate the string, and incorrectly encoded UTF-16
  * strings will be rejected. The primary purpose of this function is to
  * help allocate buffers for RTUtf16ToUtf8() of the correct size. For most
- * other puroses RTUtf16ToUtf8Ex() should be used.
+ * other purposes RTUtf16ToUtf8Ex() should be used.
  *
  * @returns Number of char (bytes).
  * @returns 0 if the string was incorrectly encoded.
@@ -1650,15 +1732,15 @@ RTDECL(int) RTUtf16GetCpExInternal(PCRTUTF16 *ppwsz, PRTUNICP pCp);
  * Put the unicode code point at the given string position
  * and return the pointer to the char following it.
  *
- * This function will not consider anything at or following the the
+ * This function will not consider anything at or following the
  * buffer area pointed to by pwsz. It is therefore not suitable for
  * inserting code points into a string, only appending/overwriting.
  *
  * @returns pointer to the char following the written code point.
  * @param   pwsz        The string.
  * @param   CodePoint   The code point to write.
- *                      This sould not be RTUNICP_INVALID or any other charater
- *                      out of the UTF-16 range.
+ *                      This should not be RTUNICP_INVALID or any other
+ *                      character out of the UTF-16 range.
  *
  * @remark  This is an internal worker for RTUtf16GetCpEx().
  */
@@ -1710,15 +1792,15 @@ DECLINLINE(int) RTUtf16GetCpEx(PCRTUTF16 *ppwsz, PRTUNICP pCp)
  * Put the unicode code point at the given string position
  * and return the pointer to the char following it.
  *
- * This function will not consider anything at or following the the
+ * This function will not consider anything at or following the
  * buffer area pointed to by pwsz. It is therefore not suitable for
  * inserting code points into a string, only appending/overwriting.
  *
  * @returns pointer to the char following the written code point.
  * @param   pwsz        The string.
  * @param   CodePoint   The code point to write.
- *                      This sould not be RTUNICP_INVALID or any other charater
- *                      out of the UTF-16 range.
+ *                      This should not be RTUNICP_INVALID or any other
+ *                      character out of the UTF-16 range.
  *
  * @remark  We optimize this operation by using an inline function for
  *          everything which isn't a surrogate pair or and endian indicator.

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 17602 2009-03-10 09:29:54Z vboxsync $
 ## @file
 # Sub-Makefile for the X11 Guest Additions.
 #
@@ -23,9 +23,10 @@ include $(KBUILD_PATH)/subheader.kmk
 
 # Include sub-makefiles.
 if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd solaris)
- include $(PATH_SUB_CURRENT)/xclient/Makefile.kmk
- include $(PATH_SUB_CURRENT)/xgraphics/Makefile.kmk
- include $(PATH_SUB_CURRENT)/xmouse/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/VBoxClient/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/vboxvideo/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/vboxmouse/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/x11stubs/Makefile.kmk
 endif
 
 include $(KBUILD_PATH)/subfooter.kmk

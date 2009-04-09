@@ -1,4 +1,4 @@
-/* $Id: kDbgModLdr.cpp 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kDbgModLdr.cpp 6 2008-02-03 23:37:34Z bird $ */
 /** @file
  * kDbg - The Debug Info Reader, kLdr Based.
  */
@@ -34,7 +34,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <k/kDbg.h>
-#include "kLdr.h"
+#include <k/kLdr.h>
 #include "kDbgInternal.h"
 
 
@@ -56,7 +56,7 @@ typedef struct KDBGMODLDR
 /**
  * @copydoc KDBGMODOPS::pfnQueryLine
  */
-static int kDbgModPeQueryLine(PKDBGMOD pMod, int32_t iSegment, KDBGADDR off, PKDBGLINE pLine)
+static int kDbgModLdrQueryLine(PKDBGMOD pMod, KI32 iSegment, KDBGADDR uOffset, PKDBGLINE pLine)
 {
     //PKDBGMODLDR pThis = (PKDBGMODLDR)pMod;
     return KERR_NOT_IMPLEMENTED;
@@ -66,7 +66,7 @@ static int kDbgModPeQueryLine(PKDBGMOD pMod, int32_t iSegment, KDBGADDR off, PKD
 /**
  * @copydoc KDBGMODOPS::pfnQuerySymbol
  */
-static int kDbgModPeQuerySymbol(PKDBGMOD pMod, int32_t iSegment, KDBGADDR off, PKDBGSYMBOL pSym)
+static int kDbgModLdrQuerySymbol(PKDBGMOD pMod, KI32 iSegment, KDBGADDR off, PKDBGSYMBOL pSym)
 {
     //PKDBGMODLDR pThis = (PKDBGMODLDR)pMod;
     return KERR_NOT_IMPLEMENTED;
@@ -86,7 +86,7 @@ static int kDbgModLdrClose(PKDBGMOD pMod)
 /**
  * @copydocs  KDBGMODOPS::pfnOpen.
  */
-static int kDbgModLdrOpen(PKDBGHLPFILE pFile, KFOFF off, KFOFF cb, PKLDRMOD pLdrMod, PKDBGMOD *ppMod)
+static int kDbgModLdrOpen(PKDBGMOD *ppMod, PKRDR pRdr, KBOOL fCloseRdr, KFOFF off, KFOFF cb, struct KLDRMOD *pLdrMod)
 {
     return KERR_NOT_IMPLEMENTED;
 }
@@ -95,13 +95,14 @@ static int kDbgModLdrOpen(PKDBGHLPFILE pFile, KFOFF off, KFOFF cb, PKLDRMOD pLdr
 /**
  * Methods for a PE module.
  */
-const KDBGMODOPS g_kDbgModPeOps =
+const KDBGMODOPS g_kDbgModLdr =
 {
     "kLdr",
+    NULL,
     kDbgModLdrOpen,
     kDbgModLdrClose,
     kDbgModLdrQuerySymbol,
-    kDbgModLdrQueryLine
+    kDbgModLdrQueryLine,
     "kLdr"
 };
 
