@@ -7,22 +7,10 @@
 ## DP: better way to undefine VBOX_WITH_REGISTRATION_REQUEST
 
 @DPATCH@
-diff -urNad virtualbox-ose-2.0.4-dfsg~/src/VBox/Frontends/VirtualBox/Makefile.kmk virtualbox-ose-2.0.4-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk
---- virtualbox-ose-2.0.4-dfsg~/src/VBox/Frontends/VirtualBox/Makefile.kmk	2008-10-23 22:11:39.000000000 +0200
-+++ virtualbox-ose-2.0.4-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk	2008-10-26 02:53:09.271786032 +0200
-@@ -27,7 +27,7 @@
- #
- VBOX_PATH_VIRTUALBOX3_SRC := $(PATH_SUB_CURRENT)
- VBOX_WITH_REGISTRATION := 1
--VBOX_WITH_REGISTRATION_REQUEST := 1
-+#VBOX_WITH_REGISTRATION_REQUEST := 1
- 
- 
- #
-diff -urNad virtualbox-ose-2.0.4-dfsg~/src/VBox/Frontends/VirtualBox4/Makefile.kmk virtualbox-ose-2.0.4-dfsg/src/VBox/Frontends/VirtualBox4/Makefile.kmk
---- virtualbox-ose-2.0.4-dfsg~/src/VBox/Frontends/VirtualBox4/Makefile.kmk	2008-10-23 22:12:16.000000000 +0200
-+++ virtualbox-ose-2.0.4-dfsg/src/VBox/Frontends/VirtualBox4/Makefile.kmk	2008-10-26 02:53:00.227785792 +0200
-@@ -32,7 +32,7 @@
+diff -urNad virtualbox-ose-2.2.0-dfsg~/src/VBox/Frontends/VirtualBox/Makefile.kmk virtualbox-ose-2.2.0-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk
+--- virtualbox-ose-2.2.0-dfsg~/src/VBox/Frontends/VirtualBox/Makefile.kmk	2009-04-09 11:15:55.000000000 +0200
++++ virtualbox-ose-2.2.0-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk	2009-04-09 11:17:00.000000000 +0200
+@@ -32,7 +32,7 @@ VBOX_WITH_REGISTRATION := 1
  
  # Ask the user to register at Sun. If this setting is disabled the user can
  # still register using the menu if desired.

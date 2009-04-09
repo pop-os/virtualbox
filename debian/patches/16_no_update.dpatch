@@ -18,3 +18,14 @@
      "    <MachineRegistry/>"RTFILE_LINEFEED
      "    <MediaRegistry/>"RTFILE_LINEFEED
      "    <USBDeviceFilters/>"RTFILE_LINEFEED
+--- virtualbox-ose-2.2.0-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk.orig2	2009-04-09 11:19:52.000000000 +0200
++++ virtualbox-ose-2.2.0-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk	2009-04-09 11:20:03.000000000 +0200
+@@ -36,7 +36,7 @@ VBOX_WITH_REGISTRATION := 1
+ 
+ # Show the update notifier dialog during startup. If this setting is disabled
+ # the user can still update using the menu if desired.
+-VBOX_WITH_UPDATE_REQUEST := 1
++#VBOX_WITH_UPDATE_REQUEST := 1
+ 
+ 
+ #

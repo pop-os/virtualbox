@@ -6,8 +6,8 @@
 
 @DPATCH@
 
---- technik/sources/archive/virtualbox-ose/virtualbox-ose/src/VBox/Frontends/VirtualBox/src/VBoxVMSettingsNetwork.cpp	2009-04-09 10:36:35.000000000 +0200
-+++ technik/sources/archive/vbox/trunk/src/VBox/Frontends/VirtualBox/src/VBoxVMSettingsNetwork.cpp	2009-04-09 09:33:08.000000000 +0200
+--- virtualbox-ose/src/VBox/Frontends/VirtualBox/src/VBoxVMSettingsNetwork.cpp	2009-04-09 10:36:35.000000000 +0200
++++ trunk/src/VBox/Frontends/VirtualBox/src/VBoxVMSettingsNetwork.cpp	2009-04-09 09:33:08.000000000 +0200
 @@ -191,6 +191,7 @@
              mDetails->loadList (type, mParent->hoiList());
              break;

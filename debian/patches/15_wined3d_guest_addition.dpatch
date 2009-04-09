@@ -6,9 +6,9 @@
 
 @DPATCH@
 
-diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox4/include/VBoxConsoleWnd.h virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox4/include/VBoxConsoleWnd.h
---- virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox4/include/VBoxConsoleWnd.h	2009-01-14 21:00:46.000000000 +0100
-+++ virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox4/include/VBoxConsoleWnd.h	2009-02-03 23:25:14.000000000 +0100
+diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h
+--- virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h	2009-01-14 21:00:46.000000000 +0100
++++ virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h	2009-02-03 23:25:14.000000000 +0100
 @@ -191,6 +191,7 @@
      void devicesSwitchVrdp (bool);
      void devicesOpenSFDialog();
@@ -25,9 +25,9 @@ diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox4/include/VBoxCo
  
  #ifdef VBOX_WITH_DEBUGGER_GUI
      /* Debugger actions */
-diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox4/src/VBoxConsoleWnd.cpp virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox4/src/VBoxConsoleWnd.cpp
---- virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox4/src/VBoxConsoleWnd.cpp	2009-01-21 09:41:58.000000000 +0100
-+++ virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox4/src/VBoxConsoleWnd.cpp	2009-02-04 02:10:36.000000000 +0100
+diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp
+--- virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	2009-01-21 09:41:58.000000000 +0100
++++ virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	2009-02-04 02:10:36.000000000 +0100
 @@ -357,6 +357,10 @@
      mDevicesInstallGuestToolsAction->setIcon (VBoxGlobal::iconSet (":/guesttools_16px.png",
                                                                       ":/guesttools_disabled_16px.png"));
