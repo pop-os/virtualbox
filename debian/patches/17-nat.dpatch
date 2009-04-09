@@ -1,5 +1,5 @@
 #! /bin/sh /usr/share/dpatch/dpatch-run
-## 17_nat.dpatch by Michael Meskes <meskes@debian.org>
+## 17-nat.dpatch by Michael Meskes <meskes@debian.org>
 ##
 ## All lines beginning with `## DP:' are a description of the patch.
 ## DP: Make network settings more intuitive

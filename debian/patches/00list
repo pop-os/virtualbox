@@ -10,6 +10,6 @@
 12-make-module.dpatch
 13-module-mismatch.dpatch
 14-disable-registration-request.dpatch
-15_wined3d_guest_addition.dpatch
-16_no_update.dpatch
-17_nat.dpatch
+15-wined3d-guest-addition.dpatch
+16-no-update.dpatch
+17-nat.dpatch
