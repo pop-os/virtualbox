@@ -115,13 +115,26 @@
     </section>
   </section>
   <section>
-    <title>Incompatibilities with previous versions</title>
+    <title>Incompatibilities</title>
     <para>
       Unfortunately, the configuration files between version version
       1.4.0-svn4130 and 1.5.0 the configuration files are
       incompatible. In order to fix this issue please delete the
       complete <command><![CDATA[<Uart>]]></command> section in any
       <filename>~/.VirtualBox/Machines/NAME/NAME.xml</filename> files.
+    </para>
+    <para>
+      When upgrading from a pre 2.0.0 version to virtualbox might complaing
+      about a missing format attribute in the HardDisk tag of
+      <filename>~/.VirtualBox/VirtualBox.xml</filename>. Manually adding
+      'format="vdi"' solves this.
+    </para>
+    <para>
+      A bug appeared in in kernel 2.6.29 RC5 that broke virtualbox-ose. The fix
+      was added in 2.6.29.1. If you happen to use 2.6.29 and epxerience
+      problems starting your VMs please upgrade. In Debian all
+      linux-image-2.6.29 versions starting with Debian version 2.6.29-2 are
+      fine.
     </para>
   </section>
   <section>
