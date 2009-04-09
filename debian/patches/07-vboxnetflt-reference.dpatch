@@ -1,0 +1,19 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 07-vboxnetflt-reference.dpatch by Michael Meskes <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Made error message tell about missing vboxnetflt module
+
+@DPATCH@
+
+--- DrvIntNet.cpp.orig	2009-04-09 13:16:16.000000000 +0200
++++ DrvIntNet.cpp	2009-04-09 13:18:37.000000000 +0200
+@@ -1035,7 +1035,7 @@
+     rc = pDrvIns->pDrvHlp->pfnSUPCallVMMR0Ex(pDrvIns, VMMR0_DO_INTNET_OPEN, &OpenReq, sizeof(OpenReq));
+     if (RT_FAILURE(rc))
+         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
+-                                   N_("Failed to open/create the internal network '%s'"), pThis->szNetwork);
++                                   N_("Failed to open/create the internal network '%s' (you might need to modprobe vboxnetflt to make it accessible)"), pThis->szNetwork);
+     AssertRelease(OpenReq.hIf != INTNET_HANDLE_INVALID);
+     pThis->hIf = OpenReq.hIf;
+     Log(("IntNet%d: hIf=%RX32 '%s'\n", pDrvIns->iInstance, pThis->hIf, pThis->szNetwork));
