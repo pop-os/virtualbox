@@ -1,0 +1,18 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 17_nat.dpatch by Michael Meskes <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Make network settings more intuitive
+
+@DPATCH@
+
+--- technik/sources/archive/virtualbox-ose/virtualbox-ose/src/VBox/Frontends/VirtualBox/src/VBoxVMSettingsNetwork.cpp	2009-04-09 10:36:35.000000000 +0200
++++ technik/sources/archive/vbox/trunk/src/VBox/Frontends/VirtualBox/src/VBoxVMSettingsNetwork.cpp	2009-04-09 09:33:08.000000000 +0200
+@@ -191,6 +191,7 @@
+             mDetails->loadList (type, mParent->hoiList());
+             break;
+         default:
++            mDetails->loadList (type, QStringList());
+             break;
+     }
+ 
