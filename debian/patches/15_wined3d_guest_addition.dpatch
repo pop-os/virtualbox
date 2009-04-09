@@ -95,8 +95,8 @@ diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsole
 +    CVirtualBox vbox = vboxGlobal().virtualBox();
 +    QString name = QString ("wined3d.iso");
 +
-+    CDVDImage2Vector vec = vbox.GetDVDImages();
-+    for (CDVDImage2Vector::ConstIterator it = vec.begin();
++    CDVDImageVector vec = vbox.GetDVDImages();
++    for (CDVDImageVector::ConstIterator it = vec.begin();
 +         it != vec.end(); ++ it)
 +    {
 +        QString path = it->GetLocation();
