@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 18461 2009-03-28 04:57:23Z vboxsync $
 ## @file
 # Sub-Makefile for the Shared Folders Host Service testcases.
 #
@@ -19,7 +19,7 @@
 # additional information or have any questions.
 #
 
-SUB_DEPTH = ../../../..
+SUB_DEPTH = ../../../../..
 include $(KBUILD_PATH)/subheader.kmk
 
 #

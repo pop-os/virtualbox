@@ -1,7 +1,7 @@
 [Desktop Entry]
 Encoding=UTF-8
 Version=1.0
-Name=Sun xVM VirtualBox
+Name=Sun VirtualBox
 GenericName=Virtual Machine
 Type=Application
 Exec=VirtualBox
@@ -9,3 +9,4 @@ TryExec=VirtualBox
 Icon=VBox.png
 Categories=Application;System;Emulator;
 Comment=Run several virtual systems on a single host computer
+Comment[pl]=Uruchamianie wielu systemów wirtualnych na jednym komputerze gospodarza

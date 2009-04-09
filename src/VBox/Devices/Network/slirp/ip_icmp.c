@@ -99,6 +99,8 @@ icmp_init(PNATState pData)
         LogRel(("NAT: ICMP/ping not available (could open ICMP socket, error %Rrc)\n", rc));
         return 1;
     }
+    fd_nonblock(pData->icmp_socket.s);
+    NSOCK_INC();
 #else /* RT_OS_WINDOWS */
     pData->hmIcmpLibrary = LoadLibrary("Iphlpapi.dll");
     if (pData->hmIcmpLibrary != NULL)
@@ -107,10 +109,24 @@ icmp_init(PNATState pData)
                                     GetProcAddress(pData->hmIcmpLibrary, "IcmpParseReplies");
         pData->pfIcmpCloseHandle = (BOOL (WINAPI *)(HANDLE))
                                     GetProcAddress(pData->hmIcmpLibrary, "IcmpCloseHandle");
+# ifdef VBOX_WITH_MULTI_DNS 
+        pData->pfGetAdaptersAddresses = (ULONG (WINAPI *)(HANDLE))
+                                    GetProcAddress(pData->hmIcmpLibrary, "GetAdaptersAddresses");
+        if (pData->pfGetAdaptersAddresses == NULL) 
+        {
+            LogRel(("NAT: Can't find GetAdapterAddresses in Iphlpapi.dll"));
+        }
+# endif
     }
+
     if (pData->pfIcmpParseReplies == NULL)
     {
+# ifdef VBOX_WITH_MULTI_DNS 
+        if(pData->pfGetAdaptersAddresses == NULL) 
+            FreeLibrary(pData->hmIcmpLibrary);
+# else
         FreeLibrary(pData->hmIcmpLibrary);
+# endif
         pData->hmIcmpLibrary = LoadLibrary("Icmp.dll");
         if (pData->hmIcmpLibrary == NULL)
         {
@@ -249,6 +265,12 @@ icmp_find_original_mbuf(PNATState pData, struct ip *ip)
     sofound:
     if (found == 1 && icm == NULL)
     {
+        if (so->so_state == SS_NOFDREF) 
+        {
+            /* socket is shutdowning we've already sent ICMP on it.*/
+            LogRel(("NAT: Received icmp on shutdowning socket (probably corresponding ICMP socket has been already sent)\n"));
+            return NULL;
+        }
         icm = RTMemAlloc(sizeof(struct icmp_msg));
         icm->im_m = so->so_m;
         icm->im_so = so;
@@ -357,8 +379,10 @@ freeit:
                     switch (ntohl(ip->ip_dst.s_addr) & ~pData->netmask)
                     {
                         case CTL_DNS:
+#ifndef VBOX_WITH_MULTI_DNS
                             addr.sin_addr = dns_addr;
                             break;
+#endif
                         case CTL_ALIAS:
                         default:
                             addr.sin_addr = loopback_addr;
@@ -384,8 +408,7 @@ freeit:
                     {
                         Log((dfd,"icmp_input udp sendto tx errno = %d-%s\n",
                                     errno, strerror(errno)));
-                        icmp_error(pData, m, ICMP_UNREACH,ICMP_UNREACH_NET, 0, strerror(errno));
-                        m_free(pData, m);
+                        icmp_error(pData, m, ICMP_UNREACH, ICMP_UNREACH_NET, 0, strerror(errno));
                     }
                 }
                 else
@@ -597,8 +620,10 @@ void icmp_error(PNATState pData, struct mbuf *msrc, u_char type, u_char code, in
 
     icmpstat.icps_reflect++;
 
+    return;
+
 end_error:
-    ;
+    LogRel(("NAT: error occured while sending ICMP error message \n"));
 }
 #undef ICMP_MAXDATALEN
 

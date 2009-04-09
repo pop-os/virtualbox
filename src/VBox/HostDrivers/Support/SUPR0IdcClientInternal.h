@@ -1,4 +1,4 @@
-/* $Id: SUPR0IdcClientInternal.h $ */
+/* $Id: SUPR0IdcClientInternal.h 18500 2009-03-29 02:28:22Z vboxsync $ */
 /** @file
  * VirtualBox Support Driver - Internal header for the IDC client library.
  */
@@ -41,9 +41,11 @@
 #  define _InterlockedExchangeAdd        _InterlockedExchangeAdd_StupidDDKVsCompilerCrap
 #  define _InterlockedCompareExchange    _InterlockedCompareExchange_StupidDDKVsCompilerCrap
 #  define _InterlockedAddLargeStatistic  _InterlockedAddLargeStatistic_StupidDDKVsCompilerCrap
+#  pragma warning(disable : 4163)
 __BEGIN_DECLS
 #  include <ntddk.h>
 __END_DECLS
+#  pragma warning(default : 4163)
 #  undef  _InterlockedExchange
 #  undef  _InterlockedExchangeAdd
 #  undef  _InterlockedCompareExchange

@@ -271,6 +271,10 @@ extern void remque_32 _P((PNATState, void *));
 #include <netdb.h>
 #endif
 
+#ifdef VBOX_WITH_SLIRP_DNS_PROXY
+# include "dnsproxy/dnsproxy.h"
+#endif
+
 #define DEFAULT_BAUD 115200
 
 int get_dns_addr(PNATState pData, struct in_addr *pdns_addr);
@@ -320,12 +324,14 @@ int tcp_emu _P((PNATState, struct socket *, struct mbuf *));
 int tcp_ctl _P((PNATState, struct socket *));
 struct tcpcb *tcp_drop(PNATState, struct tcpcb *tp, int err);
 
+uint16_t slirp_get_service(int proto, uint16_t dport, uint16_t sport);
+
 #define MIN_MRU 128
 #define MAX_MRU 16384
 
 #ifndef RT_OS_WINDOWS
-# define min(x,y) ((x) < (y) ? (x) : (y))
-# define max(x,y) ((x) > (y) ? (x) : (y))
+# define min(x, y) ((x) < (y) ? (x) : (y))
+# define max(x, y) ((x) > (y) ? (x) : (y))
 #endif
 
 #ifdef RT_OS_WINDOWS
@@ -338,6 +344,7 @@ int errno_func(const char *file, int line);
 # endif
 #endif
 
+#ifndef VBOX_WITH_MULTI_DNS
 #define DO_ALIAS(paddr)                                                     \
 do {                                                                        \
     if ((paddr)->s_addr == dns_addr.s_addr)                                 \
@@ -345,4 +352,7 @@ do {                                                                        \
         (paddr)->s_addr = htonl(ntohl(special_addr.s_addr) | CTL_DNS);      \
     }                                                                       \
 } while(0)
+#else
+#define DO_ALIAS(paddr) do {} while (0)
+#endif
 #endif

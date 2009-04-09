@@ -1,4 +1,4 @@
-/* $Id: SUPDrv-win.cpp $ */
+/* $Id: SUPDrv-win.cpp 18478 2009-03-29 00:59:19Z vboxsync $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Windows NT specifics.
  */
@@ -325,7 +325,7 @@ NTSTATUS _stdcall VBoxDrvNtDeviceControl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
         Assert(KeGetCurrentIrql() <= DISPATCH_LEVEL);
         KIRQL oldIrql;
         KeRaiseIrql(DISPATCH_LEVEL, &oldIrql);
-        int rc = supdrvIOCtlFast(ulCmd, (uintptr_t)pIrp->UserBuffer /* VMCPU id */, pDevExt, pSession);
+        int rc = supdrvIOCtlFast(ulCmd, (unsigned)(uintptr_t)pIrp->UserBuffer /* VMCPU id */, pDevExt, pSession);
         KeLowerIrql(oldIrql);
 
         /* Complete the I/O request. */

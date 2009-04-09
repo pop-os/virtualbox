@@ -1,4 +1,4 @@
-/* $Id: kAvlEnum.h 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kAvlEnum.h 7 2008-02-04 02:08:02Z bird $ */
 /** @file
  * kAvlTmpl - Templated AVL Trees, Node Enumeration.
  */
@@ -50,12 +50,32 @@ typedef struct KAVL_TYPE(,ENUMDATA)
 
 
 /**
+ * Ends an enumeration.
+ * 
+ * The purpose of this function is to unlock the tree should the 
+ * AVL implementation include locking. It's good practice to call
+ * it anyway even if the tree doesn't do any locking.
+ * 
+ * @param   pEnumData   Pointer to enumeration control data.
+ */
+KAVL_DECL(void) KAVL_FN(EndEnum)(KAVL_TYPE(,ENUMDATA) *pEnumData)
+{
+    KAVLROOT pRoot = pEnumData->pRoot;
+    pEnumData->pRoot = NULL;
+    if (pRoot)
+        KAVL_READ_UNLOCK(pEnumData->pRoot);
+}
+
+
+/**
  * Get the next node in the tree enumeration.
  *
  * The current implementation of this function willl not walk the mpList
  * chain like the DoWithAll function does. This may be changed later.
  *
- * @returns Pointer to the first node in the tree.
+ * @returns Pointer to the next node in the tree.
+ *          NULL is returned when the end of the tree has been reached,
+ *          it is not necessary to call EndEnum in this case.
  * @param   pEnumData   Pointer to enumeration control data.
  */
 KAVL_DECL(KAVLNODE *) KAVL_FN(GetNext)(KAVL_TYPE(,ENUMDATA) *pEnumData)
@@ -129,6 +149,10 @@ KAVL_DECL(KAVLNODE *) KAVL_FN(GetNext)(KAVL_TYPE(,ENUMDATA) *pEnumData)
         } /* while */
     }
 
+    /* 
+     * Call EndEnum.
+     */
+    KAVL_FN(EndEnum)(pEnumData);
     return NULL;
 }
 
@@ -136,22 +160,26 @@ KAVL_DECL(KAVLNODE *) KAVL_FN(GetNext)(KAVL_TYPE(,ENUMDATA) *pEnumData)
 /**
  * Starts an enumeration of all nodes in the given AVL tree.
  *
- * The current implementation of this function willl not walk the mpList
+ * The current implementation of this function will not walk the mpList
  * chain like the DoWithAll function does. This may be changed later.
  *
  * @returns Pointer to the first node in the enumeration.
- * @param   ppTree      Pointer to the AVL-tree root node pointer.
- * @param   pEnumData   Pointer to enumeration control data.
- * @param   fFromLeft   K_TRUE:  Left to right.
- *                      K_FALSE: Right to left.
+ *          If NULL is returned the tree is empty calling EndEnum isn't 
+ *          strictly necessary (although it will do no harm).
+ * @param   pRoot           Pointer to the AVL-tree root structure.
+ * @param   pEnumData       Pointer to enumeration control data.
+ * @param   fFromLeft       K_TRUE:  Left to right.
+ *                          K_FALSE: Right to left.
  */
-KAVL_DECL(KAVLNODE *) KAVL_FN(BeginEnum)(KAVLTREEPTR *ppTree, KAVL_TYPE(,ENUMDATA) *pEnumData, KBOOL fFromLeft)
+KAVL_DECL(KAVLNODE *) KAVL_FN(BeginEnum)(KAVLROOT *pRoot, KAVL_TYPE(,ENUMDATA) *pEnumData, KBOOL fFromLeft)
 {
-    if (*ppTree != KAVL_NULL)
+    KAVL_READ_LOCK(pRoot);
+    pEnumData->pRoot = pRoot;
+    if (pRoot->mpRoot != KAVL_NULL)
     {
         pEnumData->fFromLeft = fFromLeft;
         pEnumData->cEntries = 1;
-        pEnumData->aEntries[0] = KAVL_GET_POINTER(ppTree);
+        pEnumData->aEntries[0] = KAVL_GET_POINTER(pRoot->mpRoot);
         pEnumData->achFlags[0] = 0;
     }
     else

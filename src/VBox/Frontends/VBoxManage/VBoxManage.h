@@ -1,4 +1,4 @@
-/* $Id: VBoxManage.h $ */
+/* $Id: VBoxManage.h 18703 2009-04-03 16:19:40Z vboxsync $ */
 /** @file
  * VBoxManage - VirtualBox command-line interface, internal header file.
  */
@@ -36,6 +36,12 @@
 # define USE_XPCOM_QUEUE
 #endif
 
+////////////////////////////////////////////////////////////////////////////////
+//
+// definitions
+//
+////////////////////////////////////////////////////////////////////////////////
+
 /** @name Syntax diagram category.
  * @{ */
 #define USAGE_DUMPOPTS              0
@@ -49,8 +55,8 @@
 #define USAGE_CONTROLVM             RT_BIT_64(7)
 #define USAGE_DISCARDSTATE          RT_BIT_64(8)
 #define USAGE_SNAPSHOT              RT_BIT_64(9)
-#define USAGE_REGISTERIMAGE         RT_BIT_64(10)
-#define USAGE_UNREGISTERIMAGE       RT_BIT_64(11)
+#define USAGE_OPENMEDIUM            RT_BIT_64(10)
+#define USAGE_CLOSEMEDIUM           RT_BIT_64(11)
 #define USAGE_SHOWHDINFO            RT_BIT_64(12)
 #define USAGE_CREATEHD              RT_BIT_64(13)
 #define USAGE_MODIFYHD              RT_BIT_64(14)
@@ -85,6 +91,10 @@
 #define USAGE_CONVERTTORAW          RT_BIT_64(41)
 #define USAGE_METRICS               RT_BIT_64(42)
 #define USAGE_CONVERTHD             RT_BIT_64(43)
+#define USAGE_IMPORTAPPLIANCE       RT_BIT_64(44)
+#define USAGE_EXPORTAPPLIANCE       RT_BIT_64(45)
+#define USAGE_HOSTONLYIFS           RT_BIT_64(46)
+#define USAGE_DHCPSERVER            RT_BIT_64(47)
 #define USAGE_ALL                   (~(uint64_t)0)
 /** @} */
 
@@ -95,6 +105,7 @@ struct HandlerArg
 {
     int argc;
     char **argv;
+
 #ifdef USE_XPCOM_QUEUE
     nsCOMPtr<nsIEventQueue> eventQ;
 #endif
@@ -114,14 +125,26 @@ typedef enum
     VMINFO_STANDARD         = 1,    /**< standard details */
     VMINFO_STATISTICS       = 2,    /**< guest statistics */
     VMINFO_FULL             = 3,    /**< both */
-    VMINFO_MACHINEREADABLE  = 4     /**< both, and make it machine readable */
+    VMINFO_MACHINEREADABLE  = 4,    /**< both, and make it machine readable */
+    VMINFO_COMPACT          = 5
 } VMINFO_DETAILS;
 
-/*
- * Prototypes
- */
+////////////////////////////////////////////////////////////////////////////////
+//
+// global variables
+//
+////////////////////////////////////////////////////////////////////////////////
 
-/* VBoxManage.cpp */
+extern bool g_fDetailedProgress;        // in VBoxManage.cpp
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// prototypes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+/* VBoxManageHelp.cpp */
+void printUsage(USAGECATEGORY u64Cmd);
 int errorSyntax(USAGECATEGORY u64Cmd, const char *pszFormat, ...);
 int errorArgument(const char *pszFormat, ...);
 
@@ -129,9 +152,19 @@ void printUsageInternal(USAGECATEGORY u64Cmd);
 
 #ifndef VBOX_ONLY_DOCS
 void showProgress(ComPtr<IProgress> progress);
+#endif
 
+/* VBoxManage.cpp */
+void showLogo(void);
+
+#ifndef VBOX_ONLY_DOCS
 int handleInternalCommands(HandlerArg *a);
+
+unsigned parseNum(const char *psz, unsigned cMaxNum, const char *name);
 #endif /* !VBOX_ONLY_DOCS */
+
+/* VBoxManageModifyVM.cpp */
+int handleModifyVM(HandlerArg *a);
 
 /* VBoxManageGuestProp.cpp */
 extern void usageGuestProperty(void);
@@ -141,9 +174,10 @@ extern int handleGuestProperty(HandlerArg *a);
 /* VBoxManageVMInfo.cpp */
 void showSnapshots(ComPtr<ISnapshot> rootSnapshot, VMINFO_DETAILS details, const com::Bstr &prefix = "", int level = 0);
 int handleShowVMInfo(HandlerArg *a);
-HRESULT showVMInfo(ComPtr <IVirtualBox> virtualBox, ComPtr<IMachine> machine,
-                   ComPtr <IConsole> console = ComPtr <IConsole> (),
-                   VMINFO_DETAILS details = VMINFO_NONE);
+HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
+                   ComPtr<IMachine> machine,
+                   VMINFO_DETAILS details = VMINFO_NONE,
+                   ComPtr <IConsole> console = ComPtr<IConsole>());
 
 /* VBoxManageList.cpp */
 int handleList(HandlerArg *a);
@@ -161,8 +195,21 @@ int handleShowHardDiskInfo(HandlerArg *a);
 int handleOpenMedium(HandlerArg *a);
 int handleCloseMedium(HandlerArg *a);
 
+// VBoxManageImport.cpp
+int handleImportAppliance(HandlerArg *a);
+int handleExportAppliance(HandlerArg *a);
+
+// VBoxManageSnapshot.cpp
+int handleSnapshot(HandlerArg *a);
+
 /* VBoxManageUSB.cpp */
-/* VBoxManageTODO.cpp */
+int handleUSBFilter(HandlerArg *a);
+
+/* VBoxManageHostonly.cpp */
+int handleHostonlyIf(HandlerArg *a);
+
+/* VBoxManageHostonly.cpp */
+int handleDHCPServer(HandlerArg *a);
 
 #endif /* !VBOX_ONLY_DOCS */
 unsigned long VBoxSVNRev();

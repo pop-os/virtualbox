@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +23,6 @@
 #define ____H_SNAPSHOTIMPL
 
 #include "VirtualBoxBase.h"
-#include "Collection.h"
 
 #include <iprt/time.h>
 
@@ -86,7 +85,7 @@ public:
     STDMETHOD(COMGETTER(Online)) (BOOL *aOnline);
     STDMETHOD(COMGETTER(Machine)) (IMachine **aMachine);
     STDMETHOD(COMGETTER(Parent)) (ISnapshot **aParent);
-    STDMETHOD(COMGETTER(Children)) (ISnapshotCollection **aChildren);
+    STDMETHOD(COMGETTER(Children)) (ComSafeArrayOut (ISnapshot *, aChildren));
 
     // ISnapshot methods
 
@@ -123,8 +122,6 @@ private:
 
     Data mData;
 };
-
-COM_DECL_READONLY_ENUM_AND_COLLECTION (Snapshot)
 
 #endif // ____H_SNAPSHOTIMPL
 

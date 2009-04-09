@@ -53,6 +53,7 @@ struct udphdr
     int16_t    uh_ulen;                /* udp length */
     uint16_t   uh_sum;                 /* udp checksum */
 };
+AssertCompileSize(struct udphdr, 8);
 
 /*
  * UDP kernel structures and variables.
@@ -62,6 +63,7 @@ struct udpiphdr
     struct ipovly ui_i;            /* overlaid ip structure */
     struct udphdr ui_u;            /* udp header */
 };
+AssertCompileSize(struct udpiphdr, 28);
 #define ui_next         ui_i.ih_next
 #define ui_prev         ui_i.ih_prev
 #define ui_x1           ui_i.ih_x1
@@ -102,7 +104,7 @@ struct mbuf;
 void udp_init _P((PNATState));
 void udp_input _P((PNATState, register struct mbuf *, int));
 int udp_output _P((PNATState, struct socket *, struct mbuf *, struct sockaddr_in *));
-int udp_attach _P((PNATState, struct socket *));
+int udp_attach _P((PNATState, struct socket *, int service_port));
 void udp_detach _P((PNATState, struct socket *));
 u_int8_t udp_tos _P((struct socket *));
 void udp_emu _P((PNATState, struct socket *, struct mbuf *));

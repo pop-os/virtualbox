@@ -1,4 +1,4 @@
-/* $Id: IOMAllMMIO.cpp $ */
+/* $Id: IOMAllMMIO.cpp 18666 2009-04-02 23:10:12Z vboxsync $ */
 /** @file
  * IOM - Input / Output Monitor - Any Context, MMIO & String I/O.
  */
@@ -270,6 +270,8 @@ static int iomInterpretMOVxXWrite(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTATE 
 /** Wrapper for reading virtual memory. */
 DECLINLINE(int) iomRamRead(PVM pVM, void *pDest, RTGCPTR GCSrc, uint32_t cb)
 {
+    /* Note: This will fail in R0 or RC if it hits an access handler. That
+             isn't a problem though since the operation can be restarted in REM. */
 #ifdef IN_RC
     return MMGCRamReadNoTrapHandler(pDest, (void *)GCSrc, cb);
 #else
@@ -279,12 +281,25 @@ DECLINLINE(int) iomRamRead(PVM pVM, void *pDest, RTGCPTR GCSrc, uint32_t cb)
 
 
 /** Wrapper for writing virtual memory. */
-DECLINLINE(int) iomRamWrite(PVM pVM, RTGCPTR GCDest, void *pSrc, uint32_t cb)
+DECLINLINE(int) iomRamWrite(PVM pVM, PCPUMCTXCORE pCtxCore, RTGCPTR GCPtrDst, void *pvSrc, uint32_t cb)
 {
+    /** @todo Need to update PGMVerifyAccess to take access handlers into account for Ring-0 and
+     *        raw mode code. Some thought needs to be spent on theoretical concurrency issues as
+     *        as well since we're not behind the pgm lock and handler may change between calls.
+     *        MMGCRamWriteNoTrapHandler may also trap if the page isn't shadowed, or was kicked
+     *        out from both the shadow pt (SMP or our changes) and TLB.
+     *
+     *        Currently MMGCRamWriteNoTrapHandler may also fail when it hits a write access handler.
+     *        PGMPhysInterpretedWriteNoHandlers/PGMPhysWriteGCPtr OTOH may mess up the state
+     *        of some shadowed structure in R0. */
 #ifdef IN_RC
-    return MMGCRamWriteNoTrapHandler((void *)GCDest, pSrc, cb);
+    NOREF(pCtxCore);
+    return MMGCRamWriteNoTrapHandler((void *)GCPtrDst, pvSrc, cb);
+#elif IN_RING0
+    return PGMPhysInterpretedWriteNoHandlers(pVM, pCtxCore, GCPtrDst, pvSrc, cb, false /*fRaiseTrap*/);
 #else
-    return PGMPhysWriteGCPtr(pVM, GCDest, pSrc, cb);
+    NOREF(pCtxCore);
+    return PGMPhysWriteGCPtr(pVM, GCPtrDst, pvSrc, cb);
 #endif
 }
 
@@ -491,7 +506,7 @@ static int iomInterpretMOVS(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame
                 rc = iomMMIODoRead(pVM, pRange, Phys, &u32Data, cb);
                 if (rc != VINF_SUCCESS)
                     break;
-                rc = iomRamWrite(pVM, (RTGCPTR)pu8Virt, &u32Data, cb);
+                rc = iomRamWrite(pVM, pRegFrame, (RTGCPTR)pu8Virt, &u32Data, cb);
                 if (rc != VINF_SUCCESS)
                 {
                     Log(("iomRamWrite %08X size=%d failed with %d\n", pu8Virt, cb, rc));
@@ -1514,7 +1529,7 @@ VMMDECL(int) IOMInterpretINSEx(PVM pVM, PCPUMCTXCORE pRegFrame, uint32_t uPort, 
         rc = IOMIOPortRead(pVM, uPort, &u32Value, cbTransfer);
         if (!IOM_SUCCESS(rc))
             break;
-        int rc2 = iomRamWrite(pVM, GCPtrDst, &u32Value, cbTransfer);
+        int rc2 = iomRamWrite(pVM, pRegFrame, GCPtrDst, &u32Value, cbTransfer);
         Assert(rc2 == VINF_SUCCESS); NOREF(rc2);
         GCPtrDst = (RTGCPTR)((RTGCUINTPTR)GCPtrDst + cbTransfer);
         pRegFrame->rdi += cbTransfer;
@@ -1743,20 +1758,23 @@ VMMDECL(int) IOMInterpretOUTS(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu
 
 #ifndef IN_RC
 /**
- * Modify an existing MMIO region page; map to another guest physical region and change the access flags
+ * Mapping an MMIO2 page in place of an MMIO page for direct access.
+ *
+ * (This is a special optimization used by the VGA device.)
  *
  * @returns VBox status code.
  *
  * @param   pVM             The virtual machine.
- * @param   GCPhys          Physical address that's part of the MMIO region to be changed.
- * @param   GCPhysRemapped  Remapped address.
- * @param   fPageFlags      Page flags to set (typically X86_PTE_RW).
+ * @param   GCPhys          The address of the MMIO page to be changed.
+ * @param   GCPhysRemapped  The address of the MMIO2 page.
+ * @param   fPageFlags      Page flags to set. Must be (X86_PTE_RW | X86_PTE_P)
+ *                          for the time being.
  */
-VMMDECL(int) IOMMMIOModifyPage(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysRemapped, uint64_t fPageFlags)
+VMMDECL(int) IOMMMIOMapMMIO2Page(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysRemapped, uint64_t fPageFlags)
 {
-    Assert(fPageFlags == (X86_PTE_RW | X86_PTE_P));
+    Log(("IOMMMIOMapMMIO2Page %RGp -> %RGp flags=%RX64\n", GCPhys, GCPhysRemapped, fPageFlags));
 
-    Log(("IOMMMIOModifyPage %RGp -> %RGp flags=%RX64\n", GCPhys, GCPhysRemapped, fPageFlags));
+    AssertReturn(fPageFlags == (X86_PTE_RW | X86_PTE_P), VERR_INVALID_PARAMETER);
 
     /* This currently only works in real mode, protected mode without paging or with nested paging. */
     if (    !HWACCMIsEnabled(pVM)       /* useless without VT-x/AMD-V */
@@ -1765,27 +1783,38 @@ VMMDECL(int) IOMMMIOModifyPage(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysRemapped
         return VINF_SUCCESS;    /* ignore */
 
     /*
-     * Lookup the current context range node and statistics.
+     * Lookup the context range node the page belongs to.
      */
     PIOMMMIORANGE pRange = iomMMIOGetRange(&pVM->iom.s, GCPhys);
     AssertMsgReturn(pRange,
                     ("Handlers and page tables are out of sync or something! GCPhys=%RGp\n", GCPhys),
-                    VERR_INTERNAL_ERROR);
+                    VERR_IOM_MMIO_RANGE_NOT_FOUND);
+    Assert((pRange->GCPhys       & PAGE_OFFSET_MASK) == 0);
+    Assert((pRange->Core.KeyLast & PAGE_OFFSET_MASK) == PAGE_OFFSET_MASK);
 
-    GCPhys         &= ~(RTGCPHYS)0xfff;
-    GCPhysRemapped &= ~(RTGCPHYS)0xfff;
+    /*
+     * Do the aliasing; page align the addresses since PGM is picky.
+     */
+    GCPhys         &= ~(RTGCPHYS)PAGE_OFFSET_MASK;
+    GCPhysRemapped &= ~(RTGCPHYS)PAGE_OFFSET_MASK;
 
     int rc = PGMHandlerPhysicalPageAlias(pVM, pRange->GCPhys, GCPhys, GCPhysRemapped);
     AssertRCReturn(rc, rc);
 
-#ifdef VBOX_STRICT
+    /*
+     * Modify the shadow page table. Since it's an MMIO page it won't be present and we
+     * can simply prefetch it.
+     *
+     * Note: This is a NOP in the EPT case; we'll just let it fault again to resync the page.
+     */
+#if 0 /* The assertion is wrong for the PGM_SYNC_CLEAR_PGM_POOL and VINF_PGM_HANDLER_ALREADY_ALIASED cases. */
+# ifdef VBOX_STRICT
     uint64_t fFlags;
     RTHCPHYS HCPhys;
     rc = PGMShwGetPage(pVM, (RTGCPTR)GCPhys, &fFlags, &HCPhys);
     Assert(rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
+# endif
 #endif
-
-    /* @note this is a NOP in the EPT case; we'll just let it fault again to resync the page. */
     rc = PGMPrefetchPage(pVM, (RTGCPTR)GCPhys);
     Assert(rc == VINF_SUCCESS || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
     return VINF_SUCCESS;
@@ -1800,7 +1829,7 @@ VMMDECL(int) IOMMMIOModifyPage(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysRemapped
  * @param   pVM             The virtual machine.
  * @param   GCPhys          Physical address that's part of the MMIO region to be reset.
  */
-VMMDECL(int)  IOMMMIOResetRegion(PVM pVM, RTGCPHYS GCPhys)
+VMMDECL(int) IOMMMIOResetRegion(PVM pVM, RTGCPHYS GCPhys)
 {
     Log(("IOMMMIOResetRegion %RGp\n", GCPhys));
 
@@ -1811,34 +1840,39 @@ VMMDECL(int)  IOMMMIOResetRegion(PVM pVM, RTGCPHYS GCPhys)
         return VINF_SUCCESS;    /* ignore */
 
     /*
-     * Lookup the current context range node and statistics.
+     * Lookup the context range node the page belongs to.
      */
     PIOMMMIORANGE pRange = iomMMIOGetRange(&pVM->iom.s, GCPhys);
     AssertMsgReturn(pRange,
                     ("Handlers and page tables are out of sync or something! GCPhys=%RGp\n", GCPhys),
-                    VERR_INTERNAL_ERROR);
+                    VERR_IOM_MMIO_RANGE_NOT_FOUND);
 
-    /* Reset the entire range by clearing all shadow page table entries. */
+    /*
+     * Call PGM to do the job work.
+     *
+     * After the call, all the pages should be non-present... unless there is
+     * a page pool flush pending (unlikely).
+     */
     int rc = PGMHandlerPhysicalReset(pVM, pRange->GCPhys);
     AssertRC(rc);
 
 #ifdef VBOX_STRICT
-    uint32_t cb = pRange->cb;
-
-    GCPhys = pRange->GCPhys;
-
-    while (cb)
+    if (!VM_FF_ISSET(pVM, VM_FF_PGM_SYNC_CR3))
     {
-
-        uint64_t fFlags;
-        RTHCPHYS HCPhys;
-        rc = PGMShwGetPage(pVM, (RTGCPTR)GCPhys, &fFlags, &HCPhys);
-        Assert(rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
-        cb     -= PAGE_SIZE;
-        GCPhys += PAGE_SIZE;
+        uint32_t cb = pRange->cb;
+        GCPhys = pRange->GCPhys;
+        while (cb)
+        {
+            uint64_t fFlags;
+            RTHCPHYS HCPhys;
+            rc = PGMShwGetPage(pVM, (RTGCPTR)GCPhys, &fFlags, &HCPhys);
+            Assert(rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
+            cb     -= PAGE_SIZE;
+            GCPhys += PAGE_SIZE;
+        }
     }
 #endif
-    return VINF_SUCCESS;
+    return rc;
 }
 #endif /* !IN_RC */
 

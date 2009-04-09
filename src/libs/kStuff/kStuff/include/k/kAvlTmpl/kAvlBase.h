@@ -1,4 +1,4 @@
-/* $Id: kAvlBase.h 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kAvlBase.h 7 2008-02-04 02:08:02Z bird $ */
 /** @file
  * kAvlTmpl - Templated AVL Trees, The Mandatory Base Code.
  */
@@ -47,8 +47,8 @@
  *  This is by default not defined.
  *
  *  \#define KAVL_MAX_STACK
- *  Use this to specify the max number of stack entries the stack will use when inserting
- *  and removing nodes from the tree. The size should be something like
+ *  Use this to specify the max number of stack entries the stack will use when
+ *  inserting and removing nodes from the tree. The size should be something like
  *      log2(<max nodes>) + 3
  *  Must be defined.
  *
@@ -61,14 +61,42 @@
  *  provided all the nodes - including the root node variable - are moved
  *  the exact same distance.
  *
+ *  \#define KAVL_LOOKTHRU
+ *  Define this to employ a lookthru cache (direct) to speed up lookup for
+ *  some usage patterns. The value should be the number of members of the 
+ *   array.
+ *
+ *  \#define KAVL_LOOKTHRU_HASH(Key)
+ *  Define this to specify a more efficient translation of the key into 
+ *  a lookthru array index. The default is key % size. 
+ *  For some key types this is required as the default will not compile. 
+ * 
+ *  \#define KAVL_LOCKED
+ *  Define this if you wish for the tree to be locked via the 
+ *  KAVL_WRITE_LOCK,  KAVL_WRITE_UNLOCK, KAVL_READ_LOCK and 
+ *  KAVL_READ_UNLOCK macros. If not defined the tree will not be subject
+ *  do any kind of locking and the problem of concurrency is left the user.
+ * 
+ *  \#define KAVL_WRITE_LOCK(pRoot)
+ *  Lock the tree for writing.
+ * 
+ *  \#define KAVL_WRITE_UNLOCK(pRoot)
+ *  Counteracts KAVL_WRITE_LOCK.
+ * 
+ *  \#define KAVL_READ_LOCK(pRoot)
+ *  Lock the tree for reading.
+ * 
+ *  \#define KAVL_READ_UNLOCK(pRoot)
+ *  Counteracts KAVL_READ_LOCK.
+ * 
  *  \#define KAVLKEY
  *  Define this to the name of the AVL key type.
  *
  *  \#define KAVL_STD_KEY_COMP
  *  Define this to use the standard key compare macros. If not set all the
  *  compare operations for KAVLKEY have to be defined: KAVL_G, KAVL_E, KAVL_NE,
- *  KAVL_R_IS_IDENTICAL, KAVL_R_IS_INTERSECTING and KAVL_R_IS_IN_RANGE. The latter
- *  three are only required when KAVL_RANGE is defined.
+ *  KAVL_R_IS_IDENTICAL, KAVL_R_IS_INTERSECTING and KAVL_R_IS_IN_RANGE. The 
+ *  latter three are only required when KAVL_RANGE is defined.
  *
  *  \#define KAVLNODE
  *  Define this to the name (typedef) of the AVL node structure. This
@@ -81,6 +109,13 @@
  *  Define this to the name (typedef) of the tree pointer type. This is
  *  required when KAVL_OFFSET is defined. When not defined it defaults
  *  to KAVLNODE *.
+ *
+ *  \#define KAVLROOT
+ *  Define this to the name (typedef) of the AVL root structure. This 
+ *  is optional. However, if specified it must at least have a mpRoot
+ *  member of KAVLTREEPTR type. If KAVL_LOOKTHRU is non-zero a
+ *  maLookthru[KAVL_LOOKTHRU] member of the KAVLTREEPTR type is also 
+ *  required.
  *
  *  \#define KAVL_FN
  *  Use this to alter the names of the AVL functions.
@@ -161,6 +196,37 @@
 # define KAVLTREEPTR                        KAVLNODE *
 #endif
 
+#ifndef KAVLROOT
+# define KAVLROOT                           KAVL_TYPE(,ROOT)
+# define KAVL_NEED_KAVLROOT
+#endif
+
+#ifdef KAVL_LOOKTHRU
+# ifndef KAVL_LOOKTHRU_HASH
+#  define KAVL_LOOKTHRU_HASH(Key)           ( (Key) % (KAVL_LOOKTHRU) )
+# endif
+#elif defined(KAVL_LOOKTHRU_HASH)
+# error "KAVL_LOOKTHRU_HASH without KAVL_LOOKTHRU!"
+#endif
+
+#ifdef KAVL_LOOKTHRU
+# define KAVL_LOOKTHRU_INVALIDATE_NODE(pRoot, pNode, Key) \
+    do { \
+        KAVLTREEPTR **ppEntry = &pRoot->maLookthru[KAVL_LOOKTHRU_HASH(Key)]; \ 
+        if ((pNode) == KAVL_GET_POINTER_NULL(ppEntry)) \
+            *ppEntry = KAVL_NULL; \
+    } while (0)
+#else
+# define KAVL_LOOKTHRU_INVALIDATE_NODE(pRoot, pNode, Key) do { } while (0)
+#endif
+
+#ifndef KAVL_LOCKED
+# define KAVL_WRITE_LOCK(pRoot)             do { } while (0)
+# define KAVL_WRITE_UNLOCK(pRoot)           do { } while (0)
+# define KAVL_READ_LOCK(pRoot)              do { } while (0)
+# define KAVL_READ_UNLOCK(pRoot)            do { } while (0)
+#endif
+
 #ifdef KAVL_OFFSET
 # define KAVL_GET_POINTER(pp)               ( (KAVLNODE *)((KIPTR)(pp) + *(pp)) )
 # define KAVL_GET_POINTER_NULL(pp)          ( *(pp) != KAVL_NULL ? KAVL_GET_POINTER(pp) : NULL )
@@ -218,6 +284,18 @@ typedef struct
  */
 typedef int (* KAVL_TYPE(PFN,CALLBACK))(KAVLNODE *, void *);
 
+#ifdef KAVL_NEED_KAVLROOT
+/**
+ * The AVL root structure.
+ */
+typedef struct
+{
+    KAVLTREEPTR     mpRoot;
+# ifdef KAVL_LOOKTHRU
+    KAVLTREEPTR     maLookthru[KAVL_LOOKTHRU];
+# endif
+} KAVLROOT;
+#endif
 
 
 /**
@@ -342,11 +420,30 @@ K_DECL_INLINE(void) KAVL_FN(Rebalance)(KAVL_INT(STACK) *pStack)
 
 
 /**
+ * Initializes the root of the AVL-tree.
+ * 
+ * @param     pTree     Pointer to the root structure.
+ */
+KAVL_DECL(void) KAVL_FN(Init)(KAVLROOT *pRoot)
+{
+#ifdef KAVL_LOOKTHRU
+    unsigned i;
+#endif 
+
+    pRoot->mpRoot = KAVL_NULL;
+#ifdef KAVL_LOOKTHRU
+    for (i = 0; i < (KAVL_LOOKTHRU); i++)
+        pRoot->maLookthru[i] = KAVL_NULL;
+#endif
+}
+
+
+/**
  * Inserts a node into the AVL-tree.
- * @returns   TRUE if inserted.
- *            FALSE if node exists in tree.
- * @param     ppTree  Pointer to the AVL-tree root node pointer.
- * @param     pNode   Pointer to the node which is to be added.
+ * @returns   K_TRUE if inserted.
+ *            K_FALSE if node exists in tree.
+ * @param     pRoot     Pointer to the AVL-tree root structure.
+ * @param     pNode     Pointer to the node which is to be added.
  * @sketch    Find the location of the node (using binary tree algorithm.):
  *            LOOP until NULL leaf pointer
  *            BEGIN
@@ -359,10 +456,10 @@ K_DECL_INLINE(void) KAVL_FN(Rebalance)(KAVL_INT(STACK) *pStack)
  *            Fill in leaf node and insert it.
  *            Rebalance the tree.
  */
-KAVL_DECL(KBOOL) KAVL_FN(Insert)(KAVLTREEPTR *ppTree, KAVLNODE *pNode)
+KAVL_DECL(KBOOL) KAVL_FN(Insert)(KAVLROOT *pRoot, KAVLNODE *pNode)
 {
     KAVL_INT(STACK)     AVLStack;
-    KAVLTREEPTR        *ppCurNode = ppTree;
+    KAVLTREEPTR        *ppCurNode = &pRoot->mpRoot;
     register KAVLKEY    Key = pNode->mKey;
 #ifdef KAVL_RANGE
     register KAVLKEY    KeyLast = pNode->mKeyLast;
@@ -372,6 +469,8 @@ KAVL_DECL(KBOOL) KAVL_FN(Insert)(KAVLTREEPTR *ppTree, KAVLNODE *pNode)
     if (Key > KeyLast)
         return false;
 #endif
+
+    KAVL_WRITE_LOCK(pRoot);
 
     AVLStack.cEntries = 0;
     while (*ppCurNode != KAVL_NULL)
@@ -390,12 +489,16 @@ KAVL_DECL(KBOOL) KAVL_FN(Insert)(KAVLTREEPTR *ppTree, KAVLNODE *pNode)
             pNode->mHeight = 0;
             KAVL_SET_POINTER_NULL(&pNode->mpList, &pCurNode->mpList);
             KAVL_SET_POINTER(&pCurNode->mpList, pNode);
+            KAVL_WRITE_UNLOCK(pRoot);
             return K_TRUE;
         }
 #endif
 #ifdef KAVL_CHECK_FOR_EQUAL_INSERT
         if (KAVL_R_IS_INTERSECTING(pCurNode->mKey, Key, pCurNode->mKeyLast, KeyLast))
+        {
+            KAVL_WRITE_UNLOCK(pRoot);
             return K_FALSE;
+        }
 #endif
         if (KAVL_G(pCurNode->mKey, Key))
             ppCurNode = &pCurNode->mpLeft;
@@ -411,6 +514,8 @@ KAVL_DECL(KBOOL) KAVL_FN(Insert)(KAVLTREEPTR *ppTree, KAVLNODE *pNode)
     KAVL_SET_POINTER(ppCurNode, pNode);
 
     KAVL_FN(Rebalance)(&AVLStack);
+
+    KAVL_WRITE_UNLOCK(pRoot);
     return K_TRUE;
 }
 
@@ -418,8 +523,8 @@ KAVL_DECL(KBOOL) KAVL_FN(Insert)(KAVLTREEPTR *ppTree, KAVLNODE *pNode)
 /**
  * Removes a node from the AVL-tree.
  * @returns   Pointer to the node.
- * @param     ppTree  Pointer to the AVL-tree root node pointer.
- * @param     Key     Key value of the node which is to be removed.
+ * @param     pRoot     Pointer to the AVL-tree root structure.
+ * @param     Key       Key value of the node which is to be removed.
  * @sketch    Find the node which is to be removed:
  *            LOOP until not found
  *            BEGIN
@@ -454,17 +559,22 @@ KAVL_DECL(KBOOL) KAVL_FN(Insert)(KAVLTREEPTR *ppTree, KAVLNODE *pNode)
  *            END
  *            return pointer to the removed node (if found).
  */
-KAVL_DECL(KAVLNODE *) KAVL_FN(Remove)(KAVLTREEPTR *ppTree, KAVLKEY Key)
+KAVL_DECL(KAVLNODE *) KAVL_FN(Remove)(KAVLROOT *pRoot, KAVLKEY Key)
 {
     KAVL_INT(STACK)     AVLStack;
-    KAVLTREEPTR        *ppDeleteNode = ppTree;
+    KAVLTREEPTR        *ppDeleteNode = &pRoot->mpRoot;
     register KAVLNODE  *pDeleteNode;
+
+    KAVL_WRITE_LOCK(pRoot);
 
     AVLStack.cEntries = 0;
     for (;;)
     {
         if (*ppDeleteNode == KAVL_NULL)
+        {
+            KAVL_WRITE_UNLOCK(pRoot);
             return NULL;
+        }
         pDeleteNode = KAVL_GET_POINTER(ppDeleteNode);
 
         kHlpAssert(AVLStack.cEntries < KAVL_MAX_STACK);
@@ -510,6 +620,10 @@ KAVL_DECL(KAVLNODE *) KAVL_FN(Remove)(KAVLTREEPTR *ppTree, KAVLKEY Key)
     }
 
     KAVL_FN(Rebalance)(&AVLStack);
+
+    KAVL_LOOKTHRU_INVALIDATE_NODE(pRoot, pDeleteNode, Key);
+
+    KAVL_WRITE_UNLOCK(pRoot);
     return pDeleteNode;
 }
 

@@ -1,4 +1,4 @@
-/* $Id: SrvIntNetR0.cpp $ */
+/* $Id: SrvIntNetR0.cpp 18459 2009-03-28 04:54:55Z vboxsync $ */
 /** @file
  * Internal networking - The ring 0 service.
  */
@@ -1174,7 +1174,7 @@ static void intnetR0TrunkIfSnoopDhcp(PINTNETNETWORK pNetwork, PCINTNETSG pSG)
      * temporary buffer if necessary.
      */
     PCRTNETIPV4 pIpHdr = (PCRTNETIPV4)((PCRTNETETHERHDR)pSG->aSegs[0].pv + 1);
-    size_t cbPacket = pSG->cbTotal - sizeof(RTNETETHERHDR);
+    uint32_t cbPacket = pSG->cbTotal - sizeof(RTNETETHERHDR);
     if (pSG->cSegsUsed > 1)
     {
         cbPacket = RT_MIN(cbPacket, INTNETNETWORK_TMP_SIZE);
@@ -1193,7 +1193,7 @@ static void intnetR0TrunkIfSnoopDhcp(PINTNETNETWORK pNetwork, PCINTNETSG pSG)
         Log(("intnetR0TrunkIfSnoopDhcp: bad ip header\n"));
         return;
     }
-    size_t cbIpHdr = pIpHdr->ip_hl * 4;
+    uint32_t cbIpHdr = pIpHdr->ip_hl * 4;
 
     /*
      * Hand it over to the common DHCP snooper.
@@ -1224,7 +1224,7 @@ static void intnetR0TrunkIfSnoopArp(PINTNETNETWORK pNetwork, PCINTNETSG pSG)
     /*
      * Copy to temporary buffer if necessary.
      */
-    size_t cbPacket = RT_MIN(pSG->cbTotal, sizeof(RTNETARPIPV4));
+    uint32_t cbPacket = RT_MIN(pSG->cbTotal, sizeof(RTNETARPIPV4));
     PCRTNETARPIPV4 pArpIPv4 = (PCRTNETARPIPV4)((uintptr_t)pSG->aSegs[0].pv + sizeof(RTNETETHERHDR));
     if (    pSG->cSegsUsed != 1
         &&  pSG->aSegs[0].cb < cbPacket)
@@ -1978,7 +1978,7 @@ static void intnetR0NetworkEditDhcpFromIntNet(PINTNETNETWORK pNetwork, PINTNETSG
      * temporary buffer if necessary.
      */
     PCRTNETIPV4 pIpHdr = (PCRTNETIPV4)((PCRTNETETHERHDR)pSG->aSegs[0].pv + 1);
-    size_t cbPacket = pSG->cbTotal - sizeof(RTNETETHERHDR);
+    uint32_t cbPacket = pSG->cbTotal - sizeof(RTNETETHERHDR);
     if (pSG->cSegsUsed > 1)
     {
         cbPacket = RT_MIN(cbPacket, INTNETNETWORK_TMP_SIZE);
@@ -2034,13 +2034,13 @@ static void intnetR0NetworkEditDhcpFromIntNet(PINTNETNETWORK pNetwork, PINTNETSG
             {
                 /* Patch flags */
                 uint16_t uFlags = pDhcp->bp_flags | RT_H2BE_U16_C(RTNET_DHCP_FLAG_BROADCAST);
-                intnetR0SgWritePart(pSG, (uint8_t*)&pDhcp->bp_flags - (uint8_t*)pIpHdr + sizeof(RTNETETHERHDR), sizeof(uFlags), &uFlags);
+                intnetR0SgWritePart(pSG, (uintptr_t)&pDhcp->bp_flags - (uintptr_t)pIpHdr + sizeof(RTNETETHERHDR), sizeof(uFlags), &uFlags);
                 /* Patch UDP checksum */
                 uint32_t uChecksum = (uint32_t)~pUdpHdr->uh_sum + RT_H2BE_U16_C(RTNET_DHCP_FLAG_BROADCAST);
                 while (uChecksum >> 16)
                     uChecksum = (uChecksum >> 16) + (uChecksum & 0xFFFF);
                 uChecksum = ~uChecksum;
-                intnetR0SgWritePart(pSG, (uint8_t*)&pUdpHdr->uh_sum - (uint8_t*)pIpHdr + sizeof(RTNETETHERHDR), sizeof(pUdpHdr->uh_sum), &uChecksum);
+                intnetR0SgWritePart(pSG, (uintptr_t)&pUdpHdr->uh_sum - (uintptr_t)pIpHdr + sizeof(RTNETETHERHDR), sizeof(pUdpHdr->uh_sum), &uChecksum);
             }
             break;
     }
@@ -3701,8 +3701,12 @@ static int intnetR0NetworkCreateTrunkIf(PINTNETNETWORK pNetwork, PSUPDRVSESSION 
         case kIntNetTrunkType_NetFlt:
             pszName = "VBoxNetFlt";
             break;
-        case kIntNetTrunkType_NetTap:
-            pszName = "VBoxNetTap";
+        case kIntNetTrunkType_NetAdp:
+#if defined(RT_OS_DARWIN) && !defined(VBOXNETADP_DO_NOT_USE_NETFLT)
+            pszName = "VBoxNetFlt";
+#else /* VBOXNETADP_DO_NOT_USE_NETFLT */
+            pszName = "VBoxNetAdp";
+#endif /* VBOXNETADP_DO_NOT_USE_NETFLT */
             break;
         case kIntNetTrunkType_SrvNat:
             pszName = "VBoxSrvNat";
@@ -3742,7 +3746,10 @@ static int intnetR0NetworkCreateTrunkIf(PINTNETNETWORK pNetwork, PSUPDRVSESSION 
         rc = SUPR0ComponentQueryFactory(pSession, pszName, INTNETTRUNKFACTORY_UUID_STR, (void **)&pTrunkFactory);
         if (RT_SUCCESS(rc))
         {
-            rc = pTrunkFactory->pfnCreateAndConnect(pTrunkFactory, pNetwork->szTrunk, &pTrunkIF->SwitchPort, &pTrunkIF->pIfPort);
+            rc = pTrunkFactory->pfnCreateAndConnect(pTrunkFactory, pNetwork->szTrunk, &pTrunkIF->SwitchPort,
+                                                    pNetwork->fFlags & INTNET_OPEN_FLAGS_SHARED_MAC_ON_WIRE
+                                                    ? INTNETTRUNKFACTORY_FLAG_NO_PROMISC : 0,
+                                                    &pTrunkIF->pIfPort);
             pTrunkFactory->pfnRelease(pTrunkFactory);
             if (RT_SUCCESS(rc))
             {
@@ -3898,7 +3905,7 @@ static int intnetR0OpenNetwork(PINTNET pIntNet, PSUPDRVSESSION pSession, const c
      * Search networks by name.
      */
     PINTNETNETWORK pCur;
-    uint8_t cchName = strlen(pszNetwork);
+    uint8_t cchName = (uint8_t)strlen(pszNetwork);
     Assert(cchName && cchName < sizeof(pCur->szName)); /* caller ensures this */
 
     pCur = pIntNet->pNetworks;
@@ -4007,7 +4014,7 @@ static int intnetR0CreateNetwork(PINTNET pIntNet, PSUPDRVSESSION pSession, const
         //pNew->cActiveIFs = 0;
         pNew->fFlags = fFlags;
         size_t cchName = strlen(pszNetwork);
-        pNew->cchName = cchName;
+        pNew->cchName = (uint8_t)cchName;
         Assert(cchName && cchName < sizeof(pNew->szName));  /* caller's responsibility. */
         memcpy(pNew->szName, pszNetwork, cchName);          /* '\0' by alloc. */
         pNew->enmTrunkType = enmTrunkType;
@@ -4122,6 +4129,7 @@ INTNETR0DECL(int) INTNETR0Open(PINTNET pIntNet, PSUPDRVSESSION pSession, const c
             break;
 
         case kIntNetTrunkType_NetFlt:
+        case kIntNetTrunkType_NetAdp:
             AssertReturn(pszTrunk, VERR_INVALID_PARAMETER);
             break;
 
@@ -4151,15 +4159,21 @@ INTNETR0DECL(int) INTNETR0Open(PINTNET pIntNet, PSUPDRVSESSION pSession, const c
     if (RT_SUCCESS(rc) || rc == VERR_NOT_FOUND)
     {
         bool fCloseNetwork = true;
-        if (rc == VERR_NOT_FOUND)
+        bool fNewNet = rc == VERR_NOT_FOUND;
+        if (fNewNet)
             rc = intnetR0CreateNetwork(pIntNet, pSession, pszNetwork, enmTrunkType, pszTrunk, fFlags, &pNetwork);
         if (RT_SUCCESS(rc))
             rc = intnetR0NetworkCreateIf(pNetwork, pSession, cbSend, cbRecv, &fCloseNetwork, phIf);
 
         RTSemFastMutexRelease(pIntNet->FastMutex);
 
-        if (RT_FAILURE(rc) && pNetwork && fCloseNetwork)
-            intnetR0NetworkClose(pNetwork, pSession);
+        if (RT_FAILURE(rc))
+        {
+            if(pNetwork && fCloseNetwork)
+                intnetR0NetworkClose(pNetwork, pSession);
+        }
+        else if(!fNewNet)
+            rc = VINF_ALREADY_INITIALIZED;
     }
     else
         RTSemFastMutexRelease(pIntNet->FastMutex);

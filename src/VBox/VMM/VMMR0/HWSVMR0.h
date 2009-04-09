@@ -1,4 +1,4 @@
-/* $Id: HWSVMR0.h $ */
+/* $Id: HWSVMR0.h 15414 2008-12-13 04:33:30Z vboxsync $ */
 /** @file
  * HWACCM AMD-V - Internal header file.
  */

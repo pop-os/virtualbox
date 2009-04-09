@@ -22,7 +22,11 @@
 
 #include "QIStateIndicator.h"
 
-#include <qpainter.h>
+/* Qt includes */
+#include <QPainter>
+#ifdef Q_WS_MAC
+# include <QContextMenuEvent>
+#endif
 
 /** @clas QIStateIndicator
  *
@@ -37,22 +41,24 @@
  *  @param aState
  *      the initial indicator state
  */
-QIStateIndicator::QIStateIndicator (int aState,
-                                    QWidget *aParent, const char *aName,
-                                    WFlags aFlags)
-    : QFrame (aParent, aName, aFlags | WStaticContents | WMouseNoMask)
+QIStateIndicator::QIStateIndicator (int aState)
+//    : QFrame (aParent, aName, aFlags | Qt::WStaticContents | Qt::WMouseNoMask)
 {
     mState = aState;
     mSize = QSize (0, 0);
-    mStateIcons.setAutoDelete (true);
 
     setSizePolicy (QSizePolicy (QSizePolicy::Fixed, QSizePolicy::Fixed));
 
     /* we will precompose the pixmap background using the widget bacground in
      * drawContents(), so try to set the correct bacground origin for the
      * case when a pixmap is used as a widget background. */
-    if (aParent)
-        setBackgroundOrigin (aParent->backgroundOrigin());
+//    if (aParent)
+//        setBackgroundOrigin (aParent->backgroundOrigin());
+}
+
+QIStateIndicator::~QIStateIndicator()
+{
+    qDeleteAll (mStateIcons);
 }
 
 QSize QIStateIndicator::sizeHint() const
@@ -90,70 +96,26 @@ void QIStateIndicator::setStateIcon (int aState, const QPixmap &aPixmap)
 void QIStateIndicator::setState (int aState)
 {
     mState = aState;
-    repaint (false);
+    repaint();
+}
+
+void QIStateIndicator::paintEvent (QPaintEvent * /* aEv */)
+{
+    QPainter painter (this);
+    drawContents (&painter);
 }
 
 void QIStateIndicator::drawContents (QPainter *aPainter)
 {
     Icon *icon = mStateIcons [mState];
-    if (!icon)
-    {
-        erase();
-    }
-    else
-    {
-        if (testWFlags (WNoAutoErase))
-        {
-            QColor bgColor = paletteBackgroundColor();
-            const QPixmap *bgPixmap = paletteBackgroundPixmap();
-            QPoint bgOff = backgroundOffset();
-
-            bool bgOffChanged = icon->bgOff != bgOff;
-            bool bgPixmapChanged = icon->bgPixmap != bgPixmap ||
-                (icon->bgPixmap != NULL &&
-                 icon->bgPixmap->serialNumber() != bgPixmap->serialNumber());
-            bool bgColorChanged = icon->bgColor != bgColor;
-
-            /* re-precompose the pixmap if any of these have changed */
-            if (icon->cached.isNull() ||
-                bgOffChanged || bgPixmapChanged || bgColorChanged)
-            {
-                int w = icon->pixmap.width();
-                int h = icon->pixmap.height();
-                if (icon->cached.isNull())
-                    icon->cached = QPixmap (w, h);
-
-                if (bgPixmap || bgOffChanged || bgPixmapChanged)
-                {
-                    QPainter p (&icon->cached);
-                    p.drawTiledPixmap (QRect (0, 0, w, h), *bgPixmap, bgOff);
-                }
-                else
-                {
-                    icon->cached.fill (bgColor);
-                }
-                /* paint the icon on top of the widget background sample */
-                bitBlt (&icon->cached, 0, 0, &icon->pixmap,
-                        0, 0, w, h, CopyROP, false);
-                /* store the new values */
-                icon->bgColor = bgColor;
-                icon->bgPixmap = bgPixmap;
-                icon->bgOff = bgOff;
-            }
-            /* draw the precomposed pixmap */
-            aPainter->drawPixmap (contentsRect(), icon->cached);
-        }
-        else
-        {
-            aPainter->drawPixmap (contentsRect(), icon->pixmap);
-        }
-    }
+    if (icon)
+        aPainter->drawPixmap (contentsRect(), icon->pixmap);
 }
 
 #ifdef Q_WS_MAC
-/** 
- * Make the left button also show the context menu to make things 
- * simpler for users with single mouse button mice (laptops++). 
+/**
+ * Make the left button also show the context menu to make things
+ * simpler for users with single mouse button mice (laptops++).
  */
 void QIStateIndicator::mousePressEvent (QMouseEvent *aEv)
 {
@@ -163,7 +125,7 @@ void QIStateIndicator::mousePressEvent (QMouseEvent *aEv)
      * which would be some kind of overstated. */
     if (aEv->button() == Qt::LeftButton)
     {
-        QContextMenuEvent qme (QContextMenuEvent::Mouse, aEv->pos(), aEv->globalPos(), 0);
+        QContextMenuEvent qme (QContextMenuEvent::Mouse, aEv->pos(), aEv->globalPos());
         emit contextMenuRequested (this, &qme);
         if (qme.isAccepted())
             aEv->accept();

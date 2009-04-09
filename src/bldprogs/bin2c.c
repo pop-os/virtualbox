@@ -1,4 +1,4 @@
-/* $Id: bin2c.c $ */
+/* $Id: bin2c.c 17692 2009-03-11 13:20:41Z vboxsync $ */
 /** @file
  * bin2c - Binary 2 C Structure Converter.
  */
@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
     fprintf(pFileOut,
            "/*\n"
            " * This file was automatically generated\n"
-           " * from %s by\n"
+           " * from %s\n"
            " * by %s.\n"
            " */\n"
            "\n"

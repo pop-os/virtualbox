@@ -1,4 +1,4 @@
-/* $Id: PDM.cpp $ */
+/* $Id: PDM.cpp 18618 2009-04-01 22:13:19Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device Manager.
  */
@@ -288,7 +288,6 @@
 static DECLCALLBACK(int) pdmR3Save(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int) pdmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version);
 static DECLCALLBACK(int) pdmR3LoadPrep(PVM pVM, PSSMHANDLE pSSM);
-static DECLCALLBACK(void) pdmR3PollerTimer(PVM pVM, PTMTIMER pTimer, void *pvUser);
 
 
 
@@ -332,13 +331,10 @@ VMMR3DECL(int) PDMR3Init(PVM pVM)
     pVM->pdm.s.offVM = RT_OFFSETOF(VM, pdm.s);
     pVM->pdm.s.GCPhysVMMDevHeap = NIL_RTGCPHYS;
 
-    int rc = TMR3TimerCreateInternal(pVM, TMCLOCK_VIRTUAL, pdmR3PollerTimer, NULL, "PDM Poller", &pVM->pdm.s.pTimerPollers);
-    AssertRC(rc);
-
     /*
      * Initialize sub compontents.
      */
-    rc = pdmR3CritSectInit(pVM);
+    int rc = pdmR3CritSectInit(pVM);
     if (RT_SUCCESS(rc))
     {
         rc = PDMR3CritSectInit(pVM, &pVM->pdm.s.CritSect, "PDM");
@@ -1313,37 +1309,6 @@ VMMR3DECL(void) PDMR3DmaRun(PVM pVM)
         if (fMore)
             VM_FF_SET(pVM, VM_FF_PDM_DMA);
     }
-}
-
-
-/**
- * Call polling function.
- *
- * @param   pVM             VM handle.
- */
-VMMR3DECL(void) PDMR3Poll(PVM pVM)
-{
-    /* This is temporary hack and shall be removed ASAP! */
-    unsigned iPoller = pVM->pdm.s.cPollers;
-    if (iPoller)
-    {
-        while (iPoller-- > 0)
-            pVM->pdm.s.apfnPollers[iPoller](pVM->pdm.s.aDrvInsPollers[iPoller]);
-        TMTimerSetMillies(pVM->pdm.s.pTimerPollers, 3);
-    }
-}
-
-
-/**
- * Internal timer callback function.
- *
- * @param   pVM             The VM.
- * @param   pTimer          The timer handle.
- * @param   pvUser          User argument specified upon timer creation.
- */
-static DECLCALLBACK(void) pdmR3PollerTimer(PVM pVM, PTMTIMER pTimer, void *pvUser)
-{
-    PDMR3Poll(pVM);
 }
 
 

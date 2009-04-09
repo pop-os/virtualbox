@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 2 2007-11-16 16:07:14Z bird $
+# $Id: Makefile.kmk 5 2008-02-03 20:56:09Z bird $
 ## @file
 # kBuild Makefile for the kLdr testcases.
 #
@@ -25,7 +25,7 @@
 #
 
 # generate rules.
-DEPTH ?= ../../..
+DEPTH ?= ../..
 SUB_DEPTH = ../..
 include $(PATH_KBUILD)/subheader.kmk
 

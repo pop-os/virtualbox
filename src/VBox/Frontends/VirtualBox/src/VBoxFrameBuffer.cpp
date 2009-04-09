@@ -26,7 +26,8 @@
 #include "VBoxProblemReporter.h"
 #include "VBoxGlobal.h"
 
-#include <qapplication.h>
+/* Qt includes */
+#include <QPainter>
 
 //
 // VBoxFrameBuffer class
@@ -39,17 +40,18 @@
 
 #if !defined (Q_OS_WIN32)
 NS_DECL_CLASSINFO (VBoxFrameBuffer)
-NS_IMPL_ISUPPORTS1_CI (VBoxFrameBuffer, IFramebuffer)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI (VBoxFrameBuffer, IFramebuffer)
 #endif
 
 VBoxFrameBuffer::VBoxFrameBuffer (VBoxConsoleView *aView)
-    : mView (aView), mMutex (new QMutex (true))
+    : mView (aView), mMutex (new QMutex (QMutex::Recursive))
     , mWdt (0), mHgt (0)
 #if defined (Q_OS_WIN32)
     , refcnt (0)
 #endif
 {
     AssertMsg (mView, ("VBoxConsoleView must not be null\n"));
+    mWinId = (mView && mView->viewport()) ? (ULONG64) mView->viewport()->winId() : 0;
 }
 
 VBoxFrameBuffer::~VBoxFrameBuffer()
@@ -140,7 +142,7 @@ STDMETHODIMP VBoxFrameBuffer::COMGETTER(WinId) (ULONG64 *winId)
 {
     if (!winId)
         return E_POINTER;
-    *winId = (mView && mView->viewport()) ? (ULONG64) mView->viewport()->winId() : 0;	
+    *winId = mWinId;
     return S_OK;
 }
 
@@ -322,28 +324,23 @@ STDMETHODIMP VBoxQImageFrameBuffer::NotifyUpdate (ULONG aX, ULONG aY,
                                                   ULONG aW, ULONG aH,
                                                   BOOL *aFinished)
 {
-#if !defined (Q_WS_WIN) && !defined (Q_WS_PM)
-    /* we're not on the GUI thread and update() isn't thread safe in Qt 3.3.x
-       on the Mac (4.2.x is), on Linux (didn't check Qt 4.x there) and
-       probably on other non-DOS platforms, so post the event instead. */
+    /* We're not on the GUI thread and update() isn't thread safe in
+     * Qt 4.3.x on the Win, Qt 3.3.x on the Mac (4.2.x is),
+     * on Linux (didn't check Qt 4.x there) and probably on other
+     * non-DOS platforms, so post the event instead. */
     QApplication::postEvent (mView,
                              new VBoxRepaintEvent (aX, aY, aW, aH));
-#else
-    /* we're not on the GUI thread, so update() instead of repaint()! */
-    mView->viewport()->update (aX - mView->contentsX(),
-                               aY - mView->contentsY(),
-                               aW, aH);
-#endif
-    /* the update has been finished, return TRUE */
+
+    /* The update has been finished, return TRUE */
     *aFinished = TRUE;
     return S_OK;
 }
 
 void VBoxQImageFrameBuffer::paintEvent (QPaintEvent *pe)
 {
-    const QRect &r = pe->rect().intersect (mView->viewport()->rect());
+    const QRect &r = pe->rect().intersected (mView->viewport()->rect());
 
-    /*  some outdated rectangle during processing VBoxResizeEvent */
+    /* Some outdated rectangle during processing VBoxResizeEvent */
     if (r.isEmpty())
         return;
 
@@ -353,34 +350,25 @@ void VBoxQImageFrameBuffer::paintEvent (QPaintEvent *pe)
                   img.width(), img.height()));
 #endif
 
-    FRAMEBUF_DEBUG_START (xxx);
+    QPainter painter (mView->viewport());
 
     if (r.width() < mWdt * 2 / 3)
     {
-        /* this method is faster for narrow updates */
-        mPM.convertFromImage (mImg.copy (r.x() + mView->contentsX(),
-                                         r.y() + mView->contentsY(),
-                                         r.width(), r.height()));
-
-        ::bitBlt (mView->viewport(), r.x(), r.y(),
-                  &mPM, 0, 0,
-                  r.width(), r.height(),
-                  Qt::CopyROP, TRUE);
+        /* This method is faster for narrow updates */
+        mPM = QPixmap::fromImage (mImg.copy (r.x() + mView->contentsX(),
+                                             r.y() + mView->contentsY(),
+                                             r.width(), r.height()));
+        painter.drawPixmap (r.x(), r.y(), mPM);
     }
     else
     {
-        /* this method is faster for wide updates */
-        mPM.convertFromImage (QImage (mImg.scanLine (r.y() + mView->contentsY()),
-                                      mImg.width(), r.height(), mImg.depth(),
-                                      0, 0, QImage::LittleEndian));
-
-        ::bitBlt (mView->viewport(), r.x(), r.y(),
-                  &mPM, r.x() + mView->contentsX(), 0,
-                  r.width(), r.height(),
-                  Qt::CopyROP, TRUE);
+        /* This method is faster for wide updates */
+        mPM = QPixmap::fromImage (QImage (mImg.scanLine (r.y() + mView->contentsY()),
+                                  mImg.width(), r.height(), mImg.bytesPerLine(),
+                                  QImage::Format_RGB32));
+        painter.drawPixmap (r.x(), r.y(), mPM,
+                            r.x() + mView->contentsX(), 0, 0, 0);
     }
-
-    FRAMEBUF_DEBUG_STOP (xxx, r.width(), r.height());
 }
 
 void VBoxQImageFrameBuffer::resizeEvent (VBoxResizeEvent *re)
@@ -397,17 +385,24 @@ void VBoxQImageFrameBuffer::resizeEvent (VBoxResizeEvent *re)
 
     bool remind = false;
     bool fallback = false;
+    ulong bitsPerLine = re->bytesPerLine() * 8;
 
     /* check if we support the pixel format and can use the guest VRAM directly */
     if (re->pixelFormat() == FramebufferPixelFormat_FOURCC_RGB)
     {
+        QImage::Format format;
         switch (re->bitsPerPixel())
         {
             /* 32-, 8- and 1-bpp are the only depths suported by QImage */
             case 32:
+                format = QImage::Format_RGB32;
                 break;
             case 8:
+                format = QImage::Format_Indexed8;
+                remind = true;
+                break;
             case 1:
+                format = QImage::Format_Mono;
                 remind = true;
                 break;
             default:
@@ -418,17 +413,22 @@ void VBoxQImageFrameBuffer::resizeEvent (VBoxResizeEvent *re)
 
         if (!fallback)
         {
-            /* QImage only supports 32-bit aligned scan lines */
-            fallback = re->bytesPerLine() !=
-                ((mWdt * re->bitsPerPixel() + 31) / 32) * 4;
-            Assert (!fallback);
-            if (!fallback)
-            {
-                mImg = QImage ((uchar *) re->VRAM(), mWdt, mHgt,
-                               re->bitsPerPixel(), NULL, 0, QImage::LittleEndian);
-                mPixelFormat = FramebufferPixelFormat_FOURCC_RGB;
-                mUsesGuestVRAM = true;
-            }
+            /* QImage only supports 32-bit aligned scan lines... */
+            Assert ((re->bytesPerLine() & 3) == 0);
+            fallback = ((re->bytesPerLine() & 3) != 0);
+        }
+        if (!fallback)
+        {
+            /* ...and the scan lines ought to be a whole number of pixels. */
+            Assert ((bitsPerLine & (re->bitsPerPixel() - 1)) == 0);
+            fallback = ((bitsPerLine & (re->bitsPerPixel() - 1)) != 0);
+        }
+        if (!fallback)
+        {
+            ulong virtWdt = bitsPerLine / re->bitsPerPixel();
+            mImg = QImage ((uchar *) re->VRAM(), virtWdt, mHgt, format);
+            mPixelFormat = FramebufferPixelFormat_FOURCC_RGB;
+            mUsesGuestVRAM = true;
         }
     }
     else
@@ -440,7 +440,7 @@ void VBoxQImageFrameBuffer::resizeEvent (VBoxResizeEvent *re)
     {
         /* we don't support either the pixel format or the color depth,
          * fallback to a self-provided 32bpp RGB buffer */
-        mImg = QImage (mWdt, mHgt, 32, 0, QImage::LittleEndian);
+        mImg = QImage (mWdt, mHgt, QImage::Format_RGB32);
         mPixelFormat = FramebufferPixelFormat_FOURCC_RGB;
         mUsesGuestVRAM = false;
     }
@@ -470,6 +470,8 @@ void VBoxQImageFrameBuffer::resizeEvent (VBoxResizeEvent *re)
 
 #if defined (VBOX_GUI_USE_SDL)
 
+#include "VBoxX11Helper.h"
+
 /** @class VBoxSDLFrameBuffer
  *
  *  The VBoxSDLFrameBuffer class is a class that implements the IFrameBuffer
@@ -483,6 +485,7 @@ VBoxSDLFrameBuffer::VBoxSDLFrameBuffer (VBoxConsoleView *aView) :
     mPixelFormat = FramebufferPixelFormat_FOURCC_RGB;
     mSurfVRAM = NULL;
 
+    X11ScreenSaverSettingsInit();
     resizeEvent (new VBoxResizeEvent (FramebufferPixelFormat_Opaque,
                                       NULL, 0, 0, 640, 480));
 }
@@ -494,7 +497,9 @@ VBoxSDLFrameBuffer::~VBoxSDLFrameBuffer()
         SDL_FreeSurface (mSurfVRAM);
         mSurfVRAM = NULL;
     }
+    X11ScreenSaverSettingsSave();
     SDL_QuitSubSystem (SDL_INIT_VIDEO);
+    X11ScreenSaverSettingsRestore();
 }
 
 /** @note This method is called on EMT from under this object's lock */
@@ -549,43 +554,12 @@ void VBoxSDLFrameBuffer::paintEvent (QPaintEvent *pe)
 
 void VBoxSDLFrameBuffer::resizeEvent (VBoxResizeEvent *re)
 {
-    mWdt = re->width();
-    mHgt = re->height();
+    /* Check whether the guest resolution has not been changed. */
+    bool fSameResolutionRequested = (   width()  == re->width()
+                                     && height() == re->height()
+                                    );
 
-    /* close SDL so we can init it again */
-    if (mSurfVRAM)
-    {
-        SDL_FreeSurface(mSurfVRAM);
-        mSurfVRAM = NULL;
-    }
-    if (mScreen)
-    {
-        SDL_QuitSubSystem (SDL_INIT_VIDEO);
-        mScreen = NULL;
-    }
-
-    /*
-     *  initialize the SDL library, use its super hack to integrate it with our
-     *  client window
-     */
-    static char sdlHack[64];
-    LogFlowFunc (("Using client window 0x%08lX to initialize SDL\n",
-                  mView->viewport()->winId()));
-    /* Note: SDL_WINDOWID must be decimal (not hex) to work on Win32 */
-    sprintf (sdlHack, "SDL_WINDOWID=%lu", mView->viewport()->winId());
-    putenv (sdlHack);
-    int rc = SDL_InitSubSystem (SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
-    AssertMsg (rc == 0, ("SDL initialization failed: %s\n", SDL_GetError()));
-    NOREF(rc);
-
-#ifdef Q_WS_X11
-    /* undo signal redirections from SDL, it'd steal keyboard events from us! */
-    signal (SIGINT, SIG_DFL);
-    signal (SIGQUIT, SIG_DFL);
-#endif
-
-    LogFlowFunc (("Setting SDL video mode to %d x %d\n", mWdt, mHgt));
-
+    /* Check if the guest VRAM can be used as the source bitmap. */
     bool fallback = false;
 
     Uint32 Rmask = 0;
@@ -610,22 +584,11 @@ void VBoxSDLFrameBuffer::resizeEvent (VBoxResizeEvent *re)
                 Rmask = 0xF800;
                 Gmask = 0x07E0;
                 Bmask = 0x001F;
+                break;
             default:
                 /* Unsupported format leads to the indirect buffer */
                 fallback = true;
                 break;
-        }
-
-        if (!fallback)
-        {
-            /* Create a source surface from guest VRAM. */
-            mSurfVRAM = SDL_CreateRGBSurfaceFrom(re->VRAM(), mWdt, mHgt,
-                                                 re->bitsPerPixel(),
-                                                 re->bytesPerLine(),
-                                                 Rmask, Gmask, Bmask, 0);
-            LogFlowFunc (("Created VRAM surface %p\n", mSurfVRAM));
-            if (mSurfVRAM == NULL)
-                fallback = true;
         }
     }
     else
@@ -633,6 +596,69 @@ void VBoxSDLFrameBuffer::resizeEvent (VBoxResizeEvent *re)
         /* Unsupported format leads to the indirect buffer */
         fallback = true;
     }
+
+    mWdt = re->width();
+    mHgt = re->height();
+
+    /* Recreate the source surface. */
+    if (mSurfVRAM)
+    {
+        SDL_FreeSurface(mSurfVRAM);
+        mSurfVRAM = NULL;
+    }
+
+    if (!fallback)
+    {
+        /* It is OK to create the source surface from the guest VRAM. */
+        mSurfVRAM = SDL_CreateRGBSurfaceFrom(re->VRAM(), re->width(), re->height(),
+                                             re->bitsPerPixel(),
+                                             re->bytesPerLine(),
+                                             Rmask, Gmask, Bmask, 0);
+        LogFlowFunc (("Created VRAM surface %p\n", mSurfVRAM));
+        if (mSurfVRAM == NULL)
+        {
+            fallback = true;
+        }
+    }
+
+    if (fSameResolutionRequested)
+    {
+        LogFlowFunc(("the same resolution requested, skipping the resize.\n"));
+        return;
+    }
+
+    /* close SDL so we can init it again */
+    if (mScreen)
+    {
+        X11ScreenSaverSettingsSave();
+        SDL_QuitSubSystem (SDL_INIT_VIDEO);
+        X11ScreenSaverSettingsRestore();
+        mScreen = NULL;
+    }
+
+    /*
+     *  initialize the SDL library, use its super hack to integrate it with our
+     *  client window
+     */
+    static char sdlHack[64];
+    LogFlowFunc (("Using client window 0x%08lX to initialize SDL\n",
+                  mView->viewport()->winId()));
+    /* Note: SDL_WINDOWID must be decimal (not hex) to work on Win32 */
+    sprintf (sdlHack, "SDL_WINDOWID=%lu", mView->viewport()->winId());
+    putenv (sdlHack);
+    X11ScreenSaverSettingsSave();
+    int rc = SDL_InitSubSystem (SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
+    X11ScreenSaverSettingsRestore();
+    AssertMsg (rc == 0, ("SDL initialization failed: %s\n", SDL_GetError()));
+    NOREF(rc);
+
+#ifdef Q_WS_X11
+    /* undo signal redirections from SDL, it'd steal keyboard events from us! */
+    signal (SIGINT, SIG_DFL);
+    signal (SIGQUIT, SIG_DFL);
+#endif
+
+    LogFlowFunc (("Setting SDL video mode to %d x %d\n", mWdt, mHgt));
 
     /* Pixel format is RGB in any case */
     mPixelFormat = FramebufferPixelFormat_FOURCC_RGB;

@@ -24,55 +24,55 @@
 
 #include "VirtualBoxBase.h"
 
-#include "HardDisk2Impl.h"
+#include "HardDiskImpl.h"
 
-class ATL_NO_VTABLE HardDisk2Attachment :
+class ATL_NO_VTABLE HardDiskAttachment :
     public VirtualBoxBaseNEXT,
-    public com::SupportErrorInfoImpl <HardDisk2Attachment, IHardDisk2Attachment>,
-    public VirtualBoxSupportTranslation <HardDisk2Attachment>,
-    public IHardDisk2Attachment
+    public com::SupportErrorInfoImpl<HardDiskAttachment, IHardDiskAttachment>,
+    public VirtualBoxSupportTranslation<HardDiskAttachment>,
+    public IHardDiskAttachment
 {
 public:
 
     /** Equality predicate for stdc++. */
     struct EqualsTo
-        : public std::unary_function <ComObjPtr <HardDisk2Attachment>, bool>
+        : public std::unary_function <ComObjPtr<HardDiskAttachment>, bool>
     {
-        explicit EqualsTo (StorageBus_T aBus, LONG aChannel, LONG aDevice)
-            : bus (aBus), channel (aChannel), device (aDevice) {}
+        explicit EqualsTo (CBSTR aController, LONG aPort, LONG aDevice)
+            : controller(aController), port (aPort), device (aDevice) {}
 
         bool operator() (const argument_type &aThat) const
         {
-            return aThat->bus() == bus && aThat->channel() == channel &&
+            return aThat->controller() == controller && aThat->port() == port &&
                    aThat->device() == device;
         }
 
-        const StorageBus_T bus;
-        const LONG channel;
+        const Bstr controller;
+        const LONG port;
         const LONG device;
     };
 
     /** Hard disk reference predicate for stdc++. */
     struct RefersTo
-        : public std::unary_function <ComObjPtr <HardDisk2Attachment>, bool>
+        : public std::unary_function< ComObjPtr<HardDiskAttachment>, bool>
     {
-        explicit RefersTo (HardDisk2 *aHardDisk) : hardDisk (aHardDisk) {}
+        explicit RefersTo (HardDisk *aHardDisk) : hardDisk (aHardDisk) {}
 
         bool operator() (const argument_type &aThat) const
         {
             return aThat->hardDisk().equalsTo (hardDisk);
         }
 
-        const ComObjPtr <HardDisk2> hardDisk;
+        const ComObjPtr <HardDisk> hardDisk;
     };
 
-    DECLARE_NOT_AGGREGATABLE(HardDisk2Attachment)
+    DECLARE_NOT_AGGREGATABLE(HardDiskAttachment)
 
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
-    BEGIN_COM_MAP (HardDisk2Attachment)
+    BEGIN_COM_MAP (HardDiskAttachment)
         COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IHardDisk2Attachment)
+        COM_INTERFACE_ENTRY(IHardDiskAttachment)
     END_COM_MAP()
 
     NS_DECL_ISUPPORTS
@@ -81,14 +81,14 @@ public:
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init (HardDisk2 *aHD, StorageBus_T aBus, LONG aChannel,
-                  LONG aDevice, bool aImplicit = false);
+    HRESULT init(HardDisk *aHD, CBSTR aController, LONG aPort,
+                 LONG aDevice, bool aImplicit = false);
     void uninit();
 
-    // IHardDisk2Attachment properties
-    STDMETHOD(COMGETTER(HardDisk))   (IHardDisk2 **aHardDisk);
-    STDMETHOD(COMGETTER(Bus))        (StorageBus_T *aBus);
-    STDMETHOD(COMGETTER(Channel))    (LONG *aChannel);
+    // IHardDiskAttachment properties
+    STDMETHOD(COMGETTER(HardDisk))   (IHardDisk **aHardDisk);
+    STDMETHOD(COMGETTER(Controller)) (BSTR *aController);
+    STDMETHOD(COMGETTER(Port))       (LONG *aPort);
     STDMETHOD(COMGETTER(Device))     (LONG *aDevice);
 
     // unsafe inline public methods for internal purposes only (ensure there is
@@ -97,33 +97,33 @@ public:
     bool isImplicit() const { return m.implicit; }
     void setImplicit (bool aImplicit) { m.implicit = aImplicit; }
 
-    const ComObjPtr <HardDisk2> &hardDisk() const { return m.hardDisk; }
-    StorageBus_T bus() const { return m.bus; }
-    LONG channel() const { return m.channel; }
+    const ComObjPtr<HardDisk> &hardDisk() const { return m.hardDisk; }
+    Bstr controller() const { return m.controller; }
+    LONG port()   const { return m.port; }
     LONG device() const { return m.device; }
 
     /** Must be called from under this object's write lock.  */
-    void updateHardDisk (const ComObjPtr <HardDisk2> &aHardDisk, bool aImplicit)
+    void updateHardDisk (const ComObjPtr<HardDisk> &aHardDisk, bool aImplicit)
     {
         m.hardDisk = aHardDisk;
         m.implicit = aImplicit;
     }
 
     /** For com::SupportErrorInfoImpl. */
-    static const char *ComponentName() { return "HardDisk2Attachment"; }
+    static const char *ComponentName() { return "HardDiskAttachment"; }
 
 private:
 
     struct Data
     {
-        Data() : bus (StorageBus_Null), channel (0), device (0)
+        Data() : port (0), device (0)
                , implicit (false) {}
 
         /// @todo NEWMEDIA shouldn't it be constant too? It'd be nice to get
         /// rid of locks at all in this simple readonly structure-like interface
-        ComObjPtr <HardDisk2> hardDisk;
-        const StorageBus_T bus;
-        const LONG channel;
+        ComObjPtr<HardDisk> hardDisk;
+        const Bstr controller;
+        const LONG port;
         const LONG device;
 
         bool implicit : 1;

@@ -1,4 +1,4 @@
-/* $Id: PGMAllHandler.cpp $ */
+/* $Id: PGMAllHandler.cpp 18677 2009-04-03 11:03:49Z vboxsync $ */
 /** @file
  * PGM - Page Manager / Monitor, Access Handlers.
  */
@@ -73,7 +73,7 @@ static void pgmHandlerPhysicalResetRamFlags(PVM pVM, PPGMPHYSHANDLER pCur);
  * @param   pvUserR3        User argument to the R3 handler.
  * @param   pfnHandlerR0    The R0 handler.
  * @param   pvUserR0        User argument to the R0 handler.
- * @param   pfnHandlerGC    The RC handler.
+ * @param   pfnHandlerRC    The RC handler.
  * @param   pvUserRC        User argument to the RC handler. This can be a value
  *                          less that 0x10000 or a (non-null) pointer that is
  *                          automatically relocatated.
@@ -94,9 +94,13 @@ VMMDECL(int) PGMHandlerPhysicalRegisterEx(PVM pVM, PGMPHYSHANDLERTYPE enmType, R
     AssertMsgReturn(GCPhys < GCPhysLast, ("GCPhys >= GCPhysLast (%#x >= %#x)\n", GCPhys, GCPhysLast), VERR_INVALID_PARAMETER);
     switch (enmType)
     {
-        case PGMPHYSHANDLERTYPE_MMIO:
         case PGMPHYSHANDLERTYPE_PHYSICAL_WRITE:
+            break;
+        case PGMPHYSHANDLERTYPE_MMIO:
         case PGMPHYSHANDLERTYPE_PHYSICAL_ALL:
+            /* Simplification in PGMPhysRead among other places. */
+            AssertMsgReturn(!(GCPhys & PAGE_OFFSET_MASK), ("%RGp\n", GCPhys), VERR_INVALID_PARAMETER);
+            AssertMsgReturn((GCPhysLast & PAGE_OFFSET_MASK) == PAGE_OFFSET_MASK, ("%RGp\n", GCPhysLast), VERR_INVALID_PARAMETER);
             break;
         default:
             AssertMsgFailed(("Invalid input enmType=%d!\n", enmType));
@@ -106,7 +110,13 @@ VMMDECL(int) PGMHandlerPhysicalRegisterEx(PVM pVM, PGMPHYSHANDLERTYPE enmType, R
                     ||  MMHyperR3ToRC(pVM, MMHyperRCToR3(pVM, pvUserRC)) == pvUserRC,
                     ("Not RC pointer! pvUserRC=%RRv\n", pvUserRC),
                     VERR_INVALID_PARAMETER);
-    AssertReturn(pfnHandlerR3 || pfnHandlerR0 || pfnHandlerRC, VERR_INVALID_PARAMETER);
+    AssertMsgReturn(    (RTR0UINTPTR)pvUserR0 < 0x10000
+                    ||  MMHyperR3ToR0(pVM, MMHyperR0ToR3(pVM, pvUserR0)) == pvUserR0,
+                    ("Not R0 pointer! pvUserR0=%RHv\n", pvUserR0),
+                    VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pfnHandlerR3, VERR_INVALID_POINTER);
+    AssertReturn(pfnHandlerR0, VERR_INVALID_PARAMETER);
+    AssertReturn(pfnHandlerRC, VERR_INVALID_PARAMETER);
 
     /*
      * We require the range to be within registered ram.
@@ -154,11 +164,8 @@ VMMDECL(int) PGMHandlerPhysicalRegisterEx(PVM pVM, PGMPHYSHANDLERTYPE enmType, R
     if (RTAvlroGCPhysInsert(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysHandlers, &pNew->Core))
     {
         rc = pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs(pVM, pNew, pRam);
-        if (rc == VINF_PGM_GCPHYS_ALIASED)
-        {
-            pVM->pgm.s.fSyncFlags |= PGM_SYNC_CLEAR_PGM_POOL;
-            VM_FF_SET(pVM, VM_FF_PGM_SYNC_CR3);
-        }
+        if (rc == VINF_PGM_SYNC_CR3)
+            rc = VINF_PGM_GCPHYS_ALIASED;
         pVM->pgm.s.fPhysCacheFlushPending = true;
         HWACCMFlushTLB(pVM);
 #ifndef IN_RING3
@@ -188,8 +195,8 @@ VMMDECL(int) PGMHandlerPhysicalRegisterEx(PVM pVM, PGMPHYSHANDLERTYPE enmType, R
  *
  * @returns VBox status code.
  * @retval  VINF_SUCCESS when shadow PTs was successfully updated.
- * @retval  VINF_PGM_GCPHYS_ALIASED when the shadow PTs could be updated because
- *          the guest page aliased or/and mapped by multiple PTs.
+ * @retval  VINF_PGM_SYNC_CR3 when the shadow PTs could be updated because
+ *          the guest page aliased or/and mapped by multiple PTs. FFs set.
  * @param   pVM     The VM handle.
  * @param   pCur    The physical handler.
  * @param   pRam    The RAM range.
@@ -201,79 +208,24 @@ static int pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs(PVM pVM, PPGMPHYSHANDL
      * mapping the page.
      */
     bool            fFlushTLBs = false;
-#if defined(PGMPOOL_WITH_GCPHYS_TRACKING) || defined(PGMPOOL_WITH_CACHE)
-    int             rc = VINF_SUCCESS;
-#else
-    const int       rc = VINF_PGM_GCPHYS_ALIASED;
-#endif
-    const unsigned  uState = pgmHandlerPhysicalCalcState(pCur);
-    RTUINT          cPages = pCur->cPages;
-    RTUINT          i = (pCur->Core.Key - pRam->GCPhys) >> PAGE_SHIFT;
+    int             rc         = VINF_SUCCESS;
+    const unsigned  uState     = pgmHandlerPhysicalCalcState(pCur);
+    uint32_t        cPages     = pCur->cPages;
+    uint32_t        i          = (pCur->Core.Key - pRam->GCPhys) >> PAGE_SHIFT;
     for (;;)
     {
-        /* Physical chunk in dynamically allocated range not present? */
-        if (RT_UNLIKELY(!PGM_PAGE_GET_HCPHYS(&pRam->aPages[i])))
-        {
-            RTGCPHYS GCPhys = pRam->GCPhys + (i << PAGE_SHIFT);
-#ifdef IN_RING3
-            int rc2 = pgmr3PhysGrowRange(pVM, GCPhys);
-#else
-            int rc2 = CTXALLMID(VMM, CallHost)(pVM, VMMCALLHOST_PGM_RAM_GROW_RANGE, GCPhys);
-#endif
-            if (rc2 != VINF_SUCCESS)
-                return rc2;
-        }
+        PPGMPAGE pPage = &pRam->aPages[i];
+        AssertMsg(pCur->enmType != PGMPHYSHANDLERTYPE_MMIO || PGM_PAGE_IS_MMIO(pPage),
+                  ("%RGp %R[pgmpage]\n", pRam->GCPhys + (i << PAGE_SHIFT), pPage));
 
         /* Only do upgrades. */
-        PPGMPAGE pPage = &pRam->aPages[i];
         if (PGM_PAGE_GET_HNDL_PHYS_STATE(pPage) < uState)
         {
             PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, uState);
-            Assert(PGM_PAGE_GET_HCPHYS(pPage));
 
-#ifdef PGMPOOL_WITH_GCPHYS_TRACKING
-            /* This code also makes ASSUMPTIONS about the cRefs and stuff. */
-            Assert(MM_RAM_FLAGS_IDX_SHIFT < MM_RAM_FLAGS_CREFS_SHIFT);
-            const uint16_t u16 = pRam->aPages[i].HCPhys >> MM_RAM_FLAGS_IDX_SHIFT; /** @todo PAGE FLAGS */
-            if (u16)
-            {
-# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-                /* Start a subset here because pgmPoolTrackFlushGCPhysPTsSlow and pgmPoolTrackFlushGCPhysPTs
-                   will/may kill the pool otherwise. */
-                PVMCPU pVCpu = VMMGetCpu(pVM);
-                uint32_t iPrevSubset = PGMDynMapPushAutoSubset(pVCpu);
-# endif
-
-                if ((u16 >> (MM_RAM_FLAGS_CREFS_SHIFT - MM_RAM_FLAGS_IDX_SHIFT)) != MM_RAM_FLAGS_CREFS_PHYSEXT)
-                    pgmPoolTrackFlushGCPhysPT(pVM,
-                                              pPage,
-                                              u16 & MM_RAM_FLAGS_IDX_MASK,
-                                              u16 >> (MM_RAM_FLAGS_CREFS_SHIFT - MM_RAM_FLAGS_IDX_SHIFT));
-                else if (u16 != ((MM_RAM_FLAGS_CREFS_PHYSEXT << (MM_RAM_FLAGS_CREFS_SHIFT - MM_RAM_FLAGS_IDX_SHIFT)) | MM_RAM_FLAGS_IDX_OVERFLOWED))
-                    pgmPoolTrackFlushGCPhysPTs(pVM, pPage, u16 & MM_RAM_FLAGS_IDX_MASK);
-                else
-                    rc = pgmPoolTrackFlushGCPhysPTsSlow(pVM, pPage);
-                fFlushTLBs = true;
-
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-                PGMDynMapPopAutoSubset(pVCpu, iPrevSubset);
-#endif
-            }
-
-#elif defined(PGMPOOL_WITH_CACHE)
-# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-            /* Start a subset here because pgmPoolTrackFlushGCPhysPTsSlow kill the pool otherwise. */
-            PVMCPU pVCpu = VMMGetCpu(pVM);
-            uint32_t iPrevSubset = PGMDynMapPushAutoSubset(pVCpu);
-# endif
-
-            rc = pgmPoolTrackFlushGCPhysPTsSlow(pVM, pPage);
-            fFlushTLBs = true;
-
-# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-            PGMDynMapPopAutoSubset(pVCpu, iPrevSubset);
-# endif
-#endif
+            int rc2 = pgmPoolTrackFlushGCPhys(pVM, pPage, &fFlushTLBs);
+            if (rc2 != VINF_SUCCESS && rc == VINF_SUCCESS)
+                rc = rc2;
         }
 
         /* next */
@@ -443,6 +395,45 @@ DECLINLINE(void) pgmHandlerPhysicalRecalcPageState(PPGM pPGM, RTGCPHYS GCPhys, b
 
 
 /**
+ * Resets an aliased page.
+ *
+ * @param   pVM         The VM.
+ * @param   pPage       The page.
+ * @param   GCPhysPage  The page address in case it comes in handy.
+ */
+void pgmHandlerPhysicalResetAliasedPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhysPage)
+{
+    Assert(PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_MMIO2_ALIAS_MMIO);
+    Assert(PGM_PAGE_GET_HNDL_PHYS_STATE(pPage) == PGM_PAGE_HNDL_PHYS_STATE_DISABLED);
+
+    /*
+     * Flush any shadow page table references *first*.
+     */
+    bool fFlushTLBs = false;
+    int rc = pgmPoolTrackFlushGCPhys(pVM, pPage, &fFlushTLBs);
+    AssertLogRelRCReturnVoid(rc);
+# ifdef IN_RC
+    if (fFlushTLBs && rc != VINF_PGM_SYNC_CR3)
+        PGM_INVL_GUEST_TLBS();
+# else
+    HWACCMFlushTLB(pVM);
+# endif
+    pVM->pgm.s.fPhysCacheFlushPending = true;
+
+    /*
+     * Make it an MMIO/Zero page.
+     */
+    PGM_PAGE_SET_HCPHYS(pPage, pVM->pgm.s.HCPhysZeroPg);
+    PGM_PAGE_SET_TYPE(pPage, PGMPAGETYPE_MMIO);
+    PGM_PAGE_SET_STATE(pPage, PGM_PAGE_STATE_ZERO);
+    PGM_PAGE_SET_PAGEID(pPage, NIL_GMM_PAGEID);
+    PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, PGM_PAGE_HNDL_PHYS_STATE_ALL);
+
+    NOREF(GCPhysPage);
+}
+
+
+/**
  * Resets ram range flags.
  *
  * @returns VBox status code.
@@ -468,7 +459,14 @@ static void pgmHandlerPhysicalResetRamFlags(PVM pVM, PPGMPHYSHANDLER pCur)
         PPGMPAGE pPage;
         int rc = pgmPhysGetPageWithHintEx(pPGM, GCPhys, &pPage, &pRamHint);
         if (RT_SUCCESS(rc))
+        {
+            /* Reset MMIO2 for MMIO pages to MMIO, since this aliasing is our business.
+               (We don't flip MMIO to RAM though, that's PGMPhys.cpp's job.)  */
+            if (PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_MMIO2_ALIAS_MMIO)
+                pgmHandlerPhysicalResetAliasedPage(pVM, pPage, GCPhys);
+            AssertMsg(pCur->enmType != PGMPHYSHANDLERTYPE_MMIO || PGM_PAGE_IS_MMIO(pPage), ("%RGp %R[pgmpage]\n", GCPhys, pPage));
             PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, PGM_PAGE_HNDL_PHYS_STATE_NONE);
+        }
         else
             AssertRC(rc);
 
@@ -544,11 +542,6 @@ VMMDECL(int) PGMHandlerPhysicalModify(PVM pVM, RTGCPHYS GCPhysCurrent, RTGCPHYS 
                      * Set ram flags, flush shadow PT entries and finally tell REM about this.
                      */
                     rc = pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs(pVM, pCur, pRam);
-                    if (rc == VINF_PGM_GCPHYS_ALIASED)
-                    {
-                        pVM->pgm.s.fSyncFlags |= PGM_SYNC_CLEAR_PGM_POOL;
-                        VM_FF_SET(pVM, VM_FF_PGM_SYNC_CR3);
-                    }
                     pVM->pgm.s.fPhysCacheFlushPending = true;
 
 #ifndef IN_RING3
@@ -794,11 +787,15 @@ VMMDECL(int) PGMHandlerPhysicalJoin(PVM pVM, RTGCPHYS GCPhys1, RTGCPHYS GCPhys2)
  * Resets any modifications to individual pages in a physical
  * page access handler region.
  *
- * This is used in pair with PGMHandlerPhysicalPageTempOff().
+ * This is used in pair with PGMHandlerPhysicalPageTempOff() or
+ * PGMHandlerPhysicalPageAlias().
  *
  * @returns VBox status code.
  * @param   pVM         VM Handle
- * @param   GCPhys      Start physical address earlier passed to PGMR3HandlerPhysicalRegister().
+ * @param   GCPhys      The start address of the handler regions, i.e. what you
+ *                      passed to PGMR3HandlerPhysicalRegister(),
+ *                      PGMHandlerPhysicalRegisterEx() or
+ *                      PGMHandlerPhysicalModify().
  */
 VMMDECL(int)  PGMHandlerPhysicalReset(PVM pVM, RTGCPHYS GCPhys)
 {
@@ -818,22 +815,40 @@ VMMDECL(int)  PGMHandlerPhysicalReset(PVM pVM, RTGCPHYS GCPhys)
         {
             case PGMPHYSHANDLERTYPE_PHYSICAL_WRITE:
             case PGMPHYSHANDLERTYPE_PHYSICAL_ALL:
-            case PGMPHYSHANDLERTYPE_MMIO: /* @note Only use when clearing aliased mmio ranges! */
+            case PGMPHYSHANDLERTYPE_MMIO: /* NOTE: Only use when clearing MMIO ranges with aliased MMIO2 pages! */
             {
-                /*
-                 * Set the flags and flush shadow PT entries.
-                 */
-                STAM_COUNTER_INC(&pVM->pgm.s.CTX_MID_Z(Stat,PhysHandlerReset));
+                STAM_COUNTER_INC(&pVM->pgm.s.CTX_MID_Z(Stat,PhysHandlerReset)); /**@Todo move out of switch */
                 PPGMRAMRANGE pRam = pgmPhysGetRange(&pVM->pgm.s, GCPhys);
                 Assert(pRam);
-                rc = pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs(pVM, pCur, pRam);
-                if (rc == VINF_PGM_GCPHYS_ALIASED)
+                Assert(pRam->GCPhys     <= pCur->Core.Key);
+                Assert(pRam->GCPhysLast >= pCur->Core.KeyLast);
+
+                if (pCur->enmType == PGMPHYSHANDLERTYPE_MMIO)
                 {
-                    pVM->pgm.s.fSyncFlags |= PGM_SYNC_CLEAR_PGM_POOL;
-                    VM_FF_SET(pVM, VM_FF_PGM_SYNC_CR3);
+                    /*
+                     * Reset all the PGMPAGETYPE_MMIO2_ALIAS_MMIO pages first and that's it.
+                     * This could probably be optimized a bit wrt to flushing, but I'm too lazy
+                     * to do that now...
+                     */
+                    PPGMPAGE    pPage = &pRam->aPages[(pCur->Core.Key - pRam->GCPhys) >> PAGE_SHIFT];
+                    uint32_t    cLeft = pCur->cPages;
+                    while (cLeft-- > 0)
+                    {
+                        if (PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_MMIO2_ALIAS_MMIO)
+                            pgmHandlerPhysicalResetAliasedPage(pVM, pPage, pRam->GCPhys + ((RTGCPHYS)(uintptr_t)(pPage - &pRam->aPages[0]) << PAGE_SHIFT));
+                        Assert(PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_MMIO);
+                        pPage++;
+                    }
                 }
-                pVM->pgm.s.fPhysCacheFlushPending = true;
-                HWACCMFlushTLB(pVM);
+                else
+                {
+                    /*
+                     * Set the flags and flush shadow PT entries.
+                     */
+                    rc = pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs(pVM, pCur, pRam);
+                    pVM->pgm.s.fPhysCacheFlushPending = true;
+                    HWACCMFlushTLB(pVM);
+                }
 
                 rc = VINF_SUCCESS;
                 break;
@@ -870,11 +885,13 @@ VMMDECL(int)  PGMHandlerPhysicalReset(PVM pVM, RTGCPHYS GCPhys)
  * The caller must do required page table modifications.
  *
  * @returns VBox status code.
- * @param   pVM         VM Handle
- * @param   GCPhys      Start physical address earlier passed to PGMR3HandlerPhysicalRegister().
- *                      This must be a fully page aligned range or we risk messing up other
- *                      handlers installed for the start and end pages.
- * @param   GCPhysPage  Physical address of the page to turn off access monitoring for.
+ * @param   pVM                 VM Handle
+ * @param   GCPhys              The start address of the access handler. This
+ *                              must be a fully page aligned range or we risk
+ *                              messing up other handlers installed for the
+ *                              start and end pages.
+ * @param   GCPhysPage          The physical address of the page to turn off
+ *                              access monitoring for.
  */
 VMMDECL(int)  PGMHandlerPhysicalPageTempOff(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysPage)
 {
@@ -918,27 +935,49 @@ VMMDECL(int)  PGMHandlerPhysicalPageTempOff(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS G
 
 
 /**
- * Temporarily turns off the access monitoring of a page within an MMIO
- * access handler region and remaps it to another guest physical region.
+ * Replaces an MMIO page with an MMIO2 page.
  *
- * Use this when no further \#PFs are required for that page. Be aware that
- * a page directory sync might reset the flags, and turn on access monitoring
- * for the page.
+ * This is a worker for IOMMMIOMapMMIO2Page that works in a similar way to
+ * PGMHandlerPhysicalPageTempOff but for an MMIO page. Since an MMIO page has no
+ * backing, the caller must provide a replacement page. For various reasons the
+ * replacement page must be an MMIO2 page.
  *
- * The caller must do required page table modifications.
+ * The caller must do required page table modifications. You can get away
+ * without making any modifations since it's an MMIO page, the cost is an extra
+ * \#PF which will the resync the page.
+ *
+ * Call PGMHandlerPhysicalReset() to restore the MMIO page.
+ *
+ * The caller may still get handler callback even after this call and must be
+ * able to deal correctly with such calls. The reason for these callbacks are
+ * either that we're executing in the recompiler (which doesn't know about this
+ * arrangement) or that we've been restored from saved state (where we won't
+ * save the change).
  *
  * @returns VBox status code.
- * @param   pVM                 VM Handle
- * @param   GCPhys              Start physical address earlier passed to PGMR3HandlerPhysicalRegister().
- *                              This must be a fully page aligned range or we risk messing up other
- *                              handlers installed for the start and end pages.
- * @param   GCPhysPage          Physical address of the page to turn off access monitoring for.
- * @param   GCPhysPageRemap     Physical address of the page that serves as backing memory.
+ * @param   pVM                 The VM handle
+ * @param   GCPhys              The start address of the access handler. This
+ *                              must be a fully page aligned range or we risk
+ *                              messing up other handlers installed for the
+ *                              start and end pages.
+ * @param   GCPhysPage          The physical address of the page to turn off
+ *                              access monitoring for.
+ * @param   GCPhysPageRemap     The physical address of the MMIO2 page that
+ *                              serves as backing memory.
+ *
+ * @remark  May cause a page pool flush if used on a page that is already
+ *          aliased.
+ *
+ * @note    This trick does only work reliably if the two pages are never ever
+ *          mapped in the same page table. If they are the page pool code will
+ *          be confused should either of them be flushed. See the special case
+ *          of zero page aliasing mentioned in #3170.
+ *
  */
 VMMDECL(int)  PGMHandlerPhysicalPageAlias(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysPage, RTGCPHYS GCPhysPageRemap)
 {
     /*
-     * Validate the range.
+     * Lookup and validate the range.
      */
     PPGMPHYSHANDLER pCur = (PPGMPHYSHANDLER)RTAvlroGCPhysGet(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysHandlers, GCPhys);
     if (RT_LIKELY(pCur))
@@ -946,87 +985,53 @@ VMMDECL(int)  PGMHandlerPhysicalPageAlias(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCP
         if (RT_LIKELY(    GCPhysPage >= pCur->Core.Key
                       &&  GCPhysPage <= pCur->Core.KeyLast))
         {
-            Assert(!(pCur->Core.Key & PAGE_OFFSET_MASK));
-            Assert((pCur->Core.KeyLast & PAGE_OFFSET_MASK) == PAGE_OFFSET_MASK);
-
             AssertReturn(pCur->enmType == PGMPHYSHANDLERTYPE_MMIO, VERR_ACCESS_DENIED);
-            /** @todo r=bird: This totally breaks the new PGMPAGE management. Will probably
-             *        have to require that the current page is the zero page... Require
-             *        GCPhysPageRemap to be a MMIO2 page might help matters because those
-             *        pages aren't managed dynamically (at least not yet).
-             *        VBOX_WITH_NEW_PHYS_CODE TODO!  */
+            AssertReturn(!(pCur->Core.Key & PAGE_OFFSET_MASK), VERR_INVALID_PARAMETER);
+            AssertReturn((pCur->Core.KeyLast & PAGE_OFFSET_MASK) == PAGE_OFFSET_MASK, VERR_INVALID_PARAMETER);
 
+            /*
+             * Get and validate the two pages.
+             */
             PPGMPAGE pPageRemap;
             int rc = pgmPhysGetPageEx(&pVM->pgm.s, GCPhysPageRemap, &pPageRemap);
             AssertRCReturn(rc, rc);
+            AssertMsgReturn(PGM_PAGE_GET_TYPE(pPageRemap) == PGMPAGETYPE_MMIO2,
+                            ("GCPhysPageRemap=%RGp %R[pgmpage]\n", GCPhysPageRemap, pPageRemap),
+                            VERR_PGM_PHYS_NOT_MMIO2);
 
-            /*
-             * Change the page status.
-             */
             PPGMPAGE pPage;
             rc = pgmPhysGetPageEx(&pVM->pgm.s, GCPhysPage, &pPage);
             AssertRCReturn(rc, rc);
+            if (PGM_PAGE_GET_TYPE(pPage) != PGMPAGETYPE_MMIO)
+            {
+                AssertMsgReturn(PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_MMIO2_ALIAS_MMIO,
+                                ("GCPhysPage=%RGp %R[pgmpage]\n", GCPhysPage, pPage),
+                                VERR_PGM_PHYS_NOT_MMIO2);
+                if (PGM_PAGE_GET_HCPHYS(pPage) == PGM_PAGE_GET_HCPHYS(pPage))
+                    return VINF_PGM_HANDLER_ALREADY_ALIASED;
 
-            /* Do the actual remapping here. This page now serves as an alias for the backing memory specified. */
-            pPage->HCPhys = pPageRemap->HCPhys & MM_RAM_FLAGS_NO_REFS_MASK;
-
-            LogFlow(("PGMHandlerPhysicalPageAlias %RGp -> %RGp - %RHp\n", GCPhysPage, GCPhysPageRemap, pPageRemap->HCPhys));
-            PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, PGM_PAGE_HNDL_PHYS_STATE_DISABLED);
-#ifndef IN_RC
-            HWACCMInvalidatePhysPage(pVM, GCPhysPage);
-#endif
-            return VINF_SUCCESS;
-        }
-
-        AssertMsgFailed(("The page %#x is outside the range %#x-%#x\n",
-                         GCPhysPage, pCur->Core.Key, pCur->Core.KeyLast));
-        return VERR_INVALID_PARAMETER;
-    }
-
-    AssertMsgFailed(("Specified physical handler start address %#x is invalid.\n", GCPhys));
-    return VERR_PGM_HANDLER_NOT_FOUND;
-}
-
-
-/**
- * Turns access monitoring of a page within a monitored
- * physical write/all page access handler regio back on.
- *
- * The caller must do required page table modifications.
- *
- * @returns VBox status code.
- * @param   pVM         VM Handle
- * @param   GCPhys      Start physical address earlier passed to PGMR3HandlerPhysicalRegister().
- *                      This must be a fully page aligned range or we risk messing up other
- *                      handlers installed for the start and end pages.
- * @param   GCPhysPage  Physical address of the page to turn on access monitoring for.
- */
-VMMDECL(int)  PGMHandlerPhysicalPageReset(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysPage)
-{
-    /*
-     * Validate the range.
-     */
-    PPGMPHYSHANDLER pCur = (PPGMPHYSHANDLER)RTAvlroGCPhysGet(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysHandlers, GCPhys);
-    if (RT_LIKELY(pCur))
-    {
-        if (RT_LIKELY(    GCPhysPage >= pCur->Core.Key
-                      &&  GCPhysPage <= pCur->Core.KeyLast))
-        {
-            Assert(!(pCur->Core.Key & PAGE_OFFSET_MASK));
-            Assert((pCur->Core.KeyLast & PAGE_OFFSET_MASK) == PAGE_OFFSET_MASK);
-
-            AssertReturn(   pCur->enmType == PGMPHYSHANDLERTYPE_PHYSICAL_WRITE
-                         || pCur->enmType == PGMPHYSHANDLERTYPE_PHYSICAL_ALL
-                         || pCur->enmType == PGMPHYSHANDLERTYPE_MMIO,
-                         VERR_ACCESS_DENIED);
+                /*
+                 * The page is already mapped as some other page, reset it
+                 * to an MMIO/ZERO page before doing the new mapping.
+                 */
+                Log(("PGMHandlerPhysicalPageAlias: GCPhysPage=%RGp (%R[pgmpage]; %RHp -> %RHp\n",
+                     GCPhysPage, pPage, PGM_PAGE_GET_HCPHYS(pPage), PGM_PAGE_GET_HCPHYS(pPageRemap)));
+                pgmHandlerPhysicalResetAliasedPage(pVM, pPage, GCPhysPage);
+            }
+            Assert(PGM_PAGE_IS_ZERO(pPage));
 
             /*
-             * Change the page status.
+             * Do the actual remapping here.
+             * This page now serves as an alias for the backing memory specified.
              */
-            PPGMPAGE pPage;
-            int rc = pgmPhysGetPageEx(&pVM->pgm.s, GCPhysPage, &pPage);
-            AssertRCReturn(rc, rc);
-            PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, pgmHandlerPhysicalCalcState(pCur));
+            LogFlow(("PGMHandlerPhysicalPageAlias: %RGp (%R[pgmpage]) alias for %RGp (%R[pgmpage])\n",
+                     GCPhysPage, pPage, GCPhysPageRemap, pPageRemap ));
+            PGM_PAGE_SET_HCPHYS(pPage, PGM_PAGE_GET_HCPHYS(pPageRemap));
+            PGM_PAGE_SET_TYPE(pPage, PGMPAGETYPE_MMIO2_ALIAS_MMIO);
+            PGM_PAGE_SET_STATE(pPage, PGM_PAGE_STATE_ALLOCATED);
+            PGM_PAGE_SET_PAGEID(pPage, PGM_PAGE_GET_PAGEID(pPageRemap));
+            PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, PGM_PAGE_HNDL_PHYS_STATE_DISABLED);
+            LogFlow(("PGMHandlerPhysicalPageAlias: => %R[pgmpage]\n", pPage));
 
 #ifndef IN_RC
             HWACCMInvalidatePhysPage(pVM, GCPhysPage);
@@ -1448,8 +1453,8 @@ static DECLCALLBACK(int) pgmHandlerVirtualVerifyOne(PAVLROGCPTRNODECORE pNode, v
 
         if (PGM_PAGE_GET_HNDL_VIRT_STATE(pPage) < uState)
         {
-            AssertMsgFailed(("virt handler state mismatch. HCPhys=%RHp GCPhysGst=%RGp iPage=%#x %RGv state=%d expected>=%d %s\n",
-                             pPage->HCPhys, GCPhysGst, iPage, GCPtr, PGM_PAGE_GET_HNDL_VIRT_STATE(pPage), uState, R3STRING(pVirt->pszDesc)));
+            AssertMsgFailed(("virt handler state mismatch. pPage=%R[pgmpage] GCPhysGst=%RGp iPage=%#x %RGv state=%d expected>=%d %s\n",
+                             pPage, GCPhysGst, iPage, GCPtr, PGM_PAGE_GET_HNDL_VIRT_STATE(pPage), uState, R3STRING(pVirt->pszDesc)));
             pState->cErrors++;
             continue;
         }
@@ -1534,8 +1539,8 @@ VMMDECL(unsigned) PGMAssertHandlerAndFlagsInSync(PVM pVM)
 #ifdef IN_RING3
                         /* validate that REM is handling it. */
                         if (    !REMR3IsPageAccessHandled(pVM, State.GCPhys)
-                                /* ignore shadowed ROM for the time being. */ /// @todo PAGE FLAGS
-                            &&  (pPage->HCPhys & (MM_RAM_FLAGS_ROM | MM_RAM_FLAGS_MMIO2)) != (MM_RAM_FLAGS_ROM | MM_RAM_FLAGS_MMIO2))
+                                /* ignore shadowed ROM for the time being. */
+                            &&  PGM_PAGE_GET_TYPE(pPage) != PGMPAGETYPE_ROM_SHADOW)
                         {
                             AssertMsgFailed(("ram range vs phys handler REM mismatch. GCPhys=%RGp state=%d %s\n",
                                              State.GCPhys, PGM_PAGE_GET_HNDL_PHYS_STATE(pPage), pPhys->pszDesc));

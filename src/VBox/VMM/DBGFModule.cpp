@@ -1,4 +1,4 @@
-/* $Id: DBGFModule.cpp $ */
+/* $Id: DBGFModule.cpp 12677 2008-09-24 07:19:03Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility, Module & Segment Management.
  */

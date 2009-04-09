@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,85 +20,15 @@
  * additional information or have any questions.
  */
 
-#ifndef __VBoxUtils_h__
-#define __VBoxUtils_h__
+#ifndef ___VBoxUtils_h___
+#define ___VBoxUtils_h___
 
-#include <qobject.h>
-#include <qevent.h>
-#include <qlistview.h>
-#include <qtextedit.h>
-#include <qlabel.h>
-#include <qlayout.h>
+#include <iprt/types.h>
 
-/**
- *  Simple ListView filter to disable unselecting all items by clicking in the
- *  unused area of the list (which is actually very annoying for the Single
- *  selection mode).
- */
-class QIListViewSelectionPreserver : protected QObject
-{
-public:
-
-    QIListViewSelectionPreserver (QObject *parent, QListView *alv)
-        : QObject (parent), lv (alv)
-    {
-        lv->viewport()->installEventFilter (this);
-    }
-
-protected:
-
-    bool eventFilter (QObject * /* o */, QEvent *e)
-    {
-        if (e->type() == QEvent::MouseButtonPress ||
-            e->type() == QEvent::MouseButtonRelease ||
-            e->type() == QEvent::MouseButtonDblClick)
-        {
-            QMouseEvent *me = (QMouseEvent *) e;
-            if (!lv->itemAt (me->pos()))
-                return true;
-        }
-
-        return false;
-    }
-
-private:
-
-    QListView *lv;
-};
-
-/**
- *  Simple class that filters out presses and releases of the given key
- *  directed to a widget (the widget acts like if it would never handle
- *  this key).
- */
-class QIKeyFilter : protected QObject
-{
-public:
-
-    QIKeyFilter (QObject *aParent, Key aKey) : QObject (aParent), mKey (aKey) {}
-
-    void watchOn (QObject *o) { o->installEventFilter (this); }
-
-protected:
-
-    bool eventFilter (QObject * /*o*/, QEvent *e)
-    {
-        if (e->type() == QEvent::KeyPress || e->type() == QEvent::KeyRelease)
-        {
-            QKeyEvent *ke = (QKeyEvent *) e;
-            if (ke->key() == mKey ||
-                (mKey == Qt::Key_Enter && ke->key() == Qt::Key_Return))
-            {
-                ke->ignore();
-                return false;
-            }
-        }
-
-        return false;
-    }
-
-    Key mKey;
-};
+/* Qt includes */
+#include <QMouseEvent>
+#include <QWidget>
+#include <QTextBrowser>
 
 /**
  *  Simple class that filters out all key presses and releases
@@ -108,20 +38,22 @@ protected:
  */
 class QIAltKeyFilter : protected QObject
 {
+    Q_OBJECT;
+
 public:
 
-    QIAltKeyFilter (QObject *aParent) : QObject (aParent) {}
+    QIAltKeyFilter (QObject *aParent) :QObject (aParent) {}
 
-    void watchOn (QObject *o) { o->installEventFilter (this); }
+    void watchOn (QObject *aObject) { aObject->installEventFilter (this); }
 
 protected:
 
-    bool eventFilter (QObject * /*o*/, QEvent *e)
+    bool eventFilter (QObject * /* aObject */, QEvent *aEvent)
     {
-        if (e->type() == QEvent::KeyPress || e->type() == QEvent::KeyRelease)
+        if (aEvent->type() == QEvent::KeyPress || aEvent->type() == QEvent::KeyRelease)
         {
-            QKeyEvent *ke = (QKeyEvent *) e;
-            if (ke->state() & Qt::AltButton)
+            QKeyEvent *event = static_cast<QKeyEvent *> (aEvent);
+            if (event->modifiers() & Qt::AltModifier)
                 return true;
         }
         return false;
@@ -129,143 +61,74 @@ protected:
 };
 
 /**
- *  Watches the given widget and makes sure the minimum widget size set by the layout
- *  manager does never get smaller than the previous minimum size set by the
- *  layout manager. This way, widgets with dynamic contents (i.e. text on some
- *  toggle buttons) will be able only to grow, never shrink, to avoid flicker
- *  during alternate contents updates (Pause -> Resume -> Pause -> ...).
- *
- *  @todo not finished
+ *  Simple class which simulates focus-proxy rule redirecting widget
+ *  assigned shortcut to desired widget.
  */
-class QIConstraintKeeper : public QObject
+class QIFocusProxy : protected QObject
 {
-    Q_OBJECT
+    Q_OBJECT;
 
 public:
 
-    QIConstraintKeeper (QWidget *aParent) : QObject (aParent)
+    QIFocusProxy (QWidget *aFrom, QWidget *aTo)
+        : QObject (aFrom), mFrom (aFrom), mTo (aTo)
     {
-        aParent->setMinimumSize (aParent->size());
-        aParent->installEventFilter (this);
+        mFrom->installEventFilter (this);
     }
 
-private:
+protected:
 
     bool eventFilter (QObject *aObject, QEvent *aEvent)
     {
-        if (aObject == parent() && aEvent->type() == QEvent::Resize)
+        if (aObject == mFrom && aEvent->type() == QEvent::Shortcut)
         {
-            QResizeEvent *ev = static_cast<QResizeEvent*> (aEvent);
-            QSize oldSize = ev->oldSize();
-            QSize newSize = ev->size();
-            int maxWidth = newSize.width() > oldSize.width() ?
-                newSize.width() : oldSize.width();
-            int maxHeight = newSize.height() > oldSize.height() ?
-                newSize.height() : oldSize.height();
-            if (maxWidth > oldSize.width() || maxHeight > oldSize.height())
-                ((QWidget*)parent())->setMinimumSize (maxWidth, maxHeight);
+            mTo->setFocus();
+            return true;
         }
         return QObject::eventFilter (aObject, aEvent);
     }
+
+    QWidget *mFrom;
+    QWidget *mTo;
 };
 
-
 /**
- *  Simple QTextEdit subclass to return its minimumSizeHint() as sizeHint()
- *  for getting more compact layout.
+ *  QTextEdit reimplementation to feat some extended requirements.
  */
-class QITextEdit : public QTextEdit
+class QRichTextEdit : public QTextEdit
 {
-    Q_OBJECT
+    Q_OBJECT;
 
 public:
 
-    QITextEdit (QWidget *aParent)
-        : QTextEdit (aParent) {}
+    QRichTextEdit (QWidget *aParent) : QTextEdit (aParent) {}
 
-    QSize sizeHint() const
+    void setViewportMargins (int aLeft, int aTop, int aRight, int aBottom)
     {
-        return minimumSizeHint();
-    }
-
-    QSize minimumSizeHint() const
-    {
-        return QSize (width(), heightForWidth (width()));
+        QTextEdit::setViewportMargins (aLeft, aTop, aRight, aBottom);
     }
 };
 
-
 /**
- *  Simple QLabel subclass to re-query and return its sizeHint()
- *  before the widget to be shown for getting more compact layout.
+ *  QTextBrowser reimplementation to feat some extended requirements.
  */
-class QILabel : public QLabel
+class QRichTextBrowser : public QTextBrowser
 {
-    Q_OBJECT
+    Q_OBJECT;
 
 public:
 
-    QILabel (QWidget *aParent, const char *aName)
-         : QLabel (aParent, aName), mShowed (false)
+    QRichTextBrowser (QWidget *aParent) : QTextBrowser (aParent) {}
+
+    void setViewportMargins (int aLeft, int aTop, int aRight, int aBottom)
     {
-        /* setup default size policy and alignment */
-        setSizePolicy (QSizePolicy ((QSizePolicy::SizeType)1,
-                                    (QSizePolicy::SizeType)0,
-                                    0, 0,
-                                    sizePolicy().hasHeightForWidth()));
-        setAlignment (int (QLabel::WordBreak | QLabel::AlignTop));
-        /* install show-parent-widget watcher */
-        aParent->topLevelWidget()->installEventFilter (this);
+        QTextBrowser::setViewportMargins (aLeft, aTop, aRight, aBottom);
     }
-
-    QSize sizeHint() const
-    {
-        return mShowed ?
-            QSize (width(), heightForWidth (width())) : QLabel::sizeHint();
-    }
-
-private:
-
-    bool eventFilter (QObject *aObject, QEvent *aEvent)
-    {
-        switch (aEvent->type())
-        {
-            case QEvent::Show:
-            {
-                mShowed = true;
-                if (parent() && ((QWidget*)parent())->layout())
-                    ((QWidget*)parent())->layout()->activate();
-                break;
-            }
-            default:
-                break;
-        }
-        return QLabel::eventFilter (aObject, aEvent);
-    }
-
-    bool mShowed;
 };
-
 
 #ifdef Q_WS_MAC
-# undef PAGE_SIZE
-# undef PAGE_SHIFT
-# include <Carbon/Carbon.h>
-class QImage;
-class QPixmap;
-class VBoxFrameBuffer;
-CGImageRef DarwinQImageToCGImage (const QImage *aImage);
-CGImageRef DarwinQImageFromMimeSourceToCGImage (const char *aSource);
-CGImageRef DarwinQPixmapToCGImage (const QPixmap *aPixmap);
-CGImageRef DarwinQPixmapFromMimeSourceToCGImage (const char *aSource);
-CGImageRef DarwinCreateDockBadge (const char *aSource);
-void DarwinUpdateDockPreview (CGImageRef aVMImage, CGImageRef aOverlayImage, CGImageRef aStateImage = NULL);
-void DarwinUpdateDockPreview (VBoxFrameBuffer *aFrameBuffer, CGImageRef aOverlayImage);
-OSStatus DarwinRegionHandler (EventHandlerCallRef aInHandlerCallRef, EventRef aInEvent, void *aInUserData);
-# ifdef DEBUG
-void DarwinDebugPrintEvent (const char *aPrefix, EventRef aEvent);
-# endif
+# include "VBoxUtils-darwin.h"
 #endif /* Q_WS_MAC */
 
-#endif // __VBoxUtils_h__
+#endif // !___VBoxUtils_h___
 

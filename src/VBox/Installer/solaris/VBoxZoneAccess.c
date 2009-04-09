@@ -1,4 +1,4 @@
-/* $Id: VBoxZoneAccess.c $ */
+/* $Id: VBoxZoneAccess.c 17324 2009-03-04 08:09:59Z vboxsync $ */
 /** @file
  * VBoxZoneAccess - Hack that keeps vboxdrv referenced for granting zone access, Solaris hosts.
  */
@@ -64,8 +64,9 @@ int main(int argc, char *argv[])
         return errno;
     }
 
-    /* Go to interruptible sleep... */
-    sleep(1000000000U);
+    /* Go to interruptible sleep for ~15 years... */
+    /* avoid > 2^31 for Year 2038 32-bit overflow (Solaris 10) */
+    sleep(500000000U);
 
     close(hDevice);
 

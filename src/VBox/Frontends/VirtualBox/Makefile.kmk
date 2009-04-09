@@ -1,6 +1,6 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 18378 2009-03-27 10:45:19Z vboxsync $
 ## @file
-# Makefile for the VirtualBox Qt3 GUI.
+# Makefile for the VirtualBox Qt GUI.
 #
 
 #
@@ -25,319 +25,175 @@ include $(KBUILD_PATH)/subheader.kmk
 #
 # Globals.
 #
-VBOX_PATH_VIRTUALBOX3_SRC := $(PATH_SUB_CURRENT)
+VBOX_VIRTUALBOX4_SRC := $(PATH_SUB_CURRENT)
+VBOX_VIRTUALBOX4_OUT_DIR := $(PATH_TARGET)/VirtualBox/misc
+
 VBOX_WITH_REGISTRATION := 1
+
+# Ask the user to register at Sun. If this setting is disabled the user can
+# still register using the menu if desired.
 VBOX_WITH_REGISTRATION_REQUEST := 1
+
+# Show the update notifier dialog during startup. If this setting is disabled
+# the user can still update using the menu if desired.
+VBOX_WITH_UPDATE_REQUEST := 1
 
 
 #
 # The targets.
 #
 ifdef VBOX_WITH_HARDENING
- PROGRAMS += VirtualBox3Hardened
- DLLS += VirtualBox
+PROGRAMS += VirtualBoxHardened
+DLLS += VirtualBox
 else
- PROGRAMS += VirtualBox
+PROGRAMS += VirtualBox
 endif
+
 ifeq ($(filter-out freebsd linux openbsd netbsd solaris,$(KBUILD_TARGET)),) # X11
- DLLS += VBoxKeyboard3
- OTHERS += $(PATH_BIN)/vboxkeyboard3.tar.gz
+ DLLS += VBoxKeyboard
+ ## @todo convert to install target.
+ OTHERS += $(PATH_BIN)/vboxkeyboard.tar.gz
+ CLEAN += $(PATH_BIN)/vboxkeyboard.tar.gz
 endif
-DLLS.os2 += VBoxHlp
-
-
-ifeq ($(KBUILD_TARGET),os2)
- #
- # VBoxHlp - helper DLL for OS/2.
- #
- VBoxHlp_ASTOOL      = NASM
- VBoxHlp_ASFLAGS     = -f obj
- VBoxHlp_DEFS        = IN_RING3 IN_VBOXHLP
- VBoxHlp_CXXFLAGS    = -fno-exceptions
- VBoxHlp_LDFLAGS     = -nostdlib -los2
- VBoxHlp_LDFLAGS    += -Zlinker option -Zlinker manyautodata
- VBoxHlp_SOURCES     = \
- 	src/os2/VBoxHlp.asm \
- 	src/os2/VBoxHlp.cpp
-
- #
- # Hack for installing the qt.dll when building for OS/2.
- #
- ifneq ($(strip $(DLL_SDK_QT3_QT)),)
-  INSTALLS.os2 += qt.dll
-  qt.dll_INST = $(INST_BIN)
-  qt.dll_SOURCES += \
-	$(DLL_SDK_QT3_QT)=>$(not-dir $(DLL_SDK_QT3_QT))
- endif
-endif # OS/2
+INSTALLS += VirtualBox.nls
 
 
 #
-# VBoxKeyboard3 - keyboard library for X11.
+# Include the language lists.
 #
-VBoxKeyboard3_TEMPLATE = VBOXR3
-VBoxKeyboard3_SOURCES  = \
-	src/linux/keyboard-new.c
-VBoxKeyboard3_TARSOURCES = \
-	$(VBoxKeyboard3_SOURCES) \
-	src/linux/COPYING.LIB \
-	src/linux/keyboard.h \
-	src/linux/keyboard-layouts.h \
-	src/linux/keyboard-list.h \
-	src/linux/keyboard-tables.h \
-	src/linux/keyboard-types.h \
-	src/linux/Makefile
-VBoxKeyboard3_LIBS     = X11
-VBoxKeyboard3_LIBPATH  = $(VBOX_LIBPATH_X11)
+include $(PATH_SUB_CURRENT)/nls/ApprovedLanguages.kmk
 
 
 #
-# vboxkeyboard3.tar.gz - the LGPLed keyboard library must always be
+# VBoxKeyboard - keyboard library for X11.
+#
+VBoxKeyboard_TEMPLATE = VBOXR3
+VBoxKeyboard_SOURCES  = \
+	src/X11/keyboard-new.c
+VBoxKeyboard_LIBS     = X11
+VBoxKeyboard_LIBPATH  = $(VBOX_LIBPATH_X11)
+
+
+#
+# vboxkeyboard.tar.gz - the LGPLed keyboard library must always be
 # redistributed with usable sources.
 #
-SOURCE_DIRECTORY = vboxkeyboard3
-DIRECTORY_PREFIX = src/linux/
-
-$(PATH_TARGET)/$(SOURCE_DIRECTORY): | $$(dir $@)
-	$(LN_SYMLINK) $(abspath $(VBOX_PATH_VIRTUALBOX3_SRC))/$(DIRECTORY_PREFIX) $@
-
-$(PATH_BIN)/vboxkeyboard3.tar.gz: $(abspathex $(VBoxKeyboard3_TARSOURCES),$(PATH_SUB_CURRENT)) $(PATH_TARGET)/$(SOURCE_DIRECTORY)
+# This rule will link create a temporary symlink to src/X11/ and tar
+# up the selected files into a tarball that is installed into the
+# bin directory (probably belongs in /usr/shared/somewhere really,
+# but wtf, it's not like we're even trying to be FHS compliant).
+#
+## @todo this should be tar'ed down into the output directory and installed using an install target.
+$(PATH_BIN)/vboxkeyboard.tar.gz: $(abspathex \
+		$(VBoxKeyboard_SOURCES) \
+		src/X11/COPYING.LIB \
+		src/X11/keyboard.h \
+		src/X11/keyboard-layouts.h \
+		src/X11/keyboard-list.h \
+		src/X11/keyboard-tables.h \
+		src/X11/keyboard-types.h \
+		src/X11/Makefile \
+		,$(PATH_SUB_CURRENT)) | $(PATH_TARGET)/VBoxKeyboard/
 	$(call MSG_TOOL,tar/gzip,,$@)
-	$(QUIET)cd $(PATH_TARGET) \
-		&& tar -cvhf - $(addprefix $(SOURCE_DIRECTORY)/,$(subst $(DIRECTORY_PREFIX),,$(VBoxKeyboard3_TARSOURCES))) \
+	$(QUIET2)$(RM) -f $(PATH_TARGET)/VBoxKeyboard/vboxkeyboard $@
+	$(QUIET)$(LN_SYMLINK) $(VBOX_VIRTUALBOX4_SRC)/src/X11/ $(PATH_TARGET)/VBoxKeyboard/vboxkeyboard
+	$(QUIET)cd $(PATH_TARGET)/VBoxKeyboard \
+		&& tar -chvf - $(addprefix vboxkeyboard/,$(notdir $^)) \
 		   | gzip - > $@
+	$(QUIET2)$(RM) -f $(PATH_TARGET)/VBoxKeyboard/vboxkeyboard
 
 OTHER_CLEAN += \
-	$(PATH_BIN)/vboxkeyboard3.tar.gz \
-	$(PATH_TARGET)/$(SOURCE_DIRECTORY)
+	$(PATH_BIN)/vboxkeyboard.tar.gz
 
 
 #
-# Hardened VirtualBox3.
+# Hardened VirtualBox.
 #
-VirtualBox3Hardened_TEMPLATE = VBOXR3HARDENEDEXE
-VirtualBox3Hardened_SOURCES = src/hardenedmain.cpp
-VirtualBox3Hardened_NAME = VirtualBox3
+VirtualBoxHardened_TEMPLATE = VBOXR3HARDENEDEXE
+VirtualBoxHardened_SOURCES = src/hardenedmain.cpp
+VirtualBoxHardened_NAME = VirtualBox
 ifeq ($(KBUILD_TARGET),darwin) ## @todo use .darwin when ticket 36 has been fixed.
- #VirtualBox3Hardened_INST.darwin = $(INST_BIN)VirtualBox3 $(INST_BIN)VirtualBoxVM3
- VirtualBox3Hardened_INST = $(INST_BIN)VirtualBox3 $(INST_BIN)VirtualBoxVM3
+ #VirtualBoxHardened_INST.darwin = $(INST_BIN)VirtualBox $(INST_BIN)VirtualBoxVM
+ VirtualBoxHardened_INST = $(INST_BIN)VirtualBox $(INST_BIN)VirtualBoxVM
 endif
 
 
 #
-# Include Qt project file, we'll use FORMS, TRANSLATIONS and IMAGES
-# in the VirtualBox(3) setup below.
+# Include Qt project file, we'll use FORMS and TRANSLATIONS in
+# the VirtualBox setup below.
 #
 SAVED_TEMPLATE := $(TEMPLATE)
 include $(PATH_SUB_CURRENT)/VBoxUI.pro
 
 
-# Import images from VBoxUI.pro and add some additional ones
-# that differs between OSE and PEUL.
-VirtualBox_QT_IMAGES := $(IMAGES)
-ifdef VBOX_OSE
- VirtualBox_QT_IMAGES += \
-	images/OSE/about.png \
-	images/OSE/about_tile.png \
-	images/OSE/about_16px.png \
-	images/OSE/VirtualBox_16px.png \
-	images/OSE/VirtualBox_20px.png \
-	images/OSE/VirtualBox_32px.png \
-	images/OSE/VirtualBox_40px.png \
-	images/OSE/VirtualBox_48px.png \
-	images/OSE/VirtualBox_64px.png \
-	images/OSE/VirtualBox_cube_42px.png
-else
- VirtualBox_QT_IMAGES += \
-	images/NonOSE/about.png \
-	images/NonOSE/about_16px.png \
-	images/NonOSE/VirtualBox_16px.png \
-	images/NonOSE/VirtualBox_20px.png \
-	images/NonOSE/VirtualBox_32px.png \
-	images/NonOSE/VirtualBox_40px.png \
-	images/NonOSE/VirtualBox_48px.png \
-	images/NonOSE/VirtualBox_64px.png \
-	images/NonOSE/VirtualBox_cube_42px.png
-endif
-VirtualBox_QT_IMAGES := $(abspathex $(VirtualBox_QT_IMAGES),$(PATH_SUB_CURRENT))
-
-
-
 #
 # VirtualBox - The GUI program.
 #
-VirtualBox_TEMPLATE := $(if $(VBOX_WITH_HARDENING),VBOXQTGUI,VBOXQTGUIEXE)
-VirtualBox_NAME     = VirtualBox3
-ifndef VBOX_WITH_HARDENING # For the launch trick we need different inode numbers.
+USES += qt4
+VirtualBox_TEMPLATE := $(if $(VBOX_WITH_HARDENING),VBOXQT4GUI,VBOXQT4GUIEXE)
+VirtualBox_NAME = VirtualBox
+ifndef VBOX_WITH_HARDENING      # For the launch trick we need different inode numbers.
  ifeq ($(KBUILD_TARGET),darwin) ## @todo use .darwin when ticket 36 has been fixed.
-  #VirtualBox_INST.darwin = $(INST_BIN)VirtualBox3 $(INST_BIN)VirtualBoxVM3
-  VirtualBox_INST = $(INST_BIN)VirtualBox3 $(INST_BIN)VirtualBoxVM3
+  #VirtualBox_INST.darwin = $(INST_BIN)VirtualBox $(INST_BIN)VirtualBoxVM
+  VirtualBox_INST = $(INST_BIN)VirtualBox $(INST_BIN)VirtualBoxVM
  endif
 endif
-USES += qt3
-VirtualBox_USES    = qt3
-VirtualBox_SDKS   += QT3
-VirtualBox_QTTOOL  = QT3
 VirtualBox_SDKS.win = WINPSDK DXSDK
-#ifeq ($(filter-out freebsd linux netbsd openbsd os2 solaris,$(KBUILD_TARGET)),) - later
-ifeq ($(filter-out freebsd linux netbsd openbsd os2,$(KBUILD_TARGET)),) # X11 + os2
+ifeq ($(filter-out freebsd linux netbsd openbsd os2,$(KBUILD_TARGET)),) # X11 + os2 ## @todo solaris
  VirtualBox_SDKS += LIBSDL
 endif
 
-# For testing iChat Theater stuff change the sdk path (HACK ALERT)
 ifdef VBOX_WITH_ICHAT_THEATER
+ # For testing iChat Theater stuff change the sdk path (HACK ALERT!)
  VBOX_PATH_MACOSX_SDK = /Developer/SDKs/MacOSX10.5.sdk
 endif
 
-# Import translation sources
-VirtualBox_QT_TRANSLATIONS := $(TRANSLATIONS) \
-$(patsubst nls/VirtualBox_%.ts,nls/qt_%.ts, $(filter nls/VirtualBox_%.ts,$(TRANSLATIONS)))
-VirtualBox_LRCFLAGS = -nocompress
-VirtualBox_QT_TRANSLATIONS_INST = $(INST_BIN)nls3/
-
-# QDesigner UI sources are imported from VBoxUI.pro.
-## @todo move down.
-ifndef VBOX_WITH_REGISTRATION
- FORMS := $(filter-out ui/VBoxRegistrationDlg.ui,$(FORMS))
-endif
-# OSE version is always necessary for lupdate/lrelease
-FORMS += ui/VBoxAboutDlg.ui
-$(eval VirtualBox_SOURCES += $(FORMS) )
-
-# Headers containing definitions of classes that use the Q_OBJECT macro
-VirtualBox_QT_MOCHDRS = \
-	include/QIWidgetValidator.h \
-	include/QIHotKeyEdit.h \
-	include/QIStatusBar.h \
-	include/QIStateIndicator.h \
-	include/QIMessageBox.h \
-	include/QIRichLabel.h \
-	include/VBoxGlobalSettings.h \
-	include/VBoxUtils.h \
-	include/VBoxGlobal.h \
-	include/VBoxVMListBox.h \
-	include/VBoxMediaComboBox.h \
-	include/VBoxSelectorWnd.h \
-	include/VBoxConsoleWnd.h \
-	include/VBoxConsoleView.h \
-	include/VBoxProblemReporter.h \
-	include/VBoxDownloaderWgt.h \
-	include/VBoxNetworkFramework.h
-
-# Sources containing local definitions of classes that use the Q_OBJECT macro
-VirtualBox_QT_MOCSRCS = src/VBoxSelectorWnd.cpp
-ifeq ($(filter-out freebsd linux netbsd openbsd solaris,$(KBUILD_TARGET)),) # X11
- VirtualBox_QT_MOCSRCS += src/VBoxGlobal.cpp
-endif
-ifdef VBOX_WITH_XPCOM
- VirtualBox_QT_MOCSRCS += src/COMDefs.cpp
-endif
-
-# UI headers (ui.h) containing local definitions of classes that use the Q_OBJECT macro
-## @todo move up
-VirtualBox_QT_MOCSRCS += \
-	ui/VBoxVMSettingsDlg.ui.h \
-	ui/VBoxVMLogViewer.ui.h \
-	ui/VBoxSharedFoldersSettings.ui.h \
-	ui/VBoxHardDiskSettings.ui.h
-
-VirtualBox_SOURCES += \
-	src/main.cpp \
-	src/COMDefs.cpp \
-	src/QIWidgetValidator.cpp \
-	src/QIHotKeyEdit.cpp \
-	src/QIStateIndicator.cpp \
-	src/QIStatusBar.cpp \
-	src/QIMessageBox.cpp \
-	src/QIRichLabel.cpp \
-	src/VBoxDefs.cpp \
-	src/VBoxGlobalSettings.cpp \
-	src/VBoxGlobal.cpp \
-	src/VBoxMediaComboBox.cpp \
-	src/VBoxProblemReporter.cpp \
-	src/VBoxSelectorWnd.cpp \
-	src/VBoxConsoleView.cpp \
-	src/VBoxConsoleWnd.cpp \
-	src/VBoxDownloaderWgt.cpp \
-	src/VBoxVMListBox.cpp \
-	src/VBoxFrameBuffer.cpp \
-	src/HappyHttp.cpp \
-	src/VBoxNetworkFramework.cpp
-
-ifeq ($(filter-out freebsd linux netbsd openbsd solaris,$(KBUILD_TARGET)),) # X11
- VirtualBox_SOURCES += \
-	src/linux/XKeyboard-new.cpp
-endif
-
-VirtualBox_SOURCES.win += \
-	src/VBoxFBDDRAW.cpp \
-	$(PATH_VirtualBox)/VirtualBox.rc
-
-VirtualBox_SOURCES.darwin = \
-	src/darwin/DarwinKeyboard.cpp \
-	src/darwin/DarwinCursor.cpp \
-	src/darwin/VBoxAquaStyle.cpp \
-	src/darwin/VBoxUtils-darwin.cpp \
-	src/VBoxFBQuartz2D.cpp
-
-ifdef VBOX_WITH_ICHAT_THEATER
- VirtualBox_SOURCES.darwin += \
-	 src/darwin/VBoxIChatTheaterWrapper.m
-endif
-
-ifndef VBOX_OSE
- VirtualBox_SOURCES += src/VBoxAboutNonOSEDlg.cpp
- VirtualBox_QT_MOCHDRS += include/VBoxAboutNonOSEDlg.h
-endif
-
 VirtualBox_DEFS           = VBOX_GUI_SEPARATE_VM_PROCESS
-VirtualBox_DEFS.debug     = VBOX_GUI_DEBUG VBOX_CHECK_STATE # QT_FATAL_ASSERT
+VirtualBox_DEFS.debug     = VBOX_CHECK_STATE # QT_FATAL_ASSERT
 VirtualBox_DEFS.darwin    = VBOX_GUI_USE_QUARTZ2D VBOX_GUI_USE_QIMAGE VBOX_WITHOUT_QHTTP
+ifndef VBOX_WITH_COCOA_QT
+VirtualBox_DEFS.darwin.x86= USE_HID_FOR_MODIFIERS
+endif
 VirtualBox_DEFS.freebsd   = VBOX_GUI_USE_QIMAGE VBOX_GUI_USE_SDL
-VirtualBox_DEFS.linux     = VBOX_GUI_USE_QIMAGE #VBOX_GUI_USE_SDL
+VirtualBox_DEFS.linux     = VBOX_GUI_USE_QIMAGE VBOX_GUI_USE_SDL
 VirtualBox_DEFS.netbsd    = VBOX_GUI_USE_QIMAGE VBOX_GUI_USE_SDL
 VirtualBox_DEFS.openbsd   = VBOX_GUI_USE_QIMAGE VBOX_GUI_USE_SDL
-VirtualBox_DEFS.os2       = VBOX_GUI_USE_QIMAGE VBOX_GUI_USE_SDL QT_DLL
 VirtualBox_DEFS.solaris   = VBOX_GUI_USE_QIMAGE #VBOX_GUI_USE_SDL
 VirtualBox_DEFS.win       = VBOX_GUI_USE_QIMAGE UNICODE QT_DLL
 VirtualBox_DEFS.win.amd64 = VBOX_WITHOUT_QHTTP
-#ifndef VBOX_OSE
- VirtualBox_DEFS.darwin  += VBOX_WITH_HACKED_QT
-#endif
+## @todo VBOX_WITH_HACKED_QT doesn't apply to Qt4, so why is this still here?
+VirtualBox_DEFS.darwin.x86 += VBOX_WITH_HACKED_QT
 ifdef VBOX_WITH_ICHAT_THEATER
- VirtualBox_DEFS.darwin  += VBOX_WITH_ICHAT_THEATER
+ VirtualBox_DEFS.darwin += VBOX_WITH_ICHAT_THEATER
 endif
 ifneq ($(KBUILD_TYPE),release)
  # non-release builds has some extra features.
  VirtualBox_DEFS.win     += VBOX_GUI_USE_DDRAW
- VirtualBox_DEFS.linux   += VBOX_GUI_USE_QIMAGE
 endif
-ifdef VBOX_WITH_REGISTRATION
- VirtualBox_DEFS         += VBOX_WITH_REGISTRATION
-endif
-ifdef VBOX_WITH_REGISTRATION_REQUEST
- VirtualBox_DEFS         += VBOX_WITH_REGISTRATION_REQUEST
-endif
-ifdef VBOX_WITH_ALSA
- VirtualBox_DEFS         += VBOX_WITH_ALSA
-endif
-ifdef VBOX_WITH_PULSE
- VirtualBox_DEFS         += VBOX_WITH_PULSE
-endif
-ifdef VBOX_WITH_E1000
- VirtualBox_DEFS         += VBOX_WITH_E1000
-endif
+VirtualBox_DEFS          += \
+	$(if $(VBOX_WITH_REGISTRATION),VBOX_WITH_REGISTRATION) \
+	$(if $(VBOX_WITH_REGISTRATION_REQUEST),VBOX_WITH_REGISTRATION_REQUEST) \
+	$(if $(VBOX_WITH_UPDATE_REQUEST),VBOX_WITH_UPDATE_REQUEST) \
+	$(if $(VBOX_WITH_ALSA),VBOX_WITH_ALSA) \
+	$(if $(VBOX_WITH_PULSE),VBOX_WITH_PULSE) \
+	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000) \
+	$(if $(VBOX_WITH_NETFLT)$(eq $(KBUILD_TARGET),freebsd),VBOX_WITH_NETFLT)
 ifdef VBOX_WITH_DEBUGGER_GUI
- VirtualBox_DEFS         += VBOX_WITH_DEBUGGER_GUI_MENU
-endif
-ifdef VBOX_WITH_NETFLT
- VirtualBox_DEFS         += VBOX_WITH_NETFLT
+ VirtualBox_DEFS        += VBOX_WITH_DEBUGGER_GUI
+ if "$(KBUILD_TYPE)" != "release"
+  VirtualBox_DEFS       += VBOX_WITH_DEBUGGER_GUI_MENU
+ endif
 endif
 
+VirtualBox_src/main.cpp_DEFS += VBOX_VERSION_STRING=\"$(VBOX_VERSION_STRING)\"
+VirtualBox_src/main.cpp_DEPS += $(VBOX_VERSION_MK)
+
 VirtualBox_INCS           = \
-	. \
 	./include \
 	$(PATH_VirtualBox)/include
+
+# Necessary for the hdd backend enumeration
+VirtualBox_LIBS = $(LIB_DDU)
 
 ifeq ($(KBUILD_TYPE),release)
  VirtualBox_LDFLAGS.win  += /SUBSYSTEM:windows
@@ -349,109 +205,350 @@ else
   VirtualBox_LDFLAGS.win += /SUBSYSTEM:console
  endif
 endif
-VirtualBox_LDFLAGS.os2    = -Zlinker /PM:PM -Zno-fork
-VirtualBox_LDFLAGS.darwin = \
-	-framework IOKit -framework Carbon -framework QuickTime \
-	$(if $(VBOX_WITH_HARDENING),-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VirtualBox3.dylib)
+# r=bird: what is -lz doing here? it belongs in LIBS.
+VirtualBox_LDFLAGS.darwin = -lz \
+	-framework IOKit -framework AppKit -framework ApplicationServices -framework Foundation -framework Carbon \
+	$(if $(VBOX_WITH_HARDENING),-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VirtualBox.dylib)
+VirtualBox_LDFLAGS.darwin.x86 = -framework QuickTime
 ifdef VBOX_WITH_ICHAT_THEATER
- VirtualBox_LDFLAGS.darwin += -framework Foundation -framework AppKit -framework InstantMessage -framework QuartzCore
+ VirtualBox_LDFLAGS.darwin += -framework InstantMessage -framework QuartzCore
 endif
 VirtualBox_LIBS.win       = \
 	$(PATH_SDK_WINPSDK_LIB)/Htmlhelp.Lib \
 	$(PATH_SDK_DXSDK_LIB)/ddraw.lib \
 	$(PATH_SDK_DXSDK_LIB)/dxguid.lib
-VirtualBox_LIBS.os2      += $(PATH_DLL)/VBoxHlp$(VBOX_SUFF_DLL)
 ifeq ($(filter-out freebsd linux netbsd openbsd solaris,$(KBUILD_TARGET)),) # X11
-VirtualBox_LIBS          += $(PATH_DLL)/VBoxKeyboard3$(VBOX_SUFF_DLL)
+ VirtualBox_LIBS         += $(PATH_DLL)/VBoxKeyboard$(VBOX_SUFF_DLL)
 endif
 
+# Headers containing definitions of classes that use the Q_OBJECT macro.
+VirtualBox_QT_MOCHDRS = \
+	include/QIHttp.h \
+	include/QIWidgetValidator.h \
+	include/QIHotKeyEdit.h \
+	include/QIStatusBar.h \
+	include/QIStateIndicator.h \
+	include/QIMessageBox.h \
+	include/QILabel.h \
+	include/QILabel_p.h \
+	include/QILabelSeparator.h \
+	include/QIAbstractWizard.h \
+	include/QIListView.h \
+	include/QITreeWidget.h \
+	include/QIMainDialog.h \
+	include/QIHelpButton.h \
+	include/QIDialog.h \
+	include/VBoxFilePathSelectorWidget.h \
+	include/VBoxOSTypeSelectorButton.h \
+	include/VBoxOSTypeSelectorWidget.h \
+	include/VBoxLineTextEdit.h \
+	include/VBoxUtils.h \
+	include/VBoxGlobalSettings.h \
+	include/VBoxGlobal.h \
+	include/VBoxVMListView.h \
+	include/VBoxMediaComboBox.h \
+	include/VBoxSelectorWnd.h \
+	include/VBoxConsoleWnd.h \
+	include/VBoxConsoleView.h \
+	include/VBoxProblemReporter.h \
+	include/VBoxProgressDialog.h \
+	include/VBoxDownloaderWgt.h \
+	include/VBoxAboutDlg.h \
+	include/VBoxCloseVMDlg.h \
+	include/VBoxNewVMWzd.h \
+	include/VBoxNewHDWzd.h \
+	include/VBoxVMFirstRunWzd.h \
+	include/VBoxRegistrationDlg.h \
+	include/VBoxUpdateDlg.h \
+	include/VBoxSnapshotDetailsDlg.h \
+	include/VBoxVMInformationDlg.h \
+	include/VBoxTakeSnapshotDlg.h \
+	include/VBoxSnapshotsWgt.h \
+	include/VBoxVMLogViewer.h \
+	include/VBoxMediaManagerDlg.h \
+	include/VBoxSettingsUtils.h \
+	include/VBoxVMSettingsGeneral.h \
+	include/VBoxVMSettingsHD.h \
+	include/VBoxVMSettingsCD.h \
+	include/VBoxVMSettingsFD.h \
+	include/VBoxVMSettingsAudio.h \
+	include/VBoxVMSettingsNetwork.h \
+	include/VBoxVMSettingsNetworkDetails.h \
+	include/VBoxVMSettingsSerial.h \
+	include/VBoxVMSettingsParallel.h \
+	include/VBoxVMSettingsUSB.h \
+	include/VBoxVMSettingsUSBFilterDetails.h \
+	include/VBoxVMSettingsSF.h \
+	include/VBoxVMSettingsSFDetails.h \
+	include/VBoxVMSettingsVRDP.h \
+	include/VBoxGLSettingsGeneral.h \
+	include/VBoxGLSettingsInput.h \
+	include/VBoxGLSettingsUpdate.h \
+	include/VBoxGLSettingsLanguage.h \
+	include/VBoxGLSettingsNetwork.h \
+	include/VBoxGLSettingsNetworkDetails.h \
+	include/VBoxSettingsDialog.h \
+	include/VBoxSettingsDialogSpecific.h \
+	include/VBoxSettingsPage.h \
+	include/VBoxSettingsSelector.h \
+	include/VBoxApplianceEditorWgt.h \
+	include/VBoxImportApplianceWgt.h \
+	include/VBoxImportApplianceWzd.h \
+	include/VBoxExportApplianceWgt.h \
+	include/VBoxExportApplianceWzd.h
 
-ifdef VBOX_WITH_DEBUGGER_GUI ## @todo make this dynamically loadable and ship with release builds too.
- ifeq ($(KBUILD_TARGET),win)
-  VirtualBox_LIBS        += $(PATH_LIB)/VBoxDbg3$(VBOX_SUFF_LIB)
+# Sources containing local definitions of classes that use the Q_OBJECT macro.
+VirtualBox_QT_MOCSRCS = \
+	src/QIMessageBox.cpp \
+	src/VBoxSelectorWnd.cpp \
+	src/VBoxConsoleWnd.cpp \
+	src/VBoxMediaManagerDlg.cpp
+ifdef VBOX_WITH_XPCOM
+ VirtualBox_QT_MOCSRCS += \
+	src/COMDefs.cpp
+endif
+
+VirtualBox_SOURCES = \
+	src/main.cpp \
+	src/COMDefs.cpp \
+	src/QIWidgetValidator.cpp \
+	src/QIHotKeyEdit.cpp \
+	src/QIStateIndicator.cpp \
+	src/QIStatusBar.cpp \
+	src/QIMessageBox.cpp \
+	src/QILabel.cpp \
+	src/QILabelSeparator.cpp \
+	src/QIAbstractWizard.cpp \
+	src/QIDialog.cpp \
+	src/QIDialogButtonBox.cpp \
+	src/QIListView.cpp \
+	src/QITreeWidget.cpp \
+	src/QIMainDialog.cpp \
+	src/QILineEdit.cpp \
+	src/QIHelpButton.cpp \
+	src/VBoxFilePathSelectorWidget.cpp \
+	src/VBoxOSTypeSelectorButton.cpp \
+	src/VBoxOSTypeSelectorWidget.cpp \
+	src/VBoxLineTextEdit.cpp \
+	src/VBoxDefs.cpp \
+	src/VBoxGlobalSettings.cpp \
+	src/VBoxGlobal.cpp \
+	src/VBoxMediaComboBox.cpp \
+	src/VBoxProblemReporter.cpp \
+	src/VBoxProgressDialog.cpp \
+	src/VBoxHelpActions.cpp \
+	src/VBoxSelectorWnd.cpp \
+	src/VBoxConsoleView.cpp \
+	src/VBoxConsoleWnd.cpp \
+	src/VBoxDownloaderWgt.cpp \
+	src/VBoxVMListView.cpp \
+	src/VBoxFrameBuffer.cpp \
+	src/VBoxAboutDlg.cpp \
+	src/VBoxCloseVMDlg.cpp \
+	src/VBoxNewVMWzd.cpp \
+	src/VBoxNewHDWzd.cpp \
+	src/VBoxVMFirstRunWzd.cpp \
+	src/VBoxRegistrationDlg.cpp \
+	src/VBoxUpdateDlg.cpp \
+	src/VBoxSnapshotDetailsDlg.cpp \
+	src/VBoxVMInformationDlg.cpp \
+	src/VBoxTakeSnapshotDlg.cpp \
+	src/VBoxSnapshotsWgt.cpp \
+	src/VBoxVMLogViewer.cpp \
+	src/VBoxVMSettingsGeneral.cpp \
+	src/VBoxVMSettingsHD.cpp \
+	src/VBoxVMSettingsCD.cpp \
+	src/VBoxVMSettingsFD.cpp \
+	src/VBoxVMSettingsAudio.cpp \
+	src/VBoxVMSettingsNetwork.cpp \
+	src/VBoxVMSettingsNetworkDetails.cpp \
+	src/VBoxVMSettingsSerial.cpp \
+	src/VBoxVMSettingsParallel.cpp \
+	src/VBoxVMSettingsUSB.cpp \
+	src/VBoxVMSettingsUSBFilterDetails.cpp \
+	src/VBoxVMSettingsSF.cpp \
+	src/VBoxVMSettingsSFDetails.cpp \
+	src/VBoxVMSettingsVRDP.cpp \
+	src/VBoxGLSettingsGeneral.cpp \
+	src/VBoxGLSettingsInput.cpp \
+	src/VBoxGLSettingsUpdate.cpp \
+	src/VBoxGLSettingsLanguage.cpp \
+	src/VBoxGLSettingsNetwork.cpp \
+	src/VBoxGLSettingsNetworkDetails.cpp \
+	src/VBoxSettingsDialog.cpp \
+	src/VBoxSettingsDialogSpecific.cpp \
+	src/VBoxSettingsSelector.cpp \
+	src/VBoxMediaManagerDlg.cpp \
+	src/VBoxMedium.cpp \
+	src/VBoxApplianceEditorWgt.cpp \
+	src/VBoxImportApplianceWgt.cpp \
+	src/VBoxImportApplianceWzd.cpp \
+	src/VBoxExportApplianceWgt.cpp \
+	src/VBoxExportApplianceWzd.cpp
+
+ifeq ($(filter-out freebsd linux netbsd openbsd solaris,$(KBUILD_TARGET)),) # X11
+ ifndef VBOX_OSE
+  VirtualBox_QT_MOCHDRS += \
+  	include/VBoxLicenseViewer.h
+  VirtualBox_SOURCES += \
+  	src/VBoxLicenseViewer.cpp
  else
-  VirtualBox_LIBS        += $(PATH_DLL)/VBoxDbg3$(VBOX_SUFF_DLL)
+  VirtualBox_VBOX_EXTRA_NLS_SOURCES += \
+    include/VBoxLicenseViewer.h \
+  	src/VBoxLicenseViewer.cpp
  endif
+ VirtualBox_SOURCES += \
+ 	src/X11/XKeyboard-new.cpp \
+	src/VBoxX11Helper.cpp
+else
+ VirtualBox_VBOX_EXTRA_NLS_SOURCES += \
+    include/VBoxLicenseViewer.h \
+  	src/VBoxLicenseViewer.cpp
 endif
 
-# Some flag hacks (should go away).
-ifneq ($(KBUILD_TARGET),win)
- VirtualBox_src/HappyHttp.cpp_CXXFLAGS += -fexceptions
- VirtualBox_src/VBoxDownloaderWgt.cpp_CXXFLAGS += -fexceptions
- VirtualBox_src/VBoxNetworkFramework.cpp_CXXFLAGS += -fexceptions
+VirtualBox_SOURCES.win += \
+	src/VBoxFBDDRAW.cpp \
+	src/win/VirtualBox.rc
+
+VirtualBox_SOURCES.darwin = \
+	src/darwin/DarwinKeyboard.cpp \
+	src/darwin/VBoxUtils-darwin.cpp \
+	src/darwin/VBoxDockIconPreview.cpp \
+	src/VBoxFBQuartz2D.cpp
+
+ifdef VBOX_WITH_ICHAT_THEATER
+ VirtualBox_SOURCES.darwin += \
+ 	src/darwin/VBoxIChatTheaterWrapper.m
 endif
-VirtualBox_src/HappyHttp.cpp_CXXFLAGS.linux += -O2
+
+ifdef VBOX_WITH_COCOA_QT
+ VirtualBox_SOURCES.darwin += \
+	src/darwin/VBoxCocoaApplication.m \
+	src/darwin/VBoxUtils-darwin-cocoa.m \
+	src/darwin/VBoxDockIconPreview-cocoa.m
+else
+ VirtualBox_SOURCES.darwin += \
+	src/darwin/VBoxUtils-darwin-carbon.cpp
+endif
+
+# The Qt modules we're using.
+# (The include directory and lib/framework for each module will be added by the Qt4 unit.)
+VirtualBox_QT_MODULES = Core Gui Network
+
+# Import QDesigner UI sources and translations from VBoxUI.pro.
+ifndef VBOX_WITH_REGISTRATION
+ FORMS := $(filter-out ui/VBoxRegistrationDlg.ui,$(FORMS))
+endif
+$(eval VirtualBox_SOURCES += $(FORMS))
+
+# Resource files with some OSE differences (VirtualBoxBrand.qrc is created further down).
+VirtualBox_SOURCES += VirtualBox.qrc
+VirtualBox_SOURCES += $(VBOX_VIRTUALBOX4_OUT_DIR)/VirtualBoxBrand.qrc
+$(VBOX_VIRTUALBOX4_OUT_DIR)/VirtualBoxBrand.qrc_RCCFLAGS = -name BRAND
+
+# Import the translation source from VBoxUI.pro and add the qt_xx_YY counterparts
+VirtualBox_QT_TRANSLATIONS := $(TRANSLATIONS) \
+	$(patsubst nls/VirtualBox_%.ts,nls/qt_%.ts, $(filter nls/VirtualBox_%.ts,$(TRANSLATIONS)))
+# Compress the translation units.
+VirtualBox_LRCFLAGS = -silent
+# Where to install the translations (a separate install target, VirtualBox-nls-inst is created).
+VirtualBox_QT_TRANSLATIONS_INST = $(INST_BIN)nls/
+
 
 ## @todo how to detect what tool is used?
-## @todo GCC3 seems to lack -Wno-missing-base-class-initializer, so we use more generic -Wno-extra
-## @todo r=bird: see VirtualBox4.
+## @todo GCC3 seems to lack -Wno-missing-base-class-initializer, so we use
+#  more generic -Wno-extra
+# bird: What about $(if $(VBOX_GCC_Wno-missing-base-class-initializer),$(VBOX_GCC_Wno-missing-base-class-initializer),$(VBOX_GCC_Wno-extra))?
 ifdef VBOX_WITH_XPCOM
- VirtualBox_src/COMDefs.cpp_CXXFLAGS = $(VBOX_GCC_Wno-extra)
+ VirtualBox_src/COMDefs.cpp_CXXFLAGS  = $(VBOX_GCC_Wno-extra)
 endif
 
-#
-# static images imported from VBoxUI.pro as VirtualBox_QT_IMAGES
-#
-VirtualBox_BLDDIRS += $(PATH_VirtualBox)/ui
-VirtualBox_SOURCES += $(PATH_VirtualBox)/ui/vbox_image_collection.cpp
-VirtualBox_CLEAN   += $(PATH_VirtualBox)/ui/vbox_image_collection.cpp $(PATH_VirtualBox)/ui/vbox_image_collection.txt
-
-$$(PATH_VirtualBox)/ui/vbox_image_collection.txt: $(PATH_SUB_CURRENT)/VBoxUI.pro $$(VirtualBox_QT_IMAGES) | $$(dir $$@)
-	$(RM) -f $@
-	$(APPEND) -v $@ VirtualBox_QT_IMAGES
-
-$$(PATH_VirtualBox)/ui/vbox_image_collection.cpp: $$(PATH_VirtualBox)/ui/vbox_image_collection.txt | $$(dir $$@)
-	$(call MSG_TOOL,uic,VirtualBox,$<,$@)
-	$(QUIET)$(VBOX_UIC) -o $@ -embed VBoxGUI -f $<
-
 
 #
-# Generate COM Wrappers
+# Generate the COM wrappers.
 #
 VirtualBox_BLDDIRS       += $(PATH_VirtualBox)/include
-VirtualBox_CLEAN         += $(PATH_VirtualBox)/include/COMWrappers.h
 VirtualBox_INTERMEDIATES += $(PATH_VirtualBox)/include/COMWrappers.h
+VirtualBox_CLEAN         += $(PATH_VirtualBox)/include/COMWrappers.h
 
 $$(PATH_VirtualBox)/include/COMWrappers.h: \
-		$(PATH_ROOT)/src/VBox/Main/idl/VirtualBox.xidl \
-		$(VBOX_PATH_VIRTUALBOX3_SRC)/include/COMWrappers.xsl \
+		$(VBOX_XIDL_FILE) \
+		$(VBOX_VIRTUALBOX4_SRC)/include/COMWrappers.xsl \
 		| $$(dir $$@)
 	$(call MSG_GENERATE,VirtualBox,$<,$@)
-	$(QUIET)$(VBOX_XSLTPROC) -o $@ $(VBOX_PATH_VIRTUALBOX3_SRC)/include/COMWrappers.xsl $<
+	$(QUIET)$(VBOX_XSLTPROC) -o $@ $(VBOX_VIRTUALBOX4_SRC)/include/COMWrappers.xsl $<
 
 # alias for generating the COM Wrappers file.
 testwrappers:: $$(PATH_VirtualBox)/include/COMWrappers.h
 
 
+#
+# Generate qrc file with branded icons.
+#
+VirtualBox_BLDDIRS       += $(VBOX_VIRTUALBOX4_OUT_DIR)
+VirtualBox_CLEAN         += $(VBOX_VIRTUALBOX4_OUT_DIR)/VirtualBoxBrand.qrc
+if "$(KBUILD_HOST)" == "win" ## @todo remove when kBuild ticket #52 has been fixed and deployed.
+ VBOX_DRIVE_HACK := $(firstword $(subst :, ,$(PATH_ROOT))):
+else
+ VBOX_DRIVE_HACK :=
+endif
+$(VBOX_VIRTUALBOX4_OUT_DIR)/VirtualBoxBrand.qrc: \
+		$(VBOX_VIRTUALBOX4_SRC)/VirtualBoxBrand.qrc \
+		| $$(dir $$@)
+	$(call MSG_GENERATE,VirtualBox,$<,$@)
+	$(QUIET)$(SED) \
+		-e 's;@VBOX_ABOUT_PNG@;$(subst $(VBOX_DRIVE_HACK),,$(VBOX_BRAND_GUI_ABOUT_PNG));g' \
+		-e 's;@VBOX_ABOUT_16PX_PNG@;$(subst $(VBOX_DRIVE_HACK),,$(VBOX_BRAND_GUI_ABOUT_16PX_PNG));g' \
+		-e 's;@VBOX_VBOX_16PX_PNG@;$(subst $(VBOX_DRIVE_HACK),,$(VBOX_BRAND_GUI_VBOX_16PX_PNG));g' \
+		-e 's;@VBOX_VBOX_20PX_PNG@;$(subst $(VBOX_DRIVE_HACK),,$(VBOX_BRAND_GUI_VBOX_20PX_PNG));g' \
+		-e 's;@VBOX_VBOX_32PX_PNG@;$(subst $(VBOX_DRIVE_HACK),,$(VBOX_BRAND_GUI_VBOX_32PX_PNG));g' \
+		-e 's;@VBOX_VBOX_40PX_PNG@;$(subst $(VBOX_DRIVE_HACK),,$(VBOX_BRAND_GUI_VBOX_40PX_PNG));g' \
+		-e 's;@VBOX_VBOX_48PX_PNG@;$(subst $(VBOX_DRIVE_HACK),,$(VBOX_BRAND_GUI_VBOX_48PX_PNG));g' \
+		-e 's;@VBOX_VBOX_64PX_PNG@;$(subst $(VBOX_DRIVE_HACK),,$(VBOX_BRAND_GUI_VBOX_64PX_PNG));g' \
+		-e 's;@VBOX_CUBE_42PX_PNG@;$(subst $(VBOX_DRIVE_HACK),,$(VBOX_BRAND_GUI_CUBE_42PX_PNG));g' \
+		--output $@ \
+		$<
+
+
 ifeq ($(KBUILD_TARGET),win)
 #
-# On Windows we'll have to generate/edit the resource file.
+# On Windows we'll have to generate/edit part of the resource file.
 # The IDI_ICON1 name is Qt specific.
 #
-$$(PATH_VirtualBox)/VirtualBox.rc: $(PATH_SUB_CURRENT)/Makefile.kmk $(VBOX_WINDOWS_ICON_FILE) | $$(dir $$@)
-	$(RM) -f $@
-	$(APPEND) $@ 'IDI_ICON1 ICON "$(subst /,\\,$(VBOX_WINDOWS_ICON_FILE))"'
-	$(CAT) $@
+src/win/VirtualBox.rc_INCS  = $(PATH_VirtualBox)
+src/win/VirtualBox.rc_DEPS  = $(PATH_VirtualBox)/VirtualBox-icon.rc
+src/win/VirtualBox.rc_CLEAN = $(PATH_VirtualBox)/VirtualBox-icon.rc
 
-VirtualBox_CLEAN.win += $(PATH_VirtualBox)/VirtualBox.rc
+$$(PATH_VirtualBox)/VirtualBox-icon.rc: $(MAKEFILE_CURRENT) $(VBOX_WINDOWS_ICON_FILE) | $$(dir $$@)
+	$(APPEND) -t $@ 'IDI_ICON1 ICON "$(subst /,\\,$(VBOX_WINDOWS_ICON_FILE))"'
+
 endif # win
 
 
-if "$(KBUILD_TARGET)" == "darwin" && !defined(VBOX_WITH_QT4GUI) # don't conflict the qt4 gui
+ifeq ($(KBUILD_TARGET),darwin)
 #
-# On Mac OS X (darwin) we need to install icon resources and compulsory bundle contents.
+# Create directories for each approved language or the application
+# menu won't be translated.
 #
-$(warning The qt3 gui will not work right on it own after we renamed it to *3..)
-INSTALLS.darwin += VirtualBox3.app
-VirtualBox3.app_INST = $(INST_VIRTUALBOX)Contents/
-VirtualBox3.app_MODE = 644
-VirtualBox3.app_SOURCES = \
+INSTALLS += VirtualBox.lproj
+VirtualBox.lproj_INST = $(INST_VIRTUALBOX)Contents/Resources/
+VirtualBox.lproj_MODE = 755
+VirtualBox.lproj_DIRS := $(addsuffix .lproj,$(VBOX_APPROVED_GUI_LANGUAGES_ALL))
+
+#
+# On OS X (darwin) we need to install icon resources and compulsory bundle contents.
+# The VirtualBoxVM.app helper is for launching VMs (fixes some issues with the dock).
+#
+INSTALLS += VirtualBox.app
+VirtualBox.app_INST = $(INST_VIRTUALBOX)Contents/
+VirtualBox.app_MODE = 644
+VirtualBox.app_SOURCES = \
 	src/darwin/PkgInfo \
-	$(PATH_VirtualBox3.app)/Info.plist \
+	$(PATH_VirtualBox.app)/Info.plist \
 	$(VBOX_MACOSX_ICON_FILE)=>Resources/virtualbox.icns
 
-$$(PATH_VirtualBox3.app)/Info.plist: $(PATH_SUB_CURRENT)/src/darwin/Info.plist $(VBOX_VERSION_MK) | $$(dir $$@)
-	$(call MSG_GENERATE,VirtualBox3.app,$<,$@)
+$$(PATH_VirtualBox.app)/Info.plist: $(PATH_SUB_CURRENT)/src/darwin/Info.plist $(VBOX_VERSION_MK) | $$(@D)/
+	$(call MSG_GENERATE,VirtualBox.app,$<,$@)
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(SED) \
 		-e 's/@VBOX_VERSION_STRING@/$(VBOX_VERSION_STRING)/g' \
@@ -460,50 +557,51 @@ $$(PATH_VirtualBox3.app)/Info.plist: $(PATH_SUB_CURRENT)/src/darwin/Info.plist $
 		-e 's/@VBOX_VERSION_BUILD@/$(VBOX_VERSION_BUILD)/g' \
 		$< > $@
 
-INSTALLS.darwin += VirtualBoxVM3.app
-VirtualBoxVM3.app_INST = $(VirtualBox3.app_INST)Resources/VirtualBoxVM.app/Contents/
-VirtualBoxVM3.app_MODE = 644
-VirtualBoxVM3.app_SOURCES = \
+INSTALLS += VirtualBoxVM.app
+VirtualBoxVM.app_INST = $(VirtualBox.app_INST)Resources/VirtualBoxVM.app/Contents/
+VirtualBoxVM.app_MODE = 644
+VirtualBoxVM.app_SOURCES = \
 	src/darwin/VM-PkgInfo=>PkgInfo \
-	$(PATH_VirtualBoxVM3.app)/VM-Info.plist=>Info.plist \
-	$(VBOX_MACOSX_ICON_FILE)=>Resources/virtualbox.icns
-VirtualBoxVM3.app_SYMLINKS = \
-	MacOS=>../../../MacOS/
+	$(PATH_VirtualBoxVM.app)/VM-Info.plist=>Info.plist
+VirtualBoxVM.app_SYMLINKS = \
+	MacOS=>../../../MacOS/ \
+	Resources=>../../../Resources/
 
-$$(PATH_VirtualBoxVM3.app)/VM-Info.plist: $(PATH_SUB_CURRENT)/src/darwin/VM-Info.plist $(VBOX_VERSION_MK) | $$(dir $$@)
-	$(call MSG_GENERATE,VirtualBoxVM3.app,$<,$@)
+$$(PATH_VirtualBoxVM.app)/VM-Info.plist: $(PATH_SUB_CURRENT)/src/darwin/VM-Info.plist $(VBOX_VERSION_MK) | $$(@D)/
+	$(call MSG_GENERATE,VirtualBoxVM.app,$<,$@)
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(SED) \
 		-e 's/@VBOX_VERSION_STRING@/$(VBOX_VERSION_STRING)/g' \
 		-e 's/@VBOX_VERSION_MAJOR@/$(VBOX_VERSION_MAJOR)/g' \
 		-e 's/@VBOX_VERSION_MINOR@/$(VBOX_VERSION_MINOR)/g' \
 		-e 's/@VBOX_VERSION_BUILD@/$(VBOX_VERSION_BUILD)/g' \
-		--output $@ \
-		$<
-endif # darwin && !qt4gui
+		--output $@ $<
+endif # darwin
 
 
+#
+# Testcase for the darwin keyboard routines.
+#
 ifdef VBOX_WITH_TESTCASES
- #
- # Testcase for the darwin keyboard routines.
- #
- PROGRAMS.darwin += tstDarwinKeyboard
- tstDarwinKeyboard_TEMPLATE = VBOXR3TSTEXE
- tstDarwinKeyboard_NAME = tstDarwinKeyboard3
- tstDarwinKeyboard_INCS = include
- tstDarwinKeyboard_SOURCES = \
- 	src/darwin/tstDarwinKeyboard.cpp \
- 	src/darwin/DarwinKeyboard.cpp
- tstDarwinKeyboard_LDFLAGS = -framework IOKit -framework Carbon
- tstDarwinKeyboard_LIBS = \
- 	$(LIB_RUNTIME)
+PROGRAMS.darwin += tstDarwinKeyboard
+tstDarwinKeyboard_NAME = tstDarwinKeyboard
+tstDarwinKeyboard_TEMPLATE = VBOXR3TSTEXE
+tstDarwinKeyboard_DEFS.x86 = USE_HID_FOR_MODIFIERS
+tstDarwinKeyboard_INCS = include
+tstDarwinKeyboard_SOURCES = \
+	src/darwin/tstDarwinKeyboard.cpp \
+	src/darwin/DarwinKeyboard.cpp
+tstDarwinKeyboard_SOURCES.amd64 = \
+	src/darwin/VBoxCocoaApplication.m
+tstDarwinKeyboard_LDFLAGS = -framework IOKit -framework Carbon -framework AppKit
+tstDarwinKeyboard_LIBS = \
+	$(LIB_RUNTIME)
 endif
 
 
-#
-# Restore / reset things to avoid possible conflicts with kBuild (VBoxUI.pro).
-#
+# Unset everything that was loaded from VBoxUI.pro.
 TEMPLATE := $(SAVED_TEMPLATE)
+SAVED_TEMPLATE :=
 LANGUAGE :=
 FORMS :=
 TRANSLATIONS :=
@@ -511,8 +609,8 @@ IMAGES :=
 
 
 # Commit the magic.
+# (note: before custom rules that make usage of generated variables!).
 include $(KBUILD_PATH)/subfooter.kmk
-
 
 #
 # Update all known NLS translation (.ts) files in the nls/ subdirectory.
@@ -522,10 +620,10 @@ include $(KBUILD_PATH)/subfooter.kmk
 # languages and should never be actually translated or installed.
 #
 updatenls:: \
-		$(VirtualBox_SOURCES) \
+		$(filter-out %.qrc,$(VirtualBox_SOURCES) $(VirtualBox_VBOX_EXTRA_NLS_SOURCES)) \
 		$(wildcard include/*.h)
 	$(call MSG_L1,lupdate all languages (nls/*.ts))
-	$(QUIET)$(TOOL_QT3_LUPDATE) \
+	$(QUIET)$(TOOL_QT4_LUPDATE) \
 		$^ \
 		-ts \
 		$(filter-out nls/qt_%.ts,$(VirtualBox_QT_TRANSLATIONS)) \

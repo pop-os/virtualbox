@@ -1,4 +1,4 @@
-/* $Id: VBoxBFE.cpp $ */
+/* $Id: VBoxBFE.cpp 18645 2009-04-02 15:38:31Z vboxsync $ */
 /** @file
  * Basic Frontend (BFE): VBoxBFE main routines.
  *
@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -431,7 +431,7 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char **envp)
 #endif
     int rc = VINF_SUCCESS;
 
-    RTPrintf("Sun xVM VirtualBox Simple SDL GUI built %s %s\n", __DATE__, __TIME__);
+    RTPrintf("Sun VirtualBox Simple SDL GUI built %s %s\n", __DATE__, __TIME__);
 
     // less than one parameter is not possible
     if (argc < 2)
@@ -1106,19 +1106,22 @@ DECLCALLBACK(void) setVMErrorCallback(PVM pVM, void *pvUser, int rc, RT_SRC_POS_
  *
  * @param   pVM         The VM handle.
  * @param   pvUser      The user argument.
- * @param   fFata       Wheather it is a fatal error or not.
+ * @param   fFlags      The action flags. See VMSETRTERR_FLAGS_*.
  * @param   pszErrorId  Error ID string.
  * @param   pszError    Error message format string.
- * @param   args        Error message arguments.
+ * @param   va          Error message arguments.
  * @thread EMT.
  */
-DECLCALLBACK(void) setVMRuntimeErrorCallback(PVM pVM, void *pvUser, bool fFatal,
+DECLCALLBACK(void) setVMRuntimeErrorCallback(PVM pVM, void *pvUser, uint32_t fFlags,
                                              const char *pszErrorId,
-                                             const char *pszFormat, va_list args)
+                                             const char *pszFormat, va_list va)
 {
     va_list va2;
-    va_copy(va2, args); /* Have to make a copy here or GCC will break. */
-    RTPrintf("%s: %s!\n%N!\n", fFatal ? "Error" : "Warning", pszErrorId, pszFormat, &va2);
+    va_copy(va2, va); /* Have to make a copy here or GCC/AMD64 will break. */
+    RTPrintf("%s: %s!\n%N!\n",
+             fFlags & VMSETRTERR_FLAGS_FATAL ? "Error" : "Warning",
+             pszErrorId, pszFormat, &va2);
+    RTStrmFlush(g_pStdErr);
     va_end(va2);
 }
 
@@ -1385,6 +1388,7 @@ static DECLCALLBACK(int) vboxbfeConfigConstructor(PVM pVM, void *pvUser)
     PCFGMNODE pRoot = CFGMR3GetRoot(pVM);
     rc = CFGMR3InsertString(pRoot,  "Name",           "Default VM");                UPDATE_RC();
     rc = CFGMR3InsertInteger(pRoot, "RamSize",        g_u32MemorySizeMB * _1M);     UPDATE_RC();
+    rc = CFGMR3InsertInteger(pRoot, "RamHoleSize",    512U * _1M);                  UPDATE_RC();
     if (g_fPreAllocRam)
     {
         rc = CFGMR3InsertInteger(pRoot, "RamPreAlloc",    1);                       UPDATE_RC();
@@ -1436,6 +1440,7 @@ static DECLCALLBACK(int) vboxbfeConfigConstructor(PVM pVM, void *pvUser)
     rc = CFGMR3InsertInteger(pInst, "Trusted",              1);     /* boolean */   UPDATE_RC();
     rc = CFGMR3InsertNode(pInst,    "Config",         &pCfg);                       UPDATE_RC();
     rc = CFGMR3InsertInteger(pCfg,  "RamSize",        g_u32MemorySizeMB * _1M);     UPDATE_RC();
+    rc = CFGMR3InsertInteger(pCfg,  "RamHoleSize",    512U * _1M);                  UPDATE_RC();
     rc = CFGMR3InsertString(pCfg,   "BootDevice0",    g_pszBootDevice);             UPDATE_RC();
     rc = CFGMR3InsertString(pCfg,   "BootDevice1",    "NONE");                      UPDATE_RC();
     rc = CFGMR3InsertString(pCfg,   "BootDevice2",    "NONE");                      UPDATE_RC();
@@ -1457,6 +1462,7 @@ static DECLCALLBACK(int) vboxbfeConfigConstructor(PVM pVM, void *pvUser)
         rc = CFGMR3InsertInteger(pInst, "Trusted",        1);       /* boolean */   UPDATE_RC();
         rc = CFGMR3InsertNode(pInst,    "Config",         &pCfg);                   UPDATE_RC();
         rc = CFGMR3InsertInteger(pCfg,  "RamSize",        g_u32MemorySizeMB * _1M); UPDATE_RC();
+        rc = CFGMR3InsertInteger(pCfg,  "RamHoleSize",    512U * _1M);              UPDATE_RC();
         rc = CFGMR3InsertInteger(pCfg,  "IOAPIC",         g_fIOAPIC);               UPDATE_RC();
         rc = CFGMR3InsertInteger(pInst, "PCIDeviceNo",    7);                       UPDATE_RC();
         rc = CFGMR3InsertInteger(pInst, "PCIFunctionNo",  0);                       UPDATE_RC();
@@ -1662,12 +1668,6 @@ static DECLCALLBACK(int) vboxbfeConfigConstructor(PVM pVM, void *pvUser)
 
     if (g_pszHdaFile)
     {
-        const char *szDriver;
-        if (0 == strcmp(RTPathExt(g_pszHdaFile), ".vdi"))
-            szDriver = "VBoxHDD";  /* .vdi */
-        else
-            szDriver = "VD";       /* .vmdk */
-
         rc = CFGMR3InsertNode(pInst,    "LUN#0",          &pLunL0);                 UPDATE_RC();
         rc = CFGMR3InsertString(pLunL0, "Driver",         "Block");                 UPDATE_RC();
         rc = CFGMR3InsertNode(pLunL0,   "Config",         &pCfg);                   UPDATE_RC();
@@ -1675,7 +1675,7 @@ static DECLCALLBACK(int) vboxbfeConfigConstructor(PVM pVM, void *pvUser)
         rc = CFGMR3InsertInteger(pCfg,  "Mountable",      0);                       UPDATE_RC();
 
         rc = CFGMR3InsertNode(pLunL0,   "AttachedDriver", &pDrv);                   UPDATE_RC();
-        rc = CFGMR3InsertString(pDrv,   "Driver",         szDriver);                UPDATE_RC();
+        rc = CFGMR3InsertString(pDrv,   "Driver",         "VD");                    UPDATE_RC();
         rc = CFGMR3InsertNode(pDrv,     "Config",         &pCfg);                   UPDATE_RC();
         rc = CFGMR3InsertString(pCfg,   "Path",           g_pszHdaFile);            UPDATE_RC();
 
@@ -1683,16 +1683,22 @@ static DECLCALLBACK(int) vboxbfeConfigConstructor(PVM pVM, void *pvUser)
         {
             rc = CFGMR3InsertString(pCfg, "Format",       "SPF");                   UPDATE_RC();
         }
+        else
+        {
+            char *pcExt = RTPathExt(g_pszHdaFile);
+            if ((pcExt) && (!strcmp(pcExt, ".vdi")))
+            {
+                rc = CFGMR3InsertString(pCfg, "Format",       "VDI");               UPDATE_RC();
+            }
+            else
+            {
+                rc = CFGMR3InsertString(pCfg, "Format",       "VMDK");              UPDATE_RC();
+            }
+        }
     }
 
     if (g_pszHdbFile)
     {
-        const char *szDriver;
-        if (0 == strcmp(RTPathExt(g_pszHdbFile), ".vdi"))
-            szDriver = "VBoxHDD";  /* .vdi */
-        else
-            szDriver = "VD";       /* .vmdk */
-
         rc = CFGMR3InsertNode(pInst,    "LUN#1",          &pLunL1);                 UPDATE_RC();
         rc = CFGMR3InsertString(pLunL1, "Driver",         "Block");                 UPDATE_RC();
         rc = CFGMR3InsertNode(pLunL1,   "Config",         &pCfg);                   UPDATE_RC();
@@ -1700,13 +1706,25 @@ static DECLCALLBACK(int) vboxbfeConfigConstructor(PVM pVM, void *pvUser)
         rc = CFGMR3InsertInteger(pCfg,  "Mountable",      0);                       UPDATE_RC();
 
         rc = CFGMR3InsertNode(pLunL1,   "AttachedDriver", &pDrv);                   UPDATE_RC();
-        rc = CFGMR3InsertString(pDrv,   "Driver",         szDriver);                UPDATE_RC();
+        rc = CFGMR3InsertString(pDrv,   "Driver",         "VD");                    UPDATE_RC();
         rc = CFGMR3InsertNode(pDrv,     "Config",         &pCfg);                   UPDATE_RC();
         rc = CFGMR3InsertString(pCfg,   "Path",           g_pszHdbFile);            UPDATE_RC();
 
         if (g_fHdbSpf)
         {
             rc = CFGMR3InsertString(pCfg, "Format",       "SPF");                   UPDATE_RC();
+        }
+        else
+        {
+            char *pcExt = RTPathExt(g_pszHdbFile);
+            if ((pcExt) && (!strcmp(pcExt, ".vdi")))
+            {
+                rc = CFGMR3InsertString(pCfg, "Format",       "VDI");               UPDATE_RC();
+            }
+            else
+            {
+                rc = CFGMR3InsertString(pCfg, "Format",       "VMDK");              UPDATE_RC();
+            }
         }
     }
 

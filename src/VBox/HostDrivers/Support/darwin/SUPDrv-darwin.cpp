@@ -1,4 +1,4 @@
-/* $Id:  $ */
+/* $Id: $ */
 /** @file
  *
  * VBox host drivers - Ring-0 support drivers - Darwin host:
@@ -64,6 +64,7 @@
 #include <sys/ioccom.h>
 #include <sys/malloc.h>
 #include <sys/proc.h>
+#include <sys/kauth.h>
 #include <IOKit/IOService.h>
 #include <IOKit/IOUserclient.h>
 #include <IOKit/pwr_mgt/RootDomain.h>
@@ -361,10 +362,10 @@ static int VBoxDrvDarwinOpen(dev_t Dev, int fFlags, int fDevType, struct proc *p
      */
     int             rc = VINF_SUCCESS;
     PSUPDRVSESSION  pSession = NULL;
-    struct ucred   *pCred = proc_ucred(pProcess);
+    kauth_cred_t    pCred = kauth_cred_proc_ref(pProcess);
     if (pCred)
     {
-        RTUID           Uid = pCred->cr_ruid;
+        RTUID           Uid =  pCred->cr_ruid;
         RTGID           Gid = pCred->cr_rgid;
         RTPROCESS       Process = RTProcSelf();
         unsigned        iHash = SESSION_HASH(Process);
@@ -392,6 +393,13 @@ static int VBoxDrvDarwinOpen(dev_t Dev, int fFlags, int fDevType, struct proc *p
             rc = VERR_GENERAL_FAILURE;
 
         RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
+        kauth_cred_unref(&pCred);
+#else  /* 10.4 */
+        /* The 10.4u SDK headers and 10.4.11 kernel source have inconsisten defintions
+           of kauth_cred_unref(), so use the other (now deprecated) API for releasing it. */
+        kauth_cred_rele(pCred);
+#endif /* 10.4 */
     }
     else
         rc = SUPDRV_ERR_INVALID_PARAM;
@@ -451,7 +459,7 @@ static int VBoxDrvDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFlags,
     RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
     if (!pSession)
     {
-        OSDBGPRINT(("VBoxDrvDarwinIOCtl: WHAT?!? pSession == NULL! This must be a mistake... pid=%d iCmd=%#x\n",
+        OSDBGPRINT(("VBoxDrvDarwinIOCtl: WHAT?!? pSession == NULL! This must be a mistake... pid=%d iCmd=%#lx\n",
                     (int)Process, iCmd));
         return EINVAL;
     }

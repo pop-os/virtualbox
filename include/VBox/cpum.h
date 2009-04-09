@@ -621,7 +621,7 @@ typedef enum CPUMCPUVENDOR
  * @{ */
 VMMDECL(void)       CPUMGetGuestGDTR(PVM pVM, PVBOXGDTR pGDTR);
 VMMDECL(RTGCPTR)    CPUMGetGuestIDTR(PVM pVM, uint16_t *pcbLimit);
-VMMDECL(RTSEL)      CPUMGetGuestTR(PVM pVM);
+VMMDECL(RTSEL)      CPUMGetGuestTR(PVM pVM, PCPUMSELREGHID pHidden);
 VMMDECL(RTSEL)      CPUMGetGuestLDTR(PVM pVM);
 VMMDECL(uint64_t)   CPUMGetGuestCR0(PVM pVM);
 VMMDECL(uint64_t)   CPUMGetGuestCR2(PVM pVM);
@@ -660,7 +660,6 @@ VMMDECL(RCPTRTYPE(PCCPUMCPUID)) CPUMGetGuestCpuIdDefRCPtr(PVM pVM);
 VMMDECL(uint32_t)   CPUMGetGuestCpuIdStdMax(PVM pVM);
 VMMDECL(uint32_t)   CPUMGetGuestCpuIdExtMax(PVM pVM);
 VMMDECL(uint32_t)   CPUMGetGuestCpuIdCentaurMax(PVM pVM);
-VMMDECL(CPUMSELREGHID *) CPUMGetGuestTRHid(PVM pVM);
 VMMDECL(uint64_t)   CPUMGetGuestEFER(PVM pVM);
 VMMDECL(uint64_t)   CPUMGetGuestMsr(PVM pVM, unsigned idMsr);
 VMMDECL(void)       CPUMSetGuestMsr(PVM pVM, unsigned idMsr, uint64_t valMsr);
@@ -825,6 +824,19 @@ DECLINLINE(bool) CPUMIsGuestIn64BitCodeEx(PCCPUMCTX pCtx)
  * Tests if the guest is running in PAE mode or not.
  *
  * @returns true if in PAE mode, otherwise false.
+ * @param   pVM     The VM handle.
+ */
+DECLINLINE(bool) CPUMIsGuestInPAEMode(PVM pVM)
+{
+    return (    CPUMIsGuestInPagedProtectedMode(pVM)
+            &&  (CPUMGetGuestCR4(pVM) & X86_CR4_PAE)
+            &&  !CPUMIsGuestInLongMode(pVM));
+}
+
+/**
+ * Tests if the guest is running in PAE mode or not.
+ *
+ * @returns true if in PAE mode, otherwise false.
  * @param   pCtx    Current CPU context
  */
 DECLINLINE(bool) CPUMIsGuestInPAEModeEx(PCPUMCTX pCtx)
@@ -875,6 +887,7 @@ VMMDECL(RTGCUINTREG)    CPUMGetHyperDR3(PVM pVM);
 VMMDECL(RTGCUINTREG)    CPUMGetHyperDR6(PVM pVM);
 VMMDECL(RTGCUINTREG)    CPUMGetHyperDR7(PVM pVM);
 VMMDECL(void)           CPUMGetHyperCtx(PVM pVM, PCPUMCTX pCtx);
+VMMDECL(uint32_t)       CPUMGetHyperCR3(PVM pVM);
 /** @} */
 
 /** @name Hypervisor Register Setters.

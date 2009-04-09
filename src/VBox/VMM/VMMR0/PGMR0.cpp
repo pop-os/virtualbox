@@ -1,4 +1,4 @@
-/* $Id: PGMR0.cpp $ */
+/* $Id: PGMR0.cpp 18617 2009-04-01 22:11:29Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor, Ring-0.
  */
@@ -59,11 +59,106 @@ __END_DECLS
  *
  * @param   pVM         The VM handle.
  *
- * @remarks Must be called from within the PGM critical section.
+ * @remarks Must be called from within the PGM critical section. The caller
+ *          must clear the new pages.
  */
 VMMR0DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM)
 {
-    return VERR_NOT_IMPLEMENTED;
+    Assert(PDMCritSectIsOwner(&pVM->pgm.s.CritSect));
+
+    /*
+     * Check for error injection.
+     */
+    if (RT_UNLIKELY(pVM->pgm.s.fErrInjHandyPages))
+        return VERR_NO_MEMORY;
+
+    /*
+     * Try allocate a full set of handy pages.
+     */
+    uint32_t iFirst = pVM->pgm.s.cHandyPages;
+    AssertReturn(iFirst <= RT_ELEMENTS(pVM->pgm.s.aHandyPages), VERR_INTERNAL_ERROR);
+    uint32_t cPages = RT_ELEMENTS(pVM->pgm.s.aHandyPages) - iFirst;
+    if (!cPages)
+        return VINF_SUCCESS;
+    int rc = GMMR0AllocateHandyPages(pVM, cPages, cPages, &pVM->pgm.s.aHandyPages[iFirst]);
+    if (RT_SUCCESS(rc))
+    {
+        for (uint32_t i = 0; i < RT_ELEMENTS(pVM->pgm.s.aHandyPages); i++)
+        {
+            Assert(pVM->pgm.s.aHandyPages[i].idPage != NIL_GMM_PAGEID);
+            Assert(pVM->pgm.s.aHandyPages[i].idPage <= GMM_PAGEID_LAST);
+            Assert(pVM->pgm.s.aHandyPages[i].idSharedPage == NIL_GMM_PAGEID);
+            Assert(pVM->pgm.s.aHandyPages[i].HCPhysGCPhys != NIL_RTHCPHYS);
+            Assert(!(pVM->pgm.s.aHandyPages[i].HCPhysGCPhys & ~X86_PTE_PAE_PG_MASK));
+        }
+
+        pVM->pgm.s.cHandyPages = RT_ELEMENTS(pVM->pgm.s.aHandyPages);
+    }
+    else if (rc != VERR_GMM_SEED_ME)
+    {
+        if (    (   rc == VERR_GMM_HIT_GLOBAL_LIMIT
+                 || rc == VERR_GMM_HIT_VM_ACCOUNT_LIMIT)
+            &&  iFirst < PGM_HANDY_PAGES_MIN)
+        {
+
+#ifdef VBOX_STRICT
+            /* We're ASSUMING that GMM has updated all the entires before failing us. */
+            uint32_t i;
+            for (i = iFirst; i < RT_ELEMENTS(pVM->pgm.s.aHandyPages); i++)
+            {
+                Assert(pVM->pgm.s.aHandyPages[i].idPage == NIL_GMM_PAGEID);
+                Assert(pVM->pgm.s.aHandyPages[i].idSharedPage == NIL_GMM_PAGEID);
+                Assert(pVM->pgm.s.aHandyPages[i].HCPhysGCPhys == NIL_RTHCPHYS);
+            }
+#endif
+
+            /*
+             * Reduce the number of pages until we hit the minimum limit.
+             */
+            do
+            {
+                cPages >>= 2;
+                if (cPages + iFirst < PGM_HANDY_PAGES_MIN)
+                    cPages = PGM_HANDY_PAGES_MIN - iFirst;
+                rc = GMMR0AllocateHandyPages(pVM, cPages, cPages, &pVM->pgm.s.aHandyPages[iFirst]);
+            } while (   (   rc == VERR_GMM_HIT_GLOBAL_LIMIT
+                         || rc == VERR_GMM_HIT_VM_ACCOUNT_LIMIT)
+                     && cPages + iFirst > PGM_HANDY_PAGES_MIN);
+            if (RT_SUCCESS(rc))
+            {
+#ifdef VBOX_STRICT
+                i = iFirst + cPages;
+                while (i-- > 0)
+                {
+                    Assert(pVM->pgm.s.aHandyPages[i].idPage != NIL_GMM_PAGEID);
+                    Assert(pVM->pgm.s.aHandyPages[i].idPage <= GMM_PAGEID_LAST);
+                    Assert(pVM->pgm.s.aHandyPages[i].idSharedPage == NIL_GMM_PAGEID);
+                    Assert(pVM->pgm.s.aHandyPages[i].HCPhysGCPhys != NIL_RTHCPHYS);
+                    Assert(!(pVM->pgm.s.aHandyPages[i].HCPhysGCPhys & ~X86_PTE_PAE_PG_MASK));
+                }
+
+                for (i = cPages + iFirst; i < RT_ELEMENTS(pVM->pgm.s.aHandyPages); i++)
+                {
+                    Assert(pVM->pgm.s.aHandyPages[i].idPage == NIL_GMM_PAGEID);
+                    Assert(pVM->pgm.s.aHandyPages[i].idSharedPage == NIL_GMM_PAGEID);
+                    Assert(pVM->pgm.s.aHandyPages[i].HCPhysGCPhys == NIL_RTHCPHYS);
+                }
+#endif
+
+                pVM->pgm.s.cHandyPages = iFirst + cPages;
+            }
+        }
+
+        if (RT_FAILURE(rc) && rc != VERR_GMM_SEED_ME)
+        {
+            LogRel(("PGMR0PhysAllocateHandyPages: rc=%Rrc iFirst=%d cPages=%d\n", rc, iFirst, cPages));
+            VM_FF_SET(pVM, VM_FF_PGM_NO_MEMORY);
+        }
+    }
+
+
+    LogFlow(("PGMR0PhysAllocateHandyPages: cPages=%d rc=%Rrc\n", cPages, rc));
+    return rc;
 }
 
 

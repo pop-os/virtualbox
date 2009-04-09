@@ -42,6 +42,8 @@
 #ifdef VBOX_WITH_SIMPLIFIED_SLIRP_SYNC
 # ifndef RT_OS_WINDOWS
 #  include <unistd.h>
+#  include <fcntl.h>
+#  include <poll.h>
 # endif
 # include <errno.h>
 # include <iprt/semaphore.h>
@@ -83,6 +85,8 @@ typedef struct DRVNAT
     char                    *pszTFTPPrefix;
     /** Boot file name to provide in the DHCP server response. */
     char                    *pszBootFile;
+    /** tftp server name to provide in the DHCP server response. */
+    char                    *pszNextServer;
 #ifdef VBOX_WITH_SIMPLIFIED_SLIRP_SYNC
     /* polling thread */
     PPDMTHREAD              pThread;
@@ -90,6 +94,9 @@ typedef struct DRVNAT
     PRTREQQUEUE             pReqQueue;
     /* Send queue */
     PPDMQUEUE               pSendQueue;
+# ifdef VBOX_WITH_SLIRP_MT
+    PPDMTHREAD              pGuestThread;
+# endif
 # ifndef RT_OS_WINDOWS
     /** The write end of the control pipe. */
     RTFILE                  PipeWrite;
@@ -148,35 +155,44 @@ static DECLCALLBACK(int) drvNATSend(PPDMINETWORKCONNECTOR pInterface, const void
 
     PRTREQ pReq = NULL;
     int rc;
+    void *buf;
     /* don't queue new requests when the NAT thread is about to stop */
     if (pThis->pThread->enmState != PDMTHREADSTATE_RUNNING)
         return VINF_SUCCESS;
+# ifndef VBOX_WITH_SLIRP_MT
     rc = RTReqAlloc(pThis->pReqQueue, &pReq, RTREQTYPE_INTERNAL);
+# else
+    rc = RTReqAlloc((PRTREQQUEUE)slirp_get_queue(pThis->pNATState), &pReq, RTREQTYPE_INTERNAL);
+# endif
     AssertReleaseRC(rc);
+
+    /* @todo: Here we should get mbuf instead temporal buffer */
+    buf = RTMemAlloc(cb);
+    if (buf == NULL)
+    {
+        LogRel(("NAT: Can't allocate send buffer\n"));
+        return VERR_NO_MEMORY;
+    }
+    memcpy(buf, pvBuf, cb);
+
     pReq->u.Internal.pfn      = (PFNRT)drvNATSendWorker;
     pReq->u.Internal.cArgs    = 3;
     pReq->u.Internal.aArgs[0] = (uintptr_t)pThis;
-    pReq->u.Internal.aArgs[1] = (uintptr_t)pvBuf;
+    pReq->u.Internal.aArgs[1] = (uintptr_t)buf;
     pReq->u.Internal.aArgs[2] = (uintptr_t)cb;
-    pReq->fFlags              = RTREQFLAGS_VOID;
+    pReq->fFlags              = RTREQFLAGS_VOID|RTREQFLAGS_NO_WAIT;
+
     rc = RTReqQueue(pReq, 0); /* don't wait, we have to wakeup the NAT thread fist */
-    if (RT_LIKELY(rc == VERR_TIMEOUT))
-    {
+    AssertReleaseRC(rc);
 # ifndef RT_OS_WINDOWS
-        /* kick select() */
-        rc = RTFileWrite(pThis->PipeWrite, "", 1, NULL);
-        AssertRC(rc);
+    /* kick select() */
+    rc = RTFileWrite(pThis->PipeWrite, "", 1, NULL);
+    AssertRC(rc);
 # else
-        /* kick WSAWaitForMultipleEvents */
-        rc = WSASetEvent(pThis->hWakeupEvent);
-        AssertRelease(rc == TRUE);
+    /* kick WSAWaitForMultipleEvents */
+    rc = WSASetEvent(pThis->hWakeupEvent);
+    AssertRelease(rc == TRUE);
 # endif
-        rc = RTReqWait(pReq, RT_INDEFINITE_WAIT);
-        AssertReleaseRC(rc);
-    }
-    else
-        AssertReleaseRC(rc);
-    RTReqFree(pReq);
 
 #else /* !VBOX_WITH_SIMPLIFIED_SLIRP_SYNC */
 
@@ -316,7 +332,7 @@ static DECLCALLBACK(void) drvNATPoller(PPDMDRVINS pDrvIns)
     struct timeval tv = {0, 0}; /* no wait */
     int cChangedFDs = select(nFDs + 1, &ReadFDs, &WriteFDs, &XcptFDs, &tv);
     if (cChangedFDs >= 0)
-        slirp_select_poll(pThis->pNATState, &ReadFDs, &WriteFDs, &XcptFDs);
+        slirp_select_poll(pThis->pNATState, &nFDs, &ReadFDs, &WriteFDs, &XcptFDs);
 
     RTCritSectLeave(&pThis->CritSect);
 }
@@ -326,66 +342,88 @@ static DECLCALLBACK(void) drvNATPoller(PPDMDRVINS pDrvIns)
 static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
-    fd_set  ReadFDs;
-    fd_set  WriteFDs;
-    fd_set  XcptFDs;
     int     nFDs = -1;
     unsigned int ms;
 # ifdef RT_OS_WINDOWS
     DWORD   event;
     HANDLE  *phEvents;
     unsigned int cBreak = 0;
-# endif
+# else /* RT_OS_WINDOWS */
+    struct pollfd *polls = NULL;
+# endif /* !RT_OS_WINDOWS */
 
     LogFlow(("drvNATAsyncIoThread: pThis=%p\n", pThis));
 
     if (pThread->enmState == PDMTHREADSTATE_INITIALIZING)
         return VINF_SUCCESS;
 
-#ifdef RT_OS_WINDOWS
+# ifdef RT_OS_WINDOWS
     phEvents = slirp_get_events(pThis->pNATState);
-#endif
+# endif /* RT_OS_WINDOWS */
 
     /*
      * Polling loop.
      */
     while (pThread->enmState == PDMTHREADSTATE_RUNNING)
     {
-        FD_ZERO(&ReadFDs);
-        FD_ZERO(&WriteFDs);
-        FD_ZERO(&XcptFDs);
         nFDs = -1;
 
         /*
          * To prevent concurent execution of sending/receving threads
          */
-        slirp_select_fill(pThis->pNATState, &nFDs, &ReadFDs, &WriteFDs, &XcptFDs);
-        ms = slirp_get_timeout_ms(pThis->pNATState);
 # ifndef RT_OS_WINDOWS
-        struct timeval tv = { 0, ms*1000 };
-        FD_SET(pThis->PipeRead, &ReadFDs);
-        nFDs = ((int)pThis->PipeRead < nFDs ? nFDs : pThis->PipeRead);
-        int cChangedFDs = select(nFDs + 1, &ReadFDs, &WriteFDs, &XcptFDs, ms ? &tv : NULL);
+        nFDs = slirp_get_nsock(pThis->pNATState);
+        polls = NULL;
+        polls = (struct pollfd *)RTMemAlloc((1 + nFDs) * sizeof(struct pollfd) + sizeof(uint32_t)); /* allocation for all sockets + Management pipe*/
+        if (polls == NULL)
+            return VERR_NO_MEMORY;
+
+        slirp_select_fill(pThis->pNATState, &nFDs, &polls[1]); /*don't bother Slirp with knowelege about managemant pipe*/
+        ms = slirp_get_timeout_ms(pThis->pNATState);
+
+        polls[0].fd = pThis->PipeRead;
+        polls[0].events = POLLRDNORM|POLLPRI|POLLRDBAND; /* POLLRDBAND usually doesn't used on Linux but seems used on Solaris */
+        polls[0].revents = 0;
+
+        int cChangedFDs = poll(polls, nFDs + 1, ms ? ms : -1);
+#ifndef RT_OS_LINUX /* 2.6.23 + gdb -> hitting all the time. probably a bug in poll/ptrace/whatever. */
+        AssertRelease(cChangedFDs >= 0);
+#endif
         if (cChangedFDs >= 0)
         {
-            slirp_select_poll(pThis->pNATState, &ReadFDs, &WriteFDs, &XcptFDs);
-            if (FD_ISSET(pThis->PipeRead, &ReadFDs))
+            slirp_select_poll(pThis->pNATState, &polls[1], nFDs);
+            if (polls[0].revents & (POLLRDNORM|POLLPRI|POLLRDBAND))
             {
                 /* drain the pipe */
                 char ch[1];
                 size_t cbRead;
+                int counter = 0;
+                /*
+                 * drvNATSend decoupled so we don't know how many times
+                 * device's thread sends before we've entered multiplex,
+                 * so to avoid false alarm drain pipe here to the very end
+                 *
+                 * @todo: Probably we should counter drvNATSend to count how
+                 * deep pipe has been filed before drain.
+                 *
+                 * XXX:Make it reading exactly we need to drain the pipe.
+                 */
                 RTFileRead(pThis->PipeRead, &ch, 1, &cbRead);
             }
             /* process _all_ outstanding requests but don't wait */
             RTReqProcess(pThis->pReqQueue, 0);
         }
+        RTMemFree(polls);
 # else /* RT_OS_WINDOWS */
+        slirp_select_fill(pThis->pNATState, &nFDs);
+        ms = slirp_get_timeout_ms(pThis->pNATState);
+        struct timeval tv = { 0, ms*1000 };
         event = WSAWaitForMultipleEvents(nFDs, phEvents, FALSE, ms ? ms : WSA_INFINITE, FALSE);
         if (   (event < WSA_WAIT_EVENT_0 || event > WSA_WAIT_EVENT_0 + nFDs - 1)
             && event != WSA_WAIT_TIMEOUT)
         {
             int error = WSAGetLastError();
-            LogRel(("WSAWaitForMultipleEvents returned %d (error %d)\n", event, error));
+            LogRel(("NAT: WSAWaitForMultipleEvents returned %d (error %d)\n", event, error));
             RTAssertReleasePanic();
         }
 
@@ -393,10 +431,12 @@ static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
         {
             /* only check for slow/fast timers */
             slirp_select_poll(pThis->pNATState, /* fTimeout=*/true, /*fIcmp=*/false);
+            Log2(("%s: timeout\n", __FUNCTION__));
             continue;
         }
 
         /* poll the sockets in any case */
+        Log2(("%s: poll\n", __FUNCTION__));
         slirp_select_poll(pThis->pNATState, /* fTimeout=*/false, /* fIcmp=*/(event == WSA_WAIT_EVENT_0));
         /* process _all_ outstanding requests but don't wait */
         RTReqProcess(pThis->pReqQueue, 0);
@@ -428,13 +468,34 @@ static DECLCALLBACK(int) drvNATAsyncIoWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
     /* kick select() */
     int rc = RTFileWrite(pThis->PipeWrite, "", 1, NULL);
     AssertRC(rc);
-# else
+# else /* !RT_OS_WINDOWS */
     /* kick WSAWaitForMultipleEvents() */
     WSASetEvent(pThis->hWakeupEvent);
-# endif
+# endif /* RT_OS_WINDOWS */
 
     return VINF_SUCCESS;
 }
+
+# ifdef VBOX_WITH_SLIRP_MT
+static DECLCALLBACK(int) drvNATAsyncIoGuest(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+{
+    PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
+    if (pThread->enmState == PDMTHREADSTATE_INITIALIZING)
+        return VINF_SUCCESS;
+    while (pThread->enmState == PDMTHREADSTATE_RUNNING)
+	{
+        slirp_process_queue(pThis->pNATState);
+	}
+    return VINF_SUCCESS;
+}
+
+static DECLCALLBACK(int) drvNATAsyncIoGuestWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+{
+    PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
+
+    return VINF_SUCCESS;
+}
+# endif /* VBOX_WITH_SLIRP_MT */
 
 #endif /* VBOX_WITH_SIMPLIFIED_SLIRP_SYNC */
 
@@ -503,7 +564,11 @@ void slirp_output(void *pvUser, const uint8_t *pu8Buf, int cb)
     if (cDroppedPackets < 64)
     {
         cDroppedPackets++;
-        LogRel(("NAT: Dropping package (couldn't alloc queue item to)\n"));
+    }
+    else
+    {
+        LogRel(("NAT: %d messages suppressed about dropping package (couldn't allocate queue item)\n", cDroppedPackets));
+        cDroppedPackets = 0;
     }
     RTMemFree((void *)pu8Buf);
 #endif
@@ -737,7 +802,11 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     /*
      * Validate the config.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "PassDomain\0TFTPPrefix\0BootFile\0Network\0"))
+#ifndef VBOX_WITH_SLIRP_DNS_PROXY
+    if (!CFGMR3AreValuesValid(pCfgHandle, "PassDomain\0TFTPPrefix\0BootFile\0Network\0NextServer\0"))
+#else
+    if (!CFGMR3AreValuesValid(pCfgHandle, "PassDomain\0TFTPPrefix\0BootFile\0Network\0NextServer\0DNSProxy\0"))
+#endif
         return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES, N_("Unknown NAT configuration option, only supports PassDomain, TFTPPrefix, BootFile and Network"));
 
     /*
@@ -747,6 +816,7 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     pThis->pNATState                    = NULL;
     pThis->pszTFTPPrefix                = NULL;
     pThis->pszBootFile                  = NULL;
+    pThis->pszNextServer                = NULL;
     /* IBase */
     pDrvIns->IBase.pfnQueryInterface    = drvNATQueryInterface;
     /* INetwork */
@@ -770,6 +840,15 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     rc = CFGMR3QueryStringAlloc(pCfgHandle, "BootFile", &pThis->pszBootFile);
     if (RT_FAILURE(rc) && rc != VERR_CFGM_VALUE_NOT_FOUND)
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("NAT#%d: configuration query for \"BootFile\" string failed"), pDrvIns->iInstance);
+    rc = CFGMR3QueryStringAlloc(pCfgHandle, "NextServer", &pThis->pszNextServer);
+    if (RT_FAILURE(rc) && rc != VERR_CFGM_VALUE_NOT_FOUND)
+        return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("NAT#%d: configuration query for \"NextServer\" string failed"), pDrvIns->iInstance);
+#ifdef VBOX_WITH_SLIRP_DNS_PROXY
+    int fDNSProxy;
+    rc = CFGMR3QueryS32(pCfgHandle, "DNSProxy", &fDNSProxy);
+    if (rc == VERR_CFGM_VALUE_NOT_FOUND)
+        fDNSProxy = 0;
+#endif
 
     /*
      * Query the network port interface.
@@ -810,9 +889,16 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     /*
      * Initialize slirp.
      */
-    rc = slirp_init(&pThis->pNATState, &szNetAddr[0], Netmask, fPassDomain, pThis->pszTFTPPrefix, pThis->pszBootFile, pThis);
+    rc = slirp_init(&pThis->pNATState, &szNetAddr[0], Netmask, fPassDomain, pThis);
     if (RT_SUCCESS(rc))
     {
+        slirp_set_dhcp_TFTP_prefix(pThis->pNATState, pThis->pszTFTPPrefix);
+        slirp_set_dhcp_TFTP_bootfile(pThis->pNATState, pThis->pszBootFile);
+        slirp_set_dhcp_next_server(pThis->pNATState, pThis->pszNextServer);
+#ifdef VBOX_WITH_SLIRP_DNS_PROXY
+        slirp_set_dhcp_dns_proxy(pThis->pNATState, fDNSProxy);
+#endif
+
         slirp_register_timers(pThis->pNATState, pDrvIns);
         int rc2 = drvNATConstructRedir(pDrvIns->iInstance, pThis, pCfgHandle, Network);
         if (RT_SUCCESS(rc2))
@@ -831,14 +917,14 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
             rc = RTReqCreateQueue(&pThis->pReqQueue);
             if (RT_FAILURE(rc))
             {
-                LogRel(("Can't create request queue\n"));
+                LogRel(("NAT: Can't create request queue\n"));
                 return rc;
             }
 
             rc = PDMDrvHlpPDMQueueCreate(pDrvIns, sizeof(DRVNATQUEUITEM), 50, 0, drvNATQueueConsumer, &pThis->pSendQueue);
             if (RT_FAILURE(rc))
             {
-                LogRel(("Can't create send queue\n"));
+                LogRel(("NAT: Can't create send queue\n"));
                 return rc;
             }
 
@@ -862,6 +948,11 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
 
             rc = PDMDrvHlpPDMThreadCreate(pDrvIns, &pThis->pThread, pThis, drvNATAsyncIoThread, drvNATAsyncIoWakeup, 128 * _1K, RTTHREADTYPE_IO, "NAT");
             AssertReleaseRC(rc);
+
+#ifdef VBOX_WITH_SLIRP_MT
+            rc = PDMDrvHlpPDMThreadCreate(pDrvIns, &pThis->pGuestThread, pThis, drvNATAsyncIoGuest, drvNATAsyncIoGuestWakeup, 128 * _1K, RTTHREADTYPE_IO, "NATGUEST");
+            AssertReleaseRC(rc);
+#endif
 #endif
 
             pThis->enmLinkState = PDMNETWORKLINKSTATE_UP;
@@ -879,6 +970,7 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
         PDMDRV_SET_ERROR(pDrvIns, rc, N_("Unknown error during NAT networking setup: "));
         AssertMsgFailed(("Add error message for rc=%d (%Rrc)\n", rc, rc));
     }
+
 
 #ifndef VBOX_WITH_SIMPLIFIED_SLIRP_SYNC
     RTCritSectDelete(&pThis->CritSect);

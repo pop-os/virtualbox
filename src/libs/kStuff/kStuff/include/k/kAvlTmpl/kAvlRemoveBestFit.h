@@ -1,4 +1,4 @@
-/* $Id: kAvlRemoveBestFit.h 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kAvlRemoveBestFit.h 7 2008-02-04 02:08:02Z bird $ */
 /** @file
  * kAvlTmpl - Templated AVL Trees, Remove Best Fitting Node.
  */
@@ -36,7 +36,7 @@
  * Finds the best fitting node in the tree for the given Key value and removes the node.
  *
  * @returns Pointer to the removed node.
- * @param   ppTree      Pointer to Pointer to the tree root node.
+ * @param   pRoot       Pointer to the AVL-tree root structure.
  * @param   Key         The Key of which is to be found a best fitting match for..
  * @param   fAbove      K_TRUE:  Returned node is have the closest key to Key from above.
  *                      K_FALSE: Returned node is have the closest key to Key from below.
@@ -45,25 +45,29 @@
  *          not be the most optimal kind of implementation, but it reduces the complexity
  *          code size, and the likelyhood for bugs.
  */
-KAVL_DECL(KAVLNODE *) KAVL_FN(RemoveBestFit)(KAVLTREEPTR *ppTree, KAVLKEY Key, KBOOL fAbove)
+KAVL_DECL(KAVLNODE *) KAVL_FN(RemoveBestFit)(KAVLROOT *pRoot, KAVLKEY Key, KBOOL fAbove)
 {
     /*
      * If we find anything we'll have to remove the node and return it.
      * Now, if duplicate keys are allowed we'll remove a duplicate before
      * removing the in-tree node as this is way cheaper.
      */
-    KAVLNODE *pNode = KAVL_FN(GetBestFit)(ppTree, Key, fAbove);
+    KAVLNODE *pNode = KAVL_FN(GetBestFit)(pRoot, Key, fAbove);
     if (pNode != NULL)
     {
 #ifdef KAVL_EQUAL_ALLOWED
+        KAVL_WRITE_LOCK(pRoot); /** @todo the locking isn't quite sane here. :-/ */
         if (pNode->mpList != KAVL_NULL)
         {
             KAVLNODE *pRet = KAVL_GET_POINTER(&pNode->mpList);
             KAVL_SET_POINTER_NULL(&pNode->mpList, &pRet->mpList);
+            KAVL_LOOKTHRU_INVALIDATE_NODE(pRoot, pNode, pNode->mKey);
+            KAVL_WRITE_UNLOCK(pRoot);
             return pRet;
         }
+        KAVL_WRITE_UNLOCK(pRoot);
 #endif
-        pNode = KAVL_FN(Remove)(ppTree, pNode->mKey);
+        pNode = KAVL_FN(Remove)(pRoot, pNode->mKey);
     }
     return pNode;
 }

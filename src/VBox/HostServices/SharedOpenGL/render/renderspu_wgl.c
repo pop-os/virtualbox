@@ -46,8 +46,15 @@ void renderspu_SystemDestroyWindow( WindowInfo *window )
 
     vrdw.hWnd = window->hWnd;
 
-    PostThreadMessage(render_spu.dwWinThreadId, WM_VBOX_RENDERSPU_DESTROY_WINDOW, 0, (LPARAM) &vrdw);
-    WaitForSingleObject(render_spu.hWinThreadReadyEvent, INFINITE);
+    if (render_spu.dwWinThreadId)
+    {
+        PostThreadMessage(render_spu.dwWinThreadId, WM_VBOX_RENDERSPU_DESTROY_WINDOW, 0, (LPARAM) &vrdw);
+        WaitForSingleObject(render_spu.hWinThreadReadyEvent, INFINITE);
+    }
+    else
+    {
+        crError("Render SPU: window thread is not running");
+    }
 
     window->hWnd = NULL;
     window->visual = NULL;
@@ -305,10 +312,11 @@ bSetupPixelFormatNormal( HDC hdc, GLbitfield visAttribs )
 static BOOL
 bSetupPixelFormat( HDC hdc, GLbitfield visAttribs )
 {
-    if (render_spu.ws.wglChoosePixelFormatEXT) 
-        return bSetupPixelFormatEXT( hdc, visAttribs );
-    else
-        return bSetupPixelFormatNormal( hdc, visAttribs );
+    /* According to http://www.opengl.org/resources/faq/technical/mswindows.htm
+       we shouldn't be using wgl functions to setup pixel formats unless we're loading ICD driver.
+       In particular, bSetupPixelFormatEXT bugs with Intel drivers.
+     */
+    bSetupPixelFormatNormal(hdc, visAttribs);
 }
 
 GLboolean renderspu_SystemCreateWindow( VisualInfo *visual, GLboolean showIt, WindowInfo *window )
@@ -673,10 +681,38 @@ GLboolean renderspu_SystemVBoxCreateWindow( VisualInfo *visual, GLboolean showIt
         cs.hMenu        = NULL;
         cs.hInstance    = hinstance;
 
-        PostThreadMessage(render_spu.dwWinThreadId, WM_VBOX_RENDERSPU_CREATE_WINDOW, 0, (LPARAM) &cs);
-        WaitForSingleObject(render_spu.hWinThreadReadyEvent, INFINITE);
+        if (render_spu.dwWinThreadId)
+        {
+            DWORD res;
+            int cnt=0;
+
+            if (!PostThreadMessage(render_spu.dwWinThreadId, WM_VBOX_RENDERSPU_CREATE_WINDOW, 0, (LPARAM) &cs))
+            {
+                crError("Render SPU: PostThreadMessage failed with %i", GetLastError());
+                return GL_FALSE;
+            }
+
+            do
+            {
+                res = WaitForSingleObject(render_spu.hWinThreadReadyEvent, 1000);
+                cnt++;
+            }
+            while ((res!=WAIT_OBJECT_0) && (cnt<10));
+
+            crDebug("Render SPU: window thread waited %i secs", cnt);
+
+            if (res!=WAIT_OBJECT_0)
+            {
+                crError("Render SPU: window thread not responded after %i tries", cnt);
+                return GL_FALSE;
+            }
+        }
+        else
+        {
+            crError("Render SPU: window thread is not running");
+            return GL_FALSE;
+        }
     }
-    
 
     if ( !window->hWnd )
     {
@@ -815,14 +851,18 @@ void renderspu_SystemMakeCurrent( WindowInfo *window, GLint nativeWindow, Contex
             }
 
             if (!context->hRC) {
-                context->hRC = render_spu.ws.wglCreateContext( context->visual->device_context );
+                context->hRC = render_spu.ws.wglCreateContext(context->visual->device_context);
                 if (!context->hRC)
                 {
                     crError( "Render SPU: (MakeCurrent) Couldn't create the context for the window (error 0x%x)", GetLastError() );
                 }
             }
 
-            render_spu.ws.wglMakeCurrent( window->device_context, context->hRC );
+            if (!render_spu.ws.wglMakeCurrent(window->device_context, context->hRC))
+            {
+                DWORD err = GetLastError();
+                crError("Render SPU: (MakeCurrent) failed to make 0x%x, 0x%x current with 0x%x error.", window->device_context, context->hRC, err);
+            }
         }
 
     }

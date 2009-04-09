@@ -1,4 +1,4 @@
-/* $Id: AudioAdapterImpl.h $ */
+/* $Id: AudioAdapterImpl.h 17013 2009-02-23 12:37:31Z vboxsync $ */
 
 /** @file
  *
@@ -38,11 +38,7 @@ public:
 
     struct Data
     {
-        Data() {
-            mEnabled = false;
-            mAudioDriver = AudioDriverType_Null;
-            mAudioController = AudioControllerType_AC97;
-        }
+        Data();
 
         bool operator== (const Data &that) const
         {

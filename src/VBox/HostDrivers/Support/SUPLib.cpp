@@ -1,4 +1,4 @@
-/* $Id: SUPLib.cpp $ */
+/* $Id: SUPLib.cpp 18761 2009-04-06 14:11:49Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Common code.
  */
@@ -287,42 +287,43 @@ SUPR3DECL(int) SUPR3Init(PSUPDRVSESSION *ppSession)
                         rc = pFuncsReq->Hdr.rc;
                     if (RT_SUCCESS(rc))
                     {
-                        g_u32Cookie         = CookieReq.u.Out.u32Cookie;
-                        g_u32SessionCookie  = CookieReq.u.Out.u32SessionCookie;
-                        g_pSession          = CookieReq.u.Out.pSession;
-                        g_pFunctions        = pFuncsReq;
-                        if (ppSession)
-                            *ppSession = CookieReq.u.Out.pSession;
-
                         /*
                          * Map the GIP into userspace.
-                         * This is an optional feature, so we will ignore any failures here.
                          */
-                        if (!g_pSUPGlobalInfoPage)
+                        Assert(!g_pSUPGlobalInfoPage);
+                        SUPGIPMAP GipMapReq;
+                        GipMapReq.Hdr.u32Cookie         = CookieReq.u.Out.u32Cookie;
+                        GipMapReq.Hdr.u32SessionCookie  = CookieReq.u.Out.u32SessionCookie;
+                        GipMapReq.Hdr.cbIn              = SUP_IOCTL_GIP_MAP_SIZE_IN;
+                        GipMapReq.Hdr.cbOut             = SUP_IOCTL_GIP_MAP_SIZE_OUT;
+                        GipMapReq.Hdr.fFlags            = SUPREQHDR_FLAGS_DEFAULT;
+                        GipMapReq.Hdr.rc                = VERR_INTERNAL_ERROR;
+                        GipMapReq.u.Out.HCPhysGip       = NIL_RTHCPHYS;
+                        GipMapReq.u.Out.pGipR0          = NIL_RTR0PTR;
+                        GipMapReq.u.Out.pGipR3          = NULL;
+                        rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_GIP_MAP, &GipMapReq, SUP_IOCTL_GIP_MAP_SIZE);
+                        if (RT_SUCCESS(rc))
+                            rc = GipMapReq.Hdr.rc;
+                        if (RT_SUCCESS(rc))
                         {
-                            SUPGIPMAP GipMapReq;
-                            GipMapReq.Hdr.u32Cookie = g_u32Cookie;
-                            GipMapReq.Hdr.u32SessionCookie = g_u32SessionCookie;
-                            GipMapReq.Hdr.cbIn = SUP_IOCTL_GIP_MAP_SIZE_IN;
-                            GipMapReq.Hdr.cbOut = SUP_IOCTL_GIP_MAP_SIZE_OUT;
-                            GipMapReq.Hdr.fFlags = SUPREQHDR_FLAGS_DEFAULT;
-                            GipMapReq.Hdr.rc = VERR_INTERNAL_ERROR;
-                            GipMapReq.u.Out.HCPhysGip = NIL_RTHCPHYS;
-                            GipMapReq.u.Out.pGipR0 = NIL_RTR0PTR;
-                            GipMapReq.u.Out.pGipR3 = NULL;
-                            rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_GIP_MAP, &GipMapReq, SUP_IOCTL_GIP_MAP_SIZE);
-                            if (RT_SUCCESS(rc))
-                                rc = GipMapReq.Hdr.rc;
-                            if (RT_SUCCESS(rc))
-                            {
-                                AssertRelease(GipMapReq.u.Out.pGipR3->u32Magic == SUPGLOBALINFOPAGE_MAGIC);
-                                AssertRelease(GipMapReq.u.Out.pGipR3->u32Version >= SUPGLOBALINFOPAGE_VERSION);
-                                ASMAtomicXchgSize(&g_HCPhysSUPGlobalInfoPage, GipMapReq.u.Out.HCPhysGip);
-                                ASMAtomicCmpXchgPtr((void * volatile *)&g_pSUPGlobalInfoPage, GipMapReq.u.Out.pGipR3, NULL);
-                                ASMAtomicCmpXchgPtr((void * volatile *)&g_pSUPGlobalInfoPageR0, (void *)GipMapReq.u.Out.pGipR0, NULL);
-                            }
+                            AssertRelease(GipMapReq.u.Out.pGipR3->u32Magic == SUPGLOBALINFOPAGE_MAGIC);
+                            AssertRelease(GipMapReq.u.Out.pGipR3->u32Version >= SUPGLOBALINFOPAGE_VERSION);
+
+                            /*
+                             * Set the globals and return success.
+                             */
+                            ASMAtomicXchgSize(&g_HCPhysSUPGlobalInfoPage, GipMapReq.u.Out.HCPhysGip);
+                            ASMAtomicCmpXchgPtr((void * volatile *)&g_pSUPGlobalInfoPage, GipMapReq.u.Out.pGipR3, NULL);
+                            ASMAtomicCmpXchgPtr((void * volatile *)&g_pSUPGlobalInfoPageR0, (void *)GipMapReq.u.Out.pGipR0, NULL);
+
+                            g_u32Cookie         = CookieReq.u.Out.u32Cookie;
+                            g_u32SessionCookie  = CookieReq.u.Out.u32SessionCookie;
+                            g_pSession          = CookieReq.u.Out.pSession;
+                            g_pFunctions        = pFuncsReq;
+                            if (ppSession)
+                                *ppSession = CookieReq.u.Out.pSession;
+                            return VINF_SUCCESS;
                         }
-                        return VINF_SUCCESS;
                     }
 
                     /* bailout */
@@ -358,7 +359,6 @@ SUPR3DECL(int) SUPR3Init(PSUPDRVSESSION *ppSession)
 
         suplibOsTerm(&g_supLibData);
     }
-    AssertMsgFailed(("SUPR3Init() failed rc=%Rrc\n", rc));
     g_cInits--;
 
     return rc;
@@ -730,6 +730,104 @@ SUPR3DECL(int) SUPR3CallR0Service(const char *pszService, size_t cchService, uin
     else /** @todo may have to remove the size limits one this request... */
         AssertMsgFailedReturn(("cbReq=%#x\n", pReqHdr->cbReq), VERR_INTERNAL_ERROR);
     return rc;
+}
+
+
+/**
+ * Worker for the SUPR3Logger* APIs.
+ *
+ * @returns VBox status code.
+ * @param   enmWhich    Which logger.
+ * @param   fWhat       What to do with the logger.
+ * @param   pszFlags    The flags settings.
+ * @param   pszGroups   The groups settings.
+ * @param   pszDest     The destionation specificier.
+ */
+static int supR3LoggerSettings(SUPLOGGER enmWhich, uint32_t fWhat, const char *pszFlags, const char *pszGroups, const char *pszDest)
+{
+    uint32_t const cchFlags  = pszFlags  ? (uint32_t)strlen(pszFlags)  : 0;
+    uint32_t const cchGroups = pszGroups ? (uint32_t)strlen(pszGroups) : 0;
+    uint32_t const cchDest   = pszDest   ? (uint32_t)strlen(pszDest)   : 0;
+    uint32_t const cbStrTab  = cchFlags  + !!cchFlags
+                             + cchGroups + !!cchGroups
+                             + cchDest   + !!cchDest
+                             + (!cchFlags && !cchGroups && !cchDest);
+
+    PSUPLOGGERSETTINGS pReq  = (PSUPLOGGERSETTINGS)alloca(SUP_IOCTL_LOGGER_SETTINGS_SIZE(cbStrTab));
+    pReq->Hdr.u32Cookie = g_u32Cookie;
+    pReq->Hdr.u32SessionCookie = g_u32SessionCookie;
+    pReq->Hdr.cbIn  = SUP_IOCTL_LOGGER_SETTINGS_SIZE_IN(cbStrTab);
+    pReq->Hdr.cbOut = SUP_IOCTL_LOGGER_SETTINGS_SIZE_OUT;
+    pReq->Hdr.fFlags= SUPREQHDR_FLAGS_DEFAULT;
+    pReq->Hdr.rc    = VERR_INTERNAL_ERROR;
+    switch (enmWhich)
+    {
+        case SUPLOGGER_DEBUG:   pReq->u.In.fWhich = SUPLOGGERSETTINGS_WHICH_DEBUG; break;
+        case SUPLOGGER_RELEASE: pReq->u.In.fWhich = SUPLOGGERSETTINGS_WHICH_RELEASE; break;
+        default:
+            return VERR_INVALID_PARAMETER;
+    }
+    pReq->u.In.fWhat = fWhat;
+
+    uint32_t off = 0;
+    if (cchFlags)
+    {
+        pReq->u.In.offFlags = off;
+        memcpy(&pReq->u.In.szStrings[off], pszFlags, cchFlags + 1);
+        off += cchFlags + 1;
+    }
+    else
+        pReq->u.In.offFlags = cbStrTab - 1;
+
+    if (cchGroups)
+    {
+        pReq->u.In.offGroups = off;
+        memcpy(&pReq->u.In.szStrings[off], pszGroups, cchGroups + 1);
+        off += cchGroups + 1;
+    }
+    else
+        pReq->u.In.offGroups = cbStrTab - 1;
+
+    if (cchDest)
+    {
+        pReq->u.In.offDestination = off;
+        memcpy(&pReq->u.In.szStrings[off], pszDest, cchDest + 1);
+        off += cchDest + 1;
+    }
+    else
+        pReq->u.In.offDestination = cbStrTab - 1;
+
+    if (!off)
+    {
+        pReq->u.In.szStrings[0] = '\0';
+        off++;
+    }
+    Assert(off == cbStrTab);
+    Assert(pReq->u.In.szStrings[cbStrTab - 1] == '\0');
+
+
+    int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_LOGGER_SETTINGS(cbStrTab), pReq, SUP_IOCTL_LOGGER_SETTINGS_SIZE(cbStrTab));
+    if (RT_SUCCESS(rc))
+        rc = pReq->Hdr.rc;
+    return rc;
+}
+
+
+SUPR3DECL(int) SUPR3LoggerSettings(SUPLOGGER enmWhich, const char *pszFlags, const char *pszGroups, const char *pszDest)
+{
+    return supR3LoggerSettings(enmWhich, SUPLOGGERSETTINGS_WHAT_SETTINGS, pszFlags, pszGroups, pszDest);
+}
+
+
+SUPR3DECL(int) SUPR3LoggerCreate(SUPLOGGER enmWhich, const char *pszFlags, const char *pszGroups, const char *pszDest)
+{
+    return supR3LoggerSettings(enmWhich, SUPLOGGERSETTINGS_WHAT_CREATE, pszFlags, pszGroups, pszDest);
+}
+
+
+SUPR3DECL(int) SUPR3LoggerDestroy(SUPLOGGER enmWhich)
+{
+    return supR3LoggerSettings(enmWhich, SUPLOGGERSETTINGS_WHAT_DESTROY, NULL, NULL, NULL);
 }
 
 
@@ -1529,7 +1627,7 @@ static int supLoadModule(const char *pszFilename, const char *pszModule, const c
      * Open image file and figure its size.
      */
     RTLDRMOD hLdrMod;
-    int rc = RTLdrOpen(pszFilename, &hLdrMod);
+    int rc = RTLdrOpen(pszFilename, 0, RTLDRARCH_HOST, &hLdrMod);
     if (!RT_SUCCESS(rc))
         return rc;
 

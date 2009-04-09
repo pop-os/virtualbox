@@ -1,4 +1,4 @@
-; $Id: AMD64To32Bit.asm $
+; $Id: AMD64To32Bit.asm 16859 2009-02-17 16:19:51Z vboxsync $
 ;; @file
 ; VMM - World Switchers, AMD64 to 32-bit
 ;
@@ -29,7 +29,6 @@
 %define NAME_OVERLOAD(name)         vmmR3SwitcherAMD64To32Bit_ %+ name
 ;%define SWITCHER_FIX_INTER_CR3_HC   FIX_INTER_AMD64_CR3
 %define SWITCHER_FIX_INTER_CR3_GC   FIX_INTER_32BIT_CR3
-%define SWITCHER_FIX_HYPER_CR3      FIX_HYPER_32BIT_CR3
 
 
 ;*******************************************************************************

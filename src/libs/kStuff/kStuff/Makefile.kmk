@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 2 2007-11-16 16:07:14Z bird $
+# $Id: Makefile.kmk 24 2009-02-08 13:58:54Z bird $
 ## @file
 # kStuff - Top-level makefile.
 #
@@ -23,7 +23,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #
 
-DEPTH ?= ..
+DEPTH = .
 include $(PATH_KBUILD)/subheader.kmk
 
 include $(PATH_SUB_CURRENT)/kCpu/Makefile.kmk
@@ -33,7 +33,9 @@ include $(PATH_SUB_CURRENT)/kLdr/Makefile.kmk
 include $(PATH_SUB_CURRENT)/kRdr/Makefile.kmk
 
 include $(PATH_SUB_CURRENT)/kHlp/Makefile.kmk
-include $(PATH_SUB_CURRENT)/kProfiler2/Makefile.kmk
+ifn1of ($(KBUILD_TARGET), darwin)
+ include $(PATH_SUB_CURRENT)/kProfiler2/Makefile.kmk
+endif
 
 LIBRARIES += kStuffStatic
 kStuffStatic_TEMPLATE = kStuffLIB

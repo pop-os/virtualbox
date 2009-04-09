@@ -1,4 +1,4 @@
-/* $Id: SUPDrv-solaris.c $ */
+/* $Id: SUPDrv-solaris.c 16905 2009-02-18 14:45:18Z vboxsync $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Solaris specifics.
  */
@@ -59,6 +59,7 @@
 #include <iprt/initterm.h>
 #include <iprt/alloc.h>
 #include <iprt/string.h>
+#include <iprt/err.h>
 
 
 /*******************************************************************************
@@ -66,8 +67,8 @@
 *******************************************************************************/
 /** @todo this quoting macros probably should be moved to a common place.
   * The indirection is for expanding macros passed to the first macro. */
-#define VBOXSOLQUOTE2(x)                #x
-#define VBOXSOLQUOTE(x)                 VBOXSOLQUOTE2(x)
+#define VBOXSOLQUOTE2(x)         #x
+#define VBOXSOLQUOTE(x)          VBOXSOLQUOTE2(x)
 /** The module name. */
 #define DEVICE_NAME              "vboxdrv"
 /** The module description as seen in 'modinfo'. */
@@ -179,9 +180,6 @@ static void *g_pVBoxDrvSolarisState;
 /** Device extention & session data association structure */
 static SUPDRVDEVEXT         g_DevExt;
 
-/* GCC C++ hack. */
-unsigned __gxx_personality_v0 = 0xcccccccc;
-
 /** Hash table */
 static PSUPDRVSESSION       g_apSessionHashTab[19];
 /** Spinlock protecting g_apSessionHashTab. */
@@ -229,7 +227,7 @@ int _init(void)
                 {
                     rc = mod_install(&g_VBoxDrvSolarisModLinkage);
                     if (!rc)
-                        return 0; /* success */
+                        return rc; /* success */
 
                     ddi_soft_state_fini(&g_pVBoxDrvSolarisState);
                     LogRel((DEVICE_NAME ":mod_install failed! rc=%d\n", rc));
@@ -252,7 +250,7 @@ int _init(void)
         LogRel((DEVICE_NAME ":VBoxDrvSolarisAttach: failed to init R0Drv\n"));
     memset(&g_DevExt, 0, sizeof(g_DevExt));
 
-    return -1;
+    return RTErrConvertToErrno(rc);
 }
 
 

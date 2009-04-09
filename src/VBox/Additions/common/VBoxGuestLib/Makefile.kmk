@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 16954 2009-02-19 16:55:55Z vboxsync $
 ## @file
 # Sub-Makefile for the common guest addition code library.
 #
@@ -97,7 +97,8 @@ ifeq ($(KBUILD_TARGET),win) ## @todo get rid of this hack (as soon as it's all i
 	VBoxGuestR3Lib.cpp \
 	VBoxGuestR3LibGR.cpp \
 	$(if $(VBOX_WITH_GUEST_PROPS),VBoxGuestR3LibGuestProp.cpp,) \
-	VBoxGuestR3LibMisc.cpp
+	VBoxGuestR3LibMisc.cpp \
+	VBoxGuestR3LibTime.cpp
 endif
 
 

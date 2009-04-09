@@ -1,4 +1,4 @@
-/* $Id: tstCFGM.cpp $ */
+/* $Id: tstCFGM.cpp 13818 2008-11-04 22:59:47Z vboxsync $ */
 /** @file
  * Testcase for CFGM.
  */

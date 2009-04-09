@@ -1,4 +1,4 @@
-/* $Id: darwin-pasteboard.cpp $ */
+/* $Id: darwin-pasteboard.cpp 18398 2009-03-27 14:21:19Z vboxsync $ */
 /** @file
  * Shared Clipboard: Mac OS X host implementation.
  */
@@ -28,7 +28,7 @@
 #define LOG_GROUP LOG_GROUP_HGCM
 #include "VBox/log.h"
 #include "VBox/HostServices/VBoxClipboardSvc.h"
-#include "clipboard-helper.h"
+#include "VBox/GuestHost/clipboard-helper.h"
 
 /* For debugging */
 //#define SHOW_CLIPBOARD_CONTENT

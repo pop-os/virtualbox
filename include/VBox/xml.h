@@ -30,15 +30,6 @@
 #ifndef ___VBox_vboxxml_h
 #define ___VBox_vboxxml_h
 
-#include <iprt/cdefs.h>
-#include <iprt/cpputils.h>
-
-/* these conflict with numeric_digits<>::min and max */
-#undef min
-#undef max
-
-#include <iprt/mem.h>
-
 #ifndef IN_RING3
 # error "There are no XML APIs available in Ring-0 Context!"
 #else /* IN_RING3 */
@@ -62,6 +53,7 @@
 # define VBOXXML_CLASS DECLIMPORT_CLASS
 #endif
 
+#include "VBox/com/string.h"
 
 /*
  * Shut up MSVC complaining that auto_ptr[_ref] template instantiations (as a
@@ -110,39 +102,19 @@ class VBOXXML_CLASS Error : public std::exception
 public:
 
     Error(const char *aMsg = NULL)
-        : m (aMsg ? Str::New (aMsg) : NULL) {}
+        : m(aMsg) {}
 
     virtual ~Error() throw() {}
 
-    void setWhat (const char *aMsg) { m = aMsg ? Str::New (aMsg) : NULL; }
+    void setWhat (const char *aMsg) { m = aMsg; }
 
-    const char *what() const throw() { return m.is_null() ? NULL : m->str; }
+    const char* what() const throw() { return m.c_str(); }
 
 private:
 
 //     Error() {};     // hide the default constructor to make sure the extended one above is always used
 
-    /** smart string with support for reference counting */
-    struct Str
-    {
-        size_t ref() { return ++ refs; }
-        size_t unref() { return -- refs; }
-
-        size_t refs;
-        char str [1];
-
-        static Str *New (const char *aStr)
-        {
-            Str *that = (Str *) RTMemAllocZ (sizeof (Str) + strlen (aStr));
-            AssertReturn (that, NULL);
-            strcpy (that->str, aStr);
-            return that;
-        }
-
-        void operator delete (void *that, size_t) { RTMemFree (that); }
-    };
-
-    stdx::auto_ref_ptr <Str> m;
+    com::Utf8Str m;
 };
 
 class VBOXXML_CLASS LogicError : public Error
@@ -166,7 +138,6 @@ public:
 class VBOXXML_CLASS XmlError : public RuntimeError
 {
 public:
-
     XmlError(xmlErrorPtr aErr);
 
     static char *Format(xmlErrorPtr aErr);
@@ -178,17 +149,29 @@ public:
 class VBOXXML_CLASS ENotImplemented : public LogicError
 {
 public:
-
-    ENotImplemented (const char *aMsg = NULL) : LogicError (aMsg) {}
-    ENotImplemented (RT_SRC_POS_DECL) : LogicError (RT_SRC_POS_ARGS) {}
+    ENotImplemented(const char *aMsg = NULL) : LogicError(aMsg) {}
+    ENotImplemented(RT_SRC_POS_DECL) : LogicError(RT_SRC_POS_ARGS) {}
 };
 
 class VBOXXML_CLASS EInvalidArg : public LogicError
 {
 public:
+    EInvalidArg(const char *aMsg = NULL) : LogicError(aMsg) {}
+    EInvalidArg(RT_SRC_POS_DECL) : LogicError(RT_SRC_POS_ARGS) {}
+};
 
-    EInvalidArg (const char *aMsg = NULL) : LogicError (aMsg) {}
-    EInvalidArg (RT_SRC_POS_DECL) : LogicError (RT_SRC_POS_ARGS) {}
+class VBOXXML_CLASS EDocumentNotEmpty : public LogicError
+{
+public:
+    EDocumentNotEmpty(const char *aMsg = NULL) : LogicError(aMsg) {}
+    EDocumentNotEmpty(RT_SRC_POS_DECL) : LogicError(RT_SRC_POS_ARGS) {}
+};
+
+class VBOXXML_CLASS ENodeIsNotElement : public LogicError
+{
+public:
+    ENodeIsNotElement(const char *aMsg = NULL) : LogicError(aMsg) {}
+    ENodeIsNotElement(RT_SRC_POS_DECL) : LogicError(RT_SRC_POS_ARGS) {}
 };
 
 // Runtime errors
@@ -197,8 +180,7 @@ public:
 class VBOXXML_CLASS ENoMemory : public RuntimeError, public std::bad_alloc
 {
 public:
-
-    ENoMemory (const char *aMsg = NULL) : RuntimeError (aMsg) {}
+    ENoMemory(const char *aMsg = NULL) : RuntimeError (aMsg) {}
     virtual ~ENoMemory() throw() {}
 };
 
@@ -315,7 +297,7 @@ public:
     /**
      * Possible file access modes.
      */
-    enum Mode { Mode_Read, Mode_Write, Mode_ReadWrite };
+    enum Mode { Mode_Read, Mode_WriteCreate, Mode_Overwrite, Mode_ReadWrite };
 
     /**
      * Opens a file with the given name in the given mode. If @a aMode is Read
@@ -348,7 +330,7 @@ public:
     File (RTFILE aHandle, const char *aFileName = NULL);
 
     /**
-     * Destrroys the File object. If the object was created from a file name
+     * Destroys the File object. If the object was created from a file name
      * the corresponding file will be automatically closed. If the object was
      * created from a file handle, it will remain open.
      */
@@ -439,9 +421,171 @@ public:
                                              xmlParserCtxt *aCtxt);
 
 private:
+    /* Obscure class data. */
+    struct Data;
+    struct Data *m;
+};
+
+/**
+ * Node:
+ *  an XML node, which represents either an element or text content
+ *  or an attribute.
+ *
+ *  For elements, getName() returns the element name, and getValue()
+ *  returns the text contents, if any.
+ *
+ *  For attributes, getName() returns the attribute name, and getValue()
+ *  returns the attribute value, if any.
+ *
+ *  Since the default constructor is private, one can create new nodes
+ *  only through factory methods provided by the XML classes. These are:
+ *
+ *  --  xml::Document::createRootElement()
+ *  --  xml::Node::createChild()
+ *  --  xml::Node::addContent()
+ *  --  xml::Node::setAttribute()
+ */
+
+class ElementNode;
+typedef std::list<const ElementNode*> ElementNodesList;
+
+class AttributeNode;
+
+class ContentNode;
+
+class VBOXXML_CLASS Node
+{
+public:
+    ~Node();
+
+    const char* getName() const;
+    const char* getValue() const;
+    bool copyValue(int32_t &i) const;
+    bool copyValue(uint32_t &i) const;
+    bool copyValue(int64_t &i) const;
+    bool copyValue(uint64_t &i) const;
+
+    int getLineNumber() const;
+
+    int isElement()
+    {
+        return mType == IsElement;
+    }
+
+protected:
+    typedef enum {IsElement, IsAttribute, IsContent} EnumType;
+    EnumType mType;
+
+    // hide the default constructor so people use only our factory methods
+    Node(EnumType type);
+    Node(const Node &x);      // no copying
+
+    void buildChildren();
+
     /* Obscure class data */
     struct Data;
-    std::auto_ptr<Data> m;
+    Data *m;
+};
+
+class VBOXXML_CLASS ElementNode : public Node
+{
+public:
+    int getChildElements(ElementNodesList &children,
+                         const char *pcszMatch = NULL) const;
+
+    const ElementNode* findChildElement(const char *pcszMatch) const;
+    const ElementNode* findChildElementFromId(const char *pcszId) const;
+
+    const AttributeNode* findAttribute(const char *pcszMatch) const;
+    bool getAttributeValue(const char *pcszMatch, com::Utf8Str &str) const;
+    bool getAttributeValue(const char *pcszMatch, int64_t &i) const;
+    bool getAttributeValue(const char *pcszMatch, uint64_t &i) const;
+
+    ElementNode* createChild(const char *pcszElementName);
+    ContentNode* addContent(const char *pcszContent);
+    AttributeNode* setAttribute(const char *pcszName, const char *pcszValue);
+
+protected:
+    // hide the default constructor so people use only our factory methods
+    ElementNode();
+    ElementNode(const ElementNode &x);      // no copying
+
+    friend class Node;
+    friend class Document;
+    friend class XmlFileParser;
+};
+
+class VBOXXML_CLASS ContentNode : public Node
+{
+public:
+
+protected:
+    // hide the default constructor so people use only our factory methods
+    ContentNode();
+    ContentNode(const ContentNode &x);      // no copying
+
+    friend class Node;
+    friend class ElementNode;
+};
+
+class VBOXXML_CLASS AttributeNode : public Node
+{
+public:
+
+protected:
+    // hide the default constructor so people use only our factory methods
+    AttributeNode();
+    AttributeNode(const AttributeNode &x);      // no copying
+
+    friend class Node;
+    friend class ElementNode;
+};
+
+/*
+ * NodesLoop
+ *
+ */
+
+class VBOXXML_CLASS NodesLoop
+{
+public:
+    NodesLoop(const ElementNode &node, const char *pcszMatch = NULL);
+    ~NodesLoop();
+    const ElementNode* forAllNodes() const;
+
+private:
+    /* Obscure class data */
+    struct Data;
+    Data *m;
+};
+
+/*
+ * Document
+ *
+ */
+
+class VBOXXML_CLASS Document
+{
+public:
+    Document();
+    ~Document();
+
+    Document(const Document &x);
+    Document& operator=(const Document &x);
+
+    const ElementNode* getRootElement() const;
+
+    ElementNode* createRootElement(const char *pcszRootElementName);
+
+private:
+    friend class XmlFileParser;
+    friend class XmlFileWriter;
+
+    void refreshInternals();
+
+    /* Obscure class data */
+    struct Data;
+    Data *m;
 };
 
 /*
@@ -469,19 +613,38 @@ public:
     XmlFileParser();
     ~XmlFileParser();
 
-    void read(const char *pcszFilename);
+    void read(const char *pcszFilename, Document &doc);
 
 private:
     /* Obscure class data */
     struct Data;
-    std::auto_ptr<Data> m;
+    struct Data *m;
 
     static int ReadCallback(void *aCtxt, char *aBuf, int aLen);
-
     static int CloseCallback (void *aCtxt);
 };
 
+/*
+ * XmlFileWriter
+ *
+ */
 
+class VBOXXML_CLASS XmlFileWriter
+{
+public:
+    XmlFileWriter(Document &doc);
+    ~XmlFileWriter();
+
+    void write(const char *pcszFilename);
+
+    static int WriteCallback(void *aCtxt, const char *aBuf, int aLen);
+    static int CloseCallback (void *aCtxt);
+
+private:
+    /* Obscure class data */
+    struct Data;
+    Data *m;
+};
 
 #if defined(_MSC_VER)
 #pragma warning (default:4251)

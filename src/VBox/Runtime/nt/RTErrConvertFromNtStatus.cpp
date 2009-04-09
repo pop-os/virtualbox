@@ -1,4 +1,4 @@
-/* $Id: RTErrConvertFromNtStatus.cpp $ */
+/* $Id: RTErrConvertFromNtStatus.cpp 18323 2009-03-26 15:29:16Z vboxsync $ */
 /** @file
  * IPRT - Convert NT status codes to iprt status codes.
  */
@@ -49,6 +49,8 @@ RTDECL(int)  RTErrConvertFromNtStatus(long lNativeCode)
         case STATUS_ALERTED:
         case STATUS_USER_APC:
             return VERR_INTERRUPTED;
+        case STATUS_OBJECT_NAME_NOT_FOUND:
+            return VERR_FILE_NOT_FOUND;
     }
 
     /* unknown error. */

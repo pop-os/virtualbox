@@ -12,6 +12,10 @@
 #include "renderspu.h"
 #include <stdio.h>
 
+#ifdef RT_OS_DARWIN
+# include <iprt/semaphore.h>
+#endif /* RT_OS_DARWIN */
+
 static SPUNamedFunctionTable _cr_render_table[1000];
 
 SPUFunctions render_functions = {
@@ -34,7 +38,7 @@ static void swapsyncConnect(void)
 
     crNetInit(NULL, NULL);
 
-    if (!crParseURL( render_spu.swap_master_url, protocol, hostname, 
+    if (!crParseURL( render_spu.swap_master_url, protocol, hostname,
                     &port, 9876))
         crError( "Bad URL: %s", render_spu.swap_master_url );
 
@@ -69,6 +73,12 @@ static DWORD WINAPI renderSPUWindowThreadProc(void* unused)
 
     (void) unused;
 
+    /* Force system to create the message queue.
+     * Else, there's a chance that render spu will issue PostThreadMessage
+     * before this thread calls GetMessage for first time.
+     */
+    PeekMessage(&msg, NULL, WM_USER, WM_USER, PM_NOREMOVE);
+
     crDebug("RenderSPU: Window thread started (%x)", crThreadID());
     SetEvent(render_spu.hWinThreadReadyEvent);
 
@@ -91,7 +101,7 @@ static DWORD WINAPI renderSPUWindowThreadProc(void* unused)
                 phWnd = pCS->lpCreateParams;
 
                 *phWnd = CreateWindowEx(pCS->dwExStyle, pCS->lpszName, pCS->lpszClass, pCS->style,
-                                        pCS->x, pCS->y, pCS->cx, pCS->cy, 
+                                        pCS->x, pCS->y, pCS->cx, pCS->cy,
                                         pCS->hwndParent, pCS->hMenu, pCS->hInstance, &render_spu);
 
                 SetEvent(render_spu.hWinThreadReadyEvent);
@@ -106,7 +116,7 @@ static DWORD WINAPI renderSPUWindowThreadProc(void* unused)
             }
             else
             {
-                TranslateMessage(&msg); 
+                TranslateMessage(&msg);
                 DispatchMessage(&msg);
             }
         }
@@ -202,6 +212,36 @@ renderSPUInit( int id, SPU *child, SPU *self,
     }
 #endif
 
+#ifdef DARWIN
+# ifndef __LP64__ /** @todo port to 64-bit darwin. */
+    render_spu.hRootVisibleRegion = 0;
+    render_spu.currentBufferName = 1;
+    render_spu.uiDockUpdateTS = 0;
+    /* Create a mutex for syncronizing events from the main Qt thread & this
+       thread */
+    RTSemFastMutexCreate(&render_spu.syncMutex);
+    /* Create our window groups */
+    CreateWindowGroup(kWindowGroupAttrMoveTogether | kWindowGroupAttrLayerTogether | kWindowGroupAttrSharedActivation | kWindowGroupAttrHideOnCollapse | kWindowGroupAttrFixedLevel, &render_spu.pMasterGroup);
+    CreateWindowGroup(kWindowGroupAttrMoveTogether | kWindowGroupAttrLayerTogether | kWindowGroupAttrSharedActivation | kWindowGroupAttrHideOnCollapse | kWindowGroupAttrFixedLevel, &render_spu.pParentGroup);
+    /* Make the correct z-layering */
+    SendWindowGroupBehind (render_spu.pParentGroup, render_spu.pMasterGroup);
+    /* and set the gParentGroup as parent for gMasterGroup. */
+    SetWindowGroupParent (render_spu.pMasterGroup, render_spu.pParentGroup);
+    /* Install the event handlers */
+    EventTypeSpec eventList[] =
+    {
+        {kEventClassVBox, kEventVBoxUpdateContext}, /* Update the context after show/size/move events */
+        {kEventClassVBox, kEventVBoxBoundsChanged}  /* Clip/Pos the OpenGL windows when the main window is changed in pos/size */
+    };
+    /* We need to process events from our main window */
+    render_spu.hParentEventHandler = NewEventHandlerUPP(windowEvtHndlr);
+    InstallApplicationEventHandler (render_spu.hParentEventHandler,
+                                    GetEventTypeCount(eventList), eventList,
+                                    NULL, NULL);
+    render_spu.fInit = true;
+# endif /* !__LP64__ */
+#endif /* DARWIN */
+
     /*
      * Create the default window and context.  Their indexes are zero and
      * a client can use them without calling CreateContext or WindowCreate.
@@ -229,7 +269,7 @@ renderSPUInit( int id, SPU *child, SPU *self,
 
     /*
      * Get the OpenGL extension functions.
-     * SIGH -- we have to wait until the very bitter end to load the 
+     * SIGH -- we have to wait until the very bitter end to load the
      * extensions, because the context has to be bound before
      * wglGetProcAddress will work correctly.  No such issue with GLX though.
      */
@@ -245,23 +285,23 @@ renderSPUInit( int id, SPU *child, SPU *self,
      * Grrr, NVIDIA driver uses EXT for GetExtensionsStringEXT,
      * but ARB for others. Need furthur testing here....
      */
-    render_spu.ws.wglGetExtensionsStringEXT = 
-        (wglGetExtensionsStringEXTFunc_t) 
+    render_spu.ws.wglGetExtensionsStringEXT =
+        (wglGetExtensionsStringEXTFunc_t)
         render_spu.ws.wglGetProcAddress( "wglGetExtensionsStringEXT" );
-    render_spu.ws.wglChoosePixelFormatEXT = 
+    render_spu.ws.wglChoosePixelFormatEXT =
         (wglChoosePixelFormatEXTFunc_t)
         render_spu.ws.wglGetProcAddress( "wglChoosePixelFormatARB" );
-    render_spu.ws.wglGetPixelFormatAttribivEXT = 
+    render_spu.ws.wglGetPixelFormatAttribivEXT =
         (wglGetPixelFormatAttribivEXTFunc_t)
         render_spu.ws.wglGetProcAddress( "wglGetPixelFormatAttribivARB" );
-    render_spu.ws.wglGetPixelFormatAttribfvEXT = 
+    render_spu.ws.wglGetPixelFormatAttribfvEXT =
         (wglGetPixelFormatAttribfvEXTFunc_t)
         render_spu.ws.wglGetProcAddress( "wglGetPixelFormatAttribfvARB" );
 
     if (render_spu.ws.wglGetProcAddress("glTexImage3D"))
     {
         _cr_render_table[numFuncs].name = crStrdup("TexImage3D");
-        _cr_render_table[numFuncs].fn = (SPUGenericFunction) render_spu.ws.wglGetProcAddress("glTexImage3D");        
+        _cr_render_table[numFuncs].fn = (SPUGenericFunction) render_spu.ws.wglGetProcAddress("glTexImage3D");
         ++numFuncs;
         crDebug("Render SPU: Found glTexImage3D function");
     }
@@ -319,6 +359,23 @@ static int renderSPUCleanup(void)
     crFreeHashtable(render_spu.barrierHash, crFree);
     render_spu.barrierHash = NULL;
 
+#ifdef RT_OS_DARWIN
+# ifndef __LP64__ /** @todo port to 64-bit darwin. */
+    render_spu.fInit = false;
+    DisposeEventHandlerUPP(render_spu.hParentEventHandler);
+    ReleaseWindowGroup(render_spu.pMasterGroup);
+    ReleaseWindowGroup(render_spu.pParentGroup);
+    if (render_spu.hRootVisibleRegion)
+    {
+        DisposeRgn(render_spu.hRootVisibleRegion);
+        render_spu.hRootVisibleRegion = 0;
+    }
+    render_spu.currentBufferName = 1;
+    render_spu.uiDockUpdateTS = 0;
+    RTSemFastMutexDestroy(render_spu.syncMutex);
+# endif /* __LP64__ */
+#endif /* RT_OS_DARWIN */
+
 #ifdef RT_OS_WINDOWS
     if (render_spu.dwWinThreadId)
     {
@@ -346,11 +403,34 @@ int SPULoad( char **name, char **super, SPUInitFuncPtr *init,
     *cleanup = renderSPUCleanup;
     *options = renderSPUOptions;
     *flags = (SPU_NO_PACKER|SPU_IS_TERMINAL|SPU_MAX_SERVERS_ZERO);
-    
+
     return 1;
 }
 
-void renderspuSetWindowId(unsigned int winId)
+DECLEXPORT(void) renderspuSetWindowId(unsigned int winId)
 {
     render_spu_parent_window_id = winId;
 }
+
+static void renderspuWindowVisibleRegionCB(unsigned long key, void *data1, void *data2)
+{
+    WindowInfo *window = (WindowInfo *) data1;
+    CRASSERT(window);
+
+    renderspu_SystemWindowApplyVisibleRegion(window);
+}
+
+DECLEXPORT(void) renderspuSetRootVisibleRegion(GLint cRects, GLint *pRects)
+{
+#ifdef RT_OS_DARWIN
+    renderspu_SystemSetRootVisibleRegion(cRects, pRects);
+
+    crHashtableWalk(render_spu.windowTable, renderspuWindowVisibleRegionCB, NULL);
+#endif
+}
+
+#ifndef RT_OS_DARWIN
+void renderspu_SystemWindowApplyVisibleRegion(WindowInfo *window)
+{
+}
+#endif

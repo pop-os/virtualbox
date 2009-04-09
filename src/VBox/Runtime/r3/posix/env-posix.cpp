@@ -1,4 +1,4 @@
-/* $Id: env-posix.cpp $ */
+/* $Id: env-posix.cpp 16526 2009-02-05 09:43:21Z vboxsync $ */
 /** @file
  * IPRT - Environment, Posix.
  */
@@ -36,7 +36,6 @@
 /* pick the correct prototype for unsetenv. */
 # define _POSIX_C_SOURCE 1
 #endif
-
 #include <iprt/env.h>
 #include <iprt/string.h>
 #include <iprt/alloca.h>

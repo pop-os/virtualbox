@@ -1,4 +1,4 @@
-/* $Id: VRDPServerImpl.h $ */
+/* $Id: VRDPServerImpl.h 15051 2008-12-05 17:20:00Z vboxsync $ */
 
 /** @file
  *

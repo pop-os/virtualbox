@@ -1,4 +1,4 @@
-/* $Id: rtProcInitExePath-solaris.cpp $ */
+/* $Id: rtProcInitExePath-solaris.cpp 11840 2008-08-29 17:49:10Z vboxsync $ */
 /** @file
  * IPRT - rtProcInitName, Solaris.
  */

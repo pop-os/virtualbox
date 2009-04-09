@@ -1,4 +1,4 @@
-/* $Id: CPUMAllRegs.cpp $ */
+/* $Id: CPUMAllRegs.cpp 18082 2009-03-19 08:58:55Z vboxsync $ */
 /** @file
  * CPUM - CPU Monitor(/Manager) - Getters and Setters.
  */
@@ -33,6 +33,7 @@
 #include <VBox/err.h>
 #include <VBox/dis.h>
 #include <VBox/log.h>
+#include <VBox/tm.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #ifdef IN_RING3
@@ -125,6 +126,16 @@ VMMDECL(void) CPUMSetHyperIDTR(PVM pVM, uint32_t addr, uint16_t limit)
 VMMDECL(void) CPUMSetHyperCR3(PVM pVM, uint32_t cr3)
 {
     pVM->cpum.s.Hyper.cr3 = cr3;
+
+#ifdef IN_RC
+    /* Update the current CR3. */
+    ASMSetCR3(cr3);
+#endif
+}
+
+VMMDECL(uint32_t) CPUMGetHyperCR3(PVM pVM)
+{
+    return pVM->cpum.s.Hyper.cr3;
 }
 
 
@@ -509,6 +520,7 @@ VMMDECL(int) CPUMSetGuestIDTR(PVM pVM, uint32_t addr, uint16_t limit)
 VMMDECL(int) CPUMSetGuestTR(PVM pVM, uint16_t tr)
 {
     PCPUMCPU pCpumCpu = cpumGetCpumCpu(pVM);
+    AssertMsgFailed(("Need to load the hidden bits too!\n"));
 
     pCpumCpu->Guest.tr  = tr;
     pCpumCpu->fChanged |= CPUM_CHANGED_TR;
@@ -628,7 +640,7 @@ VMMDECL(int) CPUMSetGuestCR4(PVM pVM, uint64_t cr4)
 {
     PCPUMCPU pCpumCpu = cpumGetCpumCpu(pVM);
 
-    if (    (cr4                   & (X86_CR4_PGE | X86_CR4_PAE | X86_CR4_PSE))
+    if (    (cr4                 & (X86_CR4_PGE | X86_CR4_PAE | X86_CR4_PSE))
         !=  (pCpumCpu->Guest.cr4 & (X86_CR4_PGE | X86_CR4_PAE | X86_CR4_PSE)))
         pCpumCpu->fChanged |= CPUM_CHANGED_GLOBAL_TLB_FLUSH;
     pCpumCpu->fChanged |= CPUM_CHANGED_CR4;
@@ -798,6 +810,10 @@ VMMDECL(uint64_t)  CPUMGetGuestMsr(PVM pVM, unsigned idMsr)
 
     switch (idMsr)
     {
+        case MSR_IA32_TSC:
+            u64 = TMCpuTickGet(pVM);
+            break;
+
         case MSR_IA32_CR_PAT:
             u64 = pCpumCpu->Guest.msrPAT;
             break;
@@ -877,10 +893,11 @@ VMMDECL(RTGCPTR) CPUMGetGuestIDTR(PVM pVM, uint16_t *pcbLimit)
 }
 
 
-VMMDECL(RTSEL) CPUMGetGuestTR(PVM pVM)
+VMMDECL(RTSEL) CPUMGetGuestTR(PVM pVM, PCPUMSELREGHID pHidden)
 {
     PCPUMCPU pCpumCpu = cpumGetCpumCpu(pVM);
-
+    if (pHidden)
+        *pHidden = pCpumCpu->Guest.trHid;
     return pCpumCpu->Guest.tr;
 }
 
@@ -1066,14 +1083,6 @@ VMMDECL(uint32_t) CPUMGetGuestEFlags(PVM pVM)
     PCPUMCPU pCpumCpu = cpumGetCpumCpu(pVM);
 
     return pCpumCpu->Guest.eflags.u32;
-}
-
-
-VMMDECL(CPUMSELREGHID *) CPUMGetGuestTRHid(PVM pVM)
-{
-    PCPUMCPU pCpumCpu = cpumGetCpumCpu(pVM);
-
-    return &pCpumCpu->Guest.trHid;
 }
 
 

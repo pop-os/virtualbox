@@ -1,4 +1,4 @@
-/* $Id: tstVMStructGC.cpp $ */
+/* $Id: tstVMStructGC.cpp 18718 2009-04-05 13:47:09Z vboxsync $ */
 /** @file
  * tstVMMStructGC - Generate structure member and size checks from the GC perspective.
  *
@@ -43,7 +43,7 @@ AssertCompileSize(RTRCPTR,  4);
 #ifdef VBOX_WITH_64_BITS_GUESTS
 AssertCompileSize(RTGCPTR,  8);
 #else
-AssertCompileSize(RTGCPTR,  8);
+AssertCompileSize(RTGCPTR,  4);
 #endif
 AssertCompileSize(RTGCPHYS, 8);
 AssertCompileSize(RTHCPHYS, 8);
@@ -82,6 +82,7 @@ AssertCompileSize(RTHCPHYS, 8);
 #include <VBox/vm.h>
 #include <VBox/param.h>
 #include <VBox/x86.h>
+#include <iprt/assert.h>
 
 /* we don't use iprt here because we're pretending to be in GC! */
 #include <stdio.h>
@@ -212,7 +213,6 @@ int main()
     GEN_CHECK_OFF(MM, pHyperHeapRC);
     GEN_CHECK_OFF(MM, pHyperHeapR3);
     GEN_CHECK_OFF(MM, pHyperHeapR0);
-    GEN_CHECK_OFF(MM, pLockedMem);
     GEN_CHECK_OFF(MM, pPagePoolR3);
     GEN_CHECK_OFF(MM, pPagePoolLowR3);
 #ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
@@ -223,6 +223,7 @@ int main()
     GEN_CHECK_OFF(MM, HCPhysDummyPage);
     GEN_CHECK_OFF(MM, cbRamBase);
     GEN_CHECK_OFF(MM, cBasePages);
+    GEN_CHECK_OFF(MM, cHandyPages);
     GEN_CHECK_OFF(MM, cShadowPages);
     GEN_CHECK_OFF(MM, cFixedPages);
     GEN_CHECK_SIZE(MMHYPERSTAT);
@@ -249,7 +250,7 @@ int main()
     GEN_CHECK_OFF(MMLOOKUPHYPER, enmType);
     GEN_CHECK_OFF(MMLOOKUPHYPER, u.Locked.pvR3);
     GEN_CHECK_OFF(MMLOOKUPHYPER, u.Locked.pvR0);
-    GEN_CHECK_OFF(MMLOOKUPHYPER, u.Locked.pLockedMem);
+    GEN_CHECK_OFF(MMLOOKUPHYPER, u.Locked.paHCPhysPages);
     GEN_CHECK_OFF(MMLOOKUPHYPER, u.HCPhys.pvR3);
     GEN_CHECK_OFF(MMLOOKUPHYPER, u.HCPhys.HCPhys);
     GEN_CHECK_OFF(MMLOOKUPHYPER, u.GCPhys.GCPhys);
@@ -335,10 +336,6 @@ int main()
     GEN_CHECK_OFF(PDM, pQueueFlushRC);
     GEN_CHECK_OFF(PDM, pThreads);
     GEN_CHECK_OFF(PDM, pThreadsTail);
-    GEN_CHECK_OFF(PDM, cPollers);
-    GEN_CHECK_OFF(PDM, apfnPollers);
-    GEN_CHECK_OFF(PDM, aDrvInsPollers);
-    GEN_CHECK_OFF(PDM, pTimerPollers);
     GEN_CHECK_OFF(PDM, CritSect);
     GEN_CHECK_OFF(PDM, StatQueuedCritSectLeaves);
     GEN_CHECK_SIZE(PDMDEVINSINT);
@@ -405,6 +402,7 @@ int main()
 
     GEN_CHECK_SIZE(PGM);
     GEN_CHECK_OFF(PGM, offVM);
+    GEN_CHECK_OFF(PGM, fRamPreAlloc);
     GEN_CHECK_OFF(PGM, paDynPageMap32BitPTEsGC);
     GEN_CHECK_OFF(PGM, paDynPageMapPaePTEsGC);
     GEN_CHECK_OFF(PGM, enmHostMode);
@@ -412,7 +410,6 @@ int main()
     GEN_CHECK_OFF(PGM, enmGuestMode);
     GEN_CHECK_OFF(PGM, GCPhysCR3);
     GEN_CHECK_OFF(PGM, GCPtrCR3Mapping);
-    GEN_CHECK_OFF(PGM, GCPhysGstCR3Monitored);
     GEN_CHECK_OFF(PGM, pGst32BitPdR3);
 #ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
     GEN_CHECK_OFF(PGM, pGst32BitPdR0);
@@ -430,27 +427,9 @@ int main()
     GEN_CHECK_OFF(PGM, apGstPaePDsRC);
     GEN_CHECK_OFF(PGM, aGCPhysGstPaePDs);
     GEN_CHECK_OFF(PGM, aGCPhysGstPaePDsMonitored);
-    GEN_CHECK_OFF(PGM, pShw32BitPdR3);
-#ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
-    GEN_CHECK_OFF(PGM, pShw32BitPdR0);
-#endif
-    GEN_CHECK_OFF(PGM, pShw32BitPdRC);
-    GEN_CHECK_OFF(PGM, HCPhysShw32BitPD);
-    GEN_CHECK_OFF(PGM, apShwPaePDsR3);
-#ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
-    GEN_CHECK_OFF(PGM, apShwPaePDsR0);
-#endif
-    GEN_CHECK_OFF(PGM, apShwPaePDsRC);
-    GEN_CHECK_OFF(PGM, aHCPhysPaePDs);
-    GEN_CHECK_OFF(PGM, pShwPaePdptR3);
-    GEN_CHECK_OFF(PGM, pShwPaePdptR0);
-    GEN_CHECK_OFF(PGM, pShwPaePdptRC);
-    GEN_CHECK_OFF(PGM, HCPhysShwPaePdpt);
-    GEN_CHECK_OFF(PGM, pShwPaePml4R3);
-#ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
-    GEN_CHECK_OFF(PGM, pShwPaePml4R0);
-#endif
-    GEN_CHECK_OFF(PGM, HCPhysShwPaePml4);
+    GEN_CHECK_OFF(PGM, pShwPageCR3R3);
+    GEN_CHECK_OFF(PGM, pShwPageCR3R0);
+    GEN_CHECK_OFF(PGM, pShwPageCR3RC);
     GEN_CHECK_OFF(PGM, pfnR3ShwRelocate);
     GEN_CHECK_OFF(PGM, pfnR3ShwExit);
     GEN_CHECK_OFF(PGM, pfnR3ShwGetPage);
@@ -459,10 +438,8 @@ int main()
     GEN_CHECK_OFF(PGM, pfnRCShwModifyPage);
     GEN_CHECK_OFF(PGM, pfnR3GstRelocate);
     GEN_CHECK_OFF(PGM, pfnR3GstExit);
-    GEN_CHECK_OFF(PGM, pfnR3GstMonitorCR3);
-    GEN_CHECK_OFF(PGM, pfnR3GstUnmonitorCR3);
-    GEN_CHECK_OFF(PGM, pfnR3GstMapCR3);
-    GEN_CHECK_OFF(PGM, pfnR3GstUnmapCR3);
+    GEN_CHECK_OFF(PGM, pfnR3BthMapCR3);
+    GEN_CHECK_OFF(PGM, pfnR3BthUnmapCR3);
     GEN_CHECK_OFF(PGM, pfnR3GstGetPage);
     GEN_CHECK_OFF(PGM, pfnR3GstModifyPage);
     GEN_CHECK_OFF(PGM, pfnR3GstGetPDE);
@@ -488,13 +465,13 @@ int main()
     GEN_CHECK_OFF(PGM, pRomRangesR3);
     GEN_CHECK_OFF(PGM, pRomRangesR0);
     GEN_CHECK_OFF(PGM, pRomRangesRC);
-    GEN_CHECK_OFF(PGM, cbRamSize);
     GEN_CHECK_OFF(PGM, pTreesR3);
     GEN_CHECK_OFF(PGM, pTreesR0);
     GEN_CHECK_OFF(PGM, pTreesRC);
     GEN_CHECK_OFF(PGM, pMappingsR3);
     GEN_CHECK_OFF(PGM, pMappingsRC);
     GEN_CHECK_OFF(PGM, pMappingsR0);
+    GEN_CHECK_OFF(PGM, fFinalizedMappings);
     GEN_CHECK_OFF(PGM, fMappingsFixed);
     GEN_CHECK_OFF(PGM, GCPtrMappingFixed);
     GEN_CHECK_OFF(PGM, cbMappingFixed);
@@ -541,7 +518,7 @@ int main()
     GEN_CHECK_OFF(PGM, HCPhysZeroPg);
     GEN_CHECK_OFF(PGM, pvZeroPgR3);
     GEN_CHECK_OFF(PGM, pvZeroPgR0);
-    GEN_CHECK_OFF(PGM, pvZeroPgGC);
+    GEN_CHECK_OFF(PGM, pvZeroPgRC);
     GEN_CHECK_OFF(PGM, cHandyPages);
     GEN_CHECK_OFF(PGM, aHandyPages);
     GEN_CHECK_OFF(PGM, aHandyPages[1]);
@@ -603,7 +580,7 @@ int main()
     GEN_CHECK_OFF(PGMVIRTHANDLER, cPages);
     GEN_CHECK_OFF(PGMVIRTHANDLER, aPhysToVirt);
     GEN_CHECK_SIZE(PGMPAGE);
-    GEN_CHECK_OFF(PGMPAGE, HCPhys);
+    GEN_CHECK_OFF(PGMPAGE, HCPhysX);
     GEN_CHECK_SIZE(PGMRAMRANGE);
     GEN_CHECK_OFF(PGMRAMRANGE, pNextR3);
     GEN_CHECK_OFF(PGMRAMRANGE, pNextR0);
@@ -673,7 +650,6 @@ int main()
     GEN_CHECK_OFF(PGMPOOLPAGE, fMonitored);
     GEN_CHECK_OFF(PGMPOOLPAGE, fCached);
     GEN_CHECK_OFF(PGMPOOLPAGE, fReusedFlushPending);
-    GEN_CHECK_OFF(PGMPOOLPAGE, fCR3Mix);
     GEN_CHECK_SIZE(PGMPOOL);
     GEN_CHECK_OFF(PGMPOOL, pVMR3);
     GEN_CHECK_OFF(PGMPOOL, pVMR0);
@@ -728,9 +704,6 @@ int main()
     GEN_CHECK_OFF(REM, aGCPtrInvalidatedPages);
     GEN_CHECK_OFF(REM, cHandlerNotifications);
     GEN_CHECK_OFF(REM, aHandlerNotifications);
-    GEN_CHECK_OFF(REM, paHCVirtToGCPhys);
-    GEN_CHECK_OFF(REM, cPhysRegistrations);
-    GEN_CHECK_OFF(REM, aPhysReg);
     GEN_CHECK_OFF(REM, rc);
     GEN_CHECK_OFF(REM, StatsInQEMU);
     GEN_CHECK_OFF(REM, Env);

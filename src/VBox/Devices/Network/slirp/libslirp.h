@@ -15,6 +15,7 @@ int inet_aton(const char *cp, struct in_addr *ia);
 #  include <sys/time.h>
 # endif
 # include <sys/select.h>
+# include <poll.h>
 # include <arpa/inet.h>
 #endif
 
@@ -26,20 +27,28 @@ typedef struct NATState *PNATState;
 extern "C" {
 #endif
 
-int slirp_init(PNATState *, const char *, uint32_t, bool, const char *, const char *, void *);
+int slirp_init(PNATState *, const char *, uint32_t, bool, void *);
 void slirp_register_timers(PNATState pData, PPDMDRVINS pDrvIns);
 void slirp_term(PNATState);
 void slirp_link_up(PNATState);
 void slirp_link_down(PNATState);
 
+#if defined(VBOX_WITH_SIMPLIFIED_SLIRP_SYNC)
+# if defined(RT_OS_WINDOWS)
+void slirp_select_fill(PNATState pData, int *pndfs);
+
+void slirp_select_poll(PNATState pData, int fTimeout, int fIcmp);
+# else /* RT_OS_WINDOWS */
+void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls);
+void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs);
+# endif /* !RT_OS_WINDOWS */
+#else /* VBOX_WITH_SIMPLIFIED_SLIRP_SYNC */
 void slirp_select_fill(PNATState pData, int *pnfds,
                        fd_set *readfds, fd_set *writefds, fd_set *xfds);
 
-#if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_SIMPLIFIED_SLIRP_SYNC)
-void slirp_select_poll(PNATState pData, int fTimeout, int fIcmp);
-#else
-void slirp_select_poll(PNATState pData, fd_set *readfds, fd_set *writefds, fd_set *xfds);
-#endif
+void slirp_select_poll(PNATState pData, int *pnfds,
+                       fd_set *readfds, fd_set *writefds, fd_set *xfds);
+#endif /* !VBOX_WITH_SIMPLIFIED_SLIRP_SYNC */
 
 void slirp_input(PNATState pData, const uint8_t *pkt, int pkt_len);
 void slirp_set_ethaddr(PNATState pData, const uint8_t *ethaddr);
@@ -58,6 +67,12 @@ int slirp_redir(PNATState pData, int is_udp, int host_port,
 int slirp_add_exec(PNATState pData, int do_pty, const char *args, int addr_low_byte,
                    int guest_port);
 
+void slirp_set_dhcp_TFTP_prefix(PNATState pData, const char *tftpPrefix);
+void slirp_set_dhcp_TFTP_bootfile(PNATState pData, const char *bootFile);
+void slirp_set_dhcp_next_server(PNATState pData, const char *nextServer);
+#ifdef VBOX_WITH_SLIRP_DNS_PROXY
+void slirp_set_dhcp_dns_proxy(PNATState pData, bool fDNSProxy);
+#endif
 #if defined(VBOX_WITH_SIMPLIFIED_SLIRP_SYNC) && defined(RT_OS_WINDOWS)
 
 
@@ -88,11 +103,22 @@ int slirp_add_exec(PNATState pData, int do_pty, const char *args, int addr_low_b
 HANDLE *slirp_get_events(PNATState pData);
 void slirp_register_external_event(PNATState pData, HANDLE hEvent, int index);
 #endif
+#ifdef VBOX_WITH_SLIRP_MT
+void slirp_process_queue(PNATState pData);
+void *slirp_get_queue(PNATState pData);
+#endif
 
 /*
- * Return the timeout.
+ * Returns the timeout.
  */
 unsigned int slirp_get_timeout_ms(PNATState pData);
+
+# ifndef RT_OS_WINDOWS
+/*
+ * Returns the number of sockets.
+ */
+int slirp_get_nsock(PNATState pData);
+# endif
 
 #ifdef __cplusplus
 }

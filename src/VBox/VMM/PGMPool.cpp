@@ -1,4 +1,4 @@
-/* $Id: PGMPool.cpp $ */
+/* $Id: PGMPool.cpp 17586 2009-03-09 15:28:25Z vboxsync $ */
 /** @file
  * PGM Shadow Page Pool.
  */
@@ -254,61 +254,28 @@ int pgmR3PoolInit(PVM pVM)
     /* The Shadow 32-bit PD. (32 bits guest paging) */
     pPool->aPages[PGMPOOL_IDX_PD].Core.Key  = NIL_RTHCPHYS;
     pPool->aPages[PGMPOOL_IDX_PD].GCPhys    = NIL_RTGCPHYS;
-#ifdef VBOX_WITH_PGMPOOL_PAGING_ONLY
     pPool->aPages[PGMPOOL_IDX_PD].pvPageR3  = 0;
     pPool->aPages[PGMPOOL_IDX_PD].enmKind   = PGMPOOLKIND_32BIT_PD;
-#else
-    pPool->aPages[PGMPOOL_IDX_PD].pvPageR3  = pVM->pgm.s.pShw32BitPdR3;
-    pPool->aPages[PGMPOOL_IDX_PD].enmKind   = PGMPOOLKIND_ROOT_32BIT_PD;
-#endif
     pPool->aPages[PGMPOOL_IDX_PD].idx       = PGMPOOL_IDX_PD;
-
-#ifndef VBOX_WITH_PGMPOOL_PAGING_ONLY
-    /* The Shadow PAE PDs. This is actually 4 pages! (32 bits guest paging)  */
-    pPool->aPages[PGMPOOL_IDX_PAE_PD].Core.Key  = NIL_RTHCPHYS;
-    pPool->aPages[PGMPOOL_IDX_PAE_PD].GCPhys    = NIL_RTGCPHYS;
-    pPool->aPages[PGMPOOL_IDX_PAE_PD].pvPageR3  = pVM->pgm.s.apShwPaePDsR3[0];
-    pPool->aPages[PGMPOOL_IDX_PAE_PD].enmKind   = PGMPOOLKIND_ROOT_PAE_PD;
-    pPool->aPages[PGMPOOL_IDX_PAE_PD].idx       = PGMPOOL_IDX_PAE_PD;
-
-    /* The Shadow PAE PDs for PAE guest mode. */
-    for (unsigned i = 0; i < X86_PG_PAE_PDPE_ENTRIES; i++)
-    {
-        pPool->aPages[PGMPOOL_IDX_PAE_PD_0 + i].Core.Key  = NIL_RTHCPHYS;
-        pPool->aPages[PGMPOOL_IDX_PAE_PD_0 + i].GCPhys    = NIL_RTGCPHYS;
-        pPool->aPages[PGMPOOL_IDX_PAE_PD_0 + i].pvPageR3  = pVM->pgm.s.apShwPaePDsR3[i];
-        pPool->aPages[PGMPOOL_IDX_PAE_PD_0 + i].enmKind   = PGMPOOLKIND_PAE_PD_FOR_PAE_PD;
-        pPool->aPages[PGMPOOL_IDX_PAE_PD_0 + i].idx       = PGMPOOL_IDX_PAE_PD_0 + i;
-    }
-#endif
 
     /* The Shadow PDPT. */
     pPool->aPages[PGMPOOL_IDX_PDPT].Core.Key  = NIL_RTHCPHYS;
     pPool->aPages[PGMPOOL_IDX_PDPT].GCPhys    = NIL_RTGCPHYS;
-#ifdef VBOX_WITH_PGMPOOL_PAGING_ONLY
     pPool->aPages[PGMPOOL_IDX_PDPT].pvPageR3  = 0;
     pPool->aPages[PGMPOOL_IDX_PDPT].enmKind   = PGMPOOLKIND_PAE_PDPT;
-#else
-    pPool->aPages[PGMPOOL_IDX_PDPT].pvPageR3  = pVM->pgm.s.pShwPaePdptR3;
-    pPool->aPages[PGMPOOL_IDX_PDPT].enmKind   = PGMPOOLKIND_ROOT_PDPT;
-#endif
     pPool->aPages[PGMPOOL_IDX_PDPT].idx       = PGMPOOL_IDX_PDPT;
 
     /* The Shadow AMD64 CR3. */
     pPool->aPages[PGMPOOL_IDX_AMD64_CR3].Core.Key  = NIL_RTHCPHYS;
     pPool->aPages[PGMPOOL_IDX_AMD64_CR3].GCPhys    = NIL_RTGCPHYS;
-#ifdef VBOX_WITH_PGMPOOL_PAGING_ONLY
     pPool->aPages[PGMPOOL_IDX_AMD64_CR3].pvPageR3  = 0;
-#else
-    pPool->aPages[PGMPOOL_IDX_AMD64_CR3].pvPageR3  = pVM->pgm.s.pShwPaePdptR3;  /* not used - isn't it wrong as well? */
-#endif
-    pPool->aPages[PGMPOOL_IDX_AMD64_CR3].enmKind   = PGMPOOLKIND_64BIT_PML4_FOR_64BIT_PML4;
+    pPool->aPages[PGMPOOL_IDX_AMD64_CR3].enmKind   = PGMPOOLKIND_64BIT_PML4;
     pPool->aPages[PGMPOOL_IDX_AMD64_CR3].idx       = PGMPOOL_IDX_AMD64_CR3;
 
     /* The Nested Paging CR3. */
     pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].Core.Key  = NIL_RTHCPHYS;
     pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].GCPhys    = NIL_RTGCPHYS;
-    pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].pvPageR3  = pVM->pgm.s.pShwNestedRootR3;
+    pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].pvPageR3  = 0;
     pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].enmKind   = PGMPOOLKIND_ROOT_NESTED;
     pPool->aPages[PGMPOOL_IDX_NESTED_ROOT].idx       = PGMPOOL_IDX_NESTED_ROOT;
 
@@ -331,7 +298,6 @@ int pgmR3PoolInit(PVM pVM)
         pPool->aPages[iPage].iAgeNext       = NIL_PGMPOOL_IDX;
         pPool->aPages[iPage].iAgePrev       = NIL_PGMPOOL_IDX;
 #endif
-        Assert(VALID_PTR(pPool->aPages[iPage].pvPageR3));
         Assert(pPool->aPages[iPage].idx == iPage);
         Assert(pPool->aPages[iPage].GCPhys == NIL_RTGCPHYS);
         Assert(!pPool->aPages[iPage].fSeenNonGlobal);
@@ -468,17 +434,18 @@ VMMR3DECL(int) PGMR3PoolGrow(PVM pVM)
     {
         PPGMPOOLPAGE pPage = &pPool->aPages[i];
 
-        pPage->pvPageR3 = MMR3PageAlloc(pVM);
+        /* Allocate all pages in low (below 4 GB) memory as 32 bits guests need a page table root in low memory. */
+        pPage->pvPageR3 = MMR3PageAllocLow(pVM);
         if (!pPage->pvPageR3)
         {
             Log(("We're out of memory!! i=%d\n", i));
             return i ? VINF_SUCCESS : VERR_NO_PAGE_MEMORY;
         }
         pPage->Core.Key  = MMPage2Phys(pVM, pPage->pvPageR3);
-        LogFlow(("PGMR3PoolGrow: insert page %RHp\n", pPage->Core.Key));
         pPage->GCPhys    = NIL_RTGCPHYS;
         pPage->enmKind   = PGMPOOLKIND_FREE;
         pPage->idx       = pPage - &pPool->aPages[0];
+        LogFlow(("PGMR3PoolGrow: insert page #%#x - %RHp\n", pPage->idx, pPage->Core.Key));
         pPage->iNext     = pPool->iFreeHead;
 #ifdef PGMPOOL_WITH_USER_TRACKING
         pPage->iUserHead = NIL_PGMPOOL_USER_INDEX;
@@ -577,7 +544,9 @@ static DECLCALLBACK(int) pgmR3PoolAccessHandler(PVM pVM, RTGCPHYS GCPhys, void *
         }
         STAM_PROFILE_STOP(&pPool->StatMonitorR3, a);
     }
-    else if (    (pPage->fCR3Mix || pPage->cModifications < 96) /* it's cheaper here. */
+    else if (    (   pPage->cModifications < 96 /* it's cheaper here. */
+                  || pgmPoolIsPageLocked(&pVM->pgm.s, pPage)
+                  )
              &&  cbBuf <= 4)
     {
         /* Clear the shadow entry. */

@@ -1,4 +1,4 @@
-/** $Id: VBoxControl.cpp $ */
+/** $Id: VBoxControl.cpp 18509 2009-03-29 02:48:19Z vboxsync $ */
 /** @file
  * VBoxControl - Guest Additions Command Line Management Interface
  */
@@ -1044,7 +1044,7 @@ static int enumGuestProperty(int argc, char *argv[])
      * arguments.
      */
     char const * const *papszPatterns = NULL;
-    size_t cPatterns = 0;
+    uint32_t cPatterns = 0;
     if (    argc > 1
         && !strcmp(argv[0], "-patterns"))
     {

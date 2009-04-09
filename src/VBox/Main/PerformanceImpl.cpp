@@ -1,4 +1,4 @@
-/* $Id: PerformanceImpl.cpp $ */
+/* $Id: PerformanceImpl.cpp 18487 2009-03-29 01:35:27Z vboxsync $ */
 
 /** @file
  *
@@ -21,20 +21,20 @@
  * additional information or have any questions.
  */
 
-#if defined(RT_OS_WINDOWS)
-#elif defined(RT_OS_LINUX)
-#endif
-
 #include "PerformanceImpl.h"
 
 #include "Logging.h"
 
-#include <VBox/err.h>
 #include <iprt/process.h>
+
+#include <VBox/err.h>
+#include <VBox/settings.h>
 
 #include <vector>
 #include <algorithm>
 #include <functional>
+
+#include "Performance.h"
 
 static Bstr gMetricNames[] =
 {
@@ -438,7 +438,7 @@ PerformanceCollector::QueryMetricsData (ComSafeArrayIn (IN_BSTR, metricNames),
         retScales[i] = (*it)->getScale();
         retSequenceNumbers[i] = sequenceNumber;
         retLengths[i] = length;
-        retIndices[i] = flatIndex;
+        retIndices[i] = (ULONG)flatIndex;
         flatIndex += length;
     }
 
@@ -516,7 +516,7 @@ void PerformanceCollector::unregisterMetricsFor (const ComPtr <IUnknown> &aObjec
 
 /* static */
 void PerformanceCollector::staticSamplerCallback (RTTIMERLR hTimerLR, void *pvUser,
-                                                  uint64_t iTick)
+                                                  uint64_t /* iTick */)
 {
     AssertReturnVoid (pvUser != NULL);
     PerformanceCollector *collector = static_cast <PerformanceCollector *> (pvUser);

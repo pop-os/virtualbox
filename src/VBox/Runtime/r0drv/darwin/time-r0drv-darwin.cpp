@@ -1,4 +1,4 @@
-/* $Id: time-r0drv-darwin.cpp $ */
+/* $Id: time-r0drv-darwin.cpp 16332 2009-01-28 20:27:46Z vboxsync $ */
 /** @file
  * IPRT - Time, Ring-0 Driver, Darwin.
  */
@@ -61,67 +61,40 @@ DECLINLINE(uint64_t) rtTimeGetSystemNanoTS(void)
 }
 
 
-/**
- * Gets the current nanosecond timestamp.
- *
- * @returns nanosecond timestamp.
- */
 RTDECL(uint64_t) RTTimeNanoTS(void)
 {
     return rtTimeGetSystemNanoTS();
 }
 
 
-/**
- * Gets the current millisecond timestamp.
- *
- * @returns millisecond timestamp.
- */
 RTDECL(uint64_t) RTTimeMilliTS(void)
 {
     return rtTimeGetSystemNanoTS() / 1000000;
 }
 
 
-/**
- * Gets the current nanosecond timestamp.
- *
- * This differs from RTTimeNanoTS in that it will use system APIs and not do any
- * resolution or performance optimizations.
- *
- * @returns nanosecond timestamp.
- */
 RTDECL(uint64_t) RTTimeSystemNanoTS(void)
 {
     return rtTimeGetSystemNanoTS();
 }
 
 
-/**
- * Gets the current millisecond timestamp.
- *
- * This differs from RTTimeNanoTS in that it will use system APIs and not do any
- * resolution or performance optimizations.
- *
- * @returns millisecond timestamp.
- */
 RTDECL(uint64_t) RTTimeSystemMilliTS(void)
 {
     return rtTimeGetSystemNanoTS() / 1000000;
 }
 
 
-/**
- * Gets the current system time.
- *
- * @returns pTime.
- * @param   pTime   Where to store the time.
- */
 RTDECL(PRTTIMESPEC) RTTimeNow(PRTTIMESPEC pTime)
 {
-    uint32_t u32Secs;
-    uint32_t u32Nanosecs;
-    clock_get_calendar_nanotime(&u32Secs, &u32Nanosecs);
-    return RTTimeSpecSetNano(pTime, (uint64_t)u32Secs * 1000000000 + u32Nanosecs);
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
+    uint32_t        uSecs;
+    uint32_t        uNanosecs;
+#else
+    clock_sec_t     uSecs;
+    clock_nsec_t    uNanosecs;
+#endif
+    clock_get_calendar_nanotime(&uSecs, &uNanosecs);
+    return RTTimeSpecSetNano(pTime, (uint64_t)uSecs * 1000000000 + uNanosecs);
 }
 

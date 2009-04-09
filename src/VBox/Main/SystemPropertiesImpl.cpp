@@ -1,4 +1,4 @@
-/* $Id: SystemPropertiesImpl.cpp $ */
+/* $Id: SystemPropertiesImpl.cpp 18263 2009-03-25 16:26:37Z vboxsync $ */
 
 /** @file
  *
@@ -31,8 +31,10 @@
 
 #include <iprt/path.h>
 #include <iprt/dir.h>
-#include <VBox/param.h>
+
 #include <VBox/err.h>
+#include <VBox/param.h>
+#include <VBox/settings.h>
 
 // defines
 /////////////////////////////////////////////////////////////////////////////
@@ -146,7 +148,8 @@ STDMETHODIMP SystemProperties::COMGETTER(MinGuestRAM)(ULONG *minRAM)
     CheckComRCReturnRC (autoCaller.rc());
 
     /* no need to lock, this is const */
-    *minRAM = SchemaDefs::MinGuestRAM;
+    AssertCompile(MM_RAM_MIN_IN_MB >= SchemaDefs::MinGuestRAM);
+    *minRAM = MM_RAM_MIN_IN_MB;
 
     return S_OK;
 }
@@ -160,7 +163,8 @@ STDMETHODIMP SystemProperties::COMGETTER(MaxGuestRAM)(ULONG *maxRAM)
     CheckComRCReturnRC (autoCaller.rc());
 
     /* no need to lock, this is const */
-    *maxRAM = SchemaDefs::MaxGuestRAM;
+    AssertCompile(MM_RAM_MAX_IN_MB <= SchemaDefs::MaxGuestRAM);
+    *maxRAM = MM_RAM_MAX_IN_MB;
 
     return S_OK;
 }
@@ -189,6 +193,34 @@ STDMETHODIMP SystemProperties::COMGETTER(MaxGuestVRAM)(ULONG *maxVRAM)
 
     /* no need to lock, this is const */
     *maxVRAM = SchemaDefs::MaxGuestVRAM;
+
+    return S_OK;
+}
+
+STDMETHODIMP SystemProperties::COMGETTER(MinGuestCPUCount)(ULONG *minCPUCount)
+{
+    if (!minCPUCount)
+        return E_POINTER;
+
+    AutoCaller autoCaller (this);
+    CheckComRCReturnRC (autoCaller.rc());
+
+    /* no need to lock, this is const */
+    *minCPUCount = SchemaDefs::MinCPUCount;
+
+    return S_OK;
+}
+
+STDMETHODIMP SystemProperties::COMGETTER(MaxGuestCPUCount)(ULONG *maxCPUCount)
+{
+    if (!maxCPUCount)
+        return E_POINTER;
+
+    AutoCaller autoCaller (this);
+    CheckComRCReturnRC (autoCaller.rc());
+
+    /* no need to lock, this is const */
+    *maxCPUCount = 1; // SchemaDefs::MaxCPUCount;
 
     return S_OK;
 }

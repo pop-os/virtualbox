@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,20 +23,34 @@
 #ifndef __QIMessageBox_h__
 #define __QIMessageBox_h__
 
-#include <qdialog.h>
-#include <qvbox.h>
-#include <qmessagebox.h>
-#include <qcheckbox.h>
-#include <qtextedit.h>
+/* VBox includes */
+#include "QIDialog.h"
 
-class QIRichLabel;
+/* Qt includes */
+#include <QCheckBox>
+#include <QMessageBox>
+#include <QTextEdit>
+
+/* VBox forwards */
+class QIArrowSplitter;
+class QIDialogButtonBox;
+class QILabel;
+
+/* Qt forwards */
+class QCloseEvent;
 class QLabel;
 class QPushButton;
 class QSpacerItem;
 
-class QIMessageBox : public QDialog
+/** @class QIMessageBox
+ *
+ *  The QIMessageBox class is a message box similar to QMessageBox.
+ *  It partly implements the QMessageBox interface and adds some enhanced
+ *  functionality.
+ */
+class QIMessageBox : public QIDialog
 {
-    Q_OBJECT
+    Q_OBJECT;
 
 public:
 
@@ -63,51 +77,61 @@ public:
 
     QIMessageBox (const QString &aCaption, const QString &aText,
                   Icon aIcon, int aButton0, int aButton1 = 0, int aButton2 = 0,
-                  QWidget *aParent = 0, const char *aName = 0, bool aModal = TRUE,
-                  WFlags aFlags = WStyle_DialogBorder);
+                  QWidget *aParent = 0, const char *aName = 0, bool aModal = TRUE);
 
     QString buttonText (int aButton) const;
     void setButtonText (int aButton, const QString &aText);
 
-    QString flagText() const { return mFlagCB->isShown() ? mFlagCB->text() : QString::null; }
+    QString flagText() const { return mFlagCB->isVisible() ? mFlagCB->text() : QString::null; }
     void setFlagText (const QString &aText);
 
     bool isFlagChecked() const { return mFlagCB->isChecked(); }
     void setFlagChecked (bool aChecked) { mFlagCB->setChecked (aChecked); }
 
-    QString detailsText () const { return mDetailsText->text(); }
+    QString detailsText () const { return mDetailsText->toHtml(); }
     void setDetailsText (const QString &aText);
 
-    bool isDetailsShown() const { return mDetailsVBox->isShown(); }
-    void setDetailsShown (bool aShown);
+    QPixmap standardPixmap (QIMessageBox::Icon aIcon);
 
 private:
 
-    QPushButton *createButton (QWidget *aParent, int aButton);
+    QPushButton *createButton (int aButton);
+
+    void closeEvent (QCloseEvent *e);
+    void showEvent (QShowEvent *e);
+
+    void refreshDetails();
+    void setDetailsShown (bool aShown);
 
 private slots:
 
-    void done0() { done (mButton0 & ButtonMask); }
-    void done1() { done (mButton1 & ButtonMask); }
-    void done2() { done (mButton2 & ButtonMask); }
+    void detailsBack();
+    void detailsNext();
 
-    void reject() {
-        QDialog::reject();
-        if (mButtonEsc)
-            setResult (mButtonEsc & ButtonMask);
-    }
+    void done0() { mWasDone = true; done (mButton0 & ButtonMask); }
+    void done1() { mWasDone = true; done (mButton1 & ButtonMask); }
+    void done2() { mWasDone = true; done (mButton2 & ButtonMask); }
+
+    void reject();
 
 private:
 
     int mButton0, mButton1, mButton2, mButtonEsc;
     QLabel *mIconLabel;
-    QIRichLabel *mTextLabel;
+    QILabel *mTextLabel;
     QPushButton *mButton0PB, *mButton1PB, *mButton2PB;
-    QVBox *mMessageVBox;
     QCheckBox *mFlagCB, *mFlagCB_Main, *mFlagCB_Details;
-    QVBox *mDetailsVBox;
+    QWidget *mDetailsVBox;
+    QIArrowSplitter *mDetailsSplitter;
     QTextEdit *mDetailsText;
     QSpacerItem *mSpacer;
+    QIDialogButtonBox *mButtonBox;
+    QString mText;
+    QList < QPair <QString, QString> > mDetailsList;
+    int mDetailsIndex;
+    bool mWasDone : 1;
+    bool mWasPolished : 1;
 };
 
 #endif
+

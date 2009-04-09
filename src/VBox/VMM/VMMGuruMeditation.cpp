@@ -1,4 +1,4 @@
-/* $Id: VMMGuruMeditation.cpp $ */
+/* $Id: VMMGuruMeditation.cpp 18285 2009-03-26 03:31:13Z vboxsync $ */
 /** @file
  * VMM - The Virtual Machine Monitor, Guru Meditation Code.
  */
@@ -229,7 +229,6 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, int rcErr)
         case VERR_VMM_RING0_ASSERTION:
         case VINF_EM_DBG_HYPER_ASSERTION:
         {
-            bool fIsRing0 = rcErr == VERR_VMM_RING0_ASSERTION;
             const char *pszMsg1 = VMMR3GetRZAssertMsg1(pVM);
             while (pszMsg1 && *pszMsg1 == '\n')
                 pszMsg1++;
@@ -382,9 +381,10 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, int rcErr)
                 /* raw stack */
                 pHlp->pfnPrintf(pHlp,
                                 "!!\n"
-                                "!! Raw stack (mind the direction).\n"
+                                "!! Raw stack (mind the direction). pbEMTStackRC=%RRv pbEMTStackBottomRC=%RRv\n"
                                 "!!\n"
                                 "%.*Rhxd\n",
+                                pVM->vmm.s.pbEMTStackRC, pVM->vmm.s.pbEMTStackBottomRC,
                                 VMM_STACK_SIZE, pVM->vmm.s.pbEMTStackR3);
             } /* !HWACCMR3IsActive */
             break;

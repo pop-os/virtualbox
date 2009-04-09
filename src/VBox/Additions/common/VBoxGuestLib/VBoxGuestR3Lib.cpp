@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3Lib.cpp $ */
+/* $Id: VBoxGuestR3Lib.cpp 18452 2009-03-28 04:05:10Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, Core.
  */
@@ -53,10 +53,11 @@
    prototype what we need here. */
 # define XF86_O_RDWR  0x0002
 typedef void *pointer;
-extern "C" int xf86open(const char*, int,...);
+extern "C" int xf86open(const char *, int, ...);
 extern "C" int xf86close(int);
 extern "C" int xf86ioctl(int, unsigned long, pointer);
 #endif
+
 
 /*******************************************************************************
 *   Global Variables                                                           *
@@ -77,7 +78,11 @@ static RTFILE g_File = NIL_RTFILE;
 static uint32_t volatile g_cInits = 0;
 
 
-VBGLR3DECL(int) VbglR3Init(void)
+
+/**
+ * Implementation of VbglR3Init and VbglR3InitUser
+ */
+static int vbglR3Init(const char *pszDeviceName)
 {
     uint32_t cInits = ASMAtomicIncU32(&g_cInits);
 #ifndef VBOX_VBGLR3_XFREE86
@@ -114,7 +119,7 @@ VBGLR3DECL(int) VbglR3Init(void)
      * Have to use CreateFile here as we want to specify FILE_FLAG_OVERLAPPED
      * and possible some other bits not availble thru iprt/file.h.
      */
-    HANDLE hFile = CreateFile(VBOXGUEST_DEVICE_NAME,
+    HANDLE hFile = CreateFile(pszDeviceName,
                               GENERIC_READ | GENERIC_WRITE,
                               FILE_SHARE_READ | FILE_SHARE_WRITE,
                               NULL,
@@ -134,7 +139,7 @@ VBGLR3DECL(int) VbglR3Init(void)
      */
     HFILE hf = NULLHANDLE;
     ULONG ulAction = 0;
-    APIRET rc = DosOpen((PCSZ)VBOXGUEST_DEVICE_NAME, &hf, &ulAction, 0, FILE_NORMAL,
+    APIRET rc = DosOpen((PCSZ)pszDeviceName, &hf, &ulAction, 0, FILE_NORMAL,
                         OPEN_ACTION_OPEN_IF_EXISTS,
                         OPEN_FLAGS_FAIL_ON_ERROR | OPEN_FLAGS_NOINHERIT | OPEN_SHARE_DENYNONE | OPEN_ACCESS_READWRITE,
                         NULL);
@@ -187,10 +192,10 @@ VBGLR3DECL(int) VbglR3Init(void)
     RTFILE File = 0;
 # endif
     int rc;
-    char szDevice[sizeof(VBOXGUEST_DEVICE_NAME) + 16];
+    char szDevice[RT_MAX(sizeof(VBOXGUEST_DEVICE_NAME), sizeof(VBOXGUEST_USER_DEVICE_NAME)) + 16];
     for (unsigned iUnit = 0; iUnit < 1024; iUnit++)
     {
-        RTStrPrintf(szDevice, sizeof(szDevice), VBOXGUEST_DEVICE_NAME "%d", iUnit);
+        RTStrPrintf(szDevice, sizeof(szDevice), pszDeviceName "%d", iUnit);
 # if defined(VBOX_VBGLR3_XFREE86)
         File = xf86open(szDevice, XF86_O_RDWR);
         if (File >= 0)
@@ -213,7 +218,7 @@ VBGLR3DECL(int) VbglR3Init(void)
     g_File = File;
 
 #elif defined(VBOX_VBGLR3_XFREE86) && !defined(RT_OS_FREEBSD)
-    int File = xf86open(VBOXGUEST_DEVICE_NAME, XF86_O_RDWR);
+    int File = xf86open(pszDeviceName, XF86_O_RDWR);
     if (File == -1)
         return VERR_OPEN_FAILED;
     g_File = File;
@@ -222,7 +227,7 @@ VBGLR3DECL(int) VbglR3Init(void)
 
     /* The default implemenation. (linux, solaris) */
     RTFILE File;
-    int rc = RTFileOpen(&File, VBOXGUEST_DEVICE_NAME, RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+    int rc = RTFileOpen(&File, pszDeviceName, RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
     if (RT_FAILURE(rc))
         return rc;
     g_File = File;
@@ -242,6 +247,26 @@ VBGLR3DECL(int) VbglR3Init(void)
         RTLogRelSetDefaultInstance(pReleaseLogger);
 
     return VINF_SUCCESS;
+}
+
+
+/**
+ * Open the VBox R3 Guest Library.  This should be called by system daemons
+ * and processes.
+ */
+VBGLR3DECL(int) VbglR3Init(void)
+{
+    return vbglR3Init(VBOXGUEST_DEVICE_NAME);
+}
+
+
+/**
+ * Open the VBox R3 Guest Library.  Equivalent to VbglR3Init, but for user
+ * session processes.
+ */
+VBGLR3DECL(int) VbglR3InitUser(void)
+{
+    return vbglR3Init(VBOXGUEST_USER_DEVICE_NAME);
 }
 
 
@@ -307,7 +332,7 @@ int vbglR3DoIOCtl(unsigned iFunction, void *pvData, size_t cbData)
 {
 #if defined(RT_OS_WINDOWS)
     DWORD cbReturned = 0;
-    if (!DeviceIoControl(g_hFile, iFunction, pvData, cbData, pvData, cbData, &cbReturned, NULL))
+    if (!DeviceIoControl(g_hFile, iFunction, pvData, (DWORD)cbData, pvData, (DWORD)cbData, &cbReturned, NULL))
     {
 /** @todo The passing of error codes needs to be tested and fixed (as does *all* the other hosts except for
  * OS/2).  The idea is that the VBox status codes in ring-0 should be transfered without loss down to
@@ -336,6 +361,9 @@ int vbglR3DoIOCtl(unsigned iFunction, void *pvData, size_t cbData)
     Hdr.u32Magic = VBGLBIGREQ_MAGIC;
     Hdr.cbData = cbData;
     Hdr.pvDataR3 = pvData;
+# if HC_ARCH_BITS == 32
+    Hdr.u32Padding = 0;
+# endif
 
 /** @todo test status code passing! */
     int rc = ioctl((int)g_File, iFunction, &Hdr);

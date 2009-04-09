@@ -1,10 +1,10 @@
-/** $Id: VBoxGuestR3LibDaemonize.cpp $ */
+/** $Id: VBoxGuestR3LibDaemonize.cpp 18526 2009-03-30 11:47:27Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, daemonize a process.
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,6 +50,7 @@
 
 #include <iprt/string.h>
 #include <iprt/file.h>
+#include <iprt/process.h>
 #include <VBox/VBoxGuest.h>
 
 
@@ -62,19 +63,13 @@
  *
  * @param   fNoChDir    Pass false to change working directory to root.
  * @param   fNoClose    Pass false to redirect standard file streams to /dev/null.
- * @param   pszPidfile  Path to a file to write the pid of the daemon process
- *                      to.  Daemonising will fail if this file already exists
- *                      or cannot be written.  Optional.
  */
-VBGLR3DECL(int) VbglR3Daemonize(bool fNoChDir, bool fNoClose,
-                                char const *pszPidfile)
+VBGLR3DECL(int) VbglR3Daemonize(bool fNoChDir, bool fNoClose)
 {
 #if defined(RT_OS_DARWIN)
 # error "PORTME"
 
 #elif defined(RT_OS_OS2)
-    /** @todo create a pidfile if this is (/was :) ) usual on OS/2 */
-    NOREF(pszPidfile);
     PPIB pPib;
     PTIB pTib;
     DosGetInfoBlocks(&pTib, &pPib);
@@ -149,20 +144,6 @@ VBGLR3DECL(int) VbglR3Daemonize(bool fNoChDir, bool fNoClose,
      *   fork() once more on Linux to get rid of the session leadership role.
      */
 
-    /* We start off by opening the pidfile, so that we can fail straight away
-     * if it already exists. */
-    RTFILE hPidfile = NIL_RTFILE;
-    if (pszPidfile != NULL)
-    {
-        /* @note the exclusive create is not guaranteed on all file
-         * systems (e.g. NFSv2) */
-        int rc = RTFileOpen(&hPidfile, pszPidfile,
-                              RTFILE_O_READWRITE | RTFILE_O_CREATE
-                            | (0644 << RTFILE_O_CREATE_MODE_SHIFT));
-        if (!RT_SUCCESS(rc))
-            return rc;
-    }
-
     struct sigaction OldSigAct;
     struct sigaction SigAct;
     memset(&SigAct, 0, sizeof(SigAct));
@@ -173,18 +154,7 @@ VBGLR3DECL(int) VbglR3Daemonize(bool fNoChDir, bool fNoClose,
     if (pid == -1)
         return RTErrConvertFromErrno(errno);
     if (pid != 0)
-    {
-# ifndef RT_OS_LINUX /* On Linux we do another fork later */
-        if (hPidfile != NIL_RTFILE)
-        {
-            char szBuf[256];
-            size_t cbPid = RTStrPrintf(szBuf, sizeof(szBuf), "%d\n", pid);
-            RTFileWrite(hPidfile, szBuf, cbPid, NULL);
-            RTFileClose(hPidfile);
-        }
-# endif
         exit(0);
-    }
 
     /*
      * The orphaned child becomes is reparented to the init process.
@@ -236,19 +206,83 @@ VBGLR3DECL(int) VbglR3Daemonize(bool fNoChDir, bool fNoClose,
     if (pid == -1)
         return RTErrConvertFromErrno(errno);
     if (pid != 0)
-    {
-        if (hPidfile != NIL_RTFILE)
-        {
-            char szBuf[256];
-            size_t cbPid = RTStrPrintf(szBuf, sizeof(szBuf), "%d\n", pid);
-            RTFileWrite(hPidfile, szBuf, cbPid, NULL);
-            RTFileClose(hPidfile);
-        }
         exit(0);
-    }
 # endif /* RT_OS_LINUX */
 
     return VINF_SUCCESS;
 #endif
+}
+
+
+/**
+ * Creates a PID File and returns the open file descriptor.
+ *
+ * On DOS based system, file sharing (deny write) is used for locking the PID
+ * file.
+ *
+ * On Unix-y systems, an exclusive advisory lock is used for locking the PID
+ * file since the file sharing support is usually missing there.
+ *
+ * This API will overwrite any existing PID Files without a lock on them, on the
+ * assumption that they are stale files which an old process did not properly
+ * clean up.
+ *
+ * @returns IPRT status code.
+ * @param   pszPath  The path and filename to create the PID File under
+ * @param   phFile   Where to store the file descriptor of the open (and locked
+ *                   on Unix-y systems) PID File. On failure, or if another
+ *                   process owns the PID File, this will be set to NIL_RTFILE.
+ */
+VBGLR3DECL(int) VbglR3PidFile(const char *pszPath, PRTFILE phFile)
+{
+    AssertPtrReturn(pszPath, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(phFile, VERR_INVALID_PARAMETER);
+    *phFile = NIL_RTFILE;
+
+    RTFILE hPidFile;
+    int rc = RTFileOpen(&hPidFile, pszPath,
+                        RTFILE_O_READWRITE | RTFILE_O_OPEN_CREATE | RTFILE_O_DENY_WRITE
+                        | (0644 << RTFILE_O_CREATE_MODE_SHIFT));
+    if (RT_SUCCESS(rc))
+    {
+#if !defined(RT_OS_WINDOWS) && !defined(RT_OS_OS2)
+        /** @todo using size 0 for locking means lock all on Posix.
+         * We should adopt this as our convention too, or something
+         * similar. */
+        rc = RTFileLock(hPidFile, RTFILE_LOCK_WRITE, 0, 0);
+        if (RT_FAILURE(rc))
+            RTFileClose(hPidFile);
+        else
+#endif
+        {
+            char szBuf[256];
+            size_t cbPid = RTStrPrintf(szBuf, sizeof(szBuf), "%d\n",
+                                       RTProcSelf());
+            RTFileWrite(hPidFile, szBuf, cbPid, NULL);
+            *phFile = hPidFile;
+        }
+    }
+    return rc;
+}
+
+
+/**
+ * Close and remove an open PID File.
+ *
+ * @param  pszPath  The path to the PID File,
+ * @param  hFile    The handle for the file. NIL_RTFILE is ignored as usual.
+ */
+VBGLR3DECL(void) VbglR3ClosePidFile(const char *pszPath, RTFILE hFile)
+{
+    AssertPtrReturnVoid(pszPath);
+    if (hFile != NIL_RTFILE)
+    {
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
+        RTFileWriteAt(hFile, 0, "-1", 2, NULL);
+#else
+        RTFileDelete(pszPath);
+#endif
+        RTFileClose(hFile);
+    }
 }
 

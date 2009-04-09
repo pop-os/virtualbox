@@ -152,7 +152,7 @@ void helper_write_eflags_vme(target_ulong t0)
         ||  (new_eflags & TF_MASK)) {
         raise_exception(EXCP0D_GPF);
     } else {
-        load_eflags(new_eflags, 
+        load_eflags(new_eflags,
                     (TF_MASK | AC_MASK | ID_MASK | NT_MASK) & 0xffff);
 
         if (new_eflags & IF_MASK) {
@@ -184,12 +184,12 @@ target_ulong helper_read_eflags_vme(void)
 void helper_dump_state()
 {
     LogRel(("CS:EIP=%08x:%08x, FLAGS=%08x\n", env->segs[R_CS].base, env->eip, env->eflags));
-    LogRel(("EAX=%08x\tECX=%08x\tEDX=%08x\tEBX=%08x\n", 
-            (uint32_t)env->regs[R_EAX], (uint32_t)env->regs[R_ECX], 
+    LogRel(("EAX=%08x\tECX=%08x\tEDX=%08x\tEBX=%08x\n",
+            (uint32_t)env->regs[R_EAX], (uint32_t)env->regs[R_ECX],
             (uint32_t)env->regs[R_EDX], (uint32_t)env->regs[R_EBX]));
-    LogRel(("ESP=%08x\tEBP=%08x\tESI=%08x\tEDI=%08x\n", 
-            (uint32_t)env->regs[R_ESP], (uint32_t)env->regs[R_EBP], 
-            (uint32_t)env->regs[R_ESI], (uint32_t)env->regs[R_EDI]));    
+    LogRel(("ESP=%08x\tEBP=%08x\tESI=%08x\tEDI=%08x\n",
+            (uint32_t)env->regs[R_ESP], (uint32_t)env->regs[R_EBP],
+            (uint32_t)env->regs[R_ESI], (uint32_t)env->regs[R_EDI]));
 }
 #endif
 
@@ -205,14 +205,14 @@ DECLINLINE(int) load_segment(uint32_t *e1_ptr, uint32_t *e2_ptr,
     int index;
     target_ulong ptr;
 
-#ifdef VBOX 
-    /* Trying to load a selector with CPL=1? */ 
-    if ((env->hflags & HF_CPL_MASK) == 0 && (selector & 3) == 1 && (env->state & CPU_RAW_RING0)) 
-    { 
-        Log(("RPL 1 -> sel %04X -> %04X\n", selector, selector & 0xfffc)); 
-        selector = selector & 0xfffc; 
-    } 
-#endif 
+#ifdef VBOX
+    /* Trying to load a selector with CPL=1? */
+    if ((env->hflags & HF_CPL_MASK) == 0 && (selector & 3) == 1 && (env->state & CPU_RAW_RING0))
+    {
+        Log(("RPL 1 -> sel %04X -> %04X\n", selector, selector & 0xfffc));
+        selector = selector & 0xfffc;
+    }
+#endif
 
     if (selector & 0x4)
         dt = &env->ldt;
@@ -331,16 +331,16 @@ static void tss_load_seg(int seg_reg, int selector)
     uint32_t e1, e2;
     int rpl, dpl, cpl;
 
-#ifdef VBOX 
-    e1 = e2 = 0; 
-    cpl = env->hflags & HF_CPL_MASK; 
-    /* Trying to load a selector with CPL=1? */ 
-    if (cpl == 0 && (selector & 3) == 1 && (env->state & CPU_RAW_RING0)) 
-    { 
-        Log(("RPL 1 -> sel %04X -> %04X\n", selector, selector & 0xfffc)); 
-        selector = selector & 0xfffc; 
-    } 
-#endif 
+#ifdef VBOX
+    e1 = e2 = 0;
+    cpl = env->hflags & HF_CPL_MASK;
+    /* Trying to load a selector with CPL=1? */
+    if (cpl == 0 && (selector & 3) == 1 && (env->state & CPU_RAW_RING0))
+    {
+        Log(("RPL 1 -> sel %04X -> %04X\n", selector, selector & 0xfffc));
+        selector = selector & 0xfffc;
+    }
+#endif
 
     if ((selector & 0xfffc) != 0) {
         if (load_segment(&e1, &e2, selector) != 0)
@@ -383,6 +383,13 @@ static void tss_load_seg(int seg_reg, int selector)
     } else {
         if (seg_reg == R_SS || seg_reg == R_CS)
             raise_exception_err(EXCP0A_TSS, selector & 0xfffc);
+#ifdef VBOX
+#if 0
+        /** @todo: now we ignore loading 0 selectors, need to check what is correct once */
+        cpu_x86_load_seg_cache(env, seg_reg, selector,
+                               0, 0, 0);
+#endif
+#endif
     }
 }
 
@@ -689,8 +696,8 @@ void helper_check_external_event()
 
 void helper_sync_seg(uint32_t reg)
 {
-    assert(env->segs[reg].newselector != 0);
-    sync_seg(env, reg, env->segs[reg].newselector);
+    if (env->segs[reg].newselector)
+        sync_seg(env, reg, env->segs[reg].newselector);
 }
 #endif
 
@@ -1021,7 +1028,16 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
     if ((type & 1) == 0) {
         env->eflags &= ~IF_MASK;
     }
+#ifndef VBOX
     env->eflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
+#else
+     /*
+     * We must clear VIP/VIF too on interrupt entry, as otherwise FreeBSD
+     * gets confused by seeingingly changed EFLAGS. See #3491 and
+     * public bug #2341.
+     */
+    env->eflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK | VIF_MASK | VIP_MASK);
+#endif
 }
 #ifdef VBOX
 
@@ -1287,7 +1303,17 @@ static void do_interrupt64(int intno, int is_int, int error_code,
     if ((type & 1) == 0) {
         env->eflags &= ~IF_MASK;
     }
+
+#ifndef VBOX
     env->eflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK);
+#else
+    /*
+     * We must clear VIP/VIF too on interrupt entry, as otherwise FreeBSD
+     * gets confused by seeingingly changed EFLAGS. See #3491 and
+     * public bug #2341.
+     */
+    env->eflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK | VIF_MASK | VIP_MASK);
+#endif
 }
 #endif
 
@@ -1428,9 +1454,13 @@ void helper_sysret(int dflag)
 void helper_external_event(void)
 {
 #if defined(RT_OS_DARWIN) && defined(VBOX_STRICT)
-    uintptr_t uESP;
-    __asm__ __volatile__("movl %%esp, %0" : "=r" (uESP));
-    AssertMsg(!(uESP & 15), ("esp=%#p\n", uESP));
+    uintptr_t uSP;
+# ifdef RT_ARCH_AMD64
+    __asm__ __volatile__("movq %%rsp, %0" : "=r" (uSP));
+# else
+    __asm__ __volatile__("movl %%esp, %0" : "=r" (uSP));
+# endif
+    AssertMsg(!(uSP & 15), ("xSP=%#p\n", uSP));
 #endif
     /* Keep in sync with flags checked by gen_check_external_event() */
     if (env->interrupt_request & CPU_INTERRUPT_EXTERNAL_HARD)
@@ -3652,23 +3682,32 @@ void helper_rdtsc(void)
     EDX = (uint32_t)(val >> 32);
 }
 
-#ifdef VBOX 
-void helper_rdtscp(void) 
-{ 
-    uint64_t val; 
-    if ((env->cr[4] & CR4_TSD_MASK) && ((env->hflags & HF_CPL_MASK) != 0)) { 
-        raise_exception(EXCP0D_GPF); 
+#ifdef VBOX
+void helper_rdtscp(void)
+{
+    uint64_t val;
+    if ((env->cr[4] & CR4_TSD_MASK) && ((env->hflags & HF_CPL_MASK) != 0)) {
+        raise_exception(EXCP0D_GPF);
     }
-    
-    val = cpu_get_tsc(env); 
-    EAX = (uint32_t)(val); 
-    EDX = (uint32_t)(val >> 32); 
-    ECX = cpu_rdmsr(env, MSR_K8_TSC_AUX); 
-} 
-#endif 
+
+    val = cpu_get_tsc(env);
+    EAX = (uint32_t)(val);
+    EDX = (uint32_t)(val >> 32);
+    ECX = cpu_rdmsr(env, MSR_K8_TSC_AUX);
+}
+#endif
 
 void helper_rdpmc(void)
 {
+#ifdef VBOX
+    /* If X86_CR4_PCE is *not* set, then CPL must be zero. */
+    if (!(env->cr[4] & CR4_PCE_MASK) && ((env->hflags & HF_CPL_MASK) != 0)) {
+        raise_exception(EXCP0D_GPF);
+    }
+    /* Just return zero here; rather tricky to properly emulate this, especially as the specs are a mess. */
+    EAX = 0;
+    EDX = 0;
+#else
     if ((env->cr[4] & CR4_PCE_MASK) && ((env->hflags & HF_CPL_MASK) != 0)) {
         raise_exception(EXCP0D_GPF);
     }
@@ -3676,6 +3715,7 @@ void helper_rdpmc(void)
 
     /* currently unimplemented */
     raise_exception_err(EXCP06_ILLOP, 0);
+#endif
 }
 
 #if defined(CONFIG_USER_ONLY)
@@ -3856,9 +3896,10 @@ void helper_rdmsr(void)
                 val = 0; /** @todo else exception? */
             break;
         }
-        case MSR_K8_TSC_AUX: 
-            val = cpu_rdmsr(env, MSR_K8_TSC_AUX); 
-            break; 
+        case MSR_IA32_TSC:
+        case MSR_K8_TSC_AUX:
+            val = cpu_rdmsr(env, (uint32_t)ECX);
+            break;
 #endif /* VBOX */
     }
     EAX = (uint32_t)(val);
@@ -5468,7 +5509,7 @@ static float approx_rcp(float a)
 
 #if defined(VBOX) && defined(REM_PHYS_ADDR_IN_TLB)
 /* This code assumes real physical address always fit into host CPU reg,
-   which is wrong in general, but true for our current use cases. */   
+   which is wrong in general, but true for our current use cases. */
 RTCCUINTREG REGPARM __ldb_vbox_phys(RTCCUINTREG addr)
 {
     return remR3PhysReadS8(addr);
@@ -5658,7 +5699,9 @@ void write_dword(CPUX86State *env1, target_ulong addr, uint32_t val)
 void sync_seg(CPUX86State *env1, int seg_reg, int selector)
 {
     CPUX86State *savedenv = env;
+#ifdef FORCE_SEGMENT_SYNC
     jmp_buf old_buf;
+#endif
 
     env = env1;
 
@@ -5674,9 +5717,9 @@ void sync_seg(CPUX86State *env1, int seg_reg, int selector)
     }
     else
     {
-        /* For some reasons, it works even w/o save/restore of the jump buffer, so as code is 
+        /* For some reasons, it works even w/o save/restore of the jump buffer, so as code is
            time critical - let's not do that */
-#if 0
+#ifdef FORCE_SEGMENT_SYNC
         memcpy(&old_buf, &env1->jmp_env, sizeof(old_buf));
 #endif
         if (setjmp(env1->jmp_env) == 0)
@@ -5693,6 +5736,9 @@ void sync_seg(CPUX86State *env1, int seg_reg, int selector)
             }
             else
                 helper_load_seg(seg_reg, selector);
+            /* We used to use tss_load_seg(seg_reg, selector); which, for some reasons ignored
+               loading 0 selectors, what, in order, lead to subtle problems like #3588 */
+
             env = savedenv;
 
             /* Successful sync. */
@@ -5710,7 +5756,7 @@ void sync_seg(CPUX86State *env1, int seg_reg, int selector)
             env1->error_code = 0;
             env1->old_exception = -1;
         }
-#if 0
+#ifdef FORCE_SEGMENT_SYNC
         memcpy(&env1->jmp_env, &old_buf, sizeof(old_buf));
 #endif
     }
@@ -5845,74 +5891,6 @@ void sync_ldtr(CPUX86State *env1, int selector)
 #endif
     }
 }
-
-/**
- * Correctly loads a new tr selector.
- *
- * @param   env1        CPU environment.
- * @param   selector    Selector to load.
- */
-int sync_tr(CPUX86State *env1, int selector)
-{
-    /* ARG! this was going to call helper_ltr_T0 but that won't work because of busy flag. */
-    SegmentCache *dt;
-    uint32_t e1, e2;
-    int index, type, entry_limit;
-    target_ulong ptr;
-    CPUX86State *saved_env = env;
-    env = env1;
-
-    selector &= 0xffff;
-    if ((selector & 0xfffc) == 0) {
-        /* NULL selector case: invalid TR */
-        env->tr.base = 0;
-        env->tr.limit = 0;
-        env->tr.flags = 0;
-    } else {
-        if (selector & 0x4)
-            goto l_failure;
-        dt = &env->gdt;
-        index = selector & ~7;
-#ifdef TARGET_X86_64
-        if (env->hflags & HF_LMA_MASK)
-            entry_limit = 15;
-        else
-#endif
-            entry_limit = 7;
-        if ((index + entry_limit) > dt->limit)
-            goto l_failure;
-        ptr = dt->base + index;
-        e1 = ldl_kernel(ptr);
-        e2 = ldl_kernel(ptr + 4);
-        type = (e2 >> DESC_TYPE_SHIFT) & 0xf;
-        if ((e2 & DESC_S_MASK) /*||
-            (type != 1 && type != 9)*/)
-            goto l_failure;
-        if (!(e2 & DESC_P_MASK))
-            goto l_failure;
-#ifdef TARGET_X86_64
-        if (env->hflags & HF_LMA_MASK) {
-            uint32_t e3;
-            e3 = ldl_kernel(ptr + 8);
-            load_seg_cache_raw_dt(&env->tr, e1, e2);
-            env->tr.base |= (target_ulong)e3 << 32;
-        } else
-#endif
-        {
-            load_seg_cache_raw_dt(&env->tr, e1, e2);
-        }
-        e2 |= DESC_TSS_BUSY_MASK;
-        stl_kernel(ptr + 4, e2);
-    }
-    env->tr.selector = selector;
-
-    env = saved_env;
-    return 0;
-l_failure:
-    AssertMsgFailed(("selector=%d\n", selector));
-    return -1;
-}
-
 
 int get_ss_esp_from_tss_raw(CPUX86State *env1, uint32_t *ss_ptr,
                              uint32_t *esp_ptr, int dpl)
@@ -6996,4 +6974,3 @@ CCTable cc_table[CC_OP_NB] = {
 #endif
 };
 #endif /* VBOX */
-

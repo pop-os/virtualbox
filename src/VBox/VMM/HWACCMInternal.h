@@ -1,4 +1,4 @@
-/* $Id: HWACCMInternal.h $ */
+/* $Id: HWACCMInternal.h 18770 2009-04-06 15:00:15Z vboxsync $ */
 /** @file
  * HWACCM - Internal header file.
  */
@@ -549,6 +549,18 @@ typedef struct HWACCMCPU
         uint64_t                    intInfo;
     } Event;
 
+    /** IO Block emulation state. */
+    struct
+    {
+        bool                    fEnabled;
+        uint8_t                 u8Align[7];
+
+        /** RIP at the start of the io code we wish to emulate in the recompiler. */
+        RTGCPTR                 GCPtrFunctionEip;
+
+        uint64_t                cr0;
+    } EmulateIoBlock;
+
     /** Currenty shadow paging mode. */
     PGMMODE                 enmShadowMode;
 
@@ -587,11 +599,19 @@ typedef struct HWACCMCPU
     STAMCOUNTER             StatExitInvd;
     STAMCOUNTER             StatExitCpuid;
     STAMCOUNTER             StatExitRdtsc;
+    STAMCOUNTER             StatExitRdpmc;
+    STAMCOUNTER             StatExitCli;
+    STAMCOUNTER             StatExitSti;
+    STAMCOUNTER             StatExitPushf;
+    STAMCOUNTER             StatExitPopf;
+    STAMCOUNTER             StatExitIret;
+    STAMCOUNTER             StatExitInt;
     STAMCOUNTER             StatExitCRxWrite[16];
     STAMCOUNTER             StatExitCRxRead[16];
     STAMCOUNTER             StatExitDRxWrite;
     STAMCOUNTER             StatExitDRxRead;
     STAMCOUNTER             StatExitCLTS;
+    STAMCOUNTER             StatExitHlt;
     STAMCOUNTER             StatExitLMSW;
     STAMCOUNTER             StatExitIOWrite;
     STAMCOUNTER             StatExitIORead;

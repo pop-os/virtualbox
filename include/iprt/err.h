@@ -360,8 +360,7 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_THREAD_NOT_WAITABLE            (-30)
 /** Pagetable not present. */
 #define VERR_PAGE_TABLE_NOT_PRESENT         (-31)
-/** Internal error - we're screwed if this happens. */
-#define VERR_INTERNAL_ERROR                 (-32)
+
 /** The per process timer is busy. */
 #define VERR_TIMER_BUSY                     (-33)
 /** Address conflict. */
@@ -502,6 +501,8 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_DANGLING_OBJECTS               (-86)
 /** Generic dangling objects status. */
 #define VWRN_DANGLING_OBJECTS               86
+/** Invalid Base64 encoding. */
+#define VERR_INVALID_BASE64_ENCODING        (-87)
 /** @} */
 
 
@@ -602,6 +603,28 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_NO_MORE_SEARCH_HANDLES         (-202)
 /** RTDirReadEx() failed to retrieve the extra data which was requested. */
 #define VWRN_NO_DIRENT_INFO                 203
+/** @} */
+
+
+/** @name Internal Processing Errors
+ * @{
+ */
+/** Internal error - we're screwed if this happens.  */
+#define VERR_INTERNAL_ERROR                 (-225)
+/** Internal error no. 2. */
+#define VERR_INTERNAL_ERROR_2               (-226)
+/** Internal error no. 3. */
+#define VERR_INTERNAL_ERROR_3               (-227)
+/** Internal error no. 4. */
+#define VERR_INTERNAL_ERROR_4               (-228)
+/** Internal error no. 5. */
+#define VERR_INTERNAL_ERROR_5               (-229)
+/** Internal error: Unexpected status code. */
+#define VERR_IPE_UNEXPECTED_STATUS          (-230)
+/** Internal error: Unexpected status code. */
+#define VERR_IPE_UNEXPECTED_INFO_STATUS     (-231)
+/** Internal error: Unexpected status code. */
+#define VERR_IPE_UNEXPECTED_ERROR_STATUS    (-232)
 /** @} */
 
 
@@ -851,6 +874,8 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_IMAGE_TOO_BIG                      (-612)
 /** The image base address is to high for this image type. */
 #define VERR_IMAGE_BASE_TOO_HIGH                (-614)
+/** Mismatching architecture. */
+#define VERR_LDR_ARCH_MISMATCH                  (-615)
 /** The PE loader encountered delayed imports, a feature which hasn't been implemented yet. */
 #define VERR_LDRPE_DELAY_IMPORT                 (-620)
 /** The PE loader doesn't have a clue what the security data directory entry is all about. */
@@ -948,6 +973,8 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_GETOPT_REQUIRED_ARGUMENT_MISSING   (-826)
 /** RTGetOpt: command line option has argument with bad format. */
 #define VERR_GETOPT_INVALID_ARGUMENT_FORMAT     (-827)
+/** RTGetOpt: Not an option. */
+#define VINF_GETOPT_NOT_OPTION                  828
 /** @} */
 
 /** @name RTCache status codes

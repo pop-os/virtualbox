@@ -1,4 +1,4 @@
-/* $Revision: 41713 $ */
+/* $Revision: 18479 $ */
 /** @file
  * VirtualBox Support Driver - Internal header.
  */
@@ -58,7 +58,9 @@
 #       define _interlockedbittestandreset    _interlockedbittestandreset_StupidDDKVsCompilerCrap
 #       define _interlockedbittestandset64    _interlockedbittestandset64_StupidDDKVsCompilerCrap
 #       define _interlockedbittestandreset64  _interlockedbittestandreset64_StupidDDKVsCompilerCrap
+#       pragma warning(disable : 4163)
 #       include <ntddk.h>
+#       pragma warning(default : 4163)
 #       undef  _InterlockedExchange
 #       undef  _InterlockedExchangeAdd
 #       undef  _InterlockedCompareExchange
@@ -184,7 +186,7 @@
 #elif defined(RT_OS_LINUX)
 
 /* check kernel version */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
 # error Unsupported kernel version!
 #endif
 

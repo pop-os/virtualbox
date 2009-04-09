@@ -1,4 +1,4 @@
-/* $Id: Builtins.h $ */
+/* $Id: Builtins.h 18068 2009-03-18 14:42:47Z vboxsync $ */
 /** @file
  * Built-in drivers & devices (part 1) header.
  */
@@ -75,6 +75,12 @@ extern const PDMDEVREG g_DeviceLsiLogicSCSI;
 #ifdef VBOX_WITH_SMC
 extern const PDMDEVREG g_DeviceSMC;
 #endif
+#ifdef VBOX_WITH_LPC
+extern const PDMDEVREG g_DeviceLPC;
+#endif
+#ifdef VBOX_WITH_EFI
+extern const PDMDEVREG g_DeviceEFI;
+#endif
 
 extern const PDMDRVREG g_DrvMouseQueue;
 extern const PDMDRVREG g_DrvKeyboardQueue;
@@ -87,7 +93,9 @@ extern const PDMDRVREG g_DrvMediaISO;
 extern const PDMDRVREG g_DrvRawImage;
 extern const PDMDRVREG g_DrvISCSI;
 extern const PDMDRVREG g_DrvISCSITransportTcp;
+#ifdef RT_OS_LINUX
 extern const PDMDRVREG g_DrvHostInterface;
+#endif
 extern const PDMDRVREG g_DrvIntNet;
 extern const PDMDRVREG g_DrvNAT;
 extern const PDMDRVREG g_DrvNetSniffer;

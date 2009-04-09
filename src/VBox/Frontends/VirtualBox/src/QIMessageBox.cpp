@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,17 +20,405 @@
  * additional information or have any questions.
  */
 
-#include "QIMessageBox.h"
+/* VBox includes */
 #include "VBoxDefs.h"
-#include "QIRichLabel.h"
+#include "VBoxGlobal.h"
+#include "QIMessageBox.h"
+#include "QILabel.h"
+#include "QIDialogButtonBox.h"
+#ifdef Q_WS_MAC
+# include "VBoxConsoleWnd.h"
+#endif /* Q_WS_MAC */
 
-#include <qpixmap.h>
-#include <qlabel.h>
-#include <qpushbutton.h>
-#include <qhbox.h>
-#include <qlayout.h>
+/* Qt includes */
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPushButton>
+#include <QStyleOptionFocusRect>
+#include <QStylePainter>
+#include <QToolButton>
 
-#include <qfontmetrics.h>
+/** @class QIRichToolButton
+ *
+ *  The QIRichToolButton class is a tool-botton with separate text-label.
+ *  It is declared here until moved into separate file in case
+ *  of it will be used somewhere except problem-reporter dialog.
+ */
+class QIRichToolButton : public QWidget
+{
+    Q_OBJECT;
+
+public:
+
+    QIRichToolButton (const QString &aName = QString::null, QWidget *aParent = 0)
+        : QWidget (aParent)
+        , mButton (new QToolButton())
+        , mLabel (new QLabel (aName))
+    {
+        /* Setup itself */
+        setFocusPolicy (Qt::StrongFocus);
+
+        /* Setup tool-button */
+        mButton->setAutoRaise (true);
+        mButton->setFixedSize (17, 16);
+        mButton->setFocusPolicy (Qt::NoFocus);
+        mButton->setStyleSheet ("QToolButton {border: 0px none black;}");
+        connect (mButton, SIGNAL (clicked (bool)), this, SLOT (buttonClicked()));
+
+        /* Setup text-label */
+        mLabel->setBuddy (mButton);
+        mLabel->setStyleSheet ("QLabel {padding: 2px 0px 2px 0px;}");
+
+        /* Setup main-layout */
+        QHBoxLayout *mainLayout = new QHBoxLayout (this);
+        VBoxGlobal::setLayoutMargin (mainLayout, 0);
+        mainLayout->setSpacing (0);
+        mainLayout->addWidget (mButton);
+        mainLayout->addWidget (mLabel);
+
+        /* Install event-filter */
+        qApp->installEventFilter (this);
+    }
+
+    void animateClick() { mButton->animateClick(); }
+
+    void setText (const QString &aName) { mLabel->setText (aName); }
+
+signals:
+
+    void clicked();
+
+protected slots:
+
+    virtual void buttonClicked()
+    {
+        emit clicked();
+    }
+
+protected:
+
+    bool eventFilter (QObject *aObject, QEvent *aEvent)
+    {
+        /* Process only QIRichToolButton or children */
+        if (!(aObject == this || children().contains (aObject)))
+            return QWidget::eventFilter (aObject, aEvent);
+
+        /* Process keyboard events */
+        if (aEvent->type() == QEvent::KeyPress)
+        {
+            QKeyEvent *kEvent = static_cast <QKeyEvent*> (aEvent);
+            if (kEvent->key() == Qt::Key_Space)
+                animateClick();
+        }
+
+        /* Process mouse events */
+        if ((aEvent->type() == QEvent::MouseButtonPress ||
+             aEvent->type() == QEvent::MouseButtonDblClick)
+            && aObject == mLabel)
+        {
+            /* Label click as toggle */
+            animateClick();
+        }
+
+        /* Default one handler */
+        return QWidget::eventFilter (aObject, aEvent);
+    }
+
+    void paintEvent (QPaintEvent *aEvent)
+    {
+        /* Draw focus around mLabel if focused */
+        if (hasFocus())
+        {
+            QStylePainter painter (this);
+            QStyleOptionFocusRect option;
+            option.initFrom (this);
+            option.rect = mLabel->frameGeometry();
+            painter.drawPrimitive (QStyle::PE_FrameFocusRect, option);
+        }
+        QWidget::paintEvent (aEvent);
+    }
+
+    QToolButton *mButton;
+    QLabel *mLabel;
+};
+
+/** @class QIArrowButtonSwitch
+ *
+ *  The QIArrowButtonSwitch class is an arrow tool-botton with text-label,
+ *  used as collaps/expand switch in QIMessageBox class.
+ *  It is declared here until moved into separate file in case
+ *  of it will be used somewhere except problem-reporter dialog.
+ */
+class QIArrowButtonSwitch : public QIRichToolButton
+{
+    Q_OBJECT;
+
+public:
+
+    QIArrowButtonSwitch (const QString &aName = QString::null, QWidget *aParent = 0)
+        : QIRichToolButton (aName, aParent)
+        , mIsExpanded (false)
+    {
+        updateIcon();
+    }
+
+    bool isExpanded() const { return mIsExpanded; }
+
+private slots:
+
+    void buttonClicked()
+    {
+        mIsExpanded = !mIsExpanded;
+        updateIcon();
+        QIRichToolButton::buttonClicked();
+    }
+
+private:
+
+    void updateIcon()
+    {
+        mButton->setIcon (VBoxGlobal::iconSet (mIsExpanded ?
+                          ":/arrow_down_10px.png" : ":/arrow_right_10px.png"));
+    }
+
+    bool eventFilter (QObject *aObject, QEvent *aEvent)
+    {
+        /* Process only QIArrowButtonSwitch or children */
+        if (!(aObject == this || children().contains (aObject)))
+            return QIRichToolButton::eventFilter (aObject, aEvent);
+
+        /* Process keyboard events */
+        if (aEvent->type() == QEvent::KeyPress)
+        {
+            QKeyEvent *kEvent = static_cast <QKeyEvent*> (aEvent);
+            if ((mIsExpanded && kEvent->key() == Qt::Key_Minus) ||
+                (!mIsExpanded && kEvent->key() == Qt::Key_Plus))
+                animateClick();
+        }
+
+        /* Default one handler */
+        return QIRichToolButton::eventFilter (aObject, aEvent);
+    }
+
+    bool mIsExpanded;
+};
+
+/** @class QIArrowButtonPress
+ *
+ *  The QIArrowButtonPress class is an arrow tool-botton with text-label,
+ *  used as back/next buttons in QIMessageBox class.
+ *  It is declared here until moved into separate file in case
+ *  of it will be used somewhere except problem-reporter dialog.
+ */
+class QIArrowButtonPress : public QIRichToolButton
+{
+    Q_OBJECT;
+
+public:
+
+    QIArrowButtonPress (bool aNext, const QString &aName = QString::null, QWidget *aParent = 0)
+        : QIRichToolButton (aName, aParent)
+        , mNext (aNext)
+    {
+        updateIcon();
+    }
+
+private:
+
+    void updateIcon()
+    {
+        mButton->setIcon (VBoxGlobal::iconSet (mNext ?
+                          ":/arrow_right_10px.png" : ":/arrow_left_10px.png"));
+    }
+
+    bool eventFilter (QObject *aObject, QEvent *aEvent)
+    {
+        /* Process only QIArrowButtonPress or children */
+        if (!(aObject == this || children().contains (aObject)))
+            return QIRichToolButton::eventFilter (aObject, aEvent);
+
+        /* Process keyboard events */
+        if (aEvent->type() == QEvent::KeyPress)
+        {
+            QKeyEvent *kEvent = static_cast <QKeyEvent*> (aEvent);
+            if ((mNext && kEvent->key() == Qt::Key_PageUp) ||
+                (!mNext && kEvent->key() == Qt::Key_PageDown))
+                animateClick();
+        }
+
+        /* Default one handler */
+        return QIRichToolButton::eventFilter (aObject, aEvent);
+    }
+
+    bool mNext;
+};
+
+/** @class QIArrowSplitter
+ *
+ *  The QIArrowSplitter class is a folding widget placeholder.
+ *  It is declared here until moved into separate file in case
+ *  of it will be used somewhere except problem-reporter dialog.
+ */
+class QIArrowSplitter : public QWidget
+{
+    Q_OBJECT;
+
+public:
+
+    QIArrowSplitter (QWidget *aChild, QWidget *aParent = 0)
+        : QWidget (aParent)
+        , mMainLayout (new QVBoxLayout (this))
+        , mSwitchButton (new QIArrowButtonSwitch())
+        , mBackButton (new QIArrowButtonPress (false, tr ("&Back")))
+        , mNextButton (new QIArrowButtonPress (true,  tr ("&Next")))
+        , mChild (aChild)
+    {
+        /* Setup main-layout */
+        VBoxGlobal::setLayoutMargin (mMainLayout, 0);
+
+        /* Setup buttons */
+        mBackButton->setVisible (false);
+        mNextButton->setVisible (false);
+
+        /* Setup connections */
+        connect (mSwitchButton, SIGNAL (clicked()), this, SLOT (toggleWidget()));
+        connect (mBackButton, SIGNAL (clicked()), this, SIGNAL (showBackDetails()));
+        connect (mNextButton, SIGNAL (clicked()), this, SIGNAL (showNextDetails()));
+
+        /* Setup button layout */
+        QHBoxLayout *buttonLayout = new QHBoxLayout();
+        VBoxGlobal::setLayoutMargin (buttonLayout, 0);
+        buttonLayout->setSpacing (0);
+        buttonLayout->addWidget (mSwitchButton);
+        buttonLayout->addStretch();
+        buttonLayout->addWidget (mBackButton);
+        buttonLayout->addWidget (mNextButton);
+
+        /* Append layout with children */
+        mMainLayout->addLayout (buttonLayout);
+        mMainLayout->addWidget (mChild);
+
+        /* Install event-filter */
+        qApp->installEventFilter (this);
+    }
+
+    void setMultiPaging (bool aMultiPage)
+    {
+        mBackButton->setVisible (aMultiPage);
+        mNextButton->setVisible (aMultiPage);
+    }
+
+    void setButtonEnabled (bool aNext, bool aEnabled)
+    {
+        aNext ? mNextButton->setEnabled (aEnabled)
+              : mBackButton->setEnabled (aEnabled);
+    }
+
+    void setName (const QString &aName)
+    {
+        mSwitchButton->setText (aName);
+        relayout();
+    }
+
+public slots:
+
+    void toggleWidget()
+    {
+        mChild->setVisible (mSwitchButton->isExpanded());
+        relayout();
+    }
+
+signals:
+
+    void showBackDetails();
+    void showNextDetails();
+
+private:
+
+    bool eventFilter (QObject *aObject, QEvent *aEvent)
+    {
+        /* Process only parent window children */
+        if (!(aObject == window() || window()->children().contains (aObject)))
+            return QWidget::eventFilter (aObject, aEvent);
+
+        /* Do not process QIArrowButtonSwitch & QIArrowButtonPress children */
+        if (aObject == mSwitchButton ||
+            aObject == mBackButton ||
+            aObject == mNextButton ||
+            mSwitchButton->children().contains (aObject) ||
+            mBackButton->children().contains (aObject) ||
+            mNextButton->children().contains (aObject))
+            return QWidget::eventFilter (aObject, aEvent);
+
+        /* Process some keyboard events */
+        if (aEvent->type() == QEvent::KeyPress)
+        {
+            QKeyEvent *kEvent = static_cast <QKeyEvent*> (aEvent);
+            switch (kEvent->key())
+            {
+                case Qt::Key_Plus:
+                {
+                    if (!mSwitchButton->isExpanded())
+                        mSwitchButton->animateClick();
+                    break;
+                }
+                case Qt::Key_Minus:
+                {
+                    if (mSwitchButton->isExpanded())
+                        mSwitchButton->animateClick();
+                    break;
+                }
+                case Qt::Key_PageUp:
+                {
+                    if (mNextButton->isEnabled())
+                        mNextButton->animateClick();
+                    break;
+                }
+                case Qt::Key_PageDown:
+                {
+                    if (mBackButton->isEnabled())
+                        mBackButton->animateClick();
+                    break;
+                }
+            }
+        }
+
+        /* Default one handler */
+        return QWidget::eventFilter (aObject, aEvent);
+    }
+
+    void relayout()
+    {
+        /* Update full layout system of message window */
+        QList <QLayout*> layouts = findChildren <QLayout*> ();
+        foreach (QLayout *item, layouts)
+        {
+            item->update();
+            item->activate();
+        }
+
+        /* Update main layout of message window at last */
+        window()->layout()->update();
+        window()->layout()->activate();
+        qApp->processEvents();
+
+        /* Now resize window to minimum possible size */
+        window()->resize (window()->minimumSizeHint());
+        qApp->processEvents();
+
+        /* Check if we have to make dialog fixed in height */
+        if (mSwitchButton->isExpanded())
+            window()->setMaximumHeight (QWIDGETSIZE_MAX);
+        else
+            window()->setFixedHeight (window()->minimumSizeHint().height());
+    }
+
+    QVBoxLayout *mMainLayout;
+    QIArrowButtonSwitch *mSwitchButton;
+    QIArrowButtonPress *mBackButton;
+    QIArrowButtonPress *mNextButton;
+    QWidget *mChild;
+};
 
 /** @class QIMessageBox
  *
@@ -40,104 +428,126 @@
  */
 
 /**
- *  This constructor is equivalent to
- *  QMessageBox::QMessageBox (const QString &, const QString &, Icon,
- *      int, int, int, QWidget *, const char *, bool, WFlags).
  *  See QMessageBox for details.
  */
 QIMessageBox::QIMessageBox (const QString &aCaption, const QString &aText,
                             Icon aIcon, int aButton0, int aButton1, int aButton2,
-                            QWidget *aParent, const char *aName, bool aModal,
-                            WFlags aFlags)
-    : QDialog (aParent, aName, aModal,
-               aFlags | WStyle_Customize | WStyle_NormalBorder |
-                        WStyle_Title | WStyle_SysMenu)
+                            QWidget *aParent, const char *aName, bool aModal)
+    : QIDialog (aParent)
+    , mText (aText)
+    , mDetailsIndex (-1)
+    , mWasDone (false)
+    , mWasPolished (false)
 {
-    setCaption (aCaption);
+#ifdef Q_WS_MAC
+    /* Sheets are broken if the window is in fullscreen mode. So make it a
+     * normal window in that case. */
+    VBoxConsoleWnd *cwnd = qobject_cast<VBoxConsoleWnd*> (aParent);
+    if (cwnd == NULL ||
+        (!cwnd->isTrueFullscreen() &&
+         !cwnd->isTrueSeamless()))
+        setWindowFlags (Qt::Sheet);
+#endif /* Q_WS_MAC */
+
+    setWindowTitle (aCaption);
+    /* Necessary to later find some of the message boxes */
+    setObjectName (aName);
+    setModal (aModal);
 
     mButton0 = aButton0;
     mButton1 = aButton1;
     mButton2 = aButton2;
 
     QVBoxLayout *layout = new QVBoxLayout (this);
-    /* setAutoAdd() behavior is really poor (it messes up with the order
-     * of widgets), never use it: layout->setAutoAdd (true); */
-    layout->setMargin (11);
+#ifdef Q_WS_MAC
+    layout->setContentsMargins (40, 11, 40, 11);
+#else /* !Q_WS_MAC */
+    VBoxGlobal::setLayoutMargin (layout, 11);
+#endif /* !Q_WS_MAC */
     layout->setSpacing (10);
-    layout->setResizeMode (QLayout::Minimum);
+    layout->setSizeConstraint (QLayout::SetMinimumSize);
 
-    QHBox *main = new QHBox (this);
-    main->setMargin (0);
-    main->setSpacing (10);
+    QWidget *main = new QWidget();
+
+    QHBoxLayout *hLayout = new QHBoxLayout (main);
+    VBoxGlobal::setLayoutMargin (hLayout, 0);
+    hLayout->setSpacing (10);
     layout->addWidget (main);
 
-    mIconLabel = new QLabel (main);
-	if (aIcon < GuruMeditation)
-        mIconLabel->setPixmap (QMessageBox::standardIcon ((QMessageBox::Icon) aIcon));
-    else if (aIcon == GuruMeditation)
-        mIconLabel->setPixmap (QPixmap::fromMimeSource ("meditation_32px.png"));
+    mIconLabel = new QLabel();
+    mIconLabel->setPixmap (standardPixmap (aIcon));
     mIconLabel->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Minimum);
-    mIconLabel->setAlignment (AlignHCenter | AlignTop);
+    mIconLabel->setAlignment (Qt::AlignHCenter | Qt::AlignTop);
+    hLayout->addWidget (mIconLabel);
 
-    mMessageVBox = new QVBox (main);
-    mMessageVBox->setMargin (0);
-    mMessageVBox->setSpacing (10);
+    QVBoxLayout* messageVBoxLayout = new QVBoxLayout();
+    VBoxGlobal::setLayoutMargin (messageVBoxLayout, 0);
+    messageVBoxLayout->setSpacing (10);
+    hLayout->addLayout (messageVBoxLayout);
 
-    mTextLabel = new QIRichLabel (aText, mMessageVBox);
-    mTextLabel->setAlignment (AlignAuto | AlignTop | ExpandTabs | WordBreak);
-    mTextLabel->setSizePolicy (QSizePolicy::Preferred, QSizePolicy::Preferred, true);
-    mTextLabel->setMinimumWidth (mTextLabel->sizeHint().width());
+    mTextLabel = new QILabel (aText);
+    mTextLabel->setAlignment (Qt::AlignLeft | Qt::AlignTop);
+    mTextLabel->setWordWrap (true);
+    QSizePolicy sp (QSizePolicy::Minimum, QSizePolicy::Minimum);
+    sp.setHeightForWidth (true);
+    mTextLabel->setSizePolicy (sp);
+    messageVBoxLayout->addWidget (mTextLabel);
 
-    mFlagCB_Main = new QCheckBox (mMessageVBox);
+    mFlagCB_Main = new QCheckBox();
     mFlagCB_Main->hide();
+    messageVBoxLayout->addWidget (mFlagCB_Main);
 
-    mDetailsVBox = new QVBox (this);
-    mDetailsVBox->setMargin (0);
-    mDetailsVBox->setSpacing (10);
+    mDetailsVBox = new QWidget();
     layout->addWidget (mDetailsVBox);
 
-    mDetailsText = new QTextEdit (mDetailsVBox);
+    QVBoxLayout* detailsVBoxLayout = new QVBoxLayout (mDetailsVBox);
+    VBoxGlobal::setLayoutMargin (detailsVBoxLayout, 0);
+    detailsVBoxLayout->setSpacing (10);
+
+    mDetailsText = new QTextEdit();
     {
-        /* calculate the minimum size dynamically, approx. for 40 chars and
-         * 6 lines */
+        /* Calculate the minimum size dynamically, approx.
+         * for 40 chars, 4 lines & 2 <table> margins */
         QFontMetrics fm = mDetailsText->fontMetrics();
-        mDetailsText->setMinimumSize (40 * fm.width ('m'), fm.lineSpacing() * 6);
+        mDetailsText->setMinimumSize (fm.width ('m') * 40,
+                                      fm.lineSpacing() * 4 + 4 * 2);
     }
     mDetailsText->setReadOnly (true);
-    mDetailsText->setWrapPolicy (QTextEdit::AtWordOrDocumentBoundary);
     mDetailsText->setSizePolicy (QSizePolicy::Expanding,
                                  QSizePolicy::MinimumExpanding);
+    mDetailsSplitter = new QIArrowSplitter (mDetailsText);
+    connect (mDetailsSplitter, SIGNAL (showBackDetails()), this, SLOT (detailsBack()));
+    connect (mDetailsSplitter, SIGNAL (showNextDetails()), this, SLOT (detailsNext()));
+    detailsVBoxLayout->addWidget (mDetailsSplitter);
 
-    mFlagCB_Details = new QCheckBox (mDetailsVBox);
+    mFlagCB_Details = new QCheckBox();
     mFlagCB_Details->hide();
+    detailsVBoxLayout->addWidget (mFlagCB_Details);
 
     mSpacer = new QSpacerItem (0, 0);
     layout->addItem (mSpacer);
 
-    QHBoxLayout *buttons = new QHBoxLayout (new QWidget (this));
-    layout->addWidget (buttons->mainWidget());
-    buttons->setAutoAdd (true);
-    buttons->setSpacing (5);
+    mButtonBox = new QIDialogButtonBox;
+    mButtonBox->setCenterButtons (true);
+    layout->addWidget (mButtonBox);
 
     mButtonEsc = 0;
 
-    mButton0PB = createButton (buttons->mainWidget(), aButton0);
+    mButton0PB = createButton (aButton0);
     if (mButton0PB)
         connect (mButton0PB, SIGNAL (clicked()), SLOT (done0()));
-    mButton1PB = createButton (buttons->mainWidget(), aButton1);
+    mButton1PB = createButton (aButton1);
     if (mButton1PB)
         connect (mButton1PB, SIGNAL (clicked()), SLOT (done1()));
-    mButton2PB = createButton (buttons->mainWidget(), aButton2);
+    mButton2PB = createButton (aButton2);
     if (mButton2PB)
         connect (mButton2PB, SIGNAL (clicked()), SLOT (done2()));
-
-    buttons->setAlignment (AlignHCenter);
 
     /* this call is a must -- it initializes mFlagCB and mSpacer */
     setDetailsShown (false);
 }
 
-/** 
+/**
  *  Returns the text of the given message box button.
  *  See QMessageBox::buttonText() for details.
  *
@@ -156,7 +566,7 @@ QString QIMessageBox::buttonText (int aButton) const
     return QString::null;
 }
 
-/** 
+/**
  *  Sets the text of the given message box button.
  *  See QMessageBox::setButtonText() for details.
  *
@@ -218,25 +628,26 @@ void QIMessageBox::setFlagText (const QString &aText)
  *  @see #setFlagText()
  */
 
-QPushButton *QIMessageBox::createButton (QWidget *aParent, int aButton)
+QPushButton *QIMessageBox::createButton (int aButton)
 {
     if (aButton == 0)
         return 0;
 
     QString text;
+    QDialogButtonBox::ButtonRole role;
     switch (aButton & ButtonMask)
     {
-        case Ok:        text = tr ("OK"); break;
-        case Yes:       text = tr ("Yes"); break;
-        case No:        text = tr ("No"); break;
-        case Cancel:    text = tr ("Cancel"); break;
-        case Ignore:    text = tr ("Ignore"); break;
+        case Ok:        text = tr ("OK"); role = QDialogButtonBox::AcceptRole; break;
+        case Yes:       text = tr ("Yes"); role = QDialogButtonBox::YesRole; break;
+        case No:        text = tr ("No"); role = QDialogButtonBox::NoRole; break;
+        case Cancel:    text = tr ("Cancel"); role = QDialogButtonBox::RejectRole; break;
+        case Ignore:    text = tr ("Ignore"); role = QDialogButtonBox::AcceptRole; break;
         default:
             AssertMsgFailed (("Type %d is not implemented", aButton));
             return NULL;
     }
 
-    QPushButton *b = new QPushButton (text, aParent);
+    QPushButton *b = mButtonBox->addButton (text, role);
 
     if (aButton & Default)
     {
@@ -267,17 +678,100 @@ QPushButton *QIMessageBox::createButton (QWidget *aParent, int aButton)
  */
 void QIMessageBox::setDetailsText (const QString &aText)
 {
-    mDetailsText->setText (aText);
+    AssertMsg (!aText.isEmpty(), ("Details text should NOT be empty."));
+
+    QStringList paragraphs (aText.split ("<!--EOP-->", QString::SkipEmptyParts));
+    AssertMsg (paragraphs.size() != 0, ("There should be at least one paragraph."));
+
+    foreach (QString paragraph, paragraphs)
+    {
+        QStringList parts (paragraph.split ("<!--EOM-->", QString::KeepEmptyParts));
+        AssertMsg (parts.size() == 2, ("Each paragraph should consist of 2 parts."));
+        mDetailsList << QPair <QString, QString> (parts [0], parts [1]);
+    }
+
+    mDetailsSplitter->setMultiPaging (mDetailsList.size() > 1);
+    mDetailsIndex = 0;
+    refreshDetails();
 }
 
-/** @fn QIMessageBox::isDetailsShown() const
- *
- *  Returns true if the optional details box is shown and false otherwise.
- *  By default, the details box is not shown.
- *
- *  @see #setDetailsShown()
- *  @see #setDetailsText()
- */
+QPixmap QIMessageBox::standardPixmap (QIMessageBox::Icon aIcon)
+{
+    QIcon icon;
+    switch (aIcon)
+    {
+        case QIMessageBox::Information:
+            icon = vboxGlobal().standardIcon (QStyle::SP_MessageBoxInformation, this);
+            break;
+        case QMessageBox::Warning:
+            icon = vboxGlobal().standardIcon (QStyle::SP_MessageBoxWarning, this);
+            break;
+        case QIMessageBox::Critical:
+            icon = vboxGlobal().standardIcon (QStyle::SP_MessageBoxCritical, this);
+            break;
+        case QIMessageBox::Question:
+            icon = vboxGlobal().standardIcon (QStyle::SP_MessageBoxQuestion, this);
+            break;
+        case QIMessageBox::GuruMeditation:
+            icon = QIcon (":/meditation_32px.png");
+            break;
+        default:
+            break;
+    }
+    if (!icon.isNull())
+    {
+        int size = style()->pixelMetric (QStyle::PM_MessageBoxIconSize, 0, this);
+        return icon.pixmap (size, size);
+    }else
+        return QPixmap();
+}
+
+void QIMessageBox::closeEvent (QCloseEvent *e)
+{
+    if (mWasDone)
+        e->accept();
+    else
+        e->ignore();
+}
+
+void QIMessageBox::showEvent (QShowEvent *e)
+{
+    if (!mWasPolished)
+    {
+        /* Polishing sub-widgets */
+        resize (minimumSizeHint());
+        qApp->processEvents();
+        mTextLabel->setMinimumWidth (mTextLabel->width());
+        mTextLabel->updateSizeHint();
+        qApp->processEvents();
+        setFixedWidth (width());
+        mDetailsSplitter->toggleWidget();
+        mWasPolished = true;
+    }
+
+    QIDialog::showEvent (e);
+}
+
+void QIMessageBox::refreshDetails()
+{
+    /* Update message text iteself */
+    mTextLabel->setText (mText + mDetailsList [mDetailsIndex].first);
+    mTextLabel->updateSizeHint();
+    /* Update details table */
+    mDetailsText->setText (mDetailsList [mDetailsIndex].second);
+    setDetailsShown (!mDetailsText->toPlainText().isEmpty());
+
+    /* Update multi-paging system */
+    if (mDetailsList.size() > 1)
+    {
+        mDetailsSplitter->setButtonEnabled (true, mDetailsIndex < mDetailsList.size() - 1);
+        mDetailsSplitter->setButtonEnabled (false, mDetailsIndex > 0);
+    }
+
+    /* Update details label */
+    mDetailsSplitter->setName (mDetailsList.size() == 1 ? tr ("&Details") :
+        tr ("&Details (%1 of %2)").arg (mDetailsIndex + 1).arg (mDetailsList.size()));
+}
 
 /**
  *  Sets the visibility state of the optional details box
@@ -290,21 +784,21 @@ void QIMessageBox::setDetailsShown (bool aShown)
 {
     if (aShown)
     {
-        mFlagCB_Details->setShown (mFlagCB_Main->isShown());
+        mFlagCB_Details->setVisible (mFlagCB_Main->isVisible());
         mFlagCB_Details->setChecked (mFlagCB_Main->isChecked());
         mFlagCB_Details->setText (mFlagCB_Main->text());
         if (mFlagCB_Main->hasFocus())
             mFlagCB_Details->setFocus();
-        mFlagCB_Main->setShown (false);
+        mFlagCB_Main->setVisible (false);
         mFlagCB = mFlagCB_Details;
         mSpacer->changeSize (0, 0, QSizePolicy::Minimum, QSizePolicy::Minimum);
     }
 
-    mDetailsVBox->setShown (aShown);
+    mDetailsVBox->setVisible (aShown);
 
     if (!aShown)
     {
-        mFlagCB_Main->setShown (mFlagCB_Details->isShown());
+        mFlagCB_Main->setVisible (mFlagCB_Details->isVisible());
         mFlagCB_Main->setChecked (mFlagCB_Details->isChecked());
         mFlagCB_Main->setText (mFlagCB_Details->text());
         if (mFlagCB_Details->hasFocus())
@@ -313,4 +807,33 @@ void QIMessageBox::setDetailsShown (bool aShown)
         mSpacer->changeSize (0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
     }
 }
+
+void QIMessageBox::detailsBack()
+{
+    if (mDetailsIndex > 0)
+    {
+        -- mDetailsIndex;
+        refreshDetails();
+    }
+}
+
+void QIMessageBox::detailsNext()
+{
+    if (mDetailsIndex < mDetailsList.size() - 1)
+    {
+        ++ mDetailsIndex;
+        refreshDetails();
+    }
+}
+
+void QIMessageBox::reject()
+{
+    if (mButtonEsc)
+    {
+        QDialog::reject();
+        setResult (mButtonEsc & ButtonMask);
+    }
+}
+
+#include "QIMessageBox.moc"
 

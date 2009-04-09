@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 18717 2009-04-05 13:17:33Z vboxsync $
 ## @file
 # Top level makefile.
 #
@@ -101,23 +101,6 @@ if1of ($(KBUILD_TARGET), win os2)
 endif
 
 
-# The Qt DLLs.
-ifneq ($(VBOX_WITH_QTGUI),)
- if1of ($(KBUILD_TARGET), win os2)
-  ifneq ($(strip $(VBOX_DLL_QT)),)
-   bin_SOURCES += \
-    $(VBOX_DLL_QT)=>$(not-dir $(VBOX_DLL_QT))
-  endif
-  ifdef VBOX_QT_BINARIES
-   bin_SOURCES += $(VBOX_QT_BINARIES)
-  endif
- else ifeq ($(VBOX_MUST_INSTALL_LIB_QT),1)
-   bin_SOURCES += \
-	$(LIB_QT)
- endif
-endif
-
-
 # The compiler runtime DLLs.
 ifeq ($(KBUILD_TARGET).$(VBOX_WITHOUT_COMPILER_REDIST),win.)
  ifdef VBOX_USE_VCC80
@@ -178,51 +161,60 @@ ifdef VBOX_WITH_QT4_SUN
  qt4-bin_MODE = 755
  ifeq ($(KBUILD_TARGET),darwin)
   qt4-bin_INST = $(INST_VIRTUALBOX)Contents/
-  qt4-bin_SOURCES = \
-	$(VBOX_PATH_QT4)/Frameworks/QtCore.framework/Versions/4/QtCore=>Frameworks/QtCore.framework/Versions/4/QtCore \
-	$(VBOX_PATH_QT4)/Frameworks/QtGui.framework/Versions/4/QtGui=>Frameworks/QtGui.framework/Versions/4/QtGui \
-	$(VBOX_PATH_QT4)/Frameworks/QtNetwork.framework/Versions/4/QtNetwork=>Frameworks/QtNetwork.framework/Versions/4/QtNetwork \
-	$(PATH_qt4-bin)/libqtaccessiblewidgets.dylib=>MacOS/accessible/libqtaccessiblewidgets.dylib
-  qt4-bin_CLEAN = $(PATH_qt4-bin)/libqtaccessiblewidgets.dylib
-$$(PATH_qt4-bin)/libqtaccessiblewidgets.dylib: $$(VBOX_PATH_QT4)/plugins/accessible/libqtaccessiblewidgets.dylib | $$(dir $$@)
-	$(call MSG_TOOL,install_name_tool,accessible,$<,$@)
-	$(QUIET)$(INSTALL) $< $@
-	$(QUIET)install_name_tool \
-		-change                         QtCore.framework/Versions/4/QtCore \
-		 @executable_path/../Frameworks/QtCore.framework/Versions/4/QtCore \
-		-change                         QtGui.framework/Versions/4/QtGui \
-		 @executable_path/../Frameworks/QtGui.framework/Versions/4/QtGui \
-		-change                         QtNetwork.framework/Versions/4/QtNetwork \
-		 @executable_path/../Frameworks/QtNetwork.framework/Versions/4/QtNetwork \
-		$@
-
+  qt4-bin_SOURCES = $(foreach qtmod, QtCore QtGui QtNetwork \
+   	,$(VBOX_PATH_QT4)/Frameworks/$(qtmod)VBox.framework/Versions/4/$(qtmod)VBox=>Frameworks/$(qtmod)VBox.framework/Versions/4/$(qtmod)VBox)
+  ifdef VBOX_WITH_COCOA_QT
+   qt4-bin_SOURCES += \
+   	$(VBOX_PATH_QT4)/Frameworks/QtGuiVBox.framework/Versions/4/Resources/qt_menu.nib/classes.nib=>Frameworks/QtGuiVBox.framework/Versions/4/Resources/qt_menu.nib/classes.nib \
+   	$(VBOX_PATH_QT4)/Frameworks/QtGuiVBox.framework/Versions/4/Resources/qt_menu.nib/info.nib=>Frameworks/QtGuiVBox.framework/Versions/4/Resources/qt_menu.nib/info.nib \
+   	$(VBOX_PATH_QT4)/Frameworks/QtGuiVBox.framework/Versions/4/Resources/qt_menu.nib/keyedobjects.nib=>Frameworks/QtGuiVBox.framework/Versions/4/Resources/qt_menu.nib/keyedobjects.nib
+  endif
+  qt4-bin_SOURCES += \
+  	$(VBOX_PATH_QT4)/plugins/accessible/libqtaccessiblewidgets.dylib=>MacOS/accessible/libqtaccessiblewidgets.dylib
+  qt4-bin_SYMLINKS = $(foreach qtmod, QtCore QtGui QtNetwork \
+  		,Frameworks/$(qtmod)VBox.framework/$(qtmod)VBox=>Versions/4/$(qtmod)VBox)
+  ifdef VBOX_WITH_COCOA_QT
+   qt4-bin_SYMLINKS += \
+   	Frameworks/QtGuiVBox.framework/Resources=>Versions/4/Resources/
+  endif
  else ifeq ($(KBUILD_TARGET),win)
   qt4-bin_INST = $(INST_BIN)
   qt4-bin_SOURCES = \
-	$(VBOX_PATH_QT4_LIB)/VBoxQtCore4.dll \
-	$(VBOX_PATH_QT4_LIB)/VBoxQtGui4.dll \
-	$(VBOX_PATH_QT4_LIB)/VBoxQtNetwork4.dll \
+	$(VBOX_PATH_QT4_LIB)/QtCoreVBox4.dll \
+	$(VBOX_PATH_QT4_LIB)/QtGuiVBox4.dll \
+	$(VBOX_PATH_QT4_LIB)/QtNetworkVBox4.dll \
 	$(VBOX_PATH_QT4)/plugins/accessible/qtaccessiblewidgets4.dll=>accessible/qtaccessiblewidgets4.dll
-
  else
   qt4-bin_INST = $(INST_BIN)
   qt4-bin_SOURCES = \
-	$(VBOX_PATH_QT4_LIB)/libVBoxQtCore.so.4 \
-	$(VBOX_PATH_QT4_LIB)/libVBoxQtGui.so.4 \
-	$(VBOX_PATH_QT4_LIB)/libVBoxQtNetwork.so.4 \
+	$(VBOX_PATH_QT4_LIB)/libQtCoreVBox.so.4 \
+	$(VBOX_PATH_QT4_LIB)/libQtGuiVBox.so.4 \
+	$(VBOX_PATH_QT4_LIB)/libQtNetworkVBox.so.4 \
 	$(VBOX_PATH_QT4)/plugins/accessible/libqtaccessiblewidgets$(SUFF_DLL)=>accessible/libqtaccessiblewidgets$(SUFF_DLL)
  endif
 endif # VBOX_WITH_QT4_SUN
 
 
 #
+# For building the combined package, just get the additions .ISO
+# once for amd64 to prevent version inconsistences. In all other
+# cases we get the .ISO per target architecture.
+#
+ifdef VBOX_WITH_ADDITIONS_FROM_BUILD_SERVER
+ ifdef VBOX_WITH_COMBINED_PACKAGE
+  ifeq ($(KBUILD_TARGET_ARCH),amd64)
+   INSTALLS += buildserver-additions
+  endif
+ else
+  INSTALLS += buildserver-additions
+ endif
+
+#
 # Install additions iso from the build server.
 # The $(CP)/$(RM) stuff can be replaced by a simple $(TOUCH) once that has
 # been added to kBuild.
 #
-ifdef VBOX_WITH_ADDITIONS_FROM_BUILD_SERVER
-INSTALLS += buildserver-additions
-buildserver-additions_INST = $(INST_ADDITIONS)
+buildserver-additions_INST = $(INST_ADDITIONS_ISO)
 buildserver-additions_MODE = 0644
 buildserver-additions_SOURCES = $(PATH_TARGET)/VBoxGuestAdditions.iso
 buildserver-additions_CLEANS = $(PATH_TARGET)/VBoxGuestAdditions.iso $(PATH_TARGET)/VBoxGuestAdditions.iso.tmp
@@ -303,7 +295,7 @@ ifn1of ($(KBUILD_TARGET), l4 linux win)
   ifndef VBOX_WITH_WIN32_ADDITIONS
    ifneq ($(wildcard $(VBOX_PATH_STAGED)/VBoxGuestAdditions.iso),)
     INSTALLS += staged-additions
-    staged-additions_INST = $(INST_ADDITIONS)
+    staged-additions_INST = $(INST_ADDITIONS_ISO)
     staged-additions_MODE = 0644
     staged-additions_SOURCES = $(VBOX_PATH_STAGED)/VBoxGuestAdditions.iso
    endif
@@ -323,9 +315,6 @@ endif
 
 endif # !VBOX_ONLY_ADDITIONS
 endif # !VBOX_ONLY_DOCS
-
-
-include $(KBUILD_PATH)/subfooter.kmk
 
 
 ifdef VBOX_ONLY_DOCS
@@ -437,13 +426,11 @@ VBOX_CORE_DOXYFILE_INPUT_DIRS = \
 	src/VBox/HostDrivers/VBoxNetNat/linux \
 	src/VBox/HostDrivers/VBoxNetNat/solaris \
 	src/VBox/HostDrivers/VBoxNetNat/win \
-	src/VBox/HostDrivers/VBoxNetTap \
-	src/VBox/HostDrivers/VBoxNetTap/darwin \
-	src/VBox/HostDrivers/VBoxNetTap/linux \
-	src/VBox/HostDrivers/VBoxNetTap/solaris \
-	src/VBox/HostDrivers/VBoxNetTap/win \
-	src/VBox/HostDrivers/VBoxTAP \
-	src/VBox/HostDrivers/VBoxTAP/win \
+	src/VBox/HostDrivers/VBoxNetAdp \
+	src/VBox/HostDrivers/VBoxNetAdp/darwin \
+	src/VBox/HostDrivers/VBoxNetAdp/linux \
+	src/VBox/HostDrivers/VBoxNetAdp/solaris \
+	src/VBox/HostDrivers/VBoxNetAdp/win \
 	src/VBox/HostDrivers/VBoxUSB \
 	src/VBox/HostDrivers/VBoxUSB/darwin \
 	src/VBox/HostDrivers/VBoxUSB/os2 \
@@ -511,7 +498,7 @@ VBOX_CORE_DOXYFILE_INPUT_FIRST =\
 	$(PATH_ROOT)/include/VBox/vm.h \
 	\
 	$(PATH_ROOT)/include/VBox/sup.h \
-	$(PATH_ROOT)/include/VBox/VBoxHDD-new.h \
+	$(PATH_ROOT)/include/VBox/VBoxHDD.h \
 	$(PATH_ROOT)/include/VBox/types.h \
 	$(PATH_ROOT)/include/VBox/err.h \
 	$(PATH_ROOT)/include/VBox/x86.h \
@@ -554,7 +541,7 @@ BLDDIRS += $(VBOX_CORE_DOXYFILE_OUTPUT)
 $(PATH_TARGET)/Doxyfile.Core: Doxyfile.Core \
 		$(comp-vars VBOX_CORE_DOXYFILE_INPUT,DOXYGEN_INPUT_PREV,FORCE) \
 		$(comp-vars VBOX_CORE_DOXYFILE_OUTPUT,DOXYGEN_OUTPUT_PREV,FORCE) \
-		| $(call DIRDEP, $(PATH_TARGET))
+		| $$(dir $$@)
 	$(RM) -f $@ $@.tmp $(PATH_TARGET)/Doxyfile.Core.dep
 	$(CP) -f Doxyfile.Core $@.tmp
 	$(APPEND) $@.tmp
@@ -579,120 +566,6 @@ $(PATH_TARGET)/docs.Core: $(PATH_TARGET)/Doxyfile.Core $$(VBOX_CORE_DOXYFILE_INP
 	doxygen $(PATH_TARGET)/Doxyfile.Core
 	$(APPEND) $(PATH_TARGET)/docs.Core
 
-
-#
-# Generate x86.mac and err.mac.
-#
-incs:
-	$(SED) -f include/VBox/err.sed --output include/VBox/err.mac include/VBox/err.h
-	$(APPEND) include/VBox/err.mac '%include "iprt/err.mac"'
-	$(SED) -f include/VBox/err.sed --output include/iprt/err.mac include/iprt/err.h
-	$(SED) \
-		-e '/__VBox_x86_h__/d' \
-		-e '/#define/!d' \
-		-e '/\\$$/d' \
-		-e 's/#define/%define/' \
-		-e 's/\([0-9a-fA-F][0-9a-fA-F]*\)U$$/\1/' \
-		-e 's/\([0-9a-fA-F][0-9a-fA-F]*\)U[[:space:]]/\1 /' \
-		-e 's/[[:space:]]\/\*\*<.*$$//' \
-		--output include/VBox/x86.mac \
-		include/VBox/x86.h
-
-
-#
-# Generate Visual SlickEdit tagging #defines.
-#
-vslick.h: include/VBox/cdefs.h include/iprt/cdefs.h $(MAKEFILE)
-	$(RM) -f -- $@ $@.tmp $@.tmp2 $@.tmp3
-	$(APPEND) $@.tmp '// autogenerated'
-	#@$(APPEND) $@.tmp '#define __BEGIN_DECLS '
-	#@$(APPEND) $@.tmp '#define __END_DECLS '
-
-	@$(APPEND) $@.tmp '#define ATL_NO_VTABLE '
-	@$(APPEND) $@.tmp '#define BEGIN_COM_MAP(a) '
-	@$(APPEND) $@.tmp '#define END_COM_MAP(a) '
-
-	@$(APPEND) $@.tmp '#define CHECKREADY if(!isReady()) return E_UNEXPECTED; '
-	@$(APPEND) $@.tmp '#define COM_DECL_READONLY_ENUM_AND_COLLECTION(a) '
-	@$(APPEND) $@.tmp '#define COM_INTERFACE_ENTRY(a) '
-	@$(APPEND) $@.tmp '#define COMGETTER(n)                    Get##n '
-	@$(APPEND) $@.tmp '#define COMSETTER(n)                    Set##n '
-	@$(APPEND) $@.tmp '#define ComSafeArrayIn(t,a)             t a[] '
-	@$(APPEND) $@.tmp '#define ComSafeArrayOut(t,a)            t * a[] '
-	@$(APPEND) $@.tmp '#define DECLARE_NOT_AGGREGATABLE(a) '
-	@$(APPEND) $@.tmp '#define DECLARE_PROTECT_FINAL_CONSTRUCT(a) '
-	@$(APPEND) $@.tmp '#define NS_DECL_ISUPPORTS '
-	@$(APPEND) $@.tmp '#define NS_IMETHOD NS_IMETHOD_(nsresult) '
-	@$(APPEND) $@.tmp '#define NS_IMETHOD_(type) type '
-	@$(APPEND) $@.tmp '#define PARSERS_EXPORT '
-	@$(APPEND) $@.tmp '#define STDMETHOD(a) NS_IMETHOD a '
-
-	@$(APPEND) $@.tmp '#define CTX_SUFF(var)                   var##R3 '
-	@$(APPEND) $@.tmp '#define CTXAllSUFF(var)                 var##R3 '
-	@$(APPEND) $@.tmp '#define CTXSUFF(var)                    var##HC '
-	@$(APPEND) $@.tmp '#define OTHERCTXSUFF(var)  	      var##GC '
-	@$(APPEND) $@.tmp '#define CTXALLMID(first, last)          first##R3##last '
-	@$(APPEND) $@.tmp '#define CTXMID(first, last)             first##HC##last '
-	@$(APPEND) $@.tmp '#define OTHERCTXMID(first, last)        first##GC##last '
-	@$(APPEND) $@.tmp '#define CTXTYPE(GCType, R3Type, R0Type) R3Type '
-	@$(APPEND) $@.tmp '#define RCTYPE(RCType, HCType)          RCType '
-	@$(APPEND) $@.tmp '#define GCTYPE(GCType, HCType)          GCType '
-	@$(APPEND) $@.tmp '#define RCPTRTYPE(RCType)               RCType '
-	@$(APPEND) $@.tmp '#define GCPTRTYPE(GCType)               GCType '
-	@$(APPEND) $@.tmp '#define HCPTRTYPE(HCType)               HCType '
-	@$(APPEND) $@.tmp '#define R3R0PTRTYPE(HCType)             HCType '
-	@$(APPEND) $@.tmp '#define R0PTRTYPE(R3Type)               R3Type '
-	@$(APPEND) $@.tmp '#define R3PTRTYPE(R0Type)               R0Type '
-	@$(APPEND) $@.tmp '#define RT_SRC_POS                      __FILE__, __LINE__, __PRETTY_FUNCTION__ '
-	@$(APPEND) $@.tmp '#define RT_SRC_POS_DECL                 const char *pszFile, unsigned iLine, const char *pszFunction '
-	@$(APPEND) $@.tmp '#define RT_SRC_POS_ARGS                 pszFile, iLine, pszFunction '
-	@$(APPEND) $@.tmp '#define RTCALL'
-	@$(APPEND) $@.tmp '#define DECLINLINE(type)                inline type '
-
-	@$(APPEND) $@.tmp '#define PDMDEVINSINT_DECLARED           1'
-	@$(APPEND) $@.tmp '#define VBOXCALL'
-
-	$(SED)  -e '/__cdecl/d' \
-		-e '/^ *# *define.*DECL/!d' \
-		-e '/DECLS/d' \
-		-e '/DECLARE_CLS_/d' \
-		-e '/_SRC_POS_DECL/d' \
-		-e '/declspec/d' \
-		-e '/__attribute__/d' \
-		-e 's/#  */#/g' \
-		-e 's/   */ /g' \
-		-e '/(type) DECLEXPORT/d' \
-		-e '/ DECLEXPORT_CLASS/d' \
-		-e 's/ *VBOXCALL//' \
-		-e 's/ *RTCALL//' \
-		-e 's/(type) DECLIMPORT(type)/(type) type/' \
-		-e '/ DECLASM(type) type/d' \
-		-e '/define  *DECL..CALLBACKMEMBER(type[^)]*) *RT/d' \
-		-e '/define  *DECLINLINE(type)/d' \
-		-e '/define RT[DATGRC03]*DECL(type) *DECLHIDDEN(type)/d' \
-		\
-		--append $@.tmp \
-		$(filter-out include/VBox/err.h, $(wildcard include/VBox/*.h)) \
-		include/iprt/cdefs.h
-	$(CAT_EXT) $@.tmp | sort | $(SED_EXT) -e 's/$$/\n/' --output $@.tmp2
-	$(MV) -f $@.tmp2 $@
-	$(RM) -f $@.tmp $@.tmp2 $@.tmp3
-ifeq ($(KBUILD_HOST),win)
-	@$(ECHO) 'TODO: Merge vslick.h with your "$(HOMEDRIVE)$(HOMEPATH)\Documents\My SlickEdit Config\x.y.z\usercpp.h" file.'
-else
-	@$(ECHO) "TODO: Merge ./vslick.h with your ~/.slickedit/x.y.z/unxcpp.h file."
-endif
-
-
-#
-# Add fetching of the tools to the 'up[date][2]' targets.
-#
-up update up2 update2::
-ifndef VBOX_OSE
-	+$(MAKE) -C tools fetch
-else
-	$(MAKE) -C tools -f Makefile-ose.kmk fetch
-endif
 
 
 #
@@ -832,20 +705,6 @@ additions-packing:
 
 
 #
-# Aliases for building the SDK.
-#
-.NOTPARALLEL: sdk sdk-fetch
-sdk:
-	+ $(KMK) VBOX_ONLY_SDK=1 \
-		pass_bldprogs pass_others pass_installs pass_packing
-
-sdk-fetch:
-	+ $(KMK) KBUILD_TARGET=win  KBUILD_TARGET_ARCH=x86  -C tools fetch
-
-
-
-
-#
 # Generate VirtualBox-OSE-x.x.x.tar.bz2 tarballs for distribution
 #
 # - includes kBuild
@@ -876,3 +735,139 @@ snapshot:
 	    -f $(TARBALLPATH)/$(TARBALLNAME) \
 	    $(TARBALLROOT)
 	$(QUIET)$(RM) $(TARBALLPATH)/$(TARBALLROOT)
+
+
+#
+# Generate ALL the rules.
+#
+include $(KBUILD_PATH)/subfooter.kmk
+
+
+#
+# Generate x86.mac and err.mac.
+#
+incs:
+	$(SED) -f include/VBox/err.sed --output include/VBox/err.mac include/VBox/err.h
+	$(APPEND) include/VBox/err.mac '%include "iprt/err.mac"'
+	$(SED) -f include/VBox/err.sed --output include/iprt/err.mac include/iprt/err.h
+	$(SED) \
+		-e '/__VBox_x86_h__/d' \
+		-e '/#define/!d' \
+		-e '/\\$$/d' \
+		-e 's/#define/%define/' \
+		-e 's/\([0-9a-fA-F][0-9a-fA-F]*\)U$$/\1/' \
+		-e 's/\([0-9a-fA-F][0-9a-fA-F]*\)U[[:space:]]/\1 /' \
+		-e 's/[[:space:]]\/\*\*<.*$$//' \
+		--output include/VBox/x86.mac \
+		include/VBox/x86.h
+
+
+#
+# Generate Visual SlickEdit tagging #defines.
+#
+vslick.h: include/VBox/cdefs.h include/iprt/cdefs.h $(MAKEFILE)
+	$(RM) -f -- $@ $@.tmp $@.tmp2 $@.tmp3
+	$(APPEND) $@.tmp '// autogenerated'
+	#@$(APPEND) $@.tmp '#define __BEGIN_DECLS '
+	#@$(APPEND) $@.tmp '#define __END_DECLS '
+
+	@$(APPEND) $@.tmp '#define ATL_NO_VTABLE '
+	@$(APPEND) $@.tmp '#define BEGIN_COM_MAP(a) '
+	@$(APPEND) $@.tmp '#define END_COM_MAP(a) '
+
+	@$(APPEND) $@.tmp '#define CHECKREADY if(!isReady()) return E_UNEXPECTED; '
+	@$(APPEND) $@.tmp '#define COM_DECL_READONLY_ENUM_AND_COLLECTION(a) '
+	@$(APPEND) $@.tmp '#define COM_INTERFACE_ENTRY(a) '
+	@$(APPEND) $@.tmp '#define COMGETTER(n)                    Get##n '
+	@$(APPEND) $@.tmp '#define COMSETTER(n)                    Set##n '
+	@$(APPEND) $@.tmp '#define ComSafeArrayIn(t,a)             t a[] '
+	@$(APPEND) $@.tmp '#define ComSafeArrayOut(t,a)            t * a[] '
+	@$(APPEND) $@.tmp '#define DECLARE_NOT_AGGREGATABLE(a) '
+	@$(APPEND) $@.tmp '#define DECLARE_PROTECT_FINAL_CONSTRUCT(a) '
+	@$(APPEND) $@.tmp '#define NS_DECL_ISUPPORTS '
+	@$(APPEND) $@.tmp '#define NS_IMETHOD NS_IMETHOD_(nsresult) '
+	@$(APPEND) $@.tmp '#define NS_IMETHOD_(type) type '
+	@$(APPEND) $@.tmp '#define PARSERS_EXPORT '
+	@$(APPEND) $@.tmp '#define STDMETHOD(a) NS_IMETHOD a '
+
+	@$(APPEND) $@.tmp '#define CTX_SUFF(var)                   var##R3 '
+	@$(APPEND) $@.tmp '#define CTXAllSUFF(var)                 var##R3 '
+	@$(APPEND) $@.tmp '#define CTXSUFF(var)                    var##HC '
+	@$(APPEND) $@.tmp '#define OTHERCTXSUFF(var)  	      var##GC '
+	@$(APPEND) $@.tmp '#define CTXALLMID(first, last)          first##R3##last '
+	@$(APPEND) $@.tmp '#define CTXMID(first, last)             first##HC##last '
+	@$(APPEND) $@.tmp '#define OTHERCTXMID(first, last)        first##GC##last '
+	@$(APPEND) $@.tmp '#define CTXTYPE(GCType, R3Type, R0Type) R3Type '
+	@$(APPEND) $@.tmp '#define RCTYPE(RCType, HCType)          RCType '
+	@$(APPEND) $@.tmp '#define GCTYPE(GCType, HCType)          GCType '
+	@$(APPEND) $@.tmp '#define RCPTRTYPE(RCType)               RCType '
+	@$(APPEND) $@.tmp '#define GCPTRTYPE(GCType)               GCType '
+	@$(APPEND) $@.tmp '#define HCPTRTYPE(HCType)               HCType '
+	@$(APPEND) $@.tmp '#define R3R0PTRTYPE(HCType)             HCType '
+	@$(APPEND) $@.tmp '#define R0PTRTYPE(R3Type)               R3Type '
+	@$(APPEND) $@.tmp '#define R3PTRTYPE(R0Type)               R0Type '
+	@$(APPEND) $@.tmp '#define RT_SRC_POS                      __FILE__, __LINE__, __PRETTY_FUNCTION__ '
+	@$(APPEND) $@.tmp '#define RT_SRC_POS_DECL                 const char *pszFile, unsigned iLine, const char *pszFunction '
+	@$(APPEND) $@.tmp '#define RT_SRC_POS_ARGS                 pszFile, iLine, pszFunction '
+	@$(APPEND) $@.tmp '#define RTCALL'
+	@$(APPEND) $@.tmp '#define DECLINLINE(type)                inline type '
+
+	@$(APPEND) $@.tmp '#define PDMDEVINSINT_DECLARED           1'
+	@$(APPEND) $@.tmp '#define VBOXCALL'
+
+	$(SED)  -e '/__cdecl/d' \
+		-e '/^ *# *define.*DECL/!d' \
+		-e '/DECLS/d' \
+		-e '/DECLARE_CLS_/d' \
+		-e '/_SRC_POS_DECL/d' \
+		-e '/declspec/d' \
+		-e '/__attribute__/d' \
+		-e 's/#  */#/g' \
+		-e 's/   */ /g' \
+		-e '/(type) DECLEXPORT/d' \
+		-e '/ DECLEXPORT_CLASS/d' \
+		-e 's/ *VBOXCALL//' \
+		-e 's/ *RTCALL//' \
+		-e 's/(type) DECLIMPORT(type)/(type) type/' \
+		-e '/ DECLASM(type) type/d' \
+		-e '/define  *DECL..CALLBACKMEMBER(type[^)]*) *RT/d' \
+		-e '/define  *DECLINLINE(type)/d' \
+		-e '/define RT[DATGRC03]*DECL(type) *DECLHIDDEN(type)/d' \
+		\
+		--append $@.tmp \
+		$(filter-out include/VBox/err.h, $(wildcard include/VBox/*.h)) \
+		include/iprt/cdefs.h
+	$(CAT_EXT) $@.tmp | sort | $(SED_EXT) -e 's/$$/\n/' --output $@.tmp2
+	$(MV) -f $@.tmp2 $@
+	$(RM) -f $@.tmp $@.tmp2 $@.tmp3
+ifeq ($(KBUILD_HOST),win)
+	@$(ECHO) 'TODO: Merge vslick.h with your "$(HOMEDRIVE)$(HOMEPATH)\Documents\My SlickEdit Config\x.y.z\usercpp.h" file.'
+else
+	@$(ECHO) "TODO: Merge ./vslick.h with your ~/.slickedit/x.y.z/unxcpp.h file."
+endif
+
+
+#
+# Add fetching of the tools to the 'up[date][2]' targets.
+#
+up update up2 update2::
+ifndef VBOX_OSE
+	+$(MAKE) -C tools fetch
+else
+	$(MAKE) -C tools -f Makefile-ose.kmk fetch
+endif
+
+
+
+#
+# Aliases for building the SDK.
+#
+.NOTPARALLEL: sdk sdk-fetch
+sdk:
+	+ $(KMK) VBOX_ONLY_SDK=1 \
+		pass_bldprogs pass_others pass_installs pass_packing
+
+sdk-fetch:
+	+ $(KMK) KBUILD_TARGET=win  KBUILD_TARGET_ARCH=x86  -C tools fetch
+
+

@@ -25,10 +25,8 @@
 
 #include "VBoxGlobal.h"
 
-#include <qcombobox.h>
-#include <qvaluelist.h>
-
-class QListBoxItem;
+#include <QComboBox>
+#include <QPixmap>
 
 class VBoxMediaComboBox : public QComboBox
 {
@@ -38,31 +36,34 @@ public:
 
     typedef QMap <QUuid, QUuid> BaseToDiffMap;
 
-    VBoxMediaComboBox (QWidget *aParent, const char *aName,
-                       VBoxDefs::MediaType aType, QUuid aMachineId = QUuid());
-    ~VBoxMediaComboBox() {}
+    VBoxMediaComboBox (QWidget *aParent);
 
     void refresh();
     void repopulate();
 
-    QUuid id (int = -1);
-    QString location (int = -1);
+    QUuid id (int = -1) const;
+    QString location (int = -1) const;
 
-    void setCurrentItem (const QUuid &);
-    void setType (VBoxDefs::MediaType);
+    void setCurrentItem (const QUuid &aItemId);
+    void setType (VBoxDefs::MediaType aMediaType);
+    void setMachineId (const QUuid &aMachineId = QUuid());
 
     void setShowDiffs (bool aShowDiffs);
     bool showDiffs() const { return mShowDiffs; }
 
 protected slots:
 
-    void mediaEnumStarted();
-    void mediumEnumerated (const VBoxMedium &, int);
+    void mediumEnumStarted();
+    void mediumEnumerated (const VBoxMedium &);
+
     void mediumAdded (const VBoxMedium &);
     void mediumUpdated (const VBoxMedium &);
     void mediumRemoved (VBoxDefs::MediaType, const QUuid &);
-    void processOnItem (QListBoxItem *);
-    void processActivated (int);
+
+    void processActivated (int aIndex);
+//    void processIndexChanged (int aIndex);
+
+    void processOnItem (const QModelIndex &aIndex);
 
 protected:
 
@@ -73,7 +74,7 @@ protected:
     void appendItem (const VBoxMedium &);
     void replaceItem (int, const VBoxMedium &);
 
-    bool findMediaIndex (const QUuid &aId, size_t &aIndex);
+    bool findMediaIndex (const QUuid &aId, int &aIndex);
 
     VBoxDefs::MediaType mType;
 
@@ -90,7 +91,7 @@ protected:
         QString toolTip;
     };
 
-    typedef QValueVector <Medium> Media;
+    typedef QVector <Medium> Media;
     Media mMedia;
 
     QUuid mLastId;

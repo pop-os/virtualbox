@@ -133,7 +133,9 @@
       <xsl:value-of select="concat(../@name,'_',@name)"/>
       <xsl:text>,&#x0A;</xsl:text>
     </xsl:for-each>
-    <xsl:text>&#x0A;};&#x0A;&#x0A;</xsl:text>
+    <xsl:text>};&#x0A;&#x0A;Q_DECLARE_METATYPE(</xsl:text>
+    <xsl:value-of select="concat('K',@name)"/>
+    <xsl:text>)&#x0A;&#x0A;</xsl:text>
   </xsl:for-each>
   <xsl:text>&#x0A;&#x0A;</xsl:text>
 
@@ -235,7 +237,7 @@
       or
       (//param[@safearray='yes' and not(../@internal='yes') and @type=current()/@name])
     ">
-      <xsl:text>typedef QValueVector &lt;C</xsl:text>
+      <xsl:text>typedef QVector &lt;C</xsl:text>
       <xsl:value-of select="substring(@name,2)"/>
       <xsl:text>&gt; C</xsl:text>
       <xsl:value-of select="substring(@name,2)"/>
@@ -1400,7 +1402,7 @@
     <!-- no modifiers -->
     <xsl:otherwise>
       <xsl:if test="../@safearray">
-        <xsl:text>QValueVector &lt;</xsl:text>
+        <xsl:text>QVector &lt;</xsl:text>
       </xsl:if>
       <xsl:choose>
         <!-- standard types -->
@@ -1817,7 +1819,7 @@
           <xsl:text>;&#x0A;</xsl:text>
           <xsl:if test="(name()='attribute' and $isSetter) or
                         (name()='param' and @dir='in')">
-            <!-- convert QValueVector to SafeArray -->
+            <!-- convert QVector to SafeArray -->
             <xsl:choose>
               <!-- interface types need special treatment here -->
               <xsl:when test="@type='$unknown' or $is_iface">
@@ -1843,7 +1845,7 @@
         <xsl:when test="@safearray='yes'">
           <xsl:if test="(name()='attribute' and not($isSetter)) or
                         (name()='param' and (@dir='out' or @dir='return'))">
-            <!-- convert SafeArray to QValueVector -->
+            <!-- convert SafeArray to QVector -->
             <xsl:choose>
               <!-- interface types need special treatment here -->
               <xsl:when test="@type='$unknown' or $is_iface">

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 16174 2009-01-22 15:15:31Z vboxsync $
 ## @file
 # Top-level makefile for the VBox frontends.
 #
@@ -41,9 +41,6 @@ ifndef VBOX_ONLY_DOCS
  endif
  ifdef VBOX_WITH_QTGUI
   include $(PATH_SUB_CURRENT)/VirtualBox/Makefile.kmk
- endif
- ifdef VBOX_WITH_QT4GUI
-  include $(PATH_SUB_CURRENT)/VirtualBox4/Makefile.kmk
  endif
 endif # !VBOX_ONLY_DOCS
 

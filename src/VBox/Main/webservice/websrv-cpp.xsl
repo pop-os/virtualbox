@@ -65,6 +65,7 @@
 #include <VBox/com/string.h>
 #include <VBox/com/Guid.h>
 #include <VBox/com/ErrorInfo.h>
+#include <VBox/com/errorprint2.h>
 #include <VBox/com/EventQueue.h>
 #include <VBox/com/VirtualBox.h>
 #include <VBox/err.h>
@@ -704,6 +705,10 @@ const char *g_pcszIUnknown = "IUnknown";
           <xsl:call-template name="emitNewlineIndent8" />
           <xsl:value-of select="concat('    comcall_', $name, '[i] = ', $structprefix, $name, '[i];')" />
         </xsl:when>
+        <xsl:when test="$type='boolean'">
+          <xsl:call-template name="emitNewlineIndent8" />
+          <xsl:value-of select="concat('    comcall_', $name, '[i] = ', $structprefix, $name, '[i];')" />
+        </xsl:when>
         <xsl:otherwise>
           <xsl:call-template name="fatalError">
             <xsl:with-param name="msg" select="concat('emitInputArgConverter Type &quot;', $type, '&quot; in arg &quot;', $name, '&quot; of method &quot;', $method, '&quot; is not yet supported in safearrays.')" />
@@ -1010,19 +1015,19 @@ const char *g_pcszIUnknown = "IUnknown";
       <xsl:variable name="enumerator" select="concat('comcall_', $callerprefix, $name, '_enum')" />
       <xsl:value-of select="concat('ComPtr&lt;', $collectiontype, 'Enumerator&gt; ', $enumerator, ';')" />
       <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="concat('CHECK_RC_BREAK( comcall_', $callerprefix, $name, '-&gt;Enumerate(', $enumerator, '.asOutParam()) );')" />
+      <xsl:value-of select="concat('CHECK_ERROR_BREAK( comcall_', $callerprefix, $name, ', Enumerate(', $enumerator, '.asOutParam()) );')" />
       <xsl:call-template name="emitNewlineIndent8" />
       <xsl:value-of select="concat('BOOL comcall_', $callerprefix, $name, '_hasmore = FALSE;')" />
       <xsl:call-template name="emitNewlineIndent8" />
       <xsl:value-of select="'do {'" />
       <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="concat('    CHECK_RC_BREAK( ', $enumerator, '-&gt;HasMore(&amp;comcall_', $callerprefix, $name, '_hasmore) );')" />
+      <xsl:value-of select="concat('    CHECK_ERROR_BREAK( ', $enumerator, ', HasMore(&amp;comcall_', $callerprefix, $name, '_hasmore) );')" />
       <xsl:call-template name="emitNewlineIndent8" />
       <xsl:value-of select="concat('    if (!comcall_', $callerprefix, $name, '_hasmore) break;')" />
       <xsl:call-template name="emitNewlineIndent8" />
       <xsl:value-of select="concat('    ComPtr&lt;', $collectiontype, '&gt; arrayitem;')" />
       <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="concat('    CHECK_RC_BREAK( ', $enumerator, '-&gt;GetNext(arrayitem.asOutParam()) );')" />
+      <xsl:value-of select="concat('    CHECK_ERROR_BREAK( ', $enumerator, ', GetNext(arrayitem.asOutParam()) );')" />
       <xsl:call-template name="emitNewlineIndent8" />
       <xsl:value-of select="concat('    // collection of &quot;', $collectiontype, '&quot;, target interface wsmap: &quot;', $targetwsmap, '&quot;')" />
       <xsl:call-template name="emitNewlineIndent8" />

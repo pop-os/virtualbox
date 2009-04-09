@@ -1,4 +1,4 @@
-; $Id: memset.asm $
+; $Id: memset.asm 14021 2008-11-10 16:31:22Z vboxsync $
 ;; @file
 ; IPRT - No-CRT memset - AMD64 & X86.
 ;

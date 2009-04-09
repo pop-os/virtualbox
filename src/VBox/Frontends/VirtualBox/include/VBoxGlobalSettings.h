@@ -25,7 +25,8 @@
 
 #include "CIShared.h"
 
-#include <qobject.h>
+/* Qt includes */
+#include <QObject>
 
 class CVirtualBox;
 
@@ -45,6 +46,8 @@ private:
     QString guiFeatures;
     QString languageId;
     QString maxGuestRes;
+    bool trayIconEnabled;
+    bool dockPreviewEnabled;
 
     friend class VBoxGlobalSettings;
 };
@@ -59,6 +62,8 @@ class VBoxGlobalSettings : public QObject, public CIShared <VBoxGlobalSettingsDa
     Q_PROPERTY (QString guiFeatures READ guiFeatures WRITE setGuiFeatures)
     Q_PROPERTY (QString languageId READ languageId WRITE setLanguageId)
     Q_PROPERTY (QString maxGuestRes READ maxGuestRes WRITE setMaxGuestRes)
+    Q_PROPERTY (bool trayIconEnabled READ trayIconEnabled WRITE setTrayIconEnabled)
+    Q_PROPERTY (bool dockPreviewEnabled READ dockPreviewEnabled WRITE setDockPreviewEnabled)
 
 public:
 
@@ -101,6 +106,19 @@ public:
         mData()->maxGuestRes = aMaxGuestRes;
     }
 
+    bool trayIconEnabled() const { return data()->trayIconEnabled; }
+    void setTrayIconEnabled (bool enabled)
+    {
+        mData()->trayIconEnabled = enabled;
+    }
+
+    bool dockPreviewEnabled() const { return data()->dockPreviewEnabled; }
+    void setDockPreviewEnabled (bool enabled)
+    {
+        mData()->dockPreviewEnabled = enabled;
+    }
+
+
     //
 
     void load (CVirtualBox &vbox);
@@ -133,7 +151,7 @@ signals:
 
 private:
 
-    void setPropertyPrivate (int index, const QString &value);
+    void setPropertyPrivate (size_t index, const QString &value);
     void resetError() { last_err = QString::null; }
 
     QString last_err;

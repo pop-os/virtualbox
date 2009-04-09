@@ -1,4 +1,4 @@
-/* $Id: SUPLib-linux.cpp $ */
+/* $Id: SUPLib-linux.cpp 16446 2009-02-01 21:19:17Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - GNU/Linux specific parts.
  */
@@ -142,7 +142,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
 
 #ifndef IN_SUP_HARDENED_R3
 
-int     suplibOsTerm(PSUPLIBDATA pThis)
+int suplibOsTerm(PSUPLIBDATA pThis)
 {
     /*
      * Close the device if it's actually open.
@@ -210,7 +210,7 @@ int suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
 }
 
 
-int     suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
+int suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
 {
     size_t cbMmap = (pThis->fSysMadviseWorks ? cPages : cPages + 2) << PAGE_SHIFT;
     char *pvPages = (char *)mmap(NULL, cbMmap, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -245,7 +245,7 @@ int     suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
 }
 
 
-int     suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t cPages)
+int suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t cPages)
 {
     munmap(pvPages, cPages << PAGE_SHIFT);
     return VINF_SUCCESS;

@@ -1,4 +1,4 @@
-/* $Id: prfreader.cpp.h 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: prfreader.cpp.h 10 2008-04-20 04:06:12Z bird $ */
 /** @file
  * kProfiler Mark 2 - Reader Code Template.
  */
@@ -265,22 +265,6 @@ typedef struct KPRF_TYPE(,REPORTMODSEG)
     KU8                         mHeight;        /**< AVL Subtree height. */
 } KPRF_TYPE(,REPORTMODSEG), *KPRF_TYPE(P,REPORTMODSEG);
 
-/* Instantiate the AVL tree code. */
-#define KAVL_CHECK_FOR_EQUAL_INSERT
-#define KAVL_MAX_STACK          32
-#define KAVL_STD_KEY_COMP
-#define mKey                    offSegment
-#define KAVLKEY                 KDBGADDR
-#define KAVLNODE                KPRF_TYPE(,REPORTMODSEG)
-#define KAVL_FN(name)           KPRF_NAME(ReportTree ## name)
-#define KAVL_TYPE(prefix,name)  KPRF_TYPE(prefix, REPORTMODESEG ## name)
-#define KAVL_INT(name)          KPRF_NAME(REPORTMODESEGINT ## name)
-#define KAVL_DECL(type)         K_DECL_INLINE(type)
-#include <k/kAvlTmpl/kAvlBase.h>
-#include <k/kAvlTmpl/kAvlDestroy.h>
-#include <k/kAvlTmpl/kAvlGet.h>
-#include <k/kAvlTmpl/kAvlUndef.h>
-
 
 /**
  * A report module segment.
@@ -529,7 +513,7 @@ typedef struct KPRF_TYPE(,REPORT)
     KPRF_TYPE(P,REPORTMOD)      pFirstMod;
     /** The number of modules in the list. */
     KU32                        cMods;
-    /** The module segment tree. */
+    /** The module segment tree. (Only kAvl cares about this.) */
     KPRF_TYPE(P,REPORTMODSEG)   pModSegTree;
     /** The number of module segments in the tree. */
     KU32                        cModSegs;
@@ -556,6 +540,25 @@ typedef struct KPRF_TYPE(,REPORT)
     /** @} */
 
 } KPRF_TYPE(,REPORT), *KPRF_TYPE(P,REPORT), **KPRF_TYPE(PP,REPORT);
+
+
+/* Instantiate the AVL tree code. */
+#define KAVL_CHECK_FOR_EQUAL_INSERT
+#define KAVL_MAX_STACK          32
+#define KAVL_STD_KEY_COMP
+#define mKey                    offSegment
+#define KAVLKEY                 KDBGADDR
+#define KAVLNODE                KPRF_TYPE(,REPORTMODSEG)
+#define mpRoot                  pModSegTree
+#define KAVLROOT                KPRF_TYPE(,REPORT)
+#define KAVL_FN(name)           KPRF_NAME(ReportTree ## name)
+#define KAVL_TYPE(prefix,name)  KPRF_TYPE(prefix, REPORTMODESEG ## name)
+#define KAVL_INT(name)          KPRF_NAME(REPORTMODESEGINT ## name)
+#define KAVL_DECL(type)         K_DECL_INLINE(type)
+#include <k/kAvlTmpl/kAvlBase.h>
+#include <k/kAvlTmpl/kAvlDestroy.h>
+#include <k/kAvlTmpl/kAvlGet.h>
+#include <k/kAvlTmpl/kAvlUndef.h>
 
 
 /**
@@ -591,7 +594,7 @@ static KPRF_TYPE(P,REPORT) KPRF_NAME(NewReport)(KPRF_TYPE(PC,HDR) pHdr)
     pReport->paFunctions = (KPRF_TYPE(P,REPORTFUNC))((KU8 *)pReport + offFunctions);
     pReport->pFirstMod = NULL;
     pReport->cMods = 0;
-    pReport->pModSegTree = NULL;
+    KPRF_NAME(ReportTreeInit)(pReport);
     pReport->cModSegs = 0;
     pReport->papSortedThreads = (KPRF_TYPE(P,REPORTTHREAD) *)((KU8 *)pReport + offSortedThreads);
     pReport->papSortedFunctions = (KPRF_TYPE(P,REPORTFUNC) *)((KU8 *)pReport + offSortedFunctions);
@@ -636,7 +639,7 @@ static void KPRF_NAME(DeleteReport)(KPRF_TYPE(P,REPORT) pReport)
         free(pFree);
     }
 
-    KPRF_NAME(ReportTreeDestroy)(&pReport->pModSegTree, KPRF_NAME(DeleteModSeg), NULL);
+    KPRF_NAME(ReportTreeDestroy)(pReport, KPRF_NAME(DeleteModSeg), NULL);
 
     /*
      * The function debug info.
@@ -687,7 +690,7 @@ static int KPRF_NAME(AnalyzeModSegs)(KPRF_TYPE(P,REPORT) pReport)
         pSeg->OnTopOfStackTicks = 0;
         pSeg->cFunctions = 0;
 
-        if (!KPRF_NAME(ReportTreeInsert)(&pReport->pModSegTree, pSeg))
+        if (!KPRF_NAME(ReportTreeInsert)(pReport, pSeg))
         {
             free(pSeg);
             return -1;
@@ -757,7 +760,7 @@ static int KPRF_NAME(AnalyseFunctions)(KPRF_TYPE(P,REPORT) pReport)
 
         pReport->papSortedFunctions[iFunc] = pReportFunc;
         pReportFunc->pFunc = pFunc;
-        pReportFunc->pModSeg = KPRF_NAME(ReportTreeGet)(&pReport->pModSegTree, pFunc->offModSeg);
+        pReportFunc->pModSeg = KPRF_NAME(ReportTreeGet)(pReport, pFunc->offModSeg);
         pReportFunc->pSym = NULL;
         pReportFunc->pLine = NULL;
         if (pReportFunc->pModSeg)
@@ -1207,7 +1210,7 @@ static void KPRF_NAME(HtmlWriteSortedFunctions)(KPRF_TYPE(P,REPORT) pReport, FIL
                     fprintf(pOut,
                             "    <td class=\"Calls\">%" KPRF_FMT_U64 "</td><td Class=\"Parts\">",
                             pFunc->cCalls);
-                    KPRF_NAME(HtmlWriteParts)(pOut, pFunc->cOnStack, pReport->cCalls);
+                    KPRF_NAME(HtmlWriteParts)(pOut, pFunc->cCalls, pReport->cCalls);
                     fprintf(pOut,       "</td>\n");
                     break;
 

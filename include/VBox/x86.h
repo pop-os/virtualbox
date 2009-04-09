@@ -193,6 +193,8 @@ typedef const X86RFLAGS *PCX86RFLAGS;
 #define X86_EFL_IOPL_SHIFT  12
 /** The the IOPL level from the flags. */
 #define X86_EFL_GET_IOPL(efl)   (((efl) >> X86_EFL_IOPL_SHIFT) & 3)
+/** Bits restored by popf */
+#define X86_EFL_POPF_BITS       (X86_EFL_CF | X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_TF | X86_EFL_IF | X86_EFL_DF | X86_EFL_OF | X86_EFL_IOPL | X86_EFL_NT | X86_EFL_AC | X86_EFL_ID)
 /** @} */
 
 
@@ -788,6 +790,12 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 /* Page Attribute Table. */
 #define MSR_IA32_CR_PAT                     0x277
 
+/** Performance counter MSRs. (Intel only) */
+#define MSR_IA32_PERFEVTSEL0                0x186
+#define MSR_IA32_PERFEVTSEL1                0x187
+#define MSR_IA32_PERF_STATUS                0x198
+#define MSR_IA32_PERF_CTL                   0x199
+
 /** MTRR Default Range. */
 #define MSR_IA32_MTRR_DEF_TYPE              0x2FF
 
@@ -860,6 +868,7 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 /** K6 PFIR - Page Flush/Invalidate Register. */
 #define MSR_K6_PFIR                         0xc0000088
 
+/** Performance counter MSRs. (AMD only) */
 #define MSR_K7_EVNTSEL0                     0xc0010000
 #define MSR_K7_EVNTSEL1                     0xc0010001
 #define MSR_K7_EVNTSEL2                     0xc0010002
@@ -977,7 +986,7 @@ typedef X86PGPAEUINT const *PCX86PGPAEUINT;
 /** Bit 0 -  P  - Present bit. */
 #define X86_PTE_BIT_P                       0
 /** Bit 1 - R/W - Read (clear) / Write (set) bit. */
-#define X86_PTE_BIT_RW                      1)
+#define X86_PTE_BIT_RW                      1
 /** Bit 2 - U/S - User (set) / Supervisor (clear) bit. */
 #define X86_PTE_BIT_US                      2
 /** Bit 3 - PWT - Page level write thru bit. */

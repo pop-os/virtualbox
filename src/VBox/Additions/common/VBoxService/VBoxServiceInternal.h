@@ -1,10 +1,10 @@
-/* $Id: VBoxServiceInternal.h $ */
+/* $Id: VBoxServiceInternal.h 18712 2009-04-03 20:15:26Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Services.
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,6 +21,19 @@
 
 #ifndef ___VBoxServiceInternal_h
 #define ___VBoxServiceInternal_h
+
+#ifdef RT_OS_WINDOWS
+# include <Windows.h>
+# include <tchar.h>   /**@todo just drop this, this will be compiled as UTF-8/ANSI. */
+# include <process.h> /**@todo what's this here for?  */
+#endif
+
+/** @todo just move this into the windows specific code, it's not needed
+ *        here. */
+/** The service name. */
+#define VBOXSERVICE_NAME           "VBoxService"
+/** The friendly service name. */
+#define VBOXSERVICE_FRIENDLY_NAME  "VBoxService"
 
 /**
  * A service descriptor.
@@ -90,11 +103,27 @@ __BEGIN_DECLS
 extern char *g_pszProgName;
 extern int g_cVerbosity;
 extern uint32_t g_DefaultInterval;
+/** Windows SCM stuff.
+ *  @todo document each of them individually, this comment only documents
+ *  g_vboxServiceStatusCode on windows. On the other platforms it will be
+ *  dangling.
+ *  @todo all this should be moved to -win.cpp and exposed via functions. */
+#ifdef RT_OS_WINDOWS
+extern DWORD                 g_vboxServiceStatusCode;   /** @todo g_rcWinService */
+extern SERVICE_STATUS_HANDLE g_vboxServiceStatusHandle; /** @todo g_hWinServiceStatus */
+extern SERVICE_TABLE_ENTRY const g_aServiceTable[];     /** @todo generate on the fly, see comment in main() from the enabled sub services. */
+#endif
 
 extern int VBoxServiceSyntax(const char *pszFormat, ...);
 extern int VBoxServiceError(const char *pszFormat, ...);
 extern void VBoxServiceVerbose(int iLevel, const char *pszFormat, ...);
 extern int VBoxServiceArgUInt32(int argc, char **argv, const char *psz, int *pi, uint32_t *pu32, uint32_t u32Min, uint32_t u32Max);
+extern int VBoxServiceStartServices(unsigned iMain);
+extern void VBoxServiceStopServices(void);
+#ifdef RT_OS_WINDOWS
+extern int VBoxServiceWinInstall(void);
+extern int VBoxServiceWinUninstall(void);
+#endif
 
 extern VBOXSERVICE g_TimeSync;
 extern VBOXSERVICE g_Clipboard;

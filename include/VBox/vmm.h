@@ -93,10 +93,6 @@ typedef enum VMMCALLHOST
     VMMCALLHOST_PGM_MAP_CHUNK,
     /** Allocates more handy pages. */
     VMMCALLHOST_PGM_ALLOCATE_HANDY_PAGES,
-#ifndef VBOX_WITH_NEW_PHYS_CODE
-    /** Dynamically allocate physical guest RAM. */
-    VMMCALLHOST_PGM_RAM_GROW_RANGE,
-#endif
     /** Replay the REM handler notifications. */
     VMMCALLHOST_REM_REPLAY_HANDLER_NOTIFICATIONS,
     /** Flush the GC/R0 logger. */
@@ -113,11 +109,12 @@ typedef enum VMMCALLHOST
     VMMCALLHOST_32BIT_HACK = 0x7fffffff
 } VMMCALLHOST;
 
-RTRCPTR             VMMGetStackRC(PVM pVM);
-VMCPUID             VMMGetCpuId(PVM pVM);
-PVMCPU              VMMGetCpu(PVM pVM);
-VMMDECL(PVMCPU)     VMMGetCpuEx(PVM pVM, RTCPUID idCpu);
-VMMDECL(uint32_t)   VMMGetSvnRev(void);
+RTRCPTR              VMMGetStackRC(PVM pVM);
+VMCPUID              VMMGetCpuId(PVM pVM);
+PVMCPU               VMMGetCpu(PVM pVM);
+VMMDECL(PVMCPU)      VMMGetCpuEx(PVM pVM, RTCPUID idCpu);
+VMMDECL(uint32_t)    VMMGetSvnRev(void);
+VMMDECL(VMMSWITCHER) VMMGetSwitcher(PVM pVM);
 
 /** @def VMMIsHwVirtExtForced
  * Checks if forced to use the hardware assisted virtualization extensions.
@@ -154,6 +151,7 @@ VMMR3DECL(int)      VMMR3RawRunGC(PVM pVM);
 VMMR3DECL(int)      VMMR3HwAccRunGC(PVM pVM, RTCPUID idCpu);
 VMMR3DECL(int)      VMMR3CallRC(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, ...);
 VMMR3DECL(int)      VMMR3CallRCV(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, va_list args);
+VMMR3DECL(int)      VMMR3CallR0(PVM pVM, uint32_t uOperation, uint64_t u64Arg, PSUPVMMR0REQHDR pReqHdr);
 VMMR3DECL(int)      VMMR3ResumeHyper(PVM pVM);
 VMMR3DECL(void)     VMMR3FatalDump(PVM pVM, int rcErr);
 VMMR3DECL(int)      VMMR3Lock(PVM pVM);
@@ -313,6 +311,9 @@ VMMR0DECL(void)     VMMR0LogFlushEnable(PVMCPU pVCpu);
 VMMRCDECL(int)      VMMGCEntry(PVM pVM, unsigned uOperation, unsigned uArg, ...);
 VMMRCDECL(void)     VMMGCGuestToHost(PVM pVM, int rc);
 VMMRCDECL(int)      VMMGCCallHost(PVM pVM, VMMCALLHOST enmOperation, uint64_t uArg);
+VMMRCDECL(bool)     VMMGCLogDisable(PVM pVM);
+VMMRCDECL(void)     VMMGCLogRestore(PVM pVM, bool fLog);
+VMMRCDECL(void)     VMMGCLogFlushIfFull(PVM pVM);
 /** @} */
 #endif /* IN_RC */
 

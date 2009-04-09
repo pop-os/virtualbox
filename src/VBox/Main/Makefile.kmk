@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 18785 2009-04-06 16:01:39Z vboxsync $
 ## @file
 # Makefile for the VBox Main module.
 #
@@ -29,6 +29,7 @@ ifdef VBOX_WITH_WEBSERVICES
  include $(PATH_SUB_CURRENT)/webservice/Makefile.kmk
 endif
 include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
+include $(PATH_SUB_CURRENT)/cbinding/Makefile.kmk
 
 
 #
@@ -57,15 +58,12 @@ ifneq ($(KBUILD_TARGET),win)
   VBOX_MAIN_DEFS+= VBOX_WITH_SYS_V_IPC_SESSION_WATCHER
  endif
 endif
-ifdef VBOX_WITH_NETFLT
- VBOX_MAIN_DEFS += VBOX_WITH_NETFLT
-endif
-ifdef VBOX_WITH_CROGL
- VBOX_MAIN_DEFS += VBOX_WITH_CROGL
-endif
-ifdef VBOX_WITH_GUEST_PROPS
- VBOX_MAIN_DEFS += VBOX_WITH_GUEST_PROPS
-endif
+VBOX_MAIN_DEFS += \
+	$(if $(VBOX_WITH_NETFLT),VBOX_WITH_NETFLT,) \
+	$(if $(VBOX_WITH_CROGL),VBOX_WITH_CROGL,) \
+	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS,) \
+	$(if $(VBOX_WITH_HOSTNETIF_API),VBOX_WITH_HOSTNETIF_API,)
+
 if1of ($(KBUILD_TARGET), linux freebsd solaris)
  VBOX_MAIN_DEFS += VBOX_MAIN_USE_SEMRW
 #else
@@ -73,9 +71,9 @@ if1of ($(KBUILD_TARGET), linux freebsd solaris)
 #  VBOX_MAIN_DEFS += VBOX_MAIN_AUTOLOCK_TRAP
 # endif
 endif
-ifdef VBOX_WITH_HOSTNETIF_API
- VBOX_MAIN_DEFS += VBOX_WITH_HOSTNETIF_API
-endif
+
+# Unconditionally enable the new semaphore key generation code
+VBOX_MAIN_DEFS += VBOX_WITH_NEW_SYS_V_KEYGEN
 
 VBOX_IDL_FILE.MSCOM    = $(VBOX_PATH_SDK)/bindings/mscom/idl/VirtualBox.idl
 VBOX_IDL_FILE.XPCOM    = $(VBOX_PATH_SDK)/bindings/xpcom/idl/VirtualBox_XPCOM.idl
@@ -86,18 +84,23 @@ VBOX_IDL_HEADER.XPCOM  = $(VBOX_PATH_SDK)/bindings/xpcom/include/VirtualBox_XPCO
 # The MS COM specific stuff.
 if defined(VBOX_ONLY_SDK) || "$(KBUILD_TARGET)" == "win"
  OTHERS         += \
-        $(VBOX_IDL_FILE.MSCOM) \
-        $(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h \
-        $(VBOX_PATH_SDK)/bindings/mscom/lib/VirtualBox.tlb \
-        $(VBOX_PATH_SDK)/bindings/mscom/lib/VirtualBox_i.c
+ 	$(VBOX_IDL_FILE.MSCOM) \
+ 	$(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h \
+ 	$(VBOX_PATH_SDK)/bindings/mscom/lib/VirtualBox.tlb \
+ 	$(VBOX_PATH_SDK)/bindings/mscom/lib/VirtualBox_i.c \
+ 	$(VBOX_PATH_SDK)/bindings/mscom/python/samples/vboxshell.py   \
+ 	$(VBOX_PATH_SDK)/bindings/mscom/python/samples/shellcommon.py
  OTHER_CLEAN    += \
-	$(VBOX_IDL_FILE.MSCOM) \
-	$(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h \
-	$(VBOX_PATH_SDK)/bindings/mscom/lib/VirtualBox.tlb \
-	$(VBOX_PATH_SDK)/bindings/mscom/lib/VirtualBox_i.c \
-	$(PATH_VBoxCOM)/VirtualBox.h \
-	$(PATH_VBoxCOM)/VirtualBox_i.c \
-	$(PATH_VBoxCOM)/VirtualBox.tlb
+ 	$(VBOX_IDL_FILE.MSCOM) \
+ 	$(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h \
+ 	$(VBOX_PATH_SDK)/bindings/mscom/lib/VirtualBox.tlb \
+ 	$(VBOX_PATH_SDK)/bindings/mscom/lib/VirtualBox_i.c \
+ 	$(PATH_VBoxCOM)/VirtualBox.h   \
+ 	$(PATH_VBoxCOM)/VirtualBox_i.c \
+ 	$(PATH_VBoxCOM)/VirtualBox.tlb \
+ 	$(VBOX_PATH_SDK)/bindings/mscom/python/samples/vboxshell.py \
+ 	$(VBOX_PATH_SDK)/bindings/mscom/python/samples/shellcommon.py
+
  VBOX_MAIN_PREREQS += $(PATH_VBoxCOM)/VirtualBox_i.c
  BLDDIRS += $(VBOX_PATH_SDK)/bindings/mscom/idl
 endif
@@ -118,6 +121,19 @@ endif # xpcom
 
 
 #
+# Strip documentation from source XIDL so that we don't get a full
+# recompile every time a comma in the documentation is changed.
+#
+$(VBOX_XIDL_FILE).ts |+ $(VBOX_XIDL_FILE): \
+		$(VBOX_XIDL_FILE_SRC) \
+		$(VBOX_PATH_MAIN_SRC)/idl/docstrip.xsl \
+		| $$(dir $$@)
+# 	$(CP) -fv $< $(VBOX_XIDL_FILE).ts
+	$(VBOX_XSLTPROC) -o $(VBOX_XIDL_FILE).ts $(VBOX_PATH_MAIN_SRC)/idl/docstrip.xsl $<
+	$(CP) --changed -fv $(VBOX_XIDL_FILE).ts $(VBOX_XIDL_FILE)
+
+
+#
 # The Main API documentation
 #
 VBOX_MAIN_DOC_DIR = $(VBOX_PATH_SDK)/docs
@@ -126,13 +142,20 @@ BLDDIRS += $(VBOX_MAIN_DOC_DIR)
 $(PATH_TARGET)/docs.Main: \
 		$(VBOX_PATH_MAIN_SRC)/Doxyfile.Main \
 		$(VBOX_PATH_MAIN_SRC)/idl/doxygen.xsl \
-		$(VBOX_PATH_MAIN_SRC)/idl/VirtualBox.xidl \
+		$(VBOX_XIDL_FILE_SRC) \
 		| $(PATH_TARGET)/ \
 		$(VBOX_MAIN_DOC_DIR)/
 	$(RM) -f $(wildcard $(VBOX_MAIN_DOC_DIR)/html/*) $(PATH_TARGET)/docs.Main
-	$(VBOX_XSLTPROC) -o $(PATH_TARGET)/VirtualBox.idl $(VBOX_PATH_MAIN_SRC)/idl/doxygen.xsl $(VBOX_PATH_MAIN_SRC)/idl/VirtualBox.xidl
+	$(VBOX_XSLTPROC) -o $(PATH_TARGET)/VirtualBox.idl $(VBOX_PATH_MAIN_SRC)/idl/doxygen.xsl $(VBOX_XIDL_FILE_SRC)
 	$(REDIRECT) -E 'DOCDIR=$(VBOX_MAIN_DOC_DIR)' -E 'PATH_TARGET=$(PATH_TARGET)' -E 'PATH_CHM=$(subst /,\,$(VBOX_MAIN_DOC_DIR)/VirtualBoxAPI.chm)' \
 		-- doxygen $(VBOX_PATH_MAIN_SRC)/Doxyfile.Main
+	$(QUIET)$(TEST) -s "$(PATH_TARGET)/Main.err" -- $(ECHO_EXT) ">>>>>>>>>>>>>>>>>>>> Main.err: >>>>>>>>>>>>>>>>>>>>>>>>"
+	$(QUIET)$(TEST) -s "$(PATH_TARGET)/Main.err" -- $(CAT) "$(PATH_TARGET)/Main.err"
+	$(QUIET)$(TEST) -s "$(PATH_TARGET)/Main.err" -- $(ECHO_EXT) "<<<<<<<<<<<<<<<<<<<< Main.err <<<<<<<<<<<<<<<<<<<<<<<<<"
+	$(QUIET)$(TEST) -s "$(PATH_TARGET)/Main.err" -- $(ECHO_EXT) "===> **************************************************"
+	$(QUIET)$(TEST) -s "$(PATH_TARGET)/Main.err" -- $(ECHO_EXT) "===> Please fix above doxygen errors/warnings listed in"
+	$(QUIET)$(TEST) -s "$(PATH_TARGET)/Main.err" -- $(ECHO_EXT) "===> $(PATH_TARGET)/Main.err"
+	$(QUIET)$(TEST) -s "$(PATH_TARGET)/Main.err" -- $(ECHO_EXT) "===> **************************************************"
 	-$(EXEC_X86_WIN32) $(VBOX_PATH_HTML_HELP_WORKSHOP)/hhc.exe $(subst /,\\,$(VBOX_MAIN_DOC_DIR)/html/index.hhp)
 	$(APPEND) $(PATH_TARGET)/docs.Main
 # aliases
@@ -147,7 +170,7 @@ endif
 #
 INSTALLS += VBox-main-xidl
 VBox-main-xidl_INST = $(INST_SDK)bindings/
-VBox-main-xidl_SOURCES = idl/VirtualBox.xidl
+VBox-main-xidl_SOURCES = $(VBOX_XIDL_FILE_SRC)
 
 
 ifndef VBOX_ONLY_SDK # Note this goes on for *very* long
@@ -172,10 +195,10 @@ VBoxSVC_TEMPLATE = VBOXMAINEXE
 VBoxSVC_DEFS = \
 	VBOX_MAIN_SETTINGS_ADDONS \
 	$(VBOX_MAIN_DEFS) \
+	$(if $(VBOX_WITH_VBOXSDL),VBOX_WITH_VBOXSDL,) \
 	$(if $(VBOX_WITH_VRDP),VBOX_WITH_VRDP,) \
 	$(if $(VBOX_WITH_HEADLESS),VBOX_WITH_HEADLESS,) \
 	$(if $(VBOX_WITH_QTGUI),VBOX_WITH_QTGUI,) \
-	$(if $(VBOX_WITH_QT4GUI),VBOX_WITH_QT4GUI,) \
 	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
 	$(if $(VBOX_MAIN_RELEASE_LOG),VBOX_MAIN_RELEASE_LOG LOG_ENABLED,) \
 	$(if $(VBOX_WITH_ALSA),VBOX_WITH_ALSA,) \
@@ -188,6 +211,8 @@ VBoxSVC_DEFS = \
 	$(if $(VBOX_WITH_PDM_ASYNC_COMPLETION),VBOX_WITH_PDM_ASYNC_COMPLETION,) \
 	$(if $(VBOX_WITH_DBUS),VBOX_WITH_DBUS,) \
 	$(if $(VBOX_USB_WITH_SYSFS),VBOX_USB_WITH_SYSFS,)
+
+VBoxSVC_CXXFLAGS = $(filter-out -Wno-unused,$(TEMPLATE_VBOXMAINEXE_CXXFLAGS))
 
 ifdef VBOX_WITH_USB
  VBoxSVC_DEFS += \
@@ -226,7 +251,8 @@ VBoxSVC_LIBS.darwin = \
 	$(LIB_VMM) \
 	$(LIB_REM)
 VBoxSVC_LIBS.solaris = \
-	adm
+	adm \
+	nsl
 ifdef VBOX_WITH_NETFLT
  ifdef VBOX_SOLARIS_NSL_RESOLVED
   VBoxSVC_LIBS.solaris += devinfo
@@ -251,10 +277,11 @@ VBoxSVC_SOURCES = \
 	VirtualBoxErrorInfoImpl.cpp \
 	VirtualBoxImpl.cpp \
 	VirtualBoxImplExtra.cpp \
+	ApplianceImpl.cpp \
 	MachineImpl.cpp \
 	SnapshotImpl.cpp \
 	MediumImpl.cpp \
-	HardDisk2Impl.cpp \
+	HardDiskImpl.cpp \
 	HardDiskAttachmentImpl.cpp \
 	HardDiskFormatImpl.cpp \
 	ProgressImpl.cpp \
@@ -264,18 +291,20 @@ VBoxSVC_SOURCES = \
 	HostDVDDriveImpl.cpp \
 	HostFloppyDriveImpl.cpp \
 	HostNetworkInterfaceImpl.cpp \
+	DHCPServerImpl.cpp \
+	DHCPServerRunner.cpp \
 	GuestOSTypeImpl.cpp \
 	NetworkAdapterImpl.cpp \
 	SerialPortImpl.cpp \
 	ParallelPortImpl.cpp \
 	USBControllerImpl.cpp \
-	SATAControllerImpl.cpp \
+	StorageControllerImpl.cpp \
 	AudioAdapterImpl.cpp \
 	SharedFolderImpl.cpp \
 	SystemPropertiesImpl.cpp \
 	BIOSSettingsImpl.cpp \
 	Version.cpp \
-        HostPower.cpp \
+	HostPower.cpp \
 	$(if $(VBOX_WITH_VRDP),VRDPServerImpl.cpp,) \
 	$(if $(VBOX_WITH_XPCOM),xpcom/server.cpp,) \
 	$(VBOX_XML_SCHEMADEFS_CPP)
@@ -287,7 +316,7 @@ VBoxSVC_SOURCES.darwin = \
 VBoxSVC_SOURCES.win = \
 	win/svcmain.cpp \
 	win/svchlp.cpp \
-        win/HostPowerWin.cpp \
+	win/HostPowerWin.cpp \
 	win/VBoxSVC.rc
 
 VBoxSVC_SOURCES.linux = \
@@ -314,7 +343,16 @@ ifdef VBOX_WITH_USB
 endif
 
 ifdef VBOX_WITH_NETFLT
- VBoxSVC_LIBS.win += $(PATH_LIB)/WinNetConfig.lib
+ # Note! The includes from the TOOL has lower priority than the SDKs,
+ #       since comdef.h is in both the DDK and VCC we want to make sure
+ #       we're using the VCC since we're not using the DDK compiler/crt.
+ #       Since this is potentially risky, restrict it to the source file
+ #       needing it.
+ win/NetIf-win.cpp_INCS.win += $(PATH_TOOL_$(VBOX_VCC_TOOL)_INC)
+ VBoxSVC_LIBS.win += \
+	$(PATH_LIB)/WinNetConfig.lib \
+	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
+	$(PATH_SDK_WINPSDK_LIB)/WbemUuid.Lib
  ifdef VBOX_NETFLT_ONDEMAND_BIND
   VBoxSVC_DEFS.win += VBOX_NETFLT_ONDEMAND_BIND
  endif
@@ -340,13 +378,17 @@ ifdef VBOX_WITH_RESOURCE_USAGE_API
 endif
 
 ifdef VBOX_WITH_HOSTNETIF_API
- VBoxSVC_SOURCES.win     +=     win/NetIfList-win.cpp
- VBoxSVC_SOURCES.linux   +=   linux/NetIfList-linux.cpp
- VBoxSVC_SOURCES.os2     +=     os2/NetIfList-os2.cpp
- VBoxSVC_SOURCES.darwin  +=  darwin/NetIfList-darwin.cpp
- VBoxSVC_SOURCES.solaris += solaris/NetIfList-solaris.cpp
+ VBoxSVC_SOURCES.win     +=     win/NetIf-win.cpp
+ VBoxSVC_SOURCES.linux   +=   linux/NetIf-linux.cpp
+ VBoxSVC_SOURCES.os2     +=     os2/NetIf-os2.cpp
+ VBoxSVC_SOURCES.darwin  +=  darwin/NetIf-darwin.cpp
+ VBoxSVC_SOURCES.solaris += solaris/NetIf-solaris.cpp
  VBoxSVC_DEFS            += VBOX_WITH_HOSTNETIF_API
+ if1of ($(KBUILD_TARGET), linux darwin solaris)
+  VBoxSVC_SOURCES        += generic/NetIf-generic.cpp
+ endif
 endif
+
 
 win/VBoxSVC.rc_INCS  = $(PATH_VBoxSVC)
 win/VBoxSVC.rc_DEPS  = $(PATH_VBoxSVC)/VBoxSVC.rgs $(PATH_VBoxSVC)/VBoxSVC-icon.rc
@@ -384,7 +426,7 @@ $$(PATH_VBoxSVC)/xml_SettingsConverter_xsl.h: $(VBOX_XML_CONVERTER_TEMPLATE) $(V
 	$(QUIET)$(VBOX_BIN2C) _xml_SettingsConverter_xsl $< $@
 
 VirtualBoxImplExtra.cpp_DEPS  = \
-	$(PATH_VBoxSVC)/xml_VirtualBox_settings_xsd.h \
+ 	$(PATH_VBoxSVC)/xml_VirtualBox_settings_xsd.h \
 	$(PATH_VBoxSVC)/xml_VirtualBox_settings_common_xsd.h \
 	$(PATH_VBoxSVC)/xml_SettingsConverter_xsl.h
 VBoxSVC_CLEAN                += $(VirtualBoxImplExtra.cpp_DEPS)
@@ -430,6 +472,22 @@ endif # VBOX_WITH_XPCOM
 
 
 #
+# VBoxSettings
+#
+DLLS += VBoxSettings
+VBoxSettings_TEMPLATE	= VBOXMAINDLL
+VBoxSettings_NAME       = $(basename $(notdir $(LIB_SETTINGS)))
+VBoxSettings_SDKS       = VBOX_LIBXSLT VBOX_LIBXML2 VBOX_ZLIB VBOX_BOOST
+VBoxSettings_DEFS       = IN_VBOXXML_R3
+VBoxSettings_INCS       = \
+	include
+VBoxSettings_SOURCES    = \
+	xml/xml.cpp \
+	xml/Settings.cpp
+VBoxSettings_LDFLAGS.darwin = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/$(notdir $(LIB_SETTINGS)) -Wl,-x # no debug info please.
+
+
+#
 # VBoxC module
 #
 DLLS += VBoxC
@@ -446,15 +504,17 @@ VBoxC_DEFS = \
 	$(if $(VBOX_WITH_WINMM),VBOX_WITH_WINMM,) \
 	$(if $(VBOX_WITH_CROSSBOW),VBOX_WITH_CROSSBOW,) \
 	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000,) \
+	$(if $(VBOX_WITH_EFI),VBOX_WITH_EFI,) \
 	$(if $(VBOX_WITH_HPET),VBOX_WITH_HPET,) \
 	$(if $(VBOX_WITH_SMC),VBOX_WITH_SMC,) \
+	$(if $(VBOX_WITH_LPC),VBOX_WITH_LPC,) \
 	$(if $(VBOX_WITH_PDM_ASYNC_COMPLETION),VBOX_WITH_PDM_ASYNC_COMPLETION,)
 ifdef VBOX_WITH_USB
 VBoxC_DEFS += \
 	VBOX_WITH_USB \
 	$(if $(VBOX_WITH_EHCI),VBOX_WITH_EHCI,)
 endif
-VBoxC_DEFS.darwin = VBOX_WITH_2X_4GB_ADDR_SPACE
+VBoxC_DEFS.darwin.x86 = VBOX_WITH_2X_4GB_ADDR_SPACE
 VBoxC_DEFS.win.x86 += _WIN32_WINNT=0x0500
 VBoxC_DEFS.win.amd64 += _WIN32_WINNT=0x0510
 
@@ -557,22 +617,6 @@ $$(PATH_VBoxC)/VBoxC.rgs: $(VBOX_PATH_MAIN_SRC)/win/VirtualBox_rgs.xsl $(VBOX_XI
 
 
 #
-# VBoxSettings
-#
-DLLS += VBoxSettings
-VBoxSettings_TEMPLATE	= VBOXMAINDLL
-VBoxSettings_NAME       = $(basename $(notdir $(LIB_SETTINGS)))
-VBoxSettings_SDKS       = VBOX_LIBXSLT VBOX_LIBXML2 VBOX_ZLIB
-VBoxSettings_DEFS       = IN_VBOXXML_R3
-VBoxSettings_INCS       = \
-	include
-VBoxSettings_SOURCES    = \
-	xml/xml.cpp \
-	xml/Settings.cpp
-VBoxSettings_LDFLAGS.darwin = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/$(notdir $(LIB_SETTINGS)) -Wl,-x # no debug info please.
-
-
-#
 # VBoxCOM - COM Abstraction Layer library
 #
 LIBRARIES += VBoxCOM
@@ -584,6 +628,7 @@ VBoxCOM_SOURCES         = \
 	glue/string.cpp \
 	glue/EventQueue.cpp \
 	glue/ErrorInfo.cpp \
+	glue/errorprint2.cpp \
 	glue/SupportErrorInfo.cpp \
 	glue/VirtualBoxErrorInfo.cpp
 ifeq ($(KBUILD_TARGET),win)
@@ -619,8 +664,6 @@ include $(KBUILD_PATH)/subfooter.kmk
 #
 # Additions rules.
 #
-
-VBOX_XIDL_FILE = $(VBOX_PATH_MAIN_SRC)/idl/VirtualBox.xidl
 
 ## @todo this hack ain't cutting it any longer. (the file name is abspath'ed since ages now.)
 xpcom/helpers.cpp: $(VBOX_IDL_TYPELIB.XPCOM)
@@ -665,7 +708,7 @@ endif
 
 
 ## @todo r=bird: last changes to this rule showed incorrect dependencies here as it broke testcase (see testboxwin2).
-# This is kind of obvious when looking at the rule, because it's (a) not specifing all it output
+# This is kind of obvious when looking at the rule, because it's (a) not specifying all it output
 # and (b) generating more stuff *after* the main target has been completed.
 #
 # What needs to be done is to not depend on _i.c in the object subdir, but on all the final outputs.
@@ -686,6 +729,17 @@ $(PATH_VBoxCOM)/VirtualBox_i.c \
 	$(MKDIR) -p $(VBOX_PATH_SDK)/bindings/mscom/lib
 	$(CP) $(PATH_VBoxCOM)/VirtualBox.tlb $(VBOX_PATH_SDK)/bindings/mscom/lib
 	$(CP) $(PATH_VBoxCOM)/VirtualBox_i.c $(VBOX_PATH_SDK)/bindings/mscom/lib
+
+
+## @todo Use install targets, please.
+#        Actually, what on earth is this stuff doing? Why copy two files like this?
+$(VBOX_PATH_SDK)/bindings/mscom/python/samples/shellcommon.py \
++ $(VBOX_PATH_SDK)/bindings/mscom/python/samples/vboxshell.py: \
+		$(PATH_ROOT)/src/VBox/Frontends/VBoxShell/shellcommon.py \
+		$(PATH_ROOT)/src/VBox/Frontends/VBoxShell/mscom/vboxshell.py
+	$(MKDIR) -p $(VBOX_PATH_SDK)/bindings/mscom/python/samples
+	$(CP) $(PATH_ROOT)/src/VBox/Frontends/VBoxShell/shellcommon.py     $(VBOX_PATH_SDK)/bindings/mscom/python/samples/shellcommon.py
+	$(CP) $(PATH_ROOT)/src/VBox/Frontends/VBoxShell/mscom/vboxshell.py $(VBOX_PATH_SDK)/bindings/mscom/python/samples/vboxshell.py
 
 #
 # Translation stuff

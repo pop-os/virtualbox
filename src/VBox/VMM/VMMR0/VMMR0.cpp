@@ -1,4 +1,4 @@
-/* $Id: VMMR0.cpp $ */
+/* $Id: VMMR0.cpp 18666 2009-04-02 23:10:12Z vboxsync $ */
 /** @file
  * VMM - Host Context Ring 0.
  */
@@ -90,27 +90,32 @@ VMMR0DECL(int) ModuleInit(void)
             rc = HWACCMR0Init();
             if (RT_SUCCESS(rc))
             {
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
-                rc = PGMR0DynMapInit();
-#endif
+                rc = PGMRegisterStringFormatTypes();
                 if (RT_SUCCESS(rc))
                 {
-                    LogFlow(("ModuleInit: g_pIntNet=%p\n", g_pIntNet));
-                    g_pIntNet = NULL;
-                    LogFlow(("ModuleInit: g_pIntNet=%p should be NULL now...\n", g_pIntNet));
-                    rc = INTNETR0Create(&g_pIntNet);
+#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
+                    rc = PGMR0DynMapInit();
+#endif
                     if (RT_SUCCESS(rc))
                     {
-                        LogFlow(("ModuleInit: returns success. g_pIntNet=%p\n", g_pIntNet));
-                        return VINF_SUCCESS;
-                    }
+                        LogFlow(("ModuleInit: g_pIntNet=%p\n", g_pIntNet));
+                        g_pIntNet = NULL;
+                        LogFlow(("ModuleInit: g_pIntNet=%p should be NULL now...\n", g_pIntNet));
+                        rc = INTNETR0Create(&g_pIntNet);
+                        if (RT_SUCCESS(rc))
+                        {
+                            LogFlow(("ModuleInit: returns success. g_pIntNet=%p\n", g_pIntNet));
+                            return VINF_SUCCESS;
+                        }
 
-                    /* bail out */
-                    g_pIntNet = NULL;
-                    LogFlow(("ModuleTerm: returns %Rrc\n", rc));
+                        /* bail out */
+                        g_pIntNet = NULL;
+                        LogFlow(("ModuleTerm: returns %Rrc\n", rc));
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
-                    PGMR0DynMapTerm();
+                        PGMR0DynMapTerm();
 #endif
+                    }
+                    PGMDeregisterStringFormatTypes();
                 }
                 HWACCMR0Term();
             }
@@ -148,6 +153,7 @@ VMMR0DECL(void) ModuleTerm(void)
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
     PGMR0DynMapTerm();
 #endif
+    PGMDeregisterStringFormatTypes();
     HWACCMR0Term();
 
     GMMR0Term();
@@ -172,7 +178,11 @@ static int vmmR0InitVM(PVM pVM, uint32_t uSvnRev)
      * Match the SVN revisions.
      */
     if (uSvnRev != VMMGetSvnRev())
+    {
+        LogRel(("VMMR0InitVM: Revision mismatch, r3=%d r0=%d\n", uSvnRev, VMMGetSvnRev()));
+        SUPR0Printf("VMMR0InitVM: Revision mismatch, r3=%d r0=%d\n", uSvnRev, VMMGetSvnRev());
         return VERR_VERSION_MISMATCH;
+    }
     if (    !VALID_PTR(pVM)
         ||  pVM->pVMR0 != pVM)
         return VERR_INVALID_PARAMETER;
@@ -372,6 +382,9 @@ static void vmmR0RecordRC(PVM pVM, int rc)
         case VINF_EM_RAW_EMULATE_INSTR:
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetEmulate);
             break;
+        case VINF_EM_RAW_EMULATE_IO_BLOCK:
+            STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetIOBlockEmulate);
+            break;
         case VINF_PATCH_EMULATE_INSTR:
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetPatchEmulate);
             break;
@@ -444,11 +457,6 @@ static void vmmR0RecordRC(PVM pVM, int rc)
                 case VMMCALLHOST_PGM_ALLOCATE_HANDY_PAGES:
                     STAM_COUNTER_INC(&pVM->vmm.s.StatRZCallPGMAllocHandy);
                     break;
-#ifndef VBOX_WITH_NEW_PHYS_CODE
-                case VMMCALLHOST_PGM_RAM_GROW_RANGE:
-                    STAM_COUNTER_INC(&pVM->vmm.s.StatRZCallPGMGrowRAM);
-                    break;
-#endif
                 case VMMCALLHOST_REM_REPLAY_HANDLER_NOTIFICATIONS:
                     STAM_COUNTER_INC(&pVM->vmm.s.StatRZCallRemReplay);
                     break;
@@ -500,16 +508,12 @@ static void vmmR0RecordRC(PVM pVM, int rc)
  */
 VMMR0DECL(int) VMMR0EntryInt(PVM pVM, VMMR0OPERATION enmOperation, void *pvArg)
 {
-    switch (enmOperation)
-    {
-        default:
-            /*
-             * We're returning VERR_NOT_SUPPORT here so we've got something else
-             * than -1 which the interrupt gate glue code might return.
-             */
-            Log(("operation %#x is not supported\n", enmOperation));
-            return VERR_NOT_SUPPORTED;
-    }
+    /*
+     * We're returning VERR_NOT_SUPPORT here so we've got something else
+     * than -1 which the interrupt gate glue code might return.
+     */
+    Log(("operation %#x is not supported\n", enmOperation));
+    return VERR_NOT_SUPPORTED;
 }
 
 
@@ -542,11 +546,32 @@ VMMR0DECL(void) VMMR0EntryFast(PVM pVM, unsigned idCpu, VMMR0OPERATION enmOperat
             if (RT_LIKELY(!pVM->vmm.s.fSwitcherDisabled))
             {
                 RTCCUINTREG uFlags = ASMIntDisableFlags();
+                int rc;
+                bool fVTxDisabled;
+
+#ifndef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
+                if (RT_UNLIKELY(!PGMGetHyperCR3(pVM)))
+                {
+                    pVM->vmm.s.iLastGZRc = VERR_PGM_NO_CR3_SHADOW_ROOT;
+                    return;
+                }
+#endif
+
+                /* We might need to disable VT-x if the active switcher turns off paging. */
+                rc = HWACCMR0EnterSwitcher(pVM, &fVTxDisabled);
+                if (RT_FAILURE(rc))
+                {
+                    pVM->vmm.s.iLastGZRc = rc;
+                    return;
+                }
 
                 TMNotifyStartOfExecution(pVM);
-                int rc = pVM->vmm.s.pfnHostToGuestR0(pVM);
+                rc = pVM->vmm.s.pfnHostToGuestR0(pVM);
                 pVM->vmm.s.iLastGZRc = rc;
                 TMNotifyEndOfExecution(pVM);
+
+                /* Re-enable VT-x if previously turned off. */
+                HWACCMR0LeaveSwitcher(pVM, fVTxDisabled);
 
                 if (    rc == VINF_EM_RAW_INTERRUPT
                     ||  rc == VINF_EM_RAW_INTERRUPT_HYPER)
@@ -744,7 +769,7 @@ static int vmmR0EntryExWorker(PVM pVM, VMMR0OPERATION enmOperation, PSUPVMMR0REQ
          *
          */
         case VMMR0_DO_HWACC_ENABLE:
-            return HWACCMR0EnableAllCpus(pVM, (HWACCMSTATE)u64Arg);
+            return HWACCMR0EnableAllCpus(pVM);
 
         /*
          * Setup the hardware accelerated raw-mode session.
@@ -762,13 +787,31 @@ static int vmmR0EntryExWorker(PVM pVM, VMMR0OPERATION enmOperation, PSUPVMMR0REQ
          */
         case VMMR0_DO_CALL_HYPERVISOR:
         {
+            int rc;
+            bool fVTxDisabled;
+
             /* Safety precaution as HWACCM can disable the switcher. */
             Assert(!pVM->vmm.s.fSwitcherDisabled);
             if (RT_UNLIKELY(pVM->vmm.s.fSwitcherDisabled))
                 return VERR_NOT_SUPPORTED;
 
+#ifndef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
+            if (RT_UNLIKELY(!PGMGetHyperCR3(pVM)))
+                return VERR_PGM_NO_CR3_SHADOW_ROOT;
+#endif
+
             RTCCUINTREG fFlags = ASMIntDisableFlags();
-            int rc = pVM->vmm.s.pfnHostToGuestR0(pVM);
+
+            /* We might need to disable VT-x if the active switcher turns off paging. */
+            rc = HWACCMR0EnterSwitcher(pVM, &fVTxDisabled);
+            if (RT_FAILURE(rc))
+                return rc;
+
+            rc = pVM->vmm.s.pfnHostToGuestR0(pVM);
+
+            /* Re-enable VT-x if previously turned off. */
+            HWACCMR0LeaveSwitcher(pVM, fVTxDisabled);
+
             /** @todo dispatch interrupts? */
             ASMSetFlags(fFlags);
             return rc;
@@ -998,8 +1041,6 @@ VMMR0DECL(int) VMMR0EntryEx(PVM pVM, VMMR0OPERATION enmOperation, PSUPVMMR0REQHD
             case VMMR0_DO_GMM_FREE_PAGES:
             case VMMR0_DO_GMM_BALLOONED_PAGES:
             case VMMR0_DO_GMM_DEFLATED_BALLOON:
-            case VMMR0_DO_GMM_MAP_UNMAP_CHUNK:
-            case VMMR0_DO_GMM_SEED_CHUNK:
             /* On the mac we might not have a valid jmp buf, so check these as well. */
             case VMMR0_DO_VMMR0_INIT:
             case VMMR0_DO_VMMR0_TERM:
@@ -1064,9 +1105,11 @@ VMMR0DECL(void) vmmR0LoggerFlush(PRTLOGGER pLogger)
      * Check that the jump buffer is armed.
      */
 #ifdef RT_ARCH_X86
-    if (!pVM->vmm.s.CallHostR0JmpBuf.eip)
+    if (    !pVM->vmm.s.CallHostR0JmpBuf.eip
+        ||  pVM->vmm.s.CallHostR0JmpBuf.fInRing3Call)
 #else
-    if (!pVM->vmm.s.CallHostR0JmpBuf.rip)
+    if (    !pVM->vmm.s.CallHostR0JmpBuf.rip
+        ||  pVM->vmm.s.CallHostR0JmpBuf.fInRing3Call)
 #endif
     {
 #ifdef DEBUG
@@ -1118,9 +1161,11 @@ DECLEXPORT(bool) RTCALL RTAssertShouldPanic(void)
     if (pVM)
     {
 #ifdef RT_ARCH_X86
-        if (pVM->vmm.s.CallHostR0JmpBuf.eip)
+        if (    pVM->vmm.s.CallHostR0JmpBuf.eip
+            &&  !pVM->vmm.s.CallHostR0JmpBuf.fInRing3Call)
 #else
-        if (pVM->vmm.s.CallHostR0JmpBuf.rip)
+        if (    pVM->vmm.s.CallHostR0JmpBuf.rip
+            &&  !pVM->vmm.s.CallHostR0JmpBuf.fInRing3Call)
 #endif
         {
             int rc = VMMR0CallHost(pVM, VMMCALLHOST_VM_R0_ASSERTION, 0);

@@ -1,4 +1,4 @@
-/* $Id: iokit.cpp $ */
+/* $Id: iokit.cpp 18260 2009-03-25 14:04:13Z vboxsync $ */
 /** @file
  * Main - Darwin IOKit Routines.
  *
@@ -36,7 +36,7 @@
 #include <Carbon/Carbon.h>
 #include <IOKit/IOKitLib.h>
 #include <IOKit/storage/IOStorageDeviceCharacteristics.h>
-#include <IOKit/scsi-commands/SCSITaskLib.h>
+#include <IOKit/scsi/SCSITaskLib.h>
 #include <SystemConfiguration/SystemConfiguration.h>
 #include <mach/mach_error.h>
 #ifdef VBOX_WITH_USB
@@ -762,7 +762,7 @@ static bool darwinIsMassStorageInterfaceInUse(io_object_t MSDObj, io_name_t pszN
  * @param   USBDevice   The USB device object.
  * @param   PropsRef    The USB device properties.
  */
-static void darwinDeterminUSBDeviceState(PUSBDEVICE pCur, io_object_t USBDevice, CFMutableDictionaryRef PropsRef)
+static void darwinDeterminUSBDeviceState(PUSBDEVICE pCur, io_object_t USBDevice, CFMutableDictionaryRef /* PropsRef */)
 {
     /*
      * Iterate the interfaces (among the children of the IOUSBDevice object).

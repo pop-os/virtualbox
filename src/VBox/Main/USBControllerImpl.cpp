@@ -1,4 +1,4 @@
-/* $Id: USBControllerImpl.cpp $ */
+/* $Id: USBControllerImpl.cpp 17394 2009-03-05 12:48:15Z vboxsync $ */
 /** @file
  * Implementation of IUSBController.
  */
@@ -32,10 +32,11 @@
 #endif
 #include "Logging.h"
 
-
 #include <iprt/string.h>
 #include <iprt/cpputils.h>
+
 #include <VBox/err.h>
+#include <VBox/settings.h>
 
 #include <algorithm>
 
@@ -355,28 +356,26 @@ public:
     STDMETHOD(COMGETTER(MaskedInterfaces)) (ULONG *aMaskedIfs);
     STDMETHOD(COMSETTER(MaskedInterfaces)) (ULONG aMaskedIfs);
 };
-COM_DECL_READONLY_ENUM_AND_COLLECTION (USBDeviceFilter);
-COM_IMPL_READONLY_ENUM_AND_COLLECTION (USBDeviceFilter);
 #endif /* !VBOX_WITH_USB */
 
 
-STDMETHODIMP USBController::COMGETTER(DeviceFilters) (IUSBDeviceFilterCollection **aDevicesFilters)
+STDMETHODIMP USBController::COMGETTER(DeviceFilters) (ComSafeArrayOut(IUSBDeviceFilter *, aDevicesFilters))
 {
-    CheckComArgOutPointerValid(aDevicesFilters);
+#ifdef VBOX_WITH_USB
+    CheckComArgOutSafeArrayPointerValid(aDevicesFilters);
 
     AutoCaller autoCaller (this);
     CheckComRCReturnRC (autoCaller.rc());
 
     AutoReadLock alock (this);
 
-    ComObjPtr <USBDeviceFilterCollection> collection;
-    collection.createObject();
-#ifdef VBOX_WITH_USB
-    collection->init (*mDeviceFilters.data());
-#endif
-    collection.queryInterfaceTo (aDevicesFilters);
+    SafeIfaceArray <IUSBDeviceFilter> collection (*mDeviceFilters.data());
+    collection.detachTo (ComSafeArrayOutArg (aDevicesFilters));
 
     return S_OK;
+#else
+    ReturnComNotImplemented();
+#endif
 }
 
 // IUSBController methods

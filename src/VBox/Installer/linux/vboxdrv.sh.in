@@ -1,9 +1,9 @@
 #! /bin/sh
-# Sun xVM VirtualBox
+# Sun VirtualBox
 # Linux kernel module init script
 
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2009 Sun Microsystems, Inc.
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -14,7 +14,7 @@
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 #
 
-# chkconfig: 35 30 60
+# chkconfig: 35 30 70
 # description: VirtualBox Linux kernel module
 #
 ### BEGIN INIT INFO

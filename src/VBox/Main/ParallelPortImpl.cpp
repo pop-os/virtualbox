@@ -1,4 +1,4 @@
-/* $Id: ParallelPortImpl.cpp $ */
+/* $Id: ParallelPortImpl.cpp 16560 2009-02-06 18:06:04Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -26,6 +26,8 @@
 
 #include <iprt/string.h>
 #include <iprt/cpputils.h>
+
+#include <VBox/settings.h>
 
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////

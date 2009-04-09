@@ -1,4 +1,4 @@
-/* $Id: utf-8.cpp $ */
+/* $Id: utf-8.cpp 18570 2009-03-31 13:07:44Z vboxsync $ */
 /** @file
  * IPRT - UTF-8 Decoding.
  */
@@ -1322,7 +1322,6 @@ RTDECL(int) RTStrNICmp(const char *psz1, const char *psz2, size_t cchMax)
     if (!psz2)
         return 1;
 
-    const char *pszStart1 = psz1;
     for (;;)
     {
         /* Get the codepoints */
@@ -1368,5 +1367,135 @@ RTDECL(int) RTStrNICmp(const char *psz1, const char *psz2, size_t cchMax)
 
     /* Hit some bad encoding, continue in case insensitive mode. */
     return RTStrNCmp(psz1, psz2, cchMax);
+}
+
+
+RTDECL(char *) RTStrStr(const char *pszHaystack, const char *pszNeedle)
+{
+    /* Any NULL strings means NULL return. (In the RTStrCmp tradition.) */
+    if (!pszHaystack)
+        return NULL;
+    if (!pszNeedle)
+        return NULL;
+
+    /* The rest is CRT. */
+    return (char *)strstr(pszHaystack, pszNeedle);
+}
+
+
+RTDECL(char *) RTStrIStr(const char *pszHaystack, const char *pszNeedle)
+{
+    /* Any NULL strings means NULL return. (In the RTStrCmp tradition.) */
+    if (!pszHaystack)
+        return NULL;
+    if (!pszNeedle)
+        return NULL;
+
+    /* The empty string matches everything. */
+    if (!*pszNeedle)
+        return (char *)pszHaystack;
+
+    /*
+     * The search strategy is to pick out the first char of the needle, fold it,
+     * and match it against the haystack code point by code point. When encountering
+     * a matching code point we use RTStrNICmp for the remainder (if any) of the needle.
+     */
+    const char * const pszNeedleStart = pszNeedle;
+    RTUNICP Cp0;
+    RTStrGetCpEx(&pszNeedle, &Cp0);     /* pszNeedle is advanced one code point. */
+    size_t const    cchNeedle   = strlen(pszNeedle);
+    size_t const    cchNeedleCp0= pszNeedle - pszNeedleStart;
+    RTUNICP const   Cp0Lower    = RTUniCpToLower(Cp0);
+    RTUNICP const   Cp0Upper    = RTUniCpToUpper(Cp0);
+    if (    Cp0Lower == Cp0Upper
+        &&  Cp0Lower == Cp0)
+    {
+        /* Cp0 is not a case sensitive char. */
+        for (;;)
+        {
+            RTUNICP Cp;
+            RTStrGetCpEx(&pszHaystack, &Cp);
+            if (!Cp)
+                break;
+            if (    Cp == Cp0
+                &&  !RTStrNICmp(pszHaystack, pszNeedle, cchNeedle))
+                return (char *)pszHaystack - cchNeedleCp0;
+        }
+    }
+    else if (   Cp0Lower == Cp0
+             || Cp0Upper != Cp0)
+    {
+        /* Cp0 is case sensitive */
+        for (;;)
+        {
+            RTUNICP Cp;
+            RTStrGetCpEx(&pszHaystack, &Cp);
+            if (!Cp)
+                break;
+            if (    (   Cp == Cp0Upper
+                     || Cp == Cp0Lower)
+                &&  !RTStrNICmp(pszHaystack, pszNeedle, cchNeedle))
+                return (char *)pszHaystack - cchNeedleCp0;
+        }
+    }
+    else
+    {
+        /* Cp0 is case sensitive and folds to two difference chars. (paranoia) */
+        for (;;)
+        {
+            RTUNICP Cp;
+            RTStrGetCpEx(&pszHaystack, &Cp);
+            if (!Cp)
+                break;
+            if (    (   Cp == Cp0
+                     || Cp == Cp0Upper
+                     || Cp == Cp0Lower)
+                &&  !RTStrNICmp(pszHaystack, pszNeedle, cchNeedle))
+                return (char *)pszHaystack - cchNeedleCp0;
+        }
+    }
+
+
+    return NULL;
+}
+
+
+RTDECL(char *) RTStrToLower(char *psz)
+{
+    /*
+     * Loop the code points in the string, converting them one by one.
+     * ASSUMES that the code points for upper and lower case are encoded
+     *         with the exact same length.
+     */
+    /** @todo Handled bad encodings correctly+quietly, remove assumption,
+     *        optimize. */
+    char *pszCur = psz;
+    while (*pszCur)
+    {
+        RTUNICP cp = RTStrGetCp(pszCur);
+        cp = RTUniCpToLower(cp);
+        pszCur = RTStrPutCp(pszCur, cp);
+    }
+    return psz;
+}
+
+
+RTDECL(char *) RTStrToUpper(char *psz)
+{
+    /*
+     * Loop the code points in the string, converting them one by one.
+     * ASSUMES that the code points for upper and lower case are encoded
+     *         with the exact same length.
+     */
+    /** @todo Handled bad encodings correctly+quietly, remove assumption,
+     *        optimize. */
+    char *pszCur = psz;
+    while(*pszCur)
+    {
+        RTUNICP cp = RTStrGetCp(pszCur);
+        cp = RTUniCpToUpper(cp);
+        pszCur = RTStrPutCp(pszCur, cp);
+    }
+    return psz;
 }
 

@@ -1,4 +1,4 @@
-; $Id: kPrf2-win-amd64.def 2 2007-11-16 16:07:14Z bird $LIBRARY kPrf2
+; $Id: kPrf2-win-amd64.def 13 2008-04-20 10:13:43Z bird $LIBRARY kPrf2
 ;; @file
 ; kProfiler Mark 2 - Windows Linker Definition File, AMD64.
 ;
@@ -29,5 +29,5 @@ EXPORTS
     _penter
     _pexit
     KPrfInit
-
+    kPrf2WrapResolve
 

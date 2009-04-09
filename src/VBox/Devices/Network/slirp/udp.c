@@ -159,7 +159,7 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
     /*
      *  handle TFTP
      */
-    if (   ntohs(uh->uh_dport) == TFTP_SERVER 
+    if (   ntohs(uh->uh_dport) == TFTP_SERVER
         && CTL_CHECK(ntohl(ip->ip_dst.s_addr), CTL_TFTP))
     {
         tftp_input(pData, m);
@@ -201,10 +201,10 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
          */
         if ((so = socreate()) == NULL)
             goto bad;
-        if (udp_attach(pData, so) == -1)
+        if (udp_attach(pData, so, slirp_get_service(IPPROTO_UDP, uh->uh_dport, uh->uh_sport)) == -1)
         {
             DEBUG_MISC((dfd," udp_attach errno = %d-%s\n",
-                        errno,strerror(errno)));
+                        errno, strerror(errno)));
             sofree(pData, so);
             goto bad;
         }
@@ -228,6 +228,15 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
     so->so_faddr = ip->ip_dst;   /* XXX */
     so->so_fport = uh->uh_dport; /* XXX */
 
+#ifdef VBOX_WITH_SLIRP_DNS_PROXY
+    if (   (ip->ip_dst.s_addr == htonl(ntohl(special_addr.s_addr) | CTL_DNS))
+        && (ntohs(uh->uh_dport) == 53)) 
+    {
+        dnsproxy_query(pData, so, m, iphlen);
+        goto bad; /* it isn't bad, probably better to add additional label done for boot/tftf :)  */
+    }
+#endif
+
     iphlen += sizeof(struct udphdr);
     m->m_len -= iphlen;
     m->m_data += iphlen;
@@ -250,7 +259,9 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         m->m_data -= iphlen;
         *ip = save_ip;
         DEBUG_MISC((dfd,"udp tx errno = %d-%s\n", errno, strerror(errno)));
-        icmp_error(pData, m, ICMP_UNREACH,ICMP_UNREACH_NET, 0, strerror(errno));
+        icmp_error(pData, m, ICMP_UNREACH, ICMP_UNREACH_NET, 0, strerror(errno));
+        /* in case we receive ICMP on this socket we'll aware that ICMP has been already sent to host*/
+        so->so_m = NULL; 
     }
 
     m_free(pData, so->so_m);   /* used for ICMP if error on sorecvfrom */
@@ -348,14 +359,14 @@ int udp_output(PNATState pData, struct socket *so, struct mbuf *m,
 }
 
 int
-udp_attach(PNATState pData, struct socket *so)
+udp_attach(PNATState pData, struct socket *so, int service_port)
 {
     struct sockaddr_in addr;
     struct sockaddr sa_addr;
     socklen_t socklen = sizeof(struct sockaddr);
     int status;
 
-    if ((so->s = socket(AF_INET,SOCK_DGRAM,0)) != -1)
+    if ((so->s = socket(AF_INET, SOCK_DGRAM, 0)) != -1)
     {
         /*
          * Here, we bind() the socket.  Although not really needed
@@ -363,8 +374,9 @@ udp_attach(PNATState pData, struct socket *so)
          * here so that emulation of ytalk etc. don't have to do it
          */
         addr.sin_family = AF_INET;
-        addr.sin_port = 0;
+        addr.sin_port = service_port;
         addr.sin_addr.s_addr = INADDR_ANY;
+        fd_nonblock(so->s);
         if (bind(so->s, (struct sockaddr *)&addr, sizeof(addr)) < 0)
         {
             int lasterrno = errno;
@@ -383,12 +395,20 @@ udp_attach(PNATState pData, struct socket *so)
             so->so_expire = curtime + SO_EXPIRE;
             /* enable broadcast for later use */
             setsockopt(so->s, SOL_SOCKET, SO_BROADCAST, (const char *)&opt, sizeof(opt));
-            insque(pData, so,&udb);
             status = getsockname(so->s, &sa_addr, &socklen);
             Assert(status == 0 && sa_addr.sa_family == AF_INET);
             so->so_hlport = ((struct sockaddr_in *)&sa_addr)->sin_port;
             so->so_hladdr.s_addr = ((struct sockaddr_in *)&sa_addr)->sin_addr.s_addr;
+            SOCKET_LOCK_CREATE(so);
+            QSOCKET_LOCK(udb);
+            insque(pData, so, &udb);
+            NSOCK_INC();
+            QSOCKET_UNLOCK(udb);
         }
+    }
+    else 
+    {
+        LogRel(("NAT: can't create datagramm socket\n"));
     }
     return so->s;
 }
@@ -398,8 +418,12 @@ udp_detach(PNATState pData, struct socket *so)
 {
     if (so != &pData->icmp_socket)
     {
+        QSOCKET_LOCK(udb);
+        SOCKET_LOCK(so);
+        QSOCKET_UNLOCK(udb);
         closesocket(so->s);
         sofree(pData, so);
+        SOCKET_UNLOCK(so);
     }
 }
 
@@ -693,9 +717,20 @@ udp_listen(PNATState pData, u_int port, u_int32_t laddr, u_int lport, int flags)
     if ((so = socreate()) == NULL)
         return NULL;
 
-    so->s = socket(AF_INET,SOCK_DGRAM,0);
+    so->s = socket(AF_INET, SOCK_DGRAM, 0);
+    if (so->s == -1)
+    {
+        LogRel(("NAT: can't create datagram socket\n"));
+        RTMemFree(so);
+        return NULL;
+    }
     so->so_expire = curtime + SO_EXPIRE;
+    fd_nonblock(so->s);
+    SOCKET_LOCK_CREATE(so);
+    QSOCKET_LOCK(udb);
     insque(pData, so,&udb);
+    NSOCK_INC();
+    QSOCKET_UNLOCK(udb);
 
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
@@ -706,8 +741,8 @@ udp_listen(PNATState pData, u_int port, u_int32_t laddr, u_int lport, int flags)
         udp_detach(pData, so);
         return NULL;
     }
-    setsockopt(so->s,SOL_SOCKET,SO_REUSEADDR,(char *)&opt,sizeof(int));
-/*  setsockopt(so->s,SOL_SOCKET,SO_OOBINLINE,(char *)&opt,sizeof(int)); */
+    setsockopt(so->s, SOL_SOCKET, SO_REUSEADDR,(char *)&opt, sizeof(int));
+/*  setsockopt(so->s, SOL_SOCKET, SO_OOBINLINE,(char *)&opt, sizeof(int)); */
 
     getsockname(so->s,(struct sockaddr *)&addr,&addrlen);
     so->so_fport = addr.sin_port;

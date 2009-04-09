@@ -1,4 +1,4 @@
-/* $Id: PGMShw.h $ */
+/* $Id: PGMShw.h 17586 2009-03-09 15:28:25Z vboxsync $ */
 /** @file
  * VBox - Page Manager / Monitor, Shadow Paging Template.
  */
@@ -36,6 +36,10 @@
 #undef SHW_PTE_PG_MASK
 #undef SHW_PT_SHIFT
 #undef SHW_PT_MASK
+#undef SHW_TOTAL_PD_ENTRIES
+#undef SHW_PDPT_SHIFT
+#undef SHW_PDPT_MASK
+#undef SHW_PDPE_PG_MASK
 #undef SHW_POOL_ROOT_IDX
 
 #if PGM_SHW_TYPE == PGM_TYPE_32BIT
@@ -50,10 +54,33 @@
 # define SHW_PDE_PG_MASK        X86_PDE_PG_MASK
 # define SHW_PD_SHIFT           X86_PD_SHIFT
 # define SHW_PD_MASK            X86_PD_MASK
+# define SHW_TOTAL_PD_ENTRIES   X86_PG_ENTRIES
 # define SHW_PTE_PG_MASK        X86_PTE_PG_MASK
 # define SHW_PT_SHIFT           X86_PT_SHIFT
 # define SHW_PT_MASK            X86_PT_MASK
 # define SHW_POOL_ROOT_IDX      PGMPOOL_IDX_PD
+
+#elif PGM_SHW_TYPE == PGM_TYPE_EPT
+# define SHWPT                  EPTPT
+# define PSHWPT                 PEPTPT
+# define SHWPTE                 EPTPTE
+# define PSHWPTE                PEPTPTE
+# define SHWPD                  EPTPD
+# define PSHWPD                 PEPTPD
+# define SHWPDE                 EPTPDE
+# define PSHWPDE                PEPTPDE
+# define SHW_PDE_PG_MASK        EPT_PDE_PG_MASK
+# define SHW_PD_SHIFT           EPT_PD_SHIFT
+# define SHW_PD_MASK            EPT_PD_MASK
+# define SHW_PTE_PG_MASK        EPT_PTE_PG_MASK
+# define SHW_PT_SHIFT           EPT_PT_SHIFT
+# define SHW_PT_MASK            EPT_PT_MASK
+# define SHW_PDPT_SHIFT         EPT_PDPT_SHIFT
+# define SHW_PDPT_MASK          EPT_PDPT_MASK
+# define SHW_PDPE_PG_MASK       EPT_PDPE_PG_MASK
+# define SHW_TOTAL_PD_ENTRIES   (EPT_PG_AMD64_ENTRIES*EPT_PG_AMD64_PDPE_ENTRIES)
+# define SHW_POOL_ROOT_IDX      PGMPOOL_IDX_NESTED_ROOT      /* do not use! exception is real mode & protected mode without paging. */
+
 #else
 # define SHWPT                  X86PTPAE
 # define PSHWPT                 PX86PTPAE
@@ -69,7 +96,21 @@
 # define SHW_PTE_PG_MASK        X86_PTE_PAE_PG_MASK
 # define SHW_PT_SHIFT           X86_PT_PAE_SHIFT
 # define SHW_PT_MASK            X86_PT_PAE_MASK
-# define SHW_POOL_ROOT_IDX      PGMPOOL_IDX_PAE_PD
+
+# if PGM_SHW_TYPE == PGM_TYPE_AMD64
+#  define SHW_PDPT_SHIFT        X86_PDPT_SHIFT
+#  define SHW_PDPT_MASK         X86_PDPT_MASK_AMD64
+#  define SHW_PDPE_PG_MASK      X86_PDPE_PG_MASK
+#  define SHW_TOTAL_PD_ENTRIES  (X86_PG_AMD64_ENTRIES*X86_PG_AMD64_PDPE_ENTRIES)
+#  define SHW_POOL_ROOT_IDX     PGMPOOL_IDX_AMD64_CR3
+
+# else /* 32 bits PAE mode */
+#  define SHW_PDPT_SHIFT        X86_PDPT_SHIFT
+#  define SHW_PDPT_MASK         X86_PDPT_MASK_PAE
+#  define SHW_PDPE_PG_MASK      X86_PDPE_PG_MASK
+#  define SHW_TOTAL_PD_ENTRIES  (X86_PG_PAE_ENTRIES*X86_PG_PAE_PDPE_ENTRIES)
+#  define SHW_POOL_ROOT_IDX     PGMPOOL_IDX_PDPT
+# endif
 #endif
 
 
@@ -137,16 +178,28 @@ PGM_SHW_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
  */
 PGM_SHW_DECL(int, Enter)(PVM pVM)
 {
-#if PGM_SHW_TYPE == PGM_TYPE_NESTED
-    Assert(HWACCMIsNestedPagingActive(pVM));
+#if PGM_SHW_TYPE == PGM_TYPE_NESTED || PGM_SHW_TYPE == PGM_TYPE_EPT
+    RTGCPHYS     GCPhysCR3 = RT_BIT_64(63);
+    PPGMPOOLPAGE pNewShwPageCR3;
+    PPGMPOOL     pPool     = pVM->pgm.s.CTX_SUFF(pPool);
 
-    Log(("Enter nested shadow paging mode: root %RHv phys %RHp\n", pVM->pgm.s.pShwNestedRootR3, pVM->pgm.s.HCPhysShwNestedRoot));
-    /* In non-nested mode we allocate the PML4 page on-demand; in nested mode we just use our fixed nested paging root. */
-    pVM->pgm.s.pShwPaePml4R3 = (R3PTRTYPE(PX86PML4))pVM->pgm.s.pShwNestedRootR3;
-# ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
-    pVM->pgm.s.pShwPaePml4R0 = (R0PTRTYPE(PX86PML4))pVM->pgm.s.pShwNestedRootR0;
-# endif
-    pVM->pgm.s.HCPhysShwPaePml4 = pVM->pgm.s.HCPhysShwNestedRoot;
+    Assert(HWACCMIsNestedPagingActive(pVM));
+    Assert(!pVM->pgm.s.pShwPageCR3R3);
+
+    int rc = pgmPoolAlloc(pVM, GCPhysCR3, PGMPOOLKIND_ROOT_NESTED, PGMPOOL_IDX_NESTED_ROOT, GCPhysCR3 >> PAGE_SHIFT, &pNewShwPageCR3);
+    AssertFatal(rc == VINF_SUCCESS);
+
+    /* Mark the page as locked; disallow flushing. */
+    pgmPoolLockPage(pPool, pNewShwPageCR3);
+
+    pVM->pgm.s.iShwUser      = PGMPOOL_IDX_NESTED_ROOT;
+    pVM->pgm.s.iShwUserTable = GCPhysCR3 >> PAGE_SHIFT;
+    pVM->pgm.s.pShwPageCR3R3 = pNewShwPageCR3;
+
+    pVM->pgm.s.pShwPageCR3RC = MMHyperCCToRC(pVM, pVM->pgm.s.pShwPageCR3R3);
+    pVM->pgm.s.pShwPageCR3R0 = MMHyperCCToR0(pVM, pVM->pgm.s.pShwPageCR3R3);
+
+    Log(("Enter nested shadow paging mode: root %RHv phys %RHp\n", pVM->pgm.s.pShwPageCR3R3, pVM->pgm.s.CTX_SUFF(pShwPageCR3)->Core.Key));
 #endif
     return VINF_SUCCESS;
 }
@@ -174,16 +227,25 @@ PGM_SHW_DECL(int, Relocate)(PVM pVM, RTGCPTR offDelta)
  */
 PGM_SHW_DECL(int, Exit)(PVM pVM)
 {
-#if PGM_SHW_TYPE == PGM_TYPE_NESTED
-    Assert(HWACCMIsNestedPagingActive(pVM));
-    pVM->pgm.s.pShwPaePml4R3 = 0;
-# ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
-    pVM->pgm.s.pShwPaePml4R0 = 0;
-# endif
-    pVM->pgm.s.HCPhysShwPaePml4 = 0;
+#if PGM_SHW_TYPE == PGM_TYPE_NESTED || PGM_SHW_TYPE == PGM_TYPE_EPT
+    if (pVM->pgm.s.CTX_SUFF(pShwPageCR3))
+    {
+        PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
+
+        Assert(pVM->pgm.s.iShwUser == PGMPOOL_IDX_NESTED_ROOT);
+
+        /* Mark the page as unlocked; allow flushing again. */
+        pgmPoolUnlockPage(pPool, pVM->pgm.s.CTX_SUFF(pShwPageCR3));
+
+        pgmPoolFreeByPage(pPool, pVM->pgm.s.CTX_SUFF(pShwPageCR3), pVM->pgm.s.iShwUser, pVM->pgm.s.iShwUserTable);
+        pVM->pgm.s.pShwPageCR3R3 = 0;
+        pVM->pgm.s.pShwPageCR3R0 = 0;
+        pVM->pgm.s.pShwPageCR3RC = 0;
+        pVM->pgm.s.iShwUser      = 0;
+        pVM->pgm.s.iShwUserTable = 0;
+    }
     Log(("Leave nested shadow paging mode\n"));
 #endif
-
     return VINF_SUCCESS;
 }
 

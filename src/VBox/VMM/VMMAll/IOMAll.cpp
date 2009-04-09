@@ -1,4 +1,4 @@
-/* $Id: IOMAll.cpp $ */
+/* $Id: IOMAll.cpp 17136 2009-02-25 16:10:32Z vboxsync $ */
 /** @file
  * IOM - Input / Output Monitor - Any Context.
  */
@@ -735,7 +735,7 @@ VMMDECL(int) IOMInterpretCheckPortIOAccess(PVM pVM, PCPUMCTXCORE pCtxCore, RTIOP
         }
 
         if (    !fCanHaveIOBitmap
-            ||  cbTss <= sizeof(VBOXTSS))
+            ||  cbTss <= sizeof(VBOXTSS)) /** @todo r=bird: Should this really include the interrupt redirection bitmap? */
         {
             Log(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d cbTss=%#x fCanHaveIOBitmap=%RTbool -> #GP(0)\n",
                  Port, cb, cbTss, fCanHaveIOBitmap));

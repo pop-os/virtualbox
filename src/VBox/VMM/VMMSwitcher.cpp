@@ -1,4 +1,4 @@
-/* $Id: VMMSwitcher.cpp $ */
+/* $Id: VMMSwitcher.cpp 17586 2009-03-09 15:28:25Z vboxsync $ */
 /** @file
  * VMM - The Virtual Machine Monitor, World Switcher(s).
  */
@@ -465,36 +465,6 @@ static void vmmR3SwitcherGenericRelocate(PVM pVM, PVMMSWITCHERDEF pSwitcher, RTR
             }
 
             /*
-             * Store the 32-Bit CR3 (32-bit) for the hypervisor (shadow) memory context.
-             */
-            case FIX_HYPER_32BIT_CR3:
-            {
-
-                *uSrc.pu32 = PGMGetHyper32BitCR3(pVM);
-                break;
-            }
-
-            /*
-             * Store the PAE CR3 (32-bit) for the hypervisor (shadow) memory context.
-             */
-            case FIX_HYPER_PAE_CR3:
-            {
-
-                *uSrc.pu32 = PGMGetHyperPaeCR3(pVM);
-                break;
-            }
-
-            /*
-             * Store the AMD64 CR3 (32-bit) for the hypervisor (shadow) memory context.
-             */
-            case FIX_HYPER_AMD64_CR3:
-            {
-
-                *uSrc.pu32 = PGMGetHyperAmd64CR3(pVM);
-                break;
-            }
-
-            /*
              * Store Hypervisor CS (16-bit).
              */
             case FIX_HYPER_CS:
@@ -745,6 +715,7 @@ static void vmmR3SwitcherGenericRelocate(PVM pVM, PVMMSWITCHERDEF pSwitcher, RTR
                     &pVM->cpum,
                     GCPtrGDT,
                     PGMGetInter32BitCR3(pVM), PGMGetInterPaeCR3(pVM), PGMGetInterAmd64CR3(pVM),
+                    /* @todo No need for three GetHyper calls; one and the same base is used */
                     PGMGetHyper32BitCR3(pVM), PGMGetHyperPaeCR3(pVM), PGMGetHyperAmd64CR3(pVM),
                     SelCS, SelDS, SelCS64, SelTSS);
 

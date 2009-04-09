@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 18796 2009-04-07 06:55:31Z vboxsync $
 ## @file
 # Makefile for the linux guest additions base directory.
 #
@@ -28,6 +28,7 @@ include	$(KBUILD_PATH)/subheader.kmk
 include $(PATH_SUB_CURRENT)/module/Makefile.kmk
 include $(PATH_SUB_CURRENT)/daemon/Makefile.kmk
 include $(PATH_SUB_CURRENT)/sharedfolders/Makefile.kmk
+include $(PATH_SUB_CURRENT)/drm/Makefile.kmk
 
 #
 # Targets
@@ -45,7 +46,7 @@ endif
 VBOX_LNX_ADD_INS_OUT_DIR           := $(PATH_TARGET)/Additions/Installer/linux
 BLDDIRS                            += $(VBOX_LNX_ADD_INS_OUT_DIR)
 VBOX_PATH_LINUX_ADDITION_INSTALLER := $(PATH_SUB_CURRENT)/installer
-VBOX_PATH_X11_ADDITION_INSTALLER   := $(PATH_ROOT)/src/VBox/Additions/x11/installer
+VBOX_PATH_X11_ADDITION_INSTALLER   := $(PATH_ROOT)/src/VBox/Additions/x11/Installer
 
 ifeq ($(KBUILD_TYPE),debug)
  VBOX_LNX_ADD_BIN_COPY              = $(CP) -f
@@ -59,6 +60,12 @@ INSTALLS += GuestDrivers-src
 GuestDrivers-src_INST = bin/additions/src/
 GuestDrivers-src_MODE = a+r,u+w
 GuestDrivers-src_SOURCES = Makefile
+
+INSTALLS += AutoRun-sh
+AutoRun-sh_INST = bin/additions/
+AutoRun-sh_MODE = a+rx,u+w
+AutoRun-sh_SOURCES = $(VBOX_PATH_LINUX_ADDITION_INSTALLER)/autorun.sh
+
 
 include	$(KBUILD_PATH)/subfooter.kmk
 
@@ -90,8 +97,12 @@ $(PATH_BIN)/additions/VBoxLinuxAdditions.run: \
 		$(VBOX_PATH_X11_ADDITION_INSTALLER)/x11config.pl \
 		$(VBOX_PATH_X11_ADDITION_INSTALLER)/x11config15.pl \
 		$(VBOX_PATH_X11_ADDITION_INSTALLER)/x11config15suse.pl \
+		$(VBOX_PATH_LINUX_ADDITION_INSTALLER)/Makefile.include.header \
+		$(VBOX_PATH_LINUX_ADDITION_INSTALLER)/Makefile.include.footer \
 		$(VBOX_PATH_LINUX_ADDITION_INSTALLER)/Makefile.test \
 		$(VBOX_PATH_LINUX_ADDITION_INSTALLER)/test.c \
+		$(VBOX_PATH_LINUX_ADDITION_INSTALLER)/Makefile.test.drm \
+		$(VBOX_PATH_LINUX_ADDITION_INSTALLER)/test_drm.c \
 		$(PATH_BIN)/additions/vboxmouse_drv.o \
 		$(PATH_BIN)/additions/vboxmouse_drv_70.so \
 		$(PATH_BIN)/additions/vboxmouse_drv_71.so \
@@ -106,6 +117,13 @@ $(PATH_BIN)/additions/VBoxLinuxAdditions.run: \
 		$(PATH_BIN)/additions/vboxvideo_drv_15.so \
 		$(PATH_BIN)/additions/vboxvideo_drv_16.so \
 		$(PATH_BIN)/additions/mountvboxsf \
+		$(PATH_BIN)/additions/VBoxOGLarrayspu.so \
+		$(PATH_BIN)/additions/VBoxOGLcrutil.so \
+		$(PATH_BIN)/additions/VBoxOGLerrorspu.so \
+		$(PATH_BIN)/additions/VBoxOGLfeedbackspu.so \
+		$(PATH_BIN)/additions/VBoxOGLpackspu.so \
+		$(PATH_BIN)/additions/VBoxOGLpassthroughspu.so \
+		$(PATH_BIN)/additions/VBoxOGL.so \
 		$(VBOX_SELINUX_CMPLD) \
 		$(wildcard $(PATH_BIN)/additions/src/*) \
 		$(wildcard $(PATH_BIN)/additions/src/*/*) \
@@ -121,6 +139,11 @@ $(PATH_BIN)/additions/VBoxLinuxAdditions.run: \
 	$(QUIET)$(MKDIR) -p $(VBOX_LNX_ADD_INS_OUT_DIR)/module/test
 	$(QUIET)$(INSTALL) -m 0644 $(VBOX_PATH_LINUX_ADDITION_INSTALLER)/Makefile.test  $(VBOX_LNX_ADD_INS_OUT_DIR)/module/test/Makefile
 	$(QUIET)$(INSTALL) -m 0644 $(VBOX_PATH_LINUX_ADDITION_INSTALLER)/test.c         $(VBOX_LNX_ADD_INS_OUT_DIR)/module/test/
+	$(QUIET)$(MKDIR) -p $(VBOX_LNX_ADD_INS_OUT_DIR)/module/test_drm
+	$(QUIET)$(INSTALL) -m 0644 $(VBOX_PATH_LINUX_ADDITION_INSTALLER)/Makefile.include.header  $(VBOX_LNX_ADD_INS_OUT_DIR)/module/test_drm
+	$(QUIET)$(INSTALL) -m 0644 $(VBOX_PATH_LINUX_ADDITION_INSTALLER)/Makefile.include.footer  $(VBOX_LNX_ADD_INS_OUT_DIR)/module/test_drm
+	$(QUIET)$(INSTALL) -m 0644 $(VBOX_PATH_LINUX_ADDITION_INSTALLER)/Makefile.test.drm  $(VBOX_LNX_ADD_INS_OUT_DIR)/module/test_drm/Makefile
+	$(QUIET)$(INSTALL) -m 0644 $(VBOX_PATH_LINUX_ADDITION_INSTALLER)/test_drm.c     $(VBOX_LNX_ADD_INS_OUT_DIR)/module/test_drm/
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/vboxadd-timesync           $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxadd-timesync
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/VBoxClient                 $(VBOX_LNX_ADD_INS_OUT_DIR)/VBoxClient
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/VBoxControl                $(VBOX_LNX_ADD_INS_OUT_DIR)/VBoxControl
@@ -159,6 +182,13 @@ $(PATH_BIN)/additions/VBoxLinuxAdditions.run: \
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/vboxvideo_drv_15.so           $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxvideo_drv_15.so
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/vboxvideo_drv_16.so           $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxvideo_drv_16.so
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/mountvboxsf                   $(VBOX_LNX_ADD_INS_OUT_DIR)/mount.vboxsf
+	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/VBoxOGLarrayspu.so            $(VBOX_LNX_ADD_INS_OUT_DIR)/VBoxOGLarrayspu.so
+	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/VBoxOGLcrutil.so              $(VBOX_LNX_ADD_INS_OUT_DIR)/VBoxOGLcrutil.so
+	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/VBoxOGLerrorspu.so            $(VBOX_LNX_ADD_INS_OUT_DIR)/VBoxOGLerrorspu.so
+	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/VBoxOGLfeedbackspu.so         $(VBOX_LNX_ADD_INS_OUT_DIR)/VBoxOGLfeedbackspu.so
+	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/VBoxOGLpackspu.so             $(VBOX_LNX_ADD_INS_OUT_DIR)/VBoxOGLpackspu.so
+	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/VBoxOGLpassthroughspu.so      $(VBOX_LNX_ADD_INS_OUT_DIR)/VBoxOGLpassthroughspu.so
+	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/VBoxOGL.so                    $(VBOX_LNX_ADD_INS_OUT_DIR)/VBoxOGL.so
 ifdef VBOX_SELINUX_CMPLD
 	$(QUIET)$(INSTALL) -m 0755 $(VBOX_SELINUX_CMPLD)                                     $(VBOX_LNX_ADD_INS_OUT_DIR)
 endif

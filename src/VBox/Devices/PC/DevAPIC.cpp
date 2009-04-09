@@ -1,5 +1,5 @@
 #ifdef VBOX
-/* $Id: DevAPIC.cpp $ */
+/* $Id: DevAPIC.cpp 17968 2009-03-16 19:02:29Z vboxsync $ */
 /** @file
  * Advanced Programmable Interrupt Controller (APIC) Device and
  * I/O Advanced Programmable Interrupt Controller (IO-APIC) Device.
@@ -351,12 +351,14 @@ DECLINLINE(VMCPUID) getCpuFromLapic(APICDeviceInfo* dev, APICState *s)
 
 DECLINLINE(void) cpuSetInterrupt(APICDeviceInfo* dev, APICState *s)
 {
+    Log2(("apic: setting interrupt flag\n"));
     dev->CTX_SUFF(pApicHlp)->pfnSetInterruptFF(dev->CTX_SUFF(pDevIns),
                                                getCpuFromLapic(dev, s));
 }
 
 DECLINLINE(void) cpuClearInterrupt(APICDeviceInfo* dev, APICState *s)
 {
+    Log2(("apic: clear interrupt flag\n"));
     dev->CTX_SUFF(pApicHlp)->pfnClearInterruptFF(dev->CTX_SUFF(pDevIns),
                                                  getCpuFromLapic(dev, s));
 }
@@ -1182,23 +1184,27 @@ PDMBOTHCBDECL(int) apicGetInterrupt(PPDMDEVINS pDevIns)
 
     if (!(s->spurious_vec & APIC_SV_ENABLE)) {
         Log(("apic_get_interrupt: returns -1 (APIC_SV_ENABLE)\n"));
-        return -1;
+        intno = -1;
+        goto done;
     }
 
     /* XXX: spurious IRQ handling */
     intno = get_highest_priority_int(s->irr);
     if (intno < 0) {
         Log(("apic_get_interrupt: returns -1 (irr)\n"));
-        return -1;
+        intno = -1;
+        goto done;
     }
     if (s->tpr && (uint32_t)intno <= s->tpr) {
         Log(("apic_get_interrupt: returns %d (sp)\n", s->spurious_vec & 0xff));
-        return s->spurious_vec & 0xff;
+        intno = s->spurious_vec & 0xff;
+        goto done;
     }
     reset_bit(s->irr, intno);
     set_bit(s->isr, intno);
     apic_update_irq(dev, s);
     LogFlow(("apic_get_interrupt: returns %d\n", intno));
+ done:
     APIC_UNLOCK(dev);
     return intno;
 }

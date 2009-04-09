@@ -1,10 +1,10 @@
-/* $Id: VBoxUtils-darwin.cpp $ */
+/* $Id: VBoxUtils-darwin.cpp 17340 2009-03-04 12:11:33Z vboxsync $ */
 /** @file
  * Qt GUI - Utility Classes and Functions specific to Darwin.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,16 +19,149 @@
  * additional information or have any questions.
  */
 
-
-
-#include "VBoxUtils.h"
-#include "VBoxFrameBuffer.h"
-#include <qimage.h>
-#include <qpixmap.h>
+#include "VBoxUtils-darwin.h"
 
 #include <iprt/assert.h>
-#include <iprt/mem.h>
 
+#include <QApplication>
+#include <QWidget>
+#include <QToolBar>
+#include <QPainter>
+#include <QPixmap>
+
+#include <Carbon/Carbon.h>
+
+#if QT_VERSION < 0x040400
+extern void qt_mac_set_menubar_icons(bool b);
+#endif /* QT_VERSION < 0x040400 */
+
+NativeViewRef darwinToNativeView (QWidget *aWidget)
+{
+    return reinterpret_cast<NativeViewRef>(aWidget->winId());
+}
+
+NativeWindowRef darwinToNativeWindow (QWidget *aWidget)
+{
+    return ::darwinToNativeWindowImpl (::darwinToNativeView (aWidget));
+}
+
+NativeWindowRef darwinToNativeWindow (NativeViewRef aView)
+{
+    return ::darwinToNativeWindowImpl (aView);
+}
+
+NativeViewRef darwinToNativeView (NativeWindowRef aWindow)
+{
+    return ::darwinToNativeViewImpl (aWindow);
+}
+
+void darwinSetShowsToolbarButton (QToolBar *aToolBar, bool aEnabled)
+{
+    QWidget *parent = aToolBar->parentWidget();
+    if (parent)
+        ::darwinSetShowsToolbarButtonImpl (::darwinToNativeWindow (parent), aEnabled);
+}
+
+void darwinSetHidesAllTitleButtons (QWidget *aWidget)
+{
+#ifdef QT_MAC_USE_COCOA
+    /* Currently only necessary in the Cocoa version */
+    ::darwinSetHidesAllTitleButtonsImpl (::darwinToNativeWindow (aWidget));
+#else /* QT_MAC_USE_COCOA */
+    NOREF (aWidget);
+#endif /* !QT_MAC_USE_COCOA */
+}
+
+void darwinSetShowsWindowTransparent (QWidget *aWidget, bool aEnabled)
+{
+    ::darwinSetShowsWindowTransparentImpl (::darwinToNativeWindow (aWidget), aEnabled);
+}
+
+void darwinWindowAnimateResize (QWidget *aWidget, const QRect &aTarget)
+{
+    ::darwinWindowAnimateResizeImpl (::darwinToNativeWindow (aWidget), aTarget.x(), aTarget.y(), aTarget.width(), aTarget.height());
+}
+
+void darwinWindowInvalidateShape (QWidget *aWidget)
+{
+#ifdef QT_MAC_USE_COCOA
+    /* Here a simple update is enough! */
+    aWidget->update();
+#else /* QT_MAC_USE_COCOA */
+    ::darwinWindowInvalidateShapeImpl (::darwinToNativeWindow (aWidget));
+#endif /* QT_MAC_USE_COCOA */
+}
+;
+void darwinWindowInvalidateShadow (QWidget *aWidget)
+{
+#ifdef QT_MAC_USE_COCOA
+    ::darwinWindowInvalidateShadowImpl (::darwinToNativeWindow (aWidget));
+#else /* QT_MAC_USE_COCOA */
+    NOREF (aWidget);
+#endif /* QT_MAC_USE_COCOA */
+}
+
+void darwinSetShowsResizeIndicator (QWidget *aWidget, bool aEnabled)
+{
+    ::darwinSetShowsResizeIndicatorImpl (::darwinToNativeWindow (aWidget), aEnabled);
+}
+
+QString darwinSystemLanguage (void)
+{
+    /* Get the locales supported by our bundle */
+    CFArrayRef supportedLocales = ::CFBundleCopyBundleLocalizations (::CFBundleGetMainBundle());
+    /* Check them against the languages currently selected by the user */
+    CFArrayRef preferredLocales = ::CFBundleCopyPreferredLocalizationsFromArray (supportedLocales);
+    /* Get the one which is on top */
+    CFStringRef localeId = (CFStringRef)::CFArrayGetValueAtIndex (preferredLocales, 0);
+    /* Convert them to a C-string */
+    char localeName[20];
+    ::CFStringGetCString (localeId, localeName, sizeof (localeName), kCFStringEncodingUTF8);
+    /* Some cleanup */
+    ::CFRelease (supportedLocales);
+    ::CFRelease (preferredLocales);
+    QString id(localeName);
+    /* Check for some misbehavior */
+    if (id.isEmpty() ||
+        id.toLower() == "english")
+        id = "en";
+    return id;
+}
+
+void darwinDisableIconsInMenus (void)
+{
+    /* No icons in the menu of a mac application. */
+#if QT_VERSION < 0x040400
+    qt_mac_set_menubar_icons (false);
+#else /* QT_VERSION < 0x040400 */
+    /* Available since Qt 4.4 only */
+    QApplication::instance()->setAttribute (Qt::AA_DontShowIconsInMenus, true);
+#endif /* QT_VERSION >= 0x040400 */
+}
+
+CGContextRef darwinToCGContextRef (QWidget *aWidget)
+{
+    return static_cast<CGContext *> (aWidget->macCGHandle());
+}
+
+/* Proxy icon creation */
+QPixmap darwinCreateDragPixmap (const QPixmap& aPixmap, const QString &aText)
+{
+    QFontMetrics fm (qApp->font());
+    QRect tbRect = fm.boundingRect (aText);
+    const int h = qMax (aPixmap.height(), fm.ascent() + 1);
+    const int m = 2;
+    QPixmap dragPixmap (aPixmap.width() + tbRect.width() + m, h);
+    dragPixmap.fill (Qt::transparent);
+    QPainter painter (&dragPixmap);
+    painter.drawPixmap (0, qAbs (h - aPixmap.height()) / 2.0, aPixmap);
+    painter.setPen (Qt::white);
+    painter.drawText (QRect (aPixmap.width() + m, 1, tbRect.width(), h - 1), Qt::AlignLeft | Qt::AlignVCenter, aText);
+    painter.setPen (Qt::black);
+    painter.drawText (QRect (aPixmap.width() + m, 0, tbRect.width(), h - 1), Qt::AlignLeft | Qt::AlignVCenter, aText);
+    painter.end();
+    return dragPixmap;
+}
 
 /**
  * Callback for deleting the QImage object when CGImageCreate is done
@@ -48,19 +181,18 @@ static void darwinDataProviderReleaseQImage (void *info, const void *, size_t)
  * @returns CGImageRef for the new image. (Remember to release it when finished with it.)
  * @param   aPixmap     Pointer to the QPixmap instance to convert.
  */
-CGImageRef DarwinQImageToCGImage (const QImage *aImage)
+CGImageRef darwinToCGImageRef (const QImage *aImage)
 {
     QImage *imageCopy = new QImage (*aImage);
     /** @todo this code assumes 32-bit image input, the lazy bird convert image to 32-bit method is anything but optimal... */
-    if (imageCopy->depth() != 32)
-        *imageCopy = imageCopy->convertDepth (32);
+    if (imageCopy->format() != QImage::Format_ARGB32)
+        *imageCopy = imageCopy->convertToFormat (QImage::Format_ARGB32);
     Assert (!imageCopy->isNull());
 
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
     CGDataProviderRef dp = CGDataProviderCreateWithData (imageCopy, aImage->bits(), aImage->numBytes(), darwinDataProviderReleaseQImage);
 
-    CGBitmapInfo bmpInfo = imageCopy->hasAlphaBuffer() ? kCGImageAlphaFirst : kCGImageAlphaNoneSkipFirst;
-    bmpInfo |= kCGBitmapByteOrder32Host;
+    CGBitmapInfo bmpInfo = kCGImageAlphaFirst | kCGBitmapByteOrder32Host;
     CGImageRef ir = CGImageCreate (imageCopy->width(), imageCopy->height(), 8, 32, imageCopy->bytesPerLine(), cs,
                                    bmpInfo, dp, 0 /*decode */, 0 /* shouldInterpolate */,
                                    kCGRenderingIntentDefault);
@@ -72,29 +204,14 @@ CGImageRef DarwinQImageToCGImage (const QImage *aImage)
 }
 
 /**
- * Loads an image using Qt and converts it to a CGImage.
- *
- * @returns CGImageRef for the new image. (Remember to release it when finished with it.)
- * @param   aSource     The source name.
- */
-CGImageRef DarwinQImageFromMimeSourceToCGImage (const char *aSource)
-{
-    QImage qim = QImage::fromMimeSource (aSource);
-    Assert (!qim.isNull());
-    return DarwinQImageToCGImage (&qim);
-}
-
-/**
  * Converts a QPixmap to a CGImage.
  *
  * @returns CGImageRef for the new image. (Remember to release it when finished with it.)
  * @param   aPixmap     Pointer to the QPixmap instance to convert.
  */
-CGImageRef DarwinQPixmapToCGImage (const QPixmap *aPixmap)
+CGImageRef darwinToCGImageRef (const QPixmap *aPixmap)
 {
-    QImage qimg = aPixmap->convertToImage();
-    Assert (!qimg.isNull());
-    return DarwinQImageToCGImage (&qimg);
+    return aPixmap->toMacCGImageRef();
 }
 
 /**
@@ -103,207 +220,31 @@ CGImageRef DarwinQPixmapToCGImage (const QPixmap *aPixmap)
  * @returns CGImageRef for the new image. (Remember to release it when finished with it.)
  * @param   aSource     The source name.
  */
-CGImageRef DarwinQPixmapFromMimeSourceToCGImage (const char *aSource)
+CGImageRef darwinToCGImageRef (const char *aSource)
 {
-    QPixmap qpm = QPixmap::fromMimeSource (aSource);
+    QPixmap qpm (QString(":/") + aSource);
     Assert (!qpm.isNull());
-    return DarwinQPixmapToCGImage (&qpm);
+    return ::darwinToCGImageRef (&qpm);
 }
 
-/**
- * Creates a dock badge image.
+/********************************************************************************
  *
- * The badge will be placed on the right hand size and vertically centered
- * after having been scaled up to 32x32.
+ * Old carbon stuff. Have to converted soon!
  *
- * @returns CGImageRef for the new image. (Remember to release it when finished with it.)
- * @param   aSource     The source name.
- */
-CGImageRef DarwinCreateDockBadge (const char *aSource)
-{
-    /* Create a transparent image in size 128x128.
-     * This is unnecessary complicated in qt3. */
-    QImage transImage (128, 128, 32);
-    transImage.fill (qRgba (0, 0, 0, 0));
-    transImage.setAlphaBuffer (true);
-    QPixmap back (transImage);
+ ********************************************************************************/
 
-    /* load the badge */
-    QPixmap badge = QPixmap::fromMimeSource (aSource);
-    Assert (!badge.isNull());
-
-    /* resize it and copy it onto the background. */
-    if (badge.width() < 32)
-        badge = badge.convertToImage().smoothScale (32, 32);
-    copyBlt (&back, (back.width() - badge.width()) / 2.0, (back.height() - badge.height()) / 2.0,
-             &badge, 0, 0,
-             badge.width(), badge.height());
-
-    /* Convert it to a CGImage. */
-    return ::DarwinQPixmapToCGImage (&back);
-}
-
-/**
- * Updates the dock preview image.
- *
- * This method is a callback that updates the 128x128 preview image of the VM window in the dock.
- *
- * @param   aVMImage   the vm screen as a CGImageRef
- * @param   aOverlayImage   an optional icon overlay image to add at the bottom right of the icon
- * @param   aStateImage   an optional state overlay image to add at the center of the icon
- */
-void DarwinUpdateDockPreview (CGImageRef aVMImage, CGImageRef aOverlayImage, CGImageRef aStateImage /*= NULL*/)
-{
-    Assert (aVMImage);
-
-    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-    Assert (cs);
-
-    /* Calc the size of the dock icon image and fit it into 128x128 */
-    int targetWidth = 128;
-    int targetHeight = 128;
-    int scaledWidth;
-    int scaledHeight;
-    float aspect = static_cast <float> (CGImageGetWidth (aVMImage)) / CGImageGetHeight (aVMImage);
-    if (aspect > 1.0)
-    {
-        scaledWidth = targetWidth;
-        scaledHeight = targetHeight / aspect;
-    }
-    else
-    {
-        scaledWidth = targetWidth * aspect;
-        scaledHeight = targetHeight;
-    }
-    CGRect iconRect = CGRectMake ((targetWidth - scaledWidth) / 2.0,
-                                  (targetHeight - scaledHeight) / 2.0,
-                                  scaledWidth, scaledHeight);
-    /* Create the context to draw on */
-    CGContextRef context = BeginCGContextForApplicationDockTile();
-    Assert (context);
-    /* Clear the background */
-    CGContextSetBlendMode (context, kCGBlendModeNormal);
-    CGContextClearRect (context, CGRectMake (0, 0, 128, 128));
-    /* rounded corners */
-//        CGContextSetLineJoin (context, kCGLineJoinRound);
-//        CGContextSetShadow (context, CGSizeMake (10, 5), 1);
-//        CGContextSetAllowsAntialiasing (context, true);
-    /* some little boarder */
-    iconRect = CGRectInset (iconRect, 1, 1);
-    /* gray stroke */
-    CGContextSetRGBStrokeColor (context, 225.0/255.0, 218.0/255.0, 211.0/255.0, 1);
-    iconRect = CGRectInset (iconRect, 6, 6);
-    CGContextStrokeRectWithWidth (context, iconRect, 12);
-    iconRect = CGRectInset (iconRect, 5, 5);
-    /* black stroke */
-    CGContextSetRGBStrokeColor (context, 0.0, 0.0, 0.0, 1.0);
-    CGContextStrokeRectWithWidth (context, iconRect, 2);
-    /* vm content */
-    iconRect = CGRectInset (iconRect, 1, 1);
-    CGContextDrawImage (context, iconRect, aVMImage);
-    /* the state image at center */
-    if (aStateImage)
-    {
-        CGRect stateRect = CGRectMake ((targetWidth - CGImageGetWidth (aStateImage)) / 2.0,
-                                       (targetHeight - CGImageGetHeight (aStateImage)) / 2.0,
-                                       CGImageGetWidth (aStateImage),
-                                       CGImageGetHeight (aStateImage));
-        CGContextDrawImage (context, stateRect, aStateImage);
-    }
-    /* the overlay image at bottom/right */
-    if (aOverlayImage)
-    {
-
-        CGRect overlayRect = CGRectMake (targetWidth - CGImageGetWidth (aOverlayImage),
-                                         0,
-                                         CGImageGetWidth (aOverlayImage),
-                                         CGImageGetHeight (aOverlayImage));
-        CGContextDrawImage (context, overlayRect, aOverlayImage);
-    }
-    /* This flush updates the dock icon */
-    CGContextFlush (context);
-    EndCGContextForApplicationDockTile (context);
-
-    CGColorSpaceRelease (cs);
-}
-
-/**
- * Updates the dock preview image.
- *
- * This method is a callback that updates the 128x128 preview image of the VM window in the dock.
- *
- * @param   aFrameBuffer    The guest frame buffer.
- * @param   aOverlayImage   an optional icon overlay image to add at the bottom right of the icon
- */
-void DarwinUpdateDockPreview (VBoxFrameBuffer *aFrameBuffer, CGImageRef aOverlayImage)
-{
-    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-    Assert (cs);
-    /* Create the image copy of the framebuffer */
-    CGDataProviderRef dp = CGDataProviderCreateWithData (aFrameBuffer, aFrameBuffer->address(), aFrameBuffer->bitsPerPixel() / 8 * aFrameBuffer->width() * aFrameBuffer->height(), NULL);
-    Assert (dp);
-    CGImageRef ir = CGImageCreate (aFrameBuffer->width(), aFrameBuffer->height(), 8, 32, aFrameBuffer->bytesPerLine(), cs,
-                                   kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Host, dp, 0, false,
-                                   kCGRenderingIntentDefault);
-    /* Update the dock preview icon */
-    ::DarwinUpdateDockPreview (ir, aOverlayImage);
-    /* Release the temp data and image */
-    CGDataProviderRelease (dp);
-    CGImageRelease (ir);
-    CGColorSpaceRelease (cs);
-}
-
-OSStatus DarwinRegionHandler (EventHandlerCallRef aInHandlerCallRef, EventRef aInEvent, void *aInUserData)
-{
-    NOREF (aInHandlerCallRef);
-
-    OSStatus status = eventNotHandledErr;
-
-    switch (GetEventKind (aInEvent))
-    {
-        case kEventWindowGetRegion:
-        {
-            WindowRegionCode code;
-            RgnHandle rgn;
-
-            /* which region code is being queried? */
-            GetEventParameter (aInEvent, kEventParamWindowRegionCode, typeWindowRegionCode, NULL, sizeof (code), NULL, &code);
-
-            /* if it is the opaque region code then set the region to Empty and return noErr to stop the propagation */
-            if (code == kWindowOpaqueRgn)
-            {
-                GetEventParameter (aInEvent, kEventParamRgnHandle, typeQDRgnHandle, NULL, sizeof (rgn), NULL, &rgn);
-                SetEmptyRgn (rgn);
-                status = noErr;
-            }
-            /* if the content of the whole window is queried return a copy of our saved region. */
-            else if (code == (kWindowStructureRgn))// || kWindowGlobalPortRgn || kWindowUpdateRgn))
-            {
-                GetEventParameter (aInEvent, kEventParamRgnHandle, typeQDRgnHandle, NULL, sizeof (rgn), NULL, &rgn);
-                QRegion *pRegion = static_cast <QRegion*> (aInUserData);
-                if (!pRegion->isNull() && pRegion)
-                {
-                    CopyRgn (pRegion->handle(), rgn);
-                    status = noErr;
-                }
-            }
-            break;
-        }
-    }
-
-    return status;
-}
-
-/* Event debugging stuff. Borrowed from the Knuts Qt patch. */
-#ifdef DEBUG
+/* Event debugging stuff. Borrowed from Knuts Qt patch. */
+#if defined (DEBUG)
 
 # define MY_CASE(a) case a: return #a
 const char * DarwinDebugEventName (UInt32 ekind)
 {
     switch (ekind)
     {
+# if !__LP64__
         MY_CASE(kEventWindowUpdate                );
         MY_CASE(kEventWindowDrawContent           );
+# endif
         MY_CASE(kEventWindowActivated             );
         MY_CASE(kEventWindowDeactivated           );
         MY_CASE(kEventWindowHandleActivate        );
@@ -328,6 +269,7 @@ const char * DarwinDebugEventName (UInt32 ekind)
         MY_CASE(kEventWindowClosed                );
         MY_CASE(kEventWindowTransitionStarted     );
         MY_CASE(kEventWindowTransitionCompleted   );
+# if !__LP64__
         MY_CASE(kEventWindowClickDragRgn          );
         MY_CASE(kEventWindowClickResizeRgn        );
         MY_CASE(kEventWindowClickCollapseRgn      );
@@ -337,6 +279,7 @@ const char * DarwinDebugEventName (UInt32 ekind)
         MY_CASE(kEventWindowClickProxyIconRgn     );
         MY_CASE(kEventWindowClickToolbarButtonRgn );
         MY_CASE(kEventWindowClickStructureRgn     );
+# endif
         MY_CASE(kEventWindowCursorChange          );
         MY_CASE(kEventWindowCollapse              );
         MY_CASE(kEventWindowCollapseAll           );
@@ -352,7 +295,9 @@ const char * DarwinDebugEventName (UInt32 ekind)
         MY_CASE(kEventWindowGetMinimumSize        );
         MY_CASE(kEventWindowGetMaximumSize        );
         MY_CASE(kEventWindowConstrain             );
+# if !__LP64__
         MY_CASE(kEventWindowHandleContentClick    );
+# endif
         MY_CASE(kEventWindowGetDockTileMenu       );
         MY_CASE(kEventWindowProxyBeginDrag        );
         MY_CASE(kEventWindowProxyEndDrag          );
@@ -386,44 +331,46 @@ const char * DarwinDebugEventName (UInt32 ekind)
         MY_CASE(kEventWindowPaint                 );
     }
     static char s_sz[64];
-    sprintf(s_sz, "kind=%d", ekind);
+    sprintf(s_sz, "kind=%u", (uint)ekind);
     return s_sz;
 }
 # undef MY_CASE
 
 /* Convert a class into the 4 char code defined in
- * 'Developer/Headers/CFMCarbon/CarbonEvents.h' to 
+ * 'Developer/Headers/CFMCarbon/CarbonEvents.h' to
  * identify the event. */
-const char * DarwinDebugClassName (UInt32 eclass)
+const char * darwinDebugClassName (UInt32 eclass)
 {
     char *pclass = (char*)&eclass;
     static char s_sz[11];
-    sprintf(s_sz, "class=%c%c%c%c", pclass[3], 
-                                    pclass[2], 
-                                    pclass[1], 
+    sprintf(s_sz, "class=%c%c%c%c", pclass[3],
+                                    pclass[2],
+                                    pclass[1],
                                     pclass[0]);
     return s_sz;
 }
 
-void DarwinDebugPrintEvent (const char *psz, EventRef event)
+void darwinDebugPrintEvent (const char *psz, EventRef evtRef)
 {
-  if (!event)
+  if (!evtRef)
       return;
-  UInt32 ekind = GetEventKind (event), eclass = GetEventClass (event);
+  UInt32 ekind = GetEventKind (evtRef), eclass = GetEventClass (evtRef);
   if (eclass == kEventClassWindow)
   {
       switch (ekind)
       {
+# if !__LP64__
           case kEventWindowDrawContent:
           case kEventWindowUpdate:
+# endif
           case kEventWindowBoundsChanged:
               break;
           default:
           {
               WindowRef wid = NULL;
-              GetEventParameter(event, kEventParamDirectObject, typeWindowRef, NULL, sizeof(WindowRef), NULL, &wid);
+              GetEventParameter(evtRef, kEventParamDirectObject, typeWindowRef, NULL, sizeof(WindowRef), NULL, &wid);
               QWidget *widget = QWidget::find((WId)wid);
-              printf("%d %s: (%s) %#x win=%p wid=%p (%s)\n", time(NULL), psz, DarwinDebugClassName (eclass), ekind, wid, widget, DarwinDebugEventName (ekind));
+              printf("%d %s: (%s) %#x win=%p wid=%p (%s)\n", (int)time(NULL), psz, darwinDebugClassName (eclass), (uint)ekind, wid, widget, DarwinDebugEventName (ekind));
               break;
           }
       }
@@ -431,7 +378,7 @@ void DarwinDebugPrintEvent (const char *psz, EventRef event)
   else if (eclass == kEventClassCommand)
   {
       WindowRef wid = NULL;
-      GetEventParameter(event, kEventParamDirectObject, typeWindowRef, NULL, sizeof(WindowRef), NULL, &wid);
+      GetEventParameter(evtRef, kEventParamDirectObject, typeWindowRef, NULL, sizeof(WindowRef), NULL, &wid);
       QWidget *widget = QWidget::find((WId)wid);
       const char *name = "Unknown";
       switch (ekind)
@@ -443,13 +390,52 @@ void DarwinDebugPrintEvent (const char *psz, EventRef event)
               name = "kEventCommandUpdateStatus";
               break;
       }
-      printf("%d %s: (%s) %#x win=%p wid=%p (%s)\n", time(NULL), psz, DarwinDebugClassName (eclass), ekind, wid, widget, name);
+      printf("%d %s: (%s) %#x win=%p wid=%p (%s)\n", (int)time(NULL), psz, darwinDebugClassName (eclass), (uint)ekind, wid, widget, name);
   }
   else if (eclass == kEventClassKeyboard)
-      printf("%d %s: %#x(%s) %#x (kEventClassKeyboard)\n", time(NULL), psz, eclass, DarwinDebugClassName (eclass), ekind);
+  {
+      printf("%d %s: %#x(%s) %#x (kEventClassKeyboard)", (int)time(NULL), psz, (uint)eclass, darwinDebugClassName (eclass), (uint)ekind);
 
+      UInt32 keyCode = 0;
+      ::GetEventParameter (evtRef, kEventParamKeyCode, typeUInt32, NULL,
+                           sizeof (keyCode), NULL, &keyCode);
+      printf(" keyCode=%d (%#x) ", keyCode, keyCode);
+
+      char macCharCodes[8] = {0,0,0,0, 0,0,0,0};
+      ::GetEventParameter (evtRef, kEventParamKeyCode, typeChar, NULL,
+                           sizeof (macCharCodes), NULL, &macCharCodes[0]);
+      printf(" macCharCodes={");
+      for (unsigned i =0; i < 8 && macCharCodes[i]; i++)
+          printf( i == 0 ? "%02x" : ",%02x", macCharCodes[i]);
+      printf("}");
+
+      UInt32 modifierMask = 0;
+      ::GetEventParameter (evtRef, kEventParamKeyModifiers, typeUInt32, NULL,
+                           sizeof (modifierMask), NULL, &modifierMask);
+      printf(" modifierMask=%08x", modifierMask);
+
+      UniChar keyUnicodes[8] = {0,0,0,0, 0,0,0,0};
+      ::GetEventParameter (evtRef, kEventParamKeyUnicodes, typeUnicodeText, NULL,
+                           sizeof (keyUnicodes), NULL, &keyUnicodes[0]);
+      printf(" keyUnicodes={");
+      for (unsigned i =0; i < 8 && keyUnicodes[i]; i++)
+          printf( i == 0 ? "%02x" : ",%02x", keyUnicodes[i]);
+      printf("}");
+
+      UInt32 keyboardType = 0;
+      ::GetEventParameter (evtRef, kEventParamKeyboardType, typeUInt32, NULL,
+                           sizeof (keyboardType), NULL, &keyboardType);
+      printf(" keyboardType=%08x", keyboardType);
+
+      EventHotKeyID evtHotKeyId = {0,0};
+      ::GetEventParameter (evtRef, typeEventHotKeyID, typeEventHotKeyID, NULL,
+                           sizeof (evtHotKeyId), NULL, &evtHotKeyId);
+      printf(" evtHotKeyId={signature=%08x, .id=%08x}", evtHotKeyId.signature, evtHotKeyId.id);
+      printf("\n");
+  }
   else
-      printf("%d %s: %#x(%s) %#x\n", time(NULL), psz, eclass, DarwinDebugClassName (eclass), ekind);
+      printf("%d %s: %#x(%s) %#x\n", (int)time(NULL), psz, (uint)eclass, darwinDebugClassName (eclass), (uint)ekind);
 }
 
 #endif /* DEBUG */
+

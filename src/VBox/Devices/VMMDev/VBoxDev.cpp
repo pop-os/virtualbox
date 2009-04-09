@@ -1,4 +1,4 @@
-/* $Id: VBoxDev.cpp $ */
+/* $Id: VBoxDev.cpp 18668 2009-04-03 00:12:30Z vboxsync $ */
 /** @file
  * VMMDev - Guest <-> VMM/Host communication device.
  */
@@ -311,7 +311,7 @@ static DECLCALLBACK(int) vmmdevBackdoorLog(PPDMDEVINS pDevIns, void *pvUser, RTI
         {
             pThis->szMsg[pThis->iMsg] = '\0';
             if (pThis->iMsg)
-                LogRel(("Guest Log: %s\n", pThis->szMsg));
+                LogRelIt(LOG_REL_INSTANCE, RTLOGGRPFLAGS_LEVEL_1, LOG_GROUP_DEV_VMM_BACKDOOR, ("Guest Log: %s\n", pThis->szMsg));
             pThis->iMsg = 0;
         }
         else
@@ -792,7 +792,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
                         pRequestHeader->rc = PGMR3MappingsFix(pVM, hypervisorInfo->hypervisorStart,
                                                               hypervisorInfo->hypervisorSize);
                         LogRel(("Guest reported fixed hypervisor window at 0x%p (size = 0x%x, rc = %Rrc)\n",
-                                hypervisorInfo->hypervisorStart,
+                                (uintptr_t)hypervisorInfo->hypervisorStart,
                                 hypervisorInfo->hypervisorSize,
                                 pRequestHeader->rc));
                     }

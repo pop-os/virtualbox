@@ -1,4 +1,4 @@
-/* $Id: VBoxIChatTheaterWrapper.h $ */
+/* $Id: VBoxIChatTheaterWrapper.h 17349 2009-03-04 15:40:25Z vboxsync $ */
 /** @file
  * Qt GUI - iChat Theater cocoa wrapper.
  */
@@ -24,7 +24,7 @@
 
 #if defined (Q_WS_MAC) && defined (VBOX_WITH_ICHAT_THEATER)
 
-#include <Carbon/Carbon.h>
+# include <ApplicationServices/ApplicationServices.h>
 
 __BEGIN_DECLS
 

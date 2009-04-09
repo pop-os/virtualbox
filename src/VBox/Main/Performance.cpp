@@ -1,4 +1,4 @@
-/* $Id: Performance.cpp $ */
+/* $Id: Performance.cpp 17911 2009-03-16 10:30:55Z vboxsync $ */
 
 /** @file
  *
@@ -45,22 +45,22 @@ using namespace pm;
 
 // Stubs for non-pure virtual methods
 
-int CollectorHAL::getHostCpuLoad(ULONG *user, ULONG *kernel, ULONG *idle)
+int CollectorHAL::getHostCpuLoad(ULONG * /* user */, ULONG * /* kernel */, ULONG * /* idle */)
 {
     return E_NOTIMPL;
 }
 
-int CollectorHAL::getProcessCpuLoad(RTPROCESS process, ULONG *user, ULONG *kernel)
+int CollectorHAL::getProcessCpuLoad(RTPROCESS  /* process */, ULONG * /* user */, ULONG * /* kernel */)
 {
     return E_NOTIMPL;
 }
 
-int CollectorHAL::getRawHostCpuLoad(uint64_t *user, uint64_t *kernel, uint64_t *idle)
+int CollectorHAL::getRawHostCpuLoad(uint64_t * /* user */, uint64_t * /* kernel */, uint64_t * /* idle */)
 {
     return E_NOTIMPL;
 }
 
-int CollectorHAL::getRawProcessCpuLoad(RTPROCESS process, uint64_t *user, uint64_t *kernel, uint64_t *total)
+int CollectorHAL::getRawProcessCpuLoad(RTPROCESS  /* process */, uint64_t * /* user */, uint64_t * /* kernel */, uint64_t * /* total */)
 {
     return E_NOTIMPL;
 }

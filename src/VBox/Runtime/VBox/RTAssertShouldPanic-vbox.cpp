@@ -1,4 +1,4 @@
-/* $Id: RTAssertShouldPanic-vbox.cpp $ */
+/* $Id: RTAssertShouldPanic-vbox.cpp 18371 2009-03-27 05:05:52Z vboxsync $ */
 /** @file
  * IPRT - Assertions, generic RTAssertShouldPanic.
  */
@@ -108,8 +108,14 @@ RTDECL(bool) RTAssertShouldPanic(void)
         }
 
         /* Try spawn the process. */
-        char szCmd[512];
-        RTStrPrintf(szCmd, sizeof(szCmd), "%s program %d", pszGdb, RTProcSelf());
+        char    szCmd[512];
+        size_t  cch = RTStrPrintf(szCmd, sizeof(szCmd), "%s -p %d ", pszGdb, RTProcSelf());
+        if (cch < sizeof(szCmd))
+        {
+            char *pszExecName = &szCmd[cch];
+            if (!RTProcGetExecutableName(pszExecName, sizeof(szCmd) - cch))
+                *pszExecName = '\0';
+        }
         const char *apszArgs[] =
         {
             pszTerm,

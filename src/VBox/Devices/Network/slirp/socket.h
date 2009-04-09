@@ -9,6 +9,9 @@
 
 #ifndef _SLIRP_SOCKET_H_
 #define _SLIRP_SOCKET_H_
+#ifdef VBOX_WITH_SLIRP_MT
+#include <iprt/critsect.h>
+#endif
 
 #define SO_EXPIRE 240000
 #define SO_EXPIREFAST 10000
@@ -63,9 +66,60 @@ struct socket
 
     struct sbuf     so_rcv;      /* Receive buffer */
     struct sbuf     so_snd;      /* Send buffer */
+#ifdef VBOX_WITH_SLIRP_MT
+    RTCRITSECT      so_mutex;
+    int             so_deleted;
+#endif
+#ifdef VBOX_WITH_SIMPLIFIED_SLIRP_SYNC
+# ifndef RT_OS_WINDOWS
+    int so_poll_index;
+# else /* !RT_OS_WINDOWS */
+    /*
+     * FD_CLOSE event has been occured on socket 
+     */
+    int so_close; 
+# endif /* RT_OS_WINDOWS */
+#endif /* VBOX_WITH_SIMPLIFIED_SLIRP_SYNC */
+#ifdef VBOX_WITH_SLIRP_DNS_PROXY
+    void (* so_timeout)(PNATState pData, struct socket *so, void *arg);
+    void *so_timeout_arg;
+#endif
 };
 
-
+#ifdef VBOX_WITH_SLIRP_MT
+# define SOCKET_LOCK(so)                                                \
+    do {                                                                \
+        int rc;                                                         \
+        /* Assert(strcmp(RTThreadSelfName(), "EMT") != 0); */           \
+        Log2(("lock:%s:%d L on %R[natsock]\n", __FUNCTION__, __LINE__, (so)));       \
+        Assert(!RTCritSectIsOwner(&(so)->so_mutex));                     \
+        rc = RTCritSectEnter(&(so)->so_mutex);                           \
+        AssertReleaseRC(rc);                                            \
+    } while (0)
+# define SOCKET_UNLOCK(so)                                              \
+    do {                                                                \
+        int rc;                                                         \
+        if ((so) != NULL) Log2(("lock:%s:%d U on %R[natsock]\n", __FUNCTION__, __LINE__, (so)));       \
+        rc = RTCritSectLeave(&(so)->so_mutex);                           \
+        AssertReleaseRC(rc);                                            \
+    } while (0)
+# define SOCKET_LOCK_CREATE(so)                                         \
+    do {                                                                \
+        int rc;                                                         \
+        rc = RTCritSectInit(&(so)->so_mutex);                            \
+        AssertReleaseRC(rc);                                            \
+    } while (0)
+# define SOCKET_LOCK_DESTROY(so)                                        \
+    do {                                                                \
+        int rc = RTCritSectDelete(&(so)->so_mutex);                      \
+        AssertReleaseRC(rc);                                            \
+    } while (0)
+#else
+# define SOCKET_LOCK(so) do {} while (0)
+# define SOCKET_UNLOCK(so) do {} while (0)
+# define SOCKET_LOCK_CREATE(so) do {} while (0)
+# define SOCKET_LOCK_DESTROY(so) do {} while (0)
+#endif
 /*
  * Socket state bits. (peer means the host on the Internet,
  * local host means the host on the other end of the modem)
@@ -97,6 +151,9 @@ void so_init _P((void));
 struct socket * solookup _P((struct socket *, struct in_addr, u_int, struct in_addr, u_int));
 struct socket * socreate _P((void));
 void sofree _P((PNATState, struct socket *));
+#ifdef VBOX_WITH_SLIRP_MT
+void soread_queue (PNATState, struct socket *, int *);
+#endif
 int soread _P((PNATState, struct socket *));
 void sorecvoob _P((PNATState, struct socket *));
 int sosendoob _P((struct socket *));

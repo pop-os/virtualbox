@@ -1,4 +1,4 @@
-/* $Id: Global.cpp $ */
+/* $Id: Global.cpp 17721 2009-03-11 21:36:21Z vboxsync $ */
 
 /** @file
  *
@@ -28,7 +28,7 @@
 #include <iprt/assert.h>
 
 /* static */
-const Global::OSType Global::sOSTypes [SchemaDefs::OSTypeId_COUNT] =
+const Global::OSType Global::sOSTypes[SchemaDefs::OSTypeId_COUNT] =
 {
     /* NOTE1: we assume that unknown is always the first entry!
      * NOTE2: please use powers of 2 when specifying the size of harddisks since
@@ -107,6 +107,8 @@ const Global::OSType Global::sOSTypes [SchemaDefs::OSTypeId_COUNT] =
       VBOXOSTYPE_RedHat,          VBOXOSHINT_NONE, 256,  12,  8 * _1K, NetworkAdapterType_Am79C973 },
     { "Linux",   "Linux",             SchemaDefs_OSTypeId_RedHat_64,       "Red Hat (64 bit)",
       VBOXOSTYPE_RedHat_x64,      VBOXOSHINT_64BIT | VBOXOSHINT_HWVIRTEX | VBOXOSHINT_IOAPIC,  256,  12,  8 * _1K, NetworkAdapterType_I82540EM },
+    { "Linux",   "Linux",             SchemaDefs_OSTypeId_Turbolinux,      "Turbolinux",
+      VBOXOSTYPE_Turbolinux,      VBOXOSHINT_NONE, 384,  12,  8 * _1K, NetworkAdapterType_Am79C973 },
     { "Linux",   "Linux",             SchemaDefs_OSTypeId_Ubuntu,          "Ubuntu",
       VBOXOSTYPE_Ubuntu,          VBOXOSHINT_NONE, 384,  12,  8 * _1K, NetworkAdapterType_Am79C973 },
     { "Linux",   "Linux",             SchemaDefs_OSTypeId_Ubuntu_64,       "Ubuntu (64 bit)",

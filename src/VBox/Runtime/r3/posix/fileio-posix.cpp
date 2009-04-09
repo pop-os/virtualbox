@@ -1,4 +1,4 @@
-/* $Id: fileio-posix.cpp $ */
+/* $Id: fileio-posix.cpp 16647 2009-02-10 16:56:50Z vboxsync $ */
 /** @file
  * IPRT - File I/O, POSIX.
  */
@@ -587,7 +587,7 @@ RTR3DECL(int) RTFileSetMode(RTFILE File, RTFMODE fMode)
     if (fchmod((int)File, fMode & RTFS_UNIX_MASK))
     {
         int rc = RTErrConvertFromErrno(errno);
-        Log(("RTFileSetMode(%RTfile,%RTfmode): returns %Rrc\n", File, fMode));
+        Log(("RTFileSetMode(%RTfile,%RTfmode): returns %Rrc\n", File, fMode, rc));
         return rc;
     }
     return VINF_SUCCESS;

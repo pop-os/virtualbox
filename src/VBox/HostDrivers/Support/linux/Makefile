@@ -66,9 +66,6 @@ else
  $(warning Using BUILD_TYPE='$(BUILD_TYPE)' from the $(origin BUILD_TYPE).)
 endif
 
-# use vm_insert_page() API (if available) to map kernel pages to userland - better debugging 
-# VBOX_USE_INSERT_PAGE = 1
-
 # override is required by the Debian guys
 override MODULE = vboxdrv
 OBJS   = \
@@ -183,17 +180,11 @@ ifeq ($(KERNELRELEASE),)
   endif # MODULE_DIR unspecified
  endif
 
- # guess kernel version (24 or 26)
- KERN_VERSION := $(if $(wildcard $(KERN_DIR)/Rules.make),24,26)
-
 else # neq($(KERNELRELEASE),)
 
  #
  # building from kbuild (make -C <kernel_directory> M=`pwd`)
  #
-
- # guess kernel version (24 or 26)
- KERN_VERSION := $(if $(wildcard $(PWD)/Rules.make),24,26)
 
 endif # neq($(KERNELRELEASE),)
 
@@ -202,7 +193,6 @@ ifdef DEBUG
 $(warning dbg: KERN_DIR     = $(KERN_DIR))
 $(warning dbg: KERN_INCL    = $(KERN_INCL))
 $(warning dbg: MODULE_DIR   = $(MODULE_DIR))
-$(warning dbg: KERN_VERSION = $(KERN_VERSION))
 endif
 
 KBUILD_VERBOSE ?= 1
@@ -236,18 +226,6 @@ ifeq ($(BUILD_TYPE),debug)
  KFLAGS  += -DDEBUG -DDEBUG_$(USER) -g
  # IPRT_DEBUG_SEMS indicates thread wrt sems state via the comm field.
  KFLAGS  += -DIPRT_DEBUG_SEMS
-endif
-
-# By default we use remap_pfn_range() kernel API to make kernel pages
-# visible for userland. Unfortuately, it leads to situation that
-# during debug session all structures on that page (such as PVM pointer)
-# are not accessible to the debugger (see #3214).
-# This code enables experimental support
-# for vm_insert_page() kernel API, allowing to export kernel pages
-# to the userland in more debugger-friendly way. Due to stability
-# concerns, not enabled by default yet.
-ifdef VBOX_USE_INSERT_PAGE
- KFLAGS  += -DVBOX_USE_INSERT_PAGE
 endif
 
 # 2.6 and later

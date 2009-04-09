@@ -1,4 +1,4 @@
-/* $Rev: 39431 $ */
+/* $Rev: 18329 $ */
 /** @file
  * IPRT - Convert iprt status codes to errno.
  */
@@ -54,12 +54,12 @@ RTDECL(int) RTErrConvertToErrno(int iErr)
     /*
      * Process error codes.
      *
-     * Try to reverse the behaviour of RTErrConvertFromErrno as far
-     * as possible.
+     * (Use a switch and not a table since the numbers vary among compilers
+     * and OSes. So we let the compiler switch optimizer handle speed issues.)
      *
-     * @note I am very impressed by the length of some of these
-     *       error codes - we have obviously learnt something from
-     *       Unix's failings :)
+     * This switch is arranged like the Linux i386 errno.h! It also mirrors the
+     * conversions performed by RTErrConvertFromErrno with a few extra case since
+     * there are far more IPRT status codes than Unix ones.
      */
     switch (iErr)
     {
@@ -121,7 +121,8 @@ RTDECL(int) RTErrConvertToErrno(int iErr)
         //case VERR_NOT_SUPPORTED:                    return ENODEV;
 #endif
 #ifdef ENOTDIR
-        case VERR_PATH_NOT_FOUND:                   return ENOENT;
+        case VERR_NOT_A_DIRECTORY:
+        case VERR_PATH_NOT_FOUND:                   return ENOTDIR;
 #endif
 #ifdef EISDIR
         case VERR_IS_A_DIRECTORY:                   return EISDIR;
@@ -437,10 +438,21 @@ RTDECL(int) RTErrConvertToErrno(int iErr)
 #ifdef EPROCLIM
         case VERR_MAX_PROCS_REACHED:                return EPROCLIM;
 #endif
+#ifdef EDOOFUS
+        case VERR_INTERNAL_ERROR:
+        case VERR_INTERNAL_ERROR_2:
+        case VERR_INTERNAL_ERROR_3:                 return EDOOFUS;
+#endif
 
         default:
+            /* The idea here is that if you hit this, you will have to
+               translate the status code yourself. */
             AssertMsgFailed(("Unhandled error code %Rrc\n", iErr));
+#ifdef EPROTO
             return EPROTO;
+#else
+            return EINVAL;
+#endif
     }
 }
 

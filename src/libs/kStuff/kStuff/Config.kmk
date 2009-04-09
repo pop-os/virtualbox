@@ -1,10 +1,10 @@
-# $Id: Config.kmk 2 2007-11-16 16:07:14Z bird $
+# $Id: Config.kmk 24 2009-02-08 13:58:54Z bird $
 ## @file
 # kBuild configuration for kStuff
 #
 
 #
-# Copyright (c) 2006-2007 knut st. osmundsen <bird-kStuff-spam@anduin.net>
+# Copyright (c) 2006-2008 knut st. osmundsen <bird-kStuff-spam@anduin.net>
 #
 # This file is part of kStuff.
 #
@@ -33,10 +33,10 @@ PATH_INS := $(PATH_OUT)/kStuff
 # Templates for the kStuff.
 #
 TEMPLATE_kStuff = kStuff Template
-TEMPLATE_kStuff_TOOL             = GCC3
-TEMPLATE_kStuff_TOOL.darwin      = GCC4MACHO
-TEMPLATE_kStuff_TOOL.os2         = GCC3OMF
-TEMPLATE_kStuff_TOOL.solaris     = GCC3PLAIN
+TEMPLATE_kStuff_TOOL             = GXX3
+TEMPLATE_kStuff_TOOL.darwin      = GXX4MACHO
+TEMPLATE_kStuff_TOOL.os2         = GXX3OMF
+TEMPLATE_kStuff_TOOL.solaris     = GXX3PLAIN
 TEMPLATE_kStuff_TOOL.win.x86     = VCC70
 TEMPLATE_kStuff_TOOL.win.amd64   = VCC80AMD64
 
@@ -55,7 +55,7 @@ TEMPLATE_kStuff_DEFS.win         = KS_OS_WINDOWS _CRT_SECURE_NO_DEPRECATE _CRT_N
 TEMPLATE_kStuff_DEFS.x86         = KS_BITS=32
 TEMPLATE_kStuff_DEFS.amd64       = KS_BITS=64
 
-TEMPLATE_kStuff_INCS             = $(PATH_ROOT)/kStuff/include
+TEMPLATE_kStuff_INCS             = $(PATH_ROOT)/include
 
 TEMPLATE_kStuff_ASTOOL           = YASM
 TEMPLATE_kStuff_ASTOOL.os2       = NASM
@@ -69,26 +69,30 @@ TEMPLATE_kStuff_CFLAGS.darwin    = -g -fno-common
 TEMPLATE_kStuff_CFLAGS.freebsd   = -g
 TEMPLATE_kStuff_CFLAGS.linux     = -g
 TEMPLATE_kStuff_CFLAGS.os2       = -g
-TEMPLATE_kStuff_CFLAGS.win       = -Zi -Zl -MD -W3 -GF -GR-
+TEMPLATE_kStuff_CFLAGS.win       = -Zi -Zl -W3 -GF -GR-
+TEMPLATE_kStuff_CFLAGS.win.x86   = -MD
+TEMPLATE_kStuff_CFLAGS.win.amd64 = -MT
 ifneq ($(BUILD_TYPE),debug)
 TEMPLATE_kStuff_CFLAGS.freebsd  += -O3
 TEMPLATE_kStuff_CFLAGS.linux    += -O3
 TEMPLATE_kStuff_CFLAGS.os2      += -O3
-TEMPLATE_kStuff_CFLAGS.win      += -O2xtg -Oi -Ob2
+TEMPLATE_kStuff_CFLAGS.win      += -O2b2
 else
 TEMPLATE_kStuff_CFLAGS.win      += -Od
 endif
 
-TEMPLATE_kStuff_CXXFLAGS.darwin  = -g -fno-common
-TEMPLATE_kStuff_CXXFLAGS.freebsd = -g
-TEMPLATE_kStuff_CXXFLAGS.linux   = -g
-TEMPLATE_kStuff_CXXFLAGS.os2     = -g
-TEMPLATE_kStuff_CXXFLAGS.win     = -Zi -Zl -MD -W3 -GF -GR-
+TEMPLATE_kStuff_CXXFLAGS.darwin  = -g -fno-exceptions -fno-common
+TEMPLATE_kStuff_CXXFLAGS.freebsd = -g -fno-exceptions
+TEMPLATE_kStuff_CXXFLAGS.linux   = -g -fno-exceptions
+TEMPLATE_kStuff_CXXFLAGS.os2     = -g -fno-exceptions
+TEMPLATE_kStuff_CXXFLAGS.win     = -Zi -Zl -W3 -GF -GR-
+TEMPLATE_kStuff_CXXFLAGS.win.x86 = -MD
+TEMPLATE_kStuff_CXXFLAGS.win.amd64 = -MT
 ifneq ($(BUILD_TYPE),debug)
 TEMPLATE_kStuff_CXXFLAGS.freebsd+= -O3
 TEMPLATE_kStuff_CXXFLAGS.linux  += -O3
 TEMPLATE_kStuff_CXXFLAGS.os2    += -O3
-TEMPLATE_kStuff_CXXFLAGS.win    += -O2xtg -Oi -Ob2
+TEMPLATE_kStuff_CXXFLAGS.win    += -O2b2
 else
 TEMPLATE_kStuff_CXXFLAGS.win    += -Od
 endif
@@ -109,8 +113,7 @@ TEMPLATE_kStuff_LIBS.win.x86     = \
 	$(PATH_TOOL_VCC70_LIB)/oldnames.lib \
 	$(PATH_SDK_W2K3DDKX86_LIB)/ntdll.lib
 TEMPLATE_kStuff_LIBS.win.amd64   = \
-	$(PATH_TOOL_VCC80AMD64_LIB)/msvcrt.lib \
-	$(PATH_TOOL_VCC80AMD64_LIB)/msvcprt.lib \
+	$(PATH_TOOL_VCC80AMD64_LIB)/libcmt.lib \
 	$(PATH_TOOL_VCC80AMD64_LIB)/oldnames.lib \
 	$(PATH_SDK_W2K3DDKAMD64_LIB)/ntdll.lib
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,8 @@
 #include <VBox/com/Guid.h>
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
+#include <VBox/com/errorprint2.h>
+
 #include <VBox/com/EventQueue.h>
 #include <VBox/com/VirtualBox.h>
 
@@ -184,6 +186,7 @@ static BOOL gfGuestNumLockPressed = FALSE;
 static BOOL gfGuestCapsLockPressed = FALSE;
 static BOOL gfGuestScrollLockPressed = FALSE;
 static BOOL gfACPITerm = FALSE;
+static BOOL gfXCursorEnabled = TRUE;
 static int  gcGuestNumLockAdaptions = 2;
 static int  gcGuestCapsLockAdaptions = 2;
 static uint32_t gmGuestNormalXRes;
@@ -205,7 +208,9 @@ static VBoxSDLFB  *gpFrameBuffer = NULL;
 static SDL_Cursor *gpDefaultCursor = NULL;
 #ifdef VBOXSDL_WITH_X11
 static Cursor      gpDefaultOrigX11Cursor;
+#ifdef RT_OS_LINUX
 static BOOL        guseEvdevKeymap = FALSE;
+#endif
 #endif
 static SDL_Cursor *gpCustomCursor = NULL;
 static WMcursor   *gpCustomOrigWMcursor = NULL;
@@ -559,6 +564,11 @@ public:
         return S_OK;
     }
 
+    STDMETHOD(OnStorageControllerChange) ()
+    {
+        return S_OK;
+    }
+
     STDMETHOD(OnRuntimeError)(BOOL fFatal, IN_BSTR id, IN_BSTR message)
     {
         MachineState_T machineState;
@@ -625,6 +635,11 @@ public:
             case MachineState_Saved:               return "Saved";
             case MachineState_Aborted:             return "Aborted";
             case MachineState_Stopping:            return "Stopping";
+            case MachineState_Paused:              return "Paused";
+            case MachineState_Stuck:               return "Stuck";
+            case MachineState_Saving:              return "Saving";
+            case MachineState_Discarding:          return "Discarding";
+            case MachineState_SettingUp:           return "SettingUp";
             default:                               return "no idea";
         }
     }
@@ -651,51 +666,51 @@ NS_IMPL_ISUPPORTS1_CI(VBoxSDLConsoleCallback, IConsoleCallback)
 static void show_usage()
 {
     RTPrintf("Usage:\n"
-             "  -vm <id|name>            Virtual machine to start, either UUID or name\n"
-             "  -hda <file>              Set temporary first hard disk to file\n"
-             "  -fda <file>              Set temporary first floppy disk to file\n"
-             "  -cdrom <file>            Set temporary CDROM/DVD to file/device ('none' to unmount)\n"
-             "  -boot <a|c|d|n>          Set temporary boot device (a = floppy, c = 1st HD, d = DVD, n = network)\n"
-             "  -m <size>                Set temporary memory size in megabytes\n"
-             "  -vram <size>             Set temporary size of video memory in megabytes\n"
-             "  -fullscreen              Start VM in fullscreen mode\n"
-             "  -fullscreenresize        Resize the guest on fullscreen\n"
-             "  -fixedmode <w> <h> <bpp> Use a fixed SDL video mode with given width, height and bits per pixel\n"
-             "  -nofstoggle              Forbid switching to/from fullscreen mode\n"
-             "  -noresize                Make the SDL frame non resizable\n"
-             "  -nohostkey               Disable all hostkey combinations\n"
-             "  -nohostkeys ...          Disable specific hostkey combinations, see below for valid keys\n"
-             "  -nograbonclick           Disable mouse/keyboard grabbing on mouse click w/o additions\n"
-             "  -detecthostkey           Get the hostkey identifier and modifier state\n"
-             "  -hostkey <key> {<key2>} <mod> Set the host key to the values obtained using -detecthostkey\n"
-             "  -termacpi                Send an ACPI power button event when closing the window\n"
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) /** @todo UNIXISH_TAP stuff out of main and up to Config.kmk! */
-             "  -evdevkeymap             Use evdev keycode map\n"
+             "  --startvm <uuid|name>    Virtual machine to start, either UUID or name\n"
+             "  --hda <file>             Set temporary first hard disk to file\n"
+             "  --fda <file>             Set temporary first floppy disk to file\n"
+             "  --cdrom <file>           Set temporary CDROM/DVD to file/device ('none' to unmount)\n"
+             "  --boot <a|c|d|n>         Set temporary boot device (a = floppy, c = 1st HD, d = DVD, n = network)\n"
+             "  --memory <size>          Set temporary memory size in megabytes\n"
+             "  --vram <size>            Set temporary size of video memory in megabytes\n"
+             "  --fullscreen             Start VM in fullscreen mode\n"
+             "  --fullscreenresize       Resize the guest on fullscreen\n"
+             "  --fixedmode <w> <h> <bpp> Use a fixed SDL video mode with given width, height and bits per pixel\n"
+             "  --nofstoggle             Forbid switching to/from fullscreen mode\n"
+             "  --noresize               Make the SDL frame non resizable\n"
+             "  --nohostkey              Disable all hostkey combinations\n"
+             "  --nohostkeys ...         Disable specific hostkey combinations, see below for valid keys\n"
+             "  --nograbonclick          Disable mouse/keyboard grabbing on mouse click w/o additions\n"
+             "  --detecthostkey          Get the hostkey identifier and modifier state\n"
+             "  --hostkey <key> {<key2>} <mod> Set the host key to the values obtained using --detecthostkey\n"
+             "  --termacpi               Send an ACPI power button event when closing the window\n"
+#if defined(RT_OS_LINUX)
+             "  --evdevkeymap            Use evdev keycode map\n"
 #endif
 #ifdef VBOX_WITH_VRDP
-             "  -vrdp <port>             Listen for VRDP connections on port (default if not specified)\n"
+             "  --vrdp <port>            Listen for VRDP connections on port (default if not specified)\n"
 #endif
-             "  -discardstate            Discard saved state (if present) and revert to last snapshot (if present)\n"
+             "  --discardstate           Discard saved state (if present) and revert to last snapshot (if present)\n"
 #ifdef VBOX_SECURELABEL
-             "  -securelabel             Display a secure VM label at the top of the screen\n"
-             "  -seclabelfnt             TrueType (.ttf) font file for secure session label\n"
-             "  -seclabelsiz             Font point size for secure session label (default 12)\n"
-             "  -seclabelofs             Font offset within the secure label (default 0)\n"
-             "  -seclabelfgcol <rgb>     Secure label text color RGB value in 6 digit hexadecimal (eg: FFFF00)\n"
-             "  -seclabelbgcol <rgb>     Secure label background color RGB value in 6 digit hexadecimal (eg: FF0000)\n"
+             "  --securelabel            Display a secure VM label at the top of the screen\n"
+             "  --seclabelfnt            TrueType (.ttf) font file for secure session label\n"
+             "  --seclabelsiz            Font point size for secure session label (default 12)\n"
+             "  --seclabelofs            Font offset within the secure label (default 0)\n"
+             "  --seclabelfgcol <rgb>    Secure label text color RGB value in 6 digit hexadecimal (eg: FFFF00)\n"
+             "  --seclabelbgcol <rgb>    Secure label background color RGB value in 6 digit hexadecimal (eg: FF0000)\n"
 #endif
 #ifdef VBOXSDL_ADVANCED_OPTIONS
-             "  -[no]rawr0               Enable or disable raw ring 3\n"
-             "  -[no]rawr3               Enable or disable raw ring 0\n"
-             "  -[no]patm                Enable or disable PATM\n"
-             "  -[no]csam                Enable or disable CSAM\n"
-             "  -[no]hwvirtex            Permit or deny the usage of VMX/SVN\n"
+             "  --[no]rawr0              Enable or disable raw ring 3\n"
+             "  --[no]rawr3              Enable or disable raw ring 0\n"
+             "  --[no]patm               Enable or disable PATM\n"
+             "  --[no]csam               Enable or disable CSAM\n"
+             "  --[no]hwvirtex           Permit or deny the usage of VT-x/AMD-V\n"
 #endif
              "\n"
-             "  -convertSettings         Allow to auto-convert settings files\n"
-             "  -convertSettingsBackup   Allow to auto-convert settings files\n"
+             "  --convertSettings        Allow to auto-convert settings files\n"
+             "  --convertSettingsBackup  Allow to auto-convert settings files\n"
              "                           but create backup copies before\n"
-             "  -convertSettingsIgnore   Allow to auto-convert settings files\n"
+             "  --convertSettingsIgnore  Allow to auto-convert settings files\n"
              "                           but don't explicitly save the results\n"
              "\n"
              "Key bindings:\n"
@@ -812,8 +827,7 @@ static bool checkForAutoConvertedSettings (ComPtr<IVirtualBox> virtualBox,
     do
     {
         Bstr formatVersion;
-        CHECK_RC_BREAK (virtualBox->
-                        COMGETTER(SettingsFormatVersion) (formatVersion.asOutParam()));
+        CHECK_ERROR_BREAK(virtualBox, COMGETTER(SettingsFormatVersion) (formatVersion.asOutParam()));
 
         bool isGlobalConverted = false;
         std::list <ComPtr <IMachine> > cvtMachines;
@@ -822,40 +836,35 @@ static bool checkForAutoConvertedSettings (ComPtr<IVirtualBox> virtualBox,
         Bstr filePath;
 
         com::SafeIfaceArray <IMachine> machines;
-        CHECK_RC_BREAK (virtualBox->
-                        COMGETTER(Machines2) (ComSafeArrayAsOutParam (machines)));
+        CHECK_ERROR_BREAK(virtualBox, COMGETTER(Machines)(ComSafeArrayAsOutParam (machines)));
 
         for (size_t i = 0; i < machines.size(); ++ i)
         {
             BOOL accessible;
-            CHECK_RC_BREAK (machines [i]->
-                            COMGETTER(Accessible) (&accessible));
+            CHECK_ERROR_BREAK(machines[i], COMGETTER(Accessible) (&accessible));
             if (!accessible)
                 continue;
 
-            CHECK_RC_BREAK (machines [i]->
-                            COMGETTER(SettingsFileVersion) (version.asOutParam()));
+            CHECK_ERROR_BREAK(machines[i], COMGETTER(SettingsFileVersion) (version.asOutParam()));
 
             if (version != formatVersion)
             {
-                cvtMachines.push_back (machines [i]);
+                cvtMachines.push_back (machines[i]);
                 Bstr filePath;
-                CHECK_RC_BREAK (machines [i]->
-                                COMGETTER(SettingsFilePath) (filePath.asOutParam()));
+                CHECK_ERROR_BREAK(machines[i], COMGETTER(SettingsFilePath) (filePath.asOutParam()));
                 fileList.push_back (Utf8StrFmt ("%ls  (%ls)", filePath.raw(),
                                                 version.raw()));
             }
         }
 
-        CHECK_RC_BREAK (rc);
+        if (FAILED(rc))
+            break;
 
-        CHECK_RC_BREAK (virtualBox->
-                        COMGETTER(SettingsFileVersion) (version.asOutParam()));
+        CHECK_ERROR_BREAK(virtualBox, COMGETTER(SettingsFileVersion) (version.asOutParam()));
         if (version != formatVersion)
         {
             isGlobalConverted = true;
-            CHECK_RC_BREAK (virtualBox->
-                            COMGETTER(SettingsFilePath) (filePath.asOutParam()));
+            CHECK_ERROR_BREAK(virtualBox, COMGETTER(SettingsFilePath) (filePath.asOutParam()));
             fileList.push_back (Utf8StrFmt ("%ls  (%ls)", filePath.raw(),
                                             version.raw()));
         }
@@ -882,14 +891,14 @@ static bool checkForAutoConvertedSettings (ComPtr<IVirtualBox> virtualBox,
 "Please add one of the following command line switches to the VBoxSDL command\n"
 "line and repeat the command:\n"
 "\n"
-"  -convertSettings       - to save all auto-converted files (it will not\n"
-"                           be possible to use these settings files with an\n"
-"                           older version of VirtualBox in the future);\n"
-"  -convertSettingsBackup - to create backup copies of the settings files in\n"
-"                           the old format before saving them in the new format;\n"
-"  -convertSettingsIgnore - to not save the auto-converted settings files.\n"
+"  --convertSettings       - to save all auto-converted files (it will not\n"
+"                            be possible to use these settings files with an\n"
+"                            older version of VirtualBox in the future);\n"
+"  --convertSettingsBackup - to create backup copies of the settings files in\n"
+"                            the old format before saving them in the new format;\n"
+"  --convertSettingsIgnore - to not save the auto-converted settings files.\n"
 "\n"
-"Note that if you use -convertSettingsIgnore, the auto-converted settings files\n"
+"Note that if you use --convertSettingsIgnore, the auto-converted settings files\n"
 "will be implicitly saved in the new format anyway once you change a setting or\n"
 "start a virtual machine, but NO backup copies will be created in this case.\n");
                     return false;
@@ -907,13 +916,13 @@ static bool checkForAutoConvertedSettings (ComPtr<IVirtualBox> virtualBox,
                  m != cvtMachines.end(); ++ m)
             {
                 Guid id;
-                CHECK_RC_BREAK ((*m)->COMGETTER(Id) (id.asOutParam()));
+                CHECK_ERROR_BREAK((*m), COMGETTER(Id) (id.asOutParam()));
 
                 /* open a session for the VM */
                 CHECK_ERROR_BREAK (virtualBox, OpenSession (session, id));
 
                 ComPtr <IMachine> sm;
-                CHECK_RC_BREAK (session->COMGETTER(Machine) (sm.asOutParam()));
+                CHECK_ERROR_BREAK(session, COMGETTER(Machine) (sm.asOutParam()));
 
                 Bstr bakFileName;
                 if (fConvertSettings == ConvertSettings_Backup)
@@ -923,10 +932,12 @@ static bool checkForAutoConvertedSettings (ComPtr<IVirtualBox> virtualBox,
 
                 session->Close();
 
-                CHECK_RC_BREAK (rc);
+                if (FAILED(rc))
+                    break;
             }
 
-            CHECK_RC_BREAK (rc);
+            if (FAILED(rc))
+                break;
 
             if (isGlobalConverted)
             {
@@ -937,7 +948,8 @@ static bool checkForAutoConvertedSettings (ComPtr<IVirtualBox> virtualBox,
                     CHECK_ERROR (virtualBox, SaveSettings());
             }
 
-            CHECK_RC_BREAK (rc);
+            if (FAILED(rc))
+                break;
         }
     }
     while (0);
@@ -969,7 +981,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
      * the hostkey detection mode is unrelated to VM processing, so handle it before
      * we initialize anything COM related
      */
-    if (argc == 2 && !strcmp(argv[1], "-detecthostkey"))
+    if (argc == 2 && (   !strcmp(argv[1], "-detecthostkey")
+                      || !strcmp(argv[1], "--detecthostkey")))
     {
         int rc = SDL_InitSubSystem(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_NOPARACHUTE);
         if (rc != 0)
@@ -984,7 +997,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             return 1;
         }
 
-        RTPrintf("Please hit one or two function key(s) to get the -hostkey value...\n");
+        RTPrintf("Please hit one or two function key(s) to get the --hostkey value...\n");
 
         SDL_Event event1;
         while (SDL_WaitEvent(&event1))
@@ -998,7 +1011,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                     if (event2.type == SDL_KEYDOWN || event2.type == SDL_KEYUP)
                     {
                         /* pressed additional host key */
-                        RTPrintf("-hostkey %d", event1.key.keysym.sym);
+                        RTPrintf("--hostkey %d", event1.key.keysym.sym);
                         if (event2.type == SDL_KEYDOWN)
                         {
                             RTPrintf(" %d", event2.key.keysym.sym);
@@ -1133,7 +1146,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     SDL_Event EvHKeyDown2;
 
     LogFlow(("SDL GUI started\n"));
-    RTPrintf("Sun xVM VirtualBox SDL GUI version %s\n"
+    RTPrintf("Sun VirtualBox SDL GUI version %s\n"
              "(C) 2005-2009 Sun Microsystems, Inc.\n"
              "All rights reserved.\n\n",
              VBOX_VERSION_STRING);
@@ -1201,8 +1214,12 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     // command line argument parsing stuff
     for (int curArg = 1; curArg < argc; curArg++)
     {
-        if (   strcmp(argv[curArg], "-vm") == 0
-            || strcmp(argv[curArg], "-startvm") == 0)
+        if (   !strcmp(argv[curArg], "--vm")
+            || !strcmp(argv[curArg], "-vm")
+            || !strcmp(argv[curArg], "--startvm")
+            || !strcmp(argv[curArg], "-startvm")
+            || !strcmp(argv[curArg], "-s")
+            )
         {
             if (++curArg >= argc)
             {
@@ -1217,7 +1234,18 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 vmName = argv[curArg];
             }
         }
-        else if (strcmp(argv[curArg], "-boot") == 0)
+        else if (   !strcmp(argv[curArg], "--comment")
+                 || !strcmp(argv[curArg], "-comment"))
+        {
+            if (++curArg >= argc)
+            {
+                RTPrintf("Error: missing argument for comment!\n");
+                rc = E_FAIL;
+                break;
+            }
+        }
+        else if (   !strcmp(argv[curArg], "--boot")
+                 || !strcmp(argv[curArg], "-boot"))
         {
             if (++curArg >= argc)
             {
@@ -1261,7 +1289,9 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (FAILED (rc))
                 break;
         }
-        else if (strcmp(argv[curArg], "-m") == 0)
+        else if (   !strcmp(argv[curArg], "--memory")
+                 || !strcmp(argv[curArg], "-memory")
+                 || !strcmp(argv[curArg], "-m"))
         {
             if (++curArg >= argc)
             {
@@ -1271,7 +1301,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
             memorySize = atoi(argv[curArg]);
         }
-        else if (strcmp(argv[curArg], "-vram") == 0)
+        else if (   !strcmp(argv[curArg], "--vram")
+                 || !strcmp(argv[curArg], "-vram"))
         {
             if (++curArg >= argc)
             {
@@ -1281,18 +1312,21 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
             vramSize = atoi(argv[curArg]);
         }
-        else if (strcmp(argv[curArg], "-fullscreen") == 0)
+        else if (   !strcmp(argv[curArg], "--fullscreen")
+                 || !strcmp(argv[curArg], "-fullscreen"))
         {
             fFullscreen = true;
         }
-        else if (strcmp(argv[curArg], "-fullscreenresize") == 0)
+        else if (   !strcmp(argv[curArg], "--fullscreenresize")
+                 || !strcmp(argv[curArg], "-fullscreenresize"))
         {
             gfFullscreenResize = true;
 #ifdef VBOXSDL_WITH_X11
             RTEnvSet("SDL_VIDEO_X11_VIDMODE", "0");
 #endif
         }
-        else if (strcmp(argv[curArg], "-fixedmode") == 0)
+        else if (   !strcmp(argv[curArg], "--fixedmode")
+                 || !strcmp(argv[curArg], "-fixedmode"))
         {
             /* three parameters follow */
             if (curArg + 3 >= argc)
@@ -1305,20 +1339,24 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             fixedHeight = atoi(argv[++curArg]);
             fixedBPP    = atoi(argv[++curArg]);
         }
-        else if (strcmp(argv[curArg], "-nofstoggle") == 0)
+        else if (   !strcmp(argv[curArg], "--nofstoggle")
+                 || !strcmp(argv[curArg], "-nofstoggle"))
         {
             gfAllowFullscreenToggle = FALSE;
         }
-        else if (strcmp(argv[curArg], "-noresize") == 0)
+        else if (   !strcmp(argv[curArg], "--noresize")
+                 || !strcmp(argv[curArg], "-noresize"))
         {
             fResizable = false;
         }
-        else if (strcmp(argv[curArg], "-nohostkey") == 0)
+        else if (   !strcmp(argv[curArg], "--nohostkey")
+                 || !strcmp(argv[curArg], "-nohostkey"))
         {
             gHostKeyMod  = 0;
             gHostKeySym1 = 0;
         }
-        else if (strcmp(argv[curArg], "-nohostkeys") == 0)
+        else if (   !strcmp(argv[curArg], "--nohostkeys")
+                 || !strcmp(argv[curArg], "-nohostkeys"))
         {
             if (++curArg >= argc)
             {
@@ -1327,40 +1365,43 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 break;
             }
             gHostKeyDisabledCombinations = argv[curArg];
-            unsigned i, cStr = strlen(gHostKeyDisabledCombinations);
-            for (i=0; i<cStr; i++)
+            size_t cch = strlen(gHostKeyDisabledCombinations);
+            for (size_t i = 0; i < cch; i++)
             {
                 if (!strchr("fhnpqrs", gHostKeyDisabledCombinations[i]))
                 {
                     RTPrintf("Error: <hostkey> + '%c' is not a valid combination\n",
-                            gHostKeyDisabledCombinations[i]);
+                             gHostKeyDisabledCombinations[i]);
                     rc = E_FAIL;
-                    i = cStr;
                     break;
                 }
             }
             if (rc == E_FAIL)
                 break;
         }
-        else if (strcmp(argv[curArg], "-nograbonclick") == 0)
+        else if (   !strcmp(argv[curArg], "--nograbonclick")
+                 || !strcmp(argv[curArg], "-nograbonclick"))
         {
             gfGrabOnMouseClick = FALSE;
         }
-        else if (strcmp(argv[curArg], "-termacpi") == 0)
+        else if (   !strcmp(argv[curArg], "--termacpi")
+                 || !strcmp(argv[curArg], "-termacpi"))
         {
             gfACPITerm = TRUE;
         }
-        else if (strcmp(argv[curArg], "-pidfile") == 0)
+        else if (   !strcmp(argv[curArg], "--pidfile")
+                 || !strcmp(argv[curArg], "-pidfile"))
         {
             if (++curArg >= argc)
             {
-                RTPrintf("Error: missing file name for -pidfile!\n");
+                RTPrintf("Error: missing file name for --pidfile!\n");
                 rc = E_FAIL;
                 break;
             }
             gpszPidFile = argv[curArg];
         }
-        else if (strcmp(argv[curArg], "-hda") == 0)
+        else if (   !strcmp(argv[curArg], "--hda")
+                 || !strcmp(argv[curArg], "-hda"))
         {
             if (++curArg >= argc)
             {
@@ -1378,7 +1419,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 break;
             }
         }
-        else if (strcmp(argv[curArg], "-fda") == 0)
+        else if (   !strcmp(argv[curArg], "--fda")
+                 || !strcmp(argv[curArg], "-fda"))
         {
             if (++curArg >= argc)
             {
@@ -1396,7 +1438,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 break;
             }
         }
-        else if (strcmp(argv[curArg], "-cdrom") == 0)
+        else if (   !strcmp(argv[curArg], "--cdrom")
+                 || !strcmp(argv[curArg], "-cdrom"))
         {
             if (++curArg >= argc)
             {
@@ -1414,14 +1457,16 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 break;
             }
         }
-#ifdef RT_OS_LINUX
-        else if (strcmp(argv[curArg], "-evdevkeymap") == 0)
+#if defined(RT_OS_LINUX) && defined(VBOXSDL_WITH_X11)
+        else if (   !strcmp(argv[curArg], "--evdevkeymap")
+                 || !strcmp(argv[curArg], "-evdevkeymap"))
         {
             guseEvdevKeymap = TRUE;
         }
 #endif /* RT_OS_LINUX  */
 #ifdef VBOX_WITH_VRDP
-        else if (strcmp(argv[curArg], "-vrdp") == 0)
+        else if (   !strcmp(argv[curArg], "--vrdp")
+                 || !strcmp(argv[curArg], "-vrdp"))
         {
             // start with the standard VRDP port
             portVRDP = 0;
@@ -1440,17 +1485,20 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
         }
 #endif /* VBOX_WITH_VRDP */
-        else if (strcmp(argv[curArg], "-discardstate") == 0)
+        else if (   !strcmp(argv[curArg], "--discardstate")
+                 || !strcmp(argv[curArg], "-discardstate"))
         {
             fDiscardState = true;
         }
 #ifdef VBOX_SECURELABEL
-        else if (strcmp(argv[curArg], "-securelabel") == 0)
+        else if (   !strcmp(argv[curArg], "--securelabel")
+                 || !strcmp(argv[curArg], "-securelabel"))
         {
             fSecureLabel = true;
             LogFlow(("Secure labelling turned on\n"));
         }
-        else if (strcmp(argv[curArg], "-seclabelfnt") == 0)
+        else if (   !strcmp(argv[curArg], "--seclabelfnt")
+                 || !strcmp(argv[curArg], "-seclabelfnt"))
         {
             if (++curArg >= argc)
             {
@@ -1460,7 +1508,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
             secureLabelFontFile = argv[curArg];
         }
-        else if (strcmp(argv[curArg], "-seclabelsiz") == 0)
+        else if (   !strcmp(argv[curArg], "--seclabelsiz")
+                 || !strcmp(argv[curArg], "-seclabelsiz"))
         {
             if (++curArg >= argc)
             {
@@ -1470,7 +1519,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
             secureLabelPointSize = atoi(argv[curArg]);
         }
-        else if (strcmp(argv[curArg], "-seclabelofs") == 0)
+        else if (   !strcmp(argv[curArg], "--seclabelofs")
+                 || !strcmp(argv[curArg], "-seclabelofs"))
         {
             if (++curArg >= argc)
             {
@@ -1480,7 +1530,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
             secureLabelFontOffs = atoi(argv[curArg]);
         }
-        else if (strcmp(argv[curArg], "-seclabelfgcol") == 0)
+        else if (   !strcmp(argv[curArg], "--seclabelfgcol")
+                 || !strcmp(argv[curArg], "-seclabelfgcol"))
         {
             if (++curArg >= argc)
             {
@@ -1490,7 +1541,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
             sscanf(argv[curArg], "%X", &secureLabelColorFG);
         }
-        else if (strcmp(argv[curArg], "-seclabelbgcol") == 0)
+        else if (   !strcmp(argv[curArg], "--seclabelbgcol")
+                 || !strcmp(argv[curArg], "-seclabelbgcol"))
         {
             if (++curArg >= argc)
             {
@@ -1502,31 +1554,42 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         }
 #endif
 #ifdef VBOXSDL_ADVANCED_OPTIONS
-        else if (strcmp(argv[curArg], "-rawr0") == 0)
+        else if (   !strcmp(argv[curArg], "--rawr0")
+                 || !strcmp(argv[curArg], "-rawr0"))
             fRawR0 = true;
-        else if (strcmp(argv[curArg], "-norawr0") == 0)
+        else if (   !strcmp(argv[curArg], "--norawr0")
+                 || !strcmp(argv[curArg], "-norawr0"))
             fRawR0 = false;
-        else if (strcmp(argv[curArg], "-rawr3") == 0)
+        else if (   !strcmp(argv[curArg], "--rawr3")
+                 || !strcmp(argv[curArg], "-rawr3"))
             fRawR3 = true;
-        else if (strcmp(argv[curArg], "-norawr3") == 0)
+        else if (   !strcmp(argv[curArg], "--norawr3")
+                 || !strcmp(argv[curArg], "-norawr3"))
             fRawR3 = false;
-        else if (strcmp(argv[curArg], "-patm") == 0)
+        else if (   !strcmp(argv[curArg], "--patm")
+                 || !strcmp(argv[curArg], "-patm"))
             fPATM = true;
-        else if (strcmp(argv[curArg], "-nopatm") == 0)
+        else if (   !strcmp(argv[curArg], "--nopatm")
+                 || !strcmp(argv[curArg], "-nopatm"))
             fPATM = false;
-        else if (strcmp(argv[curArg], "-csam") == 0)
+        else if (   !strcmp(argv[curArg], "--csam")
+                 || !strcmp(argv[curArg], "-csam"))
             fCSAM = true;
-        else if (strcmp(argv[curArg], "-nocsam") == 0)
+        else if (   !strcmp(argv[curArg], "--nocsam")
+                 || !strcmp(argv[curArg], "-nocsam"))
             fCSAM = false;
-        else if (strcmp(argv[curArg], "-hwvirtex") == 0)
+        else if (   !strcmp(argv[curArg], "--hwvirtex")
+                 || !strcmp(argv[curArg], "-hwvirtex"))
             fHWVirt = TSBool_True;
-        else if (strcmp(argv[curArg], "-nohwvirtex") == 0)
+        else if (   !strcmp(argv[curArg], "--nohwvirtex")
+                 || !strcmp(argv[curArg], "-nohwvirtex"))
             fHWVirt = TSBool_False;
-        else if (strcmp(argv[curArg], "-warpdrive") == 0)
+        else if (   !strcmp(argv[curArg], "--warpdrive")
+                 || !strcmp(argv[curArg], "-warpdrive"))
         {
             if (++curArg >= argc)
             {
-                RTPrintf("Error: missing the rate value for the -warpdrive option!\n");
+                RTPrintf("Error: missing the rate value for the --warpdrive option!\n");
                 rc = E_FAIL;
                 break;
             }
@@ -1540,12 +1603,15 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         }
 #endif /* VBOXSDL_ADVANCED_OPTIONS */
 #ifdef VBOX_WIN32_UI
-        else if (strcmp(argv[curArg], "-win32ui") == 0)
+        else if (   !strcmp(argv[curArg], "--win32ui")
+                 || !strcmp(argv[curArg], "-win32ui"))
             fWin32UI = true;
 #endif
-        else if (strcmp(argv[curArg], "-showsdlconfig") == 0)
+        else if (   !strcmp(argv[curArg], "--showsdlconfig")
+                 || !strcmp(argv[curArg], "-showsdlconfig"))
             fShowSDLConfig = true;
-        else if (strcmp(argv[curArg], "-hostkey") == 0)
+        else if (   !strcmp(argv[curArg], "--hostkey")
+                 || !strcmp(argv[curArg], "-hostkey"))
         {
             if (++curArg + 1 >= argc)
             {
@@ -1561,17 +1627,20 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
             gHostKeyMod = atoi(argv[curArg]);
         }
-        else if (strcmp(argv[curArg], "-convertSettings") == 0)
+        else if (   !strcmp(argv[curArg], "--convertSettings")
+                 || !strcmp(argv[curArg], "-convertSettings"))
             fConvertSettings = ConvertSettings_Yes;
-        else if (strcmp(argv[curArg], "-convertSettingsBackup") == 0)
+        else if (   !strcmp(argv[curArg], "--convertSettingsBackup")
+                 || !strcmp(argv[curArg], "-convertSettingsBackup"))
             fConvertSettings = ConvertSettings_Backup;
-        else if (strcmp(argv[curArg], "-convertSettingsIgnore") == 0)
+        else if (   !strcmp(argv[curArg], "--convertSettingsIgnore")
+                 || !strcmp(argv[curArg], "-convertSettingsIgnore"))
             fConvertSettings = ConvertSettings_Ignore;
         /* just show the help screen */
         else
         {
-            if (   strcmp(argv[curArg], "-h") != 0
-                && strcmp(argv[curArg], "-help") != 0
+            if (   strcmp(argv[curArg], "-h")
+                && strcmp(argv[curArg], "-help")
                 && strcmp(argv[curArg], "--help"))
                 RTPrintf("Error: unrecognized switch '%s'\n", argv[curArg]);
             show_usage();
@@ -1659,13 +1728,13 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
          * it to the VM.
          */
         Bstr hdaFileBstr = hdaFile;
-        ComPtr<IHardDisk2> hardDisk;
-        virtualBox->FindHardDisk2(hdaFileBstr, hardDisk.asOutParam());
+        ComPtr<IHardDisk> hardDisk;
+        virtualBox->FindHardDisk(hdaFileBstr, hardDisk.asOutParam());
         if (!hardDisk)
         {
             /* we've not found the image */
             RTPrintf("Adding hard disk '%S'...\n", hdaFile);
-            virtualBox->OpenHardDisk2 (hdaFileBstr, hardDisk.asOutParam());
+            virtualBox->OpenHardDisk(hdaFileBstr, AccessMode_ReadWrite, hardDisk.asOutParam());
         }
         /* do we have the right image now? */
         if (hardDisk)
@@ -1675,8 +1744,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
              */
             Guid uuid;
             hardDisk->COMGETTER(Id)(uuid.asOutParam());
-            gMachine->DetachHardDisk2(StorageBus_IDE, 0, 0);
-            gMachine->AttachHardDisk2(uuid, StorageBus_IDE, 0, 0);
+            gMachine->DetachHardDisk(Bstr("IDE"), 0, 0);
+            gMachine->AttachHardDisk(uuid, Bstr("IDE"), 0, 0);
             /// @todo why is this attachment saved?
         }
         else
@@ -1698,7 +1767,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         /*
          * First special case 'none' to unmount
          */
-        if (strcmp (fdaFile, "none") == 0)
+        if (!strcmp (fdaFile, "none"))
         {
             CHECK_ERROR_BREAK (drive, Unmount());
             break;
@@ -1711,10 +1780,10 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         {
             ComPtr <IHost> host;
             CHECK_ERROR_BREAK (virtualBox, COMGETTER(Host)(host.asOutParam()));
-            ComPtr <IHostFloppyDriveCollection> coll;
-            CHECK_ERROR_BREAK (host, COMGETTER(FloppyDrives)(coll.asOutParam()));
+            com::SafeIfaceArray <IHostFloppyDrive> coll;
+            CHECK_ERROR_BREAK (host, COMGETTER(FloppyDrives)(ComSafeArrayAsOutParam(coll)));
             ComPtr <IHostFloppyDrive> hostDrive;
-            rc = coll->FindByName (medium, hostDrive.asOutParam());
+            rc = host->FindHostFloppyDrive (medium, hostDrive.asOutParam());
             if (SUCCEEDED (rc))
             {
                 done = true;
@@ -1726,7 +1795,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         if (!done)
         {
             /* try to find an existing one */
-            ComPtr <IFloppyImage2> image;
+            ComPtr<IFloppyImage> image;
             rc = virtualBox->FindFloppyImage (medium, image.asOutParam());
             if (FAILED (rc))
             {
@@ -1759,7 +1828,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         /*
          * First special case 'none' to unmount
          */
-        if (strcmp (cdromFile, "none") == 0)
+        if (!strcmp (cdromFile, "none"))
         {
             CHECK_ERROR_BREAK (drive, Unmount());
             break;
@@ -1772,10 +1841,10 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         {
             ComPtr <IHost> host;
             CHECK_ERROR_BREAK (virtualBox, COMGETTER(Host)(host.asOutParam()));
-            ComPtr <IHostDVDDriveCollection> coll;
-            CHECK_ERROR_BREAK (host, COMGETTER(DVDDrives)(coll.asOutParam()));
+            SafeIfaceArray <IHostDVDDrive> coll;
+            CHECK_ERROR_BREAK (host, COMGETTER(DVDDrives)(ComSafeArrayAsOutParam(coll)));
             ComPtr <IHostDVDDrive> hostDrive;
-            rc = coll->FindByName (medium, hostDrive.asOutParam());
+            rc = host->FindHostDVDDrive (medium, hostDrive.asOutParam());
             if (SUCCEEDED (rc))
             {
                 done = true;
@@ -1787,7 +1856,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         if (!done)
         {
             /* try to find an existing one */
-            ComPtr <IDVDImage2> image;
+            ComPtr <IDVDImage> image;
             rc = virtualBox->FindDVDImage (medium, image.asOutParam());
             if (FAILED (rc))
             {
@@ -2061,7 +2130,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     {
         if (!gMachineDebugger)
         {
-            RTPrintf("Error: No debugger object; -warpdrive %d cannot be executed!\n", u32WarpDrive);
+            RTPrintf("Error: No debugger object; --warpdrive %d cannot be executed!\n", u32WarpDrive);
             goto leave;
         }
         gMachineDebugger->COMSETTER(VirtualTimeRate)(u32WarpDrive);
@@ -2079,16 +2148,19 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     SDL_VERSION(&gSdlInfo.version);
     if (!SDL_GetWMInfo(&gSdlInfo))
     {
-        RTPrintf("Error: could not get SDL Window Manager info!\n");
-        goto leave;
+        RTPrintf("Error: could not get SDL Window Manager info -- no Xcursor support!\n");
+        gfXCursorEnabled = FALSE;
     }
 
 # if !defined(VBOX_WITHOUT_XCURSOR)
     /* SDL uses its own (plain) default cursor. Use the left arrow cursor instead which might look
      * much better if a mouse cursor theme is installed. */
-    gpDefaultOrigX11Cursor = *(Cursor*)gpDefaultCursor->wm_cursor;
-    *(Cursor*)gpDefaultCursor->wm_cursor = XCreateFontCursor(gSdlInfo.info.x11.display, XC_left_ptr);
-    SDL_SetCursor(gpDefaultCursor);
+    if (gfXCursorEnabled)
+    {
+        gpDefaultOrigX11Cursor = *(Cursor*)gpDefaultCursor->wm_cursor;
+        *(Cursor*)gpDefaultCursor->wm_cursor = XCreateFontCursor(gSdlInfo.info.x11.display, XC_left_ptr);
+        SDL_SetCursor(gpDefaultCursor);
+    }
 # endif
 #endif /* VBOXSDL_WITH_X11 */
 
@@ -2581,10 +2653,10 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                  * Decode event parameters.
                  */
                 ASMAtomicDecS32(&g_cNotifyUpdateEventsPending);
-                #define DECODEX(event) ((intptr_t)(event).user.data1 >> 16)
-                #define DECODEY(event) ((intptr_t)(event).user.data1 & 0xFFFF)
-                #define DECODEW(event) ((intptr_t)(event).user.data2 >> 16)
-                #define DECODEH(event) ((intptr_t)(event).user.data2 & 0xFFFF)
+                #define DECODEX(event) (int)((intptr_t)(event).user.data1 >> 16)
+                #define DECODEY(event) (int)((intptr_t)(event).user.data1 & 0xFFFF)
+                #define DECODEW(event) (int)((intptr_t)(event).user.data2 >> 16)
+                #define DECODEH(event) (int)((intptr_t)(event).user.data2 & 0xFFFF)
                 int x = DECODEX(event);
                 int y = DECODEY(event);
                 int w = DECODEW(event);
@@ -2783,8 +2855,9 @@ leave:
 #endif /* VBOXSDL_WITH_X11 */
         SDL_SetCursor(gpDefaultCursor);
 #if defined(VBOXSDL_WITH_X11) && !defined(VBOX_WITHOUT_XCURSOR)
-        XFreeCursor(gSdlInfo.info.x11.display, pDefaultTempX11Cursor);
-#endif /* VBOXSDL_WITH_X11 */
+        if (gfXCursorEnabled)
+            XFreeCursor(gSdlInfo.info.x11.display, pDefaultTempX11Cursor);
+#endif /* VBOXSDL_WITH_X11 && !VBOX_WITHOUT_XCURSOR */
     }
 
     if (gpCustomCursor)
@@ -2797,8 +2870,9 @@ leave:
 #if defined (RT_OS_WINDOWS)
             ::DestroyCursor(*(HCURSOR *) pCustomTempWMCursor);
 #elif defined (VBOXSDL_WITH_X11) && !defined (VBOX_WITHOUT_XCURSOR)
-            XFreeCursor(gSdlInfo.info.x11.display, *(Cursor *) pCustomTempWMCursor);
-#endif
+            if (gfXCursorEnabled)
+                XFreeCursor(gSdlInfo.info.x11.display, *(Cursor *) pCustomTempWMCursor);
+#endif /* VBOXSDL_WITH_X11 && !VBOX_WITHOUT_XCURSOR */
             free(pCustomTempWMCursor);
         }
     }
@@ -3209,11 +3283,13 @@ static uint16_t Keyevent2Keycode(const SDL_KeyboardEvent *ev)
         // just an offset (Xorg MIN_KEYCODE)
         keycode -= 8;
     }
+#ifdef RT_OS_LINUX
     else if (keycode < 158 && guseEvdevKeymap)
     {
         // apply EVDEV conversion table
         keycode = evdev_keycode_to_pc_keycode[keycode - 97];
     }
+#endif
     else if (keycode < 158)
     {
         // apply conversion table
@@ -3408,7 +3484,7 @@ static uint16_t Keyevent2Keycode(const SDL_KeyboardEvent *ev)
 #endif
 
 #elif RT_OS_OS2
-	keycode = Keyevent2KeycodeFallback(ev);
+        keycode = Keyevent2KeycodeFallback(ev);
 #endif /* RT_OS_DARWIN */
     return keycode;
 }
@@ -3916,7 +3992,7 @@ void SaveState(void)
      * Wait for the operation to be completed and work
      * the title bar in the mean while.
      */
-    LONG    cPercent = 0;
+    ULONG    cPercent = 0;
 #ifndef RT_OS_DARWIN /* don't break the other guys yet. */
     for (;;)
     {
@@ -3924,7 +4000,7 @@ void SaveState(void)
         rc = gProgress->COMGETTER(Completed)(&fCompleted);
         if (FAILED(rc) || fCompleted)
             break;
-        LONG cPercentNow;
+        ULONG cPercentNow;
         rc = gProgress->COMGETTER(Percent)(&cPercentNow);
         if (FAILED(rc))
             break;
@@ -3956,7 +4032,7 @@ void SaveState(void)
         rc = gProgress->COMGETTER(Completed)(&fCompleted);
         if (FAILED(rc) || fCompleted)
             break;
-        LONG cPercentNow;
+        ULONG cPercentNow;
         rc = gProgress->COMGETTER(Percent)(&cPercentNow);
         if (FAILED(rc))
             break;
@@ -4042,7 +4118,7 @@ static void UpdateTitlebar(TitlebarMode mode, uint32_t u32User)
     strcpy(szPrevTitle, szTitle);
 
 
-    strcpy(szTitle, "Sun xVM VirtualBox - ");
+    strcpy(szTitle, "Sun VirtualBox - ");
 
     Bstr name;
     gMachine->COMGETTER(Name)(name.asOutParam());
@@ -4117,7 +4193,7 @@ static void UpdateTitlebar(TitlebarMode mode, uint32_t u32User)
                 strcat(szTitle, " - Starting...");
             else if (machineState == MachineState_Restoring)
             {
-                LONG cPercentNow;
+                ULONG cPercentNow;
                 HRESULT rc = gProgress->COMGETTER(Percent)(&cPercentNow);
                 if (SUCCEEDED(rc))
                     RTStrPrintf(szTitle + strlen(szTitle), sizeof(szTitle) - strlen(szTitle),
@@ -4154,7 +4230,7 @@ static void UpdateTitlebar(TitlebarMode mode, uint32_t u32User)
     /*
      * Don't update if it didn't change.
      */
-    if (strcmp(szTitle, szPrevTitle) == 0)
+    if (!strcmp(szTitle, szPrevTitle))
         return;
 
     /*
@@ -4163,7 +4239,7 @@ static void UpdateTitlebar(TitlebarMode mode, uint32_t u32User)
 #ifdef VBOX_WIN32_UI
     setUITitle(szTitle);
 #else
-    SDL_WM_SetCaption(szTitle, "Sun xVM VirtualBox");
+    SDL_WM_SetCaption(szTitle, "Sun VirtualBox");
 #endif
 }
 
@@ -4392,80 +4468,82 @@ static void SetPointerShape (const PointerShapeChangeData *data)
 
 #elif defined (VBOXSDL_WITH_X11) && !defined (VBOX_WITHOUT_XCURSOR)
 
-        XcursorImage *img = XcursorImageCreate (data->width, data->height);
-        Assert (img);
-        if (img)
+        if (gfXCursorEnabled)
         {
-            img->xhot = data->xHot;
-            img->yhot = data->yHot;
-
-            XcursorPixel *dstShapePtr = img->pixels;
-
-            for (uint32_t y = 0; y < data->height; y ++)
+            XcursorImage *img = XcursorImageCreate (data->width, data->height);
+            Assert (img);
+            if (img)
             {
-                memcpy (dstShapePtr, srcShapePtr, srcShapePtrScan);
+                img->xhot = data->xHot;
+                img->yhot = data->yHot;
 
-                if (!data->alpha)
+                XcursorPixel *dstShapePtr = img->pixels;
+
+                for (uint32_t y = 0; y < data->height; y ++)
                 {
-                    // convert AND mask to the alpha channel
-                    uint8_t byte = 0;
-                    for (uint32_t x = 0; x < data->width; x ++)
+                    memcpy (dstShapePtr, srcShapePtr, srcShapePtrScan);
+
+                    if (!data->alpha)
                     {
-                        if (!(x % 8))
-                            byte = *(srcAndMaskPtr ++);
-                        else
-                            byte <<= 1;
-
-                        if (byte & 0x80)
+                        // convert AND mask to the alpha channel
+                        uint8_t byte = 0;
+                        for (uint32_t x = 0; x < data->width; x ++)
                         {
-                            // Linux doesn't support inverted pixels (XOR ops,
-                            // to be exact) in cursor shapes, so we detect such
-                            // pixels and always replace them with black ones to
-                            // make them visible at least over light colors
-                            if (dstShapePtr [x] & 0x00FFFFFF)
-                                dstShapePtr [x] = 0xFF000000;
+                            if (!(x % 8))
+                                byte = *(srcAndMaskPtr ++);
                             else
-                                dstShapePtr [x] = 0x00000000;
+                                byte <<= 1;
+
+                            if (byte & 0x80)
+                            {
+                                // Linux doesn't support inverted pixels (XOR ops,
+                                // to be exact) in cursor shapes, so we detect such
+                                // pixels and always replace them with black ones to
+                                // make them visible at least over light colors
+                                if (dstShapePtr [x] & 0x00FFFFFF)
+                                    dstShapePtr [x] = 0xFF000000;
+                                else
+                                    dstShapePtr [x] = 0x00000000;
+                            }
+                            else
+                                dstShapePtr [x] |= 0xFF000000;
                         }
-                        else
-                            dstShapePtr [x] |= 0xFF000000;
                     }
+
+                    srcShapePtr += srcShapePtrScan;
+                    dstShapePtr += data->width;
                 }
 
-                srcShapePtr += srcShapePtrScan;
-                dstShapePtr += data->width;
-            }
-
-            Cursor cur = XcursorImageLoadCursor (gSdlInfo.info.x11.display, img);
-            Assert (cur);
-            if (cur)
-            {
-                // here we do a dirty trick by substituting a Window Manager's
-                // cursor handle with the handle we created
-
-                WMcursor *pCustomTempWMCursor = gpCustomCursor->wm_cursor;
-
-                // see SDL12/src/video/x11/SDL_x11mouse.c
-                void *wm_cursor = malloc (sizeof (Cursor));
-                *(Cursor *) wm_cursor = cur;
-
-                gpCustomCursor->wm_cursor = (WMcursor *) wm_cursor;
-                SDL_SetCursor (gpCustomCursor);
-                SDL_ShowCursor (SDL_ENABLE);
-
-                if (pCustomTempWMCursor)
+                Cursor cur = XcursorImageLoadCursor (gSdlInfo.info.x11.display, img);
+                Assert (cur);
+                if (cur)
                 {
-                    XFreeCursor (gSdlInfo.info.x11.display, *(Cursor *) pCustomTempWMCursor);
-                    free (pCustomTempWMCursor);
+                    // here we do a dirty trick by substituting a Window Manager's
+                    // cursor handle with the handle we created
+
+                    WMcursor *pCustomTempWMCursor = gpCustomCursor->wm_cursor;
+
+                    // see SDL12/src/video/x11/SDL_x11mouse.c
+                    void *wm_cursor = malloc (sizeof (Cursor));
+                    *(Cursor *) wm_cursor = cur;
+
+                    gpCustomCursor->wm_cursor = (WMcursor *) wm_cursor;
+                    SDL_SetCursor (gpCustomCursor);
+                    SDL_ShowCursor (SDL_ENABLE);
+
+                    if (pCustomTempWMCursor)
+                    {
+                        XFreeCursor (gSdlInfo.info.x11.display, *(Cursor *) pCustomTempWMCursor);
+                        free (pCustomTempWMCursor);
+                    }
+
+                    ok = true;
                 }
-
-                ok = true;
             }
-
             XcursorImageDestroy (img);
         }
 
-#endif
+#endif /* VBOXSDL_WITH_X11 && !VBOX_WITHOUT_XCURSOR */
 
         if (!ok)
         {
@@ -4653,14 +4731,14 @@ static int HandleHostKey(const SDL_KeyboardEvent *pEv)
              * Wait for the operation to be completed and work
              * the title bar in the mean while.
              */
-            LONG    cPercent = 0;
+            ULONG    cPercent = 0;
             for (;;)
             {
                 BOOL fCompleted = false;
                 rc = gProgress->COMGETTER(Completed)(&fCompleted);
                 if (FAILED(rc) || fCompleted)
                     break;
-                LONG cPercentNow;
+                ULONG cPercentNow;
                 rc = gProgress->COMGETTER(Percent)(&cPercentNow);
                 if (FAILED(rc))
                     break;

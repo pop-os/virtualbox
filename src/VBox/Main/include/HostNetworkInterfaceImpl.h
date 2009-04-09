@@ -1,4 +1,4 @@
-/* $Id: HostNetworkInterfaceImpl.h $ */
+/* $Id: HostNetworkInterfaceImpl.h 18594 2009-04-01 12:15:40Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,8 @@
 #define ____H_HOSTNETWORKINTERFACEIMPL
 
 #include "VirtualBoxBase.h"
-#include "Collection.h"
+#include "VirtualBoxImpl.h"
+
 #ifdef VBOX_WITH_HOSTNETIF_API
 /* class HostNetworkInterface; */
 /* #include "netif.h" */
@@ -59,40 +60,60 @@ public:
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init (Bstr interfaceName, Guid guid);
+    HRESULT init (Bstr interfaceName, Guid guid, HostNetworkInterfaceType_T ifType);
 #ifdef VBOX_WITH_HOSTNETIF_API
-    HRESULT init (Bstr aInterfaceName, struct NETIFINFO *pIfs);
+    HRESULT init (Bstr aInterfaceName, HostNetworkInterfaceType_T ifType, struct NETIFINFO *pIfs);
+    HRESULT updateConfig ();
 #endif
 
     // IHostNetworkInterface properties
     STDMETHOD(COMGETTER(Name)) (BSTR *aInterfaceName);
     STDMETHOD(COMGETTER(Id)) (OUT_GUID aGuid);
-    STDMETHOD(COMGETTER(IPAddress)) (ULONG *aIPAddress);
-    STDMETHOD(COMGETTER(NetworkMask)) (ULONG *aNetworkMask);
+    STDMETHOD(COMGETTER(DhcpEnabled)) (BOOL *aDhcpEnabled);
+    STDMETHOD(COMGETTER(IPAddress)) (BSTR *aIPAddress);
+    STDMETHOD(COMGETTER(NetworkMask)) (BSTR *aNetworkMask);
+    STDMETHOD(COMGETTER(IPV6Supported)) (BOOL *aIPV6Supported);
     STDMETHOD(COMGETTER(IPV6Address)) (BSTR *aIPV6Address);
-    STDMETHOD(COMGETTER(IPV6NetworkMask)) (BSTR *aIPV6Mask);
+    STDMETHOD(COMGETTER(IPV6NetworkMaskPrefixLength)) (ULONG *aIPV6NetworkMaskPrefixLength);
     STDMETHOD(COMGETTER(HardwareAddress)) (BSTR *aHardwareAddress);
-    STDMETHOD(COMGETTER(Type)) (HostNetworkInterfaceType_T *aType);
+    STDMETHOD(COMGETTER(MediumType)) (HostNetworkInterfaceMediumType_T *aType);
     STDMETHOD(COMGETTER(Status)) (HostNetworkInterfaceStatus_T *aStatus);
+    STDMETHOD(COMGETTER(InterfaceType)) (HostNetworkInterfaceType_T *aType);
+    STDMETHOD(COMGETTER(NetworkName)) (BSTR *aNetworkName);
+
+    STDMETHOD(EnableStaticIpConfig) (IN_BSTR aIPAddress, IN_BSTR aNetworkMask);
+    STDMETHOD(EnableStaticIpConfigV6) (IN_BSTR aIPV6Address, ULONG aIPV6MaskPrefixLength);
+    STDMETHOD(EnableDynamicIpConfig) ();
+    STDMETHOD(DhcpRediscover) ();
 
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"HostNetworkInterface"; }
 
+    HRESULT setVirtualBox(VirtualBox *pVBox);
 private:
     const Bstr mInterfaceName;
     const Guid mGuid;
+    HostNetworkInterfaceType_T mIfType;
+
+    ComObjPtr <VirtualBox, ComWeakRef> mVBox;
+
     struct Data
     {
-        Data() : IPAddress (0), networkMask (0),
-            type (HostNetworkInterfaceType_Unknown),
-            status(HostNetworkInterfaceStatus_Down) {}
-        
+        Data() : IPAddress (0), networkMask (0), dhcpEnabled(FALSE),
+            mediumType (HostNetworkInterfaceMediumType_Unknown),
+            status(HostNetworkInterfaceStatus_Down){}
+
         ULONG IPAddress;
         ULONG networkMask;
         Bstr IPV6Address;
-        Bstr IPV6NetworkMask;
+        ULONG IPV6NetworkMaskPrefixLength;
+        ULONG realIPAddress;
+        ULONG realNetworkMask;
+        Bstr  realIPV6Address;
+        ULONG realIPV6PrefixLength;
+        BOOL dhcpEnabled;
         Bstr hardwareAddress;
-        HostNetworkInterfaceType_T type;
+        HostNetworkInterfaceMediumType_T mediumType;
         HostNetworkInterfaceStatus_T status;
     } m;
 

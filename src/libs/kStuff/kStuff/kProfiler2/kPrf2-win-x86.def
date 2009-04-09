@@ -1,4 +1,4 @@
-; $Id: kPrf2-win-x86.def 2 2007-11-16 16:07:14Z bird $
+; $Id: kPrf2-win-x86.def 13 2008-04-20 10:13:43Z bird $
 ;; @file
 ; kProfiler Mark 2 - Windows Linker Definition File, x86.
 ;
@@ -29,4 +29,4 @@ EXPORTS
     _penter
     _pexit
     KPrfInit
-
+    kPrf2WrapResolve

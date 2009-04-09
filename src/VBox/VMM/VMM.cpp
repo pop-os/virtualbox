@@ -1,4 +1,4 @@
-/* $Id: VMM.cpp $ */
+/* $Id: VMM.cpp 18665 2009-04-02 19:44:18Z vboxsync $ */
 /** @file
  * VMM - The Virtual Machine Monitor Core.
  */
@@ -322,6 +322,7 @@ static void vmmR3InitRegisterStats(PVM pVM)
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetStaleSelector,       STAMTYPE_COUNTER, "/VMM/RZRet/StaleSelector",       STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_STALE_SELECTOR returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetIRETTrap,            STAMTYPE_COUNTER, "/VMM/RZRet/IRETTrap",            STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_IRET_TRAP returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetEmulate,             STAMTYPE_COUNTER, "/VMM/RZRet/Emulate",             STAMUNIT_OCCURENCES, "Number of VINF_EM_EXECUTE_INSTRUCTION returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetIOBlockEmulate,      STAMTYPE_COUNTER, "/VMM/RZRet/EmulateIOBlock",      STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_EMULATE_IO_BLOCK returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetPatchEmulate,        STAMTYPE_COUNTER, "/VMM/RZRet/PatchEmulate",        STAMUNIT_OCCURENCES, "Number of VINF_PATCH_EMULATE_INSTR returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetIORead,              STAMTYPE_COUNTER, "/VMM/RZRet/IORead",              STAMUNIT_OCCURENCES, "Number of VINF_IOM_HC_IOPORT_READ returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetIOWrite,             STAMTYPE_COUNTER, "/VMM/RZRet/IOWrite",             STAMUNIT_OCCURENCES, "Number of VINF_IOM_HC_IOPORT_WRITE returns.");
@@ -359,9 +360,6 @@ static void vmmR3InitRegisterStats(PVM pVM)
     STAM_REG(pVM, &pVM->vmm.s.StatRZCallPGMPoolGrow,        STAMTYPE_COUNTER, "/VMM/RZCallR3/PGMPoolGrow",      STAMUNIT_OCCURENCES, "Number of VMMCALLHOST_PGM_POOL_GROW calls.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZCallPGMMapChunk,        STAMTYPE_COUNTER, "/VMM/RZCallR3/PGMMapChunk",      STAMUNIT_OCCURENCES, "Number of VMMCALLHOST_PGM_MAP_CHUNK calls.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZCallPGMAllocHandy,      STAMTYPE_COUNTER, "/VMM/RZCallR3/PGMAllocHandy",    STAMUNIT_OCCURENCES, "Number of VMMCALLHOST_PGM_ALLOCATE_HANDY_PAGES calls.");
-#ifndef VBOX_WITH_NEW_PHYS_CODE
-    STAM_REG(pVM, &pVM->vmm.s.StatRZCallPGMGrowRAM,         STAMTYPE_COUNTER, "/VMM/RZCallR3/PGMGrowRAM",       STAMUNIT_OCCURENCES, "Number of VMMCALLHOST_PGM_RAM_GROW_RANGE calls.");
-#endif
     STAM_REG(pVM, &pVM->vmm.s.StatRZCallRemReplay,          STAMTYPE_COUNTER, "/VMM/RZCallR3/REMReplay",        STAMUNIT_OCCURENCES, "Number of VMMCALLHOST_REM_REPLAY_HANDLER_NOTIFICATIONS calls.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZCallLogFlush,           STAMTYPE_COUNTER, "/VMM/RZCallR3/VMMLogFlush",      STAMUNIT_OCCURENCES, "Number of VMMCALLHOST_VMM_LOGGER_FLUSH calls.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZCallVMSetError,         STAMTYPE_COUNTER, "/VMM/RZCallR3/VMSetError",       STAMUNIT_OCCURENCES, "Number of VMMCALLHOST_VM_SET_ERROR calls.");
@@ -516,6 +514,7 @@ VMMR3DECL(int) VMMR3InitRC(PVM pVM)
         CPUMPushHyper(pVM, 5 * sizeof(RTRCPTR));        /* trampoline param: stacksize.  */
         CPUMPushHyper(pVM, RCPtrEP);                    /* Call EIP. */
         CPUMSetHyperEIP(pVM, pVM->vmm.s.pfnCallTrampolineRC);
+        Assert(CPUMGetHyperCR3(pVM) && CPUMGetHyperCR3(pVM) == PGMGetHyperCR3(pVM));
 
         for (;;)
         {
@@ -1070,6 +1069,10 @@ VMMR3DECL(int) VMMR3RawRunGC(PVM pVM)
      */
     for (;;)
     {
+        Assert(CPUMGetHyperCR3(pVM) && CPUMGetHyperCR3(pVM) == PGMGetHyperCR3(pVM));
+#ifdef VBOX_STRICT
+        PGMMapCheck(pVM);
+#endif
         int rc;
         do
         {
@@ -1206,6 +1209,7 @@ VMMR3DECL(int) VMMR3CallRCV(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, va_list
     for (;;)
     {
         int rc;
+        Assert(CPUMGetHyperCR3(pVM) && CPUMGetHyperCR3(pVM) == PGMGetHyperCR3(pVM));
         do
         {
 #ifdef NO_SUPCALLR0VMM
@@ -1246,6 +1250,48 @@ VMMR3DECL(int) VMMR3CallRCV(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, va_list
 
 
 /**
+ * Wrapper for SUPCallVMMR0Ex which will deal with
+ * VINF_VMM_CALL_HOST returns.
+ *
+ * @returns VBox status code.
+ * @param   pVM         The VM to operate on.
+ * @param   uOperation  Operation to execute.
+ * @param   u64Arg      Constant argument.
+ * @param   pReqHdr     Pointer to a request header. See SUPCallVMMR0Ex for
+ *                      details.
+ */
+VMMR3DECL(int) VMMR3CallR0(PVM pVM, uint32_t uOperation, uint64_t u64Arg, PSUPVMMR0REQHDR pReqHdr)
+{
+    /*
+     * Call Ring-0 entry with init code.
+     */
+    int rc;
+    for (;;)
+    {
+#ifdef NO_SUPCALLR0VMM
+        rc = VERR_GENERAL_FAILURE;
+#else
+        rc = SUPCallVMMR0Ex(pVM->pVMR0, uOperation, u64Arg, pReqHdr);
+#endif
+        if (    pVM->vmm.s.pR0LoggerR3
+            &&  pVM->vmm.s.pR0LoggerR3->Logger.offScratch > 0)
+            RTLogFlushToLogger(&pVM->vmm.s.pR0LoggerR3->Logger, NULL);
+        if (rc != VINF_VMM_CALL_HOST)
+            break;
+        rc = vmmR3ServiceCallHostRequest(pVM);
+        if (RT_FAILURE(rc) || (rc >= VINF_EM_FIRST && rc <= VINF_EM_LAST))
+            break;
+        /* Resume R0 */
+    }
+
+    AssertLogRelMsgReturn(rc == VINF_SUCCESS || VBOX_FAILURE(rc),
+                          ("uOperation=%u rc=%Rrc\n", uOperation, rc),
+                          VERR_INTERNAL_ERROR);
+    return rc;
+}
+
+
+/**
  * Resumes executing hypervisor code when interrupted by a queue flush or a
  * debug event.
  *
@@ -1262,6 +1308,7 @@ VMMR3DECL(int) VMMR3ResumeHyper(PVM pVM)
     for (;;)
     {
         int rc;
+        Assert(CPUMGetHyperCR3(pVM) && CPUMGetHyperCR3(pVM) == PGMGetHyperCR3(pVM));
         do
         {
 #ifdef NO_SUPCALLR0VMM
@@ -1357,15 +1404,6 @@ static int vmmR3ServiceCallHostRequest(PVM pVM)
             pVM->vmm.s.rcCallHost = PGMR3PhysAllocateHandyPages(pVM);
             break;
         }
-#ifndef VBOX_WITH_NEW_PHYS_CODE
-
-        case VMMCALLHOST_PGM_RAM_GROW_RANGE:
-        {
-            const RTGCPHYS GCPhys = pVM->vmm.s.u64CallHostArg;
-            pVM->vmm.s.rcCallHost = PGM3PhysGrowRange(pVM, &GCPhys);
-            break;
-        }
-#endif
 
         /*
          * Acquire the PGM lock.
@@ -1407,8 +1445,7 @@ static int vmmR3ServiceCallHostRequest(PVM pVM)
          * Set the VM runtime error message.
          */
         case VMMCALLHOST_VM_SET_RUNTIME_ERROR:
-            VMR3SetRuntimeErrorWorker(pVM);
-            pVM->vmm.s.rcCallHost = VINF_SUCCESS;
+            pVM->vmm.s.rcCallHost = VMR3SetRuntimeErrorWorker(pVM);
             break;
 
         /*
@@ -1427,8 +1464,8 @@ static int vmmR3ServiceCallHostRequest(PVM pVM)
             LogRel((pVM->vmm.s.szRing0AssertMsg2));
             return VERR_VMM_RING0_ASSERTION;
 
-        /* 
-         * A forced switch to ring 0 for preemption purposes. 
+        /*
+         * A forced switch to ring 0 for preemption purposes.
          */
         case VMMCALLHOST_VM_R0_PREEMPT:
             pVM->vmm.s.rcCallHost = VINF_SUCCESS;
@@ -1484,6 +1521,8 @@ static DECLCALLBACK(void) vmmR3InfoFF(PVM pVM, PCDBGFINFOHLP pHlp, const char *p
     PRINT_FLAG(VM_FF_RESET);
     PRINT_FLAG(VM_FF_PGM_SYNC_CR3);
     PRINT_FLAG(VM_FF_PGM_SYNC_CR3_NON_GLOBAL);
+    PRINT_FLAG(VM_FF_PGM_NEED_HANDY_PAGES);
+    PRINT_FLAG(VM_FF_PGM_NO_MEMORY);
     PRINT_FLAG(VM_FF_TRPM_SYNC_IDT);
     PRINT_FLAG(VM_FF_SELM_SYNC_TSS);
     PRINT_FLAG(VM_FF_SELM_SYNC_GDT);
@@ -1492,6 +1531,7 @@ static DECLCALLBACK(void) vmmR3InfoFF(PVM pVM, PCDBGFINFOHLP pHlp, const char *p
     PRINT_FLAG(VM_FF_CSAM_SCAN_PAGE);
     PRINT_FLAG(VM_FF_CSAM_PENDING_ACTION);
     PRINT_FLAG(VM_FF_TO_R3);
+    PRINT_FLAG(VM_FF_REM_HANDLER_NOTIFY);
     PRINT_FLAG(VM_FF_DEBUG_SUSPEND);
     if (f)
         pHlp->pfnPrintf(pHlp, "%s\n    Unknown bits: %#RX32\n", c ? "," : "", f);

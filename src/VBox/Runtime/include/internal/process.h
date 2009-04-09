@@ -1,4 +1,4 @@
-/* $Id: process.h $ */
+/* $Id: process.h 16998 2009-02-23 09:33:38Z vboxsync $ */
 /** @file
  * IPRT - Internal RTProc header.
  */
@@ -55,12 +55,12 @@ extern size_t           g_offrtProcName;
 int rtProcNativeSetPriority(RTPROCPRIORITY enmPriority);
 
 /**
- * Determins the full path to the executable image.
- * 
+ * Determines the full path to the executable image.
+ *
  * This is called by rtR3Init.
- * 
+ *
  * @returns IPRT status code.
- * 
+ *
  * @param   pszPath     Pointer to the g_szrtProcExePath buffer.
  * @param   cchPath     The size of the buffer.
  */

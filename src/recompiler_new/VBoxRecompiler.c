@@ -1,4 +1,4 @@
-/* $Id: VBoxRecompiler.c $ */
+/* $Id: VBoxRecompiler.c 18753 2009-04-06 12:52:38Z vboxsync $ */
 /** @file
  * VBox Recompiler - QEMU.
  */
@@ -30,8 +30,6 @@
 #include "config.h"
 #include "cpu-all.h"
 
-void cpu_exec_init_all(unsigned long tb_size);
-
 #include <VBox/rem.h>
 #include <VBox/vmapi.h>
 #include <VBox/tm.h>
@@ -60,6 +58,7 @@ void cpu_exec_init_all(unsigned long tb_size);
 #include <iprt/string.h>
 
 /* Don't wanna include everything. */
+extern void cpu_exec_init_all(unsigned long tb_size);
 extern void cpu_x86_update_cr3(CPUX86State *env, target_ulong new_cr3);
 extern void cpu_x86_update_cr0(CPUX86State *env, uint32_t new_cr0);
 extern void cpu_x86_update_cr4(CPUX86State *env, uint32_t new_cr4);
@@ -67,11 +66,11 @@ extern void tlb_flush_page(CPUX86State *env, target_ulong addr);
 extern void tlb_flush(CPUState *env, int flush_global);
 extern void sync_seg(CPUX86State *env1, int seg_reg, int selector);
 extern void sync_ldtr(CPUX86State *env1, int selector);
-extern int  sync_tr(CPUX86State *env1, int selector);
 
 #ifdef VBOX_STRICT
 unsigned long get_phys_page_offset(target_ulong addr);
 #endif
+
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
@@ -90,6 +89,7 @@ unsigned long get_phys_page_offset(target_ulong addr);
 static DECLCALLBACK(int) remR3Save(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version);
 static void     remR3StateUpdate(PVM pVM);
+static int      remR3InitPhysRamSizeAndDirtyMap(PVM pVM, bool fGuarded);
 
 static uint32_t remR3MMIOReadU8(void *pvVM, target_phys_addr_t GCPhys);
 static uint32_t remR3MMIOReadU16(void *pvVM, target_phys_addr_t GCPhys);
@@ -143,6 +143,10 @@ static STAMCOUNTER    gStatSelOutOfSync[6];
 static STAMCOUNTER    gStatSelOutOfSyncStateBack[6];
 static STAMCOUNTER    gStatFlushTBs;
 #endif
+/* in exec.c */
+extern uint32_t       tlb_flush_count;
+extern uint32_t       tb_flush_count;
+extern uint32_t       tb_phys_invalidate_count;
 
 /*
  * Global stuff.
@@ -213,6 +217,9 @@ static const DBGCCMD    g_aCmds[] =
 };
 #endif
 
+/** Prologue code, must be in lower 4G to simplify jumps to/from generated code. */
+uint8_t *code_gen_prologue;
+
 
 /*******************************************************************************
 *   Internal Functions                                                         *
@@ -230,9 +237,6 @@ AssertCompile(RT_SIZEOFMEMB(REM, Env) <= REM_ENV_SIZE);
 AssertCompile(RT_SIZEOFMEMB(REM, Env) <= REM_ENV_SIZE);
 #endif
 
-
-/* Prologue code, must be in lower 4G to simplify jumps to/from generated code */
-uint8_t* code_gen_prologue;
 
 /**
  * Initializes the REM.
@@ -258,6 +262,7 @@ REMR3DECL(int) REMR3Init(PVM pVM)
 #if defined(DEBUG) && !defined(RT_OS_SOLARIS) /// @todo fix the solaris math stuff.
     Assert(!testmath());
 #endif
+
     /*
      * Init some internal data members.
      */
@@ -275,6 +280,7 @@ REMR3DECL(int) REMR3Init(PVM pVM)
     pVM->rem.s.fIgnoreAll = true;
 
     code_gen_prologue = RTMemExecAlloc(_1K);
+    AssertLogRelReturn(code_gen_prologue, VERR_NO_MEMORY);
 
     cpu_exec_init_all(0);
 
@@ -377,15 +383,20 @@ REMR3DECL(int) REMR3Init(PVM pVM)
     STAM_REG(pVM, &gStatSelOutOfSync[4],    STAMTYPE_COUNTER, "/REM/State/SelOutOfSync/FS",        STAMUNIT_OCCURENCES,     "FS out of sync");
     STAM_REG(pVM, &gStatSelOutOfSync[5],    STAMTYPE_COUNTER, "/REM/State/SelOutOfSync/GS",        STAMUNIT_OCCURENCES,     "GS out of sync");
 
-    STAM_REG(pVM, &gStatSelOutOfSyncStateBack[0],    STAMTYPE_COUNTER, "/REM/StateBack/SelOutOfSync/ES",        STAMUNIT_OCCURENCES,     "ES out of sync");
-    STAM_REG(pVM, &gStatSelOutOfSyncStateBack[1],    STAMTYPE_COUNTER, "/REM/StateBack/SelOutOfSync/CS",        STAMUNIT_OCCURENCES,     "CS out of sync");
-    STAM_REG(pVM, &gStatSelOutOfSyncStateBack[2],    STAMTYPE_COUNTER, "/REM/StateBack/SelOutOfSync/SS",        STAMUNIT_OCCURENCES,     "SS out of sync");
-    STAM_REG(pVM, &gStatSelOutOfSyncStateBack[3],    STAMTYPE_COUNTER, "/REM/StateBack/SelOutOfSync/DS",        STAMUNIT_OCCURENCES,     "DS out of sync");
-    STAM_REG(pVM, &gStatSelOutOfSyncStateBack[4],    STAMTYPE_COUNTER, "/REM/StateBack/SelOutOfSync/FS",        STAMUNIT_OCCURENCES,     "FS out of sync");
-    STAM_REG(pVM, &gStatSelOutOfSyncStateBack[5],    STAMTYPE_COUNTER, "/REM/StateBack/SelOutOfSync/GS",        STAMUNIT_OCCURENCES,     "GS out of sync");
+    STAM_REG(pVM, &gStatSelOutOfSyncStateBack[0],   STAMTYPE_COUNTER,   "/REM/StateBack/SelOutOfSync/ES",   STAMUNIT_OCCURENCES, "ES out of sync");
+    STAM_REG(pVM, &gStatSelOutOfSyncStateBack[1],   STAMTYPE_COUNTER,   "/REM/StateBack/SelOutOfSync/CS",   STAMUNIT_OCCURENCES, "CS out of sync");
+    STAM_REG(pVM, &gStatSelOutOfSyncStateBack[2],   STAMTYPE_COUNTER,   "/REM/StateBack/SelOutOfSync/SS",   STAMUNIT_OCCURENCES, "SS out of sync");
+    STAM_REG(pVM, &gStatSelOutOfSyncStateBack[3],   STAMTYPE_COUNTER,   "/REM/StateBack/SelOutOfSync/DS",   STAMUNIT_OCCURENCES, "DS out of sync");
+    STAM_REG(pVM, &gStatSelOutOfSyncStateBack[4],   STAMTYPE_COUNTER,   "/REM/StateBack/SelOutOfSync/FS",   STAMUNIT_OCCURENCES, "FS out of sync");
+    STAM_REG(pVM, &gStatSelOutOfSyncStateBack[5],   STAMTYPE_COUNTER,   "/REM/StateBack/SelOutOfSync/GS",   STAMUNIT_OCCURENCES, "GS out of sync");
 
+    STAM_REG(pVM, &pVM->rem.s.Env.StatTbFlush,      STAMTYPE_PROFILE,   "/REM/TbFlush",     STAMUNIT_TICKS_PER_CALL, "profiling tb_flush().");
+#endif /* VBOX_WITH_STATISTICS */
 
-#endif
+    STAM_REL_REG(pVM, &tb_flush_count,              STAMTYPE_U32_RESET, "/REM/TbFlushCount",                STAMUNIT_OCCURENCES, "tb_flush() calls");
+    STAM_REL_REG(pVM, &tb_phys_invalidate_count,    STAMTYPE_U32_RESET, "/REM/TbPhysInvldCount",            STAMUNIT_OCCURENCES, "tb_phys_invalidate() calls");
+    STAM_REL_REG(pVM, &tlb_flush_count,             STAMTYPE_U32_RESET, "/REM/TlbFlushCount",               STAMUNIT_OCCURENCES, "tlb_flush() calls");
+
 
 #ifdef DEBUG_ALL_LOGGING
     loglevel = ~0;
@@ -394,6 +405,91 @@ REMR3DECL(int) REMR3Init(PVM pVM)
 # endif
 #endif
 
+    return rc;
+}
+
+
+/**
+ * Finalizes the REM initialization.
+ *
+ * This is called after all components, devices and drivers has
+ * been initialized. Its main purpose it to finish the RAM related
+ * initialization.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pVM         The VM handle.
+ */
+REMR3DECL(int) REMR3InitFinalize(PVM pVM)
+{
+    int rc;
+
+    /*
+     * Ram size & dirty bit map.
+     */
+    Assert(!pVM->rem.s.fGCPhysLastRamFixed);
+    pVM->rem.s.fGCPhysLastRamFixed = true;
+#ifdef RT_STRICT
+    rc = remR3InitPhysRamSizeAndDirtyMap(pVM, true /* fGuarded */);
+#else
+    rc = remR3InitPhysRamSizeAndDirtyMap(pVM, false /* fGuarded */);
+#endif
+    return rc;
+}
+
+
+/**
+ * Initializes phys_ram_size, phys_ram_dirty and phys_ram_dirty_size.
+ *
+ * @returns VBox status code.
+ * @param   pVM         The VM handle.
+ * @param   fGuarded    Whether to guard the map.
+ */
+static int remR3InitPhysRamSizeAndDirtyMap(PVM pVM, bool fGuarded)
+{
+    int      rc = VINF_SUCCESS;
+    RTGCPHYS cb;
+
+    cb = pVM->rem.s.GCPhysLastRam + 1;
+    AssertLogRelMsgReturn(cb > pVM->rem.s.GCPhysLastRam,
+                          ("GCPhysLastRam=%RGp - out of range\n", pVM->rem.s.GCPhysLastRam),
+                          VERR_OUT_OF_RANGE);
+    phys_ram_size = cb;
+    phys_ram_dirty_size = cb >> PAGE_SHIFT;
+    AssertMsg(((RTGCPHYS)phys_ram_dirty_size << PAGE_SHIFT) == cb, ("%RGp\n", cb));
+
+    if (!fGuarded)
+    {
+        phys_ram_dirty = MMR3HeapAlloc(pVM, MM_TAG_REM, phys_ram_dirty_size);
+        AssertLogRelMsgReturn(phys_ram_dirty, ("Failed to allocate %u bytes of dirty page map bytes\n", phys_ram_dirty_size), VERR_NO_MEMORY);
+    }
+    else
+    {
+        /*
+         * Fill it up the nearest 4GB RAM and leave at least _64KB of guard after it.
+         */
+        uint32_t cbBitmapAligned = RT_ALIGN_32(phys_ram_dirty_size, PAGE_SIZE);
+        uint32_t cbBitmapFull    = RT_ALIGN_32(phys_ram_dirty_size, (_4G >> PAGE_SHIFT));
+        if (cbBitmapFull == cbBitmapAligned)
+            cbBitmapFull += _4G >> PAGE_SHIFT;
+        else if (cbBitmapFull - cbBitmapAligned < _64K)
+            cbBitmapFull += _64K;
+
+        phys_ram_dirty = RTMemPageAlloc(cbBitmapFull);
+        AssertLogRelMsgReturn(phys_ram_dirty, ("Failed to allocate %u bytes of dirty page map bytes\n", cbBitmapFull), VERR_NO_MEMORY);
+
+        rc = RTMemProtect(phys_ram_dirty + cbBitmapAligned, cbBitmapFull - cbBitmapAligned, RTMEM_PROT_NONE);
+        if (RT_FAILURE(rc))
+        {
+            RTMemPageFree(phys_ram_dirty);
+            AssertLogRelRCReturn(rc, rc);
+        }
+
+        phys_ram_dirty += cbBitmapAligned - phys_ram_dirty_size;
+    }
+
+    /* initialize it. */
+    memset(phys_ram_dirty, 0xff, phys_ram_dirty_size);
     return rc;
 }
 
@@ -409,6 +505,63 @@ REMR3DECL(int) REMR3Init(PVM pVM)
  */
 REMR3DECL(int) REMR3Term(PVM pVM)
 {
+#ifdef VBOX_WITH_STATISTICS
+    /*
+     * Statistics.
+     */
+    STAM_DEREG(pVM, &gStatExecuteSingleInstr);
+    STAM_DEREG(pVM, &gStatCompilationQEmu);
+    STAM_DEREG(pVM, &gStatRunCodeQEmu);
+    STAM_DEREG(pVM, &gStatTotalTimeQEmu);
+    STAM_DEREG(pVM, &gStatTimers);
+    STAM_DEREG(pVM, &gStatTBLookup);
+    STAM_DEREG(pVM, &gStatIRQ);
+    STAM_DEREG(pVM, &gStatRawCheck);
+    STAM_DEREG(pVM, &gStatMemRead);
+    STAM_DEREG(pVM, &gStatMemWrite);
+    STAM_DEREG(pVM, &gStatHCVirt2GCPhys);
+    STAM_DEREG(pVM, &gStatGCPhys2HCVirt);
+
+    STAM_DEREG(pVM, &gStatCpuGetTSC);
+
+    STAM_DEREG(pVM, &gStatRefuseTFInhibit);
+    STAM_DEREG(pVM, &gStatRefuseVM86);
+    STAM_DEREG(pVM, &gStatRefusePaging);
+    STAM_DEREG(pVM, &gStatRefusePAE);
+    STAM_DEREG(pVM, &gStatRefuseIOPLNot0);
+    STAM_DEREG(pVM, &gStatRefuseIF0);
+    STAM_DEREG(pVM, &gStatRefuseCode16);
+    STAM_DEREG(pVM, &gStatRefuseWP0);
+    STAM_DEREG(pVM, &gStatRefuseRing1or2);
+    STAM_DEREG(pVM, &gStatRefuseCanExecute);
+    STAM_DEREG(pVM, &gStatFlushTBs);
+
+    STAM_DEREG(pVM, &gStatREMGDTChange);
+    STAM_DEREG(pVM, &gStatREMLDTRChange);
+    STAM_DEREG(pVM, &gStatREMIDTChange);
+    STAM_DEREG(pVM, &gStatREMTRChange);
+
+    STAM_DEREG(pVM, &gStatSelOutOfSync[0]);
+    STAM_DEREG(pVM, &gStatSelOutOfSync[1]);
+    STAM_DEREG(pVM, &gStatSelOutOfSync[2]);
+    STAM_DEREG(pVM, &gStatSelOutOfSync[3]);
+    STAM_DEREG(pVM, &gStatSelOutOfSync[4]);
+    STAM_DEREG(pVM, &gStatSelOutOfSync[5]);
+
+    STAM_DEREG(pVM, &gStatSelOutOfSyncStateBack[0]);
+    STAM_DEREG(pVM, &gStatSelOutOfSyncStateBack[1]);
+    STAM_DEREG(pVM, &gStatSelOutOfSyncStateBack[2]);
+    STAM_DEREG(pVM, &gStatSelOutOfSyncStateBack[3]);
+    STAM_DEREG(pVM, &gStatSelOutOfSyncStateBack[4]);
+    STAM_DEREG(pVM, &gStatSelOutOfSyncStateBack[5]);
+
+    STAM_DEREG(pVM, &pVM->rem.s.Env.StatTbFlush);
+#endif /* VBOX_WITH_STATISTICS */
+
+    STAM_REL_DEREG(pVM, &tb_flush_count);
+    STAM_REL_DEREG(pVM, &tb_phys_invalidate_count);
+    STAM_REL_DEREG(pVM, &tlb_flush_count);
+
     return VINF_SUCCESS;
 }
 
@@ -448,11 +601,12 @@ REMR3DECL(void) REMR3Reset(PVM pVM)
  */
 static DECLCALLBACK(int) remR3Save(PVM pVM, PSSMHANDLE pSSM)
 {
+    PREM pRem = &pVM->rem.s;
+
     /*
      * Save the required CPU Env bits.
      * (Not much because we're never in REM when doing the save.)
      */
-    PREM pRem = &pVM->rem.s;
     LogFlow(("remR3Save:\n"));
     Assert(!pRem->fInREM);
     SSMR3PutU32(pSSM,   pRem->Env.hflags);
@@ -651,6 +805,11 @@ REMR3DECL(int) REMR3Step(PVM pVM)
             case EXCP_RC:
                 rc = pVM->rem.s.rc;
                 pVM->rem.s.rc = VERR_INTERNAL_ERROR;
+                break;
+            case EXCP_EXECUTE_RAW:
+            case EXCP_EXECUTE_HWACC:
+                /** @todo: is it correct? No! */
+                rc = VINF_SUCCESS;
                 break;
             default:
                 AssertReleaseMsgFailed(("This really shouldn't happen, rc=%d!\n", rc));
@@ -970,6 +1129,7 @@ REMR3DECL(int) REMR3Run(PVM pVM)
             rc = VINF_EM_RESCHEDULE_HWACC;
             break;
 
+        /** @todo missing VBOX_WITH_VMI/EXECP_PARAV_CALL   */
         /*
          * An EM RC was raised (VMR3Reset/Suspend/PowerOff/some-fatal-error).
          */
@@ -1040,9 +1200,7 @@ bool remR3CanExecuteRaw(CPUState *env, RTGCPTR eip, unsigned fFlags, int *piExce
         Ctx.gdtr.pGdt      = env->gdt.base;
 
         Ctx.rsp            = env->regs[R_ESP];
-#ifdef LOG_ENABLED
         Ctx.rip            = env->eip;
-#endif
 
         Ctx.eflags.u32     = env->eflags;
 
@@ -1280,6 +1438,8 @@ void remR3FlushPage(CPUState *env, RTGCPTR GCPtr)
     pCtx = (PCPUMCTX)pVM->rem.s.pCtx;
     pCtx->cr0 = env->cr[0];
     pCtx->cr3 = env->cr[3];
+    if ((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME)
+        VM_FF_SET(pVM, VM_FF_SELM_SYNC_TSS);
     pCtx->cr4 = env->cr[4];
 
     /*
@@ -1296,6 +1456,7 @@ void remR3FlushPage(CPUState *env, RTGCPTR GCPtr)
 
 
 #ifndef REM_PHYS_ADDR_IN_TLB
+/** Wrapper for PGMR3PhysTlbGCPhys2Ptr. */
 void *remR3TlbGCPhys2Ptr(CPUState *env1, target_ulong physAddr, int fWritable)
 {
     void *pv;
@@ -1315,18 +1476,8 @@ void *remR3TlbGCPhys2Ptr(CPUState *env1, target_ulong physAddr, int fWritable)
         return (void *)((uintptr_t)pv | 2);
     return pv;
 }
+#endif /* REM_PHYS_ADDR_IN_TLB */
 
-target_ulong remR3HCVirt2GCPhys(CPUState *env1, void *addr)
-{
-    RTGCPHYS rv = 0;
-    int rc;
-
-    rc = PGMR3DbgR3Ptr2GCPhys(env1->pVM, (RTR3PTR)addr, &rv);
-    Assert (RT_SUCCESS(rc));
-
-    return (target_ulong)rv;
-}
-#endif
 
 /**
  * Called from tlb_protect_code in order to write monitor a code page.
@@ -1347,6 +1498,7 @@ void remR3ProtectCode(CPUState *env, RTGCPTR GCPtr)
 #endif
 }
 
+
 /**
  * Called from tlb_unprotect_code in order to clear write monitoring for a code page.
  *
@@ -1365,6 +1517,7 @@ void remR3UnprotectCode(CPUState *env, RTGCPTR GCPtr)
         CSAMR3UnmonitorPage(env->pVM, GCPtr, CSAM_TAG_REM);
 #endif
 }
+
 
 /**
  * Called when the CPU is initialized, any of the CRx registers are changed or
@@ -1399,6 +1552,8 @@ void remR3FlushTLB(CPUState *env, bool fGlobal)
     pCtx = (PCPUMCTX)pVM->rem.s.pCtx;
     pCtx->cr0 = env->cr[0];
     pCtx->cr3 = env->cr[3];
+    if ((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME)
+        VM_FF_SET(pVM, VM_FF_SELM_SYNC_TSS);
     pCtx->cr4 = env->cr[4];
 
     /*
@@ -1415,9 +1570,10 @@ void remR3FlushTLB(CPUState *env, bool fGlobal)
  */
 void remR3ChangeCpuMode(CPUState *env)
 {
-    int rc;
-    PVM pVM = env->pVM;
-    PCPUMCTX pCtx;
+    PVM         pVM = env->pVM;
+    uint64_t    efer;
+    PCPUMCTX    pCtx;
+    int         rc;
 
     /*
      * When we're replaying loads or restoring a saved
@@ -1434,17 +1590,26 @@ void remR3ChangeCpuMode(CPUState *env)
     pCtx = (PCPUMCTX)pVM->rem.s.pCtx;
     pCtx->cr0 = env->cr[0];
     pCtx->cr3 = env->cr[3];
+    if ((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME)
+        VM_FF_SET(pVM, VM_FF_SELM_SYNC_TSS);
     pCtx->cr4 = env->cr[4];
 
 #ifdef TARGET_X86_64
-    rc = PGMChangeMode(pVM, env->cr[0], env->cr[4], env->efer);
-    if (rc != VINF_SUCCESS)
-        cpu_abort(env, "PGMChangeMode(, %RX64, %RX64, %RX64) -> %Rrc\n", env->cr[0], env->cr[4], env->efer, rc);
+    efer = env->efer;
 #else
-    rc = PGMChangeMode(pVM, env->cr[0], env->cr[4], 0);
-    if (rc != VINF_SUCCESS)
-        cpu_abort(env, "PGMChangeMode(, %RX64, %RX64, %RX64) -> %Rrc\n", env->cr[0], env->cr[4], 0LL, rc);
+    efer = 0;
 #endif
+    rc = PGMChangeMode(pVM, env->cr[0], env->cr[4], efer);
+    if (rc != VINF_SUCCESS)
+    {
+        if (rc >= VINF_EM_FIRST && rc <= VINF_EM_LAST)
+        {
+            Log(("PGMChangeMode(, %RX64, %RX64, %RX64) -> %Rrc -> remR3RaiseRC\n", env->cr[0], env->cr[4], efer, rc));
+            remR3RaiseRC(env->pVM, rc);
+        }
+        else
+            cpu_abort(env, "PGMChangeMode(, %RX64, %RX64, %RX64) -> %Rrc\n", env->cr[0], env->cr[4], efer, rc);
+    }
 }
 
 
@@ -1573,7 +1738,6 @@ void remR3RecordCall(CPUState *env)
  * @returns VBox status code.
  *
  * @param   pVM         VM Handle.
- * @param   fFlushTBs   Flush all translation blocks before executing code
  *
  * @remark  The caller has to check for important FFs before calling REMR3Run. REMR3State will
  *          no do this since the majority of the callers don't want any unnecessary of events
@@ -1713,14 +1877,13 @@ REMR3DECL(int)  REMR3State(PVM pVM)
         pVM->rem.s.Env.hflags &= ~(HF_LMA_MASK | HF_CS64_MASK);
 #endif
 
-
     /*
      * Registers which are rarely changed and require special handling / order when changed.
      */
     fFlags = CPUMGetAndClearChangedFlagsREM(pVM);
     LogFlow(("CPUMGetAndClearChangedFlagsREM %x\n", fFlags));
     if (fFlags & (  CPUM_CHANGED_CR4  | CPUM_CHANGED_CR3  | CPUM_CHANGED_CR0
-                  | CPUM_CHANGED_GDTR | CPUM_CHANGED_IDTR | CPUM_CHANGED_LDTR | CPUM_CHANGED_TR
+                  | CPUM_CHANGED_GDTR | CPUM_CHANGED_IDTR | CPUM_CHANGED_LDTR
                   | CPUM_CHANGED_FPU_REM | CPUM_CHANGED_SYSENTER_MSR | CPUM_CHANGED_CPUID))
     {
         if (fFlags & CPUM_CHANGED_GLOBAL_TLB_FLUSH)
@@ -1782,26 +1945,10 @@ REMR3DECL(int)  REMR3State(PVM pVM)
                 pVM->rem.s.Env.ldt.selector = pCtx->ldtr;
                 pVM->rem.s.Env.ldt.base     = pCtx->ldtrHid.u64Base;
                 pVM->rem.s.Env.ldt.limit    = pCtx->ldtrHid.u32Limit;
-                pVM->rem.s.Env.ldt.flags    = (pCtx->ldtrHid.Attr.u << 8) & 0xFFFFFF;;
+                pVM->rem.s.Env.ldt.flags    = (pCtx->ldtrHid.Attr.u << 8) & 0xFFFFFF;
             }
             else
                 sync_ldtr(&pVM->rem.s.Env, pCtx->ldtr);
-        }
-
-        if (fFlags & CPUM_CHANGED_TR)
-        {
-            if (fHiddenSelRegsValid)
-            {
-                pVM->rem.s.Env.tr.selector = pCtx->tr;
-                pVM->rem.s.Env.tr.base     = pCtx->trHid.u64Base;
-                pVM->rem.s.Env.tr.limit    = pCtx->trHid.u32Limit;
-                pVM->rem.s.Env.tr.flags    = (pCtx->trHid.Attr.u << 8) & 0xFFFFFF;;
-            }
-            else
-                sync_tr(&pVM->rem.s.Env, pCtx->tr);
-
-            /** @note do_interrupt will fault if the busy flag is still set.... */
-            pVM->rem.s.Env.tr.flags &= ~DESC_TSS_BUSY_MASK;
         }
 
         if (fFlags & CPUM_CHANGED_CPUID)
@@ -1819,6 +1966,16 @@ REMR3DECL(int)  REMR3State(PVM pVM)
         if (fFlags & CPUM_CHANGED_FPU_REM)
             save_raw_fp_state(&pVM->rem.s.Env, (uint8_t *)&pCtx->fpu); /* 'save' is an excellent name. */
     }
+
+    /*
+     * Sync TR unconditionally to make life simpler.
+     */
+    pVM->rem.s.Env.tr.selector = pCtx->tr;
+    pVM->rem.s.Env.tr.base     = pCtx->trHid.u64Base;
+    pVM->rem.s.Env.tr.limit    = pCtx->trHid.u32Limit;
+    pVM->rem.s.Env.tr.flags    = (pCtx->trHid.Attr.u << 8) & 0xFFFFFF;
+    /* Note! do_interrupt will fault if the busy flag is still set... */
+    pVM->rem.s.Env.tr.flags &= ~DESC_TSS_BUSY_MASK;
 
     /*
      * Update selector registers.
@@ -2139,9 +2296,11 @@ REMR3DECL(int) REMR3StateBack(PVM pVM)
     pCtx->cr0           = pVM->rem.s.Env.cr[0];
     pCtx->cr2           = pVM->rem.s.Env.cr[2];
     pCtx->cr3           = pVM->rem.s.Env.cr[3];
+    if ((pVM->rem.s.Env.cr[4] ^ pCtx->cr4) & X86_CR4_VME)
+        VM_FF_SET(pVM, VM_FF_SELM_SYNC_TSS);
     pCtx->cr4           = pVM->rem.s.Env.cr[4];
 
-    for (i=0;i<8;i++)
+    for (i = 0; i < 8; i++)
         pCtx->dr[i] = pVM->rem.s.Env.dr[i];
 
     pCtx->gdtr.cbGdt    = pVM->rem.s.Env.gdt.limit;
@@ -2160,15 +2319,37 @@ REMR3DECL(int) REMR3StateBack(PVM pVM)
         VM_FF_SET(pVM, VM_FF_TRPM_SYNC_IDT);
     }
 
-    if (pCtx->ldtr != pVM->rem.s.Env.ldt.selector)
+    if (    pCtx->ldtr             != pVM->rem.s.Env.ldt.selector
+        ||  pCtx->ldtrHid.u64Base  != pVM->rem.s.Env.ldt.base
+        ||  pCtx->ldtrHid.u32Limit != pVM->rem.s.Env.ldt.limit
+        ||  pCtx->ldtrHid.Attr.u   != ((pVM->rem.s.Env.ldt.flags >> 8) & 0xF0FF))
     {
-        pCtx->ldtr      = pVM->rem.s.Env.ldt.selector;
+        pCtx->ldtr              = pVM->rem.s.Env.ldt.selector;
+        pCtx->ldtrHid.u64Base   = pVM->rem.s.Env.ldt.base;
+        pCtx->ldtrHid.u32Limit  = pVM->rem.s.Env.ldt.limit;
+        pCtx->ldtrHid.Attr.u    = (pVM->rem.s.Env.ldt.flags >> 8) & 0xF0FF;
         STAM_COUNTER_INC(&gStatREMLDTRChange);
         VM_FF_SET(pVM, VM_FF_SELM_SYNC_LDT);
     }
-    if (pCtx->tr != pVM->rem.s.Env.tr.selector)
+
+    if (    pCtx->tr             != pVM->rem.s.Env.tr.selector
+        ||  pCtx->trHid.u64Base  != pVM->rem.s.Env.tr.base
+        ||  pCtx->trHid.u32Limit != pVM->rem.s.Env.tr.limit
+            /* Qemu and AMD/Intel have different ideas about the busy flag ... */
+        ||  pCtx->trHid.Attr.u   != (  (pVM->rem.s.Env.tr.flags >> 8) & 0xF0FF
+                                     ? (pVM->rem.s.Env.tr.flags | DESC_TSS_BUSY_MASK) >> 8
+                                     : 0) )
     {
-        pCtx->tr        = pVM->rem.s.Env.tr.selector;
+        Log(("REM: TR changed! %#x{%#llx,%#x,%#x} -> %#x{%llx,%#x,%#x}\n",
+             pCtx->tr, pCtx->trHid.u64Base, pCtx->trHid.u32Limit, pCtx->trHid.Attr.u,
+             pVM->rem.s.Env.tr.selector, (uint64_t)pVM->rem.s.Env.tr.base, pVM->rem.s.Env.tr.limit,
+             (pVM->rem.s.Env.tr.flags >> 8) & 0xF0FF ? (pVM->rem.s.Env.tr.flags | DESC_TSS_BUSY_MASK) >> 8 : 0));
+        pCtx->tr                = pVM->rem.s.Env.tr.selector;
+        pCtx->trHid.u64Base     = pVM->rem.s.Env.tr.base;
+        pCtx->trHid.u32Limit    = pVM->rem.s.Env.tr.limit;
+        pCtx->trHid.Attr.u      = (pVM->rem.s.Env.tr.flags >> 8) & 0xF0FF;
+        if (pCtx->trHid.Attr.u)
+            pCtx->trHid.Attr.u |= DESC_TSS_BUSY_MASK >> 8;
         STAM_COUNTER_INC(&gStatREMTRChange);
         VM_FF_SET(pVM, VM_FF_SELM_SYNC_TSS);
     }
@@ -2176,7 +2357,7 @@ REMR3DECL(int) REMR3StateBack(PVM pVM)
     /** @todo These values could still be out of sync! */
     pCtx->csHid.u64Base    = pVM->rem.s.Env.segs[R_CS].base;
     pCtx->csHid.u32Limit   = pVM->rem.s.Env.segs[R_CS].limit;
-    /** @note QEmu saves the 2nd dword of the descriptor; we should store the attribute word only! */
+    /* Note! QEmu saves the 2nd dword of the descriptor; we should store the attribute word only! */
     pCtx->csHid.Attr.u     = (pVM->rem.s.Env.segs[R_CS].flags >> 8) & 0xF0FF;
 
     pCtx->dsHid.u64Base    = pVM->rem.s.Env.segs[R_DS].base;
@@ -2198,14 +2379,6 @@ REMR3DECL(int) REMR3StateBack(PVM pVM)
     pCtx->ssHid.u64Base    = pVM->rem.s.Env.segs[R_SS].base;
     pCtx->ssHid.u32Limit   = pVM->rem.s.Env.segs[R_SS].limit;
     pCtx->ssHid.Attr.u     = (pVM->rem.s.Env.segs[R_SS].flags >> 8) & 0xF0FF;
-
-    pCtx->ldtrHid.u64Base  = pVM->rem.s.Env.ldt.base;
-    pCtx->ldtrHid.u32Limit = pVM->rem.s.Env.ldt.limit;
-    pCtx->ldtrHid.Attr.u   = (pVM->rem.s.Env.ldt.flags >> 8) & 0xF0FF;
-
-    pCtx->trHid.u64Base    = pVM->rem.s.Env.tr.base;
-    pCtx->trHid.u32Limit   = pVM->rem.s.Env.tr.limit;
-    pCtx->trHid.Attr.u     = (pVM->rem.s.Env.tr.flags >> 8) & 0xF0FF;
 
     /* Sysenter MSR */
     pCtx->SysEnter.cs      = pVM->rem.s.Env.sysenter_cs;
@@ -2337,9 +2510,11 @@ static void remR3StateUpdate(PVM pVM)
     pCtx->cr0           = pVM->rem.s.Env.cr[0];
     pCtx->cr2           = pVM->rem.s.Env.cr[2];
     pCtx->cr3           = pVM->rem.s.Env.cr[3];
+    if ((pVM->rem.s.Env.cr[4] ^ pCtx->cr4) & X86_CR4_VME)
+        VM_FF_SET(pVM, VM_FF_SELM_SYNC_TSS);
     pCtx->cr4           = pVM->rem.s.Env.cr[4];
 
-    for (i=0;i<8;i++)
+    for (i = 0; i < 8; i++)
         pCtx->dr[i] = pVM->rem.s.Env.dr[i];
 
     pCtx->gdtr.cbGdt    = pVM->rem.s.Env.gdt.limit;
@@ -2358,15 +2533,37 @@ static void remR3StateUpdate(PVM pVM)
         VM_FF_SET(pVM, VM_FF_TRPM_SYNC_IDT);
     }
 
-    if (pCtx->ldtr != pVM->rem.s.Env.ldt.selector)
+    if (    pCtx->ldtr             != pVM->rem.s.Env.ldt.selector
+        ||  pCtx->ldtrHid.u64Base  != pVM->rem.s.Env.ldt.base
+        ||  pCtx->ldtrHid.u32Limit != pVM->rem.s.Env.ldt.limit
+        ||  pCtx->ldtrHid.Attr.u   != ((pVM->rem.s.Env.ldt.flags >> 8) & 0xF0FF))
     {
-        pCtx->ldtr      = pVM->rem.s.Env.ldt.selector;
+        pCtx->ldtr              = pVM->rem.s.Env.ldt.selector;
+        pCtx->ldtrHid.u64Base   = pVM->rem.s.Env.ldt.base;
+        pCtx->ldtrHid.u32Limit  = pVM->rem.s.Env.ldt.limit;
+        pCtx->ldtrHid.Attr.u    = (pVM->rem.s.Env.ldt.flags >> 8) & 0xFFFF;
         STAM_COUNTER_INC(&gStatREMLDTRChange);
         VM_FF_SET(pVM, VM_FF_SELM_SYNC_LDT);
     }
-    if (pCtx->tr != pVM->rem.s.Env.tr.selector)
+
+    if (    pCtx->tr             != pVM->rem.s.Env.tr.selector
+        ||  pCtx->trHid.u64Base  != pVM->rem.s.Env.tr.base
+        ||  pCtx->trHid.u32Limit != pVM->rem.s.Env.tr.limit
+            /* Qemu and AMD/Intel have different ideas about the busy flag ... */
+        ||  pCtx->trHid.Attr.u   != (  (pVM->rem.s.Env.tr.flags >> 8) & 0xF0FF
+                                     ? (pVM->rem.s.Env.tr.flags | DESC_TSS_BUSY_MASK) >> 8
+                                     : 0) )
     {
-        pCtx->tr        = pVM->rem.s.Env.tr.selector;
+        Log(("REM: TR changed! %#x{%#llx,%#x,%#x} -> %#x{%llx,%#x,%#x}\n",
+             pCtx->tr, pCtx->trHid.u64Base, pCtx->trHid.u32Limit, pCtx->trHid.Attr.u,
+             pVM->rem.s.Env.tr.selector, (uint64_t)pVM->rem.s.Env.tr.base, pVM->rem.s.Env.tr.limit,
+             (pVM->rem.s.Env.tr.flags >> 8) & 0xF0FF ? (pVM->rem.s.Env.tr.flags | DESC_TSS_BUSY_MASK) >> 8 : 0));
+        pCtx->tr                = pVM->rem.s.Env.tr.selector;
+        pCtx->trHid.u64Base     = pVM->rem.s.Env.tr.base;
+        pCtx->trHid.u32Limit    = pVM->rem.s.Env.tr.limit;
+        pCtx->trHid.Attr.u      = (pVM->rem.s.Env.tr.flags >> 8) & 0xF0FF;
+        if (pCtx->trHid.Attr.u)
+            pCtx->trHid.Attr.u |= DESC_TSS_BUSY_MASK >> 8;
         STAM_COUNTER_INC(&gStatREMTRChange);
         VM_FF_SET(pVM, VM_FF_SELM_SYNC_TSS);
     }
@@ -2396,14 +2593,6 @@ static void remR3StateUpdate(PVM pVM)
     pCtx->ssHid.u64Base    = pVM->rem.s.Env.segs[R_SS].base;
     pCtx->ssHid.u32Limit   = pVM->rem.s.Env.segs[R_SS].limit;
     pCtx->ssHid.Attr.u     = (pVM->rem.s.Env.segs[R_SS].flags >> 8) & 0xFFFF;
-
-    pCtx->ldtrHid.u64Base  = pVM->rem.s.Env.ldt.base;
-    pCtx->ldtrHid.u32Limit = pVM->rem.s.Env.ldt.limit;
-    pCtx->ldtrHid.Attr.u   = (pVM->rem.s.Env.ldt.flags >> 8) & 0xFFFF;
-
-    pCtx->trHid.u64Base    = pVM->rem.s.Env.tr.base;
-    pCtx->trHid.u32Limit   = pVM->rem.s.Env.tr.limit;
-    pCtx->trHid.Attr.u     = (pVM->rem.s.Env.tr.flags >> 8) & 0xFFFF;
 
     /* Sysenter MSR */
     pCtx->SysEnter.cs      = pVM->rem.s.Env.sysenter_cs;
@@ -2609,13 +2798,11 @@ REMR3DECL(int) REMR3NotifyCodePageChanged(PVM pVM, RTGCPTR pvCodePage)
  * @param   pVM         VM handle.
  * @param   GCPhys      The physical address the RAM.
  * @param   cb          Size of the memory.
- * @param   fFlags      Flags of the MM_RAM_FLAGS_* defines.
+ * @param   fFlags      Flags of the REM_NOTIFY_PHYS_RAM_FLAGS_* defines.
  */
-REMR3DECL(void) REMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, unsigned fFlags)
+REMR3DECL(void) REMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, unsigned fFlags)
 {
-    uint32_t cbBitmap;
-    int rc;
-    Log(("REMR3NotifyPhysRamRegister: GCPhys=%RGp cb=%d fFlags=%d\n", GCPhys, cb, fFlags));
+    Log(("REMR3NotifyPhysRamRegister: GCPhys=%RGp cb=%RGp fFlags=%#x\n", GCPhys, cb, fFlags));
     VM_ASSERT_EMT(pVM);
 
     /*
@@ -2624,26 +2811,18 @@ REMR3DECL(void) REMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, 
     Assert(RT_ALIGN_T(GCPhys, PAGE_SIZE, RTGCPHYS) == GCPhys);
     Assert(cb);
     Assert(RT_ALIGN_Z(cb, PAGE_SIZE) == cb);
+    AssertMsg(fFlags == REM_NOTIFY_PHYS_RAM_FLAGS_RAM || fFlags == REM_NOTIFY_PHYS_RAM_FLAGS_MMIO2, ("#x\n", fFlags));
 
     /*
-     * Base ram?
+     * Base ram? Update GCPhysLastRam.
      */
-    if (!GCPhys)
+    if (fFlags & REM_NOTIFY_PHYS_RAM_FLAGS_RAM)
     {
-        phys_ram_size = cb;
-        phys_ram_dirty_size = cb >> PAGE_SHIFT;
-#ifndef VBOX_STRICT
-        phys_ram_dirty = MMR3HeapAlloc(pVM, MM_TAG_REM, phys_ram_dirty_size);
-        AssertReleaseMsg(phys_ram_dirty, ("failed to allocate %d bytes of dirty bytes\n", phys_ram_dirty_size));
-#else /* VBOX_STRICT: allocate a full map and make the out of bounds pages invalid. */
-        phys_ram_dirty = RTMemPageAlloc(_4G >> PAGE_SHIFT);
-        AssertReleaseMsg(phys_ram_dirty, ("failed to allocate %d bytes of dirty bytes\n", _4G >> PAGE_SHIFT));
-        cbBitmap = RT_ALIGN_32(phys_ram_dirty_size, PAGE_SIZE);
-        rc = RTMemProtect(phys_ram_dirty + cbBitmap, (_4G >> PAGE_SHIFT) - cbBitmap, RTMEM_PROT_NONE);
-        AssertRC(rc);
-        phys_ram_dirty += cbBitmap - phys_ram_dirty_size;
-#endif
-        memset(phys_ram_dirty, 0xff, phys_ram_dirty_size);
+        if (GCPhys + (cb - 1) > pVM->rem.s.GCPhysLastRam)
+        {
+            AssertReleaseMsg(!pVM->rem.s.fGCPhysLastRamFixed, ("GCPhys=%RGp cb=%RGp\n", GCPhys, cb));
+            pVM->rem.s.GCPhysLastRam = GCPhys + (cb - 1);
+        }
     }
 
     /*
@@ -2652,81 +2831,11 @@ REMR3DECL(void) REMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, 
     Assert(!pVM->rem.s.fIgnoreAll);
     pVM->rem.s.fIgnoreAll = true;
 
-#ifdef VBOX_WITH_NEW_PHYS_CODE
-    if (fFlags & MM_RAM_FLAGS_RESERVED)
-        cpu_register_physical_memory(GCPhys, cb, IO_MEM_UNASSIGNED);
-    else
-        cpu_register_physical_memory(GCPhys, cb, GCPhys);
-#else
-    if (!GCPhys)
-        cpu_register_physical_memory(GCPhys, cb, GCPhys | IO_MEM_RAM_MISSING);
-    else
-    {
-        if (fFlags & MM_RAM_FLAGS_RESERVED)
-            cpu_register_physical_memory(GCPhys, cb, IO_MEM_UNASSIGNED);
-        else
-            cpu_register_physical_memory(GCPhys, cb, GCPhys);
-    }
-#endif
-    Assert(pVM->rem.s.fIgnoreAll);
-    pVM->rem.s.fIgnoreAll = false;
-}
-
-#ifndef VBOX_WITH_NEW_PHYS_CODE
-
-/**
- * Notification about a successful PGMR3PhysRegisterChunk() call.
- *
- * @param   pVM         VM handle.
- * @param   GCPhys      The physical address the RAM.
- * @param   cb          Size of the memory.
- * @param   pvRam       The HC address of the RAM.
- * @param   fFlags      Flags of the MM_RAM_FLAGS_* defines.
- */
-REMR3DECL(void) REMR3NotifyPhysRamChunkRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, RTHCUINTPTR pvRam, unsigned fFlags)
-{
-    Log(("REMR3NotifyPhysRamChunkRegister: GCPhys=%RGp cb=%d pvRam=%p fFlags=%d\n", GCPhys, cb, pvRam, fFlags));
-    VM_ASSERT_EMT(pVM);
-
-    /*
-     * Validate input - we trust the caller.
-     */
-    Assert(pvRam);
-    Assert(RT_ALIGN(pvRam, PAGE_SIZE) == pvRam);
-    Assert(RT_ALIGN_T(GCPhys, PAGE_SIZE, RTGCPHYS) == GCPhys);
-    Assert(cb == PGM_DYNAMIC_CHUNK_SIZE);
-    Assert(fFlags == 0 /* normal RAM */);
-    Assert(!pVM->rem.s.fIgnoreAll);
-    pVM->rem.s.fIgnoreAll = true;
     cpu_register_physical_memory(GCPhys, cb, GCPhys);
     Assert(pVM->rem.s.fIgnoreAll);
     pVM->rem.s.fIgnoreAll = false;
 }
 
-
-/**
- *  Grows dynamically allocated guest RAM.
- *  Will raise a fatal error if the operation fails.
- *
- * @param   physaddr    The physical address.
- */
-void remR3GrowDynRange(unsigned long physaddr) /** @todo Needs fixing for MSC... */
-{
-    int rc;
-    PVM pVM = cpu_single_env->pVM;
-    const RTGCPHYS GCPhys = physaddr;
-
-    LogFlow(("remR3GrowDynRange %RGp\n", (RTGCPTR)physaddr));
-    rc = PGM3PhysGrowRange(pVM, &GCPhys);
-    if (RT_SUCCESS(rc))
-        return;
-
-    LogRel(("\nUnable to allocate guest RAM chunk at %RGp\n", (RTGCPTR)physaddr));
-    cpu_abort(cpu_single_env, "Unable to allocate guest RAM chunk at %RGp\n", (RTGCPTR)physaddr);
-    AssertFatalFailed();
-}
-
-#endif /* !VBOX_WITH_NEW_PHYS_CODE */
 
 /**
  * Notification about a successful MMR3PhysRomRegister() call.
@@ -2741,7 +2850,7 @@ void remR3GrowDynRange(unsigned long physaddr) /** @todo Needs fixing for MSC...
  */
 REMR3DECL(void) REMR3NotifyPhysRomRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, void *pvCopy, bool fShadow)
 {
-    Log(("REMR3NotifyPhysRomRegister: GCPhys=%RGp cb=%d pvCopy=%p fShadow=%RTbool\n", GCPhys, cb, pvCopy, fShadow));
+    Log(("REMR3NotifyPhysRomRegister: GCPhys=%RGp cb=%d fShadow=%RTbool\n", GCPhys, cb, fShadow));
     VM_ASSERT_EMT(pVM);
 
     /*
@@ -2750,8 +2859,6 @@ REMR3DECL(void) REMR3NotifyPhysRomRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, 
     Assert(RT_ALIGN_T(GCPhys, PAGE_SIZE, RTGCPHYS) == GCPhys);
     Assert(cb);
     Assert(RT_ALIGN_Z(cb, PAGE_SIZE) == cb);
-    Assert(pvCopy);
-    Assert(RT_ALIGN_P(pvCopy, PAGE_SIZE) == pvCopy);
 
     /*
      * Register the rom.
@@ -2760,8 +2867,6 @@ REMR3DECL(void) REMR3NotifyPhysRomRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, 
     pVM->rem.s.fIgnoreAll = true;
 
     cpu_register_physical_memory(GCPhys, cb, GCPhys | (fShadow ? 0 : IO_MEM_ROM));
-
-    Log2(("%.64Rhxd\n", (char *)pvCopy + cb - 64));
 
     Assert(pVM->rem.s.fIgnoreAll);
     pVM->rem.s.fIgnoreAll = false;
@@ -2774,12 +2879,10 @@ REMR3DECL(void) REMR3NotifyPhysRomRegister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb, 
  * @param   pVM         VM Handle.
  * @param   GCPhys      Start physical address.
  * @param   cb          The size of the range.
- * @todo    Rename to REMR3NotifyPhysRamDeregister (for MMIO2) as we won't
- *          reserve any memory soon.
  */
-REMR3DECL(void) REMR3NotifyPhysReserve(PVM pVM, RTGCPHYS GCPhys, RTUINT cb)
+REMR3DECL(void) REMR3NotifyPhysRamDeregister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb)
 {
-    Log(("REMR3NotifyPhysReserve: GCPhys=%RGp cb=%d\n", GCPhys, cb));
+    Log(("REMR3NotifyPhysRamDeregister: GCPhys=%RGp cb=%d\n", GCPhys, cb));
     VM_ASSERT_EMT(pVM);
 
     /*
@@ -3152,6 +3255,7 @@ uint64_t remR3PhysReadU64(RTGCPHYS SrcGCPhys)
     return val;
 }
 
+
 /**
  * Read guest RAM and ROM, signed 64-bit.
  *
@@ -3447,94 +3551,6 @@ static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP
 
 
 /**
- * Disassembles n instructions and prints them to the log.
- *
- * @returns Success indicator.
- * @param   env         Pointer to the recompiler CPU structure.
- * @param   f32BitCode  Indicates that whether or not the code should
- *                      be disassembled as 16 or 32 bit. If -1 the CS
- *                      selector will be inspected.
- * @param   nrInstructions  Nr of instructions to disassemble
- * @param   pszPrefix
- * @remark  not currently used for anything but ad-hoc debugging.
- */
-bool remR3DisasBlock(CPUState *env, int f32BitCode, int nrInstructions, char *pszPrefix)
-{
-    int           i, rc;
-    RTGCPTR       GCPtrPC;
-    uint8_t       *pvPC;
-    RTINTPTR      off;
-    DISCPUSTATE   Cpu;
-
-    /*
-     * Determin 16/32 bit mode.
-     */
-    if (f32BitCode == -1)
-        f32BitCode = !!(env->segs[R_CS].flags & X86_DESC_DB); /** @todo is this right?!!?!?!?!? */
-
-    /*
-     * Convert cs:eip to host context address.
-     * We don't care to much about cross page correctness presently.
-     */
-    GCPtrPC = env->segs[R_CS].base + env->eip;
-    if (f32BitCode && (env->cr[0] & (X86_CR0_PE | X86_CR0_PG)) == (X86_CR0_PE | X86_CR0_PG))
-    {
-        Assert(PGMGetGuestMode(env->pVM) < PGMMODE_AMD64);
-
-        /* convert eip to physical address. */
-        rc = PGMPhysGCPtr2R3PtrByGstCR3(env->pVM,
-                                        GCPtrPC,
-                                        env->cr[3],
-                                        env->cr[4] & (X86_CR4_PSE | X86_CR4_PAE), /** @todo add longmode flag */
-                                        (void**)&pvPC);
-        if (RT_FAILURE(rc))
-        {
-            if (!PATMIsPatchGCAddr(env->pVM, GCPtrPC))
-                return false;
-            pvPC = (uint8_t *)PATMR3QueryPatchMemHC(env->pVM, NULL)
-                + (GCPtrPC - PATMR3QueryPatchMemGC(env->pVM, NULL));
-        }
-    }
-    else
-    {
-        /* physical address */
-        rc = PGMPhysGCPhys2R3Ptr(env->pVM, (RTGCPHYS)GCPtrPC, nrInstructions * 16,
-                                 (void**)&pvPC);
-        if (RT_FAILURE(rc))
-            return false;
-    }
-
-    /*
-     * Disassemble.
-     */
-    off = env->eip - (RTGCUINTPTR)(uintptr_t)pvPC;
-    Cpu.mode = f32BitCode ? CPUMODE_32BIT : CPUMODE_16BIT;
-    Cpu.pfnReadBytes = NULL;            /** @todo make cs:eip reader for the disassembler. */
-    //Cpu.dwUserData[0] = (uintptr_t)pVM;
-    //Cpu.dwUserData[1] = (uintptr_t)pvPC;
-    //Cpu.dwUserData[2] = GCPtrPC;
-
-    for (i=0;i<nrInstructions;i++)
-    {
-        char szOutput[256];
-        uint32_t    cbOp;
-        if (RT_FAILURE(DISInstr(&Cpu, (uintptr_t)pvPC, off, &cbOp, &szOutput[0])))
-            return false;
-        if (pszPrefix)
-            Log(("%s: %s", pszPrefix, szOutput));
-        else
-            Log(("%s", szOutput));
-
-        pvPC += cbOp;
-    }
-    return true;
-}
-
-
-/** @todo need to test the new code, using the old code in the mean while. */
-#define USE_OLD_DUMP_AND_DISASSEMBLY
-
-/**
  * Disassembles one instruction and prints it to the log.
  *
  * @returns Success indicator.
@@ -3546,94 +3562,6 @@ bool remR3DisasBlock(CPUState *env, int f32BitCode, int nrInstructions, char *ps
  */
 bool remR3DisasInstr(CPUState *env, int f32BitCode, char *pszPrefix)
 {
-#ifdef USE_OLD_DUMP_AND_DISASSEMBLY
-    PVM         pVM =   env->pVM;
-    RTGCPTR     GCPtrPC;
-    uint8_t     *pvPC;
-    char        szOutput[256];
-    uint32_t    cbOp;
-    RTINTPTR    off;
-    DISCPUSTATE Cpu;
-
-
-    /* Doesn't work in long mode. */
-    if (env->hflags & HF_LMA_MASK)
-        return false;
-
-    /*
-     * Determin 16/32 bit mode.
-     */
-    if (f32BitCode == -1)
-        f32BitCode = !!(env->segs[R_CS].flags & X86_DESC_DB); /** @todo is this right?!!?!?!?!? */
-
-    /*
-     * Log registers
-     */
-    if (LogIs2Enabled())
-    {
-        remR3StateUpdate(pVM);
-        DBGFR3InfoLog(pVM, "cpumguest", pszPrefix);
-    }
-
-    /*
-     * Convert cs:eip to host context address.
-     * We don't care to much about cross page correctness presently.
-     */
-    GCPtrPC = env->segs[R_CS].base + env->eip;
-    if ((env->cr[0] & (X86_CR0_PE | X86_CR0_PG)) == (X86_CR0_PE | X86_CR0_PG))
-    {
-        /* convert eip to physical address. */
-        int rc = PGMPhysGCPtr2R3PtrByGstCR3(pVM,
-                                            GCPtrPC,
-                                            env->cr[3],
-                                            env->cr[4] & (X86_CR4_PSE | X86_CR4_PAE),
-                                            (void**)&pvPC);
-        if (RT_FAILURE(rc))
-        {
-            if (!PATMIsPatchGCAddr(pVM, GCPtrPC))
-                return false;
-            pvPC = (uint8_t *)PATMR3QueryPatchMemHC(pVM, NULL)
-                + (GCPtrPC - PATMR3QueryPatchMemGC(pVM, NULL));
-        }
-    }
-    else
-    {
-
-        /* physical address */
-        int rc = PGMPhysGCPhys2R3Ptr(pVM, (RTGCPHYS)GCPtrPC, 16, (void**)&pvPC);
-        if (RT_FAILURE(rc))
-            return false;
-    }
-
-    /*
-     * Disassemble.
-     */
-    off = env->eip - (RTGCUINTPTR)(uintptr_t)pvPC;
-    Cpu.mode = f32BitCode ? CPUMODE_32BIT : CPUMODE_16BIT;
-    Cpu.pfnReadBytes = NULL;            /** @todo make cs:eip reader for the disassembler. */
-    //Cpu.dwUserData[0] = (uintptr_t)pVM;
-    //Cpu.dwUserData[1] = (uintptr_t)pvPC;
-    //Cpu.dwUserData[2] = GCPtrPC;
-    if (RT_FAILURE(DISInstr(&Cpu, (uintptr_t)pvPC, off, &cbOp, &szOutput[0])))
-        return false;
-
-    if (!f32BitCode)
-    {
-        if (pszPrefix)
-            Log(("%s: %04X:%s", pszPrefix, env->segs[R_CS].selector, szOutput));
-        else
-            Log(("%04X:%s", env->segs[R_CS].selector, szOutput));
-    }
-    else
-    {
-        if (pszPrefix)
-            Log(("%s: %s", pszPrefix, szOutput));
-        else
-            Log(("%s", szOutput));
-    }
-    return true;
-
-#else /* !USE_OLD_DUMP_AND_DISASSEMBLY */
     PVM pVM = env->pVM;
     const bool fLog = LogIsEnabled();
     const bool fLog2 = LogIs2Enabled();
@@ -3663,7 +3591,6 @@ bool remR3DisasInstr(CPUState *env, int f32BitCode, char *pszPrefix)
         rc = DBGFR3DisasInstrCurrentLogInternal(pVM, pszPrefix);
 
     return RT_SUCCESS(rc);
-#endif
 }
 
 
@@ -4153,6 +4080,7 @@ void cpu_wrmsr(CPUX86State *env, uint32_t msr, uint64_t val)
 {
     CPUMSetGuestMsr(env->pVM, msr, val);
 }
+
 /* -+- I/O Ports -+- */
 
 #undef LOG_GROUP
@@ -4393,280 +4321,280 @@ void remR3DumpLnxSyscall(PVM pVM)
 {
     static const char *apsz[] =
     {
-    	"sys_restart_syscall",	/* 0 - old "setup()" system call, used for restarting */
-    	"sys_exit",
-    	"sys_fork",
-    	"sys_read",
-    	"sys_write",
-    	"sys_open",		/* 5 */
-    	"sys_close",
-    	"sys_waitpid",
-    	"sys_creat",
-    	"sys_link",
-    	"sys_unlink",	/* 10 */
-    	"sys_execve",
-    	"sys_chdir",
-    	"sys_time",
-    	"sys_mknod",
-    	"sys_chmod",		/* 15 */
-    	"sys_lchown16",
-    	"sys_ni_syscall",	/* old break syscall holder */
-    	"sys_stat",
-    	"sys_lseek",
-    	"sys_getpid",	/* 20 */
-    	"sys_mount",
-    	"sys_oldumount",
-    	"sys_setuid16",
-    	"sys_getuid16",
-    	"sys_stime",		/* 25 */
-    	"sys_ptrace",
-    	"sys_alarm",
-    	"sys_fstat",
-    	"sys_pause",
-    	"sys_utime",		/* 30 */
-    	"sys_ni_syscall",	/* old stty syscall holder */
-    	"sys_ni_syscall",	/* old gtty syscall holder */
-    	"sys_access",
-    	"sys_nice",
-    	"sys_ni_syscall",	/* 35 - old ftime syscall holder */
-    	"sys_sync",
-    	"sys_kill",
-    	"sys_rename",
-    	"sys_mkdir",
-    	"sys_rmdir",		/* 40 */
-    	"sys_dup",
-    	"sys_pipe",
-    	"sys_times",
-    	"sys_ni_syscall",	/* old prof syscall holder */
-    	"sys_brk",		/* 45 */
-    	"sys_setgid16",
-    	"sys_getgid16",
-    	"sys_signal",
-    	"sys_geteuid16",
-    	"sys_getegid16",	/* 50 */
-    	"sys_acct",
-    	"sys_umount",	/* recycled never used phys() */
-    	"sys_ni_syscall",	/* old lock syscall holder */
-    	"sys_ioctl",
-    	"sys_fcntl",		/* 55 */
-    	"sys_ni_syscall",	/* old mpx syscall holder */
-    	"sys_setpgid",
-    	"sys_ni_syscall",	/* old ulimit syscall holder */
-    	"sys_olduname",
-    	"sys_umask",		/* 60 */
-    	"sys_chroot",
-    	"sys_ustat",
-    	"sys_dup2",
-    	"sys_getppid",
-    	"sys_getpgrp",	/* 65 */
-    	"sys_setsid",
-    	"sys_sigaction",
-    	"sys_sgetmask",
-    	"sys_ssetmask",
-    	"sys_setreuid16",	/* 70 */
-    	"sys_setregid16",
-    	"sys_sigsuspend",
-    	"sys_sigpending",
-    	"sys_sethostname",
-    	"sys_setrlimit",	/* 75 */
-    	"sys_old_getrlimit",
-    	"sys_getrusage",
-    	"sys_gettimeofday",
-    	"sys_settimeofday",
-    	"sys_getgroups16",	/* 80 */
-    	"sys_setgroups16",
-    	"old_select",
-    	"sys_symlink",
-    	"sys_lstat",
-    	"sys_readlink",	/* 85 */
-    	"sys_uselib",
-    	"sys_swapon",
-    	"sys_reboot",
-    	"old_readdir",
-    	"old_mmap",		/* 90 */
-    	"sys_munmap",
-    	"sys_truncate",
-    	"sys_ftruncate",
-    	"sys_fchmod",
-    	"sys_fchown16",	/* 95 */
-    	"sys_getpriority",
-    	"sys_setpriority",
-    	"sys_ni_syscall",	/* old profil syscall holder */
-    	"sys_statfs",
-    	"sys_fstatfs",	/* 100 */
-    	"sys_ioperm",
-    	"sys_socketcall",
-    	"sys_syslog",
-    	"sys_setitimer",
-    	"sys_getitimer",	/* 105 */
-    	"sys_newstat",
-    	"sys_newlstat",
-    	"sys_newfstat",
-    	"sys_uname",
-    	"sys_iopl",		/* 110 */
-    	"sys_vhangup",
-    	"sys_ni_syscall",	/* old "idle" system call */
-    	"sys_vm86old",
-    	"sys_wait4",
-    	"sys_swapoff",	/* 115 */
-    	"sys_sysinfo",
-    	"sys_ipc",
-    	"sys_fsync",
-    	"sys_sigreturn",
-    	"sys_clone",		/* 120 */
-    	"sys_setdomainname",
-    	"sys_newuname",
-    	"sys_modify_ldt",
-    	"sys_adjtimex",
-    	"sys_mprotect",	/* 125 */
-    	"sys_sigprocmask",
-    	"sys_ni_syscall",	/* old "create_module" */
-    	"sys_init_module",
-    	"sys_delete_module",
-    	"sys_ni_syscall",	/* 130:	old "get_kernel_syms" */
-    	"sys_quotactl",
-    	"sys_getpgid",
-    	"sys_fchdir",
-    	"sys_bdflush",
-    	"sys_sysfs",		/* 135 */
-    	"sys_personality",
-    	"sys_ni_syscall",	/* reserved for afs_syscall */
-    	"sys_setfsuid16",
-    	"sys_setfsgid16",
-    	"sys_llseek",	/* 140 */
-    	"sys_getdents",
-    	"sys_select",
-    	"sys_flock",
-    	"sys_msync",
-    	"sys_readv",		/* 145 */
-    	"sys_writev",
-    	"sys_getsid",
-    	"sys_fdatasync",
-    	"sys_sysctl",
-    	"sys_mlock",		/* 150 */
-    	"sys_munlock",
-    	"sys_mlockall",
-    	"sys_munlockall",
-    	"sys_sched_setparam",
-    	"sys_sched_getparam",   /* 155 */
-    	"sys_sched_setscheduler",
-    	"sys_sched_getscheduler",
-    	"sys_sched_yield",
-    	"sys_sched_get_priority_max",
-    	"sys_sched_get_priority_min",  /* 160 */
-    	"sys_sched_rr_get_interval",
-    	"sys_nanosleep",
-    	"sys_mremap",
-    	"sys_setresuid16",
-    	"sys_getresuid16",	/* 165 */
-    	"sys_vm86",
-    	"sys_ni_syscall",	/* Old sys_query_module */
-    	"sys_poll",
-    	"sys_nfsservctl",
-    	"sys_setresgid16",	/* 170 */
-    	"sys_getresgid16",
-    	"sys_prctl",
-    	"sys_rt_sigreturn",
-    	"sys_rt_sigaction",
-    	"sys_rt_sigprocmask",	/* 175 */
-    	"sys_rt_sigpending",
-    	"sys_rt_sigtimedwait",
-    	"sys_rt_sigqueueinfo",
-    	"sys_rt_sigsuspend",
-    	"sys_pread64",	/* 180 */
-    	"sys_pwrite64",
-    	"sys_chown16",
-    	"sys_getcwd",
-    	"sys_capget",
-    	"sys_capset",	/* 185 */
-    	"sys_sigaltstack",
-    	"sys_sendfile",
-    	"sys_ni_syscall",	/* reserved for streams1 */
-    	"sys_ni_syscall",	/* reserved for streams2 */
-    	"sys_vfork",		/* 190 */
-    	"sys_getrlimit",
-    	"sys_mmap2",
-    	"sys_truncate64",
-    	"sys_ftruncate64",
-    	"sys_stat64",	/* 195 */
-    	"sys_lstat64",
-    	"sys_fstat64",
-    	"sys_lchown",
-    	"sys_getuid",
-    	"sys_getgid",	/* 200 */
-    	"sys_geteuid",
-    	"sys_getegid",
-    	"sys_setreuid",
-    	"sys_setregid",
-    	"sys_getgroups",	/* 205 */
-    	"sys_setgroups",
-    	"sys_fchown",
-    	"sys_setresuid",
-    	"sys_getresuid",
-    	"sys_setresgid",	/* 210 */
-    	"sys_getresgid",
-    	"sys_chown",
-    	"sys_setuid",
-    	"sys_setgid",
-    	"sys_setfsuid",	/* 215 */
-    	"sys_setfsgid",
-    	"sys_pivot_root",
-    	"sys_mincore",
-    	"sys_madvise",
-    	"sys_getdents64",	/* 220 */
-    	"sys_fcntl64",
-    	"sys_ni_syscall",	/* reserved for TUX */
-    	"sys_ni_syscall",
-    	"sys_gettid",
-    	"sys_readahead",	/* 225 */
-    	"sys_setxattr",
-    	"sys_lsetxattr",
-    	"sys_fsetxattr",
-    	"sys_getxattr",
-    	"sys_lgetxattr",	/* 230 */
-    	"sys_fgetxattr",
-    	"sys_listxattr",
-    	"sys_llistxattr",
-    	"sys_flistxattr",
-    	"sys_removexattr",	/* 235 */
-    	"sys_lremovexattr",
-    	"sys_fremovexattr",
-    	"sys_tkill",
-    	"sys_sendfile64",
-    	"sys_futex",		/* 240 */
-    	"sys_sched_setaffinity",
-    	"sys_sched_getaffinity",
-    	"sys_set_thread_area",
-    	"sys_get_thread_area",
-    	"sys_io_setup",	/* 245 */
-    	"sys_io_destroy",
-    	"sys_io_getevents",
-    	"sys_io_submit",
-    	"sys_io_cancel",
-    	"sys_fadvise64",	/* 250 */
-    	"sys_ni_syscall",
-    	"sys_exit_group",
-    	"sys_lookup_dcookie",
-    	"sys_epoll_create",
-    	"sys_epoll_ctl",	/* 255 */
-    	"sys_epoll_wait",
-     	"sys_remap_file_pages",
-     	"sys_set_tid_address",
-     	"sys_timer_create",
-     	"sys_timer_settime",		/* 260 */
-     	"sys_timer_gettime",
-     	"sys_timer_getoverrun",
-     	"sys_timer_delete",
-     	"sys_clock_settime",
-     	"sys_clock_gettime",		/* 265 */
-     	"sys_clock_getres",
-     	"sys_clock_nanosleep",
-    	"sys_statfs64",
-    	"sys_fstatfs64",
-    	"sys_tgkill",	/* 270 */
-    	"sys_utimes",
-     	"sys_fadvise64_64",
-    	"sys_ni_syscall"	/* sys_vserver */
+	"sys_restart_syscall",	/* 0 - old "setup()" system call, used for restarting */
+	"sys_exit",
+	"sys_fork",
+	"sys_read",
+	"sys_write",
+	"sys_open",		/* 5 */
+	"sys_close",
+	"sys_waitpid",
+	"sys_creat",
+	"sys_link",
+	"sys_unlink",	/* 10 */
+	"sys_execve",
+	"sys_chdir",
+	"sys_time",
+	"sys_mknod",
+	"sys_chmod",		/* 15 */
+	"sys_lchown16",
+	"sys_ni_syscall",	/* old break syscall holder */
+	"sys_stat",
+	"sys_lseek",
+	"sys_getpid",	/* 20 */
+	"sys_mount",
+	"sys_oldumount",
+	"sys_setuid16",
+	"sys_getuid16",
+	"sys_stime",		/* 25 */
+	"sys_ptrace",
+	"sys_alarm",
+	"sys_fstat",
+	"sys_pause",
+	"sys_utime",		/* 30 */
+	"sys_ni_syscall",	/* old stty syscall holder */
+	"sys_ni_syscall",	/* old gtty syscall holder */
+	"sys_access",
+	"sys_nice",
+	"sys_ni_syscall",	/* 35 - old ftime syscall holder */
+	"sys_sync",
+	"sys_kill",
+	"sys_rename",
+	"sys_mkdir",
+	"sys_rmdir",		/* 40 */
+	"sys_dup",
+	"sys_pipe",
+	"sys_times",
+	"sys_ni_syscall",	/* old prof syscall holder */
+	"sys_brk",		/* 45 */
+	"sys_setgid16",
+	"sys_getgid16",
+	"sys_signal",
+	"sys_geteuid16",
+	"sys_getegid16",	/* 50 */
+	"sys_acct",
+	"sys_umount",	/* recycled never used phys() */
+	"sys_ni_syscall",	/* old lock syscall holder */
+	"sys_ioctl",
+	"sys_fcntl",		/* 55 */
+	"sys_ni_syscall",	/* old mpx syscall holder */
+	"sys_setpgid",
+	"sys_ni_syscall",	/* old ulimit syscall holder */
+	"sys_olduname",
+	"sys_umask",		/* 60 */
+	"sys_chroot",
+	"sys_ustat",
+	"sys_dup2",
+	"sys_getppid",
+	"sys_getpgrp",	/* 65 */
+	"sys_setsid",
+	"sys_sigaction",
+	"sys_sgetmask",
+	"sys_ssetmask",
+	"sys_setreuid16",	/* 70 */
+	"sys_setregid16",
+	"sys_sigsuspend",
+	"sys_sigpending",
+	"sys_sethostname",
+	"sys_setrlimit",	/* 75 */
+	"sys_old_getrlimit",
+	"sys_getrusage",
+	"sys_gettimeofday",
+	"sys_settimeofday",
+	"sys_getgroups16",	/* 80 */
+	"sys_setgroups16",
+	"old_select",
+	"sys_symlink",
+	"sys_lstat",
+	"sys_readlink",	/* 85 */
+	"sys_uselib",
+	"sys_swapon",
+	"sys_reboot",
+	"old_readdir",
+	"old_mmap",		/* 90 */
+	"sys_munmap",
+	"sys_truncate",
+	"sys_ftruncate",
+	"sys_fchmod",
+	"sys_fchown16",	/* 95 */
+	"sys_getpriority",
+	"sys_setpriority",
+	"sys_ni_syscall",	/* old profil syscall holder */
+	"sys_statfs",
+	"sys_fstatfs",	/* 100 */
+	"sys_ioperm",
+	"sys_socketcall",
+	"sys_syslog",
+	"sys_setitimer",
+	"sys_getitimer",	/* 105 */
+	"sys_newstat",
+	"sys_newlstat",
+	"sys_newfstat",
+	"sys_uname",
+	"sys_iopl",		/* 110 */
+	"sys_vhangup",
+	"sys_ni_syscall",	/* old "idle" system call */
+	"sys_vm86old",
+	"sys_wait4",
+	"sys_swapoff",	/* 115 */
+	"sys_sysinfo",
+	"sys_ipc",
+	"sys_fsync",
+	"sys_sigreturn",
+	"sys_clone",		/* 120 */
+	"sys_setdomainname",
+	"sys_newuname",
+	"sys_modify_ldt",
+	"sys_adjtimex",
+	"sys_mprotect",	/* 125 */
+	"sys_sigprocmask",
+	"sys_ni_syscall",	/* old "create_module" */
+	"sys_init_module",
+	"sys_delete_module",
+	"sys_ni_syscall",	/* 130:	old "get_kernel_syms" */
+	"sys_quotactl",
+	"sys_getpgid",
+	"sys_fchdir",
+	"sys_bdflush",
+	"sys_sysfs",		/* 135 */
+	"sys_personality",
+	"sys_ni_syscall",	/* reserved for afs_syscall */
+	"sys_setfsuid16",
+	"sys_setfsgid16",
+	"sys_llseek",	/* 140 */
+	"sys_getdents",
+	"sys_select",
+	"sys_flock",
+	"sys_msync",
+	"sys_readv",		/* 145 */
+	"sys_writev",
+	"sys_getsid",
+	"sys_fdatasync",
+	"sys_sysctl",
+	"sys_mlock",		/* 150 */
+	"sys_munlock",
+	"sys_mlockall",
+	"sys_munlockall",
+	"sys_sched_setparam",
+	"sys_sched_getparam",   /* 155 */
+	"sys_sched_setscheduler",
+	"sys_sched_getscheduler",
+	"sys_sched_yield",
+	"sys_sched_get_priority_max",
+	"sys_sched_get_priority_min",  /* 160 */
+	"sys_sched_rr_get_interval",
+	"sys_nanosleep",
+	"sys_mremap",
+	"sys_setresuid16",
+	"sys_getresuid16",	/* 165 */
+	"sys_vm86",
+	"sys_ni_syscall",	/* Old sys_query_module */
+	"sys_poll",
+	"sys_nfsservctl",
+	"sys_setresgid16",	/* 170 */
+	"sys_getresgid16",
+	"sys_prctl",
+	"sys_rt_sigreturn",
+	"sys_rt_sigaction",
+	"sys_rt_sigprocmask",	/* 175 */
+	"sys_rt_sigpending",
+	"sys_rt_sigtimedwait",
+	"sys_rt_sigqueueinfo",
+	"sys_rt_sigsuspend",
+	"sys_pread64",	/* 180 */
+	"sys_pwrite64",
+	"sys_chown16",
+	"sys_getcwd",
+	"sys_capget",
+	"sys_capset",	/* 185 */
+	"sys_sigaltstack",
+	"sys_sendfile",
+	"sys_ni_syscall",	/* reserved for streams1 */
+	"sys_ni_syscall",	/* reserved for streams2 */
+	"sys_vfork",		/* 190 */
+	"sys_getrlimit",
+	"sys_mmap2",
+	"sys_truncate64",
+	"sys_ftruncate64",
+	"sys_stat64",	/* 195 */
+	"sys_lstat64",
+	"sys_fstat64",
+	"sys_lchown",
+	"sys_getuid",
+	"sys_getgid",	/* 200 */
+	"sys_geteuid",
+	"sys_getegid",
+	"sys_setreuid",
+	"sys_setregid",
+	"sys_getgroups",	/* 205 */
+	"sys_setgroups",
+	"sys_fchown",
+	"sys_setresuid",
+	"sys_getresuid",
+	"sys_setresgid",	/* 210 */
+	"sys_getresgid",
+	"sys_chown",
+	"sys_setuid",
+	"sys_setgid",
+	"sys_setfsuid",	/* 215 */
+	"sys_setfsgid",
+	"sys_pivot_root",
+	"sys_mincore",
+	"sys_madvise",
+	"sys_getdents64",	/* 220 */
+	"sys_fcntl64",
+	"sys_ni_syscall",	/* reserved for TUX */
+	"sys_ni_syscall",
+	"sys_gettid",
+	"sys_readahead",	/* 225 */
+	"sys_setxattr",
+	"sys_lsetxattr",
+	"sys_fsetxattr",
+	"sys_getxattr",
+	"sys_lgetxattr",	/* 230 */
+	"sys_fgetxattr",
+	"sys_listxattr",
+	"sys_llistxattr",
+	"sys_flistxattr",
+	"sys_removexattr",	/* 235 */
+	"sys_lremovexattr",
+	"sys_fremovexattr",
+	"sys_tkill",
+	"sys_sendfile64",
+	"sys_futex",		/* 240 */
+	"sys_sched_setaffinity",
+	"sys_sched_getaffinity",
+	"sys_set_thread_area",
+	"sys_get_thread_area",
+	"sys_io_setup",	/* 245 */
+	"sys_io_destroy",
+	"sys_io_getevents",
+	"sys_io_submit",
+	"sys_io_cancel",
+	"sys_fadvise64",	/* 250 */
+	"sys_ni_syscall",
+	"sys_exit_group",
+	"sys_lookup_dcookie",
+	"sys_epoll_create",
+	"sys_epoll_ctl",	/* 255 */
+	"sys_epoll_wait",
+	"sys_remap_file_pages",
+	"sys_set_tid_address",
+	"sys_timer_create",
+	"sys_timer_settime",		/* 260 */
+	"sys_timer_gettime",
+	"sys_timer_getoverrun",
+	"sys_timer_delete",
+	"sys_clock_settime",
+	"sys_clock_gettime",		/* 265 */
+	"sys_clock_getres",
+	"sys_clock_nanosleep",
+	"sys_statfs64",
+	"sys_fstatfs64",
+	"sys_tgkill",	/* 270 */
+	"sys_utimes",
+	"sys_fadvise64_64",
+	"sys_ni_syscall"	/* sys_vserver */
     };
 
     uint32_t    uEAX = CPUMGetGuestEAX(pVM);
@@ -5036,6 +4964,6 @@ void *memcpy(void *dst, const void *src, size_t size)
 
 #endif
 
-void cpu_smm_update(CPUState* env)
+void cpu_smm_update(CPUState *env)
 {
 }

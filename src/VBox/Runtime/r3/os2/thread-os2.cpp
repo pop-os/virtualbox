@@ -1,4 +1,4 @@
-/* $Id: thread-os2.cpp $ */
+/* $Id: thread-os2.cpp 16311 2009-01-28 13:46:41Z vboxsync $ */
 /** @file
  * IPRT - Threads, OS/2.
  */
@@ -225,7 +225,7 @@ RTDECL(int) RTThreadSetAffinity(uint64_t u64Mask)
 }
 
 
-RTR3DECL(int) RTTlsAlloc(void)
+RTR3DECL(RTTLS) RTTlsAlloc(void)
 {
     AssertCompile(NIL_RTTLS == -1);
     return __libc_TLSAlloc();

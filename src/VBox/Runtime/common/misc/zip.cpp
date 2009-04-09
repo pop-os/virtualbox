@@ -1,4 +1,4 @@
-/* $Id: zip.cpp $ */
+/* $Id: zip.cpp 18426 2009-03-28 01:50:51Z vboxsync $ */
 /** @file
  * IPRT - Compression.
  */
@@ -33,7 +33,7 @@
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
 #define RTZIP_USE_STORE 1
-//#define RTZIP_USE_ZLIB 1
+#define RTZIP_USE_ZLIB 1
 //#define RTZIP_USE_BZLIB 1
 #define RTZIP_USE_LZF 1
 
@@ -247,25 +247,28 @@ typedef struct RTZIPDECOMP
 
 
 #ifdef RTZIP_USE_STORE
+#include <stdio.h>
 
 /**
  * @copydoc RTZipCompress
  */
 static DECLCALLBACK(int) rtZipStoreCompress(PRTZIPCOMP pZip, const void *pvBuf, size_t cbBuf)
 {
+    uint8_t *pbDst = pZip->u.Store.pb;
     while (cbBuf)
     {
         /*
          * Flush.
          */
-        size_t cb = (uintptr_t)&pZip->abBuffer[sizeof(pZip->abBuffer)] - (uintptr_t)pZip->u.Store.pb;
-        if (cb <= 0)
+        size_t cb = sizeof(pZip->abBuffer) - (size_t)(pbDst - &pZip->abBuffer[0]); /* careful here, g++ 4.1.2 screws up easily */
+        if (cb == 0)
         {
             int rc = pZip->pfnOut(pZip->pvUser, &pZip->abBuffer[0], sizeof(pZip->abBuffer));
             if (RT_FAILURE(rc))
                 return rc;
+
             cb = sizeof(pZip->abBuffer);
-            pZip->u.Store.pb = &pZip->abBuffer[0];
+            pbDst = &pZip->abBuffer[0];
         }
 
         /*
@@ -273,11 +276,13 @@ static DECLCALLBACK(int) rtZipStoreCompress(PRTZIPCOMP pZip, const void *pvBuf, 
          */
         if (cbBuf < cb)
             cb = cbBuf;
-        memcpy(pZip->u.Store.pb, pvBuf, cb);
-        pZip->u.Store.pb += cb;
+        memcpy(pbDst, pvBuf, cb);
+
+        pbDst += cb;
         cbBuf -= cb;
         pvBuf = (uint8_t *)pvBuf + cb;
     }
+    pZip->u.Store.pb = pbDst;
     return VINF_SUCCESS;
 }
 
@@ -436,7 +441,7 @@ static int zipErrConvertFromZlib(int rc)
 static DECLCALLBACK(int) rtZipZlibCompress(PRTZIPCOMP pZip, const void *pvBuf, size_t cbBuf)
 {
     pZip->u.Zlib.next_in  = (Bytef *)pvBuf;
-    pZip->u.Zlib.avail_in = cbBuf;
+    pZip->u.Zlib.avail_in = (uInt)cbBuf;                    Assert(pZip->u.Zlib.avail_in == cbBuf);
     while (pZip->u.Zlib.avail_in > 0)
     {
         /*
@@ -547,9 +552,12 @@ static DECLCALLBACK(int) rtZipZlibCompInit(PRTZIPCOMP pZip, RTZIPLEVEL enmLevel)
 static DECLCALLBACK(int) rtZipZlibDecompress(PRTZIPDECOMP pZip, void *pvBuf, size_t cbBuf, size_t *pcbWritten)
 {
     pZip->u.Zlib.next_out = (Bytef *)pvBuf;
-    pZip->u.Zlib.avail_out = cbBuf;
+    pZip->u.Zlib.avail_out = (uInt)cbBuf;                   Assert(pZip->u.Zlib.avail_out == cbBuf);
     int rc = Z_OK;
-    while (pZip->u.Zlib.avail_out > 0)
+    /* Be greedy reading input, even if no output buffer is left. It's possible
+     * that it's just the end of stream marker which needs to be read. Happens
+     * for incompressible blocks just larger than the input buffer size.*/
+    while (pZip->u.Zlib.avail_out > 0 || pZip->u.Zlib.avail_in <= 0)
     {
         /*
          * Read more input?
@@ -560,7 +568,7 @@ static DECLCALLBACK(int) rtZipZlibDecompress(PRTZIPDECOMP pZip, void *pvBuf, siz
             int rc = pZip->pfnIn(pZip->pvUser, &pZip->abBuffer[0], sizeof(pZip->abBuffer), &cb);
             if (RT_FAILURE(rc))
                 return rc;
-            pZip->u.Zlib.avail_in = cb;
+            pZip->u.Zlib.avail_in = (uInt)cb;               Assert(pZip->u.Zlib.avail_in == cb);
             pZip->u.Zlib.next_in = &pZip->abBuffer[0];
         }
 

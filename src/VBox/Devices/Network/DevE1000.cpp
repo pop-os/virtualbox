@@ -1,4 +1,4 @@
-/* $Id: DevE1000.cpp $ */
+/* $Id: DevE1000.cpp 18834 2009-04-07 16:12:49Z vboxsync $ */
 /** @file
  * DevE1000 - Intel 82540EM Ethernet Controller Emulation.
  *
@@ -131,19 +131,23 @@ do { \
 typedef uint32_t E1KCHIP;
 #define E1K_CHIP_82540EM 0
 #define E1K_CHIP_82543GC 1
+#define E1K_CHIP_82545EM 2
 
-/* Intel */
-#define E1K_VENDOR_ID            0x8086
-/* 82540EM-A (Desktop) */
-#define E1K_DEVICE_ID_82540EM    0x100E
-/* 82543GC (Server) */
-#define E1K_DEVICE_ID_82543GC    0x1004
-/* Intel */
-#define E1K_SUBSYSTEM_VENDOR_ID  0x8086
-/* PRO/1000 MT Desktop Ethernet */
-#define E1K_SUBSYSTEM_ID_82540EM 0x001E
-/* PRO/1000 T Server Ethernet */
-#define E1K_SUBSYSTEM_ID_82543GC 0x1004
+struct E1kChips
+{
+    uint16_t uPCIVendorId;
+    uint16_t uPCIDeviceId;
+    uint16_t uPCISubsystemVendorId;
+    uint16_t uPCISubsystemId;
+    const char *pcszName;
+} g_Chips[] =
+{
+    /* Vendor Device SSVendor SubSys  Name */
+    { 0x8086, 0x100E, 0x8086, 0x001E, "82540EM" }, /* Intel 82540EM-A in Intel PRO/1000 MT Desktop */
+    { 0x8086, 0x1004, 0x8086, 0x1004, "82543GC" }, /* Intel 82543GC   in Intel PRO/1000 T  Server */
+    { 0x8086, 0x100F, 0x15AD, 0x0750, "82545EM" }  /* Intel 82545EM-A in VMWare Network Adapter */
+};
+
 
 /* The size of register area mapped to I/O space */
 #define E1K_IOPORT_SIZE                 0x8
@@ -225,6 +229,8 @@ typedef struct
 } PBAST;
 AssertCompileSize(PBAST, 4);
 
+#define TXDCTL_WTHRESH_MASK   0x003F0000
+#define TXDCTL_WTHRESH_SHIFT  16
 #define TXDCTL_LWTHRESH_MASK  0xFE000000
 #define TXDCTL_LWTHRESH_SHIFT 25
 
@@ -1731,7 +1737,7 @@ static DECLCALLBACK(void) e1kStoreRxFragment(E1KSTATE *pState, E1KRXDESC *pDesc,
     STAM_PROFILE_ADV_START(&pState->StatReceiveStore, a);
     E1kLog2(("%s e1kStoreRxFragment: store fragment of %04X at %016LX, EOP=%d\n", pState->szInstance, cb, pDesc->u64BufAddr, pDesc->status.fEOP));
     PDMDevHlpPhysWrite(pState->CTX_SUFF(pDevIns), pDesc->u64BufAddr, pvBuf, cb);
-    pDesc->u16Length = cb;
+    pDesc->u16Length = (uint16_t)cb;                        Assert(pDesc->u16Length == cb);
     /* Write back the descriptor */
     PDMDevHlpPhysWrite(pState->CTX_SUFF(pDevIns), e1kDescAddr(RDBAH, RDBAL, RDH), pDesc, sizeof(E1KRXDESC));
     e1kPrintRDesc(pState, pDesc);
@@ -1883,18 +1889,40 @@ static int e1kHandleRxPacket(E1KSTATE* pState, const void *pvBuf, size_t cb, E1K
             desc.status.fTCPCS = true;
             //desc.status.fIPE   = false;
             //desc.status.fTCPE  = false;
+            /*
+             * We need to leave Rx critical section here, otherwise it will block EMT if
+             * it happens to enter e1kRegWriteRDT() while we storing the fragment. This
+             * will lead to a deadlock as writing to guest memory waits for EMT to hangle
+             * the request.
+             * Note that it is safe to leave the critical section here since e1kRegWriteRDT()
+             * modifies RDT only.
+             */
             if(cb > pState->u16RxBSize)
             {
                 desc.status.fEOP = false;
+                e1kCsRxLeave(pState);
                 e1kStoreRxFragment(pState, &desc, ptr, pState->u16RxBSize);
+                rc = e1kCsRxEnter(pState, VERR_SEM_BUSY);
+                if (RT_UNLIKELY(rc != VINF_SUCCESS))
+                    return rc;
                 ptr += pState->u16RxBSize;
                 cb -= pState->u16RxBSize;
             }
             else
             {
                 desc.status.fEOP = true;
+                e1kCsRxLeave(pState);
                 e1kStoreRxFragment(pState, &desc, ptr, cb);
-                break;
+#ifdef E1K_LEDS_WITH_MUTEX
+                if (RT_LIKELY(e1kCsEnter(pState, VERR_SEM_BUSY, RT_SRC_POS) == VINF_SUCCESS))
+                {
+#endif /* E1K_LEDS_WITH_MUTEX */
+                    pState->led.Actual.s.fReading = 0;
+#ifdef E1K_LEDS_WITH_MUTEX
+                    e1kCsLeave(pState);
+                }
+#endif /* E1K_LEDS_WITH_MUTEX */
+                return VINF_SUCCESS;
             }
             /* Note: RDH is advanced by e1kStoreRxFragment! */
         }
@@ -1917,9 +1945,7 @@ static int e1kHandleRxPacket(E1KSTATE* pState, const void *pvBuf, size_t cb, E1K
     }
 #endif /* E1K_LEDS_WITH_MUTEX */
 
-#ifndef E1K_GLOBAL_MUTEX
-    PDMCritSectLeave(&pState->csRx);
-#endif
+    e1kCsRxLeave(pState);
 
     return VINF_SUCCESS;
 }
@@ -2003,7 +2029,7 @@ static int e1kRegWriteCTRL(E1KSTATE* pState, uint32_t offset, uint32_t index, ui
             {
                 E1kLog(("%s e1kRegWriteCTRL: Phy::writeMDIO(%d)\n", INSTANCE(pState), !!(value & CTRL_MDIO)));
                 /* MDIO direction pin is set to output and MDC is high, write MDIO pin value to PHY */
-                Phy::writeMDIO(&pState->phy, value & CTRL_MDIO);
+                Phy::writeMDIO(&pState->phy, !!(value & CTRL_MDIO));
             }
             else
             {
@@ -2907,9 +2933,12 @@ static bool e1kAddToFrame(E1KSTATE* pState, E1KTXDESC* pDesc, uint32_t u32PartLe
  */
 static void e1kDescReport(E1KSTATE* pState, E1KTXDESC* pDesc, RTGCPHYS addr)
 {
-    /* Note: We do not support descriptor write-back bursting. */
+    /*
+     * We fake descriptor write-back bursting. Descriptors are written back as they are
+     * processed.
+     */
     /* Let's pretend we process descriptors. Write back with DD set. */
-    if (pDesc->legacy.cmd.fRS)
+    if (pDesc->legacy.cmd.fRS || (GET_BITS(TXDCTL, WTHRESH) > 0))
     {
         pDesc->legacy.dw3.fDD = 1; /* Descriptor Done */
         e1kWriteBackDesc(pState, pDesc, addr);
@@ -4265,30 +4294,27 @@ static DECLCALLBACK(PDMNETWORKLINKSTATE) e1kGetLinkState(PPDMINETWORKCONFIG pInt
 static DECLCALLBACK(int) e1kSetLinkState(PPDMINETWORKCONFIG pInterface, PDMNETWORKLINKSTATE enmState)
 {
     E1KSTATE *pState = IFACE_TO_STATE(pInterface, INetworkConfig);
-    switch (enmState)
+    bool fOldUp = !!(STATUS & STATUS_LU);
+    bool fNewUp = enmState == PDMNETWORKLINKSTATE_UP;
+
+    if (fNewUp != fOldUp)
     {
-        case PDMNETWORKLINKSTATE_UP:
+        if (fNewUp)
+        {
             E1kLog(("%s Link is up\n", INSTANCE(pState)));
             STATUS |= STATUS_LU;
             Phy::setLinkStatus(&pState->phy, true);
-            break;
-        case PDMNETWORKLINKSTATE_DOWN:
+        }
+        else
+        {
             E1kLog(("%s Link is down\n", INSTANCE(pState)));
             STATUS &= ~STATUS_LU;
             Phy::setLinkStatus(&pState->phy, false);
-            break;
-        case PDMNETWORKLINKSTATE_DOWN_RESUME:
-            /// @todo I failed to locate any references to this state,
-            /// looks like it is never used.
-            E1kLog(("%s Link is down temporarely\n", INSTANCE(pState)));
-            STATUS &= ~STATUS_LU;
-            Phy::setLinkStatus(&pState->phy, false);
-            break;
-        default:
-            E1kLog(("%s Invalid link state: %d\n", INSTANCE(pState), enmState));
-            return VERR_INVALID_PARAMETER;
+        }
+        e1kRaiseInterrupt(pState, VERR_SEM_BUSY, ICR_LSC);
+        if (pState->pDrv)
+            pState->pDrv->pfnNotifyLinkChanged(pState->pDrv, enmState);
     }
-    e1kRaiseInterrupt(pState, VERR_SEM_BUSY, ICR_LSC);
     return VINF_SUCCESS;
 }
 
@@ -4555,15 +4581,12 @@ DECLINLINE(void) e1kPCICfgSetU32(PCIDEVICE& refPciDev, uint32_t uOffset, uint32_
  */
 static DECLCALLBACK(void) e1kConfigurePCI(PCIDEVICE& pci, E1KCHIP eChip)
 {
+    Assert(eChip < RT_ELEMENTS(g_Chips));
     /* Configure PCI Device, assume 32-bit mode ******************************/
-    PCIDevSetVendorId(&pci, E1K_VENDOR_ID);
-    PCIDevSetDeviceId(&pci, eChip == E1K_CHIP_82540EM ?
-                      E1K_DEVICE_ID_82540EM:
-                      E1K_DEVICE_ID_82543GC);
-    e1kPCICfgSetU16(pci, VBOX_PCI_SUBSYSTEM_VENDOR_ID, E1K_SUBSYSTEM_VENDOR_ID);
-    e1kPCICfgSetU16(pci, VBOX_PCI_SUBSYSTEM_ID, eChip == E1K_CHIP_82540EM ?
-                    E1K_SUBSYSTEM_ID_82540EM:
-                    E1K_SUBSYSTEM_ID_82543GC);
+    PCIDevSetVendorId(&pci, g_Chips[eChip].uPCIVendorId);
+    PCIDevSetDeviceId(&pci, g_Chips[eChip].uPCIDeviceId);
+    e1kPCICfgSetU16(pci, VBOX_PCI_SUBSYSTEM_VENDOR_ID, g_Chips[eChip].uPCISubsystemVendorId);
+    e1kPCICfgSetU16(pci, VBOX_PCI_SUBSYSTEM_ID, g_Chips[eChip].uPCISubsystemId);
 
     e1kPCICfgSetU16(pci, VBOX_PCI_COMMAND,            0x0000);
     /* DEVSEL Timing (medium device), 66 MHz Capable, New capabilities */
@@ -4664,10 +4687,9 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to get the value of 'AdapterType'"));
-    Assert(pState->eChip == E1K_CHIP_82540EM ||
-           pState->eChip == E1K_CHIP_82543GC);
+    Assert(pState->eChip <= E1K_CHIP_82545EM);
 
-    E1kLog(("%s Chip=%s\n", INSTANCE(pState), pState->eChip == E1K_CHIP_82540EM ? "82540EM" : "82543GC"));
+    E1kLog(("%s Chip=%s\n", INSTANCE(pState), g_Chips[pState->eChip].pcszName));
 
     /* Initialize state structure */
     pState->fR0Enabled   = true;
@@ -4850,8 +4872,8 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     {
         if (rc == VINF_NAT_DNS)
         {
-            VMSetRuntimeError(PDMDevHlpGetVM(pDevIns), false, "NoDNSforNAT",
-                              N_("A Domain Name Server (DNS) for NAT networking could not be determined. Ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
+            PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "NoDNSforNAT",
+                                       N_("A Domain Name Server (DNS) for NAT networking could not be determined. Ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
         }
         pState->pDrv = (PPDMINETWORKCONNECTOR)
             pState->pDrvBase->pfnQueryInterface(pState->pDrvBase, PDMINTERFACE_NETWORK_CONNECTOR);

@@ -1,8 +1,8 @@
 #! /bin/sh
-# Sun xVM VirtualBox
+# Sun VirtualBox
 # Linux Additions kernel module init script
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2009 Sun Microsystems, Inc.
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -18,7 +18,7 @@
 #
 
 
-# chkconfig: 35 30 60
+# chkconfig: 35 30 70
 # description: VirtualBox Linux Additions kernel modules
 #
 ### BEGIN INIT INFO
@@ -33,6 +33,7 @@
 PATH=$PATH:/bin:/sbin:/usr/sbin
 BUILDVBOXADD=`/bin/ls /usr/src/vboxadd*/build_in_tmp 2>/dev/null|cut -d' ' -f1`
 BUILDVBOXVFS=`/bin/ls /usr/src/vboxvfs*/build_in_tmp 2>/dev/null|cut -d' ' -f1`
+BUILDVBOXVIDEO=`/bin/ls /usr/src/vboxvideo*/build_in_tmp 2>/dev/null|cut -d' ' -f1`
 LOG="/var/log/vboxadd-install.log"
 
 if [ -f /etc/arch-release ]; then
@@ -43,6 +44,8 @@ elif [ -f /etc/SuSE-release ]; then
     system=suse
 elif [ -f /etc/gentoo-release ]; then
     system=gentoo
+elif [ -f /etc/lfs-release -a -d /etc/rc.d/init.d ]; then
+    system=lfs
 else
     system=other
 fi
@@ -113,6 +116,19 @@ if [ "$system" = "gentoo" ]; then
     fi
 fi
 
+if [ "$system" = "lfs" ]; then
+    . /etc/rc.d/init.d/functions
+    fail_msg() {
+        echo_failure
+    }
+    succ_msg() {
+        echo_ok
+    }
+    begin() {
+        echo $1
+    }
+fi
+
 if [ "$system" = "other" ]; then
     fail_msg() {
         echo " ...fail!"
@@ -126,6 +142,7 @@ if [ "$system" = "other" ]; then
 fi
 
 dev=/dev/vboxadd
+userdev=/dev/vboxuser
 owner=vboxadd
 group=1
 
@@ -158,6 +175,10 @@ start()
             fail "Cannot remove $dev"
         }
 
+        rm -f $userdev || {
+            fail "Cannot remove $userdev"
+        }
+
         modprobe vboxadd >/dev/null 2>&1 || {
             fail "modprobe vboxadd failed"
         }
@@ -184,17 +205,37 @@ start()
         }
     fi
     chown $owner:$group $dev 2>/dev/null || {
+        rm -f $dev 2>/dev/null
+        rm -f $userdev 2>/dev/null
         rmmod vboxadd 2>/dev/null
         fail "Cannot change owner $owner:$group for device $dev"
     }
+
+    if [ ! -c $userdev ]; then
+        maj=10
+        min=`sed -n 's;\([0-9]\+\) vboxuser;\1;p' /proc/misc`
+        if [ ! -z "$min" ]; then
+            mknod -m 0666 $userdev c $maj $min || {
+                rm -f $dev 2>/dev/null
+                rmmod vboxadd 2>/dev/null
+                fail "Cannot create device $userdev with major $maj and minor $min"
+            }
+            chown $owner:$group $userdev 2>/dev/null || {
+                rm -f $dev 2>/dev/null
+                rm -f $userdev 2>/dev/null
+                rmmod vboxadd 2>/dev/null
+                fail "Cannot change owner $owner:$group for device $userdev"
+            }
+        fi
+    fi
 
     if [ -n "$BUILDVBOXVFS" ]; then
         running_vboxvfs || {
             modprobe vboxvfs > /dev/null 2>&1 || {
                 if dmesg | grep "vboxConnect failed" > /dev/null 2>&1; then
                     fail_msg
-                    echo "You may be trying to run Guest Additions from binary release of VirtualBox"
-                    echo "in the Open Source Edition."
+                    echo "Unable to start shared folders support.  Make sure that your VirtualBox build"
+                    echo "supports this feature."
                     exit 1
                 fi
                 fail "modprobe vboxvfs failed"
@@ -223,6 +264,7 @@ stop()
     fi
     if running_vboxadd; then
         rmmod vboxadd 2>/dev/null || fail "Cannot unload module vboxadd"
+        rm -f $userdev || fail "Cannot unlink $userdev"
         rm -f $dev || fail "Cannot unlink $dev"
     fi
     succ_msg
@@ -242,7 +284,7 @@ setup()
         begin "Removing old VirtualBox vboxvfs kernel module"
         find /lib/modules/`uname -r` -name "vboxvfs\.*" 2>/dev/null|xargs rm -f 2>/dev/null
         succ_msg
-    fi  
+    fi
     if find /lib/modules/`uname -r` -name "vboxadd\.*" 2>/dev/null|grep -q vboxadd; then
         begin "Removing old VirtualBox vboxadd kernel module"
         find /lib/modules/`uname -r` -name "vboxadd\.*" 2>/dev/null|xargs rm -f 2>/dev/null
@@ -256,6 +298,13 @@ setup()
     fi
     if [ -n "$BUILDVBOXVFS" ]; then
         if ! $BUILDVBOXVFS \
+            --use-module-symvers /tmp/vboxadd-Module.symvers \
+            --no-print-directory install >> $LOG 2>&1; then
+            fail "Look at $LOG to find out what went wrong"
+        fi
+    fi
+    if [ -n "$BUILDVBOXVIDEO" ]; then
+        if ! $BUILDVBOXVIDEO \
             --use-module-symvers /tmp/vboxadd-Module.symvers \
             --no-print-directory install >> $LOG 2>&1; then
             fail "Look at $LOG to find out what went wrong"

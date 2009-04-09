@@ -1,4 +1,4 @@
-/* $Id: kAvlDoWithAll.h 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kAvlDoWithAll.h 7 2008-02-04 02:08:02Z bird $ */
 /** @file
  * kAvlTmpl - Templated AVL Trees, The Callback Iterator.
  */
@@ -42,6 +42,7 @@ typedef struct
     unsigned        cEntries;
     KAVLNODE       *aEntries[KAVL_MAX_STACK];
     char            achFlags[KAVL_MAX_STACK];
+    KAVLROOT        pRoot;
 } KAVL_INT(STACK2);
 
 
@@ -49,13 +50,13 @@ typedef struct
  * Iterates thru all nodes in the given tree.
  *
  * @returns   0 on success. Return from callback on failure.
- * @param     ppTree       Pointer to the AVL-tree root node pointer.
+ * @param     pRoot        Pointer to the AVL-tree root structure.
  * @param     fFromLeft    K_TRUE:  Left to right.
  *                         K_FALSE: Right to left.
  * @param     pfnCallBack  Pointer to callback function.
  * @param     pvUser       User parameter passed on to the callback function.
  */
-KAVL_DECL(int) KAVL_FN(DoWithAll)(KAVLTREEPTR *ppTree, KBOOL fFromLeft, KAVL_TYPE(PFN,CALLBACK) pfnCallBack, void *pvUser)
+KAVL_DECL(int) KAVL_FN(DoWithAll)(KAVLROOT *pRoot, KBOOL fFromLeft, KAVL_TYPE(PFN,CALLBACK) pfnCallBack, void *pvUser)
 {
     KAVL_INT(STACK2)    AVLStack;
     KAVLNODE           *pNode;
@@ -64,12 +65,16 @@ KAVL_DECL(int) KAVL_FN(DoWithAll)(KAVLTREEPTR *ppTree, KBOOL fFromLeft, KAVL_TYP
 #endif
     int                 rc;
 
-    if (*ppTree == KAVL_NULL)
+    KAVL_READ_LOCK(pRoot);
+    if (pRoot->mpRoot == KAVL_NULL)
+    {
+        KAVL_READ_UNLOCK(pRoot);
         return 0;
+    }
 
     AVLStack.cEntries = 1;
     AVLStack.achFlags[0] = 0;
-    AVLStack.aEntries[0] = KAVL_GET_POINTER(ppTree);
+    AVLStack.aEntries[0] = KAVL_GET_POINTER(&pRoot->mpRoot);
 
     if (fFromLeft)
     {   /* from left */
@@ -98,7 +103,10 @@ KAVL_DECL(int) KAVL_FN(DoWithAll)(KAVLTREEPTR *ppTree, KBOOL fFromLeft, KAVL_TYP
                 {
                     rc = pfnCallBack(pEqual, pvUser);
                     if (rc)
+                    {
+                        KAVL_READ_UNLOCK(pRoot);
                         return rc;
+                    }
                 }
 #endif
 
@@ -138,7 +146,10 @@ KAVL_DECL(int) KAVL_FN(DoWithAll)(KAVLTREEPTR *ppTree, KBOOL fFromLeft, KAVL_TYP
                 {
                     rc = pfnCallBack(pEqual, pvUser);
                     if (rc)
+                    {
+                        KAVL_READ_UNLOCK(pRoot);
                         return rc;
+                    }
                 }
 #endif
 
@@ -152,6 +163,7 @@ KAVL_DECL(int) KAVL_FN(DoWithAll)(KAVLTREEPTR *ppTree, KBOOL fFromLeft, KAVL_TYP
         } /* while */
     }
 
+    KAVL_READ_UNLOCK(pRoot);
     return 0;
 }
 

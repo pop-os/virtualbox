@@ -1,4 +1,4 @@
-/* $Id: string.cpp $ */
+/* $Id: string.cpp 17634 2009-03-10 15:01:07Z vboxsync $ */
 
 /** @file
  *
@@ -34,6 +34,79 @@ const Bstr Bstr::Null; /* default ctor is OK */
 
 /* static */
 const Utf8Str Utf8Str::Null; /* default ctor is OK */
+
+const size_t Utf8Str::npos = (size_t)-1;
+
+size_t Utf8Str::find(const char *pcszFind,
+                     size_t pos /*= 0*/)
+    const
+{
+    const char *pszThis, *p;
+
+    if (    ((pszThis = c_str()))
+         && (pos < length())
+         && ((p = strstr(pszThis + pos, pcszFind)))
+       )
+        return p - pszThis;
+
+    return npos;
+}
+
+Utf8Str Utf8Str::substr(size_t pos /*= 0*/, size_t n /*= npos*/)
+    const
+{
+    Utf8Str ret;
+
+    if (n)
+    {
+        const char *psz;
+
+        if ((psz = c_str()))
+        {
+            RTUNICP cp;
+
+            // walk the UTF-8 characters until where the caller wants to start
+            size_t i = pos;
+            while (*psz && i--)
+                if (RT_FAILURE(RTStrGetCpEx(&psz, &cp)))
+                    return ret;     // return empty string on bad encoding
+
+            const char *pFirst = psz;
+
+            if (n == npos)
+                // all the rest:
+                ret = pFirst;
+            else
+            {
+                i = n;
+                while (*psz && i--)
+                    if (RT_FAILURE(RTStrGetCpEx(&psz, &cp)))
+                        return ret;     // return empty string on bad encoding
+
+                size_t cbCopy = psz - pFirst;
+                ret.alloc(cbCopy + 1);
+                memcpy(ret.str, pFirst, cbCopy);
+                ret.str[cbCopy] = '\0';
+            }
+        }
+    }
+
+    return ret;
+}
+
+int Utf8Str::toInt(uint64_t &i) const
+{
+    if (!str)
+        return VERR_NO_DIGITS;
+    return RTStrToUInt64Ex(str, NULL, 0, &i);
+}
+
+int Utf8Str::toInt(uint32_t &i) const
+{
+    if (!str)
+        return VERR_NO_DIGITS;
+    return RTStrToUInt32Ex(str, NULL, 0, &i);
+}
 
 struct FormatData
 {
@@ -97,5 +170,6 @@ DECLCALLBACK(size_t) Utf8StrFmt::strOutput (void *pvArg, const char *pachChars,
 
     return cbChars;
 }
+
 
 } /* namespace com */

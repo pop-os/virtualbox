@@ -1,4 +1,4 @@
-/* $Id: SUPR3HardenedMain.cpp $ */
+/* $Id: SUPR3HardenedMain.cpp 18499 2009-03-29 02:26:30Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Hardened main().
  */
@@ -393,7 +393,7 @@ DECLHIDDEN(int) supR3HardenedPathProgram(char *pszPath, size_t cchPath)
     /*
      * Calc the length and check if there is space before copying.
      */
-    unsigned cch = strlen(g_szSupLibHardenedDirPath) + 1;
+    size_t cch = strlen(g_szSupLibHardenedDirPath) + 1;
     if (cch <= cchPath)
     {
         memcpy(pszPath, g_szSupLibHardenedDirPath, cch + 1);
@@ -570,10 +570,10 @@ static void supR3HardenedMainOpenDevice(void)
         /** @todo better messages! */
         case VERR_VM_DRIVER_NOT_INSTALLED:
             supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
-                                  "VERR_VM_DRIVER_NOT_INSTALLED");
+                                  "Kernel driver not installed");
         case VERR_VM_DRIVER_NOT_ACCESSIBLE:
             supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
-                                  "VERR_VM_DRIVER_NOT_ACCESSIBLE");
+                                  "Kernel driver not accessible");
         case VERR_VM_DRIVER_LOAD_ERROR:
             supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
                                   "VERR_VM_DRIVER_LOAD_ERROR");
@@ -582,10 +582,13 @@ static void supR3HardenedMainOpenDevice(void)
                                   "VERR_VM_DRIVER_OPEN_ERROR");
         case VERR_VM_DRIVER_VERSION_MISMATCH:
             supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
-                                  "VERR_VM_DRIVER_VERSION_MISMATCH");
+                                  "Kernel driver version mismatch");
         case VERR_ACCESS_DENIED:
             supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
                                   "VERR_ACCESS_DENIED");
+        case VERR_NO_MEMORY:
+            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
+                                  "Kernel memory allocation/mapping failed");
         default:
             supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
                                   "Unknown rc=%d", rc);

@@ -1,4 +1,4 @@
-/* $Id: kLdr.h 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kLdr.h 25 2009-02-19 00:56:15Z bird $ */
 /** @file
  *
  * kLdr - The Dynamic Loader.
@@ -240,7 +240,7 @@ typedef struct KLDRSEG
     /** Segment flags. */
     KU32            fFlags;
     /** The segment protection. */
-    KPROT        enmProt;
+    KPROT           enmProt;
     /** The size of the segment. */
     KLDRSIZE        cb;
     /** The required segment alignment.
@@ -581,8 +581,8 @@ typedef FNKLDRENUMRSRC *PFNKLDRENUMRSRC;
 /** @} */
 
 
-int     kLdrModOpen(const char *pszFilename, PPKLDRMOD ppMod);
-int     kLdrModOpenFromRdr(PKRDR pRdr, PPKLDRMOD ppMod);
+int     kLdrModOpen(const char *pszFilename, KU32 fFlags, KCPUARCH enmCpuArch, PPKLDRMOD ppMod);
+int     kLdrModOpenFromRdr(PKRDR pRdr, KU32 fFlags, KCPUARCH enmCpuArch, PPKLDRMOD ppMod);
 int     kLdrModOpenNative(const char *pszFilename, PPKLDRMOD ppMod);
 int     kLdrModOpenNativeByHandle(KUPTR uHandle, PPKLDRMOD ppMod);
 int     kLdrModClose(PKLDRMOD pMod);
@@ -646,10 +646,14 @@ typedef struct KLDRMODOPS
      *          On failure, a non-zero OS specific error code is returned.
      * @param   pOps            Pointer to the registered method table.
      * @param   pRdr            The file provider instance to use.
+     * @param   fFlags          Flags, MBZ.
+     * @param   enmCpuArch      The desired CPU architecture. KCPUARCH_UNKNOWN means
+     *                          anything goes, but with a preference for the current
+     *                          host architecture.
      * @param   offNewHdr       The offset of the new header in MZ files. -1 if not found.
      * @param   ppMod           Where to store the module instance pointer.
      */
-    int (* pfnCreate)(PCKLDRMODOPS pOps, PKRDR pRdr, KLDRFOFF offNewHdr, PPKLDRMOD ppMod);
+    int (* pfnCreate)(PCKLDRMODOPS pOps, PKRDR pRdr, KU32 fFlags, KCPUARCH enmCpuArch, KLDRFOFF offNewHdr, PPKLDRMOD ppMod);
     /**
      * Destroys an loader module instance.
      *

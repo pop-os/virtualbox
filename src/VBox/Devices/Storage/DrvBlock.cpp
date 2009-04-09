@@ -160,7 +160,7 @@ static DECLCALLBACK(int) drvblockWrite(PPDMIBLOCK pInterface, uint64_t off, cons
 #ifdef VBOX_PERIODIC_FLUSH
     if (pThis->cbFlushInterval)
     {
-        pThis->cbDataWritten += cbWrite;
+        pThis->cbDataWritten += (uint32_t)cbWrite;
         if (pThis->cbDataWritten > pThis->cbFlushInterval)
         {
             pThis->cbDataWritten = 0;
@@ -872,7 +872,7 @@ static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHan
         return VINF_SUCCESS;
     if (RT_FAILURE(rc))
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
-                                   N_("Failed to attach driver below us! rc=%Rra\n"), rc);
+                                   N_("Failed to attach driver below us! %Rrf"), rc);
 
     pThis->pDrvMedia = (PPDMIMEDIA)pBase->pfnQueryInterface(pBase, PDMINTERFACE_MEDIA);
     if (!pThis->pDrvMedia)

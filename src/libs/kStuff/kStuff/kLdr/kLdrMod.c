@@ -1,4 +1,4 @@
-/* $Id: kLdrMod.c 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kLdrMod.c 26 2009-02-19 01:06:09Z bird $ */
 /** @file
  * kLdr - The Module Interpreter.
  */
@@ -109,9 +109,13 @@ static PCKLDRMODOPS g_pModInterpreterHead = NULL;
  * @returns 0 on success and *ppMod pointing to a module instance.
  *          On failure, a non-zero OS specific error code is returned.
  * @param   pszFilename     The filename to open.
+ * @param   fFlags          Flags, MBZ.
+ * @param   enmCpuArch      The desired CPU architecture. KCPUARCH_UNKNOWN means
+ *                          anything goes, but with a preference for the current
+ *                          host architecture.
  * @param   ppMod           Where to store the module handle.
  */
-int kLdrModOpen(const char *pszFilename, PPKLDRMOD ppMod)
+int kLdrModOpen(const char *pszFilename, KU32 fFlags, KCPUARCH enmCpuArch, PPKLDRMOD ppMod)
 {
     /*
      * Open the file using a bit provider.
@@ -120,12 +124,156 @@ int kLdrModOpen(const char *pszFilename, PPKLDRMOD ppMod)
     int rc = kRdrOpen(&pRdr, pszFilename);
     if (!rc)
     {
-        rc = kLdrModOpenFromRdr(pRdr, ppMod);
+        rc = kLdrModOpenFromRdr(pRdr, fFlags, enmCpuArch, ppMod);
         if (!rc)
             return 0;
        kRdrClose(pRdr);
     }
     return rc;
+}
+
+
+/**
+ * Select image from the FAT according to the enmCpuArch and fFlag.
+ *
+ * @returns 0 on success and *poffHdr set to the image header.
+ *          On failure, a non-zero error code is returned.
+ *
+ * @param   pRdr            The file provider instance to use.
+ * @param   fFlags          Flags, MBZ.
+ * @param   enmCpuArch      The desired CPU architecture. KCPUARCH_UNKNOWN means
+ *                          anything goes, but with a preference for the current
+ *                          host architecture.
+ * @param   u32Magic        The FAT magic.
+ * @param   poffHdr         Where to store the offset of the selected image.
+ */
+static int kldrModOpenFromRdrSelectImageFromFAT(PKRDR pRdr, KU32 fFlags, KCPUARCH enmCpuArch, KU32 u32Magic, KLDRFOFF *poffHdr)
+{
+    int         rcRet = KLDR_ERR_CPU_ARCH_MISMATCH;
+    KLDRFOFF    off = *poffHdr + sizeof(KU32);
+    KLDRFOFF    offEndFAT;
+    KBOOL       fCpuArchWhatever;
+    KU32        cArchs;
+    KU32        iArch;
+    int         rc;
+
+    /* Read fat_header_t::nfat_arch. */
+    rc = kRdrRead(pRdr, &cArchs, sizeof(cArchs), off);
+    if (rc)
+        return rc;
+    off += sizeof(KU32);
+    if (u32Magic == IMAGE_FAT_SIGNATURE_OE)
+        cArchs = K_E2E_U32(cArchs);
+    if (cArchs == 0)
+        return KLDR_ERR_FAT_INVALID;
+
+    /* Deal with KCPUARCH_UNKNOWN. */
+    fCpuArchWhatever = enmCpuArch == KCPUARCH_UNKNOWN;
+    if (fCpuArchWhatever)
+    {
+        KCPU enmCpuIgnored;
+        kCpuGetArchAndCpu(&enmCpuArch, &enmCpuIgnored);
+    }
+
+    /*
+     * Iterate the architecture list.
+     */
+    offEndFAT = off + cArchs * sizeof(fat_arch_t);
+    for (iArch = 0; iArch < cArchs; iArch++)
+    {
+        KCPUARCH    enmEntryArch;
+        fat_arch_t  Arch;
+        rc = kRdrRead(pRdr, &Arch, sizeof(Arch), off);
+        if (rc)
+            return rc;
+        off += sizeof(Arch);
+
+        if (u32Magic == IMAGE_FAT_SIGNATURE_OE)
+        {
+            Arch.cputype    = K_E2E_U32(Arch.cputype);
+            Arch.cpusubtype = K_E2E_U32(Arch.cpusubtype);
+            Arch.offset     = K_E2E_U32(Arch.offset);
+            Arch.size       = K_E2E_U32(Arch.size);
+            Arch.align      = K_E2E_U32(Arch.align);
+        }
+
+        /* Simple validation. */
+        if (    (KLDRFOFF)Arch.offset < offEndFAT
+            ||  (KLDRFOFF)Arch.offset >= kRdrSize(pRdr)
+            ||  Arch.align >= 32
+            ||  Arch.offset & ((KU32_C(1) << Arch.align) - KU32_C(1)))
+            return KLDR_ERR_FAT_INVALID;
+
+        /* deal with the cputype and cpusubtype. (See similar code in kLdrModMachO.c.) */
+        switch (Arch.cputype)
+        {
+            case CPU_TYPE_X86:
+                enmEntryArch = KCPUARCH_X86_32;
+                switch (Arch.cpusubtype)
+                {
+                    case CPU_SUBTYPE_I386_ALL:
+                    /*case CPU_SUBTYPE_386: ^^ ;*/
+                    case CPU_SUBTYPE_486:
+                    case CPU_SUBTYPE_486SX:
+                    /*case CPU_SUBTYPE_586: vv */
+                    case CPU_SUBTYPE_PENT:
+                    case CPU_SUBTYPE_PENTPRO:
+                    case CPU_SUBTYPE_PENTII_M3:
+                    case CPU_SUBTYPE_PENTII_M5:
+                    case CPU_SUBTYPE_CELERON:
+                    case CPU_SUBTYPE_CELERON_MOBILE:
+                    case CPU_SUBTYPE_PENTIUM_3:
+                    case CPU_SUBTYPE_PENTIUM_3_M:
+                    case CPU_SUBTYPE_PENTIUM_3_XEON:
+                    case CPU_SUBTYPE_PENTIUM_M:
+                    case CPU_SUBTYPE_PENTIUM_4:
+                    case CPU_SUBTYPE_PENTIUM_4_M:
+                    case CPU_SUBTYPE_XEON:
+                    case CPU_SUBTYPE_XEON_MP:
+                        break;
+                    default:
+                        return KLDR_ERR_FAT_UNSUPPORTED_CPU_SUBTYPE;
+                }
+                break;
+
+            case CPU_TYPE_X86_64:
+                enmEntryArch = KCPUARCH_AMD64;
+                switch (Arch.cpusubtype & ~CPU_SUBTYPE_MASK)
+                {
+                    case CPU_SUBTYPE_X86_64_ALL:
+                        break;
+                    default:
+                        return KLDR_ERR_FAT_UNSUPPORTED_CPU_SUBTYPE;
+                }
+                break;
+
+            default:
+                enmEntryArch = KCPUARCH_UNKNOWN;
+                break;
+        }
+
+        /*
+         * Finally the actual image selecting.
+         *
+         * Return immediately on a perfect match. Otherwise continue looking,
+         * if we're none too picky, remember the first image in case we don't
+         * get lucky.
+         */
+        if (enmEntryArch == enmCpuArch)
+        {
+            *poffHdr = Arch.offset;
+            return 0;
+        }
+
+        if (    fCpuArchWhatever
+            &&  rcRet == KLDR_ERR_CPU_ARCH_MISMATCH)
+        {
+            *poffHdr = Arch.offset;
+            rcRet = 0;
+        }
+    }
+
+    return rcRet;
 }
 
 
@@ -138,9 +286,13 @@ int kLdrModOpen(const char *pszFilename, PPKLDRMOD ppMod)
  *                          On success, the ownership of the instance is taken by the
  *                          module and the caller must not ever touch it again.
  *                          (The instance is not closed on failure, the call has to do that.)
+ * @param   fFlags          Flags, MBZ.
+ * @param   enmCpuArch      The desired CPU architecture. KCPUARCH_UNKNOWN means
+ *                          anything goes, but with a preference for the current
+ *                          host architecture.
  * @param   ppMod           Where to store the module handle.
  */
-int kLdrModOpenFromRdr(PKRDR pRdr, PPKLDRMOD ppMod)
+int kLdrModOpenFromRdr(PKRDR pRdr, KU32 fFlags, KCPUARCH enmCpuArch, PPKLDRMOD ppMod)
 {
     union
     {
@@ -152,29 +304,48 @@ int kLdrModOpenFromRdr(PKRDR pRdr, PPKLDRMOD ppMod)
     KLDRFOFF    offHdr = 0;
     int         rc;
 
-    /*
-     * Try figure out what kind of image this is.
-     * Always read the 'new header' if we encounter MZ.
-     */
-    rc = kRdrRead(pRdr, &u, sizeof(u), 0);
-    if (rc)
-        return rc;
-    if (    u.u16 == IMAGE_DOS_SIGNATURE
-        &&  kRdrSize(pRdr) > sizeof(IMAGE_DOS_HEADER))
+    for (;;)
     {
-        rc = kRdrRead(pRdr, &u, sizeof(u.u32), K_OFFSETOF(IMAGE_DOS_HEADER, e_lfanew));
+        /*
+         * Try figure out what kind of image this is.
+         * Always read the 'new header' if we encounter MZ.
+         */
+        rc = kRdrRead(pRdr, &u, sizeof(u), offHdr);
         if (rc)
             return rc;
-        if ((KLDRFOFF)u.u32 < kRdrSize(pRdr))
+        if (    u.u16 == IMAGE_DOS_SIGNATURE
+            &&  kRdrSize(pRdr) > sizeof(IMAGE_DOS_HEADER))
         {
-            offHdr = u.u32;
-            rc = kRdrRead(pRdr, &u, sizeof(u.u32), offHdr);
+            rc = kRdrRead(pRdr, &u, sizeof(u.u32), K_OFFSETOF(IMAGE_DOS_HEADER, e_lfanew));
             if (rc)
                 return rc;
+            if ((KLDRFOFF)u.u32 < kRdrSize(pRdr))
+            {
+                offHdr = u.u32;
+                rc = kRdrRead(pRdr, &u, sizeof(u.u32), offHdr);
+                if (rc)
+                    return rc;
+            }
+            else
+                u.u16 = IMAGE_DOS_SIGNATURE;
         }
-        else
-            u.u16 = IMAGE_DOS_SIGNATURE;
+
+        /*
+         * Handle FAT images too here (one only).
+         */
+        if (    (   u.u32 == IMAGE_FAT_SIGNATURE
+                 || u.u32 == IMAGE_FAT_SIGNATURE_OE)
+            &&  offHdr == 0)
+        {
+            rc = kldrModOpenFromRdrSelectImageFromFAT(pRdr, fFlags, enmCpuArch, u.u32, &offHdr);
+            if (rc)
+                return rc;
+            if (offHdr)
+                continue;
+        }
+        break;
     }
+
 
     /*
      * Use the magic to select the appropriate image interpreter head on.
@@ -184,21 +355,18 @@ int kLdrModOpenFromRdr(PKRDR pRdr, PPKLDRMOD ppMod)
     else if (u.u16 == IMAGE_NE_SIGNATURE)
         rc = KLDR_ERR_NE_NOT_SUPPORTED;
     else if (u.u16 == IMAGE_LX_SIGNATURE)
-        rc = g_kLdrModLXOps.pfnCreate(&g_kLdrModLXOps, pRdr, offHdr, ppMod);
+        rc = g_kLdrModLXOps.pfnCreate(&g_kLdrModLXOps, pRdr, fFlags, enmCpuArch, offHdr, ppMod);
     else if (u.u16 == IMAGE_LE_SIGNATURE)
         rc = KLDR_ERR_LE_NOT_SUPPORTED;
     else if (u.u32 == IMAGE_NT_SIGNATURE)
-        rc = g_kLdrModPEOps.pfnCreate(&g_kLdrModPEOps, pRdr, offHdr, ppMod);
+        rc = g_kLdrModPEOps.pfnCreate(&g_kLdrModPEOps, pRdr, fFlags, enmCpuArch, offHdr, ppMod);
     else if (   u.u32 == IMAGE_MACHO32_SIGNATURE
              || u.u32 == IMAGE_MACHO32_SIGNATURE_OE
              || u.u32 == IMAGE_MACHO64_SIGNATURE
              || u.u32 == IMAGE_MACHO64_SIGNATURE_OE)
-        rc = g_kLdrModMachOOps.pfnCreate(&g_kLdrModMachOOps, pRdr, offHdr, ppMod);
+        rc = g_kLdrModMachOOps.pfnCreate(&g_kLdrModMachOOps, pRdr, fFlags, enmCpuArch, offHdr, ppMod);
     else if (u.u32 == IMAGE_ELF_SIGNATURE)
         rc = KLDR_ERR_ELF_NOT_SUPPORTED;
-    else if (   u.u32 == IMAGE_FAT_SIGNATURE
-             || u.u32 == IMAGE_FAT_SIGNATURE_OE)
-        rc = KLDR_ERR_FAT_NOT_SUPPORTED;
     else
         rc = KLDR_ERR_UNKNOWN_FORMAT;
 
@@ -210,7 +378,7 @@ int kLdrModOpenFromRdr(PKRDR pRdr, PPKLDRMOD ppMod)
         PCKLDRMODOPS pOps;
         for (pOps = g_pModInterpreterHead; pOps; pOps = pOps->pNext)
         {
-            int rc2 = pOps->pfnCreate(pOps, pRdr, offHdr, ppMod);
+            int rc2 = pOps->pfnCreate(pOps, pRdr, fFlags, enmCpuArch, offHdr, ppMod);
             if (!rc2)
                 return rc;
         }

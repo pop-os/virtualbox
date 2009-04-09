@@ -1,4 +1,4 @@
-/* $Id: tstMicro.h $ */
+/* $Id: tstMicro.h 13813 2008-11-04 21:55:34Z vboxsync $ */
 /** @file
  * Micro Testcase, profiling special CPU operations.
  */

@@ -1,4 +1,4 @@
-/* $Id: FloppyDriveImpl.cpp $ */
+/* $Id: FloppyDriveImpl.cpp 18210 2009-03-24 17:05:22Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,6 +34,8 @@
 
 #include <iprt/string.h>
 #include <iprt/cpputils.h>
+
+#include <VBox/settings.h>
 
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
@@ -270,9 +272,9 @@ STDMETHODIMP FloppyDrive::MountImage (IN_GUID aImageId)
     /* Our lifetime is bound to mParent's lifetime, so we don't add caller.
      * We also don't lock mParent since its mParent field is const. */
 
-    ComObjPtr <FloppyImage2> image;
-    rc = mParent->virtualBox()->findFloppyImage2 (&imageId, NULL,
-                                                  true /* aSetError */, &image);
+    ComObjPtr<FloppyImage> image;
+    rc = mParent->virtualBox()->findFloppyImage(&imageId, NULL,
+                                                true /* aSetError */, &image);
 
     if (SUCCEEDED (rc))
     {
@@ -374,7 +376,7 @@ STDMETHODIMP FloppyDrive::Unmount()
     return S_OK;
 }
 
-STDMETHODIMP FloppyDrive::GetImage (IFloppyImage2 **aFloppyImage)
+STDMETHODIMP FloppyDrive::GetImage(IFloppyImage **aFloppyImage)
 {
     CheckComArgOutPointerValid(aFloppyImage);
 
@@ -456,15 +458,16 @@ HRESULT FloppyDrive::loadSettings (const settings::Key &aMachineNode)
 
         Bstr src = typeNode.stringValue ("src");
 
-        /* find the correspoding object */
+        /* find the corresponding object */
         ComObjPtr <Host> host = mParent->virtualBox()->host();
 
-        ComPtr <IHostFloppyDriveCollection> coll;
-        rc = host->COMGETTER(FloppyDrives) (coll.asOutParam());
+        com::SafeIfaceArray <IHostFloppyDrive> coll;
+        rc = host->COMGETTER(FloppyDrives) (ComSafeArrayAsOutParam(coll));
         AssertComRC (rc);
 
         ComPtr <IHostFloppyDrive> drive;
-        rc = coll->FindByName (src, drive.asOutParam());
+        rc = host->FindHostFloppyDrive (src, drive.asOutParam());
+
         if (SUCCEEDED (rc))
         {
             rc = CaptureHostDrive (drive);
@@ -590,6 +593,21 @@ bool FloppyDrive::rollback()
                     AssertComRC (rc);
                 }
             }
+
+            if (!oldData->image.isNull() &&
+                !oldData->image.equalsTo (m->image))
+            {
+                /* Reattach from the old image. */
+                HRESULT rc = oldData->image->attachTo(mParent->id(), mParent->snapshotId());
+                AssertComRC (rc);
+                if (Global::IsOnline (adep.machineState()))
+                {
+                    /* Lock from the old image. */
+                    rc = oldData->image->LockRead (NULL);
+                    AssertComRC (rc);
+                }
+            }
+
         }
 
         m.rollback();
@@ -612,32 +630,12 @@ void FloppyDrive::commit()
     AutoCaller peerCaller (mPeer);
     AssertComRCReturnVoid (peerCaller.rc());
 
-    /* we need adep for the state check */
-    Machine::AutoAnyStateDependency adep (mParent);
-    AssertComRCReturnVoid (adep.rc());
-
     /* lock both for writing since we modify both (mPeer is "master" so locked
      * first) */
     AutoMultiWriteLock2 alock (mPeer, this);
 
     if (m.isBackedUp())
     {
-        Data *oldData = m.backedUpData();
-
-        if (!oldData->image.isNull() &&
-            !oldData->image.equalsTo (m->image))
-        {
-            /* detach the old image that will go away after commit */
-            oldData->image->detachFrom (mParent->id(), mParent->snapshotId());
-
-            /* unlock the image for reading if the VM is online */
-            if (Global::IsOnline (adep.machineState()))
-            {
-                HRESULT rc = oldData->image->UnlockRead (NULL);
-                AssertComRC (rc);
-            }
-        }
-
         m.commit();
         if (mPeer)
         {
@@ -677,6 +675,21 @@ void FloppyDrive::copyFrom (FloppyDrive *aThat)
 HRESULT FloppyDrive::unmount()
 {
     AssertReturn (isWriteLockOnCurrentThread(), E_FAIL);
+
+    /* we need adep for the state check */
+    Machine::AutoAnyStateDependency adep (mParent);
+    AssertComRCReturn (adep.rc(), E_FAIL);
+
+    if (!m->image.isNull())
+    {
+        HRESULT rc = m->image->detachFrom (mParent->id(), mParent->snapshotId());
+        AssertComRC (rc);
+        if (Global::IsOnline (adep.machineState()))
+        {
+            rc = m->image->UnlockRead (NULL);
+            AssertComRC (rc);
+        }
+    }
 
     m.backup();
 

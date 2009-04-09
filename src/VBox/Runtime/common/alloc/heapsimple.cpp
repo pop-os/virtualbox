@@ -1,4 +1,4 @@
-/* $Id: heapsimple.cpp $ */
+/* $Id: heapsimple.cpp 18603 2009-04-01 15:44:08Z vboxsync $ */
 /** @file
  * IPRT - A Simple Heap.
  */
@@ -82,7 +82,7 @@ AssertCompileSizeAlignment(RTHEAPSIMPLEBLOCK, 16);
 #define RTHEAPSIMPLEBLOCK_FLAGS_FREE        ((uintptr_t)RT_BIT(0))
 /** The magic value. */
 #define RTHEAPSIMPLEBLOCK_FLAGS_MAGIC       ((uintptr_t)0xabcdef00)
-/** The mask that needs to be applied to RTHEAPSIMPLEBLOCK::fFalgs to obtain the magic value. */
+/** The mask that needs to be applied to RTHEAPSIMPLEBLOCK::fFlags to obtain the magic value. */
 #define RTHEAPSIMPLEBLOCK_FLAGS_MAGIC_MASK  (~(uintptr_t)RT_BIT(0))
 
 /**
@@ -300,7 +300,7 @@ RTDECL(int) RTHeapSimpleInit(PRTHEAPSIMPLE pHeap, void *pvMemory, size_t cbMemor
     unsigned i;
 
     /*
-     * Validate input. The imposed minimum heap size is just a convenien value.
+     * Validate input. The imposed minimum heap size is just a convenient value.
      */
     AssertReturn(cbMemory >= PAGE_SIZE, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pvMemory, VERR_INVALID_POINTER);
@@ -313,7 +313,7 @@ RTDECL(int) RTHeapSimpleInit(PRTHEAPSIMPLE pHeap, void *pvMemory, size_t cbMemor
     pHeapInt = (PRTHEAPSIMPLEINTERNAL)pvMemory;
     if ((uintptr_t)pvMemory & 31)
     {
-        const unsigned off = 32 - ((uintptr_t)pvMemory & 31);
+        const uintptr_t off = 32 - ((uintptr_t)pvMemory & 31);
         cbMemory -= off;
         pHeapInt = (PRTHEAPSIMPLEINTERNAL)((uintptr_t)pvMemory + off);
     }
@@ -449,7 +449,7 @@ RTDECL(void *) RTHeapSimpleAllocZ(RTHEAPSIMPLE Heap, size_t cb, size_t cbAlignme
 /**
  * Allocates a block of memory from the specified heap.
  *
- * No parameter validation or adjustment is preformed.
+ * No parameter validation or adjustment is performed.
  *
  * @returns Pointer to the allocated block.
  * @returns NULL on failure.
@@ -459,6 +459,9 @@ RTDECL(void *) RTHeapSimpleAllocZ(RTHEAPSIMPLE Heap, size_t cb, size_t cbAlignme
  */
 static PRTHEAPSIMPLEBLOCK rtHeapSimpleAllocBlock(PRTHEAPSIMPLEINTERNAL pHeapInt, size_t cb, size_t uAlignment)
 {
+    PRTHEAPSIMPLEBLOCK  pRet = NULL;
+    PRTHEAPSIMPLEFREE   pFree;
+
 #ifdef RTHEAPSIMPLE_STRICT
     rtHeapSimpleAssertAll(pHeapInt);
 #endif
@@ -466,8 +469,6 @@ static PRTHEAPSIMPLEBLOCK rtHeapSimpleAllocBlock(PRTHEAPSIMPLEINTERNAL pHeapInt,
     /*
      * Search for a fitting block from the lower end of the heap.
      */
-    PRTHEAPSIMPLEBLOCK  pRet = NULL;
-    PRTHEAPSIMPLEFREE   pFree;
     for (pFree = pHeapInt->pFreeHead;
          pFree;
          pFree = pFree->pNext)
@@ -523,7 +524,7 @@ static PRTHEAPSIMPLEBLOCK rtHeapSimpleAllocBlock(PRTHEAPSIMPLEINTERNAL pHeapInt,
             pHeapInt->cbFree -= offAlign;
 
             /*
-             * Recreate pFree in the new position and adjust the neighbours.
+             * Recreate pFree in the new position and adjust the neighbors.
              */
             *pFree = Free;
 
@@ -666,7 +667,7 @@ RTDECL(void) RTHeapSimpleFree(RTHEAPSIMPLE Heap, void *pv)
 
 
 /**
- * Free memory a memory block.
+ * Free a memory block.
  *
  * @param   pHeapInt       The heap.
  * @param   pBlock         The memory block to free.
@@ -674,6 +675,8 @@ RTDECL(void) RTHeapSimpleFree(RTHEAPSIMPLE Heap, void *pv)
 static void rtHeapSimpleFreeBlock(PRTHEAPSIMPLEINTERNAL pHeapInt, PRTHEAPSIMPLEBLOCK pBlock)
 {
     PRTHEAPSIMPLEFREE   pFree = (PRTHEAPSIMPLEFREE)pBlock;
+    PRTHEAPSIMPLEFREE   pLeft;
+    PRTHEAPSIMPLEFREE   pRight;
 
 #ifdef RTHEAPSIMPLE_STRICT
     rtHeapSimpleAssertAll(pHeapInt);
@@ -681,10 +684,10 @@ static void rtHeapSimpleFreeBlock(PRTHEAPSIMPLEINTERNAL pHeapInt, PRTHEAPSIMPLEB
 
     /*
      * Look for the closest free list blocks by walking the blocks right
-     * of us (both list are sorted on address).
+     * of us (both lists are sorted by address).
      */
-    PRTHEAPSIMPLEFREE   pLeft = NULL;
-    PRTHEAPSIMPLEFREE   pRight = NULL;
+    pLeft = NULL;
+    pRight = NULL;
     if (pHeapInt->pFreeTail)
     {
         pRight = (PRTHEAPSIMPLEFREE)pFree->Core.pNext;
@@ -788,7 +791,7 @@ static void rtHeapSimpleFreeBlock(PRTHEAPSIMPLEINTERNAL pHeapInt, PRTHEAPSIMPLEB
 
 #ifdef RTHEAPSIMPLE_STRICT
 /**
- * Internal consitency check (relying on assertions).
+ * Internal consistency check (relying on assertions).
  * @param   pHeapInt
  */
 static void rtHeapSimpleAssertAll(PRTHEAPSIMPLEINTERNAL pHeapInt)

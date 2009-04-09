@@ -1,4 +1,4 @@
-/* $Id: HardDiskFormatImpl.cpp $ */
+/* $Id: HardDiskFormatImpl.cpp 16873 2009-02-17 19:07:37Z vboxsync $ */
 
 /** @file
  *
@@ -24,7 +24,7 @@
 #include "HardDiskFormatImpl.h"
 #include "Logging.h"
 
-#include <VBox/VBoxHDD-new.h>
+#include <VBox/VBoxHDD.h>
 
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////

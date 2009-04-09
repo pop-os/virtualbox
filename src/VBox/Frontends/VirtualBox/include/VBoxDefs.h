@@ -23,26 +23,28 @@
 #ifndef __VBoxDefs_h__
 #define __VBoxDefs_h__
 
+/* Qt includes */
 #include <qevent.h>
+#include <QUuid>
 
 #define LOG_GROUP LOG_GROUP_GUI
 #include <VBox/log.h>
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
 
-#ifdef VBOX_GUI_DEBUG
+#ifdef DEBUG
 
 #define AssertWrapperOk(w)      \
     AssertMsg (w.isOk(), (#w " is not okay (RC=0x%08X)", w.lastRC()))
 #define AssertWrapperOkMsg(w, m)      \
     AssertMsg (w.isOk(), (#w ": " m " (RC=0x%08X)", w.lastRC()))
 
-#else // !VBOX_GUI_DEBUG
+#else /* #ifdef DEBUG */
 
 #define AssertWrapperOk(w)          do {} while (0)
 #define AssertWrapperOkMsg(w, m)    do {} while (0)
 
-#endif // !VBOX_GUI_DEBUG
+#endif /* #ifdef DEBUG */
 
 #ifndef SIZEOF_ARRAY
 #define SIZEOF_ARRAY(a) (sizeof(a) / sizeof(a[0]))
@@ -60,49 +62,10 @@
   #endif
 #endif
 
-/////////////////////////////////////////////////////////////////////////////
+/** Null UUID constant to be used as a default value for reference parameters */
+extern const QUuid QUuid_null;
 
-#if defined (VBOX_GUI_DEBUG)
-
-#include <VBox/types.h> // for uint64_t type
-
-#include <qthread.h>
-#include <qdatetime.h>
-
-/**
- * A class to measure intervals using rdtsc instruction.
- */
-class VMCPUTimer : public QThread // for crossplatform msleep()
-{
-public:
-    static uint64_t ticks();
-    inline static uint64_t msecs( uint64_t tcks ) {
-        return tcks / ticks_per_msec;
-    }
-    inline static uint64_t msecsSince( uint64_t tcks ) {
-        tcks = ticks() - tcks;
-        return tcks / ticks_per_msec;
-    }
-    inline static void calibrate( int ms )
-    {
-        QTime t;
-        uint64_t tcks = ticks();
-        t.start();
-        msleep( ms );
-        tcks = ticks() - tcks;
-        int msecs = t.elapsed();
-        ticks_per_msec = tcks / msecs;
-    }
-    inline static uint64_t ticksPerMsec() {
-        return ticks_per_msec;
-    }
-private:
-    static uint64_t ticks_per_msec;
-};
-
-#endif // VBOX_GUI_DEBUG
-
-/* A common namespace for all enums */
+/** Common namespace for all enums */
 struct VBoxDefs
 {
     /** Media type. */
@@ -138,6 +101,7 @@ struct VBoxDefs
         SessionStateChangeEventType,
         SnapshotEventType,
         CanShowRegDlgEventType,
+        CanShowUpdDlgEventType,
         NetworkAdapterChangeEventType,
         USBCtlStateChangeEventType,
         USBDeviceStateChangeEventType,
@@ -152,6 +116,23 @@ struct VBoxDefs
 #if defined (Q_WS_MAC)
         ShowWindowEventType,
 #endif
+        ChangeGUILanguageEventType,
+#if defined (VBOX_GUI_WITH_SYSTRAY)
+        CanShowTrayIconEventType,
+        ShowTrayIconEventType,
+        TrayIconChangeEventType,
+        MainWindowCountChangeEventType,
+#endif
+        AddVDMUrlsEventType,
+        ChangeDockIconUpdateEventType
+    };
+
+    /** Size formatting types. */
+    enum FormatSize
+    {
+        FormatSize_Round,
+        FormatSize_RoundDown,
+        FormatSize_RoundUp
     };
 
     static const char* GUI_LastWindowPosition;
@@ -169,9 +150,22 @@ struct VBoxDefs
 #endif
     static const char* GUI_RegistrationDlgWinID;
     static const char* GUI_RegistrationData;
+    static const char* GUI_UpdateDlgWinID;
+    static const char* GUI_UpdateDate;
+    static const char* GUI_UpdateCheckCount;
     static const char* GUI_LastVMSelected;
     static const char* GUI_InfoDlgState;
+#ifdef VBOX_GUI_WITH_SYSTRAY
+    static const char* GUI_TrayIconWinID;
+    static const char* GUI_MainWindowCount;
+#endif
+#ifdef Q_WS_MAC
+    static const char* GUI_RealtimeDockIconUpdateEnabled;
+#endif /* Q_WS_MAC */
+    static const char* GUI_PassCAD;
 };
+
+#define MAC_LEOPARD_STYLE defined(Q_WS_MAC) && (QT_VERSION >= 0x040300)
 
 #endif // __VBoxDefs_h__
 

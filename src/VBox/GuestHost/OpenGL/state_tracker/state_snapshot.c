@@ -1,4 +1,4 @@
-/* $Id: state_snapshot.c $ */
+/* $Id: state_snapshot.c 16970 2009-02-20 11:29:03Z vboxsync $ */
 
 /** @file
  * VBox Context state saving/loading used by VM snapshot
@@ -22,6 +22,7 @@
 
 #include "state.h"
 #include "state/cr_statetypes.h"
+#include "state/cr_texture.h"
 #include "cr_mem.h"
 
 #include <iprt/assert.h>
@@ -83,6 +84,28 @@ static int32_t crStateSaveTextureObjData(CRTextureObj *pTexture, PSSMHANDLE pSSM
                 rc = SSMR3PutMem(pSSM, ptl->img, ptl->bytes);
                 AssertRCReturn(rc, rc);
             }
+#ifdef CR_STATE_NO_TEXTURE_IMAGE_STORE
+            /* Note, this is not a bug. 
+             * Even with CR_STATE_NO_TEXTURE_IMAGE_STORE defined, it's possible that ptl->img!=NULL.
+             * For ex. we're saving snapshot right after it was loaded
+             * and some context hasn't been used by the guest application yet
+             * (pContext->texture.bResyncNeeded==GL_TRUE).
+             */
+            else if (ptl->bytes)
+            {
+                char *pImg;
+
+                pImg = crAlloc(ptl->bytes);
+                if (!pImg) return VERR_NO_MEMORY;
+
+                diff_api.BindTexture(pTexture->target, pTexture->name);
+                diff_api.GetTexImage(pTexture->target, i, ptl->format, ptl->type, pImg);
+
+                rc = SSMR3PutMem(pSSM, pImg, ptl->bytes);
+                crFree(pImg);
+                AssertRCReturn(rc, rc);
+            }
+#endif
         }
     }
 
@@ -114,6 +137,17 @@ static int32_t crStateLoadTextureObjData(CRTextureObj *pTexture, PSSMHANDLE pSSM
                 rc = SSMR3GetMem(pSSM, ptl->img, ptl->bytes);
                 AssertRCReturn(rc, rc);
             }
+#ifdef CR_STATE_NO_TEXTURE_IMAGE_STORE
+            /* Same story as in crStateSaveTextureObjData */
+            else if (ptl->bytes)
+            {
+                ptl->img = crAlloc(ptl->bytes);
+                if (!ptl->img) return VERR_NO_MEMORY;
+
+                rc = SSMR3GetMem(pSSM, ptl->img, ptl->bytes);
+                AssertRCReturn(rc, rc);
+            }
+#endif
             crStateTextureInitTextureFormat(ptl, ptl->internalFormat);
 
             //FILLDIRTY(ptl->dirty);
@@ -556,6 +590,26 @@ int32_t crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM)
     AssertRCReturn(rc, rc);
     crHashtableWalk(pContext->shared->textureTable, crStateSaveSharedTextureCB, pSSM);
 
+#ifdef CR_STATE_NO_TEXTURE_IMAGE_STORE
+    /* Restore previous texture bindings via diff_api */
+    if (ui32)
+    {
+        CRTextureUnit *pTexUnit;
+
+        pTexUnit = &pContext->texture.unit[pContext->texture.curTextureUnit];
+
+        diff_api.BindTexture(GL_TEXTURE_1D, pTexUnit->currentTexture1D->name);
+        diff_api.BindTexture(GL_TEXTURE_2D, pTexUnit->currentTexture2D->name);
+        diff_api.BindTexture(GL_TEXTURE_3D, pTexUnit->currentTexture3D->name);
+#ifdef CR_ARB_texture_cube_map
+        diff_api.BindTexture(GL_TEXTURE_CUBE_MAP_ARB, pTexUnit->currentTextureCubeMap->name);
+#endif
+#ifdef CR_NV_texture_rectangle
+        diff_api.BindTexture(GL_TEXTURE_RECTANGLE_NV, pTexUnit->currentTextureRect->name);
+#endif
+    }
+#endif
+
     /* Save current texture pointers */
     for (i=0; i<CR_MAX_TEXTURE_UNITS; ++i)
     {
@@ -907,21 +961,21 @@ int32_t crStateLoadContext(CRContext *pContext, PSSMHANDLE pSSM)
     {
         if (pContext->attrib.enableStack[i].clip)
         {
-            rc = crStateAllocAndSSMR3GetMem(pSSM, &pContext->attrib.enableStack[i].clip,
+            rc = crStateAllocAndSSMR3GetMem(pSSM, (void**)&pContext->attrib.enableStack[i].clip,
                                             pContext->limits.maxClipPlanes*sizeof(GLboolean));
             AssertRCReturn(rc, rc);
         }
 
         if (pContext->attrib.enableStack[i].light)
         {
-            rc = crStateAllocAndSSMR3GetMem(pSSM, &pContext->attrib.enableStack[i].light,
+            rc = crStateAllocAndSSMR3GetMem(pSSM, (void**)&pContext->attrib.enableStack[i].light,
                                             pContext->limits.maxLights*sizeof(GLboolean));
             AssertRCReturn(rc, rc);
         }
 
         if (pContext->attrib.lightingStack[i].light)
         {
-            rc = crStateAllocAndSSMR3GetMem(pSSM, &pContext->attrib.lightingStack[i].light,
+            rc = crStateAllocAndSSMR3GetMem(pSSM, (void**)&pContext->attrib.lightingStack[i].light,
                                             pContext->limits.maxLights*sizeof(CRLight));
             AssertRCReturn(rc, rc);
         }
@@ -934,14 +988,14 @@ int32_t crStateLoadContext(CRContext *pContext, PSSMHANDLE pSSM)
 
         if (pContext->attrib.transformStack[i].clip)
         {
-            rc = crStateAllocAndSSMR3GetMem(pSSM, &pContext->attrib.transformStack[i].clip,
+            rc = crStateAllocAndSSMR3GetMem(pSSM, (void*)&pContext->attrib.transformStack[i].clip,
                                             pContext->limits.maxClipPlanes*sizeof(GLboolean));
             AssertRCReturn(rc, rc);
         }
 
         if (pContext->attrib.transformStack[i].clipPlane)
         {
-            rc = crStateAllocAndSSMR3GetMem(pSSM, &pContext->attrib.transformStack[i].clipPlane,
+            rc = crStateAllocAndSSMR3GetMem(pSSM, (void**)&pContext->attrib.transformStack[i].clipPlane,
                                             pContext->limits.maxClipPlanes*sizeof(GLvectord));
             AssertRCReturn(rc, rc);
         }

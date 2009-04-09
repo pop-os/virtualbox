@@ -26,12 +26,12 @@
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
 
-HRESULT HardDisk2Attachment::FinalConstruct()
+HRESULT HardDiskAttachment::FinalConstruct()
 {
     return S_OK;
 }
 
-void HardDisk2Attachment::FinalRelease()
+void HardDiskAttachment::FinalRelease()
 {
     uninit();
 }
@@ -43,13 +43,13 @@ void HardDisk2Attachment::FinalRelease()
  * Initializes the hard disk attachment object.
  *
  * @param aHD       Hard disk object.
- * @param aBus      Bus type.
- * @param aChannel  Channel number.
- * @param aDevice   Device number on the channel.
- * @param aImplicit Wether the attachment contains an implicitly created diff.
+ * @param aController Controller the hard disk is attached to.
+ * @param aPort       Port number.
+ * @param aDevice     Device number on the port.
+ * @param aImplicit   Wether the attachment contains an implicitly created diff.
  */
-HRESULT HardDisk2Attachment::init (HardDisk2 *aHD, StorageBus_T aBus, LONG aChannel,
-                                   LONG aDevice, bool aImplicit /*= false*/)
+HRESULT HardDiskAttachment::init(HardDisk *aHD, CBSTR aController, LONG aPort,
+                                 LONG aDevice, bool aImplicit /*= false*/)
 {
     AssertReturn (aHD, E_INVALIDARG);
 
@@ -58,8 +58,8 @@ HRESULT HardDisk2Attachment::init (HardDisk2 *aHD, StorageBus_T aBus, LONG aChan
     AssertReturn (autoInitSpan.isOk(), E_FAIL);
 
     m.hardDisk = aHD;
-    unconst (m.bus) = aBus;
-    unconst (m.channel) = aChannel;
+    unconst (m.controller) = aController;
+    unconst (m.port)   = aPort;
     unconst (m.device) = aDevice;
 
     m.implicit = aImplicit;
@@ -74,7 +74,7 @@ HRESULT HardDisk2Attachment::init (HardDisk2 *aHD, StorageBus_T aBus, LONG aChan
  * Uninitializes the instance.
  * Called from FinalRelease().
  */
-void HardDisk2Attachment::uninit()
+void HardDiskAttachment::uninit()
 {
     /* Enclose the state transition Ready->InUninit->NotReady */
     AutoUninitSpan autoUninitSpan (this);
@@ -82,10 +82,10 @@ void HardDisk2Attachment::uninit()
         return;
 }
 
-// IHardDisk2Attachment properties
+// IHardDiskAttachment properties
 /////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP HardDisk2Attachment::COMGETTER(HardDisk) (IHardDisk2 **aHardDisk)
+STDMETHODIMP HardDiskAttachment::COMGETTER(HardDisk) (IHardDisk **aHardDisk)
 {
     CheckComArgOutPointerValid(aHardDisk);
 
@@ -99,33 +99,33 @@ STDMETHODIMP HardDisk2Attachment::COMGETTER(HardDisk) (IHardDisk2 **aHardDisk)
     return S_OK;
 }
 
-STDMETHODIMP HardDisk2Attachment::COMGETTER(Bus) (StorageBus_T *aBus)
+STDMETHODIMP HardDiskAttachment::COMGETTER(Controller) (BSTR *aController)
 {
-    CheckComArgOutPointerValid(aBus);
+    CheckComArgOutPointerValid(aController);
 
     AutoCaller autoCaller (this);
     CheckComRCReturnRC (autoCaller.rc());
 
-    /* m.bus is constant during life time, no need to lock */
-    *aBus = m.bus;
+    /* m.controller is constant during life time, no need to lock */
+    m.controller.cloneTo(aController);
 
     return S_OK;
 }
 
-STDMETHODIMP HardDisk2Attachment::COMGETTER(Channel) (LONG *aChannel)
+STDMETHODIMP HardDiskAttachment::COMGETTER(Port) (LONG *aPort)
 {
-    CheckComArgOutPointerValid(aChannel);
+    CheckComArgOutPointerValid(aPort);
 
     AutoCaller autoCaller (this);
     CheckComRCReturnRC (autoCaller.rc());
 
-    /* m.channel is constant during life time, no need to lock */
-    *aChannel = m.channel;
+    /* m.port is constant during life time, no need to lock */
+    *aPort = m.port;
 
     return S_OK;
 }
 
-STDMETHODIMP HardDisk2Attachment::COMGETTER(Device) (LONG *aDevice)
+STDMETHODIMP HardDiskAttachment::COMGETTER(Device) (LONG *aDevice)
 {
     CheckComArgOutPointerValid(aDevice);
 

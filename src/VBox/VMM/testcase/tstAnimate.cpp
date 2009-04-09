@@ -1,4 +1,4 @@
-/* $Id: tstAnimate.cpp $ */
+/* $Id: tstAnimate.cpp 14831 2008-11-30 10:31:16Z vboxsync $ */
 /** @file
  * VBox Animation Testcase / Tool.
  */

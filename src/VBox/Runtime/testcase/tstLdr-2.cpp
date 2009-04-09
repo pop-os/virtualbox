@@ -1,4 +1,4 @@
-/* $Id: tstLdr-2.cpp $ */
+/* $Id: tstLdr-2.cpp 16933 2009-02-18 23:42:57Z vboxsync $ */
 /** @file
  * IPRT - Testcase for parts of RTLdr*, manual inspection.
  */
@@ -95,7 +95,7 @@ static DECLCALLBACK(int) testGetImport(RTLDRMOD hLdrMod, const char *pszModule, 
 static int testLdrOne(const char *pszFilename)
 {
     RTLDRMOD hLdrMod;
-    int rc = RTLdrOpen(pszFilename, &hLdrMod);
+    int rc = RTLdrOpen(pszFilename, 0, RTLDRARCH_WHATEVER, &hLdrMod);
     if (RT_FAILURE(rc))
     {
         RTPrintf("tstLdr: Failed to open '%s', rc=%Rrc. aborting test.\n", pszFilename, rc);

@@ -1,9 +1,9 @@
 #!/bin/sh
 #
-# Sun xVM VirtualBox
+# Sun VirtualBox
 # Linux Additions timesync daemon init script
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2009 Sun Microsystems, Inc.
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -18,7 +18,7 @@
 # additional information or have any questions.
 #
 
-# chkconfig: 35 35 56
+# chkconfig: 35 35 65
 # description: VirtualBox Additions timesync
 #
 ### BEGIN INIT INFO
@@ -51,6 +51,9 @@ elif [ -f /etc/arch-release ]; then
 elif [ -f /etc/slackware-version ]; then
     system=slackware
     PIDFILE="/var/run/vboxadd-timesync"
+elif [ -f /etc/lfs-release ]; then
+    system=lfs
+    PIDFILE="/var/run/vboxadd-timesync.pid"
 else
     system=other
     if [ -d /var/run -a -w /var/run ]; then
@@ -150,7 +153,7 @@ if [ "$system" = "arch" ]; then
     . /etc/rc.d/functions
     daemon() {
         $@
-        test $? -eq 0 && add_daemon `basename $1`
+        test $? -eq 0 && add_daemon rc.`basename $1`
     }
 
     killproc() {
@@ -165,8 +168,13 @@ if [ "$system" = "arch" ]; then
     succ_msg() {
         stat_done
     }
+
+    begin() {
+        stat_busy "$1"
+    }
+
 fi
- 
+
 if [ "$system" = "slackware" ]; then
     daemon() {
         $1 $2
@@ -185,15 +193,33 @@ if [ "$system" = "slackware" ]; then
         echo " ...done."
     }
 
-    status() {
-        echo -n "Checking for vboxadd-timesync"
-        if [ -f /var/run/$1 ]; then
-            echo " ...running"
-        else
-            echo " ...not running"
-        fi
+    begin() {
+        echo -n "$1"
     }
 
+fi
+
+if [ "$system" = "lfs" ]; then
+    . /etc/rc.d/init.d/functions
+    daemon() {
+        loadproc $1 $2
+    }
+
+    fail_msg() {
+        echo_failure
+    }
+
+    succ_msg() {
+        echo_ok
+    }
+
+    begin() {
+        echo $1
+    }
+
+    status() {
+        statusproc $1
+    }
 fi
 
 if [ "$system" = "other" ]; then
@@ -230,7 +256,7 @@ start() {
         }
         daemon $binary --daemonize
         RETVAL=$?
-        test $RETVAL -eq 0 && touch $PIDFILE
+        test $RETVAL -eq 0 && echo `pidof vboxadd-timesync` > $PIDFILE
         succ_msg
     fi
     return $RETVAL
@@ -255,9 +281,14 @@ restart() {
     stop && start
 }
 
-dmnstatus() {
-    status vboxadd-timesync
-}
+    status() {
+        echo -n "Checking for vboxadd-timesync"
+        if [ -f $PIDFILE ]; then
+            echo " ...running"
+        else
+            echo " ...not running"
+        fi
+    }
 
 case "$1" in
 start)
@@ -270,7 +301,7 @@ restart)
     restart
     ;;
 status)
-    dmnstatus
+    status
     ;;
 *)
     echo "Usage: $0 {start|stop|restart|status}"

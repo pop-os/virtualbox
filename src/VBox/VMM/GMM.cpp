@@ -1,4 +1,4 @@
-/* $Id: GMM.cpp $ */
+/* $Id: GMM.cpp 18204 2009-03-24 16:41:23Z vboxsync $ */
 /** @file
  * GMM - Global Memory Manager, ring-3 request wrappers.
  */
@@ -50,7 +50,7 @@ GMMR3DECL(int)  GMMR3InitialReservation(PVM pVM, uint64_t cBasePages, uint32_t c
     Req.cFixedPages = cFixedPages;
     Req.enmPolicy = enmPolicy;
     Req.enmPriority = enmPriority;
-    return SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_GMM_INITIAL_RESERVATION, 0, &Req.Hdr);
+    return VMMR3CallR0(pVM, VMMR0_DO_GMM_INITIAL_RESERVATION, 0, &Req.Hdr);
 }
 
 
@@ -65,7 +65,7 @@ GMMR3DECL(int)  GMMR3UpdateReservation(PVM pVM, uint64_t cBasePages, uint32_t cS
     Req.cBasePages = cBasePages;
     Req.cShadowPages = cShadowPages;
     Req.cFixedPages = cFixedPages;
-    return SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_GMM_UPDATE_RESERVATION, 0, &Req.Hdr);
+    return VMMR3CallR0(pVM, VMMR0_DO_GMM_UPDATE_RESERVATION, 0, &Req.Hdr);
 }
 
 
@@ -90,6 +90,7 @@ GMMR3DECL(int) GMMR3AllocatePagesPrepare(PVM pVM, PGMMALLOCATEPAGESREQ *ppReq, u
     pReq->enmAccount = enmAccount;
     pReq->cPages = cPages;
     NOREF(pVM);
+    *ppReq = pReq;
     return VINF_SUCCESS;
 }
 
@@ -106,9 +107,16 @@ GMMR3DECL(int) GMMR3AllocatePagesPerform(PVM pVM, PGMMALLOCATEPAGESREQ pReq)
 {
     for (unsigned i = 0; ; i++)
     {
-        int rc = SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_GMM_ALLOCATE_PAGES, 0, &pReq->Hdr);
+        int rc = VMMR3CallR0(pVM, VMMR0_DO_GMM_ALLOCATE_PAGES, 0, &pReq->Hdr);
         if (RT_SUCCESS(rc))
+        {
+#ifdef LOG_ENABLED
+            for (uint32_t iPage = 0; iPage < pReq->cPages; iPage++)
+                Log3(("GMMR3AllocatePagesPerform: idPage=%#x HCPhys=%RHp\n",
+                      pReq->aPages[iPage].idPage, pReq->aPages[iPage].HCPhysGCPhys));
+#endif
             return rc;
+        }
         if (rc != VERR_GMM_SEED_ME)
             return VMSetError(pVM, rc, RT_SRC_POS,
                               N_("GMMR0AllocatePages failed to allocate %u pages"),
@@ -125,7 +133,7 @@ GMMR3DECL(int) GMMR3AllocatePagesPerform(PVM pVM, PGMMALLOCATEPAGESREQ pReq)
                               N_("Out of memory (SUPPageAlloc) seeding a %u pages allocation request"),
                               pReq->cPages);
 
-        rc = SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_GMM_SEED_CHUNK, (uintptr_t)pvChunk, NULL);
+        rc = VMMR3CallR0(pVM, VMMR0_DO_GMM_SEED_CHUNK, (uintptr_t)pvChunk, NULL);
         if (RT_FAILURE(rc))
             return VMSetError(pVM, rc, RT_SRC_POS, N_("GMM seeding failed"));
     }
@@ -158,12 +166,34 @@ GMMR3DECL(int) GMMR3FreePagesPrepare(PVM pVM, PGMMFREEPAGESREQ *ppReq, uint32_t 
     if (!pReq)
         return VERR_NO_TMP_MEMORY;
 
-    pReq->Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-    pReq->Hdr.cbReq = cb;
-    pReq->enmAccount = enmAccount;
-    pReq->cPages = cPages;
+    pReq->Hdr.u32Magic  = SUPVMMR0REQHDR_MAGIC;
+    pReq->Hdr.cbReq     = cb;
+    pReq->enmAccount    = enmAccount;
+    pReq->cPages        = cPages;
     NOREF(pVM);
+    *ppReq = pReq;
     return VINF_SUCCESS;
+}
+
+
+/**
+ * Re-prepares a GMMR0FreePages request.
+ *
+ * @returns VINF_SUCCESS or VERR_NO_TMP_MEMORY.
+ * @param       pVM         Pointer to the shared VM structure.
+ * @param       pReq        A request buffer previously returned by
+ *                          GMMR3FreePagesPrepare().
+ * @param       cPages      The number of pages originally passed to
+ *                          GMMR3FreePagesPrepare().
+ * @param       enmAccount  The account to charge.
+ */
+GMMR3DECL(void) GMMR3FreePagesRePrep(PVM pVM, PGMMFREEPAGESREQ pReq, uint32_t cPages, GMMACCOUNT enmAccount)
+{
+    Assert(pReq->Hdr.u32Magic == SUPVMMR0REQHDR_MAGIC);
+    pReq->Hdr.cbReq     = RT_OFFSETOF(GMMFREEPAGESREQ, aPages[cPages]);
+    pReq->enmAccount    = enmAccount;
+    pReq->cPages        = cPages;
+    NOREF(pVM);
 }
 
 
@@ -172,12 +202,28 @@ GMMR3DECL(int) GMMR3FreePagesPrepare(PVM pVM, PGMMFREEPAGESREQ *ppReq, uint32_t 
  * This will call VMSetError on failure.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the shared VM structure.
- * @param   pReq        Pointer to the request (returned by GMMR3FreePagesPrepare).
+ * @param   pVM             Pointer to the shared VM structure.
+ * @param   pReq            Pointer to the request (returned by GMMR3FreePagesPrepare).
+ * @param   cActualPages    The number of pages actually freed.
  */
-GMMR3DECL(int) GMMR3FreePagesPerform(PVM pVM, PGMMFREEPAGESREQ pReq)
+GMMR3DECL(int) GMMR3FreePagesPerform(PVM pVM, PGMMFREEPAGESREQ pReq, uint32_t cActualPages)
 {
-    int rc = SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_GMM_FREE_PAGES, 0, &pReq->Hdr);
+    /*
+     * Adjust the request if we ended up with fewer pages than anticipated.
+     */
+    if (cActualPages != pReq->cPages)
+    {
+        AssertReturn(cActualPages < pReq->cPages, VERR_INTERNAL_ERROR);
+        if (!cActualPages)
+            return VINF_SUCCESS;
+        pReq->cPages = cActualPages;
+        pReq->Hdr.cbReq = RT_OFFSETOF(GMMFREEPAGESREQ, aPages[cActualPages]);
+    }
+
+    /*
+     * Do the job.
+     */
+    int rc = VMMR3CallR0(pVM, VMMR0_DO_GMM_FREE_PAGES, 0, &pReq->Hdr);
     if (RT_SUCCESS(rc))
         return rc;
     AssertRC(rc);
@@ -222,7 +268,7 @@ GMMR3DECL(void) GMMR3FreeAllocatedPages(PVM pVM, GMMALLOCATEPAGESREQ const *pAll
         pReq->aPages[iPage].idPage = pAllocReq->aPages[iPage].idPage;
     }
 
-    int rc = SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_GMM_FREE_PAGES, 0, &pReq->Hdr);
+    int rc = VMMR3CallR0(pVM, VMMR0_DO_GMM_FREE_PAGES, 0, &pReq->Hdr);
     AssertLogRelRC(rc);
 
     RTMemTmpFree(pReq);
@@ -236,7 +282,7 @@ GMMR3DECL(int)  GMMR3BalloonedPages(PVM pVM, uint32_t cBalloonedPages, uint32_t 
     Req.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
     Req.Hdr.cbReq = sizeof(Req);
 
-    return SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_GMM_BALLOONED_PAGES, 0, &Req.Hdr);
+    return VMMR3CallR0(pVM, VMMR0_DO_GMM_BALLOONED_PAGES, 0, &Req.Hdr);
 }
 #endif
 
@@ -246,7 +292,7 @@ GMMR3DECL(int)  GMMR3BalloonedPages(PVM pVM, uint32_t cBalloonedPages, uint32_t 
  */
 GMMR3DECL(int)  GMMR3DeflatedBalloon(PVM pVM, uint32_t cPages)
 {
-    return SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_GMM_DEFLATED_BALLOON, cPages, NULL);
+    return VMMR3CallR0(pVM, VMMR0_DO_GMM_DEFLATED_BALLOON, cPages, NULL);
 }
 
 
@@ -261,7 +307,7 @@ GMMR3DECL(int)  GMMR3MapUnmapChunk(PVM pVM, uint32_t idChunkMap, uint32_t idChun
     Req.idChunkMap = idChunkMap;
     Req.idChunkUnmap = idChunkUnmap;
     Req.pvR3 = NULL;
-    int rc = SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_GMM_MAP_UNMAP_CHUNK, 0, &Req.Hdr);
+    int rc = VMMR3CallR0(pVM, VMMR0_DO_GMM_MAP_UNMAP_CHUNK, 0, &Req.Hdr);
     if (RT_SUCCESS(rc) && ppvR3)
         *ppvR3 = Req.pvR3;
     return rc;
@@ -273,6 +319,6 @@ GMMR3DECL(int)  GMMR3MapUnmapChunk(PVM pVM, uint32_t idChunkMap, uint32_t idChun
  */
 GMMR3DECL(int)  GMMR3SeedChunk(PVM pVM, RTR3PTR pvR3)
 {
-    return SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_GMM_SEED_CHUNK, (uintptr_t)pvR3, NULL);
+    return VMMR3CallR0(pVM, VMMR0_DO_GMM_SEED_CHUNK, (uintptr_t)pvR3, NULL);
 }
 

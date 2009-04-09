@@ -1,4 +1,4 @@
-/* $Id: kAvlGet.h 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kAvlGet.h 7 2008-02-04 02:08:02Z bird $ */
 /** @file
  * kAvlTmpl - Templated AVL Trees, Get a Node.
  */
@@ -35,32 +35,59 @@
 /**
  * Gets a node from the tree (does not remove it!)
  *
- * @returns   Pointer to the node holding the given key.
- * @param     ppTree  Pointer to the AVL-tree root node pointer.
- * @param     Key     Key value of the node which is to be found.
+ * @returns Pointer to the node holding the given key.
+ * @param   pRoot       Pointer to the AVL-tree root structure.
+ * @param   Key         Key value of the node which is to be found.
  */
-KAVL_DECL(KAVLNODE *) KAVL_FN(Get)(KAVLTREEPTR *ppTree, KAVLKEY Key)
+KAVL_DECL(KAVLNODE *) KAVL_FN(Get)(KAVLROOT *pRoot, KAVLKEY Key)
 {
     KAVLNODE *pNode;
-    if (*ppTree == KAVL_NULL)
-        return NULL;
+#ifdef KAVL_LOOKTHRU_CACHE
+    KAVLTREEPTR *ppEntry;
+#endif
 
-    pNode = KAVL_GET_POINTER(ppTree);
-    while (KAVL_NE(pNode->mKey, Key))
+    KAVL_READ_LOCK(pRoot);
+    if (pRoot->mpRoot == KAVL_NULL)
     {
-        if (KAVL_G(pNode->mKey, Key))
-        {
-            if (pNode->mpLeft == KAVL_NULL)
-                return NULL;
-            pNode = KAVL_GET_POINTER(&pNode->mpLeft);
-        }
-        else
-        {
-            if (pNode->mpRight == KAVL_NULL)
-                return NULL;
-            pNode = KAVL_GET_POINTER(&pNode->mpRight);
-        }
+        KAVL_READ_UNLOCK(pRoot);
+        return NULL;
     }
+
+#ifdef KAVL_LOOKTHRU_CACHE
+    ppEntry = &pRoot->maLookthru[KAVL_LOOKTHRU_HASH(Key)];
+    pNode = KAVL_GET_POINTER_NULL(ppEntry);
+    if (!pNode || KAVL_NE(pNode->mKey, Key))
+#endif
+    {
+        pNode = KAVL_GET_POINTER(&pRoot->mpRoot);
+        while (KAVL_NE(pNode->mKey, Key))
+        {
+            if (KAVL_G(pNode->mKey, Key))
+            {
+                if (pNode->mpLeft == KAVL_NULL)
+                {
+                    KAVL_READ_UNLOCK(pRoot);
+                    return NULL;
+                }
+                pNode = KAVL_GET_POINTER(&pNode->mpLeft);
+            }
+            else
+            {
+                if (pNode->mpRight == KAVL_NULL)
+                {
+                    KAVL_READ_UNLOCK(pRoot);
+                    return NULL;
+                }
+                pNode = KAVL_GET_POINTER(&pNode->mpRight);
+            }
+        }
+    
+#ifdef KAVL_LOOKTHRU_CACHE
+        KAVL_SET_POINTER(ppEntry, pNode);
+#endif
+    }
+
+    KAVL_READ_UNLOCK(pRoot);
     return pNode;
 }
 

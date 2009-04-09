@@ -20,20 +20,17 @@
  * additional information or have any questions.
  */
 
-#ifndef __VBoxConsoleView_h__
-#define __VBoxConsoleView_h__
+#ifndef ___VBoxConsoleView_h___
+#define ___VBoxConsoleView_h___
 
 #include "COMDefs.h"
 
 #include "VBoxDefs.h"
 #include "VBoxGlobalSettings.h"
 
-#include <qdatetime.h>
-#include <qscrollview.h>
-#include <qpixmap.h>
-#include <qimage.h>
-
-#include <qkeysequence.h>
+/* Qt includes */
+#include <QAbstractScrollArea>
+#include <QScrollBar>
 
 #if defined (Q_WS_PM)
 #include "src/os2/VBoxHlp.h"
@@ -41,19 +38,19 @@
 #endif
 
 #if defined (Q_WS_MAC)
-# include <Carbon/Carbon.h>
-# include "DarwinCursor.h"
+# include <ApplicationServices/ApplicationServices.h>
 #endif
 
 class VBoxConsoleWnd;
 class MousePointerChangeEvent;
 class VBoxFrameBuffer;
+class VBoxDockIconPreview;
 
 class QPainter;
 class QLabel;
 class QMenuData;
 
-class VBoxConsoleView : public QScrollView
+class VBoxConsoleView : public QAbstractScrollArea
 {
     Q_OBJECT
 
@@ -71,7 +68,7 @@ public:
     VBoxConsoleView (VBoxConsoleWnd *mainWnd,
                      const CConsole &console,
                      VBoxDefs::RenderMode rm,
-                     QWidget *parent = 0, const char *name = 0, WFlags f = 0);
+                     QWidget *parent = 0);
     ~VBoxConsoleView();
 
     QSize sizeHint() const;
@@ -84,6 +81,8 @@ public:
     CConsole &console() { return mConsole; }
 
     bool pause (bool on);
+    bool isPaused() { return mLastState == KMachineState_Paused; }
+    const QPixmap& pauseShot() const { return mPausedShot; }
 
     void setMouseIntegrationEnabled (bool enabled);
 
@@ -105,6 +104,35 @@ public:
 
     bool isAutoresizeGuestActive();
 
+    /* todo: This are some support functions for the qt4 port. Maybe we get rid
+     * of them some day. */
+    int contentsX() const { return horizontalScrollBar()->value(); }
+    int contentsY() const { return verticalScrollBar()->value(); }
+    int contentsWidth() const;
+    int contentsHeight() const;
+    int visibleWidth() const { return horizontalScrollBar()->pageStep(); }
+    int visibleHeight() const { return verticalScrollBar()->pageStep(); }
+    void scrollBy (int dx, int dy)
+    {
+        horizontalScrollBar()->setValue (horizontalScrollBar()->value() + dx);
+        verticalScrollBar()->setValue (verticalScrollBar()->value() + dy);
+    }
+    QPoint viewportToContents ( const QPoint & vp ) const
+    {
+        return QPoint (vp.x() + contentsX(),
+                       vp.y() + contentsY());
+    }
+    void updateSliders();
+
+    void requestToResize (const QSize &aSize);
+
+#if defined(Q_WS_MAC)
+    void updateDockIcon();
+    void updateDockOverlay();
+    void setDockIconEnabled (bool aOn) { mDockIconEnabled = aOn; };
+    void setMouseCoalescingEnabled (bool aOn);
+#endif
+
 signals:
 
     void keyboardStateChanged (int state);
@@ -125,13 +153,13 @@ protected:
 
 #if defined(Q_WS_WIN32)
     bool winLowKeyboardEvent (UINT msg, const KBDLLHOOKSTRUCT &event);
-    bool winEvent (MSG *msg);
+    bool winEvent (MSG *aMsg, long *aResult);
 #elif defined(Q_WS_PM)
     bool pmEvent (QMSG *aMsg);
 #elif defined(Q_WS_X11)
     bool x11Event (XEvent *event);
 #elif defined(Q_WS_MAC)
-    bool darwinKeyboardEvent (EventRef inEvent);
+    bool darwinKeyboardEvent (const void *pvCocoaEvent, EventRef inEvent);
     void darwinGrabKeyboardEvents (bool fGrab);
 #endif
 
@@ -149,9 +177,8 @@ private:
     bool keyEvent (int aKey, uint8_t aScan, int aFlags,
                    wchar_t *aUniKey = NULL);
     bool mouseEvent (int aType, const QPoint &aPos, const QPoint &aGlobalPos,
-                     ButtonState aButton,
-                     ButtonState aState, ButtonState aStateAfter,
-                     int aWheelDelta, Orientation aWheelDir);
+                     Qt::MouseButtons aButtons, Qt::KeyboardModifiers aModifiers,
+                     int aWheelDelta, Qt::Orientation aWheelDir);
 
     void emitKeyboardStateChanged()
     {
@@ -171,12 +198,14 @@ private:
 
     void doRefresh();
 
-    void viewportPaintEvent( QPaintEvent * );
+    void resizeEvent (QResizeEvent *);
+    void moveEvent (QMoveEvent *);
+    void paintEvent (QPaintEvent *);
 
     void captureKbd (bool aCapture, bool aEmitSignal = true);
     void captureMouse (bool aCapture, bool aEmitSignal = true);
 
-    bool processHotKey (const QKeySequence &key, QMenuData *data);
+    bool processHotKey (const QKeySequence &key, const QList<QAction*>& data);
     void updateModifiers (bool fNumLock, bool fCapsLock, bool fScrollLock);
 
     void releaseAllPressedKeys (bool aReleaseHostKey = true);
@@ -186,7 +215,6 @@ private:
 
     void setPointerShape (MousePointerChangeEvent *me);
 
-    bool isPaused() { return mLastState == KMachineState_Paused; }
     bool isRunning() { return mLastState == KMachineState_Running; }
 
     static void dimImage (QImage &img);
@@ -225,7 +253,7 @@ private:
     QPoint mLastPos;
     QPoint mCapturedPos;
 
-	bool mDisableAutoCapture : 1;
+    bool mDisableAutoCapture : 1;
 
     enum { IsKeyPressed = 0x01, IsExtKeyPressed = 0x02, IsKbdCaptured = 0x80 };
     uint8_t mPressedKeys [128];
@@ -239,6 +267,7 @@ private:
 
     bool mIgnoreMainwndResize : 1;
     bool mAutoresizeGuest : 1;
+    bool mIgnoreFrameBufferResize : 1;
 
     /**
      * This flag indicates whether the last console resize should trigger
@@ -255,7 +284,6 @@ private:
     long muNumLockAdaptionCnt;
     long muCapsLockAdaptionCnt;
 
-    QTimer *resize_hint_timer;
 
     VBoxDefs::RenderMode mode;
 
@@ -267,15 +295,14 @@ private:
 #endif
 
 #if defined(Q_WS_MAC)
-# ifndef VBOX_WITH_HACKED_QT
+# if !defined (VBOX_WITH_HACKED_QT) && !defined (QT_MAC_USE_COCOA)
     /** Event handler reference. NULL if the handler isn't installed. */
     EventHandlerRef mDarwinEventHandlerRef;
 # endif
     /** The current modifier key mask. Used to figure out which modifier
      *  key was pressed when we get a kEventRawKeyModifiersChanged event. */
     UInt32 mDarwinKeyModifiers;
-    /** The darwin cursor handle (see DarwinCursor.h/.cpp). */
-    DARWINCURSOR mDarwinCursor;
+    bool mKeyboardGrabbed;
 #endif
 
     VBoxFrameBuffer *mFrameBuf;
@@ -287,7 +314,10 @@ private:
     static LRESULT CALLBACK lowLevelKeyboardProc (int nCode,
                                                   WPARAM wParam, LPARAM lParam);
 #elif defined (Q_WS_MAC)
-# ifndef VBOX_WITH_HACKED_QT
+# if defined (QT_MAC_USE_COCOA)
+    static bool darwinEventHandlerProc (const void *pvCocoaEvent, const
+                                        void *pvCarbonEvent, void *pvUser);
+# elif !defined (VBOX_WITH_HACKED_QT)
     static pascal OSStatus darwinEventHandlerProc (EventHandlerCallRef inHandlerCallRef,
                                                    EventRef inEvent, void *inUserData);
 # else  /* VBOX_WITH_HACKED_QT */
@@ -297,12 +327,18 @@ private:
 
     QPixmap mPausedShot;
 #if defined(Q_WS_MAC)
-    CGImageRef mVirtualBoxLogo;
+# if !defined (QT_MAC_USE_COCOA)
+    EventHandlerRef mDarwinWindowOverlayHandlerRef;
+# endif
+    VBoxDockIconPreview *mDockIconPreview;
+    bool mDockIconEnabled;
 #endif
     DesktopGeo mDesktopGeo;
     QRect mDesktopGeometry;
     QRect mLastSizeHint;
+    bool mPassCAD;
+    bool mHideHostPointer;
 };
 
-#endif // __VBoxConsoleView_h__
+#endif // !___VBoxConsoleView_h___
 

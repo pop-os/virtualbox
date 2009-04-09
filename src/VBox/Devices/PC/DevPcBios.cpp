@@ -1,4 +1,4 @@
-/* $Id: DevPcBios.cpp $ */
+/* $Id: DevPcBios.cpp 18663 2009-04-02 19:08:14Z vboxsync $ */
 /** @file
  * PC BIOS Device.
  */
@@ -25,6 +25,7 @@
 #define LOG_GROUP LOG_GROUP_DEV_PC_BIOS
 #include <VBox/pdmdev.h>
 #include <VBox/mm.h>
+#include <VBox/pgm.h>
 
 #include <VBox/log.h>
 #include <iprt/assert.h>
@@ -54,7 +55,7 @@
          0x18
          0x30
          0x31
-    Amount of memory above 16M:
+    Amount of memory above 16M and below 4GB in 64KB units:
          0x34
          0x35
     Boot device (BOCHS bios specific):
@@ -89,8 +90,8 @@
          0x58 - 0x5f
     Number of CPUs:
          0x60
-    RAM above 4G (in 64M units):
-         0x61 - 0x63
+    RAM above 4G in 64KB units:
+         0x61 - 0x65
 @endverbatim
  *
  * @todo Mark which bits are compatible with which BIOSes and
@@ -136,8 +137,10 @@ typedef struct DEVPCBIOS
 
     /** Boot devices (ordered). */
     DEVPCBIOSBOOT   aenmBootDevice[4];
-    /** Ram Size (in bytes). */
+    /** RAM size (in bytes). */
     uint64_t        cbRam;
+    /** RAM hole size (in bytes). */
+    uint32_t        cbRamHole;
     /** Bochs shutdown index. */
     uint32_t        iShutdown;
     /** Floppy device. */
@@ -162,6 +165,8 @@ typedef struct DEVPCBIOS
     uint8_t        *pu8LanBoot;
     /** The name of the LAN boot ROM file. */
     char           *pszLanBootFile;
+    /** The size of the LAN boot ROM. */
+    uint64_t        cbLanBoot;
     /** The DMI tables. */
     uint8_t        au8DMIPage[0x1000];
     /** The boot countdown (in seconds). */
@@ -404,7 +409,6 @@ static int setLogicalDiskGeometry(PPDMIBASE pBase, PPDMIBLOCKBIOS pHardDisk, PPD
     rc = pHardDisk->pfnGetLCHSGeometry(pHardDisk, &LCHSGeometry);
     if (   rc == VERR_PDM_GEOMETRY_NOT_SET
         || LCHSGeometry.cCylinders == 0
-        || LCHSGeometry.cCylinders > 1024
         || LCHSGeometry.cHeads == 0
         || LCHSGeometry.cHeads > 255
         || LCHSGeometry.cSectors == 0
@@ -523,51 +527,6 @@ static DECLCALLBACK(int) pcbiosInitComplete(PPDMDEVINS pDevIns)
     /*
      * Memory sizes.
      */
-#ifdef VBOX_WITH_MORE_THAN_4GB
-    uint64_t cKBRam = pThis->cbRam / _1K;
-    uint64_t cKBAbove4GB = 0;
-    uint32_t cKBBelow4GB = cKBRam;
-    AssertRelease(cKBBelow4GB == cKBRam);
-    if (cKBRam > UINT32_C(0xe0000000)) /** @todo this limit must be picked up from CFGM and coordinated with MM/PGM! */
-    {
-        cKBAbove4GB = cKBRam - UINT32_C(0xe0000000);
-        cKBBelow4GB = UINT32_C(0xe0000000);
-    }
-    else
-    {
-        cKBAbove4GB = 0;
-        cKBBelow4GB = cKBRam;
-    }
-
-    /* base memory. */
-    u32 = cKBBelow4GB > 640 ? 640 : cKBBelow4GB;
-    pcbiosCmosWrite(pDevIns, 0x15, u32 & 0xff);                                 /* 15h - Base Memory in K, Low Byte */
-    pcbiosCmosWrite(pDevIns, 0x16, u32 >> 8);                                   /* 16h - Base Memory in K, High Byte */
-
-    /* Extended memory, up to 65MB */
-    u32 = cKBBelow4GB >= 65 * _1K ? 0xffff : (cKBBelow4GB - _1K);
-    pcbiosCmosWrite(pDevIns, 0x17, u32 & 0xff);                                 /* 17h - Extended Memory in K, Low Byte */
-    pcbiosCmosWrite(pDevIns, 0x18, u32 >> 8);                                   /* 18h - Extended Memory in K, High Byte */
-    pcbiosCmosWrite(pDevIns, 0x30, u32 & 0xff);                                 /* 30h - Extended Memory in K, Low Byte */
-    pcbiosCmosWrite(pDevIns, 0x31, u32 >> 8);                                   /* 31h - Extended Memory in K, High Byte */
-
-    /* Bochs BIOS specific? Anyway, it's the amount of memory above 16MB */
-    if (cKBBelow4GB > 16 * _1K)
-    {
-        u32 = (uint32_t)( (cKBBelow4GB - 16 * _1K) / 64 );
-        u32 = RT_MIN(u32, 0xffff);
-    }
-    else
-        u32 = 0;
-    pcbiosCmosWrite(pDevIns, 0x34, u32 & 0xff);
-    pcbiosCmosWrite(pDevIns, 0x35, u32 >> 8);
-
-    /* RAM above 4G, in 64MB units (needs discussing, see comments and @todos elsewhere). */
-    pcbiosCmosWrite(pDevIns, 0x61, cKBAbove4GB >> 16);
-    pcbiosCmosWrite(pDevIns, 0x62, cKBAbove4GB >> 24);
-    pcbiosCmosWrite(pDevIns, 0x63, cKBAbove4GB >> 32);
-
-#else  /* old code. */
     /* base memory. */
     u32 = pThis->cbRam > 640 ? 640 : (uint32_t)pThis->cbRam / _1K; /* <-- this test is wrong, but it doesn't matter since we never assign less than 1MB */
     pcbiosCmosWrite(pDevIns, 0x15, u32 & 0xff);                                 /* 15h - Base Memory in K, Low Byte */
@@ -580,17 +539,36 @@ static DECLCALLBACK(int) pcbiosInitComplete(PPDMDEVINS pDevIns)
     pcbiosCmosWrite(pDevIns, 0x30, u32 & 0xff);                                 /* 30h - Extended Memory in K, Low Byte */
     pcbiosCmosWrite(pDevIns, 0x31, u32 >> 8);                                   /* 31h - Extended Memory in K, High Byte */
 
-    /* Bochs BIOS specific? Anyway, it's the amount of memory above 16MB */
+    /* Bochs BIOS specific? Anyway, it's the amount of memory above 16MB
+       and below 4GB (as it can only hold 4GB+16M). We have to chop off the
+       top 2MB or it conflict with what the ACPI tables return. (Should these
+       be adjusted, we still have to chop it at 0xfffc0000 or it'll conflict
+       with the high BIOS mapping.) */
+    uint64_t const offRamHole = _4G - pThis->cbRamHole;
     if (pThis->cbRam > 16 * _1M)
-    {
-        u32 = (uint32_t)( (pThis->cbRam - 16 * _1M) / _64K );
-        u32 = RT_MIN(u32, 0xffff);
-    }
+        u32 = (uint32_t)( (RT_MIN(RT_MIN(pThis->cbRam, offRamHole), UINT32_C(0xffe00000)) - 16U * _1M) / _64K );
     else
         u32 = 0;
     pcbiosCmosWrite(pDevIns, 0x34, u32 & 0xff);
     pcbiosCmosWrite(pDevIns, 0x35, u32 >> 8);
-#endif /* old code */
+
+    /* Bochs/VBox BIOS specific way of specifying memory above 4GB in 64KB units.
+       Bochs got these in a different location which we've already used for SATA,
+       it also lacks the last two. */
+    uint64_t c64KBAbove4GB;
+    if (pThis->cbRam <= offRamHole)
+        c64KBAbove4GB = 0;
+    else
+    {
+        c64KBAbove4GB = (pThis->cbRam - offRamHole) / _64K;
+        /* Make sure it doesn't hit the limits of the current BIOS code.   */
+        AssertLogRelMsgReturn((c64KBAbove4GB >> (3 * 8)) < 255, ("%#RX64\n", c64KBAbove4GB), VERR_OUT_OF_RANGE);
+    }
+    pcbiosCmosWrite(pDevIns, 0x61,  c64KBAbove4GB        & 0xff);
+    pcbiosCmosWrite(pDevIns, 0x62, (c64KBAbove4GB >>  8) & 0xff);
+    pcbiosCmosWrite(pDevIns, 0x63, (c64KBAbove4GB >> 16) & 0xff);
+    pcbiosCmosWrite(pDevIns, 0x64, (c64KBAbove4GB >> 24) & 0xff);
+    pcbiosCmosWrite(pDevIns, 0x65, (c64KBAbove4GB >> 32) & 0xff);
 
     /*
      * Number of CPUs.
@@ -1244,6 +1222,40 @@ static DECLCALLBACK(void) pcbiosReset(PPDMDEVINS pDevIns)
 
     if (pThis->u8IOAPIC)
         pcbiosPlantMPStable(pDevIns, pThis->au8DMIPage + VBOX_DMI_TABLE_SIZE, pThis->cCpus);
+
+    /*
+     * Re-shadow the LAN ROM image and make it RAM/RAM.
+     *
+     * This is normally done by the BIOS code, but since we're currently lacking
+     * the chipset support for this we do it here (and in the constructor).
+     */
+    uint32_t    cPages = RT_ALIGN_64(pThis->cbLanBoot, PAGE_SIZE) >> PAGE_SHIFT;
+    RTGCPHYS    GCPhys = VBOX_LANBOOT_SEG << 4;
+    while (cPages > 0)
+    {
+        uint8_t abPage[PAGE_SIZE];
+        int     rc;
+
+        /* Read the (original) ROM page and write it back to the RAM page. */
+        rc = PDMDevHlpROMProtectShadow(pDevIns, GCPhys, PAGE_SIZE, PGMROMPROT_READ_ROM_WRITE_RAM);
+        AssertLogRelRC(rc);
+
+        rc = PDMDevHlpPhysRead(pDevIns, GCPhys, abPage, PAGE_SIZE);
+        AssertLogRelRC(rc);
+        if (RT_FAILURE(rc))
+            memset(abPage, 0xcc, sizeof(abPage));
+
+        rc = PDMDevHlpPhysWrite(pDevIns, GCPhys, abPage, PAGE_SIZE);
+        AssertLogRelRC(rc);
+
+        /* Switch to the RAM/RAM mode. */
+        rc = PDMDevHlpROMProtectShadow(pDevIns, GCPhys, PAGE_SIZE, PGMROMPROT_READ_RAM_WRITE_RAM);
+        AssertLogRelRC(rc);
+
+        /* Advance */
+        GCPhys += PAGE_SIZE;
+        cPages--;
+    }
 }
 
 
@@ -1359,6 +1371,7 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
                               "BootDevice2\0"
                               "BootDevice3\0"
                               "RamSize\0"
+                              "RamHoleSize\0"
                               "HardDiskDevice\0"
                               "SataHardDiskDevice\0"
                               "SataPrimaryMasterLUN\0"
@@ -1397,15 +1410,20 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"RamSize\" as integer failed"));
 
+    rc = CFGMR3QueryU32Def(pCfgHandle, "RamHoleSize", &pThis->cbRamHole, MM_RAM_HOLE_SIZE_DEFAULT);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Querying \"RamHoleSize\" as integer failed"));
+
     rc = CFGMR3QueryU16Def(pCfgHandle, "NumCPUs", &pThis->cCpus, 1);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"NumCPUs\" as integer failed"));
 
 #ifdef VBOX_WITH_SMP_GUESTS
-    LogRel(("[SMP] BIOS with %d CPUs\n", pThis->cCpus));
+    LogRel(("[SMP] BIOS with %u CPUs\n", pThis->cCpus));
 #else
-    /* @todo: move this check up in configuration chain */
+    /** @todo: move this check up in configuration chain */
     if (pThis->cCpus != 1)
     {
         LogRel(("WARNING: guest SMP not supported in this build, going UP\n"));
@@ -1491,7 +1509,8 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
     if (pThis->u8IOAPIC)
         pcbiosPlantMPStable(pDevIns, pThis->au8DMIPage + VBOX_DMI_TABLE_SIZE, pThis->cCpus);
 
-    rc = PDMDevHlpROMRegister(pDevIns, VBOX_DMI_TABLE_BASE, _4K, pThis->au8DMIPage, false /* fShadow */, "DMI tables");
+    rc = PDMDevHlpROMRegister(pDevIns, VBOX_DMI_TABLE_BASE, _4K, pThis->au8DMIPage,
+                              PGMPHYS_ROM_FLAGS_PERMANENT_BINARY, "DMI tables");
     if (RT_FAILURE(rc))
         return rc;
 
@@ -1587,12 +1606,13 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
         RTFileClose(FilePcBios);
 
     /* If we were unable to get the data from file for whatever reason, fall
-     * back to the built-in ROM image.
-     */
+       back to the built-in ROM image. */
+    uint32_t fFlags = 0;
     if (pThis->pu8PcBios == NULL)
     {
         pu8PcBiosBinary = g_abPcBiosBinary;
         cbPcBiosBinary  = g_cbPcBiosBinary;
+        fFlags          = PGMPHYS_ROM_FLAGS_PERMANENT_BINARY;
     }
     else
     {
@@ -1612,11 +1632,11 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
                      ("cbPcBiosBinary=%#x\n", cbPcBiosBinary));
     cb = RT_MIN(cbPcBiosBinary, 128 * _1K); /* Effectively either 64 or 128K. */
     rc = PDMDevHlpROMRegister(pDevIns, 0x00100000 - cb, cb, &pu8PcBiosBinary[cbPcBiosBinary - cb],
-                              false /* fShadow */, "PC BIOS - 0xfffff");
+                              fFlags, "PC BIOS - 0xfffff");
     if (RT_FAILURE(rc))
         return rc;
     rc = PDMDevHlpROMRegister(pDevIns, (uint32_t)-(int32_t)cbPcBiosBinary, cbPcBiosBinary, pu8PcBiosBinary,
-                              false /* fShadow */, "PC BIOS - 0xffffffff");
+                              fFlags, "PC BIOS - 0xffffffff");
     if (RT_FAILURE(rc))
         return rc;
 
@@ -1625,7 +1645,8 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
      * Map the VMI BIOS into memory.
      */
     AssertReleaseMsg(g_cbVmiBiosBinary == _4K, ("cbVmiBiosBinary=%#x\n", g_cbVmiBiosBinary));
-    rc = PDMDevHlpROMRegister(pDevIns, VBOX_VMI_BIOS_BASE, g_cbVmiBiosBinary, g_abVmiBiosBinary, false, "VMI BIOS");
+    rc = PDMDevHlpROMRegister(pDevIns, VBOX_VMI_BIOS_BASE, g_cbVmiBiosBinary, g_abVmiBiosBinary,
+                              PGMPHYS_ROM_FLAGS_PERMANENT_BINARY, "VMI BIOS");
     if (RT_FAILURE(rc))
         return rc;
 #endif /* VBOX_WITH_VMI */
@@ -1738,8 +1759,19 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
      * the (up to) 32 kb ROM image.
      */
     if (pu8LanBootBinary)
+    {
+        pThis->cbLanBoot = cbLanBootBinary;
+
         rc = PDMDevHlpROMRegister(pDevIns, VBOX_LANBOOT_SEG << 4, cbLanBootBinary, pu8LanBootBinary,
-                                  true /* fShadow */, "Net Boot ROM");
+                                  PGMPHYS_ROM_FLAGS_SHADOWED, "Net Boot ROM");
+        if (RT_SUCCESS(rc))
+        {
+            rc = PDMDevHlpROMProtectShadow(pDevIns, VBOX_LANBOOT_SEG << 4, cbLanBootBinary, PGMROMPROT_READ_RAM_WRITE_RAM);
+            AssertRCReturn(rc, rc);
+            rc = PDMDevHlpPhysWrite(pDevIns, VBOX_LANBOOT_SEG << 4, pu8LanBootBinary, cbLanBootBinary);
+            AssertRCReturn(rc, rc);
+        }
+    }
 
     rc = CFGMR3QueryU8Def(pCfgHandle, "DelayBoot", &pThis->uBootDelay, 0);
     if (RT_FAILURE(rc))

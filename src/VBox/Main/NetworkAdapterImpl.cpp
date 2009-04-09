@@ -28,6 +28,7 @@
 #include <iprt/cpputils.h>
 
 #include <VBox/err.h>
+#include <VBox/settings.h>
 
 // constructor / destructor
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,6 +208,7 @@ STDMETHODIMP NetworkAdapter::COMSETTER(AdapterType) (NetworkAdapterType_T aAdapt
 #ifdef VBOX_WITH_E1000
         case NetworkAdapterType_I82540EM:
         case NetworkAdapterType_I82543GC:
+        case NetworkAdapterType_I82545EM:
 #endif
             break;
         default:
@@ -711,7 +713,7 @@ STDMETHODIMP NetworkAdapter::AttachToNAT()
     return S_OK;
 }
 
-STDMETHODIMP NetworkAdapter::AttachToHostInterface()
+STDMETHODIMP NetworkAdapter::AttachToBridgedInterface()
 {
     AutoCaller autoCaller (this);
     CheckComRCReturnRC (autoCaller.rc());
@@ -723,14 +725,14 @@ STDMETHODIMP NetworkAdapter::AttachToHostInterface()
     AutoWriteLock alock (this);
 
     /* don't do anything if we're already host interface attached */
-    if (mData->mAttachmentType != NetworkAttachmentType_HostInterface)
+    if (mData->mAttachmentType != NetworkAttachmentType_Bridged)
     {
         mData.backup();
 
         /* first detach the current attachment */
         detach();
 
-        mData->mAttachmentType = NetworkAttachmentType_HostInterface;
+        mData->mAttachmentType = NetworkAttachmentType_Bridged;
 
         /* leave the lock before informing callbacks */
         alock.unlock();
@@ -769,6 +771,36 @@ STDMETHODIMP NetworkAdapter::AttachToInternalNetwork()
         }
 
         mData->mAttachmentType = NetworkAttachmentType_Internal;
+
+        /* leave the lock before informing callbacks */
+        alock.unlock();
+
+        mParent->onNetworkAdapterChange (this);
+    }
+
+    return S_OK;
+}
+
+STDMETHODIMP NetworkAdapter::AttachToHostOnlyInterface()
+{
+    AutoCaller autoCaller (this);
+    CheckComRCReturnRC (autoCaller.rc());
+
+    /* the machine needs to be mutable */
+    Machine::AutoMutableStateDependency adep (mParent);
+    CheckComRCReturnRC (adep.rc());
+
+    AutoWriteLock alock (this);
+
+    /* don't do anything if we're already host interface attached */
+    if (mData->mAttachmentType != NetworkAttachmentType_HostOnly)
+    {
+        mData.backup();
+
+        /* first detach the current attachment */
+        detach();
+
+        mData->mAttachmentType = NetworkAttachmentType_HostOnly;
 
         /* leave the lock before informing callbacks */
         alock.unlock();
@@ -851,6 +883,8 @@ HRESULT NetworkAdapter::loadSettings (const settings::Key &aAdapterNode)
         mData->mAdapterType = NetworkAdapterType_I82540EM;
     else if (strcmp (adapterType, "82543GC") == 0)
         mData->mAdapterType = NetworkAdapterType_I82543GC;
+    else if (strcmp (adapterType, "82545EM") == 0)
+        mData->mAdapterType = NetworkAdapterType_I82545EM;
     else
         ComAssertMsgFailedRet (("Invalid adapter type '%s'", adapterType),
                                E_FAIL);
@@ -882,7 +916,8 @@ HRESULT NetworkAdapter::loadSettings (const settings::Key &aAdapterNode)
         CheckComRCReturnRC (rc);
     }
     else
-    if (!(attachmentNode = aAdapterNode.findKey ("HostInterface")).isNull())
+    if (!(attachmentNode = aAdapterNode.findKey ("HostInterface")).isNull() /* backwards compatibility */
+            || !(attachmentNode = aAdapterNode.findKey ("BridgedInterface")).isNull())
     {
         /* Host Interface Networking */
 
@@ -893,7 +928,7 @@ HRESULT NetworkAdapter::loadSettings (const settings::Key &aAdapterNode)
         rc = COMSETTER(HostInterface) (name);
         CheckComRCReturnRC (rc);
 
-        rc = AttachToHostInterface();
+        rc = AttachToBridgedInterface();
         CheckComRCReturnRC (rc);
     }
     else
@@ -906,6 +941,22 @@ HRESULT NetworkAdapter::loadSettings (const settings::Key &aAdapterNode)
         Assert (!mData->mInternalNetwork.isNull());
 
         rc = AttachToInternalNetwork();
+        CheckComRCReturnRC (rc);
+    }
+    else
+    if (!(attachmentNode = aAdapterNode.findKey ("HostOnlyInterface")).isNull())
+    {
+#if defined(VBOX_WITH_NETFLT)
+        Bstr name = attachmentNode.stringValue ("name");
+        /* name can be empty, but not null */
+        ComAssertRet (!name.isNull(), E_FAIL);
+
+        rc = COMSETTER(HostInterface) (name);
+        CheckComRCReturnRC (rc);
+#endif
+
+        /* Host Interface Networking */
+        rc = AttachToHostOnlyInterface();
         CheckComRCReturnRC (rc);
     }
     else
@@ -964,6 +1015,9 @@ HRESULT NetworkAdapter::saveSettings (settings::Key &aAdapterNode)
         case NetworkAdapterType_I82543GC:
             typeStr = "82543GC";
             break;
+        case NetworkAdapterType_I82545EM:
+            typeStr = "82545EM";
+            break;
         default:
             ComAssertMsgFailedRet (("Invalid network adapter type: %d",
                                     mData->mAdapterType),
@@ -986,9 +1040,9 @@ HRESULT NetworkAdapter::saveSettings (settings::Key &aAdapterNode)
                                                 mData->mNATNetwork);
             break;
         }
-        case NetworkAttachmentType_HostInterface:
+        case NetworkAttachmentType_Bridged:
         {
-            Key attachmentNode = aAdapterNode.createKey ("HostInterface");
+            Key attachmentNode = aAdapterNode.createKey ("BridgedInterface");
             Assert (!mData->mHostInterface.isNull());
             attachmentNode.setValue <Bstr> ("name", mData->mHostInterface);
             break;
@@ -998,6 +1052,15 @@ HRESULT NetworkAdapter::saveSettings (settings::Key &aAdapterNode)
             Key attachmentNode = aAdapterNode.createKey ("InternalNetwork");
             Assert (!mData->mInternalNetwork.isEmpty());
             attachmentNode.setValue <Bstr> ("name", mData->mInternalNetwork);
+            break;
+        }
+        case NetworkAttachmentType_HostOnly:
+        {
+            Key attachmentNode = aAdapterNode.createKey ("HostOnlyInterface");
+#if defined(VBOX_WITH_NETFLT)
+            Assert (!mData->mHostInterface.isNull());
+            attachmentNode.setValue <Bstr> ("name", mData->mHostInterface);
+#endif
             break;
         }
         default:
@@ -1105,7 +1168,8 @@ void NetworkAdapter::applyDefaults (GuestOSType *aOsType)
 
     /* Set default network adapter for this OS type */
     if (defaultType == NetworkAdapterType_I82540EM ||
-        defaultType == NetworkAdapterType_I82543GC)
+        defaultType == NetworkAdapterType_I82543GC ||
+        defaultType == NetworkAdapterType_I82545EM)
     {
         if (e1000enabled) mData->mAdapterType = defaultType;
     }
@@ -1143,7 +1207,7 @@ void NetworkAdapter::detach()
         {
             break;
         }
-        case NetworkAttachmentType_HostInterface:
+        case NetworkAttachmentType_Bridged:
         {
             /* reset handle and device name */
             mData->mHostInterface = "";
@@ -1152,6 +1216,14 @@ void NetworkAdapter::detach()
         case NetworkAttachmentType_Internal:
         {
             mData->mInternalNetwork.setNull();
+            break;
+        }
+        case NetworkAttachmentType_HostOnly:
+        {
+#if defined(VBOX_WITH_NETFLT)
+            /* reset handle and device name */
+            mData->mHostInterface = "";
+#endif
             break;
         }
     }

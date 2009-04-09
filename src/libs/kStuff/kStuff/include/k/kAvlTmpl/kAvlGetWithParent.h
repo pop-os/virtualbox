@@ -1,4 +1,4 @@
-/* $Id: kAvlGetWithParent.h 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kAvlGetWithParent.h 7 2008-02-04 02:08:02Z bird $ */
 /** @file
  * kAvlTmpl - Templated AVL Trees, Get Node With Parent.
  */
@@ -36,17 +36,21 @@
  * Gets a node from the tree and its parent node (if any).
  * The tree remains unchanged.
  *
- * @returns   Pointer to the node holding the given key.
- * @param     ppTree    Pointer to the AVL-tree root node pointer.
- * @param     ppParent  Pointer to a variable which will hold the pointer to the partent node on
+ * @returns Pointer to the node holding the given key.
+ * @param   pRoot       Pointer to the AVL-tree root structure.
+ * @param   ppParent    Pointer to a variable which will hold the pointer to the partent node on
  *                      return. When no node is found, this will hold the last searched node.
- * @param     Key       Key value of the node which is to be found.
+ * @param   Key         Key value of the node which is to be found.
  */
-KAVL_DECL(KAVLNODE *) KAVL_FN(GetWithParent)(KAVLTREEPTR *ppTree, KAVLNODE **ppParent, KAVLKEY Key)
+KAVL_DECL(KAVLNODE *) KAVL_FN(GetWithParent)(KAVLROOT *pRoot, KAVLNODE **ppParent, KAVLKEY Key)
 {
-    register KAVLNODE *pNode = KAVL_GET_POINTER_NULL(ppTree);
-    register KAVLNODE *pParent = NULL;
+    register KAVLNODE *pNode;
+    register KAVLNODE *pParent;
 
+    KAVL_READ_LOCK(pRoot);
+
+    pParent = NULL;
+    pNode = KAVL_GET_POINTER_NULL(&pRoot->mpRoot);
     while (     pNode != NULL
            &&   KAVL_NE(pNode->mKey, Key))
     {
@@ -56,6 +60,8 @@ KAVL_DECL(KAVLNODE *) KAVL_FN(GetWithParent)(KAVLTREEPTR *ppTree, KAVLNODE **ppP
         else
             pNode = KAVL_GET_POINTER_NULL(&pNode->mpRight);
     }
+
+    KAVL_UNLOCK(pRoot);
 
     *ppParent = pParent;
     return pNode;

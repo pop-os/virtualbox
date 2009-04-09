@@ -20,17 +20,15 @@
  * additional information or have any questions.
  */
 
-#ifndef __VBoxFrameBuffer_h__
-#define __VBoxFrameBuffer_h__
+#ifndef ___VBoxFrameBuffer_h___
+#define ___VBoxFrameBuffer_h___
 
 #include "COMDefs.h"
 
-class VBoxConsoleView;
-
-#include <qmutex.h>
-#include <qevent.h>
-#include <qpixmap.h>
-#include <qimage.h>
+/* Qt includes */
+#include <QImage>
+#include <QPixmap>
+#include <QMutex>
 
 #if defined (VBOX_GUI_USE_SDL)
 #include <SDL.h>
@@ -46,23 +44,7 @@ class VBoxConsoleView;
 #include <ddraw.h>
 #endif
 
-//#define VBOX_GUI_FRAMEBUF_STAT
-
-#if defined (VBOX_GUI_DEBUG) && defined (VBOX_GUI_FRAMEBUF_STAT)
-#define FRAMEBUF_DEBUG_START(prefix) \
-    uint64_t prefix##elapsed = VMCPUTimer::ticks();
-#define FRAMEBUF_DEBUG_STOP(prefix,w,h) { \
-        prefix##elapsed = VMCPUTimer::ticks() - prefix##elapsed; \
-        V_DEBUG(( "Last update: %04d x %04d px, %03.3f ms, %.0f ticks", \
-            (w), (h), \
-            (double) prefix##elapsed / (double) VMCPUTimer::ticksPerMsec(), \
-            (double) prefix##elapsed \
-        )); \
-    }
-#else
-#define FRAMEBUF_DEBUG_START(prefix) {}
-#define FRAMEBUF_DEBUG_STOP(prefix,w,h) {}
-#endif
+class VBoxConsoleView;
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -77,7 +59,7 @@ public:
                      ulong aBitsPerPixel, ulong aBytesPerLine,
                      ulong aWidth, ulong aHeight) :
         QEvent ((QEvent::Type) VBoxDefs::ResizeEventType),
-	    mPixelFormat (aPixelFormat), mVRAM (aVRAM), mBitsPerPixel (aBitsPerPixel),
+        mPixelFormat (aPixelFormat), mVRAM (aVRAM), mBitsPerPixel (aBitsPerPixel),
         mBytesPerLine (aBytesPerLine), mWidth (aWidth), mHeight (aHeight) {}
     ulong pixelFormat() { return mPixelFormat; }
     uchar *VRAM() { return mVRAM; }
@@ -274,6 +256,7 @@ protected:
     QMutex *mMutex;
     int mWdt;
     int mHgt;
+    uint64_t mWinId;
 
 #if defined (Q_OS_WIN32)
 private:
@@ -458,19 +441,6 @@ public:
 
 private:
 
-    inline CGRect QRectToCGRect (const QRect &aRect) const
-    {
-        return CGRectMake (aRect.x(), aRect.y(), aRect.width(), aRect.height());
-    }
-
-    inline QRect mapYOrigin (const QRect &aRect, int aHeight) const
-    {
-        /* The cgcontext has a fliped y-coord relative to the
-         * qt coord system. So we need some mapping here */
-        return QRect (aRect.x(), aHeight - (aRect.y() + aRect.height()),
-                      aRect.width(), aRect.height());
-    }
-
     void clean();
 
     uchar *mDataAddress;
@@ -502,6 +472,6 @@ private:
     RegionRects volatile *mRegionUnused;
 };
 
-#endif
+#endif /* Q_WS_MAC && VBOX_GUI_USE_QUARTZ2D */
 
-#endif // !__VBoxFrameBuffer_h__
+#endif // !___VBoxFrameBuffer_h___

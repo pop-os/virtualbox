@@ -1,4 +1,4 @@
-/* $Id: timer-win.cpp $ */
+/* $Id: timer-win.cpp 9950 2008-06-26 11:56:57Z vboxsync $ */
 /** @file
  * IPRT - Timer.
  */

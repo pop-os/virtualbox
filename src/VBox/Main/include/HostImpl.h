@@ -1,10 +1,10 @@
-/* $Id: HostImpl.h $ */
+/* $Id: HostImpl.h 17684 2009-03-11 12:15:33Z vboxsync $ */
 /** @file
  * Implemenation of IHost.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,10 +32,6 @@
 class USBProxyService;
 #endif
 #include "HostPower.h"
-
-#ifdef RT_OS_WINDOWS
-# include "win/svchlp.h"
-#endif
 
 #ifdef RT_OS_LINUX
 # include <HostHardwareLinux.h>
@@ -80,10 +76,10 @@ public:
     void uninit();
 
     // IHost properties
-    STDMETHOD(COMGETTER(DVDDrives))(IHostDVDDriveCollection **drives);
-    STDMETHOD(COMGETTER(FloppyDrives))(IHostFloppyDriveCollection **drives);
-    STDMETHOD(COMGETTER(USBDevices))(IHostUSBDeviceCollection **aUSBDevices);
-    STDMETHOD(COMGETTER(USBDeviceFilters))(IHostUSBDeviceFilterCollection ** aUSBDeviceFilters);
+    STDMETHOD(COMGETTER(DVDDrives))(ComSafeArrayOut (IHostDVDDrive*, drives));
+    STDMETHOD(COMGETTER(FloppyDrives))(ComSafeArrayOut (IHostFloppyDrive*, drives));
+    STDMETHOD(COMGETTER(USBDevices))(ComSafeArrayOut (IHostUSBDevice *, aUSBDevices));
+    STDMETHOD(COMGETTER(USBDeviceFilters))(ComSafeArrayOut (IHostUSBDeviceFilter *, aUSBDeviceFilters));
     STDMETHOD(COMGETTER(NetworkInterfaces))(ComSafeArrayOut (IHostNetworkInterface *, aNetworkInterfaces));
     STDMETHOD(COMGETTER(ProcessorCount))(ULONG *count);
     STDMETHOD(COMGETTER(ProcessorOnlineCount))(ULONG *count);
@@ -98,16 +94,24 @@ public:
 
     // IHost methods
 #ifdef RT_OS_WINDOWS
-    STDMETHOD(CreateHostNetworkInterface) (IN_BSTR aName,
-                                           IHostNetworkInterface **aHostNetworkInterface,
+
+    STDMETHOD(CreateHostOnlyNetworkInterface) (IHostNetworkInterface **aHostNetworkInterface,
                                            IProgress **aProgress);
-    STDMETHOD(RemoveHostNetworkInterface) (IN_GUID aId,
+    STDMETHOD(RemoveHostOnlyNetworkInterface) (IN_GUID aId,
                                            IHostNetworkInterface **aHostNetworkInterface,
                                            IProgress **aProgress);
 #endif
     STDMETHOD(CreateUSBDeviceFilter) (IN_BSTR aName, IHostUSBDeviceFilter **aFilter);
     STDMETHOD(InsertUSBDeviceFilter) (ULONG aPosition, IHostUSBDeviceFilter *aFilter);
     STDMETHOD(RemoveUSBDeviceFilter) (ULONG aPosition, IHostUSBDeviceFilter **aFilter);
+
+    STDMETHOD(FindHostDVDDrive) (IN_BSTR aName, IHostDVDDrive **aDrive);
+    STDMETHOD(FindHostFloppyDrive) (IN_BSTR aName, IHostFloppyDrive **aDrive);
+    STDMETHOD(FindHostNetworkInterfaceByName) (IN_BSTR aName, IHostNetworkInterface **networkInterface);
+    STDMETHOD(FindHostNetworkInterfaceById) (IN_GUID id, IHostNetworkInterface **networkInterface);
+    STDMETHOD(FindHostNetworkInterfacesOfType) (HostNetworkInterfaceType_T type, ComSafeArrayOut (IHostNetworkInterface *, aNetworkInterfaces));
+    STDMETHOD(FindUSBDeviceByAddress) (IN_BSTR aAddress, IHostUSBDevice **aDevice);
+    STDMETHOD(FindUSBDeviceById) (IN_GUID aId, IHostUSBDevice **aDevice);
 
     // public methods only for internal purposes
 
@@ -124,11 +128,6 @@ public:
     void getUSBFilters(USBDeviceFilterList *aGlobalFiltes, VirtualBox::SessionMachineVector *aMachines);
     HRESULT checkUSBProxyService();
 #endif /* !VBOX_WITH_USB */
-
-#ifdef RT_OS_WINDOWS
-    static int networkInterfaceHelperServer (SVCHlpClient *aClient,
-                                             SVCHlpMsg::Code aMsgCode);
-#endif
 
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"Host"; }
@@ -154,18 +153,6 @@ private:
                      : NULL;
     }
 #endif /* VBOX_WITH_USB */
-
-#ifdef RT_OS_WINDOWS
-    static int createNetworkInterface (SVCHlpClient *aClient,
-                                       const Utf8Str &aName,
-                                       Guid &aGUID, Utf8Str &aErrMsg);
-    static int removeNetworkInterface (SVCHlpClient *aClient,
-                                       const Guid &aGUID,
-                                       Utf8Str &aErrMsg);
-    static HRESULT networkInterfaceHelperClient (SVCHlpClient *aClient,
-                                                 Progress *aProgress,
-                                                 void *aUser, int *aVrc);
-#endif
 
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
     void registerMetrics (PerformanceCollector *aCollector);

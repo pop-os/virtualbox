@@ -1,4 +1,4 @@
-/* $Id: SupportErrorInfo.cpp $ */
+/* $Id: SupportErrorInfo.cpp 13580 2008-10-27 14:04:18Z vboxsync $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer:

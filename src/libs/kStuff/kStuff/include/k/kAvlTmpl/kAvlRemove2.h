@@ -1,4 +1,4 @@
-/* $Id: kAvlRemove2.h 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kAvlRemove2.h 7 2008-02-04 02:08:02Z bird $ */
 /** @file
  * kAvlTmpl - Templated AVL Trees, Remove A Specific Node.
  */
@@ -36,22 +36,23 @@
  * Removes the specified node from the tree.
  *
  * @returns Pointer to the removed node (NULL if not in the tree)
- * @param   ppTree      Pointer to Pointer to the tree root node.
+ * @param   pRoot       Pointer to the AVL-tree root structure.
  * @param   Key         The Key of which is to be found a best fitting match for..
  *
  * @remark  This implementation isn't the most efficient, but this short and
  *          easier to manage.
  */
-KAVL_DECL(KAVLNODE *) KAVL_FN(Remove2)(KAVLTREEPTR *ppTree, KAVLNODE *pNode)
+KAVL_DECL(KAVLNODE *) KAVL_FN(Remove2)(KAVLTROOT *pRoot, KAVLNODE *pNode)
 {
 #ifdef KAVL_EQUAL_ALLOWED
     /*
      * Find the right node by key and see if it's what we want.
      */
     KAVLNODE *pParent;
-    KAVLNODE *pCurNode = KAVL_FN(GetWithParent)(ppTree, pNode->mKey, &pParent);
+    KAVLNODE *pCurNode = KAVL_FN(GetWithParent)(pRoot, pNode->mKey, &pParent);
     if (!pCurNode)
         return NULL;
+    KAVL_WRITE_LOCK(pRoot); /** @todo the locking here isn't 100% sane. The only way to archive that is by no calling worker functions. */
     if (pCurNode != pNode)
     {
         /*
@@ -64,10 +65,13 @@ KAVL_DECL(KAVLNODE *) KAVL_FN(Remove2)(KAVLTREEPTR *ppTree, KAVLNODE *pNode)
             {
                 KAVL_SET_POINTER_NULL(&pCurNode->mpList, KAVL_GET_POINTER_NULL(&pNode->mpList));
                 pNode->mpList = KAVL_NULL;
+                KAVL_LOOKTHRU_INVALIDATE_NODE(pRoot, pNode, pNode->mKey);
+                KAVL_WRITE_UNLOCK(pRoot);
                 return pNode;
             }
             pCurNode = pNext;
         }
+        KAVL_WRITE_UNLOCK(pRoot);
         return NULL;
     }
 
@@ -79,7 +83,10 @@ KAVL_DECL(KAVLNODE *) KAVL_FN(Remove2)(KAVLTREEPTR *ppTree, KAVLNODE *pNode)
      * insert the first duplicate in our place.
      */
     if (pNode->mpList == KAVL_NODE)
-        KAVL_FN(Remove)(ppTree, pNode->mKey);
+    {
+        KAVL_WRITE_UNLOCK(pRoot);
+        KAVL_FN(Remove)(pRoot, pNode->mKey);
+    }
     else
     {
         KAVLNODE *pNewUs = KAVL_GET_POINTER(&pNode->mpList);
@@ -104,8 +111,12 @@ KAVL_DECL(KAVLNODE *) KAVL_FN(Remove2)(KAVLTREEPTR *ppTree, KAVLNODE *pNode)
                 KAVL_SET_POINTER(&pParent->mpRight, pNewUs);
         }
         else
-            KAVL_SET_POINTER(ppTree, pNewUs);
+            KAVL_SET_POINTER(&pRoot->mpRoot, pNewUs);
+
+        KAVL_LOOKTHRU_INVALIDATE_NODE(pRoot, pNode, pNode->mKey);
+        KAVL_WRITE_UNLOCK(pRoot);
     }
+
     return pNode;
 
 #else
@@ -115,11 +126,11 @@ KAVL_DECL(KAVLNODE *) KAVL_FN(Remove2)(KAVLTREEPTR *ppTree, KAVLNODE *pNode)
      * This ASSUMS that the caller is NOT going to hand us a lot
      * of wrong nodes but just uses this API for his convenience.
      */
-    KAVLNODE *pRemovedNode = KAVL_FN(Remove)(ppTree, pNode->mKey);
+    KAVLNODE *pRemovedNode = KAVL_FN(Remove)(pRoot, pNode->mKey);
     if (pRemovedNode == pNode)
         return pRemovedNode;
 
-    KAVL_FN(Insert)(ppTree, pRemovedNode);
+    KAVL_FN(Insert)(pRoot, pRemovedNode);
     return NULL;
 #endif
 }

@@ -1,4 +1,4 @@
-// $Id: vbox.dsl $
+// $Id: vbox.dsl 18228 2009-03-24 22:21:29Z vboxsync $
 /// @file
 //
 // VirtualBox ACPI
@@ -122,10 +122,44 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
     // In this case, XP SP2 contains this buggy Intelppm.sys driver which wants to mess
     // with SpeedStep if it finds a CPU object and when it finds out that it can't, it
     // tries to unload and crashes (MS probably never tested this code path).
-//    Scope (\_PR)
-//    {
-//        Processor (CPU1, 0x01, 0x00000000, 0x00) {}
-//    }
+    // So we enable this ACPI object only for certain guests, which do need it,
+    // if by accident Windows guest seen enabled CPU object, just boot from latest
+    // known good configuration, as it remembers state, even if ACPI object gets disabled.
+    Scope (\_PR)
+    {
+       Processor (CPU0, /* Name */
+                   0x00, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+           Method (_STA) { Return(\_SB.UCP0) }
+        }
+        Processor (CPU1, /* Name */
+                   0x01, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+           Method (_STA) { Return(\_SB.UCP1) }
+        }
+        Processor (CPU2, /* Name */
+                   0x02, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+           Method (_STA) { Return(\_SB.UCP2) }
+        }
+        Processor (CPU3, /* Name */
+                   0x03, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+           Method (_STA) { Return(\_SB.UCP3) }
+        }
+    }
 
     Scope (\_SB)
     {
@@ -138,8 +172,17 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
 
         IndexField (IDX0, DAT0, DwordAcc, NoLock, Preserve)
         {
-            MEML, 32,
-            UIOA, 32,
+            MEML,  32,
+            UIOA,  32,
+            UHPT,  32,
+            USMC,  32,
+            UFDC,  32,
+            // @todo: maybe make it bitmask instead?
+            UCP0,  32,
+            UCP1,  32,
+            UCP2,  32,
+            UCP3,  32,
+            MEMH,  32,
             Offset (0x80),
             ININ, 32,
             Offset (0x200),
@@ -153,6 +196,16 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
             HEX4 (MEML)
             DBG ("UIOA: ")
             HEX4 (UIOA)
+            DBG ("UHPT: ")
+            HEX4 (UHPT)
+            DBG ("USMC: ")
+            HEX4 (USMC)
+            DBG ("UFDC: ")
+            HEX4 (UFDC)
+            DBG ("UCP0: ")
+            HEX4 (UCP0)
+            DBG ("MEMH: ")
+            HEX4 (MEMH)
         }
 
         // PCI PIC IRQ Routing table
@@ -563,15 +616,9 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
                 {
                     Name (_HID, EisaId ("PNP0700"))
 
-                    OperationRegion (CFDC, SystemIO, 0x4054, 0x08)
-                    Field (CFDC, DwordAcc, NoLock, Preserve)
-                    {
-                        FSTA, 32,
-                    }
-
                     Method (_STA, 0, NotSerialized)
                     {
-                        Return (FSTA)
+                        Return (UFDC)
                     }
 
                     // Current resource settings
@@ -817,7 +864,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
                      )
 
                 DwordMemory( // Consumed-and-produced resource
-                             // (all of memory space)
+                             // (all of low memory space)
                      ResourceProducer,        // bit 0 of general flags is 0
                      PosDecode,               // positive Decode
                      MinFixed,                // Range is fixed
@@ -827,7 +874,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
                      0x00000000,              // Granularity
                      0x00000000,              // Min (calculated dynamically)
 
-                     0xffdfffff,              //  Max = 4GB - 2MB
+                     0xffdfffff,              // Max = 4GB - 2MB
                      0x00000000,              // Translation
                      0xdfdfffff,              // Range Length (calculated
                                               // dynamically)
@@ -838,12 +885,61 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
                      )
             })
 
+//            Name (TOM, ResourceTemplate ()      // Memory above 4GB (aka high), appended when needed.
+//            {
+//                QWORDMemory(
+//                    ResourceProducer,           // bit 0 of general flags is 0
+//                    PosDecode,                  // positive Decode
+//                    MinFixed,                   // Range is fixed
+//                    MaxFixed,                   // Range is fixed
+//                    Cacheable,
+//                    ReadWrite,
+//                    0x0000000000000000,         // _GRA: Granularity.
+//                    0 /*0x0000000100000000*/,   // _MIN: Min address, 4GB.
+//                    0 /*0x00000fffffffffff*/,   // _MAX: Max possible address, 16TB.
+//                    0x0000000000000000,         // _TRA: Translation
+//                    0x0000000000000000,         // _LEN: Range length (calculated dynamically)
+//                    ,                           // ResourceSourceIndex: Optional field left blank
+//                    ,                           // ResourceSource:      Optional field left blank
+//                    MEM4                        // Name declaration for this descriptor.
+//                    )
+//            })
+
             Method (_CRS, 0, NotSerialized)
             {
                 CreateDwordField (CRS, \_SB.PCI0.MEM3._MIN, RAMT)
                 CreateDwordField (CRS, \_SB.PCI0.MEM3._LEN, RAMR)
+//                CreateQwordField (TOM, \_SB.PCI0.MEM4._LEN, TM4L)
+//                CreateQwordField (TOM, \_SB.PCI0.MEM4._LEN, TM4N)
+//                CreateQwordField (TOM, \_SB.PCI0.MEM4._LEN, TM4X)
+
                 Store (MEML, RAMT)
                 Subtract (0xffe00000, RAMT, RAMR)
+
+//                If (LNotEqual (MEMH, 0x00000000))
+//                {
+//                    //
+//                    // Update the TOM resource template and append it to CRS.
+//                    // This way old < 4GB guest doesn't see anything different.
+//                    // (MEMH is the memory above 4GB specified in 64KB units.)
+//                    //
+//                    // Note: ACPI v2 doesn't do 32-bit integers. IASL may fail on
+//                    //       seeing 64-bit constants and the code probably wont work.
+//                    //
+//                    Store (1, TM4N)
+//                    ShiftLeft (TM4N, 32, TM4N)
+//
+//                    Store (0x00000fff, TM4X)
+//                    ShiftLeft (TM4X, 32, TM4X)
+//                    Or (TM4X, 0xffffffff, TM4X)
+//
+//                    Store (MEMH, TM4L)
+//                    ShiftLeft (TM4L, 16, TM4L)
+//
+//                    ConcatenateResTemplate (CRS, TOM, Local2)
+//                    Return (Local2)
+//                }
+
                 Return (CRS)
             }
         }
@@ -851,6 +947,69 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
 
     Scope (\_SB)
     {
+         // High Precision Event Timer
+        Device(HPET) {
+            Name(_HID,  EISAID("PNP0103"))
+// bird: Perhaps this is the cause for the RTC bitching below, but I've no patience to fine out.
+//            Name (_CID, 0x010CD041)
+            Name(_UID, 0)
+            Method (_STA, 0, NotSerialized) {
+                    Return(UHPT)
+            }
+            Name(_CRS, ResourceTemplate() {
+                DWordMemory(
+                    ResourceConsumer, PosDecode, MinFixed, MaxFixed,
+                    NonCacheable, ReadWrite,
+                    0x00000000,
+                    0xFED00000,
+                    0xFED003FF,
+                    0x00000000,
+                    0x00000400 /* 1K memory: FED00000 - FED003FF */
+                )
+            })
+        }
+
+// bird: Doesn't work, breaks Vista and W7. Why is the length 8 and not 2? The examples
+//       I've got here uses 2 and also  includes IRQNoFlags () {8}
+//       Note: Do NOT even thing about re-enabling this without testing ALL windows versions.
+//
+//        Device (RTC) {
+//            Name (_HID, EisaId ("PNP0B00"))
+//            Name (_CRS, ResourceTemplate ()
+//            {
+//                IO (Decode16,
+//                    0x0070,             // Range Minimum
+//                    0x0070,             // Range Maximum
+//                    0x01,               // Alignment
+//                    0x08,               // Length
+//                    )
+//            })
+//        }
+
+       // System Management Controller
+       Device (SMC)
+       {
+            Name (_HID, EisaId ("APP0001"))
+            Name (_CID, "smc-napa")
+
+            Method (_STA, 0, NotSerialized)
+            {
+                Return (USMC)
+            }
+            Name (_CRS, ResourceTemplate ()
+            {
+                IO (Decode16,
+                    0x0300,             // Range Minimum
+                    0x0300,             // Range Maximum
+                    0x01,               // Alignment
+                    0x20,               // Length
+                    )
+                // This line seriously confuses Windows ACPI driver, so not even try to
+                // enable SMC for Windows guests
+                IRQNoFlags () {8}
+            })
+        }
+
         // Fields within PIIX3 configuration[0x60..0x63] with
         // IRQ mappings
         Field (\_SB.PCI0.SBRG.PCIC, ByteAcc, NoLock, Preserve)

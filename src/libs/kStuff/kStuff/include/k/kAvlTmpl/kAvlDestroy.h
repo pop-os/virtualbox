@@ -1,4 +1,4 @@
-/* $Id: kAvlDestroy.h 2 2007-11-16 16:07:14Z bird $ */
+/* $Id: kAvlDestroy.h 7 2008-02-04 02:08:02Z bird $ */
 /** @file
  * kAvlTmpl - Templated AVL Trees, Destroy the tree.
  */
@@ -40,21 +40,36 @@
  *          an unbalanced condition and only further calls to the Destroy should be
  *          made on it. Note that the node we fail on will be considered dead and
  *          no action is taken to link it back into the tree.
- * @param   ppTree          Pointer to the AVL-tree root node pointer.
+ * @param   pRoot           Pointer to the AVL-tree root structure.
  * @param   pfnCallBack     Pointer to callback function.
  * @param   pvUser          User parameter passed on to the callback function.
  */
-KAVL_DECL(int) KAVL_FN(Destroy)(KAVLTREEPTR *ppTree, KAVL_TYPE(PFN,CALLBACK) pfnCallBack, void *pvUser)
+KAVL_DECL(int) KAVL_FN(Destroy)(KAVLROOT *pRoot, KAVL_TYPE(PFN,CALLBACK) pfnCallBack, void *pvUser)
 {
+#ifdef KAVL_LOOKTHRU
+    unsigned    i;
+#endif
     unsigned    cEntries;
     KAVLNODE   *apEntries[KAVL_MAX_STACK];
     int         rc;
 
-    if (*ppTree == KAVL_NULL)
+    KAVL_WRITE_LOCK(pRoot);
+    if (pRoot->mpRoot == KAVL_NULL)
+    {
+        KAVL_WRITE_UNLOCK(pRoot);
         return 0;
+    }
+
+#ifdef KAVL_LOOKTHRU
+    /* 
+     * Kill the lookthru cache.
+     */
+    for (i = 0; i < (KAVL_LOOKTHRU); i++)
+        pRoot->maLookthru[i] = KAVL_NULL;
+#endif
 
     cEntries = 1;
-    apEntries[0] = KAVL_GET_POINTER(ppTree);
+    apEntries[0] = KAVL_GET_POINTER(&pRoot->mpRoot);
     while (cEntries > 0)
     {
         /*
@@ -79,7 +94,10 @@ KAVL_DECL(int) KAVL_FN(Destroy)(KAVLTREEPTR *ppTree, KAVL_TYPE(PFN,CALLBACK) pfn
 
                 rc = pfnCallBack(pEqual, pvUser);
                 if (rc)
+                {
+                    KAVL_WRITE_UNLOCK(pRoot);
                     return rc;
+                }
             }
 #endif
 
@@ -95,17 +113,21 @@ KAVL_DECL(int) KAVL_FN(Destroy)(KAVLTREEPTR *ppTree, KAVL_TYPE(PFN,CALLBACK) pfn
                     pParent->mpRight = KAVL_NULL;
             }
             else
-                *ppTree = KAVL_NULL;
+                pRoot->mpRoot = KAVL_NULL;
 
             kHlpAssert(pNode->mpLeft == KAVL_NULL);
             kHlpAssert(pNode->mpRight == KAVL_NULL);
             rc = pfnCallBack(pNode, pvUser);
             if (rc)
+            {
+                KAVL_WRITE_UNLOCK(pRoot);
                 return rc;
+            }
         }
     } /* while */
-    kHlpAssert(*ppTree == KAVL_NULL);
+    kHlpAssert(pRoot->mpRoot == KAVL_NULL);
 
+    KAVL_WRITE_UNLOCK(pRoot);
     return 0;
 }
 

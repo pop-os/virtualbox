@@ -1,8 +1,8 @@
 #!/bin/sh
-# Sun xVM VirtualBox
+# Sun VirtualBox
 # VirtualBox preremove script for Solaris.
 #
-# Copyright (C) 2007-2008 Sun Microsystems, Inc.
+# Copyright (C) 2007-2009 Sun Microsystems, Inc.
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -17,7 +17,7 @@
 # additional information or have any questions.
 #
 
-echo "Sun xVM VirtualBox - preremove script"
+echo "Sun VirtualBox - preremove script"
 echo "This script will unload the VirtualBox kernel module..."
 
 currentzone=`zonename`
@@ -37,6 +37,8 @@ if test "$currentzone" = "global"; then
     fi
 
     # vboxdrv.sh would've been installed, we just need to call it.
+    /opt/VirtualBox/vboxdrv.sh usbstop alwaysremdrv
+    /opt/VirtualBox/vboxdrv.sh netstop alwaysremdrv
     /opt/VirtualBox/vboxdrv.sh fltstop alwaysremdrv
     /opt/VirtualBox/vboxdrv.sh stop alwaysremdrv
 
@@ -45,9 +47,17 @@ if test "$currentzone" = "global"; then
 /name=vboxdrv/d' /etc/devlink.tab > /etc/devlink.vbox
     mv -f /etc/devlink.vbox /etc/devlink.tab
 
-    # remove the link
+    # remove devlink.tab entry for vboxusbmon
+    sed -e '
+/name=vboxusbmon/d' /etc/devlink.tab > /etc/devlink.vbox
+    mv -f /etc/devlink.vbox /etc/devlink.tab
+
+    # remove the devlinks
     if test -h "/dev/vboxdrv" || test -f "/dev/vboxdrv"; then
         rm -f /dev/vboxdrv
+    fi
+    if test -h "/dev/vboxusbmon" || test -f "/dev/vboxusbmon"; then
+        rm -f /dev/vboxusbmon
     fi
 fi
 

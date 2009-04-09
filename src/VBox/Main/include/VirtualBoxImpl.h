@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxImpl.h $ */
+/* $Id: VirtualBoxImpl.h 18177 2009-03-24 13:21:12Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,12 +40,11 @@
 #include "PerformanceImpl.h"
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
 
-
 class Machine;
 class SessionMachine;
-class HardDisk2;
-class DVDImage2;
-class FloppyImage2;
+class HardDisk;
+class DVDImage;
+class FloppyImage;
 class MachineCollection;
 class GuestOSType;
 class GuestOSTypeCollection;
@@ -54,6 +53,7 @@ class Progress;
 class ProgressCollection;
 class Host;
 class SystemProperties;
+class DHCPServer;
 
 #ifdef RT_OS_WINDOWS
 class SVCHlpClient;
@@ -125,14 +125,15 @@ public:
     STDMETHOD(COMGETTER(SettingsFormatVersion)) (BSTR *aSettingsFormatVersion);
     STDMETHOD(COMGETTER(Host)) (IHost **aHost);
     STDMETHOD(COMGETTER(SystemProperties)) (ISystemProperties **aSystemProperties);
-    STDMETHOD(COMGETTER(Machines2)) (ComSafeArrayOut (IMachine *, aMachines));
-    STDMETHOD(COMGETTER(HardDisks2)) (ComSafeArrayOut (IHardDisk2 *, aHardDisks));
-    STDMETHOD(COMGETTER(DVDImages)) (ComSafeArrayOut (IDVDImage2 *, aDVDImages));
-    STDMETHOD(COMGETTER(FloppyImages)) (ComSafeArrayOut (IFloppyImage2 *, aFloppyImages));
-    STDMETHOD(COMGETTER(ProgressOperations)) (IProgressCollection **aOperations);
-    STDMETHOD(COMGETTER(GuestOSTypes)) (IGuestOSTypeCollection **aGuestOSTypes);
-    STDMETHOD(COMGETTER(SharedFolders)) (ISharedFolderCollection **aSharedFolders);
+    STDMETHOD(COMGETTER(Machines)) (ComSafeArrayOut (IMachine *, aMachines));
+    STDMETHOD(COMGETTER(HardDisks)) (ComSafeArrayOut (IHardDisk *, aHardDisks));
+    STDMETHOD(COMGETTER(DVDImages)) (ComSafeArrayOut (IDVDImage *, aDVDImages));
+    STDMETHOD(COMGETTER(FloppyImages)) (ComSafeArrayOut (IFloppyImage *, aFloppyImages));
+    STDMETHOD(COMGETTER(ProgressOperations)) (ComSafeArrayOut (IProgress *, aOperations));
+    STDMETHOD(COMGETTER(GuestOSTypes)) (ComSafeArrayOut (IGuestOSType *, aGuestOSTypes));
+    STDMETHOD(COMGETTER(SharedFolders)) (ComSafeArrayOut (ISharedFolder *, aSharedFolders));
     STDMETHOD(COMGETTER(PerformanceCollector)) (IPerformanceCollector **aPerformanceCollector);
+    STDMETHOD(COMGETTER(DHCPServers)) (ComSafeArrayOut (IDHCPServer *, aDHCPServers));
 
     /* IVirtualBox methods */
 
@@ -145,22 +146,23 @@ public:
     STDMETHOD(GetMachine) (IN_GUID aId, IMachine **aMachine);
     STDMETHOD(FindMachine) (IN_BSTR aName, IMachine **aMachine);
     STDMETHOD(UnregisterMachine) (IN_GUID aId, IMachine **aMachine);
+    STDMETHOD(CreateAppliance) (IAppliance **anAppliance);
 
-    STDMETHOD(CreateHardDisk2) (IN_BSTR aFormat, IN_BSTR aLocation,
-                                IHardDisk2 **aHardDisk);
-    STDMETHOD(OpenHardDisk2) (IN_BSTR aLocation, IHardDisk2 **aHardDisk);
-    STDMETHOD(GetHardDisk2) (IN_GUID aId, IHardDisk2 **aHardDisk);
-    STDMETHOD(FindHardDisk2) (IN_BSTR aLocation, IHardDisk2 **aHardDisk);
+    STDMETHOD(CreateHardDisk)(IN_BSTR aFormat, IN_BSTR aLocation,
+                               IHardDisk **aHardDisk);
+    STDMETHOD(OpenHardDisk) (IN_BSTR aLocation, AccessMode_T accessMode, IHardDisk **aHardDisk);
+    STDMETHOD(GetHardDisk) (IN_GUID aId, IHardDisk **aHardDisk);
+    STDMETHOD(FindHardDisk) (IN_BSTR aLocation, IHardDisk **aHardDisk);
 
     STDMETHOD(OpenDVDImage) (IN_BSTR aLocation, IN_GUID aId,
-                             IDVDImage2 **aDVDImage);
-    STDMETHOD(GetDVDImage) (IN_GUID aId, IDVDImage2 **aDVDImage);
-    STDMETHOD(FindDVDImage) (IN_BSTR aLocation, IDVDImage2 **aDVDImage);
+                             IDVDImage **aDVDImage);
+    STDMETHOD(GetDVDImage) (IN_GUID aId, IDVDImage **aDVDImage);
+    STDMETHOD(FindDVDImage) (IN_BSTR aLocation, IDVDImage **aDVDImage);
 
     STDMETHOD(OpenFloppyImage) (IN_BSTR aLocation, IN_GUID aId,
-                                IFloppyImage2 **aFloppyImage);
-    STDMETHOD(GetFloppyImage) (IN_GUID aId, IFloppyImage2 **aFloppyImage);
-    STDMETHOD(FindFloppyImage) (IN_BSTR aLocation, IFloppyImage2 **aFloppyImage);
+                                IFloppyImage **aFloppyImage);
+    STDMETHOD(GetFloppyImage) (IN_GUID aId, IFloppyImage **aFloppyImage);
+    STDMETHOD(FindFloppyImage) (IN_BSTR aLocation, IFloppyImage **aFloppyImage);
 
     STDMETHOD(GetGuestOSType) (IN_BSTR aId, IGuestOSType **aType);
     STDMETHOD(CreateSharedFolder) (IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable);
@@ -182,6 +184,12 @@ public:
 
     STDMETHOD(SaveSettings)();
     STDMETHOD(SaveSettingsWithBackup) (BSTR *aBakFileName);
+
+//    STDMETHOD(CreateDHCPServerForInterface) (/*IHostNetworkInterface * aIinterface, */IDHCPServer ** aServer);
+    STDMETHOD(CreateDHCPServer) (IN_BSTR aName, IDHCPServer ** aServer);
+//    STDMETHOD(FindDHCPServerForInterface) (IHostNetworkInterface * aIinterface, IDHCPServer ** aServer);
+    STDMETHOD(FindDHCPServerByNetworkName) (IN_BSTR aName, IDHCPServer ** aServer);
+    STDMETHOD(RemoveDHCPServer) (IDHCPServer * aServer);
 
     /* public methods only for internal purposes */
 
@@ -233,12 +241,12 @@ public:
     HRESULT findMachine (const Guid &aId, bool aSetError,
                          ComObjPtr <Machine> *machine = NULL);
 
-    HRESULT findHardDisk2 (const Guid *aId, CBSTR aLocation,
-                           bool aSetError, ComObjPtr <HardDisk2> *aHardDisk = NULL);
-    HRESULT findDVDImage2 (const Guid *aId, CBSTR aLocation,
-                           bool aSetError, ComObjPtr <DVDImage2> *aImage = NULL);
-    HRESULT findFloppyImage2 (const Guid *aId, CBSTR aLocation,
-                              bool aSetError, ComObjPtr <FloppyImage2> *aImage = NULL);
+    HRESULT findHardDisk(const Guid *aId, CBSTR aLocation,
+                          bool aSetError, ComObjPtr<HardDisk> *aHardDisk = NULL);
+    HRESULT findDVDImage(const Guid *aId, CBSTR aLocation,
+                         bool aSetError, ComObjPtr<DVDImage> *aImage = NULL);
+    HRESULT findFloppyImage(const Guid *aId, CBSTR aLocation,
+                            bool aSetError, ComObjPtr<FloppyImage> *aImage = NULL);
 
     const ComObjPtr <Host> &host() { return mData.mHost; }
     const ComObjPtr <SystemProperties> &systemProperties()
@@ -255,16 +263,16 @@ public:
     int calculateFullPath (const char *aPath, Utf8Str &aResult);
     void calculateRelativePath (const char *aPath, Utf8Str &aResult);
 
-    HRESULT registerHardDisk2 (HardDisk2 *aHardDisk, bool aSaveRegistry = true);
-    HRESULT unregisterHardDisk2 (HardDisk2 *aHardDisk, bool aSaveRegistry = true);
+    HRESULT registerHardDisk(HardDisk *aHardDisk, bool aSaveRegistry = true);
+    HRESULT unregisterHardDisk(HardDisk *aHardDisk, bool aSaveRegistry = true);
 
-    HRESULT registerDVDImage (DVDImage2 *aImage, bool aSaveRegistry = true);
-    HRESULT unregisterDVDImage (DVDImage2 *aImage, bool aSaveRegistry = true);
+    HRESULT registerDVDImage(DVDImage *aImage, bool aSaveRegistry = true);
+    HRESULT unregisterDVDImage(DVDImage *aImage, bool aSaveRegistry = true);
 
-    HRESULT registerFloppyImage (FloppyImage2 *aImage, bool aSaveRegistry = true);
-    HRESULT unregisterFloppyImage (FloppyImage2 *aImage, bool aSaveRegistry = true);
+    HRESULT registerFloppyImage (FloppyImage *aImage, bool aSaveRegistry = true);
+    HRESULT unregisterFloppyImage (FloppyImage *aImage, bool aSaveRegistry = true);
 
-    HRESULT cast (IHardDisk2 *aFrom, ComObjPtr <HardDisk2> &aTo);
+    HRESULT cast (IHardDisk *aFrom, ComObjPtr<HardDisk> &aTo);
 
     HRESULT saveSettings();
     HRESULT updateSettings (const char *aOldPath, const char *aNewPath);
@@ -272,19 +280,6 @@ public:
     const Bstr &settingsFileName() { return mData.mCfgFile.mName; }
 
     static HRESULT ensureFilePathExists (const char *aFileName);
-
-    class SettingsTreeHelper : public settings::XmlTreeBackend::InputResolver
-                             , public settings::XmlTreeBackend::AutoConverter
-    {
-    public:
-
-        // InputResolver interface
-        xml::Input *resolveEntity (const char *aURI, const char *aID);
-
-        // AutoConverter interface
-        bool needsConversion (const settings::Key &aRoot, char **aOldVersion) const;
-        const char *templateUri() const;
-    };
 
     static HRESULT loadSettingsTree (settings::XmlTreeBackend &aTree,
                                      xml::File &aFile,
@@ -349,7 +344,7 @@ public:
 
     /**
      * Returns a lock handle used to protect changes to the hard disk hierarchy
-     * (e.g. serialize access to the HardDisk2::mParent fields and methods
+     * (e.g. serialize access to the HardDisk::mParent fields and methods
      * adding/removing children). When using this lock, the following rules must
      * be obeyed:
      *
@@ -373,12 +368,13 @@ private:
 
     typedef std::map <Guid, ComPtr <IProgress> > ProgressMap;
 
-    typedef std::list <ComObjPtr <HardDisk2> > HardDisk2List;
-    typedef std::list <ComObjPtr <DVDImage2> > DVDImage2List;
-    typedef std::list <ComObjPtr <FloppyImage2> > FloppyImage2List;
+    typedef std::list <ComObjPtr <HardDisk> > HardDiskList;
+    typedef std::list <ComObjPtr <DVDImage> > DVDImageList;
+    typedef std::list <ComObjPtr <FloppyImage> > FloppyImageList;
     typedef std::list <ComObjPtr <SharedFolder> > SharedFolderList;
+    typedef std::list <ComObjPtr <DHCPServer> > DHCPServerList;
 
-    typedef std::map <Guid, ComObjPtr <HardDisk2> > HardDisk2Map;
+    typedef std::map <Guid, ComObjPtr<HardDisk> > HardDiskMap;
 
     /**
      * Reimplements VirtualBoxWithTypedChildren::childrenLock() to return a
@@ -395,8 +391,14 @@ private:
 
     HRESULT loadMachines (const settings::Key &aGlobal);
     HRESULT loadMedia (const settings::Key &aGlobal);
+    HRESULT loadNetservices (const settings::Key &aGlobal);
 
     HRESULT registerMachine (Machine *aMachine);
+
+    HRESULT registerDHCPServer(DHCPServer *aDHCPServer,
+                                         bool aSaveRegistry = true);
+    HRESULT unregisterDHCPServer(DHCPServer *aDHCPServer,
+                                         bool aSaveRegistry = true);
 
     HRESULT lockConfig();
     HRESULT unlockConfig();
@@ -440,14 +442,15 @@ private:
 
         ProgressMap mProgressOperations;
 
-        HardDisk2List mHardDisks2;
-        DVDImage2List mDVDImages2;
-        FloppyImage2List mFloppyImages2;
+        HardDiskList mHardDisks;
+        DVDImageList mDVDImages;
+        FloppyImageList mFloppyImages;
         SharedFolderList mSharedFolders;
+        DHCPServerList mDHCPServers;
 
         /// @todo NEWMEDIA do we really need this map? Used only in
         /// find() it seems
-        HardDisk2Map mHardDisk2Map;
+        HardDiskMap mHardDiskMap;
 
         CallbackList mCallbacks;
     };

@@ -1,4 +1,4 @@
-/* $Id: ConsoleVRDPServer.cpp $ */
+/* $Id: ConsoleVRDPServer.cpp 17669 2009-03-11 09:56:29Z vboxsync $ */
 
 /** @file
  *
@@ -136,6 +136,11 @@ public:
     }
 
     STDMETHOD(OnParallelPortChange) (IParallelPort *aParallelPort)
+    {
+        return S_OK;
+    }
+
+    STDMETHOD(OnStorageControllerChange) ()
     {
         return S_OK;
     }

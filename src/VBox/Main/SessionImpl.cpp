@@ -570,6 +570,20 @@ STDMETHODIMP Session::OnParallelPortChange(IParallelPort *parallelPort)
     return mConsole->onParallelPortChange(parallelPort);
 }
 
+STDMETHODIMP Session::OnStorageControllerChange()
+{
+    LogFlowThisFunc (("\n"));
+
+    AutoCaller autoCaller (this);
+    AssertComRCReturn (autoCaller.rc(), autoCaller.rc());
+
+    AutoReadLock alock (this);
+    AssertReturn (mState == SessionState_Open, VBOX_E_INVALID_VM_STATE);
+    AssertReturn (mType == SessionType_Direct, VBOX_E_INVALID_OBJECT_STATE);
+
+    return mConsole->onStorageControllerChange();
+}
+
 STDMETHODIMP Session::OnVRDPServerChange()
 {
     LogFlowThisFunc (("\n"));
@@ -955,11 +969,19 @@ HRESULT Session::grabIPCSemaphore()
 
 #elif defined(VBOX_WITH_SYS_V_IPC_SESSION_WATCHER)
 
+# ifdef VBOX_WITH_NEW_SYS_V_KEYGEN
+    Utf8Str ipcKey = ipcId;
+    key_t key = RTStrToUInt32(ipcKey.raw());
+    AssertMsgReturn (key != 0,
+                    ("Key value of 0 is not valid for IPC semaphore"),
+                    E_FAIL);
+# else /* !VBOX_WITH_NEW_SYS_V_KEYGEN */
     Utf8Str semName = ipcId;
     char *pszSemName = NULL;
     RTStrUtf8ToCurrentCP (&pszSemName, semName);
-    key_t key = ::ftok (pszSemName, 0);
+    key_t key = ::ftok (pszSemName, 'V');
     RTStrFree (pszSemName);
+# endif /* !VBOX_WITH_NEW_SYS_V_KEYGEN */
 
     mIPCSem = ::semget (key, 0, 0);
     AssertMsgReturn (mIPCSem >= 0,
@@ -996,6 +1018,9 @@ void Session::releaseIPCSemaphore()
         /* wait for the thread to finish */
         ::WaitForSingleObject (mIPCThreadSem, INFINITE);
         ::CloseHandle (mIPCThreadSem);
+
+        mIPCThreadSem = NULL;
+        mIPCSem = NULL;
     }
 
 #elif defined(RT_OS_OS2)
@@ -1027,6 +1052,8 @@ void Session::releaseIPCSemaphore()
     {
         ::sembuf sop = { 0, 1, SEM_UNDO };
         ::semop (mIPCSem, &sop, 1);
+
+        mIPCSem = -1;
     }
 
 #else

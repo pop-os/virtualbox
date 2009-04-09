@@ -1,4 +1,4 @@
-/* $Id: CFGM.cpp $ */
+/* $Id: CFGM.cpp 18351 2009-03-26 20:45:57Z vboxsync $ */
 /** @file
  * CFGM - Configuration Manager.
  */
@@ -601,7 +601,7 @@ VMMR3DECL(int) CFGMR3QueryInteger(PCFGMNODE pNode, const char *pszName, uint64_t
  * @param   pNode           Which node to search for pszName in.
  * @param   pszName         Name of an integer value.
  * @param   pu64            Where to store the integer value. This is set to the default on failure.
- * @param   u64Def          The default value.
+ * @param   u64Def          The default value. This is always set.
  */
 VMMR3DECL(int) CFGMR3QueryIntegerDef(PCFGMNODE pNode, const char *pszName, uint64_t *pu64, uint64_t u64Def)
 {
@@ -768,7 +768,9 @@ static int cfgmR3CreateDefaultTree(PVM pVM)
      */
     rc = CFGMR3InsertString(pRoot,  "Name",                 "Default VM");
     UPDATERC();
-    rc = CFGMR3InsertInteger(pRoot, "RamSize",              128 * _1M);
+    rc = CFGMR3InsertInteger(pRoot, "RamSize",              128U * _1M);
+    UPDATERC();
+    rc = CFGMR3InsertInteger(pRoot, "RamHoleSize",          512U * _1M);
     UPDATERC();
     rc = CFGMR3InsertInteger(pRoot, "TimerMillies",         10);
     UPDATERC();
@@ -838,7 +840,9 @@ static int cfgmR3CreateDefaultTree(PVM pVM)
     UPDATERC();
     rc = CFGMR3InsertNode(pInst,    "Config", &pCfg);
     UPDATERC();
-    rc = CFGMR3InsertInteger(pCfg,  "RamSize",              128 * _1M);
+    rc = CFGMR3InsertInteger(pCfg,  "RamSize",              128U * _1M);
+    UPDATERC();
+    rc = CFGMR3InsertInteger(pCfg,  "RamHoleSize",          512U * _1M);
     UPDATERC();
     rc = CFGMR3InsertString(pCfg,   "BootDevice0",          "IDE");
     UPDATERC();

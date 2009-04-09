@@ -93,6 +93,8 @@ typedef enum LOGGROUP
     LOG_GROUP_DEV_DMA,
     /** Gigabit Ethernet Device group. */
     LOG_GROUP_DEV_E1000,
+    /** Extensible Firmware Interface Device group. */
+    LOG_GROUP_DEV_EFI,
     /** Floppy Controller Device group. */
     LOG_GROUP_DEV_FDC,
     /** High Precision Event Timer Device group. */
@@ -103,6 +105,8 @@ typedef enum LOGGROUP
     LOG_GROUP_DEV_INIP,
     /** KeyBoard Controller Device group. */
     LOG_GROUP_DEV_KBD,
+    /** Low Pin Count Device group. */
+    LOG_GROUP_DEV_LPC,
     /** LsiLogic SCSI controller Device group. */
     LOG_GROUP_DEV_LSILOGICSCSI,
     /** NE2000 Device group. */
@@ -231,10 +235,10 @@ typedef enum LOGGROUP
     LOG_GROUP_MM_PHYS,
     /** MM Page pool group. */
     LOG_GROUP_MM_POOL,
+    /** The network adaptor driver group. */
+    LOG_GROUP_NET_ADP_DRV,
     /** The network filter driver group. */
     LOG_GROUP_NET_FLT_DRV,
-    /** The network tap driver group. */
-    LOG_GROUP_NET_TAP_DRV,
     /** PATM group. */
     LOG_GROUP_PATM,
     /** PDM group. */
@@ -251,8 +255,6 @@ typedef enum LOGGROUP
     LOG_GROUP_PDM_QUEUE,
     /** PGM group. */
     LOG_GROUP_PGM,
-    /** PGMCACHE group. */
-    LOG_GROUP_PGMCACHE,
     /** PGM physical group. */
     LOG_GROUP_PGM_PHYS,
     /** PGM physical access group. */
@@ -275,6 +277,8 @@ typedef enum LOGGROUP
     LOG_GROUP_REM_RUN,
     /** SELM group. */
     LOG_GROUP_SELM,
+    /** Shared clipboard host service group. */
+    LOG_GROUP_SHARED_CLIPBOARD,
     /** Chromium OpenGL host service group. */
     LOG_GROUP_SHARED_CROPENGL,
     /** Shared folders host service group. */
@@ -353,11 +357,13 @@ typedef enum LOGGROUP
     "DEV_BUSLOGIC", \
     "DEV_DMA",      \
     "DEV_E1000",    \
+    "DEV_EFI",      \
     "DEV_FDC",      \
     "DEV_HPET",     \
     "DEV_IDE",      \
     "DEV_INIP",     \
     "DEV_KBD",      \
+    "DEV_LPC",      \
     "DEV_LSILOGICSCSI", \
     "DEV_NE2000",   \
     "DEV_PARALLEL", \
@@ -422,8 +428,8 @@ typedef enum LOGGROUP
     "MM_HYPER_HEAP",\
     "MM_PHYS",      \
     "MM_POOL",      \
+    "NET_ADP_DRV",  \
     "NET_FLT_DRV",  \
-    "NET_TAP_DRV",  \
     "PATM",         \
     "PDM",          \
     "PDM_ASYNC_COMPLETION", \
@@ -432,7 +438,6 @@ typedef enum LOGGROUP
     "PDM_LDR",      \
     "PDM_QUEUE",    \
     "PGM",          \
-    "PGMCACHE",     \
     "PGM_PHYS",     \
     "PGM_PHYS_ACCESS",\
     "PGM_POOL",     \
@@ -444,6 +449,7 @@ typedef enum LOGGROUP
     "REM_PRINTF",   \
     "REM_RUN",      \
     "SELM",         \
+    "SHARED_CLIPBOARD",\
     "SHARED_CROPENGL",\
     "SHARED_FOLDERS",\
     "SHARED_OPENGL",\
@@ -469,4 +475,3 @@ typedef enum LOGGROUP
 
 /** @} */
 #endif
-

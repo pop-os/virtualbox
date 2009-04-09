@@ -38,15 +38,17 @@
 #include <memory>
 #include <limits>
 
-/* these conflict with numeric_digits<>::min and max */
-#undef min
-#undef max
-
 #include <iprt/time.h>
+
+#include <VBox/com/Guid.h>
 
 #include <VBox/xml.h>
 
-#include <stdarg.h>
+// #include <stdarg.h>
+
+/* these conflict with numeric_digits<>::min and max */
+#undef min
+#undef max
 
 
 /** @defgroup   grp_settings    Settings File Manipulation API
@@ -291,40 +293,6 @@ public:
 // Helpers
 //////////////////////////////////////////////////////////////////////////////
 
-/**
- * Temporary holder for the formatted string.
- *
- * Instances of this class are used for passing the formatted string as an
- * argument to an Error constructor or to another function that takes
- * <tr>const char *</tr> and makes a copy of the string it points to.
- */
-class VBOXXML_CLASS FmtStr
-{
-public:
-
-    /**
-     * Creates a formatted string using the format string and a set of
-     * printf-like arguments.
-     */
-    FmtStr (const char *aFmt, ...)
-    {
-        va_list args;
-        va_start (args, aFmt);
-        RTStrAPrintfV (&mStr, aFmt, args);
-        va_end (args);
-    }
-
-    ~FmtStr() { RTStrFree (mStr); }
-
-    operator const char *() { return mStr; }
-
-private:
-
-    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP (FmtStr)
-
-    char *mStr;
-};
-
 // string -> type conversions
 //////////////////////////////////////////////////////////////////////////////
 
@@ -472,6 +440,31 @@ ToString <RTTIMESPEC> (const RTTIMESPEC &aValue, unsigned int aExtra);
  * @return Result of conversion.
  */
 DECLEXPORT (stdx::char_auto_ptr) ToString (const void *aData, size_t aLen);
+
+#if defined VBOX_MAIN_SETTINGS_ADDONS
+
+/// @todo once string data in Bstr and Utf8Str is auto_ref_ptr, enable the
+/// code below
+
+#if 0
+
+/** Specialization of FromString for Bstr. */
+template<> com::Bstr FromString <com::Bstr> (const char *aValue);
+
+#endif
+
+/** Specialization of ToString for Bstr. */
+template<> stdx::char_auto_ptr
+ToString <com::Bstr> (const com::Bstr &aValue, unsigned int aExtra);
+
+/** Specialization of FromString for Guid. */
+template<> com::Guid FromString <com::Guid> (const char *aValue);
+
+/** Specialization of ToString for Guid. */
+template<> stdx::char_auto_ptr
+ToString <com::Guid> (const com::Guid &aValue, unsigned int aExtra);
+
+#endif // VBOX_MAIN_SETTINGS_ADDONS
 
 // the rest
 //////////////////////////////////////////////////////////////////////////////
@@ -625,7 +618,7 @@ public:
         }
         catch (const ENoValue &)
         {
-            throw ENoValue (FmtStr ("No such attribute '%s'", aName));
+            throw ENoValue(com::Utf8StrFmt("No such attribute '%s'", aName));
         }
     }
 
@@ -680,7 +673,7 @@ public:
         }
         catch (const ENoValue &)
         {
-            throw ENoValue (FmtStr ("No value for attribute '%s'", aName));
+            throw ENoValue(com::Utf8StrFmt("No value for attribute '%s'", aName));
         }
     }
 
@@ -794,7 +787,7 @@ public:
         Key key = findKey (aName);
         if (key.isNull())
         {
-            throw ENoKey(FmtStr("No such key '%s'", aName));
+            throw ENoKey(com::Utf8StrFmt("No such key '%s'", aName));
         }
         return key;
     }
