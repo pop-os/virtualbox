@@ -1,5 +1,5 @@
 #! /bin/sh /usr/share/dpatch/dpatch-run
-## 16_no_update.dpatch by Michael Meskes <meskes@debian.org>
+## 16-no-update.dpatch by Michael Meskes <meskes@debian.org>
 ##
 ## All lines beginning with `## DP:' are a description of the patch.
 ## DP: Do not check for updates
