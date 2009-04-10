@@ -1,4 +1,4 @@
-virtualbox-ose (2.2.0-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (2.2.0-dfsg-1) unstable; urgency=low
 
   * New upstream version.
   * Move X11 guest utils into separate packages, closes: #520438
@@ -10,7 +10,7 @@ virtualbox-ose (2.2.0-dfsg-1) UNRELEASED; urgency=low
   * Added patch to tell about missing vboxnetflt module, closes: #516819 
   * Bumped Standards-Version to 3.8.1
 
- -- Michael Meskes <meskes@debian.org>  Wed, 08 Apr 2009 12:30:54 +0200
+ -- Michael Meskes <meskes@debian.org>  Fri, 10 Apr 2009 11:16:49 +0200
 
 virtualbox-ose (2.1.4-dfsg-1) unstable; urgency=high
 
