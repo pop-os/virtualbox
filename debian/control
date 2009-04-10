@@ -147,10 +147,10 @@ Depends: ${shlibs:Depends},
          ${misc:Depends},
 	 virtualbox-ose-guest-utils,
          pciutils
-Conflicts: xserver-xorg-core (< 2:1.4)
-Recommends: xserver-xorg-core (>= 2:1.4)
-Provides: xserver-xorg-video-2,
-          xserver-xorg-input-2
+Conflicts: xserver-xorg-core (< 2:1.6)
+Recommends: xserver-xorg-core (>= 2:1.6)
+Provides: xserver-xorg-video-5,
+          xserver-xorg-input-5
 Description: x86 virtualization solution - X11 guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
