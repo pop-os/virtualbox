@@ -47,10 +47,6 @@
           guest requiring support for iSCSI.
         </para>
       </listitem>
-      <listitem>
-        <para>Emulation for Intel e1000 network devices</para>
-      </listitem>
-      <!-- FIXME web services? What else? -->
     </itemizedlist>
   </section>
   <section>
