@@ -4,6 +4,17 @@
 <article>
   <title>Virtualbox OSE for Debian</title>
   <section>
+    <title>Guest utilities</title>
+    <para>
+      The guest utilities are provided as seperate Debian packages. These
+      packages contain all features virtualbox-ose offers for Debian guests.
+      Guest utilities for operating systems not offering virtualbox-ose
+      packages have to be downloaded from the internet. The upstream provided
+      ISO images cannot be distributed with this package for licensing reasons.
+      The same holds for the externally provided WineD3D extensions.
+    </para>
+  </section>
+  <section>
     <title>Different versions</title>
     <para>
       The Open Source Edition of VirtualBox contains most but not all
