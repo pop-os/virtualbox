@@ -1,6 +1,7 @@
 virtualbox-ose (2.2.0-dfsg-2) UNRELEASED; urgency=low
 
   * Remove obsolete conffiles, closes: #523778
+  * Made package description clearer, closes: #524154
 
  -- Michael Meskes <meskes@debian.org>  Mon, 13 Apr 2009 20:51:26 +0200
 

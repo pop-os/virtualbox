@@ -58,13 +58,13 @@ Depends: ${shlibs:Depends},
 	 virtualbox-ose
 Pre-Depends: debconf | debconf-2.0
 Replaces: virtualbox-ose
-Description: x86 virtualization solution - QT4 based user interface
+Description: x86 virtualization solution - Qt based user interface
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
  Linux system.
  .
- This package provides the binaries for the iQT4 based graphical user interface
- of the Open Source Edition of VirtualBox.
+ This package provides the Qt based graphical user interface of the Open Source
+ Edition of VirtualBox.
 
 Package: virtualbox-ose
 Architecture: amd64 i386 lpia
@@ -80,14 +80,15 @@ Suggests: virtualbox-ose-source
 Conflicts: virtualbox
 Provides: virtualbox
 Replaces: virtualbox
-Description: x86 virtualization solution - binaries
+Description: x86 virtualization solution - base binaries
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
  Linux system.
  .
  This package provides the binaries for the Open Source Edition of
  VirtualBox. The virtualbox-ose-source package is also required in order to
- compile the kernel modules needed for virtualbox-ose.
+ compile the kernel modules needed for virtualbox-ose. A graphical user
+ interface for VirtualBox is provided by the package virtualbox-ose-qt.
 
 Package: virtualbox-ose-dbg
 Section: debug
