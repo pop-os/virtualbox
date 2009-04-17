@@ -6,7 +6,7 @@
   <section>
     <title>Guest utilities</title>
     <para>
-      The guest utilities are provided as seperate Debian packages. These
+      The guest utilities are provided as separate Debian packages. These
       packages contain all features virtualbox-ose offers for Debian guests.
       Guest utilities for operating systems not offering virtualbox-ose
       packages have to be downloaded from the internet. The upstream provided

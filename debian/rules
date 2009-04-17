@@ -2,8 +2,6 @@
 
 include /usr/share/dpatch/dpatch.make
 
-# some default definitions, important!
-#
 # Name of the source packages
 psource:=virtualbox-ose-source
 gsource:=virtualbox-ose-guest-source
@@ -14,6 +12,14 @@ sxname:=virtualbox-ose-qt
 gname:=virtualbox-ose-guest
 uname:=virtualbox-ose-guest-utils
 uxname:=virtualbox-ose-guest-x11
+
+# Some defines needed for X
+SERVERMINVERS = $(shell cat /usr/share/xserver-xorg/serverminver 2>/dev/null)
+VIDEOABI = $(shell cat /usr/share/xserver-xorg/videoabiver 2>/dev/null)
+INPUTABI = $(shell cat /usr/share/xserver-xorg/inputabiver 2>/dev/null)
+SERVER_DEPENDS = xserver-xorg-core (>= $(SERVERMINVERS))
+VIDDRIVER_PROVIDES = xserver-xorg-video-$(VIDEOABI)
+INPDRIVER_PROVIDES = xserver-xorg-input-$(INPUTABI)
 
 MAKE:=kmk
 
@@ -103,7 +109,17 @@ install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
 	# Install helper scripts for vbox* interfaces
 	dh_installifupdown -p$(sname)
 
-binary-arch: build install
+serverabi: install
+ifeq ($(SERVERMINVERS),)
+	@echo error: xserver-xorg-dev needs to be installed
+	@exit 1
+else
+	echo "xserver:Depends=$(SERVER_DEPENDS)" >> debian/$(uxname).substvars
+	echo "xviddriver:Provides=$(VIDDRIVER_PROVIDES)" >> debian/$(uxname).substvars
+	echo "xinpdriver:Provides=$(INPDRIVER_PROVIDES)" >> debian/$(uxname).substvars
+endif
+
+binary-arch: build install serverabi
 	dh_testdir -s
 	dh_testroot -s
 	dh_installchangelogs -s
@@ -159,6 +175,6 @@ binary-indep: build install
 	dh_builddeb -i
 
 binary: binary-arch binary-indep
-.PHONY: patch unpatch \
+.PHONY: patch unpatch serverabi \
 	build clean binary-arch binary-indep binary install \
 	binary-modules kdist kdist_configure kdist_image kdist_clean

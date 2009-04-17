@@ -3,8 +3,10 @@ virtualbox-ose (2.2.0-dfsg-2) UNRELEASED; urgency=low
   * Remove obsolete conffiles, closes: #523778
   * Made package description clearer, closes: #524154
   * Documented guest utils download, closes: #524171
+  * Made build system use files provided by xserver-xorg instead of local
+    copies, closes: #515631
 
- -- Michael Meskes <meskes@debian.org>  Mon, 13 Apr 2009 20:51:26 +0200
+ -- Michael Meskes <meskes@debian.org>  Fri, 17 Apr 2009 22:08:26 +0200
 
 virtualbox-ose (2.2.0-dfsg-1) unstable; urgency=low
 
