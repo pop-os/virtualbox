@@ -156,6 +156,7 @@ Depends: ${shlibs:Depends},
          pciutils
 Provides: ${xviddriver:Provides},
           ${xinpdriver:Provides}
+Replaces: virtualbox-ose-guest-utils
 Description: x86 virtualization solution - X11 guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
