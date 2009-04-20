@@ -110,6 +110,7 @@ Description: x86 virtualization solution - debugging symbols
  VirtualBox.
 
 Package: virtualbox-ose-source
+Section: kernel
 Architecture: all
 Depends: ${misc:Depends},
          debhelper (>= 5),
@@ -130,6 +131,7 @@ Description: x86 virtualization solution - kernel module source
  modules. Kernel sources or headers are required to compile this module.
 
 Package: virtualbox-ose-guest-source
+Section: kernel
 Architecture: all
 Depends: ${misc:Depends},
          debhelper (>= 5),
