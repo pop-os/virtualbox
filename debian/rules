@@ -164,6 +164,7 @@ binary-indep: build install
 	dh_link -i
 	# Create .tar.bz2 for virtualbox*source
 	cd debian/$(psource)/usr/src && \
+	    tar -cjf $(sname).tar.bz2 modules && \
 	    rm -rf modules
 	cd debian/$(gsource)/usr/src && \
 	    tar -cjf $(gname).tar.bz2 modules && \

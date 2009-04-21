@@ -1,3 +1,9 @@
+virtualbox-ose (2.2.0-dfsg-3) unstable; urgency=low
+
+  * Putting back the tar command that was lost in debian/rules, closes: #524897
+
+ -- Michael Meskes <meskes@debian.org>  Tue, 21 Apr 2009 08:45:06 +0200
+
 virtualbox-ose (2.2.0-dfsg-2) unstable; urgency=low
 
   * Remove obsolete conffiles, closes: #523778
