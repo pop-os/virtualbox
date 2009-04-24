@@ -1,3 +1,9 @@
+virtualbox-ose (2.2.0-dfsg-4) UNRELEASED; urgency=low
+
+  * Extended error message patch for vboxdrv failure.
+
+ -- Michael Meskes <meskes@debian.org>  Fri, 24 Apr 2009 15:22:14 +0200
+
 virtualbox-ose (2.2.0-dfsg-3) unstable; urgency=low
 
   * Putting back the tar command that was lost in debian/rules, closes: #524897
