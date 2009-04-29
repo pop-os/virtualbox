@@ -1,8 +1,9 @@
-virtualbox-ose (2.2.0-dfsg-4) UNRELEASED; urgency=low
+virtualbox-ose (2.2.2-dfsg-1) UNRELEASED; urgency=low
 
+  * New Upstream Version
   * Extended error message patch for vboxdrv failure.
 
- -- Michael Meskes <meskes@debian.org>  Fri, 24 Apr 2009 15:22:14 +0200
+ -- Michael Meskes <meskes@debian.org>  Wed, 29 Apr 2009 09:13:24 +0200
 
 virtualbox-ose (2.2.0-dfsg-3) unstable; urgency=low
 
