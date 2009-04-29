@@ -1,4 +1,4 @@
-// $Id: vbox.dsl 18228 2009-03-24 22:21:29Z vboxsync $
+// $Id: vbox.dsl $
 /// @file
 //
 // VirtualBox ACPI

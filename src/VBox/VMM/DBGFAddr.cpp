@@ -1,4 +1,4 @@
-/* $Id: DBGFAddr.cpp 13816 2008-11-04 22:52:12Z vboxsync $ */
+/* $Id: DBGFAddr.cpp $ */
 /** @file
  * DBGF - Debugger Facility, Mixed Address Methods.
  */

@@ -692,6 +692,13 @@ static VBoxDefs::RenderMode vboxGetRenderMode (const char *aModeStr)
 
 #if defined (Q_WS_MAC) && defined (VBOX_GUI_USE_QUARTZ2D)
     mode = VBoxDefs::Quartz2DMode;
+# ifdef RT_ARCH_X86
+    /* Quartz2DMode doesn't refresh correctly on 32-bit Snow Leopard, use image mode. */
+    char szRelease[80];
+    if (    RT_SUCCESS (RTSystemQueryOSInfo (RTSYSOSINFO_RELEASE, szRelease, sizeof (szRelease)))
+        &&  !strncmp (szRelease, "10.", 3))
+        mode = VBoxDefs::QImageMode;
+# endif
 #elif (defined (Q_WS_WIN32) || defined (Q_WS_PM) || defined (Q_WS_X11)) && defined (VBOX_GUI_USE_QIMAGE)
     mode = VBoxDefs::QImageMode;
 #elif defined (Q_WS_X11) && defined (VBOX_GUI_USE_SDL)
@@ -1896,13 +1903,13 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aIsNewVM,
                      * an additional symbolic network/interface name field, use
                      * this name instead */
                     if (type == KNetworkAttachmentType_Bridged)
-                        attType = attType.arg (tr ("Bridged network, %1",
+                        attType = attType.arg (tr ("Bridged adapter, %1",
                             "details report (network)").arg (adapter.GetHostInterface()));
                     else if (type == KNetworkAttachmentType_Internal)
                         attType = attType.arg (tr ("Internal network, '%1'",
                             "details report (network)").arg (adapter.GetInternalNetwork()));
                     else if (type == KNetworkAttachmentType_HostOnly)
-                        attType = attType.arg (tr ("Host-only network, '%1'",
+                        attType = attType.arg (tr ("Host-only adapter, '%1'",
                             "details report (network)").arg (adapter.GetHostInterface()));
                     else
                         attType = attType.arg (vboxGlobal().toString (type));
@@ -2920,11 +2927,11 @@ void VBoxGlobal::retranslateUi()
     mNetworkAttachmentTypes [KNetworkAttachmentType_NAT] =
         tr ("NAT", "NetworkAttachmentType");
     mNetworkAttachmentTypes [KNetworkAttachmentType_Bridged] =
-        tr ("Bridged Network", "NetworkAttachmentType");
+        tr ("Bridged Adapter", "NetworkAttachmentType");
     mNetworkAttachmentTypes [KNetworkAttachmentType_Internal] =
         tr ("Internal Network", "NetworkAttachmentType");
     mNetworkAttachmentTypes [KNetworkAttachmentType_HostOnly] =
-        tr ("Host-only Network", "NetworkAttachmentType");
+        tr ("Host-only Adapter", "NetworkAttachmentType");
 
     mClipboardTypes [KClipboardMode_Disabled] =
         tr ("Disabled", "ClipboardType");
@@ -4046,15 +4053,6 @@ QString VBoxGlobal::getExistingDirectory (const QString &aDir,
             bi.lpfn = winGetExistDirCallbackProc;
             bi.lParam = Q_ULONG (&mDir);
 
-            /* Qt is uncapable to properly handle modal state if the modal
-             * window is not a QWidget. For example, if we have the W1->W2->N
-             * ownership where Wx are QWidgets (W2 is modal), and N is a
-             * native modal window, cliking on the title bar of W1 will still
-             * activate W2 and redirect keyboard/mouse to it. The dirty hack
-             * to prevent it is to disable the entire widget... */
-            if (mParent)
-                mParent->setEnabled (false);
-
             LPITEMIDLIST itemIdList = SHBrowseForFolder (&bi);
             if (itemIdList)
             {
@@ -4072,10 +4070,6 @@ QString VBoxGlobal::getExistingDirectory (const QString &aDir,
             else
                 result = QString::null;
             QApplication::postEvent (mTarget, new GetExistDirectoryEvent (result));
-
-            /* Enable the parent widget again. */
-            if (mParent)
-                mParent->setEnabled (true);
         }
 
     private:

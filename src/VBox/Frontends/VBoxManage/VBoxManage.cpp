@@ -1,4 +1,4 @@
-/* $Id: VBoxManage.cpp 18819 2009-04-07 13:02:43Z vboxsync $ */
+/* $Id: VBoxManage.cpp $ */
 /** @file
  * VBoxManage - VirtualBox's command-line interface.
  */
@@ -215,7 +215,7 @@ static int handleRegisterVM(HandlerArg *a)
         }
         CHECK_ERROR(a->virtualBox, OpenMachine(Bstr(szVMFileAbs), machine.asOutParam()));
     }
-    else
+    else if (FAILED(rc))
         CHECK_ERROR(a->virtualBox, OpenMachine(Bstr(a->argv[0]), machine.asOutParam()));
     if (SUCCEEDED(rc))
     {

@@ -1,4 +1,4 @@
-/* $Id: hardenedmain.cpp 18789 2009-04-06 18:08:04Z vboxsync $ */
+/* $Id: hardenedmain.cpp $ */
 /** @file
  * VirtualBox - Hardened main().
  */

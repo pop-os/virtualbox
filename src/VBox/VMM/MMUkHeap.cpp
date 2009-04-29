@@ -1,4 +1,4 @@
-/* $Id: MMUkHeap.cpp 18792 2009-04-06 18:40:52Z vboxsync $ */
+/* $Id: MMUkHeap.cpp $ */
 /** @file
  * MM - Memory Manager - Ring-3 Heap with kernel accessible mapping.
  */

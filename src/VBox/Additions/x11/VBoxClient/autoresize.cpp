@@ -26,10 +26,12 @@
 #include <sys/wait.h>
 #include <errno.h>
 
-#include <VBox/log.h>
-#include <VBox/VBoxGuest.h>
+#include <X11/Xlib.h>
+
 #include <iprt/assert.h>
 #include <iprt/thread.h>
+#include <VBox/log.h>
+#include <VBox/VBoxGuest.h>
 
 #include "VBoxClient.h"
 
@@ -62,6 +64,16 @@ void cleanupAutoResize(void)
     LogFlowFunc(("returning\n"));
 }
 
+/** This thread just runs a dummy X11 event loop to be sure that we get
+ * terminated should the X server exit. */
+static int x11ConnectionMonitor(RTTHREAD, void *)
+{
+    XEvent ev;
+    Display *pDisplay = XOpenDisplay(NULL);
+    while (true)
+        XNextEvent(pDisplay, &ev);
+}
+
 /**
  * Display change request monitor thread function.
  * Before entering the loop, we re-read the last request
@@ -73,13 +85,17 @@ int runAutoResize()
 {
     LogFlowFunc(("\n"));
     uint32_t cx0 = 0, cy0 = 0, cBits0 = 0, iDisplay0 = 0;
-    int rc = VbglR3GetLastDisplayChangeRequest(&cx0, &cy0, &cBits0, &iDisplay0);
+    int rc = RTThreadCreate(NULL, x11ConnectionMonitor, NULL, 0,
+                   RTTHREADTYPE_INFREQUENT_POLLER, 0, "X11 monitor");
+    if (RT_FAILURE(rc))
+        return rc;
+    VbglR3GetLastDisplayChangeRequest(&cx0, &cy0, &cBits0, &iDisplay0);
     while (true)
     {
         uint32_t cx = 0, cy = 0, cBits = 0, iDisplay = 0;
         rc = VbglR3DisplayChangeWaitEvent(&cx, &cy, &cBits, &iDisplay);
         /* Ignore the request if it is stale */
-        if ((cx != cx0) || (cy != cy0))
+        if ((cx != cx0) || (cy != cy0) || RT_FAILURE(rc))
         {
 	        /* If we are not stopping, sleep for a bit to avoid using up too
 	            much CPU while retrying. */

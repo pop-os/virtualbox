@@ -1,4 +1,4 @@
-/* $Id: tstRTProcWait.cpp 14831 2008-11-30 10:31:16Z vboxsync $ */
+/* $Id: tstRTProcWait.cpp $ */
 /** @file
  * IPRT Testcase - RTProcWait.
  */

@@ -1,4 +1,4 @@
-/* $Id: RTFileMove-generic.cpp 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: RTFileMove-generic.cpp $ */
 /** @file
  * IPRT - RTFileMove, Generic.
  */

@@ -1,4 +1,4 @@
-/* $Id: HostNetworkInterfaceImpl.h 18594 2009-04-01 12:15:40Z vboxsync $ */
+/* $Id: HostNetworkInterfaceImpl.h $ */
 
 /** @file
  *

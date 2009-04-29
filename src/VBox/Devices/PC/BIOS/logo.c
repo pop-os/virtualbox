@@ -1,4 +1,4 @@
-/* $Id: logo.c 18391 2009-03-27 13:30:25Z vboxsync $ */
+/* $Id: logo.c $ */
 /** @file
  * Stuff for drawing the BIOS logo.
  */

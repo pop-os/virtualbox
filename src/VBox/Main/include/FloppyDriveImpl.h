@@ -1,4 +1,4 @@
-/* $Id: FloppyDriveImpl.h 16867 2009-02-17 17:00:56Z vboxsync $ */
+/* $Id: FloppyDriveImpl.h $ */
 
 /** @file
  *

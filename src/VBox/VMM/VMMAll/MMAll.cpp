@@ -1,4 +1,4 @@
-/* $Id: MMAll.cpp 15174 2008-12-09 14:11:35Z vboxsync $ */
+/* $Id: MMAll.cpp $ */
 /** @file
  * MM - Memory Manager - Any Context.
  */

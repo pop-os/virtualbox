@@ -1,4 +1,4 @@
-/* $Id: VBoxManageDisk.cpp 18836 2009-04-07 16:35:48Z vboxsync $ */
+/* $Id: VBoxManageDisk.cpp $ */
 /** @file
  * VBoxManage - The disk delated commands.
  */
@@ -439,21 +439,52 @@ int handleModifyHardDisk(HandlerArg *a)
 
     if (fModifyCompact)
     {
-#if 1
-        RTPrintf("Error: Compact hard disk operation is not implemented!\n");
-        RTPrintf("The functionality will be restored later.\n");
-        return 1;
-#else
+        bool unknown = false;
         /* the hard disk image might not be registered */
         if (!hardDisk)
         {
-            a->virtualBox->OpenHardDisk(Bstr(FilenameOrUuid), AccessMode_ReadWrite, hardDisk.asOutParam());
-            if (!hardDisk)
-                return errorArgument("Hard disk image not found");
+            unknown = true;
+            rc = a->virtualBox->OpenHardDisk(Bstr(FilenameOrUuid), AccessMode_ReadWrite, hardDisk.asOutParam());
+            if (rc == VBOX_E_FILE_ERROR)
+            {
+                char szFilenameAbs[RTPATH_MAX] = "";
+                int vrc = RTPathAbs(FilenameOrUuid, szFilenameAbs, sizeof(szFilenameAbs));
+                if (RT_FAILURE(vrc))
+                {
+                    RTPrintf("Cannot convert filename \"%s\" to absolute path\n", FilenameOrUuid);
+                    return 1;
+                }
+                CHECK_ERROR(a->virtualBox, OpenHardDisk(Bstr(szFilenameAbs), AccessMode_ReadWrite, hardDisk.asOutParam()));
+            }
+            else if (FAILED(rc))
+                CHECK_ERROR(a->virtualBox, OpenHardDisk(Bstr(FilenameOrUuid), AccessMode_ReadWrite, hardDisk.asOutParam()));
         }
-
-        /** @todo implement compacting of images. */
-#endif
+        if (SUCCEEDED(rc) && hardDisk)
+        {
+            ComPtr<IProgress> progress;
+            CHECK_ERROR(hardDisk, Compact(progress.asOutParam()));
+            if (SUCCEEDED(rc))
+            {
+                showProgress(progress);
+                progress->COMGETTER(ResultCode)(&rc);
+            }
+            if (FAILED(rc))
+            {
+                if (rc == E_NOTIMPL)
+                {
+                    RTPrintf("Error: Compact hard disk operation is not implemented!\n");
+                    RTPrintf("The functionality will be restored later.\n");
+                }
+                else if (rc == VBOX_E_NOT_SUPPORTED)
+                {
+                    RTPrintf("Error: Compact hard disk operation for this format is not implemented yet!\n");
+                }
+                else
+                    com::GluePrintRCMessage(rc);
+            }
+            if (unknown)
+                hardDisk->Close();
+        }
     }
 
     return SUCCEEDED(rc) ? 0 : 1;
@@ -556,10 +587,23 @@ int handleCloneHardDisk(HandlerArg *a)
     if (FAILED (rc))
     {
         rc = a->virtualBox->FindHardDisk(src, srcDisk.asOutParam());
-        /* no? well, then it's an unkwnown image */
+        /* no? well, then it's an unknown image */
         if (FAILED (rc))
         {
-            CHECK_ERROR(a->virtualBox, OpenHardDisk(src, AccessMode_ReadWrite, srcDisk.asOutParam()));
+            rc = a->virtualBox->OpenHardDisk(src, AccessMode_ReadWrite, srcDisk.asOutParam());
+            if (rc == VBOX_E_FILE_ERROR)
+            {
+                char szFilenameAbs[RTPATH_MAX] = "";
+                int vrc = RTPathAbs(Utf8Str(src), szFilenameAbs, sizeof(szFilenameAbs));
+                if (RT_FAILURE(vrc))
+                {
+                    RTPrintf("Cannot convert filename \"%s\" to absolute path\n", Utf8Str(src).raw());
+                    return 1;
+                }
+                CHECK_ERROR(a->virtualBox, OpenHardDisk(Bstr(szFilenameAbs), AccessMode_ReadWrite, srcDisk.asOutParam()));
+            }
+            else if (FAILED(rc))
+                CHECK_ERROR(a->virtualBox, OpenHardDisk(src, AccessMode_ReadWrite, srcDisk.asOutParam()));
             if (SUCCEEDED (rc))
             {
                 unknown = true;
@@ -1060,7 +1104,20 @@ int handleShowHardDiskInfo(HandlerArg *a)
         /* no? well, then it's an unkwnown image */
         if (FAILED (rc))
         {
-            CHECK_ERROR(a->virtualBox, OpenHardDisk(Bstr(FilenameOrUuid), AccessMode_ReadWrite, hardDisk.asOutParam()));
+            rc = a->virtualBox->OpenHardDisk(Bstr(FilenameOrUuid), AccessMode_ReadWrite, hardDisk.asOutParam());
+            if (rc == VBOX_E_FILE_ERROR)
+            {
+                char szFilenameAbs[RTPATH_MAX] = "";
+                int vrc = RTPathAbs(FilenameOrUuid, szFilenameAbs, sizeof(szFilenameAbs));
+                if (RT_FAILURE(vrc))
+                {
+                    RTPrintf("Cannot convert filename \"%s\" to absolute path\n", FilenameOrUuid);
+                    return 1;
+                }
+                CHECK_ERROR(a->virtualBox, OpenHardDisk(Bstr(szFilenameAbs), AccessMode_ReadWrite, hardDisk.asOutParam()));
+            }
+            else if (FAILED(rc))
+                CHECK_ERROR(a->virtualBox, OpenHardDisk(Bstr(FilenameOrUuid), AccessMode_ReadWrite, hardDisk.asOutParam()));
             if (SUCCEEDED (rc))
             {
                 unknown = true;
@@ -1282,7 +1339,7 @@ int handleOpenMedium(HandlerArg *a)
             }
             CHECK_ERROR(a->virtualBox, OpenHardDisk(Bstr(szFilenameAbs), AccessMode_ReadWrite, hardDisk.asOutParam()));
         }
-        else
+        else if (FAILED(rc))
             CHECK_ERROR(a->virtualBox, OpenHardDisk(Bstr(Filename), AccessMode_ReadWrite, hardDisk.asOutParam()));
         if (SUCCEEDED(rc) && hardDisk)
         {
@@ -1310,7 +1367,7 @@ int handleOpenMedium(HandlerArg *a)
             }
             CHECK_ERROR(a->virtualBox, OpenDVDImage(Bstr(szFilenameAbs), Guid(), dvdImage.asOutParam()));
         }
-        else
+        else if (FAILED(rc))
             CHECK_ERROR(a->virtualBox, OpenDVDImage(Bstr(Filename), Guid(), dvdImage.asOutParam()));
     }
     else if (cmd == CMD_FLOPPY)
@@ -1330,7 +1387,7 @@ int handleOpenMedium(HandlerArg *a)
             }
             CHECK_ERROR(a->virtualBox, OpenFloppyImage(Bstr(szFilenameAbs), Guid(), floppyImage.asOutParam()));
         }
-        else
+        else if (FAILED(rc))
             CHECK_ERROR(a->virtualBox, OpenFloppyImage(Bstr(Filename), Guid(), floppyImage.asOutParam()));
     }
 

@@ -1,4 +1,4 @@
-/* $Id: VBoxGuest-freebsd.c 8250 2008-04-21 18:42:58Z vboxsync $ */
+/* $Id: VBoxGuest-freebsd.c $ */
 /** @file
  * VirtualBox Guest Additions Driver for FreeBSD.
  */

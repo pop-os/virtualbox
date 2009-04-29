@@ -1,4 +1,4 @@
-/* $Id: VBoxManageModifyVM.cpp 18829 2009-04-07 15:42:32Z vboxsync $ */
+/* $Id: VBoxManageModifyVM.cpp $ */
 /** @file
  * VBoxManage - Implementation of modifyvm command.
  */
@@ -1276,15 +1276,15 @@ int handleModifyVM(HandlerArg *a)
             ComPtr<IStorageController> storageController;
             CHECK_ERROR(machine, GetStorageControllerByName(Bstr("IDE"), storageController.asOutParam()));
 
-            if (RTStrICmp(idecontroller, "PIIX3"))
+            if (!RTStrICmp(idecontroller, "PIIX3"))
             {
                 CHECK_ERROR(storageController, COMSETTER(ControllerType)(StorageControllerType_PIIX3));
             }
-            else if (RTStrICmp(idecontroller, "PIIX4"))
+            else if (!RTStrICmp(idecontroller, "PIIX4"))
             {
                 CHECK_ERROR(storageController, COMSETTER(ControllerType)(StorageControllerType_PIIX4));
             }
-            else if (RTStrICmp(idecontroller, "ICH6"))
+            else if (!RTStrICmp(idecontroller, "ICH6"))
             {
                 CHECK_ERROR(storageController, COMSETTER(ControllerType)(StorageControllerType_ICH6));
             }

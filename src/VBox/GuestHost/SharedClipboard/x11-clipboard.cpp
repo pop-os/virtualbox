@@ -22,7 +22,10 @@
 
 #define LOG_GROUP LOG_GROUP_SHARED_CLIPBOARD
 
+#include <errno.h>
 #include <vector>
+
+#include <unistd.h>
 
 #ifdef RT_OS_SOLARIS
 #include <tsol/label.h>
@@ -131,6 +134,12 @@ struct _VBOXCLIPBOARDCONTEXTX11
      * clipboard data it must wait for this semaphore, which is triggered
      * when the data arrives. */
     RTSEMEVENT waitForData;
+    /** When we wish the clipboard to exit, we have to wake up the event
+     * loop.  We do this by writing into a pipe.  This end of the pipe is
+     * the end that another thread can write to. */
+    int wakeupPipeWrite;
+    /** The reader end of the pipe */
+    int wakeupPipeRead;
 };
 
 /* Only one client is supported. There seems to be no need for more clients. 
@@ -275,6 +284,16 @@ static void vboxClipboardGetCTextFromX11(VBOXCLIPBOARDCONTEXTX11 *pCtx,
     LogFlowFunc (("converting COMPOUND TEXT to Utf-16LE.  cbSrcLen=%d, cb=%d, pu8SrcText=%.*s\n",
                    cbSrcLen, cb, cbSrcLen, reinterpret_cast<char *>(pValue)));
     *pcbActual = 0;  /* Only set this to the right value on success. */
+    /** @todo quick fix for 2.2, do this properly. */
+    if (cbSrcLen == 0)
+    {
+        XtFree(reinterpret_cast<char *>(pValue));
+        if (cb < 2)
+            return;
+        *(PRTUTF16) pv = 0;
+        *pcbActual = 2;
+        return;
+    }
     /* First convert the compound text to Utf8 */
     property.value = reinterpret_cast<unsigned char *>(pValue);
     property.encoding = pCtx->atomCText;
@@ -403,17 +422,29 @@ static void vboxClipboardGetDataFromX11(Widget, XtPointer pClientData,
     VBOXCLIPBOARDREQUEST *pRequest
         = reinterpret_cast<VBOXCLIPBOARDREQUEST *>(pClientData);
     VBOXCLIPBOARDCONTEXTX11 *pCtx = pRequest->pCtx;
+    if (pCtx->eOwner == VB)
+    {
+        /* We don't want to request data from ourselves! */
+        RTSemEventSignal(pCtx->waitForData);
+        return;
+    }
     LogFlowFunc(("pClientData=%p, *pcLen=%lu, *piFormat=%d\n", pClientData,
                  *pcLen, *piFormat));
     LogFlowFunc(("pCtx->X11TextFormat=%d, pRequest->cb=%d\n",
                  pCtx->X11TextFormat, pRequest->cb));
     unsigned cTextLen = (*pcLen) * (*piFormat) / 8;
     /* The X Toolkit may have failed to get the clipboard selection for us. */
-    if (*atomType == XT_CONVERT_FAIL)
+    if (*atomType == XT_CONVERT_FAIL) /* timeout */
+    {
+        RTSemEventSignal(pCtx->waitForData);
         return;
+    }
     /* The clipboard selection may have changed before we could get it. */
     if (NULL == pValue)
+    {
+        RTSemEventSignal(pCtx->waitForData);
         return;
+    }
     /* In which format is the clipboard data? */
     switch (pCtx->X11TextFormat)
     {
@@ -449,6 +480,7 @@ static void vboxClipboardGetDataFromX11(Widget, XtPointer pClientData,
     default:
         LogFunc (("bad target format\n"));
         XtFree(reinterpret_cast<char *>(pValue));
+        RTSemEventSignal(pCtx->waitForData);
         return;
     }
     pCtx->notifyVBox = true;
@@ -477,9 +509,11 @@ static void vboxClipboardGetTargetsFromX11(Widget,
     Atom atomBestTarget = None;
 
     Log3 (("%s: called\n", __PRETTY_FUNCTION__));
-    if (*atomType == XT_CONVERT_FAIL)
+    if (   *atomType == XT_CONVERT_FAIL /* timeout */
+        || pCtx->eOwner == VB           /* VBox currently owns the clipb. */)
     {
-        LogFunc (("reading clipboard from host, X toolkit failed to convert the selection\n"));
+        pCtx->atomX11TextFormat = None;
+        pCtx->X11TextFormat = INVALID;
         return;
     }
 
@@ -558,8 +592,8 @@ static void vboxClipboardPollX11ForTargets(XtPointer pUserData,
     VBOXCLIPBOARDCONTEXTX11 *pCtx =
             reinterpret_cast<VBOXCLIPBOARDCONTEXTX11 *>(pUserData);
     Log3 (("%s: called\n", __PRETTY_FUNCTION__));
-    /* Get the current clipboard contents */
-    if (pCtx->eOwner == X11)
+    /* Get the current clipboard contents if we don't own it ourselves */
+    if (pCtx->eOwner != VB)
     {
         Log3 (("%s: requesting the targets that the host clipboard offers\n",
                __PRETTY_FUNCTION__));
@@ -606,10 +640,55 @@ static int vboxClipboardThread(RTTHREAD self, void *pvUser)
     XtAppAddTimeOut(pCtx->appContext, 200 /* ms */,
                     vboxClipboardPollX11ForTargets, pCtx);
 
-    XtAppMainLoop(pCtx->appContext);
+    while (XtAppGetExitFlag(pCtx->appContext) == FALSE)
+        XtAppProcessEvent(pCtx->appContext, XtIMAll);
     pCtx->formatList.clear();
     LogRel(("Shared clipboard: host clipboard thread terminated successfully\n"));
     return VINF_SUCCESS;
+}
+
+/** X11 specific uninitialisation for the shared clipboard.
+ * @note  X11 backend code.
+ */
+static void vboxClipboardUninitX11(VBOXCLIPBOARDCONTEXTX11 *pCtx)
+{
+    AssertPtrReturnVoid(pCtx);
+    if (pCtx->widget)
+    {
+        /* Valid widget + invalid appcontext = bug.  But don't return yet. */
+        AssertPtr(pCtx->appContext);
+        XtDestroyWidget(pCtx->widget);
+    }
+    pCtx->widget = NULL;
+    if (pCtx->appContext)
+        XtDestroyApplicationContext(pCtx->appContext);
+    pCtx->appContext = NULL;
+    if (pCtx->wakeupPipeRead != 0)
+        close(pCtx->wakeupPipeRead);
+    if (pCtx->wakeupPipeWrite != 0)
+        close(pCtx->wakeupPipeWrite);
+    pCtx->wakeupPipeRead = 0;
+    pCtx->wakeupPipeWrite = 0;
+}
+
+/** Worker function for stopping the clipboard which runs on the event
+ * thread. */
+static void vboxClipboardStopWorker(XtPointer pUserData, int * /* source */,
+                                    XtInputId * /* id */)
+{
+    
+    VBOXCLIPBOARDCONTEXTX11 *pCtx = (VBOXCLIPBOARDCONTEXTX11 *)pUserData;
+
+    /* This might mean that we are getting stopped twice. */
+    Assert(pCtx->widget != NULL);
+
+    /* Set the termination flag to tell the Xt event loop to exit.  We
+     * reiterate that any outstanding requests from the X11 event loop to
+     * the VBox part *must* have returned before we do this. */
+    XtAppSetExitFlag(pCtx->appContext);
+    pCtx->eOwner = NONE;
+    pCtx->X11TextFormat = INVALID;
+    pCtx->X11BitmapFormat = INVALID;
 }
 
 /** X11 specific initialisation for the shared clipboard.
@@ -689,6 +768,20 @@ static int vboxClipboardInitX11 (VBOXCLIPBOARDCONTEXTX11 *pCtx)
             vboxClipboardAddFormat(pCtx, "COMPOUND_TEXT", CTEXT,
                                    VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT);
     }
+    /* Create the pipes */
+    int pipes[2];
+    if (!pipe(pipes))
+    {
+        pCtx->wakeupPipeRead = pipes[0];
+        pCtx->wakeupPipeWrite = pipes[1];
+        XtAppAddInput(pCtx->appContext, pCtx->wakeupPipeRead,
+                      (XtPointer) XtInputReadMask, vboxClipboardStopWorker,
+                      (XtPointer) pCtx);
+    }
+    else
+        rc = RTErrConvertFromErrno(errno);
+    if (RT_FAILURE(rc))
+        vboxClipboardUninitX11(pCtx);
     return rc;
 }
 
@@ -773,7 +866,7 @@ void VBoxX11ClipboardDestructX11(VBOXCLIPBOARDCONTEXTX11 *pCtx)
  * @param  owner who is the initial clipboard owner
  */
 int VBoxX11ClipboardStartX11(VBOXCLIPBOARDCONTEXTX11 *pCtx,
-                             bool fOwnsClipboard)
+                             bool)
 {
     int rc = VINF_SUCCESS;
     LogFlowFunc(("\n"));
@@ -793,18 +886,8 @@ int VBoxX11ClipboardStartX11(VBOXCLIPBOARDCONTEXTX11 *pCtx,
     }
     if (RT_SUCCESS(rc))
     {
-        if (fOwnsClipboard)
-        {
-            pCtx->eOwner = X11;
-            pCtx->notifyVBox = true;
-        }
-        else
-        {
-            /** @todo Check whether the guest gets a format announcement at
-              *       startup. */
-            pCtx->eOwner = VB;
-            VBoxX11ClipboardAnnounceVBoxFormat(pCtx, 0);
-        }
+        pCtx->eOwner = NONE;
+        pCtx->notifyVBox = true;
     }
     return rc;
 }
@@ -815,13 +898,13 @@ int VBoxX11ClipboardStartX11(VBOXCLIPBOARDCONTEXTX11 *pCtx,
  */
 void VBoxX11ClipboardRequestSyncX11(VBOXCLIPBOARDCONTEXTX11 *pCtx)
 {
-    /*
-     * Immediately return if we are not connected to the host X server.
-     */
-    if (!g_fHaveX11)
-        return;
-    pCtx->notifyVBox = true;
+    /* No longer needed. */
 }
+
+/** String written to the wakeup pipe. */
+#define WAKE_UP_STRING      "WakeUp!"
+/** Length of the string written. */
+#define WAKE_UP_STRING_LEN  ( sizeof(WAKE_UP_STRING) - 1 )
 
 /**
  * Shut down the shared clipboard X11 backend.
@@ -835,30 +918,16 @@ int VBoxX11ClipboardStopX11(VBOXCLIPBOARDCONTEXTX11 *pCtx)
 {
     int rc, rcThread;
     unsigned count = 0;
-    XEvent ev;
     /*
      * Immediately return if we are not connected to the host X server.
      */
     if (!g_fHaveX11)
         return VINF_SUCCESS;
 
-    /* This might mean that we are getting stopped twice. */
-    AssertReturn(pCtx->widget != NULL, VERR_WRONG_ORDER);
-    pCtx->eOwner = NONE;
-    pCtx->X11TextFormat = INVALID;
-    pCtx->X11BitmapFormat = INVALID;
     LogRelFunc(("stopping the shared clipboard X11 backend\n"));
 
-    /* Set the termination flag to tell the Xt event loop to exit.  We
-     * reiterate that any outstanding requests from the X11 event loop to
-     * the VBox part *must* have returned before we do this. */
-    XtAppSetExitFlag(pCtx->appContext);
-    /* Wake up the event loop */
-    memset(&ev, 0, sizeof(ev));
-    ev.xclient.type = ClientMessage;
-    ev.xclient.format = 8;
-    XSendEvent(XtDisplay(pCtx->widget), XtWindow(pCtx->widget), false, 0, &ev);
-    XFlush(XtDisplay(pCtx->widget));
+    /* Write to the "stop" pipe */
+    rc = write(pCtx->wakeupPipeWrite, WAKE_UP_STRING, WAKE_UP_STRING_LEN);
     do
     {
         rc = RTThreadWait(pCtx->thread, 1000, &rcThread);
@@ -869,8 +938,7 @@ int VBoxX11ClipboardStopX11(VBOXCLIPBOARDCONTEXTX11 *pCtx)
         AssertRC(rcThread);
     else
         LogRelFunc(("rc=%Rrc\n", rc));
-    XtCloseDisplay(XtDisplay(pCtx->widget));
-    pCtx->widget = NULL;  /* For sanity assertions. */
+    vboxClipboardUninitX11(pCtx);
     LogFlowFunc(("returning %Rrc.\n", rc));
     return rc;
 }
@@ -968,8 +1036,8 @@ static Boolean vboxClipboardConvertUtf16(VBOXCLIPBOARDCONTEXTX11 *pCtx,
                                          int *piFormatReturn)
 {
     PRTUTF16 pu16SrcText, pu16DestText;
-    void *pvVBox;
-    uint32_t cbVBox;
+    void *pvVBox = NULL;
+    uint32_t cbVBox = 0;
     size_t cwSrcLen, cwDestLen;
     int rc;
 
@@ -977,7 +1045,7 @@ static Boolean vboxClipboardConvertUtf16(VBOXCLIPBOARDCONTEXTX11 *pCtx,
     rc = VBoxX11ClipboardReadVBoxData(pCtx->pFrontend, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT, &pvVBox, &cbVBox);
     if ((RT_FAILURE(rc)) || (cbVBox == 0))
     {
-        /* If VBoxX11ClipboardReadVBoxData fails then pClient may be invalid */
+        /* If VBoxX11ClipboardReadVBoxData fails then we may be terminating */
         LogRelFunc (("VBoxX11ClipboardReadVBoxData returned %Rrc%s\n", rc,
                     RT_SUCCESS(rc) ? ", cbVBox == 0" :  ""));
         RTMemFree(pvVBox);
@@ -1054,8 +1122,8 @@ static Boolean vboxClipboardConvertToUtf8ForX11(VBOXCLIPBOARDCONTEXTX11
 {
     PRTUTF16 pu16SrcText, pu16DestText;
     char *pu8DestText;
-    void *pvVBox;
-    uint32_t cbVBox;
+    void *pvVBox = NULL;
+    uint32_t cbVBox = 0;
     size_t cwSrcLen, cwDestLen, cbDestLen;
     int rc;
 
@@ -1064,7 +1132,7 @@ static Boolean vboxClipboardConvertToUtf8ForX11(VBOXCLIPBOARDCONTEXTX11
     rc = VBoxX11ClipboardReadVBoxData(pCtx->pFrontend, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT, &pvVBox, &cbVBox);
     if ((rc != VINF_SUCCESS) || (cbVBox == 0))
     {
-        /* If VBoxX11ClipboardReadVBoxData fails then pClient may be invalid */
+        /* If VBoxX11ClipboardReadVBoxData fails then we may be terminating */
         LogRelFunc (("VBoxX11ClipboardReadVBoxData returned %Rrc%s\n", rc,
                      RT_SUCCESS(rc) ? ", cbVBox == 0" :  ""));
         RTMemFree(pvVBox);
@@ -1161,8 +1229,8 @@ static Boolean vboxClipboardConvertToCTextForX11(VBOXCLIPBOARDCONTEXTX11
                                                  int *piFormatReturn)
 {
     PRTUTF16 pu16SrcText, pu16DestText;
-    void *pvVBox;
-    uint32_t cbVBox;
+    void *pvVBox = NULL;
+    uint32_t cbVBox = 0;
     char *pu8DestText = 0;
     size_t cwSrcLen, cwDestLen, cbDestLen;
     XTextProperty property;
@@ -1173,7 +1241,7 @@ static Boolean vboxClipboardConvertToCTextForX11(VBOXCLIPBOARDCONTEXTX11
     rc = VBoxX11ClipboardReadVBoxData(pCtx->pFrontend, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT, &pvVBox, &cbVBox);
     if ((rc != VINF_SUCCESS) || (cbVBox == 0))
     {
-        /* If VBoxX11ClipboardReadVBoxData fails then pClient may be invalid */
+        /* If VBoxX11ClipboardReadVBoxData fails then we may be terminating */
         LogRelFunc (("VBoxX11ClipboardReadVBoxData returned %Rrc%s\n", rc,
                       RT_SUCCESS(rc) ? ", cbVBox == 0" :  ""));
         RTMemFree(pvVBox);
@@ -1347,7 +1415,10 @@ static void vboxClipboardReturnToX11(Widget, Atom *)
 {
     /** @todo find a better way around the lack of user data */
     VBOXCLIPBOARDCONTEXTX11 *pCtx = g_pCtx;
-    LogFlowFunc (("called, giving VBox clipboard ownership\n"));
+    LogFlowFunc (("called, giving X11 clipboard ownership\n"));
+    /* These should be set to the right values as soon as we start polling */
+    pCtx->X11TextFormat = INVALID;
+    pCtx->X11BitmapFormat = INVALID;
     pCtx->eOwner = X11;
     pCtx->notifyVBox = true;
 }
@@ -1384,21 +1455,28 @@ void VBoxX11ClipboardAnnounceVBoxFormat(VBOXCLIPBOARDCONTEXTX11 *pCtx,
         return;
     }
     Log2 (("%s: giving the guest clipboard ownership\n", __PRETTY_FUNCTION__));
-    pCtx->eOwner = VB;
     pCtx->X11TextFormat = INVALID;
     pCtx->X11BitmapFormat = INVALID;
     if (XtOwnSelection(pCtx->widget, pCtx->atomClipboard, CurrentTime,
                        vboxClipboardConvertForX11, vboxClipboardReturnToX11,
-                       0) != True)
+                       0) == True)
     {
+        pCtx->eOwner = VB;
+        XtOwnSelection(pCtx->widget, pCtx->atomPrimary, CurrentTime,
+                       vboxClipboardConvertForX11, NULL, 0);
+    }
+    else
+    {
+        /* Another X11 client claimed the clipboard just after us, so let it
+         * go again. */
         Log2 (("%s: returning clipboard ownership to the host\n", __PRETTY_FUNCTION__));
         /* We set this so that the guest gets notified when we take the clipboard, even if no
           guest formats are found which we understand. */
+        /* VBox thinks it currently owns the clipboard, so we must notify it
+         * as soon as we know what formats X11 has to offer. */
         pCtx->notifyVBox = true;
         pCtx->eOwner = X11;
     }
-    XtOwnSelection(pCtx->widget, pCtx->atomPrimary, CurrentTime, vboxClipboardConvertForX11,
-                   NULL, 0);
     LogFlowFunc(("returning\n"));
 
 }
@@ -1462,4 +1540,3 @@ int VBoxX11ClipboardReadX11Data(VBOXCLIPBOARDCONTEXTX11 *pCtx,
     }
     return VINF_SUCCESS;
 }
-

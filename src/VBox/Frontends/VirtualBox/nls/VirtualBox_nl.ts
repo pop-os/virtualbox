@@ -109,6 +109,10 @@
         <source>Unknown %2 error during initialization of the Runtime</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Kernel driver not accessible</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>QIArrowSplitter</name>
@@ -389,29 +393,6 @@
     </message>
     <message>
         <source>Version %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>VBoxAddNIDialog</name>
-    <message>
-        <source>Add Host Interface</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Interface Name</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Descriptive name of the new network interface</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;OK</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cancel</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -990,6 +971,10 @@
         <source>Sun VirtualBox</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>&lt;qt&gt;Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;/qt&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxDownloaderWgt</name>
@@ -1036,7 +1021,7 @@
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will you guide to the process of exporting an appliance. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through the process of exporting an appliance. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please select the virtual machines that should be exported to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="unfinished"></translation>
@@ -1071,6 +1056,14 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Export &gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Write legacy OVF 0.9</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -2309,33 +2302,13 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Bridged network, %1</source>
-        <comment>details report (network)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Internal network, &apos;%1&apos;</source>
-        <comment>details report (network)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Host-only network, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>SCSI</source>
         <comment>StorageBus</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Bridged Network</source>
-        <comment>NetworkAttachmentType</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Host-only Network</source>
-        <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -2366,6 +2339,31 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>BusLogic</source>
         <comment>StorageControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bridged adapter, %1</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Intel PRO/1000 MT Server (82545EM)</source>
+        <comment>NetworkAdapterType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bridged Adapter</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host-only Adapter</source>
+        <comment>NetworkAttachmentType</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -3607,7 +3605,7 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Failed to remove the file &lt;b&gt;%1&lt;/b&gt;.&lt;br /&gt;&lt;br /&gt;Please try to remove that file yourself &amp; try again.</source>
+        <source>Failed to remove the file &lt;b&gt;%1&lt;/b&gt;.&lt;br /&gt;&lt;br /&gt;Please try to remove the file yourself and try again.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -3660,10 +3658,6 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;p&gt;Do you want to remove the selected host network interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; This interface may be in use by one or more network adapters of this or another VM. After it is removed, these adapters will no longer work until you correct their settings by either choosing a different interface name or a different adapter attachment type.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Failed to create the host-only network interface.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3697,6 +3691,10 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Failed to export appliance &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Deleting this host-only network will lead to the deleting of the host-only interface this network is based on. Do you want to remove the (host-only network) interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; this interface may be in use by one or more virtual network adapters belonging to one of your VMs. After it is removed, these adapters will no longer be usable until you correct their settings by either choosing a different interface name or a different adapter attachment type.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -3893,7 +3891,7 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;F1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -5065,63 +5063,13 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Controls the way how this virtual adapter is attached to the real network of the Host OS.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Adapter</source>
-        <comment>network</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not selected</source>
-        <comment>adapter</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Network</source>
-        <comment>internal</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not selected</source>
-        <comment>network</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>MAC Address</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not selected</source>
-        <comment>address</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Cable</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Connected</source>
-        <comment>cable</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Not connected</source>
-        <comment>cable</comment>
+        <source>Controls how this virtual adapter is attached to the real network of the Host OS.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Adapter &amp;Type:</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Open extended settings dialog for current attachment type.</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>VBoxVMSettingsNetworkDetails</name>
     <message>
         <source>no bridged network adapter is selected</source>
         <translation type="unfinished"></translation>
@@ -5131,61 +5079,29 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>no host-only adapter is selected</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Basic Details</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Bridged Network Details</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Internal Network Details</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Host-only Network Details</source>
+        <source>no host-only network adapter is selected</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Not selected</source>
+        <comment>network adapter name</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Host Settings</source>
+        <source>Open additional options dialog for current attachment type.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>&amp;Bridged Network Adapter:</source>
+        <source>&amp;Name:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Displays the name of the host network adapter selected for bridged networking.</source>
+        <source>Selects the name of the network adapter if attachment type is equivalent to &lt;b&gt;Bridged Adapter&lt;/b&gt; or &lt;b&gt;Host-only Adapter&lt;/b&gt; and the name of the internal network if attachment type is equivalent to &lt;b&gt;Internal Network&lt;/b&gt;.</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Internal &amp;Network:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Displays the name of the internal network selected for this adapter.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Host-only &amp;Network Adapter:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Displays the name of the VirtualBox network adapter selected for host-only networking.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Guest Settings</source>
-        <translation type="unfinished"></translation>
-    </message>
+</context>
+<context>
+    <name>VBoxVMSettingsNetworkDetails</name>
     <message>
         <source>Guest &amp;MAC Address:</source>
         <translation type="unfinished"></translation>
@@ -5204,6 +5120,10 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Indicates whether the virtual network cable is plugged in on machine startup or not.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Additional Options</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 14158 2008-11-13 02:53:38Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Top-level makefile for the src directory.
 #

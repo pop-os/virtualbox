@@ -1,4 +1,4 @@
-/** $Id: VBoxGuestR3LibTime.cpp 8155 2008-04-18 15:16:47Z vboxsync $ */
+/** $Id: VBoxGuestR3LibTime.cpp $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, Time.
  */

@@ -1,4 +1,4 @@
-/* $Id: ldrELF.cpp 16933 2009-02-18 23:42:57Z vboxsync $ */
+/* $Id: ldrELF.cpp $ */
 /** @file
  * IPRT - Binary Image Loader, Executable and Linker Format (ELF).
  */

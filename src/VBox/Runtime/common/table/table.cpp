@@ -1,4 +1,4 @@
-/* $Id: table.cpp 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: table.cpp $ */
 /** @file
  * IPRT - AVL tree, RTHCPHYS, unique keys.
  */

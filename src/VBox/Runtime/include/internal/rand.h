@@ -1,4 +1,4 @@
-/* $Id: rand.h 11523 2008-08-20 20:48:52Z vboxsync $ */
+/* $Id: rand.h $ */
 /** @file
  * IPRT - Internal RTRand header
  */

@@ -1,4 +1,4 @@
-/* $Id: NetIf-linux.cpp 18732 2009-04-06 09:01:53Z vboxsync $ */
+/* $Id: NetIf-linux.cpp $ */
 /** @file
  * Main - NetIfList, Linux implementation.
  */

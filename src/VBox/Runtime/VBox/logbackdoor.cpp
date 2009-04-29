@@ -1,4 +1,4 @@
-/* $Id: logbackdoor.cpp 18537 2009-03-30 12:26:58Z vboxsync $ */
+/* $Id: logbackdoor.cpp $ */
 /** @file
  * Virtual Box Runtime - Guest Backdoor Logging.
  */

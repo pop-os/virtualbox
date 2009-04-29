@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE TS><TS version="1.1" language="ja">
+<!DOCTYPE TS>
+<TS version="2.0" language="ja">
 <defaultcodec></defaultcodec>
 <context>
     <name>@@@</name>
@@ -130,6 +131,10 @@
     <message>
         <source>Unknown %2 error during initialization of the Runtime</source>
         <translation>ランタイムの初期化中に予期しないエラー(%2)</translation>
+    </message>
+    <message>
+        <source>Kernel driver not accessible</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -446,23 +451,23 @@ Version %1</source>
     <name>VBoxAddNIDialog</name>
     <message>
         <source>Add Host Interface</source>
-        <translation>ホスト インターフェースの追加</translation>
+        <translation type="obsolete">ホスト インターフェースの追加</translation>
     </message>
     <message>
         <source>Interface Name</source>
-        <translation>インターフェース名</translation>
+        <translation type="obsolete">インターフェース名</translation>
     </message>
     <message>
         <source>Descriptive name of the new network interface</source>
-        <translation>新規ネットワーク インターフェース名</translation>
+        <translation type="obsolete">新規ネットワーク インターフェース名</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>OK(&amp;O)</translation>
+        <translation type="obsolete">OK(&amp;O)</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>キャンセル</translation>
+        <translation type="obsolete">キャンセル</translation>
     </message>
 </context>
 <context>
@@ -1155,10 +1160,6 @@ Version %1</source>
         <translation type="obsolete">VirtualBox 登録フォームを開く</translation>
     </message>
     <message>
-        <source>Sun xVM VirtualBox</source>
-        <translation type="obsolete">Sun xVM VirtualBox</translation>
-    </message>
-    <message>
         <source>Session I&amp;nformation Dialog</source>
         <translation>セッション情報ダイアログ(&amp;N)</translation>
     </message>
@@ -1204,6 +1205,10 @@ Version %1</source>
     <message>
         <source>Sun VirtualBox</source>
         <translation>Sun VirtualBox</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;/qt&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1569,7 +1574,7 @@ Version %1</source>
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will you guide to the process of exporting an appliance. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through the process of exporting an appliance. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please select the virtual machines that should be exported to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;p, li { white-space: pre-wrap; }&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;このウィザードは、仮想アプライアンスをエクスポートする手順を案内します。&lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;ウィザードの次のページに進むには&lt;span style=&quot; font-weight:600;&quot;&gt;[次へ]&lt;/span&gt;ボタンを、前のページに戻るには&lt;span style=&quot; font-weight:600;&quot;&gt;[戻る]&lt;/span&gt;ボタンを使用してください。&lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;エクスポートする仮想マシンを選択してください。 1つ以上の仮想マシンを選択できます。 エクスポートする前に、それらの仮想マシンをオフにしなければなりません。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
@@ -1605,6 +1610,14 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&amp;Export &gt;</source>
         <translation>エクスポート(&amp;E) &gt;</translation>
+    </message>
+    <message>
+        <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Write legacy OVF 0.9</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2927,7 +2940,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Bridged network, %1</source>
         <comment>details report (network)</comment>
-        <translation>ブリッジ ネットワーク, &apos;%1&apos;</translation>
+        <translation type="obsolete">ブリッジ ネットワーク, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Internal network, &apos;%1&apos;</source>
@@ -2937,7 +2950,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Host-only network, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation>ホストオンリー ネットワーク, &apos;%1&apos;</translation>
+        <translation type="obsolete">ホストオンリー ネットワーク, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>SCSI</source>
@@ -2947,12 +2960,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Bridged Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>ブリッジ ネットワーク</translation>
+        <translation type="obsolete">ブリッジ ネットワーク</translation>
     </message>
     <message>
         <source>Host-only Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>ホストオンリー ネットワーク</translation>
+        <translation type="obsolete">ホストオンリー ネットワーク</translation>
     </message>
     <message>
         <source>PIIX3</source>
@@ -2983,6 +2996,31 @@ p, li { white-space: pre-wrap; }
         <source>BusLogic</source>
         <comment>StorageControllerType</comment>
         <translation>BusLogic</translation>
+    </message>
+    <message>
+        <source>Bridged adapter, %1</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Intel PRO/1000 MT Server (82545EM)</source>
+        <comment>NetworkAdapterType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bridged Adapter</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host-only Adapter</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5060,7 +5098,7 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
         <translation>以下のファイルはすでに存在しています:&lt;br /&gt;&lt;br /&gt;%1&lt;br /&gt;&lt;br /&gt;ファイルを置き換えますか?ファイルの内容は上書きされます。</translation>
     </message>
     <message>
-        <source>Failed to remove the file &lt;b&gt;%1&lt;/b&gt;.&lt;br /&gt;&lt;br /&gt;Please try to remove that file yourself &amp; try again.</source>
+        <source>Failed to remove the file &lt;b&gt;%1&lt;/b&gt;.&lt;br /&gt;&lt;br /&gt;Please try to remove the file yourself and try again.</source>
         <translation>&lt;b&gt;&quot;%1&quot;&lt;/b&gt;の除去に失敗しました。&lt;br /&gt;&lt;br /&gt;手作業でファイルを取り除き、再実行してください。</translation>
     </message>
     <message>
@@ -5114,7 +5152,7 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
     </message>
     <message>
         <source>&lt;p&gt;Do you want to remove the selected host network interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; This interface may be in use by one or more network adapters of this or another VM. After it is removed, these adapters will no longer work until you correct their settings by either choosing a different interface name or a different adapter attachment type.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;選択したホスト ネットワーク インターフェース ;&lt;nobr&gt;&lt;b&gt;&quot;%1&quot;&lt;/b&gt;を除去しますか?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;注：&lt;/b&gt; このインターフェースは複数の仮想マシンの1つ以上のネットワーク アタプタで使用中かもしれません。除去すると、他のインターフェース名を選ぶか、別の割り当て方法を正しく設定するまでそれらのアダプタは動作しません。&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;選択したホスト ネットワーク インターフェース ;&lt;nobr&gt;&lt;b&gt;&quot;%1&quot;&lt;/b&gt;を除去しますか?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;注：&lt;/b&gt; このインターフェースは複数の仮想マシンの1つ以上のネットワーク アタプタで使用中かもしれません。除去すると、他のインターフェース名を選ぶか、別の割り当て方法を正しく設定するまでそれらのアダプタは動作しません。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to create the host-only network interface.</source>
@@ -5151,6 +5189,10 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
     <message>
         <source>Failed to export appliance &lt;b&gt;%1&lt;/b&gt;.</source>
         <translation>仮想アプライアンス&lt;b&gt;&quot;%1&quot;&lt;/b&gt;のエクスポートに失敗しました。</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Deleting this host-only network will lead to the deleting of the host-only interface this network is based on. Do you want to remove the (host-only network) interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; this interface may be in use by one or more virtual network adapters belonging to one of your VMs. After it is removed, these adapters will no longer be usable until you correct their settings by either choosing a different interface name or a different adapter attachment type.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5442,8 +5484,8 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
         <translation>選択した仮想マシンを起動</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;F1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;h3&gt;ようこそVirtualBoxへ!&lt;/h3&gt;&lt;p&gt;このウィンドウの左側にコンピュータ上のすべての仮想マシンがリスト表示されます。まだ仮想マシンが作成されていないため、リストは空です。&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;新規仮想マシンを作成するにはウィンドウ上部にあるメインツールバーの&lt;b&gt;[新規]&lt;/b&gt;ボタンをクリックしてください。&lt;/p&gt;&lt;p&gt;&lt;b&gt;F1&lt;/b&gt;キーでヘルプを表示できます。または最新の情報とニュースを取得するため &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; を訪問してください。&lt;/p&gt;</translation>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;h3&gt;ようこそVirtualBoxへ!&lt;/h3&gt;&lt;p&gt;このウィンドウの左側にコンピュータ上のすべての仮想マシンがリスト表示されます。まだ仮想マシンが作成されていないため、リストは空です。&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;新規仮想マシンを作成するにはウィンドウ上部にあるメインツールバーの&lt;b&gt;[新規]&lt;/b&gt;ボタンをクリックしてください。&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;キーでヘルプを表示できます。または最新の情報とニュースを取得するため &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; を訪問してください。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Machine</source>
@@ -5474,10 +5516,6 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
         <translation type="obsolete">VirtualBox 登録フォームを開く</translation>
     </message>
     <message>
-        <source>Sun xVM VirtualBox</source>
-        <translation type="obsolete">Sun xVM VirtualBox</translation>
-    </message>
-    <message>
         <source>R&amp;esume</source>
         <translation>再開(&amp;E)</translation>
     </message>
@@ -5506,8 +5544,8 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
         <translation>仮想マシンの実行を一時停止する</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;F1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;ようこそVirtualBoxへ!&lt;/h3&gt;&lt;p&gt;このウィンドウの左側にコンピュータ上のすべての仮想マシンがリスト表示されます。まだ仮想マシンが作成されていないため、リストは空です。&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;新規仮想マシンを作成するにはウィンドウ上部にあるメインツールバーの&lt;b&gt;[新規]&lt;/b&gt;ボタンをクリックしてください。&lt;/p&gt;&lt;p&gt;&lt;b&gt;F1&lt;/b&gt;キーでヘルプを表示できます。または最新の情報とニュースを取得するため &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; を訪問してください。&lt;/p&gt;</translation>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <translation>&lt;h3&gt;ようこそVirtualBoxへ!&lt;/h3&gt;&lt;p&gt;このウィンドウの左側にコンピュータ上のすべての仮想マシンがリスト表示されます。まだ仮想マシンが作成されていないため、リストは空です。&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;新規仮想マシンを作成するにはウィンドウ上部にあるメインツールバーの&lt;b&gt;[新規]&lt;/b&gt;ボタンをクリックしてください。&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;キーでヘルプを表示できます。または最新の情報とニュースを取得するため &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; を訪問してください。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Virtual Media Manager...</source>
@@ -6669,7 +6707,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">仮想ネットワーク アダプタを仮想マシンに接続します。</translation>
     </message>
     <message>
-        <source>Controls the way how this virtual adapter is attached to the real network of the Host OS.</source>
+        <source>Controls how this virtual adapter is attached to the real network of the Host OS.</source>
         <translation type="obsolete">仮想アダプタをホストOSの実際のネットワークに割り当てる方式を指定します。</translation>
     </message>
     <message>
@@ -8044,7 +8082,7 @@ USBフィルタを追加または除去するにはコンテキストメニュ�
         <translation>割り当て(&amp;A):</translation>
     </message>
     <message>
-        <source>Controls the way how this virtual adapter is attached to the real network of the Host OS.</source>
+        <source>Controls how this virtual adapter is attached to the real network of the Host OS.</source>
         <translation>仮想アダプタをホストOSの実際のネットワークに割り当てる方式を指定します。</translation>
     </message>
     <message>
@@ -8118,45 +8156,45 @@ USBフィルタを追加または除去するにはコンテキストメニュ�
     <message>
         <source>Adapter</source>
         <comment>network</comment>
-        <translation>アダプタ</translation>
+        <translation type="obsolete">アダプタ</translation>
     </message>
     <message>
         <source>Not selected</source>
         <comment>adapter</comment>
-        <translation>未選択</translation>
+        <translation type="obsolete">未選択</translation>
     </message>
     <message>
         <source>Network</source>
         <comment>internal</comment>
-        <translation>ネットワーク</translation>
+        <translation type="obsolete">ネットワーク</translation>
     </message>
     <message>
         <source>Not selected</source>
         <comment>network</comment>
-        <translation>未選択</translation>
+        <translation type="obsolete">未選択</translation>
     </message>
     <message>
         <source>MAC Address</source>
-        <translation>MACアドレス</translation>
+        <translation type="obsolete">MACアドレス</translation>
     </message>
     <message>
         <source>Not selected</source>
         <comment>address</comment>
-        <translation>未選択</translation>
+        <translation type="obsolete">未選択</translation>
     </message>
     <message>
         <source>Cable</source>
-        <translation>ケーブル</translation>
+        <translation type="obsolete">ケーブル</translation>
     </message>
     <message>
         <source>Connected</source>
         <comment>cable</comment>
-        <translation>接続</translation>
+        <translation type="obsolete">接続</translation>
     </message>
     <message>
         <source>Not connected</source>
         <comment>cable</comment>
-        <translation>未接続</translation>
+        <translation type="obsolete">未接続</translation>
     </message>
     <message>
         <source>Adapter &amp;Type:</source>
@@ -8164,74 +8202,103 @@ USBフィルタを追加または除去するにはコンテキストメニュ�
     </message>
     <message>
         <source>Open extended settings dialog for current attachment type.</source>
-        <translation>現在の割り当てタイプのための拡張設定ダイアログを開きます。</translation>
+        <translation type="obsolete">現在の割り当てタイプのための拡張設定ダイアログを開きます。</translation>
+    </message>
+    <message>
+        <source>no bridged network adapter is selected</source>
+        <translation type="unfinished">ブリッジ ネットワーク アダプタが未選択</translation>
+    </message>
+    <message>
+        <source>no internal network name is specified</source>
+        <translation type="unfinished">内部ネットワーク名が未指定</translation>
+    </message>
+    <message>
+        <source>no host-only network adapter is selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not selected</source>
+        <comment>network adapter name</comment>
+        <translation type="unfinished">未選択</translation>
+    </message>
+    <message>
+        <source>Open additional options dialog for current attachment type.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Name:</source>
+        <translation type="unfinished">名前(&amp;N):</translation>
+    </message>
+    <message>
+        <source>Selects the name of the network adapter if attachment type is equivalent to &lt;b&gt;Bridged Adapter&lt;/b&gt; or &lt;b&gt;Host-only Adapter&lt;/b&gt; and the name of the internal network if attachment type is equivalent to &lt;b&gt;Internal Network&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>VBoxVMSettingsNetworkDetails</name>
     <message>
         <source>no bridged network adapter is selected</source>
-        <translation>ブリッジ ネットワーク アダプタが未選択</translation>
+        <translation type="obsolete">ブリッジ ネットワーク アダプタが未選択</translation>
     </message>
     <message>
         <source>no internal network name is specified</source>
-        <translation>内部ネットワーク名が未指定</translation>
+        <translation type="obsolete">内部ネットワーク名が未指定</translation>
     </message>
     <message>
         <source>no host-only adapter is selected</source>
-        <translation>ホストオンリー アダプタが未選択</translation>
+        <translation type="obsolete">ホストオンリー アダプタが未選択</translation>
     </message>
     <message>
         <source>Basic Details</source>
-        <translation>詳細情報</translation>
+        <translation type="obsolete">詳細情報</translation>
     </message>
     <message>
         <source>Bridged Network Details</source>
-        <translation>ブリッジ ネットワーク詳細</translation>
+        <translation type="obsolete">ブリッジ ネットワーク詳細</translation>
     </message>
     <message>
         <source>Internal Network Details</source>
-        <translation>内部ネットワーク詳細</translation>
+        <translation type="obsolete">内部ネットワーク詳細</translation>
     </message>
     <message>
         <source>Host-only Network Details</source>
-        <translation>ホストオンリー ネットワーク詳細</translation>
+        <translation type="obsolete">ホストオンリー ネットワーク詳細</translation>
     </message>
     <message>
         <source>Not selected</source>
-        <translation>未選択</translation>
+        <translation type="obsolete">未選択</translation>
     </message>
     <message>
         <source>Host Settings</source>
-        <translation>ホスト設定</translation>
+        <translation type="obsolete">ホスト設定</translation>
     </message>
     <message>
         <source>&amp;Bridged Network Adapter:</source>
-        <translation>ブリッジ ネットワーク アダプタ(&amp;B):</translation>
+        <translation type="obsolete">ブリッジ ネットワーク アダプタ(&amp;B):</translation>
     </message>
     <message>
         <source>Displays the name of the host network adapter selected for bridged networking.</source>
-        <translation>ブリッジ ネットワーク用に選択したホスト ネットワークアダプタ名を表示します。</translation>
+        <translation type="obsolete">ブリッジ ネットワーク用に選択したホスト ネットワークアダプタ名を表示します。</translation>
     </message>
     <message>
         <source>Internal &amp;Network:</source>
-        <translation>内部ネットワーク(&amp;N):</translation>
+        <translation type="obsolete">内部ネットワーク(&amp;N):</translation>
     </message>
     <message>
         <source>Displays the name of the internal network selected for this adapter.</source>
-        <translation>このアダプタ用に選択した内部ネットワーク名を表示します。</translation>
+        <translation type="obsolete">このアダプタ用に選択した内部ネットワーク名を表示します。</translation>
     </message>
     <message>
         <source>Host-only &amp;Network Adapter:</source>
-        <translation>ホストオンリー ネットワークアダプタ(&amp;N):</translation>
+        <translation type="obsolete">ホストオンリー ネットワークアダプタ(&amp;N):</translation>
     </message>
     <message>
         <source>Displays the name of the VirtualBox network adapter selected for host-only networking.</source>
-        <translation>ホストオンリー ネットワーク用に選択したVirtualBox ネットワークアダプタ名を表示します。</translation>
+        <translation type="obsolete">ホストオンリー ネットワーク用に選択したVirtualBox ネットワークアダプタ名を表示します。</translation>
     </message>
     <message>
         <source>Guest Settings</source>
-        <translation>ゲスト設定</translation>
+        <translation type="obsolete">ゲスト設定</translation>
     </message>
     <message>
         <source>Guest &amp;MAC Address:</source>
@@ -8252,6 +8319,10 @@ USBフィルタを追加または除去するにはコンテキストメニュ�
     <message>
         <source>Indicates whether the virtual network cable is plugged in on machine startup or not.</source>
         <translation>仮想マシンの起動時に仮想ネットワークケーブルを接続するかどうかを示します。</translation>
+    </message>
+    <message>
+        <source>Additional Options</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

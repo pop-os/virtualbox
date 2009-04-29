@@ -1,4 +1,4 @@
-/* $Id: thread-r0drv-freebsd.c 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: thread-r0drv-freebsd.c $ */
 /** @file
  * IPRT - Threads (Part 1), Ring-0 Driver, FreeBSD.
  */

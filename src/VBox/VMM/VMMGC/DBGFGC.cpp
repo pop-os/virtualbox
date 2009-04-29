@@ -1,4 +1,4 @@
-/* $Id: DBGFGC.cpp 18464 2009-03-28 05:17:37Z vboxsync $ */
+/* $Id: DBGFGC.cpp $ */
 /** @file
  * DBGF - Debugger Facility, GC part.
  *

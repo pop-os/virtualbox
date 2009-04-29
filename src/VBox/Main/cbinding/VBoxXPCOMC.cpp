@@ -1,4 +1,4 @@
-/* $Id: VBoxXPCOMC.cpp 18137 2009-03-23 13:22:03Z vboxsync $ */
+/* $Id: VBoxXPCOMC.cpp $ */
 /** @file VBoxXPCOMC.cpp
  * Utility functions to use with the C binding for XPCOM.
  */
@@ -34,10 +34,9 @@
 
 using namespace std;
 
-static ISession            *Session;
-static IVirtualBox         *Ivirtualbox;
-static nsIServiceManager   *serviceManager;
-static nsIComponentManager *manager;
+static ISession            *Session     = NULL;
+static IVirtualBox         *Ivirtualbox = NULL;
+static nsIComponentManager *manager     = NULL;
 
 static void VBoxComUninitialize(void);
 
@@ -82,9 +81,6 @@ VBoxComInitialize(IVirtualBox **virtualBox, ISession **session)
     *session    = NULL;
     *virtualBox = NULL;
 
-    Session     = *session;
-    Ivirtualbox = *virtualBox;
-
     rc = com::Initialize();
     if (NS_FAILED(rc))
     {
@@ -126,6 +122,13 @@ VBoxComInitialize(IVirtualBox **virtualBox, ISession **session)
     }
 
     Log(("Cbinding: ISession object created.\n"));
+
+    /* Store session & virtualBox so that VBoxComUninitialize
+     * can later take care of them while cleanup
+     */
+    Session     = *session;
+    Ivirtualbox = *virtualBox;
+
 }
 
 static void
@@ -137,8 +140,6 @@ VBoxComUninitialize(void)
         NS_RELEASE(Ivirtualbox);    // decrement refcount
     if (manager)
         NS_RELEASE(manager);        // decrement refcount
-    if (serviceManager)
-        NS_RELEASE(serviceManager); // decrement refcount
     com::Shutdown();
     Log(("Cbinding: Cleaned up the created IVirtualBox and ISession Objects.\n"));
 }

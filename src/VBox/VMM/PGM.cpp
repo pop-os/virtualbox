@@ -1,4 +1,4 @@
-/* $Id: PGM.cpp 18665 2009-04-02 19:44:18Z vboxsync $ */
+/* $Id: PGM.cpp $ */
 /** @file
  * PGM - Page Manager and Monitor. (Mixing stuff here, not good?)
  */
@@ -608,9 +608,11 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-/** Saved state data unit version. */
-#define PGM_SAVED_STATE_VERSION                 7
-/** Saved state data unit version. */
+/** Saved state data unit version for 2.2.2 and later. */
+#define PGM_SAVED_STATE_VERSION                 8
+/** Saved state data unit version for 2.2.0. */
+#define PGM_SAVED_STATE_VERSION_RR_DESC         7
+/** Saved state data unit version 2.1.x and earlier. */
 #define PGM_SAVED_STATE_VERSION_OLD_PHYS_CODE   6
 
 
@@ -1206,7 +1208,13 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
         pVM->pgm.s.aGCPhysGstPaePDsMonitored[i] = NIL_RTGCPHYS;
     }
 
-    rc = CFGMR3QueryBoolDef(pCfgPGM, "RamPreAlloc", &pVM->pgm.s.fRamPreAlloc, false);
+    rc = CFGMR3QueryBoolDef(CFGMR3GetRoot(pVM), "RamPreAlloc", &pVM->pgm.s.fRamPreAlloc,
+#ifdef VBOX_WITH_PREALLOC_RAM_BY_DEFAULT
+                            true
+#else
+                            false
+#endif
+                           );
     AssertLogRelRCReturn(rc, rc);
 
 #if HC_ARCH_BITS == 64 || 1 /** @todo 4GB/32-bit: remove || 1 later and adjust the limit. */
@@ -1871,6 +1879,12 @@ VMMR3DECL(int) PGMR3InitFinalize(PVM pVM)
     else
         pVM->pgm.s.GCPhys4MBPSEMask = RT_BIT_64(32) - 1;
 
+    /*
+     * Allocate memory if we're supposed to do that.
+     */
+    if (pVM->pgm.s.fRamPreAlloc)
+        rc = pgmR3PhysRamPreAllocate(pVM);
+
     LogRel(("PGMR3InitFinalize: 4 MB PSE mask %RGp\n", pVM->pgm.s.GCPhys4MBPSEMask));
     return rc;
 }
@@ -2505,7 +2519,7 @@ static int pgmR3LoadLocked(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
     /*
      * Load basic data (required / unaffected by relocation).
      */
-    if (u32Version >= PGM_SAVED_STATE_VERSION)
+    if (u32Version >= PGM_SAVED_STATE_VERSION_RR_DESC)
     {
         rc = SSMR3GetStruct(pSSM, pPGM, &s_aPGMFields[0]);
         AssertLogRelRCReturn(rc, rc);
@@ -2628,13 +2642,18 @@ static int pgmR3LoadLocked(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
             AssertMsgFailed(("u32Sep=%#x (last)\n", u32Sep));
             return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
         }
-        char szDesc[256];
+        size_t  cchDesc = 0;
+        char    szDesc[256];
         szDesc[0] = '\0';
-        if (u32Version >= PGM_SAVED_STATE_VERSION)
+        if (u32Version >= PGM_SAVED_STATE_VERSION_RR_DESC)
         {
             rc = SSMR3GetStrZ(pSSM, szDesc, sizeof(szDesc));
             if (RT_FAILURE(rc))
                 return rc;
+            /* Since we've modified the description strings in r45878, only compare
+               them if the saved state is more recent. */
+            if (u32Version != PGM_SAVED_STATE_VERSION_RR_DESC)
+                cchDesc = strlen(szDesc);
         }
 
         /*
@@ -2647,7 +2666,8 @@ static int pgmR3LoadLocked(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
         if (    (   GCPhys     != pRam->GCPhys
                  || GCPhysLast != pRam->GCPhysLast
                  || cb         != pRam->cb
-                 ||  (szDesc[0] && strcmp(szDesc, pRam->pszDesc)) )
+                 ||  (   cchDesc
+                      && strcmp(szDesc, pRam->pszDesc)) )
                 /* Hack for PDMDevHlpPhysReserve(pDevIns, 0xfff80000, 0x80000, "High ROM Region"); */
             &&  (   u32Version != PGM_SAVED_STATE_VERSION_OLD_PHYS_CODE
                  || GCPhys     != UINT32_C(0xfff80000)
@@ -2674,7 +2694,7 @@ static int pgmR3LoadLocked(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
         }
 
         uint32_t cPages = (GCPhysLast - GCPhys + 1) >> PAGE_SHIFT;
-        if (u32Version >= PGM_SAVED_STATE_VERSION)
+        if (u32Version >= PGM_SAVED_STATE_VERSION_RR_DESC)
         {
             /*
              * Load the pages one by one.
@@ -2830,6 +2850,7 @@ static DECLCALLBACK(int) pgmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version
      * Validate version.
      */
     if (    u32Version != PGM_SAVED_STATE_VERSION
+        &&  u32Version != PGM_SAVED_STATE_VERSION_RR_DESC
         &&  u32Version != PGM_SAVED_STATE_VERSION_OLD_PHYS_CODE)
     {
         AssertMsgFailed(("pgmR3Load: Invalid version u32Version=%d (current %d)!\n", u32Version, PGM_SAVED_STATE_VERSION));

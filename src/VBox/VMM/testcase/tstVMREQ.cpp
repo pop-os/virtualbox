@@ -1,4 +1,4 @@
-/* $Id: tstVMREQ.cpp 18645 2009-04-02 15:38:31Z vboxsync $ */
+/* $Id: tstVMREQ.cpp $ */
 /** @file
  * VMM Testcase.
  */

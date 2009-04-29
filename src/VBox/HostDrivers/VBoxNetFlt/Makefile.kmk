@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 18513 2009-03-29 03:16:13Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the Network Filter Driver (VBoxNetFlt).
 #
@@ -103,23 +103,23 @@ VBoxNetFlt-inf_INST = $(INST_BIN)
 VBoxNetFlt-inf_MODE = a+r,u+w
 VBoxNetFlt-inf_SOURCES = \
 	$(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt.inf \
-	$(PATH_TARGET)/VBoxNetFltMpCat.dir/VBoxNetFlt_m.inf
+	$(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt_m.inf
 VBoxNetFlt-inf_CLEAN = $(VBoxNetFlt-inf_SOURCES)
-VBoxNetFlt-inf_BLDDIRS = $(PATH_TARGET)/VBoxNetFltCat.dir $(PATH_TARGET)/VBoxNetFltMpCat.dir
+VBoxNetFlt-inf_BLDDIRS = $(PATH_TARGET)/VBoxNetFltCat.dir
 
 $(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt.inf: $(PATH_SUB_CURRENT)/win/VBoxNetFlt.inf $(MAKEFILE_CURRENT) | $$(dir $$@)
 	$(call MSG_GENERATE,VBoxNetFlt-inf,$@,$<)
 	$(call VBOX_EDIT_INF_FN,$<,$@)
 
-$(PATH_TARGET)/VBoxNetFltMpCat.dir/VBoxNetFlt_m.inf: $(PATH_SUB_CURRENT)/win/VBoxNetFlt_m.inf $(MAKEFILE_CURRENT) | $$(dir $$@)
+$(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt_m.inf: $(PATH_SUB_CURRENT)/win/VBoxNetFlt_m.inf $(MAKEFILE_CURRENT) | $$(dir $$@)
 	$(call MSG_GENERATE,VBoxNetFlt-inf,$@,$<)
 	$(call VBOX_EDIT_INF_FN,$<,$@)
 
  ifdef VBOX_SIGNING_MODE
 VBoxNetFlt-inf_SOURCES += \
 	$(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt.sys \
-	$(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt.cat \
-	$(PATH_TARGET)/VBoxNetFltMpCat.dir/VBoxNetFlt_m.cat
+	$(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFltNotify.dll \
+	$(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt.cat
 
 $(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt.sys: $$(TARGET_VBoxNetFlt) | $$(dir $$@)
 	$(INSTALL) -m 644 $< $(@D)
@@ -130,12 +130,8 @@ $(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFltNotify.dll: $$(TARGET_VBoxNetFltNotif
 $(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt.cat: \
 		$(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt.sys \
 		$(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFltNotify.dll \
-		$(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt.inf
-	$(call MSG_TOOL,Inf2Cat,VBoxNetFlt-inf,$@,$<)
-	$(call VBOX_MAKE_CAT_FN, $(@D),$@)
-
-$(PATH_TARGET)/VBoxNetFltMpCat.dir/VBoxNetFlt_m.cat: \
-		$(PATH_TARGET)/VBoxNetFltMpCat.dir/VBoxNetFlt_m.inf
+		$(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt.inf \
+		$(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt_m.inf
 	$(call MSG_TOOL,Inf2Cat,VBoxNetFlt-inf,$@,$<)
 	$(call VBOX_MAKE_CAT_FN, $(@D),$@)
 
@@ -150,6 +146,7 @@ WinNetConfig_DEFS     = _WIN32_WINNT=0x0501 _UNICODE UNICODE
 WinNetConfig_SDKS     = WINPSDK W2K3DDK
 WinNetConfig_SOURCES  = \
 	win/WinNetConfig.cpp
+WinNetConfig_INCS.win += $(PATH_TOOL_$(VBOX_VCC_TOOL)_INC)
 
 #
 # NetFltInstall
@@ -158,7 +155,9 @@ PROGRAMS.win  += NetFltInstall
 NetFltInstall_TEMPLATE = VBOXR3STATIC
 NetFltInstall_SDKS     = WINPSDK W2K3DDK VBOX_NTDLL
 NetFltInstall_SOURCES  = win/NetFltInstall.cpp
-NetFltInstall_LIBS     = $(TARGET_WinNetConfig)
+NetFltInstall_LIBS     = $(TARGET_WinNetConfig) \
+ 	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
+	$(PATH_SDK_WINPSDK_LIB)/WbemUuid.Lib
 
 
 #
@@ -168,7 +167,9 @@ PROGRAMS.win  += NetFltUninstall
 NetFltUninstall_TEMPLATE = VBOXR3STATIC
 NetFltUninstall_SDKS     = WINPSDK W2K3DDK VBOX_NTDLL
 NetFltUninstall_SOURCES  = win/NetFltUninstall.cpp
-NetFltUninstall_LIBS     = $(TARGET_WinNetConfig)
+NetFltUninstall_LIBS     = $(TARGET_WinNetConfig) \
+ 	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
+	$(PATH_SDK_WINPSDK_LIB)/WbemUuid.Lib
 
 
 #

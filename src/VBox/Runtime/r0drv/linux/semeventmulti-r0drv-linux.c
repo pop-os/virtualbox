@@ -1,4 +1,4 @@
-/* $Id: semeventmulti-r0drv-linux.c 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: semeventmulti-r0drv-linux.c $ */
 /** @file
  * IPRT - Multiple Release Event Semaphores, Ring-0 Driver, Linux.
  */

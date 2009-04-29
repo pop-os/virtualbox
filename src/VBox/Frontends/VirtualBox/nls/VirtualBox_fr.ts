@@ -103,6 +103,10 @@
         <source>Unknown %2 error during initialization of the Runtime</source>
         <translation>Erreur inconnue %2 pendant l&apos;initialisation de l&apos;environnement d&apos;exécution</translation>
     </message>
+    <message>
+        <source>Kernel driver not accessible</source>
+        <translation>Pilote noyau non trouvé</translation>
+    </message>
 </context>
 <context>
     <name>QIArrowSplitter</name>
@@ -518,23 +522,23 @@ Version %1</source>
     <name>VBoxAddNIDialog</name>
     <message>
         <source>Add Host Interface</source>
-        <translation>Ajouter une interface hôte</translation>
+        <translation type="obsolete">Ajouter une interface hôte</translation>
     </message>
     <message>
         <source>Interface Name</source>
-        <translation>Nom de l&apos;interface</translation>
+        <translation type="obsolete">Nom de l&apos;interface</translation>
     </message>
     <message>
         <source>Descriptive name of the new network interface</source>
-        <translation>Nom descriptif de la nouvelle interface</translation>
+        <translation type="obsolete">Nom descriptif de la nouvelle interface</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
+        <translation type="obsolete">&amp;OK</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Annuler</translation>
+        <translation type="obsolete">Annuler</translation>
     </message>
 </context>
 <context>
@@ -1086,10 +1090,6 @@ Version %1</source>
         <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Pas de répertoires partagés&lt;/b&gt;&lt;/br&gt;</translation>
     </message>
     <message>
-        <source>Sun xVM VirtualBox</source>
-        <translation type="obsolete">Sun xVM VirtualBox</translation>
-    </message>
-    <message>
         <source>Session I&amp;nformation Dialog</source>
         <translation>Boîte de dialogue I&amp;nformations session </translation>
     </message>
@@ -1119,6 +1119,10 @@ Version %1</source>
     <message>
         <source>Sun VirtualBox</source>
         <translation>Sun VirtualBox</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;/qt&gt;</source>
+        <translation>&lt;qt&gt;Montre l&apos;état des fonctionnalités de virtualisation du processeur utlisées par cette machine virtuelle :&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1 :&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3 :&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;/qt&gt;</translation>
     </message>
 </context>
 <context>
@@ -1387,7 +1391,7 @@ Version %1</source>
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will you guide to the process of exporting an Appliance. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through the process of exporting an Appliance. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;In order to export an Appliance you have to select the virtual machines which should be included. You can select more than one. Please note that these VMs have to be turned off before they can be exported.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="obsolete">&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;(new line)
@@ -1427,7 +1431,7 @@ p, li { white-space: pre-wrap; }(new line)
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will you guide to the process of exporting an appliance. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through the process of exporting an appliance. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please select the virtual machines that should be exported to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
@@ -2799,7 +2803,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Bridged network, %1</source>
         <comment>details report (network)</comment>
-        <translation>Accès par pont, %1</translation>
+        <translation type="obsolete">Accès par pont, %1</translation>
     </message>
     <message>
         <source>Internal network, &apos;%1&apos;</source>
@@ -2809,7 +2813,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Host-only network, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation>Réseau privé hôte, &apos;%1&apos;</translation>
+        <translation type="obsolete">Réseau privé hôte, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>SCSI</source>
@@ -2819,12 +2823,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Bridged Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Accès par pont</translation>
+        <translation type="obsolete">Accès par pont</translation>
     </message>
     <message>
         <source>Host-only Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Réseau privé hôte</translation>
+        <translation type="obsolete">Réseau privé hôte</translation>
     </message>
     <message>
         <source>PIIX3</source>
@@ -2860,6 +2864,26 @@ p, li { white-space: pre-wrap; }
         <source>Intel PRO/1000 MT Server (82545EM)</source>
         <comment>NetworkAdapterType</comment>
         <translation>Serveur Intel PRO/1000 MT (82545EM)</translation>
+    </message>
+    <message>
+        <source>Bridged adapter, %1</source>
+        <comment>details report (network)</comment>
+        <translation>Pont avec l&apos;interface %1</translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>Interface réseau privé hôte, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Bridged Adapter</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation>Accès par pont</translation>
+    </message>
+    <message>
+        <source>Host-only Adapter</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation>Accès privé hôte</translation>
     </message>
 </context>
 <context>
@@ -2991,7 +3015,7 @@ p, li { white-space: pre-wrap; }
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will you guide to the process of importing an Appliance. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through the process of importing an Appliance. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;In order to import an Appliance you have to select a file describing the Appliance first. Currently VirtualBox supports the Open Virtualization Format (OVF). To continue select the file to import below:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation type="obsolete">&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;(new line)
@@ -4468,7 +4492,7 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     </message>
     <message>
         <source>&lt;p&gt;Do you want to remove the selected host network interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; This interface may be in use by one or more network adapters of this or another VM. After it is removed, these adapters will no longer work until you correct their settings by either choosing a different interface name or a different adapter attachment type.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Désirez-vous éliminer l&apos;interface réseau &lt;nobr&gt;&lt;b&gt;%1&lt;b&gt; sélectionnée ?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note :&lt;/b&gt; cette interface pourait être utilisée par une ou plusieurs cartes réseau de cette ou d&apos;autres machines virtuelles. Si vous éliminez cette interface, les cartes virtuelles ne fonctionneront plus jusqu&apos;à ce que vous les reconfigurez avec un autre nom d&apos;interface ou un autre type d&apos;accès.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Désirez-vous éliminer l&apos;interface réseau &lt;nobr&gt;&lt;b&gt;%1&lt;b&gt; sélectionnée ?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note :&lt;/b&gt; cette interface pourait être utilisée par une ou plusieurs cartes réseau de cette ou d&apos;autres machines virtuelles. Si vous éliminez cette interface, les cartes virtuelles ne fonctionneront plus jusqu&apos;à ce que vous les reconfigurez avec un autre nom d&apos;interface ou un autre type d&apos;accès.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to create the host-only network interface.</source>
@@ -4519,7 +4543,7 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
         <translation>Les fichiers suivants existent déjà :&lt;br /&gt;&lt;br /&gt;%1&lt;br /&gt;&lt;br /&gt; Voulez-vous vraiement les remplacer? Si vous remplacez les fichiers, leurs anciens contenus seront perdus.</translation>
     </message>
     <message>
-        <source>Failed to remove the file &lt;b&gt;%1&lt;/b&gt;.&lt;br /&gt;&lt;br /&gt;Please try to remove that file yourself &amp; try again.</source>
+        <source>Failed to remove the file &lt;b&gt;%1&lt;/b&gt;.&lt;br /&gt;&lt;br /&gt;Please try to remove the file yourself and try again.</source>
         <translation>La suppréssion du fichier &lt;b&gt;%1&lt;/b&gt; a échoué.&lt;br /&gt;&lt;br /&gt;Veuillez supprimer le fichier manuellement et réessayer.</translation>
     </message>
     <message>
@@ -4541,6 +4565,10 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     <message>
         <source>Failed to create appliance.</source>
         <translation>Échec de création de l&apos;application virtuelle.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Deleting this host-only network will lead to the deleting of the host-only interface this network is based on. Do you want to remove the (host-only network) interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; this interface may be in use by one or more virtual network adapters belonging to one of your VMs. After it is removed, these adapters will no longer be usable until you correct their settings by either choosing a different interface name or a different adapter attachment type.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Si vous enlevez ce réseau privé hôte, l&apos;interface réseau privé hôte corréspondant sera également enlevée.  Voulez vous enlever l&apos;interface privée &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note :&lt;/b&gt; cette interface pourrait également être utilisé par une ou plusieurs interfaces réseau de vos machines virtuelles.  Si vous l&apos;enlevez, ces interfaces ne serront plus utilisables jusqu&apos;à ce que vous corrigez leurs paramètres en choisissant une autre interface privé hôte ou un autre mode d&apos;accès.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -4740,10 +4768,6 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
         <translation>Afficher les fichiers historiques de la machine virtuelle choisie</translation>
     </message>
     <message>
-        <source>Sun xVM VirtualBox</source>
-        <translation type="obsolete">Sun xVM VirtualBox</translation>
-    </message>
-    <message>
         <source>R&amp;esume</source>
         <translation>R&amp;eprendre </translation>
     </message>
@@ -4760,8 +4784,8 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
         <translation>Suspend l&apos;exécution de la machine virtuelle</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;F1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Bienvenue sur VirtualBox !&lt;/h3&gt;&lt;p&gt;La partie gauche de cette boîte de dialogue affiche la liste des machines virtuelles de votre ordinateur. Cette liste est vide car vous n&apos;avez pas encore créé des machines virtuelles.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Pour créer une nouvelle machine virtuelle, activer le bouton &lt;b&gt;Nouveau&lt;/b&gt; situé dans le haut de cette boîte de dialogue.&lt;/p&gt;&lt;p&gt;Vous pouvez actionner la touche &lt;b&gt;F1&lt;/b&gt; afin d&apos;avoir une aide immédiate ou bien visiter &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; pour obtenir les informations les plus récentes.&lt;/p&gt;</translation>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <translation>&lt;h3&gt;Bienvenue sur VirtualBox !&lt;/h3&gt;&lt;p&gt;La partie gauche de cette boîte de dialogue affiche la liste des machines virtuelles de votre ordinateur. Cette liste est vide car vous n&apos;avez pas encore créé des machines virtuelles.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Pour créer une nouvelle machine virtuelle, activer le bouton &lt;b&gt;Nouveau&lt;/b&gt; situé dans le haut de cette boîte de dialogue.&lt;/p&gt;&lt;p&gt;Vous pouvez actionner la touche &lt;b&gt;%1&lt;/b&gt; afin d&apos;avoir une aide immédiate ou bien visiter &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; pour obtenir les informations les plus récentes.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Virtual Media Manager...</source>
@@ -6009,7 +6033,7 @@ p, li { white-space: pre-wrap; }
         <translation>&amp;Mode d&apos;accès réseau : </translation>
     </message>
     <message>
-        <source>Controls the way how this virtual adapter is attached to the real network of the Host OS.</source>
+        <source>Controls how this virtual adapter is attached to the real network of the Host OS.</source>
         <translation>Contrôle la façon dont la carte virtuel accède au réseau physique de l&apos;ordinateur principal. </translation>
     </message>
     <message>
@@ -6132,17 +6156,17 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Open extended settings dialog for current attachment type.</source>
-        <translation>Ouvrir la boîte de dialogue préférences étendues pour le type d&apos;accès actuel.</translation>
+        <translation type="obsolete">Ouvrir la boîte de dialogue préférences étendues pour le type d&apos;accès actuel.</translation>
     </message>
     <message>
         <source>Adapter</source>
         <comment>network</comment>
-        <translation>Interface </translation>
+        <translation type="obsolete">Interface </translation>
     </message>
     <message>
         <source>Network</source>
         <comment>internal</comment>
-        <translation>Réseau </translation>
+        <translation type="obsolete">Réseau </translation>
     </message>
     <message>
         <source>Interface</source>
@@ -6151,11 +6175,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>MAC Address</source>
-        <translation>Adresse MAC</translation>
+        <translation type="obsolete">Adresse MAC</translation>
     </message>
     <message>
         <source>Cable</source>
-        <translation>Cable</translation>
+        <translation type="obsolete">Cable</translation>
     </message>
     <message>
         <source>connected</source>
@@ -6165,38 +6189,67 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Not selected</source>
         <comment>adapter</comment>
-        <translation>Non séléctionnée</translation>
+        <translation type="obsolete">Non séléctionnée</translation>
     </message>
     <message>
         <source>Not selected</source>
         <comment>network</comment>
-        <translation>Non sélectionné</translation>
+        <translation type="obsolete">Non sélectionné</translation>
     </message>
     <message>
         <source>Not selected</source>
         <comment>address</comment>
-        <translation>Non sélectionnée</translation>
+        <translation type="obsolete">Non sélectionnée</translation>
     </message>
     <message>
         <source>Connected</source>
         <comment>cable</comment>
-        <translation>Connecté</translation>
+        <translation type="obsolete">Connecté</translation>
     </message>
     <message>
         <source>Not connected</source>
         <comment>cable</comment>
-        <translation>Non connecté</translation>
+        <translation type="obsolete">Non connecté</translation>
+    </message>
+    <message>
+        <source>no bridged network adapter is selected</source>
+        <translation>aucune interface réseau n&apos;a été sélectionné pour le pont</translation>
+    </message>
+    <message>
+        <source>no internal network name is specified</source>
+        <translation>aucun nom de réseau interne n&apos;a été spécifié</translation>
+    </message>
+    <message>
+        <source>no host-only network adapter is selected</source>
+        <translation>aucune interface réseau privé hôte n&apos;a été sélectionnée</translation>
+    </message>
+    <message>
+        <source>Not selected</source>
+        <comment>network adapter name</comment>
+        <translation>Non sélectionné</translation>
+    </message>
+    <message>
+        <source>Open additional options dialog for current attachment type.</source>
+        <translation>Ouvre la boîte de dialogue options supplémentaires pour le mode d&apos;accès actuel.</translation>
+    </message>
+    <message>
+        <source>&amp;Name:</source>
+        <translation>&amp;Nom : </translation>
+    </message>
+    <message>
+        <source>Selects the name of the network adapter if attachment type is equivalent to &lt;b&gt;Bridged Adapter&lt;/b&gt; or &lt;b&gt;Host-only Adapter&lt;/b&gt; and the name of the internal network if attachment type is equivalent to &lt;b&gt;Internal Network&lt;/b&gt;.</source>
+        <translation>Choisi le nom de l&apos;interface réseau pour le mode &lt;b&gt;accès en pont&lt;/b&gt; ou le mode &lt;b&gt;accès privé hôte&lt;/b&gt; et le nom du réseau interne pour le mode d&apos;accès &lt;b&gt;réseau interne&lt;/b&gt;.</translation>
     </message>
 </context>
 <context>
     <name>VBoxVMSettingsNetworkDetails</name>
     <message>
         <source>no bridged network adapter is selected</source>
-        <translation>aucune interface réseau pour accès par pont n&apos;a été sélectionné</translation>
+        <translation type="obsolete">aucune interface réseau pour accès par pont n&apos;a été sélectionné</translation>
     </message>
     <message>
         <source>no internal network name is specified</source>
-        <translation>aucun nom de réseau interne n&apos;a été spécifié</translation>
+        <translation type="obsolete">aucun nom de réseau interne n&apos;a été spécifié</translation>
     </message>
     <message>
         <source>no host-only interface is selected</source>
@@ -6216,19 +6269,19 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Basic Details</source>
-        <translation>Détails de base</translation>
+        <translation type="obsolete">Détails de base</translation>
     </message>
     <message>
         <source>Bridged Network Details</source>
-        <translation>Détails accès par pont</translation>
+        <translation type="obsolete">Détails accès par pont</translation>
     </message>
     <message>
         <source>Internal Network Details</source>
-        <translation>Détails réseau interne</translation>
+        <translation type="obsolete">Détails réseau interne</translation>
     </message>
     <message>
         <source>Host-only Network Details</source>
-        <translation>Détails réseau privé hôte</translation>
+        <translation type="obsolete">Détails réseau privé hôte</translation>
     </message>
     <message>
         <source>Not Selected</source>
@@ -6241,23 +6294,23 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Host Settings</source>
-        <translation>Paramètrage hôte</translation>
+        <translation type="obsolete">Paramètrage hôte</translation>
     </message>
     <message>
         <source>&amp;Bridged Network Adapter:</source>
-        <translation>Carte réseau pour l&apos;accès par &amp;pont :</translation>
+        <translation type="obsolete">Carte réseau pour l&apos;accès par &amp;pont :</translation>
     </message>
     <message>
         <source>Displays the name of the host network adapter selected for bridged networking.</source>
-        <translation>Affiche le nom de la carte réseau hôte séléctionné pour l&apos;accès réseau par pont.</translation>
+        <translation type="obsolete">Affiche le nom de la carte réseau hôte séléctionné pour l&apos;accès réseau par pont.</translation>
     </message>
     <message>
         <source>Internal &amp;Network:</source>
-        <translation>&amp;Réseau interne :</translation>
+        <translation type="obsolete">&amp;Réseau interne :</translation>
     </message>
     <message>
         <source>Displays the name of the internal network selected for this adapter.</source>
-        <translation>Affiche le nom du réseau interne affecté à cete carte.</translation>
+        <translation type="obsolete">Affiche le nom du réseau interne affecté à cete carte.</translation>
     </message>
     <message>
         <source>Host-only &amp;Network Interface:</source>
@@ -6329,7 +6382,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Guest Settings</source>
-        <translation>Paramètrage invité</translation>
+        <translation type="obsolete">Paramètrage invité</translation>
     </message>
     <message>
         <source>Guest &amp;MAC Address:</source>
@@ -6353,20 +6406,24 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>no host-only adapter is selected</source>
-        <translation>aucune interface réseau privé hôte n&apos;a été séléctionnée</translation>
+        <translation type="obsolete">aucune interface réseau privé hôte n&apos;a été séléctionnée</translation>
     </message>
     <message>
         <source>Host-only &amp;Network Adapter:</source>
-        <translation>Interface &amp;réseau privé hôte :</translation>
+        <translation type="obsolete">Interface &amp;réseau privé hôte :</translation>
     </message>
     <message>
         <source>Displays the name of the VirtualBox network adapter selected for host-only networking.</source>
-        <translation>Affiche le nom de l&apos;interface réseau VirtualBox séléctionnée pour l&apos;accès privé hôte.</translation>
+        <translation type="obsolete">Affiche le nom de l&apos;interface réseau VirtualBox séléctionnée pour l&apos;accès privé hôte.</translation>
     </message>
     <message>
         <source>Not selected</source>
         <comment>Host-only Network Details, network adapter chooser</comment>
         <translation>Non sélectionnée</translation>
+    </message>
+    <message>
+        <source>Additional Options</source>
+        <translation>Options supplémentaires</translation>
     </message>
 </context>
 <context>

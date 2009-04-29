@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 18379 2009-03-27 10:50:47Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the VBox Linux Additions X.org graphics driver.
 #

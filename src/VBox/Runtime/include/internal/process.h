@@ -1,4 +1,4 @@
-/* $Id: process.h 16998 2009-02-23 09:33:38Z vboxsync $ */
+/* $Id: process.h $ */
 /** @file
  * IPRT - Internal RTProc header.
  */

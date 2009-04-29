@@ -1,4 +1,4 @@
-/* $Id: TMInternal.h 13742 2008-11-03 12:19:40Z vboxsync $ */
+/* $Id: TMInternal.h $ */
 /** @file
  * TM - Internal header file.
  */

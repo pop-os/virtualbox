@@ -1,4 +1,4 @@
-/* $Id: tstVMStructSize.cpp 17537 2009-03-08 05:22:28Z vboxsync $ */
+/* $Id: tstVMStructSize.cpp $ */
 /** @file
  * tstVMStructSize - testcase for check structure sizes/alignment
  *                   and to verify that HC and GC uses the same

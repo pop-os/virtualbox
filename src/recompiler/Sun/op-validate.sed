@@ -1,4 +1,4 @@
-# $Id: op-validate.sed 18117 2009-03-20 13:33:58Z vboxsync $
+# $Id: op-validate.sed $
 ## @file
 #
 # Just some quick sed hacks for validating an op.S assembly file.

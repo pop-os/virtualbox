@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 17765 2009-03-12 17:04:51Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the VirtualBox Guest/Host part
 #

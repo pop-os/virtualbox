@@ -1,4 +1,4 @@
-/* $Id: PGMAll.cpp 18731 2009-04-06 08:25:50Z vboxsync $ */
+/* $Id: PGMAll.cpp $ */
 /** @file
  * PGM - Page Manager and Monitor - All context code.
  */
@@ -2314,7 +2314,8 @@ VMMDECL(void) PGMDynUnlockHCPage(PVM pVM, RCPTRTYPE(uint8_t *) GCPage)
 {
     unsigned iPage;
 
-    AssertCompile(RT_ELEMENTS(pVM->pgm.s.aHCPhysDynPageMapCache) == RT_ELEMENTS(pVM->pgm.s.aLockedDynPageMapCache));
+    AssertCompile(RT_ELEMENTS(pVM->pgm.s.aLockedDynPageMapCache) == 2* RT_ELEMENTS(pVM->pgm.s.aHCPhysDynPageMapCache));
+    AssertCompileMemberSize(VM, pgm.s.aLockedDynPageMapCache, sizeof(uint32_t) * (MM_HYPER_DYNAMIC_SIZE >> (PAGE_SHIFT)));
 
     Assert(GCPage >= pVM->pgm.s.pbDynPageMapBaseGC && GCPage < (pVM->pgm.s.pbDynPageMapBaseGC + MM_HYPER_DYNAMIC_SIZE));
     iPage = ((uintptr_t)(GCPage - pVM->pgm.s.pbDynPageMapBaseGC)) >> PAGE_SHIFT;

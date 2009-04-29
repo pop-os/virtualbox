@@ -1,4 +1,4 @@
-/* $Id: VMMGC.cpp 17422 2009-03-05 20:33:58Z vboxsync $ */
+/* $Id: VMMGC.cpp $ */
 /** @file
  * VMM - Raw-mode Context.
  */

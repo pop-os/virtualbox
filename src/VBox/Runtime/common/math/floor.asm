@@ -1,4 +1,4 @@
-; $Id: floor.asm 16316 2009-01-28 14:26:48Z vboxsync $
+; $Id: floor.asm $
 ;; @file
 ; IPRT - No-CRT floor - AMD64 & X86.
 ;

@@ -1,4 +1,4 @@
-/* $Id: PGMInternal.h 18746 2009-04-06 11:20:27Z vboxsync $ */
+/* $Id: PGMInternal.h $ */
 /** @file
  * PGM - Internal header file.
  */
@@ -2416,7 +2416,8 @@ typedef struct PGM
     /** Cache containing the last entries in the dynamic page mapping area.
      * The cache size is covering half of the mapping area. */
     RTHCPHYS                        aHCPhysDynPageMapCache[MM_HYPER_DYNAMIC_SIZE >> (PAGE_SHIFT + 1)];
-    uint32_t                        aLockedDynPageMapCache[MM_HYPER_DYNAMIC_SIZE >> (PAGE_SHIFT + 1)];
+    /** Keep a lock counter for the full (!) mapping area. */
+    uint32_t                        aLockedDynPageMapCache[MM_HYPER_DYNAMIC_SIZE >> (PAGE_SHIFT)];
 
     /** The address of the ring-0 mapping cache if we're making use of it.  */
     RTR0PTR                         pvR0DynMapUsed;
@@ -2832,6 +2833,7 @@ void            pgmHandlerVirtualDumpPhysPages(PVM pVM);
 DECLCALLBACK(void) pgmR3InfoHandlers(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 
 
+int             pgmPhysAllocPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys);
 int             pgmPhysPageLoadIntoTlb(PPGM pPGM, RTGCPHYS GCPhys);
 int             pgmPhysPageLoadIntoTlbWithPage(PPGM pPGM, PPGMPAGE pPage, RTGCPHYS GCPhys);
 int             pgmPhysPageMakeWritable(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys);
@@ -2842,10 +2844,11 @@ int             pgmPhysGCPhys2CCPtrInternal(PVM pVM, PPGMPAGE pPage, RTGCPHYS GC
 int             pgmPhysGCPhys2CCPtrInternalReadOnly(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, const void **ppv);
 VMMDECL(int)    pgmPhysRomWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
 #ifdef IN_RING3
-int             pgmR3PhysChunkMap(PVM pVM, uint32_t idChunk, PPPGMCHUNKR3MAP ppChunk);
 void            pgmR3PhysRelinkRamRanges(PVM pVM);
+int             pgmR3PhysRamPreAllocate(PVM pVM);
 int             pgmR3PhysRamReset(PVM pVM);
 int             pgmR3PhysRomReset(PVM pVM);
+int             pgmR3PhysChunkMap(PVM pVM, uint32_t idChunk, PPPGMCHUNKR3MAP ppChunk);
 
 int             pgmR3PoolInit(PVM pVM);
 void            pgmR3PoolRelocate(PVM pVM);
@@ -2880,6 +2883,9 @@ void            pgmPoolMonitorModifiedClearAll(PVM pVM);
 int             pgmPoolMonitorMonitorCR3(PPGMPOOL pPool, uint16_t idxRoot, RTGCPHYS GCPhysCR3);
 int             pgmPoolMonitorUnmonitorCR3(PPGMPOOL pPool, uint16_t idxRoot);
 #endif
+
+int             pgmR3ExitShadowModeBeforePoolFlush(PVM pVM);
+int             pgmR3ReEnterShadowModeAfterPoolFlush(PVM pVM);
 
 void            pgmMapSetShadowPDEs(PVM pVM, PPGMMAPPING pMap, unsigned iNewPDE);
 void            pgmMapClearShadowPDEs(PVM pVM, PPGMPOOLPAGE pShwPageCR3, PPGMMAPPING pMap, unsigned iOldPDE, bool fDeactivateCR3);

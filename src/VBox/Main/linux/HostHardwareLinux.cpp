@@ -1,4 +1,4 @@
-/* $Id: HostHardwareLinux.cpp 17929 2009-03-16 13:09:36Z vboxsync $ */
+/* $Id: HostHardwareLinux.cpp $ */
 /** @file
  * Classes for handling hardware detection under Linux.  Please feel free to
  * expand these to work for other systems (Solaris!) or to add new ones for
@@ -197,7 +197,7 @@ int VBoxMainDriveInfo::updateFloppies ()
             char devName[10];
             for (int i = 0; i <= 7; i++)
             {
-                sprintf(devName, "/dev/fd%d", i);
+                RTStrPrintf(devName, sizeof(devName), "/dev/fd%d", i);
                 if (validateDevice(devName, false))
                     try
                     {

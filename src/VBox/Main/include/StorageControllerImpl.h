@@ -1,4 +1,4 @@
-/* $Id: StorageControllerImpl.h 17768 2009-03-12 17:49:08Z vboxsync $ */
+/* $Id: StorageControllerImpl.h $ */
 
 /** @file
  *

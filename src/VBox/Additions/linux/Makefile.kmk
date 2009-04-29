@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 18796 2009-04-07 06:55:31Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Makefile for the linux guest additions base directory.
 #

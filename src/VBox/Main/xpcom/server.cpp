@@ -1,4 +1,4 @@
-/* $Id: server.cpp 18265 2009-03-25 17:09:08Z vboxsync $ */
+/* $Id: server.cpp $ */
 /** @file
  * XPCOM server process (VBoxSVC) start point.
  */

@@ -1,4 +1,4 @@
-/* $Id: the-nt-kernel.h 18496 2009-03-29 02:18:34Z vboxsync $ */
+/* $Id: the-nt-kernel.h $ */
 /** @file
  * IPRT - Include all necessary headers for the NT kernel.
  */

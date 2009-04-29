@@ -1,4 +1,4 @@
-/* $Id: tstContiguous.cpp 13837 2008-11-05 02:54:02Z vboxsync $ */
+/* $Id: tstContiguous.cpp $ */
 /** @file
  * VBox Support Driver - Contiguous Memory Testcase (ring-3).
  */

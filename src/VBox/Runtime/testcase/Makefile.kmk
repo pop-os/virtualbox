@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 16999 2009-02-23 09:55:20Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the IPRT testcases.
 #
@@ -61,6 +61,7 @@ PROGRAMS += \
 	tstErrUnique \
 	tstFile \
 	tstFileLock \
+	tstFork \
 	tstGetOpt \
 	tstHandleTable \
 	tstHeapSimple \
@@ -168,6 +169,8 @@ tstFile_SOURCES = tstFile.cpp
 tstFileAppendWin-1_SOURCES = tstFileAppendWin-1.cpp
 
 tstFileLock_SOURCES = tstFileLock.cpp
+
+tstFork_SOURCES = tstFork.cpp
 
 tstGetOpt_SOURCES = tstGetOpt.cpp
 

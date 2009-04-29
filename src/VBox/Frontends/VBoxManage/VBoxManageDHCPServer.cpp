@@ -1,4 +1,4 @@
-/* $Id: VBoxManageDHCPServer.cpp 18323 2009-03-26 15:29:16Z vboxsync $ */
+/* $Id: VBoxManageDHCPServer.cpp $ */
 /** @file
  * VBoxManage - Implementation of dhcpserver command.
  */

@@ -1,4 +1,4 @@
-/* $Id: DevPCNet.cpp 18739 2009-04-06 09:28:14Z vboxsync $ */
+/* $Id: DevPCNet.cpp $ */
 /** @file
  * DevPCNet - AMD PCnet-PCI II / PCnet-FAST III (Am79C970A / Am79C973) Ethernet Controller Emulation.
  *
@@ -1568,43 +1568,23 @@ static void pcnetInit(PCNetState *pThis)
     size_t cbRxBuffers = 0;
     for (int i = CSR_RCVRL(pThis); i >= 1; i--)
     {
-        RMD        rmd;
+        RMD rmd;
         RTGCPHYS32 rdaddr = PHYSADDR(pThis, pcnetRdraAddr(pThis, i));
 
         pcnetDescTouch(pThis, rdaddr);
         /* At this time it is not guaranteed that the buffers are already initialized. */
         if (pcnetRmdLoad(pThis, &rmd, rdaddr, false))
         {
-            /* Hack: Make sure that all RX buffers are touched when the
-             * device is initialized. */
-            static char aBuf[4096];
-            RTGCPHYS32 rbadr = PHYSADDR(pThis, rmd.rmd0.rbadr);
             uint32_t cbBuf = 4096U-rmd.rmd1.bcnt;
-            /* don't change the content */
-            PDMDevHlpPhysRead(pDevIns, rbadr, aBuf, RT_MIN(sizeof(aBuf), cbBuf));
-            PDMDevHlpPhysWrite(pDevIns, rbadr, aBuf, RT_MIN(sizeof(aBuf), cbBuf));
             cbRxBuffers += cbBuf;
         }
     }
 
     for (int i = CSR_XMTRL(pThis); i >= 1; i--)
     {
-        TMD        tmd;
         RTGCPHYS32 tdaddr = PHYSADDR(pThis, pcnetTdraAddr(pThis, i));
 
         pcnetDescTouch(pThis, tdaddr);
-        if (pcnetTmdLoad(pThis, &tmd, tdaddr, false))
-        {
-            /* Hack: Make sure that all TX buffers are touched when the
-             * device is initialized. Of course it is unlikely that the
-             * TX buffers are already owned by the device right now. */
-            static char aBuf[4096];
-            uint32_t cbBuf = 4096U-tmd.tmd1.bcnt;
-            RTGCPHYS32 tbadr = PHYSADDR(pThis, tmd.tmd0.tbadr);
-            /* don't change the content */
-            PDMDevHlpPhysRead(pDevIns, tbadr, aBuf, RT_MIN(sizeof(aBuf), cbBuf));
-            PDMDevHlpPhysWrite(pDevIns, tbadr, aBuf, RT_MIN(sizeof(aBuf), cbBuf));
-        }
     }
 
     /*
@@ -1844,14 +1824,14 @@ static int pcnetTdtePoll(PCNetState *pThis, TMD *tmd)
 /**
  * Write data into guest receive buffers.
  */
-static void pcnetReceiveNoSync(PCNetState *pThis, const uint8_t *buf, size_t size)
+static void pcnetReceiveNoSync(PCNetState *pThis, const uint8_t *buf, size_t cbToRecv)
 {
     PPDMDEVINS pDevIns = PCNETSTATE_2_DEVINS(pThis);
     int is_padr = 0, is_bcast = 0, is_ladr = 0;
-    unsigned i;
-    int pkt_size;
+    unsigned iRxDesc;
+    int cbPacket;
 
-    if (RT_UNLIKELY(CSR_DRX(pThis) || CSR_STOP(pThis) || CSR_SPND(pThis) || !size))
+    if (RT_UNLIKELY(CSR_DRX(pThis) || CSR_STOP(pThis) || CSR_SPND(pThis) || !cbToRecv))
         return;
 
     /*
@@ -1860,15 +1840,15 @@ static void pcnetReceiveNoSync(PCNetState *pThis, const uint8_t *buf, size_t siz
     if (PDMDevHlpVMState(pDevIns) != VMSTATE_RUNNING)
         return;
 
-    Log(("#%d pcnetReceiveNoSync: size=%d\n", PCNET_INST_NR, size));
+    Log(("#%d pcnetReceiveNoSync: size=%d\n", PCNET_INST_NR, cbToRecv));
 
     /*
      * Perform address matching.
      */
     if (   CSR_PROM(pThis)
-        || (is_padr  = padr_match(pThis, buf, size))
-        || (is_bcast = padr_bcast(pThis, buf, size))
-        || (is_ladr  = ladr_match(pThis, buf, size)))
+        || (is_padr  = padr_match(pThis, buf, cbToRecv))
+        || (is_bcast = padr_bcast(pThis, buf, cbToRecv))
+        || (is_ladr  = ladr_match(pThis, buf, cbToRecv)))
     {
         if (HOST_IS_OWNER(CSR_CRST(pThis)))
             pcnetRdtePoll(pThis);
@@ -1881,8 +1861,8 @@ static void pcnetReceiveNoSync(PCNetState *pThis, const uint8_t *buf, size_t siz
             /* Dump the status of all RX descriptors */
             const unsigned  cb = 1 << pThis->iLog2DescSize;
             RTGCPHYS32      GCPhys = pThis->GCRDRA;
-            i = CSR_RCVRL(pThis);
-            while (i-- > 0)
+            iRxDesc = CSR_RCVRL(pThis);
+            while (iRxDesc-- > 0)
             {
                 RMD rmd;
                 pcnetRmdLoad(pThis, &rmd, PHYSADDR(pThis, GCPhys), false);
@@ -1897,24 +1877,23 @@ static void pcnetReceiveNoSync(PCNetState *pThis, const uint8_t *buf, size_t siz
             uint8_t   *src = &pThis->abRecvBuf[8];
             RTGCPHYS32 crda = CSR_CRDA(pThis);
             RTGCPHYS32 next_crda;
-            RMD      rmd, next_rmd;
-            int      pktcount = 0;
+            RMD        rmd, next_rmd;
 
-            memcpy(src, buf, size);
+            memcpy(src, buf, cbToRecv);
             if (!CSR_ASTRP_RCV(pThis))
             {
                 uint32_t fcs = ~0;
                 uint8_t *p = src;
 
-                while (size < 60)
-                    src[size++] = 0;
-                while (p != &src[size])
+                while (cbToRecv < 60)
+                    src[cbToRecv++] = 0;
+                while (p != &src[cbToRecv])
                     CRC(fcs, *p++);
-                ((uint32_t *)&src[size])[0] = htonl(fcs);
+                ((uint32_t *)&src[cbToRecv])[0] = htonl(fcs);
                 /* FCS at end of packet */
             }
-            size += 4;
-            pkt_size = (int)size;                           Assert((size_t)pkt_size == size);
+            cbToRecv += 4;
+            cbPacket = (int)cbToRecv;                           Assert((size_t)cbPacket == cbToRecv);
 
 #ifdef PCNET_DEBUG_MATCH
             PRINT_PKTHDR(buf);
@@ -1924,31 +1903,49 @@ static void pcnetReceiveNoSync(PCNetState *pThis, const uint8_t *buf, size_t siz
             /*if (!CSR_LAPPEN(pThis))*/
                 rmd.rmd1.stp = 1;
 
-            size_t count = RT_MIN(4096 - (size_t)rmd.rmd1.bcnt, size);
+            size_t cbBuf = RT_MIN(4096 - (size_t)rmd.rmd1.bcnt, cbToRecv);
             RTGCPHYS32 rbadr = PHYSADDR(pThis, rmd.rmd0.rbadr);
-#if 0
-            if (pThis->fPrivIfEnabled)
+
+            /* save the old value to check if it was changed as long as we didn't
+             * hold the critical section */
+            iRxDesc = CSR_RCVRC(pThis);
+
+            /* We have to leave the critical section here or we risk deadlocking
+             * with EMT when the write is to an unallocated page or has an access
+             * handler associated with it.
+             *
+             * This shouldn't be a problem because:
+             *  - any modification to the RX descriptor by the driver is
+             *    forbidden as long as it is owned by the device
+             *  - we don't cache any register state beyond this point
+             */
+            PDMCritSectLeave(&pThis->CritSect);
+            PDMDevHlpPhysWrite(pDevIns, rbadr, src, cbBuf);
+            int rc = PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
+            AssertReleaseRC(rc);
+
+            /* RX disabled in the meantime? If so, abort RX. */
+            if (RT_UNLIKELY(CSR_DRX(pThis) || CSR_STOP(pThis) || CSR_SPND(pThis)))
+                return;
+
+            /* Was the register modified in the meantime? If so, don't touch the
+             * register but still update the RX descriptor. */
+            if (RT_LIKELY(iRxDesc == CSR_RCVRC(pThis)))
             {
-                uint8_t *pb = (uint8_t*)pThis->CTX_SUFF(pSharedMMIO)
-                            + rbadr - pThis->GCRDRA + pThis->CTX_SUFF(pSharedMMIO)->V.V1.offRxDescriptors;
-                memcpy(pb, src, count);
+                if (iRxDesc-- < 2)
+                    iRxDesc = CSR_RCVRL(pThis);
+                CSR_RCVRC(pThis) = iRxDesc;
             }
             else
-#endif
-                PDMDevHlpPhysWrite(pDevIns, rbadr, src, count);
-            src  += count;
-            size -= count;
-            pktcount++;
+                iRxDesc = CSR_RCVRC(pThis);
 
-            /* Read current receive descriptor index */
-            i = CSR_RCVRC(pThis);
+            src      += cbBuf;
+            cbToRecv -= cbBuf;
 
-            while (size > 0)
+            while (cbToRecv > 0)
             {
                 /* Read the entire next descriptor as we're likely to need it. */
-                if (--i < 1)
-                    i = CSR_RCVRL(pThis);
-                next_crda = pcnetRdraAddr(pThis, i);
+                next_crda = pcnetRdraAddr(pThis, iRxDesc);
 
                 /* Check next descriptor's own bit. If we don't own it, we have
                  * to quit and write error status into the last descriptor we own.
@@ -1963,36 +1960,49 @@ static void pcnetReceiveNoSync(PCNetState *pThis, const uint8_t *buf, size_t siz
                 crda = next_crda;
                 rmd  = next_rmd;
 
-                count = RT_MIN(4096 - (size_t)rmd.rmd1.bcnt, size);
+                cbBuf = RT_MIN(4096 - (size_t)rmd.rmd1.bcnt, cbToRecv);
                 RTGCPHYS32 rbadr = PHYSADDR(pThis, rmd.rmd0.rbadr);
-#if 0
-                if (pThis->fPrivIfEnabled)
+
+                /* We have to leave the critical section here or we risk deadlocking
+                 * with EMT when the write is to an unallocated page or has an access
+                 * handler associated with it. See above for additional comments. */
+                PDMCritSectLeave(&pThis->CritSect);
+                PDMDevHlpPhysWrite(pDevIns, rbadr, src, cbBuf);
+                rc = PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
+                AssertReleaseRC(rc);
+
+                /* RX disabled in the meantime? If so, abort RX. */
+                if (RT_UNLIKELY(CSR_DRX(pThis) || CSR_STOP(pThis) || CSR_SPND(pThis)))
+                    return;
+
+                /* Was the register modified in the meantime? If so, don't touch the
+                 * register but still update the RX descriptor. */
+                if (RT_LIKELY(iRxDesc == CSR_RCVRC(pThis)))
                 {
-                    uint8_t *pb = (uint8_t*)pThis->CTX_SUFF(pSharedMMIO)
-                                + rbadr - pThis->GCRDRA + pThis->CTX_SUFF(pSharedMMIO)->V.V1.offRxDescriptors;
-                    memcpy(pb, src, count);
+                    if (iRxDesc-- < 2)
+                        iRxDesc = CSR_RCVRL(pThis);
+                    CSR_RCVRC(pThis) = iRxDesc;
                 }
                 else
-#endif
-                    PDMDevHlpPhysWrite(pDevIns, rbadr, src, count);
-                src  += count;
-                size -= count;
-                pktcount++;
+                    iRxDesc = CSR_RCVRC(pThis);
+
+                src      += cbBuf;
+                cbToRecv -= cbBuf;
             }
 
-            if (RT_LIKELY(size == 0))
+            if (RT_LIKELY(cbToRecv == 0))
             {
                 rmd.rmd1.enp  = 1;
                 rmd.rmd1.pam  = !CSR_PROM(pThis) && is_padr;
                 rmd.rmd1.lafm = !CSR_PROM(pThis) && is_ladr;
                 rmd.rmd1.bam  = !CSR_PROM(pThis) && is_bcast;
-                rmd.rmd2.mcnt = pkt_size;
+                rmd.rmd2.mcnt = cbPacket;
 
-                STAM_REL_COUNTER_ADD(&pThis->StatReceiveBytes, pkt_size);
+                STAM_REL_COUNTER_ADD(&pThis->StatReceiveBytes, cbPacket);
             }
             else
             {
-                Log(("#%d: Overflow by %ubytes\n", PCNET_INST_NR, size));
+                Log(("#%d: Overflow by %ubytes\n", PCNET_INST_NR, cbToRecv));
                 rmd.rmd1.oflo = 1;
                 rmd.rmd1.buff = 1;
                 rmd.rmd1.err  = 1;
@@ -2003,19 +2013,12 @@ static void pcnetReceiveNoSync(PCNetState *pThis, const uint8_t *buf, size_t siz
 
             pThis->aCSR[0] |= 0x0400;
 
-            Log(("#%d RCVRC=%d CRDA=%#010x BLKS=%d\n", PCNET_INST_NR,
-                 CSR_RCVRC(pThis), PHYSADDR(pThis, CSR_CRDA(pThis)), pktcount));
+            Log(("#%d RCVRC=%d CRDA=%#010x\n", PCNET_INST_NR,
+                 CSR_RCVRC(pThis), PHYSADDR(pThis, CSR_CRDA(pThis))));
 #ifdef PCNET_DEBUG_RMD
             PRINT_RMD(&rmd);
 #endif
 
-            while (pktcount--)
-            {
-                if (CSR_RCVRC(pThis) < 2)
-                    CSR_RCVRC(pThis) = CSR_RCVRL(pThis);
-                else
-                    CSR_RCVRC(pThis)--;
-            }
             /* guest driver is owner: force repoll of current and next RDTEs */
             CSR_CRST(pThis) = 0;
         }

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE TS><TS version="1.1" language="pt">
+<!DOCTYPE TS>
+<TS version="2.0" language="pt_BR">
 <defaultcodec></defaultcodec>
 <context>
     <name>@@@</name>
@@ -26,7 +27,7 @@
     <message>
         <source>Sun Microsystems, Inc.</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>Érico Mendonça &lt;erico.mendonca@gmail.com&gt;</translation>
+        <translation>Érico Mendonça &lt;erico.mendonca@gmail.com&gt;.</translation>
     </message>
 </context>
 <context>
@@ -130,6 +131,10 @@
     <message>
         <source>Unknown %2 error during initialization of the Runtime</source>
         <translation>Erro desconhecido %2 durante a inicialização do Runtime</translation>
+    </message>
+    <message>
+        <source>Kernel driver not accessible</source>
+        <translation>Módulo de kernel não está acessível</translation>
     </message>
 </context>
 <context>
@@ -448,23 +453,23 @@ Versão %1</translation>
     <name>VBoxAddNIDialog</name>
     <message>
         <source>Add Host Interface</source>
-        <translation>Acrescentar Placa de Rede</translation>
+        <translation type="obsolete">Acrescentar Placa de Rede</translation>
     </message>
     <message>
         <source>Interface Name</source>
-        <translation>Nome da Placa de Rede</translation>
+        <translation type="obsolete">Nome da Placa de Rede</translation>
     </message>
     <message>
         <source>Descriptive name of the new network interface</source>
-        <translation>Nome descritivo da nova placa de rede</translation>
+        <translation type="obsolete">Nome descritivo da nova placa de rede</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
+        <translation type="obsolete">&amp;OK</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Cancelar</translation>
+        <translation type="obsolete">Cancelar</translation>
     </message>
 </context>
 <context>
@@ -1287,10 +1292,6 @@ Versão %1</translation>
         <translation type="obsolete">Abrir o formulário de registro do VirtualBox</translation>
     </message>
     <message>
-        <source>Sun xVM VirtualBox</source>
-        <translation type="obsolete">Sun xVM VirtualBox</translation>
-    </message>
-    <message>
         <source>Session I&amp;nformation Dialog</source>
         <translation>Diálogo de I&amp;nformações sobre a Sessão</translation>
     </message>
@@ -1336,6 +1337,10 @@ Versão %1</translation>
     <message>
         <source>Sun VirtualBox</source>
         <translation>Sun VirtualBox</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;/qt&gt;</source>
+        <translation>&lt;qt&gt;Indica o estado dos recursos de virtualização utilizados por esta máquina virtual:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;/qt&gt;</translation>
     </message>
 </context>
 <context>
@@ -1725,7 +1730,7 @@ Versão %1</translation>
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will you guide to the process of exporting an appliance. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through the process of exporting an appliance. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please select the virtual machines that should be exported to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
@@ -1767,6 +1772,14 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&amp;Export &gt;</source>
         <translation>&amp;Exportar &gt;</translation>
+    </message>
+    <message>
+        <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
+        <translation>Grave no formato antigo OVF 0.9 para compatibilidade com outros produtos de virtualização.</translation>
+    </message>
+    <message>
+        <source>&amp;Write legacy OVF 0.9</source>
+        <translation>Gravar em formato antigo OVF 0.9 (&amp;W)</translation>
     </message>
 </context>
 <context>
@@ -3124,7 +3137,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Bridged network, %1</source>
         <comment>details report (network)</comment>
-        <translation>Rede em modo Bridge, %1</translation>
+        <translation type="obsolete">Rede em modo Bridge, %1</translation>
     </message>
     <message>
         <source>Internal network, &apos;%1&apos;</source>
@@ -3134,7 +3147,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Host-only network, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation>Rede exclusiva de hospedeiro (host-only), &apos;%1&apos;</translation>
+        <translation type="obsolete">Rede exclusiva de hospedeiro (host-only), &apos;%1&apos;</translation>
     </message>
     <message>
         <source>SCSI</source>
@@ -3144,12 +3157,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Bridged Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Rede em modo Bridge</translation>
+        <translation type="obsolete">Rede em modo Bridge</translation>
     </message>
     <message>
         <source>Host-only Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Rede Exclusiva de Hospedeiro (Host-only)</translation>
+        <translation type="obsolete">Rede Exclusiva de Hospedeiro (Host-only)</translation>
     </message>
     <message>
         <source>PIIX3</source>
@@ -3180,6 +3193,31 @@ p, li { white-space: pre-wrap; }
         <source>BusLogic</source>
         <comment>StorageControllerType</comment>
         <translation>BusLogic</translation>
+    </message>
+    <message>
+        <source>Bridged adapter, %1</source>
+        <comment>details report (network)</comment>
+        <translation>Placa em modo Bridge, %1</translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>Placa de rede exclusiva de hospedeiro (host-only), &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Intel PRO/1000 MT Server (82545EM)</source>
+        <comment>NetworkAdapterType</comment>
+        <translation>Intel PRO/1000 T Server (82543GC)</translation>
+    </message>
+    <message>
+        <source>Bridged Adapter</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation>Placa em modo Bridge</translation>
+    </message>
+    <message>
+        <source>Host-only Adapter</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation>Placa de rede exclusiva de hospedeiro (host-only)</translation>
     </message>
 </context>
 <context>
@@ -5446,7 +5484,7 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
         <translation>Os seguintes arquivos já existem:&lt;br /&gt;&lt;br /&gt;%1&lt;br /&gt;&lt;br /&gt;Tem certeza de que deseja substituí-los? Substituí-los irá sobrescrever seu conteúdo.</translation>
     </message>
     <message>
-        <source>Failed to remove the file &lt;b&gt;%1&lt;/b&gt;.&lt;br /&gt;&lt;br /&gt;Please try to remove that file yourself &amp; try again.</source>
+        <source>Failed to remove the file &lt;b&gt;%1&lt;/b&gt;.&lt;br /&gt;&lt;br /&gt;Please try to remove the file yourself and try again.</source>
         <translation>Falha ao remover o arquivo &lt;b&gt;%1&lt;/b&gt;.&lt;br /&gt;&lt;br /&gt;Remova o arquivo manualmente e tente novamente.</translation>
     </message>
     <message>
@@ -5500,7 +5538,7 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Do you want to remove the selected host network interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; This interface may be in use by one or more network adapters of this or another VM. After it is removed, these adapters will no longer work until you correct their settings by either choosing a different interface name or a different adapter attachment type.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Você deseja remover a placa de rede do hospedeiro &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota:&lt;/b&gt; Esta placa pode estar em uso por uma ou mais placas de rede virtuais desta ou de outras VMs. Após a remoção, estas placas virtuais não irão mais funcionar até que você corrija as configurações correspondentes e as associe a outro nome ou tipo de placa de rede virtual.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Você deseja remover a placa de rede do hospedeiro &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota:&lt;/b&gt; Esta placa pode estar em uso por uma ou mais placas de rede virtuais desta ou de outras VMs. Após a remoção, estas placas virtuais não irão mais funcionar até que você corrija as configurações correspondentes e as associe a outro nome ou tipo de placa de rede virtual.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to create the host-only network interface.</source>
@@ -5537,6 +5575,10 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     <message>
         <source>Failed to export appliance &lt;b&gt;%1&lt;/b&gt;.</source>
         <translation>Falha ao exportar o appliance &lt;b&gt;%1&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Deleting this host-only network will lead to the deleting of the host-only interface this network is based on. Do you want to remove the (host-only network) interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; this interface may be in use by one or more virtual network adapters belonging to one of your VMs. After it is removed, these adapters will no longer be usable until you correct their settings by either choosing a different interface name or a different adapter attachment type.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Ao apagar esta rede exclusiva de hospedeiro, a interface de rede associada será removida também. Você deseja remover a placa de rede (exclusiva do hospedeiro) &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota:&lt;/b&gt; esta interface de rede pode estar em uso por uma ou mais placas de rede que pertençam a uma de suas VMs. Após sua remoção, estas placas não poderão mais ser utilizadas até que você corrija suas configurações, seja escolhendo um nome de interface diferente ou um tipo de conexão diferente para a placa.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -5844,8 +5886,8 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
         <translation>Iniciar a máquina virtual selecionada</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;F1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;h3&gt;Bem-Vindo ao VirtualBox!&lt;/h3&gt;&lt;p&gt;A parte esquerda desta janela mostra uma lista de todas as máquinas virtuais disponíveis em seu computador. A lista está vazia agora porque você ainda não criou nenhuma máquina virtual ainda.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Para criar uma nova máquina virtual, pressione o botão &lt;b&gt;Novo&lt;/b&gt; na barra de ferramentas principal, localizada no topo da janela.&lt;/p&gt;&lt;p&gt;Você pode pressionar &lt;b&gt;F1&lt;/b&gt; para obter ajuda instantânea, ou visitar &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; para obter informações e notícias sobre o VirtualBox.&lt;/p&gt;</translation>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;h3&gt;Bem-Vindo ao VirtualBox!&lt;/h3&gt;&lt;p&gt;A parte esquerda desta janela mostra uma lista de todas as máquinas virtuais disponíveis em seu computador. A lista está vazia agora porque você ainda não criou nenhuma máquina virtual ainda.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Para criar uma nova máquina virtual, pressione o botão &lt;b&gt;Novo&lt;/b&gt; na barra de ferramentas principal, localizada no topo da janela.&lt;/p&gt;&lt;p&gt;Você pode pressionar &lt;b&gt;%1&lt;/b&gt; para obter ajuda instantânea, ou visitar &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; para obter informações e notícias sobre o VirtualBox.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Machine</source>
@@ -5876,10 +5918,6 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
         <translation type="obsolete">Abrir o formulário de registro do VirtualBox</translation>
     </message>
     <message>
-        <source>Sun xVM VirtualBox</source>
-        <translation type="obsolete">Sun xVM VirtualBox</translation>
-    </message>
-    <message>
         <source>R&amp;esume</source>
         <translation>Continuar (&amp;E)</translation>
     </message>
@@ -5908,8 +5946,8 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
         <translation>Suspender a execução da máquina virtual</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;F1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Bem-Vindo ao VirtualBox!&lt;/h3&gt;&lt;p&gt;A parte esquerda desta janela mostra uma lista de todas as máquinas virtuais disponíveis em seu computador. A lista está vazia agora porque você ainda não criou nenhuma máquina virtual ainda.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Para criar uma nova máquina virtual, pressione o botão &lt;b&gt;Novo&lt;/b&gt; na barra de ferramentas principal, localizada no topo da janela.&lt;/p&gt;&lt;p&gt;Você pode pressionar &lt;b&gt;F1&lt;/b&gt; para obter ajuda instantânea, ou visitar &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; para obter informações e notícias sobre o VirtualBox.&lt;/p&gt;</translation>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <translation>&lt;h3&gt;Bem-Vindo ao VirtualBox!&lt;/h3&gt;&lt;p&gt;A parte esquerda desta janela mostra uma lista de todas as máquinas virtuais disponíveis em seu computador. A lista está vazia agora porque você ainda não criou nenhuma máquina virtual ainda.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Para criar uma nova máquina virtual, pressione o botão &lt;b&gt;Novo&lt;/b&gt; na barra de ferramentas principal, localizada no topo da janela.&lt;/p&gt;&lt;p&gt;Você pode pressionar &lt;b&gt;%1&lt;/b&gt; para obter ajuda instantânea, ou visitar &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; para obter informações e notícias sobre o VirtualBox.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Virtual Media Manager...</source>
@@ -7274,7 +7312,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Quando selecionado, conecta este adaptador de rede virtual na máquina virtual.</translation>
     </message>
     <message>
-        <source>Controls the way how this virtual adapter is attached to the real network of the Host OS.</source>
+        <source>Controls how this virtual adapter is attached to the real network of the Host OS.</source>
         <translation type="obsolete">Controla a maneira como este adaptador virtual é conectado à rede real no sistema Hospedeiro.</translation>
     </message>
     <message>
@@ -8928,7 +8966,7 @@ faz com que o convidado veja uma placa de som, mas todos os acessos a ela serão
         <translation>Conectado &amp;a:</translation>
     </message>
     <message>
-        <source>Controls the way how this virtual adapter is attached to the real network of the Host OS.</source>
+        <source>Controls how this virtual adapter is attached to the real network of the Host OS.</source>
         <translation>Controla a maneira como este adaptador virtual é conectado à rede real no sistema Hospedeiro.</translation>
     </message>
     <message>
@@ -9002,45 +9040,45 @@ faz com que o convidado veja uma placa de som, mas todos os acessos a ela serão
     <message>
         <source>Adapter</source>
         <comment>network</comment>
-        <translation>Placa</translation>
+        <translation type="obsolete">Placa</translation>
     </message>
     <message>
         <source>Not selected</source>
         <comment>adapter</comment>
-        <translation>Não selecionada</translation>
+        <translation type="obsolete">Não selecionada</translation>
     </message>
     <message>
         <source>Network</source>
         <comment>internal</comment>
-        <translation>Rede</translation>
+        <translation type="obsolete">Rede</translation>
     </message>
     <message>
         <source>Not selected</source>
         <comment>network</comment>
-        <translation>Não selecionada</translation>
+        <translation type="obsolete">Não selecionada</translation>
     </message>
     <message>
         <source>MAC Address</source>
-        <translation>Endereço MAC</translation>
+        <translation type="obsolete">Endereço MAC</translation>
     </message>
     <message>
         <source>Not selected</source>
         <comment>address</comment>
-        <translation>Não selecionado</translation>
+        <translation type="obsolete">Não selecionado</translation>
     </message>
     <message>
         <source>Cable</source>
-        <translation>Cabo</translation>
+        <translation type="obsolete">Cabo</translation>
     </message>
     <message>
         <source>Connected</source>
         <comment>cable</comment>
-        <translation>Conectado</translation>
+        <translation type="obsolete">Conectado</translation>
     </message>
     <message>
         <source>Not connected</source>
         <comment>cable</comment>
-        <translation>Não conectado</translation>
+        <translation type="obsolete">Não conectado</translation>
     </message>
     <message>
         <source>Adapter &amp;Type:</source>
@@ -9048,11 +9086,8 @@ faz com que o convidado veja uma placa de som, mas todos os acessos a ela serão
     </message>
     <message>
         <source>Open extended settings dialog for current attachment type.</source>
-        <translation>Abre o diálogo de configurações estendidas para o tipo de conexão selecionado.</translation>
+        <translation type="obsolete">Abre o diálogo de configurações estendidas para o tipo de conexão selecionado.</translation>
     </message>
-</context>
-<context>
-    <name>VBoxVMSettingsNetworkDetails</name>
     <message>
         <source>no bridged network adapter is selected</source>
         <translation>nenhuma placa de rede em modo bridge foi selecionada</translation>
@@ -9062,60 +9097,92 @@ faz com que o convidado veja uma placa de som, mas todos os acessos a ela serão
         <translation>nenhum nome para a rede interna foi especificado</translation>
     </message>
     <message>
-        <source>no host-only adapter is selected</source>
+        <source>no host-only network adapter is selected</source>
         <translation>nenhuma placa de rede exclusiva do hospedeiro foi selecionada</translation>
     </message>
     <message>
-        <source>Basic Details</source>
-        <translation>Detalhes Básicos</translation>
-    </message>
-    <message>
-        <source>Bridged Network Details</source>
-        <translation>Detalhes da Rede em Modo Bridge</translation>
-    </message>
-    <message>
-        <source>Internal Network Details</source>
-        <translation>Detalhes da Rede Interna</translation>
-    </message>
-    <message>
-        <source>Host-only Network Details</source>
-        <translation>Detalhes da Rede Exclusiva de Hospedeiro (host-only)</translation>
-    </message>
-    <message>
         <source>Not selected</source>
+        <comment>network adapter name</comment>
         <translation>Não selecionada</translation>
     </message>
     <message>
+        <source>Open additional options dialog for current attachment type.</source>
+        <translation>Abrir o diálogo de configurações adicionais para o tipo de conexão selecionado.</translation>
+    </message>
+    <message>
+        <source>&amp;Name:</source>
+        <translation>&amp;Nome:</translation>
+    </message>
+    <message>
+        <source>Selects the name of the network adapter if attachment type is equivalent to &lt;b&gt;Bridged Adapter&lt;/b&gt; or &lt;b&gt;Host-only Adapter&lt;/b&gt; and the name of the internal network if attachment type is equivalent to &lt;b&gt;Internal Network&lt;/b&gt;.</source>
+        <translation>Seleciona o nome da placa de rede se o tipo de conexão for equivalente a &lt;b&gt;Placa de Rede em Modo Bridge&lt;/b&gt; ou &lt;b&gt;Placa de Rede Exclusiva de Hospedeiro&lt;/b&gt; ou o nome da rede interna caso o tipo de conexão seja equivalente a &lt;b&gt;Rede Interna&lt;/b&gt;.</translation>
+    </message>
+</context>
+<context>
+    <name>VBoxVMSettingsNetworkDetails</name>
+    <message>
+        <source>no bridged network adapter is selected</source>
+        <translation type="obsolete">nenhuma placa de rede em modo bridge foi selecionada</translation>
+    </message>
+    <message>
+        <source>no internal network name is specified</source>
+        <translation type="obsolete">nenhum nome para a rede interna foi especificado</translation>
+    </message>
+    <message>
+        <source>no host-only adapter is selected</source>
+        <translation type="obsolete">nenhuma placa de rede exclusiva do hospedeiro foi selecionada</translation>
+    </message>
+    <message>
+        <source>Basic Details</source>
+        <translation type="obsolete">Detalhes Básicos</translation>
+    </message>
+    <message>
+        <source>Bridged Network Details</source>
+        <translation type="obsolete">Detalhes da Rede em Modo Bridge</translation>
+    </message>
+    <message>
+        <source>Internal Network Details</source>
+        <translation type="obsolete">Detalhes da Rede Interna</translation>
+    </message>
+    <message>
+        <source>Host-only Network Details</source>
+        <translation type="obsolete">Detalhes da Rede Exclusiva de Hospedeiro (host-only)</translation>
+    </message>
+    <message>
+        <source>Not selected</source>
+        <translation type="obsolete">Não selecionada</translation>
+    </message>
+    <message>
         <source>Host Settings</source>
-        <translation>Configurações do Hospedeiro</translation>
+        <translation type="obsolete">Configurações do Hospedeiro</translation>
     </message>
     <message>
         <source>&amp;Bridged Network Adapter:</source>
-        <translation>Placa de Rede em Modo &amp;Bridge:</translation>
+        <translation type="obsolete">Placa de Rede em Modo &amp;Bridge:</translation>
     </message>
     <message>
         <source>Displays the name of the host network adapter selected for bridged networking.</source>
-        <translation>Exibe o nome da placa de rede do hospedeiro selecionada para rede em modo bridge.</translation>
+        <translation type="obsolete">Exibe o nome da placa de rede do hospedeiro selecionada para rede em modo bridge.</translation>
     </message>
     <message>
         <source>Internal &amp;Network:</source>
-        <translation>Rede Inter&amp;na:</translation>
+        <translation type="obsolete">Rede Inter&amp;na:</translation>
     </message>
     <message>
         <source>Displays the name of the internal network selected for this adapter.</source>
-        <translation>Exibe o nome da rede interna selecionada para esta placa.</translation>
+        <translation type="obsolete">Exibe o nome da rede interna selecionada para esta placa.</translation>
     </message>
     <message>
         <source>Host-only &amp;Network Adapter:</source>
-        <translation>Placa de Rede Exclusiva do Hospedeiro (&amp;N):</translation>
+        <translation type="obsolete">Placa de Rede Exclusiva do Hospedeiro (&amp;N):</translation>
     </message>
     <message>
         <source>Displays the name of the VirtualBox network adapter selected for host-only networking.</source>
-        <translation>Exibe o nome da placa de rede do VirtualBox selecionada para rede exclusiva do hospedeiro.</translation>
+        <translation type="obsolete">Exibe o nome da placa de rede do VirtualBox selecionada para rede exclusiva do hospedeiro.</translation>
     </message>
     <message>
         <source>Guest Settings</source>
-        <translation>Configurações do Convidado</translation>
+        <translation type="obsolete">Configurações do Convidado</translation>
     </message>
     <message>
         <source>Guest &amp;MAC Address:</source>
@@ -9136,6 +9203,10 @@ faz com que o convidado veja uma placa de som, mas todos os acessos a ela serão
     <message>
         <source>Indicates whether the virtual network cable is plugged in on machine startup or not.</source>
         <translation>Indica se o cabo de rede virtual será conectado na inicialização da máquina ou não.</translation>
+    </message>
+    <message>
+        <source>Additional Options</source>
+        <translation>Opções Adicionais</translation>
     </message>
 </context>
 <context>

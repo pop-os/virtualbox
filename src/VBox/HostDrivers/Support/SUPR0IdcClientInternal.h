@@ -1,4 +1,4 @@
-/* $Id: SUPR0IdcClientInternal.h 18500 2009-03-29 02:28:22Z vboxsync $ */
+/* $Id: SUPR0IdcClientInternal.h $ */
 /** @file
  * VirtualBox Support Driver - Internal header for the IDC client library.
  */

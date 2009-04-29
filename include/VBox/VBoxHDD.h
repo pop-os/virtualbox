@@ -222,6 +222,8 @@ typedef enum VDINTERFACETYPE
     VDINTERFACETYPE_CONFIG,
     /** Interface for TCP network stack. Per-disk. */
     VDINTERFACETYPE_TCPNET,
+    /** Interface for getting parent image state. Per-operation. */
+    VDINTERFACETYPE_PARENTSTATE,
     /** invalid interface. */
     VDINTERFACETYPE_INVALID
 } VDINTERFACETYPE;
@@ -980,6 +982,64 @@ DECLINLINE(PVDINTERFACETCPNET) VDGetInterfaceTcpNet(PVDINTERFACE pInterface)
     return pInterfaceTcpNet;
 }
 
+/**
+ * Interface to get the parent state.
+ *
+ * Per operation interface. Optional, present only if there is a parent, and
+ * used only internally for compacting.
+ */
+typedef struct VDINTERFACEPARENTSTATE
+{
+    /**
+     * Size of the parent state interface.
+     */
+    uint32_t    cbSize;
+
+    /**
+     * Interface type.
+     */
+    VDINTERFACETYPE enmInterface;
+
+    /**
+     * Read data callback.
+     *
+     * @return  VBox status code.
+     * @return  VERR_VD_NOT_OPENED if no image is opened in HDD container.
+     * @param   pvUser          The opaque data passed for the operation.
+     * @param   uOffset         Offset of first reading byte from start of disk.
+     *                          Must be aligned to a sector boundary.
+     * @param   pvBuf           Pointer to buffer for reading data.
+     * @param   cbRead          Number of bytes to read.
+     *                          Must be aligned to a sector boundary.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnParentRead, (void *pvUser, uint64_t uOffset, void *pvBuf, size_t cbRead));
+
+} VDINTERFACEPARENTSTATE, *PVDINTERFACEPARENTSTATE;
+
+
+/**
+ * Get parent state interface from opaque callback table.
+ *
+ * @return Pointer to the callback table.
+ * @param  pInterface Pointer to the interface descriptor.
+ */
+DECLINLINE(PVDINTERFACEPARENTSTATE) VDGetInterfaceParentState(PVDINTERFACE pInterface)
+{
+    /* Check that the interface descriptor is a parent state interface. */
+    AssertMsgReturn(   (pInterface->enmInterface == VDINTERFACETYPE_PARENTSTATE)
+                    && (pInterface->cbSize == sizeof(VDINTERFACE)),
+                    ("Not a parent state interface"), NULL);
+
+    PVDINTERFACEPARENTSTATE pInterfaceParentState = (PVDINTERFACEPARENTSTATE)pInterface->pCallbacks;
+
+    /* Do basic checks. */
+    AssertMsgReturn(   (pInterfaceParentState->cbSize == sizeof(VDINTERFACEPARENTSTATE))
+                    && (pInterfaceParentState->enmInterface == VDINTERFACETYPE_PARENTSTATE),
+                    ("A non parent state callback table attached to a parent state interface descriptor\n"), NULL);
+
+    return pInterfaceParentState;
+}
+
 
 /** @name Configuration interface key handling flags.
  * @{
@@ -1217,8 +1277,8 @@ VBOXDDU_DECL(int) VDCreateDiff(PVBOXHDD pDisk, const char *pszBackend,
  * @return  VBox status code.
  * @return  VERR_VD_IMAGE_NOT_FOUND if image with specified number was not opened.
  * @param   pDisk           Pointer to HDD container.
- * @param   nImageFrom      Name of the image file to merge from.
- * @param   nImageTo        Name of the image file to merge to.
+ * @param   nImageFrom      Image number to merge from, counts from 0. 0 is always base image of container.
+ * @param   nImageTo        Image number to merge to, counts from 0. 0 is always base image of container.
  * @param   pVDIfsOperation Pointer to the per-operation VD interface list.
  */
 VBOXDDU_DECL(int) VDMerge(PVBOXHDD pDisk, unsigned nImageFrom,
@@ -1260,6 +1320,25 @@ VBOXDDU_DECL(int) VDCopy(PVBOXHDD pDiskFrom, unsigned nImage, PVBOXHDD pDiskTo,
                          PVDINTERFACE pVDIfsOperation,
                          PVDINTERFACE pDstVDIfsImage,
                          PVDINTERFACE pDstVDIfsOperation);
+
+/**
+ * Optimizes the storage consumption of an image. Typically the unused blocks
+ * have to be wiped with zeroes to achieve a substantial reduced storage use.
+ * Another optimization done is reordering the image blocks, which can provide
+ * a significant performance boost, as reads and writes tend to use less random
+ * file offsets.
+ *
+ * @return  VBox status code.
+ * @return  VERR_VD_IMAGE_NOT_FOUND if image with specified number was not opened.
+ * @return  VERR_VD_IMAGE_READ_ONLY if image is not writable.
+ * @return  VERR_NOT_SUPPORTED if this kind of image can be compacted, but
+ *                             this isn't supported yet.
+ * @param   pDisk           Pointer to HDD container.
+ * @param   nImage          Image number, counts from 0. 0 is always base image of container.
+ * @param   pVDIfsOperation Pointer to the per-operation VD interface list.
+ */
+VBOXDDU_DECL(int) VDCompact(PVBOXHDD pDisk, unsigned nImage,
+                            PVDINTERFACE pVDIfsOperation);
 
 /**
  * Closes the last opened image file in HDD container.
