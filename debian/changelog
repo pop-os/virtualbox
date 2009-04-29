@@ -1,4 +1,4 @@
-virtualbox-ose (2.2.2-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (2.2.2-dfsg-1) unstable; urgency=low
 
   * New Upstream Version
   * Extended error message patch for vboxdrv failure.
