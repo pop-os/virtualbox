@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE TS><TS version="1.1" language="ko">
+<!DOCTYPE TS>
+<TS version="2.0" language="ko">
 <defaultcodec></defaultcodec>
 <context>
     <name>@@@</name>
@@ -89,6 +90,10 @@
     <message>
         <source>Unknown %2 error during initialization of the Runtime</source>
         <translation>런타임을 초기화하는 중 알 수 없슨 %2 오류가 발생했습니다</translation>
+    </message>
+    <message>
+        <source>Kernel driver not accessible</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -377,23 +382,23 @@
     <name>VBoxAddNIDialog</name>
     <message>
         <source>Add Host Interface</source>
-        <translation>호스트 인터페이스 추가</translation>
+        <translation type="obsolete">호스트 인터페이스 추가</translation>
     </message>
     <message>
         <source>Interface Name</source>
-        <translation>인터페이스 이름</translation>
+        <translation type="obsolete">인터페이스 이름</translation>
     </message>
     <message>
         <source>Descriptive name of the new network interface</source>
-        <translation>새 네트워크 인터페이스의 이름</translation>
+        <translation type="obsolete">새 네트워크 인터페이스의 이름</translation>
     </message>
     <message>
         <source>&amp;OK</source>
-        <translation>확인(&amp;O)</translation>
+        <translation type="obsolete">확인(&amp;O)</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>취소</translation>
+        <translation type="obsolete">취소</translation>
     </message>
 </context>
 <context>
@@ -971,6 +976,10 @@
         <source>Sun VirtualBox</source>
         <translation>Sun VirtualBox</translation>
     </message>
+    <message>
+        <source>&lt;qt&gt;Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;/qt&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxDownloaderWgt</name>
@@ -1017,7 +1026,7 @@
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will you guide to the process of exporting an appliance. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through the process of exporting an appliance. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please select the virtual machines that should be exported to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
@@ -1059,6 +1068,14 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&amp;Export &gt;</source>
         <translation>내보내기(&amp;E) &gt;</translation>
+    </message>
+    <message>
+        <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Write legacy OVF 0.9</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2298,7 +2315,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Bridged network, %1</source>
         <comment>details report (network)</comment>
-        <translation>브리지 네트워크, %1</translation>
+        <translation type="obsolete">브리지 네트워크, %1</translation>
     </message>
     <message>
         <source>Internal network, &apos;%1&apos;</source>
@@ -2308,7 +2325,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Host-only network, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation>호스트 전용 네트워크, &apos;%1&apos;</translation>
+        <translation type="obsolete">호스트 전용 네트워크, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>SCSI</source>
@@ -2318,12 +2335,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Bridged Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>브리지 네트워크</translation>
+        <translation type="obsolete">브리지 네트워크</translation>
     </message>
     <message>
         <source>Host-only Network</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>호스트 전용 네트워크</translation>
+        <translation type="obsolete">호스트 전용 네트워크</translation>
     </message>
     <message>
         <source>PIIX3</source>
@@ -2354,6 +2371,31 @@ p, li { white-space: pre-wrap; }
         <source>BusLogic</source>
         <comment>StorageControllerType</comment>
         <translation>버스로직</translation>
+    </message>
+    <message>
+        <source>Bridged adapter, %1</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host-only adapter, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Intel PRO/1000 MT Server (82545EM)</source>
+        <comment>NetworkAdapterType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bridged Adapter</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host-only Adapter</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3600,7 +3642,7 @@ p, li { white-space: pre-wrap; }
         <translation>다음 파일이 이미 존재합니다:&lt;br /&gt;&lt;br /&gt;%1&lt;br /&gt;&lt;br /&gt;새 파일로 덮어쓰시겠습니까? 파일을 덮어 쓰면 내용이 바뀔 것입니다.</translation>
     </message>
     <message>
-        <source>Failed to remove the file &lt;b&gt;%1&lt;/b&gt;.&lt;br /&gt;&lt;br /&gt;Please try to remove that file yourself &amp; try again.</source>
+        <source>Failed to remove the file &lt;b&gt;%1&lt;/b&gt;.&lt;br /&gt;&lt;br /&gt;Please try to remove the file yourself and try again.</source>
         <translation>파일 &lt;b&gt;%1&lt;/b&gt;을(를) 삭제하는 데 실패했습니다.&lt;br /&gt;&lt;br /&gt;파일을 수동으로 삭제한 다음 다시 시도해 보십시오.</translation>
     </message>
     <message>
@@ -3654,7 +3696,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Do you want to remove the selected host network interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; This interface may be in use by one or more network adapters of this or another VM. After it is removed, these adapters will no longer work until you correct their settings by either choosing a different interface name or a different adapter attachment type.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;선택한 호스트 네트워크 인터페이스 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;을(를) 삭제하시겠습니까?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;주의:&lt;/b&gt; 이 가상 머신 또는 다른 가상 머신의 하나 이상의 네트워크 어댑터에서 이 인터페이스를 사용할 수도 있습니다. 인터페이스를 삭제하면 이 인터페이스를 사용하는 가상 머신의 네트워크 어댑터 설정을 수정하여 다른 인터페이스 이름이나 다른 어댑터 종류를 선택하지 않는 한 인터페이스를 사용했던 어댑터들은 작동하지 않을 것입니다.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;선택한 호스트 네트워크 인터페이스 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;을(를) 삭제하시겠습니까?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;주의:&lt;/b&gt; 이 가상 머신 또는 다른 가상 머신의 하나 이상의 네트워크 어댑터에서 이 인터페이스를 사용할 수도 있습니다. 인터페이스를 삭제하면 이 인터페이스를 사용하는 가상 머신의 네트워크 어댑터 설정을 수정하여 다른 인터페이스 이름이나 다른 어댑터 종류를 선택하지 않는 한 인터페이스를 사용했던 어댑터들은 작동하지 않을 것입니다.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to create the host-only network interface.</source>
@@ -3691,6 +3733,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Failed to export appliance &lt;b&gt;%1&lt;/b&gt;.</source>
         <translation>가상 시스템 &lt;b&gt;%1&lt;/b&gt;을(를) 내보낼 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Deleting this host-only network will lead to the deleting of the host-only interface this network is based on. Do you want to remove the (host-only network) interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; this interface may be in use by one or more virtual network adapters belonging to one of your VMs. After it is removed, these adapters will no longer be usable until you correct their settings by either choosing a different interface name or a different adapter attachment type.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3886,8 +3932,8 @@ p, li { white-space: pre-wrap; }
         <translation>가상 머신의 실행을 일시 중지합니다</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;F1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;VirtualBox에 오신 것을 환영합니다!&lt;/h3&gt;&lt;p&gt;이 창의 왼쪽 부분은 컴퓨터에 있는 모든 가상 머신 목록을 표시합니다. 아직 가상 머신을 만들지 않았기 때문에 이 목록은 현재 비어 있습니다.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;새 가상 머신을 만들시려면, 창 위쪽 도구 모음의 &lt;b&gt;새로 만들기&lt;/b&gt; 단추를 누르십시오.&lt;/p&gt;&lt;p&gt;&lt;b&gt;F1&lt;/b&gt; 키를 누르면 상황에 맞는 도움말을 볼 수 있으며, 최근 정보와 뉴스를 보려면 &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt;를 방문하십시오.&lt;/p&gt;</translation>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <translation>&lt;h3&gt;VirtualBox에 오신 것을 환영합니다!&lt;/h3&gt;&lt;p&gt;이 창의 왼쪽 부분은 컴퓨터에 있는 모든 가상 머신 목록을 표시합니다. 아직 가상 머신을 만들지 않았기 때문에 이 목록은 현재 비어 있습니다.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;새 가상 머신을 만들시려면, 창 위쪽 도구 모음의 &lt;b&gt;새로 만들기&lt;/b&gt; 단추를 누르십시오.&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; 키를 누르면 상황에 맞는 도움말을 볼 수 있으며, 최근 정보와 뉴스를 보려면 &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt;를 방문하십시오.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Virtual Media Manager...</source>
@@ -5063,51 +5109,51 @@ p, li { white-space: pre-wrap; }
         <translation>다음에 연결됨(&amp;A):</translation>
     </message>
     <message>
-        <source>Controls the way how this virtual adapter is attached to the real network of the Host OS.</source>
+        <source>Controls how this virtual adapter is attached to the real network of the Host OS.</source>
         <translation>이 어댑터가 호스트 운영체제의 실제 네트워크에 어떻게 연결되어 있는지를 제어합니다.</translation>
     </message>
     <message>
         <source>Adapter</source>
         <comment>network</comment>
-        <translation>어댑터</translation>
+        <translation type="obsolete">어댑터</translation>
     </message>
     <message>
         <source>Not selected</source>
         <comment>adapter</comment>
-        <translation>선택하지 않음</translation>
+        <translation type="obsolete">선택하지 않음</translation>
     </message>
     <message>
         <source>Network</source>
         <comment>internal</comment>
-        <translation>네트워크</translation>
+        <translation type="obsolete">네트워크</translation>
     </message>
     <message>
         <source>Not selected</source>
         <comment>network</comment>
-        <translation>선택하지 않음</translation>
+        <translation type="obsolete">선택하지 않음</translation>
     </message>
     <message>
         <source>MAC Address</source>
-        <translation>MAC 주소</translation>
+        <translation type="obsolete">MAC 주소</translation>
     </message>
     <message>
         <source>Not selected</source>
         <comment>address</comment>
-        <translation>선택하지 않음</translation>
+        <translation type="obsolete">선택하지 않음</translation>
     </message>
     <message>
         <source>Cable</source>
-        <translation>케이블</translation>
+        <translation type="obsolete">케이블</translation>
     </message>
     <message>
         <source>Connected</source>
         <comment>cable</comment>
-        <translation>연결됨</translation>
+        <translation type="obsolete">연결됨</translation>
     </message>
     <message>
         <source>Not connected</source>
         <comment>cable</comment>
-        <translation>연결되지 않음</translation>
+        <translation type="obsolete">연결되지 않음</translation>
     </message>
     <message>
         <source>Adapter &amp;Type:</source>
@@ -5115,74 +5161,103 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Open extended settings dialog for current attachment type.</source>
-        <translation>현재 연결 종류의 고급 설정 대화 상자를 표시합니다.</translation>
+        <translation type="obsolete">현재 연결 종류의 고급 설정 대화 상자를 표시합니다.</translation>
+    </message>
+    <message>
+        <source>no bridged network adapter is selected</source>
+        <translation type="unfinished">브리지 네트워크 어댑터가 선택되지 않았음</translation>
+    </message>
+    <message>
+        <source>no internal network name is specified</source>
+        <translation type="unfinished">내부 네트워크 이름이 지정되지 않았음</translation>
+    </message>
+    <message>
+        <source>no host-only network adapter is selected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not selected</source>
+        <comment>network adapter name</comment>
+        <translation type="unfinished">선택하지 않음</translation>
+    </message>
+    <message>
+        <source>Open additional options dialog for current attachment type.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Name:</source>
+        <translation type="unfinished">이름(&amp;N):</translation>
+    </message>
+    <message>
+        <source>Selects the name of the network adapter if attachment type is equivalent to &lt;b&gt;Bridged Adapter&lt;/b&gt; or &lt;b&gt;Host-only Adapter&lt;/b&gt; and the name of the internal network if attachment type is equivalent to &lt;b&gt;Internal Network&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>VBoxVMSettingsNetworkDetails</name>
     <message>
         <source>no bridged network adapter is selected</source>
-        <translation>브리지 네트워크 어댑터가 선택되지 않았음</translation>
+        <translation type="obsolete">브리지 네트워크 어댑터가 선택되지 않았음</translation>
     </message>
     <message>
         <source>no internal network name is specified</source>
-        <translation>내부 네트워크 이름이 지정되지 않았음</translation>
+        <translation type="obsolete">내부 네트워크 이름이 지정되지 않았음</translation>
     </message>
     <message>
         <source>no host-only adapter is selected</source>
-        <translation>호스트 전용 어댑터가 선택되지 않았음</translation>
+        <translation type="obsolete">호스트 전용 어댑터가 선택되지 않았음</translation>
     </message>
     <message>
         <source>Basic Details</source>
-        <translation>기본 정보</translation>
+        <translation type="obsolete">기본 정보</translation>
     </message>
     <message>
         <source>Bridged Network Details</source>
-        <translation>브리지 네트워크 정보</translation>
+        <translation type="obsolete">브리지 네트워크 정보</translation>
     </message>
     <message>
         <source>Internal Network Details</source>
-        <translation>내부 네트워크 정보</translation>
+        <translation type="obsolete">내부 네트워크 정보</translation>
     </message>
     <message>
         <source>Host-only Network Details</source>
-        <translation>호스트 전용 네트워크 정보</translation>
+        <translation type="obsolete">호스트 전용 네트워크 정보</translation>
     </message>
     <message>
         <source>Not selected</source>
-        <translation>선택하지 않음</translation>
+        <translation type="obsolete">선택하지 않음</translation>
     </message>
     <message>
         <source>Host Settings</source>
-        <translation>호스트 설정</translation>
+        <translation type="obsolete">호스트 설정</translation>
     </message>
     <message>
         <source>&amp;Bridged Network Adapter:</source>
-        <translation>브리지 네트워크 어댑터(&amp;B):</translation>
+        <translation type="obsolete">브리지 네트워크 어댑터(&amp;B):</translation>
     </message>
     <message>
         <source>Displays the name of the host network adapter selected for bridged networking.</source>
-        <translation>브리지 네트워킹에 사용할 호스트 네트워크 어댑터를 선택합니다.</translation>
+        <translation type="obsolete">브리지 네트워킹에 사용할 호스트 네트워크 어댑터를 선택합니다.</translation>
     </message>
     <message>
         <source>Internal &amp;Network:</source>
-        <translation>내부 네트워크(&amp;N):</translation>
+        <translation type="obsolete">내부 네트워크(&amp;N):</translation>
     </message>
     <message>
         <source>Displays the name of the internal network selected for this adapter.</source>
-        <translation>이 어댑터가 연결된 내부 네트워크의 이름을 표시합니다.</translation>
+        <translation type="obsolete">이 어댑터가 연결된 내부 네트워크의 이름을 표시합니다.</translation>
     </message>
     <message>
         <source>Host-only &amp;Network Adapter:</source>
-        <translation>호스트 전용 네트워크 어댑터(&amp;N):</translation>
+        <translation type="obsolete">호스트 전용 네트워크 어댑터(&amp;N):</translation>
     </message>
     <message>
         <source>Displays the name of the VirtualBox network adapter selected for host-only networking.</source>
-        <translation>호스트 전용 네트워킹에 사용할 VirtualBox 네트워크 어댑터의 이름을 표시합니다.</translation>
+        <translation type="obsolete">호스트 전용 네트워킹에 사용할 VirtualBox 네트워크 어댑터의 이름을 표시합니다.</translation>
     </message>
     <message>
         <source>Guest Settings</source>
-        <translation>게스트 설정</translation>
+        <translation type="obsolete">게스트 설정</translation>
     </message>
     <message>
         <source>Guest &amp;MAC Address:</source>
@@ -5203,6 +5278,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Indicates whether the virtual network cable is plugged in on machine startup or not.</source>
         <translation>가상 네트워크 케이블이 머신 시작 시 연결되거나 연결되지 않음을 표시합니다.</translation>
+    </message>
+    <message>
+        <source>Additional Options</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

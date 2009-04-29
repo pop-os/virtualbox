@@ -1,4 +1,4 @@
-/* $Id: bin2c.c 17692 2009-03-11 13:20:41Z vboxsync $ */
+/* $Id: bin2c.c $ */
 /** @file
  * bin2c - Binary 2 C Structure Converter.
  */

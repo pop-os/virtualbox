@@ -1,4 +1,4 @@
-/* $Id: VBoxManageSnapshot.cpp 18777 2009-04-06 15:33:13Z vboxsync $ */
+/* $Id: VBoxManageSnapshot.cpp $ */
 /** @file
  * VBoxManage - The 'snapshot' command.
  */

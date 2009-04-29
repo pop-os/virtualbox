@@ -1,4 +1,4 @@
-/* $Id: mpnotification-r0drv-solaris.c 11982 2008-09-02 13:09:44Z vboxsync $ */
+/* $Id: mpnotification-r0drv-solaris.c $ */
 /** @file
  * IPRT - Multiprocessor Event Notifications, Ring-0 Driver, Solaris.
  */

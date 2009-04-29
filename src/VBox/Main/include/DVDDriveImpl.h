@@ -1,4 +1,4 @@
-/* $Id: DVDDriveImpl.h 16853 2009-02-17 15:48:20Z vboxsync $ */
+/* $Id: DVDDriveImpl.h $ */
 
 /** @file
  *

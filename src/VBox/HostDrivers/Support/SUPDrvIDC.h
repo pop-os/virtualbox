@@ -1,4 +1,4 @@
-/* $Id: SUPDrvIDC.h 10377 2008-07-08 16:26:13Z vboxsync $ */
+/* $Id: SUPDrvIDC.h $ */
 /** @file
  * VirtualBox Support Driver - Inter-Driver Communciation (IDC) definitions.
  */

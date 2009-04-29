@@ -1,4 +1,4 @@
-/* $Id: TRPMInternal.h 14515 2008-11-24 12:33:00Z vboxsync $ */
+/* $Id: TRPMInternal.h $ */
 /** @file
  * TRPM - Internal header file.
  */

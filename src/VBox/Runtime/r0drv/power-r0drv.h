@@ -1,4 +1,4 @@
-/* $Id: power-r0drv.h 13478 2008-10-22 09:44:13Z vboxsync $ */
+/* $Id: power-r0drv.h $ */
 /** @file
  * IPRT - Power Management, Ring-0 Driver, Internal Header.
  */

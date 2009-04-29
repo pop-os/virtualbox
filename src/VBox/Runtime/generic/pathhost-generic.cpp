@@ -1,4 +1,4 @@
-/* $Id: pathhost-generic.cpp 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: pathhost-generic.cpp $ */
 /** @file
  * IPRT - Path Convertions, generic.
  */

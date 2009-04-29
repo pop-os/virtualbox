@@ -1,4 +1,4 @@
-/* $Id: PATM.cpp 15677 2008-12-19 09:26:23Z vboxsync $ */
+/* $Id: PATM.cpp $ */
 /** @file
  * PATM - Dynamic Guest OS Patching Manager
  *

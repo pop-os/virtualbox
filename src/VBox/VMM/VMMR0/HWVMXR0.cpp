@@ -1,4 +1,4 @@
-/* $Id: HWVMXR0.cpp 18781 2009-04-06 15:51:30Z vboxsync $ */
+/* $Id: HWVMXR0.cpp $ */
 /** @file
  * HWACCM VMX - Host Context Ring 0.
  */
@@ -1929,7 +1929,8 @@ VMMR0DECL(int) VMXR0RunGuestCode(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 {
     int         rc = VINF_SUCCESS;
     RTGCUINTREG val;
-    RTGCUINTREG exitReason, instrError, cbInstr;
+    RTGCUINTREG exitReason = VMX_EXIT_INVALID;
+    RTGCUINTREG instrError, cbInstr;
     RTGCUINTPTR exitQualification;
     RTGCUINTPTR intInfo = 0; /* shut up buggy gcc 4 */
     RTGCUINTPTR errCode, instrInfo;

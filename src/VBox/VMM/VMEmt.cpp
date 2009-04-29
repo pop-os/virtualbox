@@ -1,4 +1,4 @@
-/* $Id: VMEmt.cpp 18619 2009-04-01 22:14:47Z vboxsync $ */
+/* $Id: VMEmt.cpp $ */
 /** @file
  * VM - Virtual Machine, The Emulation Thread.
  */

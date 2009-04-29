@@ -1,4 +1,4 @@
-/* $Id: PDMDevHlp.cpp 18791 2009-04-06 18:39:25Z vboxsync $ */
+/* $Id: PDMDevHlp.cpp $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, Device Helpers.
  */

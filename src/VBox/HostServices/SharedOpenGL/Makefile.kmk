@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 17254 2009-03-02 15:36:48Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the VirtualBox HGCM Service.
 #

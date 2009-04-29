@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 16954 2009-02-19 16:55:55Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the common guest addition code library.
 #

@@ -1,4 +1,4 @@
-/* $Id: HostNetworkInterfaceImpl.cpp 18594 2009-04-01 12:15:40Z vboxsync $ */
+/* $Id: HostNetworkInterfaceImpl.cpp $ */
 
 /** @file
  *
@@ -497,7 +497,7 @@ STDMETHODIMP HostNetworkInterface::EnableStaticIpConfigV6 (IN_BSTR aIPV6Address,
             m.realIPV6PrefixLength = aIPV6MaskPrefixLength;
             if (FAILED(mVBox->SetExtraData(Bstr(Utf8StrFmt("HostOnly/%ls/IPV6Address", mInterfaceName.raw())), Bstr(aIPV6Address))))
                 return E_FAIL;
-            if (FAILED(mVBox->SetExtraData(Bstr(Utf8StrFmt("HostOnly/%ls/IPV6NetMask", mInterfaceName.raw())), 
+            if (FAILED(mVBox->SetExtraData(Bstr(Utf8StrFmt("HostOnly/%ls/IPV6NetMask", mInterfaceName.raw())),
                                            Bstr(Utf8StrFmt("%u", aIPV6MaskPrefixLength)))))
                 return E_FAIL;
         }

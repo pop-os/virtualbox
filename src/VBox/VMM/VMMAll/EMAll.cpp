@@ -1,4 +1,4 @@
-/* $Id: EMAll.cpp 18771 2009-04-06 15:01:22Z vboxsync $ */
+/* $Id: EMAll.cpp $ */
 /** @file
  * EM - Execution Monitor(/Manager) - All contexts
  */

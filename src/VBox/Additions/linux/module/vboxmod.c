@@ -123,7 +123,7 @@ static struct
     struct file *filp;
     /** HGCM connection ID */
     uint32_t client_id;
-} hgcm_connections[MAX_HGCM_CONNECTIONS] 
+} hgcm_connections[MAX_HGCM_CONNECTIONS]
 =
 {
     { 0 }
@@ -441,21 +441,30 @@ static int vboxadd_hgcm_alloc_buffer(hgcm_bounce_buffer **ppBuf, void *pUser,
     int rc = 0;
 
     AssertPtrReturn(ppBuf, -EINVAL);
-    AssertPtrReturn(pUser, -EINVAL);
+    /* Empty buffers are allowed, but then the user pointer should be NULL. */
+    AssertReturn((cb > 0 && VALID_PTR(pUser)) || (cb == 0 && pUser == NULL),
+                 -EINVAL);
 
     pBuf = RTMemAlloc(sizeof(*pBuf));
     if (pBuf == NULL)
         rc = -ENOMEM;
     if (rc >= 0)
     {
-        pKernel = RTMemAlloc(cb);
-        if (pKernel == NULL)
-            rc = -ENOMEM;
+        if (cb > 0)
+        {
+            pKernel = RTMemAlloc(cb);
+            if (pKernel == NULL)
+                rc = -ENOMEM;
+            if (   rc >= 0
+                && copy
+                && copy_from_user(pKernel, pUser, cb) != 0)
+                rc = -EFAULT;
+        }
+        else
+            /* We definitely don't want to copy anything from an empty
+             * buffer. */
+            pKernel = NULL;
     }
-    if (   rc >= 0
-        && copy
-        && copy_from_user(pKernel, pUser, cb) != 0)
-        rc = -EFAULT;
     if (rc >= 0)
     {
         pBuf->pKernel = pKernel;
@@ -477,7 +486,9 @@ static int vboxadd_hgcm_free_buffer(hgcm_bounce_buffer *pBuf, bool copy)
 {
     int rc = 0;
     AssertPtrReturn(pBuf, -EINVAL);
-    if (copy && copy_to_user(pBuf->pUser, pBuf->pKernel, pBuf->cb) != 0)
+    if ((pBuf->cb > 0)
+        && copy
+        && copy_to_user(pBuf->pUser, pBuf->pKernel, pBuf->cb) != 0)
         rc = -EFAULT;
     RTMemFree(pBuf->pKernel);  /* We want to do this whatever the outcome. */
     RTMemFree(pBuf);
@@ -950,7 +961,7 @@ static int vboxuser_ioctl(struct inode *inode, struct file *filp,
     int rc = 0;
 
     /* Deal with variable size ioctls first. */
-#ifdef DEBUG  /* Only allow random user applications to spam the log in 
+#ifdef DEBUG  /* Only allow random user applications to spam the log in
                * debug additions builds */
     if (   VBOXGUEST_IOCTL_STRIP_SIZE(VBOXGUEST_IOCTL_LOG(0))
         == VBOXGUEST_IOCTL_STRIP_SIZE(cmd))
@@ -1641,8 +1652,8 @@ static __init int init(void)
 #endif
             rcVBox = VbglGRPerform(&infoReq->header);
         }
-        if (   infoReq 
-            && (   RT_FAILURE(rcVBox) 
+        if (   infoReq
+            && (   RT_FAILURE(rcVBox)
                 || RT_FAILURE(infoReq->header.rc)))
         {
             LogRel(("vboxadd: error reporting guest information to host: %Rrc, header: %Rrc\n",

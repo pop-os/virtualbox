@@ -1,4 +1,4 @@
-/* $Id: NetIf-generic.cpp 17997 2009-03-17 07:56:52Z vboxsync $ */
+/* $Id: NetIf-generic.cpp $ */
 /** @file
  * VirtualBox Main - Generic NetIf implementation.
  */

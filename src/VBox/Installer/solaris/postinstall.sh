@@ -43,6 +43,13 @@ if test "$currentzone" = "global"; then
             if test -f /platform/i86pc/kernel/drv/vboxnet.conf; then
                 /opt/VirtualBox/vboxdrv.sh netstart
                 rc=$?
+
+                # nwam/dhcpagent fix
+                if test "$rc" -eq 0 && test -f /etc/nwam/llp; then
+                    sed -e '/vboxnet/d' /etc/nwam/llp > /etc/nwam/llp.vbox
+                    echo "vboxnet0	static 192.168.56.1" >> /etc/nwam/llp.vbox
+                    mv -f /etc/nwam/llp.vbox /etc/nwam/llp
+                fi
             fi
 
             # Load VBoxNetFilter vboxflt
@@ -75,34 +82,8 @@ if test "$currentzone" = "global"; then
     fi
 fi
 
-# create symlinks and hardlinks
 VBOXBASEDIR="/opt/VirtualBox"
-SYSISAEXEC="/usr/lib/isaexec"
-echo "Creating links..."
-if test -f "$VBOXBASEDIR/amd64/VirtualBox" || test -f "$VBOXBASEDIR/i386/VirtualBox"; then
-    /usr/sbin/installf -c none $PKGINST /usr/bin/VirtualBox=$VBOXBASEDIR/VBox.sh s
-    /usr/sbin/installf -c none $PKGINST /usr/bin/VBoxQtconfig=$VBOXBASEDIR/VBox.sh s
-fi
-/usr/sbin/installf -c none $PKGINST /usr/bin/VBoxManage=$VBOXBASEDIR/VBox.sh s
-/usr/sbin/installf -c none $PKGINST /usr/bin/VBoxSDL=$VBOXBASEDIR/VBox.sh s
-if test -f "$VBOXBASEDIR/amd64/VBoxHeadless" || test -f "$VBOXBASEDIR/i386/VBoxHeadless"; then
-    if test -d $VBOXBASEDIR/amd64; then
-        /usr/sbin/installf -c none $PKGINST $VBOXBASEDIR/amd64/rdesktop-vrdp-keymaps=$VBOXBASEDIR/rdesktop-vrdp-keymaps s
-        /usr/sbin/installf -c none $PKGINST $VBOXBASEDIR/amd64/additions=$VBOXBASEDIR/additions s
-        if test -f $VBOXBASEDIR/VirtualBox.chm; then
-            /usr/sbin/installf -c none $PKGINST $VBOXBASEDIR/amd64/VirtualBox.chm=$VBOXBASEDIR/VirtualBox.chm s
-        fi
-    fi
-    if test -d $VBOXBASEDIR/i386; then
-        /usr/sbin/installf -c none $PKGINST $VBOXBASEDIR/i386/rdesktop-vrdp-keymaps=$VBOXBASEDIR/rdesktop-vrdp-keymaps s
-        /usr/sbin/installf -c none $PKGINST $VBOXBASEDIR/i386/additions=$VBOXBASEDIR/additions s
-        if test -f $VBOXBASEDIR/VirtualBox.chm; then
-            /usr/sbin/installf -c none $PKGINST $VBOXBASEDIR/i386/VirtualBox.chm=$VBOXBASEDIR/VirtualBox.chm s
-        fi
-    fi
-    /usr/sbin/installf -c none $PKGINST /usr/bin/VBoxHeadless=/$VBOXBASEDIR/VBox.sh s
-    /usr/sbin/installf -c none $PKGINST /usr/bin/VBoxVRDP=$VBOXBASEDIR/VBox.sh s
-fi
+echo "Configuring services and drivers..."
 
 if test "$currentzone" = "global"; then
     # Web service

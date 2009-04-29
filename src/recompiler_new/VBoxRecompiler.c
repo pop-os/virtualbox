@@ -1,4 +1,4 @@
-/* $Id: VBoxRecompiler.c 18753 2009-04-06 12:52:38Z vboxsync $ */
+/* $Id: VBoxRecompiler.c $ */
 /** @file
  * VBox Recompiler - QEMU.
  */

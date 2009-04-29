@@ -1,6 +1,6 @@
 #!/usr/bin/ksh -p
 #
-#ident	"$Id: bld_awk_pkginfo.ksh 1  vboxsync $"
+#ident	"$Id: bld_awk_pkginfo.ksh $"
 #
 # Copyright 2002 Sun Microsystems, Inc.  All rights reserved.
 # Use is subject to license terms.

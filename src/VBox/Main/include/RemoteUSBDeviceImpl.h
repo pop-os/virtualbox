@@ -1,4 +1,4 @@
-/* $Id: RemoteUSBDeviceImpl.h 17684 2009-03-11 12:15:33Z vboxsync $ */
+/* $Id: RemoteUSBDeviceImpl.h $ */
 
 /** @file
  *

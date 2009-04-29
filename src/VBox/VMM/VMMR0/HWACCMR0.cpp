@@ -1,4 +1,4 @@
-/* $Id: HWACCMR0.cpp 18008 2009-03-17 10:13:11Z vboxsync $ */
+/* $Id: HWACCMR0.cpp $ */
 /** @file
  * HWACCM - Host Context Ring 0.
  */

@@ -1,4 +1,4 @@
-/* $Id: PGMAllBth.h 18835 2009-04-07 16:24:55Z vboxsync $ */
+/* $Id: PGMAllBth.h $ */
 /** @file
  * VBox - Page Manager, Shadow+Guest Paging Template - All context code.
  *
@@ -3136,20 +3136,22 @@ PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVM pVM, RTGCPTR GCPtrPage, unsigned fPa
     pPdeDst = &pPDDst->a[iPDDst];
 # endif
 
+# if defined(IN_RC)
+    /* Make sure the dynamic pPdeDst mapping will not be reused during this function. */
+    PGMDynLockHCPage(pVM, (uint8_t *)pPdeDst);
+# endif
     if (!pPdeDst->n.u1Present)
     {
-# if defined(IN_RC)
-        /* Make sure the dynamic pPdeDst mapping will not be reused during this function. */
-        PGMDynLockHCPage(pVM, (uint8_t *)pPdeDst);
-# endif
         rc = PGM_BTH_NAME(SyncPT)(pVM, iPDSrc, pPDSrc, GCPtrPage);
-# if defined(IN_RC)
-        /* Make sure the dynamic pPdeDst mapping will not be reused during this function. */
-        PGMDynUnlockHCPage(pVM, (uint8_t *)pPdeDst);
-# endif
         AssertRC(rc);
         if (rc != VINF_SUCCESS)
+        {
+# if defined(IN_RC)
+            /* Make sure the dynamic pPdeDst mapping will not be reused during this function. */
+            PGMDynUnlockHCPage(pVM, (uint8_t *)pPdeDst);
+# endif
             return rc;
+        }
     }
 
 # if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
@@ -3186,9 +3188,13 @@ PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVM pVM, RTGCPTR GCPtrPage, unsigned fPa
         else
         {
             Log(("PGMVerifyAccess: access violation for %RGv rc=%d\n", GCPtrPage, rc));
-            return VINF_EM_RAW_GUEST_TRAP;
+            rc = VINF_EM_RAW_GUEST_TRAP;
         }
     }
+# if defined(IN_RC)
+    /* Make sure the dynamic pPdeDst mapping will not be reused during this function. */
+    PGMDynUnlockHCPage(pVM, (uint8_t *)pPdeDst);
+# endif
     return rc;
 
 #else /* PGM_GST_TYPE != PGM_TYPE_32BIT */

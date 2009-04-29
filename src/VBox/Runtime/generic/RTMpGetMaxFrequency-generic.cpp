@@ -1,4 +1,4 @@
-/* $Id: RTMpGetMaxFrequency-generic.cpp 10425 2008-07-09 14:08:23Z vboxsync $ */
+/* $Id: RTMpGetMaxFrequency-generic.cpp $ */
 /** @file
  * IPRT - Multiprocessor, Generic RTMpGetMaxFrequency.
  */

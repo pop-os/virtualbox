@@ -1,4 +1,4 @@
-; $Id: strlen.asm 14021 2008-11-10 16:31:22Z vboxsync $
+; $Id: strlen.asm $
 ;; @file
 ; IPRT - No-CRT strlen - AMD64 & X86.
 ;

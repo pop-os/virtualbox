@@ -1,4 +1,4 @@
-/* $Id: spinlock-r0drv-linux.c 13770 2008-11-03 19:18:27Z vboxsync $ */
+/* $Id: spinlock-r0drv-linux.c $ */
 /** @file
  * IPRT - Spinlocks, Ring-0 Driver, Linux.
  */

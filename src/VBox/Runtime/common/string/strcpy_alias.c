@@ -1,4 +1,4 @@
-/* $Id: strcpy_alias.c 14021 2008-11-10 16:31:22Z vboxsync $ */
+/* $Id: strcpy_alias.c $ */
 /** @file
  * IPRT - No-CRT strcpy() alias for gcc.
  */

@@ -1,4 +1,4 @@
-/* $Id: USBDeviceImpl.h 17553 2009-03-09 09:34:22Z vboxsync $ */
+/* $Id: USBDeviceImpl.h $ */
 
 /** @file
  * Header file for the OUSBDevice (IUSBDevice) class, VBoxC.

@@ -1,4 +1,4 @@
-/* $Id: VBoxGuest.cpp 17999 2009-03-17 08:22:40Z vboxsync $ */
+/* $Id: VBoxGuest.cpp $ */
 /** @file
  * VBoxGuest - Guest Additions Driver.
  */

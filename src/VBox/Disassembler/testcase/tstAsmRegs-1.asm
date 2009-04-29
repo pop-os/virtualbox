@@ -1,4 +1,4 @@
-; $Id: tstAsmRegs-1.asm 9925 2008-06-25 14:42:31Z vboxsync $
+; $Id: tstAsmRegs-1.asm $
 ;; @file
 ; Disassembly testcase - Accessing all the registers
 ;

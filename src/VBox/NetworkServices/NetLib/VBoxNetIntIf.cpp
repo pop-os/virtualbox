@@ -1,4 +1,4 @@
-/* $Id: VBoxNetIntIf.cpp 17783 2009-03-12 23:59:57Z vboxsync $ */
+/* $Id: VBoxNetIntIf.cpp $ */
 /** @file
  * VBoxNetIntIf - IntNet Interface Client Routines.
  */

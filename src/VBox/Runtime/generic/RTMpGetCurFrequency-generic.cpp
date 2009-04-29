@@ -1,4 +1,4 @@
-/* $Id: RTMpGetCurFrequency-generic.cpp 10425 2008-07-09 14:08:23Z vboxsync $ */
+/* $Id: RTMpGetCurFrequency-generic.cpp $ */
 /** @file
  * IPRT - Multiprocessor, Generic RTMpGetCurFrequency.
  */

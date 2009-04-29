@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 18585 2009-03-31 19:58:06Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the Shared Clipboard Host Service.
 #

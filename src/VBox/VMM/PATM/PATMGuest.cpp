@@ -1,4 +1,4 @@
-/* $Id: PATMGuest.cpp 13835 2008-11-05 02:34:43Z vboxsync $ */
+/* $Id: PATMGuest.cpp $ */
 /** @file
  * PATMGuest - Guest OS Patching Manager (non-generic)
  */

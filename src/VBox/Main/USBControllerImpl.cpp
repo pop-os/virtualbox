@@ -1,4 +1,4 @@
-/* $Id: USBControllerImpl.cpp 17394 2009-03-05 12:48:15Z vboxsync $ */
+/* $Id: USBControllerImpl.cpp $ */
 /** @file
  * Implementation of IUSBController.
  */

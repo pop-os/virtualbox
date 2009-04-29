@@ -27,9 +27,20 @@
 
 #if defined (Q_WS_WIN32)
 #include <QWindowsVistaStyle>
+#include <QLibrary>
 #endif
 
+void QILineEdit::setMinimumWidthByText (const QString &aText)
+{
+    setMinimumWidth (featTextWidth (aText).width());
+}
+
 void QILineEdit::setFixedWidthByText (const QString &aText)
+{
+    setFixedWidth (featTextWidth (aText).width());
+}
+
+QSize QILineEdit::featTextWidth (const QString &aText) const
 {
     QStyleOptionFrame sof;
     sof.initFrom (this);
@@ -50,10 +61,16 @@ void QILineEdit::setFixedWidthByText (const QString &aText)
      * Due to it QLineEdit processed as QComboBox and size calculation includes
      * non-existing combo-box button of 23 pix in width. So fixing it here: */
     if (qobject_cast <QWindowsVistaStyle*> (style()))
-        sa -= QSize (23, 0);
+    {
+        /* Check if l&f style theme is really active else painting performed by
+         * Windows Classic theme and there is no such shifting error. */
+        typedef bool (*IsAppThemedFunction)();
+        IsAppThemedFunction isAppThemed =
+            (IsAppThemedFunction) QLibrary::resolve ("uxtheme", "IsAppThemed");
+        if (isAppThemed && isAppThemed()) sa -= QSize (23, 0);
+    }
 #endif
 
-    setMaximumWidth (sa.width());
-    setMinimumWidth (sa.width());
+    return sa;
 }
 

@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-linux.c 18706 2009-04-03 17:25:02Z vboxsync $ */
+/* $Id: VBoxNetFlt-linux.c $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Linux Specific Code.
  */
@@ -736,7 +736,14 @@ static void vboxNetFltLinuxForwardToIntNet(PVBOXNETFLTINS pThis, struct sk_buff 
         //Log2(("vboxNetFltLinuxForwardToIntNet: cb=%u gso_size=%u gso_segs=%u gso_type=%u\n",
         //      pBuf->len, skb_shinfo(pBuf)->gso_size, skb_shinfo(pBuf)->gso_segs, skb_shinfo(pBuf)->gso_type));
 
-        for (pSegment = VBOX_SKB_GSO_SEGMENT(pBuf); pSegment; pSegment = pNext)
+        pSegment = VBOX_SKB_GSO_SEGMENT(pBuf);
+        if (IS_ERR(pSegment))
+        {
+            dev_kfree_skb(pBuf);
+            LogRel(("VBoxNetFlt: Failed to segment a packet (%d).\n", PTR_ERR(pBuf)));
+            return;
+        }
+        for (; pSegment; pSegment = pNext)
         {
             pNext = pSegment->next;
             pSegment->next = 0;

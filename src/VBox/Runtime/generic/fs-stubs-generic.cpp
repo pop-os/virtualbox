@@ -1,4 +1,4 @@
-/* $Id: fs-stubs-generic.cpp 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: fs-stubs-generic.cpp $ */
 /** @file
  * IPRT - File System, Generic Stubs.
  */

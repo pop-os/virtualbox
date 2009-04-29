@@ -1,4 +1,4 @@
-/* $Id: Builtins2.h 16630 2009-02-10 13:15:15Z vboxsync $ */
+/* $Id: Builtins2.h $ */
 /** @file
  * Built-in drivers & devices (part 2) header.
  */

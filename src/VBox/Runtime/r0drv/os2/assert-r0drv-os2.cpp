@@ -1,4 +1,4 @@
-/* $Id: assert-r0drv-os2.cpp 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: assert-r0drv-os2.cpp $ */
 /** @file
  * IPRT - Assertion Workers, Ring-0 Drivers, OS/2.
  */
