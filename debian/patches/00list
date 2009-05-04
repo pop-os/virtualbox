@@ -3,6 +3,7 @@
 03-localconf-kmk.dpatch
 04-vboxdrv-references.dpatch
 06-xsession.dpatch
+07-vboxnetflt-reference.dpatch
 08-init-lsb.dpatch
 09-initscript.dpatch
 10-workaround-gcc-ice.dpatch
@@ -14,3 +15,4 @@
 16-no-update.dpatch
 17-init-setup.dpatch
 18-xorg-1.6.dpatch
+19-modifyhd.dpatch

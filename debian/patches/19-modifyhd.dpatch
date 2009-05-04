@@ -1,0 +1,28 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 19-modifyhd.dpatch by Michael Meskes <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Changeset 19251 to fix modifyhd bug
+
+@DPATCH@
+
+--- virtualbox-ose-2.2.2/src/VBox/Devices/Storage/VDIHDDCore.cpp.orig	2009-05-04 16:53:48.000000000 +0200
++++ virtualbox-ose-2.2.2/src/VBox/Devices/Storage/VDIHDDCore.cpp	2009-05-04 16:54:19.000000000 +0200
+@@ -1904,7 +1904,7 @@
+         /* Fill out back resolving, check/fix allocation errors before
+          * compacting the image, just to be on the safe side. Update the
+          * image contents straight away, as this enables cancelling. */
+-        for (unsigned i = 0; i < cBlocks; i++)
++        for (unsigned i = 0; i < cBlocksAllocated; i++)
+             paBlocks2[i] = VDI_IMAGE_BLOCK_FREE;
+         rc = VINF_SUCCESS;
+         for (unsigned i = 0; i < cBlocks; i++)
+@@ -1930,7 +1930,7 @@
+                 {
+                     LogFunc(("Freed out of bounds reference for block %u in file \"%s\"\n",
+                              i, pImage->pszFilename));
+-                    pImage->paBlocks[i] = VDI_IMAGE_BLOCK_FREE;;
++                    pImage->paBlocks[i] = VDI_IMAGE_BLOCK_FREE;
+                     rc = vdiUpdateBlockInfo(pImage, i);
+                     if (RT_FAILURE(rc))
+                         break;
