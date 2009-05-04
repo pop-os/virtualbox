@@ -6,8 +6,8 @@
 
 @DPATCH@
 
---- DrvIntNet.cpp.orig	2009-04-09 13:16:16.000000000 +0200
-+++ DrvIntNet.cpp	2009-04-09 13:18:37.000000000 +0200
+--- virtualbox-ose/src/VBox/Devices/Network/DrvIntNet.cpp.orig	2009-04-09 13:16:16.000000000 +0200
++++ virtualbox-ose/src/VBox/Devices/Network/DrvIntNet.cpp	2009-04-09 13:18:37.000000000 +0200
 @@ -1035,7 +1035,7 @@
      rc = pDrvIns->pDrvHlp->pfnSUPCallVMMR0Ex(pDrvIns, VMMR0_DO_INTNET_OPEN, &OpenReq, sizeof(OpenReq));
      if (RT_FAILURE(rc))
