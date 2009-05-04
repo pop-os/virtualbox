@@ -46,7 +46,7 @@ diff -Naurp virtualbox-ose-2.1.2-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
          fi
          sleep .2
      fi
-@@ -184,8 +192,10 @@
+@@ -184,8 +192,14 @@
          rmmod vboxdrv 2>/dev/null
          failure "Cannot change owner $GROUPNAME for device $DEVICE"
      fi
@@ -54,7 +54,11 @@ diff -Naurp virtualbox-ose-2.1.2-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
 -        failure "modprobe vboxnetflt failed. Please use 'dmesg' to find out why"
 +    if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
 +	if ! modprobe vboxnetflt > /dev/null 2>&1; then
-+        	failure "modprobe vboxnetflt failed. Please use 'dmesg' to find out why"
++		if ! find /lib/modules/`uname -r` -name "vboxnetflt\.*" 2>/dev/null|grep -q vboxnetflt; then
++		    failure "No suitable vboxnetflt module for running kernel found"
++		else
++        	    failure "modprobe vboxnetflt failed. Please use 'dmesg' to find out why"
++		fi
 +	fi
      fi
      succ_msg
