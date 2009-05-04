@@ -1,0 +1,20 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 17-init-setup.dpatch by Michael Meskes <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Remove setup option from initscript
+
+@DPATCH@
+
+--- vboxdrv.sh.in.orig	2009-05-04 16:47:42.000000000 +0200
++++ vboxdrv.sh.in	2009-05-04 16:47:58.000000000 +0200
+@@ -339,9 +339,6 @@
+     stop
+     start
+     ;;
+-setup)
+-    setup
+-    ;;
+ status)
+     dmnstatus
+     ;;

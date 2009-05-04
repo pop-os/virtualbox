@@ -1,8 +1,9 @@
 virtualbox-ose (2.2.2-dfsg-2) unstable; urgency=low
 
   * Made initscript call find only in case of an error, closes: #526395
+  * Removed setup option from initscript, closes: #526322
 
- -- Michael Meskes <meskes@debian.org>  Mon, 04 May 2009 16:43:29 +0200
+ -- Michael Meskes <meskes@debian.org>  Mon, 04 May 2009 16:50:06 +0200
 
 virtualbox-ose (2.2.2-dfsg-1) unstable; urgency=low
 
