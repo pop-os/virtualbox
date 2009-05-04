@@ -8,7 +8,7 @@
 
 --- virtualbox-ose-2.2.2-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in.orig	2009-05-04 16:47:42.000000000 +0200
 +++ virtualbox-ose-2.2.2-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in	2009-05-04 16:47:58.000000000 +0200
-@@ -339,9 +339,6 @@
+@@ -343,14 +343,11 @@
      stop
      start
      ;;
@@ -18,3 +18,9 @@
  status)
      dmnstatus
      ;;
+ *)
+-    echo "Usage: $0 {start|stop|stop_vms|restart|force-reload|status|setup}"
++    echo "Usage: $0 {start|stop|stop_vms|restart|force-reload|status}"
+     exit 1
+ esac
+ 
