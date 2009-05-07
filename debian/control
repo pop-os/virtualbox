@@ -62,7 +62,7 @@ Depends: ${shlibs:Depends},
          ${misc:Depends},
          virtualbox-ose
 Pre-Depends: debconf | debconf-2.0
-Replaces: virtualbox-ose
+Replaces: virtualbox-ose (<< 2.2.0-dfsg-1) 
 Description: x86 virtualization solution - Qt based user interface
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
