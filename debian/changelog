@@ -2,8 +2,9 @@ virtualbox-ose (2.2.2-dfsg-3) UNRELEASED; urgency=low
 
   * Made virtualbox-ose-qt package only replace older virtualbox-ose packages
     that still contained the qt frontend, closes: #527140
+  * Fixed typo in vboxwebsrv call.
 
- -- Michael Meskes <meskes@debian.org>  Thu, 07 May 2009 10:53:25 +0200
+ -- Michael Meskes <meskes@debian.org>  Wed, 20 May 2009 20:09:21 +0200
 
 virtualbox-ose (2.2.2-dfsg-2) unstable; urgency=low
 
