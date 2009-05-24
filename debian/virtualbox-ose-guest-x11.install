@@ -4,3 +4,4 @@ src/VBox/Additions/x11/Installer/98vboxadd-xclient /etc/X11/Xsession.d
 src/VBox/Additions/x11/Installer/vboxvideo.ids /usr/share/xserver-xorg/pci
 out/bin/additions/vboxmouse_drv.so /usr/lib/xorg/modules/input
 out/bin/additions/vboxvideo_drv.so /usr/lib/xorg/modules/drivers
+src/VBox/Additions/linux/installer/90-vboxguest.fdi /usr/share/hal/fdi/policy/10osvendor
