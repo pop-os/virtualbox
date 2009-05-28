@@ -2,6 +2,7 @@ virtualbox-ose (2.2.2-dfsg-3) UNRELEASED; urgency=low
 
   * Made virtualbox-ose-qt package only replace older virtualbox-ose packages
     that still contained the qt frontend, closes: #527140
+  * Added the same versioning for virtualbox-ose-guest-x11.
   * Fixed typo in vboxwebsrv call.
   * Applied patch by Felix Geyer <debfx-pkg@fobos.de> to make X autodetect
     mouse using hal, closes: #530299
