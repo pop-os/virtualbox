@@ -8,8 +8,10 @@ virtualbox-ose (2.2.2-dfsg-3) UNRELEASED; urgency=low
     mouse using hal, closes: #530299
   * Applied patch by Felix Geyer <debfx-pkg@fobos.de> to set correct
     permissions for guest devices, closes: #530302
+  * Remove vbox.cfg as suggested and implemented by Daniel Hahler
+    <debian-bugs@thequod.de>, closes: #530321
 
- -- Michael Meskes <meskes@debian.org>  Mon, 25 May 2009 01:14:30 +0200
+ -- Michael Meskes <meskes@debian.org>  Fri, 29 May 2009 13:12:07 +0200
 
 virtualbox-ose (2.2.2-dfsg-2) unstable; urgency=low
 

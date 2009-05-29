@@ -18,7 +18,13 @@
 # be useful, but WITHOUT ANY WARRANTY of any kind.
 
 PATH="/usr/bin:/bin:/usr/sbin:/sbin"
-CONFIG="/etc/vbox/vbox.cfg"
+
+# VirtualBox installation directory
+INSTALL_DIR="/usr/lib/virtualbox"
+
+# We don't distribute this file anymore. However, if it is still there we use
+# it, just to be sure we stay compatible with older versions.
+[ -f /etc/vbox/vbox.cfg ] && . /etc/vbox/vbox.cfg
 
 if [ "$VBOX_USER_HOME" = "" ]; then
     if [ ! -d "$HOME/.VirtualBox" ]; then
@@ -31,13 +37,6 @@ else
     fi
     LOG="$VBOX_USER_HOME/VBoxSVC.log"
 fi
-
-if [ ! -r "$CONFIG" ]; then
-    echo "Could not find VirtualBox installation. Please reinstall."
-    exit 1
-fi
-
-. "$CONFIG_DIR/$CONFIG"
 
 # Note: This script must not fail if the module was not successfully installed
 #       because the user might not want to run a VM but only change VM params!

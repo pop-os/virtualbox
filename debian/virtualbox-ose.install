@@ -1,4 +1,3 @@
-debian/virtualbox-ose.files/vbox.cfg /etc/vbox
 debian/virtualbox-ose.files/*.sh /usr/share/virtualbox
 
 debian/lintian/virtualbox-ose /usr/share/lintian/overrides
