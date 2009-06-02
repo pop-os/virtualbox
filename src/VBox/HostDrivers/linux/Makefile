@@ -33,6 +33,7 @@ all:
 	    echo "*** Building 'vboxnetflt' module ***"; \
 	    $(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxnetflt; \
 	    cp vboxnetflt/vboxnetflt.ko .; \
+	    echo; \
 	fi
 
 

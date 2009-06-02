@@ -619,23 +619,12 @@ VBOX_ADDITIONS_BUILD_SUBDIRNAME := $(lastword $(subst /, ,$(PATH_ROOT)))
 
 VBOX_KMK_TIME = $(KBUILD_BIN_PATH)/kmk_time
 
-# Oh well, this gets really fancy - ms vc8 doesn't work inside ssh due to some
-# session setup issue. So do this indirectly through psexec. The downside is
-# that there is no direct build feedback. Also I couldn't get the share to
-# work via psexec, so rsync over the result of the build.
 additions-build-win.amd64:
 ifeq ($(KBUILD_TARGET),win)
 	+ $(VBOX_KMK_TIME) $(KMK) $(VBOX_ADDITIONS_BUILD.amd64)
 else
 	$(call MSG_L1,Building Windows/amd64 additions)
-	rsync -av --no-owner --no-group --delete --delete-excluded --exclude .svn/ --exclude tinderclient.log . 192.168.27.5:/cygdrive/e/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME)
-	$(VBOX_KMK_TIME) ssh vbox@192.168.27.5 c:/psexec/psexec.exe \\\\\\\\addvm -u vbox -p $(WIN64PASSWORD) c:\\\\cygwin\\\\bin\\\\bash.exe -c \''PATH=/usr/bin:/bin e:/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME)/tools/env.sh kmk $(VBOX_ADDITIONS_BUILD.amd64) > e:/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME).log 2>&1'\'; \
-	rc=$$?; \
-	rsync -av --delete 192.168.27.5:/cygdrive/e/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME)/out/win.amd64/ out/win.amd64; \
-	mkdir -p out/win.amd64; \
-	rsync -a --delete 192.168.27.5:/cygdrive/e/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME).log out/win.amd64/build.log; \
-	cat out/win.amd64/build.log; \
-	exit $$rc
+	$(VBOX_KMK_TIME) ssh vbox@192.168.27.5 "cd e:/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME) && tools/env.sh kmk $(VBOX_ADDITIONS_BUILD.amd64)"
 endif
 
 additions-build-win.x86:
@@ -643,8 +632,7 @@ ifeq ($(KBUILD_TARGET),win)
 	+ $(VBOX_KMK_TIME) $(KMK) $(VBOX_ADDITIONS_BUILD.x86)
 else
 	$(call MSG_L1,Building Windows/x86 additions)
-	rsync -av --no-owner --no-group --delete --delete-excluded --exclude .svn/ --exclude out/ --exclude tinderclient.log . 192.168.27.5:/cygdrive/e/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME)
-	$(VBOX_KMK_TIME) ssh vbox@192.168.27.5 " cd /cygdrive/e/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME) && PATH_OUT_BASE=Z:/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME)/out tools/env.sh kmk $(VBOX_ADDITIONS_BUILD.x86)"
+	$(VBOX_KMK_TIME) ssh vbox@192.168.27.5 " cd e:/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME) && tools/env.sh kmk $(VBOX_ADDITIONS_BUILD.x86)"
 endif
 
 additions-build-solaris.amd64:
@@ -652,7 +640,9 @@ ifeq ($(KBUILD_TARGET),solaris)
 	+ $(VBOX_KMK_TIME) $(KMK) $(VBOX_ADDITIONS_BUILD.amd64)
 else
 	$(call MSG_L1,Building Solaris/amd64 additions)
-	$(VBOX_KMK_TIME) ssh vbox@192.168.27.4 " cd /mnt/vbox/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME) && ./tools/env.sh --no-wine kmk $(VBOX_ADDITIONS_BUILD.amd64) "
+	rsync -av --delete --delete-excluded --exclude .svn --exclude FetchDir --exclude tinderclient.log --exclude win.amd64 --exclude win.x86 . 192.168.27.4:/mnt/tinderbox/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME)
+	$(VBOX_KMK_TIME) ssh vbox@192.168.27.4 " cd /mnt/tinderbox/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME) && tools/env.sh --no-wine kmk $(VBOX_ADDITIONS_BUILD.amd64) "
+	rsync -av --delete 192.168.27.4:/mnt/tinderbox/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME)/out/solaris.amd64 out/
 endif
 
 # ASSUMES 64-bit is built already. See @todo above.
@@ -661,7 +651,9 @@ ifeq ($(KBUILD_TARGET),solaris)
 	+ $(VBOX_KMK_TIME) $(KMK) $(VBOX_ADDITIONS_BUILD.x86) VBOX_WITH_COMBINED_SOLARIS_GUEST_PACKAGE=1
 else
 	$(call MSG_L1,Building Solaris/x86 additions)
-	$(VBOX_KMK_TIME) ssh vbox@192.168.27.4 " cd /mnt/vbox/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME) && ./tools/env.sh --no-wine kmk $(VBOX_ADDITIONS_BUILD.x86) VBOX_WITH_COMBINED_SOLARIS_GUEST_PACKAGE=1"
+	rsync -av --delete --delete-excluded --exclude .svn --exclude FetchDir --exclude tinderclient.log --exclude win.amd64 --exclude win.x86 . 192.168.27.4:/mnt/tinderbox/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME)
+	$(VBOX_KMK_TIME) ssh vbox@192.168.27.4 " cd /mnt/tinderbox/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME) && tools/env.sh --no-wine kmk $(VBOX_ADDITIONS_BUILD.x86) VBOX_WITH_COMBINED_SOLARIS_GUEST_PACKAGE=1"
+	rsync -av --delete 192.168.27.4:/mnt/tinderbox/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME)/out/solaris.x86 out/
 endif
 
 additions-build-os2.x86:
@@ -676,7 +668,7 @@ ifeq ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),linux.amd64)
 	+ $(VBOX_KMK_TIME) $(KMK) $(VBOX_ADDITIONS_BUILD.amd64)
 else
 	$(call MSG_L1,Building Linux/amd64 additions)
-	$(VBOX_KMK_TIME) ssh vbox@192.168.27.12 " cd /mnt/vbox/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME) && ./tools/env.sh --no-wine kmk $(VBOX_ADDITIONS_BUILD.amd64) "
+	$(VBOX_KMK_TIME) ssh vbox@192.168.27.12 " cd /mnt/tinderbox/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME) && tools/env.sh --no-wine kmk $(VBOX_ADDITIONS_BUILD.amd64) "
 endif
 
 additions-build-linux.x86:
@@ -684,7 +676,7 @@ ifeq ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),linux.x86)
 	+ $(VBOX_KMK_TIME) $(KMK) $(VBOX_ADDITIONS_BUILD.x86)
 else
 	$(call MSG_L1,Building Linux/x86 additions)
-	$(VBOX_KMK_TIME) ssh vbox@192.168.27.2 " cd /mnt/vbox/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME) && ./tools/env.sh --no-wine kmk $(VBOX_ADDITIONS_BUILD.x86) "
+	$(VBOX_KMK_TIME) ssh vbox@192.168.27.2 " cd /mnt/tinderbox/$(VBOX_ADDITIONS_BUILD_SUBDIRNAME) && tools/env.sh --no-wine kmk $(VBOX_ADDITIONS_BUILD.x86) "
 endif
 
 
@@ -729,8 +721,8 @@ snapshot-ose:
 	    echo "Please do 'kmk snapshot-ose VBOX_OSE=1'"; \
 	    echo; \
 	    exit 1; \
-	fi
-	$(QUIET)$(MKDIR) -p $(TARBALLPATH)
+	fi; \
+	$(QUIET)mkdir -p $(TARBALLPATH)
 	$(QUIET)$(RM) -f $(TARBALLPATH)/$(TARBALLROOT)
 	$(QUIET)$(LN_SYMLINK) $(PATH_ROOT) $(TARBALLPATH)/$(TARBALLROOT)
 	$(QUIET)tar -cjh --owner 0 --group 0 --totals \
@@ -776,16 +768,23 @@ snapshot-puel:
 	 fi
 	$(QUIET)$(MKDIR) -p $(ZIPPATH)
 	$(QUIET)$(RM) -f $(ZIPPATH)/$(ZIPROOT)
+	$(QUIET)$(RM) -f $(ZIPPATH)/$(ZIPNAME)
 	$(QUIET)$(LN_SYMLINK) $(PATH_ROOT) $(ZIPPATH)/$(ZIPROOT)
 	$(QUIET)(cd $(ZIPPATH); 7z a \
 	    -l -tzip -mmt=on -mx=7 -p$(PASSWORD) \
 	    -xr!.svn \
-	    -x!$(ZIPROOT)/out \
-	    -x!$(ZIPROOT)/env.sh \
-	    -x!$(ZIPROOT)/configure.log \
-	    -x!$(ZIPROOT)/build.log \
-	    -x!$(ZIPROOT)/AutoConfig.kmk \
-	    -x!$(ZIPROOT)/LocalConfig.kmk \
+	    -i!$(ZIPROOT)/Config.kmk \
+	    -i!$(ZIPROOT)/Doxyfile.Core \
+	    -i!$(ZIPROOT)/Makefile.kmk \
+	    -i!$(ZIPROOT)/configure \
+	    -i!$(ZIPROOT)/configure.vbs \
+	    -i!$(ZIPROOT)/doc \
+	    -i!$(ZIPROOT)/include \
+	    -i!$(ZIPROOT)/kBuild \
+	    -i!$(ZIPROOT)/src \
+	    -i!$(ZIPROOT)/tools/env.sh \
+	    -i!$(ZIPROOT)/tools/linux.x86/bin/* \
+	    -i!$(ZIPROOT)/tools/linux.amd64/bin/* \
 	    -x!$(ZIPROOT)/doc/Devices \
 	    -x!$(ZIPROOT)/doc/\*pdf \
 	    -x!$(ZIPROOT)/doc/L4VM \
@@ -793,10 +792,6 @@ snapshot-puel:
 	    -x!$(ZIPROOT)/doc/licenses_old \
 	    -x!$(ZIPROOT)/doc/manual/de_DE \
 	    -x!$(ZIPROOT)/doc/manual/fr_FR \
-	    -x!$(ZIPROOT)/ChangeLog\* \
-	    -x!$(ZIPROOT)/COPYING \
-	    -x!$(ZIPROOT)/webtools \
-	    -x!$(ZIPROOT)/prebuild \
 	    -x!$(ZIPROOT)/src/tests \
 	    -x!$(ZIPROOT)/src/VBox/Artwork \
 	    -x!$(ZIPROOT)/src/VBox/Installer/AMI \
@@ -804,9 +799,7 @@ snapshot-puel:
 	    -x!$(ZIPROOT)/src/VBox/Installer/Encore \
 	    -x!$(ZIPROOT)/src/VBox/Installer/linux/debian \
 	    -x!$(ZIPROOT)/src/VBox/Installer/linux/rpm \
-	    -x!$(ZIPROOT)/tools \
-	    $(ZIPPATH)/$(ZIPNAME) \
-	    $(ZIPROOT))
+	    $(ZIPPATH)/$(ZIPNAME))
 	$(QUIET)$(RM) $(ZIPPATH)/$(ZIPROOT)
 
 

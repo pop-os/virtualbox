@@ -2144,14 +2144,20 @@ void VBoxConsoleWnd::checkRequiredFeatures()
 
     CConsole cconsole = console->console();
 
-    /* Check if virtualization feature enabled for 64 bits guest */
+    /* Check if the virtualization feature is required */
     bool is64BitsGuest = vboxGlobal().virtualBox().GetGuestOSType (
                          cconsole.GetGuest().GetOSTypeId()).GetIs64Bit();
-    bool isVirtEnabled = cconsole.GetDebugger().GetHWVirtExEnabled();
-    if (is64BitsGuest && !isVirtEnabled)
+    bool isVirtExRecommended = vboxGlobal().virtualBox().GetGuestOSType (
+                               cconsole.GetGuest().GetOSTypeId()).GetRecommendedVirtEx();
+    Assert (!is64BitsGuest || isVirtExRecommended);
+    bool isVirtExEnabled = cconsole.GetDebugger().GetHWVirtExEnabled();
+    if (isVirtExRecommended && !isVirtExEnabled)
     {
         vmPause (true);
-        if (vboxProblem().warnAboutVirtNotEnabled())
+        bool ret = is64BitsGuest ? vboxProblem().warnAboutVirtNotEnabled64BitsGuest() :
+                                   vboxProblem().warnAboutVirtNotEnabledGuestRequired();
+
+        if (ret)
             close();
         else
             vmPause (false);

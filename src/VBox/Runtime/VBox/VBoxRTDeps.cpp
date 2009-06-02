@@ -34,6 +34,7 @@
 #include <VBox/sup.h>
 #include <iprt/system.h>
 #include <iprt/assert.h>
+#include <iprt/asm.h>
 
 
 /*******************************************************************************
@@ -43,6 +44,9 @@ PFNRT g_VBoxRTDeps[] =
 {
     (PFNRT)SUPR3Init,
     (PFNRT)SUPPageLock,
-    (PFNRT)RTAssertShouldPanic
+    (PFNRT)RTAssertShouldPanic,
+    (PFNRT)ASMAtomicReadU64,
+    (PFNRT)ASMAtomicCmpXchgU64,
+    NULL
 };
 

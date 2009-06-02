@@ -945,7 +945,7 @@ PGM_BTH_DECL(int, InvalidatePage)(PVM pVM, RTGCPTR GCPtrPage)
     }
 
     const unsigned  iPDDst  = (GCPtrPage >> SHW_PD_SHIFT) & SHW_PD_MASK;
-    PPGMPOOLPAGE    pShwPde;
+    PPGMPOOLPAGE    pShwPde = NULL;
     PX86PDPAE       pPDDst;
 
     /* Fetch the pgm pool shadow descriptor. */
@@ -1008,7 +1008,7 @@ PGM_BTH_DECL(int, InvalidatePage)(PVM pVM, RTGCPTR GCPtrPage)
     const unsigned  iPDSrc      = GCPtrPage >> GST_PD_SHIFT;
     GSTPDE          PdeSrc      = pPDSrc->a[iPDSrc];
 # else /* PGM_GST_TYPE != PGM_TYPE_32BIT */
-    unsigned        iPDSrc;
+    unsigned        iPDSrc = 0;
 #  if PGM_GST_TYPE == PGM_TYPE_PAE
     X86PDPE         PdpeSrc;
     PX86PDPAE       pPDSrc      = pgmGstGetPaePDPtr(&pVM->pgm.s, GCPtrPage, &iPDSrc, &PdpeSrc);
@@ -1620,7 +1620,7 @@ PGM_BTH_DECL(int, SyncPage)(PVM pVM, GSTPDE PdeSrc, RTGCPTR GCPtrPage, unsigned 
 
 # elif PGM_SHW_TYPE == PGM_TYPE_PAE
     const unsigned  iPDDst  = (GCPtrPage >> SHW_PD_SHIFT) & SHW_PD_MASK;
-    PPGMPOOLPAGE    pShwPde;
+    PPGMPOOLPAGE    pShwPde = NULL;
     PX86PDPAE       pPDDst;
 
     /* Fetch the pgm pool shadow descriptor. */
@@ -2382,7 +2382,7 @@ PGM_BTH_DECL(int, SyncPT)(PVM pVM, unsigned iPDSrc, PGSTPD pPDSrc, RTGCPTR GCPtr
 
 # elif PGM_SHW_TYPE == PGM_TYPE_PAE
     const unsigned  iPDDst  = (GCPtrPage >> SHW_PD_SHIFT) & SHW_PD_MASK;
-    PPGMPOOLPAGE    pShwPde;
+    PPGMPOOLPAGE    pShwPde = NULL;
     PX86PDPAE       pPDDst;
     PSHWPDE         pPdeDst;
 
@@ -2481,12 +2481,29 @@ PGM_BTH_DECL(int, SyncPT)(PVM pVM, unsigned iPDSrc, PGSTPD pPDSrc, RTGCPTR GCPtr
         }
         else
         {
+            PGMPOOLACCESS enmAccess;
+
             GCPhys = GST_GET_PDE_BIG_PG_GCPHYS(PdeSrc);
 # if PGM_SHW_TYPE == PGM_TYPE_PAE && PGM_GST_TYPE == PGM_TYPE_32BIT
             /* Select the right PDE as we're emulating a 4MB page directory with two 2 MB shadow PDEs.*/
             GCPhys |= GCPtrPage & (1 << X86_PD_PAE_SHIFT);
 # endif
-            rc = pgmPoolAlloc(pVM, GCPhys, BTH_PGMPOOLKIND_PT_FOR_BIG, pShwPde->idx,      iPDDst, &pShwPage);
+            /* Determine the right kind of large page to avoid incorrect cached entry reuse. */
+            if (PdeSrc.n.u1User)
+            {
+                if (PdeSrc.n.u1Write)
+                    enmAccess = PGMPOOLACCESS_USER_RW;
+                else
+                    enmAccess = PGMPOOLACCESS_USER_R;
+            }
+            else
+            {
+                if (PdeSrc.n.u1Write)
+                    enmAccess = PGMPOOLACCESS_SUPERVISOR_RW;
+                else
+                    enmAccess = PGMPOOLACCESS_SUPERVISOR_R;
+            }
+            rc = pgmPoolAllocEx(pVM, GCPhys, BTH_PGMPOOLKIND_PT_FOR_BIG, enmAccess, pShwPde->idx, iPDDst, &pShwPage);
         }
         if (rc == VINF_SUCCESS)
             pPTDst = (PSHWPT)PGMPOOL_PAGE_2_PTR(pVM, pShwPage);
@@ -3060,7 +3077,7 @@ PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVM pVM, RTGCPTR GCPtrPage, unsigned fPa
     const unsigned  iPDSrc = GCPtrPage >> GST_PD_SHIFT;
     PGSTPD          pPDSrc = pgmGstGet32bitPDPtr(&pVM->pgm.s);
 #  elif PGM_GST_TYPE == PGM_TYPE_PAE
-    unsigned        iPDSrc;
+    unsigned        iPDSrc  = 0;
     X86PDPE         PdpeSrc;
     PGSTPD          pPDSrc = pgmGstGetPaePDPtr(&pVM->pgm.s, GCPtrPage, &iPDSrc, &PdpeSrc);
 

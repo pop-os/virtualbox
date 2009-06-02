@@ -299,6 +299,11 @@ RuntimeR3_SOURCES       = \
  RuntimeR3_SOURCES += common/time/timesupref.cpp
 #endif
 
+# Some versions of GCC might require this.
+RuntimeR3_SOURCES.x86 += \
+	common/asm/ASMAtomicCmpXchgU64.asm \
+	common/asm/ASMAtomicReadU64.asm
+
 ifdef IPRT_WITH_KSTUFF
  RuntimeR3_SOURCES += \
 	common/ldr/ldrkStuff.cpp
@@ -763,6 +768,7 @@ VBoxRT_SOURCES                 = \
 	$(RuntimeR3_SOURCES)
 VBoxRT_SOURCES.$(KBUILD_TARGET) = $(RuntimeR3_SOURCES.$(KBUILD_TARGET))
 VBoxRT_SOURCES.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH) = $(RuntimeR3_SOURCES.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH))
+VBoxRT_SOURCES.$(KBUILD_TARGET_ARCH) = $(RuntimeR3_SOURCES.$(KBUILD_TARGET_ARCH))
 VBoxRT_SOURCES.win            += r3/win/dllmain-win.cpp
 VBoxRT_SOURCES.win.x86        += r3/win/VBoxRT-win32.def
 VBoxRT_SOURCES.win.amd64      += r3/win/VBoxRT-win64.def

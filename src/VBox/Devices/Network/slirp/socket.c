@@ -511,10 +511,11 @@ sorecvfrom(PNATState pData, struct socket *so)
             SOCKET_UNLOCK(so);
             return;
         }
-        m->m_data += if_maxlinkhdr;
+        
+         /* adjust both parameters to maks M_FREEROOM calculate correct */
+         m_adj(m, if_maxlinkhdr);
 #ifdef VBOX_WITH_SIMPLIFIED_SLIRP_SYNC
-        m->m_data += sizeof(struct udphdr)
-                    + sizeof(struct ip); /*XXX: no options atm*/
+         m_adj(m, sizeof(struct udphdr) + sizeof(struct ip)); 
 #endif
 
         /*

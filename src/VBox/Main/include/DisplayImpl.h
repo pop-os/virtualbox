@@ -112,6 +112,7 @@ public:
     // public initializer/uninitializer for internal purposes only
     HRESULT init (Console *aParent);
     void uninit();
+    int  registerSSM(PVM pVM);
 
     // public methods only for internal purposes
     int handleDisplayResize (unsigned uScreenId, uint32_t bpp, void *pvVRAM, uint32_t cbLine, int w, int h);
@@ -267,6 +268,9 @@ private:
     static DECLCALLBACK(void)  displayLFBModeChangeCallback(PPDMIDISPLAYCONNECTOR pInterface, bool fEnabled);
     static DECLCALLBACK(void)  displayProcessAdapterDataCallback(PPDMIDISPLAYCONNECTOR pInterface, void *pvVRAM, uint32_t u32VRAMSize);
     static DECLCALLBACK(void)  displayProcessDisplayDataCallback(PPDMIDISPLAYCONNECTOR pInterface, void *pvVRAM, unsigned uScreenId);
+
+    static DECLCALLBACK(void)   displaySSMSave (PSSMHANDLE pSSM, void *pvUser);
+    static DECLCALLBACK(int)    displaySSMLoad (PSSMHANDLE pSSM, void *pvUser, uint32_t u32Version);
 
     const ComObjPtr <Console, ComWeakRef> mParent;
     /** Pointer to the associated display driver. */

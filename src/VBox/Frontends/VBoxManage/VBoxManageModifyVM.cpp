@@ -669,6 +669,11 @@ int handleModifyVM(HandlerArg *a)
                         return errorArgument("Uart pipe must start with \\\\.\\pipe\\");
 #endif
                 }
+                else if (!strcmp(a->argv[i], "file"))
+                {
+                    uarts_mode[n - 1] = a->argv[i];
+                    i++;
+                }
                 else
                 {
                     uarts_mode[n - 1] = (char*)"device";
@@ -1716,6 +1721,10 @@ int handleModifyVM(HandlerArg *a)
                     {
                         CHECK_ERROR_RET(uart, COMSETTER(HostMode) (PortMode_HostPipe), 1);
                         CHECK_ERROR_RET(uart, COMSETTER(Server) (FALSE), 1);
+                    }
+                    else if (!strcmp(uarts_mode[n], "file"))
+                    {
+                        CHECK_ERROR_RET(uart, COMSETTER(HostMode) (PortMode_RawFile), 1);
                     }
                     else
                     {

@@ -593,6 +593,13 @@ static int vboxNetFltLinuxPacketHandler(struct sk_buff *pBuf,
     struct net_device *pDev;
     LogFlow(("vboxNetFltLinuxPacketHandler: pBuf=%p pSkbDev=%p pPacketType=%p\n",
              pBuf, pSkbDev, pPacketType));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
+    Log3(("vboxNetFltLinuxPacketHandler: skb len=%u data_len=%u truesize=%u next=%p nr_frags=%u gso_size=%u gso_seqs=%u gso_type=%x frag_list=%p pkt_type=%x ip_summed=%d\n",
+          pBuf->len, pBuf->data_len, pBuf->truesize, pBuf->next, skb_shinfo(pBuf)->nr_frags, skb_shinfo(pBuf)->gso_size, skb_shinfo(pBuf)->gso_segs, skb_shinfo(pBuf)->gso_type, skb_shinfo(pBuf)->frag_list, pBuf->pkt_type, pBuf->ip_summed));
+#else
+    Log3(("vboxNetFltLinuxPacketHandler: skb len=%u data_len=%u truesize=%u next=%p nr_frags=%u tso_size=%u tso_seqs=%u frag_list=%p pkt_type=%x\n",
+          pBuf->len, pBuf->data_len, pBuf->truesize, pBuf->next, skb_shinfo(pBuf)->nr_frags, skb_shinfo(pBuf)->tso_size, skb_shinfo(pBuf)->tso_segs, skb_shinfo(pBuf)->frag_list, pBuf->pkt_type));
+#endif
     /*
      * Drop it immediately?
      */
@@ -628,6 +635,13 @@ static int vboxNetFltLinuxPacketHandler(struct sk_buff *pBuf,
             return 0;
         }
         pBuf = pCopy;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
+        Log3(("vboxNetFltLinuxPacketHandler: skb copy len=%u data_len=%u truesize=%u next=%p nr_frags=%u gso_size=%u gso_seqs=%u gso_type=%x frag_list=%p pkt_type=%x\n",
+              pBuf->len, pBuf->data_len, pBuf->truesize, pBuf->next, skb_shinfo(pBuf)->nr_frags, skb_shinfo(pBuf)->gso_size, skb_shinfo(pBuf)->gso_segs, skb_shinfo(pBuf)->gso_type, skb_shinfo(pBuf)->frag_list, pBuf->pkt_type));
+#else
+        Log3(("vboxNetFltLinuxPacketHandler: skb copy len=%u data_len=%u truesize=%u next=%p nr_frags=%u tso_size=%u tso_seqs=%u frag_list=%p pkt_type=%x\n",
+              pBuf->len, pBuf->data_len, pBuf->truesize, pBuf->next, skb_shinfo(pBuf)->nr_frags, skb_shinfo(pBuf)->tso_size, skb_shinfo(pBuf)->tso_segs, skb_shinfo(pBuf)->frag_list, pBuf->pkt_type));
+#endif
     }
 #endif
 
@@ -733,8 +747,10 @@ static void vboxNetFltLinuxForwardToIntNet(PVBOXNETFLTINS pThis, struct sk_buff 
     {
         /* Need to segment the packet */
         struct sk_buff *pNext, *pSegment;
-        //Log2(("vboxNetFltLinuxForwardToIntNet: cb=%u gso_size=%u gso_segs=%u gso_type=%u\n",
-        //      pBuf->len, skb_shinfo(pBuf)->gso_size, skb_shinfo(pBuf)->gso_segs, skb_shinfo(pBuf)->gso_type));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
+    Log3(("vboxNetFltLinuxForwardToIntNet: skb len=%u data_len=%u truesize=%u next=%p nr_frags=%u gso_size=%u gso_seqs=%u gso_type=%x frag_list=%p pkt_type=%x ip_summed=%d\n",
+          pBuf->len, pBuf->data_len, pBuf->truesize, pBuf->next, skb_shinfo(pBuf)->nr_frags, skb_shinfo(pBuf)->gso_size, skb_shinfo(pBuf)->gso_segs, skb_shinfo(pBuf)->gso_type, skb_shinfo(pBuf)->frag_list, pBuf->pkt_type, pBuf->ip_summed));
+#endif
 
         pSegment = VBOX_SKB_GSO_SEGMENT(pBuf);
         if (IS_ERR(pSegment))
@@ -745,6 +761,10 @@ static void vboxNetFltLinuxForwardToIntNet(PVBOXNETFLTINS pThis, struct sk_buff 
         }
         for (; pSegment; pSegment = pNext)
         {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
+            Log3(("vboxNetFltLinuxForwardToIntNet: segment len=%u data_len=%u truesize=%u next=%p nr_frags=%u gso_size=%u gso_seqs=%u gso_type=%x frag_list=%p pkt_type=%x\n",
+                  pSegment->len, pSegment->data_len, pSegment->truesize, pSegment->next, skb_shinfo(pSegment)->nr_frags, skb_shinfo(pSegment)->gso_size, skb_shinfo(pSegment)->gso_segs, skb_shinfo(pSegment)->gso_type, skb_shinfo(pSegment)->frag_list, pSegment->pkt_type));
+#endif
             pNext = pSegment->next;
             pSegment->next = 0;
             vboxNetFltLinuxForwardSegment(pThis, pSegment, fSrc);
@@ -753,7 +773,7 @@ static void vboxNetFltLinuxForwardToIntNet(PVBOXNETFLTINS pThis, struct sk_buff 
     }
     else
     {
-        if (pBuf->ip_summed == CHECKSUM_PARTIAL)
+        if (pBuf->ip_summed == CHECKSUM_PARTIAL && pBuf->pkt_type == PACKET_OUTGOING)
             if (VBOX_SKB_CHECKSUM_HELP(pBuf))
             {
                 LogRel(("VBoxNetFlt: Failed to compute checksum, dropping the packet.\n"));

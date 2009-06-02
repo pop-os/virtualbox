@@ -1949,7 +1949,8 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aIsNewVM,
                     QString data =
                         toCOMPortName (port.GetIRQ(), port.GetIOBase()) + ", ";
                     if (mode == KPortMode_HostPipe ||
-                        mode == KPortMode_HostDevice)
+                        mode == KPortMode_HostDevice ||
+                        mode == KPortMode_RawFile)
                         data += QString ("%1 (<nobr>%2</nobr>)")
                             .arg (vboxGlobal().toString (mode))
                             .arg (QDir::toNativeSeparators (port.GetPath()));
@@ -2883,6 +2884,7 @@ void VBoxGlobal::retranslateUi()
     mPortModeTypes [KPortMode_Disconnected] =   tr ("Disconnected", "PortMode");
     mPortModeTypes [KPortMode_HostPipe] =       tr ("Host Pipe", "PortMode");
     mPortModeTypes [KPortMode_HostDevice] =     tr ("Host Device", "PortMode");
+    mPortModeTypes [KPortMode_RawFile] =        tr ("Raw File", "PortMode");
 
     mUSBFilterActionTypes [KUSBDeviceFilterAction_Ignore] =
         tr ("Ignore", "USBFilterActionType");
@@ -3040,11 +3042,11 @@ void VBoxGlobal::adoptLabelPixmap (QLabel *aLabel)
     aLabel->setPalette (pal);
 }
 
-extern const char *gVBoxLangSubDir = "/nls";
-extern const char *gVBoxLangFileBase = "VirtualBox_";
-extern const char *gVBoxLangFileExt = ".qm";
-extern const char *gVBoxLangIDRegExp = "(([a-z]{2})(?:_([A-Z]{2}))?)|(C)";
-extern const char *gVBoxBuiltInLangName   = "C";
+const char *gVBoxLangSubDir = "/nls";
+const char *gVBoxLangFileBase = "VirtualBox_";
+const char *gVBoxLangFileExt = ".qm";
+const char *gVBoxLangIDRegExp = "(([a-z]{2})(?:_([A-Z]{2}))?)|(C)";
+const char *gVBoxBuiltInLangName   = "C";
 
 class VBoxTranslator : public QTranslator
 {
@@ -5346,7 +5348,9 @@ void VBoxGlobal::init()
 
     /* process command line */
 
-    vm_render_mode_str = 0;
+    vm_render_mode_str = RTStrDup (virtualBox()
+            .GetExtraData (VBoxDefs::GUI_RenderMode).toAscii().constData());
+
 #ifdef VBOX_WITH_DEBUGGER_GUI
 # ifdef VBOX_WITH_DEBUGGER_GUI_MENU
     mDbgEnabled = true;
@@ -5422,7 +5426,7 @@ void VBoxGlobal::init()
         i++;
     }
 
-    vm_render_mode = vboxGetRenderMode( vm_render_mode_str );
+    vm_render_mode = vboxGetRenderMode (vm_render_mode_str);
 
     /* setup the callback */
     callback = CVirtualBoxCallback (new VBoxCallback (*this));

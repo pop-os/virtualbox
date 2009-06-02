@@ -4267,11 +4267,18 @@ HRESULT Console::consoleInitReleaseLog (const ComPtr <IMachine> aMachine)
         if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
             RTLogRelLogger(loggerRelease, 0, ~0U, "OS Service Pack: %s\n", szTmp);
         /* the package type is interesting for Linux distributions */
-        RTLogRelLogger    (loggerRelease, 0, ~0U, "Package type: %s"
+        char szExecName[RTPATH_MAX];
+        char *pszExecName = RTProcGetExecutableName(szExecName, sizeof(szExecName));
+        RTLogRelLogger(loggerRelease, 0, ~0U,
+                       "Executable: %s\n"
+                       "Process ID: %u\n"
+                       "Package type: %s"
 #ifdef VBOX_OSE
                        " (OSE)"
 #endif
                        "\n",
+                       pszExecName ? pszExecName : "unknown",
+                       RTProcSelf(),
                        VBOX_PACKAGE_STRING);
 
         /* register this logger as the release logger */
@@ -6399,6 +6406,11 @@ DECLCALLBACK (int) Console::powerUpThread (RTTHREAD Thread, void *pvUser)
                 if (VBOX_FAILURE (vrc))
                     break;
 
+                vrc = static_cast <Console *>(console)->getDisplay()->registerSSM(pVM);
+                AssertRC (vrc);
+                if (VBOX_FAILURE (vrc))
+                    break;
+
                 /*
                  * Synchronize debugger settings
                  */
@@ -6771,6 +6783,10 @@ static DECLCALLBACK(int) reconfigureHardDisks(PVM pVM, ULONG lInstance,
          * to be made generic based on the capabiliy flags when the new
          * HardDisk interface is merged.
          */
+        pLunL2 = CFGMR3GetChild(pLunL1, "AttachedDriver");
+        AssertReturn(pLunL2, VERR_INTERNAL_ERROR);
+
+        CFGMR3RemoveNode(pLunL2);
         rc = CFGMR3InsertNode (pLunL1, "AttachedDriver", &pLunL2);      RC_CHECK();
         rc = CFGMR3InsertString (pLunL2, "Driver", "TransportAsync");   RC_CHECK();
         /* The async transport driver has no config options yet. */
