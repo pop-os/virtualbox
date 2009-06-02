@@ -63,6 +63,14 @@ ip_output(PNATState pData, struct socket *so, struct mbuf *m0)
     DEBUG_ARG("so = %lx", (long)so);
     DEBUG_ARG("m0 = %lx", (long)m0);
 
+#ifdef VBOX_WITH_SIMPLIFIED_SLIRP_SYNC
+    if(m->m_data != (MBUF_HEAD(m) + if_maxlinkhdr))
+    {
+        LogRel(("NAT: ethernet detects corruption of the packet"));
+        AssertMsgFailed(("!!Ethernet frame corrupted!!"));
+    }
+#endif
+
 #if 0 /* We do no options */
     if (opt)
     {

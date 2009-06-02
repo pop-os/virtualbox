@@ -36,6 +36,7 @@
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/thread.h>
+#include <iprt/process.h>
 
 #include "internal/thread.h"
 
@@ -102,7 +103,7 @@ int rtThreadNativeCreate(PRTTHREADINT pThreadInt, PRTNATIVETHREAD pNativeThread)
 {
     int rc;
     kthread_t* pKernThread = thread_create(NULL, NULL, rtThreadNativeMain, pThreadInt, 0,
-                                           curproc, TS_RUN, minclsyspri);
+                                           (void *)RTR0ProcHandleSelf(), TS_RUN, minclsyspri);
     if (pKernThread)
     {
         *pNativeThread = (RTNATIVETHREAD)pKernThread;

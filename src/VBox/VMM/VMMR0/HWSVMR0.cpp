@@ -358,13 +358,17 @@ VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
 /**
  * Injects an event (trap or external interrupt)
  *
- * @param   pVM         The VM to operate on.
+ * @param   pVCpu       The VMCPU to operate on.
  * @param   pVMCB       SVM control block
  * @param   pCtx        CPU Context
  * @param   pIntInfo    SVM interrupt info
  */
-inline void SVMR0InjectEvent(PVM pVM, SVM_VMCB *pVMCB, CPUMCTX *pCtx, SVM_EVENT* pEvent)
+inline void SVMR0InjectEvent(PVMCPU pVCpu, SVM_VMCB *pVMCB, CPUMCTX *pCtx, SVM_EVENT* pEvent)
 {
+#ifdef VBOX_WITH_STATISTICS
+    STAM_COUNTER_INC(&pVCpu->hwaccm.s.paStatInjectedIrqsR0[pEvent->n.u8Vector & MASK_INJECT_IRQ_STAT]);
+#endif
+
 #ifdef VBOX_STRICT
     if (pEvent->n.u8Vector == 0xE)
         Log(("SVM: Inject int %d at %RGv error code=%02x CR2=%RGv intInfo=%08x\n", pEvent->n.u8Vector, (RTGCPTR)pCtx->rip, pEvent->n.u32ErrorCode, (RTGCPTR)pCtx->cr2, pEvent->au64[0]));
@@ -374,7 +378,7 @@ inline void SVMR0InjectEvent(PVM pVM, SVM_VMCB *pVMCB, CPUMCTX *pCtx, SVM_EVENT*
     else
     {
         Log(("INJ-EI: %x at %RGv\n", pEvent->n.u8Vector, (RTGCPTR)pCtx->rip));
-        Assert(!VM_FF_ISSET(pVM, VM_FF_INHIBIT_INTERRUPTS));
+        Assert(!VM_FF_ISSET(pVCpu->CTX_SUFF(pVM), VM_FF_INHIBIT_INTERRUPTS));
         Assert(pCtx->eflags.u32 & X86_EFL_IF);
     }
 #endif
@@ -405,7 +409,7 @@ static int SVMR0CheckPendingInterrupt(PVM pVM, PVMCPU pVCpu, SVM_VMCB *pVMCB, CP
         Log(("Reinjecting event %08x %08x at %RGv\n", pVCpu->hwaccm.s.Event.intInfo, pVCpu->hwaccm.s.Event.errCode, (RTGCPTR)pCtx->rip));
         STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatIntReinject);
         Event.au64[0] = pVCpu->hwaccm.s.Event.intInfo;
-        SVMR0InjectEvent(pVM, pVMCB, pCtx, &Event);
+        SVMR0InjectEvent(pVCpu, pVMCB, pCtx, &Event);
 
         pVCpu->hwaccm.s.Event.fPending = false;
         return VINF_SUCCESS;
@@ -420,7 +424,7 @@ static int SVMR0CheckPendingInterrupt(PVM pVM, PVMCPU pVCpu, SVM_VMCB *pVMCB, CP
         Event.n.u32ErrorCode = 0;
         Event.n.u3Type       = SVM_EVENT_NMI;
 
-        SVMR0InjectEvent(pVM, pVMCB, pCtx, &Event);
+        SVMR0InjectEvent(pVCpu, pVMCB, pCtx, &Event);
         pVM->hwaccm.s.fInjectNMI = false;
         return VINF_SUCCESS;
     }
@@ -527,7 +531,7 @@ static int SVMR0CheckPendingInterrupt(PVM pVM, PVMCPU pVCpu, SVM_VMCB *pVMCB, CP
             Event.n.u3Type = SVM_EVENT_EXTERNAL_IRQ;
 
         STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatIntInject);
-        SVMR0InjectEvent(pVM, pVMCB, pCtx, &Event);
+        SVMR0InjectEvent(pVCpu, pVMCB, pCtx, &Event);
     } /* if (interrupts can be dispatched) */
 
     return VINF_SUCCESS;
@@ -1333,7 +1337,7 @@ ResumeExecution:
                 Event.n.u1Valid  = 1;
                 Event.n.u8Vector = X86_XCPT_DB;
 
-                SVMR0InjectEvent(pVM, pVMCB, pCtx, &Event);
+                SVMR0InjectEvent(pVCpu, pVMCB, pCtx, &Event);
 
                 STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit1, x);
                 goto ResumeExecution;
@@ -1369,7 +1373,7 @@ ResumeExecution:
             Event.n.u1Valid  = 1;
             Event.n.u8Vector = X86_XCPT_NM;
 
-            SVMR0InjectEvent(pVM, pVMCB, pCtx, &Event);
+            SVMR0InjectEvent(pVCpu, pVMCB, pCtx, &Event);
             STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit1, x);
             goto ResumeExecution;
         }
@@ -1397,7 +1401,7 @@ ResumeExecution:
                 Event.n.u1ErrorCodeValid    = 1;
                 Event.n.u32ErrorCode        = errCode;
 
-                SVMR0InjectEvent(pVM, pVMCB, pCtx, &Event);
+                SVMR0InjectEvent(pVCpu, pVMCB, pCtx, &Event);
 
                 STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit1, x);
                 goto ResumeExecution;
@@ -1446,7 +1450,7 @@ ResumeExecution:
                 Event.n.u1ErrorCodeValid    = 1;
                 Event.n.u32ErrorCode        = errCode;
 
-                SVMR0InjectEvent(pVM, pVMCB, pCtx, &Event);
+                SVMR0InjectEvent(pVCpu, pVMCB, pCtx, &Event);
 
                 STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit1, x);
                 goto ResumeExecution;
@@ -1477,7 +1481,7 @@ ResumeExecution:
             Event.n.u1Valid  = 1;
             Event.n.u8Vector = X86_XCPT_MF;
 
-            SVMR0InjectEvent(pVM, pVMCB, pCtx, &Event);
+            SVMR0InjectEvent(pVCpu, pVMCB, pCtx, &Event);
 
             STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit1, x);
             goto ResumeExecution;
@@ -1520,7 +1524,7 @@ ResumeExecution:
                 break;
             }
             Log(("Trap %x at %RGv esi=%x\n", vector, (RTGCPTR)pCtx->rip, pCtx->esi));
-            SVMR0InjectEvent(pVM, pVMCB, pCtx, &Event);
+            SVMR0InjectEvent(pVCpu, pVMCB, pCtx, &Event);
 
             STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit1, x);
             goto ResumeExecution;
@@ -1978,7 +1982,7 @@ ResumeExecution:
                             Event.n.u1Valid  = 1;
                             Event.n.u8Vector = X86_XCPT_DB;
 
-                            SVMR0InjectEvent(pVM, pVMCB, pCtx, &Event);
+                            SVMR0InjectEvent(pVCpu, pVMCB, pCtx, &Event);
 
                             STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit1, x);
                             goto ResumeExecution;
@@ -2034,7 +2038,7 @@ ResumeExecution:
         Event.n.u8Vector = X86_XCPT_UD;
 
         Log(("Forced #UD trap at %RGv\n", (RTGCPTR)pCtx->rip));
-        SVMR0InjectEvent(pVM, pVMCB, pCtx, &Event);
+        SVMR0InjectEvent(pVCpu, pVMCB, pCtx, &Event);
 
         STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit1, x);
         goto ResumeExecution;

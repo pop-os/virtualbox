@@ -324,6 +324,18 @@ class <xsl:value-of select="$ifname"/>:
    <xsl:call-template name="genreq"/>
 </xsl:template>
 
+<xsl:template name="makeConstantName" >
+    <xsl:choose>
+      <!-- special case for reserved word, maybe will need more in the future -->
+      <xsl:when test="@name='None'">
+        <xsl:text>_None</xsl:text>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:value-of select="@name"/>
+      </xsl:otherwise>
+    </xsl:choose>   
+</xsl:template>
+
 <xsl:template name="enum">
 class <xsl:value-of select="@name"/>:
    def __init__(self,handle):
@@ -359,7 +371,7 @@ class <xsl:value-of select="@name"/>:
               '<xsl:value-of select="@name"/>':<xsl:value-of select="@value"/><xsl:if test="not(position()=last())">,</xsl:if>
               </xsl:for-each>}
 
-<xsl:for-each select="const"><xsl:text>   </xsl:text><xsl:value-of select="@name"/>=<xsl:value-of select="@value"/><xsl:text>&#xa;</xsl:text>
+<xsl:for-each select="const"><xsl:text>   </xsl:text><xsl:call-template name="makeConstantName"><xsl:with-param name="name" select="@name"/></xsl:call-template>=<xsl:value-of select="@value"/><xsl:text>&#xa;</xsl:text>
 </xsl:for-each>
 </xsl:template>
 

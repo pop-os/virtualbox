@@ -52,6 +52,9 @@ struct _VBOXCLIPBOARDCONTEXT
     VBOXCLIPBOARDCONTEXTX11 *pBackend;
     /** Pointer to the client data structure */
     VBOXCLIPBOARDCLIENTDATA *pClient;
+    /** Is the clipboard shutting down?  A convenience flag to tell us we
+     * can short-cut waiting for data from VBox. */
+    bool fShuttingDown;
 };
 
 /* Only one client is supported. There seems to be no need for more clients. 
@@ -79,7 +82,7 @@ int VBoxX11ClipboardReadVBoxData (VBOXCLIPBOARDCONTEXT *pCtx,
     /* Zero our output parameters */
     *ppv = NULL;
     *pcb = 0;
-    if (pClient == NULL)
+    if (pCtx->fShuttingDown)
     {
         /* This can legitimately happen if we disconnect during a request for
          * data from X11. */
@@ -246,11 +249,7 @@ void vboxClipboardDisconnect (VBOXCLIPBOARDCLIENTDATA *)
 {
     LogFlow(("vboxClipboardDisconnect\n"));
 
-    RTSemMutexRequest(g_ctxHost.clipboardMutex, RT_INDEFINITE_WAIT);
-    /* Drop the reference to the client, in case it is still there.  This
-     * will cause any outstanding clipboard data requests from X11 to fail
-     * immediately. */
-    g_ctxHost.pClient = NULL;
+    g_ctxHost.fShuttingDown = true;
     /* The backend may be waiting for data from VBox.  At this point it is no
      * longer going to arrive, and we must release it to allow the event
      * loop to terminate.  In this case the buffer where VBox would have
@@ -265,7 +264,6 @@ void vboxClipboardDisconnect (VBOXCLIPBOARDCLIENTDATA *)
     /** @todo handle this slightly more reasonably, or be really sure
      *        it won't go wrong. */
     AssertRC(rc);
-    RTSemMutexRelease(g_ctxHost.clipboardMutex);
 }
 
 /**

@@ -148,6 +148,15 @@ static void bootp_reply(PNATState pData, struct bootp_t *bp)
         memcpy(&be[1], (pvalue), (len));                        \
         (q) = (uint8_t *)(&be[1]) + (len);                      \
     }while(0)
+/* appending another value to tag, calculates len of whole block*/
+#define FILL_BOOTP_APP(head, q, tag, len, pvalue)               \
+    do {                                                        \
+        struct bootp_ext *be = (struct bootp_ext *)(head);      \
+        memcpy(q, (pvalue), (len));                             \
+        (q) += (len);                                           \
+        Assert(be->bpe_tag == (tag));                           \
+        be->bpe_len += (len);                                   \
+    }while(0)
 
     /* extract exact DHCP msg type */
     requested_ip.s_addr = 0xffffffff;
@@ -276,6 +285,7 @@ static void bootp_reply(PNATState pData, struct bootp_t *bp)
         struct dns_entry *de = NULL;
         struct dns_domain_entry *dd = NULL;
         int added = 0;
+        uint8_t *q_dns_header = NULL;
 #endif
         uint32_t lease_time = htonl(LEASE_TIME);
         uint32_t netmask = htonl(pData->netmask);
@@ -286,19 +296,33 @@ static void bootp_reply(PNATState pData, struct bootp_t *bp)
 #ifndef VBOX_WITH_MULTI_DNS
         dns_addr_dhcp.s_addr = htonl(ntohl(special_addr.s_addr) | CTL_DNS);
         FILL_BOOTP_EXT(q, RFC1533_DNS, 4, &dns_addr_dhcp.s_addr);
-#else
+#else /* VBOX_WITH_MULTI_DNS */
 # ifdef VBOX_WITH_SLIRP_DNS_PROXY
         if (pData->use_dns_proxy)
         {
             uint32_t addr = htonl(ntohl(special_addr.s_addr) | CTL_DNS);
             FILL_BOOTP_EXT(q, RFC1533_DNS, 4, &addr);
+            goto skip_dns_servers;
         }
-        else
 # endif
-        LIST_FOREACH(de, &pData->dns_list_head, de_list)
+
+        if (!TAILQ_EMPTY(&pData->dns_list_head)) 
         {
+            de = TAILQ_LAST(&pData->dns_list_head, dns_list_head);
+            q_dns_header = q;
             FILL_BOOTP_EXT(q, RFC1533_DNS, 4, &de->de_addr.s_addr);
         }
+
+        TAILQ_FOREACH_REVERSE(de, &pData->dns_list_head, dns_list_head, de_list)
+        {
+            if (TAILQ_LAST(&pData->dns_list_head, dns_list_head) == de)
+                continue; /* first value with head we've ingected before */
+            FILL_BOOTP_APP(q_dns_header, q, RFC1533_DNS, 4, &de->de_addr.s_addr);
+        }
+
+# ifdef VBOX_WITH_SLIRP_DNS_PROXY
+skip_dns_servers:
+# endif
         if (LIST_EMPTY(&pData->dns_domain_list_head))
         {
                 /* Microsoft dhcp client doen't like domain-less dhcp and trimmed packets*/
@@ -310,14 +334,14 @@ static void bootp_reply(PNATState pData, struct bootp_t *bp)
             
             if (dd->dd_pszDomain == NULL)
                 continue;
-            if (added != 0) 
+            if (added != 0)
                 FILL_BOOTP_EXT(q, RFC1533_DOMAINNAME, 1, ","); /* never meet valid separator here in RFC1533*/
             else
                 added = 1;
             val = (int)strlen(dd->dd_pszDomain);
             FILL_BOOTP_EXT(q, RFC1533_DOMAINNAME, val, dd->dd_pszDomain);
         }
-#endif
+#endif /* VBOX_WITH_MULTI_DNS */
 
         FILL_BOOTP_EXT(q, RFC2132_LEASE_TIME, 4, &lease_time);
 

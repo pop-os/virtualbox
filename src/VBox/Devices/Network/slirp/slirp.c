@@ -398,7 +398,7 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
             {
                 da->de_addr.s_addr = ((struct sockaddr_in *)saddr)->sin_addr.s_addr;
             }
-            LIST_INSERT_HEAD(&pData->dns_list_head, da, de_list);
+            TAILQ_INSERT_HEAD(&pData->dns_list_head, da, de_list);
 
             if (addr->DnsSuffix == NULL)
                 goto next_dns;
@@ -522,7 +522,7 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
             if ((da->de_addr.s_addr & htonl(IN_CLASSA_NET)) == ntohl(INADDR_LOOPBACK & IN_CLASSA_NET)) {
                 da->de_addr.s_addr = htonl(ntohl(special_addr.s_addr) | CTL_ALIAS);
             }
-            LIST_INSERT_HEAD(&pData->dns_list_head, da, de_list);
+            TAILQ_INSERT_HEAD(&pData->dns_list_head, da, de_list);
 #endif
             found++;
         }
@@ -590,7 +590,7 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
 #ifdef VBOX_WITH_MULTI_DNS
 static int slirp_init_dns_list(PNATState pData)
 {
-    LIST_INIT(&pData->dns_list_head);
+    TAILQ_INIT(&pData->dns_list_head);
     LIST_INIT(&pData->dns_domain_list_head);
     return get_dns_addr_domain(pData, true, NULL, NULL);
 }
@@ -599,12 +599,10 @@ static void slirp_release_dns_list(PNATState pData)
 {
     struct dns_entry *de = NULL;
     struct dns_domain_entry *dd = NULL;
-    while(!LIST_EMPTY(&pData->dns_domain_list_head)) {
-        dd = LIST_FIRST(&pData->dns_domain_list_head);
-        LIST_REMOVE(dd, dd_list);
-        if (dd->dd_pszDomain != NULL)
-            RTStrFree(dd->dd_pszDomain);
-        RTMemFree(dd);
+    while(!TAILQ_EMPTY(&pData->dns_list_head)) {
+        de = TAILQ_FIRST(&pData->dns_list_head);
+        TAILQ_REMOVE(&pData->dns_list_head, de, de_list);
+        RTMemFree(de);
     }
     while(!LIST_EMPTY(&pData->dns_domain_list_head)) {
         dd = LIST_FIRST(&pData->dns_domain_list_head);
@@ -1593,7 +1591,7 @@ void slirp_input(PNATState pData, const uint8_t *pkt, int pkt_len)
             }
             break;
         default:
-            LogRel(("NAT: Unsupported protocol %x\n", proto));
+            Log(("NAT: Unsupported protocol %x\n", proto));
             m_free(pData, m);
             break;
     }
@@ -1616,6 +1614,11 @@ void if_encap(PNATState pData, uint8_t *ip_data, int ip_data_len)
 #else
     uint8_t buf[1600];
     struct ethhdr *eh = (struct ethhdr *)buf;
+    if(MBUF_HEAD(m) != m->m_data)
+    {
+        LogRel(("NAT: ethernet detects corruption of the packet"));
+        AssertMsgFailed(("!!Ethernet frame corrupted!!"));
+    }
 
     if (ip_data_len + ETH_HLEN > sizeof(buf))
         return;
