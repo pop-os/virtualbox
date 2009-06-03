@@ -5,9 +5,9 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in virtualbox-ose-2.1.2-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in
---- virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in	2009-05-05 09:21:54.000000000 +0200
-+++ virtualbox-ose-2.2.2-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in		2009-05-05 09:27:28.000000000 +0200
+diff -Naurp virtualbox-ose-2.2.4-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in virtualbox-ose-2.2.4-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in
+--- virtualbox-ose-2.2.4-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in	2009-06-03 09:24:58.000000000 +0200
++++ virtualbox-ose-2.2.4-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in		2009-06-03 09:29:45.000000000 +0200
 @@ -19,8 +19,8 @@
  #
  ### BEGIN INIT INFO
@@ -46,41 +46,37 @@ diff -Naurp virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
  else
      if [ "$system" = "redhat" ]; then
          . /etc/init.d/functions
-@@ -146,16 +151,24 @@
+@@ -146,15 +151,26 @@
  
  start()
  {
 -    begin_msg "Starting VirtualBox kernel module"
 +    begin_msg "Starting VirtualBox kernel modules"
      if ! running vboxdrv; then
--        if ! find /lib/modules/`uname -r` -name "vboxdrv\.*" 2>/dev/null|grep -q vboxdrv; then
--            failure "No suitable module for running kernel found"
--        fi
--        if ! rm -f $DEVICE; then
--            failure "Cannot remove $DEVICE"
--        fi
--        if ! modprobe vboxdrv > /dev/null 2>&1; then
--            failure "modprobe vboxdrv failed. Please use 'dmesg' to find out why"
-+	if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
-+		if ! rm -f $DEVICE; then
-+		    failure "Cannot remove $DEVICE"
-+		fi
-+	        if ! modprobe vboxdrv > /dev/null 2>&1; then
-+			if ! find /lib/modules/`uname -r` -name "vboxdrv\.*" 2>/dev/null|grep -q vboxdrv; then
-+			    failure "No suitable module for running kernel found"
-+			else
-+        	    	    failure "modprobe vboxdrv failed. Please use 'dmesg' to find out why"
-+			fi
-+		else
-+			prog_msg vboxdrv
-+		fi
-+	else
-+		succ_msg
-+		return
++      if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
+         if ! rm -f $DEVICE; then
+             failure "Cannot remove $DEVICE"
          fi
-         sleep .2
+         if ! modprobe vboxdrv > /dev/null 2>&1; then
++	  if ! find /lib/modules/`uname -r` -name "vboxdrv\.*" 2>/dev/null|grep -q vboxdrv; then
++	    failure "No suitable module for running kernel found"
++	  else
+             failure "modprobe vboxdrv failed. Please use 'dmesg' to find out why"
+-        fi
+-        sleep .2
++	  fi
++	else
++	  prog_msg vboxdrv
++        fi
++      else
++	succ_msg
++	return
++      fi
++      sleep .2
      fi
-@@ -185,23 +198,35 @@
+     # ensure the character special exists
+     if [ ! -c $DEVICE ]; then
+@@ -182,23 +198,35 @@
          rmmod vboxdrv 2>/dev/null
          failure "Cannot change owner $GROUPNAME for device $DEVICE"
      fi
@@ -119,7 +115,7 @@ diff -Naurp virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
          fi
          if ! rm -f $DEVICE; then
              failure "Cannot unlink $DEVICE"
-@@ -330,14 +355,11 @@
+@@ -327,14 +355,11 @@
      stop
      start
      ;;
