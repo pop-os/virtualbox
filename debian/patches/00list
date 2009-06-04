@@ -13,5 +13,4 @@
 15-wined3d-guest-addition.dpatch
 16-no-update.dpatch
 18-xorg-1.6.dpatch
-19-modifyhd.dpatch
 20-hide-help-buttons.dpatch
