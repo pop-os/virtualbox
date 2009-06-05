@@ -3,8 +3,10 @@ virtualbox-ose (2.2.4-dfsg-1) unstable; urgency=low
   * New Upstream Version, closes: #531468
   * Added patch by Felix Geyer <debfx-pkg@fobos.de> to remove disabled help
     buttons, closes: #531320
+  * Moved hal driver description to make sure it gets merged in after evdev
+    driver description, closes: #531618
 
- -- Michael Meskes <meskes@debian.org>  Tue, 02 Jun 2009 15:39:24 +0200
+ -- Michael Meskes <meskes@debian.org>  Fri, 05 Jun 2009 11:43:23 +0200
 
 virtualbox-ose (2.2.2-dfsg-3) unstable; urgency=low
 
