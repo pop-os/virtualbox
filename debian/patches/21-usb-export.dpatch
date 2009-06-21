@@ -1,0 +1,23 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 21-usb-export.dpatch by Michael Meskes <meskes@debian.org>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Fix export/USB error
+
+@DPATCH@
+
+--- virtualbox-ose/src/VBox/Main/ApplianceImpl.cpp	(Revision 20513)
++++ virtualbox-ose/src/VBox/Main/ApplianceImpl.cpp	(Revision 20514)
+@@ -4508,8 +4508,10 @@
+ 
+         // this is more tricky so use the COM method
+         rc = COMGETTER(USBController)(pUsbController.asOutParam());
+-        if (FAILED(rc)) throw rc;
+-        rc = pUsbController->COMGETTER(Enabled)(&fUSBEnabled);
++        if (FAILED(rc))
++            fUSBEnabled = false;
++        else
++            rc = pUsbController->COMGETTER(Enabled)(&fUSBEnabled);
+ 
+         pAudioAdapter = mAudioAdapter;
+         rc = pAudioAdapter->COMGETTER(Enabled)(&fAudioEnabled);
