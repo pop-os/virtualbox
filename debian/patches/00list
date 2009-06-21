@@ -12,5 +12,6 @@
 14-disable-registration-request.dpatch
 15-wined3d-guest-addition.dpatch
 16-no-update.dpatch
+17-disable-help-contents.dpatch
 18-xorg-1.6.dpatch
 20-hide-help-buttons.dpatch

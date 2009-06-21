@@ -1,0 +1,18 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 17-disable-help-contents.dpatch by Daniel Hahler <ubuntu@thequod.de>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Disable Help>Contents... menu item (LP: #323988)
+
+@DPATCH@
+diff -urNad virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp
+--- virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp	2009-04-29 09:12:58.000000000 +0200
++++ virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp	2009-05-16 16:25:28.503521210 +0200
+@@ -33,6 +33,7 @@
+ 
+     contentsAction = new QAction (aParent);
+     contentsAction->setIcon (VBoxGlobal::iconSet (":/help_16px.png"));
++    contentsAction->setDisabled(true);
+ 
+     webAction = new QAction (aParent);
+     webAction->setIcon (VBoxGlobal::iconSet (":/site_16px.png"));

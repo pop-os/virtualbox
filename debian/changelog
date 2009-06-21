@@ -1,3 +1,10 @@
+virtualbox-ose (2.2.4-dfsg-2) unstable; urgency=low
+
+  * Added patch by Daniel Hahler <ubuntu@thequod.de> to disable the
+    Help->Contents menu entry, closes: #533255
+
+ -- Michael Meskes <meskes@debian.org>  Sun, 21 Jun 2009 14:07:01 +0200
+
 virtualbox-ose (2.2.4-dfsg-1) unstable; urgency=low
 
   * New Upstream Version, closes: #531468
@@ -6,7 +13,7 @@ virtualbox-ose (2.2.4-dfsg-1) unstable; urgency=low
   * Moved hal driver description to make sure it gets merged in after evdev
     driver description, closes: #531618
 
- -- Michael Meskes <meskes@debian.org>  Fri, 05 Jun 2009 11:43:23 +0200
+ -- Michael Meskes <meskes@debian.org>  Sun, 21 Jun 2009 14:06:59 +0200
 
 virtualbox-ose (2.2.2-dfsg-3) unstable; urgency=low
 
