@@ -2,8 +2,10 @@ virtualbox-ose (2.2.4-dfsg-2) unstable; urgency=low
 
   * Added patch by Daniel Hahler <ubuntu@thequod.de> to disable the
     Help->Contents menu entry, closes: #533255
+  * Applied patch by Felix Geyer <debfx-pkg@fobos.de> to automatically load
+    vboxvfs, closes: #533250
 
- -- Michael Meskes <meskes@debian.org>  Sun, 21 Jun 2009 14:07:01 +0200
+ -- Michael Meskes <meskes@debian.org>  Sun, 21 Jun 2009 14:11:00 +0200
 
 virtualbox-ose (2.2.4-dfsg-1) unstable; urgency=low
 
