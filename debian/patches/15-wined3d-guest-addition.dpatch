@@ -59,9 +59,9 @@ diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsole
      mDevicesInstallGuestToolsAction->setStatusTip (
          tr ("Mount the Guest Additions installation image"));
  
-+    mDevicesInstallWineD3DAction->setText (tr ("Install latest &WineD3D (for Direct3D)..."));
++    mDevicesInstallWineD3DAction->setText (tr ("Update &WineD3D (for Direct3D)..."));
 +    mDevicesInstallWineD3DAction->setStatusTip (
-+        tr ("Mount the latest WineD3D installation image. WineD3D provides Direct3D functionality on Windows guests."));
++        tr ("Download the latest WineD3D installation image. WineD3D provides Direct3D functionality on Windows guests."));
 +
  #ifdef VBOX_WITH_DEBUGGER_GUI
      /* Debug actions */
