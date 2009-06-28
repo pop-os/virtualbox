@@ -6,8 +6,9 @@ virtualbox-ose (2.2.4-dfsg-2) unstable; urgency=low
     vboxvfs, closes: #533250
   * Added upstream patch to fix appliance export problem, closes: #532870
   * Suggest new guest-additions package.
+  * Bumped Standards-Version to 3.8.2, no changes needed.
 
- -- Michael Meskes <meskes@debian.org>  Sun, 28 Jun 2009 13:51:39 +0200
+ -- Michael Meskes <meskes@debian.org>  Sun, 28 Jun 2009 14:56:19 +0200
 
 virtualbox-ose (2.2.4-dfsg-1) unstable; urgency=low
 
