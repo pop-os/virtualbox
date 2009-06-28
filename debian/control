@@ -81,7 +81,7 @@ Pre-Depends: debconf | debconf-2.0
 Recommends: virtualbox-ose-modules,
             virtualbox-ose-qt,
             libgl1
-Suggests: virtualbox-ose-source
+Suggests: virtualbox-ose-source, virtualbox-guest-additions
 Conflicts: virtualbox
 Provides: virtualbox
 Replaces: virtualbox
