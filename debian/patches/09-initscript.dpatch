@@ -5,9 +5,9 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-2.2.4-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in virtualbox-ose-2.2.4-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in
---- virtualbox-ose-2.2.4-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in	2009-06-03 09:24:58.000000000 +0200
-+++ virtualbox-ose-2.2.4-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in		2009-06-03 09:29:45.000000000 +0200
+diff -Naurp virtualbox-ose-3.0.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in virtualbox-ose-3.0.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in
+--- virtualbox-ose-3.0.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in	2009-07-01 10:37:25.000000000 +0200
++++ virtualbox-ose-3.0.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in		2009-07-01 10:41:54.000000000 +0200
 @@ -19,8 +19,8 @@
  #
  ### BEGIN INIT INFO
@@ -30,7 +30,7 @@ diff -Naurp virtualbox-ose-2.2.4-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
  [ -f /etc/vbox/vbox.cfg ] && . /etc/vbox/vbox.cfg
  
  if [ -n "$INSTALL_DIR" ]; then
-@@ -64,11 +66,14 @@
+@@ -66,11 +68,14 @@
          log_failure_msg "$1"
      }
      succ_msg() {
@@ -46,7 +46,7 @@ diff -Naurp virtualbox-ose-2.2.4-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
  else
      if [ "$system" = "redhat" ]; then
          . /etc/init.d/functions
-@@ -146,15 +151,26 @@
+@@ -148,15 +153,26 @@
  
  start()
  {
@@ -76,22 +76,30 @@ diff -Naurp virtualbox-ose-2.2.4-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
      fi
      # ensure the character special exists
      if [ ! -c $DEVICE ]; then
-@@ -182,23 +198,35 @@
+@@ -185,31 +201,47 @@
          rmmod vboxdrv 2>/dev/null
          failure "Cannot change owner $GROUPNAME for device $DEVICE"
      fi
 -    if ! modprobe vboxnetflt > /dev/null 2>&1; then
 -        failure "modprobe vboxnetflt failed. Please use 'dmesg' to find out why"
+-    fi
+-    if ! modprobe vboxnetadp > /dev/null 2>&1; then
+-        failure "modprobe vboxnetadp failed. Please use 'dmesg' to find out why"
 +    if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
-+	if ! modprobe vboxnetflt > /dev/null 2>&1; then
-+		if ! find /lib/modules/`uname -r` -name "vboxnetflt\.*" 2>/dev/null|grep -q vboxnetflt; then
-+		    failure "No suitable vboxnetflt module for running kernel found"
-+		else
-+        	    failure "modprobe vboxnetflt failed. Please use 'dmesg' to find out why"
-+		fi
++      if ! modprobe vboxnetflt > /dev/null 2>&1; then
++	if ! find /lib/modules/`uname -r` -name "vboxnetflt\.*" 2>/dev/null|grep -q vboxnetflt; then
++	  failure "No suitable vboxnetflt module for running kernel found"
 +	else
-+		prog_msg vboxnetflt
++          failure "modprobe vboxnetflt failed. Please use 'dmesg' to find out why"
 +	fi
++      fi
++      if ! modprobe vboxnetadp > /dev/null 2>&1; then
++	if ! find /lib/modules/`uname -r` -name "vboxnetadp\.*" 2>/dev/null|grep -q vboxnetadp; then
++          failure "No suitable vboxnetadp module for running kernel found"
++        else
++          failure "modprobe vboxnetadp failed. Please use 'dmesg' to find out why"
++	fi
++      fi
      fi
      succ_msg
  }
@@ -100,6 +108,13 @@ diff -Naurp virtualbox-ose-2.2.4-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
  {
 -    begin_msg "Stopping VirtualBox kernel module"
 +    begin_msg "Stopping VirtualBox kernel modules"
+     if running vboxnetadp; then
+         if ! rmmod vboxnetadp 2>/dev/null; then
+             failure "Cannot unload module vboxnetadp"
++	else
++	    prog_msg vboxnetadp
+         fi
+     fi
      if running vboxdrv; then
          if running vboxnetflt; then
              if ! rmmod vboxnetflt 2>/dev/null; then
@@ -115,7 +130,7 @@ diff -Naurp virtualbox-ose-2.2.4-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
          fi
          if ! rm -f $DEVICE; then
              failure "Cannot unlink $DEVICE"
-@@ -327,14 +355,11 @@
+@@ -352,14 +384,11 @@
      stop
      start
      ;;
