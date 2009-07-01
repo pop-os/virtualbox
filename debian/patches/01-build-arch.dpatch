@@ -5,13 +5,13 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/configure virtualbox-ose-1.6.0-dfsg/configure
---- virtualbox-ose-1.6.0-dfsg.orig/configure	2008-04-30 14:06:04.000000000 +0000
-+++ virtualbox-ose-1.6.0-dfsg/configure	2008-05-09 09:23:52.000000000 +0000
-@@ -263,7 +263,7 @@ check_environment()
-       exit 1
-       ;;
-   esac
+diff -Naurp virtualbox-ose-3.0.0-dfsg.orig/configure virtualbox-ose-3.0.0-dfsg/configure
+--- virtualbox-ose-3.0.0-dfsg.orig/configure	2009-07-01 09:55:34.000000000 +0200
++++ virtualbox-ose-3.0.0-dfsg/configure	2009-07-01 09:57:03.000000000 +0200
+@@ -310,7 +310,7 @@
+ check_environment()
+ {
+   test_header environment
 -  BUILD_CPU=`uname -m`
 +  BUILD_CPU=`dpkg-architecture -qDEB_HOST_GNU_CPU`
    [ "$OS" = "solaris" ] && BUILD_CPU=`isainfo | cut -f 1 -d ' '`
