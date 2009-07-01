@@ -1,4 +1,4 @@
-/* $Id: CSAM.cpp $ */
+/* $Id: CSAM.cpp 20011 2009-05-25 19:31:11Z vboxsync $ */
 /** @file
  * CSAM - Guest OS Code Scanning and Analysis Manager
  */
@@ -227,7 +227,8 @@ static int csamReinit(PVM pVM)
     pVM->csam.s.fGatesChecked    = false;
     pVM->csam.s.fScanningStarted = false;
 
-    VM_FF_CLEAR(pVM, VM_FF_CSAM_PENDING_ACTION);
+    PVMCPU pVCpu = &pVM->aCpus[0];  /* raw mode implies 1 VPCU */
+    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_CSAM_PENDING_ACTION);
     pVM->csam.s.cDirtyPages = 0;
     /* not necessary */
     memset(pVM->csam.s.pvDirtyBasePage, 0, sizeof(pVM->csam.s.pvDirtyBasePage));
@@ -561,6 +562,8 @@ static R3PTRTYPE(void *) CSAMGCVirtToHCVirt(PVM pVM, PCSAMP2GLOOKUPREC pCacheRec
 {
     int rc;
     R3PTRTYPE(void *) pHCPtr;
+    Assert(pVM->cCPUs == 1);
+    PVMCPU pVCpu = VMMGetCpu0(pVM);
 
     STAM_PROFILE_START(&pVM->csam.s.StatTimeAddrConv, a);
 
@@ -577,17 +580,16 @@ static R3PTRTYPE(void *) CSAMGCVirtToHCVirt(PVM pVM, PCSAMP2GLOOKUPREC pCacheRec
         }
     }
 
-    rc = PGMPhysGCPtr2R3Ptr(pVM, pGCPtr, &pHCPtr);
+    rc = PGMPhysGCPtr2R3Ptr(pVCpu, pGCPtr, &pHCPtr);
     if (rc != VINF_SUCCESS)
     {
 ////        AssertMsgRC(rc, ("MMR3PhysGCVirt2HCVirtEx failed for %RRv\n", pGCPtr));
         STAM_PROFILE_STOP(&pVM->csam.s.StatTimeAddrConv, a);
         return NULL;
     }
-////invalid?    Assert(sizeof(R3PTRTYPE(uint8_t*)) == sizeof(uint32_t));
 
     pCacheRec->pPageLocStartHC = (R3PTRTYPE(uint8_t*))((RTHCUINTPTR)pHCPtr & PAGE_BASE_HC_MASK);
-    pCacheRec->pGuestLoc      = pGCPtr & PAGE_BASE_GC_MASK;
+    pCacheRec->pGuestLoc       = pGCPtr & PAGE_BASE_GC_MASK;
     STAM_PROFILE_STOP(&pVM->csam.s.StatTimeAddrConv, a);
     return pHCPtr;
 }
@@ -607,8 +609,10 @@ static DECLCALLBACK(int) CSAMR3ReadBytes(RTUINTPTR pSrc, uint8_t *pDest, unsigne
     DISCPUSTATE  *pCpu     = (DISCPUSTATE *)pvUserdata;
     PVM           pVM      = (PVM)pCpu->apvUserData[0];
     RTHCUINTPTR   pInstrHC = (RTHCUINTPTR)pCpu->apvUserData[1];
-    RTGCUINTPTR32   pInstrGC = (uintptr_t)pCpu->apvUserData[2];
+    RTGCUINTPTR32 pInstrGC = (uintptr_t)pCpu->apvUserData[2];
     int           orgsize  = size;
+    Assert(pVM->cCPUs == 1);
+    PVMCPU        pVCpu = VMMGetCpu0(pVM);
 
     /* We are not interested in patched instructions, so read the original opcode bytes. */
     /** @note single instruction patches (int3) are checked in CSAMR3AnalyseCallback */
@@ -629,7 +633,7 @@ static DECLCALLBACK(int) CSAMR3ReadBytes(RTUINTPTR pSrc, uint8_t *pDest, unsigne
 
     if (PAGE_ADDRESS(pInstrGC) != PAGE_ADDRESS(pSrc + size - 1) && !PATMIsPatchGCAddr(pVM, pSrc))
     {
-        return PGMPhysSimpleReadGCPtr(pVM, pDest, pSrc, size);
+        return PGMPhysSimpleReadGCPtr(pVCpu, pDest, pSrc, size);
     }
     else
     {
@@ -1079,6 +1083,8 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
     uint32_t opsize;
     R3PTRTYPE(uint8_t *) pCurInstrHC = 0;
     int rc2;
+    Assert(pVM->cCPUs == 1);
+    PVMCPU pVCpu = VMMGetCpu0(pVM);
 
 #ifdef DEBUG
     char szOutput[256];
@@ -1161,7 +1167,7 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
 
         if (PAGE_ADDRESS(pCurInstrGC) != PAGE_ADDRESS(pCurInstrGC + opsize - 1))
         {
-            if (!PGMGstIsPagePresent(pVM, pCurInstrGC + opsize - 1))
+            if (!PGMGstIsPagePresent(pVCpu, pCurInstrGC + opsize - 1))
             {
                 /// @todo fault in the page
                 Log(("Page for current instruction %RRv is not present!!\n", pCurInstrGC));
@@ -1205,7 +1211,7 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
                 &&  cpu.param1.flags == USE_DISPLACEMENT32)
             {
                 addr = 0;
-                PGMPhysSimpleReadGCPtr(pVM, &addr, (RTRCUINTPTR)cpu.param1.disp32, sizeof(addr));
+                PGMPhysSimpleReadGCPtr(pVCpu, &addr, (RTRCUINTPTR)cpu.param1.disp32, sizeof(addr));
             }
             else
                 addr = CSAMResolveBranch(&cpu, pCurInstrGC);
@@ -1224,7 +1230,7 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
             /* Same page? */
             if (PAGE_ADDRESS(addr) != PAGE_ADDRESS(pCurInstrGC ))
             {
-                if (!PGMGstIsPagePresent(pVM, addr))
+                if (!PGMGstIsPagePresent(pVCpu, addr))
                 {
                     Log(("Page for current instruction %RRv is not present!!\n", addr));
                     rc = VWRN_CONTINUE_ANALYSIS;
@@ -1278,7 +1284,7 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
 
             Log(("Jump through jump table\n"));
 
-            rc2 = PGMPhysGCPtr2R3Ptr(pVM, pJumpTableGC, (PRTHCPTR)&pJumpTableHC);
+            rc2 = PGMPhysGCPtr2R3Ptr(pVCpu, pJumpTableGC, (PRTHCPTR)&pJumpTableHC);
             if (rc2 == VINF_SUCCESS)
             {
                 for (uint32_t i=0;i<2;i++)
@@ -1292,7 +1298,7 @@ static int csamAnalyseCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTY
 
                     addr = *(RTRCPTR *)(pJumpTableHC + cpu.param1.scale * i);
 
-                    rc2 = PGMGstGetPage(pVM, addr, &fFlags, NULL);
+                    rc2 = PGMGstGetPage(pVCpu, addr, &fFlags, NULL);
                     if (    rc2 != VINF_SUCCESS
                         ||  (fFlags & X86_PTE_US)
                         || !(fFlags & X86_PTE_P)
@@ -1353,10 +1359,12 @@ uint64_t csamR3CalcPageHash(PVM pVM, RTRCPTR pInstr)
     uint64_t hash   = 0;
     uint32_t val[5];
     int      rc;
+    Assert(pVM->cCPUs == 1);
+    PVMCPU pVCpu = VMMGetCpu0(pVM);
 
     Assert((pInstr & PAGE_OFFSET_MASK) == 0);
 
-    rc = PGMPhysSimpleReadGCPtr(pVM, &val[0], pInstr, sizeof(val[0]));
+    rc = PGMPhysSimpleReadGCPtr(pVCpu, &val[0], pInstr, sizeof(val[0]));
     AssertMsg(RT_SUCCESS(rc) || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT, ("rc = %Rrc\n", rc));
     if (rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT)
     {
@@ -1364,7 +1372,7 @@ uint64_t csamR3CalcPageHash(PVM pVM, RTRCPTR pInstr)
         return ~0ULL;
     }
 
-    rc = PGMPhysSimpleReadGCPtr(pVM, &val[1], pInstr+1024, sizeof(val[0]));
+    rc = PGMPhysSimpleReadGCPtr(pVCpu, &val[1], pInstr+1024, sizeof(val[0]));
     AssertMsg(RT_SUCCESS(rc) || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT, ("rc = %Rrc\n", rc));
     if (rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT)
     {
@@ -1372,7 +1380,7 @@ uint64_t csamR3CalcPageHash(PVM pVM, RTRCPTR pInstr)
         return ~0ULL;
     }
 
-    rc = PGMPhysSimpleReadGCPtr(pVM, &val[2], pInstr+2048, sizeof(val[0]));
+    rc = PGMPhysSimpleReadGCPtr(pVCpu, &val[2], pInstr+2048, sizeof(val[0]));
     AssertMsg(RT_SUCCESS(rc) || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT, ("rc = %Rrc\n", rc));
     if (rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT)
     {
@@ -1380,7 +1388,7 @@ uint64_t csamR3CalcPageHash(PVM pVM, RTRCPTR pInstr)
         return ~0ULL;
     }
 
-    rc = PGMPhysSimpleReadGCPtr(pVM, &val[3], pInstr+3072, sizeof(val[0]));
+    rc = PGMPhysSimpleReadGCPtr(pVCpu, &val[3], pInstr+3072, sizeof(val[0]));
     AssertMsg(RT_SUCCESS(rc) || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT, ("rc = %Rrc\n", rc));
     if (rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT)
     {
@@ -1388,7 +1396,7 @@ uint64_t csamR3CalcPageHash(PVM pVM, RTRCPTR pInstr)
         return ~0ULL;
     }
 
-    rc = PGMPhysSimpleReadGCPtr(pVM, &val[4], pInstr+4092, sizeof(val[0]));
+    rc = PGMPhysSimpleReadGCPtr(pVCpu, &val[4], pInstr+4092, sizeof(val[0]));
     AssertMsg(RT_SUCCESS(rc) || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT, ("rc = %Rrc\n", rc));
     if (rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT)
     {
@@ -1419,9 +1427,12 @@ static int csamFlushPage(PVM pVM, RTRCPTR addr, bool fRemovePage)
     int rc;
     RTGCPHYS GCPhys = 0;
     uint64_t fFlags = 0;
+    Assert(pVM->cCPUs == 1 || !CSAMIsEnabled(pVM));
 
     if (!CSAMIsEnabled(pVM))
         return VINF_SUCCESS;
+
+    PVMCPU pVCpu = VMMGetCpu0(pVM);
 
     STAM_PROFILE_START(&pVM->csam.s.StatTimeFlushPage, a);
 
@@ -1436,7 +1447,7 @@ static int csamFlushPage(PVM pVM, RTRCPTR addr, bool fRemovePage)
         return VWRN_CSAM_PAGE_NOT_FOUND;
     }
 
-    rc = PGMGstGetPage(pVM, addr, &fFlags, &GCPhys);
+    rc = PGMGstGetPage(pVCpu, addr, &fFlags, &GCPhys);
     /* Returned at a very early stage (no paging yet presumably). */
     if (rc == VERR_NOT_SUPPORTED)
     {
@@ -1482,7 +1493,7 @@ static int csamFlushPage(PVM pVM, RTRCPTR addr, bool fRemovePage)
             CSAMMarkPage(pVM, addr, false);
             pPageRec->page.GCPhys = 0;
             pPageRec->page.fFlags = 0;
-            rc = PGMGstGetPage(pVM, addr, &pPageRec->page.fFlags, &pPageRec->page.GCPhys);
+            rc = PGMGstGetPage(pVCpu, addr, &pPageRec->page.fFlags, &pPageRec->page.GCPhys);
             if (rc == VINF_SUCCESS)
                 pPageRec->page.u64Hash = csamR3CalcPageHash(pVM, addr);
 
@@ -1609,6 +1620,8 @@ static PCSAMPAGE csamCreatePageRecord(PVM pVM, RTRCPTR GCPtr, CSAMTAG enmTag, bo
     PCSAMPAGEREC pPage;
     int          rc;
     bool         ret;
+    Assert(pVM->cCPUs == 1);
+    PVMCPU pVCpu = VMMGetCpu0(pVM);
 
     Log(("New page record for %RRv\n", GCPtr & PAGE_BASE_GC_MASK));
 
@@ -1627,7 +1640,7 @@ static PCSAMPAGE csamCreatePageRecord(PVM pVM, RTRCPTR GCPtr, CSAMTAG enmTag, bo
     pPage->page.enmTag               = enmTag;
     pPage->page.fMonitorActive       = false;
     pPage->page.pBitmap              = (uint8_t *)MMR3HeapAllocZ(pVM, MM_TAG_CSAM_PATCH, PAGE_SIZE/sizeof(uint8_t));
-    rc = PGMGstGetPage(pVM, GCPtr, &pPage->page.fFlags, &pPage->page.GCPhys);
+    rc = PGMGstGetPage(pVCpu, GCPtr, &pPage->page.fFlags, &pPage->page.GCPhys);
     AssertMsg(RT_SUCCESS(rc) || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT, ("rc = %Rrc\n", rc));
 
     pPage->page.u64Hash   = csamR3CalcPageHash(pVM, GCPtr);
@@ -1655,10 +1668,10 @@ static PCSAMPAGE csamCreatePageRecord(PVM pVM, RTRCPTR GCPtr, CSAMTAG enmTag, bo
         /* Could fail, because it's already monitored. Don't treat that condition as fatal. */
 
         /* Prefetch it in case it's not there yet. */
-        rc = PGMPrefetchPage(pVM, GCPtr);
+        rc = PGMPrefetchPage(pVCpu, GCPtr);
         AssertRC(rc);
 
-        rc = PGMShwModifyPage(pVM, GCPtr, 1, 0, ~(uint64_t)X86_PTE_RW);
+        rc = PGMShwModifyPage(pVCpu, GCPtr, 1, 0, ~(uint64_t)X86_PTE_RW);
         Assert(rc == VINF_SUCCESS || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
 
         pPage->page.fMonitorActive = true;
@@ -1710,6 +1723,8 @@ VMMR3DECL(int) CSAMR3MonitorPage(PVM pVM, RTRCPTR pPageAddrGC, CSAMTAG enmTag)
     PCSAMPAGEREC pPageRec = NULL;
     int          rc;
     bool         fMonitorInvalidation;
+    Assert(pVM->cCPUs == 1);
+    PVMCPU pVCpu = VMMGetCpu0(pVM);
 
     /* Dirty pages must be handled before calling this function!. */
     Assert(!pVM->csam.s.cDirtyPages);
@@ -1729,7 +1744,7 @@ VMMR3DECL(int) CSAMR3MonitorPage(PVM pVM, RTRCPTR pPageAddrGC, CSAMTAG enmTag)
     {
         uint64_t fFlags;
 
-        rc = PGMGstGetPage(pVM, pPageAddrGC, &fFlags, NULL);
+        rc = PGMGstGetPage(pVCpu, pPageAddrGC, &fFlags, NULL);
         AssertMsg(RT_SUCCESS(rc) || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT, ("rc = %Rrc\n", rc));
         if (    rc == VINF_SUCCESS
             &&  (fFlags & X86_PTE_US))
@@ -1765,10 +1780,10 @@ VMMR3DECL(int) CSAMR3MonitorPage(PVM pVM, RTRCPTR pPageAddrGC, CSAMTAG enmTag)
         /* Could fail, because it's already monitored. Don't treat that condition as fatal. */
 
         /* Prefetch it in case it's not there yet. */
-        rc = PGMPrefetchPage(pVM, pPageAddrGC);
+        rc = PGMPrefetchPage(pVCpu, pPageAddrGC);
         AssertRC(rc);
 
-        rc = PGMShwModifyPage(pVM, pPageAddrGC, 1, 0, ~(uint64_t)X86_PTE_RW);
+        rc = PGMShwModifyPage(pVCpu, pPageAddrGC, 1, 0, ~(uint64_t)X86_PTE_RW);
         Assert(rc == VINF_SUCCESS || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
 
         STAM_COUNTER_INC(&pVM->csam.s.StatPageMonitor);
@@ -1786,11 +1801,11 @@ VMMR3DECL(int) CSAMR3MonitorPage(PVM pVM, RTRCPTR pPageAddrGC, CSAMTAG enmTag)
         STAM_COUNTER_INC(&pVM->csam.s.StatNrPagesInv);
 
         /* Prefetch it in case it's not there yet. */
-        rc = PGMPrefetchPage(pVM, pPageAddrGC);
+        rc = PGMPrefetchPage(pVCpu, pPageAddrGC);
         AssertRC(rc);
 
         /* Make sure it's readonly. Page invalidation may have modified the attributes. */
-        rc = PGMShwModifyPage(pVM, pPageAddrGC, 1, 0, ~(uint64_t)X86_PTE_RW);
+        rc = PGMShwModifyPage(pVCpu, pPageAddrGC, 1, 0, ~(uint64_t)X86_PTE_RW);
         Assert(rc == VINF_SUCCESS || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
     }
 
@@ -1799,7 +1814,7 @@ VMMR3DECL(int) CSAMR3MonitorPage(PVM pVM, RTRCPTR pPageAddrGC, CSAMTAG enmTag)
     {
         uint64_t fPageShw;
         RTHCPHYS GCPhys;
-        rc = PGMShwGetPage(pVM, pPageAddrGC, &fPageShw, &GCPhys);
+        rc = PGMShwGetPage(pVCpu, pPageAddrGC, &fPageShw, &GCPhys);
 //        AssertMsg(     (rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT)
 //                ||  !(fPageShw & X86_PTE_RW)
 //                ||   (pPageRec->page.GCPhys == 0), ("Shadow page flags for %RRv (%RHp) aren't readonly (%RX64)!!\n", pPageAddrGC, GCPhys, fPageShw));
@@ -1809,10 +1824,10 @@ VMMR3DECL(int) CSAMR3MonitorPage(PVM pVM, RTRCPTR pPageAddrGC, CSAMTAG enmTag)
     if (pPageRec->page.GCPhys == 0)
     {
         /* Prefetch it in case it's not there yet. */
-        rc = PGMPrefetchPage(pVM, pPageAddrGC);
+        rc = PGMPrefetchPage(pVCpu, pPageAddrGC);
         AssertRC(rc);
         /* The page was changed behind our back. It won't be made read-only until the next SyncCR3, so force it here. */
-        rc = PGMShwModifyPage(pVM, pPageAddrGC, 1, 0, ~(uint64_t)X86_PTE_RW);
+        rc = PGMShwModifyPage(pVCpu, pPageAddrGC, 1, 0, ~(uint64_t)X86_PTE_RW);
         Assert(rc == VINF_SUCCESS || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
     }
 #endif /* CSAM_MONITOR_CODE_PAGES */
@@ -1854,6 +1869,8 @@ VMMR3DECL(int) CSAMR3UnmonitorPage(PVM pVM, RTRCPTR pPageAddrGC, CSAMTAG enmTag)
 static int csamRemovePageRecord(PVM pVM, RTRCPTR GCPtr)
 {
     PCSAMPAGEREC pPageRec;
+    Assert(pVM->cCPUs == 1);
+    PVMCPU pVCpu = VMMGetCpu0(pVM);
 
     Log(("csamRemovePageRecord %RRv\n", GCPtr));
     pPageRec = (PCSAMPAGEREC)RTAvlPVRemove(&pVM->csam.s.pPageTree, (AVLPVKEY)GCPtr);
@@ -1876,7 +1893,7 @@ static int csamRemovePageRecord(PVM pVM, RTRCPTR GCPtr)
         {
             /* Make sure the recompiler flushes its cache as this page is no longer monitored. */
             STAM_COUNTER_INC(&pVM->csam.s.StatPageRemoveREMFlush);
-            CPUMSetChangedFlags(pVM, CPUM_CHANGED_GLOBAL_TLB_FLUSH);
+            CPUMSetChangedFlags(pVCpu, CPUM_CHANGED_GLOBAL_TLB_FLUSH);
         }
 #endif
 
@@ -1961,7 +1978,7 @@ static DECLCALLBACK(int) CSAMCodePageWriteHandler(PVM pVM, RTGCPTR GCPtr, void *
          */
         Log(("CSAMCodePageWriteHandler: delayed write!\n"));
         AssertCompileSize(RTRCPTR, 4);
-        rc = VMR3ReqCallEx(pVM, VMREQDEST_ANY, NULL, 0, VMREQFLAGS_NO_WAIT | VMREQFLAGS_VOID,
+        rc = VMR3ReqCallEx(pVM, VMCPUID_ANY, NULL, 0, VMREQFLAGS_NO_WAIT | VMREQFLAGS_VOID,
                            (PFNRT)CSAMDelayedWriteHandler, 3, pVM, (RTRCPTR)GCPtr, cbBuf);
     }
     AssertRC(rc);
@@ -2173,6 +2190,9 @@ VMMR3DECL(int) CSAMR3CheckCode(PVM pVM, RTRCPTR pInstrGC)
  */
 static int csamR3FlushDirtyPages(PVM pVM)
 {
+    Assert(pVM->cCPUs == 1);
+    PVMCPU pVCpu = VMMGetCpu0(pVM);
+
     STAM_PROFILE_START(&pVM->csam.s.StatFlushDirtyPages, a);
 
     for (uint32_t i=0;i<pVM->csam.s.cDirtyPages;i++)
@@ -2184,10 +2204,10 @@ static int csamR3FlushDirtyPages(PVM pVM)
         GCPtr = GCPtr & PAGE_BASE_GC_MASK;
 
         /* Notify the recompiler that this page has been changed. */
-        REMR3NotifyCodePageChanged(pVM, GCPtr);
+        REMR3NotifyCodePageChanged(pVM, pVCpu, GCPtr);
 
         /* Enable write protection again. (use the fault address as it might be an alias) */
-        rc = PGMShwModifyPage(pVM, pVM->csam.s.pvDirtyFaultPage[i], 1, 0, ~(uint64_t)X86_PTE_RW);
+        rc = PGMShwModifyPage(pVCpu, pVM->csam.s.pvDirtyFaultPage[i], 1, 0, ~(uint64_t)X86_PTE_RW);
         Assert(rc == VINF_SUCCESS || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
 
         Log(("CSAMR3FlushDirtyPages: flush %RRv (modifypage rc=%Rrc)\n", pVM->csam.s.pvDirtyBasePage[i], rc));
@@ -2197,7 +2217,7 @@ static int csamR3FlushDirtyPages(PVM pVM)
         {
             uint64_t fFlags;
 
-            rc = PGMGstGetPage(pVM, GCPtr, &fFlags, NULL);
+            rc = PGMGstGetPage(pVCpu, GCPtr, &fFlags, NULL);
             AssertMsg(RT_SUCCESS(rc) || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT, ("rc = %Rrc\n", rc));
             if (    rc == VINF_SUCCESS
                 &&  (fFlags & X86_PTE_US))
@@ -2221,14 +2241,17 @@ static int csamR3FlushDirtyPages(PVM pVM)
  */
 static int csamR3FlushCodePages(PVM pVM)
 {
+    Assert(pVM->cCPUs == 1);
+    PVMCPU pVCpu = VMMGetCpu0(pVM);
+
     for (uint32_t i=0;i<pVM->csam.s.cPossibleCodePages;i++)
     {
-        RTRCPTR      GCPtr = pVM->csam.s.pvPossibleCodePage[i];
+        RTRCPTR GCPtr = pVM->csam.s.pvPossibleCodePage[i];
 
         GCPtr = GCPtr & PAGE_BASE_GC_MASK;
 
         Log(("csamR3FlushCodePages: %RRv\n", GCPtr));
-        PGMShwSetPage(pVM, GCPtr, 1, 0);
+        PGMShwSetPage(pVCpu, GCPtr, 1, 0);
         /* Resync the page to make sure instruction fetch will fault */
         CSAMMarkPage(pVM, GCPtr, false);
     }
@@ -2241,13 +2264,14 @@ static int csamR3FlushCodePages(PVM pVM)
  *
  * @returns VBox status code.
  * @param   pVM         The VM to operate on.
+ * @param   pVCpu       The VMCPU to operate on.
  */
-VMMR3DECL(int) CSAMR3DoPendingAction(PVM pVM)
+VMMR3DECL(int) CSAMR3DoPendingAction(PVM pVM, PVMCPU pVCpu)
 {
     csamR3FlushDirtyPages(pVM);
     csamR3FlushCodePages(pVM);
 
-    VM_FF_CLEAR(pVM, VM_FF_CSAM_PENDING_ACTION);
+    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_CSAM_PENDING_ACTION);
     return VINF_SUCCESS;
 }
 
@@ -2261,8 +2285,10 @@ VMMR3DECL(int) CSAMR3DoPendingAction(PVM pVM)
  */
 VMMR3DECL(int) CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates)
 {
+    Assert(pVM->cCPUs == 1);
+    PVMCPU      pVCpu = VMMGetCpu0(pVM);
     uint16_t    cbIDT;
-    RTRCPTR     GCPtrIDT = CPUMGetGuestIDTR(pVM, &cbIDT);
+    RTRCPTR     GCPtrIDT = CPUMGetGuestIDTR(pVCpu, &cbIDT);
     uint32_t    iGateEnd;
     uint32_t    maxGates;
     VBOXIDTE    aIDT[256];
@@ -2335,7 +2361,7 @@ VMMR3DECL(int) CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates)
     if (PAGE_ADDRESS(GCPtrIDT) == PAGE_ADDRESS(GCPtrIDT+cGates*sizeof(VBOXIDTE)))
     {
         /* Just convert the IDT address to a R3 pointer. The whole IDT fits in one page. */
-        rc = PGMPhysGCPtr2R3Ptr(pVM, GCPtrIDT, (PRTR3PTR)&pGuestIdte);
+        rc = PGMPhysGCPtr2R3Ptr(pVCpu, GCPtrIDT, (PRTR3PTR)&pGuestIdte);
         if (RT_FAILURE(rc))
         {
             AssertMsgRC(rc, ("Failed to read IDTE! rc=%Rrc\n", rc));
@@ -2346,7 +2372,7 @@ VMMR3DECL(int) CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates)
     else
     {
         /* Slow method when it crosses a page boundary. */
-        rc = PGMPhysSimpleReadGCPtr(pVM, aIDT, GCPtrIDT,  cGates*sizeof(VBOXIDTE));
+        rc = PGMPhysSimpleReadGCPtr(pVCpu, aIDT, GCPtrIDT,  cGates*sizeof(VBOXIDTE));
         if (RT_FAILURE(rc))
         {
             AssertMsgRC(rc, ("Failed to read IDTE! rc=%Rrc\n", rc));
@@ -2368,13 +2394,14 @@ VMMR3DECL(int) CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates)
             RTRCPTR pHandler;
             CSAMP2GLOOKUPREC cacheRec = {0};            /* Cache record for PATMGCVirtToHCVirt. */
             PCSAMPAGE pPage = NULL;
-            SELMSELINFO selInfo;
+            DBGFSELINFO selInfo;
 
             pHandler = VBOXIDTE_OFFSET(*pGuestIdte);
             pHandler = SELMToFlatBySel(pVM, pGuestIdte->Gen.u16SegSel, pHandler);
 
-            rc = SELMR3GetSelectorInfo(pVM, pGuestIdte->Gen.u16SegSel, &selInfo);
+            rc = SELMR3GetSelectorInfo(pVM, pVCpu, pGuestIdte->Gen.u16SegSel, &selInfo);
             if (    RT_FAILURE(rc)
+                ||  (selInfo.fFlags & (DBGFSELINFO_FLAGS_NOT_PRESENT | DBGFSELINFO_FLAGS_INVALID))
                 ||  selInfo.GCPtrBase != 0
                 ||  selInfo.cbLimit != ~0U
                )
@@ -2411,11 +2438,11 @@ VMMR3DECL(int) CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates)
                                                        0x2B,       /* OpenBSD 4.0 installation ISO */
                                                        0x2F};      /* OpenBSD 4.0 after install */
 
-                pCtx = CPUMQueryGuestCtxPtr(pVM);
+                pCtx = CPUMQueryGuestCtxPtr(pVCpu);
 
                 for (unsigned i=0;i<RT_ELEMENTS(aOpenBsdPushCSOffset);i++)
                 {
-                    rc = CPUMR3DisasmInstrCPU(pVM, pCtx, pHandler - aOpenBsdPushCSOffset[i], &cpu, NULL);
+                    rc = CPUMR3DisasmInstrCPU(pVM, pVCpu, pCtx, pHandler - aOpenBsdPushCSOffset[i], &cpu, NULL);
                     if (    rc == VINF_SUCCESS
                         &&  cpu.pCurInstr->opcode == OP_PUSH
                         &&  cpu.pCurInstr->param1 == OP_PARM_REG_CS)

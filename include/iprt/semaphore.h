@@ -34,7 +34,7 @@
 #include <iprt/types.h>
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_sems    RTSem - Semaphores
  * @ingroup grp_rt
@@ -526,7 +526,7 @@ DECLINLINE(bool) RTSemPongShouldWait(PRTPINGPONG pPP)
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

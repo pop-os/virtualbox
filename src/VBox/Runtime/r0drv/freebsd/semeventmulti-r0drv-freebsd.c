@@ -1,4 +1,4 @@
-/* $Id: semeventmulti-r0drv-freebsd.c $ */
+/* $Id: semeventmulti-r0drv-freebsd.c 19565 2009-05-10 22:32:03Z vboxsync $ */
 /** @file
  * IPRT - Multiple Release Event Semaphores, Ring-0 Driver, FreeBSD.
  */
@@ -68,7 +68,7 @@ RTDECL(int)  RTSemEventMultiCreate(PRTSEMEVENTMULTI pEventMultiSem)
     Assert(sizeof(RTSEMEVENTMULTIINTERNAL) > sizeof(void *));
     AssertPtrReturn(pEventMultiSem, VERR_INVALID_POINTER);
 
-    PRTSEMEVENTMULTIINTERNAL pEventMultiInt = (PRTSEMEVENTMULTIINTERNAL)RTMemAlloc(sizeof(*pEventMultiInt));
+    PRTSEMEVENTMULTIINTERNAL pEventMultiInt = (PRTSEMEVENTMULTIINTERNAL)RTMemAllocZ(sizeof(*pEventMultiInt));
     if (pEventMultiInt)
     {
         pEventMultiInt->u32Magic = RTSEMEVENTMULTI_MAGIC;
@@ -192,11 +192,11 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
 
         ASMAtomicIncU32(&pEventMultiInt->cWaiters);
 
-        rc = msleep(pEventMultiInt,     /* block id */
-                    &pEventMultiInt->Mtx,
-                    fInterruptible ? PZERO | PCATCH : PZERO,
-                    "iprtev",           /* max 6 chars */
-                    cTicks);
+        rc = msleep_spin(pEventMultiInt,     /* block id */
+                         &pEventMultiInt->Mtx,
+                         //fInterruptible ? PZERO | PCATCH : PZERO,
+                         "iprte",           /* max 6 chars */
+                         cTicks);
         switch (rc)
         {
             case 0:

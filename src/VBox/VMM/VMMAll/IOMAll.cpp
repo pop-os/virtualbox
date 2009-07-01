@@ -1,4 +1,4 @@
-/* $Id: IOMAll.cpp $ */
+/* $Id: IOMAll.cpp 19807 2009-05-19 09:01:05Z vboxsync $ */
 /** @file
  * IOM - Input / Output Monitor - Any Context.
  */
@@ -28,6 +28,7 @@
 #include <VBox/param.h>
 #include "IOMInternal.h"
 #include <VBox/vm.h>
+#include <VBox/vmm.h>
 #include <VBox/selm.h>
 #include <VBox/trpm.h>
 #include <VBox/pgm.h>
@@ -37,6 +38,59 @@
 #include <iprt/assert.h>
 
 
+
+/**
+ * Try take the EMT/IOM lock, wait in ring-3 return VERR_SEM_BUSY in R0/RC.
+ *
+ * @retval  VINF_SUCCESS on success (always in ring-3).
+ * @retval  VERR_SEM_BUSY in RC and R0 if the semaphore is busy.
+ *
+ * @param   pVM         VM handle.
+ */
+int iomLock(PVM pVM)
+{
+    Assert(pVM->cCPUs == 1 || !PGMIsLockOwner(pVM));
+    int rc = PDMCritSectEnter(&pVM->iom.s.EmtLock, VERR_SEM_BUSY);
+    return rc;
+}
+
+
+/**
+ * Try take the EMT/IOM lock, no waiting.
+ *
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_SEM_BUSY if busy.
+ *
+ * @param   pVM         VM handle.
+ */
+int iomTryLock(PVM pVM)
+{
+    int rc = PDMCritSectTryEnter(&pVM->iom.s.EmtLock);
+    return rc;
+}
+
+
+/**
+ * Release EMT/IOM lock.
+ *
+ * @param   pVM         VM handle.
+ */
+void iomUnlock(PVM pVM)
+{
+    PDMCritSectLeave(&pVM->iom.s.EmtLock);
+}
+
+
+/**
+ * Check if this VCPU currently owns the IOM lock.
+ *
+ * @returns bool owner/not owner
+ * @param   pVM         The VM to operate on.
+ */
+VMMDECL(bool) IOMIsLockOwner(PVM pVM)
+{
+    return PDMCritSectIsOwner(&pVM->iom.s.EmtLock);
+}
 
 /**
  * Returns the contents of register or immediate data of instruction's parameter.
@@ -206,6 +260,15 @@ bool iomSaveDataToReg(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRe
  */
 VMMDECL(int) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value, size_t cbValue)
 {
+    /* Take the IOM lock before performing any device I/O. */
+    int rc = iomLock(pVM);
+#ifndef IN_RING3
+    if (rc == VERR_SEM_BUSY)
+        return VINF_IOM_HC_IOPORT_READ;
+#else
+    AssertRC(rc);
+#endif
+
 #ifdef VBOX_WITH_STATISTICS
     /*
      * Get the statistics record.
@@ -243,6 +306,7 @@ VMMDECL(int) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value, size_t c
             if (pStats)
                 STAM_COUNTER_INC(&pStats->CTX_MID_Z(In,ToR3));
 # endif
+            iomUnlock(pVM);
             return VINF_IOM_HC_IOPORT_READ;
         }
 #endif
@@ -251,7 +315,7 @@ VMMDECL(int) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value, size_t c
         if (pStats)
             STAM_PROFILE_ADV_START(&pStats->CTX_SUFF_Z(ProfIn), a);
 #endif
-        int rc = pRange->pfnInCallback(pRange->pDevIns, pRange->pvUser, Port, pu32Value, (unsigned)cbValue);
+        rc = pRange->pfnInCallback(pRange->pDevIns, pRange->pvUser, Port, pu32Value, (unsigned)cbValue);
 #ifdef VBOX_WITH_STATISTICS
         if (pStats)
             STAM_PROFILE_ADV_STOP(&pStats->CTX_SUFF_Z(ProfIn), a);
@@ -273,10 +337,12 @@ VMMDECL(int) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value, size_t c
                 case 4: *(uint32_t *)pu32Value = UINT32_C(0xffffffff); break;
                 default:
                     AssertMsgFailed(("Invalid I/O port size %d. Port=%d\n", cbValue, Port));
+                    iomUnlock(pVM);
                     return VERR_IOM_INVALID_IOPORT_SIZE;
             }
         }
         Log3(("IOMIOPortRead: Port=%RTiop *pu32=%08RX32 cb=%d rc=%Rrc\n", Port, *pu32Value, cbValue, rc));
+        iomUnlock(pVM);
         return rc;
     }
 
@@ -291,6 +357,7 @@ VMMDECL(int) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value, size_t c
         if (pStats)
             STAM_COUNTER_INC(&pStats->CTX_MID_Z(In,ToR3));
 # endif
+        iomUnlock(pVM);
         return VINF_IOM_HC_IOPORT_READ;
     }
 #endif
@@ -305,6 +372,7 @@ VMMDECL(int) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value, size_t c
     {
 # ifndef IN_RING3
         /* Ring-3 will have to create the statistics record. */
+        iomUnlock(pVM);
         return VINF_IOM_HC_IOPORT_READ;
 # else
         pStats = iomR3IOPortStatsCreate(pVM, Port, NULL);
@@ -322,9 +390,11 @@ VMMDECL(int) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value, size_t c
         case 4: *(uint32_t *)pu32Value = UINT32_C(0xffffffff); break;
         default:
             AssertMsgFailed(("Invalid I/O port size %d. Port=%d\n", cbValue, Port));
+            iomUnlock(pVM);
             return VERR_IOM_INVALID_IOPORT_SIZE;
     }
     Log3(("IOMIOPortRead: Port=%RTiop *pu32=%08RX32 cb=%d rc=VINF_SUCCESS\n", Port, *pu32Value, cbValue));
+    iomUnlock(pVM);
     return VINF_SUCCESS;
 }
 
@@ -347,6 +417,14 @@ VMMDECL(int) IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value, size_t c
  *   */
 VMMDECL(int) IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrDst, PRTGCUINTREG pcTransfers, unsigned cb)
 {
+    /* Take the IOM lock before performing any device I/O. */
+    int rc = iomLock(pVM);
+#ifndef IN_RING3
+    if (rc == VERR_SEM_BUSY)
+        return VINF_IOM_HC_IOPORT_READ;
+#endif
+    AssertRC(rc);
+
 #ifdef LOG_ENABLED
     const RTGCUINTREG cTransfers = *pcTransfers;
 #endif
@@ -387,6 +465,7 @@ VMMDECL(int) IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrDst, PRT
             if (pStats)
                 STAM_COUNTER_INC(&pStats->CTX_MID_Z(In,ToR3));
 # endif
+            iomUnlock(pVM);
             return VINF_IOM_HC_IOPORT_READ;
         }
 #endif
@@ -409,6 +488,7 @@ VMMDECL(int) IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrDst, PRT
 #endif
         Log3(("IOMIOPortReadStr: Port=%RTiop pGCPtrDst=%p pcTransfer=%p:{%#x->%#x} cb=%d rc=%Rrc\n",
               Port, pGCPtrDst, pcTransfers, cTransfers, *pcTransfers, cb, rc));
+        iomUnlock(pVM);
         return rc;
     }
 
@@ -423,6 +503,7 @@ VMMDECL(int) IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrDst, PRT
         if (pStats)
             STAM_COUNTER_INC(&pStats->CTX_MID_Z(In,ToR3));
 # endif
+        iomUnlock(pVM);
         return VINF_IOM_HC_IOPORT_READ;
     }
 #endif
@@ -437,6 +518,7 @@ VMMDECL(int) IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrDst, PRT
     {
 # ifndef IN_RING3
         /* Ring-3 will have to create the statistics record. */
+        iomUnlock(pVM);
         return VINF_IOM_HC_IOPORT_READ;
 # else
         pStats = iomR3IOPortStatsCreate(pVM, Port, NULL);
@@ -448,6 +530,7 @@ VMMDECL(int) IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrDst, PRT
 
     Log3(("IOMIOPortReadStr: Port=%RTiop pGCPtrDst=%p pcTransfer=%p:{%#x->%#x} cb=%d rc=VINF_SUCCESS\n",
           Port, pGCPtrDst, pcTransfers, cTransfers, *pcTransfers, cb));
+    iomUnlock(pVM);
     return VINF_SUCCESS;
 }
 
@@ -469,6 +552,14 @@ VMMDECL(int) IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrDst, PRT
  */
 VMMDECL(int) IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, size_t cbValue)
 {
+    /* Take the IOM lock before performing any device I/O. */
+    int rc = iomLock(pVM);
+#ifndef IN_RING3
+    if (rc == VERR_SEM_BUSY)
+        return VINF_IOM_HC_IOPORT_WRITE;
+#endif
+    AssertRC(rc);
+
 /** @todo bird: When I get time, I'll remove the GC tree and link the GC entries to the ring-3 node. */
 #ifdef VBOX_WITH_STATISTICS
     /*
@@ -507,6 +598,7 @@ VMMDECL(int) IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, size_t cb
             if (pStats)
                 STAM_COUNTER_INC(&pStats->CTX_MID_Z(Out,ToR3));
 # endif
+            iomUnlock(pVM);
             return VINF_IOM_HC_IOPORT_WRITE;
         }
 #endif
@@ -528,6 +620,7 @@ VMMDECL(int) IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, size_t cb
 # endif
 #endif
         Log3(("IOMIOPortWrite: Port=%RTiop u32=%08RX32 cb=%d rc=%Rrc\n", Port, u32Value, cbValue, rc));
+        iomUnlock(pVM);
         return rc;
     }
 
@@ -542,6 +635,7 @@ VMMDECL(int) IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, size_t cb
         if (pStats)
             STAM_COUNTER_INC(&pStats->CTX_MID_Z(Out,ToR3));
 # endif
+        iomUnlock(pVM);
         return VINF_IOM_HC_IOPORT_WRITE;
     }
 #endif
@@ -557,6 +651,7 @@ VMMDECL(int) IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, size_t cb
     {
 # ifndef IN_RING3
         /* R3 will have to create the statistics record. */
+        iomUnlock(pVM);
         return VINF_IOM_HC_IOPORT_WRITE;
 # else
         pStats = iomR3IOPortStatsCreate(pVM, Port, NULL);
@@ -566,6 +661,7 @@ VMMDECL(int) IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, size_t cb
     }
 #endif
     Log3(("IOMIOPortWrite: Port=%RTiop u32=%08RX32 cb=%d nop\n", Port, u32Value, cbValue));
+    iomUnlock(pVM);
     return VINF_SUCCESS;
 }
 
@@ -588,6 +684,14 @@ VMMDECL(int) IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, size_t cb
  *   */
 VMMDECL(int) IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrSrc, PRTGCUINTREG pcTransfers, unsigned cb)
 {
+    /* Take the IOM lock before performing any device I/O. */
+    int rc = iomLock(pVM);
+#ifndef IN_RING3
+    if (rc == VERR_SEM_BUSY)
+        return VINF_IOM_HC_IOPORT_WRITE;
+#endif
+    AssertRC(rc);
+
 #ifdef LOG_ENABLED
     const RTGCUINTREG cTransfers = *pcTransfers;
 #endif
@@ -628,6 +732,7 @@ VMMDECL(int) IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrSrc, PR
             if (pStats)
                 STAM_COUNTER_INC(&pStats->CTX_MID_Z(Out,ToR3));
 # endif
+            iomUnlock(pVM);
             return VINF_IOM_HC_IOPORT_WRITE;
         }
 #endif
@@ -649,6 +754,7 @@ VMMDECL(int) IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrSrc, PR
 #endif
         Log3(("IOMIOPortWriteStr: Port=%RTiop pGCPtrSrc=%p pcTransfer=%p:{%#x->%#x} cb=%d rc=%Rrc\n",
               Port, pGCPtrSrc, pcTransfers, cTransfers, *pcTransfers, cb, rc));
+        iomUnlock(pVM);
         return rc;
     }
 
@@ -663,6 +769,7 @@ VMMDECL(int) IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrSrc, PR
         if (pStats)
             STAM_COUNTER_INC(&pStats->CTX_MID_Z(Out,ToR3));
 # endif
+        iomUnlock(pVM);
         return VINF_IOM_HC_IOPORT_WRITE;
     }
 #endif
@@ -677,6 +784,7 @@ VMMDECL(int) IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrSrc, PR
     {
 # ifndef IN_RING3
         /* Ring-3 will have to create the statistics record. */
+        iomUnlock(pVM);
         return VINF_IOM_HC_IOPORT_WRITE;
 # else
         pStats = iomR3IOPortStatsCreate(pVM, Port, NULL);
@@ -688,6 +796,7 @@ VMMDECL(int) IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrSrc, PR
 
     Log3(("IOMIOPortWriteStr: Port=%RTiop pGCPtrSrc=%p pcTransfer=%p:{%#x->%#x} cb=%d rc=VINF_SUCCESS\n",
           Port, pGCPtrSrc, pcTransfers, cTransfers, *pcTransfers, cb));
+    iomUnlock(pVM);
     return VINF_SUCCESS;
 }
 
@@ -710,11 +819,13 @@ VMMDECL(int) IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrSrc, PR
  */
 VMMDECL(int) IOMInterpretCheckPortIOAccess(PVM pVM, PCPUMCTXCORE pCtxCore, RTIOPORT Port, unsigned cb)
 {
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+
     /*
      * If this isn't ring-0, we have to check for I/O privileges.
      */
-    uint32_t efl = CPUMRawGetEFlags(pVM, pCtxCore);
-    uint32_t cpl = CPUMGetGuestCPL(pVM, pCtxCore);
+    uint32_t efl = CPUMRawGetEFlags(pVCpu, pCtxCore);
+    uint32_t cpl = CPUMGetGuestCPL(pVCpu, pCtxCore);
 
     if (    (    cpl > 0
              &&  X86_EFL_GET_IOPL(efl) < cpl)
@@ -727,11 +838,11 @@ VMMDECL(int) IOMInterpretCheckPortIOAccess(PVM pVM, PCPUMCTXCORE pCtxCore, RTIOP
         RTGCUINTPTR GCPtrTss;
         RTGCUINTPTR cbTss;
         bool        fCanHaveIOBitmap;
-        int rc = SELMGetTSSInfo(pVM, &GCPtrTss, &cbTss, &fCanHaveIOBitmap);
+        int rc = SELMGetTSSInfo(pVM, pVCpu, &GCPtrTss, &cbTss, &fCanHaveIOBitmap);
         if (RT_FAILURE(rc))
         {
             Log(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d %Rrc -> #GP(0)\n", Port, cb, rc));
-            return TRPMRaiseXcptErr(pVM, pCtxCore, X86_XCPT_GP, 0);
+            return TRPMRaiseXcptErr(pVCpu, pCtxCore, X86_XCPT_GP, 0);
         }
 
         if (    !fCanHaveIOBitmap
@@ -739,14 +850,14 @@ VMMDECL(int) IOMInterpretCheckPortIOAccess(PVM pVM, PCPUMCTXCORE pCtxCore, RTIOP
         {
             Log(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d cbTss=%#x fCanHaveIOBitmap=%RTbool -> #GP(0)\n",
                  Port, cb, cbTss, fCanHaveIOBitmap));
-            return TRPMRaiseXcptErr(pVM, pCtxCore, X86_XCPT_GP, 0);
+            return TRPMRaiseXcptErr(pVCpu, pCtxCore, X86_XCPT_GP, 0);
         }
 
         /*
          * Fetch the I/O bitmap offset.
          */
         uint16_t offIOPB;
-        rc = PGMPhysInterpretedRead(pVM, pCtxCore, &offIOPB, GCPtrTss + RT_OFFSETOF(VBOXTSS, offIoBitmap), sizeof(offIOPB));
+        rc = PGMPhysInterpretedRead(pVCpu, pCtxCore, &offIOPB, GCPtrTss + RT_OFFSETOF(VBOXTSS, offIoBitmap), sizeof(offIOPB));
         if (rc != VINF_SUCCESS)
         {
             Log(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d GCPtrTss=%RGv %Rrc\n",
@@ -762,10 +873,10 @@ VMMDECL(int) IOMInterpretCheckPortIOAccess(PVM pVM, PCPUMCTXCORE pCtxCore, RTIOP
         {
             Log(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d offTss=%#x cbTss=%#x -> #GP(0)\n",
                  Port, cb, offTss, cbTss));
-            return TRPMRaiseXcptErr(pVM, pCtxCore, X86_XCPT_GP, 0);
+            return TRPMRaiseXcptErr(pVCpu, pCtxCore, X86_XCPT_GP, 0);
         }
         uint16_t u16;
-        rc = PGMPhysInterpretedRead(pVM, pCtxCore, &u16, GCPtrTss + offTss, sizeof(u16));
+        rc = PGMPhysInterpretedRead(pVCpu, pCtxCore, &u16, GCPtrTss + offTss, sizeof(u16));
         if (rc != VINF_SUCCESS)
         {
             Log(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d GCPtrTss=%RGv offTss=%#x -> %Rrc\n",
@@ -780,7 +891,7 @@ VMMDECL(int) IOMInterpretCheckPortIOAccess(PVM pVM, PCPUMCTXCORE pCtxCore, RTIOP
         {
             Log(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d u16=%#x -> #GP(0)\n",
                  Port, cb, u16, offTss));
-            return TRPMRaiseXcptErr(pVM, pCtxCore, X86_XCPT_GP, 0);
+            return TRPMRaiseXcptErr(pVCpu, pCtxCore, X86_XCPT_GP, 0);
         }
         LogFlow(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d offTss=%#x cbTss=%#x u16=%#x -> OK\n",
                  Port, cb, u16, offTss, cbTss));

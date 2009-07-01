@@ -1,4 +1,4 @@
-; $Id: timesupA.asm $
+; $Id: timesupA.asm 13832 2008-11-05 02:01:12Z vboxsync $
 ;; @file
 ; IPRT - Time using SUPLib, the Assembly Implementation.
 ;

@@ -36,9 +36,7 @@
 # include <iprt/fs.h>
 #endif
 
-/** @todo rename this file to iprt/file.h */
-
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_fileio     RTFile - File I/O
  * @ingroup grp_rt
@@ -145,11 +143,16 @@ __BEGIN_DECLS
  * To extract it: (fFlags & RTFILE_O_CREATE_MODE_MASK) >> RTFILE_O_CREATE_MODE_SHIFT.
  */
 #define RTFILE_O_CREATE_MODE_SHIFT  20
+/** Open file for async I/O
+ * @remark  This flag may not be needed on all platforms,
+ *          and will be ignored on those.
+ */
+#define RTFILE_O_ASYNC_IO           0x00040000
 
 /** Mask of all valid flags.
  * @remark  This doesn't validate the access mode properly.
  */
-#define RTFILE_O_VALID_MASK          0x1ff3FB73
+#define RTFILE_O_VALID_MASK          0x1ff7FB73
 
 /** @} */
 
@@ -710,7 +713,7 @@ RTDECL(int) RTFileReadAll(const char *pszFilename, void **ppvFile, size_t *pcbFi
  * @param   off             The offset to start reading at.
  * @param   cbMax           The maximum number of bytes to read into memory. Specify RTFOFF_MAX
  *                          to read to the end of the file.
- * @param   fFlags          Flags for the future, must be 0.
+ * @param   fFlags          See RTFILE_RDALL_*.
  * @param   ppvFile         Where to store the pointer to the memory on successful return.
  * @param   pcbFile         Where to store the size of the file on successful return.
  *
@@ -742,7 +745,7 @@ RTDECL(int) RTFileReadAllByHandle(RTFILE File, void **ppvFile, size_t *pcbFile);
  * @param   off             The offset to start reading at.
  * @param   cbMax           The maximum number of bytes to read into memory. Specify RTFOFF_MAX
  *                          to read to the end of the file.
- * @param   fFlags          Flags for the future, must be 0.
+ * @param   fFlags          See RTFILE_RDALL_*.
  * @param   ppvFile         Where to store the pointer to the memory on successful return.
  * @param   pcbFile         Where to store the size of the file on successful return.
  *
@@ -759,11 +762,391 @@ RTDECL(int) RTFileReadAllByHandleEx(RTFILE File, RTFOFF off, RTFOFF cbMax, uint3
  */
 RTDECL(void) RTFileReadAllFree(void *pvFile, size_t cbFile);
 
+/** @name RTFileReadAllEx and RTFileReadAllHandleEx flags
+ * The open flags are ignored by RTFileReadAllHandleEx.
+ * @{ */
+#define RTFILE_RDALL_O_DENY_NONE            RTFILE_O_DENY_NONE
+#define RTFILE_RDALL_O_DENY_READ            RTFILE_O_DENY_READ
+#define RTFILE_RDALL_O_DENY_WRITE           RTFILE_O_DENY_WRITE
+#define RTFILE_RDALL_O_DENY_READWRITE       RTFILE_O_DENY_READWRITE
+#define RTFILE_RDALL_O_DENY_ALL             RTFILE_O_DENY_ALL
+#define RTFILE_RDALL_O_DENY_NOT_DELETE      RTFILE_O_DENY_NOT_DELETE
+#define RTFILE_RDALL_O_DENY_MASK            RTFILE_O_DENY_MASK
+/** Mask of valid flags. */
+#define RTFILE_RDALL_VALID_MASK             RTFILE_RDALL_O_DENY_MASK
+/** @} */
+
+
+/** @page pg_rt_asyncio RT File async I/O API
+ *
+ * File operations are usually blocking the calling thread until
+ * they completed making it impossible to let the thread do anything
+ * else inbetween.
+ * The RT File async I/O API provides an easy and efficient way to
+ * access files asynchronously using the native facilities provided
+ * by each operating system.
+ *
+ * @section sec_rt_asyncio_objects       Objects
+ *
+ * There are two objects used in this API.
+ * The first object is the request. A request contains every information
+ * needed two complete the file operation successfully like the start offset
+ * and pointer to the source or destination buffer.
+ * Requests are created with RTFileAioReqCreate() and destroyed with
+ * RTFileAioReqDestroy().
+ * Because creating a request may require allocating various operating
+ * system dependent ressources and may be quite expensive it is possible
+ * to use a request more than once to save CPU cycles.
+ * A request is constructed with either RTFileAioReqPrepareRead()
+ * which will set up a request to read from the given file or
+ * RTFileAioReqPrepareWrite() which will write to a given file.
+ *
+ * The second object is the context. A file is associated with a context
+ * and requests for this file may complete only on the context the file
+ * was associated with and not on the context given in RTFileAioCtxSubmit()
+ * (see below for further information).
+ * RTFileAioCtxWait() is used to wait for completion of requests which were
+ * associated with the context. While waiting for requests the thread can not
+ * respond to global state changes. Thatswhy the API provides a way to let
+ * RTFileAioCtxWait() return immediately no matter how many requests
+ * have finished through RTFileAioCtxWakeup(). The return code is
+ * VERR_INTERRUPTED to let the thread know that he got interrupted.
+ *
+ * @section sec_rt_asyncio_request_states  Request states
+ *
+ * Created:
+ * After a request was created with RTFileAioReqCreate() it is in the same state
+ * like it just completed successfully. RTFileAioReqGetRC() will return VINF_SUCCESS
+ * and a transfer size of 0. RTFileAioReqGetUser() will return NULL. The request can be
+ * destroyed RTFileAioReqDestroy(). It is also allowed to prepare a the request
+ * for a data transfer with the RTFileAioReqPrepare* methods.
+ * Calling any other method like RTFileAioCtxSubmit() will return VERR_FILE_AIO_NOT_PREPARED
+ * and RTFileAioReqCancel() returns VERR_FILE_AIO_NOT_SUBMITTED.
+ *
+ * Prepared:
+ * A request will enter this state if one of the RTFileAioReqPrepare* methods
+ * is called. In this state you can still destroy and retrieve the user data
+ * associated with the request but trying to cancel the request or getting
+ * the result of the operation will return VERR_FILE_AIO_NOT_SUBMITTED.
+ *
+ * Submitted:
+ * A prepared request can be submitted with RTFileAioCtxSubmit(). If the operation
+ * succeeds it is not allowed to touch the request or free any ressources until
+ * it completed through RTFileAioCtxWait(). The only allowed method is RTFileAioReqCancel()
+ * which tries to cancel the request. The request will go into the completed state
+ * and RTFileAioReqGetRC() will return VERR_FILE_AIO_CANCELED.
+ * If the request completes not matter if successfully or with an error it will
+ * switch into the completed state. RTFileReqDestroy() fails if the given request
+ * is in this state.
+ *
+ * Completed:
+ * The request will be in this state after it completed and returned through
+ * RTFileAioCtxWait(). RTFileAioReqGetRC() returns the final result code
+ * and the number of bytes transfered.
+ * The request can be used for new data transfers.
+ *
+ * @section sec_rt_asyncio_threading       Threading
+ *
+ * The API is a thin wrapper around the specific host OS APIs and therefore
+ * relies on the thread safety of the underlying API.
+ * The interesting functions with regards to thread safety are RTFileAioCtxSubmit()
+ * and RTFileAioCtxWait(). RTFileAioCtxWait() must not be called from different
+ * threads at the same time with the same context handle. The same applies to
+ * RTFileAioCtxSubmit(). However it is possible to submit new requests from a different
+ * thread while waiting for completed requests on another thread with RTFileAioCtxWait().
+ *
+ * @section sec_rt_asyncio_implementations  Differences in implementation
+ *
+ * Because the host APIs are quite different on every OS and every API has other limitations
+ * there are some things to consider to make the code as portable as possible.
+ *
+ * The first restriction at the moment is that every buffer has to be aligned to a 512 byte boundary.
+ * This limitation comes from the Linux io_* interface. To use the interface the file
+ * must be opened with O_DIRECT. This flag disables the kernel cache too which may
+ * degrade performance but is unfortunately the only way to make asynchronous
+ * I/O work till today (if O_DIRECT is omitted io_submit will revert to sychronous behavior
+ * and will return when the requests finished and when they are queued).
+ * It is mostly used by DBMS which do theire own caching.
+ * Furthermore there is no filesystem independent way to discover the restrictions at least
+ * for the 2.4 kernel series. Since 2.6 the 512 byte boundary seems to be used by all
+ * file systems. So Linus comment about this flag is comprehensible but Linux
+ * lacks an alternative at the moment.
+ *
+ * The next limitation applies only to Windows. Requests are not associated with the
+ * I/O context they are associated with but with the file the request is for.
+ * The file needs to be associated with exactly one I/O completion port and requests
+ * for this file will only arrive at that context after they completed and not on
+ * the context the request was submitted.
+ * To associate a file with a specific context RTFileAioCtxAssociateWithFile() is
+ * used. It is only implemented on Windows and does nothing on the other platforms.
+ * If the file needs to be associated with different context for some reason
+ * the file must be closed first. After it was opened again the new context
+ * can be associated with the other context.
+ * This can't be done by the API because there is no way to retrieve the flags
+ * the file was opened with.
+ */
+
+/**
+ * Global limits for the AIO API.
+ */
+typedef struct RTFILEAIOLIMITS
+{
+    /** Global number of simultaneous outstanding requests allowed.
+     *  RTFILEAIO_UNLIMITED_REQS means no limit. */
+    uint32_t cReqsOutstandingMax;
+    /** The alignment data buffers need to have.
+     * 0 means no alignment restrictions. */
+    uint32_t cbBufferAlignment;
+} RTFILEAIOLIMITS;
+/** A pointer to a AIO limits structure. */
+typedef RTFILEAIOLIMITS *PRTFILEAIOLIMITS;
+
+/**
+ * Returns the global limits for the AIO API.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_SUPPORTED if the host does not support the async I/O API.
+ *
+ * @param   pAioLimits      Where to store the global limit information.
+ */
+RTDECL(int) RTFileAioGetLimits(PRTFILEAIOLIMITS pAioLimits);
+
+/**
+ * Creates an async I/O request handle.
+ *
+ * @returns IPRT status code.
+ * @param   phReq           Where to store the request handle.
+ */
+RTDECL(int) RTFileAioReqCreate(PRTFILEAIOREQ phReq);
+
+/**
+ * Destroys an async I/O request handle.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_FILE_AIO_IN_PROGRESS if the request is still in progress.
+ *
+ * @param   hReq            The request handle.
+ */
+RTDECL(int) RTFileAioReqDestroy(RTFILEAIOREQ hReq);
+
+/**
+ * Prepares an async read request.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_FILE_AIO_IN_PROGRESS if the request is still in progress.
+ *
+ * @param   hReq            The request handle.
+ * @param   hFile           The file to read from.
+ * @param   off             The offset to start reading at.
+ * @param   pvBuf           Where to store the read bits.
+ * @param   cbRead          Number of bytes to read.
+ * @param   pvUser          Opaque user data associated with this request which
+ *                          can be retrieved with RTFileAioReqGetUser().
+ */
+RTDECL(int) RTFileAioReqPrepareRead(RTFILEAIOREQ hReq, RTFILE hFile, RTFOFF off,
+                                    void *pvBuf, size_t cbRead, void *pvUser);
+
+/**
+ * Prepares an async write request.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_FILE_AIO_IN_PROGRESS if the request is still in progress.
+ *
+ * @param   hReq            The request handle.
+ * @param   hFile           The file to write to.
+ * @param   off             The offset to start writing at.
+ * @param   pvBuf           Where to store the written bits.
+ * @param   cbRead          Number of bytes to write.
+ * @param   pvUser          Opaque user data associated with this request which
+ *                          can be retrieved with RTFileAioReqGetUser().
+ */
+RTDECL(int) RTFileAioReqPrepareWrite(RTFILEAIOREQ hReq, RTFILE hFile, RTFOFF off,
+                                     void *pvBuf, size_t cbWrite, void *pvUser);
+
+/**
+ * Prepares an async flush of all cached data associated with a file handle.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_FILE_AIO_IN_PROGRESS if the request is still in progress.
+ *
+ * @param   hReq            The request handle.
+ * @param   hFile           The file to flush.
+ * @param   pvUser          Opaque user data associated with this request which
+ *                          can be retrieved with RTFileAioReqGetUser().
+ *
+ * @remarks May also flush other caches on some platforms.
+ */
+RTDECL(int) RTFileAioReqPrepareFlush(RTFILEAIOREQ hReq, RTFILE hFile, void *pvUser);
+
+/**
+ * Gets the opaque user data associated with the given request.
+ *
+ * @returns Opaque user data.
+ * @retval  NULL if the request hasn't been prepared yet.
+ *
+ * @param   hReq            The request handle.
+ */
+RTDECL(void *) RTFileAioReqGetUser(RTFILEAIOREQ hReq);
+
+/**
+ * Cancels a pending request.
+ *
+ * @returns IPRT status code.
+ * @retval  VINF_SUCCESS              If the request was canceled.
+ * @retval  VERR_FILE_AIO_NOT_SUBMITTED If the request wasn't submitted yet.
+ * @retval  VERR_FILE_AIO_IN_PROGRESS If the request could not be canceled because it is already processed.
+ * @retval  VERR_FILE_AIO_COMPLETED   If the request could not be canceled because it already completed.
+ *
+ * @param   hReq            The request to cancel.
+ */
+RTDECL(int) RTFileAioReqCancel(RTFILEAIOREQ hReq);
+
+/**
+ * Gets the status of a completed request.
+ *
+ * @returns The IPRT status code of the given request.
+ * @retval  VERR_FILE_AIO_NOT_SUBMITTED if the request wasn't submitted yet.
+ * @retval  VERR_FILE_AIO_CANCELED if the request was canceled.
+ * @retval  VERR_FILE_AIO_IN_PROGRESS if the request isn't yet completed.
+ *
+ * @param   hReq            The request handle.
+ * @param   pcbTransferred  Where to store the number of bytes transfered.
+ *                          Optional since it is not relevant for all kinds of
+ *                          requests.
+ */
+RTDECL(int) RTFileAioReqGetRC(RTFILEAIOREQ hReq, size_t *pcbTransfered);
+
+
+
+/**
+ * Creates an async I/O context.
+ *
+ * @todo briefly explain what an async context is here or in the page
+ *       above.
+ *
+ * @returns IPRT status code.
+ * @param   phAioCtx        Where to store the async I/O context handle.
+ * @param   cAioReqsMax     How many async I/O requests the context should be capable
+ *                          to handle. Pass RTFILEAIO_UNLIMITED_REQS if the
+ *                          context should support an unlimited number of
+ *                          requests.
+ */
+RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax);
+
+/** Unlimited number of requests.
+ * Used with RTFileAioCtxCreate and RTFileAioCtxGetMaxReqCount. */
+#define RTFILEAIO_UNLIMITED_REQS    UINT32_MAX
+
+/**
+ * Destroys an async I/O context.
+ *
+ * @returns IPRT status code.
+ * @param   hAioCtx         The async I/O context handle.
+ */
+RTDECL(int) RTFileAioCtxDestroy(RTFILEAIOCTX hAioCtx);
+
+/**
+ * Get the maximum number of requests one aio context can handle.
+ *
+ * @returns Maximum number of tasks the context can handle.
+ *          RTFILEAIO_UNLIMITED_REQS if there is no limit.
+ *
+ * @param   hAioCtx         The async I/O context handle.
+ *                          If NIL_RTAIOCONTEXT is passed the maximum value
+ *                          which can be passed to RTFileAioCtxCreate()
+ *                          is returned.
+ */
+RTDECL(uint32_t) RTFileAioCtxGetMaxReqCount(RTFILEAIOCTX hAioCtx);
+
+/**
+ * Associates a file with a async I/O context.
+ * Requests for this file will arrive at the completion port
+ * associated with the file.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hAioCtx        The async I/O context handle.
+ * @param   hFile          The file handle.
+ */
+RTDECL(int) RTFileAioCtxAssociateWithFile(RTFILEAIOCTX hAioCtx, RTFILE hFile);
+
+/**
+ * Submits a set of requests to an async I/O context for processing.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hAioCtx         The async I/O context handle.
+ * @param   pahReqs         Pointer to an array of request handles.
+ * @param   cReqs           The number of entries in the array.
+ *
+ * @remarks It is possible that some requests could be submitted successfully
+ *          even if the method returns an error code. In that case RTFileAioReqGetRC()
+ *          can be used to determine the status of a request.
+ *          If it returns VERR_FILE_AIO_IN_PROGRESS it was submitted successfully.
+ *          Any other error code may indicate why the request failed.
+ *          VERR_FILE_AIO_NOT_SUBMITTED indicates that a request wasn't submitted
+ *          probably because the previous request encountered an error.
+ *
+ * @remarks @a cReqs uses the type size_t while it really is a uint32_t, this is
+ *          to avoid annoying warnings when using RT_ELEMENTS and similar
+ *          macros.
+ */
+RTDECL(int) RTFileAioCtxSubmit(RTFILEAIOCTX hAioCtx, PRTFILEAIOREQ pahReqs, size_t cReqs);
+
+/**
+ * Waits for request completion.
+ *
+ * Only one thread at a time may call this API on a context.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_INVALID_POINTER     If pcReqs or/and pahReqs are invalid.
+ * @retval  VERR_INVALID_HANDLE      If hAioCtx is invalid.
+ * @retval  VERR_OUT_OF_RANGE        If cMinReqs is larger than cReqs.
+ * @retval  VERR_INVALID_PARAMETER   If cReqs is 0.
+ * @retval  VERR_TIMEOUT             If cMinReqs didn't complete before the
+ *                                   timeout expired.
+ * @retval  VERR_INTERRUPTED         If the completion context was interrupted
+ *                                   by RTFileAioCtxWakeup().
+ * @retval  VERR_FILE_AIO_NO_REQUEST If there are no pending request.
+ *
+ * @param   hAioCtx         The async I/O context handle to wait and get
+ *                          completed requests from.
+ * @param   cMinReqs        The minimum number of requests which have to
+ *                          complete before this function returns.
+ * @param   cMillisTimeout  The number of milliseconds to wait before returning
+ *                          VERR_TIMEOUT. Use RT_INDEFINITE_WAIT to wait
+ *                          forever.
+ * @param   pahReqs         Pointer to an array where the handles of the
+ *                          completed requests will be stored on success.
+ * @param   cReqs           The number of entries @a pahReqs can hold.
+ * @param   pcReqs          Where to store the number of returned (complete)
+ *                          requests. This will always be set.
+ *
+ * @remarks The wait will be resume if interrupted by a signal. An
+ *          RTFileAioCtxWaitNoResume variant can be added later if it becomes
+ *          necessary.
+ *
+ * @remarks @a cMinReqs and @a cReqs use the type size_t while they really are
+ *          uint32_t's, this is to avoid annoying warnings when using
+ *          RT_ELEMENTS and similar macros.
+ */
+RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, unsigned cMillisTimeout,
+                             PRTFILEAIOREQ pahReqs, size_t cReqs, uint32_t *pcReqs);
+
+/**
+ * Forces any RTFileAioCtxWait() call on another thread to return immediately.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hAioCtx         The handle of the async I/O context to wakeup.
+ */
+RTDECL(int) RTFileAioCtxWakeup(RTFILEAIOCTX hAioCtx);
+
 #endif /* IN_RING3 */
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

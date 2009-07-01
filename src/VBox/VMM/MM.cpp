@@ -1,4 +1,4 @@
-/* $Id: MM.cpp $ */
+/* $Id: MM.cpp 19663 2009-05-13 15:06:00Z vboxsync $ */
 /** @file
  * MM - Memory Manager.
  */
@@ -300,17 +300,6 @@ VMMR3DECL(int) MMR3InitPaging(PVM pVM)
         AssertRCReturn(rc, rc);
     }
 
-    /** @cfgm{RamPreAlloc, boolean, false}
-     * Indicates whether the base RAM should all be allocated before starting
-     * the VM (default), or if it should be allocated when first written to.
-     */
-    bool fPreAlloc;
-    rc = CFGMR3QueryBool(CFGMR3GetRoot(pVM), "RamPreAlloc", &fPreAlloc);
-    if (rc == VERR_CFGM_VALUE_NOT_FOUND)
-        fPreAlloc = false;
-    else
-        AssertMsgRCReturn(rc, ("Configuration error: Failed to query integer \"RamPreAlloc\", rc=%Rrc.\n", rc), rc);
-
     /** @cfgm{RamSize, uint64_t, 0, 16TB, 0}
      * Specifies the size of the base RAM that is to be set up during
      * VM initialization.
@@ -341,9 +330,9 @@ VMMR3DECL(int) MMR3InitPaging(PVM pVM)
                           ("Configuration error: \"RamHoleSize\"=%#RX32 is misaligned.\n", cbRamHole), VERR_OUT_OF_RANGE);
     uint64_t const offRamHole = _4G - cbRamHole;
     if (cbRam < offRamHole)
-        Log(("MM: %RU64 bytes of RAM%s\n", cbRam, fPreAlloc ? " (PreAlloc)" : ""));
+        Log(("MM: %RU64 bytes of RAM\n", cbRam));
     else
-        Log(("MM: %RU64 bytes of RAM%s with a hole at %RU64 up to 4GB.\n", cbRam, fPreAlloc ? " (PreAlloc)" : "", offRamHole));
+        Log(("MM: %RU64 bytes of RAM with a hole at %RU64 up to 4GB.\n", cbRam, offRamHole));
 
     /** @cfgm{MM/Policy, string, no overcommitment}
      * Specifies the policy to use when reserving memory for this VM. The recognized
@@ -363,7 +352,7 @@ VMMR3DECL(int) MMR3InitPaging(PVM pVM)
     else if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         enmOcPolicy = GMMOCPOLICY_NO_OC;
     else
-        AssertMsgRCReturn(rc, ("Configuration error: Failed to query string \"MM/Policy\", rc=%Rrc.\n", rc), rc);
+        AssertMsgFailedReturn(("Configuration error: Failed to query string \"MM/Policy\", rc=%Rrc.\n", rc), rc);
 
     /** @cfgm{MM/Priority, string, normal}
      * Specifies the memory priority of this VM. The priority comes into play when the
@@ -456,6 +445,9 @@ VMMR3DECL(int) MMR3Term(PVM pVM)
      * Destroy the page pool. (first as it used the hyper heap)
      */
     mmR3PagePoolTerm(pVM);
+
+    /* Clean up the hypervisor heap. */
+    mmR3HyperTerm(pVM);
 
     /*
      * Zero stuff to detect after termination use of the MM interface
@@ -783,45 +775,6 @@ VMMR3DECL(int) MMR3HCPhys2HCVirt(PVM pVM, RTHCPHYS HCPhys, void **ppv)
     return VERR_INVALID_POINTER;
 }
 
-
-/**
- * Read memory from GC virtual address using the current guest CR3.
- *
- * @returns VBox status.
- * @param   pVM         VM handle.
- * @param   pvDst       Destination address (HC of course).
- * @param   GCPtr       GC virtual address.
- * @param   cb          Number of bytes to read.
- *
- * @remarks Intended for the debugger facility only.
- * @todo    Move to DBGF, it's only selecting which functions to use!
- */
-VMMR3DECL(int) MMR3ReadGCVirt(PVM pVM, void *pvDst, RTGCPTR GCPtr, size_t cb)
-{
-    if (GCPtr - pVM->mm.s.pvHyperAreaGC < pVM->mm.s.cbHyperArea)
-        return MMR3HyperReadGCVirt(pVM, pvDst, GCPtr, cb);
-    return PGMPhysSimpleReadGCPtr(pVM, pvDst, GCPtr, cb);
-}
-
-
-/**
- * Write to memory at GC virtual address translated using the current guest CR3.
- *
- * @returns VBox status.
- * @param   pVM         VM handle.
- * @param   GCPtrDst    GC virtual address.
- * @param   pvSrc       The source address (HC of course).
- * @param   cb          Number of bytes to read.
- *
- * @remarks Intended for the debugger facility only.
- * @todo    Move to DBGF, it's only selecting which functions to use!
- */
-VMMR3DECL(int) MMR3WriteGCVirt(PVM pVM, RTGCPTR GCPtrDst, const void *pvSrc, size_t cb)
-{
-    if (GCPtrDst - pVM->mm.s.pvHyperAreaGC < pVM->mm.s.cbHyperArea)
-        return VERR_ACCESS_DENIED;
-    return PGMPhysSimpleWriteGCPtr(pVM, GCPtrDst, pvSrc, cb);
-}
 
 
 /**

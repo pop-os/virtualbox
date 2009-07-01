@@ -20,23 +20,27 @@
  * additional information or have any questions.
  */
 
+/* VBox includes */
+#include "VBoxGlobal.h"
 #include "VBoxMediaManagerDlg.h"
-#include "VBoxToolBar.h"
-#include "QILabel.h"
 #include "VBoxNewHDWzd.h"
 #include "VBoxProblemReporter.h"
-#include "VBoxGlobal.h"
+#include "VBoxToolBar.h"
+#include "QIFileDialog.h"
+#include "QILabel.h"
 
 /* Qt includes */
+#include <QCloseEvent>
 #include <QDir>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QFileInfo>
 #include <QHeaderView>
 #include <QMenuBar>
-#include <QPushButton>
-#include <QUrl>
 #include <QProgressBar>
+#include <QPushButton>
 #include <QTimer>
-
+#include <QUrl>
 
 class AddVDMUrlsEvent: public QEvent
 {
@@ -87,7 +91,7 @@ public:
 
     KMediaState state() const { return mMedium.state (!mManager->showDiffs()); }
 
-    QUuid id() const { return mMedium.id(); }
+    QString id() const { return mMedium.id(); }
     QString location() const { return mMedium.location (!mManager->showDiffs()); }
 
     QString hardDiskFormat() const
@@ -454,7 +458,7 @@ VBoxMediaManagerDlg::VBoxMediaManagerDlg (QWidget *aParent /* = 0 */,
 void VBoxMediaManagerDlg::setup (VBoxDefs::MediaType aType, bool aDoSelect,
                                  bool aRefresh /* = true */,
                                  const CMachine &aSessionMachine /* = CMachine() */,
-                                 const QUuid &aSelectId /* = QUuid() */,
+                                 const QString &aSelectId /* = QString() */,
                                  bool aShowDiffs /* = true */)
 {
     mSetupMode = true;
@@ -464,7 +468,7 @@ void VBoxMediaManagerDlg::setup (VBoxDefs::MediaType aType, bool aDoSelect,
     mDoSelect = aDoSelect;
 
     mSessionMachine = aSessionMachine;
-    mSessionMachineId = mSessionMachine.isNull() ? QUuid() : mSessionMachine.GetId();
+    mSessionMachineId = mSessionMachine.isNull() ? QString::null : mSessionMachine.GetId();
     mShowDiffs = mSessionMachine.isNull() ? true : aShowDiffs;
 
     switch (aType)
@@ -508,8 +512,8 @@ void VBoxMediaManagerDlg::setup (VBoxDefs::MediaType aType, bool aDoSelect,
     connect (&vboxGlobal(), SIGNAL (mediumUpdated (const VBoxMedium &)),
              this, SLOT (mediumUpdated (const VBoxMedium &)));
     /* Listen to "media remove" signals */
-    connect (&vboxGlobal(), SIGNAL (mediumRemoved (VBoxDefs::MediaType, const QUuid &)),
-             this, SLOT (mediumRemoved (VBoxDefs::MediaType, const QUuid &)));
+    connect (&vboxGlobal(), SIGNAL (mediumRemoved (VBoxDefs::MediaType, const QString &)),
+             this, SLOT (mediumRemoved (VBoxDefs::MediaType, const QString &)));
 
     if (aRefresh && !vboxGlobal().isMediaEnumerationStarted())
         vboxGlobal().startEnumeratingMedia();
@@ -580,10 +584,10 @@ void VBoxMediaManagerDlg::showModeless (QWidget *aCenterWidget /* = 0 */,
     mModelessDialog->activateWindow();
 }
 
-QUuid VBoxMediaManagerDlg::selectedId() const
+QString VBoxMediaManagerDlg::selectedId() const
 {
     QTreeWidget *tree = currentTreeWidget();
-    QUuid uuid;
+    QString uuid;
 
     MediaItem *item = toMediaItem (selectedItem (tree));
     if (item)
@@ -785,7 +789,7 @@ void VBoxMediaManagerDlg::mediumAdded (const VBoxMedium &aMedium)
             if (item->id() == mHDSelectedId)
             {
                 setCurrentItem (mHardDiskView, item);
-                mHDSelectedId = QUuid();
+                mHDSelectedId = QString::null;
             }
             break;
         }
@@ -802,7 +806,7 @@ void VBoxMediaManagerDlg::mediumAdded (const VBoxMedium &aMedium)
             if (item->id() == mDVDSelectedId)
             {
                 setCurrentItem (mDVDView, item);
-                mDVDSelectedId = QUuid();
+                mDVDSelectedId = QString::null;
             }
             break;
         }
@@ -819,7 +823,7 @@ void VBoxMediaManagerDlg::mediumAdded (const VBoxMedium &aMedium)
             if (item->id() == mFloppySelectedId)
             {
                 setCurrentItem (mFloppyView, item);
-                mFloppySelectedId = QUuid();
+                mFloppySelectedId = QString::null;
             }
             break;
         }
@@ -887,7 +891,7 @@ void VBoxMediaManagerDlg::mediumUpdated (const VBoxMedium &aMedium)
 }
 
 void VBoxMediaManagerDlg::mediumRemoved (VBoxDefs::MediaType aType,
-                                         const QUuid &aId)
+                                         const QString &aId)
 {
     /* Ignore non-interesting aMedium */
     if (mType != VBoxDefs::MediaType_All && mType != aType)
@@ -1044,7 +1048,7 @@ void VBoxMediaManagerDlg::doAddMedium()
             break;
     }
 
-    QStringList files = VBoxGlobal::getOpenFileNames (dir, filter, this, title);
+    QStringList files = QIFileDialog::getOpenFileNames (dir, filter, this, title);
     foreach (QString loc, files)
     {
         loc =  QDir::convertSeparators (loc);
@@ -1061,7 +1065,7 @@ void VBoxMediaManagerDlg::doRemoveMedium()
     AssertMsgReturnVoid (item, ("Current item must not be null"));
 
     /* Remember ID/type as they may get lost after the closure/deletion */
-    QUuid id = item->id();
+    QString id = item->id();
     AssertReturnVoid (!id.isNull());
     VBoxDefs::MediaType type = item->type();
 
@@ -1162,8 +1166,8 @@ void VBoxMediaManagerDlg::doReleaseMedium()
     QString usage;
     CMachineVector machines;
 
-    const QList <QUuid> &machineIds = item->medium().curStateMachineIds();
-    for (QList <QUuid>::const_iterator it = machineIds.begin();
+    const QList <QString> &machineIds = item->medium().curStateMachineIds();
+    for (QList <QString>::const_iterator it = machineIds.begin();
          it != machineIds.end(); ++ it)
     {
         CMachine m = mVBox.GetMachine (*it);
@@ -1190,7 +1194,7 @@ void VBoxMediaManagerDlg::doReleaseMedium()
     if (!vboxProblem().confirmReleaseMedium (this, item->medium(), usage))
         return;
 
-    for (QList <QUuid>::const_iterator it = machineIds.begin();
+    for (QList <QString>::const_iterator it = machineIds.begin();
          it != machineIds.end(); ++ it)
     {
         if (!releaseMediumFrom (item->medium(), *it))
@@ -1205,7 +1209,7 @@ void VBoxMediaManagerDlg::doReleaseMedium()
 }
 
 bool VBoxMediaManagerDlg::releaseMediumFrom (const VBoxMedium &aMedium,
-                                             const QUuid &aMachineId)
+                                             const QString &aMachineId)
 {
     CSession session;
     CMachine machine;
@@ -1537,14 +1541,14 @@ void VBoxMediaManagerDlg::addMediumToList (const QString &aLocation,
 {
     AssertReturnVoid (!aLocation.isEmpty());
 
-    QUuid uuid;
+    QString uuid;
     VBoxMedium medium;
 
     switch (aType)
     {
         case VBoxDefs::MediaType_HardDisk:
         {
-            CHardDisk hd = mVBox.OpenHardDisk(aLocation, KAccessMode_ReadWrite);
+            CHardDisk hd = mVBox.OpenHardDisk(aLocation, KAccessMode_ReadWrite, false, "", false, "");
             if (mVBox.isOk())
             {
                 medium = VBoxMedium (CMedium (hd),
@@ -1704,7 +1708,7 @@ void VBoxMediaManagerDlg::updateTabIcons (MediaItem *aItem, ItemAction aAction)
 }
 
 MediaItem* VBoxMediaManagerDlg::searchItem (QTreeWidget *aTree,
-                                            const QUuid &aId) const
+                                            const QString &aId) const
 {
     if (aId.isNull())
         return 0;
@@ -1854,15 +1858,15 @@ void VBoxMediaManagerDlg::prepareToRefresh (int aTotal)
 
     mi = toMediaItem (mHardDiskView->currentItem());
     if (mHDSelectedId.isNull())
-        mHDSelectedId = mi ? mi->id() : QUuid();
+        mHDSelectedId = mi ? mi->id() : QString::null;
 
     mi = toMediaItem (mDVDView->currentItem());
     if (mDVDSelectedId.isNull())
-        mDVDSelectedId = mi ? mi->id() : QUuid();
+        mDVDSelectedId = mi ? mi->id() : QString::null;
 
     mi = toMediaItem (mFloppyView->currentItem());
     if (mFloppySelectedId.isNull())
-        mFloppySelectedId = mi ? mi->id() : QUuid();
+        mFloppySelectedId = mi ? mi->id() : QString::null;
 
     /* Finally, clear all the lists...
      * Qt4 has interesting bug here. It sends the currentChanged (cur, prev)

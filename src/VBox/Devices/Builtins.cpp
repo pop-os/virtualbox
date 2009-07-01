@@ -1,4 +1,4 @@
-/* $Id: Builtins.cpp $ */
+/* $Id: Builtins.cpp 20167 2009-06-01 20:25:54Z vboxsync $ */
 /** @file
  * Built-in drivers & devices (part 1)
  */
@@ -40,6 +40,9 @@
 *******************************************************************************/
 const void *g_apvVBoxDDDependencies[] =
 {
+#ifdef VBOX_WITH_EFI
+    &g_abEfiThunkBinary[0],
+#endif
     NULL,
 };
 
@@ -203,7 +206,7 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvVD);
     if (RT_FAILURE(rc))
         return rc;
-#if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(RT_OS_WINDOWS)
+#if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(RT_OS_WINDOWS) || defined(RT_OS_FREEBSD)
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostDVD);
     if (RT_FAILURE(rc))
         return rc;
@@ -272,15 +275,6 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
         return rc;
 #endif
 
-#if defined(VBOX_WITH_PDM_ASYNC_COMPLETION)
-    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvRawImageAsync);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvTransportAsync);
-    if (RT_FAILURE(rc))
-        return rc;
-#endif
 #ifdef VBOX_WITH_SCSI
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvSCSI);
     if (RT_FAILURE(rc))
@@ -291,12 +285,6 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     if (RT_FAILURE(rc))
         return rc;
 #endif
-#endif
-
-#ifdef VBOX_WITH_FAULT_INJECTION
-    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvFaultInject);
-    if (RT_FAILURE(rc))
-        return rc;
 #endif
 
     return VINF_SUCCESS;

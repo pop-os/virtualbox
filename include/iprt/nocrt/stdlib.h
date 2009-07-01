@@ -32,9 +32,9 @@
 
 #include <iprt/types.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif

@@ -1,4 +1,4 @@
-/* $Id: USBDeviceImpl.cpp $ */
+/* $Id: USBDeviceImpl.cpp 20976 2009-06-26 14:17:49Z vboxsync $ */
 
 /** @file
  *
@@ -64,7 +64,6 @@ HRESULT OUSBDevice::init(IUSBDevice *aUSBDevice)
 
     hrc = aUSBDevice->COMGETTER(ProductId)(&unconst (mData.productId));
     ComAssertComRCRet (hrc, hrc);
-    ComAssertRet (mData.productId, E_INVALIDARG);
 
     hrc = aUSBDevice->COMGETTER(Revision)(&unconst (mData.revision));
     ComAssertComRCRet (hrc, hrc);
@@ -93,8 +92,10 @@ HRESULT OUSBDevice::init(IUSBDevice *aUSBDevice)
     hrc = aUSBDevice->COMGETTER(Remote)(&unconst (mData.remote));
     ComAssertComRCRet (hrc, hrc);
 
-    hrc = aUSBDevice->COMGETTER(Id)(unconst (mData.id).asOutParam());
+    Bstr id;
+    hrc = aUSBDevice->COMGETTER(Id)(id.asOutParam());
     ComAssertComRCRet (hrc, hrc);
+    unconst(mData.id) = Guid(id);
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -143,7 +144,7 @@ void OUSBDevice::uninit()
  * @returns COM status code
  * @param   aId   Address of result variable.
  */
-STDMETHODIMP OUSBDevice::COMGETTER(Id)(OUT_GUID aId)
+STDMETHODIMP OUSBDevice::COMGETTER(Id)(BSTR *aId)
 {
     CheckComArgOutPointerValid(aId);
 
@@ -151,7 +152,7 @@ STDMETHODIMP OUSBDevice::COMGETTER(Id)(OUT_GUID aId)
     CheckComRCReturnRC (autoCaller.rc());
 
     /* this is const, no need to lock */
-    mData.id.cloneTo (aId);
+    Guid(mData.id).toString().cloneTo (aId);
 
     return S_OK;
 }

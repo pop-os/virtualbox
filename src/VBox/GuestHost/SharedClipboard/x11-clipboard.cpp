@@ -29,7 +29,6 @@
 #define LOG_GROUP LOG_GROUP_SHARED_CLIPBOARD
 
 #include <errno.h>
-#include <vector>
 
 #include <unistd.h>
 
@@ -55,38 +54,106 @@
 #include <VBox/GuestHost/clipboard-helper.h>
 #include <VBox/HostServices/VBoxClipboardSvc.h>
 
-/** Do we want to test Utf16 by disabling other text formats? */
-static bool g_testUtf16 = false;
-/** Do we want to test Utf8 by disabling other text formats? */
-static bool g_testUtf8 = false;
-/** Do we want to test compount text by disabling other text formats? */
-static bool g_testCText = false;
-/** Are we currently debugging the clipboard code? */
-static bool g_debugClipboard = false;
+static Atom clipGetAtom(Widget widget, const char *pszName);
 
 /** The different clipboard formats which we support. */
-enum g_eClipboardFormats
+enum CLIPFORMAT
 {
     INVALID = 0,
     TARGETS,
     CTEXT,
-    UTF8,
-    UTF16
+    UTF8
 };
 
-/** The X11 clipboard uses several names for the same format.  This
- * structure maps an X11 name to a format. */
-typedef struct {
-    Atom atom;
-    g_eClipboardFormats format;
-    unsigned guestFormat;
-} VBOXCLIPBOARDFORMAT;
+/** The table mapping X11 names to data formats and to the corresponding
+ * VBox clipboard formats (currently only Unicode) */
+static struct _CLIPFORMATTABLE
+{
+    /** The X11 atom name of the format (several names can match one format)
+     */
+    const char *pcszAtom;
+    /** The format corresponding to the name */
+    CLIPFORMAT  enmFormat;
+    /** The corresponding VBox clipboard format */
+    uint32_t    u32VBoxFormat;
+} g_aFormats[] =
+{
+    { "INVALID", INVALID, 0 },
+    { "UTF8_STRING", UTF8, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT },
+    { "text/plain;charset=UTF-8", UTF8,
+      VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT },
+    { "text/plain;charset=utf-8", UTF8,
+      VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT },
+    { "STRING", UTF8, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT },
+    { "TEXT", UTF8, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT },
+    { "text/plain", UTF8, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT },
+    { "COMPOUND_TEXT", CTEXT, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT }
+};
+
+typedef unsigned CLIPX11FORMAT;
+
+enum
+{
+    NIL_CLIPX11FORMAT = 0,
+    MAX_CLIP_X11_FORMATS = RT_ELEMENTS(g_aFormats)
+};
+
+/** Return the atom corresponding to a supported X11 format.
+ * @param widget a valid Xt widget
+ */
+static Atom clipAtomForX11Format(Widget widget, CLIPX11FORMAT format)
+{
+    return clipGetAtom(widget, g_aFormats[format].pcszAtom);
+}
+
+/** Return the CLIPFORMAT corresponding to a supported X11 format. */
+static CLIPFORMAT clipRealFormatForX11Format(CLIPX11FORMAT format)
+{
+    return g_aFormats[format].enmFormat;
+}
+
+/** Return the atom corresponding to a supported X11 format. */
+static uint32_t clipVBoxFormatForX11Format(CLIPX11FORMAT format)
+{
+    return g_aFormats[format].u32VBoxFormat;
+}
+
+/** Lookup the X11 format matching a given X11 atom.
+ * @returns the format on success, NIL_CLIPX11FORMAT on failure
+ * @param   widget a valid Xt widget
+ */
+static CLIPX11FORMAT clipFindX11FormatByAtom(Widget widget, Atom atomFormat)
+{
+    for (unsigned i = 0; i < RT_ELEMENTS(g_aFormats); ++i)
+        if (clipAtomForX11Format(widget, i) == atomFormat)
+            return i;
+    return NIL_CLIPX11FORMAT;
+}
+
+/**
+ * Enumerates supported X11 clipboard formats corresponding to a given VBox
+ * format.
+ * @returns the next matching X11 format in the list, or NIL_CLIPX11FORMAT if
+ *          there are no more
+ * @param lastFormat  The value returned from the last call of this function.
+ *                    Use NIL_CLIPX11FORMAT to start the enumeration.
+ */
+static CLIPX11FORMAT clipEnumX11Formats(uint32_t u32VBoxFormats,
+                                        CLIPX11FORMAT lastFormat)
+{
+    for (unsigned i = lastFormat + 1; i < RT_ELEMENTS(g_aFormats); ++i)
+        if (u32VBoxFormats & clipVBoxFormatForX11Format(i))
+            return i;
+    return NIL_CLIPX11FORMAT;
+}
 
 /** Global context information used by the X11 clipboard backend */
-struct _VBOXCLIPBOARDCONTEXTX11
+struct _CLIPBACKEND
 {
     /** Opaque data structure describing the front-end. */
     VBOXCLIPBOARDCONTEXT *pFrontend;
+    /** Is an X server actually available? */
+    bool fHaveX11;
     /** The X Toolkit application context structure */
     XtAppContext appContext;
 
@@ -95,51 +162,27 @@ struct _VBOXCLIPBOARDCONTEXTX11
     /** The X Toolkit widget which we use as our clipboard client.  It is never made visible. */
     Widget widget;
 
-    /** X11 atom refering to the clipboard: CLIPBOARD */
-    Atom atomClipboard;
-    /** X11 atom refering to the selection: PRIMARY */
-    Atom atomPrimary;
-    /** X11 atom refering to the clipboard targets: TARGETS */
-    Atom atomTargets;
-    /** X11 atom refering to the clipboard multiple target: MULTIPLE */
-    Atom atomMultiple;
-    /** X11 atom refering to the clipboard timestamp target: TIMESTAMP */
-    Atom atomTimestamp;
-    /** X11 atom refering to the clipboard utf16 text format: text/plain;charset=ISO-10646-UCS-2 */
-    Atom atomUtf16;
-    /** X11 atom refering to the clipboard utf8 text format: UTF8_STRING */
-    Atom atomUtf8;
-    /** X11 atom refering to the clipboard compound text format: COMPOUND_TEXT */
-    Atom atomCText;
+    /** Does VBox currently own the clipboard?  If so, we don't need to poll
+     * X11 for supported formats. */
+    bool fOwnsClipboard;
 
-    /** A list of the X11 formats which we support, mapped to our identifier for them, in the
-        order we prefer to have them in. */
-    std::vector<VBOXCLIPBOARDFORMAT> formatList;
-
-    /** Does VBox or X11 currently own the clipboard? */
-    volatile enum g_eOwner eOwner;
-
-    /** What is the best text format X11 has to offer?  INVALID for none. */
-    g_eClipboardFormats X11TextFormat;
-    /** Atom corresponding to the X11 text format */
-    Atom atomX11TextFormat;
-    /** What is the best bitmap format X11 has to offer?  INVALID for none. */
-    g_eClipboardFormats X11BitmapFormat;
-    /** Atom corresponding to the X11 Bitmap format */
-    Atom atomX11BitmapFormat;
+    /** The best text format X11 has to offer, as an index into the formats
+     * table */
+    CLIPX11FORMAT X11TextFormat;
+    /** The best bitmap format X11 has to offer, as an index into the formats
+     * table */
+    CLIPX11FORMAT X11BitmapFormat;
     /** What formats does VBox have on offer? */
-    int vboxFormats;
+    uint32_t vboxFormats;
     /** Windows hosts and guests cache the clipboard data they receive.
      * Since we have no way of knowing whether their cache is still valid,
      * we always send a "data changed" message after a successful transfer
      * to invalidate it. */
     bool notifyVBox;
-
-    /** Since the clipboard data moves asynchronously, we use an event
-     * semaphore to wait for it.  When a function issues a request for
-     * clipboard data it must wait for this semaphore, which is triggered
-     * when the data arrives. */
-    RTSEMEVENT waitForData;
+    /** Cache of the last unicode data that we received */
+    void *pvUnicodeCache;
+    /** Size of the unicode data in the cache */
+    uint32_t cbUnicodeCache;
     /** When we wish the clipboard to exit, we have to wake up the event
      * loop.  We do this by writing into a pipe.  This end of the pipe is
      * the end that another thread can write to. */
@@ -148,13 +191,77 @@ struct _VBOXCLIPBOARDCONTEXTX11
     int wakeupPipeRead;
 };
 
-/* Only one client is supported. There seems to be no need for more clients. 
- */
-static VBOXCLIPBOARDCONTEXTX11 g_ctxX11;
-static VBOXCLIPBOARDCONTEXTX11 *g_pCtx;
+/** The number of simultaneous instances we support.  For all normal purposes
+ * we should never need more than one.  For the testcase it is convenient to
+ * have a second instance that the first can interact with in order to have
+ * a more controlled environment. */
+enum { CLIP_MAX_CONTEXTS = 20 };
 
-/* Are we actually connected to the X server? */
-static bool g_fHaveX11;
+/** Array of structures for mapping Xt widgets to context pointers.  We
+ * need this because the widget clipboard callbacks do not pass user data. */
+static struct {
+    /** The widget we want to associate the context with */
+    Widget widget;
+    /** The context associated with the widget */
+    CLIPBACKEND *pCtx;
+} g_contexts[CLIP_MAX_CONTEXTS];
+
+/** Register a new X11 clipboard context. */
+static int clipRegisterContext(CLIPBACKEND *pCtx)
+{
+    bool found = false;
+    AssertReturn(pCtx != NULL, VERR_INVALID_PARAMETER);
+    Widget widget = pCtx->widget;
+    AssertReturn(widget != NULL, VERR_INVALID_PARAMETER);
+    for (unsigned i = 0; i < RT_ELEMENTS(g_contexts); ++i)
+    {
+        AssertReturn(   (g_contexts[i].widget != widget)
+                     && (g_contexts[i].pCtx != pCtx), VERR_WRONG_ORDER);
+        if (g_contexts[i].widget == NULL && !found)
+        {
+            AssertReturn(g_contexts[i].pCtx == NULL, VERR_INTERNAL_ERROR);
+            g_contexts[i].widget = widget;
+            g_contexts[i].pCtx = pCtx;
+            found = true;
+        }
+    }
+    return found ? VINF_SUCCESS : VERR_OUT_OF_RESOURCES;
+}
+
+/** Unregister an X11 clipboard context. */
+static void clipUnregisterContext(CLIPBACKEND *pCtx)
+{
+    bool found = false;
+    AssertReturnVoid(pCtx != NULL);
+    Widget widget = pCtx->widget;
+    AssertReturnVoid(widget != NULL);
+    for (unsigned i = 0; i < RT_ELEMENTS(g_contexts); ++i)
+    {
+        Assert(!found || g_contexts[i].widget != widget);
+        if (g_contexts[i].widget == widget)
+        {
+            Assert(g_contexts[i].pCtx != NULL);
+            g_contexts[i].widget = NULL;
+            g_contexts[i].pCtx = NULL;
+            found = true;
+        }
+    }
+}
+
+/** Find an X11 clipboard context. */
+static CLIPBACKEND *clipLookupContext(Widget widget)
+{
+    AssertReturn(widget != NULL, NULL);
+    for (unsigned i = 0; i < RT_ELEMENTS(g_contexts); ++i)
+    {
+        if (g_contexts[i].widget == widget)
+        {
+            Assert(g_contexts[i].pCtx != NULL);
+            return g_contexts[i].pCtx;
+        }
+    }
+    return NULL;
+}
 
 /** Convert an atom name string to an X11 atom, looking it up in a cache
  * before asking the server */
@@ -171,454 +278,127 @@ static Atom clipGetAtom(Widget widget, const char *pszName)
     return retval;
 }
 
-/**
- * Convert the UTF-16 text obtained from the X11 clipboard to UTF-16LE with
- * Windows EOLs, place it in the buffer supplied and signal that data has
- * arrived.
- *
- * @param pValue      Source UTF-16 text
- * @param cwSourceLen Length in 16-bit words of the source text
- * @param pv          Where to store the converted data
- * @param cb          Length in bytes of the buffer pointed to by cb
- * @param pcbActual   Where to store the size of the converted data
- * @param pClient     Pointer to the client context structure
- * @note  X11 backend code, called from the Xt callback when we wish to read
- *        the X11 clipboard.
- */
-static void vboxClipboardGetUtf16(VBOXCLIPBOARDCONTEXTX11 *pCtx,
-                                  XtPointer pValue, unsigned cwSrcLen,
-                                  void *pv, unsigned cb,
-                                  uint32_t *pcbActual)
+static void clipQueueToEventThread(XtAppContext app_context,
+                                   XtTimerCallbackProc proc,
+                                   XtPointer client_data);
+#ifndef TESTCASE
+void clipQueueToEventThread(XtAppContext app_context,
+                            XtTimerCallbackProc proc,
+                            XtPointer client_data)
 {
-    size_t cwDestLen;
-    PRTUTF16 pu16SrcText = reinterpret_cast<PRTUTF16>(pValue);
-    PRTUTF16 pu16DestText = reinterpret_cast<PRTUTF16>(pv);
-
-    LogFlowFunc (("converting Utf-16 to Utf-16LE.  cwSrcLen=%d, cb=%d, pu16SrcText+1=%.*ls\n",
-                   cwSrcLen, cb, cwSrcLen - 1, pu16SrcText + 1));
-    *pcbActual = 0;  /* Only set this to the right value on success. */
-    /* How long will the converted text be? */
-    int rc = vboxClipboardUtf16GetWinSize(pu16SrcText, cwSrcLen + 1,
-                                          &cwDestLen);
-    if (RT_SUCCESS(rc) && (cb < cwDestLen * 2))
-    {
-        /* Not enough buffer space provided - report the amount needed. */
-        LogFlowFunc (("guest buffer too small: size %d bytes, needed %d.  Returning.\n",
-                       cb, cwDestLen * 2));
-        *pcbActual = cwDestLen * 2;
-        rc = VERR_BUFFER_OVERFLOW;
-    }
-    /* Convert the text. */
-    if (RT_SUCCESS(rc))
-        rc = vboxClipboardUtf16LinToWin(pu16SrcText, cwSrcLen + 1,
-                                        pu16DestText, cb / 2);
-    if (RT_SUCCESS(rc))
-    {
-        LogFlowFunc (("converted string is %.*ls\n", cwDestLen, pu16DestText));
-        *pcbActual = cwDestLen * 2;
-    }
-    /* We need to do this whether we succeed or fail. */
-    XtFree(reinterpret_cast<char *>(pValue));
-    RTSemEventSignal(pCtx->waitForData);
-    LogFlowFunc(("Returning.  Status is %Rrc\n", rc));
+    XtAppAddTimeOut(app_context, 0, proc, client_data);
 }
-
-/**
- * Convert the UTF-8 text obtained from the X11 clipboard to UTF-16LE with
- * Windows EOLs, place it in the buffer supplied and signal that data has
- * arrived.
- *
- * @param pValue      Source UTF-8 text
- * @param cbSourceLen Length in 8-bit bytes of the source text
- * @param pv          Where to store the converted data
- * @param cb          Length in bytes of the buffer pointed to by pv
- * @param pcbActual   Where to store the size of the converted data
- * @param pClient     Pointer to the client context structure
- * @note  X11 backend code, called from the Xt callback when we wish to read
- *        the X11 clipboard.
- */
-static void vboxClipboardGetUtf8FromX11(VBOXCLIPBOARDCONTEXTX11 *pCtx,
-                                        XtPointer pValue, unsigned cbSrcLen,
-                                        void *pv, unsigned cb,
-                                        uint32_t *pcbActual)
-{
-    size_t cwSrcLen, cwDestLen;
-    char *pu8SrcText = reinterpret_cast<char *>(pValue);
-    PRTUTF16 pu16SrcText = NULL;
-    PRTUTF16 pu16DestText = reinterpret_cast<PRTUTF16>(pv);
-
-    LogFlowFunc (("converting Utf-8 to Utf-16LE.  cbSrcLen=%d, cb=%d, pu8SrcText=%.*s\n",
-                   cbSrcLen, cb, cbSrcLen, pu8SrcText));
-    *pcbActual = 0;  /* Only set this to the right value on success. */
-    /* First convert the UTF8 to UTF16 */
-    int rc = RTStrToUtf16Ex(pu8SrcText, cbSrcLen, &pu16SrcText, 0, &cwSrcLen);
-    /* Check how much longer will the converted text will be. */
-    if (RT_SUCCESS(rc))
-        rc = vboxClipboardUtf16GetWinSize(pu16SrcText, cwSrcLen + 1,
-                                          &cwDestLen);
-    if (RT_SUCCESS(rc) && (cb < cwDestLen * 2))
-    {
-        /* Not enough buffer space provided - report the amount needed. */
-        LogFlowFunc (("guest buffer too small: size %d bytes, needed %d.  Returning.\n",
-                       cb, cwDestLen * 2));
-        *pcbActual = cwDestLen * 2;
-        rc = VERR_BUFFER_OVERFLOW;
-    }
-    /* Convert the text. */
-    if (RT_SUCCESS(rc))
-        rc = vboxClipboardUtf16LinToWin(pu16SrcText, cwSrcLen + 1,
-                                        pu16DestText, cb / 2);
-    if (RT_SUCCESS(rc))
-    {
-        LogFlowFunc (("converted string is %.*ls.\n", cwDestLen, pu16DestText));
-        *pcbActual = cwDestLen * 2;
-    }
-    XtFree(reinterpret_cast<char *>(pValue));
-    RTUtf16Free(pu16SrcText);
-    RTSemEventSignal(pCtx->waitForData);
-    LogFlowFunc(("Returning.  Status is %Rrc", rc));
-}
-
-/**
- * Convert the COMPOUND_TEXT obtained from the X11 clipboard to UTF-16LE with
- * Windows EOLs, place it in the buffer supplied and signal that data has
- * arrived.
- *
- * @param pValue      Source COMPOUND_TEXT
- * @param cbSourceLen Length in 8-bit bytes of the source text
- * @param pv          Where to store the converted data
- * @param cb          Length in bytes of the buffer pointed to by pv
- * @param pcbActual   Where to store the size of the converted data
- * @param pClient     Pointer to the client context structure
- * @note  X11 backend code, called from the Xt callback when we wish to read
- *        the X11 clipboard.
- */
-static void vboxClipboardGetCTextFromX11(VBOXCLIPBOARDCONTEXTX11 *pCtx,
-                                         XtPointer pValue, unsigned cbSrcLen,
-                                         void *pv, unsigned cb,
-                                         uint32_t *pcbActual)
-{
-    size_t cwSrcLen, cwDestLen;
-    char **ppu8SrcText = NULL;
-    PRTUTF16 pu16SrcText = NULL;
-    PRTUTF16 pu16DestText = reinterpret_cast<PRTUTF16>(pv);
-    XTextProperty property;
-    int rc = VINF_SUCCESS;
-    int cProps;
-
-    LogFlowFunc (("converting COMPOUND TEXT to Utf-16LE.  cbSrcLen=%d, cb=%d, pu8SrcText=%.*s\n",
-                   cbSrcLen, cb, cbSrcLen, reinterpret_cast<char *>(pValue)));
-    *pcbActual = 0;  /* Only set this to the right value on success. */
-    /** @todo quick fix for 2.2, do this properly. */
-    if (cbSrcLen == 0)
-    {
-        XtFree(reinterpret_cast<char *>(pValue));
-        if (cb < 2)
-            return;
-        *(PRTUTF16) pv = 0;
-        *pcbActual = 2;
-        return;
-    }
-    /* First convert the compound text to Utf8 */
-    property.value = reinterpret_cast<unsigned char *>(pValue);
-    property.encoding = pCtx->atomCText;
-    property.format = 8;
-    property.nitems = cbSrcLen;
-#ifdef RT_OS_SOLARIS
-    int xrc = XmbTextPropertyToTextList(XtDisplay(pCtx->widget), &property,
-                                        &ppu8SrcText, &cProps);
-#else
-    int xrc = Xutf8TextPropertyToTextList(XtDisplay(pCtx->widget),
-                                          &property, &ppu8SrcText, &cProps);
 #endif
-    XtFree(reinterpret_cast<char *>(pValue));
-    if (xrc < 0)
-        switch(xrc)
-        {
-        case XNoMemory:
-            rc = VERR_NO_MEMORY;
-            break;
-        case XLocaleNotSupported:
-        case XConverterNotFound:
-            rc = VERR_NOT_SUPPORTED;
-            break;
-        default:
-            rc = VERR_UNRESOLVED_ERROR;
-        }
-    /* Now convert the UTF8 to UTF16 */
-    if (RT_SUCCESS(rc))
-        rc = RTStrToUtf16Ex(*ppu8SrcText, cbSrcLen, &pu16SrcText, 0, &cwSrcLen);
-    /* Check how much longer will the converted text will be. */
-    if (RT_SUCCESS(rc))
-        rc = vboxClipboardUtf16GetWinSize(pu16SrcText, cwSrcLen + 1,
-                                          &cwDestLen);
-    if (RT_SUCCESS(rc) && (cb < cwDestLen * 2))
-    {
-        /* Not enough buffer space provided - report the amount needed. */
-        LogFlowFunc (("guest buffer too small: size %d bytes, needed %d.  Returning.\n",
-                       cb, cwDestLen * 2));
-        *pcbActual = cwDestLen * 2;
-        rc = VERR_BUFFER_OVERFLOW;
-    }
-    /* Convert the text. */
-    if (RT_SUCCESS(rc))
-        rc = vboxClipboardUtf16LinToWin(pu16SrcText, cwSrcLen + 1,
-                                        pu16DestText, cb / 2);
-    if (RT_SUCCESS(rc))
-    {
-        LogFlowFunc (("converted string is %.*ls\n", cwDestLen, pu16DestText));
-        *pcbActual = cwDestLen * 2;
-    }
-    if (ppu8SrcText != NULL)
-        XFreeStringList(ppu8SrcText);
-    RTUtf16Free(pu16SrcText);
-    LogFlowFunc(("Returning.  Status is %Rrc\n", rc));
-    RTSemEventSignal(pCtx->waitForData);
+
+/**
+ * Report the formats currently supported by the X11 clipboard to VBox.
+ */
+static void clipReportFormatsToVBox(CLIPBACKEND *pCtx)
+{
+    uint32_t u32VBoxFormats = clipVBoxFormatForX11Format(pCtx->X11TextFormat);
+    ClipReportX11Formats(pCtx->pFrontend, u32VBoxFormats);
 }
 
 /**
- * Convert the Latin1 text obtained from the X11 clipboard to UTF-16LE with
- * Windows EOLs, place it in the buffer supplied and signal that data has
- * arrived.
- *
- * @param pValue      Source Latin1 text
- * @param cbSourceLen Length in 8-bit bytes of the source text
- * @param pv          Where to store the converted data
- * @param cb          Length in bytes of the buffer pointed to by cb
- * @param pcbActual   Where to store the size of the converted data
- * @param pClient     Pointer to the client context structure
- * @note  X11 backend code, called from the Xt callback when we wish to read
- *        the X11 clipboard.
- */
-static void vboxClipboardGetLatin1FromX11(VBOXCLIPBOARDCONTEXTX11 *pCtx,
-                                          XtPointer pValue,
-                                          unsigned cbSourceLen, void *pv,
-                                          unsigned cb, uint32_t *pcbActual)
+ * Forget which formats were previously in the X11 clipboard.  Should be
+ * called when we grab the clipboard, so that when we lose it again the poller
+ * will notify us when new formats become available. */
+static void clipResetX11Formats(CLIPBACKEND *pCtx)
 {
-    char *pu8SourceText = reinterpret_cast<char *>(pValue);
-    PRTUTF16 pu16DestText = reinterpret_cast<PRTUTF16>(pv);
-    int rc = VINF_SUCCESS;
+    pCtx->X11TextFormat = INVALID;
+    pCtx->X11BitmapFormat = INVALID;
+}
 
-    LogFlowFunc (("converting Latin1 to Utf-16LE.  Original is %.*s\n",
-                  cbSourceLen, pu8SourceText));
-    *pcbActual = 0;  /* Only set this to the right value on success. */
-    unsigned cwDestLen = 0;
-    for (unsigned i = 0; i < cbSourceLen && pu8SourceText[i] != '\0'; i++)
+/** Tell VBox that X11 currently has nothing in its clipboard. */
+static void clipReportEmptyX11CB(CLIPBACKEND *pCtx)
+{
+    clipResetX11Formats(pCtx);
+    clipReportFormatsToVBox(pCtx);
+}
+
+/**
+ * Go through an array of X11 clipboard targets to see if we can support any
+ * of them and if relevant to choose the ones we prefer (e.g. we like Utf8
+ * better than compound text).
+ * @param  pCtx      the clipboard backend context structure
+ * @param  pTargets  the list of targets
+ * @param  cTargets  the size of the list in @a pTargets
+ * @param  pChanged  This is set to true if the formats available have changed
+ *                   from VBox's point of view, and to false otherwise.
+ *                   Somehow this didn't feel right as a return value.
+ */
+void clipGetFormatsFromTargets(CLIPBACKEND *pCtx, Atom *pTargets,
+                               size_t cTargets, bool *pChanged)
+{
+    bool changed = false;
+    CLIPX11FORMAT bestTextFormat = NIL_CLIPX11FORMAT;
+    AssertPtrReturnVoid(pCtx);
+    AssertPtrReturnVoid(pTargets);
+    for (unsigned i = 0; i < cTargets; ++i)
     {
-        ++cwDestLen;
-        if (pu8SourceText[i] == LINEFEED)
-            ++cwDestLen;
-    }
-    /* Leave space for the terminator */
-    ++cwDestLen;
-    if (cb < cwDestLen * 2)
-    {
-        /* Not enough buffer space provided - report the amount needed. */
-        LogFlowFunc (("guest buffer too small: size %d bytes\n", cb));
-        *pcbActual = cwDestLen * 2;
-        rc = VERR_BUFFER_OVERFLOW;
-    }
-    if (RT_SUCCESS(rc))
-    {
-        for (unsigned i = 0, j = 0; i < cbSourceLen; ++i, ++j)
-            if (pu8SourceText[i] != LINEFEED)
-                pu16DestText[j] = pu8SourceText[i];  /* latin1 < utf-16LE */
-            else
+        CLIPFORMAT enmBestTextTarget = INVALID;
+        CLIPX11FORMAT format = clipFindX11FormatByAtom(pCtx->widget,
+                                                       pTargets[i]);
+        if (format != NIL_CLIPX11FORMAT)
+        {
+            if (   (clipVBoxFormatForX11Format(format)
+                            == VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT)
+                    && enmBestTextTarget < clipRealFormatForX11Format(format))
             {
-                pu16DestText[j] = CARRIAGERETURN;
-                ++j;
-                pu16DestText[j] = LINEFEED;
+                enmBestTextTarget = clipRealFormatForX11Format(format);
+                bestTextFormat = format;
             }
-        pu16DestText[cwDestLen - 1] = 0;
-        *pcbActual = cwDestLen * 2;
-        LogFlowFunc (("converted text is %.*ls\n", cwDestLen, pu16DestText));
+        }
     }
-    XtFree(reinterpret_cast<char *>(pValue));
-    RTSemEventSignal(pCtx->waitForData);
-    LogFlowFunc(("Returning.  Status is %Rrc\n", rc));
+    if (pCtx->X11TextFormat != bestTextFormat)
+    {
+        changed = true;
+        pCtx->X11TextFormat = bestTextFormat;
+    }
+    pCtx->X11BitmapFormat = INVALID;  /* not yet supported */
+    if (pChanged)
+        *pChanged = changed;
 }
 
 /**
- * Convert the text obtained from the X11 clipboard to UTF-16LE with Windows
- * EOLs, place it in the buffer supplied and signal that data has arrived.
- * @note  X11 backend code, callback for XtGetSelectionValue, for use when
- *        the X11 clipboard contains a text format we understand.
+ * Notify the VBox clipboard about available data formats, based on the
+ * "targets" information obtained from the X11 clipboard.
+ * @note  callback for XtGetSelectionValue, called on a polling loop
  */
-static void vboxClipboardGetDataFromX11(Widget, XtPointer pClientData,
-                                        Atom * /* selection */,
-                                        Atom *atomType,
-                                        XtPointer pValue,
-                                        long unsigned int *pcLen,
-                                        int *piFormat)
+static void clipConvertX11Targets(Widget, XtPointer pClientData,
+                                  Atom * /* selection */, Atom *atomType,
+                                  XtPointer pValue, long unsigned int *pcLen,
+                                  int *piFormat)
 {
-    VBOXCLIPBOARDREQUEST *pRequest
-        = reinterpret_cast<VBOXCLIPBOARDREQUEST *>(pClientData);
-    VBOXCLIPBOARDCONTEXTX11 *pCtx = pRequest->pCtx;
-    if (pCtx->eOwner == VB)
-    {
-        /* We don't want to request data from ourselves! */
-        RTSemEventSignal(pCtx->waitForData);
-        return;
-    }
-    LogFlowFunc(("pClientData=%p, *pcLen=%lu, *piFormat=%d\n", pClientData,
-                 *pcLen, *piFormat));
-    LogFlowFunc(("pCtx->X11TextFormat=%d, pRequest->cb=%d\n",
-                 pCtx->X11TextFormat, pRequest->cb));
-    unsigned cTextLen = (*pcLen) * (*piFormat) / 8;
-    /* The X Toolkit may have failed to get the clipboard selection for us. */
-    if (*atomType == XT_CONVERT_FAIL) /* timeout */
-    {
-        RTSemEventSignal(pCtx->waitForData);
-        return;
-    }
-    /* The clipboard selection may have changed before we could get it. */
-    if (NULL == pValue)
-    {
-        RTSemEventSignal(pCtx->waitForData);
-        return;
-    }
-    /* In which format is the clipboard data? */
-    switch (pCtx->X11TextFormat)
-    {
-    case UTF16:
-        vboxClipboardGetUtf16(pCtx, pValue, cTextLen / 2, pRequest->pv,
-                              pRequest->cb, pRequest->pcbActual);
-        break;
-    case CTEXT:
-        vboxClipboardGetCTextFromX11(pCtx, pValue, cTextLen, pRequest->pv,
-                                     pRequest->cb, pRequest->pcbActual);
-        break;
-    case UTF8:
-    {
-        /* If we are given broken Utf-8, we treat it as Latin1.  Is this acceptable? */
-        size_t cStringLen;
-        char *pu8SourceText = reinterpret_cast<char *>(pValue);
-
-        if ((pCtx->X11TextFormat == UTF8)
-            && (RTStrUniLenEx(pu8SourceText, *pcLen, &cStringLen) == VINF_SUCCESS))
-        {
-            vboxClipboardGetUtf8FromX11(pCtx, pValue, cTextLen, pRequest->pv,
-                                     pRequest->cb, pRequest->pcbActual);
-            break;
-        }
-        else
-        {
-            vboxClipboardGetLatin1FromX11(pCtx, pValue, cTextLen,
-                                          pRequest->pv, pRequest->cb,
-                                          pRequest->pcbActual);
-            break;
-        }
-    }
-    default:
-        LogFunc (("bad target format\n"));
-        XtFree(reinterpret_cast<char *>(pValue));
-        RTSemEventSignal(pCtx->waitForData);
-        return;
-    }
-    pCtx->notifyVBox = true;
-}
-
-/**
- * Notify the host clipboard about the data formats we support, based on the
- * "targets" (available data formats) information obtained from the X11
- * clipboard.
- * @note  X11 backend code, callback for XtGetSelectionValue, called when we
- *        poll for available targets.
- */
-static void vboxClipboardGetTargetsFromX11(Widget,
-                                           XtPointer pClientData,
-                                           Atom * /* selection */,
-                                           Atom *atomType,
-                                           XtPointer pValue,
-                                           long unsigned int *pcLen,
-                                           int *piFormat)
-{
-    VBOXCLIPBOARDCONTEXTX11 *pCtx =
-            reinterpret_cast<VBOXCLIPBOARDCONTEXTX11 *>(pClientData);
-    Atom *atomTargets = reinterpret_cast<Atom *>(pValue);
-    unsigned cAtoms = *pcLen;
-    g_eClipboardFormats eBestTarget = INVALID;
-    Atom atomBestTarget = None;
+    CLIPBACKEND *pCtx =
+            reinterpret_cast<CLIPBACKEND *>(pClientData);
+    Atom *pTargets = reinterpret_cast<Atom *>(pValue);
+    size_t cTargets = *pcLen;
+    bool changed = true;
 
     Log3 (("%s: called\n", __PRETTY_FUNCTION__));
-    if (   *atomType == XT_CONVERT_FAIL /* timeout */
-        || pCtx->eOwner == VB           /* VBox currently owns the clipb. */)
-    {
-        pCtx->atomX11TextFormat = None;
-        pCtx->X11TextFormat = INVALID;
-        return;
-    }
-
-    for (unsigned i = 0; i < cAtoms; ++i)
-    {
-        for (unsigned j = 0; j != pCtx->formatList.size(); ++j)
-            if (pCtx->formatList[j].atom == atomTargets[i])
-            {
-                if (eBestTarget < pCtx->formatList[j].format)
-                {
-                    eBestTarget = pCtx->formatList[j].format;
-                    atomBestTarget = pCtx->formatList[j].atom;
-                }
-                break;
-            }
-        if (g_debugClipboard)
-        {
-            char *szAtomName = XGetAtomName(XtDisplay(pCtx->widget),
-                                            atomTargets[i]);
-            if (szAtomName != 0)
-            {
-                Log2 (("%s: the host offers target %s\n", __PRETTY_FUNCTION__,
-                       szAtomName));
-                XFree(szAtomName);
-            }
-        }
-    }
-    pCtx->atomX11TextFormat = atomBestTarget;
-    if ((eBestTarget != pCtx->X11TextFormat) || (pCtx->notifyVBox == true))
-    {
-        uint32_t u32Formats = 0;
-        if (g_debugClipboard)
-        {
-            if (atomBestTarget != None)
-            {
-                char *szAtomName = XGetAtomName(XtDisplay(pCtx->widget),
-                                                atomBestTarget);
-                Log2 (("%s: switching to host text target %s.  Available targets are:\n",
-                       __PRETTY_FUNCTION__, szAtomName));
-                XFree(szAtomName);
-            }
-            else
-                Log2(("%s: no supported host text target found.  Available targets are:\n",
-                      __PRETTY_FUNCTION__));
-            for (unsigned i = 0; i < cAtoms; ++i)
-            {
-                char *szAtomName = XGetAtomName(XtDisplay(pCtx->widget),
-                                                atomTargets[i]);
-                if (szAtomName != 0)
-                {
-                    Log2 (("%s:     %s\n", __PRETTY_FUNCTION__, szAtomName));
-                    XFree(szAtomName);
-                }
-            }
-        }
-        pCtx->X11TextFormat = eBestTarget;
-        if (eBestTarget != INVALID)
-            u32Formats |= VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT;
-        VBoxX11ClipboardReportX11Formats(pCtx->pFrontend, u32Formats);
-        pCtx->notifyVBox = false;
-    }
+    if (pCtx->fOwnsClipboard)
+        /* VBox raced us and we lost.  So we don't want to report anything. */
+        changed = false;
+    else if (   (*atomType == XT_CONVERT_FAIL)  /* timeout */
+             || !pTargets  /* Conversion failed */)
+        clipResetX11Formats(pCtx);
+    else
+        clipGetFormatsFromTargets(pCtx, pTargets, cTargets, &changed);
+    if (changed)
+        clipReportFormatsToVBox(pCtx);
     XtFree(reinterpret_cast<char *>(pValue));
 }
 
 enum { TIMER_FREQ = 200 /* ms */ };
 
-static void vboxClipboardPollX11ForTargets(XtPointer pUserData,
-                                           XtIntervalId * /* hTimerId */);
-static void clipSchedulePoller(VBOXCLIPBOARDCONTEXTX11 *pCtx,
+static void clipPollX11CBFormats(XtPointer pUserData,
+                                 XtIntervalId * /* hTimerId */);
+static void clipSchedulePoller(CLIPBACKEND *pCtx,
                                XtTimerCallbackProc proc);
 
 #ifndef TESTCASE
-void clipSchedulePoller(VBOXCLIPBOARDCONTEXTX11 *pCtx,
+void clipSchedulePoller(CLIPBACKEND *pCtx,
                         XtTimerCallbackProc proc)
 {
     XtAppAddTimeOut(pCtx->appContext, TIMER_FREQ, proc, pCtx);
@@ -633,43 +413,23 @@ void clipSchedulePoller(VBOXCLIPBOARDCONTEXTX11 *pCtx,
  * @todo  Use the XFIXES extension to check for new clipboard data when
  *        available.
  */
-static void vboxClipboardPollX11ForTargets(XtPointer pUserData,
-                                           XtIntervalId * /* hTimerId */)
+void clipPollX11CBFormats(XtPointer pUserData, XtIntervalId * /* hTimerId */)
 {
-    VBOXCLIPBOARDCONTEXTX11 *pCtx =
-            reinterpret_cast<VBOXCLIPBOARDCONTEXTX11 *>(pUserData);
+    CLIPBACKEND *pCtx = (CLIPBACKEND *)pUserData;
     Log3 (("%s: called\n", __PRETTY_FUNCTION__));
     /* Get the current clipboard contents if we don't own it ourselves */
-    if (pCtx->eOwner != VB)
+    if (!pCtx->fOwnsClipboard)
     {
-        Log3 (("%s: requesting the targets that the host clipboard offers\n",
+        Log3 (("%s: requesting the targets that the X11 clipboard offers\n",
                __PRETTY_FUNCTION__));
-        XtGetSelectionValue(pCtx->widget, pCtx->atomClipboard,
-                            pCtx->atomTargets,
-                            vboxClipboardGetTargetsFromX11, pCtx,
+        XtGetSelectionValue(pCtx->widget,
+                            clipGetAtom(pCtx->widget, "CLIPBOARD"),
+                            clipGetAtom(pCtx->widget, "TARGETS"),
+                            clipConvertX11Targets, pCtx,
                             CurrentTime);
     }
     /* Re-arm our timer */
-    clipSchedulePoller(pCtx, vboxClipboardPollX11ForTargets);
-}
-
-/** We store information about the target formats we can handle in a global
- * vector for internal use.
- * @note  X11 backend code.
- */
-static void vboxClipboardAddFormat(VBOXCLIPBOARDCONTEXTX11 *pCtx,
-                                   const char *pszName,
-                                   g_eClipboardFormats eFormat,
-                                   unsigned guestFormat)
-{
-    VBOXCLIPBOARDFORMAT sFormat;
-    /* Get an atom from the X server for that target format */
-    Atom atomFormat = clipGetAtom(pCtx->widget, pszName);
-    sFormat.atom   = atomFormat;
-    sFormat.format = eFormat;
-    sFormat.guestFormat = guestFormat;
-    pCtx->formatList.push_back(sFormat);
-    LogFlow (("vboxClipboardAddFormat: added format %s (%d)\n", pszName, eFormat));
+    clipSchedulePoller(pCtx, clipPollX11CBFormats);
 }
 
 #ifndef TESTCASE
@@ -677,16 +437,14 @@ static void vboxClipboardAddFormat(VBOXCLIPBOARDCONTEXTX11 *pCtx,
  * The main loop of our clipboard reader.
  * @note  X11 backend code.
  */
-static int vboxClipboardThread(RTTHREAD self, void *pvUser)
+static int clipEventThread(RTTHREAD self, void *pvUser)
 {
-    LogRel(("Shared clipboard: starting host clipboard thread\n"));
+    LogRel(("Shared clipboard: starting shared clipboard thread\n"));
 
-    VBOXCLIPBOARDCONTEXTX11 *pCtx =
-            reinterpret_cast<VBOXCLIPBOARDCONTEXTX11 *>(pvUser);
+    CLIPBACKEND *pCtx = (CLIPBACKEND *)pvUser;
     while (XtAppGetExitFlag(pCtx->appContext) == FALSE)
         XtAppProcessEvent(pCtx->appContext, XtIMAll);
-    pCtx->formatList.clear();
-    LogRel(("Shared clipboard: host clipboard thread terminated successfully\n"));
+    LogRel(("Shared clipboard: shared clipboard thread terminated successfully\n"));
     return VINF_SUCCESS;
 }
 #endif
@@ -694,13 +452,14 @@ static int vboxClipboardThread(RTTHREAD self, void *pvUser)
 /** X11 specific uninitialisation for the shared clipboard.
  * @note  X11 backend code.
  */
-static void vboxClipboardUninitX11(VBOXCLIPBOARDCONTEXTX11 *pCtx)
+static void clipUninit(CLIPBACKEND *pCtx)
 {
     AssertPtrReturnVoid(pCtx);
     if (pCtx->widget)
     {
         /* Valid widget + invalid appcontext = bug.  But don't return yet. */
         AssertPtr(pCtx->appContext);
+        clipUnregisterContext(pCtx);
         XtDestroyWidget(pCtx->widget);
     }
     pCtx->widget = NULL;
@@ -717,11 +476,11 @@ static void vboxClipboardUninitX11(VBOXCLIPBOARDCONTEXTX11 *pCtx)
 
 /** Worker function for stopping the clipboard which runs on the event
  * thread. */
-static void vboxClipboardStopWorker(XtPointer pUserData, int * /* source */,
-                                    XtInputId * /* id */)
+static void clipStopEventThreadWorker(XtPointer pUserData, int * /* source */,
+                                      XtInputId * /* id */)
 {
     
-    VBOXCLIPBOARDCONTEXTX11 *pCtx = (VBOXCLIPBOARDCONTEXTX11 *)pUserData;
+    CLIPBACKEND *pCtx = (CLIPBACKEND *)pUserData;
 
     /* This might mean that we are getting stopped twice. */
     Assert(pCtx->widget != NULL);
@@ -730,89 +489,52 @@ static void vboxClipboardStopWorker(XtPointer pUserData, int * /* source */,
      * reiterate that any outstanding requests from the X11 event loop to
      * the VBox part *must* have returned before we do this. */
     XtAppSetExitFlag(pCtx->appContext);
-    pCtx->eOwner = NONE;
-    pCtx->X11TextFormat = INVALID;
-    pCtx->X11BitmapFormat = INVALID;
 }
 
 /** X11 specific initialisation for the shared clipboard.
  * @note  X11 backend code.
  */
-static int vboxClipboardInitX11 (VBOXCLIPBOARDCONTEXTX11 *pCtx)
+static int clipInit(CLIPBACKEND *pCtx)
 {
     /* Create a window and make it a clipboard viewer. */
     int cArgc = 0;
     char *pcArgv = 0;
     int rc = VINF_SUCCESS;
-    // static String szFallbackResources[] = { (char*)"*.width: 1", (char*)"*.height: 1", NULL };
     Display *pDisplay;
 
     /* Make sure we are thread safe */
     XtToolkitThreadInitialize();
-    /* Set up the Clipbard application context and main window.  We call all these functions
-       directly instead of calling XtOpenApplication() so that we can fail gracefully if we
-       can't get an X11 display. */
+    /* Set up the Clipbard application context and main window.  We call all
+     * these functions directly instead of calling XtOpenApplication() so
+     * that we can fail gracefully if we can't get an X11 display. */
     XtToolkitInitialize();
     pCtx->appContext = XtCreateApplicationContext();
-    // XtAppSetFallbackResources(pCtx->appContext, szFallbackResources);
     pDisplay = XtOpenDisplay(pCtx->appContext, 0, 0, "VBoxClipboard", 0, 0, &cArgc, &pcArgv);
     if (NULL == pDisplay)
     {
-        LogRel(("Shared clipboard: failed to connect to the host clipboard - the window system may not be running.\n"));
+        LogRel(("Shared clipboard: failed to connect to the X11 clipboard - the window system may not be running.\n"));
         rc = VERR_NOT_SUPPORTED;
     }
     if (RT_SUCCESS(rc))
     {
-        pCtx->widget = XtVaAppCreateShell(0, "VBoxClipboard", applicationShellWidgetClass, pDisplay,
-                                          XtNwidth, 1, XtNheight, 1, NULL);
+        pCtx->widget = XtVaAppCreateShell(0, "VBoxClipboard",
+                                          applicationShellWidgetClass,
+                                          pDisplay, XtNwidth, 1, XtNheight,
+                                          1, NULL);
         if (NULL == pCtx->widget)
         {
-            LogRel(("Shared clipboard: failed to construct the X11 window for the host clipboard manager.\n"));
+            LogRel(("Shared clipboard: failed to construct the X11 window for the shared clipboard manager.\n"));
             rc = VERR_NO_MEMORY;
         }
+        else
+            rc = clipRegisterContext(pCtx);
     }
     if (RT_SUCCESS(rc))
     {
         XtSetMappedWhenManaged(pCtx->widget, false);
         XtRealizeWidget(pCtx->widget);
-        /* Set up a timer to poll the host clipboard */
-        clipSchedulePoller(pCtx, vboxClipboardPollX11ForTargets);
-
-        /* Get hold of the atoms which we need */
-        pCtx->atomClipboard = clipGetAtom(pCtx->widget, "CLIPBOARD");
-        pCtx->atomPrimary   = clipGetAtom(pCtx->widget, "PRIMARY");
-        pCtx->atomTargets   = clipGetAtom(pCtx->widget, "TARGETS");
-        pCtx->atomMultiple  = clipGetAtom(pCtx->widget, "MULTIPLE");
-        pCtx->atomTimestamp = clipGetAtom(pCtx->widget, "TIMESTAMP");
-        pCtx->atomUtf16     = clipGetAtom(pCtx->widget,
-                                          "text/plain;charset=ISO-10646-UCS-2");
-        pCtx->atomUtf8      = clipGetAtom(pCtx->widget, "UTF8_STRING");
-        /* And build up the vector of supported formats */
-        pCtx->atomCText     = clipGetAtom(pCtx->widget, "COMPOUND_TEXT");
-        /* And build up the vector of supported formats */
-        if (!g_testUtf8 && !g_testCText)
-            vboxClipboardAddFormat(pCtx,
-                                   "text/plain;charset=ISO-10646-UCS-2",
-                                   UTF16,
-                                   VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT);
-        if (!g_testUtf16 && !g_testCText)
-        {
-            vboxClipboardAddFormat(pCtx, "UTF8_STRING", UTF8,
-                                   VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT);
-            vboxClipboardAddFormat(pCtx, "text/plain;charset=UTF-8", UTF8,
-                                   VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT);
-            vboxClipboardAddFormat(pCtx, "text/plain;charset=utf-8", UTF8,
-                                   VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT);
-            vboxClipboardAddFormat(pCtx, "STRING", UTF8,
-                                   VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT);
-            vboxClipboardAddFormat(pCtx, "TEXT", UTF8,
-                                   VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT);
-            vboxClipboardAddFormat(pCtx, "text/plain", UTF8,
-                                   VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT);
-}
-        if (!g_testUtf16 && !g_testUtf8)
-            vboxClipboardAddFormat(pCtx, "COMPOUND_TEXT", CTEXT,
-                                   VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT);
+        /* Set up a timer to poll the X11 clipboard */
+        clipSchedulePoller(pCtx, clipPollX11CBFormats);
     }
     /* Create the pipes */
     int pipes[2];
@@ -820,14 +542,15 @@ static int vboxClipboardInitX11 (VBOXCLIPBOARDCONTEXTX11 *pCtx)
     {
         pCtx->wakeupPipeRead = pipes[0];
         pCtx->wakeupPipeWrite = pipes[1];
-        XtAppAddInput(pCtx->appContext, pCtx->wakeupPipeRead,
-                      (XtPointer) XtInputReadMask, vboxClipboardStopWorker,
-                      (XtPointer) pCtx);
+        if (!XtAppAddInput(pCtx->appContext, pCtx->wakeupPipeRead,
+                           (XtPointer) XtInputReadMask,
+                           clipStopEventThreadWorker, (XtPointer) pCtx))
+            rc = VERR_NO_MEMORY;  /* What failure means is not doc'ed. */
     }
     else
         rc = RTErrConvertFromErrno(errno);
     if (RT_FAILURE(rc))
-        vboxClipboardUninitX11(pCtx);
+        clipUninit(pCtx);
     return rc;
 }
 
@@ -835,18 +558,13 @@ static int vboxClipboardInitX11 (VBOXCLIPBOARDCONTEXTX11 *pCtx)
  * Construct the X11 backend of the shared clipboard.
  * @note  X11 backend code
  */
-VBOXCLIPBOARDCONTEXTX11 *VBoxX11ClipboardConstructX11
-                                 (VBOXCLIPBOARDCONTEXT *pFrontend)
+CLIPBACKEND *ClipConstructX11(VBOXCLIPBOARDCONTEXT *pFrontend)
 {
     int rc;
 
-    VBOXCLIPBOARDCONTEXTX11 *pCtx = &g_ctxX11;
-    /** @todo we still only support one backend at a time, because the X
-     * toolkit intrinsics don't support user data in XtOwnSelection.
-     * This function should not fail like this. */
-    AssertReturn(g_pCtx == NULL, NULL);
-    g_pCtx = &g_ctxX11;
-    if (!RTEnvGet("DISPLAY"))
+    CLIPBACKEND *pCtx = (CLIPBACKEND *)
+                    RTMemAllocZ(sizeof(CLIPBACKEND));
+    if (pCtx && !RTEnvGet("DISPLAY"))
     {
         /*
          * If we don't find the DISPLAY environment variable we assume that
@@ -855,36 +573,15 @@ VBOXCLIPBOARDCONTEXTX11 *VBoxX11ClipboardConstructX11
          * This is important for VBoxHeadless.
          */
         LogRelFunc(("X11 DISPLAY variable not set -- disabling shared clipboard\n"));
-        g_fHaveX11 = false;
+        pCtx->fHaveX11 = false;
         return pCtx;
     }
 
-    if (RTEnvGet("VBOX_CBTEST_UTF16"))
-    {
-        g_testUtf16 = true;
-        LogRel(("Host clipboard: testing Utf16\n"));
-    }
-    else if (RTEnvGet("VBOX_CBTEST_UTF8"))
-    {
-        g_testUtf8 = true;
-        LogRel(("Host clipboard: testing Utf8\n"));
-    }
-    else if (RTEnvGet("VBOX_CBTEST_CTEXT"))
-    {
-        g_testCText = true;
-        LogRel(("Host clipboard: testing compound text\n"));
-    }
-    else if (RTEnvGet("VBOX_CBDEBUG"))
-    {
-        g_debugClipboard = true;
-        LogRel(("Host clipboard: enabling additional debugging output\n"));
-    }
-
-    g_fHaveX11 = true;
+    pCtx->fHaveX11 = true;
 
     LogRel(("Initializing X11 clipboard backend\n"));
-    pCtx->pFrontend = pFrontend;
-    RTSemEventCreate(&pCtx->waitForData);
+    if (pCtx)
+        pCtx->pFrontend = pFrontend;
     return pCtx;
 }
 
@@ -892,41 +589,38 @@ VBOXCLIPBOARDCONTEXTX11 *VBoxX11ClipboardConstructX11
  * Destruct the shared clipboard X11 backend.
  * @note  X11 backend code
  */
-void VBoxX11ClipboardDestructX11(VBOXCLIPBOARDCONTEXTX11 *pCtx)
+void ClipDestructX11(CLIPBACKEND *pCtx)
 {
     /*
-     * Immediately return if we are not connected to the host X server.
+     * Immediately return if we are not connected to the X server.
      */
-    if (!g_fHaveX11)
+    if (!pCtx->fHaveX11)
         return;
 
     /* We set this to NULL when the event thread exits.  It really should
      * have exited at this point, when we are about to unload the code from
      * memory. */
     Assert(pCtx->widget == NULL);
-    RTSemEventDestroy(pCtx->waitForData);
 }
 
 /**
  * Announce to the X11 backend that we are ready to start.
- * @param  owner who is the initial clipboard owner
  */
-int VBoxX11ClipboardStartX11(VBOXCLIPBOARDCONTEXTX11 *pCtx,
-                             bool)
+int ClipStartX11(CLIPBACKEND *pCtx)
 {
     int rc = VINF_SUCCESS;
     LogFlowFunc(("\n"));
     /*
-     * Immediately return if we are not connected to the host X server.
+     * Immediately return if we are not connected to the X server.
      */
-    if (!g_fHaveX11)
+    if (!pCtx->fHaveX11)
         return VINF_SUCCESS;
 
-    rc = vboxClipboardInitX11(pCtx);
+    rc = clipInit(pCtx);
 #ifndef TESTCASE
     if (RT_SUCCESS(rc))
     {
-        rc = RTThreadCreate(&pCtx->thread, vboxClipboardThread, pCtx, 0,
+        rc = RTThreadCreate(&pCtx->thread, clipEventThread, pCtx, 0,
                             RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "SHCLIP");
         if (RT_FAILURE(rc))
             LogRel(("Failed to initialise the shared clipboard X11 backend.\n"));
@@ -934,19 +628,10 @@ int VBoxX11ClipboardStartX11(VBOXCLIPBOARDCONTEXTX11 *pCtx,
 #endif
     if (RT_SUCCESS(rc))
     {
-        pCtx->eOwner = NONE;
-        pCtx->notifyVBox = true;
+        pCtx->fOwnsClipboard = false;
+        clipResetX11Formats(pCtx);
     }
     return rc;
-}
-
-/**
- * Called when the VBox may have fallen out of sync with the backend.
- * @note  X11 backend code
- */
-void VBoxX11ClipboardRequestSyncX11(VBOXCLIPBOARDCONTEXTX11 *pCtx)
-{
-    /* No longer needed. */
 }
 
 /** String written to the wakeup pipe. */
@@ -962,18 +647,17 @@ void VBoxX11ClipboardRequestSyncX11(VBOXCLIPBOARDCONTEXTX11 *pCtx)
  *        otherwise the X11 event loop will still be waiting for the request
  *        to return and will not be able to terminate.
  */
-int VBoxX11ClipboardStopX11(VBOXCLIPBOARDCONTEXTX11 *pCtx)
+int ClipStopX11(CLIPBACKEND *pCtx)
 {
     int rc, rcThread;
     unsigned count = 0;
     /*
-     * Immediately return if we are not connected to the host X server.
+     * Immediately return if we are not connected to the X server.
      */
-    if (!g_fHaveX11)
+    if (!pCtx->fHaveX11)
         return VINF_SUCCESS;
 
     LogRelFunc(("stopping the shared clipboard X11 backend\n"));
-
     /* Write to the "stop" pipe */
     rc = write(pCtx->wakeupPipeWrite, WAKE_UP_STRING, WAKE_UP_STRING_LEN);
     do
@@ -986,7 +670,7 @@ int VBoxX11ClipboardStopX11(VBOXCLIPBOARDCONTEXTX11 *pCtx)
         AssertRC(rcThread);
     else
         LogRelFunc(("rc=%Rrc\n", rc));
-    vboxClipboardUninitX11(pCtx);
+    clipUninit(pCtx);
     LogFlowFunc(("returning %Rrc.\n", rc));
     return rc;
 }
@@ -994,9 +678,7 @@ int VBoxX11ClipboardStopX11(VBOXCLIPBOARDCONTEXTX11 *pCtx)
 /**
  * Satisfy a request from X11 for clipboard targets supported by VBox.
  *
- * @returns true if we successfully convert the data to the format
- *          requested, false otherwise.
- *
+ * @returns iprt status code
  * @param  atomTypeReturn The type of the data we are returning
  * @param  pValReturn     A pointer to the data we are returning.  This
  *                        should be set to memory allocated by XtMalloc,
@@ -1006,453 +688,329 @@ int VBoxX11ClipboardStopX11(VBOXCLIPBOARDCONTEXTX11 *pCtx)
  *                        returning
  * @note  X11 backend code, called by the XtOwnSelection callback.
  */
-static Boolean vboxClipboardConvertTargetsForX11(VBOXCLIPBOARDCONTEXTX11
-                                                                      *pCtx,
-                                                 Atom *atomTypeReturn,
-                                                 XtPointer *pValReturn,
-                                                 unsigned long *pcLenReturn,
-                                                 int *piFormatReturn)
+static int clipCreateX11Targets(CLIPBACKEND *pCtx, Atom *atomTypeReturn,
+                                XtPointer *pValReturn,
+                                unsigned long *pcLenReturn,
+                                int *piFormatReturn)
 {
-    unsigned uListSize = pCtx->formatList.size();
-    Atom *atomTargets = reinterpret_cast<Atom *>(XtMalloc((uListSize + 3) * sizeof(Atom)));
+    Atom *atomTargets = (Atom *)XtMalloc(  (MAX_CLIP_X11_FORMATS + 3)
+                                         * sizeof(Atom));
     unsigned cTargets = 0;
-
     LogFlowFunc (("called\n"));
-    for (unsigned i = 0; i < uListSize; ++i)
+    CLIPX11FORMAT format = NIL_CLIPX11FORMAT;
+    do
     {
-        if (   ((pCtx->vboxFormats & VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT) != 0)
-            && (   pCtx->formatList[i].guestFormat
-                == VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT))
+        format = clipEnumX11Formats(pCtx->vboxFormats, format);
+        if (format != NIL_CLIPX11FORMAT)
         {
-            atomTargets[cTargets] = pCtx->formatList[i].atom;
+            atomTargets[cTargets] = clipAtomForX11Format(pCtx->widget,
+                                                          format);
             ++cTargets;
         }
-    }
-    atomTargets[cTargets] = pCtx->atomTargets;
-    atomTargets[cTargets + 1] = pCtx->atomMultiple;
-    atomTargets[cTargets + 2] = pCtx->atomTimestamp;
-    if (g_debugClipboard)
-    {
-        for (unsigned i = 0; i < cTargets + 3; i++)
-        {
-            char *szAtomName = XGetAtomName(XtDisplay(pCtx->widget), atomTargets[i]);
-            if (szAtomName != 0)
-            {
-                Log2 (("%s: returning target %s\n", __PRETTY_FUNCTION__,
-                       szAtomName));
-                XFree(szAtomName);
-            }
-            else
-            {
-                Log(("%s: invalid atom %d in the list!\n", __PRETTY_FUNCTION__,
-                     atomTargets[i]));
-            }
-        }
-    }
+    } while (format != NIL_CLIPX11FORMAT);
+    /* We always offer these */
+    atomTargets[cTargets] = clipGetAtom(pCtx->widget, "TARGETS");
+    atomTargets[cTargets + 1] = clipGetAtom(pCtx->widget, "MULTIPLE");
+    atomTargets[cTargets + 2] = clipGetAtom(pCtx->widget, "TIMESTAMP");
     *atomTypeReturn = XA_ATOM;
-    *pValReturn = reinterpret_cast<XtPointer>(atomTargets);
+    *pValReturn = (XtPointer)atomTargets;
     *pcLenReturn = cTargets + 3;
     *piFormatReturn = 32;
-    return true;
+    return VINF_SUCCESS;
+}
+
+/** This is a wrapper around ClipRequestDataForX11 that will cache the
+ * data returned.
+ */
+static int clipReadVBoxClipboard(CLIPBACKEND *pCtx, uint32_t u32Format,
+                                 void **ppv, uint32_t *pcb)
+{
+    int rc = VINF_SUCCESS;
+    LogFlowFunc(("pCtx=%p, u32Format=%02X, ppv=%p, pcb=%p\n", pCtx,
+                 u32Format, ppv, pcb));
+    if (u32Format == VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT)
+    {
+        if (pCtx->pvUnicodeCache == NULL)
+            rc = ClipRequestDataForX11(pCtx->pFrontend, u32Format,
+                                              &pCtx->pvUnicodeCache,
+                                              &pCtx->cbUnicodeCache);
+        if (RT_SUCCESS(rc))
+        {
+            *ppv = RTMemDup(pCtx->pvUnicodeCache, pCtx->cbUnicodeCache);
+            *pcb = pCtx->cbUnicodeCache;
+            if (*ppv == NULL)
+                rc = VERR_NO_MEMORY;
+        }
+    }
+    else
+        rc = ClipRequestDataForX11(pCtx->pFrontend, u32Format,
+                                          ppv, pcb);
+    LogFlowFunc(("returning %Rrc\n", rc));
+    if (RT_SUCCESS(rc))
+        LogFlowFunc(("*ppv=%.*ls, *pcb=%u\n", *pcb, *ppv, *pcb));
+    return rc;
 }
 
 /**
- * Satisfy a request from X11 to convert the clipboard text to Utf16.  We
- * return non-zero terminated text.
- * @todo that works, but it is bad.  Change it to return zero-terminated
- *       text.
- *
- * @returns true if we successfully convert the data to the format
- * requested, false otherwise.
- *
- * @param  atomTypeReturn  Where to store the atom for the type of the data
- *                         we are returning
- * @param  pValReturn      Where to store the pointer to the data we are
- *                         returning.  This should be to memory allocated by
- *                         XtMalloc, which will be freed by the Xt toolkit
- *                         later.
- * @param  pcLenReturn     Where to store the length of the data we are
- *                         returning
- * @param  piFormatReturn  Where to store the bit width (8, 16, 32) of the
- *                         data we are returning
- * @note  X11 backend code, called by the callback for XtOwnSelection.
+ * Calculate a buffer size large enough to hold the source Windows format
+ * text converted into Unix Utf8, including the null terminator
+ * @returns iprt status code
+ * @param  pwsz       the source text in UCS-2 with Windows EOLs
+ * @param  cwc        the size in USC-2 elements of the source text, with or
+ *                    without the terminator
+ * @param  pcbActual  where to store the buffer size needed
  */
-static Boolean vboxClipboardConvertUtf16(VBOXCLIPBOARDCONTEXTX11 *pCtx,
-                                         Atom *atomTypeReturn,
-                                         XtPointer *pValReturn,
-                                         unsigned long *pcLenReturn,
-                                         int *piFormatReturn)
+static int clipWinTxtBufSizeForUtf8(PRTUTF16 pwsz, size_t cwc,
+                                    size_t *pcbActual)
 {
-    PRTUTF16 pu16SrcText, pu16DestText;
-    void *pvVBox = NULL;
-    uint32_t cbVBox = 0;
-    size_t cwSrcLen, cwDestLen;
-    int rc;
-
-    LogFlowFunc (("called\n"));
-    rc = VBoxX11ClipboardReadVBoxData(pCtx->pFrontend, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT, &pvVBox, &cbVBox);
-    if ((RT_FAILURE(rc)) || (cbVBox == 0))
-    {
-        /* If VBoxX11ClipboardReadVBoxData fails then we may be terminating */
-        LogRelFunc (("VBoxX11ClipboardReadVBoxData returned %Rrc%s\n", rc,
-                    RT_SUCCESS(rc) ? ", cbVBox == 0" :  ""));
-        RTMemFree(pvVBox);
-        return false;
-    }
-    pu16SrcText = reinterpret_cast<PRTUTF16>(pvVBox);
-    cwSrcLen = cbVBox / 2;
-    /* How long will the converted text be? */
-    rc = vboxClipboardUtf16GetLinSize(pu16SrcText, cwSrcLen, &cwDestLen);
-    if (RT_FAILURE(rc))
-    {
-        LogRel(("vboxClipboardConvertUtf16: clipboard conversion failed.  vboxClipboardUtf16GetLinSize returned %Rrc.  Abandoning.\n", rc));
-        RTMemFree(pvVBox);
-        AssertRCReturn(rc, false);
-    }
-    if (cwDestLen == 0)
-    {
-        LogFlowFunc(("received empty clipboard data from the guest, returning false.\n"));
-        RTMemFree(pvVBox);
-        return false;
-    }
-    pu16DestText = reinterpret_cast<PRTUTF16>(XtMalloc(cwDestLen * 2));
-    if (pu16DestText == 0)
-    {
-        LogRel(("vboxClipboardConvertUtf16: failed to allocate %d bytes\n", cwDestLen * 2));
-        RTMemFree(pvVBox);
-        return false;
-    }
-    /* Convert the text. */
-    rc = vboxClipboardUtf16WinToLin(pu16SrcText, cwSrcLen, pu16DestText, cwDestLen);
-    if (RT_FAILURE(rc))
-    {
-        LogRel(("vboxClipboardConvertUtf16: clipboard conversion failed.  vboxClipboardUtf16WinToLin returned %Rrc.  Abandoning.\n", rc));
-        XtFree(reinterpret_cast<char *>(pu16DestText));
-        RTMemFree(pvVBox);
-        return false;
-    }
-    LogFlowFunc (("converted string is %.*ls. Returning.\n", cwDestLen, pu16DestText));
-    RTMemFree(pvVBox);
-    *atomTypeReturn = pCtx->atomUtf16;
-    *pValReturn = reinterpret_cast<XtPointer>(pu16DestText);
-    *pcLenReturn = cwDestLen;
-    *piFormatReturn = 16;
-    return true;
+    size_t cbRet = 0;
+    int rc = RTUtf16CalcUtf8LenEx(pwsz, cwc, &cbRet);
+    if (RT_SUCCESS(rc))
+        *pcbActual = cbRet + 1;  /* null terminator */
+    return rc;
 }
 
 /**
- * Satisfy a request from X11 to convert the clipboard text to Utf8.  We
- * return non-zero terminated text.
- * @todo that works, but it is bad.  Change it to return zero-terminated
- *       text.
+ * Convert text from Windows format (UCS-2 with CRLF line endings) to standard
+ * Utf-8.
  *
- * @returns true if we successfully convert the data to the format
- * requested, false otherwise.
+ * @returns iprt status code
  *
- * @param  atomTypeReturn  Where to store the atom for the type of the data
+ * @param  pwszSrc    the text to be converted
+ * @param  cbSrc      the length of @a pwszSrc in bytes
+ * @param  pszBuf     where to write the converted string
+ * @param  cbBuf      the size of the buffer pointed to by @a pszBuf
+ * @param  pcbActual  where to store the size of the converted string.
+ *                    optional.
+ */
+static int clipWinTxtToUtf8(PRTUTF16 pwszSrc, size_t cbSrc, char *pszBuf,
+                            size_t cbBuf, size_t *pcbActual)
+{
+    PRTUTF16 pwszTmp = NULL;
+    size_t cwSrc = cbSrc / 2, cwTmp = 0, cbDest = 0;
+    int rc = VINF_SUCCESS;
+
+    LogFlowFunc (("pwszSrc=%.*ls, cbSrc=%u\n", cbSrc, pwszSrc, cbSrc));
+    /* How long will the converted text be? */
+    AssertPtr(pwszSrc);
+    AssertPtr(pszBuf);
+    rc = vboxClipboardUtf16GetLinSize(pwszSrc, cwSrc, &cwTmp);
+    if (RT_SUCCESS(rc) && cwTmp == 0)
+        rc = VERR_NO_DATA;
+    if (RT_SUCCESS(rc))
+        pwszTmp = (PRTUTF16)RTMemAlloc(cwTmp * 2);
+    if (!pwszTmp)
+        rc = VERR_NO_MEMORY;
+    /* Convert the text. */
+    if (RT_SUCCESS(rc))
+        rc = vboxClipboardUtf16WinToLin(pwszSrc, cwSrc, pwszTmp, cwTmp);
+    if (RT_SUCCESS(rc))
+        /* Convert the Utf16 string to Utf8. */
+        rc = RTUtf16ToUtf8Ex(pwszTmp + 1, cwTmp - 1, &pszBuf, cbBuf,
+                             &cbDest);
+    RTMemFree(reinterpret_cast<void *>(pwszTmp));
+    if (pcbActual)
+        *pcbActual = cbDest + 1;
+    LogFlowFunc(("returning %Rrc\n", rc));
+    if (RT_SUCCESS(rc))
+        LogFlowFunc (("converted string is %.*s. Returning.\n", cbDest,
+                      pszBuf));
+    return rc;
+}
+
+/**
+ * Satisfy a request from X11 to convert the clipboard text to Utf-8.  We
+ * return null-terminated text, but can cope with non-null-terminated input.
+ *
+ * @returns iprt status code
+ * @param  pDisplay        an X11 display structure, needed for conversions
+ *                         performed by Xlib
+ * @param  pv              the text to be converted (UCS-2 with Windows EOLs)
+ * @param  cb              the length of the text in @cb in bytes
+ * @param  atomTypeReturn  where to store the atom for the type of the data
  *                         we are returning
- * @param  pValReturn      Where to store the pointer to the data we are
+ * @param  pValReturn      where to store the pointer to the data we are
  *                         returning.  This should be to memory allocated by
  *                         XtMalloc, which will be freed by the Xt toolkit
  *                         later.
- * @param  pcLenReturn     Where to store the length of the data we are
+ * @param  pcLenReturn     where to store the length of the data we are
  *                         returning
- * @param  piFormatReturn  Where to store the bit width (8, 16, 32) of the
+ * @param  piFormatReturn  where to store the bit width (8, 16, 32) of the
  *                         data we are returning
- * @note  X11 backend code, called by the callback for XtOwnSelection.
  */
-static Boolean vboxClipboardConvertToUtf8ForX11(VBOXCLIPBOARDCONTEXTX11
-                                                                      *pCtx,
-                                                Atom *atomTarget,
-                                                Atom *atomTypeReturn,
-                                                XtPointer *pValReturn,
-                                                unsigned long *pcLenReturn,
-                                                int *piFormatReturn)
+static int clipWinTxtToUtf8ForX11CB(Display *pDisplay, PRTUTF16 pwszSrc,
+                                    size_t cbSrc, Atom *atomTarget,
+                                    Atom *atomTypeReturn,
+                                    XtPointer *pValReturn,
+                                    unsigned long *pcLenReturn,
+                                    int *piFormatReturn)
 {
-    PRTUTF16 pu16SrcText, pu16DestText;
-    char *pu8DestText;
-    void *pvVBox = NULL;
-    uint32_t cbVBox = 0;
-    size_t cwSrcLen, cwDestLen, cbDestLen;
-    int rc;
-
-    LogFlowFunc (("called\n"));
-    /* Read the clipboard data from the guest. */
-    rc = VBoxX11ClipboardReadVBoxData(pCtx->pFrontend, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT, &pvVBox, &cbVBox);
-    if ((rc != VINF_SUCCESS) || (cbVBox == 0))
+    /* This may slightly overestimate the space needed. */
+    size_t cbDest = 0;
+    int rc = clipWinTxtBufSizeForUtf8(pwszSrc, cbSrc / 2, &cbDest);
+    if (RT_SUCCESS(rc))
     {
-        /* If VBoxX11ClipboardReadVBoxData fails then we may be terminating */
-        LogRelFunc (("VBoxX11ClipboardReadVBoxData returned %Rrc%s\n", rc,
-                     RT_SUCCESS(rc) ? ", cbVBox == 0" :  ""));
-        RTMemFree(pvVBox);
-        return false;
+        char *pszDest = (char *)XtMalloc(cbDest);
+        size_t cbActual = 0;
+        if (pszDest)
+            rc = clipWinTxtToUtf8(pwszSrc, cbSrc, pszDest, cbDest,
+                                  &cbActual);
+        if (RT_SUCCESS(rc))
+        {
+            *atomTypeReturn = *atomTarget;
+            *pValReturn = (XtPointer)pszDest;
+            *pcLenReturn = cbActual;
+            *piFormatReturn = 8;
+        }
     }
-    pu16SrcText = reinterpret_cast<PRTUTF16>(pvVBox);
-    cwSrcLen = cbVBox / 2;
-    /* How long will the converted text be? */
-    rc = vboxClipboardUtf16GetLinSize(pu16SrcText, cwSrcLen, &cwDestLen);
-    if (RT_FAILURE(rc))
-    {
-        LogRelFunc (("clipboard conversion failed.  vboxClipboardUtf16GetLinSize returned %Rrc.  Abandoning.\n", rc));
-        RTMemFree(pvVBox);
-        AssertRCReturn(rc, false);
-    }
-    if (cwDestLen == 0)
-    {
-        LogFlowFunc(("received empty clipboard data from the guest, returning false.\n"));
-        RTMemFree(pvVBox);
-        return false;
-    }
-    pu16DestText = reinterpret_cast<PRTUTF16>(RTMemAlloc(cwDestLen * 2));
-    if (pu16DestText == 0)
-    {
-        LogRelFunc (("failed to allocate %d bytes\n", cwDestLen * 2));
-        RTMemFree(pvVBox);
-        return false;
-    }
-    /* Convert the text. */
-    rc = vboxClipboardUtf16WinToLin(pu16SrcText, cwSrcLen, pu16DestText, cwDestLen);
-    if (RT_FAILURE(rc))
-    {
-        LogRelFunc (("clipboard conversion failed.  vboxClipboardUtf16WinToLin() returned %Rrc.  Abandoning.\n", rc));
-        RTMemFree(reinterpret_cast<void *>(pu16DestText));
-        RTMemFree(pvVBox);
-        return false;
-    }
-    /* Allocate enough space, as RTUtf16ToUtf8Ex may fail if the
-       space is too tightly calculated. */
-    pu8DestText = XtMalloc(cwDestLen * 4);
-    if (pu8DestText == 0)
-    {
-        LogRelFunc (("failed to allocate %d bytes\n", cwDestLen * 4));
-        RTMemFree(reinterpret_cast<void *>(pu16DestText));
-        RTMemFree(pvVBox);
-        return false;
-    }
-    /* Convert the Utf16 string to Utf8. */
-    rc = RTUtf16ToUtf8Ex(pu16DestText + 1, cwDestLen - 1, &pu8DestText, cwDestLen * 4,
-                         &cbDestLen);
-    RTMemFree(reinterpret_cast<void *>(pu16DestText));
-    if (RT_FAILURE(rc))
-    {
-        LogRelFunc (("clipboard conversion failed.  RTUtf16ToUtf8Ex() returned %Rrc.  Abandoning.\n", rc));
-        XtFree(pu8DestText);
-        RTMemFree(pvVBox);
-        return false;
-    }
-    LogFlowFunc (("converted string is %.*s. Returning.\n", cbDestLen, pu8DestText));
-    RTMemFree(pvVBox);
-    *atomTypeReturn = *atomTarget;
-    *pValReturn = reinterpret_cast<XtPointer>(pu8DestText);
-    *pcLenReturn = cbDestLen + 1;
-    *piFormatReturn = 8;
-    return true;
+    return rc;
 }
 
 /**
  * Satisfy a request from X11 to convert the clipboard text to
- * COMPOUND_TEXT.  We return non-zero terminated text.
- * @todo that works, but it is bad.  Change it to return zero-terminated
- *       text.
+ * COMPOUND_TEXT.  We return null-terminated text, but can cope with non-null-
+ * terminated input.
  *
- * @returns true if we successfully convert the data to the format
- * requested, false otherwise.
- *
- * @param  atomTypeReturn  Where to store the atom for the type of the data
+ * @returns iprt status code
+ * @param  pDisplay        an X11 display structure, needed for conversions
+ *                         performed by Xlib
+ * @param  pv              the text to be converted (UCS-2 with Windows EOLs)
+ * @param  cb              the length of the text in @cb in bytes
+ * @param  atomTypeReturn  where to store the atom for the type of the data
  *                         we are returning
- * @param  pValReturn      Where to store the pointer to the data we are
+ * @param  pValReturn      where to store the pointer to the data we are
  *                         returning.  This should be to memory allocated by
  *                         XtMalloc, which will be freed by the Xt toolkit
  *                         later.
- * @param  pcLenReturn     Where to store the length of the data we are
+ * @param  pcLenReturn     where to store the length of the data we are
  *                         returning
- * @param  piFormatReturn  Where to store the bit width (8, 16, 32) of the
+ * @param  piFormatReturn  where to store the bit width (8, 16, 32) of the
  *                         data we are returning
- * @note  X11 backend code, called by the callback for XtOwnSelection.
  */
-static Boolean vboxClipboardConvertToCTextForX11(VBOXCLIPBOARDCONTEXTX11
-                                                                      *pCtx,
-                                                 Atom *atomTypeReturn,
-                                                 XtPointer *pValReturn,
-                                                 unsigned long *pcLenReturn,
-                                                 int *piFormatReturn)
+static int clipWinTxtToCTextForX11CB(Display *pDisplay, PRTUTF16 pwszSrc,
+                                     size_t cbSrc, Atom *atomTypeReturn,
+                                     XtPointer *pValReturn,
+                                     unsigned long *pcLenReturn,
+                                         int *piFormatReturn)
 {
-    PRTUTF16 pu16SrcText, pu16DestText;
-    void *pvVBox = NULL;
-    uint32_t cbVBox = 0;
-    char *pu8DestText = 0;
-    size_t cwSrcLen, cwDestLen, cbDestLen;
+    char *pszTmp = NULL;
+    size_t cbTmp = 0, cbActual = 0;
     XTextProperty property;
-    int rc;
+    int rc = VINF_SUCCESS, xrc = 0;
 
-    LogFlowFunc (("called\n"));
-    /* Read the clipboard data from the guest. */
-    rc = VBoxX11ClipboardReadVBoxData(pCtx->pFrontend, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT, &pvVBox, &cbVBox);
-    if ((rc != VINF_SUCCESS) || (cbVBox == 0))
+    LogFlowFunc(("pwszSrc=%.*ls, cbSrc=%u\n", cbSrc / 2, pwszSrc, cbSrc));
+    AssertPtrReturn(pDisplay, false);
+    AssertPtrReturn(pwszSrc, false);
+    rc = clipWinTxtBufSizeForUtf8(pwszSrc, cbSrc / 2, &cbTmp);
+    if (RT_SUCCESS(rc))
     {
-        /* If VBoxX11ClipboardReadVBoxData fails then we may be terminating */
-        LogRelFunc (("VBoxX11ClipboardReadVBoxData returned %Rrc%s\n", rc,
-                      RT_SUCCESS(rc) ? ", cbVBox == 0" :  ""));
-        RTMemFree(pvVBox);
-        return false;
+        pszTmp = (char *)RTMemAlloc(cbTmp);
+        if (!pszTmp)
+            rc = VERR_NO_MEMORY;
     }
-    pu16SrcText = reinterpret_cast<PRTUTF16>(pvVBox);
-    cwSrcLen = cbVBox / 2;
-    /* How long will the converted text be? */
-    rc = vboxClipboardUtf16GetLinSize(pu16SrcText, cwSrcLen, &cwDestLen);
-    if (RT_FAILURE(rc))
-    {
-        LogRelFunc (("clipboard conversion failed.  vboxClipboardUtf16GetLinSize returned %Rrc.  Abandoning.\n", rc));
-        RTMemFree(pvVBox);
-        AssertRCReturn(rc, false);
-    }
-    if (cwDestLen == 0)
-    {
-        LogFlowFunc(("received empty clipboard data from the guest, returning false.\n"));
-        RTMemFree(pvVBox);
-        return false;
-    }
-    pu16DestText = reinterpret_cast<PRTUTF16>(RTMemAlloc(cwDestLen * 2));
-    if (pu16DestText == 0)
-    {
-        LogRelFunc (("failed to allocate %d bytes\n", cwDestLen * 2));
-        RTMemFree(pvVBox);
-        return false;
-    }
-    /* Convert the text. */
-    rc = vboxClipboardUtf16WinToLin(pu16SrcText, cwSrcLen, pu16DestText, cwDestLen);
-    if (RT_FAILURE(rc))
-    {
-        LogRelFunc (("clipboard conversion failed.  vboxClipboardUtf16WinToLin() returned %Rrc.  Abandoning.\n", rc));
-        RTMemFree(reinterpret_cast<void *>(pu16DestText));
-        RTMemFree(pvVBox);
-        return false;
-    }
-    /* Convert the Utf16 string to Utf8. */
-    rc = RTUtf16ToUtf8Ex(pu16DestText + 1, cwDestLen - 1, &pu8DestText, 0, &cbDestLen);
-    RTMemFree(reinterpret_cast<void *>(pu16DestText));
-    if (RT_FAILURE(rc))
-    {
-        LogRelFunc (("clipboard conversion failed.  RTUtf16ToUtf8Ex() returned %Rrc.  Abandoning.\n", rc));
-        RTMemFree(pvVBox);
-        return false;
-    }
+    if (RT_SUCCESS(rc))
+        rc = clipWinTxtToUtf8(pwszSrc, cbSrc, pszTmp, cbTmp + 1,
+                              &cbActual);
     /* And finally (!) convert the Utf8 text to compound text. */
-#ifdef RT_OS_SOLARIS
-    rc = XmbTextListToTextProperty(XtDisplay(pCtx->widget), &pu8DestText, 1,
-                                     XCompoundTextStyle, &property);
+#ifdef X_HAVE_UTF8_STRING
+    if (RT_SUCCESS(rc))
+        xrc = Xutf8TextListToTextProperty(pDisplay, &pszTmp, 1,
+                                          XCompoundTextStyle, &property);
 #else
-    rc = Xutf8TextListToTextProperty(XtDisplay(pCtx->widget), &pu8DestText, 1,
-                                     XCompoundTextStyle, &property);
+    if (RT_SUCCESS(rc))
+        xrc = XmbTextListToTextProperty(pDisplay, &pszTmp, 1,
+                                        XCompoundTextStyle, &property);
 #endif
-    RTMemFree(pu8DestText);
-    if (rc < 0)
-    {
-        const char *pcReason;
-        switch(rc)
-        {
-        case XNoMemory:
-            pcReason = "out of memory";
-            break;
-        case XLocaleNotSupported:
-            pcReason = "locale (Utf8) not supported";
-            break;
-        case XConverterNotFound:
-            pcReason = "converter not found";
-            break;
-        default:
-            pcReason = "unknown error";
-        }
-        LogRelFunc (("Xutf8TextListToTextProperty failed.  Reason: %s\n",
-                pcReason));
-        RTMemFree(pvVBox);
-        return false;
-    }
-    LogFlowFunc (("converted string is %s. Returning.\n", property.value));
-    RTMemFree(pvVBox);
+    if (RT_SUCCESS(rc) && xrc < 0)
+        rc = (  xrc == XNoMemory           ? VERR_NO_MEMORY
+              : xrc == XLocaleNotSupported ? VERR_NOT_SUPPORTED
+              : xrc == XConverterNotFound  ? VERR_NOT_SUPPORTED
+              :                              VERR_UNRESOLVED_ERROR);
+    RTMemFree(pszTmp);
     *atomTypeReturn = property.encoding;
     *pValReturn = reinterpret_cast<XtPointer>(property.value);
     *pcLenReturn = property.nitems + 1;
     *piFormatReturn = property.format;
-    return true;
+    LogFlowFunc(("returning %Rrc\n", rc));
+    if (RT_SUCCESS(rc))
+        LogFlowFunc (("converted string is %s\n", property.value));
+    return rc;
+}
+
+/**
+ * Does this atom correspond to one of the two selection types we support?
+ * @param  widget   a valid Xt widget
+ * @param  selType  the atom in question
+ */
+static bool clipIsSupportedSelectionType(Widget widget, Atom selType)
+{
+    return(   (selType == clipGetAtom(widget, "CLIPBOARD"))
+           || (selType == clipGetAtom(widget, "PRIMARY")));
+}
+
+static int clipConvertVBoxCBForX11(CLIPBACKEND *pCtx, Atom *atomTarget,
+                                   Atom *atomTypeReturn,
+                                   XtPointer *pValReturn,
+                                   unsigned long *pcLenReturn,
+                                   int *piFormatReturn)
+{
+    int rc = VINF_SUCCESS;
+    CLIPX11FORMAT x11Format = clipFindX11FormatByAtom(pCtx->widget,
+                                                      *atomTarget);
+    CLIPFORMAT format = clipRealFormatForX11Format(x11Format);
+    if (   ((format == UTF8) || (format == CTEXT))
+        && (pCtx->vboxFormats & VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT))
+    {
+        void *pv = NULL;
+        uint32_t cb = 0;
+        rc = clipReadVBoxClipboard(pCtx,
+                                   VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT,
+                                   &pv, &cb);
+        if (RT_SUCCESS(rc) && (cb == 0))
+            rc = VERR_NO_DATA;
+        if (RT_SUCCESS(rc) && (format == UTF8))
+            rc = clipWinTxtToUtf8ForX11CB(XtDisplay(pCtx->widget),
+                                          (PRTUTF16)pv, cb, atomTarget,
+                                          atomTypeReturn, pValReturn,
+                                          pcLenReturn, piFormatReturn);
+        else if (RT_SUCCESS(rc) && (format == CTEXT))
+            rc = clipWinTxtToCTextForX11CB(XtDisplay(pCtx->widget),
+                                           (PRTUTF16)pv, cb,
+                                           atomTypeReturn, pValReturn,
+                                           pcLenReturn, piFormatReturn);
+        RTMemFree(pv);
+    }
+    else
+        rc = VERR_NOT_SUPPORTED;
+    return rc;
 }
 
 /**
  * Return VBox's clipboard data for an X11 client.
  * @note  X11 backend code, callback for XtOwnSelection
  */
-static Boolean vboxClipboardConvertForX11(Widget, Atom *atomSelection,
+static Boolean clipXtConvertSelectionProc(Widget widget, Atom *atomSelection,
                                           Atom *atomTarget,
                                           Atom *atomTypeReturn,
                                           XtPointer *pValReturn,
                                           unsigned long *pcLenReturn,
                                           int *piFormatReturn)
 {
-    g_eClipboardFormats eFormat = INVALID;
-    /** @todo find a better way around the lack of user data. */
-    VBOXCLIPBOARDCONTEXTX11 *pCtx = g_pCtx;
+    CLIPBACKEND *pCtx = clipLookupContext(widget);
+    int rc = VINF_SUCCESS;
 
     LogFlowFunc(("\n"));
-    /* Drop requests that we receive too late. */
-    if (pCtx->eOwner != VB)
+    if (   !pCtx->fOwnsClipboard   /* Drop requests we receive too late. */
+        || !clipIsSupportedSelectionType(pCtx->widget, *atomSelection))
         return false;
-    if (   (*atomSelection != pCtx->atomClipboard)
-        && (*atomSelection != pCtx->atomPrimary)
-       )
-    {
-        LogFlowFunc(("rc = false\n"));
-        return false;
-    }
-    if (g_debugClipboard)
-    {
-        char *szAtomName = XGetAtomName(XtDisplay(pCtx->widget), *atomTarget);
-        if (szAtomName != 0)
-        {
-            Log2 (("%s: request for format %s\n", __PRETTY_FUNCTION__, szAtomName));
-            XFree(szAtomName);
-        }
-        else
-        {
-            LogFunc (("request for invalid target atom %d!\n", *atomTarget));
-        }
-    }
-    if (*atomTarget == pCtx->atomTargets)
-    {
-        eFormat = TARGETS;
-    }
+    if (*atomTarget == clipGetAtom(pCtx->widget, "TARGETS"))
+        rc = clipCreateX11Targets(pCtx, atomTypeReturn, pValReturn,
+                                  pcLenReturn, piFormatReturn);
     else
-    {
-        for (unsigned i = 0; i != pCtx->formatList.size(); ++i)
-        {
-            if (pCtx->formatList[i].atom == *atomTarget)
-            {
-                eFormat = pCtx->formatList[i].format;
-                break;
-            }
-        }
-    }
-    switch (eFormat)
-    {
-    case TARGETS:
-        return vboxClipboardConvertTargetsForX11(pCtx, atomTypeReturn,
-                                                 pValReturn, pcLenReturn,
-                                                 piFormatReturn);
-    case UTF16:
-        return vboxClipboardConvertUtf16(pCtx, atomTypeReturn, pValReturn,
-                                         pcLenReturn, piFormatReturn);
-    case UTF8:
-        return vboxClipboardConvertToUtf8ForX11(pCtx, atomTarget,
-                                                atomTypeReturn,
-                                                pValReturn, pcLenReturn,
-                                                piFormatReturn);
-    case CTEXT:
-        return vboxClipboardConvertToCTextForX11(pCtx, atomTypeReturn,
-                                                 pValReturn, pcLenReturn,
-                                                 piFormatReturn);
-    default:
-        LogFunc (("bad format\n"));
-        return false;
-    }
+        rc = clipConvertVBoxCBForX11(pCtx, atomTarget, atomTypeReturn,
+                                     pValReturn, pcLenReturn, piFormatReturn);
+    LogFlowFunc(("returning, internal status code %Rrc\n", rc));
+    return RT_SUCCESS(rc);
 }
 
 /**
@@ -1461,134 +1019,497 @@ static Boolean vboxClipboardConvertForX11(Widget, Atom *atomSelection,
  * we want ownership of the clipboard.
  * @note  X11 backend code, callback for XtOwnSelection
  */
-static void vboxClipboardReturnToX11(Widget, Atom *)
+static void clipXtLoseSelectionProc(Widget widget, Atom *)
 {
-    /** @todo find a better way around the lack of user data */
-    VBOXCLIPBOARDCONTEXTX11 *pCtx = g_pCtx;
-    LogFlowFunc (("called, giving X11 clipboard ownership\n"));
+    CLIPBACKEND *pCtx = clipLookupContext(widget);
+    LogFlowFunc (("\n"));
     /* These should be set to the right values as soon as we start polling */
-    pCtx->X11TextFormat = INVALID;
-    pCtx->X11BitmapFormat = INVALID;
-    pCtx->eOwner = X11;
-    pCtx->notifyVBox = true;
+    clipResetX11Formats(pCtx);
+    pCtx->fOwnsClipboard = false;
+}
+
+/** Structure used to pass information about formats that VBox supports */
+typedef struct _CLIPNEWVBOXFORMATS
+{
+    /** Context information for the X11 clipboard */
+    CLIPBACKEND *pCtx;
+    /** Formats supported by VBox */
+    uint32_t formats;
+} CLIPNEWVBOXFORMATS;
+
+/** Invalidates the local cache of the data in the VBox clipboard. */
+static void clipInvalidateVBoxCBCache(CLIPBACKEND *pCtx)
+{
+    if (pCtx->pvUnicodeCache != NULL)
+    {
+        RTMemFree(pCtx->pvUnicodeCache);
+        pCtx->pvUnicodeCache = NULL;
+    }
+}
+
+/** Gives up ownership of the X11 clipboard */
+static void clipGiveUpX11CB(CLIPBACKEND *pCtx)
+{
+    XtDisownSelection(pCtx->widget, clipGetAtom(pCtx->widget, "CLIPBOARD"),
+                      CurrentTime);
+    XtDisownSelection(pCtx->widget, clipGetAtom(pCtx->widget, "PRIMARY"),
+                      CurrentTime);
+    pCtx->fOwnsClipboard = false;
+    pCtx->vboxFormats = 0;
+}
+
+/**
+ * Take possession of the X11 clipboard (and middle-button selection).
+ */
+static void clipGrabX11CB(CLIPBACKEND *pCtx, uint32_t u32Formats)
+{
+    if (XtOwnSelection(pCtx->widget, clipGetAtom(pCtx->widget, "CLIPBOARD"),
+                       CurrentTime, clipXtConvertSelectionProc,
+                       clipXtLoseSelectionProc, 0))
+    {
+        pCtx->fOwnsClipboard = true;
+        pCtx->vboxFormats = u32Formats;
+        /* Grab the middle-button paste selection too. */
+        XtOwnSelection(pCtx->widget, clipGetAtom(pCtx->widget, "PRIMARY"),
+                       CurrentTime, clipXtConvertSelectionProc, NULL, 0);
+    }
+    else
+        /* Someone raced us to get the clipboard and they won. */
+        pCtx->fOwnsClipboard = false;
+}
+
+/**
+ * Worker function for ClipAnnounceFormatToX11 which runs on the
+ * event thread.
+ * @param pUserData  Pointer to a CLIPNEWVBOXFORMATS structure containing
+ *                   information about the VBox formats available and the
+ *                   clipboard context data.  Must be freed by the worker.
+ */
+static void clipNewVBoxFormatsWorker(XtPointer pUserData,
+                                     XtIntervalId * /* interval */)
+{
+    CLIPNEWVBOXFORMATS *pFormats = (CLIPNEWVBOXFORMATS *)pUserData;
+    CLIPBACKEND *pCtx = pFormats->pCtx;
+    uint32_t u32Formats = pFormats->formats;
+    RTMemFree(pFormats);
+    LogFlowFunc (("u32Formats=%d\n", u32Formats));
+    clipInvalidateVBoxCBCache(pCtx);
+    if (u32Formats == 0)
+        clipGiveUpX11CB(pCtx);
+    else
+        clipGrabX11CB(pCtx, u32Formats);
+    clipResetX11Formats(pCtx);
+    LogFlowFunc(("returning\n"));
 }
 
 /**
  * VBox is taking possession of the shared clipboard.
  *
- * @param u32Formats Clipboard formats the guest is offering
+ * @param u32Formats Clipboard formats that VBox is offering
  * @note  X11 backend code
  */
-void VBoxX11ClipboardAnnounceVBoxFormat(VBOXCLIPBOARDCONTEXTX11 *pCtx,
+void ClipAnnounceFormatToX11(CLIPBACKEND *pCtx,
                                         uint32_t u32Formats)
 {
     /*
-     * Immediately return if we are not connected to the host X server.
+     * Immediately return if we are not connected to the X server.
      */
-    if (!g_fHaveX11)
+    if (!pCtx->fHaveX11)
         return;
+    /* This must be freed by the worker callback */
+    CLIPNEWVBOXFORMATS *pFormats =
+        (CLIPNEWVBOXFORMATS *) RTMemAlloc(sizeof(CLIPNEWVBOXFORMATS));
+    if (pFormats != NULL)  /* if it is we will soon have other problems */
+    {
+        pFormats->pCtx = pCtx;
+        pFormats->formats = u32Formats;
+        clipQueueToEventThread(pCtx->appContext, clipNewVBoxFormatsWorker,
+                               (XtPointer) pFormats);
+    }
+}
 
-    pCtx->vboxFormats = u32Formats;
-    LogFlowFunc (("u32Formats=%d\n", u32Formats));
-    if (u32Formats == 0)
+/**
+ * Massage generic Utf16 with CR end-of-lines into the format Windows expects
+ * and return the result in a RTMemAlloc allocated buffer.
+ * @returns  IPRT status code
+ * @param  pwcSrc     The source Utf16
+ * @param  cwcSrc     The number of 16bit elements in @a pwcSrc, not counting
+ *                    the terminating zero
+ * @param  ppwszDest  Where to store the buffer address
+ * @param  pcbDest    On success, where to store the number of bytes written.
+ *                    Undefined otherwise.  Optional
+ */
+static int clipUtf16ToWinTxt(RTUTF16 *pwcSrc, size_t cwcSrc,
+                             PRTUTF16 *ppwszDest, uint32_t *pcbDest)
+{
+    LogFlowFunc(("pwcSrc=%p, cwcSrc=%u, ppwszDest=%p\n", pwcSrc, cwcSrc,
+                 ppwszDest));
+    AssertPtrReturn(pwcSrc, VERR_INVALID_POINTER);
+    AssertPtrReturn(ppwszDest, VERR_INVALID_POINTER);
+    if (pcbDest)
+        *pcbDest = 0;
+    PRTUTF16 pwszDest = NULL;
+    size_t cwcDest;
+    int rc = vboxClipboardUtf16GetWinSize(pwcSrc, cwcSrc + 1, &cwcDest);
+    if (RT_SUCCESS(rc))
     {
-        /* This is just an automatism, not a genuine anouncement */
-        LogFlowFunc(("returning\n"));
-        return;
+        pwszDest = (PRTUTF16) RTMemAlloc(cwcDest * 2);
+        if (!pwszDest)
+            rc = VERR_NO_MEMORY;
     }
-    if (pCtx->eOwner == VB)
+    if (RT_SUCCESS(rc))
+        rc = vboxClipboardUtf16LinToWin(pwcSrc, cwcSrc + 1, pwszDest,
+                                        cwcDest);
+    if (RT_SUCCESS(rc))
     {
-        /* We already own the clipboard, so no need to grab it, especially as that can lead
-           to races due to the asynchronous nature of the X11 clipboard.  This event may also
-           have been sent out by the guest to invalidate the Windows clipboard cache. */
-        LogFlowFunc(("returning\n"));
-        return;
-    }
-    Log2 (("%s: giving the guest clipboard ownership\n", __PRETTY_FUNCTION__));
-    pCtx->X11TextFormat = INVALID;
-    pCtx->X11BitmapFormat = INVALID;
-    if (XtOwnSelection(pCtx->widget, pCtx->atomClipboard, CurrentTime,
-                       vboxClipboardConvertForX11, vboxClipboardReturnToX11,
-                       0) == True)
-    {
-        pCtx->eOwner = VB;
-        XtOwnSelection(pCtx->widget, pCtx->atomPrimary, CurrentTime,
-                       vboxClipboardConvertForX11, NULL, 0);
+        LogFlowFunc (("converted string is %.*ls\n", cwcDest, pwszDest));
+        *ppwszDest = pwszDest;
+        if (pcbDest)
+            *pcbDest = cwcDest * 2;
     }
     else
-    {
-        /* Another X11 client claimed the clipboard just after us, so let it
-         * go again. */
-        Log2 (("%s: returning clipboard ownership to the host\n", __PRETTY_FUNCTION__));
-        /* We set this so that the guest gets notified when we take the clipboard, even if no
-          guest formats are found which we understand. */
-        /* VBox thinks it currently owns the clipboard, so we must notify it
-         * as soon as we know what formats X11 has to offer. */
-        pCtx->notifyVBox = true;
-        pCtx->eOwner = X11;
-    }
-    LogFlowFunc(("returning\n"));
+        RTMemFree(pwszDest);
+    LogFlowFunc(("returning %Rrc\n", rc));
+    if (pcbDest)
+        LogFlowFunc(("*pcbDest=%u\n", *pcbDest));
+    return rc;
+}
 
+/**
+ * Convert Utf-8 text with CR end-of-lines into Utf-16 as Windows expects it
+ * and return the result in a RTMemAlloc allocated buffer.
+ * @returns  IPRT status code
+ * @param  pcSrc      The source Utf-8
+ * @param  cbSrc      The size of the source in bytes, not counting the
+ *                    terminating zero
+ * @param  ppwszDest  Where to store the buffer address
+ * @param  pcbDest    On success, where to store the number of bytes written.
+ *                    Undefined otherwise.  Optional
+ */
+static int clipUtf8ToWinTxt(const char *pcSrc, unsigned cbSrc,
+                            PRTUTF16 *ppwszDest, uint32_t *pcbDest)
+{
+    LogFlowFunc(("pcSrc=%p, cbSrc=%u, ppwszDest=%p\n", pcSrc, cbSrc,
+                 ppwszDest));
+    AssertPtrReturn(pcSrc, VERR_INVALID_POINTER);
+    AssertPtrReturn(ppwszDest, VERR_INVALID_POINTER);
+    if (pcbDest)
+        *pcbDest = 0;
+    /* Intermediate conversion to UTF16 */
+    size_t cwcTmp;
+    PRTUTF16 pwcTmp = NULL;
+    int rc = RTStrToUtf16Ex(pcSrc, cbSrc, &pwcTmp, 0, &cwcTmp);
+    if (RT_SUCCESS(rc))
+        rc = clipUtf16ToWinTxt(pwcTmp, cwcTmp, ppwszDest, pcbDest);
+    RTUtf16Free(pwcTmp);
+    LogFlowFunc(("Returning %Rrc\n", rc));
+    if (pcbDest)
+        LogFlowFunc(("*pcbDest=%u\n", *pcbDest));
+    return rc;
+}
+
+/**
+ * Convert COMPOUND TEXT with CR end-of-lines into Utf-16 as Windows expects
+ * it and return the result in a RTMemAlloc allocated buffer.
+ * @returns  IPRT status code
+ * @param  widget     An Xt widget, necessary because we use Xt/Xlib for the
+ *                    conversion
+ * @param  pcSrc      The source text
+ * @param  cbSrc      The size of the source in bytes, not counting the
+ *                    terminating zero
+ * @param  ppwszDest  Where to store the buffer address
+ * @param  pcbDest    On success, where to store the number of bytes written.
+ *                    Undefined otherwise.  Optional
+ */
+static int clipCTextToWinTxt(Widget widget, unsigned char *pcSrc,
+                             unsigned cbSrc, PRTUTF16 *ppwszDest,
+                             uint32_t *pcbDest)
+{
+    LogFlowFunc(("widget=%p, pcSrc=%p, cbSrc=%u, ppwszDest=%p\n", widget,
+                 pcSrc, cbSrc, ppwszDest));
+    AssertReturn(widget, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pcSrc, VERR_INVALID_POINTER);
+    AssertPtrReturn(ppwszDest, VERR_INVALID_POINTER);
+    if (pcbDest)
+        *pcbDest = 0;
+
+    /* Special case as X*TextProperty* can't seem to handle empty strings. */
+    if (cbSrc == 0)
+    {
+        *ppwszDest = (PRTUTF16) RTMemAlloc(2);
+        if (!ppwszDest)
+            return VERR_NO_MEMORY;
+        **ppwszDest = 0;
+        if (pcbDest)
+            *pcbDest = 2;
+        return VINF_SUCCESS;
+    }
+
+    if (pcbDest)
+        *pcbDest = 0;
+    /* Intermediate conversion to Utf8 */
+    int rc = VINF_SUCCESS;
+    XTextProperty property;
+    char **ppcTmp = NULL;
+    int cProps;
+
+    property.value = pcSrc;
+    property.encoding = clipGetAtom(widget, "COMPOUND_TEXT");
+    property.format = 8;
+    property.nitems = cbSrc;
+#ifdef X_HAVE_UTF8_STRING
+    int xrc = Xutf8TextPropertyToTextList(XtDisplay(widget), &property,
+                                          &ppcTmp, &cProps);
+#else
+    int xrc = XmbTextPropertyToTextList(XtDisplay(widget), &property,
+                                        &ppcTmp, &cProps);
+#endif
+    if (xrc < 0)
+        rc = (  xrc == XNoMemory           ? VERR_NO_MEMORY
+              : xrc == XLocaleNotSupported ? VERR_NOT_SUPPORTED
+              : xrc == XConverterNotFound  ? VERR_NOT_SUPPORTED
+              :                              VERR_UNRESOLVED_ERROR);
+    /* Now convert the UTF8 to UTF16 */
+    if (RT_SUCCESS(rc))
+        rc = clipUtf8ToWinTxt(*ppcTmp, strlen(*ppcTmp), ppwszDest, pcbDest);
+    if (ppcTmp != NULL)
+        XFreeStringList(ppcTmp);
+    LogFlowFunc(("Returning %Rrc\n", rc));
+    if (pcbDest)
+        LogFlowFunc(("*pcbDest=%u\n", *pcbDest));
+    return rc;
+}
+
+/**
+ * Convert Latin-1 text with CR end-of-lines into Utf-16 as Windows expects
+ * it and return the result in a RTMemAlloc allocated buffer.
+ * @returns  IPRT status code
+ * @param  pcSrc      The source text
+ * @param  cbSrc      The size of the source in bytes, not counting the
+ *                    terminating zero
+ * @param  ppwszDest  Where to store the buffer address
+ * @param  pcbDest    On success, where to store the number of bytes written.
+ *                    Undefined otherwise.  Optional
+ */
+static int clipLatin1ToWinTxt(char *pcSrc, unsigned cbSrc,
+                              PRTUTF16 *ppwszDest, uint32_t *pcbDest)
+{
+    LogFlowFunc (("pcSrc=%.*s, cbSrc=%u, ppwszDest=%p\n", cbSrc,
+                  (char *) pcSrc, cbSrc, ppwszDest));
+    AssertPtrReturn(pcSrc, VERR_INVALID_POINTER);
+    AssertPtrReturn(ppwszDest, VERR_INVALID_POINTER);
+    PRTUTF16 pwszDest = NULL;
+    int rc = VINF_SUCCESS;
+
+    /* Calculate the space needed */
+    unsigned cwcDest = 0;
+    for (unsigned i = 0; i < cbSrc && pcSrc[i] != '\0'; ++i)
+        if (pcSrc[i] == LINEFEED)
+            cwcDest += 2;
+        else
+            ++cwcDest;
+    ++cwcDest;  /* Leave space for the terminator */
+    if (pcbDest)
+        *pcbDest = cwcDest * 2;
+    pwszDest = (PRTUTF16) RTMemAlloc(cwcDest * 2);
+    if (!pwszDest)
+        rc = VERR_NO_MEMORY;
+
+    /* And do the convertion, bearing in mind that Latin-1 expands "naturally"
+     * to Utf-16. */
+    if (RT_SUCCESS(rc))
+    {
+        for (unsigned i = 0, j = 0; i < cbSrc; ++i, ++j)
+            if (pcSrc[i] != LINEFEED)
+                pwszDest[j] = pcSrc[i];
+            else
+            {
+                pwszDest[j] = CARRIAGERETURN;
+                pwszDest[j + 1] = LINEFEED;
+                ++j;
+            }
+        pwszDest[cwcDest - 1] = '\0';  /* Make sure we are zero-terminated. */
+        LogFlowFunc (("converted text is %.*ls\n", cwcDest, pwszDest));
+    }
+    if (RT_SUCCESS(rc))
+        *ppwszDest = pwszDest;
+    else
+        RTMemFree(pwszDest);
+    LogFlowFunc(("Returning %Rrc\n", rc));
+    if (pcbDest)
+        LogFlowFunc(("*pcbDest=%u\n", *pcbDest));
+    return rc;
+}
+
+/** A structure containing information about where to store a request
+ * for the X11 clipboard contents. */
+struct _CLIPREADX11CBREQ 
+{
+    /** The format VBox would like the data in */
+    uint32_t mFormat;
+    /** The text format we requested from X11 if we requested text */
+    CLIPX11FORMAT mTextFormat;
+    /** The clipboard context this request is associated with */
+    CLIPBACKEND *mCtx;
+    /** The request structure passed in from the backend. */
+    CLIPREADCBREQ *mReq;
+};
+
+typedef struct _CLIPREADX11CBREQ CLIPREADX11CBREQ;
+
+/**
+ * Convert the text obtained from the X11 clipboard to UTF-16LE with Windows
+ * EOLs, place it in the buffer supplied and signal that data has arrived.
+ * @note  X11 backend code, callback for XtGetSelectionValue, for use when
+ *        the X11 clipboard contains a text format we understand.
+ */
+static void clipConvertX11CB(Widget widget, XtPointer pClientData,
+                             Atom * /* selection */, Atom *atomType,
+                             XtPointer pvSrc, long unsigned int *pcLen,
+                             int *piFormat)
+{
+    CLIPREADX11CBREQ *pReq = (CLIPREADX11CBREQ *) pClientData;
+    LogFlowFunc(("pReq->mFormat=%02X, pReq->mTextFormat=%u, pReq->mCtx=%p\n",
+                 pReq->mFormat, pReq->mTextFormat, pReq->mCtx));
+    AssertPtr(pReq->mCtx);
+    Assert(pReq->mFormat != 0);  /* sanity */
+    int rc = VINF_SUCCESS;
+    CLIPBACKEND *pCtx = pReq->mCtx;
+    unsigned cbSrc = (*pcLen) * (*piFormat) / 8;
+    void *pvDest = NULL;
+    uint32_t cbDest = 0;
+
+    if (pvSrc == NULL)
+        /* The clipboard selection may have changed before we could get it. */
+        rc = VERR_NO_DATA;
+    else if (*atomType == XT_CONVERT_FAIL) /* Xt timeout */
+        rc = VERR_TIMEOUT;
+    else if (pReq->mFormat == VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT)
+    {
+        /* In which format is the clipboard data? */
+        switch (clipRealFormatForX11Format(pReq->mTextFormat))
+        {
+            case CTEXT:
+                rc = clipCTextToWinTxt(widget, (unsigned char *)pvSrc, cbSrc,
+                                       (PRTUTF16 *) &pvDest, &cbDest);
+                break;
+            case UTF8:
+            {
+                /* If we are given broken Utf-8, we treat it as Latin1.  Is
+                 * this acceptable? */
+                if (RT_SUCCESS(RTStrValidateEncodingEx((char *)pvSrc, cbSrc,
+                                                       0)))
+                    rc = clipUtf8ToWinTxt((const char *)pvSrc, cbSrc,
+                                          (PRTUTF16 *) &pvDest, &cbDest);
+                else
+                    rc = clipLatin1ToWinTxt((char *) pvSrc, cbSrc,
+                                            (PRTUTF16 *) &pvDest, &cbDest);
+                break;
+            }
+            default:
+                rc = VERR_INVALID_PARAMETER;
+        }
+    }
+    else
+        rc = VERR_NOT_IMPLEMENTED;
+    XtFree((char *)pvSrc);
+    ClipCompleteDataRequestFromX11(pReq->mCtx->pFrontend, rc, pReq->mReq,
+                                   pvDest, cbDest);
+    RTMemFree(pvDest);
+    RTMemFree(pReq);
+    if (RT_SUCCESS(rc))
+        /* The other end may want to cache the data, so pretend we have new
+         * data, as we have no way of telling when new data really does
+         * arrive. */
+        clipReportFormatsToVBox(pCtx);
+    else
+        clipReportEmptyX11CB(pCtx);
+    LogFlowFunc(("rc=%Rrc\n", rc));
+}
+
+/** Worker function for ClipRequestDataFromX11 which runs on the event
+ * thread. */
+static void vboxClipboardReadX11Worker(XtPointer pUserData,
+                                       XtIntervalId * /* interval */)
+{
+    CLIPREADX11CBREQ *pReq = (CLIPREADX11CBREQ *)pUserData;
+    CLIPBACKEND *pCtx = pReq->mCtx;
+    LogFlowFunc (("pReq->mFormat = %02X\n", pReq->mFormat));
+
+    int rc = VINF_SUCCESS;
+    /* Do not continue if we already own the clipboard */
+    if (pCtx->fOwnsClipboard == true)
+        rc = VERR_TIMEOUT;
+    else
+    {
+        /*
+         * VBox wants to read data in the given format.
+         */
+        if (pReq->mFormat == VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT)
+        {
+            pReq->mTextFormat = pCtx->X11TextFormat;
+            if (pReq->mTextFormat == INVALID)
+                /* VBox thinks we have data and we don't */
+                rc = VERR_NO_DATA;
+            else
+                /* Send out a request for the data to the current clipboard
+                 * owner */
+                XtGetSelectionValue(pCtx->widget, clipGetAtom(pCtx->widget, "CLIPBOARD"),
+                                    clipAtomForX11Format(pCtx->widget,
+                                                         pCtx->X11TextFormat),
+                                    clipConvertX11CB,
+                                    reinterpret_cast<XtPointer>(pReq),
+                                    CurrentTime);
+        }
+        else
+            rc = VERR_NOT_IMPLEMENTED;
+    }
+    if (RT_FAILURE(rc))
+    {
+        /* The clipboard callback was never scheduled, so we must signal
+         * that the request processing is finished and clean up ourselves. */
+        ClipCompleteDataRequestFromX11(pReq->mCtx->pFrontend, rc, pReq->mReq,
+                                       NULL, 0);
+        RTMemFree(pReq);
+    }
+    LogFlowFunc(("status %Rrc\n", rc));
 }
 
 /**
  * Called when VBox wants to read the X11 clipboard.
  *
- * @param  pClient   Context information about the guest VM
- * @param  u32Format The format that the guest would like to receive the data in
+ * @returns iprt status code
+ * @param  pCtx      Context data for the clipboard backend
+ * @param  u32Format The format that the VBox would like to receive the data
+ *                   in
  * @param  pv        Where to write the data to
  * @param  cb        The size of the buffer to write the data to
  * @param  pcbActual Where to write the actual size of the written data
- * @note   X11 backend code
+ * @note   We allocate a request structure which must be freed by the worker
  */
-int VBoxX11ClipboardReadX11Data(VBOXCLIPBOARDCONTEXTX11 *pCtx,
-                                uint32_t u32Format,
-                                VBOXCLIPBOARDREQUEST *pRequest)
+int ClipRequestDataFromX11(CLIPBACKEND *pCtx, uint32_t u32Format,
+                           CLIPREADCBREQ *pReq)
 {
     /*
-     * Immediately return if we are not connected to the host X server.
+     * Immediately return if we are not connected to the X server.
      */
-    if (!g_fHaveX11)
-    {
-        /* no data available */
-        *pRequest->pcbActual = 0;
-        return VINF_SUCCESS;
-    }
-
-    LogFlowFunc (("u32Format = %d, cb = %d\n", u32Format, pRequest->cb));
-
-    /*
-     * The guest wants to read data in the given format.
-     */
-    if (u32Format & VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT)
-    {
-        if (pCtx->X11TextFormat == INVALID)
-        {
-            /* No data available. */
-            *pRequest->pcbActual = 0;
-            return VERR_NO_DATA;  /* The guest thinks we have data and we don't */
-        }
-        /* Initially set the size of the data read to zero in case we fail
-         * somewhere. */
-        *pRequest->pcbActual = 0;
-        /* Send out a request for the data to the current clipboard owner */
-        XtGetSelectionValue(pCtx->widget, pCtx->atomClipboard,
-                            pCtx->atomX11TextFormat,
-                            vboxClipboardGetDataFromX11,
-                            reinterpret_cast<XtPointer>(pRequest),
-                            CurrentTime);
-        /* When the data arrives, the vboxClipboardGetDataFromX11 callback will be called.  The
-           callback will signal the event semaphore when it has processed the data for us. */
-
-        int rc = RTSemEventWait(pCtx->waitForData, RT_INDEFINITE_WAIT);
-        if (RT_FAILURE(rc))
-            return rc;
-    }
+    if (!pCtx->fHaveX11)
+        return VERR_NO_DATA;
+    int rc = VINF_SUCCESS;
+    CLIPREADX11CBREQ *pX11Req;
+    pX11Req = (CLIPREADX11CBREQ *)RTMemAllocZ(sizeof(*pX11Req));
+    if (!pX11Req)
+        rc = VERR_NO_MEMORY;
     else
     {
-        return VERR_NOT_IMPLEMENTED;
+        pX11Req->mFormat = u32Format;
+        pX11Req->mCtx = pCtx;
+        pX11Req->mReq = pReq;
+        /* We use this to schedule a worker function on the event thread. */
+        clipQueueToEventThread(pCtx->appContext, vboxClipboardReadX11Worker,
+                               (XtPointer) pX11Req);
     }
-    return VINF_SUCCESS;
+    return rc;
 }
 
 #ifdef TESTCASE
@@ -1607,7 +1528,7 @@ static XtPointer g_pPollerData = NULL;
 
 /* For the testcase, we install the poller function in a global variable
  * which is called when the testcase updates the X11 targets. */
-void clipSchedulePoller(VBOXCLIPBOARDCONTEXTX11 *pCtx,
+void clipSchedulePoller(CLIPBACKEND *pCtx,
                         XtTimerCallbackProc proc)
 {
     g_pfnPoller = proc;
@@ -1624,8 +1545,9 @@ static bool clipPollTargets()
 
 /* For the purpose of the test case, we just execute the procedure to be
  * scheduled, as we are running single threaded. */
-void clipSchedule(XtAppContext app_context, XtTimerCallbackProc proc,
-                  XtPointer client_data)
+void clipQueueToEventThread(XtAppContext app_context,
+                            XtTimerCallbackProc proc,
+                            XtPointer client_data)
 {
     proc(client_data, NULL);
 }
@@ -1639,17 +1561,17 @@ static void *g_vboxDatapv = NULL;
 static uint32_t g_vboxDatacb = 0;
 
 /* Set empty data in the simulated VBox clipboard. */
-static void clipEmptyVBox(VBOXCLIPBOARDCONTEXTX11 *pCtx, int retval)
+static void clipEmptyVBox(CLIPBACKEND *pCtx, int retval)
 {
     g_vboxDataRC = retval;
     RTMemFree(g_vboxDatapv);
     g_vboxDatapv = NULL;
     g_vboxDatacb = 0;
-    VBoxX11ClipboardAnnounceVBoxFormat(pCtx, 0);
+    ClipAnnounceFormatToX11(pCtx, 0);
 }
 
 /* Set the data in the simulated VBox clipboard. */
-static int clipSetVBoxUtf16(VBOXCLIPBOARDCONTEXTX11 *pCtx, int retval,
+static int clipSetVBoxUtf16(CLIPBACKEND *pCtx, int retval,
                             const char *pcszData, size_t cb)
 {
     PRTUTF16 pwszData = NULL;
@@ -1667,13 +1589,13 @@ static int clipSetVBoxUtf16(VBOXCLIPBOARDCONTEXTX11 *pCtx, int retval,
     g_vboxDataRC = retval;
     g_vboxDatapv = pv;
     g_vboxDatacb = cb;
-    VBoxX11ClipboardAnnounceVBoxFormat(pCtx,
+    ClipAnnounceFormatToX11(pCtx,
                                        VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT);
     return VINF_SUCCESS;
 }
 
 /* Return the data in the simulated VBox clipboard. */
-int VBoxX11ClipboardReadVBoxData(VBOXCLIPBOARDCONTEXT *pCtx,
+int ClipRequestDataForX11(VBOXCLIPBOARDCONTEXT *pCtx,
                                  uint32_t u32Format, void **ppv,
                                  uint32_t *pcb)
 {
@@ -1798,32 +1720,6 @@ XtInputId XtAppAddInput(XtAppContext app_context, int source,
                         XtPointer closure)
 { return 0xffff; }
 
-/** The table mapping X11 names to data formats and to the corresponding
- * VBox clipboard formats (currently only Unicode) */
-static struct _CLIPFORMATTABLE
-{
-    /** The X11 atom name of the format (several names can match one format)
-     */
-    const char *pcszAtom;
-    /** The format corresponding to the name */
-    g_eClipboardFormats enmFormat;
-    /** The corresponding VBox clipboard format */
-    uint32_t   u32VBoxFormat;
-} g_aFormats[] =
-{
-    { "text/plain;charset=ISO-10646-UCS-2", UTF16,
-      VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT },
-    { "UTF8_STRING", UTF8, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT },
-    { "text/plain;charset=UTF-8", UTF8,
-      VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT },
-    { "text/plain;charset=utf-8", UTF8,
-      VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT },
-    { "STRING", UTF8, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT },
-    { "TEXT", UTF8, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT },
-    { "text/plain", UTF8, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT },
-    { "COMPOUND_TEXT", CTEXT, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT }
-};
-
 /* Atoms we need other than the formats we support. */
 static const char *g_apszSupAtoms[] =
 {
@@ -1863,6 +1759,8 @@ static Atom g_selType = 0;
 static const void *g_pSelData = NULL;
 static unsigned long g_cSelData = 0;
 static int g_selFormat = 0;
+static bool g_fTargetsTimeout = false;
+static bool g_fTargetsFailure = false;
 
 void XtGetSelectionValue(Widget widget, Atom selection, Atom target,
                          XtSelectionCallbackProc callback,
@@ -1886,9 +1784,12 @@ void XtGetSelectionValue(Widget widget, Atom selection, Atom target,
     XtPointer pValue = NULL;
     if (target == clipGetAtom(NULL, "TARGETS"))
     {
-        pValue = (XtPointer) RTMemDup(&g_selTarget, sizeof(g_selTarget));
-        type = XA_ATOM;
-        count = 1;
+        if (g_fTargetsFailure)
+            pValue = NULL;
+        else
+            pValue = (XtPointer) RTMemDup(&g_selTarget, sizeof(g_selTarget));
+        type = g_fTargetsTimeout ? XT_CONVERT_FAIL : XA_ATOM;
+        count = g_fTargetsFailure ? 0 : 1;
         format = 32;
     }
     else
@@ -1911,7 +1812,7 @@ void XtGetSelectionValue(Widget widget, Atom selection, Atom target,
 /* The formats currently on offer from X11 via the shared clipboard */
 static uint32_t g_fX11Formats = 0;
 
-void VBoxX11ClipboardReportX11Formats(VBOXCLIPBOARDCONTEXT* pCtx,
+void ClipReportX11Formats(VBOXCLIPBOARDCONTEXT* pCtx,
                                       uint32_t u32Formats)
 {
     g_fX11Formats = u32Formats;
@@ -1994,7 +1895,15 @@ static void clipSetSelectionValues(const char *pcszTarget, Atom type,
     if (g_pfnSelLose)
         g_pfnSelLose(TEST_WIDGET, &clipAtom);
     g_ownsSel = false;
-    g_fX11Formats = 0;
+    g_fTargetsTimeout = false;
+    g_fTargetsFailure = false;
+}
+
+/* Configure if and how the X11 TARGETS clipboard target will fail */
+static void clipSetTargetsFailure(bool fTimeout, bool fFailure)
+{
+    g_fTargetsTimeout = fTimeout;
+    g_fTargetsFailure = fFailure;
 }
 
 char *XtMalloc(Cardinal size) { return (char *) RTMemAlloc(size); }
@@ -2033,32 +1942,78 @@ void XFreeStringList(char **list)
     RTMemFree(list);
 }
 
+#define MAX_BUF_SIZE 256
+
+static int g_completedRC = VINF_SUCCESS;
+static int g_completedCB = 0;
+static CLIPREADCBREQ *g_completedReq = NULL;
+static char g_completedBuf[MAX_BUF_SIZE];
+
+void ClipCompleteDataRequestFromX11(VBOXCLIPBOARDCONTEXT *pCtx, int rc,
+                                    CLIPREADCBREQ *pReq, void *pv,
+                                    uint32_t cb)
+{
+    if (cb <= MAX_BUF_SIZE)
+    {
+        g_completedRC = rc;
+        memcpy(g_completedBuf, pv, cb);
+    }
+    else
+        g_completedRC = VERR_BUFFER_OVERFLOW;
+    g_completedCB = cb;
+    g_completedReq = pReq;
+}
+
+static void clipGetCompletedRequest(int *prc, char ** ppc, uint32_t *pcb,
+                                    CLIPREADCBREQ **ppReq)
+{
+    *prc = g_completedRC;
+    *ppc = g_completedBuf;
+    *pcb = g_completedCB;
+    *ppReq = g_completedReq;
+}
+#ifdef RT_OS_SOLARIS_10
+char XtStrings [] = "";
+_WidgetClassRec* applicationShellWidgetClass;
+char XtShellStrings [] = "";
+int XmbTextPropertyToTextList(
+    Display*            /* display */,
+    XTextProperty*      /* text_prop */,
+    char***             /* list_return */,
+    int*                /* count_return */
+)
+{
+  return 0;
+}
+#else
 const char XtStrings [] = "";
 _WidgetClassRec* applicationShellWidgetClass;
 const char XtShellStrings [] = "";
+#endif
 
-#define MAX_BUF_SIZE 256
-
-static bool testStringFromX11(VBOXCLIPBOARDCONTEXTX11 *pCtx, uint32_t cbBuf,
-                              const char *pcszExp, int rcExp)
+static bool testStringFromX11(CLIPBACKEND *pCtx, const char *pcszExp,
+                              int rcExp)
 {
     bool retval = false;
-    AssertReturn(cbBuf <= MAX_BUF_SIZE, false);
     if (!clipPollTargets())
         RTPrintf("Failed to poll for targets\n");
     else if (clipQueryFormats() != VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT)
         RTPrintf("Wrong targets reported: %02X\n", clipQueryFormats());
     else
     {
-        char pc[MAX_BUF_SIZE];
-        uint32_t cbActual;
-        VBOXCLIPBOARDREQUEST req = { pc, cbBuf, &cbActual, pCtx };
-        int rc = VBoxX11ClipboardReadX11Data(pCtx,
-                                     VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT,
-                                     &req);
+        char *pc;
+        CLIPREADCBREQ *pReq = (CLIPREADCBREQ *)&pReq, *pReqRet = NULL;
+        ClipRequestDataFromX11(pCtx, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT,
+                               pReq);
+        int rc = VINF_SUCCESS;
+        uint32_t cbActual = 0;
+        clipGetCompletedRequest(&rc, &pc, &cbActual, &pReqRet);
         if (rc != rcExp)
             RTPrintf("Wrong return code, expected %Rrc, got %Rrc\n", rcExp,
                      rc);
+        else if (pReqRet != pReq)
+            RTPrintf("Wrong returned request data, expected %p, got %p\n",
+                     pReq, pReqRet);
         else if (RT_FAILURE(rcExp))
             retval = true;
         else
@@ -2091,31 +2046,33 @@ static bool testStringFromX11(VBOXCLIPBOARDCONTEXTX11 *pCtx, uint32_t cbBuf,
         }
     }
     if (!retval)
-        RTPrintf("Expected: string \"%s\", rc %Rrc (buffer size %u)\n",
-                 pcszExp, rcExp, cbBuf);
+        RTPrintf("Expected: string \"%s\", rc %Rrc\n", pcszExp, rcExp);
     return retval;
 }
 
-static bool testLatin1FromX11(VBOXCLIPBOARDCONTEXTX11 *pCtx, uint32_t cbBuf,
-                              const char *pcszExp, int rcExp)
+static bool testLatin1FromX11(CLIPBACKEND *pCtx,const char *pcszExp,
+                              int rcExp)
 {
     bool retval = false;
-    AssertReturn(cbBuf <= MAX_BUF_SIZE, false);
     if (!clipPollTargets())
         RTPrintf("Failed to poll for targets\n");
     else if (clipQueryFormats() != VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT)
         RTPrintf("Wrong targets reported: %02X\n", clipQueryFormats());
     else
     {
-        char pc[MAX_BUF_SIZE];
-        uint32_t cbActual;
-        VBOXCLIPBOARDREQUEST req = { pc, cbBuf, &cbActual, pCtx };
-        int rc = VBoxX11ClipboardReadX11Data(pCtx,
-                                     VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT,
-                                     &req);
+        char *pc;
+        CLIPREADCBREQ *pReq = (CLIPREADCBREQ *)&pReq, *pReqRet = NULL;
+        ClipRequestDataFromX11(pCtx, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT,
+                               pReq);
+        int rc = VINF_SUCCESS;
+        uint32_t cbActual = 0;
+        clipGetCompletedRequest(&rc, &pc, &cbActual, &pReqRet);
         if (rc != rcExp)
             RTPrintf("Wrong return code, expected %Rrc, got %Rrc\n", rcExp,
                      rc);
+        else if (pReqRet != pReq)
+            RTPrintf("Wrong returned request data, expected %p, got %p\n",
+                     pReq, pReqRet);
         else if (RT_FAILURE(rcExp))
             retval = true;
         else
@@ -2144,43 +2101,11 @@ static bool testLatin1FromX11(VBOXCLIPBOARDCONTEXTX11 *pCtx, uint32_t cbBuf,
         }
     }
     if (!retval)
-        RTPrintf("Expected: string \"%s\", rc %Rrc (buffer size %u)\n",
-                 pcszExp, rcExp, cbBuf);
+        RTPrintf("Expected: string \"%s\", rc %Rrc\n", pcszExp, rcExp);
     return retval;
 }
 
-static bool testOverflowFromX11(VBOXCLIPBOARDCONTEXTX11 *pCtx, uint32_t cbBuf,
-                                const char *pcsz, uint32_t cbExp)
-{
-    bool retval = false;
-    AssertReturn(cbBuf <= MAX_BUF_SIZE, false);
-    if (!clipPollTargets())
-        RTPrintf("Failed to poll for targets\n");
-    else if (clipQueryFormats() != VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT)
-        RTPrintf("Wrong targets reported: %02X\n", clipQueryFormats());
-    else
-    {
-        char pc[MAX_BUF_SIZE];
-        uint32_t cbActual;
-        VBOXCLIPBOARDREQUEST req = { pc, cbBuf, &cbActual, pCtx };
-        int rc = VBoxX11ClipboardReadX11Data(pCtx,
-                                     VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT,
-                                     &req);
-        if (rc != VINF_SUCCESS)
-            RTPrintf("Wrong return code, expected %Rrc, got %Rrc\n",
-                     VINF_SUCCESS, rc);
-        else if (cbActual != cbExp)
-            RTPrintf("Wrong actual size, expected %u, got %u\n",
-                     cbExp, cbActual);
-        else
-            retval = true;
-    }
-    if (!retval)
-        RTPrintf("String tested: \"%s\", size expected: %u\n", pcsz, cbExp);
-    return retval;
-}
-
-static bool testStringFromVBox(VBOXCLIPBOARDCONTEXTX11 *pCtx,
+static bool testStringFromVBox(CLIPBACKEND *pCtx,
                                const char *pcszTarget, Atom typeExp,
                                const void *valueExp, unsigned long lenExp,
                                int formatExp)
@@ -2214,7 +2139,7 @@ static bool testStringFromVBox(VBOXCLIPBOARDCONTEXTX11 *pCtx,
     return retval;
 }
 
-static bool testStringFromVBoxFailed(VBOXCLIPBOARDCONTEXTX11 *pCtx,
+static bool testStringFromVBoxFailed(CLIPBACKEND *pCtx,
                                      const char *pcszTarget)
 {
     bool retval = false;
@@ -2238,11 +2163,12 @@ static bool testStringFromVBoxFailed(VBOXCLIPBOARDCONTEXTX11 *pCtx,
 int main()
 {
     RTR3Init();
-    VBOXCLIPBOARDCONTEXTX11 *pCtx = VBoxX11ClipboardConstructX11(NULL);
+    CLIPBACKEND *pCtx = ClipConstructX11(NULL);
     unsigned cErrs = 0;
-    char pc[MAX_BUF_SIZE];
+    char *pc;
     uint32_t cbActual;
-    int rc = VBoxX11ClipboardStartX11(pCtx, true);
+    CLIPREADCBREQ *pReq = (CLIPREADCBREQ *)&pReq, *pReqRet = NULL;
+    int rc = ClipStartX11(pCtx);
     AssertRCReturn(rc, 1);
 
     /*** Utf-8 from X11 ***/
@@ -2250,43 +2176,38 @@ int main()
     /* Simple test */
     clipSetSelectionValues("UTF8_STRING", XA_STRING, "hello world",
                            sizeof("hello world"), 8);
-    if (!testStringFromX11(pCtx, 256, "hello world", VINF_SUCCESS))
-        ++cErrs;
-    /* Receiving buffer of the exact size needed */
-    if (!testStringFromX11(pCtx, sizeof("hello world") * 2, "hello world",
-                           VINF_SUCCESS))
-        ++cErrs;
-    /* Buffer one too small */
-    if (!testOverflowFromX11(pCtx, sizeof("hello world") * 2 - 1,
-                             "hello world", sizeof("hello world") * 2))
-        ++cErrs;
-    /* Zero-size buffer */
-    if (!testOverflowFromX11(pCtx, 0, "hello world",
-                             sizeof("hello world") * 2))
+    if (!testStringFromX11(pCtx, "hello world", VINF_SUCCESS))
         ++cErrs;
     /* With an embedded carriage return */
     clipSetSelectionValues("text/plain;charset=UTF-8", XA_STRING,
                            "hello\nworld", sizeof("hello\nworld"), 8);
-    if (!testStringFromX11(pCtx, sizeof("hello\r\nworld") * 2,
-                           "hello\r\nworld", VINF_SUCCESS))
+    if (!testStringFromX11(pCtx, "hello\r\nworld", VINF_SUCCESS))
+        ++cErrs;
+    /* With an embedded CRLF */
+    clipSetSelectionValues("text/plain;charset=UTF-8", XA_STRING,
+                           "hello\r\nworld", sizeof("hello\r\nworld"), 8);
+    if (!testStringFromX11(pCtx, "hello\r\r\nworld", VINF_SUCCESS))
+        ++cErrs;
+    /* With an embedded LFCR */
+    clipSetSelectionValues("text/plain;charset=UTF-8", XA_STRING,
+                           "hello\n\rworld", sizeof("hello\n\rworld"), 8);
+    if (!testStringFromX11(pCtx, "hello\r\n\rworld", VINF_SUCCESS))
         ++cErrs;
     /* An empty string */
     clipSetSelectionValues("text/plain;charset=utf-8", XA_STRING, "",
                            sizeof(""), 8);
-    if (!testStringFromX11(pCtx, sizeof("") * 2, "", VINF_SUCCESS))
+    if (!testStringFromX11(pCtx, "", VINF_SUCCESS))
         ++cErrs;
     /* With an embedded Utf-8 character. */
     clipSetSelectionValues("STRING", XA_STRING,
                            "100\xE2\x82\xAC" /* 100 Euro */,
                            sizeof("100\xE2\x82\xAC"), 8);
-    if (!testStringFromX11(pCtx, sizeof("100\xE2\x82\xAC") * 2,
-                           "100\xE2\x82\xAC", VINF_SUCCESS))
+    if (!testStringFromX11(pCtx, "100\xE2\x82\xAC", VINF_SUCCESS))
         ++cErrs;
     /* A non-zero-terminated string */
     clipSetSelectionValues("TEXT", XA_STRING,
                            "hello world", sizeof("hello world") - 2, 8);
-    if (!testStringFromX11(pCtx, sizeof("hello world") * 2 - 2,
-                           "hello worl", VINF_SUCCESS))
+    if (!testStringFromX11(pCtx, "hello worl", VINF_SUCCESS))
         ++cErrs;
 
     /*** COMPOUND TEXT from X11 ***/
@@ -2294,36 +2215,32 @@ int main()
     /* Simple test */
     clipSetSelectionValues("COMPOUND_TEXT", XA_STRING, "hello world",
                            sizeof("hello world"), 8);
-    if (!testStringFromX11(pCtx, 256, "hello world", VINF_SUCCESS))
-        ++cErrs;
-    /* Receiving buffer of the exact size needed */
-    if (!testStringFromX11(pCtx, sizeof("hello world") * 2, "hello world",
-                           VINF_SUCCESS))
-        ++cErrs;
-    /* Buffer one too small */
-    if (!testOverflowFromX11(pCtx, sizeof("hello world") * 2 - 1,
-                             "hello world", sizeof("hello world") * 2))
-        ++cErrs;
-    /* Zero-size buffer */
-    if (!testOverflowFromX11(pCtx, 0, "hello world",
-                             sizeof("hello world") * 2))
+    if (!testStringFromX11(pCtx, "hello world", VINF_SUCCESS))
         ++cErrs;
     /* With an embedded carriage return */
     clipSetSelectionValues("COMPOUND_TEXT", XA_STRING, "hello\nworld",
                            sizeof("hello\nworld"), 8);
-    if (!testStringFromX11(pCtx, sizeof("hello\r\nworld") * 2,
-                           "hello\r\nworld", VINF_SUCCESS))
+    if (!testStringFromX11(pCtx, "hello\r\nworld", VINF_SUCCESS))
+        ++cErrs;
+    /* With an embedded CRLF */
+    clipSetSelectionValues("COMPOUND_TEXT", XA_STRING, "hello\r\nworld",
+                           sizeof("hello\r\nworld"), 8);
+    if (!testStringFromX11(pCtx, "hello\r\r\nworld", VINF_SUCCESS))
+        ++cErrs;
+    /* With an embedded LFCR */
+    clipSetSelectionValues("COMPOUND_TEXT", XA_STRING, "hello\n\rworld",
+                           sizeof("hello\n\rworld"), 8);
+    if (!testStringFromX11(pCtx, "hello\r\n\rworld", VINF_SUCCESS))
         ++cErrs;
     /* An empty string */
     clipSetSelectionValues("COMPOUND_TEXT", XA_STRING, "",
                            sizeof(""), 8);
-    if (!testStringFromX11(pCtx, sizeof("") * 2, "", VINF_SUCCESS))
+    if (!testStringFromX11(pCtx, "", VINF_SUCCESS))
         ++cErrs;
     /* A non-zero-terminated string */
     clipSetSelectionValues("COMPOUND_TEXT", XA_STRING,
                            "hello world", sizeof("hello world") - 2, 8);
-    if (!testStringFromX11(pCtx, sizeof("hello world") * 2 - 2,
-                           "hello worl", VINF_SUCCESS))
+    if (!testStringFromX11(pCtx, "hello worl", VINF_SUCCESS))
         ++cErrs;
 
     /*** Latin1 from X11 ***/
@@ -2331,32 +2248,28 @@ int main()
     /* Simple test */
     clipSetSelectionValues("STRING", XA_STRING, "Georges Dupr\xEA",
                            sizeof("Georges Dupr\xEA"), 8);
-    if (!testLatin1FromX11(pCtx, 256, "Georges Dupr\xEA", VINF_SUCCESS))
-        ++cErrs;
-    /* Receiving buffer of the exact size needed */
-    if (!testLatin1FromX11(pCtx, sizeof("Georges Dupr\xEA") * 2,
-                           "Georges Dupr\xEA", VINF_SUCCESS))
-        ++cErrs;
-    /* Buffer one too small */
-    if (!testOverflowFromX11(pCtx, sizeof("Georges Dupr\xEA") * 2 - 1,
-                             "hello world", sizeof("Georges Dupr\xEA") * 2))
-        ++cErrs;
-    /* Zero-size buffer */
-    if (!testOverflowFromX11(pCtx, 0, "Georges Dupr\xEA",
-                             sizeof("Georges Dupr\xEA") * 2))
+    if (!testLatin1FromX11(pCtx, "Georges Dupr\xEA", VINF_SUCCESS))
         ++cErrs;
     /* With an embedded carriage return */
     clipSetSelectionValues("TEXT", XA_STRING, "Georges\nDupr\xEA",
                            sizeof("Georges\nDupr\xEA"), 8);
-    if (!testLatin1FromX11(pCtx, sizeof("Georges\r\nDupr\xEA") * 2,
-                           "Georges\r\nDupr\xEA", VINF_SUCCESS))
+    if (!testLatin1FromX11(pCtx, "Georges\r\nDupr\xEA", VINF_SUCCESS))
+        ++cErrs;
+    /* With an embedded CRLF */
+    clipSetSelectionValues("TEXT", XA_STRING, "Georges\r\nDupr\xEA",
+                           sizeof("Georges\r\nDupr\xEA"), 8);
+    if (!testLatin1FromX11(pCtx, "Georges\r\r\nDupr\xEA", VINF_SUCCESS))
+        ++cErrs;
+    /* With an embedded LFCR */
+    clipSetSelectionValues("TEXT", XA_STRING, "Georges\n\rDupr\xEA",
+                           sizeof("Georges\n\rDupr\xEA"), 8);
+    if (!testLatin1FromX11(pCtx, "Georges\r\n\rDupr\xEA", VINF_SUCCESS))
         ++cErrs;
     /* A non-zero-terminated string */
     clipSetSelectionValues("text/plain", XA_STRING,
                            "Georges Dupr\xEA!",
                            sizeof("Georges Dupr\xEA!") - 2, 8);
-    if (!testLatin1FromX11(pCtx, sizeof("Georges Dupr\xEA!") * 2 - 2,
-                           "Georges Dupr\xEA", VINF_SUCCESS))
+    if (!testLatin1FromX11(pCtx, "Georges Dupr\xEA", VINF_SUCCESS))
         ++cErrs;
 
 
@@ -2364,38 +2277,73 @@ int main()
     RTPrintf(TEST_NAME ": TESTING X11 timeout\n");
     clipSetSelectionValues("UTF8_STRING", XT_CONVERT_FAIL, "hello world",
                            sizeof("hello world"), 8);
-    VBOXCLIPBOARDREQUEST req = { pc, sizeof(pc), &cbActual, pCtx };
-    rc = VBoxX11ClipboardReadX11Data(pCtx,
-                                     VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT,
-                                     &req);
-    if (rc != VINF_SUCCESS || cbActual != 0)
-    {
-        RTPrintf("Bad return values: rc=%Rrc (expected %Rrc), cbActual=%u (%u)\n",
-                 rc, VINF_SUCCESS, cbActual, 0);
+    if (!testStringFromX11(pCtx, "hello world", VERR_TIMEOUT))
         ++cErrs;
-    }
 
     /*** No data in X11 clipboard ***/
     RTPrintf(TEST_NAME ": TESTING a data request from an empty X11 clipboard\n");
     clipSetSelectionValues("UTF8_STRING", XA_STRING, NULL,
                            0, 8);
-    rc = VBoxX11ClipboardReadX11Data(pCtx,
-                                     VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT,
-                                     &req);
-    if (rc != VINF_SUCCESS || cbActual != 0)
+    ClipRequestDataFromX11(pCtx, VBOX_SHARED_CLIPBOARD_FMT_UNICODETEXT,
+                           pReq);
+    clipGetCompletedRequest(&rc, &pc, &cbActual, &pReqRet);
+    if (rc != VERR_NO_DATA)
     {
-        RTPrintf("Bad return values: rc=%Rrc (expected %Rrc), cbActual=%u (%u)\n",
-                 rc, VINF_SUCCESS, cbActual, 0);
+        RTPrintf("Returned %Rrc instead of VERR_NO_DATA\n", rc);
+        ++cErrs;
+    }
+    if (pReqRet != pReq)
+    {
+        RTPrintf("Wrong returned request data, expected %p, got %p\n",
+                 pReq, pReqRet);
         ++cErrs;
     }
 
     /*** request for an invalid VBox format from X11 ***/
-    RTPrintf(TEST_NAME ": TESTING a request for an invalid host format from X11\n");
-    rc = VBoxX11ClipboardReadX11Data(pCtx, 0xffff, &req);
-    if (rc != VINF_SUCCESS || cbActual != 0)
+    RTPrintf(TEST_NAME ": TESTING a request for an invalid VBox format from X11\n");
+    ClipRequestDataFromX11(pCtx, 0xffff, pReq);
+    clipGetCompletedRequest(&rc, &pc, &cbActual, &pReqRet);
+    if (rc != VERR_NOT_IMPLEMENTED)
     {
-        RTPrintf("Bad return values: rc=%Rrc (expected %Rrc), cbActual=%u (%u)\n",
-                 rc, VINF_SUCCESS, cbActual, 0);
+        RTPrintf("Returned %Rrc instead of VERR_NOT_IMPLEMENTED\n", rc);
+        ++cErrs;
+    }
+    if (pReqRet != pReq)
+    {
+        RTPrintf("Wrong returned request data, expected %p, got %p\n",
+                 pReq, pReqRet);
+        ++cErrs;
+    }
+
+    /*** Targets timeout from X11 ***/
+    RTPrintf(TEST_NAME ": TESTING X11 targets timeout\n");
+    clipSetSelectionValues("UTF8_STRING", XA_STRING, "hello world",
+                           sizeof("hello world"), 8);
+    clipSetTargetsFailure(true, false);
+    if (!clipPollTargets())
+    {
+        RTPrintf("Failed to poll for targets\n");
+        ++cErrs;
+    }
+    else if (clipQueryFormats() != 0)
+    {
+        RTPrintf("Wrong targets reported: %02X\n", clipQueryFormats());
+        ++cErrs;
+    }
+
+    /*** Targets failure from X11 ***/
+    RTPrintf(TEST_NAME ": TESTING X11 targets conversion failure\n");
+    clipSetSelectionValues("UTF8_STRING", XA_STRING, "hello world",
+                           sizeof("hello world"), 8);
+    clipSetTargetsFailure(false, true);
+    if (!clipPollTargets())
+    {
+        RTPrintf("Failed to poll for targets\n");
+        ++cErrs;
+    }
+    else if (clipQueryFormats() != 0)
+    {
+        RTPrintf("Wrong targets reported: %02X\n", clipQueryFormats());
         ++cErrs;
     }
 
@@ -2414,6 +2362,20 @@ int main()
     if (!testStringFromVBox(pCtx, "text/plain;charset=UTF-8",
                             clipGetAtom(NULL, "text/plain;charset=UTF-8"),
                             "hello\nworld", sizeof("hello\nworld"), 8))
+        ++cErrs;
+    /* With an embedded CRCRLF */
+    clipSetVBoxUtf16(pCtx, VINF_SUCCESS, "hello\r\r\nworld",
+                     sizeof("hello\r\r\nworld") * 2);
+    if (!testStringFromVBox(pCtx, "text/plain;charset=UTF-8",
+                            clipGetAtom(NULL, "text/plain;charset=UTF-8"),
+                            "hello\r\nworld", sizeof("hello\r\nworld"), 8))
+        ++cErrs;
+    /* With an embedded CRLFCR */
+    clipSetVBoxUtf16(pCtx, VINF_SUCCESS, "hello\r\n\rworld",
+                     sizeof("hello\r\n\rworld") * 2);
+    if (!testStringFromVBox(pCtx, "text/plain;charset=UTF-8",
+                            clipGetAtom(NULL, "text/plain;charset=UTF-8"),
+                            "hello\n\rworld", sizeof("hello\n\rworld"), 8))
         ++cErrs;
     /* An empty string */
     clipSetVBoxUtf16(pCtx, VINF_SUCCESS, "", 2);
@@ -2452,6 +2414,20 @@ int main()
                             clipGetAtom(NULL, "COMPOUND_TEXT"),
                             "hello\nworld", sizeof("hello\nworld"), 8))
         ++cErrs;
+    /* With an embedded CRCRLF */
+    clipSetVBoxUtf16(pCtx, VINF_SUCCESS, "hello\r\r\nworld",
+                     sizeof("hello\r\r\nworld") * 2);
+    if (!testStringFromVBox(pCtx, "COMPOUND_TEXT",
+                            clipGetAtom(NULL, "COMPOUND_TEXT"),
+                            "hello\r\nworld", sizeof("hello\r\nworld"), 8))
+        ++cErrs;
+    /* With an embedded CRLFCR */
+    clipSetVBoxUtf16(pCtx, VINF_SUCCESS, "hello\r\n\rworld",
+                     sizeof("hello\r\n\rworld") * 2);
+    if (!testStringFromVBox(pCtx, "COMPOUND_TEXT",
+                            clipGetAtom(NULL, "COMPOUND_TEXT"),
+                            "hello\n\rworld", sizeof("hello\n\rworld"), 8))
+        ++cErrs;
     /* An empty string */
     clipSetVBoxUtf16(pCtx, VINF_SUCCESS, "", 2);
     if (!testStringFromVBox(pCtx, "COMPOUND_TEXT",
@@ -2477,6 +2453,14 @@ int main()
     clipEmptyVBox(pCtx, VINF_SUCCESS);
     if (!testStringFromVBoxFailed(pCtx, "UTF8_STRING"))
         ++cErrs;
+
+    /*** An unknown VBox format ***/
+    RTPrintf(TEST_NAME ": TESTING reading an unknown VBox format\n");
+    clipSetVBoxUtf16(pCtx, VINF_SUCCESS, "", 2);
+    ClipAnnounceFormatToX11(pCtx, 0xa0000);
+    if (!testStringFromVBoxFailed(pCtx, "UTF8_STRING"))
+        ++cErrs;
+
     if (cErrs > 0)
         RTPrintf("Failed with %u error(s)\n", cErrs);
     return cErrs > 0 ? 1 : 0;
@@ -2496,15 +2480,20 @@ int main()
 
 #define TEST_NAME "tstClipboardX11Smoke"
 
-int VBoxX11ClipboardReadVBoxData(VBOXCLIPBOARDCONTEXT *pCtx,
+int ClipRequestDataForX11(VBOXCLIPBOARDCONTEXT *pCtx,
                                  uint32_t u32Format, void **ppv,
                                  uint32_t *pcb)
 {
     return VERR_NO_DATA;
 }
 
-void VBoxX11ClipboardReportX11Formats(VBOXCLIPBOARDCONTEXT *pCtx,
+void ClipReportX11Formats(VBOXCLIPBOARDCONTEXT *pCtx,
                                       uint32_t u32Formats)
+{}
+
+void ClipCompleteDataRequestFromX11(VBOXCLIPBOARDCONTEXT *pCtx, int rc,
+                                    CLIPREADCBREQ *pReq, void *pv,
+                                    uint32_t cb)
 {}
 
 int main()
@@ -2519,15 +2508,15 @@ int main()
         return 0;
     }
     RTPrintf(TEST_NAME ": TESTING\n");
-    VBOXCLIPBOARDCONTEXTX11 *pCtx = VBoxX11ClipboardConstructX11(NULL);
+    CLIPBACKEND *pCtx = ClipConstructX11(NULL);
     AssertReturn(pCtx, 1);
-    rc = VBoxX11ClipboardStartX11(pCtx, true);
+    rc = ClipStartX11(pCtx);
     AssertRCReturn(rc, 1);
     /* Give the clipboard time to synchronise. */
     RTThreadSleep(500);
-    rc = VBoxX11ClipboardStopX11(pCtx);
+    rc = ClipStopX11(pCtx);
     AssertRCReturn(rc, 1);
-    VBoxX11ClipboardDestructX11(pCtx);
+    ClipDestructX11(pCtx);
     return 0;
 }
 

@@ -1,4 +1,4 @@
-/* $Id: magics.h $ */
+/* $Id: magics.h 20360 2009-06-08 00:04:31Z vboxsync $ */
 /** @file
  * IPRT - Internal header defining The Magic Numbers.
  */
@@ -34,12 +34,26 @@
 /** @name Magic Numbers.
  * @{ */
 
-/** The value of RTENVINTERNAL::u32Magic. (Rumiko Takahashi) */
-#define RTENV_MAGIC                 0x19571010
+/** Magic number for RTDBGMODINT::u32Magic. (Charles Lloyd) */
+#define RTDBGAS_MAGIC               0x19380315
+/** Magic number for RTDBGMODINT::u32Magic. (Keith Jarrett) */
+#define RTDBGMOD_MAGIC              0x19450508
+/** Magic number for RTDBGMODVTIMG::u32Magic. (Jack DeJohnette) */
+#define RTDBGMODVTDBG_MAGIC         0x19420809
+/** Magic number for RTDBGMODVTIMG::u32Magic. (Cecil McBee) */
+#define RTDBGMODVTIMG_MAGIC         0x19350419
 /** The value of RTDIR::u32Magic. (Michael Ende) */
 #define RTDIR_MAGIC                 0x19291112
 /** The value of RTDIR::u32Magic after RTDirClose().  */
 #define RTDIR_MAGIC_DEAD            0x19950829
+/** The value of RTFILEAIOCTXINT::u32Magic. (Howard Phillips Lovecraft) */
+#define RTFILEAIOCTX_MAGIC          0x18900820
+/** The value of RTFILEAIOCTXINT::u32Magic after RTFileAioCtxDestroy(). */
+#define RTFILEAIOCTX_MAGIC_DEAD     0x19370315
+/** The value of RTFILEAIOREQINT::u32Magic. (Stephen Edwin King)  */
+#define RTFILEAIOREQ_MAGIC          0x19470921
+/** The value of RTENVINTERNAL::u32Magic. (Rumiko Takahashi) */
+#define RTENV_MAGIC                 0x19571010
 /** Magic number for RTHANDLETABLEINT::u32Magic. (Hitomi Kanehara) */
 #define RTHANDLETABLE_MAGIC         0x19830808
 /** Magic number for RTHEAPSIMPLEINTERNAL::u32Magic. (Kyoichi Katayama) */
@@ -54,6 +68,10 @@
 #define RTMEMCACHE_MAGIC            0x19230108
 /** Dead magic number for RTMEMCACHEINT::u32Magic. */
 #define RTMEMCACHE_MAGIC_DEAD       0x20080305
+/** The magic value for RTMEMPOOL::u32Magic. (Jane Austin) */
+#define RTMEMPOOL_MAGIC             0x17751216
+/** The magic value for RTMEMPOOL::u32Magic after RTMemPoolDestroy. */
+#define RTMEMPOOL_MAGIC_DEAD        0x18170718
 /** Magic number for heap blocks. (Edgar Allan Poe) */
 #define RTMEMHDR_MAGIC              0x18090119
 /** RTR0MEMOBJ::u32Magic. (Masakazu Katsura) */
@@ -76,6 +94,10 @@
 #define RTSEMRW_MAGIC               0x19640707
 /** Magic value for RTSPINLOCKINTERNAL::u32Magic. (Terry Pratchett) */
 #define RTSPINLOCK_MAGIC            0x19480428
+/** Magic value for RTSTRCACHE::u32Magic. (Sir Arthur Charles Clarke) */
+#define RTSTRCACHE_MAGIC            0x19171216
+/** Magic value for RTSTRCACHE::u32Magic after RTStrCacheDestroy. */
+#define RTSTRCACHE_MAGIC_DEAD       0x20080319
 /** The value of RTSTREAM::u32Magic for a valid stream. */
 #define RTSTREAM_MAGIC              0xe44e44ee
 /** RTTESTINT::u32Magic value. (Daniel Kehlmann) */
@@ -88,6 +110,10 @@
 #define RTTIMER_MAGIC               0x19370910
 /** Magic number for timer low resolution handles. (Saki Hiwatari) */
 #define RTTIMERLR_MAGIC             0x19610715
+/** The value of RTS3::u32Magic. (Edgar Wallace) */
+#define RTS3_MAGIC                 0x18750401
+/** The value of RTS3::u32Magic after RTS3Destroy().  */
+#define RTS3_MAGIC_DEAD            0x19320210
 
 /** @} */
 

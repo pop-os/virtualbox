@@ -1,4 +1,4 @@
-/* $Id: the-solaris-kernel.h $ */
+/* $Id: the-solaris-kernel.h 20793 2009-06-22 17:05:03Z vboxsync $ */
 /** @file
  * IPRT - Include all necessary headers for the Solaris kernel.
  */
@@ -55,13 +55,14 @@
 #include <vm/seg_kmem.h>
 #include <sys/ddi.h>
 #include <sys/sunddi.h>
+#include <sys/spl.h>
 
 #undef u /* /usr/include/sys/user.h:249:1 is where this is defined to (curproc->p_user). very cool. */
 
 #include <iprt/cdefs.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 extern struct ddi_dma_attr g_SolarisX86PhysMemLimits;
-__END_DECLS
+RT_C_DECLS_END
 
 #endif

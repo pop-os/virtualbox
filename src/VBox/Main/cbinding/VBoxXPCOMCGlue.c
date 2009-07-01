@@ -1,4 +1,4 @@
-/* $Revision: 44970 $ */
+/* $Revision: 19052 $ */
 /** @file
  * Glue code for dynamically linking to VBoxXPCOMC.
  */
@@ -31,13 +31,10 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#ifdef LIBVIRT_VERSION
-# include <config.h>
-#endif /* LIBVIRT_VERSION */
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <dlfcn.h>
 
 #include "VBoxXPCOMCGlue.h"
@@ -46,7 +43,7 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-#if defined(__linux__) || defined(__linux_gnu__) || defined(__sun__)
+#if defined(__linux__) || defined(__linux_gnu__) || defined(__sun__) || defined(__FreeBSD__)
 # define DYNLIB_NAME    "VBoxXPCOMC.so"
 #elif defined(__APPLE__)
 # define DYNLIB_NAME    "VBoxXPCOMC.dylib"
@@ -64,10 +61,30 @@
 void *g_hVBoxXPCOMC = NULL;
 /** The last load error. */
 char g_szVBoxErrMsg[256];
-/** Pointer to the VBoxXPCOMC function table.  */
+/** Pointer to the VBoxXPCOMC function table. */
 PCVBOXXPCOM g_pVBoxFuncs = NULL;
 /** Pointer to VBoxGetXPCOMCFunctions for the loaded VBoxXPCOMC so/dylib/dll. */
 PFNVBOXGETXPCOMCFUNCTIONS g_pfnGetFunctions = NULL;
+
+
+/**
+ * Wrapper for setting g_szVBoxErrMsg. Can be an empty stub.
+ *
+ * @param   fAlways         When 0 the g_szVBoxErrMsg is only set if empty.
+ * @param   pszFormat       The format string.
+ * @param   ...             The arguments.
+ */
+static void setErrMsg(int fAlways, const char *pszFormat, ...)
+{
+    if (    fAlways
+        ||  !g_szVBoxErrMsg[0])
+    {
+        va_list va;
+        va_start(va, pszFormat);
+        vsnprintf(g_szVBoxErrMsg, sizeof(g_szVBoxErrMsg), pszFormat, va);
+        va_end(va);
+    }
+}
 
 
 /**
@@ -75,35 +92,48 @@ PFNVBOXGETXPCOMCFUNCTIONS g_pfnGetFunctions = NULL;
  * the symbols we need.
  *
  * @returns 0 on success, -1 on failure.
- * @param   pszHome         The director where to try load VBoxXPCOMC from. Can be NULL.
+ * @param   pszHome         The director where to try load VBoxXPCOMC from. Can
+ *                          be NULL.
+ * @param   fSetAppHome     Whether to set the VBOX_APP_HOME env.var. or not
+ *                          (boolean).
  */
-static int tryLoadOne(const char *pszHome)
+static int tryLoadOne(const char *pszHome, int fSetAppHome)
 {
     size_t      cchHome = pszHome ? strlen(pszHome) : 0;
-    size_t      cbReq;
-    char        szBuf[4096];
+    size_t      cbBufNeeded;
+    char        szName[4096];
     int         rc = -1;
 
     /*
      * Construct the full name.
      */
-    cbReq = cchHome + sizeof("/" DYNLIB_NAME);
-    if (cbReq > sizeof(szBuf))
+    cbBufNeeded = cchHome + sizeof("/" DYNLIB_NAME);
+    if (cbBufNeeded > sizeof(szName))
     {
-        sprintf(g_szVBoxErrMsg, "path buffer too small: %u bytes required", (unsigned)cbReq);
+        setErrMsg(1, "path buffer too small: %u bytes needed",
+                  (unsigned)cbBufNeeded);
         return -1;
     }
-    memcpy(szBuf, pszHome, cchHome);
-    szBuf[cchHome] = '/';
-    cchHome++;
-    memcpy(&szBuf[cchHome], DYNLIB_NAME, sizeof(DYNLIB_NAME));
+    if (cchHome)
+    {
+        memcpy(szName, pszHome, cchHome);
+        szName[cchHome] = '/';
+        cchHome++;
+    }
+    memcpy(&szName[cchHome], DYNLIB_NAME, sizeof(DYNLIB_NAME));
 
     /*
      * Try load it by that name, setting the VBOX_APP_HOME first (for now).
      * Then resolve and call the function table getter.
      */
-    setenv("VBOX_APP_HOME", pszHome, 0 /* no need to overwrite */);
-    g_hVBoxXPCOMC = dlopen(szBuf, RTLD_NOW | RTLD_LOCAL);
+    if (fSetAppHome)
+    {
+        if (pszHome)
+            setenv("VBOX_APP_HOME", pszHome, 1 /* always override */);
+        else
+            unsetenv("VBOX_APP_HOME");
+    }
+    g_hVBoxXPCOMC = dlopen(szName, RTLD_NOW | RTLD_LOCAL);
     if (g_hVBoxXPCOMC)
     {
         PFNVBOXGETXPCOMCFUNCTIONS pfnGetFunctions;
@@ -115,23 +145,21 @@ static int tryLoadOne(const char *pszHome)
             if (g_pVBoxFuncs)
             {
                 g_pfnGetFunctions = pfnGetFunctions;
-                rc = 0;
+                return 0;
             }
-            else
-                sprintf(g_szVBoxErrMsg, "%.80s: pfnGetFunctions(%#x) failed",
-                        szBuf, VBOX_XPCOMC_VERSION);
+
+            /* bail out */
+            setErrMsg(1, "%.80s: pfnGetFunctions(%#x) failed",
+                      szName, VBOX_XPCOMC_VERSION);
         }
         else
-            sprintf(g_szVBoxErrMsg, "dlsym(%.80s/%.32s): %128s",
-                    szBuf, VBOX_GET_XPCOMC_FUNCTIONS_SYMBOL_NAME, dlerror());
-        if (rc != 0)
-        {
-            dlclose(g_hVBoxXPCOMC);
-            g_hVBoxXPCOMC = NULL;
-        }
+            setErrMsg(1, "dlsym(%.80s/%.32s): %.128s",
+                      szName, VBOX_GET_XPCOMC_FUNCTIONS_SYMBOL_NAME, dlerror());
+        dlclose(g_hVBoxXPCOMC);
+        g_hVBoxXPCOMC = NULL;
     }
     else
-        sprintf(g_szVBoxErrMsg, "dlopen(%.80s): %128s", szBuf, dlerror());
+        setErrMsg(0, "dlopen(%.80s): %.160s", szName, dlerror());
     return rc;
 }
 
@@ -154,23 +182,27 @@ int VBoxCGlueInit(void)
      */
     const char *pszHome = getenv("VBOX_APP_HOME");
     if (pszHome)
-        return tryLoadOne(pszHome);
+        return tryLoadOne(pszHome, 0);
 
     /*
      * Try the known standard locations.
      */
+    g_szVBoxErrMsg[0] = '\0';
 #if defined(__gnu__linux__) || defined(__linux__)
-    if (tryLoadOne("/opt/VirtualBox") == 0)
+    if (tryLoadOne("/opt/VirtualBox", 1) == 0)
         return 0;
-    if (tryLoadOne("/usr/lib/virtualbox") == 0)
+    if (tryLoadOne("/usr/lib/virtualbox", 1) == 0)
         return 0;
 #elif defined(__sun__)
-    if (tryLoadOne("/opt/VirtualBox/amd64") == 0)
+    if (tryLoadOne("/opt/VirtualBox/amd64", 1) == 0)
         return 0;
-    if (tryLoadOne("/opt/VirtualBox/i386") == 0)
+    if (tryLoadOne("/opt/VirtualBox/i386", 1) == 0)
         return 0;
 #elif defined(__APPLE__)
-    if (tryLoadOne("/Application/VirtualBox.app/Contents/MacOS") == 0)
+    if (tryLoadOne("/Application/VirtualBox.app/Contents/MacOS", 1) == 0)
+        return 0;
+#elif defined(__FreeBSD__)
+    if (tryLoadOne("/usr/local/lib/virtualbox", 1) == 0)
         return 0;
 #else
 # error "port me"
@@ -179,7 +211,7 @@ int VBoxCGlueInit(void)
     /*
      * Finally try the dynamic linker search path.
      */
-    if (tryLoadOne(NULL) == 0)
+    if (tryLoadOne(NULL, 1) == 0)
         return 0;
 
     /* No luck, return failure. */

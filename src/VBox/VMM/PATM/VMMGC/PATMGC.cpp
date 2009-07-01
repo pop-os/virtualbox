@@ -1,4 +1,4 @@
-/* $Id: PATMGC.cpp $ */
+/* $Id: PATMGC.cpp 18927 2009-04-16 11:41:38Z vboxsync $ */
 /** @file
  * PATM - Dynamic Guest OS Patching Manager - Guest Context
  */
@@ -116,7 +116,7 @@ VMMRCDECL(int) PATMGCHandleWriteToPatchPage(PVM pVM, PCPUMCTXCORE pRegFrame, RTR
             uint32_t cb;
 
             LogFlow(("PATMHandleWriteToPatchPage: Interpret %x accessing %RRv\n", pRegFrame->eip, GCPtr));
-            int rc = EMInterpretInstruction(pVM, pRegFrame, (RTGCPTR)(RTRCUINTPTR)GCPtr, &cb);
+            int rc = EMInterpretInstruction(pVM, VMMGetCpu0(pVM), pRegFrame, (RTGCPTR)(RTRCUINTPTR)GCPtr, &cb);
             if (rc == VINF_SUCCESS)
             {
                 STAM_COUNTER_INC(&pVM->patm.s.StatPatchWriteInterpreted);
@@ -280,7 +280,7 @@ VMMDECL(int) PATMGCHandleIllegalInstrTrap(PVM pVM, PCPUMCTXCORE pRegFrame)
                 pRegFrame->ecx = pVM->patm.s.CTXSUFF(pGCState)->Restore.uECX;
                 pVM->patm.s.CTXSUFF(pGCState)->Restore.uFlags = 0;
 
-                rc = EMInterpretIret(pVM, pRegFrame);
+                rc = EMInterpretIret(pVM, VMMGetCpu0(pVM), pRegFrame);
                 if (RT_SUCCESS(rc))
                 {
                     STAM_COUNTER_INC(&pVM->patm.s.StatEmulIret);
@@ -516,7 +516,7 @@ VMMDECL(int) PATMHandleInt3PatchTrap(PVM pVM, PCPUMCTXCORE pRegFrame)
                 return VINF_EM_RAW_EMULATE_INSTR;
             }
 
-            rc = EMInterpretInstructionCPU(pVM, &cpu, pRegFrame, 0 /* not relevant here */, &size);
+            rc = EMInterpretInstructionCPU(pVM, VMMGetCpu0(pVM), &cpu, pRegFrame, 0 /* not relevant here */, &size);
             if (rc != VINF_SUCCESS)
             {
                 Log(("EMInterpretInstructionCPU failed with %Rrc\n", rc));

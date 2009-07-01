@@ -50,6 +50,7 @@
 #include <QPainter>
 #include <QTimer>
 #include <QDir>
+#include <QHelpEvent>
 
 #include <math.h>
 
@@ -84,6 +85,7 @@
 #endif
 
 #include <VBox/sup.h>
+#include <VBox/com/Guid.h>
 
 #include <iprt/asm.h>
 #include <iprt/err.h>
@@ -107,6 +109,8 @@
 #if defined (Q_WS_X11)
 #include <iprt/mem.h>
 #endif
+
+//#define VBOX_WITH_FULL_DETAILS_REPORT /* hidden for now */
 
 //#warning "port me: check this"
 /// @todo bird: Use (U)INT_PTR, (U)LONG_PTR, DWORD_PTR, or (u)intptr_t.
@@ -149,7 +153,7 @@ public:
 // VirtualBox callback class
 /////////////////////////////////////////////////////////////////////////////
 
-class VBoxCallback : public IVirtualBoxCallback
+class VBoxCallback : VBOX_SCRIPTABLE_IMPL(IVirtualBoxCallback)
 {
 public:
 
@@ -210,27 +214,27 @@ public:
     // some property) directly from the callback method will definitely cause
     // a deadlock.
 
-    STDMETHOD(OnMachineStateChange) (IN_GUID id, MachineState_T state)
+    STDMETHOD(OnMachineStateChange) (IN_BSTR id, MachineState_T state)
     {
-        postEvent (new VBoxMachineStateChangeEvent (COMBase::ToQUuid (id),
+        postEvent (new VBoxMachineStateChangeEvent (QString::fromUtf16(id),
                                                     (KMachineState) state));
         return S_OK;
     }
 
-    STDMETHOD(OnMachineDataChange) (IN_GUID id)
+    STDMETHOD(OnMachineDataChange) (IN_BSTR id)
     {
-        postEvent (new VBoxMachineDataChangeEvent (COMBase::ToQUuid (id)));
+        postEvent (new VBoxMachineDataChangeEvent (QString::fromUtf16(id)));
         return S_OK;
     }
 
-    STDMETHOD(OnExtraDataCanChange)(IN_GUID id,
+    STDMETHOD(OnExtraDataCanChange)(IN_BSTR id,
                                     IN_BSTR key, IN_BSTR value,
                                     BSTR *error, BOOL *allowChange)
     {
         if (!error || !allowChange)
             return E_INVALIDARG;
 
-        if (COMBase::ToQUuid (id).isNull())
+        if (com::asGuidStr(id).isNull())
         {
             /* it's a global extra data key someone wants to change */
             QString sKey = QString::fromUtf16 (key);
@@ -309,10 +313,10 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(OnExtraDataChange) (IN_GUID id,
+    STDMETHOD(OnExtraDataChange) (IN_BSTR id,
                                   IN_BSTR key, IN_BSTR value)
     {
-        if (COMBase::ToQUuid (id).isNull())
+        if (com::asGuidStr(id).isNull())
         {
             QString sKey = QString::fromUtf16 (key);
             QString sVal = QString::fromUtf16 (value);
@@ -393,7 +397,7 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(OnMediaRegistered) (IN_GUID id, DeviceType_T type,
+    STDMETHOD(OnMediaRegistered) (IN_BSTR id, DeviceType_T type,
                                   BOOL registered)
     {
         /** @todo */
@@ -403,45 +407,45 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(OnMachineRegistered) (IN_GUID id, BOOL registered)
+    STDMETHOD(OnMachineRegistered) (IN_BSTR id, BOOL registered)
     {
-        postEvent (new VBoxMachineRegisteredEvent (COMBase::ToQUuid (id),
+        postEvent (new VBoxMachineRegisteredEvent (QString::fromUtf16(id),
                                                    registered));
         return S_OK;
     }
 
-    STDMETHOD(OnSessionStateChange) (IN_GUID id, SessionState_T state)
+    STDMETHOD(OnSessionStateChange) (IN_BSTR id, SessionState_T state)
     {
-        postEvent (new VBoxSessionStateChangeEvent (COMBase::ToQUuid (id),
+        postEvent (new VBoxSessionStateChangeEvent (QString::fromUtf16(id),
                                                     (KSessionState) state));
         return S_OK;
     }
 
-    STDMETHOD(OnSnapshotTaken) (IN_GUID aMachineId, IN_GUID aSnapshotId)
+    STDMETHOD(OnSnapshotTaken) (IN_BSTR aMachineId, IN_BSTR aSnapshotId)
     {
-        postEvent (new VBoxSnapshotEvent (COMBase::ToQUuid (aMachineId),
-                                          COMBase::ToQUuid (aSnapshotId),
+        postEvent (new VBoxSnapshotEvent (QString::fromUtf16(aMachineId),
+                                          QString::fromUtf16(aSnapshotId),
                                           VBoxSnapshotEvent::Taken));
         return S_OK;
     }
 
-    STDMETHOD(OnSnapshotDiscarded) (IN_GUID aMachineId, IN_GUID aSnapshotId)
+    STDMETHOD(OnSnapshotDiscarded) (IN_BSTR aMachineId, IN_BSTR aSnapshotId)
     {
-        postEvent (new VBoxSnapshotEvent (COMBase::ToQUuid (aMachineId),
-                                          COMBase::ToQUuid (aSnapshotId),
+        postEvent (new VBoxSnapshotEvent (QString::fromUtf16(aMachineId),
+                                          QString::fromUtf16(aSnapshotId),
                                           VBoxSnapshotEvent::Discarded));
         return S_OK;
     }
 
-    STDMETHOD(OnSnapshotChange) (IN_GUID aMachineId, IN_GUID aSnapshotId)
+    STDMETHOD(OnSnapshotChange) (IN_BSTR aMachineId, IN_BSTR aSnapshotId)
     {
-        postEvent (new VBoxSnapshotEvent (COMBase::ToQUuid (aMachineId),
-                                          COMBase::ToQUuid (aSnapshotId),
+        postEvent (new VBoxSnapshotEvent (QString::fromUtf16(aMachineId),
+                                          QString::fromUtf16(aSnapshotId),
                                           VBoxSnapshotEvent::Changed));
         return S_OK;
     }
 
-    STDMETHOD(OnGuestPropertyChange) (IN_GUID /* id */,
+    STDMETHOD(OnGuestPropertyChange) (IN_BSTR /* id */,
                                       IN_BSTR /* key */,
                                       IN_BSTR /* value */,
                                       IN_BSTR /* flags */)
@@ -481,185 +485,6 @@ private:
 NS_DECL_CLASSINFO (VBoxCallback)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI (VBoxCallback, IVirtualBoxCallback)
 #endif
-
-// Helpers for VBoxGlobal::getOpenFileName() & getExistingDirectory()
-/////////////////////////////////////////////////////////////////////////////
-
-#if defined Q_WS_WIN
-
-extern void qt_enter_modal (QWidget*);
-extern void qt_leave_modal (QWidget*);
-
-static QString extractFilter (const QString &aRawFilter)
-{
-    static const char qt_file_dialog_filter_reg_exp[] =
-        "([a-zA-Z0-9 ]*)\\(([a-zA-Z0-9_.*? +;#\\[\\]]*)\\)$";
-
-    QString result = aRawFilter;
-    QRegExp r (QString::fromLatin1 (qt_file_dialog_filter_reg_exp));
-    int index = r.indexIn (result);
-    if (index >= 0)
-        result = r.cap (2);
-    return result.replace (QChar (' '), QChar (';'));
-}
-
-/**
- * Converts QFileDialog filter list to Win32 API filter list.
- */
-static QString winFilter (const QString &aFilter)
-{
-    QStringList filterLst;
-
-    if (!aFilter.isEmpty())
-    {
-        int i = aFilter.indexOf (";;", 0);
-        QString sep (";;");
-        if (i == -1)
-        {
-            if (aFilter.indexOf ("\n", 0) != -1)
-            {
-                sep = "\n";
-                i = aFilter.indexOf (sep, 0);
-            }
-        }
-
-        filterLst = aFilter.split (sep);
-    }
-
-    QStringList::Iterator it = filterLst.begin();
-    QString winfilters;
-    for (; it != filterLst.end(); ++it)
-    {
-        winfilters += *it;
-        winfilters += QChar::Null;
-        winfilters += extractFilter (*it);
-        winfilters += QChar::Null;
-    }
-    winfilters += QChar::Null;
-    return winfilters;
-}
-
-/*
- * Callback function to control the native Win32 API file dialog
- */
-UINT_PTR CALLBACK OFNHookProc (HWND aHdlg, UINT aUiMsg, WPARAM aWParam, LPARAM aLParam)
-{
-    if (aUiMsg == WM_NOTIFY)
-    {
-        OFNOTIFY *notif = (OFNOTIFY*) aLParam;
-        if (notif->hdr.code == CDN_TYPECHANGE)
-        {
-            /* locate native dialog controls */
-            HWND parent = GetParent (aHdlg);
-            HWND button = GetDlgItem (parent, IDOK);
-            HWND textfield = ::GetDlgItem (parent, cmb13);
-            if (textfield == NULL)
-                textfield = ::GetDlgItem (parent, edt1);
-            if (textfield == NULL)
-                return FALSE;
-            HWND selector = ::GetDlgItem (parent, cmb1);
-
-            /* simulate filter change by pressing apply-key */
-            int    size = 256;
-            TCHAR *buffer = (TCHAR*)malloc (size);
-            SendMessage (textfield, WM_GETTEXT, size, (LPARAM)buffer);
-            SendMessage (textfield, WM_SETTEXT, 0, (LPARAM)"\0");
-            SendMessage (button, BM_CLICK, 0, 0);
-            SendMessage (textfield, WM_SETTEXT, 0, (LPARAM)buffer);
-            free (buffer);
-
-            /* make request for focus moving to filter selector combo-box */
-            HWND curFocus = GetFocus();
-            PostMessage (curFocus, WM_KILLFOCUS, (WPARAM)selector, 0);
-            PostMessage (selector, WM_SETFOCUS, (WPARAM)curFocus, 0);
-            WPARAM wParam = MAKEWPARAM (WA_ACTIVE, 0);
-            PostMessage (selector, WM_ACTIVATE, wParam, (LPARAM)curFocus);
-        }
-    }
-    return FALSE;
-}
-
-/*
- * Callback function to control the native Win32 API folders dialog
- */
-static int __stdcall winGetExistDirCallbackProc (HWND hwnd, UINT uMsg,
-                                                 LPARAM lParam, LPARAM lpData)
-{
-    if (uMsg == BFFM_INITIALIZED && lpData != 0)
-    {
-        QString *initDir = (QString *)(lpData);
-        if (!initDir->isEmpty())
-        {
-            SendMessage (hwnd, BFFM_SETSELECTION, TRUE, Q_ULONG (
-                initDir->isNull() ? 0 : initDir->utf16()));
-            //SendMessage (hwnd, BFFM_SETEXPANDED, TRUE, Q_ULONG (initDir->utf16()));
-        }
-    }
-    else if (uMsg == BFFM_SELCHANGED)
-    {
-        TCHAR path [MAX_PATH];
-        SHGetPathFromIDList (LPITEMIDLIST (lParam), path);
-        QString tmpStr = QString::fromUtf16 ((ushort*)path);
-        if (!tmpStr.isEmpty())
-            SendMessage (hwnd, BFFM_ENABLEOK, 1, 1);
-        else
-            SendMessage (hwnd, BFFM_ENABLEOK, 0, 0);
-        SendMessage (hwnd, BFFM_SETSTATUSTEXT, 1, Q_ULONG (path));
-    }
-    return 0;
-}
-
-/**
- *  QEvent class to carry Win32 API native dialog's result information
- */
-class OpenNativeDialogEvent : public QEvent
-{
-public:
-
-    OpenNativeDialogEvent (const QString &aResult, QEvent::Type aType)
-        : QEvent (aType), mResult (aResult) {}
-
-    const QString& result() { return mResult; }
-
-private:
-
-    QString mResult;
-};
-
-/**
- *  QObject class reimplementation which is the target for OpenNativeDialogEvent
- *  event. It receives OpenNativeDialogEvent event from another thread,
- *  stores result information and exits the given local event loop.
- */
-class LoopObject : public QObject
-{
-public:
-
-    LoopObject (QEvent::Type aType, QEventLoop &aLoop)
-        : mType (aType), mLoop (aLoop), mResult (QString::null) {}
-    const QString& result() { return mResult; }
-
-private:
-
-    bool event (QEvent *aEvent)
-    {
-        if (aEvent->type() == mType)
-        {
-            OpenNativeDialogEvent *ev = (OpenNativeDialogEvent*) aEvent;
-            mResult = ev->result();
-            mLoop.quit();
-            return true;
-        }
-        return QObject::event (aEvent);
-    }
-
-    QEvent::Type mType;
-    QEventLoop &mLoop;
-    QString mResult;
-};
-
-#endif /* Q_WS_WIN */
-
 
 // VBoxGlobal
 ////////////////////////////////////////////////////////////////////////////////
@@ -729,8 +554,12 @@ static VBoxDefs::RenderMode vboxGetRenderMode (const char *aModeStr)
             mode = VBoxDefs::Quartz2DMode;
 #endif
     }
-
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    /* temporary hack to enable QGL mode */
+    mode = VBoxDefs::QGLMode;
+#endif
     return mode;
+
 }
 
 /** @class VBoxGlobal
@@ -756,7 +585,6 @@ VBoxGlobal::VBoxGlobal()
 #endif
     , mMediaEnumThread (NULL)
     , mVerString ("1.0")
-    , mDetailReportTemplatesReady (false)
 {
 }
 
@@ -1574,12 +1402,11 @@ QString VBoxGlobal::toolTip (const CUSBDeviceFilter &aFilter) const
  * Returns a details report on a given VM represented as a HTML table.
  *
  * @param aMachine      Machine to create a report for.
- * @param aIsNewVM      @c true when called by the New VM Wizard.
  * @param aWithLinks    @c true if section titles should be hypertext links.
  */
-QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aIsNewVM,
-                                   bool aWithLinks)
+QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
 {
+    /* Details templates */
     static const char *sTableTpl =
         "<table border=0 cellspacing=1 cellpadding=0>%1</table>";
     static const char *sSectionHrefTpl =
@@ -1597,67 +1424,148 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aIsNewVM,
     static const char *sSectionItemTpl2 =
         "<tr><td width=40%><nobr>%1:</nobr></td><td/><td>%2</td></tr>";
 
-    static QString sGeneralBasicHrefTpl, sGeneralBasicBoldTpl;
-    static QString sGeneralFullHrefTpl, sGeneralFullBoldTpl;
+    const QString &sectionTpl = aWithLinks ? sSectionHrefTpl : sSectionBoldTpl;
 
-    /* generate templates after every language change */
+    /* Compose details report */
+    QString report;
 
-    if (!mDetailReportTemplatesReady)
+    /* General */
     {
-        mDetailReportTemplatesReady = true;
+        QString item = QString (sSectionItemTpl2).arg (tr ("Name", "details report"),
+                                                       aMachine.GetName())
+                     + QString (sSectionItemTpl2).arg (tr ("OS Type", "details report"),
+                                                       vmGuestOSTypeDescription (aMachine.GetOSTypeId()));
 
-        QString generalItems
-            = QString (sSectionItemTpl2).arg (tr ("Name", "details report"), "%1")
-            + QString (sSectionItemTpl2).arg (tr ("OS Type", "details report"), "%2")
-            + QString (sSectionItemTpl2).arg (tr ("Base Memory", "details report"),
-                                              tr ("<nobr>%3 MB</nobr>", "details report"));
-        sGeneralBasicHrefTpl = QString (sSectionHrefTpl)
-                .arg (2 + 3) /* rows */
-                .arg (":/machine_16px.png", /* icon */
-                      "#general", /* link */
-                      tr ("General", "details report"), /* title */
-                      generalItems); /* items */
-        sGeneralBasicBoldTpl = QString (sSectionBoldTpl)
-                .arg (2 + 3) /* rows */
-                .arg (":/machine_16px.png", /* icon */
-                      "#general", /* link */
-                      tr ("General", "details report"), /* title */
-                      generalItems); /* items */
-
-        generalItems
-           += QString (sSectionItemTpl2).arg (tr ("Video Memory", "details report"),
-                                              tr ("<nobr>%4 MB</nobr>", "details report"))
-            + QString (sSectionItemTpl2).arg (tr ("Boot Order", "details report"), "%5")
-            + QString (sSectionItemTpl2).arg (tr ("ACPI", "details report"), "%6")
-            + QString (sSectionItemTpl2).arg (tr ("IO APIC", "details report"), "%7")
-            + QString (sSectionItemTpl2).arg (tr ("VT-x/AMD-V", "details report"), "%8")
-            + QString (sSectionItemTpl2).arg (tr ("Nested Paging", "details report"), "%9")
-            + QString (sSectionItemTpl2).arg (tr ("PAE/NX", "details report"), "%10")
-            + QString (sSectionItemTpl2).arg (tr ("3D Acceleration", "details report"), "%11");
-
-        sGeneralFullHrefTpl = QString (sSectionHrefTpl)
-            .arg (2 + 11) /* rows */
-            .arg (":/machine_16px.png", /* icon */
-                  "#general", /* link */
-                  tr ("General", "details report"), /* title */
-                  generalItems); /* items */
-        sGeneralFullBoldTpl = QString (sSectionBoldTpl)
-            .arg (2 + 11) /* rows */
-            .arg (":/machine_16px.png", /* icon */
-                  "#general", /* link */
-                  tr ("General", "details report"), /* title */
-                  generalItems); /* items */
+        report += sectionTpl
+                  .arg (2 + 2) /* rows */
+                  .arg (":/machine_16px.png", /* icon */
+                        "#general", /* link */
+                        tr ("General", "details report"), /* title */
+                        item); /* items */
     }
 
-    /* common generated content */
-
-    const QString &sectionTpl = aWithLinks
-        ? sSectionHrefTpl
-        : sSectionBoldTpl;
-
-    QString hardDisks;
+    /* System */
     {
-        int rows = 2; /* including section header and footer */
+        /* BIOS Settings holder */
+        CBIOSSettings biosSettings = aMachine.GetBIOSSettings();
+
+        /* Boot order */
+        QString bootOrder;
+        for (ulong i = 1; i <= mVBox.GetSystemProperties().GetMaxBootPosition(); ++ i)
+        {
+            KDeviceType device = aMachine.GetBootOrder (i);
+            if (device == KDeviceType_Null)
+                continue;
+            if (!bootOrder.isEmpty())
+                bootOrder += ", ";
+            bootOrder += toString (device);
+        }
+        if (bootOrder.isEmpty())
+            bootOrder = toString (KDeviceType_Null);
+
+#ifdef VBOX_WITH_FULL_DETAILS_REPORT
+        /* ACPI */
+        QString acpi = biosSettings.GetACPIEnabled()
+            ? tr ("Enabled", "details report (ACPI)")
+            : tr ("Disabled", "details report (ACPI)");
+
+        /* IO APIC */
+        QString ioapic = biosSettings.GetIOAPICEnabled()
+            ? tr ("Enabled", "details report (IO APIC)")
+            : tr ("Disabled", "details report (IO APIC)");
+
+        /* PAE/NX */
+        QString pae = aMachine.GetPAEEnabled()
+            ? tr ("Enabled", "details report (PAE/NX)")
+            : tr ("Disabled", "details report (PAE/NX)");
+#endif /* VBOX_WITH_FULL_DETAILS_REPORT */
+
+        /* VT-x/AMD-V */
+        QString virt = aMachine.GetHWVirtExEnabled() == KTSBool_True ?
+                       tr ("Enabled", "details report (VT-x/AMD-V)") :
+                       tr ("Disabled", "details report (VT-x/AMD-V)");
+
+        /* Nested Paging */
+        QString nested = aMachine.GetHWVirtExNestedPagingEnabled()
+            ? tr ("Enabled", "details report (Nested Paging)")
+            : tr ("Disabled", "details report (Nested Paging)");
+
+        QString item = QString (sSectionItemTpl2).arg (tr ("Base Memory", "details report"),
+                                                       tr ("<nobr>%1 MB</nobr>", "details report"))
+                       .arg (aMachine.GetMemorySize())
+                     + QString (sSectionItemTpl2).arg (tr ("Processor(s)", "details report"),
+                                                       tr ("<nobr>%1</nobr>", "details report"))
+                       .arg (aMachine.GetCPUCount())
+                     + QString (sSectionItemTpl2).arg (tr ("Boot Order", "details report"), bootOrder)
+#ifdef VBOX_WITH_FULL_DETAILS_REPORT
+                     + QString (sSectionItemTpl2).arg (tr ("ACPI", "details report"), acpi)
+                     + QString (sSectionItemTpl2).arg (tr ("IO APIC", "details report"), ioapic)
+                     + QString (sSectionItemTpl2).arg (tr ("PAE/NX", "details report"), pae)
+#endif /* VBOX_WITH_FULL_DETAILS_REPORT */
+                     + QString (sSectionItemTpl2).arg (tr ("VT-x/AMD-V", "details report"), virt)
+                     + QString (sSectionItemTpl2).arg (tr ("Nested Paging", "details report"), nested)
+                     ;
+
+        report += sectionTpl
+#ifdef VBOX_WITH_FULL_DETAILS_REPORT
+                  .arg (2 + 8) /* rows */
+#else
+                  .arg (2 + 5) /* rows */
+#endif /* VBOX_WITH_FULL_DETAILS_REPORT */
+                  .arg (":/chipset_16px.png", /* icon */
+                        "#system", /* link */
+                        tr ("System", "details report"), /* title */
+                        item); /* items */
+    }
+
+    /* Display */
+    {
+        /* Rows including section header and footer */
+        int rows = 2;
+
+        /* Video tab */
+        QString acc3d = aMachine.GetAccelerate3DEnabled()
+            ? tr ("Enabled", "details report (3D Acceleration)")
+            : tr ("Disabled", "details report (3D Acceleration)");
+
+        QString item = QString (sSectionItemTpl2)
+                       .arg (tr ("Video Memory", "details report"),
+                             tr ("<nobr>%1 MB</nobr>", "details report"))
+                       .arg (aMachine.GetVRAMSize())
+                     + QString (sSectionItemTpl2)
+                       .arg (tr ("3D Acceleration", "details report"), acc3d);
+
+        rows += 2;
+
+        /* VRDP tab */
+        CVRDPServer srv = aMachine.GetVRDPServer();
+        if (!srv.isNull())
+        {
+            if (srv.GetEnabled())
+                item += QString (sSectionItemTpl2)
+                        .arg (tr ("Remote Display Server Port", "details report (VRDP Server)"))
+                        .arg (srv.GetPort());
+            else
+                item += QString (sSectionItemTpl2)
+                        .arg (tr ("Remote Display Server", "details report (VRDP Server)"))
+                        .arg (tr ("Disabled", "details report (VRDP Server)"));
+            ++ rows;
+        }
+
+        report += sectionTpl
+            .arg (rows) /* rows */
+            .arg (":/vrdp_16px.png", /* icon */
+                  "#display", /* link */
+                  tr ("Display", "details report"), /* title */
+                  item); /* items */
+    }
+
+    /* Hard Disks */
+    {
+        /* Rows including section header and footer */
+        int rows = 2;
+
+        QString item;
 
         CHardDiskAttachmentVector vec = aMachine.GetHardDiskAttachments();
         for (int i = 0; i < vec.size(); ++ i)
@@ -1677,129 +1585,45 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aIsNewVM,
 
                 LONG port   = hda.GetPort();
                 LONG device = hda.GetDevice();
-                hardDisks += QString (sSectionItemTpl2)
-                    .arg (toFullString (bus, port, device))
-                    .arg (details (hd, aIsNewVM));
+                item += QString (sSectionItemTpl2)
+                        .arg (toFullString (bus, port, device))
+                        .arg (details (hd, false));
                 ++ rows;
             }
         }
 
-        if (hardDisks.isNull())
+        if (item.isNull())
         {
-            hardDisks = QString (sSectionItemTpl1)
-                .arg (tr ("Not Attached", "details report (HDDs)"));
+            item = QString (sSectionItemTpl1)
+                   .arg (tr ("Not Attached", "details report (HDDs)"));
             ++ rows;
         }
 
-        hardDisks = sectionTpl
+        report += sectionTpl
             .arg (rows) /* rows */
             .arg (":/hd_16px.png", /* icon */
                   "#hdds", /* link */
                   tr ("Hard Disks", "details report"), /* title */
-                  hardDisks); /* items */
+                  item); /* items */
     }
 
-    /* compose details report */
-
-    const QString &generalBasicTpl = aWithLinks
-        ? sGeneralBasicHrefTpl
-        : sGeneralBasicBoldTpl;
-
-    const QString &generalFullTpl = aWithLinks
-        ? sGeneralFullHrefTpl
-        : sGeneralFullBoldTpl;
-
-    QString detailsReport;
-
-    if (aIsNewVM)
+    /* DVD */
     {
-        detailsReport
-            = generalBasicTpl
-                .arg (aMachine.GetName())
-                .arg (vmGuestOSTypeDescription (aMachine.GetOSTypeId()))
-                .arg (aMachine.GetMemorySize())
-            + hardDisks;
-    }
-    else
-    {
-        /* boot order */
-        QString bootOrder;
-        for (ulong i = 1; i <= mVBox.GetSystemProperties().GetMaxBootPosition(); i++)
-        {
-            KDeviceType device = aMachine.GetBootOrder (i);
-            if (device == KDeviceType_Null)
-                continue;
-            if (!bootOrder.isEmpty())
-                bootOrder += ", ";
-            bootOrder += toString (device);
-        }
-        if (bootOrder.isEmpty())
-            bootOrder = toString (KDeviceType_Null);
-
-        CBIOSSettings biosSettings = aMachine.GetBIOSSettings();
-
-        /* ACPI */
-        QString acpi = biosSettings.GetACPIEnabled()
-            ? tr ("Enabled", "details report (ACPI)")
-            : tr ("Disabled", "details report (ACPI)");
-
-        /* IO APIC */
-        QString ioapic = biosSettings.GetIOAPICEnabled()
-            ? tr ("Enabled", "details report (IO APIC)")
-            : tr ("Disabled", "details report (IO APIC)");
-
-        /* VT-x/AMD-V */
-        QString virt = aMachine.GetHWVirtExEnabled() == KTSBool_True ?
-                       tr ("Enabled", "details report (VT-x/AMD-V)") :
-                       tr ("Disabled", "details report (VT-x/AMD-V)");
-
-        /* Nested Paging */
-        QString nested = aMachine.GetHWVirtExNestedPagingEnabled()
-            ? tr ("Enabled", "details report (Nested Paging)")
-            : tr ("Disabled", "details report (Nested Paging)");
-
-        /* PAE/NX */
-        QString pae = aMachine.GetPAEEnabled()
-            ? tr ("Enabled", "details report (PAE/NX)")
-            : tr ("Disabled", "details report (PAE/NX)");
-
-        /* 3D Acceleration */
-        QString acc3d = aMachine.GetAccelerate3DEnabled()
-            ? tr ("Enabled", "details report (3D Acceleration)")
-            : tr ("Disabled", "details report (3D Acceleration)");
-
-        /* General + Hard Disks */
-        detailsReport
-            = generalFullTpl
-                .arg (aMachine.GetName())
-                .arg (vmGuestOSTypeDescription (aMachine.GetOSTypeId()))
-                .arg (aMachine.GetMemorySize())
-                .arg (aMachine.GetVRAMSize())
-                .arg (bootOrder)
-                .arg (acpi)
-                .arg (ioapic)
-                .arg (virt)
-                .arg (nested)
-                .arg (pae)
-                .arg (acc3d)
-            + hardDisks;
-
         QString item;
 
-        /* DVD */
         CDVDDrive dvd = aMachine.GetDVDDrive();
         switch (dvd.GetState())
         {
             case KDriveState_NotMounted:
                 item = QString (sSectionItemTpl1)
-                    .arg (tr ("Not mounted", "details report (DVD)"));
+                       .arg (tr ("Not mounted", "details report (DVD)"));
                 break;
             case KDriveState_ImageMounted:
             {
                 CDVDImage img = dvd.GetImage();
                 item = QString (sSectionItemTpl2)
-                    .arg (tr ("Image", "details report (DVD)"),
-                          locationForHTML (img.GetName()));
+                       .arg (tr ("Image", "details report (DVD)"),
+                             locationForHTML (img.GetName()));
                 break;
             }
             case KDriveState_HostDriveCaptured:
@@ -1811,34 +1635,39 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aIsNewVM,
                     drvName :
                     QString ("%1 (%2)").arg (description, drvName);
                 item = QString (sSectionItemTpl2)
-                    .arg (tr ("Host Drive", "details report (DVD)"),
-                          fullName);
+                       .arg (tr ("Host Drive", "details report (DVD)"),
+                             fullName);
                 break;
             }
             default:
                 AssertMsgFailed (("Invalid DVD state: %d", dvd.GetState()));
         }
-        detailsReport += sectionTpl
+
+        report += sectionTpl
             .arg (2 + 1) /* rows */
             .arg (":/cd_16px.png", /* icon */
                   "#dvd", /* link */
                   tr ("CD/DVD-ROM", "details report"), /* title */
                   item); // items
+    }
 
-        /* Floppy */
+    /* Floppy */
+    {
+        QString item;
+
         CFloppyDrive floppy = aMachine.GetFloppyDrive();
         switch (floppy.GetState())
         {
             case KDriveState_NotMounted:
                 item = QString (sSectionItemTpl1)
-                    .arg (tr ("Not mounted", "details report (floppy)"));
+                       .arg (tr ("Not mounted", "details report (floppy)"));
                 break;
             case KDriveState_ImageMounted:
             {
                 CFloppyImage img = floppy.GetImage();
                 item = QString (sSectionItemTpl2)
-                    .arg (tr ("Image", "details report (floppy)"),
-                          locationForHTML (img.GetName()));
+                       .arg (tr ("Image", "details report (floppy)"),
+                             locationForHTML (img.GetName()));
                 break;
             }
             case KDriveState_HostDriveCaptured:
@@ -1850,249 +1679,241 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aIsNewVM,
                     drvName :
                     QString ("%1 (%2)").arg (description, drvName);
                 item = QString (sSectionItemTpl2)
-                    .arg (tr ("Host Drive", "details report (floppy)"),
-                          fullName);
+                       .arg (tr ("Host Drive", "details report (floppy)"),
+                             fullName);
                 break;
             }
             default:
                 AssertMsgFailed (("Invalid floppy state: %d", floppy.GetState()));
         }
-        detailsReport += sectionTpl
+
+        report += sectionTpl
             .arg (2 + 1) /* rows */
             .arg (":/fd_16px.png", /* icon */
                   "#floppy", /* link */
                   tr ("Floppy", "details report"), /* title */
                   item); /* items */
+    }
 
-        /* audio */
-        {
-            CAudioAdapter audio = aMachine.GetAudioAdapter();
-            int rows = audio.GetEnabled() ? 3 : 2;
-            if (audio.GetEnabled())
-                item = QString (sSectionItemTpl2)
-                       .arg (tr ("Host Driver", "details report (audio)"),
-                             toString (audio.GetAudioDriver())) +
-                       QString (sSectionItemTpl2)
-                       .arg (tr ("Controller", "details report (audio)"),
-                             toString (audio.GetAudioController()));
-            else
-                item = QString (sSectionItemTpl1)
-                    .arg (tr ("Disabled", "details report (audio)"));
+    /* Audio */
+    {
+        QString item;
 
-            detailsReport += sectionTpl
-                .arg (rows + 1) /* rows */
-                .arg (":/sound_16px.png", /* icon */
-                      "#audio", /* link */
-                      tr ("Audio", "details report"), /* title */
-                      item); /* items */
-        }
-        /* network */
+        CAudioAdapter audio = aMachine.GetAudioAdapter();
+        int rows = audio.GetEnabled() ? 3 : 2;
+        if (audio.GetEnabled())
+            item = QString (sSectionItemTpl2)
+                   .arg (tr ("Host Driver", "details report (audio)"),
+                         toString (audio.GetAudioDriver())) +
+                   QString (sSectionItemTpl2)
+                   .arg (tr ("Controller", "details report (audio)"),
+                         toString (audio.GetAudioController()));
+        else
+            item = QString (sSectionItemTpl1)
+                   .arg (tr ("Disabled", "details report (audio)"));
+
+        report += sectionTpl
+            .arg (rows + 1) /* rows */
+            .arg (":/sound_16px.png", /* icon */
+                  "#audio", /* link */
+                  tr ("Audio", "details report"), /* title */
+                  item); /* items */
+    }
+
+    /* Network */
+    {
+        QString item;
+
+        ulong count = mVBox.GetSystemProperties().GetNetworkAdapterCount();
+        int rows = 2; /* including section header and footer */
+        for (ulong slot = 0; slot < count; slot ++)
         {
-            item = QString::null;
-            ulong count = mVBox.GetSystemProperties().GetNetworkAdapterCount();
-            int rows = 2; /* including section header and footer */
-            for (ulong slot = 0; slot < count; slot ++)
+            CNetworkAdapter adapter = aMachine.GetNetworkAdapter (slot);
+            if (adapter.GetEnabled())
             {
-                CNetworkAdapter adapter = aMachine.GetNetworkAdapter (slot);
-                if (adapter.GetEnabled())
-                {
-                    KNetworkAttachmentType type = adapter.GetAttachmentType();
-                    QString attType = toString (adapter.GetAdapterType())
-                                      .replace (QRegExp ("\\s\\(.+\\)"), " (%1)");
-                    /* don't use the adapter type string for types that have
-                     * an additional symbolic network/interface name field, use
-                     * this name instead */
-                    if (type == KNetworkAttachmentType_Bridged)
-                        attType = attType.arg (tr ("Bridged adapter, %1",
-                            "details report (network)").arg (adapter.GetHostInterface()));
-                    else if (type == KNetworkAttachmentType_Internal)
-                        attType = attType.arg (tr ("Internal network, '%1'",
-                            "details report (network)").arg (adapter.GetInternalNetwork()));
-                    else if (type == KNetworkAttachmentType_HostOnly)
-                        attType = attType.arg (tr ("Host-only adapter, '%1'",
-                            "details report (network)").arg (adapter.GetHostInterface()));
-                    else
-                        attType = attType.arg (vboxGlobal().toString (type));
+                KNetworkAttachmentType type = adapter.GetAttachmentType();
+                QString attType = toString (adapter.GetAdapterType())
+                                  .replace (QRegExp ("\\s\\(.+\\)"), " (%1)");
+                /* don't use the adapter type string for types that have
+                 * an additional symbolic network/interface name field, use
+                 * this name instead */
+                if (type == KNetworkAttachmentType_Bridged)
+                    attType = attType.arg (tr ("Bridged adapter, %1",
+                        "details report (network)").arg (adapter.GetHostInterface()));
+                else if (type == KNetworkAttachmentType_Internal)
+                    attType = attType.arg (tr ("Internal network, '%1'",
+                        "details report (network)").arg (adapter.GetInternalNetwork()));
+                else if (type == KNetworkAttachmentType_HostOnly)
+                    attType = attType.arg (tr ("Host-only adapter, '%1'",
+                        "details report (network)").arg (adapter.GetHostInterface()));
+                else
+                    attType = attType.arg (vboxGlobal().toString (type));
 
-                    item += QString (sSectionItemTpl2)
+                item += QString (sSectionItemTpl2)
                         .arg (tr ("Adapter %1", "details report (network)")
                               .arg (adapter.GetSlot() + 1))
                         .arg (attType);
-                    ++ rows;
-                }
-            }
-            if (item.isNull())
-            {
-                item = QString (sSectionItemTpl1)
-                    .arg (tr ("Disabled", "details report (network)"));
                 ++ rows;
             }
-
-            detailsReport += sectionTpl
-                .arg (rows) /* rows */
-                .arg (":/nw_16px.png", /* icon */
-                      "#network", /* link */
-                      tr ("Network", "details report"), /* title */
-                      item); /* items */
         }
-        /* serial ports */
+        if (item.isNull())
         {
-            item = QString::null;
-            ulong count = mVBox.GetSystemProperties().GetSerialPortCount();
-            int rows = 2; /* including section header and footer */
-            for (ulong slot = 0; slot < count; slot ++)
+            item = QString (sSectionItemTpl1)
+                   .arg (tr ("Disabled", "details report (network)"));
+            ++ rows;
+        }
+
+        report += sectionTpl
+            .arg (rows) /* rows */
+            .arg (":/nw_16px.png", /* icon */
+                  "#network", /* link */
+                  tr ("Network", "details report"), /* title */
+                  item); /* items */
+    }
+
+    /* Serial Ports */
+    {
+        QString item;
+
+        ulong count = mVBox.GetSystemProperties().GetSerialPortCount();
+        int rows = 2; /* including section header and footer */
+        for (ulong slot = 0; slot < count; slot ++)
+        {
+            CSerialPort port = aMachine.GetSerialPort (slot);
+            if (port.GetEnabled())
             {
-                CSerialPort port = aMachine.GetSerialPort (slot);
-                if (port.GetEnabled())
-                {
-                    KPortMode mode = port.GetHostMode();
-                    QString data =
-                        toCOMPortName (port.GetIRQ(), port.GetIOBase()) + ", ";
-                    if (mode == KPortMode_HostPipe ||
-                        mode == KPortMode_HostDevice ||
-                        mode == KPortMode_RawFile)
-                        data += QString ("%1 (<nobr>%2</nobr>)")
+                KPortMode mode = port.GetHostMode();
+                QString data =
+                    toCOMPortName (port.GetIRQ(), port.GetIOBase()) + ", ";
+                if (mode == KPortMode_HostPipe ||
+                    mode == KPortMode_HostDevice ||
+                    mode == KPortMode_RawFile)
+                    data += QString ("%1 (<nobr>%2</nobr>)")
                             .arg (vboxGlobal().toString (mode))
                             .arg (QDir::toNativeSeparators (port.GetPath()));
-                    else
-                        data += toString (mode);
+                else
+                    data += toString (mode);
 
-                    item += QString (sSectionItemTpl2)
+                item += QString (sSectionItemTpl2)
                         .arg (tr ("Port %1", "details report (serial ports)")
                               .arg (port.GetSlot() + 1))
                         .arg (data);
-                    ++ rows;
-                }
-            }
-            if (item.isNull())
-            {
-                item = QString (sSectionItemTpl1)
-                    .arg (tr ("Disabled", "details report (serial ports)"));
                 ++ rows;
             }
-
-            detailsReport += sectionTpl
-                .arg (rows) /* rows */
-                .arg (":/serial_port_16px.png", /* icon */
-                      "#serialPorts", /* link */
-                      tr ("Serial Ports", "details report"), /* title */
-                      item); /* items */
         }
-        /* parallel ports */
+        if (item.isNull())
         {
-            item = QString::null;
-            ulong count = mVBox.GetSystemProperties().GetParallelPortCount();
-            int rows = 2; /* including section header and footer */
-            for (ulong slot = 0; slot < count; slot ++)
-            {
-                CParallelPort port = aMachine.GetParallelPort (slot);
-                if (port.GetEnabled())
-                {
-                    QString data =
-                        toLPTPortName (port.GetIRQ(), port.GetIOBase()) +
-                        QString (" (<nobr>%1</nobr>)")
-                        .arg (QDir::toNativeSeparators (port.GetPath()));
+            item = QString (sSectionItemTpl1)
+                   .arg (tr ("Disabled", "details report (serial ports)"));
+            ++ rows;
+        }
 
-                    item += QString (sSectionItemTpl2)
+        report += sectionTpl
+            .arg (rows) /* rows */
+            .arg (":/serial_port_16px.png", /* icon */
+                  "#serialPorts", /* link */
+                  tr ("Serial Ports", "details report"), /* title */
+                  item); /* items */
+    }
+
+    /* Parallel Ports */
+    {
+        QString item;
+
+        ulong count = mVBox.GetSystemProperties().GetParallelPortCount();
+        int rows = 2; /* including section header and footer */
+        for (ulong slot = 0; slot < count; slot ++)
+        {
+            CParallelPort port = aMachine.GetParallelPort (slot);
+            if (port.GetEnabled())
+            {
+                QString data =
+                    toLPTPortName (port.GetIRQ(), port.GetIOBase()) +
+                    QString (" (<nobr>%1</nobr>)")
+                    .arg (QDir::toNativeSeparators (port.GetPath()));
+
+                item += QString (sSectionItemTpl2)
                         .arg (tr ("Port %1", "details report (parallel ports)")
                               .arg (port.GetSlot() + 1))
                         .arg (data);
-                    ++ rows;
-                }
-            }
-            if (item.isNull())
-            {
-                item = QString (sSectionItemTpl1)
-                    .arg (tr ("Disabled", "details report (parallel ports)"));
                 ++ rows;
             }
-
-            /* Temporary disabled */
-            QString dummy = sectionTpl /* detailsReport += sectionTpl */
-                .arg (rows) /* rows */
-                .arg (":/parallel_port_16px.png", /* icon */
-                      "#parallelPorts", /* link */
-                      tr ("Parallel Ports", "details report"), /* title */
-                      item); /* items */
         }
-        /* USB */
+        if (item.isNull())
         {
-            CUSBController ctl = aMachine.GetUSBController();
-            if (!ctl.isNull())
-            {
-                /* the USB controller may be unavailable (i.e. in VirtualBox OSE) */
-
-                if (ctl.GetEnabled())
-                {
-                    CUSBDeviceFilterVector coll = ctl.GetDeviceFilters();
-                    uint active = 0;
-                    for (int i = 0; i < coll.size(); ++i)
-                        if (coll[i].GetActive())
-                            active ++;
-
-                    item = QString (sSectionItemTpl2)
-                        .arg (tr ("Device Filters", "details report (USB)"),
-                              tr ("%1 (%2 active)", "details report (USB)")
-                                  .arg (coll.size()).arg (active));
-                }
-                else
-                    item = QString (sSectionItemTpl1)
-                        .arg (tr ("Disabled", "details report (USB)"));
-
-                detailsReport += sectionTpl
-                    .arg (2 + 1) /* rows */
-                    .arg (":/usb_16px.png", /* icon */
-                          "#usb", /* link */
-                          tr ("USB", "details report"), /* title */
-                          item); /* items */
-            }
+            item = QString (sSectionItemTpl1)
+                   .arg (tr ("Disabled", "details report (parallel ports)"));
+            ++ rows;
         }
-        /* Shared folders */
+
+        /* Temporary disabled */
+        QString dummy = sectionTpl /* report += sectionTpl */
+            .arg (rows) /* rows */
+            .arg (":/parallel_port_16px.png", /* icon */
+                  "#parallelPorts", /* link */
+                  tr ("Parallel Ports", "details report"), /* title */
+                  item); /* items */
+    }
+
+    /* USB */
+    {
+        QString item;
+
+        CUSBController ctl = aMachine.GetUSBController();
+        if (!ctl.isNull())
         {
-            ulong count = aMachine.GetSharedFolders().size();
-            if (count > 0)
+            /* the USB controller may be unavailable (i.e. in VirtualBox OSE) */
+
+            if (ctl.GetEnabled())
             {
+                CUSBDeviceFilterVector coll = ctl.GetDeviceFilters();
+                uint active = 0;
+                for (int i = 0; i < coll.size(); ++i)
+                    if (coll[i].GetActive())
+                        active ++;
+
                 item = QString (sSectionItemTpl2)
-                    .arg (tr ("Shared Folders", "details report (shared folders)"))
-                    .arg (count);
+                       .arg (tr ("Device Filters", "details report (USB)"),
+                             tr ("%1 (%2 active)", "details report (USB)")
+                                 .arg (coll.size()).arg (active));
             }
             else
                 item = QString (sSectionItemTpl1)
-                    .arg (tr ("None", "details report (shared folders)"));
+                       .arg (tr ("Disabled", "details report (USB)"));
 
-            detailsReport += sectionTpl
+            report += sectionTpl
                 .arg (2 + 1) /* rows */
-                .arg (":/shared_folder_16px.png", /* icon */
-                      "#sfolders", /* link */
-                      tr ("Shared Folders", "details report"), /* title */
+                .arg (":/usb_16px.png", /* icon */
+                      "#usb", /* link */
+                      tr ("USB", "details report"), /* title */
                       item); /* items */
-        }
-        /* VRDP */
-        {
-            CVRDPServer srv = aMachine.GetVRDPServer();
-            if (!srv.isNull())
-            {
-                /* the VRDP server may be unavailable (i.e. in VirtualBox OSE) */
-
-                if (srv.GetEnabled())
-                    item = QString (sSectionItemTpl2)
-                        .arg (tr ("VRDP Server Port", "details report (VRDP)"))
-                        .arg (srv.GetPort());
-                else
-                    item = QString (sSectionItemTpl1)
-                        .arg (tr ("Disabled", "details report (VRDP)"));
-
-                detailsReport += sectionTpl
-                    .arg (2 + 1) /* rows */
-                    .arg (":/vrdp_16px.png", /* icon */
-                          "#vrdp", /* link */
-                          tr ("Remote Display", "details report"), /* title */
-                          item); /* items */
-            }
         }
     }
 
-    return QString (sTableTpl). arg (detailsReport);
+    /* Shared Folders */
+    {
+        QString item;
+
+        ulong count = aMachine.GetSharedFolders().size();
+        if (count > 0)
+        {
+            item = QString (sSectionItemTpl2)
+                   .arg (tr ("Shared Folders", "details report (shared folders)"))
+                   .arg (count);
+        }
+        else
+            item = QString (sSectionItemTpl1)
+                   .arg (tr ("None", "details report (shared folders)"));
+
+        report += sectionTpl
+            .arg (2 + 1) /* rows */
+            .arg (":/shared_folder_16px.png", /* icon */
+                  "#sfolders", /* link */
+                  tr ("Shared Folders", "details report"), /* title */
+                  item); /* items */
+    }
+
+    return QString (sTableTpl). arg (report);
 }
 
 QString VBoxGlobal::platformInfo()
@@ -2369,7 +2190,7 @@ bool VBoxGlobal::checkForAutoConvertedSettings (bool aAfterRefresh /*= false*/)
  *                      which is already running, @c false to open a new direct
  *                      session.
  */
-CSession VBoxGlobal::openSession (const QUuid &aId, bool aExisting /* = false */)
+CSession VBoxGlobal::openSession (const QString &aId, bool aExisting /* = false */)
 {
     CSession session;
     session.createInstance (CLSID_Session);
@@ -2405,7 +2226,7 @@ CSession VBoxGlobal::openSession (const QUuid &aId, bool aExisting /* = false */
 /**
  *  Starts a machine with the given ID.
  */
-bool VBoxGlobal::startMachine (const QUuid &id)
+bool VBoxGlobal::startMachine (const QString &id)
 {
     AssertReturn (mValid, false);
 
@@ -2702,7 +2523,7 @@ void VBoxGlobal::updateMedium (const VBoxMedium &aMedium)
  *
  * @sa #currentMediaList()
  */
-void VBoxGlobal::removeMedium (VBoxDefs::MediaType aType, const QUuid &aId)
+void VBoxGlobal::removeMedium (VBoxDefs::MediaType aType, const QString &aId)
 {
     VBoxMediaList::Iterator it;
     for (it = mMediaList.begin(); it != mMediaList.end(); ++ it)
@@ -2977,8 +2798,6 @@ void VBoxGlobal::retranslateUi()
 
     mErrorIcon = standardIcon (QStyle::SP_MessageBoxCritical, 0).pixmap (16, 16);
     Assert (!mErrorIcon.isNull());
-
-    mDetailReportTemplatesReady = false;
 
     /* refresh media properties since they contain some translations too  */
     for (VBoxMediaList::iterator it = mMediaList.begin();
@@ -3608,6 +3427,13 @@ void VBoxGlobal::centerWidget (QWidget *aWidget, QWidget *aRelative,
 
     /* ensure the widget is within the available desktop area */
     QRect newGeo = normalizeGeometry (geo, deskGeo, aCanResize);
+#ifdef Q_WS_MAC
+    /* No idea why, but Qt doesn't respect if there is a unified toolbar on the
+     * ::move call. So manually add the height of the toolbar before setting
+     * the position. */
+    if (w)
+        newGeo.translate (0, ::darwinWindowToolBarHeight (aWidget));
+#endif /* Q_WS_MAC */
 
     aWidget->move (newGeo.topLeft());
 
@@ -3989,564 +3815,6 @@ QString VBoxGlobal::systemLanguageId()
     return  QLocale::system().name();
 }
 
-/**
- *  Reimplementation of QFileDialog::getExistingDirectory() that removes some
- *  oddities and limitations.
- *
- *  On Win32, this function makes sure a native dialog is launched in
- *  another thread to avoid dialog visualization errors occuring due to
- *  multi-threaded COM apartment initialization on the main UI thread while
- *  the appropriate native dialog function expects a single-threaded one.
- *
- *  On all other platforms, this function is equivalent to
- *  QFileDialog::getExistingDirectory().
- */
-QString VBoxGlobal::getExistingDirectory (const QString &aDir,
-                                          QWidget *aParent,
-                                          const QString &aCaption,
-                                          bool aDirOnly,
-                                          bool aResolveSymlinks)
-{
-#if defined Q_WS_WIN
-
-    /**
-     *  QEvent class reimplementation to carry Win32 API native dialog's
-     *  result folder information
-     */
-    class GetExistDirectoryEvent : public OpenNativeDialogEvent
-    {
-    public:
-
-        enum { TypeId = QEvent::User + 300 };
-
-        GetExistDirectoryEvent (const QString &aResult)
-            : OpenNativeDialogEvent (aResult, (QEvent::Type) TypeId) {}
-    };
-
-    /**
-     *  QThread class reimplementation to open Win32 API native folder's dialog
-     */
-    class Thread : public QThread
-    {
-    public:
-
-        Thread (QWidget *aParent, QObject *aTarget,
-                const QString &aDir, const QString &aCaption)
-            : mParent (aParent), mTarget (aTarget), mDir (aDir), mCaption (aCaption) {}
-
-        virtual void run()
-        {
-            QString result;
-
-            QWidget *topParent = mParent ? mParent->window() : vboxGlobal().mainWindow();
-            QString title = mCaption.isNull() ? tr ("Select a directory") : mCaption;
-
-            TCHAR path[MAX_PATH];
-            path [0] = 0;
-            TCHAR initPath [MAX_PATH];
-            initPath [0] = 0;
-
-            BROWSEINFO bi;
-            bi.hwndOwner = topParent ? topParent->winId() : 0;
-            bi.pidlRoot = NULL;
-            bi.lpszTitle = (TCHAR*)(title.isNull() ? 0 : title.utf16());
-            bi.pszDisplayName = initPath;
-            bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT | BIF_NEWDIALOGSTYLE;
-            bi.lpfn = winGetExistDirCallbackProc;
-            bi.lParam = Q_ULONG (&mDir);
-
-            LPITEMIDLIST itemIdList = SHBrowseForFolder (&bi);
-            if (itemIdList)
-            {
-                SHGetPathFromIDList (itemIdList, path);
-                IMalloc *pMalloc;
-                if (SHGetMalloc (&pMalloc) != NOERROR)
-                    result = QString::null;
-                else
-                {
-                    pMalloc->Free (itemIdList);
-                    pMalloc->Release();
-                    result = QString::fromUtf16 ((ushort*)path);
-                }
-            }
-            else
-                result = QString::null;
-            QApplication::postEvent (mTarget, new GetExistDirectoryEvent (result));
-        }
-
-    private:
-
-        QWidget *mParent;
-        QObject *mTarget;
-        QString mDir;
-        QString mCaption;
-    };
-
-    /* Local event loop to run while waiting for the result from another
-     * thread */
-    QEventLoop loop;
-
-    QString dir = QDir::toNativeSeparators (aDir);
-    LoopObject loopObject ((QEvent::Type) GetExistDirectoryEvent::TypeId, loop);
-
-    Thread openDirThread (aParent, &loopObject, dir, aCaption);
-    openDirThread.start();
-    loop.exec();
-    openDirThread.wait();
-
-    return loopObject.result();
-
-#elif defined (Q_WS_X11) && (QT_VERSION < 0x040400)
-
-    /* Here is workaround for Qt4.3 bug with QFileDialog which crushes when
-     * gets initial path as hidden directory if no hidden files are shown.
-     * See http://trolltech.com/developer/task-tracker/index_html?method=entry&id=193483
-     * for details */
-    QFileDialog dlg (aParent);
-    dlg.setWindowTitle (aCaption);
-    dlg.setDirectory (aDir);
-    dlg.setResolveSymlinks (aResolveSymlinks);
-    dlg.setFileMode (aDirOnly ? QFileDialog::DirectoryOnly : QFileDialog::Directory);
-    QAction *hidden = dlg.findChild <QAction*> ("qt_show_hidden_action");
-    if (hidden)
-    {
-        hidden->trigger();
-        hidden->setVisible (false);
-    }
-    return dlg.exec() ? dlg.selectedFiles() [0] : QString::null;
-
-#else
-
-    QFileDialog::Options o;
-    if (aDirOnly)
-        o = QFileDialog::ShowDirsOnly;
-    if (!aResolveSymlinks)
-        o |= QFileDialog::DontResolveSymlinks;
-    return QFileDialog::getExistingDirectory (aParent, aCaption, aDir, o);
-
-#endif
-}
-
-/**
- *  Reimplementation of QFileDialog::getSaveFileName() that removes some
- *  oddities and limitations.
- *
- *  On Win32, this function makes sure a file filter is applied automatically
- *  right after it is selected from the drop-down list, to conform to common
- *  experience in other applications. Note that currently, @a selectedFilter
- *  is always set to null on return.
- *
- *  On all other platforms, this function is equivalent to
- *  QFileDialog::getSaveFileName().
- */
-/* static */
-QString VBoxGlobal::getSaveFileName (const QString &aStartWith,
-                                     const QString &aFilters,
-                                     QWidget       *aParent,
-                                     const QString &aCaption,
-                                     QString       *aSelectedFilter /* = NULL */,
-                                     bool           aResolveSymlinks /* = true */)
-{
-#if defined Q_WS_WIN
-
-    /**
-     *  QEvent class reimplementation to carry Win32 API native dialog's
-     *  result folder information
-     */
-    class GetOpenFileNameEvent : public OpenNativeDialogEvent
-    {
-    public:
-
-        enum { TypeId = QEvent::User + 301 };
-
-        GetOpenFileNameEvent (const QString &aResult)
-            : OpenNativeDialogEvent (aResult, (QEvent::Type) TypeId) {}
-    };
-
-    /**
-     *  QThread class reimplementation to open Win32 API native file dialog
-     */
-    class Thread : public QThread
-    {
-    public:
-
-        Thread (QWidget *aParent, QObject *aTarget,
-                const QString &aStartWith, const QString &aFilters,
-                const QString &aCaption) :
-                mParent (aParent), mTarget (aTarget),
-                mStartWith (aStartWith), mFilters (aFilters),
-                mCaption (aCaption) {}
-
-        virtual void run()
-        {
-            QString result;
-
-            QString workDir;
-            QString initSel;
-            QFileInfo fi (mStartWith);
-
-            if (fi.isDir())
-                workDir = mStartWith;
-            else
-            {
-                workDir = fi.absolutePath();
-                initSel = fi.fileName();
-            }
-
-            workDir = QDir::toNativeSeparators (workDir);
-            if (!workDir.endsWith ("\\"))
-                workDir += "\\";
-
-            QString title = mCaption.isNull() ? tr ("Select a file") : mCaption;
-
-            QWidget *topParent = mParent ? mParent->window() : vboxGlobal().mainWindow();
-            QString winFilters = winFilter (mFilters);
-            AssertCompile (sizeof (TCHAR) == sizeof (QChar));
-            TCHAR buf [1024];
-            if (initSel.length() > 0 && initSel.length() < sizeof (buf))
-                memcpy (buf, initSel.isNull() ? 0 : initSel.utf16(),
-                        (initSel.length() + 1) * sizeof (TCHAR));
-            else
-                buf [0] = 0;
-
-            OPENFILENAME ofn;
-            memset (&ofn, 0, sizeof (OPENFILENAME));
-
-            ofn.lStructSize = sizeof (OPENFILENAME);
-            ofn.hwndOwner = topParent ? topParent->winId() : 0;
-            ofn.lpstrFilter = (TCHAR *) winFilters.isNull() ? 0 : winFilters.utf16();
-            ofn.lpstrFile = buf;
-            ofn.nMaxFile = sizeof (buf) - 1;
-            ofn.lpstrInitialDir = (TCHAR *) workDir.isNull() ? 0 : workDir.utf16();
-            ofn.lpstrTitle = (TCHAR *) title.isNull() ? 0 : title.utf16();
-            ofn.Flags = (OFN_NOCHANGEDIR | OFN_HIDEREADONLY |
-                         OFN_EXPLORER | OFN_ENABLEHOOK |
-                         OFN_NOTESTFILECREATE);
-            ofn.lpfnHook = OFNHookProc;
-
-            if (GetSaveFileName (&ofn))
-            {
-                result = QString::fromUtf16 ((ushort *) ofn.lpstrFile);
-            }
-
-            // qt_win_eatMouseMove();
-            MSG msg = {0, 0, 0, 0, 0, 0, 0};
-            while (PeekMessage (&msg, 0, WM_MOUSEMOVE, WM_MOUSEMOVE, PM_REMOVE));
-            if (msg.message == WM_MOUSEMOVE)
-                PostMessage (msg.hwnd, msg.message, 0, msg.lParam);
-
-            result = result.isEmpty() ? result : QFileInfo (result).absoluteFilePath();
-
-            QApplication::postEvent (mTarget, new GetOpenFileNameEvent (result));
-        }
-
-    private:
-
-        QWidget *mParent;
-        QObject *mTarget;
-        QString mStartWith;
-        QString mFilters;
-        QString mCaption;
-    };
-
-    if (aSelectedFilter)
-        *aSelectedFilter = QString::null;
-
-    /* Local event loop to run while waiting for the result from another
-     * thread */
-    QEventLoop loop;
-
-    QString startWith = QDir::toNativeSeparators (aStartWith);
-    LoopObject loopObject ((QEvent::Type) GetOpenFileNameEvent::TypeId, loop);
-
-//#warning check me!
-    if (aParent)
-        aParent->setWindowModality (Qt::WindowModal);
-
-    Thread openDirThread (aParent, &loopObject, startWith, aFilters, aCaption);
-    openDirThread.start();
-    loop.exec();
-    openDirThread.wait();
-
-//#warning check me!
-    if (aParent)
-        aParent->setWindowModality (Qt::NonModal);
-
-    return loopObject.result();
-
-#elif defined (Q_WS_X11) && (QT_VERSION < 0x040400)
-
-    /* Here is workaround for Qt4.3 bug with QFileDialog which crushes when
-     * gets initial path as hidden directory if no hidden files are shown.
-     * See http://trolltech.com/developer/task-tracker/index_html?method=entry&id=193483
-     * for details */
-    QFileDialog dlg (aParent);
-    dlg.setWindowTitle (aCaption);
-    dlg.setDirectory (aStartWith);
-    dlg.setFilter (aFilters);
-    dlg.setFileMode (QFileDialog::QFileDialog::AnyFile);
-    dlg.setAcceptMode (QFileDialog::AcceptSave);
-    if (aSelectedFilter)
-        dlg.selectFilter (*aSelectedFilter);
-    dlg.setResolveSymlinks (aResolveSymlinks);
-    dlg.setConfirmOverwrite (false);
-    QAction *hidden = dlg.findChild <QAction*> ("qt_show_hidden_action");
-    if (hidden)
-    {
-        hidden->trigger();
-        hidden->setVisible (false);
-    }
-    return dlg.exec() == QDialog::Accepted ? dlg.selectedFiles().value (0, "") : QString::null;
-
-#else
-
-    QFileDialog::Options o;
-    if (!aResolveSymlinks)
-        o |= QFileDialog::DontResolveSymlinks;
-    o |= QFileDialog::DontConfirmOverwrite;
-    return QFileDialog::getSaveFileName (aParent, aCaption, aStartWith,
-                                         aFilters, aSelectedFilter, o);
-#endif
-}
-
-/**
- *  Reimplementation of QFileDialog::getOpenFileName() that removes some
- *  oddities and limitations.
- *
- *  On Win32, this function makes sure a file filter is applied automatically
- *  right after it is selected from the drop-down list, to conform to common
- *  experience in other applications. Note that currently, @a selectedFilter
- *  is always set to null on return.
- *
- *  On all other platforms, this function is equivalent to
- *  QFileDialog::getOpenFileName().
- */
-/* static */
-QString VBoxGlobal::getOpenFileName (const QString &aStartWith,
-                                     const QString &aFilters,
-                                     QWidget       *aParent,
-                                     const QString &aCaption,
-                                     QString       *aSelectedFilter /* = NULL */,
-                                     bool           aResolveSymlinks /* = true */)
-{
-    return getOpenFileNames (aStartWith,
-                             aFilters,
-                             aParent,
-                             aCaption,
-                             aSelectedFilter,
-                             aResolveSymlinks,
-                             true /* aSingleFile */).value (0, "");
-}
-
-/**
- *  Reimplementation of QFileDialog::getOpenFileNames() that removes some
- *  oddities and limitations.
- *
- *  On Win32, this function makes sure a file filter is applied automatically
- *  right after it is selected from the drop-down list, to conform to common
- *  experience in other applications. Note that currently, @a selectedFilter
- *  is always set to null on return.
- *  @todo: implement the multiple file selection on win
- *  @todo: is this extra handling on win still necessary with Qt4?
- *
- *  On all other platforms, this function is equivalent to
- *  QFileDialog::getOpenFileNames().
- */
-/* static */
-QStringList VBoxGlobal::getOpenFileNames (const QString &aStartWith,
-                                          const QString &aFilters,
-                                          QWidget       *aParent,
-                                          const QString &aCaption,
-                                          QString       *aSelectedFilter /* = NULL */,
-                                          bool           aResolveSymlinks /* = true */,
-                                          bool           aSingleFile /* = false */)
-{
-#if defined Q_WS_WIN
-
-    /**
-     *  QEvent class reimplementation to carry Win32 API native dialog's
-     *  result folder information
-     */
-    class GetOpenFileNameEvent : public OpenNativeDialogEvent
-    {
-    public:
-
-        enum { TypeId = QEvent::User + 301 };
-
-        GetOpenFileNameEvent (const QString &aResult)
-            : OpenNativeDialogEvent (aResult, (QEvent::Type) TypeId) {}
-    };
-
-    /**
-     *  QThread class reimplementation to open Win32 API native file dialog
-     */
-    class Thread : public QThread
-    {
-    public:
-
-        Thread (QWidget *aParent, QObject *aTarget,
-                const QString &aStartWith, const QString &aFilters,
-                const QString &aCaption) :
-                mParent (aParent), mTarget (aTarget),
-                mStartWith (aStartWith), mFilters (aFilters),
-                mCaption (aCaption) {}
-
-        virtual void run()
-        {
-            QString result;
-
-            QString workDir;
-            QString initSel;
-            QFileInfo fi (mStartWith);
-
-            if (fi.isDir())
-                workDir = mStartWith;
-            else
-            {
-                workDir = fi.absolutePath();
-                initSel = fi.fileName();
-            }
-
-            workDir = QDir::toNativeSeparators (workDir);
-            if (!workDir.endsWith ("\\"))
-                workDir += "\\";
-
-            QString title = mCaption.isNull() ? tr ("Select a file") : mCaption;
-
-            QWidget *topParent = mParent ? mParent->window() : vboxGlobal().mainWindow();
-            QString winFilters = winFilter (mFilters);
-            AssertCompile (sizeof (TCHAR) == sizeof (QChar));
-            TCHAR buf [1024];
-            if (initSel.length() > 0 && initSel.length() < sizeof (buf))
-                memcpy (buf, initSel.isNull() ? 0 : initSel.utf16(),
-                        (initSel.length() + 1) * sizeof (TCHAR));
-            else
-                buf [0] = 0;
-
-            OPENFILENAME ofn;
-            memset (&ofn, 0, sizeof (OPENFILENAME));
-
-            ofn.lStructSize = sizeof (OPENFILENAME);
-            ofn.hwndOwner = topParent ? topParent->winId() : 0;
-            ofn.lpstrFilter = (TCHAR *) winFilters.isNull() ? 0 : winFilters.utf16();
-            ofn.lpstrFile = buf;
-            ofn.nMaxFile = sizeof (buf) - 1;
-            ofn.lpstrInitialDir = (TCHAR *) workDir.isNull() ? 0 : workDir.utf16();
-            ofn.lpstrTitle = (TCHAR *) title.isNull() ? 0 : title.utf16();
-            ofn.Flags = (OFN_NOCHANGEDIR | OFN_HIDEREADONLY |
-                          OFN_EXPLORER | OFN_ENABLEHOOK |
-                          OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST);
-            ofn.lpfnHook = OFNHookProc;
-
-            if (GetOpenFileName (&ofn))
-            {
-                result = QString::fromUtf16 ((ushort *) ofn.lpstrFile);
-            }
-
-            // qt_win_eatMouseMove();
-            MSG msg = {0, 0, 0, 0, 0, 0, 0};
-            while (PeekMessage (&msg, 0, WM_MOUSEMOVE, WM_MOUSEMOVE, PM_REMOVE));
-            if (msg.message == WM_MOUSEMOVE)
-                PostMessage (msg.hwnd, msg.message, 0, msg.lParam);
-
-            result = result.isEmpty() ? result : QFileInfo (result).absoluteFilePath();
-
-            QApplication::postEvent (mTarget, new GetOpenFileNameEvent (result));
-        }
-
-    private:
-
-        QWidget *mParent;
-        QObject *mTarget;
-        QString mStartWith;
-        QString mFilters;
-        QString mCaption;
-    };
-
-    if (aSelectedFilter)
-        *aSelectedFilter = QString::null;
-
-    /* Local event loop to run while waiting for the result from another
-     * thread */
-    QEventLoop loop;
-
-    QString startWith = QDir::toNativeSeparators (aStartWith);
-    LoopObject loopObject ((QEvent::Type) GetOpenFileNameEvent::TypeId, loop);
-
-//#warning check me!
-    if (aParent)
-        aParent->setWindowModality (Qt::WindowModal);
-
-    Thread openDirThread (aParent, &loopObject, startWith, aFilters, aCaption);
-    openDirThread.start();
-    loop.exec();
-    openDirThread.wait();
-
-//#warning check me!
-    if (aParent)
-        aParent->setWindowModality (Qt::NonModal);
-
-    return QStringList() << loopObject.result();
-
-#elif defined (Q_WS_X11) && (QT_VERSION < 0x040400)
-
-    /* Here is workaround for Qt4.3 bug with QFileDialog which crushes when
-     * gets initial path as hidden directory if no hidden files are shown.
-     * See http://trolltech.com/developer/task-tracker/index_html?method=entry&id=193483
-     * for details */
-    QFileDialog dlg (aParent);
-    dlg.setWindowTitle (aCaption);
-    dlg.setDirectory (aStartWith);
-    dlg.setFilter (aFilters);
-    if (aSingleFile)
-        dlg.setFileMode (QFileDialog::ExistingFile);
-    else
-        dlg.setFileMode (QFileDialog::ExistingFiles);
-    if (aSelectedFilter)
-        dlg.selectFilter (*aSelectedFilter);
-    dlg.setResolveSymlinks (aResolveSymlinks);
-    QAction *hidden = dlg.findChild <QAction*> ("qt_show_hidden_action");
-    if (hidden)
-    {
-        hidden->trigger();
-        hidden->setVisible (false);
-    }
-    return dlg.exec() == QDialog::Accepted ? dlg.selectedFiles() : QStringList() << QString::null;
-
-#else
-
-    QFileDialog::Options o;
-    if (!aResolveSymlinks)
-        o |= QFileDialog::DontResolveSymlinks;
-    if (aSingleFile)
-        return QStringList() << QFileDialog::getOpenFileName (aParent, aCaption, aStartWith,
-                                                              aFilters, aSelectedFilter, o);
-    else
-        return QFileDialog::getOpenFileNames (aParent, aCaption, aStartWith,
-                                              aFilters, aSelectedFilter, o);
-#endif
-}
-
-/**
- *  Search for the first directory that exists starting from the passed one
- *  and going up through its parents.  In case if none of the directories
- *  exist (except the root one), the function returns QString::null.
- */
-/* static */
-QString VBoxGlobal::getFirstExistingDir (const QString &aStartDir)
-{
-    QString result = QString::null;
-    QDir dir (aStartDir);
-    while (!dir.exists() && !dir.isRoot())
-    {
-        QFileInfo dirInfo (dir.absolutePath());
-        dir = dirInfo.absolutePath();
-    }
-    if (dir.exists() && !dir.isRoot())
-        result = dir.absolutePath();
-    return result;
-}
-
 #if defined (Q_WS_X11)
 
 static char *XXGetProperty (Display *aDpy, Window aWnd,
@@ -4854,10 +4122,16 @@ QString VBoxGlobal::documentsPath()
 
     /* Make sure the path exists */
     QDir dir (path);
-    while (!dir.exists())
-        dir.cdUp();
-
-    return QDir::cleanPath (dir.canonicalPath());
+    if (dir.exists())
+        return QDir::cleanPath (dir.canonicalPath());
+    else
+    {
+        dir.setPath (QDir::homePath() + "/Documents");
+        if (dir.exists())
+            return QDir::cleanPath (dir.canonicalPath());
+        else
+            return QDir::homePath();
+    }
 }
 
 // Public slots
@@ -5357,7 +4631,9 @@ void VBoxGlobal::init()
 # else
     mDbgEnabled = RTEnvExist("VBOX_GUI_DBG_ENABLED");
 # endif
-    mDbgAutoShow = RTEnvExist("VBOX_GUI_DBG_AUTO_SHOW");
+    mDbgAutoShow = mDbgAutoShowCommandLine = mDbgAutoShowStatistics
+        = RTEnvExist("VBOX_GUI_DBG_AUTO_SHOW");
+    mStartPaused = false;
 #endif
 
     int argc = qApp->argc();
@@ -5374,10 +4650,10 @@ void VBoxGlobal::init()
             if (++i < argc)
             {
                 QString param = QString (qApp->argv() [i]);
-                QUuid uuid = QUuid (param);
+                QUuid uuid = QUuid(param);
                 if (!uuid.isNull())
                 {
-                    vmUuid = uuid;
+                    vmUuid = param;
                 }
                 else
                 {
@@ -5414,12 +4690,36 @@ void VBoxGlobal::init()
         else if (!::strcmp( arg, "-debug") || !::strcmp (arg, "--debug"))
         {
             mDbgEnabled = true;
-            mDbgAutoShow = true;
+            mDbgAutoShow = mDbgAutoShowCommandLine = mDbgAutoShowStatistics = true;
+            mStartPaused = true;
+        }
+        else if (!::strcmp (arg, "--debug-command-line"))
+        {
+            mDbgEnabled = true;
+            mDbgAutoShow = mDbgAutoShowCommandLine = true;
+            mStartPaused = true;
+        }
+        else if (!::strcmp (arg, "--debug-statistics"))
+        {
+            mDbgEnabled = true;
+            mDbgAutoShow = mDbgAutoShowStatistics = true;
+            mStartPaused = true;
         }
         else if (!::strcmp (arg, "-no-debug") || !::strcmp (arg, "--no-debug"))
         {
             mDbgEnabled = false;
             mDbgAutoShow = false;
+            mDbgAutoShowCommandLine = false;
+            mDbgAutoShowStatistics = false;
+        }
+        /* Not quite debug options, but they're only useful with the debugger bits. */
+        else if (!::strcmp (arg, "--start-paused"))
+        {
+            mStartPaused = true;
+        }
+        else if (!::strcmp (arg, "--start-running"))
+        {
+            mStartPaused = false;
         }
 #endif
         /** @todo add an else { msgbox(syntax error); exit(1); } here, pretty please... */
@@ -5438,14 +4738,14 @@ void VBoxGlobal::init()
 #ifdef VBOX_WITH_DEBUGGER_GUI
     /* setup the debugger gui. */
     if (RTEnvExist("VBOX_GUI_NO_DEBUGGER"))
-        mDbgEnabled = mDbgAutoShow = false;
+        mDbgEnabled = mDbgAutoShow =  mDbgAutoShowCommandLine = mDbgAutoShowStatistics = false;
     if (mDbgEnabled)
     {
         int rc = SUPR3HardenedLdrLoadAppPriv("VBoxDbg", &mhVBoxDbg);
         if (RT_FAILURE(rc))
         {
             mhVBoxDbg = NIL_RTLDRMOD;
-            mDbgAutoShow = false;
+            mDbgAutoShow =  mDbgAutoShowCommandLine = mDbgAutoShowStatistics = false;
             LogRel(("Failed to load VBoxDbg, rc=%Rrc\n", rc));
         }
     }

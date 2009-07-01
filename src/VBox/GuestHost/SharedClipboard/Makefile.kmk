@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 19505 2009-05-07 20:04:03Z vboxsync $
 ## @file
 # Sub-Makefile for the Guest Properties Host Service testcases.
 #

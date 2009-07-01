@@ -1,4 +1,4 @@
-/* $Id: USBControllerImpl.h $ */
+/* $Id: USBControllerImpl.h 19239 2009-04-28 13:19:14Z vboxsync $ */
 
 /** @file
  *
@@ -45,7 +45,7 @@ class ATL_NO_VTABLE USBController :
     public VirtualBoxBaseWithChildrenNEXT,
     public VirtualBoxSupportErrorInfoImpl <USBController, IUSBController>,
     public VirtualBoxSupportTranslation <USBController>,
-    public IUSBController
+    VBOX_SCRIPTABLE_IMPL(IUSBController)
 {
 private:
 
@@ -75,8 +75,9 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(USBController)
-        COM_INTERFACE_ENTRY (ISupportErrorInfo)
-        COM_INTERFACE_ENTRY (IUSBController)
+        COM_INTERFACE_ENTRY  (ISupportErrorInfo)
+        COM_INTERFACE_ENTRY  (IUSBController)
+        COM_INTERFACE_ENTRY2 (IDispatch, IUSBController)
     END_COM_MAP()
 
     NS_DECL_ISUPPORTS

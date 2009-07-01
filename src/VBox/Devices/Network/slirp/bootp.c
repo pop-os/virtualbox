@@ -31,7 +31,7 @@ static BOOTPClient *get_new_addr(PNATState pData, struct in_addr *paddr)
 {
     int i;
 
-    for(i = 0; i < NB_ADDR; i++)
+    for (i = 0; i < NB_ADDR; i++)
     {
         if (!bootp_clients[i].allocated)
         {
@@ -40,6 +40,9 @@ static BOOTPClient *get_new_addr(PNATState pData, struct in_addr *paddr)
             bc = &bootp_clients[i];
             bc->allocated = 1;
             paddr->s_addr = htonl(ntohl(special_addr.s_addr) | (i + START_ADDR));
+#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
+            bc->addr.s_addr = paddr->s_addr;
+#endif
             return bc;
         }
     }
@@ -63,7 +66,7 @@ static BOOTPClient *find_addr(PNATState pData, struct in_addr *paddr, const uint
 {
     int i;
 
-    for(i = 0; i < NB_ADDR; i++)
+    for (i = 0; i < NB_ADDR; i++)
     {
         if (!memcmp(macaddr, bootp_clients[i].macaddr, 6))
         {
@@ -126,15 +129,20 @@ static void dhcp_decode(const uint8_t *buf, int size,
     }
 }
 
+#ifndef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
 static void bootp_reply(PNATState pData, struct bootp_t *bp)
+#else
+static void bootp_reply(PNATState pData, struct mbuf *m0)
+#endif
 {
     BOOTPClient *bc;
-    struct mbuf *m;
+    struct mbuf *m; /* XXX: @todo vasily - it'd be better to reuse this mbuf here */
+#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
+    struct bootp_t *bp = mtod(m0, struct bootp_t *);
+    struct ethhdr *eh;
+#endif
     struct bootp_t *rbp;
     struct sockaddr_in saddr, daddr;
-#ifndef VBOX_WITH_MULTI_DNS
-    struct in_addr dns_addr_dhcp;
-#endif
     int dhcp_msg_type, val;
     uint8_t *q;
     struct in_addr requested_ip; /* the requested IP in DHCPREQUEST */
@@ -180,17 +188,20 @@ static void bootp_reply(PNATState pData, struct bootp_t *bp)
         && dhcp_msg_type != DHCPREQUEST)
         return;
 
+#ifndef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
     /* XXX: this is a hack to get the client mac address */
     memcpy(client_ethaddr, bp->bp_hwaddr, 6);
+#endif
 
     if ((m = m_get(pData)) == NULL)
         return;
+#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
+    eh = mtod(m, struct ethhdr *);
+    memcpy(eh->h_source, bp->bp_hwaddr, ETH_ALEN); /* XXX: if_encap just swap source with dest*/
+#endif
     m->m_data += if_maxlinkhdr; /*reserve ether header */
     rbp = mtod(m, struct bootp_t *);
     memset(rbp, 0, sizeof(struct bootp_t));
-#ifndef VBOX_WITH_SIMPLIFIED_SLIRP_SYNC
-    m->m_data += sizeof(struct udpiphdr);
-#endif
 
     if (dhcp_msg_type == DHCPDISCOVER)
     {
@@ -206,7 +217,11 @@ static void bootp_reply(PNATState pData, struct bootp_t *bp)
                 Log(("no address left\n"));
                 return;
             }
+#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
+            memcpy(bc->macaddr, bp->bp_hwaddr, 6);
+#else
             memcpy(bc->macaddr, client_ethaddr, 6);
+#endif
         }
     }
     else
@@ -225,8 +240,15 @@ static void bootp_reply(PNATState pData, struct bootp_t *bp)
         && bootp_filename)
         RTStrPrintf((char*)rbp->bp_file, sizeof(rbp->bp_file), "%s", bootp_filename);
 
+    Log(("NAT: DHCP: bp_file:%s\n", &rbp->bp_file));
     /* Address/port of the DHCP server. */
+#ifndef VBOX_WITH_NAT_SERVICE
     saddr.sin_addr.s_addr = htonl(ntohl(special_addr.s_addr) | CTL_ALIAS);
+#else
+    saddr.sin_addr.s_addr = special_addr.s_addr;
+#endif
+    Log(("NAT: DHCP: s_addr:%R[IP4]\n", &saddr.sin_addr));
+
     saddr.sin_port = htons(BOOTP_SERVER);
 
     daddr.sin_port = htons(BOOTP_CLIENT);
@@ -238,7 +260,9 @@ static void bootp_reply(PNATState pData, struct bootp_t *bp)
     memcpy(rbp->bp_hwaddr, bp->bp_hwaddr, 6);
 
     rbp->bp_yiaddr = daddr.sin_addr; /* Client IP address */
+    Log(("NAT: DHCP: bp_yiaddr:%R[IP4]\n", &rbp->bp_yiaddr));
     rbp->bp_siaddr = pData->tftp_server; /* Next Server IP address, i.e. TFTP */
+    Log(("NAT: DHCP: bp_siaddr:%R[IP4]\n", &rbp->bp_siaddr));
 
     q = rbp->bp_vend;
     memcpy(q, rfc1533_cookie, 4);
@@ -281,30 +305,22 @@ static void bootp_reply(PNATState pData, struct bootp_t *bp)
         (   dhcp_msg_type == DHCPDISCOVER
          || dhcp_msg_type == DHCPREQUEST))
     {
-#ifdef VBOX_WITH_MULTI_DNS
         struct dns_entry *de = NULL;
         struct dns_domain_entry *dd = NULL;
         int added = 0;
         uint8_t *q_dns_header = NULL;
-#endif
         uint32_t lease_time = htonl(LEASE_TIME);
         uint32_t netmask = htonl(pData->netmask);
 
         FILL_BOOTP_EXT(q, RFC1533_NETMASK, 4, &netmask);
         FILL_BOOTP_EXT(q, RFC1533_GATEWAY, 4, &saddr.sin_addr);
 
-#ifndef VBOX_WITH_MULTI_DNS
-        dns_addr_dhcp.s_addr = htonl(ntohl(special_addr.s_addr) | CTL_DNS);
-        FILL_BOOTP_EXT(q, RFC1533_DNS, 4, &dns_addr_dhcp.s_addr);
-#else /* VBOX_WITH_MULTI_DNS */
-# ifdef VBOX_WITH_SLIRP_DNS_PROXY
         if (pData->use_dns_proxy)
         {
             uint32_t addr = htonl(ntohl(special_addr.s_addr) | CTL_DNS);
             FILL_BOOTP_EXT(q, RFC1533_DNS, 4, &addr);
             goto skip_dns_servers;
         }
-# endif
 
         if (!TAILQ_EMPTY(&pData->dns_list_head)) 
         {
@@ -320,28 +336,29 @@ static void bootp_reply(PNATState pData, struct bootp_t *bp)
             FILL_BOOTP_APP(q_dns_header, q, RFC1533_DNS, 4, &de->de_addr.s_addr);
         }
 
-# ifdef VBOX_WITH_SLIRP_DNS_PROXY
 skip_dns_servers:
-# endif
         if (LIST_EMPTY(&pData->dns_domain_list_head))
         {
                 /* Microsoft dhcp client doen't like domain-less dhcp and trimmed packets*/
                 /* dhcpcd client very sad if no domain name is passed */
                 FILL_BOOTP_EXT(q, RFC1533_DOMAINNAME, 1, " "); 
         }
-        LIST_FOREACH(dd, &pData->dns_domain_list_head, dd_list)
+        if (pData->fPassDomain)
         {
-            
-            if (dd->dd_pszDomain == NULL)
-                continue;
-            if (added != 0)
-                FILL_BOOTP_EXT(q, RFC1533_DOMAINNAME, 1, ","); /* never meet valid separator here in RFC1533*/
-            else
-                added = 1;
-            val = (int)strlen(dd->dd_pszDomain);
-            FILL_BOOTP_EXT(q, RFC1533_DOMAINNAME, val, dd->dd_pszDomain);
+            LIST_FOREACH(dd, &pData->dns_domain_list_head, dd_list)
+            {
+                
+                if (dd->dd_pszDomain == NULL)
+                    continue;
+                /* never meet valid separator here in RFC1533*/
+                if (added != 0) 
+                    FILL_BOOTP_EXT(q, RFC1533_DOMAINNAME, 1, ","); 
+                else
+                    added = 1;
+                val = (int)strlen(dd->dd_pszDomain);
+                FILL_BOOTP_EXT(q, RFC1533_DOMAINNAME, val, dd->dd_pszDomain);
+            }
         }
-#endif /* VBOX_WITH_MULTI_DNS */
 
         FILL_BOOTP_EXT(q, RFC2132_LEASE_TIME, 4, &lease_time);
 
@@ -350,24 +367,14 @@ skip_dns_servers:
             val = (int)strlen(slirp_hostname);
             FILL_BOOTP_EXT(q, RFC1533_HOSTNAME, val, slirp_hostname);
         }
-
-#ifndef VBOX_WITH_MULTI_DNS
-        if (pData->pszDomain && pData->fPassDomain)
-        {
-            val = (int)strlen(pData->pszDomain);
-            FILL_BOOTP_EXT(q, RFC1533_DOMAINNAME, val, pData->pszDomain);
-        }
-#endif
     }
     *q++ = RFC1533_END;
 
     m->m_len = sizeof(struct bootp_t)
              - sizeof(struct ip)
              - sizeof(struct udphdr);
-#ifdef VBOX_WITH_SIMPLIFIED_SLIRP_SYNC
     m->m_data += sizeof(struct udphdr)
-             + sizeof(struct ip);
-#endif
+               + sizeof(struct ip);
     /* Reply to the broadcast address, as some clients perform paranoid checks. */
     daddr.sin_addr.s_addr = INADDR_BROADCAST;
     udp_output2(pData, NULL, m, &saddr, &daddr, IPTOS_LOWDELAY);
@@ -378,5 +385,9 @@ void bootp_input(PNATState pData, struct mbuf *m)
     struct bootp_t *bp = mtod(m, struct bootp_t *);
 
     if (bp->bp_op == BOOTP_REQUEST)
+#ifndef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
         bootp_reply(pData, bp);
+#else
+        bootp_reply(pData, m);
+#endif
 }

@@ -12,6 +12,7 @@
 #ifdef __sun__
 #include <sys/filio.h>
 #endif
+#include <VBox/pdmdrv.h>
 #if defined (RT_OS_WINDOWS)
 #include <iphlpapi.h>
 #include <icmpapi.h>
@@ -64,7 +65,7 @@ socreate()
     {
         so->so_state = SS_NOFDREF;
         so->s = -1;
-#if defined(VBOX_WITH_SIMPLIFIED_SLIRP_SYNC) && !defined(RT_OS_WINDOWS)
+#if !defined(RT_OS_WINDOWS)
         so->so_poll_index = -1;
 #endif
     }
@@ -122,6 +123,11 @@ soread(PNATState pData, struct socket *so)
     size_t len = sb->sb_datalen - sb->sb_cc;
     struct iovec iov[2];
     int mss = so->so_tcpcb->t_maxseg;
+
+    STAM_PROFILE_START(&pData->StatIOread, a);
+    STAM_COUNTER_RESET(&pData->StatIORead_in_1);
+    STAM_COUNTER_RESET(&pData->StatIORead_in_2);
+
     QSOCKET_LOCK(tcb);
     SOCKET_LOCK(so);
     QSOCKET_UNLOCK(tcb);
@@ -197,7 +203,7 @@ soread(PNATState pData, struct socket *so)
 #endif
     if (nn <= 0)
     {
-#if defined(VBOX_WITH_SIMPLIFIED_SLIRP_SYNC) && defined(RT_OS_WINDOWS)
+#if defined(RT_OS_WINDOWS)
         /*
          * Special case for WSAEnumNetworkEvents: If we receive 0 bytes that
          * _could_ mean that the connection is closed. But we will receive an
@@ -213,12 +219,14 @@ soread(PNATState pData, struct socket *so)
         if (nn == 0 && (pending != 0))
         {
             SOCKET_UNLOCK(so);
+            STAM_PROFILE_STOP(&pData->StatIOread, a);
             return 0;
         }
 #endif
         if (nn < 0 && (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK))
         {
             SOCKET_UNLOCK(so);
+            STAM_PROFILE_STOP(&pData->StatIOread, a);
             return 0;
         }
         else
@@ -229,9 +237,22 @@ soread(PNATState pData, struct socket *so)
             sofcantrcvmore(so);
             tcp_sockclosed(pData, sototcpcb(so));
             SOCKET_UNLOCK(so);
+            STAM_PROFILE_STOP(&pData->StatIOread, a);
             return -1;
         }
     }
+    STAM_STATS(
+        if (n == 1)
+        {
+            STAM_COUNTER_INC(&pData->StatIORead_in_1);
+            STAM_COUNTER_ADD(&pData->StatIORead_in_1_bytes, nn);
+        }
+        else
+        {
+            STAM_COUNTER_INC(&pData->StatIORead_in_2);
+            STAM_COUNTER_ADD(&pData->StatIORead_in_2_1st_bytes, nn);
+        }
+    );
 
 #ifndef HAVE_READV
     /*
@@ -249,6 +270,13 @@ soread(PNATState pData, struct socket *so)
         ret = recv(so->s, iov[1].iov_base, iov[1].iov_len, 0);
         if (ret > 0)
             nn += ret;
+        STAM_STATS(
+            if(ret > 0)
+            {
+                STAM_COUNTER_INC(&pData->StatIORead_in_2);
+                STAM_COUNTER_ADD(&pData->StatIORead_in_2_2nd_bytes, ret);
+            }
+        );
     }
 
     DEBUG_MISC((dfd, " ... read nn = %d bytes\n", nn));
@@ -259,6 +287,7 @@ soread(PNATState pData, struct socket *so)
     sb->sb_wptr += nn;
     if (sb->sb_wptr >= (sb->sb_data + sb->sb_datalen))
         sb->sb_wptr -= sb->sb_datalen;
+    STAM_PROFILE_STOP(&pData->StatIOread, a);
     SOCKET_UNLOCK(so);
     return nn;
 }
@@ -371,6 +400,15 @@ sowrite(PNATState pData, struct socket *so)
     size_t len = sb->sb_cc;
     struct iovec iov[2];
 
+    STAM_PROFILE_START(&pData->StatIOwrite, a);
+    STAM_COUNTER_RESET(&pData->StatIOWrite_in_1);
+    STAM_COUNTER_RESET(&pData->StatIOWrite_in_1_bytes);
+    STAM_COUNTER_RESET(&pData->StatIOWrite_in_2);
+    STAM_COUNTER_RESET(&pData->StatIOWrite_in_2_1st_bytes);
+    STAM_COUNTER_RESET(&pData->StatIOWrite_in_2_2nd_bytes);
+    STAM_COUNTER_RESET(&pData->StatIOWrite_no_w);
+    STAM_COUNTER_RESET(&pData->StatIOWrite_rest);
+    STAM_COUNTER_RESET(&pData->StatIOWrite_rest_bytes);
     DEBUG_CALL("sowrite");
     DEBUG_ARG("so = %lx", (long)so);
     QSOCKET_LOCK(tcb);
@@ -382,6 +420,7 @@ sowrite(PNATState pData, struct socket *so)
         if (sb->sb_cc == 0)
         {
             SOCKET_UNLOCK(so);
+            STAM_PROFILE_STOP(&pData->StatIOwrite, a);
             return 0;
         }
     }
@@ -421,6 +460,19 @@ sowrite(PNATState pData, struct socket *so)
         else
             n = 1;
     }
+    STAM_STATS({
+        if (n == 1)
+        {
+            STAM_COUNTER_INC(&pData->StatIOWrite_in_1);
+            STAM_COUNTER_ADD(&pData->StatIOWrite_in_1_bytes, iov[0].iov_len);
+        }
+        else
+        {
+            STAM_COUNTER_INC(&pData->StatIOWrite_in_2);
+            STAM_COUNTER_ADD(&pData->StatIOWrite_in_2_1st_bytes, iov[0].iov_len);
+            STAM_COUNTER_ADD(&pData->StatIOWrite_in_2_2nd_bytes, iov[1].iov_len);
+        }
+    });
     /* Check if there's urgent data to send, and if so, send it */
 #ifdef HAVE_READV
     nn = writev(so->s, (const struct iovec *)iov, n);
@@ -432,6 +484,7 @@ sowrite(PNATState pData, struct socket *so)
     if (nn < 0 && (errno == EAGAIN || errno == EINTR || errno == EWOULDBLOCK))
     {
         SOCKET_UNLOCK(so);
+        STAM_PROFILE_STOP(&pData->StatIOwrite, a);
         return 0;
     }
 
@@ -442,6 +495,7 @@ sowrite(PNATState pData, struct socket *so)
         sofcantsendmore(so);
         tcp_sockclosed(pData, sototcpcb(so));
         SOCKET_UNLOCK(so);
+        STAM_PROFILE_STOP(&pData->StatIOwrite, a);
         return -1;
     }
 
@@ -452,6 +506,13 @@ sowrite(PNATState pData, struct socket *so)
         ret = send(so->s, iov[1].iov_base, iov[1].iov_len, 0);
         if (ret > 0)
             nn += ret;
+        STAM_STATS({
+            if (ret > 0 && ret != iov[1].iov_len)
+            {
+                STAM_COUNTER_INC(&pData->StatIOWrite_rest);
+                STAM_COUNTER_ADD(&pData->StatIOWrite_rest_bytes, (ret - iov[1].iov_len));
+            }
+        });
     }
     DEBUG_MISC((dfd, "  ... wrote nn = %d bytes\n", nn));
 #endif
@@ -470,6 +531,7 @@ sowrite(PNATState pData, struct socket *so)
         sofcantsendmore(so);
 
     SOCKET_UNLOCK(so);
+    STAM_PROFILE_STOP(&pData->StatIOwrite, a);
     return nn;
 }
 
@@ -499,6 +561,7 @@ sorecvfrom(PNATState pData, struct socket *so)
     {
         /* A "normal" UDP packet */
         struct mbuf *m;
+        struct ethhdr *eh;
         size_t len;
         u_long n;
 
@@ -511,12 +574,8 @@ sorecvfrom(PNATState pData, struct socket *so)
             SOCKET_UNLOCK(so);
             return;
         }
-        
-         /* adjust both parameters to maks M_FREEROOM calculate correct */
-         m_adj(m, if_maxlinkhdr);
-#ifdef VBOX_WITH_SIMPLIFIED_SLIRP_SYNC
-         m_adj(m, sizeof(struct udphdr) + sizeof(struct ip)); 
-#endif
+        /* adjust both parameters to maks M_FREEROOM calculate correct */
+        m_adj(m, if_maxlinkhdr + sizeof(struct udphdr) + sizeof(struct ip));
 
         /*
          * XXX Shouldn't FIONREAD packets destined for port 53,
@@ -561,27 +620,17 @@ sorecvfrom(PNATState pData, struct socket *so)
              * for the 4 minute (or whatever) timeout... So we time them
              * out much quicker (10 seconds  for now...)
              */
-#ifndef VBOX_WITH_SLIRP_DNS_PROXY
-            if (so->so_expire)
-            {
-                if (so->so_fport == htons(53))
-                    so->so_expire = curtime + SO_EXPIREFAST;
-                else
-                    so->so_expire = curtime + SO_EXPIRE;
-            }
-#else
             if (so->so_expire)
             {
                 if (so->so_fport != htons(53))
                     so->so_expire = curtime + SO_EXPIRE;
             }
-            /* 
+            /*
              *  last argument should be changed if Slirp will inject IP attributes
              *  Note: Here we can't check if dnsproxy's sent initial request
              */
             if (so->so_fport == htons(53))
-                dnsproxy_answer(pData, so, m);  
-#endif
+                dnsproxy_answer(pData, so, m);
 
 #if 0
             if (m->m_len == len)
@@ -641,13 +690,6 @@ sosendto(PNATState pData, struct socket *so, struct mbuf *m)
                 break;
 #endif
             case CTL_DNS:
-#ifndef VBOX_WITH_MULTI_DNS
-                if (!get_dns_addr(pData, &dns_addr))
-                    addr.sin_addr = dns_addr;
-                else
-                    addr.sin_addr = loopback_addr;
-                break;
-#endif
             case CTL_ALIAS:
             default:
                 if (last_byte == ~pData->netmask)
@@ -687,12 +729,13 @@ sosendto(PNATState pData, struct socket *so, struct mbuf *m)
  * XXX This should really be tcp_listen
  */
 struct socket *
-solisten(PNATState pData, u_int port, u_int32_t laddr, u_int lport, int flags)
+solisten(PNATState pData, u_int32_t bind_addr, u_int port, u_int32_t laddr, u_int lport, int flags)
 {
     struct sockaddr_in addr;
     struct socket *so;
     socklen_t addrlen = sizeof(addr);
     int s, opt = 1;
+    int status;
 
     DEBUG_CALL("solisten");
     DEBUG_ARG("port = %d", port);
@@ -730,8 +773,12 @@ solisten(PNATState pData, u_int port, u_int32_t laddr, u_int lport, int flags)
     so->so_lport = lport; /* Kept in network format */
     so->so_laddr.s_addr = laddr; /* Ditto */
 
+    memset(&addr, 0, sizeof(addr));
+#ifdef RT_OS_DARWIN
+    addr.sin_len = sizeof(addr);
+#endif
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_addr.s_addr = bind_addr;
     addr.sin_port = port;
 
     if (   ((s = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -758,10 +805,27 @@ solisten(PNATState pData, u_int port, u_int32_t laddr, u_int lport, int flags)
 #endif
         return NULL;
     }
+    fd_nonblock(s);
     setsockopt(s, SOL_SOCKET, SO_OOBINLINE,(char *)&opt, sizeof(int));
 
     getsockname(s,(struct sockaddr *)&addr,&addrlen);
     so->so_fport = addr.sin_port;
+    /* set socket buffers */
+    opt = pData->socket_rcv;
+    status = setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&opt, sizeof(int));
+    if (status < 0)
+    {
+        LogRel(("NAT: Error(%d) while setting RCV capacity to (%d)\n", errno, opt));
+        goto no_sockopt;
+    }
+    opt = pData->socket_snd;
+    status = setsockopt(s, SOL_SOCKET, SO_SNDBUF, (char *)&opt, sizeof(int));
+    if (status < 0)
+    {
+        LogRel(("NAT: Error(%d) while setting SND capacity to (%d)\n", errno, opt));
+        goto no_sockopt;
+    }
+no_sockopt:
     if (addr.sin_addr.s_addr == 0 || addr.sin_addr.s_addr == loopback_addr.s_addr)
         so->so_faddr = alias_addr;
     else
@@ -902,11 +966,6 @@ send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, c
         || type == ICMP_UNREACH)
     {
         ip = &icp->icmp_ip;
-        DO_ALIAS(&ip->ip_dst);
-    }
-    else
-    {
-        DO_ALIAS(&ip->ip_src);
     }
 
     icm = icmp_find_original_mbuf(pData, ip);
@@ -1002,9 +1061,6 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
     u_char code = ~0;
 
     len = pData->pfIcmpParseReplies(pData->pvIcmpBuffer, pData->szIcmpBuffer);
-#ifndef VBOX_WITH_SIMPLIFIED_SLIRP_SYNC
-    fIcmp = 0;  /* reply processed */
-#endif
     if (len < 0)
     {
         LogRel(("NAT: Error (%d) occurred on ICMP receiving\n", GetLastError()));
@@ -1035,7 +1091,6 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
                 m->m_data += if_maxlinkhdr;
                 ip = mtod(m, struct ip *);
                 ip->ip_src.s_addr = icr[i].Address;
-                DO_ALIAS(&ip->ip_src);
                 ip->ip_p = IPPROTO_ICMP;
                 ip->ip_dst.s_addr = so->so_laddr.s_addr; /*XXX: still the hack*/
                 data_len = sizeof(struct ip);

@@ -38,7 +38,7 @@
 
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_path   RTPath - Path Manipulation
  * @ingroup grp_rt
@@ -298,60 +298,94 @@ RTDECL(bool) RTPathHavePath(const char *pszPath);
  * The comparison takes platform-dependent details into account,
  * such as:
  * <ul>
- * <li>On DOS-like platforms, both |\| and |/| separator chars are considered
+ * <li>On DOS-like platforms, both separator chars (|\| and |/|) are considered
  *     to be equal.
  * <li>On platforms with case-insensitive file systems, mismatching characters
  *     are uppercased and compared again.
  * </ul>
  *
- * File system details are currently ignored. This means that you won't get
- * case-insensitive compares on unix systems when a path goes into a case-insensitive
- * filesystem like FAT, HPFS, HFS, NTFS, JFS, or similar. For NT, OS/2 and similar
- * you'll won't get case-sensitive compares on a case-sensitive file system.
+ * @returns @< 0 if the first path less than the second path.
+ * @returns 0 if the first path identical to the second path.
+ * @returns @> 0 if the first path greater than the second path.
  *
  * @param   pszPath1    Path to compare (must be an absolute path).
  * @param   pszPath2    Path to compare (must be an absolute path).
  *
- * @returns @< 0 if the first path less than the second path.
- * @returns 0 if the first path identical to the second path.
- * @returns @> 0 if the first path greater than the second path.
+ * @remarks File system details are currently ignored. This means that you won't
+ *          get case-insentive compares on unix systems when a path goes into a
+ *          case-insensitive filesystem like FAT, HPFS, HFS, NTFS, JFS, or
+ *          similar. For NT, OS/2 and similar you'll won't get case-sensitve
+ *          compares on a case-sensitive file system.
  */
 RTDECL(int) RTPathCompare(const char *pszPath1, const char *pszPath2);
 
 /**
  * Checks if a path starts with the given parent path.
  *
- * This means that either the path and the parent path matches completely, or that
- * the path is to some file or directory residing in the tree given by the parent
- * directory.
+ * This means that either the path and the parent path matches completely, or
+ * that the path is to some file or directory residing in the tree given by the
+ * parent directory.
  *
  * The path comparison takes platform-dependent details into account,
  * see RTPathCompare() for details.
+ *
+ * @returns |true| when \a pszPath starts with \a pszParentPath (or when they
+ *          are identical), or |false| otherwise.
  *
  * @param   pszPath         Path to check, must be an absolute path.
  * @param   pszParentPath   Parent path, must be an absolute path.
  *                          No trailing directory slash!
  *
- * @returns |true| when \a pszPath starts with \a pszParentPath (or when they
- *          are identical), or |false| otherwise.
- *
- * @remark  This API doesn't currently handle root directory compares in a manner
- *          consistent with the other APIs. RTPathStartsWith(pszSomePath, "/") will
- *          not work if pszSomePath isn't "/".
+ * @remarks This API doesn't currently handle root directory compares in a
+ *          manner consistant with the other APIs. RTPathStartsWith(pszSomePath,
+ *          "/") will not work if pszSomePath isn't "/".
  */
 RTDECL(bool) RTPathStartsWith(const char *pszPath, const char *pszParentPath);
+
+/**
+ * Appends one partial path to another.
+ *
+ * The main purpose of this function is to deal correctly with the slashes when
+ * concatenating the two partial paths.
+ *
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_BUFFER_OVERFLOW if the result is too big to fit within
+ *          cbPathDst bytes. No changes has been made.
+ * @retval  VERR_INVALID_PARAMETER if the string pointed to by pszPath is longer
+ *          than cbPathDst-1 bytes (failed to find terminator). Asserted.
+ *
+ * @param   pszPath         The path to append pszAppend to. This serves as both
+ *                          input and output. This can be empty, in which case
+ *                          pszAppend is just copied over.
+ * @param   cbPathDst       The size of the buffer pszPath points to, terminator
+ *                          included. This should NOT be strlen(pszPath).
+ * @param   pszAppend       The partial path to append to pszPath. This can be
+ *                          NULL, in which case nothing is done.
+ *
+ * @remarks On OS/2, Window and similar systems, concatenating a drive letter
+ *          specifier with a slash prefixed path will result in an absolute
+ *          path. Meaning, RTPathAppend(strcpy(szBuf, "C:"), sizeof(szBuf),
+ *          "/bar") will result in "C:/bar". (This follows directly from the
+ *          behavior when pszPath is empty.)
+ *
+ *          On the other hand, when joining a drive letter specifier with a
+ *          partial path that does not start with a slash, the result is not an
+ *          absolute path. Meaning, RTPathAppend(strcpy(szBuf, "C:"),
+ *          sizeof(szBuf), "bar") will result in "C:bar".
+ */
+RTDECL(int) RTPathAppend(char *pszPath, size_t cbPathDst, const char *pszAppend);
 
 
 #ifdef IN_RING3
 
 /**
- * Gets the program path.
+ * Gets the path to the directory containing the executable.
  *
  * @returns iprt status code.
  * @param   pszPath     Buffer where to store the path.
  * @param   cchPath     Buffer size in bytes.
  */
-RTDECL(int) RTPathProgram(char *pszPath, size_t cchPath);
+RTDECL(int) RTPathExecDir(char *pszPath, size_t cchPath);
 
 /**
  * Gets the user home directory.
@@ -363,13 +397,14 @@ RTDECL(int) RTPathProgram(char *pszPath, size_t cchPath);
 RTDECL(int) RTPathUserHome(char *pszPath, size_t cchPath);
 
 /**
- * Gets the directory of shared libraries. This is not the same as
- * RTPathAppPrivateArch() as Linux depends all shared libraries in
- * a common global directory where ld.so can found them.
+ * Gets the directory of shared libraries.
+ *
+ * This is not the same as RTPathAppPrivateArch() as Linux depends all shared
+ * libraries in a common global directory where ld.so can found them.
  *
  * Linux:    /usr/lib
  * Windows:  @<program files directory@>/@<application@>
- * Old path: same as RTPathProgram()
+ * Old path: same as RTPathExecDir()
  *
  * @returns iprt status code.
  * @param   pszPath     Buffer where to store the path.
@@ -383,7 +418,7 @@ RTDECL(int) RTPathSharedLibs(char *pszPath, size_t cchPath);
  *
  * Linux:    /usr/shared/@<application@>
  * Windows:  @<program files directory@>/@<application@>
- * Old path: same as RTPathProgram()
+ * Old path: same as RTPathExecDir()
  *
  * @returns iprt status code.
  * @param   pszPath     Buffer where to store the path.
@@ -397,7 +432,7 @@ RTDECL(int) RTPathAppPrivateNoArch(char *pszPath, size_t cchPath);
  *
  * Linux:    /usr/lib/@<application@>
  * Windows:  @<program files directory@>/@<application@>
- * Old path: same as RTPathProgram()
+ * Old path: same as RTPathExecDir()
  *
  * @returns iprt status code.
  * @param   pszPath     Buffer where to store the path.
@@ -410,13 +445,22 @@ RTDECL(int) RTPathAppPrivateArch(char *pszPath, size_t cchPath);
  *
  * Linux:    /usr/share/doc/@<application@>
  * Windows:  @<program files directory@>/@<application@>
- * Old path: same as RTPathProgram()
+ * Old path: same as RTPathExecDir()
  *
  * @returns iprt status code.
  * @param   pszPath     Buffer where to store the path.
  * @param   cchPath     Buffer size in bytes.
  */
 RTDECL(int) RTPathAppDocs(char *pszPath, size_t cchPath);
+
+/**
+ * Gets the temporary directory path.
+ *
+ * @returns iprt status code.
+ * @param   pszPath     Buffer where to store the path.
+ * @param   cchPath     Buffer size in bytes.
+ */
+RTDECL(int) RTPathTemp(char *pszPath, size_t cchPath);
 
 /**
  * Query information about a file system object.
@@ -554,7 +598,7 @@ RTR3DECL(int) RTPathRename(const char *pszSrc,  const char *pszDst, unsigned fRe
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

@@ -33,18 +33,18 @@
 #   define _InterlockedCompareExchange    _InterlockedCompareExchange_StupidDDKvsCompilerCrap
 #   define _InterlockedAddLargeStatistic  _InterlockedAddLargeStatistic_StupidDDKvsCompilerCrap
 #   pragma warning(disable : 4163)
-    __BEGIN_DECLS
+    RT_C_DECLS_BEGIN
 #   include <ntddk.h>
-    __END_DECLS
+    RT_C_DECLS_END
 #   pragma warning(default : 4163)
 #   undef  _InterlockedExchange
 #   undef  _InterlockedExchangeAdd
 #   undef  _InterlockedCompareExchange
 #   undef  _InterlockedAddLargeStatistic
 #  else
-    __BEGIN_DECLS
+    RT_C_DECLS_BEGIN
 #   include <ntddk.h>
-    __END_DECLS
+    RT_C_DECLS_END
 #  endif
 # endif
 #endif

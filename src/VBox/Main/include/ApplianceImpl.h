@@ -1,4 +1,4 @@
-/* $Id: ApplianceImpl.h $ */
+/* $Id: ApplianceImpl.h 20082 2009-05-27 13:01:06Z vboxsync $ */
 
 /** @file
  *
@@ -39,7 +39,7 @@ class ATL_NO_VTABLE Appliance :
     public VirtualBoxBaseWithChildrenNEXT,
     public VirtualBoxSupportErrorInfoImpl <Appliance, IAppliance>,
     public VirtualBoxSupportTranslation <Appliance>,
-    public IAppliance
+    VBOX_SCRIPTABLE_IMPL(IAppliance)
 {
 public:
     VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (Appliance)
@@ -51,6 +51,7 @@ public:
     BEGIN_COM_MAP(Appliance)
         COM_INTERFACE_ENTRY(ISupportErrorInfo)
         COM_INTERFACE_ENTRY(IAppliance)
+        COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
     NS_DECL_ISUPPORTS
@@ -73,10 +74,14 @@ public:
     STDMETHOD(COMGETTER(VirtualSystemDescriptions))(ComSafeArrayOut(IVirtualSystemDescription*, aVirtualSystemDescriptions));
 
     /* IAppliance methods */
+    /* Import methods */
     STDMETHOD(Read)(IN_BSTR path);
     STDMETHOD(Interpret)(void);
     STDMETHOD(ImportMachines)(IProgress **aProgress);
+    /* Export methods */
+    STDMETHOD(CreateVFSExplorer)(IN_BSTR aURI, IVFSExplorer **aExplorer);
     STDMETHOD(Write)(IN_BSTR format, IN_BSTR path, IProgress **aProgress);
+
     STDMETHOD(GetWarnings)(ComSafeArrayOut(BSTR, aWarnings));
 
     /* public methods only for internal purposes */
@@ -97,14 +102,21 @@ private:
     HRESULT searchUniqueVMName(Utf8Str& aName) const;
     HRESULT searchUniqueDiskImageFilePath(Utf8Str& aName) const;
     HRESULT setUpProgress(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription);
+    HRESULT setUpProgressUpload(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription);
     void waitForAsyncProgress(ComObjPtr<Progress> &pProgressThis, ComPtr<IProgress> &pProgressAsync);
     void addWarning(const char* aWarning, ...);
+
+    void parseURI(Utf8Str strUri, const Utf8Str &strProtocol, Utf8Str &strFilepath, Utf8Str &strHostname, Utf8Str &strUsername, Utf8Str &strPassword);
+    HRESULT writeImpl(int aFormat, Utf8Str aPath, ComObjPtr<Progress> &aProgress);
 
     struct TaskImportMachines;  /* Worker thread for import */
     static DECLCALLBACK(int) taskThreadImportMachines(RTTHREAD thread, void *pvUser);
 
-    struct TaskWriteOVF;       /* Worker thread for export */
-    static DECLCALLBACK(int) taskThreadWriteOVF(RTTHREAD thread, void *pvUser);
+    struct TaskWriteOVF;        /* Worker threads for export */
+    static DECLCALLBACK(int) taskThreadWriteOVF(RTTHREAD aThread, void *pvUser);
+
+    int writeFS(TaskWriteOVF *pTask);
+    int writeS3(TaskWriteOVF *pTask);
 
     friend class Machine;
 };
@@ -125,7 +137,7 @@ class ATL_NO_VTABLE VirtualSystemDescription :
     public VirtualBoxBaseWithChildrenNEXT,
     public VirtualBoxSupportErrorInfoImpl <VirtualSystemDescription, IVirtualSystemDescription>,
     public VirtualBoxSupportTranslation <VirtualSystemDescription>,
-    public IVirtualSystemDescription
+    VBOX_SCRIPTABLE_IMPL(IVirtualSystemDescription)
 {
     friend class Appliance;
 

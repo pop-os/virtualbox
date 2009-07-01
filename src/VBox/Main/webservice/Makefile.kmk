@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 20036 2009-05-26 13:21:41Z vboxsync $
 ## @file
 # Sub-Makefile for the VBox web service.
 #
@@ -325,18 +325,12 @@ ifdef VBOX_ONLY_SDK
  # Global relevant to the SDK.
  #
  VBOXWEB_GLUE_PYTHON           = $(VBOX_PATH_SDK)/bindings/webservice/python/lib/VirtualBox_wrappers.py
- VBOXWEB_WS_PYTHON             = $(VBOX_PATH_SDK)/bindings/webservice/python/lib/VirtualBox_service.py
+ VBOXWEB_WS_PYTHON             = $(VBOX_PATH_SDK)/bindings/webservice/python/lib/VirtualBox_services.py
  VBOXWEB_WS_PERL               = $(VBOX_PATH_SDK)/bindings/webservice/perl/lib/vboxService.pm
  VBOXWEB_SAMPLES_AXIS_DIR      = $(VBOX_PATH_SDK)/bindings/webservice/java/axis/samples
- VBOXWEB_AXISSAMPLE            = $(VBOXWEB_SAMPLES_AXIS_DIR)/clienttest.java
  VBOXWEB_SAMPLES_JAXWS_DIR     = $(VBOX_PATH_SDK)/bindings/webservice/java/jax-ws/samples
  VBOXWEB_JAXWSSAMPLE           = $(VBOXWEB_SAMPLES_JAXWS_DIR)/clienttest.java
  VBOXWEB_METRICSAMPLE          = $(VBOXWEB_SAMPLES_JAXWS_DIR)/metrictest.java
- VBOXWEB_SAMPLES_PERL_DIR      = $(VBOX_PATH_SDK)/bindings/webservice/perl/samples
- VBOXWEB_PERLSAMPLE            = $(VBOXWEB_SAMPLES_PERL_DIR)/clienttest.pl
- VBOXWEB_SAMPLES_PYTHONWS_DIR  = $(VBOX_PATH_SDK)/bindings/webservice/python/samples
- VBOXWEB_PYTHONWSSAMPLE        = $(VBOXWEB_SAMPLES_PYTHONWS_DIR)/vboxshell.py
- VBOXWEB_SHELLCOMMON           = $(VBOXWEB_SAMPLES_PYTHONWS_DIR)/shellcommon.py
 
  VBOXWEB_GLUE_JAVA_TMP         = $(VBOXWEB_OUT_DIR)/glue-jaxws.java.tmp
  VBOXWEB_PATH_SDK_GLUE_JAVA    = $(VBOX_PATH_SDK)/bindings/webservice/java/jax-ws/src
@@ -372,21 +366,29 @@ ifdef VBOX_ONLY_SDK
  VBOX_JAVA_PACKAGE             = org.virtualbox$(VBOX_API_SUFFIX)
 
  VBOXWEB_OTHERS               += \
- 	$(VBOXWEB_GLUE_JAVA_TMP) \
- 	$(VBOXWEB_GLUE_PYTHON)\
- 	$(VBOXWEB_WS_PYTHON) \
-        $(VBOXWEB_WS_PERL)   \
- 	$(VBOXWEB_PYTHONWSSAMPLE)\
- 	$(VBOXWEB_SHELLCOMMON)\
- 	$(VBOXWEB_AXISSAMPLE) \
- 	$(VBOXWEB_JAXWSSAMPLE)\
- 	$(VBOXWEB_METRICSAMPLE)\
- 	$(VBOXWEB_PERLSAMPLE) \
-	$(VBOXWEB_PATH_SDK_GLUE_JAVA)/Makefile \
- 	$(VBOXWEB_SAMPLES_PYTHONWS_DIR)/Makefile\
- 	$(VBOXWEB_SAMPLES_JAXWS_DIR)/Makefile \
- 	$(VBOXWEB_JAVA15_JAR) \
- 	$(VBOXWEB_JAVA16_JAR)
+	$(VBOXWEB_GLUE_JAVA_TMP) \
+	$(VBOXWEB_GLUE_PYTHON) \
+	$(VBOXWEB_WS_PYTHON) \
+        $(VBOXWEB_WS_PERL) \
+	$(VBOXWEB_PYTHONWSSAMPLE)\
+	$(VBOXWEB_JAXWSSAMPLE) \
+	$(VBOXWEB_METRICSAMPLE) \
+	$(VBOXWEB_JAVA15_JAR) \
+	$(VBOXWEB_JAVA16_JAR)
+
+ #
+ # Install sample code.
+ #
+ INSTALLS += vboxwebinst
+ vboxwebinst_INST = $(INST_SDK)bindings/webservice/
+ vboxwebinst_MODE = a+rx,u+w
+ vboxwebinst_SOURCES = \
+      samples/java/axis/clienttest.java=>java/axis/samples/clienttest.java \
+      samples/java/jax-ws/Makefile.glue=>java/jax-ws/src/Makefile \
+      samples/java/jax-ws/Makefile=>java/jax-ws/samples/Makefile \
+      samples/perl/clienttest.pl=>perl/samples/clienttest.pl \
+      samples/python/Makefile=>python/samples/Makefile \
+      samples/python/Makefile.glue=>python/lib/Makefile
 
  #
  # filesplitter - build helper, splits up the java classes.
@@ -418,7 +420,6 @@ OTHER_CLEAN += \
 	$(VBOXWEB_IDL_SRC)
 
 
-
 # generate platform-specific XIDL file from original XIDL file
 $(VBOXWEB_IDL_SRC): $(VBOXWEB_IDL_SRC_ORIG) $(VBOX_PATH_WEBSERVICE)/platform-xidl.xsl | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$(VBOXWEB_IDL_SRC) using platform-xidl.xsl)
@@ -441,7 +442,6 @@ $(VBOXWEB_GLUE_PYTHON): $(VBOXWEB_IDL_SRC) $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL
 	$(call MSG_GENERATE,,$@,$(VBOXWEB_IDL_SRC) using websrv-python.xsl)
 	$(QUIET)$(MKDIR) -p $(@D)
 	$(QUIET)$(VBOX_XSLTPROC) $(VBOXWEB_XSLTPROC_VERBOSE) -o $@ $(VBOX_PATH_WEBSERVICE)/websrv-python.xsl $<
-	$(QUIET)$(CP) -f  $(VBOX_PATH_WEBSERVICE)/samples/python/Makefile.glue $(@D)/Makefile
 
 $(VBOXWEB_WS_PYTHON): $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL)
 	$(call MSG_GENERATE,,$@, WS Python bindings)
@@ -573,11 +573,6 @@ $(VBOXWEB_OUT_DIR)/methodmaps.cpp: $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/we
 
 ifdef VBOX_ONLY_SDK
 
-## @todo Use an install target for these simple copy operations?
-$(VBOXWEB_AXISSAMPLE): $(VBOX_PATH_WEBSERVICE)/samples/java/axis/clienttest.java
-	$(QUIET)$(MKDIR) -p $(VBOXWEB_SAMPLES_AXIS_DIR)
-	$(QUIET)$(CP) -f $< $@
-
 $(VBOXWEB_JAXWSSAMPLE): $(VBOX_PATH_WEBSERVICE)/samples/java/jax-ws/clienttest.java
 	$(QUIET)$(MKDIR) -p $(VBOXWEB_SAMPLES_JAXWS_DIR)
 	$(QUIET)$(SED) -e 's/{VBOX_API_SUFFIX}/$(VBOX_API_SUFFIX)/' <  $< >  $@
@@ -586,43 +581,18 @@ $(VBOXWEB_METRICSAMPLE): $(VBOX_PATH_WEBSERVICE)/samples/java/jax-ws/metrictest.
 	$(QUIET)$(MKDIR) -p $(VBOXWEB_SAMPLES_JAXWS_DIR)
 	$(QUIET)$(SED) -e 's/{VBOX_API_SUFFIX}/$(VBOX_API_SUFFIX)/' <  $< >  $@
 
-$(VBOXWEB_PERLSAMPLE): $(VBOX_PATH_WEBSERVICE)/samples/perl/clienttest.pl
-	$(QUIET)$(MKDIR) -p $(VBOXWEB_SAMPLES_PERL_DIR)
-	$(QUIET)$(CP) -f $< $@
-
-$(VBOXWEB_PYTHONWSSAMPLE): $(PATH_ROOT)/src/VBox/Frontends/VBoxShell/ws/vboxshell.py
-	$(QUIET)$(MKDIR) -p $(VBOXWEB_SAMPLES_PYTHONWS_DIR)
-	$(QUIET)$(CP) -f $< $@
-
-$(VBOXWEB_SHELLCOMMON): $(PATH_ROOT)/src/VBox/Frontends/VBoxShell/shellcommon.py $(VBOXWEB_PYTHONWSSAMPLE)
-	$(QUIET)$(CP) -f $< $@
-
 # generate jax-ws wrapper for java client code
 $(VBOXWEB_GLUE_JAVA_TMP): $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/glue-jaxws.xsl $(VBOX_PATH_WEBSERVICE)/websrv-shared.inc.xsl $$(TARGET_filesplitter) $(RECOMPILE_ON_MAKEFILE_CURRENT) | $$(dir $$@)
 	$(QUIET)$(MKDIR) -p $(@D)
 	$(call MSG_GENERATE,,$@,$(VBOXWEB_IDL_SRC) using glue-jaxws.xsl)
-	$(QUIET)$(VBOX_XSLTPROC) $(VBOXWEB_XSLTPROC_VERBOSE)         \
-              --stringparam G_vboxApiSuffix $(VBOX_API_SUFFIX)       \
+	$(QUIET)$(VBOX_XSLTPROC) $(VBOXWEB_XSLTPROC_VERBOSE) \
+              --stringparam G_vboxApiSuffix $(VBOX_API_SUFFIX) \
               -o $@ $(VBOX_PATH_WEBSERVICE)/glue-jaxws.xsl $<
 	$(call MSG_GENERATE,,java client glue files in $(VBOXWEB_PATH_SDK_GLUE_JAVA))
 	$(RM) -R -f $(VBOXWEB_PATH_SDK_GLUE_JAVA)
 	$(QUIET)$(MKDIR) -p $(VBOXWEB_PATH_SDK_GLUE_JAVA)
 	$(QUIET)$(TARGET_filesplitter) $@ $(VBOXWEB_PATH_SDK_GLUE_JAVA)
 	$(QUIET)$(CP) -f $(VBOX_PATH_WEBSERVICE)/../../../../COPYING.LIB $(VBOXWEB_PATH_SDK_GLUE_JAVA)
-
-# likely those 4 rules can be changed to INSTALLS
-$(VBOXWEB_PATH_SDK_GLUE_JAVA)/Makefile: $(VBOX_PATH_WEBSERVICE)/samples/java/jax-ws/Makefile.glue  $(VBOXWEB_GLUE_JAVA_TMP)
-	$(QUIET)$(CP) $< $@
-
-$(VBOXWEB_SAMPLES_PYTHONWS_DIR)/Makefile: $(VBOX_PATH_WEBSERVICE)/samples/python/Makefile $(VBOXWEB_PERLSAMPLE)
-	$(QUIET)$(CP) $< $@
-
-$(VBOXWEB_SAMPLES_JAXWS_DIR)/Makefile: $(VBOX_PATH_WEBSERVICE)/samples/java/jax-ws/Makefile  $(VBOXWEB_JAXWSSAMPLE)
-	$(QUIET)$(CP) $< $@
-
-## @todo r=bird: What is this for? It's not referenced by anyone.
-$(VBOXWEB_JAVALIB)/Makefile: $(VBOX_PATH_WEBSERVICE)/samples/java/jax-ws/Makefile.glue $(VBOXWEB_JAVA16_JAR)
-	$(QUIET)$(CP) $< $@
 
 $(VBOXWEB_JAVA15_JAR): $(VBOXWEB_GLUE_JAVA_TMP) $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL)
 	$(QUIET)$(RM) -Rf $(VBOXWEB_JAVALIB)/gen15
@@ -633,10 +603,9 @@ $(VBOXWEB_JAVA15_JAR): $(VBOXWEB_GLUE_JAVA_TMP) $(VBOXWEB_WSDL) $(VBOXWEBSERVICE
 	$(QUIET)$(VBOX_JAVAC15) -cp \
 		$(VBOXWEB_JAVALIB)/gen15:$(VBOX_JAXWS_LIBDIR)/jaxws-api.jar:$(VBOX_JAXWS_LIBDIR)/lib/jaxb-api.jar:$(VBOX_JAXWS_LIBDIR)/jsr181-api.jar \
 		$(VBOXWEB_PATH_SDK_GLUE_JAVA)/*.java  -d  $(VBOXWEB_JAVALIB)/gen15
-	$(QUIET)$(CP) -f $(VBOXWEBSERVICE_WSDL) $(VBOXWEB_JAVALIB)/gen15/
-	$(QUIET)$(CP) -f $(VBOXWEB_WSDL) $(VBOXWEB_JAVALIB)/gen15/
+	$(QUIET)$(SED) -e "s/vboxweb.wsdl/vboxweb$(VBOX_API_SUFFIX).wsdl/" <  $(VBOXWEBSERVICE_WSDL) > $(VBOXWEB_JAVALIB)/gen15/vboxwebService$(VBOX_API_SUFFIX).wsdl
+	$(QUIET)$(CP) -f $(VBOXWEB_WSDL) $(VBOXWEB_JAVALIB)/gen15/vboxweb$(VBOX_API_SUFFIX).wsdl
 	$(QUIET)$(RM) -f  $(VBOXWEB_JAVALIB)/gen15/*.java
-	$(QUIET)$(CP) -f $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL) $(VBOXWEB_JAVALIB)/gen15
 	$(QUIET)$(VBOX_JAR) cf $@ -C $(VBOXWEB_JAVALIB)/gen15 .
 
 $(VBOXWEB_JAVA16_JAR): $(VBOXWEB_GLUE_JAVA_TMP) $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL)
@@ -647,10 +616,9 @@ $(VBOXWEB_JAVA16_JAR): $(VBOXWEB_GLUE_JAVA_TMP) $(VBOXWEB_WSDL) $(VBOXWEBSERVICE
 	$(call MSG_L1,Compiling bridge code)
 	$(QUIET)$(VBOX_JAVAC16) -cp $(VBOXWEB_JAVALIB)/gen16 \
 		$(VBOXWEB_PATH_SDK_GLUE_JAVA)/*.java  -d  $(VBOXWEB_JAVALIB)/gen16
-	$(QUIET)$(CP) -f $(VBOXWEBSERVICE_WSDL) $(VBOXWEB_JAVALIB)/gen16/
-	$(QUIET)$(CP) -f $(VBOXWEB_WSDL) $(VBOXWEB_JAVALIB)/gen16/
+	$(QUIET)$(SED) -e "s/vboxweb.wsdl/vboxweb$(VBOX_API_SUFFIX).wsdl/" <  $(VBOXWEBSERVICE_WSDL) > $(VBOXWEB_JAVALIB)/gen16/vboxwebService$(VBOX_API_SUFFIX).wsdl
+	$(QUIET)$(CP) -f $(VBOXWEB_WSDL) $(VBOXWEB_JAVALIB)/gen16/vboxweb$(VBOX_API_SUFFIX).wsdl
 	$(QUIET)$(RM) -f  $(VBOXWEB_JAVALIB)/gen16/*.java
-	$(QUIET)$(CP) -f $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL) $(VBOXWEB_JAVALIB)/gen16
 	$(QUIET)$(VBOX_JAR) cf $@ -C $(VBOXWEB_JAVALIB)/gen16 .
 
 endif # VBOX_ONLY_SDK

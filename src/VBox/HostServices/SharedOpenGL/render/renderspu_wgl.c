@@ -230,7 +230,7 @@ bSetupPixelFormatNormal( HDC hdc, GLbitfield visAttribs )
 
     renderspuMakeVisString( visAttribs, s );
 
-    crWarning( "Render SPU: WGL wants these visual capabilities: %s", s);
+    crDebug( "Render SPU: WGL wants these visual capabilities: %s", s);
 
     /* These really come into play with sort-last configs */
     if (visAttribs & CR_DEPTH_BIT)
@@ -305,7 +305,7 @@ bSetupPixelFormatNormal( HDC hdc, GLbitfield visAttribs )
 
     renderspuMakeVisString( b, s );
 
-    crWarning( "Render SPU: WGL chose these visual capabilities: %s", s);
+    crDebug( "Render SPU: WGL chose these visual capabilities: %s", s);
     return TRUE;
 }
 
@@ -316,7 +316,7 @@ bSetupPixelFormat( HDC hdc, GLbitfield visAttribs )
        we shouldn't be using wgl functions to setup pixel formats unless we're loading ICD driver.
        In particular, bSetupPixelFormatEXT bugs with Intel drivers.
      */
-    bSetupPixelFormatNormal(hdc, visAttribs);
+    return bSetupPixelFormatNormal(hdc, visAttribs);
 }
 
 GLboolean renderspu_SystemCreateWindow( VisualInfo *visual, GLboolean showIt, WindowInfo *window )

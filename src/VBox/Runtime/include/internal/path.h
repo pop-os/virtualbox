@@ -1,4 +1,4 @@
-/* $Id: path.h $ */
+/* $Id: path.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * IPRT - RTPath Internal header.
  */
@@ -34,7 +34,7 @@
 #include <iprt/cdefs.h>
 #include <iprt/param.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 #if defined(RT_OS_OS2) || defined(RT_OS_WINDOWS)
 # define HAVE_UNC 1
@@ -108,7 +108,7 @@ int rtPathFromNative(char **ppszPath, const char *pszNativePath);
 int rtPathFromNativeEx(char **ppszPath, const char *pszNativePath, const char *pszBasePath);
 
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

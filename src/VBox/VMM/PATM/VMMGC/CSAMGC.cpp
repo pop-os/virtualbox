@@ -1,4 +1,4 @@
-/* $Id: CSAMGC.cpp $ */
+/* $Id: CSAMGC.cpp 19141 2009-04-23 13:52:18Z vboxsync $ */
 /** @file
  * CSAM - Guest OS Code Scanning and Analysis Manager - Any Context
  */
@@ -66,6 +66,7 @@ VMMRCDECL(int) CSAMGCCodePageWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
     PPATMGCSTATE pPATMGCState;
     bool         fPatchCode = PATMIsPatchGCAddr(pVM, (RTRCPTR)pRegFrame->eip);
     int          rc;
+    PVMCPU       pVCpu = VMMGetCpu0(pVM);
 
     Assert(pVM->csam.s.cDirtyPages < CSAM_MAX_DIRTY_PAGES);
 
@@ -86,7 +87,7 @@ VMMRCDECL(int) CSAMGCCodePageWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
         /*
          * Make this particular page R/W.
          */
-        int rc = PGMShwModifyPage(pVM, pvFault, 1, X86_PTE_RW, ~(uint64_t)X86_PTE_RW);
+        int rc = PGMShwModifyPage(pVCpu, pvFault, 1, X86_PTE_RW, ~(uint64_t)X86_PTE_RW);
         AssertMsgRC(rc, ("PGMShwModifyPage -> rc=%Rrc\n", rc));
         ASMInvalidatePage((void *)pvFault);
         return VINF_SUCCESS;
@@ -115,7 +116,7 @@ VMMRCDECL(int) CSAMGCCodePageWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
         Assert(rc == VERR_PATCH_NOT_FOUND);
     }
 
-    VM_FF_SET(pVM, VM_FF_CSAM_PENDING_ACTION);
+    VMCPU_FF_SET(pVCpu, VMCPU_FF_CSAM_PENDING_ACTION);
 
     /* Note that pvFault might be a different address in case of aliases. So use pvRange + offset instead!. */
     pVM->csam.s.pvDirtyBasePage[pVM->csam.s.cDirtyPages] = (RTRCPTR)((RTGCUINTPTR)pvRange + offRange);
@@ -127,7 +128,7 @@ VMMRCDECL(int) CSAMGCCodePageWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
      * Make this particular page R/W. The VM_FF_CSAM_FLUSH_DIRTY_PAGE handler will reset it to readonly again.
      */
     Log(("CSAMGCCodePageWriteHandler: enabled r/w for page %RGv\n", pvFault));
-    rc = PGMShwModifyPage(pVM, pvFault, 1, X86_PTE_RW, ~(uint64_t)X86_PTE_RW);
+    rc = PGMShwModifyPage(pVCpu, pvFault, 1, X86_PTE_RW, ~(uint64_t)X86_PTE_RW);
     AssertMsgRC(rc, ("PGMShwModifyPage -> rc=%Rrc\n", rc));
     ASMInvalidatePage((void *)pvFault);
 

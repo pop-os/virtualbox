@@ -35,6 +35,7 @@ typedef int socklen_t;
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #include <iprt/dir.h>
+#include <iprt/rand.h>
 #include <VBox/types.h>
 
 #undef malloc
@@ -154,14 +155,6 @@ typedef unsigned char u_int8_t;
 # include <sys/uio.h>
 #endif
 
-#ifndef _P
-#ifndef NO_PROTOTYPES
-#  define   _P(x)   x
-#else
-#  define   _P(x)   ()
-#endif
-#endif
-
 #ifndef RT_OS_WINDOWS
 # include <netinet/in.h>
 # include <arpa/inet.h>
@@ -172,7 +165,7 @@ typedef unsigned char u_int8_t;
 #endif
 
 #ifndef HAVE_INET_ATON
-int inet_aton _P((const char *cp, struct in_addr *ia));
+int inet_aton (const char *cp, struct in_addr *ia);
 #endif
 
 #include <fcntl.h>
@@ -249,31 +242,21 @@ int inet_aton _P((const char *cp, struct in_addr *ia));
 # define NULL (void *)0
 #endif
 
-void if_start _P((PNATState));
+void if_start (PNATState);
 
 #ifndef HAVE_INDEX
- char *index _P((const char *, int));
+ char *index (const char *, int);
 #endif
 
 #ifndef HAVE_GETHOSTID
- long gethostid _P((void));
-#endif
-
-#if SIZEOF_CHAR_P == 4
-# define insque_32 insque
-# define remque_32 remque
-#else
-extern void insque_32 _P((PNATState, void *, void *));
-extern void remque_32 _P((PNATState, void *));
+ long gethostid (void);
 #endif
 
 #ifndef RT_OS_WINDOWS
 #include <netdb.h>
 #endif
 
-#ifdef VBOX_WITH_SLIRP_DNS_PROXY
-# include "dnsproxy/dnsproxy.h"
-#endif
+#include "dnsproxy/dnsproxy.h"
 
 #define DEFAULT_BAUD 115200
 
@@ -283,45 +266,45 @@ int get_dns_addr(PNATState pData, struct in_addr *pdns_addr);
 int cksum(struct mbuf *m, int len);
 
 /* if.c */
-void if_init _P((PNATState));
-void if_output _P((PNATState, struct socket *, struct mbuf *));
+void if_init (PNATState);
+void if_output (PNATState, struct socket *, struct mbuf *);
 
 /* ip_input.c */
-void ip_init _P((PNATState));
-void ip_input _P((PNATState, struct mbuf *));
-struct mbuf * ip_reass _P((PNATState, register struct mbuf *));
-void ip_freef _P((PNATState, struct ipqhead *, struct ipq_t *));
-void ip_slowtimo _P((PNATState));
-void ip_stripoptions _P((register struct mbuf *, struct mbuf *));
+void ip_init (PNATState);
+void ip_input (PNATState, struct mbuf *);
+struct mbuf * ip_reass (PNATState, register struct mbuf *);
+void ip_freef (PNATState, struct ipqhead *, struct ipq_t *);
+void ip_slowtimo (PNATState);
+void ip_stripoptions (register struct mbuf *, struct mbuf *);
 
 /* ip_output.c */
-int ip_output _P((PNATState, struct socket *, struct mbuf *));
+int ip_output (PNATState, struct socket *, struct mbuf *);
 
 /* tcp_input.c */
-int tcp_reass _P((PNATState, struct tcpcb *, struct tcphdr *, int *, struct mbuf *));
-void tcp_input _P((PNATState, register struct mbuf *, int, struct socket *));
-void tcp_dooptions _P((PNATState, struct tcpcb *, u_char *, int, struct tcpiphdr *));
-void tcp_xmit_timer _P((PNATState, register struct tcpcb *, int));
-int tcp_mss _P((PNATState, register struct tcpcb *, u_int));
+int tcp_reass (PNATState, struct tcpcb *, struct tcphdr *, int *, struct mbuf *);
+void tcp_input (PNATState, register struct mbuf *, int, struct socket *);
+void tcp_dooptions (PNATState, struct tcpcb *, u_char *, int, struct tcpiphdr *);
+void tcp_xmit_timer (PNATState, register struct tcpcb *, int);
+int tcp_mss (PNATState, register struct tcpcb *, u_int);
 
 /* tcp_output.c */
-int tcp_output _P((PNATState, register struct tcpcb *));
-void tcp_setpersist _P((register struct tcpcb *));
+int tcp_output (PNATState, register struct tcpcb *);
+void tcp_setpersist (register struct tcpcb *);
 
 /* tcp_subr.c */
-void tcp_init _P((PNATState));
-void tcp_template _P((struct tcpcb *));
-void tcp_respond _P((PNATState, struct tcpcb *, register struct tcpiphdr *, register struct mbuf *, tcp_seq, tcp_seq, int));
-struct tcpcb * tcp_newtcpcb _P((PNATState, struct socket *));
-struct tcpcb * tcp_close _P((PNATState, register struct tcpcb *));
-void tcp_drain _P((void));
-void tcp_sockclosed _P((PNATState, struct tcpcb *));
-int tcp_fconnect _P((PNATState, struct socket *));
-void tcp_connect _P((PNATState, struct socket *));
-int tcp_attach _P((PNATState, struct socket *));
-u_int8_t tcp_tos _P((struct socket *));
-int tcp_emu _P((PNATState, struct socket *, struct mbuf *));
-int tcp_ctl _P((PNATState, struct socket *));
+void tcp_init (PNATState);
+void tcp_template (struct tcpcb *);
+void tcp_respond (PNATState, struct tcpcb *, register struct tcpiphdr *, register struct mbuf *, tcp_seq, tcp_seq, int);
+struct tcpcb * tcp_newtcpcb (PNATState, struct socket *);
+struct tcpcb * tcp_close (PNATState, register struct tcpcb *);
+void tcp_drain (void);
+void tcp_sockclosed (PNATState, struct tcpcb *);
+int tcp_fconnect (PNATState, struct socket *);
+void tcp_connect (PNATState, struct socket *);
+int tcp_attach (PNATState, struct socket *);
+u_int8_t tcp_tos (struct socket *);
+int tcp_emu (PNATState, struct socket *, struct mbuf *);
+int tcp_ctl (PNATState, struct socket *);
 struct tcpcb *tcp_drop(PNATState, struct tcpcb *tp, int err);
 
 uint16_t slirp_get_service(int proto, uint16_t dport, uint16_t sport);
@@ -344,15 +327,90 @@ int errno_func(const char *file, int line);
 # endif
 #endif
 
-#ifndef VBOX_WITH_MULTI_DNS
-#define DO_ALIAS(paddr)                                                     \
-do {                                                                        \
-    if ((paddr)->s_addr == dns_addr.s_addr)                                 \
-    {                                                                       \
-        (paddr)->s_addr = htonl(ntohl(special_addr.s_addr) | CTL_DNS);      \
-    }                                                                       \
-} while(0)
-#else
-#define DO_ALIAS(paddr) do {} while (0)
+# ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
+#  define ETH_ALEN        6
+#  define ETH_HLEN        14
+
+#  define ARPOP_REQUEST   1               /* ARP request                  */
+#  define ARPOP_REPLY     2               /* ARP reply                    */
+
+struct ethhdr
+{
+    unsigned char   h_dest[ETH_ALEN];           /* destination eth addr */
+    unsigned char   h_source[ETH_ALEN];         /* source ether addr    */
+    unsigned short  h_proto;                    /* packet type ID field */
+};
+AssertCompileSize(struct ethhdr, 14);
+# endif
+#if defined(VBOX_WITH_SLIRP_ALIAS) && defined(VBOX_SLIRP_ALIAS)
+
+# define ip_next(ip) (void *)((uint8_t *)(ip) + ((ip)->ip_hl << 2))
+# define udp_next(udp) (void *)((uint8_t *)&((struct udphdr *)(udp))[1] )
+# define bcopy(src, dst, len) memcpy((dst), (src), (len))
+# define bcmp(a1, a2, len) memcmp((a1), (a2), (len))
+# define NO_FW_PUNCH
+
+# ifdef alias_addr
+#  error  alias_addr has already defined!!!
+# endif
+
+# define arc4random() RTRandU32()
+# undef malloc
+# undef calloc
+# undef free
+# define	malloc(x) RTMemAlloc((x))
+# define	calloc(x, n) RTMemAllocZ((x)*(n))
+# define	free(x)	RTMemFree((x))
+# ifndef __unused
+#  define __unused
+# endif
+
+# define strncasecmp RTStrNICmp
+
+# define LIBALIAS_DEBUG
+
+# ifdef fprintf
+#   undef fprintf
+# endif /*fprintf*/
+# ifdef fflush
+#   undef fflush
+# endif /*fflush*/
+# ifdef printf
+#   undef printf
+# endif /*printf*/
+#define fflush(x) do{}while(0)
+# define fprintf vbox_slirp_fprintf
+# define printf vbox_slirp_printf
+static void vbox_slirp_printV(char *format, va_list args)
+{
+    char buffer[1024];
+    memset(buffer, 0, 1024);
+    RTStrPrintfV(buffer, 1024, format, args);
+
+    Log2(("NAT:ALIAS: %s\n", buffer));
+}
+static void vbox_slirp_printf(char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    vbox_slirp_printV(format, args);
+    va_end(args);
+}
+static void vbox_slirp_fprintf(void *ignored, char *format, ...)
+{
+    va_list args;
+    va_start(args, format);
+    vbox_slirp_printV(format, args);
+    va_end(args);
+}
+#endif /*VBOX_WITH_SLIRP_ALIAS && VBOX_SLIRP_ALIAS*/
+
+#ifdef VBOX_WITH_SLIRP_ALIAS
+int ftp_alias_load(void);
+int ftp_alias_unload(void);
+int nbt_alias_load(void);
+int nbt_alias_unload(void);
+#endif /*VBOX_WITH_SLIRP_ALIAS*/
+
 #endif
-#endif
+

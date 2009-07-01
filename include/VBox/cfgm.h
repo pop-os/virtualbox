@@ -61,7 +61,7 @@ typedef CFGMVALUETYPE *PCFGMVALUETYPE;
 
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 #ifdef IN_RING3
 /** @defgroup   grp_cfgm_r3     The CFGM Host Context Ring-3 API
@@ -97,6 +97,7 @@ VMMR3DECL(int)          CFGMR3Term(PVM pVM);
 
 
 VMMR3DECL(PCFGMNODE)    CFGMR3CreateTree(PVM pVM);
+VMMR3DECL(int)          CFGMR3ConstructDefaultTree(PVM pVM);
 VMMR3DECL(void)         CFGMR3Dump(PCFGMNODE pRoot);
 VMMR3DECL(int)          CFGMR3InsertSubTree(PCFGMNODE pNode, const char *pszName, PCFGMNODE pSubTree, PCFGMNODE *ppChild);
 VMMR3DECL(int)          CFGMR3InsertNode(PCFGMNODE pNode, const char *pszName, PCFGMNODE *ppChild);
@@ -185,7 +186,7 @@ VMMR3DECL(bool)         CFGMR3AreValuesValid(PCFGMNODE pNode, const char *pszzVa
 #endif  /* IN_RING3 */
 
 
-__END_DECLS
+RT_C_DECLS_END
 
 /** @} */
 

@@ -1,4 +1,4 @@
-/* $Id: HWACCMR0.cpp $ */
+/* $Id: HWACCMR0.cpp 20981 2009-06-26 15:03:24Z vboxsync $ */
 /** @file
  * HWACCM - Host Context Ring 0.
  */
@@ -36,13 +36,14 @@
 #include <VBox/log.h>
 #include <VBox/selm.h>
 #include <VBox/iom.h>
-#include <iprt/param.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
-#include <iprt/string.h>
-#include <iprt/memobj.h>
 #include <iprt/cpuset.h>
+#include <iprt/memobj.h>
+#include <iprt/param.h>
 #include <iprt/power.h>
+#include <iprt/string.h>
+#include <iprt/thread.h>
 #include "HWVMXR0.h"
 #include "HWSVMR0.h"
 
@@ -504,7 +505,7 @@ static DECLCALLBACK(void) HWACCMR0InitCPU(RTCPUID idCpu, void *pvUser1, void *pv
     int     *paRc         = (int *)pvUser2;
     uint64_t val;
 
-#ifdef LOG_ENABLED
+#if defined(LOG_ENABLED) && !defined(DEBUG_bird)
     SUPR0Printf("HWACCMR0InitCPU cpu %d\n", idCpu);
 #endif
     Assert(idCpu == (RTCPUID)RTMpCpuIdToSetIndex(idCpu)); /// @todo fix idCpu == index assumption (rainy day)
@@ -621,7 +622,7 @@ VMMR0DECL(int) HWACCMR0EnableAllCpus(PVM pVM)
                     Assert(pvR0);
                     ASMMemZeroPage(pvR0);
 
-#ifdef LOG_ENABLED
+#if defined(LOG_ENABLED) && !defined(DEBUG_bird)
                     SUPR0Printf("address %x phys %x\n", pvR0, (uint32_t)RTR0MemObjGetPagePhysAddr(HWACCMR0Globals.aCpuInfo[i].pMemObj, 0));
 #endif
                 }
@@ -835,6 +836,16 @@ VMMR0DECL(int) HWACCMR0InitVM(PVM pVM)
 
     pVM->hwaccm.s.uMaxASID                  = HWACCMR0Globals.uMaxASID;
 
+
+    if (!pVM->hwaccm.s.cMaxResumeLoops) /* allow ring-3 overrides */
+    {
+        pVM->hwaccm.s.cMaxResumeLoops       = 1024;
+#ifdef VBOX_WITH_VMMR0_DISABLE_PREEMPTION
+        if (RTThreadPreemptIsPendingTrusty())
+            pVM->hwaccm.s.cMaxResumeLoops   = 8192;
+#endif
+    }
+
     for (unsigned i=0;i<pVM->cCPUs;i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
@@ -851,7 +862,7 @@ VMMR0DECL(int) HWACCMR0InitVM(PVM pVM)
     RTCCUINTREG     fFlags = ASMIntDisableFlags();
     PHWACCM_CPUINFO pCpu = HWACCMR0GetCurrentCpu();
 
-    /* @note Not correct as we can be rescheduled to a different cpu, but the fInUse case is mostly for debugging. */
+    /* Note: Not correct as we can be rescheduled to a different cpu, but the fInUse case is mostly for debugging. */
     ASMAtomicWriteBool(&pCpu->fInUse, true);
     ASMSetFlags(fFlags);
 
@@ -953,13 +964,16 @@ VMMR0DECL(int) HWACCMR0Enter(PVM pVM, PVMCPU pVCpu)
     AssertReturn(!ASMAtomicReadBool(&HWACCMR0Globals.fSuspended), VERR_HWACCM_SUSPEND_PENDING);
     ASMAtomicWriteBool(&pCpu->fInUse, true);
 
-    pCtx = CPUMQueryGuestCtxPtrEx(pVM, pVCpu);
+    AssertMsg(pVCpu->hwaccm.s.idEnteredCpu == NIL_RTCPUID, ("%d", (int)pVCpu->hwaccm.s.idEnteredCpu));
+    pVCpu->hwaccm.s.idEnteredCpu = idCpu;
+
+    pCtx = CPUMQueryGuestCtxPtr(pVCpu);
 
     /* Always load the guest's FPU/XMM state on-demand. */
-    CPUMDeactivateGuestFPUState(pVM);
+    CPUMDeactivateGuestFPUState(pVCpu);
 
     /* Always load the guest's debug state on-demand. */
-    CPUMDeactivateGuestDebugState(pVM);
+    CPUMDeactivateGuestDebugState(pVCpu);
 
     /* Always reload the host context and the guest's CR0 register. (!!!!) */
     pVCpu->hwaccm.s.fContextUseFlags |= HWACCM_CHANGED_GUEST_CR0 | HWACCM_CHANGED_HOST_CONTEXT;
@@ -981,13 +995,12 @@ VMMR0DECL(int) HWACCMR0Enter(PVM pVM, PVMCPU pVCpu)
     /* keep track of the CPU owning the VMCS for debugging scheduling weirdness and ring-3 calls. */
     if (RT_SUCCESS(rc))
     {
-        AssertMsg(pVCpu->hwaccm.s.idEnteredCpu == NIL_RTCPUID, ("%d", (int)pVCpu->hwaccm.s.idEnteredCpu));
-        pVCpu->hwaccm.s.idEnteredCpu = idCpu;
-
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
         PGMDynMapMigrateAutoSet(pVCpu);
 #endif
     }
+    else
+        pVCpu->hwaccm.s.idEnteredCpu = NIL_RTCPUID;
     return rc;
 }
 
@@ -1008,7 +1021,7 @@ VMMR0DECL(int) HWACCMR0Leave(PVM pVM, PVMCPU pVCpu)
 
     AssertReturn(!ASMAtomicReadBool(&HWACCMR0Globals.fSuspended), VERR_HWACCM_SUSPEND_PENDING);
 
-    pCtx = CPUMQueryGuestCtxPtrEx(pVM, pVCpu);
+    pCtx = CPUMQueryGuestCtxPtr(pVCpu);
 
     /* Note:  It's rather tricky with longjmps done by e.g. Log statements or the page fault handler.
      *        We must restore the host FPU here to make absolutely sure we don't leave the guest FPU state active
@@ -1057,7 +1070,7 @@ VMMR0DECL(int) HWACCMR0RunGuestCode(PVM pVM, PVMCPU pVCpu)
     PHWACCM_CPUINFO pCpu = &HWACCMR0Globals.aCpuInfo[idCpu];
 #endif
 
-    Assert(!VM_FF_ISPENDING(pVM, VM_FF_PGM_SYNC_CR3 | VM_FF_PGM_SYNC_CR3_NON_GLOBAL));
+    Assert(!VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL));
     Assert(HWACCMR0Globals.aCpuInfo[idCpu].fConfigured);
     AssertReturn(!ASMAtomicReadBool(&HWACCMR0Globals.fSuspended), VERR_HWACCM_SUSPEND_PENDING);
     Assert(ASMAtomicReadBool(&pCpu->fInUse) == true);
@@ -1066,7 +1079,7 @@ VMMR0DECL(int) HWACCMR0RunGuestCode(PVM pVM, PVMCPU pVCpu)
     PGMDynMapStartAutoSet(pVCpu);
 #endif
 
-    pCtx = CPUMQueryGuestCtxPtrEx(pVM, pVCpu);
+    pCtx = CPUMQueryGuestCtxPtr(pVCpu);
 
     rc = HWACCMR0Globals.pfnRunGuestCode(pVM, pVCpu, pCtx);
 
@@ -1123,9 +1136,9 @@ VMMR0DECL(int)   HWACCMR0TestSwitcher3264(PVM pVM)
     uint32_t aParam[5] = {0, 1, 2, 3, 4};
     int      rc;
 
-    pCtx = CPUMQueryGuestCtxPtrEx(pVM, pVCpu);
+    pCtx = CPUMQueryGuestCtxPtr(pVCpu);
 
-    STAM_PROFILE_ADV_START(&pVCpu->hwaccm.s.StatWorldSwitch3264, z);   
+    STAM_PROFILE_ADV_START(&pVCpu->hwaccm.s.StatWorldSwitch3264, z);
     if (pVM->hwaccm.s.vmx.fSupported)
         rc = VMXR0Execute64BitsHandler(pVM, pVCpu, pCtx, pVM->hwaccm.s.pfnTest64, 5, &aParam[0]);
     else
@@ -1172,6 +1185,41 @@ VMMR0DECL(PHWACCM_CPUINFO) HWACCMR0GetCurrentCpuEx(RTCPUID idCpu)
 }
 
 /**
+ * Returns the VMCPU of the current EMT thread.
+ *
+ * @param   pVM         The VM to operate on.
+ */
+VMMR0DECL(PVMCPU)  HWACCMR0GetVMCPU(PVM pVM)
+{
+    /* RTMpCpuId had better be cheap. */
+    RTCPUID idHostCpu = RTMpCpuId();
+
+    /** @todo optimize for large number of VCPUs when that becomes more common. */
+    for (unsigned idCpu=0;idCpu<pVM->cCPUs;idCpu++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+
+        if (pVCpu->hwaccm.s.idEnteredCpu == idHostCpu)
+            return pVCpu;
+    }
+    return NULL;
+}
+
+/**
+ * Returns the VMCPU id of the current EMT thread.
+ *
+ * @param   pVM         The VM to operate on.
+ */
+VMMR0DECL(VMCPUID) HWACCMR0GetVMCPUId(PVM pVM)
+{
+    PVMCPU pVCpu = HWACCMR0GetVMCPU(pVM);
+    if (pVCpu)
+        return pVCpu->idCpu;
+
+    return 0;
+}
+
+/**
  * Disable VT-x if it's active *and* the current switcher turns off paging
  *
  * @returns VBox status code.
@@ -1194,7 +1242,7 @@ VMMR0DECL(int) HWACCMR0EnterSwitcher(PVM pVM, bool *pfVTxDisabled)
     case VMMSWITCHER_PAE_TO_PAE:
         return VINF_SUCCESS;    /* safe switchers as they don't turn off paging */
 
-    case VMMSWITCHER_32_TO_PAE: 
+    case VMMSWITCHER_32_TO_PAE:
     case VMMSWITCHER_PAE_TO_32: /* is this one actually used?? */
     case VMMSWITCHER_AMD64_TO_32:
     case VMMSWITCHER_AMD64_TO_PAE:
@@ -1373,9 +1421,10 @@ VMMR0DECL(void) HWACCMR0DumpDescriptor(PX86DESCHC pDesc, RTSEL Sel, const char *
  * Formats a full register dump.
  *
  * @param   pVM         The VM to operate on.
+ * @param   pVCpu       The VMCPU to operate on.
  * @param   pCtx        The context to format.
  */
-VMMR0DECL(void) HWACCMDumpRegs(PVM pVM, PCPUMCTX pCtx)
+VMMR0DECL(void) HWACCMDumpRegs(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 {
     /*
      * Format the flags.
@@ -1420,7 +1469,7 @@ VMMR0DECL(void) HWACCMDumpRegs(PVM pVM, PCPUMCTX pCtx)
     /*
      * Format the registers.
      */
-    if (CPUMIsGuestIn64BitCode(pVM, CPUMCTX2CORE(pCtx)))
+    if (CPUMIsGuestIn64BitCode(pVCpu, CPUMCTX2CORE(pCtx)))
     {
         Log(("rax=%016RX64 rbx=%016RX64 rcx=%016RX64 rdx=%016RX64\n"
             "rsi=%016RX64 rdi=%016RX64 r8 =%016RX64 r9 =%016RX64\n"

@@ -51,8 +51,11 @@ protected:
 
 private slots:
 
+    void radioButtonToggled();
+
     void accept();
     void reject();
+    void reinit();
 
     void handshakeStart();
     void handshakeResponse (bool aError);
@@ -66,9 +69,11 @@ private slots:
 
 private:
 
-    void postRequest (const QUrl &aUrl);
+    void populateCountries();
     void abortRequest (const QString &aReason);
     void finish();
+
+    bool isFieldValid (QWidget *aWidget) const;
 
     VBoxRegistrationDlg **mSelf;
     QIWidgetValidator    *mWvalReg;

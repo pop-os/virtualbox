@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-darwin.cpp $ */
+/* $Id: VBoxNetFlt-darwin.cpp 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Darwin Specific Code.
  */
@@ -57,10 +57,10 @@
 #include <sys/sockio.h>
 #include <sys/kern_event.h>
 #include <net/kpi_interface.h>
-__BEGIN_DECLS /* Buggy 10.4 headers, fixed in 10.5. */
+RT_C_DECLS_BEGIN /* Buggy 10.4 headers, fixed in 10.5. */
 #include <sys/kpi_mbuf.h>
 #include <net/kpi_interfacefilter.h>
-__END_DECLS
+RT_C_DECLS_END
 #include <net/if.h>
 
 #define VBOXNETFLT_OS_SPECFIC 1
@@ -83,10 +83,10 @@ __END_DECLS
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 static kern_return_t    VBoxNetFltDarwinStart(struct kmod_info *pKModInfo, void *pvData);
 static kern_return_t    VBoxNetFltDarwinStop(struct kmod_info *pKModInfo, void *pvData);
-__END_DECLS
+RT_C_DECLS_END
 
 
 /*******************************************************************************
@@ -117,7 +117,7 @@ typedef VBOXNETFLTTAG const *PCVBOXNETFLTTAG;
 /**
  * Declare the module stuff.
  */
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 extern kern_return_t _start(struct kmod_info *pKModInfo, void *pvData);
 extern kern_return_t _stop(struct kmod_info *pKModInfo, void *pvData);
 
@@ -125,7 +125,7 @@ KMOD_EXPLICIT_DECL(VBoxNetFlt, VBOX_VERSION_STRING, _start, _stop)
 DECLHIDDEN(kmod_start_func_t *) _realmain = VBoxNetFltDarwinStart;
 DECLHIDDEN(kmod_stop_func_t  *) _antimain = VBoxNetFltDarwinStop;
 DECLHIDDEN(int)                 _kext_apple_cc = __APPLE_CC__;
-__END_DECLS
+RT_C_DECLS_END
 
 
 /**

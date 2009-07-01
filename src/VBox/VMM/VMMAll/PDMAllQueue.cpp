@@ -1,4 +1,4 @@
-/* $Id: PDMAllQueue.cpp $ */
+/* $Id: PDMAllQueue.cpp 20874 2009-06-24 02:19:29Z vboxsync $ */
 /** @file
  * PDM Queue - Transport data and tasks to EMT and R3.
  */
@@ -93,7 +93,7 @@ VMMDECL(void) PDMQueueInsert(PPDMQUEUE pQueue, PPDMQUEUEITEMCORE pItem)
         VM_FF_SET(pVM, VM_FF_PDM_QUEUES);
 #ifdef IN_RING3
         REMR3NotifyQueuePending(pVM); /** @todo r=bird: we can remove REMR3NotifyQueuePending and let VMR3NotifyFF do the work. */
-        VMR3NotifyFF(pVM, true);
+        VMR3NotifyGlobalFFU(pVM->pUVM, VMNOTIFYFF_FLAGS_DONE_REM);
 #endif
     }
 }
@@ -122,8 +122,8 @@ VMMDECL(void) PDMQueueInsertEx(PPDMQUEUE pQueue, PPDMQUEUEITEMCORE pItem, uint64
     }
     else */
     {
-        VM_FF_SET(pVM, VM_FF_TO_R3);
-        Log2(("PDMQueueInsertEx: Setting VM_FF_TO_R3\n"));
+        VMCPU_FF_SET(VMMGetCpu0(pVM), VMCPU_FF_TO_R3);
+        Log2(("PDMQueueInsertEx: Setting VMCPU_FF_TO_R3\n"));
     }
 #endif
 }
@@ -179,19 +179,14 @@ VMMDECL(void) PDMQueueFlush(PPDMQUEUE pQueue)
     Assert(pQueue->pVMR3);
     PVM pVM = pQueue->CTX_SUFF(pVM);
 
-#ifdef IN_RC
-    Assert(pQueue->pVMRC);
+#if defined(IN_RC) || defined(IN_RING0)
+    Assert(pQueue->CTX_SUFF(pVM));
     pVM->pdm.s.CTX_SUFF(pQueueFlush) = pQueue;
-    VMMGCCallHost(pVM, VMMCALLHOST_PDM_QUEUE_FLUSH, (uintptr_t)pQueue);
-
-#elif defined(IN_RING0)
-    Assert(pQueue->pVMR0);
-    pVM->pdm.s.CTX_SUFF(pQueueFlush) = pQueue;
-    VMMR0CallHost(pVM, VMMCALLHOST_PDM_QUEUE_FLUSH, (uintptr_t)pQueue);
+    VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_PDM_QUEUE_FLUSH, (uintptr_t)pQueue);
 
 #else /* IN_RING3: */
     PVMREQ pReq;
-    VMR3ReqCall(pVM, VMREQDEST_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)PDMR3QueueFlushWorker, 2, pVM, pQueue);
+    VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)PDMR3QueueFlushWorker, 2, pVM, pQueue);
     VMR3ReqFree(pReq);
 #endif
 }

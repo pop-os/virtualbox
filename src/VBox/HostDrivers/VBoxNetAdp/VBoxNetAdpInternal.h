@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdpInternal.h $ */
+/* $Id: VBoxNetAdpInternal.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * VBoxNetAdp - Network Filter Driver (Host), Internal Header.
  */
@@ -28,7 +28,7 @@
 #include <iprt/assert.h>
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** Pointer to the globals. */
 typedef struct VBOXNETADPGLOBALS *PVBOXNETADPGLOBALS;
@@ -41,6 +41,16 @@ typedef struct VBOXNETADPGLOBALS *PVBOXNETADPGLOBALS;
 # define VBOXNETADP_MAX_FAMILIES   4
 # define VBOXNETADP_DETACH_TIMEOUT 500
 #endif
+
+#define VBOXNETADP_CTL_DEV_NAME    "vboxnetctl"
+#define VBOXNETADP_CTL_ADD    _IOR('v', 1, VBOXNETADPREQ)
+#define VBOXNETADP_CTL_REMOVE _IOW('v', 2, VBOXNETADPREQ)
+
+typedef struct VBoxNetAdpReq
+{
+    char szName[VBOXNETADP_MAX_NAME_LEN];
+} VBOXNETADPREQ;
+typedef VBOXNETADPREQ *PVBOXNETADPREQ;
 
 /**
  * Void entries mark vacant slots in adapter array. Valid entries are busy slots.
@@ -64,17 +74,18 @@ typedef struct VBOXNETADPGLOBALS *PVBOXNETADPGLOBALS;
      3) Destroy
 */
 
-#ifdef VBOXANETADP_DO_NOT_USE_NETFLT
 enum VBoxNetAdpState
 {
     kVBoxNetAdpState_Invalid,
     kVBoxNetAdpState_Transitional,
+#ifdef VBOXANETADP_DO_NOT_USE_NETFLT
     kVBoxNetAdpState_Available,
     kVBoxNetAdpState_Connected,
-    kVBoxNetAdpState_Active
+#endif /* VBOXANETADP_DO_NOT_USE_NETFLT */
+    kVBoxNetAdpState_Active,
+    kVBoxNetAdpState_U32Hack = 0xFFFFFFFF
 };
 typedef enum VBoxNetAdpState VBOXNETADPSTATE;
-#endif /* VBOXANETADP_DO_NOT_USE_NETFLT */
 
 struct VBoxNetAdapter
 {
@@ -84,8 +95,10 @@ struct VBoxNetAdapter
 
     /* --- Protected with spinlock. --- */
 
+#endif /* !VBOXANETADP_DO_NOT_USE_NETFLT */
     /** Denotes availability of this slot in adapter array. */
     VBOXNETADPSTATE   enmState;
+#ifdef VBOXANETADP_DO_NOT_USE_NETFLT
 
     /* --- Unprotected. Atomic access. --- */
 
@@ -109,7 +122,7 @@ struct VBoxNetAdapter
     RTSEMEVENT        hEventIdle;
 #endif /* !VBOXANETADP_DO_NOT_USE_NETFLT */
     /** Corresponds to the digit at the end of device name. */
-    uint8_t           uUnit;
+    uint32_t          uUnit;
 
     union
     {
@@ -127,6 +140,13 @@ struct VBoxNetAdapter
             RTMAC             Mac;
             /** Protocol families attached to this adapter. */
             protocol_family_t aAttachedFamilies[VBOXNETADP_MAX_FAMILIES];
+            /** @} */
+# elif defined(RT_OS_LINUX)
+            /** @name Darwin instance data.
+             * @{ */
+            /** Pointer to Linux network device structure. */
+            struct net_device *pNetDev;
+            /** @} */
 # else
 # error PORTME
 # endif
@@ -140,7 +160,7 @@ struct VBoxNetAdapter
         uint8_t abPadding[1024];
 # endif
 #elif defined(RT_OS_LINUX)
-        uint8_t abPadding[320];
+        uint8_t abPadding[64];
 #else
         uint8_t abPadding[64];
 #endif
@@ -150,6 +170,12 @@ struct VBoxNetAdapter
 };
 typedef struct VBoxNetAdapter VBOXNETADP;
 typedef VBOXNETADP *PVBOXNETADP;
+
+DECLHIDDEN(int) vboxNetAdpInit(void);
+DECLHIDDEN(void) vboxNetAdpShutdown(void);
+DECLHIDDEN(int) vboxNetAdpCreate (PVBOXNETADP *ppNew);
+DECLHIDDEN(int) vboxNetAdpDestroy(PVBOXNETADP pThis);
+DECLHIDDEN(PVBOXNETADP) vboxNetAdpFindByName(const char *pszName);
 
 #ifdef VBOXANETADP_DO_NOT_USE_NETFLT
 /**
@@ -194,7 +220,7 @@ DECLHIDDEN(int) vboxNetAdpInitGlobalsBase(PVBOXNETADPGLOBALS pGlobals);
 DECLHIDDEN(int) vboxNetAdpInitIdc(PVBOXNETADPGLOBALS pGlobals);
 DECLHIDDEN(void) vboxNetAdpDeleteGlobalsBase(PVBOXNETADPGLOBALS pGlobals);
 DECLHIDDEN(int) vboxNetAdpTryDeleteIdc(PVBOXNETADPGLOBALS pGlobals);
-                 
+
 
 
 /** @name The OS specific interface.
@@ -274,6 +300,9 @@ DECLHIDDEN(int) vboxNetAdpOsDisconnectIt(PVBOXNETADP pThis);
  */
 DECLHIDDEN(int) vboxNetAdpOsConnectIt(PVBOXNETADP pThis);
 
+/** @} */
+#endif /* !VBOXANETADP_DO_NOT_USE_NETFLT */
+
 /**
  * This is called to perform OS-specific structure initializations.
  *
@@ -306,11 +335,9 @@ DECLHIDDEN(void) vboxNetAdpOsDestroy(PVBOXNETADP pThis);
  */
 DECLHIDDEN(int) vboxNetAdpOsCreate(PVBOXNETADP pThis, PCRTMAC pMac);
 
-/** @} */
-#endif /* !VBOXANETADP_DO_NOT_USE_NETFLT */
 
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

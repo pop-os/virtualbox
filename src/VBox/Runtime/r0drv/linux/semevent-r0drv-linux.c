@@ -1,4 +1,4 @@
-/* $Id: semevent-r0drv-linux.c $ */
+/* $Id: semevent-r0drv-linux.c 19888 2009-05-21 15:25:42Z vboxsync $ */
 /** @file
  * IPRT - Single Release Event Semaphores, Ring-0 Driver, Linux.
  */
@@ -66,6 +66,7 @@ RTDECL(int)  RTSemEventCreate(PRTSEMEVENT pEventSem)
     if (pEventInt)
     {
         pEventInt->u32Magic = RTSEMEVENT_MAGIC;
+        pEventInt->fState   = 0;
         init_waitqueue_head(&pEventInt->Head);
         *pEventSem = pEventInt;
         return VINF_SUCCESS;
@@ -91,8 +92,8 @@ RTDECL(int)  RTSemEventDestroy(RTSEMEVENT EventSem)
     /*
      * Invalidate it and signal the object just in case.
      */
-    ASMAtomicIncU32(&pEventInt->u32Magic);
-    ASMAtomicXchgU32(&pEventInt->fState, 0);
+    ASMAtomicWriteU32(&pEventInt->u32Magic, ~RTSEMEVENT_MAGIC);
+    ASMAtomicWriteU32(&pEventInt->fState, 0);
     Assert(!waitqueue_active(&pEventInt->Head));
     wake_up_all(&pEventInt->Head);
     RTMemFree(pEventInt);
@@ -118,7 +119,7 @@ RTDECL(int)  RTSemEventSignal(RTSEMEVENT EventSem)
     /*
      * Signal the event object.
      */
-    ASMAtomicXchgU32(&pEventInt->fState, 1);
+    ASMAtomicWriteU32(&pEventInt->fState, 1);
     wake_up(&pEventInt->Head);
 
     return VINF_SUCCESS;

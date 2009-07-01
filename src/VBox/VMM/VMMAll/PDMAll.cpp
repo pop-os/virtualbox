@@ -1,4 +1,4 @@
-/* $Id: PDMAll.cpp $ */
+/* $Id: PDMAll.cpp 20874 2009-06-24 02:19:29Z vboxsync $ */
 /** @file
  * PDM Critical Sections
  */
@@ -39,19 +39,21 @@
  * Gets the pending interrupt.
  *
  * @returns VBox status code.
- * @param   pVM             VM handle.
+ * @param   pVCpu           VMCPU handle.
  * @param   pu8Interrupt    Where to store the interrupt on success.
  */
-VMMDECL(int) PDMGetInterrupt(PVM pVM, uint8_t *pu8Interrupt)
+VMMDECL(int) PDMGetInterrupt(PVMCPU pVCpu, uint8_t *pu8Interrupt)
 {
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
+
     pdmLock(pVM);
 
     /*
      * The local APIC has a higer priority than the PIC.
      */
-    if (VM_FF_ISSET(pVM, VM_FF_INTERRUPT_APIC))
+    if (VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC))
     {
-        VM_FF_CLEAR(pVM, VM_FF_INTERRUPT_APIC);
+        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_APIC);
         Assert(pVM->pdm.s.Apic.CTX_SUFF(pDevIns));
         Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnGetInterrupt));
         int i = pVM->pdm.s.Apic.CTX_SUFF(pfnGetInterrupt)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns));
@@ -67,9 +69,9 @@ VMMDECL(int) PDMGetInterrupt(PVM pVM, uint8_t *pu8Interrupt)
     /*
      * Check the PIC.
      */
-    if (VM_FF_ISSET(pVM, VM_FF_INTERRUPT_PIC))
+    if (VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC))
     {
-        VM_FF_CLEAR(pVM, VM_FF_INTERRUPT_PIC);
+        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_PIC);
         Assert(pVM->pdm.s.Pic.CTX_SUFF(pDevIns));
         Assert(pVM->pdm.s.Pic.CTX_SUFF(pfnGetInterrupt));
         int i = pVM->pdm.s.Pic.CTX_SUFF(pfnGetInterrupt)(pVM->pdm.s.Pic.CTX_SUFF(pDevIns));
@@ -144,6 +146,18 @@ VMMDECL(int) PDMIoApicSetIrq(PVM pVM, uint8_t u8Irq, uint8_t u8Level)
 
 
 /**
+ * Returns presence of an IO-APIC
+ *
+ * @returns VBox true if IO-APIC is present
+ * @param   pVM             VM handle.
+ */
+VMMDECL(bool) PDMHasIoApic(PVM pVM)
+{
+    return pVM->pdm.s.IoApic.CTX_SUFF(pDevIns) != NULL;
+}
+
+
+/**
  * Set the APIC base.
  *
  * @returns VBox status code.
@@ -211,16 +225,17 @@ VMMDECL(int) PDMApicHasPendingIrq(PVM pVM, bool *pfPending)
  * Set the TPR (task priority register?).
  *
  * @returns VBox status code.
- * @param   pVM             VM handle.
+ * @param   pVCpu           VMCPU handle.
  * @param   u8TPR           The new TPR.
  */
-VMMDECL(int) PDMApicSetTPR(PVM pVM, uint8_t u8TPR)
+VMMDECL(int) PDMApicSetTPR(PVMCPU pVCpu, uint8_t u8TPR)
 {
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
     if (pVM->pdm.s.Apic.CTX_SUFF(pDevIns))
     {
         Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnSetTPR));
         pdmLock(pVM);
-        pVM->pdm.s.Apic.CTX_SUFF(pfnSetTPR)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), u8TPR);
+        pVM->pdm.s.Apic.CTX_SUFF(pfnSetTPR)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu->idCpu, u8TPR);
         pdmUnlock(pVM);
         return VINF_SUCCESS;
     }
@@ -232,20 +247,22 @@ VMMDECL(int) PDMApicSetTPR(PVM pVM, uint8_t u8TPR)
  * Get the TPR (task priority register).
  *
  * @returns The current TPR.
- * @param   pVM             VM handle.
+ * @param   pVCpu           VMCPU handle.
  * @param   pu8TPR          Where to store the TRP.
  * @param   pfPending       Pending interrupt state (out).
 */
-VMMDECL(int) PDMApicGetTPR(PVM pVM, uint8_t *pu8TPR, bool *pfPending)
+VMMDECL(int) PDMApicGetTPR(PVMCPU pVCpu, uint8_t *pu8TPR, bool *pfPending)
 {
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
     if (pVM->pdm.s.Apic.CTX_SUFF(pDevIns))
     {
         Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnGetTPR));
-        pdmLock(pVM);
-        *pu8TPR = pVM->pdm.s.Apic.CTX_SUFF(pfnGetTPR)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns));
+        /* We don't acquire the PDM lock here as we're just reading information. Doing so causes massive
+         * contention as this function is called very often by each and every VCPU.
+         */
+        *pu8TPR = pVM->pdm.s.Apic.CTX_SUFF(pfnGetTPR)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu->idCpu);
         if (pfPending)
             *pfPending = pVM->pdm.s.Apic.CTX_SUFF(pfnHasPendingIrq)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns));
-        pdmUnlock(pVM);
         return VINF_SUCCESS;
     }
     *pu8TPR = 0;
@@ -310,13 +327,7 @@ void pdmLock(PVM pVM)
 #else
     int rc = PDMCritSectEnter(&pVM->pdm.s.CritSect, VERR_GENERAL_FAILURE);
     if (rc == VERR_GENERAL_FAILURE)
-    {
-# ifdef IN_RC
-        rc = VMMGCCallHost(pVM, VMMCALLHOST_PDM_LOCK, 0);
-# else
-        rc = VMMR0CallHost(pVM, VMMCALLHOST_PDM_LOCK, 0);
-# endif
-    }
+        rc = VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_PDM_LOCK, 0);
 #endif
     AssertRC(rc);
 }

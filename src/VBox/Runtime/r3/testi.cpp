@@ -1,4 +1,4 @@
-/* $Id: testi.cpp $ */
+/* $Id: testi.cpp 19944 2009-05-23 21:48:08Z vboxsync $ */
 /** @file
  * IPRT - Testcase Framework, the implicit test handle API variation.
  */
@@ -49,6 +49,34 @@ RTR3DECL(int) RTTestIPrintf(RTTESTLVL enmLevel, const char *pszFormat, ...)
     int cch = RTTestPrintfV(NIL_RTTEST, enmLevel, pszFormat, va);
     va_end(va);
     return cch;
+}
+
+
+RTR3DECL(int) RTTestISub(const char *pszSubTest)
+{
+    return RTTestSub(NIL_RTTEST, pszSubTest);
+}
+
+
+RTR3DECL(int) RTTestISubF(const char *pszSubTestFmt, ...)
+{
+    va_list va;
+    va_start(va, pszSubTestFmt);
+    int cch = RTTestSubV(NIL_RTTEST, pszSubTestFmt, va);
+    va_end(va);
+    return cch;
+}
+
+
+RTR3DECL(int) RTTestISubV(const char *pszSubTestFmt, va_list va)
+{
+    return RTTestSubV(NIL_RTTEST, pszSubTestFmt, va);
+}
+
+
+RTR3DECL(int) RTTestISubDone(void)
+{
+    return RTTestSubDone(NIL_RTTEST);
 }
 
 

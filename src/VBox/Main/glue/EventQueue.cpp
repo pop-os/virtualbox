@@ -1,4 +1,4 @@
-/* $Id: EventQueue.cpp $ */
+/* $Id: EventQueue.cpp 16555 2009-02-06 16:21:41Z vboxsync $ */
 
 /** @file
  *

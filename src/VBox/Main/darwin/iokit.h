@@ -1,4 +1,4 @@
-/* $Id: iokit.h $ */
+/* $Id: iokit.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * Main - Darwin IOKit Routines.
  */
@@ -76,7 +76,7 @@ typedef DARWINETHERNIC *PDARWINETHERNIC;
  * notifications events. */
 #define VBOX_IOKIT_MODE_STRING "VBoxIOKitMode"
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 #ifdef VBOX_WITH_USB
 void *          DarwinSubscribeUSBNotifications(void);
 void            DarwinUnsubscribeUSBNotifications(void *pvOpaque);
@@ -86,7 +86,7 @@ int             DarwinReEnumerateUSBDevice(PCUSBDEVICE pCur);
 #endif /* VBOX_WITH_USB */
 PDARWINDVD      DarwinGetDVDDrives(void);
 PDARWINETHERNIC DarwinGetEthernetControllers(void);
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

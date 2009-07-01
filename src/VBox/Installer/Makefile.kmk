@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 20488 2009-06-12 09:09:32Z vboxsync $
 ## @file
 # Install misc stuff and create dist packages.
 #
@@ -38,9 +38,7 @@ ifndef VBOX_ONLY_SDK
  if "$(KBUILD_TARGET)" == "win" && "$(KBUILD_HOST)" == "win"
   include $(PATH_SUB_CURRENT)/win/Makefile.kmk
  endif
- ifndef VBOX_OSE
-  include $(PATH_SUB_CURRENT)/common/Makefile.kmk
- endif
+ include $(PATH_SUB_CURRENT)/common/Makefile.kmk
 endif
 
 if defined(VBOX_ONLY_SDK) ## @todo || defined(VBOX_WITH_SDK)
@@ -51,11 +49,14 @@ if defined(VBOX_ONLY_SDK) ## @todo || defined(VBOX_WITH_SDK)
  PACKING      += $(VBOX_SDK_ZIP)
  OTHER_CLEANS += $(VBOX_SDK_ZIP) \
                  $(wildcard $(PATH_BIN)/VirtualBoxSDK-*-r*.zip)
+
+ VBOX_ZIP     ?= zip
+# @todo: wrong, it must depend on everything included in SDK
 $(VBOX_SDK_ZIP): \
 		$(PATH_BIN)/sdk \
 		$(VBOX_VERSION_STAMP)
 	$(call MSG_L1,Making SDK delivery $@)
-	$(QUIET)$(REDIRECT) -C $(PATH_BIN) -- zip -r9 $@ sdk > /dev/null
+	$(QUIET)$(REDIRECT) $(if $(QUIET),-wo /dev/null,) -C $(PATH_BIN) -- $(VBOX_ZIP) -r9 $@ sdk
 endif
 
 

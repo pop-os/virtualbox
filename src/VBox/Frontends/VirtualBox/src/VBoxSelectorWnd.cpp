@@ -645,7 +645,7 @@ VBoxSelectorWnd (VBoxSelectorWnd **aSelf, QWidget* aParent,
         CVirtualBox vbox = vboxGlobal().virtualBox();
         QString prevVMId = vbox.GetExtraData (VBoxDefs::GUI_LastVMSelected);
 
-        mVMListView->selectItemById (QUuid (prevVMId));
+        mVMListView->selectItemById (prevVMId);
     }
 
     /* refresh the details et all (necessary for the case when the stored
@@ -716,8 +716,16 @@ VBoxSelectorWnd::~VBoxSelectorWnd()
 
     /* Save the position of the window */
     {
+        int y = mNormalGeo.y();
+#if defined (Q_WS_MAC) && !defined (QT_MAC_USE_COCOA)
+        /* The toolbar counts to the content not to the frame. Unfortunaly the
+         * toolbar isn't fully initialized when this window will be moved to
+         * the last position after VBox starting. As a workaround just do
+         * remove the toolbar height part when save the last position. */
+        y -= ::darwinWindowToolBarHeight (this);
+#endif /* Q_WS_MAC && !QT_MAC_USE_COCOA */
         QString winPos = QString ("%1,%2,%3,%4")
-            .arg (mNormalGeo.x()).arg (mNormalGeo.y())
+            .arg (mNormalGeo.x()).arg (y)
             .arg (mNormalGeo.width()).arg (mNormalGeo.height());
         if (isMaximized())
             winPos += QString (",%1").arg (VBoxDefs::GUI_LastWindowPosition_Max);
@@ -825,7 +833,7 @@ void VBoxSelectorWnd::vmNew()
  *  Opens the VM settings dialog.
  */
 void VBoxSelectorWnd::vmSettings (const QString &aCategory, const QString &aControl,
-                                  const QUuid &aUuid /*= QUuid_null*/)
+                                  const QString &aUuid /*= QUuid_null*/)
 {
     if (!aCategory.isEmpty() && aCategory [0] != '#')
     {
@@ -840,7 +848,7 @@ void VBoxSelectorWnd::vmSettings (const QString &aCategory, const QString &aCont
     AssertMsgReturnVoid (item, ("Item must be always selected here"));
 
     // open a direct session to modify VM settings
-    QUuid id = item->id();
+    QString id = item->id();
     CSession session = vboxGlobal().openSession (id);
     if (session.isNull())
         return;
@@ -876,7 +884,7 @@ void VBoxSelectorWnd::vmSettings (const QString &aCategory, const QString &aCont
     session.Close();
 }
 
-void VBoxSelectorWnd::vmDelete (const QUuid &aUuid /*= QUuid_null*/)
+void VBoxSelectorWnd::vmDelete (const QString &aUuid /*= QUuid_null*/)
 {
     VBoxVMItem *item = aUuid.isNull() ? mVMListView->selectedItem() :
                        mVMModel->itemById (aUuid);
@@ -886,7 +894,7 @@ void VBoxSelectorWnd::vmDelete (const QUuid &aUuid /*= QUuid_null*/)
     if (vboxProblem().confirmMachineDeletion (item->machine()))
     {
         CVirtualBox vbox = vboxGlobal().virtualBox();
-        QUuid id = item->id();
+        QString id = item->id();
         bool ok = false;
         if (item->accessible())
         {
@@ -942,15 +950,16 @@ void VBoxSelectorWnd::vmDelete (const QUuid &aUuid /*= QUuid_null*/)
     }
 }
 
-void VBoxSelectorWnd::vmStart (const QUuid &aUuid /*= QUuid_null*/)
+void VBoxSelectorWnd::vmStart (const QString &aUuid /*= QUuid_null*/)
 {
-    VBoxVMItem *item = aUuid.isNull() ? mVMListView->selectedItem() :
+    QUuid uuid (aUuid);
+    VBoxVMItem *item = uuid.isNull() ? mVMListView->selectedItem() :
                        mVMModel->itemById (aUuid);
 
     AssertMsgReturnVoid (item, ("Item must be always selected here"));
 
     /* Are we called from the mVMListView's activated() signal? */
-    if (aUuid.isNull())
+    if (uuid.isNull())
     {
         /* We always get here when mVMListView emits the activated() signal,
          * so we must explicitly check if the action is enabled or not. */
@@ -973,7 +982,7 @@ void VBoxSelectorWnd::vmStart (const QUuid &aUuid /*= QUuid_null*/)
     AssertMsg (item->state() < KMachineState_Running,
                ("Machine must be PoweredOff/Saved/Aborted"));
 
-    QUuid id = item->id();
+    QString id = item->id();
     CVirtualBox vbox = vboxGlobal().virtualBox();
     CSession session;
 
@@ -1024,7 +1033,7 @@ void VBoxSelectorWnd::vmStart (const QUuid &aUuid /*= QUuid_null*/)
 #endif
 }
 
-void VBoxSelectorWnd::vmDiscard (const QUuid &aUuid /*= QUuid_null*/)
+void VBoxSelectorWnd::vmDiscard (const QString &aUuid /*= QUuid_null*/)
 {
     VBoxVMItem *item = aUuid.isNull() ? mVMListView->selectedItem() :
                        mVMModel->itemById (aUuid);
@@ -1035,7 +1044,7 @@ void VBoxSelectorWnd::vmDiscard (const QUuid &aUuid /*= QUuid_null*/)
         return;
 
     /* open a session to modify VM settings */
-    QUuid id = item->id();
+    QString id = item->id();
     CSession session;
     CVirtualBox vbox = vboxGlobal().virtualBox();
     session.createInstance (CLSID_Session);
@@ -1052,14 +1061,14 @@ void VBoxSelectorWnd::vmDiscard (const QUuid &aUuid /*= QUuid_null*/)
     }
 
     CConsole console = session.GetConsole();
-    console.DiscardSavedState();
+    console.ForgetSavedState(true);
     if (!console.isOk())
         vboxProblem().cannotDiscardSavedState (console);
 
     session.Close();
 }
 
-void VBoxSelectorWnd::vmPause (bool aPause, const QUuid &aUuid /*= QUuid_null*/)
+void VBoxSelectorWnd::vmPause (bool aPause, const QString &aUuid /*= QUuid_null*/)
 {
     VBoxVMItem *item = aUuid.isNull() ? mVMListView->selectedItem() :
                        mVMModel->itemById (aUuid);
@@ -1091,7 +1100,7 @@ void VBoxSelectorWnd::vmPause (bool aPause, const QUuid &aUuid /*= QUuid_null*/)
     session.Close();
 }
 
-void VBoxSelectorWnd::vmRefresh (const QUuid &aUuid /*= QUuid_null*/)
+void VBoxSelectorWnd::vmRefresh (const QString &aUuid /*= QUuid_null*/)
 {
     VBoxVMItem *item = aUuid.isNull() ? mVMListView->selectedItem() :
                        mVMModel->itemById (aUuid);
@@ -1109,7 +1118,7 @@ void VBoxSelectorWnd::vmRefresh (const QUuid &aUuid /*= QUuid_null*/)
         vboxGlobal().checkForAutoConvertedSettingsAfterRefresh();
 }
 
-void VBoxSelectorWnd::vmShowLogs (const QUuid &aUuid /*= QUuid_null*/)
+void VBoxSelectorWnd::vmShowLogs (const QString &aUuid /*= QUuid_null*/)
 {
     VBoxVMItem *item = aUuid.isNull() ? mVMListView->selectedItem() :
                        mVMModel->itemById (aUuid);
@@ -1137,7 +1146,7 @@ void VBoxSelectorWnd::refreshVMList()
 #endif
 }
 
-void VBoxSelectorWnd::refreshVMItem (const QUuid &aID, bool aDetails,
+void VBoxSelectorWnd::refreshVMItem (const QString &aID, bool aDetails,
                                                        bool aSnapshots,
                                                        bool aDescription)
 {
@@ -1403,8 +1412,7 @@ void VBoxSelectorWnd::vmListViewCurrentChanged (bool aRefreshDetails,
         if (aRefreshDetails)
         {
             mVmDetailsView->setDetailsText (
-                vboxGlobal().detailsReport (m, false /* isNewVM */,
-                                            modifyEnabled /* withLinks */));
+                vboxGlobal().detailsReport (m, modifyEnabled /* withLinks */));
         }
         if (aRefreshSnapshots)
         {
@@ -1816,8 +1824,8 @@ void VBoxTrayIcon::showSubMenu ()
     if ((pMenu = qobject_cast<QMenu*>(sender())))
     {
         vID = pMenu->menuAction()->data();
-        if (vID.canConvert<QUuid>() && mVMModel)
-            pItem = mVMModel->itemById (qvariant_cast<QUuid>(vID));
+        if (vID.canConvert<QString>() && mVMModel)
+            pItem = mVMModel->itemById (qvariant_cast<QString>(vID));
     }
 
     mVmConfigAction->setData (vID);
@@ -1934,8 +1942,8 @@ void VBoxTrayIcon::hideSubMenu ()
     if (QMenu *pMenu = qobject_cast<QMenu*>(sender()))
     {
         vID = pMenu->menuAction()->data();
-        if (vID.canConvert<QUuid>() && mVMModel)
-            pItem = mVMModel->itemById (qvariant_cast<QUuid>(vID));
+        if (vID.canConvert<QString>() && mVMModel)
+            pItem = mVMModel->itemById (qvariant_cast<QString>(vID));
     }
 
     /* Nothing to do here yet. */
@@ -2009,8 +2017,8 @@ VBoxVMItem* VBoxTrayIcon::GetItem (QObject* aObject)
     if (QAction *pAction = qobject_cast<QAction*>(sender()))
     {
         QVariant v = pAction->data();
-        if (v.canConvert<QUuid>() && mVMModel)
-            pItem = mVMModel->itemById (qvariant_cast<QUuid>(v));
+        if (v.canConvert<QString>() && mVMModel)
+            pItem = mVMModel->itemById (qvariant_cast<QString>(v));
     }
 
     Assert (pItem);

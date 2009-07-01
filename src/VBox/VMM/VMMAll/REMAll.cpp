@@ -1,4 +1,4 @@
-/* $Id: REMAll.cpp $ */
+/* $Id: REMAll.cpp 20874 2009-06-24 02:19:29Z vboxsync $ */
 /** @file
  * REM - Recompiled Execution Monitor, all Contexts part.
  */
@@ -21,10 +21,11 @@
 
 
 /*******************************************************************************
-*   Global Variables                                                           *
+*   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_REM
 #include <VBox/rem.h>
+#include <VBox/em.h>
 #include <VBox/vmm.h>
 #include "REMInternal.h"
 #include <VBox/vm.h>
@@ -40,25 +41,37 @@
  * Records a invlpg instruction for replaying upon REM entry.
  *
  * @returns VINF_SUCCESS on success.
- * @returns VERR_REM_FLUSHED_PAGES_OVERFLOW if a return to HC for flushing of
- *          recorded pages is required before the call can succeed.
  * @param   pVM         The VM handle.
  * @param   GCPtrPage   The
  */
 VMMDECL(int) REMNotifyInvalidatePage(PVM pVM, RTGCPTR GCPtrPage)
 {
-    if (pVM->rem.s.cInvalidatedPages < RT_ELEMENTS(pVM->rem.s.aGCPtrInvalidatedPages))
+    /*
+     * Try take the REM lock and push the address onto the array.
+     */
+    if (   pVM->rem.s.cInvalidatedPages < RT_ELEMENTS(pVM->rem.s.aGCPtrInvalidatedPages)
+        && EMTryEnterRemLock(pVM) == VINF_SUCCESS)
     {
-        /*
-         * We sync them back in REMR3State.
-         */
-        pVM->rem.s.aGCPtrInvalidatedPages[pVM->rem.s.cInvalidatedPages++] = GCPtrPage;
+        uint32_t iPage = pVM->rem.s.cInvalidatedPages;
+        if (iPage < RT_ELEMENTS(pVM->rem.s.aGCPtrInvalidatedPages))
+        {
+            ASMAtomicWriteU32(&pVM->rem.s.cInvalidatedPages, iPage + 1);
+            pVM->rem.s.aGCPtrInvalidatedPages[iPage] = GCPtrPage;
+
+            EMRemUnlock(pVM);
+            return VINF_SUCCESS;
+        }
+
+        CPUMSetChangedFlags(VMMGetCpu(pVM), CPUM_CHANGED_GLOBAL_TLB_FLUSH); /** @todo this should be flagged globally, not locally! ... this array should be per-cpu technically speaking. */
+        ASMAtomicWriteU32(&pVM->rem.s.cInvalidatedPages, 0); /** @todo leave this alone? Optimize this code? */
+
+        EMRemUnlock(pVM);
     }
     else
     {
-        /* Tell the recompiler to flush its TLB. */
-        CPUMSetChangedFlags(pVM, CPUM_CHANGED_GLOBAL_TLB_FLUSH);
-        pVM->rem.s.cInvalidatedPages = 0;
+        /* Fallback: Simply tell the recompiler to flush its TLB. */
+        CPUMSetChangedFlags(VMMGetCpu(pVM), CPUM_CHANGED_GLOBAL_TLB_FLUSH);
+        ASMAtomicWriteU32(&pVM->rem.s.cInvalidatedPages, 0); /** @todo leave this alone?! Optimize this code? */
     }
 
     return VINF_SUCCESS;
@@ -66,21 +79,53 @@ VMMDECL(int) REMNotifyInvalidatePage(PVM pVM, RTGCPTR GCPtrPage)
 
 
 /**
- * Flushes the handler notifications by calling the host.
+ * Insert pending notification
  *
- * @param   pVM     The VM handle.
+ * @param   pVM             VM Handle.
+ * @param   pRec            Notification record to insert
  */
-static void remFlushHandlerNotifications(PVM pVM)
+static void remNotifyHandlerInsert(PVM pVM, PREMHANDLERNOTIFICATION pRec)
 {
-#ifdef IN_RC
-    VMMGCCallHost(pVM, VMMCALLHOST_REM_REPLAY_HANDLER_NOTIFICATIONS, 0);
-#elif defined(IN_RING0)
-    /** @todo necessary? */
-    VMMR0CallHost(pVM, VMMCALLHOST_REM_REPLAY_HANDLER_NOTIFICATIONS, 0);
-#else
-    AssertReleaseMsgFailed(("Ring 3 call????.\n"));
-#endif
-    Assert(pVM->rem.s.cHandlerNotifications == 0);
+    /*
+     * Fetch a free record.
+     */
+    uint32_t                cFlushes = 0;
+    uint32_t                idxFree;
+    PREMHANDLERNOTIFICATION pFree;
+    do
+    {
+        idxFree = ASMAtomicUoReadU32(&pVM->rem.s.idxFreeList);
+        if (idxFree == (uint32_t)-1)
+        {
+            do
+            {
+                Assert(cFlushes++ != 128);
+                AssertFatal(cFlushes < _1M);
+                VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_REM_REPLAY_HANDLER_NOTIFICATIONS, 0);
+                idxFree = ASMAtomicUoReadU32(&pVM->rem.s.idxFreeList);
+            } while (idxFree == (uint32_t)-1);
+        }
+        pFree = &pVM->rem.s.aHandlerNotifications[idxFree];
+    } while (!ASMAtomicCmpXchgU32(&pVM->rem.s.idxFreeList, pFree->idxNext, idxFree));
+
+    /*
+     * Copy the record.
+     */
+    pFree->enmKind = pRec->enmKind;
+    pFree->u = pRec->u;
+
+    /*
+     * Insert it into the pending list.
+     */
+    uint32_t idxNext;
+    do
+    {
+        idxNext = ASMAtomicUoReadU32(&pVM->rem.s.idxPendingList);
+        ASMAtomicWriteU32(&pFree->idxNext, idxNext);
+        ASMCompilerBarrier();
+    } while (!ASMAtomicCmpXchgU32(&pVM->rem.s.idxPendingList, idxFree, idxNext));
+
+    VM_FF_SET(pVM, VM_FF_REM_HANDLER_NOTIFY);
 }
 
 
@@ -95,15 +140,13 @@ static void remFlushHandlerNotifications(PVM pVM)
  */
 VMMDECL(void) REMNotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler)
 {
-    if (pVM->rem.s.cHandlerNotifications >= RT_ELEMENTS(pVM->rem.s.aHandlerNotifications))
-        remFlushHandlerNotifications(pVM);
-    PREMHANDLERNOTIFICATION pRec = &pVM->rem.s.aHandlerNotifications[pVM->rem.s.cHandlerNotifications++];
-    pRec->enmKind = REMHANDLERNOTIFICATIONKIND_PHYSICAL_REGISTER;
-    pRec->u.PhysicalRegister.enmType = enmType;
-    pRec->u.PhysicalRegister.GCPhys = GCPhys;
-    pRec->u.PhysicalRegister.cb = cb;
-    pRec->u.PhysicalRegister.fHasHCHandler = fHasHCHandler;
-    VM_FF_SET(pVM, VM_FF_REM_HANDLER_NOTIFY);
+    REMHANDLERNOTIFICATION Rec;
+    Rec.enmKind = REMHANDLERNOTIFICATIONKIND_PHYSICAL_REGISTER;
+    Rec.u.PhysicalRegister.enmType = enmType;
+    Rec.u.PhysicalRegister.GCPhys = GCPhys;
+    Rec.u.PhysicalRegister.cb = cb;
+    Rec.u.PhysicalRegister.fHasHCHandler = fHasHCHandler;
+    remNotifyHandlerInsert(pVM, &Rec);
 }
 
 
@@ -119,16 +162,14 @@ VMMDECL(void) REMNotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmTy
  */
 VMMDECL(void) REMNotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM)
 {
-    if (pVM->rem.s.cHandlerNotifications >= RT_ELEMENTS(pVM->rem.s.aHandlerNotifications))
-        remFlushHandlerNotifications(pVM);
-    PREMHANDLERNOTIFICATION pRec = &pVM->rem.s.aHandlerNotifications[pVM->rem.s.cHandlerNotifications++];
-    pRec->enmKind = REMHANDLERNOTIFICATIONKIND_PHYSICAL_DEREGISTER;
-    pRec->u.PhysicalDeregister.enmType = enmType;
-    pRec->u.PhysicalDeregister.GCPhys = GCPhys;
-    pRec->u.PhysicalDeregister.cb = cb;
-    pRec->u.PhysicalDeregister.fHasHCHandler = fHasHCHandler;
-    pRec->u.PhysicalDeregister.fRestoreAsRAM = fRestoreAsRAM;
-    VM_FF_SET(pVM, VM_FF_REM_HANDLER_NOTIFY);
+    REMHANDLERNOTIFICATION Rec;
+    Rec.enmKind = REMHANDLERNOTIFICATIONKIND_PHYSICAL_DEREGISTER;
+    Rec.u.PhysicalDeregister.enmType = enmType;
+    Rec.u.PhysicalDeregister.GCPhys = GCPhys;
+    Rec.u.PhysicalDeregister.cb = cb;
+    Rec.u.PhysicalDeregister.fHasHCHandler = fHasHCHandler;
+    Rec.u.PhysicalDeregister.fRestoreAsRAM = fRestoreAsRAM;
+    remNotifyHandlerInsert(pVM, &Rec);
 }
 
 
@@ -145,20 +186,50 @@ VMMDECL(void) REMNotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERTYPE enm
  */
 VMMDECL(void) REMNotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhysOld, RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM)
 {
-    if (pVM->rem.s.cHandlerNotifications >= RT_ELEMENTS(pVM->rem.s.aHandlerNotifications))
-        remFlushHandlerNotifications(pVM);
-    PREMHANDLERNOTIFICATION pRec = &pVM->rem.s.aHandlerNotifications[pVM->rem.s.cHandlerNotifications++];
-    pRec->enmKind = REMHANDLERNOTIFICATIONKIND_PHYSICAL_MODIFY;
-    pRec->u.PhysicalModify.enmType = enmType;
-    pRec->u.PhysicalModify.GCPhysOld = GCPhysOld;
-    pRec->u.PhysicalModify.GCPhysNew = GCPhysNew;
-    pRec->u.PhysicalModify.cb = cb;
-    pRec->u.PhysicalModify.fHasHCHandler = fHasHCHandler;
-    pRec->u.PhysicalModify.fRestoreAsRAM = fRestoreAsRAM;
-    VM_FF_SET(pVM, VM_FF_REM_HANDLER_NOTIFY);
+    REMHANDLERNOTIFICATION Rec;
+    Rec.enmKind = REMHANDLERNOTIFICATIONKIND_PHYSICAL_MODIFY;
+    Rec.u.PhysicalModify.enmType = enmType;
+    Rec.u.PhysicalModify.GCPhysOld = GCPhysOld;
+    Rec.u.PhysicalModify.GCPhysNew = GCPhysNew;
+    Rec.u.PhysicalModify.cb = cb;
+    Rec.u.PhysicalModify.fHasHCHandler = fHasHCHandler;
+    Rec.u.PhysicalModify.fRestoreAsRAM = fRestoreAsRAM;
+    remNotifyHandlerInsert(pVM, &Rec);
 }
 
 #endif /* !IN_RING3 */
+
+#ifdef IN_RC
+/**
+ * Flushes the physical handler notifications if the queue is almost full.
+ *
+ * This is for avoiding trouble in RC when changing CR3.
+ *
+ * @param   pVM         The VM handle.
+ * @param   pVCpu       The virtual CPU handle of the calling EMT.
+ */
+VMMDECL(void) REMNotifyHandlerPhysicalFlushIfAlmostFull(PVM pVM, PVMCPU pVCpu)
+{
+    Assert(pVM->cCPUs == 1);
+
+    /*
+     * Less than 10 items means we should flush.
+     */
+    uint32_t cFree = 0;
+    for (uint32_t idx = pVM->rem.s.idxFreeList;
+         idx != UINT32_MAX;
+         idx = pVM->rem.s.aHandlerNotifications[idx].idxNext)
+    {
+        Assert(idx < RT_ELEMENTS(pVM->rem.s.aHandlerNotifications));
+        if (++cFree > 10)
+            return;
+    }
+
+    /* Ok, we gotta flush them. */
+    VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_REM_REPLAY_HANDLER_NOTIFICATIONS, 0);
+}
+#endif /* IN_RC */
+
 
 /**
  * Make REM flush all translation block upon the next call to REMR3State().

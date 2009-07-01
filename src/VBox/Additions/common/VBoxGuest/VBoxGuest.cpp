@@ -1,4 +1,4 @@
-/* $Id: VBoxGuest.cpp $ */
+/* $Id: VBoxGuest.cpp 21023 2009-06-29 13:35:52Z vboxsync $ */
 /** @file
  * VBoxGuest - Guest Additions Driver.
  */
@@ -1383,6 +1383,8 @@ int  VBoxGuestCommonIOCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUE
  *
  * @returns true if it was our interrupt, false if it wasn't.
  * @param   pDevExt     The VBoxGuest device extension.
+ *
+ * @remarks Assums that interrupts are disabled, I think.
  */
 bool VBoxGuestCommonISR(PVBOXGUESTDEVEXT pDevExt)
 {

@@ -1,4 +1,4 @@
-/* $Id: MouseImpl.cpp $ */
+/* $Id: MouseImpl.cpp 20990 2009-06-26 17:08:47Z vboxsync $ */
 
 /** @file
  *
@@ -322,7 +322,8 @@ STDMETHODIMP Mouse::PutMouseEventAbsolute(LONG x, LONG y, LONG dz,
          * to avoid the mouse jiggling every time the use clicks, we check to
          * see if the position has really changed since the last mouse event.
          */
-        if ((mLastAbsX == mouseXAbs) && (mLastAbsY == mouseYAbs))
+        if (   ((mLastAbsX == mouseXAbs) && (mLastAbsY == mouseYAbs))
+            || (mouseCaps & VBOXGUEST_MOUSE_GUEST_USES_VMMDEV))
             vrc = mpDrv->pUpPort->pfnPutEvent(mpDrv->pUpPort, 0, 0, dz,
                                               fButtons);
         else

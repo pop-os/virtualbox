@@ -37,7 +37,7 @@
 #endif
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_critsect       RTCritSect - Critical Sections
  * @ingroup grp_rt
@@ -234,20 +234,6 @@ RTDECL(int) RTCritSectLeaveMultiple(unsigned cCritSects, PRTCRITSECT *papCritSec
  */
 RTDECL(int) RTCritSectDelete(PRTCRITSECT pCritSect);
 
-
-/**
- * Checks if a critical section is initialized or not.
- *
- * @returns true if initialized.
- * @returns false if not initialized.
- * @param   pCritSect   The critical section.
- */
-DECLINLINE(bool) RTCritSectIsInitialized(PCRTCRITSECT pCritSect)
-{
-    return pCritSect->u32Magic == RTCRITSECT_MAGIC;
-}
-
-
 /**
  * Checks the caller is the owner of the critical section.
  *
@@ -260,6 +246,7 @@ DECLINLINE(bool) RTCritSectIsOwner(PCRTCRITSECT pCritSect)
     return pCritSect->NativeThreadOwner == RTThreadNativeSelf();
 }
 
+#endif /* IN_RING3 */
 
 /**
  * Checks the section is owned by anyone.
@@ -273,7 +260,6 @@ DECLINLINE(bool) RTCritSectIsOwned(PCRTCRITSECT pCritSect)
     return pCritSect->NativeThreadOwner != NIL_RTNATIVETHREAD;
 }
 
-
 /**
  * Gets the thread id of the critical section owner.
  *
@@ -286,6 +272,17 @@ DECLINLINE(RTNATIVETHREAD) RTCritSectGetOwner(PCRTCRITSECT pCritSect)
     return pCritSect->NativeThreadOwner;
 }
 
+/**
+ * Checks if a critical section is initialized or not.
+ *
+ * @returns true if initialized.
+ * @returns false if not initialized.
+ * @param   pCritSect   The critical section.
+ */
+DECLINLINE(bool) RTCritSectIsInitialized(PCRTCRITSECT pCritSect)
+{
+    return pCritSect->u32Magic == RTCRITSECT_MAGIC;
+}
 
 /**
  * Gets the recursion depth.
@@ -298,10 +295,20 @@ DECLINLINE(uint32_t) RTCritSectGetRecursion(PCRTCRITSECT pCritSect)
     return pCritSect->cNestings;
 }
 
-#endif /* IN_RING3 */
+/**
+ * Gets the waiter count
+ *
+ * @returns The waiter count
+ * @param   pCritSect       The Critical section
+ */
+DECLINLINE(int32_t) RTCritSectGetWaiters(PCRTCRITSECT pCritSect)
+{
+    return pCritSect->cLockers;
+}
+
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

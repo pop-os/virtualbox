@@ -1,4 +1,4 @@
-/* $Id: PGMShw.h $ */
+/* $Id: PGMShw.h 20810 2009-06-23 09:27:38Z vboxsync $ */
 /** @file
  * VBox - Page Manager / Monitor, Shadow Paging Template.
  */
@@ -117,17 +117,17 @@
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 /* r3 */
 PGM_SHW_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR0);
-PGM_SHW_DECL(int, Enter)(PVM pVM);
-PGM_SHW_DECL(int, Relocate)(PVM pVM, RTGCPTR offDelta);
-PGM_SHW_DECL(int, Exit)(PVM pVM);
+PGM_SHW_DECL(int, Enter)(PVMCPU pVCpu);
+PGM_SHW_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta);
+PGM_SHW_DECL(int, Exit)(PVMCPU pVCpu);
 
 /* all */
-PGM_SHW_DECL(int, GetPage)(PVM pVM, RTGCPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys);
-PGM_SHW_DECL(int, ModifyPage)(PVM pVM, RTGCPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask);
-__END_DECLS
+PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys);
+PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask);
+RT_C_DECLS_END
 
 
 /**
@@ -174,32 +174,30 @@ PGM_SHW_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
  * Enters the shadow mode.
  *
  * @returns VBox status code.
- * @param   pVM         VM handle.
+ * @param   pVCpu       The VMCPU to operate on.
  */
-PGM_SHW_DECL(int, Enter)(PVM pVM)
+PGM_SHW_DECL(int, Enter)(PVMCPU pVCpu)
 {
 #if PGM_SHW_TYPE == PGM_TYPE_NESTED || PGM_SHW_TYPE == PGM_TYPE_EPT
     RTGCPHYS     GCPhysCR3 = RT_BIT_64(63);
     PPGMPOOLPAGE pNewShwPageCR3;
+    PVM          pVM       = pVCpu->pVMR3;
     PPGMPOOL     pPool     = pVM->pgm.s.CTX_SUFF(pPool);
 
     Assert(HWACCMIsNestedPagingActive(pVM));
-    Assert(!pVM->pgm.s.pShwPageCR3R3);
+    Assert(!pVCpu->pgm.s.pShwPageCR3R3);
 
-    int rc = pgmPoolAlloc(pVM, GCPhysCR3, PGMPOOLKIND_ROOT_NESTED, PGMPOOL_IDX_NESTED_ROOT, GCPhysCR3 >> PAGE_SHIFT, &pNewShwPageCR3);
-    AssertFatal(rc == VINF_SUCCESS);
+    int rc = pgmPoolAlloc(pVM, GCPhysCR3, PGMPOOLKIND_ROOT_NESTED, PGMPOOL_IDX_NESTED_ROOT, GCPhysCR3 >> PAGE_SHIFT, &pNewShwPageCR3, true /* lock page */);
+    AssertFatalRC(rc);
 
-    /* Mark the page as locked; disallow flushing. */
-    pgmPoolLockPage(pPool, pNewShwPageCR3);
+    pVCpu->pgm.s.iShwUser      = PGMPOOL_IDX_NESTED_ROOT;
+    pVCpu->pgm.s.iShwUserTable = GCPhysCR3 >> PAGE_SHIFT;
+    pVCpu->pgm.s.pShwPageCR3R3 = pNewShwPageCR3;
 
-    pVM->pgm.s.iShwUser      = PGMPOOL_IDX_NESTED_ROOT;
-    pVM->pgm.s.iShwUserTable = GCPhysCR3 >> PAGE_SHIFT;
-    pVM->pgm.s.pShwPageCR3R3 = pNewShwPageCR3;
+    pVCpu->pgm.s.pShwPageCR3RC = MMHyperCCToRC(pVM, pVCpu->pgm.s.pShwPageCR3R3);
+    pVCpu->pgm.s.pShwPageCR3R0 = MMHyperCCToR0(pVM, pVCpu->pgm.s.pShwPageCR3R3);
 
-    pVM->pgm.s.pShwPageCR3RC = MMHyperCCToRC(pVM, pVM->pgm.s.pShwPageCR3R3);
-    pVM->pgm.s.pShwPageCR3R0 = MMHyperCCToR0(pVM, pVM->pgm.s.pShwPageCR3R3);
-
-    Log(("Enter nested shadow paging mode: root %RHv phys %RHp\n", pVM->pgm.s.pShwPageCR3R3, pVM->pgm.s.CTX_SUFF(pShwPageCR3)->Core.Key));
+    Log(("Enter nested shadow paging mode: root %RHv phys %RHp\n", pVCpu->pgm.s.pShwPageCR3R3, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3)->Core.Key));
 #endif
     return VINF_SUCCESS;
 }
@@ -209,12 +207,12 @@ PGM_SHW_DECL(int, Enter)(PVM pVM)
  * Relocate any GC pointers related to shadow mode paging.
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
+ * @param   pVCpu       The VMCPU to operate on.
  * @param   offDelta    The reloation offset.
  */
-PGM_SHW_DECL(int, Relocate)(PVM pVM, RTGCPTR offDelta)
+PGM_SHW_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta)
 {
-    /* nothing special to do here - InitData does the job. */
+    pVCpu->pgm.s.pShwPageCR3RC += offDelta;
     return VINF_SUCCESS;
 }
 
@@ -223,29 +221,32 @@ PGM_SHW_DECL(int, Relocate)(PVM pVM, RTGCPTR offDelta)
  * Exits the shadow mode.
  *
  * @returns VBox status code.
- * @param   pVM         VM handle.
+ * @param   pVCpu       The VMCPU to operate on.
  */
-PGM_SHW_DECL(int, Exit)(PVM pVM)
+PGM_SHW_DECL(int, Exit)(PVMCPU pVCpu)
 {
-#if PGM_SHW_TYPE == PGM_TYPE_NESTED || PGM_SHW_TYPE == PGM_TYPE_EPT
-    if (pVM->pgm.s.CTX_SUFF(pShwPageCR3))
+    PVM pVM = pVCpu->pVMR3;
+
+    if (    (   pVCpu->pgm.s.enmShadowMode == PGMMODE_NESTED
+             || pVCpu->pgm.s.enmShadowMode == PGMMODE_EPT)
+        &&  pVCpu->pgm.s.CTX_SUFF(pShwPageCR3))
     {
         PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
 
-        Assert(pVM->pgm.s.iShwUser == PGMPOOL_IDX_NESTED_ROOT);
+        Assert(pVCpu->pgm.s.iShwUser == PGMPOOL_IDX_NESTED_ROOT);
 
         /* Mark the page as unlocked; allow flushing again. */
-        pgmPoolUnlockPage(pPool, pVM->pgm.s.CTX_SUFF(pShwPageCR3));
+        pgmPoolUnlockPage(pPool, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
 
-        pgmPoolFreeByPage(pPool, pVM->pgm.s.CTX_SUFF(pShwPageCR3), pVM->pgm.s.iShwUser, pVM->pgm.s.iShwUserTable);
-        pVM->pgm.s.pShwPageCR3R3 = 0;
-        pVM->pgm.s.pShwPageCR3R0 = 0;
-        pVM->pgm.s.pShwPageCR3RC = 0;
-        pVM->pgm.s.iShwUser      = 0;
-        pVM->pgm.s.iShwUserTable = 0;
+        pgmPoolFreeByPage(pPool, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3), pVCpu->pgm.s.iShwUser, pVCpu->pgm.s.iShwUserTable);
+        pVCpu->pgm.s.pShwPageCR3R3 = 0;
+        pVCpu->pgm.s.pShwPageCR3R0 = 0;
+        pVCpu->pgm.s.pShwPageCR3RC = 0;
+        pVCpu->pgm.s.iShwUser      = 0;
+        pVCpu->pgm.s.iShwUserTable = 0;
+
+        Log(("Leave nested shadow paging mode\n"));
     }
-    Log(("Leave nested shadow paging mode\n"));
-#endif
     return VINF_SUCCESS;
 }
 

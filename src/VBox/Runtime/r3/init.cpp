@@ -1,4 +1,4 @@
-/* $Id: init.cpp $ */
+/* $Id: init.cpp 20911 2009-06-24 23:46:10Z vboxsync $ */
 /** @file
  * IPRT - Init Ring-3.
  */
@@ -33,6 +33,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_DEFAULT
+#include <iprt/types.h>                 /* darwin: UINT32_C and others. */
+
 #ifdef RT_OS_WINDOWS
 # include <process.h>
 #else
@@ -58,9 +60,10 @@
 #if !defined(IN_GUEST) && !defined(RT_NO_GIP)
 # include <iprt/file.h>
 # include <VBox/sup.h>
-# include <stdlib.h>
 #endif
+#include <stdlib.h>
 
+#include "internal/alignmentchecks.h"
 #include "internal/path.h"
 #include "internal/process.h"
 #include "internal/thread.h"
@@ -77,7 +80,7 @@ static int32_t volatile g_cUsers = 0;
 static bool volatile    g_fInitializing = false;
 
 /** The process path.
- * This is used by RTPathProgram and RTProcGetExecutableName and set by rtProcInitName. */
+ * This is used by RTPathExecDir and RTProcGetExecutableName and set by rtProcInitName. */
 char        g_szrtProcExePath[RTPATH_MAX];
 /** The length of g_szrtProcExePath. */
 size_t      g_cchrtProcExePath;
@@ -110,6 +113,15 @@ RTPROCESS   g_ProcessSelf = NIL_RTPROCESS;
  * The current process priority.
  */
 RTPROCPRIORITY g_enmProcessPriority = RTPROCPRIORITY_DEFAULT;
+
+#ifdef IPRT_WITH_ALIGNMENT_CHECKS
+/**
+ * Whether alignment checks are enabled.
+ * This is set if the environment variable IPRT_ALIGNMENT_CHECKS is 1.
+ */
+RTDATADECL(bool) g_fRTAlignmentChecks = false;
+#endif
+
 
 
 #ifndef RT_OS_WINDOWS
@@ -194,7 +206,7 @@ static int rtR3InitBody(bool fInitSUPLib, const char *pszProgramPath)
      */
     const char *pszDisableHostCache = getenv("VBOX_DISABLE_HOST_DISK_CACHE");
     if (    pszDisableHostCache != NULL
-        &&  strlen(pszDisableHostCache) > 0
+        &&  *pszDisableHostCache
         &&  strcmp(pszDisableHostCache, "0") != 0)
     {
         RTFileSetForceFlags(RTFILE_O_WRITE, RTFILE_O_WRITE_THROUGH, 0);
@@ -260,6 +272,18 @@ static int rtR3InitBody(bool fInitSUPLib, const char *pszProgramPath)
 #if !defined(RT_OS_WINDOWS) && !defined(RT_OS_OS2)
     rc = pthread_atfork(NULL, NULL, rtR3ForkChildCallback);
     AssertMsg(rc == 0, ("%d\n", rc));
+#endif
+
+#ifdef IPRT_WITH_ALIGNMENT_CHECKS
+    /*
+     * Enable alignment checks.
+     */
+    const char *pszAlignmentChecks = getenv("IPRT_ALIGNMENT_CHECKS");
+    g_fRTAlignmentChecks = pszAlignmentChecks != NULL
+                        && pszAlignmentChecks[0] == '1'
+                        && pszAlignmentChecks[1] == '\0';
+    if (g_fRTAlignmentChecks)
+        IPRT_ALIGNMENT_CHECKS_ENABLE();
 #endif
 
     return VINF_SUCCESS;

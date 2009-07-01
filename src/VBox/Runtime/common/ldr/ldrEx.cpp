@@ -1,4 +1,4 @@
-/* $Id: ldrEx.cpp $ */
+/* $Id: ldrEx.cpp 16933 2009-02-18 23:42:57Z vboxsync $ */
 /** @file
  * IPRT - Binary Image Loader, Extended Features.
  */

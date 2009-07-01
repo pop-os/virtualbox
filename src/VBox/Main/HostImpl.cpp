@@ -1,4 +1,4 @@
-/* $Id: HostImpl.cpp $ */
+/* $Id: HostImpl.cpp 20977 2009-06-26 14:38:55Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation: Host
  */
@@ -86,6 +86,11 @@ extern "C" char *getfullrawname(char *);
 
 #endif /* RT_OS_WINDOWS */
 
+#ifdef RT_OS_FREEBSD
+# ifdef VBOX_USE_LIBHAL
+#  include "vbox-libhal.h"
+# endif
+#endif
 
 #include "HostImpl.h"
 #include "HostDVDDriveImpl.h"
@@ -105,6 +110,9 @@ extern "C" char *getfullrawname(char *);
 # include "darwin/iokit.h"
 #endif
 
+#ifdef VBOX_WITH_CROGL
+extern bool is3DAccelerationSupported();
+#endif /* VBOX_WITH_CROGL */
 
 #include <iprt/asm.h>
 #include <iprt/string.h>
@@ -113,6 +121,7 @@ extern "C" char *getfullrawname(char *);
 #include <iprt/param.h>
 #include <iprt/env.h>
 #include <iprt/mem.h>
+#include <iprt/system.h>
 #ifdef RT_OS_SOLARIS
 # include <iprt/path.h>
 # include <iprt/ctype.h>
@@ -242,6 +251,13 @@ HRESULT Host::init (VirtualBox *aParent)
                 fVTxAMDVSupported = true;
         }
     }
+
+    /* Test for 3D hardware acceleration support */
+    f3DAccelerationSupported = false;
+
+#ifdef VBOX_WITH_CROGL
+    f3DAccelerationSupported = is3DAccelerationSupported();
+#endif /* VBOX_WITH_CROGL */
 
     setReady(true);
     return S_OK;
@@ -394,7 +410,13 @@ STDMETHODIMP Host::COMGETTER(DVDDrives) (ComSafeArrayOut (IHostDVDDrive *, aDriv
         cur = cur->pNext;
         RTMemFree(freeMe);
     }
-
+#elif defined(RT_OS_FREEBSD)
+# ifdef VBOX_USE_LIBHAL
+    if (!getDVDInfoFromHal(list))
+# endif
+    {
+        /** @todo: Scan for accessible /dev/cd* devices. */
+    }
 #else
     /* PORTME */
 #endif
@@ -975,6 +997,10 @@ STDMETHODIMP Host::COMGETTER(USBDevices)(ComSafeArrayOut (IHostUSBDevice *, aUSB
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
      * extended error info to indicate that USB is simply not available
      * (w/o treating it as a failure), for example, as in OSE. */
+    NOREF(aUSBDevices);
+# ifndef RT_OS_WINDOWS
+    NOREF(aUSBDevicesSize);
+# endif
     ReturnComNotImplemented();
 #endif
 }
@@ -998,6 +1024,10 @@ STDMETHODIMP Host::COMGETTER(USBDeviceFilters) (ComSafeArrayOut (IHostUSBDeviceF
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
      * extended error info to indicate that USB is simply not available
      * (w/o treating it as a failure), for example, as in OSE. */
+    NOREF(aUSBDeviceFilters);
+# ifndef RT_OS_WINDOWS
+    NOREF(aUSBDeviceFiltersSize);
+# endif
     ReturnComNotImplemented();
 #endif
 }
@@ -1052,7 +1082,7 @@ STDMETHODIMP Host::GetProcessorSpeed(ULONG aCpuId, ULONG *aSpeed)
  *
  * @returns COM status code
  * @param   cpu id to get info for.
- * @param   description address of result variable, NULL if known or aCpuId is invalid.
+ * @param   description address of result variable, empty string if not known or aCpuId is invalid.
  */
 STDMETHODIMP Host::GetProcessorDescription(ULONG /* aCpuId */, BSTR *aDescription)
 {
@@ -1151,8 +1181,13 @@ STDMETHODIMP Host::COMGETTER(OperatingSystem)(BSTR *aOs)
     CheckComArgOutPointerValid(aOs);
     AutoWriteLock alock (this);
     CHECK_READY();
-    /** @todo */
-    ReturnComNotImplemented();
+
+    char szOSName[80];
+    int vrc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, szOSName, sizeof(szOSName));
+    if (RT_FAILURE(vrc))
+        return E_FAIL; /** @todo error reporting? */
+    Bstr (szOSName).cloneTo (aOs);
+    return S_OK;
 }
 
 /**
@@ -1166,8 +1201,30 @@ STDMETHODIMP Host::COMGETTER(OSVersion)(BSTR *aVersion)
     CheckComArgOutPointerValid(aVersion);
     AutoWriteLock alock (this);
     CHECK_READY();
-    /** @todo */
-    ReturnComNotImplemented();
+
+    /* Get the OS release. Reserve some buffer space for the service pack. */
+    char szOSRelease[128];
+    int vrc = RTSystemQueryOSInfo(RTSYSOSINFO_RELEASE, szOSRelease, sizeof(szOSRelease) - 32);
+    if (RT_FAILURE(vrc))
+        return E_FAIL; /** @todo error reporting? */
+
+    /* Append the service pack if present. */
+    char szOSServicePack[80];
+    vrc = RTSystemQueryOSInfo(RTSYSOSINFO_SERVICE_PACK, szOSServicePack, sizeof(szOSServicePack));
+    if (RT_FAILURE(vrc))
+    {
+        if (vrc != VERR_NOT_SUPPORTED)
+            return E_FAIL; /** @todo error reporting? */
+        szOSServicePack[0] = '\0';
+    }
+    if (szOSServicePack[0] != '\0')
+    {
+        char *psz = strchr(szOSRelease, '\0');
+        RTStrPrintf(psz, &szOSRelease[sizeof(szOSRelease)] - psz, "sp%s", szOSServicePack);
+    }
+
+    Bstr (szOSRelease).cloneTo (aVersion);
+    return S_OK;
 }
 
 /**
@@ -1186,11 +1243,20 @@ STDMETHODIMP Host::COMGETTER(UTCTime)(LONG64 *aUTCTime)
     return S_OK;
 }
 
+STDMETHODIMP Host::COMGETTER(Acceleration3DAvailable)(BOOL *aSupported)
+{
+    CheckComArgOutPointerValid(aSupported);
+
+    AutoWriteLock alock(this);
+    CHECK_READY();
+
+    *aSupported = f3DAccelerationSupported;
+
+    return S_OK;
+}
+
 // IHost methods
 ////////////////////////////////////////////////////////////////////////////////
-
-#ifdef RT_OS_WINDOWS
-
 STDMETHODIMP
 Host::CreateHostOnlyNetworkInterface (IHostNetworkInterface **aHostNetworkInterface,
                                   IProgress **aProgress)
@@ -1211,7 +1277,7 @@ Host::CreateHostOnlyNetworkInterface (IHostNetworkInterface **aHostNetworkInterf
 }
 
 STDMETHODIMP
-Host::RemoveHostOnlyNetworkInterface (IN_GUID aId,
+Host::RemoveHostOnlyNetworkInterface (IN_BSTR aId,
                                   IHostNetworkInterface **aHostNetworkInterface,
                                   IProgress **aProgress)
 {
@@ -1230,7 +1296,7 @@ Host::RemoveHostOnlyNetworkInterface (IN_GUID aId,
                 Guid (aId).raw());
     }
 
-    int r = NetIfRemoveHostOnlyNetworkInterface (mParent, aId, aHostNetworkInterface, aProgress);
+    int r = NetIfRemoveHostOnlyNetworkInterface (mParent, Guid(aId), aHostNetworkInterface, aProgress);
     if(RT_SUCCESS(r))
     {
         return S_OK;
@@ -1238,8 +1304,6 @@ Host::RemoveHostOnlyNetworkInterface (IN_GUID aId,
 
     return r == VERR_NOT_IMPLEMENTED ? E_NOTIMPL : E_FAIL;
 }
-
-#endif /* RT_OS_WINDOWS */
 
 STDMETHODIMP Host::CreateUSBDeviceFilter (IN_BSTR aName, IHostUSBDeviceFilter **aFilter)
 {
@@ -1261,6 +1325,8 @@ STDMETHODIMP Host::CreateUSBDeviceFilter (IN_BSTR aName, IHostUSBDeviceFilter **
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
      * extended error info to indicate that USB is simply not available
      * (w/o treating it as a failure), for example, as in OSE. */
+    NOREF(aName);
+    NOREF(aFilter);
     ReturnComNotImplemented();
 #endif
 }
@@ -1308,6 +1374,8 @@ STDMETHODIMP Host::InsertUSBDeviceFilter (ULONG aPosition, IHostUSBDeviceFilter 
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
      * extended error info to indicate that USB is simply not available
      * (w/o treating it as a failure), for example, as in OSE. */
+    NOREF(aPosition);
+    NOREF(aFilter);
     ReturnComNotImplemented();
 #endif
 }
@@ -1362,6 +1430,8 @@ STDMETHODIMP Host::RemoveUSBDeviceFilter (ULONG aPosition, IHostUSBDeviceFilter 
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
      * extended error info to indicate that USB is simply not available
      * (w/o treating it as a failure), for example, as in OSE. */
+    NOREF(aPosition);
+    NOREF(aFilter);
     ReturnComNotImplemented();
 #endif
 }
@@ -1573,8 +1643,8 @@ void Host::getUSBFilters(Host::USBDeviceFilterList *aGlobalFilters, VirtualBox::
 // private methods
 ////////////////////////////////////////////////////////////////////////////////
 
-#if defined(RT_OS_SOLARIS) && defined(VBOX_USE_LIBHAL)
-/* Solaris hosts, loading libhal at runtime */
+#if (defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)) && defined(VBOX_USE_LIBHAL)
+/* Solaris and FreeBSD hosts, loading libhal at runtime */
 
 /**
  * Helper function to query the hal subsystem for information about DVD drives attached to the
@@ -1619,6 +1689,25 @@ bool Host::getDVDInfoFromHal(std::list <ComObjPtr <HostDVDDrive> > &list)
                             gLibHalFreeString(devNode);
                             devNode = tmp;
 #endif
+
+#ifdef RT_OS_FREEBSD
+                            /*
+                             * Don't show devices handled by the 'acd' driver.
+                             * The ioctls don't work with it.
+                             */
+                            char *driverName = gLibHalDeviceGetPropertyString(halContext,
+                                                       halDevices[i], "freebsd.driver", &dbusError);
+                            if (driverName)
+                            {
+                                if (RTStrCmp(driverName, "acd") == 0)
+                                {
+                                    gLibHalFreeString(devNode);
+                                    devNode = NULL;
+                                }
+                                gLibHalFreeString(driverName);
+                            }
+#endif
+
                             if (devNode != 0)
                             {
 //                                if (validateDevice(devNode, true))
@@ -2310,7 +2399,7 @@ STDMETHODIMP Host::FindHostNetworkInterfaceByName(IN_BSTR name, IHostNetworkInte
 #endif
 }
 
-STDMETHODIMP Host::FindHostNetworkInterfaceById(IN_GUID id, IHostNetworkInterface **networkInterface)
+STDMETHODIMP Host::FindHostNetworkInterfaceById(IN_BSTR id, IHostNetworkInterface **networkInterface)
 {
 #ifndef VBOX_WITH_HOSTNETIF_API
     return E_NOTIMPL;
@@ -2332,9 +2421,9 @@ STDMETHODIMP Host::FindHostNetworkInterfaceById(IN_GUID id, IHostNetworkInterfac
     std::list <ComObjPtr <HostNetworkInterface> >::iterator it;
     for (it = list.begin(); it != list.end(); ++it)
     {
-        Guid g;
+        Bstr g;
         (*it)->COMGETTER(Id) (g.asOutParam());
-        if (g == Guid(id))
+        if (g == id)
             found = *it;
     }
 
@@ -2406,11 +2495,13 @@ STDMETHODIMP Host::FindUSBDeviceByAddress (IN_BSTR aAddress, IHostUSBDevice **aD
         aAddress);
 
 #else   /* !VBOX_WITH_USB */
+    NOREF(aAddress);
+    NOREF(aDevice);
     return E_NOTIMPL;
 #endif  /* !VBOX_WITH_USB */
 }
 
-STDMETHODIMP Host::FindUSBDeviceById (IN_GUID aId, IHostUSBDevice **aDevice)
+STDMETHODIMP Host::FindUSBDeviceById (IN_BSTR aId, IHostUSBDevice **aDevice)
 {
 #ifdef VBOX_WITH_USB
     CheckComArgExpr(aId, Guid (aId).isEmpty() == false);
@@ -2424,7 +2515,7 @@ STDMETHODIMP Host::FindUSBDeviceById (IN_GUID aId, IHostUSBDevice **aDevice)
 
     for (size_t i = 0; i < devsvec.size(); ++i)
     {
-        Guid id;
+        Bstr id;
         rc = devsvec[i]->COMGETTER(Id) (id.asOutParam());
         CheckComRCReturnRC (rc);
         if (id == aId)
@@ -2438,6 +2529,8 @@ STDMETHODIMP Host::FindUSBDeviceById (IN_GUID aId, IHostUSBDevice **aDevice)
         Guid (aId).raw());
 
 #else   /* !VBOX_WITH_USB */
+    NOREF(aId);
+    NOREF(aDevice);
     return E_NOTIMPL;
 #endif  /* !VBOX_WITH_USB */
 }

@@ -1,4 +1,4 @@
-/* $Id: tstRand.cpp $ */
+/* $Id: tstRand.cpp 18455 2009-03-28 04:45:00Z vboxsync $ */
 /** @file
  * IPRT - Testcase for the RTRand API.
  */

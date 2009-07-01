@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- $Id: midl.xsl $ -->
+<!-- $Id: midl.xsl 19134 2009-04-23 09:21:43Z vboxsync $ -->
 
 <!--
  *  A template to generate a MS IDL compatible interface definition file
@@ -202,13 +202,14 @@
 <xsl:template match="interface">[
     uuid(<xsl:value-of select="@uuid"/>),
     object,
-    dual
+    dual,
+    oleautomation
 ]
 <xsl:text>interface </xsl:text>
   <xsl:value-of select="@name"/>
   <xsl:text> : </xsl:text>
   <xsl:choose>
-    <xsl:when test="@extends='$unknown'">IUnknown</xsl:when>
+    <xsl:when test="@extends='$unknown'">IDispatch</xsl:when>
     <xsl:when test="@extends='$dispatched'">IDispatch</xsl:when>
     <xsl:when test="@extends='$errorinfo'">IErrorInfo</xsl:when>
     <xsl:otherwise><xsl:value-of select="@extends"/></xsl:otherwise>

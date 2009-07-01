@@ -71,9 +71,20 @@ NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPR0LowFree
 NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPR0MemAlloc
 NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPR0MemGetPhys
 NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPR0MemFree
-NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPR0PageAlloc
+NtWrapDyn2DrvFunctionWith6Params       supdrvNtWrap, SUPR0PageAllocEx
 NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPR0PageFree
 ;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPR0Printf            - cannot wrap this buster.
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPSemEventCreate
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPSemEventClose
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPSemEventSignal
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPSemEventWait
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPSemEventWaitNoResume
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPSemEventMultiCreate
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPSemEventMultiClose
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPSemEventMultiSignal
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPSemEventMultiReset
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPSemEventMultiWait
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPSemEventMultiWaitNoResume
 NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, SUPR0GetPagingMode
 NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTMemAlloc
 NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTMemAllocZ
@@ -91,6 +102,7 @@ NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTR0MemObjLockUser
 NtWrapDyn2DrvFunctionWith5Params       supdrvNtWrap, RTR0MemObjMapKernel
 NtWrapDyn2DrvFunctionWith7Params       supdrvNtWrap, RTR0MemObjMapKernelEx
 NtWrapDyn2DrvFunctionWith6Params       supdrvNtWrap, RTR0MemObjMapUser
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTR0MemObjProtect
 ;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTR0MemObjAddress      - not necessary
 ;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTR0MemObjAddressR3    - not necessary
 ;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTR0MemObjSize         - not necessary
@@ -141,6 +153,11 @@ NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTThreadUserReset
 NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTThreadUserWait
 NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTThreadUserWaitNoResume
 %endif
+;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTThreadPreemptIsEnabled - not necessary
+;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTThreadPreemptIsPending - not necessary
+;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTThreadPreemptIsPendingTrusty - not necessary
+;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTThreadPreemptDisable - not necessary
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTThreadPreemptRestore
 ;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTLogDefaultInstance   - a bit of a gamble, but we do not want the overhead!
 ;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTMpCpuId              - not necessary
 ;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTMpCpuIdFromSetIndex  - not necessary
@@ -152,10 +169,11 @@ NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTThreadUserWaitNoResume
 ;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTMpGetOnlineSet       - not necessary
 ;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTMpGetSet             - not necessary
 ;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTMpIsCpuOnline        - not necessary
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTMpIsCpuWorkPending
 NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTMpOnAll
 NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTMpOnOthers
 NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTMpOnSpecific
-NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTMpIsCpuWorkPending
+NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTMpPokeCpu
 ;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTLogRelDefaultInstance - not necessary.
 NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTLogSetDefaultInstanceThread
 ;NtWrapDyn2DrvFunctionWithAllRegParams  supdrvNtWrap, RTLogLogger            - can't wrap this buster.
@@ -169,14 +187,15 @@ NtWrapDrv2DynFunctionWithAllRegParams   supdrvNtWrap, RTPowerSignalEvent
 
 
 ;;
-; @cproto DECLASM(int) supdrvNtWrapVMMR0EntryEx(PFNRT pfnVMMR0EntryEx, PVM pVM, unsigned uOperation, PSUPVMMR0REQHDR pReq, uint64_t u64Arg, PSUPDRVSESSION pSession);
+; @cproto DECLASM(int) supdrvNtWrapVMMR0EntryEx(PFNRT pfnVMMR0EntryEx, PVM pVM, unsigned idCpu, unsigned uOperation, PSUPVMMR0REQHDR pReq, uint64_t u64Arg, PSUPDRVSESSION pSession);
 ;
 ; @param    pfnVMMR0EntryEx     rcx
 ; @param    pVM                 rdx
-; @param    uOperation          r8
-; @param    pReq                r9
-; @param    u64Arg              [rsp + 28h] / [rbp + 30h]
-; @param    pSession            [rsp + 30h] / [rbp + 38h]
+; @param    idCpu               r8
+; @param    uOperation          r9
+; @param    pReq                [rsp + 28h] / [rbp + 30h]
+; @param    u64Arg              [rsp + 30h] / [rbp + 38h]
+; @param    pSession            [rsp + 38h] / [rbp + 40h]
 ;
 BEGINPROC supdrvNtWrapVMMR0EntryEx
         NtWrapProlog supdrvNtWrapVMMR0EntryEx
@@ -189,6 +208,8 @@ BEGINPROC supdrvNtWrapVMMR0EntryEx
         mov     r9, [rbp + 30h]
         mov     r11, [rbp + 38h]
         mov     [rsp + 20h], r11
+        mov     r11, [rbp + 40h]
+        mov     [rsp + 28h], r11
         call    rax
 
         NtWrapDestroyMarker

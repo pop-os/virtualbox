@@ -1,4 +1,4 @@
-/* $Id: HWACCMAll.cpp $ */
+/* $Id: HWACCMAll.cpp 20981 2009-06-26 15:03:24Z vboxsync $ */
 /** @file
  * HWACCM - All contexts.
  */
@@ -44,16 +44,39 @@
 #include <iprt/cpuset.h>
 
 /**
+ * Queues a page for invalidation
+ *
+ * @returns VBox status code.
+ * @param   pVCpu       The VMCPU to operate on.
+ * @param   GCVirt      Page to invalidate
+ */
+void hwaccmQueueInvlPage(PVMCPU pVCpu, RTGCPTR GCVirt)
+{
+    /* Nothing to do if a TLB flush is already pending */
+    if (VMCPU_FF_ISSET(pVCpu, VMCPU_FF_TLB_FLUSH))
+        return;
+#if 1
+    VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
+#else
+    if (iPage == RT_ELEMENTS(pVCpu->hwaccm.s.TlbShootdown.aPages))
+        VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
+    else
+        VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_SHOOTDOWN);
+#endif
+}
+
+/**
  * Invalidates a guest page
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVCpu       The VMCPU to operate on.
  * @param   GCVirt      Page to invalidate
  */
-VMMDECL(int) HWACCMInvalidatePage(PVM pVM, RTGCPTR GCVirt)
+VMMDECL(int) HWACCMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt)
 {
+    STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatFlushPageManual);
 #ifdef IN_RING0
-    PVMCPU pVCpu = VMMGetCpu(pVM);
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
     if (pVM->hwaccm.s.vmx.fSupported)
         return VMXR0InvalidatePage(pVM, pVCpu, GCVirt);
 
@@ -61,6 +84,7 @@ VMMDECL(int) HWACCMInvalidatePage(PVM pVM, RTGCPTR GCVirt)
     return SVMR0InvalidatePage(pVM, pVCpu, GCVirt);
 #endif
 
+    hwaccmQueueInvlPage(pVCpu, GCVirt);
     return VINF_SUCCESS;
 }
 
@@ -68,18 +92,97 @@ VMMDECL(int) HWACCMInvalidatePage(PVM pVM, RTGCPTR GCVirt)
  * Flushes the guest TLB
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVCpu       The VMCPU to operate on.
  */
-VMMDECL(int) HWACCMFlushTLB(PVM pVM)
+VMMDECL(int) HWACCMFlushTLB(PVMCPU pVCpu)
 {
-    PVMCPU pVCpu = VMMGetCpu(pVM);
-
     LogFlow(("HWACCMFlushTLB\n"));
 
-    pVCpu->hwaccm.s.fForceTLBFlush = true;
+    VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
     STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatFlushTLBManual);
     return VINF_SUCCESS;
 }
+
+#ifndef IN_RC
+/**
+ * Invalidates a guest page on all VCPUs.
+ *
+ * @returns VBox status code.
+ * @param   pVM         The VM to operate on.
+ * @param   GCVirt      Page to invalidate
+ */
+VMMDECL(int) HWACCMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCPtr)
+{
+    VMCPUID idCurCpu = VMMGetCpuId(pVM);
+
+    for (unsigned idCpu = 0; idCpu < pVM->cCPUs; idCpu++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+
+        if (pVCpu->idCpu == idCurCpu)
+        {
+            HWACCMInvalidatePage(pVCpu, GCPtr);
+        }
+        else
+        {
+            hwaccmQueueInvlPage(pVCpu, GCPtr);
+            if (VMCPU_GET_STATE(pVCpu) == VMCPUSTATE_STARTED_EXEC)
+            {
+                STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTlbShootdown);
+#ifdef IN_RING0
+                RTCPUID idHostCpu = pVCpu->hwaccm.s.idEnteredCpu;
+                if (idHostCpu != NIL_RTCPUID)
+                    RTMpPokeCpu(idHostCpu);
+#else
+                VMR3NotifyCpuFFU(pVCpu->pUVCpu, VMNOTIFYFF_FLAGS_POKE);
+#endif
+            }
+            else
+                STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatFlushPageManual);
+        }
+    }
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * Flush the TLBs of all VCPUs
+ *
+ * @returns VBox status code.
+ * @param   pVM       The VM to operate on.
+ */
+VMMDECL(int) HWACCMFlushTLBOnAllVCpus(PVM pVM)
+{
+    if (pVM->cCPUs == 1)
+        return HWACCMFlushTLB(&pVM->aCpus[0]);
+
+    VMCPUID idThisCpu = VMMGetCpuId(pVM);
+
+    for (unsigned idCpu = 0; idCpu < pVM->cCPUs; idCpu++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+
+        VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
+        if (idThisCpu == idCpu)
+            continue;
+
+        if (VMCPU_GET_STATE(pVCpu) == VMCPUSTATE_STARTED_EXEC)
+        {
+            STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTlbShootdownFlush);
+#ifdef IN_RING0
+            RTCPUID idHostCpu = pVCpu->hwaccm.s.idEnteredCpu;
+            if (idHostCpu != NIL_RTCPUID)
+                RTMpPokeCpu(idHostCpu);
+#else
+            VMR3NotifyCpuFFU(pVCpu->pUVCpu, VMNOTIFYFF_FLAGS_POKE);
+#endif
+        }
+        else
+            STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatFlushTLBManual);
+    }
+    return VINF_SUCCESS;
+}
+#endif
 
 /**
  * Checks if nested paging is enabled
@@ -123,14 +226,43 @@ VMMDECL(int) HWACCMInvalidatePhysPage(PVM pVM, RTGCPHYS GCPhys)
         return VINF_SUCCESS;
 
 #ifdef IN_RING0
-    PVMCPU pVCpu = VMMGetCpu(pVM);
     if (pVM->hwaccm.s.vmx.fSupported)
-        return VMXR0InvalidatePhysPage(pVM, pVCpu, GCPhys);
+    {
+        VMCPUID idThisCpu = VMMGetCpuId(pVM);
+
+        for (unsigned idCpu = 0; idCpu < pVM->cCPUs; idCpu++)
+        {
+            PVMCPU pVCpu = &pVM->aCpus[idCpu];
+
+            if (idThisCpu == idCpu)
+            {
+                VMXR0InvalidatePhysPage(pVM, pVCpu, GCPhys);
+                continue;
+            }
+
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
+            if (VMCPU_GET_STATE(pVCpu) == VMCPUSTATE_STARTED_EXEC)
+            {
+                STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTlbShootdownFlush);
+    #ifdef IN_RING0
+                RTCPUID idHostCpu = pVCpu->hwaccm.s.idEnteredCpu;
+                if (idHostCpu != NIL_RTCPUID)
+                    RTMpPokeCpu(idHostCpu);
+    #else
+                VMR3NotifyCpuFFU(pVCpu->pUVCpu, VMNOTIFYFF_FLAGS_POKE);
+    #endif
+            }
+            else
+                STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatFlushTLBManual);
+        }
+        return VINF_SUCCESS;
+    }
 
     Assert(pVM->hwaccm.s.svm.fSupported);
-    SVMR0InvalidatePhysPage(pVM, pVCpu, GCPhys);
+    /* AMD-V doesn't support invalidation with guest physical addresses; see comment in SVMR0InvalidatePhysPage. */
+    HWACCMFlushTLBOnAllVCpus(pVM);
 #else
-    HWACCMFlushTLB(pVM);
+    HWACCMFlushTLBOnAllVCpus(pVM);
 #endif
     return VINF_SUCCESS;
 }
@@ -147,16 +279,3 @@ VMMDECL(bool) HWACCMHasPendingIrq(PVM pVM)
     return !!pVCpu->hwaccm.s.Event.fPending;
 }
 
-#ifndef IN_RC
-/**
- * Returns the VMCPU id of the current EMT thread.
- *
- * @param   pVM         The VM to operate on.
- */
-VMMDECL(RTCPUID) HWACCMGetVMCPUId(PVM pVM)
-{
-    /* @todo */
-    Assert(pVM->cCPUs == 1);
-    return 0;
-}
-#endif

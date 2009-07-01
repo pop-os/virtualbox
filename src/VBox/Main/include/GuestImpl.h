@@ -33,7 +33,7 @@ class ATL_NO_VTABLE Guest :
     public VirtualBoxSupportErrorInfoImpl <Guest, IGuest>,
     public VirtualBoxSupportTranslation <Guest>,
     public VirtualBoxBaseNEXT,
-    public IGuest
+    VBOX_SCRIPTABLE_IMPL(IGuest)
 {
 public:
 
@@ -44,6 +44,7 @@ public:
     BEGIN_COM_MAP(Guest)
         COM_INTERFACE_ENTRY(ISupportErrorInfo)
         COM_INTERFACE_ENTRY(IGuest)
+        COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
     NS_DECL_ISUPPORTS

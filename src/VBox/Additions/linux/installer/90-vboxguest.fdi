@@ -2,7 +2,7 @@
 <!--
 # Sun VirtualBox
 # Hal driver description for the vboxmouse driver
-# $Id: 90-vboxguest.fdi $
+# $Id: 90-vboxguest.fdi 18265 2009-03-25 17:09:08Z vboxsync $
 
      Copyright (C) 2008-2009 Sun Microsystems, Inc.
 

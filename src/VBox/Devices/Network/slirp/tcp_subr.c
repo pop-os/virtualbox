@@ -123,6 +123,15 @@ tcp_respond(PNATState pData, struct tcpcb *tp, struct tcpiphdr *ti, struct mbuf 
     {
         if ((m = m_get(pData)) == NULL)
             return;
+#ifdef VBOX_WITH_NAT_SERVICE
+        {
+            struct ethhdr *eh0, *eh;
+            Assert(tp->t_socket->so_m);
+            eh0 = (struct ethhdr *)tp->t_socket->so_m->m_dat;
+            eh = (struct ethhdr *)m->m_dat;
+            memcpy(eh->h_source, eh0->h_source, ETH_ALEN);
+        }
+#endif
 #ifdef TCP_COMPAT_42
         tlen = 1;
 #else
@@ -394,13 +403,6 @@ int tcp_fconnect(PNATState pData, struct socket *so)
             switch(ntohl(so->so_faddr.s_addr) & ~pData->netmask)
             {
                 case CTL_DNS:
-#ifndef VBOX_WITH_MULTI_DNS
-                    if (!get_dns_addr(pData, &dns_addr))
-                        addr.sin_addr = dns_addr;
-                    else
-                        addr.sin_addr = loopback_addr;
-                    break;
-#endif
                 case CTL_ALIAS:
                 default:
                     addr.sin_addr = loopback_addr;
@@ -446,7 +448,8 @@ tcp_connect(PNATState pData, struct socket *inso)
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(struct sockaddr_in);
     struct tcpcb *tp;
-    int s, opt, status;
+    int s, opt; 
+    int status;
     socklen_t optlen;
     static int cVerbose = 1;
 
@@ -477,6 +480,9 @@ tcp_connect(PNATState pData, struct socket *inso)
         }
         so->so_laddr = inso->so_laddr;
         so->so_lport = inso->so_lport;
+#ifdef VBOX_WITH_SLIRP_ALIAS
+        so->so_la = inso->so_la;
+#endif
     }
 
     (void) tcp_mss(pData, sototcpcb(so), 0);
@@ -492,8 +498,10 @@ tcp_connect(PNATState pData, struct socket *inso)
     setsockopt(s, SOL_SOCKET, SO_REUSEADDR,(char *)&opt, sizeof(int));
     opt = 1;
     setsockopt(s, SOL_SOCKET, SO_OOBINLINE,(char *)&opt, sizeof(int));
+#if 0
     opt = 1;
     setsockopt(s, IPPROTO_TCP, TCP_NODELAY,(char *)&opt, sizeof(int));
+#endif
 
     optlen = sizeof(int);
     status = getsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&opt, &optlen);
@@ -504,7 +512,8 @@ tcp_connect(PNATState pData, struct socket *inso)
     }
     if (cVerbose > 0)
         LogRel(("NAT: old socket rcv size: %dKB\n", opt / 1024));
-    opt *= 4;
+    /* @todo (r-vvl) make it configurable (via extra data) */
+    opt = pData->socket_rcv;
     status = setsockopt(s, SOL_SOCKET, SO_RCVBUF, (char *)&opt, sizeof(int));
     if (status < 0)
     {
@@ -520,7 +529,7 @@ tcp_connect(PNATState pData, struct socket *inso)
     }
     if (cVerbose > 0)
         LogRel(("NAT: old socket snd size: %dKB\n", opt / 1024));
-    opt *= 4;
+    opt = pData->socket_rcv;
     status = setsockopt(s, SOL_SOCKET, SO_SNDBUF, (char *)&opt, sizeof(int));
     if (status < 0)
     {
@@ -611,6 +620,7 @@ static const struct tos_t tcptos[] =
 u_int8_t
 tcp_tos(struct socket *so)
 {
+#ifndef VBOX_WITH_SLIRP_ALIAS
     int i = 0;
 
     while(tcptos[i].tos)
@@ -623,7 +633,7 @@ tcp_tos(struct socket *so)
         }
         i++;
     }
-
+#endif
     return 0;
 }
 
@@ -649,6 +659,7 @@ tcp_tos(struct socket *so)
 int
 tcp_emu(PNATState pData, struct socket *so, struct mbuf *m)
 {
+#ifndef VBOX_WITH_SLIRP_ALIAS
     u_int n1, n2, n3, n4, n5, n6;
     char buff[256];
     u_int32_t laddr;
@@ -997,4 +1008,9 @@ tcp_emu(PNATState pData, struct socket *so, struct mbuf *m)
             so->so_emu = 0;
             return 1;
     }
+#else /* !VBOX_WITH_SLIRP_ALIAS */
+    /*XXX: libalias should care about it */
+    so->so_emu = 0;
+    return 1;
+#endif
 }

@@ -1,4 +1,4 @@
-/* $Id: sched.h $ */
+/* $Id: sched.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * IPRT - Internal RTSched header.
  */
@@ -35,7 +35,7 @@
 #include "internal/process.h"
 #include "internal/thread.h"
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /**
  * Calculate the scheduling properties for all the threads in the default
@@ -46,6 +46,6 @@ __BEGIN_DECLS
  */
 int rtSchedNativeCalcDefaultPriority(RTTHREADTYPE enmType);
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif

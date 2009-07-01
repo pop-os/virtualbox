@@ -1,4 +1,4 @@
-/* $Id: sysfs.h $ */
+/* $Id: sysfs.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * IPRT - Linux sysfs access.
  */
@@ -36,7 +36,7 @@
 #include <iprt/stdarg.h>
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_mp RTLinuxSysfs - Linux sysfs
  * @ingroup grp_rt
@@ -179,7 +179,7 @@ RTDECL(ssize_t) RTLinuxSysFsGetLinkDest(char *pszBuf, size_t cchBuf, const char 
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

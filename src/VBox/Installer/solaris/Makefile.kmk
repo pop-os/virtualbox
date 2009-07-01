@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 20585 2009-06-15 10:13:55Z vboxsync $
 ## @file
 # Sub-Makefile for the Solaris installer.
 #
@@ -68,6 +68,7 @@ ifeq ($(KBUILD_TARGET_ARCH),amd64)
  SOLARIS_DRIVERINST_DIR_ISA  := $(SOLARIS_DRIVERINST_DIR_64)
  SOLARIS_DBG_DIR_ISA   := $(SOLARIS_DBG_DIR_64)
  SOL_DBG_OBJCOPY       := /usr/sfw/bin/gobjcopy --only-keep-debug
+ SOL64_PKG := 1
 else
  SOLARIS_VBOXINST_DIR_ISA    := $(SOLARIS_VBOXINST_DIR_32)
  SOLARIS_DRIVERINST_DIR_ISA  := $(SOLARIS_DRIVERINST_DIR_32)
@@ -100,7 +101,7 @@ VBIPKG_FILENAME  = VirtualBoxKern-$(VBOX_VERSION_STRING)-SunOS-r$(VBOX_SVN_REV)
 # Targets
 #
 PROGRAMS         += VBoxZoneAccess VBoxISAExec
-INSTALLS         += solaris-doc
+INSTALLS         += solaris-doc solaris-bin
 
 BLDDIRS          += \
 	$(SOLARIS_INST_OUT_DIR) \
@@ -109,7 +110,7 @@ BLDDIRS          += \
 	$(SOLARIS_VBI_DIR) \
 	$(SOLARIS_DBG_DIR)
 
-BLDDIRS += $(foreach d,\
+BLDDIRS          += $(addprefix $(SOLARIS_BASEINST_DIR)/,\
 	usr \
 	usr/bin \
 	platform \
@@ -117,13 +118,13 @@ BLDDIRS += $(foreach d,\
 	platform/i86pc/kernel \
 	platform/i86pc/kernel/drv \
 	platform/i86pc/kernel/drv/amd64 \
-,$(SOLARIS_BASEINST_DIR)/$(d))
+)
 
 PACKING          += $(PATH_BIN)/$(PKG_FILENAME).tar.gz $(PATH_BIN)/$(DBG_ARCHIVE)
 
 OTHER_CLEAN      += $(addprefix $(SOLARIS_BASEINST_DIR)/,\
 	vbox.pkginfo vbox.copyright vbox.space vbox.pkgresponse \
-        makepackage.sh prototype postinstall.sh preremove.sh)
+	makepackage.sh prototype postinstall.sh checkinstall.sh preremove.sh)
 
 #
 # VBoxZoneAccess
@@ -149,10 +150,16 @@ solaris-doc_SOURCES = \
 	$(if $(VBOX_OSE),,$(VBOX_BRAND_LICENSE_TXT)=>LICENSE) \
 	$(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/$(if $(VBOX_OSE),OSE,NonOSE)/VirtualBox_64px.png=>VBox.png
 
+solaris-bin_INST = bin/
+solaris-bin_MODE = a+rx,u+w
+solaris-bin_SOURCES = \
+	$(if $(VBOX_WITH_PYTHON),$(PATH_ROOT)/src/VBox/Frontends/VBoxShell/vboxshell.py=>vboxshell.py,)
+
 #
 # Note: Other than the files produced during packing (.pkg, .gzip etc.) all files that
 # go into the temporary install folder $(SOLARIS_VBOXINST_DIR) should be part of $(SOLARIS_ARCH_FILES).
 # For the files produced during packing they should be cleaned up promptly when the work is done.
+#
 
 # Strip these executables
 SOLARIS_STRIP_EXES = \
@@ -165,6 +172,7 @@ SOLARIS_STRIP_EXES = \
 	$(if $(VBOX_WITH_NETADP),VBoxNetAdpCtl,) \
 	VBoxNetDHCP \
 	VBoxSVC \
+	$(if $(VBOX_WITH_CROGL),VBoxTestOGL,) \
 	VBoxXPCOMIPCD \
 	kchmviewer
 
@@ -225,17 +233,14 @@ SOLARIS_STRIP_BIN_32 = \
 	VBoxREM32.so \
 	VBoxREM64.so
 
-ifndef VBOX_WITH_NEW_RECOMPILER
- SOLARIS_STRIP_OBJ_64 = VBoxREM2.rel
-endif
-
 VBOX_SOL_PYTHON_DIR_64 = 64
 
 # Do not strip anything of these files
 SOLARIS_NO_STRIP = \
 	components/VBoxXPCOMBase.xpt \
 	components/VirtualBox_XPCOM.xpt \
-	$(if $(and $(VBOX_LICENSE_FILES),$(VBOX_WITH_QTGUI)),$(VBOX_LICENSE_FILES))
+	$(if $(and $(VBOX_LICENSE_FILES),$(VBOX_WITH_QTGUI)),$(VBOX_LICENSE_FILES)) \
+	$(if $(VBOX_WITH_PYTHON),vboxshell.py,)
 
 SOLARIS_USRBIN_LINKS = \
 	$(if $(VBOX_WITH_QTGUI),VirtualBox,) \
@@ -255,6 +260,7 @@ SOLARIS_EXTRAS = \
 	$(if $(VBOX_WITH_USB),vboxusbmon.conf,) \
 	vboxdrv.sh \
 	VBox.sh \
+	ipsinstall.sh \
 	$(if $(VBOX_WITH_VBOXSDL),libSDL-1.2.so.0,) \
 	$(if $(not $(VBOX_WITH_NETFLT))vnic_setup.sh,) \
 	$(if $(not $(VBOX_WITH_NETFLT))vnic_term.sh,) \
@@ -287,6 +293,22 @@ ifdef VBOX_WITH_DOCS_PACKING
  	VirtualBox.chm \
 	UserManual.pdf \
 	$(foreach f,$(VBOX_MANUAL_ADD_LANGUAGES),VirtualBox_$(f).chm UserManual_$(f).pdf)
+endif
+
+# Python XPCOM glue
+ifdef VBOX_WITH_PYTHON
+  SOLARIS_COMMON += \
+	$(foreach f,$(notdir $(wildcard $(PATH_BIN)/sdk/bindings/xpcom/python/xpcom/*.py)),sdk/bindings/xpcom/python/xpcom/$(f)) \
+	sdk/bindings/xpcom/python/xpcom/client/__init__.py \
+	sdk/bindings/xpcom/python/xpcom/server/__init__.py \
+	sdk/bindings/xpcom/python/xpcom/server/enumerator.py \
+	sdk/bindings/xpcom/python/xpcom/server/factory.py \
+	sdk/bindings/xpcom/python/xpcom/server/loader.py \
+	sdk/bindings/xpcom/python/xpcom/server/module.py \
+	sdk/bindings/xpcom/python/xpcom/server/policy.py \
+	sdk/installer/vboxapisetup.py \
+	sdk/installer/vboxapi/__init__.py \
+	sdk/installer/vboxapi/VirtualBox_constants.py
 endif
 
 # VRDP
@@ -358,7 +380,6 @@ ifdef VBOX_WITH_COMBINED_PACKAGE
 	$(addprefix $(SOLARIS_VBOXINST_DIR_32)/,$(SOLARIS_NO_STRIP)) \
 	$(addprefix $(SOLARIS_VBOXINST_DIR_32)/,$(SOLARIS_QTLIBS)) \
 	$(addprefix $(SOLARIS_VBOXINST_DIR_32)/,$(SOLARIS_STRIP_BIN_32)) \
-	$(if $(VBOX_WITH_NEW_RECOMPILER),,$(addprefix $(SOLARIS_VBOXINST_DIR_64)/,$(SOLARIS_STRIP_OBJ_64))) \
 	$(addprefix $(SOLARIS_OUT_BIN_32)/,VBoxPython.so) \
 	$(addprefix $(SOLARIS_OUT_BIN_64)/,VBoxPython.so)
  SOLARIS_DBG_DEPFILES = $(addprefix $(SOLARIS_DBG_DIR_64)/,$(SOLARIS_DBG_FILES)) \
@@ -384,11 +405,18 @@ BLDDIRS += $(foreach d,\
 	$(SOLARIS_DIR_NAME_64)/components \
 	$(SOLARIS_DIR_NAME_64)/nls \
 	$(SOLARIS_DIR_NAME_64)/accessible \
-	$(SOLARIS_DIR_NAME_64)/$(VBOX_SOL_PYTHON_DIR_64) \
+	$(VBOX_SOL_PYTHON_DIR_64) \
 	$(SOLARIS_DIR_NAME_32) \
 	$(SOLARIS_DIR_NAME_32)/components \
 	$(SOLARIS_DIR_NAME_32)/nls \
 	$(SOLARIS_DIR_NAME_32)/accessible \
+	$(if $(VBOX_WITH_PYTHON),\
+	 sdk/ \
+	 sdk/installer \
+	 sdk/installer/vboxapi \
+	 sdk/bindings/xpcom/python/xpcom \
+	 sdk/bindings/xpcom/python/xpcom/server \
+	 sdk/bindings/xpcom/python/xpcom/client,) \
 ,$(SOLARIS_VBOXINST_DIR)/$(d)/)
 
 BLDDIRS += $(foreach d,\
@@ -402,7 +430,7 @@ BLDDIRS += $(foreach d,\
 	$(SOLARIS_DIR_NAME_64) \
 	$(SOLARIS_DIR_NAME_64)/components \
 	$(SOLARIS_DIR_NAME_64)/accessible \
-	$(SOLARIS_DIR_NAME_64)/$(VBOX_SOL_PYTHON_DIR_64) \
+	$(VBOX_SOL_PYTHON_DIR_64) \
 	$(SOLARIS_DIR_NAME_32) \
 	$(SOLARIS_DIR_NAME_32)/components \
 	$(SOLARIS_DIR_NAME_32)/nls \
@@ -424,11 +452,13 @@ $(PATH_BIN)/$(PKG_FILENAME).tar.gz: \
 		$(VBOX_VERSION_STAMP) \
 		$(VBOX_PATH_SOL_INST_SRC)/makepackage.sh \
 		$(VBOX_PATH_SOL_INST_SRC)/postinstall.sh \
+		$(VBOX_PATH_SOL_INST_SRC)/checkinstall.sh \
 		$(VBOX_PATH_SOL_INST_SRC)/preremove.sh \
 		$(VBOX_PATH_SOL_INST_SRC)/vbox.pkginfo \
 		$(VBOX_PATH_SOL_INST_SRC)/vbox.space \
 		$(VBOX_PATH_SOL_INST_SRC)/vbox.pkgresponse \
 		$(VBOX_PATH_SOL_INST_SRC)/VBox.sh \
+		$(VBOX_PATH_SOL_INST_SRC)/ipsinstall.sh \
 		$(VBOX_PATH_SOL_INST_SRC)/virtualbox.desktop \
 		$(PATH_ROOT)/doc/ReadMe-Solaris.txt \
 		$(VBOX_PATH_SOL_INST_SRC)/Makefile.kmk \
@@ -476,9 +506,9 @@ ifdef VBOX_WITH_COMBINED_PACKAGE
 	$(QUIET)$(if $(VBOX_WITH_VBOXSDL),$(INSTALL) -m 0644 $(PATH_DEVTOOLS)/solaris.x86/libSDL/v1.2.13/lib/libSDL-1.2.so.0.11.2     $(SOLARIS_VBOXINST_DIR_32)/libSDL-1.2.so.0,)
 	$(QUIET)$(if $(VBOX_WITH_VBOXSDL),$(INSTALL) -m 0644 $(PATH_DEVTOOLS)/solaris.amd64/libSDL/v1.2.13/lib/libSDL-1.2.so.0.11.2   $(SOLARIS_VBOXINST_DIR_64)/libSDL-1.2.so.0,)
 	@# @todo -XXX- how to get rid of this manual MKDIR ?
-	$(QUIET)$(MKDIR) -p $(SOLARIS_VBOXINST_DIR_64)/$(VBOX_SOL_PYTHON_DIR_64)
-	$(QUIET)$(if $(VBOX_WITH_PYTHON),$(INSTALL) -m 0644 $(if $(VBOX_DO_STRIP),-s) $(SOLARIS_OUT_BIN_32)/VBoxPython.so    $(SOLARIS_VBOXINST_DIR_32)/VBoxPython.so,)
-	$(QUIET)$(if $(VBOX_WITH_PYTHON),$(INSTALL) -m 0644 $(if $(VBOX_DO_STRIP),-s) $(SOLARIS_OUT_BIN_64)/VBoxPython.so    $(SOLARIS_VBOXINST_DIR_64)/$(VBOX_SOL_PYTHON_DIR_64)/VBoxPython.so,)
+	$(QUIET)$(MKDIR) -p $(SOLARIS_VBOXINST_DIR)/$(VBOX_SOL_PYTHON_DIR_64)
+	$(QUIET)$(if $(VBOX_WITH_PYTHON),$(INSTALL) -m 0644 $(if $(VBOX_DO_STRIP),-s) $(SOLARIS_OUT_BIN_32)/VBoxPython.so    $(SOLARIS_VBOXINST_DIR)/VBoxPython.so,)
+	$(QUIET)$(if $(VBOX_WITH_PYTHON),$(INSTALL) -m 0644 $(if $(VBOX_DO_STRIP),-s) $(SOLARIS_OUT_BIN_64)/VBoxPython.so    $(SOLARIS_VBOXINST_DIR)/$(VBOX_SOL_PYTHON_DIR_64)/VBoxPython.so,)
 	$(QUIET)$(if $(VBOX_WITH_QTGUI),$(INSTALL) -m 0755 $(SOLARIS_PATH_QT_32)/bin/qtconfig                                $(SOLARIS_VBOXINST_DIR_32)/VBoxQtconfig,)
 	$(QUIET)$(if $(VBOX_WITH_QTGUI),$(INSTALL) -m 0755 $(SOLARIS_PATH_QT_64)/bin/qtconfig                                $(SOLARIS_VBOXINST_DIR_64)/VBoxQtconfig,)
 	$(QUIET)$(INSTALL) -m 0755 $(SOLARIS_OUT_BIN_32)/VBoxISAExec                                                         $(SOLARIS_VBOXINST_DIR)/VBoxISAExec
@@ -492,8 +522,8 @@ else
 	$(QUIET)$(if $(VBOX_WITH_VBOXSDL),$(INSTALL) -m 0644 $(PATH_DEVTOOLS_TRG)/libSDL/v1.2.13/lib/libSDL-1.2.so.0.11.2    $(SOLARIS_VBOXINST_DIR_ISA)/libSDL-1.2.so.0,)
 	@# @todo -XXX- how to get rid of this manual MKDIR ?
  ifdef VBOX_WITH_PYTHON
-	$(QUIET)$(if $(SOL64_PKG),$(MKDIR) -p $(SOLARIS_VBOXINST_DIR_64)/$(VBOX_SOL_PYTHON_DIR_64),)
-	$(QUIET)$(INSTALL) -m 0644 $(if $(VBOX_DO_STRIP),-s) $(SOLARIS_OUT_BIN)/VBoxPython.so       $(SOLARIS_VBOXINST_DIR_ISA)/$(if $(SOL64_PKG),$(VBOX_SOL_PYTHON_DIR_64)/,)VBoxPython.so
+	$(QUIET)$(if $(SOL64_PKG),$(MKDIR) -p $(SOLARIS_VBOXINST_DIR)/$(VBOX_SOL_PYTHON_DIR_64),)
+	$(QUIET)$(INSTALL) -m 0644 $(if $(VBOX_DO_STRIP),-s) $(SOLARIS_OUT_BIN)/VBoxPython.so       $(SOLARIS_VBOXINST_DIR)/$(if $(SOL64_PKG),$(VBOX_SOL_PYTHON_DIR_64)/,)VBoxPython.so
  endif
 	$(QUIET)$(if $(VBOX_WITH_QTGUI),$(INSTALL) -m 0755 $(VBOX_PATH_QT4)/bin/qtconfig                                     $(SOLARIS_VBOXINST_DIR_ISA)/VBoxQtconfig,)
 	$(QUIET)$(INSTALL) -m 0755 $(SOLARIS_OUT_BIN)/VBoxISAExec                                                            $(SOLARIS_VBOXINST_DIR)/VBoxISAExec
@@ -514,9 +544,11 @@ endif
 	$(QUIET)$(INSTALL) -m 0755 $(SOLARIS_VBOXINST_DIR)/vboxdrv.sh.tmp                                           $(SOLARIS_VBOXINST_DIR)/vboxdrv.sh
 	$(QUIET)$(RM) -f $(SOLARIS_VBOXINST_DIR)/vboxdrv.sh.tmp
 	$(QUIET)$(INSTALL) -m 0755 $(VBOX_PATH_SOL_INST_SRC)/VBox.sh                                            $(SOLARIS_VBOXINST_DIR)/VBox.sh
+	$(QUIET)$(INSTALL) -m 0755 $(VBOX_PATH_SOL_INST_SRC)/ipsinstall.sh                                      $(SOLARIS_VBOXINST_DIR)/ipsinstall.sh
 	$(QUIET)$(if $(VBOX_WITH_QTGUI),$(INSTALL) -m 0644 $(VBOX_PATH_SOL_INST_SRC)/virtualbox.desktop         $(SOLARIS_USRSHR_APPS_DIR)/virtualbox.desktop,)
 	$(QUIET)$(INSTALL) -m 0644 $(SOLARIS_OUT_BIN)/VBox.png                                                  $(SOLARIS_USRSHR_PIXMAPS_DIR)/VBox.png
 	$(QUIET)$(INSTALL) -m 0755 $(VBOX_PATH_SOL_INST_SRC)/postinstall.sh                                     $(SOLARIS_BASEINST_DIR)/postinstall.sh
+	$(QUIET)$(INSTALL) -m 0755 $(VBOX_PATH_SOL_INST_SRC)/checkinstall.sh                                    $(SOLARIS_BASEINST_DIR)/checkinstall.sh
 	$(QUIET)$(INSTALL) -m 0755 $(VBOX_PATH_SOL_INST_SRC)/preremove.sh                                       $(SOLARIS_BASEINST_DIR)/preremove.sh
 	$(QUIET)$(INSTALL) -m 0755 $(VBOX_PATH_SOL_INST_SRC)/makepackage.sh                                     $(SOLARIS_BASEINST_DIR)/makepackage.sh
 	$(QUIET)$(INSTALL) -m 0644 $(VBOX_PATH_SOL_INST_SRC)/vbox.pkgresponse                                   $(SOLARIS_VBOXINST_DIR)/autoresponse

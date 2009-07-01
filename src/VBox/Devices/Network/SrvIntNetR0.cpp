@@ -1,4 +1,4 @@
-/* $Id: SrvIntNetR0.cpp $ */
+/* $Id: SrvIntNetR0.cpp 20715 2009-06-19 11:58:01Z vboxsync $ */
 /** @file
  * Internal networking - The ring 0 service.
  */
@@ -4097,7 +4097,7 @@ INTNETR0DECL(int) INTNETR0Open(PINTNET pIntNet, PSUPDRVSESSION pSession, const c
                                unsigned cbSend, unsigned cbRecv, PINTNETIFHANDLE phIf)
 {
     LogFlow(("INTNETR0Open: pIntNet=%p pSession=%p pszNetwork=%p:{%s} enmTrunkType=%d pszTrunk=%p:{%s} fFlags=%#x cbSend=%u cbRecv=%u phIf=%p\n",
-             pIntNet, pSession, pszNetwork, pszNetwork, pszTrunk, pszTrunk, enmTrunkType, fFlags, cbSend, cbRecv, phIf));
+             pIntNet, pSession, pszNetwork, pszNetwork, enmTrunkType, pszTrunk, pszTrunk, fFlags, cbSend, cbRecv, phIf));
 
     /*
      * Validate input.

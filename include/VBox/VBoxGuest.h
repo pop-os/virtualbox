@@ -129,6 +129,8 @@ typedef RTGCPHYS64 VMMDEVHYPPHYS64;
 #define VBOXGUEST_MOUSE_GUEST_NEEDS_HOST_CURSOR RT_BIT(2)
 /** host does NOT provide support for drawing the cursor itself (e.g. L4 console) */
 #define VBOXGUEST_MOUSE_HOST_CANNOT_HWPOINTER   RT_BIT(3)
+/** The guest can read VMMDev events to find out about pointer movement */
+#define VBOXGUEST_MOUSE_GUEST_USES_VMMDEV       RT_BIT(4)
 
 /** fictive start address of the hypervisor physical memory for MmMapIoSpace */
 #define HYPERVISOR_PHYSICAL_START  0xf8000000
@@ -1663,7 +1665,7 @@ typedef VBOXGUESTOS2IDCCONNECT *PVBOXGUESTOS2IDCCONNECT;
 
 /* General-purpose functions */
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 VBGLR3DECL(int)     VbglR3Init(void);
 VBGLR3DECL(int)     VbglR3InitUser(void);
 VBGLR3DECL(void)    VbglR3Term(void);
@@ -1744,7 +1746,7 @@ VBGLR3DECL(int)     VbglR3GuestPropWait(uint32_t u32ClientId, const char *pszPat
 #endif /* VBOX_WITH_GUEST_PROPS defined */
 
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif /* IN_RING3 */
 

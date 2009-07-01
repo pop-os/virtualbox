@@ -1,4 +1,4 @@
-/* $Id: test.cpp $ */
+/* $Id: test.cpp 20605 2009-06-15 20:49:41Z vboxsync $ */
 /** @file
  * IPRT - Testcase Framework.
  */
@@ -33,14 +33,17 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/test.h>
+
+#include <iprt/asm.h>
+#include <iprt/critsect.h>
+#include <iprt/env.h>
+#include <iprt/err.h>
+#include <iprt/initterm.h>
 #include <iprt/mem.h>
+#include <iprt/once.h>
 #include <iprt/param.h>
 #include <iprt/string.h>
 #include <iprt/stream.h>
-#include <iprt/critsect.h>
-#include <iprt/once.h>
-#include <iprt/err.h>
-#include <iprt/asm.h>
 
 #include "internal/magics.h"
 
@@ -163,6 +166,7 @@ typedef RTTESTINT *PRTTESTINT;
 *   Internal Functions                                                         *
 *******************************************************************************/
 static void rtTestGuardedFreeOne(PRTTESTGUARDEDMEM pMem);
+static int rtTestPrintf(PRTTESTINT pTest, const char *pszFormat, ...);
 
 
 /*******************************************************************************
@@ -246,6 +250,28 @@ RTR3DECL(int) RTTestCreate(const char *pszTest, PRTTEST phTest)
                 rc = RTTlsSet(g_iTestTls, pTest);
             if (RT_SUCCESS(rc))
             {
+                /*
+                 * Finally, pick up overrides from the environment.
+                 */
+                char szMaxLevel[80];
+                rc = RTEnvGetEx(RTENV_DEFAULT, "IPRT_TEST_MAX_LEVEL", szMaxLevel, sizeof(szMaxLevel), NULL);
+                if (RT_SUCCESS(rc))
+                {
+                    char *pszMaxLevel = RTStrStrip(szMaxLevel);
+                    if (!strcmp(pszMaxLevel, "all"))
+                        pTest->enmMaxLevel = RTTESTLVL_DEBUG;
+                    if (!strcmp(pszMaxLevel, "quiet"))
+                        pTest->enmMaxLevel = RTTESTLVL_FAILURE;
+                    else if (!strcmp(pszMaxLevel, "debug"))
+                        pTest->enmMaxLevel = RTTESTLVL_DEBUG;
+                    else if (!strcmp(pszMaxLevel, "info"))
+                        pTest->enmMaxLevel = RTTESTLVL_INFO;
+                    else if (!strcmp(pszMaxLevel, "sub_test"))
+                        pTest->enmMaxLevel = RTTESTLVL_SUB_TEST;
+                    else if (!strcmp(pszMaxLevel, "failure"))
+                        pTest->enmMaxLevel = RTTESTLVL_FAILURE;
+                }
+
                 *phTest = pTest;
                 return VINF_SUCCESS;
             }
@@ -259,6 +285,24 @@ RTR3DECL(int) RTTestCreate(const char *pszTest, PRTTEST phTest)
     RTStrFree((char *)pTest->pszTest);
     RTMemFree(pTest);
     return rc;
+}
+
+
+RTR3DECL(int) RTTestInitAndCreate(const char *pszTest, PRTTEST phTest)
+{
+    int rc = RTR3Init();
+    if (RT_FAILURE(rc))
+    {
+        RTStrmPrintf(g_pStdErr, "%s: fatal error: RTR3Init failed with rc=%Rrc\n",  pszTest, rc);
+        return 16;
+    }
+    rc = RTTestCreate(pszTest, phTest);
+    if (RT_FAILURE(rc))
+    {
+        RTStrmPrintf(g_pStdErr, "%s: fatal error: RTTestCreate failed with rc=%Rrc\n",  pszTest, rc);
+        return 17;
+    }
+    return 0;
 }
 
 
@@ -277,6 +321,12 @@ RTR3DECL(int) RTTestDestroy(RTTEST hTest)
         return VINF_SUCCESS;
     RTTESTINT *pTest = hTest;
     RTTEST_VALID_RETURN(pTest);
+
+    /*
+     * Make sure we end with a new line.
+     */
+    if (!pTest->fNewLine)
+        rtTestPrintf(pTest, "\n");
 
     /*
      * Clean up.
@@ -306,6 +356,21 @@ RTR3DECL(int) RTTestDestroy(RTTEST hTest)
     return VINF_SUCCESS;
 }
 
+
+/**
+ * Changes the default test instance for the calling thread.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hNewDefaultTest The new default test. NIL_RTTEST is fine.
+ * @param   phOldTest       Where to store the old test handle. Optional.
+ */
+RTR3DECL(int) RTTestSetDefault(RTTEST hNewDefaultTest, PRTTEST phOldTest)
+{
+    if (phOldTest)
+        *phOldTest = (RTTEST)RTTlsGet(g_iTestTls);
+    return RTTlsSet(g_iTestTls, hNewDefaultTest);
+}
 
 
 /**
@@ -698,12 +763,12 @@ static int rtTestSubTestReport(PRTTESTINT pTest)
         pTest->fSubTestReported = true;
         uint32_t cErrors = ASMAtomicUoReadU32(&pTest->cErrors) - pTest->cSubTestAtErrors;
         if (!cErrors)
-            cch += RTTestPrintf(pTest, RTTESTLVL_SUB_TEST, "%-50s: PASSED\n", pTest->pszSubTest);
+            cch += RTTestPrintfNl(pTest, RTTESTLVL_SUB_TEST, "%-50s: PASSED\n", pTest->pszSubTest);
         else
         {
             pTest->cSubTestsFailed++;
-            cch += RTTestPrintf(pTest, RTTESTLVL_SUB_TEST, "%-50s: FAILED (%u errors)\n",
-                                pTest->pszSubTest, cErrors);
+            cch += RTTestPrintfNl(pTest, RTTESTLVL_SUB_TEST, "%-50s: FAILED (%u errors)\n",
+                                  pTest->pszSubTest, cErrors);
         }
     }
     return cch;
@@ -761,8 +826,45 @@ RTR3DECL(int) RTTestSummaryAndDestroy(RTTEST hTest)
         rc = 1;
     }
 
+    RTTestDestroy(pTest);
+    return rc;
+}
+
+
+RTR3DECL(int) RTTestSkipAndDestroyV(RTTEST hTest, const char *pszReason, va_list va)
+{
+    PRTTESTINT pTest = hTest;
+    RTTEST_GET_VALID_RETURN_RC(pTest, 2);
+
+    RTCritSectEnter(&pTest->Lock);
+    rtTestSubTestReport(pTest);
+    RTCritSectLeave(&pTest->Lock);
+
+    int rc;
+    if (!pTest->cErrors)
+    {
+        if (pszReason)
+            RTTestPrintfNlV(hTest, RTTESTLVL_FAILURE, pszReason, va);
+        RTTestPrintfNl(hTest, RTTESTLVL_ALWAYS, "SKIPPED\n", pTest->cErrors);
+        rc = 2;
+    }
+    else
+    {
+        RTTestPrintfNl(hTest, RTTESTLVL_ALWAYS, "FAILURE - %u errors\n", pTest->cErrors);
+        rc = 1;
+    }
 
     RTTestDestroy(pTest);
+    return rc;
+}
+
+
+RTR3DECL(int) RTTestSkipAndDestroy(RTTEST hTest, const char *pszReason, ...)
+{
+    va_list va;
+    va_start(va, pszReason);
+    int rc = RTTestSkipAndDestroyV(hTest, pszReason, va);
+    va_end(va);
     return rc;
 }
 
@@ -802,6 +904,52 @@ RTR3DECL(int) RTTestSub(RTTEST hTest, const char *pszSubTest)
     RTCritSectLeave(&pTest->Lock);
 
     return cch;
+}
+
+
+/**
+ * Format string version of RTTestSub.
+ *
+ * See RTTestSub for details.
+ *
+ * @returns Number of chars printed.
+ * @param   hTest           The test handle. If NIL_RTTEST we'll use the one
+ *                          associated with the calling thread.
+ * @param   pszSubTestFmt   The sub-test name format string.
+ * @param   ...             Arguments.
+ */
+RTR3DECL(int) RTTestSubF(RTTEST hTest, const char *pszSubTestFmt, ...)
+{
+    va_list va;
+    va_start(va, pszSubTestFmt);
+    int cch = RTTestSubV(hTest, pszSubTestFmt, va);
+    va_end(va);
+    return cch;
+}
+
+
+/**
+ * Format string version of RTTestSub.
+ *
+ * See RTTestSub for details.
+ *
+ * @returns Number of chars printed.
+ * @param   hTest           The test handle. If NIL_RTTEST we'll use the one
+ *                          associated with the calling thread.
+ * @param   pszSubTestFmt   The sub-test name format string.
+ * @param   ...             Arguments.
+ */
+RTR3DECL(int) RTTestSubV(RTTEST hTest, const char *pszSubTestFmt, va_list va)
+{
+    char *pszSubTest;
+    RTStrAPrintfV(&pszSubTest, pszSubTestFmt, va);
+    if (pszSubTest)
+    {
+        int cch = RTTestSub(hTest, pszSubTest);
+        RTStrFree(pszSubTest);
+        return cch;
+    }
+    return 0;
 }
 
 
@@ -922,8 +1070,12 @@ RTR3DECL(int) RTTestFailedV(RTTEST hTest, const char *pszFormat, va_list va)
         va_list va2;
         va_copy(va2, va);
 
+        const char *pszEnd = strchr(pszFormat, '\0');
+        bool fHasNewLine = pszFormat != pszEnd
+                        && pszEnd[-1] == '\n';
+
         RTCritSectEnter(&pTest->OutputLock);
-        cch += rtTestPrintf(pTest, "%N\n", pszFormat, &va2);
+        cch += rtTestPrintf(pTest, fHasNewLine ? "%N" : "%N\n", pszFormat, &va2);
         RTCritSectLeave(&pTest->OutputLock);
 
         va_end(va2);

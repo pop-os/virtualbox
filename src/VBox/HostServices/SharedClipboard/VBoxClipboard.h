@@ -38,7 +38,8 @@ typedef struct _VBOXCLIPBOARDCLIENTDATA
 
     uint32_t u32ClientID;
 
-    bool fAsync: 1; /* Guest is waiting for a message. */
+    bool fAsync: 1;        /* Guest is waiting for a message. */
+    bool fReadPending: 1;  /* The guest is waiting for data from the host */
 
     bool fMsgQuit: 1;
     bool fMsgReadData: 1;
@@ -48,6 +49,11 @@ typedef struct _VBOXCLIPBOARDCLIENTDATA
         VBOXHGCMCALLHANDLE callHandle;
         VBOXHGCMSVCPARM *paParms;
     } async;
+
+    struct {
+        VBOXHGCMCALLHANDLE callHandle;
+        VBOXHGCMSVCPARM *paParms;
+    } asyncRead;
 
     struct {
          void *pv;
@@ -67,6 +73,8 @@ bool vboxSvcClipboardLock (void);
 void vboxSvcClipboardUnlock (void);
 
 void vboxSvcClipboardReportMsg (VBOXCLIPBOARDCLIENTDATA *pClient, uint32_t u32Msg, uint32_t u32Formats);
+
+void vboxSvcClipboardCompleteReadData(VBOXCLIPBOARDCLIENTDATA *pClient, int rc, uint32_t cbActual);
 
 
 /*

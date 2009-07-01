@@ -1,4 +1,4 @@
-/* $Id: SUPR0IdcClientInternal.h $ */
+/* $Id: SUPR0IdcClientInternal.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * VirtualBox Support Driver - Internal header for the IDC client library.
  */
@@ -42,18 +42,18 @@
 #  define _InterlockedCompareExchange    _InterlockedCompareExchange_StupidDDKVsCompilerCrap
 #  define _InterlockedAddLargeStatistic  _InterlockedAddLargeStatistic_StupidDDKVsCompilerCrap
 #  pragma warning(disable : 4163)
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 #  include <ntddk.h>
-__END_DECLS
+RT_C_DECLS_END
 #  pragma warning(default : 4163)
 #  undef  _InterlockedExchange
 #  undef  _InterlockedExchangeAdd
 #  undef  _InterlockedCompareExchange
 #  undef  _InterlockedAddLargeStatistic
 # else
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 #  include <ntddk.h>
-__END_DECLS
+RT_C_DECLS_END
 # endif
 #endif /* RT_OS_WINDOWS */
 
@@ -79,12 +79,12 @@ struct SUPDRVIDCHANDLEPRIVATE
 #include "SUPDrvIDC.h"
 AssertCompile(RT_SIZEOFMEMB(SUPDRVIDCHANDLE, apvPadding) >= sizeof(struct SUPDRVIDCHANDLEPRIVATE));
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 PSUPDRVIDCHANDLE supR0IdcGetHandleFromSession(PSUPDRVSESSION pSession);
 int VBOXCALL supR0IdcNativeOpen(PSUPDRVIDCHANDLE pHandle, PSUPDRVIDCREQCONNECT pReq);
 int VBOXCALL supR0IdcNativeClose(PSUPDRVIDCHANDLE pHandle, PSUPDRVIDCREQHDR pReq);
 int VBOXCALL supR0IdcNativeCall(PSUPDRVIDCHANDLE pHandle, uint32_t iReq, PSUPDRVIDCREQHDR pReq);
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

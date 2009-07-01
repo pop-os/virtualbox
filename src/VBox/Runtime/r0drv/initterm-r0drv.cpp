@@ -1,4 +1,4 @@
-/* $Id: initterm-r0drv.cpp $ */
+/* $Id: initterm-r0drv.cpp 20909 2009-06-24 23:01:08Z vboxsync $ */
 /** @file
  * IPRT - Initialization & Termination, R0 Driver, Common.
  */
@@ -77,7 +77,7 @@ RTR0DECL(int) RTR0Init(unsigned fReserved)
     rc = rtR0InitNative();
     if (RT_SUCCESS(rc))
     {
-#if !defined(RT_OS_LINUX) && !defined(RT_OS_WINDOWS)
+#if !defined(RT_OS_LINUX)
         rc = rtThreadInit();
 #endif
         if (RT_SUCCESS(rc))
@@ -110,7 +110,7 @@ RTR0DECL(void) RTR0Term(void)
     if (cNewUsers != 0)
         return;
 
-#if !defined(RT_OS_LINUX) && !defined(RT_OS_WINDOWS)
+#if !defined(RT_OS_LINUX)
     rtThreadTerm();
 #endif
 #ifndef IN_GUEST /* play safe for now */

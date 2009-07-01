@@ -1,4 +1,4 @@
-/* $Id: PATMInternal.h $ */
+/* $Id: PATMInternal.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * PATM - Internal header file.
  */
@@ -39,7 +39,9 @@
 /* Last version to use SSMR3Put/GetMem */
 # define PATM_SSM_VERSION_GETPUTMEM          53
 #else
-# define PATM_SSM_VERSION                    54
+# define PATM_SSM_VERSION                    55
+# define PATM_SSM_VERSION_FIXUP_HACK         54
+# define PATM_SSM_VERSION_FIXUP_HACK         54
 # define PATM_SSM_VERSION_VER16              53
 #endif
 
@@ -133,6 +135,16 @@
 /** Size of memory allocated for patch statistics. */
 #define PATM_STAT_MEMSIZE                   (PATM_STAT_MAX_COUNTERS*sizeof(STAMRATIOU32))
 
+/** aCpus[0].fLocalForcedActions fixup (must be uneven to avoid theoretical clashes with valid pointers) */
+#define PATM_FIXUP_CPU_FF_ACTION            0xffffff01
+/** default cpuid pointer fixup */
+#define PATM_FIXUP_CPUID_DEFAULT            0xffffff03
+/** standard cpuid pointer fixup */
+#define PATM_FIXUP_CPUID_STANDARD           0xffffff05
+/** extended cpuid pointer fixup */
+#define PATM_FIXUP_CPUID_EXTENDED           0xffffff07
+/** centaur cpuid pointer fixup */
+#define PATM_FIXUP_CPUID_CENTAUR            0xffffff09
 
 typedef struct
 {
@@ -703,18 +715,18 @@ inline bool PATMR3DISInstr(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPT
                            uint32_t fReadFlags = PATMREAD_ORGCODE)
 {
     PATMDISASM disinfo;
-    disinfo.pVM    = pVM;
-    disinfo.pPatchInfo = pPatch;
-    disinfo.pInstrHC = InstrHC;
-    disinfo.pInstrGC = InstrGC;
-    disinfo.fReadFlags = fReadFlags;
-    (pCpu)->pfnReadBytes  = patmReadBytes;
+    disinfo.pVM         = pVM;
+    disinfo.pPatchInfo  = pPatch;
+    disinfo.pInstrHC    = InstrHC;
+    disinfo.pInstrGC    = InstrGC;
+    disinfo.fReadFlags  = fReadFlags;
+    (pCpu)->pfnReadBytes = patmReadBytes;
     (pCpu)->apvUserData[0] = &disinfo;
     return RT_SUCCESS(DISInstr(pCpu, InstrGC, 0, pOpsize, pszOutput));
 }
 #endif /* !IN_RC */
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 /**
  * #PF Virtual Handler callback for Guest access a page monitored by PATM
  *
@@ -821,9 +833,9 @@ inline RTRCPTR PATMResolveBranch(PDISCPUSTATE pCpu, RTRCPTR pBranchInstrGC)
 #endif
 }
 
-__END_DECLS
+RT_C_DECLS_END
 
-#ifdef DEBUG
+#ifdef LOG_ENABLED
 int patmr3DisasmCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTYPE(uint8_t *) pCurInstrGC, void *pUserData);
 int patmr3DisasmCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTYPE(uint8_t *) pCurInstrGC, PFN_PATMR3ANALYSE pfnPATMR3Analyse, void *pUserData);
 #endif

@@ -44,7 +44,7 @@
 # include <avformat.h>
 #endif /* DEBUG not defined */
 
-class FFmpegFB : public IFramebuffer
+class FFmpegFB : VBOX_SCRIPTABLE_IMPL(IFramebuffer)
 {
 public:
     FFmpegFB(ULONG width, ULONG height, ULONG bitrate, com::Bstr filename);
@@ -99,19 +99,15 @@ public:
     STDMETHOD(COMGETTER(Overlay)) (IFramebufferOverlay **aOverlay);
     STDMETHOD(COMGETTER(WinId)) (ULONG64 *winId);
 
-    STDMETHOD(NotifyUpdate)(ULONG x, ULONG y,
-                            ULONG w, ULONG h, BOOL *finished);
+    STDMETHOD(NotifyUpdate)(ULONG x, ULONG y, ULONG w, ULONG h);
     STDMETHOD(RequestResize)(ULONG aScreenId, ULONG pixelFormat, BYTE *vram,
                              ULONG bitsPerPixel, ULONG bytesPerLine,
                              ULONG w, ULONG h, BOOL *finished);
-    STDMETHOD(OperationSupported)(FramebufferAccelerationOperation_T operation, BOOL *supported);
     STDMETHOD(VideoModeSupported)(ULONG width, ULONG height, ULONG bpp, BOOL *supported);
-    STDMETHOD(SolidFill)(ULONG x, ULONG y, ULONG width, ULONG height,
-                         ULONG color, BOOL *handled);
-    STDMETHOD(CopyScreenBits)(ULONG xDst, ULONG yDst, ULONG xSrc, ULONG ySrc,
-                              ULONG width, ULONG height, BOOL *handled);
     STDMETHOD(GetVisibleRegion)(BYTE *rectangles, ULONG count, ULONG *countCopied);
     STDMETHOD(SetVisibleRegion)(BYTE *rectangles, ULONG count);
+
+    STDMETHOD(ProcessVHWACommand)(BYTE *pCommand);
 
 private:
     /** true if url_fopen actually succeeded */

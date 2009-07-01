@@ -1,10 +1,10 @@
-; $Id: VMMInternal.mac $
+; $Id: VMMInternal.mac 20992 2009-06-26 18:20:27Z vboxsync $
 ;; @file
 ; VMM - Internal header file.
 ;
 
 ;
-; Copyright (C) 2006-2007 Sun Microsystems, Inc.
+; Copyright (C) 2006-2009 Sun Microsystems, Inc.
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -20,6 +20,18 @@
 ;
 
 %include "VBox/asmdefs.mac"
+
+;
+; Determin the default stack switching unless specified explicitly.
+;
+%ifndef VMM_R0_SWITCH_STACK
+ %ifndef VMM_R0_NO_SWITCH_STACK
+  %ifdef RT_OS_DARWIN
+   %define VMM_R0_SWITCH_STACK
+  %endif
+ %endif
+%endif
+
 
 struc VMMR0JMPBUF
 %ifdef RT_ARCH_X86
@@ -38,14 +50,16 @@ struc VMMR0JMPBUF
     .pvSavedStack   resd 1
     .SpCheck        resd 1
     .SpResume       resd 1
+    .SavedEsp       resd 1
+    .SavedEbp       resd 1
 %endif
 %ifdef RT_ARCH_AMD64
     ; traditional jmp_buf
     .rbx            resq 1
-%ifdef RT_OS_WINDOWS
+ %ifdef RT_OS_WINDOWS
     .rsi            resq 1
     .rdi            resq 1
-%endif
+ %endif
     .rbp            resq 1
     .r12            resq 1
     .r13            resq 1
@@ -53,6 +67,18 @@ struc VMMR0JMPBUF
     .r15            resq 1
     .rsp            resq 1
     .rip            resq 1
+ %ifdef RT_OS_WINDOWS
+    .xmm6           resq 2
+    .xmm7           resq 2
+    .xmm8           resq 2
+    .xmm9           resq 2
+    .xmm10          resq 2
+    .xmm11          resq 2
+    .xmm12          resq 2
+    .xmm13          resq 2
+    .xmm14          resq 2
+    .xmm15          resq 2
+ %endif
 
     ; additional state and stack info.
     .fInRing3Call   resd 1
@@ -60,6 +86,14 @@ struc VMMR0JMPBUF
     .pvSavedStack   resq 1
     .SpCheck        resq 1
     .SpResume       resq 1
+    .SavedEsp       resq 1
+    .SavedEbp       resq 1
 %endif
+
+    ; Statistics
+    .cbUsedMax      resd 1
+    .cbUsedAvg      resd 1
+    .cbUsedTotal    resq 1
+    .cUsedTotal     resq 1
 endstruc
 

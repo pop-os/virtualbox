@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 20501 2009-06-12 11:31:37Z vboxsync $
 ## @file
 # Makefile for the VirtualBox Qt GUI.
 #
@@ -176,6 +176,7 @@ VirtualBox_DEFS          += \
 	$(if $(VBOX_WITH_UPDATE_REQUEST),VBOX_WITH_UPDATE_REQUEST) \
 	$(if $(VBOX_WITH_ALSA),VBOX_WITH_ALSA) \
 	$(if $(VBOX_WITH_PULSE),VBOX_WITH_PULSE) \
+	$(if $(VBOX_WITH_SOLARIS_OSS),VBOX_WITH_SOLARIS_OSS) \
 	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000) \
 	$(if $(VBOX_WITH_NETFLT)$(eq $(KBUILD_TARGET),freebsd),VBOX_WITH_NETFLT)
 ifdef VBOX_WITH_DEBUGGER_GUI
@@ -183,6 +184,10 @@ ifdef VBOX_WITH_DEBUGGER_GUI
  if "$(KBUILD_TYPE)" != "release"
   VirtualBox_DEFS       += VBOX_WITH_DEBUGGER_GUI_MENU
  endif
+endif
+ifdef VBOX_WITH_VIDEOHWACCEL
+ VirtualBox_DEFS        += VBOX_WITH_VIDEOHWACCEL \
+            VBOX_GUI_USE_QGL
 endif
 
 VirtualBox_src/main.cpp_DEFS += VBOX_VERSION_STRING=\"$(VBOX_VERSION_STRING)\"
@@ -221,6 +226,10 @@ ifeq ($(filter-out freebsd linux netbsd openbsd solaris,$(KBUILD_TARGET)),) # X1
  VirtualBox_LIBS         += $(PATH_DLL)/VBoxKeyboard$(VBOX_SUFF_DLL)
 endif
 
+ifdef VBOX_WITH_VIDEOHWACCEL
+ VirtualBox_LIBS.win     += $(PATH_SDK_WINPSDK_LIB)/Opengl32.lib
+endif
+
 # Headers containing definitions of classes that use the Q_OBJECT macro.
 VirtualBox_QT_MOCHDRS = \
 	include/QIHttp.h \
@@ -238,6 +247,7 @@ VirtualBox_QT_MOCHDRS = \
 	include/QIMainDialog.h \
 	include/QIHelpButton.h \
 	include/QIDialog.h \
+	include/QIFileDialog.h \
 	include/VBoxFilePathSelectorWidget.h \
 	include/VBoxOSTypeSelectorButton.h \
 	include/VBoxOSTypeSelectorWidget.h \
@@ -250,6 +260,7 @@ VirtualBox_QT_MOCHDRS = \
 	include/VBoxSelectorWnd.h \
 	include/VBoxConsoleWnd.h \
 	include/VBoxConsoleView.h \
+	include/VBoxMiniToolBar.h \
 	include/VBoxProblemReporter.h \
 	include/VBoxProgressDialog.h \
 	include/VBoxDownloaderWgt.h \
@@ -268,6 +279,8 @@ VirtualBox_QT_MOCHDRS = \
 	include/VBoxMediaManagerDlg.h \
 	include/VBoxSettingsUtils.h \
 	include/VBoxVMSettingsGeneral.h \
+	include/VBoxVMSettingsSystem.h \
+	include/VBoxVMSettingsDisplay.h \
 	include/VBoxVMSettingsHD.h \
 	include/VBoxVMSettingsCD.h \
 	include/VBoxVMSettingsFD.h \
@@ -280,7 +293,6 @@ VirtualBox_QT_MOCHDRS = \
 	include/VBoxVMSettingsUSBFilterDetails.h \
 	include/VBoxVMSettingsSF.h \
 	include/VBoxVMSettingsSFDetails.h \
-	include/VBoxVMSettingsVRDP.h \
 	include/VBoxGLSettingsGeneral.h \
 	include/VBoxGLSettingsInput.h \
 	include/VBoxGLSettingsUpdate.h \
@@ -307,6 +319,10 @@ ifdef VBOX_WITH_XPCOM
  VirtualBox_QT_MOCSRCS += \
 	src/COMDefs.cpp
 endif
+ifeq ($(KBUILD_TARGET),win)
+VirtualBox_QT_MOCSRCS += \
+	src/QIFileDialog.cpp
+endif
 
 VirtualBox_SOURCES = \
 	src/main.cpp \
@@ -320,6 +336,7 @@ VirtualBox_SOURCES = \
 	src/QILabelSeparator.cpp \
 	src/QIAbstractWizard.cpp \
 	src/QIDialog.cpp \
+	src/QIFileDialog.cpp \
 	src/QIDialogButtonBox.cpp \
 	src/QIListView.cpp \
 	src/QITreeWidget.cpp \
@@ -340,6 +357,7 @@ VirtualBox_SOURCES = \
 	src/VBoxSelectorWnd.cpp \
 	src/VBoxConsoleView.cpp \
 	src/VBoxConsoleWnd.cpp \
+	src/VBoxMiniToolBar.cpp \
 	src/VBoxDownloaderWgt.cpp \
 	src/VBoxVMListView.cpp \
 	src/VBoxFrameBuffer.cpp \
@@ -356,6 +374,8 @@ VirtualBox_SOURCES = \
 	src/VBoxSnapshotsWgt.cpp \
 	src/VBoxVMLogViewer.cpp \
 	src/VBoxVMSettingsGeneral.cpp \
+	src/VBoxVMSettingsSystem.cpp \
+	src/VBoxVMSettingsDisplay.cpp \
 	src/VBoxVMSettingsHD.cpp \
 	src/VBoxVMSettingsCD.cpp \
 	src/VBoxVMSettingsFD.cpp \
@@ -368,7 +388,6 @@ VirtualBox_SOURCES = \
 	src/VBoxVMSettingsUSBFilterDetails.cpp \
 	src/VBoxVMSettingsSF.cpp \
 	src/VBoxVMSettingsSFDetails.cpp \
-	src/VBoxVMSettingsVRDP.cpp \
 	src/VBoxGLSettingsGeneral.cpp \
 	src/VBoxGLSettingsInput.cpp \
 	src/VBoxGLSettingsUpdate.cpp \
@@ -431,9 +450,17 @@ else
 	src/darwin/VBoxUtils-darwin-carbon.cpp
 endif
 
+ifdef VBOX_WITH_VIDEOHWACCEL
+ VirtualBox_SOURCES += \
+	src/VBoxFBQGL.cpp
+endif
 # The Qt modules we're using.
 # (The include directory and lib/framework for each module will be added by the Qt4 unit.)
 VirtualBox_QT_MODULES = Core Gui Network
+
+ifdef VBOX_WITH_VIDEOHWACCEL
+VirtualBox_QT_MODULES += OpenGL
+endif
 
 # Import QDesigner UI sources and translations from VBoxUI.pro.
 ifndef VBOX_WITH_REGISTRATION

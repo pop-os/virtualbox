@@ -258,6 +258,7 @@ STDMETHODIMP Session::GetPID (ULONG *aPid)
 
 STDMETHODIMP Session::GetRemoteConsole (IConsole **aConsole)
 {
+    LogFlowThisFuncEnter();
     AssertReturn (aConsole, E_POINTER);
 
     AutoCaller autoCaller (this);
@@ -276,6 +277,8 @@ STDMETHODIMP Session::GetRemoteConsole (IConsole **aConsole)
         return VBOX_E_INVALID_VM_STATE;
 
     mConsole.queryInterfaceTo (aConsole);
+
+    LogFlowThisFuncLeave();
 
     return S_OK;
 }
@@ -642,7 +645,7 @@ STDMETHODIMP Session::OnUSBDeviceAttach (IUSBDevice *aDevice,
     return mConsole->onUSBDeviceAttach (aDevice, aError, aMaskedIfs);
 }
 
-STDMETHODIMP Session::OnUSBDeviceDetach (IN_GUID aId,
+STDMETHODIMP Session::OnUSBDeviceDetach (IN_BSTR aId,
                                          IVirtualBoxErrorInfo *aError)
 {
     LogFlowThisFunc (("\n"));

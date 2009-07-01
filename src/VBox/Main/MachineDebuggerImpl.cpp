@@ -1,4 +1,4 @@
-/* $Id: MachineDebuggerImpl.cpp $ */
+/* $Id: MachineDebuggerImpl.cpp 19500 2009-05-07 18:23:22Z vboxsync $ */
 
 /** @file
  *
@@ -199,7 +199,7 @@ STDMETHODIMP MachineDebugger::COMSETTER(RecompileUser) (BOOL aEnable)
 
     PVMREQ pReq;
     EMRAWMODE rawModeFlag = aEnable ? EMRAW_RING3_DISABLE : EMRAW_RING3_ENABLE;
-    int rcVBox = VMR3ReqCall (pVM, VMREQDEST_ANY, &pReq, RT_INDEFINITE_WAIT,
+    int rcVBox = VMR3ReqCall (pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT,
                               (PFNRT)EMR3RawSetMode, 2, pVM.raw(), rawModeFlag);
     if (RT_SUCCESS (rcVBox))
     {
@@ -267,7 +267,7 @@ STDMETHODIMP MachineDebugger::COMSETTER(RecompileSupervisor) (BOOL aEnable)
 
     PVMREQ pReq;
     EMRAWMODE rawModeFlag = aEnable ? EMRAW_RING0_DISABLE : EMRAW_RING0_ENABLE;
-    int rcVBox = VMR3ReqCall (pVM, VMREQDEST_ANY, &pReq, RT_INDEFINITE_WAIT,
+    int rcVBox = VMR3ReqCall (pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT,
                               (PFNRT)EMR3RawSetMode, 2, pVM.raw(), rawModeFlag);
     if (RT_SUCCESS (rcVBox))
     {
@@ -557,7 +557,7 @@ STDMETHODIMP MachineDebugger::COMGETTER(PAEEnabled) (BOOL *aEnabled)
 
     if (pVM.isOk())
     {
-        uint64_t cr4 = CPUMGetGuestCR4 (pVM.raw());
+        uint64_t cr4 = CPUMGetGuestCR4 (VMMGetCpu0(pVM.raw()));
         *aEnabled = !!(cr4 & X86_CR4_PAE);
     }
     else
@@ -584,7 +584,7 @@ STDMETHODIMP MachineDebugger::COMGETTER(VirtualTimeRate) (ULONG *aPct)
     Console::SafeVMPtrQuiet pVM (mParent);
 
     if (pVM.isOk())
-        *aPct = TMVirtualGetWarpDrive (pVM);
+        *aPct = TMGetWarpDrive (pVM);
     else
         *aPct = 100;
 
@@ -617,7 +617,7 @@ STDMETHODIMP MachineDebugger::COMSETTER(VirtualTimeRate) (ULONG aPct)
     Console::SafeVMPtr pVM (mParent);
     CheckComRCReturnRC (pVM.rc());
 
-    int vrc = TMVirtualSetWarpDrive (pVM, aPct);
+    int vrc = TMR3SetWarpDrive (pVM, aPct);
     if (RT_FAILURE (vrc))
     {
         /** @todo handle error code. */

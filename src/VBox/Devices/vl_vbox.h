@@ -1,4 +1,4 @@
-/* $Id: vl_vbox.h $ */
+/* $Id: vl_vbox.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * VBox vl.h Replacement.
  *
@@ -40,7 +40,7 @@
 
 #include "Builtins.h"
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /*
  * Misc macros.
@@ -89,12 +89,12 @@ typedef struct TMTIMER QEMUTimer;
 #define ticks_per_sec                           TMCpuTicksPerSecond((PVM)cpu_single_env->pVM)
 #define qemu_get_clock(enmClock)                TMR3Clock((PVM)cpu_single_env->pVM, enmClock)
 #define qemu_new_timer(clock, callback, user)   (QEMUTimer *)TMR3TimerCreateExternal((PVM)cpu_single_env->pVM, clock, callback, user, __FUNCTION__ )
-#define qemu_free_timer(timer)                  TMTimerDestroy(timer)
+#define qemu_free_timer(timer)                  TMR3TimerDestroy(timer)
 #define qemu_del_timer(timer)                   TMTimerStop(timer)
 #define qemu_mod_timer(timer, expire)           TMTimerSet(timer, (uint64_t)expire)
 #define qemu_timer_pending(timer)               TMTimerIsActive(timer)
-#define cpu_disable_ticks()                     TMCpuTickPause((PVM)cpu_single_env->pVM)
-#define cpu_enable_ticks()                      TMCpuTickResume((PVM)cpu_single_env->pVM)
+#define cpu_disable_ticks()                     ASMBreakpoint()
+#define cpu_enable_ticks()                      ASMBreakpoint()
 #define cpu_calibrate_ticks()                   do {} while (0)
 #define init_timers()                           do {} while (0)
 #define quit_timers()                           do {} while (0)
@@ -371,6 +371,6 @@ CPU_CONVERT(le, 64, uint64_t)
 
 /* end of bswap.h */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif /* __vl_vbox_h__ */

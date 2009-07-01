@@ -1,4 +1,4 @@
-/* $Id: USBDeviceImpl.h $ */
+/* $Id: USBDeviceImpl.h 19239 2009-04-28 13:19:14Z vboxsync $ */
 
 /** @file
  * Header file for the OUSBDevice (IUSBDevice) class, VBoxC.
@@ -35,7 +35,7 @@ class ATL_NO_VTABLE OUSBDevice :
     public VirtualBoxBaseNEXT,
     public VirtualBoxSupportErrorInfoImpl<OUSBDevice, IUSBDevice>,
     public VirtualBoxSupportTranslation<OUSBDevice>,
-    public IUSBDevice
+    VBOX_SCRIPTABLE_IMPL(IUSBDevice)
 {
 public:
 
@@ -46,8 +46,9 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(OUSBDevice)
-        COM_INTERFACE_ENTRY (ISupportErrorInfo)
-        COM_INTERFACE_ENTRY (IUSBDevice)
+        COM_INTERFACE_ENTRY  (ISupportErrorInfo)
+        COM_INTERFACE_ENTRY  (IUSBDevice)
+        COM_INTERFACE_ENTRY2 (IDispatch, IUSBDevice)
     END_COM_MAP()
 
     NS_DECL_ISUPPORTS
@@ -62,7 +63,7 @@ public:
     void uninit();
 
     // IUSBDevice properties
-    STDMETHOD(COMGETTER(Id))(OUT_GUID aId);
+    STDMETHOD(COMGETTER(Id))(BSTR *aId);
     STDMETHOD(COMGETTER(VendorId))(USHORT *aVendorId);
     STDMETHOD(COMGETTER(ProductId))(USHORT *aProductId);
     STDMETHOD(COMGETTER(Revision))(USHORT *aRevision);

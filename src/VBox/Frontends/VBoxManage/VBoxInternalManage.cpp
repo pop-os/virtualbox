@@ -1,4 +1,4 @@
-/* $Id: VBoxInternalManage.cpp $ */
+/* $Id: VBoxInternalManage.cpp 20928 2009-06-25 11:53:37Z vboxsync $ */
 /** @file
  * VBoxManage - The 'internalcommands' command.
  *
@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,7 +32,7 @@
 #include <VBox/com/string.h>
 #include <VBox/com/Guid.h>
 #include <VBox/com/ErrorInfo.h>
-#include <VBox/com/errorprint2.h>
+#include <VBox/com/errorprint.h>
 
 #include <VBox/com/VirtualBox.h>
 
@@ -413,7 +413,7 @@ static int CmdLoadSyms(int argc, char **argv, ComPtr<IVirtualBox> aVirtualBox, C
      */
     ComPtr<IMachine> machine;
     /* assume it's a UUID */
-    rc = aVirtualBox->GetMachine(Guid(argv[0]), machine.asOutParam());
+    rc = aVirtualBox->GetMachine(Bstr(argv[0]), machine.asOutParam());
     if (FAILED(rc) || !machine)
     {
         /* must be a name */
@@ -1157,7 +1157,10 @@ static int CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aVirtualB
             else
                 RawDescriptor.pPartitions[i].cbPartition =  partitions.aPartitions[i].uSize * 512;
             RawDescriptor.pPartitions[i].uPartitionDataStart = partitions.aPartitions[i].uPartDataStart * 512;
-            RawDescriptor.pPartitions[i].cbPartitionData = partitions.aPartitions[i].cPartDataSectors * 512;
+            /** @todo the clipping below isn't 100% accurate, as it should
+             * actually clip to the track size. However that's easier said
+             * than done as figuring out the track size is heuristics. */
+            RawDescriptor.pPartitions[i].cbPartitionData = RT_MIN(partitions.aPartitions[i].cPartDataSectors, 63) * 512;
             if (RawDescriptor.pPartitions[i].cbPartitionData)
             {
                 Assert (RawDescriptor.pPartitions[i].cbPartitionData -
@@ -1261,7 +1264,7 @@ static int CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aVirtualB
     if (fRegister)
     {
         ComPtr<IHardDisk> hardDisk;
-        CHECK_ERROR(aVirtualBox, OpenHardDisk(filename, AccessMode_ReadWrite, hardDisk.asOutParam()));
+        CHECK_ERROR(aVirtualBox, OpenHardDisk(filename, AccessMode_ReadWrite, false, Bstr(""), false, Bstr(""), hardDisk.asOutParam()));
     }
 
     return SUCCEEDED(rc) ? 0 : 1;
@@ -1637,7 +1640,7 @@ int CmdModUninstall(void)
 {
     int rc;
 
-    rc = SUPUninstall();
+    rc = SUPR3Uninstall();
     if (RT_SUCCESS(rc))
         return 0;
     if (rc == VERR_NOT_IMPLEMENTED)
@@ -1654,7 +1657,7 @@ int CmdModInstall(void)
 {
     int rc;
 
-    rc = SUPInstall();
+    rc = SUPR3Install();
     if (RT_SUCCESS(rc))
         return 0;
     if (rc == VERR_NOT_IMPLEMENTED)

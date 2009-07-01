@@ -38,20 +38,21 @@ FORMS = \
     ui/VBoxVMFirstRunWzd.ui \
     ui/VBoxVMInformationDlg.ui \
     ui/VBoxVMLogViewer.ui \
-    ui/VBoxVMSettingsAudio.ui \
+    ui/VBoxVMSettingsGeneral.ui \
+    ui/VBoxVMSettingsSystem.ui \
+    ui/VBoxVMSettingsDisplay.ui \
+    ui/VBoxVMSettingsHD.ui \
     ui/VBoxVMSettingsCD.ui \
     ui/VBoxVMSettingsFD.ui \
-    ui/VBoxVMSettingsGeneral.ui \
-    ui/VBoxVMSettingsHD.ui \
+    ui/VBoxVMSettingsAudio.ui \
     ui/VBoxVMSettingsNetwork.ui \
     ui/VBoxVMSettingsNetworkDetails.ui \
-    ui/VBoxVMSettingsParallel.ui \
-    ui/VBoxVMSettingsSF.ui \
-    ui/VBoxVMSettingsSFDetails.ui \
     ui/VBoxVMSettingsSerial.ui \
+    ui/VBoxVMSettingsParallel.ui \
     ui/VBoxVMSettingsUSB.ui \
     ui/VBoxVMSettingsUSBFilterDetails.ui \
-    ui/VBoxVMSettingsVRDP.ui \
+    ui/VBoxVMSettingsSF.ui \
+    ui/VBoxVMSettingsSFDetails.ui \
     ui/VBoxGLSettingsGeneral.ui \
     ui/VBoxGLSettingsInput.ui \
     ui/VBoxGLSettingsUpdate.ui \
@@ -90,5 +91,6 @@ TRANSLATIONS = \
 	nls/VirtualBox_zh_CN.ts \
 	nls/VirtualBox_zh_TW.ts \
 	nls/VirtualBox_km_KH.ts \
-	nls/VirtualBox_bg.ts
+	nls/VirtualBox_bg.ts \
+	nls/VirtualBox_uk.ts
 

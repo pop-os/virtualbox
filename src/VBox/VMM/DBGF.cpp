@@ -1,4 +1,4 @@
-/* $Id: DBGF.cpp $ */
+/* $Id: DBGF.cpp 20664 2009-06-17 12:48:15Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility.
  */
@@ -122,7 +122,7 @@ DECLINLINE(DBGFCMD) dbgfR3SetCmd(PVM pVM, DBGFCMD enmCmd)
         AssertMsg(pVM->dbgf.s.enmVMMCmd == DBGFCMD_NO_COMMAND, ("enmCmd=%d enmVMMCmd=%d\n", enmCmd, pVM->dbgf.s.enmVMMCmd));
         rc = (DBGFCMD)ASMAtomicXchgU32((uint32_t volatile *)(void *)&pVM->dbgf.s.enmVMMCmd, enmCmd);
         VM_FF_SET(pVM, VM_FF_DBGF);
-        VMR3NotifyFF(pVM, false /* didn't notify REM */);
+        VMR3NotifyGlobalFFU(pVM->pUVM, 0 /* didn't notify REM */);
     }
     return rc;
 }
@@ -137,6 +137,8 @@ DECLINLINE(DBGFCMD) dbgfR3SetCmd(PVM pVM, DBGFCMD enmCmd)
 VMMR3DECL(int) DBGFR3Init(PVM pVM)
 {
     int rc = dbgfR3InfoInit(pVM);
+    if (RT_SUCCESS(rc))
+        rc = dbgfR3AsInit(pVM);
     if (RT_SUCCESS(rc))
         rc = dbgfR3SymInit(pVM);
     if (RT_SUCCESS(rc))
@@ -207,6 +209,7 @@ VMMR3DECL(int) DBGFR3Term(PVM pVM)
      * Terminate the other bits.
      */
     dbgfR3OSTerm(pVM);
+    dbgfR3AsTerm(pVM);
     dbgfR3InfoTerm(pVM);
     return VINF_SUCCESS;
 }
@@ -222,6 +225,7 @@ VMMR3DECL(int) DBGFR3Term(PVM pVM)
  */
 VMMR3DECL(void) DBGFR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 {
+    dbgfR3AsRelocate(pVM, offDelta);
 }
 
 
@@ -290,30 +294,30 @@ bool dbgfR3WaitForAttach(PVM pVM, DBGFEVENTTYPE enmEvent)
  */
 VMMR3DECL(int) DBGFR3VMMForcedAction(PVM pVM)
 {
-    /*
-     * Clear the FF DBGF request flag.
-     */
-    Assert(pVM->fForcedActions & VM_FF_DBGF);
-    VM_FF_CLEAR(pVM, VM_FF_DBGF);
-
-    /*
-     * Commands?
-     */
     int rc = VINF_SUCCESS;
-    if (pVM->dbgf.s.enmVMMCmd != DBGFCMD_NO_COMMAND)
+
+    if (VM_FF_TESTANDCLEAR(pVM, VM_FF_DBGF_BIT))
     {
-        /** @todo stupid GDT/LDT sync hack. go away! */
-        SELMR3UpdateFromCPUM(pVM);
+        PVMCPU pVCpu = VMMGetCpu(pVM);
 
         /*
-         * Process the command.
+         * Commands?
          */
-        bool            fResumeExecution;
-        DBGFCMDDATA     CmdData = pVM->dbgf.s.VMMCmdData;
-        DBGFCMD         enmCmd = dbgfR3SetCmd(pVM, DBGFCMD_NO_COMMAND);
-        rc = dbgfR3VMMCmd(pVM, enmCmd, &CmdData, &fResumeExecution);
-        if (!fResumeExecution)
-            rc = dbgfR3VMMWait(pVM);
+        if (pVM->dbgf.s.enmVMMCmd != DBGFCMD_NO_COMMAND)
+        {
+            /** @todo stupid GDT/LDT sync hack. go away! */
+            SELMR3UpdateFromCPUM(pVM, pVCpu);
+
+            /*
+             * Process the command.
+             */
+            bool            fResumeExecution;
+            DBGFCMDDATA     CmdData = pVM->dbgf.s.VMMCmdData;
+            DBGFCMD         enmCmd = dbgfR3SetCmd(pVM, DBGFCMD_NO_COMMAND);
+            rc = dbgfR3VMMCmd(pVM, enmCmd, &CmdData, &fResumeExecution);
+            if (!fResumeExecution)
+                rc = dbgfR3VMMWait(pVM);
+        }
     }
     return rc;
 }
@@ -343,14 +347,17 @@ static void dbgfR3EventSetStoppedInHyperFlag(PVM pVM, DBGFEVENTTYPE enmEvent)
 
 
 /**
- * Try determin the event context.
+ * Try to determine the event context.
  *
  * @returns debug event context.
  * @param   pVM         The VM handle.
  */
 static DBGFEVENTCTX dbgfR3FigureEventCtx(PVM pVM)
 {
-    switch (EMGetState(pVM))
+    /** @todo SMP support! */
+    PVMCPU pVCpu = &pVM->aCpus[0];
+
+    switch (EMGetState(pVCpu))
     {
         case EMSTATE_RAW:
         case EMSTATE_DEBUG_GUEST_RAW:
@@ -380,6 +387,9 @@ static DBGFEVENTCTX dbgfR3FigureEventCtx(PVM pVM)
  */
 static int dbgfR3EventPrologue(PVM pVM, DBGFEVENTTYPE enmEvent)
 {
+    /** @todo SMP */
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+
     /*
      * Check if a debugger is attached.
      */
@@ -395,7 +405,7 @@ static int dbgfR3EventPrologue(PVM pVM, DBGFEVENTTYPE enmEvent)
      */
     dbgfR3EventSetStoppedInHyperFlag(pVM, enmEvent);
     if (!pVM->dbgf.s.fStoppedInHyper)
-        REMR3StateUpdate(pVM);
+        REMR3StateUpdate(pVM, pVCpu);
 
     /*
      * Look thru pending commands and finish those which make sense now.
@@ -553,9 +563,12 @@ VMMR3DECL(int) DBGFR3EventBreakpoint(PVM pVM, DBGFEVENTTYPE enmEvent)
     /*
      * Send the event and process the reply communication.
      */
+    /** @todo SMP */
+    PVMCPU pVCpu = VMMGetCpu0(pVM);
+
     pVM->dbgf.s.DbgEvent.enmType = enmEvent;
-    RTUINT iBp = pVM->dbgf.s.DbgEvent.u.Bp.iBp = pVM->dbgf.s.iActiveBp;
-    pVM->dbgf.s.iActiveBp = ~0U;
+    RTUINT iBp = pVM->dbgf.s.DbgEvent.u.Bp.iBp = pVCpu->dbgf.s.iActiveBp;
+    pVCpu->dbgf.s.iActiveBp = ~0U;
     if (iBp != ~0U)
         pVM->dbgf.s.DbgEvent.enmCtx = DBGFEVENTCTX_RAW;
     else
@@ -564,8 +577,8 @@ VMMR3DECL(int) DBGFR3EventBreakpoint(PVM pVM, DBGFEVENTTYPE enmEvent)
 #if 0   /** @todo get flat PC api! */
         uint32_t eip = CPUMGetGuestEIP(pVM);
 #else
-        /* @todo SMP */
-        PCPUMCTX pCtx = CPUMQueryGuestCtxPtrEx(pVM, VMMGetCpuEx(pVM, 0));
+        /* @todo SMP support!! */
+        PCPUMCTX pCtx = CPUMQueryGuestCtxPtr(VMMGetCpu(pVM));
         RTGCPTR  eip = pCtx->rip + pCtx->csHid.u64Base;
 #endif
         for (iBp = 0; iBp < RT_ELEMENTS(pVM->dbgf.s.aBreakpoints); iBp++)
@@ -590,10 +603,12 @@ VMMR3DECL(int) DBGFR3EventBreakpoint(PVM pVM, DBGFEVENTTYPE enmEvent)
  */
 static int dbgfR3VMMWait(PVM pVM)
 {
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+
     LogFlow(("dbgfR3VMMWait:\n"));
 
     /** @todo stupid GDT/LDT sync hack. go away! */
-    SELMR3UpdateFromCPUM(pVM);
+    SELMR3UpdateFromCPUM(pVM, pVCpu);
     int rcRet = VINF_SUCCESS;
 
     /*
@@ -615,10 +630,16 @@ static int dbgfR3VMMWait(PVM pVM)
                 return rc;
             }
 
-            if (VM_FF_ISSET(pVM, VM_FF_REQUEST))
+            if (VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS))
+                VMMR3EmtRendezvousFF(pVM, pVCpu);
+
+            if (    VM_FF_ISPENDING(pVM, VM_FF_REQUEST)
+                ||  VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_REQUEST))
             {
                 LogFlow(("dbgfR3VMMWait: Processes requests...\n"));
-                rc = VMR3ReqProcessU(pVM->pUVM, VMREQDEST_ANY);
+                rc = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY);
+                if (rc == VINF_SUCCESS)
+                    rc = VMR3ReqProcessU(pVM->pUVM, pVCpu->idCpu);
                 LogFlow(("dbgfR3VMMWait: VMR3ReqProcess -> %Rrc rcRet=%Rrc\n", rc, rcRet));
                 if (rc >= VINF_EM_FIRST && rc <= VINF_EM_LAST)
                 {
@@ -758,7 +779,9 @@ static int dbgfR3VMMCmd(PVM pVM, DBGFCMD enmCmd, PDBGFCMDDATA pCmdData, bool *pf
         {
             Log2(("Single step\n"));
             rc = VINF_EM_DBG_STEP;
-            pVM->dbgf.s.fSingleSteppingRaw = true;
+            /** @todo SMP */
+            PVMCPU pVCpu = VMMGetCpu0(pVM);
+            pVCpu->dbgf.s.fSingleSteppingRaw = true;
             fSendEvent = false;
             fResume = true;
             break;
@@ -830,7 +853,7 @@ VMMR3DECL(int) DBGFR3Attach(PVM pVM)
      * Call the VM, use EMT for serialization.
      */
     PVMREQ pReq;
-    int rc = VMR3ReqCall(pVM, VMREQDEST_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)dbgfR3Attach, 1, pVM);
+    int rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)dbgfR3Attach, 1, pVM);
     if (RT_SUCCESS(rc))
         rc = pReq->iStatus;
     VMR3ReqFree(pReq);
@@ -1042,18 +1065,21 @@ VMMR3DECL(int) DBGFR3Resume(PVM pVM)
  *
  * @returns VBox status.
  * @param   pVM     VM handle.
+ * @param   idCpu   The ID of the CPU to single step on.
  */
-VMMR3DECL(int) DBGFR3Step(PVM pVM)
+VMMR3DECL(int) DBGFR3Step(PVM pVM, VMCPUID idCpu)
 {
     /*
      * Check state.
      */
     AssertReturn(pVM->dbgf.s.fAttached, VERR_DBGF_NOT_ATTACHED);
     AssertReturn(RTSemPongIsSpeaker(&pVM->dbgf.s.PingPong), VERR_SEM_OUT_OF_TURN);
+    AssertReturn(idCpu < pVM->cCPUs, VERR_INVALID_PARAMETER);
 
     /*
      * Send the ping back to the emulation thread telling it to run.
      */
+/** @todo SMP (idCpu) */
     dbgfR3SetCmd(pVM, DBGFCMD_SINGLE_STEP);
     int rc = RTSemPong(&pVM->dbgf.s.PingPong);
     AssertRC(rc);
@@ -1062,20 +1088,23 @@ VMMR3DECL(int) DBGFR3Step(PVM pVM)
 
 
 /**
- * Call this to single step rawmode or recompiled mode.
+ * Call this to single step programatically.
  *
  * You must pass down the return code to the EM loop! That's
  * where the actual single stepping take place (at least in the
  * current implementation).
  *
  * @returns VINF_EM_DBG_STEP
- * @thread  EMT
+ *
+ * @param   pVCpu       The virtual CPU handle.
+ *
+ * @thread  VCpu EMT
  */
-VMMR3DECL(int) DBGFR3PrgStep(PVM pVM)
+VMMR3DECL(int) DBGFR3PrgStep(PVMCPU pVCpu)
 {
-    VM_ASSERT_EMT(pVM);
+    VMCPU_ASSERT_EMT(pVCpu);
 
-    pVM->dbgf.s.fSingleSteppingRaw = true;
+    pVCpu->dbgf.s.fSingleSteppingRaw = true;
     return VINF_EM_DBG_STEP;
 }
 

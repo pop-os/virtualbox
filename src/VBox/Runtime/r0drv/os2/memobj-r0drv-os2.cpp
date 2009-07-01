@@ -1,4 +1,4 @@
-/* $Id: memobj-r0drv-os2.cpp $ */
+/* $Id: memobj-r0drv-os2.cpp 20525 2009-06-13 20:13:33Z vboxsync $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, OS/2.
  */
@@ -464,6 +464,16 @@ int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RT
     }
     KernVMFree(pvR3);
     return VERR_NO_MEMORY;
+}
+
+
+int rtR0MemObjNativeProtect(PRTR0MEMOBJINTERNAL pMem, size_t offSub, size_t cbSub, uint32_t fProt)
+{
+    NOREF(pMem);
+    NOREF(offSub);
+    NOREF(cbSub);
+    NOREF(fProt);
+    return VERR_NOT_SUPPORTED;
 }
 
 

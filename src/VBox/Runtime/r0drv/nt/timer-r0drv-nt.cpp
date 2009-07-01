@@ -1,4 +1,4 @@
-/* $Id: timer-r0drv-nt.cpp $ */
+/* $Id: timer-r0drv-nt.cpp 18988 2009-04-17 13:00:59Z vboxsync $ */
 /** @file
  * IPRT - Timers, Ring-0 Driver, NT.
  */
@@ -404,7 +404,7 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, unsigne
 RTDECL(uint32_t) RTTimerGetSystemGranularity(void)
 {
     /*
-     * Get the default/max timer increment value, return it if ExtSetTimerResolution
+     * Get the default/max timer increment value, return it if ExSetTimerResolution
      * isn't available. Accoring to the sysinternals guys NtQueryTimerResolution
      * is only available in userland and they find it equally annoying.
      */

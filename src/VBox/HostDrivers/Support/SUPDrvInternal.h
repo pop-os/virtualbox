@@ -1,4 +1,4 @@
-/* $Revision: 45313 $ */
+/* $Revision: 20954 $ */
 /** @file
  * VirtualBox Support Driver - Internal header.
  */
@@ -48,7 +48,7 @@
 
 
 #if defined(RT_OS_WINDOWS)
-    __BEGIN_DECLS
+    RT_C_DECLS_BEGIN
 #   if (_MSC_VER >= 1400) && !defined(VBOX_WITH_PATCHED_DDK)
 #       define _InterlockedExchange           _InterlockedExchange_StupidDDKVsCompilerCrap
 #       define _InterlockedExchangeAdd        _InterlockedExchangeAdd_StupidDDKVsCompilerCrap
@@ -75,7 +75,7 @@
 #   include <memory.h>
 #   define memcmp(a,b,c) mymemcmp(a,b,c)
     int VBOXCALL mymemcmp(const void *, const void *, size_t);
-    __END_DECLS
+    RT_C_DECLS_END
 
 #elif defined(RT_OS_LINUX)
 #   include <linux/autoconf.h>
@@ -190,9 +190,9 @@
 # error Unsupported kernel version!
 #endif
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 int  linux_dprintf(const char *format, ...);
-__END_DECLS
+RT_C_DECLS_END
 
 /* debug printf */
 # define OSDBGPRINT(a) printk a
@@ -239,7 +239,7 @@ __END_DECLS
 
 
 /* dprintf */
-#if (defined(DEBUG) && !defined(NO_LOGGING)) || defined(RT_OS_FREEBSD)
+#if (defined(DEBUG) && !defined(NO_LOGGING))
 # ifdef LOG_TO_COM
 #  include <VBox/log.h>
 #  define dprintf(a) RTLogComPrintf a
@@ -307,6 +307,16 @@ __END_DECLS
 /** Version mismatch. */
 #define SUPDRV_ERR_VERSION_MISMATCH (-11)
 
+
+/** @name Context values for the per-session handle tables.
+ * The context value is used to distiguish between the different kinds of
+ * handles, making the handle table API do all the work.
+ * @{ */
+/** Handle context value for single release event handles.  */
+#define SUPDRV_HANDLE_CTX_EVENT         ((void *)(uintptr_t)(SUPDRVOBJTYPE_SEM_EVENT))
+/** Handle context value for multiple release event handles.  */
+#define SUPDRV_HANDLE_CTX_EVENT_MULTI   ((void *)(uintptr_t)(SUPDRVOBJTYPE_SEM_EVENT_MULTI))
+/** @} */
 
 
 /*******************************************************************************
@@ -493,12 +503,13 @@ typedef struct SUPDRVSESSION
     /** Session Cookie. */
     uint32_t                        u32Cookie;
 
-    /** Load usage records. (protected by SUPDRVDEVEXT::mtxLdr) */
-    PSUPDRVLDRUSAGE volatile        pLdrUsage;
     /** The VM associated with the session. */
     PVM                             pVM;
-    /** List of generic usage records. (protected by SUPDRVDEVEXT::SpinLock) */
-    PSUPDRVUSAGE volatile           pUsage;
+    /** Handle table for IPRT semaphore wrapper APIs.
+     * Programmable from R0 and R3. */
+    RTHANDLETABLE                   hHandleTable;
+    /** Load usage records. (protected by SUPDRVDEVEXT::mtxLdr) */
+    PSUPDRVLDRUSAGE volatile        pLdrUsage;
 
     /** Spinlock protecting the bundles and the GIP members. */
     RTSPINLOCK                      Spinlock;
@@ -508,6 +519,8 @@ typedef struct SUPDRVSESSION
     uint32_t                        fGipReferenced;
     /** Bundle of locked memory objects. */
     SUPDRVBUNDLE                    Bundle;
+    /** List of generic usage records. (protected by SUPDRVDEVEXT::SpinLock) */
+    PSUPDRVUSAGE volatile           pUsage;
 
     /** The user id of the session. (Set by the OS part.) */
     RTUID                           Uid;
@@ -541,8 +554,7 @@ typedef struct SUPDRVSESSION
  */
 typedef struct SUPDRVDEVEXT
 {
-    /** Spinlock to serialize the initialization,
-     * usage counting and destruction of the IDT entry override and objects. */
+    /** Spinlock to serialize the initialization, usage counting and objects. */
     RTSPINLOCK                      Spinlock;
 
     /** List of registered objects. Protected by the spinlock. */
@@ -567,9 +579,9 @@ typedef struct SUPDRVDEVEXT
     /** VMMR0EntryInt() pointer. */
     DECLR0CALLBACKMEMBER(int,       pfnVMMR0EntryInt, (PVM pVM, unsigned uOperation, void *pvArg));
     /** VMMR0EntryFast() pointer. */
-    DECLR0CALLBACKMEMBER(void,      pfnVMMR0EntryFast, (PVM pVM, unsigned idCpu, unsigned uOperation));
+    DECLR0CALLBACKMEMBER(void,      pfnVMMR0EntryFast, (PVM pVM, VMCPUID idCpu, unsigned uOperation));
     /** VMMR0EntryEx() pointer. */
-    DECLR0CALLBACKMEMBER(int,       pfnVMMR0EntryEx, (PVM pVM, unsigned uOperation, PSUPVMMR0REQHDR pReq, uint64_t u64Arg, PSUPDRVSESSION pSession));
+    DECLR0CALLBACKMEMBER(int,       pfnVMMR0EntryEx, (PVM pVM, VMCPUID idCpu, unsigned uOperation, PSUPVMMR0REQHDR pReq, uint64_t u64Arg, PSUPDRVSESSION pSession));
 
     /** Linked list of loaded code. */
     PSUPDRVLDRIMAGE volatile        pLdrImages;
@@ -610,7 +622,7 @@ typedef struct SUPDRVDEVEXT
 } SUPDRVDEVEXT;
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /*******************************************************************************
 *   OS Specific Functions                                                      *
@@ -624,7 +636,7 @@ int  VBOXCALL   supdrvOSEnableVTx(bool fEnabled);
 *   Shared Functions                                                           *
 *******************************************************************************/
 int  VBOXCALL   supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPREQHDR pReqHdr);
-int  VBOXCALL   supdrvIOCtlFast(uintptr_t uIOCtl, unsigned idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
+int  VBOXCALL   supdrvIOCtlFast(uintptr_t uIOCtl, VMCPUID idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
 int  VBOXCALL   supdrvIDC(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPDRVIDCREQHDR pReqHdr);
 int  VBOXCALL   supdrvInitDevExt(PSUPDRVDEVEXT pDevExt);
 void VBOXCALL   supdrvDeleteDevExt(PSUPDRVDEVEXT pDevExt);
@@ -637,7 +649,7 @@ void VBOXCALL   supdrvGipUpdate(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS);
 void VBOXCALL   supdrvGipUpdatePerCpu(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, unsigned iCpu);
 bool VBOXCALL   supdrvDetermineAsyncTsc(uint64_t *pu64DiffCores);
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

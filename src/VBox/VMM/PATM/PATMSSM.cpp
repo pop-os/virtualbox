@@ -1,4 +1,4 @@
-/* $Id: PATMSSM.cpp $ */
+/* $Id: PATMSSM.cpp 19144 2009-04-23 14:05:09Z vboxsync $ */
 /** @file
  * PATMSSM - Dynamic Guest OS Patching Manager; Save and load state
  *
@@ -141,9 +141,30 @@ static DECLCALLBACK(int) patmSaveFixupRecords(PAVLPVNODECORE pNode, void *pVM1)
     PVM                 pVM  = (PVM)pVM1;
     PSSMHANDLE          pSSM = pVM->patm.s.savedstate.pSSM;
     RELOCREC            rec  = *(PRELOCREC)pNode;
+    RTRCPTR            *pFixup = (RTRCPTR *)rec.pRelocPos;
 
     Assert(rec.pRelocPos);
+    /* Convert pointer to an offset into patch memory. */
     PATM_SUBTRACT_PTR(rec.pRelocPos, pVM->patm.s.pPatchMemHC);
+
+    if (rec.uType == FIXUP_ABSOLUTE)
+    {
+        /* Core.Key abused to store the fixup type. */
+        if (*pFixup == pVM->pVMRC + RT_OFFSETOF(VM, aCpus[0].fLocalForcedActions))
+            rec.Core.Key = (AVLPVKEY)PATM_FIXUP_CPU_FF_ACTION;
+        else 
+        if (*pFixup == CPUMR3GetGuestCpuIdDefRCPtr(pVM))
+            rec.Core.Key = (AVLPVKEY)PATM_FIXUP_CPUID_DEFAULT;
+        else 
+        if (*pFixup == CPUMR3GetGuestCpuIdStdRCPtr(pVM))
+            rec.Core.Key = (AVLPVKEY)PATM_FIXUP_CPUID_STANDARD;
+        else 
+        if (*pFixup == CPUMR3GetGuestCpuIdExtRCPtr(pVM))
+            rec.Core.Key = (AVLPVKEY)PATM_FIXUP_CPUID_EXTENDED;
+        else 
+        if (*pFixup == CPUMR3GetGuestCpuIdCentaurRCPtr(pVM))
+            rec.Core.Key = (AVLPVKEY)PATM_FIXUP_CPUID_CENTAUR;
+    }
 
     /* Save the lookup record. */
     int rc = SSMR3PutMem(pSSM, &rec, sizeof(rec));
@@ -285,6 +306,7 @@ DECLCALLBACK(int) patmr3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
     int  rc;
 
     if (    u32Version != PATM_SSM_VERSION
+        &&  u32Version != PATM_SSM_VERSION_FIXUP_HACK
         &&  u32Version != PATM_SSM_VERSION_VER16
 #ifdef PATM_WITH_NEW_SSM
         &&  u32Version != PATM_SSM_VERSION_GETPUTMEM)
@@ -582,7 +604,7 @@ DECLCALLBACK(int) patmr3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
 
         pPatchRec->patch.pPrivInstrHC   = 0;
         /* The GC virtual ptr is fixed, but we must convert it manually again to HC. */
-        int rc2 = rc = PGMPhysGCPtr2R3Ptr(pVM, pPatchRec->patch.pPrivInstrGC, (PRTR3PTR)&pPatchRec->patch.pPrivInstrHC);
+        int rc2 = rc = PGMPhysGCPtr2R3Ptr(VMMGetCpu0(pVM), pPatchRec->patch.pPrivInstrGC, (PRTR3PTR)&pPatchRec->patch.pPrivInstrHC);
         /* Can fail due to page or page table not present. */
 
         /*
@@ -873,15 +895,16 @@ static void patmCorrectFixup(PVM pVM, unsigned ulSSMVersion, PATM &patmInfo, PPA
             *pFixup = (*pFixup - patmInfo.pPatchMemGC) + pVM->patm.s.pPatchMemGC;
         }
         else
-        /* Note: rather assumptive! */
-        if (    *pFixup >= pVM->pVMRC
+        if (    ulSSMVersion <= PATM_SSM_VERSION_FIXUP_HACK
+            &&  *pFixup >= pVM->pVMRC
             &&  *pFixup < pVM->pVMRC + 32)
         {
-            LogFlow(("Changing fForcedActions fixup from %x to %x\n", *pFixup, pVM->pVMRC + RT_OFFSETOF(VM, fForcedActions)));
-            *pFixup = pVM->pVMRC + RT_OFFSETOF(VM, fForcedActions);
+            LogFlow(("Changing fLocalForcedActions fixup from %x to %x\n", *pFixup, pVM->pVMRC + RT_OFFSETOF(VM, aCpus[0].fLocalForcedActions)));
+            *pFixup = pVM->pVMRC + RT_OFFSETOF(VM, aCpus[0].fLocalForcedActions);
         }
         else
-        if (    *pFixup >= pVM->pVMRC
+        if (    ulSSMVersion <= PATM_SSM_VERSION_FIXUP_HACK
+            &&  *pFixup >= pVM->pVMRC
             &&  *pFixup < pVM->pVMRC + 8192)
         {
             static int cCpuidFixup = 0;
@@ -892,26 +915,58 @@ static void patmCorrectFixup(PVM pVM, unsigned ulSSMVersion, PATM &patmInfo, PPA
             switch(cCpuidFixup & 3)
             {
             case 0:
-                *pFixup = CPUMGetGuestCpuIdDefRCPtr(pVM);
+                *pFixup = CPUMR3GetGuestCpuIdDefRCPtr(pVM);
                 break;
             case 1:
-                *pFixup = CPUMGetGuestCpuIdStdRCPtr(pVM);
+                *pFixup = CPUMR3GetGuestCpuIdStdRCPtr(pVM);
                 break;
             case 2:
-                *pFixup = CPUMGetGuestCpuIdExtRCPtr(pVM);
+                *pFixup = CPUMR3GetGuestCpuIdExtRCPtr(pVM);
                 break;
             case 3:
-                *pFixup = CPUMGetGuestCpuIdCentaurRCPtr(pVM);
+                *pFixup = CPUMR3GetGuestCpuIdCentaurRCPtr(pVM);
                 break;
             }
             LogFlow(("Changing cpuid fixup %d from %x to %x\n", cCpuidFixup, oldFixup, *pFixup));
             cCpuidFixup++;
         }
         else
-            AssertMsgFailed(("Unexpected fixup value %x\n", *pFixup));
+        if (ulSSMVersion >= PATM_SSM_VERSION)
+        {
+#ifdef LOG_ENABLED
+            RTRCPTR oldFixup = *pFixup;
+#endif
+            /* Core.Key abused to store the type of fixup */
+            switch ((uintptr_t)pRec->Core.Key)
+            {
+            case PATM_FIXUP_CPU_FF_ACTION:
+                *pFixup = pVM->pVMRC + RT_OFFSETOF(VM, aCpus[0].fLocalForcedActions);
+                LogFlow(("Changing cpu ff action fixup from %x to %x\n", oldFixup, *pFixup));
+                break;
+            case PATM_FIXUP_CPUID_DEFAULT:
+                *pFixup = CPUMR3GetGuestCpuIdDefRCPtr(pVM);
+                LogFlow(("Changing cpuid def fixup from %x to %x\n", oldFixup, *pFixup));
+                break;
+            case PATM_FIXUP_CPUID_STANDARD:
+                *pFixup = CPUMR3GetGuestCpuIdStdRCPtr(pVM);
+                LogFlow(("Changing cpuid std fixup from %x to %x\n", oldFixup, *pFixup));
+                break;
+            case PATM_FIXUP_CPUID_EXTENDED:
+                *pFixup = CPUMR3GetGuestCpuIdExtRCPtr(pVM);
+                LogFlow(("Changing cpuid ext fixup from %x to %x\n", oldFixup, *pFixup));
+                break;
+            case PATM_FIXUP_CPUID_CENTAUR:
+                *pFixup = CPUMR3GetGuestCpuIdCentaurRCPtr(pVM);
+                LogFlow(("Changing cpuid centaur fixup from %x to %x\n", oldFixup, *pFixup));
+                break;
+            default:
+                AssertMsgFailed(("Unexpected fixup value %x\n", *pFixup));
+                break;
+            }
+        }
 
 #ifdef RT_OS_WINDOWS
-        AssertCompile(RT_OFFSETOF(VM, fForcedActions) < 32);
+        AssertCompile(RT_OFFSETOF(VM, fGlobalForcedActions) < 32);
 #endif
         break;
     }
@@ -960,7 +1015,7 @@ static void patmCorrectFixup(PVM pVM, unsigned ulSSMVersion, PATM &patmInfo, PPA
             /*
              * Read old patch jump and compare it to the one we previously installed
              */
-            int rc = PGMPhysSimpleReadGCPtr(pVM, temp, pPatch->pPrivInstrGC, pPatch->cbPatchJump);
+            int rc = PGMPhysSimpleReadGCPtr(VMMGetCpu0(pVM), temp, pPatch->pPrivInstrGC, pPatch->cbPatchJump);
             Assert(RT_SUCCESS(rc) || rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
 
             if (rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT)
@@ -983,7 +1038,7 @@ static void patmCorrectFixup(PVM pVM, unsigned ulSSMVersion, PATM &patmInfo, PPA
             else
             if (RT_SUCCESS(rc))
             {
-                rc = PGMPhysSimpleDirtyWriteGCPtr(pVM, pJumpOffGC, &displ, sizeof(displ));
+                rc = PGMPhysSimpleDirtyWriteGCPtr(VMMGetCpu0(pVM), pJumpOffGC, &displ, sizeof(displ));
                 AssertRC(rc);
             }
             else

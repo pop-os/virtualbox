@@ -1,3 +1,9 @@
+virtualbox-ose (3.0.0-dfsg-1) unstable; urgency=low
+
+  * New Upstream Version
+
+ -- Michael Meskes <meskes@debian.org>  Wed, 01 Jul 2009 09:48:15 +0200
+
 virtualbox-ose (2.2.4-dfsg-2) unstable; urgency=low
 
   * Added patch by Daniel Hahler <ubuntu@thequod.de> to disable the

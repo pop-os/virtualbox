@@ -1,4 +1,4 @@
-/* $Id: PerformanceFreeBSD.cpp $ */
+/* $Id: PerformanceFreeBSD.cpp 19067 2009-04-21 11:43:22Z vboxsync $ */
 /** @file
  * VirtualBox Performance Collector, FreeBSD Specialization.
  */
@@ -19,6 +19,8 @@
  * additional information or have any questions.
  */
 
+#include <sys/types.h>
+#include <sys/sysctl.h>
 #include "Performance.h"
 
 namespace pm {
@@ -46,12 +48,51 @@ int CollectorFreeBSD::getHostCpuLoad(ULONG *user, ULONG *kernel, ULONG *idle)
 
 int CollectorFreeBSD::getHostCpuMHz(ULONG *mhz)
 {
-    return E_NOTIMPL;
+    int CpuMHz = 0;
+    size_t cbParameter = sizeof(CpuMHz);
+
+    /** @todo: Howto support more than one CPU? */
+    if (sysctlbyname("dev.cpu.0.freq", &CpuMHz, &cbParameter, NULL, 0))
+        return VERR_NOT_SUPPORTED;
+
+    *mhz = CpuMHz;
+
+    return VINF_SUCCESS;
 }
 
 int CollectorFreeBSD::getHostMemoryUsage(ULONG *total, ULONG *used, ULONG *available)
 {
-    return E_NOTIMPL;
+    int rc = VINF_SUCCESS;
+    u_long cbMemPhys = 0;
+    u_int cPagesMemFree = 0;
+    u_int cPagesMemUsed = 0;
+    int cbPage = 0;
+    size_t cbParameter = sizeof(cbMemPhys);
+    int cProcessed = 0;
+
+    if (!sysctlbyname("hw.physmem", &cbMemPhys, &cbParameter, NULL, 0))
+        cProcessed++;
+
+    cbParameter = sizeof(cPagesMemFree);
+    if (!sysctlbyname("vm.stats.vm.v_free_count", &cPagesMemFree, &cbParameter, NULL, 0))
+        cProcessed++;
+    cbParameter = sizeof(cPagesMemUsed);
+    if (!sysctlbyname("vm.stats.vm.v_active_count", &cPagesMemUsed, &cbParameter, NULL, 0))
+        cProcessed++;
+    cbParameter = sizeof(cbPage);
+    if (!sysctlbyname("hw.pagesize", &cbPage, &cbParameter, NULL, 0))
+        cProcessed++;
+
+    if (cProcessed == 4)
+    {
+        *total     = cbMemPhys / _1K;
+        *used      = cPagesMemUsed * (cbPage / _1K);
+        *available = cPagesMemFree * (cbPage / _1K);
+    }
+    else
+        rc = VERR_NOT_SUPPORTED;
+
+    return rc;
 }
 
 int CollectorFreeBSD::getProcessCpuLoad(RTPROCESS process, ULONG *user, ULONG *kernel)

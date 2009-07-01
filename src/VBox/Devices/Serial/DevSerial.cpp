@@ -1,4 +1,4 @@
-/* $Id: DevSerial.cpp $ */
+/* $Id: DevSerial.cpp 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * DevSerial - 16450 UART emulation.
  */
@@ -184,10 +184,10 @@ struct SerialState
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 PDMBOTHCBDECL(int) serialIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
 PDMBOTHCBDECL(int) serialIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
-__END_DECLS
+RT_C_DECLS_END
 
 #ifdef IN_RING3
 

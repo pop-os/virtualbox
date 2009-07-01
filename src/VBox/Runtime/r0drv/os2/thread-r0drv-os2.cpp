@@ -1,4 +1,4 @@
-/* $Id: thread-r0drv-os2.cpp $ */
+/* $Id: thread-r0drv-os2.cpp 20124 2009-05-28 15:40:06Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 1), Ring-0 Driver, OS/2.
  */
@@ -71,5 +71,59 @@ RTDECL(bool) RTThreadYield(void)
 {
     /** @todo implement me (requires a devhelp) */
     return false;
+}
+
+
+RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread)
+{
+    Assert(hThread == NIL_RTTHREAD);
+    return false;
+}
+
+
+RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
+{
+    /* yes, RTThreadPreemptIsPending is reliable. */
+    return true;
+}
+
+
+RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
+{
+    Assert(hThread == NIL_RTTHREAD);
+
+    union
+    {
+        RTFAR16 fp;
+        uint8_t fResched;
+    } u;
+    int rc = RTR0Os2DHQueryDOSVar(DHGETDOSV_YIELDFLAG, 0, &u.fp);
+    AssertReturn(rc == 0, false);
+    if (u.fResched)
+        return true;
+
+    /** @todo Check if DHGETDOSV_YIELDFLAG includes TCYIELDFLAG. */
+    rc = RTR0Os2DHQueryDOSVar(DHGETDOSV_TCYIELDFLAG, 0, &u.fp);
+    AssertReturn(rc == 0, false);
+    if (u.fResched)
+        return true;
+    return false;
+}
+
+
+RTDECL(void) RTThreadPreemptDisable(PRTTHREADPREEMPTSTATE pState)
+{
+    AssertPtr(pState);
+    Assert(pState->uchDummy != 42);
+    pState->uchDummy = 42;
+    /* Nothing to do here as OS/2 doesn't preempt kernel threads. */
+}
+
+
+RTDECL(void) RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState)
+{
+    AssertPtr(pState);
+    Assert(pState->uchDummy == 42);
+    pState->uchDummy = 0;
 }
 

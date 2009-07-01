@@ -1,4 +1,4 @@
-/* $Id: DevPit-i8254.cpp $ */
+/* $Id: DevPit-i8254.cpp 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * DevPIT-i8254 - Intel 8254 Programmable Interval Timer (PIT) And Dummy Speaker Device.
  */
@@ -155,15 +155,15 @@ typedef struct PITState
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 PDMBOTHCBDECL(int) pitIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
 PDMBOTHCBDECL(int) pitIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
 PDMBOTHCBDECL(int) pitIOPortSpeakerRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
 #ifdef IN_RING3
 PDMBOTHCBDECL(int) pitIOPortSpeakerWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
-static void pit_irq_timer_update(PITChannelState *s, uint64_t current_time);
+static void pit_irq_timer_update(PITChannelState *s, uint64_t current_time, uint64_t now);
 #endif
-__END_DECLS
+RT_C_DECLS_END
 
 
 
@@ -181,11 +181,14 @@ static int pit_get_count(PITChannelState *s)
             d = ASMMultU64ByU32DivByU32(TMTimerGet(pTimer) - s->count_load_time, PIT_FREQ, TMTimerGetFreq(pTimer));
             return s->count - (d % s->count); /** @todo check this value. */
         }
+        uint64_t Interval = s->u64NextTS - s->u64ReloadTS;
+        if (!Interval)
+            return s->count - 1; /** @todo This is WRONG! But I'm too tired to fix it properly and just want to shut up a DIV/0 trap now. */
         d = TMTimerGet(pTimer);
-        d = ASMMultU64ByU32DivByU32(d - s->u64ReloadTS, s->count, s->u64NextTS - s->u64ReloadTS);
+        d = ASMMultU64ByU32DivByU32(d - s->u64ReloadTS, s->count, Interval);
         if (d >= s->count)
             return 1;
-        return  s->count - d;
+        return s->count - d;
     }
     d = ASMMultU64ByU32DivByU32(TMTimerGet(pTimer) - s->count_load_time, PIT_FREQ, TMTimerGetFreq(pTimer));
     switch(s->mode) {
@@ -286,16 +289,18 @@ static void pit_set_gate(PITState *pit, int channel, int val)
     case 5:
         if (s->gate < val) {
             /* restart counting on rising edge */
+            Log(("pit_set_gate: restarting mode %d\n", s->mode));
             s->count_load_time = TMTimerGet(pTimer);
-            pit_irq_timer_update(s, s->count_load_time);
+            pit_irq_timer_update(s, s->count_load_time, s->count_load_time);
         }
         break;
     case 2:
     case 3:
         if (s->gate < val) {
             /* restart counting on rising edge */
+            Log(("pit_set_gate: restarting mode %d\n", s->mode));
             s->count_load_time = s->u64ReloadTS = TMTimerGet(pTimer);
-            pit_irq_timer_update(s, s->count_load_time);
+            pit_irq_timer_update(s, s->count_load_time, s->count_load_time);
         }
         /* XXX: disable/enable counting */
         break;
@@ -310,13 +315,16 @@ DECLINLINE(void) pit_load_count(PITChannelState *s, int val)
         val = 0x10000;
     s->count_load_time = s->u64ReloadTS = TMTimerGet(pTimer);
     s->count = val;
-    pit_irq_timer_update(s, s->count_load_time);
+    pit_irq_timer_update(s, s->count_load_time, s->count_load_time);
 
     /* log the new rate (ch 0 only). */
     if (    s->pTimerR3 /* ch 0 */
         &&  s->cRelLogEntries++ < 32)
         LogRel(("PIT: mode=%d count=%#x (%u) - %d.%02d Hz (ch=0)\n",
                 s->mode, s->count, s->count, PIT_FREQ / s->count, (PIT_FREQ * 100 / s->count) % 100));
+    else
+        Log(("PIT: mode=%d count=%#x (%u) - %d.%02d Hz (ch=0)\n",
+             s->mode, s->count, s->count, PIT_FREQ / s->count, (PIT_FREQ * 100 / s->count) % 100));
 }
 
 /* return -1 if no transition will occur.  */
@@ -376,7 +384,7 @@ static int64_t pit_get_next_transition_time(PITChannelState *s,
         break;
     }
     /* convert to timer units */
-    LogFlow(("PIT: next_time=%14RI64 %20RI64 mode=%#x count=%#06x\n", next_time,
+    LogFlow(("PIT: next_time=%'14RU64 %'20RU64 mode=%#x count=%#06x\n", next_time,
              ASMMultU64ByU32DivByU32(next_time, TMTimerGetFreq(pTimer), PIT_FREQ), s->mode, s->count));
     next_time = s->count_load_time + ASMMultU64ByU32DivByU32(next_time, TMTimerGetFreq(pTimer), PIT_FREQ);
     /* fix potential rounding problems */
@@ -386,9 +394,8 @@ static int64_t pit_get_next_transition_time(PITChannelState *s,
     return next_time;
 }
 
-static void pit_irq_timer_update(PITChannelState *s, uint64_t current_time)
+static void pit_irq_timer_update(PITChannelState *s, uint64_t current_time, uint64_t now)
 {
-    uint64_t now;
     int64_t expire_time;
     int irq_level;
     PPDMDEVINS pDevIns;
@@ -404,8 +411,6 @@ static void pit_irq_timer_update(PITChannelState *s, uint64_t current_time)
     PDMDevHlpISASetIrq(pDevIns, s->irq, irq_level);
     if (irq_level)
         PDMDevHlpISASetIrq(pDevIns, s->irq, 0);
-    now = TMTimerGet(pTimer);
-    Log3(("pit_irq_timer_update: %lldns late\n", now - s->u64NextTS));
     if (irq_level)
     {
         s->u64ReloadTS = now;
@@ -414,6 +419,7 @@ static void pit_irq_timer_update(PITChannelState *s, uint64_t current_time)
 
     if (expire_time != -1)
     {
+        Log3(("pit_irq_timer_update: next=%'RU64 now=%'RU64\n", expire_time, now));
         s->u64NextTS = expire_time;
         TMTimerSet(s->CTX_SUFF(pTimer), s->u64NextTS);
     }
@@ -805,13 +811,14 @@ static DECLCALLBACK(int) pitLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle, 
  *
  * @param   pDevIns         Device instance of the device which registered the timer.
  * @param   pTimer          The timer handle.
+ * @param   pvUser          Pointer to the PIT channel state.
  */
-static DECLCALLBACK(void) pitTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) pitTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    PITState *pThis = PDMINS_2_DATA(pDevIns, PITState *);
-    PITChannelState *s = &pThis->channels[0];
+    PITChannelState *s = (PITChannelState *)pvUser;
     STAM_PROFILE_ADV_START(&s->CTX_SUFF(pPit)->StatPITHandler, a);
-    pit_irq_timer_update(s, s->next_transition_time);
+    Log(("pitTimer\n"));
+    pit_irq_timer_update(s, s->next_transition_time, TMTimerGet(pTimer));
     STAM_PROFILE_ADV_STOP(&s->CTX_SUFF(pPit)->StatPITHandler, a);
 }
 
@@ -989,7 +996,8 @@ static DECLCALLBACK(int)  pitConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     /*
      * Create timer, register I/O Ports and save state.
      */
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, pitTimer, "i8254 Programmable Interval Timer",
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, pitTimer, &pThis->channels[0],
+                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "i8254 Programmable Interval Timer",
                                 &pThis->channels[0].pTimerR3);
     if (RT_FAILURE(rc))
         return rc;

@@ -36,7 +36,7 @@
 #include <VBox/vmapi.h>
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rem      The Recompiled Execution Manager API
  * @{
@@ -52,6 +52,9 @@ VMMDECL(void) REMNotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmTy
 VMMDECL(void) REMNotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM);
 VMMDECL(void) REMNotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhysOld, RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM);
 #endif /* IN_RING0 || IN_RC */
+#ifdef IN_RC
+VMMDECL(void) REMNotifyHandlerPhysicalFlushIfAlmostFull(PVM pVM, PVMCPU pVCpu);
+#endif
 VMMDECL(void) REMFlushTBs(PVM pVM);
 
 
@@ -64,19 +67,18 @@ REMR3DECL(int)  REMR3Init(PVM pVM);
 REMR3DECL(int)  REMR3InitFinalize(PVM pVM);
 REMR3DECL(int)  REMR3Term(PVM pVM);
 REMR3DECL(void) REMR3Reset(PVM pVM);
-REMR3DECL(int)  REMR3Run(PVM pVM);
-REMR3DECL(int)  REMR3EmulateInstruction(PVM pVM);
-REMR3DECL(int)  REMR3Step(PVM pVM);
+REMR3DECL(int)  REMR3Run(PVM pVM, PVMCPU pVCpu);
+REMR3DECL(int)  REMR3EmulateInstruction(PVM pVM, PVMCPU pVCpu);
+REMR3DECL(int)  REMR3Step(PVM pVM, PVMCPU pVCpu);
 REMR3DECL(int)  REMR3BreakpointSet(PVM pVM, RTGCUINTPTR Address);
 REMR3DECL(int)  REMR3BreakpointClear(PVM pVM, RTGCUINTPTR Address);
-REMR3DECL(int)  REMR3State(PVM pVM);
-REMR3DECL(int)  REMR3StateBack(PVM pVM);
-REMR3DECL(void) REMR3StateUpdate(PVM pVM);
-REMR3DECL(void) REMR3A20Set(PVM pVM, bool fEnable);
+REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu);
+REMR3DECL(int)  REMR3StateBack(PVM pVM, PVMCPU pVCpu);
+REMR3DECL(void) REMR3StateUpdate(PVM pVM, PVMCPU pVCpu);
+REMR3DECL(void) REMR3A20Set(PVM pVM, PVMCPU pVCpu, bool fEnable);
 REMR3DECL(int)  REMR3DisasEnableStepping(PVM pVM, bool fEnable);
-REMR3DECL(void) REMR3ReplayInvalidatedPages(PVM pVM);
 REMR3DECL(void) REMR3ReplayHandlerNotifications(PVM pVM);
-REMR3DECL(int)  REMR3NotifyCodePageChanged(PVM pVM, RTGCPTR pvCodePage);
+REMR3DECL(int)  REMR3NotifyCodePageChanged(PVM pVM, PVMCPU pVCpu, RTGCPTR pvCodePage);
 REMR3DECL(void) REMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, unsigned fFlags);
 /** @name Flags for REMR3NotifyPhysRamRegister.
  * @{ */
@@ -88,11 +90,11 @@ REMR3DECL(void) REMR3NotifyPhysRamDeregister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb
 REMR3DECL(void) REMR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler);
 REMR3DECL(void) REMR3NotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM);
 REMR3DECL(void) REMR3NotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhysOld, RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM);
-REMR3DECL(void) REMR3NotifyPendingInterrupt(PVM pVM, uint8_t u8Interrupt);
-REMR3DECL(uint32_t) REMR3QueryPendingInterrupt(PVM pVM);
-REMR3DECL(void) REMR3NotifyInterruptSet(PVM pVM);
-REMR3DECL(void) REMR3NotifyInterruptClear(PVM pVM);
-REMR3DECL(void) REMR3NotifyTimerPending(PVM pVM);
+REMR3DECL(void) REMR3NotifyPendingInterrupt(PVM pVM, PVMCPU pVCpu, uint8_t u8Interrupt);
+REMR3DECL(uint32_t) REMR3QueryPendingInterrupt(PVM pVM, PVMCPU pVCpu);
+REMR3DECL(void) REMR3NotifyInterruptSet(PVM pVM, PVMCPU pVCpu);
+REMR3DECL(void) REMR3NotifyInterruptClear(PVM pVM, PVMCPU pVCpu);
+REMR3DECL(void) REMR3NotifyTimerPending(PVM pVM, PVMCPU pVCpuDst);
 REMR3DECL(void) REMR3NotifyDmaPending(PVM pVM);
 REMR3DECL(void) REMR3NotifyQueuePending(PVM pVM);
 REMR3DECL(void) REMR3NotifyFF(PVM pVM);
@@ -102,7 +104,7 @@ REMR3DECL(bool) REMR3IsPageAccessHandled(PVM pVM, RTGCPHYS GCPhys);
 
 
 /** @} */
-__END_DECLS
+RT_C_DECLS_END
 
 
 #endif

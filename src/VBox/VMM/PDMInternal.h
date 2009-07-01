@@ -1,4 +1,4 @@
-/* $Id: PDMInternal.h $ */
+/* $Id: PDMInternal.h 21035 2009-06-29 15:45:43Z vboxsync $ */
 /** @file
  * PDM - Internal header file.
  */
@@ -34,7 +34,7 @@
 # include <iprt/thread.h>
 #endif
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 
 /** @defgroup grp_pdm_int       Internal
@@ -42,6 +42,13 @@ __BEGIN_DECLS
  * @internal
  * @{
  */
+
+/** @def PDM_WITH_R3R0_CRIT_SECT
+ * Enables or disabled ring-3/ring-0 critical sections. */
+#if defined(DOXYGEN_RUNNING) || 1
+# define PDM_WITH_R3R0_CRIT_SECT
+#endif
+
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
@@ -227,6 +234,10 @@ typedef struct PDMCRITSECTINT
 } PDMCRITSECTINT;
 typedef PDMCRITSECTINT *PPDMCRITSECTINT;
 
+/** Indicates that the critical section is queued for unlock.
+ * PDMCritSectIsOwner and PDMCritSectIsOwned optimizations. */
+#define PDMCRITSECT_FLAGS_PENDING_UNLOCK    RT_BIT_32(17)
+
 
 /**
  * The usual device/driver/internal/external stuff.
@@ -278,9 +289,9 @@ typedef struct PDMTHREADINT
 #ifdef ___VBox_pdm_h
 # error "Invalid header PDM order. Include PDMInternal.h before VBox/pdm.h!"
 #endif
-__END_DECLS
+RT_C_DECLS_END
 #include <VBox/pdm.h>
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /**
  * PDM Logical Unit.
@@ -408,15 +419,15 @@ typedef struct PDMAPIC
     /** @copydoc PDMAPICREG::pfnGetBaseR3 */
     DECLR3CALLBACKMEMBER(uint64_t,  pfnGetBaseR3,(PPDMDEVINS pDevIns));
     /** @copydoc PDMAPICREG::pfnSetTPRR3 */
-    DECLR3CALLBACKMEMBER(void,      pfnSetTPRR3,(PPDMDEVINS pDevIns, uint8_t u8TPR));
+    DECLR3CALLBACKMEMBER(void,      pfnSetTPRR3,(PPDMDEVINS pDevIns, VMCPUID idCpu, uint8_t u8TPR));
     /** @copydoc PDMAPICREG::pfnGetTPRR3 */
-    DECLR3CALLBACKMEMBER(uint8_t,   pfnGetTPRR3,(PPDMDEVINS pDevIns));
+    DECLR3CALLBACKMEMBER(uint8_t,   pfnGetTPRR3,(PPDMDEVINS pDevIns, VMCPUID idCpu));
     /** @copydoc PDMAPICREG::pfnWriteMSRR3 */
     DECLR3CALLBACKMEMBER(int,       pfnWriteMSRR3, (PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Reg, uint64_t u64Value));
     /** @copydoc PDMAPICREG::pfnReadMSRR3 */
     DECLR3CALLBACKMEMBER(int,       pfnReadMSRR3, (PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Reg, uint64_t *pu64Value));
     /** @copydoc PDMAPICREG::pfnBusDeliverR3 */
-    DECLR3CALLBACKMEMBER(void,      pfnBusDeliverR3,(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
+    DECLR3CALLBACKMEMBER(int,       pfnBusDeliverR3,(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
                                                      uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode));
 
     /** Pointer to the APIC device instance - R0 Ptr. */
@@ -430,15 +441,15 @@ typedef struct PDMAPIC
     /** @copydoc PDMAPICREG::pfnGetBaseR3 */
     DECLR0CALLBACKMEMBER(uint64_t,  pfnGetBaseR0,(PPDMDEVINS pDevIns));
     /** @copydoc PDMAPICREG::pfnSetTPRR3 */
-    DECLR0CALLBACKMEMBER(void,      pfnSetTPRR0,(PPDMDEVINS pDevIns, uint8_t u8TPR));
+    DECLR0CALLBACKMEMBER(void,      pfnSetTPRR0,(PPDMDEVINS pDevIns, VMCPUID idCpu, uint8_t u8TPR));
     /** @copydoc PDMAPICREG::pfnGetTPRR3 */
-    DECLR0CALLBACKMEMBER(uint8_t,   pfnGetTPRR0,(PPDMDEVINS pDevIns));
+    DECLR0CALLBACKMEMBER(uint8_t,   pfnGetTPRR0,(PPDMDEVINS pDevIns, VMCPUID idCpu));
      /** @copydoc PDMAPICREG::pfnWriteMSRR3 */
     DECLR0CALLBACKMEMBER(uint32_t,  pfnWriteMSRR0, (PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Reg, uint64_t u64Value));
     /** @copydoc PDMAPICREG::pfnReadMSRR3 */
     DECLR0CALLBACKMEMBER(uint32_t,  pfnReadMSRR0, (PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Reg, uint64_t *pu64Value));
     /** @copydoc PDMAPICREG::pfnBusDeliverR3 */
-    DECLR0CALLBACKMEMBER(void,      pfnBusDeliverR0,(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
+    DECLR0CALLBACKMEMBER(int,       pfnBusDeliverR0,(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
                                                      uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode));
 
     /** Pointer to the APIC device instance - RC Ptr. */
@@ -452,15 +463,15 @@ typedef struct PDMAPIC
     /** @copydoc PDMAPICREG::pfnGetBaseR3 */
     DECLRCCALLBACKMEMBER(uint64_t,  pfnGetBaseRC,(PPDMDEVINS pDevIns));
     /** @copydoc PDMAPICREG::pfnSetTPRR3 */
-    DECLRCCALLBACKMEMBER(void,      pfnSetTPRRC,(PPDMDEVINS pDevIns, uint8_t u8TPR));
+    DECLRCCALLBACKMEMBER(void,      pfnSetTPRRC,(PPDMDEVINS pDevIns, VMCPUID idCpu, uint8_t u8TPR));
     /** @copydoc PDMAPICREG::pfnGetTPRR3 */
-    DECLRCCALLBACKMEMBER(uint8_t,   pfnGetTPRRC,(PPDMDEVINS pDevIns));
+    DECLRCCALLBACKMEMBER(uint8_t,   pfnGetTPRRC,(PPDMDEVINS pDevIns, VMCPUID idCpu));
     /** @copydoc PDMAPICREG::pfnWriteMSRR3 */
     DECLRCCALLBACKMEMBER(uint32_t,  pfnWriteMSRRC, (PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Reg, uint64_t u64Value));
     /** @copydoc PDMAPICREG::pfnReadMSRR3 */
     DECLRCCALLBACKMEMBER(uint32_t,  pfnReadMSRRC, (PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Reg, uint64_t *pu64Value));
     /** @copydoc PDMAPICREG::pfnBusDeliverR3 */
-    DECLRCCALLBACKMEMBER(void,      pfnBusDeliverRC,(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
+    DECLRCCALLBACKMEMBER(int,       pfnBusDeliverRC,(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
                                                      uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode));
 } PDMAPIC;
 
@@ -793,8 +804,23 @@ typedef const PDMUSBHUB *PCPDMUSBHUB;
 /** Pointer to a PDM Async I/O template. */
 typedef struct PDMASYNCCOMPLETIONTEMPLATE *PPDMASYNCCOMPLETIONTEMPLATE;
 
-/** Pointer to the main PDM Async completion structure. */
-typedef struct PDMASYNCCOMPLETIONMANAGER *PPDMASYNCCOMPLETIONMANAGER;
+/** Pointer to the main PDM Async completion endpoint class. */
+typedef struct PDMASYNCCOMPLETIONEPCLASS *PPDMASYNCCOMPLETIONEPCLASS;
+
+
+/**
+ * PDM VMCPU Instance data.
+ * Changes to this must checked against the padding of the cfgm union in VMCPU!
+ */
+typedef struct PDMCPU
+{
+    /** The number of entries in the apQueuedCritSectsLeaves table that's currnetly in use. */
+    uint32_t                        cQueuedCritSectLeaves;
+    uint32_t                        uPadding0; /**< Alignment padding.*/
+    /** Critical sections queued in RC/R0 because of contention preventing leave to complete. (R3 Ptrs)
+     * We will return to Ring-3 ASAP, so this queue doesn't have to be very long. */
+    R3PTRTYPE(PPDMCRITSECT)         apQueuedCritSectsLeaves[8];
+} PDMCPU;
 
 /**
  * Converts a PDM pointer into a VM pointer.
@@ -849,11 +875,7 @@ typedef struct PDM
     /** Queue in which devhlp tasks are queued for R3 execution - RC Ptr. */
     RCPTRTYPE(PPDMQUEUE)            pDevHlpQueueRC;
 
-    /** The number of entries in the apQueuedCritSectsLeaves table that's currnetly in use. */
-    RTUINT                          cQueuedCritSectLeaves;
-    /** Critical sections queued in RC/R0 because of contention preventing leave to complete. (R3 Ptrs)
-     * We will return to Ring-3 ASAP, so this queue doesn't have to be very long. */
-    R3PTRTYPE(PPDMCRITSECT)         apQueuedCritSectsLeaves[8];
+    RTUINT                          uPadding1; /**< Alignment padding. */
 
     /** Linked list of timer driven PDM queues. */
     R3PTRTYPE(struct PDMQUEUE *)    pQueuesTimer;
@@ -865,19 +887,21 @@ typedef struct PDM
     /** Pointer to the queue which should be manually flushed - RC Ptr.
      * Only touched by EMT. */
     RCPTRTYPE(struct PDMQUEUE *)    pQueueFlushRC;
-#if HC_ARCH_BITS == 64
-    RTRCPTR                         padding0;
-#endif
+    /** Set if we're currently checking queues to prevent other VCPUs from doing the same concurrently. */
+    volatile uint32_t               fQueueFlushing;
 
     /** Head of the PDM Thread list. (singly linked) */
     R3PTRTYPE(PPDMTHREAD)           pThreads;
     /** Tail of the PDM Thread list. (singly linked) */
     R3PTRTYPE(PPDMTHREAD)           pThreadsTail;
 
-    /** Head of the asychronous tasks managers. (singly linked) */
-    R3PTRTYPE(PPDMASYNCCOMPLETIONMANAGER) pAsyncCompletionManagerHead;
+    /** @name   PDM Async Completion
+     * @{ */
+    /** Pointer to the array of supported endpoint classes. */
+    R3PTRTYPE(PPDMASYNCCOMPLETIONEPCLASS *)  papAsyncCompletionEndpointClass;
     /** Head of the templates. (singly linked) */
     R3PTRTYPE(PPDMASYNCCOMPLETIONTEMPLATE) pAsyncCompletionTemplates;
+    /** @} */
 
     /** @name   VMM device heap
      * @{ */
@@ -895,6 +919,11 @@ typedef struct PDM
      * This is used to protect everything that deals with interrupts, i.e.
      * the PIC, APIC, IOAPIC and PCI devices pluss some PDM functions. */
     PDMCRITSECT                     CritSect;
+    /** The PDM miscellancous lock.
+     * This is used to protect things like critsect init/delete that formerly was
+     * serialized by there only being one EMT.
+     */
+    RTCRITSECT                      MiscCritSect;
 
     /** Number of times a critical section leave requesed needed to be queued for ring-3 execution. */
     STAMCOUNTER                     StatQueuedCritSectLeaves;
@@ -1011,6 +1040,6 @@ void        pdmUnlock(PVM pVM);
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif

@@ -1,4 +1,4 @@
-/* $Id: tstPath.cpp $ */
+/* $Id: tstPath.cpp 20606 2009-06-15 23:49:07Z vboxsync $ */
 /** @file
  * IPRT Testcase - Test various path functions.
  */
@@ -32,58 +32,62 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/path.h>
-#include <iprt/process.h>
+
+#include <iprt/err.h>
 #include <iprt/initterm.h>
+#include <iprt/param.h>
+#include <iprt/process.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
-#include <iprt/err.h>
-#include <iprt/param.h>
+#include <iprt/test.h>
 
-
-#define CHECK_RC(method) \
-    do { \
-        rc = method; \
-        if (RT_FAILURE(rc)) \
-        { \
-            cErrors++; \
-            RTPrintf("\ntstPath: FAILED calling " #method " at line %d: rc=%Rrc\n", __LINE__, rc); \
-        } \
-    } while (0)
 
 int main()
 {
-    /*
-     * Init RT.
-     */
-    int rc;
-    int cErrors = 0;
-    CHECK_RC(RTR3Init());
-    if (RT_FAILURE(rc))
-        return 1;
+    char szPath[RTPATH_MAX];
 
     /*
-     * RTPathProgram, RTPathUserHome and RTProcGetExecutableName.
+     * Init RT+Test.
      */
-    char szPath[RTPATH_MAX];
-    CHECK_RC(RTPathProgram(szPath, sizeof(szPath)));
+    RTTEST hTest;
+    int rc = RTTestInitAndCreate("tstPath", &hTest);
+    if (rc)
+        return rc;
+    RTTestBanner(hTest);
+
+    /*
+     * RTPathExecDir, RTPathUserHome and RTProcGetExecutableName.
+     */
+    RTTestSub(hTest, "RTPathExecDir");
+    RTTESTI_CHECK_RC(RTPathExecDir(szPath, sizeof(szPath)), VINF_SUCCESS);
     if (RT_SUCCESS(rc))
-        RTPrintf("Program={%s}\n", szPath);
-    CHECK_RC(RTPathUserHome(szPath, sizeof(szPath)));
-    if (RT_SUCCESS(rc))
-        RTPrintf("UserHome={%s}\n", szPath);
+        RTTestIPrintf(RTTESTLVL_INFO, "ExecDir={%s}\n", szPath);
+
+    RTTestSub(hTest, "RTProcGetExecutableName");
     if (RTProcGetExecutableName(szPath, sizeof(szPath)) == szPath)
-        RTPrintf("ExecutableName={%s}\n", szPath);
+        RTTestIPrintf(RTTESTLVL_INFO, "ExecutableName={%s}\n", szPath);
     else
-    {
-        RTPrintf("tstPath: FAILED - RTProcGetExecutableName\n");
-        cErrors++;
-    }
+        RTTestIFailed("RTProcGetExecutableName -> NULL");
+
+    RTTestSub(hTest, "RTPathUserHome");
+    RTTESTI_CHECK_RC(RTPathUserHome(szPath, sizeof(szPath)), VINF_SUCCESS);
+    if (RT_SUCCESS(rc))
+        RTTestIPrintf(RTTESTLVL_INFO, "UserHome={%s}\n", szPath);
+
+    RTTestSub(hTest, "RTPathTemp");
+    RTTESTI_CHECK_RC(RTPathTemp(szPath, sizeof(szPath)), VINF_SUCCESS);
+    if (RT_SUCCESS(rc))
+        RTTestIPrintf(RTTESTLVL_INFO, "PathTemp={%s}\n", szPath);
+    size_t cch = strlen(szPath);
+    RTTESTI_CHECK_RC(RTPathTemp(szPath, cch), VERR_BUFFER_OVERFLOW);
+    RTTESTI_CHECK_RC(RTPathTemp(szPath, cch+1), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTPathTemp(szPath, cch+2), VINF_SUCCESS);
 
 
     /*
      * RTPathAbsEx
      */
-    RTPrintf("tstPath: TESTING RTPathAbsEx()\n");
+    RTTestSub(hTest, "RTPathAbsEx");
     static const struct
     {
         const char *pcszInputBase;
@@ -152,17 +156,16 @@ int main()
                          szPath, sizeof(szPath));
         if (rc != s_aRTPathAbsExTests[i].rc)
         {
-            RTPrintf("tstPath: RTPathAbsEx unexpected result code!\n"
-                     "   input base: '%s'\n"
-                     "   input path: '%s'\n"
-                     "       output: '%s'\n"
-                     "           rc: %Rrc\n"
-                     "  expected rc: %Rrc\n",
-                     s_aRTPathAbsExTests[i].pcszInputBase,
-                     s_aRTPathAbsExTests[i].pcszInputPath,
-                     szPath, rc,
-                     s_aRTPathAbsExTests[i].rc);
-            cErrors++;
+            RTTestIFailed("unexpected result code!\n"
+                          "   input base: '%s'\n"
+                          "   input path: '%s'\n"
+                          "       output: '%s'\n"
+                          "           rc: %Rrc\n"
+                          "  expected rc: %Rrc",
+                          s_aRTPathAbsExTests[i].pcszInputBase,
+                          s_aRTPathAbsExTests[i].pcszInputPath,
+                          szPath, rc,
+                          s_aRTPathAbsExTests[i].rc);
             continue;
         }
 
@@ -172,13 +175,9 @@ int main()
         {
             if (s_aRTPathAbsExTests[i].pcszOutput[0] == '%')
             {
-                rc = RTPathGetCurrent(szTmp, sizeof(szTmp));
+                RTTESTI_CHECK_RC(rc = RTPathGetCurrent(szTmp, sizeof(szTmp)), VINF_SUCCESS);
                 if (RT_FAILURE(rc))
-                {
-                    RTPrintf("tstPath: RTPathGetCurrent failed with rc=%Rrc!\n", rc);
-                    cErrors++;
                     break;
-                }
 
                 pszExpected = szTmp;
 
@@ -204,16 +203,15 @@ int main()
 
             if (strcmp(szPath, pszExpected))
             {
-                RTPrintf("tstPath: RTPathAbsEx failed!\n"
-                         "   input base: '%s'\n"
-                         "   input path: '%s'\n"
-                         "       output: '%s'\n"
-                         "     expected: '%s'\n",
-                         s_aRTPathAbsExTests[i].pcszInputBase,
-                         s_aRTPathAbsExTests[i].pcszInputPath,
-                         szPath,
-                         s_aRTPathAbsExTests[i].pcszOutput);
-                cErrors++;
+                RTTestIFailed("Unexpected result\n"
+                              "   input base: '%s'\n"
+                              "   input path: '%s'\n"
+                              "       output: '%s'\n"
+                              "     expected: '%s'",
+                              s_aRTPathAbsExTests[i].pcszInputBase,
+                              s_aRTPathAbsExTests[i].pcszInputPath,
+                              szPath,
+                              s_aRTPathAbsExTests[i].pcszOutput);
             }
         }
     }
@@ -221,7 +219,7 @@ int main()
     /*
      * RTPathStripFilename
      */
-    RTPrintf("tstPath: RTPathStripFilename...\n");
+    RTTestSub(hTest, "RTPathStripFilename");
     static const char *s_apszStripFilenameTests[] =
     {
         "/usr/include///",              "/usr/include//",
@@ -240,27 +238,102 @@ int main()
     {
         const char *pszInput  = s_apszStripFilenameTests[i];
         const char *pszExpect = s_apszStripFilenameTests[i + 1];
-        char szPath[RTPATH_MAX];
         strcpy(szPath, pszInput);
         RTPathStripFilename(szPath);
         if (strcmp(szPath, pszExpect))
         {
-            RTPrintf("tstPath: RTPathStripFilename failed!\n"
-                     "   input: '%s'\n"
-                     "  output: '%s'\n"
-                     "expected: '%s'\n",
-                     pszInput, szPath, pszExpect);
-            cErrors++;
+            RTTestIFailed("Unexpected result\n"
+                          "   input: '%s'\n"
+                          "  output: '%s'\n"
+                          "expected: '%s'",
+                          pszInput, szPath, pszExpect);
         }
     }
 
     /*
+     * RTPathAppend.
+     */
+    RTTestSub(hTest, "RTPathAppend");
+    static const char *s_apszAppendTests[] =
+    {
+        /* base                 append                  result */
+        "/",                    "",                     "/",
+        "",                     "/",                    "/",
+        "/",                    "/",                    "/",
+        "/x",                   "",                     "/x",
+        "/x",                   "/",                    "/x/",
+        "/",                    "x",                    "/x",
+        "dir",                  "file",                 "dir/file",
+        "dir",                  "/file",                "dir/file",
+        "dir",                  "//file",               "dir/file",
+        "dir",                  "///file",              "dir/file",
+        "dir/",                 "/file",                "dir/file",
+        "dir/",                 "//file",               "dir/file",
+        "dir/",                 "///file",              "dir/file",
+        "dir//",                "file",                 "dir/file",
+        "dir//",                "/file",                "dir/file",
+        "dir//",                "//file",               "dir/file",
+        "dir///",               "///file",              "dir/file",
+        "/bin/testcase",        "foo.r0",               "/bin/testcase/foo.r0",
+#if defined (RT_OS_OS2) || defined (RT_OS_WINDOWS)
+        "/",                    "\\",                   "/",
+        "\\",                   "/",                    "\\",
+        "\\\\srv\\shr",         "dir//",                "\\\\srv\\shr/dir//",
+        "\\\\srv\\shr",         "dir//file",            "\\\\srv\\shr/dir//file",
+        "\\\\srv\\shr",         "//dir//",              "\\\\srv\\shr/dir//",
+        "\\\\srv\\shr",         "/\\dir//",             "\\\\srv\\shr\\dir//",
+        "\\\\",                 "not-srv/not-shr/file", "\\not-srv/not-shr/file",
+        "C:",                   "autoexec.bat",         "C:autoexec.bat",
+        "C:",                   "/autoexec.bat",        "C:/autoexec.bat",
+        "C:",                   "\\autoexec.bat",       "C:\\autoexec.bat",
+        "C:\\",                 "/autoexec.bat",        "C:\\autoexec.bat",
+        "C:\\\\",               "autoexec.bat",         "C:\\autoexec.bat",
+        "E:\\bin\\testcase",    "foo.r0",               "E:\\bin\\testcase/foo.r0",
+#endif
+    };
+    for (unsigned i = 0; i < RT_ELEMENTS(s_apszAppendTests); i += 3)
+    {
+        const char *pszInput  = s_apszAppendTests[i];
+        const char *pszAppend = s_apszAppendTests[i + 1];
+        const char *pszExpect = s_apszAppendTests[i + 2];
+        strcpy(szPath, pszInput);
+        RTTESTI_CHECK_RC(rc = RTPathAppend(szPath, sizeof(szPath), pszAppend), VINF_SUCCESS);
+        if (RT_FAILURE(rc))
+            continue;
+        if (strcmp(szPath, pszExpect))
+        {
+            RTTestIFailed("Unexpected result\n"
+                          "   input: '%s'\n"
+                          "  append: '%s'\n"
+                          "  output: '%s'\n"
+                          "expected: '%s'",
+                          pszInput, pszAppend, szPath, pszExpect);
+        }
+        else
+        {
+            size_t const cchResult = strlen(szPath);
+
+            strcpy(szPath, pszInput);
+            RTTESTI_CHECK_RC(rc = RTPathAppend(szPath, cchResult + 2, pszAppend), VINF_SUCCESS);
+            RTTESTI_CHECK(RT_FAILURE(rc) || !strcmp(szPath, pszExpect));
+
+            strcpy(szPath, pszInput);
+            RTTESTI_CHECK_RC(rc = RTPathAppend(szPath, cchResult + 1, pszAppend), VINF_SUCCESS);
+            RTTESTI_CHECK(RT_FAILURE(rc) || !strcmp(szPath, pszExpect));
+
+            if (strlen(pszInput) < cchResult)
+            {
+                strcpy(szPath, pszInput);
+                RTTESTI_CHECK_RC(RTPathAppend(szPath, cchResult, pszAppend), VERR_BUFFER_OVERFLOW);
+            }
+        }
+    }
+
+
+
+    /*
      * Summary.
      */
-    if (!cErrors)
-        RTPrintf("tstPath: SUCCESS\n");
-    else
-        RTPrintf("tstPath: FAILURE %d errors\n", cErrors);
-    return !!cErrors;
+    return RTTestSummaryAndDestroy(hTest);
 }
 

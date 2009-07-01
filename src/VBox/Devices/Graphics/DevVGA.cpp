@@ -1,5 +1,5 @@
 #ifdef VBOX
-/* $Id: DevVGA.cpp $ */
+/* $Id: DevVGA.cpp 20723 2009-06-19 13:14:16Z vboxsync $ */
 /** @file
  * DevVGA - VBox VGA/VESA device.
  */
@@ -306,7 +306,7 @@ static const uint8_t g_abLogoF12BootText[] =
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 PDMBOTHCBDECL(int) vgaIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
 PDMBOTHCBDECL(int) vgaIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
@@ -335,7 +335,7 @@ PDMBOTHCBDECL(int) vbeIOPortWriteCMDLogo(PPDMDEVINS pDevIns, void *pvUser, RTIOP
 #endif /* IN_RING3 */
 
 
-__END_DECLS
+RT_C_DECLS_END
 
 
 /**
@@ -2162,7 +2162,7 @@ static int vga_draw_graphic(VGAState *s, int full_update)
     uint8_t *d;
     uint32_t v, addr1, addr;
     vga_draw_line_func *vga_draw_line;
-    bool offsets_changed;
+    int offsets_changed;
 
     offsets_changed = update_basic_params(s);
 
@@ -3043,14 +3043,21 @@ static int vga_copy_screen_from(PVGASTATE s, uint8_t *buf, int x, int y, int wid
  */
 PDMBOTHCBDECL(int) vgaIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
+    VGAState *s = PDMINS_2_DATA(pDevIns, PVGASTATE);
+
+    int rc = PDMCritSectEnter(&s->lock, VINF_IOM_HC_IOPORT_WRITE);
+    if (rc != VINF_SUCCESS)
+        return rc;
+
     NOREF(pvUser);
     if (cb == 1)
-        vga_ioport_write(PDMINS_2_DATA(pDevIns, PVGASTATE), Port, u32);
+        vga_ioport_write(s, Port, u32);
     else if (cb == 2)
     {
-        vga_ioport_write(PDMINS_2_DATA(pDevIns, PVGASTATE), Port, u32 & 0xff);
-        vga_ioport_write(PDMINS_2_DATA(pDevIns, PVGASTATE), Port + 1, u32 >> 8);
+        vga_ioport_write(s, Port, u32 & 0xff);
+        vga_ioport_write(s, Port + 1, u32 >> 8);
     }
+    PDMCritSectLeave(&s->lock);
     return VINF_SUCCESS;
 }
 
@@ -3068,19 +3075,27 @@ PDMBOTHCBDECL(int) vgaIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Por
  */
 PDMBOTHCBDECL(int) vgaIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
+    VGAState *s = PDMINS_2_DATA(pDevIns, PVGASTATE);
     NOREF(pvUser);
+
+    int rc = PDMCritSectEnter(&s->lock, VINF_IOM_HC_IOPORT_READ);
+    if (rc != VINF_SUCCESS)
+        return rc;
+
+    rc = VERR_IOM_IOPORT_UNUSED;
     if (cb == 1)
     {
-        *pu32 = vga_ioport_read(PDMINS_2_DATA(pDevIns, PVGASTATE), Port);
-        return VINF_SUCCESS;
+        *pu32 = vga_ioport_read(s, Port);
+        rc = VINF_SUCCESS;
     }
     else if (cb == 2)
     {
-        *pu32 = vga_ioport_read(PDMINS_2_DATA(pDevIns, PVGASTATE), Port)
-             | (vga_ioport_read(PDMINS_2_DATA(pDevIns, PVGASTATE), Port + 1) << 8);
-        return VINF_SUCCESS;
+        *pu32 = vga_ioport_read(s, Port)
+             | (vga_ioport_read(s, Port + 1) << 8);
+        rc = VINF_SUCCESS;
     }
-    return VERR_IOM_IOPORT_UNUSED;
+    PDMCritSectLeave(&s->lock);
+    return rc;
 }
 
 
@@ -3099,6 +3114,10 @@ PDMBOTHCBDECL(int) vgaIOPortWriteVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOP
 {
     VGAState *s = PDMINS_2_DATA(pDevIns, PVGASTATE);
 
+    int rc = PDMCritSectEnter(&s->lock, VINF_IOM_HC_IOPORT_WRITE);
+    if (rc != VINF_SUCCESS)
+        return rc;
+
     NOREF(pvUser);
 
 #ifdef VBOX_WITH_HGSMI
@@ -3106,11 +3125,13 @@ PDMBOTHCBDECL(int) vgaIOPortWriteVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOP
     if (s->vbe_index == VBE_DISPI_INDEX_VBVA_GUEST)
     {
         HGSMIGuestWrite (s->pHGSMI, u32);
+        PDMCritSectLeave(&s->lock);
         return VINF_SUCCESS;
     }
     if (s->vbe_index == VBE_DISPI_INDEX_VBVA_HOST)
     {
         HGSMIHostWrite (s->pHGSMI, u32);
+        PDMCritSectLeave(&s->lock);
         return VINF_SUCCESS;
     }
 #else
@@ -3119,6 +3140,7 @@ PDMBOTHCBDECL(int) vgaIOPortWriteVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOP
     {
         Log(("vgaIOPortWriteVBEData: %s - Switching to host...\n",
              s->vbe_index == VBE_DISPI_INDEX_VBVA_HOST? "VBE_DISPI_INDEX_VBVA_HOST": "VBE_DISPI_INDEX_VBVA_GUEST"));
+        PDMCritSectLeave(&s->lock);
         return VINF_IOM_HC_IOPORT_WRITE;
     }
 #endif /* !IN_RING3 */
@@ -3128,10 +3150,11 @@ PDMBOTHCBDECL(int) vgaIOPortWriteVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOP
     /*
      * This has to be done on the host in order to execute the connector callbacks.
      */
-    if (s->vbe_index == VBE_DISPI_INDEX_ENABLE
-        || s->vbe_index == VBE_DISPI_INDEX_VBOX_VIDEO)
+    if (    s->vbe_index == VBE_DISPI_INDEX_ENABLE
+        ||  s->vbe_index == VBE_DISPI_INDEX_VBOX_VIDEO)
     {
         Log(("vgaIOPortWriteVBEData: VBE_DISPI_INDEX_ENABLE - Switching to host...\n"));
+        PDMCritSectLeave(&s->lock);
         return VINF_IOM_HC_IOPORT_WRITE;
     }
 #endif
@@ -3144,12 +3167,15 @@ PDMBOTHCBDECL(int) vgaIOPortWriteVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOP
                 &&  (u32 & VBE_DISPI_ENABLED))
             {
                 s->fWriteVBEData = false;
-                return vbe_ioport_write_data(s, Port, u32 & 0xFF);
+                rc = vbe_ioport_write_data(s, Port, u32 & 0xFF);
+                PDMCritSectLeave(&s->lock);
+                return rc;
             }
             else
             {
                 s->cbWriteVBEData = u32 & 0xFF;
                 s->fWriteVBEData = true;
+                PDMCritSectLeave(&s->lock);
                 return VINF_SUCCESS;
             }
         }
@@ -3176,10 +3202,14 @@ PDMBOTHCBDECL(int) vgaIOPortWriteVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOP
 //            return VINF_IOM_HC_IOPORT_WRITE;
 //        }
 //#endif
-        return vbe_ioport_write_data(s, Port, u32);
+        rc = vbe_ioport_write_data(s, Port, u32);
+        PDMCritSectLeave(&s->lock);
+        return rc;
     }
     else
         AssertMsgFailed(("vgaIOPortWriteVBEData: Port=%#x cb=%d u32=%#x\n", Port, cb, u32));
+
+    PDMCritSectLeave(&s->lock);
     return VINF_SUCCESS;
 }
 
@@ -3198,29 +3228,37 @@ PDMBOTHCBDECL(int) vgaIOPortWriteVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOP
 PDMBOTHCBDECL(int) vgaIOPortWriteVBEIndex(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
     NOREF(pvUser);
+    VGAState *s = PDMINS_2_DATA(pDevIns, PVGASTATE);
+
+    int rc = PDMCritSectEnter(&s->lock, VINF_IOM_HC_IOPORT_WRITE);
+    if (rc != VINF_SUCCESS)
+        return rc;
+
 #ifdef VBE_BYTEWISE_IO
     if (cb == 1)
     {
-        VGAState *s = PDMINS_2_DATA(pDevIns, PVGASTATE);
         if (!s->fWriteVBEIndex)
         {
             s->cbWriteVBEIndex = u32 & 0x00FF;
             s->fWriteVBEIndex = true;
+            PDMCritSectLeave(&s->lock);
             return VINF_SUCCESS;
         }
         else
         {
             s->fWriteVBEIndex = false;
             vbe_ioport_write_index(s, Port, (s->cbWriteVBEIndex << 8) | (u32 & 0x00FF));
+            PDMCritSectLeave(&s->lock);
             return VINF_SUCCESS;
         }
     }
     else
 #endif
     if (cb == 2)
-        vbe_ioport_write_index(PDMINS_2_DATA(pDevIns, PVGASTATE), Port, u32);
+        vbe_ioport_write_index(s, Port, u32);
     else
         AssertMsgFailed(("vgaIOPortWriteVBEIndex: Port=%#x cb=%d u32=%#x\n", Port, cb, u32));
+    PDMCritSectLeave(&s->lock);
     return VINF_SUCCESS;
 }
 
@@ -3239,26 +3277,34 @@ PDMBOTHCBDECL(int) vgaIOPortWriteVBEIndex(PPDMDEVINS pDevIns, void *pvUser, RTIO
 PDMBOTHCBDECL(int) vgaIOPortReadVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
     NOREF(pvUser);
+    VGAState *s = PDMINS_2_DATA(pDevIns, PVGASTATE);
+
+    int rc = PDMCritSectEnter(&s->lock, VINF_IOM_HC_IOPORT_READ);
+    if (rc != VINF_SUCCESS)
+        return rc;
 
 #ifdef VBOX_WITH_HGSMI
 #ifdef IN_RING3
-    VGAState *s = PDMINS_2_DATA(pDevIns, PVGASTATE);
-
     if (s->vbe_index == VBE_DISPI_INDEX_VBVA_GUEST)
     {
         *pu32 = HGSMIGuestRead (s->pHGSMI);
+        PDMCritSectLeave(&s->lock);
         return VINF_SUCCESS;
     }
     if (s->vbe_index == VBE_DISPI_INDEX_VBVA_HOST)
     {
         *pu32 = HGSMIHostRead (s->pHGSMI);
+        PDMCritSectLeave(&s->lock);
         return VINF_SUCCESS;
     }
 #else
-    if (   Port == VBE_DISPI_INDEX_VBVA_HOST
-        || Port == VBE_DISPI_INDEX_VBVA_GUEST)
+    if (   s->vbe_index == VBE_DISPI_INDEX_VBVA_HOST
+        || s->vbe_index == VBE_DISPI_INDEX_VBVA_GUEST)
     {
-       return VINF_IOM_HC_IOPORT_WRITE;
+        Log(("vgaIOPortWriteVBEData: %s - Switching to host...\n",
+             s->vbe_index == VBE_DISPI_INDEX_VBVA_HOST? "VBE_DISPI_INDEX_VBVA_HOST": "VBE_DISPI_INDEX_VBVA_GUEST"));
+        PDMCritSectLeave(&s->lock);
+        return VINF_IOM_HC_IOPORT_READ;
     }
 #endif /* !IN_RING3 */
 #endif /* VBOX_WITH_HGSMI */
@@ -3266,18 +3312,18 @@ PDMBOTHCBDECL(int) vgaIOPortReadVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
 #ifdef VBE_BYTEWISE_IO
     if (cb == 1)
     {
-        VGAState *s = PDMINS_2_DATA(pDevIns, PVGASTATE);
-
         if (!s->fReadVBEData)
         {
             *pu32 = (vbe_ioport_read_data(s, Port) >> 8) & 0xFF;
             s->fReadVBEData = true;
+            PDMCritSectLeave(&s->lock);
             return VINF_SUCCESS;
         }
         else
         {
             *pu32 = vbe_ioport_read_data(s, Port) & 0xFF;
             s->fReadVBEData = false;
+            PDMCritSectLeave(&s->lock);
             return VINF_SUCCESS;
         }
     }
@@ -3285,17 +3331,19 @@ PDMBOTHCBDECL(int) vgaIOPortReadVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
 #endif
     if (cb == 2)
     {
-        *pu32 = vbe_ioport_read_data(PDMINS_2_DATA(pDevIns, PVGASTATE), Port);
+        *pu32 = vbe_ioport_read_data(s, Port);
+        PDMCritSectLeave(&s->lock);
         return VINF_SUCCESS;
     }
     else if (cb == 4)
     {
-        VGAState *s = PDMINS_2_DATA(pDevIns, PVGASTATE);
         /* Quick hack for getting the vram size. */
         *pu32 = s->vram_size;
+        PDMCritSectLeave(&s->lock);
         return VINF_SUCCESS;
     }
     AssertMsgFailed(("vgaIOPortReadVBEData: Port=%#x cb=%d\n", Port, cb));
+    PDMCritSectLeave(&s->lock);
     return VERR_IOM_IOPORT_UNUSED;
 }
 
@@ -3314,21 +3362,27 @@ PDMBOTHCBDECL(int) vgaIOPortReadVBEData(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
 PDMBOTHCBDECL(int) vgaIOPortReadVBEIndex(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
     NOREF(pvUser);
+    VGAState *s = PDMINS_2_DATA(pDevIns, PVGASTATE);
+
+    int rc = PDMCritSectEnter(&s->lock, VINF_IOM_HC_IOPORT_READ);
+    if (rc != VINF_SUCCESS)
+        return rc;
+
 #ifdef VBE_BYTEWISE_IO
     if (cb == 1)
     {
-        VGAState *s = PDMINS_2_DATA(pDevIns, PVGASTATE);
-
         if (!s->fReadVBEIndex)
         {
             *pu32 = (vbe_ioport_read_index(s, Port) >> 8) & 0xFF;
             s->fReadVBEIndex = true;
+            PDMCritSectLeave(&s->lock);
             return VINF_SUCCESS;
         }
         else
         {
             *pu32 = vbe_ioport_read_index(s, Port) & 0xFF;
             s->fReadVBEIndex = false;
+            PDMCritSectLeave(&s->lock);
             return VINF_SUCCESS;
         }
     }
@@ -3336,9 +3390,11 @@ PDMBOTHCBDECL(int) vgaIOPortReadVBEIndex(PPDMDEVINS pDevIns, void *pvUser, RTIOP
 #endif
     if (cb == 2)
     {
-        *pu32 = vbe_ioport_read_index(PDMINS_2_DATA(pDevIns, PVGASTATE), Port);
+        *pu32 = vbe_ioport_read_index(s, Port);
+        PDMCritSectLeave(&s->lock);
         return VINF_SUCCESS;
     }
+    PDMCritSectLeave(&s->lock);
     AssertMsgFailed(("vgaIOPortReadVBEIndex: Port=%#x cb=%d\n", Port, cb));
     return VERR_IOM_IOPORT_UNUSED;
 }
@@ -3382,21 +3438,21 @@ PDMBOTHCBDECL(int) vgaIOPortReadVBEIndex(PPDMDEVINS pDevIns, void *pvUser, RTIOP
  * This is the advanced version of vga_mem_writeb function.
  *
  * @returns VBox status code.
- * @param   pDevIns     Pointer device instance.
+ * @param   pThis       VGA device structure
  * @param   pvUser      User argument - ignored.
  * @param   GCPhysAddr  Physical address of memory to write.
  * @param   u32Item     Data to write, up to 4 bytes.
  * @param   cbItem      Size of data Item, only 1/2/4 bytes is allowed for now.
  * @param   cItems      Number of data items to write.
  */
-PDMBOTHCBDECL(int) vgaMMIOFill(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, uint32_t u32Item, unsigned cbItem, unsigned cItems)
+static int vgaInternalMMIOFill(PVGASTATE pThis, void *pvUser, RTGCPHYS GCPhysAddr, uint32_t u32Item, unsigned cbItem, unsigned cItems)
 {
-    PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
     uint32_t b;
     uint32_t write_mask, bit_mask, set_mask;
     uint32_t aVal[4];
     unsigned i;
     NOREF(pvUser);
+
     for (i = 0; i < cbItem; i++)
     {
         aVal[i] = u32Item & 0xff;
@@ -3556,6 +3612,31 @@ PDMBOTHCBDECL(int) vgaMMIOFill(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhys
     }
     return VINF_SUCCESS;
 }
+
+/**
+ * Legacy VGA memory (0xa0000 - 0xbffff) write hook, to be called from IOM and from the inside of VGADeviceGC.cpp.
+ * This is the advanced version of vga_mem_writeb function.
+ *
+ * @returns VBox status code.
+ * @param   pDevIns     Pointer device instance.
+ * @param   pvUser      User argument - ignored.
+ * @param   GCPhysAddr  Physical address of memory to write.
+ * @param   u32Item     Data to write, up to 4 bytes.
+ * @param   cbItem      Size of data Item, only 1/2/4 bytes is allowed for now.
+ * @param   cItems      Number of data items to write.
+ */
+PDMBOTHCBDECL(int) vgaMMIOFill(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, uint32_t u32Item, unsigned cbItem, unsigned cItems)
+{
+    PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
+
+    int rc = PDMCritSectEnter(&pThis->lock, VINF_IOM_HC_MMIO_WRITE);
+    if (rc != VINF_SUCCESS)
+        return rc;
+
+    rc = vgaInternalMMIOFill(pThis, pvUser, GCPhysAddr, u32Item, cbItem, cItems);
+    PDMCritSectLeave(&pThis->lock);
+    return rc;
+}
 #undef APPLY_LOGICAL_AND_MASK
 
 
@@ -3573,8 +3654,12 @@ PDMBOTHCBDECL(int) vgaMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhys
 {
     PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
     STAM_PROFILE_START(&pThis->CTX_MID_Z(Stat,MemoryRead), a);
-    int rc = VINF_SUCCESS;
     NOREF(pvUser);
+
+    int rc = PDMCritSectEnter(&pThis->lock, VINF_IOM_HC_MMIO_READ);
+    if (rc != VINF_SUCCESS)
+        return rc;
+
     switch (cb)
     {
         case 1:
@@ -3613,6 +3698,7 @@ PDMBOTHCBDECL(int) vgaMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhys
         }
     }
     STAM_PROFILE_STOP(&pThis->CTX_MID_Z(Stat,MemoryRead), a);
+    PDMCritSectLeave(&pThis->lock);
     return rc;
 }
 
@@ -3630,8 +3716,11 @@ PDMBOTHCBDECL(int) vgaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhy
 {
     PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
     uint8_t  *pu8 = (uint8_t *)pv;
-    int rc = VINF_SUCCESS;
     STAM_PROFILE_START(&pThis->CTX_MID_Z(Stat,MemoryWrite), a);
+
+    int rc = PDMCritSectEnter(&pThis->lock, VINF_IOM_HC_MMIO_WRITE);
+    if (rc != VINF_SUCCESS)
+        return rc;
 
     switch (cb)
     {
@@ -3688,6 +3777,7 @@ PDMBOTHCBDECL(int) vgaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhy
 
     }
     STAM_PROFILE_STOP(&pThis->CTX_MID_Z(Stat,MemoryWrite), a);
+    PDMCritSectLeave(&pThis->lock);
     return rc;
 }
 
@@ -3702,7 +3792,9 @@ PDMBOTHCBDECL(int) vgaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhy
  */
 static int vgaLFBAccess(PVM pVM, PVGASTATE pThis, RTGCPHYS GCPhys, RTGCPTR GCPtr)
 {
-    int rc;
+    int rc = PDMCritSectEnter(&pThis->lock, VINF_EM_RAW_EMULATE_INSTR);
+    if (rc != VINF_SUCCESS)
+        return rc;
 
     /*
      * Set page dirty bit.
@@ -3719,19 +3811,23 @@ static int vgaLFBAccess(PVM pVM, PVGASTATE pThis, RTGCPHYS GCPhys, RTGCPTR GCPtr
     if (RT_SUCCESS(rc))
     {
 #ifndef IN_RING3
-        rc = PGMShwModifyPage(pVM, GCPtr, 1, X86_PTE_RW, ~(uint64_t)X86_PTE_RW);
+        rc = PGMShwModifyPage(PDMDevHlpGetVMCPU(pThis->CTX_SUFF(pDevIns)), GCPtr, 1, X86_PTE_RW, ~(uint64_t)X86_PTE_RW);
+        PDMCritSectLeave(&pThis->lock);
         if (RT_SUCCESS(rc))
             return VINF_SUCCESS;
-        else
-            AssertMsgFailed(("PGMShwModifyPage -> rc=%d\n", rc));
+
+        AssertMsgFailed(("PGMShwModifyPage -> rc=%d\n", rc));
 #else /* IN_RING3 : We don't have any virtual page address of the access here. */
+        PDMCritSectLeave(&pThis->lock);
         Assert(GCPtr == 0);
         return VINF_SUCCESS;
 #endif
     }
     else
+    {
+        PDMCritSectLeave(&pThis->lock);
         AssertMsgFailed(("PGMHandlerPhysicalPageTempOff -> rc=%d\n", rc));
-
+    }
     return rc;
 }
 
@@ -3847,6 +3943,12 @@ PDMBOTHCBDECL(int) vgaIOPortReadBIOS(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT 
 PDMBOTHCBDECL(int) vgaIOPortWriteBIOS(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
     static int lastWasNotNewline = 0;  /* We are only called in a single-threaded way */
+    PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
+
+    int rc = PDMCritSectEnter(&pThis->lock, VINF_IOM_HC_IOPORT_WRITE);
+    if (rc != VINF_SUCCESS)
+        return rc;
+
     /*
      * VGA BIOS char printing.
      */
@@ -3872,11 +3974,13 @@ PDMBOTHCBDECL(int) vgaIOPortWriteBIOS(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
         else
             lastWasNotNewline = 1;
 #endif
+        PDMCritSectLeave(&pThis->lock);
         return VINF_SUCCESS;
     }
 
+    PDMCritSectLeave(&pThis->lock);
     /* not in use. */
-    return VINF_SUCCESS;
+    return VERR_IOM_IOPORT_UNUSED;
 }
 
 
@@ -3902,12 +4006,16 @@ PDMBOTHCBDECL(int) vbeIOPortWriteVBEExtra(PPDMDEVINS pDevIns, void *pvUser, RTIO
     NOREF(pvUser);
     NOREF(Port);
 
+    int rc = PDMCritSectEnter(&pThis->lock, VINF_IOM_HC_IOPORT_WRITE);
+    if (rc != VINF_SUCCESS)
+        return rc;
+
     if (cb == 2)
     {
         Log(("vbeIOPortWriteVBEExtra: addr=%#RX32\n", u32));
         pThis->u16VBEExtraAddress = u32;
-        return VINF_SUCCESS;
     }
+    PDMCritSectLeave(&pThis->lock);
 
     Log(("vbeIOPortWriteVBEExtra: Ignoring invalid cb=%d writes to the VBE Extra port!!!\n", cb));
     return VINF_SUCCESS;
@@ -3931,40 +4039,48 @@ PDMBOTHCBDECL(int) vbeIOPortReadVBEExtra(PPDMDEVINS pDevIns, void *pvUser, RTIOP
     NOREF(pvUser);
     NOREF(Port);
 
+    int rc = PDMCritSectEnter(&pThis->lock, VINF_IOM_HC_IOPORT_READ);
+    if (rc != VINF_SUCCESS)
+        return rc;
+
     if (pThis->u16VBEExtraAddress == 0xffff)
     {
         Log(("vbeIOPortReadVBEExtra: Requested number of 64k video banks\n"));
         *pu32 = pThis->vram_size / _64K;
-        return VINF_SUCCESS;
+        rc = VINF_SUCCESS;
     }
-
+    else
     if (    pThis->u16VBEExtraAddress >= pThis->cbVBEExtraData
         ||  pThis->u16VBEExtraAddress + cb > pThis->cbVBEExtraData)
     {
         *pu32 = 0;
         Log(("vbeIOPortReadVBEExtra: Requested address is out of VBE data!!! Address=%#x(%d) cbVBEExtraData=%#x(%d)\n",
              pThis->u16VBEExtraAddress, pThis->u16VBEExtraAddress, pThis->cbVBEExtraData, pThis->cbVBEExtraData));
-        return VINF_SUCCESS;
+        rc = VINF_SUCCESS;
     }
-
+    else
     if (cb == 1)
     {
         *pu32 = pThis->pu8VBEExtraData[pThis->u16VBEExtraAddress] & 0xFF;
 
         Log(("vbeIOPortReadVBEExtra: cb=%#x %.*Rhxs\n", cb, cb, pu32));
-        return VINF_SUCCESS;
+        rc = VINF_SUCCESS;
     }
-
+    else
     if (cb == 2)
     {
         *pu32 = pThis->pu8VBEExtraData[pThis->u16VBEExtraAddress]
               | pThis->pu8VBEExtraData[pThis->u16VBEExtraAddress + 1] << 8;
 
         Log(("vbeIOPortReadVBEExtra: cb=%#x %.*Rhxs\n", cb, cb, pu32));
-        return VINF_SUCCESS;
+        rc = VINF_SUCCESS;
     }
+    else
+        rc = VERR_IOM_IOPORT_UNUSED;
+
     Log(("vbeIOPortReadVBEExtra: Invalid cb=%d read from the VBE Extra port!!!\n", cb));
-    return VERR_IOM_IOPORT_UNUSED;
+    PDMCritSectLeave(&pThis->lock);
+    return rc;
 }
 # endif /* VBE_NEW_DYN_LIST */
 
@@ -4552,6 +4668,10 @@ static DECLCALLBACK(void *) vgaPortQueryInterface(PPDMIBASE pInterface, PDMINTER
             return &pThis->Base;
         case PDMINTERFACE_DISPLAY_PORT:
             return &pThis->Port;
+#if defined(VBOX_WITH_HGSMI) && defined(VBOX_WITH_VIDEOHWACCEL)
+        case PDMINTERFACE_DISPLAY_VBVA_CALLBACKS:
+            return &pThis->VBVACallbacks;
+#endif
         default:
             return NULL;
     }
@@ -4627,18 +4747,18 @@ static DECLCALLBACK(int) vgaPortUpdateDisplay(PPDMIDISPLAYPORT pInterface)
     PDMDEV_ASSERT_EMT(VGASTATE2DEVINS(pThis));
     PPDMDEVINS pDevIns = pThis->CTX_SUFF(pDevIns);
 
+    int rc = PDMCritSectEnter(&pThis->lock, VERR_SEM_BUSY);
+    AssertRC(rc);
+
 #ifndef VBOX_WITH_HGSMI
     /* This should be called only in non VBVA mode. */
 #else
     if (VBVAUpdateDisplay (pThis) == VINF_SUCCESS)
     {
+        PDMCritSectLeave(&pThis->lock);
         return VINF_SUCCESS;
     }
 #endif /* VBOX_WITH_HGSMI */
-
-    int rc = vga_update_display(pThis, false);
-    if (rc != VINF_SUCCESS)
-        return rc;
 
     if (pThis->fHasDirtyBits && pThis->GCPhysVRAM && pThis->GCPhysVRAM != NIL_RTGCPHYS32)
     {
@@ -4651,6 +4771,13 @@ static DECLCALLBACK(int) vgaPortUpdateDisplay(PPDMIDISPLAYPORT pInterface)
         pThis->fRemappedVGA = false;
     }
 
+    rc = vga_update_display(pThis, false);
+    if (rc != VINF_SUCCESS)
+    {
+        PDMCritSectLeave(&pThis->lock);
+        return rc;
+    }
+    PDMCritSectLeave(&pThis->lock);
     return VINF_SUCCESS;
 }
 
@@ -4673,9 +4800,8 @@ static DECLCALLBACK(int) vgaPortUpdateDisplayAll(PPDMIDISPLAYPORT pInterface)
     LogFlow(("vgaPortUpdateDisplayAll\n"));
 #endif /* DEBUG_sunlover */
 
-    pThis->graphic_mode = -1; /* force full update */
-
-    int rc = vga_update_display(pThis, true);
+    int rc = PDMCritSectEnter(&pThis->lock, VERR_SEM_BUSY);
+    AssertRC(rc);
 
     /* The dirty bits array has been just cleared, reset handlers as well. */
     if (pThis->GCPhysVRAM && pThis->GCPhysVRAM != NIL_RTGCPHYS32)
@@ -4688,6 +4814,11 @@ static DECLCALLBACK(int) vgaPortUpdateDisplayAll(PPDMIDISPLAYPORT pInterface)
         pThis->fRemappedVGA = false;
     }
 
+    pThis->graphic_mode = -1; /* force full update */
+
+    rc = vga_update_display(pThis, true);
+
+    PDMCritSectLeave(&pThis->lock);
     return rc;
 }
 
@@ -5065,11 +5196,13 @@ static DECLCALLBACK(void) vgaPortSetRenderVRAM(PPDMIDISPLAYPORT pInterface, bool
 }
 
 
-static DECLCALLBACK(void) vgaTimerRefresh(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) vgaTimerRefresh(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    PVGASTATE pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
+    PVGASTATE pThis = (PVGASTATE)pvUser;
+
     if (pThis->pDrv)
         pThis->pDrv->pfnRefresh(pThis->pDrv);
+
     if (pThis->cMilliesRefreshInterval)
         TMTimerSetMillies(pTimer, pThis->cMilliesRefreshInterval);
 }
@@ -5570,6 +5703,9 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     pThis->Port.pfnUpdateDisplayRect    = vgaPortUpdateDisplayRect;
     pThis->Port.pfnSetRenderVRAM        = vgaPortSetRenderVRAM;
 
+#if defined(VBOX_WITH_HGSMI) && defined(VBOX_WITH_VIDEOHWACCEL)
+    pThis->VBVACallbacks.pfnVHWACommandCompleteAsynch = vbvaVHWACommandCompleteAsynch;
+#endif
 
     /*
      * Allocate the VRAM and map the first 512KB of it into GC so we can speed up VGA support.
@@ -5770,10 +5906,20 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     if (RT_FAILURE(rc))
         return rc;
 
+    /* Initialize the PDM lock. */
+    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->lock, "VGA");
+    if (RT_FAILURE(rc))
+    {
+        Log(("%s: Failed to create critical section.\n", __FUNCTION__));
+        return rc;
+    }
+
     /*
      * Create the refresh timer.
      */
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_REAL, vgaTimerRefresh, "VGA Refresh Timer", &pThis->RefreshTimer);
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_REAL, vgaTimerRefresh,
+                                pThis, TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo This needs to be fixed! We cannot take the I/O lock at this point! */
+                                "VGA Refresh Timer", &pThis->RefreshTimer);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -5805,7 +5951,8 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     /*
      * Allocate and initialize buffer for the VBE BIOS Extra Data.
      */
-    pThis->cbVBEExtraData = sizeof(VBEHEADER) + cb;
+    AssertRelease(sizeof(VBEHEADER) + cb < 65536);
+    pThis->cbVBEExtraData = (uint16_t)(sizeof(VBEHEADER) + cb);
     pThis->pu8VBEExtraData = (uint8_t *)PDMDevHlpMMHeapAllocZ(pDevIns, pThis->cbVBEExtraData);
     if (!pThis->pu8VBEExtraData)
         return VERR_NO_MEMORY;
@@ -6189,6 +6336,7 @@ static DECLCALLBACK(int) vgaR3Destruct(PPDMDEVINS pDevIns)
     }
 #endif
 
+    PDMR3CritSectDelete(&pThis->lock);
     return VINF_SUCCESS;
 }
 

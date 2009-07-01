@@ -1,4 +1,4 @@
-/* $Id: thread2-r0drv-nt.cpp $ */
+/* $Id: thread2-r0drv-nt.cpp 19711 2009-05-14 21:24:28Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 2), Ring-0 Driver, NT.
  */
@@ -80,9 +80,8 @@ int rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enmType)
     /*
      * Do the actual modification.
      */
-    NTSTATUS rc = KeSetPriorityThread((PKTHREAD)pThread->Core.Key, Priority);
-    AssertMsg(NT_SUCCESS(rc), ("%#x\n", rc));
-    return RTErrConvertFromNtStatus(rc);
+    /*KPRIORITY oldPririty = */KeSetPriorityThread((PKTHREAD)pThread->Core.Key, Priority);
+    return VINF_SUCCESS;
 }
 
 

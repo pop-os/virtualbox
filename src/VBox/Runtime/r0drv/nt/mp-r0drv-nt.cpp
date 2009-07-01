@@ -1,4 +1,4 @@
-/* $Id: mp-r0drv-nt.cpp $ */
+/* $Id: mp-r0drv-nt.cpp 19911 2009-05-22 12:46:46Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Ring-0 Driver, NT.
  */
@@ -329,3 +329,47 @@ RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1
     return rtMpCall(pfnWorker, pvUser1, pvUser2, RT_NT_CPUID_SPECIFIC, idCpu);
 }
 
+static KDPC aPokeDpcs[MAXIMUM_PROCESSORS] = {0};
+static bool fPokeDPCsInitialized = false;
+
+static VOID rtMpNtPokeCpuDummy(IN PKDPC Dpc, IN PVOID DeferredContext, IN PVOID SystemArgument1, IN PVOID SystemArgument2)
+{
+    NOREF(Dpc);
+    NOREF(DeferredContext);
+    NOREF(SystemArgument1);
+    NOREF(SystemArgument2);
+}
+
+
+RTDECL(int) RTMpPokeCpu(RTCPUID idCpu)
+{
+    if (!RTMpIsCpuOnline(idCpu))
+        return !RTMpIsCpuPossible(idCpu)
+              ? VERR_CPU_NOT_FOUND
+              : VERR_CPU_OFFLINE;
+
+    if (!fPokeDPCsInitialized)
+    {
+        for (unsigned i = 0; i < RT_ELEMENTS(aPokeDpcs); i++)
+        {
+            KeInitializeDpc(&aPokeDpcs[i], rtMpNtPokeCpuDummy, NULL);
+            KeSetImportanceDpc(&aPokeDpcs[i], HighImportance);
+            KeSetTargetProcessorDpc(&aPokeDpcs[i], (int)i);
+        }
+        fPokeDPCsInitialized = true;
+    }
+
+    /* Raise the IRQL to DISPATCH_LEVEL so we can't be rescheduled to another cpu.
+     * KeInsertQueueDpc must also be executed at IRQL >= DISPATCH_LEVEL.
+     */
+    KIRQL oldIrql;
+    KeRaiseIrql(DISPATCH_LEVEL, &oldIrql);
+
+    /* Assuming here that high importance DPCs will be delivered immediately; or at least an IPI will be sent immediately.
+     * Todo: verify!
+     */
+    KeInsertQueueDpc(&aPokeDpcs[idCpu], 0, 0);
+
+    KeLowerIrql(oldIrql);
+    return VINF_SUCCESS;
+}

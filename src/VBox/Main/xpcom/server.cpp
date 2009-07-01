@@ -1,4 +1,4 @@
-/* $Id: server.cpp $ */
+/* $Id: server.cpp 20630 2009-06-16 13:55:38Z vboxsync $ */
 /** @file
  * XPCOM server process (VBoxSVC) start point.
  */
@@ -64,24 +64,6 @@
 # include <sys/resource.h>
 #endif
 
-// for the backtrace signal handler
-#if defined(DEBUG) && defined(RT_OS_LINUX)
-# define USE_BACKTRACE
-#endif
-#if defined(USE_BACKTRACE)
-# include <execinfo.h>
-// get REG_EIP/RIP from ucontext.h
-# ifndef __USE_GNU
-#  define __USE_GNU
-# endif
-# include <ucontext.h>
-# ifdef RT_ARCH_AMD64
-#  define REG_PC REG_RIP
-# else
-#  define REG_PC REG_EIP
-# endif
-#endif
-
 /////////////////////////////////////////////////////////////////////////////
 // VirtualBox component instantiation
 /////////////////////////////////////////////////////////////////////////////
@@ -91,6 +73,7 @@
 #include <VirtualBox_XPCOM.h>
 #include <VirtualBoxImpl.h>
 #include <MachineImpl.h>
+#include <VFSExplorerImpl.h>
 #include <ApplianceImpl.h>
 #include <SnapshotImpl.h>
 #include <MediumImpl.h>
@@ -127,6 +110,9 @@ NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VirtualBox, IVirtualBox)
 
 NS_DECL_CLASSINFO(Machine)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Machine, IMachine)
+
+NS_DECL_CLASSINFO(VFSExplorer)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VFSExplorer, IVFSExplorer)
 
 NS_DECL_CLASSINFO(Appliance)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Appliance, IAppliance)
@@ -725,7 +711,7 @@ NS_NewGenericFactoryEx (nsIGenericFactory **result,
 /////////////////////////////////////////////////////////////////////////////
 
 /**
- * Hhelper function to register self components upon start-up
+ * Helper function to register self components upon start-up
  * of the out-of-proc server.
  */
 static nsresult
@@ -784,51 +770,17 @@ static void signal_handler (int /* sig */)
     }
 }
 
-#if defined(USE_BACKTRACE)
-/**
- * the signal handler that prints out a backtrace of the call stack.
- * the code is taken from http://www.linuxjournal.com/article/6391.
- */
-static void bt_sighandler (int sig, siginfo_t *info, void *secret)
-{
-
-    void *trace[16];
-    char **messages = (char **)NULL;
-    int i, trace_size = 0;
-    ucontext_t *uc = (ucontext_t *)secret;
-
-    // Do something useful with siginfo_t
-    if (sig == SIGSEGV)
-        Log (("Got signal %d, faulty address is %p, from %p\n",
-               sig, info->si_addr, uc->uc_mcontext.gregs[REG_PC]));
-    else
-        Log (("Got signal %d\n", sig));
-
-    trace_size = backtrace (trace, 16);
-    // overwrite sigaction with caller's address
-    trace[1] = (void *) uc->uc_mcontext.gregs [REG_PC];
-
-    messages = backtrace_symbols (trace, trace_size);
-    // skip first stack frame (points here)
-    Log (("[bt] Execution path:\n"));
-    for (i = 1; i < trace_size; ++i)
-        Log (("[bt] %s\n", messages[i]));
-
-    exit (0);
-}
-#endif
-
 int main (int argc, char **argv)
 {
     const struct option options[] =
     {
         { "automate",       no_argument,        NULL, 'a' },
-#ifdef RT_OS_DARWIN
+# if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
         { "auto-shutdown",  no_argument,        NULL, 'A' },
 #endif
         { "daemonize",      no_argument,        NULL, 'd' },
         { "pidfile",        required_argument,  NULL, 'p' },
-#ifdef RT_OS_DARWIN
+# if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
         { "pipe",           required_argument,  NULL, 'P' },
 #endif
         { NULL,             0,                  NULL,  0  }
@@ -857,7 +809,7 @@ int main (int argc, char **argv)
                 break;
             }
 
-#ifdef RT_OS_DARWIN
+# if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
             /* Used together with '-P', see below. Internal use only. */
             case 'A':
             {
@@ -878,7 +830,7 @@ int main (int argc, char **argv)
                 break;
             }
 
-#ifdef RT_OS_DARWIN
+# if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
             /* we need to exec on darwin, this is just an internal
              * hack for passing the pipe fd along to the final child. */
             case 'P':
@@ -984,12 +936,17 @@ int main (int argc, char **argv)
         /* close the reading end of the pipe */
         close(daemon_pipe_fds[0]);
 
-# ifdef RT_OS_DARWIN
+# if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
         /*
          * On leopard we're no longer allowed to use some of the core API's
          * after forking - this will cause us to hit an int3.
          * So, we'll have to execv VBoxSVC once again and hand it the pipe
          * and all other relevant options.
+         *
+         * On FreeBSD the fork approach doesn't work. The child fails
+         * during initialization of XPCOM for some unknown reason and
+         * exits making it impossible to autostart VBoxSVC when starting
+         * a frontend (debugger and strace don't contain any useful info).
          */
         const char *apszArgs[7];
         unsigned i = 0;
@@ -1012,19 +969,6 @@ int main (int argc, char **argv)
     }
 
 #endif // ifdef RT_OS_OS2
-
-#if defined(USE_BACKTRACE)
-    {
-        /* install our signal handler to backtrace the call stack */
-        struct sigaction sa;
-        sa.sa_sigaction = bt_sighandler;
-        sigemptyset (&sa.sa_mask);
-        sa.sa_flags = SA_RESTART | SA_SIGINFO;
-        sigaction (SIGSEGV, &sa, NULL);
-        sigaction (SIGBUS, &sa, NULL);
-        sigaction (SIGUSR1, &sa, NULL);
-    }
-#endif
 
     /*
      * Initialize the VBox runtime without loading

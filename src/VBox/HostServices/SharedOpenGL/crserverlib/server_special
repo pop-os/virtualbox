@@ -130,6 +130,7 @@ BindTexture
 DeleteTextures
 IsTexture
 AreTexturesResident
+PrioritizeTextures
 AreProgramsResidentNV
 GenProgramsARB
 IsProgramARB
@@ -180,3 +181,13 @@ WindowPos3iARB
 WindowPos3ivARB
 WindowPos3sARB
 WindowPos3svARB
+GetActiveAttrib
+GetActiveUniform
+GetAttachedShaders
+GetShaderInfoLog
+GetProgramInfoLog
+GetShaderSource
+GetUniformfv
+GetUniformiv
+GetAttachedObjectsARB
+GetInfoLogARB

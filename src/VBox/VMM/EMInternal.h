@@ -1,4 +1,4 @@
-/* $Id: EMInternal.h $ */
+/* $Id: EMInternal.h 20530 2009-06-13 20:53:44Z vboxsync $ */
 /** @file
  * EM - Internal header file.
  */
@@ -28,10 +28,11 @@
 #include <VBox/stam.h>
 #include <VBox/patm.h>
 #include <VBox/dis.h>
+#include <VBox/pdmcritsect.h>
 #include <iprt/avl.h>
 #include <setjmp.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 
 /** @defgroup grp_em_int       Internal
@@ -41,11 +42,8 @@ __BEGIN_DECLS
  */
 
 /** The saved state version. */
-#define EM_SAVED_STATE_VERSION                      2
-
-/** Enable for tracing in raw mode.
- * @remark SvL: debugging help primarily for myself. */
-#define DEBUG_TRACING_ENABLED
+#define EM_SAVED_STATE_VERSION                          3
+#define EM_SAVED_STATE_VERSION_PRE_SMP                  2
 
 /**
  * Cli node structure
@@ -289,23 +287,42 @@ typedef struct EM
      * See EM2VM(). */
     RTUINT                  offVM;
 
+    /** Id of the VCPU that last executed code in the recompiler. */
+    VMCPUID                 idLastRemCpu;
+
+    /** REM critical section.
+     * This protects recompiler usage
+     */
+    PDMCRITSECT             CritSectREM;
+} EM;
+/** Pointer to EM VM instance data. */
+typedef EM *PEM;
+
+
+/**
+ * EM VMCPU Instance data.
+ */
+typedef struct EMCPU
+{
+    /** Offset to the VM structure.
+     * See EMCPU2VM(). */
+    RTUINT                  offVMCPU;
+
     /** Execution Manager State. */
     EMSTATE volatile        enmState;
+
+    /** Previous Execution Manager State. */
+    EMSTATE                 enmPrevState;
+
     /** Force raw-mode execution.
      * This is used to prevent REM from trying to execute patch code.
      * The flag is cleared upon entering emR3RawExecute() and updated in certain return paths. */
     bool                    fForceRAW;
 
-#ifdef DEBUG_TRACING_ENABLED
-    /** @see DEBUG_TRACING_ENABLED */
-    bool                    fTracing;
-#endif
-
-    uint8_t                 u8Padding[GC_ARCH_BITS == 64 ? 6 : 2];
+    uint8_t                 u8Padding[3];
 
     /** Inhibit interrupts for this instruction. Valid only when VM_FF_INHIBIT_INTERRUPTS is set. */
     RTGCUINTPTR             GCPtrInhibitInterrupts;
-
 
     /** Pointer to the PATM status structure. (R3 Ptr) */
     R3PTRTYPE(PPATMGCSTATE) pPatmGCState;
@@ -328,6 +345,17 @@ typedef struct EM
         jmp_buf             FatalLongJump;
 #endif
     } u;
+
+    /** For saving stack space, the disassembler state is allocated here instead of
+     * on the stack.
+     * @note The DISCPUSTATE structure is not R3/R0/RZ clean!  */
+    union
+    {
+        /** The disassembler scratch space. */
+        DISCPUSTATE         DisState;
+        /** Padding. */
+        uint8_t             abDisStatePadding[DISCPUSTATE_PADDING_SIZE];
+    };
 
     /** @name Execution profiling.
      * @{ */
@@ -372,27 +400,13 @@ typedef struct EM
     /** 64-bit Visual C++ rounds the struct size up to 16 byte. */
     uint64_t                padding1;
 #endif
-
-} EM;
-/** Pointer to EM VM instance data. */
-typedef EM *PEM;
-
-
-/**
- * EM VMCPU Instance data.
- */
-typedef struct EMCPU
-{
-    /** Offset to the VM structure.
-     * See EMCPU2VM(). */
-    RTUINT                  offVMCPU;
 } EMCPU;
 /** Pointer to EM VM instance data. */
 typedef EMCPU *PEMCPU;
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

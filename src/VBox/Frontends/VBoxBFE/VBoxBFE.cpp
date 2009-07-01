@@ -1,4 +1,4 @@
-/* $Id: VBoxBFE.cpp $ */
+/* $Id: VBoxBFE.cpp 20501 2009-06-12 11:31:37Z vboxsync $ */
 /** @file
  * Basic Frontend (BFE): VBoxBFE main routines.
  *
@@ -802,7 +802,7 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char **envp)
 #endif
     if (!gConsole->initialized())
         goto leave;
-    gDisplay->RegisterExternalFramebuffer(gFramebuffer);
+    gDisplay->SetFramebuffer(0, gFramebuffer);
 
     /* start with something in the titlebar */
     gConsole->updateTitlebar();
@@ -965,7 +965,7 @@ leave:
         {
             /* Power off VM */
             PVMREQ pReq;
-            rc = VMR3ReqCall(pVM, VMREQDEST_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)VMR3PowerOff, 1, pVM);
+            rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)VMR3PowerOff, 1, pVM);
         }
 
         /* And destroy it */
@@ -1277,13 +1277,13 @@ DECLCALLBACK(int) VMPowerUpThread(RTTHREAD Thread, void *pvUser)
             && RTPathExists(g_pszStateFile))
         {
             startProgressInfo("Restoring");
-            rc = VMR3ReqCall(pVM, VMREQDEST_ANY, &pReq, RT_INDEFINITE_WAIT,
+            rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT,
                              (PFNRT)VMR3Load, 4, pVM, g_pszStateFile, &callProgressInfo, (uintptr_t)NULL);
             endProgressInfo();
             if (RT_SUCCESS(rc))
             {
                 VMR3ReqFree(pReq);
-                rc = VMR3ReqCall(pVM, VMREQDEST_ANY, &pReq, RT_INDEFINITE_WAIT,
+                rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT,
                                  (PFNRT)VMR3Resume, 1, pVM);
                 if (RT_SUCCESS(rc))
                 {
@@ -1297,7 +1297,7 @@ DECLCALLBACK(int) VMPowerUpThread(RTTHREAD Thread, void *pvUser)
         }
         else
         {
-            rc = VMR3ReqCall(pVM, VMREQDEST_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)VMR3PowerOn, 1, pVM);
+            rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)VMR3PowerOn, 1, pVM);
             if (RT_SUCCESS(rc))
             {
                 rc = pReq->iStatus;
@@ -1949,6 +1949,12 @@ static DECLCALLBACK(int) vboxbfeConfigConstructor(PVM pVM, void *pvUser)
         rc = CFGMR3InsertString(pCfg, "AudioDriver",      "coreaudio");             UPDATE_RC();
 #elif defined(RT_OS_LINUX)
         rc = CFGMR3InsertString(pCfg, "AudioDriver",      "oss");                   UPDATE_RC();
+#elif defined(RT_OS_SOLARIS)
+# ifdef VBOX_WITH_SOLARIS_OSS
+        rc = CFGMR3InsertString(pCfg, "AudioDriver",      "oss");                   UPDATE_RC();
+# else
+        rc = CFGMR3InsertString(pCfg, "AudioDriver",      "solaudio");              UPDATE_RC();
+# endif
 #elif defined(RT_OS_L4)
         rc = CFGMR3InsertString(pCfg, "AudioDriver",      "oss");                   UPDATE_RC();
 #else /* portme */

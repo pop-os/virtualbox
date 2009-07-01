@@ -1,4 +1,4 @@
-/* $Id: HWSVMR0.h $ */
+/* $Id: HWSVMR0.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * HWACCM AMD-V - Internal header file.
  */
@@ -31,7 +31,7 @@
 #include <VBox/pgm.h>
 #include <VBox/hwacc_svm.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_svm_int  Internal
  * @ingroup grp_svm
@@ -223,7 +223,7 @@ DECLASM(void) SVMR0InvlpgA(RTGCPTR pPageGC, uint32_t u32ASID);
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

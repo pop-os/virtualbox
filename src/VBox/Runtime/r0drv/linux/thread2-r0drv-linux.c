@@ -1,4 +1,4 @@
-/* $Id: thread2-r0drv-linux.c $ */
+/* $Id: thread2-r0drv-linux.c 19937 2009-05-23 12:43:34Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 2), Ring-0 Driver, Linux.
  */
@@ -47,9 +47,4 @@ RTDECL(RTTHREAD) RTThreadSelf(void)
 */
 
 
-RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread)
-{
-    Assert(hThread == NIL_RTTHREAD);
-    return !in_atomic() && !irqs_disabled();
-}
 

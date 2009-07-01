@@ -1,4 +1,4 @@
-/* $Id: PDMLdr.cpp $ */
+/* $Id: PDMLdr.cpp 20864 2009-06-23 19:19:42Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device Manager, module loader.
  */
@@ -141,7 +141,7 @@ void pdmR3LdrTermU(PUVM pUVM)
             case PDMMOD_TYPE_R0:
             {
                 Assert(pModule->ImageBase);
-                int rc2 = SUPFreeModule((void *)(uintptr_t)pModule->ImageBase);
+                int rc2 = SUPR3FreeModule((void *)(uintptr_t)pModule->ImageBase);
                 AssertRC(rc2);
                 pModule->ImageBase = 0;
                 break;
@@ -335,6 +335,8 @@ static DECLCALLBACK(int) pdmR3GetImportRC(RTLDRMOD hLdrMod, const char *pszModul
             *pValue = VM_RC_ADDR(pVM, &pVM->cpum);
         else if (!strcmp(pszSymbol, "g_TRPM"))
             *pValue = VM_RC_ADDR(pVM, &pVM->trpm);
+        else if (!strcmp(pszSymbol, "g_TRPMCPU"))
+            *pValue = VM_RC_ADDR(pVM, &pVM->aCpus[0].trpm);
         else if (   !strncmp(pszSymbol, "VMM", 3)
                  || !strcmp(pszSymbol, "g_Logger")
                  || !strcmp(pszSymbol, "g_RelLogger"))
@@ -515,7 +517,7 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
                     }
                 }
                 else
-                    AssertMsgFailed(("SUPPageAlloc(%d,) -> %Rrc\n", cPages, rc));
+                    AssertMsgFailed(("SUPR3PageAlloc(%d,) -> %Rrc\n", cPages, rc));
                 RTMemTmpFree(paPages);
             }
             else
@@ -587,7 +589,7 @@ static int pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName)
      * Ask the support library to load it.
      */
     void *pvImageBase;
-    int rc = SUPLoadModule(pszFilename, pszName, &pvImageBase);
+    int rc = SUPR3LoadModule(pszFilename, pszName, &pvImageBase);
     if (RT_SUCCESS(rc))
     {
         pModule->hLdrMod = NIL_RTLDRMOD;
@@ -703,7 +705,7 @@ VMMR3DECL(int) PDMR3LdrGetSymbolR0(PVM pVM, const char *pszModule, const char *p
         if (    pModule->eType == PDMMOD_TYPE_R0
             &&  !strcmp(pModule->szName, pszModule))
         {
-            int rc = SUPGetSymbolR0((void *)(uintptr_t)pModule->ImageBase, pszSymbol, (void **)ppvValue);
+            int rc = SUPR3GetSymbolR0((void *)(uintptr_t)pModule->ImageBase, pszSymbol, (void **)ppvValue);
             if (RT_FAILURE(rc))
             {
                 AssertMsgRC(rc, ("Couldn't find symbol '%s' in module '%s'\n", pszSymbol, pszModule));
@@ -975,7 +977,7 @@ static char *pdmR3File(const char *pszFile, const char *pszDefaultExt, bool fSha
                  : RTPathAppPrivateArch(szPath, sizeof(szPath));
     if (!RT_SUCCESS(rc))
     {
-        AssertMsgFailed(("RTPathProgram(,%d) failed rc=%d!\n", sizeof(szPath), rc));
+        AssertMsgFailed(("RTPath[SharedLibs|AppPrivateArch](,%d) failed rc=%d!\n", sizeof(szPath), rc));
         return NULL;
     }
 

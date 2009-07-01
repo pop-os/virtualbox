@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 20451 2009-06-09 23:25:48Z vboxsync $
 ## @file
 # Sub-Makefile for the VirtualBox HGCM Service.
 #
@@ -125,6 +125,7 @@ VBoxOGLcrserverlib_SOURCES := \
 	crserverlib/server_window.c \
 	crserverlib/server_winpos.c \
 	crserverlib/server_writeback.c \
+	crserverlib/server_getshaders.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_dispatch.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_retval.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_get.c \
@@ -140,19 +141,24 @@ VBoxOGLcrserverlib_CLEAN = \
 # Generate files for VBoxOGLcrserverlib
 #
 $(VBOX_PATH_CROGL_GENFILES)/server_dispatch.h: $(addprefix $(PATH_SUB_CURRENT)/crserverlib/, server_dispatch_header.py server_special) $(VBOX_CROGL_API_FILES) | $$(dir $$@)
-	$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
+	$(call MSG_GENERATE,python,$@,$<)
+	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
 
 $(VBOX_PATH_CROGL_GENFILES)/server_dispatch.c: $(addprefix $(PATH_SUB_CURRENT)/crserverlib/, server_dispatch.py server_special) $(VBOX_CROGL_API_FILES) | $$(dir $$@)
-	$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
+	$(call MSG_GENERATE,python,$@,$<)
+	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
 
 $(VBOX_PATH_CROGL_GENFILES)/server_retval.c: $(addprefix $(PATH_SUB_CURRENT)/crserverlib/, server_retval.py server_special) $(VBOX_CROGL_API_FILES) | $$(dir $$@)
-	$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
+	$(call MSG_GENERATE,python,$@,$<)
+	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
 
 $(VBOX_PATH_CROGL_GENFILES)/server_get.c: $(addprefix $(PATH_SUB_CURRENT)/crserverlib/, server_get.py server_special get_components.py) $(VBOX_CROGL_API_FILES) | $$(dir $$@)
-	$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
+	$(call MSG_GENERATE,python,$@,$<)
+	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
 
 $(VBOX_PATH_CROGL_GENFILES)/server_simpleget.c: $(addprefix $(PATH_SUB_CURRENT)/crserverlib/, server_simpleget.py get_sizes.py) $(VBOX_CROGL_API_FILES) | $$(dir $$@)
-	$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
+	$(call MSG_GENERATE,python,$@,$<)
+	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
 
 
 #
@@ -189,6 +195,7 @@ VBoxOGLcrunpacker_SOURCES  = \
 	unpacker/unpack_texture.c \
 	unpacker/unpack_writeback.c \
 	unpacker/unpack_visibleregion.c \
+	unpacker/unpack_shaders.c \
 	$(VBOX_PATH_CROGL_GENFILES)/unpack.c
 VBoxOGLcrunpacker_CLEAN = \
 	$(VBOX_PATH_CROGL_GENFILES)/unpack.c \
@@ -198,10 +205,12 @@ VBoxOGLcrunpacker_CLEAN = \
 # Generate files for VBoxOGLcrunpacker.
 #
 $(VBOX_PATH_CROGL_GENFILES)/unpack.c: $(addprefix $(PATH_SUB_CURRENT)/unpacker/, unpack.py unpacker_special) $(VBOX_PATH_CROGL_GENFILES)/unpack_extend.h $(VBOX_CROGL_API_FILES) | $$(dir $$@)
-	$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
+	$(call MSG_GENERATE,python,$@,$<)
+	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
 
 $(VBOX_PATH_CROGL_GENFILES)/unpack_extend.h: $(addprefix $(PATH_SUB_CURRENT)/unpacker/, unpack_extend.py unpacker_special) $(VBOX_CROGL_API_FILES) | $$(dir $$@)
-	$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
+	$(call MSG_GENERATE,python,$@,$<)
+	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
 
 
 #
@@ -218,6 +227,7 @@ VBoxOGLrenderspu_SOURCES = \
 VBoxOGLrenderspu_SOURCES.win     = render/renderspu_wgl.c render/render.def
 VBoxOGLrenderspu_SOURCES.linux   = render/renderspu_glx.c
 VBoxOGLrenderspu_SOURCES.solaris = render/renderspu_glx.c
+VBoxOGLrenderspu_SOURCES.freebsd = render/renderspu_glx.c
 VBoxOGLrenderspu_SOURCES.darwin  = render/renderspu_agl.c
 VBoxOGLrenderspu_LDFLAGS.darwin += -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxOGLrenderspu.dylib
 VBoxOGLrenderspu_LIBS = \

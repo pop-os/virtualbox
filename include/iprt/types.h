@@ -387,6 +387,14 @@ typedef uint64_t        RTUINTPTR;
 typedef RTUINTPTR      *PRTUINTPTR;
 /** Pointer const to unsigned integer which can contain both GC and HC pointers. */
 typedef const RTUINTPTR *PCRTUINTPTR;
+/** The maximum value the RTUINTPTR type can hold. */
+#if (HC_ARCH_BITS == 32 && GC_ARCH_BITS == 32)
+# define RTUINTPTR_MAX  UINT32_MAX
+#elif (HC_ARCH_BITS == 64 || GC_ARCH_BITS == 64)
+# define RTUINTPTR_MAX  UINT64_MAX
+#else
+#  error Unsupported HC_ARCH_BITS and/or GC_ARCH_BITS values.
+#endif
 
 /** Signed integer. */
 typedef int32_t         RTINT;
@@ -1012,6 +1020,20 @@ typedef RTFILE                                     *PRTFILE;
 /** Nil file handle. */
 #define NIL_RTFILE                                  (~(RTFILE)0)
 
+/** Async I/O request handle. */
+typedef R3PTRTYPE(struct RTFILEAIOREQINTERNAL *)    RTFILEAIOREQ;
+/** Pointer to a async I/O request handle. */
+typedef RTFILEAIOREQ                               *PRTFILEAIOREQ;
+/** Nil request handle. */
+#define NIL_RTFILEAIOREQ                            0
+
+/** Async I/O completion context handle. */
+typedef R3PTRTYPE(struct RTFILEAIOCTXINTERNAL *)    RTFILEAIOCTX;
+/** Pointer to a async I/O completion context handle. */
+typedef RTFILEAIOCTX                               *PRTFILEAIOCTX;
+/** Nil context handle. */
+#define NIL_RTFILEAIOCTX                            0
+
 /** Loader module handle. */
 typedef R3PTRTYPE(struct RTLDRMODINTERNAL *)        RTLDRMOD;
 /** Pointer to a loader module handle. */
@@ -1153,7 +1175,7 @@ typedef RTCPUSET                                   *PRTCPUSET;
 typedef RTCPUSET const                             *PCRTCPUSET;
 
 /** A handle table handle. */
-typedef struct RTHANDLETABLEINT                    *RTHANDLETABLE;
+typedef R3R0PTRTYPE(struct RTHANDLETABLEINT *)      RTHANDLETABLE;
 /** A pointer to a handle table handle. */
 typedef RTHANDLETABLE                              *PRTHANDLETABLE;
 /** @def NIL_RTHANDLETABLE
@@ -1161,7 +1183,7 @@ typedef RTHANDLETABLE                              *PRTHANDLETABLE;
 #define NIL_RTHANDLETABLE                           ((RTHANDLETABLE)0)
 
 /** A handle to a low resolution timer. */
-typedef struct RTTIMERLRINT                        *RTTIMERLR;
+typedef R3R0PTRTYPE(struct RTTIMERLRINT *)          RTTIMERLR;
 /** A pointer to a low resolution timer handle. */
 typedef RTTIMERLR                                  *PRTTIMERLR;
 /** @def NIL_RTTIMERLR
@@ -1169,11 +1191,43 @@ typedef RTTIMERLR                                  *PRTTIMERLR;
 #define NIL_RTTIMERLR                               ((RTTIMERLR)0)
 
 /** Handle to a random number generator. */
-typedef struct RTRANDINT                           *RTRAND;
+typedef R3R0PTRTYPE(struct RTRANDINT *)             RTRAND;
 /** Pointer to a random number generator handle. */
 typedef RTRAND                                     *PRTRAND;
 /** NIL random number genrator handle value. */
 #define NIL_RTRAND                                  ((RTRAND)0)
+
+/** Debug address space handle. */
+typedef R3R0PTRTYPE(struct RTDBGASINT *)            RTDBGAS;
+/** Pointer to a debug address space handle. */
+typedef RTDBGAS                                    *PRTDBGAS;
+/** NIL debug address space handle. */
+#define NIL_RTDBGAS                                 ((RTDBGAS)0)
+
+/** Debug module handle. */
+typedef R3R0PTRTYPE(struct RTDBGMODINT *)           RTDBGMOD;
+/** Pointer to a debug module handle. */
+typedef RTDBGMOD                                   *PRTDBGMOD;
+/** NIL debug module handle. */
+#define NIL_RTDBGMOD                                ((RTDBGMOD)0)
+
+/** Memory pool handle. */
+typedef R3R0PTRTYPE(struct RTMEMPOOLINT *)          RTMEMPOOL;
+/** Pointer to a memory pool handle. */
+typedef RTMEMPOOL                                  *PRTMEMPOOL;
+/** NIL memory pool handle. */
+#define NIL_RTMEMPOOL                               ((RTMEMPOOL)0)
+/** The default memory pool handle. */
+#define RTMEMPOOL_DEFAULT                           ((RTMEMPOOL)-2)
+
+/** String cache handle. */
+typedef R3R0PTRTYPE(struct RTSTRCACHEINT *)         RTSTRCACHE;
+/** Pointer to a string cache handle. */
+typedef RTSTRCACHE                                 *PRTSTRCACHE;
+/** NIL string cache handle. */
+#define NIL_RTSTRCACHE                              ((RTSTRCACHE)0)
+/** The default string cache handle. */
+#define RTSTRCACHE_DEFAULT                          ((RTSTRCACHE)-2)
 
 
 /**

@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 20647 2009-06-16 21:58:09Z vboxsync $
 ## @file
 # Sub-Makefile for the IPRT testcases.
 #
 
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2009 Sun Microsystems, Inc.
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -48,11 +48,11 @@ IPRT_OUT_DIR ?= $(PATH_TARGET)/Runtime
 # Target lists
 #
 PROGRAMS += \
-	tstAvl \
-	tstBase64 \
-	tstBitOperations \
-	tstCidr \
-	tstCritSect \
+	tstRTAvl \
+	tstRTBase64 \
+	tstRTBitOperations \
+	tstRTCidr \
+	tstRTCritSect \
 	tstDeadlock \
 	tstDir \
 	tstDir-2 \
@@ -73,6 +73,7 @@ PROGRAMS += \
 	tstLdrLoad \
 	tstLog \
 	tstMemAutoPtr \
+	tstRTMemPool \
 	tstMove \
 	tstMp-1 \
 	tstNoCrt-1 \
@@ -81,11 +82,16 @@ PROGRAMS += \
 	tstPrfRT \
 	tstRand \
 	tstRTFsQueries \
+	tstR0ThreadPreemptionDriver \
+	tstSems \
 	tstSemPingPong \
+	tstRTStrCache \
 	tstStrFormat \
 	tstStrSimplePattern \
 	tstStrToNum \
 	tstSystemQueryOsInfo \
+	tstRTTemp \
+	tstTermCallbacks \
 	tstThread-1 \
 	tstTime \
 	tstTime-2 \
@@ -100,54 +106,67 @@ PROGRAMS += \
 # tstSems
 PROGRAMS.win += \
 	tstRTProcWait \
-	tstCritSectW32 \
+	tstRTCritSectW32 \
 	tstFileAppendWin-1 \
 	ntGetTimerResolution
 PROGRAMS.linux += \
 	tstRTProcWait \
 	tstRTProcIsRunningByName \
-	tstBitOperationsPIC3 \
+	tstRTBitOperationsPIC3 \
 	tstInlineAsmPIC \
 	tstInlineAsmPIC3 \
-	tstSemMutex
+	tstSemMutex \
+	tstSemRW
 PROGRAMS.l4 += \
 	tstIoCtl
 PROGRAMS.darwin += \
 	tstDarwinSched
 SYSMODS += \
 	tstLdrObj \
-	tstLdrObjR0
+	tstLdrObjR0 \
+	tstR0ThreadPreemption
 if1of ($(VBOX_LDR_FMT)), lx pe)
 LIBRARIES += \
 	tstLdr-4Imp
 endif
+ifdef RT_ASYNC_IO_CODE
+PROGRAMS += \
+	tstFileAio
+endif
 
+if defined(VBOX_WITH_LIBXML2_IN_VBOXRT)
+PROGRAMS += \
+	tstRTS3
+endif
 
 
 #
 # Target configs in almost alphabetical order.
 #
 
-tstAvl_SOURCES = tstAvl.cpp
+tstRTAvl_TEMPLATE = VBOXR3TSTEXE
+tstRTAvl_SOURCES = tstRTAvl.cpp
 
-tstBase64_TEMPLATE = VBOXR3TSTEXE
-tstBase64_SOURCES = tstBase64.cpp
+tstRTBase64_TEMPLATE = VBOXR3TSTEXE
+tstRTBase64_SOURCES = tstRTBase64.cpp
 
-tstBitOperations_TEMPLATE = VBOXR3TSTEXE
-tstBitOperations_SOURCES = tstBitOperations.cpp
+tstRTBitOperations_TEMPLATE = VBOXR3TSTEXE
+tstRTBitOperations_SOURCES = tstRTBitOperations.cpp
 
-tstBitOperationsPIC3_SOURCES = tstBitOperations.cpp
-tstBitOperationsPIC3_CXXFLAGS = -fPIC -fomit-frame-pointer -O3
-tstBitOperationsPIC3_DEFS = PIC
+tstRTBitOperationsPIC3_TEMPLATE = VBOXR3TSTEXE
+tstRTBitOperationsPIC3_SOURCES = tstRTBitOperations.cpp
+tstRTBitOperationsPIC3_CXXFLAGS = -fPIC -fomit-frame-pointer -O3
+tstRTBitOperationsPIC3_DEFS = PIC
 
-tstCidr_SOURCES = tstCidr.cpp
+tstRTCidr_TEMPLATE = VBOXR3TSTEXE
+tstRTCidr_SOURCES = tstRTCidr.cpp
 
-tstCritSect_SOURCES = tstCritSect.cpp
+tstRTCritSect_TEMPLATE = VBOXR3TSTEXE
+tstRTCritSect_SOURCES = tstRTCritSect.cpp
 
-tstCritSectW32_SOURCES = tstCritSect.cpp
-tstCritSectW32_DEFS = TRY_WIN32_CRIT
-
-tstDarwinSched_SOURCES = tstDarwinSched.cpp
+tstRTCritSectW32_TEMPLATE = VBOXR3TSTEXE
+tstRTCritSectW32_SOURCES = tstRTCritSect.cpp
+tstRTCritSectW32_DEFS = TRY_WIN32_CRIT
 
 tstDeadlock_SOURCES = tstDeadlock.cpp
 
@@ -167,6 +186,8 @@ tstErrUnique.cpp_DEPS = $(IPRT_OUT_DIR)/errmsgdata.h
 tstFile_SOURCES = tstFile.cpp
 
 tstFileAppendWin-1_SOURCES = tstFileAppendWin-1.cpp
+
+tstFileAio_SOURCES = tstFileAio.cpp
 
 tstFileLock_SOURCES = tstFileLock.cpp
 
@@ -270,6 +291,9 @@ tstLog_SOURCES = tstLog.cpp
 
 tstMemAutoPtr_SOURCES = tstMemAutoPtr.cpp
 
+tstRTMemPool_TEMPLATE = VBOXR3TSTEXE
+tstRTMemPool_SOURCES = tstRTMemPool.cpp
+
 tstMove_SOURCES = tstMove.cpp
 
 tstMp-1_SOURCES = tstMp-1.cpp
@@ -296,17 +320,36 @@ tstPrfRT_SOURCES = tstPrfRT.cpp
 
 tstRand_SOURCES = tstRand.cpp
 
+tstR0ThreadPreemption_TEMPLATE = VBOXR0
+tstR0ThreadPreemption_INST = $(INST_TESTCASE)
+tstR0ThreadPreemption_DEFS = IN_RT_R0
+tstR0ThreadPreemption_SYSSUFF = .r0
+tstR0ThreadPreemption_SOURCES = tstR0ThreadPreemption.cpp
+tstR0ThreadPreemption_LIBS = $(PATH_LIB)/RuntimeR0$(VBOX_SUFF_LIB)
+if1of ($(VBOX_LDR_FMT), pe lx)
+ tstR0ThreadPreemption_LIBS += $(PATH_LIB)/SUPR0$(VBOX_SUFF_LIB)
+endif
+
+tstR0ThreadPreemptionDriver_SOURCES = tstR0ThreadPreemptionDriver.cpp
+
 tstRTFsQueries_SOURCES = tstRTFsQueries.cpp
 
 tstRTProcWait_SOURCES = tstRTProcWait.cpp
 
 tstRTProcIsRunningByName_SOURCES = tstRTProcIsRunningByName.cpp
 
+tstRTS3_SOURCES = tstRTS3.cpp
+
 tstSemMutex_SOURCES = tstSemMutex.cpp
+
+tstSemRW_SOURCES = tstSemRW.cpp
 
 tstSemPingPong_SOURCES = tstSemPingPong.cpp
 
 tstSems_SOURCES = tstSems.cpp
+
+tstRTStrCache_TEMPLATE = VBOXR3TSTEXE
+tstRTStrCache_SOURCES = tstRTStrCache.cpp
 
 tstStrFormat_SOURCES = tstStrFormat.cpp
 
@@ -315,6 +358,11 @@ tstStrSimplePattern_SOURCES = tstStrSimplePattern.cpp
 tstStrToNum_SOURCES = tstStrToNum.cpp
 
 tstSystemQueryOsInfo_SOURCES = tstSystemQueryOsInfo.cpp
+
+tstRTTemp_TEMPLATE = VBOXR3TSTEXE
+tstRTTemp_SOURCES = tstRTTemp.cpp
+
+tstTermCallbacks_SOURCES = tstTermCallbacks.cpp
 
 tstThread-1_SOURCES = tstThread-1.cpp
 
@@ -338,6 +386,13 @@ tstTSC_CXXFLAGS.linux += -O3
 tstUuid_SOURCES = tstUuid.cpp
 
 tstUtf8_SOURCES = tstUtf8.cpp
+
+
+#
+# odds and  ends
+#
+
+tstDarwinSched_SOURCES = tstDarwinSched.cpp
 
 ntGetTimerResolution_SOURCES = ntGetTimerResolution.cpp
 ntGetTimerResolution_SDKS.win = WINPSDK W2K3DDK VBOX_NTDLL

@@ -1,4 +1,4 @@
-/* $Id: REMInternal.h $ */
+/* $Id: REMInternal.h 20749 2009-06-21 20:57:37Z vboxsync $ */
 /** @file
  * REM - Internal header file.
  */
@@ -27,6 +27,7 @@
 #include <VBox/cpum.h>
 #include <VBox/stam.h>
 #include <VBox/pgm.h>
+#include <VBox/pdmcritsect.h>
 #ifdef REM_INCLUDE_CPU_H
 # include "target-i386/cpu.h"
 #endif
@@ -106,7 +107,11 @@ typedef struct REMHANDLERNOTIFICATION
         } PhysicalModify;
         uint64_t                padding[5];
     } u;
-} REMHANDLERNOTIFICATION, *PREMHANDLERNOTIFICATION;
+    uint32_t                    idxSelf;
+    uint32_t volatile           idxNext;
+} REMHANDLERNOTIFICATION;
+/** Pointer to a handler notification record. */
+typedef REMHANDLERNOTIFICATION *PREMHANDLERNOTIFICATION;
 
 /**
  * Converts a REM pointer into a VM pointer.
@@ -126,20 +131,18 @@ typedef struct REM
     /** Alignment padding. */
     RTUINT                  uPadding0;
 
-    /** Cached guest cpu context pointer. */
+    /** Cached pointer of the register context of the current VCPU. */
     R3PTRTYPE(PCPUMCTX)     pCtx;
 
     /** In REM mode.
      * I.e. the correct CPU state and some other bits are with REM. */
-    bool                    fInREM;
+    bool volatile           fInREM;
     /** In REMR3State. */
     bool                    fInStateSync;
 
     /** Set when the translation blocks cache need to be flushed. */
     bool                    fFlushTBs;
 
-    /** Ignore all that can be ignored. */
-    bool                    fIgnoreAll;
     /** Ignore CR3 load notifications from the REM. */
     bool                    fIgnoreCR3Load;
     /** Ignore invlpg notifications from the REM. */
@@ -148,6 +151,10 @@ typedef struct REM
     bool                    fIgnoreCpuMode;
     /** Ignore set page. */
     bool                    fIgnoreSetPage;
+    bool                    bPadding1;
+
+    /** Ignore all that can be ignored. */
+    uint32_t                cIgnoreAll;
 
     /** Number of times REMR3CanExecuteRaw has been called.
      * It is used to prevent rescheduling on the first call. */
@@ -156,21 +163,20 @@ typedef struct REM
     /** Pending interrupt (~0 -> nothing). */
     uint32_t                u32PendingInterrupt;
 
-#if HC_ARCH_BITS == 64
-    /** Alignment padding. */
-    uint32_t                u32Padding;
-#endif
     /** Number of recorded invlpg instructions. */
-    uint32_t                cInvalidatedPages;
+    uint32_t volatile       cInvalidatedPages;
+#if HC_ARCH_BITS == 32
+    uint32_t                uPadding2;
+#endif
     /** Array of recorded invlpg instruction.
      * These instructions are replayed when entering REM. */
     RTGCPTR                 aGCPtrInvalidatedPages[48];
-    /** The number of recorded handler notifications. */
-    RTUINT volatile         cHandlerNotifications;
-    RTUINT                  padding0; /**< Padding. */
+
     /** Array of recorded handler noticications.
      * These are replayed when entering REM. */
     REMHANDLERNOTIFICATION  aHandlerNotifications[32];
+    volatile uint32_t       idxPendingList;
+    volatile uint32_t       idxFreeList;
 
     /** MMIO memory type.
      * This is used to register MMIO physical access handlers. */
@@ -184,11 +190,9 @@ typedef struct REM
     /** Nr of pending exceptions */
     uint32_t                cPendingExceptions;
     /** Pending exception's EIP */
-    uint32_t                uPendingExcptEIP;
-    uint32_t                reserved_for_future_uPendingExcptRIP;
+    RTGCPTR                 uPendingExcptEIP;
     /** Pending exception's CR2 */
-    uint32_t                uPendingExcptCR2;
-    uint32_t                reserved_for_future_64bit_uPendingExcptCR2;
+    RTGCPTR                 uPendingExcptCR2;
 
     /** The highest known RAM address. */
     RTGCPHYS                GCPhysLastRam;
@@ -197,6 +201,11 @@ typedef struct REM
 
     /** Pending rc. */
     int32_t                 rc;
+
+    /** REM critical section.
+     * This protects cpu_register_physical_memory usage
+     */
+    PDMCRITSECT             CritSectRegister;
 
     /** Time spent in QEMU. */
     STAMPROFILEADV          StatsInQEMU;
@@ -208,21 +217,9 @@ typedef struct REM
     STAMPROFILE             StatsStateBack;
 
     /** Padding the CPUX86State structure to 32 byte. */
-    uint32_t                abPadding[HC_ARCH_BITS == 32 ? 6 : 4];
+    uint32_t                abPadding[HC_ARCH_BITS == 32 ? 2 : 6];
 
-#ifdef VBOX_WITH_NEW_RECOMPILER
-#if GC_ARCH_BITS == 32
-# define REM_ENV_SIZE        (HC_ARCH_BITS == 32 ? 0xff00 : 0xff00)
-#else
-# define REM_ENV_SIZE        (HC_ARCH_BITS == 32 ? 0xff00 : 0xff00)
-#endif
-#else  /* !VBOX_WITH_NEW_RECOMPILER */
-#if GC_ARCH_BITS == 32
-# define REM_ENV_SIZE        (HC_ARCH_BITS == 32 ? 0x6550 : 0xb4a0)
-#else
-# define REM_ENV_SIZE        (HC_ARCH_BITS == 32 ? 0x9440 : 0xd4a0)
-#endif
-#endif /* !VBOX_WITH_NEW_RECOMILER */
+# define REM_ENV_SIZE       0xff00
 
     /** Recompiler CPU state. */
 #ifdef REM_INCLUDE_CPU_H
@@ -251,19 +248,15 @@ void    remR3ProtectCode(CPUState *env, RTGCPTR GCPtr);
 void    remR3ChangeCpuMode(CPUState *env);
 void    remR3DmaRun(CPUState *env);
 void    remR3TimersRun(CPUState *env);
-# ifdef VBOX_WITH_NEW_RECOMPILER
 int     remR3NotifyTrap(CPUState *env, uint32_t uTrap, uint32_t uErrorCode, RTGCPTR pvNextEIP);
-# else
-int remR3NotifyTrap(CPUState *env, uint32_t uTrap, uint32_t uErrorCode, uint32_t pvNextEIP);
-# endif
 void    remR3TrapStat(CPUState *env, uint32_t uTrap);
 void    remR3CpuId(CPUState *env, unsigned uOperator, void *pvEAX, void *pvEBX, void *pvECX, void *pvEDX);
 void    remR3RecordCall(CPUState *env);
 #endif /* REM_INCLUDE_CPU_H */
 void    remR3TrapClear(PVM pVM);
 void    remR3RaiseRC(PVM pVM, int rc);
-void    remR3DumpLnxSyscall(PVM pVM);
-void    remR3DumpOBsdSyscall(PVM pVM);
+void    remR3DumpLnxSyscall(PVMCPU pVCpu);
+void    remR3DumpOBsdSyscall(PVMCPU pVCpu);
 
 
 /** @todo r=bird: clean up the RAWEx stats. */
@@ -287,8 +280,8 @@ void remR3ProfileStart(int statcode);
 void remR3ProfileStop(int statcode);
 
 #else  /* !VBOX_WITH_STATISTICS */
-# define remR3ProfileStart(c)
-# define remR3ProfileStop(c)
+# define remR3ProfileStart(c)   do { } while (0)
+# define remR3ProfileStop(c)    do { } while (0)
 #endif /* !VBOX_WITH_STATISTICS */
 
 /** @} */

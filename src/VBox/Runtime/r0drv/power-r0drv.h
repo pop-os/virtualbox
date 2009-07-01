@@ -1,4 +1,4 @@
-/* $Id: power-r0drv.h $ */
+/* $Id: power-r0drv.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * IPRT - Power Management, Ring-0 Driver, Internal Header.
  */
@@ -33,13 +33,13 @@
 
 #include <iprt/power.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /* Called from initterm-r0drv.cpp: */
 int  rtR0PowerNotificationInit(void);
 void rtR0PowerNotificationTerm(void);
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

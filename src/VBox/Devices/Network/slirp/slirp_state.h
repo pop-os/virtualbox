@@ -18,13 +18,12 @@
  * additional information or have any questions.
  */
 
-#ifndef _slirp_state_h_
-#define _slirp_state_h_
+#ifndef ___slirp_state_h
+#define ___slirp_state_h
+
 #include <iprt/req.h>
 #include "ip_icmp.h"
-#ifdef VBOX_WITH_SLIRP_DNS_PROXY
-# include "dnsproxy/dnsproxy.h"
-#endif
+#include "dnsproxy/dnsproxy.h"
 
 /** Number of DHCP clients supported by NAT. */
 #define NB_ADDR     16
@@ -40,6 +39,9 @@ typedef struct
 {
     bool allocated;
     uint8_t macaddr[6];
+#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
+    struct in_addr addr;
+#endif
 } BOOTPClient;
 
 
@@ -55,21 +57,19 @@ struct tftp_session
     int timestamp;
 };
 
-#ifdef VBOX_WITH_MULTI_DNS
 struct dns_domain_entry
 {
-        char *dd_pszDomain;
-        LIST_ENTRY(dns_domain_entry) dd_list;
+    char *dd_pszDomain;
+    LIST_ENTRY(dns_domain_entry) dd_list;
 };
 LIST_HEAD(dns_domain_list_head, dns_domain_entry);
 
 struct dns_entry
 {
-        struct in_addr de_addr;
-        TAILQ_ENTRY(dns_entry) de_list;
+    struct in_addr de_addr;
+    TAILQ_ENTRY(dns_entry) de_list;
 };
 TAILQ_HEAD(dns_list_head, dns_entry);
-#endif
 
 /** Main state/configuration structure for slirp NAT. */
 typedef struct NATState
@@ -110,28 +110,31 @@ typedef struct NATState
     struct in_addr our_addr;
     struct in_addr alias_addr;
     struct in_addr special_addr;
+
+    int tcp_rcvspace;
+    int tcp_sndspace;
+    int socket_rcv;
+    int socket_snd;
 #ifdef VBOX_WITH_SLIRP_MT
     PRTREQQUEUE pReqQueue;
 #endif
-#ifndef VBOX_WITH_MULTI_DNS
-    struct in_addr dns_addr;
-#else
-# ifdef RT_OS_WINDOWS
+#ifdef RT_OS_WINDOWS
     ULONG (WINAPI * pfGetAdaptersAddresses)(ULONG, ULONG, PVOID, PIP_ADAPTER_ADDRESSES, PULONG);
-# endif
+#endif
     struct dns_list_head dns_list_head;
     struct dns_domain_list_head dns_domain_list_head;
-#endif
     struct in_addr tftp_server;
     struct in_addr loopback_addr;
     uint32_t netmask;
+#ifndef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
     uint8_t client_ethaddr[6];
+#else
+    const uint8_t *slirp_ethaddr;
+#endif
     struct ex_list *exec_list;
     char slirp_hostname[33];
     bool fPassDomain;
-#ifndef VBOX_WITH_MULTI_DNS
-    const char *pszDomain;
-#endif
+    struct in_addr bindIP;
     /* Stuff from tcp_input.c */
     struct socket tcb;
 #ifdef VBOX_WITH_SLIRP_MT
@@ -168,9 +171,13 @@ typedef struct NATState
     int nsock;
 #  define NSOCK_INC() do {pData->nsock++;} while (0)
 #  define NSOCK_DEC() do {pData->nsock--;} while (0)
+#  define NSOCK_INC_EX(ex) do {ex->pData->nsock++;} while (0)
+#  define NSOCK_DEC_EX(ex) do {ex->pData->nsock--;} while (0)
 # else
 #  define NSOCK_INC() do {} while (0)
 #  define NSOCK_DEC() do {} while (0)
+#  define NSOCK_INC_EX(ex) do {} while (0)
+#  define NSOCK_DEC_EX(ex) do {} while (0)
 # endif
 # ifdef RT_OS_WINDOWS
     void *pvIcmpBuffer;
@@ -182,14 +189,11 @@ typedef struct NATState
     BOOL (WINAPI * pfIcmpCloseHandle)(HANDLE);
     HMODULE hmIcmpLibrary;
 # endif
-#if defined(VBOX_WITH_SIMPLIFIED_SLIRP_SYNC) && defined(RT_OS_WINDOWS)
+#if defined(RT_OS_WINDOWS)
 # define VBOX_SOCKET_EVENT (pData->phEvents[VBOX_SOCKET_EVENT_INDEX])
     HANDLE phEvents[VBOX_EVENT_COUNT];
 #endif
-#if !defined(VBOX_WITH_SIMPLIFIED_SLIRP_SYNC) && defined(RT_OS_WINDOWS)
-    int fIcmp;
-#endif
-#ifdef VBOX_WITH_SLIRP_DNS_PROXY
+
     /* from dnsproxy/dnsproxy.h*/
     unsigned int authoritative_port;
     unsigned int authoritative_timeout;
@@ -215,20 +219,25 @@ typedef struct NATState
     int sock_query;
     int sock_answer;
     /* dnsproxy/hash.c */
-    #define HASHSIZE 10
-    #define HASH(id) (id & ((1 << HASHSIZE) - 1))
+#define HASHSIZE 10
+#define HASH(id) (id & ((1 << HASHSIZE) - 1))
     struct request *request_hash[1 << HASHSIZE];
     /* this field control behaviour of DHCP server */
     bool use_dns_proxy;
+
+#ifdef VBOX_WITH_SLIRP_ALIAS
+    LIST_HEAD(RT_NOTHING, libalias) instancehead;
+    struct libalias *proxy_alias;
 #endif
-    STAMPROFILE StatFill;
-    STAMPROFILE StatPoll;
-    STAMPROFILE StatFastTimer;
-    STAMPROFILE StatSlowTimer;
-    STAMCOUNTER StatTCP;
-    STAMCOUNTER StatUDP;
-    STAMCOUNTER StatTCPHot;
-    STAMCOUNTER StatUDPHot;
+
+#define PROFILE_COUNTER(name, dsc)     STAMPROFILE Stat ## name
+#define COUNTING_COUNTER(name, dsc)    STAMCOUNTER Stat ## name
+
+#include "counters.h"
+
+#undef PROFILE_COUNTER
+#undef COUNTING_COUNTER
+
 } NATState;
 
 
@@ -261,10 +270,10 @@ typedef struct NATState
 #define tcp_do_rfc1323 1
 
 /** TCP receive buffer size. */
-#define tcp_rcvspace TCP_RCVSPACE
+#define tcp_rcvspace pData->tcp_rcvspace
 
 /** TCP receive buffer size. */
-#define tcp_sndspace TCP_SNDSPACE
+#define tcp_sndspace pData->tcp_sndspace
 
 /* TCP duplicate ACK retransmit threshold. */
 #define tcprexmtthresh 3
@@ -303,7 +312,9 @@ typedef struct NATState
 #define cUsers pData->cUsers
 #define tt pData->tt
 #define our_addr pData->our_addr
-#define alias_addr pData->alias_addr
+#ifndef VBOX_SLIRP_ALIAS
+# define alias_addr pData->alias_addr
+#endif
 #define special_addr pData->special_addr
 #define dns_addr pData->dns_addr
 #define loopback_addr pData->loopback_addr
@@ -334,16 +345,12 @@ typedef struct NATState
 #define tcp_reass_maxseg pData->tcp_reass_maxseg
 #define tcp_reass_overflows pData->tcp_reass_overflows
 
-#if !defined(VBOX_WITH_SIMPLIFIED_SLIRP_SYNC) && defined(RT_OS_WINDOWS)
-# define fIcmp pData->fIcmp
-#endif
-
 #define queue_tcp_label tcb
 #define queue_udp_label udb
-#define __X(x) x
-#define _X(x) __X(x)
-#define _str(x) #x
-#define str(x) _str(x)
+#define VBOX_X2(x) x
+#define VBOX_X(x) VBOX_X2(x)
+#define VBOX_STR2(x) #x
+#define VBOX_STR(x) VBOX_STR2(x)
 
 #ifdef VBOX_WITH_SLIRP_MT
 
@@ -351,13 +358,13 @@ typedef struct NATState
     do {                                                              \
         int rc;                                                       \
         /* Assert(strcmp(RTThreadSelfName(), "EMT") != 0); */         \
-        rc = RTCritSectEnter(&_X(queue) ## _mutex);                   \
+        rc = RTCritSectEnter(&VBOX_X(queue) ## _mutex);               \
         AssertReleaseRC(rc);                                          \
     } while (0)
 # define QSOCKET_UNLOCK(queue)                                        \
     do {                                                              \
         int rc;                                                       \
-        rc = RTCritSectLeave(&_X(queue) ## _mutex);                   \
+        rc = RTCritSectLeave(&VBOX_X(queue) ## _mutex);               \
         AssertReleaseRC(rc);                                          \
     } while (0)
 # define QSOCKET_LOCK_CREATE(queue)                                   \
@@ -373,13 +380,13 @@ typedef struct NATState
     } while (0)
 
 # define QSOCKET_FOREACH(so, sonext, label)                           \
-    QSOCKET_LOCK(__X(queue_## label ## _label));                      \
-    (so) = (_X(queue_ ## label ## _label)).so_next;                   \
-    QSOCKET_UNLOCK(__X(queue_## label ##_label));                     \
-    if ((so) != &(_X(queue_## label ## _label))) SOCKET_LOCK((so));   \
-    for(;;)                                                           \
+    QSOCKET_LOCK(VBOX_X2(queue_## label ## _label));                  \
+    (so) = (VBOX_X(queue_ ## label ## _label)).so_next;               \
+    QSOCKET_UNLOCK(VBOX_X2(queue_## label ##_label));                 \
+    if ((so) != &(VBOX_X(queue_## label ## _label))) SOCKET_LOCK((so));\
+    for (;;)                                                          \
     {                                                                 \
-        if ((so) == &(_X(queue_## label ## _label)))                  \
+        if ((so) == &(VBOX_X(queue_## label ## _label)))              \
         {                                                             \
             break;                                                    \
         }                                                             \
@@ -392,16 +399,16 @@ typedef struct NATState
 # define LOOP_LABEL(label, so, sonext) loop_end_ ## label ## _mt:       \
     (sonext) = (so)->so_next;                                           \
     SOCKET_UNLOCK(so);                                                  \
-    QSOCKET_LOCK(_X(queue_ ## label ## _label));                        \
-    if ((sonext) != &(_X(queue_## label ## _label)))                    \
+    QSOCKET_LOCK(VBOX_X(queue_ ## label ## _label));                    \
+    if ((sonext) != &(VBOX_X(queue_## label ## _label)))                \
     {                                                                   \
         SOCKET_LOCK((sonext));                                          \
-        QSOCKET_UNLOCK(_X(queue_ ## label ## _label));                  \
+        QSOCKET_UNLOCK(VBOX_X(queue_ ## label ## _label));              \
     }                                                                   \
     else                                                                \
     {                                                                   \
-        so = &_X(queue_ ## label ## _label);                            \
-        QSOCKET_UNLOCK(_X(queue_ ## label ## _label));                  \
+        so = &VBOX_X(queue_ ## label ## _label);                        \
+        QSOCKET_UNLOCK(VBOX_X(queue_ ## label ## _label));              \
         break;                                                          \
     }                                                                   \
     (so) = (sonext);                                                    \
@@ -583,7 +590,7 @@ typedef struct NATState
                 && so->so_faddr.s_addr == (dst).s_addr                  \
                 && so->so_fport        == (dport))                      \
                 {                                                       \
-                    if (sonxt != &__X(queue_ ## label ## _label))       \
+                    if (sonxt != &VBOX_X2(queue_ ## label ## _label))   \
                         SOCKET_UNLOCK(sonxt);                           \
                     break; /*so is locked*/                             \
                 }                                                       \
@@ -599,8 +606,8 @@ typedef struct NATState
 # define QSOCKET_LOCK_CREATE(queue) do {} while (0)
 # define QSOCKET_LOCK_DESTROY(queue) do {} while (0)
 # define QSOCKET_FOREACH(so, sonext, label)                              \
-    for ((so)  = __X(queue_ ## label ## _label).so_next;                 \
-         (so) != &(__X(queue_ ## label ## _label));                      \
+    for ((so)  = VBOX_X2(queue_ ## label ## _label).so_next;                 \
+         (so) != &(VBOX_X2(queue_ ## label ## _label));                      \
          (so) = (sonext))                                                \
     {                                                                    \
         (sonext) = (so)->so_next;
@@ -621,7 +628,7 @@ typedef struct NATState
 # define DO_SORECFROM(data, so) sorecvfrom((data), (so))
 # define SOLOOKUP(so, label, src, sport, dst, dport)                                      \
     do {                                                                                  \
-        (so) = solookup(&__X(queue_ ## label ## _label), (src), (sport), (dst), (dport)); \
+        (so) = solookup(&VBOX_X2(queue_ ## label ## _label), (src), (sport), (dst), (dport)); \
     } while (0)
 # define DO_UDP_DETACH(data, so, ignored) udp_detach((data), (so))
 
@@ -635,33 +642,35 @@ typedef struct NATState
 #define SORECVFROM(data, so) DO_SORECFROM((data), (so))
 #define UDP_DETACH(data, so, so_next) DO_UDP_DETACH((data), (so), (so_next))
 
-#ifdef VBOX_WITH_SLIRP_DNS_PROXY
 /* dnsproxy/dnsproxy.c */
-# define authoritative_port pData->authoritative_port
-# define authoritative_timeout pData->authoritative_timeout
-# define recursive_port pData->recursive_port
-# define recursive_timeout pData->recursive_timeout
-# define stats_timeout pData->stats_timeout
+#define authoritative_port pData->authoritative_port
+#define authoritative_timeout pData->authoritative_timeout
+#define recursive_port pData->recursive_port
+#define recursive_timeout pData->recursive_timeout
+#define stats_timeout pData->stats_timeout
 /* dnsproxy/hash.c */
-# define dns_port pData->port
-# define request_hash pData->request_hash
-# define hash_collisions pData->hash_collisions
-# define active_queries pData->active_queries
-# define all_queries pData->all_queries
-# define authoritative_queries pData->authoritative_queries
-# define recursive_queries pData->recursive_queries
-# define removed_queries pData->removed_queries
-# define dropped_queries pData->dropped_queries
-# define answered_queries pData->answered_queries
-# define dropped_answers pData->dropped_answers
-# define late_answers pData->late_answers
+#define dns_port pData->port
+#define request_hash pData->request_hash
+#define hash_collisions pData->hash_collisions
+#define active_queries pData->active_queries
+#define all_queries pData->all_queries
+#define authoritative_queries pData->authoritative_queries
+#define recursive_queries pData->recursive_queries
+#define removed_queries pData->removed_queries
+#define dropped_queries pData->dropped_queries
+#define answered_queries pData->answered_queries
+#define dropped_answers pData->dropped_answers
+#define late_answers pData->late_answers
 
 /* dnsproxy/dnsproxy.c */
-# define queryid pData->queryid
-# define authoritative_addr pData->authoritative_addr
-# define recursive_addr pData->recursive_addr
-# define sock_query pData->sock_query
-# define sock_answer pData->sock_answer
+#define queryid pData->queryid
+#define authoritative_addr pData->authoritative_addr
+#define recursive_addr pData->recursive_addr
+#define sock_query pData->sock_query
+#define sock_answer pData->sock_answer
+
+#ifdef VBOX_WITH_SLIRP_ALIAS
+# define instancehead pData->instancehead
 #endif
 
-#endif /* !_slirp_state_h_ */
+#endif /* !___slirp_state_h */

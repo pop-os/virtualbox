@@ -1,4 +1,4 @@
-/* $Id: Builtins.h $ */
+/* $Id: Builtins.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * Built-in drivers & devices (part 1) header.
  */
@@ -24,12 +24,19 @@
 
 #include <VBox/pdm.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** The default BIOS logo data. */
 extern const unsigned char  g_abVgaDefBiosLogo[];
 /** The size of the default BIOS logo data. */
 extern const unsigned       g_cbVgaDefBiosLogo;
+#ifdef VBOX_WITH_EFI
+/** The EFI thunk binary. */
+extern const unsigned char  g_abEfiThunkBinary[];
+/** The size of the EFI thunk binary. */
+extern const unsigned       g_cbEfiThunkBinary;
+#endif
+
 
 extern const PDMDEVREG g_DevicePCI;
 extern const PDMDEVREG g_DevicePcArch;
@@ -112,11 +119,6 @@ extern const PDMDRVREG g_DrvHostSerial;
 extern const PDMUSBREG g_UsbDevProxy;
 #endif
 
-#ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
-extern const PDMDRVREG g_DrvRawImageAsync;
-extern const PDMDRVREG g_DrvTransportAsync;
-#endif
-
 #ifdef VBOX_WITH_SCSI
 extern const PDMDRVREG g_DrvSCSI;
 #if defined(RT_OS_LINUX)
@@ -124,10 +126,6 @@ extern const PDMDRVREG g_DrvSCSIHost;
 #endif
 #endif
 
-#ifdef VBOX_WITH_FAULT_INJECTION
-extern const PDMDRVREG g_DrvFaultInject;
-#endif
-
-__END_DECLS
+RT_C_DECLS_END
 
 #endif

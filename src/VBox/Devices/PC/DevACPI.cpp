@@ -1,4 +1,4 @@
-/* $Id: DevACPI.cpp $ */
+/* $Id: DevACPI.cpp 20679 2009-06-18 10:38:52Z vboxsync $ */
 /** @file
  * DevACPI - Advanced Configuration and Power Interface (ACPI) Device.
  */
@@ -40,9 +40,9 @@
 # define DEBUG_ACPI
 #endif
 
-/* the compiled DSL */
 #if defined(IN_RING3) && !defined(VBOX_DEVICE_STRUCT_TESTCASE)
-# include <vboxaml.hex>
+int acpiPrepareDsdt(PPDMDEVINS pDevIns, void* *ppPtr, size_t *puDsdtLen);
+int acpiCleanupDsdt(PPDMDEVINS pDevIns, void* pPtr);
 #endif /* !IN_RING3 */
 
 
@@ -136,11 +136,12 @@ enum
     SYSTEM_INFO_INDEX_SMC_STATUS        = 3,
     SYSTEM_INFO_INDEX_FDC_STATUS        = 4,
     SYSTEM_INFO_INDEX_CPU0_STATUS       = 5,
-    SYSTEM_INFO_INDEX_CPU1_STATUS       = 6,
-    SYSTEM_INFO_INDEX_CPU2_STATUS       = 7,
-    SYSTEM_INFO_INDEX_CPU3_STATUS       = 8,
-    SYSTEM_INFO_INDEX_HIGH_MEMORY_LENGTH= 9,
-    SYSTEM_INFO_INDEX_END               = 10,
+    SYSTEM_INFO_INDEX_CPU1_STATUS       = 6, 
+    SYSTEM_INFO_INDEX_CPU2_STATUS       = 7, 
+    SYSTEM_INFO_INDEX_CPU3_STATUS       = 8, 
+    SYSTEM_INFO_INDEX_HIGH_MEMORY_LENGTH= 9, 
+    SYSTEM_INFO_INDEX_RTC_STATUS        = 10, 
+    SYSTEM_INFO_INDEX_END               = 11, 
     SYSTEM_INFO_INDEX_INVALID           = 0x80,
     SYSTEM_INFO_INDEX_VALID             = 0x200
 };
@@ -213,8 +214,10 @@ typedef struct ACPIState
     bool                fPowerButtonHandled;
     /** If ACPI CPU device should be shown */
     bool                fShowCpu;
+    /** If Real Time Clock ACPI object to be shown */
+    bool                fShowRtc;
     /** Aligning IBase. */
-    bool                afAlignment[6];
+    bool                afAlignment[5];
 
     /** ACPI port base interface. */
     PDMIBASE            IBase;
@@ -425,7 +428,6 @@ struct ACPITBLIOAPIC
 };
 AssertCompileSize(ACPITBLIOAPIC, 12);
 
-#ifdef VBOX_WITH_SMP_GUESTS
 # ifdef IN_RING3 /**@todo r=bird: Move this down to where it's used. */
 
 #  define PCAT_COMPAT   0x1                     /**< system has also a dual-8259 setup */
@@ -532,20 +534,6 @@ public:
 };
 # endif /* IN_RING3 */
 
-#else  /* !VBOX_WITH_SMP_GUESTS */
-/** Multiple APIC Description Table */
-struct ACPITBLMADT
-{
-    ACPITBLHEADER       header;
-    uint32_t            u32LAPIC;               /**< local APIC address */
-    uint32_t            u32Flags;               /**< Flags */
-# define PCAT_COMPAT    0x1                     /**< system has also a dual-8259 setup */
-    ACPITBLLAPIC        LApic;
-    ACPITBLIOAPIC       IOApic;
-};
-AssertCompileSize(ACPITBLMADT, 64);
-#endif /* !VBOX_WITH_SMP_GUESTS */
-
 #pragma pack()
 
 
@@ -553,7 +541,7 @@ AssertCompileSize(ACPITBLMADT, 64);
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 PDMBOTHCBDECL(int) acpiPMTmrRead(       PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
 #ifdef IN_RING3
 PDMBOTHCBDECL(int) acpiPm1aEnRead(      PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
@@ -577,7 +565,7 @@ PDMBOTHCBDECL(int) acpiDhexWrite(       PPDMDEVINS pDevIns, void *pvUser, RTIOPO
 PDMBOTHCBDECL(int) acpiDchrWrite(       PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
 # endif
 #endif /* IN_RING3 */
-__END_DECLS
+RT_C_DECLS_END
 
 
 #ifdef IN_RING3
@@ -622,9 +610,11 @@ static void acpiPhyscpy(ACPIState *s, RTGCPHYS32 dst, const void * const src, si
 }
 
 /** Differentiated System Description Table (DSDT) */
-static void acpiSetupDSDT(ACPIState *s, RTGCPHYS32 addr)
+
+static void acpiSetupDSDT(ACPIState *s, RTGCPHYS32 addr, 
+                            void* pPtr, size_t uDsdtLen)
 {
-    acpiPhyscpy(s, addr, AmlCode, sizeof(AmlCode));
+    acpiPhyscpy(s, addr, pPtr, uDsdtLen);
 }
 
 /** Firmware ACPI Control Structure (FACS) */
@@ -783,7 +773,6 @@ static void acpiSetupRSDP(ACPITBLRSDP *rsdp, uint32_t rsdt_addr, uint64_t xsdt_a
  */
 static void acpiSetupMADT(ACPIState *s, RTGCPHYS32 addr)
 {
-#ifdef VBOX_WITH_SMP_GUESTS
     uint16_t cpus = s->cCpus;
     AcpiTableMADT madt(cpus);
 
@@ -814,35 +803,6 @@ static void acpiSetupMADT(ACPIState *s, RTGCPHYS32 addr)
 
     madt.header_addr()->u8Checksum = acpiChecksum(madt.data(), madt.size());
     acpiPhyscpy(s, addr, madt.data(), madt.size());
-
-#else  /* !VBOX_WITH_SMP_GUESTS */
-    ACPITBLMADT madt;
-
-    /* Don't call this function if u8UseIOApic==false! */
-    Assert(s->u8UseIOApic);
-
-    memset(&madt, 0, sizeof(madt));
-    acpiPrepareHeader(&madt.header, "APIC", sizeof(madt), 2);
-
-    madt.u32LAPIC          = RT_H2LE_U32(0xfee00000);
-    madt.u32Flags          = RT_H2LE_U32(PCAT_COMPAT);
-
-    madt.LApic.u8Type      = 0;
-    madt.LApic.u8Length    = sizeof(ACPITBLLAPIC);
-    madt.LApic.u8ProcId    = 0;
-    madt.LApic.u8ApicId    = 0;
-    madt.LApic.u32Flags    = RT_H2LE_U32(LAPIC_ENABLED);
-
-    madt.IOApic.u8Type     = 1;
-    madt.IOApic.u8Length   = sizeof(ACPITBLIOAPIC);
-    madt.IOApic.u8IOApicId = 1;
-    madt.IOApic.u8Reserved = 0;
-    madt.IOApic.u32Address = RT_H2LE_U32(0xfec00000);
-    madt.IOApic.u32GSIB    = RT_H2LE_U32(0);
-
-    madt.header.u8Checksum = acpiChecksum((uint8_t*)&madt, sizeof(madt));
-    acpiPhyscpy(s, addr, &madt, sizeof(madt));
-#endif /* !VBOX_WITH_SMP_GUESTS */
 }
 
 /* SCI IRQ */
@@ -1109,9 +1069,9 @@ static void acpiPMTimerReset(ACPIState *s)
     TMTimerSet(s->CTX_SUFF(ts), TMTimerGet(s->CTX_SUFF(ts)) + interval);
 }
 
-static DECLCALLBACK(void) acpiTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) acpiTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    ACPIState *s = PDMINS_2_DATA(pDevIns, ACPIState *);
+    ACPIState *s = (ACPIState *)pvUser;
 
     Log(("acpi: pm timer sts %#x (%d), en %#x (%d)\n",
          s->pm1a_sts, (s->pm1a_sts & TMR_STS) != 0,
@@ -1361,28 +1321,27 @@ PDMBOTHCBDECL(int) acpiSysInfoDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
                                           | STA_DEVICE_FUNCTIONING_PROPERLY_MASK)
                             : 0;
                     break;
-                case SYSTEM_INFO_INDEX_CPU0_STATUS:
-                    *pu32 = s->fShowCpu ? (  STA_DEVICE_PRESENT_MASK
+
+                    
+                case SYSTEM_INFO_INDEX_CPU0_STATUS: 
+                case SYSTEM_INFO_INDEX_CPU1_STATUS: 
+                case SYSTEM_INFO_INDEX_CPU2_STATUS: 
+                case SYSTEM_INFO_INDEX_CPU3_STATUS: 
+                  *pu32 = s->fShowCpu 
+                    && s->uSystemInfoIndex - SYSTEM_INFO_INDEX_CPU0_STATUS < s->cCpus 
+                    ?   
+                      STA_DEVICE_PRESENT_MASK 
+                    | STA_DEVICE_ENABLED_MASK 
+                    | STA_DEVICE_SHOW_IN_UI_MASK 
+                    | STA_DEVICE_FUNCTIONING_PROPERLY_MASK 
+                    : 0; 
+
+                 case SYSTEM_INFO_INDEX_RTC_STATUS:
+                    *pu32 = s->fShowRtc ? (  STA_DEVICE_PRESENT_MASK
                                            | STA_DEVICE_ENABLED_MASK
                                            | STA_DEVICE_SHOW_IN_UI_MASK
                                            | STA_DEVICE_FUNCTIONING_PROPERLY_MASK)
                             : 0;
-                    break;
-
-                case SYSTEM_INFO_INDEX_CPU1_STATUS:
-                case SYSTEM_INFO_INDEX_CPU2_STATUS:
-                case SYSTEM_INFO_INDEX_CPU3_STATUS:
-#ifdef VBOX_WITH_SMP_GUESTS
-                    *pu32 = s->fShowCpu
-                         && s->uSystemInfoIndex - SYSTEM_INFO_INDEX_CPU0_STATUS < s->cCpus
-                          ?   STA_DEVICE_PRESENT_MASK
-                            | STA_DEVICE_ENABLED_MASK
-                            | STA_DEVICE_SHOW_IN_UI_MASK
-                            | STA_DEVICE_FUNCTIONING_PROPERLY_MASK
-                          : 0;
-#else
-                    *pu32 = 0;
-#endif
                     break;
 
                 /* Solaris 9 tries to read from this index */
@@ -1779,22 +1738,24 @@ static int acpiPlantTables(ACPIState *s)
     if (s->u8UseIOApic)
     {
         apic_addr = RT_ALIGN_32(facs_addr + sizeof(ACPITBLFACS), 16);
-#ifdef VBOX_WITH_SMP_GUESTS
         /**
          * @todo nike: maybe some refactoring needed to compute tables layout,
          * but as this code is executed only once it doesn't make sense to optimize much
          */
         dsdt_addr = RT_ALIGN_32(apic_addr + AcpiTableMADT::sizeFor(s), 16);
-#else
-        dsdt_addr = RT_ALIGN_32(apic_addr + sizeof(ACPITBLMADT), 16);
-#endif
     }
     else
     {
         dsdt_addr = RT_ALIGN_32(facs_addr + sizeof(ACPITBLFACS), 16);
     }
 
-    last_addr = RT_ALIGN_32(dsdt_addr + sizeof(AmlCode), 16);
+    void*  pDsdtCode = NULL;
+    size_t uDsdtSize = 0;
+    rc = acpiPrepareDsdt(s->pDevIns, &pDsdtCode, &uDsdtSize);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    last_addr = RT_ALIGN_32(dsdt_addr + uDsdtSize, 16);
     if (last_addr > 0x10000)
         return PDMDEV_SET_ERROR(s->pDevIns, VERR_TOO_MUCH_DATA,
                                 N_("Error: ACPI tables > 64KB"));
@@ -1805,7 +1766,8 @@ static int acpiPlantTables(ACPIState *s)
     Log(("FACS 0x%08X FADT 0x%08X\n", facs_addr + addend, fadt_addr + addend));
     Log(("DSDT 0x%08X\n", dsdt_addr + addend));
     acpiSetupRSDP((ACPITBLRSDP*)s->au8RSDPPage, rsdt_addr + addend, xsdt_addr + addend);
-    acpiSetupDSDT(s, dsdt_addr + addend);
+    acpiSetupDSDT(s, dsdt_addr + addend, pDsdtCode, uDsdtSize);
+    acpiCleanupDsdt(s->pDevIns, pDsdtCode);
     acpiSetupFACS(s, facs_addr + addend);
     acpiSetupFADT(s, fadt_addr + addend, facs_addr + addend, dsdt_addr + addend);
 
@@ -1837,12 +1799,8 @@ static int acpiPlantTables(ACPIState *s)
  */
 static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
 {
-    int rc;
-    ACPIState *s = PDMINS_2_DATA(pDevIns, ACPIState *);
-    uint32_t rsdp_addr;
-    PCIDevice *dev;
-    bool fGCEnabled;
-    bool fR0Enabled;
+    ACPIState *s   = PDMINS_2_DATA(pDevIns, ACPIState *);
+    PCIDevice *dev = &s->dev;
 
     /* Validate and read the configuration. */
     if (!CFGMR3AreValuesValid(pCfgHandle,
@@ -1855,6 +1813,8 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
                               "HpetEnabled\0"
                               "SmcEnabled\0"
                               "FdcEnabled\0"
+                              "ShowRtc\0"
+                              "ShowCpu\0"
                               ))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("Configuration error: Invalid config key for ACPI device"));
@@ -1862,7 +1822,7 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     s->pDevIns = pDevIns;
 
     /* query whether we are supposed to present an IOAPIC */
-    rc = CFGMR3QueryU8Def(pCfgHandle, "IOAPIC", &s->u8UseIOApic, 1);
+    int rc = CFGMR3QueryU8Def(pCfgHandle, "IOAPIC", &s->u8UseIOApic, 1);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"IOAPIC\""));
@@ -1888,9 +1848,20 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"SmcEnabled\""));
-    /** @todo: a bit of hack: if we have SMC, also show CPU object in ACPI tables */
-    s->fShowCpu = s->fUseSmc;
 
+    /* query whether we are supposed to present RTC object */
+    rc = CFGMR3QueryBoolDef(pCfgHandle, "ShowRtc", &s->fShowRtc, false);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed to read \"ShowRtc\""));
+
+    /* query whether we are supposed to present CPU objects */
+    rc = CFGMR3QueryBoolDef(pCfgHandle, "ShowCpu", &s->fShowCpu, false);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed to read \"ShowCpu\""));   
+
+    bool fGCEnabled;
     rc = CFGMR3QueryBool(pCfgHandle, "GCEnabled", &fGCEnabled);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         fGCEnabled = true;
@@ -1898,6 +1869,7 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"GCEnabled\""));
 
+    bool fR0Enabled;
     rc = CFGMR3QueryBool(pCfgHandle, "R0Enabled", &fR0Enabled);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         fR0Enabled = true;
@@ -1906,7 +1878,7 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
                                 N_("configuration error: failed to read R0Enabled as boolean"));
 
     /* */
-    rsdp_addr = find_rsdp_space();
+    uint32_t rsdp_addr = find_rsdp_space();
     if (!rsdp_addr)
         return PDMDEV_SET_ERROR(pDevIns, VERR_NO_MEMORY,
                                 N_("Can not find space for RSDP. ACPI is disabled"));
@@ -1964,7 +1936,8 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         AssertRCReturn(rc, rc);
     }
 
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, acpiTimer, "ACPI Timer", &s->tsR3);
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, acpiTimer, dev,
+                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "ACPI Timer", &s->tsR3);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("pfnTMTimerCreate -> %Rrc\n", rc));
@@ -1976,7 +1949,6 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     s->pm_timer_initial = TMTimerGet(s->tsR3);
     acpiPMTimerReset(s);
 
-    dev = &s->dev;
     PCIDevSetVendorId(dev, 0x8086); /* Intel */
     PCIDevSetDeviceId(dev, 0x7113); /* 82371AB */
 

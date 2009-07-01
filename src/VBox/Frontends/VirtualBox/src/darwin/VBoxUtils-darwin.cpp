@@ -1,4 +1,4 @@
-/* $Id: VBoxUtils-darwin.cpp $ */
+/* $Id: VBoxUtils-darwin.cpp 21034 2009-06-29 15:36:04Z vboxsync $ */
 /** @file
  * Qt GUI - Utility Classes and Functions specific to Darwin.
  */
@@ -137,6 +137,16 @@ void darwinDisableIconsInMenus (void)
     /* Available since Qt 4.4 only */
     QApplication::instance()->setAttribute (Qt::AA_DontShowIconsInMenus, true);
 #endif /* QT_VERSION >= 0x040400 */
+}
+
+int darwinWindowToolBarHeight (QWidget *aWidget)
+{
+#ifndef QT_MAC_USE_COCOA
+    return ::darwinWindowToolBarHeight (::darwinToNativeWindow (aWidget));
+#else /* QT_MAC_USE_COCOA */
+    NOREF (aWidget);
+    return 0;
+#endif /* QT_MAC_USE_COCOA */
 }
 
 CGContextRef darwinToCGContextRef (QWidget *aWidget)

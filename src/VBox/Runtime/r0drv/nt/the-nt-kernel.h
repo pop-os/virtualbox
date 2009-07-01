@@ -1,4 +1,4 @@
-/* $Id: the-nt-kernel.h $ */
+/* $Id: the-nt-kernel.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * IPRT - Include all necessary headers for the NT kernel.
  */
@@ -40,18 +40,18 @@
 # define _InterlockedCompareExchange    _InterlockedCompareExchange_StupidDDKVsCompilerCrap
 # define _InterlockedAddLargeStatistic  _InterlockedAddLargeStatistic_StupidDDKVsCompilerCrap
 # pragma warning(disable : 4163)
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 # include <ntddk.h>
-__END_DECLS
+RT_C_DECLS_END
 # pragma warning(default : 4163)
 # undef  _InterlockedExchange
 # undef  _InterlockedExchangeAdd
 # undef  _InterlockedCompareExchange
 # undef  _InterlockedAddLargeStatistic
 #else
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 # include <ntddk.h>
-__END_DECLS
+RT_C_DECLS_END
 #endif
 
 #include <memory.h>

@@ -1,4 +1,4 @@
-/* $Id: tstMicro.h $ */
+/* $Id: tstMicro.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * Micro Testcase, profiling special CPU operations.
  */
@@ -117,7 +117,7 @@ typedef struct TSTMICRO
 } TSTMICRO, *PTSTMICRO;
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 DECLASM(void) idtOnly42(PTSTMICRO pTst);
 
@@ -142,6 +142,6 @@ DECLASM(void) tstTrapHandlerNoErr(void);
 DECLASM(void) tstTrapHandler(void);
 DECLASM(void) tstInterrupt42(void);
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif

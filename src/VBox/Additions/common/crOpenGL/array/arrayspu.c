@@ -508,6 +508,16 @@ static void ARRAYSPU_APIENTRY arrayspu_DrawElements(GLenum mode, GLsizei count,
     array_spu.self.End();
 }
 
+static void ARRAYSPU_APIENTRY arrayspu_DrawRangeElements(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices)
+{
+    if (start>end)
+    {
+        crError("array_spu.self.arrayspu_DrawRangeElements start>end (%d>%d)", start, end);
+    }
+
+    arrayspu_DrawElements(mode, count, type, indices);
+}
+
 static void ARRAYSPU_APIENTRY arrayspu_ColorPointer( GLint size, GLenum type, GLsizei stride, const GLvoid *pointer )
 {
     crStateColorPointer( size, type, stride, pointer );
@@ -639,7 +649,12 @@ static void ARRAYSPU_APIENTRY arrayspu_Disable(GLenum cap)
      array_spu.child.Disable(cap);
 }
 
-
+/*@todo: it's a hack, as GLSL shouldn't blindly reuse this bit from nv_vertex_program*/
+static void ARRAYSPU_APIENTRY arrayspu_UseProgram(GLuint program)
+{
+    crStateGetCurrent()->program.vpEnabled = program>0;
+    array_spu.child.UseProgram(program);
+}
 
 static void ARRAYSPU_APIENTRY
 arrayspu_VertexAttribPointerARB(GLuint index, GLint size, GLenum type, 
@@ -671,16 +686,16 @@ arrayspu_DisableVertexAttribArrayARB(GLuint index)
 static void ARRAYSPU_APIENTRY
 arrayspu_PushClientAttrib( GLbitfield mask )
 {
-     crStatePushClientAttrib(mask);
-     array_spu.child.PushClientAttrib(mask);
+    crStatePushClientAttrib(mask);
+    array_spu.child.PushClientAttrib(mask);
 }
 
 
 static void ARRAYSPU_APIENTRY
 arrayspu_PopClientAttrib( void )
 {
-     crStatePopClientAttrib();
-     array_spu.child.PopClientAttrib();
+    crStatePopClientAttrib();
+    array_spu.child.PopClientAttrib();
 }
 
 
@@ -849,6 +864,7 @@ SPUNamedFunctionTable _cr_array_table[] = {
     { "ArrayElement", (SPUGenericFunction) arrayspu_ArrayElement },
     { "DrawArrays", (SPUGenericFunction) arrayspu_DrawArrays},
     { "DrawElements", (SPUGenericFunction)  arrayspu_DrawElements},
+    { "DrawRangeElements", (SPUGenericFunction) arrayspu_DrawRangeElements},
     { "ColorPointer", (SPUGenericFunction) arrayspu_ColorPointer},
     { "SecondaryColorPointerEXT", (SPUGenericFunction) arrayspu_SecondaryColorPointerEXT},
     { "VertexPointer", (SPUGenericFunction) arrayspu_VertexPointer},
@@ -886,5 +902,6 @@ SPUNamedFunctionTable _cr_array_table[] = {
     { "CreateContext", (SPUGenericFunction) arrayspu_CreateContext},
     { "MakeCurrent", (SPUGenericFunction) arrayspu_MakeCurrent},
     { "DestroyContext", (SPUGenericFunction) arrayspu_DestroyContext},
+    { "UseProgram", (SPUGenericFunction) arrayspu_UseProgram},
     { NULL, NULL }
 };

@@ -1,4 +1,4 @@
-/* $Id: tstMp-1.cpp $ */
+/* $Id: tstMp-1.cpp 12107 2008-09-04 20:10:06Z vboxsync $ */
 /** @file
  * IPRT Testcase - RTMp.
  */

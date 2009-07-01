@@ -1,4 +1,4 @@
-/* $Id: TRPMInternal.h $ */
+/* $Id: TRPMInternal.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * TRPM - Internal header file.
  */
@@ -35,7 +35,7 @@
 /** First interrupt handler. Used for validating input. */
 #define TRPM_HANDLER_INT_BASE  0x20
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 
 /** @defgroup grp_trpm_int   Internals
@@ -66,12 +66,22 @@ __BEGIN_DECLS
 /** @} */
 
 
+#if 0 /* not used */
 /**
  * Converts a TRPM pointer into a VM pointer.
  * @returns Pointer to the VM structure the TRPM is part of.
  * @param   pTRPM   Pointer to TRPM instance data.
  */
-#define TRPM2VM(pTRPM)          ( (PVM)((char*)pTRPM - pTRPM->offVM) )
+#define TRPM_2_VM(pTRPM)            ( (PVM)((uint8_t *)(pTRPM) - (pTRPM)->offVM) )
+#endif
+
+/**
+ * Converts a TRPM pointer into a TRPMCPU pointer.
+ * @returns Pointer to the VM structure the TRPMCPU is part of.
+ * @param   pTRPM   Pointer to TRPMCPU instance data.
+ * @remarks Raw-mode only, not SMP safe.
+ */
+#define TRPM_2_TRPMCPU(pTrpmCpu)     ( (PTRPMCPU)((uint8_t *)(pTrpmCpu) + (pTrpmCpu)->offTRPMCPU) )
 
 
 /**
@@ -83,39 +93,11 @@ __BEGIN_DECLS
 typedef struct TRPM
 {
     /** Offset to the VM structure.
-     * See TRPM2VM(). */
+     * See TRPM_2_VM(). */
     RTINT                   offVM;
-
-    /** Active Interrupt or trap vector number.
-     * If not ~0U this indicates that we're currently processing
-     * a interrupt, trap, fault, abort, whatever which have arrived
-     * at that vector number.
-     */
-    RTUINT                  uActiveVector;
-
-    /** Active trap type. */
-    TRPMEVENT               enmActiveType;
-
-    /** Errorcode for the active interrupt/trap. */
-    RTGCUINT                uActiveErrorCode; /**< @todo don't use RTGCUINT */
-
-    /** CR2 at the time of the active exception. */
-    RTGCUINTPTR             uActiveCR2;
-
-    /** Saved trap vector number. */
-    RTGCUINT                uSavedVector; /**< @todo don't use RTGCUINT */
-
-    /** Saved trap type. */
-    TRPMEVENT               enmSavedType;
-
-    /** Saved errorcode. */
-    RTGCUINT                uSavedErrorCode;
-
-    /** Saved cr2. */
-    RTGCUINTPTR             uSavedCR2;
-
-    /** Previous trap vector # - for debugging. */
-    RTGCUINT                uPrevVector;
+    /** Offset to the TRPMCPU structure.
+     * See TRPM2TRPMCPU(). */
+    RTINT                   offTRPMCPU;
 
     /** IDT monitoring and sync flag (HWACC). */
     bool                    fDisableMonitoring; /** @todo r=bird: bool and 7 byte achPadding1. */
@@ -135,11 +117,7 @@ typedef struct TRPM
     bool                    fSafeToDropGuestIDTMonitoring;
 
     /** Padding to get the IDTs at a 16 byte alignement. */
-#if GC_ARCH_BITS == 32
     uint8_t                 abPadding1[6];
-#else
-    uint8_t                 abPadding1[14];
-#endif
     /** IDTs. Aligned at 16 byte offset for speed. */
     VBOXIDTE                aIdt[256];
 
@@ -189,10 +167,75 @@ typedef struct TRPM
     RCPTRTYPE(PSTAMCOUNTER) paStatForwardedIRQRC;
 #endif
 } TRPM;
-#pragma pack()
 
 /** Pointer to TRPM Data. */
 typedef TRPM *PTRPM;
+
+
+/**
+ * Converts a TRPMCPU pointer into a VM pointer.
+ * @returns Pointer to the VM structure the TRPMCPU is part of.
+ * @param   pTRPM   Pointer to TRPMCPU instance data.
+ */
+#define TRPMCPU_2_VM(pTrpmCpu)      ( (PVM)((uint8_t *)(pTrpmCpu) - (pTrpmCpu)->offVM) )
+
+/**
+ * Converts a TRPMCPU pointer into a VMCPU pointer.
+ * @returns Pointer to the VMCPU structure the TRPMCPU is part of.
+ * @param   pTRPM   Pointer to TRPMCPU instance data.
+ */
+#define TRPMCPU_2_VMCPU(pTrpmCpu)   ( (PVMCPU)((uint8_t *)(pTrpmCpu) - (pTrpmCpu)->offVMCpu) )
+
+
+/**
+ * Per CPU data for TRPM.
+ */
+typedef struct TRPMCPU
+{
+    /** Offset into the VM structure.
+     * See TRPMCPU_2_VM(). */
+    uint32_t                offVM;
+    /** Offset into the VMCPU structure.
+     * See TRPMCPU_2_VMCPU().  */
+    uint32_t                offVMCpu;
+
+    /** Active Interrupt or trap vector number.
+     * If not ~0U this indicates that we're currently processing
+     * a interrupt, trap, fault, abort, whatever which have arrived
+     * at that vector number.
+     */
+    RTUINT                  uActiveVector;
+
+    /** Active trap type. */
+    TRPMEVENT               enmActiveType;
+
+    /** Errorcode for the active interrupt/trap. */
+    RTGCUINT                uActiveErrorCode; /**< @todo don't use RTGCUINT */
+
+    /** CR2 at the time of the active exception. */
+    RTGCUINTPTR             uActiveCR2;
+
+    /** Saved trap vector number. */
+    RTGCUINT                uSavedVector; /**< @todo don't use RTGCUINT */
+
+    /** Saved trap type. */
+    TRPMEVENT               enmSavedType;
+
+    /** Saved errorcode. */
+    RTGCUINT                uSavedErrorCode;
+
+    /** Saved cr2. */
+    RTGCUINTPTR             uSavedCR2;
+
+    /** Previous trap vector # - for debugging. */
+    RTGCUINT                uPrevVector;
+} TRPMCPU;
+
+/** Pointer to TRPMCPU Data. */
+typedef TRPMCPU *PTRPMCPU;
+
+#pragma pack()
+
 
 VMMRCDECL(int) trpmRCGuestIDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
 VMMRCDECL(int) trpmRCShadowIDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
@@ -243,6 +286,6 @@ DECLASM(void) trpmR0DispatchHostInterruptSimple(RTUINT uActiveVector);
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif

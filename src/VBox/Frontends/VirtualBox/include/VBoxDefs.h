@@ -24,7 +24,7 @@
 #define __VBoxDefs_h__
 
 /* Qt includes */
-#include <qevent.h>
+#include <QEvent>
 #include <QUuid>
 
 #define LOG_GROUP LOG_GROUP_GUI
@@ -82,6 +82,9 @@ struct VBoxDefs
     enum RenderMode
     {
         InvalidRenderMode, TimerMode, QImageMode, SDLMode, DDRAWMode, Quartz2DMode
+#ifdef VBOX_WITH_VIDEOHWACCEL
+        , QGLMode
+#endif
     };
 
     /** Additional Qt event types. */
@@ -125,6 +128,10 @@ struct VBoxDefs
 #endif
         AddVDMUrlsEventType,
         ChangeDockIconUpdateEventType
+#ifdef VBOX_WITH_VIDEOHWACCEL
+        ,
+        VHWACommandProcessType
+#endif
     };
 
     /** Size formatting types. */
@@ -142,6 +149,8 @@ struct VBoxDefs
     static const char* GUI_AutoresizeGuest;
     static const char* GUI_FirstRun;
     static const char* GUI_SaveMountedAtRuntime;
+    static const char* GUI_ShowMiniToolBar;
+    static const char* GUI_MiniToolBarAutoHide;
     static const char* GUI_LastCloseAction;
     static const char* GUI_SuppressMessages;
     static const char* GUI_PermanentSharedFoldersAtRuntime;
@@ -164,6 +173,10 @@ struct VBoxDefs
     static const char* GUI_RealtimeDockIconUpdateEnabled;
 #endif /* Q_WS_MAC */
     static const char* GUI_PassCAD;
+    static const char* GUI_Export_StorageType;
+    static const char* GUI_Export_Username;
+    static const char* GUI_Export_Hostname;
+    static const char* GUI_Export_Bucket;
 };
 
 #define MAC_LEOPARD_STYLE defined(Q_WS_MAC) && (QT_VERSION >= 0x040300)

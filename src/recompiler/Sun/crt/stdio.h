@@ -1,4 +1,4 @@
-/* $Id: stdio.h $ */
+/* $Id: stdio.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * Our minimal stdio
  */
@@ -37,7 +37,7 @@
 # error "LOG_USE_C99 isn't defined."
 #endif
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 typedef struct FILE FILE;
 
@@ -67,8 +67,11 @@ DECLINLINE(int) fprintf(FILE *ignored, const char *pszFormat, ...)
 #define printf(...)             LogIt(LOG_INSTANCE, 0, LOG_GROUP_REM_PRINTF, (__VA_ARGS__))
 #define fprintf(logfile, ...)   LogIt(LOG_INSTANCE, 0, LOG_GROUP_REM_PRINTF, (__VA_ARGS__))
 
+#ifdef DEBUG_TMP_LOGGING
+# error "DEBUG_TMP_LOGGING doesn't work with the Sun/crt/stdio.h wrapper."
+#endif
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

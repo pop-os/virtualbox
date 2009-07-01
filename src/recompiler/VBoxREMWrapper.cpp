@@ -1,4 +1,4 @@
-/* $Id: VBoxREMWrapper.cpp $ */
+/* $Id: VBoxREMWrapper.cpp 20426 2009-06-09 11:21:44Z vboxsync $ */
 /** @file
  *
  * VBoxREM Win64 DLL Wrapper.
@@ -198,6 +198,7 @@
 # include <VBox/parav.h>
 #endif
 #include <VBox/pdm.h>
+#include <VBox/pdmcritsect.h>
 #include <VBox/pgm.h>
 #include <VBox/iom.h>
 #include <VBox/vm.h>
@@ -335,16 +336,15 @@ static DECLCALLBACKPTR(int, pfnREMR3Init)(PVM);
 static DECLCALLBACKPTR(int, pfnREMR3InitFinalize)(PVM);
 static DECLCALLBACKPTR(int, pfnREMR3Term)(PVM);
 static DECLCALLBACKPTR(void, pfnREMR3Reset)(PVM);
-static DECLCALLBACKPTR(int, pfnREMR3Step)(PVM);
+static DECLCALLBACKPTR(int, pfnREMR3Step)(PVM, PVMCPU);
 static DECLCALLBACKPTR(int, pfnREMR3BreakpointSet)(PVM, RTGCUINTPTR);
 static DECLCALLBACKPTR(int, pfnREMR3BreakpointClear)(PVM, RTGCUINTPTR);
-static DECLCALLBACKPTR(int, pfnREMR3EmulateInstruction)(PVM);
-static DECLCALLBACKPTR(int, pfnREMR3Run)(PVM);
-static DECLCALLBACKPTR(int, pfnREMR3State)(PVM);
-static DECLCALLBACKPTR(int, pfnREMR3StateBack)(PVM);
-static DECLCALLBACKPTR(void, pfnREMR3StateUpdate)(PVM);
-static DECLCALLBACKPTR(void, pfnREMR3A20Set)(PVM, bool);
-static DECLCALLBACKPTR(void, pfnREMR3ReplayInvalidatedPages)(PVM);
+static DECLCALLBACKPTR(int, pfnREMR3EmulateInstruction)(PVM, PVMCPU);
+static DECLCALLBACKPTR(int, pfnREMR3Run)(PVM, PVMCPU);
+static DECLCALLBACKPTR(int, pfnREMR3State)(PVM, PVMCPU);
+static DECLCALLBACKPTR(int, pfnREMR3StateBack)(PVM, PVMCPU);
+static DECLCALLBACKPTR(void, pfnREMR3StateUpdate)(PVM, PVMCPU);
+static DECLCALLBACKPTR(void, pfnREMR3A20Set)(PVM, PVMCPU, bool);
 static DECLCALLBACKPTR(void, pfnREMR3ReplayHandlerNotifications)(PVM pVM);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyPhysRamRegister)(PVM, RTGCPHYS, RTGCPHYS, unsigned);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyPhysRamDeregister)(PVM, RTGCPHYS, RTUINT);
@@ -352,15 +352,15 @@ static DECLCALLBACKPTR(void, pfnREMR3NotifyPhysRomRegister)(PVM, RTGCPHYS, RTUIN
 static DECLCALLBACKPTR(void, pfnREMR3NotifyHandlerPhysicalModify)(PVM, PGMPHYSHANDLERTYPE, RTGCPHYS, RTGCPHYS, RTGCPHYS, bool, bool);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyHandlerPhysicalRegister)(PVM, PGMPHYSHANDLERTYPE, RTGCPHYS, RTGCPHYS, bool);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyHandlerPhysicalDeregister)(PVM, PGMPHYSHANDLERTYPE, RTGCPHYS, RTGCPHYS, bool, bool);
-static DECLCALLBACKPTR(void, pfnREMR3NotifyInterruptSet)(PVM);
-static DECLCALLBACKPTR(void, pfnREMR3NotifyInterruptClear)(PVM);
-static DECLCALLBACKPTR(void, pfnREMR3NotifyTimerPending)(PVM);
+static DECLCALLBACKPTR(void, pfnREMR3NotifyInterruptSet)(PVM, PVMCPU);
+static DECLCALLBACKPTR(void, pfnREMR3NotifyInterruptClear)(PVM, PVMCPU);
+static DECLCALLBACKPTR(void, pfnREMR3NotifyTimerPending)(PVM, PVMCPU);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyDmaPending)(PVM);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyQueuePending)(PVM);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyFF)(PVM);
-static DECLCALLBACKPTR(int, pfnREMR3NotifyCodePageChanged)(PVM, RTGCPTR);
-static DECLCALLBACKPTR(void, pfnREMR3NotifyPendingInterrupt)(PVM, uint8_t);
-static DECLCALLBACKPTR(uint32_t, pfnREMR3QueryPendingInterrupt)(PVM);
+static DECLCALLBACKPTR(int, pfnREMR3NotifyCodePageChanged)(PVM, PVMCPU, RTGCPTR);
+static DECLCALLBACKPTR(void, pfnREMR3NotifyPendingInterrupt)(PVM, PVMCPU, uint8_t);
+static DECLCALLBACKPTR(uint32_t, pfnREMR3QueryPendingInterrupt)(PVM, PVMCPU);
 static DECLCALLBACKPTR(int, pfnREMR3DisasEnableStepping)(PVM, bool);
 static DECLCALLBACKPTR(bool, pfnREMR3IsPageAccessHandled)(PVM, RTGCPHYS);
 /** @} */
@@ -381,6 +381,16 @@ static const REMPARMDESC g_aArgsVM[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM) }
 };
+static const REMPARMDESC g_aArgsVMCPU[] =
+{
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU) }
+};
+
+static const REMPARMDESC g_aArgsVMandVMCPU[] =
+{
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVM) },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU) }
+};
 
 /* REM args */
 static const REMPARMDESC g_aArgsBreakpoint[] =
@@ -391,6 +401,7 @@ static const REMPARMDESC g_aArgsBreakpoint[] =
 static const REMPARMDESC g_aArgsA20Set[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(bool), NULL }
 };
 static const REMPARMDESC g_aArgsNotifyPhysRamRegister[] =
@@ -408,12 +419,6 @@ static const REMPARMDESC g_aArgsNotifyPhysRamChunkRegister[] =
     { REMPARMDESC_FLAGS_INT,        sizeof(RTUINT), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(RTHCUINTPTR), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(unsigned), NULL }
-};
-static const REMPARMDESC g_aArgsNotifyPhysReserve[] =
-{
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
-    { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS), NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(RTUINT), NULL }
 };
 static const REMPARMDESC g_aArgsNotifyPhysRamDeregister[] =
 {
@@ -459,11 +464,13 @@ static const REMPARMDESC g_aArgsNotifyHandlerPhysicalDeregister[] =
 static const REMPARMDESC g_aArgsNotifyCodePageChanged[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_GCPTR,      sizeof(RTGCUINTPTR), NULL }
 };
 static const REMPARMDESC g_aArgsNotifyPendingInterrupt[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint8_t), NULL }
 };
 static const REMPARMDESC g_aArgsDisasEnableStepping[] =
@@ -481,28 +488,28 @@ static const REMPARMDESC g_aArgsIsPageAccessHandled[] =
 /* VMM args */
 static const REMPARMDESC g_aArgsCPUMGetGuestCpl[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(PCPUMCTXCORE), NULL },
 };
 
 /* CPUMGetGuestMsr args */
 static const REMPARMDESC g_aArgsCPUMGetGuestMsr[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t), NULL },
 };
 
 /* CPUMGetGuestMsr args */
 static const REMPARMDESC g_aArgsCPUMSetGuestMsr[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint64_t), NULL },
 };
 
 static const REMPARMDESC g_aArgsCPUMGetGuestCpuId[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t *), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t *), NULL },
@@ -512,13 +519,13 @@ static const REMPARMDESC g_aArgsCPUMGetGuestCpuId[] =
 
 static const REMPARMDESC g_aArgsCPUMSetChangedFlags[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t), NULL }
 };
 
 static const REMPARMDESC g_aArgsCPUMQueryGuestCtxPtr[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL }
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL }
 };
 static const REMPARMDESC g_aArgsCSAMR3MonitorPage[] =
 {
@@ -549,6 +556,7 @@ static const REMPARMDESC g_aArgsDBGCRegisterCommands[] =
 static const REMPARMDESC g_aArgsDBGFR3DisasInstrEx[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(VMCPUID), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(RTSEL), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(RTGCPTR), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(unsigned), NULL },
@@ -558,7 +566,7 @@ static const REMPARMDESC g_aArgsDBGFR3DisasInstrEx[] =
 };
 static const REMPARMDESC g_aArgsDBGFR3DisasInstrCurrentLogInternal[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(char *), NULL }
 };
 static const REMPARMDESC g_aArgsDBGFR3Info[] =
@@ -585,7 +593,7 @@ static const REMPARMDESC g_aArgsDISInstr[] =
 };
 static const REMPARMDESC g_aArgsEMR3FatalError[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(int), NULL }
 };
 static const REMPARMDESC g_aArgsHWACCMR3CanExecuteGuest[] =
@@ -666,7 +674,7 @@ static const REMPARMDESC g_aArgsPDMApicGetBase[] =
 };
 static const REMPARMDESC g_aArgsPDMApicGetTPR[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint8_t *), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint8_t *), NULL }
 };
@@ -677,7 +685,7 @@ static const REMPARMDESC g_aArgsPDMApicSetBase[] =
 };
 static const REMPARMDESC g_aArgsPDMApicSetTPR[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint8_t), NULL }
 };
 static const REMPARMDESC g_aArgsPDMApicWriteMSR[] =
@@ -696,7 +704,7 @@ static const REMPARMDESC g_aArgsPDMApicReadMSR[] =
 };
 static const REMPARMDESC g_aArgsPDMGetInterrupt[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint8_t *), NULL }
 };
 static const REMPARMDESC g_aArgsPDMIsaSetIrq[] =
@@ -705,21 +713,39 @@ static const REMPARMDESC g_aArgsPDMIsaSetIrq[] =
     { REMPARMDESC_FLAGS_INT,        sizeof(uint8_t), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint8_t), NULL }
 };
-static const REMPARMDESC g_aArgsPGMGetGuestMode[] =
+static const REMPARMDESC g_aArgsPDMR3CritSectInit[] = 
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PPDMCRITSECT), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(char *), NULL }
+};
+static const REMPARMDESC g_aArgsPDMCritSectEnter[] = 
+{
+    { REMPARMDESC_FLAGS_INT,        sizeof(PPDMCRITSECT), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(int), NULL }
+};
+static const REMPARMDESC g_aArgsPGMGetGuestMode[] =
+{
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
 };
 static const REMPARMDESC g_aArgsPGMGstGetPage[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_GCPTR,      sizeof(RTGCPTR), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint64_t *), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(PRTGCPHYS), NULL }
 };
 static const REMPARMDESC g_aArgsPGMInvalidatePage[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_GCPTR,      sizeof(RTGCPTR), NULL }
+};
+static const REMPARMDESC g_aArgsPGMR3PhysTlbGCPhys2Ptr[] =
+{
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(bool), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(void *), NULL }
 };
 static const REMPARMDESC g_aArgsPGM3PhysGrowRange[] =
 {
@@ -740,7 +766,7 @@ static const REMPARMDESC g_aArgsPGMPhysRead[] =
 };
 static const REMPARMDESC g_aArgsPGMPhysSimpleReadGCPtr[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(void *), NULL },
     { REMPARMDESC_FLAGS_GCPTR,      sizeof(RTGCPTR), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(size_t), NULL }
@@ -754,14 +780,14 @@ static const REMPARMDESC g_aArgsPGMPhysWrite[] =
 };
 static const REMPARMDESC g_aArgsPGMChangeMode[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint64_t), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint64_t), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint64_t), NULL }
 };
 static const REMPARMDESC g_aArgsPGMFlushTLB[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint64_t), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(bool), NULL }
 };
@@ -793,6 +819,11 @@ static const REMPARMDESC g_aArgsPGMR3PhysWriteU64[] =
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint64_t), NULL }
+};
+static const REMPARMDESC g_aArgsRTMemRealloc[] =
+{
+    { REMPARMDESC_FLAGS_INT,        sizeof(void*), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(size_t) }
 };
 static const REMPARMDESC g_aArgsSSMR3GetGCPtr[] =
 {
@@ -882,32 +913,37 @@ static const REMPARMDESC g_aArgsSTAMR3Register[] =
     { REMPARMDESC_FLAGS_INT,        sizeof(STAMUNIT), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(const char *), NULL }
 };
-static const REMPARMDESC g_aArgsTRPMAssertTrap[] =
+static const REMPARMDESC g_aArgsSTAMR3Deregister[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(void *), NULL },
+};
+static const REMPARMDESC g_aArgsTRPMAssertTrap[] =
+{
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint8_t), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(TRPMEVENT), NULL }
 };
 static const REMPARMDESC g_aArgsTRPMQueryTrap[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint8_t *), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(TRPMEVENT *), NULL }
 };
 static const REMPARMDESC g_aArgsTRPMSetErrorCode[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_GCPTR,      sizeof(RTGCUINT), NULL }
 };
 static const REMPARMDESC g_aArgsTRPMSetFaultAddress[] =
 {
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU), NULL },
     { REMPARMDESC_FLAGS_GCPTR,      sizeof(RTGCUINT), NULL }
 };
 static const REMPARMDESC g_aArgsVMR3ReqCall[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM), NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(VMREQDEST), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(VMCPUID), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(PVMREQ *), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(unsigned), NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(void *), NULL },
@@ -1013,16 +1049,15 @@ static const REMFNDESC g_aExports[] =
     { "REMR3InitFinalize",                      (void *)&pfnREMR3InitFinalize,                      &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
     { "REMR3Term",                              (void *)&pfnREMR3Term,                              &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
     { "REMR3Reset",                             (void *)&pfnREMR3Reset,                             &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
-    { "REMR3Step",                              (void *)&pfnREMR3Step,                              &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
+    { "REMR3Step",                              (void *)&pfnREMR3Step,                              &g_aArgsVMandVMCPU[0],                      RT_ELEMENTS(g_aArgsVMandVMCPU),                        REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
     { "REMR3BreakpointSet",                     (void *)&pfnREMR3BreakpointSet,                     &g_aArgsBreakpoint[0],                      RT_ELEMENTS(g_aArgsBreakpoint),                        REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
     { "REMR3BreakpointClear",                   (void *)&pfnREMR3BreakpointClear,                   &g_aArgsBreakpoint[0],                      RT_ELEMENTS(g_aArgsBreakpoint),                        REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
-    { "REMR3EmulateInstruction",                (void *)&pfnREMR3EmulateInstruction,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
-    { "REMR3Run",                               (void *)&pfnREMR3Run,                               &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
-    { "REMR3State",                             (void *)&pfnREMR3State,                             &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
-    { "REMR3StateBack",                         (void *)&pfnREMR3StateBack,                         &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
-    { "REMR3StateUpdate",                       (void *)&pfnREMR3StateUpdate,                       &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
+    { "REMR3EmulateInstruction",                (void *)&pfnREMR3EmulateInstruction,                &g_aArgsVMandVMCPU[0],                      RT_ELEMENTS(g_aArgsVMandVMCPU),                        REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
+    { "REMR3Run",                               (void *)&pfnREMR3Run,                               &g_aArgsVMandVMCPU[0],                      RT_ELEMENTS(g_aArgsVMandVMCPU),                        REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
+    { "REMR3State",                             (void *)&pfnREMR3State,                             &g_aArgsVMandVMCPU[0],                      RT_ELEMENTS(g_aArgsVMandVMCPU),                        REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
+    { "REMR3StateBack",                         (void *)&pfnREMR3StateBack,                         &g_aArgsVMandVMCPU[0],                      RT_ELEMENTS(g_aArgsVMandVMCPU),                        REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
+    { "REMR3StateUpdate",                       (void *)&pfnREMR3StateUpdate,                       &g_aArgsVMandVMCPU[0],                      RT_ELEMENTS(g_aArgsVMandVMCPU),                        REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3A20Set",                            (void *)&pfnREMR3A20Set,                            &g_aArgsA20Set[0],                          RT_ELEMENTS(g_aArgsA20Set),                            REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
-    { "REMR3ReplayInvalidatedPages",            (void *)&pfnREMR3ReplayInvalidatedPages,            &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3ReplayHandlerNotifications",        (void *)&pfnREMR3ReplayHandlerNotifications,        &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3NotifyPhysRamRegister",             (void *)&pfnREMR3NotifyPhysRamRegister,             &g_aArgsNotifyPhysRamRegister[0],           RT_ELEMENTS(g_aArgsNotifyPhysRamRegister),             REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3NotifyPhysRamDeregister",           (void *)&pfnREMR3NotifyPhysRamDeregister,           &g_aArgsNotifyPhysRamDeregister[0],         RT_ELEMENTS(g_aArgsNotifyPhysRamDeregister),           REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
@@ -1030,15 +1065,15 @@ static const REMFNDESC g_aExports[] =
     { "REMR3NotifyHandlerPhysicalModify",       (void *)&pfnREMR3NotifyHandlerPhysicalModify,       &g_aArgsNotifyHandlerPhysicalModify[0],     RT_ELEMENTS(g_aArgsNotifyHandlerPhysicalModify),       REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3NotifyHandlerPhysicalRegister",     (void *)&pfnREMR3NotifyHandlerPhysicalRegister,     &g_aArgsNotifyHandlerPhysicalRegister[0],   RT_ELEMENTS(g_aArgsNotifyHandlerPhysicalRegister),     REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3NotifyHandlerPhysicalDeregister",   (void *)&pfnREMR3NotifyHandlerPhysicalDeregister,   &g_aArgsNotifyHandlerPhysicalDeregister[0], RT_ELEMENTS(g_aArgsNotifyHandlerPhysicalDeregister),   REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
-    { "REMR3NotifyInterruptSet",                (void *)&pfnREMR3NotifyInterruptSet,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
-    { "REMR3NotifyInterruptClear",              (void *)&pfnREMR3NotifyInterruptClear,              &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
-    { "REMR3NotifyTimerPending",                (void *)&pfnREMR3NotifyTimerPending,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
+    { "REMR3NotifyInterruptSet",                (void *)&pfnREMR3NotifyInterruptSet,                &g_aArgsVMandVMCPU[0],                      RT_ELEMENTS(g_aArgsVMandVMCPU),                        REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
+    { "REMR3NotifyInterruptClear",              (void *)&pfnREMR3NotifyInterruptClear,              &g_aArgsVMandVMCPU[0],                      RT_ELEMENTS(g_aArgsVMandVMCPU),                        REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
+    { "REMR3NotifyTimerPending",                (void *)&pfnREMR3NotifyTimerPending,                &g_aArgsVMandVMCPU[0],                      RT_ELEMENTS(g_aArgsVMandVMCPU),                        REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3NotifyDmaPending",                  (void *)&pfnREMR3NotifyDmaPending,                  &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3NotifyQueuePending",                (void *)&pfnREMR3NotifyQueuePending,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3NotifyFF",                          (void *)&pfnREMR3NotifyFF,                          &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
     { "REMR3NotifyCodePageChanged",             (void *)&pfnREMR3NotifyCodePageChanged,             &g_aArgsNotifyCodePageChanged[0],           RT_ELEMENTS(g_aArgsNotifyCodePageChanged),             REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
     { "REMR3NotifyPendingInterrupt",            (void *)&pfnREMR3NotifyPendingInterrupt,            &g_aArgsNotifyPendingInterrupt[0],          RT_ELEMENTS(g_aArgsNotifyPendingInterrupt),            REMFNDESC_FLAGS_RET_VOID,   0,              NULL },
-    { "REMR3QueryPendingInterrupt",             (void *)&pfnREMR3QueryPendingInterrupt,             &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t), NULL },
+    { "REMR3QueryPendingInterrupt",             (void *)&pfnREMR3QueryPendingInterrupt,             &g_aArgsVMandVMCPU[0],                      RT_ELEMENTS(g_aArgsVMandVMCPU),                        REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t), NULL },
     { "REMR3DisasEnableStepping",               (void *)&pfnREMR3DisasEnableStepping,               &g_aArgsDisasEnableStepping[0],             RT_ELEMENTS(g_aArgsDisasEnableStepping),               REMFNDESC_FLAGS_RET_INT,    sizeof(int),    NULL },
     { "REMR3IsPageAccessHandled",               (void *)&pfnREMR3IsPageAccessHandled,               &g_aArgsIsPageAccessHandled[0],             RT_ELEMENTS(g_aArgsIsPageAccessHandled),               REMFNDESC_FLAGS_RET_INT,    sizeof(bool),   NULL }
 };
@@ -1056,17 +1091,17 @@ static REMFNDESC g_aVMMImports[] =
     { "CPUMGetGuestMsr",                        (void *)(uintptr_t)&CPUMGetGuestMsr,                &g_aArgsCPUMGetGuestMsr[0],                 RT_ELEMENTS(g_aArgsCPUMGetGuestMsr),                   REMFNDESC_FLAGS_RET_INT,    sizeof(uint64_t),   NULL },
     { "CPUMSetGuestMsr",                        (void *)(uintptr_t)&CPUMSetGuestMsr,                &g_aArgsCPUMSetGuestMsr[0],                 RT_ELEMENTS(g_aArgsCPUMSetGuestMsr),                   REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
     { "CPUMGetGuestCpuId",                      (void *)(uintptr_t)&CPUMGetGuestCpuId,              &g_aArgsCPUMGetGuestCpuId[0],               RT_ELEMENTS(g_aArgsCPUMGetGuestCpuId),                 REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
-    { "CPUMGetGuestEAX",                        (void *)(uintptr_t)&CPUMGetGuestEAX,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
-    { "CPUMGetGuestEBP",                        (void *)(uintptr_t)&CPUMGetGuestEBP,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
-    { "CPUMGetGuestEBX",                        (void *)(uintptr_t)&CPUMGetGuestEBX,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
-    { "CPUMGetGuestECX",                        (void *)(uintptr_t)&CPUMGetGuestECX,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
-    { "CPUMGetGuestEDI",                        (void *)(uintptr_t)&CPUMGetGuestEDI,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
-    { "CPUMGetGuestEDX",                        (void *)(uintptr_t)&CPUMGetGuestEDX,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
-    { "CPUMGetGuestEIP",                        (void *)(uintptr_t)&CPUMGetGuestEIP,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
-    { "CPUMGetGuestESI",                        (void *)(uintptr_t)&CPUMGetGuestESI,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
-    { "CPUMGetGuestESP",                        (void *)(uintptr_t)&CPUMGetGuestESP,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
-    { "CPUMGetGuestCS",                         (void *)(uintptr_t)&CPUMGetGuestCS,                 &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(RTSEL),      NULL },
-    { "CPUMGetGuestSS",                         (void *)(uintptr_t)&CPUMGetGuestSS,                 &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(RTSEL),      NULL },
+    { "CPUMGetGuestEAX",                        (void *)(uintptr_t)&CPUMGetGuestEAX,                &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
+    { "CPUMGetGuestEBP",                        (void *)(uintptr_t)&CPUMGetGuestEBP,                &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
+    { "CPUMGetGuestEBX",                        (void *)(uintptr_t)&CPUMGetGuestEBX,                &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
+    { "CPUMGetGuestECX",                        (void *)(uintptr_t)&CPUMGetGuestECX,                &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
+    { "CPUMGetGuestEDI",                        (void *)(uintptr_t)&CPUMGetGuestEDI,                &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
+    { "CPUMGetGuestEDX",                        (void *)(uintptr_t)&CPUMGetGuestEDX,                &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
+    { "CPUMGetGuestEIP",                        (void *)(uintptr_t)&CPUMGetGuestEIP,                &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
+    { "CPUMGetGuestESI",                        (void *)(uintptr_t)&CPUMGetGuestESI,                &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
+    { "CPUMGetGuestESP",                        (void *)(uintptr_t)&CPUMGetGuestESP,                &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
+    { "CPUMGetGuestCS",                         (void *)(uintptr_t)&CPUMGetGuestCS,                 &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(RTSEL),      NULL },
+    { "CPUMGetGuestSS",                         (void *)(uintptr_t)&CPUMGetGuestSS,                 &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(RTSEL),      NULL },
     { "CPUMQueryGuestCtxPtr",                   (void *)(uintptr_t)&CPUMQueryGuestCtxPtr,           &g_aArgsCPUMQueryGuestCtxPtr[0],            RT_ELEMENTS(g_aArgsCPUMQueryGuestCtxPtr),              REMFNDESC_FLAGS_RET_INT,    sizeof(PCPUMCTX),   NULL },
     { "CSAMR3MonitorPage",                      (void *)(uintptr_t)&CSAMR3MonitorPage,              &g_aArgsCSAMR3MonitorPage[0],               RT_ELEMENTS(g_aArgsCSAMR3MonitorPage),                 REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "CSAMR3UnmonitorPage",                    (void *)(uintptr_t)&CSAMR3UnmonitorPage,            &g_aArgsCSAMR3UnmonitorPage[0],             RT_ELEMENTS(g_aArgsCSAMR3UnmonitorPage),               REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
@@ -1081,6 +1116,9 @@ static REMFNDESC g_aVMMImports[] =
     { "DBGFR3SymbolByAddr",                     (void *)(uintptr_t)&DBGFR3SymbolByAddr,             &g_aArgsDBGFR3SymbolByAddr[0],              RT_ELEMENTS(g_aArgsDBGFR3SymbolByAddr),                REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "DISInstr",                               (void *)(uintptr_t)&DISInstr,                       &g_aArgsDISInstr[0],                        RT_ELEMENTS(g_aArgsDISInstr),                          REMFNDESC_FLAGS_RET_INT,    sizeof(bool),       NULL },
     { "EMR3FatalError",                         (void *)(uintptr_t)&EMR3FatalError,                 &g_aArgsEMR3FatalError[0],                  RT_ELEMENTS(g_aArgsEMR3FatalError),                    REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
+    { "EMRemLock",                              (void *)(uintptr_t)&EMRemLock,                      &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
+    { "EMRemUnlock",                            (void *)(uintptr_t)&EMRemUnlock,                    &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
+    { "EMRemIsLockOwner",                       (void *)(uintptr_t)&EMRemIsLockOwner,               &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   sizeof(bool),       NULL },
     { "HWACCMR3CanExecuteGuest",                (void *)(uintptr_t)&HWACCMR3CanExecuteGuest,        &g_aArgsHWACCMR3CanExecuteGuest[0],         RT_ELEMENTS(g_aArgsHWACCMR3CanExecuteGuest),           REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "IOMIOPortRead",                          (void *)(uintptr_t)&IOMIOPortRead,                  &g_aArgsIOMIOPortRead[0],                   RT_ELEMENTS(g_aArgsIOMIOPortRead),                     REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "IOMIOPortWrite",                         (void *)(uintptr_t)&IOMIOPortWrite,                 &g_aArgsIOMIOPortWrite[0],                  RT_ELEMENTS(g_aArgsIOMIOPortWrite),                    REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
@@ -1103,13 +1141,17 @@ static REMFNDESC g_aVMMImports[] =
     { "PDMApicWriteMSR",                        (void *)(uintptr_t)&PDMApicWriteMSR,                &g_aArgsPDMApicWriteMSR[0],                 RT_ELEMENTS(g_aArgsPDMApicWriteMSR),                   REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "PDMApicReadMSR",                         (void *)(uintptr_t)&PDMApicReadMSR,                 &g_aArgsPDMApicReadMSR[0],                  RT_ELEMENTS(g_aArgsPDMApicReadMSR),                    REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "PDMR3DmaRun",                            (void *)(uintptr_t)&PDMR3DmaRun,                    &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
+    { "PDMR3CritSectInit",                      (void *)(uintptr_t)&PDMR3CritSectInit,              &g_aArgsPDMR3CritSectInit[0],               RT_ELEMENTS(g_aArgsPDMR3CritSectInit),                 REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
+    { "PDMCritSectEnter",                       (void *)(uintptr_t)&PDMCritSectEnter,               &g_aArgsPDMCritSectEnter[0],                RT_ELEMENTS(g_aArgsPDMCritSectEnter),                  REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
+    { "PDMCritSectLeave",                       (void *)(uintptr_t)&PDMCritSectLeave,               &g_aArgsPTR[0],                             RT_ELEMENTS(g_aArgsPTR),                               REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
+    
     { "PDMGetInterrupt",                        (void *)(uintptr_t)&PDMGetInterrupt,                &g_aArgsPDMGetInterrupt[0],                 RT_ELEMENTS(g_aArgsPDMGetInterrupt),                   REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "PDMIsaSetIrq",                           (void *)(uintptr_t)&PDMIsaSetIrq,                   &g_aArgsPDMIsaSetIrq[0],                    RT_ELEMENTS(g_aArgsPDMIsaSetIrq),                      REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "PGMGetGuestMode",                        (void *)(uintptr_t)&PGMGetGuestMode,                &g_aArgsPGMGetGuestMode[0],                 RT_ELEMENTS(g_aArgsPGMGetGuestMode),                   REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "PGMGstGetPage",                          (void *)(uintptr_t)&PGMGstGetPage,                  &g_aArgsPGMGstGetPage[0],                   RT_ELEMENTS(g_aArgsPGMGstGetPage),                     REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "PGMInvalidatePage",                      (void *)(uintptr_t)&PGMInvalidatePage,              &g_aArgsPGMInvalidatePage[0],               RT_ELEMENTS(g_aArgsPGMInvalidatePage),                 REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "PGMPhysIsGCPhysValid",                   (void *)(uintptr_t)&PGMPhysIsGCPhysValid,           &g_aArgsPGMPhysIsGCPhysValid[0],            RT_ELEMENTS(g_aArgsPGMPhysIsGCPhysValid),              REMFNDESC_FLAGS_RET_INT,    sizeof(bool),       NULL },
-    { "PGMPhysIsA20Enabled",                    (void *)(uintptr_t)&PGMPhysIsA20Enabled,            &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(bool),       NULL },
+    { "PGMPhysIsA20Enabled",                    (void *)(uintptr_t)&PGMPhysIsA20Enabled,            &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(bool),       NULL },
     { "PGMPhysRead",                            (void *)(uintptr_t)&PGMPhysRead,                    &g_aArgsPGMPhysRead[0],                     RT_ELEMENTS(g_aArgsPGMPhysRead),                       REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "PGMPhysSimpleReadGCPtr",                 (void *)(uintptr_t)&PGMPhysSimpleReadGCPtr,         &g_aArgsPGMPhysSimpleReadGCPtr[0],          RT_ELEMENTS(g_aArgsPGMPhysSimpleReadGCPtr),            REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "PGMPhysWrite",                           (void *)(uintptr_t)&PGMPhysWrite,                   &g_aArgsPGMPhysWrite[0],                    RT_ELEMENTS(g_aArgsPGMPhysWrite),                      REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
@@ -1123,6 +1165,8 @@ static REMFNDESC g_aVMMImports[] =
     { "PGMR3PhysWriteU16",                      (void *)(uintptr_t)&PGMR3PhysWriteU16,              &g_aArgsPGMR3PhysWriteU16[0],               RT_ELEMENTS(g_aArgsPGMR3PhysWriteU16),                 REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
     { "PGMR3PhysWriteU32",                      (void *)(uintptr_t)&PGMR3PhysWriteU32,              &g_aArgsPGMR3PhysWriteU32[0],               RT_ELEMENTS(g_aArgsPGMR3PhysWriteU32),                 REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
     { "PGMR3PhysWriteU64",                      (void *)(uintptr_t)&PGMR3PhysWriteU64,              &g_aArgsPGMR3PhysWriteU64[0],               RT_ELEMENTS(g_aArgsPGMR3PhysWriteU32),                 REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
+    { "PGMR3PhysTlbGCPhys2Ptr",                 (void *)(uintptr_t)&PGMR3PhysTlbGCPhys2Ptr,         &g_aArgsPGMR3PhysTlbGCPhys2Ptr[0],          RT_ELEMENTS(g_aArgsPGMR3PhysTlbGCPhys2Ptr),            REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
+    { "PGMIsLockOwner",                         (void *)(uintptr_t)&PGMIsLockOwner,                 &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(bool),       NULL },
     { "SSMR3GetGCPtr",                          (void *)(uintptr_t)&SSMR3GetGCPtr,                  &g_aArgsSSMR3GetGCPtr[0],                   RT_ELEMENTS(g_aArgsSSMR3GetGCPtr),                     REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "SSMR3GetMem",                            (void *)(uintptr_t)&SSMR3GetMem,                    &g_aArgsSSMR3GetMem[0],                     RT_ELEMENTS(g_aArgsSSMR3GetMem),                       REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "SSMR3GetU32",                            (void *)(uintptr_t)&SSMR3GetU32,                    &g_aArgsSSMR3GetU32[0],                     RT_ELEMENTS(g_aArgsSSMR3GetU32),                       REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
@@ -1133,24 +1177,22 @@ static REMFNDESC g_aVMMImports[] =
     { "SSMR3PutUInt",                           (void *)(uintptr_t)&SSMR3PutUInt,                   &g_aArgsSSMR3PutUInt[0],                    RT_ELEMENTS(g_aArgsSSMR3PutUInt),                      REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "SSMR3RegisterInternal",                  (void *)(uintptr_t)&SSMR3RegisterInternal,          &g_aArgsSSMR3RegisterInternal[0],           RT_ELEMENTS(g_aArgsSSMR3RegisterInternal),             REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "STAMR3Register",                         (void *)(uintptr_t)&STAMR3Register,                 &g_aArgsSTAMR3Register[0],                  RT_ELEMENTS(g_aArgsSTAMR3Register),                    REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
-    { "TMCpuTickGet",                           (void *)(uintptr_t)&TMCpuTickGet,                   &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(uint64_t),   NULL },
-    { "TMCpuTickPause",                         (void *)(uintptr_t)&TMCpuTickPause,                 &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
-    { "TMCpuTickResume",                        (void *)(uintptr_t)&TMCpuTickResume,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
-    { "TMNotifyEndOfExecution",                 (void *)(uintptr_t)&TMNotifyEndOfExecution,         &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
-    { "TMNotifyStartOfExecution",               (void *)(uintptr_t)&TMNotifyStartOfExecution,       &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
-    { "TMTimerPoll",                            (void *)(uintptr_t)&TMTimerPoll,                    &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(uint64_t),   NULL },
+    { "STAMR3Deregister",                       (void *)(uintptr_t)&STAMR3Deregister,               &g_aArgsSTAMR3Deregister[0],                RT_ELEMENTS(g_aArgsSTAMR3Deregister),                  REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
+    { "TMCpuTickGet",                           (void *)(uintptr_t)&TMCpuTickGet,                   &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(uint64_t),   NULL },
+    { "TMR3NotifySuspend",                      (void *)(uintptr_t)&TMR3NotifySuspend,              &g_aArgsVMandVMCPU[0],                      RT_ELEMENTS(g_aArgsVMandVMCPU),                        REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
+    { "TMR3NotifyResume",                       (void *)(uintptr_t)&TMR3NotifyResume,               &g_aArgsVMandVMCPU[0],                      RT_ELEMENTS(g_aArgsVMandVMCPU),                        REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
+    { "TMNotifyEndOfExecution",                 (void *)(uintptr_t)&TMNotifyEndOfExecution,         &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
+    { "TMNotifyStartOfExecution",               (void *)(uintptr_t)&TMNotifyStartOfExecution,       &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
+    { "TMTimerPollBool",                        (void *)(uintptr_t)&TMTimerPollBool,                &g_aArgsVMandVMCPU[0],                      RT_ELEMENTS(g_aArgsVMandVMCPU),                        REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
     { "TMR3TimerQueuesDo",                      (void *)(uintptr_t)&TMR3TimerQueuesDo,              &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
-    { "TMVirtualPause",                         (void *)(uintptr_t)&TMVirtualPause,                 &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
-    { "TMVirtualResume",                        (void *)(uintptr_t)&TMVirtualResume,                &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "TRPMAssertTrap",                         (void *)(uintptr_t)&TRPMAssertTrap,                 &g_aArgsTRPMAssertTrap[0],                  RT_ELEMENTS(g_aArgsTRPMAssertTrap),                    REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
-    { "TRPMGetErrorCode",                       (void *)(uintptr_t)&TRPMGetErrorCode,               &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(RTGCUINT),   NULL },
-    { "TRPMGetFaultAddress",                    (void *)(uintptr_t)&TRPMGetFaultAddress,            &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(RTGCUINTPTR),NULL },
+    { "TRPMGetErrorCode",                       (void *)(uintptr_t)&TRPMGetErrorCode,               &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(RTGCUINT),   NULL },
+    { "TRPMGetFaultAddress",                    (void *)(uintptr_t)&TRPMGetFaultAddress,            &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(RTGCUINTPTR),NULL },
     { "TRPMQueryTrap",                          (void *)(uintptr_t)&TRPMQueryTrap,                  &g_aArgsTRPMQueryTrap[0],                   RT_ELEMENTS(g_aArgsTRPMQueryTrap),                     REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
-    { "TRPMResetTrap",                          (void *)(uintptr_t)&TRPMResetTrap,                  &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
+    { "TRPMResetTrap",                          (void *)(uintptr_t)&TRPMResetTrap,                  &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "TRPMSetErrorCode",                       (void *)(uintptr_t)&TRPMSetErrorCode,               &g_aArgsTRPMSetErrorCode[0],                RT_ELEMENTS(g_aArgsTRPMSetErrorCode),                  REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
     { "TRPMSetFaultAddress",                    (void *)(uintptr_t)&TRPMSetFaultAddress,            &g_aArgsTRPMSetFaultAddress[0],             RT_ELEMENTS(g_aArgsTRPMSetFaultAddress),               REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
-    { "VMMR3Lock",                              (void *)(uintptr_t)&VMMR3Lock,                      &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
-    { "VMMR3Unlock",                            (void *)(uintptr_t)&VMMR3Unlock,                    &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
+    { "VMMGetCpu",                              (void *)(uintptr_t)&VMMGetCpu,                      &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(PVMCPU),     NULL },
     { "VMR3ReqCall",                            (void *)(uintptr_t)&VMR3ReqCall,                    &g_aArgsVMR3ReqCall[0],                     RT_ELEMENTS(g_aArgsVMR3ReqCall),                       REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "VMR3ReqFree",                            (void *)(uintptr_t)&VMR3ReqFree,                    &g_aArgsVMR3ReqFree[0],                     RT_ELEMENTS(g_aArgsVMR3ReqFree),                       REMFNDESC_FLAGS_RET_INT | REMFNDESC_FLAGS_ELLIPSIS, sizeof(int), NULL },
     { "VMR3GetVMCPUId",                         (void *)(uintptr_t)&VMR3GetVMCPUId,                 &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
@@ -1174,7 +1216,10 @@ static REMFNDESC g_aRTImports[] =
     { "RTLogLoggerEx",                          (void *)(uintptr_t)&RTLogLoggerEx,                  &g_aArgsRTLogLoggerEx[0],                   RT_ELEMENTS(g_aArgsRTLogLoggerEx),                     REMFNDESC_FLAGS_RET_VOID | REMFNDESC_FLAGS_ELLIPSIS, 0, NULL },
     { "RTLogLoggerExV",                         (void *)(uintptr_t)&RTLogLoggerExV,                 &g_aArgsRTLogLoggerExV[0],                  RT_ELEMENTS(g_aArgsRTLogLoggerExV),                    REMFNDESC_FLAGS_RET_VOID | REMFNDESC_FLAGS_VALIST, 0, NULL },
     { "RTLogPrintf",                            (void *)(uintptr_t)&RTLogPrintf,                    &g_aArgsRTLogPrintf[0],                     RT_ELEMENTS(g_aArgsRTLogPrintf),                       REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
+    { "RTLogRelPrintf",                         (void *)(uintptr_t)&RTLogRelPrintf,                 &g_aArgsRTLogPrintf[0],                     RT_ELEMENTS(g_aArgsRTLogPrintf),                       REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
     { "RTMemAlloc",                             (void *)(uintptr_t)&RTMemAlloc,                     &g_aArgsSIZE_T[0],                          RT_ELEMENTS(g_aArgsSIZE_T),                            REMFNDESC_FLAGS_RET_INT,    sizeof(void *),     NULL },
+    { "RTMemAllocZ",                            (void *)(uintptr_t)&RTMemAllocZ,                    &g_aArgsSIZE_T[0],                          RT_ELEMENTS(g_aArgsSIZE_T),                            REMFNDESC_FLAGS_RET_INT,    sizeof(void *),     NULL },
+    { "RTMemRealloc",                           (void *)(uintptr_t)&RTMemRealloc,                   &g_aArgsRTMemRealloc[0],                    RT_ELEMENTS(g_aArgsRTMemRealloc),                      REMFNDESC_FLAGS_RET_INT,    sizeof(void *),     NULL },
     { "RTMemExecAlloc",                         (void *)(uintptr_t)&RTMemExecAlloc,                 &g_aArgsSIZE_T[0],                          RT_ELEMENTS(g_aArgsSIZE_T),                            REMFNDESC_FLAGS_RET_INT,    sizeof(void *),     NULL },
     { "RTMemExecFree",                          (void *)(uintptr_t)&RTMemExecFree,                  &g_aArgsPTR[0],                             RT_ELEMENTS(g_aArgsPTR),                               REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
     { "RTMemFree",                              (void *)(uintptr_t)&RTMemFree,                      &g_aArgsPTR[0],                             RT_ELEMENTS(g_aArgsPTR),                               REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
@@ -1939,9 +1984,12 @@ static int remLoadProperObj(PVM pVM)
     /*
      * Load the VBoxREM32/64 object/DLL.
      */
-    int rc = SUPR3HardenedLdrLoadAppPriv(remIs64bitEnabled(pVM) ? "VBoxREM64" : "VBoxREM32", &g_ModREM2);
+    const char *pszModule = remIs64bitEnabled(pVM) ? "VBoxREM64" : "VBoxREM32";
+    int rc = SUPR3HardenedLdrLoadAppPriv(pszModule, &g_ModREM2);
     if (RT_SUCCESS(rc))
     {
+        LogRel(("REM: %s\n", pszModule));
+
         /*
          * Resolve exports.
          */
@@ -2033,13 +2081,13 @@ REMR3DECL(void) REMR3Reset(PVM pVM)
 #endif
 }
 
-REMR3DECL(int) REMR3Step(PVM pVM)
+REMR3DECL(int) REMR3Step(PVM pVM, PVMCPU pVCpu)
 {
 #ifdef USE_REM_STUBS
     return VERR_NOT_IMPLEMENTED;
 #else
     Assert(VALID_PTR(pfnREMR3Step));
-    return pfnREMR3Step(pVM);
+    return pfnREMR3Step(pVM, pVCpu);
 #endif
 }
 
@@ -2063,67 +2111,59 @@ REMR3DECL(int) REMR3BreakpointClear(PVM pVM, RTGCUINTPTR Address)
 #endif
 }
 
-REMR3DECL(int) REMR3EmulateInstruction(PVM pVM)
+REMR3DECL(int) REMR3EmulateInstruction(PVM pVM, PVMCPU pVCpu)
 {
 #ifdef USE_REM_STUBS
     return VERR_NOT_IMPLEMENTED;
 #else
     Assert(VALID_PTR(pfnREMR3EmulateInstruction));
-    return pfnREMR3EmulateInstruction(pVM);
+    return pfnREMR3EmulateInstruction(pVM, pVCpu);
 #endif
 }
 
-REMR3DECL(int) REMR3Run(PVM pVM)
+REMR3DECL(int) REMR3Run(PVM pVM, PVMCPU pVCpu)
 {
 #ifdef USE_REM_STUBS
     return VERR_NOT_IMPLEMENTED;
 #else
     Assert(VALID_PTR(pfnREMR3Run));
-    return pfnREMR3Run(pVM);
+    return pfnREMR3Run(pVM, pVCpu);
 #endif
 }
 
-REMR3DECL(int) REMR3State(PVM pVM)
+REMR3DECL(int) REMR3State(PVM pVM, PVMCPU pVCpu)
 {
 #ifdef USE_REM_STUBS
     return VERR_NOT_IMPLEMENTED;
 #else
     Assert(VALID_PTR(pfnREMR3State));
-    return pfnREMR3State(pVM);
+    return pfnREMR3State(pVM, pVCpu);
 #endif
 }
 
-REMR3DECL(int) REMR3StateBack(PVM pVM)
+REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
 {
 #ifdef USE_REM_STUBS
     return VERR_NOT_IMPLEMENTED;
 #else
     Assert(VALID_PTR(pfnREMR3StateBack));
-    return pfnREMR3StateBack(pVM);
+    return pfnREMR3StateBack(pVM, pVCpu);
 #endif
 }
 
-REMR3DECL(void) REMR3StateUpdate(PVM pVM)
+REMR3DECL(void) REMR3StateUpdate(PVM pVM, PVMCPU pVCpu)
 {
 #ifndef USE_REM_STUBS
     Assert(VALID_PTR(pfnREMR3StateUpdate));
-    pfnREMR3StateUpdate(pVM);
+    pfnREMR3StateUpdate(pVM, pVCpu);
 #endif
 }
 
-REMR3DECL(void) REMR3A20Set(PVM pVM, bool fEnable)
+REMR3DECL(void) REMR3A20Set(PVM pVM, PVMCPU pVCpu, bool fEnable)
 {
 #ifndef USE_REM_STUBS
     Assert(VALID_PTR(pfnREMR3A20Set));
-    pfnREMR3A20Set(pVM, fEnable);
-#endif
-}
-
-REMR3DECL(void) REMR3ReplayInvalidatedPages(PVM pVM)
-{
-#ifndef USE_REM_STUBS
-    Assert(VALID_PTR(pfnREMR3ReplayInvalidatedPages));
-    pfnREMR3ReplayInvalidatedPages(pVM);
+    pfnREMR3A20Set(pVM, pVCpu, fEnable);
 #endif
 }
 
@@ -2135,13 +2175,13 @@ REMR3DECL(void) REMR3ReplayHandlerNotifications(PVM pVM)
 #endif
 }
 
-REMR3DECL(int) REMR3NotifyCodePageChanged(PVM pVM, RTGCPTR pvCodePage)
+REMR3DECL(int) REMR3NotifyCodePageChanged(PVM pVM, PVMCPU pVCpu, RTGCPTR pvCodePage)
 {
 #ifdef USE_REM_STUBS
     return VINF_SUCCESS;
 #else
     Assert(VALID_PTR(pfnREMR3NotifyCodePageChanged));
-    return pfnREMR3NotifyCodePageChanged(pVM, pvCodePage);
+    return pfnREMR3NotifyCodePageChanged(pVM, pVCpu, pvCodePage);
 #endif
 }
 
@@ -2213,45 +2253,45 @@ REMR3DECL(int) REMR3DisasEnableStepping(PVM pVM, bool fEnable)
 #endif
 }
 
-REMR3DECL(void) REMR3NotifyPendingInterrupt(PVM pVM, uint8_t u8Interrupt)
+REMR3DECL(void) REMR3NotifyPendingInterrupt(PVM pVM, PVMCPU pVCpu, uint8_t u8Interrupt)
 {
 #ifndef USE_REM_STUBS
     Assert(VALID_PTR(pfnREMR3NotifyPendingInterrupt));
-    pfnREMR3NotifyPendingInterrupt(pVM, u8Interrupt);
+    pfnREMR3NotifyPendingInterrupt(pVM, pVCpu, u8Interrupt);
 #endif
 }
 
-REMR3DECL(uint32_t) REMR3QueryPendingInterrupt(PVM pVM)
+REMR3DECL(uint32_t) REMR3QueryPendingInterrupt(PVM pVM, PVMCPU pVCpu)
 {
 #ifdef USE_REM_STUBS
     return REM_NO_PENDING_IRQ;
 #else
     Assert(VALID_PTR(pfnREMR3QueryPendingInterrupt));
-    return pfnREMR3QueryPendingInterrupt(pVM);
+    return pfnREMR3QueryPendingInterrupt(pVM, pVCpu);
 #endif
 }
 
-REMR3DECL(void) REMR3NotifyInterruptSet(PVM pVM)
+REMR3DECL(void) REMR3NotifyInterruptSet(PVM pVM, PVMCPU pVCpu)
 {
 #ifndef USE_REM_STUBS
     Assert(VALID_PTR(pfnREMR3NotifyInterruptSet));
-    pfnREMR3NotifyInterruptSet(pVM);
+    pfnREMR3NotifyInterruptSet(pVM, pVCpu);
 #endif
 }
 
-REMR3DECL(void) REMR3NotifyInterruptClear(PVM pVM)
+REMR3DECL(void) REMR3NotifyInterruptClear(PVM pVM, PVMCPU pVCpu)
 {
 #ifndef USE_REM_STUBS
     Assert(VALID_PTR(pfnREMR3NotifyInterruptClear));
-    pfnREMR3NotifyInterruptClear(pVM);
+    pfnREMR3NotifyInterruptClear(pVM, pVCpu);
 #endif
 }
 
-REMR3DECL(void) REMR3NotifyTimerPending(PVM pVM)
+REMR3DECL(void) REMR3NotifyTimerPending(PVM pVM, PVMCPU pVCpuDst)
 {
 #ifndef USE_REM_STUBS
     Assert(VALID_PTR(pfnREMR3NotifyTimerPending));
-    pfnREMR3NotifyTimerPending(pVM);
+    pfnREMR3NotifyTimerPending(pVM, pVCpuDst);
 #endif
 }
 

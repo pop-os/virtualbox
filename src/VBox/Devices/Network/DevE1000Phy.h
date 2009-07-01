@@ -1,4 +1,4 @@
-/** $Id: DevE1000Phy.h $ */
+/** $Id: DevE1000Phy.h 15955 2009-01-14 20:14:36Z vboxsync $ */
 /** @file
  * DevE1000Phy - Intel 82540EM Ethernet Controller Internal PHY Emulation, Header.
  */

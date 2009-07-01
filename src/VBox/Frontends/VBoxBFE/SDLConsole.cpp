@@ -857,7 +857,7 @@ uint8_t SDLConsole::keyEventToKeyCode(const SDL_KeyboardEvent *ev)
             case SDLK_RSUPER:           keycode = 0x5c | 0x80; break;
             case SDLK_LMETA:
             case SDLK_LSUPER:           keycode = 0x5b | 0x80; break;
-            /* Sssumes normal key. */
+            /* Assumes normal key. */
             default:                    keycode = s_aMacToSet1[keycode]; break;
         }
     }
@@ -1071,7 +1071,7 @@ void SDLConsole::processKey(SDL_KeyboardEvent *ev)
 
 #ifdef RT_OS_DARWIN
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 /* Private interface in 10.3 and later. */
 typedef int CGSConnection;
 typedef enum
@@ -1083,7 +1083,7 @@ typedef enum
 extern CGSConnection _CGSDefaultConnection(void);
 extern CGError CGSGetGlobalHotKeyOperatingMode(CGSConnection Connection, CGSGlobalHotKeyOperatingMode *enmMode);
 extern CGError CGSSetGlobalHotKeyOperatingMode(CGSConnection Connection, CGSGlobalHotKeyOperatingMode enmMode);
-__END_DECLS
+RT_C_DECLS_END
 
 /** Keeping track of whether we disabled the hotkeys or not. */
 static bool g_fHotKeysDisabled = false;

@@ -70,19 +70,25 @@ struct socket
     RTCRITSECT      so_mutex;
     int             so_deleted;
 #endif
-#ifdef VBOX_WITH_SIMPLIFIED_SLIRP_SYNC
-# ifndef RT_OS_WINDOWS
+#ifndef RT_OS_WINDOWS
     int so_poll_index;
-# else /* !RT_OS_WINDOWS */
+#else /* !RT_OS_WINDOWS */
     /*
-     * FD_CLOSE event has been occured on socket 
+     * FD_CLOSE event has been occurred on socket 
      */
     int so_close; 
-# endif /* RT_OS_WINDOWS */
-#endif /* VBOX_WITH_SIMPLIFIED_SLIRP_SYNC */
-#ifdef VBOX_WITH_SLIRP_DNS_PROXY
+#endif /* RT_OS_WINDOWS */
+
     void (* so_timeout)(PNATState pData, struct socket *so, void *arg);
     void *so_timeout_arg;
+
+#ifdef VBOX_WITH_NAT_SERVICE
+    /* storage of source ether address */
+    unsigned char so_ethaddr[6]; 
+#endif
+#ifdef VBOX_WITH_SLIRP_ALIAS
+    /* required for port-forwarding */
+    struct libalias *so_la;
 #endif
 };
 
@@ -147,27 +153,27 @@ struct iovec
 };
 #endif
 
-void so_init _P((void));
-struct socket * solookup _P((struct socket *, struct in_addr, u_int, struct in_addr, u_int));
-struct socket * socreate _P((void));
-void sofree _P((PNATState, struct socket *));
+void so_init (void);
+struct socket * solookup (struct socket *, struct in_addr, u_int, struct in_addr, u_int);
+struct socket * socreate (void);
+void sofree (PNATState, struct socket *);
 #ifdef VBOX_WITH_SLIRP_MT
 void soread_queue (PNATState, struct socket *, int *);
 #endif
-int soread _P((PNATState, struct socket *));
-void sorecvoob _P((PNATState, struct socket *));
-int sosendoob _P((struct socket *));
-int sowrite _P((PNATState, struct socket *));
-void sorecvfrom _P((PNATState, struct socket *));
-int sosendto _P((PNATState, struct socket *, struct mbuf *));
-struct socket * solisten _P((PNATState, u_int, u_int32_t, u_int, int));
-void sorwakeup _P((struct socket *));
-void sowwakeup _P((struct socket *));
-void soisfconnecting _P((register struct socket *));
-void soisfconnected _P((register struct socket *));
-void sofcantrcvmore _P((struct  socket *));
-void sofcantsendmore _P((struct socket *));
-void soisfdisconnected _P((struct socket *));
-void sofwdrain _P((struct socket *));
+int soread (PNATState, struct socket *);
+void sorecvoob (PNATState, struct socket *);
+int sosendoob (struct socket *);
+int sowrite (PNATState, struct socket *);
+void sorecvfrom (PNATState, struct socket *);
+int sosendto (PNATState, struct socket *, struct mbuf *);
+struct socket * solisten (PNATState, u_int32_t, u_int, u_int32_t, u_int, int);
+void sorwakeup (struct socket *);
+void sowwakeup (struct socket *);
+void soisfconnecting (register struct socket *);
+void soisfconnected (register struct socket *);
+void sofcantrcvmore (struct  socket *);
+void sofcantsendmore (struct socket *);
+void soisfdisconnected (struct socket *);
+void sofwdrain (struct socket *);
 
 #endif /* _SOCKET_H_ */

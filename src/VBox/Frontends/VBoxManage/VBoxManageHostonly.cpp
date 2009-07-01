@@ -1,4 +1,4 @@
-/* $Id: VBoxManageHostonly.cpp $ */
+/* $Id: VBoxManageHostonly.cpp 20928 2009-06-25 11:53:37Z vboxsync $ */
 /** @file
  * VBoxManage - Implementation of hostonlyif command.
  */
@@ -26,7 +26,7 @@
 #include <VBox/com/com.h>
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
-#include <VBox/com/errorprint2.h>
+#include <VBox/com/errorprint.h>
 #include <VBox/com/EventQueue.h>
 
 #include <VBox/com/VirtualBox.h>
@@ -113,8 +113,8 @@ static int handleRemove(HandlerArg *a, int iStart, int *pcProcessed)
     ComPtr<IHostNetworkInterface> hif;
     CHECK_ERROR(host, FindHostNetworkInterfaceByName(name, hif.asOutParam()));
 
-    GUID guid;
-    CHECK_ERROR(hif, COMGETTER(Id)(&guid));
+    Bstr guid;
+    CHECK_ERROR(hif, COMGETTER(Id)(guid.asOutParam()));
 
     ComPtr<IProgress> progress;
     CHECK_ERROR(host, RemoveHostOnlyNetworkInterface (guid, hif.asOutParam(),progress.asOutParam()));

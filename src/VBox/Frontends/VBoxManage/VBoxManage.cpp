@@ -1,4 +1,4 @@
-/* $Id: VBoxManage.cpp $ */
+/* $Id: VBoxManage.cpp 20977 2009-06-26 14:38:55Z vboxsync $ */
 /** @file
  * VBoxManage - VirtualBox's command-line interface.
  */
@@ -29,7 +29,7 @@
 #include <VBox/com/Guid.h>
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
-#include <VBox/com/errorprint2.h>
+#include <VBox/com/errorprint.h>
 #include <VBox/com/EventQueue.h>
 
 #include <VBox/com/VirtualBox.h>
@@ -161,10 +161,10 @@ void showProgress(ComPtr<IProgress> progress)
     }
 
     /* complete the line. */
-    HRESULT rc;
-    if (SUCCEEDED(progress->COMGETTER(ResultCode)(&rc)))
+    LONG iRc;
+    if (SUCCEEDED(progress->COMGETTER(ResultCode)(&iRc)))
     {
-        if (SUCCEEDED(rc))
+        if (SUCCEEDED(iRc))
             RTPrintf("100%%\n");
         else
             RTPrintf("FAILED\n");
@@ -280,7 +280,7 @@ static int handleUnregisterVM(HandlerArg *a)
 
     ComPtr<IMachine> machine;
     /* assume it's a UUID */
-    rc = a->virtualBox->GetMachine(Guid(VMName), machine.asOutParam());
+    rc = a->virtualBox->GetMachine(Guid(VMName).toUtf16(), machine.asOutParam());
     if (FAILED(rc) || !machine)
     {
         /* must be a name */
@@ -288,7 +288,7 @@ static int handleUnregisterVM(HandlerArg *a)
     }
     if (machine)
     {
-        Guid uuid;
+        Bstr uuid;
         machine->COMGETTER(Id)(uuid.asOutParam());
         machine = NULL;
         CHECK_ERROR(a->virtualBox, UnregisterMachine(uuid, machine.asOutParam()));
@@ -372,24 +372,24 @@ static int handleCreateVM(HandlerArg *a)
 
         if (!settingsFile)
             CHECK_ERROR_BREAK(a->virtualBox,
-                CreateMachine(name, osTypeId, baseFolder, Guid(id), machine.asOutParam()));
+                CreateMachine(name, osTypeId, baseFolder, Guid(id).toUtf16(), machine.asOutParam()));
         else
             CHECK_ERROR_BREAK(a->virtualBox,
-                CreateLegacyMachine(name, osTypeId, settingsFile, Guid(id), machine.asOutParam()));
+                CreateLegacyMachine(name, osTypeId, settingsFile, Guid(id).toUtf16(), machine.asOutParam()));
 
         CHECK_ERROR_BREAK(machine, SaveSettings());
         if (fRegister)
         {
             CHECK_ERROR_BREAK(a->virtualBox, RegisterMachine(machine));
         }
-        Guid uuid;
+        Bstr uuid;
         CHECK_ERROR_BREAK(machine, COMGETTER(Id)(uuid.asOutParam()));
         CHECK_ERROR_BREAK(machine, COMGETTER(SettingsFilePath)(settingsFile.asOutParam()));
         RTPrintf("Virtual machine '%ls' is created%s.\n"
                  "UUID: %s\n"
                  "Settings file: '%ls'\n",
                  name.raw(), fRegister ? " and registered" : "",
-                 uuid.toString().raw(), settingsFile.raw());
+                 Utf8Str(uuid).raw(), settingsFile.raw());
     }
     while (0);
 
@@ -461,10 +461,16 @@ static int handleStartVM(HandlerArg *a)
                     sessionType = "vrdp";
                 }
 #endif
+#ifdef VBOX_WITH_HEADLESS
                 else if (!RTStrICmp(ValueUnion.psz, "capture"))
                 {
                     sessionType = "capture";
                 }
+                else if (!RTStrICmp(ValueUnion.psz, "headless"))
+                {
+                    sessionType = "headless";
+                }
+#endif
                 else
                     return errorArgument("Invalid session type '%s'", ValueUnion.psz);
                 break;
@@ -499,7 +505,7 @@ static int handleStartVM(HandlerArg *a)
 
     ComPtr<IMachine> machine;
     /* assume it's a UUID */
-    rc = a->virtualBox->GetMachine(Guid(VMName), machine.asOutParam());
+    rc = a->virtualBox->GetMachine(Guid(VMName).toUtf16(), machine.asOutParam());
     if (FAILED(rc) || !machine)
     {
         /* must be a name */
@@ -507,7 +513,7 @@ static int handleStartVM(HandlerArg *a)
     }
     if (machine)
     {
-        Guid uuid;
+        Bstr uuid;
         machine->COMGETTER(Id)(uuid.asOutParam());
 
 
@@ -530,14 +536,14 @@ static int handleStartVM(HandlerArg *a)
         CHECK_ERROR_RET(progress, COMGETTER(Completed)(&completed), rc);
         ASSERT(completed);
 
-        HRESULT resultCode;
-        CHECK_ERROR_RET(progress, COMGETTER(ResultCode)(&resultCode), rc);
-        if (FAILED(resultCode))
+        LONG iRc;
+        CHECK_ERROR_RET(progress, COMGETTER(ResultCode)(&iRc), rc);
+        if (FAILED(iRc))
         {
             ComPtr <IVirtualBoxErrorInfo> errorInfo;
             CHECK_ERROR_RET(progress, COMGETTER(ErrorInfo)(errorInfo.asOutParam()), 1);
             ErrorInfo info (errorInfo);
-            GluePrintErrorInfo(info);
+            com::GluePrintErrorInfo(info);
         }
         else
         {
@@ -560,14 +566,14 @@ static int handleControlVM(HandlerArg *a)
 
     /* try to find the given machine */
     ComPtr <IMachine> machine;
-    Guid uuid (a->argv[0]);
-    if (!uuid.isEmpty())
+    Bstr uuid (a->argv[0]);
+    if (!Guid(uuid).isEmpty())
     {
         CHECK_ERROR (a->virtualBox, GetMachine (uuid, machine.asOutParam()));
     }
     else
     {
-        CHECK_ERROR (a->virtualBox, FindMachine (Bstr(a->argv[0]), machine.asOutParam()));
+        CHECK_ERROR (a->virtualBox, FindMachine (uuid, machine.asOutParam()));
         if (SUCCEEDED (rc))
             machine->COMGETTER(Id) (uuid.asOutParam());
     }
@@ -601,7 +607,25 @@ static int handleControlVM(HandlerArg *a)
         }
         else if (!strcmp(a->argv[1], "poweroff"))
         {
-            CHECK_ERROR_BREAK (console, PowerDown());
+            ComPtr<IProgress> progress;
+            CHECK_ERROR_BREAK (console, PowerDown(progress.asOutParam()));
+
+            showProgress(progress);
+
+            LONG iRc;
+            progress->COMGETTER(ResultCode)(&iRc);
+            if (FAILED(iRc))
+            {
+                com::ProgressErrorInfo info(progress);
+                if (info.isBasicAvailable())
+                {
+                    RTPrintf("Error: failed to power off machine. Error message: %lS\n", info.getText().raw());
+                }
+                else
+                {
+                    RTPrintf("Error: failed to power off machine. No error message available!\n");
+                }
+            }
         }
         else if (!strcmp(a->argv[1], "savestate"))
         {
@@ -610,8 +634,9 @@ static int handleControlVM(HandlerArg *a)
 
             showProgress(progress);
 
-            progress->COMGETTER(ResultCode)(&rc);
-            if (FAILED(rc))
+            LONG iRc;
+            progress->COMGETTER(ResultCode)(&iRc);
+            if (FAILED(iRc))
             {
                 com::ProgressErrorInfo info(progress);
                 if (info.isBasicAvailable())
@@ -743,6 +768,97 @@ static int handleControlVM(HandlerArg *a)
                 }
             }
         }
+#ifdef VBOX_DYNAMIC_NET_ATTACH
+        else if (!strncmp(a->argv[1], "nic", 3))
+        {
+            /* Get the number of network adapters */
+            ULONG NetworkAdapterCount = 0;
+            ComPtr <ISystemProperties> info;
+            CHECK_ERROR_BREAK (a->virtualBox, COMGETTER(SystemProperties) (info.asOutParam()));
+            CHECK_ERROR_BREAK (info, COMGETTER(NetworkAdapterCount) (&NetworkAdapterCount));
+
+            unsigned n = parseNum(&a->argv[1][3], NetworkAdapterCount, "NIC");
+            if (!n)
+            {
+                rc = E_FAIL;
+                break;
+            }
+            if (a->argc <= 1 + 1)
+            {
+                errorArgument("Missing argument to '%s'", a->argv[1]);
+                rc = E_FAIL;
+                break;
+            }
+
+            /* get the corresponding network adapter */
+            ComPtr<INetworkAdapter> adapter;
+            CHECK_ERROR_BREAK (sessionMachine, GetNetworkAdapter(n - 1, adapter.asOutParam()));
+            if (adapter)
+            {
+                if (!strcmp(a->argv[2], "none"))
+                {
+                    CHECK_ERROR_RET(adapter, COMSETTER(Enabled) (FALSE), 1);
+                }
+                else if (!strcmp(a->argv[2], "null"))
+                {
+                    CHECK_ERROR_RET(adapter, COMSETTER(Enabled) (TRUE), 1);
+                    CHECK_ERROR_RET(adapter, Detach(), 1);
+                }
+                else if (!strcmp(a->argv[2], "nat"))
+                {
+                    if (a->argc == 3)
+                        CHECK_ERROR_RET(adapter, COMSETTER(NATNetwork)(Bstr(a->argv[3])), 1);
+                    CHECK_ERROR_RET(adapter, COMSETTER(Enabled) (TRUE), 1);
+                    CHECK_ERROR_RET(adapter, AttachToNAT(), 1);
+                }
+                else if (  !strcmp(a->argv[2], "bridged")
+                        || !strcmp(a->argv[2], "hostif")) /* backward compatibility */
+                {
+                    if (a->argc <= 1 + 2)
+                    {
+                        errorArgument("Missing argument to '%s'", a->argv[2]);
+                        rc = E_FAIL;
+                        break;
+                    }
+                    CHECK_ERROR_RET(adapter, COMSETTER(HostInterface)(Bstr(a->argv[3])), 1);
+                    CHECK_ERROR_RET(adapter, COMSETTER(Enabled) (TRUE), 1);
+                    CHECK_ERROR_RET(adapter, AttachToBridgedInterface(), 1);
+                }
+                else if (!strcmp(a->argv[2], "intnet"))
+                {
+                    if (a->argc <= 1 + 2)
+                    {
+                        errorArgument("Missing argument to '%s'", a->argv[2]);
+                        rc = E_FAIL;
+                        break;
+                    }
+                    CHECK_ERROR_RET(adapter, COMSETTER(InternalNetwork)(Bstr(a->argv[3])), 1);
+                    CHECK_ERROR_RET(adapter, COMSETTER(Enabled) (TRUE), 1);
+                    CHECK_ERROR_RET(adapter, AttachToInternalNetwork(), 1);
+                }
+#if defined(VBOX_WITH_NETFLT)
+                else if (!strcmp(a->argv[2], "hostonly"))
+                {
+                    if (a->argc <= 1 + 2)
+                    {
+                        errorArgument("Missing argument to '%s'", a->argv[2]);
+                        rc = E_FAIL;
+                        break;
+                    }
+                    CHECK_ERROR_RET(adapter, COMSETTER(HostInterface)(Bstr(a->argv[3])), 1);
+                    CHECK_ERROR_RET(adapter, COMSETTER(Enabled) (TRUE), 1);
+                    CHECK_ERROR_RET(adapter, AttachToHostOnlyInterface(), 1);
+                }
+#endif
+                else
+                {
+                    errorArgument("Invalid type '%s' specfied for NIC %lu", Utf8Str(a->argv[2]).raw(), n + 1);
+                    rc = E_FAIL;
+                    break;
+                }
+            }
+        }
+#endif /* VBOX_DYNAMIC_NET_ATTACH */
 #ifdef VBOX_WITH_VRDP
         else if (!strcmp(a->argv[1], "vrdp"))
         {
@@ -787,8 +903,8 @@ static int handleControlVM(HandlerArg *a)
 
             bool attach = !strcmp(a->argv[1], "usbattach");
 
-            Guid usbId = a->argv [2];
-            if (usbId.isEmpty())
+            Bstr usbId = a->argv [2];
+            if (Guid(usbId).isEmpty())
             {
                 // assume address
                 if (attach)
@@ -903,7 +1019,7 @@ static int handleControlVM(HandlerArg *a)
             else
             {
                 /* first assume it's a UUID */
-                Guid uuid(a->argv[2]);
+                Bstr uuid(a->argv[2]);
                 ComPtr<IDVDImage> dvdImage;
                 rc = a->virtualBox->GetDVDImage(uuid, dvdImage.asOutParam());
                 if (FAILED(rc) || !dvdImage)
@@ -913,7 +1029,7 @@ static int handleControlVM(HandlerArg *a)
                     /* not registered, do that on the fly */
                     if (!dvdImage)
                     {
-                        Guid emptyUUID;
+                        Bstr emptyUUID;
                         CHECK_ERROR(a->virtualBox, OpenDVDImage(Bstr(a->argv[2]), emptyUUID, dvdImage.asOutParam()));
                     }
                 }
@@ -965,7 +1081,7 @@ static int handleControlVM(HandlerArg *a)
             else
             {
                 /* first assume it's a UUID */
-                Guid uuid(a->argv[2]);
+                Bstr uuid(a->argv[2]);
                 ComPtr<IFloppyImage> floppyImage;
                 rc = a->virtualBox->GetFloppyImage(uuid, floppyImage.asOutParam());
                 if (FAILED(rc) || !floppyImage)
@@ -975,7 +1091,7 @@ static int handleControlVM(HandlerArg *a)
                     /* not registered, do that on the fly */
                     if (!floppyImage)
                     {
-                        Guid emptyUUID;
+                        Bstr emptyUUID;
                         CHECK_ERROR(a->virtualBox, OpenFloppyImage(Bstr(a->argv[2]), emptyUUID, floppyImage.asOutParam()));
                     }
                 }
@@ -1064,7 +1180,7 @@ static int handleDiscardState(HandlerArg *a)
 
     ComPtr<IMachine> machine;
     /* assume it's a UUID */
-    rc = a->virtualBox->GetMachine(Guid(a->argv[0]), machine.asOutParam());
+    rc = a->virtualBox->GetMachine(Bstr(a->argv[0]), machine.asOutParam());
     if (FAILED(rc) || !machine)
     {
         /* must be a name */
@@ -1075,14 +1191,14 @@ static int handleDiscardState(HandlerArg *a)
         do
         {
             /* we have to open a session for this task */
-            Guid guid;
+            Bstr guid;
             machine->COMGETTER(Id)(guid.asOutParam());
             CHECK_ERROR_BREAK(a->virtualBox, OpenSession(a->session, guid));
             do
             {
                 ComPtr<IConsole> console;
                 CHECK_ERROR_BREAK(a->session, COMGETTER(Console)(console.asOutParam()));
-                CHECK_ERROR_BREAK(console, DiscardSavedState());
+                CHECK_ERROR_BREAK(console, ForgetSavedState(true));
             }
             while (0);
             CHECK_ERROR_BREAK(a->session, Close());
@@ -1102,7 +1218,7 @@ static int handleAdoptdState(HandlerArg *a)
 
     ComPtr<IMachine> machine;
     /* assume it's a UUID */
-    rc = a->virtualBox->GetMachine(Guid(a->argv[0]), machine.asOutParam());
+    rc = a->virtualBox->GetMachine(Bstr(a->argv[0]), machine.asOutParam());
     if (FAILED(rc) || !machine)
     {
         /* must be a name */
@@ -1113,7 +1229,7 @@ static int handleAdoptdState(HandlerArg *a)
         do
         {
             /* we have to open a session for this task */
-            Guid guid;
+            Bstr guid;
             machine->COMGETTER(Id)(guid.asOutParam());
             CHECK_ERROR_BREAK(a->virtualBox, OpenSession(a->session, guid));
             do
@@ -1154,15 +1270,15 @@ static int handleGetExtraData(HandlerArg *a)
                                                                     nextExtraDataValue.asOutParam());
                 extraDataKey = nextExtraDataKey;
 
-                if (SUCCEEDED(rcEnum) && extraDataKey)
+                if (SUCCEEDED(rcEnum) && !extraDataKey.isEmpty())
                     RTPrintf("Key: %lS, Value: %lS\n", nextExtraDataKey.raw(), nextExtraDataValue.raw());
-            } while (extraDataKey);
+            } while (!extraDataKey.isEmpty());
         }
         else
         {
             Bstr value;
             CHECK_ERROR(a->virtualBox, GetExtraData(Bstr(a->argv[1]), value.asOutParam()));
-            if (value)
+            if (!value.isEmpty())
                 RTPrintf("Value: %lS\n", value.raw());
             else
                 RTPrintf("No value set!\n");
@@ -1172,7 +1288,7 @@ static int handleGetExtraData(HandlerArg *a)
     {
         ComPtr<IMachine> machine;
         /* assume it's a UUID */
-        rc = a->virtualBox->GetMachine(Guid(a->argv[0]), machine.asOutParam());
+        rc = a->virtualBox->GetMachine(Bstr(a->argv[0]), machine.asOutParam());
         if (FAILED(rc) || !machine)
         {
             /* must be a name */
@@ -1193,17 +1309,17 @@ static int handleGetExtraData(HandlerArg *a)
                                                                   nextExtraDataValue.asOutParam());
                     extraDataKey = nextExtraDataKey;
 
-                    if (SUCCEEDED(rcEnum) && extraDataKey)
+                    if (SUCCEEDED(rcEnum) && !extraDataKey.isEmpty())
                     {
                         RTPrintf("Key: %lS, Value: %lS\n", nextExtraDataKey.raw(), nextExtraDataValue.raw());
                     }
-                } while (extraDataKey);
+                } while (!extraDataKey.isEmpty());
             }
             else
             {
                 Bstr value;
                 CHECK_ERROR(machine, GetExtraData(Bstr(a->argv[1]), value.asOutParam()));
-                if (value)
+                if (!value.isEmpty())
                     RTPrintf("Value: %lS\n", value.raw());
                 else
                     RTPrintf("No value set!\n");
@@ -1234,7 +1350,7 @@ static int handleSetExtraData(HandlerArg *a)
     {
         ComPtr<IMachine> machine;
         /* assume it's a UUID */
-        rc = a->virtualBox->GetMachine(Guid(a->argv[0]), machine.asOutParam());
+        rc = a->virtualBox->GetMachine(Bstr(a->argv[0]), machine.asOutParam());
         if (FAILED(rc) || !machine)
         {
             /* must be a name */
@@ -1330,7 +1446,7 @@ static int handleSharedFolder (HandlerArg *a)
 
     ComPtr<IMachine> machine;
     /* assume it's a UUID */
-    rc = a->virtualBox->GetMachine(Guid(a->argv[1]), machine.asOutParam());
+    rc = a->virtualBox->GetMachine(Bstr(a->argv[1]), machine.asOutParam());
     if (FAILED(rc) || !machine)
     {
         /* must be a name */
@@ -1338,7 +1454,7 @@ static int handleSharedFolder (HandlerArg *a)
     }
     if (!machine)
         return 1;
-    Guid uuid;
+    Bstr uuid;
     machine->COMGETTER(Id)(uuid.asOutParam());
 
     if (!strcmp(a->argv[0], "add"))
@@ -1504,8 +1620,8 @@ static int handleVMStatistics(HandlerArg *a)
 
     /* try to find the given machine */
     ComPtr <IMachine> machine;
-    Guid uuid (a->argv[0]);
-    if (!uuid.isEmpty())
+    Bstr uuid (a->argv[0]);
+    if (!Guid (a->argv[0]).isEmpty())
         CHECK_ERROR(a->virtualBox, GetMachine(uuid, machine.asOutParam()));
     else
     {
@@ -1699,7 +1815,7 @@ static bool checkForAutoConvertedSettings (ComPtr<IVirtualBox> virtualBox,
             for (std::list <ComPtr <IMachine> >::const_iterator m = cvtMachines.begin();
                  m != cvtMachines.end(); ++ m)
             {
-                Guid id;
+                Bstr id;
                 CHECK_ERROR_BREAK((*m), COMGETTER(Id) (id.asOutParam()));
 
                 /* open a session for the VM */
@@ -1887,7 +2003,7 @@ int main(int argc, char *argv[])
             RTPrintf("Most likely, the VirtualBox COM server is not running or failed to start.\n");
         }
         else
-            GluePrintErrorInfo(info);
+            com::GluePrintErrorInfo(info);
         break;
     }
 

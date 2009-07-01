@@ -1,3 +1,4 @@
+; $Id: ASMAtomicReadU64.asm 19605 2009-05-12 11:06:40Z vboxsync $
 ;; @file
 ; IPRT - ASMAtomicReadU64().
 ;
@@ -39,6 +40,8 @@ BEGINCODE
 ;
 ; @param   pu64     x86:ebp+8
 ;
+; @returns The current value. (x86:eax+edx)
+;
 ;
 BEGINPROC_EXPORTED ASMAtomicReadU64
 %ifndef RT_ARCH_X86
@@ -61,5 +64,4 @@ BEGINPROC_EXPORTED ASMAtomicReadU64
         leave
         ret
 ENDPROC ASMAtomicReadU64
-
 

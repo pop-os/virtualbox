@@ -1,4 +1,4 @@
-/* $Id: SUPLibInternal.h $ */
+/* $Id: SUPLibInternal.h 20864 2009-06-23 19:19:42Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Internal header.
  */
@@ -78,7 +78,7 @@
 # define supR3HardenedPathAppPrivateArch   supR3HardenedStaticPathAppPrivateArch
 # define supR3HardenedPathSharedLibs       supR3HardenedStaticPathSharedLibs
 # define supR3HardenedPathAppDocs          supR3HardenedStaticPathAppDocs
-# define supR3HardenedPathProgram          supR3HardenedStaticPathProgram
+# define supR3HardenedPathExecDir          supR3HardenedStaticPathExecDir
 # define supR3HardenedPathFilename         supR3HardenedStaticPathFilename
 # define supR3HardenedFatalV               supR3HardenedStaticFatalV
 # define supR3HardenedFatal                supR3HardenedStaticFatal
@@ -93,17 +93,6 @@
 # define supR3HardenedRecvPreInitData      supR3HardenedStaticRecvPreInitData
 /** @} */
 #endif /* IN_SUP_HARDENED_R3 */
-
-
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
-/** The negotiated interrupt number. */
-extern DECLHIDDEN(uint8_t)        g_uchInterruptNo;
-/** The negotiated cookie. */
-extern DECLHIDDEN(uint32_t)       g_u32Cookie;
-/** The negotiated cookie. */
-extern DECLHIDDEN(uint32_t)       g_u32CookieSession;
 
 
 /*******************************************************************************
@@ -242,9 +231,17 @@ typedef FNSUPR3PREINIT *PFNSUPR3PREINIT;
 
 
 /*******************************************************************************
+*   Global Variables                                                           *
+*******************************************************************************/
+extern DECLHIDDEN(uint32_t)     g_u32Cookie;
+extern DECLHIDDEN(uint32_t)     g_u32SessionCookie;
+extern DECLHIDDEN(SUPLIBDATA)   g_supLibData;
+
+
+/*******************************************************************************
 *   OS Specific Function                                                       *
 *******************************************************************************/
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 int     suplibOsInstall(void);
 int     suplibOsUninstall(void);
 int     suplibOsInit(PSUPLIBDATA pThis, bool fPreInited);
@@ -276,8 +273,8 @@ DECLHIDDEN(int)    supR3HardenedPathAppPrivateArch(char *pszPath, size_t cchPath
 DECLHIDDEN(int)    supR3HardenedPathSharedLibs(char *pszPath, size_t cchPath);
 /** @copydoc RTPathAppDocs */
 DECLHIDDEN(int)    supR3HardenedPathAppDocs(char *pszPath, size_t cchPath);
-/** @copydoc RTPathProgram */
-DECLHIDDEN(int)    supR3HardenedPathProgram(char *pszPath, size_t cchPath);
+/** @copydoc RTPathExecDir */
+DECLHIDDEN(int)    supR3HardenedPathExecDir(char *pszPath, size_t cchPath);
 /** @copydoc RTPathFilename */
 DECLHIDDEN(char *) supR3HardenedPathFilename(const char *pszPath);
 
@@ -317,7 +314,10 @@ DECLHIDDEN(void)   supR3HardenedGetPreInitData(PSUPPREINITDATA pPreInitData);
 DECLHIDDEN(int)    supR3HardenedRecvPreInitData(PCSUPPREINITDATA pPreInitData);
 
 
-__END_DECLS
+SUPR3DECL(int)      supR3PageLock(void *pvStart, size_t cPages, PSUPPAGE paPages);
+SUPR3DECL(int)      supR3PageUnlock(void *pvStart);
+
+RT_C_DECLS_END
 
 
 #endif

@@ -37,7 +37,7 @@
 
 #include <iprt/stdarg.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_vmm_apis  VM All Contexts API
  * @ingroup grp_vm
@@ -262,23 +262,11 @@ typedef enum VMREQFLAGS
     /** Return type mask. */
     VMREQFLAGS_RETURN_MASK  = 1,
     /** Caller does not wait on the packet, EMT will free it. */
-    VMREQFLAGS_NO_WAIT      = 2
+    VMREQFLAGS_NO_WAIT      = 2,
+    /** Poke the destination EMT(s) if executing guest code. Use with care. */
+    VMREQFLAGS_POKE         = 4
 } VMREQFLAGS;
 
-/**
- * Request destination
- */
-typedef enum VMREQDEST
-{
-    /** Request packet for VCPU 0. */
-    VMREQDEST_CPU0          = 0,
-
-    /** Request packet for all VMCPU threads. */
-    VMREQDEST_BROADCAST     = 0x1000,
-
-    /** Request packet for any VMCPU thread. */
-    VMREQDEST_ANY           = 0x1001
-} VMREQDEST;
 
 /**
  * VM Request packet.
@@ -309,7 +297,7 @@ typedef struct VMREQ
     /** Request type. */
     VMREQTYPE               enmType;
     /** Request destination. */
-    VMREQDEST               enmDest;
+    VMCPUID                 idDstCpu;
     /** Request specific data. */
     union VMREQ_U
     {
@@ -387,7 +375,6 @@ VMMR3DECL(int)  VMR3PowerOff(PVM pVM);
 VMMR3DECL(int)  VMR3Destroy(PVM pVM);
 VMMR3DECL(void) VMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
 VMMR3DECL(PVM)  VMR3EnumVMs(PVM pVMPrev);
-VMMR3DECL(int)  VMR3WaitForResume(PVM pVM);
 
 /**
  * VM destruction callback.
@@ -417,22 +404,30 @@ VMMR3DECL(void) VMR3SetErrorWorker(PVM pVM);
 VMMR3DECL(int)  VMR3AtRuntimeErrorRegister(PVM pVM, PFNVMATRUNTIMEERROR pfnAtRuntimeError, void *pvUser);
 VMMR3DECL(int)  VMR3AtRuntimeErrorDeregister(PVM pVM, PFNVMATRUNTIMEERROR pfnAtRuntimeError, void *pvUser);
 VMMR3DECL(int)  VMR3SetRuntimeErrorWorker(PVM pVM);
-VMMR3DECL(int)  VMR3ReqCall(PVM pVM, VMREQDEST enmDest, PVMREQ *ppReq, unsigned cMillies, PFNRT pfnFunction, unsigned cArgs, ...);
-VMMR3DECL(int)  VMR3ReqCallVoidU(PUVM pUVM, VMREQDEST enmDest, PVMREQ *ppReq, unsigned cMillies, PFNRT pfnFunction, unsigned cArgs, ...);
-VMMR3DECL(int)  VMR3ReqCallVoid(PVM pVM, VMREQDEST enmDest, PVMREQ *ppReq, unsigned cMillies, PFNRT pfnFunction, unsigned cArgs, ...);
-VMMR3DECL(int)  VMR3ReqCallEx(PVM pVM, VMREQDEST enmDest, PVMREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, ...);
-VMMR3DECL(int)  VMR3ReqCallU(PUVM pUVM, VMREQDEST enmDest, PVMREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, ...);
-VMMR3DECL(int)  VMR3ReqCallVU(PUVM pUVM, VMREQDEST enmDest, PVMREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, va_list Args);
-VMMR3DECL(int)  VMR3ReqAlloc(PVM pVM, PVMREQ *ppReq, VMREQTYPE enmType, VMREQDEST enmDest);
-VMMR3DECL(int)  VMR3ReqAllocU(PUVM pUVM, PVMREQ *ppReq, VMREQTYPE enmType, VMREQDEST enmDest);
+VMMR3DECL(int)  VMR3ReqCall(PVM pVM, VMCPUID idDstCpu, PVMREQ *ppReq, unsigned cMillies, PFNRT pfnFunction, unsigned cArgs, ...);
+VMMR3DECL(int)  VMR3ReqCallVoidU(PUVM pUVM, VMCPUID idDstCpu, PVMREQ *ppReq, unsigned cMillies, PFNRT pfnFunction, unsigned cArgs, ...);
+VMMR3DECL(int)  VMR3ReqCallVoid(PVM pVM, VMCPUID idDstCpu, PVMREQ *ppReq, unsigned cMillies, PFNRT pfnFunction, unsigned cArgs, ...);
+VMMR3DECL(int)  VMR3ReqCallEx(PVM pVM, VMCPUID idDstCpu, PVMREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, ...);
+VMMR3DECL(int)  VMR3ReqCallU(PUVM pUVM, VMCPUID idDstCpu, PVMREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, ...);
+VMMR3DECL(int)  VMR3ReqCallVU(PUVM pUVM, VMCPUID idDstCpu, PVMREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, va_list Args);
+VMMR3DECL(int)  VMR3ReqAlloc(PVM pVM, PVMREQ *ppReq, VMREQTYPE enmType, VMCPUID idDstCpu);
+VMMR3DECL(int)  VMR3ReqAllocU(PUVM pUVM, PVMREQ *ppReq, VMREQTYPE enmType, VMCPUID idDstCpu);
 VMMR3DECL(int)  VMR3ReqFree(PVMREQ pReq);
 VMMR3DECL(int)  VMR3ReqQueue(PVMREQ pReq, unsigned cMillies);
 VMMR3DECL(int)  VMR3ReqWait(PVMREQ pReq, unsigned cMillies);
-VMMR3DECL(int)  VMR3ReqProcessU(PUVM pUVM, VMREQDEST enmDest);
-VMMR3DECL(void) VMR3NotifyFF(PVM pVM, bool fNotifiedREM);
-VMMR3DECL(void) VMR3NotifyFFU(PUVM pUVM, bool fNotifiedREM);
-VMMR3DECL(int)  VMR3WaitHalted(PVM pVM, bool fIgnoreInterrupts);
-VMMR3DECL(int)  VMR3WaitU(PUVM pUVM);
+VMMR3DECL(int)  VMR3ReqProcessU(PUVM pUVM, VMCPUID idDstCpu);
+VMMR3DECL(void) VMR3NotifyGlobalFFU(PUVM pUVM, uint32_t fFlags);
+VMMR3DECL(void) VMR3NotifyCpuFFU(PUVMCPU pUVMCpu, uint32_t fFlags);
+/** @name Flags for VMR3NotifyCpuFFU and VMR3NotifyGlobalFFU.
+ * @{ */
+/** Whether we've done REM or not. */
+#define VMNOTIFYFF_FLAGS_DONE_REM   RT_BIT_32(0)
+/** Whether we should poke the CPU if it's executing guest code. */
+#define VMNOTIFYFF_FLAGS_POKE       RT_BIT_32(1)
+/** @} */
+
+VMMR3DECL(int)  VMR3WaitHalted(PVM pVM, PVMCPU pVCpu, bool fIgnoreInterrupts);
+VMMR3DECL(int)  VMR3WaitU(PUVMCPU pUVMCpu);
 VMMR3DECL(RTCPUID)          VMR3GetVMCPUId(PVM pVM);
 VMMR3DECL(RTTHREAD)         VMR3GetVMCPUThread(PVM pVM);
 VMMR3DECL(RTTHREAD)         VMR3GetVMCPUThreadU(PUVM pUVM);
@@ -451,7 +446,7 @@ VMMR3DECL(RTNATIVETHREAD)   VMR3GetVMCPUNativeThreadU(PUVM pUVM);
 /** @} */
 #endif
 
-__END_DECLS
+RT_C_DECLS_END
 
 /** @} */
 

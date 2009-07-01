@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-solaris.c $ */
+/* $Id: VBoxNetFlt-solaris.c 19884 2009-05-21 15:03:12Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Solaris Specific Code.
  */
@@ -41,6 +41,7 @@
 #include <iprt/spinlock.h>
 #include <iprt/crc32.h>
 #include <iprt/err.h>
+#include <iprt/ctype.h>
 
 #include <inet/ip.h>
 #include <net/if.h>
@@ -55,6 +56,7 @@
 #include <sys/types.h>
 #include <sys/dlpi.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <sys/param.h>
 #include <sys/ethernet.h>
 #include <sys/stat.h>
@@ -123,20 +125,6 @@ static int VBoxNetFltSolarisModOpen(queue_t *pQueue, dev_t *pDev, int fFile, int
 static int VBoxNetFltSolarisModClose(queue_t *pQueue, int fFile, cred_t *pCred);
 static int VBoxNetFltSolarisModReadPut(queue_t *pQueue, mblk_t *pMsg);
 static int VBoxNetFltSolarisModWritePut(queue_t *pQueue, mblk_t *pMsg);
-
-/**
- * OS specific hooks invoked from common VBoxNetFlt ring-0.
- */
-/** @todo r=bird: What are these doing here? */
-bool vboxNetFltPortOsIsPromiscuous(PVBOXNETFLTINS pThis);
-void vboxNetFltPortOsGetMacAddress(PVBOXNETFLTINS pThis, PRTMAC pMac);
-bool vboxNetFltPortOsIsHostMac(PVBOXNETFLTINS pThis, PCRTMAC pMac);
-void vboxNetFltPortOsSetActive(PVBOXNETFLTINS pThis, bool fActive);
-int vboxNetFltOsDisconnectIt(PVBOXNETFLTINS pThis);
-int vboxNetFltOsConnectIt(PVBOXNETFLTINS pThis);
-void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis);
-int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext);
-int vboxNetFltOsPreInitInstance(PVBOXNETFLTINS pThis);
 
 
 /*******************************************************************************
@@ -1228,7 +1216,7 @@ static int vboxNetFltSolarisSetFastMode(queue_t *pQueue)
  * @param   fPromisc        Whether to enable promiscous mode or not.
  * @param   PromiscLevel    Promiscous level; DL_PROMISC_PHYS/SAP/MULTI.
  *
- * @returns VBox error code.
+ * @returns VBox status code.
  */
 static int vboxNetFltSolarisPromiscReq(queue_t *pQueue, bool fPromisc)
 {
@@ -1281,7 +1269,6 @@ static int vboxNetFltSolarisPromiscReq(queue_t *pQueue, bool fPromisc)
  *
  * @returns VBox status code.
  * @param   pQueue      Pointer to the read queue.
- * @param   pMsg        Pointer to the request message.
  */
 static int vboxNetFltSolarisPhysAddrReq(queue_t *pQueue)
 {
@@ -1420,6 +1407,81 @@ static void vboxNetFltSolarisCloseDev(vnode_t *pVNodeHeld, TIUSER *pUser)
 {
     t_kclose(pUser, 0);
     VN_RELE(pVNodeHeld);
+}
+
+
+/**
+ * Set the DLPI style-2 PPA via an attach request, Synchronous.
+ * Waits for request acknowledgement and verifies the result.
+ *
+ * @returns VBox status code.
+ * @param   hDevice        Layered device handle.
+ * @param   PPA            Physical Point of Attachment (PPA) number.
+ */
+static int vboxNetFltSolarisAttachReq(ldi_handle_t hDevice, int PPA)
+{
+    int rc;
+    mblk_t *pAttachMsg = mexchange(NULL, NULL, DL_ATTACH_REQ_SIZE, M_PROTO, DL_ATTACH_REQ);
+    if (RT_UNLIKELY(!pAttachMsg))
+        return VERR_NO_MEMORY;
+
+    dl_attach_req_t *pAttachReq = (dl_attach_req_t *)pAttachMsg->b_rptr;
+    pAttachReq->dl_ppa = PPA;
+
+    rc = ldi_putmsg(hDevice, pAttachMsg);
+    if (!rc)
+    {
+        rc = ldi_getmsg(hDevice, &pAttachMsg, NULL);
+        if (!rc)
+        {
+            /*
+             * Verify if the attach succeeded.
+             */
+            size_t cbMsg = MBLKL(pAttachMsg);
+            if (cbMsg >= sizeof(t_uscalar_t))
+            {
+                union DL_primitives *pPrim = (union DL_primitives *)pAttachMsg->b_rptr;
+                t_uscalar_t AckPrim = pPrim->dl_primitive;
+
+                if (   AckPrim == DL_OK_ACK                     /* Success! */
+                    && cbMsg == DL_OK_ACK_SIZE)
+                {
+                    rc = VINF_SUCCESS;
+                }
+                else if (  AckPrim == DL_ERROR_ACK              /* Error Ack. */
+                        && cbMsg == DL_ERROR_ACK_SIZE)
+                {
+                    LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachReq ldi_getmsg succeeded, but unsupported op.\n"));
+                    rc = VERR_NOT_SUPPORTED;
+                }
+                else                                            /* Garbled reply */
+                {
+                    LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachReq ldi_getmsg succeeded, but invalid op. expected %d recvd %d\n",
+                        DL_OK_ACK, AckPrim));
+                    rc = VERR_INVALID_FUNCTION;
+                }
+            }
+            else
+            {
+                LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachReq ldi_getmsg succeeded, but invalid size %d expected %d\n", cbMsg,
+                            DL_OK_ACK_SIZE));
+                rc = VERR_INVALID_FUNCTION;
+            }
+        }
+        else
+        {
+            LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachReq ldi_getmsg failed. rc=%d\n", rc));
+            rc = VERR_INVALID_FUNCTION;
+        }
+    }
+    else
+    {
+        LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachReq ldi_putmsg failed. rc=%d\n", rc));
+        rc = VERR_UNRESOLVED_ERROR;
+    }
+
+    freemsg(pAttachMsg);
+    return rc;
 }
 
 
@@ -1639,6 +1701,72 @@ static int vboxNetFltSolarisDetermineModPos(bool fAttach, vnode_t *pVNode, int *
 
 
 /**
+ * Opens up the DLPI style 2 link that requires explicit PPA attach
+ * phase. 
+ *
+ * @returns VBox status code.
+ * @param   pThis       The instance.
+ * @param   pDevId      Where to store the opened LDI device id.
+ */
+static int vboxNetFltSolarisOpenStyle2(PVBOXNETFLTINS pThis, ldi_ident_t *pDevId)
+{
+    /*
+     * Strip out PPA from the device name, eg: "ce3".
+     */
+    char *pszDev = RTStrDup(pThis->szName);
+    if (!pszDev)
+        return VERR_NO_MEMORY;
+
+    char *pszEnd = strchr(pszDev, '\0');
+    int PPALen = 0;
+    while (--pszEnd > pszDev)
+    {
+        if (!RT_C_IS_DIGIT(*pszEnd))
+            break;
+        PPALen++;
+    }
+    pszEnd++;
+
+    int rc;
+    long PPA;
+    if (   pszEnd
+        && ddi_strtol(pszEnd, NULL, 10, &PPA) == 0)
+    {
+        *pszEnd = '\0';
+        char szDev[128];
+        RTStrPrintf(szDev, sizeof(szDev), "/dev/%s", pszDev);
+
+        /*
+         * Try open the device as DPLI style 2.
+         */
+        rc = ldi_open_by_name(szDev, FREAD | FWRITE, kcred, &pThis->u.s.hIface, *pDevId);
+        if (!rc)
+        {
+            /*
+             * Attach the PPA explictly.
+             */
+            rc = vboxNetFltSolarisAttachReq(pThis->u.s.hIface, (int)PPA);
+            if (RT_SUCCESS(rc))
+            {
+                RTStrFree(pszDev);
+                return rc;
+            }
+
+            ldi_close(pThis->u.s.hIface, FREAD | FWRITE, kcred);
+            LogRel((DEVICE_NAME ":vboxNetFltSolarisOpenStyle2 dl_attach failed. rc=%d szDev=%s PPA=%d rc=%d\n", rc, szDev, PPA));
+        }
+        else
+            LogRel((DEVICE_NAME ":vboxNetFltSolarisOpenStyle2 Failed to open. rc=%d szDev=%s PPA=%d\n", rc, szDev, PPA));
+    }
+    else
+        LogRel((DEVICE_NAME ":vboxNetFltSolarisOpenStyle2 Failed to construct PPA. pszDev=%s pszEnd=%s.\n", pszDev, pszEnd));
+
+    RTStrFree(pszDev);
+    return VERR_INTNET_FLT_IF_FAILED;
+}
+
+
+/**
  * Opens up dedicated stream on top of the interface.
  * As a side-effect, the stream gets opened during
  * the I_PUSH phase.
@@ -1651,7 +1779,6 @@ static int vboxNetFltSolarisOpenStream(PVBOXNETFLTINS pThis)
     DevId = ldi_ident_from_anon();
     int ret;
 
-    /** @todo support DLPI style 2.*/
     /*
      * Try style-1 open first.
      */
@@ -1666,6 +1793,18 @@ static int vboxNetFltSolarisOpenStream(PVBOXNETFLTINS pThis)
          */
         RTStrPrintf(szDev, sizeof(szDev), "/dev/%s", pThis->szName);
         rc = ldi_open_by_name(szDev, FREAD | FWRITE, kcred, &pThis->u.s.hIface, DevId);
+    }
+
+    if (rc)
+    {
+        /*
+         * Try DLPI style 2.
+         */        
+        rc = vboxNetFltSolarisOpenStyle2(pThis, &DevId);
+        if (RT_FAILURE(rc))
+            LogRel((DEVICE_NAME ":vboxNetFltSolarisOpenStream vboxNetFltSolarisOpenStyle2 failed. rc=%d\n", rc));
+        else
+            rc = 0;
     }
 
     ldi_ident_release(DevId);
@@ -1951,7 +2090,7 @@ static int vboxNetFltSolarisAttachIp4(PVBOXNETFLTINS pThis, bool fAttach)
                         LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachIp4: failed to unlink upper stream rc=%d rc2=%d.\n", rc, rc2));
                 }
                 else
-                    LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachIp4: failed to get MuxFd from MuxId. rc=%d rc2=%d\n"));
+                    LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachIp4: failed to get MuxFd from MuxId. rc=%d rc2=%d\n", rc, rc2));
             }
             else
                 LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachIp4: failed to get Mux Ids. rc=%d\n", rc));
@@ -2147,7 +2286,7 @@ static int vboxNetFltSolarisAttachIp6(PVBOXNETFLTINS pThis, bool fAttach)
                         LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachIp6: failed to unlink upper stream rc=%d rc2=%d.\n", rc, rc2));
                 }
                 else
-                    LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachIp6: failed to get MuxFd from MuxId. rc=%d rc2=%d\n"));
+                    LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachIp6: failed to get MuxFd from MuxId. rc=%d rc2=%d\n", rc, rc2));
             }
             else
                 LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachIp6: failed to get Mux Ids. rc=%d\n", rc));

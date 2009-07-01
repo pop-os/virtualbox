@@ -39,7 +39,7 @@
 # endif
 #endif
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_stam     The Statistics Manager API
  * @{
@@ -197,6 +197,8 @@ typedef enum STAMUNIT
     STAMUNIT_ERRORS,
     /** Number of occurences. */
     STAMUNIT_OCCURENCES,
+    /** Ticks. */
+    STAMUNIT_TICKS,
     /** Ticks per call. */
     STAMUNIT_TICKS_PER_CALL,
     /** Ticks per occurence. */
@@ -1124,7 +1126,7 @@ VMMR3DECL(const char *) STAMR3GetUnit(STAMUNIT enmUnit);
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

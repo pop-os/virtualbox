@@ -43,7 +43,32 @@
  */
 
 #include <slirp.h>
+#ifdef VBOX_WITH_SLIRP_ALIAS
+# include "alias.h"
+#endif
 
+#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
+static const uint8_t* rt_lookup_in_cache(PNATState pData, uint32_t dst)
+{
+    int i;
+   /* @todo (r - vasily) to quick ramp up on routing rails
+    * we use information from DHCP server leasings, this
+    * code couldn't detect any changes in network topology
+    * and should be borrowed from other places
+    */
+    for (i = 0; i < NB_ADDR; i++)
+    {
+        if (   bootp_clients[i].allocated
+            && bootp_clients[i].addr.s_addr == dst)
+            return &bootp_clients[i].macaddr[0];
+    }
+
+    if (dst != 0)
+        return pData->slirp_ethaddr;
+
+    return NULL; 
+}
+#endif
 
 /*
  * IP output.  The packet in mbuf chain m contains a skeletal IP
@@ -58,18 +83,20 @@ ip_output(PNATState pData, struct socket *so, struct mbuf *m0)
     register struct mbuf *m = m0;
     register int hlen = sizeof(struct ip );
     int len, off, error = 0;
+#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
+    extern uint8_t zerro_ethaddr[ETH_ALEN];
+    struct ethhdr *eh = NULL;
+    const uint8_t *eth_dst = NULL;
+#endif
 
     DEBUG_CALL("ip_output");
     DEBUG_ARG("so = %lx", (long)so);
     DEBUG_ARG("m0 = %lx", (long)m0);
-
-#ifdef VBOX_WITH_SIMPLIFIED_SLIRP_SYNC
     if(m->m_data != (MBUF_HEAD(m) + if_maxlinkhdr))
     {
         LogRel(("NAT: ethernet detects corruption of the packet"));
         AssertMsgFailed(("!!Ethernet frame corrupted!!"));
     }
-#endif
 
 #if 0 /* We do no options */
     if (opt)
@@ -99,6 +126,14 @@ ip_output(PNATState pData, struct socket *so, struct mbuf *m0)
         goto bad;
     }
 #endif
+#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
+      /* Current TCP/IP stack hasn't routing information at
+       * all so we need to calculate destination ethernet address
+       */
+     eh = (struct ethhdr *)MBUF_HEAD(m);
+     if (memcmp(eh->h_source, zerro_ethaddr, ETH_ALEN) == 0)
+         eth_dst = rt_lookup_in_cache(pData, ip->ip_dst.s_addr); 
+#endif
 
     /*
      * If small enough for interface, can just send directly.
@@ -109,6 +144,19 @@ ip_output(PNATState pData, struct socket *so, struct mbuf *m0)
         ip->ip_off = htons((u_int16_t)ip->ip_off);
         ip->ip_sum = 0;
         ip->ip_sum = cksum(m, hlen);
+#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
+        if (eth_dst != NULL) {
+            memcpy(eh->h_source, eth_dst, ETH_ALEN); 
+        }
+#endif
+#ifdef VBOX_WITH_SLIRP_ALIAS
+        {
+            int rc;
+            rc = LibAliasOut((m->m_la ? m->m_la : pData->proxy_alias), 
+                mtod(m, char *), m->m_len);
+            Log2(("NAT: LibAlias return %d\n", rc));
+        }
+#endif
 
         if_output(pData, so, m);
         goto done;
@@ -152,9 +200,16 @@ ip_output(PNATState pData, struct socket *so, struct mbuf *m0)
                 ipstat.ips_odropped++;
                 goto sendorfree;
             }
-            m->m_data += if_maxlinkhdr;
+            m_adj(m, if_maxlinkhdr);
             mhip = mtod(m, struct ip *);
             *mhip = *ip;
+#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
+            /* we've calculated eth_dst for first packet */
+            eh = (struct ethhdr *)MBUF_HEAD(m);
+            if (eth_dst != NULL) {
+                memcpy(eh->h_source, eth_dst, ETH_ALEN); 
+            }
+#endif
 
 #if 0 /* No options */
             if (hlen > sizeof (struct ip))
@@ -196,6 +251,14 @@ ip_output(PNATState pData, struct socket *so, struct mbuf *m0)
         ip->ip_off = htons((u_int16_t)(ip->ip_off | IP_MF));
         ip->ip_sum = 0;
         ip->ip_sum = cksum(m, hlen);
+#ifdef VBOX_WITH_SLIRP_ALIAS
+        {
+            int rc;
+            rc = LibAliasOut((m->m_la ? m->m_la : pData->proxy_alias), 
+                mtod(m, char *), m->m_len);
+            Log2(("NAT: LibAlias return %d\n", rc));
+        }
+#endif
 
 sendorfree:
         for (m = m0; m; m = m0)
@@ -203,9 +266,21 @@ sendorfree:
             m0 = m->m_nextpkt;
             m->m_nextpkt = 0;
             if (error == 0)
+            {
+#ifdef VBOX_WITH_SLIRP_ALIAS
+            {
+                int rc;
+                rc = LibAliasOut((m->m_la ? m->m_la : pData->proxy_alias), 
+                    mtod(m, char *), m->m_len);
+                Log2(("NAT: LibAlias return %d\n", rc));
+            }
+#endif
                 if_output(pData, so, m);
-            else
+            }
+            else 
+            {
                 m_freem(pData, m);
+            }
         }
 
         if (error == 0)

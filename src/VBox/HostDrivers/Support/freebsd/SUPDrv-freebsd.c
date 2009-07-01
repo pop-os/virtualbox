@@ -1,4 +1,4 @@
-/* $Id: SUPDrv-freebsd.c $ */
+/* $Id: SUPDrv-freebsd.c 20106 2009-05-27 19:47:57Z vboxsync $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - FreeBSD specifics.
  */
@@ -51,10 +51,16 @@
 #include <iprt/spinlock.h>
 #include <iprt/process.h>
 #include <iprt/assert.h>
+#include <iprt/uuid.h>
 #include <VBox/log.h>
 #include <iprt/alloc.h>
 #include <iprt/err.h>
 
+#ifdef VBOX_WITH_HARDENING
+# define VBOXDRV_PERM 0600
+#else
+# define VBOXDRV_PERM 0666
+#endif
 
 /*******************************************************************************
 *   Internal Functions                                                         *
@@ -85,6 +91,7 @@ static moduledata_t         g_VBoxDrvFreeBSDModule =
 
 /** Declare the module as a pseudo device. */
 DECLARE_MODULE(vboxdrv,     g_VBoxDrvFreeBSDModule, SI_SUB_PSEUDO, SI_ORDER_ANY);
+MODULE_VERSION(vboxdrv, 1); 
 
 /**
  * The /dev/vboxdrv character device entry points.
@@ -92,7 +99,11 @@ DECLARE_MODULE(vboxdrv,     g_VBoxDrvFreeBSDModule, SI_SUB_PSEUDO, SI_ORDER_ANY)
 static struct cdevsw        g_VBoxDrvFreeBSDChrDevSW =
 {
     .d_version =        D_VERSION,
+#if __FreeBSD_version > 800061
+    .d_flags =          D_PSEUDO | D_TRACKCLOSE | D_NEEDMINOR,
+#else
     .d_flags =          D_PSEUDO | D_TRACKCLOSE,
+#endif
     .d_fdopen =         VBoxDrvFreeBSDOpen,
     .d_close =          VBoxDrvFreeBSDClose,
     .d_ioctl =          VBoxDrvFreeBSDIOCtl,
@@ -103,12 +114,11 @@ static struct cdevsw        g_VBoxDrvFreeBSDChrDevSW =
 static struct clonedevs    *g_pVBoxDrvFreeBSDClones;
 /** The dev_clone event handler tag. */
 static eventhandler_tag     g_VBoxDrvFreeBSDEHTag;
+/** Reference counter. */
+static volatile uint32_t    g_cUsers;
 
 /** The device extention. */
 static SUPDRVDEVEXT         g_VBoxDrvFreeBSDDevExt;
-
-
-
 
 /**
  * Module event handler.
@@ -147,6 +157,8 @@ static int VBoxDrvFreeBSDModuleEvent(struct module *pMod, int enmEventType, void
 static int VBoxDrvFreeBSDLoad(void)
 {
     dprintf(("VBoxDrvFreeBSDLoad:\n"));
+
+    g_cUsers = 0;
 
     /*
      * Initialize the runtime.
@@ -189,11 +201,13 @@ static int VBoxDrvFreeBSDUnload(void)
 {
     dprintf(("VBoxDrvFreeBSDUnload:\n"));
 
-    /** @todo verify that FreeBSD does reference counting. */
+    if (g_cUsers > 0)
+        return EBUSY;
 
     /*
      * Reserve what we did in VBoxDrvFreeBSDInit.
      */
+    EVENTHANDLER_DEREGISTER(dev_clone, g_VBoxDrvFreeBSDEHTag);
     clone_cleanup(&g_pVBoxDrvFreeBSDClones);
 
     supdrvDeleteDevExt(&g_VBoxDrvFreeBSDDevExt);
@@ -237,10 +251,10 @@ static void VBoxDrvFreeBSDClone(void *pvArg, struct ucred *pCred, char *pszName,
     dprintf(("VBoxDrvFreeBSDClone: clone_create -> %d; iUnit=%d\n", rc, iUnit));
     if (rc)
     {
-#ifdef VBOX_WITH_HARDENING
-        *ppDev = make_dev(&g_VBoxDrvFreeBSDChrDevSW, unit2minor(iUnit), UID_ROOT, GID_WHEEL, 0600, "vboxdrv%d", iUnit);
+#if __FreeBSD_version > 800061
+        *ppDev = make_dev(&g_VBoxDrvFreeBSDChrDevSW, iUnit, UID_ROOT, GID_WHEEL, VBOXDRV_PERM, "vboxdrv%d", iUnit);
 #else
-        *ppDev = make_dev(&g_VBoxDrvFreeBSDChrDevSW, unit2minor(iUnit), UID_ROOT, GID_WHEEL, 0666, "vboxdrv%d", iUnit);
+        *ppDev = make_dev(&g_VBoxDrvFreeBSDChrDevSW, unit2minor(iUnit), UID_ROOT, GID_WHEEL, VBOXDRV_PERM, "vboxdrv%d", iUnit);
 #endif
         if (*ppDev)
         {
@@ -279,7 +293,11 @@ static int VBoxDrvFreeBSDOpen(struct cdev *pDev, int fOpen, struct thread *pTd, 
     PSUPDRVSESSION pSession;
     int rc;
 
+#if __FreeBSD_version < 800062
     dprintf(("VBoxDrvFreeBSDOpen: fOpen=%#x iUnit=%d\n", fOpen, minor2unit(minor(pDev))));
+#else
+    dprintf(("VBoxDrvFreeBSDOpen: fOpen=%#x iUnit=%d\n", fOpen, minor(dev2udev(pDev))));
+#endif
 
     /*
      * Let's be a bit picky about the flags...
@@ -306,7 +324,10 @@ static int VBoxDrvFreeBSDOpen(struct cdev *pDev, int fOpen, struct thread *pTd, 
         pSession->Uid = stuff;
         pSession->Gid = stuff; */
         if (ASMAtomicCmpXchgPtr(&pDev->si_drv1, pSession, (void *)0x42))
+        {
+            ASMAtomicIncU32(&g_cUsers);
             return 0;
+        }
 
         OSDBGPRINT(("VBoxDrvFreeBSDOpen: si_drv1=%p, expected 0x42!\n", pDev->si_drv1));
         supdrvCloseSession(&g_VBoxDrvFreeBSDDevExt, pSession);
@@ -328,7 +349,11 @@ static int VBoxDrvFreeBSDOpen(struct cdev *pDev, int fOpen, struct thread *pTd, 
 static int VBoxDrvFreeBSDClose(struct cdev *pDev, int fFile, int DevType, struct thread *pTd)
 {
     PSUPDRVSESSION pSession = (PSUPDRVSESSION)pDev->si_drv1;
+#if __FreeBSD_version < 800062
     dprintf(("VBoxDrvFreeBSDClose: fFile=%#x iUnit=%d pSession=%p\n", fFile, minor2unit(minor(pDev)), pSession));
+#else
+    dprintf(("VBoxDrvFreeBSDClose: fFile=%#x iUnit=%d pSession=%p\n", fFile, minor(dev2udev(pDev)), pSession));
+#endif
 
     /*
      * Close the session if it's still hanging on to the device...
@@ -338,6 +363,9 @@ static int VBoxDrvFreeBSDClose(struct cdev *pDev, int fFile, int DevType, struct
         supdrvCloseSession(&g_VBoxDrvFreeBSDDevExt, pSession);
         if (!ASMAtomicCmpXchgPtr(&pDev->si_drv1, NULL, pSession))
             OSDBGPRINT(("VBoxDrvFreeBSDClose: si_drv1=%p expected %p!\n", pDev->si_drv1, pSession));
+        ASMAtomicDecU32(&g_cUsers);
+        /* Don't use destroy_dev here because it may sleep resulting in a hanging user process. */
+        destroy_dev_sched(pDev);
     }
     else
         OSDBGPRINT(("VBoxDrvFreeBSDClose: si_drv1=%p!\n", pSession));
@@ -490,10 +518,11 @@ static int VBoxDrvFreeBSDIOCtlSlow(PSUPDRVSESSION pSession, u_long ulCmd, caddr_
             if (RT_UNLIKELY(rc))
                 OSDBGPRINT(("VBoxDrvFreeBSDIOCtlSlow: copyout(%p,%p,%#x) -> %d; uCmd=%#lx!\n", pHdr, pvUser, cbOut, rc, ulCmd));
 
+            dprintf(("VBoxDrvFreeBSDIOCtlSlow: returns %d / %d ulCmd=%lx\n", 0, pHdr->rc, ulCmd));
+
             /* cleanup */
             RTMemTmpFree(pHdr);
         }
-        dprintf(("VBoxDrvFreeBSDIOCtlSlow: returns %d / %d ulCmd=%lx\n", 0, pHdr->rc, ulCmd));
     }
     else
     {
@@ -533,7 +562,7 @@ int VBOXCALL SUPDrvFreeBSDIDC(uint32_t uReq, PSUPDRVIDCREQHDR pReq)
     {
         if (RT_UNLIKELY(!VALID_PTR(pReq->pSession)))
             return VERR_INVALID_PARAMETER;
-        if (RT_UNLIKELY(pSession->pDevExt != &g_VBoxDrvFreeBSDModule))
+        if (RT_UNLIKELY(pSession->pDevExt != &g_VBoxDrvFreeBSDDevExt))
             return VERR_INVALID_PARAMETER;
     }
     else if (RT_UNLIKELY(uReq != SUPDRV_IDC_REQ_CONNECT))
@@ -542,7 +571,7 @@ int VBOXCALL SUPDrvFreeBSDIDC(uint32_t uReq, PSUPDRVIDCREQHDR pReq)
     /*
      * Do the job.
      */
-    return supdrvIDC(uReq, &g_VBoxDrvFreeBSDModule, pSession, pReq);
+    return supdrvIDC(uReq, &g_VBoxDrvFreeBSDDevExt, pSession, pReq);
 }
 
 

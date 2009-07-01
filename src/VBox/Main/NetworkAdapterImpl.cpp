@@ -1,6 +1,6 @@
+/* $Id: NetworkAdapterImpl.cpp 20977 2009-06-26 14:38:55Z vboxsync $ */
 /** @file
- *
- * VirtualBox COM class implementation
+ * Implementation of INetworkAdaptor in VBoxSVC.
  */
 
 /*
@@ -317,7 +317,7 @@ STDMETHODIMP NetworkAdapter::COMSETTER(MACAddress)(IN_BSTR aMACAddress)
     /*
      * Are we supposed to generate a MAC?
      */
-    if (!aMACAddress)
+    if (!aMACAddress || !*aMACAddress)
     {
         mData.backup();
 

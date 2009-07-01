@@ -1,4 +1,4 @@
-/* $Id: AudioAdapterImpl.h $ */
+/* $Id: AudioAdapterImpl.h 19239 2009-04-28 13:19:14Z vboxsync $ */
 
 /** @file
  *
@@ -32,7 +32,7 @@ class ATL_NO_VTABLE AudioAdapter :
     public VirtualBoxBaseNEXT,
     public VirtualBoxSupportErrorInfoImpl <AudioAdapter, IAudioAdapter>,
     public VirtualBoxSupportTranslation <AudioAdapter>,
-    public IAudioAdapter
+    VBOX_SCRIPTABLE_IMPL(IAudioAdapter)
 {
 public:
 
@@ -62,6 +62,7 @@ public:
     BEGIN_COM_MAP(AudioAdapter)
         COM_INTERFACE_ENTRY(ISupportErrorInfo)
         COM_INTERFACE_ENTRY(IAudioAdapter)
+        COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
     NS_DECL_ISUPPORTS

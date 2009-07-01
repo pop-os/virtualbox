@@ -1,4 +1,4 @@
-/* $Id: tstMicro.cpp $ */
+/* $Id: tstMicro.cpp 19300 2009-05-01 18:06:59Z vboxsync $ */
 /** @file
  * Micro Testcase, profiling special CPU operations.
  */
@@ -160,7 +160,7 @@ static void SetupSelectors(PVM pVM)
     /*
      * Find the GDT - This is a HACK :-)
      */
-    RTRCPTR     RCPtr = CPUMGetHyperGDTR(pVM, NULL);
+    RTRCPTR     RCPtr = CPUMGetHyperGDTR(VMMGetCpu0(pVM), NULL);
     PX86DESC    paGDTEs = (PX86DESC)MMHyperRCToR3(pVM, RCPtr);
 
     for (unsigned i = 0; i <= 3; i++)
@@ -258,7 +258,7 @@ static DECLCALLBACK(int) doit(PVM pVM)
         RTPrintf(TESTCASE ": PGMMapModifyPage -> rc=%Rra\n", rc);
         return rc;
     }
-    PGMR3DumpHierarchyHC(pVM, PGMGetHyper32BitCR3(pVM), X86_CR4_PSE, false, 4, NULL);
+    PGMR3DumpHierarchyHC(pVM, PGMGetHyperCR3(VMMGetCpu0(pVM)), X86_CR4_PSE, false, 4, NULL);
 
 #if 0
     /*
@@ -353,7 +353,7 @@ int main(int argc, char **argv)
          * Do testing.
          */
         PVMREQ pReq1 = NULL;
-        rc = VMR3ReqCallVoid(pVM, VMREQDEST_ANY, &pReq1, RT_INDEFINITE_WAIT, (PFNRT)doit, 1, pVM);
+        rc = VMR3ReqCallVoid(pVM, VMCPUID_ANY, &pReq1, RT_INDEFINITE_WAIT, (PFNRT)doit, 1, pVM);
         AssertRC(rc);
         VMR3ReqFree(pReq1);
 

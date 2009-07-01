@@ -59,7 +59,7 @@ protected:
 
 private:
 
-    void updateAvailability();
+    bool isAvailable (GLSettingsPageIds aId);
 };
 
 /*
@@ -75,6 +75,8 @@ public:
     enum VMSettingsPageIds
     {
         GeneralId = 0,
+        SystemId,
+        DisplayId,
         StorageId,
         HDId,
         CDId,
@@ -85,8 +87,7 @@ public:
         SerialId,
         ParallelId,
         USBId,
-        SFId,
-        VRDPId
+        SFId
     };
 
     VBoxVMSettingsDlg (QWidget *aParent, const CMachine &aMachine,
@@ -101,6 +102,8 @@ protected:
 
     QString dialogTitle() const;
 
+    bool correlate (QWidget *aPage, QString &aWarning);
+
 private slots:
 
     void onMediaEnumerationDone();
@@ -108,7 +111,7 @@ private slots:
 
 private:
 
-    void updateAvailability();
+    bool isAvailable (VMSettingsPageIds aId);
 
     CMachine mMachine;
     bool mAllowResetFirstRunFlag;

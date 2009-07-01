@@ -1,4 +1,4 @@
-/* $Id: DBGFSym.cpp $ */
+/* $Id: DBGFSym.cpp 20870 2009-06-24 00:30:16Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility, Symbol Management.
  */
@@ -24,7 +24,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DBGF
-#if defined(RT_OS_WINDOWS) && 0 //defined(DEBUG_bird) // enabled this is you want to debug win32 guests or the hypervisor.
+#if defined(RT_OS_WINDOWS) && 0 //defined(DEBUG_bird) // enabled this is you want to debug win32 guests, the hypervisor of EFI.
 # include <Windows.h>
 # define _IMAGEHLP64
 # include <DbgHelp.h>
@@ -40,10 +40,13 @@
 #include <VBox/log.h>
 #include <iprt/assert.h>
 
+#include <iprt/path.h>
+#include <iprt/ctype.h>
+#include <iprt/env.h>
+#include <iprt/param.h>
 #ifndef HAVE_DBGHELP
 # include <iprt/avl.h>
 # include <iprt/string.h>
-# include <iprt/ctype.h>
 #endif
 
 #include <stdio.h> /* for fopen(). */ /** @todo use iprt/stream.h! */
@@ -54,7 +57,8 @@
 *   Internal Functions                                                         *
 *******************************************************************************/
 #ifdef HAVE_DBGHELP
-static DECLCALLBACK(int) dbgfR3EnumModules(PVM pVM, const char *pszFilename, const char *pszName, RTUINTPTR ImageBase, size_t cbImage, bool fGC);
+static DECLCALLBACK(int) dbgfR3EnumModules(PVM pVM, const char *pszFilename, const char *pszName,
+                                           RTUINTPTR ImageBase, size_t cbImage, bool fRC, void *pvArg);
 static int win32Error(PVM pVM);
 #endif
 
@@ -352,7 +356,7 @@ int dbgfR3SymLazyInit(PVM pVM)
         /*
          * Enumerate all modules loaded by PDM and add them to the symbol database.
          */
-        PDMR3EnumModules(pVM, dbgfR3EnumModules, NULL);
+        PDMR3LdrEnumModules(pVM, dbgfR3EnumModules, NULL);
         return VINF_SUCCESS;
     }
     return win32Error(pVM);
@@ -374,19 +378,19 @@ int dbgfR3SymLazyInit(PVM pVM)
  * @param   pszName         Module name. (short and unique)
  * @param   ImageBase       Address where to executable image is loaded.
  * @param   cbImage         Size of the executable image.
- * @param   fGC             Set if guest context, clear if host context.
+ * @param   fRC             Set if guest context, clear if host context.
  * @param   pvArg           User argument.
  */
-static DECLCALLBACK(int) dbgfR3EnumModules(PVM pVM, const char *pszFilename, const char *pszName, RTUINTPTR ImageBase, size_t cbImage, bool fGC)
+static DECLCALLBACK(int) dbgfR3EnumModules(PVM pVM, const char *pszFilename, const char *pszName,
+                                           RTUINTPTR ImageBase, size_t cbImage, bool fRC, void *pvArg)
 {
-    if (fGC)
-    {
-        DWORD64 LoadedImageBase = SymLoadModule64(pVM, NULL, (char *)(void *)pszFilename, (char *)(void *)pszName, ImageBase, cbImage);
-        if (!LoadedImageBase)
-            Log(("SymLoadModule64(,,%s,,) -> lasterr=%d\n", pszFilename, GetLastError()));
-        else
-            Log(("Loaded debuginfo for %s - %s %llx\n", pszName, pszFilename, LoadedImageBase));
-    }
+    DWORD64 LoadedImageBase = SymLoadModule64(pVM, NULL, (char *)(void *)pszFilename,
+                                                (char *)(void *)pszName, ImageBase, (DWORD)cbImage);
+    if (!LoadedImageBase)
+        Log(("SymLoadModule64(,,%s,,) -> lasterr=%d\n", pszFilename, GetLastError()));
+    else
+        Log(("Loaded debuginfo for %s - %s %llx\n", pszName, pszFilename, LoadedImageBase));
+
     return VINF_SUCCESS;
 }
 #endif
@@ -544,6 +548,83 @@ static int dbgfR3LoadLinuxSystemMap(PVM pVM, FILE *pFile, RTGCUINTPTR ModuleAddr
     return VINF_SUCCESS;
 }
 
+/**
+ * Tries to open the file using the image search paths.
+ *
+ * This is currently a quick hack and the only way to specifying the path is by setting
+ * VBOXDBG_IMAGE_PATH in the environment. It uses semicolon as separator everywhere.
+ *
+ * @returns VBox status code.
+ * @param   pVM             The VM handle.
+ * @param   pszFilename     The name of the file to locate and open.
+ * @param   pszFound        Where to return the actual filename.
+ * @param   cchFound        The buffer size.
+ * @param   ppFile          Where to return the opened file.
+ */
+int dbgfR3ModuleLocateAndOpen(PVM pVM, const char *pszFilename, char *pszFound, size_t cchFound, FILE **ppFile)
+{
+    /* Check the filename length. */
+    size_t const    cchFilename = strlen(pszFilename);
+    if (cchFilename >= cchFound)
+        return VERR_FILENAME_TOO_LONG;
+    const char     *pszName = RTPathFilename(pszFilename);
+    if (!pszName)
+        return VERR_IS_A_DIRECTORY;
+    size_t const    cchName = strlen(pszName);
+
+    /*
+     * Try default location first.
+     */
+    memcpy(pszFound, pszFilename, cchFilename + 1);
+    FILE *pFile = *ppFile = fopen(pszFound, "rb");
+    if (pFile)
+        return VINF_SUCCESS;
+
+    /*
+     * Walk the search path.
+     */
+    const char *psz = RTEnvGet("VBOXDBG_IMAGE_PATH");
+    if (!psz)
+        psz = ".";                      /* default */
+    while (*psz)
+    {
+        /* Skip leading blanks - no directories with leading spaces, thank you. */
+        while (RT_C_IS_BLANK(*psz))
+            psz++;
+
+        /* Fine the end of this element. */
+        const char *pszNext;
+        const char *pszEnd = strchr(psz, ';');
+        if (!pszEnd)
+            pszEnd = pszNext = strchr(psz, '\0');
+        else
+            pszNext = pszEnd + 1;
+        if (pszEnd != psz)
+        {
+            size_t const cch = pszEnd - psz;
+            if (cch + 1 + cchName < cchFound)
+            {
+                /** @todo RTPathCompose, RTPathComposeN(). This code isn't right
+                 * for 'E:' on DOS systems. It may also create unwanted double slashes. */
+                memcpy(pszFound, psz, cch);
+                pszFound[cch] = '/';
+                memcpy(pszFound + cch + 1, pszName, cchName + 1);
+                *ppFile = pFile = fopen(pszFound, "rb");
+                if (pFile)
+                    return VINF_SUCCESS;
+            }
+
+            /** @todo do a depth search using the specified path. */
+        }
+
+        /* advance */
+        psz = pszNext;
+    }
+
+    /* not found */
+    return VERR_OPEN_FAILED;
+}
+
 
 /**
  * Load debug info, optionally related to a specific module.
@@ -574,8 +655,9 @@ VMMR3DECL(int) DBGFR3ModuleLoad(PVM pVM, const char *pszFilename, RTGCUINTPTR Ad
     /*
      * Open the load file.
      */
-    int rc = VINF_SUCCESS;
-    FILE *pFile = fopen(pszFilename, "rb");
+    FILE *pFile = NULL;
+    char szFoundFile[RTPATH_MAX];
+    int rc = dbgfR3ModuleLocateAndOpen(pVM, pszFilename, szFoundFile, sizeof(szFoundFile), &pFile);
     if (pFile)
     {
         /*
@@ -591,7 +673,7 @@ VMMR3DECL(int) DBGFR3ModuleLoad(PVM pVM, const char *pszFilename, RTGCUINTPTR Ad
             {
                 #ifdef HAVE_DBGHELP
                 /** @todo arg! checkout the inserting of modules and then loading them again.... Or just the module representation.... */
-                DWORD64 ImageBase = SymLoadModule64(pVM, NULL, (char *)(void *)pszFilename, (char *)(void *)pszName, ModuleAddress, cbImage);
+                DWORD64 ImageBase = SymLoadModule64(pVM, NULL, (char *)(void *)szFoundFile, (char *)(void *)pszName, ModuleAddress, cbImage);
                 if (!ImageBase)
                     ImageBase = SymLoadModule64(pVM, NULL, (char *)(void *)pszName, (char *)(void *)pszName, ModuleAddress, cbImage);
                 if (ImageBase)
@@ -648,8 +730,6 @@ VMMR3DECL(int) DBGFR3ModuleLoad(PVM pVM, const char *pszFilename, RTGCUINTPTR Ad
         /** @todo check for read errors */
         fclose(pFile);
     }
-    else
-        rc = VERR_OPEN_FAILED;
     return rc;
 }
 

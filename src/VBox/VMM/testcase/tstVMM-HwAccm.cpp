@@ -1,4 +1,4 @@
-/* $Id: tstVMM.cpp $ */
+/* $Id: tstVMM.cpp 17451 2007-01-15 14:08:28Z bird $ */
 /** @file
  * VMM Testcase.
  */
@@ -93,7 +93,7 @@ int main(int argc, char **argv)
          */
         RTPrintf(TESTCASE ": Testing...\n");
         PVMREQ pReq1 = NULL;
-        rc = VMR3ReqCall(pVM, VMREQDEST_ANY, &pReq1, RT_INDEFINITE_WAIT, (PFNRT)VMMDoHwAccmTest, 1, pVM);
+        rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq1, RT_INDEFINITE_WAIT, (PFNRT)VMMDoHwAccmTest, 1, pVM);
         AssertRC(rc);
         VMR3ReqFree(pReq1);
 

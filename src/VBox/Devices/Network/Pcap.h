@@ -1,4 +1,4 @@
-/* $Id: Pcap.h $ */
+/* $Id: Pcap.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * Helpers for writing libpcap files.
  */
@@ -24,7 +24,7 @@
 
 #include <iprt/stream.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 int PcapStreamHdr(PRTSTREAM pStream, uint64_t StartNanoTS);
 int PcapStreamFrame(PRTSTREAM pStream, uint64_t StartNanoTS, const void *pvFrame, size_t cbFrame, size_t cbMax);
@@ -32,7 +32,7 @@ int PcapStreamFrame(PRTSTREAM pStream, uint64_t StartNanoTS, const void *pvFrame
 int PcapFileHdr(RTFILE File, uint64_t StartNanoTS);
 int PcapFileFrame(RTFILE File, uint64_t StartNanoTS, const void *pvFrame, size_t cbFrame, size_t cbMax);
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

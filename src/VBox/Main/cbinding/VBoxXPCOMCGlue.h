@@ -1,4 +1,4 @@
-/* $Revision: 44967 $ */
+/* $Revision: 20223 $ */
 /** @file VBoxXPCOMCGlue.h
  * Glue for dynamically linking with VBoxXPCOMC.
  */
@@ -31,7 +31,7 @@
 #ifndef ___VBoxXPCOMC_cglue_h
 #define ___VBoxXPCOMC_cglue_h
 
-#include "VBoxCAPI_v2_2.h"
+#include "VBoxCAPI_v3_0.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,7 +41,7 @@ extern "C" {
 extern void *g_hVBoxXPCOMC;
 /** The last load error. */
 extern char g_szVBoxErrMsg[256];
-/** Pointer to the VBoxXPCOMC function table.  */
+/** Pointer to the VBoxXPCOMC function table. */
 extern PCVBOXXPCOM g_pVBoxFuncs;
 /** Pointer to VBoxGetXPCOMCFunctions for the loaded VBoxXPCOMC so/dylib/dll. */
 extern PFNVBOXGETXPCOMCFUNCTIONS g_pfnGetFunctions;
