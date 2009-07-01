@@ -1,4 +1,4 @@
-/* $Id: tstVMStructSize.cpp $ */
+/* $Id: tstVMStructSize.cpp 20993 2009-06-26 18:37:15Z vboxsync $ */
 /** @file
  * tstVMStructSize - testcase for check structure sizes/alignment
  *                   and to verify that HC and GC uses the same
@@ -80,6 +80,13 @@ int main()
     } while (0)
 
 
+#define CHECK_PADDING_VMCPU(member) \
+    do \
+    { \
+        CHECK_PADDING(VMCPU, member); \
+        CHECK_MEMBER_ALIGNMENT(VMCPU, member, 32); \
+    } while (0)
+
 #define CHECK_CPUMCTXCORE(member) \
     do { \
         if (RT_OFFSETOF(CPUMCTX, member) - RT_OFFSETOF(CPUMCTX, edi) != RT_OFFSETOF(CPUMCTXCORE, member)) \
@@ -147,6 +154,15 @@ int main()
     CHECK_PADDING_VM(hwaccm);
     CHECK_PADDING_VM(patm);
     CHECK_PADDING_VM(csam);
+
+    CHECK_PADDING_VMCPU(cpum);
+    CHECK_PADDING_VMCPU(pgm);
+    CHECK_PADDING_VMCPU(em);
+    CHECK_PADDING_VMCPU(hwaccm);
+    CHECK_PADDING_VMCPU(trpm);
+    CHECK_PADDING_VMCPU(tm);
+    CHECK_PADDING_VMCPU(vmm);
+
     CHECK_MEMBER_ALIGNMENT(VM, selm.s.Tss, 16);
     PRINT_OFFSET(VM, selm.s.Tss);
     PVM pVM;
@@ -163,15 +179,28 @@ int main()
     }
     CHECK_MEMBER_ALIGNMENT(VM, trpm.s.aIdt, 16);
     CHECK_MEMBER_ALIGNMENT(VM, cpum, 64);
+    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0], 64);
+    CHECK_MEMBER_ALIGNMENT(VM, aCpus[1], 64);
+    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].cpum, 64);
+    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].hwaccm, 64);
+    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].pgm, 64);
+    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].em, 64);
+    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].tm, 64);
+    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].vmm, 64);
     CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].cpum.s.Host, 64);
     CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].cpum.s.Guest, 64);
     CHECK_MEMBER_ALIGNMENT(VM, aCpus[1].cpum.s.Host, 64);
     CHECK_MEMBER_ALIGNMENT(VM, aCpus[1].cpum.s.Guest, 64);
-    CHECK_MEMBER_ALIGNMENT(VM, cpum.s.Hyper, 64);
+    CHECK_MEMBER_ALIGNMENT(VM, aCpus[0].cpum.s.Hyper, 64);
+    CHECK_MEMBER_ALIGNMENT(VM, aCpus[1].cpum.s.Hyper, 64);
     CHECK_MEMBER_ALIGNMENT(VM, cpum.s.GuestEntry, 64);
 
-    CHECK_MEMBER_ALIGNMENT(VM, vmm.s.CritSectVMLock, 8);
-    CHECK_MEMBER_ALIGNMENT(VM, vmm.s.CallHostR0JmpBuf, 8);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, vmm.s.u64CallRing3Arg, 8);
+#if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
+    CHECK_MEMBER_ALIGNMENT(VMCPU, vmm.s.CallRing3JmpBufR0, 16);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, vmm.s.CallRing3JmpBufR0.xmm6, 16);
+#endif
+    CHECK_MEMBER_ALIGNMENT(VM, vmm.s.u64LastYield, 8);
     CHECK_MEMBER_ALIGNMENT(VM, vmm.s.StatRunRC, 8);
     CHECK_MEMBER_ALIGNMENT(VM, StatTotalQemuToGC, 8);
     CHECK_MEMBER_ALIGNMENT(VM, rem.s.uPendingExcptCR2, 8);
@@ -251,12 +280,16 @@ int main()
     CHECK_MEMBER_ALIGNMENT(PGMRAMRANGE, aPages, 16);
     CHECK_MEMBER_ALIGNMENT(PGMMMIO2RANGE, RamRange, 16);
 
-    /* misc */
+    /* rem */
     CHECK_MEMBER_ALIGNMENT(REM, aGCPtrInvalidatedPages, 8);
-    CHECK_PADDING3(EM, u.FatalLongJump, u.achPaddingFatalLongJump);
     CHECK_PADDING3(REMHANDLERNOTIFICATION, u.PhysicalRegister, u.padding);
     CHECK_PADDING3(REMHANDLERNOTIFICATION, u.PhysicalDeregister, u.padding);
     CHECK_PADDING3(REMHANDLERNOTIFICATION, u.PhysicalModify, u.padding);
+    CHECK_SIZE_ALIGNMENT(REMHANDLERNOTIFICATION, 8);
+    CHECK_MEMBER_ALIGNMENT(REMHANDLERNOTIFICATION, u.PhysicalDeregister.GCPhys, 8);
+
+    /* misc */
+    CHECK_PADDING3(EMCPU, u.FatalLongJump, u.achPaddingFatalLongJump);
     CHECK_SIZE_ALIGNMENT(VMMR0JMPBUF, 8);
     CHECK_SIZE_ALIGNMENT(PATCHINFO, 8);
 #if 0
@@ -265,6 +298,15 @@ int main()
     PRINT_OFFSET(VM, StatGCToQemu);
 #endif
 
+    /* TM */
+    CHECK_MEMBER_ALIGNMENT(TM, TimerCritSect, sizeof(uintptr_t));
+    CHECK_MEMBER_ALIGNMENT(TM, VirtualSyncLock, sizeof(uintptr_t));
+
+    CHECK_MEMBER_ALIGNMENT(IOM, EmtLock, sizeof(uintptr_t));
+    CHECK_MEMBER_ALIGNMENT(EM, CritSectREM, sizeof(uintptr_t));
+    CHECK_MEMBER_ALIGNMENT(PGM, CritSect, sizeof(uintptr_t));
+    CHECK_MEMBER_ALIGNMENT(PDM, CritSect, sizeof(uintptr_t));
+    CHECK_MEMBER_ALIGNMENT(MMHYPERHEAP, Lock, sizeof(uintptr_t));
 
     /* hwaccm - 32-bit gcc won't align uint64_t naturally, so check. */
     CHECK_MEMBER_ALIGNMENT(HWACCM, u64RegisterMask, 8);
@@ -274,6 +316,19 @@ int main()
     CHECK_MEMBER_ALIGNMENT(HWACCMCPU, vmx.proc_ctls, 8);
     CHECK_MEMBER_ALIGNMENT(HWACCMCPU, Event.intInfo, 8);
 
+    /* The various disassembler state members.  */
+    CHECK_PADDING3(EMCPU, DisState, abDisStatePadding);
+    CHECK_PADDING3(HWACCMCPU, DisState, abDisStatePadding);
+    CHECK_PADDING3(IOMCPU, DisState, abDisStatePadding);
+    CHECK_PADDING3(PGMCPU, DisState, abDisStatePadding);
+
+    /* Make sure the set is large enough and has the correct size. */
+    CHECK_SIZE(VMCPUSET, 32);
+    if (sizeof(VMCPUSET) * 8 < VMM_MAX_CPU_COUNT)
+    {
+        printf("error: VMCPUSET is too small for VMM_MAX_CPU_COUNT=%u!\n", VMM_MAX_CPU_COUNT);
+        rc++;
+    }
 
     /*
      * Compare HC and GC.

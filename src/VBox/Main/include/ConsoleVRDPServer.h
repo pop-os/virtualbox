@@ -1,4 +1,4 @@
-/* $Id: ConsoleVRDPServer.h $ */
+/* $Id: ConsoleVRDPServer.h 19239 2009-04-28 13:19:14Z vboxsync $ */
 
 /** @file
  *
@@ -235,7 +235,7 @@ class ATL_NO_VTABLE RemoteDisplayInfo :
     public VirtualBoxBaseNEXT,
     public VirtualBoxSupportErrorInfoImpl <RemoteDisplayInfo, IRemoteDisplayInfo>,
     public VirtualBoxSupportTranslation <RemoteDisplayInfo>,
-    public IRemoteDisplayInfo
+    VBOX_SCRIPTABLE_IMPL(IRemoteDisplayInfo)
 {
 public:
 
@@ -248,6 +248,7 @@ public:
     BEGIN_COM_MAP(RemoteDisplayInfo)
         COM_INTERFACE_ENTRY(ISupportErrorInfo)
         COM_INTERFACE_ENTRY(IRemoteDisplayInfo)
+        COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
     NS_DECL_ISUPPORTS

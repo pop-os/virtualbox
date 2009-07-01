@@ -34,7 +34,7 @@
 #include <iprt/types.h>
 #include <iprt/stdarg.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_test       RTTest - Testcase Framework.
  * @ingroup grp_rt
@@ -83,12 +83,45 @@ typedef enum RTTESTLVL
 RTR3DECL(int) RTTestCreate(const char *pszTest, PRTTEST phTest);
 
 /**
+ * Initializes IPRT and creates a test instance.
+ *
+ * Typical usage is:
+ * @code
+    int main(int argc, char **argv)
+    {
+        RTTEST hTest;
+        int rc = RTTestInitAndCreate("tstSomething", &hTest);
+        if (rc)
+            return rc;
+        ...
+    }
+   @endcode
+ *
+ * @returns 0 on success. On failure an error message is printed and
+ *          a suitable exit code is return.
+ *
+ * @param   pszTest     The test name.
+ * @param   phTest      Where to store the test instance handle.
+ */
+RTR3DECL(int) RTTestInitAndCreate(const char *pszTest, PRTTEST phTest);
+
+/**
  * Destroys a test instance previously created by RTTestCreate.
  *
  * @returns IPRT status code.
  * @param   hTest       The test handle. NIL_RTTEST is ignored.
  */
 RTR3DECL(int) RTTestDestroy(RTTEST hTest);
+
+/**
+ * Changes the default test instance for the calling thread.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hNewDefaultTest The new default test. NIL_RTTEST is fine.
+ * @param   phOldTest       Where to store the old test handle. Optional.
+ */
+RTR3DECL(int) RTTestSetDefault(RTTEST hNewDefaultTest, PRTTEST phOldTest);
 
 /**
  * Allocate a block of guarded memory.
@@ -202,6 +235,28 @@ RTR3DECL(int) RTTestBanner(RTTEST hTest);
 RTR3DECL(int) RTTestSummaryAndDestroy(RTTEST hTest);
 
 /**
+ * Skips the test, destroys the test instance and return an exit code.
+ *
+ * @returns Test program exit code.
+ * @param   hTest           The test handle. If NIL_RTTEST we'll use the one
+ *                          associated with the calling thread.
+ * @param   pszReasonFmt    Text explaining why, optional (NULL).
+ * @param   va              Arguments for the reason format string.
+ */
+RTR3DECL(int) RTTestSkipAndDestroyV(RTTEST hTest, const char *pszReason, va_list va);
+
+/**
+ * Skips the test, destroys the test instance and return an exit code.
+ *
+ * @returns Test program exit code.
+ * @param   hTest           The test handle. If NIL_RTTEST we'll use the one
+ *                          associated with the calling thread.
+ * @param   pszReasonFmt    Text explaining why, optional (NULL).
+ * @param   va              Arguments for the reason format string.
+ */
+RTR3DECL(int) RTTestSkipAndDestroy(RTTEST hTest, const char *pszReason, ...);
+
+/**
  * Starts a sub-test.
  *
  * This will perform an implicit RTTestSubDone() call if that has not been done
@@ -210,9 +265,35 @@ RTR3DECL(int) RTTestSummaryAndDestroy(RTTEST hTest);
  * @returns Number of chars printed.
  * @param   hTest       The test handle. If NIL_RTTEST we'll use the one
  *                      associated with the calling thread.
- * @param   pszSubTest  The sub-test name
+ * @param   pszSubTest  The sub-test name.
  */
 RTR3DECL(int) RTTestSub(RTTEST hTest, const char *pszSubTest);
+
+/**
+ * Format string version of RTTestSub.
+ *
+ * See RTTestSub for details.
+ *
+ * @returns Number of chars printed.
+ * @param   hTest           The test handle. If NIL_RTTEST we'll use the one
+ *                          associated with the calling thread.
+ * @param   pszSubTestFmt   The sub-test name format string.
+ * @param   ...             Arguments.
+ */
+RTR3DECL(int) RTTestSubF(RTTEST hTest, const char *pszSubTestFmt, ...);
+
+/**
+ * Format string version of RTTestSub.
+ *
+ * See RTTestSub for details.
+ *
+ * @returns Number of chars printed.
+ * @param   hTest           The test handle. If NIL_RTTEST we'll use the one
+ *                          associated with the calling thread.
+ * @param   pszSubTestFmt   The sub-test name format string.
+ * @param   ...             Arguments.
+ */
+RTR3DECL(int) RTTestSubV(RTTEST hTest, const char *pszSubTestFmt, va_list va);
 
 /**
  * Completes a sub-test.
@@ -321,6 +402,36 @@ RTR3DECL(int) RTTestFailureDetails(RTTEST hTest, const char *pszFormat, ...);
             RTTestFailed((hTest), "line %u: %s", __LINE__, #expr); \
          } \
     } while (0)
+/** @def RTTEST_CHECK_RET
+ * Check whether a boolean expression holds true, returns on false.
+ *
+ * If the expression is false, call RTTestFailed giving the line number and expression.
+ *
+ * @param   hTest       The test handle.
+ * @param   expr        The expression to evaluate.
+ * @param   rcRet       What to return on failure.
+ */
+#define RTTEST_CHECK_RET(hTest, expr, rcRet) \
+    do { if (!(expr)) { \
+            RTTestFailed((hTest), "line %u: %s", __LINE__, #expr); \
+            return (rcRet); \
+         } \
+    } while (0)
+/** @def RTTEST_CHECK_RETV
+ * Check whether a boolean expression holds true, returns void on false.
+ *
+ * If the expression is false, call RTTestFailed giving the line number and expression.
+ *
+ * @param   hTest       The test handle.
+ * @param   expr        The expression to evaluate.
+ */
+#define RTTEST_CHECK_RETV(hTest, expr) \
+    do { if (!(expr)) { \
+            RTTestFailed((hTest), "line %u: %s", __LINE__, #expr); \
+            return; \
+         } \
+    } while (0)
+
 
 /** @def RTTEST_CHECK_MSG
  * Check whether a boolean expression holds true.
@@ -338,23 +449,6 @@ RTR3DECL(int) RTTestFailureDetails(RTTEST hTest, const char *pszFormat, ...);
             RTTestFailureDetails DetailsArgs; \
          } \
     } while (0)
-
-/** @def RTTEST_CHECK_RET
- * Check whether a boolean expression holds true, returns on false.
- *
- * If the expression is false, call RTTestFailed giving the line number and expression.
- *
- * @param   hTest       The test handle.
- * @param   expr        The expression to evaluate.
- * @param   rcRet       What to return on failure.
- */
-#define RTTEST_CHECK_RET(hTest, expr, rc) \
-    do { if (!(expr)) { \
-            RTTestFailed((hTest), "line %u: %s", __LINE__, #expr); \
-            return (rcRet); \
-         } \
-    } while (0)
-
 /** @def RTTEST_CHECK_MSG_RET
  * Check whether a boolean expression holds true, returns on false.
  *
@@ -373,22 +467,6 @@ RTR3DECL(int) RTTestFailureDetails(RTTEST hTest, const char *pszFormat, ...);
             return (rcRet); \
          } \
     } while (0)
-
-/** @def RTTEST_CHECK_RETV
- * Check whether a boolean expression holds true, returns void on false.
- *
- * If the expression is false, call RTTestFailed giving the line number and expression.
- *
- * @param   hTest       The test handle.
- * @param   expr        The expression to evaluate.
- */
-#define RTTEST_CHECK_RETV(hTest, expr) \
-    do { if (!(expr)) { \
-            RTTestFailed((hTest), "line %u: %s", __LINE__, #expr); \
-            return; \
-         } \
-    } while (0)
-
 /** @def RTTEST_CHECK_MSG_RET
  * Check whether a boolean expression holds true, returns void on false.
  *
@@ -405,6 +483,118 @@ RTR3DECL(int) RTTestFailureDetails(RTTEST hTest, const char *pszFormat, ...);
             RTTestFailureDetails DetailsArgs; \
             return; \
          } \
+    } while (0)
+
+
+/** @def RTTEST_CHECK_RC
+ * Check whether an expression returns a specific IPRT style status code.
+ *
+ * If a different status code is return, call RTTestFailed giving the line
+ * number, expression, actual and expected status codes.
+ *
+ * @param   hTest           The test handle.
+ * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpect        The expected return code. This may be referenced
+ *                          more than once by the macro.
+ */
+#define RTTEST_CHECK_RC(hTest, rcExpr, rcExpect) \
+    do { \
+        int rcCheck = (rcExpr); \
+        if (rcCheck != (rcExpect)) { \
+            RTTestFailed((hTest), "line %u: %s: expected %Rrc, got %Rrc", __LINE__, #rcExpr, (rcExpect), rcCheck); \
+        } \
+    } while (0)
+/** @def RTTEST_CHECK_RC_RET
+ * Check whether an expression returns a specific IPRT style status code.
+ *
+ * If a different status code is return, call RTTestFailed giving the line
+ * number, expression, actual and expected status codes, then return.
+ *
+ * @param   hTest           The test handle.
+ * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpect        The expected return code. This may be referenced
+ *                          more than once by the macro.
+ * @param   rcRet           The return code.
+ */
+#define RTTEST_CHECK_RC_RET(hTest, rcExpr, rcExpect, rcRet) \
+    do { \
+        int rcCheck = (rcExpr); \
+        if (rcCheck != (rcExpect)) { \
+            RTTestFailed((hTest), "line %u: %s: expected %Rrc, got %Rrc", __LINE__, #rcExpr, (rcExpect), rcCheck); \
+            return (rcRet); \
+        } \
+    } while (0)
+/** @def RTTEST_CHECK_RC_RETV
+ * Check whether an expression returns a specific IPRT style status code.
+ *
+ * If a different status code is return, call RTTestFailed giving the line
+ * number, expression, actual and expected status codes, then return.
+ *
+ * @param   hTest           The test handle.
+ * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpect        The expected return code. This may be referenced
+ *                          more than once by the macro.
+ */
+#define RTTEST_CHECK_RC_RETV(hTest, rcExpr, rcExpect) \
+    do { \
+        int rcCheck = (rcExpr); \
+        if (rcCheck != (rcExpect)) { \
+            RTTestFailed((hTest), "line %u: %s: expected %Rrc, got %Rrc", __LINE__, #rcExpr, (rcExpect), rcCheck); \
+            return; \
+        } \
+    } while (0)
+
+
+/** @def RTTEST_CHECK_RC_OK
+ * Check whether a IPRT style status code indicates success.
+ *
+ * If the status indicates failure, call RTTestFailed giving the line number,
+ * expression and status code.
+ *
+ * @param   hTest           The test handle.
+ * @param   rcExpr          The expression resulting an IPRT status code.
+ */
+#define RTTEST_CHECK_RC_OK(hTest, rcExpr) \
+    do { \
+        int rcCheck = (rcExpr); \
+        if (RT_FAILURE(rcCheck)) { \
+            RTTestFailed((hTest), "line %u: %s: %Rrc", __LINE__, #rcExpr, rc); \
+        } \
+    } while (0)
+/** @def RTTEST_CHECK_RC_OK_RET
+ * Check whether a IPRT style status code indicates success.
+ *
+ * If the status indicates failure, call RTTestFailed giving the line number,
+ * expression and status code, then return with the specified value.
+ *
+ * @param   hTest           The test handle.
+ * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcRet           The return code.
+ */
+#define RTTEST_CHECK_RC_OK_RET(hTest, rcExpr, rcRet) \
+    do { \
+        int rcCheck = (rcExpr); \
+        if (RT_FAILURE(rcCheck)) { \
+            RTTestFailed((hTest), "line %u: %s: %Rrc", __LINE__, #rcExpr, rc); \
+            return (rcRet); \
+        } \
+    } while (0)
+/** @def RTTEST_CHECK_RC_OK_RETV
+ * Check whether a IPRT style status code indicates success.
+ *
+ * If the status indicates failure, call RTTestFailed giving the line number,
+ * expression and status code, then return.
+ *
+ * @param   hTest           The test handle.
+ * @param   rcExpr          The expression resulting an IPRT status code.
+ */
+#define RTTEST_CHECK_RC_OK_RETV(hTest, rcExpr) \
+    do { \
+        int rcCheck = (rcExpr); \
+        if (RT_FAILURE(rcCheck)) { \
+            RTTestFailed((hTest), "line %u: %s: %Rrc", __LINE__, #rcExpr, rc); \
+            return; \
+        } \
     } while (0)
 
 
@@ -434,6 +624,46 @@ RTR3DECL(int) RTTestIPrintfV(RTTESTLVL enmLevel, const char *pszFormat, va_list 
  * @param   ...         Arguments.
  */
 RTR3DECL(int) RTTestIPrintf(RTTESTLVL enmLevel, const char *pszFormat, ...);
+
+/**
+ * Starts a sub-test.
+ *
+ * This will perform an implicit RTTestSubDone() call if that has not been done
+ * since the last RTTestSub call.
+ *
+ * @returns Number of chars printed.
+ * @param   pszSubTest  The sub-test name.
+ */
+RTR3DECL(int) RTTestISub(const char *pszSubTest);
+
+/**
+ * Format string version of RTTestSub.
+ *
+ * See RTTestSub for details.
+ *
+ * @returns Number of chars printed.
+ * @param   pszSubTestFmt   The sub-test name format string.
+ * @param   ...             Arguments.
+ */
+RTR3DECL(int) RTTestISubF(const char *pszSubTestFmt, ...);
+
+/**
+ * Format string version of RTTestSub.
+ *
+ * See RTTestSub for details.
+ *
+ * @returns Number of chars printed.
+ * @param   pszSubTestFmt   The sub-test name format string.
+ * @param   ...             Arguments.
+ */
+RTR3DECL(int) RTTestISubV(const char *pszSubTestFmt, va_list va);
+
+/**
+ * Completes a sub-test.
+ *
+ * @returns Number of chars printed.
+ */
+RTR3DECL(int) RTTestISubDone(void);
 
 /**
  * Prints an extended PASSED message, optional.
@@ -516,6 +746,36 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
             RTTestIFailed("line %u: %s", __LINE__, #expr); \
          } \
     } while (0)
+/** @def RTTESTI_CHECK_RET
+ * Check whether a boolean expression holds true, returns on false.
+ *
+ * If the expression is false, call RTTestIFailed giving the line number and
+ * expression.
+ *
+ * @param   expr        The expression to evaluate.
+ * @param   rcRet       What to return on failure.
+ */
+#define RTTESTI_CHECK_RET(expr, rcRet) \
+    do { if (!(expr)) { \
+            RTTestIFailed("line %u: %s", __LINE__, #expr); \
+            return (rcRet); \
+         } \
+    } while (0)
+/** @def RTTESTI_CHECK_RETV
+ * Check whether a boolean expression holds true, returns void on false.
+ *
+ * If the expression is false, call RTTestIFailed giving the line number and
+ * expression.
+ *
+ * @param   expr        The expression to evaluate.
+ */
+#define RTTESTI_CHECK_RETV(expr) \
+    do { if (!(expr)) { \
+            RTTestIFailed("line %u: %s", __LINE__, #expr); \
+            return; \
+         } \
+    } while (0)
+
 
 /** @def RTTESTI_CHECK_MSG
  * Check whether a boolean expression holds true.
@@ -533,23 +793,6 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
             RTTestIFailureDetails DetailsArgs; \
          } \
     } while (0)
-
-/** @def RTTESTI_CHECK_RET
- * Check whether a boolean expression holds true, returns on false.
- *
- * If the expression is false, call RTTestIFailed giving the line number and
- * expression.
- *
- * @param   expr        The expression to evaluate.
- * @param   rcRet       What to return on failure.
- */
-#define RTTESTI_CHECK_RET(expr, rc) \
-    do { if (!(expr)) { \
-            RTTestIFailed("line %u: %s", __LINE__, #expr); \
-            return (rcRet); \
-         } \
-    } while (0)
-
 /** @def RTTESTI_CHECK_MSG_RET
  * Check whether a boolean expression holds true, returns on false.
  *
@@ -568,22 +811,6 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
             return (rcRet); \
          } \
     } while (0)
-
-/** @def RTTESTI_CHECK_RETV
- * Check whether a boolean expression holds true, returns void on false.
- *
- * If the expression is false, call RTTestIFailed giving the line number and
- * expression.
- *
- * @param   expr        The expression to evaluate.
- */
-#define RTTESTI_CHECK_RETV(expr) \
-    do { if (!(expr)) { \
-            RTTestIFailed("line %u: %s", __LINE__, #expr); \
-            return; \
-         } \
-    } while (0)
-
 /** @def RTTESTI_CHECK_MSG_RET
  * Check whether a boolean expression holds true, returns void on false.
  *
@@ -603,12 +830,117 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
     } while (0)
 
 
+/** @def RTTESTI_CHECK_RC
+ * Check whether an expression returns a specific IPRT style status code.
+ *
+ * If a different status code is return, call RTTestIFailed giving the line
+ * number, expression, actual and expected status codes.
+ *
+ * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpect        The expected return code. This may be referenced
+ *                          more than once by the macro.
+ */
+#define RTTESTI_CHECK_RC(rcExpr, rcExpect) \
+    do { \
+        int rcCheck = (rcExpr); \
+        if (rcCheck != (rcExpect)) { \
+            RTTestIFailed("line %u: %s: expected %Rrc, got %Rrc", __LINE__, #rcExpr, (rcExpect), rcCheck); \
+        } \
+    } while (0)
+/** @def RTTESTI_CHECK_RC_RET
+ * Check whether an expression returns a specific IPRT style status code.
+ *
+ * If a different status code is return, call RTTestIFailed giving the line
+ * number, expression, actual and expected status codes, then return.
+ *
+ * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpect        The expected return code. This may be referenced
+ *                          more than once by the macro.
+ * @param   rcRet           The return code.
+ */
+#define RTTESTI_CHECK_RC_RET(rcExpr, rcExpect, rcRet) \
+    do { \
+        int rcCheck = (rcExpr); \
+        if (rcCheck != (rcExpect)) { \
+            RTTestIFailed("line %u: %s: expected %Rrc, got %Rrc", __LINE__, #rcExpr, (rcExpect), rcCheck); \
+            return (rcRet); \
+        } \
+    } while (0)
+/** @def RTTESTI_CHECK_RC_RETV
+ * Check whether an expression returns a specific IPRT style status code.
+ *
+ * If a different status code is return, call RTTestIFailed giving the line
+ * number, expression, actual and expected status codes, then return.
+ *
+ * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpect        The expected return code. This may be referenced
+ *                          more than once by the macro.
+ */
+#define RTTESTI_CHECK_RC_RETV(rcExpr, rcExpect) \
+    do { \
+        int rcCheck = (rcExpr); \
+        if (rcCheck != (rcExpect)) { \
+            RTTestIFailed("line %u: %s: expected %Rrc, got %Rrc", __LINE__, #rcExpr, (rcExpect), rcCheck); \
+            return; \
+        } \
+    } while (0)
+
+
+/** @def RTTESTI_CHECK_RC_OK
+ * Check whether a IPRT style status code indicates success.
+ *
+ * If the status indicates failure, call RTTestIFailed giving the line number,
+ * expression and status code.
+ *
+ * @param   rcExpr          The expression resulting an IPRT status code.
+ */
+#define RTTESTI_CHECK_RC_OK(rcExpr) \
+    do { \
+        int rcCheck = (rcExpr); \
+        if (RT_FAILURE(rcCheck)) { \
+            RTTestIFailed("line %u: %s: %Rrc", __LINE__, #rcExpr, rcCheck); \
+        } \
+    } while (0)
+/** @def RTTESTI_CHECK_RC_OK_RET
+ * Check whether a IPRT style status code indicates success.
+ *
+ * If the status indicates failure, call RTTestIFailed giving the line number,
+ * expression and status code, then return with the specified value.
+ *
+ * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcRet           The return code.
+ */
+#define RTTESTI_CHECK_RC_OK_RET(rcExpr, rcRet) \
+    do { \
+        int rcCheck = (rcExpr); \
+        if (RT_FAILURE(rcCheck)) { \
+            RTTestIFailed("line %u: %s: %Rrc", __LINE__, #rcExpr, rcCheck); \
+            return (rcRet); \
+        } \
+    } while (0)
+/** @def RTTESTI_CHECK_RC_OK_RETV
+ * Check whether a IPRT style status code indicates success.
+ *
+ * If the status indicates failure, call RTTestIFailed giving the line number,
+ * expression and status code, then return.
+ *
+ * @param   rcExpr          The expression resulting an IPRT status code.
+ */
+#define RTTESTI_CHECK_RC_OK_RETV(rcExpr) \
+    do { \
+        int rcCheck = (rcExpr); \
+        if (RT_FAILURE(rcCheck)) { \
+            RTTestIFailed("line %u: %s: %Rrc", __LINE__, #rcExpr, rcCheck); \
+            return; \
+        } \
+    } while (0)
+
 /** @} */
 
 
 /** @}  */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

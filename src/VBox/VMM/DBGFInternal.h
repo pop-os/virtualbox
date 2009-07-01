@@ -1,4 +1,4 @@
-/* $Id: DBGFInternal.h $ */
+/* $Id: DBGFInternal.h 19757 2009-05-15 23:37:31Z vboxsync $ */
 /** @file
  * DBGF - Internal header file.
  */
@@ -254,20 +254,23 @@ typedef struct DBGF
     RTUINT                  cHwBreakpoints;
     /** The number of active breakpoints. */
     RTUINT                  cBreakpoints;
-    /** Array of hardware breakpoints. (0..3) */
+    /** Array of hardware breakpoints. (0..3)
+     * This is shared among all the CPUs because life is much simpler that way. */
     DBGFBP                  aHwBreakpoints[4];
     /** Array of int 3 and REM breakpoints. (4..)
      * @remark This is currently a fixed size array for reasons of simplicity. */
     DBGFBP                  aBreakpoints[32];
-    /** Current active breakpoint (id).
-     * This is ~0U if not active. It is set when a execution engine
-     * encounters a breakpoint and returns VINF_EM_DBG_BREAKPOINT. This is
-     * currently not used for REM breakpoints because of the lazy coupling
-     * between VBox and REM. */
-    RTUINT                  iActiveBp;
-    /** Set if we're singlestepping in raw mode.
-     * This is checked and cleared in the \#DB handler. */
-    bool                    fSingleSteppingRaw;
+
+    /** The address space database lock. */
+    RTSEMRW                 hAsDbLock;
+    /** The address space handle database.      (Protected by hAsDbLock.) */
+    R3PTRTYPE(AVLPVTREE)    AsHandleTree;
+    /** The address space process id database.  (Protected by hAsDbLock.) */
+    R3PTRTYPE(AVLU32TREE)   AsPidTree;
+    /** The address space name database.        (Protected by hAsDbLock.) */
+    R3PTRTYPE(RTSTRSPACE)   AsNameSpace;
+    /** Special address space aliases.          (Protected by hAsDbLock.) */
+    RTDBGAS volatile        ahAsAliases[DBGF_AS_COUNT];
 
     /** The current Guest OS digger. */
     R3PTRTYPE(PDBGFOS)      pCurOS;
@@ -278,12 +281,44 @@ typedef struct DBGF
 typedef DBGF *PDBGF;
 
 
-extern int  dbgfR3InfoInit(PVM pVM);
-extern int  dbgfR3InfoTerm(PVM pVM);
-extern void dbgfR3OSTerm(PVM pVM);
-extern int  dbgfR3SymInit(PVM pVM);
-extern int  dbgfR3SymTerm(PVM pVM);
-extern int  dbgfR3BpInit(PVM pVM);
+/** Converts a DBGFCPU pointer into a VM pointer. */
+#define DBGFCPU_2_VM(pDbgfCpu) ((PVM)((uint8_t *)(pDbgfCpu) + (pDbgfCpu)->offVM))
+
+/**
+ * The per CPU data for DBGF.
+ */
+typedef struct DBGFCPU
+{
+    /** The offset into the VM structure.
+     * @see DBGFCPU_2_VM(). */
+    uint32_t                offVM;
+
+    /** Current active breakpoint (id).
+     * This is ~0U if not active. It is set when a execution engine
+     * encounters a breakpoint and returns VINF_EM_DBG_BREAKPOINT. This is
+     * currently not used for REM breakpoints because of the lazy coupling
+     * between VBox and REM. */
+    uint32_t                iActiveBp;
+    /** Set if we're singlestepping in raw mode.
+     * This is checked and cleared in the \#DB handler. */
+    bool                    fSingleSteppingRaw;
+
+    /** Padding the structure to 16 bytes. */
+    uint8_t                 abReserved[3];
+} DBGFCPU;
+/** Pointer to DBGFCPU data. */
+typedef DBGFCPU *PDBGFCPU;
+
+
+int  dbgfR3AsInit(PVM pVM);
+void dbgfR3AsTerm(PVM pVM);
+void dbgfR3AsRelocate(PVM pVM, RTGCUINTPTR offDelta);
+int  dbgfR3InfoInit(PVM pVM);
+int  dbgfR3InfoTerm(PVM pVM);
+void dbgfR3OSTerm(PVM pVM);
+int  dbgfR3SymInit(PVM pVM);
+int  dbgfR3SymTerm(PVM pVM);
+int  dbgfR3BpInit(PVM pVM);
 
 
 

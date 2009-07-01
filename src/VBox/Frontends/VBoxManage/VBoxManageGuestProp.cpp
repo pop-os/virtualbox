@@ -1,10 +1,10 @@
-/* $Id: VBoxManageGuestProp.cpp $ */
+/* $Id: VBoxManageGuestProp.cpp 20928 2009-06-25 11:53:37Z vboxsync $ */
 /** @file
  * VBoxManage - The 'guestproperty' command.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,7 @@
 #include <VBox/com/string.h>
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
-#include <VBox/com/errorprint2.h>
+#include <VBox/com/errorprint.h>
 
 #include <VBox/com/VirtualBox.h>
 
@@ -48,7 +48,8 @@ using namespace com;
  * IVirtualBoxCallback implementation for handling the GuestPropertyCallback in
  * relation to the "guestproperty wait" command.
  */
-class GuestPropertyCallback : public IVirtualBoxCallback
+class GuestPropertyCallback :
+  VBOX_SCRIPTABLE_IMPL(IVirtualBoxCallback)
 {
 public:
     GuestPropertyCallback(const char *pszPatterns, Guid aUuid)
@@ -94,18 +95,18 @@ public:
 
     NS_DECL_ISUPPORTS
 
-    STDMETHOD(OnMachineStateChange)(IN_GUID machineId,
+    STDMETHOD(OnMachineStateChange)(IN_BSTR machineId,
                                     MachineState_T state)
     {
         return S_OK;
     }
 
-    STDMETHOD(OnMachineDataChange)(IN_GUID machineId)
+    STDMETHOD(OnMachineDataChange)(IN_BSTR machineId)
     {
         return S_OK;
     }
 
-    STDMETHOD(OnExtraDataCanChange)(IN_GUID machineId, IN_BSTR key,
+    STDMETHOD(OnExtraDataCanChange)(IN_BSTR machineId, IN_BSTR key,
                                     IN_BSTR value, BSTR *error,
                                     BOOL *changeAllowed)
     {
@@ -116,13 +117,13 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(OnExtraDataChange)(IN_GUID machineId, IN_BSTR key,
+    STDMETHOD(OnExtraDataChange)(IN_BSTR machineId, IN_BSTR key,
                                  IN_BSTR value)
     {
         return S_OK;
     }
 
-    STDMETHOD(OnMediaRegistered)(IN_GUID mediaId,
+    STDMETHOD(OnMediaRegistered)(IN_BSTR mediaId,
                                  DeviceType_T mediaType, BOOL registered)
     {
         NOREF(mediaId);
@@ -131,36 +132,36 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(OnMachineRegistered)(IN_GUID machineId, BOOL registered)
+    STDMETHOD(OnMachineRegistered)(IN_BSTR machineId, BOOL registered)
     {
         return S_OK;
     }
 
-     STDMETHOD(OnSessionStateChange)(IN_GUID machineId,
+     STDMETHOD(OnSessionStateChange)(IN_BSTR machineId,
                                     SessionState_T state)
     {
         return S_OK;
     }
 
-    STDMETHOD(OnSnapshotTaken)(IN_GUID aMachineId,
-                               IN_GUID aSnapshotId)
+    STDMETHOD(OnSnapshotTaken)(IN_BSTR aMachineId,
+                               IN_BSTR aSnapshotId)
     {
         return S_OK;
     }
 
-    STDMETHOD(OnSnapshotDiscarded)(IN_GUID aMachineId,
-                                   IN_GUID aSnapshotId)
+    STDMETHOD(OnSnapshotDiscarded)(IN_BSTR aMachineId,
+                                   IN_BSTR aSnapshotId)
     {
         return S_OK;
     }
 
-    STDMETHOD(OnSnapshotChange)(IN_GUID aMachineId,
-                                IN_GUID aSnapshotId)
+    STDMETHOD(OnSnapshotChange)(IN_BSTR aMachineId,
+                                IN_BSTR aSnapshotId)
     {
         return S_OK;
     }
 
-    STDMETHOD(OnGuestPropertyChange)(IN_GUID machineId,
+    STDMETHOD(OnGuestPropertyChange)(IN_BSTR machineId,
                                      IN_BSTR name, IN_BSTR value,
                                      IN_BSTR flags)
     {
@@ -228,7 +229,7 @@ static int handleGetGuestProperty(HandlerArg *a)
 
     ComPtr<IMachine> machine;
     /* assume it's a UUID */
-    rc = a->virtualBox->GetMachine(Guid(a->argv[0]), machine.asOutParam());
+    rc = a->virtualBox->GetMachine(Bstr(a->argv[0]), machine.asOutParam());
     if (FAILED(rc) || !machine)
     {
         /* must be a name */
@@ -236,7 +237,7 @@ static int handleGetGuestProperty(HandlerArg *a)
     }
     if (machine)
     {
-        Guid uuid;
+        Bstr uuid;
         machine->COMGETTER(Id)(uuid.asOutParam());
 
         /* open a session for the VM - new or existing */
@@ -297,7 +298,7 @@ static int handleSetGuestProperty(HandlerArg *a)
 
     ComPtr<IMachine> machine;
     /* assume it's a UUID */
-    rc = a->virtualBox->GetMachine(Guid(a->argv[0]), machine.asOutParam());
+    rc = a->virtualBox->GetMachine(Bstr(a->argv[0]), machine.asOutParam());
     if (FAILED(rc) || !machine)
     {
         /* must be a name */
@@ -305,7 +306,7 @@ static int handleSetGuestProperty(HandlerArg *a)
     }
     if (machine)
     {
-        Guid uuid;
+        Bstr uuid;
         machine->COMGETTER(Id)(uuid.asOutParam());
 
         /* open a session for the VM - new or existing */
@@ -361,7 +362,7 @@ static int handleEnumGuestProperty(HandlerArg *a)
      */
     ComPtr<IMachine> machine;
     /* assume it's a UUID */
-    HRESULT rc = a->virtualBox->GetMachine(Guid(a->argv[0]), machine.asOutParam());
+    HRESULT rc = a->virtualBox->GetMachine(Bstr(a->argv[0]), machine.asOutParam());
     if (FAILED(rc) || !machine)
     {
         /* must be a name */
@@ -369,7 +370,7 @@ static int handleEnumGuestProperty(HandlerArg *a)
     }
     if (machine)
     {
-        Guid uuid;
+        Bstr uuid;
         machine->COMGETTER(Id)(uuid.asOutParam());
 
         /* open a session for the VM - new or existing */
@@ -420,7 +421,7 @@ static int handleWaitGuestProperty(HandlerArg *a)
         pszPatterns = a->argv[1];
     ComPtr<IMachine> machine;
     /* assume it's a UUID */
-    HRESULT rc = a->virtualBox->GetMachine(Guid(a->argv[0]), machine.asOutParam());
+    HRESULT rc = a->virtualBox->GetMachine(Bstr(a->argv[0]), machine.asOutParam());
     if (FAILED(rc) || !machine)
     {
         /* must be a name */
@@ -450,7 +451,7 @@ static int handleWaitGuestProperty(HandlerArg *a)
     /*
      * Set up the callback and wait.
      */
-    Guid uuid;
+    Bstr uuid;
     machine->COMGETTER(Id)(uuid.asOutParam());
     GuestPropertyCallback *callback = new GuestPropertyCallback(pszPatterns, uuid);
     callback->AddRef();

@@ -37,7 +37,7 @@
 #include <VBox/sup.h>
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_mm       The Memory Manager API
  * @{
@@ -65,6 +65,7 @@ typedef enum MMTAG
     MM_TAG_CPUM_CTX,
 
     MM_TAG_DBGF,
+    MM_TAG_DBGF_AS,
     MM_TAG_DBGF_INFO,
     MM_TAG_DBGF_LINE,
     MM_TAG_DBGF_LINE_DUP,
@@ -93,10 +94,13 @@ typedef enum MMTAG
     MM_TAG_PDM,
     MM_TAG_PDM_ASYNC_COMPLETION,
     MM_TAG_PDM_DEVICE,
+    MM_TAG_PDM_DEVICE_DESC,
     MM_TAG_PDM_DEVICE_USER,
     MM_TAG_PDM_DRIVER,
+    MM_TAG_PDM_DRIVER_DESC,
     MM_TAG_PDM_DRIVER_USER,
     MM_TAG_PDM_USB,
+    MM_TAG_PDM_USB_DESC,
     MM_TAG_PDM_USB_USER,
     MM_TAG_PDM_LUN,
     MM_TAG_PDM_QUEUE,
@@ -203,6 +207,7 @@ DECLINLINE(RTRCPTR) MMHyperCCToRC(PVM pVM, void *pv)
 VMMDECL(int)        MMHyperAlloc(PVM pVM, size_t cb, uint32_t uAlignment, MMTAG enmTag, void **ppv);
 VMMDECL(int)        MMHyperFree(PVM pVM, void *pv);
 VMMDECL(void)       MMHyperHeapCheck(PVM pVM);
+VMMDECL(int)        MMR3LockCall(PVM pVM);
 #ifdef DEBUG
 VMMDECL(void)       MMHyperHeapDump(PVM pVM);
 #endif
@@ -251,14 +256,13 @@ VMMR3DECL(int)      MMR3AdjustFixedReservation(PVM pVM, int32_t cDeltaFixedPages
 VMMR3DECL(int)      MMR3UpdateShadowReservation(PVM pVM, uint32_t cShadowPages);
 
 VMMR3DECL(int)      MMR3HCPhys2HCVirt(PVM pVM, RTHCPHYS HCPhys, void **ppv);
-VMMR3DECL(int)      MMR3ReadGCVirt(PVM pVM, void *pvDst, RTGCPTR GCPtr, size_t cb);
-VMMR3DECL(int)      MMR3WriteGCVirt(PVM pVM, RTGCPTR GCPtrDst, const void *pvSrc, size_t cb);
-
+VMMR3DECL(void)     MMR3ReleaseOwnedLocks(PVM pVM);
 
 /** @defgroup grp_mm_r3_hyper  Hypervisor Memory Manager (HC R3 Portion)
  * @ingroup grp_mm_r3
  * @{ */
-VMMDECL(int)        MMR3HyperAllocOnceNoRel(PVM pVM, size_t cb, uint32_t uAlignment, MMTAG enmTag, void **ppv);
+VMMR3DECL(int)      MMR3HyperAllocOnceNoRel(PVM pVM, size_t cb, uint32_t uAlignment, MMTAG enmTag, void **ppv);
+VMMR3DECL(int)      MMR3HyperSetGuard(PVM pVM, void *pvStart, size_t cb, bool fSet);
 VMMR3DECL(int)      MMR3HyperMapHCPhys(PVM pVM, void *pvR3, RTR0PTR pvR0, RTHCPHYS HCPhys, size_t cb, const char *pszDesc, PRTGCPTR pGCPtr);
 VMMR3DECL(int)      MMR3HyperMapGCPhys(PVM pVM, RTGCPHYS GCPhys, size_t cb, const char *pszDesc, PRTGCPTR pGCPtr);
 VMMR3DECL(int)      MMR3HyperMapMMIO2(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, RTGCPHYS off, RTGCPHYS cb, const char *pszDesc, PRTRCPTR pRCPtr);
@@ -350,7 +354,7 @@ VMMRCDECL(int)      MMGCRamWrite(PVM pVM, void *pDst, void *pSrc, size_t cb);
 #endif /* IN_RC */
 
 /** @} */
-__END_DECLS
+RT_C_DECLS_END
 
 
 #endif

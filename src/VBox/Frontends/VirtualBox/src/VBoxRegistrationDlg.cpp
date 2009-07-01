@@ -35,30 +35,18 @@ class VBoxRegistrationData
 {
 public:
 
-    VBoxRegistrationData (const QString &aData)
-        : mIsValid (false), mIsRegistered (false)
-        , mData (aData)
+    VBoxRegistrationData (const QString &aString, bool aEncode)
+        : mIsValid (aEncode), mIsRegistered (aEncode)
         , mTriesLeft (3 /* the initial tries value */)
     {
-        decode (aData);
-    }
-
-    VBoxRegistrationData (const QString &aName, const QString &aEmail,
-                          const QString &aIsPrivate)
-        : mIsValid (true), mIsRegistered (true)
-        , mName (aName), mEmail (aEmail), mIsPrivate (aIsPrivate)
-        , mTriesLeft (0)
-    {
-        encode (aName, aEmail, aIsPrivate);
+        aEncode ? encode (aString) : decode (aString);
     }
 
     bool isValid() const { return mIsValid; }
     bool isRegistered() const { return mIsRegistered; }
 
     const QString &data() const { return mData; }
-    const QString &name() const { return mName; }
-    const QString &email() const { return mEmail; }
-    const QString &isPrivate() const { return mIsPrivate; }
+    const QString &account() const { return mAccount; }
 
     uint triesLeft() const { return mTriesLeft; }
 
@@ -66,15 +54,16 @@ private:
 
     void decode (const QString &aData)
     {
-        mIsValid = mIsRegistered = false;
-
         if (aData.isEmpty())
             return;
 
-        if (aData.startsWith ("triesLeft="))
+        mData = aData;
+
+        /* Decoding number of left tries */
+        if (mData.startsWith ("triesLeft="))
         {
             bool ok = false;
-            uint triesLeft = aData.section ('=', 1, 1).toUInt (&ok);
+            uint triesLeft = mData.section ('=', 1, 1).toUInt (&ok);
             if (!ok)
                 return;
             mTriesLeft = triesLeft;
@@ -83,7 +72,7 @@ private:
         }
 
         /* Decoding CRC32 */
-        QString data = aData;
+        QString data = mData;
         QString crcData = data.right (2 * sizeof (ulong));
         ulong crcNeed = 0;
         for (long i = 0; i < crcData.length(); i += 2)
@@ -104,22 +93,28 @@ private:
         if (crcNeed != crcNow)
             return;
 
-        /* Initialize values */
-        QStringList dataList = result.split ("|");
-        mName = dataList [0];
-        mEmail = dataList [1];
-        mIsPrivate = dataList [2];
+        /* Split values list */
+        QStringList list (result.split ("|"));
 
+        /* Ignore the old format */
+        if (list.size() > 1)
+            return;
+
+        /* Result value */
         mIsValid = true;
         mIsRegistered = true;
+        mAccount = list [0];
     }
 
-    void encode (const QString &aName, const QString &aEmail,
-                 const QString &aPrivate)
+    void encode (const QString &aAccount)
     {
+        if (aAccount.isEmpty())
+            return;
+
+        mAccount = aAccount;
+
         /* Encoding data */
-        QString data = QString ("%1|%2|%3")
-            .arg (aName).arg (aEmail).arg (aPrivate);
+        QString data = QString ("%1").arg (mAccount);
         mData = QString::null;
         for (long i = 0; i < data.length(); ++ i)
         {
@@ -177,29 +172,27 @@ private:
     bool mIsValid : 1;
     bool mIsRegistered : 1;
 
-    QString mData;
-    QString mName;
-    QString mEmail;
-    QString mIsPrivate;
-
     uint mTriesLeft;
+
+    QString mAccount;
+    QString mData;
 };
 
 /* Static member to check if registration dialog necessary. */
 bool VBoxRegistrationDlg::hasToBeShown()
 {
-    VBoxRegistrationData regData (vboxGlobal().virtualBox().
-        GetExtraData (VBoxDefs::GUI_RegistrationData));
+    VBoxRegistrationData data (vboxGlobal().virtualBox().
+        GetExtraData (VBoxDefs::GUI_RegistrationData), false);
 
-    return (!regData.isValid()) ||
-           (!regData.isRegistered() && regData.triesLeft() > 0);
+    return (!data.isValid()) ||
+           (!data.isRegistered() && data.triesLeft() > 0);
 }
 
 VBoxRegistrationDlg::VBoxRegistrationDlg (VBoxRegistrationDlg **aSelf, QWidget * /* aParent */)
     : QIWithRetranslateUI <QIAbstractWizard> (0)
     , mSelf (aSelf)
     , mWvalReg (0)
-    , mUrl ("http://registration.virtualbox.org/register762.php")
+    , mUrl ("http://registration.virtualbox.org/register763.php")
     , mHttp (new QIHttp (this, mUrl.host()))
 {
     /* Store external pointer to this dialog */
@@ -211,6 +204,11 @@ VBoxRegistrationDlg::VBoxRegistrationDlg (VBoxRegistrationDlg **aSelf, QWidget *
     /* Apply window icons */
     setWindowIcon (vboxGlobal().iconSetFull (QSize (32, 32), QSize (16, 16),
                                              ":/register_32px.png", ":/register_16px.png"));
+
+    /* Setup widgets */
+    QSizePolicy sp (mTextRegInfo->sizePolicy());
+    sp.setHeightForWidth (true);
+    mTextRegInfo->setSizePolicy (sp);
 
     /* Initialize wizard hdr */
     initializeWizardHdr();
@@ -228,34 +226,65 @@ VBoxRegistrationDlg::VBoxRegistrationDlg (VBoxRegistrationDlg **aSelf, QWidget *
                                 "\\x000E-\\x007F]))*\"))"
                       "@"
                       "[a-zA-Z0-9\\-]+(\\.[a-zA-Z0-9\\-]+)*");
-    mLeName->setValidator (new QRegExpValidator (nameExp, this));
-    mLeEmail->setValidator (new QRegExpValidator (emailExp, this));
-    mLeName->setMaxLength (50);
-    mLeEmail->setMaxLength (50);
+    QRegExp passwordExp ("[a-zA-Z0-9_\\-\\+=`~!@#$%^&\\*\\(\\)?\\[\\]:;,\\./]+");
 
-    /* Setup other connections */
+    mLeOldEmail->setMaxLength (50);
+    mLeOldEmail->setValidator (new QRegExpValidator (emailExp, this));
+
+    mLeOldPassword->setMaxLength (20);
+    mLeOldPassword->setValidator (new QRegExpValidator (passwordExp, this));
+
+    mLeNewFirstName->setMaxLength (50);
+
+    mLeNewFirstName->setValidator (new QRegExpValidator (nameExp, this));
+
+    mLeNewLastName->setMaxLength (50);
+    mLeNewLastName->setValidator (new QRegExpValidator (nameExp, this));
+
+    mLeNewCompany->setMaxLength (50);
+    mLeNewCompany->setValidator (new QRegExpValidator (nameExp, this));
+
+    mLeNewEmail->setMaxLength (50);
+    mLeNewEmail->setValidator (new QRegExpValidator (emailExp, this));
+
+    mLeNewPassword->setMaxLength (20);
+    mLeNewPassword->setValidator (new QRegExpValidator (passwordExp, this));
+
+    mLeNewPassword2->setMaxLength (20);
+    mLeNewPassword2->setValidator (new QRegExpValidator (passwordExp, this));
+
+    populateCountries();
+
+    /* Setup validation */
     mWvalReg = new QIWidgetValidator (mPageReg, this);
     connect (mWvalReg, SIGNAL (validityChanged (const QIWidgetValidator *)),
              this, SLOT (enableNext (const QIWidgetValidator *)));
     connect (mWvalReg, SIGNAL (isValidRequested (QIWidgetValidator *)),
              this, SLOT (revalidate (QIWidgetValidator *)));
+
+    connect (mRbOld, SIGNAL (toggled (bool)), this, SLOT (radioButtonToggled()));
+    connect (mRbNew, SIGNAL (toggled (bool)), this, SLOT (radioButtonToggled()));
+    connect (mCbNewCountry, SIGNAL (currentIndexChanged (int)), mWvalReg, SLOT (revalidate()));
+
+    /* Setup other connections */
     connect (vboxGlobal().mainWindow(), SIGNAL (closing()), this, SLOT (reject()));
 
     /* Setup initial dialog parameters. */
-    VBoxRegistrationData regData (vboxGlobal().virtualBox().
-        GetExtraData (VBoxDefs::GUI_RegistrationData));
-    mLeName->setText (regData.name());
-    mLeEmail->setText (regData.email());
-    mCbUse->setChecked (regData.isPrivate() == "yes");
+    VBoxRegistrationData data (vboxGlobal().virtualBox().
+        GetExtraData (VBoxDefs::GUI_RegistrationData), false);
+    mLeOldEmail->setText (data.account());
 
-    /* Update the next button state for pages with validation
-     * (validityChanged() connected to enableNext() will do the job) */
-    mWvalReg->revalidate();
+    radioButtonToggled();
 
     /* Initialize wizard hdr */
     initializeWizardFtr();
 
     retranslateUi();
+
+    /* Fix minimum possible size */
+    resize (minimumSizeHint());
+    qApp->processEvents();
+    setFixedSize (size());
 }
 
 VBoxRegistrationDlg::~VBoxRegistrationDlg()
@@ -272,17 +301,46 @@ void VBoxRegistrationDlg::retranslateUi()
 {
     /* Translate uic generated strings */
     Ui::VBoxRegistrationDlg::retranslateUi (this);
+
+    /* Translate the first element of countries list */
+    mCbNewCountry->setItemText (0, tr ("Select Country/Territory"));
+}
+
+void VBoxRegistrationDlg::radioButtonToggled()
+{
+    QRadioButton *current = mRbOld->isChecked() ? mRbOld : mRbNew;
+
+    mLeOldEmail->setEnabled (current == mRbOld);
+    mLeOldPassword->setEnabled (current == mRbOld);
+    mLeNewFirstName->setEnabled (current == mRbNew);
+    mLeNewLastName->setEnabled (current == mRbNew);
+    mLeNewCompany->setEnabled (current == mRbNew);
+    mCbNewCountry->setEnabled (current == mRbNew);
+    mLeNewEmail->setEnabled (current == mRbNew);
+    mLeNewPassword->setEnabled (current == mRbNew);
+    mLeNewPassword2->setEnabled (current == mRbNew);
+
+    mWvalReg->revalidate();
 }
 
 /* Post the handshake request into the register site. */
 void VBoxRegistrationDlg::accept()
 {
     /* Disable control elements */
-    mLeName->setEnabled (false);
-    mLeEmail->setEnabled (false);
-    mCbUse->setEnabled (false);
+    mLeOldEmail->setEnabled (false);
+    mLeOldPassword->setEnabled (false);
+    mLeNewFirstName->setEnabled (false);
+    mLeNewLastName->setEnabled (false);
+    mLeNewCompany->setEnabled (false);
+    mCbNewCountry->setEnabled (false);
+    mLeNewEmail->setEnabled (false);
+    mLeNewPassword->setEnabled (false);
+    mLeNewPassword2->setEnabled (false);
     finishButton()->setEnabled (false);
     cancelButton()->setEnabled (false);
+
+    /* Set busy cursor */
+    setCursor (QCursor (Qt::BusyCursor));
 
     /* Perform connection handshake */
     QTimer::singleShot (0, this, SLOT (handshakeStart()));
@@ -291,11 +349,11 @@ void VBoxRegistrationDlg::accept()
 void VBoxRegistrationDlg::reject()
 {
     /* Decrement the triesLeft. */
-    VBoxRegistrationData regData (vboxGlobal().virtualBox().
-                                  GetExtraData (VBoxDefs::GUI_RegistrationData));
-    if (!regData.isValid() || !regData.isRegistered())
+    VBoxRegistrationData data (vboxGlobal().virtualBox().
+                               GetExtraData (VBoxDefs::GUI_RegistrationData), false);
+    if (!data.isValid() || !data.isRegistered())
     {
-        uint triesLeft = regData.triesLeft();
+        uint triesLeft = data.triesLeft();
         if (triesLeft)
         {
             -- triesLeft;
@@ -308,6 +366,26 @@ void VBoxRegistrationDlg::reject()
     QIAbstractWizard::reject();
 }
 
+void VBoxRegistrationDlg::reinit()
+{
+    /* Read all the dirty data */
+    mHttp->disconnect (this);
+    mHttp->readAll();
+
+    /* Enable control elements */
+    radioButtonToggled();
+    finishButton()->setEnabled (true);
+    cancelButton()->setEnabled (true);
+
+    /* Return 'default' attribute loosed
+     * when button was disabled... */
+    finishButton()->setDefault (true);
+    finishButton()->setFocus();
+
+    /* Unset busy cursor */
+    unsetCursor();
+}
+
 void VBoxRegistrationDlg::handshakeStart()
 {
     /* Compose query */
@@ -315,7 +393,6 @@ void VBoxRegistrationDlg::handshakeStart()
     url.addQueryItem ("version", vboxGlobal().virtualBox().GetVersion());
 
     /* Handshake */
-    mHttp->disconnect (this);
     connect (mHttp, SIGNAL (allIsDone (bool)), this, SLOT (handshakeResponse (bool)));
     mHttp->post (url.toEncoded());
 }
@@ -344,15 +421,30 @@ void VBoxRegistrationDlg::registrationStart()
 {
     /* Compose query */
     QUrl url (mUrl);
+
+    /* Basic set */
     url.addQueryItem ("version", vboxGlobal().virtualBox().GetVersion());
     url.addQueryItem ("key", mKey);
     url.addQueryItem ("platform", vboxGlobal().platformInfo());
-    url.addQueryItem ("name", mLeName->text());
-    url.addQueryItem ("email", mLeEmail->text());
-    url.addQueryItem ("private", mCbUse->isChecked() ? "1" : "0");
+
+    if (mRbOld->isChecked())
+    {
+        /* Light set */
+        url.addQueryItem ("email", mLeOldEmail->text());
+        url.addQueryItem ("password", mLeOldPassword->text());
+    }
+    else if (mRbNew->isChecked())
+    {
+        /* Full set */
+        url.addQueryItem ("email", mLeNewEmail->text());
+        url.addQueryItem ("password", mLeNewPassword->text());
+        url.addQueryItem ("firstname", mLeNewFirstName->text());
+        url.addQueryItem ("lastname", mLeNewLastName->text());
+        url.addQueryItem ("company", mLeNewCompany->text());
+        url.addQueryItem ("country", mCbNewCountry->currentText());
+    }
 
     /* Registration */
-    mHttp->disconnect (this);
     connect (mHttp, SIGNAL (allIsDone (bool)), this, SLOT (registrationResponse (bool)));
     mHttp->post (url.toEncoded());
 }
@@ -373,25 +465,293 @@ void VBoxRegistrationDlg::registrationResponse (bool aError)
     vboxProblem().showRegisterResult (this, data);
 
     /* Close the dialog */
-    data == "OK" ? finish() : reject();
+    data == "OK" ? finish() : reinit();
 }
 
 void VBoxRegistrationDlg::revalidate (QIWidgetValidator *aWval)
 {
-    bool valid = aWval->isOtherValid();
-    /* do individual validations for pages here */
+    bool valid = true;
+
+    if (mRbOld->isChecked())
+    {
+        /* Check for fields correctness */
+        if (!isFieldValid (mLeOldEmail) || !isFieldValid (mLeOldPassword))
+            valid = false;
+    }
+    if (mRbNew->isChecked())
+    {
+        /* Check for fields correctness */
+        if (!isFieldValid (mLeNewFirstName) || !isFieldValid (mLeNewLastName) ||
+            !isFieldValid (mLeNewCompany) || !isFieldValid (mCbNewCountry) ||
+            !isFieldValid (mLeNewEmail) ||
+            !isFieldValid (mLeNewPassword) || !isFieldValid (mLeNewPassword2))
+            valid = false;
+
+        /* Check for password correctness */
+        if (mLeNewPassword->text() != mLeNewPassword2->text())
+            valid = false;
+    }
+
     aWval->setOtherValid (valid);
 }
 
 void VBoxRegistrationDlg::enableNext (const QIWidgetValidator *aWval)
 {
-    finishButton()->setEnabled (aWval->isValid());
+    /* Validate all the subscribed widgets */
+    aWval->isValid();
+    /* But control dialog only with necessary */
+    finishButton()->setEnabled (aWval->isOtherValid());
+    /* Return 'default' attribute loosed
+     * when button was disabled... */
+    finishButton()->setDefault (true);
 }
 
 void VBoxRegistrationDlg::onPageShow()
 {
     Assert (mPageStack->currentWidget() == mPageReg);
-    mLeName->setFocus();
+    mLeOldEmail->setFocus();
+}
+
+void VBoxRegistrationDlg::populateCountries()
+{
+    QStringList list ("Empty");
+    list << "Afghanistan"
+         << "Albania"
+         << "Algeria"
+         << "American Samoa"
+         << "Andorra"
+         << "Angola"
+         << "Anguilla"
+         << "Antartica"
+         << "Antigua & Barbuda"
+         << "Argentina"
+         << "Armenia"
+         << "Aruba"
+         << "Ascension Island"
+         << "Australia"
+         << "Austria"
+         << "Azerbaijan"
+         << "Bahamas"
+         << "Bahrain"
+         << "Bangladesh"
+         << "Barbados"
+         << "Belarus"
+         << "Belgium"
+         << "Belize"
+         << "Benin"
+         << "Bermuda"
+         << "Bhutan"
+         << "Bolivia"
+         << "Bosnia and Herzegovina"
+         << "Botswana"
+         << "Bouvet Island"
+         << "Brazil"
+         << "British Indian Ocean Territory"
+         << "Brunei Darussalam"
+         << "Bulgaria"
+         << "Burkina Faso"
+         << "Burundi"
+         << "Cambodia"
+         << "Cameroon"
+         << "Canada"
+         << "Cape Verde"
+         << "Cayman Islands"
+         << "Central African Republic"
+         << "Chad"
+         << "Chile"
+         << "China"
+         << "Christmas Island"
+         << "Cocos (Keeling) Islands"
+         << "Colombia"
+         << "Comoros"
+         << "Congo, Democratic People's Republic"
+         << "Congo, Republic of"
+         << "Cook Islands"
+         << "Costa Rica"
+         << "Cote d'Ivoire"
+         << "Croatia/Hrvatska"
+         << "Cyprus"
+         << "Czech Republic"
+         << "Denmark"
+         << "Djibouti"
+         << "Dominica"
+         << "Dominican Republic"
+         << "East Timor"
+         << "Ecuador"
+         << "Egypt"
+         << "El Salvador"
+         << "Equatorial Guinea"
+         << "Eritrea"
+         << "Estonia"
+         << "Ethiopia"
+         << "Falkland Islands (Malvina)"
+         << "Faroe Islands"
+         << "Fiji"
+         << "Finland"
+         << "France"
+         << "French Guiana"
+         << "French Polynesia"
+         << "French Southern Territories"
+         << "Gabon"
+         << "Gambia"
+         << "Georgia"
+         << "Germany"
+         << "Ghana"
+         << "Gibraltar"
+         << "Greece"
+         << "Greenland"
+         << "Grenada"
+         << "Guadeloupe"
+         << "Guam"
+         << "Guatemala"
+         << "Guernsey"
+         << "Guinea"
+         << "Guinea-Bissau"
+         << "Guyana"
+         << "Haiti"
+         << "Heard and McDonald Islands"
+         << "Holy See (City Vatican State)"
+         << "Honduras"
+         << "Hong Kong"
+         << "Hungary"
+         << "Iceland"
+         << "India"
+         << "Indonesia"
+         << "Iraq"
+         << "Ireland"
+         << "Isle of Man"
+         << "Israel"
+         << "Italy"
+         << "Jamaica"
+         << "Japan"
+         << "Jersey"
+         << "Jordan"
+         << "Kazakhstan"
+         << "Kenya"
+         << "Kiribati"
+         << "Korea, Republic of"
+         << "Kuwait"
+         << "Kyrgyzstan"
+         << "Lao People's Democratic Republic"
+         << "Latvia"
+         << "Lebanon"
+         << "Lesotho"
+         << "Liberia"
+         << "Libyan Arab Jamahiriya"
+         << "Liechtenstein"
+         << "Lithuania"
+         << "Luxembourg"
+         << "Macau"
+         << "Macedonia, Former Yugoslav Republic"
+         << "Madagascar"
+         << "Malawi"
+         << "Malaysia"
+         << "Maldives"
+         << "Mali"
+         << "Malta"
+         << "Marshall Islands"
+         << "Martinique"
+         << "Mauritania"
+         << "Mauritius"
+         << "Mayotte"
+         << "Mexico"
+         << "Micronesia, Federal State of"
+         << "Moldova, Republic of"
+         << "Monaco"
+         << "Mongolia"
+         << "Montserrat"
+         << "Morocco"
+         << "Mozambique"
+         << "Namibia"
+         << "Nauru"
+         << "Nepal"
+         << "Netherlands"
+         << "Netherlands Antilles"
+         << "New Caledonia"
+         << "New Zealand"
+         << "Nicaragua"
+         << "Niger"
+         << "Nigeria"
+         << "Niue"
+         << "Norfolk Island"
+         << "Northern Mariana Island"
+         << "Norway"
+         << "Oman"
+         << "Pakistan"
+         << "Palau"
+         << "Panama"
+         << "Papua New Guinea"
+         << "Paraguay"
+         << "Peru"
+         << "Philippines"
+         << "Pitcairn Island"
+         << "Poland"
+         << "Portugal"
+         << "Puerto Rico"
+         << "Qatar"
+         << "Reunion Island"
+         << "Romania"
+         << "Russian Federation"
+         << "Rwanda"
+         << "Saint Kitts and Nevis"
+         << "Saint Lucia"
+         << "Saint Vincent and the Grenadines"
+         << "San Marino"
+         << "Sao Tome & Principe"
+         << "Saudi Arabia"
+         << "Senegal"
+         << "Seychelles"
+         << "Sierra Leone"
+         << "Singapore"
+         << "Slovak Republic"
+         << "Slovenia"
+         << "Solomon Islands"
+         << "Somalia"
+         << "South Africa"
+         << "South Georgia and the South Sandwich Islands"
+         << "Spain"
+         << "Sri Lanka"
+         << "St Pierre and Miquelon"
+         << "St. Helena"
+         << "Suriname"
+         << "Svalbard And Jan Mayen Island"
+         << "Swaziland"
+         << "Sweden"
+         << "Switzerland"
+         << "Taiwan"
+         << "Tajikistan"
+         << "Tanzania"
+         << "Thailand"
+         << "Togo"
+         << "Tokelau"
+         << "Tonga"
+         << "Trinidad and Tobago"
+         << "Tunisia"
+         << "Turkey"
+         << "Turkmenistan"
+         << "Turks and Ciacos Islands"
+         << "Tuvalu"
+         << "US Minor Outlying Islands"
+         << "Uganda"
+         << "Ukraine"
+         << "United Arab Emirates"
+         << "United Kingdom"
+         << "United States"
+         << "Uruguay"
+         << "Uzbekistan"
+         << "Vanuatu"
+         << "Venezuela"
+         << "Vietnam"
+         << "Virgin Island (British)"
+         << "Virgin Islands (USA)"
+         << "Wallis And Futuna Islands"
+         << "Western Sahara"
+         << "Western Samoa"
+         << "Yemen"
+         << "Yugoslavia"
+         << "Zambia"
+         << "Zimbabwe";
+    mCbNewCountry->addItems (list);
 }
 
 /* This wrapper displays an error message box (unless aReason is QString::null)
@@ -404,16 +764,33 @@ void VBoxRegistrationDlg::abortRequest (const QString &aReason)
         vboxProblem().cannotConnectRegister (this, mUrl.toString(), aReason);
 
     /* Allows all the queued signals to be processed before quit. */
-    QTimer::singleShot (0, this, SLOT (reject()));
+    QTimer::singleShot (0, this, SLOT (reinit()));
 }
 
 void VBoxRegistrationDlg::finish()
 {
-    VBoxRegistrationData regData (mLeName->text(), mLeEmail->text(),
-                                  mCbUse->isChecked() ? "yes" : "no");
+    QString acc (mRbOld->isChecked() ? mLeOldEmail->text() :
+                 mRbNew->isChecked() ? mLeNewEmail->text() : QString::null);
+
+    VBoxRegistrationData data (acc, true);
     vboxGlobal().virtualBox().SetExtraData (VBoxDefs::GUI_RegistrationData,
-                                            regData.data());
+                                            data.data());
 
     QIAbstractWizard::accept();
+}
+
+bool VBoxRegistrationDlg::isFieldValid (QWidget *aWidget) const
+{
+    if (QLineEdit *le = qobject_cast <QLineEdit*> (aWidget))
+    {
+        QString text (le->text());
+        int position;
+        return le->validator()->validate (text, position) == QValidator::Acceptable;
+    }
+    else if (QComboBox *cb = qobject_cast <QComboBox*> (aWidget))
+    {
+        return cb->currentIndex() > 0;
+    }
+    return false;
 }
 

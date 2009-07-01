@@ -1,4 +1,4 @@
-/* $Id:  $ */
+/* $Id: $ */
 /** @file
  * VirtualBox Support Library - Darwin specific parts.
  */
@@ -273,7 +273,7 @@ int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cb
 
 int suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
 {
-    int rc = ioctl(pThis->hDevice, uFunction, NULL);
+    int rc = ioctl(pThis->hDevice, uFunction, idCpu);
     if (rc == -1)
         rc = errno;
     return rc;

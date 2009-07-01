@@ -90,18 +90,57 @@ typedef R0PTRTYPE(struct GVM *)     PGVM;
 /** Pointer to a ring-3 (user mode) VM structure. */
 typedef R3PTRTYPE(struct UVM *)     PUVM;
 
+/** Pointer to a ring-3 (user mode) VMCPU structure. */
+typedef R3PTRTYPE(struct UVMCPU *)  PUVMCPU;
+
 /** Virtual CPU ID. */
 typedef uint32_t VMCPUID;
 /** Pointer to a virtual CPU ID. */
 typedef VMCPUID *PVMCPUID;
 /** @name Special CPU ID values.
+ * Most of these are for request scheduling.
+ *
  * @{ */
 /** All virtual CPUs. */
-#define VMCPUID_ALL         UINT32_C(0xffffffff)
-/** Any virtual CPU, preferrably an idle one.
+#define VMCPUID_ALL         UINT32_C(0xfffffff2)
+/** All virtual CPUs, descending order. */
+#define VMCPUID_ALL_REVERSE UINT32_C(0xfffffff3)
+/** Any virtual CPU.
  * Intended for scheduling a VM request or some other task. */
-#define VMCPUID_ANY_IDLE    UINT32_C(0xfffffffe)
+#define VMCPUID_ANY         UINT32_C(0xfffffff4)
+/** Any virtual CPU; always queue for future execution.
+ * Intended for scheduling a VM request or some other task. */
+#define VMCPUID_ANY_QUEUE   UINT32_C(0xfffffff5)
+/** The NIL value. */
+#define NIL_VMCPUID         UINT32_C(0xfffffffd)
 /** @} */
+
+/**
+ * Virtual CPU set.
+ */
+typedef struct VMCPUSET
+{
+    /** The bitmap data.  */
+    uint32_t    au32Bitmap[256/32];
+} VMCPUSET;
+/** Pointer to a Virtual CPU set. */
+typedef VMCPUSET *PVMCPUSET;
+/** Pointer to a const Virtual CPU set. */
+typedef VMCPUSET const *PCVMCPUSET;
+
+/** Tests if a valid CPU ID is present in the set.. */
+#define VMCPUSET_IS_PRESENT(pSet, idCpu)    ASMBitTest( &(pSet)->au32Bitmap, (idCpu))
+/** Adds a CPU to the set. */
+#define VMCPUSET_ADD(pSet, idCpu)           ASMBitSet(  &(pSet)->au32Bitmap, (idCpu))
+/** Deletes a CPU from the set. */
+#define VMCPUSET_DEL(pSet, idCpu)           ASMBitClear(&(pSet)->au32Bitmap, (idCpu))
+/** Empties the set. */
+#define VMCPUSET_EMPTY(pSet, idCpu)         memset(&(pSet)->au32Bitmap, '\0', sizeof((pSet)->au32Bitmap))
+/** Filles the set. */
+#define VMCPUSET_FILL(pSet, idCpu)          memset(&(pSet)->au32Bitmap, 0xff, sizeof((pSet)->au32Bitmap))
+/** Filles the set. */
+#define VMCPUSET_IS_EQUAL(pSet1, pSet2)     (memcmp(&(pSet1)->au32Bitmap, &(pSet2)->au32Bitmap, sizeof((pSet1)->au32Bitmap)) == 0)
+
 
 /** VM State
  */
@@ -166,6 +205,11 @@ typedef PPDMDRVINS *PPPDMDRVINS;
 typedef struct PDMSRVINS *PPDMSRVINS;
 /** Pointer to a pointer to a PDM Service Instance. */
 typedef PPDMSRVINS *PPPDMSRVINS;
+
+/** Pointer to a PDM critical section. */
+typedef union PDMCRITSECT *PPDMCRITSECT;
+/** Pointer to a const PDM critical section. */
+typedef const union PDMCRITSECT *PCPDMCRITSECT;
 
 /** R3 pointer to a timer. */
 typedef R3PTRTYPE(struct TMTIMER *) PTMTIMERR3;

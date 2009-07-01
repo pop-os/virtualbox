@@ -23,14 +23,15 @@
 #ifndef ___VBoxToolBar_h___
 #define ___VBoxToolBar_h___
 
-
+#include <QGlobalStatic> /* for Q_WS_MAC */
 #ifdef Q_WS_MAC
 # include "VBoxUtils.h"
 #endif
 
 /* Qt includes */
-#include <QToolBar>
+#include <QLayout>
 #include <QMainWindow>
+#include <QToolBar>
 
 /* Note: This styles are available on _all_ platforms. */
 #include <QCleanlooksStyle>
@@ -122,7 +123,7 @@ public:
 #ifdef Q_WS_MAC
         ::darwinSetShowsToolbarButton (this, aShow);
 #else  /* Q_WS_MAC */
-        NOREF (aShow);
+        Q_UNUSED (aShow);
 #endif /* !Q_WS_MAC */
     }
 

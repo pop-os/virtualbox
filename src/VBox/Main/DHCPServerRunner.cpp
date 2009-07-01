@@ -1,4 +1,4 @@
-/* $Id: DHCPServerRunner.cpp $ */
+/* $Id: DHCPServerRunner.cpp 19510 2009-05-08 07:02:22Z vboxsync $ */
 /** @file
  * VirtualBox Main - interface for VBox DHCP server
  */
@@ -57,7 +57,7 @@ static const ARGDEF g_aArgDefs[] =
 static const ARGDEF * getArgDef(DHCPCFG type)
 {
     for (unsigned i = 0; i < RT_ELEMENTS(g_aArgDefs); i++)
-        if (g_aArgDefs[i].Type == type)
+        if(g_aArgDefs[i].Type == type)
             return &g_aArgDefs[i];
 
     return NULL;

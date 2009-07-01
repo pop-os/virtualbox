@@ -39,6 +39,10 @@
 #define PYTHON_EXE "python"
 #endif
 
+#ifdef WINDOWS
+static char* gsViewportHackApps[] = {"googleearth.exe", NULL};
+#endif
+
 static int stub_initialized = 0;
 
 /* NOTE: 'SPUDispatchTable glim' is declared in NULLfuncs.py now */
@@ -73,11 +77,10 @@ static ClearFunc_t origClear;
 static ViewportFunc_t origViewport;
 static SwapBuffersFunc_t origSwapBuffers;
 static DrawBufferFunc_t origDrawBuffer;
+static ScissorFunc_t origScissor;
 
 static void stubCheckWindowState(void)
 {
-    int winX, winY;
-    unsigned int winW, winH;
     WindowInfo *window;
     bool bForceUpdate = false;
 
@@ -87,8 +90,6 @@ static void stubCheckWindowState(void)
         return;
 
     window = stub.currentContext->currentDrawable;
-
-    stubGetWindowGeometry( window, &winX, &winY, &winW, &winH );
 
 #ifdef WINDOWS
     /* @todo install hook and track for WM_DISPLAYCHANGE */
@@ -148,7 +149,19 @@ static void SPU_APIENTRY trapViewport(GLint x, GLint y, GLsizei w, GLsizei h)
 {
     stubCheckWindowState();
     /* call the original SPU glViewport function */
-    origViewport(x, y, w, h);
+    if (!stub.viewportHack)
+    {
+        origViewport(x, y, w, h);
+    }
+    else
+    {
+        int winX, winY;
+        unsigned int winW, winH;
+        WindowInfo *pWindow;
+        pWindow = stub.currentContext->currentDrawable;
+        stubGetWindowGeometry(pWindow, &winX, &winY, &winW, &winH);
+        origViewport(0, 0, winW, winH);
+    }
 }
 
 static void SPU_APIENTRY trapSwapBuffers(GLint window, GLint flags)
@@ -161,6 +174,16 @@ static void SPU_APIENTRY trapDrawBuffer(GLenum buf)
 {
     stubCheckWindowState();
     origDrawBuffer(buf);
+}
+
+static void SPU_APIENTRY trapScissor(GLint x, GLint y, GLsizei w, GLsizei h)
+{
+    int winX, winY;
+    unsigned int winW, winH;
+    WindowInfo *pWindow;
+    pWindow = stub.currentContext->currentDrawable;
+    stubGetWindowGeometry(pWindow, &winX, &winY, &winW, &winH);
+    origScissor(0, 0, winW, winH);
 }
 
 /**
@@ -178,8 +201,11 @@ static void stubInitSPUDispatch(SPU *spu)
         origViewport = stub.spuDispatch.Viewport;
         origSwapBuffers = stub.spuDispatch.SwapBuffers;
         origDrawBuffer = stub.spuDispatch.DrawBuffer;
+        origScissor = stub.spuDispatch.Scissor;
         stub.spuDispatch.Clear = trapClear;
         stub.spuDispatch.Viewport = trapViewport;
+        if (stub.viewportHack)
+            stub.spuDispatch.Scissor = trapScissor;
         /*stub.spuDispatch.SwapBuffers = trapSwapBuffers;
         stub.spuDispatch.DrawBuffer = trapDrawBuffer;*/
     }
@@ -490,6 +516,24 @@ void stubSetDefaultConfigurationOptions(void)
     crNetSetNodeRange("iam0", "iamvis20");
     crNetSetKey(key,sizeof(key));
     stub.force_pbuffers = 0;
+    stub.viewportHack = 0;
+
+#ifdef WINDOWS
+    {
+        char name[1000];
+        int i;
+
+        crGetProcName(name, 1000);
+        for (i=0; gsViewportHackApps[i]; ++i)
+        {
+            if (!stricmp(name, gsViewportHackApps[i]))
+            {
+                stub.viewportHack = 1;
+                break;
+            }
+        }
+    }
+#endif
 }
 
 /**
@@ -517,7 +561,7 @@ stubInit(void)
 
     if (stub_initialized)
         return true;
-    
+
     stubInitVars();
 
     /* @todo check if it'd be of any use on other than guests, no use for windows */

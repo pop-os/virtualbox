@@ -1,4 +1,4 @@
-/* $Id: alloc-r0drv.h $ */
+/* $Id: alloc-r0drv.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, Ring-0 Driver.
  */
@@ -35,7 +35,7 @@
 #include <iprt/types.h>
 #include "internal/magics.h"
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /**
  * Header which heading all memory blocks.
@@ -67,6 +67,6 @@ typedef struct RTMEMHDR
 PRTMEMHDR   rtMemAlloc(size_t cb, uint32_t fFlags);
 void        rtMemFree(PRTMEMHDR pHdr);
 
-__END_DECLS
+RT_C_DECLS_END
 #endif
 

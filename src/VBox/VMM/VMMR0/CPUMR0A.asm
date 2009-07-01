@@ -1,4 +1,4 @@
-; $Id: CPUMR0A.asm $
+; $Id: CPUMR0A.asm 21039 2009-06-29 15:57:39Z vboxsync $
 ;; @file
 ; CPUM - Guest Context Assembly Routines.
 ;
@@ -33,6 +33,13 @@
 %ifdef IN_RING3
  %error "The jump table doesn't link on leopard."
 %endif
+
+;*******************************************************************************
+;*      Defined Constants And Macros                                           *
+;*******************************************************************************
+;; The offset of the XMM registers in X86FXSTATE.
+; Use define because I'm too lazy to convert the struct.
+%define XMM_OFF_IN_X86FXSTATE   160
 
 
 ;*******************************************************************************
@@ -81,6 +88,8 @@ BEGINPROC cpumR0SaveHostRestoreGuestFPUState
 %else
     mov     xDX, dword [esp + 4]
 %endif
+    pushf                               ; The darwin kernel can get upset or upset things if an
+    cli                                 ; interrupt occurs while we're doing fxsave/fxrstor/cr0.
 
     ; Switch the state.
     or      dword [xDX + CPUMCPU.fUseFlags], (CPUM_USED_FPU | CPUM_USED_FPU_SINCE_REM)
@@ -101,9 +110,24 @@ BEGINPROC cpumR0SaveHostRestoreGuestFPUState
     fxsave  [xDX + CPUMCPU.Host.fpu]    ; ASSUMES that all VT-x/AMD-V boxes sports fxsave/fxrstor (safe assumption)
     fxrstor [xDX + CPUMCPU.Guest.fpu]
 
+%ifdef VBOX_WITH_KERNEL_USING_XMM
+    ; Restore the non-volatile xmm registers. ASSUMING 64-bit windows
+    lea     r11, [xDX + CPUMCPU.Host.fpu + XMM_OFF_IN_X86FXSTATE]
+    movdqa  xmm6,  [r11 + 060h]
+    movdqa  xmm7,  [r11 + 070h]
+    movdqa  xmm8,  [r11 + 080h]
+    movdqa  xmm9,  [r11 + 090h]
+    movdqa  xmm10, [r11 + 0a0h]
+    movdqa  xmm11, [r11 + 0b0h]
+    movdqa  xmm12, [r11 + 0c0h]
+    movdqa  xmm13, [r11 + 0d0h]
+    movdqa  xmm14, [r11 + 0e0h]
+    movdqa  xmm15, [r11 + 0f0h]
+%endif
+
 .done:
     mov     cr0, xCX                    ; and restore old CR0 again ;; @todo optimize this.
-.fpu_not_used:
+    popf
     xor     eax, eax
     ret
 
@@ -121,6 +145,7 @@ BITS 32
 %endif
 ENDPROC   cpumR0SaveHostRestoreGuestFPUState
 
+
 %ifndef RT_ARCH_AMD64
 %ifdef  VBOX_WITH_64_BITS_GUESTS
 %ifndef VBOX_WITH_HYBRID_32BIT_KERNEL
@@ -133,6 +158,8 @@ ENDPROC   cpumR0SaveHostRestoreGuestFPUState
 align 16
 BEGINPROC cpumR0SaveHostFPUState
     mov     xDX, dword [esp + 4]
+    pushf                               ; The darwin kernel can get upset or upset things if an
+    cli                                 ; interrupt occurs while we're doing fxsave/fxrstor/cr0.
 
     ; Switch the state.
     or      dword [xDX + CPUMCPU.fUseFlags], (CPUM_USED_FPU | CPUM_USED_FPU_SINCE_REM)
@@ -142,15 +169,17 @@ BEGINPROC cpumR0SaveHostFPUState
     and     xAX, ~(X86_CR0_TS | X86_CR0_EM)
     mov     cr0, xAX                    ;; @todo optimize this.
 
-    fxsave  [xDX + CPUMCPU.Host.fpu]    ; ASSUMES that all VT-x/AMD-V boxes sports fxsave/fxrstor (safe assumption)
+    fxsave  [xDX + CPUMCPU.Host.fpu]    ; ASSUMES that all VT-x/AMD-V boxes support fxsave/fxrstor (safe assumption)
 
     mov     cr0, xCX                    ; and restore old CR0 again ;; @todo optimize this.
+    popf
     xor     eax, eax
     ret
 ENDPROC   cpumR0SaveHostFPUState
 %endif
 %endif
 %endif
+
 
 ;;
 ; Saves the guest FPU/XMM state and restores the host state.
@@ -175,6 +204,9 @@ BEGINPROC cpumR0SaveGuestRestoreHostFPUState
     test    dword [xDX + CPUMCPU.fUseFlags], CPUM_USED_FPU
     jz short .fpu_not_used
 
+    pushf                               ; The darwin kernel can get upset or upset things if an
+    cli                                 ; interrupt occurs while we're doing fxsave/fxrstor/cr0.
+
     mov     xAX, cr0                    ; Make sure it's safe to access the FPU state.
     mov     xCX, xAX                    ; save old CR0
     and     xAX, ~(X86_CR0_TS | X86_CR0_EM)
@@ -188,12 +220,13 @@ BEGINPROC cpumR0SaveGuestRestoreHostFPUState
 .legacy_mode:
 %endif ; VBOX_WITH_HYBRID_32BIT_KERNEL
 
-    fxsave  [xDX + CPUMCPU.Guest.fpu]   ; ASSUMES that all VT-x/AMD-V boxes sports fxsave/fxrstor (safe assumption)
+    fxsave  [xDX + CPUMCPU.Guest.fpu]   ; ASSUMES that all VT-x/AMD-V boxes support fxsave/fxrstor (safe assumption)
     fxrstor [xDX + CPUMCPU.Host.fpu]
 
 .done:
     mov     cr0, xCX                    ; and restore old CR0 again ;; @todo optimize this.
     and     dword [xDX + CPUMCPU.fUseFlags], ~CPUM_USED_FPU
+    popf
 .fpu_not_used:
     xor     eax, eax
     ret
@@ -236,6 +269,9 @@ BEGINPROC cpumR0RestoreHostFPUState
     test    dword [xDX + CPUMCPU.fUseFlags], CPUM_USED_FPU
     jz short .fpu_not_used
 
+    pushf                               ; The darwin kernel can get upset or upset things if an
+    cli                                 ; interrupt occurs while we're doing fxsave/fxrstor/cr0.
+
     mov     xAX, cr0
     mov     xCX, xAX                    ; save old CR0
     and     xAX, ~(X86_CR0_TS | X86_CR0_EM)
@@ -254,6 +290,7 @@ BEGINPROC cpumR0RestoreHostFPUState
 .done:
     mov     cr0, xCX                    ; and restore old CR0 again
     and     dword [xDX + CPUMCPU.fUseFlags], ~CPUM_USED_FPU
+    popf
 .fpu_not_used:
     xor     eax, eax
     ret
@@ -272,327 +309,6 @@ BITS 32
 ENDPROC   cpumR0RestoreHostFPUState
 
 
-;;
-; Restores the guest's FPU/XMM state
-;
-; @param    pCtx  x86:[esp+4] GCC:rdi MSC:rcx     CPUMCTX pointer
-;
-align 16
-BEGINPROC   CPUMLoadFPU
-%ifdef RT_ARCH_AMD64
- %ifdef RT_OS_WINDOWS
-    mov     xDX, rcx
- %else
-    mov     xDX, rdi
- %endif
-%else
-    mov     xDX, dword [esp + 4]
-%endif
-%ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
-    cmp     byte [NAME(g_fCPUMIs64bitHost)], 0
-    jz      .legacy_mode
-    db      0xea                        ; jmp far .sixtyfourbit_mode
-    dd      .sixtyfourbit_mode, NAME(SUPR0Abs64bitKernelCS)
-.legacy_mode:
-%endif ; VBOX_WITH_HYBRID_32BIT_KERNEL
-
-    fxrstor [xDX + CPUMCTX.fpu]
-.done:
-    ret
-
-%ifdef VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0
-ALIGNCODE(16)
-BITS 64
-.sixtyfourbit_mode:
-    and     edx, 0ffffffffh
-    fxrstor [rdx + CPUMCTX.fpu]
-    jmp far [.fpret wrt rip]
-.fpret:                                 ; 16:32 Pointer to .the_end.
-    dd      .done, NAME(SUPR0AbsKernelCS)
-BITS 32
-%endif
-ENDPROC     CPUMLoadFPU
-
-
-;;
-; Restores the guest's FPU/XMM state
-;
-; @param    pCtx  x86:[esp+4] GCC:rdi MSC:rcx     CPUMCTX pointer
-;
-align 16
-BEGINPROC   CPUMSaveFPU
-%ifdef RT_ARCH_AMD64
- %ifdef RT_OS_WINDOWS
-    mov     xDX, rcx
- %else
-    mov     xDX, rdi
- %endif
-%else
-    mov     xDX, dword [esp + 4]
-%endif
-%ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
-    cmp     byte [NAME(g_fCPUMIs64bitHost)], 0
-    jz      .legacy_mode
-    db      0xea                        ; jmp far .sixtyfourbit_mode
-    dd      .sixtyfourbit_mode, NAME(SUPR0Abs64bitKernelCS)
-.legacy_mode:
-%endif ; VBOX_WITH_HYBRID_32BIT_KERNEL
-    fxsave  [xDX + CPUMCTX.fpu]
-.done:
-    ret
-
-%ifdef VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0
-ALIGNCODE(16)
-BITS 64
-.sixtyfourbit_mode:
-    and     edx, 0ffffffffh
-    fxsave  [rdx + CPUMCTX.fpu]
-    jmp far [.fpret wrt rip]
-.fpret:                                 ; 16:32 Pointer to .the_end.
-    dd      .done, NAME(SUPR0AbsKernelCS)
-BITS 32
-%endif
-ENDPROC CPUMSaveFPU
-
-
-;;
-; Restores the guest's XMM state
-;
-; @param    pCtx  x86:[esp+4] GCC:rdi MSC:rcx     CPUMCTX pointer
-;
-align 16
-BEGINPROC   CPUMLoadXMM
-%ifdef RT_ARCH_AMD64
- %ifdef RT_OS_WINDOWS
-    mov     xDX, rcx
- %else
-    mov     xDX, rdi
- %endif
-%else
-    mov     xDX, dword [esp + 4]
-%endif
-%ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
-    cmp     byte [NAME(g_fCPUMIs64bitHost)], 0
-    jz      .legacy_mode
-    db      0xea                        ; jmp far .sixtyfourbit_mode
-    dd      .sixtyfourbit_mode, NAME(SUPR0Abs64bitKernelCS)
-.legacy_mode:
-%endif ; VBOX_WITH_HYBRID_32BIT_KERNEL
-
-    movdqa  xmm0, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*0]
-    movdqa  xmm1, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*1]
-    movdqa  xmm2, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*2]
-    movdqa  xmm3, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*3]
-    movdqa  xmm4, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*4]
-    movdqa  xmm5, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*5]
-    movdqa  xmm6, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*6]
-    movdqa  xmm7, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*7]
-
-%ifdef RT_ARCH_AMD64
-    test qword [xDX + CPUMCTX.msrEFER], MSR_K6_EFER_LMA
-    jz .done
-
-    movdqa  xmm8, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*8]
-    movdqa  xmm9, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*9]
-    movdqa  xmm10, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*10]
-    movdqa  xmm11, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*11]
-    movdqa  xmm12, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*12]
-    movdqa  xmm13, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*13]
-    movdqa  xmm14, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*14]
-    movdqa  xmm15, [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*15]
-%endif
-.done:
-
-    ret
-
-%ifdef VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0
-ALIGNCODE(16)
-BITS 64
-.sixtyfourbit_mode:
-    and     edx, 0ffffffffh
-
-    movdqa  xmm0, [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*0]
-    movdqa  xmm1, [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*1]
-    movdqa  xmm2, [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*2]
-    movdqa  xmm3, [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*3]
-    movdqa  xmm4, [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*4]
-    movdqa  xmm5, [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*5]
-    movdqa  xmm6, [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*6]
-    movdqa  xmm7, [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*7]
-
-    test qword [rdx + CPUMCTX.msrEFER], MSR_K6_EFER_LMA
-    jz .sixtyfourbit_done
-
-    movdqa  xmm8,  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*8]
-    movdqa  xmm9,  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*9]
-    movdqa  xmm10, [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*10]
-    movdqa  xmm11, [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*11]
-    movdqa  xmm12, [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*12]
-    movdqa  xmm13, [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*13]
-    movdqa  xmm14, [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*14]
-    movdqa  xmm15, [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*15]
-.sixtyfourbit_done:
-    jmp far [.fpret wrt rip]
-.fpret:                                 ; 16:32 Pointer to .the_end.
-    dd      .done, NAME(SUPR0AbsKernelCS)
-BITS 32
-%endif
-ENDPROC     CPUMLoadXMM
-
-
-;;
-; Restores the guest's XMM state
-;
-; @param    pCtx  x86:[esp+4] GCC:rdi MSC:rcx     CPUMCTX pointer
-;
-align 16
-BEGINPROC   CPUMSaveXMM
-%ifdef RT_ARCH_AMD64
- %ifdef RT_OS_WINDOWS
-    mov     xDX, rcx
- %else
-    mov     xDX, rdi
- %endif
-%else
-    mov     xDX, dword [esp + 4]
-%endif
-%ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
-    cmp     byte [NAME(g_fCPUMIs64bitHost)], 0
-    jz      .legacy_mode
-    db      0xea                        ; jmp far .sixtyfourbit_mode
-    dd      .sixtyfourbit_mode, NAME(SUPR0Abs64bitKernelCS)
-.legacy_mode:
-%endif ; VBOX_WITH_HYBRID_32BIT_KERNEL
-
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*0], xmm0
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*1], xmm1
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*2], xmm2
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*3], xmm3
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*4], xmm4
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*5], xmm5
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*6], xmm6
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*7], xmm7
-
-%ifdef RT_ARCH_AMD64
-    test qword [xDX + CPUMCTX.msrEFER], MSR_K6_EFER_LMA
-    jz .done
-
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*8], xmm8
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*9], xmm9
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*10], xmm10
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*11], xmm11
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*12], xmm12
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*13], xmm13
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*14], xmm14
-    movdqa  [xDX + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*15], xmm15
-
-%endif
-.done:
-    ret
-
-%ifdef VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0
-ALIGNCODE(16)
-BITS 64
-.sixtyfourbit_mode:
-    and     edx, 0ffffffffh
-
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*0], xmm0
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*1], xmm1
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*2], xmm2
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*3], xmm3
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*4], xmm4
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*5], xmm5
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*6], xmm6
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*7], xmm7
-
-    test qword [rdx + CPUMCTX.msrEFER], MSR_K6_EFER_LMA
-    jz .sixtyfourbit_done
-
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*8], xmm8
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*9], xmm9
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*10], xmm10
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*11], xmm11
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*12], xmm12
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*13], xmm13
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*14], xmm14
-    movdqa  [rdx + CPUMCTX.fpu + X86FXSTATE.aXMM + 16*15], xmm15
-
-.sixtyfourbit_done:
-    jmp far [.fpret wrt rip]
-.fpret:                                 ; 16:32 Pointer to .the_end.
-    dd      .done, NAME(SUPR0AbsKernelCS)
-BITS 32
-%endif
-ENDPROC     CPUMSaveXMM
-
-
-;;
-; Set the FPU control word; clearing exceptions first
-;
-; @param  u16FCW    x86:[esp+4] GCC:rdi MSC:rcx     New FPU control word
-align 16
-BEGINPROC cpumR0SetFCW
-%ifdef RT_ARCH_AMD64
- %ifdef RT_OS_WINDOWS
-    mov     xAX, rcx
- %else
-    mov     xAX, rdi
- %endif
-%else
-    mov     xAX, dword [esp + 4]
-%endif
-    fnclex
-    push    xAX
-    fldcw   [xSP]
-    pop     xAX
-    ret
-ENDPROC   cpumR0SetFCW
-
-
-;;
-; Get the FPU control word
-;
-align 16
-BEGINPROC cpumR0GetFCW
-    fnstcw  [xSP - 8]
-    mov     ax, word [xSP - 8]
-    ret
-ENDPROC   cpumR0GetFCW
-
-
-;;
-; Set the MXCSR;
-;
-; @param  u32MXCSR    x86:[esp+4] GCC:rdi MSC:rcx     New MXCSR
-align 16
-BEGINPROC cpumR0SetMXCSR
-%ifdef RT_ARCH_AMD64
- %ifdef RT_OS_WINDOWS
-    mov     xAX, rcx
- %else
-    mov     xAX, rdi
- %endif
-%else
-    mov     xAX, dword [esp + 4]
-%endif
-    push    xAX
-    ldmxcsr [xSP]
-    pop     xAX
-    ret
-ENDPROC   cpumR0SetMXCSR
-
-
-;;
-; Get the MXCSR
-;
-align 16
-BEGINPROC cpumR0GetMXCSR
-    stmxcsr [xSP - 8]
-    mov     eax, dword [xSP - 8]
-    ret
-ENDPROC   cpumR0GetMXCSR
-
-
 %ifdef VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0
 ;;
 ; DECLASM(void)     cpumR0SaveDRx(uint64_t *pa4Regs);
@@ -605,6 +321,9 @@ BEGINPROC cpumR0SaveDRx
  %endif
 %else
     mov     xCX, dword [esp + 4]
+%endif
+    pushf                               ; Just to be on the safe side.
+    cli
 %ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
     cmp     byte [NAME(g_fCPUMIs64bitHost)], 0
     jz      .legacy_mode
@@ -612,7 +331,6 @@ BEGINPROC cpumR0SaveDRx
     dd      .sixtyfourbit_mode, NAME(SUPR0Abs64bitKernelCS)
 .legacy_mode:
 %endif ; VBOX_WITH_HYBRID_32BIT_KERNEL
-%endif
 
     ;
     ; Do the job.
@@ -627,6 +345,7 @@ BEGINPROC cpumR0SaveDRx
     mov     [xCX + 8 * 3], xDX
 
 .done:
+    popf
     ret
 
 %ifdef VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0
@@ -662,6 +381,9 @@ BEGINPROC cpumR0LoadDRx
  %endif
 %else
     mov     xCX, dword [esp + 4]
+%endif
+    pushf                               ; Just to be on the safe side.
+    cli
 %ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
     cmp     byte [NAME(g_fCPUMIs64bitHost)], 0
     jz      .legacy_mode
@@ -669,7 +391,6 @@ BEGINPROC cpumR0LoadDRx
     dd      .sixtyfourbit_mode, NAME(SUPR0Abs64bitKernelCS)
 .legacy_mode:
 %endif ; VBOX_WITH_HYBRID_32BIT_KERNEL
-%endif
 
     ;
     ; Do the job.
@@ -684,6 +405,7 @@ BEGINPROC cpumR0LoadDRx
     mov     dr3, xDX
 
 .done:
+    popf
     ret
 
 %ifdef VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0
@@ -708,3 +430,4 @@ BITS 32
 ENDPROC   cpumR0LoadDRx
 
 %endif ; VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0
+

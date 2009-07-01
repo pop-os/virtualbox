@@ -38,7 +38,7 @@ sbdrop(struct sbuf *sb, int num)
 }
 
 void
-sbreserve(struct sbuf *sb, int size)
+sbreserve(PNATState pData, struct sbuf *sb, int size)
 {
     if (sb->sb_data)
     {
@@ -77,16 +77,24 @@ sbappend(PNATState pData, struct socket *so, struct mbuf *m)
 {
     int ret = 0;
 
+    STAM_PROFILE_START(&pData->StatIOSBAppend_pf, a);
     DEBUG_CALL("sbappend");
     DEBUG_ARG("so = %lx", (long)so);
     DEBUG_ARG("m = %lx", (long)m);
     DEBUG_ARG("m->m_len = %d", m->m_len);
 
+    STAM_COUNTER_RESET(&pData->StatIOSBAppend);
+    STAM_COUNTER_RESET(&pData->StatIOSBAppend_zm);
+    STAM_COUNTER_RESET(&pData->StatIOSBAppend_wa);
+    STAM_COUNTER_RESET(&pData->StatIOSBAppend_wf);
+    STAM_COUNTER_RESET(&pData->StatIOSBAppend_wp);
+
+    STAM_COUNTER_INC(&pData->StatIOSBAppend);
     /* Shouldn't happen, but...  e.g. foreign host closes connection */
     if (m->m_len <= 0)
     {
-        m_free(pData, m);
-        return;
+        STAM_COUNTER_INC(&pData->StatIOSBAppend_zm);
+        goto done;
     }
 
     /*
@@ -96,7 +104,7 @@ sbappend(PNATState pData, struct socket *so, struct mbuf *m)
      */
     if (so->so_urgc)
     {
-        sbappendsb(&so->so_rcv, m);
+        sbappendsb(pData, &so->so_rcv, m);
         m_free(pData, m);
         sosendoob(so);
         return;
@@ -111,25 +119,34 @@ sbappend(PNATState pData, struct socket *so, struct mbuf *m)
 
     if (ret <= 0)
     {
+        STAM_COUNTER_INC(&pData->StatIOSBAppend_wf);
         /*
          * Nothing was written
          * It's possible that the socket has closed, but
          * we don't need to check because if it has closed,
          * it will be detected in the normal way by soread()
          */
-        sbappendsb(&so->so_rcv, m);
+        sbappendsb(pData, &so->so_rcv, m);
+        STAM_PROFILE_STOP(&pData->StatIOSBAppend_pf_wf, a);
+        goto done;
     }
     else if (ret != m->m_len)
     {
+        STAM_COUNTER_INC(&pData->StatIOSBAppend_wp);
         /*
          * Something was written, but not everything..
          * sbappendsb the rest
          */
         m->m_len -= ret;
         m->m_data += ret;
-        sbappendsb(&so->so_rcv, m);
+        sbappendsb(pData, &so->so_rcv, m);
+        STAM_PROFILE_STOP(&pData->StatIOSBAppend_pf_wp, a);
+        goto done;
     } /* else */
     /* Whatever happened, we free the mbuf */
+    STAM_COUNTER_INC(&pData->StatIOSBAppend_wa);
+    STAM_PROFILE_STOP(&pData->StatIOSBAppend_pf_wa, a);
+done:
     m_free(pData, m);
 }
 
@@ -138,14 +155,21 @@ sbappend(PNATState pData, struct socket *so, struct mbuf *m)
  * The caller is responsible to make sure there's enough room
  */
 void
-sbappendsb(struct sbuf *sb, struct mbuf *m)
+sbappendsb(PNATState pData, struct sbuf *sb, struct mbuf *m)
 {
     int len, n,  nn;
 
     len = m->m_len;
 
+    STAM_COUNTER_RESET(&pData->StatIOSBAppendSB);
+    STAM_COUNTER_RESET(&pData->StatIOSBAppendSB_w_l_r);
+    STAM_COUNTER_RESET(&pData->StatIOSBAppendSB_w_ge_r);
+    STAM_COUNTER_RESET(&pData->StatIOSBAppendSB_w_alter);
+
+    STAM_COUNTER_INC(&pData->StatIOSBAppendSB);
     if (sb->sb_wptr < sb->sb_rptr)
     {
+        STAM_COUNTER_INC(&pData->StatIOSBAppendSB_w_l_r);
         n = sb->sb_rptr - sb->sb_wptr;
         if (n > len)
             n = len;
@@ -153,6 +177,7 @@ sbappendsb(struct sbuf *sb, struct mbuf *m)
     }
     else
     {
+        STAM_COUNTER_INC(&pData->StatIOSBAppendSB_w_ge_r);
         /* Do the right edge first */
         n = sb->sb_data + sb->sb_datalen - sb->sb_wptr;
         if (n > len)
@@ -173,7 +198,10 @@ sbappendsb(struct sbuf *sb, struct mbuf *m)
     sb->sb_cc += n;
     sb->sb_wptr += n;
     if (sb->sb_wptr >= sb->sb_data + sb->sb_datalen)
+    {
+        STAM_COUNTER_INC(&pData->StatIOSBAppendSB_w_alter);
         sb->sb_wptr -= sb->sb_datalen;
+    }
 }
 
 /*

@@ -1,4 +1,4 @@
-/* $Id: PGMR0DynMap.cpp $ */
+/* $Id: PGMR0DynMap.cpp 20874 2009-06-24 02:19:29Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor, ring-0 dynamic mapping cache.
  */
@@ -355,7 +355,7 @@ VMMR0DECL(int) PGMR0DynMapInitVM(PVM pVM)
      * Initialize the auto sets.
      */
     VMCPUID idCpu = pVM->cCPUs;
-    AssertReturn(idCpu > 0 && idCpu <= VMCPU_MAX_CPU_COUNT, VERR_INTERNAL_ERROR);
+    AssertReturn(idCpu > 0 && idCpu <= VMM_MAX_CPU_COUNT, VERR_INTERNAL_ERROR);
     while (idCpu-- > 0)
     {
         PPGMMAPSET pSet = &pVM->aCpus[idCpu].pgm.s.AutoSet;
@@ -1184,7 +1184,10 @@ static void pgmR0DynMapReleasePage(PPGMR0DYNMAP pThis, uint32_t iPage, uint32_t 
  */
 static uint32_t pgmR0DynMapPageSlow(PPGMR0DYNMAP pThis, RTHCPHYS HCPhys, uint32_t iPage, PVM pVM)
 {
-    STAM_COUNTER_INC(&pVM->pgm.s.StatR0DynMapPageSlow);
+#ifdef VBOX_WITH_STATISTICS
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+#endif
+    STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapPageSlow);
 
     /*
      * Check if any of the first 3 pages are unreferenced since the caller
@@ -1212,7 +1215,7 @@ static uint32_t pgmR0DynMapPageSlow(PPGMR0DYNMAP pThis, RTHCPHYS HCPhys, uint32_
         {
             if (paPages[iFreePage].HCPhys == HCPhys)
             {
-                STAM_COUNTER_INC(&pVM->pgm.s.StatR0DynMapPageSlowLoopHits);
+                STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapPageSlowLoopHits);
                 return iFreePage;
             }
             if (!paPages[iFreePage].cRefs)
@@ -1223,7 +1226,7 @@ static uint32_t pgmR0DynMapPageSlow(PPGMR0DYNMAP pThis, RTHCPHYS HCPhys, uint32_
             if (RT_UNLIKELY(iFreePage == iPage))
                 return UINT32_MAX;
         }
-        STAM_COUNTER_INC(&pVM->pgm.s.StatR0DynMapPageSlowLoopMisses);
+        STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapPageSlowLoopMisses);
 #ifdef VBOX_WITH_STATISTICS
         fLooped = true;
 #endif
@@ -1235,7 +1238,7 @@ static uint32_t pgmR0DynMapPageSlow(PPGMR0DYNMAP pThis, RTHCPHYS HCPhys, uint32_
     if (!fLooped)
         for (uint32_t iPage2 = (iPage + 3) % cPages; iPage2 != iPage; iPage2 = (iPage2 + 1) % cPages)
             if (paPages[iPage2].HCPhys == HCPhys)
-                STAM_COUNTER_INC(&pVM->pgm.s.StatR0DynMapPageSlowLostHits);
+                STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapPageSlowLostHits);
 #endif
 
     /*
@@ -1283,10 +1286,13 @@ static uint32_t pgmR0DynMapPageSlow(PPGMR0DYNMAP pThis, RTHCPHYS HCPhys, uint32_
  */
 DECLINLINE(uint32_t) pgmR0DynMapPage(PPGMR0DYNMAP pThis, RTHCPHYS HCPhys, int32_t iRealCpu, PVM pVM, void **ppvPage)
 {
+#ifdef VBOX_WITH_STATISTICS
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+#endif
     RTSPINLOCKTMP   Tmp       = RTSPINLOCKTMP_INITIALIZER;
     RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
     AssertMsg(!(HCPhys & PAGE_OFFSET_MASK), ("HCPhys=%RHp\n", HCPhys));
-    STAM_COUNTER_INC(&pVM->pgm.s.StatR0DynMapPage);
+    STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapPage);
 
     /*
      * Find an entry, if possible a matching one. The HCPhys address is hashed
@@ -1300,14 +1306,14 @@ DECLINLINE(uint32_t) pgmR0DynMapPage(PPGMR0DYNMAP pThis, RTHCPHYS HCPhys, int32_
     uint32_t            iPage   = (HCPhys >> PAGE_SHIFT) % cPages;
     PPGMR0DYNMAPENTRY   paPages = pThis->paPages;
     if (RT_LIKELY(paPages[iPage].HCPhys == HCPhys))
-        STAM_COUNTER_INC(&pVM->pgm.s.StatR0DynMapPageHits0);
+        STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapPageHits0);
     else
     {
         uint32_t        iPage2 = (iPage + 1) % cPages;
         if (RT_LIKELY(paPages[iPage2].HCPhys == HCPhys))
         {
             iPage = iPage2;
-            STAM_COUNTER_INC(&pVM->pgm.s.StatR0DynMapPageHits1);
+            STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapPageHits1);
         }
         else
         {
@@ -1315,7 +1321,7 @@ DECLINLINE(uint32_t) pgmR0DynMapPage(PPGMR0DYNMAP pThis, RTHCPHYS HCPhys, int32_
             if (paPages[iPage2].HCPhys == HCPhys)
             {
                 iPage = iPage2;
-                STAM_COUNTER_INC(&pVM->pgm.s.StatR0DynMapPageHits2);
+                STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapPageHits2);
             }
             else
             {
@@ -1364,7 +1370,7 @@ DECLINLINE(uint32_t) pgmR0DynMapPage(PPGMR0DYNMAP pThis, RTHCPHYS HCPhys, int32_
      */
     if (RT_UNLIKELY(fInvalidateIt))
     {
-        STAM_COUNTER_INC(&pVM->pgm.s.StatR0DynMapPageInvlPg);
+        STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapPageInvlPg);
         ASMInvalidatePage(pvPage);
     }
 
@@ -1565,7 +1571,7 @@ VMMDECL(void) PGMDynMapReleaseAutoSet(PVMCPU pVCpu)
     pSet->iSubset = UINT32_MAX;
     pSet->iCpu = -1;
 
-    STAM_COUNTER_INC(&pVCpu->pVMR0->pgm.s.aStatR0DynMapSetSize[(cEntries * 10 / RT_ELEMENTS(pSet->aEntries)) % 11]);
+    STAM_COUNTER_INC(&pVCpu->pgm.s.aStatR0DynMapSetSize[(cEntries * 10 / RT_ELEMENTS(pSet->aEntries)) % 11]);
     AssertMsg(cEntries < PGMMAPSET_MAX_FILL, ("%u\n", cEntries));
     if (cEntries > RT_ELEMENTS(pSet->aEntries) * 50 / 100)
         Log(("PGMDynMapReleaseAutoSet: cEntries=%d\n", pSet->cEntries));
@@ -1589,7 +1595,7 @@ VMMDECL(void) PGMDynMapFlushAutoSet(PVMCPU pVCpu)
      */
     uint32_t cEntries = pSet->cEntries;
     AssertReturnVoid(cEntries != PGMMAPSET_CLOSED);
-    STAM_COUNTER_INC(&pVCpu->pVMR0->pgm.s.aStatR0DynMapSetSize[(cEntries * 10 / RT_ELEMENTS(pSet->aEntries)) % 11]);
+    STAM_COUNTER_INC(&pVCpu->pgm.s.aStatR0DynMapSetSize[(cEntries * 10 / RT_ELEMENTS(pSet->aEntries)) % 11]);
     if (cEntries >= RT_ELEMENTS(pSet->aEntries) * 45 / 100)
     {
         pSet->cEntries = 0;
@@ -1643,7 +1649,7 @@ VMMDECL(void) PGMDynMapMigrateAutoSet(PVMCPU pVCpu)
                         RTSpinlockRelease(pThis->hSpinlock, &Tmp);
 
                         ASMInvalidatePage(pThis->paPages[iPage].pvPage);
-                        STAM_COUNTER_INC(&pVCpu->pVMR0->pgm.s.StatR0DynMapMigrateInvlPg);
+                        STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapMigrateInvlPg);
 
                         RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
                     }
@@ -1720,7 +1726,7 @@ VMMDECL(uint32_t) PGMDynMapPushAutoSubset(PVMCPU pVCpu)
     uint32_t        iPrevSubset = pSet->iSubset;
 Assert(iPrevSubset == UINT32_MAX);
     pSet->iSubset = pSet->cEntries;
-    STAM_COUNTER_INC(&pVCpu->pVMR0->pgm.s.StatR0DynMapSubsets);
+    STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapSubsets);
     return iPrevSubset;
 }
 
@@ -1738,7 +1744,7 @@ VMMDECL(void) PGMDynMapPopAutoSubset(PVMCPU pVCpu, uint32_t iPrevSubset)
     AssertReturnVoid(cEntries != PGMMAPSET_CLOSED);
     AssertReturnVoid(pSet->iSubset <= iPrevSubset || iPrevSubset == UINT32_MAX);
 Assert(iPrevSubset == UINT32_MAX);
-    STAM_COUNTER_INC(&pVCpu->pVMR0->pgm.s.aStatR0DynMapSetSize[(cEntries * 10 / RT_ELEMENTS(pSet->aEntries)) % 11]);
+    STAM_COUNTER_INC(&pVCpu->pgm.s.aStatR0DynMapSetSize[(cEntries * 10 / RT_ELEMENTS(pSet->aEntries)) % 11]);
     if (    cEntries >= RT_ELEMENTS(pSet->aEntries) * 40 / 100
         &&  cEntries != pSet->iSubset)
     {
@@ -1809,6 +1815,9 @@ static void pgmDynMapOptimizeAutoSet(PPGMMAPSET pSet)
  */
 int pgmR0DynMapHCPageCommon(PVM pVM, PPGMMAPSET pSet, RTHCPHYS HCPhys, void **ppv)
 {
+#ifdef VBOX_WITH_STATISTICS
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+#endif
     AssertMsg(pSet->iCpu == RTMpCpuIdToSetIndex(RTMpCpuId()), ("%d %d(%d) efl=%#x\n", pSet->iCpu, RTMpCpuIdToSetIndex(RTMpCpuId()), RTMpCpuId(), ASMGetFlags()));
 
     /*
@@ -1821,7 +1830,7 @@ int pgmR0DynMapHCPageCommon(PVM pVM, PPGMMAPSET pSet, RTHCPHYS HCPhys, void **pp
         AssertMsg2("PGMDynMapHCPage: cLoad=%u/%u cPages=%u cGuardPages=%u\n",
                    g_pPGMR0DynMap->cLoad, g_pPGMR0DynMap->cMaxLoad, g_pPGMR0DynMap->cPages, g_pPGMR0DynMap->cGuardPages);
         if (!g_fPGMR0DynMapTestRunning)
-            VMMR0CallHost(pVM, VMMCALLHOST_VM_R0_ASSERTION, 0);
+            VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_VM_R0_ASSERTION, 0);
         *ppv = NULL;
         return VERR_PGM_DYNMAP_FAILED;
     }
@@ -1881,23 +1890,23 @@ int pgmR0DynMapHCPageCommon(PVM pVM, PPGMMAPSET pSet, RTHCPHYS HCPhys, void **pp
                 &&  pSet->aEntries[i].cRefs < UINT16_MAX - 1)
             {
                 pSet->aEntries[i].cRefs++;
-                STAM_COUNTER_INC(&pVM->pgm.s.StatR0DynMapSetSearchHits);
+                STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapSetSearchHits);
                 break;
             }
         if (i < 0)
         {
-            STAM_COUNTER_INC(&pVM->pgm.s.StatR0DynMapSetSearchMisses);
+            STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapSetSearchMisses);
             if (pSet->iSubset < pSet->cEntries)
             {
-                STAM_COUNTER_INC(&pVM->pgm.s.StatR0DynMapSetSearchFlushes);
-                STAM_COUNTER_INC(&pVM->pgm.s.aStatR0DynMapSetSize[(pSet->cEntries * 10 / RT_ELEMENTS(pSet->aEntries)) % 11]);
+                STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapSetSearchFlushes);
+                STAM_COUNTER_INC(&pVCpu->pgm.s.aStatR0DynMapSetSize[(pSet->cEntries * 10 / RT_ELEMENTS(pSet->aEntries)) % 11]);
                 AssertMsg(pSet->cEntries < PGMMAPSET_MAX_FILL, ("%u\n", pSet->cEntries));
                 pgmDynMapFlushSubset(pSet);
             }
 
             if (RT_UNLIKELY(pSet->cEntries >= RT_ELEMENTS(pSet->aEntries)))
             {
-                STAM_COUNTER_INC(&pVM->pgm.s.StatR0DynMapSetOptimize);
+                STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapSetOptimize);
                 pgmDynMapOptimizeAutoSet(pSet);
             }
 
@@ -1917,7 +1926,7 @@ int pgmR0DynMapHCPageCommon(PVM pVM, PPGMMAPSET pSet, RTHCPHYS HCPhys, void **pp
 
                 AssertMsg2("PGMDynMapHCPage: set is full!\n");
                 if (!g_fPGMR0DynMapTestRunning)
-                    VMMR0CallHost(pVM, VMMCALLHOST_VM_R0_ASSERTION, 0);
+                    VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_VM_R0_ASSERTION, 0);
                 *ppv = NULL;
                 return VERR_PGM_DYNMAP_FULL_SET;
             }
@@ -1933,10 +1942,13 @@ int pgmR0DynMapHCPageCommon(PVM pVM, PPGMMAPSET pSet, RTHCPHYS HCPhys, void **pp
 /* documented elsewhere - a bit of a mess. */
 VMMDECL(int) PGMDynMapHCPage(PVM pVM, RTHCPHYS HCPhys, void **ppv)
 {
+#ifdef VBOX_WITH_STATISTICS
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+#endif
     /*
      * Validate state.
      */
-    STAM_PROFILE_START(&pVM->pgm.s.StatR0DynMapHCPage, a);
+    STAM_PROFILE_START(&pVCpu->pgm.s.StatR0DynMapHCPage, a);
     AssertPtr(ppv);
     AssertMsg(pVM->pgm.s.pvR0DynMapUsed == g_pPGMR0DynMap,
               ("%p != %p\n", pVM->pgm.s.pvR0DynMapUsed, g_pPGMR0DynMap));
@@ -1952,7 +1964,7 @@ VMMDECL(int) PGMDynMapHCPage(PVM pVM, RTHCPHYS HCPhys, void **ppv)
      */
     int rc = pgmR0DynMapHCPageCommon(pVM, pSet, HCPhys, ppv);
 
-    STAM_PROFILE_STOP(&pVM->pgm.s.StatR0DynMapHCPage, a);
+    STAM_PROFILE_STOP(&pVCpu->pgm.s.StatR0DynMapHCPage, a);
     return rc;
 }
 #endif

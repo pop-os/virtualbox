@@ -37,7 +37,7 @@
 #endif
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_dir    RTDir - Directory Manipulation
  * @ingroup grp_rt
@@ -59,8 +59,8 @@ RTDECL(bool) RTDirExists(const char *pszPath);
  * Creates a directory.
  *
  * @returns iprt status code.
- * @param   pszPath   Path to the directory to create.
- * @param   fMode      The mode of the new directory.
+ * @param   pszPath     Path to the directory to create.
+ * @param   fMode       The mode of the new directory.
  */
 RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode);
 
@@ -69,13 +69,34 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode);
  * if they don't exist.
  *
  * @returns iprt status code.
- * @param   pszPath   Path to the directory to create.
- * @param   fMode      The mode of the new directories.
+ * @param   pszPath     Path to the directory to create.
+ * @param   fMode       The mode of the new directories.
  */
 RTDECL(int) RTDirCreateFullPath(const char *pszPath, RTFMODE fMode);
 
 /**
- * Removes a directory (only if not empty).
+ * Creates a new directory with a unique name using the given template.
+ *
+ * One or more trailing X'es in the template will be replaced by random alpha
+ * numeric characters until a RTDirCreate succeeds or we run out of patience.
+ * For instance:
+ *          "/tmp/myprog-XXXXXX"
+ *
+ * As an alternative to trailing X'es, it
+ * is possible to put 3 or more X'es somewhere inside the directory name. In
+ * the following string only the last bunch of X'es will be modified:
+ *          "/tmp/myprog-XXX-XXX.tmp"
+ *
+ * The directory is created with mode 0700.
+ *
+ * @returns iprt status code.
+ * @param   pszTemplate     The directory name template on input. The actual
+ *                          directory name on success. Empty string on failure.
+ */
+RTDECL(int) RTDirCreateTemp(char *pszTemplate);
+
+/**
+ * Removes a directory if empty.
  *
  * @returns iprt status code.
  * @param   pszPath   Path to the directory to remove.
@@ -83,7 +104,7 @@ RTDECL(int) RTDirCreateFullPath(const char *pszPath, RTFMODE fMode);
 RTDECL(int) RTDirRemove(const char *pszPath);
 
 /**
- * Removes a directory recursively.
+ * Removes a directory tree recursively.
  *
  * @returns iprt status code.
  * @param   pszPath   Path to the directory to remove recursively.
@@ -351,7 +372,7 @@ RTR3DECL(int) RTDirSetTimes(PRTDIR pDir, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC 
 #endif /* IN_RING3 */
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

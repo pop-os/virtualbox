@@ -39,7 +39,7 @@
 #endif
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_tcp    RTTcp - TCP/IP
  * @ingroup grp_rt
@@ -217,7 +217,7 @@ RTR3DECL(int)  RTTcpAccept(RTSOCKET Sock, unsigned uPort, PRTSOCKET pSockAccepte
 
 
 /** @} */
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

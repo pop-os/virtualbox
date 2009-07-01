@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-linux.c $ */
+/* $Id: VBoxNetFlt-linux.c 20414 2009-06-08 19:46:24Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Linux Specific Code.
  */
@@ -27,6 +27,8 @@
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/rtnetlink.h>
+#include <linux/miscdevice.h>
+#include <linux/ip.h>
 
 #define LOG_GROUP LOG_GROUP_NET_FLT_DRV
 #include <VBox/log.h>
@@ -156,116 +158,6 @@ MODULE_VERSION(VBOX_VERSION_STRING " (" xstr(INTNETTRUNKIFPORT_VERSION) ")");
  */
 static VBOXNETFLTGLOBALS g_VBoxNetFltGlobals;
 
-
-/*
- * NetAdp-related part
- */
-
-#define VBOX_NETADP_NAME "vboxnet%d"
-
-struct net_device *g_pNetDev;
-
-struct VBoxNetAdpPriv
-{
-    struct net_device_stats Stats;
-};
-typedef struct VBoxNetAdpPriv VBOXNETADPPRIV;
-typedef VBOXNETADPPRIV *PVBOXNETADPPRIV;
-
-static int vboxNetAdpOpen(struct net_device *pNetDev)
-{
-    netif_start_queue(pNetDev);
-    printk("vboxNetAdpOpen returns 0\n");
-    return 0;
-}
-
-static int vboxNetAdpStop(struct net_device *pNetDev)
-{
-    netif_stop_queue(pNetDev);
-    return 0;
-}
-
-static int vboxNetAdpXmit(struct sk_buff *pSkb, struct net_device *pNetDev)
-{
-    PVBOXNETADPPRIV pPriv = netdev_priv(pNetDev);
-
-    /* Update the stats. */
-    pPriv->Stats.tx_packets++;
-    pPriv->Stats.tx_bytes += pSkb->len;
-    /* Update transmission time stamp. */
-    pNetDev->trans_start = jiffies;
-    /* Nothing else to do, just free the sk_buff. */
-    dev_kfree_skb(pSkb);
-    return 0;
-}
-
-struct net_device_stats *vboxNetAdpGetStats(struct net_device *pNetDev)
-{
-    PVBOXNETADPPRIV pPriv = netdev_priv(pNetDev);
-    return &pPriv->Stats;
-}
-
-/* Currently not referenced in vboxNetAdpNetDevInit
-static int vboxNetAdpValidateAddr(struct net_device *dev)
-{
-    Log(("vboxNetAdpValidateAddr: %02x:%02x:%02x:%02x:%02x:%02x\n",
-         dev->dev_addr[0], dev->dev_addr[1], dev->dev_addr[2],
-         dev->dev_addr[3], dev->dev_addr[4], dev->dev_addr[5]));
-    return -EADDRNOTAVAIL;
-} */
-
-static void vboxNetAdpNetDevInit(struct net_device *pNetDev)
-{
-    PVBOXNETADPPRIV pPriv;
-
-    ether_setup(pNetDev);
-    /// @todo Use Sun vendor id
-    memcpy(pNetDev->dev_addr, "\0vbnet", ETH_ALEN);
-    Log(("vboxNetAdpNetDevInit: pNetDev->dev_addr = %.6Rhxd\n", pNetDev->dev_addr));
-    pNetDev->open = vboxNetAdpOpen;
-    pNetDev->stop = vboxNetAdpStop;
-    pNetDev->hard_start_xmit = vboxNetAdpXmit;
-    pNetDev->get_stats = vboxNetAdpGetStats;
-    //pNetDev->validate_addr = vboxNetAdpValidateAddr;
-/*    pNetDev-> = vboxNetAdp;
-    pNetDev-> = vboxNetAdp;
-    pNetDev-> = vboxNetAdp;
-    pNetDev-> = vboxNetAdp;
-    pNetDev-> = vboxNetAdp;*/
-
-    pPriv = netdev_priv(pNetDev);
-    memset(pPriv, 0, sizeof(*pPriv));
-}
-
-static int vboxNetAdpRegisterNetDev(void)
-{
-    int rc = VINF_SUCCESS;
-    struct net_device *pNetDev;
-
-    /* No need for private data. */
-    pNetDev = alloc_netdev(sizeof(VBOXNETADPPRIV), VBOX_NETADP_NAME, vboxNetAdpNetDevInit);
-    if (pNetDev)
-    {
-        int err = register_netdev(pNetDev);
-        if (!err)
-        {
-            g_pNetDev = pNetDev;
-            return VINF_SUCCESS;
-        }
-        free_netdev(pNetDev);
-        rc = RTErrConvertFromErrno(err);
-    }
-    return rc;
-}
-
-static int vboxNetAdpUnregisterNetDev(void)
-{
-    unregister_netdev(g_pNetDev);
-    free_netdev(g_pNetDev);
-    g_pNetDev = NULL;
-    return VINF_SUCCESS;
-}
-
 /**
  * Initialize module.
  *
@@ -300,14 +192,8 @@ static int __init VBoxNetFltLinuxInit(void)
         rc = vboxNetFltInitGlobalsAndIdc(&g_VBoxNetFltGlobals);
         if (RT_SUCCESS(rc))
         {
-            rc = vboxNetAdpRegisterNetDev();
-            if (RT_SUCCESS(rc))
-            {
-                LogRel(("VBoxNetFlt: Successfully started.\n"));
-                return 0;
-            }
-            else
-                LogRel(("VBoxNetFlt: failed to register device (rc=%d)\n", rc));
+            LogRel(("VBoxNetFlt: Successfully started.\n"));
+            return 0;
         }
         else
             LogRel(("VBoxNetFlt: failed to initialize device extension (rc=%d)\n", rc));
@@ -335,8 +221,6 @@ static void __exit VBoxNetFltLinuxUnload(void)
     /*
      * Undo the work done during start (in reverse order).
      */
-    rc = vboxNetAdpUnregisterNetDev();
-    AssertRC(rc);
     rc = vboxNetFltTryDeleteIdcAndGlobals(&g_VBoxNetFltGlobals);
     AssertRC(rc); NOREF(rc);
 
@@ -594,8 +478,8 @@ static int vboxNetFltLinuxPacketHandler(struct sk_buff *pBuf,
     LogFlow(("vboxNetFltLinuxPacketHandler: pBuf=%p pSkbDev=%p pPacketType=%p\n",
              pBuf, pSkbDev, pPacketType));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
-    Log3(("vboxNetFltLinuxPacketHandler: skb len=%u data_len=%u truesize=%u next=%p nr_frags=%u gso_size=%u gso_seqs=%u gso_type=%x frag_list=%p pkt_type=%x ip_summed=%d\n",
-          pBuf->len, pBuf->data_len, pBuf->truesize, pBuf->next, skb_shinfo(pBuf)->nr_frags, skb_shinfo(pBuf)->gso_size, skb_shinfo(pBuf)->gso_segs, skb_shinfo(pBuf)->gso_type, skb_shinfo(pBuf)->frag_list, pBuf->pkt_type, pBuf->ip_summed));
+    Log3(("vboxNetFltLinuxPacketHandler: skb len=%u data_len=%u truesize=%u next=%p nr_frags=%u gso_size=%u gso_seqs=%u gso_type=%x frag_list=%p pkt_type=%x\n",
+          pBuf->len, pBuf->data_len, pBuf->truesize, pBuf->next, skb_shinfo(pBuf)->nr_frags, skb_shinfo(pBuf)->gso_size, skb_shinfo(pBuf)->gso_segs, skb_shinfo(pBuf)->gso_type, skb_shinfo(pBuf)->frag_list, pBuf->pkt_type));
 #else
     Log3(("vboxNetFltLinuxPacketHandler: skb len=%u data_len=%u truesize=%u next=%p nr_frags=%u tso_size=%u tso_seqs=%u frag_list=%p pkt_type=%x\n",
           pBuf->len, pBuf->data_len, pBuf->truesize, pBuf->next, skb_shinfo(pBuf)->nr_frags, skb_shinfo(pBuf)->tso_size, skb_shinfo(pBuf)->tso_segs, skb_shinfo(pBuf)->frag_list, pBuf->pkt_type));
@@ -774,12 +658,29 @@ static void vboxNetFltLinuxForwardToIntNet(PVBOXNETFLTINS pThis, struct sk_buff 
     else
     {
         if (pBuf->ip_summed == CHECKSUM_PARTIAL && pBuf->pkt_type == PACKET_OUTGOING)
+        {
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
+            /*
+             * Try to work around the problem with CentOS 4.7 and 5.2 (2.6.9
+             * and 2.6.18 kernels), they pass wrong 'h' pointer down. We take IP
+             * header length from the header itself and reconstruct 'h' pointer
+             * to TCP (or whatever) header.
+             */
+            unsigned char *tmp = pBuf->h.raw;
+            if (pBuf->h.raw == pBuf->nh.raw && pBuf->protocol == htons(ETH_P_IP))
+                pBuf->h.raw = pBuf->nh.raw + pBuf->nh.iph->ihl * 4;
+#endif /* LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18) */
             if (VBOX_SKB_CHECKSUM_HELP(pBuf))
             {
                 LogRel(("VBoxNetFlt: Failed to compute checksum, dropping the packet.\n"));
                 dev_kfree_skb(pBuf);
                 return;
             }
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
+            /* Restore the original (wrong) pointer. */
+            pBuf->h.raw = tmp;
+#endif /* LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18) */
+        }
         vboxNetFltLinuxForwardSegment(pThis, pBuf, fSrc);
     }
     /*

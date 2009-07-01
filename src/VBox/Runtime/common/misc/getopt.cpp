@@ -1,4 +1,4 @@
-/* $Id: getopt.cpp $ */
+/* $Id: getopt.cpp 20809 2009-06-23 09:08:20Z vboxsync $ */
 /** @file
  * IPRT - Command Line Parsing
  */
@@ -37,6 +37,7 @@
 #include <iprt/string.h>
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
+#include <iprt/uuid.h>
 
 
 
@@ -436,6 +437,15 @@ RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion)
                     if (rtgetoptConvertMacAddr(pszValue, &Addr) != VINF_SUCCESS)
                         return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
                     pValueUnion->MacAddr = Addr;
+                    break;
+                }
+
+                case RTGETOPT_REQ_UUID:
+                {
+                    RTUUID Uuid;
+                    if (RTUuidFromStr(&Uuid, pszValue) != VINF_SUCCESS)
+                        return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
+                    pValueUnion->Uuid = Uuid;
                     break;
                 }
 

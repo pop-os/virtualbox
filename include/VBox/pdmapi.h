@@ -36,20 +36,21 @@
 
 #include <VBox/types.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_pdm       The Pluggable Device Manager API
  * @{
  */
 
-VMMDECL(int)    PDMGetInterrupt(PVM pVM, uint8_t *pu8Interrupt);
+VMMDECL(int)    PDMGetInterrupt(PVMCPU pVCpu, uint8_t *pu8Interrupt);
 VMMDECL(int)    PDMIsaSetIrq(PVM pVM, uint8_t u8Irq, uint8_t u8Level);
 VMMDECL(int)    PDMIoApicSetIrq(PVM pVM, uint8_t u8Irq, uint8_t u8Level);
+VMMDECL(bool)   PDMHasIoApic(PVM pVM);
 VMMDECL(int)    PDMApicHasPendingIrq(PVM pVM, bool *pfPending);
 VMMDECL(int)    PDMApicSetBase(PVM pVM, uint64_t u64Base);
 VMMDECL(int)    PDMApicGetBase(PVM pVM, uint64_t *pu64Base);
-VMMDECL(int)    PDMApicSetTPR(PVM pVM, uint8_t u8TPR);
-VMMDECL(int)    PDMApicGetTPR(PVM pVM, uint8_t *pu8TPR, bool *pfPending);
+VMMDECL(int)    PDMApicSetTPR(PVMCPU pVCpu, uint8_t u8TPR);
+VMMDECL(int)    PDMApicGetTPR(PVMCPU pVCpu, uint8_t *pu8TPR, bool *pfPending);
 VMMDECL(int)    PDMApicWriteMSR(PVM pVM, VMCPUID iCpu, uint32_t u32Reg, uint64_t u64Value);
 VMMDECL(int)    PDMApicReadMSR(PVM pVM, VMCPUID iCpu, uint32_t u32Reg, uint64_t *pu64Value);
 VMMDECL(int)    PDMVMMDevHeapR3ToGCPhys(PVM pVM, RTR3PTR pv, RTGCPHYS *pGCPhys);
@@ -114,6 +115,7 @@ VMMR3DECL(int)  PDMR3VMMDevHeapAlloc(PVM pVM, unsigned cbSize, RTR3PTR *ppv);
 VMMR3DECL(int)  PDMR3VMMDevHeapFree(PVM pVM, RTR3PTR pv);
 VMMR3DECL(int)  PDMR3UnregisterVMMDevHeap(PVM pVM, RTGCPHYS GCPhys);
 
+VMMR3DECL(void) PDMR3ReleaseOwnedLocks(PVM pVM);
 /** @} */
 #endif
 
@@ -126,7 +128,7 @@ VMMR3DECL(int)  PDMR3UnregisterVMMDevHeap(PVM pVM, RTGCPHYS GCPhys);
 /** @} */
 #endif
 
-__END_DECLS
+RT_C_DECLS_END
 
 /** @} */
 

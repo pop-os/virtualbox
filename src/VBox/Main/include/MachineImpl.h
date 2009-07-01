@@ -1,4 +1,4 @@
-/* $Id: MachineImpl.h $ */
+/* $Id: MachineImpl.h 20928 2009-06-25 11:53:37Z vboxsync $ */
 
 /** @file
  *
@@ -79,7 +79,7 @@ class ATL_NO_VTABLE Machine :
     public VirtualBoxBaseWithChildrenNEXT,
     public VirtualBoxSupportErrorInfoImpl <Machine, IMachine>,
     public VirtualBoxSupportTranslation <Machine>,
-    public IMachine
+    VBOX_SCRIPTABLE_IMPL(IMachine)
 {
     Q_OBJECT
 
@@ -151,6 +151,8 @@ public:
         const Guid mUuid;
         BOOL mRegistered;
 
+        /** Flag indicating that the config file is read-only. */
+        BOOL mConfigFileReadonly;
         Bstr mConfigFile;
         Bstr mConfigFileFull;
 
@@ -453,6 +455,7 @@ public:
     BEGIN_COM_MAP(Machine)
         COM_INTERFACE_ENTRY(ISupportErrorInfo)
         COM_INTERFACE_ENTRY(IMachine)
+        COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
     NS_DECL_ISUPPORTS
@@ -479,7 +482,7 @@ public:
     STDMETHOD(COMSETTER(Name))(IN_BSTR aName);
     STDMETHOD(COMGETTER(Description))(BSTR *aDescription);
     STDMETHOD(COMSETTER(Description))(IN_BSTR aDescription);
-    STDMETHOD(COMGETTER(Id))(OUT_GUID aId);
+    STDMETHOD(COMGETTER(Id))(BSTR *aId);
     STDMETHOD(COMGETTER(OSTypeId)) (BSTR *aOSTypeId);
     STDMETHOD(COMSETTER(OSTypeId)) (IN_BSTR aOSTypeId);
     STDMETHOD(COMGETTER(HardwareVersion))(BSTR *aVersion);
@@ -538,7 +541,7 @@ public:
     // IMachine methods
     STDMETHOD(SetBootOrder)(ULONG aPosition, DeviceType_T aDevice);
     STDMETHOD(GetBootOrder)(ULONG aPosition, DeviceType_T *aDevice);
-    STDMETHOD(AttachHardDisk)(IN_GUID aId, IN_BSTR aControllerName,
+    STDMETHOD(AttachHardDisk)(IN_BSTR aId, IN_BSTR aControllerName,
                               LONG aControllerPort, LONG aDevice);
     STDMETHOD(GetHardDisk)(IN_BSTR aControllerName, LONG aControllerPort, LONG aDevice,
                            IHardDisk **aHardDisk);
@@ -554,9 +557,9 @@ public:
     STDMETHOD(DiscardSettings)();
     STDMETHOD(DeleteSettings)();
     STDMETHOD(Export)(IAppliance *aAppliance, IVirtualSystemDescription **aDescription);
-    STDMETHOD(GetSnapshot) (IN_GUID aId, ISnapshot **aSnapshot);
+    STDMETHOD(GetSnapshot) (IN_BSTR aId, ISnapshot **aSnapshot);
     STDMETHOD(FindSnapshot) (IN_BSTR aName, ISnapshot **aSnapshot);
-    STDMETHOD(SetCurrentSnapshot) (IN_GUID aId);
+    STDMETHOD(SetCurrentSnapshot) (IN_BSTR aId);
     STDMETHOD(CreateSharedFolder) (IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable);
     STDMETHOD(RemoveSharedFolder) (IN_BSTR aName);
     STDMETHOD(CanShowConsoleWindow) (BOOL *aCanShow);
@@ -871,7 +874,7 @@ protected:
 class ATL_NO_VTABLE SessionMachine :
     public VirtualBoxSupportTranslation <SessionMachine>,
     public Machine,
-    public IInternalMachineControl
+    VBOX_SCRIPTABLE_IMPL(IInternalMachineControl)
 {
 public:
 
@@ -902,11 +905,12 @@ public:
     RWLockHandle *lockHandle() const;
 
     // IInternalMachineControl methods
+    STDMETHOD(SetRemoveSavedState)(BOOL aRemove);
     STDMETHOD(UpdateState)(MachineState_T machineState);
     STDMETHOD(GetIPCId)(BSTR *id);
     STDMETHOD(RunUSBDeviceFilters) (IUSBDevice *aUSBDevice, BOOL *aMatched, ULONG *aMaskedIfs);
-    STDMETHOD(CaptureUSBDevice) (IN_GUID aId);
-    STDMETHOD(DetachUSBDevice) (IN_GUID aId, BOOL aDone);
+    STDMETHOD(CaptureUSBDevice) (IN_BSTR aId);
+    STDMETHOD(DetachUSBDevice) (IN_BSTR aId, BOOL aDone);
     STDMETHOD(AutoCaptureUSBDevices)();
     STDMETHOD(DetachAllUSBDevices)(BOOL aDone);
     STDMETHOD(OnSessionEnd)(ISession *aSession, IProgress **aProgress);
@@ -918,7 +922,7 @@ public:
                                     IProgress *aProgress, BSTR *aStateFilePath,
                                     IProgress **aServerProgress);
     STDMETHOD(EndTakingSnapshot) (BOOL aSuccess);
-    STDMETHOD(DiscardSnapshot) (IConsole *aInitiator, IN_GUID aId,
+    STDMETHOD(DiscardSnapshot) (IConsole *aInitiator, IN_BSTR aId,
                                MachineState_T *aMachineState, IProgress **aProgress);
     STDMETHOD(DiscardCurrentState) (
         IConsole *aInitiator, MachineState_T *aMachineState, IProgress **aProgress);
@@ -947,7 +951,7 @@ public:
     HRESULT onUSBDeviceAttach (IUSBDevice *aDevice,
                                IVirtualBoxErrorInfo *aError,
                                ULONG aMaskedIfs);
-    HRESULT onUSBDeviceDetach (IN_GUID aId,
+    HRESULT onUSBDeviceDetach (IN_BSTR aId,
                                IVirtualBoxErrorInfo *aError);
     HRESULT onSharedFolderChange();
 
@@ -1001,6 +1005,8 @@ private:
 
     HRESULT setMachineState (MachineState_T aMachineState);
     HRESULT updateMachineStateOnClient();
+
+    HRESULT mRemoveSavedState;
 
     SnapshotData mSnapshotData;
 

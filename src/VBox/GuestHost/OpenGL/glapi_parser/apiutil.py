@@ -354,7 +354,10 @@ def GetCategoryWrapper(func_name):
 		cat == "Chromium" or
 		cat == "GL_chromium"):
 		return ''
-	elif cat[0] =='1':
+	elif (cat == '1.3' or
+          cat == '1.4' or
+          cat == '1.5' or
+          cat == '2.0'):
 		# i.e. OpenGL 1.3 or 1.4 or 1.5
 		return "OPENGL_VERSION_" + string.replace(cat, ".", "_")
 	else:
@@ -606,7 +609,9 @@ __lengths = {
 	'void': 0,  # XXX why?
 	'int': 4,
 	'GLintptrARB': 4,   # XXX or 8 bytes?
-	'GLsizeiptrARB': 4  # XXX or 8 bytes?
+	'GLsizeiptrARB': 4, # XXX or 8 bytes?
+	'GLhandleARB': 4,
+	'GLcharARB': 1
 }
 
 def sizeof(type):

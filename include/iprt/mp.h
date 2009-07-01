@@ -34,7 +34,7 @@
 #include <iprt/types.h>
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_mp RTMp - Multiprocessor
  * @ingroup grp_rt
@@ -222,6 +222,9 @@ RTDECL(int) RTMpOnAll(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2);
 /**
  * Executes a function on a all other (online) CPUs in the system.
  *
+ * The caller must disable preemption prior to calling this API if the outcome
+ * is to make any sense. But do *not* disable interrupts.
+ *
  * @returns IPRT status code.
  * @retval  VINF_SUCCESS on success.
  * @retval  VERR_NOT_SUPPORTED if this kind of operation isn't supported by the system.
@@ -250,6 +253,26 @@ RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2);
  * @param   pvUser2         The second user argument for the worker.
  */
 RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2);
+
+/**
+ * Pokes the specified CPU.
+ *
+ * This should cause the execution on the CPU to be interrupted and forcing it
+ * to enter kernel context. It is optimized version of a RTMpOnSpecific call
+ * with a worker which returns immediately.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_SUPPORTED if this kind of operation isn't supported by the
+ *          system. The caller must not automatically assume that this API works
+ *          when any of the RTMpOn* APIs works. This is because not all systems
+ *          supports unicast MP events and this API will not be implemented as a
+ *          broadcast.
+ * @retval  VERR_CPU_OFFLINE if the CPU is offline.
+ * @retval  VERR_CPU_NOT_FOUND if the CPU wasn't found.
+ *
+ * @param   idCpu           The id of the CPU to poke.
+ */
+RTDECL(int) RTMpPokeCpu(RTCPUID idCpu);
 
 
 /**
@@ -317,7 +340,7 @@ RTDECL(int) RTMpNotificationDeregister(PFNRTMPNOTIFICATION pfnCallback, void *pv
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

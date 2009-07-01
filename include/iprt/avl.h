@@ -33,7 +33,7 @@
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_avl    RTAvl - AVL Trees
  * @ingroup grp_rt
@@ -121,6 +121,7 @@ RTDECL(PAVLULNODECORE)  RTAvlULGet(PPAVLULNODECORE ppTree, AVLULKEY Key);
 RTDECL(PAVLULNODECORE)  RTAvlULGetBestFit(PPAVLULNODECORE ppTree, AVLULKEY Key, bool fAbove);
 RTDECL(PAVLULNODECORE)  RTAvlULRemoveBestFit(PPAVLULNODECORE ppTree, AVLULKEY Key, bool fAbove);
 RTDECL(int)             RTAvlULDoWithAll(PPAVLULNODECORE ppTree, int fFromLeft, PAVLULCALLBACK pfnCallBack, void *pvParam);
+RTDECL(int)             RTAvlULDestroy(PPAVLULNODECORE pTree, PAVLULCALLBACK pfnCallBack, void *pvParam);
 
 /** @} */
 
@@ -142,6 +143,11 @@ typedef struct _AVLU32NodeCore
     unsigned char           uchHeight;  /**< Height of this tree: max(height(left), height(right)) + 1 */
 } AVLU32NODECORE, *PAVLU32NODECORE, **PPAVLU32NODECORE;
 
+/** A tree with void pointer keys. */
+typedef PAVLU32NODECORE     AVLU32TREE;
+/** Pointer to a tree with void pointer keys. */
+typedef PPAVLU32NODECORE    PAVLU32TREE;
+
 /** Callback function for AVLU32DoWithAll() & AVLU32Destroy(). */
 typedef DECLCALLBACK(int) AVLU32CALLBACK(PAVLU32NODECORE, void*);
 /** Pointer to callback function for AVLU32DoWithAll() & AVLU32Destroy(). */
@@ -151,13 +157,13 @@ typedef AVLU32CALLBACK *PAVLU32CALLBACK;
 /*
  * Functions.
  */
-RTDECL(bool)            RTAvlU32Insert(PPAVLU32NODECORE ppTree, PAVLU32NODECORE pNode);
-RTDECL(PAVLU32NODECORE) RTAvlU32Remove(PPAVLU32NODECORE ppTree, AVLU32KEY Key);
-RTDECL(PAVLU32NODECORE) RTAvlU32Get(PPAVLU32NODECORE ppTree, AVLU32KEY Key);
-RTDECL(PAVLU32NODECORE) RTAvlU32GetBestFit(PPAVLU32NODECORE ppTree, AVLU32KEY Key, bool fAbove);
-RTDECL(PAVLU32NODECORE) RTAvlU32RemoveBestFit(PPAVLU32NODECORE ppTree, AVLU32KEY Key, bool fAbove);
-RTDECL(int)             RTAvlU32DoWithAll(PPAVLU32NODECORE ppTree, int fFromLeft, PAVLU32CALLBACK pfnCallBack, void *pvParam);
-RTDECL(int)             RTAvlU32Destroy(PPAVLU32NODECORE pTree, PAVLU32CALLBACK pfnCallBack, void *pvParam);
+RTDECL(bool)            RTAvlU32Insert(PAVLU32TREE pTree, PAVLU32NODECORE pNode);
+RTDECL(PAVLU32NODECORE) RTAvlU32Remove(PAVLU32TREE pTree, AVLU32KEY Key);
+RTDECL(PAVLU32NODECORE) RTAvlU32Get(PAVLU32TREE pTree, AVLU32KEY Key);
+RTDECL(PAVLU32NODECORE) RTAvlU32GetBestFit(PAVLU32TREE pTree, AVLU32KEY Key, bool fAbove);
+RTDECL(PAVLU32NODECORE) RTAvlU32RemoveBestFit(PAVLU32TREE pTree, AVLU32KEY Key, bool fAbove);
+RTDECL(int)             RTAvlU32DoWithAll(PAVLU32TREE pTree, int fFromLeft, PAVLU32CALLBACK pfnCallBack, void *pvParam);
+RTDECL(int)             RTAvlU32Destroy(PAVLU32TREE pTree, PAVLU32CALLBACK pfnCallBack, void *pvParam);
 
 /** @} */
 
@@ -608,6 +614,106 @@ RTDECL(PAVLROOGCPTRNODECORE)    RTAvlrooGCPtrGetNextEqual(PAVLROOGCPTRNODECORE p
 /** @} */
 
 
+/** AVL tree of RTUINTPTR.
+ * @{
+ */
+
+/**
+ * AVL RTUINTPTR node core.
+ */
+typedef struct _AVLUIntPtrNodeCore
+{
+    /** Key value. */
+    RTUINTPTR                   Key;
+    /** Offset to the left leaf node, relative to this field. */
+    struct _AVLUIntPtrNodeCore *pLeft;
+    /** Offset to the right leaf node, relative to this field. */
+    struct _AVLUIntPtrNodeCore *pRight;
+    /** Height of this tree: max(height(left), height(right)) + 1 */
+    unsigned char               uchHeight;
+} AVLUINTPTRNODECORE;
+/** Pointer to a RTUINTPTR AVL node core.*/
+typedef AVLUINTPTRNODECORE *PAVLUINTPTRNODECORE;
+
+/** A pointer based tree with RTUINTPTR keys. */
+typedef PAVLUINTPTRNODECORE AVLUINTPTRTREE;
+/** Pointer to a offset base tree with RTUINTPTR keys. */
+typedef AVLUINTPTRTREE     *PAVLUINTPTRTREE;
+
+/** Pointer to an internal tree pointer.
+ * In this case it's a pointer to a pointer. */
+typedef AVLUINTPTRTREE     *PPAVLUINTPTRNODECORE;
+
+/** Callback function for RTAvlUIntPtrDoWithAll() and RTAvlUIntPtrDestroy(). */
+typedef DECLCALLBACK(int)    AVLUINTPTRCALLBACK(PAVLUINTPTRNODECORE pNode, void *pvUser);
+/** Pointer to callback function for RTAvlUIntPtrDoWithAll() and RTAvlUIntPtrDestroy(). */
+typedef AVLUINTPTRCALLBACK *PAVLUINTPTRCALLBACK;
+
+RTDECL(bool)                    RTAvlUIntPtrInsert(    PAVLUINTPTRTREE pTree, PAVLUINTPTRNODECORE pNode);
+RTDECL(PAVLUINTPTRNODECORE)     RTAvlUIntPtrRemove(    PAVLUINTPTRTREE pTree, RTUINTPTR Key);
+RTDECL(PAVLUINTPTRNODECORE)     RTAvlUIntPtrGet(       PAVLUINTPTRTREE pTree, RTUINTPTR Key);
+RTDECL(PAVLUINTPTRNODECORE)     RTAvlUIntPtrGetBestFit(PAVLUINTPTRTREE pTree, RTUINTPTR Key, bool fAbove);
+RTDECL(int)                     RTAvlUIntPtrDoWithAll( PAVLUINTPTRTREE pTree, int fFromLeft, PAVLUINTPTRCALLBACK pfnCallBack, void *pvParam);
+RTDECL(int)                     RTAvlUIntPtrDestroy(   PAVLUINTPTRTREE pTree, PAVLUINTPTRCALLBACK pfnCallBack, void *pvParam);
+RTDECL(PAVLUINTPTRNODECORE)     RTAvlUIntPtrGetRoot(   PAVLUINTPTRTREE pTree);
+RTDECL(PAVLUINTPTRNODECORE)     RTAvlUIntPtrGetLeft(   PAVLUINTPTRNODECORE pNode);
+RTDECL(PAVLUINTPTRNODECORE)     RTAvlUIntPtrGetRight(  PAVLUINTPTRNODECORE pNode);
+
+/** @} */
+
+
+/** AVL tree of RTUINTPTR ranges.
+ * @{
+ */
+
+/**
+ * AVL RTUINTPTR range node core.
+ */
+typedef struct _AVLRUIntPtrNodeCore
+{
+    /** First key value in the range (inclusive). */
+    RTUINTPTR                       Key;
+    /** Last key value in the range (inclusive). */
+    RTUINTPTR                       KeyLast;
+    /** Offset to the left leaf node, relative to this field. */
+    struct _AVLRUIntPtrNodeCore    *pLeft;
+    /** Offset to the right leaf node, relative to this field. */
+    struct _AVLRUIntPtrNodeCore    *pRight;
+    /** Height of this tree: max(height(left), height(right)) + 1 */
+    unsigned char                   uchHeight;
+} AVLRUINTPTRNODECORE;
+/** Pointer to an AVL RTUINTPTR range node code. */
+typedef AVLRUINTPTRNODECORE *PAVLRUINTPTRNODECORE;
+
+/** A pointer based tree with RTUINTPTR ranges. */
+typedef PAVLRUINTPTRNODECORE AVLRUINTPTRTREE;
+/** Pointer to a pointer based tree with RTUINTPTR ranges. */
+typedef AVLRUINTPTRTREE     *PAVLRUINTPTRTREE;
+
+/** Pointer to an internal tree pointer.
+ * In this case it's a pointer to a pointer. */
+typedef AVLRUINTPTRTREE     *PPAVLRUINTPTRNODECORE;
+
+/** Callback function for RTAvlrUIntPtrDoWithAll() and RTAvlrUIntPtrDestroy(). */
+typedef DECLCALLBACK(int)    AVLRUINTPTRCALLBACK(PAVLRUINTPTRNODECORE pNode, void *pvUser);
+/** Pointer to callback function for RTAvlrUIntPtrDoWithAll() and RTAvlrUIntPtrDestroy(). */
+typedef AVLRUINTPTRCALLBACK *PAVLRUINTPTRCALLBACK;
+
+RTDECL(bool)                   RTAvlrUIntPtrInsert(     PAVLRUINTPTRTREE pTree, PAVLRUINTPTRNODECORE pNode);
+RTDECL(PAVLRUINTPTRNODECORE)   RTAvlrUIntPtrRemove(     PAVLRUINTPTRTREE pTree, RTUINTPTR Key);
+RTDECL(PAVLRUINTPTRNODECORE)   RTAvlrUIntPtrGet(        PAVLRUINTPTRTREE pTree, RTUINTPTR Key);
+RTDECL(PAVLRUINTPTRNODECORE)   RTAvlrUIntPtrGetBestFit( PAVLRUINTPTRTREE pTree, RTUINTPTR Key, bool fAbove);
+RTDECL(PAVLRUINTPTRNODECORE)   RTAvlrUIntPtrRangeGet(   PAVLRUINTPTRTREE pTree, RTUINTPTR Key);
+RTDECL(PAVLRUINTPTRNODECORE)   RTAvlrUIntPtrRangeRemove(PAVLRUINTPTRTREE pTree, RTUINTPTR Key);
+RTDECL(int)                    RTAvlrUIntPtrDoWithAll(  PAVLRUINTPTRTREE pTree, int fFromLeft, PAVLRUINTPTRCALLBACK pfnCallBack, void *pvParam);
+RTDECL(int)                    RTAvlrUIntPtrDestroy(    PAVLRUINTPTRTREE pTree, PAVLRUINTPTRCALLBACK pfnCallBack, void *pvParam);
+RTDECL(PAVLRUINTPTRNODECORE)   RTAvlrUIntPtrGetRoot(    PAVLRUINTPTRTREE pTree);
+RTDECL(PAVLRUINTPTRNODECORE)   RTAvlrUIntPtrGetLeft(    PAVLRUINTPTRNODECORE pNode);
+RTDECL(PAVLRUINTPTRNODECORE)   RTAvlrUIntPtrGetRight(   PAVLRUINTPTRNODECORE pNode);
+
+/** @} */
+
+
 /** AVL tree of RTHCPHYSes - using relative offsets internally.
  * @{
  */
@@ -703,6 +809,8 @@ RTDECL(bool)                    RTAvloIOPortInsert(PAVLOIOPORTTREE pTree, PAVLOI
 RTDECL(PAVLOIOPORTNODECORE)     RTAvloIOPortRemove(PAVLOIOPORTTREE pTree, RTIOPORT Key);
 RTDECL(PAVLOIOPORTNODECORE)     RTAvloIOPortGet(PAVLOIOPORTTREE pTree, RTIOPORT Key);
 RTDECL(int)                     RTAvloIOPortDoWithAll(PAVLOIOPORTTREE pTree, int fFromLeft, PAVLOIOPORTCALLBACK pfnCallBack, void *pvParam);
+RTDECL(PAVLOIOPORTNODECORE)     RTAvloIOPortGetBestFit(PAVLOIOPORTTREE ppTree, RTIOPORT Key, bool fAbove);
+RTDECL(PAVLOIOPORTNODECORE)     RTAvloIOPortRemoveBestFit(PAVLOIOPORTTREE ppTree, RTIOPORT Key, bool fAbove);
 RTDECL(int)                     RTAvloIOPortDestroy(PAVLOIOPORTTREE pTree, PAVLOIOPORTCALLBACK pfnCallBack, void *pvParam);
 
 /** @} */
@@ -810,7 +918,7 @@ RTDECL(int)                     RTAvlHCPhysDestroy(PAVLHCPHYSTREE pTree, PAVLHCP
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

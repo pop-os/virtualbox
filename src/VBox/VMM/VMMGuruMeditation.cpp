@@ -1,4 +1,4 @@
-/* $Id: VMMGuruMeditation.cpp $ */
+/* $Id: VMMGuruMeditation.cpp 20875 2009-06-24 02:29:17Z vboxsync $ */
 /** @file
  * VMM - The Virtual Machine Monitor, Guru Meditation Code.
  */
@@ -25,10 +25,14 @@
 #define LOG_GROUP LOG_GROUP_VMM
 #include <VBox/vmm.h>
 #include <VBox/pdmapi.h>
+#include <VBox/pdmcritsect.h>
 #include <VBox/trpm.h>
 #include <VBox/dbgf.h>
 #include "VMMInternal.h"
 #include <VBox/vm.h>
+#include <VBox/mm.h>
+#include <VBox/iom.h>
+#include <VBox/em.h>
 
 #include <VBox/err.h>
 #include <VBox/param.h>
@@ -195,9 +199,10 @@ static void vmmR3FatalDumpInfoHlpDelete(PVMMR3FATALDUMPINFOHLP pHlp)
  * Dumps the VM state on a fatal error.
  *
  * @param   pVM         VM Handle.
+ * @param   pVCpu       VMCPU Handle.
  * @param   rcErr       VBox status code.
  */
-VMMR3DECL(void) VMMR3FatalDump(PVM pVM, int rcErr)
+VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
 {
     /*
      * Create our output helper and sync it with the log settings.
@@ -206,6 +211,17 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, int rcErr)
     VMMR3FATALDUMPINFOHLP   Hlp;
     PCDBGFINFOHLP           pHlp = &Hlp.Core;
     vmmR3FatalDumpInfoHlpInit(&Hlp);
+
+    /* Release owned locks to make sure other VCPUs can continue in case they were waiting for one. */
+#if 1
+    PDMR3CritSectLeaveAll(pVM);
+#else
+    MMR3ReleaseOwnedLocks(pVM);
+    PGMR3ReleaseOwnedLocks(pVM);
+    PDMR3ReleaseOwnedLocks(pVM);
+    IOMR3ReleaseOwnedLocks(pVM);
+    EMR3ReleaseOwnedLocks(pVM);
+#endif
 
     /*
      * Header.
@@ -228,6 +244,7 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, int rcErr)
          */
         case VERR_VMM_RING0_ASSERTION:
         case VINF_EM_DBG_HYPER_ASSERTION:
+        case VERR_VMM_RING3_CALL_DISABLED:
         {
             const char *pszMsg1 = VMMR3GetRZAssertMsg1(pVM);
             while (pszMsg1 && *pszMsg1 == '\n')
@@ -253,18 +270,19 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, int rcErr)
         case VINF_EM_RAW_IRET_TRAP:
         case VINF_EM_DBG_HYPER_BREAKPOINT:
         case VINF_EM_DBG_HYPER_STEPPED:
+        case VERR_VMM_HYPER_CR3_MISMATCH:
         {
             /*
              * Active trap? This is only of partial interest when in hardware
              * assisted virtualization mode, thus the different messages.
              */
-            uint32_t        uEIP       = CPUMGetHyperEIP(pVM);
+            uint32_t        uEIP       = CPUMGetHyperEIP(pVCpu);
             TRPMEVENT       enmType;
             uint8_t         u8TrapNo   =       0xce;
             RTGCUINT        uErrorCode = 0xdeadface;
             RTGCUINTPTR     uCR2       = 0xdeadface;
-            int rc2 = TRPMQueryTrapAll(pVM, &u8TrapNo, &enmType, &uErrorCode, &uCR2);
-            if (!HWACCMR3IsActive(pVM))
+            int rc2 = TRPMQueryTrapAll(pVCpu, &u8TrapNo, &enmType, &uErrorCode, &uCR2);
+            if (!HWACCMIsEnabled(pVM))
             {
                 if (RT_SUCCESS(rc2))
                     pHlp->pfnPrintf(pHlp,
@@ -278,13 +296,75 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, int rcErr)
             else if (RT_SUCCESS(rc2))
                 pHlp->pfnPrintf(pHlp,
                                 "!! ACTIVE TRAP=%02x ERRCD=%RGv CR2=%RGv PC=%RGr Type=%d (Guest!)\n",
-                                u8TrapNo, uErrorCode, uCR2, CPUMGetGuestRIP(pVM), enmType);
+                                u8TrapNo, uErrorCode, uCR2, CPUMGetGuestRIP(pVCpu), enmType);
 
             /*
              * The hypervisor dump is not relevant when we're in VT-x/AMD-V mode.
              */
-            if (HWACCMR3IsActive(pVM))
+            if (HWACCMIsEnabled(pVM))
+            {
                 pHlp->pfnPrintf(pHlp, "\n");
+#if defined(RT_OS_WINDOWS) && HC_ARCH_BITS == 32
+                /* Callstack. */
+                PCDBGFSTACKFRAME pFirstFrame;
+                DBGFADDRESS eip, ebp, esp;
+
+                eip.fFlags   = DBGFADDRESS_FLAGS_RING0 | DBGFADDRESS_FLAGS_VALID;
+#if HC_ARCH_BITS == 64
+                eip.FlatPtr = eip.off = pVCpu->vmm.s.CallRing3JmpBufR0.rip;
+#else
+                eip.FlatPtr = eip.off = pVCpu->vmm.s.CallRing3JmpBufR0.eip;
+#endif
+                eip.Sel      = DBGF_SEL_FLAT;
+                ebp.fFlags   = DBGFADDRESS_FLAGS_RING0 | DBGFADDRESS_FLAGS_VALID;
+                ebp.FlatPtr  = ebp.off = pVCpu->vmm.s.CallRing3JmpBufR0.SavedEbp;
+                ebp.Sel      = DBGF_SEL_FLAT;
+                esp.fFlags   = DBGFADDRESS_FLAGS_RING0 | DBGFADDRESS_FLAGS_VALID;
+                esp.Sel      = DBGF_SEL_FLAT;
+                esp.FlatPtr  = esp.off = pVCpu->vmm.s.CallRing3JmpBufR0.SavedEsp;
+
+                rc2 = DBGFR3StackWalkBeginEx(pVM, pVCpu->idCpu, DBGFCODETYPE_RING0, &ebp, &esp, &eip,
+                                             DBGFRETURNTYPE_INVALID, &pFirstFrame);
+                if (RT_SUCCESS(rc2))
+                {
+                    pHlp->pfnPrintf(pHlp,
+                                    "!!\n"
+                                    "!! Call Stack:\n"
+                                    "!!\n"
+                                    "EBP      Ret EBP  Ret CS:EIP    Arg0     Arg1     Arg2     Arg3     CS:EIP        Symbol [line]\n");
+                    for (PCDBGFSTACKFRAME pFrame = pFirstFrame;
+                         pFrame;
+                         pFrame = DBGFR3StackWalkNext(pFrame))
+                    {
+                        pHlp->pfnPrintf(pHlp,
+                                        "%08RX32 %08RX32 %04RX32:%08RX32 %08RX32 %08RX32 %08RX32 %08RX32",
+                                        (uint32_t)pFrame->AddrFrame.off,
+                                        (uint32_t)pFrame->AddrReturnFrame.off,
+                                        (uint32_t)pFrame->AddrReturnPC.Sel,
+                                        (uint32_t)pFrame->AddrReturnPC.off,
+                                        pFrame->Args.au32[0],
+                                        pFrame->Args.au32[1],
+                                        pFrame->Args.au32[2],
+                                        pFrame->Args.au32[3]);
+                        pHlp->pfnPrintf(pHlp, " %RTsel:%08RGv", pFrame->AddrPC.Sel, pFrame->AddrPC.off);
+                        if (pFrame->pSymPC)
+                        {
+                            RTGCINTPTR offDisp = pFrame->AddrPC.FlatPtr - pFrame->pSymPC->Value;
+                            if (offDisp > 0)
+                                pHlp->pfnPrintf(pHlp, " %s+%llx", pFrame->pSymPC->szName, (int64_t)offDisp);
+                            else if (offDisp < 0)
+                                pHlp->pfnPrintf(pHlp, " %s-%llx", pFrame->pSymPC->szName, -(int64_t)offDisp);
+                            else
+                                pHlp->pfnPrintf(pHlp, " %s", pFrame->pSymPC->szName);
+                        }
+                        if (pFrame->pLinePC)
+                            pHlp->pfnPrintf(pHlp, " [%s @ 0i%d]", pFrame->pLinePC->szFilename, pFrame->pLinePC->uLineNo);
+                        pHlp->pfnPrintf(pHlp, "\n");
+                    }
+                    DBGFR3StackWalkEnd(pFirstFrame);
+                }
+#endif /* defined(RT_OS_WINDOWS) && HC_ARCH_BITS == 32 */
+            }
             else
             {
                 /*
@@ -322,7 +402,7 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, int rcErr)
 
                 /* Disassemble the instruction. */
                 char szInstr[256];
-                rc2 = DBGFR3DisasInstrEx(pVM, 0, 0, DBGF_DISAS_FLAGS_CURRENT_HYPER, &szInstr[0], sizeof(szInstr), NULL);
+                rc2 = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, 0, 0, DBGF_DISAS_FLAGS_CURRENT_HYPER, &szInstr[0], sizeof(szInstr), NULL);
                 if (RT_SUCCESS(rc2))
                     pHlp->pfnPrintf(pHlp,
                                     "!! %s\n", szInstr);
@@ -336,8 +416,8 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, int rcErr)
                 fDoneHyper = true;
 
                 /* Callstack. */
-                DBGFSTACKFRAME Frame = {0};
-                rc2 = DBGFR3StackWalkBeginHyper(pVM, &Frame);
+                PCDBGFSTACKFRAME pFirstFrame;
+                rc2 = DBGFR3StackWalkBegin(pVM, pVCpu->idCpu, DBGFCODETYPE_HYPER, &pFirstFrame);
                 if (RT_SUCCESS(rc2))
                 {
                     pHlp->pfnPrintf(pHlp,
@@ -345,37 +425,36 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, int rcErr)
                                     "!! Call Stack:\n"
                                     "!!\n"
                                     "EBP      Ret EBP  Ret CS:EIP    Arg0     Arg1     Arg2     Arg3     CS:EIP        Symbol [line]\n");
-                    do
+                    for (PCDBGFSTACKFRAME pFrame = pFirstFrame;
+                         pFrame;
+                         pFrame = DBGFR3StackWalkNext(pFrame))
                     {
                         pHlp->pfnPrintf(pHlp,
                                         "%08RX32 %08RX32 %04RX32:%08RX32 %08RX32 %08RX32 %08RX32 %08RX32",
-                                        (uint32_t)Frame.AddrFrame.off,
-                                        (uint32_t)Frame.AddrReturnFrame.off,
-                                        (uint32_t)Frame.AddrReturnPC.Sel,
-                                        (uint32_t)Frame.AddrReturnPC.off,
-                                        Frame.Args.au32[0],
-                                        Frame.Args.au32[1],
-                                        Frame.Args.au32[2],
-                                        Frame.Args.au32[3]);
-                        pHlp->pfnPrintf(pHlp, " %RTsel:%08RGv", Frame.AddrPC.Sel, Frame.AddrPC.off);
-                        if (Frame.pSymPC)
+                                        (uint32_t)pFrame->AddrFrame.off,
+                                        (uint32_t)pFrame->AddrReturnFrame.off,
+                                        (uint32_t)pFrame->AddrReturnPC.Sel,
+                                        (uint32_t)pFrame->AddrReturnPC.off,
+                                        pFrame->Args.au32[0],
+                                        pFrame->Args.au32[1],
+                                        pFrame->Args.au32[2],
+                                        pFrame->Args.au32[3]);
+                        pHlp->pfnPrintf(pHlp, " %RTsel:%08RGv", pFrame->AddrPC.Sel, pFrame->AddrPC.off);
+                        if (pFrame->pSymPC)
                         {
-                            RTGCINTPTR offDisp = Frame.AddrPC.FlatPtr - Frame.pSymPC->Value;
+                            RTGCINTPTR offDisp = pFrame->AddrPC.FlatPtr - pFrame->pSymPC->Value;
                             if (offDisp > 0)
-                                pHlp->pfnPrintf(pHlp, " %s+%llx", Frame.pSymPC->szName, (int64_t)offDisp);
+                                pHlp->pfnPrintf(pHlp, " %s+%llx", pFrame->pSymPC->szName, (int64_t)offDisp);
                             else if (offDisp < 0)
-                                pHlp->pfnPrintf(pHlp, " %s-%llx", Frame.pSymPC->szName, -(int64_t)offDisp);
+                                pHlp->pfnPrintf(pHlp, " %s-%llx", pFrame->pSymPC->szName, -(int64_t)offDisp);
                             else
-                                pHlp->pfnPrintf(pHlp, " %s", Frame.pSymPC->szName);
+                                pHlp->pfnPrintf(pHlp, " %s", pFrame->pSymPC->szName);
                         }
-                        if (Frame.pLinePC)
-                            pHlp->pfnPrintf(pHlp, " [%s @ 0i%d]", Frame.pLinePC->szFilename, Frame.pLinePC->uLineNo);
+                        if (pFrame->pLinePC)
+                            pHlp->pfnPrintf(pHlp, " [%s @ 0i%d]", pFrame->pLinePC->szFilename, pFrame->pLinePC->uLineNo);
                         pHlp->pfnPrintf(pHlp, "\n");
-
-                        /* next */
-                        rc2 = DBGFR3StackWalkNext(pVM, &Frame);
-                    } while (RT_SUCCESS(rc2));
-                    DBGFR3StackWalkEnd(pVM, &Frame);
+                    }
+                    DBGFR3StackWalkEnd(pFirstFrame);
                 }
 
                 /* raw stack */
@@ -384,9 +463,9 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, int rcErr)
                                 "!! Raw stack (mind the direction). pbEMTStackRC=%RRv pbEMTStackBottomRC=%RRv\n"
                                 "!!\n"
                                 "%.*Rhxd\n",
-                                pVM->vmm.s.pbEMTStackRC, pVM->vmm.s.pbEMTStackBottomRC,
-                                VMM_STACK_SIZE, pVM->vmm.s.pbEMTStackR3);
-            } /* !HWACCMR3IsActive */
+                                pVCpu->vmm.s.pbEMTStackRC, pVCpu->vmm.s.pbEMTStackBottomRC,
+                                VMM_STACK_SIZE, pVCpu->vmm.s.pbEMTStackR3);
+            } /* !HWACCMIsEnabled */
             break;
         }
 
@@ -448,5 +527,11 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, int rcErr)
      * Delete the output instance (flushing and restoring of flags).
      */
     vmmR3FatalDumpInfoHlpDelete(&Hlp);
+
+    /*
+     * Reset the ring-0 long jump buffer and stack.
+     */
+    /** @todo reset the R0 for the calling virtual cpu. We'll assert (luckily) in
+     *        PGMPhys.cpp otherwise. */
 }
 

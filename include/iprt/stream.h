@@ -34,7 +34,7 @@
 #include <iprt/types.h>
 #include <iprt/stdarg.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_stream     RTStrm - File Streams
  * @ingroup grp_rt
@@ -96,6 +96,39 @@ RTR3DECL(int) RTStrmOpenF(const char *pszMode, PRTSTREAM *ppStream, const char *
  * @param   pStream         The stream to close.
  */
 RTR3DECL(int) RTStrmClose(PRTSTREAM pStream);
+
+/**
+ * Get the pending error of the stream.
+ *
+ * @returns iprt status code. of the stream.
+ * @param   pStream         The stream.
+ */
+RTR3DECL(int) RTStrmError(PRTSTREAM pStream);
+
+/**
+ * Clears stream error condition.
+ *
+ * All stream operations save RTStrmClose and this will fail
+ * while an error is asserted on the stream
+ *
+ * @returns iprt status code.
+ * @param   pStream         The stream.
+ */
+RTR3DECL(int) RTStrmClearError(PRTSTREAM pStream);
+
+/**
+ * Rewinds the stream.
+ *
+ * Stream errors will be reset on success.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   pStream         The stream.
+ *
+ * @remarks Not all streams are rewindable and that behavior is currently
+ *          undefined for those.
+ */
+RTR3DECL(int) RTStrmRewind(PRTSTREAM pStream);
 
 /**
  * Reads from a file stream.
@@ -239,7 +272,7 @@ RTR3DECL(int) RTPrintfV(const char *pszFormat, va_list args);
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

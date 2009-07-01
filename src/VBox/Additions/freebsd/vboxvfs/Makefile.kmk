@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 12446 2008-09-14 23:32:31Z vboxsync $
 ## @file
 # Sub-Makefile for the FreeBSD Shared folder kernel module.
 #

@@ -300,7 +300,6 @@ extensions_num_get_values = {
     'GL_SAMPLE_COVERAGE_INVERT_ARB': (1, 'CR_ARB_multisample'),
     'GL_POINT_SPRITE_ARB': (1, 'CR_ARB_point_sprite'),
     'GL_MAX_TEXTURE_LOD_BIAS_EXT': (1, 'CR_EXT_texture_lod_bias'),
-    'GL_COMPRESSED_TEXTURE_FORMATS_ARB': (1, 'CR_ARB_texture_compression'),
     'GL_NUM_COMPRESSED_TEXTURE_FORMATS_ARB': (1, 'CR_ARB_texture_compression'),
     'GL_PROGRAM_ERROR_POSITION_NV': (1, 'CR_NV_vertex_program'),
     'GL_VERTEX_PROGRAM_BINDING_NV': (1, 'CR_NV_vertex_program'),
@@ -334,7 +333,48 @@ extensions_num_get_values = {
     'GL_WEIGHT_ARRAY_BUFFER_BINDING_ARB': (1, 'CR_ARB_vertex_buffer_object'),
     'GL_MAX_TEXTURE_IMAGE_UNITS_ARB': (1, 'CR_ARB_fragment_program'),
     # We don't support GL_ARB_draw_buffers, but for some reason ubuntu64 8.10 vm queries it on macos host
-    'GL_MAX_DRAW_BUFFERS_ARB': (1, 'VBOX')
+    'GL_MAX_DRAW_BUFFERS_ARB': (1, 'VBOX'),
+    'GL_MAX_PROGRAM_MATRICES_ARB': (1, 'CR_ARB_vertex_program'),
+    'GL_MAX_PROGRAM_MATRIX_STACK_DEPTH_ARB': (1, 'CR_ARB_vertex_program'),
+    # Vertex shaders (2.0) #
+    'GL_MAX_VERTEX_UNIFORM_COMPONENTS': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_MAX_VARYING_FLOATS': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_MAX_VERTEX_ATTRIBS': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_MAX_TEXTURE_IMAGE_UNITS': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_MAX_TEXTURE_COORDS': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_VERTEX_PROGRAM_POINT_SIZE': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_VERTEX_PROGRAM_TWO_SIDE': (1, 'CR_OPENGL_VERSION_2_0'),
+    # Fragment shaders (2.0) #
+    'GL_MAX_FRAGMENT_UNIFORM_COMPONENTS': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_FRAGMENT_SHADER_DERIVATIVE_HINT': (1, 'CR_OPENGL_VERSION_2_0'),
+    # Draw buffers (2.0) #
+    'GL_MAX_DRAW_BUFFERS': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER0': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER1': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER2': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER3': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER4': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER5': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER6': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER7': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER8': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER9': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER10': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER11': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER12': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER13': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER14': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_DRAW_BUFFER15': (1, 'CR_OPENGL_VERSION_2_0'),
+    # Point sprite (2.0) #
+    'GL_POINT_SPRITE': (1, 'CR_OPENGL_VERSION_2_0'),
+    # Separate stencil (2.0) #
+    'GL_STENCIL_BACK_FAIL': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_STENCIL_BACK_FUNC': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_STENCIL_BACK_PASS_DEPTH_FAIL': (1, 'CR_OPENGL_VERSION_2_0'),
+    'GL_STENCIL_BACK_PASS_DEPTH_PASS': (1, 'CR_OPENGL_VERSION_2_0'),
+
 }
 
 get_keys = num_get_values.keys() + extensions_num_get_values.keys()

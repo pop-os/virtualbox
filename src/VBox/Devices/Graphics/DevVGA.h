@@ -1,4 +1,4 @@
-/* $Id: DevVGA.h $ */
+/* $Id: DevVGA.h 20444 2009-06-09 15:16:41Z vboxsync $ */
 /** @file
  * DevVGA - VBox VGA/VESA device, internal header.
  */
@@ -304,10 +304,17 @@ typedef struct VGAState {
     /** Pointer to the device instance - R0 Ptr. */
     PPDMDEVINSR0                pDevInsR0;
 
+    /** The critical section. */
+    PDMCRITSECT                 lock;
+
     /** The display port base interface. */
     PDMIBASE                    Base;
     /** The display port interface. */
     PDMIDISPLAYPORT             Port;
+#if defined(VBOX_WITH_HGSMI) && defined(VBOX_WITH_VIDEOHWACCEL)
+    /** VBVA callbacks interface */
+    PDMDDISPLAYVBVACALLBACKS    VBVACallbacks;
+#endif
     /** Pointer to base interface of the driver. */
     R3PTRTYPE(PPDMIBASE)        pDrvBase;
     /** Pointer to display connector interface of the driver. */
@@ -442,6 +449,10 @@ static inline int c6_to_8(int v)
 int      VBVAInit       (PVGASTATE pVGAState);
 void     VBVADestroy    (PVGASTATE pVGAState);
 int      VBVAUpdateDisplay (PVGASTATE pVGAState);
+
+# ifdef VBOX_WITH_VIDEOHWACCEL
+int vbvaVHWACommandCompleteAsynch(PPDMDDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd);
+# endif
 #endif /* VBOX_WITH_HGSMI */
 
 #ifndef VBOX

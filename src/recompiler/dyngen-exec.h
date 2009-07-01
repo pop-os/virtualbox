@@ -29,12 +29,14 @@
 #if !defined(__DYNGEN_EXEC_H__)
 #define __DYNGEN_EXEC_H__
 
+#ifndef VBOX
 /* prevent Solaris from trying to typedef FILE in gcc's
    include/floatingpoint.h which will conflict with the
    definition down below */
 #ifdef __sun__
 #define _FILEDEFED
 #endif
+#endif /* !VBOX */
 
 /* NOTE: standard headers should be used with special care at this
    point because host CPU registers are used as global variables. Some
@@ -46,7 +48,7 @@
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;
-// Linux/Sparc64 defines uint64_t
+/* Linux/Sparc64 defines uint64_t */
 #if !(defined (__sparc_v9__) && defined(__linux__))
 /* XXX may be done for all 64 bits targets ? */
 #if defined (__x86_64__) || defined(__ia64)
@@ -89,8 +91,13 @@ typedef void * host_reg_t;
 #define UINT32_MAX		(4294967295U)
 #define UINT64_MAX		((uint64_t)(18446744073709551615))
 
+#ifdef _BSD
+typedef struct __sFILE FILE;
+#else
 typedef struct FILE FILE;
+#endif
 extern int fprintf(FILE *, const char *, ...);
+extern int fputs(const char *, FILE *);
 extern int printf(const char *, ...);
 #undef NULL
 #define NULL 0
@@ -106,28 +113,24 @@ typedef void * host_reg_t;
 #endif /* VBOX */
 
 #ifdef __i386__
+#ifndef VBOX
 #define AREG0 "ebp"
 #define AREG1 "ebx"
 #define AREG2 "esi"
 #define AREG3 "edi"
+#else
+#define AREG0 "esi"
+#define AREG1 "edi"
+#endif
 #endif
 #ifdef __x86_64__
-#ifdef VBOX 
-/* gcc 3.4.3 on 64-bit Solaris screws up when using rbp, it 
-   seems so at least. (Setting AREG4 to "r15" causes compiler 
-   error btw, so don't try it.)  */
-# define AREG0 "rbx" 
-# define AREG1 "r12"
-# define AREG2 "r13"
-# define AREG3 "r14"
-#else
-#define AREG0 "rbp"
-#define AREG1 "rbx"
+#if defined(VBOX) 
+/* Must be in sync with TCG register notion, see tcg-target.h */
+#endif
+#define AREG0 "r14"
+#define AREG1 "r15"
 #define AREG2 "r12"
 #define AREG3 "r13"
-#endif 
-//#define AREG4 "r14"
-//#define AREG5 "r15"
 #endif
 #ifdef __powerpc__
 #define AREG0 "r27"
@@ -221,8 +224,10 @@ typedef void * host_reg_t;
 #define AREG3 "r6"
 #endif
 
+#ifndef VBOX
 /* force GCC to generate only one epilog at the end of the function */
 #define FORCE_RET() __asm__ __volatile__("" : : : "memory");
+#endif
 
 #ifndef OPPROTO
 #define OPPROTO
@@ -233,7 +238,7 @@ typedef void * host_reg_t;
 #define stringify(s)	tostring(s)
 #define tostring(s)	#s
 
-#ifdef __alpha__
+#if defined(__alpha__) || defined(__s390__)
 /* the symbols are considered non exported so a br immediate is generated */
 #define __hidden __attribute__((visibility("hidden")))
 #else
@@ -271,40 +276,17 @@ extern int __op_jmp0, __op_jmp1, __op_jmp2, __op_jmp3;
 #define ASM_NAME(x) #x
 #endif
 
-#ifdef __i386__
-#define EXIT_TB() asm volatile ("ret")
-#define GOTO_LABEL_PARAM(n) asm volatile ("jmp " ASM_NAME(__op_gen_label) #n)
+#ifdef VBOX
+#define GETPC() ASMReturnAddress() 
+#elif defined(__s390__)
+/* The return address may point to the start of the next instruction.
+   Subtracting one gets us the call instruction itself.  */
+# define GETPC() ((void*)(((unsigned long)__builtin_return_address(0) & 0x7fffffffUL) - 1))
+#elif defined(__arm__)
+/* Thumb return addresses have the low bit set, so we need to subtract two.
+   This is still safe in ARM mode because instructions are 4 bytes.  */
+# define GETPC() ((void *)((unsigned long)__builtin_return_address(0) - 2))
+#else
+# define GETPC() ((void *)((unsigned long)__builtin_return_address(0) - 1))
 #endif
-#ifdef __x86_64__
-#define EXIT_TB() asm volatile ("ret")
-#define GOTO_LABEL_PARAM(n) asm volatile ("jmp " ASM_NAME(__op_gen_label) #n)
-#endif
-#ifdef __powerpc__
-#define EXIT_TB() asm volatile ("blr")
-#define GOTO_LABEL_PARAM(n) asm volatile ("b " ASM_NAME(__op_gen_label) #n)
-#endif
-#ifdef __s390__
-#define EXIT_TB() asm volatile ("br %r14")
-#define GOTO_LABEL_PARAM(n) asm volatile ("b " ASM_NAME(__op_gen_label) #n)
-#endif
-#ifdef __alpha__
-#define EXIT_TB() asm volatile ("ret")
-#endif
-#ifdef __ia64__
-#define EXIT_TB() asm volatile ("br.ret.sptk.many b0;;")
-#define GOTO_LABEL_PARAM(n) asm volatile ("br.sptk.many " \
-					  ASM_NAME(__op_gen_label) #n)
-#endif
-#ifdef __sparc__
-#define EXIT_TB() asm volatile ("jmpl %i0 + 8, %g0; nop")
-#define GOTO_LABEL_PARAM(n) asm volatile ("ba " ASM_NAME(__op_gen_label) #n ";nop")
-#endif
-#ifdef __arm__
-#define EXIT_TB() asm volatile ("b exec_loop")
-#define GOTO_LABEL_PARAM(n) asm volatile ("b " ASM_NAME(__op_gen_label) #n)
-#endif
-#ifdef __mc68000
-#define EXIT_TB() asm volatile ("rts")
-#endif
-
 #endif /* !defined(__DYNGEN_EXEC_H__) */

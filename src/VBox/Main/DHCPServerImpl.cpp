@@ -1,4 +1,4 @@
-/* $Id: DHCPServerImpl.cpp $ */
+/* $Id: DHCPServerImpl.cpp 20596 2009-06-15 17:45:17Z vboxsync $ */
 
 /** @file
  *
@@ -101,7 +101,7 @@ HRESULT DHCPServer::init(VirtualBox *aVirtualBox, const settings::Key &aNode)
     unconst(mName) = aNode.stringValue ("networkName");
     m.IPAddress = aNode.stringValue ("IPAddress");
     m.networkMask = aNode.stringValue ("networkMask");
-    m.enabled = aNode.value <BOOL> ("enabled");
+    m.enabled = aNode.value <bool> ("enabled");
     m.lowerIP = aNode.stringValue ("lowerIP");
     m.upperIP = aNode.stringValue ("upperIP");
 
@@ -128,7 +128,8 @@ HRESULT DHCPServer::saveSettings (settings::Key &aParentNode)
     aNode.setValue <Bstr> ("networkMask", m.networkMask);
     aNode.setValue <Bstr> ("lowerIP", m.lowerIP);
     aNode.setValue <Bstr> ("upperIP", m.upperIP);
-    aNode.setValue <BOOL> ("enabled", m.enabled);
+    /* To force it back to a numeric value; will otherwise break for 2.2.x. */
+    aNode.setValue <ULONG> ("enabled", m.enabled);
 
     return S_OK;
 }

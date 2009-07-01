@@ -43,6 +43,22 @@ which_wrapper()
   fi
 }
 
+OS=`uname -s | sed -e 's/GNU\/Linux/Linux/g' | tr [:upper:] [:lower:]`
+case "$OS" in
+  linux)
+    ;;
+  darwin)
+    ;;
+  freebsd)
+    ;;
+  sunos)
+    OS='solaris'
+    ;;
+  *)
+    echo "Cannot determine OS!"
+    exit 1
+    ;;
+esac
 
 #
 # Defaults
@@ -69,6 +85,9 @@ WITH_DBUS=1
 WITH_KMODS=1
 WITH_OPENGL=1
 WITH_HARDENING=1
+BUILD_LIBXML2=
+BUILD_LIBXSLT=
+BUILD_LIBCURL=
 CC="gcc"
 CC32=""
 CC64=""
@@ -82,15 +101,13 @@ AS86="as86"
 XSLTPROC="xsltproc"
 GENISOIMAGE="genisoimage"
 MKISOFS="mkisofs"
-BUILD_LIBXML2=
-BUILD_LIBXSLT=
 LIBCRYPTO="-lcrypto"
 LIBPTHREAD="-lpthread"
 LIBCAP="-lcap"
 GSOAP=""
 GSOAP_IMPORT=""
-LIBX11="-L/usr/X11R6/lib -L/usr/X11R6/lib64 -L/usr/local/lib -lXext -lX11"
 INCX11="/usr/local/include"
+LIBX11="-L/usr/X11R6/lib -L/usr/X11R6/lib64 -L/usr/local/lib -lXext -lX11"
 LIBXCURSOR="-lXcursor"
 LIBXMU="-lXmu"
 MESA="-lGL"
@@ -98,9 +115,16 @@ INCZ=""
 LIBZ="-lz"
 INCPNG=""
 LIBPNG="-lpng"
+if [ "$OS" = "freebsd" ]; then
+  INCCURL="-I/usr/local/include"
+  LIBCURL="-L/usr/local/lib -lcurl"
+else
+  INCCURL=""
+  LIBCURL="-lcurl"
+fi
 PKGCONFIG="`which_wrapper pkg-config`"
 PYTHONDIR="/usr /usr/local"
-QT4DIR="/usr/lib/qt4 /usr/share/qt4 /usr/lib64/qt4 /usr"
+QT4DIR="/usr/lib/qt4 /usr/share/qt4 /usr/lib64/qt4 /usr /usr/local"
 QT4DIR_PKGCONFIG=1
 QT4UIC3DIR="/usr/bin"
 KBUILDDIR="`cd \`dirname $0\`; pwd`/kBuild"
@@ -124,7 +148,7 @@ if (cd `dirname $0`; pwd)|grep -q "$INVALID_CHARS"; then
 fi
 
 # darwin /bin/sh has a builtin echo that doesn't grok -n. gotta love it.
-if [ "`uname`" = "Darwin" ]; then
+if [ "$OS" = "darwin" ]; then
   ECHO_N="/bin/echo -n"
 else
   ECHO_N="echo -n"
@@ -286,22 +310,6 @@ test_execute_path()
 check_environment()
 {
   test_header environment
-  OS=`uname -s | sed -e 's/GNU\/Linux/Linux/g' | tr [:upper:] [:lower:]`
-  case "$OS" in
-    linux)
-      ;;
-    darwin)
-      ;;
-    freebsd)
-      ;;
-    sunos)
-      OS='solaris'
-      ;;
-    *)
-      log_failure "Cannot determine OS"
-      exit 1
-      ;;
-  esac
   BUILD_CPU=`uname -m`
   [ "$OS" = "solaris" ] && BUILD_CPU=`isainfo | cut -f 1 -d ' '`
   case "$BUILD_CPU" in
@@ -374,7 +382,7 @@ check_gcc()
       if [ "x$cc_ver" != "x$cxx_ver" ]; then
         log_failure "gcc version $cc_ver does not match g++ version $cxx_ver"
         fail really
-      elif [ $cc_maj -eq 4 -a $cc_min -eq 0 -a "OS" = "darwin" ]; then
+      elif [ $cc_maj -eq 4 -a $cc_min -eq 0 -a "$OS" = "darwin" ]; then
         log_success "found version $cc_ver"
       elif [ $cc_maj -eq 4 -a $cc_min -eq 4 ]; then
         log_success "found version $cc_ver"
@@ -796,7 +804,7 @@ check_libidl()
 
 
 #
-# Check for openssl, needed for RDP
+# Check for openssl, needed for RDP and S3
 #
 check_ssl()
 {
@@ -919,6 +927,38 @@ EOF
     if test_execute; then
       cnf_append "SDK_VBOX_LIBPNG_LIBS" "`strip_l "$LIBPNG"`"
       cnf_append "SDK_VBOX_LIBPNG_INCS" "$INCPNG"
+    fi
+  fi
+}
+
+#
+# Check for libcurl, needed by S3
+#
+check_curl()
+{
+  if [ -z "$BUILD_LIBCURL" ]; then
+    test_header libcurl
+    cat > $ODIR.tmp_src.cc << EOF
+#include <cstdio>
+#include <curl/curl.h>
+extern "C" int main(void)
+{
+  printf("found version %s", LIBCURL_VERSION);
+#if 10000*LIBCURL_VERSION_MAJOR + 100*LIBCURL_VERSION_MINOR >= 71500
+  printf(", OK.\n");
+  return 0;
+#else
+  printf(", expected version 7.15.0 or higher\n");
+  return 1;
+#endif
+}
+EOF
+    [ -n "$INCCURL" ] && I_INCCURL=`prefix_I "$INCCURL"`
+    if test_compile "$LIBCURL $I_INCCURL" libcurl libcurl; then
+      if test_execute; then
+        cnf_append "SDK_VBOX_LIBCURL_LIBS" "`strip_l "$LIBCURL"`"
+        cnf_append "SDK_VBOX_LIBCURL_INCS" "$INCCURL"
+      fi
     fi
   fi
 }
@@ -1390,7 +1430,22 @@ EOF
           fi
           test_header "Qt4 devtools"
           for q in $QT4DIR; do
-            if which_wrapper "$q/bin/moc" > /dev/null; then
+            # first try it with a suffix, some platforms use that
+            if which_wrapper "$q/bin/moc-qt4" > /dev/null; then
+              moc_ver=`$q/bin/moc-qt4 -v 2>&1|sed 's+^.*(Qt \(.*\))+\1+'`
+              if [ $? -ne 0 ]; then
+                log_failure "not found"
+                fail
+              else
+                log_success "found version $moc_ver"
+                cnf_append "VBOX_PATH_QT4" "$q"
+                cnf_append "PATH_SDK_QT4" "$q"
+                cnf_append "PATH_TOOL_QT4" "$q"
+                cnf_append "PATH_TOOL_QT4_BIN" "$q/bin"
+                cnf_append "TOOL_QT4_BIN_SUFF" "-qt4"
+                return
+              fi
+            elif which_wrapper "$q/bin/moc" > /dev/null; then
               moc_ver=`$q/bin/moc -v 2>&1|sed 's+^.*(Qt \(.*\))+\1+'`
               if [ $? -ne 0 ]; then
                 log_failure "not found"
@@ -1549,9 +1604,9 @@ check_compiler_h()
 {
   test_header compiler.h
   if ! test -f "/usr/include/linux/compiler.h"; then
-    cnf_append "VBOX_WITHOUT_LINUX_COMPILER_H" "1"
     log_success "compiler.h not found"
   else
+    cnf_append "VBOX_WITH_LINUX_COMPILER_H" "1"
     log_success "compiler.h found"
   fi
 }
@@ -1838,6 +1893,7 @@ Configuration:
   --enable-webservice      enable the webservice stuff
   --build-libxml2          build libxml2 from sources
   --build-libxslt          build libxslt from sources
+  --build-libcurl          build libcurl from sources (PUEL only)
   --setup-wine             setup a Wine directory and register the hhc hack
 
 Paths:
@@ -1961,6 +2017,9 @@ for option in $*; do
       ;;
     --build-libxslt)
       BUILD_LIBXSLT=1
+      ;;
+    --build-libcurl)
+      BUILD_LIBCURL=1
       ;;
     --build-headless)
       HEADLESS=1
@@ -2098,12 +2157,14 @@ fi
 if [ "$OS" = "darwin" ]; then
   BUILD_LIBXSLT=1
   BUILD_LIBXML2=1
+  BUILD_LIBCURL=1
 fi
 
 # emit disable directives corresponding to any --disable-xxx options.
 [ $WITH_XPCOM -eq 0 ]     && cnf_append "VBOX_WITH_MAIN" ""
 [ $WITH_QT4 -eq 0   ]     && cnf_append "VBOX_WITH_QTGUI" ""
 [ $WITH_SDL_TTF -eq 0 ]   && cnf_append "VBOX_WITH_SECURELABEL" ""
+[ $WITH_PYTHON -eq 0 ]    && cnf_append "VBOX_WITH_PYTHON" ""
 [ $WITH_HARDENING -eq 0 ] && cnf_append "VBOX_WITHOUT_HARDENING" "1"
 [ $WITH_HARDENING -eq 2 ] && cnf_append "VBOX_WITH_HARDENING" "2"
 
@@ -2123,9 +2184,10 @@ check_gcc
 [ $WITH_XPCOM  -eq 1 ] && check_libxslt
 [ $WITH_LIBIDL -eq 1 ] && check_libidl
 # build openssl on Darwin in every case
-[ "$OS" != "darwin" -a $OSE -eq 0 ] && check_ssl
+[ "$OS" != "darwin"  ] && check_ssl
 [ "$OS" != "darwin"  ] && check_z
 [ "$OS" != "darwin" -a "$OS" != "freebsd" ] && check_png
+check_curl
 [ $OSE -eq 0 -a "$OS" = "linux" ] && check_pam
 [ $WITH_SDL -eq 1 ]    && check_sdl
 [ $WITH_SDL_TTF -eq 1 -a $OSE -eq 0 ] && check_sdl_ttf

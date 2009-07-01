@@ -34,7 +34,7 @@
 #include <iprt/types.h>
 #include <iprt/stdarg.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_log    RTLog - Logging
  * @ingroup grp_rt
@@ -182,7 +182,7 @@ typedef FNRTLOGGER *PFNRTLOGGER;
  * @param   pLogger     Pointer to the logger instance which is to be flushed.
  */
 typedef DECLCALLBACK(void) FNRTLOGFLUSH(PRTLOGGER pLogger);
-/** Pointer to logger function. */
+/** Pointer to flush function. */
 typedef FNRTLOGFLUSH *PFNRTLOGFLUSH;
 
 /**
@@ -194,6 +194,23 @@ typedef DECLCALLBACK(void) FNRTLOGFLUSHGC(PRTLOGGERRC pLogger);
 /** Pointer to logger function. */
 typedef RCPTRTYPE(FNRTLOGFLUSHGC *) PFNRTLOGFLUSHGC;
 
+/**
+ * Custom log prefix callback.
+ *
+ *
+ * @returns The number of chars written.
+ *
+ * @param   pLogger     Pointer to the logger instance.
+ * @param   pchBuf      Output buffer pointer.
+ *                      No need to terminate the output.
+ * @param   cchBuf      The size of the output buffer.
+ * @param   pvUser      The user argument.
+ */
+typedef DECLCALLBACK(size_t) FNRTLOGPREFIX(PRTLOGGER pLogger, char *pchBuf, size_t cchBuf, void *pvUser);
+/** Pointer to prefix callback function. */
+typedef FNRTLOGPREFIX *PFNRTLOGPREFIX;
+
+
 
 /**
  * Logger instance structure for GC.
@@ -202,11 +219,11 @@ struct RTLOGGERRC
 {
     /** Pointer to temporary scratch buffer.
      * This is used to format the log messages. */
-    char                    achScratch[16384];
+    char                    achScratch[32768];
     /** Current scratch buffer position. */
-    RTUINT                  offScratch;
+    uint32_t                offScratch;
     /** This is set if a prefix is pending. */
-    RTUINT                  fPendingPrefix;
+    uint32_t                fPendingPrefix;
     /** Pointer to the logger function.
      * This is actually pointer to a wrapper which will push a pointer to the
      * instance pointer onto the stack before jumping to the real logger function.
@@ -217,13 +234,13 @@ struct RTLOGGERRC
     /** Magic number (RTLOGGERRC_MAGIC). */
     uint32_t                u32Magic;
     /** Logger instance flags - RTLOGFLAGS. */
-    RTUINT                  fFlags;
+    uint32_t                fFlags;
     /** Number of groups in the afGroups member. */
-    RTUINT                  cGroups;
+    uint32_t                cGroups;
     /** Group flags array - RTLOGGRPFLAGS.
      * This member have variable length and may extend way beyond
      * the declared size of 1 entry. */
-    RTUINT                  afGroups[1];
+    uint32_t                afGroups[1];
 };
 
 /** RTLOGGERRC::u32Magic value. (John Rogers Searle) */
@@ -239,11 +256,11 @@ struct RTLOGGER
 {
     /** Pointer to temporary scratch buffer.
      * This is used to format the log messages. */
-    char                    achScratch[16384];
+    char                    achScratch[32768];
     /** Current scratch buffer position. */
-    RTUINT                  offScratch;
+    uint32_t                offScratch;
     /** This is set if a prefix is pending. */
-    RTUINT                  fPendingPrefix;
+    uint32_t                fPendingPrefix;
     /** Pointer to the logger function.
      * This is actually pointer to a wrapper which will push a pointer to the
      * instance pointer onto the stack before jumping to the real logger function.
@@ -252,14 +269,18 @@ struct RTLOGGER
     PFNRTLOGGER             pfnLogger;
     /** Pointer to the flush function. */
     PFNRTLOGFLUSH           pfnFlush;
+    /** Custom prefix callback. */
+    PFNRTLOGPREFIX          pfnPrefix;
+    /** Prefix callback argument. */
+    void                   *pvPrefixUserArg;
     /** Mutex. */
     RTSEMFASTMUTEX          MutexSem;
     /** Magic number. */
     uint32_t                u32Magic;
     /** Logger instance flags - RTLOGFLAGS. */
-    RTUINT                  fFlags;
+    uint32_t                fFlags;
     /** Destination flags - RTLOGDEST. */
-    RTUINT                  fDestFlags;
+    uint32_t                fDestFlags;
     /** Handle to log file (if open). */
     RTFILE                  File;
     /** Pointer to filename.
@@ -270,19 +291,19 @@ struct RTLOGGER
     const char * const     *papszGroups;
     /** The max number of groups that there is room for in afGroups and papszGroups.
      * Used by RTLogCopyGroupAndFlags(). */
-    RTUINT                  cMaxGroups;
+    uint32_t                cMaxGroups;
     /** Number of groups in the afGroups and papszGroups members. */
-    RTUINT                  cGroups;
+    uint32_t                cGroups;
     /** Group flags array - RTLOGGRPFLAGS.
      * This member have variable length and may extend way beyond
      * the declared size of 1 entry. */
-    RTUINT                  afGroups[1];
+    uint32_t                afGroups[1];
 };
 
 /** RTLOGGER::u32Magic value. (Avram Noam Chomsky) */
 #define RTLOGGER_MAGIC      0x19281207
 
-#endif
+#endif /* !IN_RC */
 
 
 /**
@@ -302,6 +323,8 @@ typedef enum RTLOGFLAGS
     RTLOGFLAGS_REL_TS               = 0x00000040,
     /** Show decimal timestamps with PREFIX_TSC and PREFIX_TS */
     RTLOGFLAGS_DECIMAL_TS           = 0x00000080,
+    /** Log flushing disabled. */
+    RTLOGFLAGS_NO_FLUSH             = 0x00000100,
     /** New lines should be prefixed with the write and read lock counts. */
     RTLOGFLAGS_PREFIX_LOCK_COUNTS   = 0x00008000,
     /** New lines should be prefixed with the CPU id (ApicID on intel/amd). */
@@ -320,6 +343,8 @@ typedef enum RTLOGFLAGS
     RTLOGFLAGS_PREFIX_TID           = 0x00400000,
     /** New lines should be prefixed with thread name. */
     RTLOGFLAGS_PREFIX_THREAD        = 0x00800000,
+    /** New lines should be prefixed with data from a custom callback. */
+    RTLOGFLAGS_PREFIX_CUSTOM        = 0x01000000,
     /** New lines should be prefixed with formatted timestamp since program start. */
     RTLOGFLAGS_PREFIX_TIME_PROG     = 0x04000000,
     /** New lines should be prefixed with formatted timestamp (UCT). */
@@ -1287,9 +1312,9 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void);
  * @param   pszFilenameFmt      Log filename format string. Standard RTStrFormat().
  * @param   ...                 Format arguments.
  */
-RTDECL(int) RTLogCreate(PRTLOGGER *ppLogger, RTUINT fFlags, const char *pszGroupSettings,
+RTDECL(int) RTLogCreate(PRTLOGGER *ppLogger, uint32_t fFlags, const char *pszGroupSettings,
                         const char *pszEnvVarBase, unsigned cGroups, const char * const * papszGroups,
-                        RTUINT fDestFlags, const char *pszFilenameFmt, ...);
+                        uint32_t fDestFlags, const char *pszFilenameFmt, ...);
 
 /**
  * Create a logger instance.
@@ -1309,9 +1334,9 @@ RTDECL(int) RTLogCreate(PRTLOGGER *ppLogger, RTUINT fFlags, const char *pszGroup
  * @param   pszFilenameFmt      Log filename format string. Standard RTStrFormat().
  * @param   ...                 Format arguments.
  */
-RTDECL(int) RTLogCreateEx(PRTLOGGER *ppLogger, RTUINT fFlags, const char *pszGroupSettings,
+RTDECL(int) RTLogCreateEx(PRTLOGGER *ppLogger, uint32_t fFlags, const char *pszGroupSettings,
                           const char *pszEnvVarBase, unsigned cGroups, const char * const * papszGroups,
-                          RTUINT fDestFlags, char *pszErrorMsg, size_t cchErrorMsg, const char *pszFilenameFmt, ...);
+                          uint32_t fDestFlags, char *pszErrorMsg, size_t cchErrorMsg, const char *pszFilenameFmt, ...);
 
 /**
  * Create a logger instance.
@@ -1331,9 +1356,9 @@ RTDECL(int) RTLogCreateEx(PRTLOGGER *ppLogger, RTUINT fFlags, const char *pszGro
  * @param   pszFilenameFmt      Log filename format string. Standard RTStrFormat().
  * @param   args                Format arguments.
  */
-RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, RTUINT fFlags, const char *pszGroupSettings,
+RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *pszGroupSettings,
                            const char *pszEnvVarBase, unsigned cGroups, const char * const * papszGroups,
-                           RTUINT fDestFlags, char *pszErrorMsg, size_t cchErrorMsg, const char *pszFilenameFmt, va_list args);
+                           uint32_t fDestFlags, char *pszErrorMsg, size_t cchErrorMsg, const char *pszFilenameFmt, va_list args);
 
 /**
  * Create a logger instance for singled threaded ring-0 usage.
@@ -1347,7 +1372,7 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, RTUINT fFlags, const char *pszGr
  * @param   fFlags              Logger instance flags for the clone, a combination of the RTLOGFLAGS_* values.
  * @param   fDestFlags          The destination flags.
  */
-RTDECL(int) RTLogCreateForR0(PRTLOGGER pLogger, size_t cbLogger, PFNRTLOGGER pfnLogger, PFNRTLOGFLUSH pfnFlush, RTUINT fFlags, RTUINT fDestFlags);
+RTDECL(int) RTLogCreateForR0(PRTLOGGER pLogger, size_t cbLogger, PFNRTLOGGER pfnLogger, PFNRTLOGFLUSH pfnFlush, uint32_t fFlags, uint32_t fDestFlags);
 
 /**
  * Destroys a logger instance.
@@ -1374,7 +1399,7 @@ RTDECL(int) RTLogDestroy(PRTLOGGER pLogger);
  * @param   fFlags              Logger instance flags, a combination of the RTLOGFLAGS_* values.
  */
 RTDECL(int) RTLogCloneRC(PRTLOGGER pLogger, PRTLOGGERRC pLoggerRC, size_t cbLoggerRC,
-                         RTRCPTR pfnLoggerRCPtr, RTRCPTR pfnFlushRCPtr, RTUINT fFlags);
+                         RTRCPTR pfnLoggerRCPtr, RTRCPTR pfnFlushRCPtr, uint32_t fFlags);
 
 /**
  * Flushes a RC logger instance to a R3 logger.
@@ -1396,6 +1421,16 @@ RTDECL(void) RTLogFlushRC(PRTLOGGER pLogger, PRTLOGGERRC pLoggerRC);
  *                       If NULL the default logger will be used.
  */
 RTDECL(void) RTLogFlushToLogger(PRTLOGGER pSrcLogger, PRTLOGGER pDstLogger);
+
+/**
+ * Sets the custom prefix callback.
+ *
+ * @returns IPRT status code.
+ * @param   pLogger     The logger instance.
+ * @param   pfnCallback The callback.
+ * @param   pvUser      The user argument for the callback.
+ *  */
+RTDECL(int) RTLogSetCustomPrefixCallback(PRTLOGGER pLogger, PFNRTLOGPREFIX pfnCallback, void *pvUser);
 
 /**
  * Copies the group settings and flags from logger instance to another.
@@ -1688,7 +1723,7 @@ RTDECL(size_t)  RTLogBackdoorPrintfV(const char *pszFormat, va_list args);
 
 #endif /* VBOX */
 
-__END_DECLS
+RT_C_DECLS_END
 
 /** @} */
 

@@ -1,4 +1,4 @@
-/* $Id: VBoxService.cpp $ */
+/* $Id: VBoxService.cpp 19532 2009-05-08 14:53:35Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Service Skeleton.
  */
@@ -81,6 +81,9 @@ static struct
 #ifdef VBOXSERVICE_CLIPBOARD
     { &g_Clipboard, NIL_RTTHREAD, false, false, false, true },
 #endif
+#ifdef VBOXSERVICE_VMINFO
+    { &g_VMInfo, NIL_RTTHREAD, false, false, false, true },
+#endif
 };
 
 
@@ -161,11 +164,9 @@ int VBoxServiceError(const char *pszFormat, ...)
     RTStrmPrintfV(g_pStdErr, pszFormat, va);
     va_end(va);
 
-#if 0 /* enable after 2.2 */
     va_start(va, pszFormat);
-    LogRel(("%s: error: %N", g_pszProgName, pszFormat, &va));
+    LogRel(("%s: Error: %N", g_pszProgName, pszFormat, &va));
     va_end(va);
-#endif
 
     return 1;
 }
@@ -246,6 +247,19 @@ static DECLCALLBACK(int) VBoxServiceThread(RTTHREAD ThreadSelf, void *pvUser)
 }
 
 
+unsigned VBoxServiceGetStartedServices(void)
+{
+    unsigned iMain = ~0U;
+    for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
+        if (g_aServices[j].fEnabled)
+        {
+            iMain = j;
+            break;
+        }
+
+   return iMain; /* Return the index of the main service (must always come last!). */
+}
+
 /**
  * Starts the service.
  *
@@ -261,6 +275,7 @@ int VBoxServiceStartServices(unsigned iMain)
     /*
      * Initialize the services.
      */
+    VBoxServiceVerbose(2, "Initializing services ...\n");
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
     {
         rc = g_aServices[j].pDesc->pfnInit();
@@ -274,6 +289,7 @@ int VBoxServiceStartServices(unsigned iMain)
     /*
      * Start the service(s).
      */
+    VBoxServiceVerbose(2, "Starting services ...\n");
     rc = VINF_SUCCESS;
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
     {
@@ -281,6 +297,7 @@ int VBoxServiceStartServices(unsigned iMain)
             ||  j == iMain)
             continue;
 
+        VBoxServiceVerbose(2, "Starting service     '%s' ...\n", g_aServices[j].pDesc->pszName);
         rc = RTThreadCreate(&g_aServices[j].Thread, VBoxServiceThread, (void *)(uintptr_t)j, 0,
                             RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, g_aServices[j].pDesc->pszName);
         if (RT_FAILURE(rc))
@@ -298,11 +315,12 @@ int VBoxServiceStartServices(unsigned iMain)
     if (RT_SUCCESS(rc))
     {
         /* The final service runs in the main thread. */
-        VBoxServiceVerbose(1, "starting '%s' in the main thread\n", g_aServices[iMain].pDesc->pszName);
+        VBoxServiceVerbose(1, "Starting '%s' in the main thread\n", g_aServices[iMain].pDesc->pszName);
         rc = g_aServices[iMain].pDesc->pfnWorker(&g_fShutdown);
-        VBoxServiceError("service '%s' stopped unexpected; rc=%Rrc\n", g_aServices[iMain].pDesc->pszName, rc);
+        VBoxServiceError("Service '%s' stopped unexpected; rc=%Rrc\n", g_aServices[iMain].pDesc->pszName, rc);
     }
 
+    /* Should never get here. */
     return rc;
 }
 
@@ -313,8 +331,10 @@ int VBoxServiceStartServices(unsigned iMain)
  * This should be called even when VBoxServiceStartServices fails so it can
  * clean up anything that we succeeded in starting.
  */
-void VBoxServiceStopServices(void)
+int VBoxServiceStopServices(void)
 {
+    int rc = VINF_SUCCESS;
+
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
         ASMAtomicXchgBool(&g_aServices[j].fShutdown, true);
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
@@ -326,16 +346,19 @@ void VBoxServiceStopServices(void)
         {
             int rc = RTThreadWait(g_aServices[j].Thread, 30*1000, NULL);
             if (RT_FAILURE(rc))
-                VBoxServiceError("service '%s' failed to stop. (%Rrc)\n", g_aServices[j].pDesc->pszName, rc);
+                VBoxServiceError("Service '%s' failed to stop. (%Rrc)\n", g_aServices[j].pDesc->pszName, rc);
         }
         g_aServices[j].pDesc->pfnTerm();
     }
+
+    VBoxServiceVerbose(2, "Stopping services returned: rc=%Rrc\n", rc);
+    return rc;
 }
 
 
 int main(int argc, char **argv)
 {
-    int rc;
+    int rc = VINF_SUCCESS;
 
     /*
      * Init globals and such.
@@ -350,10 +373,8 @@ int main(int argc, char **argv)
     }
 
 #ifdef RT_OS_WINDOWS
-    /*
-     * Explain the purpose of this exercise and why ignoring the result is a good idea and everything.
-     */
-    /* Do not use a global namespace ("Global\\") for mutex name here, will blow up NT4 compatibility! */
+    /* Make sure only one instance of VBoxService runs at a time. Create a global mutex for that.
+       Do not use a global namespace ("Global\\") for mutex name here, will blow up NT4 compatibility! */
     HANDLE hMutexAppRunning = CreateMutex (NULL, FALSE, VBOXSERVICE_NAME);
     if (   hMutexAppRunning != NULL
         && GetLastError() == ERROR_ALREADY_EXISTS)
@@ -491,13 +512,7 @@ int main(int argc, char **argv)
     /*
      * Check that at least one service is enabled.
      */
-    unsigned iMain = ~0U;
-    for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
-        if (g_aServices[j].fEnabled)
-        {
-            iMain = j;
-            break;
-        }
+    unsigned iMain = VBoxServiceGetStartedServices();
     if (iMain == ~0U)
         return VBoxServiceSyntax("At least one service must be enabled.\n");
 
@@ -528,38 +543,43 @@ int main(int argc, char **argv)
          *        You should return when StartServiceCtrlDispatcher, btw., not
          *        continue.
          */
+        VBoxServiceVerbose(2, "Starting service dispatcher ...\n");
         if (!StartServiceCtrlDispatcher(&g_aServiceTable[0]))
             return VBoxServiceError("StartServiceCtrlDispatcher: %u\n", GetLastError());
-
+        /* Service now lives in the control dispatcher registered above. */
 #else
         VBoxServiceVerbose(1, "Daemonizing...\n");
         rc = VbglR3Daemonize(false /* fNoChDir */, false /* fNoClose */);
         if (RT_FAILURE(rc))
-            return VBoxServiceError("daemon failed: %Rrc\n", rc);
+            return VBoxServiceError("Daemon failed: %Rrc\n", rc);
         /* in-child */
 #endif
     }
-
-/** @todo Make the main thread responsive to signal so it can shutdown/restart the threads on non-SIGKILL signals. */
-
 #ifdef RT_OS_WINDOWS
-    if (not using StartServiceCtrlDispatcher or auto register & starting the service)
-#endif
+    else
     {
+        /* Run the app just like a console one if not daemonized. */
+#endif
+        /** @todo Make the main thread responsive to signal so it can shutdown/restart the threads on non-SIGKILL signals. */
+
         /*
          * Start the service, enter the main threads run loop and stop them again when it returns.
          */
         rc = VBoxServiceStartServices(iMain);
         VBoxServiceStopServices();
+#ifdef RT_OS_WINDOWS
     }
-
+#endif
 
 #ifdef RT_OS_WINDOWS
     /*
      * Release instance mutex if we got it.
      */
     if (hMutexAppRunning != NULL)
-        CloseHandle(hMutexAppRunning);
+    {
+        ::CloseHandle(hMutexAppRunning);
+        hMutexAppRunning = NULL;
+    }
 #endif
 
     return RT_SUCCESS(rc) ? 0 : 1;

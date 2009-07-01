@@ -1,4 +1,4 @@
-/* $Id: SELMInternal.h $ */
+/* $Id: SELMInternal.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * SELM - Internal header file.
  */
@@ -178,7 +178,7 @@ typedef struct SELM
     STAMCOUNTER             StatScanForHyperSels;
 } SELM, *PSELM;
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 VMMRCDECL(int) selmRCGuestGDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
 VMMRCDECL(int) selmRCGuestLDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
@@ -190,7 +190,7 @@ VMMRCDECL(int) selmRCShadowTSSWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCT
 
 void           selmSetRing1Stack(PVM pVM, uint32_t ss, RTGCPTR32 esp);
 
-__END_DECLS
+RT_C_DECLS_END
 
 /** @} */
 

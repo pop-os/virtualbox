@@ -1,4 +1,4 @@
-/* $Id: PGMPool.cpp $ */
+/* $Id: PGMPool.cpp 20764 2009-06-22 11:13:45Z vboxsync $ */
 /** @file
  * PGM Shadow Page Pool.
  */
@@ -127,6 +127,10 @@ static DECLCALLBACK(int) pgmR3PoolAccessHandler(PVM pVM, RTGCPHYS GCPhys, void *
  */
 int pgmR3PoolInit(PVM pVM)
 {
+    AssertCompile(NIL_PGMPOOL_IDX == 0);
+    /* pPage->cLocked is an unsigned byte. */
+    AssertCompile(VMM_MAX_CPU_COUNT <= 255);
+
     /*
      * Query Pool config.
      */
@@ -399,18 +403,6 @@ void pgmR3PoolRelocate(PVM pVM)
 
 
 /**
- * Reset notification.
- *
- * This will flush the pool.
- * @param   pVM     The VM handle.
- */
-void pgmR3PoolReset(PVM pVM)
-{
-    pgmPoolFlushAll(pVM);
-}
-
-
-/**
  * Grows the shadow page pool.
  *
  * I.e. adds more pages to it, assuming that hasn't reached cMaxPages yet.
@@ -422,6 +414,8 @@ VMMR3DECL(int) PGMR3PoolGrow(PVM pVM)
 {
     PPGMPOOL pPool = pVM->pgm.s.pPoolR3;
     AssertReturn(pPool->cCurPages < pPool->cMaxPages, VERR_INTERNAL_ERROR);
+
+    pgmLock(pVM);
 
     /*
      * How much to grow it by?
@@ -439,6 +433,7 @@ VMMR3DECL(int) PGMR3PoolGrow(PVM pVM)
         if (!pPage->pvPageR3)
         {
             Log(("We're out of memory!! i=%d\n", i));
+            pgmUnlock(pVM);
             return i ? VINF_SUCCESS : VERR_NO_PAGE_MEMORY;
         }
         pPage->Core.Key  = MMPage2Phys(pVM, pPage->pvPageR3);
@@ -466,6 +461,7 @@ VMMR3DECL(int) PGMR3PoolGrow(PVM pVM)
         pPool->cCurPages = i + 1;
     }
 
+    pgmUnlock(pVM);
     Assert(pPool->cCurPages <= pPool->cMaxPages);
     return VINF_SUCCESS;
 }
@@ -496,7 +492,7 @@ static DECLCALLBACK(void) pgmR3PoolFlushReusedPage(PPGMPOOL pPool, PPGMPOOLPAGE 
  * The handler can not raise any faults, it's mainly for monitoring write access
  * to certain pages.
  *
- * @returns VINF_SUCCESS if the handler have carried out the operation.
+ * @returns VINF_SUCCESS if the handler has carried out the operation.
  * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
  * @param   pVM             VM Handle.
  * @param   GCPhys          The physical address the guest is writing to.
@@ -514,33 +510,49 @@ static DECLCALLBACK(int) pgmR3PoolAccessHandler(PVM pVM, RTGCPHYS GCPhys, void *
     LogFlow(("pgmR3PoolAccessHandler: GCPhys=%RGp %p:{.Core=%RHp, .idx=%d, .GCPhys=%RGp, .enmType=%d}\n",
              GCPhys, pPage, pPage->Core.Key, pPage->idx, pPage->GCPhys, pPage->enmKind));
 
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+
     /*
-     * We don't have to be very sophisiticated about this since there are relativly few calls here.
+     * We don't have to be very sophisticated about this since there are relativly few calls here.
      * However, we must try our best to detect any non-cpu accesses (disk / networking).
      *
      * Just to make life more interesting, we'll have to deal with the async threads too.
      * We cannot flush a page if we're in an async thread because of REM notifications.
      */
-    if (!VM_IS_EMT(pVM))
+    pgmLock(pVM);
+    if (PHYS_PAGE_ADDRESS(GCPhys) != PHYS_PAGE_ADDRESS(pPage->GCPhys))
+    {
+        /* Pool page changed while we were waiting for the lock; ignore. */
+        Log(("CPU%d: pgmR3PoolAccessHandler pgm pool page for %RGp changed (to %RGp) while waiting!\n", pVCpu->idCpu, PHYS_PAGE_ADDRESS(GCPhys), PHYS_PAGE_ADDRESS(pPage->GCPhys)));
+        pgmUnlock(pVM);
+        return VINF_PGM_HANDLER_DO_DEFAULT;
+    }
+
+    Assert(pPage->enmKind != PGMPOOLKIND_FREE);
+
+    if (!pVCpu) /** @todo This shouldn't happen any longer, all access handlers will be called on an EMT. All ring-3 handlers, except MMIO, already own the PGM lock. @bugref{3170} */
     {
         Log(("pgmR3PoolAccessHandler: async thread, requesting EMT to flush the page: %p:{.Core=%RHp, .idx=%d, .GCPhys=%RGp, .enmType=%d}\n",
              pPage, pPage->Core.Key, pPage->idx, pPage->GCPhys, pPage->enmKind));
         STAM_COUNTER_INC(&pPool->StatMonitorR3Async);
         if (!pPage->fReusedFlushPending)
         {
-            int rc = VMR3ReqCallEx(pPool->pVMR3, VMREQDEST_ANY, NULL, 0, VMREQFLAGS_NO_WAIT | VMREQFLAGS_VOID, (PFNRT)pgmR3PoolFlushReusedPage, 2, pPool, pPage);
+            pgmUnlock(pVM);
+            int rc = VMR3ReqCallEx(pPool->pVMR3, VMCPUID_ANY, NULL, 0, VMREQFLAGS_NO_WAIT | VMREQFLAGS_VOID, (PFNRT)pgmR3PoolFlushReusedPage, 2, pPool, pPage);
             AssertRCReturn(rc, rc);
+            pgmLock(pVM);
             pPage->fReusedFlushPending = true;
             pPage->cModifications += 0x1000;
         }
-        pgmPoolMonitorChainChanging(pPool, pPage, GCPhys, pvPhys, NULL);
+
+        pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhys, pvPhys, NULL);
         /** @todo r=bird: making unsafe assumption about not crossing entries here! */
         while (cbBuf > 4)
         {
             cbBuf -= 4;
             pvPhys = (uint8_t *)pvPhys + 4;
             GCPhys += 4;
-            pgmPoolMonitorChainChanging(pPool, pPage, GCPhys, pvPhys, NULL);
+            pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhys, pvPhys, NULL);
         }
         STAM_PROFILE_STOP(&pPool->StatMonitorR3, a);
     }
@@ -553,7 +565,7 @@ static DECLCALLBACK(int) pgmR3PoolAccessHandler(PVM pVM, RTGCPHYS GCPhys, void *
         if (!pPage->cModifications++)
             pgmPoolMonitorModifiedInsert(pPool, pPage);
         /** @todo r=bird: making unsafe assumption about not crossing entries here! */
-        pgmPoolMonitorChainChanging(pPool, pPage, GCPhys, pvPhys, NULL);
+        pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhys, pvPhys, NULL);
         STAM_PROFILE_STOP(&pPool->StatMonitorR3, a);
     }
     else
@@ -561,7 +573,7 @@ static DECLCALLBACK(int) pgmR3PoolAccessHandler(PVM pVM, RTGCPHYS GCPhys, void *
         pgmPoolMonitorChainFlush(pPool, pPage); /* ASSUME that VERR_PGM_POOL_CLEARED can be ignored here and that FFs will deal with it in due time. */
         STAM_PROFILE_STOP_EX(&pPool->StatMonitorR3, &pPool->StatMonitorR3FlushPage, a);
     }
-
+    pgmUnlock(pVM);
     return VINF_PGM_HANDLER_DO_DEFAULT;
 }
 

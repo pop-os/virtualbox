@@ -51,6 +51,8 @@ check_if_installed()
     modulepath="$MODDIR32/$MODNAME"
     if test "$cputype" = "amd64"; then
         modulepath="$MODDIR64/$MODNAME"
+    elif test "$cputype" != "i386"; then
+        abort "VirtualBox works only on i386/amd64 architectures, not $cputype"
     fi
     if test -f "$modulepath"; then
         return 0
@@ -151,8 +153,8 @@ check_root()
 {
     idbin=/usr/xpg4/bin/id
     if test ! -f "$idbin"; then
-        found=`which id | grep "no id"`
-        if test ! -z "$found"; then
+        found=`which id`
+        if test ! -f "$found" || test ! -h "$found"; then
             abort "Failed to find a suitable user id binary! Aborting"
         else
             idbin=$found

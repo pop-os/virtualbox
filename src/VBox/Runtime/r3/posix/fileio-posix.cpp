@@ -1,4 +1,4 @@
-/* $Id: fileio-posix.cpp $ */
+/* $Id: fileio-posix.cpp 19346 2009-05-05 00:39:14Z vboxsync $ */
 /** @file
  * IPRT - File I/O, POSIX.
  */
@@ -141,6 +141,11 @@ RTR3DECL(int)  RTFileOpen(PRTFILE pFile, const char *pszFilename, unsigned fOpen
 #ifdef O_SYNC
     if (fOpen & RTFILE_O_WRITE_THROUGH)
         fOpenMode |= O_SYNC;
+#endif
+#if defined(O_DIRECT) && defined(RT_OS_LINUX)
+    /* O_DIRECT is mandatory to get async I/O working on Linux. */
+    if (fOpen & RTFILE_O_ASYNC_IO)
+        fOpenMode |= O_DIRECT;
 #endif
 
     /* create/truncate file */

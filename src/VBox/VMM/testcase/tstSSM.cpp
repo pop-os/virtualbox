@@ -1,4 +1,4 @@
-/* $Id: tstSSM.cpp $ */
+/* $Id: tstSSM.cpp 20864 2009-06-23 19:19:42Z vboxsync $ */
 /** @file
  * Saved State Manager Testcase.
  */
@@ -593,7 +593,7 @@ static int createFakeVM(PVM *ppVM)
                  * Allocate and init the VM structure.
                  */
                 PVM pVM;
-                rc = SUPPageAlloc((sizeof(*pVM) + PAGE_SIZE - 1) >> PAGE_SHIFT, (void **)&pVM);
+                rc = SUPR3PageAlloc((sizeof(*pVM) + PAGE_SIZE - 1) >> PAGE_SHIFT, (void **)&pVM);
                 if (RT_SUCCESS(rc))
                 {
                     pVM->enmVMState = VMSTATE_CREATED;

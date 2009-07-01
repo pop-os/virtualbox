@@ -1,4 +1,4 @@
-/* $Id: IOMInternal.h $ */
+/* $Id: IOMInternal.h 20722 2009-06-19 12:34:21Z vboxsync $ */
 /** @file
  * IOM - Internal header file.
  */
@@ -27,6 +27,7 @@
 #include <VBox/iom.h>
 #include <VBox/stam.h>
 #include <VBox/pgm.h>
+#include <VBox/pdmcritsect.h>
 #include <VBox/param.h>
 #include <iprt/avl.h>
 
@@ -322,9 +323,12 @@ typedef struct IOM
     R0PTRTYPE(PFNPGMR0PHYSHANDLER)  pfnMMIOHandlerR0;
     /** The RC address of IOMMMIOHandler. */
     RCPTRTYPE(PFNPGMRCPHYSHANDLER)  pfnMMIOHandlerRC;
-#if GC_ARCH_BITS == 64
+#if HC_ARCH_BITS == 64
     RTRCPTR                         padding;
 #endif
+
+    /** Lock serializing EMT access to IOM. */
+    PDMCRITSECT                     EmtLock;
 
     /** @name Caching of I/O Port and MMIO ranges and statistics.
      * (Saves quite some time in rep outs/ins instruction emulation.)
@@ -397,7 +401,28 @@ typedef struct IOM
 typedef IOM *PIOM;
 
 
-__BEGIN_DECLS
+/**
+ * IOM per virtual CPU instance data.
+ */
+typedef struct IOMCPU
+{
+    /** For saving stack space, the disassembler state is allocated here instead of
+     * on the stack.
+     * @note The DISCPUSTATE structure is not R3/R0/RZ clean!  */
+    union
+    {
+        /** The disassembler scratch space. */
+        DISCPUSTATE                 DisState;
+        /** Padding. */
+        uint8_t                     abDisStatePadding[DISCPUSTATE_PADDING_SIZE];
+    };
+    uint8_t                         Dummy[16];
+} IOMCPU;
+/** Pointer to IOM per virtual CPU instance data. */
+typedef IOMCPU *PIOMCPU;
+
+
+RT_C_DECLS_BEGIN
 
 #ifdef IN_RING3
 PIOMIOPORTSTATS iomR3IOPortStatsCreate(PVM pVM, RTIOPORT Port, const char *pszDesc);
@@ -447,6 +472,10 @@ DECLCALLBACK(int) IOMR3MMIOHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void 
  */
 DECLINLINE(CTX_SUFF(PIOMIOPORTRANGE)) iomIOPortGetRange(PIOM pIOM, RTIOPORT Port)
 {
+#ifdef IN_RING3
+    if (PDMCritSectIsInitialized(&pIOM->EmtLock))
+#endif
+        Assert(IOMIsLockOwner(IOM2VM(pIOM)));
     CTX_SUFF(PIOMIOPORTRANGE) pRange = (CTX_SUFF(PIOMIOPORTRANGE))RTAvlroIOPortRangeGet(&pIOM->CTX_SUFF(pTrees)->CTX_SUFF(IOPortTree), Port);
     return pRange;
 }
@@ -463,6 +492,10 @@ DECLINLINE(CTX_SUFF(PIOMIOPORTRANGE)) iomIOPortGetRange(PIOM pIOM, RTIOPORT Port
  */
 DECLINLINE(PIOMIOPORTRANGER3) iomIOPortGetRangeR3(PIOM pIOM, RTIOPORT Port)
 {
+#ifdef IN_RING3
+    if (PDMCritSectIsInitialized(&pIOM->EmtLock))
+#endif
+        Assert(IOMIsLockOwner(IOM2VM(pIOM)));
     PIOMIOPORTRANGER3 pRange = (PIOMIOPORTRANGER3)RTAvlroIOPortRangeGet(&pIOM->CTX_SUFF(pTrees)->IOPortTreeR3, Port);
     return pRange;
 }
@@ -479,12 +512,36 @@ DECLINLINE(PIOMIOPORTRANGER3) iomIOPortGetRangeR3(PIOM pIOM, RTIOPORT Port)
  */
 DECLINLINE(PIOMMMIORANGE) iomMMIOGetRange(PIOM pIOM, RTGCPHYS GCPhys)
 {
+#ifdef IN_RING3
+    if (PDMCritSectIsInitialized(&pIOM->EmtLock))
+#endif
+        Assert(IOMIsLockOwner(IOM2VM(pIOM)));
     PIOMMMIORANGE pRange = pIOM->CTX_SUFF(pMMIORangeLast);
     if (    !pRange
         ||  GCPhys - pRange->GCPhys >= pRange->cb)
         pIOM->CTX_SUFF(pMMIORangeLast) = pRange = (PIOMMMIORANGE)RTAvlroGCPhysRangeGet(&pIOM->CTX_SUFF(pTrees)->MMIOTree, GCPhys);
     return pRange;
 }
+
+#ifdef VBOX_STRICT
+/**
+ * Gets the MMIO range for the specified physical address in the current context.
+ *
+ * @returns Pointer to MMIO range.
+ * @returns NULL if address not in a MMIO range.
+ *
+ * @param   pIOM    IOM instance data.
+ * @param   GCPhys  Physical address to lookup.
+ */
+DECLINLINE(PIOMMMIORANGE) iomMMIOGetRangeUnsafe(PIOM pIOM, RTGCPHYS GCPhys)
+{
+    PIOMMMIORANGE pRange = pIOM->CTX_SUFF(pMMIORangeLast);
+    if (    !pRange
+        ||  GCPhys - pRange->GCPhys >= pRange->cb)
+        pIOM->CTX_SUFF(pMMIORangeLast) = pRange = (PIOMMMIORANGE)RTAvlroGCPhysRangeGet(&pIOM->CTX_SUFF(pTrees)->MMIOTree, GCPhys);
+    return pRange;
+}
+#endif
 
 
 #ifdef VBOX_WITH_STATISTICS
@@ -503,6 +560,7 @@ DECLINLINE(PIOMMMIORANGE) iomMMIOGetRange(PIOM pIOM, RTGCPHYS GCPhys)
  */
 DECLINLINE(PIOMMMIOSTATS) iomMMIOGetStats(PIOM pIOM, RTGCPHYS GCPhys, PIOMMMIORANGE pRange)
 {
+    Assert(IOMIsLockOwner(IOM2VM(pIOM)));
     /* For large ranges, we'll put everything on the first byte. */
     if (pRange->cb > PAGE_SIZE)
         GCPhys = pRange->GCPhys;
@@ -521,11 +579,16 @@ DECLINLINE(PIOMMMIOSTATS) iomMMIOGetStats(PIOM pIOM, RTGCPHYS GCPhys, PIOMMMIORA
 }
 #endif
 
-/* Disassembly helpers used in IOMAll.cpp & IOMAllMMIO.cpp */
-bool iomGetRegImmData(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRegFrame, uint64_t *pu64Data, unsigned *pcbSize);
-bool iomSaveDataToReg(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRegFrame, uint64_t u32Data);
+/* IOM locking helpers. */
+int     iomLock(PVM pVM);
+int     iomTryLock(PVM pVM);
+void    iomUnlock(PVM pVM);
 
-__END_DECLS
+/* Disassembly helpers used in IOMAll.cpp & IOMAllMMIO.cpp */
+bool    iomGetRegImmData(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRegFrame, uint64_t *pu64Data, unsigned *pcbSize);
+bool    iomSaveDataToReg(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRegFrame, uint64_t u32Data);
+
+RT_C_DECLS_END
 
 
 #ifdef IN_RING3

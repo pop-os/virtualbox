@@ -1,4 +1,4 @@
-/* $Id: DrvHostBase.h $ */
+/* $Id: DrvHostBase.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * DrvHostBase - Host base drive access driver.
  */
@@ -24,7 +24,7 @@
 
 #include <VBox/cdefs.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 
 /** Pointer to host base drive access driver instance data. */
@@ -80,7 +80,7 @@ typedef struct DRVHOSTBASE
     /** The size of the media currently in the drive.
      * This is invalid if no drive is in the drive. */
     uint64_t volatile       cbSize;
-#ifndef RT_OS_DARWIN
+#if !defined(RT_OS_DARWIN)
     /** The filehandle of the device. */
     RTFILE                  FileDevice;
 #endif
@@ -136,6 +136,16 @@ typedef struct DRVHOSTBASE
     uint8_t                *pbDoubleBuffer;
 #endif
 
+#ifdef RT_OS_FREEBSD
+    /** The block size. Set when querying the media size. */
+    uint32_t                cbBlock;
+    /** SCSI bus number. */
+    path_id_t               ScsiBus;
+    /** target ID of the passthrough device. */
+    target_id_t             ScsiTargetID;
+    /** LUN of the passthrough device. */
+    lun_id_t                ScsiLunID;
+#endif
 
     /**
      * Performs the locking / unlocking of the device.
@@ -175,7 +185,7 @@ int DRVHostBaseInitFinish(PDRVHOSTBASE pThis);
 int DRVHostBaseMediaPresent(PDRVHOSTBASE pThis);
 void DRVHostBaseMediaNotPresent(PDRVHOSTBASE pThis);
 DECLCALLBACK(void) DRVHostBaseDestruct(PPDMDRVINS pDrvIns);
-#ifdef RT_OS_DARWIN
+#if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
 DECLCALLBACK(int) DRVHostBaseScsiCmd(PDRVHOSTBASE pThis, const uint8_t *pbCmd, size_t cbCmd, PDMBLOCKTXDIR enmTxDir,
                                      void *pvBuf, uint32_t *pcbBuf, uint8_t *pbSense, size_t cbSense, uint32_t cTimeoutMillies);
 #endif
@@ -187,6 +197,6 @@ DECLCALLBACK(int) DRVHostBaseScsiCmd(PDRVHOSTBASE pThis, const uint8_t *pbCmd, s
 /** Makes a PDRVHOSTBASE out of a PPDMIBLOCK. */
 #define PDMIBLOCK_2_DRVHOSTBASE(pInterface)        ( (PDRVHOSTBASE)((uintptr_t)pInterface - RT_OFFSETOF(DRVHOSTBASE, IBlock)) )
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif

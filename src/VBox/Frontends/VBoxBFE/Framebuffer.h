@@ -43,16 +43,13 @@ public:
     virtual HRESULT getAddress(uintptr_t *address) = 0;
     virtual HRESULT getBitsPerPixel(ULONG *bitsPerPixel) = 0;
     virtual HRESULT getLineSize(ULONG *lineSize) = 0;
-    virtual HRESULT NotifyUpdate(ULONG x, ULONG y,
-                            ULONG w, ULONG h, BOOL *finished) = 0;
+    virtual HRESULT NotifyUpdate(ULONG x, ULONG y, ULONG w, ULONG h) = 0;
     virtual HRESULT RequestResize(ULONG w, ULONG h, BOOL *finished) = 0;
-    virtual HRESULT SolidFill(ULONG x, ULONG y, ULONG width, ULONG height,
-                              ULONG color, BOOL *handled) = 0;
-    virtual HRESULT CopyScreenBits(ULONG xDst, ULONG yDst, ULONG xSrc, ULONG ySrc,
-                                   ULONG width, ULONG height, BOOL *handled) = 0;
 
     virtual HRESULT GetVisibleRegion(BYTE *aRectangles, ULONG aCount, ULONG *aCountCopied) = 0;
     virtual HRESULT SetVisibleRegion(BYTE *aRectangles, ULONG aCount) = 0;
+
+    virtual HRESULT ProcessVHWACommand(BYTE *pCommand) = 0;
 
     virtual void    repaint() = 0;
     virtual void    resize() = 0;

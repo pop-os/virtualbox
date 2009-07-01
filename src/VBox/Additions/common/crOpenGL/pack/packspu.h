@@ -39,7 +39,10 @@ struct thread_info_t {
 struct context_info_t {
     CRContext *clientState;  /* used to store client-side GL state */
     GLint serverCtx;         /* context ID returned by server */
-    char glVersion[100];     /* GL_VERSION string */
+    GLubyte glVersion[100];     /* GL_VERSION string */
+    GLubyte pszRealVendor[100];
+    GLubyte pszRealVersion[100];
+    GLubyte pszRealRenderer[100];
 };
 
 typedef struct {
@@ -81,6 +84,8 @@ extern void packspuSetVBoxConfiguration( const SPU *child_spu );
 extern void packspuConnectToServer( CRNetServer *server );
 extern void packspuFlush( void *arg );
 extern void packspuHuge( CROpcode opcode, void *buf );
+
+extern GLboolean packspuSyncOnFlushes();
 
 extern ThreadInfo *packspuNewThread( unsigned long id );
 

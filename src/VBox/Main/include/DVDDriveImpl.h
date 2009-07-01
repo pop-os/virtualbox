@@ -1,4 +1,4 @@
-/* $Id: DVDDriveImpl.h $ */
+/* $Id: DVDDriveImpl.h 19239 2009-04-28 13:19:14Z vboxsync $ */
 
 /** @file
  *
@@ -34,7 +34,7 @@ class ATL_NO_VTABLE DVDDrive :
     public VirtualBoxBaseNEXT,
     public VirtualBoxSupportErrorInfoImpl <DVDDrive, IDVDDrive>,
     public VirtualBoxSupportTranslation <DVDDrive>,
-    public IDVDDrive
+    VBOX_SCRIPTABLE_IMPL(IDVDDrive)
 {
 public:
 
@@ -69,6 +69,7 @@ public:
     BEGIN_COM_MAP(DVDDrive)
         COM_INTERFACE_ENTRY(ISupportErrorInfo)
         COM_INTERFACE_ENTRY(IDVDDrive)
+        COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
     NS_DECL_ISUPPORTS
@@ -90,7 +91,7 @@ public:
     STDMETHOD(COMSETTER(Passthrough)) (BOOL aPassthrough);
 
     // IDVDDrive methods
-    STDMETHOD(MountImage) (IN_GUID aImageId);
+    STDMETHOD(MountImage) (IN_BSTR aImageId);
     STDMETHOD(CaptureHostDrive) (IHostDVDDrive *aHostDVDDrive);
     STDMETHOD(Unmount)();
     STDMETHOD(GetImage)(IDVDImage **aDVDImage);

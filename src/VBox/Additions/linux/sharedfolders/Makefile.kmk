@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 15589 2008-12-16 14:24:08Z vboxsync $
 ## @file
 # Sub-Makefile for the vboxvfs (linux shared folders module).
 #

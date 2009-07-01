@@ -66,7 +66,7 @@ private:
 };
 
 /** Type to store disk data */
-DiskValue::DiskValue (const QUuid &aId)
+DiskValue::DiskValue (const QString &aId)
     : id (aId)
     , name (QString::null), tip (QString::null), pix (QPixmap())
 {
@@ -573,6 +573,7 @@ VBoxVMSettingsHD::VBoxVMSettingsHD()
     HDSettings::instance (mTwAts, mModel);
 
     /* Setup table-view */
+    mTwAts->setMinimumHeight (100);
     mTwAts->verticalHeader()->setDefaultSectionSize (
         (int) (mTwAts->fontMetrics().height() * 1.30 /* 130% of font height */));
     mTwAts->verticalHeader()->hide();
@@ -633,8 +634,19 @@ VBoxVMSettingsHD::VBoxVMSettingsHD()
              HDSettings::instance(), SLOT (update()));
     connect (&vboxGlobal(), SIGNAL (mediumUpdated (const VBoxMedium &)),
              HDSettings::instance(), SLOT (update()));
-    connect (&vboxGlobal(), SIGNAL (mediumRemoved (VBoxDefs::MediaType, const QUuid &)),
+    connect (&vboxGlobal(), SIGNAL (mediumRemoved (VBoxDefs::MediaType, const QString &)),
              HDSettings::instance(), SLOT (update()));
+
+    /* IDE Controller Type */
+    mCbIDEController->addItem (""); /* KIDEControllerType_PIIX3 */
+    mCbIDEController->addItem (""); /* KIDEControllerType_PIIX4 */
+    mCbIDEController->addItem (""); /* KIDEControllerType_ICH6  */
+
+
+    /* Additional Controller Type */
+    mCbControllerType->addItem ("", KStorageControllerType_IntelAhci);
+    mCbControllerType->addItem ("", KStorageControllerType_LsiLogic);
+    mCbControllerType->addItem ("", KStorageControllerType_BusLogic);
 
     /* Install global event filter */
     qApp->installEventFilter (this);
@@ -647,6 +659,12 @@ void VBoxVMSettingsHD::getFrom (const CMachine &aMachine)
 {
     mMachine = aMachine;
     HDSettings::instance()->setMachine (mMachine);
+
+    /* IDE controller type */
+    const QString ideName = QString ("IDE");
+    CStorageController ideCtl = aMachine.GetStorageControllerByName (ideName);
+    mCbIDEController->setCurrentIndex (mCbIDEController->
+        findText (vboxGlobal().toString (ideCtl.GetControllerType())));
 
     /* For now we search for the first one which isn't IDE */
     CStorageController addController;
@@ -690,6 +708,11 @@ void VBoxVMSettingsHD::getFrom (const CMachine &aMachine)
 
 void VBoxVMSettingsHD::putBackTo()
 {
+    /* IDE controller type */
+    const QString ideName = QString ("IDE");
+    CStorageController ideCtl = mMachine.GetStorageControllerByName(ideName);
+    ideCtl.SetControllerType (vboxGlobal().toIDEControllerType (mCbIDEController->currentText()));
+
     /* Detach all attached Hard Disks */
     CHardDiskAttachmentVector vec = mMachine.GetHardDiskAttachments();
     for (int i = 0; i < vec.size(); ++ i)
@@ -701,17 +724,16 @@ void VBoxVMSettingsHD::putBackTo()
         /* [dsen] check this */
         if (!mMachine.isOk())
         {
-            CStorageController ctl = mMachine.GetStorageControllerByName(hda.GetController());
+            CStorageController ctl = mMachine.GetStorageControllerByName (hda.GetController());
             vboxProblem().cannotDetachHardDisk (this, mMachine,
                 vboxGlobal().getMedium (CMedium (hda.GetHardDisk())).location(),
                 ctl.GetBus(), hda.GetPort(), hda.GetDevice());
         }
     }
 
-
     /* Clear all storage controllers beside the IDE one */
     CStorageController addController;
-    QVector<CStorageController> scs = mMachine.GetStorageControllers();
+    QVector <CStorageController> scs = mMachine.GetStorageControllers();
     foreach (const CStorageController &sc, scs)
         if (sc.GetBus() != KStorageBus_IDE)
             mMachine.RemoveStorageController (sc.GetName());
@@ -747,13 +769,13 @@ void VBoxVMSettingsHD::putBackTo()
                           (list [i].slot.channel + 1) : maxSATAPort;
         }
 
-        mMachine.AttachHardDisk(list [i].disk.id,
-                                ctrlName, list [i].slot.channel, list [i].slot.device);
+        mMachine.AttachHardDisk (list [i].disk.id,
+                                 ctrlName, list [i].slot.channel, list [i].slot.device);
         /* [dsen] check this */
         if (!mMachine.isOk())
             vboxProblem().cannotAttachHardDisk (this, mMachine,
                 vboxGlobal().getMedium (CMedium (vboxGlobal().virtualBox()
-                .GetHardDisk(list [i].disk.id))).location(),
+                .GetHardDisk (list [i].disk.id))).location(),
                 list [i].slot.bus, list [i].slot.channel, list [i].slot.device);
     }
 
@@ -803,8 +825,10 @@ bool VBoxVMSettingsHD::revalidate (QString &aWarning, QString &)
 
 void VBoxVMSettingsHD::setOrderAfter (QWidget *aWidget)
 {
-    setTabOrder (aWidget, mAddControllerCheck);
-    setTabOrder (mAddControllerCheck, mTwAts);
+    setTabOrder (aWidget, mCbIDEController);
+    setTabOrder (mCbIDEController, mAddControllerCheck);
+    setTabOrder (mAddControllerCheck, mCbControllerType);
+    setTabOrder (mCbControllerType, mTwAts);
     setTabOrder (mTwAts, mShowDiffsCheck);
 }
 
@@ -813,6 +837,20 @@ void VBoxVMSettingsHD::retranslateUi()
     /* Translate uic generated strings */
     Ui::VBoxVMSettingsHD::retranslateUi (this);
 
+    /* IDE Controller Type */
+    mCbIDEController->setItemText (0, vboxGlobal().toString (KStorageControllerType_PIIX3));
+    mCbIDEController->setItemText (1, vboxGlobal().toString (KStorageControllerType_PIIX4));
+    mCbIDEController->setItemText (2, vboxGlobal().toString (KStorageControllerType_ICH6));
+
+    /* Additional Controller Type */
+    mCbControllerType->setItemText (0, QString ("%1 (%2)").arg (vboxGlobal().toString (KStorageBus_SATA))
+                                                          .arg (vboxGlobal().toString (KStorageControllerType_IntelAhci)));
+    mCbControllerType->setItemText (1, QString ("%1 (%2)").arg (vboxGlobal().toString (KStorageBus_SCSI))
+                                                          .arg (vboxGlobal().toString (KStorageControllerType_LsiLogic)));
+    mCbControllerType->setItemText (2, QString ("%1 (%2)").arg (vboxGlobal().toString (KStorageBus_SCSI))
+                                                          .arg (vboxGlobal().toString (KStorageControllerType_BusLogic)));
+
+    /* Attachments List */
     mNewAction->setText (tr ("&Add Attachment"));
     mDelAction->setText (tr ("&Remove Attachment"));
     mVdmAction->setText (tr ("&Select Hard Disk"));
@@ -829,8 +867,6 @@ void VBoxVMSettingsHD::retranslateUi()
     mVdmAction->setWhatsThis (tr ("Invokes the Virtual Media Manager to select "
                                   "a hard disk to attach to the currently "
                                   "highlighted slot."));
-
-    prepareComboboxes();
 }
 
 void VBoxVMSettingsHD::addAttachment()
@@ -840,7 +876,7 @@ void VBoxVMSettingsHD::addAttachment()
      * happens if the user just pressed & hold the shortcut combination. */
     mNewAction->setEnabled (false);
 
-    QUuid newId;
+    QString newId;
 
     {   /* Clear the focus */
         FocusGuardBlock guard (mTwAts);
@@ -861,7 +897,7 @@ void VBoxVMSettingsHD::addAttachment()
             /* Ask the user for method to add new disk */
             int confirm = vboxProblem().confirmRunNewHDWzdOrVDM (this);
             newId = confirm == QIMessageBox::Yes ? getWithNewHDWizard() :
-                    confirm == QIMessageBox::No ? getWithMediaManager() : QUuid();
+                    confirm == QIMessageBox::No ? getWithMediaManager() : QString::null;
         }
     }   /* Clear the focus */
 
@@ -929,7 +965,7 @@ void VBoxVMSettingsHD::showMediaManager()
     DiskValue current (mModel->data (mTwAts->currentIndex(), Qt::EditRole)
                        .value <DiskValue>());
 
-    QUuid id = getWithMediaManager (current.id);
+    QString id = getWithMediaManager (current.id);
 
     if (!id.isNull())
     {
@@ -1147,7 +1183,7 @@ void VBoxVMSettingsHD::showEvent (QShowEvent *aEvent)
         current->setFocus (Qt::TabFocusReason);
 }
 
-QUuid VBoxVMSettingsHD::getWithMediaManager (const QUuid &aInitialId)
+QString VBoxVMSettingsHD::getWithMediaManager (const QString &aInitialId)
 {
     /* Run Media Manager */
     VBoxMediaManagerDlg dlg (this);
@@ -1158,15 +1194,15 @@ QUuid VBoxVMSettingsHD::getWithMediaManager (const QUuid &aInitialId)
                aInitialId,
                HDSettings::instance()->showDiffs());
 
-    return dlg.exec() == QDialog::Accepted ? dlg.selectedId() : QUuid();
+    return dlg.exec() == QDialog::Accepted ? dlg.selectedId() : QString::null;
 }
 
-QUuid VBoxVMSettingsHD::getWithNewHDWizard()
+QString VBoxVMSettingsHD::getWithNewHDWizard()
 {
     /* Run New HD Wizard */
     VBoxNewHDWzd dlg (this);
 
-    return dlg.exec() == QDialog::Accepted ? dlg.hardDisk().GetId() : QUuid();
+    return dlg.exec() == QDialog::Accepted ? dlg.hardDisk().GetId() : QString::null;
 }
 
 int VBoxVMSettingsHD::maxNameLength() const
@@ -1179,23 +1215,6 @@ int VBoxVMSettingsHD::maxNameLength() const
         nameLength = length > nameLength ? length : nameLength;
     }
     return nameLength;
-}
-
-void VBoxVMSettingsHD::prepareComboboxes()
-{
-    /* Save the current selected value */
-    int current = mCbControllerType->currentIndex();
-    if (current == -1)
-        current = 0;
-    /* Clear the driver box */
-    mCbControllerType->clear();
-    /* Refill them */
-    mCbControllerType->addItem (QString ("%1 (%2)").arg (vboxGlobal().toString (KStorageBus_SATA)).arg (vboxGlobal().toString (KStorageControllerType_IntelAhci)), KStorageControllerType_IntelAhci);
-    mCbControllerType->addItem (QString ("%1 (%2)").arg (vboxGlobal().toString (KStorageBus_SCSI)).arg (vboxGlobal().toString (KStorageControllerType_LsiLogic)), KStorageControllerType_LsiLogic);
-    mCbControllerType->addItem (QString ("%1 (%2)").arg (vboxGlobal().toString (KStorageBus_SCSI)).arg (vboxGlobal().toString (KStorageControllerType_BusLogic)), KStorageControllerType_BusLogic);
-
-    /* Set the old value */
-    mCbControllerType->setCurrentIndex (current);
 }
 
 void VBoxVMSettingsHD::removeFocus()

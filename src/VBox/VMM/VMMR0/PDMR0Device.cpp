@@ -1,4 +1,4 @@
-/* $Id: PDMR0Device.cpp $ */
+/* $Id: PDMR0Device.cpp 21016 2009-06-29 07:53:50Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, R0 Device parts.
  */
@@ -29,11 +29,13 @@
 #include <VBox/pgm.h>
 #include <VBox/mm.h>
 #include <VBox/vm.h>
+#include <VBox/vmm.h>
 #include <VBox/patm.h>
 #include <VBox/hwaccm.h>
 
 #include <VBox/log.h>
 #include <VBox/err.h>
+#include <VBox/gvmm.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
@@ -42,13 +44,13 @@
 /*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 extern DECLEXPORT(const PDMDEVHLPR0)    g_pdmR0DevHlp;
 extern DECLEXPORT(const PDMPICHLPR0)    g_pdmR0PicHlp;
 extern DECLEXPORT(const PDMAPICHLPR0)   g_pdmR0ApicHlp;
 extern DECLEXPORT(const PDMIOAPICHLPR0) g_pdmR0IoApicHlp;
 extern DECLEXPORT(const PDMPCIHLPR0)    g_pdmR0PciHlp;
-__END_DECLS
+RT_C_DECLS_END
 
 
 /*******************************************************************************
@@ -69,6 +71,7 @@ static DECLCALLBACK(int)  pdmR0DevHlp_VMSetRuntimeErrorV(PPDMDEVINS pDevIns, uin
 static DECLCALLBACK(int)  pdmR0DevHlp_PATMSetMMIOPatchInfo(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, RTGCPTR pCachedData);
 static DECLCALLBACK(PVM)  pdmR0DevHlp_GetVM(PPDMDEVINS pDevIns);
 static DECLCALLBACK(bool) pdmR0DevHlp_CanEmulateIoBlock(PPDMDEVINS pDevIns);
+static DECLCALLBACK(PVMCPU) pdmR0DevHlp_GetVMCPU(PPDMDEVINS pDevIns);
 /** @} */
 
 
@@ -85,7 +88,7 @@ static DECLCALLBACK(void) pdmR0PicHlp_Unlock(PPDMDEVINS pDevIns);
 /** @name APIC GC Helpers
  * @{
  */
-static DECLCALLBACK(void) pdmR0ApicHlp_SetInterruptFF(PPDMDEVINS pDevIns, VMCPUID idCpu);
+static DECLCALLBACK(void) pdmR0ApicHlp_SetInterruptFF(PPDMDEVINS pDevIns, PDMAPICIRQ enmType, VMCPUID idCpu);
 static DECLCALLBACK(void) pdmR0ApicHlp_ClearInterruptFF(PPDMDEVINS pDevIns, VMCPUID idCpu);
 static DECLCALLBACK(void) pdmR0ApicHlp_ChangeFeature(PPDMDEVINS pDevIns, PDMAPICVERSION enmVersion);
 static DECLCALLBACK(int)  pdmR0ApicHlp_Lock(PPDMDEVINS pDevIns, int rc);
@@ -97,7 +100,7 @@ static DECLCALLBACK(VMCPUID) pdmR0ApicHlp_GetCpuId(PPDMDEVINS pDevIns);
 /** @name I/O APIC GC Helpers
  * @{
  */
-static DECLCALLBACK(void) pdmR0IoApicHlp_ApicBusDeliver(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
+static DECLCALLBACK(int) pdmR0IoApicHlp_ApicBusDeliver(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
                                                         uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode);
 static DECLCALLBACK(int) pdmR0IoApicHlp_Lock(PPDMDEVINS pDevIns, int rc);
 static DECLCALLBACK(void) pdmR0IoApicHlp_Unlock(PPDMDEVINS pDevIns);
@@ -137,6 +140,7 @@ extern DECLEXPORT(const PDMDEVHLPR0) g_pdmR0DevHlp =
     pdmR0DevHlp_PATMSetMMIOPatchInfo,
     pdmR0DevHlp_GetVM,
     pdmR0DevHlp_CanEmulateIoBlock,
+    pdmR0DevHlp_GetVMCPU,
     PDM_DEVHLPR0_VERSION
 };
 
@@ -285,7 +289,7 @@ static DECLCALLBACK(bool) pdmR0DevHlp_A20IsEnabled(PPDMDEVINS pDevIns)
     PDMDEV_ASSERT_DEVINS(pDevIns);
     LogFlow(("pdmR0DevHlp_A20IsEnabled: caller=%p/%d:\n", pDevIns, pDevIns->iInstance));
 
-    bool fEnabled = PGMPhysIsA20Enabled(pDevIns->Internal.s.pVMR0);
+    bool fEnabled = PGMPhysIsA20Enabled(VMMGetCpu(pDevIns->Internal.s.pVMR0));
 
     Log(("pdmR0DevHlp_A20IsEnabled: caller=%p/%d: returns %RTbool\n", pDevIns, pDevIns->iInstance, fEnabled));
     return fEnabled;
@@ -361,9 +365,17 @@ static DECLCALLBACK(bool) pdmR0DevHlp_CanEmulateIoBlock(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     LogFlow(("pdmR0DevHlp_GetVM: caller='%p'/%d\n", pDevIns, pDevIns->iInstance));
-    return HWACCMCanEmulateIoBlock(pDevIns->Internal.s.pVMR0);
+    return HWACCMCanEmulateIoBlock(VMMGetCpu(pDevIns->Internal.s.pVMR0));
 }
 
+
+/** @copydoc PDMDEVHLPR0::pfnGetVMCPU */
+static DECLCALLBACK(PVMCPU) pdmR0DevHlp_GetVMCPU(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlow(("pdmR0DevHlp_GetVMCPU: caller='%p'/%d\n", pDevIns, pDevIns->iInstance));
+    return VMMGetCpu(pDevIns->Internal.s.pVMR0);
+}
 
 
 
@@ -372,10 +384,13 @@ static DECLCALLBACK(bool) pdmR0DevHlp_CanEmulateIoBlock(PPDMDEVINS pDevIns)
 static DECLCALLBACK(void) pdmR0PicHlp_SetInterruptFF(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    LogFlow(("pdmR0PicHlp_SetInterruptFF: caller=%p/%d: VM_FF_INTERRUPT_PIC %d -> 1\n",
-             pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pDevIns->Internal.s.pVMR0, 0, VM_FF_INTERRUPT_PIC)));
-    /* for PIC we always deliver to CPU 0, MP use APIC */
-    VMCPU_FF_SET(pDevIns->Internal.s.pVMR0, 0, VM_FF_INTERRUPT_PIC);
+    PVM    pVM   = pDevIns->Internal.s.pVMR0;
+    PVMCPU pVCpu = &pVM->aCpus[0];      /* for PIC we always deliver to CPU 0, MP use APIC */
+
+    LogFlow(("pdmR0PicHlp_SetInterruptFF: caller=%p/%d: VMCPU_FF_INTERRUPT_PIC %d -> 1\n",
+             pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC)));
+
+    VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC);
 }
 
 
@@ -383,10 +398,13 @@ static DECLCALLBACK(void) pdmR0PicHlp_SetInterruptFF(PPDMDEVINS pDevIns)
 static DECLCALLBACK(void) pdmR0PicHlp_ClearInterruptFF(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    LogFlow(("pdmR0PicHlp_ClearInterruptFF: caller=%p/%d: VM_FF_INTERRUPT_PIC %d -> 0\n",
-             pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pDevIns->Internal.s.pVMR0, 0, VM_FF_INTERRUPT_PIC)));
-    /* for PIC we always deliver to CPU 0, MP use APIC */
-    VMCPU_FF_CLEAR(pDevIns->Internal.s.pVMR0, 0, VM_FF_INTERRUPT_PIC);
+    PVM    pVM   = pDevIns->Internal.s.pVMR0;
+    PVMCPU pVCpu = &pVM->aCpus[0];      /* for PIC we always deliver to CPU 0, MP use APIC */
+
+    LogFlow(("pdmR0PicHlp_ClearInterruptFF: caller=%p/%d: VMCPU_FF_INTERRUPT_PIC %d -> 0\n",
+             pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC)));
+
+    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_PIC);
 }
 
 
@@ -408,13 +426,50 @@ static DECLCALLBACK(void) pdmR0PicHlp_Unlock(PPDMDEVINS pDevIns)
 
 
 /** @copydoc PDMAPICHLPR0::pfnSetInterruptFF */
-static DECLCALLBACK(void) pdmR0ApicHlp_SetInterruptFF(PPDMDEVINS pDevIns, VMCPUID idCpu)
+static DECLCALLBACK(void) pdmR0ApicHlp_SetInterruptFF(PPDMDEVINS pDevIns, PDMAPICIRQ enmType, VMCPUID idCpu)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
+    PVM    pVM   = pDevIns->Internal.s.pVMR0;
+    PVMCPU pVCpu = &pVM->aCpus[idCpu];
 
-    LogFlow(("pdmR0ApicHlp_SetInterruptFF: caller=%p/%d: VM_FF_INTERRUPT %d -> 1\n",
-             pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pDevIns->Internal.s.pVMR0, idCpu, VM_FF_INTERRUPT_APIC)));
-    VMCPU_FF_SET(pDevIns->Internal.s.pVMR0, idCpu, VM_FF_INTERRUPT_APIC);
+    AssertReturnVoid(idCpu < pVM->cCPUs);
+
+    LogFlow(("pdmR0ApicHlp_SetInterruptFF: CPU%d=caller=%p/%d: VM_FF_INTERRUPT %d -> 1 (CPU%d)\n",
+             VMMGetCpuId(pVM), pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC), idCpu));
+
+    switch (enmType)
+    {
+        case PDMAPICIRQ_HARDWARE:
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC);
+            break;
+        case PDMAPICIRQ_NMI:
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_NMI);
+            break;
+        case PDMAPICIRQ_SMI:
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_SMI);
+            break;
+        default:
+            AssertMsgFailed(("enmType=%d\n", enmType));
+            break;
+    }
+
+    /* We need to wait up the target CPU. */
+    if (VMMGetCpuId(pVM) != idCpu)
+    {
+        switch (VMCPU_GET_STATE(pVCpu))
+        {
+            case VMCPUSTATE_STARTED_EXEC:
+                GVMMR0SchedPokeEx(pVM, pVCpu->idCpu, false /* don't take the used lock */);
+                break;
+
+            case VMCPUSTATE_STARTED_HALTED:
+                GVMMR0SchedWakeUpEx(pVM, pVCpu->idCpu, false /* don't take the used lock */);
+                break;
+
+            default:
+                break; /* nothing to do in other states. */
+        }
+    }
 }
 
 
@@ -422,10 +477,14 @@ static DECLCALLBACK(void) pdmR0ApicHlp_SetInterruptFF(PPDMDEVINS pDevIns, VMCPUI
 static DECLCALLBACK(void) pdmR0ApicHlp_ClearInterruptFF(PPDMDEVINS pDevIns, VMCPUID idCpu)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
+    PVM    pVM   = pDevIns->Internal.s.pVMR0;
+    PVMCPU pVCpu = &pVM->aCpus[idCpu];
+
+    AssertReturnVoid(idCpu < pVM->cCPUs);
 
     LogFlow(("pdmR0ApicHlp_ClearInterruptFF: caller=%p/%d: VM_FF_INTERRUPT %d -> 0\n",
-             pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pDevIns->Internal.s.pVMR0, idCpu, VM_FF_INTERRUPT_APIC)));
-    VMCPU_FF_CLEAR(pDevIns->Internal.s.pVMR0, idCpu, VM_FF_INTERRUPT_APIC);
+             pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC)));
+    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_APIC);
 }
 
 
@@ -478,8 +537,11 @@ static DECLCALLBACK(VMCPUID) pdmR0ApicHlp_GetCpuId(PPDMDEVINS pDevIns)
 }
 
 
+
+
+
 /** @copydoc PDMIOAPICHLPR0::pfnApicBusDeliver */
-static DECLCALLBACK(void) pdmR0IoApicHlp_ApicBusDeliver(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
+static DECLCALLBACK(int) pdmR0IoApicHlp_ApicBusDeliver(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
                                                         uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
@@ -488,7 +550,8 @@ static DECLCALLBACK(void) pdmR0IoApicHlp_ApicBusDeliver(PPDMDEVINS pDevIns, uint
              pDevIns, pDevIns->iInstance, u8Dest, u8DestMode, u8DeliveryMode, iVector, u8Polarity, u8TriggerMode));
     Assert(pVM->pdm.s.Apic.pDevInsR0);
     if (pVM->pdm.s.Apic.pfnBusDeliverR0)
-        pVM->pdm.s.Apic.pfnBusDeliverR0(pVM->pdm.s.Apic.pDevInsR0, u8Dest, u8DestMode, u8DeliveryMode, iVector, u8Polarity, u8TriggerMode);
+        return pVM->pdm.s.Apic.pfnBusDeliverR0(pVM->pdm.s.Apic.pDevInsR0, u8Dest, u8DestMode, u8DeliveryMode, iVector, u8Polarity, u8TriggerMode);
+    return VINF_SUCCESS;
 }
 
 

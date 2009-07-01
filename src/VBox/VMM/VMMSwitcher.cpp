@@ -1,4 +1,4 @@
-/* $Id: VMMSwitcher.cpp $ */
+/* $Id: VMMSwitcher.cpp 20864 2009-06-23 19:19:42Z vboxsync $ */
 /** @file
  * VMM - The Virtual Machine Monitor, World Switcher(s).
  */
@@ -110,7 +110,7 @@ int vmmR3SwitcherInit(PVM pVM)
      * conflicts in the intermediate mapping of the code.
      */
     pVM->vmm.s.cbCoreCode = RT_ALIGN_32(cbCoreCode, PAGE_SIZE);
-    pVM->vmm.s.pvCoreCodeR3 = SUPContAlloc2(pVM->vmm.s.cbCoreCode >> PAGE_SHIFT, &pVM->vmm.s.pvCoreCodeR0, &pVM->vmm.s.HCPhysCoreCode);
+    pVM->vmm.s.pvCoreCodeR3 = SUPR3ContAlloc(pVM->vmm.s.cbCoreCode >> PAGE_SHIFT, &pVM->vmm.s.pvCoreCodeR0, &pVM->vmm.s.HCPhysCoreCode);
     int rc = VERR_NO_MEMORY;
     if (pVM->vmm.s.pvCoreCodeR3)
     {
@@ -136,7 +136,7 @@ int vmmR3SwitcherInit(PVM pVM)
                 i++;
                 pVM->vmm.s.pvCoreCodeR0 = NIL_RTR0PTR;
                 pVM->vmm.s.HCPhysCoreCode = NIL_RTHCPHYS;
-                pVM->vmm.s.pvCoreCodeR3 = SUPContAlloc2(pVM->vmm.s.cbCoreCode >> PAGE_SHIFT, &pVM->vmm.s.pvCoreCodeR0, &pVM->vmm.s.HCPhysCoreCode);
+                pVM->vmm.s.pvCoreCodeR3 = SUPR3ContAlloc(pVM->vmm.s.cbCoreCode >> PAGE_SHIFT, &pVM->vmm.s.pvCoreCodeR0, &pVM->vmm.s.HCPhysCoreCode);
                 if (!pVM->vmm.s.pvCoreCodeR3)
                     break;
                 rc = PGMR3MapIntermediate(pVM, pVM->vmm.s.pvCoreCodeR0, pVM->vmm.s.HCPhysCoreCode, cbCoreCode);
@@ -157,7 +157,7 @@ int vmmR3SwitcherInit(PVM pVM)
             {
                 LogRel(("Core code alloc attempt #%d: pvR3=%p pvR0=%p HCPhys=%RHp\n",
                         i, paBadTries[i].pvR3, paBadTries[i].pvR0, paBadTries[i].HCPhys));
-                SUPContFree(paBadTries[i].pvR3, paBadTries[i].cb >> PAGE_SHIFT);
+                SUPR3ContFree(paBadTries[i].pvR3, paBadTries[i].cb >> PAGE_SHIFT);
             }
             RTMemTmpFree(paBadTries);
         }
@@ -199,7 +199,7 @@ int vmmR3SwitcherInit(PVM pVM)
 
         /* shit */
         AssertMsgFailed(("PGMR3Map(,%RRv, %RHp, %#x, 0) failed with rc=%Rrc\n", pVM->vmm.s.pvCoreCodeRC, pVM->vmm.s.HCPhysCoreCode, cbCoreCode, rc));
-        SUPContFree(pVM->vmm.s.pvCoreCodeR3, pVM->vmm.s.cbCoreCode >> PAGE_SHIFT);
+        SUPR3ContFree(pVM->vmm.s.pvCoreCodeR3, pVM->vmm.s.cbCoreCode >> PAGE_SHIFT);
     }
     else
         VMSetError(pVM, rc, RT_SRC_POS,
@@ -398,6 +398,17 @@ static void vmmR3SwitcherGenericRelocate(PVM pVM, PVMMSWITCHERDEF pSwitcher, RTR
                 uint32_t offCPUM = *u.pu32++;
                 Assert(offCPUM < sizeof(pVM->cpum));
                 *uSrc.pu32 = (uint32_t)(VM_RC_ADDR(pVM, &pVM->cpum) + offCPUM);
+                break;
+            }
+
+            /*
+             * Make 32-bit GC pointer given CPUMCPU offset.
+             */
+            case FIX_GC_CPUMCPU_OFF:
+            {
+                uint32_t offCPUM = *u.pu32++;
+                Assert(offCPUM < sizeof(pVM->aCpus[0].cpum));
+                *uSrc.pu32 = (uint32_t)(VM_RC_ADDR(pVM, &pVM->aCpus[0].cpum) + offCPUM);
                 break;
             }
 
@@ -699,7 +710,7 @@ static void vmmR3SwitcherGenericRelocate(PVM pVM, PVMMSWITCHERDEF pSwitcher, RTR
                     "   pCPUMR3     = %p\n"
                     "   GCPtrGDT    = %RGv\n"
                     "   InterCR3s   = %08RHp, %08RHp, %08RHp (32-Bit, PAE, AMD64)\n"
-                    "   HyperCR3s   = %08RHp, %08RHp, %08RHp (32-Bit, PAE, AMD64)\n"
+                    "   HyperCR3s   = %08RHp (32-Bit, PAE & AMD64)\n"
                     "   SelCS       = %04x\n"
                     "   SelDS       = %04x\n"
                     "   SelCS64     = %04x\n"
@@ -715,8 +726,7 @@ static void vmmR3SwitcherGenericRelocate(PVM pVM, PVMMSWITCHERDEF pSwitcher, RTR
                     &pVM->cpum,
                     GCPtrGDT,
                     PGMGetInter32BitCR3(pVM), PGMGetInterPaeCR3(pVM), PGMGetInterAmd64CR3(pVM),
-                    /* @todo No need for three GetHyper calls; one and the same base is used */
-                    PGMGetHyper32BitCR3(pVM), PGMGetHyperPaeCR3(pVM), PGMGetHyperAmd64CR3(pVM),
+                    PGMGetHyperCR3(VMMGetCpu(pVM)),
                     SelCS, SelDS, SelCS64, SelTSS);
 
         uint32_t offCode = 0;
@@ -962,6 +972,7 @@ VMMR3DECL(int) VMMR3DisableSwitcher(PVM pVM)
     return VINF_SUCCESS;
 }
 
+
 /**
  * Gets the switcher to be used for switching to GC.
  *
@@ -978,7 +989,7 @@ VMMR3DECL(RTR0PTR) VMMR3GetHostToGuestSwitcher(PVM pVM, VMMSWITCHER enmSwitcher)
         ||  enmSwitcher >= VMMSWITCHER_MAX)
     {
         AssertMsgFailed(("Invalid input enmSwitcher=%d\n", enmSwitcher));
-        return VERR_INVALID_PARAMETER;
+        return NIL_RTR0PTR;
     }
 
     /*
@@ -990,5 +1001,5 @@ VMMR3DECL(RTR0PTR) VMMR3GetHostToGuestSwitcher(PVM pVM, VMMSWITCHER enmSwitcher)
         RTR0PTR     pbCodeR0 = (RTR0PTR)pVM->vmm.s.pvCoreCodeR0 + pVM->vmm.s.aoffSwitchers[enmSwitcher]; /** @todo fix the pvCoreCodeR0 type */
         return pbCodeR0 + pSwitcher->offR0HostToGuest;
     }
-    return (RTR0PTR)0;
+    return NIL_RTR0PTR;
 }

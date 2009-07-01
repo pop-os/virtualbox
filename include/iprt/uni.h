@@ -47,7 +47,7 @@
 # include <wctype.h>
 #endif
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 
 /** Max value a RTUNICP type can hold. */
@@ -399,7 +399,7 @@ DECLINLINE(RTUNICP) RTUniCpToLower(RTUNICP CodePoint)
 RTDECL(void) RTUniFree(PRTUNICP pusz);
 
 
-__END_DECLS
+RT_C_DECLS_END
 /** @} */
 
 

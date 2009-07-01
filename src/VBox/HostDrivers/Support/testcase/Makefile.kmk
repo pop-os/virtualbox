@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 20903 2009-06-24 19:32:12Z vboxsync $
 ## @file
 # Sub-Makefile for the SUPLib testcases.
 #
 
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2009 Sun Microsystems, Inc.
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -44,7 +44,9 @@ PROGRAMS += \
 	tstLow \
 	tstPin \
 	tstGIP-2 \
-	tstGetPagingMode
+	tstGetPagingMode \
+	tstSupSem \
+	tstSupSem-Zombie
 endif # VBOX_WITH_TESTCASES
 
 SUPInstall_TEMPLATE   = VBOXR3EXE
@@ -83,6 +85,12 @@ tstGIP-2_SOURCES      = tstGIP-2.cpp
 
 tstGetPagingMode_TEMPLATE = VBOXR3TSTEXE
 tstGetPagingMode_SOURCES = tstGetPagingMode.cpp
+
+tstSupSem_TEMPLATE    = VBOXR3TSTEXE
+tstSupSem_SOURCES     = tstSupSem.cpp
+
+tstSupSem-Zombie_TEMPLATE = VBOXR3TSTEXE
+tstSupSem-Zombie_SOURCES  = tstSupSem-Zombie.cpp
 
 include $(KBUILD_PATH)/subfooter.kmk
 

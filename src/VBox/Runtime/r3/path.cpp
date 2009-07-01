@@ -1,4 +1,4 @@
-/* $Id: path.cpp $ */
+/* $Id: path.cpp 20101 2009-05-27 16:43:08Z vboxsync $ */
 /** @file
  * IPRT - Path Manipulation.
  */
@@ -41,6 +41,7 @@
 #include <iprt/ctype.h>
 #include <iprt/err.h>
 #include <iprt/uni.h>
+#include <iprt/env.h>
 #include "internal/fs.h"
 #include "internal/path.h"
 #include "internal/process.h"
@@ -447,25 +448,24 @@ static int rtPathCompare(const char *pszPath1, const char *pszPath2, bool fLimit
  * The comparison takes platform-dependent details into account,
  * such as:
  * <ul>
- * <li>On DOS-like platforms, both |\| and |/| separator chars are considered
+ * <li>On DOS-like platforms, both separator chars (|\| and |/|) are considered
  *     to be equal.
  * <li>On platforms with case-insensitive file systems, mismatching characters
  *     are uppercased and compared again.
  * </ul>
  *
- * @remark
- *
- * File system details are currently ignored. This means that you won't get
- * case-insentive compares on unix systems when a path goes into a case-insensitive
- * filesystem like FAT, HPFS, HFS, NTFS, JFS, or similar. For NT, OS/2 and similar
- * you'll won't get case-sensitve compares on a case-sensitive file system.
+ * @returns @< 0 if the first path less than the second path.
+ * @returns 0 if the first path identical to the second path.
+ * @returns @> 0 if the first path greater than the second path.
  *
  * @param   pszPath1    Path to compare (must be an absolute path).
  * @param   pszPath2    Path to compare (must be an absolute path).
  *
- * @returns @< 0 if the first path less than the second path.
- * @returns 0 if the first path identical to the second path.
- * @returns @> 0 if the first path greater than the second path.
+ * @remarks File system details are currently ignored. This means that you won't
+ *          get case-insentive compares on unix systems when a path goes into a
+ *          case-insensitive filesystem like FAT, HPFS, HFS, NTFS, JFS, or
+ *          similar. For NT, OS/2 and similar you'll won't get case-sensitve
+ *          compares on a case-sensitive file system.
  */
 RTDECL(int) RTPathCompare(const char *pszPath1, const char *pszPath2)
 {
@@ -476,23 +476,23 @@ RTDECL(int) RTPathCompare(const char *pszPath1, const char *pszPath2)
 /**
  * Checks if a path starts with the given parent path.
  *
- * This means that either the path and the parent path matches completely, or that
- * the path is to some file or directory residing in the tree given by the parent
- * directory.
+ * This means that either the path and the parent path matches completely, or
+ * that the path is to some file or directory residing in the tree given by the
+ * parent directory.
  *
  * The path comparison takes platform-dependent details into account,
  * see RTPathCompare() for details.
+ *
+ * @returns |true| when \a pszPath starts with \a pszParentPath (or when they
+ *          are identical), or |false| otherwise.
  *
  * @param   pszPath         Path to check, must be an absolute path.
  * @param   pszParentPath   Parent path, must be an absolute path.
  *                          No trailing directory slash!
  *
- * @returns |true| when \a pszPath starts with \a pszParentPath (or when they
- *          are identical), or |false| otherwise.
- *
- * @remark  This API doesn't currently handle root directory compares in a manner
- *          consistant with the other APIs. RTPathStartsWith(pszSomePath, "/") will
- *          not work if pszSomePath isn't "/".
+ * @remarks This API doesn't currently handle root directory compares in a
+ *          manner consistant with the other APIs. RTPathStartsWith(pszSomePath,
+ *          "/") will not work if pszSomePath isn't "/".
  */
 RTDECL(bool) RTPathStartsWith(const char *pszPath, const char *pszParentPath)
 {
@@ -541,6 +541,72 @@ RTDECL(char *) RTPathAbsDup(const char *pszPath)
     if (RT_SUCCESS(rc))
         return RTStrDup(szPath);
     return NULL;
+}
+
+
+/**
+ * Figures the length of the root part of the path.
+ *
+ * @returns length of the root specifier.
+ * @retval  0 if none.
+ *
+ * @param   pszPath         The path to investigate.
+ *
+ * @remarks Unnecessary root slashes will not be counted. The caller will have
+ *          to deal with it where it matters.
+ */
+static size_t rtPathRootSpecLen(const char *pszPath)
+{
+    /* fend of wildlife. */
+    if (!pszPath)
+        return 0;
+
+    /* Root slash? */
+    if (RTPATH_IS_SLASH(pszPath[0]))
+    {
+#if defined (RT_OS_OS2) || defined (RT_OS_WINDOWS)
+        /* UNC? */
+        if (    RTPATH_IS_SLASH(pszPath[1])
+            &&  pszPath[2] != '\0'
+            &&  !RTPATH_IS_SLASH(pszPath[2]))
+        {
+            /* Find the end of the server name. */
+            const char *pszEnd = pszPath + 2;
+            pszEnd += 2;
+            while (   *pszEnd != '\0'
+                   && !RTPATH_IS_SLASH(*pszEnd))
+                pszEnd++;
+            if (RTPATH_IS_SLASH(*pszEnd))
+            {
+                pszEnd++;
+                while (RTPATH_IS_SLASH(*pszEnd))
+                    pszEnd++;
+
+                /* Find the end of the share name */
+                while (   *pszEnd != '\0'
+                       && !RTPATH_IS_SLASH(*pszEnd))
+                    pszEnd++;
+                if (RTPATH_IS_SLASH(*pszEnd))
+                    pszEnd++;
+                return pszPath - pszEnd;
+            }
+        }
+#endif
+        return 1;
+    }
+
+#if defined (RT_OS_OS2) || defined (RT_OS_WINDOWS)
+    /* Drive specifier? */
+    if (   pszPath[0] != '\0'
+        && pszPath[1] == ':'
+        && RT_C_IS_ALPHA(pszPath[0]))
+    {
+        if (RTPATH_IS_SLASH(pszPath[2]))
+            return 3;
+        return 2;
+    }
+#endif
+    return 0;
 }
 
 
@@ -663,9 +729,89 @@ RTDECL(char *) RTPathAbsExDup(const char *pszBase, const char *pszPath)
 }
 
 
+RTDECL(int) RTPathAppend(char *pszPath, size_t cbPathDst, const char *pszAppend)
+{
+    char *pszPathEnd = (char *)memchr(pszPath, '\0', cbPathDst);
+    AssertReturn(pszPathEnd, VERR_INVALID_PARAMETER);
+
+    /*
+     * Special cases.
+     */
+    if (!pszAppend)
+        return VINF_SUCCESS;
+    size_t cchAppend = strlen(pszAppend);
+    if (!cchAppend)
+        return VINF_SUCCESS;
+    if (pszPathEnd == pszPath)
+    {
+        if (cchAppend >= cbPathDst)
+            return VERR_BUFFER_OVERFLOW;
+        memcpy(pszPath, pszAppend, cchAppend + 1);
+        return VINF_SUCCESS;
+    }
+
+    /*
+     * Balance slashes and check for buffer overflow.
+     */
+    bool fAddSlash = false;
+    if (!RTPATH_IS_SLASH(pszPathEnd[-1]))
+    {
+        if (!RTPATH_IS_SLASH(pszAppend[0]))
+        {
+#if defined (RT_OS_OS2) || defined (RT_OS_WINDOWS)
+            if (    (size_t)(pszPathEnd - pszPath) == 2
+                &&  pszPath[1] == ':'
+                &&  RT_C_IS_ALPHA(pszPath[0]))
+            {
+                if ((size_t)(pszPathEnd - pszPath) + cchAppend >= cbPathDst)
+                    return VERR_BUFFER_OVERFLOW;
+            }
+            else
+#endif
+            {
+                if ((size_t)(pszPathEnd - pszPath) + 1 + cchAppend >= cbPathDst)
+                    return VERR_BUFFER_OVERFLOW;
+                *pszPathEnd++ = '/';
+            }
+        }
+        else
+        {
+            /* One slash is sufficient at this point. */
+            while (RTPATH_IS_SLASH(pszAppend[1]))
+                pszAppend++, cchAppend--;
+
+            if ((size_t)(pszPathEnd - pszPath) + cchAppend >= cbPathDst)
+                return VERR_BUFFER_OVERFLOW;
+        }
+    }
+    else
+    {
+        /* No slashes needed in the appended bit. */
+        while (RTPATH_IS_SLASH(*pszAppend))
+            pszAppend++, cchAppend--;
+
+        /* In the leading path we can skip unnecessary trailing slashes, but
+           be sure to leave one. */
+        size_t const cchRoot = rtPathRootSpecLen(pszPath);
+        while (     (size_t)(pszPathEnd - pszPath) > RT_MAX(1, cchRoot)
+               &&   RTPATH_IS_SLASH(pszPathEnd[-2]))
+            pszPathEnd--;
+
+        if ((size_t)(pszPathEnd - pszPath) + cchAppend >= cbPathDst)
+            return VERR_BUFFER_OVERFLOW;
+    }
+
+    /*
+     * What remains now is the just the copying.
+     */
+    memcpy(pszPathEnd, pszAppend, cchAppend + 1);
+    return VINF_SUCCESS;
+}
+
+
 #ifndef RT_MINI
 
-RTDECL(int) RTPathProgram(char *pszPath, size_t cchPath)
+RTDECL(int) RTPathExecDir(char *pszPath, size_t cchPath)
 {
     AssertReturn(g_szrtProcExePath[0], VERR_WRONG_ORDER);
 
@@ -691,7 +837,7 @@ RTDECL(int) RTPathProgram(char *pszPath, size_t cchPath)
  *
  * Linux:    /usr/shared/@<application@>
  * Windows:  @<program files directory@>/@<application@>
- * Old path: same as RTPathProgram()
+ * Old path: same as RTPathExecDir()
  *
  */
 RTDECL(int) RTPathAppPrivateNoArch(char *pszPath, size_t cchPath)
@@ -711,7 +857,7 @@ RTDECL(int) RTPathAppPrivateNoArch(char *pszPath, size_t cchPath)
     }
     return rc;
 #else
-    return RTPathProgram(pszPath, cchPath);
+    return RTPathExecDir(pszPath, cchPath);
 #endif
 }
 
@@ -722,7 +868,7 @@ RTDECL(int) RTPathAppPrivateNoArch(char *pszPath, size_t cchPath)
  *
  * Linux:    /usr/lib/@<application@>
  * Windows:  @<program files directory@>/@<application@>
- * Old path: same as RTPathProgram()
+ * Old path: same as RTPathExecDir()
  *
  * @returns iprt status code.
  * @param   pszPath     Buffer where to store the path.
@@ -745,7 +891,7 @@ RTDECL(int) RTPathAppPrivateArch(char *pszPath, size_t cchPath)
     }
     return rc;
 #else
-    return RTPathProgram(pszPath, cchPath);
+    return RTPathExecDir(pszPath, cchPath);
 #endif
 }
 
@@ -757,7 +903,7 @@ RTDECL(int) RTPathAppPrivateArch(char *pszPath, size_t cchPath)
  *
  * Linux:    /usr/lib
  * Windows:  @<program files directory@>/@<application@>
- * Old path: same as RTPathProgram()
+ * Old path: same as RTPathExecDir()
  *
  * @returns iprt status code.
  * @param   pszPath     Buffer where to store the path.
@@ -780,7 +926,7 @@ RTDECL(int) RTPathSharedLibs(char *pszPath, size_t cchPath)
     }
     return rc;
 #else
-    return RTPathProgram(pszPath, cchPath);
+    return RTPathExecDir(pszPath, cchPath);
 #endif
 }
 
@@ -790,7 +936,7 @@ RTDECL(int) RTPathSharedLibs(char *pszPath, size_t cchPath)
  *
  * Linux:    /usr/share/doc/@<application@>
  * Windows:  @<program files directory@>/@<application@>
- * Old path: same as RTPathProgram()
+ * Old path: same as RTPathExecDir()
  *
  * @returns iprt status code.
  * @param   pszPath     Buffer where to store the path.
@@ -813,8 +959,53 @@ RTDECL(int) RTPathAppDocs(char *pszPath, size_t cchPath)
     }
     return rc;
 #else
-    return RTPathProgram(pszPath, cchPath);
+    return RTPathExecDir(pszPath, cchPath);
 #endif
+}
+
+
+/**
+ * Gets the temporary directory path.
+ *
+ * @returns iprt status code.
+ *
+ * @param   pszPath     Buffer where to store the path.
+ * @param   cchPath     Buffer size in bytes.
+ */
+RTDECL(int) RTPathTemp(char *pszPath, size_t cchPath)
+{
+    /*
+     * Try get it from the environment first.
+     */
+    static const char * const s_apszVars[] =
+    {
+        "IPRT_TMPDIR"
+#if defined(RT_OS_WINDOWS)
+        , "TMP", "TEMP", "USERPROFILE"
+#elif defined(RT_OS_OS2)
+        , "TMP", "TEMP", "TMPDIR"
+#else
+        , "TMPDIR"
+#endif
+    };
+    for (size_t iVar = 0; iVar < RT_ELEMENTS(s_apszVars); iVar++)
+    {
+        int rc = RTEnvGetEx(RTENV_DEFAULT, s_apszVars[iVar], pszPath, cchPath, NULL);
+        if (rc != VERR_ENV_VAR_NOT_FOUND)
+            return rc;
+    }
+
+    /*
+     * Here we should use some sane system default, instead we just use
+     * the typical unix temp dir for now.
+     */
+    /** @todo Windows should default to the windows directory, see GetTempPath.
+     * Some unixes has path.h and _PATH_TMP. There is also a question about
+     * whether /var/tmp wouldn't be a better place...  */
+    if (cchPath < sizeof("/tmp") )
+        return VERR_BUFFER_OVERFLOW;
+    memcpy(pszPath, "/tmp", sizeof("/tmp"));
+    return VINF_SUCCESS;
 }
 
 #endif /* !RT_MINI */

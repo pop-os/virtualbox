@@ -35,7 +35,7 @@
 #include <VBox/tm.h>
 #include <VBox/vmapi.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_ssm       The Saved State Manager API
  * @{
@@ -510,6 +510,7 @@ VMMR3DECL(int) SSMR3GetMem(PSSMHANDLE pSSM, void *pv, size_t cb);
 VMMR3DECL(int) SSMR3GetStrZ(PSSMHANDLE pSSM, char *psz, size_t cbMax);
 VMMR3DECL(int) SSMR3GetStrZEx(PSSMHANDLE pSSM, char *psz, size_t cbMax, size_t *pcbStr);
 VMMR3DECL(int) SSMR3GetTimer(PSSMHANDLE pSSM, PTMTIMER pTimer);
+VMMR3DECL(int) SSMR3Skip(PSSMHANDLE pSSM, size_t cb);
 
 /** @} */
 
@@ -519,7 +520,7 @@ VMMR3DECL(int) SSMR3GetTimer(PSSMHANDLE pSSM, PTMTIMER pTimer);
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

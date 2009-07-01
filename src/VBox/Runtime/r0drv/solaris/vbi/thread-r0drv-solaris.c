@@ -1,4 +1,4 @@
-/* $Id: thread-r0drv-solaris.c $ */
+/* $Id: thread-r0drv-solaris.c 20124 2009-05-28 15:40:06Z vboxsync $ */
 /** @file
  * IPRT - Threads, Ring-0 Driver, Solaris.
  */
@@ -100,6 +100,22 @@ RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread)
 {
     Assert(hThread == NIL_RTTHREAD);
     return vbi_is_preempt_enabled() != 0;
+}
+
+
+RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
+{
+    Assert(hThread == NIL_RTTHREAD);
+    /** @todo Review this! */
+    return CPU->cpu_runrun   != 0
+        || CPU->cpu_kprunrun != 0;
+}
+
+
+RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
+{
+    /* yes, RTThreadPreemptIsPending is reliable. */
+    return true;
 }
 
 

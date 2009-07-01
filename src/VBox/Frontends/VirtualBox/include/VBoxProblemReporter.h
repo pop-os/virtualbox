@@ -145,8 +145,10 @@ public:
     QWidget *mainWindowShown() const;
 
     /* Generic problem handlers */
+    bool askForOverridingFile (const QString& aPath, QWidget *aParent  = NULL) const;
+    bool askForOverridingFiles (const QVector<QString>& aPaths, QWidget *aParent = NULL) const;
     bool askForOverridingFileIfExists (const QString& path, QWidget *aParent = NULL) const;
-    bool askForOverridingFilesIfExists (const QStringList& aPaths, QWidget *aParent = NULL) const;
+    bool askForOverridingFilesIfExists (const QVector<QString>& aPaths, QWidget *aParent = NULL) const;
 
     void cannotDeleteFile (const QString& path, QWidget *aParent = NULL) const;
 
@@ -267,7 +269,6 @@ public:
 
     void cannotGetMediaAccessibility (const VBoxMedium &aMedium);
 
-#if defined Q_WS_WIN
     int confirmDeletingHostInterface (const QString &aName, QWidget *aParent = 0);
     void cannotCreateHostInterface (const CHost &aHost, QWidget *aParent = 0);
     void cannotCreateHostInterface (const CProgress &aProgress, QWidget *aParent = 0);
@@ -277,7 +278,6 @@ public:
     void cannotRemoveHostInterface (const CProgress &aProgress,
                                     const CHostNetworkInterface &aIface,
                                     QWidget *aParent = 0);
-#endif
 
     void cannotAttachUSBDevice (const CConsole &console, const QString &device);
     void cannotAttachUSBDevice (const CConsole &console, const QString &device,
@@ -344,6 +344,9 @@ public:
 
     void cannotImportAppliance (CAppliance *aAppliance, QWidget *aParent = NULL) const;
     void cannotImportAppliance (const CProgress &aProgress, CAppliance *aAppliance, QWidget *aParent = NULL) const;
+
+    void cannotCheckFiles (const CProgress &aProgress, QWidget *aParent = NULL) const;
+    void cannotRemoveFiles (const CProgress &aProgress, QWidget *aParent = NULL) const;
 
     void cannotExportAppliance (CAppliance *aAppliance, QWidget *aParent = NULL) const;
     void cannotExportAppliance (const CMachine &aMachine, CAppliance *aAppliance, QWidget *aParent = NULL) const;

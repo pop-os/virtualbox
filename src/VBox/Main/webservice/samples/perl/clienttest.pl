@@ -38,6 +38,7 @@ use Data::Dumper;
 my $cmd = 'clienttest';
 my $optMode;
 my $vmname;
+my $disk;
 
 while (my $this = shift(@ARGV))
 {
@@ -67,6 +68,15 @@ while (my $this = shift(@ARGV))
             die "[$cmd] Missing parameter: You must specify the name of the VM to start.\nStopped";
         }
     }
+    elsif ($this eq 'openhd')
+    {
+        $optMode = $this;
+
+        if (!($disk = shift(@ARGV)))
+        {
+            die "[$cmd] Missing parameter: You must specify the name of the disk to open.\nStopped";
+        }
+    }
     else
     {
         die "[$cmd] Unknown option \"$this\"; stopped";
@@ -91,7 +101,7 @@ if ($optMode eq "version")
 elsif ($optMode eq "list")
 {
     print "[$cmd] Listing machines:\n";
-    my @result = vboxService->IVirtualBox_getMachines2($vbox);
+    my @result = vboxService->IVirtualBox_getMachines($vbox);
     foreach my $idMachine (@result)
     {
         my $if = vboxService->IManagedObjectRef_getInterfaceName($idMachine);
@@ -146,4 +156,8 @@ elsif ($optMode eq "startvm")
     vboxService->ISession_close($session);
 
     vboxService->IWebsessionManager_logoff($vbox);
+}
+elsif ($optMode eq "openhd")
+{
+    my $harddisk = vboxService->IVirtualBox_openHardDisk($vbox, $disk, 1, 0, "", 0, "");
 }

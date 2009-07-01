@@ -73,7 +73,9 @@ struct m_hdr
 
     caddr_t mh_data;           /* Location of data */
     int     mh_len;            /* Amount of data in this mbuf */
-    void    *header;           /*XXX: in real BSD sources this field lays in pkthdr structure*/
+#ifdef VBOX_WITH_SLIRP_ALIAS
+    struct libalias *mh_la;     /*Real freebsd store hocksin similar way*/
+#endif
 };
 
 /*
@@ -111,6 +113,9 @@ struct mbuf
 #define m_dat           M_dat.m_dat_
 #define m_ext           M_dat.m_ext_
 #define m_so            m_hdr.mh_so
+#ifdef VBOX_WITH_SLIRP_ALIAS
+#define m_la            m_hdr.mh_la
+#endif
 
 #define ifq_prev m_prev
 #define ifq_next m_next
@@ -131,19 +136,21 @@ extern int mbuf_alloced;
 extern struct mbuf m_freelist, m_usedlist;
 extern int mbuf_max;
 
-void m_init _P((PNATState));
-void msize_init _P((PNATState));
-struct mbuf * m_get _P((PNATState));
-void m_free _P((PNATState, struct mbuf *));
-void m_cat _P((PNATState, register struct mbuf *, register struct mbuf *));
-void m_inc _P((struct mbuf *, int));
-void m_adj _P((struct mbuf *, int));
-int m_copy _P((struct mbuf *, struct mbuf *, int, int));
-struct mbuf * dtom _P((PNATState, void *));
+void m_init (PNATState);
+void msize_init (PNATState);
+struct mbuf * m_get (PNATState);
+void m_free (PNATState, struct mbuf *);
+void m_cat (PNATState, register struct mbuf *, register struct mbuf *);
+void m_inc (struct mbuf *, int);
+void m_adj (struct mbuf *, int);
+int m_copy (struct mbuf *, struct mbuf *, int, int);
+struct mbuf * dtom (PNATState, void *);
 
 /*
  * this macro should be used for validation and copying of Ethernet header where it really requred
  */
 #define MBUF_HEAD(m) ((caddr_t)(((m)->m_flags & M_EXT) ? (m)->m_ext : (m)->m_dat))
+
+#define MBUF_IP_HEADER(m) (caddr_t)(MBUF_HEAD(m) + if_maxlinkhdr)
 
 #endif

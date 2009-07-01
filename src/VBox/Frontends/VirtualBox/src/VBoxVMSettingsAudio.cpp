@@ -80,17 +80,25 @@ void VBoxVMSettingsAudio::prepareComboboxes()
 # ifdef VBOX_WITH_WINMM
     mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_WinMM));
 # endif
-#elif defined Q_OS_SOLARIS
+#endif
+#if defined Q_OS_SOLARIS
     mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_SolAudio));
-#elif defined Q_OS_LINUX
+# if defined VBOX_WITH_SOLARIS_OSS
     mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_OSS));
+#endif
+#endif
+#if defined Q_OS_LINUX || defined Q_OS_FREEBSD
+    mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_OSS));
+#endif
+#if defined Q_OS_LINUX
 # ifdef VBOX_WITH_ALSA
     mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_ALSA));
 # endif
 # ifdef VBOX_WITH_PULSE
     mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_Pulse));
 # endif
-#elif defined Q_OS_MACX
+#endif
+#if defined Q_OS_MACX
     mCbAudioDriver->addItem (vboxGlobal().toString (KAudioDriverType_CoreAudio));
 #endif
     /* Set the old value */

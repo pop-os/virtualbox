@@ -1,4 +1,4 @@
-/* $Id: PGMHandler.cpp $ */
+/* $Id: PGMHandler.cpp 20808 2009-06-23 08:43:53Z vboxsync $ */
 /** @file
  * PGM - Page Manager / Monitor, Access Handlers.
  */
@@ -387,9 +387,10 @@ VMMDECL(int) PGMR3HandlerVirtualRegisterEx(PVM pVM, PGMVIRTHANDLERTYPE enmType, 
     {
         if (enmType != PGMVIRTHANDLERTYPE_HYPERVISOR)
         {
-            pVM->pgm.s.fPhysCacheFlushPending = true;
-            pVM->pgm.s.fSyncFlags |= PGM_SYNC_UPDATE_PAGE_BIT_VIRTUAL | PGM_SYNC_CLEAR_PGM_POOL;
-            VM_FF_SET(pVM, VM_FF_PGM_SYNC_CR3);
+            PVMCPU pVCpu = VMMGetCpu(pVM);
+
+            pVCpu->pgm.s.fSyncFlags |= PGM_SYNC_UPDATE_PAGE_BIT_VIRTUAL | PGM_SYNC_CLEAR_PGM_POOL;
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
         }
         pgmUnlock(pVM);
 
@@ -468,8 +469,10 @@ VMMDECL(int) PGMHandlerVirtualDeregister(PVM pVM, RTGCPTR GCPtr)
         /*
          * Schedule CR3 sync.
          */
-        pVM->pgm.s.fSyncFlags |= PGM_SYNC_UPDATE_PAGE_BIT_VIRTUAL | PGM_SYNC_CLEAR_PGM_POOL;
-        VM_FF_SET(pVM, VM_FF_PGM_SYNC_CR3);
+        PVMCPU pVCpu = VMMGetCpu(pVM);
+
+        pVCpu->pgm.s.fSyncFlags |= PGM_SYNC_UPDATE_PAGE_BIT_VIRTUAL | PGM_SYNC_CLEAR_PGM_POOL;
+        VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
     }
     else
     {

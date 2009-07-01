@@ -331,6 +331,7 @@ Qt::ItemFlags HardwareItem::itemFlags (int aColumn) const
              mType == KVirtualSystemDescriptionType_Description ||
              mType == KVirtualSystemDescriptionType_License ||
              mType == KVirtualSystemDescriptionType_OS ||
+             mType == KVirtualSystemDescriptionType_CPU ||
              mType == KVirtualSystemDescriptionType_Memory ||
              mType == KVirtualSystemDescriptionType_SoundCard ||
              mType == KVirtualSystemDescriptionType_NetworkAdapter ||
@@ -783,6 +784,17 @@ QVariant VirtualSystemModel::headerData (int aSection, Qt::Orientation aOrientat
     return title;
 }
 
+QModelIndex VirtualSystemModel::buddy (const QModelIndex &aIndex) const
+{
+    if (!aIndex.isValid())
+        return QModelIndex();
+
+    if (aIndex.column() == ConfigValueSection)
+        return aIndex;
+    else
+        return index (aIndex.row(), ConfigValueSection, aIndex.parent());
+}
+
 void VirtualSystemModel::restoreDefaults (const QModelIndex& aParent /* = QModelIndex() */)
 {
     ModelItem *parentItem;
@@ -979,6 +991,7 @@ VBoxApplianceEditorWgt::VBoxApplianceEditorWgt (QWidget *aParent /* = NULL */)
     /* Make the tree looking nicer */
     mTvSettings->setRootIsDecorated (false);
     mTvSettings->setAlternatingRowColors (true);
+    mTvSettings->setAllColumnsShowFocus (true);
     mTvSettings->header()->setStretchLastSection (true);
     mTvSettings->header()->setResizeMode (QHeaderView::ResizeToContents);
 

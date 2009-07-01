@@ -574,6 +574,7 @@ send:
      * to handle ttl and tos; we could keep them in
      * the template, but need a way to checksum without them.
      */
+    Assert(m->m_len == (hdrlen + len));
     m->m_len = hdrlen + len; /* XXX Needed? m_len should be correct */
 
     {
@@ -586,6 +587,22 @@ send:
 #if 0
         error = ip_output(m, tp->t_inpcb->inp_options, &tp->t_inpcb->inp_route,
                          so->so_options & SO_DONTROUTE, 0);
+#endif
+#ifdef VBOX_WITH_NAT_SERVICE
+        {
+            struct ethhdr *eh0, *eh;
+            eh = (struct ethhdr *)m->m_dat;
+
+            if (so->so_m != NULL)
+            {
+                eh0 = (struct ethhdr *)so->so_m->m_dat;
+                memcpy(eh->h_source, eh0->h_source, ETH_ALEN);
+            }
+        }
+#endif
+#ifdef VBOX_WITH_SLIRP_ALIAS
+        if(so->so_la != NULL)
+            m->m_la = so->so_la;
 #endif
         error = ip_output(pData, so, m);
 

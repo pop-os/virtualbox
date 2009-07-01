@@ -1,4 +1,4 @@
-/* $Id: DevINIP.cpp $ */
+/* $Id: DevINIP.cpp 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * DevINIP - Internal Network IP stack device/service.
  */
@@ -24,13 +24,13 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_INIP
-#include <iprt/cdefs.h>     /* include early to allow __BEGIN_DECLS hack */
+#include <iprt/cdefs.h>     /* include early to allow RT_C_DECLS_BEGIN hack */
 #include <iprt/mem.h>       /* include anything of ours that the lwip headers use. */
 #include <iprt/semaphore.h>
 #include <iprt/thread.h>
 #include <iprt/alloca.h>
 /* All lwip header files are not C++ safe. So hack around this. */
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 #include "lwip/sys.h"
 #include "lwip/stats.h"
 #include "lwip/mem.h"
@@ -43,7 +43,7 @@ __BEGIN_DECLS
 #include "lwip/tcpip.h"
 #include "lwip/sockets.h"
 #include "netif/etharp.h"
-__END_DECLS
+RT_C_DECLS_END
 #include <VBox/pdmdev.h>
 #include <VBox/tm.h>
 #include <iprt/string.h>
@@ -145,9 +145,9 @@ static DECLCALLBACK(err_t) devINIPInterface(struct netif *netif);
  * @param   pDevIns     Device instance.
  * @param   pTimer      Pointer to timer.
  */
-static DECLCALLBACK(void) devINIPARPTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) devINIPARPTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    PDEVINTNETIP pThis = PDMINS_2_DATA(pDevIns, PDEVINTNETIP);
+    PDEVINTNETIP pThis = (PDEVINTNETIP)pvUser;
     LogFlow(("%s: pDevIns=%p pTimer=%p\n", __FUNCTION__, pDevIns, pTimer));
     lwip_etharp_tmr();
     TMTimerSetMillies(pThis->ARPTimer, ARP_TMR_INTERVAL);
@@ -160,9 +160,9 @@ static DECLCALLBACK(void) devINIPARPTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
  * @param   pDevIns     Device instance.
  * @param   pTimer      Pointer to timer.
  */
-static DECLCALLBACK(void) devINIPTCPFastTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) devINIPTCPFastTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    PDEVINTNETIP pThis = PDMINS_2_DATA(pDevIns, PDEVINTNETIP);
+    PDEVINTNETIP pThis = (PDEVINTNETIP)pvUser;
     LogFlow(("%s: pDevIns=%p pTimer=%p\n", __FUNCTION__, pDevIns, pTimer));
     lwip_tcp_fasttmr();
     TMTimerSetMillies(pThis->TCPFastTimer, TCP_FAST_INTERVAL);
@@ -175,9 +175,9 @@ static DECLCALLBACK(void) devINIPTCPFastTimer(PPDMDEVINS pDevIns, PTMTIMER pTime
  * @param   pDevIns     Device instance.
  * @param   pTimer      Pointer to timer.
  */
-static DECLCALLBACK(void) devINIPTCPSlowTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) devINIPTCPSlowTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    PDEVINTNETIP pThis = PDMINS_2_DATA(pDevIns, PDEVINTNETIP);
+    PDEVINTNETIP pThis = (PDEVINTNETIP)pvUser;
     LogFlow(("%s: pDevIns=%p pTimer=%p\n", __FUNCTION__, pDevIns, pTimer));
     lwip_tcp_slowtmr();
     TMTimerSetMillies(pThis->TCPSlowTimer, TCP_SLOW_INTERVAL);
@@ -589,14 +589,17 @@ static DECLCALLBACK(int) devINIPConstruct(PPDMDEVINS pDevIns, int iInstance,
     lwip_memp_init();
     lwip_pbuf_init();
     lwip_netif_init();
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, devINIPARPTimer, "lwIP ARP", &pThis->ARPTimer);
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, devINIPARPTimer, pThis,
+                                TMTIMER_FLAGS_NO_CRIT_SECT, "lwIP ARP", &pThis->ARPTimer);
     if (RT_FAILURE(rc))
         goto out;
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, devINIPTCPFastTimer, "lwIP fast TCP", &pThis->TCPFastTimer);
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, devINIPTCPFastTimer, pThis,
+                                TMTIMER_FLAGS_NO_CRIT_SECT, "lwIP fast TCP", &pThis->TCPFastTimer);
     if (RT_FAILURE(rc))
         goto out;
     TMTimerSetMillies(pThis->TCPFastTimer, TCP_FAST_INTERVAL);
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, devINIPTCPSlowTimer, "lwIP slow TCP", &pThis->TCPSlowTimer);
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, devINIPTCPSlowTimer, pThis,
+                                TMTIMER_FLAGS_NO_CRIT_SECT, "lwIP slow TCP", &pThis->TCPSlowTimer);
     if (RT_FAILURE(rc))
         goto out;
     TMTimerSetMillies(pThis->TCPFastTimer, TCP_SLOW_INTERVAL);

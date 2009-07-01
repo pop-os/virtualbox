@@ -1,4 +1,4 @@
-/* $Id: RTErrConvertFromDarwinCOM.cpp $ */
+/* $Id: RTErrConvertFromDarwinCOM.cpp 15459 2008-12-14 11:23:14Z vboxsync $ */
 /** @file
  * IPRT - Convert Darwin COM returns codes to iprt status codes.
  */

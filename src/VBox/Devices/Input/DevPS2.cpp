@@ -1,5 +1,5 @@
 #ifdef VBOX
-/* $Id:  $ */
+/* $Id: $ */
 /** @file
  * DevPS2 - PS/2 keyboard & mouse controller device.
  */
@@ -63,12 +63,12 @@
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 PDMBOTHCBDECL(int) kbdIOPortDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
 PDMBOTHCBDECL(int) kbdIOPortDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
 PDMBOTHCBDECL(int) kbdIOPortStatusRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
 PDMBOTHCBDECL(int) kbdIOPortCommandWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
-__END_DECLS
+RT_C_DECLS_END
 #endif /* !VBOX_DEVICE_STRUCT_TESTCASE */
 #endif /* VBOX */
 

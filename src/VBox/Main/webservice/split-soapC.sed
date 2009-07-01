@@ -1,4 +1,4 @@
-# $Id: split-soapC.sed $
+# $Id: split-soapC.sed 20267 2009-06-04 11:27:27Z vboxsync $
 ## @file
 # Sed script for splitting up the monsterous soapC.cpp
 #

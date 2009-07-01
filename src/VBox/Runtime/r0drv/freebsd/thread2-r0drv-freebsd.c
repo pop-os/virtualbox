@@ -1,4 +1,4 @@
-/* $Id: thread2-r0drv-freebsd.c $ */
+/* $Id: thread2-r0drv-freebsd.c 19341 2009-05-04 21:25:26Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 2), Ring-0 Driver, FreeBSD.
  */
@@ -111,7 +111,11 @@ static void rtThreadNativeMain(void *pvThreadInt)
 
     rc = rtThreadMain(pThreadInt, (RTNATIVETHREAD)Self, &pThreadInt->szName[0]);
 
+#if __FreeBSD_version >= 800002
+    kproc_exit(rc);
+#else
     kthread_exit(rc);
+#endif
 }
 
 
@@ -120,7 +124,11 @@ int rtThreadNativeCreate(PRTTHREADINT pThreadInt, PRTNATIVETHREAD pNativeThread)
     int rc;
     struct proc *pProc;
 
+#if __FreeBSD_version >= 800002
+    rc = kproc_create(rtThreadNativeMain, pThreadInt, &pProc, RFHIGHPID, 0, "%s", pThreadInt->szName);
+#else
     rc = kthread_create(rtThreadNativeMain, pThreadInt, &pProc, RFHIGHPID, 0, "%s", pThreadInt->szName);
+#endif
     if (!rc)
     {
         *pNativeThread = (RTNATIVETHREAD)FIRST_THREAD_IN_PROC(pProc);

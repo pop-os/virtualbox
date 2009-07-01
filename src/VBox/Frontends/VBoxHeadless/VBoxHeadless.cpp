@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,7 @@
 #include <VBox/com/string.h>
 #include <VBox/com/Guid.h>
 #include <VBox/com/ErrorInfo.h>
-#include <VBox/com/errorprint2.h>
+#include <VBox/com/errorprint.h>
 #include <VBox/com/EventQueue.h>
 
 #include <VBox/com/VirtualBox.h>
@@ -45,6 +45,7 @@ using namespace com;
 #include <iprt/getopt.h>
 #include <iprt/env.h>
 #include <VBox/err.h>
+#include <VBox/VBoxVideo.h>
 
 #ifdef VBOX_FFMPEG
 #include <cstdlib>
@@ -105,7 +106,7 @@ private:
 /**
  *  Callback handler for machine events.
  */
-class ConsoleCallback : public IConsoleCallback
+class ConsoleCallback : VBOX_SCRIPTABLE_IMPL(IConsoleCallback)
 {
 public:
 
@@ -445,7 +446,7 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
               "All rights reserved.\n\n",
               VBOX_VERSION_STRING);
 
-    Guid id;
+    Bstr id;
     /* the below cannot be Bstr because on Linux Bstr doesn't work until XPCOM (nsMemory) is initialized */
     const char *name = NULL;
 
@@ -517,7 +518,7 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
         switch(ch)
         {
             case 's':
-                id = ValueUnion.psz;
+                id = asGuidStr(ValueUnion.psz);
                 /* If the argument was not a UUID, then it must be a name. */
                 if (!id)
                     name = ValueUnion.psz;
@@ -692,7 +693,7 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
         }
 
         Log (("VBoxHeadless: Opening a session with machine (id={%s})...\n",
-              id.toString().raw()));
+              Utf8Str(id).raw()));
 
         // open a session
         CHECK_ERROR_BREAK(virtualBox, OpenSession (session, id));
@@ -743,7 +744,7 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
             {
                 Log2(("VBoxHeadless: Registering framebuffer\n"));
                 pFramebuffer->AddRef();
-                display->RegisterExternalFramebuffer(pFramebuffer);
+                display->SetFramebuffer(VBOX_VIDEO_PRIMARY_SCREEN, pFramebuffer);
             }
             if (!RT_SUCCESS(rrc) || (rcc != S_OK))
                 rc = E_FAIL;
@@ -908,8 +909,10 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
         /* wait for result because there can be errors */
         if (SUCCEEDED(progress->WaitForCompletion (-1)))
         {
-            progress->COMGETTER(ResultCode)(&rc);
-            if (FAILED(rc))
+            LONG progressRc;
+            progress->COMGETTER(ResultCode)(&progressRc);
+            rc = progressRc;
+            if (FAILED(progressRc))
             {
                 com::ProgressErrorInfo info(progress);
                 if (info.isBasicAvailable())

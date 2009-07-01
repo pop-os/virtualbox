@@ -1,4 +1,4 @@
-/* $Revision: 45917 $ */
+/* $Revision: 20982 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Common code.
  */
@@ -37,20 +37,22 @@
 # include <iprt/param.h>
 #endif
 #include <iprt/alloc.h>
+#include <iprt/cpuset.h>
+#include <iprt/handletable.h>
+#include <iprt/mp.h>
+#include <iprt/power.h>
+#include <iprt/process.h>
 #include <iprt/semaphore.h>
 #include <iprt/spinlock.h>
 #include <iprt/thread.h>
-#include <iprt/process.h>
-#include <iprt/mp.h>
-#include <iprt/power.h>
-#include <iprt/cpuset.h>
 #include <iprt/uuid.h>
 #include <VBox/param.h>
 #include <VBox/log.h>
 #include <VBox/err.h>
-#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 # include <iprt/crc32.h>
 # include <iprt/net.h>
+# include <iprt/string.h>
 #endif
 /* VBox/x86.h not compatible with the Linux kernel sources */
 #ifdef RT_OS_LINUX
@@ -123,6 +125,8 @@
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
+static DECLCALLBACK(int)    supdrvSessionObjHandleRetain(RTHANDLETABLE hHandleTable, void *pvObj, void *pvCtx, void *pvUser);
+static DECLCALLBACK(void)   supdrvSessionObjHandleDelete(RTHANDLETABLE hHandleTable, uint32_t h, void *pvObj, void *pvCtx, void *pvUser);
 static int      supdrvMemAdd(PSUPDRVMEMREF pMem, PSUPDRVSESSION pSession);
 static int      supdrvMemRelease(PSUPDRVSESSION pSession, RTHCUINTPTR uPtr, SUPDRVMEMREFTYPE eType);
 static int      supdrvIOCtl_LdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPLDROPEN pReq);
@@ -137,10 +141,6 @@ static void     supdrvLdrFree(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);
 static int      supdrvIOCtl_CallServiceModule(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPCALLSERVICE pReq);
 static int      supdrvIOCtl_LoggerSettings(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPLOGGERSETTINGS pReq);
 static SUPGIPMODE supdrvGipDeterminTscMode(PSUPDRVDEVEXT pDevExt);
-#ifdef RT_OS_WINDOWS
-static int      supdrvPageGetPhys(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_t cPages, PRTHCPHYS paPages);
-static bool     supdrvPageWasLockedByPageAlloc(PSUPDRVSESSION pSession, RTR3PTR pvR3);
-#endif /* RT_OS_WINDOWS */
 static int      supdrvGipCreate(PSUPDRVDEVEXT pDevExt);
 static void     supdrvGipDestroy(PSUPDRVDEVEXT pDevExt);
 static DECLCALLBACK(void) supdrvGipSyncTimer(PRTTIMER pTimer, void *pvUser, uint64_t iTick);
@@ -148,8 +148,8 @@ static DECLCALLBACK(void) supdrvGipAsyncTimer(PRTTIMER pTimer, void *pvUser, uin
 static DECLCALLBACK(void) supdrvGipMpEvent(RTMPEVENT enmEvent, RTCPUID idCpu, void *pvUser);
 
 #ifdef RT_WITH_W64_UNWIND_HACK
-DECLASM(int)    supdrvNtWrapVMMR0EntryEx(PFNRT pfnVMMR0EntryEx, PVM pVM, unsigned uOperation, PSUPVMMR0REQHDR pReq, uint64_t u64Arg, PSUPDRVSESSION pSession);
-DECLASM(int)    supdrvNtWrapVMMR0EntryFast(PFNRT pfnVMMR0EntryFast, PVM pVM, unsigned idCpu, unsigned uOperation);
+DECLASM(int)    supdrvNtWrapVMMR0EntryEx(PFNRT pfnVMMR0EntryEx, PVM pVM, VMCPUID idCpu, unsigned uOperation, PSUPVMMR0REQHDR pReq, uint64_t u64Arg, PSUPDRVSESSION pSession);
+DECLASM(int)    supdrvNtWrapVMMR0EntryFast(PFNRT pfnVMMR0EntryFast, PVM pVM, VMCPUID idCpu, unsigned uOperation);
 DECLASM(void)   supdrvNtWrapObjDestructor(PFNRT pfnDestruction, void *pvObj, void *pvUser1, void *pvUser2);
 DECLASM(void *) supdrvNtWrapQueryFactoryInterface(PFNRT pfnQueryFactoryInterface, struct SUPDRVFACTORY const *pSupDrvFactory, PSUPDRVSESSION pSession, const char *pszInterfaceUuid);
 DECLASM(int)    supdrvNtWrapModuleInit(PFNRT pfnModuleInit);
@@ -173,9 +173,20 @@ DECLASM(int)    UNWIND_WRAP(SUPR0LowFree)(PSUPDRVSESSION pSession, RTHCUINTPTR u
 DECLASM(int)    UNWIND_WRAP(SUPR0MemAlloc)(PSUPDRVSESSION pSession, uint32_t cb, PRTR0PTR ppvR0, PRTR3PTR ppvR3);
 DECLASM(int)    UNWIND_WRAP(SUPR0MemGetPhys)(PSUPDRVSESSION pSession, RTHCUINTPTR uPtr, PSUPPAGE paPages);
 DECLASM(int)    UNWIND_WRAP(SUPR0MemFree)(PSUPDRVSESSION pSession, RTHCUINTPTR uPtr);
-DECLASM(int)    UNWIND_WRAP(SUPR0PageAlloc)(PSUPDRVSESSION pSession, uint32_t cPages, PRTR3PTR ppvR3, PRTHCPHYS paPages);
+DECLASM(int)    UNWIND_WRAP(SUPR0PageAllocEx)(PSUPDRVSESSION pSession, uint32_t cPages, uint32_t fFlags, PRTR3PTR ppvR3, PRTR0PTR ppvR0, PRTHCPHYS paPages);
 DECLASM(int)    UNWIND_WRAP(SUPR0PageFree)(PSUPDRVSESSION pSession, RTR3PTR pvR3);
 //DECLASM(int)    UNWIND_WRAP(SUPR0Printf)(const char *pszFormat, ...);
+DECLASM(int)    UNWIND_WRAP(SUPSemEventCreate)(PSUPDRVSESSION pSession, PSUPSEMEVENT phEvent);
+DECLASM(int)    UNWIND_WRAP(SUPSemEventClose)(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent);
+DECLASM(int)    UNWIND_WRAP(SUPSemEventSignal)(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent);
+DECLASM(int)    UNWIND_WRAP(SUPSemEventWait)(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint32_t cMillies);
+DECLASM(int)    UNWIND_WRAP(SUPSemEventWaitNoResume)(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint32_t cMillies);
+DECLASM(int)    UNWIND_WRAP(SUPSemEventMultiCreate)(PSUPDRVSESSION pSession, PSUPSEMEVENTMULTI phEventMulti);
+DECLASM(int)    UNWIND_WRAP(SUPSemEventMultiClose)(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti);
+DECLASM(int)    UNWIND_WRAP(SUPSemEventMultiSignal)(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti);
+DECLASM(int)    UNWIND_WRAP(SUPSemEventMultiReset)(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti);
+DECLASM(int)    UNWIND_WRAP(SUPSemEventMultiWait)(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti, uint32_t cMillies);
+DECLASM(int)    UNWIND_WRAP(SUPSemEventMultiWaitNoResume)(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti, uint32_t cMillies);
 DECLASM(SUPPAGINGMODE) UNWIND_WRAP(SUPR0GetPagingMode)(void);
 DECLASM(void *) UNWIND_WRAP(RTMemAlloc)(size_t cb) RT_NO_THROW;
 DECLASM(void *) UNWIND_WRAP(RTMemAllocZ)(size_t cb) RT_NO_THROW;
@@ -193,6 +204,7 @@ DECLASM(int)    UNWIND_WRAP(RTR0MemObjLockUser)(PRTR0MEMOBJ pMemObj, RTR3PTR R3P
 DECLASM(int)    UNWIND_WRAP(RTR0MemObjMapKernel)(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap, void *pvFixed, size_t uAlignment, unsigned fProt);
 DECLASM(int)    UNWIND_WRAP(RTR0MemObjMapKernelEx)(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap, void *pvFixed, size_t uAlignment, unsigned fProt, size_t offSub, size_t cbSub);
 DECLASM(int)    UNWIND_WRAP(RTR0MemObjMapUser)(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap, RTR3PTR R3PtrFixed, size_t uAlignment, unsigned fProt, RTR0PROCESS R0Process);
+DECLASM(int)    UNWIND_WRAP(RTR0MemObjProtect)(RTR0MEMOBJ hMemObj, size_t offsub, size_t cbSub, uint32_t fProt);
 /*DECLASM(void *) UNWIND_WRAP(RTR0MemObjAddress)(RTR0MEMOBJ MemObj); - not necessary */
 /*DECLASM(RTR3PTR) UNWIND_WRAP(RTR0MemObjAddressR3)(RTR0MEMOBJ MemObj); - not necessary */
 /*DECLASM(size_t) UNWIND_WRAP(RTR0MemObjSize)(RTR0MEMOBJ MemObj); - not necessary */
@@ -244,6 +256,11 @@ DECLASM(int)    UNWIND_WRAP(RTThreadUserReset)(RTTHREAD Thread);
 DECLASM(int)    UNWIND_WRAP(RTThreadUserWait)(RTTHREAD Thread, unsigned cMillies);
 DECLASM(int)    UNWIND_WRAP(RTThreadUserWaitNoResume)(RTTHREAD Thread, unsigned cMillies);
 #endif
+/* RTThreadPreemptIsEnabled - not necessary */
+/* RTThreadPreemptIsPending - not necessary */
+/* RTThreadPreemptIsPendingTrusty - not necessary */
+/* RTThreadPreemptDisable - not necessary */
+DECLASM(void)   UNWIND_WRAP(RTThreadPreemptRestore)(RTTHREADPREEMPTSTATE pState);
 /* RTLogDefaultInstance   - a bit of a gamble, but we do not want the overhead! */
 /* RTMpCpuId              - not necessary */
 /* RTMpCpuIdFromSetIndex  - not necessary */
@@ -255,10 +272,11 @@ DECLASM(int)    UNWIND_WRAP(RTThreadUserWaitNoResume)(RTTHREAD Thread, unsigned 
 /* RTMpGetOnlineSet       - not necessary */
 /* RTMpGetSet             - not necessary */
 /* RTMpIsCpuOnline        - not necessary */
+DECLASM(int)   UNWIND_WRAP(RTMpIsCpuWorkPending)(void);
 DECLASM(int)   UNWIND_WRAP(RTMpOnAll)(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2);
 DECLASM(int)   UNWIND_WRAP(RTMpOnOthers)(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2);
 DECLASM(int)   UNWIND_WRAP(RTMpOnSpecific)(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2);
-DECLASM(int)   UNWIND_WRAP(RTMpIsCpuWorkPending)(void);
+DECLASM(int)   UNWIND_WRAP(RTMpPokeCpu)(RTCPUID idCpu);
 /* RTLogRelDefaultInstance - not necessary. */
 DECLASM(int)   UNWIND_WRAP(RTLogSetDefaultInstanceThread)(PRTLOGGER pLogger, uintptr_t uKey);
 /* RTLogLogger            - can't wrap this buster.  */
@@ -310,9 +328,20 @@ static SUPFUNC g_aFunctions[] =
     { "SUPR0MemAlloc",                          (void *)UNWIND_WRAP(SUPR0MemAlloc) },
     { "SUPR0MemGetPhys",                        (void *)UNWIND_WRAP(SUPR0MemGetPhys) },
     { "SUPR0MemFree",                           (void *)UNWIND_WRAP(SUPR0MemFree) },
-    { "SUPR0PageAlloc",                         (void *)UNWIND_WRAP(SUPR0PageAlloc) },
+    { "SUPR0PageAllocEx",                       (void *)UNWIND_WRAP(SUPR0PageAllocEx) },
     { "SUPR0PageFree",                          (void *)UNWIND_WRAP(SUPR0PageFree) },
     { "SUPR0Printf",                            (void *)SUPR0Printf }, /** @todo needs wrapping? */
+    { "SUPSemEventCreate",                      (void *)UNWIND_WRAP(SUPSemEventCreate) },
+    { "SUPSemEventClose",                       (void *)UNWIND_WRAP(SUPSemEventClose) },
+    { "SUPSemEventSignal",                      (void *)UNWIND_WRAP(SUPSemEventSignal) },
+    { "SUPSemEventWait",                        (void *)UNWIND_WRAP(SUPSemEventWait) },
+    { "SUPSemEventWaitNoResume",                (void *)UNWIND_WRAP(SUPSemEventWaitNoResume) },
+    { "SUPSemEventMultiCreate",                 (void *)UNWIND_WRAP(SUPSemEventMultiCreate) },
+    { "SUPSemEventMultiClose",                  (void *)UNWIND_WRAP(SUPSemEventMultiClose) },
+    { "SUPSemEventMultiSignal",                 (void *)UNWIND_WRAP(SUPSemEventMultiSignal) },
+    { "SUPSemEventMultiReset",                  (void *)UNWIND_WRAP(SUPSemEventMultiReset) },
+    { "SUPSemEventMultiWait",                   (void *)UNWIND_WRAP(SUPSemEventMultiWait) },
+    { "SUPSemEventMultiWaitNoResume",           (void *)UNWIND_WRAP(SUPSemEventMultiWaitNoResume) },
     { "SUPR0GetPagingMode",                     (void *)UNWIND_WRAP(SUPR0GetPagingMode) },
     { "SUPR0EnableVTx",                         (void *)SUPR0EnableVTx },
     { "RTMemAlloc",                             (void *)UNWIND_WRAP(RTMemAlloc) },
@@ -331,6 +360,7 @@ static SUPFUNC g_aFunctions[] =
     { "RTR0MemObjMapKernel",                    (void *)UNWIND_WRAP(RTR0MemObjMapKernel) },
     { "RTR0MemObjMapKernelEx",                  (void *)UNWIND_WRAP(RTR0MemObjMapKernelEx) },
     { "RTR0MemObjMapUser",                      (void *)UNWIND_WRAP(RTR0MemObjMapUser) },
+    { "RTR0MemObjProtect",                      (void *)UNWIND_WRAP(RTR0MemObjProtect) },
     { "RTR0MemObjAddress",                      (void *)RTR0MemObjAddress },
     { "RTR0MemObjAddressR3",                    (void *)RTR0MemObjAddressR3 },
     { "RTR0MemObjSize",                         (void *)RTR0MemObjSize },
@@ -367,9 +397,9 @@ static SUPFUNC g_aFunctions[] =
     { "RTSpinlockAcquireNoInts",                (void *)UNWIND_WRAP(RTSpinlockAcquireNoInts) },
     { "RTSpinlockReleaseNoInts",                (void *)UNWIND_WRAP(RTSpinlockReleaseNoInts) },
     { "RTTimeNanoTS",                           (void *)RTTimeNanoTS },
-    { "RTTimeMillieTS",                         (void *)RTTimeMilliTS },
+    { "RTTimeMilliTS",                          (void *)RTTimeMilliTS },
     { "RTTimeSystemNanoTS",                     (void *)RTTimeSystemNanoTS },
-    { "RTTimeSystemMillieTS",                   (void *)RTTimeSystemMilliTS },
+    { "RTTimeSystemMilliTS",                    (void *)RTTimeSystemMilliTS },
     { "RTThreadNativeSelf",                     (void *)RTThreadNativeSelf },
     { "RTThreadSleep",                          (void *)UNWIND_WRAP(RTThreadSleep) },
     { "RTThreadYield",                          (void *)UNWIND_WRAP(RTThreadYield) },
@@ -387,6 +417,12 @@ static SUPFUNC g_aFunctions[] =
     { "RTThreadUserWait",                       (void *)UNWIND_WRAP(RTThreadUserWait) },
     { "RTThreadUserWaitNoResume",               (void *)UNWIND_WRAP(RTThreadUserWaitNoResume) },
 #endif
+    { "RTThreadPreemptIsEnabled",               (void *)RTThreadPreemptIsEnabled },
+    { "RTThreadPreemptIsPending",               (void *)RTThreadPreemptIsPending },
+    { "RTThreadPreemptIsPendingTrusty",         (void *)RTThreadPreemptIsPendingTrusty },
+    { "RTThreadPreemptDisable",                 (void *)RTThreadPreemptDisable },
+    { "RTThreadPreemptRestore",                 (void *)UNWIND_WRAP(RTThreadPreemptRestore) },
+
     { "RTLogDefaultInstance",                   (void *)RTLogDefaultInstance },
     { "RTMpCpuId",                              (void *)RTMpCpuId },
     { "RTMpCpuIdFromSetIndex",                  (void *)RTMpCpuIdFromSetIndex },
@@ -402,6 +438,7 @@ static SUPFUNC g_aFunctions[] =
     { "RTMpOnAll",                              (void *)UNWIND_WRAP(RTMpOnAll) },
     { "RTMpOnOthers",                           (void *)UNWIND_WRAP(RTMpOnOthers) },
     { "RTMpOnSpecific",                         (void *)UNWIND_WRAP(RTMpOnSpecific) },
+    { "RTMpPokeCpu",                            (void *)UNWIND_WRAP(RTMpPokeCpu) },
     { "RTPowerNotificationRegister",            (void *)RTPowerNotificationRegister },
     { "RTPowerNotificationDeregister",          (void *)RTPowerNotificationDeregister },
     { "RTLogRelDefaultInstance",                (void *)RTLogRelDefaultInstance },
@@ -423,7 +460,7 @@ static SUPFUNC g_aFunctions[] =
 #endif
 };
 
-#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 /**
  * Drag in the rest of IRPT since we share it with the
  * rest of the kernel modules on darwin.
@@ -438,9 +475,11 @@ PFNRT g_apfnVBoxDrvIPRTDeps[] =
     (PFNRT)RTUuidCompare,
     (PFNRT)RTUuidCompareStr,
     (PFNRT)RTUuidFromStr,
+    (PFNRT)RTStrDup,
+    (PFNRT)RTStrFree,
     NULL
 };
-#endif  /* RT_OS_DARWIN || RT_OS_SOLARIS */
+#endif  /* RT_OS_DARWIN || RT_OS_SOLARIS || RT_OS_SOLARIS */
 
 
 /**
@@ -643,32 +682,39 @@ int VBOXCALL supdrvCreateSession(PSUPDRVDEVEXT pDevExt, bool fUser, PSUPDRVSESSI
         rc = RTSpinlockCreate(&pSession->Spinlock);
         if (!rc)
         {
-            Assert(pSession->Spinlock != NIL_RTSPINLOCK);
-            pSession->pDevExt           = pDevExt;
-            pSession->u32Cookie         = BIRD_INV;
-            /*pSession->pLdrUsage         = NULL;
-            pSession->pVM               = NULL;
-            pSession->pUsage            = NULL;
-            pSession->pGip              = NULL;
-            pSession->fGipReferenced    = false;
-            pSession->Bundle.cUsed      = 0; */
-            pSession->Uid               = NIL_RTUID;
-            pSession->Gid               = NIL_RTGID;
-            if (fUser)
+            rc = RTHandleTableCreateEx(&pSession->hHandleTable,
+                                       RTHANDLETABLE_FLAGS_LOCKED | RTHANDLETABLE_FLAGS_CONTEXT,
+                                       1 /*uBase*/, 32768 /*cMax*/, supdrvSessionObjHandleRetain, pSession);
+            if (RT_SUCCESS(rc))
             {
-                pSession->Process       = RTProcSelf();
-                pSession->R0Process     = RTR0ProcHandleSelf();
-            }
-            else
-            {
-                pSession->Process       = NIL_RTPROCESS;
-                pSession->R0Process     = NIL_RTR0PROCESS;
+                Assert(pSession->Spinlock != NIL_RTSPINLOCK);
+                pSession->pDevExt           = pDevExt;
+                pSession->u32Cookie         = BIRD_INV;
+                /*pSession->pLdrUsage         = NULL;
+                pSession->pVM               = NULL;
+                pSession->pUsage            = NULL;
+                pSession->pGip              = NULL;
+                pSession->fGipReferenced    = false;
+                pSession->Bundle.cUsed      = 0; */
+                pSession->Uid               = NIL_RTUID;
+                pSession->Gid               = NIL_RTGID;
+                if (fUser)
+                {
+                    pSession->Process       = RTProcSelf();
+                    pSession->R0Process     = RTR0ProcHandleSelf();
+                }
+                else
+                {
+                    pSession->Process       = NIL_RTPROCESS;
+                    pSession->R0Process     = NIL_RTR0PROCESS;
+                }
+
+                LogFlow(("Created session %p initial cookie=%#x\n", pSession, pSession->u32Cookie));
+                return VINF_SUCCESS;
             }
 
-            LogFlow(("Created session %p initial cookie=%#x\n", pSession, pSession->u32Cookie));
-            return VINF_SUCCESS;
+            RTSpinlockDestroy(pSession->Spinlock);
         }
-
         RTMemFree(pSession);
         *ppSession = NULL;
         Log(("Failed to create spinlock, rc=%d!\n", rc));
@@ -715,6 +761,7 @@ void VBOXCALL supdrvCloseSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
  */
 void VBOXCALL supdrvCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
 {
+    int                 rc;
     PSUPDRVBUNDLE       pBundle;
     LogFlow(("supdrvCleanupSession: pSession=%p\n", pSession));
 
@@ -722,6 +769,13 @@ void VBOXCALL supdrvCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSessio
      * Remove logger instances related to this session.
      */
     RTLogSetDefaultInstanceThread(NULL, (uintptr_t)pSession);
+
+    /*
+     * Destroy the handle table.
+     */
+    rc = RTHandleTableDestroy(pSession->hHandleTable, supdrvSessionObjHandleDelete, pSession);
+    AssertRC(rc);
+    pSession->hHandleTable = NIL_RTHANDLETABLE;
 
     /*
      * Release object references made in this session.
@@ -913,6 +967,41 @@ void VBOXCALL supdrvCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSessio
 
 
 /**
+ * RTHandleTableDestroy callback used by supdrvCleanupSession.
+ *
+ * @returns IPRT status code, see SUPR0ObjAddRef.
+ * @param   hHandleTable    The handle table handle. Ignored.
+ * @param   pvObj           The object pointer.
+ * @param   pvCtx           Context, the handle type. Ignored.
+ * @param   pvUser          Session pointer.
+ */
+static DECLCALLBACK(int) supdrvSessionObjHandleRetain(RTHANDLETABLE hHandleTable, void *pvObj, void *pvCtx, void *pvUser)
+{
+    NOREF(pvCtx);
+    NOREF(hHandleTable);
+    return SUPR0ObjAddRefEx(pvObj, (PSUPDRVSESSION)pvUser, true /*fNoBlocking*/);
+}
+
+
+/**
+ * RTHandleTableDestroy callback used by supdrvCleanupSession.
+ *
+ * @param   hHandleTable    The handle table handle. Ignored.
+ * @param   h               The handle value. Ignored.
+ * @param   pvObj           The object pointer.
+ * @param   pvCtx           Context, the handle type. Ignored.
+ * @param   pvUser          Session pointer.
+ */
+static DECLCALLBACK(void) supdrvSessionObjHandleDelete(RTHANDLETABLE hHandleTable, uint32_t h, void *pvObj, void *pvCtx, void *pvUser)
+{
+    NOREF(pvCtx);
+    NOREF(h);
+    NOREF(hHandleTable);
+    SUPR0ObjRelease(pvObj, (PSUPDRVSESSION)pvUser);
+}
+
+
+/**
  * Fast path I/O Control worker.
  *
  * @returns VBox status code that should be passed down to ring-3 unchanged.
@@ -921,7 +1010,7 @@ void VBOXCALL supdrvCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSessio
  * @param   pDevExt     Device extention.
  * @param   pSession    Session data.
  */
-int VBOXCALL supdrvIOCtlFast(uintptr_t uIOCtl, unsigned idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
+int VBOXCALL supdrvIOCtlFast(uintptr_t uIOCtl, VMCPUID idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
 {
     /*
      * We check the two prereqs after doing this only to allow the compiler to optimize things better.
@@ -1161,29 +1250,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             return 0;
         }
 
-        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_IDT_INSTALL):
-        {
-            /* validate */
-            PSUPIDTINSTALL pReq = (PSUPIDTINSTALL)pReqHdr;
-            REQ_CHECK_SIZES(SUP_IOCTL_IDT_INSTALL);
-
-            /* execute */
-            pReq->u.Out.u8Idt = 3;
-            pReq->Hdr.rc = VERR_NOT_SUPPORTED;
-            return 0;
-        }
-
-        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_IDT_REMOVE):
-        {
-            /* validate */
-            PSUPIDTREMOVE pReq = (PSUPIDTREMOVE)pReqHdr;
-            REQ_CHECK_SIZES(SUP_IOCTL_IDT_REMOVE);
-
-            /* execute */
-            pReq->Hdr.rc = VERR_NOT_SUPPORTED;
-            return 0;
-        }
-
         case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_PAGE_LOCK):
         {
             /* validate */
@@ -1327,9 +1393,9 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                 /* execute */
                 if (RT_LIKELY(pDevExt->pfnVMMR0EntryEx))
 #ifdef RT_WITH_W64_UNWIND_HACK
-                    pReq->Hdr.rc = supdrvNtWrapVMMR0EntryEx((PFNRT)pDevExt->pfnVMMR0EntryEx, pReq->u.In.pVMR0, pReq->u.In.uOperation, NULL, pReq->u.In.u64Arg, pSession);
+                    pReq->Hdr.rc = supdrvNtWrapVMMR0EntryEx((PFNRT)pDevExt->pfnVMMR0EntryEx, pReq->u.In.pVMR0, pReq->u.In.idCpu, pReq->u.In.uOperation, NULL, pReq->u.In.u64Arg, pSession);
 #else
-                    pReq->Hdr.rc = pDevExt->pfnVMMR0EntryEx(pReq->u.In.pVMR0, pReq->u.In.uOperation, NULL, pReq->u.In.u64Arg, pSession);
+                    pReq->Hdr.rc = pDevExt->pfnVMMR0EntryEx(pReq->u.In.pVMR0, pReq->u.In.idCpu, pReq->u.In.uOperation, NULL, pReq->u.In.u64Arg, pSession);
 #endif
                 else
                     pReq->Hdr.rc = VERR_WRONG_ORDER;
@@ -1345,9 +1411,9 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                 /* execute */
                 if (RT_LIKELY(pDevExt->pfnVMMR0EntryEx))
 #ifdef RT_WITH_W64_UNWIND_HACK
-                    pReq->Hdr.rc = supdrvNtWrapVMMR0EntryEx((PFNRT)pDevExt->pfnVMMR0EntryEx, pReq->u.In.pVMR0, pReq->u.In.uOperation, pVMMReq, pReq->u.In.u64Arg, pSession);
+                    pReq->Hdr.rc = supdrvNtWrapVMMR0EntryEx((PFNRT)pDevExt->pfnVMMR0EntryEx, pReq->u.In.pVMR0, pReq->u.In.idCpu, pReq->u.In.uOperation, pVMMReq, pReq->u.In.u64Arg, pSession);
 #else
-                    pReq->Hdr.rc = pDevExt->pfnVMMR0EntryEx(pReq->u.In.pVMR0, pReq->u.In.uOperation, pVMMReq, pReq->u.In.u64Arg, pSession);
+                    pReq->Hdr.rc = pDevExt->pfnVMMR0EntryEx(pReq->u.In.pVMR0, pReq->u.In.idCpu, pReq->u.In.uOperation, pVMMReq, pReq->u.In.u64Arg, pSession);
 #endif
                 else
                     pReq->Hdr.rc = VERR_WRONG_ORDER;
@@ -1440,20 +1506,6 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             return 0;
         }
 
-        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_PAGE_ALLOC):
-        {
-            /* validate */
-            PSUPPAGEALLOC pReq = (PSUPPAGEALLOC)pReqHdr;
-            REQ_CHECK_EXPR(SUP_IOCTL_PAGE_ALLOC, pReq->Hdr.cbIn <= SUP_IOCTL_PAGE_ALLOC_SIZE_IN);
-            REQ_CHECK_SIZES_EX(SUP_IOCTL_PAGE_ALLOC, SUP_IOCTL_PAGE_ALLOC_SIZE_IN, SUP_IOCTL_PAGE_ALLOC_SIZE_OUT(pReq->u.In.cPages));
-
-            /* execute */
-            pReq->Hdr.rc = SUPR0PageAlloc(pSession, pReq->u.In.cPages, &pReq->u.Out.pvR3, &pReq->u.Out.aPages[0]);
-            if (RT_FAILURE(pReq->Hdr.rc))
-                pReq->Hdr.cbOut = sizeof(pReq->Hdr);
-            return 0;
-        }
-
         case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_PAGE_ALLOC_EX):
         {
             /* validate */
@@ -1492,6 +1544,22 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                                               pReq->u.In.fFlags, &pReq->u.Out.pvR0);
             if (RT_FAILURE(pReq->Hdr.rc))
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
+            return 0;
+        }
+
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_PAGE_PROTECT):
+        {
+            /* validate */
+            PSUPPAGEPROTECT pReq = (PSUPPAGEPROTECT)pReqHdr;
+            REQ_CHECK_SIZES(SUP_IOCTL_PAGE_PROTECT);
+            REQ_CHECK_EXPR_FMT(!(pReq->u.In.fProt & ~(RTMEM_PROT_READ | RTMEM_PROT_WRITE | RTMEM_PROT_EXEC | RTMEM_PROT_NONE)),
+                               ("SUP_IOCTL_PAGE_PROTECT: fProt=%#x!\n", pReq->u.In.fProt));
+            REQ_CHECK_EXPR_FMT(!(pReq->u.In.offSub & PAGE_OFFSET_MASK), ("SUP_IOCTL_PAGE_PROTECT: offSub=%#x\n", pReq->u.In.offSub));
+            REQ_CHECK_EXPR_FMT(pReq->u.In.cbSub && !(pReq->u.In.cbSub & PAGE_OFFSET_MASK),
+                               ("SUP_IOCTL_PAGE_PROTECT: cbSub=%#x\n", pReq->u.In.cbSub));
+
+            /* execute */
+            pReq->Hdr.rc = SUPR0PageProtect(pSession, pReq->u.In.pvR3, pReq->u.In.pvR0, pReq->u.In.offSub, pReq->u.In.cbSub, pReq->u.In.fProt);
             return 0;
         }
 
@@ -1549,6 +1617,100 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = supdrvIOCtl_LoggerSettings(pDevExt, pSession, pReq);
+            return 0;
+        }
+
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_SEM_CREATE):
+        {
+            /* validate */
+            PSUPSEMCREATE pReq = (PSUPSEMCREATE)pReqHdr;
+            REQ_CHECK_SIZES_EX(SUP_IOCTL_SEM_CREATE, SUP_IOCTL_SEM_CREATE_SIZE_IN, SUP_IOCTL_SEM_CREATE_SIZE_OUT);
+
+            /* execute */
+            switch (pReq->u.In.uType)
+            {
+                case SUP_SEM_TYPE_EVENT:
+                {
+                    SUPSEMEVENT hEvent;
+                    pReq->Hdr.rc = SUPSemEventCreate(pSession, &hEvent);
+                    pReq->u.Out.hSem = (uint32_t)(uintptr_t)hEvent;
+                    break;
+                }
+
+                case SUP_SEM_TYPE_EVENT_MULTI:
+                {
+                    SUPSEMEVENTMULTI hEventMulti;
+                    pReq->Hdr.rc = SUPSemEventMultiCreate(pSession, &hEventMulti);
+                    pReq->u.Out.hSem = (uint32_t)(uintptr_t)hEventMulti;
+                    break;
+                }
+
+                default:
+                    pReq->Hdr.rc = VERR_INVALID_PARAMETER;
+                    break;
+            }
+            return 0;
+        }
+
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_SEM_OP):
+        {
+            /* validate */
+            PSUPSEMOP pReq = (PSUPSEMOP)pReqHdr;
+            REQ_CHECK_SIZES_EX(SUP_IOCTL_SEM_OP, SUP_IOCTL_SEM_OP_SIZE_IN, SUP_IOCTL_SEM_OP_SIZE_OUT);
+
+            /* execute */
+            switch (pReq->u.In.uType)
+            {
+                case SUP_SEM_TYPE_EVENT:
+                {
+                    SUPSEMEVENT hEvent = (SUPSEMEVENT)(uintptr_t)pReq->u.In.hSem;
+                    switch (pReq->u.In.uOp)
+                    {
+                        case SUPSEMOP_WAIT:
+                            pReq->Hdr.rc = SUPSemEventWaitNoResume(pSession, hEvent, pReq->u.In.cMillies);
+                            break;
+                        case SUPSEMOP_SIGNAL:
+                            pReq->Hdr.rc = SUPSemEventSignal(pSession, hEvent);
+                            break;
+                        case SUPSEMOP_CLOSE:
+                            pReq->Hdr.rc = SUPSemEventClose(pSession, hEvent);
+                            break;
+                        case SUPSEMOP_RESET:
+                        default:
+                            pReq->Hdr.rc = VERR_INVALID_FUNCTION;
+                            break;
+                    }
+                    break;
+                }
+
+                case SUP_SEM_TYPE_EVENT_MULTI:
+                {
+                    SUPSEMEVENTMULTI hEventMulti = (SUPSEMEVENTMULTI)(uintptr_t)pReq->u.In.hSem;
+                    switch (pReq->u.In.uOp)
+                    {
+                        case SUPSEMOP_WAIT:
+                            pReq->Hdr.rc = SUPSemEventMultiWaitNoResume(pSession, hEventMulti, pReq->u.In.cMillies);
+                            break;
+                        case SUPSEMOP_SIGNAL:
+                            pReq->Hdr.rc = SUPSemEventMultiSignal(pSession, hEventMulti);
+                            break;
+                        case SUPSEMOP_CLOSE:
+                            pReq->Hdr.rc = SUPSemEventMultiClose(pSession, hEventMulti);
+                            break;
+                        case SUPSEMOP_RESET:
+                            pReq->Hdr.rc = SUPSemEventMultiReset(pSession, hEventMulti);
+                            break;
+                        default:
+                            pReq->Hdr.rc = VERR_INVALID_FUNCTION;
+                            break;
+                    }
+                    break;
+                }
+
+                default:
+                    pReq->Hdr.rc = VERR_INVALID_PARAMETER;
+                    break;
+            }
             return 0;
         }
 
@@ -2133,13 +2295,6 @@ SUPR0DECL(int) SUPR0LockMem(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_t cPag
         return VERR_INVALID_PARAMETER;
     }
 
-#ifdef RT_OS_WINDOWS /* A temporary hack for windows, will be removed once all ring-3 code has been cleaned up. */
-    /* First check if we allocated it using SUPPageAlloc; if so then we don't need to lock it again */
-    rc = supdrvPageGetPhys(pSession, pvR3, cPages, paPages);
-    if (RT_SUCCESS(rc))
-        return rc;
-#endif
-
     /*
      * Let IPRT do the job.
      */
@@ -2185,17 +2340,6 @@ SUPR0DECL(int) SUPR0UnlockMem(PSUPDRVSESSION pSession, RTR3PTR pvR3)
 {
     LogFlow(("SUPR0UnlockMem: pSession=%p pvR3=%p\n", pSession, (void *)pvR3));
     AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
-#ifdef RT_OS_WINDOWS
-    /*
-     * Temporary hack for windows - SUPR0PageFree will unlock SUPR0PageAlloc
-     * allocations; ignore this call.
-     */
-    if (supdrvPageWasLockedByPageAlloc(pSession, pvR3))
-    {
-        LogFlow(("Page will be unlocked in SUPR0PageFree -> ignore\n"));
-        return VINF_SUCCESS;
-    }
-#endif
     return supdrvMemRelease(pSession, (RTHCUINTPTR)pvR3, MEMREF_TYPE_LOCKED);
 }
 
@@ -2505,25 +2649,6 @@ SUPR0DECL(int) SUPR0MemFree(PSUPDRVSESSION pSession, RTHCUINTPTR uPtr)
 
 
 /**
- * Allocates a chunk of memory with only a R3 mappings.
- *
- * The memory is fixed and it's possible to query the physical addresses using
- * SUPR0MemGetPhys().
- *
- * @returns IPRT status code.
- * @param   pSession    The session to associated the allocation with.
- * @param   cPages      The number of pages to allocate.
- * @param   ppvR3       Where to store the address of the Ring-3 mapping.
- * @param   paPages     Where to store the addresses of the pages. Optional.
- */
-SUPR0DECL(int) SUPR0PageAlloc(PSUPDRVSESSION pSession, uint32_t cPages, PRTR3PTR ppvR3, PRTHCPHYS paPages)
-{
-    AssertPtrReturn(ppvR3, VERR_INVALID_POINTER);
-    return SUPR0PageAllocEx(pSession, cPages, 0 /*fFlags*/, ppvR3, NULL, paPages);
-}
-
-
-/**
  * Allocates a chunk of memory with a kernel or/and a user mode mapping.
  *
  * The memory is fixed and it's possible to query the physical addresses using
@@ -2608,20 +2733,17 @@ SUPR0DECL(int) SUPR0PageAllocEx(PSUPDRVSESSION pSession, uint32_t cPages, uint32
 
 
 /**
- * Allocates a chunk of memory with a kernel or/and a user mode mapping.
- *
- * The memory is fixed and it's possible to query the physical addresses using
- * SUPR0MemGetPhys().
+ * Maps a chunk of memory previously allocated by SUPR0PageAllocEx into kernel
+ * space.
  *
  * @returns IPRT status code.
  * @param   pSession    The session to associated the allocation with.
- * @param   cPages      The number of pages to allocate.
- * @param   fFlags      Flags, reserved for the future. Must be zero.
- * @param   ppvR3       Where to store the address of the Ring-3 mapping.
- *                      NULL if no ring-3 mapping.
- * @param   ppvR3       Where to store the address of the Ring-0 mapping.
- *                      NULL if no ring-0 mapping.
- * @param   paPages     Where to store the addresses of the pages. Optional.
+ * @param   pvR3        The ring-3 address returned by SUPR0PageAllocEx.
+ * @param   offSub      Where to start mapping. Must be page aligned.
+ * @param   cbSub       How much to map. Must be page aligned.
+ * @param   fFlags      Flags, MBZ.
+ * @param   ppvR0       Where to reutrn the address of the ring-0 mapping on
+ *                      success.
  */
 SUPR0DECL(int) SUPR0PageMapKernel(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_t offSub, uint32_t cbSub,
                                   uint32_t fFlags, PRTR0PTR ppvR0)
@@ -2696,71 +2818,40 @@ SUPR0DECL(int) SUPR0PageMapKernel(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_
 }
 
 
-
-#ifdef RT_OS_WINDOWS
 /**
- * Check if the pages were locked by SUPR0PageAlloc
- *
- * This function will be removed along with the lock/unlock hacks when
- * we've cleaned up the ring-3 code properly.
- *
- * @returns boolean
- * @param   pSession        The session to which the memory was allocated.
- * @param   pvR3            The Ring-3 address returned by SUPR0PageAlloc().
- */
-static bool supdrvPageWasLockedByPageAlloc(PSUPDRVSESSION pSession, RTR3PTR pvR3)
-{
-    PSUPDRVBUNDLE pBundle;
-    RTSPINLOCKTMP SpinlockTmp = RTSPINLOCKTMP_INITIALIZER;
-    LogFlow(("SUPR0PageIsLockedByPageAlloc: pSession=%p pvR3=%p\n", pSession, (void *)pvR3));
-
-    /*
-     * Search for the address.
-     */
-    RTSpinlockAcquire(pSession->Spinlock, &SpinlockTmp);
-    for (pBundle = &pSession->Bundle; pBundle; pBundle = pBundle->pNext)
-    {
-        if (pBundle->cUsed > 0)
-        {
-            unsigned i;
-            for (i = 0; i < RT_ELEMENTS(pBundle->aMem); i++)
-            {
-                if (    pBundle->aMem[i].eType == MEMREF_TYPE_PAGE
-                    &&  pBundle->aMem[i].MemObj != NIL_RTR0MEMOBJ
-                    &&  pBundle->aMem[i].MapObjR3 != NIL_RTR0MEMOBJ
-                    &&  RTR0MemObjAddressR3(pBundle->aMem[i].MapObjR3) == pvR3)
-                {
-                    RTSpinlockRelease(pSession->Spinlock, &SpinlockTmp);
-                    return true;
-                }
-            }
-        }
-    }
-    RTSpinlockRelease(pSession->Spinlock, &SpinlockTmp);
-    return false;
-}
-
-
-/**
- * Get the physical addresses of memory allocated using SUPR0PageAllocEx().
- *
- * This function will be removed along with the lock/unlock hacks when
- * we've cleaned up the ring-3 code properly.
+ * Changes the page level protection of one or more pages previously allocated
+ * by SUPR0PageAllocEx.
  *
  * @returns IPRT status code.
- * @param   pSession        The session to which the memory was allocated.
- * @param   pvR3            The Ring-3 address returned by SUPR0PageAlloc().
- * @param   cPages          Number of pages in paPages
- * @param   paPages         Where to store the physical addresses.
+ * @param   pSession    The session to associated the allocation with.
+ * @param   pvR3        The ring-3 address returned by SUPR0PageAllocEx.
+ *                      NIL_RTR3PTR if the ring-3 mapping should be unaffected.
+ * @param   pvR0        The ring-0 address returned by SUPR0PageAllocEx.
+ *                      NIL_RTR0PTR if the ring-0 mapping should be unaffected.
+ * @param   offSub      Where to start changing. Must be page aligned.
+ * @param   cbSub       How much to change. Must be page aligned.
+ * @param   fProt       The new page level protection, see RTMEM_PROT_*.
  */
-static int supdrvPageGetPhys(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_t cPages, PRTHCPHYS paPages)
+SUPR0DECL(int) SUPR0PageProtect(PSUPDRVSESSION pSession, RTR3PTR pvR3, RTR0PTR pvR0, uint32_t offSub, uint32_t cbSub, uint32_t fProt)
 {
-    PSUPDRVBUNDLE pBundle;
-    RTSPINLOCKTMP SpinlockTmp = RTSPINLOCKTMP_INITIALIZER;
-    LogFlow(("supdrvPageGetPhys: pSession=%p pvR3=%p cPages=%#lx paPages=%p\n", pSession, (void *)pvR3, (long)cPages, paPages));
+    int             rc;
+    PSUPDRVBUNDLE   pBundle;
+    RTSPINLOCKTMP   SpinlockTmp = RTSPINLOCKTMP_INITIALIZER;
+    RTR0MEMOBJ      hMemObjR0 = NIL_RTR0MEMOBJ;
+    RTR0MEMOBJ      hMemObjR3 = NIL_RTR0MEMOBJ;
+    LogFlow(("SUPR0PageProtect: pSession=%p pvR3=%p pvR0=%p offSub=%#x cbSub=%#x fProt-%#x\n", pSession, pvR3, pvR0, offSub, cbSub, fProt));
 
     /*
-     * Search for the address.
+     * Validate input. The allowed allocation size must be at least equal to the maximum guest VRAM size.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    AssertReturn(!(fProt & ~(RTMEM_PROT_READ | RTMEM_PROT_WRITE | RTMEM_PROT_EXEC | RTMEM_PROT_NONE)), VERR_INVALID_PARAMETER);
+    AssertReturn(!(offSub & PAGE_OFFSET_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn(!(cbSub & PAGE_OFFSET_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn(cbSub, VERR_INVALID_PARAMETER);
+
+    /*
+     * Find the memory object.
      */
     RTSpinlockAcquire(pSession->Spinlock, &SpinlockTmp);
     for (pBundle = &pSession->Bundle; pBundle; pBundle = pBundle->pNext)
@@ -2770,26 +2861,51 @@ static int supdrvPageGetPhys(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_t cPa
             unsigned i;
             for (i = 0; i < RT_ELEMENTS(pBundle->aMem); i++)
             {
-                if (    pBundle->aMem[i].eType == MEMREF_TYPE_PAGE
-                    &&  pBundle->aMem[i].MemObj != NIL_RTR0MEMOBJ
-                    &&  pBundle->aMem[i].MapObjR3 != NIL_RTR0MEMOBJ
-                    &&  RTR0MemObjAddressR3(pBundle->aMem[i].MapObjR3) == pvR3)
+                if (   pBundle->aMem[i].eType == MEMREF_TYPE_PAGE
+                    && pBundle->aMem[i].MemObj != NIL_RTR0MEMOBJ
+                    && (   pBundle->aMem[i].MapObjR3 != NIL_RTR0MEMOBJ
+                        || pvR3 == NIL_RTR3PTR)
+                    && (   pvR0 != NIL_RTR0PTR
+                        || RTR0MemObjAddress(pBundle->aMem[i].MemObj))
+                    && (   pvR3 != NIL_RTR3PTR
+                        || RTR0MemObjAddressR3(pBundle->aMem[i].MapObjR3) == pvR3))
                 {
-                    uint32_t iPage;
-                    size_t cMaxPages = RTR0MemObjSize(pBundle->aMem[i].MemObj) >> PAGE_SHIFT;
-                    cPages = (uint32_t)RT_MIN(cMaxPages, cPages);
-                    for (iPage = 0; iPage < cPages; iPage++)
-                        paPages[iPage] = RTR0MemObjGetPagePhysAddr(pBundle->aMem[i].MemObj, iPage);
-                    RTSpinlockRelease(pSession->Spinlock, &SpinlockTmp);
-                    return VINF_SUCCESS;
+                    if (pvR0 != NIL_RTR0PTR)
+                        hMemObjR0 = pBundle->aMem[i].MemObj;
+                    if (pvR3 != NIL_RTR3PTR)
+                        hMemObjR3 = pBundle->aMem[i].MapObjR3;
+                    break;
                 }
             }
         }
     }
     RTSpinlockRelease(pSession->Spinlock, &SpinlockTmp);
-    return VERR_INVALID_PARAMETER;
+
+    rc = VERR_INVALID_PARAMETER;
+    if (    hMemObjR0 != NIL_RTR0MEMOBJ
+        ||  hMemObjR3 != NIL_RTR0MEMOBJ)
+    {
+        /*
+         * Do some furter input validations before calling IPRT.
+         */
+        size_t cbMemObj = hMemObjR0 != NIL_RTR0PTR ? RTR0MemObjSize(hMemObjR0) : RTR0MemObjSize(hMemObjR3);
+        if (    offSub < cbMemObj
+            &&  cbSub <= cbMemObj
+            &&  offSub + cbSub <= cbMemObj)
+        {
+            rc = VINF_SUCCESS;
+            if (hMemObjR3 != NIL_RTR0PTR)
+                rc = RTR0MemObjProtect(hMemObjR3, offSub, cbSub, fProt);
+            if (hMemObjR0 != NIL_RTR0PTR && RT_SUCCESS(rc))
+                rc = RTR0MemObjProtect(hMemObjR0, offSub, cbSub, fProt);
+        }
+        else
+            SUPR0Printf("SUPR0PageMapKernel: cbMemObj=%#x offSub=%#x cbSub=%#x\n", cbMemObj, offSub, cbSub);
+
+    }
+    return rc;
+
 }
-#endif /* RT_OS_WINDOWS */
 
 
 /**
@@ -3174,6 +3290,353 @@ SUPR0DECL(int) SUPR0ComponentQueryFactory(PSUPDRVSESSION pSession, const char *p
 
         RTSemFastMutexRelease(pSession->pDevExt->mtxComponentFactory);
     }
+    return rc;
+}
+
+
+/**
+ * Destructor for objects created by SUPSemEventCreate.
+ *
+ * @param   pvObj               The object handle.
+ * @param   pvUser1             The IPRT event handle.
+ * @param   pvUser2             NULL.
+ */
+static DECLCALLBACK(void) supR0SemEventDestructor(void *pvObj, void *pvUser1, void *pvUser2)
+{
+    Assert(pvUser2 == NULL);
+    NOREF(pvObj);
+    RTSemEventDestroy((RTSEMEVENT)pvUser1);
+}
+
+
+SUPDECL(int) SUPSemEventCreate(PSUPDRVSESSION pSession, PSUPSEMEVENT phEvent)
+{
+    int         rc;
+    RTSEMEVENT  hEventReal;
+
+    /*
+     * Input validation.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(phEvent, VERR_INVALID_POINTER);
+
+    /*
+     * Create the event semaphore object.
+     */
+    rc = RTSemEventCreate(&hEventReal);
+    if (RT_SUCCESS(rc))
+    {
+        void *pvObj = SUPR0ObjRegister(pSession, SUPDRVOBJTYPE_SEM_EVENT, supR0SemEventDestructor, hEventReal, NULL);
+        if (pvObj)
+        {
+            uint32_t h32;
+            rc = RTHandleTableAllocWithCtx(pSession->hHandleTable, pvObj, SUPDRV_HANDLE_CTX_EVENT, &h32);
+            if (RT_SUCCESS(rc))
+            {
+                *phEvent = (SUPSEMEVENT)(uintptr_t)h32;
+                return VINF_SUCCESS;
+            }
+            SUPR0ObjRelease(pvObj, pSession);
+        }
+        else
+            RTSemEventDestroy(hEventReal);
+    }
+    return rc;
+}
+
+
+SUPDECL(int) SUPSemEventClose(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent)
+{
+    uint32_t    h32;
+    PSUPDRVOBJ  pObj;
+
+    /*
+     * Input validation.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    if (hEvent == NIL_SUPSEMEVENT)
+        return VINF_SUCCESS;
+    h32 = (uint32_t)(uintptr_t)hEvent;
+    if (h32 != (uintptr_t)hEvent)
+        return VERR_INVALID_HANDLE;
+
+    /*
+     * Do the job.
+     */
+    pObj = (PSUPDRVOBJ)RTHandleTableFreeWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT);
+    if (!pObj)
+        return VERR_INVALID_HANDLE;
+
+    Assert(pObj->cUsage >= 2);
+    SUPR0ObjRelease(pObj, pSession);        /* The free call above. */
+    return SUPR0ObjRelease(pObj, pSession); /* The handle table reference. */
+}
+
+
+SUPDECL(int) SUPSemEventSignal(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent)
+{
+    int         rc;
+    uint32_t    h32;
+    PSUPDRVOBJ  pObj;
+
+    /*
+     * Input validation.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    h32 = (uint32_t)(uintptr_t)hEvent;
+    if (h32 != (uintptr_t)hEvent)
+        return VERR_INVALID_HANDLE;
+    pObj = (PSUPDRVOBJ)RTHandleTableLookupWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT);
+    if (!pObj)
+        return VERR_INVALID_HANDLE;
+
+    /*
+     * Do the job.
+     */
+    rc = RTSemEventSignal((RTSEMEVENT)pObj->pvUser1);
+
+    SUPR0ObjRelease(pObj, pSession);
+    return rc;
+}
+
+
+SUPDECL(int) SUPSemEventWait(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint32_t cMillies)
+{
+    int         rc;
+    uint32_t    h32;
+    PSUPDRVOBJ  pObj;
+
+    /*
+     * Input validation.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    h32 = (uint32_t)(uintptr_t)hEvent;
+    if (h32 != (uintptr_t)hEvent)
+        return VERR_INVALID_HANDLE;
+    pObj = (PSUPDRVOBJ)RTHandleTableLookupWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT);
+    if (!pObj)
+        return VERR_INVALID_HANDLE;
+
+    /*
+     * Do the job.
+     */
+    rc = RTSemEventWait((RTSEMEVENT)pObj->pvUser1, cMillies);
+
+    SUPR0ObjRelease(pObj, pSession);
+    return rc;
+}
+
+
+SUPDECL(int) SUPSemEventWaitNoResume(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint32_t cMillies)
+{
+    int         rc;
+    uint32_t    h32;
+    PSUPDRVOBJ  pObj;
+
+    /*
+     * Input validation.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    h32 = (uint32_t)(uintptr_t)hEvent;
+    if (h32 != (uintptr_t)hEvent)
+        return VERR_INVALID_HANDLE;
+    pObj = (PSUPDRVOBJ)RTHandleTableLookupWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT);
+    if (!pObj)
+        return VERR_INVALID_HANDLE;
+
+    /*
+     * Do the job.
+     */
+    rc = RTSemEventWaitNoResume((RTSEMEVENT)pObj->pvUser1, cMillies);
+
+    SUPR0ObjRelease(pObj, pSession);
+    return rc;
+}
+
+
+/**
+ * Destructor for objects created by SUPSemEventMultiCreate.
+ *
+ * @param   pvObj               The object handle.
+ * @param   pvUser1             The IPRT event handle.
+ * @param   pvUser2             NULL.
+ */
+static DECLCALLBACK(void) supR0SemEventMultiDestructor(void *pvObj, void *pvUser1, void *pvUser2)
+{
+    Assert(pvUser2 == NULL);
+    NOREF(pvObj);
+    RTSemEventMultiDestroy((RTSEMEVENTMULTI)pvUser1);
+}
+
+
+SUPDECL(int) SUPSemEventMultiCreate(PSUPDRVSESSION pSession, PSUPSEMEVENTMULTI phEventMulti)
+{
+    int             rc;
+    RTSEMEVENTMULTI hEventMultReal;
+
+    /*
+     * Input validation.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(phEventMulti, VERR_INVALID_POINTER);
+
+    /*
+     * Create the event semaphore object.
+     */
+    rc = RTSemEventMultiCreate(&hEventMultReal);
+    if (RT_SUCCESS(rc))
+    {
+        void *pvObj = SUPR0ObjRegister(pSession, SUPDRVOBJTYPE_SEM_EVENT_MULTI, supR0SemEventMultiDestructor, hEventMultReal, NULL);
+        if (pvObj)
+        {
+            uint32_t h32;
+            rc = RTHandleTableAllocWithCtx(pSession->hHandleTable, pvObj, SUPDRV_HANDLE_CTX_EVENT_MULTI, &h32);
+            if (RT_SUCCESS(rc))
+            {
+                *phEventMulti = (SUPSEMEVENTMULTI)(uintptr_t)h32;
+                return VINF_SUCCESS;
+            }
+            SUPR0ObjRelease(pvObj, pSession);
+        }
+        else
+            RTSemEventMultiDestroy(hEventMultReal);
+    }
+    return rc;
+}
+
+
+SUPDECL(int) SUPSemEventMultiClose(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti)
+{
+    uint32_t    h32;
+    PSUPDRVOBJ  pObj;
+
+    /*
+     * Input validation.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    if (hEventMulti == NIL_SUPSEMEVENTMULTI)
+        return VINF_SUCCESS;
+    h32 = (uint32_t)(uintptr_t)hEventMulti;
+    if (h32 != (uintptr_t)hEventMulti)
+        return VERR_INVALID_HANDLE;
+
+    /*
+     * Do the job.
+     */
+    pObj = (PSUPDRVOBJ)RTHandleTableFreeWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT_MULTI);
+    if (!pObj)
+        return VERR_INVALID_HANDLE;
+
+    Assert(pObj->cUsage >= 2);
+    SUPR0ObjRelease(pObj, pSession);        /* The free call above. */
+    return SUPR0ObjRelease(pObj, pSession); /* The handle table reference. */
+}
+
+
+SUPDECL(int) SUPSemEventMultiSignal(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti)
+{
+    int         rc;
+    uint32_t    h32;
+    PSUPDRVOBJ  pObj;
+
+    /*
+     * Input validation.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    h32 = (uint32_t)(uintptr_t)hEventMulti;
+    if (h32 != (uintptr_t)hEventMulti)
+        return VERR_INVALID_HANDLE;
+    pObj = (PSUPDRVOBJ)RTHandleTableLookupWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT_MULTI);
+    if (!pObj)
+        return VERR_INVALID_HANDLE;
+
+    /*
+     * Do the job.
+     */
+    rc = RTSemEventMultiSignal((RTSEMEVENTMULTI)pObj->pvUser1);
+
+    SUPR0ObjRelease(pObj, pSession);
+    return rc;
+}
+
+
+SUPDECL(int) SUPSemEventMultiReset(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti)
+{
+    int         rc;
+    uint32_t    h32;
+    PSUPDRVOBJ  pObj;
+
+    /*
+     * Input validation.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    h32 = (uint32_t)(uintptr_t)hEventMulti;
+    if (h32 != (uintptr_t)hEventMulti)
+        return VERR_INVALID_HANDLE;
+    pObj = (PSUPDRVOBJ)RTHandleTableLookupWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT_MULTI);
+    if (!pObj)
+        return VERR_INVALID_HANDLE;
+
+    /*
+     * Do the job.
+     */
+    rc = RTSemEventMultiReset((RTSEMEVENTMULTI)pObj->pvUser1);
+
+    SUPR0ObjRelease(pObj, pSession);
+    return rc;
+}
+
+
+SUPDECL(int) SUPSemEventMultiWait(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti, uint32_t cMillies)
+{
+    int         rc;
+    uint32_t    h32;
+    PSUPDRVOBJ  pObj;
+
+    /*
+     * Input validation.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    h32 = (uint32_t)(uintptr_t)hEventMulti;
+    if (h32 != (uintptr_t)hEventMulti)
+        return VERR_INVALID_HANDLE;
+    pObj = (PSUPDRVOBJ)RTHandleTableLookupWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT_MULTI);
+    if (!pObj)
+        return VERR_INVALID_HANDLE;
+
+    /*
+     * Do the job.
+     */
+    rc = RTSemEventMultiWait((RTSEMEVENTMULTI)pObj->pvUser1, cMillies);
+
+    SUPR0ObjRelease(pObj, pSession);
+    return rc;
+}
+
+
+SUPDECL(int) SUPSemEventMultiWaitNoResume(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti, uint32_t cMillies)
+{
+    int         rc;
+    uint32_t    h32;
+    PSUPDRVOBJ  pObj;
+
+    /*
+     * Input validation.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    h32 = (uint32_t)(uintptr_t)hEventMulti;
+    if (h32 != (uintptr_t)hEventMulti)
+        return VERR_INVALID_HANDLE;
+    pObj = (PSUPDRVOBJ)RTHandleTableLookupWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT_MULTI);
+    if (!pObj)
+        return VERR_INVALID_HANDLE;
+
+    /*
+     * Do the job.
+     */
+    rc = RTSemEventMultiWaitNoResume((RTSEMEVENTMULTI)pObj->pvUser1, cMillies);
+
+    SUPR0ObjRelease(pObj, pSession);
     return rc;
 }
 

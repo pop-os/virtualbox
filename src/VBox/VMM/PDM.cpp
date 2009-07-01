@@ -1,4 +1,4 @@
-/* $Id: PDM.cpp $ */
+/* $Id: PDM.cpp 20874 2009-06-24 02:19:29Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device Manager.
  */
@@ -279,7 +279,8 @@
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
 /** The PDM saved state version. */
-#define PDM_SAVED_STATE_VERSION     3
+#define PDM_SAVED_STATE_VERSION             4
+#define PDM_SAVED_STATE_VERSION_PRE_NMI_FF  3
 
 
 /*******************************************************************************
@@ -324,7 +325,7 @@ VMMR3DECL(int) PDMR3Init(PVM pVM)
      */
     AssertRelease(!(RT_OFFSETOF(VM, pdm.s) & 31));
     AssertRelease(sizeof(pVM->pdm.s) <= sizeof(pVM->pdm.padding));
-
+    AssertCompileMemberAlignment(PDM, CritSect, sizeof(uintptr_t));
     /*
      * Init the structure.
      */
@@ -334,40 +335,33 @@ VMMR3DECL(int) PDMR3Init(PVM pVM)
     /*
      * Initialize sub compontents.
      */
-    int rc = pdmR3CritSectInit(pVM);
+    int rc = RTCritSectInit(&pVM->pdm.s.MiscCritSect);
+    if (RT_SUCCESS(rc))
+        rc = pdmR3CritSectInit(pVM);
+    if (RT_SUCCESS(rc))
+        rc = PDMR3CritSectInit(pVM, &pVM->pdm.s.CritSect, "PDM");
+    if (RT_SUCCESS(rc))
+        rc = pdmR3LdrInitU(pVM->pUVM);
+#ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
+    if (RT_SUCCESS(rc))
+        rc = pdmR3AsyncCompletionInit(pVM);
+#endif
+    if (RT_SUCCESS(rc))
+        rc = pdmR3DrvInit(pVM);
+    if (RT_SUCCESS(rc))
+        rc = pdmR3DevInit(pVM);
     if (RT_SUCCESS(rc))
     {
-        rc = PDMR3CritSectInit(pVM, &pVM->pdm.s.CritSect, "PDM");
-        if (RT_SUCCESS(rc))
-            rc = pdmR3LdrInitU(pVM->pUVM);
+        /*
+         * Register the saved state data unit.
+         */
+        rc = SSMR3RegisterInternal(pVM, "pdm", 1, PDM_SAVED_STATE_VERSION, 128,
+                                   NULL, pdmR3Save, NULL,
+                                   pdmR3LoadPrep, pdmR3Load, NULL);
         if (RT_SUCCESS(rc))
         {
-            rc = pdmR3DrvInit(pVM);
-            if (RT_SUCCESS(rc))
-            {
-                rc = pdmR3DevInit(pVM);
-                if (RT_SUCCESS(rc))
-                {
-#ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
-                    rc = pdmR3AsyncCompletionInit(pVM);
-                    if (RT_SUCCESS(rc))
-#endif
-                    {
-                        /*
-                         * Register the saved state data unit.
-                         */
-                        rc = SSMR3RegisterInternal(pVM, "pdm", 1, PDM_SAVED_STATE_VERSION, 128,
-                                                   NULL, pdmR3Save, NULL,
-                                                   pdmR3LoadPrep, pdmR3Load, NULL);
-                        if (RT_SUCCESS(rc))
-                        {
-                            LogFlow(("PDM: Successfully initialized\n"));
-                            return rc;
-                        }
-
-                    }
-                }
-            }
+            LogFlow(("PDM: Successfully initialized\n"));
+            return rc;
         }
     }
 
@@ -599,6 +593,7 @@ VMMR3DECL(int) PDMR3Term(PVM pVM)
      * Destroy the PDM lock.
      */
     PDMR3CritSectDelete(&pVM->pdm.s.CritSect);
+    /* The MiscCritSect is deleted by PDMR3CritSectTerm. */
 
     LogFlow(("PDMR3Term: returns %Rrc\n", VINF_SUCCESS));
     return VINF_SUCCESS;
@@ -640,8 +635,14 @@ static DECLCALLBACK(int) pdmR3Save(PVM pVM, PSSMHANDLE pSSM)
     /*
      * Save interrupt and DMA states.
      */
-    SSMR3PutUInt(pSSM, VM_FF_ISSET(pVM, VM_FF_INTERRUPT_APIC));
-    SSMR3PutUInt(pSSM, VM_FF_ISSET(pVM, VM_FF_INTERRUPT_PIC));
+    for (unsigned idCpu = 0; idCpu < pVM->cCPUs; idCpu++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        SSMR3PutUInt(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC));
+        SSMR3PutUInt(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC));
+        SSMR3PutUInt(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_NMI));
+        SSMR3PutUInt(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_SMI));
+    }
     SSMR3PutUInt(pSSM, VM_FF_ISSET(pVM, VM_FF_PDM_DMA));
 
     /*
@@ -674,10 +675,18 @@ static DECLCALLBACK(int) pdmR3LoadPrep(PVM pVM, PSSMHANDLE pSSM)
 {
     LogFlow(("pdmR3LoadPrep: %s%s%s%s\n",
              VM_FF_ISSET(pVM, VM_FF_PDM_QUEUES)     ? " VM_FF_PDM_QUEUES" : "",
-             VM_FF_ISSET(pVM, VM_FF_PDM_DMA)        ? " VM_FF_PDM_DMA" : "",
-             VM_FF_ISSET(pVM, VM_FF_INTERRUPT_APIC) ? " VM_FF_INTERRUPT_APIC" : "",
-             VM_FF_ISSET(pVM, VM_FF_INTERRUPT_PIC)  ? " VM_FF_INTERRUPT_PIC" : ""
+             VM_FF_ISSET(pVM, VM_FF_PDM_DMA)        ? " VM_FF_PDM_DMA" : ""
              ));
+#ifdef LOG_ENABLED
+    for (unsigned idCpu=0;idCpu<pVM->cCPUs;idCpu++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        LogFlow(("pdmR3LoadPrep: VCPU %d %s%s%s%s\n", idCpu,
+                VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC) ? " VMCPU_FF_INTERRUPT_APIC" : "",
+                VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC)  ? " VMCPU_FF_INTERRUPT_PIC" : ""
+                ));
+    }
+#endif
 
     /*
      * In case there is work pending that will raise an interrupt,
@@ -687,8 +696,14 @@ static DECLCALLBACK(int) pdmR3LoadPrep(PVM pVM, PSSMHANDLE pSSM)
         PDMR3QueueFlushAll(pVM);
 
     /* Clear the FFs. */
-    VM_FF_CLEAR(pVM, VM_FF_INTERRUPT_APIC);
-    VM_FF_CLEAR(pVM, VM_FF_INTERRUPT_PIC);
+    for (unsigned idCpu=0;idCpu<pVM->cCPUs;idCpu++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_APIC);
+        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_PIC);
+        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_NMI);
+        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_SMI);
+    }
     VM_FF_CLEAR(pVM, VM_FF_PDM_DMA);
 
     return VINF_SUCCESS;
@@ -705,12 +720,15 @@ static DECLCALLBACK(int) pdmR3LoadPrep(PVM pVM, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) pdmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
 {
+    int rc;
+
     LogFlow(("pdmR3Load:\n"));
 
     /*
      * Validate version.
      */
-    if (u32Version != PDM_SAVED_STATE_VERSION)
+    if (    u32Version != PDM_SAVED_STATE_VERSION
+        &&  u32Version != PDM_SAVED_STATE_VERSION_PRE_NMI_FF)
     {
         AssertMsgFailed(("pdmR3Load: Invalid version u32Version=%d!\n", u32Version));
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
@@ -719,33 +737,69 @@ static DECLCALLBACK(int) pdmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version
     /*
      * Load the interrupt and DMA states.
      */
-    /* APIC interrupt */
-    RTUINT fInterruptPending = 0;
-    int rc = SSMR3GetUInt(pSSM, &fInterruptPending);
-    if (RT_FAILURE(rc))
-        return rc;
-    if (fInterruptPending & ~1)
+    for (unsigned idCpu = 0; idCpu < pVM->cCPUs; idCpu++)
     {
-        AssertMsgFailed(("fInterruptPending=%#x (APIC)\n", fInterruptPending));
-        return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
-    }
-    AssertRelease(!VM_FF_ISSET(pVM, VM_FF_INTERRUPT_APIC));
-    if (fInterruptPending)
-        VM_FF_SET(pVM, VM_FF_INTERRUPT_APIC);
+        PVMCPU pVCpu = &pVM->aCpus[idCpu];
 
-    /* PIC interrupt */
-    fInterruptPending = 0;
-    rc = SSMR3GetUInt(pSSM, &fInterruptPending);
-    if (RT_FAILURE(rc))
-        return rc;
-    if (fInterruptPending & ~1)
-    {
-        AssertMsgFailed(("fInterruptPending=%#x (PIC)\n", fInterruptPending));
-        return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
+        /* APIC interrupt */
+        RTUINT fInterruptPending = 0;
+        rc = SSMR3GetUInt(pSSM, &fInterruptPending);
+        if (RT_FAILURE(rc))
+            return rc;
+        if (fInterruptPending & ~1)
+        {
+            AssertMsgFailed(("fInterruptPending=%#x (APIC)\n", fInterruptPending));
+            return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
+        }
+        AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC));
+        if (fInterruptPending)
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC);
+
+        /* PIC interrupt */
+        fInterruptPending = 0;
+        rc = SSMR3GetUInt(pSSM, &fInterruptPending);
+        if (RT_FAILURE(rc))
+            return rc;
+        if (fInterruptPending & ~1)
+        {
+            AssertMsgFailed(("fInterruptPending=%#x (PIC)\n", fInterruptPending));
+            return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
+        }
+        AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC));
+        if (fInterruptPending)
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC);
+
+        if (u32Version > PDM_SAVED_STATE_VERSION_PRE_NMI_FF)
+        {
+            /* NMI interrupt */
+            RTUINT fInterruptPending = 0;
+            rc = SSMR3GetUInt(pSSM, &fInterruptPending);
+            if (RT_FAILURE(rc))
+                return rc;
+            if (fInterruptPending & ~1)
+            {
+                AssertMsgFailed(("fInterruptPending=%#x (NMI)\n", fInterruptPending));
+                return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
+            }
+            AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_NMI));
+            if (fInterruptPending)
+                VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_NMI);
+
+            /* SMI interrupt */
+            fInterruptPending = 0;
+            rc = SSMR3GetUInt(pSSM, &fInterruptPending);
+            if (RT_FAILURE(rc))
+                return rc;
+            if (fInterruptPending & ~1)
+            {
+                AssertMsgFailed(("fInterruptPending=%#x (SMI)\n", fInterruptPending));
+                return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
+            }
+            AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_SMI));
+            if (fInterruptPending)
+                VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_SMI);
+        }
     }
-    AssertRelease(!VM_FF_ISSET(pVM, VM_FF_INTERRUPT_PIC));
-    if (fInterruptPending)
-        VM_FF_SET(pVM, VM_FF_INTERRUPT_PIC);
 
     /* DMA pending */
     RTUINT fDMAPending = 0;
@@ -902,8 +956,14 @@ VMMR3DECL(void) PDMR3Reset(PVM pVM)
     /*
      * Clear all pending interrupts and DMA operations.
      */
-    VM_FF_CLEAR(pVM, VM_FF_INTERRUPT_APIC);
-    VM_FF_CLEAR(pVM, VM_FF_INTERRUPT_PIC);
+    for (unsigned idCpu=0;idCpu<pVM->cCPUs;idCpu++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_APIC);
+        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_PIC);
+        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_NMI);
+        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_SMI);
+    }
     VM_FF_CLEAR(pVM, VM_FF_PDM_DMA);
 
     /*
@@ -1302,18 +1362,24 @@ VMMR3DECL(int) PDMR3QueryLun(PVM pVM, const char *pszDevice, unsigned iInstance,
  */
 VMMR3DECL(void) PDMR3DmaRun(PVM pVM)
 {
-    VM_FF_CLEAR(pVM, VM_FF_PDM_DMA);
-    if (pVM->pdm.s.pDmac)
+    /* Note! Not really SMP safe; restrict it to VCPU 0. */
+    if (VMMGetCpuId(pVM) != 0)
+        return;
+
+    if (VM_FF_TESTANDCLEAR(pVM, VM_FF_PDM_DMA_BIT))
     {
-        bool fMore = pVM->pdm.s.pDmac->Reg.pfnRun(pVM->pdm.s.pDmac->pDevIns);
-        if (fMore)
-            VM_FF_SET(pVM, VM_FF_PDM_DMA);
+        if (pVM->pdm.s.pDmac)
+        {
+            bool fMore = pVM->pdm.s.pDmac->Reg.pfnRun(pVM->pdm.s.pDmac->pDevIns);
+            if (fMore)
+                VM_FF_SET(pVM, VM_FF_PDM_DMA);
+        }
     }
 }
 
 
 /**
- * Service a VMMCALLHOST_PDM_LOCK call.
+ * Service a VMMCALLRING3_PDM_LOCK call.
  *
  * @returns VBox status code.
  * @param   pVM     The VM handle.
@@ -1376,7 +1442,12 @@ VMMR3DECL(int) PDMR3UnregisterVMMDevHeap(PVM pVM, RTGCPHYS GCPhys)
  */
 VMMR3DECL(int) PDMR3VMMDevHeapAlloc(PVM pVM, unsigned cbSize, RTR3PTR *ppv)
 {
+#ifdef DEBUG_bird
+    if (!cbSize || cbSize > pVM->pdm.s.cbVMMDevHeapLeft)
+        return VERR_NO_MEMORY;
+#else
     AssertReturn(cbSize && cbSize <= pVM->pdm.s.cbVMMDevHeapLeft, VERR_NO_MEMORY);
+#endif
 
     Log(("PDMR3VMMDevHeapAlloc %x\n", cbSize));
 
@@ -1401,4 +1472,15 @@ VMMR3DECL(int) PDMR3VMMDevHeapFree(PVM pVM, RTR3PTR pv)
     /** @todo not a real heap as there's currently only one user. */
     pVM->pdm.s.cbVMMDevHeapLeft = pVM->pdm.s.cbVMMDevHeap;
     return VINF_SUCCESS;
+}
+
+/**
+ * Release the PDM lock if owned by the current VCPU
+ *
+ * @param   pVM         The VM to operate on.
+ */
+VMMR3DECL(void) PDMR3ReleaseOwnedLocks(PVM pVM)
+{
+    while (PDMCritSectIsOwner(&pVM->pdm.s.CritSect))
+        PDMCritSectLeave(&pVM->pdm.s.CritSect);
 }

@@ -1,4 +1,4 @@
-/* $Id: mp-r0drv-solaris.c $ */
+/* $Id: mp-r0drv-solaris.c 19391 2009-05-05 17:26:18Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Ring-0 Driver, Solaris.
  */
@@ -201,13 +201,14 @@ RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
     cpuset_t Set;
     RTMPARGS Args;
 
+    /* The caller should disable preemption, but take no chances.*/
+    kpreempt_disable();
+
     Args.pfnWorker = pfnWorker;
     Args.pvUser1 = pvUser1;
     Args.pvUser2 = pvUser2;
-    Args.idCpu = RTMpCpuId(); /** @todo should disable pre-emption before doing this.... */
+    Args.idCpu = RTMpCpuId();
     Args.cHits = 0;
-
-    kpreempt_disable();
 
     CPUSET_ALL_BUT(Set, Args.idCpu);
     xc_call((uintptr_t)&Args, 0, 0, X_CALL_HIPRI, Set, rtmpOnOthersSolarisWrapper);

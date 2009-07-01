@@ -229,6 +229,7 @@ renderspuMakeCurrent(GLint crWindow, GLint nativeWindow, GLint ctx)
             crInfo( "Render SPU: GL_VENDOR:   %s", render_spu.ws.glGetString( GL_VENDOR ) );
             crInfo( "Render SPU: GL_RENDERER: %s", render_spu.ws.glGetString( GL_RENDERER ) );
             crInfo( "Render SPU: GL_VERSION:  %s", render_spu.ws.glGetString( GL_VERSION ) );
+            crInfo( "Render SPU: GL_EXTENSIONS: %s", render_spu.ws.glGetString( GL_EXTENSIONS ) );
             if (crStrstr(extString, "GL_ARB_window_pos"))
                 context->haveWindowPosARB = GL_TRUE;
             else
@@ -995,6 +996,18 @@ renderspuGetString(GLenum pname)
         sprintf(tempStr, "Chromium (%s)", (char *) render_spu.ws.glGetString(GL_RENDERER));
         return (const GLubyte *) tempStr;
     }
+#ifdef CR_OPENGL_VERSION_2_0
+    else if (pname == GL_SHADING_LANGUAGE_VERSION)
+        return render_spu.ws.glGetString(GL_SHADING_LANGUAGE_VERSION);
+#endif
+#ifdef GL_CR_real_vendor_strings
+    else if (pname == GL_REAL_VENDOR)
+        return render_spu.ws.glGetString(GL_VENDOR);
+    else if (pname == GL_REAL_VERSION)
+        return render_spu.ws.glGetString(GL_VERSION);
+    else if (pname == GL_REAL_RENDERER)
+        return render_spu.ws.glGetString(GL_RENDERER);
+#endif
     else
         return NULL;
 }

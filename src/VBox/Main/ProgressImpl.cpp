@@ -1,4 +1,4 @@
-/* $Id: ProgressImpl.cpp $ */
+/* $Id: ProgressImpl.cpp 20220 2009-06-03 08:40:29Z vboxsync $ */
 /** @file
  *
  * VirtualBox Progress COM class implementation
@@ -199,7 +199,7 @@ void ProgressBase::protectedUninit (AutoUninitSpan &aAutoUninitSpan)
 // IProgress properties
 /////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP ProgressBase::COMGETTER(Id) (OUT_GUID aId)
+STDMETHODIMP ProgressBase::COMGETTER(Id) (BSTR *aId)
 {
     CheckComArgOutPointerValid(aId);
 
@@ -207,7 +207,7 @@ STDMETHODIMP ProgressBase::COMGETTER(Id) (OUT_GUID aId)
     CheckComRCReturnRC(autoCaller.rc());
 
     /* mId is constant during life time, no need to lock */
-    mId.cloneTo (aId);
+    mId.toUtf16().cloneTo (aId);
 
     return S_OK;
 }
@@ -371,7 +371,7 @@ STDMETHODIMP ProgressBase::COMGETTER(Canceled) (BOOL *aCanceled)
     return S_OK;
 }
 
-STDMETHODIMP ProgressBase::COMGETTER(ResultCode) (HRESULT *aResultCode)
+STDMETHODIMP ProgressBase::COMGETTER(ResultCode) (LONG *aResultCode)
 {
     CheckComArgOutPointerValid(aResultCode);
 
@@ -491,9 +491,10 @@ HRESULT ProgressBase::setErrorInfoOnThread (IProgress *aProgress)
 {
     AssertReturn (aProgress != NULL, E_INVALIDARG);
 
-    HRESULT resultCode;
-    HRESULT rc = aProgress->COMGETTER(ResultCode) (&resultCode);
+    LONG iRc;
+    HRESULT rc = aProgress->COMGETTER(ResultCode) (&iRc);
     AssertComRCReturnRC (rc);
+    HRESULT resultCode = iRc;
 
     if (resultCode == S_OK)
         return resultCode;
@@ -1314,7 +1315,7 @@ STDMETHODIMP CombinedProgress::COMGETTER(Canceled) (BOOL *aCanceled)
     return ProgressBase::COMGETTER(Canceled) (aCanceled);
 }
 
-STDMETHODIMP CombinedProgress::COMGETTER(ResultCode) (HRESULT *aResultCode)
+STDMETHODIMP CombinedProgress::COMGETTER(ResultCode) (LONG *aResultCode)
 {
     CheckComArgOutPointerValid(aResultCode);
 
@@ -1591,9 +1592,11 @@ HRESULT CombinedProgress::checkProgress()
             if (FAILED (rc))
                 return rc;
 
-            rc = progress->COMGETTER(ResultCode) (&mResultCode);
+            LONG iRc;
+            rc = progress->COMGETTER(ResultCode) (&iRc);
             if (FAILED (rc))
                 return rc;
+            mResultCode = iRc;
 
             if (FAILED (mResultCode))
             {

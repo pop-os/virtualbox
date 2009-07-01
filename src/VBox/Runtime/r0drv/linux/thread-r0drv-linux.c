@@ -1,4 +1,4 @@
-/* $Id: thread-r0drv-linux.c $ */
+/* $Id: thread-r0drv-linux.c 20124 2009-05-28 15:40:06Z vboxsync $ */
 /** @file
  * IPRT - Threads, Ring-0 Driver, Linux.
  */
@@ -35,6 +35,7 @@
 
 #include <iprt/thread.h>
 #include <iprt/err.h>
+#include <iprt/assert.h>
 
 
 RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void)
@@ -64,5 +65,70 @@ RTDECL(bool) RTThreadYield(void)
     schedule();
 #endif
     return true;
+}
+
+
+RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread)
+{
+    Assert(hThread == NIL_RTTHREAD);
+#ifdef CONFIG_PREEMPT
+# ifdef preemptible
+    return preemptible();
+# else
+    return preempt_count() == 0 && !in_atomic() && !irqs_disabled();
+# endif
+#else
+    return false;
+#endif
+}
+
+
+RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
+{
+    Assert(hThread == NIL_RTTHREAD);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 4)
+    return test_tsk_thread_flag(current, TIF_NEED_RESCHED);
+
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 20)
+    return need_resched();
+
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 1, 110)
+    return current->need_resched != 0;
+
+#else
+    return need_resched != 0;
+#endif
+}
+
+
+RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
+{
+    /* yes, RTThreadPreemptIsPending is reliable. */
+    return true;
+}
+
+
+RTDECL(void) RTThreadPreemptDisable(PRTTHREADPREEMPTSTATE pState)
+{
+    AssertPtr(pState);
+    Assert(pState->uchDummy != 42);
+    pState->uchDummy = 42;
+
+    /*
+     * Note: This call is a NOP if CONFIG_PREEMPT is not enabled in the Linux kernel
+     * configuration. In that case, schedule() is only called need_resched() is set
+     * which is tested just before we return to R3 (not when returning from R0 to R0).
+     */
+    preempt_disable();
+}
+
+
+RTDECL(void) RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState)
+{
+    AssertPtr(pState);
+    Assert(pState->uchDummy == 42);
+    pState->uchDummy = 0;
+
+    preempt_enable();
 }
 

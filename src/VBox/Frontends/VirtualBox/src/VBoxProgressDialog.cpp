@@ -21,22 +21,31 @@
  */
 
 /* VBox includes */
-#include "VBoxProgressDialog.h"
 #include "COMDefs.h"
+#include "QIDialogButtonBox.h"
+#include "QILabel.h"
+#include "VBoxGlobal.h"
+#include "VBoxProgressDialog.h"
 
 #ifdef Q_WS_MAC
 # include "VBoxUtils-darwin.h"
 #endif
 
 /* Qt includes */
-#include <QProgressDialog>
+#include <QCloseEvent>
 #include <QEventLoop>
+#include <QProgressBar>
+#include <QTime>
+#include <QTimer>
+#include <QVBoxLayout>
 
 const char *VBoxProgressDialog::sOpDescTpl = "%1... (%2/%3)";
 
-VBoxProgressDialog::VBoxProgressDialog (CProgress &aProgress, const QString &aTitle,
-                                        int aMinDuration /* = 2000 */, QWidget *aParent /* = NULL */)
-  : QProgressDialog (aParent, Qt::MSWindowsFixedSizeDialogHint | Qt::WindowTitleHint)
+VBoxProgressDialog::VBoxProgressDialog (CProgress &aProgress,
+                                        const QString &aTitle,
+                                        int aMinDuration /* = 2000 */,
+                                        QWidget *aParent /* = 0 */)
+  : QIDialog (aParent, Qt::MSWindowsFixedSizeDialogHint | Qt::WindowTitleHint)
   , mProgress (aProgress)
   , mEventLoop (new QEventLoop (this))
   , mCancelEnabled (false)
@@ -45,31 +54,57 @@ VBoxProgressDialog::VBoxProgressDialog (CProgress &aProgress, const QString &aTi
   , mEnded (false)
 {
     setModal (true);
+
+    QVBoxLayout *pMainLayout = new QVBoxLayout (this);
+
 #ifdef Q_WS_MAC
     ::darwinSetHidesAllTitleButtons (this);
     ::darwinSetShowsResizeIndicator (this, false);
+    VBoxGlobal::setLayoutMargin (pMainLayout, 6);
 #endif /* Q_WS_MAC */
 
+    mLabel = new QILabel (this);
+    pMainLayout->addWidget (mLabel);
+    pMainLayout->setAlignment (mLabel, Qt::AlignHCenter);
+
+    mProgressBar = new QProgressBar (this);
+    pMainLayout->addWidget (mProgressBar);
+
+    QHBoxLayout *pLayout1 = new QHBoxLayout();
+    pLayout1->setMargin (0);
+    mETA = new QILabel (this);
+    pLayout1->addWidget (mETA);
+    pMainLayout->addLayout (pLayout1);
+
     if (mOpCount > 1)
-        setLabelText (QString (sOpDescTpl)
-                      .arg (mProgress.GetOperationDescription())
-                      .arg (mCurOp).arg (mOpCount));
+        mLabel->setText (QString (sOpDescTpl)
+                         .arg (mProgress.GetOperationDescription())
+                         .arg (mCurOp).arg (mOpCount));
     else
-        setLabelText (QString ("%1...")
-                      .arg (mProgress.GetOperationDescription()));
-    setCancelButtonText (QString::null);
-    setMaximum (100);
-    setWindowTitle (QString ("%1: %2")
-                    .arg (aTitle, mProgress.GetDescription()));
-    setMinimumDuration (aMinDuration);
-    setValue (0);
+        mLabel->setText (QString ("%1...")
+                         .arg (mProgress.GetOperationDescription()));
+    mProgressBar->setMaximum (100);
+    setWindowTitle (QString ("%1: %2").arg (aTitle, mProgress.GetDescription()));
+    mProgressBar->setValue (0);
     mCancelEnabled = aProgress.GetCancelable();
     if (mCancelEnabled)
     {
-        setCancelButtonText(tr ("&Cancel"));
-        connect (this, SIGNAL (canceled()),
-                 this, SLOT (cancelOperation()));
+        QDialogButtonBox *pBtnBox = new QDialogButtonBox (QDialogButtonBox::Cancel,
+                                                          Qt::Horizontal, this);
+        pLayout1->addWidget (pBtnBox);
+        connect (pBtnBox, SIGNAL (rejected()), this, SLOT (cancelOperation()));
     }
+
+    retranslateUi();
+
+    /* The progress dialog will be shown automatically after
+     * the duration is over if progress is not finished yet. */
+    QTimer::singleShot (aMinDuration, this, SLOT (showDialog()));
+}
+
+void VBoxProgressDialog::retranslateUi()
+{
+    mETAText = tr ("Time remaining: %1");
 }
 
 int VBoxProgressDialog::run (int aRefreshInterval)
@@ -79,7 +114,8 @@ int VBoxProgressDialog::run (int aRefreshInterval)
         /* Start refresh timer */
         int id = startTimer (aRefreshInterval);
 
-        /* The progress dialog is automatically shown after the duration is over */
+        /* Set busy cursor */
+        QApplication::setOverrideCursor (QCursor (Qt::WaitCursor));
 
         /* Enter the modal loop */
         mEventLoop->exec();
@@ -92,6 +128,17 @@ int VBoxProgressDialog::run (int aRefreshInterval)
     return Rejected;
 }
 
+void VBoxProgressDialog::showDialog()
+{
+    /* We should not show progress-dialog
+     * if it was already finalized but not yet closed.
+     * This could happens in case of some other
+     * modal dialog prevents our event-loop from
+     * being exit overlapping 'this'. */
+    if (!mEnded)
+        show();
+}
+
 void VBoxProgressDialog::cancelOperation()
 {
     mProgress.Cancel();
@@ -99,12 +146,20 @@ void VBoxProgressDialog::cancelOperation()
 
 void VBoxProgressDialog::timerEvent (QTimerEvent * /* aEvent */)
 {
-    if (!mEnded && (!mProgress.isOk() || mProgress.GetCompleted() || mProgress.GetCanceled()))
+    /* We should hide progress-dialog
+     * if it was already finalized but not yet closed.
+     * This could happens in case of some other
+     * modal dialog prevents our event-loop from
+     * being exit overlapping 'this'. */
+    if (mEnded && !isHidden())
+        hide();
+
+    if (!mEnded && (!mProgress.isOk() || mProgress.GetCompleted()))
     {
         /* Progress finished */
         if (mProgress.isOk())
         {
-            setValue (100);
+            mProgressBar->setValue (100);
             setResult (Accepted);
         }
         /* Progress is not valid */
@@ -121,34 +176,53 @@ void VBoxProgressDialog::timerEvent (QTimerEvent * /* aEvent */)
 
     if (mEnded)
     {
-        /* Exit loop if it is running */
         if (mEventLoop->isRunning())
+        {
+            /* Exit loop if it is running */
             mEventLoop->quit();
+
+            /* Restore normal cursor */
+            QApplication::restoreOverrideCursor();
+        }
         return;
     }
 
-    /* Update the progress dialog */
-    ulong newOp = mProgress.GetOperation() + 1;
-    if (newOp != mCurOp)
+    if (!mProgress.GetCanceled())
     {
-        mCurOp = newOp;
-        setLabelText (QString (sOpDescTpl)
-                      .arg (mProgress.GetOperationDescription())
-                      .arg (mCurOp).arg (mOpCount));
+        /* Update the progress dialog */
+        /* First ETA */
+        long newTime = mProgress.GetTimeRemaining();
+        if (newTime >= 0)
+        {
+            QTime time (0, 0);
+            time = time.addSecs (newTime);
+            mETA->setText (mETAText.arg (time.toString()));
+        }
+        else
+            mETA->clear();
+        /* Then operation text if changed */
+        ulong newOp = mProgress.GetOperation() + 1;
+        if (newOp != mCurOp)
+        {
+            mCurOp = newOp;
+            mLabel->setText (QString (sOpDescTpl)
+                             .arg (mProgress.GetOperationDescription())
+                             .arg (mCurOp).arg (mOpCount));
+        }
+        mProgressBar->setValue (mProgress.GetPercent());
     }
-    setValue (mProgress.GetPercent());
 }
 
 void VBoxProgressDialog::reject()
 {
     if (mCancelEnabled)
-        QProgressDialog::reject();
+        QIDialog::reject();
 }
 
 void VBoxProgressDialog::closeEvent (QCloseEvent *aEvent)
 {
     if (mCancelEnabled)
-        QProgressDialog::closeEvent (aEvent);
+        QIDialog::closeEvent (aEvent);
     else
         aEvent->ignore();
 }

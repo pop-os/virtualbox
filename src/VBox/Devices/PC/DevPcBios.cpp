@@ -1,4 +1,4 @@
-/* $Id: DevPcBios.cpp $ */
+/* $Id: DevPcBios.cpp 20924 2009-06-25 11:22:57Z vboxsync $ */
 /** @file
  * PC BIOS Device.
  */
@@ -223,6 +223,36 @@ typedef struct DMISYSTEMINF
     uint8_t         u8Family;
 } *PDMISYSTEMINF;
 AssertCompileSize(DMISYSTEMINF, 0x1b);
+
+/** DMI processor information */
+typedef struct DMIPROCESSORINF
+{
+    DMIHDR          header;
+    uint8_t         u8SocketDesignation;
+    uint8_t         u8ProcessorType;
+    uint8_t         u8ProcessorFamily;
+    uint8_t         u8ProcessorManufacturer;
+    uint64_t        u64ProcessorIdentification;
+    uint8_t         u8ProcessorVersion;
+    uint8_t         u8Voltage;
+    uint16_t        u16ExternalClock;
+    uint16_t        u16MaxSpeed;
+    uint16_t        u16CurrentSpeed;
+    uint8_t         u8Status;
+    uint8_t         u8ProcessorUpgrade;
+    uint16_t        u16L1CacheHandle;
+    uint16_t        u16L2CacheHandle;
+    uint16_t        u16L3CacheHandle;
+    uint8_t         u8SerialNumber;
+    uint8_t         u8AssetTag;
+    uint8_t         u8PartNumber;
+    uint8_t         u8CoreCount;
+    uint8_t         u8CoreEnabled;
+    uint8_t         u8ThreadCount;
+    uint16_t        u16ProcessorCharacteristics;
+    uint16_t        u16ProcessorFamily2;
+} PDMIPROCESSORINF;
+AssertCompileSize(DMIPROCESSORINF, 0x2a);
 
 /** MPS floating pointer structure */
 typedef struct MPSFLOATPTR
@@ -1124,32 +1154,20 @@ static void pcbiosPlantMPStable(PPDMDEVINS pDevIns, uint8_t *pTable, uint16_t nu
          * an MP table we have an IOAPIC and therefore a Local APIC. */
         u32FeatureFlags = u32Edx | X86_CPUID_FEATURE_EDX_APIC;
     }
-#ifdef VBOX_WITH_SMP_GUESTS
-    PMPSPROCENTRY pProcEntry       = (PMPSPROCENTRY)(pCfgTab+1);
+    /* Construct MPS table for each VCPU. */
+    PMPSPROCENTRY pProcEntry = (PMPSPROCENTRY)(pCfgTab+1);
     for (int i = 0; i<numCpus; i++)
     {
-      pProcEntry->u8EntryType        = 0; /* processor entry */
-      pProcEntry->u8LocalApicId      = i;
-      pProcEntry->u8LocalApicVersion = 0x11;
-      pProcEntry->u8CPUFlags         = (i == 0 ? 2 /* bootstrap processor */ : 0 /* application processor */) | 1 /* enabled */;
-      pProcEntry->u32CPUSignature    = u32CPUSignature;
-      pProcEntry->u32CPUFeatureFlags = u32FeatureFlags;
-      pProcEntry->u32Reserved[0]     =
+        pProcEntry->u8EntryType        = 0; /* processor entry */
+        pProcEntry->u8LocalApicId      = i;
+        pProcEntry->u8LocalApicVersion = 0x11;
+        pProcEntry->u8CPUFlags         = (i == 0 ? 2 /* bootstrap processor */ : 0 /* application processor */) | 1 /* enabled */;
+        pProcEntry->u32CPUSignature    = u32CPUSignature;
+        pProcEntry->u32CPUFeatureFlags = u32FeatureFlags;
+        pProcEntry->u32Reserved[0]     =
         pProcEntry->u32Reserved[1]     = 0;
-      pProcEntry++;
+        pProcEntry++;
     }
-#else
-    /* one processor so far */
-    PMPSPROCENTRY pProcEntry       = (PMPSPROCENTRY)(pCfgTab+1);
-    pProcEntry->u8EntryType        = 0; /* processor entry */
-    pProcEntry->u8LocalApicId      = 0;
-    pProcEntry->u8LocalApicVersion = 0x11;
-    pProcEntry->u8CPUFlags         = 2 /* bootstrap processor */ | 1 /* enabled */;
-    pProcEntry->u32CPUSignature    = u32CPUSignature;
-    pProcEntry->u32CPUFeatureFlags = u32FeatureFlags;
-    pProcEntry->u32Reserved[0]     =
-    pProcEntry->u32Reserved[1]     = 0;
-#endif
 
     /* ISA bus */
     PMPSBUSENTRY pBusEntry         = (PMPSBUSENTRY)(pProcEntry+1);
@@ -1420,16 +1438,7 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"NumCPUs\" as integer failed"));
 
-#ifdef VBOX_WITH_SMP_GUESTS
     LogRel(("[SMP] BIOS with %u CPUs\n", pThis->cCpus));
-#else
-    /** @todo: move this check up in configuration chain */
-    if (pThis->cCpus != 1)
-    {
-        LogRel(("WARNING: guest SMP not supported in this build, going UP\n"));
-        pThis->cCpus = 1;
-    }
-#endif
 
     rc = CFGMR3QueryU8Def(pCfgHandle, "IOAPIC", &pThis->u8IOAPIC, 1);
     if (RT_FAILURE (rc))

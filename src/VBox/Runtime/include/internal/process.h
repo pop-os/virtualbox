@@ -1,4 +1,4 @@
-/* $Id: process.h $ */
+/* $Id: process.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * IPRT - Internal RTProc header.
  */
@@ -34,7 +34,7 @@
 #include <iprt/process.h>
 #include <iprt/param.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 extern RTPROCESS        g_ProcessSelf;
 extern RTPROCPRIORITY   g_enmProcessPriority;
@@ -66,7 +66,7 @@ int rtProcNativeSetPriority(RTPROCPRIORITY enmPriority);
  */
 DECLHIDDEN(int) rtProcInitExePath(char *pszPath, size_t cchPath);
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

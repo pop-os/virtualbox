@@ -35,7 +35,7 @@
 #include <iprt/types.h>
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_timer      RTTimer - Timer
  *
@@ -311,6 +311,6 @@ RTDECL(int) RTTimerLRStop(RTTIMERLR hTimerLR);
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif

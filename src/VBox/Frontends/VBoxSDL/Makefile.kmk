@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 20433 2009-06-09 12:40:36Z vboxsync $
 ## @file
 # Sub-Makefile for VBoxSDL (a simple frontend based on SDL).
 #
@@ -65,8 +65,12 @@ win32/VBoxSDL.rc_CLEAN = $(PATH_VBoxSDL)/VBoxSDL-icon.rc
 endif
 
 VBoxSDL_DEFS       =
-ifdef VBOX_WITH_SECURELABEL
- VBoxSDL_DEFS     += VBOX_SECURELABEL
+ifdef VBOX_WITH_SDL13
+ VBoxSDL_DEFS     += VBOX_WITH_SDL13
+else
+ ifdef VBOX_WITH_SECURELABEL
+  VBoxSDL_DEFS    += VBOX_SECURELABEL
+ endif
 endif
 ifdef VBOX_WITH_VRDP
  VBoxSDL_DEFS     += VBOX_WITH_VRDP

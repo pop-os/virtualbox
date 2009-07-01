@@ -34,33 +34,25 @@
 #include <VBox/types.h>
 #include <VBox/vmm.h>
 #include <VBox/log.h>                   /* LOG_ENABLED */
+#include <VBox/dbgfsel.h>
 
 #include <iprt/stdarg.h>
+#include <iprt/dbg.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 
 /** @defgroup grp_dbgf     The Debugger Facility API
  * @{
  */
 
-#ifdef IN_RC
-/** @addgroup grp_dbgf_gc  The GC DBGF API
+#if defined(IN_RC)|| defined(IN_RING0)
+/** @addgroup grp_dbgf_rz  The RZ DBGF API
  * @ingroup grp_dbgf
  * @{
  */
-VMMRCDECL(int) DBGFGCTrap01Handler(PVM pVM, PCPUMCTXCORE pRegFrame, RTGCUINTREG uDr6);
-VMMRCDECL(int) DBGFGCTrap03Handler(PVM pVM, PCPUMCTXCORE pRegFrame);
-/** @} */
-#endif
-
-#ifdef IN_RING0
-/** @addgroup grp_dbgf_gc  The R0 DBGF API
- * @ingroup grp_dbgf
- * @{
- */
-VMMR0DECL(int) DBGFR0Trap01Handler(PVM pVM, PCPUMCTXCORE pRegFrame, RTGCUINTREG uDr6);
-VMMR0DECL(int) DBGFR0Trap03Handler(PVM pVM, PCPUMCTXCORE pRegFrame);
+VMMRZDECL(int) DBGFRZTrap01Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCUINTREG uDr6);
+VMMRZDECL(int) DBGFRZTrap03Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 /** @} */
 #endif
 
@@ -97,6 +89,8 @@ typedef const DBGFADDRESS *PCDBGFADDRESS;
 #define DBGFADDRESS_FLAGS_FLAT          3
 /** A physical address. */
 #define DBGFADDRESS_FLAGS_PHYS          4
+/** A physical address. */
+#define DBGFADDRESS_FLAGS_RING0         5
 /** The address type mask. */
 #define DBGFADDRESS_FLAGS_TYPE_MASK     7
 
@@ -123,10 +117,15 @@ typedef const DBGFADDRESS *PCDBGFADDRESS;
 #define DBGFADDRESS_IS_HMA(pAddress)     ( !!((pAddress)->fFlags & DBGFADDRESS_FLAGS_HMA) )
 /** @} */
 
-VMMR3DECL(int)  DBGFR3AddrFromSelOff(PVM pVM, PDBGFADDRESS pAddress, RTSEL Sel, RTUINTPTR off);
+VMMR3DECL(int)          DBGFR3AddrFromSelOff(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, RTSEL Sel, RTUINTPTR off);
 VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromFlat(PVM pVM, PDBGFADDRESS pAddress, RTGCUINTPTR FlatPtr);
-VMMR3DECL(void) DBGFR3AddrFromPhys(PVM pVM, PDBGFADDRESS pAddress, RTGCPHYS PhysAddr);
-VMMR3DECL(bool) DBGFR3AddrIsValid(PVM pVM, PCDBGFADDRESS pAddress);
+VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromPhys(PVM pVM, PDBGFADDRESS pAddress, RTGCPHYS PhysAddr);
+VMMR3DECL(bool)         DBGFR3AddrIsValid(PVM pVM, PCDBGFADDRESS pAddress);
+VMMR3DECL(int)          DBGFR3AddrToPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, PRTGCPHYS pGCPhys);
+VMMR3DECL(int)          DBGFR3AddrToHostPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, PRTHCPHYS pHCPhys);
+VMMR3DECL(int)          DBGFR3AddrToVolatileR3Ptr(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, bool fReadOnly, void **ppvR3Ptr);
+VMMR3DECL(PDBGFADDRESS) DBGFR3AddrAdd(PDBGFADDRESS pAddress, RTGCUINTPTR uAddend);
+VMMR3DECL(PDBGFADDRESS) DBGFR3AddrSub(PDBGFADDRESS pAddress, RTGCUINTPTR uSubtrahend);
 
 
 
@@ -229,7 +228,7 @@ typedef struct DBGFEVENT
         struct
         {
             /** The GC return code. */
-            int         rc;
+            int                     rc;
         } FatalError;
 
         /** Source location. */
@@ -242,7 +241,7 @@ typedef struct DBGFEVENT
             /** Message. */
             R3PTRTYPE(const char *) pszMessage;
             /** Line number. */
-            unsigned    uLine;
+            unsigned                uLine;
         } Src;
 
         /** Assertion messages. */
@@ -258,7 +257,7 @@ typedef struct DBGFEVENT
         struct DBGFEVENTBP
         {
             /** The identifier of the breakpoint which was hit. */
-            RTUINT      iBp;
+            RTUINT                  iBp;
         } Bp;
         /** Padding for ensuring that the structure is 8 byte aligned. */
         uint64_t        au64Padding[4];
@@ -298,8 +297,8 @@ VMMR3DECL(int)  DBGFR3Halt(PVM pVM);
 VMMR3DECL(bool) DBGFR3IsHalted(PVM pVM);
 VMMR3DECL(bool) DBGFR3CanWait(PVM pVM);
 VMMR3DECL(int)  DBGFR3Resume(PVM pVM);
-VMMR3DECL(int)  DBGFR3Step(PVM pVM);
-VMMR3DECL(int)  DBGFR3PrgStep(PVM pVM);
+VMMR3DECL(int)  DBGFR3Step(PVM pVM, VMCPUID idCpu);
+VMMR3DECL(int)  DBGFR3PrgStep(PVMCPU pVCpu);
 
 
 /** Breakpoint type. */
@@ -384,7 +383,7 @@ typedef const DBGFBP *PCDBGFBP;
 
 VMMR3DECL(int)  DBGFR3BpSet(PVM pVM, PCDBGFADDRESS pAddress, uint64_t iHitTrigger, uint64_t iHitDisable, PRTUINT piBp);
 VMMR3DECL(int)  DBGFR3BpSetReg(PVM pVM, PCDBGFADDRESS pAddress, uint64_t iHitTrigger, uint64_t iHitDisable,
-                                   uint8_t fType, uint8_t cb, PRTUINT piBp);
+                               uint8_t fType, uint8_t cb, PRTUINT piBp);
 VMMR3DECL(int)  DBGFR3BpSetREM(PVM pVM, PCDBGFADDRESS pAddress, uint64_t iHitTrigger, uint64_t iHitDisable, PRTUINT piBp);
 VMMR3DECL(int)  DBGFR3BpClear(PVM pVM, RTUINT iBp);
 VMMR3DECL(int)  DBGFR3BpEnable(PVM pVM, RTUINT iBp);
@@ -408,7 +407,7 @@ VMMDECL(RTGCUINTREG)    DBGFBpGetDR0(PVM pVM);
 VMMDECL(RTGCUINTREG)    DBGFBpGetDR1(PVM pVM);
 VMMDECL(RTGCUINTREG)    DBGFBpGetDR2(PVM pVM);
 VMMDECL(RTGCUINTREG)    DBGFBpGetDR3(PVM pVM);
-VMMDECL(bool)           DBGFIsStepping(PVM pVM);
+VMMDECL(bool)           DBGFIsStepping(PVMCPU pVCpu);
 
 
 
@@ -504,6 +503,8 @@ VMMR3DECL(int) DBGFR3InfoDeregisterDriver(PVM pVM, PPDMDRVINS pDrvIns, const cha
 VMMR3DECL(int) DBGFR3InfoDeregisterInternal(PVM pVM, const char *pszName);
 VMMR3DECL(int) DBGFR3InfoDeregisterExternal(PVM pVM, const char *pszName);
 VMMR3DECL(int) DBGFR3Info(PVM pVM, const char *pszName, const char *pszArgs, PCDBGFINFOHLP pHlp);
+VMMR3DECL(int) DBGFR3InfoLogRel(PVM pVM, const char *pszName, const char *pszArgs);
+VMMR3DECL(int) DBGFR3InfoStdErr(PVM pVM, const char *pszName, const char *pszArgs);
 
 /** @def DBGFR3InfoLog
  * Display a piece of info writing to the log if enabled.
@@ -536,9 +537,9 @@ typedef DECLCALLBACK(int) FNDBGFINFOENUM(PVM pVM, const char *pszName, const cha
 /** Pointer to a FNDBGFINFOENUM function. */
 typedef FNDBGFINFOENUM *PFNDBGFINFOENUM;
 
-VMMR3DECL(int) DBGFR3InfoEnum(PVM pVM, PFNDBGFINFOENUM pfnCallback, void *pvUser);
-VMMR3DECL(PCDBGFINFOHLP) DBGFR3InfoLogHlp(void);
-VMMR3DECL(PCDBGFINFOHLP) DBGFR3InfoLogRelHlp(void);
+VMMR3DECL(int)              DBGFR3InfoEnum(PVM pVM, PFNDBGFINFOENUM pfnCallback, void *pvUser);
+VMMR3DECL(PCDBGFINFOHLP)    DBGFR3InfoLogHlp(void);
+VMMR3DECL(PCDBGFINFOHLP)    DBGFR3InfoLogRelHlp(void);
 
 
 
@@ -587,6 +588,56 @@ typedef DBGFLINE *PDBGFLINE;
 /** Pointer to const debug line number. */
 typedef const DBGFLINE *PCDBGFLINE;
 
+/** @name Address spaces aliases.
+ * @{ */
+/** The guest global address space. */
+#define DBGF_AS_GLOBAL              ((RTDBGAS)-1)
+/** The guest kernel address space.
+ * This is usually resolves to the same as DBGF_AS_GLOBAL. */
+#define DBGF_AS_KERNEL              ((RTDBGAS)-2)
+/** The physical address space. */
+#define DBGF_AS_PHYS                ((RTDBGAS)-3)
+/** Raw-mode context. */
+#define DBGF_AS_RC                  ((RTDBGAS)-4)
+/** Ring-0 context. */
+#define DBGF_AS_R0                  ((RTDBGAS)-5)
+/** Raw-mode context and then global guest context.
+ * When used for looking up information, it works as if the call was first made
+ * with DBGF_AS_RC and then on failure with DBGF_AS_GLOBAL. When called for
+ * making address space changes, it works as if DBGF_AS_RC was used. */
+#define DBGF_AS_RC_AND_GC_GLOBAL    ((RTDBGAS)-6)
+
+/** The first special one. */
+#define DBGF_AS_FIRST               DBGF_AS_RC_AND_GC_GLOBAL
+/** The last special one. */
+#define DBGF_AS_LAST                DBGF_AS_GLOBAL
+/** The number of special address space handles. */
+#define DBGF_AS_COUNT               (6U)
+/** Converts an alias handle to an array index. */
+#define DBGF_AS_ALIAS_2_INDEX(hAlias) \
+    ( (uintptr_t)(hAlias) - (uintptr_t)DBGF_AS_FIRST )
+/** Predicat macro that check if the specified handle is an alias. */
+#define DBGF_AS_IS_ALIAS(hAlias) \
+    ( DBGF_AS_ALIAS_2_INDEX(hAlias)  <  DBGF_AS_COUNT )
+/** Predicat macro that check if the specified alias is a fixed one or not. */
+#define DBGF_AS_IS_FIXED_ALIAS(hAlias) \
+    ( DBGF_AS_ALIAS_2_INDEX(hAlias)  <  (uintptr_t)DBGF_AS_PHYS - (uintptr_t)DBGF_AS_FIRST + 1U )
+
+/** @} */
+
+VMMR3DECL(int)          DBGFR3AsAdd(PVM pVM, RTDBGAS hDbgAs, RTPROCESS ProcId);
+VMMR3DECL(int)          DBGFR3AsDelete(PVM pVM, RTDBGAS hDbgAs);
+VMMR3DECL(int)          DBGFR3AsSetAlias(PVM pVM, RTDBGAS hAlias, RTDBGAS hAliasFor);
+VMMR3DECL(RTDBGAS)      DBGFR3AsResolve(PVM pVM, RTDBGAS hAlias);
+VMMR3DECL(RTDBGAS)      DBGFR3AsResolveAndRetain(PVM pVM, RTDBGAS hAlias);
+VMMR3DECL(RTDBGAS)      DBGFR3AsQueryByName(PVM pVM, const char *pszName);
+VMMR3DECL(RTDBGAS)      DBGFR3AsQueryByPid(PVM pVM, RTPROCESS ProcId);
+
+VMMR3DECL(int)          DBGFR3AsLoadImage(PVM pVM, RTDBGAS hDbgAs, const char *pszFilename, const char *pszModName, PCDBGFADDRESS pModAddress, RTDBGSEGIDX iModSeg, uint32_t fFlags);
+VMMR3DECL(int)          DBGFR3AsLoadMap(PVM pVM, RTDBGAS hDbgAs, const char *pszFilename, const char *pszModName, PCDBGFADDRESS pModAddress, RTDBGSEGIDX iModSeg, RTGCUINTPTR uSubtrahend, uint32_t fFlags);
+VMMR3DECL(int)          DBGFR3AsLinkModule(PVM pVM, RTDBGAS hDbgAs, RTDBGMOD hMod, PCDBGFADDRESS pModAddress, RTDBGSEGIDX iModSeg, uint32_t fFlags);
+
+/* The following are soon to be obsoleted: */
 VMMR3DECL(int)          DBGFR3ModuleLoad(PVM pVM, const char *pszFilename, RTGCUINTPTR AddressDelta, const char *pszName, RTGCUINTPTR ModuleAddress, unsigned cbImage);
 VMMR3DECL(void)         DBGFR3ModuleRelocate(PVM pVM, RTGCUINTPTR OldImageBase, RTGCUINTPTR NewImageBase, RTGCUINTPTR cbImage,
                                              const char *pszFilename, const char *pszName);
@@ -630,6 +681,8 @@ typedef enum DBGFRETRUNTYPE
     DBGFRETURNTYPE_IRET32_V86,
     /** @todo 64-bit iret return. */
     DBGFRETURNTYPE_IRET64,
+    /** The end of the valid return types. */
+    DBGFRETURNTYPE_END,
     /** The usual 32-bit blowup. */
     DBGFRETURNTYPE_32BIT_HACK = 0x7fffffff
 } DBGFRETURNTYPE;
@@ -663,6 +716,8 @@ DECLINLINE(unsigned) DBGFReturnTypeSize(DBGFRETURNTYPE enmRetType)
 
 /** Pointer to stack frame info. */
 typedef struct DBGFSTACKFRAME *PDBGFSTACKFRAME;
+/** Pointer to const stack frame info. */
+typedef struct DBGFSTACKFRAME const  *PCDBGFSTACKFRAME;
 /**
  * Info about a stack frame.
  */
@@ -718,10 +773,10 @@ typedef struct DBGFSTACKFRAME
 
     /** Pointer to the next frame.
      * Might not be used in some cases, so consider it internal. */
-    PDBGFSTACKFRAME pNext;
+    PCDBGFSTACKFRAME pNextInternal;
     /** Pointer to the first frame.
      * Might not be used in some cases, so consider it internal. */
-    PDBGFSTACKFRAME pFirst;
+    PCDBGFSTACKFRAME pFirstInternal;
 } DBGFSTACKFRAME;
 
 /** @name DBGFSTACKFRAME Flags.
@@ -738,10 +793,29 @@ typedef struct DBGFSTACKFRAME
 #define DBGFSTACKFRAME_FLAGS_MAX_DEPTH  RT_BIT(3)
 /** @} */
 
-VMMR3DECL(int) DBGFR3StackWalkBeginGuest(PVM pVM, PDBGFSTACKFRAME pFrame);
-VMMR3DECL(int) DBGFR3StackWalkBeginHyper(PVM pVM, PDBGFSTACKFRAME pFrame);
-VMMR3DECL(int) DBGFR3StackWalkNext(PVM pVM, PDBGFSTACKFRAME pFrame);
-VMMR3DECL(void) DBGFR3StackWalkEnd(PVM pVM, PDBGFSTACKFRAME pFrame);
+/** @name DBGFCODETYPE
+ * @{ */
+typedef enum DBGFCODETYPE
+{
+    /** The usual invalid 0 value. */
+    DBGFCODETYPE_INVALID = 0,
+    /** Stack walk for guest code. */
+    DBGFCODETYPE_GUEST,
+    /** Stack walk for hypervisor code. */
+    DBGFCODETYPE_HYPER,
+    /** Stack walk for ring 0 code. */
+    DBGFCODETYPE_RING0,
+    /** The usual 32-bit blowup. */
+    DBGFCODETYPE_32BIT_HACK = 0x7fffffff
+} DBGFCODETYPE;
+/** @} */
+
+VMMR3DECL(int)              DBGFR3StackWalkBegin(PVM pVM, VMCPUID idCpu, DBGFCODETYPE enmCodeType, PCDBGFSTACKFRAME *ppFirstFrame);
+VMMR3DECL(int)              DBGFR3StackWalkBeginEx(PVM pVM, VMCPUID idCpu, DBGFCODETYPE enmCodeType, PCDBGFADDRESS pAddrFrame,
+                                                   PCDBGFADDRESS pAddrStack,PCDBGFADDRESS pAddrPC,
+                                                   DBGFRETURNTYPE enmReturnType, PCDBGFSTACKFRAME *ppFirstFrame);
+VMMR3DECL(PCDBGFSTACKFRAME) DBGFR3StackWalkNext(PCDBGFSTACKFRAME pCurrent);
+VMMR3DECL(void)             DBGFR3StackWalkEnd(PCDBGFSTACKFRAME pFirstFrame);
 
 
 
@@ -765,45 +839,57 @@ VMMR3DECL(void) DBGFR3StackWalkEnd(PVM pVM, PDBGFSTACKFRAME pFrame);
 /** Special flat selector. */
 #define DBGF_SEL_FLAT                       1
 
-VMMR3DECL(int) DBGFR3DisasInstrEx(PVM pVM, RTSEL Sel, RTGCPTR GCPtr, unsigned fFlags, char *pszOutput, uint32_t cchOutput, uint32_t *pcbInstr);
-VMMR3DECL(int) DBGFR3DisasInstr(PVM pVM, RTSEL Sel, RTGCPTR GCPtr, char *pszOutput, uint32_t cbOutput);
-VMMR3DECL(int) DBGFR3DisasInstrCurrent(PVM pVM, char *pszOutput, uint32_t cbOutput);
-VMMR3DECL(int) DBGFR3DisasInstrCurrentLogInternal(PVM pVM, const char *pszPrefix);
+VMMR3DECL(int) DBGFR3DisasInstrEx(PVM pVM, VMCPUID idCpu, RTSEL Sel, RTGCPTR GCPtr, unsigned fFlags, char *pszOutput, uint32_t cchOutput, uint32_t *pcbInstr);
+VMMR3DECL(int) DBGFR3DisasInstrCurrent(PVMCPU pVCpu, char *pszOutput, uint32_t cbOutput);
+VMMR3DECL(int) DBGFR3DisasInstrCurrentLogInternal(PVMCPU pVCpu, const char *pszPrefix);
 
 /** @def DBGFR3DisasInstrCurrentLog
  * Disassembles the current guest context instruction and writes it to the log.
  * All registers and data will be displayed. Addresses will be attempted resolved to symbols.
  */
 #ifdef LOG_ENABLED
-# define DBGFR3DisasInstrCurrentLog(pVM, pszPrefix) \
+# define DBGFR3DisasInstrCurrentLog(pVCpu, pszPrefix) \
     do { \
         if (LogIsEnabled()) \
-            DBGFR3DisasInstrCurrentLogInternal(pVM, pszPrefix); \
+            DBGFR3DisasInstrCurrentLogInternal(pVCpu, pszPrefix); \
     } while (0)
 #else
-# define DBGFR3DisasInstrCurrentLog(pVM, pszPrefix) do { } while (0)
+# define DBGFR3DisasInstrCurrentLog(pVCpu, pszPrefix) do { } while (0)
 #endif
 
-VMMR3DECL(int) DBGFR3DisasInstrLogInternal(PVM pVM, RTSEL Sel, RTGCPTR GCPtr);
+VMMR3DECL(int) DBGFR3DisasInstrLogInternal(PVMCPU pVCpu, RTSEL Sel, RTGCPTR GCPtr);
 
 /** @def DBGFR3DisasInstrLog
  * Disassembles the specified guest context instruction and writes it to the log.
  * Addresses will be attempted resolved to symbols.
+ * @thread Any EMT.
  */
 #ifdef LOG_ENABLED
-# define DBGFR3DisasInstrLog(pVM, Sel, GCPtr) \
+# define DBGFR3DisasInstrLog(pVCpu, Sel, GCPtr) \
     do { \
         if (LogIsEnabled()) \
-            DBGFR3DisasInstrLogInternal(pVM, Sel, GCPtr); \
+            DBGFR3DisasInstrLogInternal(pVCpu, Sel, GCPtr); \
     } while (0)
 #else
-# define DBGFR3DisasInstrLog(pVM, Sel, GCPtr) do { } while (0)
+# define DBGFR3DisasInstrLog(pVCpu, Sel, GCPtr) do { } while (0)
 #endif
 
 
-VMMR3DECL(int) DBGFR3MemScan(PVM pVM, PCDBGFADDRESS pAddress, RTGCUINTPTR cbRange, const uint8_t *pabNeedle, size_t cbNeedle, PDBGFADDRESS pHitAddress);
-VMMR3DECL(int) DBGFR3MemRead(PVM pVM, PCDBGFADDRESS pAddress, void *pvBuf, size_t cbRead);
-VMMR3DECL(int) DBGFR3MemReadString(PVM pVM, PCDBGFADDRESS pAddress, char *pszBuf, size_t cbBuf);
+VMMR3DECL(int) DBGFR3MemScan(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, RTGCUINTPTR cbRange, const uint8_t *pabNeedle, size_t cbNeedle, PDBGFADDRESS pHitAddress);
+VMMR3DECL(int) DBGFR3MemRead(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void *pvBuf, size_t cbRead);
+VMMR3DECL(int) DBGFR3MemReadString(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, char *pszBuf, size_t cbBuf);
+VMMR3DECL(int) DBGFR3MemWrite(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void const *pvBuf, size_t cbRead);
+
+
+/** @name DBGFR3SelQueryInfo flags.
+ * @{ */
+/** Get the info from the guest descriptor table. */
+#define DBGFSELQI_FLAGS_DT_GUEST        UINT32_C(0)
+/** Get the info from the shadow descriptor table.
+ * Only works in raw-mode.  */
+#define DBGFSELQI_FLAGS_DT_SHADOW       UINT32_C(1)
+/** @} */
+VMMR3DECL(int) DBGFR3SelQueryInfo(PVM pVM, VMCPUID idCpu, RTSEL Sel, uint32_t fFlags, PDBGFSELINFO pSelInfo);
 
 
 /**
@@ -954,7 +1040,7 @@ VMMR3DECL(void *)   DBGFR3OSQueryInterface(PVM pVM, DBGFOSINTERFACE enmIf);
 /** @} */
 
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

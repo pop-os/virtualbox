@@ -103,6 +103,8 @@ OBJS   = \
 	common/log/logrelellipsis.o \
 	common/log/logcom.o \
 	common/log/logformat.o \
+	common/misc/handletable.o \
+	common/misc/handletablectx.o \
 	common/string/strformat.o \
 	common/string/strformatrt.o \
 	common/string/strformattype.o \
@@ -150,7 +152,7 @@ ifeq ($(KERNELRELEASE),)
 		      KERN_DIR=<directory> and run Make again.)
   endif
   # check if versions match -- works only for later 2.6 kernels
-  VBOX_KERN_VER := $(shell $(MAKE) -sC $(KERN_DIR) kernelrelease 2> /dev/null || true)
+  VBOX_KERN_VER := $(shell $(MAKE) -sC $(KERN_DIR) --no-print-directory kernelrelease 2> /dev/null || true)
   ifneq ($(VBOX_KERN_VER),)
    ifneq ($(VBOX_KERN_VER),$(shell uname -r))
     $(error Error: /usr/src/linux (version $(VBOX_KERN_VER)) does not match \

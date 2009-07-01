@@ -34,7 +34,7 @@
 #include <VBox/types.h>
 #include <VBox/dis.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 
 /** @defgroup grp_iom   The Input / Ouput Monitor API
@@ -212,9 +212,12 @@ VMMDECL(int)  IOMInterpretOUTS(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCp
 VMMDECL(int)  IOMInterpretOUTSEx(PVM pVM, PCPUMCTXCORE pRegFrame, uint32_t uPort, uint32_t uPrefix, uint32_t cbTransfer);
 VMMDECL(int)  IOMMMIORead(PVM pVM, RTGCPHYS GCPhys, uint32_t *pu32Value, size_t cbValue);
 VMMDECL(int)  IOMMMIOWrite(PVM pVM, RTGCPHYS GCPhys, uint32_t u32Value, size_t cbValue);
+VMMDECL(int)  IOMMMIOPhysHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pCtxCore, RTGCPHYS GCPhysFault);
 VMMDECL(int)  IOMInterpretCheckPortIOAccess(PVM pVM, PCPUMCTXCORE pCtxCore, RTIOPORT Port, unsigned cb);
 VMMDECL(int)  IOMMMIOMapMMIO2Page(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysRemapped, uint64_t fPageFlags);
+VMMDECL(int)  IOMMMIOMapMMIOHCPage(PVM pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint64_t fPageFlags);
 VMMDECL(int)  IOMMMIOResetRegion(PVM pVM, RTGCPHYS GCPhys);
+VMMDECL(bool) IOMIsLockOwner(PVM pVM);
 
 #ifdef IN_RC
 /** @defgroup grp_iom_gc    The IOM Guest Context API
@@ -263,13 +266,17 @@ VMMR3DECL(int)  IOMR3MMIORegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhys
                                     RCPTRTYPE(PFNIOMMMIOREAD)  pfnReadCallback,
                                     RCPTRTYPE(PFNIOMMMIOFILL)  pfnFillCallback);
 VMMR3DECL(int)  IOMR3MMIODeregister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTUINT cbRange);
+
+VMMR3DECL(void) IOMR3ReleaseOwnedLocks(PVM pVM);
+VMMR3DECL(PPDMCRITSECT) IOMR3GetCritSect(PVM pVM);
+
 /** @} */
 #endif /* IN_RING3 */
 
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

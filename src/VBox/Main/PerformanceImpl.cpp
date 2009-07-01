@@ -1,4 +1,4 @@
-/* $Id: PerformanceImpl.cpp $ */
+/* $Id: PerformanceImpl.cpp 20826 2009-06-23 12:58:13Z vboxsync $ */
 
 /** @file
  *
@@ -180,7 +180,7 @@ PerformanceCollector::COMGETTER(MetricNames) (ComSafeArrayOut (BSTR, theMetricNa
     com::SafeArray <BSTR> metricNames(RT_ELEMENTS(gMetricNames));
     for (size_t i = 0; i < RT_ELEMENTS(gMetricNames); i++)
     {
-        gMetricNames[i].detachTo(&metricNames[i]);
+        Bstr(gMetricNames[i]).cloneTo(&metricNames[i]);
     }
     //gMetricNames.detachTo(ComSafeArrayOutArg (theMetricNames));
     metricNames.detachTo (ComSafeArrayOutArg (theMetricNames));

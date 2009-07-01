@@ -1,4 +1,4 @@
-/* $Id: RTRandAdvCreateSystemFaster-generic.cpp $ */
+/* $Id: RTRandAdvCreateSystemFaster-generic.cpp 13908 2008-11-06 11:53:47Z vboxsync $ */
 /** @file
  * IPRT - Random Numbers, generic RTRandAdvCreateSystemFaster.
  */

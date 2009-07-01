@@ -1,4 +1,4 @@
-; $Id: SUPR0.def $
+; $Id: SUPR0.def 20315 2009-06-05 12:10:39Z vboxsync $
 ;; @file
 ; VirtualBox Support Driver - Built-in exports.
 ;
@@ -53,6 +53,17 @@ EXPORTS
     SUPR0MemGetPhys
     SUPR0MemFree
     SUPR0Printf
+    SUPSemEventCreate
+    SUPSemEventClose
+    SUPSemEventSignal
+    SUPSemEventWait
+    SUPSemEventWaitNoResume
+    SUPSemEventMultiCreate
+    SUPSemEventMultiClose
+    SUPSemEventMultiSignal
+    SUPSemEventMultiReset
+    SUPSemEventMultiWait
+    SUPSemEventMultiWaitNoResume
     SUPR0GetPagingMode
     SUPR0EnableVTx
     RTMemAlloc
@@ -73,6 +84,7 @@ EXPORTS
     RTR0MemObjIsMapping
     RTR0MemObjGetPagePhysAddr
     RTR0MemObjFree
+    RTProcSelf
     ; broken - RTSemMutexCreate
     ; broken - RTSemMutexRequest
     ; broken - RTSemMutexRelease
@@ -99,16 +111,21 @@ EXPORTS
     RTSpinlockAcquireNoInts
     RTSpinlockReleaseNoInts
     RTTimeNanoTS
-    RTTimeMillieTS
+    RTTimeMilliTS
     RTTimeSystemNanoTS
-    RTTimeSystemMillieTS
+    RTTimeSystemMilliTS
     RTThreadSelf
     RTThreadNativeSelf
     RTThreadSleep
     RTThreadYield
+    RTThreadPreemptIsEnabled
+    RTThreadPreemptIsPending
+    RTThreadPreemptDisable
+    RTThreadPreemptRestore
     RTMpOnAll
     RTMpOnOthers
     RTMpOnSpecific
+    RTMpPokeCpu
     RTMpIsCpuOnline
     RTMpGetCount
     RTMpCpuIdToSetIndex

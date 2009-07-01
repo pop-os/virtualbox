@@ -20,31 +20,33 @@
  * additional information or have any questions.
  */
 
+/* VBox includes */
 #include "VBoxConsoleWnd.h"
 #include "VBoxConsoleView.h"
 #include "VBoxCloseVMDlg.h"
-#include "VBoxTakeSnapshotDlg.h"
+#include "VBoxDownloaderWgt.h"
+#include "VBoxGlobal.h"
 #include "VBoxMediaManagerDlg.h"
+#include "VBoxMiniToolBar.h"
+#include "VBoxProblemReporter.h"
+#include "VBoxTakeSnapshotDlg.h"
 #include "VBoxVMFirstRunWzd.h"
 #include "VBoxVMSettingsSF.h"
 #include "VBoxVMInformationDlg.h"
-#include "VBoxDownloaderWgt.h"
-#include "VBoxGlobal.h"
-#include "VBoxProblemReporter.h"
-
-#include "QIStateIndicator.h"
-#include "QIStatusBar.h"
+#include "QIFileDialog.h"
 #include "QIHotKeyEdit.h"
 #include "QIHttp.h"
+#include "QIStateIndicator.h"
+#include "QIStatusBar.h"
 
 /* Qt includes */
 #include <QActionGroup>
 #include <QDesktopWidget>
-#include <QMenuBar>
-#include <QFileInfo>
 #include <QDir>
-#include <QTimer>
+#include <QFileInfo>
+#include <QMenuBar>
 #include <QProgressBar>
+#include <QTimer>
 #ifdef Q_WS_X11
 # include <QX11Info>
 #endif
@@ -157,7 +159,7 @@ private slots:
                         .arg (QDir::toNativeSeparators (mTarget)));
                 }
 
-                QString target = vboxGlobal().getExistingDirectory (
+                QString target = QIFileDialog::getExistingDirectory (
                     QFileInfo (mTarget).absolutePath(), this,
                     tr ("Select folder to save Guest Additions image to"), true);
                 if (target.isNull())
@@ -503,6 +505,21 @@ VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent,
 
     mHelpActions.addTo (mHelpMenu);
 
+    /* Machine submenu for mini toolbar */
+    mMiniVMMenu = new QMenu (this);
+    mMiniVMMenu->addAction (mVmTypeCADAction);
+#ifdef Q_WS_X11
+    mMiniVMMenu->addAction (mVmTypeCABSAction);
+#endif
+    mMiniVMMenu->addSeparator();
+    mMiniVMMenu->addAction (mVmTakeSnapshotAction);
+    mMiniVMMenu->addSeparator();
+    mMiniVMMenu->addAction (mVmShowInformationDlgAction);
+    mMiniVMMenu->addSeparator();
+    mMiniVMMenu->addAction (mVmResetAction);
+    mMiniVMMenu->addAction (mVmPauseAction);
+    mMiniVMMenu->addAction (mVmACPIShutdownAction);
+
     ///// Status bar ////////////////////////////////////////////////////////
 
     QWidget *indicatorBox = new QWidget ();
@@ -789,14 +806,24 @@ bool VBoxConsoleWnd::openView (const CSession &session)
     CConsole cconsole = csession.GetConsole();
     AssertWrapperOk (csession);
 
-    console = new VBoxConsoleView (this, cconsole, mode,
-                                   centralWidget());
-
-    activateUICustomizations();
-
-    static_cast<QGridLayout*>(centralWidget()->layout())->addWidget(console, 1, 1, Qt::AlignVCenter | Qt::AlignHCenter);
+    console = new VBoxConsoleView (this, cconsole, mode, centralWidget());
+    static_cast <QGridLayout*> (centralWidget()->layout())->addWidget (console, 1, 1, Qt::AlignVCenter | Qt::AlignHCenter);
 
     CMachine cmachine = csession.GetMachine();
+
+    /* Mini toolbar */
+    bool isActive = !(cmachine.GetExtraData (VBoxDefs::GUI_ShowMiniToolBar) == "no");
+    bool isAutoHide = !(cmachine.GetExtraData (VBoxDefs::GUI_MiniToolBarAutoHide) == "off");
+    QList <QMenu*> menus (QList <QMenu*> () << mMiniVMMenu << mDevicesMenu);
+    mMiniToolBar = new VBoxMiniToolBar (centralWidget(), VBoxMiniToolBar::AlignBottom,
+                                        isActive, isAutoHide);
+    *mMiniToolBar << menus;
+    connect (mMiniToolBar, SIGNAL (exitAction()), this, SLOT (mtExitMode()));
+    connect (mMiniToolBar, SIGNAL (closeAction()), this, SLOT (mtCloseVM()));
+    connect (mMiniToolBar, SIGNAL (geometryUpdated()), this, SLOT (mtMaskUpdate()));
+    connect (this, SIGNAL (closing()), mMiniToolBar, SLOT (close()));
+
+    activateUICustomizations();
 
     /* Set the VM-specific application icon */
     /* Not on Mac OS X. The dock icon is handled below. */
@@ -998,7 +1025,8 @@ void VBoxConsoleWnd::finalizeOpenView()
     }
 
     /* start the VM */
-    CProgress progress = vboxGlobal().isDebuggerAutoShowEnabled()
+    CProgress progress =    vboxGlobal().isStartPausedEnabled()
+                         || vboxGlobal().isDebuggerAutoShowEnabled()
                        ? cconsole.PowerUpPaused()
                        : cconsole.PowerUp();
 
@@ -1074,17 +1102,19 @@ void VBoxConsoleWnd::finalizeOpenView()
             rct = desktop->availableGeometry(pos());
         move (QPoint (rct.x(), rct.y()));
 
-        dbgShowStatistics();
-        dbgShowCommandLine();
+        if (vboxGlobal().isDebuggerAutoShowStatisticsEnabled())
+            dbgShowStatistics();
+        if (vboxGlobal().isDebuggerAutoShowCommandLineEnabled())
+            dbgShowCommandLine();
+
+        if (!vboxGlobal().isStartPausedEnabled())
+            console->pause (false);
     }
 #endif
 
     mIsOpenViewFinished = true;
     LogFlowFuncLeave();
 
-#ifdef VBOX_WITH_REGISTRATION_REQUEST
-    vboxGlobal().showRegistrationDialog (false /* aForce */);
-#endif
 #ifdef VBOX_WITH_UPDATE_REQUEST
     vboxGlobal().showUpdateDialog (false /* aForce */);
 #endif
@@ -1421,7 +1451,7 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *e)
                 else
                 if (dlg.mRbPowerOff->isChecked())
                 {
-                    CProgress progress = cconsole.PowerDownAsync();
+                    CProgress progress = cconsole.PowerDown();
 
                     if (cconsole.isOk())
                     {
@@ -1548,6 +1578,8 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *e)
                               mVmSeamlessAction->isChecked() ? "on" : "off");
         machine.SetExtraData (VBoxDefs::GUI_AutoresizeGuest,
                               mVmAutoresizeGuestAction->isChecked() ? "on" : "off");
+        machine.SetExtraData (VBoxDefs::GUI_MiniToolBarAutoHide,
+                              mMiniToolBar->isAutoHide() ? "on" : "off");
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
         /* Close & destroy the debugger GUI */
@@ -1706,7 +1738,8 @@ void VBoxConsoleWnd::retranslateUi()
     mDevicesSFDialogAction->setStatusTip (
         tr ("Open the dialog to operate on shared folders"));
 
-    mDevicesInstallGuestToolsAction->setText (tr ("&Install Guest Additions..."));
+    mDevicesInstallGuestToolsAction->setText (VBoxGlobal::insertKeyToActionText (tr ("&Install Guest Additions..."),
+                                                                                 "D"));
     mDevicesInstallGuestToolsAction->setStatusTip (
         tr ("Mount the Guest Additions installation image"));
 
@@ -1736,6 +1769,8 @@ void VBoxConsoleWnd::retranslateUi()
 
     mVMMenu->setTitle (tr ("&Machine"));
 //    mVMMenu->setIcon (VBoxGlobal::iconSet (":/machine_16px.png"));
+
+    mMiniVMMenu->setTitle (tr ("&Machine"));
 
     mDevicesMenu->setTitle (tr ("&Devices"));
 //    mDevicesMenu->setIcon (VBoxGlobal::iconSet (":/settings_16px.png"));
@@ -1801,6 +1836,7 @@ void VBoxConsoleWnd::updateAppearanceOf (int element)
         setWindowTitle (cmachine.GetName() + snapshotName +
                         " [" + vboxGlobal().toString (machine_state) + "] - " +
                         caption_prefix);
+        mMiniToolBar->setDisplayText (cmachine.GetName() + snapshotName);
 //#ifdef Q_WS_MAC
 //        SetWindowTitleWithCFString (reinterpret_cast <WindowPtr> (this->winId()), CFSTR("sfds"));
 //SetWindowAlternateTitle
@@ -2074,23 +2110,29 @@ void VBoxConsoleWnd::updateAppearanceOf (int element)
     if (element & VirtualizationStuff)
     {
         bool virtEnabled = cconsole.GetDebugger().GetHWVirtExEnabled();
-        bool nestEnabled = cconsole.GetDebugger().GetHWVirtExNestedPagingEnabled();
-
-        QString tip (tr("<qt>Indicates the status of the hardware virtualization "
-                        "features used by this virtual machine:<br>"
-                        "<nobr><b>%1:</b>&nbsp;%2</nobr><br>"
-                        "<nobr><b>%3:</b>&nbsp;%4</nobr></qt>"));
         QString virtualization = virtEnabled ?
             VBoxGlobal::tr ("Enabled", "details report (VT-x/AMD-V)") :
             VBoxGlobal::tr ("Disabled", "details report (VT-x/AMD-V)");
+
+        bool nestEnabled = cconsole.GetDebugger().GetHWVirtExNestedPagingEnabled();
         QString nestedPaging = nestEnabled ?
             VBoxVMInformationDlg::tr ("Enabled", "nested paging") :
             VBoxVMInformationDlg::tr ("Disabled", "nested paging");
 
-        mVirtLed->setToolTip (tip
-            .arg (VBoxGlobal::tr ("VT-x/AMD-V", "details report"), virtualization)
-            .arg (VBoxVMInformationDlg::tr ("Nested Paging"), nestedPaging));
+        QString tip (tr ("Indicates the status of the hardware virtualization "
+                         "features used by this virtual machine:"
+                         "<br><nobr><b>%1:</b>&nbsp;%2</nobr>"
+                         "<br><nobr><b>%3:</b>&nbsp;%4</nobr>",
+                         "Virtualization Stuff LED")
+                         .arg (VBoxGlobal::tr ("VT-x/AMD-V", "details report"), virtualization)
+                         .arg (VBoxVMInformationDlg::tr ("Nested Paging"), nestedPaging));
 
+        int cpuCount = cconsole.GetMachine().GetCPUCount();
+        if (cpuCount > 1)
+            tip += tr ("<br><nobr><b>%1:</b>&nbsp;%2</nobr>", "Virtualization Stuff LED")
+                      .arg (VBoxGlobal::tr ("Processor(s)", "details report")).arg (cpuCount);
+
+        mVirtLed->setToolTip (tip);
         mVirtLed->setState (virtEnabled);
     }
     if (element & PauseAction)
@@ -2144,20 +2186,25 @@ void VBoxConsoleWnd::checkRequiredFeatures()
 
     CConsole cconsole = console->console();
 
-    /* Check if the virtualization feature is required */
-    bool is64BitsGuest = vboxGlobal().virtualBox().GetGuestOSType (
-                         cconsole.GetGuest().GetOSTypeId()).GetIs64Bit();
-    bool isVirtExRecommended = vboxGlobal().virtualBox().GetGuestOSType (
-                               cconsole.GetGuest().GetOSTypeId()).GetRecommendedVirtEx();
-    Assert (!is64BitsGuest || isVirtExRecommended);
-    bool isVirtExEnabled = cconsole.GetDebugger().GetHWVirtExEnabled();
-    if (isVirtExRecommended && !isVirtExEnabled)
+    /* Check if the virtualization feature is required. */
+    bool is64BitsGuest    = vboxGlobal().virtualBox().GetGuestOSType (
+                            cconsole.GetGuest().GetOSTypeId()).GetIs64Bit();
+    bool fRecommendVirtEx = vboxGlobal().virtualBox().GetGuestOSType (
+                            cconsole.GetGuest().GetOSTypeId()).GetRecommendedVirtEx();
+    Assert(!is64BitsGuest || fRecommendVirtEx);
+    bool isVirtEnabled    = cconsole.GetDebugger().GetHWVirtExEnabled();
+    if (fRecommendVirtEx && !isVirtEnabled)
     {
-        vmPause (true);
-        bool ret = is64BitsGuest ? vboxProblem().warnAboutVirtNotEnabled64BitsGuest() :
-                                   vboxProblem().warnAboutVirtNotEnabledGuestRequired();
+        bool ret;
 
-        if (ret)
+        vmPause (true);
+
+        if (is64BitsGuest)
+            ret = vboxProblem().warnAboutVirtNotEnabled64BitsGuest();
+        else
+            ret = vboxProblem().warnAboutVirtNotEnabledGuestRequired();
+
+        if (ret == true)
             close();
         else
             vmPause (false);
@@ -2317,14 +2364,12 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
 #endif
 
         /* Hide all but the central widget containing the console view. */
-        QList<QWidget *> list = findChildren<QWidget *>();
+        QList <QWidget*> list (findChildren <QWidget*> ());
+        QList <QWidget*> excludes;
+        excludes << centralWidget() << centralWidget()->findChildren <QWidget*> ();
         foreach (QWidget *w, list)
         {
-            /* todo: The list is now recursive. So think about a better way to
-             * prevent the childrens of the centralWidget to be hidden */
-            if (w != centralWidget() &&
-                w != console &&
-                w != console->viewport())
+            if (!excludes.contains (w))
             {
                 if (!w->isHidden())
                 {
@@ -2391,8 +2436,22 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
     if ((mIsFullscreen || mIsSeamless) && (consoleSize != initialSize))
         mIsWaitingModeResize = true;
 
+    if (!aOn)
+    {
+        /* Animation takes a bit long, the mini toolbar is still disappearing
+         * when switched to normal mode so hide it completely */
+        mMiniToolBar->hide();
+        mMiniToolBar->updateDisplay (false, true);
+    }
+
     /* Toggle qt full-screen mode */
     switchToFullscreen (aOn, aSeamless);
+
+    if (aOn)
+    {
+        mMiniToolBar->setSeamlessMode (aSeamless);
+        mMiniToolBar->updateDisplay (true, true);
+    }
 
 #ifdef Q_WS_MAC
     if (aOn && aSeamless)
@@ -2509,6 +2568,25 @@ void VBoxConsoleWnd::setViewInSeamlessMode (const QRect &aTargetRect)
 #else // !Q_WS_MAC
     NOREF (aTargetRect);
 #endif // !Q_WS_MAC
+}
+
+void VBoxConsoleWnd::mtExitMode()
+{
+    if (mIsSeamless)
+        mVmSeamlessAction->toggle();
+    else
+        mVmFullscreenAction->toggle();
+}
+
+void VBoxConsoleWnd::mtCloseVM()
+{
+    mVmCloseAction->trigger();
+}
+
+void VBoxConsoleWnd::mtMaskUpdate()
+{
+    if (mIsSeamless)
+        setMask (console->lastVisibleRegion());
 }
 
 void VBoxConsoleWnd::vmFullscreen (bool aOn)
@@ -2662,7 +2740,7 @@ void VBoxConsoleWnd::vmTakeSnapshot()
     int maxSnapShotIndex = 0;
     QString snapShotName = tr ("Snapshot %1");
     QRegExp regExp (QString ("^") + snapShotName.arg ("([0-9]+)") + QString ("$"));
-    CSnapshot index = cmachine.GetSnapshot (QUuid());
+    CSnapshot index = cmachine.GetSnapshot (QString::null);
     while (!index.isNull())
     {
         /* Check the current snapshot name */
@@ -2892,7 +2970,7 @@ void VBoxConsoleWnd::devicesInstallGuestAdditions()
 void VBoxConsoleWnd::installGuestAdditionsFrom (const QString &aSource)
 {
     CVirtualBox vbox = vboxGlobal().virtualBox();
-    QUuid uuid;
+    QString uuid;
 
     CDVDImage image = vbox.FindDVDImage (aSource);
     if (image.isNull())
@@ -2927,8 +3005,15 @@ void VBoxConsoleWnd::installGuestAdditionsFrom (const QString &aSource)
 void VBoxConsoleWnd::setMask (const QRegion &aRegion)
 {
     QRegion region = aRegion;
+
     /* The global mask shift cause of toolbars and such things. */
     region.translate (mMaskShift.width(), mMaskShift.height());
+
+    /* Including mini toolbar area */
+    QRegion toolBarRegion (mMiniToolBar->mask());
+    toolBarRegion.translate (mMiniToolBar->mapToGlobal (toolBarRegion.boundingRect().topLeft()) - QPoint (1, 0));
+    region += toolBarRegion;
+
     /* Restrict the drawing to the available space on the screen.
      * (The &operator is better than the previous used -operator,
      * because this excludes space around the real screen also.

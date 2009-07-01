@@ -1,4 +1,4 @@
-/* $Id: MMPagePool.cpp $ */
+/* $Id: MMPagePool.cpp 20866 2009-06-23 19:33:23Z vboxsync $ */
 /** @file
  * MM - Memory Manager - Page Pool.
  */
@@ -67,7 +67,7 @@ int mmR3PagePoolInit(PVM pVM)
     /** @todo @bufref{1865},@bufref{3202}: mapping the page pool page into
      *        ring-0. Need to change the wasy we allocate it... */
     AssertReleaseReturn(sizeof(*pVM->mm.s.pPagePoolR3) + sizeof(*pVM->mm.s.pPagePoolLowR3) < PAGE_SIZE, VERR_INTERNAL_ERROR);
-    int rc = SUPPageAllocLockedEx(1, (void **)&pVM->mm.s.pPagePoolR3, NULL);
+    int rc = SUPR3PageAllocEx(1, 0 /*fFlags*/, (void **)&pVM->mm.s.pPagePoolR3, NULL /*pR0Ptr*/, NULL /*paPages*/);
     if (RT_FAILURE(rc))
         return rc;
     memset(pVM->mm.s.pPagePoolR3, 0, PAGE_SIZE);
@@ -122,7 +122,7 @@ void mmR3PagePoolTerm(PVM pVM)
         while (pSubPool)
         {
             int rc = SUPR3PageFreeEx(pSubPool->pvPages, pSubPool->cPages);
-            AssertMsgRC(rc, ("SUPPageFree(%p) failed with rc=%Rrc\n", pSubPool->pvPages, rc));
+            AssertMsgRC(rc, ("SUPR3PageFreeEx(%p) failed with rc=%Rrc\n", pSubPool->pvPages, rc));
             pSubPool->pvPages = NULL;
 
             /* next */
@@ -143,8 +143,8 @@ void mmR3PagePoolTerm(PVM pVM)
         PMMPAGESUBPOOL  pSubPool = pVM->mm.s.pPagePoolLowR3->pHead;
         while (pSubPool)
         {
-            int rc = SUPLowFree(pSubPool->pvPages, pSubPool->cPages);
-            AssertMsgRC(rc, ("SUPPageFree(%p) failed with rc=%d\n", pSubPool->pvPages, rc));
+            int rc = SUPR3LowFree(pSubPool->pvPages, pSubPool->cPages);
+            AssertMsgRC(rc, ("SUPR3LowFree(%p) failed with rc=%d\n", pSubPool->pvPages, rc));
             pSubPool->pvPages = NULL;
 
             /* next */
@@ -257,7 +257,7 @@ DECLINLINE(void *) mmR3PagePoolAlloc(PMMPAGEPOOL pPool)
                             N_("Failed to lock host %zd bytes of memory (out of memory)"), (size_t)cPages << PAGE_SHIFT);
     }
     else
-        rc = SUPLowAlloc(cPages, &pSub->pvPages, NULL, paPhysPages);
+        rc = SUPR3LowAlloc(cPages, &pSub->pvPages, NULL, paPhysPages);
     if (RT_SUCCESS(rc))
     {
         /*
@@ -396,6 +396,7 @@ DECLINLINE(void) mmR3PagePoolFree(PMMPAGEPOOL pPool, void *pv)
  */
 VMMR3DECL(void *) MMR3PageAlloc(PVM pVM)
 {
+    /* Note: unprotected by locks; currently fine as it's used during init or under the PGM lock */
     return mmR3PagePoolAlloc(pVM->mm.s.pPagePoolR3);
 }
 
@@ -414,6 +415,7 @@ VMMR3DECL(void *) MMR3PageAlloc(PVM pVM)
  */
 VMMR3DECL(RTHCPHYS) MMR3PageAllocPhys(PVM pVM)
 {
+    /* Note: unprotected by locks; currently fine as it's used during init or under the PGM lock */
     /** @todo optimize this, it's the most common case now. */
     void *pv = mmR3PagePoolAlloc(pVM->mm.s.pPagePoolR3);
     if (pv)

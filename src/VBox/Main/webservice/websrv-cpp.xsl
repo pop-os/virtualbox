@@ -9,7 +9,7 @@
         web service; our generated code automatically maps
         all SOAP calls into COM/XPCOM method calls.
 
-     Copyright (C) 2006-2008 Sun Microsystems, Inc.
+     Copyright (C) 2006-2009 Sun Microsystems, Inc.
 
      This file is part of VirtualBox Open Source Edition (OSE), as
      available from http://www.virtualbox.org. This file is free software;
@@ -65,7 +65,7 @@
 #include <VBox/com/string.h>
 #include <VBox/com/Guid.h>
 #include <VBox/com/ErrorInfo.h>
-#include <VBox/com/errorprint2.h>
+#include <VBox/com/errorprint.h>
 #include <VBox/com/EventQueue.h>
 #include <VBox/com/VirtualBox.h>
 #include <VBox/err.h>
@@ -411,65 +411,20 @@ const char *g_pcszIUnknown = "IUnknown";
 </xsl:template>
 
 <!--
-    emitCppTypeForWSDLType:
+    emitCppTypeForIDLType:
     emits the C++ type that corresponds to the given WSDL type in $type.
     -->
-<xsl:template name="emitCppTypeForWSDLType">
+<xsl:template name="emitCppTypeForIDLType">
   <xsl:param name="method" />
   <xsl:param name="type" />
   <xsl:param name="safearray" />
   <xsl:param name="varprefix" />      <!-- only with nested get-attribute calls -->
   <xsl:param name="inptr" />          <!-- whether to add INPTR to BSTR (Dmitry template magic) -->
 
+  <!-- look up C++ glue type from IDL type from table array in websrv-shared.inc.xsl -->
+  <xsl:variable name="gluetypefield" select="exsl:node-set($G_aSharedTypes)/type[@idlname=$type]/@gluename" />
+
   <xsl:choose>
-    <xsl:when test="$type='boolean'">
-      <xsl:call-template name="emitTypeOrArray">
-        <xsl:with-param name="type" select="'BOOL'"/>
-        <xsl:with-param name="safearray" select="$safearray"/>
-      </xsl:call-template>
-    </xsl:when>
-    <xsl:when test="$type='short'">
-      <xsl:call-template name="emitTypeOrArray">
-        <xsl:with-param name="type" select="'SHORT'"/>
-        <xsl:with-param name="safearray" select="$safearray"/>
-      </xsl:call-template>
-    </xsl:when>
-    <xsl:when test="$type='unsigned short'">
-      <xsl:call-template name="emitTypeOrArray">
-        <xsl:with-param name="type" select="'USHORT'"/>
-        <xsl:with-param name="safearray" select="$safearray"/>
-      </xsl:call-template>
-    </xsl:when>
-    <xsl:when test="$type='long'">
-      <xsl:call-template name="emitTypeOrArray">
-        <xsl:with-param name="type" select="'LONG'"/>
-        <xsl:with-param name="safearray" select="$safearray"/>
-      </xsl:call-template>
-    </xsl:when>
-    <xsl:when test="$type='unsigned long'">
-      <xsl:call-template name="emitTypeOrArray">
-        <xsl:with-param name="type" select="'ULONG'"/>
-        <xsl:with-param name="safearray" select="$safearray"/>
-      </xsl:call-template>
-    </xsl:when>
-    <xsl:when test="$type='long long'">
-      <xsl:call-template name="emitTypeOrArray">
-        <xsl:with-param name="type" select="'LONG64'"/>
-        <xsl:with-param name="safearray" select="$safearray"/>
-      </xsl:call-template>
-    </xsl:when>
-    <xsl:when test="$type='unsigned long long'">
-      <xsl:call-template name="emitTypeOrArray">
-        <xsl:with-param name="type" select="'ULONG64'"/>
-        <xsl:with-param name="safearray" select="$safearray"/>
-      </xsl:call-template>
-    </xsl:when>
-    <xsl:when test="$type='result'">
-      <xsl:call-template name="emitTypeOrArray">
-        <xsl:with-param name="type" select="'HRESULT'"/>
-        <xsl:with-param name="safearray" select="$safearray"/>
-      </xsl:call-template>
-    </xsl:when>
     <xsl:when test="$type='uuid'">
       <xsl:choose>
         <xsl:when test="$safearray='yes'">
@@ -496,6 +451,13 @@ const char *g_pcszIUnknown = "IUnknown";
           <xsl:value-of select="'com::Bstr'" />
         </xsl:otherwise>
       </xsl:choose>
+    </xsl:when>
+    <!-- if above lookup in table succeeded, use that type -->
+    <xsl:when test="string-length($gluetypefield)">
+      <xsl:call-template name="emitTypeOrArray">
+        <xsl:with-param name="type" select="$gluetypefield"/>
+        <xsl:with-param name="safearray" select="$safearray"/>
+      </xsl:call-template>
     </xsl:when>
     <xsl:when test="//enum[@name=$type]">
       <xsl:call-template name="emitTypeOrArray">
@@ -532,7 +494,7 @@ const char *g_pcszIUnknown = "IUnknown";
     </xsl:when>
     <xsl:otherwise>
       <xsl:call-template name="fatalError">
-        <xsl:with-param name="msg" select="concat('emitOutputArgBuffer: Type &quot;', $type, '&quot; in arg &quot;', $name, '&quot; of method &quot;', $method, '&quot; is not supported.')" />
+        <xsl:with-param name="msg" select="concat('emitCppTypeForIDLType: Type &quot;', $type, '&quot; in method &quot;', $method, '&quot; is not supported.')" />
       </xsl:call-template>
     </xsl:otherwise>
   </xsl:choose>
@@ -625,26 +587,16 @@ const char *g_pcszIUnknown = "IUnknown";
       </xsl:choose>
     </xsl:when>
     <xsl:when test="($wsmap='managed')">
-      <xsl:text>        // look up managed object reference for method call</xsl:text>
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="concat('ComPtr&lt;', $ifname, '&gt; pObj;')" />
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="concat('if (!', $G_requestElementVarName, ')')" />
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:text>{</xsl:text>
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:text>    RaiseSoapInvalidObjectFault(soap, "");</xsl:text>
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:text>    break;</xsl:text>
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:text>}</xsl:text>
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="concat('const WSDLT_ID &amp;idThis = ', $structprefix, $G_nameObjectRefEncoded, ';')" />
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:value-of select="'if ((rc = findComPtrFromId(soap, idThis, pObj)))'" />
-      <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:text>    break;</xsl:text>
-      <xsl:call-template name="emitNewline" />
+      <xsl:text>        // look up managed object reference for method call&#10;</xsl:text>
+      <xsl:value-of select="concat('        ComPtr&lt;', $ifname, '&gt; pObj;&#10;')" />
+      <xsl:value-of select="concat('        if (!', $G_requestElementVarName, ')&#10;')" />
+      <xsl:text>        {&#10;</xsl:text>
+      <xsl:text>            RaiseSoapInvalidObjectFault(soap, "");&#10;</xsl:text>
+      <xsl:text>            break;&#10;</xsl:text>
+      <xsl:text>        }&#10;</xsl:text>
+      <xsl:value-of select="concat('        const WSDLT_ID &amp;idThis = ', $structprefix, $G_nameObjectRefEncoded, ';&#10;')" />
+      <xsl:value-of select="'        if ((rc = findComPtrFromId(soap, idThis, pObj, false)))&#10;'" />
+      <xsl:text>            break;&#10;</xsl:text>
     </xsl:when>
   </xsl:choose>
 </xsl:template>
@@ -670,7 +622,7 @@ const char *g_pcszIUnknown = "IUnknown";
     <xsl:when test="$safearray='yes'">
       <xsl:value-of select="concat('size_t c', $name, ' = ', $structprefix, $name, '.size();')" />
       <xsl:call-template name="emitNewlineIndent8" />
-      <xsl:call-template name="emitCppTypeForWSDLType">
+      <xsl:call-template name="emitCppTypeForIDLType">
         <xsl:with-param name="method" select="$method"/>
         <xsl:with-param name="type" select="$type"/>
         <xsl:with-param name="safearray" select="$safearray"/>
@@ -686,7 +638,7 @@ const char *g_pcszIUnknown = "IUnknown";
         <xsl:when test="$type='$unknown'">
           <xsl:value-of select="'    ComPtr&lt;IUnknown&gt; tmpObject;'" />
           <xsl:call-template name="emitNewlineIndent8" />
-          <xsl:value-of select="concat('    if ((rc = findComPtrFromId(soap, ', $structprefix, $name, '[i], tmpObject)))')" />
+          <xsl:value-of select="concat('    if ((rc = findComPtrFromId(soap, ', $structprefix, $name, '[i], tmpObject, true)))')" />
           <xsl:call-template name="emitNewlineIndent8" />
           <xsl:text>        break;</xsl:text>
           <xsl:call-template name="emitNewlineIndent8" />
@@ -720,7 +672,7 @@ const char *g_pcszIUnknown = "IUnknown";
       <xsl:call-template name="emitNewline" />
     </xsl:when>
     <xsl:otherwise>
-      <xsl:call-template name="emitCppTypeForWSDLType">
+      <xsl:call-template name="emitCppTypeForIDLType">
         <xsl:with-param name="method" select="$method"/>
         <xsl:with-param name="type" select="$type"/>
         <xsl:with-param name="safearray" select="$safearray"/>
@@ -739,7 +691,7 @@ const char *g_pcszIUnknown = "IUnknown";
         <xsl:when test="$type='$unknown'">
           <xsl:value-of select="concat(' comcall_', $name, ';')" />
           <xsl:call-template name="emitNewlineIndent8" />
-          <xsl:value-of select="concat('if ((rc = findComPtrFromId(soap, ', $structprefix, $name, ', comcall_', $name,')))')" />
+          <xsl:value-of select="concat('if ((rc = findComPtrFromId(soap, ', $structprefix, $name, ', comcall_', $name,', true)))')" />
           <xsl:call-template name="emitNewlineIndent8" />
           <xsl:text>    break</xsl:text>
         </xsl:when>
@@ -757,7 +709,7 @@ const char *g_pcszIUnknown = "IUnknown";
             <xsl:when test="($wsmap='managed')">
               <xsl:value-of select="concat(' comcall_', $name, ';')" />
               <xsl:call-template name="emitNewlineIndent8" />
-              <xsl:value-of select="concat('if ((rc = findComPtrFromId(soap, ', $structprefix, $name, ', comcall_', $name,')))')" />
+              <xsl:value-of select="concat('if ((rc = findComPtrFromId(soap, ', $structprefix, $name, ', comcall_', $name,', true)))')" />
               <xsl:call-template name="emitNewlineIndent8" />
               <xsl:text>    break</xsl:text>
             </xsl:when>
@@ -812,7 +764,7 @@ const char *g_pcszIUnknown = "IUnknown";
 
   <xsl:text>        // com output arg for </xsl:text><xsl:value-of select="concat($name, ' (safearray: ', $safearray, ')')" /><xsl:text>
         </xsl:text>
-  <xsl:call-template name="emitCppTypeForWSDLType">
+  <xsl:call-template name="emitCppTypeForIDLType">
     <xsl:with-param name="method" select="$method" />
     <xsl:with-param name="type" select="$type" />
     <xsl:with-param name="safearray" select="$safearray" />
@@ -965,13 +917,14 @@ const char *g_pcszIUnknown = "IUnknown";
       <!-- the "!!" avoids a microsoft compiler warning -->
       <xsl:value-of select="concat('!!', $varname)" />
     </xsl:when>
-    <xsl:when test="   ($type='short')
-              or ($type='unsigned short')
-              or ($type='long')
-              or ($type='unsigned long')
-              or ($type='long long')
-              or ($type='unsigned long long')
-              or ($type='result')">
+    <xsl:when test="   ($type='octet')
+                    or ($type='short')
+                    or ($type='unsigned short')
+                    or ($type='long')
+                    or ($type='unsigned long')
+                    or ($type='long long')
+                    or ($type='unsigned long long')
+                    or ($type='result')">
       <xsl:value-of select="$varname" />
     </xsl:when>
     <xsl:when test="$type='uuid'">
@@ -1105,6 +1058,8 @@ const char *g_pcszIUnknown = "IUnknown";
       <xsl:call-template name="emitNewlineIndent8" />
       <xsl:value-of select="'{'" />
       <xsl:call-template name="emitNewlineIndent8" />
+      <!-- look up C++ glue type from IDL type from table array in websrv-shared.inc.xsl -->
+      <xsl:variable name="gluetypefield" select="exsl:node-set($G_aSharedTypes)/type[@idlname=$type]/@gluename" />
       <xsl:choose>
         <xsl:when test="//interface[@name=$type]">
           <xsl:value-of select="concat('    ComPtr&lt;', $type, '&gt; tmpObject(', $varname, '[i]);')" />
@@ -1121,14 +1076,8 @@ const char *g_pcszIUnknown = "IUnknown";
         <xsl:when test="$type='uuid'">
           <xsl:value-of select="concat('    com::Guid tmpObject(', $varname, '[i]);')" />
         </xsl:when>
-        <xsl:when test="$type='long'">
-          <xsl:value-of select="concat('    long tmpObject(', $varname, '[i]);')" />
-        </xsl:when>
-        <xsl:when test="$type='unsigned long'">
-          <xsl:value-of select="concat('    unsigned long tmpObject(', $varname, '[i]);')" />
-        </xsl:when>
-        <xsl:when test="$type='unsigned long long'">
-          <xsl:value-of select="concat('    ULONG64 tmpObject(', $varname, '[i]);')" />
+        <xsl:when test="$gluetypefield">
+          <xsl:value-of select="concat('    ', $gluetypefield, ' tmpObject(', $varname, '[i]);')" />
         </xsl:when>
         <xsl:otherwise>
           <xsl:call-template name="fatalError">
@@ -1441,7 +1390,8 @@ const char *g_pcszIUnknown = "IUnknown";
       <!-- method header: return value "int", method name, soap arguments -->
       <!-- skip this method if it has parameters of a type that has wsmap="suppress" -->
       <xsl:choose>
-        <xsl:when test="param[@type=($G_setSuppressedInterfaces/@name)]">
+        <xsl:when test="   (param[@type=($G_setSuppressedInterfaces/@name)])
+                        or (param[@mod='ptr'])" >
           <xsl:comment><xsl:value-of select="concat('Skipping method ', $methodname, ' for it has parameters with suppressed types')" /></xsl:comment>
         </xsl:when>
         <xsl:otherwise>

@@ -73,6 +73,16 @@
 #define VERR_PAGE_MAP_LEVEL4_NOT_PRESENT    (-1013)
 /** Page directory pointer not present. */
 #define VERR_PAGE_DIRECTORY_PTR_NOT_PRESENT (-1014)
+/** Raw mode doesn't support SMP. */
+#define VERR_RAW_MODE_INVALID_SMP           (-1015)
+/** Invalid VM handle. */
+#define VERR_INVALID_VM_HANDLE              (-1016)
+/** Invalid VM handle. */
+#define VERR_INVALID_VMCPU_HANDLE           (-1017)
+/** Invalid Virtual CPU ID. */
+#define VERR_INVALID_CPU_ID                 (-1018)
+/** Too many VCPUs. */
+#define VERR_TOO_MANY_CPUS                  (-1019)
 /** @} */
 
 
@@ -155,8 +165,10 @@
 #define VINF_EM_RESCHEDULE                  1118
 /** PARAV call */
 #define VINF_EM_RESCHEDULE_PARAV            1119
+/** Go back into wait for SIPI mode */
+#define VINF_EM_WAIT_SIPI                   1120
 /** Last scheduling related status code. (inclusive) */
-#define VINF_EM_LAST                        1119
+#define VINF_EM_LAST                        1120
 
 /** Reason for leaving GC: Guest trap which couldn't be handled in GC.
  * The trap is generally forwared to the REM and executed there. */
@@ -219,6 +231,8 @@
 #define VERR_EM_INTERNAL_ERROR              (-1149)
 /** Pending VM request packet. */
 #define VINF_EM_PENDING_REQUEST             (-1150)
+/** Start instruction stepping (debug only). */
+#define VINF_EM_RAW_EMULATE_DBG_STEP        1151
 /** @} */
 
 
@@ -275,7 +289,7 @@
 /** Patch was already enabled */
 #define VERR_PATCH_ALREADY_ENABLED          (-1406)
 /** Patch was removed. */
-#define VWRN_PATCH_REMOVED                  1408
+#define VWRN_PATCH_REMOVED                  1407
 
 /** Reason for leaving GC: \#GP with EIP pointing to patch code. */
 #define VINF_PATM_PATCH_TRAP_GP             1408
@@ -677,10 +691,6 @@
 #define VERR_REM_VIRTUAL_CPU_ERROR          (-2301)
 /** Recompiler execution was interrupted by forced action. */
 #define VINF_REM_INTERRUPED_FF              2302
-/** Reason for leaving GC: Must flush pending invlpg operations to REM.
- * Tell REM to flush page invalidations. Will temporary go to REM context
- * from REM and perform the flushes. */
-#define VERR_REM_FLUSHED_PAGES_OVERFLOW     (-2303)
 /** Too many similar traps. This is a very useful debug only
  * check (we don't do double/tripple faults in REM). */
 #define VERR_REM_TOO_MANY_TRAPS             (-2304)
@@ -800,10 +810,14 @@
 /** @name Virtual Machine Monitor (VMM) Status Codes
  * @{
  */
-/** Reason for leaving GC: Calling host function. */
+/** Reason for leaving RZ: Calling host function. */
 #define VINF_VMM_CALL_HOST                  2700
 /** Reason for leaving R0: Hit a ring-0 assertion on EMT. */
 #define VERR_VMM_RING0_ASSERTION            (-2701)
+/** The hyper CR3 differs between PGM and CPUM. */
+#define VERR_VMM_HYPER_CR3_MISMATCH         (-2702)
+/** Reason for leaving RZ: Illegal call to ring-3. */
+#define VERR_VMM_RING3_CALL_DISABLED        (-2703)
 /** @} */
 
 
@@ -1158,6 +1172,9 @@
 /** The requested operation cannot be performed because the device
  * is currently being reset. */
 #define VERR_VUSB_DEVICE_IS_RESETTING               (-3406)
+/** The requested operation cannot be performed because the device
+ * is currently suspended. */
+#define VERR_VUSB_DEVICE_IS_SUSPENDED               (-3407)
 /** @} */
 
 
@@ -1244,10 +1261,12 @@
  */
 /** The GVM is out of VM handle space. */
 #define VERR_GVM_TOO_MANY_VMS                       (-3900)
-/** The EMT thread was not blocked at the time of the call.  */
+/** The EMT was not blocked at the time of the call.  */
 #define VINF_GVM_NOT_BLOCKED                        3901
-/** RTThreadYield was called during a GVMMR0ShcedPoll call. */
-#define VINF_GVM_YIELDED                            3902
+/** The EMT was not busy running guest code at the time of the call. */
+#define VINF_GVM_NOT_BUSY_IN_GC                     3902
+/** RTThreadYield was called during a GVMMR0SchedPoll call. */
+#define VINF_GVM_YIELDED                            3903
 /** @} */
 
 
@@ -1290,8 +1309,6 @@
 #define VERR_VMX_UNEXPECTED_EXCEPTION               (-4016)
 /** Unexpected interruption exit code. */
 #define VERR_VMX_UNEXPECTED_INTERRUPTION_EXIT_CODE  (-4017)
-/** Running for too long, return to ring 3. */
-#define VINF_VMX_PREEMPT_PENDING                    (4018)
 /** @} */
 
 
@@ -1306,8 +1323,6 @@
 #define VERR_SVM_NO_SVM                             (-4052)
 /** SVM CPU extension disabled (by BIOS). */
 #define VERR_SVM_DISABLED                           (-4053)
-/** Running for too long, return to ring 3. */
-#define VINF_SVM_PREEMPT_PENDING                    VINF_VMX_PREEMPT_PENDING
 /** @} */
 
 
@@ -1356,6 +1371,14 @@
  */
 /** Switch back to host */
 #define VINF_PARAV_SWITCH_TO_HOST                     4400
+
+/** @} */
+
+/** @name VBox Video HW Acceleration command status
+ * @{
+ */
+/** command processing is pending, a completion handler will be called */
+#define VINF_VHWA_CMD_PENDING                        4500
 
 /** @} */
 

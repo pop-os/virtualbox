@@ -1,4 +1,4 @@
-/* $Id: PGMAllShw.h $ */
+/* $Id: PGMAllShw.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * VBox - Page Manager, Shadow Paging Template - All context code.
  */
@@ -119,10 +119,10 @@
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-__BEGIN_DECLS
-PGM_SHW_DECL(int, GetPage)(PVM pVM, RTGCUINTPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys);
-PGM_SHW_DECL(int, ModifyPage)(PVM pVM, RTGCUINTPTR GCPtr, size_t cbPages, uint64_t fFlags, uint64_t fMask);
-__END_DECLS
+RT_C_DECLS_BEGIN
+PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys);
+PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cbPages, uint64_t fFlags, uint64_t fMask);
+RT_C_DECLS_END
 
 
 
@@ -130,28 +130,32 @@ __END_DECLS
  * Gets effective page information (from the VMM page directory).
  *
  * @returns VBox status.
- * @param   pVM         VM Handle.
+ * @param   pVCpu       The VMCPU handle.
  * @param   GCPtr       Guest Context virtual address of the page.
  * @param   pfFlags     Where to store the flags. These are X86_PTE_*.
  * @param   pHCPhys     Where to store the HC physical address of the page.
  *                      This is page aligned.
  * @remark  You should use PGMMapGetPage() for pages in a mapping.
  */
-PGM_SHW_DECL(int, GetPage)(PVM pVM, RTGCUINTPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys)
+PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys)
 {
 #if PGM_SHW_TYPE == PGM_TYPE_NESTED
     return VERR_PAGE_TABLE_NOT_PRESENT;
 
 #else /* PGM_SHW_TYPE != PGM_TYPE_NESTED && PGM_SHW_TYPE != PGM_TYPE_EPT */
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
+
+    Assert(PGMIsLockOwner(pVM));
+
     /*
      * Get the PDE.
      */
 # if PGM_SHW_TYPE == PGM_TYPE_AMD64
-    bool            fNoExecuteBitValid = !!(CPUMGetGuestEFER(pVM) & MSR_K6_EFER_NXE);
+    bool            fNoExecuteBitValid = !!(CPUMGetGuestEFER(pVCpu) & MSR_K6_EFER_NXE);
     X86PDEPAE Pde;
 
     /* PML4 */
-    X86PML4E        Pml4e = pgmShwGetLongModePML4E(&pVM->pgm.s, GCPtr);
+    X86PML4E        Pml4e = pgmShwGetLongModePML4E(&pVCpu->pgm.s, GCPtr);
     if (!Pml4e.n.u1Present)
         return VERR_PAGE_TABLE_NOT_PRESENT;
 
@@ -180,15 +184,15 @@ PGM_SHW_DECL(int, GetPage)(PVM pVM, RTGCUINTPTR GCPtr, uint64_t *pfFlags, PRTHCP
     Pde.n.u1NoExecute &= Pml4e.n.u1NoExecute & Pdpe.lm.u1NoExecute;
 
 # elif PGM_SHW_TYPE == PGM_TYPE_PAE
-    bool            fNoExecuteBitValid = !!(CPUMGetGuestEFER(pVM) & MSR_K6_EFER_NXE);
-    X86PDEPAE       Pde = pgmShwGetPaePDE(&pVM->pgm.s, GCPtr);
+    bool            fNoExecuteBitValid = !!(CPUMGetGuestEFER(pVCpu) & MSR_K6_EFER_NXE);
+    X86PDEPAE       Pde = pgmShwGetPaePDE(&pVCpu->pgm.s, GCPtr);
 
 # elif PGM_SHW_TYPE == PGM_TYPE_EPT
     const unsigned  iPd = ((GCPtr >> SHW_PD_SHIFT) & SHW_PD_MASK);
     PEPTPD          pPDDst;
     EPTPDE          Pde;
 
-    int rc = pgmShwGetEPTPDPtr(pVM, GCPtr, NULL, &pPDDst);
+    int rc = pgmShwGetEPTPDPtr(pVCpu, GCPtr, NULL, &pPDDst);
     if (rc != VINF_SUCCESS) /** @todo this function isn't expected to return informational status codes. Check callers / fix. */
     {
         AssertRC(rc);
@@ -198,7 +202,7 @@ PGM_SHW_DECL(int, GetPage)(PVM pVM, RTGCUINTPTR GCPtr, uint64_t *pfFlags, PRTHCP
     Pde = pPDDst->a[iPd];
 
 # else /* PGM_TYPE_32BIT */
-    X86PDE          Pde = pgmShwGet32BitPDE(&pVM->pgm.s, GCPtr);
+    X86PDE          Pde = pgmShwGet32BitPDE(&pVCpu->pgm.s, GCPtr);
 # endif
     if (!Pde.n.u1Present)
         return VERR_PAGE_TABLE_NOT_PRESENT;
@@ -267,7 +271,7 @@ PGM_SHW_DECL(int, GetPage)(PVM pVM, RTGCUINTPTR GCPtr, uint64_t *pfFlags, PRTHCP
  * The existing flags are ANDed with the fMask and ORed with the fFlags.
  *
  * @returns VBox status code.
- * @param   pVM         VM handle.
+ * @param   pVCpu       The VMCPU handle.
  * @param   GCPtr       Virtual address of the first page in the range. Page aligned!
  * @param   cb          Size (in bytes) of the range to apply the modification to. Page aligned!
  * @param   fFlags      The OR  mask - page flags X86_PTE_*, excluding the page mask of course.
@@ -275,14 +279,16 @@ PGM_SHW_DECL(int, GetPage)(PVM pVM, RTGCUINTPTR GCPtr, uint64_t *pfFlags, PRTHCP
  *                      Be extremely CAREFUL with ~'ing values because they can be 32-bit!
  * @remark  You must use PGMMapModifyPage() for pages in a mapping.
  */
-PGM_SHW_DECL(int, ModifyPage)(PVM pVM, RTGCUINTPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask)
+PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask)
 {
 # if PGM_SHW_TYPE == PGM_TYPE_NESTED
     return VERR_PAGE_TABLE_NOT_PRESENT;
 
 # else /* PGM_SHW_TYPE != PGM_TYPE_NESTED && PGM_SHW_TYPE != PGM_TYPE_EPT */
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
     int rc;
 
+    Assert(PGMIsLockOwner(pVM));
     /*
      * Walk page tables and pages till we're done.
      */
@@ -294,7 +300,7 @@ PGM_SHW_DECL(int, ModifyPage)(PVM pVM, RTGCUINTPTR GCPtr, size_t cb, uint64_t fF
 # if PGM_SHW_TYPE == PGM_TYPE_AMD64
         X86PDEPAE       Pde;
         /* PML4 */
-        X86PML4E        Pml4e = pgmShwGetLongModePML4E(&pVM->pgm.s, GCPtr);
+        X86PML4E        Pml4e = pgmShwGetLongModePML4E(&pVCpu->pgm.s, GCPtr);
         if (!Pml4e.n.u1Present)
             return VERR_PAGE_TABLE_NOT_PRESENT;
 
@@ -317,14 +323,14 @@ PGM_SHW_DECL(int, ModifyPage)(PVM pVM, RTGCUINTPTR GCPtr, size_t cb, uint64_t fF
         Pde = pPd->a[iPd];
 
 # elif PGM_SHW_TYPE == PGM_TYPE_PAE
-        X86PDEPAE       Pde = pgmShwGetPaePDE(&pVM->pgm.s, GCPtr);
+        X86PDEPAE       Pde = pgmShwGetPaePDE(&pVCpu->pgm.s, GCPtr);
 
 # elif PGM_SHW_TYPE == PGM_TYPE_EPT
         const unsigned  iPd = ((GCPtr >> SHW_PD_SHIFT) & SHW_PD_MASK);
         PEPTPD          pPDDst;
         EPTPDE          Pde;
 
-        rc = pgmShwGetEPTPDPtr(pVM, GCPtr, NULL, &pPDDst);
+        rc = pgmShwGetEPTPDPtr(pVCpu, GCPtr, NULL, &pPDDst);
         if (rc != VINF_SUCCESS)
         {
             AssertRC(rc);
@@ -334,7 +340,7 @@ PGM_SHW_DECL(int, ModifyPage)(PVM pVM, RTGCUINTPTR GCPtr, size_t cb, uint64_t fF
         Pde = pPDDst->a[iPd];
 
 # else /* PGM_TYPE_32BIT */
-        X86PDE          Pde = pgmShwGet32BitPDE(&pVM->pgm.s, GCPtr);
+        X86PDE          Pde = pgmShwGet32BitPDE(&pVCpu->pgm.s, GCPtr);
 # endif
         if (!Pde.n.u1Present)
             return VERR_PAGE_TABLE_NOT_PRESENT;
@@ -352,12 +358,15 @@ PGM_SHW_DECL(int, ModifyPage)(PVM pVM, RTGCUINTPTR GCPtr, size_t cb, uint64_t fF
         {
             if (pPT->a[iPTE].n.u1Present)
             {
-                pPT->a[iPTE].u = (pPT->a[iPTE].u & (fMask | SHW_PTE_PG_MASK)) | (fFlags & ~SHW_PTE_PG_MASK);
+                SHWPTE Pte;
+
+                Pte.u = (pPT->a[iPTE].u & (fMask | SHW_PTE_PG_MASK)) | (fFlags & ~SHW_PTE_PG_MASK);
+                ASMAtomicWriteSize(&pPT->a[iPTE], Pte.u);
                 Assert(pPT->a[iPTE].n.u1Present);
 # if PGM_SHW_TYPE == PGM_TYPE_EPT
                 HWACCMInvalidatePhysPage(pVM, (RTGCPHYS)GCPtr);
 # else
-                PGM_INVL_PG(GCPtr);
+                PGM_INVL_ALL_VCPU_PG(pVM, GCPtr);
 # endif
             }
 

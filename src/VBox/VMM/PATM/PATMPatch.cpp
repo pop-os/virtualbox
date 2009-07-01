@@ -1,4 +1,4 @@
-/* $Id: PATMPatch.cpp $ */
+/* $Id: PATMPatch.cpp 19141 2009-04-23 13:52:18Z vboxsync $ */
 /** @file
  * PATMPatch - Dynamic Guest OS Instruction patches
  *
@@ -235,22 +235,22 @@ static uint32_t patmPatchGenCode(PVM pVM, PPATCHINFO pPatch, uint8_t *pPB, PPATC
 
                 case PATM_CPUID_STD_PTR:
                     /* @todo dirty hack when correcting this fixup (state restore) */
-                    dest = CPUMGetGuestCpuIdStdRCPtr(pVM);
+                    dest = CPUMR3GetGuestCpuIdStdRCPtr(pVM);
                     break;
 
                 case PATM_CPUID_EXT_PTR:
                     /* @todo dirty hack when correcting this fixup (state restore) */
-                    dest = CPUMGetGuestCpuIdExtRCPtr(pVM);
+                    dest = CPUMR3GetGuestCpuIdExtRCPtr(pVM);
                     break;
 
                 case PATM_CPUID_CENTAUR_PTR:
                     /* @todo dirty hack when correcting this fixup (state restore) */
-                    dest = CPUMGetGuestCpuIdCentaurRCPtr(pVM);
+                    dest = CPUMR3GetGuestCpuIdCentaurRCPtr(pVM);
                     break;
 
                 case PATM_CPUID_DEF_PTR:
                     /* @todo dirty hack when correcting this fixup (state restore) */
-                    dest = CPUMGetGuestCpuIdDefRCPtr(pVM);
+                    dest = CPUMR3GetGuestCpuIdDefRCPtr(pVM);
                     break;
 
                 case PATM_CPUID_STD_MAX:
@@ -286,7 +286,7 @@ static uint32_t patmPatchGenCode(PVM pVM, PPATCHINFO pPatch, uint8_t *pPB, PPATC
 
                 case PATM_VM_FORCEDACTIONS:
                     /* @todo dirty assumptions when correcting this fixup during saved state loading. */
-                    dest = pVM->pVMRC + RT_OFFSETOF(VM, fForcedActions);
+                    dest = pVM->pVMRC + RT_OFFSETOF(VM, aCpus[0].fLocalForcedActions);
                     break;
 
                 case PATM_TEMP_EAX:
@@ -403,7 +403,7 @@ static uint32_t patmPatchGenCode(PVM pVM, PPATCHINFO pPatch, uint8_t *pPB, PPATC
 /* Read bytes and check for overwritten instructions. */
 static int patmPatchReadBytes(PVM pVM, uint8_t *pDest, RTRCPTR pSrc, uint32_t cb)
 {
-    int rc = PGMPhysSimpleReadGCPtr(pVM, pDest, pSrc, cb);
+    int rc = PGMPhysSimpleReadGCPtr(&pVM->aCpus[0], pDest, pSrc, cb);
     AssertRCReturn(rc, rc);
     /*
      * Could be patched already; make sure this is checked!

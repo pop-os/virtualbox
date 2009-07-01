@@ -29,6 +29,10 @@
 /* Qt includes */
 #include <QPainter>
 
+#ifdef VBOX_WITH_VIDEOHWACCEL
+#include <VBox/VBoxVideo.h>
+#endif
+
 //
 // VBoxFrameBuffer class
 /////////////////////////////////////////////////////////////////////////////
@@ -44,7 +48,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1_CI (VBoxFrameBuffer, IFramebuffer)
 #endif
 
 VBoxFrameBuffer::VBoxFrameBuffer (VBoxConsoleView *aView)
-    : mView (aView), mMutex (new QMutex (QMutex::Recursive))
+    : mView (aView)
     , mWdt (0), mHgt (0)
 #if defined (Q_OS_WIN32)
     , refcnt (0)
@@ -52,11 +56,13 @@ VBoxFrameBuffer::VBoxFrameBuffer (VBoxConsoleView *aView)
 {
     AssertMsg (mView, ("VBoxConsoleView must not be null\n"));
     mWinId = (mView && mView->viewport()) ? (ULONG64) mView->viewport()->winId() : 0;
+    int rc = RTCritSectInit(&mCritSect);
+    AssertRC(rc);
 }
 
 VBoxFrameBuffer::~VBoxFrameBuffer()
 {
-    delete mMutex;
+    RTCritSectDelete(&mCritSect);
 }
 
 // IFramebuffer implementation methods.
@@ -184,17 +190,6 @@ STDMETHODIMP VBoxFrameBuffer::RequestResize (ULONG aScreenId, ULONG aPixelFormat
     return S_OK;
 }
 
-STDMETHODIMP
-VBoxFrameBuffer::OperationSupported (FramebufferAccelerationOperation_T aOperation,
-                                     BOOL *aSupported)
-{
-    NOREF(aOperation);
-    if (!aSupported)
-        return E_POINTER;
-    *aSupported = FALSE;
-    return S_OK;
-}
-
 /**
  * Returns whether we like the given video mode.
  *
@@ -223,39 +218,8 @@ STDMETHODIMP VBoxFrameBuffer::VideoModeSupported (ULONG aWidth, ULONG aHeight,
         && (aHeight > (ULONG) screen.height())
        )
         *aSupported = FALSE;
-    LogFlowThisFunc(("returning aSupported=%d\n", *aSupported));
-    return S_OK;
-}
-
-STDMETHODIMP VBoxFrameBuffer::SolidFill (ULONG aX, ULONG aY,
-                                         ULONG aWidth, ULONG aHeight,
-                                         ULONG aColor, BOOL *aHandled)
-{
-    NOREF(aX);
-    NOREF(aY);
-    NOREF(aWidth);
-    NOREF(aHeight);
-    NOREF(aColor);
-    if (!aHandled)
-        return E_POINTER;
-    *aHandled = FALSE;
-    return S_OK;
-}
-
-STDMETHODIMP VBoxFrameBuffer::CopyScreenBits (ULONG aXDst, ULONG aYDst,
-                                              ULONG aXSrc, ULONG aYSrc,
-                                              ULONG aWidth, ULONG aHeight,
-                                              BOOL *aHandled)
-{
-    NOREF(aXDst);
-    NOREF(aYDst);
-    NOREF(aXSrc);
-    NOREF(aYSrc);
-    NOREF(aWidth);
-    NOREF(aHeight);
-    if (!aHandled)
-        return E_POINTER;
-    *aHandled = FALSE;
+    LogFlowThisFunc(("screenW=%lu, screenH=%lu -> aSupported=%s\n",
+                    screen.width(), screen.height(), *aSupported ? "TRUE" : "FALSE"));
     return S_OK;
 }
 
@@ -299,6 +263,23 @@ STDMETHODIMP VBoxFrameBuffer::SetVisibleRegion (BYTE *aRectangles, ULONG aCount)
     return S_OK;
 }
 
+STDMETHODIMP VBoxFrameBuffer::ProcessVHWACommand(BYTE *pCommand)
+{
+    Q_UNUSED (pCommand);
+    return E_NOTIMPL;
+}
+
+#ifdef VBOX_WITH_VIDEOHWACCEL
+void VBoxFrameBuffer::doProcessVHWACommand(struct _VBOXVHWACMD * pCommand)
+{
+    pCommand->rc = VERR_NOT_IMPLEMENTED;
+    CDisplay display = mView->console().GetDisplay();
+    Assert (!display.isNull());
+
+    display.CompleteVHWACommand((BYTE*)pCommand);
+}
+#endif
+
 //
 // VBoxQImageFrameBuffer class
 /////////////////////////////////////////////////////////////////////////////
@@ -321,8 +302,7 @@ VBoxQImageFrameBuffer::VBoxQImageFrameBuffer (VBoxConsoleView *aView) :
 
 /** @note This method is called on EMT from under this object's lock */
 STDMETHODIMP VBoxQImageFrameBuffer::NotifyUpdate (ULONG aX, ULONG aY,
-                                                  ULONG aW, ULONG aH,
-                                                  BOOL *aFinished)
+                                                  ULONG aW, ULONG aH)
 {
     /* We're not on the GUI thread and update() isn't thread safe in
      * Qt 4.3.x on the Win, Qt 3.3.x on the Mac (4.2.x is),
@@ -331,8 +311,6 @@ STDMETHODIMP VBoxQImageFrameBuffer::NotifyUpdate (ULONG aX, ULONG aY,
     QApplication::postEvent (mView,
                              new VBoxRepaintEvent (aX, aY, aW, aH));
 
-    /* The update has been finished, return TRUE */
-    *aFinished = TRUE;
     return S_OK;
 }
 
@@ -465,6 +443,16 @@ void VBoxQImageFrameBuffer::resizeEvent (VBoxResizeEvent *re)
 #endif
 
 //
+// VBoxQGLFrameBuffer class
+/////////////////////////////////////////////////////////////////////////////
+
+#if defined (VBOX_GUI_USE_QGL)
+
+/* The class is defined in VBoxFBQGL.cpp */
+
+#endif
+
+//
 // VBoxSDLFrameBuffer class
 /////////////////////////////////////////////////////////////////////////////
 
@@ -504,8 +492,7 @@ VBoxSDLFrameBuffer::~VBoxSDLFrameBuffer()
 
 /** @note This method is called on EMT from under this object's lock */
 STDMETHODIMP VBoxSDLFrameBuffer::NotifyUpdate (ULONG aX, ULONG aY,
-                                               ULONG aW, ULONG aH,
-                                               BOOL *aFinished)
+                                               ULONG aW, ULONG aH)
 {
 #if !defined (Q_WS_WIN) && !defined (Q_WS_PM)
     /* we're not on the GUI thread and update() isn't thread safe in Qt 3.3.x
@@ -519,8 +506,6 @@ STDMETHODIMP VBoxSDLFrameBuffer::NotifyUpdate (ULONG aX, ULONG aY,
                                aY - mView->contentsY(),
                                aW, aH);
 #endif
-    /* the update has been finished, return TRUE */
-    *aFinished = TRUE;
     return S_OK;
 }
 

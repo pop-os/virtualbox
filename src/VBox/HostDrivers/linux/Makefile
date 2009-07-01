@@ -35,6 +35,12 @@ all:
 	    cp vboxnetflt/vboxnetflt.ko .; \
 	    echo; \
 	fi
+	@if [ -d vboxnetadp ]; then \
+	    echo "*** Building 'vboxnetadp' module ***"; \
+	    $(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxnetadp; \
+	    cp vboxnetadp/vboxnetadp.ko .; \
+	    echo; \
+	fi
 
 
 install:
@@ -42,22 +48,28 @@ install:
 	@if [ -d vboxnetflt ]; then \
 	    $(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxnetflt install; \
 	fi
+	@if [ -d vboxnetadp ]; then \
+	    $(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C vboxnetadp install; \
+	fi
 
 clean:
 	@$(MAKE) -C vboxdrv clean
 	@if [ -d vboxnetflt ]; then \
 	    $(MAKE) -C vboxnetflt clean; \
 	fi
-	rm -f vboxdrv.ko vboxnetflt.ko
+	@if [ -d vboxnetadp ]; then \
+	    $(MAKE) -C vboxnetadp clean; \
+	fi
+	rm -f vboxdrv.ko vboxnetflt.ko vboxnetadp.ko
 
 load:
-	@for module in vboxnetflt vboxdrv; do \
+	@for module in vboxnetadp vboxnetflt vboxdrv; do \
 		if grep "^$$module " /proc/modules >/dev/null; then \
 			echo "Removing previously installed $$module module"; \
 			/sbin/rmmod $$module; \
 		fi; \
 	done
-	@for module in vboxdrv vboxnetflt; do \
+	@for module in vboxdrv vboxnetflt vboxnetadp; do \
 		if test -f $$module.ko; then \
 			echo "Installing $$module module"; \
 			/sbin/insmod $$module.ko; \

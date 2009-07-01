@@ -32,6 +32,7 @@
 #include <iprt/path.h>
 #include <iprt/string.h>
 #include <iprt/uni.h>
+#include <iprt/stream.h>
 #ifdef RT_OS_DARWIN
 #include <Carbon/Carbon.h>
 #endif
@@ -603,12 +604,52 @@ static void vbsfFreeFullPath (char *pszFullPath)
  *
  * @returns iprt status code
  * @param  fShflFlags shared folder create flags
+ * @param  fMode      file attibutes
  * @retval pfOpen     iprt create flags
  */
-static int vbsfConvertFileOpenFlags(unsigned fShflFlags, unsigned *pfOpen)
+static int vbsfConvertFileOpenFlags(unsigned fShflFlags, RTFMODE fMode, SHFLHANDLE handleInitial, unsigned *pfOpen)
 {
     unsigned fOpen = 0;
     int rc = VINF_SUCCESS;
+
+    if (   (fMode & RTFS_DOS_MASK) != 0
+        && (fMode & RTFS_UNIX_MASK) == 0)
+    {
+        /* A DOS/Windows guest, make RTFS_UNIX_* from RTFS_DOS_*.
+         * @todo this is based on rtFsModeNormalize/rtFsModeFromDos.
+         *       May be better to use RTFsModeNormalize here.
+         */
+        fMode |= RTFS_UNIX_IRUSR | RTFS_UNIX_IRGRP | RTFS_UNIX_IROTH;
+        /* x for directories. */
+        if (fMode & RTFS_DOS_DIRECTORY)
+            fMode |= RTFS_TYPE_DIRECTORY | RTFS_UNIX_IXUSR | RTFS_UNIX_IXGRP | RTFS_UNIX_IXOTH;
+        /* writable? */
+        if (!(fMode & RTFS_DOS_READONLY))
+            fMode |= RTFS_UNIX_IWUSR | RTFS_UNIX_IWGRP | RTFS_UNIX_IWOTH;
+
+        /* Set the requested mode using only allowed bits. */
+        fOpen |= ((fMode & RTFS_UNIX_MASK) << RTFILE_O_CREATE_MODE_SHIFT) & RTFILE_O_CREATE_MODE_MASK;
+    }
+    else
+    {
+        /* Old linux and solaris additions did not initialize the Info.Attr.fMode field
+         * and it contained random bits from stack. Detect this using the handle field value
+         * passed from the guest: old additions set it (incorrectly) to 0, new additions
+         * set it to SHFL_HANDLE_NIL(~0).
+         */
+        if (handleInitial == 0)
+        {
+            /* Old additions. Do nothing, use default mode. */
+        }
+        else
+        {
+            /* New additions or Windows additions. Set the requested mode using only allowed bits.
+             * Note: Windows guest set RTFS_UNIX_MASK bits to 0, which means a default mode
+             *       will be set in fOpen.
+             */
+            fOpen |= ((fMode & RTFS_UNIX_MASK) << RTFILE_O_CREATE_MODE_SHIFT) & RTFILE_O_CREATE_MODE_MASK;
+        }
+    }
 
     switch (BIT_FLAG(fShflFlags, SHFL_CF_ACCESS_MASK_RW))
     {
@@ -649,8 +690,6 @@ static int vbsfConvertFileOpenFlags(unsigned fShflFlags, unsigned *pfOpen)
         case SHFL_CF_ACCESS_ATTR_NONE:
         {
             fOpen |= RTFILE_O_ACCESS_ATTR_DEFAULT;
-            /** @todo for posix guests we should allow passing the mode. */
-            fOpen |= 0666 << RTFILE_O_CREATE_MODE_SHIFT;
             Log(("FLAG: SHFL_CF_ACCESS_ATTR_NONE\n"));
             break;
         }
@@ -658,10 +697,6 @@ static int vbsfConvertFileOpenFlags(unsigned fShflFlags, unsigned *pfOpen)
         case SHFL_CF_ACCESS_ATTR_READ:
         {
             fOpen |= RTFILE_O_ACCESS_ATTR_READ;
-            /** @todo for posix guests we should allow passing the mode.
-             * Additionally this esoteric case - new file with only read
-             * access - should be tested with apps depending on this. */
-            fOpen |= 0444 << RTFILE_O_CREATE_MODE_SHIFT;
             Log(("FLAG: SHFL_CF_ACCESS_ATTR_READ\n"));
             break;
         }
@@ -669,10 +704,6 @@ static int vbsfConvertFileOpenFlags(unsigned fShflFlags, unsigned *pfOpen)
         case SHFL_CF_ACCESS_ATTR_WRITE:
         {
             fOpen |= RTFILE_O_ACCESS_ATTR_WRITE;
-            /** @todo for posix guests we should allow passing the mode.
-             * Additionally this esoteric case - new file with only write
-             * access - should be tested with apps depending on this. */
-            fOpen |= 0222 << RTFILE_O_CREATE_MODE_SHIFT;
             Log(("FLAG: SHFL_CF_ACCESS_ATTR_WRITE\n"));
             break;
         }
@@ -680,8 +711,6 @@ static int vbsfConvertFileOpenFlags(unsigned fShflFlags, unsigned *pfOpen)
         case SHFL_CF_ACCESS_ATTR_READWRITE:
         {
             fOpen |= RTFILE_O_ACCESS_ATTR_READWRITE;
-            /** @todo for posix guests we should allow passing the mode. */
-            fOpen |= 0666 << RTFILE_O_CREATE_MODE_SHIFT;
             Log(("FLAG: SHFL_CF_ACCESS_ATTR_READWRITE\n"));
             break;
         }
@@ -816,7 +845,7 @@ static int vbsfOpenFile (const char *pszPath, SHFLCREATEPARMS *pParms)
     bool fNoError = false;
     static int cErrors;
 
-    int rc = vbsfConvertFileOpenFlags(pParms->CreateFlags, &fOpen);
+    int rc = vbsfConvertFileOpenFlags(pParms->CreateFlags, pParms->Info.Attr.fMode, pParms->Handle, &fOpen);
     if (RT_SUCCESS(rc))
     {
         handle  = vbsfAllocFileHandle();
@@ -949,6 +978,7 @@ static int vbsfOpenFile (const char *pszPath, SHFLCREATEPARMS *pParms)
         {
             vbsfFreeFileHandle (handle);
         }
+        pParms->Handle = SHFL_HANDLE_NIL;
     }
     else
     {
@@ -1063,6 +1093,7 @@ static int vbsfOpenDir (const char *pszPath, SHFLCREATEPARMS *pParms)
         {
             vbsfFreeFileHandle (handle);
         }
+        pParms->Handle = SHFL_HANDLE_NIL;
     }
     else
     {
@@ -1152,6 +1183,7 @@ static int vbsfLookupFile(char *pszPath, SHFLCREATEPARMS *pParms)
             break;
         }
     }
+    pParms->Handle = SHFL_HANDLE_NIL;
     return rc;
 }
 
@@ -1199,9 +1231,11 @@ int vbsfCreate (SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint3
 
     if (RT_SUCCESS (rc))
     {
-        /* Reset return values in case client forgot to do so. */
+        /* Reset return value in case client forgot to do so.
+         * pParms->Handle must not be reset here, as it is used
+         * in vbsfOpenFile to detect old additions.
+         */
         pParms->Result = SHFL_NO_RESULT;
-        pParms->Handle = SHFL_HANDLE_NIL;
 
         if (BIT_FLAG(pParms->CreateFlags, SHFL_CF_LOOKUP))
         {
@@ -1245,11 +1279,16 @@ int vbsfCreate (SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint3
 
             rc = VINF_SUCCESS;
 
-            /* write access requested? */
-            if (pParms->CreateFlags & (  SHFL_CF_ACT_REPLACE_IF_EXISTS
-                                       | SHFL_CF_ACT_OVERWRITE_IF_EXISTS
-                                       | SHFL_CF_ACT_CREATE_IF_NEW
-                                       | SHFL_CF_ACCESS_WRITE))
+            /* Note: do not check the SHFL_CF_ACCESS_WRITE here, only check if the open operation
+             * will cause changes.
+             *
+             * Actual operations (write, set attr, etc), which can write to a shared folder, have
+             * the check and will return VERR_WRITE_PROTECT if the folder is not writable.
+             */
+            if (   (pParms->CreateFlags & SHFL_CF_ACT_MASK_IF_EXISTS) == SHFL_CF_ACT_REPLACE_IF_EXISTS
+                || (pParms->CreateFlags & SHFL_CF_ACT_MASK_IF_EXISTS) == SHFL_CF_ACT_OVERWRITE_IF_EXISTS
+                || (pParms->CreateFlags & SHFL_CF_ACT_MASK_IF_NEW) == SHFL_CF_ACT_CREATE_IF_NEW
+               )
             {
                 /* is the guest allowed to write to this share? */
                 bool fWritable;
@@ -1268,6 +1307,10 @@ int vbsfCreate (SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint3
                 {
                     rc = vbsfOpenFile (pszFullPath, pParms);
                 }
+            }
+            else
+            {
+                pParms->Handle = SHFL_HANDLE_NIL;
             }
         }
 
@@ -1696,15 +1739,25 @@ static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Ha
         /* Change file attributes if necessary */
         if (pSFDEntry->Attr.fMode)
         {
-            rc = RTFileSetMode((RTFILE)pHandle->file.Handle, pSFDEntry->Attr.fMode);
+            RTFMODE fMode = pSFDEntry->Attr.fMode;
+
+#ifndef RT_OS_WINDOWS
+            /* don't allow to clear the own bit, otherwise the guest wouldn't be
+             * able to access this file anymore */
+            if (fMode)
+                fMode |= RTFS_UNIX_IRUSR;
+#endif
+
+            rc = RTFileSetMode((RTFILE)pHandle->file.Handle, fMode);
             if (rc != VINF_SUCCESS)
             {
-                Log(("RTFileSetMode %x failed with %Rrc\n", pSFDEntry->Attr.fMode, rc));
+                Log(("RTFileSetMode %x failed with %Rrc\n", fMode, rc));
                 /* silent failure, because this tends to fail with e.g. windows guest & linux host */
                 rc = VINF_SUCCESS;
             }
         }
     }
+    /* TODO: mode for directories */
 
     if (rc == VINF_SUCCESS)
     {

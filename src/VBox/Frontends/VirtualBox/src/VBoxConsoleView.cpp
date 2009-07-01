@@ -20,6 +20,8 @@
  * additional information or have any questions.
  */
 
+#include <VBox/VBoxVideo.h>
+
 #include "VBoxConsoleView.h"
 #include "VBoxConsoleWnd.h"
 #include "VBoxUtils.h"
@@ -432,7 +434,7 @@ private:
 // VBoxConsoleCallback class
 /////////////////////////////////////////////////////////////////////////////
 
-class VBoxConsoleCallback : public IConsoleCallback
+class VBoxConsoleCallback : VBOX_SCRIPTABLE_IMPL(IConsoleCallback)
 {
 public:
 
@@ -782,8 +784,14 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
     /* No frame around the view */
     setFrameStyle (QFrame::NoFrame);
 
+#ifndef VBOX_WITH_VIDEOHWACCEL
     VBoxViewport *pViewport = new VBoxViewport (this);
+#else
+//    /* TODO: temporary always use VBoxGLWidget for debugging */
+    VBoxGLWidget *pViewport = new VBoxGLWidget (this);
+#endif
     setViewport (pViewport);
+//    pViewport->vboxDoInit();
 
     /* enable MouseMove events */
     viewport()->setMouseTracking (true);
@@ -818,6 +826,11 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
 
     switch (mode)
     {
+#if defined (VBOX_GUI_USE_QGL)
+        case VBoxDefs::QGLMode:
+            mFrameBuf = new VBoxQGLFrameBuffer (this);
+            break;
+#endif
 #if defined (VBOX_GUI_USE_QIMAGE)
         case VBoxDefs::QImageMode:
             mFrameBuf = new VBoxQImageFrameBuffer (this);
@@ -875,7 +888,7 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
     if (mFrameBuf)
     {
         mFrameBuf->AddRef();
-        display.RegisterExternalFramebuffer (CFramebuffer (mFrameBuf));
+        display.SetFramebuffer (VBOX_VIDEO_PRIMARY_SCREEN, CFramebuffer (mFrameBuf));
     }
 
     /* setup the callback */
@@ -949,7 +962,7 @@ VBoxConsoleView::~VBoxConsoleView()
         /* detach our framebuffer from Display */
         CDisplay display = mConsole.GetDisplay();
         Assert (!display.isNull());
-        display.SetupInternalFramebuffer (0);
+        display.SetFramebuffer (VBOX_VIDEO_PRIMARY_SCREEN, CFramebuffer(NULL));
         /* release the reference */
         mFrameBuf->Release();
         mFrameBuf = NULL;
@@ -976,8 +989,21 @@ VBoxConsoleView::~VBoxConsoleView()
 
 QSize VBoxConsoleView::sizeHint() const
 {
+#ifdef VBOX_WITH_DEBUGGER /** @todo figure out a more proper fix. */
+    /* HACK ALERT! Really ugly workaround for the resizing to 9x1 done
+     *             by DevVGA if provoked before power on.  */
+    QSize fb(mFrameBuf->width(), mFrameBuf->height());
+    if (    (   fb.width()  < 16
+             || fb.height() < 16)
+        &&  (   vboxGlobal().isStartPausedEnabled()
+             || vboxGlobal().isDebuggerAutoShowEnabled()) )
+        fb = QSize(640, 480);
+    return QSize (fb.width() + frameWidth() * 2,
+                  fb.height() + frameWidth() * 2);
+#else
     return QSize (mFrameBuf->width() + frameWidth() * 2,
                   mFrameBuf->height() + frameWidth() * 2);
+#endif
 }
 
 /**
@@ -1670,6 +1696,14 @@ bool VBoxConsoleView::event (QEvent *e)
                  */
                 window()->show();
                 window()->activateWindow();
+                return true;
+            }
+#endif
+#ifdef VBOX_WITH_VIDEOHWACCEL
+            case VBoxDefs::VHWACommandProcessType:
+            {
+                VBoxVHWACommandProcessEvent *cmde = (VBoxVHWACommandProcessEvent *)e;
+                mFrameBuf->doProcessVHWACommand(cmde->command());
                 return true;
             }
 #endif
@@ -2549,6 +2583,10 @@ void VBoxConsoleView::toggleFSMode (const QSize &aSize)
             newSize = mNormalSize;
         doResizeHint (newSize);
     }
+
+    /* Reactivate the console window to preserve the focus position.
+     * Else focus will move to the mini-tool-bar. */
+    activateWindow();
 }
 
 /**
@@ -2574,6 +2612,11 @@ QRect VBoxConsoleView::desktopGeometry()
             AssertMsgFailed (("Bad geometry type %d\n", mDesktopGeo));
     }
     return rc;
+}
+
+QRegion VBoxConsoleView::lastVisibleRegion() const
+{
+    return mLastVisibleRegion;
 }
 
 bool VBoxConsoleView::isAutoresizeGuestActive()
@@ -3403,25 +3446,28 @@ bool VBoxConsoleView::processHotKey (const QKeySequence &aKey,
     foreach (QAction *pAction, aData)
     {
         if (QMenu *menu = pAction->menu())
-            return processHotKey (aKey, menu->actions());
-
-        QString hotkey = VBoxGlobal::extractKeyFromActionText (pAction->text());
-        if (pAction->isEnabled() && !hotkey.isEmpty())
         {
-            if (aKey.matches (QKeySequence (hotkey)) == QKeySequence::ExactMatch)
-            {
-                /*
-                 *  we asynchronously post a special event instead of calling
-                 *  pAction->trigger() directly, to let key presses and
-                 *  releases be processed correctly by Qt first. Note: we
-                 *  assume that nobody will delete the menu item corresponding
-                 *  to the key sequence, so that the pointer to menu data
-                 *  posted along with the event will remain valid in the event
-                 *  handler, at least until the main window is closed.
-                 */
-                QApplication::postEvent (this,
-                                         new ActivateMenuEvent (pAction));
+            /* Process recursively for each sub-menu */
+            if (processHotKey (aKey, menu->actions()))
                 return true;
+        }
+        else
+        {
+            QString hotkey = VBoxGlobal::extractKeyFromActionText (pAction->text());
+            if (pAction->isEnabled() && !hotkey.isEmpty())
+            {
+                if (aKey.matches (QKeySequence (hotkey)) == QKeySequence::ExactMatch)
+                {
+                    /* We asynchronously post a special event instead of calling
+                     * pAction->trigger() directly, to let key presses and
+                     * releases be processed correctly by Qt first.
+                     * Note: we assume that nobody will delete the menu item
+                     * corresponding to the key sequence, so that the pointer to
+                     * menu data posted along with the event will remain valid in
+                     * the event handler, at least until the main window is closed. */
+                    QApplication::postEvent (this, new ActivateMenuEvent (pAction));
+                    return true;
+                }
             }
         }
     }

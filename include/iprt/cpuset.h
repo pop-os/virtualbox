@@ -35,7 +35,7 @@
 #include <iprt/asm.h>
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_cpuset RTCpuSet - CPU Set
  * @ingroup grp_rt
@@ -170,7 +170,7 @@ DECLINLINE(bool) RTCpuSetIsMemberByIndex(PCRTCPUSET pSet, int iCpu)
  */
 DECLINLINE(bool) RTCpuSetIsEqual(PCRTCPUSET pSet1, PCRTCPUSET pSet2)
 {
-    return *pSet1 == *pSet2;
+    return *pSet1 == *pSet2 ? true : false;
 }
 
 
@@ -235,7 +235,7 @@ DECLINLINE(int) RTCpuLastIndex(PCRTCPUSET pSet)
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

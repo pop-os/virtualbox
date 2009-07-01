@@ -34,9 +34,10 @@
 #include <VBox/types.h>
 #include <VBox/x86.h>
 #include <VBox/dis.h>
+#include <VBox/dbgfsel.h>
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_selm      The Selector Monitor(/Manager) API
  * @{
@@ -52,10 +53,10 @@ VMMDECL(RTSEL)      SELMGetHyperDS(PVM pVM);
 VMMDECL(RTSEL)      SELMGetHyperTSS(PVM pVM);
 VMMDECL(RTSEL)      SELMGetHyperTSSTrap08(PVM pVM);
 VMMDECL(RTRCPTR)    SELMGetHyperGDT(PVM pVM);
-VMMDECL(int)        SELMGetTSSInfo(PVM pVM, PRTGCUINTPTR pGCPtrTss, PRTGCUINTPTR pcbTss, bool *pfCanHaveIOBitmap);
+VMMDECL(int)        SELMGetTSSInfo(PVM pVM, PVMCPU pVCpu, PRTGCUINTPTR pGCPtrTss, PRTGCUINTPTR pcbTss, bool *pfCanHaveIOBitmap);
 VMMDECL(RTGCPTR)    SELMToFlat(PVM pVM, DIS_SELREG SelReg, PCPUMCTXCORE pCtxCore, RTGCPTR Addr);
 VMMDECL(RTGCPTR)    SELMToFlatBySel(PVM pVM, RTSEL Sel, RTGCPTR Addr);
-VMMDECL(void)       SELMShadowCR3Changed(PVM pVM);
+VMMDECL(void)       SELMShadowCR3Changed(PVM pVM, PVMCPU pVCpu);
 
 /** Flags for SELMToFlatEx().
  * @{ */
@@ -84,48 +85,6 @@ VMMDECL(int)        SELMValidateAndConvertCSAddrGCTrap(PVM pVM, X86EFLAGS eflags
 VMMDECL(DISCPUMODE) SELMGetCpuModeFromSelector(PVM pVM, X86EFLAGS eflags, RTSEL Sel, PCPUMSELREGHID pHiddenSel);
 VMMDECL(int)        SELMGetLDTFromSel(PVM pVM, RTSEL SelLdt, PRTGCPTR ppvLdt, unsigned *pcbLimit);
 
-/**
- * Selector information structure.
- */
-typedef struct SELMSELINFO
-{
-    /** The base address. */
-    RTGCPTR         GCPtrBase;
-    /** The limit (-1). */
-    RTGCUINTPTR     cbLimit;
-    /** The raw descriptor. */
-    union
-    {
-        X86DESC     Raw;
-        X86DESC64   Raw64;
-    };
-    /** The selector. */
-    RTSEL           Sel;
-    /** Set if the selector is used by the hypervisor. */
-    bool            fHyper;
-    /** Set if the selector is a real mode segment. */
-    bool            fRealMode;
-} SELMSELINFO;
-/** Pointer to a SELM selector information struct. */
-typedef SELMSELINFO *PSELMSELINFO;
-/** Pointer to a const SELM selector information struct. */
-typedef const SELMSELINFO *PCSELMSELINFO;
-
-VMMDECL(int)        SELMSelInfoValidateCS(PCSELMSELINFO pSelInfo, RTSEL SelCPL);
-
-/** @def SELMSelInfoIsExpandDown
- * Tests whether the selector info describes an expand-down selector or now.
- *
- * @returns true / false.
- * @param   pSelInfo        The selector info.
- *
- * @remark  Realized as a macro for reasons of speed/lazyness and to avoid
- *          dragging in VBox/x86.h for now.
- */
-#define SELMSelInfoIsExpandDown(pSelInfo) \
-    (   (pSelInfo)->Raw.Gen.u1DescType \
-     && ((pSelInfo)->Raw.Gen.u4Type & (X86_SEL_TYPE_DOWN | X86_SEL_TYPE_CODE)) == X86_SEL_TYPE_DOWN)
-
 
 #ifdef IN_RING3
 /** @defgroup grp_selm_r3   The Selector Monitor(/Manager) API
@@ -137,10 +96,10 @@ VMMR3DECL(int)      SELMR3InitFinalize(PVM pVM);
 VMMR3DECL(void)     SELMR3Relocate(PVM pVM);
 VMMR3DECL(int)      SELMR3Term(PVM pVM);
 VMMR3DECL(void)     SELMR3Reset(PVM pVM);
-VMMR3DECL(int)      SELMR3UpdateFromCPUM(PVM pVM);
-VMMR3DECL(int)      SELMR3SyncTSS(PVM pVM);
-VMMR3DECL(int)      SELMR3GetSelectorInfo(PVM pVM, RTSEL Sel, PSELMSELINFO pSelInfo);
-VMMR3DECL(int)      SELMR3GetShadowSelectorInfo(PVM pVM, RTSEL Sel, PSELMSELINFO pSelInfo);
+VMMR3DECL(int)      SELMR3UpdateFromCPUM(PVM pVM, PVMCPU pVCpu);
+VMMR3DECL(int)      SELMR3SyncTSS(PVM pVM, PVMCPU pVCpu);
+VMMR3DECL(int)      SELMR3GetSelectorInfo(PVM pVM, PVMCPU pVCpu, RTSEL Sel, PDBGFSELINFO pSelInfo);
+VMMR3DECL(int)      SELMR3GetShadowSelectorInfo(PVM pVM, RTSEL Sel, PDBGFSELINFO pSelInfo);
 VMMR3DECL(void)     SELMR3DisableMonitoring(PVM pVM);
 VMMR3DECL(void)     SELMR3DumpDescriptor(X86DESC  Desc, RTSEL Sel, const char *pszMsg);
 VMMR3DECL(void)     SELMR3DumpHyperGDT(PVM pVM);
@@ -160,7 +119,7 @@ VMMR3DECL(int)      SELMR3DebugCheck(PVM pVM);
 #endif /* IN_RING3 */
 
 /** @} */
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

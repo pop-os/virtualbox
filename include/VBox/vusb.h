@@ -33,7 +33,7 @@
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_vusb  VBox USB API
  * @{
@@ -276,7 +276,9 @@ typedef const VUSBDESCENDPOINTEX *PCVUSBDESCENDPOINTEX;
 #define VUSB_REQ_MASK           (0x3 << VUSB_REQ_SHIFT)
 /** @} */
 
+#define VUSB_DIR_TO_DEVICE      0x00
 #define VUSB_DIR_TO_HOST        0x80
+#define	VUSB_DIR_MASK           0x80
 
 /**
  * USB Setup request (from spec)
@@ -323,24 +325,11 @@ typedef const VUSBSETUP *PCVUSBSETUP;
 /** @} */
 
 
-/**
- * USB frame timer callback function.
- *
- * @param   pDevIns         Device instance of the device which registered the timer.
- * @param   pTimer          The timer handle.
- */
-typedef DECLCALLBACK(void) FNUSBTIMERDEV(PPDMDEVINS pDevIns, PTMTIMER pTimer);
-/** Pointer to a device timer callback function. */
-typedef FNUSBTIMERDEV *PFNUSBTIMERDEV;
-
 /** Pointer to a VBox USB device interface. */
 typedef struct VUSBIDEVICE      *PVUSBIDEVICE;
 
 /** Pointer to a VUSB RootHub port interface. */
 typedef struct VUSBIROOTHUBPORT *PVUSBIROOTHUBPORT;
-
-/** Pointer to a VBox USB timer interface. */
-typedef struct VUSBITIMER       *PVUSBITIMER;
 
 /** Pointer to an USB request descriptor. */
 typedef struct VUSBURB          *PVUSBURB;
@@ -776,78 +765,6 @@ DECLINLINE(VUSBDEVICESTATE) VUSBIDevGetState(PVUSBIDEVICE pInterface)
 #endif /* IN_RING3 */
 
 
-/**
- * USB Timer Interface.
- */
-typedef struct VUSBITIMER
-{
-    /**
-     * Sets up initial frame timer parameters.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the timer interface structure.
-     * @param   pfnCallback     Pointer to the timer callback function.
-     * @param   rate            Requested frame rate (normally 1,000).
-     */
-    DECLR3CALLBACKMEMBER(int, pfnTimerSetup,(PVUSBITIMER pInterface, PFNUSBTIMERDEV pfnCallback, uint32_t rate));
-
-    /**
-     * Requests another tick of the frame timer.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the timer interface structure.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnTimerSetNext,(PVUSBITIMER pInterface));
-
-    /**
-     * Stops the frame timer for the caller.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the timer interface structure.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnTimerStop,(PVUSBITIMER pInterface));
-
-} VUSBITIMER;
-
-
-#ifdef IN_RING3
-/**
- * Sets up initial frame timer parameters.
- *
- * @returns VBox status code.
- * @param   pInterface      Pointer to the timer interface structure.
- * @param   pfnCallback     Pointer to the timer callback function.
- * @param   rate            Requested frame rate (normally 1,000).
- */
-DECLINLINE(int) VUSBITimerSetup(PVUSBITIMER pInterface, PFNUSBTIMERDEV pfnCallback, uint32_t rate)
-{
-    return pInterface->pfnTimerSetup(pInterface, pfnCallback, rate);
-}
-
-/**
- * Requests another tick of the USB frame timer.
- *
- * @returns VBox status code.
- * @param   pInterface      Pointer to the timer interface structure.
- */
-DECLINLINE(int) VUSBITimerSetNext(PVUSBITIMER pInterface)
-{
-    return pInterface->pfnTimerSetNext(pInterface);
-}
-
-/**
- * Stops the USB frame timer for the caller.
- *
- * @returns VBox status code.
- * @param   pInterface      Pointer to the timer interface structure.
- */
-DECLINLINE(int) VUSBITimerStop(PVUSBITIMER pInterface)
-{
-    return pInterface->pfnTimerStop(pInterface);
-}
-#endif /* IN_RING3 */
-
-
 /** @name URB
  * @{ */
 
@@ -1085,6 +1002,6 @@ typedef struct VUSBURB
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif

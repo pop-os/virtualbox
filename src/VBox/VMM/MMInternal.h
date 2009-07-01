@@ -1,4 +1,4 @@
-/* $Id: MMInternal.h $ */
+/* $Id: MMInternal.h 20866 2009-06-23 19:33:23Z vboxsync $ */
 /** @file
  * MM - Internal header file.
  */
@@ -26,6 +26,7 @@
 #include <VBox/types.h>
 #include <VBox/sup.h>
 #include <VBox/stam.h>
+#include <VBox/pdmcritsect.h>
 #include <iprt/avl.h>
 #include <iprt/critsect.h>
 
@@ -324,6 +325,8 @@ typedef struct MMHYPERHEAP
     uint32_t                u32Magic;
     /** The heap size. (This structure is not included!) */
     uint32_t                cbHeap;
+    /** Lock protecting the heap. */
+    PDMCRITSECT             Lock;
     /** The HC ring-3 address of the heap. */
     R3PTRTYPE(uint8_t *)    pbHeapR3;
     /** The HC ring-3 address of the shared VM strcture. */
@@ -522,8 +525,8 @@ typedef struct MMPAGEPOOL
     R3R0PTRTYPE(PVM)                    pVM;
 #endif
     /** Flag indicating the allocation method.
-     * Set: SUPLowAlloc().
-     * Clear: SUPPageAlloc() + SUPPageLock(). */
+     * Set: SUPR3LowAlloc().
+     * Clear: SUPR3PageAllocEx(). */
     bool                                fLow;
     /** Number of subpools. */
     uint32_t                            cSubPools;
@@ -766,7 +769,7 @@ typedef struct MMUSERPERVM
 typedef MMUSERPERVM *PMMUSERPERVM;
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 
 int  mmR3UpdateReservation(PVM pVM);
@@ -782,9 +785,10 @@ int  mmR3UkHeapCreateU(PUVM pUVM, PMMUKHEAP *ppHeap);
 
 
 int  mmR3HyperInit(PVM pVM);
+int  mmR3HyperTerm(PVM pVM);
 int  mmR3HyperInitPaging(PVM pVM);
 
-const char *mmR3GetTagName(MMTAG enmTag);
+const char *mmGetTagName(MMTAG enmTag);
 
 /**
  * Converts a pool address to a physical address.
@@ -810,7 +814,7 @@ RTHCPHYS mmPagePoolPtr2Phys(PMMPAGEPOOL pPool, void *pv);
  */
 void *mmPagePoolPhys2Ptr(PMMPAGEPOOL pPool, RTHCPHYS HCPhys);
 
-__END_DECLS
+RT_C_DECLS_END
 
 /** @} */
 

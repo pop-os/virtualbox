@@ -1,4 +1,4 @@
-/* $Id: PDMDriver.cpp $ */
+/* $Id: PDMDriver.cpp 20864 2009-06-23 19:19:42Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, Driver parts.
  */
@@ -852,13 +852,13 @@ static DECLCALLBACK(uint64_t) pdmR3DrvHlp_TMGetVirtualTime(PPDMDRVINS pDrvIns)
 
 
 /** @copydoc PDMDRVHLP::pfnTMTimerCreate */
-static DECLCALLBACK(int) pdmR3DrvHlp_TMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, const char *pszDesc, PPTMTIMERR3 ppTimer)
+static DECLCALLBACK(int) pdmR3DrvHlp_TMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
-    LogFlow(("pdmR3DrvHlp_TMTimerCreate: caller='%s'/%d: enmClock=%d pfnCallback=%p pszDesc=%p:{%s} ppTimer=%p\n",
-             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, enmClock, pfnCallback, pszDesc, pszDesc, ppTimer));
+    LogFlow(("pdmR3DrvHlp_TMTimerCreate: caller='%s'/%d: enmClock=%d pfnCallback=%p pvUser=%p fFlags=%#x pszDesc=%p:{%s} ppTimer=%p\n",
+             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, enmClock, pfnCallback, pvUser, fFlags, pszDesc, pszDesc, ppTimer));
 
-    int rc = TMR3TimerCreateDriver(pDrvIns->Internal.s.pVM, pDrvIns, enmClock, pfnCallback, pszDesc, ppTimer);
+    int rc = TMR3TimerCreateDriver(pDrvIns->Internal.s.pVM, pDrvIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, ppTimer);
 
     LogFlow(("pdmR3DrvHlp_TMTimerCreate: caller='%s'/%d: returns %Rrc *ppTimer=%p\n", pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, rc, *ppTimer));
     return rc;
@@ -939,6 +939,18 @@ static DECLCALLBACK(void) pdmR3DrvHlp_STAMRegisterV(PPDMDRVINS pDrvIns, void *pv
 }
 
 
+/** @copydoc PDMDRVHLP::pfnSTAMDeregister */
+static DECLCALLBACK(int) pdmR3DrvHlp_STAMDeregister(PPDMDRVINS pDrvIns, void *pvSample)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    VM_ASSERT_EMT(pDrvIns->Internal.s.pVM);
+
+    int rc = STAMR3DeregisterU(pDrvIns->Internal.s.pVM->pUVM, pvSample);
+    AssertRC(rc);
+    return rc;
+}
+
+
 /** @copydoc PDMDRVHLP::pfnSUPCallVMMR0Ex */
 static DECLCALLBACK(int) pdmR3DrvHlp_SUPCallVMMR0Ex(PPDMDRVINS pDrvIns, unsigned uOperation, void *pvArg, unsigned cbArg)
 {
@@ -948,7 +960,7 @@ static DECLCALLBACK(int) pdmR3DrvHlp_SUPCallVMMR0Ex(PPDMDRVINS pDrvIns, unsigned
     int rc;
     if (    uOperation >= VMMR0_DO_SRV_START
         &&  uOperation <  VMMR0_DO_SRV_END)
-        rc = SUPCallVMMR0Ex(pDrvIns->Internal.s.pVM->pVMR0, uOperation, 0, (PSUPVMMR0REQHDR)pvArg);
+        rc = SUPR3CallVMMR0Ex(pDrvIns->Internal.s.pVM->pVMR0, NIL_VMCPUID, uOperation, 0, (PSUPVMMR0REQHDR)pvArg);
     else
     {
         AssertMsgFailed(("Invalid uOperation=%u\n", uOperation));
@@ -1012,14 +1024,15 @@ static DECLCALLBACK(VMSTATE) pdmR3DrvHlp_VMState(PPDMDRVINS pDrvIns)
 #ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
 /** @copydoc PDMDRVHLP::pfnPDMAsyncCompletionTemplateCreate */
 static DECLCALLBACK(int) pdmR3DrvHlp_PDMAsyncCompletionTemplateCreate(PPDMDRVINS pDrvIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate,
-                                                                      PFNPDMASYNCCOMPLETEDRV pfnCompleted, const char *pszDesc)
+                                                                      PFNPDMASYNCCOMPLETEDRV pfnCompleted, void *pvTemplateUser,
+                                                                      const char *pszDesc)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
     VM_ASSERT_EMT(pDrvIns->Internal.s.pVM);
     LogFlow(("pdmR3DrvHlp_PDMAsyncCompletionTemplateCreate: caller='%s'/%d: ppTemplate=%p pfnCompleted=%p pszDesc=%p:{%s}\n",
              pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, ppTemplate, pfnCompleted, pszDesc, pszDesc));
 
-    int rc = PDMR3AsyncCompletionTemplateCreateDriver(pDrvIns->Internal.s.pVM, pDrvIns, ppTemplate, pfnCompleted, pszDesc);
+    int rc = PDMR3AsyncCompletionTemplateCreateDriver(pDrvIns->Internal.s.pVM, pDrvIns, ppTemplate, pfnCompleted, pvTemplateUser, pszDesc);
 
     LogFlow(("pdmR3DrvHlp_PDMAsyncCompletionTemplateCreate: caller='%s'/%d: returns %Rrc *ppThread=%p\n", pDrvIns->pDrvReg->szDriverName,
              pDrvIns->iInstance, rc, *ppTemplate));
@@ -1054,6 +1067,7 @@ const PDMDRVHLP g_pdmR3DrvHlp =
     pdmR3DrvHlp_STAMRegister,
     pdmR3DrvHlp_STAMRegisterF,
     pdmR3DrvHlp_STAMRegisterV,
+    pdmR3DrvHlp_STAMDeregister,
     pdmR3DrvHlp_SUPCallVMMR0Ex,
     pdmR3DrvHlp_USBRegisterHub,
     pdmR3DrvHlp_PDMThreadCreate,

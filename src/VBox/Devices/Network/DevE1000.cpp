@@ -1,4 +1,4 @@
-/* $Id: DevE1000.cpp $ */
+/* $Id: DevE1000.cpp 21020 2009-06-29 11:14:58Z vboxsync $ */
 /** @file
  * DevE1000 - Intel 82540EM Ethernet Controller Emulation.
  *
@@ -996,12 +996,12 @@ typedef struct E1kState_st E1KSTATE;
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
 
 /* Forward declarations ******************************************************/
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 PDMBOTHCBDECL(int) e1kMMIORead (PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
 PDMBOTHCBDECL(int) e1kMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
 PDMBOTHCBDECL(int) e1kIOPortIn (PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t *pu32, unsigned cb);
 PDMBOTHCBDECL(int) e1kIOPortOut(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb);
-__END_DECLS
+RT_C_DECLS_END
 
 static int e1kRegReadUnimplemented (E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t *pu32Value);
 static int e1kRegWriteUnimplemented(E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t u32Value);
@@ -2465,11 +2465,12 @@ DECLINLINE(uint32_t) e1kGetTxLen(E1KSTATE* pState)
  *
  * @param   pDevIns     Pointer to device instance structure.
  * @param   pTimer      Pointer to the timer.
+ * @param   pvUser      NULL.
  * @thread  EMT
  */
-static DECLCALLBACK(void) e1kTxIntDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) e1kTxIntDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE *);
+    E1KSTATE *pState = (E1KSTATE *)pvUser;
 
     if (RT_LIKELY(e1kMutexAcquire(pState, VERR_SEM_BUSY, RT_SRC_POS) == VINF_SUCCESS))
     {
@@ -2490,11 +2491,12 @@ static DECLCALLBACK(void) e1kTxIntDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer
  *
  * @param   pDevIns     Pointer to device instance structure.
  * @param   pTimer      Pointer to the timer.
+ * @param   pvUser      NULL.
  * @thread  EMT
  */
-static DECLCALLBACK(void) e1kTxAbsDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) e1kTxAbsDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE *);
+    E1KSTATE *pState = (E1KSTATE *)pvUser;
 
     if (RT_LIKELY(e1kMutexAcquire(pState, VERR_SEM_BUSY, RT_SRC_POS) == VINF_SUCCESS))
     {
@@ -2515,11 +2517,12 @@ static DECLCALLBACK(void) e1kTxAbsDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer
  *
  * @param   pDevIns     Pointer to device instance structure.
  * @param   pTimer      Pointer to the timer.
+ * @param   pvUser      NULL.
  * @thread  EMT
  */
-static DECLCALLBACK(void) e1kRxIntDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) e1kRxIntDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE *);
+    E1KSTATE *pState = (E1KSTATE *)pvUser;
 
     if (RT_LIKELY(e1kMutexAcquire(pState, VERR_SEM_BUSY, RT_SRC_POS) == VINF_SUCCESS))
     {
@@ -2538,11 +2541,12 @@ static DECLCALLBACK(void) e1kRxIntDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer
  *
  * @param   pDevIns     Pointer to device instance structure.
  * @param   pTimer      Pointer to the timer.
+ * @param   pvUser      NULL.
  * @thread  EMT
  */
-static DECLCALLBACK(void) e1kRxAbsDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) e1kRxAbsDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE *);
+    E1KSTATE *pState = (E1KSTATE *)pvUser;
 
     if (RT_LIKELY(e1kMutexAcquire(pState, VERR_SEM_BUSY, RT_SRC_POS) == VINF_SUCCESS))
     {
@@ -2560,11 +2564,12 @@ static DECLCALLBACK(void) e1kRxAbsDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer
  *
  * @param   pDevIns     Pointer to device instance structure.
  * @param   pTimer      Pointer to the timer.
+ * @param   pvUser      NULL.
  * @thread  EMT
  */
-static DECLCALLBACK(void) e1kLateIntTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) e1kLateIntTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE *);
+    E1KSTATE *pState = (E1KSTATE *)pvUser;
 
     STAM_PROFILE_ADV_START(&pState->StatLateIntTimer, a);
     if (RT_LIKELY(e1kMutexAcquire(pState, VERR_SEM_BUSY, RT_SRC_POS) == VINF_SUCCESS))
@@ -2586,11 +2591,12 @@ static DECLCALLBACK(void) e1kLateIntTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
  *
  * @param   pDevIns     Pointer to device instance structure.
  * @param   pTimer      Pointer to the timer.
+ * @param   pvUser      NULL.
  * @thread  EMT
  */
-static DECLCALLBACK(void) e1kLinkUpTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) e1kLinkUpTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE *);
+    E1KSTATE *pState = (E1KSTATE *)pvUser;
 
     if (RT_LIKELY(e1kMutexAcquire(pState, VERR_SEM_BUSY, RT_SRC_POS) == VINF_SUCCESS))
     {
@@ -3762,6 +3768,10 @@ PDMBOTHCBDECL(int) e1kIOPortIn(PPDMDEVINS pDevIns, void *pvUser,
                 break;
             case 0x04: /* IODATA */
                 rc = e1kRegRead(pState, pState->uSelectedReg, pu32, cb);
+                /* @todo wrong return code triggers assertions in the debug build; fix please */
+                if (rc == VINF_IOM_HC_MMIO_READ)
+                    rc = VINF_IOM_HC_IOPORT_READ;
+
                 E1kLog2(("%s e1kIOPortIn: IODATA(4), reading from selected register %#010x, val=%#010x\n", szInst, pState->uSelectedReg, *pu32));
                 break;
             default:
@@ -3812,6 +3822,9 @@ PDMBOTHCBDECL(int) e1kIOPortOut(PPDMDEVINS pDevIns, void *pvUser,
             case 0x04: /* IODATA */
                 E1kLog2(("%s e1kIOPortOut: IODATA(4), writing to selected register %#010x, value=%#010x\n", szInst, pState->uSelectedReg, u32));
                 rc = e1kRegWrite(pState, pState->uSelectedReg, &u32, cb);
+                /* @todo wrong return code triggers assertions in the debug build; fix please */
+                if (rc == VINF_IOM_HC_MMIO_WRITE)
+                    rc = VINF_IOM_HC_IOPORT_WRITE;
                 break;
             default:
                 E1kLog(("%s e1kIOPortOut: invalid port %#010x\n", szInst, port));
@@ -4811,7 +4824,8 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 
 #ifdef E1K_USE_TX_TIMERS
     /* Create Transmit Interrupt Delay Timer */
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kTxIntDelayTimer,
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kTxIntDelayTimer, pState,
+                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
                                 "E1000 Transmit Interrupt Delay Timer", &pState->pTIDTimerR3);
     if (RT_FAILURE(rc))
         return rc;
@@ -4820,7 +4834,8 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 
 # ifndef E1K_NO_TAD
     /* Create Transmit Absolute Delay Timer */
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kTxAbsDelayTimer,
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kTxAbsDelayTimer, pState,
+                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
                                 "E1000 Transmit Absolute Delay Timer", &pState->pTADTimerR3);
     if (RT_FAILURE(rc))
         return rc;
@@ -4831,7 +4846,8 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 
 #ifdef E1K_USE_RX_TIMERS
     /* Create Receive Interrupt Delay Timer */
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kRxIntDelayTimer,
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kRxIntDelayTimer, pState,
+                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
                                 "E1000 Receive Interrupt Delay Timer", &pState->pRIDTimerR3);
     if (RT_FAILURE(rc))
         return rc;
@@ -4839,7 +4855,8 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     pState->pRIDTimerRC = TMTimerRCPtr(pState->pRIDTimerR3);
 
     /* Create Receive Absolute Delay Timer */
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kRxAbsDelayTimer,
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kRxAbsDelayTimer, pState,
+                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
                                 "E1000 Receive Absolute Delay Timer", &pState->pRADTimerR3);
     if (RT_FAILURE(rc))
         return rc;
@@ -4848,7 +4865,8 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 #endif /* E1K_USE_RX_TIMERS */
 
     /* Create Late Interrupt Timer */
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kLateIntTimer,
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kLateIntTimer, pState,
+                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
                                 "E1000 Late Interrupt Timer", &pState->pIntTimerR3);
     if (RT_FAILURE(rc))
         return rc;
@@ -4856,7 +4874,8 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     pState->pIntTimerRC = TMTimerRCPtr(pState->pIntTimerR3);
 
     /* Create Link Up Timer */
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kLinkUpTimer,
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kLinkUpTimer, pState,
+                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
                                 "E1000 Link Up Timer", &pState->pLUTimer);
     if (RT_FAILURE(rc))
         return rc;
@@ -5023,6 +5042,107 @@ static DECLCALLBACK(void) e1kSuspend(PPDMDEVINS pDevIns)
     e1kWakeupReceive(pDevIns);
 }
 
+
+#ifdef VBOX_DYNAMIC_NET_ATTACH
+/**
+ * Detach notification.
+ *
+ * One port on the network card has been disconnected from the network.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   iLUN        The logical unit which is being detached.
+ */
+static DECLCALLBACK(void) e1kDetach(PPDMDEVINS pDevIns, unsigned iLUN)
+{
+    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE*);
+    Log(("%s e1kDetach:\n", INSTANCE(pState)));
+
+    AssertLogRelReturnVoid(iLUN == 0);
+
+    PDMCritSectEnter(&pState->cs, VERR_SEM_BUSY);
+
+    /** @todo: r=pritesh still need to check if i missed
+     * to clean something in this function
+     */
+
+    /*
+     * Zero some important members.
+     */
+    pState->pDrvBase = NULL;
+    pState->pDrv = NULL;
+
+    PDMCritSectLeave(&pState->cs);
+}
+
+
+/**
+ * Attach the Network attachment.
+ *
+ * One port on the network card has been connected to a network.
+ *
+ * @returns VBox status code.
+ * @param   pDevIns     The device instance.
+ * @param   iLUN        The logical unit which is being attached.
+ *
+ * @remarks This code path is not used during construction.
+ */
+static DECLCALLBACK(int) e1kAttach(PPDMDEVINS pDevIns, unsigned iLUN)
+{
+    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE*);
+    LogFlow(("%s e1kAttach:\n",  INSTANCE(pState)));
+
+    AssertLogRelReturn(iLUN == 0, VERR_PDM_NO_SUCH_LUN);
+
+    PDMCritSectEnter(&pState->cs, VERR_SEM_BUSY);
+
+    /*
+     * Attach the driver.
+     */
+    int rc = PDMDevHlpDriverAttach(pDevIns, 0, &pState->IBase, &pState->pDrvBase, "Network Port");
+    if (RT_SUCCESS(rc))
+    {
+        if (rc == VINF_NAT_DNS)
+        {
+#ifdef RT_OS_LINUX
+            PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "NoDNSforNAT",
+                                       N_("A Domain Name Server (DNS) for NAT networking could not be determined. Please check your /etc/resolv.conf for <tt>nameserver</tt> entries. Either add one manually (<i>man resolv.conf</i>) or ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
+#else
+            PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "NoDNSforNAT",
+                                       N_("A Domain Name Server (DNS) for NAT networking could not be determined. Ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
+#endif
+        }
+        pState->pDrv = (PPDMINETWORKCONNECTOR)pState->pDrvBase->pfnQueryInterface(pState->pDrvBase, PDMINTERFACE_NETWORK_CONNECTOR);
+        if (!pState->pDrv)
+        {
+            AssertMsgFailed(("Failed to obtain the PDMINTERFACE_NETWORK_CONNECTOR interface!\n"));
+            rc = VERR_PDM_MISSING_INTERFACE_BELOW;
+        }
+    }
+    else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
+        Log(("%s No attached driver!\n", INSTANCE(pState)));
+
+
+    /*
+     * Temporary set the link down if it was up so that the guest
+     * will know that we have change the configuration of the
+     * network card
+     */
+    if ((STATUS & STATUS_LU) && RT_SUCCESS(rc))
+    {
+        STATUS &= ~STATUS_LU;
+        Phy::setLinkStatus(&pState->phy, false);
+        e1kRaiseInterrupt(pState, ICR_LSC);
+        /* Restore the link back in 5 second. */
+        e1kArmTimer(pState, pState->pLUTimer, 5000000);
+    }
+
+    PDMCritSectLeave(&pState->cs);
+    return rc;
+
+}
+#endif /* VBOX_DYNAMIC_NET_ATTACH */
+
+
 /**
  * @copydoc FNPDMDEVPOWEROFF
  */
@@ -5076,10 +5196,17 @@ const PDMDEVREG g_DeviceE1000 =
     e1kSuspend,
     /* Resume notification - optional. */
     NULL,
+#ifdef VBOX_DYNAMIC_NET_ATTACH
+    /* Attach command - optional. */
+    e1kAttach,
+    /* Detach notification - optional. */
+    e1kDetach,
+#else /* !VBOX_DYNAMIC_NET_ATTACH */
     /* Attach command - optional. */
     NULL,
     /* Detach notification - optional. */
     NULL,
+#endif /* !VBOX_DYNAMIC_NET_ATTACH */
     /* Query a LUN base interface - optional. */
     NULL,
     /* Init complete notification - optional. */

@@ -1,4 +1,4 @@
-/** @file $Id: vboxvideo_dri.c $
+/** @file $Id: vboxvideo_dri.c 20877 2009-06-24 06:23:48Z vboxsync $
  *
  * VirtualBox X11 Additions graphics driver, DRI support
  */
@@ -174,6 +174,16 @@ Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
                    "DRI is only available in 16bpp or 32bpp graphics modes.\n");
         rc = FALSE;
     }
+    /* Assertion */
+    if (   (pScrn->displayWidth == 0)
+        || (pVBox->pciInfo == NULL)
+        || (pVBox->base == NULL)
+        || (pVBox->mapSize == 0))
+    {
+        xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "%s: preconditions failed\n",
+                   __PRETTY_FUNCTION__);
+        rc = FALSE;
+    }
     /* Check that the GLX, DRI, and DRM modules have been loaded by testing for
      * canonical symbols in each module, the way all existing _dri drivers do.
      */
@@ -248,9 +258,10 @@ Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
         pDRIInfo->ddxDriverPatchVersion = 0;
         pDRIInfo->ddxDrawableTableEntry = VBOX_MAX_DRAWABLES;
         pDRIInfo->maxDrawableTableEntry = VBOX_MAX_DRAWABLES;
-        pDRIInfo->frameBufferPhysicalAddress = pVBox->base;
+        pDRIInfo->frameBufferPhysicalAddress = (pointer)pVBox->mapPhys;
         pDRIInfo->frameBufferSize = pVBox->mapSize;
-        pDRIInfo->frameBufferStride = pScrn->displayWidth;
+        pDRIInfo->frameBufferStride =   pScrn->displayWidth
+                                      * pScrn->bitsPerPixel / 8;
         pDRIInfo->SAREASize = SAREA_MAX;  /* we have no private bits yet. */
         /* This can't be zero, as the server callocs this size and checks for
          * non-NULL... */
@@ -302,6 +313,13 @@ Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
     }
     TRACE_LOG("returning %s\n", BOOL_STR(rc));
     return rc;
+}
+
+void VBOXDRIUpdateStride(ScrnInfoPtr pScrn, VBOXPtr pVBox)
+{
+    DRIInfoPtr pDRIInfo = pVBox->pDRIInfo;
+    pDRIInfo->frameBufferStride =   pScrn->displayWidth
+                                  * pScrn->bitsPerPixel / 8;
 }
 
 void

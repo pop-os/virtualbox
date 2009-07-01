@@ -36,9 +36,7 @@ public:
 
     VBoxVMSettingsGeneral();
 
-signals:
-
-    void tableChanged();
+    bool is64BitOSTypeSelected() const;
 
 protected:
 
@@ -46,32 +44,13 @@ protected:
     void putBackTo();
 
     void setValidator (QIWidgetValidator *aVal);
-    bool revalidate (QString &aWarning, QString &aTitle);
 
     void setOrderAfter (QWidget *aWidget);
 
     void retranslateUi();
 
-private slots:
-
-    void valueChangedRAM (int aVal);
-    void textChangedRAM (const QString &aText);
-
-    void valueChangedVRAM (int aVal);
-    void textChangedVRAM (const QString &aText);
-
-    void stateChangedVirt (int aState);
-
-    void moveBootItemUp();
-    void moveBootItemDown();
-    void onCurrentBootItemChanged (QTreeWidgetItem *aItem,
-                                   QTreeWidgetItem *aPrev = 0);
-
 private:
 
-    void adjustBootOrderTWSize ();
-
-    bool eventFilter (QObject *aObject, QEvent *aEvent);
     void showEvent (QShowEvent *aEvent);
 
     CMachine mMachine;

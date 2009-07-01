@@ -1,4 +1,4 @@
-/* $Id: PGMGst.h $ */
+/* $Id: PGMGst.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * VBox - Page Manager / Monitor, Guest Paging Template.
  */
@@ -23,18 +23,18 @@
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 /* r3 */
 PGM_GST_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR0);
-PGM_GST_DECL(int, Enter)(PVM pVM, RTGCPHYS GCPhysCR3);
-PGM_GST_DECL(int, Relocate)(PVM pVM, RTGCPTR offDelta);
-PGM_GST_DECL(int, Exit)(PVM pVM);
+PGM_GST_DECL(int, Enter)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3);
+PGM_GST_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta);
+PGM_GST_DECL(int, Exit)(PVMCPU pVCpu);
 
 /* all */
-PGM_GST_DECL(int, GetPage)(PVM pVM, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGCPHYS pGCPhys);
-PGM_GST_DECL(int, ModifyPage)(PVM pVM, RTGCPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask);
-PGM_GST_DECL(int, GetPDE)(PVM pVM, RTGCPTR GCPtr, PX86PDEPAE pPDE);
-__END_DECLS
+PGM_GST_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGCPHYS pGCPhys);
+PGM_GST_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask);
+PGM_GST_DECL(int, GetPDE)(PVMCPU pVCpu, RTGCPTR GCPtr, PX86PDEPAE pPDE);
+RT_C_DECLS_END
 
 
 /**
@@ -88,15 +88,15 @@ PGM_GST_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
  * Enters the guest mode.
  *
  * @returns VBox status code.
- * @param   pVM         VM handle.
+ * @param   pVCpu       The VMCPU to operate on.
  * @param   GCPhysCR3   The physical address from the CR3 register.
  */
-PGM_GST_DECL(int, Enter)(PVM pVM, RTGCPHYS GCPhysCR3)
+PGM_GST_DECL(int, Enter)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3)
 {
     /*
      * Map and monitor CR3
      */
-    int rc = PGM_BTH_PFN(MapCR3, pVM)(pVM, GCPhysCR3);
+    int rc = PGM_BTH_PFN(MapCR3, pVCpu)(pVCpu, GCPhysCR3);
     return rc;
 }
 
@@ -105,12 +105,19 @@ PGM_GST_DECL(int, Enter)(PVM pVM, RTGCPHYS GCPhysCR3)
  * Relocate any GC pointers related to guest mode paging.
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
+ * @param   pVCpu       The VMCPU to operate on.
  * @param   offDelta    The reloation offset.
  */
-PGM_GST_DECL(int, Relocate)(PVM pVM, RTGCPTR offDelta)
+PGM_GST_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta)
 {
-    /* nothing special to do here - InitData does the job. */
+    pVCpu->pgm.s.pGst32BitPdRC += offDelta;
+
+    for (unsigned i = 0; i < RT_ELEMENTS(pVCpu->pgm.s.apGstPaePDsRC); i++)
+    {
+        pVCpu->pgm.s.apGstPaePDsRC[i] += offDelta;
+    }
+    pVCpu->pgm.s.pGstPaePdptRC += offDelta;
+
     return VINF_SUCCESS;
 }
 
@@ -119,13 +126,13 @@ PGM_GST_DECL(int, Relocate)(PVM pVM, RTGCPTR offDelta)
  * Exits the guest mode.
  *
  * @returns VBox status code.
- * @param   pVM         VM handle.
+ * @param   pVCpu       The VMCPU to operate on.
  */
-PGM_GST_DECL(int, Exit)(PVM pVM)
+PGM_GST_DECL(int, Exit)(PVMCPU pVCpu)
 {
     int rc;
 
-    rc = PGM_BTH_PFN(UnmapCR3, pVM)(pVM);
+    rc = PGM_BTH_PFN(UnmapCR3, pVCpu)(pVCpu);
     return rc;
 }
 

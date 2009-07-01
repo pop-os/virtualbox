@@ -1,4 +1,4 @@
-/* $Id: TRPM.cpp $ */
+/* $Id: TRPM.cpp 20841 2009-06-23 14:45:16Z vboxsync $ */
 /** @file
  * TRPM - The Trap Monitor.
  */
@@ -430,7 +430,8 @@ static VBOXIDTE_GENERIC     g_aIdt[256] =
 #define TRPM_TRACK_SHADOW_IDT_CHANGES
 
 /** TRPM saved state version. */
-#define TRPM_SAVED_STATE_VERSION    8
+#define TRPM_SAVED_STATE_VERSION        9
+#define TRPM_SAVED_STATE_VERSION_UNI    8   /* SMP support bumped the version */
 
 
 /*******************************************************************************
@@ -463,7 +464,17 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
      * Initialize members.
      */
     pVM->trpm.s.offVM              = RT_OFFSETOF(VM, trpm);
-    pVM->trpm.s.uActiveVector      = ~0;
+    pVM->trpm.s.offTRPMCPU         = RT_OFFSETOF(VM, aCpus[0].trpm) - RT_OFFSETOF(VM, trpm);
+
+    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[i];
+
+        pVCpu->trpm.s.offVM         = RT_OFFSETOF(VM, aCpus[i].trpm);
+        pVCpu->trpm.s.offVMCpu      = RT_OFFSETOF(VMCPU, trpm);
+        pVCpu->trpm.s.uActiveVector = ~0;
+    }
+
     pVM->trpm.s.GuestIdtr.pIdt     = RTRCPTR_MAX;
     pVM->trpm.s.pvMonShwIdtRC            = RTRCPTR_MAX;
     pVM->trpm.s.fDisableMonitoring = false;
@@ -553,7 +564,8 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
     /*
      * Default action when entering raw mode for the first time
      */
-    VM_FF_SET(pVM, VM_FF_TRPM_SYNC_IDT);
+    PVMCPU pVCpu = &pVM->aCpus[0];  /* raw mode implies on VCPU */
+    VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
     return 0;
 }
 
@@ -569,6 +581,9 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
  */
 VMMR3DECL(void) TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 {
+    /* Only applies to raw mode which supports only 1 VCPU. */
+    PVMCPU pVCpu = &pVM->aCpus[0];
+
     LogFlow(("TRPMR3Relocate\n"));
     /*
      * Get the trap handler addresses.
@@ -591,7 +606,7 @@ VMMR3DECL(void) TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "TRPMGCHandlerTrap12",   &aRCPtrs[TRPM_HANDLER_TRAP_12]);
     AssertReleaseMsgRC(rc, ("Couldn't find TRPMGCHandlerTrap12 in VMMGC.gc!\n"));
 
-    RTSEL SelCS = CPUMGetHyperCS(pVM);
+    RTSEL SelCS = CPUMGetHyperCS(pVCpu);
 
     /*
      * Iterate the idt and set the addresses.
@@ -638,7 +653,7 @@ VMMR3DECL(void) TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     /*
      * Update IDTR (limit is including!).
      */
-    CPUMSetHyperIDTR(pVM, VM_RC_ADDR(pVM, &pVM->trpm.s.aIdt[0]), sizeof(pVM->trpm.s.aIdt)-1);
+    CPUMSetHyperIDTR(pVCpu, VM_RC_ADDR(pVM, &pVM->trpm.s.aIdt[0]), sizeof(pVM->trpm.s.aIdt)-1);
 
     if (!pVM->trpm.s.fDisableMonitoring)
     {
@@ -727,7 +742,11 @@ VMMR3DECL(void) TRPMR3Reset(PVM pVM)
     /*
      * Reinitialize other members calling the relocator to get things right.
      */
-    pVM->trpm.s.uActiveVector  = ~0;
+    for (unsigned i=0;i<pVM->cCPUs;i++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[i];
+        pVCpu->trpm.s.uActiveVector = ~0;
+    }
     memcpy(&pVM->trpm.s.aIdt[0], &g_aIdt[0], sizeof(pVM->trpm.s.aIdt));
     memset(pVM->trpm.s.aGuestTrapHandler, 0, sizeof(pVM->trpm.s.aGuestTrapHandler));
     TRPMR3Relocate(pVM, 0);
@@ -735,7 +754,8 @@ VMMR3DECL(void) TRPMR3Reset(PVM pVM)
     /*
      * Default action when entering raw mode for the first time
      */
-    VM_FF_SET(pVM, VM_FF_TRPM_SYNC_IDT);
+    PVMCPU pVCpu = &pVM->aCpus[0];  /* raw mode implies on VCPU */
+    VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
 }
 
 
@@ -748,27 +768,29 @@ VMMR3DECL(void) TRPMR3Reset(PVM pVM)
  */
 static DECLCALLBACK(int) trpmR3Save(PVM pVM, PSSMHANDLE pSSM)
 {
+    PTRPM pTrpm = &pVM->trpm.s;
     LogFlow(("trpmR3Save:\n"));
 
     /*
      * Active and saved traps.
      */
-    PTRPM pTrpm = &pVM->trpm.s;
-    SSMR3PutUInt(pSSM,      pTrpm->uActiveVector);
-    SSMR3PutUInt(pSSM,      pTrpm->enmActiveType);
-    SSMR3PutGCUInt(pSSM,    pTrpm->uActiveErrorCode);
-    SSMR3PutGCUIntPtr(pSSM, pTrpm->uActiveCR2);
-    SSMR3PutGCUInt(pSSM,    pTrpm->uSavedVector);
-    SSMR3PutUInt(pSSM,      pTrpm->enmSavedType);
-    SSMR3PutGCUInt(pSSM,    pTrpm->uSavedErrorCode);
-    SSMR3PutGCUIntPtr(pSSM, pTrpm->uSavedCR2);
-    SSMR3PutGCUInt(pSSM,    pTrpm->uPrevVector);
-#if 0  /** @todo Enable this (+ load change) on the next version change. */
+    for (unsigned i=0;i<pVM->cCPUs;i++)
+    {
+        PTRPMCPU pTrpmCpu = &pVM->aCpus[i].trpm.s;
+
+        SSMR3PutUInt(pSSM,      pTrpmCpu->uActiveVector);
+        SSMR3PutUInt(pSSM,      pTrpmCpu->enmActiveType);
+        SSMR3PutGCUInt(pSSM,    pTrpmCpu->uActiveErrorCode);
+        SSMR3PutGCUIntPtr(pSSM, pTrpmCpu->uActiveCR2);
+        SSMR3PutGCUInt(pSSM,    pTrpmCpu->uSavedVector);
+        SSMR3PutUInt(pSSM,      pTrpmCpu->enmSavedType);
+        SSMR3PutGCUInt(pSSM,    pTrpmCpu->uSavedErrorCode);
+        SSMR3PutGCUIntPtr(pSSM, pTrpmCpu->uSavedCR2);
+        SSMR3PutGCUInt(pSSM,    pTrpmCpu->uPrevVector);
+    }
     SSMR3PutBool(pSSM,      pTrpm->fDisableMonitoring);
-#else
-    SSMR3PutGCUInt(pSSM,    pTrpm->fDisableMonitoring);
-#endif
-    SSMR3PutUInt(pSSM,      VM_FF_ISSET(pVM, VM_FF_TRPM_SYNC_IDT));
+    PVMCPU pVCpu = &pVM->aCpus[0];  /* raw mode implies 1 VCPU */
+    SSMR3PutUInt(pSSM,      VMCPU_FF_ISSET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT));
     SSMR3PutMem(pSSM,       &pTrpm->au32IdtPatched[0], sizeof(pTrpm->au32IdtPatched));
     SSMR3PutU32(pSSM, ~0);              /* separator. */
 
@@ -804,7 +826,8 @@ static DECLCALLBACK(int) trpmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Versio
     /*
      * Validate version.
      */
-    if (u32Version != TRPM_SAVED_STATE_VERSION)
+    if (    u32Version != TRPM_SAVED_STATE_VERSION
+        &&  u32Version != TRPM_SAVED_STATE_VERSION_UNI)
     {
         AssertMsgFailed(("trpmR3Load: Invalid version u32Version=%d!\n", u32Version));
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
@@ -819,22 +842,42 @@ static DECLCALLBACK(int) trpmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Versio
      * Active and saved traps.
      */
     PTRPM pTrpm = &pVM->trpm.s;
-    SSMR3GetUInt(pSSM,      &pTrpm->uActiveVector);
-    SSMR3GetUInt(pSSM,      (uint32_t *)&pTrpm->enmActiveType);
-    SSMR3GetGCUInt(pSSM,    &pTrpm->uActiveErrorCode);
-    SSMR3GetGCUIntPtr(pSSM, &pTrpm->uActiveCR2);
-    SSMR3GetGCUInt(pSSM,    &pTrpm->uSavedVector);
-    SSMR3GetUInt(pSSM,      (uint32_t *)&pTrpm->enmSavedType);
-    SSMR3GetGCUInt(pSSM,    &pTrpm->uSavedErrorCode);
-    SSMR3GetGCUIntPtr(pSSM, &pTrpm->uSavedCR2);
-    SSMR3GetGCUInt(pSSM,    &pTrpm->uPrevVector);
-#if 0 /** @todo Enable this + the corresponding save code on the next version change. */
-    SSMR3GetBool(pSSM,      &pTrpm->fDisableMonitoring);
-#else
-    RTGCUINT fDisableMonitoring;
-    SSMR3GetGCUInt(pSSM,    &fDisableMonitoring);
-    pTrpm->fDisableMonitoring = !!fDisableMonitoring;
-#endif
+
+    if (u32Version == TRPM_SAVED_STATE_VERSION)
+    {
+        for (unsigned i=0;i<pVM->cCPUs;i++)
+        {
+            PTRPMCPU pTrpmCpu = &pVM->aCpus[i].trpm.s;
+            SSMR3GetUInt(pSSM,      &pTrpmCpu->uActiveVector);
+            SSMR3GetUInt(pSSM,      (uint32_t *)&pTrpmCpu->enmActiveType);
+            SSMR3GetGCUInt(pSSM,    &pTrpmCpu->uActiveErrorCode);
+            SSMR3GetGCUIntPtr(pSSM, &pTrpmCpu->uActiveCR2);
+            SSMR3GetGCUInt(pSSM,    &pTrpmCpu->uSavedVector);
+            SSMR3GetUInt(pSSM,      (uint32_t *)&pTrpmCpu->enmSavedType);
+            SSMR3GetGCUInt(pSSM,    &pTrpmCpu->uSavedErrorCode);
+            SSMR3GetGCUIntPtr(pSSM, &pTrpmCpu->uSavedCR2);
+            SSMR3GetGCUInt(pSSM,    &pTrpmCpu->uPrevVector);
+        }
+
+        SSMR3GetBool(pSSM,      &pVM->trpm.s.fDisableMonitoring);
+    }
+    else
+    {
+        PTRPMCPU pTrpmCpu = &pVM->aCpus[0].trpm.s;
+        SSMR3GetUInt(pSSM,      &pTrpmCpu->uActiveVector);
+        SSMR3GetUInt(pSSM,      (uint32_t *)&pTrpmCpu->enmActiveType);
+        SSMR3GetGCUInt(pSSM,    &pTrpmCpu->uActiveErrorCode);
+        SSMR3GetGCUIntPtr(pSSM, &pTrpmCpu->uActiveCR2);
+        SSMR3GetGCUInt(pSSM,    &pTrpmCpu->uSavedVector);
+        SSMR3GetUInt(pSSM,      (uint32_t *)&pTrpmCpu->enmSavedType);
+        SSMR3GetGCUInt(pSSM,    &pTrpmCpu->uSavedErrorCode);
+        SSMR3GetGCUIntPtr(pSSM, &pTrpmCpu->uSavedCR2);
+        SSMR3GetGCUInt(pSSM,    &pTrpmCpu->uPrevVector);
+
+        RTGCUINT fDisableMonitoring;
+        SSMR3GetGCUInt(pSSM,    &fDisableMonitoring);
+        pTrpm->fDisableMonitoring = !!fDisableMonitoring;
+    }
 
     RTUINT fSyncIDT;
     int rc = SSMR3GetUInt(pSSM, &fSyncIDT);
@@ -846,7 +889,10 @@ static DECLCALLBACK(int) trpmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Versio
         return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
     }
     if (fSyncIDT)
-        VM_FF_SET(pVM, VM_FF_TRPM_SYNC_IDT);
+    {
+        PVMCPU pVCpu = &pVM->aCpus[0];  /* raw mode implies 1 VCPU */
+        VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
+    }
     /* else: cleared by reset call above. */
 
     SSMR3GetMem(pSSM, &pTrpm->au32IdtPatched[0], sizeof(pTrpm->au32IdtPatched));
@@ -898,12 +944,13 @@ static DECLCALLBACK(int) trpmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Versio
 
 /**
  * Check if gate handlers were updated
- * (callback for the VM_FF_TRPM_SYNC_IDT forced action).
+ * (callback for the VMCPU_FF_TRPM_SYNC_IDT forced action).
  *
  * @returns VBox status code.
  * @param   pVM         The VM handle.
+ * @param   pVCpu       The VMCPU handle.
  */
-VMMR3DECL(int) TRPMR3SyncIDT(PVM pVM)
+VMMR3DECL(int) TRPMR3SyncIDT(PVM pVM, PVMCPU pVCpu)
 {
     STAM_PROFILE_START(&pVM->trpm.s.StatSyncIDT, a);
     const bool  fRawRing0 = EMIsRawRing0Enabled(pVM);
@@ -911,7 +958,7 @@ VMMR3DECL(int) TRPMR3SyncIDT(PVM pVM)
 
     if (pVM->trpm.s.fDisableMonitoring)
     {
-        VM_FF_CLEAR(pVM, VM_FF_TRPM_SYNC_IDT);
+        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
         return VINF_SUCCESS;    /* Nothing to do */
     }
 
@@ -931,7 +978,7 @@ VMMR3DECL(int) TRPMR3SyncIDT(PVM pVM)
      * Get the IDTR.
      */
     VBOXIDTR IDTR;
-    IDTR.pIdt = CPUMGetGuestIDTR(pVM, &IDTR.cbIdt);
+    IDTR.pIdt = CPUMGetGuestIDTR(pVCpu, &IDTR.cbIdt);
     if (!IDTR.cbIdt)
     {
         Log(("No IDT entries...\n"));
@@ -984,7 +1031,7 @@ VMMR3DECL(int) TRPMR3SyncIDT(PVM pVM)
      * Should probably check/sync the others too, but for now we'll handle that in #GP.
      */
     X86DESC  Idte3;
-    rc = PGMPhysSimpleReadGCPtr(pVM, &Idte3, IDTR.pIdt + sizeof(Idte3) * 3,  sizeof(Idte3));
+    rc = PGMPhysSimpleReadGCPtr(pVCpu, &Idte3, IDTR.pIdt + sizeof(Idte3) * 3,  sizeof(Idte3));
     if (RT_FAILURE(rc))
     {
         AssertMsgRC(rc, ("Failed to read IDT[3]! rc=%Rrc\n", rc));
@@ -999,7 +1046,7 @@ VMMR3DECL(int) TRPMR3SyncIDT(PVM pVM)
     /*
      * Clear the FF and we're done.
      */
-    VM_FF_CLEAR(pVM, VM_FF_TRPM_SYNC_IDT);
+    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
     STAM_PROFILE_STOP(&pVM->trpm.s.StatSyncIDT, a);
     return VINF_SUCCESS;
 }
@@ -1037,7 +1084,8 @@ VMMR3DECL(void) TRPMR3DisableMonitoring(PVM pVM)
     }
 #endif
 
-    VM_FF_CLEAR(pVM, VM_FF_TRPM_SYNC_IDT);
+    PVMCPU pVCpu = &pVM->aCpus[0];  /* raw mode implies on VCPU */
+    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
 
     pVM->trpm.s.fDisableMonitoring = true;
 }
@@ -1063,7 +1111,7 @@ static DECLCALLBACK(int) trpmR3GuestIDTWriteHandler(PVM pVM, RTGCPTR GCPtr, void
 {
     Assert(enmAccessType == PGMACCESSTYPE_WRITE);
     Log(("trpmR3GuestIDTWriteHandler: write to %RGv size %d\n", GCPtr, cbBuf));
-    VM_FF_SET(pVM, VM_FF_TRPM_SYNC_IDT);
+    VMCPU_FF_SET(VMMGetCpu(pVM), VMCPU_FF_TRPM_SYNC_IDT);
     return VINF_PGM_HANDLER_DO_DEFAULT;
 }
 
@@ -1077,6 +1125,9 @@ static DECLCALLBACK(int) trpmR3GuestIDTWriteHandler(PVM pVM, RTGCPTR GCPtr, void
  */
 VMMR3DECL(int) trpmR3ClearPassThroughHandler(PVM pVM, unsigned iTrap)
 {
+    /* Only applies to raw mode which supports only 1 VCPU. */
+    PVMCPU pVCpu = &pVM->aCpus[0];
+
     /** @todo cleanup trpmR3ClearPassThroughHandler()! */
     RTRCPTR aGCPtrs[TRPM_HANDLER_MAX];
     int rc;
@@ -1097,7 +1148,7 @@ VMMR3DECL(int) trpmR3ClearPassThroughHandler(PVM pVM, unsigned iTrap)
     /* Unmark it for relocation purposes. */
     ASMBitClear(&pVM->trpm.s.au32IdtPatched[0], iTrap);
 
-    RTSEL               SelCS         = CPUMGetHyperCS(pVM);
+    RTSEL               SelCS         = CPUMGetHyperCS(pVCpu);
     PVBOXIDTE           pIdte         = &pVM->trpm.s.aIdt[iTrap];
     PVBOXIDTE_GENERIC   pIdteTemplate = &g_aIdt[iTrap];
     if (pIdte->Gen.u1Present)
@@ -1181,6 +1232,10 @@ VMMR3DECL(RTRCPTR) TRPMR3GetGuestTrapHandler(PVM pVM, unsigned iTrap)
  */
 VMMR3DECL(int) TRPMR3SetGuestTrapHandler(PVM pVM, unsigned iTrap, RTRCPTR pHandler)
 {
+    /* Only valid in raw mode which implies 1 VCPU */
+    Assert(PATMIsEnabled(pVM) && pVM->cCPUs == 1);
+    PVMCPU pVCpu = &pVM->aCpus[0];
+
     /*
      * Validate.
      */
@@ -1193,7 +1248,7 @@ VMMR3DECL(int) TRPMR3SetGuestTrapHandler(PVM pVM, unsigned iTrap, RTRCPTR pHandl
     AssertReturn(pHandler == TRPM_INVALID_HANDLER || PATMIsPatchGCAddr(pVM, pHandler), VERR_INVALID_PARAMETER);
 
     uint16_t    cbIDT;
-    RTGCPTR     GCPtrIDT = CPUMGetGuestIDTR(pVM, &cbIDT);
+    RTGCPTR     GCPtrIDT = CPUMGetGuestIDTR(pVCpu, &cbIDT);
     if (iTrap * sizeof(VBOXIDTE) >= cbIDT)
         return VERR_INVALID_PARAMETER;  /* Silently ignore out of range requests. */
 
@@ -1208,7 +1263,7 @@ VMMR3DECL(int) TRPMR3SetGuestTrapHandler(PVM pVM, unsigned iTrap, RTRCPTR pHandl
      * Read the guest IDT entry.
      */
     VBOXIDTE GuestIdte;
-    int rc = PGMPhysSimpleReadGCPtr(pVM, &GuestIdte, GCPtrIDT + iTrap * sizeof(GuestIdte),  sizeof(GuestIdte));
+    int rc = PGMPhysSimpleReadGCPtr(pVCpu, &GuestIdte, GCPtrIDT + iTrap * sizeof(GuestIdte),  sizeof(GuestIdte));
     if (RT_FAILURE(rc))
     {
         AssertMsgRC(rc, ("Failed to read IDTE! rc=%Rrc\n", rc));
@@ -1300,11 +1355,15 @@ VMMR3DECL(int) TRPMR3SetGuestTrapHandler(PVM pVM, unsigned iTrap, RTRCPTR pHandl
  */
 VMMR3DECL(bool) TRPMR3IsGateHandler(PVM pVM, RTRCPTR GCPtr)
 {
+    /* Only valid in raw mode which implies 1 VCPU */
+    Assert(PATMIsEnabled(pVM) && pVM->cCPUs == 1);
+    PVMCPU pVCpu = &pVM->aCpus[0];
+
     /*
      * Read IDTR and calc last entry.
      */
     uint16_t    cbIDT;
-    RTGCPTR     GCPtrIDTE = CPUMGetGuestIDTR(pVM, &cbIDT);
+    RTGCPTR     GCPtrIDTE = CPUMGetGuestIDTR(pVCpu, &cbIDT);
     unsigned    cEntries = (cbIDT + 1) / sizeof(VBOXIDTE);
     if (!cEntries)
         return false;
@@ -1321,7 +1380,7 @@ VMMR3DECL(bool) TRPMR3IsGateHandler(PVM pVM, RTRCPTR GCPtr)
          */
         PCVBOXIDTE      pIDTE;
         PGMPAGEMAPLOCK  Lock;
-        int rc = PGMPhysGCPtr2CCPtrReadOnly(pVM, GCPtrIDTE, (const void **)&pIDTE, &Lock);
+        int rc = PGMPhysGCPtr2CCPtrReadOnly(pVCpu, GCPtrIDTE, (const void **)&pIDTE, &Lock);
         if (RT_SUCCESS(rc))
         {
             /*
@@ -1370,40 +1429,41 @@ VMMR3DECL(bool) TRPMR3IsGateHandler(PVM pVM, RTRCPTR GCPtr)
  *
  * @returns VBox status code.
  * @param   pVM         The VM to operate on.
+ * @param   pVCpu       The VMCPU to operate on.
  * @param   enmEvent    Trpm event type
  */
-VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, TRPMEVENT enmEvent)
+VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent)
 {
     PCPUMCTX pCtx;
     int      rc;
 
-    pCtx = CPUMQueryGuestCtxPtr(pVM);
+    pCtx = CPUMQueryGuestCtxPtr(pVCpu);
     Assert(!PATMIsPatchGCAddr(pVM, (RTGCPTR)pCtx->eip));
-    Assert(!VM_FF_ISSET(pVM, VM_FF_INHIBIT_INTERRUPTS));
+    Assert(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS));
 
     /* Currently only useful for external hardware interrupts. */
     Assert(enmEvent == TRPM_HARDWARE_INT);
 
-    if (REMR3QueryPendingInterrupt(pVM) == REM_NO_PENDING_IRQ)
+    if (REMR3QueryPendingInterrupt(pVM, pVCpu) == REM_NO_PENDING_IRQ)
     {
 #ifdef TRPM_FORWARD_TRAPS_IN_GC
 
 # ifdef LOG_ENABLED
         DBGFR3InfoLog(pVM, "cpumguest", "TRPMInject");
-        DBGFR3DisasInstrCurrentLog(pVM, "TRPMInject");
+        DBGFR3DisasInstrCurrentLog(pVCpu, "TRPMInject");
 # endif
 
         uint8_t u8Interrupt;
-        rc = PDMGetInterrupt(pVM, &u8Interrupt);
-        Log(("TRPMR3InjectEvent: u8Interrupt=%d (%#x) rc=%Rrc\n", u8Interrupt, u8Interrupt, rc));
+        rc = PDMGetInterrupt(pVCpu, &u8Interrupt);
+        Log(("TRPMR3InjectEvent: CPU%d u8Interrupt=%d (%#x) rc=%Rrc\n", pVCpu->idCpu, u8Interrupt, u8Interrupt, rc));
         if (RT_SUCCESS(rc))
         {
-            if (HWACCMR3IsActive(pVM))
+            if (HWACCMIsEnabled(pVM))
             {
-                rc = TRPMAssertTrap(pVM, u8Interrupt, enmEvent);
+                rc = TRPMAssertTrap(pVCpu, u8Interrupt, enmEvent);
                 AssertRC(rc);
                 STAM_COUNTER_INC(&pVM->trpm.s.paStatForwardedIRQR3[u8Interrupt]);
-                return VINF_EM_RESCHEDULE_HWACC;
+                return HWACCMR3IsActive(pVCpu) ? VINF_EM_RESCHEDULE_HWACC : VINF_EM_RESCHEDULE_REM;
             }
             /* If the guest gate is not patched, then we will check (again) if we can patch it. */
             if (pVM->trpm.s.aGuestTrapHandler[u8Interrupt] == TRPM_INVALID_HANDLER)
@@ -1415,14 +1475,14 @@ VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, TRPMEVENT enmEvent)
             if (pVM->trpm.s.aGuestTrapHandler[u8Interrupt] != TRPM_INVALID_HANDLER)
             {
                 /* Must check pending forced actions as our IDT or GDT might be out of sync */
-                rc = EMR3CheckRawForcedActions(pVM);
+                rc = EMR3CheckRawForcedActions(pVM, pVCpu);
                 if (rc == VINF_SUCCESS)
                 {
                     /* There's a handler -> let's execute it in raw mode */
-                    rc = TRPMForwardTrap(pVM, CPUMCTX2CORE(pCtx), u8Interrupt, 0, TRPM_TRAP_NO_ERRORCODE, enmEvent, -1);
+                    rc = TRPMForwardTrap(pVCpu, CPUMCTX2CORE(pCtx), u8Interrupt, 0, TRPM_TRAP_NO_ERRORCODE, enmEvent, -1);
                     if (rc == VINF_SUCCESS /* Don't use RT_SUCCESS */)
                     {
-                        Assert(!VM_FF_ISPENDING(pVM, VM_FF_SELM_SYNC_GDT | VM_FF_SELM_SYNC_LDT | VM_FF_TRPM_SYNC_IDT | VM_FF_SELM_SYNC_TSS));
+                        Assert(!VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_TRPM_SYNC_IDT | VMCPU_FF_SELM_SYNC_TSS));
 
                         STAM_COUNTER_INC(&pVM->trpm.s.paStatForwardedIRQR3[u8Interrupt]);
                         return VINF_EM_RESCHEDULE_RAW;
@@ -1431,15 +1491,18 @@ VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, TRPMEVENT enmEvent)
             }
             else
                 STAM_COUNTER_INC(&pVM->trpm.s.StatForwardFailNoHandler);
-            REMR3NotifyPendingInterrupt(pVM, u8Interrupt);
+            REMR3NotifyPendingInterrupt(pVM, pVCpu, u8Interrupt);
         }
         else
+        {
             AssertRC(rc);
+            return HWACCMR3IsActive(pVCpu) ? VINF_EM_RESCHEDULE_HWACC : VINF_EM_RESCHEDULE_REM; /* (Heed the halted state if this is changed!) */
+        }
 #else
         if (HWACCMR3IsActive(pVM))
         {
             uint8_t u8Interrupt;
-            rc = PDMGetInterrupt(pVM, &u8Interrupt);
+            rc = PDMGetInterrupt(pVCpu, &u8Interrupt);
             Log(("TRPMR3InjectEvent: u8Interrupt=%d (%#x) rc=%Rrc\n", u8Interrupt, u8Interrupt, rc));
             if (RT_SUCCESS(rc))
             {

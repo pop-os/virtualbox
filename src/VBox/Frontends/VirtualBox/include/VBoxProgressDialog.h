@@ -24,13 +24,15 @@
 #define __VBoxProgressDialog_h__
 
 /* Qt includes */
-#include <QProgressDialog>
+#include "QIDialog.h"
 
 /* VBox forward declarations */
 class CProgress;
+class QILabel;
 
 /* Qt forward declarations */
 class QEventLoop;
+class QProgressBar;
 
 /**
  * A QProgressDialog enhancement that allows to:
@@ -45,28 +47,40 @@ class QEventLoop;
  *       not be destroyed before the created VBoxProgressDialog instance is
  *       destroyed.
  */
-class VBoxProgressDialog: protected QProgressDialog
+class VBoxProgressDialog: protected QIDialog
 {
     Q_OBJECT;
 
 public:
+
     VBoxProgressDialog (CProgress &aProgress, const QString &aTitle,
-                        int aMinDuration = 2000, QWidget *aParent = NULL);
+                        int aMinDuration = 2000, QWidget *aParent = 0);
 
     int run (int aRefreshInterval);
     bool cancelEnabled() const { return mCancelEnabled; }
 
 protected:
+
+    virtual void retranslateUi();
+
     virtual void reject();
+
     virtual void timerEvent (QTimerEvent *aEvent);
     virtual void closeEvent (QCloseEvent *aEvent);
 
 private slots:
+
+    void showDialog();
     void cancelOperation();
 
 private:
+
     /* Private member vars */
     CProgress &mProgress;
+    QILabel *mLabel;
+    QILabel *mETA;
+    QString mETAText;
+    QProgressBar *mProgressBar;
     QEventLoop *mEventLoop;
     bool mCancelEnabled;
     const ulong mOpCount;

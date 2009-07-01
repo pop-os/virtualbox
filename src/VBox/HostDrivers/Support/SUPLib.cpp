@@ -1,4 +1,4 @@
-/* $Id: SUPLib.cpp $ */
+/* $Id: SUPLib.cpp 20866 2009-06-23 19:33:23Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Common code.
  */
@@ -99,7 +99,7 @@ static bool                     g_fPreInited = false;
 /** The SUPLib instance data.
  * Well, at least parts of it, specificly the parts that are being handed over
  * via the pre-init mechanism from the hardened executable stub.  */
-static SUPLIBDATA               g_supLibData =
+SUPLIBDATA                      g_supLibData =
 {
     NIL_RTFILE
 #if   defined(RT_OS_DARWIN)
@@ -124,20 +124,20 @@ static PSUPGLOBALINFOPAGE       g_pSUPGlobalInfoPageR0;
 static RTHCPHYS                 g_HCPhysSUPGlobalInfoPage = NIL_RTHCPHYS;
 
 /** The negotiated cookie. */
-uint32_t            g_u32Cookie = 0;
+uint32_t                        g_u32Cookie = 0;
 /** The negotiated session cookie. */
-uint32_t            g_u32SessionCookie;
+uint32_t                        g_u32SessionCookie;
 /** Session handle. */
-PSUPDRVSESSION      g_pSession;
+PSUPDRVSESSION                  g_pSession;
 /** R0 SUP Functions used for resolving referenced to the SUPR0 module. */
-static PSUPQUERYFUNCS g_pFunctions;
+static PSUPQUERYFUNCS           g_pFunctions;
 
 /** VMMR0 Load Address. */
-static RTR0PTR      g_pvVMMR0 = NIL_RTR0PTR;
+static RTR0PTR                  g_pvVMMR0 = NIL_RTR0PTR;
 /** PAGE_ALLOC_EX sans kernel mapping support indicator. */
-static bool         g_fSupportsPageAllocNoKernel = true;
+static bool                     g_fSupportsPageAllocNoKernel = true;
 /** Fake mode indicator. (~0 at first, 0 or 1 after first test) */
-static uint32_t     g_u32FakeMode = ~0;
+static uint32_t                 g_u32FakeMode = ~0;
 
 
 /*******************************************************************************
@@ -148,13 +148,13 @@ static int supLoadModule(const char *pszFilename, const char *pszModule, const c
 static DECLCALLBACK(int) supLoadModuleResolveImport(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol, unsigned uSymbol, RTUINTPTR *pValue, void *pvUser);
 
 
-SUPR3DECL(int) SUPInstall(void)
+SUPR3DECL(int) SUPR3Install(void)
 {
     return suplibOsInstall();
 }
 
 
-SUPR3DECL(int) SUPUninstall(void)
+SUPR3DECL(int) SUPR3Uninstall(void)
 {
     return suplibOsUninstall();
 }
@@ -259,8 +259,8 @@ SUPR3DECL(int) SUPR3Init(PSUPDRVSESSION *ppSession)
         CookieReq.Hdr.rc = VERR_INTERNAL_ERROR;
         strcpy(CookieReq.u.In.szMagic, SUPCOOKIE_MAGIC);
         CookieReq.u.In.u32ReqVersion = SUPDRV_IOC_VERSION;
-        const uint32_t MinVersion = (SUPDRV_IOC_VERSION & 0xffff0000) == 0x000a0000
-                                  ? 0x000a0009
+        const uint32_t MinVersion = (SUPDRV_IOC_VERSION & 0xffff0000) == 0x000d0000
+                                  ?  0x000d0001
                                   :  SUPDRV_IOC_VERSION & 0xffff0000;
         CookieReq.u.In.u32MinVersion = MinVersion;
         rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_COOKIE, &CookieReq, SUP_IOCTL_COOKIE_SIZE);
@@ -485,12 +485,12 @@ static int supInitFake(PSUPDRVSESSION *ppSession)
 }
 
 
-SUPR3DECL(int) SUPTerm(bool fForced)
+SUPR3DECL(int) SUPR3Term(bool fForced)
 {
     /*
      * Verify state.
      */
-    AssertMsg(g_cInits > 0, ("SUPTerm() is called before SUPR3Init()!\n"));
+    AssertMsg(g_cInits > 0, ("SUPR3Term() is called before SUPR3Init()!\n"));
     if (g_cInits == 0)
         return VERR_WRONG_ORDER;
     if (g_cInits == 1 || fForced)
@@ -525,7 +525,7 @@ SUPR3DECL(int) SUPTerm(bool fForced)
 }
 
 
-SUPR3DECL(SUPPAGINGMODE) SUPGetPagingMode(void)
+SUPR3DECL(SUPPAGINGMODE) SUPR3GetPagingMode(void)
 {
     /* fake */
     if (RT_UNLIKELY(g_u32FakeMode))
@@ -549,7 +549,7 @@ SUPR3DECL(SUPPAGINGMODE) SUPGetPagingMode(void)
     if (    RT_FAILURE(rc)
         ||  RT_FAILURE(Req.Hdr.rc))
     {
-        LogRel(("SUPGetPagingMode: %Rrc %Rrc\n", rc, Req.Hdr.rc));
+        LogRel(("SUPR3GetPagingMode: %Rrc %Rrc\n", rc, Req.Hdr.rc));
         Req.u.Out.enmMode = SUPPAGINGMODE_INVALID;
     }
 
@@ -567,7 +567,7 @@ static int supCallVMMR0ExFake(PVMR0 pVMR0, unsigned uOperation, uint64_t u64Arg,
 }
 
 
-SUPR3DECL(int) SUPCallVMMR0Fast(PVMR0 pVMR0, unsigned uOperation, unsigned idCpu)
+SUPR3DECL(int) SUPR3CallVMMR0Fast(PVMR0 pVMR0, unsigned uOperation, VMCPUID idCpu)
 {
     if (RT_LIKELY(uOperation == SUP_VMMR0_DO_RAW_RUN))
         return suplibOsIOCtlFast(&g_supLibData, SUP_IOCTL_FAST_DO_RAW_RUN, idCpu);
@@ -581,7 +581,7 @@ SUPR3DECL(int) SUPCallVMMR0Fast(PVMR0 pVMR0, unsigned uOperation, unsigned idCpu
 }
 
 
-SUPR3DECL(int) SUPCallVMMR0Ex(PVMR0 pVMR0, unsigned uOperation, uint64_t u64Arg, PSUPVMMR0REQHDR pReqHdr)
+SUPR3DECL(int) SUPR3CallVMMR0Ex(PVMR0 pVMR0, VMCPUID idCpu, unsigned uOperation, uint64_t u64Arg, PSUPVMMR0REQHDR pReqHdr)
 {
     /*
      * The following operations don't belong here.
@@ -608,6 +608,7 @@ SUPR3DECL(int) SUPCallVMMR0Ex(PVMR0 pVMR0, unsigned uOperation, uint64_t u64Arg,
         Req.Hdr.fFlags = SUPREQHDR_FLAGS_DEFAULT;
         Req.Hdr.rc = VERR_INTERNAL_ERROR;
         Req.u.In.pVMR0 = pVMR0;
+        Req.u.In.idCpu = idCpu;
         Req.u.In.uOperation = uOperation;
         Req.u.In.u64Arg = u64Arg;
         rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_CALL_VMMR0(0), &Req, SUP_IOCTL_CALL_VMMR0_SIZE(0));
@@ -628,6 +629,7 @@ SUPR3DECL(int) SUPCallVMMR0Ex(PVMR0 pVMR0, unsigned uOperation, uint64_t u64Arg,
         pReq->Hdr.fFlags = SUPREQHDR_FLAGS_DEFAULT;
         pReq->Hdr.rc = VERR_INTERNAL_ERROR;
         pReq->u.In.pVMR0 = pVMR0;
+        pReq->u.In.idCpu = idCpu;
         pReq->u.In.uOperation = uOperation;
         pReq->u.In.u64Arg = u64Arg;
         memcpy(&pReq->abReqPkt[0], pReqHdr, cbReq);
@@ -642,7 +644,7 @@ SUPR3DECL(int) SUPCallVMMR0Ex(PVMR0 pVMR0, unsigned uOperation, uint64_t u64Arg,
 }
 
 
-SUPR3DECL(int) SUPCallVMMR0(PVMR0 pVMR0, unsigned uOperation, void *pvArg)
+SUPR3DECL(int) SUPR3CallVMMR0(PVMR0 pVMR0, VMCPUID idCpu, unsigned uOperation, void *pvArg)
 {
     /*
      * The following operations don't belong here.
@@ -652,11 +654,11 @@ SUPR3DECL(int) SUPCallVMMR0(PVMR0 pVMR0, unsigned uOperation, void *pvArg)
                     &&  uOperation != SUP_VMMR0_DO_NOP,
                     ("%#x\n", uOperation),
                     VERR_INTERNAL_ERROR);
-    return SUPCallVMMR0Ex(pVMR0, uOperation, (uintptr_t)pvArg, NULL);
+    return SUPR3CallVMMR0Ex(pVMR0, idCpu, uOperation, (uintptr_t)pvArg, NULL);
 }
 
 
-SUPR3DECL(int) SUPSetVMForFastIOCtl(PVMR0 pVMR0)
+SUPR3DECL(int) SUPR3SetVMForFastIOCtl(PVMR0 pVMR0)
 {
     if (RT_UNLIKELY(g_u32FakeMode))
         return VINF_SUCCESS;
@@ -831,7 +833,7 @@ SUPR3DECL(int) SUPR3LoggerDestroy(SUPLOGGER enmWhich)
 }
 
 
-SUPR3DECL(int) SUPPageAlloc(size_t cPages, void **ppvPages)
+SUPR3DECL(int) SUPR3PageAlloc(size_t cPages, void **ppvPages)
 {
     /*
      * Validate.
@@ -840,22 +842,14 @@ SUPR3DECL(int) SUPPageAlloc(size_t cPages, void **ppvPages)
     *ppvPages = NULL;
     AssertReturn(cPages > 0, VERR_PAGE_COUNT_OUT_OF_RANGE);
 
-#ifdef RT_OS_WINDOWS
-    /*
-     * Temporary hack for windows until we've sorted out the
-     * locked memory that doesn't need to be accessible from kernel space.
-     */
-    return SUPPageAllocLockedEx(cPages, ppvPages, NULL);
-#else
     /*
      * Call OS specific worker.
      */
     return suplibOsPageAlloc(&g_supLibData, cPages, ppvPages);
-#endif
 }
 
 
-SUPR3DECL(int) SUPPageFree(void *pvPages, size_t cPages)
+SUPR3DECL(int) SUPR3PageFree(void *pvPages, size_t cPages)
 {
     /*
      * Validate.
@@ -863,21 +857,25 @@ SUPR3DECL(int) SUPPageFree(void *pvPages, size_t cPages)
     AssertPtrReturn(pvPages, VERR_INVALID_POINTER);
     AssertReturn(cPages > 0, VERR_PAGE_COUNT_OUT_OF_RANGE);
 
-#ifdef RT_OS_WINDOWS
-    /*
-     * Temporary hack for windows, see above.
-     */
-    return SUPPageFreeLocked(pvPages, cPages);
-#else
     /*
      * Call OS specific worker.
      */
     return suplibOsPageFree(&g_supLibData, pvPages, cPages);
-#endif
 }
 
 
-SUPR3DECL(int) SUPPageLock(void *pvStart, size_t cPages, PSUPPAGE paPages)
+/**
+ * Locks down the physical memory backing a virtual memory
+ * range in the current process.
+ *
+ * @returns VBox status code.
+ * @param   pvStart         Start of virtual memory range.
+ *                          Must be page aligned.
+ * @param   cPages          Number of pages.
+ * @param   paPages         Where to store the physical page addresses returned.
+ *                          On entry this will point to an array of with cbMemory >> PAGE_SHIFT entries.
+ */
+SUPR3DECL(int) supR3PageLock(void *pvStart, size_t cPages, PSUPPAGE paPages)
 {
     /*
      * Validate.
@@ -932,7 +930,14 @@ SUPR3DECL(int) SUPPageLock(void *pvStart, size_t cPages, PSUPPAGE paPages)
 }
 
 
-SUPR3DECL(int) SUPPageUnlock(void *pvStart)
+/**
+ * Releases locked down pages.
+ *
+ * @returns VBox status code.
+ * @param   pvStart         Start of virtual memory range previously locked
+ *                          down by SUPPageLock().
+ */
+SUPR3DECL(int) supR3PageUnlock(void *pvStart)
 {
     /*
      * Validate.
@@ -962,40 +967,9 @@ SUPR3DECL(int) SUPPageUnlock(void *pvStart)
 }
 
 
-SUPR3DECL(int) SUPPageAllocLockedEx(size_t cPages, void **ppvPages, PSUPPAGE paPages)
-{
-    return SUPR3PageAllocEx(cPages, 0 /*fFlags*/, ppvPages, NULL /*pR0Ptr*/, paPages);
-}
-
-
-SUPR3DECL(int) SUPPageFreeLocked(void *pvPages, size_t cPages)
-{
-    /*
-     * Validate.
-     */
-    AssertPtrReturn(pvPages, VERR_INVALID_POINTER);
-    AssertReturn(cPages > 0, VERR_PAGE_COUNT_OUT_OF_RANGE);
-
-    /*
-     * Check if we're employing the fallback or not to avoid the
-     * fuzzy handling of this in SUPR3PageFreeEx.
-     */
-    int rc;
-    if (g_fSupportsPageAllocNoKernel)
-        rc = SUPR3PageFreeEx(pvPages, cPages);
-    else
-    {
-        /* fallback */
-        rc = SUPPageUnlock(pvPages);
-        if (RT_SUCCESS(rc))
-            rc = suplibOsPageFree(&g_supLibData, pvPages, cPages);
-    }
-    return rc;
-}
-
-
 /**
- * Fallback for SUPPageAllocLockedEx on systems where RTR0MemObjPhysAllocNC isn't supported.
+ * Fallback for SUPR3PageAllocEx on systems where RTR0MemObjPhysAllocNC isn't
+ * supported.
  */
 static int supPagePageAllocNoKernelFallback(size_t cPages, void **ppvPages, PSUPPAGE paPages)
 {
@@ -1004,7 +978,7 @@ static int supPagePageAllocNoKernelFallback(size_t cPages, void **ppvPages, PSUP
     {
         if (!paPages)
             paPages = (PSUPPAGE)alloca(sizeof(paPages[0]) * cPages);
-        rc = SUPPageLock(*ppvPages, cPages, paPages);
+        rc = supR3PageLock(*ppvPages, cPages, paPages);
         if (RT_FAILURE(rc))
             suplibOsPageFree(&g_supLibData, *ppvPages, cPages);
     }
@@ -1142,6 +1116,48 @@ SUPR3DECL(int) SUPR3PageMapKernel(void *pvR3, uint32_t off, uint32_t cb, uint32_
 }
 
 
+SUPR3DECL(int) SUPR3PageProtect(void *pvR3, RTR0PTR R0Ptr, uint32_t off, uint32_t cb, uint32_t fProt)
+{
+    /*
+     * Validate.
+     */
+    AssertPtrReturn(pvR3, VERR_INVALID_POINTER);
+    Assert(!(off & PAGE_OFFSET_MASK));
+    Assert(!(cb & PAGE_OFFSET_MASK) && cb);
+    AssertReturn(!(fProt & ~(RTMEM_PROT_NONE | RTMEM_PROT_READ | RTMEM_PROT_WRITE | RTMEM_PROT_EXEC)), VERR_INVALID_PARAMETER);
+
+    /* fake */
+    if (RT_UNLIKELY(g_u32FakeMode))
+        return RTMemProtect((uint8_t *)pvR3 + off, cb, fProt);
+
+    /*
+     * Some OSes can do this from ring-3, so try that before we
+     * issue the IOCtl to the SUPDRV kernel module.
+     * (Yea, this isn't very nice, but just try get the job done for now.)
+     */
+#if !defined(RT_OS_SOLARIS)
+    RTMemProtect((uint8_t *)pvR3 + off, cb, fProt);
+#endif
+
+    SUPPAGEPROTECT Req;
+    Req.Hdr.u32Cookie = g_u32Cookie;
+    Req.Hdr.u32SessionCookie = g_u32SessionCookie;
+    Req.Hdr.cbIn = SUP_IOCTL_PAGE_PROTECT_SIZE_IN;
+    Req.Hdr.cbOut = SUP_IOCTL_PAGE_PROTECT_SIZE_OUT;
+    Req.Hdr.fFlags = SUPREQHDR_FLAGS_DEFAULT;
+    Req.Hdr.rc = VERR_INTERNAL_ERROR;
+    Req.u.In.pvR3 = pvR3;
+    Req.u.In.pvR0 = R0Ptr;
+    Req.u.In.offSub = off;
+    Req.u.In.cbSub = cb;
+    Req.u.In.fProt = fProt;
+    int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_PAGE_PROTECT, &Req, SUP_IOCTL_PAGE_PROTECT_SIZE);
+    if (RT_SUCCESS(rc))
+        rc = Req.Hdr.rc;
+    return rc;
+}
+
+
 SUPR3DECL(int) SUPR3PageFreeEx(void *pvPages, size_t cPages)
 {
     /*
@@ -1177,7 +1193,7 @@ SUPR3DECL(int) SUPR3PageFreeEx(void *pvPages, size_t cPages)
         if (    rc == VERR_INVALID_PARAMETER
             &&  !g_fSupportsPageAllocNoKernel)
         {
-            int rc2 = SUPPageUnlock(pvPages);
+            int rc2 = supR3PageUnlock(pvPages);
             if (RT_SUCCESS(rc2))
                 rc = suplibOsPageFree(&g_supLibData, pvPages, cPages);
         }
@@ -1186,13 +1202,7 @@ SUPR3DECL(int) SUPR3PageFreeEx(void *pvPages, size_t cPages)
 }
 
 
-SUPR3DECL(void *) SUPContAlloc(size_t cPages, PRTHCPHYS pHCPhys)
-{
-    return SUPContAlloc2(cPages, NIL_RTR0PTR, pHCPhys);
-}
-
-
-SUPR3DECL(void *) SUPContAlloc2(size_t cPages, PRTR0PTR pR0Ptr, PRTHCPHYS pHCPhys)
+SUPR3DECL(void *) SUPR3ContAlloc(size_t cPages, PRTR0PTR pR0Ptr, PRTHCPHYS pHCPhys)
 {
     /*
      * Validate.
@@ -1241,7 +1251,7 @@ SUPR3DECL(void *) SUPContAlloc2(size_t cPages, PRTR0PTR pR0Ptr, PRTHCPHYS pHCPhy
 }
 
 
-SUPR3DECL(int) SUPContFree(void *pv, size_t cPages)
+SUPR3DECL(int) SUPR3ContFree(void *pv, size_t cPages)
 {
     /*
      * Validate.
@@ -1276,7 +1286,7 @@ SUPR3DECL(int) SUPContFree(void *pv, size_t cPages)
 }
 
 
-SUPR3DECL(int) SUPLowAlloc(size_t cPages, void **ppvPages, PRTR0PTR ppvPagesR0, PSUPPAGE paPages)
+SUPR3DECL(int) SUPR3LowAlloc(size_t cPages, void **ppvPages, PRTR0PTR ppvPagesR0, PSUPPAGE paPages)
 {
     /*
      * Validate.
@@ -1341,7 +1351,7 @@ SUPR3DECL(int) SUPLowAlloc(size_t cPages, void **ppvPages, PRTR0PTR ppvPagesR0, 
 }
 
 
-SUPR3DECL(int) SUPLowFree(void *pv, size_t cPages)
+SUPR3DECL(int) SUPR3LowFree(void *pv, size_t cPages)
 {
     /*
      * Validate.
@@ -1400,7 +1410,7 @@ SUPR3DECL(int) SUPR3HardenedVerifyFile(const char *pszFilename, const char *pszM
 }
 
 
-SUPR3DECL(int) SUPLoadModule(const char *pszFilename, const char *pszModule, void **ppvImageBase)
+SUPR3DECL(int) SUPR3LoadModule(const char *pszFilename, const char *pszModule, void **ppvImageBase)
 {
     int rc = VINF_SUCCESS;
 #ifdef VBOX_WITH_HARDENING
@@ -1412,7 +1422,7 @@ SUPR3DECL(int) SUPLoadModule(const char *pszFilename, const char *pszModule, voi
     if (RT_SUCCESS(rc))
         rc = supLoadModule(pszFilename, pszModule, NULL, ppvImageBase);
     else
-        LogRel(("SUPLoadModule: Verification of \"%s\" failed, rc=%Rrc\n", rc));
+        LogRel(("SUPR3LoadModule: Verification of \"%s\" failed, rc=%Rrc\n", rc));
     return rc;
 }
 
@@ -1485,12 +1495,12 @@ static DECLCALLBACK(int) supLoadModuleResolveImport(RTLDRMOD hLdrMod, const char
     /*
      * Check the VMMR0.r0 module if loaded.
      */
-    /** @todo call the SUPLoadModule caller.... */
+    /** @todo call the SUPR3LoadModule caller.... */
     /** @todo proper reference counting and such. */
     if (g_pvVMMR0 != NIL_RTR0PTR)
     {
         void *pvValue;
-        if (!SUPGetSymbolR0((void *)g_pvVMMR0, pszSymbol, &pvValue))
+        if (!SUPR3GetSymbolR0((void *)g_pvVMMR0, pszSymbol, &pvValue))
         {
             *pValue = (uintptr_t)pvValue;
             return VINF_SUCCESS;
@@ -1604,7 +1614,7 @@ static DECLCALLBACK(int) supLoadModuleCreateTabsCB(RTLDRMOD hLdrMod, const char 
 
 
 /**
- * Worker for SUPLoadModule().
+ * Worker for SUPR3LoadModule().
  *
  * @returns VBox status code.
  * @param   pszFilename     Name of the VMMR0 image file
@@ -1820,7 +1830,7 @@ static int supLoadModule(const char *pszFilename, const char *pszModule, const c
 }
 
 
-SUPR3DECL(int) SUPFreeModule(void *pvImageBase)
+SUPR3DECL(int) SUPR3FreeModule(void *pvImageBase)
 {
     /* fake */
     if (RT_UNLIKELY(g_u32FakeMode))
@@ -1850,7 +1860,7 @@ SUPR3DECL(int) SUPFreeModule(void *pvImageBase)
 }
 
 
-SUPR3DECL(int) SUPGetSymbolR0(void *pvImageBase, const char *pszSymbol, void **ppvValue)
+SUPR3DECL(int) SUPR3GetSymbolR0(void *pvImageBase, const char *pszSymbol, void **ppvValue)
 {
     *ppvValue = NULL;
 
@@ -1885,20 +1895,20 @@ SUPR3DECL(int) SUPGetSymbolR0(void *pvImageBase, const char *pszSymbol, void **p
 }
 
 
-SUPR3DECL(int) SUPLoadVMM(const char *pszFilename)
+SUPR3DECL(int) SUPR3LoadVMM(const char *pszFilename)
 {
     void *pvImageBase;
-    return SUPLoadModule(pszFilename, "VMMR0.r0", &pvImageBase);
+    return SUPR3LoadModule(pszFilename, "VMMR0.r0", &pvImageBase);
 }
 
 
-SUPR3DECL(int) SUPUnloadVMM(void)
+SUPR3DECL(int) SUPR3UnloadVMM(void)
 {
-    return SUPFreeModule((void*)g_pvVMMR0);
+    return SUPR3FreeModule((void*)g_pvVMMR0);
 }
 
 
-SUPR3DECL(int) SUPGipGetPhys(PRTHCPHYS pHCPhys)
+SUPR3DECL(int) SUPR3GipGetPhys(PRTHCPHYS pHCPhys)
 {
     if (g_pSUPGlobalInfoPage)
     {

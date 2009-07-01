@@ -1,4 +1,4 @@
-; $Id: tstAsmLock-3.asm $
+; $Id: tstAsmLock-3.asm 8966 2008-05-20 16:48:02Z vboxsync $
 ;; @file
 ; Disassembly testcase - Invalid lock sequences for non-locking instructions.
 ;

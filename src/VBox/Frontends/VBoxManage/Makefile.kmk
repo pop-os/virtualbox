@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 20521 2009-06-12 15:28:26Z vboxsync $
 ## @file
 # Sub-Makefile for VBoxManage (the cli frontend).
 #
@@ -36,7 +36,9 @@ else # !VBOX_ONLY_DOCS
  VBoxManage_DEFS      += \
  	$(if $(VBOX_WITH_VBOXSDL), VBOX_WITH_VBOXSDL) \
  	$(if $(VBOX_WITH_VRDP), VBOX_WITH_VRDP) \
+ 	$(if $(VBOX_WITH_HEADLESS), VBOX_WITH_HEADLESS) \
  	$(if $(VBOX_WITH_ALSA), VBOX_WITH_ALSA) \
+ 	$(if $(VBOX_WITH_SOLARIS_OSS), VBOX_WITH_SOLARIS_OSS) \
  	$(if $(VBOX_WITH_PULSE),VBOX_WITH_PULSE) \
  	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000) \
  	$(if $(VBOX_WITH_AHCI), VBOX_WITH_AHCI) \
@@ -44,9 +46,12 @@ else # !VBOX_ONLY_DOCS
  	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS) \
  	$(if $(VBOX_WITH_HOSTNETIF_API), VBOX_WITH_HOSTNETIF_API)
  VBoxManage_DEFS.win   = _WIN32_WINNT=0x0500
+ifdef VBOX_DYNAMIC_NET_ATTACH
+ VBoxManage_DEFS += VBOX_DYNAMIC_NET_ATTACH
+endif
 ifdef VBOX_WITH_NETFLT
  VBoxManage_DEFS += VBOX_WITH_NETFLT
-endif 
+endif
  VBoxManage_SOURCES = \
  	VBoxManage.cpp \
  	VBoxManageHelp.cpp \

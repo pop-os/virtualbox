@@ -1,4 +1,4 @@
-/* $Id: SUPDrvIDC.h $ */
+/* $Id: SUPDrvIDC.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * VirtualBox Support Driver - Inter-Driver Communciation (IDC) definitions.
  */
@@ -225,7 +225,7 @@ typedef SUPDRVIDCREQCOMPDEREGFACTORY *PSUPDRVIDCREQCOMPDEREGFACTORY;
  * The OS specific prototypes.
  * Most OSes uses
  */
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 #if defined(RT_OS_DARWIN)
 extern int VBOXCALL SUPDrvDarwinIDC(uint32_t iReq, PSUPDRVIDCREQHDR pReq);
@@ -249,7 +249,7 @@ extern int VBOXCALL SUPDrvSolarisIDC(uint32_t iReq, PSUPDRVIDCREQHDR pReq);
 /* PORTME: OS specific IDC stuff goes here. */
 #endif
 
-__END_DECLS
+RT_C_DECLS_END
 
 /**
  * The SUPDRV IDC entry point.

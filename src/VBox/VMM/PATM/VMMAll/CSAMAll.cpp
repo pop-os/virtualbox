@@ -1,4 +1,4 @@
-/* $Id: CSAMAll.cpp $ */
+/* $Id: CSAMAll.cpp 20011 2009-05-25 19:31:11Z vboxsync $ */
 /** @file
  * CSAM - Guest OS Code Scanning and Analysis Manager - Any Context
  */
@@ -36,6 +36,7 @@
 #include <iprt/avl.h>
 #include "CSAMInternal.h"
 #include <VBox/vm.h>
+#include <VBox/vmm.h>
 #include <VBox/dbg.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
@@ -67,7 +68,7 @@ VMMDECL(int) CSAMExecFault(PVM pVM, RTRCPTR pvFault)
     }
 
     STAM_COUNTER_ADD(&pVM->csam.s.StatNrTraps, 1);
-    VM_FF_SET(pVM, VM_FF_CSAM_SCAN_PAGE);
+    VMCPU_FF_SET(VMMGetCpu0(pVM), VMCPU_FF_CSAM_SCAN_PAGE);
     return VINF_CSAM_PENDING_ACTION;
 }
 
@@ -204,7 +205,7 @@ VMMDECL(void) CSAMMarkPossibleCodePage(PVM pVM, RTRCPTR GCPtr)
     if (pVM->csam.s.cPossibleCodePages < RT_ELEMENTS(pVM->csam.s.pvPossibleCodePage))
     {
         pVM->csam.s.pvPossibleCodePage[pVM->csam.s.cPossibleCodePages++] = (RTRCPTR)GCPtr;
-        VM_FF_SET(pVM, VM_FF_CSAM_PENDING_ACTION);
+        VMCPU_FF_SET(VMMGetCpu0(pVM), VMCPU_FF_CSAM_PENDING_ACTION);
     }
     return;
 }

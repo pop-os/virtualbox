@@ -1,4 +1,4 @@
-/* $Id: MMUkHeap.cpp $ */
+/* $Id: MMUkHeap.cpp 20774 2009-06-22 12:59:53Z vboxsync $ */
 /** @file
  * MM - Memory Manager - Ring-3 Heap with kernel accessible mapping.
  */
@@ -282,7 +282,7 @@ static void *mmR3UkHeapAlloc(PMMUKHEAP pHeap, MMTAG enmTag, size_t cb, bool fZer
 
         /* register the statistics */
         PUVM pUVM = pHeap->pUVM;
-        const char *pszTag = mmR3GetTagName(enmTag);
+        const char *pszTag = mmGetTagName(enmTag);
         STAMR3RegisterFU(pUVM, &pStat->cbCurAllocated, STAMTYPE_U32, STAMVISIBILITY_ALWAYS,  STAMUNIT_BYTES, "Number of bytes currently allocated.",    "/MM/UkHeap/%s", pszTag);
         STAMR3RegisterFU(pUVM, &pStat->cAllocations,   STAMTYPE_U64, STAMVISIBILITY_ALWAYS,  STAMUNIT_CALLS, "Number or MMR3UkHeapAlloc() calls.",      "/MM/UkHeap/%s/cAllocations", pszTag);
         STAMR3RegisterFU(pUVM, &pStat->cReallocations, STAMTYPE_U64, STAMVISIBILITY_ALWAYS,  STAMUNIT_CALLS, "Number of MMR3UkHeapRealloc() calls.",    "/MM/UkHeap/%s/cReallocations", pszTag);

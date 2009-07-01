@@ -65,10 +65,10 @@
  * IPRT instead of the operating environment.
  */
 #if defined(RT_OS_DARWIN) && defined(KERNEL)
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 void *memchr(const void *pv, int ch, size_t cb);
 char *strpbrk(const char *pszStr, const char *pszChars);
-__END_DECLS
+RT_C_DECLS_END
 #endif
 
 /**
@@ -111,7 +111,7 @@ __END_DECLS
  * @{
  */
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 
 /**
@@ -529,22 +529,23 @@ typedef FNRTSTROUTPUT *PFNRTSTROUTPUT;
  * These are used by RTStrFormat extensions and RTStrFormatNumber, mind
  * that not all flags makes sense to both of the functions.
  * @{ */
-#define RTSTR_F_CAPITAL    0x0001
-#define RTSTR_F_LEFT       0x0002
-#define RTSTR_F_ZEROPAD    0x0004
-#define RTSTR_F_SPECIAL    0x0008
-#define RTSTR_F_VALSIGNED  0x0010
-#define RTSTR_F_PLUS       0x0020
-#define RTSTR_F_BLANK      0x0040
-#define RTSTR_F_WIDTH      0x0080
-#define RTSTR_F_PRECISION  0x0100
+#define RTSTR_F_CAPITAL         0x0001
+#define RTSTR_F_LEFT            0x0002
+#define RTSTR_F_ZEROPAD         0x0004
+#define RTSTR_F_SPECIAL         0x0008
+#define RTSTR_F_VALSIGNED       0x0010
+#define RTSTR_F_PLUS            0x0020
+#define RTSTR_F_BLANK           0x0040
+#define RTSTR_F_WIDTH           0x0080
+#define RTSTR_F_PRECISION       0x0100
+#define RTSTR_F_THOUSAND_SEP    0x0200
 
-#define RTSTR_F_BIT_MASK   0xf800
-#define RTSTR_F_8BIT       0x0800
-#define RTSTR_F_16BIT      0x1000
-#define RTSTR_F_32BIT      0x2000
-#define RTSTR_F_64BIT      0x4000
-#define RTSTR_F_128BIT     0x8000
+#define RTSTR_F_BIT_MASK        0xf800
+#define RTSTR_F_8BIT            0x0800
+#define RTSTR_F_16BIT           0x1000
+#define RTSTR_F_32BIT           0x2000
+#define RTSTR_F_64BIT           0x4000
+#define RTSTR_F_128BIT          0x8000
 /** @} */
 
 /** @def RTSTR_GET_BIT_FLAG
@@ -1445,7 +1446,7 @@ typedef struct RTSTRSPACECORE
     /** The string length. Read only! */
     size_t          cchString;
     /** Pointer to the string. Read only! */
-    const char *    pszString;
+    const char     *pszString;
 } RTSTRSPACECORE;
 
 /** String space. (Initialize with NULL.) */
@@ -1882,7 +1883,7 @@ DECLINLINE(bool) RTUtf16IsSurrogatePair(RTUTF16 wcHigh, RTUTF16 wcLow)
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 /** @} */
 

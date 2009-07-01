@@ -1,4 +1,4 @@
-/* $Id: tstVMMFork.cpp $ */
+/* $Id: tstVMMFork.cpp 19300 2009-05-01 18:06:59Z vboxsync $ */
 /** @file
  * VMM Fork Test.
  */
@@ -136,7 +136,7 @@ int main(int argc, char* argv[])
                 RTPrintf(TESTCASE ": fork() returned fine.\n");
                 RTPrintf(TESTCASE ": testing VM after fork.\n");
                 PVMREQ pReq1 = NULL;
-                rc = VMR3ReqCall(pVM, VMREQDEST_ANY, &pReq1, RT_INDEFINITE_WAIT, (PFNRT)VMMDoTest, 1, pVM);
+                rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq1, RT_INDEFINITE_WAIT, (PFNRT)VMMDoTest, 1, pVM);
                 AssertRC(rc);
                 VMR3ReqFree(pReq1);
 

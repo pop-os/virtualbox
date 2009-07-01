@@ -1,4 +1,4 @@
-/* $Id: VMAll.cpp $ */
+/* $Id: VMAll.cpp 20874 2009-06-24 02:19:29Z vboxsync $ */
 /** @file
  * VM - Virtual Machine All Contexts.
  */
@@ -85,7 +85,7 @@ VMMDECL(int) VMSetErrorV(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat
     va_list va2;
     va_copy(va2, args); /* Have to make a copy here or GCC will break. */
     PVMREQ pReq;
-    VMR3ReqCall(pVM, VMREQDEST_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3SetErrorUV, 7,   /* ASSUMES 3 source pos args! */
+    VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3SetErrorUV, 7,   /* ASSUMES 3 source pos args! */
                 pVM->pUVM, rc, RT_SRC_POS_ARGS, pszFormat, &va2);
     VMR3ReqFree(pReq);
     va_end(va2);
@@ -95,13 +95,7 @@ VMMDECL(int) VMSetErrorV(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat
      * We're already on the EMT thread and can safely create a VMERROR chunk.
      */
     vmSetErrorCopy(pVM, rc, RT_SRC_POS_ARGS, pszFormat, args);
-
-# ifdef IN_RC
-    VMMGCCallHost(pVM, VMMCALLHOST_VM_SET_ERROR, 0);
-# elif defined(IN_RING0)
-    VMMR0CallHost(pVM, VMMCALLHOST_VM_SET_ERROR, 0);
-# else
-# endif
+    VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_VM_SET_ERROR, 0);
 #endif
     return rc;
 }
@@ -268,13 +262,13 @@ VMMDECL(int) VMSetRuntimeErrorV(PVM pVM, uint32_t fFlags, const char *pszErrorId
     if (    !(fFlags & VMSETRTERR_FLAGS_NO_WAIT)
         ||  VM_IS_EMT(pVM))
     {
-        rc = VMR3ReqCallU(pVM->pUVM, VMREQDEST_ANY, &pReq, RT_INDEFINITE_WAIT, VMREQFLAGS_VBOX_STATUS,
+        rc = VMR3ReqCallU(pVM->pUVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, VMREQFLAGS_VBOX_STATUS,
                           (PFNRT)vmR3SetRuntimeErrorV, 5, pVM, fFlags, pszErrorId, pszFormat, &va2);
         if (RT_SUCCESS(rc))
             rc = pReq->iStatus;
     }
     else
-        rc = VMR3ReqCallU(pVM->pUVM, VMREQDEST_ANY, &pReq, 0, VMREQFLAGS_VBOX_STATUS | VMREQFLAGS_NO_WAIT,
+        rc = VMR3ReqCallU(pVM->pUVM, VMCPUID_ANY, &pReq, 0, VMREQFLAGS_VBOX_STATUS | VMREQFLAGS_NO_WAIT,
                           (PFNRT)vmR3SetRuntimeErrorV, 5, pVM, fFlags, pszErrorId, pszFormat, &va2);
     VMR3ReqFree(pReq);
     va_end(va2);
@@ -286,11 +280,7 @@ VMMDECL(int) VMSetRuntimeErrorV(PVM pVM, uint32_t fFlags, const char *pszErrorId
     AssertReleaseMsgFailed(("Congratulations! You will have the pleasure of debugging the RC/R0 path.\n"));
     vmSetRuntimeErrorCopy(pVM, fFlags, pszErrorId, pszFormat, va);
 
-# ifdef IN_RC
-    int rc = VMMGCCallHost(pVM, VMMCALLHOST_VM_SET_RUNTIME_ERROR, 0);
-# else
-    int rc = VMMR0CallHost(pVM, VMMCALLHOST_VM_SET_RUNTIME_ERROR, 0);
-# endif
+    int rc = VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_VM_SET_RUNTIME_ERROR, 0);
 #endif
 
     Log(("VMSetRuntimeErrorV: returns %Rrc (pszErrorId=%s)\n", rc, pszErrorId));

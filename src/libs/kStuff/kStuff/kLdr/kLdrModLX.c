@@ -1,4 +1,4 @@
-/* $Id: kLdrModLX.c 25 2009-02-19 00:56:15Z bird $ */
+/* $Id: kLdrModLX.c 28 2009-03-28 18:37:20Z bird $ */
 /** @file
  * kLdr - The Module Interpreter for the Linear eXecutable (LX) Format.
  */
@@ -1075,6 +1075,11 @@ static int kldrModLXEnumSymbols(PKLDRMOD pMod, const void *pvBits, KLDRADDR Base
                         uValue = 0; /** @todo implement enumeration of forwarders properly. */
                         fKind = KLDRSYMKIND_FORWARDER;
                         break;
+
+                    default: /* shut up gcc. */
+                        uValue = 0;
+                        fKind = KLDRSYMKIND_NO_BIT | KLDRSYMKIND_NO_TYPE;
+                        break;
                 }
 
                 /*
@@ -1671,7 +1676,7 @@ static int kldrModLXDoIterData2Unpacking(KU8 *pbDst, const KU8 *pbSrc, int cbSrc
                     pbDst += cb1;
                     pbSrc += cb1;
 
-                    if (off > OBJPAGELEN - cbDst)
+                    if (off > OBJPAGELEN - (unsigned)cbDst)
                         return KLDR_ERR_LX_BAD_ITERDATA2;
                     cbDst -= cb2;
                     if (cbDst < 0)
@@ -1706,7 +1711,7 @@ static int kldrModLXDoIterData2Unpacking(KU8 *pbDst, const KU8 *pbSrc, int cbSrc
                     const int       cb = ((*pbSrc >> 2) & 3) + 3;
 
                     pbSrc += 2;
-                    if (off > OBJPAGELEN - cbDst)
+                    if (off > OBJPAGELEN - (unsigned)cbDst)
                         return KLDR_ERR_LX_BAD_ITERDATA2;
                     cbDst -= cb;
                     if (cbDst < 0)
@@ -1752,7 +1757,7 @@ static int kldrModLXDoIterData2Unpacking(KU8 *pbDst, const KU8 *pbSrc, int cbSrc
                     pbDst += cb1;
                     pbSrc += cb1;
 
-                    if (off > OBJPAGELEN - cbDst)
+                    if (off > OBJPAGELEN - (unsigned)cbDst)
                         return KLDR_ERR_LX_BAD_ITERDATA2;
                     cbDst -= cb2;
                     if (cbDst < 0)
@@ -2407,6 +2412,7 @@ static int kldrModLXRelocateBits(PKLDRMOD pMod, void *pvBits, KLDRADDR NewBaseAd
                     case NRRENT:
                         KLDRMODLX_ASSERT(!"NRRENT");
                     default:
+                        iSelector = -1;
                         break;
                 }
 

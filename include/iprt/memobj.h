@@ -33,7 +33,7 @@
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_memobj     RTMemObj - Memory Object Manipulation (Ring-0)
  * @ingroup grp_rt
@@ -299,11 +299,28 @@ RTR0DECL(int) RTR0MemObjMapKernelEx(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap,
  */
 RTR0DECL(int) RTR0MemObjMapUser(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap, RTR3PTR R3PtrFixed, size_t uAlignment, unsigned fProt, RTR0PROCESS R0Process);
 
+/**
+ * Change the page level protection of one or more pages in a memory object.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_SUPPORTED if the OS doesn't provide any way to manipulate
+ *          page level protection. The caller must handle this status code
+ *          gracefully. (Note that it may also occur if the implementation is
+ *          missing, in which case just go ahead and implement it.)
+ *
+ * @param   hMemObj         Memory object handle.
+ * @param   offSub          Offset into the memory object. Must be page aligned.
+ * @param   cbSub           Number of bytes to change the protection of. Must be
+ *                          page aligned.
+ * @param   fProt           Combination of RTMEM_PROT_* flags.
+ */
+RTR0DECL(int) RTR0MemObjProtect(RTR0MEMOBJ hMemObj, size_t offSub, size_t cbSub, uint32_t fProt);
+
 #endif /* IN_RING0 */
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

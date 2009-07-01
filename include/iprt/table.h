@@ -37,7 +37,7 @@
  * @{
  */
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** Pointer to an allocator. */
 typedef struct RTTABALLOCATOR *PRTTABALLOCATOR;
@@ -710,7 +710,7 @@ DECLINLINE(void *) RTTabTravReplace(PRTTABTRAVERSERCORE pTrav, void *pvItem)
     return pTrav->pTab->pOps->pfnTravReplace(pTrav, pvItem);
 }
 
-__END_DECLS
+RT_C_DECLS_END
 
 /** @} */
 

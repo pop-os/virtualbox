@@ -1,4 +1,4 @@
-/* $Id: tstLdr-4.cpp $ */
+/* $Id: tstLdr-4.cpp 19924 2009-05-22 21:52:47Z vboxsync $ */
 /** @file
  * IPRT - Testcase for RTLdrOpen using ldrLdrObjR0.r0.
  */
@@ -179,7 +179,7 @@ static int testLdrOne(const char *pszFilename)
                 cErrors++;
                 break;
             }
-            DECLCALLBACKPTR(int, pfnDisasmTest1)(void) = (DECLCALLBACKPTR(int, )(void))(uintptr_t)Value; /* eeeh. */
+            DECLCALLBACKPTR(int, pfnDisasmTest1)(void) = (DECLCALLBACKPTR(int, RT_NOTHING)(void))(uintptr_t)Value; /* eeeh. */
             RTPrintf("tstLdr-4: pfnDisasmTest1=%p / add-symbol-file %s %#x\n", pfnDisasmTest1, pszFilename, aLoads[i].pvBits);
 
             /* call the test function. */
@@ -235,7 +235,7 @@ int main(int argc, char **argv)
      * Execute the test.
      */
     char szPath[RTPATH_MAX];
-    rc = RTPathProgram(szPath, sizeof(szPath) - sizeof("/tstLdrObjR0.r0"));
+    rc = RTPathExecDir(szPath, sizeof(szPath) - sizeof("/tstLdrObjR0.r0"));
     if (RT_SUCCESS(rc))
     {
         strcat(szPath, "/tstLdrObjR0.r0");
@@ -244,7 +244,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        RTPrintf("tstLdr-4: RTPathProgram -> %Rrc\n", rc);
+        RTPrintf("tstLdr-4: RTPathExecDir -> %Rrc\n", rc);
         cErrors++;
     }
 

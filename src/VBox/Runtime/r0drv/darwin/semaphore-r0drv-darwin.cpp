@@ -1,4 +1,4 @@
-/* $Id: semaphore-r0drv-darwin.cpp $ */
+/* $Id: semaphore-r0drv-darwin.cpp 20355 2009-06-07 09:11:41Z vboxsync $ */
 /** @file
  * IPRT - Semaphores, Ring-0 Driver, Darwin.
  */
@@ -186,9 +186,10 @@ RTDECL(int)  RTSemEventSignal(RTSEMEVENT EventSem)
         ASMAtomicDecU32(&pEventInt->cWaiters);
         ASMAtomicIncU32(&pEventInt->cWaking);
         thread_wakeup_prim((event_t)pEventInt, TRUE /* one thread */, THREAD_AWAKENED);
-        /** @todo this isn't safe. a scheduling interrupt on the other cpu while we're in here
+		/** @todo this isn't safe. a scheduling interrupt on the other cpu while we're in here
          * could cause the thread to be timed out before we manage to wake it up and the event
-         * ends up in the wrong state. ditto for posix signals. */
+         * ends up in the wrong state. ditto for posix signals. 
+		 * Update: check the return code; it will return KERN_NOT_WAITING if no one is around. */
     }
     else
         ASMAtomicXchgU8(&pEventInt->fSignaled, true);
@@ -288,13 +289,13 @@ static int rtSemEventWait(RTSEMEVENT EventSem, unsigned cMillies, wait_interrupt
 
 RTDECL(int)  RTSemEventWait(RTSEMEVENT EventSem, unsigned cMillies)
 {
-    return rtSemEventWait(EventSem, cMillies, FALSE /* not interruptable */);
+    return rtSemEventWait(EventSem, cMillies, THREAD_UNINT);
 }
 
 
 RTDECL(int)  RTSemEventWaitNoResume(RTSEMEVENT EventSem, unsigned cMillies)
 {
-    return rtSemEventWait(EventSem, cMillies, TRUE /* interruptable */);
+    return rtSemEventWait(EventSem, cMillies, THREAD_ABORTSAFE);
 }
 
 
@@ -483,13 +484,13 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
 
 RTDECL(int)  RTSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies)
 {
-    return rtSemEventMultiWait(EventMultiSem, cMillies, FALSE /* not interruptable */);
+    return rtSemEventMultiWait(EventMultiSem, cMillies, THREAD_UNINT);
 }
 
 
 RTDECL(int)  RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies)
 {
-    return rtSemEventMultiWait(EventMultiSem, cMillies, TRUE /* interruptable */);
+    return rtSemEventMultiWait(EventMultiSem, cMillies, THREAD_ABORTSAFE);
 }
 
 

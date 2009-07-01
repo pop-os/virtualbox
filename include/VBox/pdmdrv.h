@@ -47,7 +47,7 @@
 # include <VBox/pdmasynccompletion.h>
 #endif
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_pdm_driver    The PDM Drivers API
  * @ingroup grp_pdm
@@ -521,12 +521,14 @@ typedef struct PDMDRVHLP
      * @param   pDrvIns         Driver instance.
      * @param   enmClock        The clock to use on this timer.
      * @param   pfnCallback     Callback function.
+     * @param   pvUser          The user argument to the callback.
+     * @param   fFlags          Timer creation flags, see grp_tm_timer_flags.
      * @param   pszDesc         Pointer to description string which must stay around
      *                          until the timer is fully destroyed (i.e. a bit after TMTimerDestroy()).
      * @param   ppTimer         Where to store the timer on success.
      * @thread  EMT
      */
-    DECLR3CALLBACKMEMBER(int, pfnTMTimerCreate,(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, const char *pszDesc, PPTMTIMERR3 ppTimer));
+    DECLR3CALLBACKMEMBER(int, pfnTMTimerCreate,(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer));
 
     /**
      * Register a save state data unit.
@@ -579,7 +581,6 @@ typedef struct PDMDRVHLP
      * Same as pfnSTAMRegister except that the name is specified in a
      * RTStrPrintf like fashion.
      *
-     * @returns VBox status.
      * @param   pDrvIns     Driver instance.
      * @param   pvSample    Pointer to the sample.
      * @param   enmType     Sample type. This indicates what pvSample is pointing at.
@@ -596,7 +597,6 @@ typedef struct PDMDRVHLP
      * Same as pfnSTAMRegister except that the name is specified in a
      * RTStrPrintfV like fashion.
      *
-     * @returns VBox status.
      * @param   pDrvIns         Driver instance.
      * @param   pvSample        Pointer to the sample.
      * @param   enmType         Sample type. This indicates what pvSample is pointing at.
@@ -610,7 +610,18 @@ typedef struct PDMDRVHLP
                                                  STAMUNIT enmUnit, const char *pszDesc, const char *pszName, va_list args));
 
     /**
-     * Calls the HC R0 VMM entry point, in a safer but slower manner than SUPCallVMMR0.
+     * Deregister a statistic item previously registered with pfnSTAMRegister,
+     * pfnSTAMRegisterF or pfnSTAMRegisterV
+     *
+     * @returns VBox status.
+     * @param   pDrvIns         Driver instance.
+     * @param   pvSample        Pointer to the sample.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSTAMDeregister,(PPDMDRVINS pDrvIns, void *pvSample));
+
+    /**
+     * Calls the HC R0 VMM entry point, in a safer but slower manner than
+     * SUPR3CallVMMR0.
      *
      * When entering using this call the R0 components can call into the host kernel
      * (i.e. use the SUPR0 and RT APIs).
@@ -681,10 +692,12 @@ typedef struct PDMDRVHLP
      * @param   pDrvIns         The driver instance.
      * @param   ppTemplate      Where to store the template pointer on success.
      * @param   pfnCompleted    The completion callback routine.
+     * @param   pvTemplateUser  Template user argument.
      * @param   pszDesc         Description.
      */
     DECLR3CALLBACKMEMBER(int, pfnPDMAsyncCompletionTemplateCreate,(PPDMDRVINS pDrvIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate,
-                                                                   PFNPDMASYNCCOMPLETEDRV pfnCompleted, const char *pszDesc));
+                                                                   PFNPDMASYNCCOMPLETEDRV pfnCompleted, void *pvTemplateUser,
+                                                                   const char *pszDesc));
 #endif
 
     /** Just a safety precaution. */
@@ -696,7 +709,7 @@ typedef PDMDRVHLP *PPDMDRVHLP;
 typedef const PDMDRVHLP *PCPDMDRVHLP;
 
 /** Current DRVHLP version number. */
-#define PDM_DRVHLP_VERSION  0x90020001
+#define PDM_DRVHLP_VERSION  0x90040000
 
 
 
@@ -836,9 +849,9 @@ DECLINLINE(uint64_t) PDMDrvHlpTMGetVirtualTime(PPDMDRVINS pDrvIns)
 /**
  * @copydoc PDMDRVHLP::pfnTMTimerCreate
  */
-DECLINLINE(int) PDMDrvHlpTMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, const char *pszDesc, PPTMTIMERR3 ppTimer)
+DECLINLINE(int) PDMDrvHlpTMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer)
 {
-    return pDrvIns->pDrvHlp->pfnTMTimerCreate(pDrvIns, enmClock, pfnCallback, pszDesc, ppTimer);
+    return pDrvIns->pDrvHlp->pfnTMTimerCreate(pDrvIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, ppTimer);
 }
 
 /**
@@ -874,6 +887,14 @@ DECLINLINE(void) PDMDrvHlpSTAMRegisterF(PPDMDRVINS pDrvIns, void *pvSample, STAM
 }
 
 /**
+ * @copydoc PDMDRVHLP::pfnSTAMDeregister
+ */
+DECLINLINE(int) PDMDrvHlpSTAMDeregister(PPDMDRVINS pDrvIns, void *pvSample)
+{
+    return pDrvIns->pDrvHlp->pfnSTAMDeregister(pDrvIns, pvSample);
+}
+
+/**
  * @copydoc PDMDRVHLP::pfnUSBRegisterHub
  */
 DECLINLINE(int) PDMDrvHlpUSBRegisterHub(PPDMDRVINS pDrvIns, uint32_t fVersions, uint32_t cPorts, PCPDMUSBHUBREG pUsbHubReg, PPCPDMUSBHUBHLP ppUsbHubHlp)
@@ -903,9 +924,9 @@ DECLINLINE(VMSTATE) PDMDrvHlpVMState(PPDMDRVINS pDrvIns)
  * @copydoc PDMDRVHLP::pfnPDMAsyncCompletionTemplateCreate
  */
 DECLINLINE(int) PDMDrvHlpPDMAsyncCompletionTemplateCreate(PPDMDRVINS pDrvIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate,
-                                                          PFNPDMASYNCCOMPLETEDRV pfnCompleted, const char *pszDesc)
+                                                          PFNPDMASYNCCOMPLETEDRV pfnCompleted, void *pvTemplateUser, const char *pszDesc)
 {
-    return pDrvIns->pDrvHlp->pfnPDMAsyncCompletionTemplateCreate(pDrvIns, ppTemplate, pfnCompleted, pszDesc);
+    return pDrvIns->pDrvHlp->pfnPDMAsyncCompletionTemplateCreate(pDrvIns, ppTemplate, pfnCompleted, pvTemplateUser, pszDesc);
 }
 #endif
 
@@ -958,6 +979,6 @@ VMMR3DECL(int) PDMR3RegisterDrivers(PVM pVM, FNPDMVBOXDRIVERSREGISTER pfnCallbac
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif

@@ -1,4 +1,4 @@
-/* $Id: VBoxNetLib.h $ */
+/* $Id: VBoxNetLib.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * VBoxNetUDP - IntNet Client Library.
  */
@@ -25,7 +25,7 @@
 #include <iprt/net.h>
 #include <VBox/intnet.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 
 /**
@@ -67,7 +67,7 @@ int     VBoxNetIntIfRingWriteFrame(PINTNETBUF pBuf, PINTNETRINGBUF pRingBuf, siz
 int     VBoxNetIntIfSend(PSUPDRVSESSION pSession, INTNETIFHANDLE hIf, PINTNETBUF pBuf, size_t cSegs, PCINTNETSEG paSegs, bool fFlush);
 
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

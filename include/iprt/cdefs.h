@@ -45,23 +45,23 @@
 # include <sys/cdefs.h>
 #else
 
- /** @def __BEGIN_DECLS
-  * Used to start a block of function declarations which are shared
-  * between C and C++ program.
-  */
+/** @def RT_C_DECLS_BEGIN
+ * Used to start a block of function declarations which are shared
+ * between C and C++ program.
+ */
 
- /** @def __END_DECLS
-  * Used to end a block of function declarations which are shared
-  * between C and C++ program.
-  */
+/** @def RT_C_DECLS_END
+ * Used to end a block of function declarations which are shared
+ * between C and C++ program.
+ */
 
- #if defined(__cplusplus)
- # define __BEGIN_DECLS extern "C" {
- # define __END_DECLS   }
- #else
- # define __BEGIN_DECLS
- # define __END_DECLS
- #endif
+# if defined(__cplusplus)
+#  define RT_C_DECLS_BEGIN extern "C" {
+#  define RT_C_DECLS_END   }
+# else
+#  define RT_C_DECLS_BEGIN
+#  define RT_C_DECLS_END
+# endif
 
 #endif
 
@@ -473,6 +473,15 @@
 #endif
 
 
+/** @def RT_NOTHING
+ * A macro that expands to nothing.
+ * This is primarily intended as a dummy argument for macros to avoid the
+ * undefined behavior passing empty arguments to an macro (ISO C90 and C++98,
+ * gcc v4.4 warns about it).
+ */
+#define RT_NOTHING
+
+
 /** @def RTCALL
  * The standard calling convention for the Runtime interfaces.
  */
@@ -644,6 +653,36 @@
 # define DECLINLINE(type) _Inline type
 #else
 # define DECLINLINE(type) inline type
+#endif
+
+
+/** @def DECL_FORCE_INLINE
+ * How to declare a function as inline and try convince the compiler to always
+ * inline it regardless of optimization switches.
+ * @param   type    The return type of the function declaration.
+ * @remarks Use sparsely and with care. Don't use this macro on C++ methods.
+ */
+#ifdef __GNUC__
+# define DECL_FORCE_INLINE(type)    __attribute__((always_inline)) DECLINLINE(type)
+#elif defined(_MSC_VER)
+# define DECL_FORCE_INLINE(type)    __forceinline type
+#else
+# define DECL_FORCE_INLINE(type)    DECLINLINE(type)
+#endif
+
+
+/** @def DECL_NO_INLINE
+ * How to declare a function telling the compiler not to inline it.
+ * @param   scope   The function scope, static or RT_NOTHING.
+ * @param   type    The return type of the function declaration.
+ * @remarks Don't use this macro on C++ methods.
+ */
+#ifdef __GNUC__
+# define DECL_NO_INLINE(scope,type) __attribute__((noinline)) scope type
+#elif defined(_MSC_VER)
+# define DECL_NO_INLINE(scope,type) __declspec(noline) scope type
+#else
+# define DECL_NO_INLINE(scope,type) scope type
 #endif
 
 
@@ -824,22 +863,22 @@
 
 
 /** @def RT_BIT
- * Make a bitmask for one integer sized bit.
- * @param   bit     Bit number.
+ * Convert a bit number into an integer bitmask (unsigned).
+ * @param   bit     The bit number.
  */
-#define RT_BIT(bit)                     (1U << (bit))
+#define RT_BIT(bit)                             ( 1U << (bit) )
 
 /** @def RT_BIT_32
- * Make a 32-bit bitmask for one bit.
- * @param   bit     Bit number.
+ * Convert a bit number into a 32-bit bitmask (unsigned).
+ * @param   bit     The bit number.
  */
-#define RT_BIT_32(bit)                  (UINT32_C(1) << (bit))
+#define RT_BIT_32(bit)                          ( UINT32_C(1) << (bit) )
 
 /** @def RT_BIT_64
- * Make a 64-bit bitmask for one bit.
- * @param   bit     Bit number.
+ * Convert a bit number into a 64-bit bitmask (unsigned).
+ * @param   bit     The bit number.
  */
-#define RT_BIT_64(bit)                  (UINT64_C(1) << (bit))
+#define RT_BIT_64(bit)                          ( UINT64_C(1) << (bit) )
 
 /** @def RT_ALIGN
  * Align macro.
@@ -855,7 +894,7 @@
  *
  *          In short: Don't use this macro. Use RT_ALIGN_T() instead.
  */
-#define RT_ALIGN(u, uAlignment)         ( ((u) + ((uAlignment) - 1)) & ~((uAlignment) - 1) )
+#define RT_ALIGN(u, uAlignment)                 ( ((u) + ((uAlignment) - 1)) & ~((uAlignment) - 1) )
 
 /** @def RT_ALIGN_T
  * Align macro.
@@ -864,7 +903,7 @@
  * @param   type        Integer type to use while aligning.
  * @remark  This macro is the preferred alignment macro, it doesn't have any of the pitfalls RT_ALIGN has.
  */
-#define RT_ALIGN_T(u, uAlignment, type) ( ((type)(u) + ((uAlignment) - 1)) & ~(type)((uAlignment) - 1) )
+#define RT_ALIGN_T(u, uAlignment, type)         ( ((type)(u) + ((uAlignment) - 1)) & ~(type)((uAlignment) - 1) )
 
 /** @def RT_ALIGN_32
  * Align macro for a 32-bit value.
@@ -900,7 +939,7 @@
  * @param   uAlignment  The alignment. Power of two!
  * @param   CastType    The type to cast the result to.
  */
-#define RT_ALIGN_PT(u, uAlignment, CastType)    ((CastType)RT_ALIGN_T(u, uAlignment, uintptr_t))
+#define RT_ALIGN_PT(u, uAlignment, CastType)    ( (CastType)RT_ALIGN_T(u, uAlignment, uintptr_t) )
 
 /** @def RT_ALIGN_R3PT
  * Align macro for ring-3 pointers with type cast.
@@ -908,7 +947,7 @@
  * @param   uAlignment  The alignment. Power of two!
  * @param   CastType    The type to cast the result to.
  */
-#define RT_ALIGN_R3PT(u, uAlignment, CastType)  ((CastType)RT_ALIGN_T(u, uAlignment, RTR3UINTPTR))
+#define RT_ALIGN_R3PT(u, uAlignment, CastType)  ( (CastType)RT_ALIGN_T(u, uAlignment, RTR3UINTPTR) )
 
 /** @def RT_ALIGN_R0PT
  * Align macro for ring-0 pointers with type cast.
@@ -916,7 +955,7 @@
  * @param   uAlignment  The alignment. Power of two!
  * @param   CastType    The type to cast the result to.
  */
-#define RT_ALIGN_R0PT(u, uAlignment, CastType)  ((CastType)RT_ALIGN_T(u, uAlignment, RTR0UINTPTR))
+#define RT_ALIGN_R0PT(u, uAlignment, CastType)  ( (CastType)RT_ALIGN_T(u, uAlignment, RTR0UINTPTR) )
 
 /** @def RT_ALIGN_GCPT
  * Align macro for GC pointers with type cast.
@@ -924,7 +963,7 @@
  * @param   uAlignment  The alignment. Power of two!
  * @param   CastType        The type to cast the result to.
  */
-#define RT_ALIGN_GCPT(u, uAlignment, CastType)  ((CastType)RT_ALIGN_T(u, uAlignment, RTGCUINTPTR))
+#define RT_ALIGN_GCPT(u, uAlignment, CastType)  ( (CastType)RT_ALIGN_T(u, uAlignment, RTGCUINTPTR) )
 
 
 /** @def RT_OFFSETOF
@@ -939,7 +978,7 @@
  * @param   type    Structure type.
  * @param   member  Member.
  */
-#define RT_OFFSETOF(type, member)   ( (int)(uintptr_t)&( ((type *)(void *)0)->member) )
+#define RT_OFFSETOF(type, member)               ( (int)(uintptr_t)&( ((type *)(void *)0)->member) )
 
 /** @def RT_UOFFSETOF
  * Our own special offsetof() variant, returns an unsigned result.
@@ -953,7 +992,7 @@
  * @param   type    Structure type.
  * @param   member  Member.
  */
-#define RT_UOFFSETOF(type, member)   ( (uintptr_t)&( ((type *)(void *)0)->member) )
+#define RT_UOFFSETOF(type, member)              ( (uintptr_t)&( ((type *)(void *)0)->member) )
 
 /** @def RT_OFFSETOF_ADD
  * RT_OFFSETOF with an addend.
@@ -973,7 +1012,7 @@
  * @param   member  Member.
  * @param   addend  The addend to add to the offset.
  */
-#define RT_UOFFSETOF_ADD(type, member, addend)   ( (uintptr_t)&( ((type *)(void *)(uintptr_t)(addend))->member) )
+#define RT_UOFFSETOF_ADD(type, member, addend)  ( (uintptr_t)&( ((type *)(void *)(uintptr_t)(addend))->member) )
 
 /** @def RT_SIZEOFMEMB
  * Get the size of a structure member.
@@ -982,14 +1021,23 @@
  * @param   type    Structure type.
  * @param   member  Member.
  */
-#define RT_SIZEOFMEMB(type, member) ( sizeof(((type *)(void *)0)->member) )
+#define RT_SIZEOFMEMB(type, member)             ( sizeof(((type *)(void *)0)->member) )
+
+/** @def RT_FROM_MEMBER
+ * Convert a pointer to a structure member into a pointer to the structure.
+ * @returns pointer to the structure.
+ * @param   pMember Pointer to the member.
+ * @param   Type    Strucutre type.
+ * @param   Member  Member name.
+ */
+#define RT_FROM_MEMBER(pMem, Type, Member)      ( (Type *) ((uint8_t *)(void *)(pMem) + RT_UOFFSETOF(Type, Member)) )
 
 /** @def RT_ELEMENTS
- * Calculates the number of elements in an array.
+ * Calculates the number of elements in a statically sized array.
  * @returns Element count.
  * @param   aArray      Array in question.
  */
-#define RT_ELEMENTS(aArray)         ( sizeof(aArray) / sizeof((aArray)[0]) )
+#define RT_ELEMENTS(aArray)                     ( sizeof(aArray) / sizeof((aArray)[0]) )
 
 #ifdef RT_OS_OS2
 /* Undefine RT_MAX since there is an unfortunate clash with the max
@@ -1003,7 +1051,7 @@
  * @param   Value1      Value 1
  * @param   Value2      Value 2
  */
-#define RT_MAX(Value1, Value2)  ((Value1) >= (Value2) ? (Value1) : (Value2))
+#define RT_MAX(Value1, Value2)                  ( (Value1) >= (Value2) ? (Value1) : (Value2) )
 
 /** @def RT_MIN
  * Finds the minimum value.
@@ -1011,60 +1059,60 @@
  * @param   Value1      Value 1
  * @param   Value2      Value 2
  */
-#define RT_MIN(Value1, Value2)  ((Value1) <= (Value2) ? (Value1) : (Value2))
+#define RT_MIN(Value1, Value2)                  ( (Value1) <= (Value2) ? (Value1) : (Value2) )
 
 /** @def RT_ABS
  * Get the absolute (non-negative) value.
  * @returns The absolute value of Value.
  * @param   Value       The value.
  */
-#define RT_ABS(Value)           ((Value) >= 0 ? (Value) : -(Value))
+#define RT_ABS(Value)                           ( (Value) >= 0 ? (Value) : -(Value) )
 
 /** @def RT_LODWORD
  * Gets the low dword (=uint32_t) of something. */
-#define RT_LODWORD(a)           ( (uint32_t)(a) )
+#define RT_LODWORD(a)                           ( (uint32_t)(a) )
 
 /** @def RT_HIDWORD
  * Gets the high dword (=uint32_t) of a 64-bit of something. */
-#define RT_HIDWORD(a)           ( (uint32_t)((a) >> 32) )
+#define RT_HIDWORD(a)                           ( (uint32_t)((a) >> 32) )
 
 /** @def RT_LOWORD
  * Gets the low word (=uint16_t) of something. */
-#define RT_LOWORD(a)            ((a) & 0xffff)
+#define RT_LOWORD(a)                            ( (a) & 0xffff )
 
 /** @def RT_HIWORD
  * Gets the high word (=uint16_t) of a 32-bit something. */
-#define RT_HIWORD(a)            ((a) >> 16)
+#define RT_HIWORD(a)                            ( (a) >> 16 )
 
 /** @def RT_LOBYTE
  * Gets the low byte of something. */
-#define RT_LOBYTE(a)            ((a) & 0xff)
+#define RT_LOBYTE(a)                            ( (a) & 0xff )
 
 /** @def RT_HIBYTE
  * Gets the low byte of a 16-bit something. */
-#define RT_HIBYTE(a)            ((a) >> 8)
+#define RT_HIBYTE(a)                            ( (a) >> 8 )
 
 /** @def RT_BYTE1
  * Gets first byte of something. */
-#define RT_BYTE1(a)             ((a) & 0xff)
+#define RT_BYTE1(a)                             ( (a) & 0xff )
 
 /** @def RT_BYTE2
  * Gets second byte of something. */
-#define RT_BYTE2(a)             (((a) >> 8) & 0xff)
+#define RT_BYTE2(a)                             ( ((a) >> 8) & 0xff )
 
 /** @def RT_BYTE3
  * Gets second byte of something. */
-#define RT_BYTE3(a)             (((a) >> 16) & 0xff)
+#define RT_BYTE3(a)                             ( ((a) >> 16) & 0xff )
 
 /** @def RT_BYTE4
  * Gets fourth byte of something. */
-#define RT_BYTE4(a)             (((a) >> 24) & 0xff)
+#define RT_BYTE4(a)                             ( ((a) >> 24) & 0xff )
 
 
 /** @def RT_MAKE_U64
  * Constructs a uint64_t value from two uint32_t values.
  */
-#define RT_MAKE_U64(Lo, Hi) ( (uint64_t)((uint32_t)(Hi)) << 32 | (uint32_t)(Lo) )
+#define RT_MAKE_U64(Lo, Hi)                     ( (uint64_t)((uint32_t)(Hi)) << 32 | (uint32_t)(Lo) )
 
 /** @def RT_MAKE_U64_FROM_U16
  * Constructs a uint64_t value from four uint16_t values.
@@ -1482,7 +1530,7 @@
 #endif
 
 
-/** Size Constants
+/** @defgroup grp_rt_cdefs_size     Size Constants
  * (Of course, these are binary computer terms, not SI.)
  * @{
  */
@@ -1524,33 +1572,94 @@
 #define _2E             0x2000000000000000ULL
 /** @} */
 
+
+/** @defgroup grp_rt_cdefs_dbgtype  Debug Info Types
+ * @{ */
+/** Other format. */
+#define RT_DBGTYPE_OTHER        RT_BIT_32(0)
+/** Stabs. */
+#define RT_DBGTYPE_STABS        RT_BIT_32(1)
+/** Debug With Arbitrary Record Format (DWARF). */
+#define RT_DBGTYPE_DWARF        RT_BIT_32(2)
+/** Microsoft Codeview debug info. */
+#define RT_DBGTYPE_CODEVIEW     RT_BIT_32(3)
+/** Watcom debug info. */
+#define RT_DBGTYPE_WATCOM       RT_BIT_32(4)
+/** IBM High Level Language debug info. */
+#define RT_DBGTYPE_HLL          RT_BIT_32(5)
+/** Old OS/2 and Windows symbol file. */
+#define RT_DBGTYPE_SYM          RT_BIT_32(6)
+/** Map file. */
+#define RT_DBGTYPE_MAP          RT_BIT_32(7)
+/** @} */
+
+
+/** @defgroup grp_rt_cdefs_exetype  Executable Image Types
+ * @{ */
+/** Some other format. */
+#define RT_EXETYPE_OTHER        RT_BIT_32(0)
+/** Portable Executable. */
+#define RT_EXETYPE_PE           RT_BIT_32(1)
+/** Linear eXecutable. */
+#define RT_EXETYPE_LX           RT_BIT_32(2)
+/** Linear Executable. */
+#define RT_EXETYPE_LE           RT_BIT_32(3)
+/** New Executable. */
+#define RT_EXETYPE_NE           RT_BIT_32(4)
+/** DOS Executable (Mark Zbikowski). */
+#define RT_EXETYPE_MZ           RT_BIT_32(5)
+/** COM Executable. */
+#define RT_EXETYPE_COM          RT_BIT_32(6)
+/** a.out Executable. */
+#define RT_EXETYPE_AOUT         RT_BIT_32(7)
+/** Executable and Linkable Format. */
+#define RT_EXETYPE_ELF          RT_BIT_32(8)
+/** Mach-O Executable (including FAT ones). */
+#define RT_EXETYPE_MACHO        RT_BIT_32(9)
+/** TE from UEFI. */
+#define RT_EXETYPE_TE           RT_BIT_32(9)
+/** @} */
+
+
 /** @def VALID_PTR
  * Pointer validation macro.
- * @param   ptr
+ * @param   ptr         The pointer.
  */
 #if defined(RT_ARCH_AMD64)
 # ifdef IN_RING3
 #  if defined(RT_OS_DARWIN) /* first 4GB is reserved for legacy kernel. */
-#   define VALID_PTR(ptr)   (   (uintptr_t)(ptr) >= _4G \
-                             && !((uintptr_t)(ptr) & 0xffff800000000000ULL) )
+#   define RT_VALID_PTR(ptr)    (   (uintptr_t)(ptr) >= _4G \
+                                 && !((uintptr_t)(ptr) & 0xffff800000000000ULL) )
 #  elif defined(RT_OS_SOLARIS) /* The kernel only used the top 2TB, but keep it simple. */
-#   define VALID_PTR(ptr)   (   (uintptr_t)(ptr) + 0x1000U >= 0x2000U \
-                             && (   ((uintptr_t)(ptr) & 0xffff800000000000ULL) == 0xffff800000000000ULL \
-                                 || ((uintptr_t)(ptr) & 0xffff800000000000ULL) == 0) )
+#   define RT_VALID_PTR(ptr)    (   (uintptr_t)(ptr) + 0x1000U >= 0x2000U \
+                                 && (   ((uintptr_t)(ptr) & 0xffff800000000000ULL) == 0xffff800000000000ULL \
+                                     || ((uintptr_t)(ptr) & 0xffff800000000000ULL) == 0) )
 #  else
-#   define VALID_PTR(ptr)   (   (uintptr_t)(ptr) + 0x1000U >= 0x2000U \
-                             && !((uintptr_t)(ptr) & 0xffff800000000000ULL) )
+#   define RT_VALID_PTR(ptr)    (   (uintptr_t)(ptr) + 0x1000U >= 0x2000U \
+                                 && !((uintptr_t)(ptr) & 0xffff800000000000ULL) )
 #  endif
 # else /* !IN_RING3 */
-#  define VALID_PTR(ptr)    (   (uintptr_t)(ptr) + 0x1000U >= 0x2000U \
-                             && (   ((uintptr_t)(ptr) & 0xffff800000000000ULL) == 0xffff800000000000ULL \
-                                 || ((uintptr_t)(ptr) & 0xffff800000000000ULL) == 0) )
+#  define RT_VALID_PTR(ptr)     (   (uintptr_t)(ptr) + 0x1000U >= 0x2000U \
+                                 && (   ((uintptr_t)(ptr) & 0xffff800000000000ULL) == 0xffff800000000000ULL \
+                                     || ((uintptr_t)(ptr) & 0xffff800000000000ULL) == 0) )
 # endif /* !IN_RING3 */
 #elif defined(RT_ARCH_X86)
-# define VALID_PTR(ptr)     ( (uintptr_t)(ptr) + 0x1000U >= 0x2000U )
+# define RT_VALID_PTR(ptr)      ( (uintptr_t)(ptr) + 0x1000U >= 0x2000U )
 #else
 # error "Architecture identifier missing / not implemented."
 #endif
+
+/** Old name for RT_VALID_PTR.  */
+#define VALID_PTR(ptr)      RT_VALID_PTR(ptr)
+
+/** @def RT_VALID_ALIGNED_PTR
+ * Pointer validation macro that also checks the alignment.
+ * @param   ptr         The pointer.
+ * @param   align       The alignment, must be a power of two.
+ */
+#define RT_VALID_ALIGNED_PTR(ptr, align)   \
+    (   !((uintptr_t)(ptr) & (uintptr_t)((align) - 1)) \
+     && VALID_PTR(ptr) )
 
 
 /** @def VALID_PHYS32

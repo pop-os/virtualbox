@@ -1,4 +1,4 @@
-/* $Id: gvm.h $ */
+/* $Id: gvm.h 19395 2009-05-05 20:28:42Z vboxsync $ */
 /** @file
  * GVM - The Global VM Data.
  */
@@ -35,6 +35,31 @@
 #include <VBox/types.h>
 #include <iprt/thread.h>
 
+/** @defgroup grp_gvm   GVMCPU - The Global VMCPU Data
+ * @{
+ */
+
+typedef struct GVMCPU
+{
+    /** VCPU id (0 - (pVM->cCPUs - 1). */
+    VMCPUID         idCpu;
+
+    /** Handle to the EMT thread. */
+    RTNATIVETHREAD  hEMT;
+
+    /** The GVMM per vcpu data. */
+    union
+    {
+#ifdef ___GVMMR0Internal_h
+        struct GVMMPERVCPU  s;
+#endif
+        uint8_t             padding[64];
+    } gvmm;
+} GVMCPU;
+/** Pointer to the GVMCPU data. */
+typedef GVMCPU *PGVMCPU;
+
+/** @} */
 
 /** @defgroup grp_gvm   GVM - The Global VM Data
  * @{
@@ -55,13 +80,15 @@ typedef struct GVM
     uint32_t        u32Magic;
     /** The global VM handle for this VM. */
     uint32_t        hSelf;
-    /** Handle to the EMT thread. */
-    RTNATIVETHREAD  hEMT;
     /** The ring-0 mapping of the VM structure. */
     PVM             pVM;
+    /** Number of Virtual CPUs, i.e. how many entries there are in aCpus.
+     * Same same as PVM::cCPUs. */
+    uint32_t        cCpus;
+    uint32_t        padding;
 
     /** The GVMM per vm data. */
-    struct
+    union
     {
 #ifdef ___GVMMR0Internal_h
         struct GVMMPERVM    s;
@@ -70,7 +97,7 @@ typedef struct GVM
     } gvmm;
 
     /** The GMM per vm data. */
-    struct
+    union
     {
 #ifdef ___GMMR0Internal_h
         struct GMMPERVM     s;
@@ -78,6 +105,8 @@ typedef struct GVM
         uint8_t             padding[256];
     } gmm;
 
+    /** GVMCPU array for the configured number of virtual CPUs. */
+    GVMCPU          aCpus[1];
 } GVM;
 
 /** The GVM::u32Magic value (Wayne Shorter). */

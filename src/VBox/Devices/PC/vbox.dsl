@@ -1,4 +1,4 @@
-// $Id: vbox.dsl $
+// $Id: vbox.dsl 20679 2009-06-18 10:38:52Z vboxsync $
 /// @file
 //
 // VirtualBox ACPI
@@ -127,13 +127,12 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
     // known good configuration, as it remembers state, even if ACPI object gets disabled.
     Scope (\_PR)
     {
-       Processor (CPU0, /* Name */
+        Processor (CPU0, /* Name */
                    0x00, /* Id */
                    0x0,  /* Processor IO ports range start */
                    0x0   /* Processor IO ports range length */
                    )
         {
-           Method (_STA) { Return(\_SB.UCP0) }
         }
         Processor (CPU1, /* Name */
                    0x01, /* Id */
@@ -141,7 +140,6 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
                    0x0   /* Processor IO ports range length */
                    )
         {
-           Method (_STA) { Return(\_SB.UCP1) }
         }
         Processor (CPU2, /* Name */
                    0x02, /* Id */
@@ -149,7 +147,6 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
                    0x0   /* Processor IO ports range length */
                    )
         {
-           Method (_STA) { Return(\_SB.UCP2) }
         }
         Processor (CPU3, /* Name */
                    0x03, /* Id */
@@ -157,8 +154,204 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
                    0x0   /* Processor IO ports range length */
                    )
         {
-           Method (_STA) { Return(\_SB.UCP3) }
         }
+        Processor (CPU4, /* Name */
+                   0x04, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPU5, /* Name */
+                   0x05, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPU6, /* Name */
+                   0x06, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPU7, /* Name */
+                   0x07, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPU8, /* Name */
+                   0x08, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPU9, /* Name */
+                   0x09, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUA, /* Name */
+                   0x0a, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUB, /* Name */
+                   0x0b, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUC, /* Name */
+                   0x0c, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUD, /* Name */
+                   0x0d, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUE, /* Name */
+                   0x0e, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUF, /* Name */
+                   0x0f, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUG, /* Name */
+                   0x10, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUH, /* Name */
+                   0x11, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUI, /* Name */
+                   0x12, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUJ, /* Name */
+                   0x13, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUK, /* Name */
+                   0x14, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUL, /* Name */
+                   0x15, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUM, /* Name */
+                   0x16, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUN, /* Name */
+                   0x17, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUO, /* Name */
+                   0x18, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUP, /* Name */
+                   0x19, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUQ, /* Name */
+                   0x1a, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUR, /* Name */
+                   0x1b, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUS, /* Name */
+                   0x1c, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUT, /* Name */
+                   0x1d, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUU, /* Name */
+                   0x1e, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        Processor (CPUV, /* Name */
+                   0x1f, /* Id */
+                   0x0,  /* Processor IO ports range start */
+                   0x0   /* Processor IO ports range length */
+                   )
+        {
+        }
+        
     }
 
     Scope (\_SB)
@@ -179,10 +372,11 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
             UFDC,  32,
             // @todo: maybe make it bitmask instead?
             UCP0,  32,
-            UCP1,  32,
-            UCP2,  32,
-            UCP3,  32,
+            UCP1,  32, 
+            UCP2,  32, 
+            UCP3,  32, 
             MEMH,  32,
+            URTC,  32,
             Offset (0x80),
             ININ, 32,
             Offset (0x200),
@@ -950,8 +1144,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
          // High Precision Event Timer
         Device(HPET) {
             Name(_HID,  EISAID("PNP0103"))
-// bird: Perhaps this is the cause for the RTC bitching below, but I've no patience to fine out.
-//            Name (_CID, 0x010CD041)
+            Name (_CID, 0x010CD041)
             Name(_UID, 0)
             Method (_STA, 0, NotSerialized) {
                     Return(UHPT)
@@ -969,22 +1162,23 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
             })
         }
 
-// bird: Doesn't work, breaks Vista and W7. Why is the length 8 and not 2? The examples
-//       I've got here uses 2 and also  includes IRQNoFlags () {8}
-//       Note: Do NOT even thing about re-enabling this without testing ALL windows versions.
-//
-//        Device (RTC) {
-//            Name (_HID, EisaId ("PNP0B00"))
-//            Name (_CRS, ResourceTemplate ()
-//            {
-//                IO (Decode16,
-//                    0x0070,             // Range Minimum
-//                    0x0070,             // Range Maximum
-//                    0x01,               // Alignment
-//                    0x08,               // Length
-//                    )
-//            })
-//        }
+        // Conditionally enabled, as lead to hang of Windows 7 and Vista guests 
+        Device (RTC) {
+            Name (_HID, EisaId ("PNP0B00"))
+            Name (_CRS, ResourceTemplate ()
+            {
+                IO (Decode16,
+                    0x0070,             // Range Minimum
+                    0x0070,             // Range Maximum
+                    0x01,               // Alignment
+                    0x08,               // Length
+                    )
+            })
+            Method (_STA, 0, NotSerialized)
+            {
+                Return (URTC)
+            }
+        }
 
        // System Management Controller
        Device (SMC)

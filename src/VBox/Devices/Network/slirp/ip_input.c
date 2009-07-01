@@ -44,6 +44,9 @@
 
 #include <slirp.h>
 #include "ip_icmp.h"
+#ifdef VBOX_WITH_SLIRP_ALIAS
+# include "alias.h"
+#endif
 
 
 /*
@@ -72,13 +75,23 @@ void
 ip_input(PNATState pData, struct mbuf *m)
 {
     register struct ip *ip;
-    int hlen;
+    int hlen = 0;
 
     DEBUG_CALL("ip_input");
     DEBUG_ARG("m = %lx", (long)m);
-    DEBUG_ARG("m_len = %d", m->m_len);
+    ip = mtod(m, struct ip *);
+    Log2(("ip_dst=%R[IP4](len:%d) m_len = %d", &ip->ip_dst, ntohs(ip->ip_len), m->m_len));
+    Log2(("ip_dst=%R[IP4](len:%d) m_len = %d\n", &ip->ip_dst, ntohs(ip->ip_len), m->m_len));
 
     ipstat.ips_total++;
+#ifdef VBOX_WITH_SLIRP_ALIAS
+    {
+        int rc;
+        rc = LibAliasIn(m->m_la ? m->m_la : pData->proxy_alias, mtod(m, char *), 
+            m->m_len);
+        Log2(("NAT: LibAlias return %d\n", rc));
+    }
+#endif
 
     if (m->m_len < sizeof(struct ip))
     {
@@ -188,6 +201,8 @@ ip_input(PNATState pData, struct mbuf *m)
     }
     return;
 bad:
+    Log2(("NAT: IP datagram to %R[IP4] with size(%d) claimed as bad\n", 
+        &ip->ip_dst, ip->ip_len));
     m_freem(pData, m);
     return;
 }
@@ -292,7 +307,6 @@ found:
      * ip_reass() will return a different mbuf.
      */
     ipstat.ips_fragments++;
-    m->m_hdr.header = ip;
 
     /* Previous ip_reass() started here. */
     /*
@@ -327,7 +341,7 @@ found:
         fp->ipq_nfrags++;
     }
 
-#define GETIP(m)    ((struct ip*)((m)->m_hdr.header))
+#define GETIP(m)    ((struct ip*)(MBUF_IP_HEADER(m)))
 
 
     /*

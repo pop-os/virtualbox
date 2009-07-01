@@ -1,4 +1,4 @@
-/* $Id: SUPLoggerCtl.cpp $ */
+/* $Id: SUPLoggerCtl.cpp 18246 2009-03-25 11:36:34Z vboxsync $ */
 /** @file
  * SUPLoggerCtl - Support Driver Logger Control.
  */

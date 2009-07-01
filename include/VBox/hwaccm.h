@@ -56,7 +56,7 @@ typedef enum HWACCMSTATE
     HWACCMSTATE_32BIT_HACK = 0x7fffffff
 } HWACCMSTATE;
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /**
  * Query HWACCM state (enabled/disabled)
@@ -72,22 +72,24 @@ __BEGIN_DECLS
  * @returns boolean
  * @param   pCtx        CPU context
  */
-#define HWACCMCanEmulateIoBlock(pVM)       (!CPUMIsGuestInPagedProtectedMode(pVM))
+#define HWACCMCanEmulateIoBlock(pVCpu)     (!CPUMIsGuestInPagedProtectedMode(pVCpu))
 #define HWACCMCanEmulateIoBlockEx(pCtx)    (!CPUMIsGuestInPagedProtectedModeEx(pCtx))
 
-VMMDECL(int)    HWACCMInvalidatePage(PVM pVM, RTGCPTR GCVirt);
+VMMDECL(int)    HWACCMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt);
 VMMDECL(bool)   HWACCMHasPendingIrq(PVM pVM);
 
 #ifndef IN_RC
-VMMDECL(int)     HWACCMFlushTLB(PVM pVM);
+VMMDECL(int)     HWACCMFlushTLB(PVMCPU pVCpu);
+VMMDECL(int)     HWACCMFlushTLBOnAllVCpus(PVM pVM);
+VMMDECL(int)     HWACCMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCVirt);
 VMMDECL(int)     HWACCMInvalidatePhysPage(PVM pVM, RTGCPHYS GCPhys);
 VMMDECL(bool)    HWACCMIsNestedPagingActive(PVM pVM);
 VMMDECL(PGMMODE) HWACCMGetShwPagingMode(PVM pVM);
-VMMDECL(RTCPUID) HWACCMGetVMCPUId(PVM pVM);
 #else
 /* Nop in GC */
-# define HWACCMFlushTLB(pVM)                    do { } while (0)
+# define HWACCMFlushTLB(pVCpu)                  do { } while (0)
 # define HWACCMIsNestedPagingActive(pVM)        false
+# define HWACCMFlushTLBOnAllVCpus(pVM)          do { } while (0)
 #endif
 
 #ifdef IN_RING0
@@ -102,6 +104,10 @@ VMMR0DECL(int)  HWACCMR0TermVM(PVM pVM);
 VMMR0DECL(int)  HWACCMR0EnableAllCpus(PVM pVM);
 VMMR0DECL(int)  HWACCMR0EnterSwitcher(PVM pVM, bool *pfVTxDisabled);
 VMMR0DECL(int)  HWACCMR0LeaveSwitcher(PVM pVM, bool fVTxDisabled);
+
+VMMR0DECL(PVMCPU)  HWACCMR0GetVMCPU(PVM pVM);
+VMMR0DECL(VMCPUID) HWACCMR0GetVMCPUId(PVM pVM);
+
 /** @} */
 #endif /* IN_RING0 */
 
@@ -111,7 +117,7 @@ VMMR0DECL(int)  HWACCMR0LeaveSwitcher(PVM pVM, bool fVTxDisabled);
  * @ingroup grp_hwaccm
  * @{
  */
-VMMR3DECL(bool) HWACCMR3IsEventPending(PVM pVM);
+VMMR3DECL(bool) HWACCMR3IsEventPending(PVMCPU pVCpu);
 VMMR3DECL(int)  HWACCMR3Init(PVM pVM);
 VMMR3DECL(int)  HWACCMR3InitCPU(PVM pVM);
 VMMR3DECL(int)  HWACCMR3InitFinalizeR0(PVM pVM);
@@ -123,10 +129,10 @@ VMMR3DECL(void) HWACCMR3CheckError(PVM pVM, int iStatusCode);
 VMMR3DECL(bool) HWACCMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx);
 VMMR3DECL(void) HWACCMR3NotifyScheduled(PVMCPU pVCpu);
 VMMR3DECL(void) HWACCMR3NotifyEmulated(PVMCPU pVCpu);
-VMMR3DECL(bool) HWACCMR3IsActive(PVM pVM);
+VMMR3DECL(bool) HWACCMR3IsActive(PVMCPU pVCpu);
 VMMR3DECL(bool) HWACCMR3IsNestedPagingActive(PVM pVM);
 VMMR3DECL(bool) HWACCMR3IsAllowed(PVM pVM);
-VMMR3DECL(void) HWACCMR3PagingModeChanged(PVM pVM, PGMMODE enmShadowMode, PGMMODE enmGuestMode);
+VMMR3DECL(void) HWACCMR3PagingModeChanged(PVM pVM, PVMCPU pVCpu, PGMMODE enmShadowMode, PGMMODE enmGuestMode);
 VMMR3DECL(bool) HWACCMR3IsVPIDActive(PVM pVM);
 VMMR3DECL(int)  HWACCMR3InjectNMI(PVM pVM);
 VMMR3DECL(int)  HWACCMR3EmulateIoBlock(PVM pVM, PCPUMCTX pCtx);
@@ -157,7 +163,7 @@ VMMR0DECL(int)   HWACCMR0TestSwitcher3264(PVM pVM);
 
 
 /** @} */
-__END_DECLS
+RT_C_DECLS_END
 
 
 #endif

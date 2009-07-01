@@ -1,4 +1,4 @@
-/* $Id: VMMGC.cpp $ */
+/* $Id: VMMGC.cpp 20874 2009-06-24 02:19:29Z vboxsync $ */
 /** @file
  * VMM - Raw-mode Context.
  */
@@ -175,7 +175,9 @@ VMMRCDECL(int) vmmGCLoggerFlush(PRTLOGGERRC pLogger)
 {
     PVM pVM = &g_VM;
     NOREF(pLogger);
-    return VMMGCCallHost(pVM, VMMCALLHOST_VMM_LOGGER_FLUSH, 0);
+    if (pVM->vmm.s.fRCLoggerFlushingDisabled)
+        return VINF_SUCCESS; /* fail quietly. */
+    return VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_VMM_LOGGER_FLUSH, 0);
 }
 
 
@@ -189,35 +191,10 @@ VMMRCDECL(void) VMMGCLogFlushIfFull(PVM pVM)
     if (    pVM->vmm.s.pRCLoggerRC
         &&  pVM->vmm.s.pRCLoggerRC->offScratch >= (sizeof(pVM->vmm.s.pRCLoggerRC->achScratch)*3/4))
     {
-        VMMGCCallHost(pVM, VMMCALLHOST_VMM_LOGGER_FLUSH, 0);
+        if (pVM->vmm.s.fRCLoggerFlushingDisabled)
+            return; /* fail quietly. */
+        VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_VMM_LOGGER_FLUSH, 0);
     }
-}
-
-/**
- * Disables the GC logger temporarily, restore with VMMGCLogRestore.
- *
- * @param   pVM             The VM handle.
- */
-VMMRCDECL(bool) VMMGCLogDisable(PVM pVM)
-{
-    bool fLog = pVM->vmm.s.pRCLoggerRC
-             && !(pVM->vmm.s.pRCLoggerRC->fFlags & RTLOGFLAGS_DISABLED);
-    if (fLog)
-        pVM->vmm.s.pRCLoggerRC->fFlags |= RTLOGFLAGS_DISABLED;
-    return fLog;
-}
-
-
-/**
- * Restores the GC logger after a call to VMMGCLogDisable.
- *
- * @param   pVM             The VM handle.
- * @param   fLog            What VMMGCLogDisable returned.
- */
-VMMRCDECL(void) VMMGCLogRestore(PVM pVM, bool fLog)
-{
-    if (fLog && pVM->vmm.s.pRCLoggerRC)
-        pVM->vmm.s.pRCLoggerRC->fFlags &= ~RTLOGFLAGS_DISABLED;
 }
 
 
@@ -230,25 +207,6 @@ VMMRCDECL(void) VMMGCLogRestore(PVM pVM, bool fLog)
 VMMRCDECL(void) VMMGCGuestToHost(PVM pVM, int rc)
 {
     pVM->vmm.s.pfnGuestToHostRC(rc);
-}
-
-
-/**
- * Calls the ring-3 host code.
- *
- * @returns VBox status code of the ring-3 call.
- * @param   pVM             The VM handle.
- * @param   enmOperation    The operation.
- * @param   uArg            The argument to the operation.
- */
-VMMRCDECL(int) VMMGCCallHost(PVM pVM, VMMCALLHOST enmOperation, uint64_t uArg)
-{
-/** @todo profile this! */
-    pVM->vmm.s.enmCallHostOperation = enmOperation;
-    pVM->vmm.s.u64CallHostArg = uArg;
-    pVM->vmm.s.rcCallHost = VERR_INTERNAL_ERROR;
-    pVM->vmm.s.pfnGuestToHostRC(VINF_VMM_CALL_HOST);
-    return pVM->vmm.s.rcCallHost;
 }
 
 

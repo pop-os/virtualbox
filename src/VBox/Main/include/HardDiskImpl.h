@@ -1,4 +1,4 @@
-/* $Id: HardDiskImpl.h $ */
+/* $Id: HardDiskImpl.h 20842 2009-06-23 14:48:10Z vboxsync $ */
 
 /** @file
  *
@@ -47,7 +47,7 @@ class ATL_NO_VTABLE HardDisk
     : public com::SupportErrorInfoDerived<MediumBase, HardDisk, IHardDisk>
     , public VirtualBoxBaseWithTypedChildrenNEXT<HardDisk>
     , public VirtualBoxSupportTranslation<HardDisk>
-    , public IHardDisk
+    , VBOX_SCRIPTABLE_IMPL(IHardDisk)
 {
 public:
 
@@ -64,9 +64,11 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP (HardDisk)
-        COM_INTERFACE_ENTRY (ISupportErrorInfo)
+        COM_INTERFACE_ENTRY  (ISupportErrorInfo)
         COM_INTERFACE_ENTRY2 (IMedium, MediumBase)
-        COM_INTERFACE_ENTRY (IHardDisk)
+        COM_INTERFACE_ENTRY  (IHardDisk)
+        COM_INTERFACE_ENTRY2 (IDispatch, IHardDisk)
+        COM_INTERFACE_ENTRY2 (IDispatch, MediumBase)
     END_COM_MAP()
 
     NS_DECL_ISUPPORTS
@@ -87,7 +89,11 @@ public:
                  CBSTR aLocation);
     HRESULT init(VirtualBox *aVirtualBox,
                  CBSTR aLocation,
-                 HDDOpenMode enOpenMode);
+                 HDDOpenMode enOpenMode,
+                 BOOL aSetImageId,
+                 const Guid &aImageId,
+                 BOOL aSetParentId,
+                 const Guid &aParentId);
     HRESULT init(VirtualBox *aVirtualBox,
                  HardDisk *aParent,
                  const settings::Key &aNode);
@@ -123,7 +129,7 @@ public:
     STDMETHOD(CreateDiffStorage) (IHardDisk *aTarget,
                                   HardDiskVariant_T aVariant,
                                   IProgress **aProgress);
-    STDMETHOD(MergeTo) (IN_GUID aTargetId, IProgress **aProgress);
+    STDMETHOD(MergeTo) (IN_BSTR aTargetId, IProgress **aProgress);
     STDMETHOD(CloneTo) (IHardDisk *aTarget, HardDiskVariant_T aVariant,
                         IHardDisk *aParent, IProgress **aProgress);
     STDMETHOD(Compact) (IProgress **aProgress);
@@ -291,6 +297,8 @@ private:
               logicalSize(0),
               hddOpenMode(OpenReadWrite),
               autoReset(false),
+              setImageId(false),
+              setParentId(false),
               implicit(false),
               numCreateDiffTasks(0),
               vdProgress(NULL),
@@ -306,6 +314,12 @@ private:
         HDDOpenMode hddOpenMode;
 
         BOOL autoReset : 1;
+
+        /** the following members are invalid after changing UUID on open */
+        BOOL setImageId : 1;
+        BOOL setParentId : 1;
+        const Guid imageId;
+        const Guid parentId;
 
         typedef std::map <Bstr, Bstr> PropertyMap;
         PropertyMap properties;

@@ -907,7 +907,7 @@ typedef enum reloc_type_x86_64
     X86_64_RELOC_SIGNED,            /**< Signed displacement. */
     X86_64_RELOC_BRANCH,            /**< Branch displacement (jmp/call, adj by size). */
     X86_64_RELOC_GOT_LOAD,          /**< GOT entry load. */
-    X86_64_RELOC_GOT,               /**< GOT reference. */			// other GOT references
+    X86_64_RELOC_GOT,               /**< GOT reference. */
     X86_64_RELOC_SUBTRACTOR,        /**< ??. */
     X86_64_RELOC_SIGNED_1,          /**< Signed displacement with a -1 added. */
     X86_64_RELOC_SIGNED_2,          /**< Signed displacement with a -2 added. */

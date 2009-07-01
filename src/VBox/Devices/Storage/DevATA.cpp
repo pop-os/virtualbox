@@ -1,4 +1,4 @@
-/* $Id: DevATA.cpp $ */
+/* $Id: DevATA.cpp 20567 2009-06-14 20:31:54Z vboxsync $ */
 /** @file
  * VBox storage devices: ATA/ATAPI controller device (disk and cdrom).
  */
@@ -471,7 +471,7 @@ typedef struct PCIATAState {
 /*******************************************************************************
  *  Internal Functions                                                         *
  ******************************************************************************/
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 PDMBOTHCBDECL(int) ataIOPortWrite1(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
 PDMBOTHCBDECL(int) ataIOPortRead1(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *u32, unsigned cb);
 PDMBOTHCBDECL(int) ataIOPortWriteStr1(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrSrc, PRTGCUINTREG pcTransfer, unsigned cb);
@@ -480,7 +480,7 @@ PDMBOTHCBDECL(int) ataIOPortWrite2(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Po
 PDMBOTHCBDECL(int) ataIOPortRead2(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *u32, unsigned cb);
 PDMBOTHCBDECL(int) ataBMDMAIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
 PDMBOTHCBDECL(int) ataBMDMAIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
-__END_DECLS
+RT_C_DECLS_END
 
 
 
@@ -1407,7 +1407,7 @@ static void ataSuspendRedo(PATACONTROLLER pCtl)
     int         rc;
 
     pCtl->fRedoIdle = true;
-    rc = VMR3ReqCall(PDMDevHlpGetVM(pDevIns), VMREQDEST_ANY, &pReq, RT_INDEFINITE_WAIT,
+    rc = VMR3ReqCall(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT,
                      (PFNRT)PDMDevHlpVMSuspend, 1, pDevIns);
     AssertReleaseRC(rc);
     VMR3ReqFree(pReq);
@@ -2887,7 +2887,7 @@ static void atapiParseCmdVirtualATAPI(ATADevState *s)
                         PVMREQ pReq;
 
                         PDMCritSectLeave(&pCtl->lock);
-                        rc = VMR3ReqCall(PDMDevHlpGetVM(pDevIns), VMREQDEST_ANY, &pReq, RT_INDEFINITE_WAIT,
+                        rc = VMR3ReqCall(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT,
                                          (PFNRT)s->pDrvMount->pfnUnmount, 2, s->pDrvMount, false);
                         AssertReleaseRC(rc);
                         VMR3ReqFree(pReq);
@@ -5399,7 +5399,7 @@ PDMBOTHCBDECL(int) ataIOPortRead1(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Por
     return rc;
 }
 
-#ifndef IN_RING0
+#ifndef IN_RING0 /** @todo do this in ring-0 as well. */
 /**
  * Port I/O Handler for primary port range IN string operations.
  * @see FNIOMIOPORTINSTRING for details.
@@ -5434,13 +5434,8 @@ PDMBOTHCBDECL(int) ataIOPortReadStr1(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT 
             cTransAvailable = cTransfer;
         cbTransfer = cTransAvailable * cb;
 
-#ifdef IN_RC
-        for (uint32_t i = 0; i < cbTransfer; i += cb)
-            MMGCRamWriteNoTrapHandler((char *)GCDst + i, s->CTX_SUFF(pbIOBuffer) + s->iIOBufferPIODataStart + i, cb);
-#else /* !IN_RC */
-        rc = PGMPhysSimpleDirtyWriteGCPtr(PDMDevHlpGetVM(pDevIns), GCDst, s->CTX_SUFF(pbIOBuffer) + s->iIOBufferPIODataStart, cbTransfer);
+        rc = PGMPhysSimpleDirtyWriteGCPtr(PDMDevHlpGetVMCPU(pDevIns), GCDst, s->CTX_SUFF(pbIOBuffer) + s->iIOBufferPIODataStart, cbTransfer);
         Assert(rc == VINF_SUCCESS);
-#endif /* IN_RC */
 
         if (cbTransfer)
             Log3(("%s: addr=%#x val=%.*Rhxs\n", __FUNCTION__, Port, cbTransfer, s->CTX_SUFF(pbIOBuffer) + s->iIOBufferPIODataStart));
@@ -5491,13 +5486,8 @@ PDMBOTHCBDECL(int) ataIOPortWriteStr1(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
             cTransAvailable = cTransfer;
         cbTransfer = cTransAvailable * cb;
 
-#ifdef IN_RC
-        for (uint32_t i = 0; i < cbTransfer; i += cb)
-            MMGCRamReadNoTrapHandler(s->CTX_SUFF(pbIOBuffer) + s->iIOBufferPIODataStart + i, (char *)GCSrc + i, cb);
-#else /* !IN_RC */
-        rc = PGMPhysSimpleReadGCPtr(PDMDevHlpGetVM(pDevIns), s->CTX_SUFF(pbIOBuffer) + s->iIOBufferPIODataStart, GCSrc, cbTransfer);
+        rc = PGMPhysSimpleReadGCPtr(PDMDevHlpGetVMCPU(pDevIns), s->CTX_SUFF(pbIOBuffer) + s->iIOBufferPIODataStart, GCSrc, cbTransfer);
         Assert(rc == VINF_SUCCESS);
-#endif /* IN_RC */
 
         if (cbTransfer)
             Log3(("%s: addr=%#x val=%.*Rhxs\n", __FUNCTION__, Port, cbTransfer, s->CTX_SUFF(pbIOBuffer) + s->iIOBufferPIODataStart));
@@ -5576,21 +5566,10 @@ PDMBOTHCBDECL(int) ataIOPortRead2(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Por
 static bool ataWaitForAllAsyncIOIsIdle(PPDMDEVINS pDevIns, unsigned cMillies)
 {
     PCIATAState    *pThis = PDMINS_2_DATA(pDevIns, PCIATAState *);
-    bool            fVMLocked;
     uint64_t        u64Start;
     PATACONTROLLER  pCtl;
     bool            fAllIdle = false;
 
-    /* The only way to deal cleanly with the VM lock is to check whether
-     * it is owned now (it always is owned by EMT, which is the current
-     * thread). Since this function is called several times during VM
-     * shutdown, and the VM lock is only held for the first call (which
-     * can be either from ataPowerOff or ataSuspend), there is no other
-     * reasonable solution. */
-    fVMLocked = VMMR3LockIsOwner(PDMDevHlpGetVM(pDevIns));
-
-    if (fVMLocked)
-        pDevIns->pDevHlpR3->pfnUnlockVM(pDevIns);
     /*
      * Wait for any pending async operation to finish
      */
@@ -5623,9 +5602,6 @@ static bool ataWaitForAllAsyncIOIsIdle(PPDMDEVINS pDevIns, unsigned cMillies)
         /* Sleep for a bit. */
         RTThreadSleep(100);
     }
-
-    if (fVMLocked)
-        pDevIns->pDevHlpR3->pfnLockVM(pDevIns);
 
     if (!fAllIdle)
         LogRel(("PIIX3 ATA: Ctl#%d is still executing, DevSel=%d AIOIf=%d CmdIf0=%#04x CmdIf1=%#04x\n",

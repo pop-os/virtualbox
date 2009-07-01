@@ -1,4 +1,4 @@
-/* $Id: the-os2-kernel.h $ */
+/* $Id: the-os2-kernel.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * IPRT - Ring-0 Driver, The OS/2 Kernel Headers.
  */
@@ -39,7 +39,7 @@
 #undef RT_MAX
 #include <os2ddk/devhlp.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 extern PCDOSTABLE   g_pDosTable;
 extern PCDOSTABLE2  g_pDosTable2;
@@ -50,6 +50,6 @@ RTR0DECL(void *) RTR0Os2Virt2Flat(RTFAR16 fp);
 DECLASM(int) RTR0Os2DHQueryDOSVar(uint8_t iVar, uint16_t iSub, PRTFAR16 pfp);
 DECLASM(int) RTR0Os2DHVMGlobalToProcess(ULONG fFlags, PVOID pvR0, ULONG cb, PPVOID ppvR3);
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif

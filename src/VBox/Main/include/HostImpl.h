@@ -1,4 +1,4 @@
-/* $Id: HostImpl.h $ */
+/* $Id: HostImpl.h 20042 2009-05-26 14:49:55Z vboxsync $ */
 /** @file
  * Implemenation of IHost.
  */
@@ -53,7 +53,7 @@ class ATL_NO_VTABLE Host :
     public VirtualBoxBaseWithChildren,
     public VirtualBoxSupportErrorInfoImpl <Host, IHost>,
     public VirtualBoxSupportTranslation <Host>,
-    public IHost
+    VBOX_SCRIPTABLE_IMPL(IHost)
 {
 public:
 
@@ -64,6 +64,7 @@ public:
     BEGIN_COM_MAP(Host)
         COM_INTERFACE_ENTRY(ISupportErrorInfo)
         COM_INTERFACE_ENTRY(IHost)
+        COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
     NS_DECL_ISUPPORTS
@@ -91,16 +92,14 @@ public:
     STDMETHOD(COMGETTER(OperatingSystem))(BSTR *os);
     STDMETHOD(COMGETTER(OSVersion))(BSTR *version);
     STDMETHOD(COMGETTER(UTCTime))(LONG64 *aUTCTime);
+    STDMETHOD(COMGETTER(Acceleration3DAvailable))(BOOL *aSupported);
 
     // IHost methods
-#ifdef RT_OS_WINDOWS
-
     STDMETHOD(CreateHostOnlyNetworkInterface) (IHostNetworkInterface **aHostNetworkInterface,
                                            IProgress **aProgress);
-    STDMETHOD(RemoveHostOnlyNetworkInterface) (IN_GUID aId,
+    STDMETHOD(RemoveHostOnlyNetworkInterface) (IN_BSTR aId,
                                            IHostNetworkInterface **aHostNetworkInterface,
                                            IProgress **aProgress);
-#endif
     STDMETHOD(CreateUSBDeviceFilter) (IN_BSTR aName, IHostUSBDeviceFilter **aFilter);
     STDMETHOD(InsertUSBDeviceFilter) (ULONG aPosition, IHostUSBDeviceFilter *aFilter);
     STDMETHOD(RemoveUSBDeviceFilter) (ULONG aPosition, IHostUSBDeviceFilter **aFilter);
@@ -108,10 +107,10 @@ public:
     STDMETHOD(FindHostDVDDrive) (IN_BSTR aName, IHostDVDDrive **aDrive);
     STDMETHOD(FindHostFloppyDrive) (IN_BSTR aName, IHostFloppyDrive **aDrive);
     STDMETHOD(FindHostNetworkInterfaceByName) (IN_BSTR aName, IHostNetworkInterface **networkInterface);
-    STDMETHOD(FindHostNetworkInterfaceById) (IN_GUID id, IHostNetworkInterface **networkInterface);
+    STDMETHOD(FindHostNetworkInterfaceById) (IN_BSTR id, IHostNetworkInterface **networkInterface);
     STDMETHOD(FindHostNetworkInterfacesOfType) (HostNetworkInterfaceType_T type, ComSafeArrayOut (IHostNetworkInterface *, aNetworkInterfaces));
     STDMETHOD(FindUSBDeviceByAddress) (IN_BSTR aAddress, IHostUSBDevice **aDevice);
-    STDMETHOD(FindUSBDeviceById) (IN_GUID aId, IHostUSBDevice **aDevice);
+    STDMETHOD(FindUSBDeviceById) (IN_BSTR aId, IHostUSBDevice **aDevice);
 
     // public methods only for internal purposes
 
@@ -134,11 +133,12 @@ public:
 
 private:
 
-#if defined(RT_OS_SOLARIS)
-# if defined(VBOX_USE_LIBHAL)
+#if (defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)) && defined(VBOX_USE_LIBHAL)
     bool getDVDInfoFromHal(std::list <ComObjPtr <HostDVDDrive> > &list);
     bool getFloppyInfoFromHal(std::list <ComObjPtr <HostFloppyDrive> > &list);
-# endif
+#endif
+
+#if defined(RT_OS_SOLARIS)
     void parseMountTable(char *mountTable, std::list <ComObjPtr <HostDVDDrive> > &list);
     bool validateDevice(const char *deviceNode, bool isCDROM);
 #endif
@@ -174,6 +174,8 @@ private:
 #endif
     /* Features that can be queried with GetProcessorFeature */
     BOOL fVTxAMDVSupported, fLongModeSupported, fPAESupported;
+    /* 3D hardware acceleration supported? */
+    BOOL f3DAccelerationSupported;
 
     HostPowerService *mHostPowerService;
 };

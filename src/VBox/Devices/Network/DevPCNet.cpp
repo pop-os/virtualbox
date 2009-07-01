@@ -1,4 +1,4 @@
-/* $Id: DevPCNet.cpp $ */
+/* $Id: DevPCNet.cpp 20961 2009-06-26 08:45:18Z vboxsync $ */
 /** @file
  * DevPCNet - AMD PCnet-PCI II / PCnet-FAST III (Am79C970A / Am79C973) Ethernet Controller Emulation.
  *
@@ -514,7 +514,7 @@ typedef struct TMD
         uint32_t ltint:1;       /**< suppress interrupts after successful transmission */
         uint32_t nofcs:1;       /**< when set, the state of DXMTFCS is ignored and
                                      transmitter FCS generation is activated. */
-        uint32_t err:1;         /**< error occured */
+        uint32_t err:1;         /**< error occurred */
         uint32_t own:1;         /**< 0=owned by guest driver, 1=owned by controller */
     } tmd1;
     struct
@@ -558,7 +558,7 @@ typedef struct RMD
         uint32_t crc:1;         /**< crc error on incoming frame */
         uint32_t oflo:1;        /**< overflow error (lost all or part of incoming frame) */
         uint32_t fram:1;        /**< frame error */
-        uint32_t err:1;         /**< error occured */
+        uint32_t err:1;         /**< error occurred */
         uint32_t own:1;         /**< 0=owned by guest driver, 1=owned by controller */
     } rmd1;
     struct
@@ -1138,7 +1138,7 @@ DECLINLINE(RTGCPHYS32) pcnetTdraAddr(PCNetState *pThis, int idx)
     return pThis->GCTDRA + ((CSR_XMTRL(pThis) - idx) << pThis->iLog2DescSize);
 }
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 PDMBOTHCBDECL(int) pcnetIOPortRead(PPDMDEVINS pDevIns, void *pvUser,
                                    RTIOPORT Port, uint32_t *pu32, unsigned cb);
 PDMBOTHCBDECL(int) pcnetIOPortWrite(PPDMDEVINS pDevIns, void *pvUser,
@@ -1155,7 +1155,7 @@ PDMBOTHCBDECL(int) pcnetMMIOWrite(PPDMDEVINS pDevIns, void *pvUser,
 DECLEXPORT(int) pcnetHandleRingWrite(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
                                      RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
 #endif
-__END_DECLS
+RT_C_DECLS_END
 
 #undef htonl
 #define htonl(x)    ASMByteSwapU32(x)
@@ -3801,18 +3801,11 @@ PDMBOTHCBDECL(int) pcnetMMIOWrite(PPDMDEVINS pDevIns, void *pvUser,
  * @param   pTimer          The timer handle.
  * @thread  EMT
  */
-static DECLCALLBACK(void) pcnetTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) pcnetTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    PCNetState *pThis = PDMINS_2_DATA(pDevIns, PCNetState *);
-    int         rc;
-
+    PCNetState *pThis = (PCNetState *)pvUser;
     STAM_PROFILE_ADV_START(&pThis->StatTimer, a);
-    rc = PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
-    AssertReleaseRC(rc);
-
     pcnetPollTimer(pThis);
-
-    PDMCritSectLeave(&pThis->CritSect);
     STAM_PROFILE_ADV_STOP(&pThis->StatTimer, a);
 }
 
@@ -3824,10 +3817,11 @@ static DECLCALLBACK(void) pcnetTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer)
  * @param   pTimer          The timer handle.
  * @thread  EMT
  */
-static DECLCALLBACK(void) pcnetTimerSoftInt(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) pcnetTimerSoftInt(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    PCNetState *pThis = PDMINS_2_DATA(pDevIns, PCNetState *);
+    PCNetState *pThis = (PCNetState *)pvUser;
 
+/** @todo why aren't we taking any critsect here?!? */
     pThis->aCSR[7] |= 0x0800; /* STINT */
     pcnetUpdateIrq(pThis);
     TMTimerSetNano(pThis->CTX_SUFF(pTimerSoftInt), 12800U * (pThis->aBCR[BCR_STVAL] & 0xffff));
@@ -3844,7 +3838,7 @@ static DECLCALLBACK(void) pcnetTimerSoftInt(PPDMDEVINS pDevIns, PTMTIMER pTimer)
  * @param   pDevIns         Device instance of the device which registered the timer.
  * @param   pTimer          The timer handle.
  */
-static DECLCALLBACK(void) pcnetTimerRestore(PPDMDEVINS pDevIns, PTMTIMER pTimer)
+static DECLCALLBACK(void) pcnetTimerRestore(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
     PCNetState *pThis = PDMINS_2_DATA(pDevIns, PCNetState *);
     int         rc = PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
@@ -3872,7 +3866,6 @@ static DECLCALLBACK(void) pcnetTimerRestore(PPDMDEVINS pDevIns, PTMTIMER pTimer)
 
     PDMCritSectLeave(&pThis->CritSect);
 }
-
 
 /**
  * Callback function for mapping an PCI I/O region.
@@ -4216,6 +4209,31 @@ static DECLCALLBACK(void) pcnetInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, cons
 
 
 /**
+ * Takes down the link temporarily if it's current status is up.
+ *
+ * This is used during restore and when replumbing the network link.
+ *
+ * The temporary link outage is supposed to indicate to the OS that all network
+ * connections have been lost and that it for instance is appropriate to
+ * renegotiate any DHCP lease.
+ *
+ * @param  pThis        The PCNet instance data.
+ */
+static void pcnetTempLinkDown(PCNetState *pThis)
+{
+    if (pThis->fLinkUp)
+    {
+        pThis->fLinkTempDown = true;
+        pThis->cLinkDownReported = 0;
+        pThis->aCSR[0] |= RT_BIT(15) | RT_BIT(13); /* ERR | CERR (this is probably wrong) */
+        pThis->Led.Asserted.s.fError = pThis->Led.Actual.s.fError = 1;
+        int rc = TMTimerSetMillies(pThis->pTimerRestore, 5000);
+        AssertRC(rc);
+    }
+}
+
+
+/**
  * Serializes the receive thread, it may be working inside the critsect.
  *
  * @returns VBox status code.
@@ -4367,14 +4385,8 @@ static DECLCALLBACK(int) pcnetLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle
     pcnetUpdateRingHandlers(pThis);
 #endif
     /* Indicate link down to the guest OS that all network connections have been lost. */
-    if (pThis->fLinkUp)
-    {
-        pThis->fLinkTempDown = true;
-        pThis->cLinkDownReported = 0;
-        pThis->aCSR[0] |= RT_BIT(15) | RT_BIT(13); /* ERR | CERR (this is probably wrong) */
-        pThis->Led.Asserted.s.fError = pThis->Led.Actual.s.fError = 1;
-        return TMTimerSetMillies(pThis->pTimerRestore, 5000);
-    }
+    pcnetTempLinkDown(pThis);
+
     return VINF_SUCCESS;
 }
 
@@ -4656,6 +4668,100 @@ static DECLCALLBACK(void) pcnetPowerOff(PPDMDEVINS pDevIns)
     pcnetWakeupReceive(pDevIns);
 }
 
+#ifdef VBOX_DYNAMIC_NET_ATTACH
+
+/**
+ * Detach notification.
+ *
+ * One port on the network card has been disconnected from the network.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   iLUN        The logical unit which is being detached.
+ */
+static DECLCALLBACK(void) pcnetDetach(PPDMDEVINS pDevIns, unsigned iLUN)
+{
+    PCNetState *pThis = PDMINS_2_DATA(pDevIns, PCNetState *);
+    Log(("#%d pcnetDetach:\n", PCNET_INST_NR));
+
+    AssertLogRelReturnVoid(iLUN == 0);
+
+    PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
+
+    /** @todo: r=pritesh still need to check if i missed
+     * to clean something in this function
+     */
+
+    /*
+     * Zero some important members.
+     */
+    pThis->pDrvBase = NULL;
+    pThis->pDrv = NULL;
+
+    PDMCritSectLeave(&pThis->CritSect);
+}
+
+
+/**
+ * Attach the Network attachment.
+ *
+ * One port on the network card has been connected to a network.
+ *
+ * @returns VBox status code.
+ * @param   pDevIns     The device instance.
+ * @param   iLUN        The logical unit which is being attached.
+ *
+ * @remarks This code path is not used during construction.
+ */
+static DECLCALLBACK(int) pcnetAttach(PPDMDEVINS pDevIns, unsigned iLUN)
+{
+    PCNetState *pThis = PDMINS_2_DATA(pDevIns, PCNetState *);
+    LogFlow(("#%d pcnetAttach:\n", PCNET_INST_NR));
+
+    AssertLogRelReturn(iLUN == 0, VERR_PDM_NO_SUCH_LUN);
+
+    PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
+
+    /*
+     * Attach the driver.
+     */
+    int rc = PDMDevHlpDriverAttach(pDevIns, 0, &pThis->IBase, &pThis->pDrvBase, "Network Port");
+    if (RT_SUCCESS(rc))
+    {
+        if (rc == VINF_NAT_DNS)
+        {
+#ifdef RT_OS_LINUX
+            PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "NoDNSforNAT",
+                                       N_("A Domain Name Server (DNS) for NAT networking could not be determined. Please check your /etc/resolv.conf for <tt>nameserver</tt> entries. Either add one manually (<i>man resolv.conf</i>) or ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
+#else
+            PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "NoDNSforNAT",
+                                       N_("A Domain Name Server (DNS) for NAT networking could not be determined. Ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
+#endif
+        }
+        pThis->pDrv = (PPDMINETWORKCONNECTOR)pThis->pDrvBase->pfnQueryInterface(pThis->pDrvBase, PDMINTERFACE_NETWORK_CONNECTOR);
+        if (!pThis->pDrv)
+        {
+            AssertMsgFailed(("Failed to obtain the PDMINTERFACE_NETWORK_CONNECTOR interface!\n"));
+            rc = VERR_PDM_MISSING_INTERFACE_BELOW;
+        }
+    }
+    else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
+        Log(("#%d No attached driver!\n", PCNET_INST_NR));
+
+
+    /*
+     * Temporary set the link down if it was up so that the guest
+     * will know that we have change the configuration of the
+     * network card
+     */
+    if (RT_SUCCESS(rc))
+        pcnetTempLinkDown(pThis);
+
+    PDMCritSectLeave(&pThis->CritSect);
+    return rc;
+
+}
+
+#endif /* VBOX_DYNAMIC_NET_ATTACH */
 
 /**
  * @copydoc FNPDMDEVSUSPEND
@@ -4677,7 +4783,7 @@ static DECLCALLBACK(void) pcnetReset(PPDMDEVINS pDevIns)
     {
         pThis->cLinkDownReported = 0x10000;
         TMTimerStop(pThis->pTimerRestore);
-        pcnetTimerRestore(pDevIns, pThis->pTimerRestore);
+        pcnetTimerRestore(pDevIns, pThis->pTimerRestore, pThis);
     }
     if (pThis->pSharedMMIOR3)
         pcnetInitSharedMemory(pThis);
@@ -4918,47 +5024,10 @@ static DECLCALLBACK(int) pcnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
             return rc;
     }
 
-#ifdef PCNET_NO_POLLING
-    /*
-     * Resolve the R0 and RC handlers.
-     */
-    rc = PDMR3LdrGetSymbolR0Lazy(PDMDevHlpGetVM(pDevIns), NULL, "EMInterpretInstruction", &pThis->pfnEMInterpretInstructionR0);
-    if (RT_SUCCESS(rc))
-        rc = PDMR3LdrGetSymbolRCLazy(PDMDevHlpGetVM(pDevIns), NULL, "EMInterpretInstruction", (RTGCPTR *)&pThis->pfnEMInterpretInstructionRC);
-    AssertLogRelMsgRCReturn(rc, ("PDMR3LdrGetSymbolRCLazy(EMInterpretInstruction) -> %Rrc\n", rc), rc);
-#else
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, pcnetTimer,
-                                "PCNet Poll Timer", &pThis->pTimerPollR3);
-    if (RT_FAILURE(rc))
-        return rc;
-    pThis->pTimerPollR0 = TMTimerR0Ptr(pThis->pTimerPollR3);
-    pThis->pTimerPollRC = TMTimerRCPtr(pThis->pTimerPollR3);
-#endif
-    if (pThis->fAm79C973)
-    {
-        /* Software Interrupt timer */
-        rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, pcnetTimerSoftInt,
-                                    "PCNet SoftInt Timer", &pThis->pTimerSoftIntR3);
-        if (RT_FAILURE(rc))
-            return rc;
-        pThis->pTimerSoftIntR0 = TMTimerR0Ptr(pThis->pTimerSoftIntR3);
-        pThis->pTimerSoftIntRC = TMTimerRCPtr(pThis->pTimerSoftIntR3);
-    }
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, pcnetTimerRestore,
-                                "PCNet Restore Timer", &pThis->pTimerRestore);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    rc = PDMDevHlpSSMRegister(pDevIns, pDevIns->pDevReg->szDeviceName, iInstance,
-                              PCNET_SAVEDSTATE_VERSION, sizeof(*pThis),
-                              pcnetSavePrep, pcnetSaveExec, NULL,
-                              pcnetLoadPrep, pcnetLoadExec, NULL);
-    if (RT_FAILURE(rc))
-        return rc;
-
     /*
      * Initialize critical section.
-     * This must of course be done before attaching drivers or anything else which can call us back.
+     * This must be done before register the critsect with the timer code, and also before
+     * attaching drivers or anything else that may call us back.
      */
     char szName[24];
     RTStrPrintf(szName, sizeof(szName), "PCNet#%d", iInstance);
@@ -4968,6 +5037,45 @@ static DECLCALLBACK(int) pcnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
 
     rc = RTSemEventCreate(&pThis->hEventOutOfRxSpace);
     AssertRC(rc);
+
+#ifdef PCNET_NO_POLLING
+    /*
+     * Resolve the R0 and RC handlers.
+     */
+    rc = PDMR3LdrGetSymbolR0Lazy(PDMDevHlpGetVM(pDevIns), NULL, "EMInterpretInstruction", &pThis->pfnEMInterpretInstructionR0);
+    if (RT_SUCCESS(rc))
+        rc = PDMR3LdrGetSymbolRCLazy(PDMDevHlpGetVM(pDevIns), NULL, "EMInterpretInstruction", (RTGCPTR *)&pThis->pfnEMInterpretInstructionRC);
+    AssertLogRelMsgRCReturn(rc, ("PDMR3LdrGetSymbolRCLazy(EMInterpretInstruction) -> %Rrc\n", rc), rc);
+#else
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, pcnetTimer, pThis,
+                                TMTIMER_FLAGS_NO_CRIT_SECT, "PCNet Poll Timer", &pThis->pTimerPollR3);
+    if (RT_FAILURE(rc))
+        return rc;
+    pThis->pTimerPollR0 = TMTimerR0Ptr(pThis->pTimerPollR3);
+    pThis->pTimerPollRC = TMTimerRCPtr(pThis->pTimerPollR3);
+    TMR3TimerSetCritSect(pThis->pTimerPollR3, &pThis->CritSect);
+#endif
+    if (pThis->fAm79C973)
+    {
+        /* Software Interrupt timer */
+        rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, pcnetTimerSoftInt, pThis, /** @todo r=bird: the locking here looks bogus now with SMP... */
+                                    TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "PCNet SoftInt Timer", &pThis->pTimerSoftIntR3);
+        if (RT_FAILURE(rc))
+            return rc;
+        pThis->pTimerSoftIntR0 = TMTimerR0Ptr(pThis->pTimerSoftIntR3);
+        pThis->pTimerSoftIntRC = TMTimerRCPtr(pThis->pTimerSoftIntR3);
+    }
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, pcnetTimerRestore, pThis,
+                                TMTIMER_FLAGS_NO_CRIT_SECT, "PCNet Restore Timer", &pThis->pTimerRestore);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    rc = PDMDevHlpSSMRegister(pDevIns, pDevIns->pDevReg->szDeviceName, iInstance,
+                              PCNET_SAVEDSTATE_VERSION, sizeof(*pThis),
+                              pcnetSavePrep, pcnetSaveExec, NULL,
+                              pcnetLoadPrep, pcnetLoadExec, NULL);
+    if (RT_FAILURE(rc))
+        return rc;
 
     /*
      * Create the transmit queue.
@@ -5167,10 +5275,17 @@ const PDMDEVREG g_DevicePCNet =
     pcnetSuspend,
     /* pfnResume */
     NULL,
+#ifdef VBOX_DYNAMIC_NET_ATTACH
+    /* pfnAttach */
+    pcnetAttach,
+    /* pfnDetach */
+    pcnetDetach,
+#else /* !VBOX_DYNAMIC_NET_ATTACH */
     /* pfnAttach */
     NULL,
     /* pfnDetach */
     NULL,
+#endif /* !VBOX_DYNAMIC_NET_ATTACH */
     /* pfnQueryInterface. */
     NULL,
     /* pfnInitComplete. */

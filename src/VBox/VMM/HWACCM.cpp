@@ -1,4 +1,4 @@
-/* $Id: HWACCM.cpp $ */
+/* $Id: HWACCM.cpp 20864 2009-06-23 19:19:42Z vboxsync $ */
 /** @file
  * HWACCM - Intel/AMD VM Hardware Support Manager
  */
@@ -285,8 +285,8 @@ VMMR3DECL(int) HWACCMR3Init(PVM pVM)
     /*
      * Assert alignment and sizes.
      */
-    AssertRelease(!(RT_OFFSETOF(VM, hwaccm.s) & 31));
-    AssertRelease(sizeof(pVM->hwaccm.s) <= sizeof(pVM->hwaccm.padding));
+    AssertCompileMemberAlignment(VM, hwaccm.s, 32);
+    AssertCompile(sizeof(pVM->hwaccm.s) <= sizeof(pVM->hwaccm.padding));
 
     /* Some structure checks. */
     AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, u8Reserved3) == 0xC0, ("u8Reserved3 offset = %x\n", RT_OFFSETOF(SVM_VMCB, u8Reserved3)));
@@ -318,7 +318,6 @@ VMMR3DECL(int) HWACCMR3Init(PVM pVM)
     pVM->hwaccm.s.vmx.fEnabled   = false;
     pVM->hwaccm.s.svm.fEnabled   = false;
 
-    pVM->hwaccm.s.fActive        = false;
     pVM->hwaccm.s.fNestedPaging  = false;
 
     /* Disabled by default. */
@@ -376,6 +375,10 @@ VMMR3DECL(int) HWACCMR3Init(PVM pVM)
     AssertLogRelRCReturn(rc, rc);
 #endif
 
+    /* Max number of resume loops. */
+    rc = CFGMR3QueryU32Def(pHWVirtExt, "MaxResumeLoops", &pVM->hwaccm.s.cMaxResumeLoops, 0 /* set by R0 later */);
+    AssertRC(rc);
+
     return VINF_SUCCESS;
 }
 
@@ -388,6 +391,13 @@ VMMR3DECL(int) HWACCMR3Init(PVM pVM)
 VMMR3DECL(int) HWACCMR3InitCPU(PVM pVM)
 {
     LogFlow(("HWACCMR3InitCPU\n"));
+
+    for (unsigned i=0;i<pVM->cCPUs;i++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[i];
+
+        pVCpu->hwaccm.s.fActive = false;
+    }
 
 #ifdef VBOX_WITH_STATISTICS
     /*
@@ -448,6 +458,9 @@ VMMR3DECL(int) HWACCMR3InitCPU(PVM pVM)
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitCpuid,              "/HWACCM/CPU%d/Exit/Instr/Cpuid");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitRdtsc,              "/HWACCM/CPU%d/Exit/Instr/Rdtsc");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitRdpmc,              "/HWACCM/CPU%d/Exit/Instr/Rdpmc");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitRdmsr,              "/HWACCM/CPU%d/Exit/Instr/Rdmsr");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitWrmsr,              "/HWACCM/CPU%d/Exit/Instr/Wrmsr");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitMwait,              "/HWACCM/CPU%d/Exit/Instr/Mwait");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitDRxWrite,           "/HWACCM/CPU%d/Exit/Instr/DR/Write");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitDRxRead,            "/HWACCM/CPU%d/Exit/Instr/DR/Read");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitCLTS,               "/HWACCM/CPU%d/Exit/Instr/CLTS");
@@ -465,6 +478,7 @@ VMMR3DECL(int) HWACCMR3InitCPU(PVM pVM)
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitIOStringRead,       "/HWACCM/CPU%d/Exit/IO/ReadString");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitIrqWindow,          "/HWACCM/CPU%d/Exit/IrqWindow");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitMaxResume,          "/HWACCM/CPU%d/Exit/MaxResume");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitPreemptPending,     "/HWACCM/CPU%d/Exit/PreemptPending");
 
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatSwitchGuestIrq,         "/HWACCM/CPU%d/Switch/IrqPending");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatSwitchToR3,             "/HWACCM/CPU%d/Switch/ToR3");
@@ -482,6 +496,8 @@ VMMR3DECL(int) HWACCMR3InitCPU(PVM pVM)
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatNoFlushTLBWorldSwitch,  "/HWACCM/CPU%d/Flush/TLB/Skipped");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatFlushASID,              "/HWACCM/CPU%d/Flush/TLB/ASID");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatFlushTLBInvlpga,        "/HWACCM/CPU%d/Flush/TLB/PhysInvl");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatTlbShootdown,           "/HWACCM/CPU%d/Flush/Shootdown/Page");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatTlbShootdownFlush,      "/HWACCM/CPU%d/Flush/Shootdown/TLB");
 
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatTSCOffset,              "/HWACCM/CPU%d/TSC/Offset");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatTSCIntercept,           "/HWACCM/CPU%d/TSC/Intercept");
@@ -537,6 +553,7 @@ VMMR3DECL(int) HWACCMR3InitCPU(PVM pVM)
         for (unsigned j = 0; j < 255; j++)
             STAMR3RegisterF(pVM, &pVCpu->hwaccm.s.paStatInjectedIrqs[j], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES, "Forwarded interrupts.",
                             (j < 0x20) ? "/HWACCM/CPU%d/Interrupt/Trap/%02X" : "/HWACCM/CPU%d/Interrupt/IRQ/%02X", i, j);
+
     }
 #endif /* VBOX_WITH_STATISTICS */
 
@@ -569,9 +586,6 @@ static void hwaccmR3DisableRawMode(PVM pVM)
     SELMR3DisableMonitoring(pVM);
     TRPMR3DisableMonitoring(pVM);
 
-    /* The hidden selector registers are now valid. */
-    CPUMSetHiddenSelRegsValid(pVM, true);
-
     /* Disable the switcher code (safety precaution). */
     VMMR3DisableSwitcher(pVM);
 
@@ -582,7 +596,12 @@ static void hwaccmR3DisableRawMode(PVM pVM)
     VMMR3DisableSwitcher(pVM);
 
     /* Reinit the paging mode to force the new shadow mode. */
-    PGMR3ChangeMode(pVM, PGMMODE_REAL);
+    for (unsigned i=0;i<pVM->cCPUs;i++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[i];
+
+        PGMR3ChangeMode(pVM, pVCpu, PGMMODE_REAL);
+    }
 }
 
 /**
@@ -609,13 +628,15 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
         return VINF_SUCCESS;    /* nothing to do */
 
     /* Enable VT-x or AMD-V on all host CPUs. */
-    rc = SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_HWACC_ENABLE, 0, NULL);
+    rc = SUPR3CallVMMR0Ex(pVM->pVMR0, 0 /*idCpu*/, VMMR0_DO_HWACC_ENABLE, 0, NULL);
     if (RT_FAILURE(rc))
     {
-        LogRel(("HWACCMR3InitFinalize: SUPCallVMMR0Ex VMMR0_DO_HWACC_ENABLE failed with %Rrc\n", rc));
+        LogRel(("HWACCMR3InitFinalize: SUPR3CallVMMR0Ex VMMR0_DO_HWACC_ENABLE failed with %Rrc\n", rc));
         return rc;
     }
     Assert(!pVM->fHWACCMEnabled || VMMIsHwVirtExtForced(pVM));
+
+    pVM->hwaccm.s.fHasIoApic = PDMHasIoApic(pVM);
 
     if (pVM->hwaccm.s.vmx.fSupported)
     {
@@ -978,7 +999,7 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
                 pVM->hwaccm.s.vmx.pNonPagingModeEPTPageTable = NULL;
             }
 
-            rc = SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_HWACC_SETUP_VM, 0, NULL);
+            rc = SUPR3CallVMMR0Ex(pVM->pVMR0, 0 /*idCpu*/, VMMR0_DO_HWACC_SETUP_VM, 0, NULL);
             AssertRC(rc);
             if (rc == VINF_SUCCESS)
             {
@@ -1006,7 +1027,7 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
                 if (pVM->hwaccm.s.fNestedPaging)
                 {
                     LogRel(("HWACCM: Enabled nested paging\n"));
-                    LogRel(("HWACCM: EPT root page                 = %RHp\n", PGMGetHyperCR3(pVM)));
+                    LogRel(("HWACCM: EPT root page                 = %RHp\n", PGMGetHyperCR3(VMMGetCpu(pVM))));
                 }
                 if (pVM->hwaccm.s.vmx.fVPID)
                     LogRel(("HWACCM: Enabled VPID\n"));
@@ -1086,7 +1107,7 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
             if (pVM->hwaccm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_NESTED_PAGING)
                 pVM->hwaccm.s.fNestedPaging = pVM->hwaccm.s.fAllowNestedPaging;
 
-            rc = SUPCallVMMR0Ex(pVM->pVMR0, VMMR0_DO_HWACC_SETUP_VM, 0, NULL);
+            rc = SUPR3CallVMMR0Ex(pVM->pVMR0, 0 /*idCpu*/, VMMR0_DO_HWACC_SETUP_VM, 0, NULL);
             AssertRC(rc);
             if (rc == VINF_SUCCESS)
             {
@@ -1139,9 +1160,10 @@ VMMR3DECL(void) HWACCMR3Relocate(PVM pVM)
         for (unsigned i=0;i<pVM->cCPUs;i++)
         {
             PVMCPU pVCpu = &pVM->aCpus[i];
-            /* @todo SMP */
-            pVCpu->hwaccm.s.enmShadowMode            = PGMGetShadowMode(pVM);
-            pVCpu->hwaccm.s.vmx.enmLastSeenGuestMode = PGMGetGuestMode(pVM);
+
+            pVCpu->hwaccm.s.enmShadowMode            = PGMGetShadowMode(pVCpu);
+            Assert(pVCpu->hwaccm.s.vmx.enmCurrGuestMode == PGMGetGuestMode(pVCpu));
+            pVCpu->hwaccm.s.vmx.enmCurrGuestMode     = PGMGetGuestMode(pVCpu);
         }
     }
 #if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
@@ -1203,16 +1225,16 @@ VMMR3DECL(bool) HWACCMR3IsAllowed(PVM pVM)
  * This is called by PGM.
  *
  * @param   pVM            The VM to operate on.
+ * @param   pVCpu          The VMCPU to operate on.
  * @param   enmShadowMode  New shadow paging mode.
  * @param   enmGuestMode   New guest paging mode.
  */
-VMMR3DECL(void) HWACCMR3PagingModeChanged(PVM pVM, PGMMODE enmShadowMode, PGMMODE enmGuestMode)
+VMMR3DECL(void) HWACCMR3PagingModeChanged(PVM pVM, PVMCPU pVCpu, PGMMODE enmShadowMode, PGMMODE enmGuestMode)
 {
     /* Ignore page mode changes during state loading. */
-    if (VMR3GetState(pVM) == VMSTATE_LOADING)
+    if (VMR3GetState(pVCpu->pVMR3) == VMSTATE_LOADING)
         return;
 
-    PVMCPU pVCpu = VMMGetCpu(pVM);
     pVCpu->hwaccm.s.enmShadowMode = enmShadowMode;
 
     if (   pVM->hwaccm.s.vmx.fEnabled
@@ -1223,7 +1245,7 @@ VMMR3DECL(void) HWACCMR3PagingModeChanged(PVM pVM, PGMMODE enmShadowMode, PGMMOD
         {
             PCPUMCTX pCtx;
 
-            pCtx = CPUMQueryGuestCtxPtr(pVM);
+            pCtx = CPUMQueryGuestCtxPtr(pVCpu);
 
             /* After a real mode switch to protected mode we must force
              * CPL to 0. Our real mode emulation had to set it to 3.
@@ -1336,6 +1358,7 @@ VMMR3DECL(void) HWACCMR3Reset(PVM pVM)
         pVCpu->hwaccm.s.vmx.cr0_mask = 0;
         pVCpu->hwaccm.s.vmx.cr4_mask = 0;
 
+        pVCpu->hwaccm.s.fActive        = false;
         pVCpu->hwaccm.s.Event.fPending = false;
 
         /* Reset state information for real-mode emulation in VT-x. */
@@ -1407,11 +1430,11 @@ VMMR3DECL(bool) HWACCMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx)
     /* AMD-V supports real & protected mode with or without paging. */
     if (pVM->hwaccm.s.svm.fEnabled)
     {
-        pVM->hwaccm.s.fActive = true;
+        pVCpu->hwaccm.s.fActive = true;
         return true;
     }
 
-    pVM->hwaccm.s.fActive = false;
+    pVCpu->hwaccm.s.fActive = false;
 
     /* Note! The context supplied by REM is partial. If we add more checks here, be sure to verify that REM provides this info! */
 #ifdef HWACCM_VMX_EMULATE_REALMODE
@@ -1435,12 +1458,10 @@ VMMR3DECL(bool) HWACCMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx)
         }
         else
         {
-            PGMMODE enmGuestMode = PGMGetGuestMode(pVM);
+            PGMMODE enmGuestMode = PGMGetGuestMode(pVCpu);
             /* Verify the requirements for executing code in protected mode. VT-x can't handle the CPU state right after a switch
              * from real to protected mode. (all sorts of RPL & DPL assumptions)
              */
-            PVMCPU pVCpu = VMMGetCpu(pVM);
-
             if (    pVCpu->hwaccm.s.vmx.enmLastSeenGuestMode == PGMMODE_REAL
                 &&  enmGuestMode >= PGMMODE_PROTECTED)
             {
@@ -1538,7 +1559,7 @@ VMMR3DECL(bool) HWACCMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx)
         if ((pCtx->cr4 & mask) != 0)
             return false;
 
-        pVM->hwaccm.s.fActive = true;
+        pVCpu->hwaccm.s.fActive = true;
         return true;
     }
 
@@ -1570,11 +1591,11 @@ VMMR3DECL(void) HWACCMR3NotifyEmulated(PVMCPU pVCpu)
  * Checks if we are currently using hardware accelerated raw mode.
  *
  * @returns boolean
- * @param   pVM         The VM to operate on.
+ * @param   pVCpu        The VMCPU to operate on.
  */
-VMMR3DECL(bool) HWACCMR3IsActive(PVM pVM)
+VMMR3DECL(bool) HWACCMR3IsActive(PVMCPU pVCpu)
 {
-    return pVM->hwaccm.s.fActive;
+    return pVCpu->hwaccm.s.fActive;
 }
 
 /**
@@ -1606,22 +1627,21 @@ VMMR3DECL(bool) HWACCMR3IsVPIDActive(PVM pVM)
  * @returns boolean
  * @param   pVM         The VM to operate on.
  */
-VMMR3DECL(bool) HWACCMR3IsEventPending(PVM pVM)
+VMMR3DECL(bool) HWACCMR3IsEventPending(PVMCPU pVCpu)
 {
-    /* @todo SMP */
-    return HWACCMIsEnabled(pVM) && pVM->aCpus[0].hwaccm.s.Event.fPending;
+    return HWACCMIsEnabled(pVCpu->pVMR3) && pVCpu->hwaccm.s.Event.fPending;
 }
 
 
 /**
- * Inject an NMI into a running VM
+ * Inject an NMI into a running VM (only VCPU 0!)
  *
  * @returns boolean
  * @param   pVM         The VM to operate on.
  */
 VMMR3DECL(int)  HWACCMR3InjectNMI(PVM pVM)
 {
-    pVM->hwaccm.s.fInjectNMI = true;
+    VMCPU_FF_SET(&pVM->aCpus[0], VMCPU_FF_INTERRUPT_NMI);
     return VINF_SUCCESS;
 }
 

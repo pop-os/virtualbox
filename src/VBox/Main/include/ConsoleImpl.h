@@ -1,4 +1,4 @@
-/* $Id: ConsoleImpl.h $ */
+/* $Id: ConsoleImpl.h 20928 2009-06-25 11:53:37Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,7 @@
 
 #include "VirtualBoxBase.h"
 #include "ProgressImpl.h"
+#include "SchemaDefs.h"
 
 class Guest;
 class Keyboard;
@@ -79,7 +80,7 @@ class ATL_NO_VTABLE Console :
     public VirtualBoxBaseWithChildrenNEXT,
     public VirtualBoxSupportErrorInfoImpl <Console, IConsole>,
     public VirtualBoxSupportTranslation <Console>,
-    public IConsole
+    VBOX_SCRIPTABLE_IMPL(IConsole)
 {
     Q_OBJECT
 
@@ -92,6 +93,7 @@ public:
     BEGIN_COM_MAP(Console)
         COM_INTERFACE_ENTRY(ISupportErrorInfo)
         COM_INTERFACE_ENTRY(IConsole)
+        COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
     NS_DECL_ISUPPORTS
@@ -122,8 +124,7 @@ public:
     // IConsole methods
     STDMETHOD(PowerUp) (IProgress **aProgress);
     STDMETHOD(PowerUpPaused) (IProgress **aProgress);
-    STDMETHOD(PowerDown)();
-    STDMETHOD(PowerDownAsync) (IProgress **aProgress);
+    STDMETHOD(PowerDown) (IProgress **aProgress);
     STDMETHOD(Reset)();
     STDMETHOD(Pause)();
     STDMETHOD(Resume)();
@@ -133,18 +134,18 @@ public:
     STDMETHOD(GetGuestEnteredACPIMode)(BOOL *aEntered);
     STDMETHOD(SaveState) (IProgress **aProgress);
     STDMETHOD(AdoptSavedState) (IN_BSTR aSavedStateFile);
-    STDMETHOD(DiscardSavedState)();
+    STDMETHOD(ForgetSavedState)(BOOL aRemove);
     STDMETHOD(GetDeviceActivity) (DeviceType_T aDeviceType,
                                  DeviceActivity_T *aDeviceActivity);
-    STDMETHOD(AttachUSBDevice) (IN_GUID aId);
-    STDMETHOD(DetachUSBDevice) (IN_GUID aId, IUSBDevice **aDevice);
+    STDMETHOD(AttachUSBDevice) (IN_BSTR aId);
+    STDMETHOD(DetachUSBDevice) (IN_BSTR aId, IUSBDevice **aDevice);
     STDMETHOD(FindUSBDeviceByAddress) (IN_BSTR aAddress, IUSBDevice **aDevice);
-    STDMETHOD(FindUSBDeviceById) (IN_GUID aId, IUSBDevice **aDevice);
+    STDMETHOD(FindUSBDeviceById) (IN_BSTR aId, IUSBDevice **aDevice);
     STDMETHOD(CreateSharedFolder) (IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable);
     STDMETHOD(RemoveSharedFolder) (IN_BSTR aName);
     STDMETHOD(TakeSnapshot) (IN_BSTR aName, IN_BSTR aDescription,
                              IProgress **aProgress);
-    STDMETHOD(DiscardSnapshot) (IN_GUID aId, IProgress **aProgress);
+    STDMETHOD(DiscardSnapshot) (IN_BSTR aId, IProgress **aProgress);
     STDMETHOD(DiscardCurrentState) (IProgress **aProgress);
     STDMETHOD(DiscardCurrentSnapshotAndState) (IProgress **aProgress);
     STDMETHOD(RegisterCallback) (IConsoleCallback *aCallback);
@@ -183,7 +184,7 @@ public:
     HRESULT onUSBControllerChange();
     HRESULT onSharedFolderChange (BOOL aGlobal);
     HRESULT onUSBDeviceAttach (IUSBDevice *aDevice, IVirtualBoxErrorInfo *aError, ULONG aMaskedIfs);
-    HRESULT onUSBDeviceDetach (IN_GUID aId, IVirtualBoxErrorInfo *aError);
+    HRESULT onUSBDeviceDetach (IN_BSTR aId, IVirtualBoxErrorInfo *aError);
     HRESULT getGuestProperty (IN_BSTR aKey, BSTR *aValue, ULONG64 *aTimestamp, BSTR *aFlags);
     HRESULT setGuestProperty (IN_BSTR aKey, IN_BSTR aValue, IN_BSTR aFlags);
     HRESULT enumerateGuestProperties (IN_BSTR aPatterns, ComSafeArrayOut(BSTR, aNames), ComSafeArrayOut(BSTR, aValues), ComSafeArrayOut(ULONG64, aTimestamps), ComSafeArrayOut(BSTR, aFlags));
@@ -427,6 +428,11 @@ private:
     HRESULT removeSharedFolder (CBSTR aName);
 
     static DECLCALLBACK(int) configConstructor(PVM pVM, void *pvConsole);
+    static DECLCALLBACK(int) configNetwork(Console *pThis, const char *pszDevice,
+                                           unsigned uInstance, unsigned uLun,
+                                           INetworkAdapter *aNetworkAdapter,
+                                           PCFGMNODE pCfg, PCFGMNODE pLunL0,
+                                           PCFGMNODE pInst, bool attachDetach);
     static DECLCALLBACK(void) vmstateChangeCallback(PVM aVM, VMSTATE aState,
                                                     VMSTATE aOldState, void *aUser);
     HRESULT doDriveChange (const char *pszDevice, unsigned uInstance,
@@ -437,6 +443,13 @@ private:
                                           unsigned uInstance, unsigned uLun,
                                           DriveState_T eState, DriveState_T *peState,
                                           const char *pszPath, bool fPassthrough);
+#ifdef VBOX_DYNAMIC_NET_ATTACH
+    HRESULT doNetworkAdapterChange (const char *pszDevice, unsigned uInstance,
+                                    unsigned uLun, INetworkAdapter *aNetworkAdapter);
+    static DECLCALLBACK(int) changeNetworkAttachment (Console *pThis, const char *pszDevice,
+                                                      unsigned uInstance, unsigned uLun,
+                                                      INetworkAdapter *aNetworkAdapter);
+#endif /* VBOX_DYNAMIC_NET_ATTACH */
 
 #ifdef VBOX_WITH_USB
     HRESULT attachUSBDevice (IUSBDevice *aHostDevice, ULONG aMaskedIfs);
@@ -537,6 +550,9 @@ private:
     /** The current Floppy drive state in the VM.
      * This does not have to match the state maintained in the Floppy. */
     DriveState_T meFloppyState;
+    /** The current network attachment type in the VM.
+     * This does not have to match the state maintained in the NetworkAdapter. */
+    static NetworkAttachmentType_T meAttachmentType[SchemaDefs::NetworkAdapterCount];
 
     VMMDev * const mVMMDev;
     AudioSniffer * const mAudioSniffer;
@@ -545,7 +561,7 @@ private:
     PPDMLED     mapIDELeds[4];
     PPDMLED     mapSATALeds[30];
     PPDMLED     mapSCSILeds[16];
-    PPDMLED     mapNetworkLeds[8];
+    PPDMLED     mapNetworkLeds[SchemaDefs::NetworkAdapterCount];
     PPDMLED     mapSharedFolderLed;
     PPDMLED     mapUSBLed[2];
 #if !defined(VBOX_WITH_NETFLT) && defined(RT_OS_LINUX)

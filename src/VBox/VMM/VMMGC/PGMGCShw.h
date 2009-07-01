@@ -1,4 +1,4 @@
-/* $Id: PGMGCShw.h $ */
+/* $Id: PGMGCShw.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * VBox - Page Manager, Shadow Paging Template - Guest Context.
  */
@@ -73,6 +73,6 @@
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-__BEGIN_DECLS
-__END_DECLS
+RT_C_DECLS_BEGIN
+RT_C_DECLS_END
 

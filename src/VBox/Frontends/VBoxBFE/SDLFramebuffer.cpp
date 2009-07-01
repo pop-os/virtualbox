@@ -227,7 +227,7 @@ HRESULT SDLFramebuffer::getLineSize(ULONG *lineSize)
  *                   continuing with display updates.
  */
 HRESULT SDLFramebuffer::NotifyUpdate(ULONG x, ULONG y,
-                                     ULONG w, ULONG h, BOOL *finished)
+                                     ULONG w, ULONG h)
 {
     LogFlow(("SDLFramebuffer::NotifyUpdate: x = %d, y = %d, w = %d, h = %d\n",
              x, y, w, h));
@@ -257,12 +257,6 @@ HRESULT SDLFramebuffer::NotifyUpdate(ULONG x, ULONG y,
     update(x, y + mTopOffset, w, h);
 #endif /* !VBOXBFE_WITH_X11 */
 
-    /*
-     * The Display thread can continue as we will lock the framebuffer
-     * from the SDL thread when we get to actually doing the update.
-     */
-    if (finished)
-        *finished = TRUE;
     return S_OK;
 }
 
@@ -311,18 +305,6 @@ HRESULT SDLFramebuffer::RequestResize(ULONG w, ULONG h, BOOL *finished)
     return S_OK;
 }
 
-HRESULT SDLFramebuffer::SolidFill(ULONG x, ULONG y, ULONG width, ULONG height,
-                                  ULONG color, BOOL *handled)
-{
-    return E_NOTIMPL;
-}
-
-HRESULT SDLFramebuffer::CopyScreenBits(ULONG xDst, ULONG yDst, ULONG xSrc, ULONG ySrc,
-                                       ULONG width, ULONG height, BOOL *handled)
-{
-    return E_NOTIMPL;
-}
-
 HRESULT SDLFramebuffer::GetVisibleRegion(BYTE *aRectangles, ULONG aCount,
                                          ULONG *aCountCopied)
 {
@@ -351,6 +333,11 @@ HRESULT SDLFramebuffer::SetVisibleRegion(BYTE *aRectangles, ULONG aCount)
 	NOREF(aCount);
 
     return S_OK;
+}
+
+HRESULT SDLFramebuffer::ProcessVHWACommand(BYTE *pCommand)
+{
+    return E_NOTIMPL;
 }
 
 //

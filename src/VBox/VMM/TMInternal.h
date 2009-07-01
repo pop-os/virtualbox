@@ -1,4 +1,4 @@
-/* $Id: TMInternal.h $ */
+/* $Id: TMInternal.h 20784 2009-06-22 14:37:39Z vboxsync $ */
 /** @file
  * TM - Internal header file.
  */
@@ -26,9 +26,11 @@
 #include <VBox/types.h>
 #include <iprt/time.h>
 #include <iprt/timer.h>
+#include <iprt/assert.h>
 #include <VBox/stam.h>
+#include <VBox/pdmcritsect.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 
 /** @defgroup grp_tm_int       Internal
@@ -67,8 +69,10 @@ typedef enum TMTIMERSTATE
     TMTIMERSTATE_STOPPED = 1,
     /** Timer is active. */
     TMTIMERSTATE_ACTIVE,
-    /** Timer is expired, is being delivered. */
-    TMTIMERSTATE_EXPIRED,
+    /** Timer is expired, getting expire and unlinking. */
+    TMTIMERSTATE_EXPIRED_GET_UNLINK,
+    /** Timer is expired and is being delivered. */
+    TMTIMERSTATE_EXPIRED_DELIVER,
 
     /** Timer is stopped but still in the active list.
      * Currently in the ScheduleTimers list. */
@@ -88,16 +92,17 @@ typedef enum TMTIMERSTATE
     /** Timer is modified and is now pending rescheduling.
      * Currently in the ScheduleTimers list and the active list. */
     TMTIMERSTATE_PENDING_RESCHEDULE,
-    /** Timer is destroyed but needs to be replaced from the
-     * active to the free list.
-     * Currently in the ScheduleTimers list and the active list. */
-    TMTIMERSTATE_PENDING_STOP_DESTROY,
-    /** Timer is destroyed but needs moving to the free list.
-     * Currently in the ScheduleTimers list. */
-    TMTIMERSTATE_PENDING_DESTROY,
+    /** Timer is being destroyed. */
+    TMTIMERSTATE_DESTROY,
     /** Timer is free. */
     TMTIMERSTATE_FREE
 } TMTIMERSTATE;
+
+/** Predicate that returns true if the give state is pending scheduling or
+ *  rescheduling of any kind. Will reference the argument more than once! */
+#define TMTIMERSTATE_IS_PENDING_SCHEDULING(enmState) \
+    (   (enmState) <= TMTIMERSTATE_PENDING_RESCHEDULE \
+     && (enmState) >= TMTIMERSTATE_PENDING_SCHEDULE_SET_EXPIRE)
 
 
 /**
@@ -147,8 +152,6 @@ typedef struct TMTIMER
         {
             /** Callback. */
             R3PTRTYPE(PFNTMTIMERINT)    pfnTimer;
-            /** User argument. */
-            RTR3PTR                     pvUser;
         } Internal;
 
         /** TMTIMERTYPE_EXTERNAL. */
@@ -156,20 +159,23 @@ typedef struct TMTIMER
         {
             /** Callback. */
             R3PTRTYPE(PFNTMTIMEREXT)    pfnTimer;
-            /** User data. */
-            RTR3PTR                     pvUser;
         } External;
     } u;
 
     /** Timer state. */
     volatile TMTIMERSTATE   enmState;
     /** Timer relative offset to the next timer in the schedule list. */
-    int32_t                 offScheduleNext;
+    int32_t volatile        offScheduleNext;
 
     /** Timer relative offset to the next timer in the chain. */
     int32_t                 offNext;
     /** Timer relative offset to the previous timer in the chain. */
     int32_t                 offPrev;
+
+    /** User argument. */
+    RTR3PTR                 pvUser;
+    /** The critical section associated with the lock. */
+    R3PTRTYPE(PPDMCRITSECT) pCritSect;
 
     /** Pointer to the next timer in the list of created or free timers. (TM::pTimers or TM::pFree) */
     PTMTIMERR3              pBigNext;
@@ -187,6 +193,7 @@ typedef struct TMTIMER
     RTRCPTR                 padding0; /**< pad structure to multiple of 8 bytes. */
 #endif
 } TMTIMER;
+AssertCompileMemberSize(TMTIMER, enmState, sizeof(uint32_t));
 
 
 /**
@@ -194,11 +201,14 @@ typedef struct TMTIMER
  */
 #if 1
 # define TM_SET_STATE(pTimer, state) \
-    ASMAtomicXchgSize(&(pTimer)->enmState, state)
+    ASMAtomicWriteU32((uint32_t volatile *)&(pTimer)->enmState, state)
 #else
 # define TM_SET_STATE(pTimer, state) \
-    do { Log(("%s: %p: %d -> %d\n", __FUNCTION__, (pTimer), (pTimer)->enmState, state)); \
-         ASMAtomicXchgSize(&(pTimer)->enmState, state);\
+    do { \
+        uint32_t uOld1 = (pTimer)->enmState; \
+        Log(("%s: %p: %d -> %d\n", __FUNCTION__, (pTimer), (pTimer)->enmState, state)); \
+        uint32_t uOld2 = ASMAtomicXchgU32((uint32_t volatile *)&(pTimer)->enmState, state); \
+        Assert(uOld1 == uOld2); \
     } while (0)
 #endif
 
@@ -207,10 +217,10 @@ typedef struct TMTIMER
  */
 #if 1
 # define TM_TRY_SET_STATE(pTimer, StateNew, StateOld, fRc) \
-    ASMAtomicCmpXchgSize(&(pTimer)->enmState, StateNew, StateOld, fRc)
+    (fRc) = ASMAtomicCmpXchgU32((uint32_t volatile *)&(pTimer)->enmState, StateNew, StateOld)
 #else
 # define TM_TRY_SET_STATE(pTimer, StateNew, StateOld, fRc) \
-    do { ASMAtomicCmpXchgSize(&(pTimer)->enmState, StateNew, StateOld, fRc); \
+    do { (fRc) = ASMAtomicCmpXchgU32((uint32_t volatile *)&(pTimer)->enmState, StateNew, StateOld); \
          Log(("%s: %p: %d -> %d %RTbool\n", __FUNCTION__, (pTimer), StateOld, StateNew, fRc)); \
     } while (0)
 #endif
@@ -286,8 +296,6 @@ typedef struct TM
      * See TM2VM(). */
     RTUINT                      offVM;
 
-    /** CPU timestamp ticking enabled indicator (bool). (RDTSC) */
-    bool                        fTSCTicking;
     /** Set if we fully virtualize the TSC, i.e. intercept all rdtsc instructions.
      * Config variable: TSCVirtualized (bool) */
     bool                        fTSCVirtualized;
@@ -305,25 +313,23 @@ typedef struct TM
     /** Modifier for fTSCTiedToExecution which pauses the TSC while halting if true.
      * Config variable: TSCNotTiedToHalt (bool) */
     bool                        fTSCNotTiedToHalt;
-    bool                        afAlignment0[6]; /**< alignment padding */
-    /** The offset between the host TSC and the Guest TSC.
-     * Only valid if fTicking is set and and fTSCUseRealTSC is clear. */
-    uint64_t                    u64TSCOffset;
-    /** The guest TSC when fTicking is cleared. */
-    uint64_t                    u64TSC;
+    bool                        afAlignment0[2]; /**< alignment padding */
+    /** The ID of the virtual CPU that normally runs the timers. */
+    VMCPUID                     idTimerCpu;
     /** The number of CPU clock ticks per second (TMCLOCK_TSC).
      * Config variable: TSCTicksPerSecond (64-bit unsigned int)
      * The config variable implies fTSCVirtualized = true and fTSCUseRealTSC = false. */
     uint64_t                    cTSCTicksPerSecond;
 
-    /** Virtual time ticking enabled indicator (bool). (TMCLOCK_VIRTUAL) */
-    bool                        fVirtualTicking;
+    /** Virtual time ticking enabled indicator (counter for each VCPU). (TMCLOCK_VIRTUAL) */
+    uint32_t volatile           cVirtualTicking;
     /** Virtual time is not running at 100%. */
     bool                        fVirtualWarpDrive;
     /** Virtual timer synchronous time ticking enabled indicator (bool). (TMCLOCK_VIRTUAL_SYNC) */
     bool volatile               fVirtualSyncTicking;
     /** Virtual timer synchronous time catch-up active. */
     bool volatile               fVirtualSyncCatchUp;
+    bool                        afAlignment[5]; /**< alignment padding */
     /** WarpDrive percentage.
      * 100% is normal (fVirtualSyncNormal == true). When other than 100% we apply
      * this percentage to the raw time source for the period it's been valid in,
@@ -424,14 +430,22 @@ typedef struct TM
     /** Interval in milliseconds of the pTimer timer. */
     uint32_t                    u32TimerMillies;
 
-    /** Alignment padding to ensure that the statistics are 64-bit aligned when using GCC. */
-    uint32_t                    u32Padding1;
+    /** Indicates that queues are being run. */
+    bool volatile               fRunningQueues;
+    /** Indicates that the virtual sync queue is being run. */
+    bool volatile               fRunningVirtualSyncQueue;
+    /* Alignment */
+    bool                        u8Alignment[2];
+
+    /** Lock serializing access to the timer lists. */
+    PDMCRITSECT                 TimerCritSect;
+    /** Lock serializing access to the VirtualSync clock. */
+    PDMCRITSECT                 VirtualSyncLock;
 
     /** TMR3TimerQueuesDo
      * @{ */
     STAMPROFILE                 StatDoQueues;
-    STAMPROFILEADV              StatDoQueuesSchedule;
-    STAMPROFILEADV              StatDoQueuesRun;
+    STAMPROFILEADV              aStatDoQueues[TMCLOCK_MAX];
     /** @} */
     /** tmSchedule
      * @{ */
@@ -445,22 +459,56 @@ typedef struct TM
      * @{ */
     STAMCOUNTER                 StatVirtualGet;
     STAMCOUNTER                 StatVirtualGetSetFF;
-    STAMCOUNTER                 StatVirtualGetSync;
-    STAMCOUNTER                 StatVirtualGetSyncSetFF;
+    STAMCOUNTER                 StatVirtualSyncGet;
+    STAMCOUNTER                 StatVirtualSyncGetELoop;
+    STAMCOUNTER                 StatVirtualSyncGetExpired;
+    STAMCOUNTER                 StatVirtualSyncGetLockless;
+    STAMCOUNTER                 StatVirtualSyncGetLocked;
+    STAMCOUNTER                 StatVirtualSyncGetSetFF;
     STAMCOUNTER                 StatVirtualPause;
     STAMCOUNTER                 StatVirtualResume;
     /* @} */
     /** TMTimerPoll
      * @{ */
+    STAMCOUNTER                 StatPoll;
     STAMCOUNTER                 StatPollAlreadySet;
+    STAMCOUNTER                 StatPollELoop;
+    STAMCOUNTER                 StatPollMiss;
+    STAMCOUNTER                 StatPollRunning;
+    STAMCOUNTER                 StatPollSimple;
     STAMCOUNTER                 StatPollVirtual;
     STAMCOUNTER                 StatPollVirtualSync;
-    STAMCOUNTER                 StatPollMiss;
     /** @} */
     /** TMTimerSet
      * @{ */
+    STAMCOUNTER                 StatTimerSet;
+    STAMCOUNTER                 StatTimerSetOpt;
     STAMPROFILE                 StatTimerSetRZ;
     STAMPROFILE                 StatTimerSetR3;
+    STAMCOUNTER                 StatTimerSetStStopped;
+    STAMCOUNTER                 StatTimerSetStExpDeliver;
+    STAMCOUNTER                 StatTimerSetStActive;
+    STAMCOUNTER                 StatTimerSetStPendStop;
+    STAMCOUNTER                 StatTimerSetStPendStopSched;
+    STAMCOUNTER                 StatTimerSetStPendSched;
+    STAMCOUNTER                 StatTimerSetStPendResched;
+    STAMCOUNTER                 StatTimerSetStOther;
+    /** @} */
+    /** TMTimerSetRelative
+     * @{ */
+    STAMCOUNTER                 StatTimerSetRelative;
+    STAMPROFILE                 StatTimerSetRelativeRZ;
+    STAMPROFILE                 StatTimerSetRelativeR3;
+    STAMCOUNTER                 StatTimerSetRelativeOpt;
+    STAMCOUNTER                 StatTimerSetRelativeRacyVirtSync;
+    STAMCOUNTER                 StatTimerSetRelativeStStopped;
+    STAMCOUNTER                 StatTimerSetRelativeStExpDeliver;
+    STAMCOUNTER                 StatTimerSetRelativeStActive;
+    STAMCOUNTER                 StatTimerSetRelativeStPendStop;
+    STAMCOUNTER                 StatTimerSetRelativeStPendStopSched;
+    STAMCOUNTER                 StatTimerSetRelativeStPendSched;
+    STAMCOUNTER                 StatTimerSetRelativeStPendResched;
+    STAMCOUNTER                 StatTimerSetRelativeStOther;
     /** @} */
     /** TMTimerStop
      * @{ */
@@ -480,8 +528,13 @@ typedef struct TM
     STAMCOUNTER                 aStatVirtualSyncCatchupInitial[TM_MAX_CATCHUP_PERIODS];
     STAMCOUNTER                 aStatVirtualSyncCatchupAdjust[TM_MAX_CATCHUP_PERIODS];
     /** @} */
+    /** TMR3VirtualSyncFF (non dedicated EMT). */
+    STAMPROFILE                 StatVirtualSyncFF;
     /** The timer callback. */
     STAMCOUNTER                 StatTimerCallbackSetFF;
+
+    /** Calls to TMCpuTickSet. */
+    STAMCOUNTER                 StatTSCSet;
 
     /** @name Reasons for refusing TSC offsetting in TMCpuTickCanUseRealTSC.
      * @{ */
@@ -507,9 +560,40 @@ typedef struct TMCPU
     /** Offset to the VMCPU structure.
      * See TMCPU2VM(). */
     RTUINT                      offVMCPU;
+
+    /** CPU timestamp ticking enabled indicator (bool). (RDTSC) */
+    bool                        fTSCTicking;
+    bool                        afAlignment0[3]; /**< alignment padding */
+
+    /** The offset between the raw TSC source and the Guest TSC.
+     * Only valid if fTicking is set and and fTSCUseRealTSC is clear. */
+    uint64_t                    offTSCRawSrc;
+
+    /** The guest TSC when fTicking is cleared. */
+    uint64_t                    u64TSC;
+
 } TMCPU;
 /** Pointer to TM VMCPU instance data. */
 typedef TMCPU *PTMCPU;
+
+#if 0 /* enable this to rule out locking bugs on single cpu guests. */
+# define tmTimerLock(pVM)                VINF_SUCCESS
+# define tmTimerTryLock(pVM)             VINF_SUCCESS
+# define tmTimerUnlock(pVM)              ((void)0)
+# define tmVirtualSyncLock(pVM)     VINF_SUCCESS
+# define tmVirtualSyncTryLock(pVM)  VINF_SUCCESS
+# define tmVirtualSyncUnlock(pVM)   ((void)0)
+# define TM_ASSERT_LOCK(pVM)        VM_ASSERT_EMT(pVM)
+#else
+int                     tmTimerLock(PVM pVM);
+int                     tmTimerTryLock(PVM pVM);
+void                    tmTimerUnlock(PVM pVM);
+/** Checks that the caller owns the timer lock.  */
+#define TM_ASSERT_LOCK(pVM) Assert(PDMCritSectIsOwner(&pVM->tm.s.TimerCritSect))
+int                     tmVirtualSyncLock(PVM pVM);
+int                     tmVirtualSyncTryLock(PVM pVM);
+void                    tmVirtualSyncUnlock(PVM pVM);
+#endif
 
 const char             *tmTimerState(TMTIMERSTATE enmState);
 void                    tmTimerQueueSchedule(PVM pVM, PTMTIMERQUEUE pQueue);
@@ -517,16 +601,18 @@ void                    tmTimerQueueSchedule(PVM pVM, PTMTIMERQUEUE pQueue);
 void                    tmTimerQueuesSanityChecks(PVM pVM, const char *pszWhere);
 #endif
 
-int                     tmCpuTickPause(PVM pVM);
-int                     tmCpuTickResume(PVM pVM);
+int                     tmCpuTickPause(PVM pVM, PVMCPU pVCpu);
+int                     tmCpuTickResume(PVM pVM, PVMCPU pVCpu);
 
+int                     tmVirtualPauseLocked(PVM pVM);
+int                     tmVirtualResumeLocked(PVM pVM);
 DECLEXPORT(void)        tmVirtualNanoTSBad(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS, uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS);
 DECLEXPORT(uint64_t)    tmVirtualNanoTSRediscover(PRTTIMENANOTSDATA pData);
 
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 

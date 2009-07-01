@@ -1,4 +1,4 @@
-/* $Id: VBoxDev.cpp $ */
+/* $Id: VBoxDev.cpp 21062 2009-06-30 10:14:10Z vboxsync $ */
 /** @file
  * VMMDev - Guest <-> VMM/Host communication device.
  */
@@ -85,7 +85,7 @@
  *
  * There is a 32 bit event mask which will be read
  * by guest on an interrupt. A non zero bit in the mask
- * means that the specific event occured and requires
+ * means that the specific event occurred and requires
  * processing on guest side.
  *
  * After reading the event mask guest must issue a
@@ -248,7 +248,7 @@ void VMMDevCtlSetGuestFilterMask (VMMDevState *pVMMDevState,
         int rc;
         PVMREQ pReq;
 
-        rc = VMR3ReqCallVoid (pVM, VMREQDEST_ANY, &pReq, RT_INDEFINITE_WAIT,
+        rc = VMR3ReqCallVoid (pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT,
                               (PFNRT) vmmdevCtlGuestFilterMask_EMT,
                               3, pVMMDevState, u32OrMask, u32NotMask);
         AssertReleaseRC (rc);
@@ -273,7 +273,7 @@ void VMMDevNotifyGuest (VMMDevState *pVMMDevState, uint32_t u32EventMask)
     /* No need to wait for the completion of this request. It is a notification
      * about something, which has already happened.
      */
-    rc = VMR3ReqCallEx(pVM, VMREQDEST_ANY, NULL, 0, VMREQFLAGS_NO_WAIT | VMREQFLAGS_VOID,
+    rc = VMR3ReqCallEx(pVM, VMCPUID_ANY, NULL, 0, VMREQFLAGS_NO_WAIT | VMREQFLAGS_VOID,
                        (PFNRT) vmmdevNotifyGuest_EMT,
                        2, pVMMDevState, u32EventMask);
     AssertRC(rc);
@@ -399,11 +399,16 @@ static DECLCALLBACK(int) vmmdevTimesyncBackdoorRead(PPDMDEVINS pDevIns, void *pv
 /**
  * Port I/O Handler for the generic request interface
  * @see FNIOMIOPORTOUT for details.
+ *
+ * @todo Too long, suggest doing the request copying here and moving the
+ *       switch into a different function (or better case -> functions), and
+ *       looing the gotos.
  */
 static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
     VMMDevState *pThis = (VMMDevState*)pvUser;
     int rcRet = VINF_SUCCESS;
+    PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
 
     /*
      * The caller has passed the guest context physical address
@@ -419,7 +424,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
     {
         Log(("VMMDev request header size too small! size = %d\n", requestHeader.size));
         rcRet = VINF_SUCCESS;
-        goto end;
+        goto end; /** @todo shouldn't (/ no need to) write back.*/
     }
 
     /* check the version of the header structure */
@@ -427,7 +432,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
     {
         Log(("VMMDev: guest header version (0x%08X) differs from ours (0x%08X)\n", requestHeader.version, VMMDEV_REQUEST_HEADER_VERSION));
         rcRet = VINF_SUCCESS;
-        goto end;
+        goto end; /** @todo shouldn't (/ no need to) write back.*/
     }
 
     Log2(("VMMDev request issued: %d\n", requestHeader.requestType));
@@ -656,6 +661,10 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
                     pThis->mouseCapabilities |= VMMDEV_MOUSEGUESTNEEDSHOSTCUR;
                 else
                     pThis->mouseCapabilities &= ~VMMDEV_MOUSEGUESTNEEDSHOSTCUR;
+                if (mouseStatus->mouseFeatures & VBOXGUEST_MOUSE_GUEST_USES_VMMDEV)
+                    pThis->mouseCapabilities |= VMMDEV_MOUSEGUESTUSESVMMDEV;
+                else
+                    pThis->mouseCapabilities &= ~VMMDEV_MOUSEGUESTUSESVMMDEV;
 
                 /*
                  * Notify connector if something has changed
@@ -1591,6 +1600,8 @@ end:
         /* early error case; write back header only */
         PDMDevHlpPhysWrite(pDevIns, (RTGCPHYS)u32, &requestHeader, sizeof(requestHeader));
     }
+
+    PDMCritSectLeave(&pThis->CritSect);
     return rcRet;
 }
 
@@ -1786,6 +1797,8 @@ static DECLCALLBACK(int) vmmdevQueryAbsoluteMouse(PPDMIVMMDEVPORT pInterface, ui
 static DECLCALLBACK(int) vmmdevSetAbsoluteMouse(PPDMIVMMDEVPORT pInterface, uint32_t absX, uint32_t absY)
 {
     VMMDevState *pThis = IVMMDEVPORT_2_VMMDEVSTATE(pInterface);
+    if ((pThis->mouseXAbs == absX) && (pThis->mouseYAbs == absY))
+        return VINF_SUCCESS;
     Log2(("vmmdevSetAbsoluteMouse: settings absolute position to x = %d, y = %d\n", absX, absY));
     pThis->mouseXAbs = absX;
     pThis->mouseYAbs = absY;
@@ -2019,7 +2032,7 @@ static DECLCALLBACK(void) vmmdevVBVAChange(PPDMIVMMDEVPORT pInterface, bool fEna
 
 
 
-#define VMMDEV_SSM_VERSION  8
+#define VMMDEV_SSM_VERSION  9
 
 /**
  * Saves a state of the VMM device.
@@ -2102,7 +2115,7 @@ static DECLCALLBACK(int) vmmdevLoadState(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHand
     }
 
 #ifdef VBOX_WITH_HGCM
-    vmmdevHGCMLoadState (pThis, pSSMHandle);
+    vmmdevHGCMLoadState (pThis, pSSMHandle, u32Version);
 #endif /* VBOX_WITH_HGCM */
 
     /*
@@ -2269,6 +2282,13 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
 
     /** @todo convert this into a config parameter like we do everywhere else! */
     pThis->cbGuestRAM = MMR3PhysGetRamSize(PDMDevHlpGetVM(pDevIns));
+
+    /*
+     * Create the critical section for the device.
+     */
+    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->CritSect, "VMMDev");
+    AssertRCReturn(rc, rc);
+    /* Later: pDevIns->pCritSectR3 = &pThis->CritSect; */
 
     /*
      * Register the backdoor logging port

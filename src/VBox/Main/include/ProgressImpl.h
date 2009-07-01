@@ -1,4 +1,4 @@
-/* $Id: ProgressImpl.h $ */
+/* $Id: ProgressImpl.h 20220 2009-06-03 08:40:29Z vboxsync $ */
 /** @file
  *
  * VirtualBox COM class implementation
@@ -42,7 +42,7 @@ class ATL_NO_VTABLE ProgressBase :
     public VirtualBoxBaseNEXT,
     public com::SupportErrorInfoBase,
     public VirtualBoxSupportTranslation <ProgressBase>,
-    public IProgress
+    VBOX_SCRIPTABLE_IMPL(IProgress)
 {
 protected:
 
@@ -65,7 +65,7 @@ protected:
 public:
 
     // IProgress properties
-    STDMETHOD(COMGETTER(Id)) (OUT_GUID aId);
+    STDMETHOD(COMGETTER(Id)) (BSTR *aId);
     STDMETHOD(COMGETTER(Description)) (BSTR *aDescription);
     STDMETHOD(COMGETTER(Initiator)) (IUnknown **aInitiator);
 
@@ -75,7 +75,7 @@ public:
     STDMETHOD(COMGETTER(TimeRemaining)) (LONG *aTimeRemaining);
     STDMETHOD(COMGETTER(Completed)) (BOOL *aCompleted);
     STDMETHOD(COMGETTER(Canceled)) (BOOL *aCanceled);
-    STDMETHOD(COMGETTER(ResultCode)) (HRESULT *aResultCode);
+    STDMETHOD(COMGETTER(ResultCode)) (LONG *aResultCode);
     STDMETHOD(COMGETTER(ErrorInfo)) (IVirtualBoxErrorInfo **aErrorInfo);
     STDMETHOD(COMGETTER(OperationCount)) (ULONG *aOperationCount);
     STDMETHOD(COMGETTER(Operation)) (ULONG *aCount);
@@ -145,8 +145,9 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP (Progress)
-        COM_INTERFACE_ENTRY (ISupportErrorInfo)
-        COM_INTERFACE_ENTRY (IProgress)
+        COM_INTERFACE_ENTRY  (ISupportErrorInfo)
+        COM_INTERFACE_ENTRY  (IProgress)
+        COM_INTERFACE_ENTRY2 (IDispatch, IProgress)
     END_COM_MAP()
 
     NS_DECL_ISUPPORTS
@@ -316,8 +317,9 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP (CombinedProgress)
-        COM_INTERFACE_ENTRY (ISupportErrorInfo)
-        COM_INTERFACE_ENTRY (IProgress)
+        COM_INTERFACE_ENTRY  (ISupportErrorInfo)
+        COM_INTERFACE_ENTRY  (IProgress)
+        COM_INTERFACE_ENTRY2 (IDispatch, IProgress)
     END_COM_MAP()
 
     NS_DECL_ISUPPORTS
@@ -393,7 +395,7 @@ public:
     STDMETHOD(COMGETTER(Percent)) (ULONG *aPercent);
     STDMETHOD(COMGETTER(Completed)) (BOOL *aCompleted);
     STDMETHOD(COMGETTER(Canceled)) (BOOL *aCanceled);
-    STDMETHOD(COMGETTER(ResultCode)) (HRESULT *aResultCode);
+    STDMETHOD(COMGETTER(ResultCode)) (LONG *aResultCode);
     STDMETHOD(COMGETTER(ErrorInfo)) (IVirtualBoxErrorInfo **aErrorInfo);
     STDMETHOD(COMGETTER(Operation)) (ULONG *aCount);
     STDMETHOD(COMGETTER(OperationDescription)) (BSTR *aOperationDescription);

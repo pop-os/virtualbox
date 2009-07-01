@@ -1,4 +1,4 @@
-/* $Id: Builtins2.h $ */
+/* $Id: Builtins2.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * Built-in drivers & devices (part 2) header.
  */
@@ -24,7 +24,7 @@
 
 #include <VBox/pdm.h>
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 #ifdef IN_VBOXDD2
 extern DECLEXPORT(const unsigned char)  g_abPcBiosBinary[];
@@ -35,10 +35,6 @@ extern DECLEXPORT(const unsigned char)  g_abNetBiosBinary[];
 extern DECLEXPORT(const unsigned)       g_cbNetBiosBinary;
 extern DECLEXPORT(const unsigned char)  g_abVmiBiosBinary[];
 extern DECLEXPORT(const unsigned)       g_cbVmiBiosBinary;
-# ifdef VBOX_WITH_EFI
-extern DECLEXPORT(const unsigned char)  g_abEfiThunkBinary[];
-extern DECLEXPORT(const unsigned)       g_cbEfiThunkBinary;
-# endif
 #else  /* !IN_VBOXDD2 */
 extern DECLIMPORT(const unsigned char)  g_abPcBiosBinary[];
 extern DECLIMPORT(const unsigned)       g_cbPcBiosBinary;
@@ -48,14 +44,10 @@ extern DECLIMPORT(const unsigned char)  g_abNetBiosBinary[];
 extern DECLIMPORT(const unsigned)       g_cbNetBiosBinary;
 extern DECLIMPORT(const unsigned char)  g_abVmiBiosBinary[];
 extern DECLIMPORT(const unsigned)       g_cbVmiBiosBinary;
-# ifdef VBOX_WITH_EFI
-extern DECLIMPORT(const unsigned char)  g_abEfiThunkBinary[];
-extern DECLIMPORT(const unsigned)       g_cbEfiThunkBinary;
-# endif
 #endif /* !IN_VBOXDD2 */
 extern const PDMDEVREG g_DeviceAPIC;
 extern const PDMDEVREG g_DeviceIOAPIC;
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif

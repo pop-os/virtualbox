@@ -1,4 +1,4 @@
-/* $Id: VMMAll.cpp $ */
+/* $Id: VMMAll.cpp 19476 2009-05-07 11:06:26Z vboxsync $ */
 /** @file
  * VMM All Contexts.
  */
@@ -27,6 +27,7 @@
 #include <VBox/vmm.h>
 #include "VMMInternal.h"
 #include <VBox/vm.h>
+#include <VBox/vmm.h>
 #include <VBox/param.h>
 #include <VBox/hwaccm.h>
 
@@ -40,81 +41,92 @@
  * @returns bottom of the stack.
  * @param   pVM         The VM handle.
  */
-RTRCPTR VMMGetStackRC(PVM pVM)
+VMMDECL(RTRCPTR) VMMGetStackRC(PVM pVM)
 {
-    return (RTRCPTR)pVM->vmm.s.pbEMTStackBottomRC;
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+    Assert(pVCpu);
+
+    return (RTRCPTR)pVCpu->vmm.s.pbEMTStackBottomRC;
 }
 
 
 /**
- * Gets the current virtual CPU ID.
+ * Gets the ID virtual of the virtual CPU assoicated with the calling thread.
  *
- * @returns The CPU ID.
+ * @returns The CPU ID. NIL_VMCPUID if the thread isn't an EMT.
+ *
  * @param   pVM         Pointer to the shared VM handle.
- * @thread  EMT
  */
-VMCPUID VMMGetCpuId(PVM pVM)
+VMMDECL(VMCPUID) VMMGetCpuId(PVM pVM)
 {
-#ifdef IN_RING3
-    /* Only emulation thread(s) allowed to ask for CPU id */
-    if (!VM_IS_EMT(pVM))
-        return 0;
-#endif
-
-    /* Only emulation thread(s) allowed to ask for CPU id */
-    VM_ASSERT_EMT(pVM);
-
-#if defined(IN_RC)
-    /* There is only one CPU if we're in GC. */
-    return 0;
-
-#elif defined(IN_RING3)
+#if defined(IN_RING3)
     return VMR3GetVMCPUId(pVM);
 
-#else  /* IN_RING0 */
-    return HWACCMGetVMCPUId(pVM);
+#elif defined(IN_RING0)
+    if (pVM->cCPUs == 1)
+        return 0;
+    return HWACCMR0GetVMCPUId(pVM);
+
+#else /* RC: Always EMT(0) */
+    return 0;
+#endif
+}
+
+
+/**
+ * Returns the VMCPU of the calling EMT.
+ *
+ * @returns The VMCPU pointer. NULL if not an EMT.
+ *
+ * @param   pVM         The VM to operate on.
+ */
+VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
+{
+#ifdef IN_RING3
+    VMCPUID idCpu = VMR3GetVMCPUId(pVM);
+    if (idCpu == NIL_VMCPUID)
+        return NULL;
+    Assert(idCpu < pVM->cCPUs);
+    return &pVM->aCpus[VMR3GetVMCPUId(pVM)];
+
+#elif defined(IN_RING0)
+    if (pVM->cCPUs == 1)
+        return &pVM->aCpus[0];
+    return HWACCMR0GetVMCPU(pVM);
+
+#else /* RC: Always EMT(0) */
+    return &pVM->aCpus[0];
 #endif /* IN_RING0 */
 }
 
+
 /**
- * Returns the VMCPU of the current EMT thread.
+ * Returns the VMCPU of the first EMT thread.
  *
  * @returns The VMCPU pointer.
  * @param   pVM         The VM to operate on.
  */
-PVMCPU VMMGetCpu(PVM pVM)
+VMMDECL(PVMCPU) VMMGetCpu0(PVM pVM)
 {
-#ifdef IN_RING3
-    /* Only emulation thread(s) allowed to ask for CPU id */
-    if (!VM_IS_EMT(pVM))
-        return &pVM->aCpus[0];
-#endif
-    /* Only emulation thread(s) allowed to ask for CPU id */
-    VM_ASSERT_EMT(pVM);
-
-#if defined(IN_RC)
-    /* There is only one CPU if we're in GC. */
+    Assert(pVM->cCPUs == 1);
     return &pVM->aCpus[0];
-
-#elif defined(IN_RING3)
-    return &pVM->aCpus[VMR3GetVMCPUId(pVM)];
-
-#else  /* IN_RING0 */
-    return &pVM->aCpus[HWACCMGetVMCPUId(pVM)];
-#endif /* IN_RING0 */
 }
+
 
 /**
  * Returns the VMCPU of the specified virtual CPU.
  *
- * @returns The VMCPU pointer.
+ * @returns The VMCPU pointer. NULL if idCpu is invalid.
+ *
  * @param   pVM         The VM to operate on.
+ * @param   idCpu       The ID of the virtual CPU.
  */
-VMMDECL(PVMCPU) VMMGetCpuEx(PVM pVM, RTCPUID idCpu)
+VMMDECL(PVMCPU) VMMGetCpuById(PVM pVM, RTCPUID idCpu)
 {
     AssertReturn(idCpu < pVM->cCPUs, NULL);
     return &pVM->aCpus[idCpu];
 }
+
 
 /**
  * Gets the VBOX_SVN_REV.
@@ -129,6 +141,7 @@ VMMDECL(uint32_t) VMMGetSvnRev(void)
     return VBOX_SVN_REV;
 }
 
+
 /**
  * Queries the current switcher
  *
@@ -139,3 +152,4 @@ VMMDECL(VMMSWITCHER) VMMGetSwitcher(PVM pVM)
 {
     return pVM->vmm.s.enmSwitcher;
 }
+

@@ -1,4 +1,4 @@
-/* $Id: uvm.h $ */
+/* $Id: uvm.h 19217 2009-04-27 15:00:59Z vboxsync $ */
 /** @file
  * GVM - The Global VM Data.
  */
@@ -42,6 +42,10 @@ typedef struct UVMCPU
 {
     /** Pointer to the UVM structure.  */
     PUVM                            pUVM;
+    /** Pointer to the VM structure.  */
+    PVM                             pVM;
+    /** Pointer to the VMCPU structure.  */
+    PVMCPU                          pVCpu;
     /** The virtual CPU ID.  */
     RTCPUID                         idCpu;
 

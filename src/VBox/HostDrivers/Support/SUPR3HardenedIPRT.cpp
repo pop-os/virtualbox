@@ -1,4 +1,4 @@
-/* $Id: SUPR3HardenedIPRT.cpp $ */
+/* $Id: SUPR3HardenedIPRT.cpp 19924 2009-05-22 21:52:47Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Hardened Support Routines using IPRT.
  */
@@ -90,11 +90,11 @@ DECLHIDDEN(int) supR3HardenedPathAppDocs(char *pszPath, size_t cchPath)
 
 
 /**
- * @copydoc RTPathProgram
+ * @copydoc RTPathExecDir
  */
-DECLHIDDEN(int) supR3HardenedPathProgram(char *pszPath, size_t cchPath)
+DECLHIDDEN(int) supR3HardenedPathExecDir(char *pszPath, size_t cchPath)
 {
-    return RTPathProgram(pszPath, cchPath);
+    return RTPathExecDir(pszPath, cchPath);
 }
 
 

@@ -34,7 +34,7 @@
 #include <iprt/types.h>
 
 
-__BEGIN_DECLS
+RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_zip        RTZip - Compression
  * @ingroup grp_rt
@@ -178,7 +178,7 @@ RTDECL(int)     RTZipDecompDestroy(PRTZIPDECOMP pZip);
 
 /** @} */
 
-__END_DECLS
+RT_C_DECLS_END
 
 #endif
 
