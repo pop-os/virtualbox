@@ -5,16 +5,6 @@
 
 @DPATCH@
 
---- virtualbox-ose-2.2.0-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxGlobal.cpp.orig	2009-04-09 11:07:38.000000000 +0200
-+++ virtualbox-ose-2.2.0-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxGlobal.cpp	2009-04-09 11:08:09.000000000 +0200
-@@ -52,6 +52,7 @@
- #include <QDir>
- 
- #include <math.h>
-+#include <stdlib.h>
- 
- #ifdef Q_WS_X11
- #ifndef VBOX_OSE
 diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Main/VMMDevInterface.cpp virtualbox-ose-1.6.0-dfsg/src/VBox/Main/VMMDevInterface.cpp
 --- virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Main/VMMDevInterface.cpp	2008-04-30 14:05:49.000000000 +0000
 +++ virtualbox-ose-1.6.0-dfsg/src/VBox/Main/VMMDevInterface.cpp	2008-05-09 09:31:08.000000000 +0000
@@ -26,15 +16,3 @@ diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/src/VBox/Main/VMMDevInterface.cpp vir
  
  #ifdef VBOX_HGCM
  #include "hgcm/HGCM.h"
-diff -Naurp virtualbox-ose-1.6.0-dfsg.orig/src/recompiler/Sun/op-validate.sed virtualbox-ose-1.6.0-dfsg/src/recompiler/Sun/op-validate.sed
---- virtualbox-ose-1.6.0-dfsg.orig/src/recompiler/Sun/op-validate.sed	2008-04-30 14:05:14.000000000 +0000
-+++ virtualbox-ose-1.6.0-dfsg/src/recompiler/Sun/op-validate.sed	2008-05-09 09:31:08.000000000 +0000
-@@ -63,6 +63,8 @@ s/^[[:blank:]]*ret[[:blank:]]*\n*[[:blan
- /\.Lfe[0-9][0-9]*:/d
- /\.LFE[0-9][0-9]*:/d
- /size[[:space:]]/d
-+/p2align[[:space:]]/d
-+/^[/#][[:space:]]0[[:space:]]\"\"[[:space:]]2[[:space:]]*$/d
- /^[/#]NO_APP[[:space:]]*$/d
- /^$/!b bad
- b end
