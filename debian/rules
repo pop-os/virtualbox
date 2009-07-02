@@ -56,6 +56,8 @@ build-stamp: env.sh
 	. ./env.sh; $(MAKE) \
 		BUILD_TYPE=release \
 		PATH_OUT=$(abspath out)
+	# VBoxService
+	$(MAKE) PATH_OUT=$(abspath out) -C src/VBox/Additions/common/VBoxService/
 	# and vboxdrv.sh
 	$(MAKE) -C src/VBox/Installer/linux $(abspath out/obj/Installer/linux/vboxdrv.sh) \
 		PATH_OUT=$(abspath out)
@@ -127,13 +129,15 @@ binary-arch: build install serverabi
 	dh_installmenu -s
 	dh_install -s
 	-chmod 755 debian/$(uxname)/usr/share/virtualbox/x11config.pl
+	-chmod 755 debian/$(uxname)/usr/share/virtualbox/x11config15.pl
 	-install -m 755 src/VBox/Additions/x11/Installer/VBoxRandR.sh debian/$(uxname)/usr/bin/VBoxRandR
 	-chrpath -d debian/$(uxname)/usr/bin/VBoxClient
 	-chrpath -d debian/$(uxname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
 	-chrpath -d debian/$(uxname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
 	-install -m 755 out/bin/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
 	-chrpath -d debian/$(uname)/sbin/mount.vboxsf 
-	-chrpath -d debian/$(uname)/usr/sbin/vboxadd-timesync
+	-chrpath -d debian/$(uname)/usr/sbin/vboxadd-service
+	-chrpath -d debian/$(uname)/usr/sbin/VBoxControl
 	-chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh
 	dh_strip -s --dbg-package=$(sname)-dbg
 	dh_link -s

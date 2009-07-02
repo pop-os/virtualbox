@@ -8,6 +8,11 @@ out/bin/src/vboxnetflt/build_in_tmp /usr/src/modules/virtualbox-ose/vboxnetflt
 out/bin/src/vboxnetflt/linux /usr/src/modules/virtualbox-ose/vboxnetflt
 out/bin/src/vboxnetflt/Makefile /usr/src/modules/virtualbox-ose/vboxnetflt
 
+out/bin/src/vboxnetadp/*.* /usr/src/modules/virtualbox-ose/vboxnetadp
+out/bin/src/vboxnetadp/build_in_tmp /usr/src/modules/virtualbox-ose/vboxnetadp
+out/bin/src/vboxnetadp/linux /usr/src/modules/virtualbox-ose/vboxnetadp
+out/bin/src/vboxnetadp/Makefile /usr/src/modules/virtualbox-ose/vboxnetadp
+
 out/bin/src/vboxdrv/SUPDrvIDC.h /usr/src/modules/virtualbox-ose/include/
 out/bin/src/vboxdrv/version-generated.h /usr/src/modules/virtualbox-ose/include/
 out/bin/src/vboxdrv/include/iprt/* /usr/src/modules/virtualbox-ose/include/iprt
@@ -21,6 +26,7 @@ out/bin/src/vboxnetflt/include/internal/* /usr/src/modules/virtualbox-ose/includ
 out/bin/src/vboxdrv/r0drv /usr/src/modules/virtualbox-ose
 out/bin/src/vboxdrv/alloc /usr/src/modules/virtualbox-ose
 out/bin/src/vboxnetflt/common /usr/src/modules/virtualbox-ose
+out/bin/src/vboxdrv/common/misc /usr/src/modules/virtualbox-ose/common
 out/bin/src/vboxnetflt/generic /usr/src/modules/virtualbox-ose
 out/bin/src/vboxdrv/math /usr/src/modules/virtualbox-ose
 out/bin/src/vboxdrv/VBox /usr/src/modules/virtualbox-ose

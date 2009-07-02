@@ -44,6 +44,7 @@ MAKE:=kmk
 clean:
 	$(MAKE) -C vboxadd clean
 	$(MAKE) -C vboxvfs clean
+	$(MAKE) -C vboxvideo_drm clean
 	dh_clean
 
 binary-modules: prep-deb-files
@@ -54,6 +55,7 @@ binary-modules: prep-deb-files
 	# Install the modules
 	dh_install vboxadd/vboxadd.ko /lib/modules/$(KVERS)/misc/
 	dh_install vboxvfs/vboxvfs.ko /lib/modules/$(KVERS)/misc/
+	dh_install vboxvideo_drm/vboxvideo.ko /lib/modules/$(KVERS)/misc/
 	dh_installdocs
 	dh_installchangelogs
 	dh_compress

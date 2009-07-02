@@ -1,1 +1,2 @@
-out/bin/additions/vboxadd-timesync /usr/sbin
+out/bin/additions/VBoxService	/usr/sbin
+out/bin/additions/VBoxControl	/usr/sbin

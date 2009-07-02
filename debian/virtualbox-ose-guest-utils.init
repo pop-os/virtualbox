@@ -50,13 +50,13 @@ case "$1" in
 	# other startup script but this requires the vboxdrv kernel module loaded.
 	mount -a -t vboxsf
 
-	start-stop-daemon --start --quiet --exec /usr/sbin/vboxadd-timesync -- --daemonize
+	start-stop-daemon --start --quiet --exec /usr/sbin/VBoxService
 	log_end_msg $?
 	;;
   stop)
   	in_virtual_machine || exit 0
   	log_action_begin_msg 'Stopping VirtualBox Additions';
-	start-stop-daemon --stop --quiet --oknodo --exec /usr/sbin/vboxadd-timesync
+	start-stop-daemon --stop --quiet --oknodo --exec /usr/sbin/VBoxService
 	log_end_msg $?
 	;;
   restart|force-reload)

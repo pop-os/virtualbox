@@ -76,7 +76,7 @@ diff -Naurp virtualbox-ose-3.0.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
      fi
      # ensure the character special exists
      if [ ! -c $DEVICE ]; then
-@@ -185,31 +201,47 @@
+@@ -185,31 +201,51 @@
          rmmod vboxdrv 2>/dev/null
          failure "Cannot change owner $GROUPNAME for device $DEVICE"
      fi
@@ -92,6 +92,8 @@ diff -Naurp virtualbox-ose-3.0.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
 +	else
 +          failure "modprobe vboxnetflt failed. Please use 'dmesg' to find out why"
 +	fi
++      else
++	  prog_msg vboxnetflt
 +      fi
 +      if ! modprobe vboxnetadp > /dev/null 2>&1; then
 +	if ! find /lib/modules/`uname -r` -name "vboxnetadp\.*" 2>/dev/null|grep -q vboxnetadp; then
@@ -99,6 +101,8 @@ diff -Naurp virtualbox-ose-3.0.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
 +        else
 +          failure "modprobe vboxnetadp failed. Please use 'dmesg' to find out why"
 +	fi
++      else
++	  prog_msg vboxnetadp
 +      fi
      fi
      succ_msg
