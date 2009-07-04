@@ -1,6 +1,7 @@
 virtualbox-ose (3.0.0-dfsg-2) unstable; urgency=low
 
   * Added missing build dependencies.
+  * Do not look for 32bit environment when building on amd64.
 
  -- Michael Meskes <meskes@debian.org>  Sat, 04 Jul 2009 20:18:20 +0200
 
