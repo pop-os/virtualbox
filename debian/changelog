@@ -1,3 +1,9 @@
+virtualbox-ose (3.0.0-dfsg-2) unstable; urgency=low
+
+  * Added missing libssl-dev build dependency,
+
+ -- Michael Meskes <meskes@debian.org>  Sat, 04 Jul 2009 20:18:20 +0200
+
 virtualbox-ose (3.0.0-dfsg-1) unstable; urgency=low
 
   * New Upstream Version
