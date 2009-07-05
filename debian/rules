@@ -45,8 +45,8 @@ env.sh: patch-stamp
 	./configure \
 	    --with-linux="/usr" \
 	    --disable-kmods \
-	    --with-gcc=/usr/bin/gcc-4.2 \
-	    --with-g++=/usr/bin/g++-4.2 \
+	    --with-gcc=/usr/bin/gcc-4.3 \
+	    --with-g++=/usr/bin/g++-4.3 \
 	    --enable-webservice
 
 build: build-stamp
@@ -136,7 +136,7 @@ binary-arch: build install serverabi
 	-chrpath -d debian/$(uxname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
 	-install -m 755 out/bin/additions/mountvboxsf debian/$(uname)/sbin/mount.vboxsf
 	-chrpath -d debian/$(uname)/sbin/mount.vboxsf 
-	-chrpath -d debian/$(uname)/usr/sbin/vboxadd-service
+	-chrpath -d debian/$(uname)/usr/sbin/VBoxService
 	-chrpath -d debian/$(uname)/usr/sbin/VBoxControl
 	-chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh
 	dh_strip -s --dbg-package=$(sname)-dbg

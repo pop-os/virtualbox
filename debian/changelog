@@ -1,7 +1,10 @@
 virtualbox-ose (3.0.0-dfsg-2) unstable; urgency=low
 
+  [ Felix Geyer ]
+  * Move to gcc 4.3, closes: #533786
+
+  [ Michael Meskes ]
   * Added missing build dependencies.
-  * Do not look for 32bit environment when building on amd64.
 
  -- Michael Meskes <meskes@debian.org>  Sat, 04 Jul 2009 20:18:20 +0200
 
