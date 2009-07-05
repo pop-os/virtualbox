@@ -2,6 +2,7 @@ virtualbox-ose (3.0.0-dfsg-2) unstable; urgency=low
 
   [ Felix Geyer ]
   * Move to gcc 4.3, closes: #533786
+  * Install 3D test program.
 
   [ Michael Meskes ]
   * Added missing build dependencies.

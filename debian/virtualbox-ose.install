@@ -12,6 +12,7 @@ out/bin/VBoxHeadless /usr/lib/virtualbox
 out/bin/VBoxManage /usr/lib/virtualbox
 out/bin/VBoxSDL /usr/lib/virtualbox
 out/bin/VBoxSVC /usr/lib/virtualbox
+out/bin/VBoxTestOGL /usr/lib/virtualbox
 out/bin/VBoxXPCOM* /usr/lib/virtualbox
 out/bin/VMM* /usr/lib/virtualbox
 out/bin/vboxwebsrv /usr/lib/virtualbox
