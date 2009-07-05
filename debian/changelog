@@ -5,7 +5,7 @@ virtualbox-ose (3.0.0-dfsg-2) unstable; urgency=low
   * Install 3D test program.
 
   [ Michael Meskes ]
-  * Added missing build dependencies.
+  * Added missing build dependencies, closes: #535853
 
  -- Michael Meskes <meskes@debian.org>  Sat, 04 Jul 2009 20:18:20 +0200
 
