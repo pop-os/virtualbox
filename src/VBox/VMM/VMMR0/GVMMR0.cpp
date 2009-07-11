@@ -1,4 +1,4 @@
-/* $Id: GVMMR0.cpp 19707 2009-05-14 17:36:11Z vboxsync $ */
+/* $Id: GVMMR0.cpp $ */
 /** @file
  * GVMM - Global VM Manager.
  */

@@ -1,4 +1,4 @@
-/* $Id: mp-r0drv-darwin.cpp 19389 2009-05-05 17:12:48Z vboxsync $ */
+/* $Id: mp-r0drv-darwin.cpp $ */
 /** @file
  * IPRT - Multiprocessor, Ring-0 Driver, Darwin.
  */

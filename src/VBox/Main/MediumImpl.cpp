@@ -1,4 +1,4 @@
-/* $Id: MediumImpl.cpp 20977 2009-06-26 14:38:55Z vboxsync $ */
+/* $Id: MediumImpl.cpp $ */
 
 /** @file
  *

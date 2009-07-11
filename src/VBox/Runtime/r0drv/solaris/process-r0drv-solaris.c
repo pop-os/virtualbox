@@ -1,4 +1,4 @@
-/* $Id: process-r0drv-solaris.c 19338 2009-05-04 16:48:14Z vboxsync $ */
+/* $Id: process-r0drv-solaris.c $ */
 /** @file
  * IPRT - Process Management, Ring-0 Driver, Solaris.
  */

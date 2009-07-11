@@ -1,4 +1,4 @@
-/* $Id: memobj-r0drv-freebsd.c 20525 2009-06-13 20:13:33Z vboxsync $ */
+/* $Id: memobj-r0drv-freebsd.c $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, FreeBSD.
  */

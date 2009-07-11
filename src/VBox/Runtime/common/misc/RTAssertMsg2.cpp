@@ -1,4 +1,4 @@
-/* $Id: RTAssertMsg2.cpp 14500 2008-11-24 02:22:08Z vboxsync $ */
+/* $Id: RTAssertMsg2.cpp $ */
 /** @file
  * IPRT - RTAssertMsg2.
  */

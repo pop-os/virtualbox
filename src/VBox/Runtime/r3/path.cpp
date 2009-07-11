@@ -1,4 +1,4 @@
-/* $Id: path.cpp 20101 2009-05-27 16:43:08Z vboxsync $ */
+/* $Id: path.cpp $ */
 /** @file
  * IPRT - Path Manipulation.
  */

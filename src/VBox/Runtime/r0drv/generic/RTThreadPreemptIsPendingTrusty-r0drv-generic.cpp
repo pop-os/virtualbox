@@ -1,4 +1,4 @@
-/* $Id: RTThreadPreemptIsPendingTrusty-r0drv-generic.cpp 20124 2009-05-28 15:40:06Z vboxsync $ */
+/* $Id: RTThreadPreemptIsPendingTrusty-r0drv-generic.cpp $ */
 /** @file
  * IPRT - RTThreadPreemptIsPendingTrusty, Generic ring-0 driver implementation.
  */

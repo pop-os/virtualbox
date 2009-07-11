@@ -1,4 +1,4 @@
-/* $Id: IOMAllMMIO.cpp 20722 2009-06-19 12:34:21Z vboxsync $ */
+/* $Id: IOMAllMMIO.cpp $ */
 /** @file
  * IOM - Input / Output Monitor - Any Context, MMIO & String I/O.
  */
@@ -1786,7 +1786,7 @@ VMMDECL(int) IOMInterpretOUTSEx(PVM pVM, PCPUMCTXCORE pRegFrame, uint32_t uPort,
 
     while (cTransfers && rc == VINF_SUCCESS)
     {
-        uint32_t u32Value;
+        uint32_t u32Value = 0;
         rc = iomRamRead(pVCpu, &u32Value, GCPtrSrc, cbTransfer);
         if (rc != VINF_SUCCESS)
             break;

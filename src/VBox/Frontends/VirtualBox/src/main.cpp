@@ -36,6 +36,7 @@
 
 #ifdef Q_WS_X11
 #include <QFontDatabase>
+#include <iprt/env.h>
 #endif
 
 #include <QCleanlooksStyle>
@@ -325,21 +326,51 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
 
     /* scope the QIApplication variable */
     {
+#ifdef Q_WS_X11
+        /* There are some buggy/strange driver/compiz combinations which lead
+         * to transparent backgrounds on ARGB visuals. Try to fix it by not
+         * allowing an ARGB visual with the help of the Xlib. After that we
+         * restore the original environment, so that others like the OpenGL
+         * service will proper work. */
+        char *pchOldVar = NULL;
+        bool fHackARGB = !RTEnvExist ("VBOX_NO_ARGB_VISUALS_HACK") && VBoxGlobal::qtRTVersion() >= 0x040500;
+        if (fHackARGB)
+        {
+            const char *pchVar = RTEnvGet ("XLIB_SKIP_ARGB_VISUALS");
+            if (pchVar)
+                pchOldVar = RTStrDup (pchVar);
+            RTEnvSet ("XLIB_SKIP_ARGB_VISUALS", "1");
+        }
+        /* Now create the application object */
         QIApplication a (argc, argv);
+        /* Restore previous environment */
+        if (fHackARGB)
+        {
+            if (pchOldVar)
+            {
+                RTEnvSet ("XLIB_SKIP_ARGB_VISUALS", pchOldVar);
+                RTStrFree (pchOldVar);
+            }
+            else
+                RTEnvUnset ("XLIB_SKIP_ARGB_VISUALS");
+        }
+#else /* defined(Q_WS_X11) && (QT_VERSION >= 0x040500) */
+        QIApplication a (argc, argv);
+#endif /* defined(Q_WS_X11) && (QT_VERSION >= 0x040500) */
 
         /* Qt4.3 version has the QProcess bug which freezing the application
          * for 30 seconds. This bug is internally used at initialization of
          * Cleanlooks style. So we have to change this style to another one.
          * See http://trolltech.com/developer/task-tracker/index_html?id=179200&method=entry
          * for details. */
-        if (QString (qVersion()).startsWith ("4.3") &&
+        if (VBoxGlobal::qtRTVersionString().startsWith ("4.3") &&
             qobject_cast <QCleanlooksStyle*> (QApplication::style()))
             QApplication::setStyle (new QPlastiqueStyle);
 
 #ifdef Q_OS_SOLARIS
         /* Solaris have some issue with cleanlooks style which leads to application
          * crash in case of using it on Qt4.4 version, lets make the same substitute */
-        if (QString (qVersion()).startsWith ("4.4") &&
+        if (VBoxGlobal::qtRTVersionString().startsWith ("4.4") &&
             qobject_cast <QCleanlooksStyle*> (QApplication::style()))
             QApplication::setStyle (new QPlastiqueStyle);
 #endif
@@ -395,24 +426,13 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
 
 #ifdef Q_WS_X11
         /* version check (major.minor are sensitive, fix number is ignored) */
-        QString ver_str = QString::fromLatin1 (QT_VERSION_STR);
-        QString ver_str_base = ver_str.section ('.', 0, 1);
-        QString rt_ver_str = QString::fromLatin1 (qVersion());
-        uint ver =
-            (ver_str.section ('.', 0, 0).toInt() << 16) +
-            (ver_str.section ('.', 1, 1).toInt() << 8) +
-            ver_str.section ('.', 2, 2).toInt();
-        uint rt_ver =
-            (rt_ver_str.section ('.', 0, 0).toInt() << 16) +
-            (rt_ver_str.section ('.', 1, 1).toInt() << 8) +
-            rt_ver_str.section ('.', 2, 2).toInt();
-        if (rt_ver < (ver & 0xFFFF00))
+        if (VBoxGlobal::qtRTVersion() < (VBoxGlobal::qtCTVersion() & 0xFFFF00))
         {
             QString msg =
                 QApplication::tr ("Executable <b>%1</b> requires Qt %2.x, found Qt %3.")
                                   .arg (qAppName())
-                                  .arg (ver_str_base)
-                                  .arg (rt_ver_str);
+                                  .arg (VBoxGlobal::qtCTVersionString().section ('.', 0, 1))
+                                  .arg (VBoxGlobal::qtRTVersionString());
             QMessageBox::critical (
                 0, QApplication::tr ("Incompatible Qt Library Error"),
                 msg, QMessageBox::Abort, 0);

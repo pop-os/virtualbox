@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 17993 2009-03-17 07:37:15Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for VBoxAdpCtl
 #

@@ -1,4 +1,4 @@
-/* $Id: cache.cpp 10848 2008-07-24 09:11:00Z vboxsync $ */
+/* $Id: cache.cpp $ */
 /** @file
  * IPRT - Object cache
  */

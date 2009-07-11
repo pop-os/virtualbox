@@ -1,4 +1,4 @@
-; $Id: PAEand32Bit.mac 18927 2009-04-16 11:41:38Z vboxsync $
+; $Id: PAEand32Bit.mac $
 ;; @file
 ; VMM - World Switchers, template for PAE and 32-Bit.
 ;

@@ -62,7 +62,7 @@ echo 'i depend=./vboxguest.depend' >> prototype
 if test -f "./vboxguest.copyright"; then
     echo 'i copyright=./vboxguest.copyright' >> prototype
 fi
-find . -print | $VBOX_GGREP -v -E 'prototype|makepackage.sh|vboxguest.pkginfo|postinstall.sh|preremove.sh|vboxguest.space|vboxguest.copyright' | pkgproto >> prototype
+find . -print | $VBOX_GGREP -v -E 'prototype|makepackage.sh|vboxguest.pkginfo|postinstall.sh|preremove.sh|vboxguest.space|vboxguest.depend|vboxguest.copyright' | pkgproto >> prototype
 
 # don't grok for the class files
 filelist_fixup prototype '$2 == "none"'                                                     '$5 = "root"; $6 = "bin"'
@@ -98,12 +98,12 @@ filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/VBoxOGLpackspu.so=VBoxO
 
 # crogl 64-bit opengl fixup
 filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/amd64/VBoxOGL.so=amd64/VBoxOGL.so"'                             '$3 = "usr/lib/amd64/VBoxOGL.so=amd64/VBoxOGL.so"; $6="sys"'
-filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/amd64/VBoxOGLcrutil.so=amd64/VBoxOGLcrutil.so"'                 '$3 = "usr/lib/amd64//VBoxOGLcrutil.so=amd64/VBoxOGLcrutil.so"; $6="sys"'
-filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/amd64/VBoxOGLfeedbackspu.so=amd64/VBoxOGLfeedbackspu.so"'       '$3 = "usr/lib/amd64//VBoxOGLfeedbackspu.so=amd64/VBoxOGLfeedbackspu.so"; $6="sys"'
-filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/amd64/VBoxOGLpassthroughspu.so=amd64/VBoxOGLpassthroughspu.so"' '$3 = "usr/lib/amd64//VBoxOGLpassthroughspu.so=amd64/VBoxOGLpassthroughspu.so"; $6="sys"'
-filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/amd64/VBoxOGLarrayspu.so=amd64/VBoxOGLarrayspu.so"'             '$3 = "usr/lib/amd64//VBoxOGLarrayspu.so=amd64/VBoxOGLarrayspu.so"; $6="sys"'
-filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/amd64/VBoxOGLerrorspu.so=amd64/VBoxOGLerrorspu.so"'             '$3 = "usr/lib/amd64//VBoxOGLerrorspu.so=amd64/VBoxOGLerrorspu.so"; $6="sys"'
-filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/amd64/VBoxOGLpackspu.so=amd64/VBoxOGLpackspu.so"'               '$3 = "usr/lib/amd64//VBoxOGLpackspu.so=amd64/VBoxOGLpackspu.so"; $6="sys"'
+filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/amd64/VBoxOGLcrutil.so=amd64/VBoxOGLcrutil.so"'                 '$3 = "usr/lib/amd64/VBoxOGLcrutil.so=amd64/VBoxOGLcrutil.so"; $6="sys"'
+filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/amd64/VBoxOGLfeedbackspu.so=amd64/VBoxOGLfeedbackspu.so"'       '$3 = "usr/lib/amd64/VBoxOGLfeedbackspu.so=amd64/VBoxOGLfeedbackspu.so"; $6="sys"'
+filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/amd64/VBoxOGLpassthroughspu.so=amd64/VBoxOGLpassthroughspu.so"' '$3 = "usr/lib/amd64/VBoxOGLpassthroughspu.so=amd64/VBoxOGLpassthroughspu.so"; $6="sys"'
+filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/amd64/VBoxOGLarrayspu.so=amd64/VBoxOGLarrayspu.so"'             '$3 = "usr/lib/amd64/VBoxOGLarrayspu.so=amd64/VBoxOGLarrayspu.so"; $6="sys"'
+filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/amd64/VBoxOGLerrorspu.so=amd64/VBoxOGLerrorspu.so"'             '$3 = "usr/lib/amd64/VBoxOGLerrorspu.so=amd64/VBoxOGLerrorspu.so"; $6="sys"'
+filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/amd64/VBoxOGLpackspu.so=amd64/VBoxOGLpackspu.so"'               '$3 = "usr/lib/amd64/VBoxOGLpackspu.so=amd64/VBoxOGLpackspu.so"; $6="sys"'
 
 
 filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/vboxservice.xml=vboxservice.xml"'  '$3 = "var/svc/manifest/system/virtualbox/vboxservice.xml=vboxservice.xml"'

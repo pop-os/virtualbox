@@ -1,4 +1,4 @@
-/* $Id: vboxfs.h 17626 2009-03-10 13:17:19Z vboxsync $ */
+/* $Id: vboxfs.h $ */
 /** @file
  * VirtualBox File System Driver for Solaris Guests, Internal Header.
  */

@@ -1,4 +1,4 @@
-/* $Id: ConsoleImpl.h 20928 2009-06-25 11:53:37Z vboxsync $ */
+/* $Id: ConsoleImpl.h $ */
 
 /** @file
  *
@@ -494,6 +494,7 @@ private:
     static uint32_t sSSMConsoleVer;
 
     HRESULT loadDataFromSavedState();
+    int loadStateFileExecInternal (PSSMHANDLE pSSM, uint32_t u32Version);
 
     static DECLCALLBACK(void)   saveStateFileExec (PSSMHANDLE pSSM, void *pvUser);
     static DECLCALLBACK(int)    loadStateFileExec (PSSMHANDLE pSSM, void *pvUser, uint32_t u32Version);

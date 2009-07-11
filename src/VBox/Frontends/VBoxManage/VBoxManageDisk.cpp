@@ -1,4 +1,4 @@
-/* $Id: VBoxManageDisk.cpp 21038 2009-06-29 15:57:12Z vboxsync $ */
+/* $Id: VBoxManageDisk.cpp $ */
 /** @file
  * VBoxManage - The disk delated commands.
  */

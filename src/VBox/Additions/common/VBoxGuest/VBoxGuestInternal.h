@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestInternal.h 20374 2009-06-08 00:43:21Z vboxsync $ */
+/* $Id: VBoxGuestInternal.h $ */
 /** @file
  * VBoxGuest - Guest Additions Driver.
  */
@@ -96,6 +96,9 @@ typedef struct VBOXGUESTDEVEXT
     VBOXGUESTWAITLIST           FreeList;
     /** Mask of pending events. */
     uint32_t volatile           f32PendingEvents;
+    /** Current VMMDEV_EVENT_MOUSE_POSITION_CHANGED sequence number.
+     * Used to implement polling.  */
+    uint32_t volatile           u32MousePosChangedSeq;
 
     /** Spinlock various items in the VBOXGUESTSESSION. */
     RTSPINLOCK                  SessionSpinlock;
@@ -143,12 +146,14 @@ typedef struct VBOXGUESTSESSION
      * This will be automatically disconnected when the session is closed. */
     uint32_t volatile           aHGCMClientIds[8];
 #endif
+    /** The last consumed VMMDEV_EVENT_MOUSE_POSITION_CHANGED sequence number.
+     * Used to implement polling.  */
+    uint32_t volatile           u32MousePosChangedSeq;
 } VBOXGUESTSESSION;
-
 
 RT_C_DECLS_BEGIN
 
-int  VBoxGuestInitDevExt(PVBOXGUESTDEVEXT pDevExt, uint16_t IOPortBase, void *pvMMIOBase, uint32_t cbMMIO, VBOXOSTYPE enmOSType);
+int  VBoxGuestInitDevExt(PVBOXGUESTDEVEXT pDevExt, uint16_t IOPortBase, void *pvMMIOBase, uint32_t cbMMIO, VBOXOSTYPE enmOSType, uint32_t fEvents);
 void VBoxGuestDeleteDevExt(PVBOXGUESTDEVEXT pDevExt);
 bool VBoxGuestCommonISR(PVBOXGUESTDEVEXT pDevExt);
 int  VBoxGuestSetGuestCapabilities(uint32_t fOr, uint32_t fNot);
@@ -160,6 +165,13 @@ void VBoxGuestCloseSession(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession)
 int  VBoxGuestCommonIOCtlFast(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession);
 int  VBoxGuestCommonIOCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession,
                           void *pvData, size_t cbData, size_t *pcbDataReturned);
+
+/**
+ * ISR callback for notifying threads polling for mouse events.
+ *
+ * @param   pDevExt     The device extension.
+ */
+void VBoxGuestNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt);
 
 RT_C_DECLS_END
 

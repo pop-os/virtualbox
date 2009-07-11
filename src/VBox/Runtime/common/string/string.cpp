@@ -1,4 +1,4 @@
-/* $Id: string.cpp 19384 2009-05-05 15:24:54Z vboxsync $ */
+/* $Id: string.cpp $ */
 /** @file
  * IPRT - String Manipulation.
  */

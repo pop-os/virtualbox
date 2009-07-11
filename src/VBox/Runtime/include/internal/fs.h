@@ -1,4 +1,4 @@
-/* $Id: fs.h 20374 2009-06-08 00:43:21Z vboxsync $ */
+/* $Id: fs.h $ */
 /** @file
  * IPRT - Internal RTFs header.
  */

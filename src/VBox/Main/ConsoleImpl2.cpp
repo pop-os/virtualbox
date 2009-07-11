@@ -1,4 +1,4 @@
-/* $Id: ConsoleImpl2.cpp 20995 2009-06-26 21:49:23Z vboxsync $ */
+/* $Id: ConsoleImpl2.cpp $ */
 /** @file
  * VBox Console COM Class implementation
  *
@@ -160,6 +160,9 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
     /* lock the console because we widely use internal fields and methods */
     AutoWriteLock alock (pConsole);
 
+    /* Save the VM pointer in the machine object */
+    pConsole->mpVM = pVM;
+
     ComPtr <IMachine> pMachine = pConsole->machine();
 
     int             rc;
@@ -233,18 +236,10 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
     rc = CFGMR3InsertInteger(pRoot, "CSAMEnabled",          1);     /* boolean */   RC_CHECK();
 
     /* hardware virtualization extensions */
-    TSBool_T hwVirtExEnabled;
     BOOL fHWVirtExEnabled;
-    hrc = pMachine->COMGETTER(HWVirtExEnabled)(&hwVirtExEnabled);                   H();
-    if (hwVirtExEnabled == TSBool_Default)
-    {
-        /* check the default value */
-        hrc = systemProperties->COMGETTER(HWVirtExEnabled)(&fHWVirtExEnabled);      H();
-    }
-    else
-        fHWVirtExEnabled = (hwVirtExEnabled == TSBool_True);
+    hrc = pMachine->COMGETTER(HWVirtExEnabled)(&fHWVirtExEnabled);                  H();
     if (cCpus > 1) /** @todo SMP: This isn't nice, but things won't work on mac otherwise. */
-        fHWVirtExEnabled = TSBool_True;
+        fHWVirtExEnabled = TRUE;
 
 #ifdef RT_OS_DARWIN
     rc = CFGMR3InsertInteger(pRoot, "HwVirtExtForced",      fHWVirtExEnabled);      RC_CHECK();
@@ -1112,8 +1107,8 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
             SafeArray <BSTR> names;
             SafeArray <BSTR> values;
             hrc = hardDisk->GetProperties (NULL,
-                                            ComSafeArrayAsOutParam (names),
-                                            ComSafeArrayAsOutParam (values));    H();
+                                           ComSafeArrayAsOutParam (names),
+                                           ComSafeArrayAsOutParam (values));    H();
 
             if (names.size() != 0)
             {
@@ -1121,7 +1116,7 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
                 rc = CFGMR3InsertNode (pCfg, "VDConfig", &pVDC);                RC_CHECK();
                 for (size_t ii = 0; ii < names.size(); ++ ii)
                 {
-                    if (values [ii])
+                    if (values[ii] && *values[ii])
                     {
                         Utf8Str name = names [ii];
                         Utf8Str value = values [ii];
@@ -2030,9 +2025,6 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
     AssertRC (rc2);
     if (RT_SUCCESS (rc))
         rc = rc2;
-
-    /* Save the VM pointer in the machine object */
-    pConsole->mpVM = pVM;
 
     LogFlowFunc (("vrc = %Rrc\n", rc));
     LogFlowFuncLeave();

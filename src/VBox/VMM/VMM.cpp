@@ -1,4 +1,4 @@
-/* $Id: VMM.cpp 20875 2009-06-24 02:29:17Z vboxsync $ */
+/* $Id: VMM.cpp $ */
 /** @file
  * VMM - The Virtual Machine Monitor Core.
  */

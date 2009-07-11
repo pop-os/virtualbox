@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 20332 2009-06-05 13:32:27Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the shell frontend.
 #

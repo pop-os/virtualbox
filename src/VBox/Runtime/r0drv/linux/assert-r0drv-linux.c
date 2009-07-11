@@ -1,4 +1,4 @@
-/* $Id: assert-r0drv-linux.c 13512 2008-10-23 07:21:59Z vboxsync $ */
+/* $Id: assert-r0drv-linux.c $ */
 /** @file
  * IPRT -  Assertion Workers, Ring-0 Drivers, Linux.
  */

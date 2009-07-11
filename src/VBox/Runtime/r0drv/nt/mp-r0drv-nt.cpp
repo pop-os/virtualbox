@@ -1,4 +1,4 @@
-/* $Id: mp-r0drv-nt.cpp 19911 2009-05-22 12:46:46Z vboxsync $ */
+/* $Id: mp-r0drv-nt.cpp $ */
 /** @file
  * IPRT - Multiprocessor, Ring-0 Driver, NT.
  */

@@ -1,4 +1,4 @@
-/* $Id: tstFork.cpp 20606 2009-06-15 23:49:07Z vboxsync $ */
+/* $Id: tstFork.cpp $ */
 /** @file
  * IPRT Testcase - fork() issues.
  */

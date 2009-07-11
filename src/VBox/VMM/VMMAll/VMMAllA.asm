@@ -1,4 +1,4 @@
-; $Id: VMMAllA.asm 20999 2009-06-26 23:15:38Z vboxsync $
+; $Id: VMMAllA.asm $
 ;; @file
 ; VMM - All Contexts Assembly Routines.
 ;

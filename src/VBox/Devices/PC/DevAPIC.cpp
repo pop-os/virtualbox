@@ -1,5 +1,5 @@
 #ifdef VBOX
-/* $Id: DevAPIC.cpp 20836 2009-06-23 13:55:47Z vboxsync $ */
+/* $Id: DevAPIC.cpp $ */
 /** @file
  * Advanced Programmable Interrupt Controller (APIC) Device and
  * I/O Advanced Programmable Interrupt Controller (IO-APIC) Device.
@@ -1526,7 +1526,7 @@ static DECLCALLBACK(void) apicTimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer,
 
         if (pThis->lvt[APIC_LVT_TIMER] & APIC_LVT_TIMER_PERIODIC) {
             /* new interval. */
-            pThis->next_time += (uint64_t)pThis->initial_count + 1;
+            pThis->next_time += (((uint64_t)pThis->initial_count + 1) << pThis->count_shift);
             TMTimerSet(pThis->CTX_SUFF(pTimer), pThis->next_time);
             pThis->fTimerArmed = true;
         } else {

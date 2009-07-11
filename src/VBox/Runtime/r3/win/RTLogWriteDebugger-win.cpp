@@ -1,4 +1,4 @@
-/* $Id: RTLogWriteDebugger-win.cpp 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: RTLogWriteDebugger-win.cpp $ */
 /** @file
  * IPRT - Log To Debugger, Win32.
  */

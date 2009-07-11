@@ -1,4 +1,4 @@
-/* $Id: assert-r0drv-freebsd.c 18972 2009-04-16 23:43:08Z vboxsync $ */
+/* $Id: assert-r0drv-freebsd.c $ */
 /** @file
  * IPRT - Assertion Workers, Ring-0 Drivers, FreeBSD.
  */

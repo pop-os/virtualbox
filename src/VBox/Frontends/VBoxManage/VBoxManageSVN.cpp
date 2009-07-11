@@ -1,4 +1,4 @@
-/* $Id: VBoxManageSVN.cpp 14732 2008-11-27 18:44:11Z vboxsync $ */
+/* $Id: VBoxManageSVN.cpp $ */
 /** @file
  * VBoxManage - VBoxSVNRev(), separate file to speed up the build.
  */

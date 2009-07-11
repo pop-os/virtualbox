@@ -1,4 +1,4 @@
-/* $Id: ApplianceImpl.cpp 20930 2009-06-25 12:01:24Z vboxsync $ */
+/* $Id: ApplianceImpl.cpp $ */
 /** @file
  *
  * IAppliance and IVirtualSystem COM class implementations.
@@ -1105,6 +1105,8 @@ HRESULT Appliance::HandleVirtualSystemContent(const char *pcszPath,
                         // 123456789012345
                         if (i.strHostResource.substr(0, 11) == "ovf://disk/")
                             vd.strDiskId = i.strHostResource.substr(11);
+                        else if (i.strHostResource.substr(0, 10) == "ovf:/disk/")
+                            vd.strDiskId = i.strHostResource.substr(10);
                         else if (i.strHostResource.substr(0, 6) == "/disk/")
                             vd.strDiskId = i.strHostResource.substr(6);
 
@@ -1945,7 +1947,7 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
             /* We need HWVirt & IO-APIC if more than one CPU is requested */
             if (tmpCount > 1)
             {
-                rc = pNewMachine->COMSETTER(HWVirtExEnabled)(TSBool_True);
+                rc = pNewMachine->COMSETTER(HWVirtExEnabled)(TRUE);
                 if (FAILED(rc)) throw rc;
 
                 fEnableIOApic = true;
@@ -3985,7 +3987,7 @@ HRESULT Appliance::setUpProgressUpload(ComObjPtr<Progress> &pProgress, const Bst
         ulTotalOperationsWeight = 1;
         m->ulWeightPerOperation = 1;
     }
-    ULONG ulOVFCreationWeight = ((double)ulTotalOperationsWeight * 50.0 / 100.0); /* Use 50% for the creation of the OVF & the disks */
+    ULONG ulOVFCreationWeight = (ULONG)((double)ulTotalOperationsWeight * 50.0 / 100.0); /* Use 50% for the creation of the OVF & the disks */
     ulTotalOperationsWeight += ulOVFCreationWeight;
 
     Log(("Setting up progress object: ulTotalMB = %d, cDisks = %d, => cOperations = %d, ulTotalOperationsWeight = %d, m->ulWeightPerOperation = %d\n",
@@ -4375,6 +4377,7 @@ STDMETHODIMP VirtualSystemDescription::AddDescription(VirtualSystemDescriptionTy
  * @param strRef Reference item; only used with hard disk controllers.
  * @param aOrigValue Corresponding original value from OVF.
  * @param aAutoValue Initial configuration value (can be overridden by caller with setFinalValues).
+ * @param ulSizeMB Weight for IProgress
  * @param strExtraConfig Extra configuration; meaning dependent on type.
  */
 void VirtualSystemDescription::addEntry(VirtualSystemDescriptionType_T aType,
@@ -4807,6 +4810,7 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
                                    "",      // ref
                                    strAttachmentType,      // orig
                                    Utf8StrFmt("%RI32", (uint32_t)adapterType),   // conf
+                                   0,
                                    Utf8StrFmt("type=%s", strAttachmentType.c_str()));       // extra conf
             }
         }

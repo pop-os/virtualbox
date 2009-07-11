@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 20732 2009-06-19 23:29:12Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the Network Filter Driver (VBoxNetFlt).
 #

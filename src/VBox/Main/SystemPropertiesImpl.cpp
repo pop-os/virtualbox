@@ -1,4 +1,4 @@
-/* $Id: SystemPropertiesImpl.cpp 20262 2009-06-04 10:21:46Z vboxsync $ */
+/* $Id: SystemPropertiesImpl.cpp $ */
 
 /** @file
  *
@@ -82,7 +82,6 @@ HRESULT SystemProperties::init (VirtualBox *aParent)
 
     setRemoteDisplayAuthLibrary (NULL);
 
-    mHWVirtExEnabled = false;
     mLogHistoryCount = 3;
 
     HRESULT rc = S_OK;
@@ -200,7 +199,16 @@ STDMETHODIMP SystemProperties::COMGETTER(MaxGuestRAM)(ULONG *maxRAM)
 
     /* no need to lock, this is const */
     AssertCompile(MM_RAM_MAX_IN_MB <= SchemaDefs::MaxGuestRAM);
-    *maxRAM = MM_RAM_MAX_IN_MB;
+    ULONG maxRAMSys = MM_RAM_MAX_IN_MB;
+    ULONG maxRAMArch = maxRAMSys;
+#if HC_ARCH_BITS == 32 && !defined(RT_OS_DARWIN)
+# ifdef RT_OS_WINDOWS
+    maxRAMArch = UINT32_C(2048);
+# else
+    maxRAMArch = UINT32_C(2560);
+# endif
+#endif
+    *maxRAM = RT_MIN(maxRAMSys, maxRAMArch);
 
     return S_OK;
 }
@@ -515,36 +523,6 @@ STDMETHODIMP SystemProperties::COMSETTER(WebServiceAuthLibrary) (IN_BSTR aWebSer
     return rc;
 }
 
-STDMETHODIMP SystemProperties::COMGETTER(HWVirtExEnabled) (BOOL *enabled)
-{
-    if (!enabled)
-        return E_POINTER;
-
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
-
-    AutoReadLock alock (this);
-
-    *enabled = mHWVirtExEnabled;
-
-    return S_OK;
-}
-
-STDMETHODIMP SystemProperties::COMSETTER(HWVirtExEnabled) (BOOL enabled)
-{
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
-
-    /* VirtualBox::saveSettings() needs a write lock */
-    AutoMultiWriteLock2 alock (mParent, this);
-
-    mHWVirtExEnabled = enabled;
-
-    HRESULT rc = mParent->saveSettings();
-
-    return rc;
-}
-
 STDMETHODIMP SystemProperties::COMGETTER(LogHistoryCount) (ULONG *count)
 {
     if (!count)
@@ -630,9 +608,6 @@ HRESULT SystemProperties::loadSettings (const settings::Key &aGlobal)
     rc = setWebServiceAuthLibrary (bstr);
     CheckComRCReturnRC (rc);
 
-    /* Note: not <BOOL> because Win32 defines BOOL as int */
-    mHWVirtExEnabled = properties.valueOr <bool> ("HWVirtExEnabled", false);
-
     mLogHistoryCount = properties.valueOr <ULONG> ("LogHistoryCount", 3);
 
     return S_OK;
@@ -670,8 +645,6 @@ HRESULT SystemProperties::saveSettings (settings::Key &aGlobal)
 
     if (mWebServiceAuthLibrary)
         properties.setValue <Bstr> ("webServiceAuthLibrary", mWebServiceAuthLibrary);
-
-    properties.setValue <bool> ("HWVirtExEnabled", !!mHWVirtExEnabled);
 
     properties.setValue <ULONG> ("LogHistoryCount", mLogHistoryCount);
 

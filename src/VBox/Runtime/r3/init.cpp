@@ -1,4 +1,4 @@
-/* $Id: init.cpp 20911 2009-06-24 23:46:10Z vboxsync $ */
+/* $Id: init.cpp $ */
 /** @file
  * IPRT - Init Ring-3.
  */

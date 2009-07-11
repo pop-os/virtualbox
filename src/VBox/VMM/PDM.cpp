@@ -1,4 +1,4 @@
-/* $Id: PDM.cpp 20874 2009-06-24 02:19:29Z vboxsync $ */
+/* $Id: PDM.cpp $ */
 /** @file
  * PDM - Pluggable Device Manager.
  */
@@ -1366,7 +1366,7 @@ VMMR3DECL(void) PDMR3DmaRun(PVM pVM)
     if (VMMGetCpuId(pVM) != 0)
         return;
 
-    if (VM_FF_TESTANDCLEAR(pVM, VM_FF_PDM_DMA_BIT))
+    if (VM_FF_TESTANDCLEAR(pVM, VM_FF_PDM_DMA))
     {
         if (pVM->pdm.s.pDmac)
         {

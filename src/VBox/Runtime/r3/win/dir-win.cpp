@@ -1,4 +1,4 @@
-/* $Id: dir-win.cpp 20111 2009-05-28 00:34:52Z vboxsync $ */
+/* $Id: dir-win.cpp $ */
 /** @file
  * IPRT - Directory, win32.
  */

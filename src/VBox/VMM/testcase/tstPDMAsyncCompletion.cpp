@@ -1,4 +1,4 @@
-/* $Id: tstPDMAsyncCompletion.cpp 20429 2009-06-09 11:45:08Z vboxsync $ */
+/* $Id: tstPDMAsyncCompletion.cpp $ */
 /** @file
  * PDM Asynchronous Completion Testcase.
  *

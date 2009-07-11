@@ -1,4 +1,4 @@
-/* $Id: PGMAllGst.h 20374 2009-06-08 00:43:21Z vboxsync $ */
+/* $Id: PGMAllGst.h $ */
 /** @file
  * VBox - Page Manager, Guest Paging Template - All context code.
  */

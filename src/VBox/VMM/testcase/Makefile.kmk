@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 20543 2009-06-13 22:09:32Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the VMM testcases.
 #

@@ -1,4 +1,4 @@
-/** $Id: VBoxServiceTimeSync.cpp 19374 2009-05-05 13:23:32Z vboxsync $ */
+/** $Id: VBoxServiceTimeSync.cpp $ */
 /** @file
  * VBoxService - Guest Additions TimeSync Service.
  */

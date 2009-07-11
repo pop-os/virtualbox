@@ -1,4 +1,4 @@
-/* $Id: PDMGCDevice.cpp 20902 2009-06-24 18:26:25Z vboxsync $ */
+/* $Id: PDMGCDevice.cpp $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, GC Device parts.
  */

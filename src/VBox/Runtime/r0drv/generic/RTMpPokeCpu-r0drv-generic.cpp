@@ -1,4 +1,4 @@
-/* $Id: RTMpPokeCpu-r0drv-generic.cpp 19389 2009-05-05 17:12:48Z vboxsync $ */
+/* $Id: RTMpPokeCpu-r0drv-generic.cpp $ */
 /** @file
  * IPRT - RTMpPokeCpu, Generic Implementation.
  */

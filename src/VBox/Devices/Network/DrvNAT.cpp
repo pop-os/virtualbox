@@ -1,4 +1,4 @@
-/* $Id: DrvNAT.cpp 21048 2009-06-30 04:01:35Z vboxsync $ */
+/* $Id: DrvNAT.cpp $ */
 /** @file
  * DrvNAT - NAT network transport driver.
  */

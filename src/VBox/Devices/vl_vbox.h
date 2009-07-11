@@ -1,4 +1,4 @@
-/* $Id: vl_vbox.h 20374 2009-06-08 00:43:21Z vboxsync $ */
+/* $Id: vl_vbox.h $ */
 /** @file
  * VBox vl.h Replacement.
  *

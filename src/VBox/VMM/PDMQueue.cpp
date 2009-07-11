@@ -1,4 +1,4 @@
-/* $Id: PDMQueue.cpp 21039 2009-06-29 15:57:39Z vboxsync $ */
+/* $Id: PDMQueue.cpp $ */
 /** @file
  * PDM Queue - Transport data and tasks to EMT and R3.
  */
@@ -626,47 +626,30 @@ VMMR3DECL(void) PDMR3QueueFlushAll(PVM pVM)
     VM_ASSERT_EMT(pVM);
     LogFlow(("PDMR3QueuesFlush:\n"));
 
+    /*
+     * Only let one EMT flushing queues at any one time to queue preserve order
+     * and to avoid wasting time. The FF is always cleared here, because it's
+     * only used to get someones attention. Queue inserts occuring during the
+     * flush are caught using the pending bit.
+     *
+     * Note. The order in which the FF and pending bit are set and cleared is important.
+     */
     VM_FF_CLEAR(pVM, VM_FF_PDM_QUEUES);
-
-check_queue:
-    /* Prevent other VCPUs from flushing queues at the same time; we'll never flush an item twice, but the order might change. */
-    if (ASMAtomicCmpXchgU32(&pVM->pdm.s.fQueueFlushing, 1, 0))
+    if (!ASMAtomicBitTestAndSet(&pVM->pdm.s.fQueueFlushing, PDM_QUEUE_FLUSH_FLAG_ACTIVE_BIT))
     {
-        /* Use atomic test and clear to prevent useless checks; pdmR3QueueFlush is SMP safe. */
+        ASMAtomicBitClear(&pVM->pdm.s.fQueueFlushing, PDM_QUEUE_FLUSH_FLAG_PENDING_BIT);
         do
         {
+            VM_FF_CLEAR(pVM, VM_FF_PDM_QUEUES);
             for (PPDMQUEUE pCur = pVM->pdm.s.pQueuesForced; pCur; pCur = pCur->pNext)
-            {
                 if (    pCur->pPendingR3
                     ||  pCur->pPendingR0
                     ||  pCur->pPendingRC)
-                {
-                    if (    pdmR3QueueFlush(pCur)
-                        &&  (   pCur->pPendingR3
-                             || pCur->pPendingR0))
-                        /* new items arrived while flushing. */
-                        pdmR3QueueFlush(pCur);
-                }
-            }
-        }
-        while (VM_FF_TESTANDCLEAR(pVM, VM_FF_PDM_QUEUES_BIT));
+                    pdmR3QueueFlush(pCur);
+        } while (   ASMAtomicBitTestAndClear(&pVM->pdm.s.fQueueFlushing, PDM_QUEUE_FLUSH_FLAG_PENDING_BIT)
+                 || VM_FF_ISPENDING(pVM, VM_FF_PDM_QUEUES));
 
-        ASMAtomicXchgU32(&pVM->pdm.s.fQueueFlushing, 0);
-
-        /* Check if we missed anything. */
-        for (PPDMQUEUE pCur = pVM->pdm.s.pQueuesForced; pCur; pCur = pCur->pNext)
-        {
-            if (    pCur->pPendingR3
-                ||  pCur->pPendingR0
-                ||  pCur->pPendingRC)
-            {
-                VM_FF_SET(pVM, VM_FF_PDM_QUEUES);
-                break;
-            }
-        }
-        if (VM_FF_TESTANDCLEAR(pVM, VM_FF_PDM_QUEUES))
-            goto check_queue;
-           
+        ASMAtomicBitClear(&pVM->pdm.s.fQueueFlushing, PDM_QUEUE_FLUSH_FLAG_ACTIVE_BIT);
     }
 }
 
@@ -690,7 +673,7 @@ static bool pdmR3QueueFlush(PPDMQUEUE pQueue)
     if (    !pItems
         &&  !pItemsRC
         &&  !pItemsR0)
-        /* Somebody was racing us. */
+        /* Somebody may be racing us ... never mind. */
         return true;
 
     /*
@@ -739,10 +722,10 @@ static bool pdmR3QueueFlush(PPDMQUEUE pQueue)
         case PDMQUEUETYPE_DEV:
             while (pItems)
             {
+                if (!pQueue->u.Dev.pfnCallback(pQueue->u.Dev.pDevIns, pItems))
+                    break;
                 pCur = pItems;
                 pItems = pItems->pNextR3;
-                if (!pQueue->u.Dev.pfnCallback(pQueue->u.Dev.pDevIns, pCur))
-                    break;
                 pdmR3QueueFree(pQueue, pCur);
             }
             break;
@@ -750,10 +733,10 @@ static bool pdmR3QueueFlush(PPDMQUEUE pQueue)
         case PDMQUEUETYPE_DRV:
             while (pItems)
             {
+                if (!pQueue->u.Drv.pfnCallback(pQueue->u.Drv.pDrvIns, pItems))
+                    break;
                 pCur = pItems;
                 pItems = pItems->pNextR3;
-                if (!pQueue->u.Drv.pfnCallback(pQueue->u.Drv.pDrvIns, pCur))
-                    break;
                 pdmR3QueueFree(pQueue, pCur);
             }
             break;
@@ -761,10 +744,10 @@ static bool pdmR3QueueFlush(PPDMQUEUE pQueue)
         case PDMQUEUETYPE_INTERNAL:
             while (pItems)
             {
+                if (!pQueue->u.Int.pfnCallback(pQueue->pVMR3, pItems))
+                    break;
                 pCur = pItems;
                 pItems = pItems->pNextR3;
-                if (!pQueue->u.Int.pfnCallback(pQueue->pVMR3, pCur))
-                    break;
                 pdmR3QueueFree(pQueue, pCur);
             }
             break;
@@ -772,10 +755,10 @@ static bool pdmR3QueueFlush(PPDMQUEUE pQueue)
         case PDMQUEUETYPE_EXTERNAL:
             while (pItems)
             {
+                if (!pQueue->u.Ext.pfnCallback(pQueue->u.Ext.pvUser, pItems))
+                    break;
                 pCur = pItems;
                 pItems = pItems->pNextR3;
-                if (!pQueue->u.Ext.pfnCallback(pQueue->u.Ext.pvUser, pCur))
-                    break;
                 pdmR3QueueFree(pQueue, pCur);
             }
             break;
@@ -791,30 +774,34 @@ static bool pdmR3QueueFlush(PPDMQUEUE pQueue)
     if (pItems)
     {
         /*
-         * Shit, no!
-         *      1. Insert pCur.
-         *      2. Reverse the list.
-         *      3. Insert the LIFO at the tail of the pending list.
+         * Reverse the list.
          */
-        pCur->pNextR3 = pItems;
-        pItems = pCur;
-
-        //pCur = pItems;
+        pCur = pItems;
         pItems = NULL;
         while (pCur)
         {
             PPDMQUEUEITEMCORE pInsert = pCur;
-            pCur = pCur->pNextR3;
+            pCur = pInsert->pNextR3;
             pInsert->pNextR3 = pItems;
             pItems = pInsert;
         }
 
-        if (!ASMAtomicCmpXchgPtr((void * volatile *)&pQueue->pPendingR3, pItems, NULL))
+        /*
+         * Insert the list at the tail of the pending list.
+         */
+        for (;;)
         {
-            pCur = pQueue->pPendingR3;
-            while (pCur->pNextR3)
-                pCur = pCur->pNextR3;
-            pCur->pNextR3 = pItems;
+            if (ASMAtomicCmpXchgPtr((void * volatile *)&pQueue->pPendingR3, pItems, NULL))
+                break;
+            PPDMQUEUEITEMCORE pPending = (PPDMQUEUEITEMCORE)ASMAtomicXchgPtr((void * volatile *)&pQueue->pPendingR3, NULL);
+            if (pPending)
+            {
+                pCur = pPending;
+                while (pCur->pNextR3)
+                    pCur = pCur->pNextR3;
+                pCur->pNextR3 = pItems;
+                pItems = pPending;
+            }
         }
         return false;
     }
