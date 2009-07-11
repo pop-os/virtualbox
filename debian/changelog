@@ -1,8 +1,9 @@
 virtualbox-ose (3.0.2-dfsg-1) unstable; urgency=low
 
   * New Upstream Version, closes: #536338, #536371, #536578
+  * Do not create empty icons directory in virtualbox-ose package.
 
- -- Michael Meskes <meskes@debian.org>  Sat, 11 Jul 2009 18:55:14 +0200
+ -- Michael Meskes <meskes@debian.org>  Sat, 11 Jul 2009 19:58:10 +0200
 
 virtualbox-ose (3.0.0-dfsg-2) unstable; urgency=low
 
