@@ -1,4 +1,4 @@
-/* $Id: VBoxGuest-os2.cpp 20374 2009-06-08 00:43:21Z vboxsync $ */
+/* $Id: VBoxGuest-os2.cpp $ */
 /** @file
  * VBoxGuest - OS/2 specifics.
  */

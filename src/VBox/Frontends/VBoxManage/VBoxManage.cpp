@@ -1,4 +1,4 @@
-/* $Id: VBoxManage.cpp 20977 2009-06-26 14:38:55Z vboxsync $ */
+/* $Id: VBoxManage.cpp $ */
 /** @file
  * VBoxManage - VirtualBox's command-line interface.
  */
@@ -1411,15 +1411,6 @@ static int handleSetProperty(HandlerArg *a)
             CHECK_ERROR(systemProperties, COMSETTER(WebServiceAuthLibrary)(NULL));
         else
             CHECK_ERROR(systemProperties, COMSETTER(WebServiceAuthLibrary)(Bstr(a->argv[1])));
-    }
-    else if (!strcmp(a->argv[0], "hwvirtexenabled"))
-    {
-        if (!strcmp(a->argv[1], "yes"))
-            CHECK_ERROR(systemProperties, COMSETTER(HWVirtExEnabled)(TRUE));
-        else if (!strcmp(a->argv[1], "no"))
-            CHECK_ERROR(systemProperties, COMSETTER(HWVirtExEnabled)(FALSE));
-        else
-            return errorArgument("Invalid value '%s' for hardware virtualization extension flag", a->argv[1]);
     }
     else if (!strcmp(a->argv[0], "loghistorycount"))
     {

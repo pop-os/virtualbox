@@ -1,4 +1,4 @@
-/* $Id: pdmasynccompletion.h 20374 2009-06-08 00:43:21Z vboxsync $ */
+/* $Id: pdmasynccompletion.h $ */
 /** @file
  * PDM - Pluggable Device Manager, Async I/O Completion.
  */

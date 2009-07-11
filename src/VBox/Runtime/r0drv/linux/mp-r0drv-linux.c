@@ -1,4 +1,4 @@
-/* $Id: mp-r0drv-linux.c 19389 2009-05-05 17:12:48Z vboxsync $ */
+/* $Id: mp-r0drv-linux.c $ */
 /** @file
  * IPRT - Multiprocessor, Ring-0 Driver, Linux.
  */

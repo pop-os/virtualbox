@@ -1,4 +1,4 @@
-/* $Id: PGMGst.h 20374 2009-06-08 00:43:21Z vboxsync $ */
+/* $Id: PGMGst.h $ */
 /** @file
  * VBox - Page Manager / Monitor, Guest Paging Template.
  */

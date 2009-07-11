@@ -1,4 +1,4 @@
-/* $Id: avlgcptr.cpp 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: avlgcptr.cpp $ */
 /** @file
  * IPRT - AVL tree, RTGCPTR, unique keys.
  */

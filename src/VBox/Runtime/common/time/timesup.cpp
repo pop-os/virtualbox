@@ -1,4 +1,4 @@
-/* $Id: timesup.cpp 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: timesup.cpp $ */
 /** @file
  * IPRT - Time using SUPLib.
  */

@@ -1,4 +1,4 @@
-/* $Id: DrvHostParallel.cpp 20961 2009-06-26 08:45:18Z vboxsync $ */
+/* $Id: DrvHostParallel.cpp $ */
 /** @file
  * VirtualBox Host Parallel Port Driver.
  *

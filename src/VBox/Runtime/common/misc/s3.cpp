@@ -1,4 +1,4 @@
-/* $Id: s3.cpp 20293 2009-06-04 16:21:32Z vboxsync $ */
+/* $Id: s3.cpp $ */
 /** @file
  * S3 communication API.
  */

@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceVMInfo.cpp 19637 2009-05-12 14:54:10Z vboxsync $ */
+/* $Id: VBoxServiceVMInfo.cpp $ */
 /** @file
  * VBoxVMInfo - Virtual machine (guest) information for the host.
  */
@@ -185,6 +185,7 @@ DECLCALLBACK(int) VBoxServiceVMInfoWorker(bool volatile *pfShutdown)
         char szUserList[4096] = {0};
 
 #ifdef RT_OS_WINDOWS
+ #ifndef TARGET_NT4
         PLUID pSessions = NULL;
         ULONG ulCount = 0;
         NTSTATUS r = 0;
@@ -227,6 +228,7 @@ DECLCALLBACK(int) VBoxServiceVMInfoWorker(bool volatile *pfShutdown)
             ::LocalFree (pLuid);
 
         ::LsaFreeReturnBuffer(pSessions);
+ #endif /* TARGET_NT4 */    
 #else
         utmp* ut_user;
         rc = utmpname(UTMP_FILE);

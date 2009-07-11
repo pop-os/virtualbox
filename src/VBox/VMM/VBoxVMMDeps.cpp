@@ -1,4 +1,4 @@
-/* $Id: VBoxVMMDeps.cpp 13035 2008-10-07 09:54:32Z vboxsync $ */
+/* $Id: VBoxVMMDeps.cpp $ */
 /** @file
  * VBoxVMM link dependencies - drag all we want into the link!
  */

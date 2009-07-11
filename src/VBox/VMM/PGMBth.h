@@ -1,4 +1,4 @@
-/* $Id: PGMBth.h 20759 2009-06-22 10:14:16Z vboxsync $ */
+/* $Id: PGMBth.h $ */
 /** @file
  * VBox - Page Manager / Monitor, Shadow+Guest Paging Template.
  */

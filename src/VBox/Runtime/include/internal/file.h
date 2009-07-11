@@ -1,4 +1,4 @@
-/* $Id: file.h 20374 2009-06-08 00:43:21Z vboxsync $ */
+/* $Id: file.h $ */
 /** @file
  * IPRT - Internal RTFile header.
  */

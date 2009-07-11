@@ -1,4 +1,4 @@
-/* $Id: CPUM.cpp 20917 2009-06-25 09:24:06Z vboxsync $ */
+/* $Id: CPUM.cpp $ */
 /** @file
  * CPUM - CPU Monitor / Manager.
  */

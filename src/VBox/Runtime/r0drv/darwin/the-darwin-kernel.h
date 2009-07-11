@@ -1,4 +1,4 @@
-/* $Id: the-darwin-kernel.h 20525 2009-06-13 20:13:33Z vboxsync $ */
+/* $Id: the-darwin-kernel.h $ */
 /** @file
  * IPRT - Include all necessary headers for the Darwing kernel.
  */

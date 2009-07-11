@@ -1,4 +1,4 @@
-/* $Id: EM.cpp 20871 2009-06-24 01:56:19Z vboxsync $ */
+/* $Id: EM.cpp $ */
 /** @file
  * EM - Execution Monitor / Manager.
  */
@@ -3353,7 +3353,7 @@ static int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
         /*
          * Postponed reset request.
          */
-        if (VM_FF_TESTANDCLEAR(pVM, VM_FF_RESET_BIT))
+        if (VM_FF_TESTANDCLEAR(pVM, VM_FF_RESET))
         {
             rc2 = VMR3Reset(pVM);
             UPDATE_RC();
@@ -3842,7 +3842,8 @@ VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                 case VINF_EM_TERMINATE:
                     pVCpu->em.s.enmState = EMSTATE_TERMINATING;
                     Log(("EMR3ExecuteVM returns VINF_EM_TERMINATE (%d -> %d)\n", pVCpu->em.s.enmState, EMSTATE_TERMINATING));
-                    TMR3NotifySuspend(pVM, pVCpu);
+                    if (pVM->enmVMState < VMSTATE_DESTROYING) /* ugly */
+                        TMR3NotifySuspend(pVM, pVCpu);
                     STAM_REL_PROFILE_ADV_STOP(&pVCpu->em.s.StatTotal, x);
                     return rc;
 

@@ -1,4 +1,4 @@
-/* $Id: semfastmutex-r0drv-freebsd.c 19565 2009-05-10 22:32:03Z vboxsync $ */
+/* $Id: semfastmutex-r0drv-freebsd.c $ */
 /** @file
  * IPRT - Fast Mutex Semaphores, Ring-0 Driver, FreeBSD.
  */

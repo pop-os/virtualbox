@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 19517 2009-05-08 11:49:52Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the common addition code.
 #

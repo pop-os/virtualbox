@@ -1,4 +1,4 @@
-/* $Id: uni.cpp 8245 2008-04-21 17:24:28Z vboxsync $ */
+/* $Id: uni.cpp $ */
 /** @file
  * IPRT - Unicode.
  */

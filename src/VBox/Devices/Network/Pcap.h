@@ -1,4 +1,4 @@
-/* $Id: Pcap.h 20374 2009-06-08 00:43:21Z vboxsync $ */
+/* $Id: Pcap.h $ */
 /** @file
  * Helpers for writing libpcap files.
  */

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 20036 2009-05-26 13:21:41Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the VBox web service.
 #

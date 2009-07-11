@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxErrorInfo.h 20267 2009-06-04 11:27:27Z vboxsync $ */
+/* $Id: VirtualBoxErrorInfo.h $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer:

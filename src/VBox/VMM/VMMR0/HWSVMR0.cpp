@@ -1,4 +1,4 @@
-/* $Id: HWSVMR0.cpp 21001 2009-06-26 23:18:11Z vboxsync $ */
+/* $Id: HWSVMR0.cpp $ */
 /** @file
  * HWACCM SVM - Host Context Ring 0.
  */
@@ -428,7 +428,7 @@ static int SVMR0CheckPendingInterrupt(PVM pVM, PVMCPU pVCpu, SVM_VMCB *pVMCB, CP
     /* If an active trap is already pending, then we must forward it first! */
     if (!TRPMHasTrap(pVCpu))
     {
-        if (VMCPU_FF_TESTANDCLEAR(pVCpu, VMCPU_FF_INTERRUPT_NMI_BIT))
+        if (VMCPU_FF_TESTANDCLEAR(pVCpu, VMCPU_FF_INTERRUPT_NMI))
         {
             SVM_EVENT Event;
 
@@ -1068,7 +1068,7 @@ ResumeExecution:
     pVCpu->hwaccm.s.idLastCpu = pCpu->idCpu;
 
     /* Check for tlb shootdown flushes. */
-    if (VMCPU_FF_TESTANDCLEAR(pVCpu, VMCPU_FF_TLB_FLUSH_BIT))
+    if (VMCPU_FF_TESTANDCLEAR(pVCpu, VMCPU_FF_TLB_FLUSH))
         pVCpu->hwaccm.s.fForceTLBFlush = true;
 
     /* Make sure we flush the TLB when required. Switch ASID to achieve the same thing, but without actually flushing the whole TLB (which is expensive). */

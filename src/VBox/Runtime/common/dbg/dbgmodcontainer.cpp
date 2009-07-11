@@ -1,4 +1,4 @@
-/* $Id: dbgmodcontainer.cpp 21046 2009-06-30 01:11:28Z vboxsync $ */
+/* $Id: dbgmodcontainer.cpp $ */
 /** @file
  * IPRT - Debug Info Container.
  */

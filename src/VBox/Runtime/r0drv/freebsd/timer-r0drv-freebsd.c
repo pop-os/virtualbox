@@ -1,4 +1,4 @@
-/* $Id: timer-r0drv-freebsd.c 18972 2009-04-16 23:43:08Z vboxsync $ */
+/* $Id: timer-r0drv-freebsd.c $ */
 /** @file
  * IPRT - Memory Allocation, Ring-0 Driver, FreeBSD.
  */

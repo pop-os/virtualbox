@@ -1,4 +1,4 @@
-/* $Id: DHCPServerImpl.cpp 20596 2009-06-15 17:45:17Z vboxsync $ */
+/* $Id: DHCPServerImpl.cpp $ */
 
 /** @file
  *

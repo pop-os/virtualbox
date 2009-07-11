@@ -1,34 +1,31 @@
-/* $Id: kAvlBase.h 7 2008-02-04 02:08:02Z bird $ */
+/* $Id: kAvlBase.h 29 2009-07-01 20:30:29Z bird $ */
 /** @file
  * kAvlTmpl - Templated AVL Trees, The Mandatory Base Code.
  */
 
 /*
- * Copyright (c) 2001-2007 knut st. osmundsen <bird-src-spam@anduin.net>
+ * Copyright (c) 2001-2009 Knut St. Osmundsen <bird-kStuff-spamix@anduin.net>
  *
- * This file is part of kStuff.
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
  *
- * kStuff is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
  *
- * kStuff is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with kStuff; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- *
- *
- * As a special exception, since this is a source file and not a header
- * file, you are granted permission to #include this file as you wish
- * without this in itself causing the resulting program or whatever to be
- * covered by the LGPL  license. This exception does not however invalidate
- * any other reasons why the resulting program/whatever should not be
- * covered the LGPL or GPL.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
  */
 
 /** @page pg_kAvlTmpl   Template Configuration.
@@ -63,39 +60,39 @@
  *
  *  \#define KAVL_LOOKTHRU
  *  Define this to employ a lookthru cache (direct) to speed up lookup for
- *  some usage patterns. The value should be the number of members of the 
+ *  some usage patterns. The value should be the number of members of the
  *   array.
  *
  *  \#define KAVL_LOOKTHRU_HASH(Key)
- *  Define this to specify a more efficient translation of the key into 
- *  a lookthru array index. The default is key % size. 
- *  For some key types this is required as the default will not compile. 
- * 
+ *  Define this to specify a more efficient translation of the key into
+ *  a lookthru array index. The default is key % size.
+ *  For some key types this is required as the default will not compile.
+ *
  *  \#define KAVL_LOCKED
- *  Define this if you wish for the tree to be locked via the 
- *  KAVL_WRITE_LOCK,  KAVL_WRITE_UNLOCK, KAVL_READ_LOCK and 
+ *  Define this if you wish for the tree to be locked via the
+ *  KAVL_WRITE_LOCK,  KAVL_WRITE_UNLOCK, KAVL_READ_LOCK and
  *  KAVL_READ_UNLOCK macros. If not defined the tree will not be subject
  *  do any kind of locking and the problem of concurrency is left the user.
- * 
+ *
  *  \#define KAVL_WRITE_LOCK(pRoot)
  *  Lock the tree for writing.
- * 
+ *
  *  \#define KAVL_WRITE_UNLOCK(pRoot)
  *  Counteracts KAVL_WRITE_LOCK.
- * 
+ *
  *  \#define KAVL_READ_LOCK(pRoot)
  *  Lock the tree for reading.
- * 
+ *
  *  \#define KAVL_READ_UNLOCK(pRoot)
  *  Counteracts KAVL_READ_LOCK.
- * 
+ *
  *  \#define KAVLKEY
  *  Define this to the name of the AVL key type.
  *
  *  \#define KAVL_STD_KEY_COMP
  *  Define this to use the standard key compare macros. If not set all the
  *  compare operations for KAVLKEY have to be defined: KAVL_G, KAVL_E, KAVL_NE,
- *  KAVL_R_IS_IDENTICAL, KAVL_R_IS_INTERSECTING and KAVL_R_IS_IN_RANGE. The 
+ *  KAVL_R_IS_IDENTICAL, KAVL_R_IS_INTERSECTING and KAVL_R_IS_IN_RANGE. The
  *  latter three are only required when KAVL_RANGE is defined.
  *
  *  \#define KAVLNODE
@@ -111,10 +108,10 @@
  *  to KAVLNODE *.
  *
  *  \#define KAVLROOT
- *  Define this to the name (typedef) of the AVL root structure. This 
+ *  Define this to the name (typedef) of the AVL root structure. This
  *  is optional. However, if specified it must at least have a mpRoot
  *  member of KAVLTREEPTR type. If KAVL_LOOKTHRU is non-zero a
- *  maLookthru[KAVL_LOOKTHRU] member of the KAVLTREEPTR type is also 
+ *  maLookthru[KAVL_LOOKTHRU] member of the KAVLTREEPTR type is also
  *  required.
  *
  *  \#define KAVL_FN
@@ -212,7 +209,7 @@
 #ifdef KAVL_LOOKTHRU
 # define KAVL_LOOKTHRU_INVALIDATE_NODE(pRoot, pNode, Key) \
     do { \
-        KAVLTREEPTR **ppEntry = &pRoot->maLookthru[KAVL_LOOKTHRU_HASH(Key)]; \ 
+        KAVLTREEPTR **ppEntry = &pRoot->maLookthru[KAVL_LOOKTHRU_HASH(Key)]; \
         if ((pNode) == KAVL_GET_POINTER_NULL(ppEntry)) \
             *ppEntry = KAVL_NULL; \
     } while (0)
@@ -421,14 +418,14 @@ K_DECL_INLINE(void) KAVL_FN(Rebalance)(KAVL_INT(STACK) *pStack)
 
 /**
  * Initializes the root of the AVL-tree.
- * 
+ *
  * @param     pTree     Pointer to the root structure.
  */
 KAVL_DECL(void) KAVL_FN(Init)(KAVLROOT *pRoot)
 {
 #ifdef KAVL_LOOKTHRU
     unsigned i;
-#endif 
+#endif
 
     pRoot->mpRoot = KAVL_NULL;
 #ifdef KAVL_LOOKTHRU

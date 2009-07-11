@@ -22,25 +22,65 @@ versions = ["2.3", "2.4", "2.5", "2.6", "2.7", "2.8"]
 prefixes = ["/usr", "/usr/local", "/opt", "/opt/local"]
 known = {}
 
-def checkPair(p,v,dllpre,dllsuff):
+def checkPair(p, v,dllpre,dllsuff, bitness_magic):
     file =  os.path.join(p, "include", "python"+v, "Python.h")
-    # or just stat()?
     if not os.path.isfile(file):
         return None
+
+    lib = os.path.join(p, "lib", dllpre+"python"+v+dllsuff)
+
+    if bitness_magic == 1:
+        lib64 = os.path.join(p, "lib", "64", dllpre+"python"+v+dllsuff)
+    elif bitness_magic == 2:
+        lib64 = os.path.join(p, "lib64", dllpre+"python"+v+dllsuff)
+        if not os.path.isfile(lib64):
+            lib64 = lib
+    else:
+        lib64 = None
     return [os.path.join(p, "include", "python"+v), 
-            os.path.join(p, "lib", dllpre+"python"+v+dllsuff)]
+            lib,
+            lib64]
+
+def print_vars(vers, known, sep, bitness_magic):
+    print "VBOX_PYTHON%s_INC=%s%s" %(vers, known[0], sep)
+    if bitness_magic > 0:
+       print "VBOX_PYTHON%s_LIB=%s%s" %(vers, known[2], sep)
+    else:
+       print "VBOX_PYTHON%s_LIB=%s%s" %(vers, known[1], sep)
+
 
 def main(argv):
     dllpre = "lib"
     dllsuff = ".so"
-    if sys.platform == 'darwin':
+    bitness_magic = 0
+
+    if len(argv) > 1:
+        target = argv[1]
+    else:
+        target = sys.platform
+
+    if len(argv) > 2:
+        arch = argv[2]   
+    else:
+        arch = "unknown"
+
+    if target == 'darwin':
         prefixes.insert(0, '/Developer/SDKs/MacOSX10.4u.sdk/usr')
         prefixes.insert(0, '/Developer/SDKs/MacOSX10.5.sdk/usr')
+        # Python 2.3 on Darwin buildbox is bad
+        # /Developer/SDKs/MacOSX10.4u.sdk/usr/include/python2.3/pyport.h:554:2: error: #error "LONG_BIT definition appears wrong for platform (bad gcc/glibc config?).
+        versions.remove("2.3")
         dllsuff = '.dylib'
-    
+
+    if target == 'solaris' and arch == 'amd64':
+        bitness_magic = 1
+
+    if target == 'linux' and arch == 'amd64':
+        bitness_magic = 2
+
     for v in versions:
         for p in prefixes:
-            c = checkPair(p, v, dllpre, dllsuff)
+            c = checkPair(p, v, dllpre, dllsuff, bitness_magic)
             if c is not None:
                 known[v] = c
                 break
@@ -54,11 +94,9 @@ def main(argv):
         if d is None:
             d = k
         vers = k.replace('.', '')
-        print "VBOX_PYTHON%s_INC=%s%s" %(vers, known[k][0], sep)
-        print "VBOX_PYTHON%s_LIB=%s%s" %(vers, known[k][1], sep)
+        print_vars(vers, known[k], sep, bitness_magic)
     if d is not None:
-        print "VBOX_PYTHONDEF_INC=%s%s" %(known[d][0], sep)
-        print "VBOX_PYTHONDEF_LIB=%s%s" %(known[d][1], sep)
+        print_vars("DEF", known[d], sep, bitness_magic) 
 
 if __name__ == '__main__':
     main(sys.argv)

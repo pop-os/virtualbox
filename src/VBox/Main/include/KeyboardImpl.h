@@ -1,4 +1,4 @@
-/* $Id: KeyboardImpl.h 19239 2009-04-28 13:19:14Z vboxsync $ */
+/* $Id: KeyboardImpl.h $ */
 
 /** @file
  *

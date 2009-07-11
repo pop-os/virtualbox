@@ -1,4 +1,4 @@
-/* $Id: RTFileReadAllEx-generic.cpp 19350 2009-05-05 02:44:04Z vboxsync $ */
+/* $Id: RTFileReadAllEx-generic.cpp $ */
 /** @file
  * IPRT - RTFileReadAllEx, generic implementation.
  */

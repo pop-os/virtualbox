@@ -1,4 +1,4 @@
-/* $Id: RTUuidCreate-generic.cpp 11413 2008-08-14 08:03:03Z vboxsync $ */
+/* $Id: RTUuidCreate-generic.cpp $ */
 /** @file
  * IPRT - UUID, Generic RTUuidCreate implementation.
  */

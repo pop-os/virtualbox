@@ -1,4 +1,4 @@
-/* $Id: semaphore-r0drv-darwin.cpp 20355 2009-06-07 09:11:41Z vboxsync $ */
+/* $Id: semaphore-r0drv-darwin.cpp $ */
 /** @file
  * IPRT - Semaphores, Ring-0 Driver, Darwin.
  */

@@ -1,4 +1,4 @@
-/* $Id: ConsoleVRDPServer.cpp 19134 2009-04-23 09:21:43Z vboxsync $ */
+/* $Id: ConsoleVRDPServer.cpp $ */
 
 /** @file
  *

@@ -1,4 +1,4 @@
-/* $Id: unpack_shaders.c 20511 2009-06-12 13:00:53Z vboxsync $ */
+/* $Id: unpack_shaders.c $ */
 
 /** @file
  * VBox OpenGL DRI driver functions

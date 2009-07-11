@@ -1,4 +1,4 @@
-/* $Id: VBoxManageInfo.cpp 20928 2009-06-25 11:53:37Z vboxsync $ */
+/* $Id: VBoxManageInfo.cpp $ */
 /** @file
  * VBoxManage - The 'showvminfo' command and helper routines.
  */
@@ -342,26 +342,12 @@ HRESULT showVMInfo (ComPtr<IVirtualBox> virtualBox,
     else
         RTPrintf("Time offset:     %lld ms\n", timeOffset);
 
-    TSBool_T hwVirtExEnabled;
+    BOOL hwVirtExEnabled;
     machine->COMGETTER(HWVirtExEnabled)(&hwVirtExEnabled);
-    if (hwVirtExEnabled == TSBool_Default)
-    {
-        BOOL fHWVirtExEnabled;
-        ComPtr<ISystemProperties> systemProperties;
-        virtualBox->COMGETTER(SystemProperties)(systemProperties.asOutParam());
-        systemProperties->COMGETTER(HWVirtExEnabled)(&fHWVirtExEnabled);
-        if (details == VMINFO_MACHINEREADABLE)
-            RTPrintf("hwvirtex=\"default\"\n");
-        else
-            RTPrintf("Hardw. virt.ext: Default (%s)\n", fHWVirtExEnabled ? "on" : "off");
-    }
+    if (details == VMINFO_MACHINEREADABLE)
+        RTPrintf("hwvirtex=\"%s\"\n", hwVirtExEnabled ? "on" : "off");
     else
-    {
-        if (details == VMINFO_MACHINEREADABLE)
-            RTPrintf("hwvirtex=\"%s\"\n", hwVirtExEnabled == TSBool_True ? "on" : "off");
-        else
-            RTPrintf("Hardw. virt.ext: %s\n", hwVirtExEnabled == TSBool_True ? "on" : "off");
-    }
+        RTPrintf("Hardw. virt.ext: %s\n", hwVirtExEnabled ? "on" : "off");
     BOOL HWVirtExNestedPagingEnabled;
     machine->COMGETTER(HWVirtExNestedPagingEnabled)(&HWVirtExNestedPagingEnabled);
     if (details == VMINFO_MACHINEREADABLE)

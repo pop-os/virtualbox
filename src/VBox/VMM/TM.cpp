@@ -1,4 +1,4 @@
-/* $Id: TM.cpp 20943 2009-06-25 14:09:31Z vboxsync $ */
+/* $Id: TM.cpp $ */
 /** @file
  * TM - Time Manager.
  */

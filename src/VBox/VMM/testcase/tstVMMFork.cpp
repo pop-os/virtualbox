@@ -1,4 +1,4 @@
-/* $Id: tstVMMFork.cpp 19300 2009-05-01 18:06:59Z vboxsync $ */
+/* $Id: tstVMMFork.cpp $ */
 /** @file
  * VMM Fork Test.
  */

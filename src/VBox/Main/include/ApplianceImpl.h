@@ -1,4 +1,4 @@
-/* $Id: ApplianceImpl.h 20082 2009-05-27 13:01:06Z vboxsync $ */
+/* $Id: ApplianceImpl.h $ */
 
 /** @file
  *

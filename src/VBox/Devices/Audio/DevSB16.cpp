@@ -1,4 +1,4 @@
-/* $Id: DevSB16.cpp 20087 2009-05-27 14:31:18Z vboxsync $ */
+/* $Id: DevSB16.cpp $ */
 /** @file
  * DevSB16 - VBox SB16 Audio Controller.
  *

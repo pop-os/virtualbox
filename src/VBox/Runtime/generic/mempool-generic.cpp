@@ -1,4 +1,4 @@
-/* $Id: mempool-generic.cpp 20575 2009-06-15 01:52:07Z vboxsync $ */
+/* $Id: mempool-generic.cpp $ */
 /** @file
  * IPRT - Memory Allocation Pool.
  */

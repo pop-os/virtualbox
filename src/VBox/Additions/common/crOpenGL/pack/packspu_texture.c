@@ -1,4 +1,4 @@
-/* $Id: packspu_texture.c 20509 2009-06-12 12:51:06Z vboxsync $ */
+/* $Id: packspu_texture.c $ */
 
 /** @file
  * VBox OpenGL DRI driver functions

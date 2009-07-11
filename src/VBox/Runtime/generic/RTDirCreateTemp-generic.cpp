@@ -1,4 +1,4 @@
-/* $Id: RTDirCreateTemp-generic.cpp 20111 2009-05-28 00:34:52Z vboxsync $ */
+/* $Id: RTDirCreateTemp-generic.cpp $ */
 /** @file
  * IPRT - RTDirCreateTemp, generic implementation.
  */

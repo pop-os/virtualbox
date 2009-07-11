@@ -1,4 +1,4 @@
-/* $Id: semrw-generic.cpp 8155 2008-04-18 15:16:47Z vboxsync $ */
+/* $Id: semrw-generic.cpp $ */
 /** @file
  * Excerpt from kProfileR3.cpp.
  */

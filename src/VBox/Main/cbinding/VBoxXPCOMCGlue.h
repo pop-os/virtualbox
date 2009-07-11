@@ -1,4 +1,4 @@
-/* $Revision: 20223 $ */
+/* $Revision: 48067 $ */
 /** @file VBoxXPCOMCGlue.h
  * Glue for dynamically linking with VBoxXPCOMC.
  */

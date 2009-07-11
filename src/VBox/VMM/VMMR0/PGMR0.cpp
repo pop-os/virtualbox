@@ -1,4 +1,4 @@
-/* $Id: PGMR0.cpp 20671 2009-06-17 15:23:14Z vboxsync $ */
+/* $Id: PGMR0.cpp $ */
 /** @file
  * PGM - Page Manager and Monitor, Ring-0.
  */

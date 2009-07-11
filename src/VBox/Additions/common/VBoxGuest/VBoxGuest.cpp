@@ -1,10 +1,10 @@
-/* $Id: VBoxGuest.cpp 21023 2009-06-29 13:35:52Z vboxsync $ */
+/* $Id: VBoxGuest.cpp $ */
 /** @file
- * VBoxGuest - Guest Additions Driver.
+ * VBoxGuest - Guest Additions Driver, Common Code.
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -141,9 +141,10 @@ static int vboxGuestInitReportGuestInfo(PVBOXGUESTDEVEXT pDevExt, VBOXOSTYPE enm
  * @param   cbMMIO          The size of the MMIO memory mapping.
  *                          This is optional, pass 0 if not present.
  * @param   enmOSType       The guest OS type to report to the VMMDev.
+ * @param   fEvents         Additional requested events (like Mouse events).
  */
 int VBoxGuestInitDevExt(PVBOXGUESTDEVEXT pDevExt, uint16_t IOPortBase,
-                        void *pvMMIOBase, uint32_t cbMMIO, VBOXOSTYPE enmOSType)
+                        void *pvMMIOBase, uint32_t cbMMIO, VBOXOSTYPE enmOSType, uint32_t fEvents)
 {
     int rc, rc2;
 
@@ -163,14 +164,15 @@ int VBoxGuestInitDevExt(PVBOXGUESTDEVEXT pDevExt, uint16_t IOPortBase,
     pDevExt->FreeList.pTail = NULL;
     pDevExt->f32PendingEvents = 0;
     pDevExt->u32ClipboardClientId = 0;
+    pDevExt->u32MousePosChangedSeq = 0;
 
     /*
      * If there is an MMIO region validate the version and size.
      */
     if (pvMMIOBase)
     {
-        Assert(cbMMIO);
         VMMDevMemory *pVMMDev = (VMMDevMemory *)pvMMIOBase;
+        Assert(cbMMIO);
         if (    pVMMDev->u32Version == VMMDEV_MEMORY_VERSION
             &&  pVMMDev->u32Size >= 32
             &&  pVMMDev->u32Size <= cbMMIO)
@@ -213,9 +215,9 @@ int VBoxGuestInitDevExt(PVBOXGUESTDEVEXT pDevExt, uint16_t IOPortBase,
             if (RT_SUCCESS(rc))
             {
 #ifdef VBOX_WITH_HGCM
-                rc = vboxGuestInitFilterMask(pDevExt, VMMDEV_EVENT_HGCM);
+                rc = vboxGuestInitFilterMask(pDevExt, VMMDEV_EVENT_HGCM | fEvents);
 #else
-                rc = vboxGuestInitFilterMask(pDevExt, 0);
+                rc = vboxGuestInitFilterMask(pDevExt, fEvents);
 #endif
                 if (RT_SUCCESS(rc))
                 {
@@ -257,12 +259,13 @@ static void VBoxGuestDeleteWaitList(PVBOXGUESTWAITLIST pList)
 {
     while (pList->pHead)
     {
-        PVBOXGUESTWAIT pWait = pList->pHead;
+        int             rc2;
+        PVBOXGUESTWAIT  pWait = pList->pHead;
         pList->pHead = pWait->pNext;
 
         pWait->pNext = NULL;
         pWait->pPrev = NULL;
-        int rc2 = RTSemEventMultiDestroy(pWait->Event); AssertRC(rc2);
+        rc2 = RTSemEventMultiDestroy(pWait->Event); AssertRC(rc2);
         pWait->Event = NIL_RTSEMEVENTMULTI;
         RTMemFree(pWait);
     }
@@ -376,11 +379,12 @@ int VBoxGuestCreateKernelSession(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION *pp
  */
 void VBoxGuestCloseSession(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession)
 {
+    unsigned i; NOREF(i);
     Log(("VBoxGuestCloseSession: pSession=%p proc=%RTproc (%d) r0proc=%p\n",
          pSession, pSession->Process, (int)pSession->Process, (uintptr_t)pSession->R0Process)); /** @todo %RTr0proc */
 
 #ifdef VBOX_WITH_HGCM
-    for (unsigned i = 0; i < RT_ELEMENTS(pSession->aHGCMClientIds); i++)
+    for (i = 0; i < RT_ELEMENTS(pSession->aHGCMClientIds); i++)
         if (pSession->aHGCMClientIds[i])
         {
             VBoxGuestHGCMDisconnectInfo Info;
@@ -465,6 +469,7 @@ static PVBOXGUESTWAIT VBoxGuestWaitAlloc(PVBOXGUESTDEVEXT pDevExt)
     if (!pWait)
     {
         static unsigned s_cErrors = 0;
+        int rc;
 
         pWait = (PVBOXGUESTWAIT)RTMemAlloc(sizeof(*pWait));
         if (!pWait)
@@ -474,7 +479,7 @@ static PVBOXGUESTWAIT VBoxGuestWaitAlloc(PVBOXGUESTDEVEXT pDevExt)
             return NULL;
         }
 
-        int rc = RTSemEventMultiCreate(&pWait->Event);
+        rc = RTSemEventMultiCreate(&pWait->Event);
         if (RT_FAILURE(rc))
         {
             if (s_cErrors++ < 32)
@@ -746,26 +751,27 @@ static int VBoxGuestCommonIOCtl_WaitEvent(PVBOXGUESTDEVEXT pDevExt, VBoxGuestWai
 }
 
 
-static int VBoxGuestCommonIOCtl_VMMRequest(PVBOXGUESTDEVEXT pDevExt, VMMDevRequestHeader *pReqHdr,
-                                           size_t cbData, size_t *pcbDataReturned)
+static int VBoxGuestCommonIOCtl_VMMRequest(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession,
+                                           VMMDevRequestHeader *pReqHdr, size_t cbData, size_t *pcbDataReturned)
 {
     Log(("VBoxGuestCommonIOCtl: VMMREQUEST type %d\n", pReqHdr->requestType));
 
     /*
      * Validate the header and request size.
      */
-    const uint32_t cbReq = pReqHdr->size;
-    const uint32_t cbMinSize = vmmdevGetRequestSize(pReqHdr->requestType);
+    const VMMDevRequestType enmType   = pReqHdr->requestType;
+    const uint32_t          cbReq     = pReqHdr->size;
+    const uint32_t          cbMinSize = vmmdevGetRequestSize(enmType);
     if (cbReq < cbMinSize)
     {
         Log(("VBoxGuestCommonIOCtl: VMMREQUEST: invalid hdr size %#x, expected >= %#x; type=%#x!!\n",
-             cbReq, cbMinSize, pReqHdr->requestType));
+             cbReq, cbMinSize, enmType));
         return VERR_INVALID_PARAMETER;
     }
     if (cbReq > cbData)
     {
         Log(("VBoxGuestCommonIOCtl: VMMREQUEST: invalid size %#x, expected >= %#x (hdr); type=%#x!!\n",
-             cbData, cbReq, pReqHdr->requestType));
+             cbData, cbReq, enmType));
         return VERR_INVALID_PARAMETER;
     }
 
@@ -777,15 +783,18 @@ static int VBoxGuestCommonIOCtl_VMMRequest(PVBOXGUESTDEVEXT pDevExt, VMMDevReque
      * it does makes things a bit simpler wrt to phys address.)
      */
     VMMDevRequestHeader *pReqCopy;
-    int rc = VbglGRAlloc(&pReqCopy, cbReq, pReqHdr->requestType);
+    int rc = VbglGRAlloc(&pReqCopy, cbReq, enmType);
     if (RT_FAILURE(rc))
     {
         Log(("VBoxGuestCommonIOCtl: VMMREQUEST: failed to allocate %u (%#x) bytes to cache the request. rc=%d!!\n",
              cbReq, cbReq, rc));
         return rc;
     }
-
     memcpy(pReqCopy, pReqHdr, cbReq);
+
+    if (enmType == VMMDevReq_GetMouseStatus) /* clear poll condition. */
+        pSession->u32MousePosChangedSeq = ASMAtomicUoReadU32(&pDevExt->u32MousePosChangedSeq);
+
     rc = VbglGRPerform(pReqCopy);
     if (    RT_SUCCESS(rc)
         &&  RT_SUCCESS(pReqCopy->rc))
@@ -1268,7 +1277,7 @@ int  VBoxGuestCommonIOCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUE
     if (VBOXGUEST_IOCTL_STRIP_SIZE(iFunction) == VBOXGUEST_IOCTL_STRIP_SIZE(VBOXGUEST_IOCTL_VMMREQUEST(0)))
     {
         CHECKRET_MIN_SIZE("VMMREQUEST", sizeof(VMMDevRequestHeader));
-        rc = VBoxGuestCommonIOCtl_VMMRequest(pDevExt, (VMMDevRequestHeader *)pvData, cbData, pcbDataReturned);
+        rc = VBoxGuestCommonIOCtl_VMMRequest(pDevExt, pSession, (VMMDevRequestHeader *)pvData, cbData, pcbDataReturned);
     }
 #ifdef VBOX_WITH_HGCM
     /*
@@ -1412,6 +1421,8 @@ bool VBoxGuestCommonISR(PVBOXGUESTDEVEXT pDevExt)
             RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
             RTSpinlockAcquireNoInts(pDevExt->WaitSpinlock, &Tmp);
 
+            /** @todo This looks wrong: Seems like VMMDEV_EVENT_HGCM will always be set in
+             *        f32PendingEvents... */
 #ifdef VBOX_WITH_HGCM
             /* The HGCM event/list is kind of different in that we evaluate all entries. */
             if (fEvents & VMMDEV_EVENT_HGCM)
@@ -1423,6 +1434,16 @@ bool VBoxGuestCommonISR(PVBOXGUESTDEVEXT pDevExt)
                         rc2 |= RTSemEventMultiSignal(pWait->Event);
                     }
 #endif
+
+            /* VMMDEV_EVENT_MOUSE_POSITION_CHANGED can only be polled for. */
+#if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
+            if (fEvents & VMMDEV_EVENT_MOUSE_POSITION_CHANGED)
+            {
+                pDevExt->u32MousePosChangedSeq++;
+                VBoxGuestNativeISRMousePollEvent(pDevExt);
+            }
+#endif
+            fEvents &= ~VMMDEV_EVENT_MOUSE_POSITION_CHANGED;
 
             /* Normal FIFO evaluation. */
             fEvents |= pDevExt->f32PendingEvents;

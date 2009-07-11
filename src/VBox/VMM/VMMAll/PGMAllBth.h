@@ -1,4 +1,4 @@
-/* $Id: PGMAllBth.h 20871 2009-06-24 01:56:19Z vboxsync $ */
+/* $Id: PGMAllBth.h $ */
 /** @file
  * VBox - Page Manager, Shadow+Guest Paging Template - All context code.
  *
@@ -434,17 +434,22 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
 # if defined(IN_RC) || defined(IN_RING0)
                             if (pCur->CTX_SUFF(pfnHandler))
                             {
+                                PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
 #  ifdef IN_RING0
                                 PFNPGMR0PHYSHANDLER pfnHandler = pCur->CTX_SUFF(pfnHandler);
 #  else
                                 PFNPGMRCPHYSHANDLER pfnHandler = pCur->CTX_SUFF(pfnHandler);
 #  endif
+                                bool  fLeaveLock = (pfnHandler != pPool->CTX_SUFF(pfnAccessHandler));
                                 void *pvUser = pCur->CTX_SUFF(pvUser);
 
                                 STAM_PROFILE_START(&pCur->Stat, h);
-                                pgmUnlock(pVM); /* @todo: Not entirely safe. */
+                                if (fLeaveLock)
+                                    pgmUnlock(pVM); /* @todo: Not entirely safe. */
+
                                 rc = pfnHandler(pVM, uErr, pRegFrame, pvFault, GCPhysFault, pvUser);
-                                pgmLock(pVM);
+                                if (fLeaveLock)
+                                    pgmLock(pVM);
 #  ifdef VBOX_WITH_STATISTICS
                                 pCur = (PPGMPHYSHANDLER)RTAvlroGCPhysRangeGet(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysHandlers, GCPhysFault);
                                 if (pCur)
@@ -793,6 +798,27 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
                         if (RT_UNLIKELY(VM_FF_ISPENDING(pVM, VM_FF_PGM_NO_MEMORY)))
                             return VINF_EM_NO_MEMORY;
                     }
+
+                    /* Check to see if we need to emulate the instruction as X86_CR0_WP has been cleared. */
+                    if (    CPUMGetGuestCPL(pVCpu, pRegFrame) == 0
+                        &&  ((CPUMGetGuestCR0(pVCpu) & (X86_CR0_WP | X86_CR0_PG)) == X86_CR0_PG))
+                    {
+                        Assert((uErr & (X86_TRAP_PF_RW | X86_TRAP_PF_P)) == (X86_TRAP_PF_RW | X86_TRAP_PF_P));
+                        uint64_t fPageGst;
+                        rc = PGMGstGetPage(pVCpu, pvFault, &fPageGst, NULL);
+                        if (    RT_SUCCESS(rc)
+                            && !(fPageGst & X86_PTE_RW))
+                        {
+                            rc = PGMInterpretInstruction(pVM, pVCpu, pRegFrame, pvFault);
+                            if (RT_SUCCESS(rc))
+                                STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eWPEmulInRZ);
+                            else
+                                STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eWPEmulToR3);
+                            return rc;
+                        }
+                        AssertMsg(RT_SUCCESS(rc), ("Unexpected r/w page %RGv flag=%x rc=%Rrc\n", pvFault, (uint32_t)fPageGst, rc));
+                    }
+
                     /// @todo count the above case; else
                     if (uErr & X86_TRAP_PF_US)
                         STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_MID_Z(Stat,PageOutOfSyncUser));
@@ -825,26 +851,6 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
                         STAM_PROFILE_STOP(&pVCpu->pgm.s.StatRZTrap0eTimeOutOfSync, c);
                         STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.StatRZTrap0eTime2OutOfSyncHndObs; });
                         return VINF_SUCCESS;
-                    }
-
-                    /* Check to see if we need to emulate the instruction as X86_CR0_WP has been cleared. */
-                    if (    CPUMGetGuestCPL(pVCpu, pRegFrame) == 0
-                        &&  ((CPUMGetGuestCR0(pVCpu) & (X86_CR0_WP | X86_CR0_PG)) == X86_CR0_PG)
-                        &&  (uErr & (X86_TRAP_PF_RW | X86_TRAP_PF_P)) == (X86_TRAP_PF_RW | X86_TRAP_PF_P))
-                    {
-                        uint64_t fPageGst;
-                        rc = PGMGstGetPage(pVCpu, pvFault, &fPageGst, NULL);
-                        if (    RT_SUCCESS(rc)
-                            && !(fPageGst & X86_PTE_RW))
-                        {
-                            rc = PGMInterpretInstruction(pVM, pVCpu, pRegFrame, pvFault);
-                            if (RT_SUCCESS(rc))
-                                STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eWPEmulInRZ);
-                            else
-                                STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eWPEmulToR3);
-                            return rc;
-                        }
-                        AssertMsgFailed(("Unexpected r/w page %RGv flag=%x rc=%Rrc\n", pvFault, (uint32_t)fPageGst, rc));
                     }
                 }
 

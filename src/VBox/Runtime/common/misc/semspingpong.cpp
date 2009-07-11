@@ -1,4 +1,4 @@
-/* $Id: semspingpong.cpp 14057 2008-11-10 23:00:21Z vboxsync $ */
+/* $Id: semspingpong.cpp $ */
 /** @file
  * IPRT - Thread Ping-Pong Construct.
  */

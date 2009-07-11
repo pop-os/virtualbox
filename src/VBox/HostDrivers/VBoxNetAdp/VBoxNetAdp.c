@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdp.c 18973 2009-04-17 06:59:16Z vboxsync $ */
+/* $Id: VBoxNetAdp.c $ */
 /** @file
  * VBoxNetAdp - Virtual Network Adapter Driver (Host), Common Code.
  */

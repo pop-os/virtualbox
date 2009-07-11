@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 19279 2009-04-30 19:03:36Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # VBox Etherboot Network boot ROM makefile.
 #

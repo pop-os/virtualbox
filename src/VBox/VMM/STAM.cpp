@@ -1,4 +1,4 @@
-/* $Id: STAM.cpp 20864 2009-06-23 19:19:42Z vboxsync $ */
+/* $Id: STAM.cpp $ */
 /** @file
  * STAM - The Statistics Manager.
  */

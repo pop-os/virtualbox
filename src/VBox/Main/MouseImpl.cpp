@@ -1,4 +1,4 @@
-/* $Id: MouseImpl.cpp 20990 2009-06-26 17:08:47Z vboxsync $ */
+/* $Id: MouseImpl.cpp $ */
 
 /** @file
  *
