@@ -99,7 +99,6 @@ Description: x86 virtualization solution - base binaries
 
 Package: virtualbox-ose-dbg
 Section: debug
-Priority: extra
 Architecture: amd64 i386 lpia
 Depends: ${misc:Depends},
          virtualbox-ose (= ${binary:Version})
