@@ -257,7 +257,7 @@ original X license and the innotek GPL license. The remaining sources under
 -------------------------------------------------------------------------------
 
 Due to license issues, parts of the Guest Additions have to be removed from the
-sourcecode. Some of the files were (c) Microsoft with an license which have to be
+sourcecode. Some of the files were copyright Microsoft with an license which has to be
 considered non-free.
 
 Below a copy of the MPL:
@@ -1137,6 +1137,6 @@ For Covered Software in this distribution, this License shall be
 governed by the laws of Germany. Legal venue shall be Stuttgart,
 Germany.
 
-The Debian packaging is (C) 2007, Patrick Winnertz <patrick.winnertz@skolelinux.org>,
+The Debian packaging is copyright 2007, Patrick Winnertz <patrick.winnertz@skolelinux.org>,
 Daniel Baumann <daniel@debian.org>, Philipp Hug <debian@hug.cx> and is licensed under
 the GPL, see `/usr/share/common-licenses/GPL'.
