@@ -5,9 +5,9 @@
 
 @DPATCH@
 
-diff -Naurp virtualbox-ose-3.0.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in virtualbox-ose-3.0.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in
---- virtualbox-ose-3.0.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in	2009-07-01 10:37:25.000000000 +0200
-+++ virtualbox-ose-3.0.0-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in		2009-07-01 10:41:54.000000000 +0200
+diff -Naurp virtualbox-ose-3.0.4-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in virtualbox-ose-3.0.4-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in
+--- virtualbox-ose-3.0.4-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.in	2009-08-04 19:18:41.000000000 +0200
++++ virtualbox-ose-3.0.4-dfsg/src/VBox/Installer/linux/vboxdrv.sh.in	2009-08-07 11:36:12.843146051 +0200
 @@ -19,8 +19,8 @@
  #
  ### BEGIN INIT INFO
@@ -19,7 +19,7 @@ diff -Naurp virtualbox-ose-3.0.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
  # Default-Start:  2 3 4 5
  # Default-Stop:   0 1 6
  # Short-Description: VirtualBox Linux kernel module
-@@ -32,7 +32,9 @@
+@@ -32,7 +32,9 @@ GROUPNAME=vboxusers
  LOG="/var/log/vbox-install.log"
  NOLSB=%NOLSB%
  
@@ -30,7 +30,7 @@ diff -Naurp virtualbox-ose-3.0.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
  [ -f /etc/vbox/vbox.cfg ] && . /etc/vbox/vbox.cfg
  
  if [ -n "$INSTALL_DIR" ]; then
-@@ -66,11 +68,14 @@
+@@ -66,11 +68,14 @@ if [ -z "$NOLSB" ]; then
          log_failure_msg "$1"
      }
      succ_msg() {
@@ -46,7 +46,7 @@ diff -Naurp virtualbox-ose-3.0.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
  else
      if [ "$system" = "redhat" ]; then
          . /etc/init.d/functions
-@@ -148,15 +153,26 @@
+@@ -148,8 +153,9 @@ running()
  
  start()
  {
@@ -56,6 +56,9 @@ diff -Naurp virtualbox-ose-3.0.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
 +      if [ "$LOAD_VBOXDRV_MODULE" = 1 ]; then
          if ! rm -f $DEVICE; then
              failure "Cannot remove $DEVICE"
+         fi
+@@ -158,9 +164,19 @@ start()
+           echo 2 > /proc/sys/kernel/perf_counter_paranoid 
          fi
          if ! modprobe vboxdrv > /dev/null 2>&1; then
 +	  if ! find /lib/modules/`uname -r` -name "vboxdrv\.*" 2>/dev/null|grep -q vboxdrv; then
@@ -76,7 +79,7 @@ diff -Naurp virtualbox-ose-3.0.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
      fi
      # ensure the character special exists
      if [ ! -c $DEVICE ]; then
-@@ -185,31 +201,51 @@
+@@ -189,31 +205,51 @@ start()
          rmmod vboxdrv 2>/dev/null
          failure "Cannot change owner $GROUPNAME for device $DEVICE"
      fi
@@ -134,7 +137,7 @@ diff -Naurp virtualbox-ose-3.0.0-dfsg.orig/src/VBox/Installer/linux/vboxdrv.sh.i
          fi
          if ! rm -f $DEVICE; then
              failure "Cannot unlink $DEVICE"
-@@ -352,14 +384,11 @@
+@@ -356,14 +392,11 @@ force-reload)
      stop
      start
      ;;

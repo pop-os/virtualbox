@@ -1,8 +1,9 @@
-virtualbox-ose (3.0.2-dfsg-2) unstable; urgency=low
+virtualbox-ose (3.0.4-dfsg-1) unstable; urgency=low
 
+  * New Upstream Version
   * Install network management tool
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Thu, 30 Jul 2009 22:35:40 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 07 Aug 2009 22:51:00 +0200
 
 virtualbox-ose (3.0.2-dfsg-1) unstable; urgency=low
 
