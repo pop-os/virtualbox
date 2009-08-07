@@ -240,16 +240,22 @@ VMMR3DECL(int) VMMR3Init(PVM pVM)
 static int vmmR3InitStacks(PVM pVM)
 {
     int rc = VINF_SUCCESS;
+#ifdef VMM_R0_SWITCH_STACK
+    uint32_t fFlags = MMHYPER_AONR_FLAGS_KERNEL_MAPPING;
+#else
+    uint32_t fFlags = 0;
+#endif
 
     for (VMCPUID idCpu = 0; idCpu < pVM->cCPUs; idCpu++)
     {
         PVMCPU pVCpu = &pVM->aCpus[idCpu];
 
 #ifdef VBOX_STRICT_VMM_STACK
-        rc = MMR3HyperAllocOnceNoRel(pVM, PAGE_SIZE + VMM_STACK_SIZE + PAGE_SIZE, PAGE_SIZE, MM_TAG_VMM, (void **)&pVCpu->vmm.s.pbEMTStackR3);
+        rc = MMR3HyperAllocOnceNoRelEx(pVM, PAGE_SIZE + VMM_STACK_SIZE + PAGE_SIZE, 
 #else
-        rc = MMR3HyperAllocOnceNoRel(pVM, VMM_STACK_SIZE, PAGE_SIZE, MM_TAG_VMM, (void **)&pVCpu->vmm.s.pbEMTStackR3);
+        rc = MMR3HyperAllocOnceNoRelEx(pVM, VMM_STACK_SIZE, 
 #endif
+                                       PAGE_SIZE, MM_TAG_VMM, fFlags, (void **)&pVCpu->vmm.s.pbEMTStackR3);
         if (RT_SUCCESS(rc))
         {
 #ifdef VBOX_STRICT_VMM_STACK
@@ -298,12 +304,13 @@ static int vmmR3InitLoggers(PVM pVM)
         pVM->vmm.s.pRCLoggerRC = MMHyperR3ToRC(pVM, pVM->vmm.s.pRCLoggerR3);
 
 # ifdef VBOX_WITH_R0_LOGGING
-        for (unsigned i = 0; i < pVM->cCPUs; i++)
+        for (VMCPUID i = 0; i < pVM->cCPUs; i++)
         {
             PVMCPU pVCpu = &pVM->aCpus[i];
 
-            rc = MMR3HyperAllocOnceNoRel(pVM, RT_OFFSETOF(VMMR0LOGGER, Logger.afGroups[pLogger->cGroups]),
-                                         0, MM_TAG_VMM, (void **)&pVCpu->vmm.s.pR0LoggerR3);
+            rc = MMR3HyperAllocOnceNoRelEx(pVM, RT_OFFSETOF(VMMR0LOGGER, Logger.afGroups[pLogger->cGroups]),
+                                           0, MM_TAG_VMM, MMHYPER_AONR_FLAGS_KERNEL_MAPPING,
+                                           (void **)&pVCpu->vmm.s.pR0LoggerR3);
             if (RT_FAILURE(rc))
                 return rc;
             pVCpu->vmm.s.pR0LoggerR3->pVM = pVM->pVMR0;

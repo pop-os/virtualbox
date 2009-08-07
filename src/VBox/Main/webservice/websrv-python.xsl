@@ -52,8 +52,8 @@
     <xsl:when test="$type='unsigned short'">UnsignedShort</xsl:when>
     <xsl:when test="$type='unsigned long long'">UnsignedLong</xsl:when>
     <xsl:when test="$type='result'">UnsignedInt</xsl:when>
-    <xsl:when test="$type='uuid'">UUID</xsl:when>
     <xsl:when test="$type='$unknown'">IUnknown</xsl:when>
+    <xsl:when test="$type='$dispatched'">IUnknown</xsl:when>
     <xsl:otherwise><xsl:value-of select="$type" /></xsl:otherwise>
   </xsl:choose>
 </xsl:template>
@@ -64,7 +64,7 @@
   <xsl:param name="type" />
   <xsl:param name="value" />
   <xsl:param name="safearray" />
-  
+
   <xsl:call-template name="emitConvertedType">
     <xsl:with-param name="ifname" select="$ifname" />
     <xsl:with-param name="methodname" select="$methodname" />
@@ -97,7 +97,7 @@
            <xsl:with-param name="type" select="$attrtype" />
            <xsl:with-param name="value" select="concat('val.','_returnval')" />
            <xsl:with-param name="safearray" select="@safearray"/>
-         </xsl:call-template>      
+         </xsl:call-template>
 </xsl:template>
 
 <xsl:template name="emitSetAttribute">
@@ -113,7 +113,7 @@
             req._<xsl:value-of select="$attrname"/> = value
        else:
             req._<xsl:value-of select="$attrname"/> = value.handle
-       self.mgr.getPort().<xsl:value-of select="$ifname"/>_<xsl:value-of select="$fname"/>(req)      
+       self.mgr.getPort().<xsl:value-of select="$ifname"/>_<xsl:value-of select="$fname"/>(req)
 </xsl:template>
 
 <xsl:template name="collection">
@@ -135,15 +135,38 @@ class <xsl:value-of select="$cname"/>:
 
    def __getitem__(self, index):
        return <xsl:value-of select="$ename"/>(self.mgr, self.array._array[index])
-       
+
+</xsl:template>
+
+
+<xsl:template name="computeExtends">
+  <xsl:param name="base" />
+
+  <xsl:choose>
+    <xsl:when test="($base = '$unknown') or ($base = '$dispatched')">
+      <xsl:value-of select="'IUnknown'"/>
+    </xsl:when>
+    <xsl:when test="($base = '$errorinfo') ">
+      <xsl:value-of select="'IUnknown'"/>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:value-of select="$base"/>
+    </xsl:otherwise>
+  </xsl:choose>
 </xsl:template>
 
 <xsl:template name="interface">
+   <xsl:variable name="base">
+     <xsl:call-template name="computeExtends">
+       <xsl:with-param name="base" select="@extends" />
+     </xsl:call-template>
+   </xsl:variable>
    <xsl:variable name="ifname"><xsl:value-of select="@name" /></xsl:variable>
-class <xsl:value-of select="$ifname"/>:
+
+class <xsl:value-of select="$ifname"/>(<xsl:value-of select="$base" />):
    def __init__(self, mgr, handle, isarray = False):
        self.mgr = mgr
-       if handle is None or handle == "":
+       if handle is None:
            raise Exception("bad handle: "+str(handle))
        self.handle = handle
        self.isarray = isarray
@@ -152,11 +175,11 @@ class <xsl:value-of select="$ifname"/>:
        mgr.register(handle)
 
    def __del__(self):
-       mgr.unregister(self.handle) 
+       mgr.unregister(self.handle)
 -->
    def releaseRemote(self):
         try:
-            req=IManagedObjectRef_releaseRequestMsg() 
+            req=IManagedObjectRef_releaseRequestMsg()
             req._this=handle
             self.mgr.getPort().IManagedObjectRef_release(req)
         except:
@@ -168,7 +191,7 @@ class <xsl:value-of select="$ifname"/>:
       raise TypeError, "iteration over non-sequence"
 
    def __size(self):
-      if self.isarray:         
+      if self.isarray:
           return self.handle.__size()
       raise TypeError, "iteration over non-sequence"
 
@@ -180,20 +203,23 @@ class <xsl:value-of select="$ifname"/>:
    def __getitem__(self, index):
       if self.isarray:
           return <xsl:value-of select="$ifname" />(self.mgr, self.handle[index])
-      raise TypeError, "iteration over non-sequence"       
+      raise TypeError, "iteration over non-sequence"
 
    def __str__(self):
         return self.handle
-   
+
    def isValid(self):
         return self.handle != None and self.handle != ''
 
    def __getattr__(self,name):
       hndl = <xsl:value-of select="$ifname" />._Attrs_.get(name, None)
-      if (hndl != None and hndl[0] != None):
-         return hndl[0](self)
+      if hndl != None:
+         if hndl[0] != None:
+           return hndl[0](self)
+         else:
+          raise AttributeError
       else:
-         raise AttributeError
+         return <xsl:value-of select="$base" />.__getattr__(self, name)
 
    def __setattr__(self, name, val):
       hndl = <xsl:value-of select="$ifname" />._Attrs_.get(name, None)
@@ -271,19 +297,50 @@ class <xsl:value-of select="$ifname"/>:
 <xsl:template name="interfacestruct">
    <xsl:variable name="ifname"><xsl:value-of select="@name" /></xsl:variable>
 class <xsl:value-of select="$ifname"/>:
-    def __init__(self, mgr, handle):<xsl:for-each select="attribute">
+    def __init__(self, mgr, handle, isarray = False):
        self.mgr = mgr
-       self.<xsl:value-of select="@name"/> = handle._<xsl:value-of select="@name"/>
+       self.isarray = isarray
+       if isarray:
+          self.handle = handle
+       else:
+<xsl:for-each select="attribute">
+          self.<xsl:value-of select="@name"/> = <xsl:call-template name="emitConvertedType">
+              <xsl:with-param name="ifname" select="$ifname" />
+              <xsl:with-param name="methodname" select="''" />
+              <xsl:with-param name="type" select="@type" />
+             </xsl:call-template>(self.mgr, handle._<xsl:value-of select="@name"/>)
        </xsl:for-each>
+          pass
 
    <!-- also do getters/setters -->
     <xsl:for-each select="attribute">
     def <xsl:call-template name="makeGetterName"><xsl:with-param name="attrname" select="@name"/></xsl:call-template>(self):
        return self.<xsl:value-of select="@name"/>
- 
+
     def <xsl:call-template name="makeSetterName"><xsl:with-param name="attrname" select="@name"/></xsl:call-template>(self):
        raise Error, 'setters not supported'
     </xsl:for-each>
+
+    def __next(self):
+      if self.isarray:
+          return self.handle.__next()
+      raise TypeError, "iteration over non-sequence"
+
+    def __size(self):
+      if self.isarray:
+          return self.handle.__size()
+      raise TypeError, "iteration over non-sequence"
+
+    def __len__(self):
+      if self.isarray:
+          return self.handle.__len__()
+      raise TypeError, "iteration over non-sequence"
+
+    def __getitem__(self, index):
+      if self.isarray:
+          return <xsl:value-of select="$ifname" />(self.mgr, self.handle[index])
+      raise TypeError, "iteration over non-sequence"
+
 </xsl:template>
 
 <xsl:template name="genreq">
@@ -293,7 +350,7 @@ class <xsl:value-of select="$ifname"/>:
        req._<xsl:value-of select="@name" />=_arg_<xsl:value-of select="@name" />
        </xsl:for-each>
        val=self.mgr.getPort().<xsl:value-of select="../@name"/>_<xsl:value-of select="@name"/>(req)
-       <!-- return needs to be the first one -->      
+       <!-- return needs to be the first one -->
        return <xsl:for-each select="param[@dir='return']">
          <xsl:call-template name="emitOutParam">
            <xsl:with-param name="ifname" select="../@name" />
@@ -301,7 +358,7 @@ class <xsl:value-of select="$ifname"/>:
            <xsl:with-param name="type" select="@type" />
            <xsl:with-param name="value" select="concat('val.','_returnval')" />
            <xsl:with-param name="safearray" select="@safearray"/>
-         </xsl:call-template>         
+         </xsl:call-template>
          <xsl:if test="../param[@dir='out']">
            <xsl:text>, </xsl:text>
          </xsl:if>
@@ -321,7 +378,7 @@ class <xsl:value-of select="$ifname"/>:
        <xsl:text>&#10;&#10;</xsl:text>
 </xsl:template>
 
-<xsl:template name="method" > 
+<xsl:template name="method" >
    def <xsl:value-of select="@name"/><xsl:text>(self</xsl:text>
    <xsl:for-each select="param[@dir='in']">
      <xsl:text>, </xsl:text>
@@ -339,7 +396,7 @@ class <xsl:value-of select="$ifname"/>:
       <xsl:otherwise>
         <xsl:value-of select="@name"/>
       </xsl:otherwise>
-    </xsl:choose>   
+    </xsl:choose>
 </xsl:template>
 
 <xsl:template name="enum">
@@ -421,28 +478,28 @@ class ManagedManager:
      c = c - 1
      if c == 0:
         try:
-            req=IManagedObjectRef_releaseRequestMsg() 
+            req=IManagedObjectRef_releaseRequestMsg()
             req._this=handle
             self.mgr.getPort().IManagedObjectRef_release(req)
         except:
             pass
-        finally:
-            self.map[handle] = -1
+        self.map[handle] = -1
      else:
         self.map[handle] = c
-  
+
 class String:
   def __init__(self, mgr, handle, isarray = False):
       self.handle = handle
+      self.mgr = mgr
       self.isarray = isarray
- 
+
   def __next(self):
       if self.isarray:
           return self.handle.__next()
       raise TypeError, "iteration over non-sequence"
 
   def __size(self):
-      if self.isarray:         
+      if self.isarray:
           return self.handle.__size()
       raise TypeError, "iteration over non-sequence"
 
@@ -453,11 +510,11 @@ class String:
 
   def __getitem__(self, index):
       if self.isarray:
-          return String(self.handle[index])
-      raise TypeError, "iteration over non-sequence"       
+          return String(self.mgr, self.handle[index])
+      raise TypeError, "iteration over non-sequence"
 
   def __str__(self):
-      return self.handle
+      return str(self.handle)
 
   def __eq__(self,other):
       if self.isarray:
@@ -470,67 +527,30 @@ class String:
 
   def __ne__(self,other):
       if self.isarray:
-         return not isinstance(other,String) or self.handle == other.handle     
+         return not isinstance(other,String) or self.handle == other.handle
       if isinstance(other,String):
          return self.handle != other.handle
       if isinstance(other,basestring):
          return self.handle != other
       return True
 
+  def __add__(self,other):
+      return str(self.handle)+str(other)
 
-class UUID:
-  def __init__(self, mgr, handle, isarray = False):
-      self.handle = handle
-      self.isarray = isarray
- 
-  def __next(self):
-      if self.isarray:
-          return self.handle.__next()
-      raise TypeError, "iteration over non-sequence"
-
-  def __size(self):
-      if self.isarray:         
-          return self.handle.__size()
-      raise TypeError, "iteration over non-sequence"
-
-  def __len__(self):
-      if self.isarray:
-          return self.handle.__len__()
-      raise TypeError, "iteration over non-sequence"
-
-  def __getitem__(self, index):
-      if self.isarray:
-          return UUID(self.handle[index])
-      raise TypeError, "iteration over non-sequence"       
-
-  def __str__(self):
-      return self.handle
-
-  def __eq__(self,other):
-      if self.isarray:
-         return isinstance(other,UUID) and self.handle == other.handle
-      if isinstance(other,UUID):
-         return self.handle == other.handle
-      if isinstance(other,basestring):
-         return self.handle == other
-      return False
-
-  def __ne__(self,other):
-      if self.isarray:
-         return not isinstance(other,UUID) or self.handle == other.handle     
-      if isinstance(other,UUID):
-         return self.handle != other.handle
-      if isinstance(other,basestring):
-         return self.handle != other
-      return True
 
 class Boolean:
   def __init__(self, mgr, handle, isarray = False):
        self.handle = handle
+       if self.handle == "false":
+          self.handle = None
+       self.mgr = mgr
        self.isarray = isarray
- 
+
   def __str__(self):
-       return "true" if self.handle else "false"
+       if self.handle: 
+         return "true"
+       else:
+         return "false"
 
   def __eq__(self,other):
       if isinstance(other,Bool):
@@ -546,16 +566,58 @@ class Boolean:
          return self.handle != other
       return True
 
+  def __int__(self):
+      if self.handle:
+        return 1 
+      else:
+        return 0
+
+  def __long__(self):
+      if self.handle:
+        return 1 
+      else:
+        return 0
+
+  def __nonzero__(self):
+      if self.handle:
+        return True
+      else:
+        return False
+
+  def __next(self):
+      if self.isarray:
+          return self.handle.__next()
+      raise TypeError, "iteration over non-sequence"
+
+  def __size(self):
+      if self.isarray:
+          return self.handle.__size()
+      raise TypeError, "iteration over non-sequence"
+
+  def __len__(self):
+      if self.isarray:
+          return self.handle.__len__()
+      raise TypeError, "iteration over non-sequence"
+
+  def __getitem__(self, index):
+      if self.isarray:
+          return Boolean(self.mgr, self.handle[index])
+      raise TypeError, "iteration over non-sequence"
+
 class UnsignedInt:
   def __init__(self, mgr, handle, isarray = False):
        self.handle = handle
+       self.mgr = mgr
        self.isarray = isarray
- 
+
   def __str__(self):
        return str(self.handle)
 
   def __int__(self):
        return int(self.handle)
+
+  def __long__(self):
+       return long(self.handle)
 
   def __next(self):
       if self.isarray:
@@ -563,7 +625,7 @@ class UnsignedInt:
       raise TypeError, "iteration over non-sequence"
 
   def __size(self):
-      if self.isarray:         
+      if self.isarray:
           return self.handle.__size()
       raise TypeError, "iteration over non-sequence"
 
@@ -574,105 +636,12 @@ class UnsignedInt:
 
   def __getitem__(self, index):
       if self.isarray:
-          return UnsignedInt(self.handle[index])
-      raise TypeError, "iteration over non-sequence"       
+          return UnsignedInt(self.mgr, self.handle[index])
+      raise TypeError, "iteration over non-sequence"
 
-    
+
 class Int:
   def __init__(self, mgr, handle, isarray = False):
-       self.handle = handle
-       self.isarray = isarray
-
-  def __next(self):
-      if self.isarray:
-          return self.handle.__next()
-      raise TypeError, "iteration over non-sequence"
-
-  def __size(self):
-      if self.isarray:         
-          return self.handle.__size()
-      raise TypeError, "iteration over non-sequence"
-
-  def __len__(self):
-      if self.isarray:
-          return self.handle.__len__()
-      raise TypeError, "iteration over non-sequence"
-
-  def __getitem__(self, index):
-      if self.isarray:
-          return Int(self.handle[index])
-      raise TypeError, "iteration over non-sequence"       
- 
-  def __str__(self):
-       return str(self.handle)
-  
-  def __int__(self):
-       return int(self.handle)
-
-class UnsignedShort:
-  def __init__(self, mgr, handle, isarray = False):
-       self.handle = handle
-       self.isarray = isarray
- 
-  def __str__(self):
-       return str(self.handle)
-
-  def __int__(self):
-       return int(self.handle)
-
-class Short:
-  def __init__(self, mgr, handle, isarray = False):
-       self.handle = handle
- 
-  def __str__(self):
-       return str(self.handle)
-  
-  def __int__(self):
-       return int(self.handle)
-
-class UnsignedLong:
-  def __init__(self, mgr, handle, isarray = False):
-       self.handle = handle
- 
-  def __str__(self):
-       return str(self.handle)
-
-  def __int__(self):
-       return int(self.handle)
-
-class Long:
-  def __init__(self, mgr, handle, isarray = False):
-       self.handle = handle
- 
-  def __str__(self):
-       return str(self.handle)
-
-  def __int__(self):
-       return int(self.handle)
-
-class Double:
-  def __init__(self, mgr, handle, isarray = False):
-       self.handle = handle
- 
-  def __str__(self):
-       return str(self.handle)
-
-  def __int__(self):
-       return int(self.handle)
-
-class Float:
-  def __init__(self, mgr, handle, isarray = False):
-       self.handle = handle
-       
-  def __str__(self):
-       return str(self.handle)
-
-  def __int__(self):
-       return int(self.handle)
-
-
-class IUnknown:
-  def __init__(self,  mgr, handle, isarray = False):
        self.handle = handle
        self.mgr = mgr
        self.isarray = isarray
@@ -683,7 +652,258 @@ class IUnknown:
       raise TypeError, "iteration over non-sequence"
 
   def __size(self):
-      if self.isarray:         
+      if self.isarray:
+          return self.handle.__size()
+      raise TypeError, "iteration over non-sequence"
+
+  def __len__(self):
+      if self.isarray:
+          return self.handle.__len__()
+      raise TypeError, "iteration over non-sequence"
+
+  def __getitem__(self, index):
+      if self.isarray:
+          return Int(self.mgr, self.handle[index])
+      raise TypeError, "iteration over non-sequence"
+
+  def __str__(self):
+       return str(self.handle)
+
+  def __int__(self):
+       return int(self.handle)
+
+  def __long__(self):
+       return long(self.handle)
+
+class UnsignedShort:
+  def __init__(self, mgr, handle, isarray = False):
+       self.handle = handle
+       self.mgr = mgr
+       self.isarray = isarray
+
+  def __str__(self):
+       return str(self.handle)
+
+  def __int__(self):
+       return int(self.handle)
+
+  def __long__(self):
+       return long(self.handle)
+
+  def __next(self):
+      if self.isarray:
+          return self.handle.__next()
+      raise TypeError, "iteration over non-sequence"
+
+  def __size(self):
+      if self.isarray:
+          return self.handle.__size()
+      raise TypeError, "iteration over non-sequence"
+
+  def __len__(self):
+      if self.isarray:
+          return self.handle.__len__()
+      raise TypeError, "iteration over non-sequence"
+
+  def __getitem__(self, index):
+      if self.isarray:
+          return UnsignedShort(self.mgr, self.handle[index])
+      raise TypeError, "iteration over non-sequence"
+
+class Short:
+  def __init__(self, mgr, handle, isarray = False):
+       self.handle = handle
+       self.mgr = mgr
+       self.isarray = isarray
+
+  def __str__(self):
+       return str(self.handle)
+
+  def __int__(self):
+       return int(self.handle)
+
+  def __long__(self):
+       return long(self.handle)
+
+  def __next(self):
+      if self.isarray:
+          return self.handle.__next()
+      raise TypeError, "iteration over non-sequence"
+
+  def __size(self):
+      if self.isarray:
+          return self.handle.__size()
+      raise TypeError, "iteration over non-sequence"
+
+  def __len__(self):
+      if self.isarray:
+          return self.handle.__len__()
+      raise TypeError, "iteration over non-sequence"
+
+  def __getitem__(self, index):
+      if self.isarray:
+          return Short(self.mgr, self.handle[index])
+      raise TypeError, "iteration over non-sequence"
+
+class UnsignedLong:
+  def __init__(self, mgr, handle, isarray = False):
+       self.handle = handle
+       self.mgr = mgr
+       self.isarray = isarray
+
+  def __str__(self):
+       return str(self.handle)
+
+  def __int__(self):
+       return int(self.handle)
+
+  def __long__(self):
+       return long(self.handle)
+
+  def __next(self):
+      if self.isarray:
+          return self.handle.__next()
+      raise TypeError, "iteration over non-sequence"
+
+  def __size(self):
+      if self.isarray:
+          return self.handle.__size()
+      raise TypeError, "iteration over non-sequence"
+
+  def __len__(self):
+      if self.isarray:
+          return self.handle.__len__()
+      raise TypeError, "iteration over non-sequence"
+
+  def __getitem__(self, index):
+      if self.isarray:
+          return UnsignedLong(self.mgr, self.handle[index])
+      raise TypeError, "iteration over non-sequence"
+
+class Long:
+  def __init__(self, mgr, handle, isarray = False):
+       self.handle = handle
+       self.mgr = mgr
+       self.isarray = isarray
+
+  def __str__(self):
+       return str(self.handle)
+
+  def __int__(self):
+       return int(self.handle)
+
+  def __long__(self):
+       return int(self.handle)
+
+  def __next(self):
+      if self.isarray:
+          return self.handle.__next()
+      raise TypeError, "iteration over non-sequence"
+
+  def __size(self):
+      if self.isarray:
+          return self.handle.__size()
+      raise TypeError, "iteration over non-sequence"
+
+  def __len__(self):
+      if self.isarray:
+          return self.handle.__len__()
+      raise TypeError, "iteration over non-sequence"
+
+  def __getitem__(self, index):
+      if self.isarray:
+          return Long(self.mgr, self.handle[index])
+      raise TypeError, "iteration over non-sequence"
+
+class Double:
+  def __init__(self, mgr, handle, isarray = False):
+       self.handle = handle
+       self.mgr = mgr
+       self.isarray = isarray
+
+  def __str__(self):
+       return str(self.handle)
+
+  def __int__(self):
+       return int(self.handle)
+
+  def __float__(self):
+       return float(self.handle)
+
+  def __next(self):
+      if self.isarray:
+          return self.handle.__next()
+      raise TypeError, "iteration over non-sequence"
+
+  def __size(self):
+      if self.isarray:
+          return self.handle.__size()
+      raise TypeError, "iteration over non-sequence"
+
+  def __len__(self):
+      if self.isarray:
+          return self.handle.__len__()
+      raise TypeError, "iteration over non-sequence"
+
+  def __getitem__(self, index):
+      if self.isarray:
+          return Double(self.mgr, self.handle[index])
+      raise TypeError, "iteration over non-sequence"
+
+class Float:
+  def __init__(self, mgr, handle, isarray = False):
+       self.handle = handle
+       self.mgr = mgr
+       self.isarray = isarray
+
+  def __str__(self):
+       return str(self.handle)
+
+  def __int__(self):
+       return int(self.handle)
+
+  def __float__(self):
+       return float(self.handle)
+
+  def __next(self):
+      if self.isarray:
+          return self.handle.__next()
+      raise TypeError, "iteration over non-sequence"
+
+  def __size(self):
+      if self.isarray:
+          return self.handle.__size()
+      raise TypeError, "iteration over non-sequence"
+
+  def __len__(self):
+      if self.isarray:
+          return self.handle.__len__()
+      raise TypeError, "iteration over non-sequence"
+
+  def __getitem__(self, index):
+      if self.isarray:
+          return Float(self.mgr, self.handle[index])
+      raise TypeError, "iteration over non-sequence"
+
+class IUnknown:
+  def __init__(self,  mgr, handle, isarray = False):
+       self.handle = handle
+       self.mgr = mgr
+       self.isarray = isarray
+
+  def __nonzero__(self):
+      if self.handle != "":
+           return True 
+      else:
+           return False
+
+  def __next(self):
+      if self.isarray:
+          return self.handle.__next()
+      raise TypeError, "iteration over non-sequence"
+
+  def __size(self):
+      if self.isarray:
           return self.handle.__size()
       raise TypeError, "iteration over non-sequence"
 
@@ -695,10 +915,17 @@ class IUnknown:
   def __getitem__(self, index):
       if self.isarray:
           return IUnknown(self.mgr, self.handle[index])
-      raise TypeError, "iteration over non-sequence"       
-  
+      raise TypeError, "iteration over non-sequence"
+
   def __str__(self):
        return str(self.handle)
+
+  def __getattr__(self,attr):
+       if self.__class__.__dict__.get(attr) != None:
+           return self.__class__.__dict__.get(attr)
+       if self.__dict__.get(attr) != None:
+           return self.__dict__.get(attr)
+       raise AttributeError
 
 </xsl:text>
   <xsl:for-each select="//interface[@wsmap='managed' or @wsmap='global']">
@@ -728,4 +955,4 @@ class IWebsessionManager2(IWebsessionManager):
 
 </xsl:template>
 
-</xsl:stylesheet> 
+</xsl:stylesheet>

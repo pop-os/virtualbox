@@ -107,8 +107,11 @@ typedef enum SCSIDEVTYPE
 #define SCSI_DEVTYPE_MASK 0x1f
 
 
+/** Maximum PDU payload size we can handle in one piece. */
+#define ISCSI_PDU_SIZE_MAX _256K
+
 /** Maximum PDU size we can handle in one piece. */
-#define ISCSI_RECV_PDU_BUFFER_SIZE (65536 + ISCSI_BHS_SIZE)
+#define ISCSI_RECV_PDU_BUFFER_SIZE (ISCSI_PDU_SIZE_MAX + ISCSI_BHS_SIZE)
 
 
 /** Version of the iSCSI standard which this initiator driver can handle. */
@@ -887,6 +890,8 @@ restart:
                 transit = true;
                 break;
             case 0x0100:    /* login operational negotiation, step 0: set parameters. */
+                char szMaxPDU[16];
+                RTStrPrintf(szMaxPDU, sizeof(szMaxPDU), "%u", ISCSI_PDU_SIZE_MAX);
                 rc = iscsiTextAddKeyValue(bBuf, sizeof(bBuf), &cbBuf, "HeaderDigest", "None", 0);
                 if (RT_FAILURE(rc))
                     goto out;
@@ -902,13 +907,13 @@ restart:
                 rc = iscsiTextAddKeyValue(bBuf, sizeof(bBuf), &cbBuf, "ImmediateData", "Yes", 0);
                 if (RT_FAILURE(rc))
                     goto out;
-                rc = iscsiTextAddKeyValue(bBuf, sizeof(bBuf), &cbBuf, "MaxRecvDataSegmentLength", "65536", 0);
+                rc = iscsiTextAddKeyValue(bBuf, sizeof(bBuf), &cbBuf, "MaxRecvDataSegmentLength", szMaxPDU, 0);
                 if (RT_FAILURE(rc))
                     goto out;
-                rc = iscsiTextAddKeyValue(bBuf, sizeof(bBuf), &cbBuf, "MaxBurstLength", "262144", 0);
+                rc = iscsiTextAddKeyValue(bBuf, sizeof(bBuf), &cbBuf, "MaxBurstLength", szMaxPDU, 0);
                 if (RT_FAILURE(rc))
                     goto out;
-                rc = iscsiTextAddKeyValue(bBuf, sizeof(bBuf), &cbBuf, "FirstBurstLength", "65536", 0);
+                rc = iscsiTextAddKeyValue(bBuf, sizeof(bBuf), &cbBuf, "FirstBurstLength", szMaxPDU, 0);
                 if (RT_FAILURE(rc))
                     goto out;
                 rc = iscsiTextAddKeyValue(bBuf, sizeof(bBuf), &cbBuf, "DefaultTime2Wait", "0", 0);
@@ -2757,6 +2762,11 @@ static int iscsiRead(void *pBackendData, uint64_t uOffset, void *pvBuf,
         goto out;
     }
 
+    /*
+     * Clip read size to a value which is supported by many targets.
+     */
+    cbToRead = RT_MIN(cbToRead, ISCSI_PDU_SIZE_MAX);
+
     lba = uOffset / pImage->cbSector;
     tls = (uint16_t)(cbToRead / pImage->cbSector);
     SCSIREQ sr;
@@ -2786,7 +2796,12 @@ static int iscsiRead(void *pBackendData, uint64_t uOffset, void *pvBuf,
 
     rc = iscsiCommand(pImage, &sr);
     if (RT_FAILURE(rc))
+    {
         AssertMsgFailed(("iscsiCommand(%s, %#llx) -> %Rrc\n", pImage->pszTargetName, uOffset, rc));
+        *pcbActuallyRead = 0;
+    }
+    else
+        *pcbActuallyRead = cbToRead;
 
 out:
     LogFlowFunc(("returns %Rrc\n", rc));
@@ -2820,6 +2835,11 @@ static int iscsiWrite(void *pBackendData, uint64_t uOffset, const void *pvBuf,
 
     *pcbPreRead = 0;
     *pcbPostRead = 0;
+
+    /*
+     * Clip write size to a value which is supported by many targets.
+     */
+    cbToWrite = RT_MIN(cbToWrite, ISCSI_PDU_SIZE_MAX);
 
     lba = uOffset / pImage->cbSector;
     tls = (uint16_t)(cbToWrite / pImage->cbSector);

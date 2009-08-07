@@ -1509,12 +1509,17 @@ VMMR0DECL(int) VMXR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
             val &= ~X86_CR4_PAE;
         }
 
+        /* Turn off VME if we're in emulated real mode. */
+        if (CPUMIsGuestInRealModeEx(pCtx))
+            val &= ~X86_CR4_VME;
+
         rc |= VMXWriteVMCS64(VMX_VMCS64_GUEST_CR4,            val);
         Log2(("Guest CR4 %08x\n", val));
         /* CR4 flags owned by the host; if the guests attempts to change them, then
          * the VM will exit.
          */
         val =   0
+              | X86_CR4_VME
               | X86_CR4_PAE
               | X86_CR4_PGE
               | X86_CR4_PSE
@@ -2724,6 +2729,10 @@ ResumeExecution:
 
                     case OP_STI:
                         pCtx->eflags.Bits.u1IF = 1;
+                        EMSetInhibitInterruptsPC(pVCpu, pCtx->rip + pDis->opsize);
+                        Assert(VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS));
+                        rc = VMXWriteVMCS(VMX_VMCS32_GUEST_INTERRUPTIBILITY_STATE, VMX_VMCS_GUEST_INTERRUPTIBILITY_STATE_BLOCK_STI);
+                        AssertRC(rc);
                         STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitSti);
                         break;
 
@@ -3858,7 +3867,7 @@ static void vmxR0FlushVPID(PVM pVM, PVMCPU pVCpu, VMX_FLUSH enmFlush, RTGCPTR GC
     if (   CPUMIsGuestInLongMode(pVCpu)
         && !VMX_IS_64BIT_HOST_MODE())
     {
-        pVCpu->hwaccm.s.fForceTLBFlush = true;
+        VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
     }
     else
 #endif
@@ -3884,7 +3893,7 @@ static void vmxR0FlushVPID(PVM pVM, PVMCPU pVCpu, VMX_FLUSH enmFlush, RTGCPTR GC
  */
 VMMR0DECL(int) VMXR0InvalidatePage(PVM pVM, PVMCPU pVCpu, RTGCPTR GCVirt)
 {
-    bool fFlushPending = pVCpu->hwaccm.s.fForceTLBFlush;
+    bool fFlushPending = VMCPU_FF_ISSET(pVCpu, VMCPU_FF_TLB_FLUSH);
 
     Log2(("VMXR0InvalidatePage %RGv\n", GCVirt));
 
@@ -3914,7 +3923,7 @@ VMMR0DECL(int) VMXR0InvalidatePage(PVM pVM, PVMCPU pVCpu, RTGCPTR GCVirt)
  */
 VMMR0DECL(int) VMXR0InvalidatePhysPage(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys)
 {
-    bool fFlushPending = pVCpu->hwaccm.s.fForceTLBFlush;
+    bool fFlushPending = VMCPU_FF_ISSET(pVCpu, VMCPU_FF_TLB_FLUSH);
 
     Assert(pVM->hwaccm.s.fNestedPaging);
 

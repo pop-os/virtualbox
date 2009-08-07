@@ -24,7 +24,7 @@ if VboxBinDir is None:
     VboxBinDir = "%VBOX_INSTALL_PATH%"
 
 if VboxSdkDir is None:
-    VboxSdkDir = VboxBinDir+"/sdk"
+    VboxSdkDir = os.path.join(VboxBinDir,"sdk")
 
 os.environ["VBOX_PROGRAM_PATH"] = VboxBinDir
 os.environ["VBOX_SDK_PATH"] = VboxSdkDir
@@ -80,8 +80,13 @@ class PerfCollector:
         'values': collected data
         'values_as_string': pre-processed values ready for 'print' statement
         """
-        (values, names_out, objects_out, units, scales, sequence_numbers,
-            indices, lengths) = self.collector.queryMetricsData(names, objects)
+        # Get around the problem with input arrays returned in output parameters (see #3953).
+        if sys.platform == 'win32':
+            (values, names, objects, names_out, objects_out, units, scales, sequence_numbers,
+                indices, lengths) = self.collector.queryMetricsData(names, objects)
+        else:
+            (values, names_out, objects_out, units, scales, sequence_numbers,
+                indices, lengths) = self.collector.queryMetricsData(names, objects)
         out = []
         for i in xrange(0, len(names_out)):
             scale = int(scales[i])
@@ -98,6 +103,33 @@ class PerfCollector:
                 'values_as_string':'['+', '.join([fmt % (int(values[j])/scale, units[i]) for j in xrange(int(indices[i]), int(indices[i])+int(lengths[i]))])+']'
             })
         return out
+
+def ComifyName(name):
+    return name[0].capitalize()+name[1:]    
+
+_COMForward = { 'getattr' : None,
+                'setattr' : None}
+          
+def CustomGetAttr(self, attr):
+    # fastpath
+    if self.__class__.__dict__.get(attr) != None:
+        return self.__class__.__dict__.get(attr)
+
+    # try case-insensitivity workaround for class attributes (COM methods)
+    for k in self.__class__.__dict__.keys():
+        if k.lower() == attr.lower():
+            self.__class__.__dict__[attr] = self.__class__.__dict__[k]
+            return getattr(self, k)
+    try:
+        return _COMForward['getattr'](self,ComifyName(attr))
+    except AttributeError:
+        return _COMForward['getattr'](self,attr)
+
+def CustomSetAttr(self, attr, value):
+    try:
+        return _COMForward['setattr'](self, ComifyName(attr), value)
+    except AttributeError:
+        return _COMForward['setattr'](self, attr, value)
 
 class PlatformMSCOM:
     # Class to fake access to constants in style of foo.bar.boo
@@ -162,10 +194,10 @@ class PlatformMSCOM:
     VBOX_TLB_LCID  = 0
     VBOX_TLB_MAJOR = 1
     VBOX_TLB_MINOR = 0
-
+    
     def __init__(self, params):
             from win32com import universal
-            from win32com.client import gencache, DispatchWithEvents, Dispatch
+            from win32com.client import gencache, DispatchBaseClass
             from win32com.client import constants, getevents
             import win32com
             import pythoncom
@@ -178,7 +210,12 @@ class PlatformMSCOM:
             handle = DuplicateHandle(pid, GetCurrentThread(), pid, 0, 0, DUPLICATE_SAME_ACCESS)
             self.handles = []
             self.handles.append(handle)
-
+            _COMForward['getattr'] = DispatchBaseClass.__dict__['__getattr__']
+            DispatchBaseClass.__dict__['__getattr__'] = CustomGetAttr            
+            _COMForward['setattr'] = DispatchBaseClass.__dict__['__setattr__']
+            DispatchBaseClass.__dict__['__setattr__'] = CustomSetAttr            
+            win32com.client.gencache.EnsureDispatch('VirtualBox.Session')
+            win32com.client.gencache.EnsureDispatch('VirtualBox.VirtualBox')
 
     def getSessionObject(self, vbox):
         import win32com
@@ -236,7 +273,7 @@ class PlatformMSCOM:
         # looks them up on Windows
         for m in dir(impl):
            if m.startswith("on"):      
-             str += "   "+m[0].capitalize()+m[1:]+"=BaseClass."+m+"\n"
+             str += "   "+ComifyName(m)+"=BaseClass."+m+"\n"
 
         str += "   def __init__(self): BaseClass.__init__(self, arg)\n"
         #str += "win32com.server.register.UseCommandLine("+iface+"Impl)\n"
@@ -277,8 +314,7 @@ class PlatformMSCOM:
         pass
 
     def getPerfCollector(self, vbox):
-        # MS COM cannot invoke performance collector methods yet
-        return None
+        return PerfCollector(vbox)
 
 
 class PlatformXPCOM:
@@ -307,7 +343,7 @@ class PlatformXPCOM:
         return False
 
     def getArray(self, obj, field):
-        return obj.__getattr__('get'+field.capitalize())()
+        return obj.__getattr__('get'+ComifyName(field))()
 
     def initPerThread(self):
         pass
@@ -341,10 +377,12 @@ class PlatformXPCOM:
 
 class PlatformWEBSERVICE:
     def __init__(self, params):
-        sys.path.append(VboxSdkDir+'/bindings/webservice/python/lib')
+        sys.path.append(os.path.join(VboxSdkDir,'bindings', 'webservice', 'python', 'lib'))
+        # not really needed, but just fail early if misconfigured
         import VirtualBox_services
         import VirtualBox_wrappers
         from VirtualBox_wrappers import IWebsessionManager2
+
         if params is not None:
             self.user = params.get("user", "")
             self.password = params.get("password", "")
@@ -353,13 +391,38 @@ class PlatformWEBSERVICE:
             self.user = ""
             self.password = ""
             self.url = None
-        self.wsmgr = IWebsessionManager2(self.url)
+        self.vbox = None        
 
-    def getSessionObject(self, vbox):
+    def getSessionObject(self, vbox):        
         return self.wsmgr.getSessionObject(vbox)
 
     def getVirtualBox(self):
+        return self.connect(self.url, self.user, self.password)
+
+    def connect(self, url, user, passwd):
+        if self.vbox is not None:
+             self.disconnect()
+        from VirtualBox_wrappers import IWebsessionManager2
+        if url is None:
+            url = ""
+        self.url = url
+        if user is None:
+            user = ""
+        self.user = user
+        if passwd is None:
+            passwd = ""
+        self.password = passwd
+        self.wsmgr = IWebsessionManager2(self.url)
         self.vbox = self.wsmgr.logon(self.user, self.password)
+        if not self.vbox.handle:
+            raise Exception("cannot connect to '"+self.url+"' as '"+self.user+"'")
+        return self.vbox
+
+    def disconnect(self):
+        if self.vbox is not None and self.wsmgr is not None:
+                self.wsmgr.logoff(self.vbox)
+                self.vbox = None
+                self.wsmgr = None
 
     def getConstants(self):
         return None
@@ -388,11 +451,9 @@ class PlatformWEBSERVICE:
 
     def deinit(self):
         try:
-            if self.vbox is not None:
-                self.wsmg.logoff(self.vbox)
-                self.vbox = None
+           disconnect()
         except:
-            pass
+           pass
 
     def getPerfCollector(self, vbox):
         return PerfCollector(vbox)    
@@ -411,18 +472,28 @@ class VirtualBoxManager:
                 style = "MSCOM"
             else:
                 style = "XPCOM"
+        
+        exec "self.platform = Platform"+style+"(platparams)"
+            
+        self.constants = VirtualBoxReflectionInfo()
+        self.type = self.platform.getType()
+        self.remote = self.platform.getRemote()
+        self.style = style 
+        self.mgr = SessionManager(self)
+        
         try:
-            exec "self.platform = Platform"+style+"(platparams)"
             self.vbox = self.platform.getVirtualBox()
-            self.mgr = SessionManager(self)
-            self.constants = VirtualBoxReflectionInfo()
-            self.type = self.platform.getType()
-            self.remote = self.platform.getRemote()
-            self.style = style            
+        except NameError,ne:
+            print "Installation problem: check that appropriate libs in place"
+            traceback.print_exc()
+            raise ne
         except Exception,e:
             print "init exception: ",e
             traceback.print_exc()
-            raise e
+            if self.remote:
+                self.vbox = None
+            else:
+                raise e
 
     def getArray(self, obj, field):
         return self.platform.getArray(obj, field)
@@ -462,4 +533,4 @@ class VirtualBoxManager:
         return self.platform.waitForEvents(timeout)
 
     def getPerfCollector(self, vbox):
-        return self.platform.getPerfCollector(vbox)       
+        return PerfCollector(vbox)       

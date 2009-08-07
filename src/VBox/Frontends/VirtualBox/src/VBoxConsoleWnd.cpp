@@ -813,9 +813,10 @@ bool VBoxConsoleWnd::openView (const CSession &session)
 
     /* Mini toolbar */
     bool isActive = !(cmachine.GetExtraData (VBoxDefs::GUI_ShowMiniToolBar) == "no");
+    bool isAtTop = (cmachine.GetExtraData (VBoxDefs::GUI_MiniToolBarAlignment) == "top");
     bool isAutoHide = !(cmachine.GetExtraData (VBoxDefs::GUI_MiniToolBarAutoHide) == "off");
     QList <QMenu*> menus (QList <QMenu*> () << mMiniVMMenu << mDevicesMenu);
-    mMiniToolBar = new VBoxMiniToolBar (centralWidget(), VBoxMiniToolBar::AlignBottom,
+    mMiniToolBar = new VBoxMiniToolBar (centralWidget(), isAtTop ? VBoxMiniToolBar::AlignTop : VBoxMiniToolBar::AlignBottom,
                                         isActive, isAutoHide);
     *mMiniToolBar << menus;
     connect (mMiniToolBar, SIGNAL (exitAction()), this, SLOT (mtExitMode()));
@@ -2258,7 +2259,7 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
     }
 
     AssertReturn (console, false);
-    AssertReturn ((hidden_children.isEmpty() == aOn), false);
+    AssertReturn ((mHiddenChildren.empty() == aOn), false);
     AssertReturn ((aSeamless && mIsSeamless != aOn) ||
                   (!aSeamless && mIsFullscreen != aOn), false);
     if (aOn)
@@ -2374,7 +2375,7 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
                 if (!w->isHidden())
                 {
                     w->hide();
-                    hidden_children.append (w);
+                    mHiddenChildren.append (w);
                 }
             }
         }
@@ -2427,9 +2428,9 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
         console->setVerticalScrollBarPolicy (Qt::ScrollBarAsNeeded);
 
         /* Show everything hidden when going fullscreen. */
-        foreach (QObject *obj, hidden_children)
-            ((QWidget *) obj)->show();
-        hidden_children.clear();
+        foreach (QPointer <QWidget> child, mHiddenChildren)
+            if (child) child->show();
+        mHiddenChildren.clear();
     }
 
     /* Set flag for waiting host resize if it awaited during mode entering */
@@ -2843,6 +2844,19 @@ void VBoxConsoleWnd::devicesUnmountFloppy()
                 vboxProblem().cannotSaveMachineSettings (m);
         }
     }
+
+    if (drv.GetState() != KDriveState_NotMounted)
+    {
+        /* Looks like Main make no force unmounting here
+         * but IFloppyDrive::Unmount() is called synchronously.
+         * Also Main performs rollback for this procedure if
+         * it was failed by some reason - for example if the
+         * guest OS locked IFloppyDrive preventing image from
+         * unmounting - so no way to know the error was really
+         * occured. Thats why we just checking the drive state
+         * and warn a user about problem if present. */
+        vboxProblem().cannotEjectDrive();
+    }
 }
 
 void VBoxConsoleWnd::devicesMountDVDImage()
@@ -2891,6 +2905,19 @@ void VBoxConsoleWnd::devicesUnmountDVD()
             if (!m.isOk())
                 vboxProblem().cannotSaveMachineSettings (m);
         }
+    }
+
+    if (drv.GetState() != KDriveState_NotMounted)
+    {
+        /* Looks like Main make no force unmounting here
+         * but IDVDDrive::Unmount() is called synchronously.
+         * Also Main performs rollback for this procedure if
+         * it was failed by some reason - for example if the
+         * guest OS locked IDVDDrive preventing image from
+         * unmounting - so no way to know the error was really
+         * occured. Thats why we just checking the drive state
+         * and warn a user about problem if present. */
+        vboxProblem().cannotEjectDrive();
     }
 }
 

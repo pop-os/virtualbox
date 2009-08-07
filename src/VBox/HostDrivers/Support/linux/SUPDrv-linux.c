@@ -1,4 +1,4 @@
-/* $Rev: 43287 $ */
+/* $Rev: 50656 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
@@ -183,8 +183,13 @@ static int  VBoxDrvLinuxIOCtlSlow(struct file *pFilp, unsigned int uCmd, unsigne
 static int  VBoxDrvLinuxErr2LinuxErr(int);
 #ifdef VBOX_WITH_SUSPEND_NOTIFICATION
 static int  VBoxDrvProbe(struct platform_device *pDev);
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+static int  VBoxDrvSuspend(struct device *pDev);
+static int  VBoxDrvResume(struct device *pDev);
+# else
 static int  VBoxDrvSuspend(struct platform_device *pDev, pm_message_t State);
 static int  VBoxDrvResume(struct platform_device *pDev);
+# endif
 static void VBoxDevRelease(struct device *pDev);
 #endif
 
@@ -216,15 +221,28 @@ static struct miscdevice gMiscDevice =
 
 
 #ifdef VBOX_WITH_SUSPEND_NOTIFICATION
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+static struct dev_pm_ops gPlatformPMOps =
+{
+    .suspend = VBoxDrvSuspend,
+    .resume = VBoxDrvResume,
+};
+# endif
+
 static struct platform_driver gPlatformDriver =
 {
     .probe = VBoxDrvProbe,
+# if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
     .suspend = VBoxDrvSuspend,
     .resume = VBoxDrvResume,
+# endif
     /** @todo .shutdown? */
     .driver =
     {
-        .name = "vboxdrv"
+        .name = "vboxdrv",
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+        .pm = &gPlatformPMOps,
+# endif
     }
 };
 
@@ -472,6 +490,24 @@ static int __init VBoxDrvLinuxInit(void)
             /* performance counter generates NMI and is not masked? */
             if ((GET_APIC_DELIVERY_MODE(v) == APIC_MODE_NMI) && !(v & APIC_LVT_MASKED))
             {
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31) && defined(CONFIG_PERF_COUNTERS)
+                /* 2.6.31+: The performance counter framework will initialize the LVTPC
+                 * vector as NMI. We can't disable the framework but the kernel loader
+                 * script will do 'echo 2 > /proc/sys/kernel/perf_counter_paranoid'
+                 * which hopefilly prevents any usage of hardware performance counters
+                 * and therefore triggering of NMIs. */
+                printk(KERN_ERR DEVICE_NAME
+                       ": Warning: 2.6.31+ kernel detected. Most likely the hwardware performance\n"
+                                DEVICE_NAME
+                       ": counter framework which can generate NMIs is active. You have to prevent\n"
+                                DEVICE_NAME
+                       ": the usage of hardware performance counters by\n"
+                                DEVICE_NAME
+                       ":   echo 2 > /proc/sys/kernel/perf_counter_paranoid\n");
+                /* We can't do more here :-( */
+                goto no_error;
+# endif
+
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19) || defined CONFIG_X86_64
                 printk(KERN_ERR DEVICE_NAME
                 ": NMI watchdog either active or at least initialized. Please disable the NMI\n"
@@ -493,6 +529,7 @@ nmi_activated:
     }
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
     printk(KERN_DEBUG DEVICE_NAME ": Successfully done.\n");
+no_error:
 # endif /* >= 2.6.19 */
 #endif /* CONFIG_X86_LOCAL_APIC */
 
@@ -737,7 +774,11 @@ static int VBoxDrvProbe(struct platform_device *pDev)
  * @param   pDev        Pointer to the platform device.
  * @param   State       message type, see Documentation/power/devices.txt.
  */
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+static int VBoxDrvSuspend(struct device *pDev)
+# else
 static int VBoxDrvSuspend(struct platform_device *pDev, pm_message_t State)
+# endif
 {
     RTPowerSignalEvent(RTPOWEREVENT_SUSPEND);
     return 0;
@@ -748,7 +789,11 @@ static int VBoxDrvSuspend(struct platform_device *pDev, pm_message_t State)
  *
  * @param   pDev        Pointer to the platform device.
  */
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+static int VBoxDrvResume(struct device *pDev)
+# else
 static int VBoxDrvResume(struct platform_device *pDev)
+# endif
 {
     RTPowerSignalEvent(RTPOWEREVENT_RESUME);
     return 0;

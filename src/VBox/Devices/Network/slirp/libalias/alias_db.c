@@ -328,8 +328,14 @@ struct alias_link {     /* Main data structure */
 #define LINK_PARTIALLY_SPECIFIED   0x03 /* logical-or of first two bits */
 #define LINK_UNFIREWALLED          0x08
 
+#ifndef VBOX
     int     timestamp;  /* Time link was last accessed         */
     int     expire_time;    /* Expire time for link                */
+#else
+    unsigned int timestamp;  /* Time link was last accessed         */
+    unsigned int expire_time;    /* Expire time for link                */
+#endif
+
 #ifndef NO_USE_SOCKETS
 # ifndef VBOX 
     /* 
@@ -755,9 +761,13 @@ GetSocket(struct libalias *la, u_short port_net, int *sockfd, int link_type)
     so->s = sock;
     fd_nonblock(so->s);
 #endif
+    memset(&sock_addr, 0, sizeof(struct sockaddr_in));
     sock_addr.sin_family = AF_INET;
     sock_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    sock_addr.sin_port = port_net;
+    sock_addr.sin_port = htons(port_net);
+#ifdef RT_OS_DARWIN
+    sock_addr.sin_len = sizeof(struct sockaddr_in);
+#endif
 
     err = bind(sock,
         (struct sockaddr *)&sock_addr,
@@ -925,7 +935,12 @@ IncrementalCleanup(struct libalias *la)
     LIBALIAS_LOCK_ASSERT(la);
     LIST_FOREACH_SAFE(lnk, &la->linkTableOut[la->cleanupIndex++],
         list_out, lnk_tmp) {
+#ifndef VBOX
         if (la->timeStamp - lnk->timestamp > lnk->expire_time)
+#else
+        /* libalias counts time in seconds while slirp in millis */
+        if (la->timeStamp - lnk->timestamp > (1000 * lnk->expire_time))
+#endif
             DeleteLink(lnk);
     }
 
@@ -2289,7 +2304,11 @@ HouseKeeping(struct libalias *la)
 #endif
 
     /* Compute number of spokes (output table link chains) to cover */
+#ifndef VBOX
     n = LINK_TABLE_OUT_SIZE * (la->timeStamp - la->lastCleanupTime);
+#else
+    n = LINK_TABLE_OUT_SIZE * ((la->timeStamp - la->lastCleanupTime)/1000);
+#endif
     n /= ALIAS_CLEANUP_INTERVAL_SECS;
 
     /* Handle different cases */
