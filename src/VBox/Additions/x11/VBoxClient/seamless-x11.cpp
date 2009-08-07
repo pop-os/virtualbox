@@ -151,6 +151,7 @@ void VBoxGuestSeamlessX11::rebuildWindowTree(void)
     LogFlowThisFunc(("called\n"));
     freeWindowTree();
     addClients(DefaultRootWindow(mDisplay.get()));
+    mChanged = true;
 }
 
 
@@ -198,17 +199,23 @@ void VBoxGuestSeamlessX11::addClientWindow(const Window hWin)
     }
     if (fAddWin && (winAttrib.map_state == IsUnmapped))
         fAddWin = false;
-    if (fAddWin && (XFetchName(mDisplay, hClient, &pszWinName) != 0) && (pszWinName != NULL))
-        XFree(pszWinName);
-    else
-        /* kwin sometimes creates temporary fullscreen windows with no name. */
+    XSizeHints dummyHints;
+    long dummyLong;
+    if (fAddWin && (!XGetWMNormalHints(mDisplay, hClient, &dummyHints,
+                                       &dummyLong)))
+    {
+        LogFlowFunc(("window %lu, client window %lu has no size hints\n",
+                     hWin, hClient));
         fAddWin = false;
+    }
     if (fAddWin)
     {
         VBoxGuestX11Pointer<XRectangle> rects;
         int cRects = 0, iOrdering;
         bool hasShape = false;
 
+        LogFlowFunc(("adding window %lu, client window %lu\n", hWin,
+                     hClient));
         if (mSupportsShape)
         {
             XShapeSelectInput(mDisplay, hWin, ShapeNotifyMask);
@@ -287,7 +294,9 @@ void VBoxGuestSeamlessX11::nextEvent(void)
     LogFlowThisFunc(("\n"));
     /* Start by sending information about the current window setup to the host.  We do this
        here because we want to send all such information from a single thread. */
-    mObserver->notify();
+    if (mChanged)
+        mObserver->notify();
+    mChanged = false;
     XNextEvent(mDisplay, &event);
     switch (event.type)
     {
@@ -325,13 +334,12 @@ void VBoxGuestSeamlessX11::doConfigureEvent(Window hWin)
     {
         XWindowAttributes winAttrib;
 
-        if (XGetWindowAttributes(mDisplay, hWin, &winAttrib))
-        {
-            iter->second->mX = winAttrib.x;
-            iter->second->mY = winAttrib.y;
-            iter->second->mWidth = winAttrib.width;
-            iter->second->mHeight = winAttrib.height;
-        }
+        if (!XGetWindowAttributes(mDisplay, hWin, &winAttrib))
+            return;
+        iter->second->mX = winAttrib.x;
+        iter->second->mY = winAttrib.y;
+        iter->second->mWidth = winAttrib.width;
+        iter->second->mHeight = winAttrib.height;
         if (iter->second->mhasShape)
         {
             VBoxGuestX11Pointer<XRectangle> rects;
@@ -339,9 +347,12 @@ void VBoxGuestSeamlessX11::doConfigureEvent(Window hWin)
 
             rects = XShapeGetRectangles(mDisplay, hWin, ShapeBounding,
                                         &cRects, &iOrdering);
+            if (rects.get() == NULL)
+                cRects = 0;
             iter->second->mcRects = cRects;
             iter->second->mapRects = rects;
         }
+        mChanged = true;
     }
     LogFlowThisFunc(("returning\n"));
 }
@@ -360,6 +371,7 @@ void VBoxGuestSeamlessX11::doMapEvent(Window hWin)
     if (mGuestWindows.end() == iter)
     {
         addClientWindow(hWin);
+        mChanged = true;
     }
     LogFlowThisFunc(("returning\n"));
 }
@@ -383,9 +395,12 @@ void VBoxGuestSeamlessX11::doShapeEvent(Window hWin)
 
         rects = XShapeGetRectangles(mDisplay, hWin, ShapeBounding, &cRects,
                                     &iOrdering);
+        if (rects.get() == NULL)
+            cRects = 0;
         iter->second->mhasShape = true;
         iter->second->mcRects = cRects;
         iter->second->mapRects = rects;
+        mChanged = true;
     }
     LogFlowThisFunc(("returning\n"));
 }
@@ -404,6 +419,7 @@ void VBoxGuestSeamlessX11::doUnmapEvent(Window hWin)
     if (mGuestWindows.end() != iter)
     {
         mGuestWindows.removeWindow(iter);
+        mChanged = true;
     }
     LogFlowThisFunc(("returning\n"));
 }

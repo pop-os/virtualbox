@@ -65,7 +65,8 @@ VBoxReadInput(InputInfoPtr pInfo)
 
     /* The first test here is a workaround for an apparant bug in Xorg Server 1.5 */
     if (   miPointerGetScreen(pInfo->dev) != NULL
-        && RT_SUCCESS(VbglR3GetMouseStatus(&fFeatures, &cx, &cy)))
+        && RT_SUCCESS(VbglR3GetMouseStatus(&fFeatures, &cx, &cy))
+        && (fFeatures & VBOXGUEST_MOUSE_HOST_CAN_ABSOLUTE))
         /* send absolute movement */
         xf86PostMotionEvent(pInfo->dev, 1, 0, 2, cx, cy);
 }
@@ -232,6 +233,8 @@ VBoxPlug(pointer module,
           int *errmin)
 {
     xf86AddInputDriver(&VBOXMOUSE, module, 0);
+    xf86Msg(X_CONFIG, "Load address of symbol \"VBOXMOUSE\" is %p\n",
+            (void *)&VBOXMOUSE);
     return module;
 }
 

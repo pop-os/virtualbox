@@ -210,16 +210,6 @@
   <xsl:param name="idltype"/>
   <xsl:param name="safearray"/>
   <xsl:choose>
-    <xsl:when test="$idltype='uuid'">
-      <xsl:choose>
-        <xsl:when test="$safearray">
-          <xsl:value-of select="concat('Helper.uuidWrap(',$value,')')" />
-        </xsl:when>
-        <xsl:otherwise>
-          <xsl:value-of select="concat('UUID.fromString(',$value,')')" />
-        </xsl:otherwise>
-      </xsl:choose>
-    </xsl:when>
     <xsl:when test="//collection[@name=$idltype]">
       <xsl:variable name="elemtype">
         <xsl:call-template name="typeIdl2Glue">
@@ -303,9 +293,6 @@
           </xsl:choose>
         </xsl:otherwise>
       </xsl:choose>
-    </xsl:when>
-    <xsl:when test="$paramtype='uuid'">
-      <xsl:value-of select="concat($paramname, '.toString()')" />
     </xsl:when>
     <xsl:otherwise>
       <xsl:value-of select="$paramname" />
@@ -439,14 +426,6 @@ class Helper {
         } catch (InvocationTargetException e) {
             throw new AssertionError(e);
         }
-    }
-
-    public static List<UUID> uuidWrap(List<String> uuidVals) {
-         List<UUID> ret = new ArrayList<UUID>(uuidVals.size());
-         for (String uuid : uuidVals) {
-              ret.add(UUID.fromString(uuid));
-         }
-         return ret;
     }
 
     public static <T extends IUnknown> List<String> unwrap(List<T> thisPtrs) {
@@ -814,7 +793,7 @@ public class IWebsessionManager {
 
           <xsl:variable name="extends" select="//interface[@name=$ifname]/@extends" />
           <xsl:choose>
-            <xsl:when test="($extends = '$unknown') or ($extends = '$dispatched')">
+            <xsl:when test="($extends = '$unknown') or ($extends = '$dispatched') or ($extends = '$errorinfo')">
               <xsl:value-of select="concat('public class ', $ifname, ' extends IUnknown {&#10;&#10;')" />
             </xsl:when>
             <xsl:when test="//interface[@name=$extends]">

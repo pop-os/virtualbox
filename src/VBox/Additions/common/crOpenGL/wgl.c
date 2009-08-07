@@ -696,12 +696,15 @@ BOOL WINAPI wglGetPixelFormatAttribfvEXT_prox
     return 1;
 }
 
-const GLubyte * WINAPI wglGetExtensionsStringEXT_prox( HDC hdc )
+static GLubyte *gsz_wgl_extensions = "WGL_EXT_pixel_format WGL_ARB_pixel_format WGL_ARB_multisample";
+
+const GLubyte * WINAPI wglGetExtensionsStringEXT_prox()
 {
-    static GLubyte *retval = "WGL_EXT_pixel_format WGL_ARB_pixel_format WGL_ARB_multisample";
-
-    (void) hdc;
-
-    return retval;
+    return gsz_wgl_extensions;
 }
 
+const GLubyte * WINAPI wglGetExtensionsStringARB_prox(HDC hdc)
+{
+    (void) hdc; 
+    return gsz_wgl_extensions; 
+}

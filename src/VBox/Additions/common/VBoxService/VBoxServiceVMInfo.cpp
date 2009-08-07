@@ -51,6 +51,7 @@
 #include <iprt/system.h>
 #include <iprt/time.h>
 #include <iprt/assert.h>
+#include <VBox/version.h>
 #include <VBox/VBoxGuest.h>
 #include "VBoxServiceInternal.h"
 #include "VBoxServiceUtils.h"
@@ -66,7 +67,7 @@ static RTSEMEVENTMULTI g_VMInfoEvent = NIL_RTSEMEVENTMULTI;
 /** The guest property service client ID. */
 static uint32_t g_VMInfoGuestPropSvcClientID = 0;
 /** Number of logged in users in OS. */
-static uint32_t g_VMInfoLoggedInUsers = 0;
+static uint32_t g_VMInfoLoggedInUsers = UINT32_MAX;
 #ifdef RT_OS_WINDOWS
 /** Function prototypes for dynamic loading. */
 fnWTSGetActiveConsoleSessionId g_pfnWTSGetActiveConsoleSessionId = NULL;
@@ -173,7 +174,12 @@ DECLCALLBACK(int) VBoxServiceVMInfoWorker(bool volatile *pfShutdown)
     rc = VboxServiceWinGetAddsVersion(g_VMInfoGuestPropSvcClientID);
     rc = VboxServiceWinGetComponentVersions(g_VMInfoGuestPropSvcClientID);
 #else
-    /** @todo */
+    /* VboxServiceGetAddsVersion !RT_OS_WINDOWS */
+    VboxServiceWriteProp(g_VMInfoGuestPropSvcClientID, "GuestAdd/Version", VBOX_VERSION_STRING);
+
+    char szRevision[32] = {0};
+    RTStrPrintf(szRevision, sizeof(szRevision), "%lu", VBOX_SVN_REV);
+    VboxServiceWriteProp(g_VMInfoGuestPropSvcClientID, "GuestAdd/Revision", szRevision);
 #endif
 
     /* Now enter the loop retrieving runtime data continuously. */
@@ -228,7 +234,7 @@ DECLCALLBACK(int) VBoxServiceVMInfoWorker(bool volatile *pfShutdown)
             ::LocalFree (pLuid);
 
         ::LsaFreeReturnBuffer(pSessions);
- #endif /* TARGET_NT4 */    
+ #endif /* TARGET_NT4 */
 #else
         utmp* ut_user;
         rc = utmpname(UTMP_FILE);
@@ -256,15 +262,15 @@ DECLCALLBACK(int) VBoxServiceVMInfoWorker(bool volatile *pfShutdown)
 
         VboxServiceWriteProp(g_VMInfoGuestPropSvcClientID, "GuestInfo/OS/LoggedInUsersList", (uiUserCount > 0) ? szUserList : NULL);
         VboxServiceWritePropInt(g_VMInfoGuestPropSvcClientID, "GuestInfo/OS/LoggedInUsers", uiUserCount);
-        if (g_VMInfoLoggedInUsers != uiUserCount || g_VMInfoLoggedInUsers == INT32_MAX)
+        if (g_VMInfoLoggedInUsers != uiUserCount || g_VMInfoLoggedInUsers == UINT32_MAX)
         {
             /* Update this property ONLY if there is a real change from no users to
              * users or vice versa. The only exception is that the initialization
-             * of a_pCtx->cUsers forces an update, but only once. This ensures
-             * consistent property settings even if the VM aborted previously. */
+             * forces an update, but only once. This ensures consistent property
+             * settings even if the VM aborted previously. */
             if (uiUserCount == 0)
                 VboxServiceWriteProp(g_VMInfoGuestPropSvcClientID, "GuestInfo/OS/NoLoggedInUsers", "true");
-            else if (g_VMInfoLoggedInUsers == 0 || uiUserCount == INT32_MAX)
+            else if (g_VMInfoLoggedInUsers == 0)
                 VboxServiceWriteProp(g_VMInfoGuestPropSvcClientID, "GuestInfo/OS/NoLoggedInUsers", "false");
         }
         g_VMInfoLoggedInUsers = uiUserCount;

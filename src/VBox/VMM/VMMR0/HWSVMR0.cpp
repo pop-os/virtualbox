@@ -54,6 +54,7 @@
 *******************************************************************************/
 static int svmR0InterpretInvpg(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t uASID);
 static int svmR0ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
+static void svmR0SetMSRPermission(PVM pVM, unsigned ulMSR, bool fRead, bool fWrite);
 
 /*******************************************************************************
 *   Global Variables                                                           *
@@ -361,7 +362,72 @@ VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
         /** Setup the PAT msr (nested paging only) */
         pVMCB->guest.u64GPAT = 0x0007040600070406ULL;
     }
+    /* The following MSRs are saved automatically by vmload/vmsave, so we allow the guest
+     * to modify them directly. 
+     */
+    svmR0SetMSRPermission(pVM, MSR_K8_LSTAR, true, true);
+    svmR0SetMSRPermission(pVM, MSR_K8_CSTAR, true, true);
+    svmR0SetMSRPermission(pVM, MSR_K6_STAR, true, true);
+    svmR0SetMSRPermission(pVM, MSR_K8_SF_MASK, true, true);
+    svmR0SetMSRPermission(pVM, MSR_K8_FS_BASE, true, true);
+    svmR0SetMSRPermission(pVM, MSR_K8_GS_BASE, true, true);
+    svmR0SetMSRPermission(pVM, MSR_K8_KERNEL_GS_BASE, true, true);
+    svmR0SetMSRPermission(pVM, MSR_IA32_SYSENTER_CS, true, true);
+    svmR0SetMSRPermission(pVM, MSR_IA32_SYSENTER_ESP, true, true);
+    svmR0SetMSRPermission(pVM, MSR_IA32_SYSENTER_EIP, true, true);
     return rc;
+}
+
+
+/**
+ * Sets the permission bits for the specified MSR
+ *
+ * @param   pVM         The VM to operate on.
+ * @param   ulMSR       MSR value
+ * @param   fRead       Reading allowed/disallowed
+ * @param   fWrite      Writing allowed/disallowed
+ */
+static void svmR0SetMSRPermission(PVM pVM, unsigned ulMSR, bool fRead, bool fWrite)
+{
+    unsigned ulBit;
+    uint8_t *pMSRBitmap = (uint8_t *)pVM->hwaccm.s.svm.pMSRBitmap;
+
+    if (ulMSR <= 0x00001FFF)
+    {
+        /* Pentium-compatible MSRs */
+        ulBit    = ulMSR * 2;
+    }
+    else
+    if (    ulMSR >= 0xC0000000
+        &&  ulMSR <= 0xC0001FFF)
+    {
+        /* AMD Sixth Generation x86 Processor MSRs and SYSCALL */
+        ulBit = (ulMSR - 0xC0000000) * 2;
+        pMSRBitmap += 0x800;
+    }
+    else
+    if (    ulMSR >= 0xC0010000
+        &&  ulMSR <= 0xC0011FFF)
+    {
+        /* AMD Seventh and Eighth Generation Processor MSRs */
+        ulBit = (ulMSR - 0xC0001000) * 2;
+        pMSRBitmap += 0x1000;
+    }
+    else
+    {
+        AssertFailed();
+        return;
+    }
+    Assert(ulBit < 16 * 1024 - 1);
+    if (fRead)
+        ASMBitClear(pMSRBitmap, ulBit);
+    else
+        ASMBitSet(pMSRBitmap, ulBit);
+    
+    if (fWrite)
+        ASMBitClear(pMSRBitmap, ulBit + 1);
+    else
+        ASMBitSet(pMSRBitmap, ulBit + 1);
 }
 
 
@@ -1294,7 +1360,15 @@ ResumeExecution:
     /* eax is saved/restore across the vmrun instruction */
     pCtx->rax        = pVMCB->guest.u64RAX;
 
+    /* Save all the MSRs that can be changed by the guest without causing a world switch. (fs & gs base are saved with SVM_READ_SELREG) */
+    pCtx->msrSTAR         = pVMCB->guest.u64STAR;            /* legacy syscall eip, cs & ss */
+    pCtx->msrLSTAR        = pVMCB->guest.u64LSTAR;           /* 64 bits mode syscall rip */
+    pCtx->msrCSTAR        = pVMCB->guest.u64CSTAR;           /* compatibility mode syscall rip */
+    pCtx->msrSFMASK       = pVMCB->guest.u64SFMASK;          /* syscall flag mask */
     pCtx->msrKERNELGSBASE = pVMCB->guest.u64KernelGSBase;    /* swapgs exchange value */
+    pCtx->SysEnter.cs     = pVMCB->guest.u64SysEnterCS;
+    pCtx->SysEnter.eip    = pVMCB->guest.u64SysEnterEIP;
+    pCtx->SysEnter.esp    = pVMCB->guest.u64SysEnterESP;
 
     /* Can be updated behind our back in the nested paging case. */
     pCtx->cr2        = pVMCB->guest.u64CR2;
@@ -1306,13 +1380,6 @@ ResumeExecution:
     SVM_READ_SELREG(ES, es);
     SVM_READ_SELREG(FS, fs);
     SVM_READ_SELREG(GS, gs);
-
-    /*
-     * System MSRs
-     */
-    pCtx->SysEnter.cs       = pVMCB->guest.u64SysEnterCS;
-    pCtx->SysEnter.eip      = pVMCB->guest.u64SysEnterEIP;
-    pCtx->SysEnter.esp      = pVMCB->guest.u64SysEnterESP;
 
     /* Remaining guest CPU context: TR, IDTR, GDTR, LDTR; must sync everything otherwise we can get out of sync when jumping to ring 3. */
     SVM_READ_SELREG(LDTR, ldtr);
@@ -2728,7 +2795,7 @@ static int svmR0InterpretInvpg(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, ui
  */
 VMMR0DECL(int) SVMR0InvalidatePage(PVM pVM, PVMCPU pVCpu, RTGCPTR GCVirt)
 {
-    bool fFlushPending = pVM->hwaccm.s.svm.fAlwaysFlushTLB | pVCpu->hwaccm.s.fForceTLBFlush;
+    bool fFlushPending = pVM->hwaccm.s.svm.fAlwaysFlushTLB | VMCPU_FF_ISSET(pVCpu, VMCPU_FF_TLB_FLUSH);
 
     /* Skip it if a TLB flush is already pending. */
     if (!fFlushPending)
@@ -2739,14 +2806,13 @@ VMMR0DECL(int) SVMR0InvalidatePage(PVM pVM, PVMCPU pVCpu, RTGCPTR GCVirt)
         AssertReturn(pVM, VERR_INVALID_PARAMETER);
         Assert(pVM->hwaccm.s.svm.fSupported);
 
-        /* @todo SMP */
-        pVMCB = (SVM_VMCB *)pVM->aCpus[0].hwaccm.s.svm.pVMCB;
+        pVMCB = (SVM_VMCB *)pVCpu->hwaccm.s.svm.pVMCB;
         AssertMsgReturn(pVMCB, ("Invalid pVMCB\n"), VERR_EM_INTERNAL_ERROR);
 
 #if HC_ARCH_BITS == 32
         /* If we get a flush in 64 bits guest mode, then force a full TLB flush. Invlpga takes only 32 bits addresses. */
         if (CPUMIsGuestInLongMode(pVCpu))
-            pVCpu->hwaccm.s.fForceTLBFlush = true;
+            VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
         else
 #endif
             SVMR0InvlpgA(GCVirt, pVMCB->ctrl.TLBCtrl.n.u32ASID);
@@ -2768,7 +2834,7 @@ VMMR0DECL(int) SVMR0InvalidatePhysPage(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys)
 {
     Assert(pVM->hwaccm.s.fNestedPaging);
     /* invlpga only invalidates TLB entries for guest virtual addresses; we have no choice but to force a TLB flush here. */
-    pVCpu->hwaccm.s.fForceTLBFlush = true;
+    VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
     STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatFlushTLBInvlpga);
     return VINF_SUCCESS;
 }

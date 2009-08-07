@@ -195,6 +195,14 @@ struct DConnectInvokeReply : DConnectOp
 
 //-----------------------------------------------------------------------------
 
+struct DConAddrPlusPtr
+{
+  DConAddr addr;
+  void *p;
+};
+
+//-----------------------------------------------------------------------------
+
 ipcDConnectService *ipcDConnectService::mInstance = nsnull;
 
 //-----------------------------------------------------------------------------
@@ -532,9 +540,9 @@ DeserializeParam(ipcMessageReader &reader, const nsXPTType &t, nsXPTCVariant &v)
     case nsXPTType::T_INTERFACE:
     case nsXPTType::T_INTERFACE_IS:
       {
-        reader.GetBytes(&v.val.p, sizeof(void *));
+        reader.GetBytes(&v.val.u64, sizeof(DConAddr));
         // stub creation will be handled outside this routine.  we only
-        // deserialize the DConAddr into v.val.p temporarily.
+        // deserialize the DConAddr into v.val.u64 temporarily.
       }
       break;
 
@@ -767,10 +775,12 @@ DeserializeResult(ipcMessageReader &reader, const nsXPTType &t, nsXPTCMiniVarian
     case nsXPTType::T_INTERFACE_IS:
       {
         // stub creation will be handled outside this routine.  we only
-        // deserialize the DConAddr into v.val.p temporarily.
-        void *ptr;
-        reader.GetBytes(&ptr, sizeof(void *));
-        *((void **) v.val.p) = ptr;
+        // deserialize the DConAddr and the original value of v.val.p
+        // into v.val.p temporarily.  needs temporary memory alloc.
+        DConAddrPlusPtr *buf = (DConAddrPlusPtr *) nsMemory::Alloc(sizeof(DConAddrPlusPtr));
+        reader.GetBytes(&buf->addr, sizeof(DConAddr));
+        buf->p = v.val.p;
+        v.val.p = buf;
       }
       break;
 
@@ -938,13 +948,16 @@ GetTypeSize(const nsXPTType &type, PRUint32 &size, PRBool &isSimple)
     case nsXPTType::T_IID:            /* fall through */
     case nsXPTType::T_CHAR_STR:       /* fall through */
     case nsXPTType::T_WCHAR_STR:      /* fall through */
-    case nsXPTType::T_INTERFACE:      /* fall through */
-    case nsXPTType::T_INTERFACE_IS:   /* fall through */
     case nsXPTType::T_ASTRING:        /* fall through */
     case nsXPTType::T_DOMSTRING:      /* fall through */
     case nsXPTType::T_UTF8STRING:     /* fall through */
     case nsXPTType::T_CSTRING:        /* fall through */
       size = sizeof(void *);
+      isSimple = PR_FALSE;
+      break;
+    case nsXPTType::T_INTERFACE:      /* fall through */
+    case nsXPTType::T_INTERFACE_IS:   /* fall through */
+      size = sizeof(DConAddr);
       isSimple = PR_FALSE;
       break;
     default:
@@ -1096,7 +1109,7 @@ DeserializeArrayParam(ipcDConnectService *dConnect,
     if (NS_SUCCEEDED(rv) && elemType.IsInterfacePointer())
     {
       // grab the DConAddr value temporarily stored in the param
-      PtrBits bits = (PtrBits) v.val.p;
+      PtrBits bits = v.val.u64;
 
       // DeserializeInterfaceParamBits needs IID only if it's a remote object
       nsID iid;
@@ -1524,7 +1537,8 @@ ipcDConnectService::SerializeInterfaceParam(ipcMessageWriter &writer,
   if (!obj)
   {
     // write null address
-    writer.PutBytes(&obj, sizeof(obj));
+    DConAddr nullobj = 0;
+    writer.PutBytes(&nullobj, sizeof(nullobj));
   }
   else
   {
@@ -1532,7 +1546,7 @@ ipcDConnectService::SerializeInterfaceParam(ipcMessageWriter &writer,
     nsresult rv = obj->QueryInterface(kDConnectStubID, (void **) &stub);
     if (NS_SUCCEEDED(rv) && (stub->PeerID() == peer))
     {
-      void *p = stub->Instance();
+      DConAddr p = stub->Instance();
       writer.PutBytes(&p, sizeof(p));
     }
     else
@@ -1581,7 +1595,7 @@ ipcDConnectService::SerializeInterfaceParam(ipcMessageWriter &writer,
 
       // send address of the instance wrapper, and set the low bit to indicate
       // to the remote party that this is a remote instance wrapper.
-      PtrBits bits = ((PtrBits) wrapper) | PTRBITS_REMOTE_BIT;
+      PtrBits bits = ((PtrBits)(uintptr_t) wrapper) | PTRBITS_REMOTE_BIT;
       writer.PutBytes(&bits, sizeof(bits));
     }
     NS_IF_RELEASE(stub);
@@ -1849,7 +1863,7 @@ ipcDConnectService::SerializeException(ipcMessageWriter &writer,
       if (NS_SUCCEEDED(rv) && (stub->Stub()->PeerID() == peer))
       {
         // send the wrapper instance back to the peer
-        void *p = stub->Stub()->Instance();
+        DConAddr p = stub->Stub()->Instance();
         writer.PutBytes(&p, sizeof(p));
       }
       else
@@ -1899,7 +1913,7 @@ ipcDConnectService::SerializeException(ipcMessageWriter &writer,
 
         // send address of the instance wrapper, and set the low bit to indicate
         // to the remote party that this is a remote instance wrapper.
-        PtrBits bits = ((PtrBits) wrapper) | PTRBITS_REMOTE_BIT;
+        PtrBits bits = ((PtrBits)(uintptr_t) wrapper) | PTRBITS_REMOTE_BIT;
         writer.PutBytes(&bits, sizeof(bits));
 
         // we want to cache fields to minimize the number of IPC calls when
@@ -1986,12 +2000,10 @@ ipcDConnectService::DeserializeException(ipcMessageReader &reader,
   nsresult rv;
   PRUint32 len;
 
-  void *instance = 0;
-  reader.GetBytes(&instance, sizeof(void *));
+  PtrBits bits = 0;
+  reader.GetBytes(&bits, sizeof(DConAddr));
   if (reader.HasError())
     return NS_ERROR_INVALID_ARG;
-
-  PtrBits bits = (PtrBits) (instance);
 
   if (bits & PTRBITS_REMOTE_BIT)
   {
@@ -2095,7 +2107,7 @@ DConnectStub::~DConnectStub()
 #ifdef IPC_LOGGING
   const char *name;
   mIInfo->GetNameShared(&name);
-  LOG(("{%p} DConnectStub::<dtor>(): peer=%d instance=%p {%s}\n",
+  LOG(("{%p} DConnectStub::<dtor>(): peer=%d instance=0x%Lx {%s}\n",
        this, mPeerID, mInstance, name));
 #endif
 
@@ -2292,7 +2304,7 @@ DConnectStub::QueryInterface(const nsID &aIID, void **aInstancePtr)
     dConnect->GetInterfaceInfo(aIID, getter_AddRefs(iinfoQ));
     iinfoQ->GetNameShared(&nameQ);
     LOG(("calling QueryInterface {%s} on peer object "
-         "(stub=%p, instance=%p {%s})\n",
+         "(stub=%p, instance=0x%Lx {%s})\n",
          nameQ, this, mInstance, name));
   }
 #endif
@@ -2367,7 +2379,7 @@ DConnectStub::CallMethod(PRUint16 aMethodIndex,
 
   PRUint8 i, paramCount = aInfo->GetParamCount();
 
-  LOG(("  instance=%p\n", mInstance));
+  LOG(("  instance=0x%Lx\n", mInstance));
   LOG(("  name=%s\n", aInfo->GetName()));
   LOG(("  param-count=%u\n", (PRUint32) paramCount));
 
@@ -2513,13 +2525,15 @@ DConnectStub::CallMethod(PRUint16 aMethodIndex,
       const nsXPTParamInfo &paramInfo = aInfo->GetParam(i);
       if (aParams[i].val.p && (paramInfo.IsOut() || paramInfo.IsRetval()))
       {
-        void **pptr = (void **) aParams[i].val.p;
         const nsXPTType &type = paramInfo.GetType();
         if (type.IsInterfacePointer())
         {
-          // grab the DConAddr value temporarily stored in the param
-          PtrBits bits = (PtrBits) *pptr;
-          *pptr = nsnull;
+          // grab the DConAddr value temporarily stored in the param, restore
+          // the pointer and free the temporarily allocated memory.
+          DConAddrPlusPtr *dptr = (DConAddrPlusPtr *)aParams[i].val.p;
+          PtrBits bits = dptr->addr;
+          aParams[i].val.p = dptr->p;
+          nsMemory::Free((void *)dptr);
 
           // DeserializeInterfaceParamBits needs IID only if it's a remote object
           nsID iid;
@@ -2532,7 +2546,7 @@ DConnectStub::CallMethod(PRUint16 aMethodIndex,
             nsISupports *obj = nsnull;
             rv = dConnect->DeserializeInterfaceParamBits(bits, mPeerID, iid, obj);
             if (NS_SUCCEEDED(rv))
-              *pptr = obj;
+              *(void **)aParams[i].val.p = obj;
           }
         }
         else if (type.IsArray())
@@ -2542,7 +2556,7 @@ DConnectStub::CallMethod(PRUint16 aMethodIndex,
                                      aMethodIndex, *aInfo, aParams, PR_FALSE,
                                      paramInfo, PR_TRUE, array);
           if (NS_SUCCEEDED(rv))
-            *pptr = array;
+            *(void **)aParams[i].val.p = array;
         }
       }
     }
@@ -2594,7 +2608,7 @@ public:
 
     const DConnectSetupReply *reply = (const DConnectSetupReply *) op;
 
-    LOG(("got SETUP_REPLY: status=%x instance=%p\n", reply->status, reply->instance));
+    LOG(("got SETUP_REPLY: status=%x instance=0x%Lx\n", reply->status, reply->instance));
 
     mStatus = reply->status;
 
@@ -3121,7 +3135,7 @@ ipcDConnectService::StoreStub(DConnectStub *stub)
   nsCOMPtr<nsIInterfaceInfo> iinfo;
   stub->GetInterfaceInfo(getter_AddRefs(iinfo));
   iinfo->GetNameShared(&name);
-  LOG(("ipcDConnectService::StoreStub(): stub=%p instance=%p {%s}\n",
+  LOG(("ipcDConnectService::StoreStub(): stub=%p instance=0x%Lx {%s}\n",
        stub, stub->Instance(), name));
 #endif
 
@@ -3137,7 +3151,7 @@ ipcDConnectService::DeleteStub(DConnectStub *stub)
   nsCOMPtr<nsIInterfaceInfo> iinfo;
   stub->GetInterfaceInfo(getter_AddRefs(iinfo));
   iinfo->GetNameShared(&name);
-  LOG(("ipcDConnectService::DeleteStub(): stub=%p instance=%p {%s}\n",
+  LOG(("ipcDConnectService::DeleteStub(): stub=%p instance=0x%Lx {%s}\n",
        stub, stub->Instance(), name));
 #endif
 
@@ -3472,17 +3486,18 @@ ipcDConnectService::OnSetup(PRUint32 peer, const DConnectSetup *setup, PRUint32 
     case DCON_OP_SETUP_QUERY_INTERFACE:
     {
       const DConnectSetupQueryInterface *setupQI = (const DConnectSetupQueryInterface *) setup;
+      DConnectInstance *QIinstance = (DConnectInstance *)setupQI->instance;
 
       // make sure we've been sent a valid wrapper
-      if (!CheckInstanceAndAddRef(setupQI->instance, peer))
+      if (!CheckInstanceAndAddRef(QIinstance, peer))
       {
         NS_NOTREACHED("instance wrapper not found");
         rv = NS_ERROR_INVALID_ARG;
       }
       else
       {
-        rv = setupQI->instance->RealInstance()->QueryInterface(setupQI->iid, (void **) &instance);
-        setupQI->instance->Release();
+        rv = QIinstance->RealInstance()->QueryInterface(setupQI->iid, (void **) &instance);
+        QIinstance->Release();
       }
       break;
     }
@@ -3587,7 +3602,7 @@ ipcDConnectService::OnSetup(PRUint32 peer, const DConnectSetup *setup, PRUint32 
   msg.opcode_minor = 0;
   msg.flags = 0;
   msg.request_index = setup->request_index;
-  msg.instance = wrapper;
+  msg.instance = (DConAddr)(uintptr_t)wrapper;
   msg.status = rv;
 
   if (got_exception)
@@ -3619,10 +3634,10 @@ ipcDConnectService::OnSetup(PRUint32 peer, const DConnectSetup *setup, PRUint32 
 void
 ipcDConnectService::OnRelease(PRUint32 peer, const DConnectRelease *release)
 {
-  LOG(("ipcDConnectService::OnRelease [peer=%u instance=%p]\n",
+  LOG(("ipcDConnectService::OnRelease [peer=%u instance=0x%Lx]\n",
        peer, release->instance));
 
-  DConnectInstance *wrapper = release->instance;
+  DConnectInstance *wrapper = (DConnectInstance *)release->instance;
 
   nsAutoLock lock (mLock);
 
@@ -3654,10 +3669,10 @@ ipcDConnectService::OnRelease(PRUint32 peer, const DConnectRelease *release)
 void
 ipcDConnectService::OnInvoke(PRUint32 peer, const DConnectInvoke *invoke, PRUint32 opLen)
 {
-  LOG(("ipcDConnectService::OnInvoke [peer=%u instance=%p method=%u]\n",
+  LOG(("ipcDConnectService::OnInvoke [peer=%u instance=0x%Lx method=%u]\n",
       peer, invoke->instance, invoke->method_index));
 
-  DConnectInstance *wrapper = invoke->instance;
+  DConnectInstance *wrapper = (DConnectInstance *)invoke->instance;
 
   ipcMessageReader reader((const PRUint8 *) (invoke + 1), opLen - sizeof(*invoke));
 
@@ -3730,7 +3745,7 @@ ipcDConnectService::OnInvoke(PRUint32 peer, const DConnectInvoke *invoke, PRUint
       if (type.IsInterfacePointer())
       {
         // grab the DConAddr value temporarily stored in the param
-        PtrBits bits = (PtrBits) params[i].val.p;
+        PtrBits bits = (PtrBits)(uintptr_t) params[i].val.p;
 
         // DeserializeInterfaceParamBits needs IID only if it's a remote object
         nsID iid;

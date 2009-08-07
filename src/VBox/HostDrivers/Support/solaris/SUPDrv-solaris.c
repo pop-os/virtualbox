@@ -322,7 +322,10 @@ static int VBoxDrvSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
             /*
              * Register for suspend/resume notifications
              */
-            rc = ddi_prop_update_string(DDI_DEV_T_ANY, pDip, "pm-hardware-state", "needs-suspend-resume");
+            rc = ddi_prop_create(DDI_DEV_T_NONE, pDip, DDI_PROP_CANSLEEP /* kmem alloc can sleep */,
+                                "pm-hardware-state", "needs-suspend-resume", sizeof("needs-suspend-resume"));
+            if (rc != DDI_PROP_SUCCESS)
+                LogRel((DEVICE_NAME ":Suspend/Resume notification registeration failed.\n"));
 
             /*
              * Register ourselves as a character device, pseudo-driver
@@ -356,6 +359,7 @@ static int VBoxDrvSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
             RTSemFastMutexRelease(g_DevExt.mtxGip);
 #endif
             RTPowerSignalEvent(RTPOWEREVENT_RESUME);
+            LogFlow((DEVICE_NAME ": Awakened from suspend.\n"));
             return DDI_SUCCESS;
         }
 
@@ -392,6 +396,7 @@ static int VBoxDrvSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
             ddi_remove_minor_node(pDip, NULL);
             ddi_soft_state_free(g_pVBoxDrvSolarisState, instance);
 #endif
+            ddi_prop_remove_all(pDip);
             return DDI_SUCCESS;
         }
 
@@ -405,6 +410,7 @@ static int VBoxDrvSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
             RTSemFastMutexRelease(g_DevExt.mtxGip);
 #endif
             RTPowerSignalEvent(RTPOWEREVENT_SUSPEND);
+            LogFlow((DEVICE_NAME ": Falling to suspend mode.\n"));
             return DDI_SUCCESS;
 
         }

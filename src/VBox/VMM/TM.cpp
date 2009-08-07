@@ -325,11 +325,7 @@ VMMR3DECL(int) TMR3Init(PVM pVM)
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
     {
         if (!pVM->tm.s.fTSCUseRealTSC)
-        {
-            /* @todo simple case for guest SMP; always emulate RDTSC */
-            if (pVM->cCPUs == 1)
-                pVM->tm.s.fMaybeUseOffsettedHostTSC = tmR3HasFixedTSC(pVM);
-        }
+            pVM->tm.s.fMaybeUseOffsettedHostTSC = tmR3HasFixedTSC(pVM);
         else
             pVM->tm.s.fMaybeUseOffsettedHostTSC = true;
     }
@@ -2012,8 +2008,10 @@ static void tmR3TimerQueueRunVirtualSync(PVM pVM)
     /*
      * Process the expired timers moving the clock along as we progress.
      */
+#ifdef DEBUG_bird
 #ifdef VBOX_STRICT
     uint64_t u64Prev = u64Now; NOREF(u64Prev);
+#endif
 #endif
     while (pNext && pNext->u64Expire <= u64Max)
     {
@@ -2043,9 +2041,11 @@ static void tmR3TimerQueueRunVirtualSync(PVM pVM)
             pTimer->offPrev = 0;
 
             /* advance the clock - don't permit timers to be out of order or armed in the 'past'. */
+#ifdef DEBUG_bird
 #ifdef VBOX_STRICT
             AssertMsg(pTimer->u64Expire >= u64Prev, ("%'RU64 < %'RU64 %s\n", pTimer->u64Expire, u64Prev, pTimer->pszDesc));
             u64Prev = pTimer->u64Expire;
+#endif
 #endif
             ASMAtomicWriteU64(&pVM->tm.s.u64VirtualSync, pTimer->u64Expire);
             ASMAtomicWriteBool(&pVM->tm.s.fVirtualSyncTicking, false);

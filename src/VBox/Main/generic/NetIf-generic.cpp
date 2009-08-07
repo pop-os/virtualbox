@@ -190,7 +190,8 @@ int NetIfCreateHostOnlyNetworkInterface (VirtualBox *pVBox, IHostNetworkInterfac
                             ComObjPtr <HostNetworkInterface> iface;
                             iface.createObject();
                             iface->init(IfName, HostNetworkInterfaceType_HostOnly, pInfo);
-                            iface.queryInterfaceTo (aHostNetworkInterface);
+                            iface->setVirtualBox(pVBox);
+                            iface.queryInterfaceTo(aHostNetworkInterface);
                         }
                         RTMemFree(pInfo);
                     }
