@@ -1,5 +1,6 @@
 usr/share/virtualbox
 usr/lib/xorg/modules/drivers
 usr/lib/xorg/modules/input
+usr/lib/dri
 usr/bin
 etc/X11/Xsession.d

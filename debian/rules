@@ -144,8 +144,9 @@ binary-arch: build install serverabi
 	dh_compress -s
 	dh_fixperms -s
 	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxSDL
-	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxBFE
 	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxHeadless
+	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxNetDHCP
+	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxNetAdpCtl
 	chmod +s debian/$(sxname)/usr/lib/virtualbox/VirtualBox
 	dh_installudev -s
 	dh_installdebconf -s
