@@ -3,6 +3,8 @@ virtualbox-ose (3.0.4-dfsg-1) unstable; urgency=low
   [ Felix Geyer ]
   * New Upstream Version
   * Install network management tools and guest dri driver
+  * Drop vboxvideo.ids as the X server now uses an internal table to
+    pick a driver during autoconfig
 
   [ Michael Meskes ]
   * Provide python stuff needed by vboxgtk, closes: #539445
