@@ -19,4 +19,6 @@ out/bin/VMM* /usr/lib/virtualbox
 out/bin/vboxwebsrv /usr/lib/virtualbox
 out/bin/webtest /usr/lib/virtualbox
 
+out/bin/sdk/bindings/xpcom/python /usr/lib/virtualbox/sdk/bindings/xpcom
+
 out/bin/VBoxSysInfo.sh /usr/share/virtualbox
