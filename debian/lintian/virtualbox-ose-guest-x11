@@ -1,0 +1,1 @@
+virtualbox-ose-guest-x11: shlib-with-non-pic-code usr/lib/VBoxOGL.so
