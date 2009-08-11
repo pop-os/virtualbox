@@ -1,3 +1,5 @@
+debian/lintian/virtualbox-ose-guest-x11 /usr/share/lintian/overrides
+
 out/bin/additions/VBoxClient /usr/bin
 src/VBox/Additions/x11/Installer/x11config.pl /usr/share/virtualbox
 src/VBox/Additions/x11/Installer/x11config15.pl /usr/share/virtualbox
