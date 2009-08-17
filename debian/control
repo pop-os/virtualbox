@@ -54,7 +54,7 @@ Build-Depends: bcc,
                xsltproc,
                yasm (>= 0.7.0),
                zlib1g-dev
-Standards-Version: 3.8.2
+Standards-Version: 3.8.3
 Homepage: http://www.virtualbox.org/
 Vcs-Git: git://git.debian.org/git/pkg-virtualbox/virtualbox-ose.git
 Vcs-Browser: http://git.debian.org/?p=pkg-virtualbox/virtualbox-ose.git
@@ -63,7 +63,7 @@ Package: virtualbox-ose-qt
 Architecture: amd64 i386 lpia
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         virtualbox-ose
+         virtualbox-ose (= ${binary:Version})
 Pre-Depends: debconf | debconf-2.0
 Replaces: virtualbox-ose (<< 2.2.0-dfsg-1) 
 Description: x86 virtualization solution - Qt based user interface
@@ -82,9 +82,9 @@ Depends: ${shlibs:Depends},
          python
 Pre-Depends: debconf | debconf-2.0
 Recommends: virtualbox-ose-modules,
-            virtualbox-ose-qt,
+            virtualbox-ose-qt (= ${binary:Version}),
             libgl1
-Suggests: virtualbox-ose-source, virtualbox-guest-additions
+Suggests: virtualbox-ose-source (= ${binary:Version}), virtualbox-guest-additions
 Conflicts: virtualbox
 Provides: virtualbox
 Replaces: virtualbox
@@ -156,7 +156,7 @@ Architecture: i386 amd64 lpia
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          ${xserver:Depends},
-         virtualbox-ose-guest-utils,
+         virtualbox-ose-guest-utils (= ${binary:Version}),
          pciutils
 Provides: ${xviddriver:Provides},
           ${xinpdriver:Provides}
@@ -175,8 +175,8 @@ Architecture: i386 amd64 lpia
 Depends: ${shlibs:Depends},
          ${misc:Depends}
 Recommends: virtualbox-ose-guest-modules,
-            virtualbox-ose-guest-x11
-Suggests: virtualbox-ose-guest-source
+            virtualbox-ose-guest-x11 (= ${binary:Version})
+Suggests: virtualbox-ose-guest-source (= ${binary:Version})
 Description: x86 virtualization solution - non-X11 guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
