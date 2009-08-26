@@ -2,7 +2,7 @@ Source: virtualbox-ose
 Section: misc
 Priority: optional
 Maintainer: Debian Virtualbox Team <pkg-virtualbox-devel@lists.alioth.debian.org>
-Uploaders: Philipp Hug <debian@hug.cx>, Marvin Stark <marv@der-marv.de>, Michael Meskes <meskes@debian.org>, Patrick Winnertz <winnie@debian.org>, Daniel Baumann <daniel@debian.org>, Hilko Bengen <bengen@debian.org>
+Uploaders: Philipp Hug <debian@hug.cx>, Marvin Stark <marv@der-marv.de>, Michael Meskes <meskes@debian.org>, Patrick Winnertz <winnie@debian.org>, Hilko Bengen <bengen@debian.org>
 Build-Depends: debhelper (>= 5), dpatch, kbuild
 Standards-Version: 3.8.0
 Homepage: http://www.virtualbox.org/

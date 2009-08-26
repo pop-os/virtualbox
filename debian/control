@@ -6,7 +6,6 @@ Uploaders: Philipp Hug <debian@hug.cx>,
            Marvin Stark <marv@der-marv.de>,
            Michael Meskes <meskes@debian.org>,
            Patrick Winnertz <winnie@debian.org>,
-           Daniel Baumann <daniel@debian.org>,
            Hilko Bengen <bengen@debian.org>
 Build-Depends: bcc,
                bzip2,
