@@ -174,7 +174,7 @@ DECLINLINE(int) emDisCoreOne(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, RTGCUINTP
     if (RT_SUCCESS(rc))
         State.GCPtr = InstrGC;
     else
-        State.GCPtr = NULL;
+        State.GCPtr = NIL_RTGCPTR;
 
     return DISCoreOneEx(InstrGC, pDis->mode, EMReadBytes, &State, pDis, pOpsize);
 }
@@ -247,7 +247,7 @@ VMMDECL(int) EMInterpretDisasOneEx(PVM pVM, PVMCPU pVCpu, RTGCUINTPTR GCPtrInstr
     if (RT_SUCCESS(rc))
         State.GCPtr = GCPtrInstr;
     else
-        State.GCPtr = NULL;
+        State.GCPtr = NIL_RTGCPTR;
 #endif
 
     rc = DISCoreOneEx(GCPtrInstr, SELMGetCpuModeFromSelector(pVM, pCtxCore->eflags, pCtxCore->cs, (PCPUMSELREGHID)&pCtxCore->csHid),
@@ -1984,7 +1984,7 @@ VMMDECL(int) EMInterpretCpuId(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
     /* cpuid clears the high dwords of the affected 64 bits registers. */
     pRegFrame->rax = 0;
     pRegFrame->rbx = 0;
-    pRegFrame->rcx = 0;
+    pRegFrame->rcx &= UINT64_C(0x00000000ffffffff);
     pRegFrame->rdx = 0;
 
     /* Note: operates the same in 64 and non-64 bits mode. */

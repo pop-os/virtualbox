@@ -242,6 +242,8 @@ VBOXCrtcResize(ScrnInfoPtr scrn, int width, int height)
         if (pVBox->useDRI)
             VBOXDRIUpdateStride(scrn, pVBox);
 #endif
+        /* Write the new values to the hardware */
+        rc = xf86SetDesiredModes(scrn);
     }
     TRACE_LOG("returning %s\n", rc ? "TRUE" : "FALSE");
     return rc;
@@ -469,76 +471,6 @@ static const xf86OutputFuncsRec VBOXOutputFuncs = {
     .destroy = vbox_output_stub
 };
 
-/*
- * List of symbols from other modules that this module references.  This
- * list is used to tell the loader that it is OK for symbols here to be
- * unresolved providing that it hasn't been told that they are essential
- * via a call to xf86LoaderReqSymbols() or xf86LoaderReqSymLists().  The
- * purpose is this is to avoid warnings about unresolved symbols that are
- * not required.
- */
-static const char *fbSymbols[] = {
-    "fbPictureInit",
-    "fbScreenInit",
-    NULL
-};
-
-static const char *shadowfbSymbols[] = {
-  "ShadowFBInit2",
-  NULL
-};
-
-static const char *vbeSymbols[] = {
-    "VBEExtendedInit",
-    "VBEFindSupportedDepths",
-    "VBEGetModeInfo",
-    "VBEGetVBEInfo",
-    "VBEGetVBEMode",
-    "VBEPrintModes",
-    "VBESaveRestore",
-    "VBESetDisplayStart",
-    "VBESetGetDACPaletteFormat",
-    "VBESetGetLogicalScanlineLength",
-    "VBESetGetPaletteData",
-    "VBESetModeNames",
-    "VBESetModeParameters",
-    "VBESetVBEMode",
-    "VBEValidateModes",
-    "vbeDoEDID",
-    "vbeFree",
-    NULL
-};
-
-static const char *ramdacSymbols[] = {
-    "xf86InitCursor",
-    "xf86CreateCursorInfoRec",
-    NULL
-};
-
-#ifdef VBOX_DRI
-static const char *drmSymbols[] = {
-    "drmFreeVersion",
-    "drmGetVersion",
-    NULL
-};
-
-static const char *driSymbols[] = {
-    "DRICloseScreen",
-    "DRICreateInfoRec",
-    "DRIDestroyInfoRec",
-    "DRIFinishScreenInit",
-    "DRIGetSAREAPrivate",
-    "DRILock",
-    "DRIMoveBuffersHelper",
-    "DRIQueryVersion",
-    "DRIScreenInit",
-    "DRIUnlock",
-    "GlxSetVisualConfigs",
-    "DRICreatePCIBusID",
-    NULL
-};
-#endif
-
 #ifdef XFree86LOADER
 /* Module loader interface */
 static MODULESETUPPROTO(vboxSetup);
@@ -580,14 +512,6 @@ vboxSetup(pointer Module, pointer Options, int *ErrorMajor, int *ErrorMinor)
 #endif
         xf86Msg(X_CONFIG, "Load address of symbol \"VBOXVIDEO\" is %p\n",
                 (void *)&VBOXVIDEO);
-        LoaderRefSymLists(fbSymbols,
-                          shadowfbSymbols,
-                          vbeSymbols,
-                          ramdacSymbols,
-#ifdef VBOX_DRI
-                          drmSymbols, driSymbols,
-#endif
-                          NULL);
         return (pointer)TRUE;
     }
 
@@ -763,7 +687,6 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
        text mode, in order to keep our code simple. */
     if (!xf86LoadSubModule(pScrn, "vbe"))
         return (FALSE);
-    xf86LoaderReqSymLists(vbeSymbols, NULL);
 
     if ((pVBox->pVbe = VBEExtendedInit(NULL, pVBox->pEnt->index,
                                        SET_BIOS_SCRATCH
@@ -783,16 +706,13 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
     /* The ramdac module is needed for the hardware cursor. */
     if (!xf86LoadSubModule(pScrn, "ramdac"))
         return FALSE;
-    xf86LoaderReqSymLists(ramdacSymbols, NULL);
 
     /* The framebuffer module. */
     if (xf86LoadSubModule(pScrn, "fb") == NULL)
         return (FALSE);
-    xf86LoaderReqSymLists(fbSymbols, NULL);
 
     if (!xf86LoadSubModule(pScrn, "shadowfb"))
         return FALSE;
-    xf86LoaderReqSymLists(shadowfbSymbols, NULL);
 
     /* Set up our ScrnInfoRec structure to describe our virtual
        capabilities to X. */
@@ -882,9 +802,8 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
 
 #ifdef VBOX_DRI
     /* Load the dri module. */
-    if (xf86LoadSubModule(pScrn, "dri")) {
-        xf86LoaderReqSymLists(driSymbols, drmSymbols, NULL);
-    }
+    if (!xf86LoadSubModule(pScrn, "dri"))
+        return FALSE;
 #endif
     return (TRUE);
 }
@@ -976,7 +895,7 @@ VBOXScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     if (!fbScreenInit(pScreen, pVBox->base,
                       pScrn->virtualX, pScrn->virtualY,
                       pScrn->xDpi, pScrn->yDpi,
-                      pScrn->virtualX, pScrn->bitsPerPixel))
+                      pScrn->displayWidth, pScrn->bitsPerPixel))
         return (FALSE);
 
     /* Fixup RGB ordering */
@@ -1016,13 +935,10 @@ VBOXScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
         return FALSE;
     }
 
-    /* set the viewport */
-    VBOXAdjustFrame(scrnIndex, pScrn->frameX0, pScrn->frameY0, 0);
-
     /* software cursor */
     miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
 
-    /* colourmap code - apparently, we need this even in Truecolour */
+    /* colourmap code */
     if (!miCreateDefColormap(pScreen))
 	return (FALSE);
 
@@ -1060,7 +976,6 @@ VBOXScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
             xf86DrvMsg(scrnIndex, X_INFO,
                       "The VBox video extensions are now enabled.\n");
         vboxEnableGraphicsCap(pVBox);
-        /* Report the largest resolution that we support */
     }
 
 #ifdef VBOX_DRI

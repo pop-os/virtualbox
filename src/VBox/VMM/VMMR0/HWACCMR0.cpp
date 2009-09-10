@@ -1220,6 +1220,47 @@ VMMR0DECL(VMCPUID) HWACCMR0GetVMCPUId(PVM pVM)
 }
 
 /**
+ * Save a pending IO read.
+ *
+ * @param   pVCpu           The VMCPU to operate on.
+ * @param   GCPtrRip        Address of IO instruction
+ * @param   GCPtrRipNext    Address of the next instruction
+ * @param   uPort           Port address
+ * @param   uAndVal         And mask for saving the result in eax
+ * @param   cbSize          Read size
+ */
+VMMR0DECL(void) HWACCMR0SavePendingIOPortRead(PVMCPU pVCpu, RTGCPTR GCPtrRip, RTGCPTR GCPtrRipNext, unsigned uPort, unsigned uAndVal, unsigned cbSize)
+{
+    pVCpu->hwaccm.s.PendingIO.enmType         = HWACCMPENDINGIO_PORT_READ;
+    pVCpu->hwaccm.s.PendingIO.GCPtrRip        = GCPtrRip;
+    pVCpu->hwaccm.s.PendingIO.GCPtrRipNext    = GCPtrRipNext;
+    pVCpu->hwaccm.s.PendingIO.s.Port.uPort    = uPort;
+    pVCpu->hwaccm.s.PendingIO.s.Port.uAndVal  = uAndVal;
+    pVCpu->hwaccm.s.PendingIO.s.Port.cbSize   = cbSize;
+    return;
+}
+
+/**
+ * Save a pending IO write.
+ *
+ * @param   pVCpu           The VMCPU to operate on.
+ * @param   GCPtrRIP        Address of IO instruction
+ * @param   uPort           Port address
+ * @param   uAndVal         And mask for fetching the result from eax
+ * @param   cbSize          Read size
+ */
+VMMR0DECL(void) HWACCMR0SavePendingIOPortWrite(PVMCPU pVCpu, RTGCPTR GCPtrRip, RTGCPTR GCPtrRipNext, unsigned uPort, unsigned uAndVal, unsigned cbSize)
+{
+    pVCpu->hwaccm.s.PendingIO.enmType         = HWACCMPENDINGIO_PORT_WRITE;
+    pVCpu->hwaccm.s.PendingIO.GCPtrRip        = GCPtrRip;
+    pVCpu->hwaccm.s.PendingIO.GCPtrRipNext    = GCPtrRipNext;
+    pVCpu->hwaccm.s.PendingIO.s.Port.uPort    = uPort;
+    pVCpu->hwaccm.s.PendingIO.s.Port.uAndVal  = uAndVal;
+    pVCpu->hwaccm.s.PendingIO.s.Port.cbSize   = cbSize;
+    return;
+}
+
+/**
  * Disable VT-x if it's active *and* the current switcher turns off paging
  *
  * @returns VBox status code.
@@ -1294,7 +1335,6 @@ VMMR0DECL(int) HWACCMR0LeaveSwitcher(PVM pVM, bool fVTxDisabled)
 }
 
 #ifdef VBOX_STRICT
-# include <iprt/string.h>
 /**
  * Dumps a descriptor.
  *
@@ -1302,7 +1342,7 @@ VMMR0DECL(int) HWACCMR0LeaveSwitcher(PVM pVM, bool fVTxDisabled)
  * @param   Sel     Selector number.
  * @param   pszMsg  Message to prepend the log entry with.
  */
-VMMR0DECL(void) HWACCMR0DumpDescriptor(PX86DESCHC pDesc, RTSEL Sel, const char *pszMsg)
+VMMR0DECL(void) HWACCMR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char *pszMsg)
 {
     /*
      * Make variable description string.
@@ -1311,7 +1351,7 @@ VMMR0DECL(void) HWACCMR0DumpDescriptor(PX86DESCHC pDesc, RTSEL Sel, const char *
     {
         unsigned    cch;
         const char *psz;
-    } const aTypes[32] =
+    } const s_aTypes[32] =
     {
 # define STRENTRY(str) { sizeof(str) - 1, str }
 
@@ -1374,8 +1414,8 @@ VMMR0DECL(void) HWACCMR0DumpDescriptor(PX86DESCHC pDesc, RTSEL Sel, const char *
     char        szMsg[128];
     char       *psz = &szMsg[0];
     unsigned    i = pDesc->Gen.u1DescType << 4 | pDesc->Gen.u4Type;
-    memcpy(psz, aTypes[i].psz, aTypes[i].cch);
-    psz += aTypes[i].cch;
+    memcpy(psz, s_aTypes[i].psz, s_aTypes[i].cch);
+    psz += s_aTypes[i].cch;
 
     if (pDesc->Gen.u1Present)
         ADD_STR(psz, "Present ");

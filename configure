@@ -384,10 +384,6 @@ check_gcc()
         fail really
       elif [ $cc_maj -eq 4 -a $cc_min -eq 0 -a "$OS" = "darwin" ]; then
         log_success "found version $cc_ver"
-      elif [ $cc_maj -eq 4 -a $cc_min -eq 4 ]; then
-        log_success "found version $cc_ver"
-        log "   WARNING: gcc version 4.4 was not extensively tested with the"
-        log "            VirtualBox source code! Continue at your own risk!"
       # gcc-4.0 is allowed for Darwin only
       elif [ $cc_maj -lt 3 \
              -o \( $cc_maj -eq 3 -a $cc_min -lt 2 \) \
@@ -892,8 +888,10 @@ EOF
   [ -n "$INCZ" ] && I_INCZ=`prefix_I "$INCZ"`
   if test_compile "$LIBZ $I_INCZ" zlib zlib; then
     if test_execute; then
-      cnf_append "SDK_VBOX_ZLIB_LIBS" "`strip_l "$LIBZ"`"
-      cnf_append "SDK_VBOX_ZLIB_INCS" "$INCZ"
+      echo "if1of (\$(KBUILD_TARGET),darwin freebsd linux solaris)" >> $CNF
+      cnf_append " SDK_VBOX_ZLIB_LIBS" "`strip_l "$LIBZ"`"
+      cnf_append " SDK_VBOX_ZLIB_INCS" "$INCZ"
+      echo "endif" >> $CNF
     fi
   fi
 }

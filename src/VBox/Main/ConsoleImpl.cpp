@@ -5907,20 +5907,9 @@ Console::usbDetachCallback (Console *that, USBDeviceList::iterator *aIt, PCRTUUI
  *
  *  @note The caller must lock this object for writing.
  */
-HRESULT Console::attachToBridgedInterface(INetworkAdapter *networkAdapter)
+#if defined(RT_OS_LINUX) && !defined(VBOX_WITH_NETFLT)
+HRESULT Console::attachToTapInterface(INetworkAdapter *networkAdapter)
 {
-#if !defined(RT_OS_LINUX) || defined(VBOX_WITH_NETFLT)
-    /*
-     * Nothing to do here.
-     *
-     * Note, the reason for this method in the first place a memory / fork
-     * bug on linux. All this code belongs in DrvTAP and similar places.
-     */
-    NOREF(networkAdapter);
-    return S_OK;
-
-#else /* RT_OS_LINUX && !VBOX_WITH_NETFLT */
-
     LogFlowThisFunc(("\n"));
     /* sanity check */
     AssertReturn (isWriteLockOnCurrentThread(), E_FAIL);
@@ -5985,7 +5974,7 @@ HRESULT Console::attachToBridgedInterface(INetworkAdapter *networkAdapter)
              */
             if (fcntl(maTapFD[slot], F_SETFL, O_NONBLOCK) != -1)
             {
-                Log(("attachToBridgedInterface: %RTfile %ls\n", maTapFD[slot], tapDeviceName.raw()));
+                Log(("attachToTapInterface: %RTfile %ls\n", maTapFD[slot], tapDeviceName.raw()));
                 /*
                  * Here is the right place to communicate the TAP file descriptor and
                  * the host interface name to the server if/when it becomes really
@@ -6027,8 +6016,8 @@ HRESULT Console::attachToBridgedInterface(INetworkAdapter *networkAdapter)
     }
     LogFlowThisFunc(("rc=%d\n", rc));
     return rc;
-#endif /* RT_OS_LINUX */
 }
+
 
 /**
  *  Helper function to handle detachment from a host interface
@@ -6038,17 +6027,8 @@ HRESULT Console::attachToBridgedInterface(INetworkAdapter *networkAdapter)
  *
  *  @note The caller must lock this object for writing.
  */
-HRESULT Console::detachFromBridgedInterface(INetworkAdapter *networkAdapter)
+HRESULT Console::detachFromTapInterface(INetworkAdapter *networkAdapter)
 {
-#if !defined(RT_OS_LINUX) || defined(VBOX_WITH_NETFLT)
-    /*
-     * Nothing to do here.
-     */
-    NOREF(networkAdapter);
-    return S_OK;
-
-#else /* RT_OS_LINUX */
-
     /* sanity check */
     LogFlowThisFunc(("\n"));
     AssertReturn (isWriteLockOnCurrentThread(), E_FAIL);
@@ -6097,8 +6077,8 @@ HRESULT Console::detachFromBridgedInterface(INetworkAdapter *networkAdapter)
     }
     LogFlowThisFunc(("returning %d\n", rc));
     return rc;
-#endif /* RT_OS_LINUX */
 }
+#endif /* RT_OS_LINUX && !VBOX_WITH_NETFLT */
 
 
 /**
@@ -6132,9 +6112,11 @@ HRESULT Console::powerDownHostInterfaces()
         networkAdapter->COMGETTER(AttachmentType)(&attachment);
         if (attachment == NetworkAttachmentType_Bridged)
         {
-            HRESULT rc2 = detachFromBridgedInterface(networkAdapter);
+#if defined(RT_OS_LINUX) && !defined(VBOX_WITH_NETFLT)
+            HRESULT rc2 = detachFromTapInterface(networkAdapter);
             if (FAILED(rc2) && SUCCEEDED(rc))
                 rc = rc2;
+#endif
         }
     }
 

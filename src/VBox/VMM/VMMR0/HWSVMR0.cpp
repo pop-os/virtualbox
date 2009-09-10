@@ -53,8 +53,8 @@
 *   Internal Functions                                                         *
 *******************************************************************************/
 static int svmR0InterpretInvpg(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t uASID);
-static int svmR0ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
-static void svmR0SetMSRPermission(PVM pVM, unsigned ulMSR, bool fRead, bool fWrite);
+static int svmR0EmulateTprVMMCall(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
+static void svmR0SetMSRPermission(PVMCPU pVCpu, unsigned ulMSR, bool fRead, bool fWrite);
 
 /*******************************************************************************
 *   Global Variables                                                           *
@@ -131,7 +131,6 @@ VMMR0DECL(int) SVMR0InitVM(PVM pVM)
     int rc;
 
     pVM->hwaccm.s.svm.pMemObjIOBitmap = NIL_RTR0MEMOBJ;
-    pVM->hwaccm.s.svm.pMemObjMSRBitmap = NIL_RTR0MEMOBJ;
 
     /* Allocate 12 KB for the IO bitmap (doesn't seem to be a way to convince SVM not to use it) */
     rc = RTR0MemObjAllocCont(&pVM->hwaccm.s.svm.pMemObjIOBitmap, 3 << PAGE_SHIFT, true /* executable R0 mapping */);
@@ -142,16 +141,6 @@ VMMR0DECL(int) SVMR0InitVM(PVM pVM)
     pVM->hwaccm.s.svm.pIOBitmapPhys = RTR0MemObjGetPagePhysAddr(pVM->hwaccm.s.svm.pMemObjIOBitmap, 0);
     /* Set all bits to intercept all IO accesses. */
     ASMMemFill32(pVM->hwaccm.s.svm.pIOBitmap, PAGE_SIZE*3, 0xffffffff);
-
-    /* Allocate 8 KB for the MSR bitmap (doesn't seem to be a way to convince SVM not to use it) */
-    rc = RTR0MemObjAllocCont(&pVM->hwaccm.s.svm.pMemObjMSRBitmap, 2 << PAGE_SHIFT, true /* executable R0 mapping */);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    pVM->hwaccm.s.svm.pMSRBitmap     = RTR0MemObjAddress(pVM->hwaccm.s.svm.pMemObjMSRBitmap);
-    pVM->hwaccm.s.svm.pMSRBitmapPhys = RTR0MemObjGetPagePhysAddr(pVM->hwaccm.s.svm.pMemObjMSRBitmap, 0);
-    /* Set all bits to intercept all MSR accesses. */
-    ASMMemFill32(pVM->hwaccm.s.svm.pMSRBitmap, PAGE_SIZE*2, 0xffffffff);
 
     /* Erratum 170 which requires a forced TLB flush for each world switch:
      * See http://www.amd.com/us-en/assets/content_type/white_papers_and_tech_docs/33610.pdf
@@ -189,8 +178,9 @@ VMMR0DECL(int) SVMR0InitVM(PVM pVM)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
-        pVCpu->hwaccm.s.svm.pMemObjVMCBHost = NIL_RTR0MEMOBJ;
-        pVCpu->hwaccm.s.svm.pMemObjVMCB     = NIL_RTR0MEMOBJ;
+        pVCpu->hwaccm.s.svm.pMemObjVMCBHost  = NIL_RTR0MEMOBJ;
+        pVCpu->hwaccm.s.svm.pMemObjVMCB      = NIL_RTR0MEMOBJ;
+        pVCpu->hwaccm.s.svm.pMemObjMSRBitmap = NIL_RTR0MEMOBJ;
 
         /* Allocate one page for the host context */
         rc = RTR0MemObjAllocCont(&pVCpu->hwaccm.s.svm.pMemObjVMCBHost, 1 << PAGE_SHIFT, true /* executable R0 mapping */);
@@ -209,6 +199,16 @@ VMMR0DECL(int) SVMR0InitVM(PVM pVM)
         pVCpu->hwaccm.s.svm.pVMCB     = RTR0MemObjAddress(pVCpu->hwaccm.s.svm.pMemObjVMCB);
         pVCpu->hwaccm.s.svm.pVMCBPhys = RTR0MemObjGetPagePhysAddr(pVCpu->hwaccm.s.svm.pMemObjVMCB, 0);
         ASMMemZeroPage(pVCpu->hwaccm.s.svm.pVMCB);
+
+        /* Allocate 8 KB for the MSR bitmap (doesn't seem to be a way to convince SVM not to use it) */
+        rc = RTR0MemObjAllocCont(&pVCpu->hwaccm.s.svm.pMemObjMSRBitmap, 2 << PAGE_SHIFT, true /* executable R0 mapping */);
+        if (RT_FAILURE(rc))
+            return rc;
+
+        pVCpu->hwaccm.s.svm.pMSRBitmap     = RTR0MemObjAddress(pVCpu->hwaccm.s.svm.pMemObjMSRBitmap);
+        pVCpu->hwaccm.s.svm.pMSRBitmapPhys = RTR0MemObjGetPagePhysAddr(pVCpu->hwaccm.s.svm.pMemObjMSRBitmap, 0);
+        /* Set all bits to intercept all MSR accesses. */
+        ASMMemFill32(pVCpu->hwaccm.s.svm.pMSRBitmap, PAGE_SIZE*2, 0xffffffff);
     }
 
     return VINF_SUCCESS;
@@ -241,6 +241,13 @@ VMMR0DECL(int) SVMR0TermVM(PVM pVM)
             pVCpu->hwaccm.s.svm.pVMCBPhys   = 0;
             pVCpu->hwaccm.s.svm.pMemObjVMCB = NIL_RTR0MEMOBJ;
         }
+        if (pVCpu->hwaccm.s.svm.pMemObjMSRBitmap != NIL_RTR0MEMOBJ)
+        {
+            RTR0MemObjFree(pVCpu->hwaccm.s.svm.pMemObjMSRBitmap, false);
+            pVCpu->hwaccm.s.svm.pMSRBitmap       = 0;
+            pVCpu->hwaccm.s.svm.pMSRBitmapPhys   = 0;
+            pVCpu->hwaccm.s.svm.pMemObjMSRBitmap = NIL_RTR0MEMOBJ;
+        }
     }
     if (pVM->hwaccm.s.svm.pMemObjIOBitmap != NIL_RTR0MEMOBJ)
     {
@@ -248,13 +255,6 @@ VMMR0DECL(int) SVMR0TermVM(PVM pVM)
         pVM->hwaccm.s.svm.pIOBitmap       = 0;
         pVM->hwaccm.s.svm.pIOBitmapPhys   = 0;
         pVM->hwaccm.s.svm.pMemObjIOBitmap = NIL_RTR0MEMOBJ;
-    }
-    if (pVM->hwaccm.s.svm.pMemObjMSRBitmap != NIL_RTR0MEMOBJ)
-    {
-        RTR0MemObjFree(pVM->hwaccm.s.svm.pMemObjMSRBitmap, false);
-        pVM->hwaccm.s.svm.pMSRBitmap       = 0;
-        pVM->hwaccm.s.svm.pMSRBitmapPhys   = 0;
-        pVM->hwaccm.s.svm.pMemObjMSRBitmap = NIL_RTR0MEMOBJ;
     }
     return VINF_SUCCESS;
 }
@@ -268,7 +268,6 @@ VMMR0DECL(int) SVMR0TermVM(PVM pVM)
 VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
 {
     int         rc = VINF_SUCCESS;
-    SVM_VMCB   *pVMCB;
 
     AssertReturn(pVM, VERR_INVALID_PARAMETER);
 
@@ -276,7 +275,9 @@ VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
 
     for (unsigned i=0;i<pVM->cCPUs;i++)
     {
-        pVMCB = (SVM_VMCB *)pVM->aCpus[i].hwaccm.s.svm.pVMCB;
+        PVMCPU    pVCpu = &pVM->aCpus[i];
+        SVM_VMCB *pVMCB = (SVM_VMCB *)pVM->aCpus[i].hwaccm.s.svm.pVMCB;
+
         AssertMsgReturn(pVMCB, ("Invalid pVMCB\n"), VERR_EM_INTERNAL_ERROR);
 
         /* Program the control fields. Most of them never have to be changed again. */
@@ -351,7 +352,7 @@ VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
 
         /* Set IO and MSR bitmap addresses. */
         pVMCB->ctrl.u64IOPMPhysAddr  = pVM->hwaccm.s.svm.pIOBitmapPhys;
-        pVMCB->ctrl.u64MSRPMPhysAddr = pVM->hwaccm.s.svm.pMSRBitmapPhys;
+        pVMCB->ctrl.u64MSRPMPhysAddr = pVCpu->hwaccm.s.svm.pMSRBitmapPhys;
 
         /* No LBR virtualization. */
         pVMCB->ctrl.u64LBRVirt      = 0;
@@ -361,20 +362,22 @@ VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
 
         /** Setup the PAT msr (nested paging only) */
         pVMCB->guest.u64GPAT = 0x0007040600070406ULL;
+
+        /* The following MSRs are saved automatically by vmload/vmsave, so we allow the guest
+         * to modify them directly. 
+         */
+        svmR0SetMSRPermission(pVCpu, MSR_K8_LSTAR, true, true);
+        svmR0SetMSRPermission(pVCpu, MSR_K8_CSTAR, true, true);
+        svmR0SetMSRPermission(pVCpu, MSR_K6_STAR, true, true);
+        svmR0SetMSRPermission(pVCpu, MSR_K8_SF_MASK, true, true);
+        svmR0SetMSRPermission(pVCpu, MSR_K8_FS_BASE, true, true);
+        svmR0SetMSRPermission(pVCpu, MSR_K8_GS_BASE, true, true);
+        svmR0SetMSRPermission(pVCpu, MSR_K8_KERNEL_GS_BASE, true, true);
+        svmR0SetMSRPermission(pVCpu, MSR_IA32_SYSENTER_CS, true, true);
+        svmR0SetMSRPermission(pVCpu, MSR_IA32_SYSENTER_ESP, true, true);
+        svmR0SetMSRPermission(pVCpu, MSR_IA32_SYSENTER_EIP, true, true);
     }
-    /* The following MSRs are saved automatically by vmload/vmsave, so we allow the guest
-     * to modify them directly. 
-     */
-    svmR0SetMSRPermission(pVM, MSR_K8_LSTAR, true, true);
-    svmR0SetMSRPermission(pVM, MSR_K8_CSTAR, true, true);
-    svmR0SetMSRPermission(pVM, MSR_K6_STAR, true, true);
-    svmR0SetMSRPermission(pVM, MSR_K8_SF_MASK, true, true);
-    svmR0SetMSRPermission(pVM, MSR_K8_FS_BASE, true, true);
-    svmR0SetMSRPermission(pVM, MSR_K8_GS_BASE, true, true);
-    svmR0SetMSRPermission(pVM, MSR_K8_KERNEL_GS_BASE, true, true);
-    svmR0SetMSRPermission(pVM, MSR_IA32_SYSENTER_CS, true, true);
-    svmR0SetMSRPermission(pVM, MSR_IA32_SYSENTER_ESP, true, true);
-    svmR0SetMSRPermission(pVM, MSR_IA32_SYSENTER_EIP, true, true);
+
     return rc;
 }
 
@@ -382,15 +385,15 @@ VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
 /**
  * Sets the permission bits for the specified MSR
  *
- * @param   pVM         The VM to operate on.
+ * @param   pVCpu       The VMCPU to operate on.
  * @param   ulMSR       MSR value
  * @param   fRead       Reading allowed/disallowed
  * @param   fWrite      Writing allowed/disallowed
  */
-static void svmR0SetMSRPermission(PVM pVM, unsigned ulMSR, bool fRead, bool fWrite)
+static void svmR0SetMSRPermission(PVMCPU pVCpu, unsigned ulMSR, bool fRead, bool fWrite)
 {
     unsigned ulBit;
-    uint8_t *pMSRBitmap = (uint8_t *)pVM->hwaccm.s.svm.pMSRBitmap;
+    uint8_t *pMSRBitmap = (uint8_t *)pVCpu->hwaccm.s.svm.pMSRBitmap;
 
     if (ulMSR <= 0x00001FFF)
     {
@@ -429,7 +432,6 @@ static void svmR0SetMSRPermission(PVM pVM, unsigned ulMSR, bool fRead, bool fWri
     else
         ASMBitSet(pMSRBitmap, ulBit + 1);
 }
-
 
 /**
  * Injects an event (trap or external interrupt)
@@ -818,6 +820,24 @@ VMMR0DECL(int) SVMR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         pVMCB->guest.u64DR7 = pCtx->dr[7];
         pVMCB->guest.u64DR6 = pCtx->dr[6];
 
+#ifdef DEBUG
+        /* Sync the hypervisor debug state now if any breakpoint is armed. */
+        if (    CPUMGetHyperDR7(pVCpu) & (X86_DR7_ENABLED_MASK|X86_DR7_GD)
+            &&  !CPUMIsHyperDebugStateActive(pVCpu)
+            &&  !DBGFIsStepping(pVCpu))
+        {
+            /* Save the host and load the hypervisor debug state. */
+            int rc = CPUMR0LoadHyperDebugState(pVM, pVCpu, pCtx, false /* exclude DR6 */);
+            AssertRC(rc);
+
+            /* DRx intercepts remain enabled. */
+
+            /* Override dr6 & dr7 with the hypervisor values. */
+            pVMCB->guest.u64DR7 = CPUMGetHyperDR7(pVCpu);
+            pVMCB->guest.u64DR6 = CPUMGetHyperDR6(pVCpu);
+        }
+        else
+#endif
         /* Sync the debug state now if any breakpoint is armed. */
         if (    (pCtx->dr[7] & (X86_DR7_ENABLED_MASK|X86_DR7_GD))
             &&  !CPUMIsGuestDebugStateActive(pVCpu)
@@ -878,9 +898,21 @@ VMMR0DECL(int) SVMR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     /* TSC offset. */
     if (TMCpuTickCanUseRealTSC(pVCpu, &pVMCB->ctrl.u64TSCOffset))
     {
-        pVMCB->ctrl.u32InterceptCtrl1 &= ~SVM_CTRL1_INTERCEPT_RDTSC;
-        pVMCB->ctrl.u32InterceptCtrl2 &= ~SVM_CTRL2_INTERCEPT_RDTSCP;
-        STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTSCOffset);
+        uint64_t u64CurTSC = ASMReadTSC();
+        if (u64CurTSC + pVMCB->ctrl.u64TSCOffset >= TMCpuTickGetLastSeen(pVCpu))
+        {
+            pVMCB->ctrl.u32InterceptCtrl1 &= ~SVM_CTRL1_INTERCEPT_RDTSC;
+            pVMCB->ctrl.u32InterceptCtrl2 &= ~SVM_CTRL2_INTERCEPT_RDTSCP;
+            STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTSCOffset);
+        }
+        else
+        {
+            /* Fall back to rdtsc emulation as we would otherwise pass decreasing tsc values to the guest. */
+            Log(("TSC %RX64 offset %RX64 time=%RX64 last=%RX64 (diff=%RX64, virt_tsc=%RX64)\n", u64CurTSC, pVMCB->ctrl.u64TSCOffset, u64CurTSC + pVMCB->ctrl.u64TSCOffset, TMCpuTickGetLastSeen(pVCpu), TMCpuTickGetLastSeen(pVCpu) - u64CurTSC - pVMCB->ctrl.u64TSCOffset, TMCpuTickGet(pVCpu)));
+            pVMCB->ctrl.u32InterceptCtrl1 |= SVM_CTRL1_INTERCEPT_RDTSC;
+            pVMCB->ctrl.u32InterceptCtrl2 |= SVM_CTRL2_INTERCEPT_RDTSCP;
+            STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTSCInterceptOverFlow);
+        }
     }
     else
     {
@@ -898,7 +930,8 @@ VMMR0DECL(int) SVMR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 
 #ifdef DEBUG
     /* Intercept X86_XCPT_DB if stepping is enabled */
-    if (DBGFIsStepping(pVCpu))
+    if (    DBGFIsStepping(pVCpu)
+        ||  CPUMIsHyperDebugStateActive(pVCpu))
         pVMCB->ctrl.u32InterceptException |=  RT_BIT(X86_XCPT_DB);
     else
         pVMCB->ctrl.u32InterceptException &= ~RT_BIT(X86_XCPT_DB);
@@ -1046,7 +1079,7 @@ ResumeExecution:
     }
 
     /* TPR caching using CR8 is only available in 64 bits mode or with 32 bits guests when X86_CPUID_AMD_FEATURE_ECX_CR8L is supported. */
-    /* Note: we can't do this in LoadGuestState as PDMApicGetTPR can jump back to ring 3 (lock)!!!!!!!!
+    /* Note: we can't do this in LoadGuestState as PDMApicGetTPR can jump back to ring 3 (lock)!!!!!!!! (no longer true)
      * @todo query and update the TPR only when it could have been changed (mmio access)
      */
     if (pVM->hwaccm.s.fHasIoApic)
@@ -1056,19 +1089,38 @@ ResumeExecution:
         /* TPR caching in CR8 */
         int rc = PDMApicGetTPR(pVCpu, &u8LastTPR, &fPending);
         AssertRC(rc);
-        pVMCB->ctrl.IntCtrl.n.u8VTPR = (u8LastTPR >> 4); /* cr8 bits 3-0 correspond to bits 7-4 of the task priority mmio register. */
 
-        if (fPending)
+        if (pVM->hwaccm.s.svm.fTPRPatchingActive)
         {
-            /* A TPR change could activate a pending interrupt, so catch cr8 writes. */
-            pVMCB->ctrl.u16InterceptWrCRx |= RT_BIT(8);
+            /* Our patch code uses LSTAR for TPR caching. */
+            pCtx->msrLSTAR = u8LastTPR;
+
+            if (fPending)
+            {
+                /* A TPR change could activate a pending interrupt, so catch lstar writes. */
+                svmR0SetMSRPermission(pVCpu, MSR_K8_LSTAR, true, false);
+            }
+            else
+                /* No interrupts are pending, so we don't need to be explicitely notified.
+                 * There are enough world switches for detecting pending interrupts.
+                 */
+                svmR0SetMSRPermission(pVCpu, MSR_K8_LSTAR, true, true);
         }
         else
-            /* No interrupts are pending, so we don't need to be explicitely notified.
-             * There are enough world switches for detecting pending interrupts.
-             */
-            pVMCB->ctrl.u16InterceptWrCRx &= ~RT_BIT(8);
+        {
+            pVMCB->ctrl.IntCtrl.n.u8VTPR = (u8LastTPR >> 4); /* cr8 bits 3-0 correspond to bits 7-4 of the task priority mmio register. */
 
+            if (fPending)
+            {
+                /* A TPR change could activate a pending interrupt, so catch cr8 writes. */
+                pVMCB->ctrl.u16InterceptWrCRx |= RT_BIT(8);
+            }
+            else
+                /* No interrupts are pending, so we don't need to be explicitely notified.
+                 * There are enough world switches for detecting pending interrupts.
+                 */
+                pVMCB->ctrl.u16InterceptWrCRx &= ~RT_BIT(8);
+        }
         fSyncTPR = !fPending;
     }
 
@@ -1197,7 +1249,7 @@ ResumeExecution:
     Assert(sizeof(pVCpu->hwaccm.s.svm.pVMCBPhys) == 8);
     Assert(pVMCB->ctrl.IntCtrl.n.u1VIrqMasking);
     Assert(pVMCB->ctrl.u64IOPMPhysAddr  == pVM->hwaccm.s.svm.pIOBitmapPhys);
-    Assert(pVMCB->ctrl.u64MSRPMPhysAddr == pVM->hwaccm.s.svm.pMSRBitmapPhys);
+    Assert(pVMCB->ctrl.u64MSRPMPhysAddr == pVCpu->hwaccm.s.svm.pMSRBitmapPhys);
     Assert(pVMCB->ctrl.u64LBRVirt == 0);
 
 #ifdef VBOX_STRICT
@@ -1209,6 +1261,9 @@ ResumeExecution:
 #else
     pVCpu->hwaccm.s.svm.pfnVMRun(pVCpu->hwaccm.s.svm.pVMCBHostPhys, pVCpu->hwaccm.s.svm.pVMCBPhys, pCtx, pVM, pVCpu);
 #endif
+    /* Possibly the last TSC value seen by the guest (too high) (only when we're in tsc offset mode). */
+    if (!(pVMCB->ctrl.u32InterceptCtrl1 & SVM_CTRL1_INTERCEPT_RDTSC))
+        TMCpuTickSetLastSeen(pVCpu, ASMReadTSC() + pVMCB->ctrl.u64TSCOffset - 0x400 /* guestimate of world switch overhead in clock ticks */);
     TMNotifyEndOfExecution(pVCpu);
     VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED);
     ASMSetFlags(uOldEFlags);
@@ -1452,11 +1507,25 @@ ResumeExecution:
 #endif
 
     /* Sync back the TPR if it was changed. */
-    if (    fSyncTPR
-        &&  (u8LastTPR >> 4) != pVMCB->ctrl.IntCtrl.n.u8VTPR)
+    if (fSyncTPR)
     {
-        rc = PDMApicSetTPR(pVCpu, pVMCB->ctrl.IntCtrl.n.u8VTPR << 4);   /* cr8 bits 3-0 correspond to bits 7-4 of the task priority mmio register. */
-        AssertRC(rc);
+        if (pVM->hwaccm.s.svm.fTPRPatchingActive)
+        {
+            if ((pCtx->msrLSTAR & 0xff) != u8LastTPR)
+            {
+                /* Our patch code uses LSTAR for TPR caching. */
+                rc = PDMApicSetTPR(pVCpu, pCtx->msrLSTAR & 0xff);
+                AssertRC(rc);
+            }
+        }
+        else
+        {
+            if ((u8LastTPR >> 4) != pVMCB->ctrl.IntCtrl.n.u8VTPR)
+            {
+                rc = PDMApicSetTPR(pVCpu, pVMCB->ctrl.IntCtrl.n.u8VTPR << 4);   /* cr8 bits 3-0 correspond to bits 7-4 of the task priority mmio register. */
+                AssertRC(rc);
+            }
+        }
     }
 
     /* Deal with the reason of the VM-exit. */
@@ -1483,7 +1552,7 @@ ResumeExecution:
             STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitGuestDB);
 
             /* Note that we don't support guest and host-initiated debugging at the same time. */
-            Assert(DBGFIsStepping(pVCpu));
+            Assert(DBGFIsStepping(pVCpu) || CPUMIsHyperDebugStateActive(pVCpu));
 
             rc = DBGFRZTrap01Handler(pVM, pVCpu, CPUMCTX2CORE(pCtx), pCtx->dr[6]);
             if (rc == VINF_EM_RAW_GUEST_TRAP)
@@ -1502,6 +1571,7 @@ ResumeExecution:
                 goto ResumeExecution;
             }
             /* Return to ring 3 to deal with the debug exit code. */
+            Log(("Debugger hardware BP at %04x:%RGv (rc=%Rrc)\n", pCtx->cs, pCtx->rip, rc));
             break;
         }
 
@@ -1568,12 +1638,14 @@ ResumeExecution:
 #endif
             Assert(!pVM->hwaccm.s.fNestedPaging);
 
-#if 0
+#ifdef VBOX_HWACCM_WITH_GUEST_PATCHING
             /* Shortcut for APIC TPR reads and writes; 32 bits guests only */
-            if (    (uFaultAddress & 0xfff) == 0x080
-                &&  pVM->hwaccm.s.fHasIoApic
+            if (    pVM->hwaccm.s.fTRPPatchingAllowed
+                &&  (uFaultAddress & 0xfff) == 0x080
                 &&  !(errCode & X86_TRAP_PF_P)  /* not present */
-                &&  !CPUMIsGuestInLongModeEx(pCtx))
+                &&  CPUMGetGuestCPL(pVCpu, CPUMCTX2CORE(pCtx)) == 0
+                &&  !CPUMIsGuestInLongModeEx(pCtx)
+                &&  pVM->hwaccm.s.svm.cPatches < RT_ELEMENTS(pVM->hwaccm.s.svm.aPatches))
             {
                 RTGCPHYS GCPhysApicBase, GCPhys;
                 PDMApicGetBase(pVM, &GCPhysApicBase);   /* @todo cache this */
@@ -1583,55 +1655,12 @@ ResumeExecution:
                 if (    rc == VINF_SUCCESS
                     &&  GCPhys == GCPhysApicBase)
                 {
-                    Log(("Replace TPR access at %RGv\n", pCtx->rip));
-
-                    DISCPUSTATE Cpu;
-                    unsigned cbOp;
-                    rc = EMInterpretDisasOne(pVM, pVCpu, CPUMCTX2CORE(pCtx), &Cpu, &cbOp);
-                    AssertRC(rc);
-                    if (    rc == VINF_SUCCESS
-                        &&  Cpu.pCurInstr->opcode == OP_MOV
-                        &&  (cbOp == 5 || cbOp == 6))
+                    /* Only attempt to patch the instruction once. */
+                    PHWACCMTPRPATCH pPatch = (PHWACCMTPRPATCH)RTAvloU32Get(&pVM->hwaccm.s.svm.PatchTree, (AVLOU32KEY)pCtx->eip);
+                    if (!pPatch)
                     {
-                        uint8_t szInstr[15];
-                        if (    (errCode & X86_TRAP_PF_RW)
-                            &&  Cpu.param1.disp32 == (uint32_t)uFaultAddress
-                            &&  Cpu.param2.flags == USE_REG_GEN32)
-                        {
-                            /* 0xF0, 0x0F, 0x22, 0xC0 = mov cr8, eax */
-                            szInstr[0] = 0xF0;
-                            szInstr[1] = 0x0F;
-                            szInstr[2] = 0x22;
-                            szInstr[3] = 0xC0 | Cpu.param2.base.reg_gen;
-                            for (unsigned i = 4; i < cbOp; i++)
-                                szInstr[i] = 0x90;  /* nop */
-
-                            rc = PGMPhysSimpleWriteGCPtr(pVCpu, pCtx->rip, szInstr, cbOp);
-                            AssertRC(rc);
-
-                            Log(("Acceptable write candidate!\n"));
-                            STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit1, x);
-                            goto ResumeExecution;
-                        }
-                        else
-                        if (    Cpu.param2.disp32 == (uint32_t)uFaultAddress
-                            &&  Cpu.param1.flags == USE_REG_GEN32)
-                        {
-                            /* 0xF0, 0x0F, 0x20, 0xC0 = mov eax, cr8 */
-                            szInstr[0] = 0xF0;
-                            szInstr[1] = 0x0F;
-                            szInstr[2] = 0x20;
-                            szInstr[3] = 0xC0 | Cpu.param1.base.reg_gen;
-                            for (unsigned i = 4; i < cbOp; i++)
-                                szInstr[i] = 0x90;  /* nop */
-
-                            rc = PGMPhysSimpleWriteGCPtr(pVCpu, pCtx->rip, szInstr, cbOp);
-                            AssertRC(rc);
-
-                            Log(("Acceptable read candidate!\n"));
-                            STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit1, x);
-                            goto ResumeExecution;
-                        }
+                        rc = VINF_EM_HWACCM_PATCH_TPR_INSTR;
+                        break;
                     }
                 }
             }
@@ -1777,13 +1806,14 @@ ResumeExecution:
         Assert(pVM->hwaccm.s.fNestedPaging);
         LogFlow(("Nested page fault at %RGv cr2=%RGp error code %x\n", (RTGCPTR)pCtx->rip, uFaultAddress, errCode));
 
-#if 0
+#ifdef VBOX_HWACCM_WITH_GUEST_PATCHING
         /* Shortcut for APIC TPR reads and writes; 32 bits guests only */
-        if (    (uFaultAddress & 0xfff) == 0x080
-            &&  pVM->hwaccm.s.fHasIoApic
+        if (    pVM->hwaccm.s.fTRPPatchingAllowed
+            &&  (uFaultAddress & 0xfff) == 0x080
             &&  !(errCode & X86_TRAP_PF_P)  /* not present */
             &&  CPUMGetGuestCPL(pVCpu, CPUMCTX2CORE(pCtx)) == 0
-            &&  !CPUMIsGuestInLongModeEx(pCtx))
+            &&  !CPUMIsGuestInLongModeEx(pCtx)
+            &&  pVM->hwaccm.s.svm.cPatches < RT_ELEMENTS(pVM->hwaccm.s.svm.aPatches))
         {
             RTGCPHYS GCPhysApicBase;
             PDMApicGetBase(pVM, &GCPhysApicBase);   /* @todo cache this */
@@ -1791,18 +1821,12 @@ ResumeExecution:
 
             if (uFaultAddress == GCPhysApicBase + 0x80)
             {
-                rc = svmR0ReplaceTprInstr(pVM, pVCpu, pCtx);
-                if (rc == VINF_SUCCESS)
+                /* Only attempt to patch the instruction once. */
+                PHWACCMTPRPATCH pPatch = (PHWACCMTPRPATCH)RTAvloU32Get(&pVM->hwaccm.s.svm.PatchTree, (AVLOU32KEY)pCtx->eip);
+                if (!pPatch)
                 {
-                    STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit1, x);
-                    goto ResumeExecution;
-                }
-
-                rc = IOMMMIOPhysHandler(pVM, errCode, CPUMCTX2CORE(pCtx), uFaultAddress);
-                if (rc == VINF_SUCCESS)
-                {
-                    STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit1, x);
-                    goto ResumeExecution;   /* rip already updated */
+                    rc = VINF_EM_HWACCM_PATCH_TPR_INSTR;
+                    break;
                 }
             }
         }
@@ -2037,7 +2061,8 @@ ResumeExecution:
         Log2(("SVM: %RGv mov dr%d, x\n", (RTGCPTR)pCtx->rip, exitCode - SVM_EXIT_WRITE_DR0));
         STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitDRxWrite);
 
-        if (!DBGFIsStepping(pVCpu))
+        if (    !DBGFIsStepping(pVCpu)
+            &&  !CPUMIsHyperDebugStateActive(pVCpu))
         {
             STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatDRxContextSwitch);
 
@@ -2174,6 +2199,8 @@ ResumeExecution:
                 Log2(("IOMIOPortWrite %RGv %x %x size=%d\n", (RTGCPTR)pCtx->rip, IoExitInfo.n.u16Port, pCtx->eax & uAndVal, uIOSize));
                 STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitIOWrite);
                 rc = IOMIOPortWrite(pVM, IoExitInfo.n.u16Port, pCtx->eax & uAndVal, uIOSize);
+                if (rc == VINF_IOM_HC_IOPORT_WRITE)
+                    HWACCMR0SavePendingIOPortWrite(pVCpu, pCtx->rip, pVMCB->ctrl.u64ExitInfo2, IoExitInfo.n.u16Port, uAndVal, uIOSize);
             }
             else
             {
@@ -2187,6 +2214,9 @@ ResumeExecution:
                     pCtx->eax = (pCtx->eax & ~uAndVal) | (u32Val & uAndVal);
                     Log2(("IOMIOPortRead %RGv %x %x size=%d\n", (RTGCPTR)pCtx->rip, IoExitInfo.n.u16Port, u32Val & uAndVal, uIOSize));
                 }
+                else
+                if (rc == VINF_IOM_HC_IOPORT_READ)
+                    HWACCMR0SavePendingIOPortRead(pVCpu, pCtx->rip, pVMCB->ctrl.u64ExitInfo2, IoExitInfo.n.u16Port, uAndVal, uIOSize);
             }
         }
         /*
@@ -2302,10 +2332,17 @@ ResumeExecution:
         AssertMsg(rc == VERR_EM_INTERPRETER || rc == VINF_EM_HALT, ("EMU: mwait failed with %Rrc\n", rc));
         break;
 
+    case SVM_EXIT_VMMCALL:
+        rc = svmR0EmulateTprVMMCall(pVM, pVCpu, pCtx);
+        if (rc == VINF_SUCCESS)
+        {
+            goto ResumeExecution;   /* rip already updated. */
+        }
+        /* no break */
+
     case SVM_EXIT_RSM:
     case SVM_EXIT_INVLPGA:
     case SVM_EXIT_VMRUN:
-    case SVM_EXIT_VMMCALL:
     case SVM_EXIT_VMLOAD:
     case SVM_EXIT_VMSAVE:
     case SVM_EXIT_STGI:
@@ -2332,6 +2369,28 @@ ResumeExecution:
     {
         uint32_t cbSize;
 
+        /* When an interrupt is pending, we'll let MSR_K8_LSTAR writes fault in our TPR patch code. */
+        if (    pVM->hwaccm.s.svm.fTPRPatchingActive
+            &&  pCtx->ecx == MSR_K8_LSTAR
+            &&  pVMCB->ctrl.u64ExitInfo1 == 1 /* wrmsr */)
+        {
+            if ((pCtx->eax & 0xff) != u8LastTPR)
+            {
+                Log(("SVM: Faulting MSR_K8_LSTAR write with new TPR value %x\n", pCtx->eax & 0xff));
+
+                /* Our patch code uses LSTAR for TPR caching. */
+                rc = PDMApicSetTPR(pVCpu, pCtx->eax & 0xff);
+                AssertRC(rc);
+            }
+
+            /* Skip the instruction and continue. */
+            pCtx->rip += 2;     /* wrmsr = [0F 30] */
+
+            /* Only resume if successful. */
+            STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit1, x);
+            goto ResumeExecution;
+        }
+
         /* Note: the intel manual claims there's a REX version of RDMSR that's slightly different, so we play safe by completely disassembling the instruction. */
         STAM_COUNTER_INC((pVMCB->ctrl.u64ExitInfo1 == 0) ? &pVCpu->hwaccm.s.StatExitRdmsr : &pVCpu->hwaccm.s.StatExitWrmsr);
         Log(("SVM: %s\n", (pVMCB->ctrl.u64ExitInfo1 == 0) ? "rdmsr" : "wrmsr"));
@@ -2352,7 +2411,7 @@ ResumeExecution:
     case SVM_EXIT_PAUSE:
     case SVM_EXIT_MWAIT_ARMED:
     case SVM_EXIT_TASK_SWITCH:          /* can change CR3; emulate */
-        rc = VINF_EM_RAW_EXCEPTION_PRIVILEGED;
+        rc = VERR_EM_INTERPRETER;
         break;
 
     case SVM_EXIT_SHUTDOWN:
@@ -2416,234 +2475,65 @@ end:
  * Emulate simple mov tpr instruction
  *
  * @returns VBox status code.
- * @param   pVCpu       The VM CPU to operate on.
- * @param   pDis        Disassembly state
- * @param   pCtx        CPU context
- * @param   cbOp        Opcode size
- */
-static int svmR0EmulateTprMov(PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTX pCtx, unsigned cbOp)
-{
-    int rc;
-
-    if (pDis->param1.flags == USE_DISPLACEMENT32)
-    {
-        /* write */
-        uint8_t u8Tpr;
-
-        /* Fetch the new TPR value */
-        if (pDis->param2.flags == USE_REG_GEN32)
-        {
-            uint32_t val;
-
-            rc = DISFetchReg32(CPUMCTX2CORE(pCtx), pDis->param2.base.reg_gen, &val);
-            AssertRC(rc);
-            u8Tpr = val;
-        }
-        else
-        if (pDis->param2.flags == USE_IMMEDIATE32)
-        {
-            u8Tpr = (uint8_t)pDis->param2.parval;
-        }
-        else
-            return VERR_EM_INTERPRETER;
-
-        rc = PDMApicSetTPR(pVCpu, u8Tpr);
-        AssertRC(rc);
-
-        Log(("Emulated write successfully\n"));
-        pCtx->rip += cbOp;
-        return VINF_SUCCESS;
-    }
-    else
-    if (pDis->param2.flags == USE_DISPLACEMENT32)
-    {
-        /* read */
-        bool    fPending;
-        uint8_t u8Tpr;
-
-        /* TPR caching in CR8 */
-        rc = PDMApicGetTPR(pVCpu, &u8Tpr, &fPending);
-        AssertRC(rc);
-
-        rc = DISWriteReg32(CPUMCTX2CORE(pCtx), pDis->param1.base.reg_gen, u8Tpr);
-        AssertRC(rc);
-
-        Log(("Emulated read successfully\n"));
-        pCtx->rip += cbOp;
-        return VINF_SUCCESS;
-    }
-    return VERR_EM_INTERPRETER;
-}
-
-/**
- * Attempt to patch TPR mmio instructions
- *
- * @returns VBox status code.
  * @param   pVM         The VM to operate on.
  * @param   pVCpu       The VM CPU to operate on.
  * @param   pCtx        CPU context
  */
-static int svmR0ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
+static int svmR0EmulateTprVMMCall(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 {
-    RTGCPTR      oldrip = pCtx->rip;
-    PDISCPUSTATE pDis   = &pVCpu->hwaccm.s.DisState;
-    unsigned     cbOp;
+    int rc;
 
-    Log(("Replace TPR access at %RGv\n", pCtx->rip));
+    LogFlow(("Emulated VMMCall TPR access replacement at %RGv\n", pCtx->rip));
 
-    int rc = EMInterpretDisasOne(pVM, pVCpu, CPUMCTX2CORE(pCtx), pDis, &cbOp);
-    AssertRC(rc);
-    if (    rc == VINF_SUCCESS
-        &&  pDis->pCurInstr->opcode == OP_MOV)
+    while (true)
     {
-#if 0
-        uint8_t szInstr[15];
-        if (    cbOp == 10
-            &&  pDis->param1.flags == USE_DISPLACEMENT32
-            &&  pDis->param2.flags == USE_IMMEDIATE32)
+        bool    fPending;
+        uint8_t u8Tpr;
+
+        PHWACCMTPRPATCH pPatch = (PHWACCMTPRPATCH)RTAvloU32Get(&pVM->hwaccm.s.svm.PatchTree, (AVLOU32KEY)pCtx->eip);
+        if (!pPatch)
+            break;
+
+        switch(pPatch->enmType)
         {
-            /* Found:
-             *   mov [fffe0080], immediate_dword                (10 bytes)
-             *
-             * Replace with:
-             *   mov free_register, immediate_dword >> 4        (5 bytes)
-             *   mov cr8, free_register                         (4 bytes)
-             *   nop                                            (1 byte)
-             *
-             */
-            uint32_t    u32tpr = (uint32_t)pDis->param2.parval;
+        case HWACCMTPRINSTR_READ:
+            /* TPR caching in CR8 */
+            rc = PDMApicGetTPR(pVCpu, &u8Tpr, &fPending);
+            AssertRC(rc);
 
-            u32tpr = (u32tpr >> 4) & 0xf;
+            rc = DISWriteReg32(CPUMCTX2CORE(pCtx), pPatch->uDstOperand, u8Tpr);
+            AssertRC(rc);
 
-            /* Check if the next instruction overwrites a general purpose register. If
-             * it does, then we can safely use it ourselves.
-             */
-            pCtx->rip += cbOp;
-            rc = EMInterpretDisasOne(pVM, pVCpu, CPUMCTX2CORE(pCtx), pDis, &cbOp);
-            pCtx->rip = oldrip;
-            if (    rc == VINF_SUCCESS
-                &&  pDis->pCurInstr->opcode == OP_MOV
-                &&  pDis->param1.flags == USE_REG_GEN32)
+            LogFlow(("Emulated read successfully\n"));
+            pCtx->rip += pPatch->cbOp;
+            break;
+
+        case HWACCMTPRINSTR_WRITE_REG:
+        case HWACCMTPRINSTR_WRITE_IMM:
+            /* Fetch the new TPR value */
+            if (pPatch->enmType == HWACCMTPRINSTR_WRITE_REG)
             {
-                /* 0xB8, dword immediate  = mov eax, dword immediate */
-                szInstr[0] = 0xB8 + pDis->param1.base.reg_gen;
-                szInstr[1] = (uint8_t)u32tpr;
-                szInstr[2] = 0;
-                szInstr[3] = 0;
-                szInstr[4] = 0;
+                uint32_t val;
 
-                /* 0xF0, 0x0F, 0x22, 0xC0 = mov cr8, eax */
-                szInstr[5] = 0xF0;
-                szInstr[6] = 0x0F;
-                szInstr[7] = 0x22;
-                szInstr[8] = 0xC0 | pDis->param1.base.reg_gen;
-                szInstr[9] = 0x90; /* nop */
-
-                rc = PGMPhysSimpleWriteGCPtr(pVCpu, pCtx->rip, szInstr, 10);
+                rc = DISFetchReg32(CPUMCTX2CORE(pCtx), pPatch->uSrcOperand, &val);
                 AssertRC(rc);
-
-                Log(("Acceptable write candidate!\n"));
-                return VINF_SUCCESS;
-            }
-        }
-        else
-        {
-            if (    pDis->param2.flags == USE_REG_GEN32
-                &&  cbOp == 6)
-            {
-                RTGCPTR  GCPtrTpr = (uint32_t)pDis->param1.disp32;
-                uint32_t uMmioReg = pDis->param2.base.reg_gen;
-
-                /* Found:
-                 *   mov dword [fffe0080], eax        (6 bytes)
-                 * Check if next instruction is a TPR read:
-                 *   mov ecx, dword [fffe0080]        (5 bytes)
-                 */
-                pCtx->rip += cbOp;
-                rc = EMInterpretDisasOne(pVM, pVCpu, CPUMCTX2CORE(pCtx), pDis, &cbOp);
-                pCtx->rip = oldrip;
-                if (    rc == VINF_SUCCESS
-                    &&  pDis->pCurInstr->opcode == OP_MOV
-                    &&  pDis->param1.flags == USE_REG_GEN32
-                    &&  pDis->param2.flags == USE_DISPLACEMENT32
-                    &&  pDis->param2.disp32 == (uint32_t)GCPtrTpr
-                    &&  cbOp == 5)
-                {
-                    /* mov new_reg, uMmioReg */
-                    szInstr[0] = 0x89;
-                    szInstr[1] = MAKE_MODRM(3, uMmioReg, pDis->param1.base.reg_gen);
-
-                    /* Let's hope the guest won't mind us trashing the source register...
-                     * shr uMmioReg, 4
-                     */
-                    szInstr[2] = 0xC1;
-                    szInstr[3] = 0xE8 | uMmioReg;
-                    szInstr[4] = 4;
-
-                    /* 0xF0, 0x0F, 0x22, 0xC0 = mov cr8, eax */
-                    szInstr[5] = 0xF0;
-                    szInstr[6] = 0x0F;
-                    szInstr[7] = 0x22;
-                    szInstr[8] = 0xC0 | uMmioReg;
-
-                    /* Two nop instructions */
-                    szInstr[9] = 0x90;
-                    szInstr[10] = 0x90;
-
-                    rc = PGMPhysSimpleWriteGCPtr(pVCpu, pCtx->rip, szInstr, 6+cbOp);
-                    AssertRC(rc);
-
-                    Log(("Acceptable read/write candidate!\n"));
-                    return VINF_SUCCESS;
-                }
+                u8Tpr = val;
             }
             else
-            if (    pDis->param1.flags == USE_REG_GEN32
-                &&  cbOp == 5)
-            {
-                uint32_t uMmioReg = pDis->param1.base.reg_gen;
+                u8Tpr = (uint8_t)pPatch->uSrcOperand;
 
-                /* Found:
-                 *   mov eax, dword [fffe0080]        (5 bytes)
-                 * Check if next instruction is:
-                 *   shr eax, 4
-                 */
-                pCtx->rip += cbOp;
-                rc = EMInterpretDisasOne(pVM, pVCpu, CPUMCTX2CORE(pCtx), pDis, &cbOp);
-                pCtx->rip = oldrip;
-                if (    rc == VINF_SUCCESS
-                    &&  pDis->pCurInstr->opcode == OP_SHR
-                    &&  pDis->param1.flags == USE_REG_GEN32
-                    &&  pDis->param1.base.reg_gen == uMmioReg
-                    &&  pDis->param2.flags == USE_IMMEDIATE8
-                    &&  pDis->param2.parval == 4)
-                {
-                    /* 0xF0, 0x0F, 0x20, 0xC0 = mov eax, cr8 */
-                    szInstr[0] = 0xF0;
-                    szInstr[1] = 0x0F;
-                    szInstr[2] = 0x20;
-                    szInstr[3] = 0xC0 | pDis->param1.base.reg_gen;
-                    for (unsigned i = 4; i < 5+cbOp; i++)
-                        szInstr[i] = 0x90;  /* nop */
-
-                    rc = PGMPhysSimpleWriteGCPtr(pVCpu, pCtx->rip, szInstr, 5+cbOp);
-                    AssertRC(rc);
-
-                    Log(("Acceptable read candidate!\n"));
-                    return VINF_SUCCESS;
-                }
-            }
+            rc = PDMApicSetTPR(pVCpu, u8Tpr);
+            AssertRC(rc);
+            LogFlow(("Emulated write successfully\n"));
+            pCtx->rip += pPatch->cbOp;
+            break;
+        default:
+            AssertMsgFailedReturn(("Unexpected type %d\n", pPatch->enmType), VERR_INTERNAL_ERROR);
         }
-#endif
-        rc = svmR0EmulateTprMov(pVCpu, pDis, pCtx, cbOp);
-        if (rc != VINF_SUCCESS)
-            return rc;
-
-        /* Emulated successfully, so continue. */
-        return VINF_SUCCESS;
     }
-    return VERR_ACCESS_DENIED;
+    return VINF_SUCCESS;
 }
+
 
 /**
  * Enters the AMD-V session
@@ -2681,6 +2571,13 @@ VMMR0DECL(int) SVMR0Leave(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 
     Assert(pVM->hwaccm.s.svm.fSupported);
 
+#ifdef DEBUG
+    if (CPUMIsHyperDebugStateActive(pVCpu))
+    {
+        CPUMR0LoadHostDebugState(pVM, pVCpu);
+    }
+    else
+#endif
     /* Save the guest debug state if necessary. */
     if (CPUMIsGuestDebugStateActive(pVCpu))
     {

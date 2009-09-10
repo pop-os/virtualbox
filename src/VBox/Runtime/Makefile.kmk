@@ -135,7 +135,8 @@ RuntimeWin64ASM_SOURCES = \
 	win/amd64/ASMGetDR3.asm \
 	win/amd64/ASMGetDR6.asm \
 	win/amd64/ASMGetDR7.asm \
-	common/asm/ASMMultU64ByU32DivByU32.asm
+	common/asm/ASMMultU64ByU32DivByU32.asm \
+	common/asm/ASMNopPause.asm
 
 #
 # Win32 assembly sources.
@@ -994,6 +995,7 @@ RuntimeR0_SOURCES       = \
 	common/table/avlgcptr.cpp \
 	common/table/avlhcphys.cpp \
 	common/table/avllu32.cpp \
+	common/table/avlou32.cpp \
 	common/table/avlogcphys.cpp \
 	common/table/avlogcptr.cpp \
 	common/table/avlohcphys.cpp \

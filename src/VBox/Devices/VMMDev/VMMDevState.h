@@ -45,6 +45,8 @@ typedef struct VMMDevState
     /** absolute mouse position in pixels */
     uint32_t mouseXAbs;
     uint32_t mouseYAbs;
+    /** Does the guest currently want the host pointer to be shown? */
+    uint32_t fHostCursorRequested;
 
     /** Pointer to device instance. */
     PPDMDEVINSR3 pDevIns;
@@ -113,6 +115,9 @@ typedef struct VMMDevState
 
     /** Video acceleration status set by guest. */
     uint32_t u32VideoAccelEnabled;
+
+    /** true if the guest responded to VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST at least once */
+    bool fGuestSentChangeEventAck;
 
     /** resolution change request */
     struct

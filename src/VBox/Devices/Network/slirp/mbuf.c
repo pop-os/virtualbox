@@ -84,6 +84,7 @@ m_get(PNATState pData)
 #ifdef VBOX_WITH_SLIRP_ALIAS
     m->m_la = NULL;
 #endif
+    memset(m->m_data, 0, if_maxlinkhdr); /*initialization of ether area */
 
 end_error:
     DEBUG_ARG("m = %lx", (long )m);

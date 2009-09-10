@@ -67,13 +67,7 @@
 /* XXX Temporarily. Don't rely on ther user to hack the Makefile himsef! */
 QString g_QStrHintLinuxNoMemory = QApplication::tr(
   "This error means that the kernel driver was either not able to "
-  "allocate enough memory or that some mapping operation failed.<br/><br/>"
-  "There are known problems with Linux 2.6.29. If you are running "
-  "such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable "
-  "<i>VBOX_USE_INSERT_PAGE = 1</i>. After that, re-compile the kernel "
-  "module by executing<br/><br/>"
-  "  <font color=blue>'/etc/init.d/vboxdrv setup'</font><br/><br/>"
-  "as root."
+  "allocate enough memory or that some mapping operation failed."
   );
 
 QString g_QStrHintLinuxNoDriver = QApplication::tr(
@@ -162,7 +156,7 @@ void bt_sighandler (int sig, siginfo_t *info, void *secret) {
 
 #endif /* DEBUG && X11 && LINUX*/
 
-#if defined(RT_OS_DARWIN) && defined(RT_ARCH_AMD64)
+#if defined(RT_OS_DARWIN)
 # include <dlfcn.h>
 # include <sys/mman.h>
 # include <iprt/asm.h>
@@ -178,7 +172,7 @@ static void ShutUpAppKit(void)
     if (!rc)
         ASMAtomicWriteU32((volatile uint32_t *)addr, 0xccc3c031); /* xor eax, eax; ret; int3 */
 }
-#endif /* DARWIN + AMD64 */
+#endif /* DARWIN */
 
 static void QtMessageOutput (QtMsgType type, const char *msg)
 {
@@ -277,7 +271,7 @@ static void showHelp()
 extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
 {
     LogFlowFuncEnter();
-# if defined(RT_OS_DARWIN) && defined(RT_ARCH_AMD64)
+# if defined(RT_OS_DARWIN)
     ShutUpAppKit();
 # endif
 
@@ -634,7 +628,7 @@ int main (int argc, char **argv, char **envp)
  */
 extern "C" DECLEXPORT(void) TrustedError (const char *pszWhere, SUPINITOP enmWhat, int rc, const char *pszMsgFmt, va_list va)
 {
-# if defined(RT_OS_DARWIN) && defined(RT_ARCH_AMD64)
+# if defined(RT_OS_DARWIN)
     ShutUpAppKit();
 # endif
 

@@ -45,6 +45,19 @@ typedef struct
 } BOOTPClient;
 
 
+/*
+ * ARP cache this is naive implementaion of ARP 
+ * cache of mapping 4 byte IPv4 address to 6 byte 
+ * ethernet one.
+ */
+struct arp_cache_entry
+{
+    uint32_t ip;
+    uint8_t ether[6];
+    LIST_ENTRY(arp_cache_entry) list;
+};
+LIST_HEAD(arp_cache_head, arp_cache_entry);
+
 /** TFTP session entry. */
 struct tftp_session
 {
@@ -70,6 +83,9 @@ struct dns_entry
     TAILQ_ENTRY(dns_entry) de_list;
 };
 TAILQ_HEAD(dns_list_head, dns_entry);
+
+/* forward declaration */
+struct proto_handler;
 
 /** Main state/configuration structure for slirp NAT. */
 typedef struct NATState
@@ -225,10 +241,14 @@ typedef struct NATState
     /* this field control behaviour of DHCP server */
     bool use_dns_proxy;
 
+    struct arp_cache_head arp_cache;
 #ifdef VBOX_WITH_SLIRP_ALIAS
     LIST_HEAD(RT_NOTHING, libalias) instancehead;
     struct libalias *proxy_alias;
     LIST_HEAD(handler_chain, proto_handler) handler_chain;
+    /*libalis modules' handlers*/
+    struct proto_handler *ftp_module;
+    struct proto_handler *nbt_module;
 #endif
 
 #define PROFILE_COUNTER(name, dsc)     STAMPROFILE Stat ## name

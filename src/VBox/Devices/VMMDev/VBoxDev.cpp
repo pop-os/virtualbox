@@ -728,6 +728,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
                                                        0, 0,
                                                        NULL);
                 }
+                pThis->fHostCursorRequested = fVisible;
                 pRequestHeader->rc = VINF_SUCCESS;
             }
             break;
@@ -810,6 +811,38 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
             break;
         }
 
+        case VMMDevReq_RegisterPatchMemory:
+        {
+            if (pRequestHeader->size != sizeof(VMMDevReqPatchMemory))
+            {
+                AssertMsgFailed(("VMMDevReq_RegisterPatchMemory structure has invalid size!\n"));
+                pRequestHeader->rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                VMMDevReqPatchMemory *pPatchRequest = (VMMDevReqPatchMemory*)pRequestHeader;
+
+                pRequestHeader->rc = VMMR3RegisterPatchMemory(PDMDevHlpGetVM(pDevIns), pPatchRequest->pPatchMem, pPatchRequest->cbPatchMem);
+            }
+            break;
+        }
+
+        case VMMDevReq_DeregisterPatchMemory:
+        {
+            if (pRequestHeader->size != sizeof(VMMDevReqPatchMemory))
+            {
+                AssertMsgFailed(("VMMDevReq_DeregisterPatchMemory structure has invalid size!\n"));
+                pRequestHeader->rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                VMMDevReqPatchMemory *pPatchRequest = (VMMDevReqPatchMemory*)pRequestHeader;
+
+                pRequestHeader->rc = VMMR3DeregisterPatchMemory(PDMDevHlpGetVM(pDevIns), pPatchRequest->pPatchMem, pPatchRequest->cbPatchMem);
+            }
+            break;
+        }
+
         /*
          * Set the system power status
          */
@@ -875,16 +908,26 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
 
                 if (displayChangeRequest->eventAck == VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST)
                 {
-                    /* Remember which resolution the client has queried, subsequent reads will return the same values. */
+                    /* Remember which resolution the client has queried, subsequent reads
+                     * will return the same values. */
                     pThis->lastReadDisplayChangeRequest = pThis->displayChangeRequest;
+                    pThis->fGuestSentChangeEventAck = true;
                 }
 
-                /* just pass on the information */
+                if (pThis->fGuestSentChangeEventAck)
+                {
+                    displayChangeRequest->xres = pThis->lastReadDisplayChangeRequest.xres;
+                    displayChangeRequest->yres = pThis->lastReadDisplayChangeRequest.yres;
+                    displayChangeRequest->bpp  = pThis->lastReadDisplayChangeRequest.bpp;
+                }
+                else
+                {
+                    displayChangeRequest->xres = pThis->displayChangeRequest.xres;
+                    displayChangeRequest->yres = pThis->displayChangeRequest.yres;
+                    displayChangeRequest->bpp  = pThis->displayChangeRequest.bpp;
+                }
                 Log(("VMMDev: returning display change request xres = %d, yres = %d, bpp = %d\n",
-                     pThis->displayChangeRequest.xres, pThis->displayChangeRequest.yres, pThis->displayChangeRequest.bpp));
-                displayChangeRequest->xres = pThis->lastReadDisplayChangeRequest.xres;
-                displayChangeRequest->yres = pThis->lastReadDisplayChangeRequest.yres;
-                displayChangeRequest->bpp  = pThis->lastReadDisplayChangeRequest.bpp;
+                     displayChangeRequest->xres, displayChangeRequest->yres, displayChangeRequest->bpp));
 
                 pRequestHeader->rc = VINF_SUCCESS;
             }
@@ -903,17 +946,28 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
 
                 if (displayChangeRequest->eventAck == VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST)
                 {
-                    /* Remember which resolution the client has queried, subsequent reads will return the same values. */
+                    /* Remember which resolution the client has queried, subsequent reads
+                     * will return the same values. */
                     pThis->lastReadDisplayChangeRequest = pThis->displayChangeRequest;
+                    pThis->fGuestSentChangeEventAck = true;
                 }
 
-                /* just pass on the information */
+                if (pThis->fGuestSentChangeEventAck)
+                {
+                    displayChangeRequest->xres    = pThis->lastReadDisplayChangeRequest.xres;
+                    displayChangeRequest->yres    = pThis->lastReadDisplayChangeRequest.yres;
+                    displayChangeRequest->bpp     = pThis->lastReadDisplayChangeRequest.bpp;
+                    displayChangeRequest->display = pThis->lastReadDisplayChangeRequest.display;
+                }
+                else
+                {
+                    displayChangeRequest->xres    = pThis->displayChangeRequest.xres;
+                    displayChangeRequest->yres    = pThis->displayChangeRequest.yres;
+                    displayChangeRequest->bpp     = pThis->displayChangeRequest.bpp;
+                    displayChangeRequest->display = pThis->displayChangeRequest.display;
+                }
                 Log(("VMMDev: returning display change request xres = %d, yres = %d, bpp = %d at %d\n",
-                     pThis->displayChangeRequest.xres, pThis->displayChangeRequest.yres, pThis->displayChangeRequest.bpp, pThis->displayChangeRequest.display));
-                displayChangeRequest->xres    = pThis->lastReadDisplayChangeRequest.xres;
-                displayChangeRequest->yres    = pThis->lastReadDisplayChangeRequest.yres;
-                displayChangeRequest->bpp     = pThis->lastReadDisplayChangeRequest.bpp;
-                displayChangeRequest->display = pThis->lastReadDisplayChangeRequest.display;
+                     displayChangeRequest->xres, displayChangeRequest->yres, displayChangeRequest->bpp, displayChangeRequest->display));
 
                 pRequestHeader->rc = VINF_SUCCESS;
             }
@@ -2032,7 +2086,7 @@ static DECLCALLBACK(void) vmmdevVBVAChange(PPDMIVMMDEVPORT pInterface, bool fEna
 
 
 
-#define VMMDEV_SSM_VERSION  9
+#define VMMDEV_SSM_VERSION  11
 
 /**
  * Saves a state of the VMM device.
@@ -2060,12 +2114,15 @@ static DECLCALLBACK(int) vmmdevSaveState(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHand
     SSMR3PutMem(pSSMHandle, &pThis->guestInfo, sizeof (pThis->guestInfo));
     SSMR3PutU32(pSSMHandle, pThis->fu32AdditionsOk);
     SSMR3PutU32(pSSMHandle, pThis->u32VideoAccelEnabled);
+    SSMR3PutBool(pSSMHandle, pThis->fGuestSentChangeEventAck);
 
     SSMR3PutU32(pSSMHandle, pThis->guestCaps);
 
 #ifdef VBOX_WITH_HGCM
     vmmdevHGCMSaveState (pThis, pSSMHandle);
 #endif /* VBOX_WITH_HGCM */
+
+    SSMR3PutU32(pSSMHandle, pThis->fHostCursorRequested);
 
     return VINF_SUCCESS;
 }
@@ -2102,6 +2159,8 @@ static DECLCALLBACK(int) vmmdevLoadState(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHand
     SSMR3GetMem(pSSMHandle, &pThis->guestInfo, sizeof (pThis->guestInfo));
     SSMR3GetU32(pSSMHandle, &pThis->fu32AdditionsOk);
     SSMR3GetU32(pSSMHandle, &pThis->u32VideoAccelEnabled);
+    if (u32Version > 10)
+        SSMR3GetBool(pSSMHandle, &pThis->fGuestSentChangeEventAck);
 
     SSMR3GetU32(pSSMHandle, &pThis->guestCaps);
 
@@ -2118,13 +2177,27 @@ static DECLCALLBACK(int) vmmdevLoadState(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHand
     vmmdevHGCMLoadState (pThis, pSSMHandle, u32Version);
 #endif /* VBOX_WITH_HGCM */
 
+    if (   SSM_VERSION_MAJOR(u32Version) ==  0
+        && SSM_VERSION_MINOR(u32Version) >= 10)
+        SSMR3GetU32(pSSMHandle, &pThis->fHostCursorRequested);
+
     /*
      * On a resume, we send the capabilities changed message so
      * that listeners can sync their state again
      */
     Log(("vmmdevLoadState: capabilities changed (%x), informing connector\n", pThis->mouseCapabilities));
     if (pThis->pDrv)
+    {
         pThis->pDrv->pfnUpdateMouseCapabilities(pThis->pDrv, pThis->mouseCapabilities);
+        if (   SSM_VERSION_MAJOR(u32Version) ==  0
+            && SSM_VERSION_MINOR(u32Version) >= 10)
+                pThis->pDrv->pfnUpdatePointerShape(pThis->pDrv,
+                                                   pThis->fHostCursorRequested,
+                                                   0,
+                                                   0, 0,
+                                                   0, 0,
+                                                   NULL);
+    }
 
     /* Reestablish the acceleration status. */
     if (    pThis->u32VideoAccelEnabled
@@ -2420,6 +2493,7 @@ static DECLCALLBACK(void) vmmdevReset(PPDMDEVINS pDevIns)
         Log(("vmmdevReset: capabilities changed (%x), informing connector\n", pThis->mouseCapabilities));
         pThis->pDrv->pfnUpdateMouseCapabilities(pThis->pDrv, pThis->mouseCapabilities);
     }
+    pThis->fHostCursorRequested = false;
 
     pThis->hypervisorSize = 0;
 
@@ -2452,6 +2526,7 @@ static DECLCALLBACK(void) vmmdevReset(PPDMDEVINS pDevIns)
 
     /* clear pending display change request. */
     memset (&pThis->lastReadDisplayChangeRequest, 0, sizeof (pThis->lastReadDisplayChangeRequest));
+    pThis->fGuestSentChangeEventAck = false;
 
     /* disable seamless mode */
     pThis->fLastSeamlessEnabled = false;

@@ -426,8 +426,8 @@ static int VBoxNetAdpSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
 
 static int vboxNetAdpSolarisGenerateMac(PRTMAC pMac)
 {
-    pMac->au8[0] = 0x00;
-    pMac->au8[1] = 0x08;
+    pMac->au8[0] = 0x08;
+    pMac->au8[1] = 0x00;
     pMac->au8[2] = 0x27;
     RTRandBytes(&pMac->au8[3], 3);
     LogFlow((DEVICE_NAME ":VBoxNetAdpSolarisGenerateMac Generated %.*Rhxs\n", sizeof(RTMAC), &pMac));
@@ -452,6 +452,7 @@ static int vboxNetAdpSolarisSetMacAddress(gld_mac_info_t *pMacInfo, unsigned cha
 
 static int vboxNetAdpSolarisSend(gld_mac_info_t *pMacInfo, mblk_t *pMsg)
 {
+    freemsg(pMsg);
     return GLD_SUCCESS;
 }
 

@@ -203,7 +203,7 @@ STDMETHODIMP SystemProperties::COMGETTER(MaxGuestRAM)(ULONG *maxRAM)
     ULONG maxRAMArch = maxRAMSys;
 #if HC_ARCH_BITS == 32 && !defined(RT_OS_DARWIN)
 # ifdef RT_OS_WINDOWS
-    maxRAMArch = UINT32_C(2048);
+    maxRAMArch = UINT32_C(1500);
 # else
     maxRAMArch = UINT32_C(2560);
 # endif

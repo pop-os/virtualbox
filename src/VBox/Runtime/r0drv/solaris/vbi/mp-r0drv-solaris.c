@@ -35,9 +35,9 @@
 #include "the-solaris-kernel.h"
 
 #include <iprt/mp.h>
-#include <iprt/cpuset.h>
 #include <iprt/err.h>
 #include <iprt/asm.h>
+#include "internal-r0drv-solaris.h"
 #include "r0drv/mp-r0drv.h"
 
 
@@ -73,7 +73,17 @@ RTDECL(RTCPUID) RTMpGetMaxCpuId(void)
 
 RTDECL(bool) RTMpIsCpuOnline(RTCPUID idCpu)
 {
+    /*
+     * We cannot query CPU status recursively, check cpu member from cached set.
+     */
+    if (idCpu >= vbi_cpu_count())
+        return false;
+
+    return RTCpuSetIsMember(&g_rtMpSolarisCpuSet, idCpu);
+
+#if 0
     return idCpu < vbi_cpu_count() && vbi_cpu_online(idCpu);
+#endif
 }
 
 
@@ -107,6 +117,13 @@ RTDECL(RTCPUID) RTMpGetCount(void)
 
 RTDECL(PRTCPUSET) RTMpGetOnlineSet(PRTCPUSET pSet)
 {
+    /*
+     * We cannot query CPU status recursively, return the cached set.
+     */
+    *pSet = g_rtMpSolarisCpuSet;
+    return pSet;
+
+#if 0
     RTCPUID idCpu;
 
     RTCpuSetEmpty(pSet);
@@ -118,11 +135,17 @@ RTDECL(PRTCPUSET) RTMpGetOnlineSet(PRTCPUSET pSet)
     } while (idCpu-- > 0);
 
     return pSet;
+#endif
 }
 
 
 RTDECL(RTCPUID) RTMpGetOnlineCount(void)
 {
+    RTCPUSET Set;
+    RTMpGetOnlineSet(&Set);
+    return RTCpuSetCount(&Set);
+
+#if 0
     int c;
     int cnt = 0;
 
@@ -132,6 +155,7 @@ RTDECL(RTCPUID) RTMpGetOnlineCount(void)
             ++cnt;
     }
     return cnt;
+#endif
 }
 
 
@@ -210,7 +234,7 @@ RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
     Args.pvUser1 = pvUser1;
     Args.pvUser2 = pvUser2;
     Args.idCpu = RTMpCpuId();
-    Args.cHits = 0;
+    Args.cHits = 0; 
 
     vbi_execute_on_others(rtmpOnOthersSolarisWrapper, &Args);
 

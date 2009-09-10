@@ -101,6 +101,9 @@
 #  pragma intrinsic(_InterlockedCompareExchange)
 #  pragma intrinsic(_InterlockedCompareExchange64)
 #  ifdef RT_ARCH_AMD64
+#   pragma intrinsic(_mm_mfence)
+#   pragma intrinsic(_mm_sfence)
+#   pragma intrinsic(_mm_lfence)
 #   pragma intrinsic(__stosq)
 #   pragma intrinsic(__readcr8)
 #   pragma intrinsic(__writecr8)
@@ -490,11 +493,11 @@ DECLINLINE(RTCCUINTREG) ASMGetFlags(void)
 #  ifdef RT_ARCH_AMD64
     __asm__ __volatile__("pushfq\n\t"
                          "popq  %0\n\t"
-                         : "=g" (uFlags));
+                         : "=r" (uFlags));
 #  else
     __asm__ __volatile__("pushfl\n\t"
                          "popl  %0\n\t"
-                         : "=g" (uFlags));
+                         : "=r" (uFlags));
 #  endif
 # else
     __asm
@@ -967,7 +970,7 @@ DECLINLINE(uint8_t) ASMGetApicId(void)
 
 
 /**
- * Tests if it an genuin Intel CPU based on the ASMCpuId(0) output.
+ * Tests if it a genuine Intel CPU based on the ASMCpuId(0) output.
  *
  * @returns true/false.
  * @param   uEBX    EBX return from ASMCpuId(0)
@@ -983,9 +986,10 @@ DECLINLINE(bool) ASMIsIntelCpuEx(uint32_t uEBX, uint32_t uECX, uint32_t uEDX)
 
 
 /**
- * Tests if this is an genuin Intel CPU.
+ * Tests if this is a genuine Intel CPU.
  *
  * @returns true/false.
+ * @remarks ASSUMES that cpuid is supported by the CPU.
  */
 DECLINLINE(bool) ASMIsIntelCpu(void)
 {
@@ -1340,9 +1344,9 @@ DECLINLINE(RTCCUINTREG) ASMGetCR4(void)
 #  else
         push    eax /* just in case */
         /*mov     eax, cr4*/
-        _emit 0x0f
-        _emit 0x20
-        _emit 0xe0
+        _emit   0x0f
+        _emit   0x20
+        _emit   0xe0
         mov     [uCR4], eax
         pop     eax
 #  endif
@@ -1474,12 +1478,12 @@ DECLINLINE(RTCCUINTREG) ASMIntDisableFlags(void)
     __asm__ __volatile__("pushfq\n\t"
                          "cli\n\t"
                          "popq  %0\n\t"
-                         : "=rm" (xFlags));
+                         : "=r" (xFlags));
 #  else
     __asm__ __volatile__("pushfl\n\t"
                          "cli\n\t"
                          "popl  %0\n\t"
-                         : "=rm" (xFlags));
+                         : "=r" (xFlags));
 #  endif
 # elif RT_INLINE_ASM_USES_INTRIN && !defined(RT_ARCH_X86)
     xFlags = ASMGetFlags();
@@ -1497,6 +1501,18 @@ DECLINLINE(RTCCUINTREG) ASMIntDisableFlags(void)
 
 
 /**
+ * Are interrupts enabled?
+ *
+ * @returns true / false.
+ */
+DECLINLINE(RTCCUINTREG) ASMIntAreEnabled(void)
+{
+    RTCCUINTREG uFlags = ASMGetFlags();
+    return uFlags & 0x200 /* X86_EFL_IF */ ? true : false;
+}
+
+
+/**
  * Halts the CPU until interrupted.
  */
 #if RT_INLINE_ASM_EXTERNAL
@@ -1509,6 +1525,26 @@ DECLINLINE(void) ASMHalt(void)
 # else
     __asm {
         hlt
+    }
+# endif
+}
+#endif
+
+
+/**
+ * The PAUSE variant of NOP for helping hyperthreaded CPUs detecing spin locks.
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(void) ASMNopPause(void);
+#else
+DECLINLINE(void) ASMNopPause(void)
+{
+# if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__(".byte 0xf3,0x90\n\t");
+# else
+    __asm {
+        _emit 0f3h
+        _emit 090h
     }
 # endif
 }
@@ -2828,67 +2864,6 @@ DECLINLINE(int64_t) ASMAtomicXchgS64(volatile int64_t *pi64, int64_t i64)
 }
 
 
-#ifdef RT_ARCH_AMD64
-/**
- * Atomically Exchange an unsigned 128-bit value, ordered.
- *
- * @returns Current *pu128.
- * @param   pu128   Pointer to the 128-bit variable to update.
- * @param   u128    The 128-bit value to assign to *pu128.
- *
- * @remark  We cannot really assume that any hardware supports this. Nor do I have
- *          GAS support for it. So, for the time being we'll BREAK the atomic
- *          bit of this function and use two 64-bit exchanges instead.
- */
-# if 0 /* see remark RT_INLINE_ASM_EXTERNAL */
-DECLASM(uint128_t) ASMAtomicXchgU128(volatile uint128_t *pu128, uint128_t u128);
-# else
-DECLINLINE(uint128_t) ASMAtomicXchgU128(volatile uint128_t *pu128, uint128_t u128)
-{
-   if (true)/*ASMCpuId_ECX(1) & RT_BIT(13))*/
-   {
-       /** @todo this is clumsy code */
-       RTUINT128U u128Ret;
-       u128Ret.u = u128;
-       u128Ret.s.Lo = ASMAtomicXchgU64(&((PRTUINT128U)(uintptr_t)pu128)->s.Lo, u128Ret.s.Lo);
-       u128Ret.s.Hi = ASMAtomicXchgU64(&((PRTUINT128U)(uintptr_t)pu128)->s.Hi, u128Ret.s.Hi);
-       return u128Ret.u;
-   }
-#if 0  /* later? */
-   else
-   {
-#  if RT_INLINE_ASM_GNU_STYLE
-        __asm__ __volatile__("1:\n\t"
-                             "lock; cmpxchg8b %1\n\t"
-                             "jnz 1b\n\t"
-                             : "=A" (u128),
-                               "=m" (*pu128)
-                             : "0" (*pu128),
-                               "b" ( (uint64_t)u128 ),
-                               "c" ( (uint64_t)(u128 >> 64) ));
-#  else
-        __asm
-        {
-            mov     rbx, dword ptr [u128]
-            mov     rcx, dword ptr [u128 + 8]
-            mov     rdi, pu128
-            mov     rax, dword ptr [rdi]
-            mov     rdx, dword ptr [rdi + 8]
-        retry:
-            lock cmpxchg16b [rdi]
-            jnz retry
-            mov     dword ptr [u128], rax
-            mov     dword ptr [u128 + 8], rdx
-        }
-#  endif
-    }
-    return u128;
-#endif
-}
-# endif
-#endif /* RT_ARCH_AMD64 */
-
-
 /**
  * Atomically Exchange a pointer value, ordered.
  *
@@ -2971,16 +2946,16 @@ DECLINLINE(RTR3PTR) ASMAtomicXchgR3Ptr(RTR3PTR volatile *ppvR3, RTR3PTR pvR3)
 #if HC_ARCH_BITS == 32
 # define ASMAtomicXchgHandle(ph, hNew, phRes) \
    do { \
-       *(uint32_t *)(phRes) = ASMAtomicXchgU32((uint32_t volatile *)(ph), (const uint32_t)(hNew)); \
        AssertCompile(sizeof(*(ph))    == sizeof(uint32_t)); \
        AssertCompile(sizeof(*(phRes)) == sizeof(uint32_t)); \
+       *(uint32_t *)(phRes) = ASMAtomicXchgU32((uint32_t volatile *)(ph), (const uint32_t)(hNew)); \
    } while (0)
 #elif HC_ARCH_BITS == 64
 # define ASMAtomicXchgHandle(ph, hNew, phRes) \
    do { \
-       *(uint64_t *)(phRes) = ASMAtomicXchgU64((uint64_t volatile *)(ph), (const uint64_t)(hNew)); \
        AssertCompile(sizeof(*(ph))    == sizeof(uint64_t)); \
        AssertCompile(sizeof(*(phRes)) == sizeof(uint64_t)); \
+       *(uint64_t *)(phRes) = ASMAtomicXchgU64((uint64_t volatile *)(ph), (const uint64_t)(hNew)); \
    } while (0)
 #else
 # error HC_ARCH_BITS
@@ -3248,14 +3223,14 @@ DECLINLINE(bool) ASMAtomicCmpXchgPtr(void * volatile *ppv, const void *pvNew, co
 #if HC_ARCH_BITS == 32
 # define ASMAtomicCmpXchgHandle(ph, hNew, hOld, fRc) \
    do { \
-       (fRc) = ASMAtomicCmpXchgU32((uint32_t volatile *)(ph), (const uint32_t)(hNew), (const uint32_t)(hOld)); \
        AssertCompile(sizeof(*(ph)) == sizeof(uint32_t)); \
+       (fRc) = ASMAtomicCmpXchgU32((uint32_t volatile *)(ph), (const uint32_t)(hNew), (const uint32_t)(hOld)); \
    } while (0)
 #elif HC_ARCH_BITS == 64
 # define ASMAtomicCmpXchgHandle(ph, hNew, hOld, fRc) \
    do { \
-       (fRc) = ASMAtomicCmpXchgU64((uint64_t volatile *)(ph), (const uint64_t)(hNew), (const uint64_t)(hOld)); \
        AssertCompile(sizeof(*(ph)) == sizeof(uint64_t)); \
+       (fRc) = ASMAtomicCmpXchgU64((uint64_t volatile *)(ph), (const uint64_t)(hNew), (const uint64_t)(hOld)); \
    } while (0)
 #else
 # error HC_ARCH_BITS
@@ -3496,16 +3471,16 @@ DECLINLINE(bool) ASMAtomicCmpXchgExS64(volatile int64_t *pi64, const int64_t i64
 #if HC_ARCH_BITS == 32
 # define ASMAtomicCmpXchgExHandle(ph, hNew, hOld, fRc, phOldVal) \
     do { \
-        (fRc) = ASMAtomicCmpXchgExU32((volatile uint32_t *)(pu), (uint32_t)(uNew), (uint32_t)(uOld), (uint32_t *)(puOldVal)); \
         AssertCompile(sizeof(*ph)       == sizeof(uint32_t)); \
         AssertCompile(sizeof(*phOldVal) == sizeof(uint32_t)); \
+        (fRc) = ASMAtomicCmpXchgExU32((volatile uint32_t *)(pu), (uint32_t)(uNew), (uint32_t)(uOld), (uint32_t *)(puOldVal)); \
     } while (0)
 #elif HC_ARCH_BITS == 64
 # define ASMAtomicCmpXchgExHandle(ph, hNew, hOld, fRc, phOldVal) \
     do { \
-        (fRc) = ASMAtomicCmpXchgExU64((volatile uint64_t *)(pu), (uint64_t)(uNew), (uint64_t)(uOld), (uint64_t *)(puOldVal)); \
         AssertCompile(sizeof(*(ph))       == sizeof(uint64_t)); \
         AssertCompile(sizeof(*(phOldVal)) == sizeof(uint64_t)); \
+        (fRc) = ASMAtomicCmpXchgExU64((volatile uint64_t *)(pu), (uint64_t)(uNew), (uint64_t)(uOld), (uint64_t *)(puOldVal)); \
     } while (0)
 #else
 # error HC_ARCH_BITS
@@ -3893,6 +3868,69 @@ DECLINLINE(void) ASMSerializeInstruction(void)
 # endif
 }
 #endif
+
+
+/**
+ * Memory load/store fence, waits for any pending writes and reads to complete.
+ * Requires the X86_CPUID_FEATURE_EDX_SSE2 CPUID bit set.
+ */
+DECLINLINE(void) ASMMemoryFenceSSE2(void)
+{
+#if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__ (".byte 0x0f,0xae,0xf0\n\t");
+#elif RT_INLINE_ASM_USES_INTRIN
+    _mm_mfence();
+#else
+    __asm
+    {
+        _emit   0x0f
+        _emit   0xae
+        _emit   0xf0
+    }
+#endif
+}
+
+
+/**
+ * Memory store fence, waits for any writes to complete.
+ * Requires the X86_CPUID_FEATURE_EDX_SSE CPUID bit set.
+ */
+DECLINLINE(void) ASMWriteFenceSSE(void)
+{
+#if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__ (".byte 0x0f,0xae,0xf8\n\t");
+#elif RT_INLINE_ASM_USES_INTRIN
+    _mm_sfence();
+#else
+    __asm
+    {
+        _emit   0x0f
+        _emit   0xae
+        _emit   0xf8
+    }
+#endif
+}
+
+
+/**
+ * Memory load fence, waits for any pending reads to complete.
+ * Requires the X86_CPUID_FEATURE_EDX_SSE2 CPUID bit set.
+ */
+DECLINLINE(void) ASMReadFenceSSE2(void)
+{
+#if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__ (".byte 0x0f,0xae,0xe8\n\t");
+#elif RT_INLINE_ASM_USES_INTRIN
+    _mm_lfence();
+#else
+    __asm
+    {
+        _emit   0x0f
+        _emit   0xae
+        _emit   0xe8
+    }
+#endif
+}
 
 
 /**
@@ -4342,16 +4380,16 @@ DECLINLINE(bool) ASMAtomicUoReadBool(volatile bool *pf)
 #if HC_ARCH_BITS == 32
 # define ASMAtomicReadHandle(ph, phRes) \
     do { \
-        *(uint32_t *)(phRes) = ASMAtomicReadU32((uint32_t volatile *)(ph)); \
         AssertCompile(sizeof(*(ph))    == sizeof(uint32_t)); \
         AssertCompile(sizeof(*(phRes)) == sizeof(uint32_t)); \
+        *(uint32_t *)(phRes) = ASMAtomicReadU32((uint32_t volatile *)(ph)); \
     } while (0)
 #elif HC_ARCH_BITS == 64
 # define ASMAtomicReadHandle(ph, phRes) \
     do { \
-        *(uint64_t *)(phRes) = ASMAtomicReadU64((uint64_t volatile *)(ph)); \
         AssertCompile(sizeof(*(ph))    == sizeof(uint64_t)); \
         AssertCompile(sizeof(*(phRes)) == sizeof(uint64_t)); \
+        *(uint64_t *)(phRes) = ASMAtomicReadU64((uint64_t volatile *)(ph)); \
     } while (0)
 #else
 # error HC_ARCH_BITS
@@ -4369,16 +4407,16 @@ DECLINLINE(bool) ASMAtomicUoReadBool(volatile bool *pf)
 #if HC_ARCH_BITS == 32
 # define ASMAtomicUoReadHandle(ph, phRes) \
     do { \
-        *(uint32_t *)(phRes) = ASMAtomicUoReadU32((uint32_t volatile *)(ph)); \
         AssertCompile(sizeof(*(ph))    == sizeof(uint32_t)); \
         AssertCompile(sizeof(*(phRes)) == sizeof(uint32_t)); \
+        *(uint32_t *)(phRes) = ASMAtomicUoReadU32((uint32_t volatile *)(ph)); \
     } while (0)
 #elif HC_ARCH_BITS == 64
 # define ASMAtomicUoReadHandle(ph, phRes) \
     do { \
-        *(uint64_t *)(phRes) = ASMAtomicUoReadU64((uint64_t volatile *)(ph)); \
         AssertCompile(sizeof(*(ph))    == sizeof(uint64_t)); \
         AssertCompile(sizeof(*(phRes)) == sizeof(uint64_t)); \
+        *(uint64_t *)(phRes) = ASMAtomicUoReadU64((uint64_t volatile *)(ph)); \
     } while (0)
 #else
 # error HC_ARCH_BITS
@@ -4702,14 +4740,14 @@ DECLINLINE(void) ASMAtomicUoWritePtr(void * volatile *ppv, const void *pv)
 #if HC_ARCH_BITS == 32
 # define ASMAtomicWriteHandle(ph, hNew) \
     do { \
-        ASMAtomicWriteU32((uint32_t volatile *)(ph), (const uint32_t)(hNew)); \
         AssertCompile(sizeof(*(ph)) == sizeof(uint32_t)); \
+        ASMAtomicWriteU32((uint32_t volatile *)(ph), (const uint32_t)(hNew)); \
     } while (0)
 #elif HC_ARCH_BITS == 64
 # define ASMAtomicWriteHandle(ph, hNew) \
     do { \
-        ASMAtomicWriteU64((uint64_t volatile *)(ph), (const uint64_t)(hNew)); \
         AssertCompile(sizeof(*(ph)) == sizeof(uint64_t)); \
+        ASMAtomicWriteU64((uint64_t volatile *)(ph), (const uint64_t)(hNew)); \
     } while (0)
 #else
 # error HC_ARCH_BITS
@@ -4727,14 +4765,14 @@ DECLINLINE(void) ASMAtomicUoWritePtr(void * volatile *ppv, const void *pv)
 #if HC_ARCH_BITS == 32
 # define ASMAtomicUoWriteHandle(ph, hNew) \
     do { \
-        ASMAtomicUoWriteU32((uint32_t volatile *)(ph), (const uint32_t)hNew); \
         AssertCompile(sizeof(*(ph)) == sizeof(uint32_t)); \
+        ASMAtomicUoWriteU32((uint32_t volatile *)(ph), (const uint32_t)hNew); \
     } while (0)
 #elif HC_ARCH_BITS == 64
 # define ASMAtomicUoWriteHandle(ph, hNew) \
     do { \
-        ASMAtomicUoWriteU64((uint64_t volatile *)(ph), (const uint64_t)hNew); \
         AssertCompile(sizeof(*(ph)) == sizeof(uint64_t)); \
+        ASMAtomicUoWriteU64((uint64_t volatile *)(ph), (const uint64_t)hNew); \
     } while (0)
 #else
 # error HC_ARCH_BITS
@@ -5011,6 +5049,66 @@ DECLINLINE(void) ASMMemFill32(volatile void *pv, size_t cb, uint32_t u32)
 # endif
 }
 #endif
+
+
+/**
+ * Checks if a memory page is all zeros.
+ *
+ * @returns true / false.
+ *
+ * @param   pvPage      Pointer to the page.  Must be aligned on 16 byte
+ *                      boundrary
+ */
+DECLINLINE(bool) ASMMemIsZeroPage(void const *pvPage)
+{
+# if 0 /*RT_INLINE_ASM_GNU_STYLE - this is actually slower... */
+    union { RTCCUINTREG r; bool f; } uAX;
+    RTCCUINTREG xCX, xDI;
+   Assert(!((uintptr_t)pvPage & 15));
+    __asm__ __volatile__("repe; "
+#  ifdef RT_ARCH_AMD64
+                         "scasq\n\t"
+#  else
+                         "scasl\n\t"
+#  endif
+                         "setnc %%al\n\t"
+                         : "=&c" (xCX),
+                           "=&D" (xDI),
+                           "=&a" (uAX.r)
+                         : "mr" (pvPage),
+#  ifdef RT_ARCH_AMD64
+                         "0" (0x1000/8),
+#  else
+                         "0" (0x1000/4),
+#  endif
+                         "1" (pvPage),
+                         "2" (0));
+    return uAX.f;
+# else
+   uintptr_t const *puPtr = (uintptr_t const *)pvPage;
+   int              cLeft = 0x1000 / sizeof(uintptr_t) / 8;
+   Assert(!((uintptr_t)pvPage & 15));
+   for (;;)
+   {
+       if (puPtr[0])        return false;
+       if (puPtr[4])        return false;
+
+       if (puPtr[2])        return false;
+       if (puPtr[6])        return false;
+
+       if (puPtr[1])        return false;
+       if (puPtr[5])        return false;
+
+       if (puPtr[3])        return false;
+       if (puPtr[7])        return false;
+
+       if (!--cLeft)
+           return true;
+       puPtr += 8;
+   }
+   return true;
+# endif
+}
 
 
 /**

@@ -368,14 +368,25 @@ static DECLCALLBACK(int) pgmR3PhysGCPhys2CCPtrDelegated(PVM pVM, PRTGCPHYS pGCPh
         int rc2 = pgmPhysPageQueryTlbe(&pVM->pgm.s, *pGCPhys, &pTlbe);
         AssertFatalRC(rc2);
         PPGMPAGE pPage = pTlbe->pPage;
-#if 1
         if (PGM_PAGE_IS_MMIO(pPage))
-#else
-        if (PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage))
-#endif
         {
             PGMPhysReleasePageMappingLock(pVM, pLock);
             rc = VERR_PGM_PHYS_PAGE_RESERVED;
+        }
+        else
+        if (    PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage)
+#ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
+            ||  pgmPoolIsDirtyPage(pVM, *pGCPhys)
+#endif
+           )
+        {
+            /* We *must* flush any corresponding pgm pool page here, otherwise we'll
+             * not be informed about writes and keep bogus gst->shw mappings around.
+             */
+            pgmPoolFlushPageByGCPhys(pVM, *pGCPhys);
+            Assert(!PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage));
+            /** @todo r=bird: return VERR_PGM_PHYS_PAGE_RESERVED here if it still has
+             *        active handlers, see the PGMR3PhysGCPhys2CCPtrExternal docs. */
         }
     }
 
@@ -416,6 +427,8 @@ VMMR3DECL(int) PGMR3PhysGCPhys2CCPtrExternal(PVM pVM, RTGCPHYS GCPhys, void **pp
     AssertPtr(ppv);
     AssertPtr(pLock);
 
+    Assert(VM_IS_EMT(pVM) || !PGMIsLockOwner(pVM));
+
     int rc = pgmLock(pVM);
     AssertRCReturn(rc, rc);
 
@@ -427,13 +440,8 @@ VMMR3DECL(int) PGMR3PhysGCPhys2CCPtrExternal(PVM pVM, RTGCPHYS GCPhys, void **pp
     if (RT_SUCCESS(rc))
     {
         PPGMPAGE pPage = pTlbe->pPage;
-#if 1
         if (PGM_PAGE_IS_MMIO(pPage))
             rc = VERR_PGM_PHYS_PAGE_RESERVED;
-#else
-        if (PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage))
-            rc = VERR_PGM_PHYS_PAGE_RESERVED;
-#endif
         else
         {
             /*
@@ -441,7 +449,11 @@ VMMR3DECL(int) PGMR3PhysGCPhys2CCPtrExternal(PVM pVM, RTGCPHYS GCPhys, void **pp
              * it must be converted to an page that's writable if possible.
              * This has to be done on an EMT.
              */
-            if (RT_UNLIKELY(PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED))
+            if (    PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage)
+#ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
+                ||  pgmPoolIsDirtyPage(pVM, GCPhys)
+#endif
+                ||  RT_UNLIKELY(PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED))
             {
                 pgmUnlock(pVM);
 
@@ -762,7 +774,7 @@ static void pgmR3PhysInitAndLinkRamRange(PVM pVM, PPGMRAMRANGE pNew, RTGCPHYS GC
     pNew->GCPhysLast    = GCPhysLast;
     pNew->cb            = GCPhysLast - GCPhys + 1;
     pNew->pszDesc       = pszDesc;
-    pNew->fFlags        = RCPtrNew != NIL_RTR0PTR ? PGM_RAM_RANGE_FLAGS_FLOATING : 0;
+    pNew->fFlags        = RCPtrNew != NIL_RTRCPTR ? PGM_RAM_RANGE_FLAGS_FLOATING : 0;
     pNew->pvR3          = NULL;
 
     uint32_t const cPages = pNew->cb >> PAGE_SHIFT;
@@ -2935,6 +2947,10 @@ int pgmR3PhysChunkMap(PVM pVM, uint32_t idChunk, PPPGMCHUNKR3MAP ppChunk)
     Req.idChunkUnmap = NIL_GMM_CHUNKID;
     if (pVM->pgm.s.ChunkR3Map.c >= pVM->pgm.s.ChunkR3Map.cMax)
         Req.idChunkUnmap = pgmR3PhysChunkFindUnmapCandidate(pVM);
+/** @todo This is wrong. Any thread in the VM process should be able to do this,
+ *        there are depenenecies on this.  What currently saves the day is that
+ *        we don't unmap anything and that all non-zero memory will therefore
+ *        be present when non-EMTs tries to access it.  */
     rc = VMMR3CallR0(pVM, VMMR0_DO_GMM_MAP_UNMAP_CHUNK, 0, &Req.Hdr);
     if (RT_SUCCESS(rc))
     {

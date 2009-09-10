@@ -45,12 +45,13 @@ class PerfCollector:
     collection.
     """
 
-    def __init__(self, vb):
+    def __init__(self, mgr, vbox):
         """ Initializes the instance.
 
-        Pass an instance of IVirtualBox as parameter.
         """
-        self.collector = vb.performanceCollector
+        self.mgr = mgr
+        self.isMscom = (mgr.type == 'MSCOM')
+        self.collector = vbox.performanceCollector
 
     def setup(self, names, objects, period, nsamples):
         """ Discards all previously collected values for the specified
@@ -80,8 +81,9 @@ class PerfCollector:
         'values': collected data
         'values_as_string': pre-processed values ready for 'print' statement
         """
-        # Get around the problem with input arrays returned in output parameters (see #3953).
-        if sys.platform == 'win32':
+        # Get around the problem with input arrays returned in output
+        # parameters (see #3953) for MSCOM.
+        if self.isMscom:
             (values, names, objects, names_out, objects_out, units, scales, sequence_numbers,
                 indices, lengths) = self.collector.queryMetricsData(names, objects)
         else:
@@ -105,11 +107,11 @@ class PerfCollector:
         return out
 
 def ComifyName(name):
-    return name[0].capitalize()+name[1:]    
+    return name[0].capitalize()+name[1:]
 
 _COMForward = { 'getattr' : None,
                 'setattr' : None}
-          
+
 def CustomGetAttr(self, attr):
     # fastpath
     if self.__class__.__dict__.get(attr) != None:
@@ -194,7 +196,7 @@ class PlatformMSCOM:
     VBOX_TLB_LCID  = 0
     VBOX_TLB_MAJOR = 1
     VBOX_TLB_MINOR = 0
-    
+
     def __init__(self, params):
             from win32com import universal
             from win32com.client import gencache, DispatchBaseClass
@@ -202,7 +204,6 @@ class PlatformMSCOM:
             import win32com
             import pythoncom
             import win32api
-            self.constants = PlatformMSCOM.InterfacesWrapper()
             from win32con import DUPLICATE_SAME_ACCESS
             from win32api import GetCurrentThread,GetCurrentThreadId,DuplicateHandle,GetCurrentProcess
             pid = GetCurrentProcess()
@@ -211,24 +212,22 @@ class PlatformMSCOM:
             self.handles = []
             self.handles.append(handle)
             _COMForward['getattr'] = DispatchBaseClass.__dict__['__getattr__']
-            DispatchBaseClass.__dict__['__getattr__'] = CustomGetAttr            
+            DispatchBaseClass.__dict__['__getattr__'] = CustomGetAttr
             _COMForward['setattr'] = DispatchBaseClass.__dict__['__setattr__']
-            DispatchBaseClass.__dict__['__setattr__'] = CustomSetAttr            
+            DispatchBaseClass.__dict__['__setattr__'] = CustomSetAttr
             win32com.client.gencache.EnsureDispatch('VirtualBox.Session')
             win32com.client.gencache.EnsureDispatch('VirtualBox.VirtualBox')
+            win32com.client.gencache.EnsureDispatch('VirtualBox.CallbackWrapper')
 
     def getSessionObject(self, vbox):
         import win32com
         from win32com.client import Dispatch
-	return win32com.client.Dispatch("VirtualBox.Session")
+        return win32com.client.Dispatch("VirtualBox.Session")
 
     def getVirtualBox(self):
-	import win32com
+        import win32com
         from win32com.client import Dispatch
         return win32com.client.Dispatch("VirtualBox.VirtualBox")
-
-    def getConstants(self):
-        return self.constants
 
     def getType(self):
         return 'MSCOM'
@@ -254,31 +253,25 @@ class PlatformMSCOM:
         d['tlb_guid'] = PlatformMSCOM.VBOX_TLB_GUID
         str = ""
         str += "import win32com.server.util\n"
-        #str += "import win32com.server.register\n"
-        #str += "from win32com import universal\n"
         str += "import pythoncom\n"
-        #str += "universal.RegisterInterfaces(tlb_guid, 0, 1, 0, ['"+iface+"'])\n"
 
         str += "class "+iface+"Impl(BaseClass):\n"
         str += "   _com_interfaces_ = ['"+iface+"']\n"
         str += "   _typelib_guid_ = tlb_guid\n"
         str += "   _typelib_version_ = 1, 0\n"
-        #str += "   _reg_clsctx_ = pythoncom.CLSCTX_LOCAL_SERVER\n"
-        #str += "   _reg_clsid_ = '{F21202A2-959A-4149-B1C3-68B9013F3335}'\n"
-        #str += "   _reg_progid_ = 'VirtualBox."+iface+"Impl'\n"
-        #str += "   _reg_desc_ = 'Generated callback implementation class'\n"
-        #str += "   _reg_policy_spec_ = 'win32com.server.policy.EventHandlerPolicy'\n"
+        str += "   _reg_clsctx_ = pythoncom.CLSCTX_INPROC_SERVER\n"
+        # Maybe we'd better implement Dynamic invoke policy, to be more flexible here
+        str += "   _reg_policy_spec_ = 'win32com.server.policy.EventHandlerPolicy'\n"
 
-        # generate capitalized version of callbacks - that's how Python COM
-        # looks them up on Windows
+        # generate capitalized version of callback methods -
+        # that's how Python COM looks them up
         for m in dir(impl):
-           if m.startswith("on"):      
+           if m.startswith("on"):
              str += "   "+ComifyName(m)+"=BaseClass."+m+"\n"
 
         str += "   def __init__(self): BaseClass.__init__(self, arg)\n"
-        #str += "win32com.server.register.UseCommandLine("+iface+"Impl)\n"
-
-        str += "result = win32com.server.util.wrap("+iface+"Impl())\n"
+        str += "result = win32com.client.Dispatch('VirtualBox.CallbackWrapper')\n"
+        str += "result.SetLocalObject(win32com.server.util.wrap("+iface+"Impl()))\n"
         exec (str,d,d)
         return d['result']
 
@@ -302,6 +295,11 @@ class PlatformMSCOM:
             # Timeout
             pass
 
+    def interruptWaitEvents(self):
+        from win32api import PostThreadMessage
+        from win32con import WM_USER
+        PostThreadMessage(self.tid, WM_USER, None, None)
+
     def deinit(self):
         import pythoncom
         from win32file import CloseHandle
@@ -312,9 +310,6 @@ class PlatformMSCOM:
         self.handles = None
         pythoncom.CoUninitialize()
         pass
-
-    def getPerfCollector(self, vbox):
-        return PerfCollector(vbox)
 
 
 class PlatformXPCOM:
@@ -332,10 +327,6 @@ class PlatformXPCOM:
         import xpcom.components
         return xpcom.components.classes["@virtualbox.org/VirtualBox;1"].createInstance()
 
-    def getConstants(self):
-        import xpcom.components
-        return xpcom.components.interfaces
-
     def getType(self):
         return 'XPCOM'
 
@@ -346,10 +337,12 @@ class PlatformXPCOM:
         return obj.__getattr__('get'+ComifyName(field))()
 
     def initPerThread(self):
-        pass
+        import xpcom
+        xpcom._xpcom.AttachThread()
 
     def deinitPerThread(self):
-        pass
+        import xpcom
+        xpcom._xpcom.DetachThread()
 
     def createCallback(self, iface, impl, arg):
         d = {}
@@ -360,7 +353,9 @@ class PlatformXPCOM:
         str += "class "+iface+"Impl(BaseClass):\n"
         str += "   _com_interfaces_ = xpcom.components.interfaces."+iface+"\n"
         str += "   def __init__(self): BaseClass.__init__(self, arg)\n"
-        str += "result = "+iface+"Impl()\n"
+        str += "result = xpcom.components.classes['@virtualbox.org/CallbackWrapper;1'].createInstance()\n"
+        # This wrapping is not entirely correct - we shall create a local object
+        str += "result.setLocalObject("+iface+"Impl())\n"
         exec (str,d,d)
         return d['result']
 
@@ -368,12 +363,13 @@ class PlatformXPCOM:
         import xpcom
         xpcom._xpcom.WaitForEvents(timeout)
 
+    def interruptWaitEvents(self):
+        import xpcom
+        xpcom._xpcom.InterruptWait()
+
     def deinit(self):
         import xpcom
         xpcom._xpcom.DeinitCOM()
-
-    def getPerfCollector(self, vbox):
-        return PerfCollector(vbox)
 
 class PlatformWEBSERVICE:
     def __init__(self, params):
@@ -391,9 +387,9 @@ class PlatformWEBSERVICE:
             self.user = ""
             self.password = ""
             self.url = None
-        self.vbox = None        
+        self.vbox = None
 
-    def getSessionObject(self, vbox):        
+    def getSessionObject(self, vbox):
         return self.wsmgr.getSessionObject(vbox)
 
     def getVirtualBox(self):
@@ -424,9 +420,6 @@ class PlatformWEBSERVICE:
                 self.vbox = None
                 self.wsmgr = None
 
-    def getConstants(self):
-        return None
-
     def getType(self):
         return 'WEBSERVICE'
 
@@ -449,14 +442,15 @@ class PlatformWEBSERVICE:
         # Webservices cannot do that yet
         pass
 
+    def interruptWaitEvents(self, timeout):
+        # Webservices cannot do that yet
+        pass
+
     def deinit(self):
         try:
            disconnect()
         except:
            pass
-
-    def getPerfCollector(self, vbox):
-        return PerfCollector(vbox)    
 
 class SessionManager:
     def __init__(self, mgr):
@@ -472,15 +466,16 @@ class VirtualBoxManager:
                 style = "MSCOM"
             else:
                 style = "XPCOM"
-        
+
+
         exec "self.platform = Platform"+style+"(platparams)"
-            
-        self.constants = VirtualBoxReflectionInfo()
+        # for webservices, enums are symbolic
+        self.constants = VirtualBoxReflectionInfo(style == "WEBSERVICE")
         self.type = self.platform.getType()
         self.remote = self.platform.getRemote()
-        self.style = style 
+        self.style = style
         self.mgr = SessionManager(self)
-        
+
         try:
             self.vbox = self.platform.getVirtualBox()
         except NameError,ne:
@@ -532,5 +527,8 @@ class VirtualBoxManager:
     def waitForEvents(self, timeout):
         return self.platform.waitForEvents(timeout)
 
+    def interruptWaitEvents(self):
+        return self.platform.interruptWaitEvents()
+
     def getPerfCollector(self, vbox):
-        return PerfCollector(vbox)       
+        return PerfCollector(self, vbox)

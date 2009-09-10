@@ -513,11 +513,15 @@ class PortPool
     synchronized VboxPortType getPort()
     {
         VboxPortType port = null;
+        int ttl = 0;
+
         for (VboxPortType cur: known.keySet())
         {
-            if (known.get(cur) == 0)
+            int value = known.get(cur);
+            if ((value & 0x10000) == 0)
             {
                 port = cur;
+                ttl = value & 0xffff;
                 break;
             }
         }
@@ -533,8 +537,11 @@ class PortPool
                                                 "vboxService"));
             }
             port = svc.getVboxServicePort();
+            // reuse this object 0x10 times
+            ttl = 0x10;
         }
-        known.put(port, new Integer(1));
+        // mark as used
+        known.put(port, new Integer(0x10000 | ttl));
         return port;
     }
 
@@ -546,7 +553,18 @@ class PortPool
             // know you not
             return;
         }
-        known.put(port, val - 1);
+        int v = val;
+        int ttl = v & 0xffff;
+        // decrement TTL, and throw away port if used too much times
+        if (--ttl <= 0)
+        {
+            known.remove(port);
+        }
+        else
+        {
+            v = ttl; // set new TTL and clear busy bit
+            known.put(port, v);
+        }
     }
 }
 
@@ -583,30 +601,50 @@ public class IWebsessionManager {
     public void connect(String url)
     {
         this.port = pool.getPort();
-        ((BindingProvider)port).getRequestContext().
+        try {
+          ((BindingProvider)port).getRequestContext().
                 put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY, url);
+        }  catch (Throwable t) {
+             if (this.port != null)
+                pool.releasePort(this.port);
+             // we have to throw smth derived from RuntimeException
+             throw new WebServiceException(t);
+        }
     }
 
     public void connect(String url, Map<String, Object> requestContext, Map<String, Object> responseContext)
     {
          this.port = pool.getPort();
 
-         ((BindingProvider)port).getRequestContext();
-         if (requestContext != null)
+         try {
+            ((BindingProvider)port).getRequestContext();
+            if (requestContext != null)
                ((BindingProvider)port).getRequestContext().putAll(requestContext);
 
-         if (responseContext != null)
+            if (responseContext != null)
                ((BindingProvider)port).getResponseContext().putAll(responseContext);
 
-         ((BindingProvider)port).getRequestContext().
+            ((BindingProvider)port).getRequestContext().
                 put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY, url);
+         } catch (Throwable t) {
+             if (this.port != null)
+                pool.releasePort(port);
+             // we have to throw smth derived from RuntimeException
+             throw new WebServiceException(t);
+          }
     }
 
 
     public void disconnect(IVirtualBox refIVirtualBox)
     {
-        logoff(refIVirtualBox);
-        pool.releasePort(port);
+        try {
+           logoff(refIVirtualBox);
+        } finally {
+           if (this.port != null) {
+             pool.releasePort(this.port);
+             this.port = null;
+           }
+        }
     }
 
     public void cleanupUnused()

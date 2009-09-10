@@ -923,6 +923,14 @@ SUPR3DECL(int) SUPR3HardenedLdrLoad(const char *pszFilename, PRTLDRMOD phLdrMod)
  */
 SUPR3DECL(int) SUPR3HardenedLdrLoadAppPriv(const char *pszFilename, PRTLDRMOD phLdrMod);
 
+
+/**
+ * Check if the host kernel can run in VMX root mode. 
+ *    
+ * @returns VINF_SUCCESS if supported, error code indicating why if not. 
+ */
+SUPR3DECL(int) SUPR3QueryVTxSupported(void);
+
 /** @} */
 #endif /* IN_RING3 */
 

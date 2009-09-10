@@ -4217,6 +4217,91 @@ PPGMPOOLPAGE pgmPoolGetPage(PPGMPOOL pPool, RTHCPHYS HCPhys)
     return pPage;
 }
 
+#ifdef IN_RING3 /* currently only used in ring 3; save some space in the R0 & GC modules (left it here as we might need it elsewhere later on) */
+/**
+ * Flush the specified page if present
+ *
+ * @param   pVM     The VM handle.
+ * @param   GCPhys  Guest physical address of the page to flush
+ */
+void pgmPoolFlushPageByGCPhys(PVM pVM, RTGCPHYS GCPhys)
+{
+#ifdef PGMPOOL_WITH_CACHE
+    PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
+
+    VM_ASSERT_EMT(pVM);
+
+    /*
+     * Look up the GCPhys in the hash.
+     */
+    GCPhys = GCPhys & ~(RTGCPHYS)(PAGE_SIZE - 1);
+    unsigned i = pPool->aiHash[PGMPOOL_HASH(GCPhys)];
+    if (i == NIL_PGMPOOL_IDX)
+        return;
+
+    do
+    {
+        PPGMPOOLPAGE pPage = &pPool->aPages[i];
+        if (pPage->GCPhys - GCPhys < PAGE_SIZE)
+        {
+            switch (pPage->enmKind)
+            {
+                case PGMPOOLKIND_32BIT_PT_FOR_32BIT_PT:
+                case PGMPOOLKIND_PAE_PT_FOR_32BIT_PT:
+                case PGMPOOLKIND_PAE_PT_FOR_PAE_PT:
+                case PGMPOOLKIND_PAE_PD0_FOR_32BIT_PD:
+                case PGMPOOLKIND_PAE_PD1_FOR_32BIT_PD:
+                case PGMPOOLKIND_PAE_PD2_FOR_32BIT_PD:
+                case PGMPOOLKIND_PAE_PD3_FOR_32BIT_PD:
+                case PGMPOOLKIND_PAE_PD_FOR_PAE_PD:
+                case PGMPOOLKIND_64BIT_PD_FOR_64BIT_PD:
+                case PGMPOOLKIND_64BIT_PDPT_FOR_64BIT_PDPT:
+                case PGMPOOLKIND_64BIT_PML4:
+                case PGMPOOLKIND_32BIT_PD:
+                case PGMPOOLKIND_PAE_PDPT:
+                {
+                    Log(("PGMPoolFlushPage: found pgm pool pages for %RGp\n", GCPhys));
+#ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
+                    if (pPage->fDirty)
+                        STAM_COUNTER_INC(&pPool->StatForceFlushDirtyPage);
+                    else
+#endif
+                        STAM_COUNTER_INC(&pPool->StatForceFlushPage);
+                    Assert(!pgmPoolIsPageLocked(&pVM->pgm.s, pPage));
+                    pgmPoolMonitorChainFlush(pPool, pPage);
+                    return;
+                }
+
+                /* ignore, no monitoring. */
+                case PGMPOOLKIND_32BIT_PT_FOR_32BIT_4MB:
+                case PGMPOOLKIND_PAE_PT_FOR_PAE_2MB:
+                case PGMPOOLKIND_PAE_PT_FOR_32BIT_4MB:
+                case PGMPOOLKIND_32BIT_PT_FOR_PHYS:
+                case PGMPOOLKIND_PAE_PT_FOR_PHYS:
+                case PGMPOOLKIND_64BIT_PDPT_FOR_PHYS:
+                case PGMPOOLKIND_64BIT_PD_FOR_PHYS:
+                case PGMPOOLKIND_EPT_PDPT_FOR_PHYS:
+                case PGMPOOLKIND_EPT_PD_FOR_PHYS:
+                case PGMPOOLKIND_EPT_PT_FOR_PHYS:
+                case PGMPOOLKIND_ROOT_NESTED:
+                case PGMPOOLKIND_PAE_PD_PHYS:
+                case PGMPOOLKIND_PAE_PDPT_PHYS:
+                case PGMPOOLKIND_32BIT_PD_PHYS:
+                case PGMPOOLKIND_PAE_PDPT_FOR_32BIT:
+                    break;
+
+                default:
+                    AssertFatalMsgFailed(("enmKind=%d idx=%d\n", pPage->enmKind, pPage->idx));
+            }
+        }
+
+        /* next */
+        i = pPage->iNext;
+    } while (i != NIL_PGMPOOL_IDX);
+#endif
+    return;
+}
+#endif /* IN_RING3 */
 
 #ifdef IN_RING3
 /**

@@ -48,9 +48,9 @@
 #
 </xsl:text>
 class VirtualBoxReflectionInfo:
-   def __init__(self):
-      self.map = {}
- 
+   def __init__(self, isSym):
+      self.isSym = isSym
+
    _Values = {<xsl:for-each select="//enum">
                 '<xsl:value-of select="@name"/>':{
                   <xsl:for-each select="const">'<xsl:value-of select="@name"/>':<xsl:value-of select="@value"/><xsl:if test="not(position()=last())">,</xsl:if>
@@ -68,12 +68,28 @@ class VirtualBoxReflectionInfo:
                    <xsl:if test="not(position()=last())">,</xsl:if>
                   </xsl:for-each>}
 
+   _ValuesFlatSym = {<xsl:for-each select="//enum">
+                   <xsl:variable name="ename">
+                    <xsl:value-of select="@name"/>
+                   </xsl:variable>
+                   <xsl:for-each select="const">
+                     <xsl:variable name="eval">
+                       <xsl:value-of select="concat($ename, '_', @name)"/>
+                   </xsl:variable>
+                        '<xsl:value-of select="$eval"/>': '<xsl:value-of select="@name"/>'<xsl:if test="not(position()=last())">,</xsl:if>
+                   </xsl:for-each>
+                   <xsl:if test="not(position()=last())">,</xsl:if>
+                  </xsl:for-each>}
+
    def __getattr__(self,attr):
-      v = self._ValuesFlat.get(attr)
+      if self.isSym:
+        v = self._ValuesFlatSym.get(attr)
+      else:
+        v = self._ValuesFlat.get(attr)
       if v is not None:
          return v
       else:
          raise AttributeError
 
 </xsl:template>
-</xsl:stylesheet> 
+</xsl:stylesheet>

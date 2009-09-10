@@ -1037,7 +1037,7 @@ void HGCMService::UnloadService (void)
 void HGCMService::ReferenceService (void)
 {
     ASMAtomicIncU32 (&m_u32RefCnt);
-    LogFlowFunc(("m_u32RefCnt = %d\n", m_u32RefCnt));
+    LogFlowFunc(("[%s] m_u32RefCnt = %d\n", m_pszSvcName, m_u32RefCnt));
 }
 
 /** The method dereferences a service and deletes it when no more refs.
@@ -1358,33 +1358,35 @@ int HGCMService::DisconnectClient (uint32_t u32ClientId, bool fFromService)
 
             rc = hgcmMsgSend (hMsg);
         }
+        else
+        {
+            LogRel(("(%d, %d) [%s] hgcmMsgAlloc(%p, SVC_MSG_DISCONNECT) failed %Rrc\n",
+                    u32ClientId, fFromService, RT_VALID_PTR(m_pszSvcName)? m_pszSvcName: "", m_thread, rc));
+        }
     }
 
-    if (RT_SUCCESS (rc))
+    /* Remove the client id from the array in any case, rc does not matter. */
+    int i;
+
+    for (i = 0; i < m_cClients; i++)
     {
-        /* Remove the client id from the array in any case. */
-        int i;
-
-        for (i = 0; i < m_cClients; i++)
+        if (m_paClientIds[i] == u32ClientId)
         {
-            if (m_paClientIds[i] == u32ClientId)
+            m_cClients--;
+
+            if (m_cClients > i)
             {
-                m_cClients--;
-
-                if (m_cClients > i)
-                {
-                    memmove (&m_paClientIds[i], &m_paClientIds[i + 1], m_cClients - i);
-                }
-
-                break;
+                memmove (&m_paClientIds[i], &m_paClientIds[i + 1], sizeof (m_paClientIds[0]) * (m_cClients - i));
             }
+
+            /* Delete the client handle. */
+            hgcmObjDeleteHandle (u32ClientId);
+
+            /* The service must be released. */
+            ReleaseService ();
+
+            break;
         }
-
-        /* Delete the client handle. */
-        hgcmObjDeleteHandle (u32ClientId);
-
-        /* The service must be released. */
-        ReleaseService ();
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));

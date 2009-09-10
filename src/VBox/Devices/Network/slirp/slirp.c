@@ -659,12 +659,19 @@ void slirp_term(PNATState pData)
     ftp_alias_unload(pData);
     nbt_alias_unload(pData);
 #ifdef VBOX_WITH_SLIRP_ALIAS
-    while(!LIST_EMPTY(&instancehead)) {
+    while(!LIST_EMPTY(&instancehead)) 
+    {
         struct libalias *la = LIST_FIRST(&instancehead);
         /* libalias do all clean up */
         LibAliasUninit(la);
     }
 #endif
+    while(!LIST_EMPTY(&pData->arp_cache)) 
+    {
+        struct arp_cache_entry *ac = LIST_FIRST(&pData->arp_cache);
+        LIST_REMOVE(ac, list);
+        RTMemFree(ac);
+    }
 #ifdef RT_OS_WINDOWS
     WSACleanup();
 #endif
@@ -1409,6 +1416,26 @@ static void arp_input(PNATState pData, struct mbuf *m)
                 m_free(pData, m);
             }
             break;
+        case ARPOP_REPLY:
+        {
+            struct arp_cache_entry *ac = NULL;
+            if (slirp_update_arp_cache(pData, *(uint32_t *)ah->ar_sip, ah->ar_sha) == 0)
+            {
+                m_free(pData, m);
+                break;
+            }
+            ac = RTMemAllocZ(sizeof(struct arp_cache_entry));
+            if (ac == NULL)
+            {
+                LogRel(("NAT: Can't allocate arp cache entry\n"));
+                m_free(pData, m);
+                return;
+            }
+            ac->ip = *(uint32_t *)ah->ar_sip;
+            memcpy(ac->ether, ah->ar_sha, ETH_ALEN);
+            LIST_INSERT_HEAD(&pData->arp_cache, ac, list);
+        }
+        break;
         default:
             break;
     }
@@ -1486,7 +1513,7 @@ void slirp_input(PNATState pData, const uint8_t *pkt, int pkt_len)
 void if_encap(PNATState pData, uint16_t eth_proto, struct mbuf *m)
 {
     struct ethhdr *eh;
-    uint8_t *buf = RTMemAlloc(1600);
+    uint8_t *buf = NULL;
 
     m->m_data -= if_maxlinkhdr;
     m->m_len += ETH_HLEN;
@@ -1520,6 +1547,12 @@ void if_encap(PNATState pData, uint16_t eth_proto, struct mbuf *m)
 #if 0
     slirp_output(pData->pvUser, m, mtod(m, uint8_t *), m->m_len);
 #else
+    buf = RTMemAlloc(1600);
+    if (buf == NULL)
+    {
+        LogRel(("NAT: Can't alloc memory for outgoing buffer\n"));
+        goto done;
+    }
     memcpy(buf, mtod(m, uint8_t *), m->m_len);
     slirp_output(pData->pvUser, NULL, buf, m->m_len);
 done:
@@ -1765,3 +1798,49 @@ void slirp_set_tcp_sndspace(PNATState pData, int kilobytes)
     tcp_sndspace = kilobytes * _1K;
 }
 
+void slirp_arp_who_has(PNATState pData, uint32_t dst)
+{
+    struct mbuf *m;
+    struct ethhdr *ehdr;
+    struct arphdr *ahdr;
+
+    m = m_get(pData);
+    if (m == NULL)
+    {   
+        LogRel(("NAT: Can't alloc mbuf for ARP request\n")); 
+        return;
+    }
+    ehdr = mtod(m, struct ethhdr *);
+    memset(ehdr->h_source, 0xff, ETH_ALEN);
+    ahdr = (struct arphdr *)&ehdr[1];
+    ahdr->ar_hrd = htons(1);
+    ahdr->ar_pro = htons(ETH_P_IP);
+    ahdr->ar_hln = ETH_ALEN;
+    ahdr->ar_pln = 4;
+    ahdr->ar_op = htons(ARPOP_REQUEST);
+    memcpy(ahdr->ar_sha, special_ethaddr, ETH_ALEN);
+    *(uint32_t *)ahdr->ar_sip = htonl(ntohl(special_addr.s_addr) | CTL_ALIAS);
+    memset(ahdr->ar_tha, 0xff, ETH_ALEN); /*broadcast*/
+    *(uint32_t *)ahdr->ar_tip = dst;
+    m->m_data += if_maxlinkhdr;
+    m->m_len = sizeof(struct arphdr);
+    if_encap(pData, ETH_P_ARP, m);
+    LogRel(("NAT: ARP request sent\n"));
+}
+/* updates the arp cache 
+ * @returns 0 - if has found and updated
+ *          1 - if hasn't found.
+ */
+int slirp_update_arp_cache(PNATState pData, uint32_t dst, const uint8_t *mac)
+{
+    struct arp_cache_entry *ac;
+    LIST_FOREACH(ac, &pData->arp_cache, list)
+    {
+        if (memcmp(ac->ether, mac, ETH_ALEN) == 0)
+        {
+            ac->ip = dst;
+            return 0;
+        }
+    }
+    return 1;
+}

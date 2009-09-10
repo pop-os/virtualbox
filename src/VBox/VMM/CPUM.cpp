@@ -426,7 +426,8 @@ static int cpumR3CpuIdInit(PVM pVM)
     {
         AssertReturn(pVM->cCPUs <= 64, VERR_TOO_MANY_CPUS);
         /* One logical processor with possibly multiple cores. */
-        pCPUM->aGuestCpuIdStd[4].eax |= (pVM->cCPUs << 26);   /* 6 bits only -> 64 cores! */
+        /* See  http://www.intel.com/Assets/PDF/appnote/241618.pdf p. 29 */
+        pCPUM->aGuestCpuIdStd[4].eax |= ((pVM->cCPUs - 1) << 26);   /* 6 bits only -> 64 cores! */
     }
 #endif
 
@@ -525,6 +526,17 @@ static int cpumR3CpuIdInit(PVM pVM)
 #endif
     }
 
+    /** @cfgm{/CPUM/NT4LeafLimit, boolean, false}
+     * Limit the number of standard CPUID leafs to 0..2 to prevent NT4 from
+     * bugchecking with MULTIPROCESSOR_CONFIGURATION_NOT_SUPPORTED (0x3e).
+     * This option corrsponds somewhat to IA32_MISC_ENABLES.BOOT_NT4[bit 22].
+     * @todo r=bird: The intel docs states that leafs 3 is included, why don't we?
+     */
+    bool fNt4LeafLimit;
+    CFGMR3QueryBoolDef(CFGMR3GetChild(CFGMR3GetRoot(pVM), "CPUM"), "NT4LeafLimit", &fNt4LeafLimit, false);
+    if (fNt4LeafLimit)
+        pCPUM->aGuestCpuIdStd[0].eax = 2;
+
     /*
      * Limit it the number of entries and fill the remaining with the defaults.
      *
@@ -532,19 +544,9 @@ static int cpumR3CpuIdInit(PVM pVM)
      * is perhaps a bit crudely done as there is probably some relatively harmless
      * info too in these leaves (like words about having a constant TSC).
      */
-#if 0
-    /** @todo NT4 installation regression - investigate */
-    /** Note from Intel manuals:
-     * CPUID leaves > 3 < 80000000 are visible only when
-     * IA32_MISC_ENABLES.BOOT_NT4[bit 22] = 0 (default).
-     *
-     */
     if (pCPUM->aGuestCpuIdStd[0].eax > 5)
         pCPUM->aGuestCpuIdStd[0].eax = 5;
-#else
-    if (pCPUM->aGuestCpuIdStd[0].eax > 2)
-        pCPUM->aGuestCpuIdStd[0].eax = 2;
-#endif
+
     for (i = pCPUM->aGuestCpuIdStd[0].eax + 1; i < RT_ELEMENTS(pCPUM->aGuestCpuIdStd); i++)
         pCPUM->aGuestCpuIdStd[i] = pCPUM->GuestCpuIdDef;
 
@@ -557,11 +559,12 @@ static int cpumR3CpuIdInit(PVM pVM)
         pCPUM->aGuestCpuIdExt[i] = pCPUM->GuestCpuIdDef;
 
     /*
-     * Workaround for missing cpuid(0) patches: If we miss to patch a cpuid(0).eax then
-     * Linux tries to determine the number of processors from (cpuid(4).eax >> 26) + 1.
-     * We currently don't support more than 1 processor.
+     * Workaround for missing cpuid(0) patches when leaf 4 returns GuestCpuIdDef:
+     * If we miss to patch a cpuid(0).eax then Linux tries to determine the number
+     * of processors from (cpuid(4).eax >> 26) + 1.
      */
-    pCPUM->aGuestCpuIdStd[4].eax = 0;
+    if (pVM->cCPUs == 1)
+        pCPUM->aGuestCpuIdStd[4].eax = 0;
 
     /*
      * Centaur stuff (VIA).
@@ -1104,6 +1107,45 @@ static DECLCALLBACK(int) cpumR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Versio
         au32CpuId[5]      &= ~0x00ff0000;
         au32CpuIdSaved[5] &= ~0x00ff0000;
 
+        /* Ignore some advanced capability bits, that we don't expose to the guest. */
+        au32CpuId[6]      &= ~(   X86_CPUID_FEATURE_ECX_DTES64
+                               |  X86_CPUID_FEATURE_ECX_VMX
+                               |  X86_CPUID_FEATURE_ECX_SMX
+                               |  X86_CPUID_FEATURE_ECX_EST
+                               |  X86_CPUID_FEATURE_ECX_TM2
+                               |  X86_CPUID_FEATURE_ECX_CNTXID
+                               |  X86_CPUID_FEATURE_ECX_TPRUPDATE
+                               |  X86_CPUID_FEATURE_ECX_PDCM
+                               |  X86_CPUID_FEATURE_ECX_DCA
+                               |  X86_CPUID_FEATURE_ECX_X2APIC
+                              );
+        au32CpuIdSaved[6] &= ~(   X86_CPUID_FEATURE_ECX_DTES64
+                               |  X86_CPUID_FEATURE_ECX_VMX
+                               |  X86_CPUID_FEATURE_ECX_SMX
+                               |  X86_CPUID_FEATURE_ECX_EST
+                               |  X86_CPUID_FEATURE_ECX_TM2
+                               |  X86_CPUID_FEATURE_ECX_CNTXID
+                               |  X86_CPUID_FEATURE_ECX_TPRUPDATE
+                               |  X86_CPUID_FEATURE_ECX_PDCM
+                               |  X86_CPUID_FEATURE_ECX_DCA
+                               |  X86_CPUID_FEATURE_ECX_X2APIC
+                              );
+
+        /* Make sure we don't forget to update the masks when enabling
+         * features in the future.
+         */
+        AssertRelease(!(pVM->cpum.s.aGuestCpuIdStd[1].ecx &
+                              (   X86_CPUID_FEATURE_ECX_DTES64
+                               |  X86_CPUID_FEATURE_ECX_VMX
+                               |  X86_CPUID_FEATURE_ECX_SMX
+                               |  X86_CPUID_FEATURE_ECX_EST
+                               |  X86_CPUID_FEATURE_ECX_TM2
+                               |  X86_CPUID_FEATURE_ECX_CNTXID
+                               |  X86_CPUID_FEATURE_ECX_TPRUPDATE
+                               |  X86_CPUID_FEATURE_ECX_PDCM
+                               |  X86_CPUID_FEATURE_ECX_DCA
+                               |  X86_CPUID_FEATURE_ECX_X2APIC
+                              )));
         /* do the compare */
         if (memcmp(au32CpuIdSaved, au32CpuId, sizeof(au32CpuIdSaved)))
         {
@@ -1808,19 +1850,31 @@ static DECLCALLBACK(void) cpumR3CpuIdInfo(PVM pVM, PCDBGFINFOHLP pHlp, const cha
             pHlp->pfnPrintf(pHlp, "PBE - Pending Break Enable             = %d (%d)\n",  EdxGuest.u1PBE,        EdxHost.u1PBE);
 
             pHlp->pfnPrintf(pHlp, "Supports SSE3 or not                   = %d (%d)\n",  EcxGuest.u1SSE3,       EcxHost.u1SSE3);
-            pHlp->pfnPrintf(pHlp, "Reserved                               = %d (%d)\n",  EcxGuest.u2Reserved1,  EcxHost.u2Reserved1);
+            pHlp->pfnPrintf(pHlp, "Reserved                               = %d (%d)\n",  EcxGuest.u1Reserved1,  EcxHost.u1Reserved1);
+            pHlp->pfnPrintf(pHlp, "DS Area 64-bit layout                  = %d (%d)\n",  EcxGuest.u1DTE64,      EcxHost.u1DTE64);
             pHlp->pfnPrintf(pHlp, "Supports MONITOR/MWAIT                 = %d (%d)\n",  EcxGuest.u1Monitor,    EcxHost.u1Monitor);
             pHlp->pfnPrintf(pHlp, "CPL-DS - CPL Qualified Debug Store     = %d (%d)\n",  EcxGuest.u1CPLDS,      EcxHost.u1CPLDS);
             pHlp->pfnPrintf(pHlp, "VMX - Virtual Machine Technology       = %d (%d)\n",  EcxGuest.u1VMX,        EcxHost.u1VMX);
-            pHlp->pfnPrintf(pHlp, "Reserved                               = %d (%d)\n",  EcxGuest.u1Reserved2,  EcxHost.u1Reserved2);
+            pHlp->pfnPrintf(pHlp, "SMX - Safer Mode Extensions            = %d (%d)\n",  EcxGuest.u1SMX,        EcxHost.u1SMX);
             pHlp->pfnPrintf(pHlp, "Enhanced SpeedStep Technology          = %d (%d)\n",  EcxGuest.u1EST,        EcxHost.u1EST);
             pHlp->pfnPrintf(pHlp, "Terminal Monitor 2                     = %d (%d)\n",  EcxGuest.u1TM2,        EcxHost.u1TM2);
             pHlp->pfnPrintf(pHlp, "Supports Supplemental SSE3 or not      = %d (%d)\n",  EcxGuest.u1SSSE3,      EcxHost.u1SSSE3);
             pHlp->pfnPrintf(pHlp, "L1 Context ID                          = %d (%d)\n",  EcxGuest.u1CNTXID,     EcxHost.u1CNTXID);
-            pHlp->pfnPrintf(pHlp, "Reserved                               = %#x (%#x)\n",EcxGuest.u2Reserved4,  EcxHost.u2Reserved4);
+            pHlp->pfnPrintf(pHlp, "Reserved                               = %#x (%#x)\n",EcxGuest.u2Reserved2,  EcxHost.u2Reserved2);
             pHlp->pfnPrintf(pHlp, "CMPXCHG16B                             = %d (%d)\n",  EcxGuest.u1CX16,       EcxHost.u1CX16);
             pHlp->pfnPrintf(pHlp, "xTPR Update Control                    = %d (%d)\n",  EcxGuest.u1TPRUpdate,  EcxHost.u1TPRUpdate);
-            pHlp->pfnPrintf(pHlp, "Reserved                               = %#x (%#x)\n",EcxGuest.u17Reserved5, EcxHost.u17Reserved5);
+            pHlp->pfnPrintf(pHlp, "Perf/Debug Capability MSR              = %d (%d)\n",  EcxGuest.u1PDCM,       EcxHost.u1PDCM);
+            pHlp->pfnPrintf(pHlp, "Reserved                               = %#x (%#x)\n",EcxGuest.u2Reserved3,  EcxHost.u2Reserved3);
+            pHlp->pfnPrintf(pHlp, "Direct Cache Access                    = %d (%d)\n",  EcxGuest.u1DCA,        EcxHost.u1DCA);
+            pHlp->pfnPrintf(pHlp, "Supports SSE4_1 or not                 = %d (%d)\n",  EcxGuest.u1SSE4_1,     EcxHost.u1SSE4_1);
+            pHlp->pfnPrintf(pHlp, "Supports SSE4_2 or not                 = %d (%d)\n",  EcxGuest.u1SSE4_2,     EcxHost.u1SSE4_2);
+            pHlp->pfnPrintf(pHlp, "Supports the x2APIC extensions         = %d (%d)\n",  EcxGuest.u1x2APIC,     EcxHost.u1x2APIC);
+            pHlp->pfnPrintf(pHlp, "Supports MOVBE                         = %d (%d)\n",  EcxGuest.u1MOVBE,      EcxHost.u1MOVBE);
+            pHlp->pfnPrintf(pHlp, "Supports POPCNT                        = %d (%d)\n",  EcxGuest.u1POPCNT,     EcxHost.u1POPCNT);
+            pHlp->pfnPrintf(pHlp, "Reserved                               = %#x (%#x)\n",EcxGuest.u2Reserved4,  EcxHost.u2Reserved4);
+            pHlp->pfnPrintf(pHlp, "Supports XSAVE                         = %d (%d)\n",  EcxGuest.u1XSAVE,      EcxHost.u1XSAVE);
+            pHlp->pfnPrintf(pHlp, "Supports OSXSAVE                       = %d (%d)\n",  EcxGuest.u1OSXSAVE,    EcxHost.u1OSXSAVE);
+            pHlp->pfnPrintf(pHlp, "Reserved                               = %#x (%#x)\n",EcxGuest.u4Reserved5,  EcxHost.u4Reserved5);
         }
     }
     if (cStdMax >= 2 && iVerbosity)

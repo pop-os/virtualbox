@@ -4058,19 +4058,6 @@ static bool e1kPerfectMatch(E1KSTATE *pState, const void *pvBuf)
 }
 
 /**
- * Returns the value of a bit in a bit vector.
- *
- * @returns true if bit is set.
- * @param   pBitVector      The ethernet packet.
- * @param   u16Bit          Bit number.
- * @thread  EMT
- */
-DECLINLINE(bool) e1kGetBit(uint32_t* pBitVector, uint16_t u16Bit)
-{
-    return !!(pBitVector[u16Bit] & (1 << (u16Bit & 0x1F)));
-}
-
-/**
  * Matches the packet addresses against Multicast Table Array.
  *
  * @remarks This is imperfect match since it matches not exact address but
@@ -4097,7 +4084,7 @@ static bool e1kImperfectMatch(E1KSTATE *pState, const void *pvBuf)
      */
     if (offset < 3)
         u16Bit = u16Bit >> (4 - offset);
-    return e1kGetBit(pState->auMTA, u16Bit & 0xFFF);
+    return ASMBitTest(pState->auMTA, u16Bit & 0xFFF);
 }
 
 /**
@@ -4180,7 +4167,7 @@ static bool e1kAddressFilter(E1KSTATE *pState, const void *pvBuf, size_t cb, E1K
         {
             pStatus->fVP = true;
             /* It is 802.1q packet indeed, let's filter by VID */
-            if (e1kGetBit(pState->auVFTA, RT_BE2H_U16(u16Ptr[7]) & 0xFFF))
+            if (ASMBitTest(pState->auVFTA, RT_BE2H_U16(u16Ptr[7]) & 0xFFF))
                 return true;
             E1kLog2(("%s Packet filter: no VLAN match\n", INSTANCE(pState)));
         }
@@ -4522,7 +4509,6 @@ static DECLCALLBACK(int) e1kLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle, 
  * @param   pDevIns     The device instance.
  * @param   pSSMHandle  The handle to the saved state.
  */
-#if 0
 static DECLCALLBACK(int) e1kLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle)
 {
     E1KSTATE* pState = PDMINS_2_DATA(pDevIns, E1KSTATE*);
@@ -4539,14 +4525,13 @@ static DECLCALLBACK(int) e1kLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle)
         E1kLog(("%s Link is down temporarely\n", INSTANCE(pState)));
         STATUS &= ~STATUS_LU;
         Phy::setLinkStatus(&pState->phy, false);
-        e1kRaiseInterrupt(pState, ICR_LSC);
-        /* Restore the link back in half a second. */
-        e1kArmTimer(pState, pState->pLUTimer, 500000);
+        e1kRaiseInterrupt(pState, VERR_SEM_BUSY, ICR_LSC);
+        /* Restore the link back in five seconds. */
+        e1kArmTimer(pState, pState->pLUTimer, 5000000);
     }
     e1kMutexRelease(pState);
     return VINF_SUCCESS;
 }
-#endif
 
 /**
  * Sets 8-bit register in PCI configuration space.
@@ -4772,7 +4757,7 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     rc = PDMDevHlpSSMRegister(pDevIns, pDevIns->pDevReg->szDeviceName, iInstance,
                               E1K_SAVEDSTATE_VERSION, sizeof(E1KSTATE),
                               e1kSavePrep, e1kSaveExec, NULL,
-                              e1kLoadPrep, e1kLoadExec, NULL);
+                              e1kLoadPrep, e1kLoadExec, e1kLoadDone);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -5131,7 +5116,7 @@ static DECLCALLBACK(int) e1kAttach(PPDMDEVINS pDevIns, unsigned iLUN)
     {
         STATUS &= ~STATUS_LU;
         Phy::setLinkStatus(&pState->phy, false);
-        e1kRaiseInterrupt(pState, ICR_LSC);
+        e1kRaiseInterrupt(pState, VERR_SEM_BUSY, ICR_LSC);
         /* Restore the link back in 5 second. */
         e1kArmTimer(pState, pState->pLUTimer, 5000000);
     }

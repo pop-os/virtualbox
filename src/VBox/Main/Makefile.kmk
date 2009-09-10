@@ -608,6 +608,7 @@ VBoxC_SOURCES = \
 	ProgressImpl.cpp \
 	SharedFolderImpl.cpp \
 	SessionImpl.cpp \
+	VirtualBoxCallbackImpl.cpp \
 	ConsoleImpl.cpp \
 	ConsoleImpl2.cpp \
 	ConsoleVRDPServer.cpp \
@@ -657,6 +658,8 @@ ConsoleImpl.cpp_DEFS = \
 
 Version.cpp_DEFS  = VBOX_SVN_REV=$(VBOX_SVN_REV)
 Version.cpp_DEPS  = $(VBOX_SVN_REV_KMK)
+ConsoleImpl2.cpp_DEFS = VBOX_SVN_REV=\"$(VBOX_SVN_REV)\"
+ConsoleImpl2.cpp_DEPS = $(VBOX_SVN_REV_KMK)
 
 win/VBoxC.rc_DEPS = $(PATH_VBoxC)/VBoxC.rgs $(PATH_VBoxCOM)/VirtualBox.tlb
 VBoxC_CLEAN.win  += $(PATH_VBoxC)/VBoxC.rgs

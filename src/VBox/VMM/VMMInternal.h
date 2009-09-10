@@ -331,7 +331,6 @@ typedef struct VMM
     STAMCOUNTER                 StatRZRetGuestTrap;
     STAMCOUNTER                 StatRZRetRingSwitch;
     STAMCOUNTER                 StatRZRetRingSwitchInt;
-    STAMCOUNTER                 StatRZRetExceptionPrivilege;
     STAMCOUNTER                 StatRZRetStaleSelector;
     STAMCOUNTER                 StatRZRetIRETTrap;
     STAMCOUNTER                 StatRZRetEmulate;
@@ -363,8 +362,8 @@ typedef struct VMM
     STAMCOUNTER                 StatRZRetCallRing3;
     STAMCOUNTER                 StatRZRetPATMDuplicateFn;
     STAMCOUNTER                 StatRZRetPGMChangeMode;
-    STAMCOUNTER                 StatRZRetEmulHlt;
     STAMCOUNTER                 StatRZRetPendingRequest;
+    STAMCOUNTER                 StatRZRetPatchTPR;
     STAMCOUNTER                 StatRZCallPDMLock;
     STAMCOUNTER                 StatRZCallLogFlush;
     STAMCOUNTER                 StatRZCallPDMQueueFlush;
