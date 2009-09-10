@@ -45,8 +45,6 @@ env.sh: patch-stamp
 	./configure \
 	    --with-linux="/usr" \
 	    --disable-kmods \
-	    --with-gcc=/usr/bin/gcc-4.3 \
-	    --with-g++=/usr/bin/g++-4.3 \
 	    --enable-webservice
 
 build: build-stamp
