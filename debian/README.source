@@ -18,6 +18,7 @@ You can follow these steps to upgrade to a new upstream version:
 uscan --rename --download-version $VERSION
 mkdir ../virtualbox-ose-$VERSION
 tar -xj -C ../virtualbox-ose-$VERSION --strip-components 1 -f ../virtualbox-ose_$VERSION.orig.tar.bz2
+rm -rf ../virtualbox-ose-$VERSION/debian
 cp -a debian ../virtualbox-ose-$VERSION
 cd ../virtualbox-ose-$VERSION
 debchange -v $VERSION-dfsg-1
