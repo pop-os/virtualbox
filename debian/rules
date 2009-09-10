@@ -80,21 +80,19 @@ dfsg-free: clean
 	rm -rf ./tools
 	rm -rf ./src/VBox/Additions/os2
 	rm -rf ./src/VBox/Additions/WINNT
-	rm -f ./src/VBox/HostDrivers/VBoxTAP/VBoxTAP.rc
 	rm -f ./src/VBox/HostDrivers/Support/darwin/load.sh
 	rm -f ./include/VBox/VBoxGuest.inc
 	rm -f ./include/VBox/VBoxGuest16.h
 	rm -f ./include/VBox/VBoxGuest.mac
 	rm -f ./src/libs/xpcom18a4/xpcom/MoreFiles/FSCopyObject.c
 	rm -f ./src/libs/xpcom18a4/xpcom/MoreFiles/FSCopyObject.h
-	rm -rf ./src/libs/ffmpeg-20060710
 	rm -rf ./src/libs/libpng*
 	rm -rf ./src/libs/libxml2*
 	rm -rf ./src/libs/libxslt*
 	rm -rf ./src/libs/zlib*
-	rm -f ./src/VBox/HostServices/SharedClipboard/linux-stub.cpp
-	rm -f ./src/VBox/Additions/linux/xmouse/Imakefile
 	rm -rf ./src/VBox/Additions/linux/selinux-fedora
+	find src/VBox/Additions/x11/x11include -mindepth 1 -maxdepth 1 \
+		-type d -not -name '*mesa-*' | xargs rm -rf
 	cd ..; mv $(CURDIR) virtualbox-ose-$(upstreamversion)-dfsg; \
 	    tar --exclude .svn --exclude '.git*' --exclude debian \
 	        -czf virtualbox-ose_$(upstreamversion)-dfsg.orig.tar.gz \
