@@ -36,6 +36,19 @@
 #include <iprt/mp.h>
 #include <iprt/err.h>
 #include "r0drv/mp-r0drv.h"
+#include "internal-r0drv-solaris.h"
+
+
+/*******************************************************************************
+*   Global Variables                                                           *
+*******************************************************************************/
+/** CPU watch callback handle. */
+static vbi_cpu_watch_t *g_hVbiCpuWatch = NULL;
+/** Set of online cpus that is maintained by the MP callback.
+ * This avoids locking issues quering the set from the kernel as well as
+ * eliminating any uncertainty regarding the online status during the
+ * callback. */
+RTCPUSET g_rtMpSolarisCpuSet;
 
 
 static void rtMpNotificationSolarisCallback(void *pvUser, int iCpu, int online)
@@ -44,9 +57,15 @@ static void rtMpNotificationSolarisCallback(void *pvUser, int iCpu, int online)
 
     /* ASSUMES iCpu == RTCPUID */
     if (online)
+    {
+        RTCpuSetAdd(&g_rtMpSolarisCpuSet, iCpu);
         rtMpNotificationDoCallbacks(RTMPEVENT_ONLINE, iCpu);
+    }
     else
+    {
+        RTCpuSetDel(&g_rtMpSolarisCpuSet, iCpu);
         rtMpNotificationDoCallbacks(RTMPEVENT_OFFLINE, iCpu);
+    }
 }
 
 static vbi_cpu_watch_t *watch_handle = NULL;
@@ -55,9 +74,16 @@ int rtR0MpNotificationNativeInit(void)
 {
     if (vbi_revision_level < 2)
         return VERR_NOT_SUPPORTED;
-    if (watch_handle != NULL)
-        return VERR_INVALID_PARAMETER;
-    watch_handle = vbi_watch_cpus(rtMpNotificationSolarisCallback, NULL, 0);
+    if (g_hVbiCpuWatch != NULL)
+        return VERR_WRONG_ORDER;
+
+    /*
+     * Register the callback building the online cpu set as we
+     * do so (current_too = 1).
+     */
+    RTCpuSetEmpty(&g_rtMpSolarisCpuSet);
+    g_hVbiCpuWatch = vbi_watch_cpus(rtMpNotificationSolarisCallback, NULL, 1 /*current_too*/);
+
     return VINF_SUCCESS;
 }
 

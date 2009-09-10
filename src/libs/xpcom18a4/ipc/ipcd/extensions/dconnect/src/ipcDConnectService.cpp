@@ -1595,7 +1595,9 @@ ipcDConnectService::SerializeInterfaceParam(ipcMessageWriter &writer,
 
       // send address of the instance wrapper, and set the low bit to indicate
       // to the remote party that this is a remote instance wrapper.
-      PtrBits bits = ((PtrBits)(uintptr_t) wrapper) | PTRBITS_REMOTE_BIT;
+      PtrBits bits = ((PtrBits)(uintptr_t) wrapper);
+      NS_ASSERTION((bits & PTRBITS_REMOTE_BIT) == 0, "remote bit wrong)");
+      bits |= PTRBITS_REMOTE_BIT;
       writer.PutBytes(&bits, sizeof(bits));
     }
     NS_IF_RELEASE(stub);
@@ -3745,7 +3747,11 @@ ipcDConnectService::OnInvoke(PRUint32 peer, const DConnectInvoke *invoke, PRUint
       if (type.IsInterfacePointer())
       {
         // grab the DConAddr value temporarily stored in the param
+#ifdef VBOX
+        PtrBits bits = params[i].val.u64;
+#else
         PtrBits bits = (PtrBits)(uintptr_t) params[i].val.p;
+#endif
 
         // DeserializeInterfaceParamBits needs IID only if it's a remote object
         nsID iid;

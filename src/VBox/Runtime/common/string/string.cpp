@@ -61,7 +61,7 @@ RTDECL(void)  RTStrFree(char *pszString)
  */
 RTDECL(char *) RTStrDup(const char *pszString)
 {
-    Assert(VALID_PTR(pszString));
+    AssertPtr(pszString);
     size_t cch = strlen(pszString) + 1;
     char *psz = (char *)RTMemAlloc(cch);
     if (psz)
@@ -80,8 +80,8 @@ RTDECL(char *) RTStrDup(const char *pszString)
  */
 RTDECL(int)  RTStrDupEx(char **ppszString, const char *pszString)
 {
-    Assert(VALID_PTR(ppszString));
-    Assert(VALID_PTR(pszString));
+    AssertPtr(ppszString);
+    AssertPtr(pszString);
 
     size_t cch = strlen(pszString) + 1;
     char *psz = (char *)RTMemAlloc(cch);
@@ -94,3 +94,25 @@ RTDECL(int)  RTStrDupEx(char **ppszString, const char *pszString)
     return VERR_NO_MEMORY;
 }
 
+
+/**
+ * Allocates a new copy of the given UTF-8 substring.
+ *
+ * @returns Pointer to the allocated UTF-8 substring.
+ * @param   pszString       UTF-8 string to duplicate.
+ * @param   cchMax          The max number of chars to duplicate, not counting
+ *                          the terminator.
+ */
+RTDECL(char *) RTStrDupN(const char *pszString, size_t cchMax)
+{
+    AssertPtr(pszString);
+    char  *pszEnd = (char *)memchr(pszString, '\0', cchMax);
+    size_t cch    = pszEnd ? (uintptr_t)pszEnd - (uintptr_t)pszString : cchMax;
+    char  *pszDst = (char *)RTMemAlloc(cch);
+    if (pszDst)
+    {
+        memcpy(pszDst, pszString, cch);
+        pszDst[cch] = '\0';
+    }
+    return pszDst;
+}

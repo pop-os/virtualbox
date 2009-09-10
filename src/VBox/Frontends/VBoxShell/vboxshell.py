@@ -92,8 +92,9 @@ class GuestMonitor:
         print  "%s: onShowWindow: %d" %(self.mach.name, winId)
 
 class VBoxMonitor:
-    def __init__(self, vbox):
-        self.vbox = vbox
+    def __init__(self, params):
+        self.vbox = params[0]
+        self.isMscom = params[1]
         pass
 
     def onMachineStateChange(self, id, state):
@@ -104,16 +105,21 @@ class VBoxMonitor:
 
     def onExtraDataCanChange(self, id, key, value):
         print "onExtraDataCanChange: %s %s=>%s" %(id, key, value)
-        return True, ""
+        # Witty COM bridge thinks if someone wishes to return tuple, hresult
+        # is one of values we want to return
+        if self.isMscom:
+            return "", 0, True
+        else:
+            return True, ""
 
     def onExtraDataChange(self, id, key, value):
         print "onExtraDataChange: %s %s=>%s" %(id, key, value)
 
-    def onMediaRegistred(self, id, type, registred):
-        print "onMediaRegistred: %s" %(id)
+    def onMediaRegistered(self, id, type, registered):
+        print "onMediaRegistered: %s" %(id)
 
-    def onMachineRegistred(self, id, registred):
-        print "onMachineRegistred: %s" %(id)
+    def onMachineRegistered(self, id, registred):
+        print "onMachineRegistered: %s" %(id)
 
     def onSessionStateChange(self, id, state):
         print "onSessionStateChange: %s %d" %(id, state)
@@ -205,6 +211,15 @@ g_verbose = True
 def split_no_quotes(s):
     return shlex.split(s)
 
+def progressBar(ctx,p,wait=1000):
+    try:
+        while not p.completed:
+            print "%d %%\r" %(p.percent),
+            sys.stdout.flush()
+            p.waitForCompletion(wait)
+    except KeyboardInterrupt:
+        print "Interrupted."
+
 def createVm(ctx,name,kind,base):
     mgr = ctx['mgr']
     vb = ctx['vb']
@@ -222,11 +237,12 @@ def removeVm(ctx,mach):
     print "removing machine ",mach.name,"with UUID",id
     session = ctx['global'].openMachineSession(id)
     try:
-       mach = session.Machine
+       mach = session.machine
        for d in ctx['global'].getArray(mach, 'hardDiskAttachments'):
           mach.detachHardDisk(d.controller, d.port, d.device)
     except:
        traceback.print_exc()
+    mach.saveSettings()
     ctx['global'].closeMachineSession(session)
     mach = vb.unregisterMachine(id)
     if mach:
@@ -241,7 +257,7 @@ def startVm(ctx,mach,type):
     session = mgr.getSessionObject(vb)
     uuid = mach.id
     progress = vb.openRemoteSession(session, uuid, type, "")
-    progress.waitForCompletion(-1)
+    progressBar(ctx, progress, 100)
     completed = progress.completed
     rc = int(progress.resultCode)
     print "Completed:", completed, "rc:",hex(rc&0xffffffff)
@@ -302,9 +318,10 @@ def monitorGuest(ctx, machine, console, dur):
     console.unregisterCallback(cb)
 
 
-def monitorVbox(ctx, dur):
+def monitorVBox(ctx, dur):
     vbox = ctx['vb']
-    cb = ctx['global'].createCallback('IVirtualBoxCallback', VBoxMonitor, vbox)
+    isMscom = (ctx['global'].type == 'MSCOM')
+    cb = ctx['global'].createCallback('IVirtualBoxCallback', VBoxMonitor, [vbox, isMscom])
     vbox.registerCallback(cb)
     if dur == -1:
         # not infinity, but close enough
@@ -315,8 +332,7 @@ def monitorVbox(ctx, dur):
             ctx['global'].waitForEvents(500)
     # We need to catch all exceptions here, otherwise callback will never be unregistered
     except:
-        if g_verbose:
-                traceback.print_exc()
+        pass
     vbox.unregisterCallback(cb)
 
 def cmdExistingVm(ctx,mach,cmd,args):
@@ -347,7 +363,7 @@ def cmdExistingVm(ctx,mach,cmd,args):
          'stats':           lambda: guestStats(ctx, mach),
          'guest':           lambda: guestExec(ctx, mach, console, args),
          'monitorGuest':    lambda: monitorGuest(ctx, mach, console, args),
-         'save':            lambda: console.saveState().waitForCompletion(-1)
+         'save':            lambda: progressBar(ctx,console.saveState())
          }
     try:
         ops[cmd]()
@@ -382,19 +398,27 @@ def argsToMach(ctx,args):
         print "Machine '%s' is unknown, use list command to find available machines" %(id)
     return m
 
+def helpSingleCmd(cmd,h,sp):
+    if sp != 0:
+        spec = " [ext from "+sp+"]"
+    else:
+        spec = ""
+    print "    %s: %s%s" %(cmd,h,spec)
+
 def helpCmd(ctx, args):
     if len(args) == 1:
         print "Help page:"
         names = commands.keys()
         names.sort()
         for i in names:
-            print "   ",i,":", commands[i][0]
+            helpSingleCmd(i, commands[i][0], commands[i][2])
     else:
-        c = commands.get(args[1], None)
+        cmd = args[1]
+        c = commands.get(cmd)
         if c == None:
-            print "Command '%s' not known" %(args[1])
+            print "Command '%s' not known" %(cmd)
         else:
-            print "   ",args[1],":", c[0]
+            helpSingleCmd(cmd, c[0], c[2])
     return 0
 
 def listCmd(ctx, args):
@@ -484,6 +508,7 @@ def infoCmd(ctx,args):
         print "  DVD:"
         print "    Image at: %s" %(vdvd.location)
         print "    Size: %s" %(vdvd.size)
+        print "    Id: %s" %(vdvd.id)
         print
 
     floppy = mach.floppyDrive
@@ -689,14 +714,14 @@ def monitorGuestCmd(ctx, args):
     cmdExistingVm(ctx, mach, 'monitorGuest', dur)
     return 0
 
-def monitorVboxCmd(ctx, args):
+def monitorVBoxCmd(ctx, args):
     if (len(args) > 2):
-        print "usage: monitorVbox (duration)"
+        print "usage: monitorVBox (duration)"
         return 0
     dur = 5
     if len(args) > 1:
         dur = float(args[1])
-    monitorVbox(ctx, dur)
+    monitorVBox(ctx, dur)
     return 0
 
 def getAdapterType(ctx, type):
@@ -781,7 +806,7 @@ def evalCmd(ctx, args):
 
 def reloadExtCmd(ctx, args):
    # maybe will want more args smartness
-   checkUserExtensions(ctx, commands, ctx['vb'].homeFolder)
+   checkUserExtensions(ctx, commands, getHomeFolder(ctx))
    autoCompletion(commands, ctx)
    return 0
 
@@ -881,14 +906,40 @@ def disconnectCmd(ctx, args):
     ctx['vb'] = None
     return 0
 
+def exportVMCmd(ctx, args):
+    import sys
+
+    if len(args) < 3:
+        print "usage: exportVm <machine> <path> <format> <license>"
+        return 0
+    mach = ctx['machById'](args[1])
+    if mach is None:
+        return 0
+    path = args[2]
+    if (len(args) > 3):
+        format = args[3]
+    else:
+        format = "ovf-1.0"
+    if (len(args) > 4):
+        license = args[4]
+    else:
+        license = "GPL"
+
+    app = ctx['vb'].createAppliance()
+    desc = mach.export(app)
+    desc.addDescription(ctx['global'].constants.VirtualSystemDescriptionType_License, license, "")
+    p = app.write(format, path)
+    progressBar(ctx, p)
+    print "Exported to %s in format %s" %(path, format)
+    return 0
+
 aliases = {'s':'start',
            'i':'info',
            'l':'list',
            'h':'help',
            'a':'alias',
            'q':'quit', 'exit':'quit',
-           'v':'verbose',
-           '!':'shell'}
+           'v':'verbose'}
 
 commands = {'help':['Prints help information', helpCmd, 0],
             'start':['Start virtual machine by name or uuid', startCmd, 0],
@@ -910,13 +961,14 @@ commands = {'help':['Prints help information', helpCmd, 0],
             'host':['Show host information', hostCmd, 0],
             'guest':['Execute command for guest: guest Win32 \'console.mouse.putMouseEvent(20, 20, 0, 0)\'', guestCmd, 0],
             'monitorGuest':['Monitor what happens with the guest for some time: monitorGuest Win32 10', monitorGuestCmd, 0],
-            'monitorVbox':['Monitor what happens with Virtual Box for some time: monitorVbox 10', monitorVboxCmd, 0],
+            'monitorVBox':['Monitor what happens with Virtual Box for some time: monitorVBox 10', monitorVBoxCmd, 0],
             'portForward':['Setup permanent port forwarding for a VM, takes adapter number host port and guest port: portForward Win32 0 8080 80', portForwardCmd, 0],
             'showLog':['Show log file of the VM, : showLog Win32', showLogCmd, 0],
             'reloadExt':['Reload custom extensions: reloadExt', reloadExtCmd, 0],
             'runScript':['Run VBox script: runScript script.vbox', runScriptCmd, 0],
             'sleep':['Sleep for specified number of seconds: sleep 3.14159', sleepCmd, 0],
-            'shell':['Execute external shell command: shell "ls /etc/rc*"', shellCmd, 0]
+            'shell':['Execute external shell command: shell "ls /etc/rc*"', shellCmd, 0],
+            'exportVm':['Export VM in OVF format: export Win /tmp/win.ovf', exportVMCmd, 0]
             }
 
 def runCommandArgs(ctx, args):
@@ -948,22 +1000,43 @@ def runCommand(ctx, cmd):
 #    'test': ['Test help', runTestCmd]
 # }
 # and issue reloadExt shell command.
-# This file also will be read automatically on startup.
+# This file also will be read automatically on startup or 'reloadExt'.
 #
-def checkUserExtensions(ctx, cmds, folder):
-    name =  os.path.join(str(folder), "shellext.py")
-    if not os.path.isfile(name):
+# Also one can put shell extensions into ~/.VirtualBox/shexts and
+# they will also be picked up, so this way one can exchange
+# shell extensions easily.
+def addExtsFromFile(ctx, cmds, file):
+    if not os.path.isfile(file):
         return
     d = {}
     try:
-        execfile(name, d, d)
+        execfile(file, d, d)
         for (k,v) in d['commands'].items():
             if g_verbose:
                 print "customize: adding \"%s\" - %s" %(k, v[0])
-            cmds[k] = [v[0], v[1], 1]
+            cmds[k] = [v[0], v[1], file]
     except:
-        print "Error loading user extensions:"
+        print "Error loading user extensions from %s" %(file)
         traceback.print_exc()
+
+
+def checkUserExtensions(ctx, cmds, folder):
+    folder = str(folder)
+    name = os.path.join(folder, "shellext.py")
+    addExtsFromFile(ctx, cmds, name)
+    # also check 'exts' directory for all files
+    shextdir = os.path.join(folder, "shexts")
+    if not os.path.isdir(shextdir):
+        return
+    exts = os.listdir(shextdir)
+    for e in exts:
+        addExtsFromFile(ctx, cmds, os.path.join(shextdir,e))
+
+def getHomeFolder(ctx):
+    if ctx['remote'] or ctx['vb'] is None:
+        return os.path.join(os.path.expanduser("~"), ".VirtualBox")
+    else:
+        return ctx['vb'].homeFolder
 
 def interpret(ctx):
     if ctx['remote']:
@@ -974,12 +1047,11 @@ def interpret(ctx):
 
     if vbox is not None:
         print "Running VirtualBox version %s" %(vbox.version)
-        ctx['perf'] = ctx['global'].getPerfCollector(ctx['vb'])
-        home = vbox.homeFolder
+        ctx['perf'] = ctx['global'].getPerfCollector(vbox)
     else:
         ctx['perf'] = None
-        home = os.path.join(os.path.expanduser("~"), ".VirtualBox")
 
+    home = getHomeFolder(ctx)
     checkUserExtensions(ctx, commands, home)
 
     autoCompletion(commands, ctx)
@@ -1048,6 +1120,8 @@ def main(argv):
            'type':g_virtualBoxManager.type,
            'run': lambda cmd,args: runCommandCb(ctx, cmd, args),
            'machById': lambda id: machById(ctx,id),
+           'progressBar': lambda p: progressBar(ctx,p),
+           'progressBar': lambda p: progressBar(ctx,p),
            '_machlist':None
            }
     interpret(ctx)

@@ -19,10 +19,6 @@
  * additional information or have any questions.
  */
 
-#if defined(RT_OS_WINDOWS)
-#elif defined(RT_OS_LINUX)
-#endif
-
 #ifdef VBOX_WITH_SYS_V_IPC_SESSION_WATCHER
 #   include <errno.h>
 #   include <sys/types.h>

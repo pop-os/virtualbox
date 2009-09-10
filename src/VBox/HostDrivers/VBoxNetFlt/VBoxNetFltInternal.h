@@ -194,6 +194,10 @@ typedef struct VBOXNETFLTINS
              * @{ */
             /** Filter driver device context. */
             ADAPT IfAdaptor;
+
+            volatile uint32_t cModeNetFltRefs;
+            volatile uint32_t cModePassThruRefs;
+
             /** Packet worker thread info */
             PACKET_QUEUE_WORKER PacketQueueWorker;
             /** The MAC address of the interface. Caching MAC for performance reasons. */

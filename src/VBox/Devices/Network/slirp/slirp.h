@@ -309,6 +309,9 @@ struct tcpcb *tcp_drop(PNATState, struct tcpcb *tp, int err);
 
 uint16_t slirp_get_service(int proto, uint16_t dport, uint16_t sport);
 
+/*slirp.c*/
+void slirp_arp_who_has(PNATState pData, uint32_t dst);
+int slirp_update_arp_cache(PNATState pData, uint32_t dst, const uint8_t *mac);
 #define MIN_MRU 128
 #define MAX_MRU 16384
 
@@ -358,9 +361,9 @@ AssertCompileSize(struct ethhdr, 14);
 # undef malloc
 # undef calloc
 # undef free
-# define	malloc(x) RTMemAlloc((x))
-# define	calloc(x, n) RTMemAllocZ((x)*(n))
-# define	free(x)	RTMemFree((x))
+# define malloc(x)    RTMemAlloc((x))
+# define calloc(x, n) RTMemAllocZ((x)*(n))
+# define free(x)      RTMemFree((x))
 # ifndef __unused
 #  define __unused
 # endif

@@ -134,6 +134,7 @@ extern bool is3DAccelerationSupported();
 #include <VBox/x86.h>
 #include <VBox/err.h>
 #include <VBox/settings.h>
+#include <VBox/sup.h>
 
 #include <stdio.h>
 
@@ -236,7 +237,11 @@ HRESULT Host::init (VirtualBox *aParent)
                  && (u32FeaturesEDX & X86_CPUID_FEATURE_EDX_MSR)
                  && (u32FeaturesEDX & X86_CPUID_FEATURE_EDX_FXSR)
                )
-                fVTxAMDVSupported = true;
+            {
+                int rc = SUPR3QueryVTxSupported();
+                if (RT_SUCCESS(rc))
+                    fVTxAMDVSupported = true;
+            }
         }
         else
         if (    u32VendorEBX == X86_CPUID_VENDOR_AMD_EBX

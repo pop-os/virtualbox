@@ -1391,7 +1391,7 @@ static int PortFisAddrUp_w(PAHCI ahci, PAHCIPort pAhciPort, uint32_t iReg, uint3
     ahciLog(("%s: write u32Value=%#010x\n", __FUNCTION__, u32Value));
 
     pAhciPort->regFBU = u32Value;
-    pAhciPort->GCPhysAddrFb |= ((RTGCPHYS)pAhciPort->regFBU) << 32;
+    pAhciPort->GCPhysAddrFb = AHCI_RTGCPHYS_FROM_U32(pAhciPort->regFBU, pAhciPort->regFB);
 
     return VINF_SUCCESS;
 }
@@ -1414,7 +1414,7 @@ static int PortFisAddr_w(PAHCI ahci, PAHCIPort pAhciPort, uint32_t iReg, uint32_
     ahciLog(("%s: write u32Value=%#010x\n", __FUNCTION__, u32Value));
 
     pAhciPort->regFB = (u32Value & AHCI_PORT_FB_RESERVED);
-    pAhciPort->GCPhysAddrFb |= pAhciPort->regFB;
+    pAhciPort->GCPhysAddrFb = AHCI_RTGCPHYS_FROM_U32(pAhciPort->regFBU, pAhciPort->regFB);
 
     return VINF_SUCCESS;
 }
@@ -1427,7 +1427,7 @@ static int PortCmdLstAddrUp_w(PAHCI ahci, PAHCIPort pAhciPort, uint32_t iReg, ui
     ahciLog(("%s: write u32Value=%#010x\n", __FUNCTION__, u32Value));
 
     pAhciPort->regCLBU = u32Value;
-    pAhciPort->GCPhysAddrClb |= ((RTGCPHYS)pAhciPort->regCLBU) << 32;
+    pAhciPort->GCPhysAddrClb = AHCI_RTGCPHYS_FROM_U32(pAhciPort->regCLBU, pAhciPort->regCLB);
 
     return VINF_SUCCESS;
 }
@@ -1460,7 +1460,7 @@ static int PortCmdLstAddr_w(PAHCI ahci, PAHCIPort pAhciPort, uint32_t iReg, uint
     ahciLog(("%s: write u32Value=%#010x\n", __FUNCTION__, u32Value));
 
     pAhciPort->regCLB = (u32Value & AHCI_PORT_CLB_RESERVED);
-    pAhciPort->GCPhysAddrClb |= pAhciPort->regCLB;
+    pAhciPort->GCPhysAddrClb = AHCI_RTGCPHYS_FROM_U32(pAhciPort->regCLBU, pAhciPort->regCLB);
 
     return VINF_SUCCESS;
 }
@@ -1514,7 +1514,7 @@ static int HbaInterruptStatus_w(PAHCI ahci, uint32_t iReg, uint32_t u32Value)
             unsigned i = 0;
 
             /* Check if the cleared ports have a interrupt status bit set. */
-            while (u32Value > 0)
+            while ((u32Value > 0) && (i < AHCI_MAX_NR_PORTS_IMPL))
             {
                 if (u32Value & 0x01)
                 {
@@ -1816,8 +1816,6 @@ static void ahciPortSwReset(PAHCIPort pAhciPort)
     if (pAhciPort->pDrvBase)
     {
         pAhciPort->regCMD |= AHCI_PORT_CMD_CPS; /* Indicate that there is a device on that port */
-        /* We received a COMINIT signal */
-        pAhciPort->regTFD  |= ATA_STAT_BUSY;
 
         if (pAhciPort->fPoweredOn)
         {

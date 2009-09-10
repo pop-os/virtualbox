@@ -297,6 +297,10 @@ typedef struct _ADAPT_DEVICE
 /*    NDIS_HANDLE                    hHandle; */
 } ADAPT_DEVICE, *PADAPT_DEVICE;
 
+/* packet filter processing mode constants */
+#define VBOXNETFLT_PFP_NETFLT   1
+#define VBOXNETFLT_PFP_PASSTHRU 2
+
 /** represents filter driver device context*/
 typedef struct _ADAPT
 {
@@ -350,7 +354,7 @@ typedef struct _ADAPT
     bool                        bQueuedRequest;
     /** @todo join all boolean states to one field treated as flags bitmap */
     /** true iff we are processing Set packet filter OID */
-    bool                        bProcessingPacketFilter;
+    uint8_t                        fProcessingPacketFilter;
     /** true iff the upper protocol filter cache was initialized */
     bool                        bUpperProtSetFilterInitialized;
     /** trus if the adapter is closing */
@@ -464,17 +468,6 @@ typedef struct _TRANSFERDATA_RSVD
     PNDIS_BUFFER pOriginalBuffer;
 } TRANSFERDATA_RSVD, *PTRANSFERDATA_RSVD;
 
-typedef struct _PT_RSVD
-{
-    union
-    {
-        SEND_RSVD SendRsvd;
-        TRANSFERDATA_RSVD TransferDataRsvd;
-    };
-} PT_RSVD, *PPT_RSVD;
-
-
-#ifndef VBOX_NETFLT_ONDEMAND_BIND
 /** Miniport reserved part of a received packet that is allocated by
  * us. Note that this should fit into the MiniportReserved space
  * in an NDIS_PACKET. */
@@ -487,6 +480,18 @@ typedef struct _RECV_RSVD
      * can be null if no buffer is to be freed */
     PVOID           pBufToFree;
 } RECV_RSVD, *PRECV_RSVD;
+
+typedef struct _PT_RSVD
+{
+    union
+    {
+        RECV_RSVD RecvRsvd;
+        TRANSFERDATA_RSVD TransferDataRsvd;
+    } u;
+} PT_RSVD, *PPT_RSVD;
+
+
+#ifndef VBOX_NETFLT_ONDEMAND_BIND
 
 C_ASSERT(sizeof(RECV_RSVD) <= sizeof(((PNDIS_PACKET)0)->MiniportReserved));
 #endif

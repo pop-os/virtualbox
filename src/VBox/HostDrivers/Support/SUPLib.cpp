@@ -2055,3 +2055,12 @@ SUPR3DECL(int) SUPR3HardenedLdrLoadAppPriv(const char *pszFilename, PRTLDRMOD ph
     return rc;
 }
 
+
+SUPR3DECL(int) SUPR3QueryVTxSupported(void)
+{
+#ifdef RT_OS_LINUX
+    return suplibOsQueryVTxSupported();
+#else
+    return VINF_SUCCESS;
+#endif
+}

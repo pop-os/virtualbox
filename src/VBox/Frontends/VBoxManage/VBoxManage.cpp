@@ -2002,7 +2002,7 @@ int main(int argc, char *argv[])
      * (here it is necessary only to process remaining XPCOM/IPC events
      * after the session is closed) */
 
-#ifdef USE_XPCOM_QUEUE
+#ifdef VBOX_WITH_XPCOM
     nsCOMPtr<nsIEventQueue> eventQ;
     NS_GetMainEventQ(getter_AddRefs(eventQ));
 #endif
@@ -2010,7 +2010,7 @@ int main(int argc, char *argv[])
     if (!checkForAutoConvertedSettings (virtualBox, session, fConvertSettings))
         break;
 
-#ifdef USE_XPCOM_QUEUE
+#ifdef VBOX_WITH_XPCOM
     HandlerArg handlerArg = { 0, NULL, eventQ, virtualBox, session };
 #else
     HandlerArg handlerArg = { 0, NULL, virtualBox, session };
@@ -2093,7 +2093,7 @@ int main(int argc, char *argv[])
      * state file (if the machine was in the Saved state before). */
     session->Close();
 
-#ifdef USE_XPCOM_QUEUE
+#ifdef VBOX_WITH_XPCOM
     eventQ->ProcessPendingEvents();
 #endif
 

@@ -230,9 +230,11 @@
 /** Internal EM error caused by an unknown warning or informational status code. */
 #define VERR_EM_INTERNAL_ERROR              (-1149)
 /** Pending VM request packet. */
-#define VINF_EM_PENDING_REQUEST             (-1150)
+#define VINF_EM_PENDING_REQUEST             1150
 /** Start instruction stepping (debug only). */
 #define VINF_EM_RAW_EMULATE_DBG_STEP        1151
+/** Patch TPR access instruction. */
+#define VINF_EM_HWACCM_PATCH_TPR_INSTR      1152
 /** @} */
 
 
@@ -1214,6 +1216,8 @@
 #define VERR_SUPDRV_INTERFACE_NOT_SUPPORTED         (-3701)
 /** The service module was not found. */
 #define VERR_SUPDRV_SERVICE_NOT_FOUND               (-3702)
+/** The host kernel is too old. */
+#define VERR_SUPDRV_KERNEL_TOO_OLD_FOR_VTX          (-3703)
 /** @} */
 
 

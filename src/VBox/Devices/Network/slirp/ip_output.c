@@ -51,21 +51,27 @@
 static const uint8_t* rt_lookup_in_cache(PNATState pData, uint32_t dst)
 {
     int i;
+    struct arp_cache_entry *ac = NULL;
    /* @todo (r - vasily) to quick ramp up on routing rails
     * we use information from DHCP server leasings, this
     * code couldn't detect any changes in network topology
     * and should be borrowed from other places
     */
+    LIST_FOREACH(ac, &pData->arp_cache, list)
+    {
+        if (ac->ip == dst)
+            return &ac->ether[0];
+    }
     for (i = 0; i < NB_ADDR; i++)
     {
         if (   bootp_clients[i].allocated
             && bootp_clients[i].addr.s_addr == dst)
             return &bootp_clients[i].macaddr[0];
     }
-
-    if (dst != 0)
-        return pData->slirp_ethaddr;
-
+    /* 
+     * no chance to send this packet, sorry, we will request ether address via ARP 
+     */
+    slirp_arp_who_has(pData, dst); 
     return NULL; 
 }
 #endif

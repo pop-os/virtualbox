@@ -1,5 +1,5 @@
 /** @file
- * VM - The Virtual Machine, data.
+ * VM - The Virtual Machine, data. (VMM)
  */
 
 /*
@@ -142,7 +142,7 @@ typedef struct VMCPU
 #ifdef ___HWACCMInternal_h
         struct HWACCMCPU    s;
 #endif
-        char                padding[5120];      /* multiple of 64 */
+        char                padding[6144];      /* multiple of 64 */
     } hwaccm;
 
     /** EM part. */
@@ -625,7 +625,9 @@ typedef struct VMCPU
  */
 #define VM_ASSERT_VALID_EXT_RETURN(pVM, rc) \
         AssertMsgReturn(    RT_VALID_ALIGNED_PTR(pVM, PAGE_SIZE) \
-                        &&  (unsigned)(pVM)->enmVMState < (unsigned)VMSTATE_DESTROYING, \
+                        &&  (   (unsigned)(pVM)->enmVMState < (unsigned)VMSTATE_DESTROYING \
+                             || (   (unsigned)(pVM)->enmVMState == (unsigned)VMSTATE_DESTROYING \
+                                 && VM_IS_EMT(pVM))), \
                         ("pVM=%p state %s\n", (pVM), RT_VALID_ALIGNED_PTR(pVM, PAGE_SIZE) \
                          ? VMGetStateName(pVM->enmVMState) : ""), \
                         (rc))
@@ -832,7 +834,7 @@ typedef struct VM
 #ifdef ___HWACCMInternal_h
         struct HWACCM s;
 #endif
-        char        padding[512];       /* multiple of 32 */
+        char        padding[8192];       /* multiple of 32 */
     } hwaccm;
 
     /** TRPM part. */
@@ -998,4 +1000,3 @@ RT_C_DECLS_END
 /** @} */
 
 #endif
-

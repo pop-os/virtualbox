@@ -235,10 +235,17 @@ RTR0DECL(void *) RTMemContAlloc(PRTCCPHYS pPhys, size_t cb)
     cb = RT_ALIGN_Z(cb, PAGE_SIZE);
     cPages = cb >> PAGE_SHIFT;
     cOrder = CalcPowerOf2Order(cPages);
-#ifdef RT_ARCH_AMD64 /** @todo check out if there is a correct way of getting memory below 4GB (physically). */
-    paPages = alloc_pages(GFP_DMA, cOrder);
+#if (defined(RT_ARCH_AMD64) || defined(CONFIG_X86_PAE)) && defined(GFP_DMA32)
+    /* ZONE_DMA32: 0-4GB */
+    paPages = alloc_pages(GFP_DMA32, cOrder);
+    if (!paPages)
+#endif
+#ifdef RT_ARCH_AMD64
+        /* ZONE_DMA; 0-16MB */
+        paPages = alloc_pages(GFP_DMA, cOrder);
 #else
-    paPages = alloc_pages(GFP_USER, cOrder);
+        /* ZONE_NORMAL: 0-896MB */
+        paPages = alloc_pages(GFP_USER, cOrder);
 #endif
     if (paPages)
     {

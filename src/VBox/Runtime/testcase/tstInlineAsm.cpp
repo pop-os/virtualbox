@@ -37,13 +37,8 @@
 #include <iprt/initterm.h>
 #include <iprt/param.h>
 #include <iprt/thread.h>
+#include <iprt/test.h>
 
-
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
-/** Global error count. */
-static unsigned g_cErrors;
 
 
 /*******************************************************************************
@@ -54,7 +49,7 @@ static unsigned g_cErrors;
     { \
         if ((val) != (expect)) \
         { \
-            g_cErrors++; \
+            RTTestIErrorInc(); \
             RTPrintf("%s, %d: " #val ": expected " fmt " got " fmt "\n", __FUNCTION__, __LINE__, (expect), (val)); \
         } \
     } while (0)
@@ -65,7 +60,7 @@ static unsigned g_cErrors;
         type val = op; \
         if (val != (type)(expect)) \
         { \
-            g_cErrors++; \
+            RTTestIErrorInc(); \
             RTPrintf("%s, %d: " #op ": expected " fmt " got " fmt "\n", __FUNCTION__, __LINE__, (type)(expect), val); \
         } \
     } while (0)
@@ -553,65 +548,6 @@ static void tstASMAtomicXchgU64(void)
 }
 
 
-#ifdef RT_ARCH_AMD64
-static void tstASMAtomicXchgU128(void)
-{
-    struct
-    {
-        RTUINT128U  u128Dummy0;
-        RTUINT128U  u128;
-        RTUINT128U  u128Dummy1;
-    } s;
-    RTUINT128U u128Ret;
-    RTUINT128U u128Arg;
-
-
-    s.u128Dummy0.s.Lo = s.u128Dummy0.s.Hi = 0x1122334455667788;
-    s.u128.s.Lo = 0;
-    s.u128.s.Hi = 0;
-    s.u128Dummy1 = s.u128Dummy0;
-
-    u128Arg.s.Lo = 1;
-    u128Arg.s.Hi = 0;
-    u128Ret.u = ASMAtomicXchgU128(&s.u128.u, u128Arg.u);
-    CHECKVAL(u128Ret.s.Lo, 0ULL, "%#llx");
-    CHECKVAL(u128Ret.s.Hi, 0ULL, "%#llx");
-    CHECKVAL(s.u128.s.Lo, 1ULL, "%#llx");
-    CHECKVAL(s.u128.s.Hi, 0ULL, "%#llx");
-
-    u128Arg.s.Lo = 0;
-    u128Arg.s.Hi = 0;
-    u128Ret.u = ASMAtomicXchgU128(&s.u128.u, u128Arg.u);
-    CHECKVAL(u128Ret.s.Lo, 1ULL, "%#llx");
-    CHECKVAL(u128Ret.s.Hi, 0ULL, "%#llx");
-    CHECKVAL(s.u128.s.Lo, 0ULL, "%#llx");
-    CHECKVAL(s.u128.s.Hi, 0ULL, "%#llx");
-
-    u128Arg.s.Lo = ~0ULL;
-    u128Arg.s.Hi = ~0ULL;
-    u128Ret.u = ASMAtomicXchgU128(&s.u128.u, u128Arg.u);
-    CHECKVAL(u128Ret.s.Lo, 0ULL, "%#llx");
-    CHECKVAL(u128Ret.s.Hi, 0ULL, "%#llx");
-    CHECKVAL(s.u128.s.Lo, ~0ULL, "%#llx");
-    CHECKVAL(s.u128.s.Hi, ~0ULL, "%#llx");
-
-
-    u128Arg.s.Lo = 0xfedcba0987654321ULL;
-    u128Arg.s.Hi = 0x8897a6b5c4d3e2f1ULL;
-    u128Ret.u = ASMAtomicXchgU128(&s.u128.u, u128Arg.u);
-    CHECKVAL(u128Ret.s.Lo, ~0ULL, "%#llx");
-    CHECKVAL(u128Ret.s.Hi, ~0ULL, "%#llx");
-    CHECKVAL(s.u128.s.Lo, 0xfedcba0987654321ULL, "%#llx");
-    CHECKVAL(s.u128.s.Hi, 0x8897a6b5c4d3e2f1ULL, "%#llx");
-
-    CHECKVAL(s.u128Dummy0.s.Lo, 0x1122334455667788, "%#llx");
-    CHECKVAL(s.u128Dummy0.s.Hi, 0x1122334455667788, "%#llx");
-    CHECKVAL(s.u128Dummy1.s.Lo, 0x1122334455667788, "%#llx");
-    CHECKVAL(s.u128Dummy1.s.Hi, 0x1122334455667788, "%#llx");
-}
-#endif
-
-
 static void tstASMAtomicXchgPtr(void)
 {
     void *pv = NULL;
@@ -751,12 +687,12 @@ static void tstASMAtomicAddS32(void)
         if (i32Rc != (rc)) \
         { \
             RTPrintf("%s, %d: FAILURE: %s -> %d expected %d\n", __FUNCTION__, __LINE__, #op, i32Rc, rc); \
-            g_cErrors++; \
+            RTTestIErrorInc(); \
         } \
         if (i32 != (val)) \
         { \
             RTPrintf("%s, %d: FAILURE: %s => i32=%d expected %d\n", __FUNCTION__, __LINE__, #op, i32, val); \
-            g_cErrors++; \
+            RTTestIErrorInc(); \
         } \
     } while (0)
     MYCHECK(ASMAtomicAddS32(&i32, 1),               10,             11);
@@ -780,12 +716,12 @@ static void tstASMAtomicDecIncS32(void)
         if (i32Rc != (rc)) \
         { \
             RTPrintf("%s, %d: FAILURE: %s -> %d expected %d\n", __FUNCTION__, __LINE__, #op, i32Rc, rc); \
-            g_cErrors++; \
+            RTTestIErrorInc(); \
         } \
         if (i32 != (rc)) \
         { \
             RTPrintf("%s, %d: FAILURE: %s => i32=%d expected %d\n", __FUNCTION__, __LINE__, #op, i32, rc); \
-            g_cErrors++; \
+            RTTestIErrorInc(); \
         } \
     } while (0)
     MYCHECK(ASMAtomicDecS32(&i32), 9);
@@ -875,26 +811,61 @@ void tstASMMemZeroPage(void)
         ||  Buf3.u64Magic2 != UINT64_C(0xffffffffffffffff))
     {
         RTPrintf("tstInlineAsm: ASMMemZeroPage violated one/both magic(s)!\n");
-        g_cErrors++;
+        RTTestIErrorInc();
     }
     for (unsigned i = 0; i < sizeof(Buf1.abPage); i++)
         if (Buf1.abPage[i])
         {
             RTPrintf("tstInlineAsm: ASMMemZeroPage didn't clear byte at offset %#x!\n", i);
-            g_cErrors++;
+            RTTestIErrorInc();
         }
     for (unsigned i = 0; i < sizeof(Buf2.abPage); i++)
         if (Buf2.abPage[i])
         {
             RTPrintf("tstInlineAsm: ASMMemZeroPage didn't clear byte at offset %#x!\n", i);
-            g_cErrors++;
+            RTTestIErrorInc();
         }
     for (unsigned i = 0; i < sizeof(Buf3.abPage); i++)
         if (Buf3.abPage[i])
         {
             RTPrintf("tstInlineAsm: ASMMemZeroPage didn't clear byte at offset %#x!\n", i);
-            g_cErrors++;
+            RTTestIErrorInc();
         }
+}
+
+
+void tstASMMemIsZeroPage(RTTEST hTest)
+{
+    RTTestSub(hTest, "ASMMemIsZeroPage");
+
+    void *pvPage1 = RTTestGuardedAllocHead(hTest, PAGE_SIZE);
+    void *pvPage2 = RTTestGuardedAllocTail(hTest, PAGE_SIZE);
+    RTTESTI_CHECK_RETV(pvPage1 && pvPage2);
+
+    memset(pvPage1, 0, PAGE_SIZE);
+    memset(pvPage2, 0, PAGE_SIZE);
+    RTTESTI_CHECK(ASMMemIsZeroPage(pvPage1));
+    RTTESTI_CHECK(ASMMemIsZeroPage(pvPage2));
+
+    memset(pvPage1, 0xff, PAGE_SIZE);
+    memset(pvPage2, 0xff, PAGE_SIZE);
+    RTTESTI_CHECK(!ASMMemIsZeroPage(pvPage1));
+    RTTESTI_CHECK(!ASMMemIsZeroPage(pvPage2));
+
+    memset(pvPage1, 0, PAGE_SIZE);
+    memset(pvPage2, 0, PAGE_SIZE);
+    for (unsigned off = 0; off < PAGE_SIZE; off++)
+    {
+        ((uint8_t *)pvPage1)[off] = 1;
+        RTTESTI_CHECK(!ASMMemIsZeroPage(pvPage1));
+        ((uint8_t *)pvPage1)[off] = 0;
+
+        ((uint8_t *)pvPage2)[off] = 0x80;
+        RTTESTI_CHECK(!ASMMemIsZeroPage(pvPage2));
+        ((uint8_t *)pvPage2)[off] = 0;
+    }
+
+    RTTestSubDone(hTest);
 }
 
 
@@ -927,25 +898,25 @@ void tstASMMemZero32(void)
         ||  Buf3.u64Magic2 != UINT64_C(0xffffffffffffffff))
     {
         RTPrintf("tstInlineAsm: ASMMemZero32 violated one/both magic(s)!\n");
-        g_cErrors++;
+        RTTestIErrorInc();
     }
     for (unsigned i = 0; i < RT_ELEMENTS(Buf1.abPage); i++)
         if (Buf1.abPage[i])
         {
             RTPrintf("tstInlineAsm: ASMMemZero32 didn't clear byte at offset %#x!\n", i);
-            g_cErrors++;
+            RTTestIErrorInc();
         }
     for (unsigned i = 0; i < RT_ELEMENTS(Buf2.abPage); i++)
         if (Buf2.abPage[i])
         {
             RTPrintf("tstInlineAsm: ASMMemZero32 didn't clear byte at offset %#x!\n", i);
-            g_cErrors++;
+            RTTestIErrorInc();
         }
     for (unsigned i = 0; i < RT_ELEMENTS(Buf3.abPage); i++)
         if (Buf3.abPage[i])
         {
             RTPrintf("tstInlineAsm: ASMMemZero32 didn't clear byte at offset %#x!\n", i);
-            g_cErrors++;
+            RTTestIErrorInc();
         }
 }
 
@@ -991,25 +962,25 @@ void tstASMMemFill32(void)
         ||  Buf3.u64Magic2 != UINT64_C(0xffffffffffffffff))
     {
         RTPrintf("tstInlineAsm: ASMMemFill32 violated one/both magic(s)!\n");
-        g_cErrors++;
+        RTTestIErrorInc();
     }
     for (unsigned i = 0; i < RT_ELEMENTS(Buf1.au32Page); i++)
         if (Buf1.au32Page[i] != 0xdeadbeef)
         {
             RTPrintf("tstInlineAsm: ASMMemFill32 %#x: %#x exepcted %#x\n", i, Buf1.au32Page[i], 0xdeadbeef);
-            g_cErrors++;
+            RTTestIErrorInc();
         }
     for (unsigned i = 0; i < RT_ELEMENTS(Buf2.au32Page); i++)
         if (Buf2.au32Page[i] != 0xcafeff01)
         {
             RTPrintf("tstInlineAsm: ASMMemFill32 %#x: %#x exepcted %#x\n", i, Buf2.au32Page[i], 0xcafeff01);
-            g_cErrors++;
+            RTTestIErrorInc();
         }
     for (unsigned i = 0; i < RT_ELEMENTS(Buf3.au32Page); i++)
         if (Buf3.au32Page[i] != 0xf00dd00f)
         {
             RTPrintf("tstInlineAsm: ASMMemFill32 %#x: %#x exepcted %#x\n", i, Buf3.au32Page[i], 0xf00dd00f);
-            g_cErrors++;
+            RTTestIErrorInc();
         }
 }
 
@@ -1226,8 +1197,11 @@ void tstASMBench(void)
 
 int main(int argc, char *argv[])
 {
-    RTR3Init();
-    RTPrintf("tstInlineAsm: TESTING\n");
+    RTTEST hTest;
+    int rc = RTTestInitAndCreate("tstInlineAsm", &hTest);
+    if (rc)
+        return rc;
+    RTTestBanner(hTest);
 
     /*
      * Execute the tests.
@@ -1239,9 +1213,6 @@ int main(int argc, char *argv[])
     tstASMAtomicXchgU16();
     tstASMAtomicXchgU32();
     tstASMAtomicXchgU64();
-#ifdef RT_ARCH_AMD64
-    tstASMAtomicXchgU128();
-#endif
     tstASMAtomicXchgPtr();
     tstASMAtomicCmpXchgU32();
     tstASMAtomicCmpXchgU64();
@@ -1252,20 +1223,16 @@ int main(int argc, char *argv[])
     tstASMAtomicDecIncS32();
     tstASMAtomicAndOrU32();
     tstASMMemZeroPage();
+    tstASMMemIsZeroPage(hTest);
     tstASMMemZero32();
     tstASMMemFill32();
     tstASMMath();
     tstASMByteSwap();
-
     tstASMBench();
 
     /*
      * Show the result.
      */
-    if (!g_cErrors)
-        RTPrintf("tstInlineAsm: SUCCESS\n", g_cErrors);
-    else
-        RTPrintf("tstInlineAsm: FAILURE - %d errors\n", g_cErrors);
-    return !!g_cErrors;
+    return RTTestSummaryAndDestroy(hTest);
 }
 

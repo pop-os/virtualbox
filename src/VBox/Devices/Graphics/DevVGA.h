@@ -282,7 +282,7 @@ typedef struct VGAState {
     bool                        fRemappedVGA;
     /** Whether to render the guest VRAM to the framebuffer memory. False only for some LFB modes. */
     bool                        fRenderVRAM;
-    bool                        padding9[2];
+    bool                        Padding1[2];
 
 #ifdef VBOX_WITH_HGSMI
     R3PTRTYPE(PHGSMIINSTANCE)   pHGSMI;
@@ -347,9 +347,9 @@ typedef struct VGAState {
 # ifdef VBE_NEW_DYN_LIST
     /** VBE Extra Data write address one byte buffer */
     uint8_t                     cbWriteVBEExtraAddress;
-    uint8_t                     Padding6;       /**< Alignment padding. */
+    uint8_t                     Padding4;
 # else
-    uint8_t                     Padding6[2];    /**< Alignment padding. */
+    uint8_t                     Padding4[2];
 # endif
 #endif
 
@@ -360,7 +360,7 @@ typedef struct VGAState {
     uint16_t                    cbVBEExtraData;
     /** The VBE BIOS current memory address. */
     uint16_t                    u16VBEExtraAddress;
-    uint16_t                    Padding7[2];    /**< Alignment padding. */
+    uint16_t                    Padding5[2];
 #endif
     /** Current logo data offset. */
     uint32_t                    offLogoData;
@@ -390,7 +390,7 @@ typedef struct VGAState {
     uint16_t                    cLogoPalEntries;
     /** Clear screen flag. */
     uint8_t                     fLogoClearScreen;
-    uint8_t                     Padding8[7];    /**< Alignment padding. */
+    uint8_t                     Padding6[7];
     /** Palette data. */
     uint32_t                    au32LogoPalette[256];
 #endif /* VBOX */

@@ -272,7 +272,7 @@ BOOL VboxServiceVMInfoWinIsLoggedIn(VBOXSERVICEVMINFOUSER* a_pUserInfo,
 
                 if (SidTypeUser == ownerType)
                 {
-                    LPWSTR pBuffer = NULL;
+                    char* pBuffer = NULL;
                     DWORD dwBytesRet = 0;
                     int iState = 0;
 
@@ -337,63 +337,67 @@ int VboxServiceWinGetAddsVersion(uint32_t uiClientID)
     char szVer[_MAX_PATH] = {0};
 
     HKEY hKey = NULL;
-    long rc = 0;
+    int rc;
     DWORD dwSize = 0;
     DWORD dwType = 0;
 
     VBoxServiceVerbose(3, "Guest Additions version lookup: Looking up ...\n");
 
     /* Check the new path first. */
-    rc = RegOpenKeyExA (HKEY_LOCAL_MACHINE, "SOFTWARE\\Sun\\VirtualBox Guest Additions", 0, KEY_READ, &hKey);
+    rc = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Sun\\VirtualBox Guest Additions", 0, KEY_READ, &hKey);
+#ifdef RT_ARCH_AMD64
     if (rc != ERROR_SUCCESS)
     {  
-        VBoxServiceVerbose(3, "Guest Additions version lookup: Looking in xVM key ...\n");
+        /* Check Wow6432Node (for new entries). */
+        rc = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Wow6432Node\\Sun\\VirtualBox Guest Additions", 0, KEY_READ, &hKey);
+    }
+#endif
 
-        /* New path does not exist, check the old one ... */
-        rc = RegOpenKeyExA (HKEY_LOCAL_MACHINE, "SOFTWARE\\Sun\\xVM VirtualBox Guest Additions", 0, KEY_READ, &hKey);
+    /* Still no luck? Then try the old xVM paths ... */
+    if (RT_FAILURE(rc))
+    {
+        rc = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Sun\\xVM VirtualBox Guest Additions", 0, KEY_READ, &hKey);
+#ifdef RT_ARCH_AMD64
         if (rc != ERROR_SUCCESS)
         {
-            /* Nothing seems to exist, print some warning. */
-            VBoxServiceError("Failed to open registry key (guest additions)! Error: %d\n", rc);
-            return 1;
+            /* Check Wow6432Node (for new entries). */
+            rc = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Wow6432Node\\Sun\\xVM VirtualBox Guest Additions", 0, KEY_READ, &hKey);
         }
+#endif
     }
 
-    VBoxServiceVerbose(3, "Guest Additions version lookup: Key: 0x%p, RC: %d\n", hKey, rc);
-
-    /* Installation directory. */
-    dwSize = sizeof(szInstDir);
-    rc = RegQueryValueExA (hKey, "InstallDir", NULL, &dwType, (BYTE*)(LPCTSTR)szInstDir, &dwSize);
-    if ((rc != ERROR_SUCCESS) && (rc != ERROR_FILE_NOT_FOUND))
+    /* Did we get something worth looking at? */
+    if (RT_FAILURE(rc))
     {
-        RegCloseKey (hKey);
-        VBoxServiceError("Failed to query registry key (install directory)! Error: %d\n", rc);
-        return 1;
+        VBoxServiceError("Failed to open registry key (guest additions)! Error: %Rrc\n", rc);
     }
-
-    /* Flip slashes. */
-    for (char* pszTmp = &szInstDir[0]; *pszTmp; ++pszTmp)
-        if (*pszTmp == '\\')
-            *pszTmp = '/';
-
-    /* Revision. */
-    dwSize = sizeof(szRev);
-    rc = RegQueryValueExA (hKey, "Revision", NULL, &dwType, (BYTE*)(LPCTSTR)szRev, &dwSize);
-    if ((rc != ERROR_SUCCESS) && (rc != ERROR_FILE_NOT_FOUND))
+    else
     {
-        RegCloseKey (hKey);
-        VBoxServiceError("Failed to query registry key (revision)! Error: %d\n",  rc);
-        return 1;
-    }
-
-    /* Version. */
-    dwSize = sizeof(szVer);
-    rc = RegQueryValueExA (hKey, "Version", NULL, &dwType, (BYTE*)(LPCTSTR)szVer, &dwSize);
-    if ((rc != ERROR_SUCCESS) && (rc != ERROR_FILE_NOT_FOUND))
-    {
-        RegCloseKey (hKey);
-        VBoxServiceError("Failed to query registry key (version)! Error: %u\n",  rc);
-        return 1;
+        VBoxServiceVerbose(3, "Guest Additions version lookup: Key: 0x%p, rc: %Rrc\n", hKey, rc);
+        /* Installation directory. */
+        dwSize = sizeof(szInstDir);
+        rc = RegQueryValueEx(hKey, "InstallDir", NULL, &dwType, (BYTE*)(LPCTSTR)szInstDir, &dwSize);
+        if ((rc != ERROR_SUCCESS) && (rc != ERROR_FILE_NOT_FOUND))
+        {
+            VBoxServiceError("Failed to query registry key (install directory)! Error: %Rrc\n", rc);
+        }    
+        else
+        {
+            /* Flip slashes. */
+            for (char* pszTmp = &szInstDir[0]; *pszTmp; ++pszTmp)
+                if (*pszTmp == '\\')
+                    *pszTmp = '/';
+        }
+        /* Revision. */
+        dwSize = sizeof(szRev);
+        rc = RegQueryValueEx(hKey, "Revision", NULL, &dwType, (BYTE*)(LPCTSTR)szRev, &dwSize);
+        if ((rc != ERROR_SUCCESS) && (rc != ERROR_FILE_NOT_FOUND))
+            VBoxServiceError("Failed to query registry key (revision)! Error: %Rrc\n", rc);
+        /* Version. */
+        dwSize = sizeof(szVer);
+        rc = RegQueryValueEx(hKey, "Version", NULL, &dwType, (BYTE*)(LPCTSTR)szVer, &dwSize);
+        if ((rc != ERROR_SUCCESS) && (rc != ERROR_FILE_NOT_FOUND))
+            VBoxServiceError("Failed to query registry key (version)! Error: %Rrc\n", rc);
     }
 
     /* Write information to host. */
@@ -401,9 +405,10 @@ int VboxServiceWinGetAddsVersion(uint32_t uiClientID)
     VboxServiceWriteProp(uiClientID, "GuestAdd/Revision", szRev);
     VboxServiceWriteProp(uiClientID, "GuestAdd/Version", szVer);
 
-    RegCloseKey (hKey);
+    if (NULL != hKey)
+        RegCloseKey(hKey);
 
-    return VINF_SUCCESS;
+    return rc;
 }
 
 int VboxServiceWinGetComponentVersions(uint32_t uiClientID)
@@ -411,54 +416,54 @@ int VboxServiceWinGetComponentVersions(uint32_t uiClientID)
     int rc;
     char szVer[_MAX_PATH] = {0};
     char szPropPath[_MAX_PATH] = {0};
-    TCHAR szSysDir[_MAX_PATH] = {0};
-    TCHAR szWinDir[_MAX_PATH] = {0};
-    TCHAR szDriversDir[_MAX_PATH + 32] = {0};
+    char szSysDir[_MAX_PATH] = {0};
+    char szWinDir[_MAX_PATH] = {0};
+    char szDriversDir[_MAX_PATH + 32] = {0};
 
     GetSystemDirectory(szSysDir, _MAX_PATH);
     GetWindowsDirectory(szWinDir, _MAX_PATH);
-    swprintf(szDriversDir, (_MAX_PATH + 32), TEXT("%s\\drivers"), szSysDir);
+    RTStrPrintf(szDriversDir, (_MAX_PATH + 32), "%s\\drivers", szSysDir);
 #ifdef RT_ARCH_AMD64
-    TCHAR szSysWowDir[_MAX_PATH + 32] = {0};
-    swprintf(szSysWowDir, (_MAX_PATH + 32), TEXT("%s\\SysWow64"), szWinDir);
+    char szSysWowDir[_MAX_PATH + 32] = {0};
+    RTStrPrintf(szSysWowDir, (_MAX_PATH + 32), "%s\\SysWow64", szWinDir);
 #endif
 
     /* The file information table. */
 #ifndef TARGET_NT4
     VBOXSERVICEVMINFOFILE vboxFileInfoTable[] =
     {
-        { szSysDir, TEXT("VBoxControl.exe"), },
-        { szSysDir, TEXT("VBoxHook.dll"), },
-        { szSysDir, TEXT("VBoxDisp.dll"), },
-        { szSysDir, TEXT("VBoxMRXNP.dll"), },
-        { szSysDir, TEXT("VBoxService.exe"), },
-        { szSysDir, TEXT("VBoxTray.exe"), },
-        { szSysDir, TEXT("VBoxGINA.dll"), },
+        { szSysDir, "VBoxControl.exe", },
+        { szSysDir, "VBoxHook.dll", },
+        { szSysDir, "VBoxDisp.dll", },
+        { szSysDir, "VBoxMRXNP.dll", },
+        { szSysDir, "VBoxService.exe", },
+        { szSysDir, "VBoxTray.exe", },
+        { szSysDir, "VBoxGINA.dll", },
 
  /* On 64-bit we don't yet have the OpenGL DLLs in native format.
     So just enumerate the 32-bit files in the SYSWOW directory. */
  #ifdef RT_ARCH_AMD64
-        { szSysWowDir, TEXT("VBoxOGLarrayspu.dll"), },
-        { szSysWowDir, TEXT("VBoxOGLcrutil.dll"), },
-        { szSysWowDir, TEXT("VBoxOGLerrorspu.dll"), },
-        { szSysWowDir, TEXT("VBoxOGLpackspu.dll"), },
-        { szSysWowDir, TEXT("VBoxOGLpassthroughspu.dll"), },
-        { szSysWowDir, TEXT("VBoxOGLfeedbackspu.dll"), },
-        { szSysWowDir, TEXT("VBoxOGL.dll"), },
+        { szSysWowDir, "VBoxOGLarrayspu.dll", },
+        { szSysWowDir, "VBoxOGLcrutil.dll", },
+        { szSysWowDir, "VBoxOGLerrorspu.dll", },
+        { szSysWowDir, "VBoxOGLpackspu.dll", },
+        { szSysWowDir, "VBoxOGLpassthroughspu.dll", },
+        { szSysWowDir, "VBoxOGLfeedbackspu.dll", },
+        { szSysWowDir, "VBoxOGL.dll", },
  #else
-        { szSysDir, TEXT("VBoxOGLarrayspu.dll"), },
-        { szSysDir, TEXT("VBoxOGLcrutil.dll"), },
-        { szSysDir, TEXT("VBoxOGLerrorspu.dll"), },
-        { szSysDir, TEXT("VBoxOGLpackspu.dll"), },
-        { szSysDir, TEXT("VBoxOGLpassthroughspu.dll"), },
-        { szSysDir, TEXT("VBoxOGLfeedbackspu.dll"), },
-        { szSysDir, TEXT("VBoxOGL.dll"), },  
+        { szSysDir, "VBoxOGLarrayspu.dll", },
+        { szSysDir, "VBoxOGLcrutil.dll", },
+        { szSysDir, "VBoxOGLerrorspu.dll", },
+        { szSysDir, "VBoxOGLpackspu.dll", },
+        { szSysDir, "VBoxOGLpassthroughspu.dll", },
+        { szSysDir, "VBoxOGLfeedbackspu.dll", },
+        { szSysDir, "VBoxOGL.dll", },
  #endif
 
-        { szDriversDir, TEXT("VBoxGuest.sys"), },
-        { szDriversDir, TEXT("VBoxMouse.sys"), },
-        { szDriversDir, TEXT("VBoxSF.sys"),    },
-        { szDriversDir, TEXT("VBoxVideo.sys"), },
+        { szDriversDir, "VBoxGuest.sys", },
+        { szDriversDir, "VBoxMouse.sys", },
+        { szDriversDir, "VBoxSF.sys",    },
+        { szDriversDir, "VBoxVideo.sys", },
 
         {
             NULL
@@ -467,15 +472,15 @@ int VboxServiceWinGetComponentVersions(uint32_t uiClientID)
 #else /* File lookup for NT4. */
     VBOXSERVICEVMINFOFILE vboxFileInfoTable[] =
     {
-        { szSysDir, TEXT("VBoxControl.exe"), },
-        { szSysDir, TEXT("VBoxHook.dll"), },
-        { szSysDir, TEXT("VBoxDisp.dll"), },
-        { szSysDir, TEXT("VBoxService.exe"), },
-        { szSysDir, TEXT("VBoxTray.exe"), },
+        { szSysDir, "VBoxControl.exe", },
+        { szSysDir, "VBoxHook.dll", },
+        { szSysDir, "VBoxDisp.dll", },
+        { szSysDir, "VBoxService.exe", },
+        { szSysDir, "VBoxTray.exe", },
 
-        { szDriversDir, TEXT("VBoxGuestNT.sys"), },
-        { szDriversDir, TEXT("VBoxMouseNT.sys"), },
-        { szDriversDir, TEXT("VBoxVideo.sys"), },
+        { szDriversDir, "VBoxGuestNT.sys", },
+        { szDriversDir, "VBoxMouseNT.sys", },
+        { szDriversDir, "VBoxVideo.sys", },
 
         {
             NULL
@@ -488,7 +493,7 @@ int VboxServiceWinGetComponentVersions(uint32_t uiClientID)
     while (pTable->pszFileName)
     {
         rc = VboxServiceGetFileVersionString(pTable->pszFilePath, pTable->pszFileName, szVer, sizeof(szVer));
-        RTStrPrintf(szPropPath, sizeof(szPropPath), "GuestAdd/Components/%ls", pTable->pszFileName);
+        RTStrPrintf(szPropPath, sizeof(szPropPath), "GuestAdd/Components/%s", pTable->pszFileName);
         VboxServiceWriteProp(uiClientID, szPropPath, szVer);
         pTable++;
     }

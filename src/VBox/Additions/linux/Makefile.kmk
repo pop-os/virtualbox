@@ -95,7 +95,7 @@ $(PATH_BIN)/additions/VBoxLinuxAdditions.run: \
 		$(VBOX_PATH_X11_ADDITION_INSTALLER)/vboxvideo.ids \
 		$(VBOX_PATH_X11_ADDITION_INSTALLER)/x11config.pl \
 		$(VBOX_PATH_X11_ADDITION_INSTALLER)/x11config15.pl \
-		$(VBOX_PATH_X11_ADDITION_INSTALLER)/x11config15suse.pl \
+		$(VBOX_PATH_X11_ADDITION_INSTALLER)/linux_xorg_suse11.conf \
 		$(VBOX_PATH_LINUX_ADDITION_INSTALLER)/Makefile.include.header \
 		$(VBOX_PATH_LINUX_ADDITION_INSTALLER)/Makefile.include.footer \
 		$(VBOX_PATH_LINUX_ADDITION_INSTALLER)/Makefile.test \
@@ -108,6 +108,7 @@ $(PATH_BIN)/additions/VBoxLinuxAdditions.run: \
 		$(PATH_BIN)/additions/vboxmouse_drv_14.so \
 		$(PATH_BIN)/additions/vboxmouse_drv_15.so \
 		$(PATH_BIN)/additions/vboxmouse_drv_16.so \
+		$(PATH_BIN)/additions/vboxmouse_drv_17.so \
 		$(PATH_BIN)/additions/vboxvideo_drv.o \
 		$(PATH_BIN)/additions/vboxvideo_drv_70.so \
 		$(PATH_BIN)/additions/vboxvideo_drv_71.so \
@@ -115,6 +116,7 @@ $(PATH_BIN)/additions/VBoxLinuxAdditions.run: \
 		$(PATH_BIN)/additions/vboxvideo_drv_14.so \
 		$(PATH_BIN)/additions/vboxvideo_drv_15.so \
 		$(PATH_BIN)/additions/vboxvideo_drv_16.so \
+		$(PATH_BIN)/additions/vboxvideo_drv_17.so \
 		$(PATH_BIN)/additions/mountvboxsf \
 		$(PATH_BIN)/additions/VBoxOGLarrayspu.so \
 		$(PATH_BIN)/additions/VBoxOGLcrutil.so \
@@ -165,7 +167,7 @@ $(PATH_BIN)/additions/VBoxLinuxAdditions.run: \
 	$(QUIET)$(INSTALL) -m 0755 $(VBOX_PATH_X11_ADDITION_INSTALLER)/vboxvideo.ids         $(VBOX_LNX_ADD_INS_OUT_DIR)
 	$(QUIET)$(INSTALL) -m 0755 $(VBOX_PATH_X11_ADDITION_INSTALLER)/x11config.pl          $(VBOX_LNX_ADD_INS_OUT_DIR)
 	$(QUIET)$(INSTALL) -m 0755 $(VBOX_PATH_X11_ADDITION_INSTALLER)/x11config15.pl        $(VBOX_LNX_ADD_INS_OUT_DIR)
-	$(QUIET)$(INSTALL) -m 0755 $(VBOX_PATH_X11_ADDITION_INSTALLER)/x11config15suse.pl    $(VBOX_LNX_ADD_INS_OUT_DIR)
+	$(QUIET)$(INSTALL) -m 0755 $(VBOX_PATH_X11_ADDITION_INSTALLER)/linux_xorg_suse11.conf    $(VBOX_LNX_ADD_INS_OUT_DIR)
 	$(QUIET)$(INSTALL) -m 0644 $(VBOX_PATH_LINUX_ADDITION_INSTALLER)/90-vboxguest.fdi    $(VBOX_LNX_ADD_INS_OUT_DIR)
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY_SYMBOLS) $(PATH_BIN)/additions/vboxmouse_drv.o       $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxmouse_drv.o
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/vboxmouse_drv_70.so           $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxmouse_drv_70.so
@@ -173,6 +175,7 @@ $(PATH_BIN)/additions/VBoxLinuxAdditions.run: \
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/vboxmouse_drv_14.so           $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxmouse_drv_14.so
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/vboxmouse_drv_15.so           $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxmouse_drv_15.so
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/vboxmouse_drv_16.so           $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxmouse_drv_16.so
+	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/vboxmouse_drv_17.so           $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxmouse_drv_17.so
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY_SYMBOLS) $(PATH_BIN)/additions/vboxvideo_drv.o       $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxvideo_drv.o
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/vboxvideo_drv_70.so           $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxvideo_drv_70.so
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/vboxvideo_drv_71.so           $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxvideo_drv_71.so
@@ -180,6 +183,7 @@ $(PATH_BIN)/additions/VBoxLinuxAdditions.run: \
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/vboxvideo_drv_14.so           $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxvideo_drv_14.so
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/vboxvideo_drv_15.so           $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxvideo_drv_15.so
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/vboxvideo_drv_16.so           $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxvideo_drv_16.so
+	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/vboxvideo_drv_17.so           $(VBOX_LNX_ADD_INS_OUT_DIR)/vboxvideo_drv_17.so
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/mountvboxsf                   $(VBOX_LNX_ADD_INS_OUT_DIR)/mount.vboxsf
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/VBoxOGLarrayspu.so            $(VBOX_LNX_ADD_INS_OUT_DIR)/VBoxOGLarrayspu.so
 	$(QUIET)$(VBOX_LNX_ADD_BIN_COPY) $(PATH_BIN)/additions/VBoxOGLcrutil.so              $(VBOX_LNX_ADD_INS_OUT_DIR)/VBoxOGLcrutil.so

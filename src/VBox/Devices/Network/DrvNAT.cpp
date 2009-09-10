@@ -55,7 +55,8 @@
  * @todo: This is a bad hack to prevent freezing the guest during high network
  *        activity. This needs to be fixed properly.
  */
-#define VBOX_NAT_DELAY_HACK
+//#define VBOX_NAT_DELAY_HACK
+#define SLIRP_SPLIT_CAN_OUTPUT 1
 
 #define GET_EXTRADATA(pthis, node, name, rc, type, type_name, var)                                  \
 do {                                                                                                \
@@ -111,6 +112,8 @@ do                                                      \
         x.s_addr = def;                                 \
 }while(0)
 
+#define QUEUE_SIZE 50
+
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
@@ -138,11 +141,14 @@ typedef struct DRVNAT
     /** tftp server name to provide in the DHCP server response. */
     char                   *pszNextServer;
     /* polling thread */
-    PPDMTHREAD              pThread;
+    PPDMTHREAD              pSlirpThread;
     /** Queue for NAT-thread-external events. */
-    PRTREQQUEUE             pReqQueue;
-    /* Send queue */
-    PPDMQUEUE               pSendQueue;
+    PRTREQQUEUE             pSlirpReqQueue;
+#ifndef SLIRP_SPLIT_CAN_OUTPUT
+    /* Receive PDM queue (deliver packets to the guest) */
+    PPDMQUEUE               pRecvQueue;
+#endif
+
 #ifdef VBOX_WITH_SLIRP_MT
     PPDMTHREAD              pGuestThread;
 #endif
@@ -157,6 +163,16 @@ typedef struct DRVNAT
 #endif
     STAMCOUNTER             StatQueuePktSent;       /**< counting packet sent via PDM queue */
     STAMCOUNTER             StatQueuePktDropped;    /**< counting packet drops by PDM queue */
+    STAMCOUNTER             StatConsumerFalse;      /**< how often to wait for guest RX buffers */
+#ifdef SLIRP_SPLIT_CAN_OUTPUT
+    /** thread delivering packets for receiving by the guest */
+    PPDMTHREAD              pRecvThread;
+    /** event to wakeup the guest receive thread */
+    RTSEMEVENT              EventRecv;
+    /** Receive Req queue (deliver packets to the guest) */
+    PRTREQQUEUE             pRecvReqQueue;
+    STAMCOUNTER             StatNATRecvWakeups;     /**< how often to wakeup the guest RX thread */
+#endif
 } DRVNAT;
 /** Pointer the NAT driver instance data. */
 typedef DRVNAT *PDRVNAT;
@@ -177,9 +193,52 @@ typedef struct DRVNATQUEUITEM
 /** Pointer to a NAT queue item. */
 typedef DRVNATQUEUITEM *PDRVNATQUEUITEM;
 
+
+static void drvNATNotifyNATThread(PDRVNAT pThis);
+
+
 /** Converts a pointer to NAT::INetworkConnector to a PRDVNAT. */
 #define PDMINETWORKCONNECTOR_2_DRVNAT(pInterface)   ( (PDRVNAT)((uintptr_t)pInterface - RT_OFFSETOF(DRVNAT, INetworkConnector)) )
 
+
+#ifdef SLIRP_SPLIT_CAN_OUTPUT
+static DECLCALLBACK(int) drvNATRecv(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+ {
+    PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
+
+    if (pThread->enmState == PDMTHREADSTATE_INITIALIZING)
+        return VINF_SUCCESS;
+
+    while (pThread->enmState == PDMTHREADSTATE_RUNNING)
+    {
+        RTReqProcess(pThis->pRecvReqQueue, 0); 
+        RTSemEventWait(pThis->EventRecv, RT_INDEFINITE_WAIT);
+    }
+    return VINF_SUCCESS;
+}
+
+
+static DECLCALLBACK(int) drvNATRecvWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+{
+    PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
+    int rc = RTSemEventSignal(pThis->EventRecv);
+
+    STAM_COUNTER_INC(&pThis->StatNATRecvWakeups);
+    AssertReleaseRC(rc);
+    return VINF_SUCCESS;
+}
+
+static DECLCALLBACK(void) drvNATRecvWorker(PDRVNAT pThis, uint8_t *pu8Buf, int cb)
+{
+    if (RT_FAILURE(pThis->pPort->pfnWaitReceiveAvail(pThis->pPort, RT_INDEFINITE_WAIT)))
+    {
+        AssertMsgFailed(("No RX available even on indefinite wait"));
+    }
+    int rc = pThis->pPort->pfnReceive(pThis->pPort, pu8Buf, cb);
+    RTMemFree(pu8Buf);
+    AssertRC(rc);
+}
+#endif
 
 /**
  * Worker function for drvNATSend().
@@ -194,7 +253,7 @@ static void drvNATSendWorker(PDRVNAT pThis, const void *pvBuf, size_t cb)
 
 
 /**
- * Send data to the network.
+ * Called by the guest to send data to the network.
  *
  * @returns VBox status code.
  * @param   pInterface      Pointer to the interface structure containing the called function pointer.
@@ -212,11 +271,13 @@ static DECLCALLBACK(int) drvNATSend(PPDMINETWORKCONNECTOR pInterface, const void
     PRTREQ pReq = NULL;
     int rc;
     void *buf;
+
     /* don't queue new requests when the NAT thread is about to stop */
-    if (pThis->pThread->enmState != PDMTHREADSTATE_RUNNING)
+    if (pThis->pSlirpThread->enmState != PDMTHREADSTATE_RUNNING)
         return VINF_SUCCESS;
+
 #ifndef VBOX_WITH_SLIRP_MT
-    rc = RTReqAlloc(pThis->pReqQueue, &pReq, RTREQTYPE_INTERNAL);
+    rc = RTReqAlloc(pThis->pSlirpReqQueue, &pReq, RTREQTYPE_INTERNAL);
 #else
     rc = RTReqAlloc((PRTREQQUEUE)slirp_get_queue(pThis->pNATState), &pReq, RTREQTYPE_INTERNAL);
 #endif
@@ -240,18 +301,26 @@ static DECLCALLBACK(int) drvNATSend(PPDMINETWORKCONNECTOR pInterface, const void
 
     rc = RTReqQueue(pReq, 0); /* don't wait, we have to wakeup the NAT thread fist */
     AssertReleaseRC(rc);
+    drvNATNotifyNATThread(pThis);
+    LogFlow(("drvNATSend: end\n"));
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Get the NAT thread out of poll/WSAWaitForMultipleEvents
+ */
+static void drvNATNotifyNATThread(PDRVNAT pThis)
+{
+    int rc;
 #ifndef RT_OS_WINDOWS
     /* kick select() */
     rc = RTFileWrite(pThis->PipeWrite, "", 1, NULL);
-    AssertRC(rc);
 #else
     /* kick WSAWaitForMultipleEvents */
     rc = WSASetEvent(pThis->hWakeupEvent);
-    AssertRelease(rc == TRUE);
 #endif
-
-    LogFlow(("drvNATSend: end\n"));
-    return VINF_SUCCESS;
+    AssertReleaseRC(rc);
 }
 
 
@@ -270,7 +339,6 @@ static DECLCALLBACK(void) drvNATSetPromiscuousMode(PPDMINETWORKCONNECTOR pInterf
     LogFlow(("drvNATSetPromiscuousMode: fPromiscuous=%d\n", fPromiscuous));
     /* nothing to do */
 }
-
 
 /**
  * Worker function for drvNATNotifyLinkChanged().
@@ -313,10 +381,12 @@ static DECLCALLBACK(void) drvNATNotifyLinkChanged(PPDMINETWORKCONNECTOR pInterfa
     LogFlow(("drvNATNotifyLinkChanged: enmLinkState=%d\n", enmLinkState));
 
     PRTREQ pReq = NULL;
+
     /* don't queue new requests when the NAT thread is about to stop */
-    if (pThis->pThread->enmState != PDMTHREADSTATE_RUNNING)
+    if (pThis->pSlirpThread->enmState != PDMTHREADSTATE_RUNNING)
         return;
-    int rc = RTReqAlloc(pThis->pReqQueue, &pReq, RTREQTYPE_INTERNAL);
+
+    int rc = RTReqAlloc(pThis->pSlirpReqQueue, &pReq, RTREQTYPE_INTERNAL);
     AssertReleaseRC(rc);
     pReq->u.Internal.pfn      = (PFNRT)drvNATNotifyLinkChangedWorker;
     pReq->u.Internal.cArgs    = 2;
@@ -326,15 +396,7 @@ static DECLCALLBACK(void) drvNATNotifyLinkChanged(PPDMINETWORKCONNECTOR pInterfa
     rc = RTReqQueue(pReq, 0); /* don't wait, we have to wakeup the NAT thread fist */
     if (RT_LIKELY(rc == VERR_TIMEOUT))
     {
-#ifndef RT_OS_WINDOWS
-        /* kick select() */
-        rc = RTFileWrite(pThis->PipeWrite, "", 1, NULL);
-        AssertRC(rc);
-#else
-        /* kick WSAWaitForMultipleEvents() */
-        rc = WSASetEvent(pThis->hWakeupEvent);
-        AssertRelease(rc == TRUE);
-#endif
+        drvNATNotifyNATThread(pThis);
         rc = RTReqWait(pReq, RT_INDEFINITE_WAIT);
         AssertReleaseRC(rc);
     }
@@ -343,7 +405,14 @@ static DECLCALLBACK(void) drvNATNotifyLinkChanged(PPDMINETWORKCONNECTOR pInterfa
     RTReqFree(pReq);
 }
 
-
+/**
+ * NAT thread handling the slirp stuff. The slirp implementation is single-threaded
+ * so we execute this enginre in a dedicated thread. We take care that this thread
+ * does not become the bottleneck: If the guest wants to send, a request is enqueued
+ * into the pSlirpReqQueue and handled asynchronously by this thread. If this thread
+ * wants to deliver packets to the guest, it enqueues a request into pRecvReqQueue
+ * which is later handled by the Recv thread.
+ */
 static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
@@ -373,7 +442,6 @@ static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
     while (pThread->enmState == PDMTHREADSTATE_RUNNING)
     {
         nFDs = -1;
-
         /*
          * To prevent concurent execution of sending/receving threads
          */
@@ -433,7 +501,7 @@ static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
             }
         }
         /* process _all_ outstanding requests but don't wait */
-        RTReqProcess(pThis->pReqQueue, 0);
+        RTReqProcess(pThis->pSlirpReqQueue, 0);
         RTMemFree(polls);
 #else /* RT_OS_WINDOWS */
         slirp_select_fill(pThis->pNATState, &nFDs);
@@ -454,12 +522,11 @@ static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
             slirp_select_poll(pThis->pNATState, /* fTimeout=*/true, /*fIcmp=*/false);
             continue;
         }
-
         /* poll the sockets in any case */
         Log2(("%s: poll\n", __FUNCTION__));
         slirp_select_poll(pThis->pNATState, /* fTimeout=*/false, /* fIcmp=*/(event == WSA_WAIT_EVENT_0));
         /* process _all_ outstanding requests but don't wait */
-        RTReqProcess(pThis->pReqQueue, 0);
+        RTReqProcess(pThis->pSlirpReqQueue, 0);
 # ifdef VBOX_NAT_DELAY_HACK
         if (cBreak++ > 128)
         {
@@ -485,15 +552,7 @@ static DECLCALLBACK(int) drvNATAsyncIoWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
 {
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
 
-#ifndef RT_OS_WINDOWS
-    /* kick select() */
-    int rc = RTFileWrite(pThis->PipeWrite, "", 1, NULL);
-    AssertRC(rc);
-#else /* !RT_OS_WINDOWS */
-    /* kick WSAWaitForMultipleEvents() */
-    WSASetEvent(pThis->hWakeupEvent);
-#endif /* RT_OS_WINDOWS */
-
+    drvNATNotifyNATThread(pThis);
     return VINF_SUCCESS;
 }
 
@@ -502,12 +561,13 @@ static DECLCALLBACK(int) drvNATAsyncIoWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
 static DECLCALLBACK(int) drvNATAsyncIoGuest(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
+
     if (pThread->enmState == PDMTHREADSTATE_INITIALIZING)
         return VINF_SUCCESS;
+
     while (pThread->enmState == PDMTHREADSTATE_RUNNING)
-	{
         slirp_process_queue(pThis->pNATState);
-	}
+
     return VINF_SUCCESS;
 }
 
@@ -521,6 +581,7 @@ static DECLCALLBACK(int) drvNATAsyncIoGuestWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD
 
 #endif /* VBOX_WITH_SLIRP_MT */
 
+
 /**
  * Function called by slirp to check if it's possible to feed incoming data to the network port.
  * @returns 1 if possible.
@@ -528,12 +589,8 @@ static DECLCALLBACK(int) drvNATAsyncIoGuestWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD
  */
 int slirp_can_output(void *pvUser)
 {
-    PDRVNAT pThis = (PDRVNAT)pvUser;
-
-    Assert(pThis);
     return 1;
 }
-
 
 /**
  * Function called by slirp to feed incoming data to the network port.
@@ -541,25 +598,20 @@ int slirp_can_output(void *pvUser)
 void slirp_output(void *pvUser, void *pvArg, const uint8_t *pu8Buf, int cb)
 {
     PDRVNAT pThis = (PDRVNAT)pvUser;
+    Assert(pThis);
 
     LogFlow(("slirp_output BEGIN %x %d\n", pu8Buf, cb));
     Log2(("slirp_output: pu8Buf=%p cb=%#x (pThis=%p)\n%.*Rhxd\n", pu8Buf, cb, pThis, cb, pu8Buf));
 
-    /** @todo r-bird: Why do you reset the counters every time? You won't ever count
-     *        higher than ONE then. If you want to record what happened to the last
-     *        queued item, use a U8/bool instead to two 64-bit values. */
-    //STAM_COUNTER_RESET(&pThis->StatQueuePktDropped);
-    //STAM_COUNTER_RESET(&pThis->StatQueuePktSent);
-    Assert(pThis);
-
-    PDRVNATQUEUITEM pItem = (PDRVNATQUEUITEM)PDMQueueAlloc(pThis->pSendQueue);
+#ifndef SLIRP_SPLIT_CAN_OUTPUT
+    PDRVNATQUEUITEM pItem = (PDRVNATQUEUITEM)PDMQueueAlloc(pThis->pRecvQueue);
     if (pItem)
     {
         pItem->pu8Buf = pu8Buf;
         pItem->cb = cb;
         pItem->mbuf = pvArg;
         Log2(("pItem:%p %.Rhxd\n", pItem, pItem->pu8Buf));
-        PDMQueueInsert(pThis->pSendQueue, &pItem->Core);
+        PDMQueueInsert(pThis->pRecvQueue, &pItem->Core);
         STAM_COUNTER_INC(&pThis->StatQueuePktSent);
         return;
     }
@@ -573,9 +625,30 @@ void slirp_output(void *pvUser, void *pvArg, const uint8_t *pu8Buf, int cb)
     }
     STAM_COUNTER_INC(&pThis->StatQueuePktDropped);
     RTMemFree((void *)pu8Buf);
+#else
+    PRTREQ pReq = NULL;
+
+    /* don't queue new requests when the NAT thread is about to stop */
+    if (pThis->pSlirpThread->enmState != PDMTHREADSTATE_RUNNING)
+        return;
+
+    int rc = RTReqAlloc(pThis->pRecvReqQueue, &pReq, RTREQTYPE_INTERNAL);
+    AssertReleaseRC(rc);
+    pReq->u.Internal.pfn      = (PFNRT)drvNATRecvWorker;
+    pReq->u.Internal.cArgs    = 3;
+    pReq->u.Internal.aArgs[0] = (uintptr_t)pThis;
+    pReq->u.Internal.aArgs[1] = (uintptr_t)pu8Buf;
+    pReq->u.Internal.aArgs[2] = (uintptr_t)cb;
+    pReq->fFlags              = RTREQFLAGS_VOID|RTREQFLAGS_NO_WAIT;
+    rc = RTReqQueue(pReq, 0); 
+    AssertReleaseRC(rc);
+    drvNATRecvWakeup(pThis->pDrvIns, pThis->pRecvThread);
+    STAM_COUNTER_INC(&pThis->StatQueuePktSent);
+#endif
 }
 
 
+#ifndef SLIRP_SPLIT_CAN_OUTPUT
 /**
  * Queue callback for processing a queued item.
  *
@@ -586,32 +659,22 @@ void slirp_output(void *pvUser, void *pvArg, const uint8_t *pu8Buf, int cb)
  */
 static DECLCALLBACK(bool) drvNATQueueConsumer(PPDMDRVINS pDrvIns, PPDMQUEUEITEMCORE pItemCore)
 {
+    int rc;
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
     PDRVNATQUEUITEM pItem = (PDRVNATQUEUITEM)pItemCore;
     PRTREQ pReq = NULL;
     Log(("drvNATQueueConsumer(pItem:%p, pu8Buf:%p, cb:%d)\n", pItem, pItem->pu8Buf, pItem->cb));
     Log2(("drvNATQueueConsumer: pu8Buf:\n%.Rhxd\n", pItem->pu8Buf));
-    int rc = pThis->pPort->pfnWaitReceiveAvail(pThis->pPort, 0);
-    if (RT_FAILURE(rc))
+    if (RT_FAILURE(pThis->pPort->pfnWaitReceiveAvail(pThis->pPort, 0)))
         return false;
     rc = pThis->pPort->pfnReceive(pThis->pPort, pItem->pu8Buf, pItem->cb);
-
-#if 0
-    rc = RTReqAlloc(pThis->pReqQueue, &pReq, RTREQTYPE_INTERNAL);
-    AssertReleaseRC(rc);
-    pReq->u.Internal.pfn      = (PFNRT)slirp_post_sent;
-    pReq->u.Internal.cArgs    = 2;
-    pReq->u.Internal.aArgs[0] = (uintptr_t)pThis->pNATState;
-    pReq->u.Internal.aArgs[1] = (uintptr_t)pItem->mbuf;
-    pReq->fFlags              = RTREQFLAGS_VOID;
-    AssertRC(rc);
-#else
-    /*Copy buffer again, till seeking good way of syncronization with slirp mbuf management code*/
-    AssertRelease(pItem->mbuf == NULL);
     RTMemFree((void *)pItem->pu8Buf);
-#endif
+    return true;
+
+    AssertRelease(pItem->mbuf == NULL);
     return RT_SUCCESS(rc);
 }
+#endif
 
 
 /**
@@ -768,6 +831,7 @@ static DECLCALLBACK(void) drvNATDestruct(PPDMDRVINS pDrvIns)
 #ifdef VBOX_WITH_STATISTICS
     PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->StatQueuePktSent);
     PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->StatQueuePktDropped);
+    PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->StatConsumerFalse);
 #endif
 }
 
@@ -787,6 +851,7 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
     char szNetAddr[16];
     char szNetwork[32]; /* xxx.xxx.xxx.xxx/yy */
+
     LogFlow(("drvNATConstruct:\n"));
 
     /*
@@ -903,6 +968,14 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
         PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatQueuePktDropped, STAMTYPE_COUNTER, 
                               STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "counting packet sent via PDM" 
                               " queue", "/Drivers/NAT%u/QueuePacketDropped", pDrvIns->iInstance);
+        PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatConsumerFalse, STAMTYPE_COUNTER,
+                              STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "counting PDM consumer false"
+                              " queue", "/Drivers/NAT%u/PDMConsumerFalse", pDrvIns->iInstance);
+# ifdef SLIRP_SPLIT_CAN_OUTPUT
+        PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatNATRecvWakeups, STAMTYPE_COUNTER,
+                              STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "counting wakeups of NATRX"
+                              " thread", "/Drivers/NAT%u/NATRecvWakeups", pDrvIns->iInstance);
+# endif
 #endif
 
         int rc2 = drvNATConstructRedir(pDrvIns->iInstance, pThis, pCfgHandle, Network);
@@ -916,20 +989,34 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
                                        pDrvIns->iInstance, 0, 0,
                                        NULL, NULL, NULL, NULL, NULL, drvNATLoadDone);
             AssertRC(rc2);
-            rc = RTReqCreateQueue(&pThis->pReqQueue);
+            rc = RTReqCreateQueue(&pThis->pSlirpReqQueue);
             if (RT_FAILURE(rc))
             {
                 LogRel(("NAT: Can't create request queue\n"));
                 return rc;
             }
 
-            rc = PDMDrvHlpPDMQueueCreate(pDrvIns, sizeof(DRVNATQUEUITEM), 50, 0, 
+#ifndef SLIRP_SPLIT_CAN_OUTPUT
+            rc = PDMDrvHlpPDMQueueCreate(pDrvIns, sizeof(DRVNATQUEUITEM), QUEUE_SIZE, 0, 
                                          drvNATQueueConsumer, &pThis->pSendQueue);
             if (RT_FAILURE(rc))
             {
                 LogRel(("NAT: Can't create send queue\n"));
                 return rc;
             }
+
+#else
+            rc = RTReqCreateQueue(&pThis->pRecvReqQueue);
+            if (RT_FAILURE(rc))
+            {
+                LogRel(("NAT: Can't create request queue\n"));
+                return rc;
+            }
+            rc = PDMDrvHlpPDMThreadCreate(pDrvIns, &pThis->pRecvThread, pThis, drvNATRecv,
+                                          drvNATRecvWakeup, 128 * _1K, RTTHREADTYPE_IO, "NATRX");
+            AssertReleaseRC(rc);
+            rc = RTSemEventCreate(&pThis->EventRecv);
+#endif
 
 #ifndef RT_OS_WINDOWS
             /*
@@ -950,7 +1037,7 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
                                           VBOX_WAKEUP_EVENT_INDEX);
 #endif
 
-            rc = PDMDrvHlpPDMThreadCreate(pDrvIns, &pThis->pThread, pThis, drvNATAsyncIoThread, 
+            rc = PDMDrvHlpPDMThreadCreate(pDrvIns, &pThis->pSlirpThread, pThis, drvNATAsyncIoThread, 
                                           drvNATAsyncIoWakeup, 128 * _1K, RTTHREADTYPE_IO, "NAT");
             AssertReleaseRC(rc);
 
@@ -1018,4 +1105,3 @@ const PDMDRVREG g_DrvNAT =
     /* pfnPowerOff */
     NULL
 };
-

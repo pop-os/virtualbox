@@ -406,8 +406,10 @@ private:
 
     HRESULT callTapSetupApplication(bool isStatic, RTFILE tapFD, Bstr &tapDevice,
                                     Bstr &tapSetupApplication);
-    HRESULT attachToBridgedInterface(INetworkAdapter *networkAdapter);
-    HRESULT detachFromBridgedInterface(INetworkAdapter *networkAdapter);
+#if defined(RT_OS_LINUX) && !defined(VBOX_WITH_NETFLT)
+    HRESULT attachToTapInterface(INetworkAdapter *networkAdapter);
+    HRESULT detachFromTapInterface(INetworkAdapter *networkAdapter);
+#endif
     HRESULT powerDownHostInterfaces();
 
     HRESULT setMachineState (MachineState_T aMachineState, bool aUpdateServer = true);
@@ -428,11 +430,12 @@ private:
     HRESULT removeSharedFolder (CBSTR aName);
 
     static DECLCALLBACK(int) configConstructor(PVM pVM, void *pvConsole);
-    static DECLCALLBACK(int) configNetwork(Console *pThis, const char *pszDevice,
-                                           unsigned uInstance, unsigned uLun,
-                                           INetworkAdapter *aNetworkAdapter,
-                                           PCFGMNODE pCfg, PCFGMNODE pLunL0,
-                                           PCFGMNODE pInst, bool attachDetach);
+    static DECLCALLBACK(int) configGuestProperties(void *pvConsole);
+    static int configNetwork(Console *pThis, const char *pszDevice,
+                             unsigned uInstance, unsigned uLun,
+                             INetworkAdapter *aNetworkAdapter,
+                             PCFGMNODE pCfg, PCFGMNODE pLunL0,
+                             PCFGMNODE pInst, bool fAttachDetach);
     static DECLCALLBACK(void) vmstateChangeCallback(PVM aVM, VMSTATE aState,
                                                     VMSTATE aOldState, void *aUser);
     HRESULT doDriveChange (const char *pszDevice, unsigned uInstance,

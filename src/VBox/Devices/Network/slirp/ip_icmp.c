@@ -306,7 +306,7 @@ icmp_input(PNATState pData, struct mbuf *m, int hlen)
 
     DEBUG_CALL("icmp_input");
     DEBUG_ARG("m = %lx", (long )m);
-    DEBUG_ARG("m_len = %d", m->m_len);
+    DEBUG_ARG("m_len = %d", m ? m->m_len : 0);
 
     icmpstat.icps_received++;
 
@@ -489,7 +489,7 @@ void icmp_error(PNATState pData, struct mbuf *msrc, u_char type, u_char code, in
 
     DEBUG_CALL("icmp_error");
     DEBUG_ARG("msrc = %lx", (long )msrc);
-    DEBUG_ARG("msrc_len = %d", msrc->m_len);
+    DEBUG_ARG("msrc_len = %d", msrc ? msrc->m_len : 0);
 
     if (type!=ICMP_UNREACH && type!=ICMP_TIMXCEED)
         goto end_error;

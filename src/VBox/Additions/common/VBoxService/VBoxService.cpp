@@ -82,7 +82,10 @@ static struct
     { &g_Clipboard, NIL_RTTHREAD, false, false, false, true },
 #endif
 #ifdef VBOXSERVICE_VMINFO
-    { &g_VMInfo, NIL_RTTHREAD, false, false, false, true },
+    { &g_VMInfo,    NIL_RTTHREAD, false, false, false, true },
+#endif
+#ifdef VBOXSERVICE_EXEC
+    { &g_Exec,      NIL_RTTHREAD, false, false, false, true },
 #endif
 };
 
@@ -189,9 +192,9 @@ void VBoxServiceVerbose(int iLevel, const char *pszFormat, ...)
         RTStrmPrintfV(g_pStdOut, pszFormat, va);
         va_end(va);
 
-#if 0 /* enable after 2.2 */
-        Log(("%s: %N", g_pszProgName, pszFormat, &va));
-#endif
+        va_start(va, pszFormat);
+        LogRel(("%s: %N", g_pszProgName, pszFormat, &va));
+        va_end(va);
     }
 }
 
@@ -317,7 +320,10 @@ int VBoxServiceStartServices(unsigned iMain)
         /* The final service runs in the main thread. */
         VBoxServiceVerbose(1, "Starting '%s' in the main thread\n", g_aServices[iMain].pDesc->pszName);
         rc = g_aServices[iMain].pDesc->pfnWorker(&g_fShutdown);
-        VBoxServiceError("Service '%s' stopped unexpected; rc=%Rrc\n", g_aServices[iMain].pDesc->pszName, rc);
+        if (rc != VINF_SUCCESS) /* Only complain if service returned an error. Otherwise the service is a one-timer. */
+        {
+            VBoxServiceError("Service '%s' stopped unexpected; rc=%Rrc\n", g_aServices[iMain].pDesc->pszName, rc);
+        }
     }
 
     /* Should never get here. */
@@ -508,7 +514,6 @@ int main(int argc, char **argv)
             }
         } while (psz && *++psz);
     }
-
     /*
      * Check that at least one service is enabled.
      */
@@ -524,6 +529,8 @@ int main(int argc, char **argv)
     rc = VbglR3Init();
     if (RT_FAILURE(rc))
         return VBoxServiceError("VbglR3Init failed with rc=%Rrc.\n", rc);
+
+    VBoxServiceVerbose(0, "Started. Verbose level = %d\n", g_cVerbosity);
 
     /*
      * Daemonize if requested.
@@ -582,6 +589,7 @@ int main(int argc, char **argv)
     }
 #endif
 
+    VBoxServiceVerbose(0, "Ended.\n");
     return RT_SUCCESS(rc) ? 0 : 1;
 }
 

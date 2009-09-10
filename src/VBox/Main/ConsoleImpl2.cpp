@@ -210,6 +210,12 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
     ULONG cCpus = 1;
     hrc = pMachine->COMGETTER(CPUCount)(&cCpus);                                    H();
 
+    Bstr osTypeId;
+    hrc = pMachine->COMGETTER(OSTypeId)(osTypeId.asOutParam());                     H();
+
+    BOOL fIOAPIC;
+    hrc = biosSettings->COMGETTER(IOAPICEnabled)(&fIOAPIC);                          H();
+
     /*
      * Get root node first.
      * This is the only node in the tree.
@@ -234,6 +240,18 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
     /** @todo Config: RawR0, PATMEnabled and CASMEnabled needs attention later. */
     rc = CFGMR3InsertInteger(pRoot, "PATMEnabled",          1);     /* boolean */   RC_CHECK();
     rc = CFGMR3InsertInteger(pRoot, "CSAMEnabled",          1);     /* boolean */   RC_CHECK();
+
+    if (osTypeId == "WindowsNT4")
+    {
+        /*
+         * We must limit CPUID count for Windows NT 4, as otherwise it stops
+         * with error 0x3e (MULTIPROCESSOR_CONFIGURATION_NOT_SUPPORTED).
+         */
+        LogRel(("Limiting CPUID leaf count for NT4 guests\n"));
+        PCFGMNODE pCPUM;
+        rc = CFGMR3InsertNode(pRoot, "CPUM", &pCPUM);                               RC_CHECK();
+        rc = CFGMR3InsertInteger(pCPUM, "NT4LeafLimit", true);                      RC_CHECK();
+    }
 
     /* hardware virtualization extensions */
     BOOL fHWVirtExEnabled;
@@ -264,9 +282,6 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
          *        makes a lof of difference there (REM and Solaris performance).
          */
 
-        Bstr osTypeId;
-        hrc = pMachine->COMGETTER(OSTypeId)(osTypeId.asOutParam());                 H();
-
         ComPtr <IGuestOSType> guestOSType;
         hrc = virtualBox->GetGuestOSType(osTypeId, guestOSType.asOutParam());       H();
 
@@ -291,6 +306,20 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
             rc = CFGMR3InsertInteger(pHWVirtExt, "64bitEnabled", 0);                RC_CHECK();
         }
 #endif
+
+        /* @todo Not exactly pretty to check strings; VBOXOSTYPE would be better, but that requires quite a bit of API change in Main. */
+        if (    !fIs64BitGuest
+            &&  fIOAPIC
+            &&  (   osTypeId == "WindowsNT4"
+                 || osTypeId == "Windows2000"
+                 || osTypeId == "WindowsXP"
+                 || osTypeId == "Windows2003"))
+        {
+            /* Only allow TPR patching for NT, Win2k, XP and Windows Server 2003. (32 bits mode)
+             * We may want to consider adding more guest OSes (Solaris) later on.
+             */
+            rc = CFGMR3InsertInteger(pHWVirtExt, "TPRPatchingEnabled", 1);          RC_CHECK();
+        }
     }
 
     /* Nested paging (VT-x/AMD-V) */
@@ -307,9 +336,6 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
     BOOL fEnablePAE = false;
     hrc = pMachine->COMGETTER(PAEEnabled)(&fEnablePAE);                             H();
     rc = CFGMR3InsertInteger(pRoot, "EnablePAE", fEnablePAE);                       RC_CHECK();
-
-    BOOL fIOAPIC;
-    hrc = biosSettings->COMGETTER(IOAPICEnabled)(&fIOAPIC);                          H();
 
     BOOL fPXEDebug;
     hrc = biosSettings->COMGETTER(PXEDebugEnabled)(&fPXEDebug);                      H();
@@ -1795,93 +1821,8 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
     /*
      * Guest property service
      */
-    {
-        /* Load the service */
-        rc = pConsole->mVMMDev->hgcmLoadService ("VBoxGuestPropSvc", "VBoxGuestPropSvc");
 
-        if (RT_FAILURE (rc))
-        {
-            LogRel(("VBoxGuestPropSvc is not available. rc = %Rrc\n", rc));
-            /* That is not a fatal failure. */
-            rc = VINF_SUCCESS;
-        }
-        else
-        {
-            /* Pull over the properties from the server. */
-            SafeArray <BSTR> namesOut;
-            SafeArray <BSTR> valuesOut;
-            SafeArray <ULONG64> timestampsOut;
-            SafeArray <BSTR> flagsOut;
-            hrc = pConsole->mControl->PullGuestProperties(ComSafeArrayAsOutParam(namesOut),
-                                                ComSafeArrayAsOutParam(valuesOut),
-                                                ComSafeArrayAsOutParam(timestampsOut),
-                                                ComSafeArrayAsOutParam(flagsOut));         H();
-            size_t cProps = namesOut.size();
-            if (   valuesOut.size() != cProps
-                || timestampsOut.size() != cProps
-                || flagsOut.size() != cProps
-               )
-                rc = VERR_INVALID_PARAMETER;
-
-            std::vector <Utf8Str> utf8Names, utf8Values, utf8Flags;
-            std::vector <char *> names, values, flags;
-            std::vector <ULONG64> timestamps;
-            for (unsigned i = 0; i < cProps && RT_SUCCESS(rc); ++i)
-                if (   !VALID_PTR(namesOut[i])
-                    || !VALID_PTR(valuesOut[i])
-                    || !VALID_PTR(flagsOut[i])
-                   )
-                    rc = VERR_INVALID_POINTER;
-            for (unsigned i = 0; i < cProps && RT_SUCCESS(rc); ++i)
-            {
-                utf8Names.push_back(Bstr(namesOut[i]));
-                utf8Values.push_back(Bstr(valuesOut[i]));
-                timestamps.push_back(timestampsOut[i]);
-                utf8Flags.push_back(Bstr(flagsOut[i]));
-                if (   utf8Names.back().isNull()
-                    || utf8Values.back().isNull()
-                    || utf8Flags.back().isNull()
-                   )
-                    throw std::bad_alloc();
-            }
-            for (unsigned i = 0; i < cProps && RT_SUCCESS(rc); ++i)
-            {
-                names.push_back(utf8Names[i].mutableRaw());
-                values.push_back(utf8Values[i].mutableRaw());
-                flags.push_back(utf8Flags[i].mutableRaw());
-            }
-            names.push_back(NULL);
-            values.push_back(NULL);
-            timestamps.push_back(0);
-            flags.push_back(NULL);
-
-            /* Setup the service. */
-            VBOXHGCMSVCPARM parms[4];
-
-            parms[0].type = VBOX_HGCM_SVC_PARM_PTR;
-            parms[0].u.pointer.addr = &names.front();
-            parms[0].u.pointer.size = 0;  /* We don't actually care. */
-            parms[1].type = VBOX_HGCM_SVC_PARM_PTR;
-            parms[1].u.pointer.addr = &values.front();
-            parms[1].u.pointer.size = 0;  /* We don't actually care. */
-            parms[2].type = VBOX_HGCM_SVC_PARM_PTR;
-            parms[2].u.pointer.addr = &timestamps.front();
-            parms[2].u.pointer.size = 0;  /* We don't actually care. */
-            parms[3].type = VBOX_HGCM_SVC_PARM_PTR;
-            parms[3].u.pointer.addr = &flags.front();
-            parms[3].u.pointer.size = 0;  /* We don't actually care. */
-
-            pConsole->mVMMDev->hgcmHostCall ("VBoxGuestPropSvc", guestProp::SET_PROPS_HOST, 4, &parms[0]);
-
-            /* Register the host notification callback */
-            HGCMSVCEXTHANDLE hDummy;
-            HGCMHostRegisterServiceExtension (&hDummy, "VBoxGuestPropSvc",
-                                              Console::doGuestPropNotification,
-                                              pvConsole);
-
-            Log(("Set VBoxGuestPropSvc property store\n"));
-        }
-    }
+    rc = configGuestProperties(pConsole);
 #endif /* VBOX_WITH_GUEST_PROPS defined */
 
     /*
@@ -2199,7 +2140,26 @@ DECLCALLBACK(int)  Console::configNetwork(Console *pThis, const char *pszDevice,
 
             case NetworkAttachmentType_Bridged:
             {
-#if !defined(VBOX_WITH_NETFLT) && defined(RT_OS_LINUX)
+#if defined(RT_OS_LINUX) && !defined(VBOX_WITH_NETFLT)
+                hrc = pThis->attachToTapInterface(aNetworkAdapter);
+                if (FAILED(hrc))
+                {
+                    switch (hrc)
+                    {
+                        case VERR_ACCESS_DENIED:
+                            return VMSetError(pVM, VERR_HOSTIF_INIT_FAILED, RT_SRC_POS,  N_(
+                                             "Failed to open '/dev/net/tun' for read/write access. Please check the "
+                                             "permissions of that node. Either run 'chmod 0666 /dev/net/tun' or "
+                                             "change the group of that node and make yourself a member of that group. Make "
+                                             "sure that these changes are permanent, especially if you are "
+                                             "using udev"));
+                        default:
+                            AssertMsgFailed(("Could not attach to host interface! Bad!\n"));
+                            return VMSetError(pVM, VERR_HOSTIF_INIT_FAILED, RT_SRC_POS, N_(
+                                             "Failed to initialize Host Interface Networking"));
+                    }
+                }
+
                 Assert ((int)pThis->maTapFD[uInstance] >= 0);
                 if ((int)pThis->maTapFD[uInstance] >= 0)
                 {
@@ -2220,6 +2180,7 @@ DECLCALLBACK(int)  Console::configNetwork(Console *pThis, const char *pszDevice,
                     rc = CFGMR3InsertInteger(pCfg, "FileHandle", pThis->maTapFD[uInstance]);
                     RC_CHECK();
                 }
+
 #elif defined(VBOX_WITH_NETFLT)
                 /*
                  * This is the new VBoxNetFlt+IntNet stuff.
@@ -2600,38 +2561,43 @@ DECLCALLBACK(int)  Console::configNetwork(Console *pThis, const char *pszDevice,
                 RC_CHECK();
                 rc = CFGMR3InsertNode(pLunL0, "Config", &pCfg);
                 RC_CHECK();
-#if defined(RT_OS_WINDOWS)
-# ifndef VBOX_WITH_NETFLT
-                hrc = E_NOTIMPL;
-                LogRel(("NetworkAttachmentType_HostOnly: Not Implemented"));
-                H();
-# else
+
                 Bstr HifName;
                 hrc = aNetworkAdapter->COMGETTER(HostInterface)(HifName.asOutParam());
                 if(FAILED(hrc))
                 {
-                    LogRel(("NetworkAttachmentType_HostOnly: COMGETTER(HostInterface) failed, hrc (0x%x)", hrc));
+                    LogRel(("NetworkAttachmentType_HostOnly: COMGETTER(HostInterface) failed, hrc (0x%x)\n", hrc));
                     H();
                 }
 
                 Utf8Str HifNameUtf8(HifName);
                 const char *pszHifName = HifNameUtf8.raw();
+                LogRel(("NetworkAttachmentType_HostOnly: COMGETTER(HostInterface): %s\n", pszHifName));
                 ComPtr<IHostNetworkInterface> hostInterface;
                 rc = host->FindHostNetworkInterfaceByName(HifName, hostInterface.asOutParam());
                 if (!SUCCEEDED(rc))
                 {
-                    AssertBreakpoint();
-                    LogRel(("NetworkAttachmentType_HostOnly: FindByName failed, rc (0x%x)", rc));
+                    LogRel(("NetworkAttachmentType_HostOnly: FindByName failed, rc (0x%x)\n", rc));
                     return VMSetError(pVM, VERR_INTERNAL_ERROR, RT_SRC_POS,
                                       N_("Inexistent host networking interface, name '%ls'"),
                                       HifName.raw());
                 }
 
+                char szNetwork[80];
+                RTStrPrintf(szNetwork, sizeof(szNetwork), "HostInterfaceNetworking-%s", pszHifName);
+
+#if defined(RT_OS_WINDOWS)
+# ifndef VBOX_WITH_NETFLT
+                hrc = E_NOTIMPL;
+                LogRel(("NetworkAttachmentType_HostOnly: Not Implemented\n"));
+                H();
+# else  /* defined VBOX_WITH_NETFLT*/
+
                 HostNetworkInterfaceType_T ifType;
                 hrc = hostInterface->COMGETTER(InterfaceType)(&ifType);
                 if(FAILED(hrc))
                 {
-                    LogRel(("NetworkAttachmentType_HostOnly: COMGETTER(InterfaceType) failed, hrc (0x%x)", hrc));
+                    LogRel(("NetworkAttachmentType_HostOnly: COMGETTER(InterfaceType) failed, hrc (0x%x)\n", hrc));
                     H();
                 }
 
@@ -2642,12 +2608,11 @@ DECLCALLBACK(int)  Console::configNetwork(Console *pThis, const char *pszDevice,
                                       HifName.raw());
                 }
 
-
                 Bstr hostIFGuid_;
                 hrc = hostInterface->COMGETTER(Id)(hostIFGuid_.asOutParam());
                 if(FAILED(hrc))
                 {
-                    LogRel(("NetworkAttachmentType_HostOnly: COMGETTER(Id) failed, hrc (0x%x)", hrc));
+                    LogRel(("NetworkAttachmentType_HostOnly: COMGETTER(Id) failed, hrc (0x%x)\n", hrc));
                     H();
                 }
                 Guid hostIFGuid(hostIFGuid_);
@@ -2669,7 +2634,7 @@ DECLCALLBACK(int)  Console::configNetwork(Console *pThis, const char *pszDevice,
                     if(hrc != S_OK)
                     {
                         VBoxNetCfgWinReleaseINetCfg( pNc, FALSE );
-                        LogRel(("NetworkAttachmentType_HostOnly: VBoxNetCfgWinGetComponentByGuid failed, hrc (0x%x)", hrc));
+                        LogRel(("NetworkAttachmentType_HostOnly: VBoxNetCfgWinGetComponentByGuid failed, hrc (0x%x)\n", hrc));
                         H();
                     }
                 }
@@ -2717,7 +2682,7 @@ DECLCALLBACK(int)  Console::configNetwork(Console *pThis, const char *pszDevice,
                 {
                     Assert(0);
                     VBoxNetCfgWinReleaseINetCfg( pNc, FALSE );
-                    LogRel(("NetworkAttachmentType_HostOnly: VBoxNetCfgWinGetComponentByGuid failed, hrc (0x%x)", hrc));
+                    LogRel(("NetworkAttachmentType_HostOnly: VBoxNetCfgWinGetComponentByGuid failed, hrc (0x%x)\n", hrc));
                     H();
                 }
 
@@ -2736,8 +2701,6 @@ DECLCALLBACK(int)  Console::configNetwork(Console *pThis, const char *pszDevice,
                 RC_CHECK();
                 rc = CFGMR3InsertString(pCfg, "Trunk", pszTrunk);
                 RC_CHECK();
-                char szNetwork[80];
-                RTStrPrintf(szNetwork, sizeof(szNetwork), "HostInterfaceNetworking-%s", pszHifName);
                 rc = CFGMR3InsertString(pCfg, "Network", szNetwork);
                 RC_CHECK();
                 networkName = Bstr(szNetwork);
@@ -2745,52 +2708,34 @@ DECLCALLBACK(int)  Console::configNetwork(Console *pThis, const char *pszDevice,
                 trunkType   = TRUNKTYPE_NETADP;
 # endif /* defined VBOX_WITH_NETFLT*/
 #elif defined(RT_OS_DARWIN)
-                rc = CFGMR3InsertString(pCfg, "Trunk", "vboxnet0");
+                rc = CFGMR3InsertString(pCfg, "Trunk", pszHifName);
                 RC_CHECK();
-                rc = CFGMR3InsertString(pCfg, "Network", "HostInterfaceNetworking-vboxnet0");
+                rc = CFGMR3InsertString(pCfg, "Network", szNetwork);
                 RC_CHECK();
                 rc = CFGMR3InsertInteger(pCfg, "TrunkType", kIntNetTrunkType_NetAdp);
                 RC_CHECK();
-                networkName = Bstr("HostInterfaceNetworking-vboxnet0");
-                trunkName   = Bstr("vboxnet0");
+                networkName = Bstr(szNetwork);
+                trunkName   = Bstr(pszHifName);
                 trunkType   = TRUNKTYPE_NETADP;
 #else
-                rc = CFGMR3InsertString(pCfg, "Trunk", "vboxnet0");
+                rc = CFGMR3InsertString(pCfg, "Trunk", pszHifName);
                 RC_CHECK();
-                rc = CFGMR3InsertString(pCfg, "Network", "HostInterfaceNetworking-vboxnet0");
+                rc = CFGMR3InsertString(pCfg, "Network", szNetwork);
                 RC_CHECK();
                 rc = CFGMR3InsertInteger(pCfg, "TrunkType", kIntNetTrunkType_NetFlt);
                 RC_CHECK();
-                networkName = Bstr("HostInterfaceNetworking-vboxnet0");
-                trunkName   = Bstr("vboxnet0");
+                networkName = Bstr(szNetwork);
+                trunkName   = Bstr(pszHifName);
                 trunkType   = TRUNKTYPE_NETFLT;
 #endif
 #if !defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NETFLT)
-                Bstr HifName;
-                hrc = aNetworkAdapter->COMGETTER(HostInterface)(HifName.asOutParam());
-                if(FAILED(hrc))
-                {
-                    LogRel(("NetworkAttachmentType_HostOnly: COMGETTER(HostInterface) failed, hrc (0x%x)", hrc));
-                    H();
-                }
 
-                LogRel(("NetworkAttachmentType_HostOnly: COMGETTER(HostInterface):  ", hrc));
-                Utf8Str HifNameUtf8(HifName);
-                const char *pszHifName = HifNameUtf8.raw();
-                ComPtr<IHostNetworkInterface> hostInterface;
-                rc = host->FindHostNetworkInterfaceByName(HifName, hostInterface.asOutParam());
-                if (!SUCCEEDED(rc))
-                {
-                    LogRel(("NetworkAttachmentType_HostOnly: FindByName failed, rc (0x%x)", rc));
-                    return VMSetError(pVM, VERR_INTERNAL_ERROR, RT_SRC_POS,
-                                      N_("Inexistent host networking interface, name '%ls'"),
-                                      HifName.raw());
-                }
                 Bstr tmpAddr, tmpMask;
-                hrc = virtualBox->GetExtraData(Bstr("HostOnly/vboxnet0/IPAddress"), tmpAddr.asOutParam());
+
+                hrc = virtualBox->GetExtraData(BstrFmt("HostOnly/%s/IPAddress", pszHifName), tmpAddr.asOutParam());
                 if (SUCCEEDED(hrc) && !tmpAddr.isEmpty())
                 {
-                    hrc = virtualBox->GetExtraData(Bstr("HostOnly/vboxnet0/IPNetMask"), tmpMask.asOutParam());
+                    hrc = virtualBox->GetExtraData(BstrFmt("HostOnly/%s/IPNetMask", pszHifName), tmpMask.asOutParam());
                     if (SUCCEEDED(hrc) && !tmpMask.isEmpty())
                         hrc = hostInterface->EnableStaticIpConfig(tmpAddr, tmpMask);
                     else
@@ -2801,10 +2746,9 @@ DECLCALLBACK(int)  Console::configNetwork(Console *pThis, const char *pszDevice,
                     hrc = hostInterface->EnableStaticIpConfig(Bstr(VBOXNET_IPV4ADDR_DEFAULT),
                                                               Bstr(VBOXNET_IPV4MASK_DEFAULT));
 
-
-                hrc = virtualBox->GetExtraData(Bstr("HostOnly/vboxnet0/IPV6Address"), tmpAddr.asOutParam());
+                hrc = virtualBox->GetExtraData(BstrFmt("HostOnly/%s/IPV6Address", pszHifName), tmpAddr.asOutParam());
                 if (SUCCEEDED(hrc))
-                    hrc = virtualBox->GetExtraData(Bstr("HostOnly/vboxnet0/IPV6NetMask"), tmpMask.asOutParam());
+                    hrc = virtualBox->GetExtraData(BstrFmt("HostOnly/%s/IPV6NetMask", pszHifName), tmpMask.asOutParam());
                 if (SUCCEEDED(hrc) && !tmpAddr.isEmpty() && !tmpMask.isEmpty())
                     hrc = hostInterface->EnableStaticIpConfigV6(tmpAddr, Utf8Str(tmpMask).toUInt32());
 #endif
@@ -2895,4 +2839,188 @@ DECLCALLBACK(int)  Console::configNetwork(Console *pThis, const char *pszDevice,
     return rcRet;
 }
 
-/* vi: set tabstop=4 shiftwidth=4 expandtab: */
+#ifdef VBOX_WITH_GUEST_PROPS
+/**
+ * Set an array of guest properties
+ */
+static void configSetProperties(VMMDev * const pVMMDev, void *names,
+                                void *values, void *timestamps, void *flags)
+{
+    VBOXHGCMSVCPARM parms[4];
+
+    parms[0].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[0].u.pointer.addr = names;
+    parms[0].u.pointer.size = 0;  /* We don't actually care. */
+    parms[1].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[1].u.pointer.addr = values;
+    parms[1].u.pointer.size = 0;  /* We don't actually care. */
+    parms[2].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[2].u.pointer.addr = timestamps;
+    parms[2].u.pointer.size = 0;  /* We don't actually care. */
+    parms[3].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[3].u.pointer.addr = flags;
+    parms[3].u.pointer.size = 0;  /* We don't actually care. */
+
+    pVMMDev->hgcmHostCall ("VBoxGuestPropSvc", guestProp::SET_PROPS_HOST, 4,
+                           &parms[0]);
+}
+
+/**
+ * Set a single guest property
+ */
+static void configSetProperty(VMMDev * const pVMMDev, const char *pszName,
+                              const char *pszValue, const char *pszFlags)
+{
+    VBOXHGCMSVCPARM parms[4];
+
+    AssertPtrReturnVoid(pszName);
+    AssertPtrReturnVoid(pszValue);
+    AssertPtrReturnVoid(pszFlags);
+    parms[0].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[0].u.pointer.addr = (void *)pszName;
+    parms[0].u.pointer.size = strlen(pszName) + 1;
+    parms[1].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[1].u.pointer.addr = (void *)pszValue;
+    parms[1].u.pointer.size = strlen(pszValue) + 1;
+    parms[2].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[2].u.pointer.addr = (void *)pszFlags;
+    parms[2].u.pointer.size = strlen(pszFlags) + 1;
+    pVMMDev->hgcmHostCall ("VBoxGuestPropSvc", guestProp::SET_PROP_HOST, 3,
+                           &parms[0]);
+}
+#endif /* VBOX_WITH_GUEST_PROPS */
+
+/**
+ * Set up the Guest Property service, populate it with properties read from
+ * the machine XML and set a couple of initial properties.
+ */
+/* static */ int Console::configGuestProperties(void *pvConsole)
+{
+#ifdef VBOX_WITH_GUEST_PROPS
+    AssertReturn(pvConsole, VERR_GENERAL_FAILURE);
+    ComObjPtr<Console> pConsole = static_cast <Console *> (pvConsole);
+
+    /* Load the service */
+    int rc = pConsole->mVMMDev->hgcmLoadService ("VBoxGuestPropSvc", "VBoxGuestPropSvc");
+
+    if (RT_FAILURE(rc))
+    {
+        LogRel(("VBoxGuestPropSvc is not available. rc = %Rrc\n", rc));
+        /* That is not a fatal failure. */
+        rc = VINF_SUCCESS;
+    }
+    else
+    {
+        /*
+         * Initialize built-in properties that can be changed and saved.
+         *
+         * These are typically transient properties that the guest cannot
+         * change.
+         */
+
+        /* Sysprep execution by VBoxService. */
+        configSetProperty(pConsole->mVMMDev,
+                          "/VirtualBox/HostGuest/SysprepExec", "",
+                          "TRANSIENT, RDONLYGUEST");
+        configSetProperty(pConsole->mVMMDev,
+                          "/VirtualBox/HostGuest/SysprepArgs", "",
+                          "TRANSIENT, RDONLYGUEST");
+
+        /*
+         * Pull over the properties from the server.
+         */
+        SafeArray<BSTR> namesOut;
+        SafeArray<BSTR> valuesOut;
+        SafeArray<ULONG64> timestampsOut;
+        SafeArray<BSTR> flagsOut;
+        HRESULT hrc = pConsole->mControl->PullGuestProperties
+                                      (ComSafeArrayAsOutParam(namesOut),
+                                       ComSafeArrayAsOutParam(valuesOut),
+                                       ComSafeArrayAsOutParam(timestampsOut),
+                                       ComSafeArrayAsOutParam(flagsOut));
+        AssertMsgReturn(SUCCEEDED(hrc), ("hrc=%#x\n", hrc),
+                        VERR_GENERAL_FAILURE);
+        size_t cProps = namesOut.size(), cAlloc = cProps + 1;
+        if (   valuesOut.size() != cProps
+            || timestampsOut.size() != cProps
+            || flagsOut.size() != cProps
+           )
+            AssertFailedReturn(VERR_INVALID_PARAMETER);
+
+        char **papszNames, **papszValues, **papszFlags;
+        char szEmpty[] = "";
+        ULONG64 *pau64Timestamps;
+        papszNames = (char **)RTMemTmpAllocZ(sizeof(void *) * cAlloc);
+        papszValues = (char **)RTMemTmpAllocZ(sizeof(void *) * cAlloc);
+        pau64Timestamps = (ULONG64 *)RTMemTmpAllocZ(sizeof(ULONG64) * cAlloc);
+        papszFlags = (char **)RTMemTmpAllocZ(sizeof(void *) * cAlloc);
+        if (papszNames && papszValues && pau64Timestamps && papszFlags)
+        {
+            for (unsigned i = 0; RT_SUCCESS(rc) && i < cProps; ++i)
+            {
+                AssertPtrReturn(namesOut[i], VERR_INVALID_PARAMETER);
+                rc = RTUtf16ToUtf8(namesOut[i], &papszNames[i]);
+                if (RT_FAILURE(rc))
+                    break;
+                if (valuesOut[i])
+                    rc = RTUtf16ToUtf8(valuesOut[i], &papszValues[i]);
+                else
+                    papszValues[i] = szEmpty;
+                if (RT_FAILURE(rc))
+                    break;
+                pau64Timestamps[i] = timestampsOut[i];
+                if (flagsOut[i])
+                    rc = RTUtf16ToUtf8(flagsOut[i], &papszFlags[i]);
+                else
+                    papszFlags[i] = szEmpty;
+            }
+            if (RT_SUCCESS(rc))
+                configSetProperties(pConsole->mVMMDev,
+                                    (void *)papszNames,
+                                    (void *)papszValues,
+                                    (void *)pau64Timestamps,
+                                    (void *)papszFlags);
+            for (unsigned i = 0; i < cProps; ++i)
+            {
+                RTStrFree(papszNames[i]);
+                if (valuesOut[i])
+                    RTStrFree(papszValues[i]);
+                if (flagsOut[i])
+                    RTStrFree(papszFlags[i]);
+            }
+        }
+        else
+            rc = VERR_NO_MEMORY;
+        RTMemTmpFree(papszNames);
+        RTMemTmpFree(papszValues);
+        RTMemTmpFree(pau64Timestamps);
+        RTMemTmpFree(papszFlags);
+        AssertRCReturn(rc, rc);
+
+        /*
+         * These properties have to be set before pulling over the properties
+         * from the machine XML, to ensure that properties saved in the XML
+         * will override them.
+         */
+        /* Set the VBox version string as a guest property */
+        configSetProperty(pConsole->mVMMDev, "/VirtualBox/HostInfo/VBoxVer",
+                          VBOX_VERSION_STRING, "TRANSIENT, RDONLYGUEST");
+        /* Set the VBox SVN revision as a guest property */
+        configSetProperty(pConsole->mVMMDev, "/VirtualBox/HostInfo/VBoxRev",
+                          VBOX_SVN_REV, "TRANSIENT, RDONLYGUEST");
+
+        /*
+         * Register the host notification callback
+         */
+        HGCMSVCEXTHANDLE hDummy;
+        HGCMHostRegisterServiceExtension(&hDummy, "VBoxGuestPropSvc",
+                                         Console::doGuestPropNotification,
+                                         pvConsole);
+
+        Log(("Set VBoxGuestPropSvc property store\n"));
+    }
+    return VINF_SUCCESS;
+#else /* !VBOX_WITH_GUEST_PROPS */
+    return VERR_NOT_SUPPORTED;
+#endif /* !VBOX_WITH_GUEST_PROPS */
+}

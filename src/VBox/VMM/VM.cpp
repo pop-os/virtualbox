@@ -221,7 +221,7 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCPUs, PFNVMATERROR pfnVMAtError, void *pvU
      * Create the UVM so we can register the at-error callback
      * and consoliate a bit of cleanup code.
      */
-    PUVM pUVM;
+    PUVM pUVM = NULL;                   /* shuts up gcc */
     int rc = vmR3CreateUVM(cCPUs, &pUVM);
     if (RT_FAILURE(rc))
         return rc;
@@ -293,6 +293,26 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCPUs, PFNVMATERROR pfnVMAtError, void *pvU
                                   "'/etc/init.d/vboxdrv setup' as root");
                     break;
 #endif
+
+                case VERR_RAW_MODE_INVALID_SMP:
+                    pszError = N_("VT-x/AMD-V is either not available on your host or disabled. "
+                                  "VirtualBox requires this hardware extension to emulate more than one "
+                                  "guest CPU");
+                    break;
+
+                case VERR_SUPDRV_KERNEL_TOO_OLD_FOR_VTX:
+#ifdef RT_OS_LINUX
+                    pszError = N_("Because the host kernel is too old, VirtualBox cannot enable the VT-x "
+                                  "extension. Either upgrade your kernel to Linux 2.6.13 or later or disable "
+                                  "the VT-x extension in the VM settings. Note that without VT-x you have "
+                                  "to reduce the number of guest CPUs to one");
+#else
+                    pszError = N_("Because the host kernel is too old, VirtualBox cannot enable the VT-x "
+                                  "extension. Either upgrade your kernel or disable the VT-x extension in the "
+                                  "VM settings. Note that without VT-x you have to reduce the number of guest "
+                                  "CPUs to one");
+#endif
+                    break;
 
                 default:
                     pszError = N_("Unknown error creating VM");
@@ -3571,4 +3591,3 @@ VMMR3DECL(RTTHREAD) VMR3GetVMCPUThreadU(PUVM pUVM)
 
     return pUVCpu->vm.s.ThreadEMT;
 }
-

@@ -2490,7 +2490,7 @@ STDMETHODIMP Machine::GetExtraData (IN_BSTR aKey, BSTR *aValue)
     if (!isConfigLocked())
         return S_OK;
 
-    Utf8Str val;
+    Utf8Str val("");
     HRESULT rc = getExtraData(Utf8Str(aKey), val);
     if (SUCCEEDED(rc))
         val.cloneTo (aValue);
@@ -3097,10 +3097,6 @@ STDMETHODIMP Machine::SetGuestProperty (IN_BSTR aName, IN_BSTR aValue, IN_BSTR a
         bool found = false;
         HWData::GuestProperty property;
         property.mFlags = NILFLAG;
-        if (fFlags & TRANSIENT)
-            rc = setError (VBOX_E_INVALID_OBJECT_STATE,
-                tr ("Cannot set a transient property when the "
-                    "machine is not running"));
         if (SUCCEEDED (rc))
         {
             for (HWData::GuestPropertyList::iterator it =

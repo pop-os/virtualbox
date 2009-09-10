@@ -451,6 +451,9 @@ int main(int argc, char* argv[])
 
             soap_destroy(&soap); // clean up class instances
             soap_end(&soap); // clean up everything and close socket
+
+            // every COM thread needs to process its event queue, or memory leaks
+            int vrc = com::EventQueue::processThreadEventQueue(0);
         }
     }
     soap_done(&soap); // close master socket and detach environment
@@ -1192,7 +1195,7 @@ int __vbox__IManagedObjectRef_USCOREgetInterfaceName(
     } while (0);
 
     WEBDEBUG(("-- leaving %s, rc: 0x%lX\n", __FUNCTION__, rc));
-    if (rc)
+    if (FAILED(rc))
         return SOAP_FAULT;
     return SOAP_OK;
 }
@@ -1232,7 +1235,7 @@ int __vbox__IManagedObjectRef_USCORErelease(
     } while (0);
 
     WEBDEBUG(("-- leaving %s, rc: 0x%lX\n", __FUNCTION__, rc));
-    if (rc)
+    if (FAILED(rc))
         return SOAP_FAULT;
     return SOAP_OK;
 }
@@ -1306,7 +1309,7 @@ int __vbox__IWebsessionManager_USCORElogon(
     } while (0);
 
     WEBDEBUG(("-- leaving %s, rc: 0x%lX\n", __FUNCTION__, rc));
-    if (rc)
+    if (FAILED(rc))
         return SOAP_FAULT;
     return SOAP_OK;
 }
@@ -1336,7 +1339,7 @@ int __vbox__IWebsessionManager_USCOREgetSessionObject(
     } while (0);
 
     WEBDEBUG(("-- leaving %s, rc: 0x%lX\n", __FUNCTION__, rc));
-    if (rc)
+    if (FAILED(rc))
         return SOAP_FAULT;
     return SOAP_OK;
 }
@@ -1373,7 +1376,7 @@ int __vbox__IWebsessionManager_USCORElogoff(
     } while (0);
 
     WEBDEBUG(("-- leaving %s, rc: 0x%lX\n", __FUNCTION__, rc));
-    if (rc)
+    if (FAILED(rc))
         return SOAP_FAULT;
     return SOAP_OK;
 }

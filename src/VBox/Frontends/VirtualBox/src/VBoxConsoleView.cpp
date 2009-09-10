@@ -3841,7 +3841,9 @@ void VBoxConsoleView::setPointerShape (MousePointerChangeEvent *me)
 # warning "port me"
 
 #endif
-        if (!ok)
+        if (ok)
+            mLastCursor = viewport()->cursor();
+        else
             viewport()->unsetCursor();
     }
     else
@@ -3851,11 +3853,7 @@ void VBoxConsoleView::setPointerShape (MousePointerChangeEvent *me)
          */
         if (me->isVisible())
         {
-            /*
-             * We're supposed to make the last shape we got visible.
-             * We don't support that for now...
-             */
-            /// @todo viewport()->setCursor (QCursor());
+            viewport()->setCursor (mLastCursor);
         }
         else
         {

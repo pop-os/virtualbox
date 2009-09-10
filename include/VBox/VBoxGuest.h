@@ -173,6 +173,8 @@ typedef enum
     VMMDevReq_GetHostTime                = 10,
     VMMDevReq_GetHypervisorInfo          = 20,
     VMMDevReq_SetHypervisorInfo          = 21,
+    VMMDevReq_RegisterPatchMemory        = 22,
+    VMMDevReq_DeregisterPatchMemory      = 23,
     VMMDevReq_SetPowerStatus             = 30,
     VMMDevReq_AcknowledgeEvents          = 41,
     VMMDevReq_CtlGuestFilterMask         = 42,
@@ -388,6 +390,28 @@ typedef struct
     /** hypervisor size in bytes */
     uint32_t hypervisorSize;
 } VMMDevReqHypervisorInfo;
+
+/** @name Default patch memory size .
+ * Used by VMMDevReq_RegisterPatchMemory and VMMDevReq_DeregisterPatchMemory.
+ * @{ */
+#define VMMDEV_GUEST_DEFAULT_PATCHMEM_SIZE          8192
+/** @} */
+
+/**
+ * Patching memory structure. (locked executable & read-only page from the guest's perspective)
+ *
+ * Used by VMMDevReq_RegisterPatchMemory and VMMDevReq_DeregisterPatchMemory
+ */
+typedef struct
+{
+    /** Header. */
+    VMMDevRequestHeader header;
+    /** Guest virtual address of the patching page(s). */
+    RTGCPTR64           pPatchMem;
+    /** Patch page size in bytes. */
+    uint32_t            cbPatchMem;
+} VMMDevReqPatchMemory;
+AssertCompileSize(VMMDevReqPatchMemory, 24+12);
 
 /** system power requests */
 typedef enum
@@ -1497,6 +1521,9 @@ DECLINLINE(size_t) vmmdevGetRequestSize(VMMDevRequestType requestType)
         case VMMDevReq_GetHypervisorInfo:
         case VMMDevReq_SetHypervisorInfo:
             return sizeof(VMMDevReqHypervisorInfo);
+        case VMMDevReq_RegisterPatchMemory:
+        case VMMDevReq_DeregisterPatchMemory:
+            return sizeof(VMMDevReqPatchMemory);
         case VMMDevReq_SetPowerStatus:
             return sizeof(VMMDevPowerStateRequest);
         case VMMDevReq_AcknowledgeEvents:

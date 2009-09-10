@@ -82,6 +82,7 @@ static void vmxR0UpdateExceptionBitmap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
 static bool vmxR0IsValidReadField(uint32_t idxField);
 static bool vmxR0IsValidWriteField(uint32_t idxField);
 #endif
+static void vmxR0SetMSRPermission(PVMCPU pVCpu, unsigned ulMSR, bool fRead, bool fWrite);
 
 static void VMXR0CheckError(PVM pVM, PVMCPU pVCpu, int rc)
 {
@@ -197,19 +198,6 @@ VMMR0DECL(int) VMXR0InitVM(PVM pVM)
         pVM->hwaccm.s.vmx.pAPICPhys   = 0;
     }
 
-    /* Allocate the MSR bitmap if this feature is supported. */
-    if (pVM->hwaccm.s.vmx.msr.vmx_proc_ctls.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_USE_MSR_BITMAPS)
-    {
-        rc = RTR0MemObjAllocCont(&pVM->hwaccm.s.vmx.pMemObjMSRBitmap, 1 << PAGE_SHIFT, true /* executable R0 mapping */);
-        AssertRC(rc);
-        if (RT_FAILURE(rc))
-            return rc;
-
-        pVM->hwaccm.s.vmx.pMSRBitmap     = (uint8_t *)RTR0MemObjAddress(pVM->hwaccm.s.vmx.pMemObjMSRBitmap);
-        pVM->hwaccm.s.vmx.pMSRBitmapPhys = RTR0MemObjGetPagePhysAddr(pVM->hwaccm.s.vmx.pMemObjMSRBitmap, 0);
-        memset(pVM->hwaccm.s.vmx.pMSRBitmap, 0xff, PAGE_SIZE);
-    }
-
 #ifdef VBOX_WITH_CRASHDUMP_MAGIC
     {
         rc = RTR0MemObjAllocCont(&pVM->hwaccm.s.vmx.pMemObjScratch, 1 << PAGE_SHIFT, true /* executable R0 mapping */);
@@ -256,6 +244,41 @@ VMMR0DECL(int) VMXR0InitVM(PVM pVM)
         pVCpu->hwaccm.s.vmx.pVAPICPhys = RTR0MemObjGetPagePhysAddr(pVCpu->hwaccm.s.vmx.pMemObjVAPIC, 0);
         ASMMemZero32(pVCpu->hwaccm.s.vmx.pVAPIC, PAGE_SIZE);
 
+        /* Allocate the MSR bitmap if this feature is supported. */
+        if (pVM->hwaccm.s.vmx.msr.vmx_proc_ctls.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_USE_MSR_BITMAPS)
+        {
+            rc = RTR0MemObjAllocCont(&pVCpu->hwaccm.s.vmx.pMemObjMSRBitmap, 1 << PAGE_SHIFT, true /* executable R0 mapping */);
+            AssertRC(rc);
+            if (RT_FAILURE(rc))
+                return rc;
+
+            pVCpu->hwaccm.s.vmx.pMSRBitmap     = (uint8_t *)RTR0MemObjAddress(pVCpu->hwaccm.s.vmx.pMemObjMSRBitmap);
+            pVCpu->hwaccm.s.vmx.pMSRBitmapPhys = RTR0MemObjGetPagePhysAddr(pVCpu->hwaccm.s.vmx.pMemObjMSRBitmap, 0);
+            memset(pVCpu->hwaccm.s.vmx.pMSRBitmap, 0xff, PAGE_SIZE);
+        }
+
+#ifdef VBOX_WITH_AUTO_MSR_LOAD_RESTORE
+        /* Allocate one page for the guest MSR load area (for preloading guest MSRs during the world switch). */
+        rc = RTR0MemObjAllocCont(&pVCpu->hwaccm.s.vmx.pMemObjGuestMSR, 1 << PAGE_SHIFT, true /* executable R0 mapping */);
+        AssertRC(rc);
+        if (RT_FAILURE(rc))
+            return rc;
+
+        pVCpu->hwaccm.s.vmx.pGuestMSR     = (uint8_t *)RTR0MemObjAddress(pVCpu->hwaccm.s.vmx.pMemObjGuestMSR);
+        pVCpu->hwaccm.s.vmx.pGuestMSRPhys = RTR0MemObjGetPagePhysAddr(pVCpu->hwaccm.s.vmx.pMemObjGuestMSR, 0);
+        memset(pVCpu->hwaccm.s.vmx.pGuestMSR, 0, PAGE_SIZE);
+
+        /* Allocate one page for the host MSR load area (for restoring host MSRs after the world switch back). */
+        rc = RTR0MemObjAllocCont(&pVCpu->hwaccm.s.vmx.pMemObjHostMSR, 1 << PAGE_SHIFT, true /* executable R0 mapping */);
+        AssertRC(rc);
+        if (RT_FAILURE(rc))
+            return rc;
+
+        pVCpu->hwaccm.s.vmx.pHostMSR     = (uint8_t *)RTR0MemObjAddress(pVCpu->hwaccm.s.vmx.pMemObjHostMSR);
+        pVCpu->hwaccm.s.vmx.pHostMSRPhys = RTR0MemObjGetPagePhysAddr(pVCpu->hwaccm.s.vmx.pMemObjHostMSR, 0);
+        memset(pVCpu->hwaccm.s.vmx.pHostMSR, 0, PAGE_SIZE);
+#endif /* VBOX_WITH_AUTO_MSR_LOAD_RESTORE */
+
         /* Current guest paging mode. */
         pVCpu->hwaccm.s.vmx.enmLastSeenGuestMode = PGMMODE_REAL;
 
@@ -293,6 +316,29 @@ VMMR0DECL(int) VMXR0TermVM(PVM pVM)
             pVCpu->hwaccm.s.vmx.pVAPIC       = 0;
             pVCpu->hwaccm.s.vmx.pVAPICPhys   = 0;
         }
+        if (pVCpu->hwaccm.s.vmx.pMemObjMSRBitmap != NIL_RTR0MEMOBJ)
+        {
+            RTR0MemObjFree(pVCpu->hwaccm.s.vmx.pMemObjMSRBitmap, false);
+            pVCpu->hwaccm.s.vmx.pMemObjMSRBitmap = NIL_RTR0MEMOBJ;
+            pVCpu->hwaccm.s.vmx.pMSRBitmap       = 0;
+            pVCpu->hwaccm.s.vmx.pMSRBitmapPhys   = 0;
+        }
+#ifdef VBOX_WITH_AUTO_MSR_LOAD_RESTORE
+        if (pVCpu->hwaccm.s.vmx.pMemObjHostMSR != NIL_RTR0MEMOBJ)
+        {
+            RTR0MemObjFree(pVCpu->hwaccm.s.vmx.pMemObjHostMSR, false);
+            pVCpu->hwaccm.s.vmx.pMemObjHostMSR = NIL_RTR0MEMOBJ;
+            pVCpu->hwaccm.s.vmx.pHostMSR       = 0;
+            pVCpu->hwaccm.s.vmx.pHostMSRPhys   = 0;
+        }
+        if (pVCpu->hwaccm.s.vmx.pMemObjGuestMSR != NIL_RTR0MEMOBJ)
+        {
+            RTR0MemObjFree(pVCpu->hwaccm.s.vmx.pMemObjGuestMSR, false);
+            pVCpu->hwaccm.s.vmx.pMemObjGuestMSR = NIL_RTR0MEMOBJ;
+            pVCpu->hwaccm.s.vmx.pGuestMSR       = 0;
+            pVCpu->hwaccm.s.vmx.pGuestMSRPhys   = 0;
+        }
+#endif /* VBOX_WITH_AUTO_MSR_LOAD_RESTORE */
     }
     if (pVM->hwaccm.s.vmx.pMemObjAPIC != NIL_RTR0MEMOBJ)
     {
@@ -300,13 +346,6 @@ VMMR0DECL(int) VMXR0TermVM(PVM pVM)
         pVM->hwaccm.s.vmx.pMemObjAPIC = NIL_RTR0MEMOBJ;
         pVM->hwaccm.s.vmx.pAPIC       = 0;
         pVM->hwaccm.s.vmx.pAPICPhys   = 0;
-    }
-    if (pVM->hwaccm.s.vmx.pMemObjMSRBitmap != NIL_RTR0MEMOBJ)
-    {
-        RTR0MemObjFree(pVM->hwaccm.s.vmx.pMemObjMSRBitmap, false);
-        pVM->hwaccm.s.vmx.pMemObjMSRBitmap = NIL_RTR0MEMOBJ;
-        pVM->hwaccm.s.vmx.pMSRBitmap       = 0;
-        pVM->hwaccm.s.vmx.pMSRBitmapPhys   = 0;
     }
 #ifdef VBOX_WITH_CRASHDUMP_MAGIC
     if (pVM->hwaccm.s.vmx.pMemObjScratch != NIL_RTR0MEMOBJ)
@@ -394,13 +433,11 @@ VMMR0DECL(int) VMXR0SetupVM(PVM pVM)
             /* Exit on CR8 reads & writes in case the TPR shadow feature isn't present. */
             val |= VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_CR8_STORE_EXIT | VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_CR8_LOAD_EXIT;
 
-#ifdef VBOX_WITH_VTX_MSR_BITMAPS
         if (pVM->hwaccm.s.vmx.msr.vmx_proc_ctls.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_USE_MSR_BITMAPS)
         {
-            Assert(pVM->hwaccm.s.vmx.pMSRBitmapPhys);
+            Assert(pVCpu->hwaccm.s.vmx.pMSRBitmapPhys);
             val |= VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_USE_MSR_BITMAPS;
         }
-#endif
 
         /* We will use the secondary control if it's present. */
         val |= VMX_VMCS_CTRL_PROC_EXEC_USE_SECONDARY_EXEC_CTRL;
@@ -479,17 +516,40 @@ VMMR0DECL(int) VMXR0SetupVM(PVM pVM)
         /* Set the MSR bitmap address. */
         if (pVM->hwaccm.s.vmx.msr.vmx_proc_ctls.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_USE_MSR_BITMAPS)
         {
-            /* Optional */
-            rc = VMXWriteVMCS64(VMX_VMCS_CTRL_MSR_BITMAP_FULL, pVM->hwaccm.s.vmx.pMSRBitmapPhys);
+            Assert(pVCpu->hwaccm.s.vmx.pMSRBitmapPhys);
+
+            rc = VMXWriteVMCS64(VMX_VMCS_CTRL_MSR_BITMAP_FULL, pVCpu->hwaccm.s.vmx.pMSRBitmapPhys);
             AssertRC(rc);
+
+            /* Allow the guest to directly modify these MSRs; they are restored and saved automatically. */
+            vmxR0SetMSRPermission(pVCpu, MSR_IA32_SYSENTER_CS, true, true);
+            vmxR0SetMSRPermission(pVCpu, MSR_IA32_SYSENTER_ESP, true, true);
+            vmxR0SetMSRPermission(pVCpu, MSR_IA32_SYSENTER_EIP, true, true);
+            vmxR0SetMSRPermission(pVCpu, MSR_K8_LSTAR, true, true);
+            vmxR0SetMSRPermission(pVCpu, MSR_K6_STAR, true, true);
+            vmxR0SetMSRPermission(pVCpu, MSR_K8_SF_MASK, true, true);
+            vmxR0SetMSRPermission(pVCpu, MSR_K8_KERNEL_GS_BASE, true, true);
+            vmxR0SetMSRPermission(pVCpu, MSR_K8_GS_BASE, true, true);
+            vmxR0SetMSRPermission(pVCpu, MSR_K8_FS_BASE, true, true);
         }
 
-        /* Clear MSR controls. */
-        rc  = VMXWriteVMCS64(VMX_VMCS_CTRL_VMEXIT_MSR_STORE_FULL, 0);
-        rc |= VMXWriteVMCS64(VMX_VMCS_CTRL_VMEXIT_MSR_LOAD_FULL, 0);
-        rc |= VMXWriteVMCS64(VMX_VMCS_CTRL_VMENTRY_MSR_LOAD_FULL, 0);
-        rc |= VMXWriteVMCS(VMX_VMCS_CTRL_EXIT_MSR_STORE_COUNT, 0);
-        rc |= VMXWriteVMCS(VMX_VMCS_CTRL_EXIT_MSR_LOAD_COUNT, 0);
+#ifdef VBOX_WITH_AUTO_MSR_LOAD_RESTORE
+        /* Set the guest & host MSR load/store physical addresses. */
+        Assert(pVCpu->hwaccm.s.vmx.pGuestMSRPhys);
+        rc = VMXWriteVMCS64(VMX_VMCS_CTRL_VMENTRY_MSR_LOAD_FULL, pVCpu->hwaccm.s.vmx.pGuestMSRPhys);
+        AssertRC(rc);
+        rc = VMXWriteVMCS64(VMX_VMCS_CTRL_VMEXIT_MSR_STORE_FULL, pVCpu->hwaccm.s.vmx.pGuestMSRPhys);
+        AssertRC(rc);
+
+        Assert(pVCpu->hwaccm.s.vmx.pHostMSRPhys);
+        rc = VMXWriteVMCS64(VMX_VMCS_CTRL_VMEXIT_MSR_LOAD_FULL,  pVCpu->hwaccm.s.vmx.pHostMSRPhys);
+        AssertRC(rc);
+#endif /* VBOX_WITH_AUTO_MSR_LOAD_RESTORE */
+
+        rc = VMXWriteVMCS(VMX_VMCS_CTRL_ENTRY_MSR_LOAD_COUNT, 0);
+        AssertRC(rc);
+
+        rc = VMXWriteVMCS(VMX_VMCS_CTRL_EXIT_MSR_STORE_COUNT, 0);
         AssertRC(rc);
 
         if (pVM->hwaccm.s.vmx.msr.vmx_proc_ctls.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_USE_TPR_SHADOW)
@@ -609,6 +669,56 @@ VMMR0DECL(int) VMXR0SetupVM(PVM pVM)
 vmx_end:
     VMXR0CheckError(pVM, &pVM->aCpus[0], rc);
     return rc;
+}
+
+/**
+ * Sets the permission bits for the specified MSR
+ *
+ * @param   pVCpu       The VMCPU to operate on.
+ * @param   ulMSR       MSR value
+ * @param   fRead       Reading allowed/disallowed
+ * @param   fWrite      Writing allowed/disallowed
+ */
+static void vmxR0SetMSRPermission(PVMCPU pVCpu, unsigned ulMSR, bool fRead, bool fWrite)
+{
+    unsigned ulBit;
+    uint8_t *pMSRBitmap = (uint8_t *)pVCpu->hwaccm.s.vmx.pMSRBitmap;
+
+    /* Layout:
+     * 0x000 - 0x3ff - Low MSR read bits
+     * 0x400 - 0x7ff - High MSR read bits
+     * 0x800 - 0xbff - Low MSR write bits
+     * 0xc00 - 0xfff - High MSR write bits
+     */
+    if (ulMSR <= 0x00001FFF)
+    {
+        /* Pentium-compatible MSRs */
+        ulBit    = ulMSR;
+    }
+    else
+    if (    ulMSR >= 0xC0000000
+        &&  ulMSR <= 0xC0001FFF)
+    {
+        /* AMD Sixth Generation x86 Processor MSRs */
+        ulBit = (ulMSR - 0xC0000000);
+        pMSRBitmap += 0x400;
+    }
+    else
+    {
+        AssertFailed();
+        return;
+    }
+
+    Assert(ulBit <= 0x1fff);
+    if (fRead)
+        ASMBitClear(pMSRBitmap, ulBit);
+    else
+        ASMBitSet(pMSRBitmap, ulBit);
+
+    if (fWrite)
+        ASMBitClear(pMSRBitmap + 0x800, ulBit);
+    else
+        ASMBitSet(pMSRBitmap + 0x800, ulBit);
 }
 
 
@@ -897,7 +1007,7 @@ VMMR0DECL(int) VMXR0SaveHostState(PVM pVM, PVMCPU pVCpu)
         RTIDTR      idtr;
         RTGDTR      gdtr;
         RTSEL       SelTR;
-        PX86DESCHC  pDesc;
+        PCX86DESCHC pDesc;
         uintptr_t   trBase;
         RTSEL       cs;
         RTSEL       ss;
@@ -991,7 +1101,6 @@ VMMR0DECL(int) VMXR0SaveHostState(PVM pVM, PVMCPU pVCpu)
             Log2(("VMX_VMCS_HOST_IDTR_BASE %RHv\n", idtr.pIdt));
         }
 
-
         /* Save the base address of the TR selector. */
         if (SelTR > gdtr.cbGdt)
         {
@@ -999,10 +1108,10 @@ VMMR0DECL(int) VMXR0SaveHostState(PVM pVM, PVMCPU pVCpu)
             return VERR_VMX_INVALID_HOST_STATE;
         }
 
+        pDesc = (PCX86DESCHC)(gdtr.pGdt + (SelTR & X86_SEL_MASK));
 #ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
         if (VMX_IS_64BIT_HOST_MODE())
         {
-            pDesc  = &((PX86DESCHC)gdtr.pGdt)[SelTR >> X86_SEL_SHIFT_HC]; /// ????
             uint64_t trBase64 = X86DESC64_BASE(*(PX86DESC64)pDesc);
             rc = VMXWriteVMCS64(VMX_VMCS_HOST_TR_BASE, trBase64);
             Log2(("VMX_VMCS_HOST_TR_BASE %RX64\n", trBase64));
@@ -1011,7 +1120,6 @@ VMMR0DECL(int) VMXR0SaveHostState(PVM pVM, PVMCPU pVCpu)
         else
 #endif
         {
-            pDesc  = &((PX86DESCHC)gdtr.pGdt)[SelTR >> X86_SEL_SHIFT_HC];
 #if HC_ARCH_BITS == 64
             trBase = X86DESC64_BASE(*pDesc);
 #else
@@ -1066,15 +1174,57 @@ VMMR0DECL(int) VMXR0SaveHostState(PVM pVM, PVMCPU pVCpu)
 #endif
         AssertRC(rc);
 
-#if 0 /* @todo deal with 32/64 */
-        /* Restore the host EFER - on CPUs that support it. */
-        if (pVM->hwaccm.s.vmx.msr.vmx_exit.n.allowed1 & VMX_VMCS_CTRL_EXIT_CONTROLS_LOAD_HOST_EFER_MSR)
+#ifdef VBOX_WITH_AUTO_MSR_LOAD_RESTORE
+        /* Store all host MSRs in the VM-Exit load area, so they will be reloaded after the world switch back to the host. */
+        PVMXMSR pMsr = (PVMXMSR)pVCpu->hwaccm.s.vmx.pHostMSR;
+        unsigned idxMsr = 0;
+
+        /* EFER MSR present? */
+        if (ASMCpuId_EDX(0x80000001) & (X86_CPUID_AMD_FEATURE_EDX_NX|X86_CPUID_AMD_FEATURE_EDX_LONG_MODE))
         {
-            uint64_t msrEFER = ASMRdMsr(MSR_IA32_EFER);
-            rc = VMXWriteVMCS64(VMX_VMCS_HOST_FIELD_EFER_FULL, msrEFER);
-            AssertRC(rc);
+            if (ASMCpuId_EDX(0x80000001) & X86_CPUID_AMD_FEATURE_EDX_SEP)
+            {
+                pMsr->u32IndexMSR = MSR_K6_STAR;
+                pMsr->u32Reserved = 0;
+                pMsr->u64Value    = ASMRdMsr(MSR_K6_STAR);                   /* legacy syscall eip, cs & ss */
+                pMsr++; idxMsr++;
+            }
+
+            pMsr->u32IndexMSR = MSR_K6_EFER;
+            pMsr->u32Reserved = 0;
+# if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+            if (CPUMIsGuestInLongMode(pVCpu))
+            {
+                /* Must match the efer value in our 64 bits switcher. */
+                pMsr->u64Value    = ASMRdMsr(MSR_K6_EFER) | MSR_K6_EFER_LME | MSR_K6_EFER_SCE | MSR_K6_EFER_NXE;
+            }
+            else
+# endif
+                pMsr->u64Value    = ASMRdMsr(MSR_K6_EFER);
+            pMsr++; idxMsr++;
         }
-#endif
+
+# if HC_ARCH_BITS == 64 || defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+        if (VMX_IS_64BIT_HOST_MODE())
+        {
+            pMsr->u32IndexMSR = MSR_K8_LSTAR;
+            pMsr->u32Reserved = 0;
+            pMsr->u64Value    = ASMRdMsr(MSR_K8_LSTAR);             /* 64 bits mode syscall rip */
+            pMsr++; idxMsr++;
+            pMsr->u32IndexMSR = MSR_K8_SF_MASK;
+            pMsr->u32Reserved = 0;
+            pMsr->u64Value    = ASMRdMsr(MSR_K8_SF_MASK);           /* syscall flag mask */
+            pMsr++; idxMsr++;
+            pMsr->u32IndexMSR = MSR_K8_KERNEL_GS_BASE;
+            pMsr->u32Reserved = 0;
+            pMsr->u64Value    = ASMRdMsr(MSR_K8_KERNEL_GS_BASE);    /* swapgs exchange value */
+            pMsr++; idxMsr++;
+        }
+# endif
+        rc = VMXWriteVMCS(VMX_VMCS_CTRL_EXIT_MSR_LOAD_COUNT, idxMsr);
+        AssertRC(rc);
+#endif /* VBOX_WITH_AUTO_MSR_LOAD_RESTORE */
+
         pVCpu->hwaccm.s.fContextUseFlags &= ~HWACCM_CHANGED_HOST_CONTEXT;
     }
     return rc;
@@ -1131,7 +1281,8 @@ static void vmxR0UpdateExceptionBitmap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 
 #ifdef DEBUG /* till after branching, enable it by default then. */
     /* Intercept X86_XCPT_DB if stepping is enabled */
-    if (DBGFIsStepping(pVCpu))
+    if (    DBGFIsStepping(pVCpu)
+        ||  CPUMIsHyperDebugStateActive(pVCpu))
         u32TrapMask |= RT_BIT(X86_XCPT_DB);
     /** @todo Don't trap it unless the debugger has armed breakpoints.  */
     u32TrapMask |= RT_BIT(X86_XCPT_BP);
@@ -1173,10 +1324,6 @@ VMMR0DECL(int) VMXR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     val  = pVM->hwaccm.s.vmx.msr.vmx_entry.n.disallowed0;
     /* Load guest debug controls (dr7 & IA32_DEBUGCTL_MSR) (forced to 1 on the 'first' VT-x capable CPUs; this actually includes the newest Nehalem CPUs) */
     val |= VMX_VMCS_CTRL_ENTRY_CONTROLS_LOAD_DEBUG;
-#if 0 /* @todo deal with 32/64 */
-    /* Required for the EFER write below, not supported on all CPUs. */
-    val |= VMX_VMCS_CTRL_ENTRY_CONTROLS_LOAD_GUEST_EFER_MSR;
-#endif
     /* 64 bits guest mode? */
     if (CPUMIsGuestInLongModeEx(pCtx))
         val |= VMX_VMCS_CTRL_ENTRY_CONTROLS_IA64_MODE;
@@ -1193,11 +1340,7 @@ VMMR0DECL(int) VMXR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     val  = pVM->hwaccm.s.vmx.msr.vmx_exit.n.disallowed0;
 
     /* Save debug controls (dr7 & IA32_DEBUGCTL_MSR) (forced to 1 on the 'first' VT-x capable CPUs; this actually includes the newest Nehalem CPUs) */
-#if 0 /* @todo deal with 32/64 */
-    val |= VMX_VMCS_CTRL_EXIT_CONTROLS_SAVE_DEBUG | VMX_VMCS_CTRL_EXIT_CONTROLS_LOAD_HOST_EFER_MSR;
-#else
     val |= VMX_VMCS_CTRL_EXIT_CONTROLS_SAVE_DEBUG;
-#endif
 
 #if HC_ARCH_BITS == 64 || defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
     if (VMX_IS_64BIT_HOST_MODE())
@@ -1243,18 +1386,18 @@ VMMR0DECL(int) VMXR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
                     pCtx->gsHid.Attr.n.u2Dpl  = 0;
                     pCtx->ssHid.Attr.n.u2Dpl  = 0;
 
-                    /* The limit must correspond to the granularity bit. */
-                    if (!pCtx->csHid.Attr.n.u1Granularity)
+                    /* The limit must correspond to the 32 bits setting. */
+                    if (!pCtx->csHid.Attr.n.u1DefBig)
                         pCtx->csHid.u32Limit &= 0xffff;
-                    if (!pCtx->dsHid.Attr.n.u1Granularity)
+                    if (!pCtx->dsHid.Attr.n.u1DefBig)
                         pCtx->dsHid.u32Limit &= 0xffff;
-                    if (!pCtx->esHid.Attr.n.u1Granularity)
+                    if (!pCtx->esHid.Attr.n.u1DefBig)
                         pCtx->esHid.u32Limit &= 0xffff;
-                    if (!pCtx->fsHid.Attr.n.u1Granularity)
+                    if (!pCtx->fsHid.Attr.n.u1DefBig)
                         pCtx->fsHid.u32Limit &= 0xffff;
-                    if (!pCtx->gsHid.Attr.n.u1Granularity)
+                    if (!pCtx->gsHid.Attr.n.u1DefBig)
                         pCtx->gsHid.u32Limit &= 0xffff;
-                    if (!pCtx->ssHid.Attr.n.u1Granularity)
+                    if (!pCtx->ssHid.Attr.n.u1DefBig)
                         pCtx->ssHid.u32Limit &= 0xffff;
                 }
                 else
@@ -1301,7 +1444,6 @@ VMMR0DECL(int) VMXR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         VMX_WRITE_SELREG(DS, ds);
         AssertRC(rc);
 
-        /* The base values in the hidden fs & gs registers are not in sync with the msrs; they are cut to 32 bits. */
         VMX_WRITE_SELREG(FS, fs);
         AssertRC(rc);
 
@@ -1592,6 +1734,24 @@ VMMR0DECL(int) VMXR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         rc = VMXWriteVMCS64(VMX_VMCS64_GUEST_DR7, pCtx->dr[7]);
         AssertRC(rc);
 
+#ifdef DEBUG
+        /* Sync the hypervisor debug state now if any breakpoint is armed. */
+        if (    CPUMGetHyperDR7(pVCpu) & (X86_DR7_ENABLED_MASK|X86_DR7_GD)
+            &&  !CPUMIsHyperDebugStateActive(pVCpu)
+            &&  !DBGFIsStepping(pVCpu))
+        {
+            /* Save the host and load the hypervisor debug state. */
+            rc = CPUMR0LoadHyperDebugState(pVM, pVCpu, pCtx, true /* include DR6 */);
+            AssertRC(rc);
+
+            /* DRx intercepts remain enabled. */
+
+            /* Override dr7 with the hypervisor value. */
+            rc = VMXWriteVMCS64(VMX_VMCS64_GUEST_DR7, CPUMGetHyperDR7(pVCpu));
+            AssertRC(rc);
+        }
+        else
+#endif
         /* Sync the debug state now if any breakpoint is armed. */
         if (    (pCtx->dr[7] & (X86_DR7_ENABLED_MASK|X86_DR7_GD))
             &&  !CPUMIsGuestDebugStateActive(pVCpu)
@@ -1641,19 +1801,29 @@ VMMR0DECL(int) VMXR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     rc   = VMXWriteVMCS(VMX_VMCS_GUEST_RFLAGS,           eflags.u32);
     AssertRC(rc);
 
-    /* TSC offset. */
-    uint64_t u64TSCOffset;
-
-    if (TMCpuTickCanUseRealTSC(pVCpu, &u64TSCOffset))
+    if (TMCpuTickCanUseRealTSC(pVCpu, &pVCpu->hwaccm.s.vmx.u64TSCOffset))
     {
-        /* Note: VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT takes precedence over TSC_OFFSET */
-        rc = VMXWriteVMCS64(VMX_VMCS_CTRL_TSC_OFFSET_FULL, u64TSCOffset);
-        AssertRC(rc);
+        uint64_t u64CurTSC = ASMReadTSC();
+        if (u64CurTSC + pVCpu->hwaccm.s.vmx.u64TSCOffset >= TMCpuTickGetLastSeen(pVCpu))
+        {
+            /* Note: VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT takes precedence over TSC_OFFSET */
+            rc = VMXWriteVMCS64(VMX_VMCS_CTRL_TSC_OFFSET_FULL, pVCpu->hwaccm.s.vmx.u64TSCOffset);
+            AssertRC(rc);
 
-        pVCpu->hwaccm.s.vmx.proc_ctls &= ~VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT;
-        rc = VMXWriteVMCS(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, pVCpu->hwaccm.s.vmx.proc_ctls);
-        AssertRC(rc);
-        STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTSCOffset);
+            pVCpu->hwaccm.s.vmx.proc_ctls &= ~VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT;
+            rc = VMXWriteVMCS(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, pVCpu->hwaccm.s.vmx.proc_ctls);
+            AssertRC(rc);
+            STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTSCOffset);
+        }
+        else
+        {
+            /* Fall back to rdtsc emulation as we would otherwise pass decreasing tsc values to the guest. */
+            Log(("TSC %RX64 offset %RX64 time=%RX64 last=%RX64 (diff=%RX64, virt_tsc=%RX64)\n", u64CurTSC, pVCpu->hwaccm.s.vmx.u64TSCOffset, u64CurTSC + pVCpu->hwaccm.s.vmx.u64TSCOffset, TMCpuTickGetLastSeen(pVCpu), TMCpuTickGetLastSeen(pVCpu) - u64CurTSC - pVCpu->hwaccm.s.vmx.u64TSCOffset, TMCpuTickGet(pVCpu)));
+            pVCpu->hwaccm.s.vmx.proc_ctls |= VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT;
+            rc = VMXWriteVMCS(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, pVCpu->hwaccm.s.vmx.proc_ctls);
+            AssertRC(rc);
+            STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTSCInterceptOverFlow);
+        }
     }
     else
     {
@@ -1688,16 +1858,55 @@ VMMR0DECL(int) VMXR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         pVCpu->hwaccm.s.vmx.pfnStartVM  = VMXR0StartVM32;
     }
 
-#if 0 /* @todo deal with 32/64 */
-    /* Unconditionally update the guest EFER - on CPUs that supports it. */
-    if (pVM->hwaccm.s.vmx.msr.vmx_entry.n.allowed1 & VMX_VMCS_CTRL_ENTRY_CONTROLS_LOAD_GUEST_EFER_MSR)
-    {
-        rc = VMXWriteVMCS64(VMX_VMCS_GUEST_EFER_FULL, pCtx->msrEFER);
-        AssertRC(rc);
-    }
-#endif
-
     vmxR0UpdateExceptionBitmap(pVM, pVCpu, pCtx);
+
+#ifdef VBOX_WITH_AUTO_MSR_LOAD_RESTORE
+    /* Store all guest MSRs in the VM-Entry load area, so they will be loaded during the world switch. */
+    PVMXMSR pMsr = (PVMXMSR)pVCpu->hwaccm.s.vmx.pGuestMSR;
+    unsigned idxMsr = 0;
+
+    uint32_t ulEdx;
+    uint32_t ulTemp;
+    CPUMGetGuestCpuId(pVCpu, 0x80000001, &ulTemp, &ulTemp, &ulTemp, &ulEdx);
+    /* EFER MSR present? */
+    if (ulEdx & (X86_CPUID_AMD_FEATURE_EDX_NX|X86_CPUID_AMD_FEATURE_EDX_LONG_MODE))
+    {
+        pMsr->u32IndexMSR = MSR_K6_EFER;
+        pMsr->u32Reserved = 0;
+        pMsr->u64Value    = pCtx->msrEFER;
+        /* VT-x will complain if only MSR_K6_EFER_LME is set. */
+        if (!CPUMIsGuestInLongModeEx(pCtx))
+            pMsr->u64Value &= ~(MSR_K6_EFER_LMA|MSR_K6_EFER_LME);
+        pMsr++; idxMsr++;
+
+        if (ulEdx & X86_CPUID_AMD_FEATURE_EDX_LONG_MODE)
+        {
+            pMsr->u32IndexMSR = MSR_K8_LSTAR;
+            pMsr->u32Reserved = 0;
+            pMsr->u64Value    = pCtx->msrLSTAR;           /* 64 bits mode syscall rip */
+            pMsr++; idxMsr++;
+            pMsr->u32IndexMSR = MSR_K6_STAR;
+            pMsr->u32Reserved = 0;
+            pMsr->u64Value    = pCtx->msrSTAR;            /* legacy syscall eip, cs & ss */
+            pMsr++; idxMsr++;
+            pMsr->u32IndexMSR = MSR_K8_SF_MASK;
+            pMsr->u32Reserved = 0;
+            pMsr->u64Value    = pCtx->msrSFMASK;          /* syscall flag mask */
+            pMsr++; idxMsr++;
+            pMsr->u32IndexMSR = MSR_K8_KERNEL_GS_BASE;
+            pMsr->u32Reserved = 0;
+            pMsr->u64Value    = pCtx->msrKERNELGSBASE;    /* swapgs exchange value */
+            pMsr++; idxMsr++;
+        }
+    }
+    pVCpu->hwaccm.s.vmx.cCachedMSRs = idxMsr;
+
+    rc = VMXWriteVMCS(VMX_VMCS_CTRL_ENTRY_MSR_LOAD_COUNT, idxMsr);
+    AssertRC(rc);
+
+    rc = VMXWriteVMCS(VMX_VMCS_CTRL_EXIT_MSR_STORE_COUNT, idxMsr);
+    AssertRC(rc);
+#endif /* VBOX_WITH_AUTO_MSR_LOAD_RESTORE */
 
     /* Done. */
     pVCpu->hwaccm.s.fContextUseFlags &= ~HWACCM_CHANGED_ALL_GUEST;
@@ -1828,6 +2037,38 @@ DECLINLINE(int) VMXR0SaveGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         /* In real mode we have a fake TSS, so only sync it back when it's supposed to be valid. */
         VMX_READ_SELREG(TR, tr);
     }
+
+#ifdef VBOX_WITH_AUTO_MSR_LOAD_RESTORE
+    /* Save the possibly changed MSRs that we automatically restore and save during a world switch. */
+    for (unsigned i = 0; i < pVCpu->hwaccm.s.vmx.cCachedMSRs; i++)
+    {
+        PVMXMSR pMsr = (PVMXMSR)pVCpu->hwaccm.s.vmx.pGuestMSR;
+        pMsr += i;
+
+        switch (pMsr->u32IndexMSR)
+        {
+        case MSR_K8_LSTAR:
+            pCtx->msrLSTAR = pMsr->u64Value;
+            break;
+        case MSR_K6_STAR:
+            pCtx->msrSTAR = pMsr->u64Value;
+            break;
+        case MSR_K8_SF_MASK:
+            pCtx->msrSFMASK = pMsr->u64Value;
+            break;
+        case MSR_K8_KERNEL_GS_BASE:
+            pCtx->msrKERNELGSBASE = pMsr->u64Value;
+            break;
+        case MSR_K6_EFER:
+            /* EFER can't be changed without causing a VM-exit. */
+//            Assert(pCtx->msrEFER == pMsr->u64Value);
+            break;
+        default:
+            AssertFailed();
+            return VERR_INTERNAL_ERROR;
+        }
+    }
+#endif /* VBOX_WITH_AUTO_MSR_LOAD_RESTORE */
     return VINF_SUCCESS;
 }
 
@@ -2021,6 +2262,7 @@ VMMR0DECL(int) VMXR0RunGuestCode(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     unsigned    cResume = 0;
 #ifdef VBOX_STRICT
     RTCPUID     idCpuCheck;
+    bool        fWasInLongMode = false;
 #endif
 #ifdef VBOX_HIGH_RES_TIMERS_HACK_IN_RING0
     uint64_t    u64LastTime = RTTimeMilliTS();
@@ -2103,6 +2345,7 @@ VMMR0DECL(int) VMXR0RunGuestCode(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         if ((val & ~pVM->hwaccm.s.vmx.msr.vmx_exit.n.allowed1) != 0)
             Log(("Invalid VMX_VMCS_CTRL_EXIT_CONTROLS: one\n"));
     }
+    fWasInLongMode = CPUMIsGuestInLongMode(pVCpu);
 #endif
 
 #ifdef VBOX_WITH_CRASHDUMP_MAGIC
@@ -2120,6 +2363,8 @@ ResumeExecution:
               ("Expected %d, I'm %d; cResume=%d exitReason=%RGv exitQualification=%RGv\n",
                (int)pVCpu->hwaccm.s.idEnteredCpu, (int)RTMpCpuId(), cResume, exitReason, exitQualification));
     Assert(!HWACCMR0SuspendPending());
+    /* Not allowed to switch modes without reloading the host state (32->64 switcher)!! */
+    Assert(fWasInLongMode == CPUMIsGuestInLongMode(pVCpu));
 
     /* Safety precaution; looping for too long here can have a very bad effect on the host */
     if (RT_UNLIKELY(++cResume > pVM->hwaccm.s.cMaxResumeLoops))
@@ -2221,7 +2466,7 @@ ResumeExecution:
 
     /* TPR caching using CR8 is only available in 64 bits mode */
     /* Note the 32 bits exception for AMD (X86_CPUID_AMD_FEATURE_ECX_CR8L), but that appears missing in Intel CPUs */
-    /* Note: we can't do this in LoadGuestState as PDMApicGetTPR can jump back to ring 3 (lock)!!!!! */
+    /* Note: we can't do this in LoadGuestState as PDMApicGetTPR can jump back to ring 3 (lock)!!!!! (no longer true) */
     /**
      * @todo query and update the TPR only when it could have been changed (mmio access & wrmsr (x2apic))
      */
@@ -2343,6 +2588,10 @@ ResumeExecution:
 #else
     rc = pVCpu->hwaccm.s.vmx.pfnStartVM(pVCpu->hwaccm.s.fResumeVM, pCtx, &pVCpu->hwaccm.s.vmx.VMCSCache, pVM, pVCpu);
 #endif
+    /* Possibly the last TSC value seen by the guest (too high) (only when we're in tsc offset mode). */
+    if (!(pVCpu->hwaccm.s.vmx.proc_ctls & VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT))
+        TMCpuTickSetLastSeen(pVCpu, ASMReadTSC() + pVCpu->hwaccm.s.vmx.u64TSCOffset - 0x400 /* guestimate of world switch overhead in clock ticks */);
+
     TMNotifyEndOfExecution(pVCpu);
     VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED);
     Assert(!(ASMGetFlags() & X86_EFL_IF));
@@ -2642,7 +2891,7 @@ ResumeExecution:
                 STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitGuestDB);
 
                 /* Note that we don't support guest and host-initiated debugging at the same time. */
-                Assert(DBGFIsStepping(pVCpu) || CPUMIsGuestInRealModeEx(pCtx));
+                Assert(DBGFIsStepping(pVCpu) || CPUMIsGuestInRealModeEx(pCtx) || CPUMIsHyperDebugStateActive(pVCpu));
 
                 uDR6  = X86_DR6_INIT_VAL;
                 uDR6 |= (exitQualification & (X86_DR6_B0|X86_DR6_B1|X86_DR6_B2|X86_DR6_B3|X86_DR6_BD|X86_DR6_BS));
@@ -2674,6 +2923,7 @@ ResumeExecution:
                     goto ResumeExecution;
                 }
                 /* Return to ring 3 to deal with the debug exit code. */
+                Log(("Debugger hardware BP at %04x:%RGv (rc=%Rrc)\n", pCtx->cs, pCtx->rip, rc));
                 break;
             }
 
@@ -3281,7 +3531,8 @@ ResumeExecution:
 
     case VMX_EXIT_DRX_MOVE:             /* 29 Debug-register accesses. */
     {
-        if (!DBGFIsStepping(pVCpu))
+        if (    !DBGFIsStepping(pVCpu)
+            &&  !CPUMIsHyperDebugStateActive(pVCpu))
         {
             /* Disable drx move intercepts. */
             pVCpu->hwaccm.s.vmx.proc_ctls &= ~VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_MOV_DR_EXIT;
@@ -3399,6 +3650,8 @@ ResumeExecution:
             {
                 STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitIOWrite);
                 rc = IOMIOPortWrite(pVM, uPort, pCtx->eax & uAndVal, cbSize);
+                if (rc == VINF_IOM_HC_IOPORT_WRITE)
+                    HWACCMR0SavePendingIOPortWrite(pVCpu, pCtx->rip, pCtx->rip + cbInstr, uPort, uAndVal, cbSize);
             }
             else
             {
@@ -3411,6 +3664,9 @@ ResumeExecution:
                     /* Write back to the EAX register. */
                     pCtx->eax = (pCtx->eax & ~uAndVal) | (u32Val & uAndVal);
                 }
+                else
+                if (rc == VINF_IOM_HC_IOPORT_READ)
+                    HWACCMR0SavePendingIOPortRead(pVCpu, pCtx->rip, pCtx->rip + cbInstr, uPort, uAndVal, cbSize);
             }
         }
         /*
@@ -3610,7 +3866,7 @@ ResumeExecution:
 
     case VMX_EXIT_RSM:                  /* 17 Guest software attempted to execute RSM in SMM. */
         AssertFailed(); /* can't happen. */
-        rc = VINF_EM_RAW_EXCEPTION_PRIVILEGED;
+        rc = VERR_EM_INTERPRETER;
         break;
 
     case VMX_EXIT_VMCALL:               /* 18 Guest software executed VMCALL. */
@@ -3624,7 +3880,7 @@ ResumeExecution:
     case VMX_EXIT_VMXOFF:               /* 26 Guest software executed VMXOFF. */
     case VMX_EXIT_VMXON:                /* 27 Guest software executed VMXON. */
         /** @todo inject #UD immediately */
-        rc = VINF_EM_RAW_EXCEPTION_PRIVILEGED;
+        rc = VERR_EM_INTERPRETER;
         break;
 
     case VMX_EXIT_CPUID:                /* 10 Guest software attempted to execute CPUID. */
@@ -3652,13 +3908,10 @@ ResumeExecution:
     case VMX_EXIT_APIC_ACCESS:          /* 44 APIC access. Guest software attempted to access memory at a physical address on the APIC-access page. */
     case VMX_EXIT_RDMSR:                /* 31 RDMSR. Guest software attempted to execute RDMSR. */
     case VMX_EXIT_WRMSR:                /* 32 WRMSR. Guest software attempted to execute WRMSR. */
-        /* Note: If we decide to emulate them here, then we must sync the MSRs that could have been changed (sysenter, fs/gs base)!!! */
-        rc = VERR_EM_INTERPRETER;
-        break;
-
     case VMX_EXIT_MONITOR:              /* 39 Guest software attempted to execute MONITOR. */
     case VMX_EXIT_PAUSE:                /* 40 Guest software attempted to execute PAUSE. */
-        rc = VINF_EM_RAW_EXCEPTION_PRIVILEGED;
+        /* Note: If we decide to emulate them here, then we must sync the MSRs that could have been changed (sysenter, fs/gs base)!!! */
+        rc = VERR_EM_INTERPRETER;
         break;
 
     case VMX_EXIT_IRQ_WINDOW:           /* 7 Interrupt window. */
@@ -3806,6 +4059,13 @@ VMMR0DECL(int) VMXR0Leave(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 {
     Assert(pVM->hwaccm.s.vmx.fSupported);
 
+#ifdef DEBUG
+    if (CPUMIsHyperDebugStateActive(pVCpu))
+    {
+        CPUMR0LoadHostDebugState(pVM, pVCpu);
+    }
+    else
+#endif
     /* Save the guest debug state if necessary. */
     if (CPUMIsGuestDebugStateActive(pVCpu))
     {
@@ -3971,7 +4231,7 @@ static void VMXR0ReportWorldSwitchError(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTX 
 
 #ifdef VBOX_STRICT
             RTGDTR      gdtr;
-            PX86DESCHC  pDesc;
+            PCX86DESCHC pDesc;
             RTCCUINTREG val;
 
             ASMGetGDTR(&gdtr);
@@ -4004,7 +4264,7 @@ static void VMXR0ReportWorldSwitchError(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTX 
 
             if (val < gdtr.cbGdt)
             {
-                pDesc  = &((PX86DESCHC)gdtr.pGdt)[val >> X86_SEL_SHIFT_HC];
+                pDesc  = (PCX86DESCHC)(gdtr.pGdt + (val & X86_SEL_MASK));
                 HWACCMR0DumpDescriptor(pDesc, val, "CS: ");
             }
 
@@ -4012,7 +4272,7 @@ static void VMXR0ReportWorldSwitchError(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTX 
             Log(("VMX_VMCS_HOST_FIELD_DS %08x\n", val));
             if (val < gdtr.cbGdt)
             {
-                pDesc  = &((PX86DESCHC)gdtr.pGdt)[val >> X86_SEL_SHIFT_HC];
+                pDesc  = (PCX86DESCHC)(gdtr.pGdt + (val & X86_SEL_MASK));
                 HWACCMR0DumpDescriptor(pDesc, val, "DS: ");
             }
 
@@ -4020,7 +4280,7 @@ static void VMXR0ReportWorldSwitchError(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTX 
             Log(("VMX_VMCS_HOST_FIELD_ES %08x\n", val));
             if (val < gdtr.cbGdt)
             {
-                pDesc  = &((PX86DESCHC)gdtr.pGdt)[val >> X86_SEL_SHIFT_HC];
+                pDesc  = (PCX86DESCHC)(gdtr.pGdt + (val & X86_SEL_MASK));
                 HWACCMR0DumpDescriptor(pDesc, val, "ES: ");
             }
 
@@ -4028,7 +4288,7 @@ static void VMXR0ReportWorldSwitchError(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTX 
             Log(("VMX_VMCS16_HOST_FIELD_FS %08x\n", val));
             if (val < gdtr.cbGdt)
             {
-                pDesc  = &((PX86DESCHC)gdtr.pGdt)[val >> X86_SEL_SHIFT_HC];
+                pDesc  = (PCX86DESCHC)(gdtr.pGdt + (val & X86_SEL_MASK));
                 HWACCMR0DumpDescriptor(pDesc, val, "FS: ");
             }
 
@@ -4036,7 +4296,7 @@ static void VMXR0ReportWorldSwitchError(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTX 
             Log(("VMX_VMCS16_HOST_FIELD_GS %08x\n", val));
             if (val < gdtr.cbGdt)
             {
-                pDesc  = &((PX86DESCHC)gdtr.pGdt)[val >> X86_SEL_SHIFT_HC];
+                pDesc  = (PCX86DESCHC)(gdtr.pGdt + (val & X86_SEL_MASK));
                 HWACCMR0DumpDescriptor(pDesc, val, "GS: ");
             }
 
@@ -4044,7 +4304,7 @@ static void VMXR0ReportWorldSwitchError(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTX 
             Log(("VMX_VMCS16_HOST_FIELD_SS %08x\n", val));
             if (val < gdtr.cbGdt)
             {
-                pDesc  = &((PX86DESCHC)gdtr.pGdt)[val >> X86_SEL_SHIFT_HC];
+                pDesc  = (PCX86DESCHC)(gdtr.pGdt + (val & X86_SEL_MASK));
                 HWACCMR0DumpDescriptor(pDesc, val, "SS: ");
             }
 
@@ -4052,7 +4312,7 @@ static void VMXR0ReportWorldSwitchError(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTX 
             Log(("VMX_VMCS16_HOST_FIELD_TR %08x\n", val));
             if (val < gdtr.cbGdt)
             {
-                pDesc  = &((PX86DESCHC)gdtr.pGdt)[val >> X86_SEL_SHIFT_HC];
+                pDesc  = (PCX86DESCHC)(gdtr.pGdt + (val & X86_SEL_MASK));
                 HWACCMR0DumpDescriptor(pDesc, val, "TR: ");
             }
 
