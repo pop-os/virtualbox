@@ -5,7 +5,6 @@
 06-xsession.dpatch
 07-vboxnetflt-reference.dpatch
 09-initscript.dpatch
-11-gcc-4.3.dpatch
 12-make-module.dpatch
 13-module-mismatch.dpatch
 14-disable-registration-request.dpatch
