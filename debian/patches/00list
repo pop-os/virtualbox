@@ -13,3 +13,4 @@
 17-disable-help-contents.dpatch
 18-xorg-1.6.dpatch
 20-hide-help-buttons.dpatch
+21-dont-strip-x11-drivers.dpatch

@@ -1,0 +1,19 @@
+#! /bin/sh /usr/share/dpatch/dpatch-run
+## 21-dont-strip-x11-drivers.dpatch by Felix Geyer <debfx-pkg@fobos.de>
+##
+## All lines beginning with `## DP:' are a description of the patch.
+## DP: Don't strip debugging symbols from x11 guest drivers
+
+@DPATCH@
+
+--- virtualbox-ose-3.0.6-dfsg/Config.kmk.org	2009-09-09 20:05:34.000000000 +0200
++++ virtualbox-ose-3.0.6-dfsg/Config.kmk	2009-09-11 00:42:37.000000000 +0200
+@@ -3539,7 +3539,7 @@
+  TEMPLATE_VBOXGUESTR3XORGMOD_DEFS += _XSERVER64
+ endif
+ if1of ($(KBUILD_TARGET), linux)
+- TEMPLATE_VBOXGUESTR3XORGMOD_LDFLAGS = $(TEMPLATE_VBOXGUESTR3DLL_LDFLAGS) -s
++ TEMPLATE_VBOXGUESTR3XORGMOD_LDFLAGS = $(TEMPLATE_VBOXGUESTR3DLL_LDFLAGS)
+ endif
+ TEMPLATE_VBOXGUESTR3XORGMOD_LIBS = \
+ 	$(VBOX_LIB_VBGL_R3_SHARED) \

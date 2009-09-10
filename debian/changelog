@@ -1,10 +1,12 @@
 virtualbox-ose (3.0.6-dfsg-1) unstable; urgency=low
 
   * New Upstream Version
+  * Add 21-dont-strip-x11-drivers.dpatch:
+    Don't strip debugging symbols from x11 guest drivers
   * Strip more unneeded library header files
   * Drop 11-gcc-4.3.dpatch (not needed anymore)
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 11 Sep 2009 00:22:08 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 11 Sep 2009 01:19:34 +0200
 
 virtualbox-ose (3.0.4-dfsg-2) unstable; urgency=low
 
