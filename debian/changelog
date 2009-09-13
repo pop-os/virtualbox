@@ -1,3 +1,9 @@
+virtualbox-ose (3.0.6-dfsg-2) UNRELEASED; urgency=low
+
+  * Made debug package also depend on guest utilities package.
+
+ -- Michael Meskes <meskes@debian.org>  Sun, 13 Sep 2009 14:59:31 +0200
+
 virtualbox-ose (3.0.6-dfsg-1) unstable; urgency=low
 
   [ Felix Geyer ]
