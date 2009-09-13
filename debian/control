@@ -97,7 +97,8 @@ Description: x86 virtualization solution - base binaries
 Package: virtualbox-ose-dbg
 Section: debug
 Architecture: amd64 i386 lpia
-Depends: ${misc:Depends}, virtualbox-ose (= ${binary:Version}) | virtualbox-ose-qt (= ${binary:Version}) | virtualbox-guest-utils (= ${binary:Version})
+Depends: ${misc:Depends},
+         virtualbox-ose (= ${binary:Version}) | virtualbox-guest-utils (= ${binary:Version})
 Description: x86 virtualization solution - debugging symbols
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
