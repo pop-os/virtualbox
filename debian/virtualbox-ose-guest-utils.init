@@ -29,7 +29,7 @@ case "$1" in
   	in_virtual_machine || exit 0
   	log_action_begin_msg 'Starting VirtualBox Additions';
 
-	# udev should have already handled this module
+	# should already be loaded automatically
 	modprobe --quiet vboxadd
 	if [ "$?" -ne 0 ]; then
 		# vboxadd not installed, or has a problem
@@ -38,7 +38,6 @@ case "$1" in
 		exit 0
 	fi
 
-	# this one is not handled by udev
 	modprobe --quiet vboxvfs
 	if [ "$?" -ne 0 ]; then
 		# vboxvfs not installed, or has a problem
@@ -47,10 +46,10 @@ case "$1" in
 		exit 0
 	fi
 	# Mount all shared folders from /etc/fstab. Normally this is done by some
-	# other startup script but this requires the vboxdrv kernel module loaded.
+	# other startup script but this requires the vboxvfs kernel module loaded.
 	mount -a -t vboxsf
 
-	start-stop-daemon --start --quiet --exec /usr/sbin/VBoxService
+	start-stop-daemon --start --quiet --oknodo --exec /usr/sbin/VBoxService
 	log_end_msg $?
 	;;
   stop)
