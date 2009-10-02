@@ -2,17 +2,15 @@
 
 set -e
 
-dev=/dev/vboxadd
-
 #DEBHELPER#
 
 case "${1}" in
 	configure)
 		if [ -x /etc/init.d/udev ]; then
 			if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
-				invoke-rc.d udev reload || /bin/true
+				invoke-rc.d udev reload || true
 			else
-				/etc/init.d/udev reload || /bin/true
+				/etc/init.d/udev reload || true
 			fi
 		fi
 		;;

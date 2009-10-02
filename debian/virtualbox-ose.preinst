@@ -27,9 +27,19 @@ case "$1" in
     rm_conffile virtualbox-ose /etc/network/if-post-down.d/virtualbox-ose
     rm_conffile virtualbox-ose /etc/network/if-pre-up.d/virtualbox-ose
     rm_conffile virtualbox-ose /etc/vbox/interfaces
+
     # Remove /etc/vbox/vbox.cfg
     if dpkg --compare-versions "$2" lt "2.2.2-dfsg-3"; then
       rm_conffile virtualbox-ose /etc/vbox/vbox.cfg
+    fi
+
+    # Remove vboxusers group
+    if dpkg --compare-versions "$2" lt "3.0.6-dfsg-2"; then
+      if [ -x /usr/sbin/delgroup ]; then
+        # delgroup may return error status 3 if there is a non-system group
+        # "vboxusers". The postrm should not fail in this case!
+        delgroup --quiet --system vboxusers || true
+      fi
     fi
   ;;
 esac
