@@ -1,0 +1,232 @@
+#! /bin/sh
+# Sun VirtualBox
+# Linux kernel module init script
+
+#
+# Copyright (C) 2006-2009 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+
+# chkconfig: 35 30 70
+# description: VirtualBox Linux kernel module
+#
+### BEGIN INIT INFO
+# Provides:       vboxdrv
+# Required-Start: $remote_fs $network
+# Required-Stop:  $remote_fs
+# Default-Start:  2 3 4 5
+# Default-Stop:   0 1 6
+# Short-Description: VirtualBox Linux kernel module
+### END INIT INFO
+
+. /lib/lsb/init-functions
+
+# Include virtualbox-ose defaults if available
+[ -f /etc/default/virtualbox-ose ] && . /etc/default/virtualbox-ose
+
+if [ "$LOAD_VBOXDRV_MODULE" != 1 ]; then
+	log_success_msg "virtualbox-ose disabled; edit /etc/default/virtualbox-ose"
+	exit 0
+fi
+
+running()
+{
+    lsmod | grep -q "$1[^_-]"
+}
+
+start()
+{
+	log_begin_msg "Starting VirtualBox kernel modules"
+	
+	if ! running vboxdrv; then
+		# HACK: disable the hardware performance counter framework
+		if [ -e /proc/sys/kernel/perf_counter_paranoid ]; then
+			if [ $(cat /proc/sys/kernel/perf_counter_paranoid) -ne 2 ]; then
+				log_warning_msg "Disabling the hardware performance counter framework"
+				echo 2 > /proc/sys/kernel/perf_counter_paranoid 
+			fi
+		fi
+		
+		if ! modprobe vboxdrv > /dev/null 2>&1; then
+			if ! find /lib/modules/`uname -r` -name "vboxdrv\.*" 2>/dev/null|grep -q vboxdrv; then
+				log_failure_msg "No suitable module for running kernel found"
+			else
+				log_failure_msg "modprobe vboxdrv failed. Please use 'dmesg' to find out why"
+			fi
+			return 1
+		fi
+	fi
+	
+	if ! running vboxnetadp; then
+		if ! modprobe vboxnetadp > /dev/null 2>&1; then
+			if ! find /lib/modules/`uname -r` -name "vboxnetadp\.*" 2>/dev/null|grep -q vboxnetadp; then
+				log_failure_msg "No suitable vboxnetflt module for running kernel found"
+			else
+				log_failure_msg "modprobe vboxnetflt failed. Please use 'dmesg' to find out why"
+			fi
+			return 1
+		fi
+	fi
+	
+	if ! running vboxnetflt; then
+		if ! modprobe vboxnetflt > /dev/null 2>&1; then
+			if ! find /lib/modules/`uname -r` -name "vboxnetflt\.*" 2>/dev/null|grep -q vboxnetflt; then
+				log_failure_msg "No suitable vboxnetadp module for running kernel found"
+			else
+				log_failure_msg "modprobe vboxnetadp failed. Please use 'dmesg' to find out why"
+			fi
+			return 1
+		fi
+	fi
+	
+	log_end_msg 0
+}
+
+stop()
+{
+	log_begin_msg "Stopping VirtualBox kernel modules"
+	
+	if running vboxnetadp; then
+		if ! rmmod vboxnetadp 2>/dev/null; then
+			log_failure_msg "Cannot unload module vboxnetadp"
+			return 1
+		fi
+	fi
+	
+	if running vboxdrv; then
+		if running vboxnetflt; then
+			if ! rmmod vboxnetflt 2>/dev/null; then
+				log_failure_msg "Cannot unload module vboxnetflt"
+				return 1
+			fi
+		fi
+		
+		if ! rmmod vboxdrv 2>/dev/null; then
+			log_failure_msg "Cannot unload module vboxdrv"
+			return 1
+		fi
+	fi
+	
+	log_end_msg 0
+}
+
+# enter the following variables in /etc/default/virtualbox-ose:
+#   SHUTDOWN_USERS="foo bar"  
+#     check for running VMs of user foo and user bar
+#   SHUTDOWN=poweroff
+#   SHUTDOWN=acpibutton
+#   SHUTDOWN=savestate
+#     select one of these shutdown methods for running VMs
+stop_vms()
+{
+	if ! running vboxdrv; then
+		return 0
+	fi
+	
+	wait=0
+	
+	for i in $SHUTDOWN_USERS; do
+		# don't create the ipcd directory with wrong permissions!
+		if [ -d /tmp/.vbox-$i-ipc ]; then
+			export VBOX_IPC_SOCKETID="$i"
+			VMS=`VBoxManage --nologo list runningvms | sed -e 's/^".*".*{\(.*\)}/\1/' 2>/dev/null`
+			if [ -n "$VMS" ]; then
+				if [ "$SHUTDOWN" = "poweroff" ]; then
+					log_action_begin_msg "Powering off remaining VMs"
+					for v in $VMS; do
+						VBoxManage --nologo controlvm $v poweroff
+					done
+				elif [ "$SHUTDOWN" = "acpibutton" ]; then
+					log_action_begin_msg "Sending ACPI power button event to remaining VMs"
+					for v in $VMS; do
+						VBoxManage --nologo controlvm $v acpipowerbutton
+						wait=30
+					done
+				elif [ "$SHUTDOWN" = "savestate" ]; then
+					log_action_begin_msg "Saving state of remaining VMs"
+					for v in $VMS; do
+						VBoxManage --nologo controlvm $v savestate
+					done
+				fi
+				log_action_end_msg 0
+			fi
+		fi
+	done
+	
+	# wait for some seconds when doing ACPI shutdown
+	if [ "$wait" -ne 0 ]; then
+		log_action_begin_msg "Waiting for $wait seconds for VM shutdown"
+		sleep $wait
+		log_action_end_msg 0
+	fi
+	return 0
+}
+
+dmnstatus()
+{
+	if running vboxdrv; then
+		if running vboxnetflt; then
+			if running vboxnetadp; then
+				echo "VirtualBox kernel modules (vboxdrv, vboxnetflt and vboxnetadp) are loaded."
+			else
+				echo "VirtualBox kernel modules (vboxdrv and vboxnetflt) are loaded."
+			fi
+		else
+		  echo "VirtualBox kernel module is loaded."
+		fi
+		
+		for i in $SHUTDOWN_USERS; do
+			# don't create the ipcd directory with wrong permissions!
+			if [ -d /tmp/.vbox-$i-ipc ]; then
+				export VBOX_IPC_SOCKETID="$i"
+				VMS=`VBoxManage --nologo list runningvms | sed -e 's/^".*".*{\(.*\)}/\1/' 2>/dev/null`
+				if [ -n "$VMS" ]; then
+					echo "The following VMs are currently running:"
+					for v in $VMS; do
+						echo "  $v"
+					done
+				fi
+			fi
+		done
+		return 0
+	else
+		echo "VirtualBox kernel module is not loaded."
+		return 3
+	fi
+}
+
+case "$1" in
+start)
+	start
+	;;
+stop)
+	stop_vms && stop
+	;;
+stop_vms)
+	stop_vms
+	;;
+restart)
+	stop_vms && stop && start
+	;;
+force-reload)
+	if running vboxdrv; then
+		stop_vms && stop && start
+	else
+		log_failure_msg "VirtualBox kernel module is not loaded"
+		exit 7
+	fi
+	;;
+status)
+	dmnstatus
+	;;
+*)
+	echo "Usage: $0 {start|stop|stop_vms|restart|force-reload|status}"
+	exit 3
+esac
