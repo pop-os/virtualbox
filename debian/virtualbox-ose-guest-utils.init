@@ -2,7 +2,7 @@
 # (C) 2007 Michael Meskes <meskes@debian.org>
 
 ### BEGIN INIT INFO
-# Provides:          vboxadd
+# Provides:          vboxadd virtualbox-ose-guest-utils
 # Short-Description: VirtualBox Linux Additions
 # Required-Start:    $remote_fs
 # Required-Stop:     $remote_fs
