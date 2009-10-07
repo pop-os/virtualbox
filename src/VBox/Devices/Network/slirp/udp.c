@@ -112,7 +112,7 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         if (len > ip->ip_len)
         {
             udpstat.udps_badlen++;
-            goto bad;
+            Log3(("NAT: IP(id: %hd) has bad size\n", ip->ip_id));
         }
         m_adj(m, len - ip->ip_len);
         ip->ip_len = len;
@@ -139,9 +139,10 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         {
 
 #endif
-            if(cksum(m, len + sizeof(struct ip)))
+            if (cksum(m, len + iphlen))
             {
                 udpstat.udps_badsum++;
+                Log3(("NAT: IP(id: %hd) has bad (udp) cksum\n", ip->ip_id));
                 goto bad;
             }
         }
@@ -155,7 +156,7 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
     if (ntohs(uh->uh_dport) == BOOTP_SERVER)
     {
         bootp_input(pData, m);
-        goto bad;
+        goto done;
     }
 
     /*
@@ -165,7 +166,7 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         && CTL_CHECK(ntohl(ip->ip_dst.s_addr), CTL_TFTP))
     {
         tftp_input(pData, m);
-        goto bad;
+        goto done;
     }
 
     /*
@@ -202,11 +203,14 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
          * create one
          */
         if ((so = socreate()) == NULL)
+        {
+            Log3(("NAT: IP(id: %hd) failed to create socket\n", ip->ip_id));
             goto bad;
+        }
         if (udp_attach(pData, so, slirp_get_service(IPPROTO_UDP, uh->uh_dport, uh->uh_sport)) == -1)
         {
-            DEBUG_MISC((dfd," udp_attach errno = %d-%s\n",
-                        errno, strerror(errno)));
+            Log3(("NAT: IP(id: %hd) udp_attach errno = %d-%s\n",
+                        ip->ip_id, errno, strerror(errno)));
             sofree(pData, so);
             goto bad;
         }
@@ -234,10 +238,10 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
      * DNS proxy
      */
     if (   (ip->ip_dst.s_addr == htonl(ntohl(special_addr.s_addr) | CTL_DNS))
-        && (ntohs(uh->uh_dport) == 53)) 
+        && (ntohs(uh->uh_dport) == 53))
     {
         dnsproxy_query(pData, so, m, iphlen);
-        goto bad; /* it isn't bad, probably better to add additional label done for boot/tftf :)  */
+        goto done;
     }
 
     iphlen += sizeof(struct udphdr);
@@ -261,11 +265,11 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         m->m_len += iphlen;
         m->m_data -= iphlen;
         *ip = save_ip;
-        DEBUG_MISC((dfd,"NAT: UDP tx errno = %d-%s (on sent to %R[IP4])\n", errno, 
+        DEBUG_MISC((dfd,"NAT: UDP tx errno = %d-%s (on sent to %R[IP4])\n", errno,
                 strerror(errno), &ip->ip_dst));
         icmp_error(pData, m, ICMP_UNREACH, ICMP_UNREACH_NET, 0, strerror(errno));
         /* in case we receive ICMP on this socket we'll aware that ICMP has been already sent to host*/
-        so->so_m = NULL; 
+        so->so_m = NULL;
     }
 
     m_free(pData, so->so_m);   /* used for ICMP if error on sorecvfrom */
@@ -279,8 +283,13 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
     return;
 
 bad:
-    Log2(("NAT: UDP datagram to %R[IP4] with size(%d) claimed as bad\n", 
-        &ip->ip_dst, ip->ip_len));
+    Log2(("NAT: UDP(id: %hd) datagram to %R[IP4] with size(%d) claimed as bad\n",
+        ip->ip_id, &ip->ip_dst, ip->ip_len));
+done:
+    /* some services like bootp(built-in), dns(buildt-in) and dhcp don't need sockets
+     * and create new m'buffers to send them to guest, so we'll free their incomming
+     * buffers here.
+     */
     m_freem(pData, m);
     return;
 }
@@ -416,7 +425,7 @@ udp_attach(PNATState pData, struct socket *so, int service_port)
             QSOCKET_UNLOCK(udb);
         }
     }
-    else 
+    else
     {
         LogRel(("NAT: can't create datagramm socket\n"));
     }

@@ -40,6 +40,7 @@
 #include <iprt/asm.h>
 #include "r0drv/mp-r0drv.h"
 #include "internal-r0drv-nt.h"
+#include "internal/mp.h"
 
 
 /*******************************************************************************
@@ -228,7 +229,13 @@ static int rtMpCall(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2, RT_NT
     AssertMsg(KeGetCurrentIrql() == PASSIVE_LEVEL, ("%d != %d (PASSIVE_LEVEL)\n", KeGetCurrentIrql(), PASSIVE_LEVEL));
 #endif
 
+#ifdef IPRT_TARGET_NT4
+    KAFFINITY Mask;
+    /* g_pfnrtNt* are not present on NT anyway. */
+    return VERR_NOT_SUPPORTED;
+#else
     KAFFINITY Mask = KeQueryActiveProcessors();
+#endif
 
     /* KeFlushQueuedDpcs is not present in Windows 2000; import it dynamically so we can just fail this call. */
     if (!g_pfnrtNtKeFlushQueuedDpcs)
@@ -368,8 +375,17 @@ RTDECL(int) RTMpPokeCpu(RTCPUID idCpu)
     /* Assuming here that high importance DPCs will be delivered immediately; or at least an IPI will be sent immediately.
      * Todo: verify!
      */
-    KeInsertQueueDpc(&aPokeDpcs[idCpu], 0, 0);
+    BOOLEAN bRet = KeInsertQueueDpc(&aPokeDpcs[idCpu], 0, 0);
 
     KeLowerIrql(oldIrql);
-    return VINF_SUCCESS;
+    return (bRet == TRUE) ? VINF_SUCCESS : VERR_ACCESS_DENIED /* already queued */;
+}
+
+void rtMpPokeCpuClear()
+{
+    RTCPUID idCpu = RTMpCpuId();
+
+    /* Remove any pending poke DPC from the queue, so another call to RTMpPokeCpu will send an IPI */
+    /* Note: assuming this is a cheap operation. */
+    KeRemoveQueueDpc(&aPokeDpcs[idCpu]);
 }

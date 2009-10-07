@@ -22,10 +22,10 @@
 
 #  define DO_ENGAGE_EVENT1(so, fdset, label)                        \
     do {                                                            \
-        if(    so->so_poll_index != -1                              \
-            && so->s == polls[so->so_poll_index].fd) {              \
-            polls[so->so_poll_index].events |= N_(fdset ## _poll);  \
-            break; /* out of this loop */                           \
+        if (    so->so_poll_index != -1                             \
+             && so->s == polls[so->so_poll_index].fd) {             \
+             polls[so->so_poll_index].events |= N_(fdset ## _poll); \
+             break; /* out of this loop */                          \
         }                                                           \
         AssertRelease(poll_index < (nfds));                         \
         AssertRelease(poll_index >= 0 && poll_index < (nfds));      \
@@ -39,11 +39,11 @@
 
 #  define DO_ENGAGE_EVENT2(so, fdset1, fdset2, label)           \
     do {                                                        \
-        if(    so->so_poll_index != -1                          \
-            && so->s == polls[so->so_poll_index].fd) {          \
-            polls[so->so_poll_index].events |=                  \
-                N_(fdset1 ## _poll) | N_(fdset1 ## _poll);      \
-            break; /* out of this loop */                       \
+        if (    so->so_poll_index != -1                         \
+             && so->s == polls[so->so_poll_index].fd) {         \
+             polls[so->so_poll_index].events |=                 \
+                 N_(fdset1 ## _poll) | N_(fdset1 ## _poll);     \
+             break; /* out of this loop */                      \
         }                                                       \
         AssertRelease(poll_index < (nfds));                     \
         polls[poll_index].fd = (so)->s;                         \
@@ -412,8 +412,8 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
             tok = strtok_r(&buff[6], " \t\n", &saveptr);
             LIST_FOREACH(dd, &pData->dns_domain_list_head, dd_list)
             {
-                if(    tok != NULL
-                    && strcmp(tok, dd->dd_pszDomain) == 0)
+                if (    tok != NULL
+                     && strcmp(tok, dd->dd_pszDomain) == 0)
                 {
                     found = 1;
                     break;
@@ -659,14 +659,14 @@ void slirp_term(PNATState pData)
     ftp_alias_unload(pData);
     nbt_alias_unload(pData);
 #ifdef VBOX_WITH_SLIRP_ALIAS
-    while(!LIST_EMPTY(&instancehead)) 
+    while(!LIST_EMPTY(&instancehead))
     {
         struct libalias *la = LIST_FIRST(&instancehead);
         /* libalias do all clean up */
         LibAliasUninit(la);
     }
 #endif
-    while(!LIST_EMPTY(&pData->arp_cache)) 
+    while(!LIST_EMPTY(&pData->arp_cache))
     {
         struct arp_cache_entry *ac = LIST_FIRST(&pData->arp_cache);
         LIST_REMOVE(ac, list);
@@ -1519,7 +1519,7 @@ void if_encap(PNATState pData, uint16_t eth_proto, struct mbuf *m)
     m->m_len += ETH_HLEN;
     eh = mtod(m, struct ethhdr *);
 
-    if(MBUF_HEAD(m) != m->m_data)
+    if (MBUF_HEAD(m) != m->m_data)
     {
         LogRel(("NAT: ethernet detects corruption of the packet"));
         AssertMsgFailed(("!!Ethernet frame corrupted!!"));
@@ -1586,7 +1586,7 @@ int slirp_redir(PNATState pData, int is_udp, struct in_addr host_addr, int host_
                       htons(guest_port), 0);
     }
     if (so == NULL)
-    {   
+    {
         return -1;
     }
 #ifndef VBOX_WITH_SLIRP_ALIAS
@@ -1806,8 +1806,8 @@ void slirp_arp_who_has(PNATState pData, uint32_t dst)
 
     m = m_get(pData);
     if (m == NULL)
-    {   
-        LogRel(("NAT: Can't alloc mbuf for ARP request\n")); 
+    {
+        LogRel(("NAT: Can't alloc mbuf for ARP request\n"));
         return;
     }
     ehdr = mtod(m, struct ethhdr *);
@@ -1827,7 +1827,7 @@ void slirp_arp_who_has(PNATState pData, uint32_t dst)
     if_encap(pData, ETH_P_ARP, m);
     LogRel(("NAT: ARP request sent\n"));
 }
-/* updates the arp cache 
+/* updates the arp cache
  * @returns 0 - if has found and updated
  *          1 - if hasn't found.
  */

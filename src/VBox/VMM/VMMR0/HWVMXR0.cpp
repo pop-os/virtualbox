@@ -3828,7 +3828,21 @@ ResumeExecution:
         AssertFailed();                 /* Can't happen afaik. */
         break;
 
-    case VMX_EXIT_TASK_SWITCH:          /* 9 Task switch. */
+    case VMX_EXIT_TASK_SWITCH:          /* 9 Task switch: too complicated to emulate, so fall back to the recompiler */
+        Log(("VMX_EXIT_TASK_SWITCH: exit=%RX64\n", exitQualification));
+        if (    (VMX_EXIT_QUALIFICATION_TASK_SWITCH_TYPE(exitQualification) == VMX_EXIT_QUALIFICATION_TASK_SWITCH_TYPE_IDT)
+            &&  pVCpu->hwaccm.s.Event.fPending)
+        {
+            /* Caused by an injected interrupt. */
+            pVCpu->hwaccm.s.Event.fPending = false;
+
+            Log(("VMX_EXIT_TASK_SWITCH: reassert trap %d\n", VMX_EXIT_INTERRUPTION_INFO_VECTOR(pVCpu->hwaccm.s.Event.intInfo)));
+            Assert(!VMX_EXIT_INTERRUPTION_INFO_ERROR_CODE_IS_VALID(pVCpu->hwaccm.s.Event.intInfo));
+            rc = TRPMAssertTrap(pVCpu, VMX_EXIT_INTERRUPTION_INFO_VECTOR(pVCpu->hwaccm.s.Event.intInfo), TRPM_HARDWARE_INT);
+            AssertRC(rc);
+        }
+        else
+            /* Exceptions and software interrupts can just be restarted. */
         rc = VERR_EM_INTERPRETER;
         break;
 
@@ -4444,6 +4458,7 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, R
     int             rc, rc2;
     PHWACCM_CPUINFO pCpu;
     RTHCPHYS        pPageCpuPhys;
+    RTHCUINTREG     uOldEFlags;
 
     /* @todo This code is not guest SMP safe (hyper stack and switchers) */
     AssertReturn(pVM->cCPUs == 1, VERR_TOO_MANY_CPUS);
@@ -4458,6 +4473,9 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, R
     for (unsigned i=0;i<pVCpu->hwaccm.s.vmx.VMCSCache.Read.cValidEntries;i++)
         Assert(vmxR0IsValidReadField(pVCpu->hwaccm.s.vmx.VMCSCache.Read.aField[i]));
 #endif
+
+    /* Disable interrupts. */
+    uOldEFlags = ASMIntDisableFlags();
 
     pCpu = HWACCMR0GetCurrentCpu();
     pPageCpuPhys = RTR0MemObjGetPagePhysAddr(pCpu->pMemObj, 0);
@@ -4490,12 +4508,14 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, R
         if (pVM)
             VMXR0CheckError(pVM, pVCpu, rc2);
         ASMSetCR4(ASMGetCR4() & ~X86_CR4_VMXE);
+        ASMSetFlags(uOldEFlags);
         return VERR_VMX_VMXON_FAILED;
     }
 
     rc2 = VMXActivateVMCS(pVCpu->hwaccm.s.vmx.pVMCSPhys);
-    AssertRCReturn(rc2, rc2);
+    AssertRC(rc2);
     Assert(!(ASMGetFlags() & X86_EFL_IF));
+    ASMSetFlags(uOldEFlags);
     return rc;
 }
 

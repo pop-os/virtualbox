@@ -48,6 +48,7 @@
 #include <QProcess>
 #include <QThread>
 #include <QPainter>
+#include <QSettings>
 #include <QTimer>
 #include <QDir>
 #include <QHelpEvent>
@@ -757,6 +758,28 @@ VBoxConsoleWnd &VBoxGlobal::consoleWnd()
     }
 
     return *mConsoleWnd;
+}
+
+bool VBoxGlobal::brandingIsActive (bool aForce /* = false*/)
+{
+    if (aForce)
+        return true;
+
+    if (mBrandingConfig.isEmpty())
+    {
+        mBrandingConfig = QDir(QApplication::applicationDirPath()).absolutePath();
+        mBrandingConfig += "/custom/custom.ini";
+    }
+    return QFile::exists (mBrandingConfig);
+}
+
+/**
+  * Gets a value from the custom .ini file
+  */
+QString VBoxGlobal::brandingGetKey (QString aKey)
+{
+    QSettings settings(mBrandingConfig, QSettings::IniFormat);
+    return settings.value(QString("%1").arg(aKey)).toString();
 }
 
 #ifdef VBOX_GUI_WITH_SYSTRAY

@@ -31,7 +31,7 @@
 <xsd:annotation>
   <xsd:documentation xml:lang="en">
     Sun VirtualBox Settings Schema (freebsd).
-    Copyright (c) 2004-2008 Sun Microsystems, Inc.
+    Copyright (c) 2004-2009 Sun Microsystems, Inc.
   </xsd:documentation>
 </xsd:annotation>
 

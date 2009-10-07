@@ -68,11 +68,11 @@ static const uint8_t* rt_lookup_in_cache(PNATState pData, uint32_t dst)
             && bootp_clients[i].addr.s_addr == dst)
             return &bootp_clients[i].macaddr[0];
     }
-    /* 
-     * no chance to send this packet, sorry, we will request ether address via ARP 
+    /*
+     * no chance to send this packet, sorry, we will request ether address via ARP
      */
-    slirp_arp_who_has(pData, dst); 
-    return NULL; 
+    slirp_arp_who_has(pData, dst);
+    return NULL;
 }
 #endif
 
@@ -98,7 +98,7 @@ ip_output(PNATState pData, struct socket *so, struct mbuf *m0)
     DEBUG_CALL("ip_output");
     DEBUG_ARG("so = %lx", (long)so);
     DEBUG_ARG("m0 = %lx", (long)m0);
-    if(m->m_data != (MBUF_HEAD(m) + if_maxlinkhdr))
+    if (m->m_data != (MBUF_HEAD(m) + if_maxlinkhdr))
     {
         LogRel(("NAT: ethernet detects corruption of the packet"));
         AssertMsgFailed(("!!Ethernet frame corrupted!!"));
@@ -137,8 +137,7 @@ ip_output(PNATState pData, struct socket *so, struct mbuf *m0)
        * all so we need to calculate destination ethernet address
        */
      eh = (struct ethhdr *)MBUF_HEAD(m);
-     if (memcmp(eh->h_source, zerro_ethaddr, ETH_ALEN) == 0)
-         eth_dst = rt_lookup_in_cache(pData, ip->ip_dst.s_addr); 
+     eth_dst = rt_lookup_in_cache(pData, ip->ip_dst.s_addr);
 #endif
 
     /*
@@ -152,13 +151,13 @@ ip_output(PNATState pData, struct socket *so, struct mbuf *m0)
         ip->ip_sum = cksum(m, hlen);
 #ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
         if (eth_dst != NULL) {
-            memcpy(eh->h_source, eth_dst, ETH_ALEN); 
+            memcpy(eh->h_source, eth_dst, ETH_ALEN);
         }
 #endif
 #ifdef VBOX_WITH_SLIRP_ALIAS
         {
             int rc;
-            rc = LibAliasOut((m->m_la ? m->m_la : pData->proxy_alias), 
+            rc = LibAliasOut((m->m_la ? m->m_la : pData->proxy_alias),
                 mtod(m, char *), m->m_len);
             Log2(("NAT: LibAlias return %d\n", rc));
         }
@@ -189,6 +188,14 @@ ip_output(PNATState pData, struct socket *so, struct mbuf *m0)
     {
         int mhlen, firstlen = len;
         struct mbuf **mnext = &m->m_nextpkt;
+#ifdef VBOX_WITH_SLIRP_ALIAS
+        {
+            int rc;
+            rc = LibAliasOut((m->m_la ? m->m_la : pData->proxy_alias),
+                mtod(m, char *), m->m_len);
+            Log2(("NAT: LibAlias return %d\n", rc));
+        }
+#endif
 
         /*
          * Loop through length of segment after first fragment,
@@ -209,13 +216,6 @@ ip_output(PNATState pData, struct socket *so, struct mbuf *m0)
             m->m_data += if_maxlinkhdr;
             mhip = mtod(m, struct ip *);
             *mhip = *ip;
-#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
-            /* we've calculated eth_dst for first packet */
-            eh = (struct ethhdr *)MBUF_HEAD(m);
-            if (eth_dst != NULL) {
-                memcpy(eh->h_source, eth_dst, ETH_ALEN); 
-            }
-#endif
 
 #if 0 /* No options */
             if (hlen > sizeof (struct ip))
@@ -257,14 +257,6 @@ ip_output(PNATState pData, struct socket *so, struct mbuf *m0)
         ip->ip_off = htons((u_int16_t)(ip->ip_off | IP_MF));
         ip->ip_sum = 0;
         ip->ip_sum = cksum(m, hlen);
-#ifdef VBOX_WITH_SLIRP_ALIAS
-        {
-            int rc;
-            rc = LibAliasOut((m->m_la ? m->m_la : pData->proxy_alias), 
-                mtod(m, char *), m->m_len);
-            Log2(("NAT: LibAlias return %d\n", rc));
-        }
-#endif
 
 sendorfree:
         for (m = m0; m; m = m0)
@@ -273,17 +265,16 @@ sendorfree:
             m->m_nextpkt = 0;
             if (error == 0)
             {
-#ifdef VBOX_WITH_SLIRP_ALIAS
-            {
-                int rc;
-                rc = LibAliasOut((m->m_la ? m->m_la : pData->proxy_alias), 
-                    mtod(m, char *), m->m_len);
-                Log2(("NAT: LibAlias return %d\n", rc));
-            }
+#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
+                /* we've calculated eth_dst for first packet */
+                eh = (struct ethhdr *)MBUF_HEAD(m);
+                if (eth_dst != NULL) {
+                    memcpy(eh->h_source, eth_dst, ETH_ALEN);
+                }
 #endif
                 if_output(pData, so, m);
             }
-            else 
+            else
             {
                 m_freem(pData, m);
             }

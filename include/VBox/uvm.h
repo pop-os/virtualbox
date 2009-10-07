@@ -33,6 +33,7 @@
 #define ___VBox_uvm_h
 
 #include <VBox/types.h>
+#include <iprt/assert.h>
 
 
 /**
@@ -48,9 +49,11 @@ typedef struct UVMCPU
     PVMCPU                          pVCpu;
     /** The virtual CPU ID.  */
     RTCPUID                         idCpu;
+    /** Alignment padding. */
+    uint8_t                         abAlignment0[HC_ARCH_BITS == 32 ? 16 : 4];
 
     /** The VM internal data. */
-    struct
+    union
     {
 #ifdef ___VMInternal_h
         struct VMINTUSERPERVMCPU    s;
@@ -58,8 +61,7 @@ typedef struct UVMCPU
         uint8_t                     padding[768];
     } vm;
 } UVMCPU;
-/** Pointer to the per virtual CPU ring-3 (user mode) data. */
-typedef UVMCPU *PUVMCPU;
+AssertCompileMemberAlignment(UVMCPU, vm, 32);
 
 
 /**
@@ -85,8 +87,11 @@ typedef struct UVM
      */
     struct UVM     *pNext;
 
+    /** Align the next member on a 32 byte boundrary. */
+    uint8_t         abAlignment0[HC_ARCH_BITS == 32 ? 16 : 8];
+
     /** The VM internal data. */
-    struct
+    union
     {
 #ifdef ___VMInternal_h
         struct VMINTUSERPERVM   s;
@@ -95,7 +100,7 @@ typedef struct UVM
     } vm;
 
     /** The MM data. */
-    struct
+    union
     {
 #ifdef ___MMInternal_h
         struct MMUSERPERVM      s;
@@ -104,7 +109,7 @@ typedef struct UVM
     } mm;
 
     /** The PDM data. */
-    struct
+    union
     {
 #ifdef ___PDMInternal_h
         struct PDMUSERPERVM     s;
@@ -113,7 +118,7 @@ typedef struct UVM
     } pdm;
 
     /** The STAM data. */
-    struct
+    union
     {
 #ifdef ___STAMInternal_h
         struct STAMUSERPERVM    s;
@@ -124,6 +129,11 @@ typedef struct UVM
     /** Per virtual CPU data. */
     UVMCPU                      aCpus[1];
 } UVM;
+AssertCompileMemberAlignment(UVM, vm, 32);
+AssertCompileMemberAlignment(UVM, mm, 32);
+AssertCompileMemberAlignment(UVM, pdm, 32);
+AssertCompileMemberAlignment(UVM, stam, 32);
+AssertCompileMemberAlignment(UVM, aCpus, 32);
 
 /** The UVM::u32Magic value (Brad Mehldau). */
 #define UVM_MAGIC       0x19700823

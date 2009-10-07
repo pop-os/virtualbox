@@ -309,6 +309,12 @@ ALIGNCODE(16)
     pop     rsi         ; pCtx (needed in rsi by the macros below)
 
     ;; @todo use the automatic load feature for MSRs
+    SAVEGUESTMSR MSR_K8_LSTAR,          CPUMCTX.msrLSTAR
+%if 0  ; not supported on Intel CPUs
+    SAVEGUESTMSR MSR_K8_CSTAR,          CPUMCTX.msrCSTAR
+%endif
+    SAVEGUESTMSR MSR_K6_STAR,           CPUMCTX.msrSTAR
+    SAVEGUESTMSR MSR_K8_SF_MASK,        CPUMCTX.msrSFMASK
     SAVEGUESTMSR MSR_K8_KERNEL_GS_BASE, CPUMCTX.msrKERNELGSBASE
 
 %ifdef VMX_USE_CACHED_VMCS_ACCESSES

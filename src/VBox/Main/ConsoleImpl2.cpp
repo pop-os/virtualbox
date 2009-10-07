@@ -2369,7 +2369,7 @@ DECLCALLBACK(int)  Console::configNetwork(Console *pThis, const char *pszDevice,
                 RC_CHECK();
                 rc = CFGMR3InsertInteger(pCfg, "TrunkType", kIntNetTrunkType_NetFlt);
                 RC_CHECK();
-                char szNetwork[80];
+                char szNetwork[INTNET_MAX_NETWORK_NAME];
                 RTStrPrintf(szNetwork, sizeof(szNetwork), "HostInterfaceNetworking-%s", pszHifName);
                 rc = CFGMR3InsertString(pCfg, "Network", szNetwork);
                 RC_CHECK();
@@ -2583,7 +2583,7 @@ DECLCALLBACK(int)  Console::configNetwork(Console *pThis, const char *pszDevice,
                                       HifName.raw());
                 }
 
-                char szNetwork[80];
+                char szNetwork[INTNET_MAX_NETWORK_NAME];
                 RTStrPrintf(szNetwork, sizeof(szNetwork), "HostInterfaceNetworking-%s", pszHifName);
 
 #if defined(RT_OS_WINDOWS)

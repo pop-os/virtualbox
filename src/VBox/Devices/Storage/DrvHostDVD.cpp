@@ -361,8 +361,6 @@ DECLCALLBACK(int) drvHostDvdPoll(PDRVHOSTBASE pThis)
         if (PreviousState != s_DeviceState)
             fMediaChanged = true;
     }
-    else
-        fMediaChanged = true;
 
 #else
 # error "Unsupported platform."

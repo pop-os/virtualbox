@@ -214,8 +214,8 @@ again:
          * taking into account that we are limited by
          * TCP_MAXWIN << tp->rcv_scale.
          */
-        long adv = min(win, 
-                       (long)TCP_MAXWIN << tp->rcv_scale) - 
+        long adv = min(win,
+                       (long)TCP_MAXWIN << tp->rcv_scale) -
                        (tp->rcv_adv - tp->rcv_nxt);
 
         if (adv >= (long) (2 * tp->t_maxseg))
@@ -512,7 +512,7 @@ send:
      * In transmit state, time the transmission and arrange for
      * the retransmit.  In persist state, just set snd_max.
      */
-    if (tp->t_force == 0 || tp->t_timer[TCPT_PERSIST] == 0) 
+    if (tp->t_force == 0 || tp->t_timer[TCPT_PERSIST] == 0)
     {
         tcp_seq startseq = tp->snd_nxt;
 
@@ -601,7 +601,7 @@ send:
         }
 #endif
 #ifdef VBOX_WITH_SLIRP_ALIAS
-        if(so->so_la != NULL)
+        if (so->so_la != NULL)
             m->m_la = so->so_la;
 #endif
         error = ip_output(pData, so, m);

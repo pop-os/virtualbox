@@ -30,7 +30,7 @@
 
 
 #include <features.h>
-#if __GLIBC_PREREQ(2,6)
+#if __GLIBC_PREREQ(2,6) && !defined(IPRT_WITH_FUTEX_BASED_SEMS)
 
 /*
  * glibc 2.6 fixed a serious bug in the mutex implementation. We wrote this
@@ -55,6 +55,7 @@ asm volatile (".global epoll_pwait");
 #include <iprt/alloc.h>
 #include <iprt/asm.h>
 #include <iprt/err.h>
+#include <iprt/time.h>
 #include "internal/magics.h"
 
 #include <errno.h>
@@ -84,7 +85,7 @@ struct RTSEMEVENTMULTIINTERNAL
     /** The futex state variable.
      * -1 means signaled.
      *  0 means not signaled, no waiters.
-     * >0 means not signaled, and the value gives the number of waiters.
+     *  1 means not signaled and that someone is waiting.
      */
     int32_t volatile    iState;
 };
@@ -210,18 +211,20 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
     Assert(iCur == 0 || iCur == -1 || iCur == 1);
     if (iCur == -1)
         return VINF_SUCCESS;
-    if (!cMillies)
-        return VERR_TIMEOUT;
 
     /*
-     * Convert timeout value.
+     * Convert the timeout value.
      */
     struct timespec ts;
     struct timespec *pTimeout = NULL;
+    uint64_t u64End = 0; /* shut up gcc */
     if (cMillies != RT_INDEFINITE_WAIT)
     {
+        if (!cMillies)
+            return VERR_TIMEOUT;
         ts.tv_sec  = cMillies / 1000;
         ts.tv_nsec = (cMillies % 1000) * 1000000;
+        u64End = RTTimeSystemNanoTS() + cMillies * 1000000;
         pTimeout = &ts;
     }
 
@@ -239,6 +242,15 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
         if (    iCur == 1
             ||  ASMAtomicCmpXchgS32(&pThis->iState, 1, 0))
         {
+            /* adjust the relative timeout */
+            if (pTimeout)
+            {
+                int64_t i64Diff = u64End - RTTimeSystemNanoTS();
+                if (i64Diff < 1000)
+                    return VERR_TIMEOUT;
+                ts.tv_sec  = i64Diff / 1000000000;
+                ts.tv_nsec = i64Diff % 1000000000;
+            }
             long rc = sys_futex(&pThis->iState, FUTEX_WAIT, 1, pTimeout, NULL, 0);
             if (RT_UNLIKELY(pThis->iMagic != RTSEMEVENTMULTI_MAGIC))
                 return VERR_SEM_DESTROYED;
@@ -287,4 +299,5 @@ RTDECL(int)  RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI EventMultiSem, unsigned
     return rtSemEventMultiWait(EventMultiSem, cMillies, false);
 }
 
-#endif /* glibc < 2.6 */
+#endif /* glibc < 2.6 || IPRT_WITH_FUTEX_BASED_SEMS */
+

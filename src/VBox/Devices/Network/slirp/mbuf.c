@@ -34,8 +34,9 @@ msize_init(PNATState pData)
      * Find a nice value for msize
      * XXX if_maxlinkhdr already in mtu
      */
-    msize = (if_mtu>if_mru ? if_mtu : if_mru) 
-          + if_maxlinkhdr + sizeof(struct m_hdr ) + 6;
+    msize = (if_mtu>if_mru ? if_mtu : if_mru)
+          + sizeof(struct m_hdr) + sizeof(void *)   /*pointer to the backstore*/
+          + if_maxlinkhdr ;
 }
 
 /*
@@ -98,7 +99,7 @@ m_free(PNATState pData, struct mbuf *m)
     DEBUG_CALL("m_free");
     DEBUG_ARG("m = %lx", (long )m);
 
-    if(m)
+    if (m)
     {
         /* Remove from m_usedlist */
         if (m->m_flags & M_USEDLIST)
@@ -121,7 +122,7 @@ m_free(PNATState pData, struct mbuf *m)
             insque(pData, m,&m_freelist);
             m->m_flags = M_FREELIST; /* Clobber other flags */
         }
-    } /* if(m) */
+    } /* if (m) */
 }
 
 /*
@@ -245,7 +246,7 @@ dtom(PNATState pData, void *dat)
         }
         else
         {
-            if (   (char *)dat >=  m->m_dat 
+            if (   (char *)dat >=  m->m_dat
                 && (char *)dat <  (m->m_dat + m->m_size))
                 return m;
         }

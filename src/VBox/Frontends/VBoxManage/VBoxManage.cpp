@@ -520,11 +520,14 @@ static int handleStartVM(HandlerArg *a)
         Bstr env;
 #if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
         /* make sure the VM process will start on the same display as VBoxManage */
-        {
-            const char *display = RTEnvGet ("DISPLAY");
-            if (display)
-                env = Utf8StrFmt ("DISPLAY=%s", display);
-        }
+        Utf8Str str;
+        const char *pszDisplay = RTEnvGet("DISPLAY");
+        if (pszDisplay)
+            str = Utf8StrFmt("DISPLAY=%s\n", pszDisplay);
+        const char *pszXAuth = RTEnvGet("XAUTHORITY");
+        if (pszXAuth)
+            str.append(Utf8StrFmt("XAUTHORITY=%s\n", pszXAuth));
+        env = str;
 #endif
         ComPtr<IProgress> progress;
         CHECK_ERROR_RET(a->virtualBox, OpenRemoteSession(a->session, uuid, sessionType,
@@ -885,6 +888,48 @@ static int handleControlVM(HandlerArg *a)
                 else
                 {
                     errorArgument("Invalid vrdp server state '%s'", Utf8Str(a->argv[2]).raw());
+                    rc = E_FAIL;
+                    break;
+                }
+            }
+        }
+        else if (!strcmp(a->argv[1], "vrdpport"))
+        {
+            if (a->argc <= 1 + 1)
+            {
+                errorArgument("Missing argument to '%s'", a->argv[1]);
+                rc = E_FAIL;
+                break;
+            }
+            /* get the corresponding VRDP server */
+            ComPtr<IVRDPServer> vrdpServer;
+            sessionMachine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
+            ASSERT(vrdpServer);
+            if (vrdpServer)
+            {
+                uint16_t vrdpport;
+
+                if (!strcmp(a->argv[2], "default"))
+                {
+                    vrdpport = 0;
+                }
+                else
+                {
+                    int vrc = RTStrToUInt16Full(a->argv[2], 0, &vrdpport);
+
+                    if (vrc != VINF_SUCCESS)
+                    {
+                        vrdpport = UINT16_MAX;
+                    }
+                }
+
+                if (vrdpport != UINT16_MAX)
+                {
+                    CHECK_ERROR_BREAK(vrdpServer, COMSETTER(Port)(vrdpport));
+                }
+                else
+                {
+                    errorArgument("Invalid vrdp server port '%s'", Utf8Str(a->argv[2]).raw());
                     rc = E_FAIL;
                     break;
                 }

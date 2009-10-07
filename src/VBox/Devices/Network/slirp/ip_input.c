@@ -87,7 +87,7 @@ ip_input(PNATState pData, struct mbuf *m)
 #ifdef VBOX_WITH_SLIRP_ALIAS
     {
         int rc;
-        rc = LibAliasIn(m->m_la ? m->m_la : pData->proxy_alias, mtod(m, char *), 
+        rc = LibAliasIn(m->m_la ? m->m_la : pData->proxy_alias, mtod(m, char *),
             m->m_len);
         Log2(("NAT: LibAlias return %d\n", rc));
     }
@@ -175,7 +175,7 @@ ip_input(PNATState pData, struct mbuf *m)
         if (m == NULL)
             return;
         ip = mtod(m, struct ip *);
-        hlen = ip->ip_len;
+        hlen = ip->ip_hl << 2;
     }
     else
         ip->ip_len -= hlen;
@@ -201,7 +201,7 @@ ip_input(PNATState pData, struct mbuf *m)
     }
     return;
 bad:
-    Log2(("NAT: IP datagram to %R[IP4] with size(%d) claimed as bad\n", 
+    Log2(("NAT: IP datagram to %R[IP4] with size(%d) claimed as bad\n",
         &ip->ip_dst, ip->ip_len));
     m_freem(pData, m);
     return;
@@ -442,7 +442,8 @@ found:
      */
     q = fp->ipq_frags;
     ip = GETIP(q);
-    if (next + (ip->ip_hl << 2) > IP_MAXPACKET)
+    hlen = ip->ip_hl << 2;
+    if (next + hlen > IP_MAXPACKET)
     {
         ipstat.ips_fragdropped += fp->ipq_nfrags;
         ip_freef(pData, head, fp);
@@ -460,26 +461,31 @@ found:
         nq = q->m_nextpkt;
         q->m_nextpkt = NULL;
         m_cat(pData, m, q);
+
+        m->m_len += hlen;
+        m->m_data -= hlen;
+        ip = mtod(m, struct ip *); /*update ip pointer */
+        hlen = ip->ip_hl << 2;
+        m->m_len -= hlen;
+        m->m_data += hlen;
     }
+    m->m_len += hlen;
+    m->m_data -= hlen;
 
     /*
      * Create header for new ip packet by modifying header of first
      * packet;  dequeue and discard fragment reassembly header.
      * Make header visible.
      */
-#if 0
-    ip->ip_len = (ip->ip_hl << 2) + next;
-#else
+
     ip->ip_len = next;
-#endif
     ip->ip_src = fp->ipq_src;
     ip->ip_dst = fp->ipq_dst;
     TAILQ_REMOVE(head, fp, ipq_list);
     nipq--;
     RTMemFree(fp);
 
-    m->m_len += (ip->ip_hl << 2);
-    m->m_data -= (ip->ip_hl << 2);
+    Assert((ip->ip_len == next));
     /* some debugging cruft by sklower, below, will go away soon */
 #if 0
     if (m->m_flags & M_PKTHDR)    /* XXX this should be done elsewhere */
@@ -539,7 +545,7 @@ ip_slowtimo(PNATState pData)
 
             fpp = fp;
             fp = TAILQ_NEXT(fp, ipq_list);
-            if(--fpp->ipq_ttl == 0)
+            if (--fpp->ipq_ttl == 0)
             {
                 ipstat.ips_fragtimeout += fpp->ipq_nfrags;
                 ip_freef(pData, &ipq[i], fpp);
