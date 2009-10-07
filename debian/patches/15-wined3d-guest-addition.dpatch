@@ -5,11 +5,10 @@
 ## DP: Add WineD3D guest additions
 
 @DPATCH@
-
-diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h
---- virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h	2009-01-14 21:00:46.000000000 +0100
-+++ virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h	2009-02-03 23:25:14.000000000 +0100
-@@ -191,6 +191,7 @@
+diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h
+--- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h	2009-10-07 13:43:54.515463037 +0200
+@@ -211,6 +211,7 @@
      void devicesSwitchVrdp (bool);
      void devicesOpenSFDialog();
      void devicesInstallGuestAdditions();
@@ -17,7 +16,7 @@ diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/include/VBoxCon
  
      void prepareFloppyMenu();
      void prepareDVDMenu();
-@@ -265,6 +266,7 @@
+@@ -289,6 +290,7 @@
      QAction *mDevicesSwitchVrdpAction;
      QAction *mDevicesSFDialogAction;
      QAction *mDevicesInstallGuestToolsAction;
@@ -25,12 +24,12 @@ diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/include/VBoxCon
  
  #ifdef VBOX_WITH_DEBUGGER_GUI
      /* Debugger actions */
-diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp
---- virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	2009-01-21 09:41:58.000000000 +0100
-+++ virtualbox-ose-2.1.2-dfsg.new/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	2009-02-04 02:10:36.000000000 +0100
-@@ -357,6 +357,10 @@
-     mDevicesInstallGuestToolsAction->setIcon (VBoxGlobal::iconSet (":/guesttools_16px.png",
-                                                                      ":/guesttools_disabled_16px.png"));
+diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp
+--- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	2009-10-07 13:43:54.515463037 +0200
+@@ -381,6 +381,10 @@
+         VBoxGlobal::iconSet (":/guesttools_16px.png",
+                              ":/guesttools_disabled_16px.png"));
  
 +    mDevicesInstallWineD3DAction = new QAction (mRunningActions);
 +    mDevicesInstallWineD3DAction->setIcon (VBoxGlobal::iconSet (":/guesttools_16px.png",
@@ -39,7 +38,7 @@ diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsole
  #ifdef VBOX_WITH_DEBUGGER_GUI
      if (vboxGlobal().isDebuggerEnabled())
      {
-@@ -452,6 +456,7 @@
+@@ -478,6 +482,7 @@
      mDevicesVRDPMenuSeparator = mDevicesMenu->addSeparator();
  
      mDevicesMenu->addAction (mDevicesInstallGuestToolsAction);
@@ -47,7 +46,7 @@ diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsole
  
      /* reset the "context menu" flag */
      mDevicesMountFloppyMenu->menuAction()->setData (false);
-@@ -610,6 +615,7 @@
+@@ -652,6 +657,7 @@
      connect (mDevicesSwitchVrdpAction, SIGNAL(toggled (bool)), this, SLOT(devicesSwitchVrdp (bool)));
      connect (mDevicesSFDialogAction, SIGNAL(triggered()), this, SLOT(devicesOpenSFDialog()));
      connect (mDevicesInstallGuestToolsAction, SIGNAL(triggered()), this, SLOT(devicesInstallGuestAdditions()));
@@ -55,7 +54,7 @@ diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsole
  
  
      connect (mDevicesMountFloppyMenu, SIGNAL(aboutToShow()), this, SLOT(prepareFloppyMenu()));
-@@ -1680,6 +1686,10 @@
+@@ -1744,6 +1750,10 @@
      mDevicesInstallGuestToolsAction->setStatusTip (
          tr ("Mount the Guest Additions installation image"));
  
@@ -66,7 +65,7 @@ diff -ur virtualbox-ose-2.1.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsole
  #ifdef VBOX_WITH_DEBUGGER_GUI
      /* Debug actions */
  
-@@ -2855,6 +2865,55 @@
+@@ -2994,6 +3004,55 @@
      }
  }
  

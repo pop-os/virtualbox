@@ -6,10 +6,9 @@
 ## DP: both depends on kernel headers, which are not available atm.
 
 @DPATCH@
-
-diff -Naurp virtualbox-ose-2.0.4-dfsg.orig/LocalConfig.kmk virtualbox-ose-2.0.4-dfsg/LocalConfig.kmk
---- virtualbox-ose-2.0.4-dfsg.orig/LocalConfig.kmk	2008-11-23 11:52:44.000000000 +0100
-+++ virtualbox-ose-2.0.4-dfsg/LocalConfig.kmk	2008-11-23 11:53:14.000000000 +0100
+diff -urNad virtualbox-ose-3.0.8-dfsg~/LocalConfig.kmk virtualbox-ose-3.0.8-dfsg/LocalConfig.kmk
+--- virtualbox-ose-3.0.8-dfsg~/LocalConfig.kmk	1970-01-01 01:00:00.000000000 +0100
++++ virtualbox-ose-3.0.8-dfsg/LocalConfig.kmk	2009-10-07 13:42:08.685461459 +0200
 @@ -0,0 +1,15 @@
 +VBOX_WITH_ADDITION_DRIVERS =
 +VBOX_ADDITIONS_LINUX_ONLY =

@@ -4,11 +4,10 @@
 ## DP: Correctly check build architecture.
 
 @DPATCH@
-
-diff -Naurp virtualbox-ose-3.0.0-dfsg.orig/configure virtualbox-ose-3.0.0-dfsg/configure
---- virtualbox-ose-3.0.0-dfsg.orig/configure	2009-07-01 09:55:34.000000000 +0200
-+++ virtualbox-ose-3.0.0-dfsg/configure	2009-07-01 09:57:03.000000000 +0200
-@@ -310,7 +310,7 @@
+diff -urNad virtualbox-ose-3.0.8-dfsg~/configure virtualbox-ose-3.0.8-dfsg/configure
+--- virtualbox-ose-3.0.8-dfsg~/configure	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.0.8-dfsg/configure	2009-10-07 13:41:49.012963906 +0200
+@@ -314,7 +314,7 @@
  check_environment()
  {
    test_header environment

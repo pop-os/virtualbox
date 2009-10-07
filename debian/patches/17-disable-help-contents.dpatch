@@ -5,9 +5,9 @@
 ## DP: Disable Help>Contents... menu item (LP: #323988)
 
 @DPATCH@
-diff -urNad virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp
---- virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp	2009-04-29 09:12:58.000000000 +0200
-+++ virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp	2009-05-16 16:25:28.503521210 +0200
+diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp
+--- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp	2009-10-07 13:44:10.275472897 +0200
 @@ -33,6 +33,7 @@
  
      contentsAction = new QAction (aParent);

@@ -5,10 +5,9 @@
 ## DP: Hide useless help buttons in dialogs
 
 @DPATCH@
-
-diff -Nur virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxCloseVMDlg.ui virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxCloseVMDlg.ui
---- virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxCloseVMDlg.ui	2009-04-29 09:12:58.000000000 +0200
-+++ virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxCloseVMDlg.ui	2009-05-30 00:17:42.357421009 +0200
+diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/ui/VBoxCloseVMDlg.ui virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxCloseVMDlg.ui
+--- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/ui/VBoxCloseVMDlg.ui	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxCloseVMDlg.ui	2009-10-07 13:44:29.935463062 +0200
 @@ -220,7 +220,7 @@
     <item>
      <widget class="QIDialogButtonBox" name="mButtonBox" >
@@ -18,9 +17,9 @@ diff -Nur virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxCl
       </property>
      </widget>
     </item>
-diff -Nur virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxMediaManagerDlg.ui virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxMediaManagerDlg.ui
---- virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxMediaManagerDlg.ui	2009-04-29 09:12:58.000000000 +0200
-+++ virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxMediaManagerDlg.ui	2009-05-30 00:18:11.877419434 +0200
+diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/ui/VBoxMediaManagerDlg.ui virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxMediaManagerDlg.ui
+--- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/ui/VBoxMediaManagerDlg.ui	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxMediaManagerDlg.ui	2009-10-07 13:44:29.935463062 +0200
 @@ -348,7 +348,7 @@
        <item>
         <widget class="QIDialogButtonBox" name="mButtonBox" >
@@ -30,9 +29,9 @@ diff -Nur virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxMe
          </property>
         </widget>
        </item>
-diff -Nur virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxSettingsDialog.ui virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxSettingsDialog.ui
---- virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxSettingsDialog.ui	2009-04-29 09:12:58.000000000 +0200
-+++ virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxSettingsDialog.ui	2009-05-30 00:18:06.749419816 +0200
+diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/ui/VBoxSettingsDialog.ui virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxSettingsDialog.ui
+--- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/ui/VBoxSettingsDialog.ui	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxSettingsDialog.ui	2009-10-07 13:44:29.935463062 +0200
 @@ -145,7 +145,7 @@
         <item row="3" column="0" colspan="2" >
          <widget class="QIDialogButtonBox" name="mButtonBox" >
@@ -42,9 +41,9 @@ diff -Nur virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxSe
           </property>
          </widget>
         </item>
-diff -Nur virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxSnapshotDetailsDlg.ui virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxSnapshotDetailsDlg.ui
---- virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxSnapshotDetailsDlg.ui	2009-04-29 09:12:58.000000000 +0200
-+++ virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxSnapshotDetailsDlg.ui	2009-05-30 00:18:01.725420541 +0200
+diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/ui/VBoxSnapshotDetailsDlg.ui virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxSnapshotDetailsDlg.ui
+--- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/ui/VBoxSnapshotDetailsDlg.ui	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxSnapshotDetailsDlg.ui	2009-10-07 13:44:29.935463062 +0200
 @@ -126,7 +126,7 @@
     <item>
      <widget class="QIDialogButtonBox" name="mButtonBox" >
@@ -54,9 +53,9 @@ diff -Nur virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxSn
       </property>
      </widget>
     </item>
-diff -Nur virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxTakeSnapshotDlg.ui virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxTakeSnapshotDlg.ui
---- virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxTakeSnapshotDlg.ui	2009-04-29 09:12:58.000000000 +0200
-+++ virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxTakeSnapshotDlg.ui	2009-05-30 00:17:57.001419921 +0200
+diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/ui/VBoxTakeSnapshotDlg.ui virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxTakeSnapshotDlg.ui
+--- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/ui/VBoxTakeSnapshotDlg.ui	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxTakeSnapshotDlg.ui	2009-10-07 13:44:29.935463062 +0200
 @@ -114,7 +114,7 @@
     <item>
      <widget class="QIDialogButtonBox" name="mButtonBox" >
@@ -66,9 +65,9 @@ diff -Nur virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxTa
       </property>
      </widget>
     </item>
-diff -Nur virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxVMLogViewer.ui virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxVMLogViewer.ui
---- virtualbox-ose-2.2.2-dfsg.orig/src/VBox/Frontends/VirtualBox/ui/VBoxVMLogViewer.ui	2009-04-29 09:12:58.000000000 +0200
-+++ virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxVMLogViewer.ui	2009-05-30 00:17:49.933420256 +0200
+diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/ui/VBoxVMLogViewer.ui virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxVMLogViewer.ui
+--- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/ui/VBoxVMLogViewer.ui	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/ui/VBoxVMLogViewer.ui	2009-10-07 13:44:29.935463062 +0200
 @@ -44,7 +44,7 @@
      <item>
       <widget class="QIDialogButtonBox" name="mButtonBox" >

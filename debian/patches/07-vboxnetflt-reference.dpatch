@@ -5,10 +5,10 @@
 ## DP: Made error message tell about missing vboxnetflt module
 
 @DPATCH@
-
---- virtualbox-ose/src/VBox/Devices/Network/DrvIntNet.cpp.orig	2009-04-09 13:16:16.000000000 +0200
-+++ virtualbox-ose/src/VBox/Devices/Network/DrvIntNet.cpp	2009-04-09 13:18:37.000000000 +0200
-@@ -1035,7 +1035,7 @@
+diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Devices/Network/DrvIntNet.cpp virtualbox-ose-3.0.8-dfsg/src/VBox/Devices/Network/DrvIntNet.cpp
+--- virtualbox-ose-3.0.8-dfsg~/src/VBox/Devices/Network/DrvIntNet.cpp	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.0.8-dfsg/src/VBox/Devices/Network/DrvIntNet.cpp	2009-10-07 13:43:15.622989484 +0200
+@@ -1049,7 +1049,7 @@
      rc = pDrvIns->pDrvHlp->pfnSUPCallVMMR0Ex(pDrvIns, VMMR0_DO_INTNET_OPEN, &OpenReq, sizeof(OpenReq));
      if (RT_FAILURE(rc))
          return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,

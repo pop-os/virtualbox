@@ -4,9 +4,9 @@
 ## DP: Create a start script in Xsession.d.
 
 @DPATCH@
-
---- virtualbox-ose-2.2.0-dfsg/src/VBox/Additions/x11/Installer/98vboxadd-xclient.orig	2009-04-09 11:01:44.000000000 +0200
-+++ virtualbox-ose-2.2.0-dfsg/src/VBox/Additions/x11/Installer/98vboxadd-xclient	2009-04-09 11:01:59.000000000 +0200
+diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Additions/x11/Installer/98vboxadd-xclient virtualbox-ose-3.0.8-dfsg/src/VBox/Additions/x11/Installer/98vboxadd-xclient
+--- virtualbox-ose-3.0.8-dfsg~/src/VBox/Additions/x11/Installer/98vboxadd-xclient	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.0.8-dfsg/src/VBox/Additions/x11/Installer/98vboxadd-xclient	2009-10-07 13:42:27.862988136 +0200
 @@ -17,6 +17,6 @@
  # additional information or have any questions.
  #
