@@ -1,7 +1,8 @@
-virtualbox-ose (3.0.8-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (3.0.8-dfsg-1) UNRELEASED; urgency=high
 
   [ Felix Geyer ]
   * New Upstream Version
+    - Fixes security vulnerability in VBoxNetAdpCtl (SunSolve #268188)
   * Conflict with upstream proprietary packages
   * Use an own cleaned-up virtualbox-ose init script instead of
     patching the upstream script
