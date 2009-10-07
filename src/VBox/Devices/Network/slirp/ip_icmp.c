@@ -104,7 +104,7 @@ icmp_init(PNATState pData)
                                     GetProcAddress(pData->hmIcmpLibrary, "IcmpCloseHandle");
         pData->pfGetAdaptersAddresses = (ULONG (WINAPI *)(ULONG, ULONG, PVOID, PIP_ADAPTER_ADDRESSES, PULONG))
                                     GetProcAddress(pData->hmIcmpLibrary, "GetAdaptersAddresses");
-        if (pData->pfGetAdaptersAddresses == NULL) 
+        if (pData->pfGetAdaptersAddresses == NULL)
         {
             LogRel(("NAT: Can't find GetAdapterAddresses in Iphlpapi.dll"));
         }
@@ -112,7 +112,7 @@ icmp_init(PNATState pData)
 
     if (pData->pfIcmpParseReplies == NULL)
     {
-        if(pData->pfGetAdaptersAddresses == NULL) 
+        if (pData->pfGetAdaptersAddresses == NULL)
             FreeLibrary(pData->hmIcmpLibrary);
         pData->hmIcmpLibrary = LoadLibrary("Icmp.dll");
         if (pData->hmIcmpLibrary == NULL)
@@ -247,10 +247,10 @@ icmp_find_original_mbuf(PNATState pData, struct ip *ip)
         default:
             LogRel(("%s:ICMP: unsupported protocol(%d)\n", __FUNCTION__, ip->ip_p));
     }
-    sofound:
+  sofound:
     if (found == 1 && icm == NULL)
     {
-        if (so->so_state == SS_NOFDREF) 
+        if (so->so_state == SS_NOFDREF)
         {
             /* socket is shutdowning we've already sent ICMP on it.*/
             LogRel(("NAT: Received icmp on shutdowning socket (probably corresponding ICMP socket has been already sent)\n"));

@@ -470,6 +470,110 @@ void Console::uninit()
     LogFlowThisFuncLeave();
 }
 
+#ifdef VBOX_WITH_GUEST_PROPS
+bool Console::enabledGuestPropertiesVRDP (void)
+{
+    Bstr value;
+    HRESULT hrc = mMachine->GetExtraData(Bstr("VBoxInternal2/EnableGuestPropertiesVRDP"), value.asOutParam());
+    if (hrc == S_OK)
+    {
+        if (value == "1")
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void Console::updateGuestPropertiesVRDPLogon (uint32_t u32ClientId, const char *pszUser, const char *pszDomain)
+{
+    if (!enabledGuestPropertiesVRDP())
+    {
+        return;
+    }
+
+    int rc;
+    char *pszPropertyName;
+
+    rc = RTStrAPrintf(&pszPropertyName, "/VirtualBox/HostInfo/VRDP/Client/%u/Name", u32ClientId);
+    if (RT_SUCCESS(rc))
+    {
+        Bstr clientName;
+        mRemoteDisplayInfo->COMGETTER(ClientName)(clientName.asOutParam());
+
+        mMachine->SetGuestProperty(Bstr(pszPropertyName), clientName, Bstr("RDONLYGUEST"));
+        RTStrFree(pszPropertyName);
+    }
+
+    rc = RTStrAPrintf(&pszPropertyName, "/VirtualBox/HostInfo/VRDP/Client/%u/User", u32ClientId);
+    if (RT_SUCCESS(rc))
+    {
+        mMachine->SetGuestProperty(Bstr(pszPropertyName), Bstr(pszUser), Bstr("RDONLYGUEST"));
+        RTStrFree(pszPropertyName);
+    }
+
+    rc = RTStrAPrintf(&pszPropertyName, "/VirtualBox/HostInfo/VRDP/Client/%u/Domain", u32ClientId);
+    if (RT_SUCCESS(rc))
+    {
+        mMachine->SetGuestProperty(Bstr(pszPropertyName), Bstr(pszDomain), Bstr("RDONLYGUEST"));
+        RTStrFree(pszPropertyName);
+    }
+
+    char *pszClientId;
+    rc = RTStrAPrintf(&pszClientId, "%d", u32ClientId);
+    if (RT_SUCCESS(rc))
+    {
+        mMachine->SetGuestProperty(Bstr("/VirtualBox/HostInfo/VRDP/LastConnectedClient"), Bstr(pszClientId), Bstr("RDONLYGUEST"));
+        RTStrFree(pszClientId);
+    }
+
+    return;
+}
+
+void Console::updateGuestPropertiesVRDPDisconnect (uint32_t u32ClientId)
+{
+    if (!enabledGuestPropertiesVRDP())
+    {
+        return;
+    }
+
+    int rc;
+    char *pszPropertyName;
+
+    rc = RTStrAPrintf(&pszPropertyName, "/VirtualBox/HostInfo/VRDP/Client/%u/Name", u32ClientId);
+    if (RT_SUCCESS(rc))
+    {
+        mMachine->SetGuestProperty(Bstr(pszPropertyName), Bstr(""), Bstr("RDONLYGUEST"));
+        RTStrFree(pszPropertyName);
+    }
+
+    rc = RTStrAPrintf(&pszPropertyName, "/VirtualBox/HostInfo/VRDP/Client/%u/User", u32ClientId);
+    if (RT_SUCCESS(rc))
+    {
+        mMachine->SetGuestProperty(Bstr(pszPropertyName), Bstr(""), Bstr("RDONLYGUEST"));
+        RTStrFree(pszPropertyName);
+    }
+
+    rc = RTStrAPrintf(&pszPropertyName, "/VirtualBox/HostInfo/VRDP/Client/%u/Domain", u32ClientId);
+    if (RT_SUCCESS(rc))
+    {
+        mMachine->SetGuestProperty(Bstr(pszPropertyName), Bstr(""), Bstr("RDONLYGUEST"));
+        RTStrFree(pszPropertyName);
+    }
+
+    char *pszClientId;
+    rc = RTStrAPrintf(&pszClientId, "%d", u32ClientId);
+    if (RT_SUCCESS(rc))
+    {
+        mMachine->SetGuestProperty(Bstr("/VirtualBox/HostInfo/VRDP/LastDisconnectedClient"), Bstr(pszClientId), Bstr("RDONLYGUEST"));
+        RTStrFree(pszClientId);
+    }
+
+    return;
+}
+#endif /* VBOX_WITH_GUEST_PROPS */
+
+
 int Console::VRDPClientLogon (uint32_t u32ClientId, const char *pszUser, const char *pszPassword, const char *pszDomain)
 {
     LogFlowFuncEnter();
@@ -658,6 +762,10 @@ int Console::VRDPClientLogon (uint32_t u32ClientId, const char *pszUser, const c
         mu32SingleRDPClientId = u32ClientId;
     }
 
+#ifdef VBOX_WITH_GUEST_PROPS
+    updateGuestPropertiesVRDPLogon (u32ClientId, pszUser, pszDomain);
+#endif /* VBOX_WITH_GUEST_PROPS */
+
     return VINF_SUCCESS;
 }
 
@@ -748,6 +856,10 @@ void Console::VRDPClientDisconnect (uint32_t u32ClientId,
 
     if (authType == VRDPAuthType_External)
         mConsoleVRDPServer->AuthDisconnect (uuid, u32ClientId);
+
+#ifdef VBOX_WITH_GUEST_PROPS
+    updateGuestPropertiesVRDPDisconnect (u32ClientId);
+#endif /* VBOX_WITH_GUEST_PROPS */
 
     LogFlowFuncLeave();
     return;
@@ -3583,7 +3695,7 @@ HRESULT Console::onVRDPServerChange()
             // we have to restart the server.
             mConsoleVRDPServer->Stop ();
 
-            if (VBOX_FAILURE(mConsoleVRDPServer->Launch ()))
+            if (RT_FAILURE(mConsoleVRDPServer->Launch ()))
             {
                 rc = E_FAIL;
             }
@@ -6528,19 +6640,21 @@ DECLCALLBACK (int) Console::powerUpThread (RTTHREAD Thread, void *pvUser)
         vrc = server->Launch();
         alock.enter();
 
-        if (VBOX_FAILURE (vrc))
+        if (vrc == VERR_NET_ADDRESS_IN_USE)
+        {
+            Utf8Str errMsg;
+            ULONG port = 0;
+            console->mVRDPServer->COMGETTER(Port) (&port);
+            errMsg = Utf8StrFmt (tr ("VRDP server port %d is already in use"),
+                                 port);
+            LogRel (("Warning: failed to launch VRDP server (%Rrc): '%s'\n",
+                     vrc, errMsg.raw()));
+        }
+        else if (RT_FAILURE (vrc))
         {
             Utf8Str errMsg;
             switch (vrc)
             {
-                case VERR_NET_ADDRESS_IN_USE:
-                {
-                    ULONG port = 0;
-                    console->mVRDPServer->COMGETTER(Port) (&port);
-                    errMsg = Utf8StrFmt (tr ("VRDP server port %d is already in use"),
-                                         port);
-                    break;
-                }
                 case VERR_FILE_NOT_FOUND:
                 {
                     errMsg = Utf8StrFmt (tr ("Could not load the VRDP library"));

@@ -1,6 +1,6 @@
-/* $Id: the-solaris-kernel.h $ */
+/* $Id: mp.h $ */
 /** @file
- * IPRT - Include all necessary headers for the Solaris kernel.
+ * IPRT - MP Internal header.
  */
 
 /*
@@ -28,42 +28,23 @@
  * additional information or have any questions.
  */
 
-#ifndef ___the_solaris_kernel_h
-#define ___the_solaris_kernel_h
-
-#define _MACHDEP /* needed for cpuset_t and sys/x_call.h */
-
-#include <sys/kmem.h>
-#include <sys/types.h>
-#include <sys/mman.h>
-#include <sys/thread.h>
-#include <sys/mutex.h>
-#include <sys/condvar.h>
-#include <sys/sdt.h>
-#include <sys/schedctl.h>
-#include <sys/time.h>
-#include <sys/sysmacros.h>
-#include <sys/cmn_err.h>
-#include <sys/vmsystm.h>
-#include <sys/cyclic.h>
-#include <sys/class.h>
-#include <sys/cpuvar.h>
-#include <sys/archsystm.h>
-#include <sys/x_call.h> /* in platform dir */
-#include <sys/x86_archext.h>
-#include <vm/hat.h>
-#include <vm/seg_vn.h>
-#include <vm/seg_kmem.h>
-#include <sys/ddi.h>
-#include <sys/sunddi.h>
-#include <sys/spl.h>
-
-#undef u /* /usr/include/sys/user.h:249:1 is where this is defined to (curproc->p_user). very cool. */
+#ifndef ___internal_mp_h
+#define ___internal_mp_h
 
 #include <iprt/cdefs.h>
+#include <iprt/param.h>
 
 RT_C_DECLS_BEGIN
-extern struct ddi_dma_attr g_SolarisX86PhysMemLimits;
+
+/**
+ * Clears any pending poke DPC
+ *
+ * Currently only valid for Windows hosts.
+ *
+ */
+void rtMpPokeCpuClear();
+
 RT_C_DECLS_END
 
 #endif
+

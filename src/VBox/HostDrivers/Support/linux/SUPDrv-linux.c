@@ -1,4 +1,4 @@
-/* $Rev: 50656 $ */
+/* $Rev: 52819 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
@@ -529,7 +529,9 @@ nmi_activated:
     }
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19)
     printk(KERN_DEBUG DEVICE_NAME ": Successfully done.\n");
+#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31) && defined(CONFIG_PERF_COUNTERS)
 no_error:
+#  endif
 # endif /* >= 2.6.19 */
 #endif /* CONFIG_X86_LOCAL_APIC */
 

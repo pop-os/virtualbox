@@ -322,7 +322,7 @@ static void bootp_reply(PNATState pData, struct mbuf *m0)
             goto skip_dns_servers;
         }
 
-        if (!TAILQ_EMPTY(&pData->dns_list_head)) 
+        if (!TAILQ_EMPTY(&pData->dns_list_head))
         {
             de = TAILQ_LAST(&pData->dns_list_head, dns_list_head);
             q_dns_header = q;
@@ -341,18 +341,18 @@ skip_dns_servers:
         {
                 /* Microsoft dhcp client doen't like domain-less dhcp and trimmed packets*/
                 /* dhcpcd client very sad if no domain name is passed */
-                FILL_BOOTP_EXT(q, RFC1533_DOMAINNAME, 1, " "); 
+                FILL_BOOTP_EXT(q, RFC1533_DOMAINNAME, 1, " ");
         }
         if (pData->fPassDomain)
         {
             LIST_FOREACH(dd, &pData->dns_domain_list_head, dd_list)
             {
-                
+
                 if (dd->dd_pszDomain == NULL)
                     continue;
                 /* never meet valid separator here in RFC1533*/
-                if (added != 0) 
-                    FILL_BOOTP_EXT(q, RFC1533_DOMAINNAME, 1, ","); 
+                if (added != 0)
+                    FILL_BOOTP_EXT(q, RFC1533_DOMAINNAME, 1, ",");
                 else
                     added = 1;
                 val = (int)strlen(dd->dd_pszDomain);

@@ -46,8 +46,8 @@ typedef struct
 
 
 /*
- * ARP cache this is naive implementaion of ARP 
- * cache of mapping 4 byte IPv4 address to 6 byte 
+ * ARP cache this is naive implementaion of ARP
+ * cache of mapping 4 byte IPv4 address to 6 byte
  * ethernet one.
  */
 struct arp_cache_entry

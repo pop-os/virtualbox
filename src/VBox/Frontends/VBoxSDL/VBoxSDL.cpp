@@ -1971,7 +1971,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 #endif
 
     /* static initialization of the SDL stuff */
-    VBoxSDLFB::init(fShowSDLConfig);
+    if (!VBoxSDLFB::init(fShowSDLConfig))
+        goto leave;
 
     gMachine->COMGETTER(MonitorCount)(&gcMonitors);
     if (gcMonitors > 64)
@@ -2943,8 +2944,12 @@ leave:
     if (gpDefaultCursor)
     {
 # ifdef VBOXSDL_WITH_X11
-        Cursor pDefaultTempX11Cursor = *(Cursor*)gpDefaultCursor->wm_cursor;
-        *(Cursor*)gpDefaultCursor->wm_cursor = gpDefaultOrigX11Cursor;
+        Cursor pDefaultTempX11Cursor = NULL;
+        if (gfXCursorEnabled)
+        {
+            pDefaultTempX11Cursor = *(Cursor*)gpDefaultCursor->wm_cursor;
+            *(Cursor*)gpDefaultCursor->wm_cursor = gpDefaultOrigX11Cursor;
+        }
 # endif /* VBOXSDL_WITH_X11 */
         SDL_SetCursor(gpDefaultCursor);
 # if defined(VBOXSDL_WITH_X11) && !defined(VBOX_WITHOUT_XCURSOR)

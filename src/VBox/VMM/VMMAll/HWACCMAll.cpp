@@ -103,6 +103,31 @@ VMMDECL(int) HWACCMFlushTLB(PVMCPU pVCpu)
     return VINF_SUCCESS;
 }
 
+#ifdef IN_RING0
+/**
+ * Dummy RTMpOnSpecific handler since RTMpPokeCpu couldn't be used. 
+ *
+ */
+static DECLCALLBACK(void) hwaccmFlushHandler(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    return;
+}
+
+/**
+ * Wrapper for RTMpPokeCpu to deal with VERR_NOT_SUPPORTED
+ *
+ */
+void hwaccmMpPokeCpu(RTCPUID idHostCpu)
+{
+    int rc = RTMpPokeCpu(idHostCpu);
+# ifndef RT_OS_WINDOWS
+    /* Not implemented on some platforms (Darwin, Linux kernel < 2.6.19); fall back to a less efficient implementation (broadcast). */
+    if (rc == VERR_NOT_SUPPORTED)
+        RTMpOnSpecific(idHostCpu, hwaccmFlushHandler, 0, 0);
+# endif
+}
+#endif
+
 #ifndef IN_RC
 /**
  * Invalidates a guest page on all VCPUs.
@@ -132,7 +157,7 @@ VMMDECL(int) HWACCMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCPtr)
 #ifdef IN_RING0
                 RTCPUID idHostCpu = pVCpu->hwaccm.s.idEnteredCpu;
                 if (idHostCpu != NIL_RTCPUID)
-                    RTMpPokeCpu(idHostCpu);
+                    hwaccmMpPokeCpu(idHostCpu);
 #else
                 VMR3NotifyCpuFFU(pVCpu->pUVCpu, VMNOTIFYFF_FLAGS_POKE);
 #endif
@@ -172,7 +197,7 @@ VMMDECL(int) HWACCMFlushTLBOnAllVCpus(PVM pVM)
 #ifdef IN_RING0
             RTCPUID idHostCpu = pVCpu->hwaccm.s.idEnteredCpu;
             if (idHostCpu != NIL_RTCPUID)
-                RTMpPokeCpu(idHostCpu);
+                hwaccmMpPokeCpu(idHostCpu);
 #else
             VMR3NotifyCpuFFU(pVCpu->pUVCpu, VMNOTIFYFF_FLAGS_POKE);
 #endif
@@ -247,7 +272,7 @@ VMMDECL(int) HWACCMInvalidatePhysPage(PVM pVM, RTGCPHYS GCPhys)
     #ifdef IN_RING0
                 RTCPUID idHostCpu = pVCpu->hwaccm.s.idEnteredCpu;
                 if (idHostCpu != NIL_RTCPUID)
-                    RTMpPokeCpu(idHostCpu);
+                    hwaccmMpPokeCpu(idHostCpu);
     #else
                 VMR3NotifyCpuFFU(pVCpu->pUVCpu, VMNOTIFYFF_FLAGS_POKE);
     #endif

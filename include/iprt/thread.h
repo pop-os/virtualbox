@@ -464,6 +464,12 @@ typedef struct RTTHREADPREEMPTSTATE
     /** The old IRQL. Don't touch. */
     unsigned char uchOldIrql;
 # define RTTHREADPREEMPTSTATE_INITIALIZER { 255 }
+#elif defined(RT_OS_SOLARIS)
+    /** Dummy unused placeholder. */
+    unsigned char uchDummy;
+    /** The Old PIL. Don't touch! */
+    uint32_t        uOldPil;
+# define RTTHREADPREEMPTSTATE_INITIALIZER { 0, UINT32_MAX }
 #else
     /** Dummy unused placeholder. */
     unsigned char uchDummy;

@@ -346,6 +346,9 @@ VBoxSVC_SOURCES.freebsd = \
 	linux/vbox-libhal.cpp
 
 ifdef VBOX_WITH_USB
+ ifdef VBOX_WITH_SYSFS_BY_DEFAULT
+  linux/USBProxyServiceLinux.cpp_DEFS += VBOX_WITH_SYSFS_BY_DEFAULT
+ endif
  VBoxSVC_SOURCES  += \
  	USBDeviceFilterImpl.cpp \
  	USBProxyService.cpp \

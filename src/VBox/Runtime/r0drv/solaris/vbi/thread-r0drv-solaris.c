@@ -59,33 +59,7 @@ RTDECL(int) RTThreadSleep(unsigned cMillies)
     else
         cTicks = 0;
 
-#if 0
-    timeout = ddi_get_lbolt();
-    timeout += cTicks;
-
-    kcondvar_t cnd;
-    kmutex_t mtx;
-    mutex_init(&mtx, "IPRT Sleep Mutex", MUTEX_DRIVER, NULL);
-    cv_init(&cnd, "IPRT Sleep CV", CV_DRIVER, NULL);
-    mutex_enter(&mtx);
-    cv_timedwait (&cnd, &mtx, timeout);
-    mutex_exit(&mtx);
-    cv_destroy(&cnd);
-    mutex_destroy(&mtx);
-#endif
-
-#if 1
     delay(cTicks);
-#endif
-
-#if 0
-    /*   Hmm, no same effect as using delay() */
-    struct timespec t;
-    t.tv_sec = 0;
-    t.tv_nsec = cMillies * 1000000L;
-    nanosleep (&t, NULL);
-#endif
-
     return VINF_SUCCESS;
 }
 
@@ -121,17 +95,25 @@ RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
 RTDECL(void) RTThreadPreemptDisable(PRTTHREADPREEMPTSTATE pState)
 {
     AssertPtr(pState);
-    Assert(pState->uchDummy != 42);
-    pState->uchDummy = 42;
+    Assert(pState->uOldPil == UINT32_MAX);
+
     vbi_preempt_disable();
+
+    pState->uOldPil = getpil();
+    Assert(pState->uOldPil != UINT32_MAX);
 }
 
 
 RTDECL(void) RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState)
 {
     AssertPtr(pState);
-    Assert(pState->uchDummy == 42);
-    pState->uchDummy = 0;
+    Assert(pState->uOldPil != UINT32_MAX);
+#if 0   /* not needed: This is fixed by r53110 */
+    splx(pState->uOldPil);
+#endif
+
     vbi_preempt_enable();
+
+    pState->uOldPil = UINT32_MAX;
 }
 
