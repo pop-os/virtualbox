@@ -5,18 +5,6 @@
 ## DP: Do not check for updates
 
 @DPATCH@
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/Makefile.kmk virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/Makefile.kmk	2009-10-07 13:44:02.175485191 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/Makefile.kmk	2009-10-07 13:44:02.835497353 +0200
-@@ -36,7 +36,7 @@
- 
- # Show the update notifier dialog during startup. If this setting is disabled
- # the user can still update using the menu if desired.
--VBOX_WITH_UPDATE_REQUEST := 1
-+#VBOX_WITH_UPDATE_REQUEST := 1
- 
- 
- #
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Main/VirtualBoxImpl.cpp virtualbox-ose-3.0.8-dfsg/src/VBox/Main/VirtualBoxImpl.cpp
 --- virtualbox-ose-3.0.8-dfsg~/src/VBox/Main/VirtualBoxImpl.cpp	2009-10-07 11:27:14.000000000 +0200
 +++ virtualbox-ose-3.0.8-dfsg/src/VBox/Main/VirtualBoxImpl.cpp	2009-10-07 13:44:02.835497353 +0200

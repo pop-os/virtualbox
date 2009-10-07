@@ -40,22 +40,28 @@ debian/virtualbox-ose.README.Debian: debian/README.Debian.html
 	export LC_ALL=C; lynx -force_html -dump $< | ./debian/lynx-dump-postprocess > $@.tmp
 	mv $@.tmp $@
 
-env.sh: patch-stamp
+out/env.sh: patch-stamp
 	dh_testdir
+	mkdir -p out
 	./configure \
+	    --ose \
+	    --odir=$(abspath out) \
 	    --with-linux="/usr" \
 	    --disable-kmods \
 	    --enable-webservice
 
 build: build-stamp
-build-stamp: env.sh
+build-stamp: out/env.sh
 	dh_testdir
 	# Building package
-	. ./env.sh; $(MAKE) \
-		BUILD_TYPE=release \
-		PATH_OUT=$(abspath out)
-	# VBoxService
-	$(MAKE) PATH_OUT=$(abspath out) -C src/VBox/Additions/common/VBoxService/
+	. out/env.sh && $(MAKE) \
+	    AUTOCFG=$(abspath out/AutoConfig.kmk) \
+	    LOCALCFG=$(abspath debian/LocalConfig.kmk) \
+	    PATH_OUT=$(abspath out) \
+	    TOOL_YASM_AS=yasm \
+	    VBOX_WITH_REGISTRATION_REQUEST= \
+	    VBOX_WITH_UPDATE_REQUEST= \
+	    KBUILD_VERBOSE=2
 	touch $@
 
 clean: unpatch
@@ -63,7 +69,6 @@ clean: unpatch
 	dh_testroot
 	# Cleaning package
 	rm -rf out
-	rm -f AutoConfig.kmk configure.log env.sh LocalConfig.kmk
 	rm -f build-stamp
 	rm -f debian/virtualbox-ose.README.Debian debian/README.Debian.html
 	find . -name "*.pyc" -exec rm -f {} \;

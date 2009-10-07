@@ -8,11 +8,17 @@ virtualbox-ose (3.0.8-dfsg-1) UNRELEASED; urgency=high
     patching the upstream script
   * The guest init script doesn't fail anymore if it's already running
   * Remove vboxusers group as it's not needed anymore
+  * Don't statically link VBoxClient with libstdc++
+    - Add patch 22-no-static-libstdcpp.dpatch from Fedora
+  * Pass more build options through the command line, which allows us to drop
+    02-config-kmk.dpatch, 03-localconf-kmk.dpatch and
+    14-disable-registration-request.dpatch
+  * Add lintian overrides for non PIC code in /usr/lib/virtualbox/*.so
 
   [ Michael Meskes ]
   * Made debug package also depend on guest utilities package.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Wed, 07 Oct 2009 11:44:09 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Wed, 07 Oct 2009 20:45:31 +0200
 
 virtualbox-ose (3.0.6-dfsg-1) unstable; urgency=low
 
