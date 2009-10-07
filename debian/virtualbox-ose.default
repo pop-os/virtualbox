@@ -10,12 +10,11 @@
 # the init script.
 LOAD_VBOXDRV_MODULE=0
 
-# enter the following variables in /etc/default/virtualbox-ose:
-#   SHUTDOWN_USERS="foo bar"  
-#     check for running VMs of user foo and user bar
-#   SHUTDOWN=poweroff
-#   SHUTDOWN=acpibutton
-#   SHUTDOWN=savestate
-#     select one of these shutdown methods for running VMs
+# SHUTDOWN_USERS="foo bar"  
+#   check for running VMs of user foo and user bar
+# SHUTDOWN=poweroff
+# SHUTDOWN=acpibutton
+# SHUTDOWN=savestate
+#   select one of these shutdown methods for running VMs
 SHUTDOWN_USERS=""
 SHUTDOWN=poweroff
