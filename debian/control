@@ -40,7 +40,8 @@ Build-Depends: bcc,
                libxrender-dev,
                libxslt1-dev,
                lynx-cur,
-               python-dev,
+               python-central,
+               python-dev (>= 2.4-1),
                uuid-dev,
                x11proto-gl-dev,
                x11proto-xf86dri-dev,
@@ -48,6 +49,7 @@ Build-Depends: bcc,
                xsltproc,
                yasm (>= 0.7.0),
                zlib1g-dev
+XS-Python-Version: >= 2.4
 Standards-Version: 3.8.3
 Homepage: http://www.virtualbox.org/
 Vcs-Git: git://git.debian.org/git/pkg-virtualbox/virtualbox-ose.git
@@ -71,14 +73,15 @@ Package: virtualbox-ose
 Architecture: amd64 i386 lpia
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         adduser,
-         python
+         ${python:Depends},
+         adduser
 Recommends: virtualbox-ose-modules,
             virtualbox-ose-qt (= ${binary:Version}),
             hal,
             libgl1
 Suggests: virtualbox-ose-source (= ${binary:Version}), virtualbox-guest-additions
 Conflicts: virtualbox, virtualbox-2.0, virtualbox-2.1, virtualbox-2.2, virtualbox-3.0
+XB-Python-Version: ${python:Versions}
 Description: x86 virtualization solution - base binaries
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a

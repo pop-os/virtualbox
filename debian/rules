@@ -61,7 +61,7 @@ build-stamp: out/env.sh
 	    TOOL_YASM_AS=yasm \
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
-	    KBUILD_VERBOSE=2
+	    $(if $(DH_VERBOSE),KBUILD_VERBOSE=2,)
 	touch $@
 
 clean: unpatch
@@ -104,6 +104,9 @@ install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
 	dh_testroot
 	dh_clean -k
 	dh_installdirs
+	export VBOX_INSTALL_PATH=/usr/lib/virtualbox && \
+	    cd out/bin/sdk/installer && \
+	    python ./vboxapisetup.py install --root $(CURDIR)/debian/virtualbox-ose
 	# Install helper scripts for vbox* interfaces
 	dh_installifupdown -p$(sname)
 
@@ -138,6 +141,7 @@ binary-arch: build install serverabi
 	-chrpath -d debian/$(uname)/usr/sbin/VBoxService
 	-chrpath -d debian/$(uname)/usr/sbin/VBoxControl
 	-chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh
+	dh_pycentral -pvirtualbox-ose
 	dh_strip -s --dbg-package=$(sname)-dbg
 	dh_link -s
 	dh_compress -s
