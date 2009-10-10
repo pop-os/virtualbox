@@ -41,7 +41,7 @@ Build-Depends: bcc,
                libxslt1-dev,
                lynx-cur,
                python-central,
-               python-dev (>= 2.4-1),
+               python-dev (>= 2.4),
                uuid-dev,
                x11proto-gl-dev,
                x11proto-xf86dri-dev,
@@ -77,9 +77,10 @@ Depends: ${shlibs:Depends},
          adduser
 Recommends: virtualbox-ose-modules,
             virtualbox-ose-qt (= ${binary:Version}),
-            hal,
-            libgl1
-Suggests: virtualbox-ose-source (= ${binary:Version}), virtualbox-guest-additions
+            libgl1,
+            libhal1
+Suggests: virtualbox-ose-source (= ${binary:Version}), virtualbox-guest-additions,
+          libasound2, libpulse0
 Conflicts: virtualbox, virtualbox-2.0, virtualbox-2.1, virtualbox-2.2, virtualbox-3.0
 XB-Python-Version: ${python:Versions}
 Description: x86 virtualization solution - base binaries
@@ -96,7 +97,7 @@ Package: virtualbox-ose-dbg
 Section: debug
 Architecture: amd64 i386 lpia
 Depends: ${misc:Depends},
-         virtualbox-ose (= ${binary:Version}) | virtualbox-guest-utils (= ${binary:Version})
+         virtualbox-ose (= ${binary:Version}) | virtualbox-ose-guest-utils (= ${binary:Version})
 Description: x86 virtualization solution - debugging symbols
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a

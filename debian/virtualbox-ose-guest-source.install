@@ -22,5 +22,4 @@ out/bin/additions/src/vboxvideo_drm /usr/src/modules/virtualbox-ose-guest/
 debian/control debian/changelog debian/copyright debian/compat /usr/src/modules/virtualbox-ose-guest/debian
 debian/virtualbox-ose-guest-source.files/Makefile /usr/src/modules/virtualbox-ose-guest
 debian/virtualbox-ose-guest-source.files/control.modules.in /usr/src/modules/virtualbox-ose-guest/debian
-debian/virtualbox-ose-guest-source.files/postinst.modules.in /usr/src/modules/virtualbox-ose-guest/debian
 debian/virtualbox-ose-guest-source.files/rules /usr/src/modules/virtualbox-ose-guest/debian

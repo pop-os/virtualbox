@@ -16,5 +16,7 @@ LOAD_VBOXDRV_MODULE=0
 # SHUTDOWN=acpibutton
 # SHUTDOWN=savestate
 #   select one of these shutdown methods for running VMs
+#   acpibutton and savestate causes the init script to wait
+#   30 seconds for the VMs to shutdown
 SHUTDOWN_USERS=""
 SHUTDOWN=poweroff
