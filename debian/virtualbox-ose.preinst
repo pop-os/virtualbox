@@ -34,7 +34,7 @@ case "$1" in
     fi
 
     # Remove vboxusers group
-    if dpkg --compare-versions "$2" lt "3.0.6-dfsg-2"; then
+    if dpkg --compare-versions "$2" lt "3.0.8-dfsg-1"; then
       if [ -x /usr/sbin/delgroup ]; then
         # delgroup may return error status 3 if there is a non-system group
         # "vboxusers". The postrm should not fail in this case!
