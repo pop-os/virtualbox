@@ -154,8 +154,7 @@ binary-arch: build install serverabi
 	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxNetAdpCtl
 	chmod +s debian/$(sxname)/usr/lib/virtualbox/VirtualBox
 	dh_installudev -s
-	dh_installinit -pvirtualbox-ose --no-restart-on-upgrade
-	dh_installinit -pvirtualbox-ose-guest-utils --no-start
+	dh_installinit -s --no-start
 	dh_installdeb -s
 	dh_shlibdeps -s
 	dh_gencontrol -s
