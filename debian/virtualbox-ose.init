@@ -34,7 +34,12 @@ test -d /usr/share/doc/virtualbox-ose -a -x /usr/bin/VBoxHeadless || exit 0
 [ -r /etc/default/virtualbox-ose ] && . /etc/default/virtualbox-ose
 
 # set list of all active users if asked to do so
-[ "$SHUTDOWN_USERS" = all ] && SHUTDOWN_USERS=$(echo /tmp/.vbox-*-ipc|cut -d'-' -f2)
+if [ "$SHUTDOWN_USERS" = "all" ]; then
+	SHUTDOWN_USERS=""
+	for i in /tmp/.vbox-*-ipc; do
+		SHUTDOWN_USERS="$SHUTDOWN_USERS $(echo $i|cut -d'-' -f2)"
+	done
+fi
 
 if [ "$LOAD_VBOXDRV_MODULE" != 1 ]; then
 	log_success_msg "virtualbox-ose disabled; edit /etc/default/virtualbox-ose"
@@ -197,8 +202,9 @@ dmnstatus()
 		for i in $SHUTDOWN_USERS; do
 			if [ -d /tmp/.vbox-$i-ipc ]; then
 				export VBOX_IPC_SOCKETID="$i"
-				VMS=`VBoxManage --nologo list runningvms | sed -e 's/^".*".*{\(.*\)}/\1/' 2>/dev/null`
-				if [ -n "$VMS" ]; then
+				VMS=`VBoxManage --nologo list runningvms 2>/dev/null`
+				if [ $? -eq 0 -a -n "$VMS" ]; then
+					VMS=`echo "$VMS" | sed -e 's/^".*".*{\(.*\)}/\1/'`
 					echo "The following VMs are currently running:"
 					for v in $VMS; do
 						echo "  $v"
