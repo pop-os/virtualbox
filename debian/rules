@@ -127,8 +127,6 @@ binary-arch: build install serverabi
 	dh_installdocs -s
 	dh_installmenu -s
 	dh_install -s
-	echo "1" > debian/$(sname)/usr/share/doc/$(sname)/installed
-	echo "1" > debian/$(uname)/usr/share/doc/$(uname)/installed
 	-chmod 644 debian/$(sname)/usr/lib/virtualbox/sdk/bindings/xpcom/python/xpcom/*.py
 	-chmod 644 debian/$(sname)/usr/lib/virtualbox/sdk/bindings/xpcom/python/xpcom/server/*.py
 	-chmod 644 debian/$(sname)/usr/lib/virtualbox/sdk/bindings/xpcom/python/xpcom/client/*.py

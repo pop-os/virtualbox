@@ -14,7 +14,7 @@ PATH=$PATH:/bin:/sbin:/usr/sbin
 
 . /lib/lsb/init-functions
 
-test -r /usr/share/doc/virtualbox-ose-guest-utils/installed -a -x /usr/sbin/VBoxService || exit 0
+test -d /usr/share/doc/virtualbox-ose-guest-utils -a -x /usr/sbin/VBoxService || exit 0
 
 in_virtual_machine()
 {

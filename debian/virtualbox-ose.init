@@ -28,7 +28,7 @@
 
 . /lib/lsb/init-functions
 
-test -r /usr/share/doc/virtualbox-ose/installed -a -x /usr/bin/VBoxHeadless || exit 0
+test -d /usr/share/doc/virtualbox-ose -a -x /usr/bin/VBoxHeadless || exit 0
 
 # Include virtualbox-ose defaults if available
 [ -r /etc/default/virtualbox-ose ] && . /etc/default/virtualbox-ose

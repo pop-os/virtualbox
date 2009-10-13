@@ -9,6 +9,7 @@ virtualbox-ose (3.0.8-dfsg-1) unstable; urgency=high
     patching the upstream script
   * Only restart virtualbox-ose after upgrade if it's not running; do not
     restart virtualbox-ose-guest-utils at all
+  * Call notify-reboot-required after guest utils upgrade
   * Remove vboxusers group as it's not needed anymore
   * Don't statically link VBoxClient with libstdc++
     - Add patch 22-no-static-libstdcpp.dpatch from Fedora
