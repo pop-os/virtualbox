@@ -11,7 +11,8 @@
 LOAD_VBOXDRV_MODULE=0
 
 # SHUTDOWN_USERS="foo bar"  
-#   check for running VMs of user foo and user bar
+#   check for running VMs of user 'foo' and user 'bar'
+#   'all' checks for all active users
 # SHUTDOWN=poweroff
 # SHUTDOWN=acpibutton
 # SHUTDOWN=savestate

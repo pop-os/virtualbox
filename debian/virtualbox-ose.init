@@ -33,6 +33,9 @@ test -d /usr/share/doc/virtualbox-ose -a -x /usr/bin/VBoxHeadless || exit 0
 # Include virtualbox-ose defaults if available
 [ -r /etc/default/virtualbox-ose ] && . /etc/default/virtualbox-ose
 
+# set list of all active users if asked to do so
+[ $SHUTDOWN_USERS = 'all' ] && SHUTDOWN_USERS=$(echo /tmp/.vbox-*-ipc|cut -d'-' -f2)
+
 if [ "$LOAD_VBOXDRV_MODULE" != 1 ]; then
 	log_success_msg "virtualbox-ose disabled; edit /etc/default/virtualbox-ose"
 	exit 0
@@ -141,7 +144,6 @@ stop_vms()
 	wait=0
 	
 	for i in $SHUTDOWN_USERS; do
-		# don't create the ipcd directory with wrong permissions!
 		if [ -d /tmp/.vbox-$i-ipc ]; then
 			export VBOX_IPC_SOCKETID="$i"
 			VMS=`VBoxManage --nologo list runningvms 2>/dev/null`
@@ -193,7 +195,6 @@ dmnstatus()
 		fi
 		
 		for i in $SHUTDOWN_USERS; do
-			# don't create the ipcd directory with wrong permissions!
 			if [ -d /tmp/.vbox-$i-ipc ]; then
 				export VBOX_IPC_SOCKETID="$i"
 				VMS=`VBoxManage --nologo list runningvms | sed -e 's/^".*".*{\(.*\)}/\1/' 2>/dev/null`

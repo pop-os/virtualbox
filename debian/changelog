@@ -21,6 +21,7 @@ virtualbox-ose (3.0.8-dfsg-1) unstable; urgency=high
 
   [ Michael Meskes ]
   * Made debug package also depend on guest utilities package.
+  * Added option to close down all active VMs from init script.
 
  -- Michael Meskes <meskes@debian.org>  Tue, 13 Oct 2009 13:46:44 +0200
 
