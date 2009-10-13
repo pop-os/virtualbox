@@ -34,7 +34,7 @@ test -d /usr/share/doc/virtualbox-ose -a -x /usr/bin/VBoxHeadless || exit 0
 [ -r /etc/default/virtualbox-ose ] && . /etc/default/virtualbox-ose
 
 # set list of all active users if asked to do so
-[ $SHUTDOWN_USERS = 'all' ] && SHUTDOWN_USERS=$(echo /tmp/.vbox-*-ipc|cut -d'-' -f2)
+[ "$SHUTDOWN_USERS" = all ] && SHUTDOWN_USERS=$(echo /tmp/.vbox-*-ipc|cut -d'-' -f2)
 
 if [ "$LOAD_VBOXDRV_MODULE" != 1 ]; then
 	log_success_msg "virtualbox-ose disabled; edit /etc/default/virtualbox-ose"
