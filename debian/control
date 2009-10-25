@@ -97,6 +97,7 @@ Package: virtualbox-ose-dbg
 Section: debug
 Architecture: amd64 i386 lpia
 Depends: ${misc:Depends},
+	 pciutils,
          virtualbox-ose (= ${binary:Version}) | virtualbox-ose-guest-utils (= ${binary:Version})
 Description: x86 virtualization solution - debugging symbols
  VirtualBox is a free x86 virtualization solution allowing a wide range
