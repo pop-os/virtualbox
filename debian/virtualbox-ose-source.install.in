@@ -1,0 +1,7 @@
+out/bin/src/vboxdrv/* /usr/src/vboxdrv-CVERSION
+out/bin/src/vboxnetflt/* /usr/src/vboxnetflt-CVERSION
+out/bin/src/vboxnetadp/* /usr/src/vboxnetadp-CVERSION
+
+debian/virtualbox-ose-source.files/do_Module.symvers /usr/src/vboxdrv-CVERSION
+debian/virtualbox-ose-source.files/do_Module.symvers /usr/src/vboxnetflt-CVERSION
+debian/virtualbox-ose-source.files/do_Module.symvers /usr/src/vboxnetadp-CVERSION

@@ -2,7 +2,7 @@
 ## 04-vboxdrv-references.dpatch by Daniel Hahler <ubuntu@thequod.de>
 ##
 ## DP: Change error messages for vboxdrv failure, according to
-## DP: virtualbox-ose-modules.
+## DP: virtualbox-ose-source (DKMS).
 
 @DPATCH@
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/main.cpp virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/main.cpp

@@ -1,0 +1,4 @@
+usr/src/virtualbox-ose-guest-CVERSION/include/iprt
+usr/src/virtualbox-ose-guest-CVERSION/include/VBox
+usr/src/virtualbox-ose-guest-CVERSION/include/internal
+usr/src/virtualbox-ose-guest-CVERSION/r0drv/linux

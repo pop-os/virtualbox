@@ -1,0 +1,40 @@
+#!/bin/sh
+# Copyright (C) 2008 Mario Limonciello
+
+set -e
+
+#DEBHELPER#
+
+CVERSION=`dpkg-query -W -f='${Version}' virtualbox-ose-source | awk -F "-" '{print $1}' | cut -d\: -f2`
+
+case "$1" in
+	configure)
+		#Silently remove existing modules
+		dkms remove -m vboxdrv -v $CVERSION --all > /dev/null 2>&1 || true
+		dkms remove -m vboxnetflt -v $CVERSION --all > /dev/null 2>&1 || true
+		dkms remove -m vboxnetadp -v $CVERSION --all > /dev/null 2>&1 || true
+		#Create DKMS modules
+		echo "Adding modules to DKMS build system"
+		dkms add -m vboxdrv -v $CVERSION > /dev/null
+		dkms add -m vboxnetflt -v $CVERSION > /dev/null
+		dkms add -m vboxnetadp -v $CVERSION > /dev/null
+		echo "Doing initial module builds"
+		dkms build -m vboxdrv -v $CVERSION > /dev/null
+		dkms build -m vboxnetflt -v $CVERSION > /dev/null
+		dkms build -m vboxnetadp -v $CVERSION > /dev/null
+		echo "Installing initial modules"
+		dkms install -m vboxdrv -v $CVERSION --force > /dev/null
+		dkms install -m vboxnetflt -v $CVERSION --force > /dev/null
+		dkms install -m vboxnetadp -v $CVERSION --force > /dev/null
+		echo "Done."
+
+		# only restart if VirtualBox isn't running
+		if test -x /etc/init.d/virtualbox-ose && ! pidof VBoxSVC > /dev/null; then
+			if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
+				invoke-rc.d virtualbox-ose restart || true
+			else
+				/etc/init.d/virtualbox-ose restart || true
+			fi
+		fi
+		;;
+esac

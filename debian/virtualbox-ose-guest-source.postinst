@@ -1,0 +1,23 @@
+#!/bin/sh
+# Copyright (C) 2008 Mario Limonciello
+
+set -e
+
+#DEBHELPER#
+
+CVERSION=`dpkg-query -W -f='${Version}' virtualbox-ose-guest-source | awk -F "-" '{print $1}' | cut -d\: -f2`
+
+case "$1" in
+	configure)
+		#Silently remove existing modules
+		dkms remove -m virtualbox-ose-guest -v $CVERSION --all > /dev/null 2>&1 || true
+		#Create DKMS modules
+		echo "Adding Module to DKMS build system"
+		dkms add -m virtualbox-ose-guest -v $CVERSION > /dev/null
+		echo "Doing initial module build"
+		dkms build -m virtualbox-ose-guest -v $CVERSION > /dev/null
+		echo "Installing initial module"
+		dkms install -m virtualbox-ose-guest -v $CVERSION --force > /dev/null
+		echo "Done."
+	;;
+esac

@@ -44,8 +44,8 @@ fi
 if [ ! -c /dev/vboxdrv ]; then
     cat << EOF
 WARNING: The character device /dev/vboxdrv does not exist.
-	 Please install the virtualbox-ose-modules package for your kernel and
-	 load the module named vboxdrv into your system.
+	 Please install the virtualbox-ose-source package and the appropriate
+	 headers, most likely linux-headers-$(uname -r | cut -d- -f3).
 
 	 You will not be able to start VMs until this problem is fixed.
 EOF

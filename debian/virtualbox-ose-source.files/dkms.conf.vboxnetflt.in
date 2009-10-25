@@ -1,0 +1,7 @@
+PACKAGE_NAME="vboxnetflt"
+PACKAGE_VERSION="CVERSION"
+CLEAN="make -C $dkms_tree/$module/$module_version/build clean"
+BUILT_MODULE_NAME[0]="vboxnetflt"
+DEST_MODULE_LOCATION[0]="/updates/vboxnetflt"
+AUTOINSTALL="yes"
+PRE_BUILD="do_Module.symvers vboxdrv restore $dkms_tree/$module/$module_version/build/Module.symvers"

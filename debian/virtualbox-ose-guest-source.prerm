@@ -1,0 +1,16 @@
+#!/bin/sh
+# Copyright (C) 2008 Mario Limonciello
+
+set -e
+
+#DEBHELPER#
+
+CVERSION=`dpkg-query -W -f='${Version}' virtualbox-ose-guest-source | awk -F "-" '{print $1}' | cut -d\: -f2`
+
+case "$1" in
+	remove|upgrade|purge)
+		echo "Removing all DKMS Modules"
+		dkms remove -m virtualbox-ose-guest -v $CVERSION --all > /dev/null || true
+		echo "Done."
+	;;
+esac
