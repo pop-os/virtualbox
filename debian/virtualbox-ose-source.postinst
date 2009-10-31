@@ -19,13 +19,13 @@ case "$1" in
 		dkms add -m vboxnetflt -v $CVERSION > /dev/null
 		dkms add -m vboxnetadp -v $CVERSION > /dev/null
 		echo "Doing initial module builds"
-		dkms build -m vboxdrv -v $CVERSION > /dev/null
-		dkms build -m vboxnetflt -v $CVERSION > /dev/null
-		dkms build -m vboxnetadp -v $CVERSION > /dev/null
+		dkms build -m vboxdrv -v $CVERSION > /dev/null || true
+		dkms build -m vboxnetflt -v $CVERSION > /dev/null || true
+		dkms build -m vboxnetadp -v $CVERSION > /dev/null || true
 		echo "Installing initial modules"
-		dkms install -m vboxdrv -v $CVERSION --force > /dev/null
-		dkms install -m vboxnetflt -v $CVERSION --force > /dev/null
-		dkms install -m vboxnetadp -v $CVERSION --force > /dev/null
+		dkms install -m vboxdrv -v $CVERSION --force > /dev/null || true
+		dkms install -m vboxnetflt -v $CVERSION --force > /dev/null || true
+		dkms install -m vboxnetadp -v $CVERSION --force > /dev/null || true
 		echo "Done."
 
 		# only restart if VirtualBox isn't running

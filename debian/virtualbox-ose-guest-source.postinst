@@ -15,9 +15,9 @@ case "$1" in
 		echo "Adding Module to DKMS build system"
 		dkms add -m virtualbox-ose-guest -v $CVERSION > /dev/null
 		echo "Doing initial module build"
-		dkms build -m virtualbox-ose-guest -v $CVERSION > /dev/null
+		dkms build -m virtualbox-ose-guest -v $CVERSION > /dev/null || true
 		echo "Installing initial module"
-		dkms install -m virtualbox-ose-guest -v $CVERSION --force > /dev/null
+		dkms install -m virtualbox-ose-guest -v $CVERSION --force > /dev/null || true
 		echo "Done."
 	;;
 esac
