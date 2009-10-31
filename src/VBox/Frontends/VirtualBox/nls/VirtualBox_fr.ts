@@ -1,4 +1,6 @@
-<!DOCTYPE TS><TS>
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.0" language="fr_FR">
 <context>
     <name>@@@</name>
     <message>
@@ -4754,6 +4756,10 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     <message>
         <source>Failed to eject the disk from the virtual drive. The drive may be locked by the guest operating system. Please check this and try again.</source>
         <translation>L&apos;éjection du support virtuel a échoué. Le lecteur pourrait être vérouile par le système invité. Veuillez vérifier ceci et réessayer.</translation>
+    </message>
+    <message>
+        <source>You seem to have the USBFS filesystem mounted at /sys/bus/usb/drivers. We strongly recommend that you change this, as it is a severe mis-configuration of your system which could cause USB devices to fail in unexpected ways.</source>
+        <translation>Le système de fichiers USBFS semble être monté sous /sys/bus/usb/drivers sur votre système hôte. Ceci est une erreur grave dans la configuration de votre système qui pourrait résulter dans des problèmes inattendus avec des périperiques USB. Nous vous conseillons fortement de changer ceci.</translation>
     </message>
 </context>
 <context>

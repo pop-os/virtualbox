@@ -82,10 +82,12 @@ VMMR0DECL(int) SVMR0EnableCpu(PHWACCM_CPUINFO pCpu, PVM pVM, void *pvPageCpu, RT
     SUPR0Printf("SVMR0EnableCpu cpu %d page (%x) %x\n", pCpu->idCpu, pvPageCpu, (uint32_t)pPageCpuPhys);
 #endif
 
-    /* Turn on AMD-V in the EFER MSR. */
     uint64_t val = ASMRdMsr(MSR_K6_EFER);
-    if (!(val & MSR_K6_EFER_SVME))
-        ASMWrMsr(MSR_K6_EFER, val | MSR_K6_EFER_SVME);
+    if (val & MSR_K6_EFER_SVME)
+        return VERR_SVM_IN_USE;
+
+    /* Turn on AMD-V in the EFER MSR. */
+    ASMWrMsr(MSR_K6_EFER, val | MSR_K6_EFER_SVME);
 
     /* Write the physical page address where the CPU will store the host state while executing the VM. */
     ASMWrMsr(MSR_K8_VM_HSAVE_PA, pPageCpuPhys);
@@ -174,7 +176,7 @@ VMMR0DECL(int) SVMR0InitVM(PVM pVM)
     }
 
     /* Allocate VMCBs for all guest CPUs. */
-    for (unsigned i=0;i<pVM->cCPUs;i++)
+    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -189,6 +191,7 @@ VMMR0DECL(int) SVMR0InitVM(PVM pVM)
 
         pVCpu->hwaccm.s.svm.pVMCBHost     = RTR0MemObjAddress(pVCpu->hwaccm.s.svm.pMemObjVMCBHost);
         pVCpu->hwaccm.s.svm.pVMCBHostPhys = RTR0MemObjGetPagePhysAddr(pVCpu->hwaccm.s.svm.pMemObjVMCBHost, 0);
+        Assert(pVCpu->hwaccm.s.svm.pVMCBHostPhys < _4G);
         ASMMemZeroPage(pVCpu->hwaccm.s.svm.pVMCBHost);
 
         /* Allocate one page for the VM control block (VMCB). */
@@ -198,6 +201,7 @@ VMMR0DECL(int) SVMR0InitVM(PVM pVM)
 
         pVCpu->hwaccm.s.svm.pVMCB     = RTR0MemObjAddress(pVCpu->hwaccm.s.svm.pMemObjVMCB);
         pVCpu->hwaccm.s.svm.pVMCBPhys = RTR0MemObjGetPagePhysAddr(pVCpu->hwaccm.s.svm.pMemObjVMCB, 0);
+        Assert(pVCpu->hwaccm.s.svm.pVMCBPhys < _4G);
         ASMMemZeroPage(pVCpu->hwaccm.s.svm.pVMCB);
 
         /* Allocate 8 KB for the MSR bitmap (doesn't seem to be a way to convince SVM not to use it) */
@@ -222,7 +226,7 @@ VMMR0DECL(int) SVMR0InitVM(PVM pVM)
  */
 VMMR0DECL(int) SVMR0TermVM(PVM pVM)
 {
-    for (unsigned i=0;i<pVM->cCPUs;i++)
+    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -273,7 +277,7 @@ VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
 
     Assert(pVM->hwaccm.s.svm.fSupported);
 
-    for (unsigned i=0;i<pVM->cCPUs;i++)
+    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
     {
         PVMCPU    pVCpu = &pVM->aCpus[i];
         SVM_VMCB *pVMCB = (SVM_VMCB *)pVM->aCpus[i].hwaccm.s.svm.pVMCB;
@@ -908,7 +912,7 @@ VMMR0DECL(int) SVMR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         else
         {
             /* Fall back to rdtsc emulation as we would otherwise pass decreasing tsc values to the guest. */
-            Log(("TSC %RX64 offset %RX64 time=%RX64 last=%RX64 (diff=%RX64, virt_tsc=%RX64)\n", u64CurTSC, pVMCB->ctrl.u64TSCOffset, u64CurTSC + pVMCB->ctrl.u64TSCOffset, TMCpuTickGetLastSeen(pVCpu), TMCpuTickGetLastSeen(pVCpu) - u64CurTSC - pVMCB->ctrl.u64TSCOffset, TMCpuTickGet(pVCpu)));
+            LogFlow(("TSC %RX64 offset %RX64 time=%RX64 last=%RX64 (diff=%RX64, virt_tsc=%RX64)\n", u64CurTSC, pVMCB->ctrl.u64TSCOffset, u64CurTSC + pVMCB->ctrl.u64TSCOffset, TMCpuTickGetLastSeen(pVCpu), TMCpuTickGetLastSeen(pVCpu) - u64CurTSC - pVMCB->ctrl.u64TSCOffset, TMCpuTickGet(pVCpu)));
             pVMCB->ctrl.u32InterceptCtrl1 |= SVM_CTRL1_INTERCEPT_RDTSC;
             pVMCB->ctrl.u32InterceptCtrl2 |= SVM_CTRL2_INTERCEPT_RDTSCP;
             STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTSCInterceptOverFlow);
@@ -1136,12 +1140,12 @@ ResumeExecution:
         ||  pVCpu->hwaccm.s.cTLBFlushes != pCpu->cTLBFlushes)
     {
         if (pVCpu->hwaccm.s.idLastCpu != pCpu->idCpu)
-            Log(("Force TLB flush due to rescheduling to a different cpu (%d vs %d)\n", pVCpu->hwaccm.s.idLastCpu, pCpu->idCpu));
+            LogFlow(("Force TLB flush due to rescheduling to a different cpu (%d vs %d)\n", pVCpu->hwaccm.s.idLastCpu, pCpu->idCpu));
         else
-            Log(("Force TLB flush due to changed TLB flush count (%x vs %x)\n", pVCpu->hwaccm.s.cTLBFlushes, pCpu->cTLBFlushes));
+            LogFlow(("Force TLB flush due to changed TLB flush count (%x vs %x)\n", pVCpu->hwaccm.s.cTLBFlushes, pCpu->cTLBFlushes));
     }
     if (pCpu->fFlushTLB)
-        Log(("Force TLB flush: first time cpu %d is used -> flush\n", pCpu->idCpu));
+        LogFlow(("Force TLB flush: first time cpu %d is used -> flush\n", pCpu->idCpu));
 #endif
 
     /*
@@ -1184,6 +1188,9 @@ ResumeExecution:
         Assert(!pCpu->fFlushTLB || pVM->hwaccm.s.svm.fAlwaysFlushTLB);
 
     pVCpu->hwaccm.s.idLastCpu = pCpu->idCpu;
+
+    /** Set TLB flush state as checked until we return from the world switch. */
+    ASMAtomicWriteU8(&pVCpu->hwaccm.s.fCheckedTLBFlush, true);
 
     /* Check for tlb shootdown flushes. */
     if (VMCPU_FF_TESTANDCLEAR(pVCpu, VMCPU_FF_TLB_FLUSH))
@@ -1261,6 +1268,8 @@ ResumeExecution:
 #else
     pVCpu->hwaccm.s.svm.pfnVMRun(pVCpu->hwaccm.s.svm.pVMCBHostPhys, pVCpu->hwaccm.s.svm.pVMCBPhys, pCtx, pVM, pVCpu);
 #endif
+    ASMAtomicWriteU8(&pVCpu->hwaccm.s.fCheckedTLBFlush, false);
+    ASMAtomicIncU32(&pVCpu->hwaccm.s.cWorldSwitchExit);
     /* Possibly the last TSC value seen by the guest (too high) (only when we're in tsc offset mode). */
     if (!(pVMCB->ctrl.u32InterceptCtrl1 & SVM_CTRL1_INTERCEPT_RDTSC))
         TMCpuTickSetLastSeen(pVCpu, ASMReadTSC() + pVMCB->ctrl.u64TSCOffset - 0x400 /* guestimate of world switch overhead in clock ticks */);

@@ -341,6 +341,32 @@ void VBoxProblemReporter::cannotDeleteFile (const QString& path, QWidget *aParen
              .arg (path));
 }
 
+void VBoxProblemReporter::checkForMountedWrongUSB() const
+{
+#ifdef RT_OS_LINUX
+    QFile file ("/proc/mounts");
+    if (file.exists() && file.open (QIODevice::ReadOnly | QIODevice::Text))
+    {
+        QStringList contents;
+        for (;;)
+        {
+            QByteArray line = file.readLine();
+            if (line.isEmpty())
+                break;
+            contents << line;
+        }
+        QStringList grep1 (contents.filter ("/sys/bus/usb/drivers"));
+        QStringList grep2 (grep1.filter ("usbfs"));
+        if (!grep2.isEmpty())
+            message (mainWindowShown(), Warning,
+                     tr ("You seem to have the USBFS filesystem mounted at /sys/bus/usb/drivers. "
+                         "We strongly recommend that you change this, as it is a severe mis-configuration of "
+                         "your system which could cause USB devices to fail in unexpected ways."),
+                     "checkForMountedWrongUSB");
+    }
+#endif
+}
+
 // Special Problem handlers
 /////////////////////////////////////////////////////////////////////////////
 

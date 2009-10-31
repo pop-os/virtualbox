@@ -3166,9 +3166,9 @@ STDMETHODIMP Machine::SetGuestProperty (IN_BSTR aName, IN_BSTR aValue, IN_BSTR a
         if (!directControl)
             rc = E_FAIL;
         else
-            rc = directControl->AccessGuestProperty (aName, aValue, aFlags,
-                                                     true /* isSetter */,
-                                                     &dummy, &dummy64, &dummy);
+            rc = directControl->AccessGuestProperty
+                             (aName, *aValue ? aValue : NULL, aFlags,
+                              true /* isSetter */, &dummy, &dummy64, &dummy);
     }
     return rc;
 #endif /* else !defined (VBOX_WITH_GUEST_PROPS) */
@@ -3517,38 +3517,51 @@ void Machine::getLogFolder (Utf8Str &aLogFolder)
  *  @note Locks this object for writing, calls the client process (outside the
  *        lock).
  */
-HRESULT Machine::openSession (IInternalSessionControl *aControl)
+HRESULT Machine::openSession(IInternalSessionControl *aControl)
 {
     LogFlowThisFuncEnter();
 
-    AssertReturn (aControl, E_FAIL);
+    AssertReturn(aControl, E_FAIL);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     if (!mData->mRegistered)
-        return setError (E_UNEXPECTED,
-            tr ("The machine '%ls' is not registered"), mUserData->mName.raw());
+        return setError(E_UNEXPECTED,
+            tr("The machine '%ls' is not registered"),
+            mUserData->mName.raw());
 
-    LogFlowThisFunc (("mSession.mState=%d\n", mData->mSession.mState));
+    LogFlowThisFunc(("mSession.mState=%d\n", mData->mSession.mState));
+
+    /* Hack: in case the session is closing and there is a progress object
+     * which allows waiting for the session to be closed, take the opportunity
+     * and do a limited wait (max. 1 second). This helps a lot when the system
+     * is busy and thus session closing can take a little while. */
+    if (    mData->mSession.mState == SessionState_Closing
+        &&  mData->mSession.mProgress)
+    {
+        alock.leave();
+        mData->mSession.mProgress->WaitForCompletion(1000);
+        alock.enter();
+        LogFlowThisFunc(("after waiting: mSession.mState=%d\n", mData->mSession.mState));
+    }
 
     if (mData->mSession.mState == SessionState_Open ||
         mData->mSession.mState == SessionState_Closing)
-        return setError (VBOX_E_INVALID_OBJECT_STATE,
-            tr ("A session for the machine '%ls' is currently open "
-                "(or being closed)"),
+        return setError(VBOX_E_INVALID_OBJECT_STATE,
+            tr("A session for the machine '%ls' is currently open (or being closed)"),
             mUserData->mName.raw());
 
     /* may not be busy */
-    AssertReturn (!Global::IsOnlineOrTransient (mData->mMachineState), E_FAIL);
+    AssertReturn(!Global::IsOnlineOrTransient(mData->mMachineState), E_FAIL);
 
     /* get the session PID */
     RTPROCESS pid = NIL_RTPROCESS;
-    AssertCompile (sizeof (ULONG) == sizeof (RTPROCESS));
-    aControl->GetPID ((ULONG *) &pid);
-    Assert (pid != NIL_RTPROCESS);
+    AssertCompile(sizeof(ULONG) == sizeof(RTPROCESS));
+    aControl->GetPID((ULONG *) &pid);
+    Assert(pid != NIL_RTPROCESS);
 
     if (mData->mSession.mState == SessionState_Spawning)
     {
@@ -3556,23 +3569,23 @@ HRESULT Machine::openSession (IInternalSessionControl *aControl)
          * reject any other open attempts from processes other than one
          * started by #openRemoteSession(). */
 
-        LogFlowThisFunc (("mSession.mPid=%d(0x%x)\n",
+        LogFlowThisFunc(("mSession.mPid=%d(0x%x)\n",
                           mData->mSession.mPid, mData->mSession.mPid));
-        LogFlowThisFunc (("session.pid=%d(0x%x)\n", pid, pid));
+        LogFlowThisFunc(("session.pid=%d(0x%x)\n", pid, pid));
 
         if (mData->mSession.mPid != pid)
-            return setError (E_ACCESSDENIED,
-                tr ("An unexpected process (PID=0x%08X) has tried to open a direct "
-                    "session with the machine named '%ls', while only a process "
-                    "started by OpenRemoteSession (PID=0x%08X) is allowed"),
+            return setError(E_ACCESSDENIED,
+                tr("An unexpected process (PID=0x%08X) has tried to open a direct "
+                   "session with the machine named '%ls', while only a process "
+                   "started by OpenRemoteSession (PID=0x%08X) is allowed"),
                 pid, mUserData->mName.raw(), mData->mSession.mPid);
     }
 
     /* create a SessionMachine object */
     ComObjPtr <SessionMachine> sessionMachine;
     sessionMachine.createObject();
-    HRESULT rc = sessionMachine->init (this);
-    AssertComRC (rc);
+    HRESULT rc = sessionMachine->init(this);
+    AssertComRC(rc);
 
     /* NOTE: doing return from this function after this point but
      * before the end is forbidden since it may call SessionMachine::uninit()
@@ -3580,10 +3593,10 @@ HRESULT Machine::openSession (IInternalSessionControl *aControl)
      * lock while still holding the Machine lock in alock so that a deadlock
      * is possible due to the wrong lock order. */
 
-    if (SUCCEEDED (rc))
+    if (SUCCEEDED(rc))
     {
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
-        registerMetrics (mParent->performanceCollector(), this, pid);
+        registerMetrics(mParent->performanceCollector(), this, pid);
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
 
         /*
@@ -3606,49 +3619,49 @@ HRESULT Machine::openSession (IInternalSessionControl *aControl)
          */
         alock.leave();
 
-        LogFlowThisFunc (("Calling AssignMachine()...\n"));
-        rc = aControl->AssignMachine (sessionMachine);
-        LogFlowThisFunc (("AssignMachine() returned %08X\n", rc));
+        LogFlowThisFunc(("Calling AssignMachine()...\n"));
+        rc = aControl->AssignMachine(sessionMachine);
+        LogFlowThisFunc(("AssignMachine() returned %08X\n", rc));
 
         /* The failure may occur w/o any error info (from RPC), so provide one */
-        if (FAILED (rc))
-            setError (VBOX_E_VM_ERROR,
-                tr ("Failed to assign the machine to the session (%Rrc)"), rc);
+        if (FAILED(rc))
+            setError(VBOX_E_VM_ERROR,
+                tr("Failed to assign the machine to the session (%Rrc)"), rc);
 
-        if (SUCCEEDED (rc) && origState == SessionState_Spawning)
+        if (SUCCEEDED(rc) && origState == SessionState_Spawning)
         {
             /* complete the remote session initialization */
 
             /* get the console from the direct session */
-            ComPtr <IConsole> console;
-            rc = aControl->GetRemoteConsole (console.asOutParam());
-            ComAssertComRC (rc);
+            ComPtr<IConsole> console;
+            rc = aControl->GetRemoteConsole(console.asOutParam());
+            ComAssertComRC(rc);
 
-            if (SUCCEEDED (rc) && !console)
+            if (SUCCEEDED(rc) && !console)
             {
-                ComAssert (!!console);
+                ComAssert(!!console);
                 rc = E_FAIL;
             }
 
             /* assign machine & console to the remote session */
-            if (SUCCEEDED (rc))
+            if (SUCCEEDED(rc))
             {
                 /*
                  *  after openRemoteSession(), the first and the only
                  *  entry in remoteControls is that remote session
                  */
-                LogFlowThisFunc (("Calling AssignRemoteMachine()...\n"));
+                LogFlowThisFunc(("Calling AssignRemoteMachine()...\n"));
                 rc = mData->mSession.mRemoteControls.front()->
-                    AssignRemoteMachine (sessionMachine, console);
-                LogFlowThisFunc (("AssignRemoteMachine() returned %08X\n", rc));
+                    AssignRemoteMachine(sessionMachine, console);
+                LogFlowThisFunc(("AssignRemoteMachine() returned %08X\n", rc));
 
                 /* The failure may occur w/o any error info (from RPC), so provide one */
-                if (FAILED (rc))
-                    setError (VBOX_E_VM_ERROR,
-                        tr ("Failed to assign the machine to the remote session (%Rrc)"), rc);
+                if (FAILED(rc))
+                    setError(VBOX_E_VM_ERROR,
+                        tr("Failed to assign the machine to the remote session (%Rrc)"), rc);
             }
 
-            if (FAILED (rc))
+            if (FAILED(rc))
                 aControl->Uninitialize();
         }
 
@@ -3667,13 +3680,13 @@ HRESULT Machine::openSession (IInternalSessionControl *aControl)
         /* We don't reset mSession.mPid here because it is necessary for
          * SessionMachine::uninit() to reap the child process later. */
 
-        if (FAILED (rc))
+        if (FAILED(rc))
         {
             /* Close the remote session, remove the remote control from the list
              * and reset session state to Closed (@note keep the code in sync
              * with the relevant part in openSession()). */
 
-            Assert (mData->mSession.mRemoteControls.size() == 1);
+            Assert(mData->mSession.mRemoteControls.size() == 1);
             if (mData->mSession.mRemoteControls.size() == 1)
             {
                 ErrorInfoKeeper eik;
@@ -3687,11 +3700,11 @@ HRESULT Machine::openSession (IInternalSessionControl *aControl)
     else
     {
         /* memorize PID of the directly opened session */
-        if (SUCCEEDED (rc))
+        if (SUCCEEDED(rc))
             mData->mSession.mPid = pid;
     }
 
-    if (SUCCEEDED (rc))
+    if (SUCCEEDED(rc))
     {
         /* memorize the direct session control and cache IUnknown for it */
         mData->mSession.mDirectControl = aControl;
@@ -3702,14 +3715,14 @@ HRESULT Machine::openSession (IInternalSessionControl *aControl)
         /* request an IUnknown pointer early from the remote party for later
          * identity checks (it will be internally cached within mDirectControl
          * at least on XPCOM) */
-        ComPtr <IUnknown> unk = mData->mSession.mDirectControl;
-        NOREF (unk);
+        ComPtr<IUnknown> unk = mData->mSession.mDirectControl;
+        NOREF(unk);
     }
 
     if (mData->mSession.mProgress)
     {
         /* finalize the progress after setting the state, for consistency */
-        mData->mSession.mProgress->notifyComplete (rc);
+        mData->mSession.mProgress->notifyComplete(rc);
         mData->mSession.mProgress.setNull();
     }
 
@@ -3718,10 +3731,10 @@ HRESULT Machine::openSession (IInternalSessionControl *aControl)
     alock.leave();
 
     /* uninitialize the created session machine on failure */
-    if (FAILED (rc))
+    if (FAILED(rc))
         sessionMachine->uninit();
 
-    LogFlowThisFunc (("rc=%08X\n", rc));
+    LogFlowThisFunc(("rc=%08X\n", rc));
     LogFlowThisFuncLeave();
     return rc;
 }
@@ -4167,54 +4180,56 @@ bool Machine::isSessionSpawning()
  */
 bool Machine::checkForSpawnFailure()
 {
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
     if (!autoCaller.isOk())
     {
         /* nothing to do */
-        LogFlowThisFunc (("Already uninitialized!"));
+        LogFlowThisFunc(("Already uninitialized!\n"));
         return true;
     }
 
     /* VirtualBox::addProcessToReap() needs a write lock */
-    AutoMultiWriteLock2 alock (mParent, this);
+    AutoMultiWriteLock2 alock(mParent, this);
 
     if (mData->mSession.mState != SessionState_Spawning)
     {
         /* nothing to do */
-        LogFlowThisFunc (("Not spawning any more!"));
+        LogFlowThisFunc(("Not spawning any more!\n"));
         return true;
     }
 
     HRESULT rc = S_OK;
 
-#if defined (RT_OS_WINDOWS) || defined (RT_OS_OS2)
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
 
     /* the process was already unexpectedly terminated, we just need to set an
      * error and finalize session spawning */
-    rc = setError (E_FAIL,
-                   tr ("Virtual machine '%ls' has terminated unexpectedly "
-                       "during startup"),
-                   name().raw());
+    rc = setError(E_FAIL,
+                  tr("Virtual machine '%ls' has terminated unexpectedly during startup"),
+                  name().raw());
 #else
 
+    /* PID not yet initialized, skip check. */
+    if (mData->mSession.mPid == NIL_RTPROCESS)
+        return false;
+
     RTPROCSTATUS status;
-    int vrc = ::RTProcWait (mData->mSession.mPid, RTPROCWAIT_FLAGS_NOBLOCK,
-                            &status);
+    int vrc = ::RTProcWait(mData->mSession.mPid, RTPROCWAIT_FLAGS_NOBLOCK,
+                           &status);
 
     if (vrc != VERR_PROCESS_RUNNING)
-        rc = setError (E_FAIL,
-                       tr ("Virtual machine '%ls' has terminated unexpectedly "
-                           "during startup"),
-                       name().raw());
+        rc = setError(E_FAIL,
+                      tr("Virtual machine '%ls' has terminated unexpectedly during startup"),
+                      name().raw());
 #endif
 
-    if (FAILED (rc))
+    if (FAILED(rc))
     {
         /* Close the remote session, remove the remote control from the list
          * and reset session state to Closed (@note keep the code in sync with
          * the relevant part in checkForSpawnFailure()). */
 
-        Assert (mData->mSession.mRemoteControls.size() == 1);
+        Assert(mData->mSession.mRemoteControls.size() == 1);
         if (mData->mSession.mRemoteControls.size() == 1)
         {
             ErrorInfoKeeper eik;
@@ -4225,13 +4240,16 @@ bool Machine::checkForSpawnFailure()
         mData->mSession.mState = SessionState_Closed;
 
         /* finalize the progress after setting the state, for consistency */
-        mData->mSession.mProgress->notifyComplete (rc);
-        mData->mSession.mProgress.setNull();
+        if (!mData->mSession.mProgress.isNull())
+        {
+            mData->mSession.mProgress->notifyComplete(rc);
+            mData->mSession.mProgress.setNull();
+        }
 
-        mParent->addProcessToReap (mData->mSession.mPid);
+        mParent->addProcessToReap(mData->mSession.mPid);
         mData->mSession.mPid = NIL_RTPROCESS;
 
-        mParent->onSessionStateChange (mData->mUuid, SessionState_Closed);
+        mParent->onSessionStateChange(mData->mUuid, SessionState_Closed);
         return true;
     }
 
@@ -8631,7 +8649,7 @@ void SessionMachine::uninit (Uninit::Reason aReason)
     mData->mSession.mState = SessionState_Closed;
     mData->mSession.mType.setNull();
 
-    /* close the interprocess semaphore before leaving the shared lock */
+    /* close the interprocess semaphore before leaving the exclusive lock */
 #if defined(RT_OS_WINDOWS)
     if (mIPCSem)
         ::CloseHandle (mIPCSem);
@@ -8659,7 +8677,7 @@ void SessionMachine::uninit (Uninit::Reason aReason)
     /* free the essential data structure last */
     mData.free();
 
-    /* leave the shared lock before setting the below two to NULL */
+    /* leave the exclusive lock before setting the below two to NULL */
     alock.leave();
 
     unconst (mParent).setNull();
@@ -8878,7 +8896,7 @@ STDMETHODIMP SessionMachine::OnSessionEnd (ISession *aSession,
 
     AutoCaller autoCaller (this);
 
-    LogFlowThisFunc (("state=%d\n", autoCaller.state()));
+    LogFlowThisFunc(("callerstate=%d\n", autoCaller.state()));
     /*
      *  We don't assert below because it might happen that a non-direct session
      *  informs us it is closed right after we've been uninitialized -- it's ok.
@@ -9682,7 +9700,7 @@ bool SessionMachine::checkForDeath()
         {
             /* return true if not ready, to cause the client watcher to exclude
              * the corresponding session from watching */
-            LogFlowThisFunc (("Already uninitialized!"));
+            LogFlowThisFunc(("Already uninitialized!\n"));
             return true;
         }
 

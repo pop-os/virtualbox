@@ -123,6 +123,9 @@ VMMR0DECL(int) VMXR0EnableCpu(PHWACCM_CPUINFO pCpu, PVM pVM, void *pvPageCpu, RT
      * (which can have very bad consequences!!!)
      */
 
+    if (ASMGetCR4() & X86_CR4_VMXE)
+        return VERR_VMX_IN_VMX_ROOT_MODE;
+
     /* Make sure the VMX instructions don't cause #UD faults. */
     ASMSetCR4(ASMGetCR4() | X86_CR4_VMXE);
 
@@ -215,7 +218,7 @@ VMMR0DECL(int) VMXR0InitVM(PVM pVM)
 #endif
 
     /* Allocate VMCBs for all guest CPUs. */
-    for (unsigned i=0;i<pVM->cCPUs;i++)
+    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -298,7 +301,7 @@ VMMR0DECL(int) VMXR0InitVM(PVM pVM)
  */
 VMMR0DECL(int) VMXR0TermVM(PVM pVM)
 {
-    for (unsigned i=0;i<pVM->cCPUs;i++)
+    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -373,7 +376,7 @@ VMMR0DECL(int) VMXR0SetupVM(PVM pVM)
 
     AssertReturn(pVM, VERR_INVALID_PARAMETER);
 
-    for (unsigned i=0;i<pVM->cCPUs;i++)
+    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -1818,7 +1821,7 @@ VMMR0DECL(int) VMXR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         else
         {
             /* Fall back to rdtsc emulation as we would otherwise pass decreasing tsc values to the guest. */
-            Log(("TSC %RX64 offset %RX64 time=%RX64 last=%RX64 (diff=%RX64, virt_tsc=%RX64)\n", u64CurTSC, pVCpu->hwaccm.s.vmx.u64TSCOffset, u64CurTSC + pVCpu->hwaccm.s.vmx.u64TSCOffset, TMCpuTickGetLastSeen(pVCpu), TMCpuTickGetLastSeen(pVCpu) - u64CurTSC - pVCpu->hwaccm.s.vmx.u64TSCOffset, TMCpuTickGet(pVCpu)));
+            LogFlow(("TSC %RX64 offset %RX64 time=%RX64 last=%RX64 (diff=%RX64, virt_tsc=%RX64)\n", u64CurTSC, pVCpu->hwaccm.s.vmx.u64TSCOffset, u64CurTSC + pVCpu->hwaccm.s.vmx.u64TSCOffset, TMCpuTickGetLastSeen(pVCpu), TMCpuTickGetLastSeen(pVCpu) - u64CurTSC - pVCpu->hwaccm.s.vmx.u64TSCOffset, TMCpuTickGet(pVCpu)));
             pVCpu->hwaccm.s.vmx.proc_ctls |= VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT;
             rc = VMXWriteVMCS(VMX_VMCS_CTRL_PROC_EXEC_CONTROLS, pVCpu->hwaccm.s.vmx.proc_ctls);
             AssertRC(rc);
@@ -2193,15 +2196,14 @@ static void vmxR0SetupTLBVPID(PVM pVM, PVMCPU pVCpu)
             pCpu->fFlushTLB                  = false;
             pCpu->uCurrentASID               = 1;       /* start at 1; host uses 0 */
             pCpu->cTLBFlushes++;
+            vmxR0FlushVPID(pVM, pVCpu, VMX_FLUSH_ALL_CONTEXTS, 0);
         }
         else
-        {
             STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatFlushASID);
-            pVCpu->hwaccm.s.fForceTLBFlush     = false;
-        }
 
-        pVCpu->hwaccm.s.cTLBFlushes  = pCpu->cTLBFlushes;
-        pVCpu->hwaccm.s.uCurrentASID = pCpu->uCurrentASID;
+        pVCpu->hwaccm.s.fForceTLBFlush = false;
+        pVCpu->hwaccm.s.cTLBFlushes    = pCpu->cTLBFlushes;
+        pVCpu->hwaccm.s.uCurrentASID   = pCpu->uCurrentASID;
     }
     else
     {
@@ -2502,12 +2504,12 @@ ResumeExecution:
             ||  pVCpu->hwaccm.s.cTLBFlushes != pCpu->cTLBFlushes)
         {
             if (pVCpu->hwaccm.s.idLastCpu != pCpu->idCpu)
-                Log(("Force TLB flush due to rescheduling to a different cpu (%d vs %d)\n", pVCpu->hwaccm.s.idLastCpu, pCpu->idCpu));
+                LogFlow(("Force TLB flush due to rescheduling to a different cpu (%d vs %d)\n", pVCpu->hwaccm.s.idLastCpu, pCpu->idCpu));
             else
-                Log(("Force TLB flush due to changed TLB flush count (%x vs %x)\n", pVCpu->hwaccm.s.cTLBFlushes, pCpu->cTLBFlushes));
+                LogFlow(("Force TLB flush due to changed TLB flush count (%x vs %x)\n", pVCpu->hwaccm.s.cTLBFlushes, pCpu->cTLBFlushes));
         }
         if (pCpu->fFlushTLB)
-            Log(("Force TLB flush: first time cpu %d is used -> flush\n", pCpu->idCpu));
+            LogFlow(("Force TLB flush: first time cpu %d is used -> flush\n", pCpu->idCpu));
         else
         if (pVCpu->hwaccm.s.fForceTLBFlush)
             LogFlow(("Manual TLB flush\n"));
@@ -2550,13 +2552,15 @@ ResumeExecution:
     VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED_EXEC);
 #endif
 
-    /* Deal with tagged TLB setup and invalidation. */
-    pVM->hwaccm.s.vmx.pfnSetupTaggedTLB(pVM, pVCpu);
-
     /* Non-register state Guest Context */
     /** @todo change me according to cpu state */
     rc = VMXWriteVMCS(VMX_VMCS32_GUEST_ACTIVITY_STATE,           VMX_CMS_GUEST_ACTIVITY_ACTIVE);
     AssertRC(rc);
+
+    /** Set TLB flush state as checked until we return from the world switch. */
+    ASMAtomicWriteU8(&pVCpu->hwaccm.s.fCheckedTLBFlush, true);
+    /* Deal with tagged TLB setup and invalidation. */
+    pVM->hwaccm.s.vmx.pfnSetupTaggedTLB(pVM, pVCpu);
 
     STAM_STATS({ STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatEntry, x); fStatEntryStarted = false; });
 
@@ -2588,6 +2592,8 @@ ResumeExecution:
 #else
     rc = pVCpu->hwaccm.s.vmx.pfnStartVM(pVCpu->hwaccm.s.fResumeVM, pCtx, &pVCpu->hwaccm.s.vmx.VMCSCache, pVM, pVCpu);
 #endif
+    ASMAtomicWriteU8(&pVCpu->hwaccm.s.fCheckedTLBFlush, false);
+    ASMAtomicIncU32(&pVCpu->hwaccm.s.cWorldSwitchExit);
     /* Possibly the last TSC value seen by the guest (too high) (only when we're in tsc offset mode). */
     if (!(pVCpu->hwaccm.s.vmx.proc_ctls & VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_RDTSC_EXIT))
         TMCpuTickSetLastSeen(pVCpu, ASMReadTSC() + pVCpu->hwaccm.s.vmx.u64TSCOffset - 0x400 /* guestimate of world switch overhead in clock ticks */);
@@ -2596,7 +2602,7 @@ ResumeExecution:
     VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED);
     Assert(!(ASMGetFlags() & X86_EFL_IF));
     ASMSetFlags(uOldEFlags);
-#ifndef VBOX_WITH_VMMR0_DISABLE_PREEMPTION
+#ifdef VBOX_WITH_VMMR0_DISABLE_PREEMPTION
     uOldEFlags = ~(RTCCUINTREG)0;
 #endif
 
@@ -3841,8 +3847,7 @@ ResumeExecution:
             rc = TRPMAssertTrap(pVCpu, VMX_EXIT_INTERRUPTION_INFO_VECTOR(pVCpu->hwaccm.s.Event.intInfo), TRPM_HARDWARE_INT);
             AssertRC(rc);
         }
-        else
-            /* Exceptions and software interrupts can just be restarted. */
+        /* else Exceptions and software interrupts can just be restarted. */
         rc = VERR_EM_INTERPRETER;
         break;
 

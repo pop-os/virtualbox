@@ -1825,7 +1825,6 @@ void slirp_arp_who_has(PNATState pData, uint32_t dst)
     m->m_data += if_maxlinkhdr;
     m->m_len = sizeof(struct arphdr);
     if_encap(pData, ETH_P_ARP, m);
-    LogRel(("NAT: ARP request sent\n"));
 }
 /* updates the arp cache
  * @returns 0 - if has found and updated

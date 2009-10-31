@@ -471,6 +471,8 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
 #endif
 #endif
 
+            vboxProblem().checkForMountedWrongUSB();
+
             VBoxGlobalSettings settings = vboxGlobal().settings();
             /* Process known keys */
             bool noSelector = settings.isFeatureActive ("noSelector");
