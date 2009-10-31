@@ -44,6 +44,7 @@
 #include <iprt/assert.h>
 #include <VBox/log.h>
 #include <iprt/asm.h>
+#include <iprt/env.h>
 #include <iprt/string.h>
 #include <iprt/thread.h>
 
@@ -379,6 +380,33 @@ VMMR3DECL(int) HWACCMR3Init(PVM pVM)
     AssertLogRelRCReturn(rc, rc);
 #endif
 
+    /** Determine the init method for AMD-V and VT-x; either one global init for each host CPU
+     *  or local init each time we wish to execute guest code.
+     *
+     *  Default false for Mac OS X and Windows due to the higher risk of conflicts with other hypervisors.
+     */
+    rc = CFGMR3QueryBoolDef(pHWVirtExt, "Exclusive", &pVM->hwaccm.s.fGlobalInit, 
+#if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS)
+                            false
+#else
+                            true
+#endif
+                           );
+
+    /* Allow the user to override the init method; we can't backport the API changes,
+     * so we'll use an environment hack for 3.0.
+     */
+    const char *psz = RTEnvGet("VBOX_HWVIRTEX_INIT");
+    if (psz && !strcmp(psz, "global"))
+    {
+        pVM->hwaccm.s.fGlobalInit = true;
+    }
+    else
+    if (psz && !strcmp(psz, "local"))
+    {
+        pVM->hwaccm.s.fGlobalInit = false;
+    }
+
     /* Max number of resume loops. */
     rc = CFGMR3QueryU32Def(pHWVirtExt, "MaxResumeLoops", &pVM->hwaccm.s.cMaxResumeLoops, 0 /* set by R0 later */);
     AssertRC(rc);
@@ -417,6 +445,15 @@ VMMR3DECL(int) HWACCMR3InitCPU(PVM pVM)
         PVMCPU pVCpu = &pVM->aCpus[i];
         int    rc;
 
+        rc = STAMR3RegisterF(pVM, &pVCpu->hwaccm.s.StatPoke, STAMTYPE_PROFILE, STAMVISIBILITY_USED, STAMUNIT_TICKS_PER_CALL, "Profiling of RTMpPokeCpu",
+                             "/PROF/HWACCM/CPU%d/Poke", i);
+        AssertRC(rc);
+        rc = STAMR3RegisterF(pVM, &pVCpu->hwaccm.s.StatSpinPoke, STAMTYPE_PROFILE, STAMVISIBILITY_USED, STAMUNIT_TICKS_PER_CALL, "Profiling of poke wait",
+                             "/PROF/HWACCM/CPU%d/PokeWait", i);
+        AssertRC(rc);
+        rc = STAMR3RegisterF(pVM, &pVCpu->hwaccm.s.StatSpinPokeFailed, STAMTYPE_PROFILE, STAMVISIBILITY_USED, STAMUNIT_TICKS_PER_CALL, "Profiling of poke wait when RTMpPokeCpu fails",
+                             "/PROF/HWACCM/CPU%d/PokeWaitFailed", i);
+        AssertRC(rc);
         rc = STAMR3RegisterF(pVM, &pVCpu->hwaccm.s.StatEntry, STAMTYPE_PROFILE, STAMVISIBILITY_USED, STAMUNIT_TICKS_PER_CALL, "Profiling of VMXR0RunGuestCode entry",
                              "/PROF/HWACCM/CPU%d/SwitchToGC", i);
         AssertRC(rc);
@@ -646,7 +683,8 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
 #else
             LogRel(("HWACCM: The host kernel does not support VT-x!\n"));
 #endif
-            if (pVM->cCPUs > 1)
+            if (   pVM->cCPUs > 1
+                || VMMIsHwVirtExtForced(pVM))
                 return rc;
 
             /* silently fall back to raw mode */
@@ -1141,6 +1179,8 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
                 LogRel(("HWACCM:    AMD_CPUID_SVM_FEATURE_EDX_NRIP_SAVE\n"));
             if (pVM->hwaccm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_SSE_3_5_DISABLE)
                 LogRel(("HWACCM:    AMD_CPUID_SVM_FEATURE_EDX_SSE_3_5_DISABLE\n"));
+            if (pVM->hwaccm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER)
+                LogRel(("HWACCM:    AMD_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER\n"));           
 
             /* Only try once. */
             pVM->hwaccm.s.fInitialized = true;
@@ -1183,6 +1223,8 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
             }
         }
     }
+    if (pVM->fHWACCMEnabled)
+        LogRel(("HWACCM:    VT-x/AMD-V init method: %s\n", (pVM->hwaccm.s.fGlobalInit) ? "GLOBAL" : "LOCAL"));
     return VINF_SUCCESS;
 }
 

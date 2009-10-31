@@ -205,14 +205,16 @@ static void vmmdevNotifyGuest_EMT (VMMDevState *pVMMDevState, uint32_t u32EventM
     }
 }
 
-static void vmmdevCtlGuestFilterMask_EMT (VMMDevState *pVMMDevState,
-                                          uint32_t u32OrMask,
-                                          uint32_t u32NotMask)
+void VMMDevCtlSetGuestFilterMask (VMMDevState *pVMMDevState,
+                                  uint32_t u32OrMask,
+                                  uint32_t u32NotMask)
 {
+    PDMCritSectEnter(&pVMMDevState->CritSect, VERR_SEM_BUSY);
+
     const bool fHadEvents =
         (pVMMDevState->u32HostEventFlags & pVMMDevState->u32GuestFilterMask) != 0;
 
-    Log(("vmmdevCtlGuestFilterMask_EMT: u32OrMask = 0x%08X, u32NotMask = 0x%08X, fHadEvents = %d.\n", u32OrMask, u32NotMask, fHadEvents));
+    Log(("VMMDevCtlSetGuestFilterMask: u32OrMask = 0x%08X, u32NotMask = 0x%08X, fHadEvents = %d.\n", u32OrMask, u32NotMask, fHadEvents));
     if (fHadEvents)
     {
         if (!pVMMDevState->fNewGuestFilterMask)
@@ -228,39 +230,12 @@ static void vmmdevCtlGuestFilterMask_EMT (VMMDevState *pVMMDevState,
         pVMMDevState->u32GuestFilterMask &= ~u32NotMask;
         vmmdevMaybeSetIRQ_EMT (pVMMDevState);
     }
-}
-
-void VMMDevCtlSetGuestFilterMask (VMMDevState *pVMMDevState,
-                                  uint32_t u32OrMask,
-                                  uint32_t u32NotMask)
-{
-    PPDMDEVINS pDevIns = VMMDEVSTATE_2_DEVINS(pVMMDevState);
-    PVM pVM = PDMDevHlpGetVM(pDevIns);
-
-    Log(("VMMDevCtlSetGuestFilterMask: u32OrMask = 0x%08X, u32NotMask = 0x%08X.\n", u32OrMask, u32NotMask));
-
-    if (VM_IS_EMT(pVM))
-    {
-        vmmdevCtlGuestFilterMask_EMT (pVMMDevState, u32OrMask, u32NotMask);
-    }
-    else
-    {
-        int rc;
-        PVMREQ pReq;
-
-        rc = VMR3ReqCallVoid (pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT,
-                              (PFNRT) vmmdevCtlGuestFilterMask_EMT,
-                              3, pVMMDevState, u32OrMask, u32NotMask);
-        AssertReleaseRC (rc);
-        VMR3ReqFree (pReq);
-    }
+    PDMCritSectLeave(&pVMMDevState->CritSect);
 }
 
 void VMMDevNotifyGuest (VMMDevState *pVMMDevState, uint32_t u32EventMask)
 {
     PPDMDEVINS pDevIns = VMMDEVSTATE_2_DEVINS(pVMMDevState);
-    PVM pVM = PDMDevHlpGetVM(pDevIns);
-    int rc;
 
     Log3(("VMMDevNotifyGuest: u32EventMask = 0x%08X.\n", u32EventMask));
 
@@ -270,13 +245,12 @@ void VMMDevNotifyGuest (VMMDevState *pVMMDevState, uint32_t u32EventMask)
     if (PDMDevHlpVMState(pDevIns) != VMSTATE_RUNNING)
         return;
 
+    PDMCritSectEnter(&pVMMDevState->CritSect, VERR_SEM_BUSY);
     /* No need to wait for the completion of this request. It is a notification
      * about something, which has already happened.
      */
-    rc = VMR3ReqCallEx(pVM, VMCPUID_ANY, NULL, 0, VMREQFLAGS_NO_WAIT | VMREQFLAGS_VOID,
-                       (PFNRT) vmmdevNotifyGuest_EMT,
-                       2, pVMMDevState, u32EventMask);
-    AssertRC(rc);
+    vmmdevNotifyGuest_EMT(pVMMDevState, u32EventMask);
+    PDMCritSectLeave(&pVMMDevState->CritSect);
 }
 
 /**
@@ -1074,9 +1048,9 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
                 /* The HGCM events are enabled by the VMMDev device automatically when any
                  * HGCM command is issued. The guest then can not disable these events.
                  */
-                vmmdevCtlGuestFilterMask_EMT (pThis,
-                                              pCtlMaskRequest->u32OrMask,
-                                              pCtlMaskRequest->u32NotMask & ~VMMDEV_EVENT_HGCM);
+                VMMDevCtlSetGuestFilterMask (pThis,
+                                             pCtlMaskRequest->u32OrMask,
+                                             pCtlMaskRequest->u32NotMask & ~VMMDEV_EVENT_HGCM);
                 pRequestHeader->rc = VINF_SUCCESS;
 
             }
@@ -1834,10 +1808,12 @@ static DECLCALLBACK(int) vmmdevQueryStatusLed(PPDMILEDPORTS pInterface, unsigned
 static DECLCALLBACK(int) vmmdevQueryAbsoluteMouse(PPDMIVMMDEVPORT pInterface, uint32_t *pAbsX, uint32_t *pAbsY)
 {
     VMMDevState *pThis = IVMMDEVPORT_2_VMMDEVSTATE(pInterface);
+    AssertCompile(sizeof(pThis->mouseXAbs) == sizeof(*pAbsX));
+    AssertCompile(sizeof(pThis->mouseYAbs) == sizeof(*pAbsY));
     if (pAbsX)
-        *pAbsX = pThis->mouseXAbs;
+        ASMAtomicReadSize(&pThis->mouseXAbs, pAbsX);
     if (pAbsY)
-        *pAbsY = pThis->mouseYAbs;
+        ASMAtomicReadSize(&pThis->mouseYAbs, pAbsY);
     return VINF_SUCCESS;
 }
 
@@ -1851,12 +1827,18 @@ static DECLCALLBACK(int) vmmdevQueryAbsoluteMouse(PPDMIVMMDEVPORT pInterface, ui
 static DECLCALLBACK(int) vmmdevSetAbsoluteMouse(PPDMIVMMDEVPORT pInterface, uint32_t absX, uint32_t absY)
 {
     VMMDevState *pThis = IVMMDEVPORT_2_VMMDEVSTATE(pInterface);
+    PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
+
     if ((pThis->mouseXAbs == absX) && (pThis->mouseYAbs == absY))
+    {
+        PDMCritSectLeave(&pThis->CritSect);
         return VINF_SUCCESS;
+    }
     Log2(("vmmdevSetAbsoluteMouse: settings absolute position to x = %d, y = %d\n", absX, absY));
     pThis->mouseXAbs = absX;
     pThis->mouseYAbs = absY;
     VMMDevNotifyGuest (pThis, VMMDEV_EVENT_MOUSE_POSITION_CHANGED);
+    PDMCritSectLeave(&pThis->CritSect);
     return VINF_SUCCESS;
 }
 
@@ -1884,6 +1866,7 @@ static DECLCALLBACK(int) vmmdevQueryMouseCapabilities(PPDMIVMMDEVPORT pInterface
 static DECLCALLBACK(int) vmmdevSetMouseCapabilities(PPDMIVMMDEVPORT pInterface, uint32_t capabilities)
 {
     VMMDevState *pThis = IVMMDEVPORT_2_VMMDEVSTATE(pInterface);
+    PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
 
     bool bCapsChanged = ((capabilities & VMMDEV_MOUSEHOSTWANTSABS)
                          != (pThis->mouseCapabilities & VMMDEV_MOUSEHOSTWANTSABS));
@@ -1903,6 +1886,7 @@ static DECLCALLBACK(int) vmmdevSetMouseCapabilities(PPDMIVMMDEVPORT pInterface, 
     if (bCapsChanged)
         VMMDevNotifyGuest (pThis, VMMDEV_EVENT_MOUSE_CAPABILITIES_CHANGED);
 
+    PDMCritSectLeave(&pThis->CritSect);
     return VINF_SUCCESS;
 }
 
@@ -1910,6 +1894,7 @@ static DECLCALLBACK(int) vmmdevSetMouseCapabilities(PPDMIVMMDEVPORT pInterface, 
 static DECLCALLBACK(int) vmmdevRequestDisplayChange(PPDMIVMMDEVPORT pInterface, uint32_t xres, uint32_t yres, uint32_t bpp, uint32_t display)
 {
     VMMDevState *pThis = IVMMDEVPORT_2_VMMDEVSTATE(pInterface);
+    PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
 
     /* Verify that the new resolution is different and that guest does not yet know about it. */
     bool fSameResolution = (!xres || (pThis->lastReadDisplayChangeRequest.xres == xres)) &&
@@ -1941,12 +1926,14 @@ static DECLCALLBACK(int) vmmdevRequestDisplayChange(PPDMIVMMDEVPORT pInterface, 
         VMMDevNotifyGuest (pThis, VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST);
     }
 
+    PDMCritSectLeave(&pThis->CritSect);
     return VINF_SUCCESS;
 }
 
 static DECLCALLBACK(int) vmmdevRequestSeamlessChange(PPDMIVMMDEVPORT pInterface, bool fEnabled)
 {
     VMMDevState *pThis = IVMMDEVPORT_2_VMMDEVSTATE(pInterface);
+    PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
 
     /* Verify that the new resolution is different and that guest does not yet know about it. */
     bool fSameMode = (pThis->fLastSeamlessEnabled == fEnabled);
@@ -1962,12 +1949,14 @@ static DECLCALLBACK(int) vmmdevRequestSeamlessChange(PPDMIVMMDEVPORT pInterface,
         VMMDevNotifyGuest (pThis, VMMDEV_EVENT_SEAMLESS_MODE_CHANGE_REQUEST);
     }
 
+    PDMCritSectLeave(&pThis->CritSect);
     return VINF_SUCCESS;
 }
 
 static DECLCALLBACK(int) vmmdevSetMemoryBalloon(PPDMIVMMDEVPORT pInterface, uint32_t ulBalloonSize)
 {
     VMMDevState *pThis = IVMMDEVPORT_2_VMMDEVSTATE(pInterface);
+    PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
 
     /* Verify that the new resolution is different and that guest does not yet know about it. */
     bool fSame = (pThis->u32LastMemoryBalloonSize == ulBalloonSize);
@@ -1983,12 +1972,14 @@ static DECLCALLBACK(int) vmmdevSetMemoryBalloon(PPDMIVMMDEVPORT pInterface, uint
         VMMDevNotifyGuest (pThis, VMMDEV_EVENT_BALLOON_CHANGE_REQUEST);
     }
 
+    PDMCritSectLeave(&pThis->CritSect);
     return VINF_SUCCESS;
 }
 
 static DECLCALLBACK(int) vmmdevVRDPChange(PPDMIVMMDEVPORT pInterface, bool fVRDPEnabled, uint32_t u32VRDPExperienceLevel)
 {
     VMMDevState *pThis = IVMMDEVPORT_2_VMMDEVSTATE(pInterface);
+    PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
 
     bool fSame = (pThis->fVRDPEnabled == fVRDPEnabled);
 
@@ -2002,12 +1993,14 @@ static DECLCALLBACK(int) vmmdevVRDPChange(PPDMIVMMDEVPORT pInterface, bool fVRDP
         VMMDevNotifyGuest (pThis, VMMDEV_EVENT_VRDP);
     }
 
+    PDMCritSectLeave(&pThis->CritSect);
     return VINF_SUCCESS;
 }
 
 static DECLCALLBACK(int) vmmdevSetStatisticsInterval(PPDMIVMMDEVPORT pInterface, uint32_t ulStatInterval)
 {
     VMMDevState *pThis = IVMMDEVPORT_2_VMMDEVSTATE(pInterface);
+    PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
 
     /* Verify that the new resolution is different and that guest does not yet know about it. */
     bool fSame = (pThis->u32LastStatIntervalSize == ulStatInterval);
@@ -2023,6 +2016,7 @@ static DECLCALLBACK(int) vmmdevSetStatisticsInterval(PPDMIVMMDEVPORT pInterface,
         VMMDevNotifyGuest (pThis, VMMDEV_EVENT_STATISTICS_INTERVAL_CHANGE_REQUEST);
     }
 
+    PDMCritSectLeave(&pThis->CritSect);
     return VINF_SUCCESS;
 }
 
@@ -2032,6 +2026,9 @@ static DECLCALLBACK(int) vmmdevSetCredentials(PPDMIVMMDEVPORT pInterface, const 
                                               uint32_t u32Flags)
 {
     VMMDevState *pThis = IVMMDEVPORT_2_VMMDEVSTATE(pInterface);
+    int          rc = VINF_SUCCESS;
+
+    PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
 
     /* logon mode? */
     if (u32Flags & VMMDEV_SETCREDENTIALS_GUESTLOGON)
@@ -2053,9 +2050,10 @@ static DECLCALLBACK(int) vmmdevSetCredentials(PPDMIVMMDEVPORT pInterface, const 
         VMMDevNotifyGuest (pThis, VMMDEV_EVENT_JUDGE_CREDENTIALS);
     }
     else
-        return VERR_INVALID_PARAMETER;
+        rc = VERR_INVALID_PARAMETER;
 
-    return VINF_SUCCESS;
+    PDMCritSectLeave(&pThis->CritSect);
+    return rc;
 }
 
 /**

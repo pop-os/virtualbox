@@ -36,6 +36,7 @@
 #include <iprt/file.h>
 #include <iprt/mem.h>
 #include <iprt/param.h>
+#include <iprt/path.h>
 #include <iprt/thread.h>  /* for RTThreadSleep() */
 #include <iprt/string.h>
 
@@ -212,10 +213,8 @@ int VBoxMainDriveInfo::updateFloppies ()
             && (!success || testing()))
             rc = getDriveInfoFromHal(&mFloppyList, false /* isDVD */, &success);
 #endif /* VBOX_WITH_DBUS defined */
-        if (   RT_SUCCESS(rc)
-            && RT_SUCCESS(VBoxLoadDBusLib())
-            && (!success || testing()))
-            rc = getDriveInfoFromHal(&mFloppyList, false /* isDVD */, &success);
+        if (   RT_SUCCESS(rc) && (!success || testing()))
+            rc = getDriveInfoFromSysfs(&mFloppyList, false /* isDVD */, &success);
         /* As with the CDROMs, on Linux we have to take a multi-level approach
          * involving parsing the mount tables. As this is not bulletproof, we
          * give the user the chance to override the detection using an
@@ -1086,6 +1085,7 @@ int halGetPropertyStringsVector (DBusConnection *pConnection,
     LogFlowFunc (("rc=%Rrc, halSuccess=%d\n", rc, halSuccess));
     return rc;
 }
+#endif  /* RT_OS_LINUX && VBOX_WITH_DBUS */
 
 /**
  * Send an SCSI INQUIRY command to a device and return selected information.
@@ -1383,7 +1383,11 @@ int getDriveInfoFromSysfs(DriveInfoList *pList, bool isDVD, bool *pfSuccess)
     bool fSuccess;
     unsigned cFound = 0;
 
+    if (!RTPathExists("/sys"))
+        return VINF_SUCCESS;
     rc = RTDirOpen(&pDir, "/sys/block");
+    /* This might mean that sysfs semantics have changed */
+    AssertReturn(rc != VERR_FILE_NOT_FOUND, VINF_SUCCESS);
     if (RT_SUCCESS(rc))
         while (true)
         {
@@ -1421,6 +1425,8 @@ int getDriveInfoFromSysfs(DriveInfoList *pList, bool isDVD, bool *pfSuccess)
     LogFlow (("rc=%Rrc, fSuccess=%u\n", rc, (unsigned) fSuccess));
     return rc;
 }
+
+#if defined(RT_OS_LINUX) && defined(VBOX_WITH_DBUS)
 
 /**
  * Helper function to query the hal subsystem for information about drives

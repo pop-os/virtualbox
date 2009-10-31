@@ -832,6 +832,21 @@ static int vboxadd_ioctl(struct inode *inode, struct file *filp,
         }
         if (0 == rc)
         {
+            rc = VbglGRVerify(&reqHeader, cbRequestSize);
+            if (RT_FAILURE(rc))
+            {
+                Log(("VBOXGUEST_IOCTL_VMMREQUEST: invalid request header: size %d min: %d type: %d rc: %d\n",
+                     cbRequestSize,
+                     cbVanillaRequestSize,
+                     reqHeader.requestType,
+                     rc));
+                rc = -EINVAL;
+            }
+            else
+                rc = 0;
+        }
+        if (0 == rc)
+        {
             /* request storage for the full request */
             rc = VbglGRAlloc(&reqFull, cbRequestSize, reqHeader.requestType);
             if (RT_FAILURE(rc))
@@ -1025,6 +1040,21 @@ static int vboxuser_ioctl(struct inode *inode, struct file *filp,
                         reqHeader.requestType));
                 rc = -EINVAL;
             }
+        }
+        if (0 == rc)
+        {
+            rc = VbglGRVerify(&reqHeader, cbRequestSize);
+            if (RT_FAILURE(rc))
+            {
+                Log(("VBOXGUEST_IOCTL_VMMREQUEST: invalid request header: size %d min: %d type: %d rc: %d\n",
+                     cbRequestSize,
+                     cbVanillaRequestSize,
+                     reqHeader.requestType,
+                     rc));
+                rc = -EINVAL;
+            }
+            else
+                rc = 0;
         }
         if (0 == rc)
         {

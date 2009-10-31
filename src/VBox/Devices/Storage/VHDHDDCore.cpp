@@ -1124,6 +1124,7 @@ static int vhdWrite(void *pBackendData, uint64_t uOffset, const void *pvBuf, siz
              * Write the new block at the current end of the file.
              */
             rc = RTFileWriteAt(pImage->File, pImage->uCurrentEndOfFile, pNewBlock, cbNewBlock, NULL);
+            AssertRC(rc);
 
             /*
              * Set the new end of the file and link the new block into the BAT.
@@ -1131,6 +1132,10 @@ static int vhdWrite(void *pBackendData, uint64_t uOffset, const void *pvBuf, siz
             pImage->pBlockAllocationTable[cBlockAllocationTableEntry] = pImage->uCurrentEndOfFile / VHD_SECTOR_SIZE;
             pImage->uCurrentEndOfFile += cbNewBlock;
             RTMemFree(pNewBlock);
+
+            /* Write the updated BAT and the footer to remain in a consistent state. */
+            rc = vhdFlush(pImage);
+            AssertRC(rc);
         }
 
         /*

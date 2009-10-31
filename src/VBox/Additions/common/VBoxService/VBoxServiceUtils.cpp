@@ -37,60 +37,28 @@
 
 
 #ifdef VBOX_WITH_GUEST_PROPS
-int VboxServiceWriteProp(uint32_t uiClientID, const char *pszKey, const char *pszValue)
+int VBoxServiceWritePropF(uint32_t u32ClientId, const char *pszName, const char *pszValueFormat, ...)
 {
-    int rc = VINF_SUCCESS;
-    Assert(pszKey);
-    /* Not checking for a valid pszValue is intentional. */
-
-    char szKeyTemp [FILENAME_MAX] = {0};
-    char *pszValueTemp = NULL;
-
-    /* Append base path. */
-    RTStrPrintf(szKeyTemp, sizeof(szKeyTemp), "/VirtualBox/%s", pszKey); /** @todo r=bird: Why didn't you hardcode this into the strings before calling this function? */
-
-    if (pszValue != NULL)
+    int rc;
+    if (pszValueFormat != NULL)
     {
-        rc = RTStrCurrentCPToUtf8(&pszValueTemp, pszValue);
-        if (!RT_SUCCESS(rc)) 
-        {
-            VBoxServiceError("vboxVMInfoThread: Failed to convert the value name \"%s\" to Utf8! Error: %Rrc\n", pszValue, rc);
-            goto cleanup;
-        }
+        VBoxServiceVerbose(3, "Writing guest property \"%s\"\n", pszName);
+        va_list va;
+        va_start(va, pszValueFormat);
+        rc = VbglR3GuestPropWriteValueV(u32ClientId, pszName, pszValueFormat, va);
+        va_end(va);
+        if (RT_FAILURE(rc))
+             VBoxServiceError("Error writing guest property \"%s\" (rc=%Rrc)\n", pszName, rc);
     }
-
-    rc = VbglR3GuestPropWriteValue(uiClientID, szKeyTemp, ((pszValue == NULL) || (0 == strlen(pszValue))) ? NULL : pszValueTemp);
-    if (!RT_SUCCESS(rc))
-    {
-        VBoxServiceError("Failed to store the property \"%s\"=\"%s\"! ClientID: %d, Error: %Rrc\n", szKeyTemp, pszValueTemp, uiClientID, rc);
-        goto cleanup;
-    }
-
-    if ((pszValueTemp != NULL) && (strlen(pszValueTemp) > 0))
-        VBoxServiceVerbose(3, "Property written: %s = %s\n", szKeyTemp, pszValueTemp);
     else
-        VBoxServiceVerbose(3, "Property deleted: %s\n", szKeyTemp);
-
-cleanup:
-
-    RTStrFree(pszValueTemp);
+        rc = VbglR3GuestPropWriteValue(u32ClientId, pszName, NULL);
     return rc;
-}
-
-
-int VboxServiceWritePropInt(uint32_t uiClientID, const char *pszKey, int32_t iValue)
-{
-    Assert(pszKey);
-
-    char szBuffer[32] = {0};
-    RTStrPrintf(szBuffer, sizeof(szBuffer), "%ld", iValue);
-    return VboxServiceWriteProp(uiClientID, pszKey, szBuffer);
 }
 #endif /* VBOX_WITH_GUEST_PROPS */
 
 
 #ifdef RT_OS_WINDOWS
-BOOL VboxServiceGetFileString(const char* pszFileName,
+BOOL VBoxServiceGetFileString(const char* pszFileName,
                               char* pszBlock,
                               char* pszString,
                               PUINT puiSize)
@@ -146,7 +114,7 @@ BOOL VboxServiceGetFileString(const char* pszFileName,
 }
 
 
-BOOL VboxServiceGetFileVersion(const char* pszFileName,
+BOOL VBoxServiceGetFileVersion(const char* pszFileName,
                                DWORD* pdwMajor, 
                                DWORD* pdwMinor, 
                                DWORD* pdwBuildNumber, 
@@ -174,7 +142,7 @@ BOOL VboxServiceGetFileVersion(const char* pszFileName,
     UINT uiSize = _MAX_PATH;
     int r = 0;
 
-    bRet = VboxServiceGetFileString(pszFileName, "\\StringFileInfo\\040904b0\\FileVersion", szValue, &uiSize);
+    bRet = VBoxServiceGetFileString(pszFileName, "\\StringFileInfo\\040904b0\\FileVersion", szValue, &uiSize);
     if (bRet)
     {
         sscanf(pszValue, "%ld.%ld.%ld.%ld", pdwMajor, pdwMinor, pdwBuildNumber, pdwRevisionNumber);
@@ -208,7 +176,7 @@ BOOL VboxServiceGetFileVersion(const char* pszFileName,
 }
 
 
-BOOL VboxServiceGetFileVersionString(const char* pszPath, const char* pszFileName, char* pszVersion, UINT uiSize)
+BOOL VBoxServiceGetFileVersionString(const char* pszPath, const char* pszFileName, char* pszVersion, UINT uiSize)
 {
     BOOL bRet = FALSE;
     char szFullPath[_MAX_PATH] = {0};
@@ -219,7 +187,7 @@ BOOL VboxServiceGetFileVersionString(const char* pszPath, const char* pszFileNam
 
     DWORD dwMajor, dwMinor, dwBuild, dwRev;
 
-    bRet = VboxServiceGetFileVersion(szFullPath, &dwMajor, &dwMinor, &dwBuild, &dwRev);
+    bRet = VBoxServiceGetFileVersion(szFullPath, &dwMajor, &dwMinor, &dwBuild, &dwRev);
     if (bRet)
         RTStrPrintf(pszVersion, uiSize, "%ld.%ld.%ldr%ld", dwMajor, dwMinor, dwBuild, dwRev);
     else

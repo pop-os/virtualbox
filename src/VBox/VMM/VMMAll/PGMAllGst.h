@@ -179,6 +179,8 @@ PGM_GST_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t f
  || PGM_GST_TYPE == PGM_TYPE_PAE \
  || PGM_GST_TYPE == PGM_TYPE_AMD64
 
+    Assert((cb & PAGE_OFFSET_MASK) == 0);
+
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     for (;;)
     {

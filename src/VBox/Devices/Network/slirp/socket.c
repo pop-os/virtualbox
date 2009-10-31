@@ -746,7 +746,7 @@ sosendto(PNATState pData, struct socket *so, struct mbuf *m)
                  (struct sockaddr *)&addr, sizeof (struct sockaddr));
     if (ret < 0)
     {
-        LogRel(("UDP: sendto fails (%s)\n", strerror(errno)));
+        Log2(("UDP: sendto fails (%s)\n", strerror(errno)));
         return -1;
     }
 

@@ -804,7 +804,7 @@ HRESULT Session::close (bool aFinalRelease, bool aFromServer)
     }
 
     /* go to the closing state */
-    mState =  SessionState_Closing;
+    mState = SessionState_Closing;
 
     if (mType == SessionType_Direct)
     {
