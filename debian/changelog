@@ -12,15 +12,6 @@ virtualbox-ose (3.0.10-dfsg-1) UNRELEASED; urgency=low
 
  -- Michael Meskes <meskes@debian.org>  Sat, 31 Oct 2009 19:58:01 +0100
 
-virtualbox-ose (3.0.8-dfsg-1) unstable; urgency=low
-
-  * New Upstream Version.
-  * Convert *-source packages to dkms, closes: #551531
-  * Move dependency upon pciutils to virtualbox-ose-guest-utils,
-    closes: #551390
-
- -- Felix Geyer <debfx-pkg@fobos.de>  Sat, 31 Oct 2009 16:14:13 +0100
-
 virtualbox-ose (3.0.8-dfsg-1) unstable; urgency=high
 
   [ Felix Geyer ]
