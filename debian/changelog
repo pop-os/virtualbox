@@ -1,5 +1,19 @@
 virtualbox-ose (3.0.10-dfsg-1) UNRELEASED; urgency=low
 
+  [ Felix Geyer ]
+  * Fix SHUTDOWN_USERS=all only parses the first user
+  * New Upstream version
+  * Added dependency upon pciutils to virtualbox-ose-guest-utils.
+    (Closes: #551390)
+
+  [ Michael Meskes ]
+  * Converted virtualbox-ose to dkms. (Closes: #551531) - thanks to
+    Ubuntu
+
+ -- Michael Meskes <meskes@debian.org>  Sat, 31 Oct 2009 19:58:01 +0100
+
+virtualbox-ose (3.0.8-dfsg-1) unstable; urgency=low
+
   * New Upstream Version.
   * Convert *-source packages to dkms, closes: #551531
   * Move dependency upon pciutils to virtualbox-ose-guest-utils,
