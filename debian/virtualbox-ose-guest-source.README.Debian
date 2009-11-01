@@ -16,8 +16,17 @@ The Debian virtualbox-ose-guest-source package can be used in several ways,
 
  -- Patrick Winnertz <patrick.winnertz@skolelinux.org>  Tue, 4 Sep 2007 22:17:00 +0200
 
-The way the device node is created is kind of ugly, but follows upstream's way.
-http://blino.org/blog/mandriva/kernel/register_vboxadd_device.html suggest a
-better way that might get integrated into the package later on.
+ - The way the device node is created is kind of ugly, but follows upstream's way.
+   http://blino.org/blog/mandriva/kernel/register_vboxadd_device.html suggest a
+   better way that might get integrated into the package later on.
 
  -- Michael Meskes <meskes@debian.org>  Sun, 04 Nov 2007 17:32:10 +0100
+
+ - Starting with version 3.0.10 virtualbos-ose uses dkms(8) to build the
+   modules automatically. The dkms package recommends the linux-headers
+   package needed to build modules for the current distribution kernel. If this
+   for whatever reason does not work or you are using a non-distribution kernel
+   please make sure the right set of kernel headers is installed.
+
+ -- Michael Meskes <meskes@debian.org>  01 Nov 2009 11:21:08 +0100
+
