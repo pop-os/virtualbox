@@ -1,4 +1,4 @@
-virtualbox-ose (3.0.10-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (3.0.10-dfsg-1) unstable; urgency=low
 
   [ Felix Geyer ]
   * Fix SHUTDOWN_USERS=all only parses the first user
