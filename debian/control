@@ -109,8 +109,8 @@ Description: x86 virtualization solution - debugging symbols
 Package: virtualbox-ose-source
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends},
-	 dkms
+Depends: ${misc:Depends}
+Recommends: dkms
 Description: x86 virtualization solution - kernel module source
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -123,8 +123,8 @@ Description: x86 virtualization solution - kernel module source
 Package: virtualbox-ose-guest-source
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends},
-	 dkms
+Depends: ${misc:Depends}
+Recommends: dkms
 Description: x86 virtualization solution - guest addition module source
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
