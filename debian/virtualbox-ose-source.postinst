@@ -13,22 +13,18 @@ CVERSION=`dpkg-query -W -f='${Version}' virtualbox-ose-source | awk -F "-" '{pri
 case "$1" in
 	configure)
 		#Silently remove existing modules
-		dkms remove -m vboxdrv -v $CVERSION --all > /dev/null 2>&1 || true
-		dkms remove -m vboxnetflt -v $CVERSION --all > /dev/null 2>&1 || true
-		dkms remove -m vboxnetadp -v $CVERSION --all > /dev/null 2>&1 || true
+		dkms remove -m virtualbox-ose -v $CVERSION --all -q || true
+		#These are no longer used
+		dkms remove -m vboxdrv -v $CVERSION --all -q || true
+		dkms remove -m vboxnetflt -v $CVERSION --all -q || true
+		dkms remove -m vboxnetadp -v $CVERSION --all -q || true
 		#Create DKMS modules
 		echo "Adding modules to DKMS build system"
-		dkms add -m vboxdrv -v $CVERSION > /dev/null
-		dkms add -m vboxnetflt -v $CVERSION > /dev/null
-		dkms add -m vboxnetadp -v $CVERSION > /dev/null
+		dkms add -m virtualbox-ose -v $CVERSION > /dev/null
 		echo "Doing initial module builds"
-		dkms build -m vboxdrv -v $CVERSION > /dev/null || true
-		dkms build -m vboxnetflt -v $CVERSION > /dev/null || true
-		dkms build -m vboxnetadp -v $CVERSION > /dev/null || true
+		dkms build -m virtualbox-ose -v $CVERSION > /dev/null || true
 		echo "Installing initial modules"
-		dkms install -m vboxdrv -v $CVERSION --force > /dev/null || true
-		dkms install -m vboxnetflt -v $CVERSION --force > /dev/null || true
-		dkms install -m vboxnetadp -v $CVERSION --force > /dev/null || true
+		dkms install -m virtualbox-ose -v $CVERSION --force > /dev/null || true
 		echo "Done."
 
 		# only restart if VirtualBox isn't running

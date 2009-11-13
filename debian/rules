@@ -76,6 +76,7 @@ clean: unpatch
 	rm -f debian/$(gsource).install
 	rm -f debian/$(psource).dirs
 	rm -f debian/$(gsource).dirs
+	rm -f debian/$(psource).links
 	rm -f debian/$(gsource).links
 
 	find . -name "*.pyc" -exec rm -f {} \;
@@ -114,13 +115,12 @@ install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gsource).dirs.in > debian/$(gsource).dirs
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(psource).dirs.in > debian/$(psource).dirs
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gsource).links.in > debian/$(gsource).links
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(psource).links.in > debian/$(psource).links
 
 	dh_installdirs
 
 	# Create DKMS control files
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(psource).files/dkms.conf.vboxdrv.in > debian/$(psource)/usr/src/vboxdrv-$(upstreamversion)/dkms.conf
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(psource).files/dkms.conf.vboxnetflt.in > debian/$(psource)/usr/src/vboxnetflt-$(upstreamversion)/dkms.conf
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(psource).files/dkms.conf.vboxnetadp.in > debian/$(psource)/usr/src/vboxnetadp-$(upstreamversion)/dkms.conf
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(psource).files/dkms.conf.in > debian/$(psource)/usr/src/virtualbox-ose-$(upstreamversion)/dkms.conf
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gsource).files/dkms.conf.in > debian/$(gsource).files/dkms.conf
 
 	#Build install files for the dkms'ified sources
@@ -188,13 +188,21 @@ binary-indep: build install
 	dh_installchangelogs -i
 	dh_installdocs -i
 	dh_install -i
+	# These files have incorrect permissions, fixing it.
+	chmod 755 debian/$(psource)/usr/src/$(sname)-$(upstreamversion)/debian/rules
+	chmod 755 debian/$(gsource)/usr/src/$(gname)-$(upstreamversion)/debian/rules
 	dh_link -i
+	# Create .tar.bz2 for virtualbox*source
+	cp -a debian/$(psource)/usr/src/$(sname)-$(upstreamversion) debian/$(psource)/usr/src/modules/$(sname)
+	cd debian/$(psource)/usr/src && \
+		tar -cjf $(sname).tar.bz2 modules && \
+		rm -rf modules
+	cp -a debian/$(gsource)/usr/src/$(gname)-$(upstreamversion) debian/$(gsource)/usr/src/modules/$(gname)
+	cd debian/$(gsource)/usr/src && \
+		tar -cjf $(gname).tar.bz2 modules && \
+		rm -rf modules
 	dh_compress -i
 	dh_fixperms -i
-	# Need to be executable for DKMS:
-	chmod +x debian/$(psource)/usr/src/vboxdrv-$(upstreamversion)/do_Module.symvers
-	chmod +x debian/$(psource)/usr/src/vboxnetflt-$(upstreamversion)/do_Module.symvers
-	chmod +x debian/$(psource)/usr/src/vboxnetadp-$(upstreamversion)/do_Module.symvers
 	dh_installudev -i
 	dh_installdeb -i
 	dh_gencontrol -i

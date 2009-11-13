@@ -1,7 +1,0 @@
-PACKAGE_NAME="vboxdrv"
-PACKAGE_VERSION="CVERSION"
-CLEAN="make -C $dkms_tree/$module/$module_version/build clean"
-BUILT_MODULE_NAME[0]="vboxdrv"
-DEST_MODULE_LOCATION[0]="/updates/vboxdrv"
-AUTOINSTALL="yes"
-POST_BUILD="do_Module.symvers vboxdrv save $dkms_tree/$module/$module_version/build/Module.symvers"

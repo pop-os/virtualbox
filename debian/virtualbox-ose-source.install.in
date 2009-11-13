@@ -1,7 +1,40 @@
-out/bin/src/vboxdrv/* /usr/src/vboxdrv-CVERSION
-out/bin/src/vboxnetflt/* /usr/src/vboxnetflt-CVERSION
-out/bin/src/vboxnetadp/* /usr/src/vboxnetadp-CVERSION
+out/bin/src/vboxdrv/*.* /usr/src/virtualbox-ose-CVERSION/vboxdrv
+out/bin/src/vboxdrv/build_in_tmp /usr/src/virtualbox-ose-CVERSION/vboxdrv
+out/bin/src/vboxdrv/linux /usr/src/virtualbox-ose-CVERSION/vboxdrv
+out/bin/src/vboxdrv/Makefile /usr/src/virtualbox-ose-CVERSION/vboxdrv
 
-debian/virtualbox-ose-source.files/do_Module.symvers /usr/src/vboxdrv-CVERSION
-debian/virtualbox-ose-source.files/do_Module.symvers /usr/src/vboxnetflt-CVERSION
-debian/virtualbox-ose-source.files/do_Module.symvers /usr/src/vboxnetadp-CVERSION
+out/bin/src/vboxnetflt/*.* /usr/src/virtualbox-ose-CVERSION/vboxnetflt
+out/bin/src/vboxnetflt/build_in_tmp /usr/src/virtualbox-ose-CVERSION/vboxnetflt
+out/bin/src/vboxnetflt/linux /usr/src/virtualbox-ose-CVERSION/vboxnetflt
+out/bin/src/vboxnetflt/Makefile /usr/src/virtualbox-ose-CVERSION/vboxnetflt
+
+out/bin/src/vboxnetadp/*.* /usr/src/virtualbox-ose-CVERSION/vboxnetadp
+out/bin/src/vboxnetadp/build_in_tmp /usr/src/virtualbox-ose-CVERSION/vboxnetadp
+out/bin/src/vboxnetadp/linux /usr/src/virtualbox-ose-CVERSION/vboxnetadp
+out/bin/src/vboxnetadp/Makefile /usr/src/virtualbox-ose-CVERSION/vboxnetadp
+
+out/bin/src/vboxdrv/SUPDrvIDC.h /usr/src/virtualbox-ose-CVERSION/include/
+out/bin/src/vboxdrv/version-generated.h /usr/src/virtualbox-ose-CVERSION/include/
+out/bin/src/vboxdrv/include/iprt/* /usr/src/virtualbox-ose-CVERSION/include/iprt
+out/bin/src/vboxdrv/include/VBox/* /usr/src/virtualbox-ose-CVERSION/include/VBox
+out/bin/src/vboxdrv/include/internal/* /usr/src/virtualbox-ose-CVERSION/include/internal
+
+out/bin/src/vboxnetflt/include/iprt/* /usr/src/virtualbox-ose-CVERSION/include/iprt
+out/bin/src/vboxnetflt/include/VBox/* /usr/src/virtualbox-ose-CVERSION/include/VBox
+out/bin/src/vboxnetflt/include/internal/* /usr/src/virtualbox-ose-CVERSION/include/internal
+
+out/bin/src/vboxdrv/r0drv /usr/src/virtualbox-ose-CVERSION
+out/bin/src/vboxdrv/alloc /usr/src/virtualbox-ose-CVERSION
+out/bin/src/vboxnetflt/common /usr/src/virtualbox-ose-CVERSION
+out/bin/src/vboxdrv/common/misc /usr/src/virtualbox-ose-CVERSION/common
+out/bin/src/vboxnetflt/generic /usr/src/virtualbox-ose-CVERSION
+out/bin/src/vboxdrv/math /usr/src/virtualbox-ose-CVERSION
+out/bin/src/vboxdrv/VBox /usr/src/virtualbox-ose-CVERSION
+
+out/bin/src/vboxnetflt/SUPR0IdcClientInternal.h /usr/src/virtualbox-ose-CVERSION/
+
+debian/control debian/changelog debian/copyright debian/compat /usr/src/virtualbox-ose-CVERSION/debian
+debian/virtualbox-ose-source.files/Makefile /usr/src/virtualbox-ose-CVERSION
+debian/virtualbox-ose-source.files/control.modules.in /usr/src/virtualbox-ose-CVERSION/debian
+debian/virtualbox-ose-source.files/postinst.modules.in /usr/src/virtualbox-ose-CVERSION/debian
+debian/virtualbox-ose-source.files/rules /usr/src/virtualbox-ose-CVERSION/debian

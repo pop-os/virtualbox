@@ -1,0 +1,27 @@
+#!/bin/sh
+
+set -e
+
+#DEBHELPER#
+
+case "${1}" in
+	configure)
+		# only restart if VirtualBox isn't running
+		if test -x /etc/init.d/virtualbox-ose && ! pidof VBoxSVC > /dev/null; then
+			if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
+				invoke-rc.d virtualbox-ose restart || true
+			else
+				/etc/init.d/virtualbox-ose restart || true
+			fi
+		fi
+		;;
+
+	abort-upgrade|abort-deconfigure|abort-remove)
+
+		;;
+
+	*)
+		echo "${0} called with unknown argument \`${1}'" 1>&2
+		exit 1
+		;;
+esac

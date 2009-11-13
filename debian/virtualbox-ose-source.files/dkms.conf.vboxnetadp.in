@@ -1,7 +1,0 @@
-PACKAGE_NAME="vboxnetadp"
-PACKAGE_VERSION="CVERSION"
-CLEAN="make -C $dkms_tree/$module/$module_version/build clean"
-BUILT_MODULE_NAME[0]="vboxnetadp"
-DEST_MODULE_LOCATION[0]="/updates/vboxnetadp"
-AUTOINSTALL="yes"
-PRE_BUILD="do_Module.symvers vboxdrv restore $dkms_tree/$module/$module_version/build/Module.symvers"
