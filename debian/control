@@ -111,6 +111,11 @@ Section: kernel
 Architecture: all
 Depends: ${misc:Depends}
 Recommends: dkms
+Suggests: debhelper (>= 5),
+	  dpatch,
+	  bzip2,
+	  kbuild,
+	  module-assistant
 Description: x86 virtualization solution - kernel module source
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -125,6 +130,11 @@ Section: kernel
 Architecture: all
 Depends: ${misc:Depends}
 Recommends: dkms
+Suggests: debhelper (>= 5),
+	  dpatch,
+	  bzip2,
+	  kbuild,
+	  module-assistant
 Description: x86 virtualization solution - guest addition module source
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
