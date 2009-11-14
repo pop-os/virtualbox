@@ -109,10 +109,9 @@ Description: x86 virtualization solution - debugging symbols
 Package: virtualbox-ose-source
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, make | build-essential | dpkg-dev
 Recommends: dkms
 Suggests: debhelper (>= 5),
-	  dpatch,
 	  bzip2,
 	  kbuild,
 	  module-assistant
@@ -128,10 +127,9 @@ Description: x86 virtualization solution - kernel module source
 Package: virtualbox-ose-guest-source
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, make | build-essential | dpkg-dev
 Recommends: dkms
 Suggests: debhelper (>= 5),
-	  dpatch,
 	  bzip2,
 	  kbuild,
 	  module-assistant

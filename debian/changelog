@@ -1,3 +1,12 @@
+virtualbox-ose (3.0.10-dfsg-2) unstable; urgency=low
+
+  * Downgrade dkms dependency to recommendation. (Closes: #553918)
+  * Added dependencies for building with m-a.
+  * Changed source packages to also build modules via module-assistant.
+    (Closes: #554385)
+
+ -- Michael Meskes <meskes@debian.org>  Sat, 14 Nov 2009 20:43:09 +0100
+
 virtualbox-ose (3.0.10-dfsg-1) unstable; urgency=low
 
   [ Felix Geyer ]
