@@ -59,7 +59,8 @@ vboxvfs_CFLAGS          = -fshort-wchar
 vboxvfs_DEFS            = \
 	MODULE IN_RT_R0 VBOXGUEST VBOX_WITH_HGCM \
 	KBUILD_MODNAME=KBUILD_STR\(vboxadd\) \
-        KBUILD_BASENAME=KBUILD_STR\(vboxadd\)
+	KBUILD_BASENAME=KBUILD_STR\(vboxadd\) \
+	DEBUG_HASH=2 DEBUG_HASH2=3
 vboxvfs_INCS            = \
 	$(PATH_ROOT)/src/VBox/Additions/common/VBoxGuestLib \
 	$(PATH_ROOT)/src/VBox/Runtime/r0drv/linux

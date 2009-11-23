@@ -863,7 +863,7 @@ struct E1kState_st
     uint64_t    u64AckedAt;
     /** All: Used for eliminating spurious interrupts. */
     bool        fIntRaised;
-    /** EMT: */
+    /** EMT: false if the cable is disconnected by the GUI. */
     bool        fCableConnected;
     /** EMT: */
     bool        fR0Enabled;
@@ -2012,7 +2012,8 @@ static int e1kRegWriteCTRL(E1KSTATE* pState, uint32_t offset, uint32_t index, ui
     }
     else
     {
-        if (value & CTRL_SLU)
+        if (   (value & CTRL_SLU)
+            && pState->fCableConnected)
         {
             /* The driver indicates that we should bring up the link */
             STATUS |= STATUS_LU;
@@ -4303,12 +4304,14 @@ static DECLCALLBACK(int) e1kSetLinkState(PPDMINETWORKCONFIG pInterface, PDMNETWO
         if (fNewUp)
         {
             E1kLog(("%s Link is up\n", INSTANCE(pState)));
+            pState->fCableConnected = true;
             STATUS |= STATUS_LU;
             Phy::setLinkStatus(&pState->phy, true);
         }
         else
         {
             E1kLog(("%s Link is down\n", INSTANCE(pState)));
+            pState->fCableConnected = false;
             STATUS &= ~STATUS_LU;
             Phy::setLinkStatus(&pState->phy, false);
         }

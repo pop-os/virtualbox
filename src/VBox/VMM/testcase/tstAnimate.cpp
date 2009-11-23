@@ -837,7 +837,7 @@ int main(int argc, char **argv)
         if (FileRawMem != NIL_RTFILE)
             rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq1, RT_INDEFINITE_WAIT, (PFNRT)loadMem, 3, pVM, FileRawMem, &offRawMem);
         else
-            rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq1, RT_INDEFINITE_WAIT, (PFNRT)SSMR3Load, 4, pVM, pszSavedState, SSMAFTER_DEBUG_IT, NULL, NULL);
+            rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq1, RT_INDEFINITE_WAIT, (PFNRT)SSMR3Load, 5, pVM, pszSavedState, SSMAFTER_DEBUG_IT, (uintptr_t)NULL, (uintptr_t)NULL);
         AssertReleaseRC(rc);
         rc = pReq1->iStatus;
         VMR3ReqFree(pReq1);

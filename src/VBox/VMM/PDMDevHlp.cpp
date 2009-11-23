@@ -1756,12 +1756,8 @@ static DECLCALLBACK(int) pdmR3DevHlp_APICRegister(PPDMDEVINS pDevIns, PPDMAPICRE
         }
         if (RT_SUCCESS(rc))
         {
-#if 0
             rc = PDMR3LdrGetSymbolRCLazy(pVM, pDevIns->pDevReg->szRCMod, pApicReg->pszLocalInterruptRC, &pVM->pdm.s.Apic.pfnLocalInterruptRC);
             AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pDevReg->szRCMod, pApicReg->pszLocalInterruptRC, rc));
-#else
-            pVM->pdm.s.Apic.pfnLocalInterruptRC = NIL_RTRCPTR;
-#endif
         }
         if (RT_FAILURE(rc))
         {
@@ -1834,12 +1830,8 @@ static DECLCALLBACK(int) pdmR3DevHlp_APICRegister(PPDMDEVINS pDevIns, PPDMAPICRE
         }
         if (RT_SUCCESS(rc))
         {
-#if 0
             rc = PDMR3LdrGetSymbolR0Lazy(pVM, pDevIns->pDevReg->szR0Mod, pApicReg->pszLocalInterruptR0, &pVM->pdm.s.Apic.pfnLocalInterruptR0);
             AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pDevReg->szR0Mod, pApicReg->pszLocalInterruptR0, rc));
-#else
-            pVM->pdm.s.Apic.pfnLocalInterruptR0 = NIL_RTR0PTR;
-#endif
         }
         if (RT_FAILURE(rc))
         {
@@ -1877,20 +1869,8 @@ static DECLCALLBACK(int) pdmR3DevHlp_APICRegister(PPDMDEVINS pDevIns, PPDMAPICRE
     pVM->pdm.s.Apic.pfnWriteMSRR3       = pApicReg->pfnWriteMSRR3;
     pVM->pdm.s.Apic.pfnReadMSRR3        = pApicReg->pfnReadMSRR3;
     pVM->pdm.s.Apic.pfnBusDeliverR3     = pApicReg->pfnBusDeliverR3;
-#if 0
     pVM->pdm.s.Apic.pfnLocalInterruptR3 = pApicReg->pfnLocalInterruptR3;
-#else
-    pVM->pdm.s.Apic.pfnLocalInterruptR3 = NULL;
-#endif
     Log(("PDM: Registered APIC device '%s'/%d pDevIns=%p\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, pDevIns));
-
-
-#if 1
-    /* Disable the APIC fix due to Linux SMP regressions. */
-    pVM->pdm.s.Apic.pfnLocalInterruptR3 = 0;
-    pVM->pdm.s.Apic.pfnLocalInterruptR0 = 0;
-    pVM->pdm.s.Apic.pfnLocalInterruptRC = 0;
-#endif
 
     /* set the helper pointer and return. */
     *ppApicHlpR3 = &g_pdmR3DevApicHlp;

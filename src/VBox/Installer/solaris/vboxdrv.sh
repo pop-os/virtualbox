@@ -154,8 +154,8 @@ check_root()
     idbin=/usr/xpg4/bin/id
     if test ! -f "$idbin"; then
         found=`which id`
-        if test ! -f "$found" || test ! -h "$found"; then
-            abort "Failed to find a suitable user id binary! Aborting"
+        if test ! -x "$found"; then
+            abort "Failed to find a suitable user id binary or not executable! Aborting"
         else
             idbin=$found
         fi
