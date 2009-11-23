@@ -361,6 +361,16 @@ public:
      */
     RWLockHandle *hardDiskTreeLockHandle() { return &mHardDiskTreeLockHandle; }
 
+    /**
+     * Reimplements VirtualBoxWithTypedChildren::childrenLock() to return a
+     * dedicated lock instead of the main object lock. The dedicated lock for
+     * child map operations frees callers of init() methods of these children
+     * from acquiring a write parent (VirtualBox) lock (which would be mandatory
+     * otherwise). Since VirtualBox has a lot of heterogenous children which
+     * init() methods are called here and there, it definitely makes sense.
+     */
+    RWLockHandle *childrenLock() { return &mChildrenMapLockHandle; }
+
     /* for VirtualBoxSupportErrorInfoImpl */
     static const wchar_t *getComponentName() { return L"VirtualBox"; }
 
@@ -378,16 +388,6 @@ private:
     typedef std::list <ComObjPtr <DHCPServer> > DHCPServerList;
 
     typedef std::map <Guid, ComObjPtr<HardDisk> > HardDiskMap;
-
-    /**
-     * Reimplements VirtualBoxWithTypedChildren::childrenLock() to return a
-     * dedicated lock instead of the main object lock. The dedicated lock for
-     * child map operations frees callers of init() methods of these children
-     * from acquiring a write parent (VirtualBox) lock (which would be mandatory
-     * otherwise). Since VirtualBox has a lot of heterogenous children which
-     * init() methods are called here and there, it definitely makes sense.
-     */
-    RWLockHandle *childrenLock() { return &mChildrenMapLockHandle; }
 
     HRESULT checkMediaForConflicts2 (const Guid &aId, const Bstr &aLocation,
                                      Utf8Str &aConflictType);

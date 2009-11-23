@@ -150,7 +150,10 @@ sf_reg_write (struct file *file, const char *buf, size_t size, loff_t *off)
 
         pos = *off;
         if (file->f_flags & O_APPEND)
-                pos += inode->i_size;
+        {
+                pos = inode->i_size;
+                *off = pos;
+        }
 
         /** XXX Check write permission accoring to inode->i_mode! */
 
@@ -189,11 +192,10 @@ sf_reg_write (struct file *file, const char *buf, size_t size, loff_t *off)
                         break;
         }
 
-#if 1                           /* XXX: which way is correct? */
         *off += total_bytes_written;
-#else
-        file->f_pos += total_bytes_written;
-#endif
+        if (*off > inode->i_size)
+                inode->i_size = *off;
+
         sf_i->force_restat = 1;
         kfree (tmp);
         return total_bytes_written;

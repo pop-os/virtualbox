@@ -2870,7 +2870,6 @@ static int pgmR3LoadLocked(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
             /*
              * Old format.
              */
-            AssertLogRelReturn(!pVM->pgm.s.fRamPreAlloc, VERR_NOT_SUPPORTED); /* can't be detected. */
 
             /* Of the page flags, pick up MMIO2 and ROM/RESERVED for the !fHaveBits case.
                The rest is generally irrelevant and wrong since the stuff have to match registrations. */
@@ -3808,7 +3807,7 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
      */
 #if HC_ARCH_BITS == 32
     /* The nested shadow paging mode for AMD-V does change when running 64 bits guests on 32 bits hosts; typically PAE <-> AMD64 */
-    const bool fForceShwEnterExit = (    fIsOldGuestPagingMode64Bits != fIsNewGuestPagingMode64Bits 
+    const bool fForceShwEnterExit = (    fIsOldGuestPagingMode64Bits != fIsNewGuestPagingMode64Bits
                                      &&  enmShadowMode == PGMMODE_NESTED);
 #else
     const bool fForceShwEnterExit = false;

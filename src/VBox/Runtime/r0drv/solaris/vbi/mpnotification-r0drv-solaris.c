@@ -68,7 +68,6 @@ static void rtMpNotificationSolarisCallback(void *pvUser, int iCpu, int online)
     }
 }
 
-static vbi_cpu_watch_t *watch_handle = NULL;
 
 int rtR0MpNotificationNativeInit(void)
 {
@@ -90,8 +89,8 @@ int rtR0MpNotificationNativeInit(void)
 
 void rtR0MpNotificationNativeTerm(void)
 {
-    if (vbi_revision_level >= 2 && watch_handle != NULL)
-        vbi_ignore_cpus(watch_handle);
-    watch_handle = NULL;
+    if (vbi_revision_level >= 2 && g_hVbiCpuWatch != NULL)
+        vbi_ignore_cpus(g_hVbiCpuWatch);
+    g_hVbiCpuWatch = NULL;
 }
 

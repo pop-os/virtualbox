@@ -56,8 +56,10 @@ typedef struct RTR0MEMOBJSOLARIS
     RTR0MEMOBJINTERNAL  Core;
     /** Pointer to kernel memory cookie. */
     ddi_umem_cookie_t   Cookie;
+    /** Access during locking. */
+    int                 fAccess;
     /** Shadow locked pages. */
-    page_t              **ppShadowPages;
+    page_t            **ppShadowPages;
 } RTR0MEMOBJSOLARIS, *PRTR0MEMOBJSOLARIS;
 
 /**
@@ -116,7 +118,7 @@ int rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
             if ((uintptr_t)pMemSolaris->Core.pv < kernelbase)
             {
                 addrSpace = ((proc_t *)pMemSolaris->Core.u.Lock.R0Process)->p_as;
-                as_pageunlock(addrSpace, pMemSolaris->ppShadowPages, pMemSolaris->Core.pv, pMemSolaris->Core.cb, S_WRITE);
+                as_fault(addrSpace->a_hat, addrSpace, (caddr_t)pMemSolaris->Core.pv, pMemSolaris->Core.cb, F_SOFTUNLOCK, pMemSolaris->fAccess);
             }
             /* Nothing to unlock for kernel addresses. */
             break;
@@ -257,7 +259,7 @@ int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t 
 }
 
 
-int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t cb, RTR0PROCESS R0Process)
+int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t cb, uint32_t fAccess, RTR0PROCESS R0Process)
 {
     AssertReturn(R0Process == RTR0ProcHandleSelf(), VERR_INVALID_PARAMETER);
 
@@ -270,17 +272,24 @@ int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t c
     struct as *useras = userproc->p_as;
     page_t **ppl;
 
+    int fPageAccess = S_READ;
+    if (fAccess & RTMEM_PROT_WRITE)
+        fPageAccess = S_WRITE;
+    if (fAccess & RTMEM_PROT_EXEC)
+        fPageAccess = S_EXEC;
+
     /* Lock down user pages */
     int rc;
     ppl = NULL;
     if ((uintptr_t)R3Ptr < kernelbase)
-        rc = as_pagelock(useras, &ppl, (caddr_t)R3Ptr, cb, S_WRITE);
+        rc = as_fault(userproc->p_as->a_hat, userproc->p_as, (caddr_t)R3Ptr, cb, F_SOFTLOCK, fPageAccess);
     else
         rc = 0;
     if (rc == 0)
     {
         pMemSolaris->Core.u.Lock.R0Process = (RTR0PROCESS)userproc;
         pMemSolaris->ppShadowPages = ppl;
+        pMemSolaris->fAccess = fPageAccess;
         *ppMem = &pMemSolaris->Core;
         return VINF_SUCCESS;
     }
@@ -291,8 +300,10 @@ int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t c
 }
 
 
-int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb)
+int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fAccess)
 {
+    NOREF(fAccess);
+
     /* Create the locking object */
     PRTR0MEMOBJSOLARIS pMemSolaris = (PRTR0MEMOBJSOLARIS)rtR0MemObjNew(sizeof(*pMemSolaris), RTR0MEMOBJTYPE_LOCK, pv, cb);
     if (!pMemSolaris)

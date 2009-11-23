@@ -57,7 +57,8 @@ vboxadd_NOINST   = 1
 vboxadd_DEFS     = \
 	MODULE IN_RT_R0 VBGL_VBOXGUEST EXPORT_SYMTAB VBGL_HGCM VBOX_WITH_HGCM \
 	KBUILD_MODNAME=KBUILD_STR\(vboxadd\) \
-	KBUILD_BASENAME=KBUILD_STR\(vboxadd\)
+	KBUILD_BASENAME=KBUILD_STR\(vboxadd\) \
+	DEBUG_HASH=2 DEBUG_HASH2=3
 vboxadd_INCS     = $(PATH_ROOT)/src/VBox/Runtime/r0drv/linux
 vboxadd_SOURCES  = \
 	vboxmod.c \

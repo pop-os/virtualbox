@@ -1,4 +1,4 @@
-/* $Revision: 51699 $ */
+/* $Revision: 54555 $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, Linux.
  */
@@ -734,13 +734,14 @@ int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t 
 }
 
 
-int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t cb, RTR0PROCESS R0Process)
+int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t cb, uint32_t fAccess, RTR0PROCESS R0Process)
 {
     const int cPages = cb >> PAGE_SHIFT;
     struct task_struct *pTask = rtR0ProcessToLinuxTask(R0Process);
     struct vm_area_struct **papVMAs;
     PRTR0MEMOBJLNX pMemLnx;
     int rc = VERR_NO_MEMORY;
+    NOREF(fAccess);
 
     /*
      * Check for valid task and size overflows.
@@ -830,7 +831,7 @@ int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t c
 }
 
 
-int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb)
+int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fFlags)
 {
     /* What is there to lock? Should/Can we fake this? */
     return VERR_NOT_SUPPORTED;

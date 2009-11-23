@@ -245,7 +245,7 @@ int _init(void)
         }
         else
             LogRel((DEVICE_NAME ":VBoxDrvSolarisAttach: supdrvInitDevExt failed\n"));
-        RTR0Term();
+        RTR0TermForced();
     }
     else
         LogRel((DEVICE_NAME ":VBoxDrvSolarisAttach: failed to init R0Drv\n"));
@@ -272,7 +272,7 @@ int _fini(void)
     AssertRC(rc);
     g_Spinlock = NIL_RTSPINLOCK;
 
-    RTR0Term();
+    RTR0TermForced();
 
     memset(&g_DevExt, 0, sizeof(g_DevExt));
 

@@ -1378,6 +1378,7 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *e)
                 AssertWrapperOk (cmachine);
                 if (lastAction [0] == kSave)
                 {
+                    dlg.mRbShutdown->setEnabled (isACPIEnabled);
                     dlg.mRbSave->setChecked (true);
                     dlg.mRbSave->setFocus();
                 }

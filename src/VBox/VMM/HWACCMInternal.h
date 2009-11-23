@@ -279,6 +279,10 @@ typedef struct HWACCM
     /** Set when we initialize VT-x or AMD-V once for all CPUs. */
     bool                        fGlobalInit;
 
+    /** Set when TPR patching is active. */
+    bool                        fTPRPatchingActive;
+    bool                        u8Alignment[7];
+
     /** And mask for copying register contents. */
     uint64_t                    u64RegisterMask;
 
@@ -412,8 +416,7 @@ typedef struct HWACCM
         bool                        fEnabled;
         /** Set if erratum 170 affects the AMD cpu. */
         bool                        fAlwaysFlushTLB;
-        /** Set when TPR patching is active. */
-        bool                        fTPRPatchingActive;
+        bool                        u8Alignment;
 
         /** R0 memory object for the IO bitmap (12kb). */
         RTR0MEMOBJ                  pMemObjIOBitmap;
@@ -427,14 +430,14 @@ typedef struct HWACCM
 
         /** SVM feature bits from cpuid 0x8000000a */
         uint32_t                    u32Features;
-
-        /**
-         * AVL tree with all patches (active or disabled) sorted by guest instruction address
-         */
-        AVLOU32TREE                 PatchTree;
-        uint32_t                    cPatches;
-        HWACCMTPRPATCH              aPatches[64];
     } svm;
+
+    /**
+     * AVL tree with all patches (active or disabled) sorted by guest instruction address
+     */
+    AVLOU32TREE                     PatchTree;
+    uint32_t                        cPatches;
+    HWACCMTPRPATCH                  aPatches[64];
 
     struct
     {
@@ -447,7 +450,7 @@ typedef struct HWACCM
 
     /** HWACCMR0Init was run */
     bool                    fHWACCMR0Init;
-    bool                    u8Alignment[7];
+    bool                    u8Alignment1[7];
 
     STAMCOUNTER             StatTPRPatchSuccess;
     STAMCOUNTER             StatTPRPatchFailure;

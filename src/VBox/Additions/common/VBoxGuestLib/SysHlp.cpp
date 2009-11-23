@@ -27,7 +27,8 @@
 
 #include <iprt/assert.h>
 #if !defined(RT_OS_WINDOWS) && !defined(RT_OS_LINUX)
-#include <iprt/memobj.h>
+# include <iprt/memobj.h>
+# include <iprt/mem.h>
 #endif
 
 
@@ -92,8 +93,9 @@ int vbglLockLinear (void **ppvCtx, void *pv, uint32_t u32Size, bool fWriteAccess
 
 #else
     /* Default to IPRT - this ASSUMES that it is USER addresses we're locking. */
-    RTR0MEMOBJ MemObj;
-    rc = RTR0MemObjLockUser(&MemObj, (RTR3PTR)pv, u32Size, NIL_RTR0PROCESS);
+    RTR0MEMOBJ MemObj = NIL_RTR0MEMOBJ;
+    uint32_t fAccess = RTMEM_PROT_READ | (fWriteAccess ? RTMEM_PROT_WRITE : 0);
+    rc = RTR0MemObjLockUser(&MemObj, (RTR3PTR)pv, u32Size, fAccess, NIL_RTR0PROCESS);
     if (RT_SUCCESS(rc))
         *ppvCtx = MemObj;
     else
