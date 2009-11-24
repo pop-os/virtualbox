@@ -71,7 +71,6 @@ clean: unpatch
 	rm -rf out
 	rm -f build-stamp
 	rm -f debian/virtualbox-ose.README.Debian debian/README.Debian.html
-	rm -f debian/$(gsource).files/dkms.conf
 	rm -f debian/$(psource).install
 	rm -f debian/$(gsource).install
 	rm -f debian/$(psource).dirs
@@ -121,7 +120,7 @@ install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
 
 	# Create DKMS control files
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(psource).files/dkms.conf.in > debian/$(psource)/usr/src/virtualbox-ose-$(upstreamversion)/dkms.conf
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gsource).files/dkms.conf.in > debian/$(gsource).files/dkms.conf
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gsource).files/dkms.conf.in > debian/$(gsource)/usr/src/virtualbox-ose-guest-$(upstreamversion)/dkms.conf
 
 	#Build install files for the dkms'ified sources
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(psource).install.in > debian/$(psource).install

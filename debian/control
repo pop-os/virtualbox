@@ -77,8 +77,7 @@ Depends: ${shlibs:Depends},
          adduser
 Recommends: virtualbox-ose-source (= ${binary:Version}), 
             virtualbox-ose-qt (= ${binary:Version}),
-            libgl1,
-            libhal1
+            libgl1
 Suggests: virtualbox-guest-additions,
           libasound2, libpulse0
 Conflicts: virtualbox, virtualbox-2.0, virtualbox-2.1, virtualbox-2.2, virtualbox-3.0
@@ -112,9 +111,9 @@ Architecture: all
 Depends: ${misc:Depends}, make | build-essential | dpkg-dev
 Recommends: dkms
 Suggests: debhelper (>= 5),
-	  bzip2,
-	  kbuild,
-	  module-assistant
+          bzip2,
+          kbuild,
+          module-assistant
 Description: x86 virtualization solution - kernel module source
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -130,9 +129,9 @@ Architecture: all
 Depends: ${misc:Depends}, make | build-essential | dpkg-dev
 Recommends: dkms
 Suggests: debhelper (>= 5),
-	  bzip2,
-	  kbuild,
-	  module-assistant
+          bzip2,
+          kbuild,
+          module-assistant
 Description: x86 virtualization solution - guest addition module source
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
