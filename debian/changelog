@@ -1,8 +1,9 @@
-virtualbox-ose (3.0.12-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (3.0.12-dfsg-1) unstable; urgency=low
 
+  [ Felix Geyer ]
   * New Upstream Version
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 23 Nov 2009 11:33:24 +0100
+ -- Michael Meskes <meskes@debian.org>  Fri, 27 Nov 2009 11:56:21 +0100
 
 virtualbox-ose (3.0.10-dfsg-2) unstable; urgency=low
 
