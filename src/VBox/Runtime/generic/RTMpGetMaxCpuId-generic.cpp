@@ -1,4 +1,4 @@
-/* $Id: RTMpGetMaxCpuId-generic.cpp $ */
+/* $Id: RTMpGetMaxCpuId-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Generic RTMpGetMaxCpuId.
  */
@@ -33,10 +33,12 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/mp.h>
+#include "internal/iprt.h"
 
 
 RTDECL(RTCPUID) RTMpGetMaxCpuId(void)
 {
     return RTMpCpuId();
 }
+RT_EXPORT_SYMBOL(RTMpGetMaxCpuId);
 

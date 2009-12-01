@@ -523,13 +523,17 @@ void stubSetDefaultConfigurationOptions(void)
         char name[1000];
         int i;
 
-        crGetProcName(name, 1000);
-        for (i=0; gsViewportHackApps[i]; ++i)
+        /* Apply viewport hack only if we're running under wine */
+        if (NULL!=GetModuleHandle("wined3d.dll"))
         {
-            if (!stricmp(name, gsViewportHackApps[i]))
+            crGetProcName(name, 1000);
+            for (i=0; gsViewportHackApps[i]; ++i)
             {
-                stub.viewportHack = 1;
-                break;
+                if (!stricmp(name, gsViewportHackApps[i]))
+                {
+                    stub.viewportHack = 1;
+                    break;
+                }
             }
         }
     }
@@ -588,7 +592,7 @@ stubInit(void)
     }
 #endif
 
-    strcpy(response, "3 0 array 1 feedback 2 pack");
+    strcpy(response, "2 0 feedback 1 pack");
     spuchain = crStrSplit( response, " " );
     num_spus = crStrToInt( spuchain[0] );
     spu_ids = (int *) crAlloc( num_spus * sizeof( *spu_ids ) );

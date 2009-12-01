@@ -1,4 +1,4 @@
-/* $Id: VMMInternal.h $ */
+/* $Id: VMMInternal.h 24582 2009-11-11 14:38:34Z vboxsync $ */
 /** @file
  * VMM - Internal header file.
  */
@@ -268,8 +268,11 @@ typedef struct VMM
     uint32_t                    cbRCRelLogger;
     /** Whether log flushing has been disabled or not. */
     bool                        fRCLoggerFlushingDisabled;
-    bool                        afAlignment[7]; /**< Alignment padding. */
+    bool                        afAlignment[6]; /**< Alignment padding. */
     /** @} */
+
+    /** Whether the stack guard pages have been stationed or not. */
+    bool                        fStackGuardsStationed;
 
     /** The EMT yield timer. */
     PTMTIMERR3                  pYieldTimer;
@@ -288,6 +291,8 @@ typedef struct VMM
 
     /** @name EMT Rendezvous
      * @{ */
+    /** Semaphore to wait on upon entering ordered execution. */
+    R3PTRTYPE(PRTSEMEVENT)      pahEvtRendezvousEnterOrdered;
     /** Semaphore to wait on upon entering for one-by-one execution. */
     RTSEMEVENT                  hEvtRendezvousEnterOneByOne;
     /** Semaphore to wait on upon entering for all-at-once execution. */
@@ -313,6 +318,10 @@ typedef struct VMM
     /** Spin lock. */
     volatile uint32_t           u32RendezvousLock;
     /** @} */
+
+#if HC_ARCH_BITS == 32
+    uint32_t                    u32Alignment; /**< Alignment padding. */
+#endif
 
     /** Buffer for storing the standard assertion message for a ring-0 assertion.
      * Used for saving the assertion message text for the release log and guru

@@ -1,4 +1,4 @@
-/* $Id: PGMR0DynMap.cpp $ */
+/* $Id: PGMR0DynMap.cpp 24181 2009-10-30 10:51:56Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor, ring-0 dynamic mapping cache.
  */
@@ -354,7 +354,7 @@ VMMR0DECL(int) PGMR0DynMapInitVM(PVM pVM)
     /*
      * Initialize the auto sets.
      */
-    VMCPUID idCpu = pVM->cCPUs;
+    VMCPUID idCpu = pVM->cCpus;
     AssertReturn(idCpu > 0 && idCpu <= VMM_MAX_CPU_COUNT, VERR_INTERNAL_ERROR);
     while (idCpu-- > 0)
     {
@@ -442,7 +442,7 @@ VMMR0DECL(void) PGMR0DynMapTermVM(PVM pVM)
         /*
          * Clean up and check the auto sets.
          */
-        VMCPUID idCpu = pVM->cCPUs;
+        VMCPUID idCpu = pVM->cCpus;
         while (idCpu-- > 0)
         {
             PPGMMAPSET pSet = &pVM->aCpus[idCpu].pgm.s.AutoSet;
@@ -1287,9 +1287,9 @@ static uint32_t pgmR0DynMapPageSlow(PPGMR0DYNMAP pThis, RTHCPHYS HCPhys, uint32_
 DECLINLINE(uint32_t) pgmR0DynMapPage(PPGMR0DYNMAP pThis, RTHCPHYS HCPhys, int32_t iRealCpu, PVM pVM, void **ppvPage)
 {
 #ifdef VBOX_WITH_STATISTICS
-    PVMCPU pVCpu = VMMGetCpu(pVM);
+    PVMCPU              pVCpu   = VMMGetCpu(pVM);
 #endif
-    RTSPINLOCKTMP   Tmp       = RTSPINLOCKTMP_INITIALIZER;
+    RTSPINLOCKTMP       Tmp     = RTSPINLOCKTMP_INITIALIZER;
     RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
     AssertMsg(!(HCPhys & PAGE_OFFSET_MASK), ("HCPhys=%RHp\n", HCPhys));
     STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapPage);
@@ -1389,7 +1389,7 @@ VMMR0DECL(int) PGMR0DynMapAssertIntegrity(void)
     /*
      * Basic pool stuff that doesn't require any lock, just assumes we're a user.
      */
-    PPGMR0DYNMAP    pThis = g_pPGMR0DynMap;
+    PPGMR0DYNMAP        pThis       = g_pPGMR0DynMap;
     if (!pThis)
         return VINF_SUCCESS;
     AssertPtrReturn(pThis, VERR_INVALID_POINTER);
@@ -1398,8 +1398,8 @@ VMMR0DECL(int) PGMR0DynMapAssertIntegrity(void)
         return VERR_INVALID_PARAMETER;
 
 
-    int             rc = VINF_SUCCESS;
-    RTSPINLOCKTMP   Tmp = RTSPINLOCKTMP_INITIALIZER;
+    int                 rc          = VINF_SUCCESS;
+    RTSPINLOCKTMP       Tmp         = RTSPINLOCKTMP_INITIALIZER;
     RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
 
 #define CHECK_RET(expr, a) \
@@ -1529,8 +1529,8 @@ DECLINLINE(void) pgmDynMapFlushAutoSetWorker(PPGMMAPSET pSet, uint32_t cEntries)
     if (    cEntries != 0
         &&  RT_LIKELY(cEntries <= RT_ELEMENTS(pSet->aEntries)))
     {
-        PPGMR0DYNMAP    pThis = g_pPGMR0DynMap;
-        RTSPINLOCKTMP   Tmp = RTSPINLOCKTMP_INITIALIZER;
+        PPGMR0DYNMAP    pThis   = g_pPGMR0DynMap;
+        RTSPINLOCKTMP   Tmp     = RTSPINLOCKTMP_INITIALIZER;
         RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
 
         uint32_t i = cEntries;
@@ -1634,8 +1634,8 @@ VMMDECL(void) PGMDynMapMigrateAutoSet(PVMCPU pVCpu)
             AssertMsg(i <= RT_ELEMENTS(pSet->aEntries), ("%#x (%u)\n", i, i));
             if (i != 0 && RT_LIKELY(i <= RT_ELEMENTS(pSet->aEntries)))
             {
-                PPGMR0DYNMAP    pThis = g_pPGMR0DynMap;
-                RTSPINLOCKTMP   Tmp = RTSPINLOCKTMP_INITIALIZER;
+                PPGMR0DYNMAP    pThis  = g_pPGMR0DynMap;
+                RTSPINLOCKTMP   Tmp    = RTSPINLOCKTMP_INITIALIZER;
                 RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
 
                 while (i-- > 0)
@@ -1724,7 +1724,6 @@ VMMDECL(uint32_t) PGMDynMapPushAutoSubset(PVMCPU pVCpu)
     PPGMMAPSET      pSet = &pVCpu->pgm.s.AutoSet;
     AssertReturn(pSet->cEntries != PGMMAPSET_CLOSED, UINT32_MAX);
     uint32_t        iPrevSubset = pSet->iSubset;
-Assert(iPrevSubset == UINT32_MAX);
     pSet->iSubset = pSet->cEntries;
     STAM_COUNTER_INC(&pVCpu->pgm.s.StatR0DynMapSubsets);
     return iPrevSubset;
@@ -1743,7 +1742,6 @@ VMMDECL(void) PGMDynMapPopAutoSubset(PVMCPU pVCpu, uint32_t iPrevSubset)
     uint32_t        cEntries = pSet->cEntries;
     AssertReturnVoid(cEntries != PGMMAPSET_CLOSED);
     AssertReturnVoid(pSet->iSubset <= iPrevSubset || iPrevSubset == UINT32_MAX);
-Assert(iPrevSubset == UINT32_MAX);
     STAM_COUNTER_INC(&pVCpu->pgm.s.aStatR0DynMapSetSize[(cEntries * 10 / RT_ELEMENTS(pSet->aEntries)) % 11]);
     if (    cEntries >= RT_ELEMENTS(pSet->aEntries) * 40 / 100
         &&  cEntries != pSet->iSubset)

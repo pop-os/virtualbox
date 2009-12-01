@@ -162,3 +162,9 @@ GetAttribLocation
 GetUniformLocation
 GetAttachedObjectsARB
 GetInfoLogARB
+DeleteQueriesARB
+DeleteFramebuffersEXT
+DeleteRenderbuffersEXT
+LockArraysEXT
+UnlockArraysEXT
+GetUniformsLocations

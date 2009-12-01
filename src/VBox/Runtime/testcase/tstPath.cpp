@@ -1,4 +1,4 @@
-/* $Id: tstPath.cpp $ */
+/* $Id: tstPath.cpp 25000 2009-11-26 14:22:44Z vboxsync $ */
 /** @file
  * IPRT Testcase - Test various path functions.
  */
@@ -183,7 +183,7 @@ int main()
 
                 if (s_aRTPathAbsExTests[i].pcszOutput[1] == 'p')
                 {
-                    size_t cch = strlen(szTmp);
+                    cch = strlen(szTmp);
                     if (cch + strlen(s_aRTPathAbsExTests[i].pcszOutput) - 2 <= sizeof(szTmp))
                         strcpy(szTmp + cch, s_aRTPathAbsExTests[i].pcszOutput + 2);
                 }

@@ -1,4 +1,4 @@
-/* $Id: DBGFInfo.cpp $ */
+/* $Id: DBGFInfo.cpp 24009 2009-10-23 08:25:56Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility, Info.
  */
@@ -740,33 +740,32 @@ VMMR3DECL(int) DBGFR3Info(PVM pVM, const char *pszName, const char *pszArgs, PCD
         rc = RTCritSectLeave(&pVM->dbgf.s.InfoCritSect);
         AssertRC(rc);
         rc = VINF_SUCCESS;
-        PVMREQ pReq = NULL;
         switch (Info.enmType)
         {
             case DBGFINFOTYPE_DEV:
                 if (Info.fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
-                    rc = VMR3ReqCallVoid(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)Info.u.Dev.pfnHandler, 3, Info.u.Dev.pDevIns, pHlp, pszArgs);
+                    rc = VMR3ReqCallVoidWait(pVM, VMCPUID_ANY, (PFNRT)Info.u.Dev.pfnHandler, 3, Info.u.Dev.pDevIns, pHlp, pszArgs);
                 else
                     Info.u.Dev.pfnHandler(Info.u.Dev.pDevIns, pHlp, pszArgs);
                 break;
 
             case DBGFINFOTYPE_DRV:
                 if (Info.fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
-                    rc = VMR3ReqCallVoid(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)Info.u.Drv.pfnHandler, 3, Info.u.Drv.pDrvIns, pHlp, pszArgs);
+                    rc = VMR3ReqCallVoidWait(pVM, VMCPUID_ANY, (PFNRT)Info.u.Drv.pfnHandler, 3, Info.u.Drv.pDrvIns, pHlp, pszArgs);
                 else
                     Info.u.Drv.pfnHandler(Info.u.Drv.pDrvIns, pHlp, pszArgs);
                 break;
 
             case DBGFINFOTYPE_INT:
                 if (Info.fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
-                    rc = VMR3ReqCallVoid(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)Info.u.Int.pfnHandler, 3, pVM, pHlp, pszArgs);
+                    rc = VMR3ReqCallVoidWait(pVM, VMCPUID_ANY, (PFNRT)Info.u.Int.pfnHandler, 3, pVM, pHlp, pszArgs);
                 else
                     Info.u.Int.pfnHandler(pVM, pHlp, pszArgs);
                 break;
 
             case DBGFINFOTYPE_EXT:
                 if (Info.fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
-                    rc = VMR3ReqCallVoid(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)Info.u.Ext.pfnHandler, 3, Info.u.Ext.pvUser, pHlp, pszArgs);
+                    rc = VMR3ReqCallVoidWait(pVM, VMCPUID_ANY, (PFNRT)Info.u.Ext.pfnHandler, 3, Info.u.Ext.pvUser, pHlp, pszArgs);
                 else
                     Info.u.Ext.pfnHandler(Info.u.Ext.pvUser, pHlp, pszArgs);
                 break;
@@ -776,7 +775,6 @@ VMMR3DECL(int) DBGFR3Info(PVM pVM, const char *pszName, const char *pszArgs, PCD
                 rc = VERR_INTERNAL_ERROR;
                 break;
         }
-        VMR3ReqFree(pReq);
     }
     else
     {
@@ -882,9 +880,9 @@ static DECLCALLBACK(void) dbgfR3InfoHelp(PVM pVM, PCDBGFINFOHLP pHlp, const char
             const char *psz = strstr(pszArgs, pInfo->szName);
             if (    psz
                 &&  (   psz == pszArgs
-                     || isspace(psz[-1]))
+                     || RT_C_IS_SPACE(psz[-1]))
                 &&  (   !psz[pInfo->cchName]
-                     || isspace(psz[pInfo->cchName])))
+                     || RT_C_IS_SPACE(psz[pInfo->cchName])))
                 pHlp->pfnPrintf(pHlp, "%-16s  %s\n",
                                 pInfo->szName, pInfo->pszDesc);
         }

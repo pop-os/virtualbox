@@ -1,4 +1,4 @@
-/* $Id: tstR0ThreadPreemption.cpp $ */
+/* $Id: tstR0ThreadPreemption.cpp 21551 2009-07-13 16:40:43Z vboxsync $ */
 /** @file
  * IPRT R0 Testcase - Thread Preemption.
  */
@@ -37,7 +37,6 @@
 #include <iprt/time.h>
 #include <iprt/string.h>
 #include <VBox/sup.h>
-#include <VBox/x86.h>
 #include "tstR0ThreadPreemption.h"
 
 
@@ -77,15 +76,20 @@ DECLEXPORT(int) TSTR0ThreadPreemptionSrvReqHandler(PSUPDRVSESSION pSession, uint
 
         case TSTR0THREADPREMEPTION_BASIC:
         {
-            RTTHREADPREEMPTSTATE State = RTTHREADPREEMPTSTATE_INITIALIZER;
-            if (!RTThreadPreemptIsEnabled(NIL_RTTHREAD))
-                RTStrPrintf(pszErr, cchErr, "RTThreadPreemptIsEnabled returns false by default");
-            RTThreadPreemptDisable(&State);
-            if (RTThreadPreemptIsEnabled(NIL_RTTHREAD))
-                RTStrPrintf(pszErr, cchErr, "!RTThreadPreemptIsEnabled returns true after RTThreadPreemptDisable");
-            else if (!(ASMGetFlags() & X86_EFL_IF))
+            if (!ASMIntAreEnabled())
                 RTStrPrintf(pszErr, cchErr, "!Interrupts disabled");
-            RTThreadPreemptRestore(&State);
+            else if (!RTThreadPreemptIsEnabled(NIL_RTTHREAD))
+                RTStrPrintf(pszErr, cchErr, "!RTThreadPreemptIsEnabled returns false by default");
+            else
+            {
+                RTTHREADPREEMPTSTATE State = RTTHREADPREEMPTSTATE_INITIALIZER;
+                RTThreadPreemptDisable(&State);
+                if (RTThreadPreemptIsEnabled(NIL_RTTHREAD))
+                    RTStrPrintf(pszErr, cchErr, "!RTThreadPreemptIsEnabled returns true after RTThreadPreemptDisable");
+                else if (!ASMIntAreEnabled())
+                    RTStrPrintf(pszErr, cchErr, "!Interrupts disabled");
+                RTThreadPreemptRestore(&State);
+            }
             break;
         }
 
@@ -95,10 +99,10 @@ DECLEXPORT(int) TSTR0ThreadPreemptionSrvReqHandler(PSUPDRVSESSION pSession, uint
             RTThreadPreemptDisable(&State);
             if (!RTThreadPreemptIsEnabled(NIL_RTTHREAD))
             {
-                if (ASMGetFlags() & X86_EFL_IF)
+                if (ASMIntAreEnabled())
                 {
-                    uint64_t    u64StartSysTS = RTTimeSystemNanoTS();
                     uint64_t    u64StartTS    = RTTimeNanoTS();
+                    uint64_t    u64StartSysTS = RTTimeSystemNanoTS();
                     uint64_t    cLoops        = 0;
                     uint64_t    cNanosSysElapsed;
                     uint64_t    cNanosElapsed;
@@ -106,7 +110,7 @@ DECLEXPORT(int) TSTR0ThreadPreemptionSrvReqHandler(PSUPDRVSESSION pSession, uint
                     do
                     {
                         fPending         = RTThreadPreemptIsPending(NIL_RTTHREAD);
-                        cNanosElapsed    = RTTimeNanoTS() - u64StartTS;
+                        cNanosElapsed    = RTTimeNanoTS()       - u64StartTS;
                         cNanosSysElapsed = RTTimeSystemNanoTS() - u64StartSysTS;
                         cLoops++;
                     } while (   !fPending

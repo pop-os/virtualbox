@@ -1,4 +1,4 @@
-/* $Id: cache.cpp $ */
+/* $Id: cache.cpp 24181 2009-10-30 10:51:56Z vboxsync $ */
 /** @file
  * IPRT - Object cache
  */
@@ -32,16 +32,18 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#include <iprt/cache.h>
+#include "internal/iprt.h"
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
 #include <iprt/err.h>
 #include <iprt/spinlock.h>
 #include <iprt/mem.h>
-#include <iprt/cache.h>
 #include <iprt/asm.h>
 
 #include "internal/magics.h"
+
 
 /**
  * Create a cache for objects.
@@ -134,6 +136,8 @@ RTDECL(int) RTCacheCreate(PRTOBJCACHE *ppCache, uint32_t cElements, size_t cbEle
 
     return rc;
 }
+RT_EXPORT_SYMBOL(RTCacheCreate);
+
 
 /**
  * Destroy a cache freeing allocated memory.
@@ -177,6 +181,8 @@ RTDECL(int) RTCacheDestroy(PRTOBJCACHE pCache)
 
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTCacheDestroy);
+
 
 /**
  * Request an object from the cache.
@@ -188,7 +194,7 @@ RTDECL(int) RTCacheDestroy(PRTOBJCACHE pCache)
  */
 RTDECL(int) RTCacheRequest(PRTOBJCACHE pCache, void **ppObj)
 {
-    RTSPINLOCKTMP spinlockTmp;
+    RTSPINLOCKTMP spinlockTmp = RTSPINLOCKTMP_INITIALIZER;
 
     if (pCache->SpinlockRequest != NIL_RTSPINLOCK)
         RTSpinlockAcquire(pCache->SpinlockRequest, &spinlockTmp);
@@ -244,6 +250,8 @@ RTDECL(int) RTCacheRequest(PRTOBJCACHE pCache, void **ppObj)
 
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTCacheRequest);
+
 
 /**
  * Insert an object into the cache.
@@ -255,7 +263,7 @@ RTDECL(int) RTCacheRequest(PRTOBJCACHE pCache, void **ppObj)
  */
 RTDECL(int) RTCacheInsert(PRTOBJCACHE pCache, void *pObj)
 {
-    RTSPINLOCKTMP spinlockTmp;
+    RTSPINLOCKTMP spinlockTmp = RTSPINLOCKTMP_INITIALIZER;
     int rc = VINF_SUCCESS;
 
     if (pCache->SpinlockInsert != NIL_RTSPINLOCK)
@@ -288,4 +296,5 @@ RTDECL(int) RTCacheInsert(PRTOBJCACHE pCache, void *pObj)
 
     return rc;
 }
+RT_EXPORT_SYMBOL(RTCacheInsert);
 

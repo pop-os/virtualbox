@@ -1,8 +1,6 @@
-/* $Id: DevBusLogic.cpp $ */
+/* $Id: DevBusLogic.cpp 24265 2009-11-02 15:21:30Z vboxsync $ */
 /** @file
- *
- * VBox storage devices:
- * BusLogic SCSI host adapter BT-958
+ * VBox storage devices: BusLogic SCSI host adapter BT-958.
  */
 
 /*
@@ -2262,51 +2260,15 @@ static DECLCALLBACK(bool) buslogicNotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQU
     return true;
 }
 
-static bool buslogicWaitForAsyncIOFinished(PBUSLOGIC pBusLogic, unsigned cMillies)
+static DECLCALLBACK(int) buslogicLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
-    uint64_t u64Start;
-    bool     fIdle;
+    PBUSLOGIC pThis = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
 
-    /*
-     * Wait for any pending async operation to finish
-     */
-    u64Start = RTTimeMilliTS();
-    do
-    {
-        fIdle = true;
+    /* Save the device config. */
+    for (unsigned i = 0; i < RT_ELEMENTS(pThis->aDeviceStates); i++)
+        SSMR3PutBool(pSSM, pThis->aDeviceStates[i].fPresent);
 
-        /* Check every port. */
-        for (unsigned i = 0; i < RT_ELEMENTS(pBusLogic->aDeviceStates); i++)
-        {
-            PBUSLOGICDEVICE pBusLogicDevice = &pBusLogic->aDeviceStates[i];
-            if (ASMAtomicReadU32(&pBusLogicDevice->cOutstandingRequests))
-            {
-                fIdle = false;
-                break;
-            }
-        }
-        if (RTTimeMilliTS() - u64Start >= cMillies)
-            break;
-
-        /* Sleep for a bit. */
-        RTThreadSleep(100);
-    } while (!fIdle);
-
-    return fIdle;
-}
-
-static DECLCALLBACK(int) buslogicSaveLoadPrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
-{
-    PBUSLOGIC pBusLogic = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
-
-    /* Wait that no task is pending on any device. */
-    if (!buslogicWaitForAsyncIOFinished(pBusLogic, 20000))
-    {
-        AssertLogRelMsgFailed(("BusLogic: There are still tasks outstanding\n"));
-        return VERR_TIMEOUT;
-    }
-
-    return VINF_SUCCESS;
+    return VINF_SSM_DONT_CALL_AGAIN;
 }
 
 static DECLCALLBACK(int) buslogicSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
@@ -2364,13 +2326,13 @@ static DECLCALLBACK(int) buslogicSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     return SSMR3PutU32(pSSM, ~0);
 }
 
-static DECLCALLBACK(int) buslogicLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Version)
+static DECLCALLBACK(int) buslogicLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
-    PBUSLOGIC pBusLogic = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
-    int rc = VINF_SUCCESS;
+    PBUSLOGIC   pBusLogic = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
+    int         rc;
 
     /* We support saved states only from this and older versions. */
-    if (u32Version > BUSLOGIC_SAVED_STATE_MINOR_VERSION)
+    if (uVersion > BUSLOGIC_SAVED_STATE_MINOR_VERSION)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
 
     /* Every device first. */
@@ -2380,9 +2342,19 @@ static DECLCALLBACK(int) buslogicLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, u
 
         AssertMsg(!pDevice->cOutstandingRequests,
                   ("There are still outstanding requests on this device\n"));
-        SSMR3GetBool(pSSM, &pDevice->fPresent);
-        SSMR3GetU32(pSSM, (uint32_t *)&pDevice->cOutstandingRequests);
+        bool fPresent;
+        rc = SSMR3GetBool(pSSM, &fPresent);
+        AssertRCReturn(rc, rc);
+        if (pDevice->fPresent != fPresent)
+            return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("Target %u config mismatch: config=%RTbool state=%RTbool"), i, pDevice->fPresent, fPresent);
+
+        if (uPass == SSM_PASS_FINAL)
+            SSMR3GetU32(pSSM, (uint32_t *)&pDevice->cOutstandingRequests);
     }
+
+    if (uPass != SSM_PASS_FINAL)
+        return VINF_SUCCESS;
+
     /* Now the main device state. */
     SSMR3GetU8    (pSSM, (uint8_t *)&pBusLogic->regStatus);
     SSMR3GetU8    (pSSM, (uint8_t *)&pBusLogic->regInterrupt);
@@ -2431,14 +2403,10 @@ static DECLCALLBACK(int) buslogicLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, u
     }
 
     uint32_t u32;
-    SSMR3GetU32(pSSM, &u32);
+    rc = SSMR3GetU32(pSSM, &u32);
     if (RT_FAILURE(rc))
         return rc;
-    if (u32 != ~0U)
-    {
-        AssertMsgFailed(("u32=%#x expected ~0\n", u32));
-        return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
-    }
+    AssertMsgReturn(u32 == ~0U, ("%#x\n", u32), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
 
     return VINF_SUCCESS;
 }
@@ -2537,18 +2505,23 @@ static DECLCALLBACK(void *) buslogicStatusQueryInterface(PPDMIBASE pInterface, P
  *
  * @param   pDevIns     The device instance.
  * @param   iLUN        The logical unit which is being detached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  */
-static DECLCALLBACK(void) buslogicDetach(PPDMDEVINS pDevIns, unsigned iLUN)
+static DECLCALLBACK(void) buslogicDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
     PBUSLOGIC       pThis = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
     PBUSLOGICDEVICE pDevice = &pThis->aDeviceStates[iLUN];
 
     Log(("%s:\n", __FUNCTION__));
 
+    AssertMsg(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG,
+              ("BusLogic: Device does not support hotplugging\n"));
+
     /*
      * Zero some important members.
      */
     pDevice->pDrvBase = NULL;
+    pDevice->fPresent = false;
     pDevice->pDrvSCSIConnector = NULL;
 }
 
@@ -2560,12 +2533,17 @@ static DECLCALLBACK(void) buslogicDetach(PPDMDEVINS pDevIns, unsigned iLUN)
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
  * @param   iLUN        The logical unit which is being detached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  */
-static DECLCALLBACK(int)  buslogicAttach(PPDMDEVINS pDevIns, unsigned iLUN)
+static DECLCALLBACK(int)  buslogicAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
     PBUSLOGIC       pThis   = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
     PBUSLOGICDEVICE pDevice = &pThis->aDeviceStates[iLUN];
     int rc;
+
+    AssertMsgReturn(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG,
+                    ("BusLogic: Device does not support hotplugging\n"),
+                    VERR_INVALID_PARAMETER);
 
     /* the usual paranoia */
     AssertRelease(!pDevice->pDrvBase);
@@ -2582,6 +2560,7 @@ static DECLCALLBACK(int)  buslogicAttach(PPDMDEVINS pDevIns, unsigned iLUN)
         /* Get SCSI connector interface. */
         pDevice->pDrvSCSIConnector = (PPDMISCSICONNECTOR)pDevice->pDrvBase->pfnQueryInterface(pDevice->pDrvBase, PDMINTERFACE_SCSI_CONNECTOR);
         AssertMsgReturn(pDevice->pDrvSCSIConnector, ("Missing SCSI interface below\n"), VERR_PDM_MISSING_INTERFACE);
+        pDevice->fPresent = true;
     }
     else
         AssertMsgFailed(("Failed to attach LUN#%d. rc=%Rrc\n", pDevice->iLUN, rc));
@@ -2592,15 +2571,6 @@ static DECLCALLBACK(int)  buslogicAttach(PPDMDEVINS pDevIns, unsigned iLUN)
         pDevice->pDrvSCSIConnector = NULL;
     }
     return rc;
-}
-
-static DECLCALLBACK(void) buslogicSuspend(PPDMDEVINS pDevIns)
-{
-    PBUSLOGIC pBusLogic = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
-
-    /* Wait that no task is pending on any device. */
-    if (!buslogicWaitForAsyncIOFinished(pBusLogic, 20000))
-        AssertLogRelMsgFailed(("BusLogic: There are still tasks outstanding\n"));
 }
 
 static DECLCALLBACK(void) buslogicRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
@@ -2673,9 +2643,9 @@ static DECLCALLBACK(int) buslogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
     /*
      * Validate and read configuration.
      */
-    rc = CFGMR3AreValuesValid(pCfgHandle, "GCEnabled\0"
-                                          "R0Enabled\0");
-    if (RT_FAILURE(rc))
+    if (!CFGMR3AreValuesValid(pCfgHandle,
+                              "GCEnabled\0"
+                              "R0Enabled\0"))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("BusLogic configuration error: unknown option specified"));
 
@@ -2705,8 +2675,8 @@ static DECLCALLBACK(int) buslogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
     PCIDevSetClassProg        (&pThis->dev, 0x00); /* SCSI */
     PCIDevSetClassSub         (&pThis->dev, 0x00); /* SCSI */
     PCIDevSetClassBase        (&pThis->dev, 0x01); /* Mass storage */
-    PCIDevSetBaseAddress      (&pThis->dev, 0, true, false, false, 0x00000000);
-    PCIDevSetBaseAddress      (&pThis->dev, 1, false, false, false, 0x00000000);
+    PCIDevSetBaseAddress      (&pThis->dev, 0, true  /*IO*/, false /*Pref*/, false /*64-bit*/, 0x00000000);
+    PCIDevSetBaseAddress      (&pThis->dev, 1, false /*IO*/, false /*Pref*/, false /*64-bit*/, 0x00000000);
     PCIDevSetSubSystemVendorId(&pThis->dev, 0x104b);
     PCIDevSetSubSystemId      (&pThis->dev, 0x1040);
     PCIDevSetInterruptLine    (&pThis->dev, 0x00);
@@ -2743,7 +2713,7 @@ static DECLCALLBACK(int) buslogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
 
     /* Intialize task queue. */
     rc = PDMDevHlpPDMQueueCreate(pDevIns, sizeof(PDMQUEUEITEMCORE), 5, 0,
-                                 buslogicNotifyQueueConsumer, true, &pThis->pNotifierQueueR3);
+                                 buslogicNotifyQueueConsumer, true, "BugLogicTask", &pThis->pNotifierQueueR3);
     if (RT_FAILURE(rc))
         return rc;
     pThis->pNotifierQueueR0 = PDMQueueR0Ptr(pThis->pNotifierQueueR3);
@@ -2804,10 +2774,8 @@ static DECLCALLBACK(int) buslogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("BusLogic cannot attach to status driver"));
     }
 
-    rc = PDMDevHlpSSMRegister(pDevIns, pDevIns->pDevReg->szDeviceName, iInstance,
-                              BUSLOGIC_SAVED_STATE_MINOR_VERSION, sizeof(*pThis),
-                              buslogicSaveLoadPrep, buslogicSaveExec, NULL,
-                              buslogicSaveLoadPrep, buslogicLoadExec, NULL);
+    rc = PDMDevHlpSSMRegister3(pDevIns, BUSLOGIC_SAVED_STATE_MINOR_VERSION, sizeof(*pThis),
+                               buslogicLiveExec, buslogicSaveExec, buslogicLoadExec);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("BusLogic cannot register save state handlers"));
 
@@ -2833,9 +2801,7 @@ const PDMDEVREG g_DeviceBusLogic =
     /* pszDescription */
     "BusLogic BT-958 SCSI host adapter.\n",
     /* fFlags */
-      PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0
-    | PDM_DEVREG_FLAGS_FIRST_SUSPEND_NOTIFICATION
-    | PDM_DEVREG_FLAGS_FIRST_POWEROFF_NOTIFICATION,
+    PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0,
     /* fClass */
     PDM_DEVREG_CLASS_STORAGE,
     /* cMaxInstances */
@@ -2855,7 +2821,7 @@ const PDMDEVREG g_DeviceBusLogic =
     /* pfnReset */
     buslogicReset,
     /* pfnSuspend */
-    buslogicSuspend,
+    NULL,
     /* pfnResume */
     NULL,
     /* pfnAttach */
@@ -2876,3 +2842,4 @@ const PDMDEVREG g_DeviceBusLogic =
 
 #endif /* IN_RING3 */
 #endif /* !VBOX_DEVICE_STRUCT_TESTCASE */
+

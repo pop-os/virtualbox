@@ -1,4 +1,4 @@
-/* $Id: DHCPServerRunner.h $ */
+/* $Id: DHCPServerRunner.h 22173 2009-08-11 15:38:59Z vboxsync $ */
 /** @file
  * VirtualBox Main - interface for VBox DHCP server
  */
@@ -52,10 +52,10 @@ typedef enum
 class DHCPServerRunner
 {
 public:
-    DHCPServerRunner() : mProcess (NIL_RTPROCESS) {}
+    DHCPServerRunner();
     ~DHCPServerRunner() { stop(); /* don't leave abandoned servers */}
 
-    int setOption(DHCPCFG opt, const char *val)
+    int setOption(DHCPCFG opt, const char *val, bool enabled)
     {
         if(opt == 0 || opt >= DHCPCFG_NOTOPT_MAXVAL)
             return VERR_INVALID_PARAMETER;
@@ -74,7 +74,13 @@ public:
         {
             mOptions[opt] = val;
         }
+        mOptionEnabled[opt] = enabled;
         return VINF_SUCCESS;
+    }
+
+    int setOption(DHCPCFG opt, const com::Utf8Str &val, bool enabled)
+    {
+        return setOption(opt, val.c_str(), enabled);
     }
 
     int start();
@@ -84,5 +90,6 @@ public:
     void detachFromServer();
 private:
     com::Utf8Str mOptions[DHCPCFG_NOTOPT_MAXVAL];
+    bool mOptionEnabled[DHCPCFG_NOTOPT_MAXVAL];
     RTPROCESS mProcess;
 };

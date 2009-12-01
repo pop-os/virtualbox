@@ -1,4 +1,4 @@
-; $Id: VBoxREMWrapperA.asm $
+; $Id: VBoxREMWrapperA.asm 22528 2009-08-27 14:05:09Z vboxsync $
 ;; @file
 ; VBoxREM Wrapper, Assembly routines and wrapper Templates.
 ;
@@ -303,7 +303,7 @@ BEGINPROC WrapGCC2MSC7Int
     mov     rbp, rsp
     sub     rsp, 40h
 
-    mov     r11, [ebp + 10h]
+    mov     r11, [rbp + 10h]
     mov     [rsp + 30h], r11
     mov     [rsp + 28h], r9
     mov     [rsp + 20h], r8
@@ -330,9 +330,9 @@ BEGINPROC WrapGCC2MSC8Int
     mov     rbp, rsp
     sub     rsp, 40h
 
-    mov     r10, [ebp + 18h]
+    mov     r10, [rbp + 18h]
     mov     [rsp + 38h], r10
-    mov     r11, [ebp + 10h]
+    mov     r11, [rbp + 10h]
     mov     [rsp + 30h], r11
     mov     [rsp + 28h], r9
     mov     [rsp + 20h], r8
@@ -359,11 +359,11 @@ BEGINPROC WrapGCC2MSC9Int
     mov     rbp, rsp
     sub     rsp, 50h
 
-    mov     rax, [ebp + 20h]
+    mov     rax, [rbp + 20h]
     mov     [rsp + 40h], rax
-    mov     r10, [ebp + 18h]
+    mov     r10, [rbp + 18h]
     mov     [rsp + 38h], r10
-    mov     r11, [ebp + 10h]
+    mov     r11, [rbp + 10h]
     mov     [rsp + 30h], r11
     mov     [rsp + 28h], r9
     mov     [rsp + 20h], r8
@@ -390,13 +390,13 @@ BEGINPROC WrapGCC2MSC10Int
     mov     rbp, rsp
     sub     rsp, 50h
 
-    mov     r11, [ebp + 28h]
+    mov     r11, [rbp + 28h]
     mov     [rsp + 48h], r11
-    mov     rax, [ebp + 20h]
+    mov     rax, [rbp + 20h]
     mov     [rsp + 40h], rax
-    mov     r10, [ebp + 18h]
+    mov     r10, [rbp + 18h]
     mov     [rsp + 38h], r10
-    mov     r11, [ebp + 10h]
+    mov     r11, [rbp + 10h]
     mov     [rsp + 30h], r11
     mov     [rsp + 28h], r9
     mov     [rsp + 20h], r8
@@ -423,15 +423,15 @@ BEGINPROC WrapGCC2MSC11Int
     mov     rbp, rsp
     sub     rsp, 60h
 
-    mov     r10, [ebp + 30h]
+    mov     r10, [rbp + 30h]
     mov     [rsp + 50h], r10
-    mov     r11, [ebp + 28h]
+    mov     r11, [rbp + 28h]
     mov     [rsp + 48h], r11
-    mov     rax, [ebp + 20h]
+    mov     rax, [rbp + 20h]
     mov     [rsp + 40h], rax
-    mov     r10, [ebp + 18h]
+    mov     r10, [rbp + 18h]
     mov     [rsp + 38h], r10
-    mov     r11, [ebp + 10h]
+    mov     r11, [rbp + 10h]
     mov     [rsp + 30h], r11
     mov     [rsp + 28h], r9
     mov     [rsp + 20h], r8
@@ -458,17 +458,17 @@ BEGINPROC WrapGCC2MSC12Int
     mov     rbp, rsp
     sub     rsp, 60h
 
-    mov     rax, [ebp + 28h]
+    mov     rax, [rbp + 28h]
     mov     [rsp + 48h], rax
-    mov     r10, [ebp + 30h]
+    mov     r10, [rbp + 30h]
     mov     [rsp + 50h], r10
-    mov     r11, [ebp + 28h]
+    mov     r11, [rbp + 28h]
     mov     [rsp + 48h], r11
-    mov     rax, [ebp + 20h]
+    mov     rax, [rbp + 20h]
     mov     [rsp + 40h], rax
-    mov     r10, [ebp + 18h]
+    mov     r10, [rbp + 18h]
     mov     [rsp + 38h], r10
-    mov     r11, [ebp + 10h]
+    mov     r11, [rbp + 10h]
     mov     [rsp + 30h], r11
     mov     [rsp + 28h], r9
     mov     [rsp + 20h], r8
@@ -534,6 +534,7 @@ ENDPROC WrapGCC2MSCVariadictInt
 ; @cproto
 ;
 ; SSMR3DECL(int) SSMR3RegisterInternal(PVM pVM, const char *pszName, uint32_t u32Instance, uint32_t u32Version, size_t cbGuess,
+;    PFNSSMINTLIVEPREP pfnLivePrep, PFNSSMINTLIVEEXEC pfnLiveExec, PFNSSMINTLIVEVOTE pfnLiveVote,
 ;    PFNSSMINTSAVEPREP pfnSavePrep, PFNSSMINTSAVEEXEC pfnSaveExec, PFNSSMINTSAVEDONE pfnSaveDone,
 ;    PFNSSMINTLOADPREP pfnLoadPrep, PFNSSMINTLOADEXEC pfnLoadExec, PFNSSMINTLOADDONE pfnLoadDone);
 ;
@@ -542,29 +543,38 @@ ENDPROC WrapGCC2MSCVariadictInt
 ; @param    u32Instance     rdx              2
 ; @param    u32Version      rcx              3
 ; @param    cbGuess         r8               4
-; @param    pfnSavePrep     r9               5
-; @param    pfnSaveExec     rbp + 10h        6
-; @param    pfnSaveDone     rbp + 18h        7
-; @param    pfnLoadPrep     rbp + 20h        8
-; @param    pfnLoadExec     rbp + 28h        9
-; @param    pfnLoadDone     rbp + 30h       10
+; @param    pfnLivePrep     r9               5
+; @param    pfnLiveExec     rbp + 10h        6
+; @param    pfnLiveVote     rbp + 18h        7
+; @param    pfnSavePrep     rbp + 20h        8
+; @param    pfnSaveExec     rbp + 28h        9
+; @param    pfnSaveDone     rbp + 30h       10
+; @param    pfnLoadPrep     rbp + 38h       11
+; @param    pfnLoadExec     rbp + 40h       12
+; @param    pfnLoadDone     rbp + 48h       13
 ;
 BEGINPROC WrapGCC2MSC_SSMR3RegisterInternal
     LOG_ENTRY
     push    rbp
     mov     rbp, rsp
 
-    sub     rsp, 60h
+    sub     rsp, 80h
 
-    mov     r10, [ebp + 30h]
+    mov     r10, [rbp + 48h]
+    mov     [rsp + 68h], r10            ; pfnLiveDone
+    mov     r11, [rbp + 40h]
+    mov     [rsp + 60h], r11            ; pfnLiveExec
+    mov     rax, [rbp + 38h]
+    mov     [rsp + 58h], rax            ; pfnLivePrep
+    mov     r10, [rbp + 30h]
     mov     [rsp + 50h], r10            ; pfnLoadDone
-    mov     r11, [ebp + 28h]
+    mov     r11, [rbp + 28h]
     mov     [rsp + 48h], r11            ; pfnLoadExec
-    mov     rax, [ebp + 20h]
+    mov     rax, [rbp + 20h]
     mov     [rsp + 40h], rax            ; pfnLoadPrep
-    mov     r10, [ebp + 18h]
+    mov     r10, [rbp + 18h]
     mov     [rsp + 38h], r10            ; pfnSaveDone
-    mov     r11, [ebp + 10h]
+    mov     r11, [rbp + 10h]
     mov     [rsp + 30h], r11            ; pfnSaveExec
     mov     [rsp + 28h], r9             ; pfnSavePrep
     mov     [rsp + 20h], r8
@@ -613,6 +623,24 @@ BEGINPROC WrapGCC2MSC_SSMR3RegisterInternal
     mov     rax, REM_FIXUP_64_WRAP_GCC_CB
     call    rax
 
+    mov     rcx, REM_FIXUP_64_DESC      ; pDesc
+    lea     rdx, [rsp + 58h + 20h]      ; pValue
+    mov     r8d, 11                     ; iParam
+    mov     rax, REM_FIXUP_64_WRAP_GCC_CB
+    call    rax
+
+    mov     rcx, REM_FIXUP_64_DESC      ; pDesc
+    lea     rdx, [rsp + 60h + 20h]      ; pValue
+    mov     r8d, 12                     ; iParam
+    mov     rax, REM_FIXUP_64_WRAP_GCC_CB
+    call    rax
+
+    mov     rcx, REM_FIXUP_64_DESC      ; pDesc
+    lea     rdx, [rsp + 68h + 20h]      ; pValue
+    mov     r8d, 13                     ; iParam
+    mov     rax, REM_FIXUP_64_WRAP_GCC_CB
+    call    rax
+
     add     rsp, 20h
 
     ; finally do the call.
@@ -643,8 +671,8 @@ BEGINPROC WrapMSC2GCC0Int
     push    rbp
     mov     rbp, rsp
     sub     rsp, 10h
-    mov     [ebp - 10h], rsi
-    mov     [ebp - 18h], rdi
+    mov     [rbp - 10h], rsi
+    mov     [rbp - 18h], rdi
 
 %ifdef USE_DIRECT_CALLS
     call    $+5+REM_FIXUP_32_REAL_STUFF
@@ -653,8 +681,8 @@ BEGINPROC WrapMSC2GCC0Int
     call    rax
 %endif
 
-    mov     rdi, [ebp - 18h]
-    mov     rsi, [ebp - 10h]
+    mov     rdi, [rbp - 18h]
+    mov     rsi, [rbp - 10h]
     leave
     LOG_EXIT
     ret
@@ -666,8 +694,8 @@ BEGINPROC WrapMSC2GCC1Int
     push    rbp
     mov     rbp, rsp
     sub     rsp, 20h
-    mov     [ebp - 10h], rsi
-    mov     [ebp - 18h], rdi
+    mov     [rbp - 10h], rsi
+    mov     [rbp - 18h], rdi
 
     mov     rdi, rcx
 %ifdef USE_DIRECT_CALLS
@@ -677,8 +705,8 @@ BEGINPROC WrapMSC2GCC1Int
     call    rax
 %endif
 
-    mov     rdi, [ebp - 18h]
-    mov     rsi, [ebp - 10h]
+    mov     rdi, [rbp - 18h]
+    mov     rsi, [rbp - 10h]
     leave
     LOG_EXIT
     ret
@@ -690,8 +718,8 @@ BEGINPROC WrapMSC2GCC2Int
     push    rbp
     mov     rbp, rsp
     sub     rsp, 20h
-    mov     [ebp - 10h], rsi
-    mov     [ebp - 18h], rdi
+    mov     [rbp - 10h], rsi
+    mov     [rbp - 18h], rdi
 
     mov     rdi, rcx
     mov     rsi, rdx
@@ -702,8 +730,8 @@ BEGINPROC WrapMSC2GCC2Int
     call    rax
 %endif
 
-    mov     rdi, [ebp - 18h]
-    mov     rsi, [ebp - 10h]
+    mov     rdi, [rbp - 18h]
+    mov     rsi, [rbp - 10h]
     leave
     LOG_EXIT
     ret
@@ -715,16 +743,16 @@ BEGINPROC WrapMSC2GCC3Int
     push    rbp
     mov     rbp, rsp
     sub     rsp, 20h
-    mov     [ebp - 10h], rsi
-    mov     [ebp - 18h], rdi
+    mov     [rbp - 10h], rsi
+    mov     [rbp - 18h], rdi
 
     mov     rdi, rcx
     mov     rsi, rdx
     mov     rdx, r8
     call    $+5+REM_FIXUP_32_REAL_STUFF
 
-    mov     rdi, [ebp - 18h]
-    mov     rsi, [ebp - 10h]
+    mov     rdi, [rbp - 18h]
+    mov     rsi, [rbp - 10h]
     leave
     LOG_EXIT
     ret
@@ -736,8 +764,8 @@ BEGINPROC WrapMSC2GCC4Int
     push    rbp
     mov     rbp, rsp
     sub     rsp, 20h
-    mov     [ebp - 10h], rsi
-    mov     [ebp - 18h], rdi
+    mov     [rbp - 10h], rsi
+    mov     [rbp - 18h], rdi
 
     mov     rdi, rcx
     mov     rsi, rdx
@@ -745,8 +773,8 @@ BEGINPROC WrapMSC2GCC4Int
     mov     rcx, r9
     call    $+5+REM_FIXUP_32_REAL_STUFF
 
-    mov     rdi, [ebp - 18h]
-    mov     rsi, [ebp - 10h]
+    mov     rdi, [rbp - 18h]
+    mov     rsi, [rbp - 10h]
     leave
     LOG_EXIT
     ret
@@ -758,18 +786,18 @@ BEGINPROC WrapMSC2GCC5Int
     push    rbp
     mov     rbp, rsp
     sub     rsp, 20h
-    mov     [ebp - 10h], rsi
-    mov     [ebp - 18h], rdi
+    mov     [rbp - 10h], rsi
+    mov     [rbp - 18h], rdi
 
     mov     rdi, rcx
     mov     rsi, rdx
     mov     rdx, r8
     mov     rcx, r9
-    mov     r8, [ebp + 30h]
+    mov     r8, [rbp + 30h]
     call    $+5+REM_FIXUP_32_REAL_STUFF
 
-    mov     rdi, [ebp - 18h]
-    mov     rsi, [ebp - 10h]
+    mov     rdi, [rbp - 18h]
+    mov     rsi, [rbp - 10h]
     leave
     LOG_EXIT
     ret
@@ -781,19 +809,19 @@ BEGINPROC WrapMSC2GCC6Int
     push    rbp
     mov     rbp, rsp
     sub     rsp, 20h
-    mov     [ebp - 10h], rsi
-    mov     [ebp - 18h], rdi
+    mov     [rbp - 10h], rsi
+    mov     [rbp - 18h], rdi
 
     mov     rdi, rcx
     mov     rsi, rdx
     mov     rdx, r8
     mov     rcx, r9
-    mov     r8, [ebp + 30h]
-    mov     r9, [ebp + 38h]
+    mov     r8, [rbp + 30h]
+    mov     r9, [rbp + 38h]
     call    $+5+REM_FIXUP_32_REAL_STUFF
 
-    mov     rdi, [ebp - 18h]
-    mov     rsi, [ebp - 10h]
+    mov     rdi, [rbp - 18h]
+    mov     rsi, [rbp - 10h]
     leave
     LOG_EXIT
     ret
@@ -805,21 +833,21 @@ BEGINPROC WrapMSC2GCC7Int
     push    rbp
     mov     rbp, rsp
     sub     rsp, 30h
-    mov     [ebp - 10h], rsi ;; @todo wtf is this using ebp instead of rbp?
-    mov     [ebp - 18h], rdi
+    mov     [rbp - 10h], rsi
+    mov     [rbp - 18h], rdi
 
     mov     rdi, rcx
     mov     rsi, rdx
     mov     rdx, r8
     mov     rcx, r9
-    mov     r8, [ebp + 30h]
-    mov     r9, [ebp + 38h]
-    mov     r10, [ebp + 40h]
-    mov     [esp], r10
+    mov     r8, [rbp + 30h]
+    mov     r9, [rbp + 38h]
+    mov     r10, [rbp + 40h]
+    mov     [rsp], r10
     call    $+5+REM_FIXUP_32_REAL_STUFF
 
-    mov     rdi, [ebp - 18h]
-    mov     rsi, [ebp - 10h]
+    mov     rdi, [rbp - 18h]
+    mov     rsi, [rbp - 10h]
     leave
     LOG_EXIT
     ret
@@ -831,23 +859,23 @@ BEGINPROC WrapMSC2GCC8Int
     push    rbp
     mov     rbp, rsp
     sub     rsp, 30h
-    mov     [ebp - 10h], rsi
-    mov     [ebp - 18h], rdi
+    mov     [rbp - 10h], rsi
+    mov     [rbp - 18h], rdi
 
     mov     rdi, rcx
     mov     rsi, rdx
     mov     rdx, r8
     mov     rcx, r9
-    mov     r8, [ebp + 30h]
-    mov     r9, [ebp + 38h]
-    mov     r10, [ebp + 40h]
-    mov     [esp], r10
-    mov     r11, [ebp + 48h]
-    mov     [esp + 8], r11
+    mov     r8, [rbp + 30h]
+    mov     r9, [rbp + 38h]
+    mov     r10, [rbp + 40h]
+    mov     [rsp], r10
+    mov     r11, [rbp + 48h]
+    mov     [rsp + 8], r11
     call    $+5+REM_FIXUP_32_REAL_STUFF
 
-    mov     rdi, [ebp - 18h]
-    mov     rsi, [ebp - 10h]
+    mov     rdi, [rbp - 18h]
+    mov     rsi, [rbp - 10h]
     leave
     LOG_EXIT
     ret
@@ -859,25 +887,25 @@ BEGINPROC WrapMSC2GCC9Int
     push    rbp
     mov     rbp, rsp
     sub     rsp, 40h
-    mov     [ebp - 10h], rsi
-    mov     [ebp - 18h], rdi
+    mov     [rbp - 10h], rsi
+    mov     [rbp - 18h], rdi
 
     mov     rdi, rcx
     mov     rsi, rdx
     mov     rdx, r8
     mov     rcx, r9
-    mov     r8, [ebp + 30h]
-    mov     r9, [ebp + 38h]
-    mov     r10, [ebp + 40h]
-    mov     [esp], r10
-    mov     r11, [ebp + 48h]
-    mov     [esp + 8], r11
-    mov     rax, [ebp + 50h]
-    mov     [esp + 10h], rax
+    mov     r8, [rbp + 30h]
+    mov     r9, [rbp + 38h]
+    mov     r10, [rbp + 40h]
+    mov     [rsp], r10
+    mov     r11, [rbp + 48h]
+    mov     [rsp + 8], r11
+    mov     rax, [rbp + 50h]
+    mov     [rsp + 10h], rax
     call    $+5+REM_FIXUP_32_REAL_STUFF
 
-    mov     rdi, [ebp - 18h]
-    mov     rsi, [ebp - 10h]
+    mov     rdi, [rbp - 18h]
+    mov     rsi, [rbp - 10h]
     leave
     LOG_EXIT
     ret

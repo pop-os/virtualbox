@@ -33,15 +33,15 @@
     <name>AttachmentsModel</name>
     <message>
         <source>Double-click to add a new attachment</source>
-        <translation>Doble clic per afegir una nova adjunció</translation>
+        <translation type="obsolete">Doble clic per afegir una nova adjunció</translation>
     </message>
     <message>
         <source>Hard Disk</source>
-        <translation>Disc dur</translation>
+        <translation type="obsolete">Disc dur</translation>
     </message>
     <message>
         <source>Slot</source>
-        <translation>Ranura</translation>
+        <translation type="obsolete">Ranura</translation>
     </message>
 </context>
 <context>
@@ -66,7 +66,7 @@
 <context>
     <name>BootItemsTable</name>
     <message>
-        <source>Defines the boot device order. Use checkboxes to the left to enable or disable individual boot devices. Move items up and down to change the device order.</source>
+        <source>Defines the boot device order. Use the checkboxes on the left to enable or disable individual boot devices. Move items up and down to change the device order.</source>
         <translation type="obsolete">Definiu l&apos;ordre dels dispositius d&apos;arrencada. Useu les caseles de selecció a l&apos;esquerra per activar o desactivar els dispositius d&apos;arrencada individuals. Moveu els elements amunt i avall per a canviar l&apos;ordre dels dispositius.</translation>
     </message>
 </context>
@@ -89,10 +89,10 @@
     <name>QApplication</name>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.&lt;br/&gt;&lt;br/&gt;There are known problems with Linux 2.6.29. If you are running such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. After that, re-compile the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
-        <translation>Aquest error significa que el controlador del nucli no ha pogut assignar memòria suficient o bé alguna operació de mapejat ha fallat.&lt;br/&gt;&lt;br/&gt;Existeixen alguns problemes coneguts amb el nucli Linux 2.6.29. Si esteu executant aquest nucli, editeu el fitxer /usr/src/vboxdrv-*/Makefile i habiliteu &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. Després d&apos;això, torneu a compilar el mòdul executant com a root a una terminal l&apos;ordre &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;.</translation>
+        <translation type="obsolete">Aquest error significa que el controlador del nucli no ha pogut assignar memòria suficient o bé alguna operació de mapejat ha fallat.&lt;br/&gt;&lt;br/&gt;Existeixen alguns problemes coneguts amb el nucli Linux 2.6.29. Si esteu executant aquest nucli, editeu el fitxer /usr/src/vboxdrv-*/Makefile i habiliteu &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. Després d&apos;això, torneu a compilar el mòdul executant com a root a una terminal l&apos;ordre &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Re-setup the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
         <translation>El controlador del nucli del VirtualBox (vboxdrv) no s&apos;ha carregat o existeix un problema de permisos amb /dev/vboxdrv. Torneu a configurar el mòdul del nucli executant com a root a una terminal &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;. Usuaris d&apos;Ubuntu, Fedora o Mandriva haurien d&apos;instal·lar abans el paquet DKMS. Aquest paquet manté actiu el mòdul quan hi ha canvis al nucli i el recompila si és necessari.</translation>
     </message>
     <message>
@@ -120,7 +120,7 @@
         <translation>No es pot accedir al controlador del nucli</translation>
     </message>
     <message>
-        <source>Unknown %2 error during initialization of the Runtime</source>
+        <source>Unknown error %2 during initialization of the Runtime</source>
         <translation>S&apos;ha produït un error desconegut %2 quan s&apos;iniciava l&apos;execució</translation>
     </message>
     <message>
@@ -132,16 +132,20 @@
         <translation>&lt;html&gt;&lt;b&gt;%1 (rc=%2)&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;</translation>
     </message>
     <message>
-        <source>It may help to reinstall VirtualBox.</source>
+        <source>Please try reinstalling VirtualBox.</source>
         <translation>Hauria d&apos;ajudar-vos a tornar a instal·lar VirtualBox.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not fit to this version of VirtualBox. The installation of VirtualBox was apparently not successful. It may help to completely uninstall and re-install VirtualBox.</source>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Please try completely uninstalling and reinstalling VirtualBox.</source>
         <translation>Els mòduls del nucli del VirtualBox no coincideixen amb aquesta versió del VirtualBox. La instal·lació no s&apos;ha completat. Proveu desinstal·lant i tornant a instal·lar el VirtualBox.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not fit to this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;should fix that problem. Make sure that you don&apos;t mix the OSE version and the PUEL version of VirtualBox.</source>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
         <translation>Els mòduls del nucli del VirtualBox no coincideixen amb aquesta versió del VirtualBox. La instal·lació no s&apos;ha completat. Proveu a executar&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; per resoldre el problema. Assegureu-vos que no barrejeu la versió OSE (lliure) amb la versió completa dle VirtualBox.</translation>
+    </message>
+    <message>
+        <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
+        <translation>Aquest error pot ser degut al fet que el nucli no ha pogut assignar memòria suficient o bé que alguna operació de mapatge ha fallat.</translation>
     </message>
 </context>
 <context>
@@ -170,7 +174,7 @@
     <name>QIHelpButton</name>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Ajuda</translation>
+        <translation type="obsolete">&amp;Ajuda</translation>
     </message>
 </context>
 <context>
@@ -364,10 +368,17 @@
     </message>
 </context>
 <context>
-    <name>QILabelPrivate</name>
+    <name>QILabel</name>
     <message>
         <source>&amp;Copy</source>
         <translation>&amp;Copia</translation>
+    </message>
+</context>
+<context>
+    <name>QILabelPrivate</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="obsolete">&amp;Copia</translation>
     </message>
 </context>
 <context>
@@ -421,7 +432,7 @@
         <translation>és invàlid</translation>
     </message>
     <message>
-        <source>&lt;qt&gt;Value of the &lt;b&gt;%1&lt;/b&gt; field on the &lt;b&gt;%2&lt;/b&gt; page is %3.&lt;/qt&gt;</source>
+        <source>&lt;qt&gt;The value of the &lt;b&gt;%1&lt;/b&gt; field on the &lt;b&gt;%2&lt;/b&gt; page is %3.&lt;/qt&gt;</source>
         <translation>&lt;qt&gt;El valor del camp &lt;b&gt;%1&lt;/b&gt; a la pàgina &lt;b&gt;%2&lt;/b&gt; %3.&lt;/qt&gt;</translation>
     </message>
     <message>
@@ -619,15 +630,15 @@ Versió %1</translation>
         <translation>RAM</translation>
     </message>
     <message>
-        <source>Hard Disk Controller IDE</source>
+        <source>Hard Disk Controller (IDE)</source>
         <translation>Controlador de disc IDE</translation>
     </message>
     <message>
-        <source>Hard Disk Controller SATA</source>
+        <source>Hard Disk Controller (SATA)</source>
         <translation>Controlador de disc SATA</translation>
     </message>
     <message>
-        <source>Hard Disk Controller SCSI</source>
+        <source>Hard Disk Controller (SCSI)</source>
         <translation>Controlador de disc SCSI</translation>
     </message>
     <message>
@@ -695,11 +706,11 @@ Versió %1</translation>
     </message>
     <message>
         <source>&amp;Revert to the current snapshot</source>
-        <translation>&amp;Torna a la captura actual</translation>
+        <translation type="obsolete">&amp;Torna a la captura actual</translation>
     </message>
     <message>
         <source>Revert the machine state to the state stored in the current snapshot</source>
-        <translation>Torna l&apos;estat de la màquina a l&apos;estat emmagatzemat a la captura actual</translation>
+        <translation type="obsolete">Torna l&apos;estat de la màquina a l&apos;estat emmagatzemat a la captura actual</translation>
     </message>
     <message>
         <source>Help</source>
@@ -744,7 +755,7 @@ Versió %1</translation>
 &lt;p&gt;Tingueu en compte que aquesta acció aturarà immediatament l&apos;execució de la màquina de manera que el sistema operatiu client que s&apos;hi està executant no podrà realitzar un procediment de tancament net, cosa que pot ocasionar una &lt;i&gt;pèrdua de dades&lt;/i&gt; en la màquina virtual. Només es recomana seleccionar aquesta acció si la màquina virtual no respon a l&apos;acció &lt;b&gt;Envia el senyal d&apos;aturada&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;When checked, the machine state will be restored from the state stored in the current snapshot right after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and go back to the current snapshot.&lt;/p&gt;</source>
+        <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Quan estigui marcat, es restaurarà l&apos;estat de la màquina des de l&apos;estat emmagatzemat a la captura actual quan es va aturar. Això és útil si esteu segur que voleu descartar els resultats de les últimes sessions i tornar a la captura actual.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -758,6 +769,14 @@ Versió %1</translation>
     <message>
         <source>&lt;p&gt;Turns off the virtual machine.&lt;/p&gt;&lt;p&gt;Note that this action will stop machine execution immediately so that the guest operating system running inside it will not be able to perform a clean shutdown procedure which may result in &lt;i&gt;data loss&lt;/i&gt; inside the virtual machine. Selecting this action is recommended only if the virtual machine does not respond to the &lt;b&gt;Send the shutdown signal&lt;/b&gt; action.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Atura la màquina virtual.&lt;/p&gt;&lt;p&gt;Tingueu en compte que aquesta acció aturarà immediatament l&apos;execució de la màquina de manera que el sistema operatiu client que s&apos;hi està executant no podrà realitzar un procediment de tancament net, cosa que podria ocasionar una &lt;i&gt;pèrdua de dades&lt;/i&gt; a la màquina virtual. Només es recomana seleccionar aquesta acció si la màquina virtual no respon a l&apos;acció &lt;b&gt;Envia el senyal d&apos;aturada&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Restore the machine state stored in the current snapshot</source>
+        <translation>Restaura l&apos;estat de la màquina emmagatzemat a la captura actual</translation>
+    </message>
+    <message>
+        <source>&amp;Restore current snapshot &apos;%1&apos;</source>
+        <translation>&amp;Restaura la captura actual &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
@@ -854,44 +873,44 @@ Versió %1</translation>
     </message>
     <message>
         <source>&amp;Floppy Image...</source>
-        <translation>Imatge de &amp;disquet...</translation>
+        <translation type="obsolete">Imatge de &amp;disquet...</translation>
     </message>
     <message>
         <source>Mount a floppy image file</source>
-        <translation>Munta un fitxer d&apos;imatge de disquet</translation>
+        <translation type="obsolete">Munta un fitxer d&apos;imatge de disquet</translation>
     </message>
     <message>
         <source>Unmount F&amp;loppy</source>
-        <translation>Desmunta el dis&amp;quet</translation>
+        <translation type="obsolete">Desmunta el dis&amp;quet</translation>
     </message>
     <message>
         <source>Unmount the currently mounted floppy media</source>
-        <translation>Desmunta el suport que està muntat actualment en el disquet</translation>
+        <translation type="obsolete">Desmunta el suport que està muntat actualment en el disquet</translation>
     </message>
     <message>
         <source>&amp;CD/DVD-ROM Image...</source>
-        <translation>Imatge de &amp;CD/DVD...</translation>
+        <translation type="obsolete">Imatge de &amp;CD/DVD...</translation>
     </message>
     <message>
         <source>Mount a CD/DVD-ROM image file</source>
-        <translation>Munta un fitxer d&apos;imatge de CD/DVD</translation>
+        <translation type="obsolete">Munta un fitxer d&apos;imatge de CD/DVD</translation>
     </message>
     <message>
         <source>Unmount C&amp;D/DVD-ROM</source>
-        <translation>Desmunta el C&amp;D/DVD</translation>
+        <translation type="obsolete">Desmunta el C&amp;D/DVD</translation>
     </message>
     <message>
         <source>Unmount the currently mounted CD/DVD-ROM media</source>
-        <translation>Desmunta el suport que està muntat actualment en el CD/DVD</translation>
+        <translation type="obsolete">Desmunta el suport que està muntat actualment en el CD/DVD</translation>
     </message>
     <message>
         <source>Remote Desktop (RDP) Server</source>
         <comment>enable/disable...</comment>
-        <translation type="obsolete">Servidor d&apos;escriptori remot (RDS)</translation>
+        <translation>Servidor d&apos;escriptori remot (RDP)</translation>
     </message>
     <message>
         <source>Remote Dis&amp;play</source>
-        <translation>&amp;Pantalla remota</translation>
+        <translation type="obsolete">&amp;Pantalla remota</translation>
     </message>
     <message>
         <source>Enable or disable remote desktop (RDP) connections to this machine</source>
@@ -902,7 +921,7 @@ Versió %1</translation>
         <translation>&amp;Carpetes compartides...</translation>
     </message>
     <message>
-        <source>Open the dialog to operate on shared folders</source>
+        <source>Create or modify shared folders</source>
         <translation>Obre el diàleg per operar amb les carpetes compartides</translation>
     </message>
     <message>
@@ -942,16 +961,16 @@ Versió %1</translation>
         <translation type="obsolete">&amp;Reinicia tots els avisos</translation>
     </message>
     <message>
-        <source>Cause all suppressed warnings and messages to be shown again</source>
+        <source>Go back to showing all suppressed warnings and messages</source>
         <translation type="obsolete">Fa que tots els avisos i missatges suprimits es mostren una altra vegada</translation>
     </message>
     <message>
         <source>Mount &amp;Floppy</source>
-        <translation>Munta el &amp;disquet</translation>
+        <translation type="obsolete">Munta el &amp;disquet</translation>
     </message>
     <message>
         <source>Mount &amp;CD/DVD-ROM</source>
-        <translation>Munta el &amp;CD/DVD</translation>
+        <translation type="obsolete">Munta el &amp;CD/DVD</translation>
     </message>
     <message>
         <source>&amp;USB Devices</source>
@@ -982,7 +1001,7 @@ Versió %1</translation>
         <translation type="obsolete">Mostra la tecla assignada a l&apos;amfitrió.&lt;br&gt;Quan es prem aquesta tecla commuta l&apos;estat de captura del teclat i el ratolí. També es pot fer servir en combinació amb altres tecles per accedir ràpidament a algunes opcions del menú principal.</translation>
     </message>
     <message>
-        <source>&lt;hr&gt;VRDP Server is listening on port %1</source>
+        <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
         <translation>&lt;hr&gt;El servidor VRDP està escoltant el port %1</translation>
     </message>
     <message>
@@ -1027,7 +1046,7 @@ Versió %1</translation>
     </message>
     <message>
         <source>Host Drive </source>
-        <translation>Unitat de l&apos;ordinador amfitrió </translation>
+        <translation type="obsolete">Unitat de l&apos;ordinador amfitrió </translation>
     </message>
     <message>
         <source>&amp;Machine</source>
@@ -1035,17 +1054,17 @@ Versió %1</translation>
     </message>
     <message>
         <source>&amp;Network Adapters</source>
-        <translation>Adaptadors de &amp;xarxa</translation>
+        <translation type="obsolete">Adaptadors de &amp;xarxa</translation>
     </message>
     <message>
         <source>Adapter %1</source>
         <comment>network</comment>
-        <translation>Adaptador %1</translation>
+        <translation type="obsolete">Adaptador %1</translation>
     </message>
     <message>
         <source>Mount the selected physical drive of the host PC</source>
         <comment>Floppy tip</comment>
-        <translation>Munta la unitat física de l&apos;ordinador amfitrió seleccionada</translation>
+        <translation type="obsolete">Munta la unitat física de l&apos;ordinador amfitrió seleccionada</translation>
     </message>
     <message>
         <source>Sun VirtualBox</source>
@@ -1054,15 +1073,15 @@ Versió %1</translation>
     <message>
         <source>Mount the selected physical drive of the host PC</source>
         <comment>CD/DVD tip</comment>
-        <translation>Munta la unitat física de l&apos;ordinador amfitrió seleccionada</translation>
+        <translation type="obsolete">Munta la unitat física de l&apos;ordinador amfitrió seleccionada</translation>
     </message>
     <message>
         <source>Disconnect the cable from the selected virtual network adapter</source>
-        <translation>Desconnecta el cable de l&apos;adaptador virtual de xarxa seleccionat</translation>
+        <translation type="obsolete">Desconnecta el cable de l&apos;adaptador virtual de xarxa seleccionat</translation>
     </message>
     <message>
         <source>Connect the cable to the selected virtual network adapter</source>
-        <translation>Connecta el cable de l&apos;adaptador virtual de xarxa seleccionat</translation>
+        <translation type="obsolete">Connecta el cable de l&apos;adaptador virtual de xarxa seleccionat</translation>
     </message>
     <message>
         <source>Seam&amp;less Mode</source>
@@ -1079,47 +1098,47 @@ Versió %1</translation>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the floppy media:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>Floppy tooltip</comment>
-        <translation>&lt;qt&gt;&lt;nobr&gt;Indica l&apos;activitat del disquet:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;Indica l&apos;activitat del disquet:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Host Drive&lt;/b&gt;: %1&lt;/nobr&gt;</source>
         <comment>Floppy tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Unitat de l&apos;amfitrió&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Unitat de l&apos;amfitrió&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Image&lt;/b&gt;: %1&lt;/nobr&gt;</source>
         <comment>Floppy tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Imatge&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Imatge&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No media mounted&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>Floppy tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hi ha cap suport muntat&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hi ha cap suport muntat&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD-ROM media:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>DVD-ROM tooltip</comment>
-        <translation>&lt;qt&gt;&lt;nobr&gt;Indica l&apos;activitat del CD/DVD:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;Indica l&apos;activitat del CD/DVD:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Host Drive&lt;/b&gt;: %1&lt;/nobr&gt;</source>
         <comment>DVD-ROM tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Unitat de l&apos;amfitrió&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Unitat de l&apos;amfitrió&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Image&lt;/b&gt;: %1&lt;/nobr&gt;</source>
         <comment>DVD-ROM tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Imatge&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Imatge&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No media mounted&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>DVD-ROM tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hi ha cap suport muntat&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hi ha cap suport muntat&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of virtual hard disks:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
+        <source>&lt;qt&gt;&lt;nobr&gt;Indicates activity on the the virtual hard disks:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>HDD tooltip</comment>
-        <translation>&lt;qt&gt;&lt;nobr&gt;Indica l&apos;activitat dels discos durs virtuals:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;Indica l&apos;activitat dels discos durs virtuals:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hard disks attached&lt;/b&gt;&lt;/nobr&gt;</source>
@@ -1129,7 +1148,7 @@ Versió %1</translation>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;qt&gt;&lt;nobr&gt;Indica l&apos;activitat de les interfícies de xarxa:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;Indica l&apos;activitat de les interfícies de xarxa:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: cable %3&lt;/nobr&gt;</source>
@@ -1154,7 +1173,7 @@ Versió %1</translation>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;qt&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius USB connectats:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius USB connectats:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No USB devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
@@ -1171,9 +1190,9 @@ Versió %1</translation>
         <translation type="obsolete">Indica si la pantalla remota (servidor VRDP) està activada (&lt;img src=vrdp_16px.png/&gt;) o no (&lt;img src=vrdp_disabled_16px.png/&gt;).</translation>
     </message>
     <message>
-        <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of shared folders:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
+        <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the machineof the machine&apos;sapos;s shared folders: shared folders:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>Shared folders tooltip</comment>
-        <translation>&lt;qt&gt;&lt;nobr&gt;Indica l&apos;activitat de les carpetes compartides:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;Indica l&apos;activitat de les carpetes compartides:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No shared folders&lt;/b&gt;&lt;/nobr&gt;</source>
@@ -1252,6 +1271,94 @@ Versió %1</translation>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</source>
         <comment>Virtualization Stuff LED</comment>
         <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source> EXPERIMENTAL build %1r%2 - %3</source>
+        <translation> Versió EXPERIMENTAL %1r%2 - %3</translation>
+    </message>
+    <message>
+        <source>&amp;CD/DVD Devices</source>
+        <translation>Dispositius &amp;CD/DVD</translation>
+    </message>
+    <message>
+        <source>&amp;Floppy Devices</source>
+        <translation>Dis&amp;queteres</translation>
+    </message>
+    <message>
+        <source>&amp;Network Adapters...</source>
+        <translation>Adaptadors de &amp;xarxa...</translation>
+    </message>
+    <message>
+        <source>Change the settings of network adapters</source>
+        <translation>Canvia els paràmetres dels adaptadors de xarxa</translation>
+    </message>
+    <message>
+        <source>&amp;Remote Display</source>
+        <translation>Pantalla &amp;remota</translation>
+    </message>
+    <message>
+        <source>More CD/DVD Images...</source>
+        <translation>Més imatges de CD/DVD...</translation>
+    </message>
+    <message>
+        <source>Unmount CD/DVD Device</source>
+        <translation>Desmunta el CD/DVD</translation>
+    </message>
+    <message>
+        <source>More Floppy Images...</source>
+        <translation>Més imatges de disquet...</translation>
+    </message>
+    <message>
+        <source>Unmount Floppy Device</source>
+        <translation>Desmunta la disquetera</translation>
+    </message>
+    <message>
+        <source>No CD/DVD Devices Attached</source>
+        <translation>No s&apos;ha conectat cap dispositiu de CD/DVD</translation>
+    </message>
+    <message>
+        <source>No Floppy Devices Attached</source>
+        <translation>No s&apos;ha connectat cap dispositiu de disquetera</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the virtual hard disks:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>HDD tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels discos durs virtuals:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>CD/DVD tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius de CD/DVD:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No CD/DVD devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>CD/DVD tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No s&apos;ha connectat cap dispositiu de CD/DVD&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>FD tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius de disquetera:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No floppy devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>FD tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No s&apos;ha connectat cap dispositiu de disquetera&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius de xarxa:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius USB connectats:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>Shared folders tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat de les carpetes compartides per la màquina virtual:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -1619,7 +1726,7 @@ p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through the process of exporting an appliance. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please select the virtual machines that should be exported to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please select the virtual machines that you wish to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -1645,7 +1752,7 @@ p, li { white-space: pre-wrap; }
         <translation>Paràmetres d&apos;exportació de l&apos;aplicació virtual</translation>
     </message>
     <message>
-        <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the shown properties by double-clicking on the items.</source>
+        <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the properties shown by double-clicking on the items.</source>
         <translation>Aquí podeu canviar valors adicionals de la configuració de les màquines virtuals seleccionades. Podeu modificar la majoria de les propietats mostrades fent doble clic sobre els ítems.</translation>
     </message>
     <message>
@@ -1669,15 +1776,15 @@ p, li { white-space: pre-wrap; }
         <translation>&amp;Exporta &gt;</translation>
     </message>
     <message>
-        <source>Please choose a filename to export the OVF in.</source>
+        <source>Please choose a filename to export the OVF to.</source>
         <translation>Seleccioneu un nom de fitxer al qual exportar l&apos;OVF.</translation>
     </message>
     <message>
-        <source>Please complete the additionally fields like the username, password and the bucket. Finally you have to provide a filename for the OVF target.</source>
+        <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
         <translation>Ompliu els camps addicionals com el nom d&apos;usuari, conrasenya i el contenidor. Després haureu de proveir un nom de fitxer a l&apos;objectiu de l&apos;OVF.</translation>
     </message>
     <message>
-        <source>Please complete the additionally fields like the username, password, hostname and the bucket. Finally you have to provide a filename for the OVF target.</source>
+        <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
         <translation>Completeu els camps addicionals com el nom d&apos;usuari, la contrasenya, el nom de l&apos;amfitrió i el contenidor. Després haureu de proveir un nom de fitxer a l&apos;objectiu de l&apos;OVF.</translation>
     </message>
     <message>
@@ -1689,7 +1796,7 @@ p, li { white-space: pre-wrap; }
         <translation>S&apos;estan eliminant els fitxers...</translation>
     </message>
     <message>
-        <source>Please specify the target for the OVF export. You can choose between a local file system export, the uploading of the OVF to the Sun Cloud service or an S3 storage server.</source>
+        <source>Please specify the target for the OVF export. You can choose between a local file system export, uploading the OVF to the Sun Cloud service or an S3 storage server.</source>
         <translation>Especifiqueu l&apos;objectiu per a l&apos;exportació OVF. Podeu triar entre una exportació del sistema a fitxer local, pujar l&apos;OVF al servei Sun Cloud o en un servidor d&apos;emmagatzamatge S3.</translation>
     </message>
     <message>
@@ -1740,7 +1847,7 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;no seleccionat&gt;</translation>
     </message>
     <message>
-        <source>Please use the &lt;b&gt;Other...&lt;/b&gt; item from the drop-down list to select a desired path.</source>
+        <source>Please use the &lt;b&gt;Other...&lt;/b&gt; item from the drop-down list to select a path.</source>
         <translation>Feu servir l&apos;ítem &lt;b&gt;Altra...&lt;/b&gt; a la llista desplegable per a seleccionar la ruta desitjada.</translation>
     </message>
     <message>
@@ -1772,11 +1879,11 @@ p, li { white-space: pre-wrap; }
         <translation>&amp;Copia</translation>
     </message>
     <message>
-        <source>Please type the desired folder path here.</source>
+        <source>Please type the folder path here.</source>
         <translation>Introduïu aquí la ruta desitjada per a la carpeta.</translation>
     </message>
     <message>
-        <source>Please type the desired file path here.</source>
+        <source>Please type the file path here.</source>
         <translation>Introduïu aquí la ruta desitjada per al fitxer.</translation>
     </message>
 </context>
@@ -1865,7 +1972,7 @@ p, li { white-space: pre-wrap; }
         <translation>Tecla d&apos;&amp;amfitrió:</translation>
     </message>
     <message>
-        <source>Displays the key used as a Host Key in the VM window. Activate the entry field and press a new Host Key. Note that alphanumeric, cursor movement and editing keys cannot be used as a Host Key.</source>
+        <source>Displays the key used as a Host Key in the VM window. Activate the entry field and press a new Host Key. Note that alphanumeric, cursor movement and editing keys cannot be used.</source>
         <translation>Mostra la tecla que es fa servir com a tecla d&apos;amfitrió en la finestra de la màquina virtual. Activeu el camp d&apos;entrada i premeu una nova tecla d&apos;amfitrió. Tingueu en compte que les tecles alfanumèriques, de moviment del cursor i d&apos;edició no es poden fer servir com a tecles d&apos;amfitrió.</translation>
     </message>
     <message>
@@ -2194,6 +2301,34 @@ p, li { white-space: pre-wrap; }
         <source>Next Check:</source>
         <translation>Propera comprovació:</translation>
     </message>
+    <message>
+        <source>Check for:</source>
+        <translation>Comprova per:</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Choose this if you only wish to be notified about stable updates to VirtualBox.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Trieu això si voleu ser notificats sobre actualitzacions estables del VirtualBox.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Stable release versions</source>
+        <translation>&amp;Versions publicades estables</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Choose this if you wish to be notified about all new VirtualBox releases.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Trieu això si voleu ser informats de noves versions publicades del VirtualBox.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;All new releases</source>
+        <translation>&amp;Totes les noves versions</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Choose this to be notified about all new VirtualBox releases and pre-release versions of VirtualBox.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Trieu això si voleu ser notificats de les noves versions i versions en desenvolupament del VirtualBox.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>All new releases and &amp;pre-releases</source>
+        <translation>Totes les &amp;noves versions i també versions en desenvolupament</translation>
+    </message>
 </context>
 <context>
     <name>VBoxGlobal</name>
@@ -2280,12 +2415,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Not Attached</source>
         <comment>details report (HDDs)</comment>
-        <translation>No està connectat</translation>
+        <translation type="obsolete">No està connectat</translation>
     </message>
     <message>
         <source>Hard Disks</source>
         <comment>details report</comment>
-        <translation>Discos durs</translation>
+        <translation type="obsolete">Discos durs</translation>
     </message>
     <message>
         <source>Enabled</source>
@@ -2320,22 +2455,22 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Not mounted</source>
         <comment>details report (floppy)</comment>
-        <translation>No està muntat</translation>
+        <translation type="obsolete">No està muntat</translation>
     </message>
     <message>
         <source>Image</source>
         <comment>details report (floppy)</comment>
-        <translation>Imatge</translation>
+        <translation type="obsolete">Imatge</translation>
     </message>
     <message>
         <source>Host Drive</source>
         <comment>details report (floppy)</comment>
-        <translation>Unitat de l&apos;ordinador amfitrió</translation>
+        <translation type="obsolete">Unitat de l&apos;ordinador amfitrió</translation>
     </message>
     <message>
         <source>Floppy</source>
         <comment>details report</comment>
-        <translation>Disquet</translation>
+        <translation type="obsolete">Disquet</translation>
     </message>
     <message>
         <source>Bridged Adapter</source>
@@ -2345,22 +2480,22 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Not mounted</source>
         <comment>details report (DVD)</comment>
-        <translation>No està muntat</translation>
+        <translation type="obsolete">No està muntat</translation>
     </message>
     <message>
         <source>Image</source>
         <comment>details report (DVD)</comment>
-        <translation>Imatge</translation>
+        <translation type="obsolete">Imatge</translation>
     </message>
     <message>
         <source>Host Drive</source>
         <comment>details report (DVD)</comment>
-        <translation>Unitat de l&apos;ordinador amfitrió</translation>
+        <translation type="obsolete">Unitat de l&apos;ordinador amfitrió</translation>
     </message>
     <message>
         <source>CD/DVD-ROM</source>
         <comment>details report</comment>
-        <translation>CD/DVD</translation>
+        <translation type="obsolete">CD/DVD</translation>
     </message>
     <message>
         <source>Adapter</source>
@@ -2489,7 +2624,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Discarding</source>
         <comment>MachineState</comment>
-        <translation>S&apos;està descartant</translation>
+        <translation type="obsolete">S&apos;està descartant</translation>
     </message>
     <message>
         <source>Closed</source>
@@ -2787,7 +2922,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Stuck</source>
         <comment>MachineState</comment>
-        <translation>Encallada</translation>
+        <translation type="obsolete">Encallada</translation>
     </message>
     <message>
         <source>Disconnected</source>
@@ -3087,32 +3222,32 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;Type&amp;nbsp;(Format):&amp;nbsp;&amp;nbsp;%2&amp;nbsp;(%3)&lt;/nobr&gt;</source>
         <comment>hard disk</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;Tipus&amp;nbsp;(format):&amp;nbsp;&amp;nbsp;%2&amp;nbsp;(%3)&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;Tipus&amp;nbsp;(format):&amp;nbsp;&amp;nbsp;%2&amp;nbsp;(%3)&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;Attached to:&amp;nbsp;&amp;nbsp;%1&lt;/nobr&gt;</source>
         <comment>medium</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;Connectat a:&amp;nbsp;&amp;nbsp;%1&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;Connectat a:&amp;nbsp;&amp;nbsp;%1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
         <comment>medium</comment>
-        <translation>&lt;i&gt;No&amp;nbsp;connectat&lt;/i&gt;</translation>
+        <translation type="obsolete">&lt;i&gt;No&amp;nbsp;connectat&lt;/i&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;i&gt;Checking accessibility...&lt;/i&gt;</source>
         <comment>medium</comment>
-        <translation>&lt;br&gt;&lt;i&gt;S&apos;està comprovant l&apos;accessibilitat...&lt;/i&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;i&gt;S&apos;està comprovant l&apos;accessibilitat...&lt;/i&gt;</translation>
     </message>
     <message>
         <source>&lt;hr&gt;Failed to check media accessibility.&lt;br&gt;%1.</source>
         <comment>medium</comment>
-        <translation>&lt;hr&gt;Ha fallat la comprovació de l&apos;accessibilitat.&lt;br&gt;%1.</translation>
+        <translation type="obsolete">&lt;hr&gt;Ha fallat la comprovació de l&apos;accessibilitat.&lt;br&gt;%1.</translation>
     </message>
     <message>
         <source>&lt;hr&gt;&lt;img src=%1/&gt;&amp;nbsp;Attaching this hard disk will be performed indirectly using a newly created differencing hard disk.</source>
         <comment>medium</comment>
-        <translation>&lt;hr&gt;&lt;img src=%1/&gt;&amp;nbsp;Per a connectar aquest disc dur es crearà un altre disc dur diferenciat.</translation>
+        <translation type="obsolete">&lt;hr&gt;&lt;img src=%1/&gt;&amp;nbsp;Per a connectar aquest disc dur es crearà un altre disc dur diferenciat.</translation>
     </message>
     <message>
         <source>Checking...</source>
@@ -3126,11 +3261,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;hr&gt;Some of the media in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these media.</source>
-        <translation>&lt;hr&gt;No s&apos;hi pot accedir a alguns dels suports d&apos;aquest disc. Feu servir el gestor de suports virtuals al mode &lt;b&gt;Mostra diferències als discos durs&lt;/b&gt; per inspeccionar aquest suport.</translation>
+        <translation type="obsolete">&lt;hr&gt;No s&apos;hi pot accedir a alguns dels suports d&apos;aquest disc. Feu servir el gestor de suports virtuals al mode &lt;b&gt;Mostra diferències als discos durs&lt;/b&gt; per inspeccionar aquest suport.</translation>
     </message>
     <message>
         <source>%1&lt;hr&gt;This base hard disk is indirectly attached using the following differencing hard disk:&lt;br&gt;%2%3</source>
-        <translation>%1&lt;hr&gt;Aquest disc dur base es connecta indirectament fent servint el següent disc dur diferenciat:&lt;br&gt;%2%3</translation>
+        <translation type="obsolete">%1&lt;hr&gt;Aquest disc dur base es connecta indirectament fent servint el següent disc dur diferenciat:&lt;br&gt;%2%3</translation>
     </message>
     <message>
         <source>3D Acceleration</source>
@@ -3202,6 +3337,194 @@ p, li { white-space: pre-wrap; }
         <comment>PortMode</comment>
         <translation>Fitxer Raw</translation>
     </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (2D Video Acceleration)</comment>
+        <translation>Activat</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (2D Video Acceleration)</comment>
+        <translation>Desactivat</translation>
+    </message>
+    <message>
+        <source>2D Video Acceleration</source>
+        <comment>details report</comment>
+        <translation>Acceleració de vídeo 2D</translation>
+    </message>
+    <message>
+        <source>Not Attached</source>
+        <comment>details report (Storage)</comment>
+        <translation>No està connectat</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>details report</comment>
+        <translation>Emmagatzematge</translation>
+    </message>
+    <message>
+        <source>Teleported</source>
+        <comment>MachineState</comment>
+        <translation>Teleportat</translation>
+    </message>
+    <message>
+        <source>Guru Meditation</source>
+        <comment>MachineState</comment>
+        <translation>Mediació gurú</translation>
+    </message>
+    <message>
+        <source>Teleporting</source>
+        <comment>MachineState</comment>
+        <translation>Telepotació</translation>
+    </message>
+    <message>
+        <source>Taking Live Snapshot</source>
+        <comment>MachineState</comment>
+        <translation>S&apos;està capturant la captura</translation>
+    </message>
+    <message>
+        <source>Teleporting Paused VM</source>
+        <comment>MachineState</comment>
+        <translation>S&apos;està teleportant la MV en pausa</translation>
+    </message>
+    <message>
+        <source>Restoring Snapshot</source>
+        <comment>MachineState</comment>
+        <translation>S&apos;està restaurant la captura</translation>
+    </message>
+    <message>
+        <source>Deleting Snapshot</source>
+        <comment>MachineState</comment>
+        <translation>S&apos;està eliminant la captura</translation>
+    </message>
+    <message>
+        <source>Floppy</source>
+        <comment>StorageBus</comment>
+        <translation>Disquet</translation>
+    </message>
+    <message>
+        <source>Device %1</source>
+        <comment>StorageBusDevice</comment>
+        <translation>Dispositiu %1</translation>
+    </message>
+    <message>
+        <source>IDE Primary Master</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation>IDE primari mestre</translation>
+    </message>
+    <message>
+        <source>IDE Primary Slave</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation>IDE primari esclau</translation>
+    </message>
+    <message>
+        <source>IDE Secondary Master</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation>IDE secondari mestre</translation>
+    </message>
+    <message>
+        <source>IDE Secondary Slave</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation>IDE secondari esclau</translation>
+    </message>
+    <message>
+        <source>SATA Port %1</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation>Port SATA %1</translation>
+    </message>
+    <message>
+        <source>SCSI Port %1</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation>Port SCSI %1</translation>
+    </message>
+    <message>
+        <source>Floppy Device %1</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation>Disquetera %1</translation>
+    </message>
+    <message>
+        <source>Paravirtualized Network (virtio-net)</source>
+        <comment>NetworkAdapterType</comment>
+        <translation>Xarxa paravirtualitzada (virtio-net)</translation>
+    </message>
+    <message>
+        <source>I82078</source>
+        <comment>StorageControllerType</comment>
+        <translation>I82078</translation>
+    </message>
+    <message>
+        <source>Empty</source>
+        <comment>medium</comment>
+        <translation>Buit</translation>
+    </message>
+    <message>
+        <source>Host Drive &apos;%1&apos;</source>
+        <comment>medium</comment>
+        <translation>Dispositiu amfitrió %1</translation>
+    </message>
+    <message>
+        <source>Host Drive %1 (%2)</source>
+        <comment>medium</comment>
+        <translation>Dispositiu amfitrió %1 (%2)</translation>
+    </message>
+    <message>
+        <source>&lt;p style=white-space:pre&gt;Type (Format):  %1 (%2)&lt;/p&gt;</source>
+        <comment>medium</comment>
+        <translation>&lt;p style=white-space:pre&gt;Tipus (format):  %1 (%2)&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Attached to:  %1&lt;/p&gt;</source>
+        <comment>image</comment>
+        <translation>&lt;p&gt;Connectat a:  %1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;Not Attached&lt;/i&gt;</source>
+        <comment>image</comment>
+        <translation>&lt;i&gt;No connectat&lt;/i&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;Checking accessibility...&lt;/i&gt;</source>
+        <comment>medium</comment>
+        <translation>&lt;i&gt;S&apos;està comprovant l&apos;accessibilitat...&lt;/i&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to check media accessibility.</source>
+        <comment>medium</comment>
+        <translation>No s&apos;ha pogut comprovar l&apos;accessibilitat al suport.</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;No medium selected&lt;/b&gt;</source>
+        <comment>medium</comment>
+        <translation>&lt;b&gt;No s&apos;ha seleccionat cap suport&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>You can also change this while the machine is running.</source>
+        <translation>També podeu canviar això mentre la màquina s&apos;està executant.</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;No media available&lt;/b&gt;</source>
+        <comment>medium</comment>
+        <translation>&lt;b&gt;No hi ha cap suport disponible&lt;/b&gt;</translation>
+    </message>
+    <message>
+        <source>You can create media images using the virtual media manager.</source>
+        <translation>Podeu crear imatges de suports fent servir el gestor virtual de suports.</translation>
+    </message>
+    <message>
+        <source>Attaching this hard disk will be performed indirectly using a newly created differencing hard disk.</source>
+        <comment>medium</comment>
+        <translation>Si connecteu aquest disc dur es millorarà de forma indirecta fent servir un nou disc dur diferenciat.</translation>
+    </message>
+    <message>
+        <source>Some of the media in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these media.</source>
+        <comment>medium</comment>
+        <translation>Alguns dels suports d&apos;aquest disc dur no són accessibles. Feu servir el Gestor virtual de suports en el mode &lt;b&gt;Mostra els discos durs diferenciats&lt;/b&gt; per inspeccionar aquests suports.</translation>
+    </message>
+    <message>
+        <source>This base hard disk is indirectly attached using the following differencing hard disk:</source>
+        <comment>medium</comment>
+        <translation>Aquest disc dur base es connecta indirectament fent servir el disc dur diferenciat següent:</translation>
+    </message>
 </context>
 <context>
     <name>VBoxGlobalSettings</name>
@@ -3237,7 +3560,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">[nom]</translation>
     </message>
     <message>
-        <source>&lt;i&gt;Select a settings category from the list on the left side and move the mouse over a settings item to get more information&lt;i&gt;.</source>
+        <source>&lt;i&gt;Select a settings category from the list on the left-hand side and move the mouse over a settings item to get more information&lt;i&gt;.</source>
         <translation type="obsolete">&lt;i&gt;Seleccioneu una categoria de paràmetres en la llista de l&apos;esquerra i deplaceu el ratolí sobre un element de la dreta per obtenir més informació&lt;i&gt;.</translation>
     </message>
     <message>
@@ -3393,7 +3716,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Preferències del VirtualBox</translation>
     </message>
     <message>
-        <source>Displays the key used as a Host Key in the VM window. Activate the entry field and press a new Host Key. Note that alphanumeric, cursor movement and editing keys cannot be used as a Host Key.</source>
+        <source>Displays the key used as a Host Key in the VM window. Activate the entry field and press a new Host Key. Note that alphanumeric, cursor movement and editing keys cannot be used.</source>
         <translation type="obsolete">Mostra la tecla que es fa servir com a tecla d&apos;amfitrió en la finestra de la màquina virtual. Activeu el camp d&apos;entrada i premeu una nova tecla d&apos;amfitrió. Tingueu en compte les tecles alfanumèriques, de moviment del cursor i d&apos;edició no es poden fer servir com a tecles d&apos;amfitrió.</translation>
     </message>
     <message>
@@ -3751,10 +4074,21 @@ un disc dur per connectar a la ranura remarcada actualment.&lt;/a&gt;</translati
     </message>
 </context>
 <context>
+    <name>VBoxHelpButton</name>
+    <message>
+        <source>&amp;Help</source>
+        <translation>&amp;Ajuda</translation>
+    </message>
+</context>
+<context>
     <name>VBoxImportApplianceWgt</name>
     <message>
         <source>Importing Appliance ...</source>
         <translation>S&apos;està important l&apos;aplicació virtual...</translation>
+    </message>
+    <message>
+        <source>Reading Appliance ...</source>
+        <translation>S&apos;està llegint l&apos;aplicació virtual...</translation>
     </message>
 </context>
 <context>
@@ -3782,7 +4116,7 @@ p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through importing an appliance. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;In order to import an appliance, you have to select a file describing the appliance first. Currently VirtualBox supports the Open Virtualization Format (OVF). To continue, select the file to import below:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -3808,7 +4142,7 @@ p, li { white-space: pre-wrap; }
         <translation>Paràmetres d&apos;importació de l&apos;aplicació virtual</translation>
     </message>
     <message>
-        <source>These are the virtual machines as described in the appliance with their suggested mappings for importing into VirtualBox. You can change many of the shown properties by double-clicking on the items and disable others by using the check boxes below.</source>
+        <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
         <translation>Aquestes són les màquines virtuals que es descriuen a l&apos;aplicació virtual amb els mapejats suggerits per a la importació al VirtualBox. Podeu canviar la majoria dels paràmetres mostrats fent doble clic sobre els ítems i inhabilitar altres fent servir els quadres de verificació.</translation>
     </message>
     <message>
@@ -3932,11 +4266,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>No media available. Use the Virtual Media Manager to add media of the corresponding type.</source>
-        <translation>No hi ha suports disponibles. Feu servir el gestor de suports virtuals per a afegir-ne de nous del tipus corresponent.</translation>
+        <translation type="obsolete">No hi ha suports disponibles. Feu servir el gestor de suports virtuals per a afegir-ne de nous del tipus corresponent.</translation>
     </message>
     <message>
         <source>&lt;no media&gt;</source>
-        <translation>&lt;sense medis&gt;</translation>
+        <translation type="obsolete">&lt;sense medis&gt;</translation>
     </message>
 </context>
 <context>
@@ -4074,6 +4408,21 @@ p, li { white-space: pre-wrap; }
         <source>&amp;Floppy Images</source>
         <translation>Imatges de dis&amp;quet</translation>
     </message>
+    <message>
+        <source>Attached to</source>
+        <comment>VMM: Virtual Disk</comment>
+        <translation>Connectat a</translation>
+    </message>
+    <message>
+        <source>Attached to</source>
+        <comment>VMM: CD/DVD Image</comment>
+        <translation>Connectat a</translation>
+    </message>
+    <message>
+        <source>Attached to</source>
+        <comment>VMM: Floppy Image</comment>
+        <translation>Connectat a</translation>
+    </message>
 </context>
 <context>
     <name>VBoxMiniToolBar</name>
@@ -4123,6 +4472,13 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Removes the selected host interface.</source>
         <translation type="obsolete">Suprimeix la interfície amfitriona seleccionada.</translation>
+    </message>
+</context>
+<context>
+    <name>VBoxNetworkDialog</name>
+    <message>
+        <source>Network Adapters</source>
+        <translation>Adaptadors de xarxa</translation>
     </message>
 </context>
 <context>
@@ -4537,7 +4893,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
     </message>
     <message>
         <source>&amp;Create new hard disk</source>
-        <translation>&amp;Crea un nou disc</translation>
+        <translation>&amp;Crea un disc nou</translation>
     </message>
     <message>
         <source>&amp;Use existing hard disk</source>
@@ -4679,7 +5035,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>No s&apos;ha pogut crear una nova màquina virtual &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
-        <source>Failed to create a shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) for the virtual machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <source>Failed to create the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) for the virtual machine &lt;b&gt;%3&lt;/b&gt;.</source>
         <translation>No s&apos;ha pogut crear una carpeta compartida &lt;b&gt;%1&lt;/b&gt; (senyalant a &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) a la màquina virtual &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
@@ -4708,11 +5064,11 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
     </message>
     <message>
         <source>Failed to discard the current snapshot and the current state of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>No s&apos;ha pogut descartar l&apos;actual captura ni l&apos;estat actual de la màquina virtual&lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation type="obsolete">No s&apos;ha pogut descartar l&apos;actual captura ni l&apos;estat actual de la màquina virtual&lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to discard the current state of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>No s&apos;ha pogut descartar l&apos;estat actual de la màquina virtual &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation type="obsolete">No s&apos;ha pogut descartar l&apos;estat actual de la màquina virtual &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to discard the saved state of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -4720,14 +5076,14 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
     </message>
     <message>
         <source>Failed to discard the snapshot &lt;b&gt;%1&lt;/b&gt; of the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation>No s&apos;ha pogut descartar la captura de pantalla &lt;b&gt;%1&lt;/b&gt; de la màquina virtual &lt;b&gt;%2&lt;/b&gt;.</translation>
+        <translation type="obsolete">No s&apos;ha pogut descartar la captura de pantalla &lt;b&gt;%1&lt;/b&gt; de la màquina virtual &lt;b&gt;%2&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to find license files in &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
         <translation>No s&apos;ha pogut trobar cap fitxer de llicència a &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
-        <source>Failed to get the accessibility state of the media &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. Some of the registered media may become inaccessible.</source>
+        <source>Failed to determine the accessibility state of the media &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. Some of the registered media may become inaccessible.</source>
         <translation type="obsolete">No s&apos;ha pogut accedir a l&apos;estat del suport &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. No es podrà accedir a alguns dels dispositius.</translation>
     </message>
     <message>
@@ -4836,15 +5192,15 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation type="obsolete">&lt;p&gt;S&apos;ha produït un error crític mentre s&apos;executava la màquina virtual, que s&apos;ha aturat.&lt;/p&gt;&lt;p&gt;Per obtenir ajuda, visiteu la secció Community a  &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; o al vostre contracte de suport. Afegiu el contingut del fitxer de registre &lt;tt&gt;VBox.log&lt;/tt&gt; i el fitxer d&apos;imatge &lt;tt&gt;VBox.png&lt;/tt&gt;,que podreu trobar al directori &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;, i una descripció sobre allò que estàveu fent al moment al qual es va produir l&apos;error. Podeu accedir als fitxers especificats mitjançant &lt;b&gt;Mostra registre&lt;/b&gt; des del menú de la &lt;b&gt;Màquina&lt;/b&gt; a la finestra principal del VirtualBox.&lt;/p&gt;Premeu &lt;b&gt;D&apos;acord&lt;/b&gt; si voleu aturar la màquina o &lt;b&gt;Ignora&lt;/b&gt; si voleu deixar-la en procés de depuració. Tingueu en compte que el procés de depuració requereix coneixements avançats i eines especials, per tant és recomanabla prémer &lt;b&gt;D&apos;acord&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;A fatal error has occurred during virtual machine execution! The virtual machine will be powered off. It is suggested to use the clipboard to copy the following error message for further examination:&lt;/p&gt;</source>
+        <source>&lt;p&gt;A fatal error has occurred during virtual machine execution! The virtual machine will be powered off. Please copy the following error message using the clipboard to help diagnose the problem:&lt;/p&gt;</source>
         <translation>&lt;p&gt;S&apos;ha produït un error mentre la màquina virtual s&apos;executava i es tancarà. Es recomanable copiar el missatge d&apos;error següent per a una anàlisi posterior:&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;An error has occurred during virtual machine execution! The error details are shown below. You can try to correct the described error and resume the virtual machine execution.&lt;/p&gt;</source>
+        <source>&lt;p&gt;An error has occurred during virtual machine execution! The error details are shown below. You may try to correct the error and resume the virtual machine execution.&lt;/p&gt;</source>
         <translation>&lt;p&gt;S&apos;ha produït un error mentre la màquina virtual s&apos;executava. Els detalls de l&apos;error es mostren a continuació. Podeu provar a resoldre l&apos;error i tornar a executar la màquina virtual.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Are you sure you want to discard the saved state of the virtual machine &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;This operation is equivalent to resetting or powering off the machine without doing a proper shutdown by means of the guest OS.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Are you sure you want to discard the saved state of the virtual machine &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;This operation is equivalent to resetting or powering off the machine without doing a proper shutdown of the guest OS.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Esteu segur que voleu descartar l&apos;estat desat de la màquina virtual&lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;Aquesta operació és equivalent a reiniciar o tancar la màquina virtual de forma no adequada.&lt;/p&gt; </translation>
     </message>
     <message>
@@ -4856,7 +5212,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>&lt;p&gt;Esteu segur que voleu suprimir de forma permanent la màquina virtual &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;Aquesta operació no es podrà desfer.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Are you sure you want to unregister the inaccessible virtual machine &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;You will no longer be able to register it back from GUI.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Are you sure you want to unregister the inaccessible virtual machine &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;You will not be able to register it again from GUI.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Esteu segur que voleu suprimir del registre la màquina virtaul inaccessible&lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;No podreu registrar-la novament des de la interfície.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -4876,7 +5232,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>&lt;p&gt;No es pot trobar el fitxer de llengua per a l&apos;idioma &lt;b&gt;%1&lt;/b&gt; al directori &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Es farà servir l&apos;anglès (llengua per defecte). Aneu al diàleg de &lt;b&gt;Preferències&lt;/b&gt; que podeu obrir des del menú &lt;b&gt;Fitxer&lt;/b&gt; de la finestra principal del VirtualBox. Allà podreu triar entre les diferents llengües a la secció d&apos;&lt;b&gt;Idioma&lt;/b&gt;.&lt;/p&gt; </translation>
     </message>
     <message>
-        <source>&lt;p&gt;Could not find the VirtualBox Guest Additions CD image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; or &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you want to download this CD image from the Internet?&lt;/p&gt;</source>
+        <source>&lt;p&gt;Could not find the VirtualBox Guest Additions CD image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; or &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this CD image from the Internet?&lt;/p&gt;</source>
         <translation>&lt;p&gt;No es pot trobar el fitxer d&apos;imatge del VirtualBox Guest Additions &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; o &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Voleu baixar-la des d&apos;internet?&lt;/p&gt;</translation>
     </message>
     <message>
@@ -4936,15 +5292,15 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation type="obsolete">&lt;p&gt;El fitxer d&apos;imatge &lt;b&gt;%1&lt;/b&gt; ja existeix. No podeu crear un nou disc dur virtual que faça servir aquest fitxer ja que pot ser utilitzat per un altre disc dur virtual.&lt;/p&gt;&lt;p&gt;Especifiqueu un nom diferent per a la imatge.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions CD image has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you want to register this CD image and mount it on the virtual CD/DVD drive?&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions CD image has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this CD image and mount it on the virtual CD/DVD drive?&lt;/p&gt;</source>
         <translation>&lt;p&gt;S&apos;ha baixat la imatge del VirtualBox Guest Additions des de &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; i s&apos;ha desat localment com a &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Voleu registrar aquesta imatge de CD i montar-la a la unitat virtual de CD/DVD?&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The virtual machine execution may run into an error condition as described below. You may ignore this message, but it is suggested to perform an appropriate action to make sure the described error will not happen.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The virtual machine execution may run into an error condition as described below. We suggest that you take an appropriate action to avert the error.&lt;/p&gt;</source>
         <translation>&lt;p&gt;La màquina virtual s&apos;executarà, però amb l&apos;error que es descriu a continuació. Podeu ignorar aquest missatge, però és recomanable solucionar l&apos;error per tal que no es torni a produir.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The Virtual Machine is currently in the &lt;b&gt;Paused&lt;/b&gt; state and therefore does not accept any keyboard or mouse input. If you want to continue to work inside the VM, you need to resume it by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The Virtual Machine is currently in the &lt;b&gt;Paused&lt;/b&gt; state and not able to see any keyboard or mouse input. If you want to continue to work inside the VM, you need to resume it by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
         <translation>&lt;p&gt;La Màquina Virtual és actualment en &lt;b&gt;Pausa&lt;/pa&gt; i per tant no accepta cap acció provinent del teclat o del ratolí. Si voleu continuar treballant amb la màquina virtual, haureu de reprendre el funcionament des de l&apos;opció corresponent de la barra de menú.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -4956,7 +5312,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation type="obsolete">&lt;p&gt;La Màquina Virtual ha informat que el sistema client suporta &lt;b&gt;integració del punter del ratolí&lt;/b&gt;. Això significa que no necessiteu &lt;i&gt;capturar&lt;/i&gt; el punter del ratolí per poder fer-lo servir al sistema client -- totes les accions que executeu quan el punter del ratolí estigui a sobre de la Màquina virtual s&apos;enviaran directament al sistema client. Si es captura el ratolí, automàticament es tornarà al mode normal.&lt;/p&gt;&lt;p&gt;La icona del ratolí a la barra d&apos;estat es mostrarà com&amp;nbsp;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;per informar-vos que la integració del punter està suportada pel sistema client que està actiu.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota&lt;/b&gt;: Algunes aplicacions poden comportar-se incorrectament treballant en el mode d&apos;integració del ratolí. Sempre podeu inhabilitar-ho a la sessió actual (o habilitar-ho) seleccionat l&apos;opció corresponent a la barra de menú.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the color quality of the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color quality to see if this message disappears or you can simply disable the message now if you are sure the required color quality (%4&amp;nbsp;bit) is not available in the given guest OS.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
         <translation>&lt;p&gt;La finestra de la màquina virtual està optimitzada per treballar en el mode de color &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; però la qualitat del color que es mostra actualment està establerta a &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;. Obriu el diàleg de propietats de la pantalla del sistema client i seleccioneu el mode de color &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt;, si és disponible, per obtenir el millor funcionament possible del subsistema de vídeo.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota&lt;/b&gt;: Alguns sistemes operatius, com OS/2, necessiten treballar actualment al mode 32&amp;nbsp;bit però informen que és 24&amp;nbsp;bit (16 milions de colors). Haureu de provar a seleccionar una qualitat de color diferent per veure si és correcta i aquest missatge desapareix o simplemente podeu inhabilitar aquest missatge si esteu segur que la qualitat de color requerida (%4&amp;nbsp;bit) no és disponible al sistema client.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -4968,19 +5324,19 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation type="obsolete">&lt;p&gt;La màquina virtual passarà ara al mode &lt;b&gt;fluid&lt;/b&gt;. Podeu tornar enrere al mode finestra prement &lt;b&gt;%1&lt;/b&gt;. Tingueu en compte que la &lt;i&gt;tecla d&apos;amfitrió&lt;/i&gt; està definida actualment com &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;La barra de menú estarà amagada al mode fluid. Podreu accedir a ella prement &lt;b&gt;tecla d&apos;amfitrió+Home&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;VirtualBox Guest Additions installed in the Guest OS are outdated: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) may not work as expected.&lt;/p&gt;&lt;p&gt;It is recommended to update Guest Additions to the current version  by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are outdated: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) may not work as expected.&lt;/p&gt;&lt;p&gt;It is recommended to update the Guest Additions to the current version  by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation>&lt;b&gt;El programa VirtualBox Guest Additions instal·lat al sistema client no és a la darrera versió: la versió instal·lada és %1 i la més nova és la %2. Algunes característiques que requereixen les Guest Additions (integració del ratolí, la funció de mida automàtica de l&apos;escriptori) poden no treballar correctament.&lt;/p&gt;&lt;p&gt;Es recomana actualitzar la versió de Guest Additions a la versió actual triant &lt;b&gt;Instal·lar Guest Additions&lt;/b&gt; des del menú &lt;b&gt;Dispositius&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;VirtualBox Guest Additions installed in the Guest OS are too old: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) will most likely stop working properly.&lt;/p&gt;&lt;p&gt;Please update Guest Additions to the current version by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too old: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) will most likely stop working properly.&lt;/p&gt;&lt;p&gt;Please update the Guest Additions to the current version by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation>&lt;b&gt;El programa VirtualBox Guest Additions instal·lat al sistema client està antiquat: la versió instal·lada és %1 i la més nova és la %2. Algunes característiques que requereixen les Guest Additions (integració del ratolí, la funció de mida automàtica de l&apos;escriptori) poden no treballar correctament.&lt;/p&gt;&lt;p&gt;Es recomana actualitzar la versió de Guest Additions a la versió actual triant &lt;b&gt;Instal·lar Guest Additions&lt;/b&gt; des del menú &lt;b&gt;Dispositius&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;VirtualBox Guest Additions installed in the Guest OS are too recent for this version of VirtualBox: the installed version is %1, the expected version is %2.&lt;/p&gt;&lt;p&gt;Using a newer version of Additions with an older version of VirtualBox is not supported. Please install the current version of Guest Additions by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too recent for this version of VirtualBox: the installed version is %1, the expected version is %2.&lt;/p&gt;&lt;p&gt;Using a newer version of Additions with an older version of VirtualBox is not supported. Please install the current version of the Guest Additions by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation>&lt;b&gt;El programa VirtualBox Guest Additions instal·lat al sistema client és més recent que la versió suportada: la versió instal·lada és %1 i la més nova és la %2. No es pot fer servir una versió més nova de les Guest Additions amb una versió més antiga del VirtualBox.&lt;/p&gt;&lt;p&gt;Es recomana instal·lar la versió de Guest Additions a la versió actual triant &lt;b&gt;Instal·lar Guest Additions&lt;/b&gt; des del menú &lt;b&gt;Dispositius&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings dialog or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you want to continue?&lt;/p&gt;</source>
+        <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings dialog or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you wish to continue?&lt;/p&gt;</source>
         <translation>&lt;p&gt;No heu afegit cap disc dur a la nova màquina virtual. La màquina no podrà iniciar-se fins que no afegiu un disc dur amb un sistema operatiu client o qualsevol altre suport arrencable.&lt;/p&gt;&lt;p&gt;Voleu continuar?&lt;/p&gt;</translation>
     </message>
     <message>
@@ -5142,7 +5498,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
     <message>
         <source>&amp;Backup</source>
         <comment>warnAboutAutoConvertedSettings message box</comment>
-        <translation>&amp;Còpia de seguretat</translation>
+        <translation type="obsolete">&amp;Còpia de seguretat</translation>
     </message>
     <message>
         <source>Cancel</source>
@@ -5160,7 +5516,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>Canvia</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Do you really want to reset the virtual machine?&lt;/p&gt;&lt;p&gt;When the machine is reset, unsaved data of all applications running inside it will be lost.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Do you really want to reset the virtual machine?&lt;/p&gt;&lt;p&gt;This will cause any unsaved data in applications running inside it to be lost.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Segur que voleu reinicializar la màquina virtual?&lt;/p&gt;&lt;p&gt;Quan la màquina es reinicialitza, les dades no desades de totes les aplicacions a dins es perdran.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -5183,18 +5539,18 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>No s&apos;ha pogut copiar el fitxer &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; a &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; (%3).</translation>
     </message>
     <message>
-        <source>&lt;p&gt;There are no unused hard disks available for the newly created attachment.&lt;/p&gt;&lt;p&gt;Press the &lt;b&gt;Create&lt;/b&gt; button to start the &lt;i&gt;New Virtual Disk&lt;/i&gt; wizard and create a new hard disk, or press the &lt;b&gt;Select&lt;/b&gt; button to open the &lt;i&gt;Virtual Disk Manager&lt;/i&gt; and select what to do.&lt;/p&gt;</source>
+        <source>&lt;p&gt;There are no unused hard disks available for the newly created attachment.&lt;/p&gt;&lt;p&gt;Press the &lt;b&gt;Create&lt;/b&gt; button to start the &lt;i&gt;New Virtual Disk&lt;/i&gt; wizard and create a new hard disk, or press the &lt;b&gt;Select&lt;/b&gt; if you wish to open the &lt;i&gt;Virtual Disk Manager&lt;/i&gt;.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Hi ha discos durs disponibles que no es fan servir per a la nova adjunció creada.&lt;/p&gt;&lt;p&gt;Prmeu el botó &lt;b&gt;Crea&lt;/b&gt; per iniciar el gestor de &lt;i&gt;Creació de disc durs virtuals&lt;/i&gt; i crear un nou disc dur, o premeu el botó &lt;b&gt;Selecciona&lt;/b&gt; per obrir el &lt;i&gt;Gestor de Discs Durs&lt;/i&gt; i seleccionar què fer.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Create</source>
         <comment>hard disk</comment>
-        <translation>&amp;Crea</translation>
+        <translation type="obsolete">&amp;Crea</translation>
     </message>
     <message>
         <source>Select</source>
         <comment>hard disk</comment>
-        <translation>Selecciona</translation>
+        <translation type="obsolete">Selecciona</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not enter seamless mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;</source>
@@ -5209,7 +5565,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation type="obsolete">&lt;p&gt;No es pot obtenir informació de noves versions degut a un problema amb la xarxa:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>You have already installed the latest VirtualBox version. Please repeat the version check later.</source>
+        <source>You are already running the most recent version of VirtualBox.</source>
         <translation>Ja teniu instal·lada la darrera versió del VirtualBox. Proveu més tard.</translation>
     </message>
     <message>
@@ -5253,7 +5609,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>&amp;Reinicia tots els avisos</translation>
     </message>
     <message>
-        <source>Cause all suppressed warnings and messages to be shown again</source>
+        <source>Go back to showing all suppressed warnings and messages</source>
         <translation>Fa que tots els avisos i missatges suprimits es mostrin una altra vegada</translation>
     </message>
     <message>
@@ -5281,7 +5637,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>Mostra un diàleg amb la informació del producte</translation>
     </message>
     <message>
-        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version from this direct link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
+        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
         <translation>&lt;b&gt;S&apos;ha publicat una nova versió del VirtualBox!. La versió &lt;b&gt;%1&lt;/b&gt; és disponible a &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Podeu baixar-la directametn des d&apos;aquest enllaç: &lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
     </message>
     <message>
@@ -5310,7 +5666,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>No es pot accedir a l&apos;USB al sistema amfitrió perquè ni el servei de sistema de fitxers USB (usbfs) ni el DBus s&apos;hi troben disponibles. Si voleu fer servir els dispositius USB de l&apos;amfitrió a dins dels sistemes clients, heu de solucionar això i tornar a iniciar el VirtualBox.</translation>
     </message>
     <message>
-        <source>You are trying to shut down the guest with the ACPI power button. This is currently not possible because the guest does not use the ACPI subsystem.</source>
+        <source>You are trying to shut down the guest with the ACPI power button. This is currently not possible because the guest does not support software shutdown.</source>
         <translation>Esteu tractant de tancar el sistema client amb el botó ACPI. Això no és possible actualment perquè el sistema client no fa servir el subsistema ACPI.</translation>
     </message>
     <message>
@@ -5327,11 +5683,11 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you wish to delete the selected snapshot and saved state?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Esteu segur que voleu eliminar la captura seleccionada i l&apos;estat desat?&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Esteu segur que voleu eliminar la captura seleccionada i l&apos;estat desat?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation>Descarta</translation>
+        <translation type="obsolete">Descarta</translation>
     </message>
     <message>
         <source>Cancel</source>
@@ -5347,7 +5703,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>&lt;p&gt;Esteu segur que voleu eliminar el %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; de la llista de suports coneguts?&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Note that this hard disk is inaccessible so that its storage unit cannot be deleted right now.</source>
+        <source>Note that as this hard disk is inaccessible its storage unit cannot be deleted right now.</source>
         <translation>Tingueu en compte que aquest disc dur és innaccessible i per tant no es pot esborrar el seu contigut.</translation>
     </message>
     <message>
@@ -5355,7 +5711,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>El següent diàleg us permetrà triar si voleu eliminar també la unitat d&apos;emmagatzematge d&apos;aquest disc dur o mantenir-la per a més endavant.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Note that the storage unit of this medium will not be deleted and therefore it will be possible to add it to the list later again.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Note that the storage unit of this medium will not be deleted and that it will be possible to add it to the list later again.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Tingueu en compte que la unitat d&apos;emmagatzematge d&apos;aquest medi no s&apos;eliminarà i, a més serà possible afegir-la novament més tard.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -5365,7 +5721,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
     </message>
     <message>
         <source>&lt;p&gt;The hard disk storage unit at location &lt;b&gt;%1&lt;/b&gt; already exists. You cannot create a new virtual hard disk that uses this location because it can be already used by another virtual hard disk.&lt;/p&gt;&lt;p&gt;Please specify a different location.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;L&apos;ubicació de de disc dur d&apos;emmagatzematge &lt;b&gt;%1&lt;/b&gt; ja existeix. No podeu crear un nou disc dur virtual que faça servir la mateix ubicació perquè ja està fent-se servir per un altre disc dur virtual.&lt;/p&gt;&lt;p&gt;Especifiqueu una ubicació diferent.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;L&apos;ubicació de de disc dur d&apos;emmagatzematge &lt;b&gt;%1&lt;/b&gt; ja existeix. No podeu crear un disc dur nou virtual que faci servir la mateixa ubicació perquè ja està fent-se servir per un altre disc dur virtual.&lt;/p&gt;&lt;p&gt;Especifiqueu una ubicació diferent.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Do you want to delete the storage unit of the hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;If you select &lt;b&gt;Delete&lt;/b&gt; then the specified storage unit will be permanently deleted. This operation &lt;b&gt;cannot be undone&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;If you select &lt;b&gt;Keep&lt;/b&gt; then the hard disk will be only removed from the list of known hard disks, but the storage unit will be left untouched which makes it possible to add this hard disk to the list later again.&lt;/p&gt;</source>
@@ -5399,28 +5755,28 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>Canvia</translation>
     </message>
     <message>
-        <source>&lt;p&gt;There are no unused hard disks available for the newly created attachment.&lt;/p&gt;&lt;p&gt;Press the &lt;b&gt;Create&lt;/b&gt; button to start the &lt;i&gt;New Virtual Disk&lt;/i&gt; wizard and create a new hard disk, or press the &lt;b&gt;Select&lt;/b&gt; button to open the &lt;i&gt;Virtual Media Manager&lt;/i&gt; and select what to do.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Hi ha discos durs disponibles que no es fan servir per a la nova adjunció creada.&lt;/p&gt;&lt;p&gt;Premeu el botó &lt;b&gt;Crea&lt;/b&gt; per iniciar el gestor de &lt;i&gt;Creació de disc durs virtuals&lt;/i&gt; i crear un nou disc dur, o premeu el botó &lt;b&gt;Selecciona&lt;/b&gt; per obrir el &lt;i&gt;Gestor de Discs Durs&lt;/i&gt; i seleccionar què fer.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;There are no unused hard disks available for the newly created attachment.&lt;/p&gt;&lt;p&gt;Press the &lt;b&gt;Create&lt;/b&gt; button to start the &lt;i&gt;New Virtual Disk&lt;/i&gt; wizard and create a new hard disk, or press the &lt;b&gt;Select&lt;/b&gt; if you wish to open the &lt;i&gt;Virtual Media Manager&lt;/i&gt;.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Hi ha discos durs disponibles que no es fan servir per a la nova adjunció creada.&lt;/p&gt;&lt;p&gt;Premeu el botó &lt;b&gt;Crea&lt;/b&gt; per iniciar el gestor de &lt;i&gt;Creació de disc durs virtuals&lt;/i&gt; i crear un nou disc dur, o premeu el botó &lt;b&gt;Selecciona&lt;/b&gt; per obrir el &lt;i&gt;Gestor de Discs Durs&lt;/i&gt; i seleccionar què fer.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to create the hard disk storage &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;</source>
         <translation>No s&apos;ha pogut crear el disc dur &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>Failed to attach the hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; to the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>No s&apos;ha pogut connectar el disc dur &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; a la ranura &lt;i&gt;%2&lt;/i&gt; de la màquina &lt;b&gt;%3&lt;/b&gt;.</translation>
+        <source>Failed to attach the hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; to slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="obsolete">No s&apos;ha pogut connectar el disc dur &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; a la ranura &lt;i&gt;%2&lt;/i&gt; de la màquina &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
-        <source>Failed to detach the hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>No s&apos;ha pogut treure el disc dur &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; de la ranura &lt;i&gt;%2&lt;/i&gt; de la màquina &lt;b&gt;%3&lt;/b&gt;.</translation>
+        <source>Failed to detach the hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="obsolete">No s&apos;ha pogut treure el disc dur &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; de la ranura &lt;i&gt;%2&lt;/i&gt; de la màquina &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
-        <source>Failed to mount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; to the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>No s&apos;ha pogut muntar %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; a la màquina &lt;b&gt;%3&lt;/b&gt;.</translation>
+        <source>Failed to mount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; on the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="obsolete">No s&apos;ha pogut muntar %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; a la màquina &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to unmount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; from the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>No s&apos;ha pogut desmuntar el %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; de la màquina &lt;b&gt;%3&lt;/b&gt;.</translation>
+        <translation type="obsolete">No s&apos;ha pogut desmuntar el %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; de la màquina &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to open the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
@@ -5431,7 +5787,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>No s&apos;ha pogut tancar el %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
-        <source>Failed to get the accessibility state of the medium &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <source>Failed to determine the accessibility state of the medium &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
         <translation>No s&apos;ha pogut accedir a l&apos;estat del suport &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</translation>
     </message>
     <message>
@@ -5455,39 +5811,39 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>&lt;p&gt;No es pot accedir a un o més dels discos, CD/DVD o disquet virtuals. Com a resultat, no podreu operar amb les màquines virtuals que els facin servir fins que estiguin accessibles.&lt;/p&gt;&lt;p&gt;Premeu &lt;b&gt;Comprova&lt;/b&gt; per obrir el gestor de discos virtuals i veure a quins suports no s&apos;hi pot accedir, o premeu &lt;b&gt;Ignora&lt;/b&gt; per ignorar aquest missatge.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Your existing VirtualBox settings files will be automatically converted from the old format to a new format necessary for the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;Exit&lt;/b&gt; if you want to terminate the VirtualBox application without any further actions.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Your existing VirtualBox settings files will be automatically converted from the old format to a new format required by the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;Exit&lt;/b&gt; if you want to terminate the VirtualBox application without any further actions.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Els fitxers de configuració existents del VirtualBox es convertiran automàticament des del format antic al nou format necessari per a la nova versió del VirtualBox.&lt;/p&gt;&lt;p&gt;Premeu &lt;b&gt;D&apos;acord&lt;/b&gt; per a iniciar ara el VirtualBox o premeu &lt;b&gt;Surt&lt;/b&gt; si voleu tancar el VirtualBox sense realitzar més accions.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Your existing VirtualBox settings files were automatically converted from the old format to a new format necessary for the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;More&lt;/b&gt; if you want to get more information about what files were converted and access additional actions.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Exit&lt;/b&gt; to terminate the VirtualBox application without saving the results of the conversion to disk.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Els fitxers de configuració actuals del VirtualBox es convertiran des del format antic al nou format necessari per a la nova versió del VirtualBox.&lt;/p&gt;&lt;p&gt;Premeu &lt;b&gt;D&apos;acord&lt;/b&gt; per iniciar el VirtualBox ara o premeu &lt;b&gt;Més&lt;/b&gt; si voleu obtenir més informació sobre quins fitxers es convertiran i accedir a accions addicionals.&lt;/p&gt;&lt;p&gt;Premeu &lt;b&gt;Surt&lt;/b&gt; per tancar l&apos;apliació del VirtualBox sense desar els resultats de la conversió al disc.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;Your existing VirtualBox settings files were automatically converted from the old format to a new format required by the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;More&lt;/b&gt; if you want to get more information about what files were converted and access additional actions.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Exit&lt;/b&gt; to terminate the VirtualBox application without saving the results of the conversion to disk.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Els fitxers de configuració actuals del VirtualBox es convertiran des del format antic al nou format necessari per a la nova versió del VirtualBox.&lt;/p&gt;&lt;p&gt;Premeu &lt;b&gt;D&apos;acord&lt;/b&gt; per iniciar el VirtualBox ara o premeu &lt;b&gt;Més&lt;/b&gt; si voleu obtenir més informació sobre quins fitxers es convertiran i accedir a accions addicionals.&lt;/p&gt;&lt;p&gt;Premeu &lt;b&gt;Surt&lt;/b&gt; per tancar l&apos;apliació del VirtualBox sense desar els resultats de la conversió al disc.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;More</source>
         <comment>warnAboutAutoConvertedSettings message box</comment>
-        <translation>&amp;Més</translation>
+        <translation type="obsolete">&amp;Més</translation>
     </message>
     <message>
         <source>E&amp;xit</source>
         <comment>warnAboutAutoConvertedSettings message box</comment>
-        <translation>&amp;Surt</translation>
+        <translation type="obsolete">&amp;Surt</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Deleting this host-only network will lead to the deleting of the host-only interface this network is based on. Do you want to remove the (host-only network) interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; this interface may be in use by one or more virtual network adapters belonging to one of your VMs. After it is removed, these adapters will no longer be usable until you correct their settings by either choosing a different interface name or a different adapter attachment type.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Deleting this host-only network will remove the host-only interface this network is based on. Do you want to remove the (host-only network) interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; this interface may be in use by one or more virtual network adapters belonging to one of your VMs. After it is removed, these adapters will no longer be usable until you correct their settings by either choosing a different interface name or a different adapter attachment type.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Eliminant aquesta xarxa de només l&apos;amfitrió suposarà l&apos;eliminació de la interfície de només amfitrió en la que està basada. Voleu eliminar aquesta interfície (de només l&apos;amfitrió) &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota: aquesta interfície pot estar en ús per un o més adaptadors de xarxa que pertanyin a alguna de les vostres màquines virtuals. Després d&apos;eliminar-se, aquests adaptadors no podran fer-se servir fins que corregiu els paràmetres a cadascun triant una interfície diferent o un tipus d&apos;adjunció diferent.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The following VirtualBox settings files have been automatically converted to the new settings file format version &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;However, the results of the conversion were not saved back to disk yet. Please press:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Backup&lt;/b&gt; to create backup copies of the settings files in the old format before saving them in the new format;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Overwrite&lt;/b&gt; to save all auto-converted files without creating backup copies (it will not be possible to use these settings files with an older version of VirtualBox afterwards);&lt;/li&gt;%2&lt;/ul&gt;&lt;p&gt;It is recommended to always select &lt;b&gt;Backup&lt;/b&gt; because in this case it will be possible to go back to the previous version of VirtualBox (if necessary) without losing your current settings. See the VirtualBox Manual for more information about downgrading.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Els següents fitxers de paràmetres del VirtualBox s&apos;han convertit automàticament al nou format &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Tot i així, els resultats de la conversió encara no s&apos;han desat al disc. Premeu:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Desa&lt;/b&gt; per desar ara els fitxers auto-convertits (ja no serà possible fer servir aquests paràmetres amb una versió anterior del VirtualBox);&lt;/li&gt;&lt;li&gt;&lt;b&gt;Còpia de seguretat&lt;/b&gt; per crear una còpia de seguretat dels fitxers de paràmetres en el format antic abans de desar-los en el nou format;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Sobreescriu&lt;/b&gt; per desar tots els fitxers auto-convertitts sense crear còpies de seguretat;&lt;/li&gt;%2&lt;/ul&gt;&lt;p&gt;Es recomana seleccionar en tot moment &lt;b&gt;Còpia de seguretat&lt;/b&gt; perquè sempre serà possible tornar a l&apos;estat anterior sense perdre els paràmetres de configuració actuals. Mireu el manual del VirtualBox per a més informació sobre desactualització.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Els següents fitxers de paràmetres del VirtualBox s&apos;han convertit automàticament al nou format &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Tot i així, els resultats de la conversió encara no s&apos;han desat al disc. Premeu:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Desa&lt;/b&gt; per desar ara els fitxers auto-convertits (ja no serà possible fer servir aquests paràmetres amb una versió anterior del VirtualBox);&lt;/li&gt;&lt;li&gt;&lt;b&gt;Còpia de seguretat&lt;/b&gt; per crear una còpia de seguretat dels fitxers de paràmetres en el format antic abans de desar-los en el nou format;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Sobreescriu&lt;/b&gt; per desar tots els fitxers auto-convertitts sense crear còpies de seguretat;&lt;/li&gt;%2&lt;/ul&gt;&lt;p&gt;Es recomana seleccionar en tot moment &lt;b&gt;Còpia de seguretat&lt;/b&gt; perquè sempre serà possible tornar a l&apos;estat anterior sense perdre els paràmetres de configuració actuals. Mireu el manual del VirtualBox per a més informació sobre desactualització.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;li&gt;&lt;b&gt;Exit&lt;/b&gt; to terminate VirtualBox without saving the results of the conversion to disk.&lt;/li&gt;</source>
-        <translation>&lt;li&gt;&lt;b&gt;Surt&lt;/b&gt; tancant el VirtualBox sense desar els resultats de la conversió del disc.&lt;/li&gt;</translation>
+        <translation type="obsolete">&lt;li&gt;&lt;b&gt;Surt&lt;/b&gt; tancant el VirtualBox sense desar els resultats de la conversió del disc.&lt;/li&gt;</translation>
     </message>
     <message>
         <source>O&amp;verwrite</source>
         <comment>warnAboutAutoConvertedSettings message box</comment>
-        <translation>Sob&amp;reescriu</translation>
+        <translation type="obsolete">Sob&amp;reescriu</translation>
     </message>
     <message>
         <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution has been stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt; and the image file &lt;tt&gt;VBox.png&lt;/tt&gt;, which you can find in the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; directory, as well as a description of what you were doing when this error happened. Note that you can also access the above files by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; if you want to power off the machine or press &lt;b&gt;Ignore&lt;/b&gt; if you want to leave it as is for debugging. Please note that debugging requires special knowledge and tools, so it is recommended to press &lt;b&gt;OK&lt;/b&gt; now.&lt;/p&gt;</source>
@@ -5524,17 +5880,17 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
     <message>
         <source>hard disk</source>
         <comment>failed to close ...</comment>
-        <translation>disc dur</translation>
+        <translation type="obsolete">disc dur</translation>
     </message>
     <message>
         <source>CD/DVD image</source>
         <comment>failed to close ...</comment>
-        <translation>Imatge de CD/DVD</translation>
+        <translation type="obsolete">Imatge de CD/DVD</translation>
     </message>
     <message>
         <source>floppy image</source>
         <comment>failed to close ...</comment>
-        <translation>imatge de disquet</translation>
+        <translation type="obsolete">imatge de disquet</translation>
     </message>
     <message>
         <source>A file named &lt;b&gt;%1&lt;/b&gt; already exists. Are you sure you want to replace it?&lt;br /&gt;&lt;br /&gt;Replacing it will overwrite its contents.</source>
@@ -5560,16 +5916,215 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <source>Failed to remove file.</source>
         <translation>No s&apos;ha pogut eliminar el fitxer.</translation>
     </message>
+    <message>
+        <source>You seem to have the USBFS filesystem mounted at /sys/bus/usb/drivers. We strongly recommend that you change this, as it is a severe mis-configuration of your system which could cause USB devices to fail in unexpected ways.</source>
+        <translation>Sembla que el sistema de fitxers USBFS està muntat a /sys/bus/usb/drivers. És molt recomanable que canvieu això ja que és una configuració que pot fer que els dispositius USB fallin de maneres imprevisibles.</translation>
+    </message>
+    <message>
+        <source>You are running an EXPERIMENTAL build of VirtualBox. This version is not suitable for production use.</source>
+        <translation>Esteu executant una versió EXPERIMENTAL del VirtualBox. Aquesta versió no és recomanable per a entorns de producció.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to restore snapshot &lt;b&gt;%1&lt;/b&gt;? This will cause you to lose your current machine state, which cannot be recovered.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Segur que voleu restaurar la captura &lt;b&gt;%1&lt;/b&gt;? Això suposarà perdre l&apos;estat actual de la màquina i no podrà ser recuperat.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation>Restaura</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Deleting the snapshot will cause the state information saved in it to be lost, and disk data spread over several image files that VirtualBox has created together with the snapshot will be merged into one file. This can be a lengthy process, and the information in the snapshot cannot be recovered.&lt;/p&gt;&lt;/p&gt;Are you sure you want to delete the selected snapshot &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Si s&apos;esborra una captura, la informació d&apos;estat desada a la mateixa es perdrà i les dades del disc, repartides en diversos arxius d&apos;imatges que VirtualBox ha creat juntament amb la captura es fusionaran en un sol fitxer. Això pot ser un procés llarg, i la informació de la captura no es podrà recuperar. &lt;/p&gt;&lt;p&gt;Segur que voleu eliminar la captura seleccionada &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation>Suprimeix</translation>
+    </message>
+    <message>
+        <source>Failed to restore the snapshot &lt;b&gt;%1&lt;/b&gt; of the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>No s&apos;ha pogut restaurar la captura &lt;b&gt;%1&lt;/b&gt; de la màquina virtual &lt;b&gt;%2&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>Failed to delete the snapshot &lt;b&gt;%1&lt;/b&gt; of the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>No s&apos;ha pogut eliminar la captura &lt;b&gt;%1&lt;/b&gt; de la màquina virtual &lt;b&gt;%2&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;There are no unused media available for the newly created attachment.&lt;/p&gt;&lt;p&gt;Press the &lt;b&gt;Create&lt;/b&gt; button to start the &lt;i&gt;New Virtual Disk&lt;/i&gt; wizard and create a new medium, or press the &lt;b&gt;Select&lt;/b&gt; if you wish to open the &lt;i&gt;Virtual Media Manager&lt;/i&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Hi ha suports disponibles que no es fan servir per a la nova adjunció creada.&lt;/p&gt;&lt;p&gt;Prmeu el botó &lt;b&gt;Crea&lt;/b&gt; per iniciar el gestor de &lt;i&gt;Creació de disc durs virtuals&lt;/i&gt; i crear un nou suport, o premeu el botó &lt;b&gt;Selecciona&lt;/b&gt; per obrir el &lt;i&gt;Gestor de suports virtuals&lt;/i&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Create</source>
+        <comment>medium</comment>
+        <translation>&amp;Crea</translation>
+    </message>
+    <message>
+        <source>&amp;Select</source>
+        <comment>medium</comment>
+        <translation>&amp;Selecciona</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;There are no unused media available for the newly created attachment.&lt;/p&gt;&lt;p&gt;Press the &lt;b&gt;Select&lt;/b&gt; if you wish to open the &lt;i&gt;Virtual Media Manager&lt;/i&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;No hi ha cap suport disponible que no es faci servir per a la nova adjunció.&lt;/p&gt;&lt;p&gt;Premeu &lt;b&gt;Selecciona&lt;/b&gt; si voleu obrir el &lt;i&gt;Gestor de suports virtuals&lt;/i&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to attach the %1 to slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation>No es pot connectar %1 de la ranura &lt;i&gt;%2&lt;/i&gt; de la màquina &lt;b&gt;%3&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>Failed to detach the %1 from slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation>No es pot desconnectar %1 de la ranura &lt;i&gt;%2&lt;/i&gt; de la màquina &lt;b&gt;%3&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>Unable to mount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; on the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation>No es pot muntar el %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; a la màquina &lt;b&gt;%3&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source> Would you like to force mounting of this medium?</source>
+        <translation>Voleu forçar el muntatge d&apos;aquest suport?</translation>
+    </message>
+    <message>
+        <source>Unable to unmount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; from the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation>No es pot desmuntar el %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; de la màquina &lt;b&gt;%3&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source> Would you like to force unmounting of this medium?</source>
+        <translation>Voleu forçar el desmuntatge d&apos;aquest mitjà?</translation>
+    </message>
+    <message>
+        <source>Force Unmount</source>
+        <translation>Força el desmuntatge</translation>
+    </message>
+    <message>
+        <source>Failed to eject the disk from the virtual drive. The drive may be locked by the guest operating system. Please check this and try again.</source>
+        <translation>No s&apos;ha pogut extreure el disc del dispositiu virtual. Probablement estigui bloquejat pel sistema operatiu client. Comproveu-ho i proveu novament.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not insert the VirtualBox Guest Additions installer CD image into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no CD/DVD-ROM drives. Please add a drive using the storage page of the virtual machine settings dialog.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;No es pot inserir la imatge del cd instal·lador de les Guest Additions a la màquina virtual &lt;b&gt;%1&lt;/b&gt; si la màquina no té dispositius CD/DVD. Afegiu un dispositiu fent servir la pestanya de discos durs als paràmetres de la màquina.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>E&amp;xit</source>
+        <comment>warnAboutSettingsAutoConversion message box</comment>
+        <translation>&amp;Surt</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The following VirtualBox settings files will be automatically converted from the old format to a new format required by the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;Exit&lt;/b&gt; if you want to terminate the VirtualBox application without any further actions.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Els següents fitxers de configuració del VirtualBox es convertiran automàticament des del vell al nou format que requereix la nova versió del VirtualBox.&lt;/p&gt;&lt;p&gt;Premeu &lt;b&gt;D&apos;acord&lt;/b&gt; per iniciar el VirtualBox ara mateix o premeu &lt;b&gt;Surt&lt;/b&gt; si voleu tancar el VirtualBox sense realitzar més accions.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>hard disk</source>
+        <comment>failed to mount ...</comment>
+        <translation>disc dur</translation>
+    </message>
+    <message>
+        <source>CD/DVD</source>
+        <comment>failed to mount ... host-drive</comment>
+        <translation>CD/DVD</translation>
+    </message>
+    <message>
+        <source>CD/DVD image</source>
+        <comment>failed to mount ...</comment>
+        <translation>imatge de CD/DVD</translation>
+    </message>
+    <message>
+        <source>floppy</source>
+        <comment>failed to mount ... host-drive</comment>
+        <translation>disquet</translation>
+    </message>
+    <message>
+        <source>floppy image</source>
+        <comment>failed to mount ...</comment>
+        <translation>imatge de disquet</translation>
+    </message>
+    <message>
+        <source>hard disk</source>
+        <comment>failed to attach ...</comment>
+        <translation>disc dur</translation>
+    </message>
+    <message>
+        <source>CD/DVD device</source>
+        <comment>failed to attach ...</comment>
+        <translation>dispositiu CD/DVD</translation>
+    </message>
+    <message>
+        <source>floppy device</source>
+        <comment>failed to close ...</comment>
+        <translation>disquetera</translation>
+    </message>
 </context>
 <context>
     <name>VBoxProgressDialog</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation type="obsolete">&amp;Cancel·la</translation>
+        <translation>&amp;Cancel·la</translation>
     </message>
     <message>
         <source>Time remaining: %1</source>
-        <translation>Temps restant: %1</translation>
+        <translation type="obsolete">Temps restant: %1</translation>
+    </message>
+    <message>
+        <source>%1 days, %2 hours remaining</source>
+        <translation>Resten %1 dies i %2 hores</translation>
+    </message>
+    <message>
+        <source>%1 days, %2 minutes remaining</source>
+        <translation>Resten %1 dies i %2 minuts</translation>
+    </message>
+    <message>
+        <source>%1 days remaining</source>
+        <translation>Resten %1 dies</translation>
+    </message>
+    <message>
+        <source>1 day, %1 hours remaining</source>
+        <translation>Resta 1 dia i %1 hores</translation>
+    </message>
+    <message>
+        <source>1 day, %1 minutes remaining</source>
+        <translation>Resta 1 dia i %1 minuts</translation>
+    </message>
+    <message>
+        <source>1 day remaining</source>
+        <translation>Resta 1 dia</translation>
+    </message>
+    <message>
+        <source>%1 hours, %2 minutes remaining</source>
+        <translation>Resten %1 hores i %2 minuts</translation>
+    </message>
+    <message>
+        <source>1 hour, %1 minutes remaining</source>
+        <translation>Resta 1 hora i %1 minuts</translation>
+    </message>
+    <message>
+        <source>1 hour remaining</source>
+        <translation>Resta 1 hora</translation>
+    </message>
+    <message>
+        <source>%1 minutes remaining</source>
+        <translation>Resten %1 minuts</translation>
+    </message>
+    <message>
+        <source>1 minute, %2 seconds remaining</source>
+        <translation>Resten 1 minut i %2 segons</translation>
+    </message>
+    <message>
+        <source>1 minute remaining</source>
+        <translation>Resta 1 minut</translation>
+    </message>
+    <message>
+        <source>%1 seconds remaining</source>
+        <translation>Resten %1 segons</translation>
+    </message>
+    <message>
+        <source>A few seconds remaining</source>
+        <translation>Resten alguns segons</translation>
+    </message>
+    <message>
+        <source>Canceling...</source>
+        <translation>S&apos;està cancel·lant...</translation>
+    </message>
+    <message>
+        <source>Cancel the current operation</source>
+        <translation>Cancel·la l&apos;operació actual</translation>
     </message>
 </context>
 <context>
@@ -5599,7 +6154,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>Introduïu el nom complet fent servir caràcters llatins.</translation>
     </message>
     <message>
-        <source>Enter your valid e-mail address.</source>
+        <source>Enter your e-mail address. Please use a valid address here.</source>
         <translation>Introduïu una adreça de correu vàlida.</translation>
     </message>
     <message>
@@ -5620,14 +6175,14 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation>Benvinguts al formulari de registre del VirtualBox!</translation>
+        <translation>Benvingut al formulari de registre del VirtualBox!</translation>
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
         <translation>No s&apos;ha pogut dur a terme la conformitat de connexió.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Please note that Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Ompliu aquest formulari de registre per deixar-nos conèixer que feu servir el VirtualBox i, opcionalment, per mantenir-vos informat sobre novetats i actualitzacions.&lt;/p&gt;&lt;p&gt;Introduïu el vostre nom complet fent servir caràcters llatins i la vostra adreça de correu electrònica als camps següents. Tingueu en compte que Sun Microsystems farà servir aquesta informació només per estadístiques del producte i per enviar-vos notícies sobre el VirtualBox. En particular, Sun Microsystems no deixarà les vostres dades a terceres parts. Podeu trobar informació detallada sobre l&apos;ús de les dades personals a la secció &lt;b&gt;Política de Privacitat&lt;/b&gt; (en anglès) del manual de VirtualBox o &lt; l&apos;adreça web &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Política de Privacitat&lt;/a&gt; (en anglès).&lt;/p&gt;</translation>
     </message>
     <message>
@@ -5647,11 +6202,11 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>Seleccioneu un país/territori</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use the Latin characters to fill the fields below. Please note that Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Ompliu aquest formulari de registre per permetre&apos;ns conèixer que feu servir el VirtualBox i, opcionalment, mantenir-vos informat sobre novetats i actualitzacions del VirtualBox.&lt;/p&gt;&lt;p&gt;Feu servir caràcters llatins per omplir els camps següents. Tingueu en compte que Sun Microsystems farà servir aquesta informació només per a usos estadístics i per enviar-vos notícies sobre el VirtualBox. Sun Microsystems mai compartirà les vostres dades amb terceres parts. Més informació detallada sobre l&apos;ús de les vostres dades personals poden trobar-se a la secció de &lt;b&gt;Política de privacitat&lt;/b&gt; al manual de VirtualBox o al&lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; lloc web del VirtualBox.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>I &amp;have a Sun Online account already:</source>
+        <source>I &amp;already have a Sun Online account:</source>
         <translation>Ja tinc un compte a &amp;Sun Online:</translation>
     </message>
     <message>
@@ -5663,7 +6218,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>&amp;Contrasenya:</translation>
     </message>
     <message>
-        <source>I &amp;would like to register creating a new Sun Online account:</source>
+        <source>I &amp;would like to create a new Sun Online account:</source>
         <translation>Vull &amp;registrar-me creant un nou compte a Sun Online:</translation>
     </message>
     <message>
@@ -5719,13 +6274,28 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
     </message>
 </context>
 <context>
+    <name>VBoxScreenshotViewer</name>
+    <message>
+        <source>Screenshot of %1 (%2)</source>
+        <translation>Captura de pantalla de %1 (%2)</translation>
+    </message>
+    <message>
+        <source>Click to view non-scaled screenshot.</source>
+        <translation>Cliqueu per veure la captura de pantalla sense escalar.</translation>
+    </message>
+    <message>
+        <source>Click to view scaled screenshot.</source>
+        <translation>Cliqueu per veure la captura de pantalla escalada.</translation>
+    </message>
+</context>
+<context>
     <name>VBoxSelectorWnd</name>
     <message>
         <source>&amp;About VirtualBox...</source>
         <translation type="obsolete">&amp;Quant a VirtualBox...</translation>
     </message>
     <message>
-        <source>Cause all suppressed warnings and messages to be shown again</source>
+        <source>Go back to showing all suppressed warnings and messages</source>
         <translation type="obsolete">Fa que tots els avisos i missatges eliminats es tornen a mostrar</translation>
     </message>
     <message>
@@ -5829,7 +6399,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>&amp;Fitxer</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;h3&gt;Benvinguts a VirtualBox!&lt;/h3&gt;&lt;p&gt;A la part esquerra d&apos;aquesta finestra es mostra un llistat de totes les màquines virtuals a l&apos;ordinador. Aquest llistat és buit actualment perquè encara no heu creat cap màquina virtual.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Per crear una nova màquina virtual, premeu sobre el botó &lt;b&gt;Nova&lt;/b&gt; a la barra principal que es troba a la part de dalt d&apos;aquesta finestra.&lt;/p&gt;&lt;p&gt;Podeu prémer la tecla &lt;b&gt;%1&lt;/b&gt; per obtenir ajuda o bé visitar &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; per veure altra informació i novetats.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -5982,8 +6552,8 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>Suspèn l&apos;execució de la màquina virtual</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Benvinguts a VirtualBox!&lt;/h3&gt;&lt;p&gt;A la part esquerra d&apos;aquesta finestra es mostra un llistat de totes les màquines virtuals a l&apos;ordinador. Aquest llistat és buit actualment perquè encara no heu creat cap màquina virtual.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Per crear una nova màquina virtual, premeu sobre el botó &lt;b&gt;Nova&lt;/b&gt; a la barra principal que es troba a la part de dalt d&apos;aquesta finestra.&lt;/p&gt;&lt;p&gt;Podeu prémer la tecla &lt;b&gt;%1&lt;/b&gt; per obtenir ajuda o bé visitar &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; per veure altra informació i novetats.&lt;/p&gt;</translation>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <translation>&lt;h3&gt;Benvingut a VirtualBox!&lt;/h3&gt;&lt;p&gt;A la part esquerra d&apos;aquesta finestra es mostra un llistat de totes les màquines virtuals a l&apos;ordinador. Aquest llistat és buit actualment perquè encara no heu creat cap màquina virtual.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Per crear una nova màquina virtual, premeu sobre el botó &lt;b&gt;Nova&lt;/b&gt; a la barra principal que es troba a la part de dalt d&apos;aquesta finestra.&lt;/p&gt;&lt;p&gt;Podeu prémer la tecla &lt;b&gt;%1&lt;/b&gt; per obtenir ajuda o bé visitar &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; per veure altra informació i novetats.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Virtual Media Manager...</source>
@@ -6010,7 +6580,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <translation>&amp;Exporta una aplicació virtual...</translation>
     </message>
     <message>
-        <source>Export an appliance out of VM&apos;s from VirtualBox</source>
+        <source>Export one or more VirtualBox virtual machines as an appliance</source>
         <translation>Exporta una aplicació virtual d&apos;una màquina virtual del VirtualBox</translation>
     </message>
     <message>
@@ -6026,7 +6596,7 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
 <context>
     <name>VBoxSettingsDialog</name>
     <message>
-        <source>&lt;i&gt;Select a settings category from the list on the left side and move the mouse over a settings item to get more information&lt;/i&gt;.</source>
+        <source>&lt;i&gt;Select a settings category from the list on the left-hand side and move the mouse over a settings item to get more information&lt;/i&gt;.</source>
         <translation>&lt;i&gt;Seleccioneu una categoria de paràmetres en la llista de l&apos;esquerra i deplaceu el ratolí sobre un element de la dreta per obtenir-ne més informació&lt;i&gt;.</translation>
     </message>
     <message>
@@ -6155,7 +6725,7 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
     </message>
     <message>
         <source>&amp;Description</source>
-        <translation>&amp;Descripció</translation>
+        <translation type="obsolete">&amp;Descripció</translation>
     </message>
     <message>
         <source>Details of %1 (%2)</source>
@@ -6171,11 +6741,11 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
     </message>
     <message>
         <source>&amp;Machine Details</source>
-        <translation>Detalls de la &amp;màquina</translation>
+        <translation type="obsolete">Detalls de la &amp;màquina</translation>
     </message>
     <message>
         <source>&amp;Name</source>
-        <translation>&amp;Nom</translation>
+        <translation type="obsolete">&amp;Nom</translation>
     </message>
     <message>
         <source>&amp;OK</source>
@@ -6187,11 +6757,31 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
     </message>
     <message>
         <source>VBoxSnapshotDetailsDlg</source>
-        <translation>VBoxSnapshotDetailsDlg</translation>
+        <translation type="obsolete">VBoxSnapshotDetailsDlg</translation>
     </message>
     <message>
         <source>Snapshot Details</source>
-        <translation>Detalls de la captura</translation>
+        <translation type="obsolete">Detalls de la captura</translation>
+    </message>
+    <message>
+        <source>Click to enlarge the screenshot.</source>
+        <translation>Cliqueu per ampliar la captura de pantalla.</translation>
+    </message>
+    <message>
+        <source>&amp;Name:</source>
+        <translation>&amp;Nom:</translation>
+    </message>
+    <message>
+        <source>Taken:</source>
+        <translation>Feta el:</translation>
+    </message>
+    <message>
+        <source>&amp;Description:</source>
+        <translation>&amp;Descripció:</translation>
+    </message>
+    <message>
+        <source>D&amp;etails:</source>
+        <translation>&amp;Detalls:</translation>
     </message>
 </context>
 <context>
@@ -6238,7 +6828,7 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
     </message>
     <message>
         <source>D&amp;iscard Current Snapshot and State</source>
-        <translation>D&amp;escarta la captura i l&apos;estat actuals</translation>
+        <translation type="obsolete">D&amp;escarta la captura i l&apos;estat actuals</translation>
     </message>
     <message>
         <source>Discard Current Snapshot and State</source>
@@ -6250,15 +6840,15 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
     </message>
     <message>
         <source>&amp;Discard Snapshot</source>
-        <translation>&amp;Descarta la captura</translation>
+        <translation type="obsolete">&amp;Descarta la captura</translation>
     </message>
     <message>
         <source>Discard the current snapshot and revert the machine to the state it had before the snapshot was taken</source>
-        <translation>Descarta la captura actual i torna la màquina a l&apos;estat en què es trobava abans que s&apos;hagués fet</translation>
+        <translation type="obsolete">Descarta la captura actual i torna la màquina a l&apos;estat en què es trobava abans que s&apos;hagués fet</translation>
     </message>
     <message>
         <source>Discard the selected snapshot of the virtual machine</source>
-        <translation>Descarta la captura seleccionada de la màquina virtual</translation>
+        <translation type="obsolete">Descarta la captura seleccionada de la màquina virtual</translation>
     </message>
     <message>
         <source>offline)</source>
@@ -6272,7 +6862,7 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
     </message>
     <message>
         <source>Restore the virtual machine state from the state stored in the current snapshot</source>
-        <translation>Restaura l&apos;estat de la màquina virtual des de l&apos;estat emmagatzemat a la captura actual</translation>
+        <translation type="obsolete">Restaura l&apos;estat de la màquina virtual des de l&apos;estat emmagatzemat a la captura actual</translation>
     </message>
     <message>
         <source>Revert to Current Snapshot</source>
@@ -6280,7 +6870,7 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
     </message>
     <message>
         <source>&amp;Revert to Current Snapshot</source>
-        <translation>To&amp;rna a la captura actual</translation>
+        <translation type="obsolete">To&amp;rna a la captura actual</translation>
     </message>
     <message>
         <source>Show Details</source>
@@ -6291,12 +6881,12 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
         <translation>Mostra els &amp;detalls</translation>
     </message>
     <message>
-        <source>Show details of the selected snapshot</source>
+        <source>Show the details of the selected snapshot</source>
         <translation>Mostra els detalls de la captura seleccionada</translation>
     </message>
     <message>
         <source>[snapshot]</source>
-        <translation>[captura]</translation>
+        <translation type="obsolete">[captura]</translation>
     </message>
     <message>
         <source>Snapshot %1</source>
@@ -6347,6 +6937,58 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
     <message>
         <source>Ctrl+Space</source>
         <translation type="obsolete">Ctrl+Espai</translation>
+    </message>
+    <message>
+        <source> (%1)</source>
+        <translation> (%1)</translation>
+    </message>
+    <message numerus="yes">
+        <source> (%n day(s) ago)</source>
+        <translation>
+            <numerusform> (fa %n dia)</numerusform>
+            <numerusform> (fa %n dies)</numerusform>
+            <numerusform> (fa %n dies)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source> (%n hour(s) ago)</source>
+        <translation>
+            <numerusform> (fa %n hora)</numerusform>
+            <numerusform> (fa %n hores)</numerusform>
+            <numerusform> (fa %n hores)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source> (%n minute(s) ago)</source>
+        <translation>
+            <numerusform> (fa %n minut)</numerusform>
+            <numerusform> (fa %n minuts)</numerusform>
+            <numerusform> (fa %n minuts)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source> (%n second(s) ago)</source>
+        <translation>
+            <numerusform> (fa %n segon)</numerusform>
+            <numerusform> (fa %n segons)</numerusform>
+            <numerusform> (fa %n segons)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>&amp;Restore Snapshot</source>
+        <translation>&amp;Restaura la captura</translation>
+    </message>
+    <message>
+        <source>&amp;Delete Snapshot</source>
+        <translation>&amp;Elimina la captura</translation>
+    </message>
+    <message>
+        <source>Restore the selected snapshot of the virtual machine</source>
+        <translation>Restaura la captura seleccionada de la màquina virtual</translation>
+    </message>
+    <message>
+        <source>Delete the selected snapshot of the virtual machine</source>
+        <translation>Elimina la captura seleccionada de la màquina virtual</translation>
     </message>
 </context>
 <context>
@@ -6406,7 +7048,7 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
         <translation>&amp;Reemplaça...</translation>
     </message>
     <message>
-        <source>Replaces the current text with the content of a given file.</source>
+        <source>Replaces the current text with the content of a file.</source>
         <translation>Reemplaça el text actual amb el contingut del fitxer proveït.</translation>
     </message>
     <message>
@@ -6595,7 +7237,7 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
 <context>
     <name>VBoxUSBMenu</name>
     <message>
-        <source>&lt;no available devices&gt;</source>
+        <source>&lt;no devices available&gt;</source>
         <comment>USB devices</comment>
         <translation>&lt;no hi ha dispositius disponibles&gt;</translation>
     </message>
@@ -6692,7 +7334,7 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
         <translation>Resum</translation>
     </message>
     <message>
-        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version from this direct link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
+        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
         <translation>&lt;b&gt;S&apos;ha publicat una nova versió del VirtualBox!. La versió &lt;b&gt;%1&lt;/b&gt; és disponible a &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Podeu baixar-la directametn des d&apos;aquest enllaç: &lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
     </message>
     <message>
@@ -6700,7 +7342,7 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
         <translation>&lt;p&gt;No es pot obtenir informació de noves versions degut a un problema amb la xarxa:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>You have already installed the latest VirtualBox version. Please repeat the version check later.</source>
+        <source>You are already running the most recent version of VirtualBox.</source>
         <translation>Ja teniu instal·lada la darrera versió del VirtualBox. Proveu novament més tard.</translation>
     </message>
     <message>
@@ -6758,15 +7400,15 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Host Drive</source>
-        <translation>&amp;Dispositiu amfitrió</translation>
+        <translation type="obsolete">&amp;Dispositiu amfitrió</translation>
     </message>
     <message>
         <source>Host Drive %1</source>
-        <translation>Dispositiu amfitrió %1</translation>
+        <translation type="obsolete">Dispositiu amfitrió %1</translation>
     </message>
     <message>
         <source>&amp;Image File</source>
-        <translation>Fitxer d&apos;&amp;imatge</translation>
+        <translation type="obsolete">Fitxer d&apos;&amp;imatge</translation>
     </message>
     <message>
         <source>Media Source</source>
@@ -6782,7 +7424,7 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;&lt;p&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;&lt;p&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;b&gt;Unmount...&lt;/b&gt; action in the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Si el que hi ha a continuació és correcte, premeu el botó &lt;b&gt;Finalitza&lt;/b&gt;. Quan el premeu, el dispositiu seleccionat es muntarà a la màquina virtual.&lt;/p&gt;&lt;p&gt;Tingueu en compte que quan tanqueu la màquina virtual, el dispositiu especificat es desmuntarà automàticament i el dispositiu d&apos;inici tornarà a ser el primer disc d&apos;arrencada.&lt;/p&gt;&lt;p&gt;Segons el tipus del programa de configuració, necessitareu desmuntar manualment (expulsar) el dispositiu una vegada que el programa de configuració haja reiniciat la màquina virtual, per tal de prevenir que s&apos;iniciï novament el procès d&apos;instal·lació. Podeu fer axiò seleccionat l&apos;acció corresponent &lt;b&gt;Desmunta...&lt;/b&gt; al menú &lt;b&gt;Dispositius.&lt;/b&gt;</translation>
+        <translation>&lt;p&gt;Si el que hi ha a continuació és correcte, premeu el botó &lt;b&gt;Finalitza&lt;/b&gt;. Quan el premeu, el dispositiu seleccionat es muntarà a la màquina virtual.&lt;/p&gt;&lt;p&gt;Tingueu en compte que quan tanqueu la màquina virtual, el dispositiu especificat es desmuntarà automàticament i el dispositiu d&apos;inici tornarà a ser el primer disc d&apos;arrencada.&lt;/p&gt;&lt;p&gt;Segons el tipus del programa de configuració, necessitareu desmuntar manualment (expulsar) el dispositiu una vegada que el programa de configuració haja reiniciat la màquina virtual, per tal de prevenir que s&apos;iniciï novament el procès d&apos;instal·lació. Podeu fer axiò seleccionat l&apos;acció corresponent &lt;b&gt;Desmunta...&lt;/b&gt; al menú &lt;b&gt;Dispositius.&lt;/b&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Select the media that contains the operating system you want to work with. This media must be bootable, otherwise the operating system will not be able to start.&lt;/p&gt;</source>
@@ -6793,11 +7435,11 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
         <translation>&lt;p&gt;Seleccioneu el suport que conté el programa de configuració del sistema operatiu amb el qual voleu treballar. Aquest suport ha d&apos;ésser arrencable, en altre cas el sistema no podrà iniciar-se.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Select the type of the media you would like to use for booting an operating system.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Select the type of media you would like to use for booting an operating system.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Seleccioneu el tipus de suport que voleu fer servir per iniciar un sistema operatiu.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Select the type of the media you would like to use for installation purposes below.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Select the type of media you would like to use for installation.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Seleccioneu el tipus de suport que voleu fer servir per a la instal·lació dels elements mostrats.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -6809,11 +7451,11 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
         <translation>&lt;p&gt;Heu seleccionat el següent suport per iniciar des de:&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for booting an operating system of your choice on the virtual machine.&lt;/p&gt;&lt;p&gt;Note that you will not be able to install an operating system into this virtual machine right now because you did not attach any hard disk to it. If this is not what you want, you can cancel execution of this wizard, select &lt;b&gt;Settings&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window to access the settings dialog of this machine and change the hard disk configuration.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel execution of this wizard.&lt;/p&gt;</source>
+        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for booting an operating system of your choice on the virtual machine.&lt;/p&gt;&lt;p&gt;Note that you will not be able to install an operating system into this virtual machine right now because you did not attach any hard disk to it. If this is not what you want, you can cancel the execution of this wizard, select &lt;b&gt;Settings&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window to access the settings dialog of this machine and change the hard disk configuration.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Heu iniciat un nova màquina virtual per primera vegada. Aquest assistent us ajudarà a dur a terme els passos necessaris per iniciar un sistema operatiu de la vostra elecció a la màquina virtual.&lt;/p&gt;&lt;p&gt;Tingueu en compte que no podeu instal·lar un sistema operatiu a dins d&apos;aquesta màquina virtual en aquest moment perquè encara no heu seleccionat un disc. Si això no és el que voleu, podeu cancel·lar l&apos;execució d&apos;aquest assistent, seleccioneu &lt;b&gt;Paràmetres&lt;/b&gt; des del menú &lt;b&gt;Màquina&lt;/b&gt; de la finestra principal del VirtualBox per accedir al diàleg de configuració d&apos;aquest màquina i canviar la configuració de disc.&lt;/p&gt;&lt;p&gt;Feu servir el botó &lt;b&gt;Següent&lt;/b&gt; per continuar amb la següent pàgina de l&apos;assistent i el botó &lt;b&gt;Enrere&lt;/b&gt; per tornar a la pàgina anterior. Podeu prémer també &lt;b&gt;Cancel·la&lt;/b&gt; si voleu cancel·lar l&apos;execució d&apos;aquest assistent.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for installing an operating system of your choice onto this virtual machine.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel execution of this wizard.&lt;/p&gt;</source>
+        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for installing an operating system of your choice onto this virtual machine.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Heu iniciat un nova màquina virtual per primera vegada. Aquest assistent us ajudarà a dur a terme els passos necessaris per iniciar un sistema operatiu de la vostra elecció a la màquina virtual.&lt;/p&gt;&lt;p&gt;Feu servir el botó &lt;b&gt;Següent&lt;/b&gt; per continuar amb la següent pàgina de l&apos;assistent i el botó &lt;b&gt;Enrere&lt;/b&gt; per tornar a la pàgina anterior. Podeu prémer també &lt;b&gt;Cancel·la&lt;/b&gt; si voleu cancel·lar l&apos;execució d&apos;aquest assistent.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -6851,7 +7493,7 @@ p, li { white-space: pre-wrap; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the above is correct, press the &lt;span style=&quot; font-weight:600;&quot;&gt;Finish&lt;/span&gt; button. Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;span style=&quot; font-weight:600;&quot;&gt;Unmount...&lt;/span&gt; action in the &lt;span style=&quot; font-weight:600;&quot;&gt;Devices&lt;/span&gt; menu&lt;span style=&quot; font-weight:600;&quot;&gt;.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;p, li { white-space: pre-wrap; }&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Arial&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Si el que posa amunt és correcte, premeu sobre &lt;span style=&quot; font-weight:600;&quot;&gt;Finalitza&lt;/span&gt;. Una vegada que premeu el botó, el dispositiu seleccionat es muntarà temporalment a la màquina virtual i començarà l&apos;execució..&lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Tingueu en compte que quan tanqueu la màquina virtual, el dispositiu s&apos;expulsarà automàticament.&lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Segons el tipus de programa de configuració, potser necessitareu expulsar manualment el dispositiu després que la màquina virtual es torni a iniciar per tal que el procés d&apos;instal·lació s&apos;iniciï novament. Podeu fer això seleccionant l&apos;acció corresponent &lt;span style=&quot; font-weight:600;&quot;&gt;Expulsa...&lt;/span&gt; al menú &lt;span style=&quot; font-weight:600;&quot;&gt;Dispositius&lt;/span&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <translation type="obsolete">&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;p, li { white-space: pre-wrap; }&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Arial&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Si el que posa amunt és correcte, premeu sobre &lt;span style=&quot; font-weight:600;&quot;&gt;Finalitza&lt;/span&gt;. Una vegada que premeu el botó, el dispositiu seleccionat es muntarà temporalment a la màquina virtual i començarà l&apos;execució..&lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Tingueu en compte que quan tanqueu la màquina virtual, el dispositiu s&apos;expulsarà automàticament.&lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Segons el tipus de programa de configuració, potser necessitareu expulsar manualment el dispositiu després que la màquina virtual es torni a iniciar per tal que el procés d&apos;instal·lació s&apos;iniciï novament. Podeu fer això seleccionant l&apos;acció corresponent &lt;span style=&quot; font-weight:600;&quot;&gt;Expulsa...&lt;/span&gt; al menú &lt;span style=&quot; font-weight:600;&quot;&gt;Dispositius&lt;/span&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <source>&amp;Finish</source>
@@ -6940,11 +7582,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>CD/DVD-ROM Statistics</source>
-        <translation>Estadístiques CD/DVD</translation>
+        <translation type="obsolete">Estadístiques CD/DVD</translation>
     </message>
     <message>
         <source>Network Adapter Statistics</source>
-        <translation>Estadístiques de l&apos;adaptador de xarxa</translation>
+        <translation type="obsolete">Estadístiques de l&apos;adaptador de xarxa</translation>
     </message>
     <message>
         <source>Adapter 1</source>
@@ -7011,11 +7653,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Hard Disk Statistics</source>
-        <translation>Estadístiques de discos durs</translation>
+        <translation type="obsolete">Estadístiques de discos durs</translation>
     </message>
     <message>
         <source>No Hard Disks</source>
-        <translation>No hi ha cap disc dur</translation>
+        <translation type="obsolete">No hi ha cap disc dur</translation>
     </message>
     <message>
         <source>No Network Adapters</source>
@@ -7038,6 +7680,23 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>VBoxVMInformationDlg</source>
         <translation>VBoxVMInformationDlg</translation>
+    </message>
+    <message>
+        <source>Not Available</source>
+        <comment>details report (VRDP server port)</comment>
+        <translation>No disponible</translation>
+    </message>
+    <message>
+        <source>Storage Statistics</source>
+        <translation>Estadístiques d&apos;emmagatzematge</translation>
+    </message>
+    <message>
+        <source>No Storage Devices</source>
+        <translation>No hi ha cap dispositiu d&apos;emmagatzematge</translation>
+    </message>
+    <message>
+        <source>Network Statistics</source>
+        <translation>Estadístiques de xarxa</translation>
     </message>
 </context>
 <context>
@@ -7295,7 +7954,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">&amp;IRQ</translation>
     </message>
     <message>
-        <source>Displays the IRQ number of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may be used only if the &lt;b&gt;IO APIC&lt;/b&gt; is enabled for this virtual machine.</source>
+        <source>Displays the IRQ number of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; is enabled for this virtual machine.</source>
         <translation type="obsolete">Mostra el número IRQ per a aquest port paral·lel. Valors vàlids són nombres enters en un rang des de &lt;tt&gt;0&lt;/tt&gt; fins &lt;tt&gt;255&lt;/tt&gt;. Valors més grans que &lt;tt&gt;15&lt;/tt&gt; es faran servir si &lt;b&gt;IO APIC&lt;/b&gt; es troba habilitat a aquesta màquina virtual.</translation>
     </message>
     <message>
@@ -7303,7 +7962,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Po&amp;rt E/S</translation>
     </message>
     <message>
-        <source>Displays the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <source>Displays the base I/O port address of this parallel port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
         <translation type="obsolete">Mostra l&apos;adreça base del port E/S per a aquest port paral·lel. Valors vàlids són nombres enters en un rang des de &lt;tt&gt;0&lt;/tt&gt; fins &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
     </message>
     <message>
@@ -7326,15 +7985,15 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">&amp;Crea Conducte</translation>
     </message>
     <message>
-        <source>Displays the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <source>Displays the base I/O port address of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
         <translation type="obsolete">Mostra l&apos;adreça base del port d&apos;E/S d&apos;aquest port sèrie. Valors vàlids són nombres enters del rang des de &lt;tt&gt;0&lt;/tt&gt; fins &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
     </message>
     <message>
-        <source>Displays the IRQ number of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may be used only if the &lt;b&gt;IO APIC&lt;/b&gt; is enabled for this virtual machine.</source>
+        <source>Displays the IRQ number of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; is enabled for this virtual machine.</source>
         <translation type="obsolete">Mostra el número IRQ d&apos;aquest port sèrie. Valors vàlids són nombres enters del rang des de &lt;tt&gt;0&lt;/tt&gt; fins &lt;tt&gt;255&lt;/tt&gt;. Valors més grans que &lt;tt&gt;15&lt;/tt&gt; només s&apos;han de fer servir només si l&apos;&lt;b&gt;IO APIC&lt;/b&gt; és actiu per a aquesta màquina virtual.</translation>
     </message>
     <message>
-        <source>Displays the path to the serial port&apos;s pipe on the host when the port works in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port works in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
+        <source>Displays the path to the serial port&apos;s pipe on the host when the port is working in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port is working in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
         <translation type="obsolete">Mostra la ruta al conducte del port sèrie a l&apos;amfitrió quan el port treballa en el mode &lt;b&gt;Conducte Amfitrió&lt;/b&gt;, o al dispositiu sèrie de l&apos;amfitrió quan el port treballa en el mode &lt;b&gt;Dispositiu Amfitrió&lt;/b&gt;.</translation>
     </message>
     <message>
@@ -7346,7 +8005,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Habilita &amp;el Port Sèrie</translation>
     </message>
     <message>
-        <source>If checked, the pipe specified in the &lt;b&gt;Port Path&lt;/b&gt; field will be created by the virtual machine when it starts. Otherwise, the virtual machine will try to use the existing pipe.</source>
+        <source>If checked, the pipe specified in the &lt;b&gt;Port Path&lt;/b&gt; field will be created by the virtual machine when it starts. Otherwise, the virtual machine will assume that the pipe exists and try to use it.</source>
         <translation type="obsolete">Si està marcat, el conducte especificat al camp &lt;b&gt;Ruta del Port&lt;/b&gt; es crearà per la màquina virtual quan s&apos;iniciï. En altre cas, la màquina virtual provarà de fer servir el conducte existent.</translation>
     </message>
     <message>
@@ -7381,7 +8040,7 @@ p, li { white-space: pre-wrap; }
 <context>
     <name>VBoxVMSettingsAudio</name>
     <message>
-        <source>When checked, the virtual PCI audio card is plugged into the virtual machine that uses the specified driver to communicate to the host audio card.</source>
+        <source>When checked, a virtual PCI audio card will be plugged into the virtual machine and will communicate with the host audio system using the specified driver.</source>
         <translation>Quan estigui marcat, la tarjeta de so PCI virtual es connectarà a dins de la màquina virtual la qual farà servir un controlador específic per comunicar-se amb la tarjeta de so de l&apos;amfitrió.</translation>
     </message>
     <message>
@@ -7409,51 +8068,51 @@ p, li { white-space: pre-wrap; }
     <name>VBoxVMSettingsCD</name>
     <message>
         <source>Host CD/DVD drive is not selected</source>
-        <translation>No s&apos;ha seleccionat cap controlador de CD/DVD a l&apos;amfitrió</translation>
+        <translation type="obsolete">No s&apos;ha seleccionat cap controlador de CD/DVD a l&apos;amfitrió</translation>
     </message>
     <message>
         <source>CD/DVD image file is not selected</source>
-        <translation>No s&apos;ha seleccionat cap imatge de CD/DVD</translation>
+        <translation type="obsolete">No s&apos;ha seleccionat cap imatge de CD/DVD</translation>
     </message>
     <message>
         <source>When checked, mounts the specified media to the CD/DVD drive of the virtual machine. Note that the CD/DVD drive is always connected to the Secondary Master IDE controller of the machine.</source>
-        <translation>Quan estigui marcat, es muntarà el suport especificat al controlador CD/DVD de la màquina virtual. Tingueu en compte que el controlador CD/DVD sempre està connectat al controlador secundari mestre IDE de la màquina.</translation>
+        <translation type="obsolete">Quan estigui marcat, es muntarà el suport especificat al controlador CD/DVD de la màquina virtual. Tingueu en compte que el controlador CD/DVD sempre està connectat al controlador secundari mestre IDE de la màquina.</translation>
     </message>
     <message>
         <source>&amp;Mount CD/DVD Drive</source>
-        <translation>&amp;Munta la unitat CD/DVD</translation>
+        <translation type="obsolete">&amp;Munta la unitat CD/DVD</translation>
     </message>
     <message>
         <source>Mounts the specified CD/DVD drive to the virtual CD/DVD drive.</source>
-        <translation>Munta el CD/DVD especificat al dispositiu virtual de CD/DVD.</translation>
+        <translation type="obsolete">Munta el CD/DVD especificat al dispositiu virtual de CD/DVD.</translation>
     </message>
     <message>
         <source>Host CD/DVD &amp;Drive</source>
-        <translation>Controla&amp;dor de CD/DVD de l&apos;amfitrió</translation>
+        <translation type="obsolete">Controla&amp;dor de CD/DVD de l&apos;amfitrió</translation>
     </message>
     <message>
         <source>Lists host CD/DVD drives available to mount to the virtual machine.</source>
-        <translation>Mostra els dispositius de CD/DVD disponibles per muntar a la màquina virtual.</translation>
+        <translation type="obsolete">Mostra els dispositius de CD/DVD disponibles per muntar a la màquina virtual.</translation>
     </message>
     <message>
         <source>When checked, allows the guest to send ATAPI commands directly to the host drive which makes it possible to use CD/DVD writers connected to the host inside the VM. Note that writing audio CD inside the VM is not yet supported.</source>
-        <translation>Quan estigui marcat, es permetrà al client enviar ordres ATAPI directament al controlador amfitrió, cosa que permetrà fer servir lectors de CD/DVD de l&apos;amfitrió a dins de la màquina virtual. Tingueu en compte que gravar CD&apos;s d&apos;àudio a dins de la màquina virtual encara no està suportat.</translation>
+        <translation type="obsolete">Quan estigui marcat, es permetrà al client enviar ordres ATAPI directament al controlador amfitrió, cosa que permetrà fer servir lectors de CD/DVD de l&apos;amfitrió a dins de la màquina virtual. Tingueu en compte que gravar CD&apos;s d&apos;àudio a dins de la màquina virtual encara no està suportat.</translation>
     </message>
     <message>
         <source>Enable &amp;Passthrough</source>
-        <translation>&amp;Habilita Passthrough</translation>
+        <translation type="obsolete">&amp;Habilita Passthrough</translation>
     </message>
     <message>
         <source>Mounts the specified CD/DVD image to the virtual CD/DVD drive.</source>
-        <translation>Munta la imatge de CD/DVD especificat al dispositiu virtual de CD/DVD.</translation>
+        <translation type="obsolete">Munta la imatge de CD/DVD especificat al dispositiu virtual de CD/DVD.</translation>
     </message>
     <message>
         <source>&amp;ISO Image File</source>
-        <translation>Fitxer d&apos;imatge &amp;ISO</translation>
+        <translation type="obsolete">Fitxer d&apos;imatge &amp;ISO</translation>
     </message>
     <message>
         <source>Displays the image file to mount to the virtual CD/DVD drive and allows to quickly select a different image.</source>
-        <translation>Mostra el fitxer d&apos;imatge que es muntarà al dispositiu virtual de CD/DVD i permet seleccionar de forma ràpida una imatge diferent.</translation>
+        <translation type="obsolete">Mostra el fitxer d&apos;imatge que es muntarà al dispositiu virtual de CD/DVD i permet seleccionar de forma ràpida una imatge diferent.</translation>
     </message>
     <message>
         <source>Invokes the Virtual Disk Manager to select a CD/DVD image to mount.</source>
@@ -7461,13 +8120,13 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Invokes the Virtual Media Manager to select a CD/DVD image to mount.</source>
-        <translation>Invoca el gestor de discos durs virtuals per seleccionar una imatge CD/DVD a muntar.</translation>
+        <translation type="obsolete">Invoca el gestor de discos durs virtuals per seleccionar una imatge CD/DVD a muntar.</translation>
     </message>
 </context>
 <context>
     <name>VBoxVMSettingsDisplay</name>
     <message>
-        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; for video memory which is the minimum amount required to switch the virtual machine to fullscreen or seamless mode.</source>
+        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required to switch the virtual machine to fullscreen or seamless mode.</source>
         <translation>heu assignat menys de l&apos;&lt;b&gt;%1&lt;/b&gt; per a la memòria de vídeo, que és el mínim necessari per arrencar el sistema client en mode de pantalla completa o fluid.</translation>
     </message>
     <message>
@@ -7495,7 +8154,7 @@ p, li { white-space: pre-wrap; }
         <translation>Característiques avançades:</translation>
     </message>
     <message>
-        <source>When checked, the virtual machine will get access to the 3D graphics capabilities available on the host.</source>
+        <source>When checked, the virtual machine will be given access to the 3D graphics capabilities available on the host.</source>
         <translation>Quan estigui marcat, la màquina virtual permetrà l&apos;accés als gràfics 3D disponibles a l&apos;amfitrió.</translation>
     </message>
     <message>
@@ -7520,7 +8179,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Displays the VRDP Server port number. You may specify &lt;tt&gt;0&lt;/tt&gt; (zero) to reset the port to the default value.</source>
-        <translation>Mostra el nombre del port del servidor VRDP. Heu d&apos;especificar &lt;tt&gt;0&lt;/tt&gt; (cero) per reiniciar el port al valor per defecte.</translation>
+        <translation type="obsolete">Mostra el nombre del port del servidor VRDP. Heu d&apos;especificar &lt;tt&gt;0&lt;/tt&gt; (cero) per reiniciar el port al valor per defecte.</translation>
     </message>
     <message>
         <source>Authentication &amp;Method:</source>
@@ -7537,6 +8196,22 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Specifies the timeout for guest authentication, in milliseconds.</source>
         <translation>Especifica el temps d&apos;autenticació del client, en milisegons.</translation>
+    </message>
+    <message>
+        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required for HD Video to be played efficiently.</source>
+        <translation>heu assignat menys de &lt;b&gt;%1&lt;/b&gt; per a la memòria de vídeo, que és la mínima quantitat que es requereix per reproduir Vídeo HD de forma eficient.</translation>
+    </message>
+    <message>
+        <source>When checked, the virtual machine will be given access to the Video Acceleration capabilities available on the host.</source>
+        <translation>Quan estigui marcat, la màquina virtual tindrà suport a les capacitatats d&apos;acceleració de vídeo disponibles a l&apos;amfitrió.</translation>
+    </message>
+    <message>
+        <source>Enable &amp;2D Video Acceleration</source>
+        <translation>Activa l&apos;acceleracio &amp;2D</translation>
+    </message>
+    <message>
+        <source>The VRDP Server port number. You may specify &lt;tt&gt;0&lt;/tt&gt; (zero), to select port 3389, the standard port for RDP.</source>
+        <translation>El número de port de servidor VRDP. Heu d&apos;especificar &lt;tt&gt;0&lt;/tt&gt; (cero) per a seleccionar el port 3389, el port estàndard per a RDP.</translation>
     </message>
 </context>
 <context>
@@ -7703,7 +8378,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Ctrl+Amunt</translation>
     </message>
     <message>
-        <source>Defines the mode of sharing the clipboard between the guest and the host OS. Note that this feature requires Guest Additions to be installed in the guest OS.</source>
+        <source>Selects which clipboard data will be copied between the guest and the host OS. This feature requires Guest Additions to be installed in the guest OS.</source>
         <translation type="obsolete">Defineix el mode de compartició del porta-retalls entre el client i l&apos;amfitrió. Tingueu en compte que aquesta característica requereix tenir instal·lades les Guest Additions al sistema client.</translation>
     </message>
     <message>
@@ -7719,7 +8394,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">&amp;Descripció</translation>
     </message>
     <message>
-        <source>Displays the description of the virtual machine. The description field is useful for commenting configuration details of the installed guest OS.</source>
+        <source>Displays the description of the virtual machine. The description field is useful for commenting on configuration details of the installed guest OS.</source>
         <translation type="obsolete">Mostra la descripció de la màquina virtual. El camp de descripció és útil per comentar els detalls de configuració del sistema client instal·lat.</translation>
     </message>
     <message>
@@ -7743,7 +8418,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Mostra el tipus de sistema operatiu que voleu instal·lar a dins d&apos;aquesta màquina virtual (anomenat sistema operatiu client).</translation>
     </message>
     <message>
-        <source>Displays the path where snapshots of this virtual machine will be stored. Note that snapshots can take quite a lot of disk space.</source>
+        <source>Displays the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of disk space.</source>
         <translation type="obsolete">Mostra la ruta on les captures d&apos;aquesta màquina virtual es desaran. Tingueu en compte que les captures poden ocupar prou quantitat d&apos;espai al disc dur.</translation>
     </message>
     <message>
@@ -7751,11 +8426,11 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Mostra el disc dur virtual per connectar aquesta ranura IDE i permet seleccionar ràpidament un disc dur diferent.</translation>
     </message>
     <message>
-        <source>Duplicate port number is selected </source>
+        <source>Duplicate port number selected </source>
         <translation type="obsolete">S&apos;ha seleccionat un número de port duplicat</translation>
     </message>
     <message>
-        <source>Duplicate port path is entered </source>
+        <source>Duplicate port path entered </source>
         <translation type="obsolete">S&apos;ha introduït una ruta de port duplicada</translation>
     </message>
     <message>
@@ -7871,7 +8546,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">Invoca el Gestor de discos durs virtuals per seleccionar una imatge de disquet a muntar.</translation>
     </message>
     <message>
-        <source>&lt;i&gt;Select a settings category from the list on the left side and move the mouse over a settings item to get more information&lt;i&gt;.</source>
+        <source>&lt;i&gt;Select a settings category from the list on the left-hand side and move the mouse over a settings item to get more information&lt;i&gt;.</source>
         <translation type="obsolete">&lt;i&gt;Seleccioneu una categoria de configuració de la llista de l&apos;esquerra i moveu el ratolí sobre l&apos;ítem de paràmetres per obtenir més informació&lt;/i&gt;.</translation>
     </message>
     <message>
@@ -8039,7 +8714,7 @@ this feature after having installed a Windows guest operating system!&lt;/qt&gt;
     </message>
     <message>
         <source>&lt;qt&gt;When checked, the virtual machine will support
-the Input Output APIC (IO APIC), which may slightly decrease the VM performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable
+the Input Output APIC (IO APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable
 this feature after having installed a Windows guest operating system!&lt;/qt&gt;</source>
         <translation type="obsolete">&lt;qt&gt;Quan estigui marcat, la màquina virtual suportarà
 l&apos;Entrada Sortida APIC (ES APIC), que pot disminuir el rendiment de la màquina virtual. &lt;b&gt;Nota:&lt;/b&gt; no inhabiliteu
@@ -8182,7 +8857,7 @@ aquesta característica després d&apos;haver instal·lat un Windows al sistema 
         <translation type="obsolete">Quan estigui marcat, la màquina virtual provarà de fer servir les extensions de virtualització per maquinari de la CPU de l&apos;amfitrió com Intel VT-x i AMD-V. L&apos;estat grayed de la casella de selecció indica que aquest paràmetre està determinat pel valor del paràmetre global.</translation>
     </message>
     <message>
-        <source>When checked, the virtual PCI audio card is plugged into the virtual machine that uses the specified driver to communicate to the host audio card.</source>
+        <source>When checked, a virtual PCI audio card will be plugged into the virtual machine and will communicate with the host audio system using the specified driver.</source>
         <translation type="obsolete">Quan estigui marcat, la tarjeta de so PCI virtual es connectarà a dins de la màquina virtual, la qual farà servir un controlador específic per comunicar-se amb la tarjeta de so de l&apos;amfitrió.</translation>
     </message>
     <message>
@@ -8387,7 +9062,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation type="obsolete">No s&apos;ha especificat un nom de xarxa intern</translation>
     </message>
     <message>
-        <source>Port path is not specified </source>
+        <source>Port path not specified </source>
         <translation type="obsolete">No s&apos;ha especificat una ruta al port</translation>
     </message>
     <message>
@@ -8475,48 +9150,52 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <source>you have selected a 64-bit guest OS type for this VM. VirtualBox does not currently support more than one virtual CPU for 64-bit guests executed on 32-bit hosts.</source>
         <translation>heu seleccionat un tipus de sistema client de 64 bits. VirtualBox no suporta actualment més d&apos;una CPU virtual per a clients de 64 bits executats en amfitrions de 32 bits.</translation>
     </message>
+    <message>
+        <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
+        <translation>l&apos;acceleració 2D està activada. Com que l&apos;acceleració 2D només està suportada per clients Windows, es desactivarà aquest paràmetre.</translation>
+    </message>
 </context>
 <context>
     <name>VBoxVMSettingsFD</name>
     <message>
         <source>Host floppy drive is not selected</source>
-        <translation>No s&apos;ha seleccionat cap disquet a l&apos;amfitrió</translation>
+        <translation type="obsolete">No s&apos;ha seleccionat cap disquet a l&apos;amfitrió</translation>
     </message>
     <message>
         <source>Floppy image file is not selected</source>
-        <translation>No s&apos;ha seleccionat cap imatge de disquet</translation>
+        <translation type="obsolete">No s&apos;ha seleccionat cap imatge de disquet</translation>
     </message>
     <message>
         <source>When checked, mounts the specified media to the Floppy drive of the virtual machine.</source>
-        <translation>Quant estigui marcat, muntarà el suport especificat al dispositiu de disquet de la màquina virtual.</translation>
+        <translation type="obsolete">Quant estigui marcat, muntarà el suport especificat al dispositiu de disquet de la màquina virtual.</translation>
     </message>
     <message>
         <source>&amp;Mount Floppy Drive</source>
-        <translation>&amp;Munta el disquet</translation>
+        <translation type="obsolete">&amp;Munta el disquet</translation>
     </message>
     <message>
         <source>Mounts the specified host Floppy drive to the virtual Floppy drive.</source>
-        <translation>Munta el disquet especificat de l&apos;amfitrió al dispositiu de disquet virtual.</translation>
+        <translation type="obsolete">Munta el disquet especificat de l&apos;amfitrió al dispositiu de disquet virtual.</translation>
     </message>
     <message>
         <source>Host Floppy &amp;Drive</source>
-        <translation>&amp;Disquet de l&apos;amfitrió</translation>
+        <translation type="obsolete">&amp;Disquet de l&apos;amfitrió</translation>
     </message>
     <message>
         <source>Lists host Floppy drives available to mount to the virtual machine.</source>
-        <translation>Mostra els dispositius de disquet disponibles per muntar a la màquina virtual.</translation>
+        <translation type="obsolete">Mostra els dispositius de disquet disponibles per muntar a la màquina virtual.</translation>
     </message>
     <message>
         <source>Mounts the specified Floppy image to the virtual Floppy drive.</source>
-        <translation>Munta el disquet especificat al dispositiu de disquet virtual.</translation>
+        <translation type="obsolete">Munta el disquet especificat al dispositiu de disquet virtual.</translation>
     </message>
     <message>
         <source>&amp;Image File</source>
-        <translation>Fitxer d&apos;&amp;imatge</translation>
+        <translation type="obsolete">Fitxer d&apos;&amp;imatge</translation>
     </message>
     <message>
         <source>Displays the image file to mount to the virtual Floppy drive and allows to quickly select a different image.</source>
-        <translation>Mostra el fitxer d&apos;imatge que es muntarà al disquet virtual i permet seleccionar de forma ràpida una imatge diferent.</translation>
+        <translation type="obsolete">Mostra el fitxer d&apos;imatge que es muntarà al disquet virtual i permet seleccionar de forma ràpida una imatge diferent.</translation>
     </message>
     <message>
         <source>Invokes the Virtual Disk Manager to select a Floppy image to mount.</source>
@@ -8524,7 +9203,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>Invokes the Virtual Media Manager to select a Floppy image to mount.</source>
-        <translation>Invoca el gestor de discos durs virtuals per seleccionar una imatge de disquet a muntar.</translation>
+        <translation type="obsolete">Invoca el gestor de discos durs virtuals per seleccionar una imatge de disquet a muntar.</translation>
     </message>
 </context>
 <context>
@@ -8534,7 +9213,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation type="obsolete">heu assignat més d&apos;un &lt;b&gt;%1%&lt;/b&gt; de la memòria del vostre ordinador (&lt;b&gt;%2&lt;/b&gt;) a la màquina virtual. No heu deixat suficient memòria al sistema amfitrió. Seleccineu un percentatge menor.</translation>
     </message>
     <message>
-        <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. Not enough memory might be left for your host operating system. Continue at your own risk.</source>
+        <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. There might not be enough memory left for your host operating system. Continue at your own risk.</source>
         <translation type="obsolete">heu assignat més d&apos;un &lt;b&gt;%1%&lt;/b&gt; de la memòria del vostre ordinador (&lt;b&gt;%2&lt;/b&gt;) a la màquina virtual. No heu deixat suficient memòria al sistema amfitrió. Contineu pel vostre compte (no recomanable).</translation>
     </message>
     <message>
@@ -8546,7 +9225,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation type="obsolete">&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</translation>
     </message>
     <message>
-        <source>Displays the path where snapshots of this virtual machine will be stored. Note that snapshots can take quite a lot of disk space.</source>
+        <source>Displays the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of disk space.</source>
         <translation>Mostra la ruta on les captures d&apos;aquesta màquina virtual es desaran. Tingueu en compte que les captures poden ocupar prou quantitat d&apos;espai al disc dur.</translation>
     </message>
     <message>
@@ -8610,7 +9289,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation type="obsolete">&amp;Ordre d&apos;inici:</translation>
     </message>
     <message>
-        <source>Defines the boot device order. Use checkboxes to the left to enable or disable individual boot devices. Move items up and down to change the device order.</source>
+        <source>Defines the boot device order. Use the checkboxes on the left to enable or disable individual boot devices. Move items up and down to change the device order.</source>
         <translation type="obsolete">Defineix l&apos;ordre dels dispositius d&apos;arrencada. Useu les caselles de selecció a l&apos;esquerra per activar o desactivar els dispositius d&apos;arrencada individuals. Moveu els elements amunt i avall per a canviar l&apos;ordre dels dispositius.</translation>
     </message>
     <message>
@@ -8646,7 +9325,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation type="obsolete">Habilita A&amp;CPI</translation>
     </message>
     <message>
-        <source>When checked, the virtual machine will support the Input Output APIC (IO APIC), which may slightly decrease the VM performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
+        <source>When checked, the virtual machine will support the Input Output APIC (IO APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
         <translation type="obsolete">Quan estigui marcat, la màquina virtual suportarà l&apos;entrada/sortida APIC (ES APIC), que pot reduir el rendiment de la màquina virtual. &lt;b&gt;Nota:&lt;/b&gt; no inhabiliteu aquesta característica després d&apos;haver instal·lat un Windows al sistema operatiu client!</translation>
     </message>
     <message>
@@ -8682,7 +9361,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation>Porta-retall&amp;s compartit:</translation>
     </message>
     <message>
-        <source>Defines the mode of sharing the clipboard between the guest and the host OS. Note that this feature requires Guest Additions to be installed in the guest OS.</source>
+        <source>Selects which clipboard data will be copied between the guest and the host OS. This feature requires Guest Additions to be installed in the guest OS.</source>
         <translation>Defineix el mode de compartició del porta-retalls entre el client i l&apos;amfitrió. Tingueu en compte que aquesta característica requereix tenir instal·lades les Guest Additions al sistema client.</translation>
     </message>
     <message>
@@ -8702,7 +9381,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation>&amp;Descripció</translation>
     </message>
     <message>
-        <source>Displays the description of the virtual machine. The description field is useful for commenting configuration details of the installed guest OS.</source>
+        <source>Displays the description of the virtual machine. The description field is useful for commenting on configuration details of the installed guest OS.</source>
         <translation>Mostra la descripció de la màquina virtual. El camp de descripció és útil per comentar els detalls de configuració del sistema client instal·lat.</translation>
     </message>
     <message>
@@ -8726,15 +9405,15 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation type="obsolete">heu assignat més del &lt;b&gt;75%&lt;/b&gt; de la memòria del vostre ordinador (&lt;b&gt;%1&lt;/b&gt;) per a la màquina virtual. D&apos;aquesta manera no es deixa la suficient memòria per al sistema amfitrió. Seleccioneu una quantitat de memòria inferior.</translation>
     </message>
     <message>
-        <source>you have assigned more than &lt;b&gt;50%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%1&lt;/b&gt;) to the virtual machine. Not enough memory might be left for your host operating system. Continue at your own risk.</source>
+        <source>you have assigned more than &lt;b&gt;50%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%1&lt;/b&gt;) to the virtual machine. There might not be enough memory left for your host operating system. Continue at your own risk.</source>
         <translation type="obsolete">heu assignat més del &lt;b&gt;50%&lt;/b&gt; de la memòria del vostre ordinador (&lt;b&gt;%1&lt;/b&gt;) per a la màquina virtual. D&apos;aquesta manera no es deixa la suficient memòria per al sistema amfitrió. Contineu pel vostre compte (no recomanable).</translation>
     </message>
     <message>
-        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; for video memory which is the minimum amount required to switch the virtual machine to fullscreen or seamless mode.</source>
+        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required to switch the virtual machine to fullscreen or seamless mode.</source>
         <translation type="obsolete">heu assignat menys de l&apos;&lt;b&gt;%1&lt;/b&gt; per a la memòria de vídeo, que és el mínim necessari per arrencar el sistema client en mode de pantalla completa o fluid.</translation>
     </message>
     <message>
-        <source>When checked, the virtual machine will get access to the 3D graphics capabilities available on the host.</source>
+        <source>When checked, the virtual machine will be given access to the 3D graphics capabilities available on the host.</source>
         <translation type="obsolete">Quan estigui marcat, la màquina virtual permetrà l&apos;accés als gràfics 3D disponibles a l&apos;amfitrió.</translation>
     </message>
     <message>
@@ -8761,36 +9440,44 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <source>Show In &amp;Fullscreen/Seamless</source>
         <translation>Mostra en pantalla completa/&amp;fluid</translation>
     </message>
+    <message>
+        <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
+        <translation>Si està marcat, mostra una barra d&apos;eines petita a la part de dalt de la pantalla en lloc de a la posició per defecte a la part de sota.</translation>
+    </message>
+    <message>
+        <source>Show At &amp;Top Of Screen</source>
+        <translation>Mostra a la par&amp;t de dalt de la pantalla</translation>
+    </message>
 </context>
 <context>
     <name>VBoxVMSettingsHD</name>
     <message>
         <source>No hard disk is selected for &lt;i&gt;%1&lt;/i&gt;</source>
-        <translation>No s&apos;ha seleccionat cap disc dur per &lt;i&gt;%1&lt;/i&gt;</translation>
+        <translation type="obsolete">No s&apos;ha seleccionat cap disc dur per &lt;i&gt;%1&lt;/i&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;%1&lt;/i&gt; uses the hard disk that is already attached to &lt;i&gt;%2&lt;/i&gt;</source>
-        <translation>&lt;i&gt;%1&lt;/i&gt; fa servir el disc dur que es troba connectat a &lt;i&gt;%2&lt;/i&gt;</translation>
+        <translation type="obsolete">&lt;i&gt;%1&lt;/i&gt; fa servir el disc dur que es troba connectat a &lt;i&gt;%2&lt;/i&gt;</translation>
     </message>
     <message>
         <source>&amp;Add Attachment</source>
-        <translation>&amp;Afegeix una adjunció</translation>
+        <translation type="obsolete">&amp;Afegeix una adjunció</translation>
     </message>
     <message>
         <source>&amp;Remove Attachment</source>
-        <translation>&amp;Elimina una adjució</translation>
+        <translation type="obsolete">&amp;Elimina una adjució</translation>
     </message>
     <message>
         <source>&amp;Select Hard Disk</source>
-        <translation>&amp;Seleccioneu un disc dur</translation>
+        <translation type="obsolete">&amp;Seleccioneu un disc dur</translation>
     </message>
     <message>
         <source>Adds a new hard disk attachment.</source>
-        <translation>Afegeix una nova adjunció de disc dur.</translation>
+        <translation type="obsolete">Afegeix una nova adjunció de disc dur.</translation>
     </message>
     <message>
         <source>Removes the highlighted hard disk attachment.</source>
-        <translation>Elimina l&apos;adjunció de disc dur remarcada.</translation>
+        <translation type="obsolete">Elimina l&apos;adjunció de disc dur remarcada.</translation>
     </message>
     <message>
         <source>Invokes the Virtual Disk Manager to select a hard disk to attach to the currently highlighted slot.</source>
@@ -8806,39 +9493,247 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>When checked, enables an additional virtual controller (either SATA or SCSI) of this machine.</source>
-        <translation>Quan estigui marcat, habilitarà un controlador virtual addicional (SATA o SCSI) per a aquesta màquina.</translation>
+        <translation type="obsolete">Quan estigui marcat, habilitarà un controlador virtual addicional (SATA o SCSI) per a aquesta màquina.</translation>
     </message>
     <message>
         <source>&amp;Enable Additional Controller</source>
-        <translation>&amp;Activa el controlador addicional</translation>
+        <translation type="obsolete">&amp;Activa el controlador addicional</translation>
     </message>
     <message>
         <source>&amp;Attachments</source>
-        <translation>&amp;Adjuncions</translation>
+        <translation type="obsolete">&amp;Adjuncions</translation>
     </message>
     <message>
         <source>Lists all hard disks attached to this machine. Use a mouse click or the &lt;tt&gt;Space&lt;/tt&gt; key on the highlighted item to activate the drop-down list and choose the desired value. Use the context menu or buttons to the right to add or remove hard disk attachments.</source>
-        <translation>Mostra els discos durs connectats a aquesta màquina. Feu servir el clic de ratolí o la tecla &lt;tt&gt;espai&lt;/tt&gt; a l&apos;ítem remarcat per activar la llista deslplegable i seleccionar el valor desitjat. Feu servir el menú de context o els botons de la dreta per afegir o suprimir discos durs connectats.</translation>
+        <translation type="obsolete">Mostra els discos durs connectats a aquesta màquina. Feu servir el clic de ratolí o la tecla &lt;tt&gt;espai&lt;/tt&gt; a l&apos;ítem remarcat per activar la llista deslplegable i seleccionar el valor desitjat. Feu servir el menú de context o els botons de la dreta per afegir o suprimir discos durs connectats.</translation>
     </message>
     <message>
         <source>Invokes the Virtual Media Manager to select a hard disk to attach to the currently highlighted slot.</source>
-        <translation>Invoca el gestor de suports virtuals per crear un de nou o seleccionar un disc dur existent per connectar-lo a la ranura remarcada.</translation>
+        <translation type="obsolete">Invoca el gestor de suports virtuals per crear un de nou o seleccionar un disc dur existent per connectar-lo a la ranura remarcada.</translation>
     </message>
     <message>
-        <source>If checked, it will show differencing hard disks actually attached to the slots instead of their base hard disks (shown in case of indirect attachments) and will also let attach other differencing hard disks explicitly. Check this only if you need a complex hard disk setup.</source>
+        <source>If checked, shows the differencing hard disks that are attached to slots rather than their base hard disks (shown for indirect attachments) and allows explicit attaching of differencing hard disks. Check this only if you need a complex hard disk setup.</source>
         <translation>Si està marcat, mostrarà de forma diferenciada els discos durs connectats a les ranures en lloc de als discos durs base (mostrat en cas d&apos;adjuncions indirectes), a més permetrà connectar altres discos durs explícitament. Marqueu això només si necessiteu una configuració complexa del disc dur.</translation>
     </message>
     <message>
         <source>&amp;Show Differencing Hard Disks</source>
-        <translation>Mo&amp;stra els discos durs diferenciats</translation>
+        <translation type="obsolete">Mo&amp;stra els discos durs diferenciats</translation>
     </message>
     <message>
         <source>IDE &amp;Controller Type</source>
-        <translation>Tipus de &amp;controlador IDE</translation>
+        <translation type="obsolete">Tipus de &amp;controlador IDE</translation>
     </message>
     <message>
         <source>Defines the type of the virtual IDE controller. Depending on this value, VirtualBox will provide different virtual IDE hardware devices to the guest OS.</source>
-        <translation>Defineix el tipus del controlador virtual IDE. Segons aquest valor, VirtualBox proveirà diferents dispositius de maquinari IDE virtual per al sistema client.</translation>
+        <translation type="obsolete">Defineix el tipus del controlador virtual IDE. Segons aquest valor, VirtualBox proveirà diferents dispositius de maquinari IDE virtual per al sistema client.</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Bus:&amp;nbsp;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Type:&amp;nbsp;&amp;nbsp;%3&lt;/nobr&gt;</source>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Bus:&amp;nbsp;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Tipus:&amp;nbsp;&amp;nbsp;%3&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Expand/Collapse&amp;nbsp;Item&lt;/nobr&gt;</source>
+        <translation>&lt;nobr&gt;Expandeix/redueix&amp;nbsp;element&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Add&amp;nbsp;Hard&amp;nbsp;Disk&lt;/nobr&gt;</source>
+        <translation>&lt;nobr&gt;Afegeix&amp;nbsp;disc&amp;nbsp;dur&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Add&amp;nbsp;CD/DVD&amp;nbsp;Device&lt;/nobr&gt;</source>
+        <translation>&lt;nobr&gt;Afegeix&amp;nbsp;dispositiu&amp;nbsp;CD/DVD&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Add&amp;nbsp;Floppy&amp;nbsp;Device&lt;/nobr&gt;</source>
+        <translation>&lt;nobr&gt;Afegeix&amp;nbsp;disquetera&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>No hard disk is selected for &lt;i&gt;%1&lt;/i&gt;.</source>
+        <translation>No hi ha cap disc dur seleccionat per a &lt;i&gt;%1&lt;/i&gt;.</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;%1&lt;/i&gt; uses a medium that is already attached to &lt;i&gt;%2&lt;/i&gt;.</source>
+        <translation>&lt;i&gt;%1&lt;/i&gt; utilitza un suport que ja està connectat a &lt;i&gt;%2&lt;/i&gt;.</translation>
+    </message>
+    <message>
+        <source>Add Controller</source>
+        <translation>Afegeix mòdul</translation>
+    </message>
+    <message>
+        <source>Add IDE Controller</source>
+        <translation>Afegeix mòdul IDE</translation>
+    </message>
+    <message>
+        <source>Add SATA Controller</source>
+        <translation>Afegeix mòdul SATA</translation>
+    </message>
+    <message>
+        <source>Add SCSI Controller</source>
+        <translation>Afegeix mòdul SCSI</translation>
+    </message>
+    <message>
+        <source>Add Floppy Controller</source>
+        <translation>Afegeix mòdul de disquetera</translation>
+    </message>
+    <message>
+        <source>Remove Controller</source>
+        <translation>Suprimeix el mòdul</translation>
+    </message>
+    <message>
+        <source>Add Attachment</source>
+        <translation>Afegeix una adjunció</translation>
+    </message>
+    <message>
+        <source>Add Hard Disk</source>
+        <translation>Afegeix disc dur</translation>
+    </message>
+    <message>
+        <source>Add CD/DVD Device</source>
+        <translation>Afegeix dispositiu CD/DVD</translation>
+    </message>
+    <message>
+        <source>Add Floppy Device</source>
+        <translation>Afegeix disquetera</translation>
+    </message>
+    <message>
+        <source>Remove Attachment</source>
+        <translation>Elimina l&apos;adjunció</translation>
+    </message>
+    <message>
+        <source>Adds a new controller to the end of the Storage Tree.</source>
+        <translation>Afegeix un nou controlador al final de l&apos;Arbre d&apos;emmagatzematge.</translation>
+    </message>
+    <message>
+        <source>Removes the controller highlighted in the Storage Tree.</source>
+        <translation>Elimina el controlador realçat de l&apos;Arbre d&apos;emmagatzematge.</translation>
+    </message>
+    <message>
+        <source>Adds a new attachment to the Storage Tree using currently selected controller as parent.</source>
+        <translation>Afegeix una nova adjunció a l&apos;Arbre d&apos;emmagatzematge fent servir el controlador seleccionat actualment com a pare.</translation>
+    </message>
+    <message>
+        <source>Removes the attachment highlighted in the Storage Tree.</source>
+        <translation>Elimina l&apos;adjunció realçada a l&apos;Arbre d&apos;emmagatzematge.</translation>
+    </message>
+    <message>
+        <source>IDE Controller</source>
+        <translation>Mòdul IDE</translation>
+    </message>
+    <message>
+        <source>SATA Controller</source>
+        <translation>Mòdul SATA</translation>
+    </message>
+    <message>
+        <source>SCSI Controller</source>
+        <translation>Mòdul SCSI</translation>
+    </message>
+    <message>
+        <source>Floppy Controller</source>
+        <translation>Mòdul de disquet</translation>
+    </message>
+    <message>
+        <source>Hard &amp;Disk:</source>
+        <translation>&amp;Disc dur:</translation>
+    </message>
+    <message>
+        <source>&amp;CD/DVD Device:</source>
+        <translation>Dispositiu &amp;CD/DVD:</translation>
+    </message>
+    <message>
+        <source>&amp;Floppy Device:</source>
+        <translation>&amp;Disquetera:</translation>
+    </message>
+    <message>
+        <source>&amp;Storage Tree</source>
+        <translation>&amp;Arbre d&apos;emmagatzematge</translation>
+    </message>
+    <message>
+        <source>Contains all storage controllers for this machine and the virtual images and host drives attached to them.</source>
+        <translation>Conté tots els controladors per a aquesta màquina i les imatges virtual i controladors d&apos;amfitrió connectats a elles.</translation>
+    </message>
+    <message>
+        <source>Information</source>
+        <translation>Informació</translation>
+    </message>
+    <message>
+        <source>The Storage Tree can contain several controllers of different types. This machine currently has no controllers.</source>
+        <translation>L&apos;Arbre d&apos;emmagatzematge pot contenir molts controladors de diferents tipus. Aquesta màquina encara no té cap controlador.</translation>
+    </message>
+    <message>
+        <source>Attributes</source>
+        <translation>Atributs</translation>
+    </message>
+    <message>
+        <source>&amp;Name:</source>
+        <translation>&amp;Nom:</translation>
+    </message>
+    <message>
+        <source>Changes the name of the storage controller currently selected in the Storage Tree.</source>
+        <translation>Canvia el nom del controlador d&apos;emmagatzematge actualment seleccionat a l&apos;Arbre d&apos;emmagatzematge.</translation>
+    </message>
+    <message>
+        <source>&amp;Type:</source>
+        <translation>&amp;Tipus:</translation>
+    </message>
+    <message>
+        <source>Selects the sub-type of the storage controller currently selected in the Storage Tree.</source>
+        <translation>Selecciona el sub-tipus del controlador d&apos;emmagatzematge actualment seleccionat a l&apos;Arbre d&apos;emmagatzematge.</translation>
+    </message>
+    <message>
+        <source>S&amp;lot:</source>
+        <translation>&amp;Ranura:</translation>
+    </message>
+    <message>
+        <source>Selects the slot on the storage controller used by this attachment. The available slots depend on the type of the controller and other attachments on it.</source>
+        <translation>Selecciona la ranura al controlador d&apos;emmagatzematge utilitzada per aquesta adjunció. Les ranures disponibles depenen del tipus del controlador i de les altres adjuncions.</translation>
+    </message>
+    <message>
+        <source>Selects the virtual disk image or the host drive used by this attachment.</source>
+        <translation>Selecciona la imatge de disc virtual o el controlador de l&apos;amfitrió que fa servir per aquesta adjunció.</translation>
+    </message>
+    <message>
+        <source>Opens the Virtual Media Manager to select a virtual image for this attachment.</source>
+        <translation>Obre el Gestor de suports virtuals per a seleccionar una imatge virtual per a aquesta adjunció.</translation>
+    </message>
+    <message>
+        <source>Open Virtual Media Manager</source>
+        <translation>Obre el Gestor de suports virtuals</translation>
+    </message>
+    <message>
+        <source>D&amp;ifferencing Disks</source>
+        <translation>D&amp;iscs diferenciats</translation>
+    </message>
+    <message>
+        <source>When checked, allows the guest to send ATAPI commands directly to the host-drive which makes it possible to use CD/DVD writers connected to the host inside the VM. Note that writing audio CD inside the VM is not yet supported.</source>
+        <translation>Quan estigui marc, permet a la màquina client enviar ordres ATAPI directament al controlador amfitrió que fa possible fer servir les gravadores de CD/DVD connectades a l&apos;amfitrio a dins de la màquina virtual. Tingueu en compte que la gravació de CD&apos;s d&apos;àudio encara no està suportada.</translation>
+    </message>
+    <message>
+        <source>&amp;Passthrough</source>
+        <translation>&amp;Passthrough</translation>
+    </message>
+    <message>
+        <source>Virtual Size:</source>
+        <translation>Mida virtual:</translation>
+    </message>
+    <message>
+        <source>Actual Size:</source>
+        <translation>Mida real:</translation>
+    </message>
+    <message>
+        <source>Size:</source>
+        <translation>Mida:</translation>
+    </message>
+    <message>
+        <source>Location:</source>
+        <translation>Ubicació:</translation>
+    </message>
+    <message>
+        <source>Type (Format):</source>
+        <translation>Tipus (format):</translation>
+    </message>
+    <message>
+        <source>Attached To:</source>
+        <translation>Connectat a:</translation>
     </message>
 </context>
 <context>
@@ -8941,14 +9836,14 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>Open additional options dialog for current attachment type.</source>
-        <translation>Obre el diàleg d&apos;opcions addicionals per a l&apos;actual tipus d&apos;adjunció.</translation>
+        <translation type="obsolete">Obre el diàleg d&apos;opcions addicionals per a l&apos;actual tipus d&apos;adjunció.</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
         <translation>&amp;Nom:</translation>
     </message>
     <message>
-        <source>Selects the name of the network adapter if attachment type is equivalent to &lt;b&gt;Bridged Adapter&lt;/b&gt; or &lt;b&gt;Host-only Adapter&lt;/b&gt; and the name of the internal network if attachment type is equivalent to &lt;b&gt;Internal Network&lt;/b&gt;.</source>
+        <source>Selects the name of the network adapter for &lt;b&gt;Bridged Adapter&lt;/b&gt; or &lt;b&gt;Host-only Adapter&lt;/b&gt; attachments and the name of the network &lt;b&gt;Internal Network&lt;/b&gt; attachments.</source>
         <translation>Selecciona el nom de l&apos;adaptador de xarxa si el tipus d&apos;adjunció és equivalent a &lt;b&gt;Adaptador en pont&lt;/b&gt; o &lt;b&gt;Adaptador de només l&apos;amfitrió&lt;/b&gt; i el nom de la xarxa interna si el tipus d&apos;adjunció és equivalent a &lt;b&gt;Xarxa interna&lt;/b&gt;.</translation>
     </message>
     <message>
@@ -8969,11 +9864,11 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>Displays the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</source>
-        <translation type="obsolete">Mostra l&apos;adreça MAC d&apos;aquest adaptador. Conté exactament 12 caràcters compresos entre {0-9,A-F}. Tingueu en compte que el segon caràcter ha d&apos;éser un dígit.</translation>
+        <translation>Mostra l&apos;adreça MAC d&apos;aquest adaptador. Conté exactament 12 caràcters compresos entre {0-9,A-F}. Tingueu en compte que el segon caràcter ha d&apos;éser un dígit.</translation>
     </message>
     <message>
         <source>Generates a new random MAC address.</source>
-        <translation type="obsolete">Genera una nova adreça MAC aleatòria.</translation>
+        <translation>Genera una nova adreça MAC aleatòria.</translation>
     </message>
     <message>
         <source>&amp;Generate</source>
@@ -8981,7 +9876,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>Indicates whether the virtual network cable is plugged in on machine startup or not.</source>
-        <translation type="obsolete">Indica si el cable de la xarxa virtual està connectat a l&apos;inici de la màquina virtual o no.</translation>
+        <translation>Indica si el cable de la xarxa virtual està connectat a l&apos;inici de la màquina virtual o no.</translation>
     </message>
     <message>
         <source>Ca&amp;ble Connected</source>
@@ -9022,6 +9917,22 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     <message>
         <source>Host Interface Settings</source>
         <translation type="obsolete">Paràmetres de la interfície de l&apos;amfitrió</translation>
+    </message>
+    <message>
+        <source>A&amp;dvanced</source>
+        <translation>&amp;Avançat</translation>
+    </message>
+    <message>
+        <source>Shows or hides additional network adapter options.</source>
+        <translation>Mostra o amaga les opcions addicionals de l&apos;adaptador de xarxa.</translation>
+    </message>
+    <message>
+        <source>&amp;Mac Address:</source>
+        <translation>Adreça &amp;Mac:</translation>
+    </message>
+    <message>
+        <source>&amp;Cable connected</source>
+        <translation>&amp;Cable connectat</translation>
     </message>
 </context>
 <context>
@@ -9092,27 +10003,27 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>Additional Options</source>
-        <translation>Opcions addicionals</translation>
+        <translation type="obsolete">Opcions addicionals</translation>
     </message>
     <message>
         <source>Guest &amp;MAC Address:</source>
-        <translation>Adreça &amp;MAC del client:</translation>
+        <translation type="obsolete">Adreça &amp;MAC del client:</translation>
     </message>
     <message>
         <source>Displays the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</source>
-        <translation>Mostra l&apos;adreça MAC d&apos;aquest adaptador. Conté exactament 12 caràcters compresos entre {0-9,A-F}. Tingueu en compte que el segon caràcter ha d&apos;ésser un dígit.</translation>
+        <translation type="obsolete">Mostra l&apos;adreça MAC d&apos;aquest adaptador. Conté exactament 12 caràcters compresos entre {0-9,A-F}. Tingueu en compte que el segon caràcter ha d&apos;ésser un dígit.</translation>
     </message>
     <message>
         <source>Generates a new random MAC address.</source>
-        <translation>Genera una nova adreça MAC aleatòria.</translation>
+        <translation type="obsolete">Genera una nova adreça MAC aleatòria.</translation>
     </message>
     <message>
         <source>&amp;Cable connected</source>
-        <translation>&amp;Cable connectat</translation>
+        <translation type="obsolete">&amp;Cable connectat</translation>
     </message>
     <message>
         <source>Indicates whether the virtual network cable is plugged in on machine startup or not.</source>
-        <translation>Indica si el cable de la xarxa virtual està connectat a l&apos;inici de la màquina virtual o no.</translation>
+        <translation type="obsolete">Indica si el cable de la xarxa virtual està connectat a l&apos;inici de la màquina virtual o no.</translation>
     </message>
 </context>
 <context>
@@ -9154,16 +10065,16 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation>&amp;IRQ:</translation>
     </message>
     <message>
-        <source>Displays the IRQ number of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may be used only if the &lt;b&gt;IO APIC&lt;/b&gt; is enabled for this virtual machine.</source>
-        <translation>Mostra el número IRQ per a aquest port paral·lel. Valors vàlids són nombres enters en un rang des de &lt;tt&gt;0&lt;/tt&gt; fins &lt;tt&gt;255&lt;/tt&gt;. Valors més grans que &lt;tt&gt;15&lt;/tt&gt; es faran servir si &lt;b&gt;IO APIC&lt;/b&gt; es troba habilitat a aquesta màquina virtual.</translation>
+        <source>Displays the IRQ number of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; is enabled for this virtual machine.</source>
+        <translation type="obsolete">Mostra el número IRQ per a aquest port paral·lel. Valors vàlids són nombres enters en un rang des de &lt;tt&gt;0&lt;/tt&gt; fins &lt;tt&gt;255&lt;/tt&gt;. Valors més grans que &lt;tt&gt;15&lt;/tt&gt; es faran servir si &lt;b&gt;IO APIC&lt;/b&gt; es troba habilitat a aquesta màquina virtual.</translation>
     </message>
     <message>
         <source>I/O Po&amp;rt:</source>
         <translation>Po&amp;rt E/S:</translation>
     </message>
     <message>
-        <source>Displays the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
-        <translation>Mostra l&apos;adreça base del port E/S per a aquest port paral·lel. Valors vàlids són nombres enters en un rang des de &lt;tt&gt;0&lt;/tt&gt; fins &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
+        <source>Displays the base I/O port address of this parallel port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <translation type="obsolete">Mostra l&apos;adreça base del port E/S per a aquest port paral·lel. Valors vàlids són nombres enters en un rang des de &lt;tt&gt;0&lt;/tt&gt; fins &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
     </message>
     <message>
         <source>Port &amp;Path:</source>
@@ -9173,19 +10084,27 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <source>Displays the host parallel device name.</source>
         <translation>Mostra el nom del dispositiu paral·lel del sistema client.</translation>
     </message>
+    <message>
+        <source>Displays the IRQ number of this parallel port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
+        <translation>Mostra el número IRQ d&apos;aquest port paral·lel. Això hauria de ser un nombre enter entre &lt;tt&gt;0&lt;/tt&gt; i &lt;tt&gt;255&lt;/tt&gt;. Valors superiors a &lt;tt&gt;15&lt;/tt&gt; només s&apos;haurien de fer servir si el paràmetre &lt;b&gt;IO APIC&lt;/b&gt; és actiu per a aquesta màquina virtual.</translation>
+    </message>
+    <message>
+        <source>Displays the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <translation>Mostra l&apos;adreça base del port E/S d&apos;aquest port paral·lel. Valors vàlids són nombres enters amb un rang entre &lt;tt&gt;0&lt;/tt&gt; i &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
+    </message>
 </context>
 <context>
     <name>VBoxVMSettingsParallelPage</name>
     <message>
-        <source>Duplicate port number is selected </source>
+        <source>Duplicate port number selected </source>
         <translation>S&apos;ha seleccionat un número de port duplicat</translation>
     </message>
     <message>
-        <source>Port path is not specified </source>
+        <source>Port path not specified </source>
         <translation>No s&apos;ha especificat una ruta al port</translation>
     </message>
     <message>
-        <source>Duplicate port path is entered </source>
+        <source>Duplicate port path entered </source>
         <translation>S&apos;ha introduït una ruta de port duplicada</translation>
     </message>
 </context>
@@ -9193,15 +10112,15 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     <name>VBoxVMSettingsSF</name>
     <message>
         <source>&amp;Add New Shared Folder</source>
-        <translation>&amp;Afegeix una nova carpeta compartida</translation>
+        <translation type="obsolete">&amp;Afegeix una nova carpeta compartida</translation>
     </message>
     <message>
         <source>&amp;Edit Selected Shared Folder</source>
-        <translation>&amp;Edita la carpeta compartida seleccionada</translation>
+        <translation type="obsolete">&amp;Edita la carpeta compartida seleccionada</translation>
     </message>
     <message>
         <source>&amp;Remove Selected Shared Folder</source>
-        <translation>Elimina la ca&amp;rpeta compartida seleccionada</translation>
+        <translation type="obsolete">Elimina la ca&amp;rpeta compartida seleccionada</translation>
     </message>
     <message>
         <source>Adds a new shared folder definition.</source>
@@ -9246,6 +10165,26 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     <message>
         <source>Access</source>
         <translation>Accés</translation>
+    </message>
+    <message>
+        <source> Global Folders</source>
+        <translation> Carpetes globals</translation>
+    </message>
+    <message>
+        <source>&amp;Add Shared Folder</source>
+        <translation>&amp;Afegeix una carpeta compartida</translation>
+    </message>
+    <message>
+        <source>&amp;Edit Shared Folder</source>
+        <translation>&amp;Edita la carpeta compartida</translation>
+    </message>
+    <message>
+        <source>&amp;Remove Shared Folder</source>
+        <translation>Elimina la ca&amp;peta compartida</translation>
+    </message>
+    <message>
+        <source>&amp;Folders List</source>
+        <translation>Llista de &amp;carpetes</translation>
     </message>
 </context>
 <context>
@@ -9315,16 +10254,16 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation>&amp;IRQ:</translation>
     </message>
     <message>
-        <source>Displays the IRQ number of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may be used only if the &lt;b&gt;IO APIC&lt;/b&gt; is enabled for this virtual machine.</source>
-        <translation>Mostra el número IRQ d&apos;aquest port sèrie. Valors vàlids són nombres enters del rang des de &lt;tt&gt;0&lt;/tt&gt; fins &lt;tt&gt;255&lt;/tt&gt;. Valors més grans que &lt;tt&gt;15&lt;/tt&gt; només s&apos;han de fer servir només si l&apos;&lt;b&gt;IO APIC&lt;/b&gt; és actiu per a aquesta màquina virtual.</translation>
+        <source>Displays the IRQ number of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; is enabled for this virtual machine.</source>
+        <translation type="obsolete">Mostra el número IRQ d&apos;aquest port sèrie. Valors vàlids són nombres enters del rang des de &lt;tt&gt;0&lt;/tt&gt; fins &lt;tt&gt;255&lt;/tt&gt;. Valors més grans que &lt;tt&gt;15&lt;/tt&gt; només s&apos;han de fer servir només si l&apos;&lt;b&gt;IO APIC&lt;/b&gt; és actiu per a aquesta màquina virtual.</translation>
     </message>
     <message>
         <source>I/O Po&amp;rt:</source>
         <translation>Po&amp;rt E/S:</translation>
     </message>
     <message>
-        <source>Displays the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
-        <translation>Mostra l&apos;adreça base del port d&apos;E/S d&apos;aquest port sèrie. Valors vàlids són nombres enters del rang des de &lt;tt&gt;0&lt;/tt&gt; fins &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
+        <source>Displays the base I/O port address of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <translation type="obsolete">Mostra l&apos;adreça base del port d&apos;E/S d&apos;aquest port sèrie. Valors vàlids són nombres enters del rang des de &lt;tt&gt;0&lt;/tt&gt; fins &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
     </message>
     <message>
         <source>Port &amp;Mode:</source>
@@ -9335,7 +10274,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation>Controla el mode de treball d&apos;aquest port sèrie. Si seleccioneu &lt;b&gt;Desconnectat&lt;/b&gt;, el sistema client detectarà el port sèrie però no podrà operar amb ell.</translation>
     </message>
     <message>
-        <source>If checked, the pipe specified in the &lt;b&gt;Port Path&lt;/b&gt; field will be created by the virtual machine when it starts. Otherwise, the virtual machine will try to use the existing pipe.</source>
+        <source>If checked, the pipe specified in the &lt;b&gt;Port Path&lt;/b&gt; field will be created by the virtual machine when it starts. Otherwise, the virtual machine will assume that the pipe exists and try to use it.</source>
         <translation>Si està marcat, el conducte especificat al camp &lt;b&gt;Ruta del port&lt;/b&gt; es crearà per la màquina virtual quan s&apos;iniciï. En altre cas, la màquina virtual provarà de fer servir el conducte existent.</translation>
     </message>
     <message>
@@ -9347,26 +10286,34 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation type="obsolete">Ruta del &amp;port:</translation>
     </message>
     <message>
-        <source>Displays the path to the serial port&apos;s pipe on the host when the port works in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port works in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
+        <source>Displays the path to the serial port&apos;s pipe on the host when the port is working in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port is working in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
         <translation>Mostra la ruta al conducte del port sèrie a l&apos;amfitrió quan el port treballa en el mode &lt;b&gt;Conducte amfitrió&lt;/b&gt;, o al dispositiu sèrie de l&apos;amfitrió quan el port treballa en el mode &lt;b&gt;Dispositiu Amfitrió&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Port/File &amp;Path:</source>
         <translation>Ruta al &amp;port/fitxer:</translation>
     </message>
+    <message>
+        <source>Displays the IRQ number of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
+        <translation>Mostra el número IRQ d&apos;aquest port en sèrie. Això hauria de ser un nombre enter entre: &lt;tt&gt;0&lt;/tt&gt; i &lt;tt&gt;255&lt;/tt&gt;. Valors superiors a &lt;tt&gt;15&lt;/tt&gt; només s&apos;haurien de fer servir si el paràmetre &lt;b&gt;IO APIC&lt;/b&gt; està habilitat per a aquesta màquina virtual.</translation>
+    </message>
+    <message>
+        <source>Displays the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <translation>Mostra l&apos;adreça base d&apos;E/S d&apos;aquest port en sèrie. Valors vàlids són nombres enter amb un rang entre &lt;tt&gt;0&lt;/tt&gt; i &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
+    </message>
 </context>
 <context>
     <name>VBoxVMSettingsSerialPage</name>
     <message>
-        <source>Duplicate port number is selected </source>
+        <source>Duplicate port number selected </source>
         <translation>S&apos;ha seleccionat un número de port duplicat</translation>
     </message>
     <message>
-        <source>Port path is not specified </source>
+        <source>Port path not specified </source>
         <translation>No s&apos;ha especificat una ruta al port</translation>
     </message>
     <message>
-        <source>Duplicate port path is entered </source>
+        <source>Duplicate port path entered </source>
         <translation>S&apos;ha introduït una ruta de port duplicada</translation>
     </message>
 </context>
@@ -9377,7 +10324,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation>heu assignat més d&apos;un &lt;b&gt;%1%&lt;/b&gt; de la memòria del vostre ordinador (&lt;b&gt;%2&lt;/b&gt;) a la màquina virtual. No heu deixat suficient memòria al sistema amfitrió. Seleccineu un percentatge menor.</translation>
     </message>
     <message>
-        <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. Not enough memory might be left for your host operating system. Continue at your own risk.</source>
+        <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. There might not be enough memory left for your host operating system. Continue at your own risk.</source>
         <translation>heu assignat més d&apos;un &lt;b&gt;%1%&lt;/b&gt; de la memòria del vostre ordinador (&lt;b&gt;%2&lt;/b&gt;) a la màquina virtual. No heu deixat suficient memòria al sistema amfitrió. Contineu pel vostre compte (no recomanable).</translation>
     </message>
     <message>
@@ -9408,7 +10355,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     <message>
         <source>&lt;qt&gt;%1&amp;nbsp;CPUs&lt;/qt&gt;</source>
         <comment>%1 is 32 for now</comment>
-        <translation>&lt;qt&gt;%1&amp;nbsp;CPUs&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;%1&amp;nbsp;CPUs&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Motherboard</source>
@@ -9431,7 +10378,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation>&amp;Ordre d&apos;inici:</translation>
     </message>
     <message>
-        <source>Defines the boot device order. Use checkboxes to the left to enable or disable individual boot devices. Move items up and down to change the device order.</source>
+        <source>Defines the boot device order. Use the checkboxes on the left to enable or disable individual boot devices. Move items up and down to change the device order.</source>
         <translation>Definiu l&apos;ordre dels dispositius d&apos;arrencada. Useu les caselles de selecció a l&apos;esquerra per activar o desactivar els dispositius d&apos;arrencada individuals. Moveu els elements amunt i avall per a canviar l&apos;ordre dels dispositius.</translation>
     </message>
     <message>
@@ -9456,14 +10403,14 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will support the Advanced Configuration and Power Management Interface (ACPI). &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
-        <translation>Quan estigui marcat, la màquina virtual suportarà la configuració avançada i la interfície de gestió de l&apos;energia (ACPI). &lt;b&gt;Nota:&lt;/b&gt; no inhabiliteu aquesta característica després d&apos;haver instal·lat un Windows al sistema operatiu client!</translation>
+        <translation type="obsolete">Quan estigui marcat, la màquina virtual suportarà la configuració avançada i la interfície de gestió de l&apos;energia (ACPI). &lt;b&gt;Nota:&lt;/b&gt; no inhabiliteu aquesta característica després d&apos;haver instal·lat un Windows al sistema operatiu client!</translation>
     </message>
     <message>
         <source>Enable &amp;ACPI</source>
-        <translation>Habilita &amp;ACPI</translation>
+        <translation type="obsolete">Habilita &amp;ACPI</translation>
     </message>
     <message>
-        <source>When checked, the virtual machine will support the Input Output APIC (IO APIC), which may slightly decrease the VM performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
+        <source>When checked, the virtual machine will support the Input Output APIC (IO APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
         <translation>Quan estigui marcat, la màquina virtual suportarà l&apos;entrada/sortida APIC (ES APIC), que pot reduir el rendiment de la màquina virtual. &lt;b&gt;Nota:&lt;/b&gt; no inhabiliteu aquesta característica després d&apos;haver instal·lat un Windows al sistema operatiu client!</translation>
     </message>
     <message>
@@ -9513,6 +10460,19 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     <message>
         <source>Enable Nested Pa&amp;ging</source>
         <translation>Activa la pa&amp;ginació imbricada</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;%1&amp;nbsp;CPUs&lt;/qt&gt;</source>
+        <comment>%1 is host cpu count * 2 for now</comment>
+        <translation>&lt;qt&gt;%1&amp;nbsp;CPUs&lt;/qt&gt;</translation>
+    </message>
+    <message>
+        <source>When checked, the guest will support the Extended Firmware Interface (EFI), which is required to boot certain guest OSes. Non-EFI aware OSes will not be able to boot if this option is activated.</source>
+        <translation>Quan estigui marcat, el client tindrà suport per al Extended Firmware Interface (EFI), requerida per a iniciar alguns sistemes operatius. El sistemes que no facin servir EFI no podran iniciar-se si aquesta opció és activa.</translation>
+    </message>
+    <message>
+        <source>Enable &amp;EFI (special OSes only)</source>
+        <translation>Activa &amp;EFI (només SO especials)</translation>
     </message>
 </context>
 <context>

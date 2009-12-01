@@ -66,106 +66,152 @@ RT_C_DECLS_BEGIN
  */
 RTDECL(bool) RTFileExists(const char *pszPath);
 
+/**
+ * Queries the size of a file, given the path to it.
+ *
+ * Symbolic links will be resolved.
+ *
+ * @returns IPRT status code.
+ * @param   pszPath         The path to the file.
+ * @param   pcbFile         Where to return the file size (bytes).
+ *
+ * @sa      RTFileGetSize, RTPathQueryInfoEx.
+ */
+RTDECL(int) RTFileQuerySize(const char *pszPath, uint64_t *pcbFile);
+
 
 /** @name Open flags
  * @{ */
 /** Open the file with read access. */
-#define RTFILE_O_READ               0x00000001
+#define RTFILE_O_READ                   UINT32_C(0x00000001)
 /** Open the file with write access. */
-#define RTFILE_O_WRITE              0x00000002
+#define RTFILE_O_WRITE                  UINT32_C(0x00000002)
 /** Open the file with read & write access. */
-#define RTFILE_O_READWRITE          0x00000003
+#define RTFILE_O_READWRITE              UINT32_C(0x00000003)
 /** The file access mask.
- * @remark The value 0 is invalid. */
-#define RTFILE_O_ACCESS_MASK        0x00000003
+ * @remarks The value 0 is invalid. */
+#define RTFILE_O_ACCESS_MASK            UINT32_C(0x00000003)
 
-/** Sharing mode: deny none (the default mode). */
-#define RTFILE_O_DENY_NONE          0x00000000
+/** Open file in APPEND mode, so all writes to the file handle will
+ * append data at the end of the file.
+ * @remarks It is ignored if write access is not requested, that is
+ *          RTFILE_O_WRITE is not set. */
+#define RTFILE_O_APPEND                 UINT32_C(0x00000004)
+                                     /* UINT32_C(0x00000008) is unused atm. */
+
+/** Sharing mode: deny none. */
+#define RTFILE_O_DENY_NONE              UINT32_C(0x00000080)
 /** Sharing mode: deny read. */
-#define RTFILE_O_DENY_READ          0x00000010
+#define RTFILE_O_DENY_READ              UINT32_C(0x00000010)
 /** Sharing mode: deny write. */
-#define RTFILE_O_DENY_WRITE         0x00000020
+#define RTFILE_O_DENY_WRITE             UINT32_C(0x00000020)
 /** Sharing mode: deny read and write. */
-#define RTFILE_O_DENY_READWRITE     0x00000030
+#define RTFILE_O_DENY_READWRITE         UINT32_C(0x00000030)
 /** Sharing mode: deny all. */
-#define RTFILE_O_DENY_ALL           RTFILE_O_DENY_READWRITE
+#define RTFILE_O_DENY_ALL               RTFILE_O_DENY_READWRITE
 /** Sharing mode: do NOT deny delete (NT).
- * @remark  This might not be implemented on all platforms,
- *          and will be defaulted & ignored on those.
+ * @remarks This might not be implemented on all platforms, and will be
+ *          defaulted & ignored on those.
  */
-#define RTFILE_O_DENY_NOT_DELETE    0x00000040
+#define RTFILE_O_DENY_NOT_DELETE        UINT32_C(0x00000040)
 /** Sharing mode mask. */
-#define RTFILE_O_DENY_MASK          0x00000070
+#define RTFILE_O_DENY_MASK              UINT32_C(0x000000f0)
 
 /** Action: Open an existing file (the default action). */
-#define RTFILE_O_OPEN               0x00000000
+#define RTFILE_O_OPEN                   UINT32_C(0x00000700)
 /** Action: Create a new file or open an existing one. */
-#define RTFILE_O_OPEN_CREATE        0x00000100
+#define RTFILE_O_OPEN_CREATE            UINT32_C(0x00000100)
 /** Action: Create a new a file. */
-#define RTFILE_O_CREATE             0x00000200
+#define RTFILE_O_CREATE                 UINT32_C(0x00000200)
 /** Action: Create a new file or replace an existing one. */
-#define RTFILE_O_CREATE_REPLACE     0x00000300
+#define RTFILE_O_CREATE_REPLACE         UINT32_C(0x00000300)
 /** Action mask. */
-#define RTFILE_O_ACTION_MASK        0x00000300
+#define RTFILE_O_ACTION_MASK            UINT32_C(0x00000700)
 
 /** Turns off indexing of files on Windows hosts, *CREATE* only.
- * @remark  This might not be implemented on all platforms,
- *          and will be ignored on those.
- */
-#define RTFILE_O_NOT_CONTENT_INDEXED 0x00000800
+ * @remarks Window only. */
+#define RTFILE_O_NOT_CONTENT_INDEXED    UINT32_C(0x00000800)
 /** Truncate the file.
- * @remark  This will not truncate files opened for read-only.
- * @remark  The trunction doesn't have to be atomically, so anyone
- *          else opening the file may be racing us. The caller is
- *          responsible for not causing this race. */
-#define RTFILE_O_TRUNCATE           0x00001000
+ * @remarks This will not truncate files opened for read-only.
+ * @remarks The trunction doesn't have to be atomically, so anyone else opening
+ *          the file may be racing us. The caller is responsible for not causing
+ *          this race. */
+#define RTFILE_O_TRUNCATE               UINT32_C(0x00001000)
 /** Make the handle inheritable on RTProcessCreate(/exec). */
-#define RTFILE_O_INHERIT            0x00002000
+#define RTFILE_O_INHERIT                UINT32_C(0x00002000)
 /** Open file in non-blocking mode - non-portable.
- * @remark  This flag may not be supported on all platforms, in which
- *          case it's considered an invalid parameter.
- */
-#define RTFILE_O_NON_BLOCK          0x00004000
+ * @remarks This flag may not be supported on all platforms, in which case it's
+ *          considered an invalid parameter. */
+#define RTFILE_O_NON_BLOCK              UINT32_C(0x00004000)
 /** Write through directly to disk. Workaround to avoid iSCSI
  * initiator deadlocks on Windows hosts.
- * @remark  This might not be implemented on all platforms,
- *          and will be ignored on those.
- */
-#define RTFILE_O_WRITE_THROUGH      0x00008000
+ * @remarks This might not be implemented on all platforms, and will be ignored
+ *          on those. */
+#define RTFILE_O_WRITE_THROUGH          UINT32_C(0x00008000)
 
-/** File attributes access, *CREATE* only.
- * @remark  This might not be implemented on all platforms,
+/** Attribute access: Attributes can be read if the file is being opened with
+ * read access, and can be written with write access. */
+#define RTFILE_O_ACCESS_ATTR_DEFAULT    UINT32_C(0x00000000)
+/** Attribute access: Attributes can be read.
+ * @remarks Windows only.  */
+#define RTFILE_O_ACCESS_ATTR_READ       UINT32_C(0x00010000)
+/** Attribute access: Attributes can be written.
+ * @remarks Windows only.  */
+#define RTFILE_O_ACCESS_ATTR_WRITE      UINT32_C(0x00020000)
+/** Attribute access: Attributes can be both read & written.
+ * @remarks Windows only.  */
+#define RTFILE_O_ACCESS_ATTR_READWRITE  UINT32_C(0x00030000)
+/** Attribute access: The file attributes access mask.
+ * @remarks Windows only.  */
+#define RTFILE_O_ACCESS_ATTR_MASK       UINT32_C(0x00030000)
+
+/** Open file for async I/O
+ * @remarks This flag may not be needed on all platforms, and will be ignored on
+ *          those. */
+#define RTFILE_O_ASYNC_IO               UINT32_C(0x00040000)
+
+/** Disables caching.
+ *
+ * Useful when using very big files which might bring the host I/O scheduler to
+ * its knees during high I/O load.
+ *
+ * @remarks This flag might impose restrictions
+ *          on the buffer alignment, start offset and/or transfer size.
+ *
+ *          On Linux the buffer needs to be aligned to the 512 sector
+ *          boundary.
+ *
+ *          On Windows the FILE_FLAG_NO_BUFFERING is used (see
+ *          http://msdn.microsoft.com/en-us/library/cc644950(VS.85).aspx ).
+ *          The buffer address, the transfer size and offset needs to be
+ *          aligned to the sector size of the volume. Furthermore FILE_APPEND_DATA
+ *          is disabled. To write beyond the size of file use RTFileSetSize prior
+ *          writing the data to the file.
+ *
+ *          This flag does not work on Solaris if the target filesystem is ZFS. RTFileOpen will return an
+ *          error with that configuration. When used with UFS the same alginment restrictions
+ *          apply like Linux and Windows.
+ *
+ * @remarks This might not be implemented on all platforms,
  *          and will be ignored on those.
  */
-/** Attributes can be read if the file is being opened
- * with read access, and can be written with write access.
- */
-#define RTFILE_O_ACCESS_ATTR_DEFAULT 0x00000000
-/** Attributes can be read. */
-#define RTFILE_O_ACCESS_ATTR_READ   0x00010000
-/** Attributes can be written. */
-#define RTFILE_O_ACCESS_ATTR_WRITE  0x00020000
-/** Attributes can be both read & written. */
-#define RTFILE_O_ACCESS_ATTR_READWRITE 0x00030000
-/** The file attributes access mask. */
-#define RTFILE_O_ACCESS_ATTR_MASK   0x00030000
+#define RTFILE_O_NO_CACHE               UINT32_C(0x00080000)
 
 /** Unix file mode mask for use when creating files. */
-#define RTFILE_O_CREATE_MODE_MASK   0x1ff00000
+#define RTFILE_O_CREATE_MODE_MASK       UINT32_C(0x1ff00000)
 /** The number of bits to shift to get the file mode mask.
  * To extract it: (fFlags & RTFILE_O_CREATE_MODE_MASK) >> RTFILE_O_CREATE_MODE_SHIFT.
  */
-#define RTFILE_O_CREATE_MODE_SHIFT  20
-/** Open file for async I/O
- * @remark  This flag may not be needed on all platforms,
- *          and will be ignored on those.
- */
-#define RTFILE_O_ASYNC_IO           0x00040000
+#define RTFILE_O_CREATE_MODE_SHIFT      20
+
+                                      /*UINT32_C(0x20000000),
+                                        UINT32_C(0x40000000)
+                                    and UINT32_C(0x80000000) are unused atm. */
 
 /** Mask of all valid flags.
  * @remark  This doesn't validate the access mode properly.
  */
-#define RTFILE_O_VALID_MASK          0x1ff7FB73
+#define RTFILE_O_VALID_MASK             UINT32_C(0x1ffffff7)
 
 /** @} */
 
@@ -188,8 +234,9 @@ RTR3DECL(int)  RTFileSetForceFlags(unsigned fOpenForAccess, unsigned fSet, unsig
  * @param   pFile           Where to store the handle to the opened file.
  * @param   pszFilename     Path to the file which is to be opened. (UTF-8)
  * @param   fOpen           Open flags, i.e a combination of the RTFILE_O_* defines.
+ *                          The ACCESS, ACTION and DENY flags are mandatory!
  */
-RTR3DECL(int)  RTFileOpen(PRTFILE pFile, const char *pszFilename, unsigned fOpen);
+RTR3DECL(int)  RTFileOpen(PRTFILE pFile, const char *pszFilename, uint32_t fOpen);
 
 /**
  * Close a file opened by RTFileOpen().
@@ -595,7 +642,8 @@ RTR3DECL(int) RTFileQueryInfo(RTFILE File, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD
  * Changes one or more of the timestamps associated of file system object.
  *
  * @returns iprt status code.
- * @returns VERR_NOT_SUPPORTED is returned if the operation isn't supported by the OS.
+ * @retval  VERR_NOT_SUPPORTED is returned if the operation isn't supported by
+ *          the OS.
  *
  * @param   File                Handle to the file.
  * @param   pAccessTime         Pointer to the new access time. NULL if not to be changed.
@@ -698,6 +746,24 @@ RTR3DECL(int) RTFileGetOwner(RTFILE File, uint32_t *pUid, uint32_t *pGid);
 RTR3DECL(int) RTFileIoCtl(RTFILE File, int iRequest, void *pvData, unsigned cbData, int *piRet);
 
 /**
+ * Query the sizes of a filesystem.
+ *
+ * @returns iprt status code.
+ * @retval  VERR_NOT_SUPPORTED is returned if the operation isn't supported by
+ *          the OS.
+ *
+ * @param   hFile       The file handle.
+ * @param   pcbTotal    Where to store the total filesystem space. (Optional)
+ * @param   pcbFree     Where to store the remaining free space in the filesystem. (Optional)
+ * @param   pcbBlock    Where to store the block size. (Optional)
+ * @param   pcbSector   Where to store the sector size. (Optional)
+ *
+ * @sa      RTFsQuerySizes
+ */
+RTR3DECL(int) RTFileQueryFsSizes(RTFILE hFile, PRTFOFF pcbTotal, RTFOFF *pcbFree,
+                                 uint32_t *pcbBlock, uint32_t *pcbSector);
+
+/**
  * Reads the file into memory.
  *
  * The caller must free the memory using RTFileReadAllFree().
@@ -705,7 +771,7 @@ RTR3DECL(int) RTFileIoCtl(RTFILE File, int iRequest, void *pvData, unsigned cbDa
  * @returns IPRT status code.
  * @param   pszFilename     The name of the file.
  * @param   ppvFile         Where to store the pointer to the memory on successful return.
- * @param   pcbFile         Where to store the size of the file on successful return.
+ * @param   pcbFile         Where to store the size of the returned memory.
  *
  * @remarks Note that this function may be implemented using memory mapping, which means
  *          that the file may remain open until RTFileReadAllFree() is called. It also
@@ -728,7 +794,7 @@ RTDECL(int) RTFileReadAll(const char *pszFilename, void **ppvFile, size_t *pcbFi
  *                          to read to the end of the file.
  * @param   fFlags          See RTFILE_RDALL_*.
  * @param   ppvFile         Where to store the pointer to the memory on successful return.
- * @param   pcbFile         Where to store the size of the file on successful return.
+ * @param   pcbFile         Where to store the size of the returned memory.
  *
  * @remarks See the remarks for RTFileReadAll.
  */
@@ -742,7 +808,7 @@ RTDECL(int) RTFileReadAllEx(const char *pszFilename, RTFOFF off, RTFOFF cbMax, u
  * @returns IPRT status code.
  * @param   File            The handle to the file.
  * @param   ppvFile         Where to store the pointer to the memory on successful return.
- * @param   pcbFile         Where to store the size of the file on successful return.
+ * @param   pcbFile         Where to store the size of the returned memory.
  *
  * @remarks See the remarks for RTFileReadAll.
  */
@@ -760,7 +826,7 @@ RTDECL(int) RTFileReadAllByHandle(RTFILE File, void **ppvFile, size_t *pcbFile);
  *                          to read to the end of the file.
  * @param   fFlags          See RTFILE_RDALL_*.
  * @param   ppvFile         Where to store the pointer to the memory on successful return.
- * @param   pcbFile         Where to store the size of the file on successful return.
+ * @param   pcbFile         Where to store the size of the returned memory.
  *
  * @remarks See the remarks for RTFileReadAll.
  */
@@ -1087,6 +1153,8 @@ RTDECL(int) RTFileAioCtxAssociateWithFile(RTFILEAIOCTX hAioCtx, RTFILE hFile);
  * Submits a set of requests to an async I/O context for processing.
  *
  * @returns IPRT status code.
+ * @returns VERR_FILE_AIO_INSUFFICIENT_RESSOURCES if the maximum number of
+ *          simultaneous outstanding requests would be exceeded.
  *
  * @param   hAioCtx         The async I/O context handle.
  * @param   pahReqs         Pointer to an array of request handles.

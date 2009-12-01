@@ -1,4 +1,4 @@
-/* $Id: alloc-win.cpp $ */
+/* $Id: alloc-win.cpp 21872 2009-07-30 09:30:56Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, Win32.
  */
@@ -110,7 +110,7 @@ RTDECL(void *) RTMemPageAlloc(size_t cb) RT_NO_THROW
 #ifdef USE_VIRTUAL_ALLOC
     void *pv = VirtualAlloc(NULL, RT_ALIGN_Z(cb, PAGE_SIZE), MEM_COMMIT, PAGE_READWRITE);
 #else
-    void *pv = _aligned_malloc(cb, PAGE_SIZE);
+    void *pv = _aligned_malloc(RT_ALIGN_Z(cb, PAGE_SIZE), PAGE_SIZE);
 #endif
     AssertMsg(pv, ("cb=%d lasterr=%d\n", cb, GetLastError()));
     return pv;
@@ -129,7 +129,7 @@ RTDECL(void *) RTMemPageAllocZ(size_t cb) RT_NO_THROW
 #ifdef USE_VIRTUAL_ALLOC
     void *pv = VirtualAlloc(NULL, RT_ALIGN_Z(cb, PAGE_SIZE), MEM_COMMIT, PAGE_READWRITE);
 #else
-    void *pv = _aligned_malloc(cb, PAGE_SIZE);
+    void *pv = _aligned_malloc(RT_ALIGN_Z(cb, PAGE_SIZE), PAGE_SIZE);
 #endif
     if (pv)
     {

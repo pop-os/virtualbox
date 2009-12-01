@@ -1,4 +1,4 @@
-/* $Id: CFGMInternal.h $ */
+/* $Id: CFGMInternal.h 22526 2009-08-27 13:52:56Z vboxsync $ */
 /** @file
  * CFGM - Internal header file.
  */
@@ -48,7 +48,7 @@ typedef union CFGMVALUE
     struct CFGMVALUE_STRING
     {
         /** Length of string. (In bytes, including the terminator.) */
-        size_t          cch;
+        size_t          cb;
         /** Pointer to the string. */
         char           *psz;
     } String;

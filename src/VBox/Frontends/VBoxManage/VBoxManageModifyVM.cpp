@@ -1,4 +1,4 @@
-/* $Id: VBoxManageModifyVM.cpp $ */
+/* $Id: VBoxManageModifyVM.cpp 24979 2009-11-26 08:36:53Z vboxsync $ */
 /** @file
  * VBoxManage - Implementation of modifyvm command.
  */
@@ -40,6 +40,7 @@
 #include <iprt/path.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
+#include <iprt/getopt.h>
 #include <VBox/log.h>
 
 #include "VBoxManage.h"
@@ -53,57 +54,173 @@ using namespace com;
 # pragma optimize("g", off)
 #endif
 
+enum
+{
+    MODIFYVM_NAME = 1000,
+    MODIFYVM_OSTYPE,
+    MODIFYVM_MEMORY,
+    MODIFYVM_VRAM,
+    MODIFYVM_FIRMWARE,
+    MODIFYVM_ACPI,
+    MODIFYVM_IOAPIC,
+    MODIFYVM_PAE,
+    MODIFYVM_SYNTHCPU,
+    MODIFYVM_HWVIRTEX,
+    MODIFYVM_HWVIRTEXEXCLUSIVE,
+    MODIFYVM_NESTEDPAGING,
+    MODIFYVM_VTXVPID,
+    MODIFYVM_CPUS,
+    MODIFYVM_SETCPUID,
+    MODIFYVM_DELCPUID,
+    MODIFYVM_DELALLCPUID,
+    MODIFYVM_MONITORCOUNT,
+    MODIFYVM_ACCELERATE3D,
+    MODIFYVM_ACCELERATE2DVIDEO,
+    MODIFYVM_BIOSLOGOFADEIN,
+    MODIFYVM_BIOSLOGOFADEOUT,
+    MODIFYVM_BIOSLOGODISPLAYTIME,
+    MODIFYVM_BIOSLOGOIMAGEPATH,
+    MODIFYVM_BIOSBOOTMENU,
+    MODIFYVM_BIOSSYSTEMTIMEOFFSET,
+    MODIFYVM_BIOSPXEDEBUG,
+    MODIFYVM_BOOT,
+    MODIFYVM_HDA,                // deprecated
+    MODIFYVM_HDB,                // deprecated
+    MODIFYVM_HDD,                // deprecated
+    MODIFYVM_IDECONTROLLER,      // deprecated
+    MODIFYVM_SATAIDEEMULATION,   // deprecated
+    MODIFYVM_SATAPORTCOUNT,      // deprecated
+    MODIFYVM_SATAPORT,           // deprecated
+    MODIFYVM_SATA,               // deprecated
+    MODIFYVM_SCSIPORT,           // deprecated
+    MODIFYVM_SCSITYPE,           // deprecated
+    MODIFYVM_SCSI,               // deprecated
+    MODIFYVM_DVDPASSTHROUGH,     // deprecated
+    MODIFYVM_DVD,                // deprecated
+    MODIFYVM_FLOPPY,             // deprecated
+    MODIFYVM_NICTRACEFILE,
+    MODIFYVM_NICTRACE,
+    MODIFYVM_NICTYPE,
+    MODIFYVM_NICSPEED,
+    MODIFYVM_NIC,
+    MODIFYVM_CABLECONNECTED,
+    MODIFYVM_BRIDGEADAPTER,
+    MODIFYVM_HOSTONLYADAPTER,
+    MODIFYVM_INTNET,
+    MODIFYVM_NATNET,
+    MODIFYVM_MACADDRESS,
+    MODIFYVM_UARTMODE,
+    MODIFYVM_UART,
+    MODIFYVM_GUESTSTATISTICSINTERVAL,
+    MODIFYVM_GUESTMEMORYBALLOON,
+    MODIFYVM_AUDIOCONTROLLER,
+    MODIFYVM_AUDIO,
+    MODIFYVM_CLIPBOARD,
+    MODIFYVM_VRDPPORT,
+    MODIFYVM_VRDPADDRESS,
+    MODIFYVM_VRDPAUTHTYPE,
+    MODIFYVM_VRDPMULTICON,
+    MODIFYVM_VRDPREUSECON,
+    MODIFYVM_VRDP,
+    MODIFYVM_USBEHCI,
+    MODIFYVM_USB,
+    MODIFYVM_SNAPSHOTFOLDER,
+    MODIFYVM_TELEPORTER_ENABLED,
+    MODIFYVM_TELEPORTER_PORT,
+    MODIFYVM_TELEPORTER_ADDRESS,
+    MODIFYVM_TELEPORTER_PASSWORD,
+    MODIFYVM_HARDWARE_UUID
+};
+
+static const RTGETOPTDEF g_aModifyVMOptions[] =
+{
+    { "--name",                     MODIFYVM_NAME,                      RTGETOPT_REQ_STRING },
+    { "--ostype",                   MODIFYVM_OSTYPE,                    RTGETOPT_REQ_STRING },
+    { "--memory",                   MODIFYVM_MEMORY,                    RTGETOPT_REQ_UINT32 },
+    { "--vram",                     MODIFYVM_VRAM,                      RTGETOPT_REQ_UINT32 },
+    { "--firmware",                 MODIFYVM_FIRMWARE,                  RTGETOPT_REQ_STRING },
+    { "--acpi",                     MODIFYVM_ACPI,                      RTGETOPT_REQ_BOOL_ONOFF },
+    { "--ioapic",                   MODIFYVM_IOAPIC,                    RTGETOPT_REQ_BOOL_ONOFF },
+    { "--pae",                      MODIFYVM_PAE,                       RTGETOPT_REQ_BOOL_ONOFF },
+    { "--synthcpu",                 MODIFYVM_SYNTHCPU,                  RTGETOPT_REQ_BOOL_ONOFF },
+    { "--hwvirtex",                 MODIFYVM_HWVIRTEX,                  RTGETOPT_REQ_BOOL_ONOFF },
+    { "--hwvirtexexcl",             MODIFYVM_HWVIRTEXEXCLUSIVE,         RTGETOPT_REQ_BOOL_ONOFF },
+    { "--nestedpaging",             MODIFYVM_NESTEDPAGING,              RTGETOPT_REQ_BOOL_ONOFF },
+    { "--vtxvpid",                  MODIFYVM_VTXVPID,                   RTGETOPT_REQ_BOOL_ONOFF },
+    { "--cpuidset",                 MODIFYVM_SETCPUID,                  RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX},
+    { "--cpuidremove",              MODIFYVM_DELCPUID,                  RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX},
+    { "--cpuidremoveall",           MODIFYVM_DELALLCPUID,               RTGETOPT_REQ_NOTHING},
+    { "--cpus",                     MODIFYVM_CPUS,                      RTGETOPT_REQ_UINT32 },
+    { "--monitorcount",             MODIFYVM_MONITORCOUNT,              RTGETOPT_REQ_UINT32 },
+    { "--accelerate3d",             MODIFYVM_ACCELERATE3D,              RTGETOPT_REQ_BOOL_ONOFF },
+    { "--accelerate2dvideo",        MODIFYVM_ACCELERATE2DVIDEO,         RTGETOPT_REQ_BOOL_ONOFF },
+    { "--bioslogofadein",           MODIFYVM_BIOSLOGOFADEIN,            RTGETOPT_REQ_BOOL_ONOFF },
+    { "--bioslogofadeout",          MODIFYVM_BIOSLOGOFADEOUT,           RTGETOPT_REQ_BOOL_ONOFF },
+    { "--bioslogodisplaytime",      MODIFYVM_BIOSLOGODISPLAYTIME,       RTGETOPT_REQ_UINT64 },
+    { "--bioslogoimagepath",        MODIFYVM_BIOSLOGOIMAGEPATH,         RTGETOPT_REQ_STRING },
+    { "--biosbootmenu",             MODIFYVM_BIOSBOOTMENU,              RTGETOPT_REQ_STRING },
+    { "--biossystemtimeoffset",     MODIFYVM_BIOSSYSTEMTIMEOFFSET,      RTGETOPT_REQ_INT64 },
+    { "--biospxedebug",             MODIFYVM_BIOSPXEDEBUG,              RTGETOPT_REQ_BOOL_ONOFF },
+    { "--boot",                     MODIFYVM_BOOT,                      RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--hda",                      MODIFYVM_HDA,                       RTGETOPT_REQ_STRING },
+    { "--hdb",                      MODIFYVM_HDB,                       RTGETOPT_REQ_STRING },
+    { "--hdd",                      MODIFYVM_HDD,                       RTGETOPT_REQ_STRING },
+    { "--idecontroller",            MODIFYVM_IDECONTROLLER,             RTGETOPT_REQ_STRING },
+    { "--sataideemulation",         MODIFYVM_SATAIDEEMULATION,          RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_INDEX },
+    { "--sataportcount",            MODIFYVM_SATAPORTCOUNT,             RTGETOPT_REQ_UINT32 },
+    { "--sataport",                 MODIFYVM_SATAPORT,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--sata",                     MODIFYVM_SATA,                      RTGETOPT_REQ_STRING },
+    { "--scsiport",                 MODIFYVM_SCSIPORT,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--scsitype",                 MODIFYVM_SCSITYPE,                  RTGETOPT_REQ_STRING },
+    { "--scsi",                     MODIFYVM_SCSI,                      RTGETOPT_REQ_STRING },
+    { "--dvdpassthrough",           MODIFYVM_DVDPASSTHROUGH,            RTGETOPT_REQ_STRING },
+    { "--dvd",                      MODIFYVM_DVD,                       RTGETOPT_REQ_STRING },
+    { "--floppy",                   MODIFYVM_FLOPPY,                    RTGETOPT_REQ_STRING },
+    { "--nictracefile",             MODIFYVM_NICTRACEFILE,              RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--nictrace",                 MODIFYVM_NICTRACE,                  RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX },
+    { "--nictype",                  MODIFYVM_NICTYPE,                   RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--nicspeed",                 MODIFYVM_NICSPEED,                  RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_INDEX },
+    { "--nic",                      MODIFYVM_NIC,                       RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--cableconnected",           MODIFYVM_CABLECONNECTED,            RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX },
+    { "--bridgeadapter",            MODIFYVM_BRIDGEADAPTER,             RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--hostonlyadapter",          MODIFYVM_HOSTONLYADAPTER,           RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--intnet",                   MODIFYVM_INTNET,                    RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--natnet",                   MODIFYVM_NATNET,                    RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--macaddress",               MODIFYVM_MACADDRESS,                RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--uartmode",                 MODIFYVM_UARTMODE,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--uart",                     MODIFYVM_UART,                      RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--gueststatisticsinterval",  MODIFYVM_GUESTSTATISTICSINTERVAL,   RTGETOPT_REQ_UINT32 },
+    { "--guestmemoryballoon",       MODIFYVM_GUESTMEMORYBALLOON,        RTGETOPT_REQ_UINT32 },
+    { "--audiocontroller",          MODIFYVM_AUDIOCONTROLLER,           RTGETOPT_REQ_STRING },
+    { "--audio",                    MODIFYVM_AUDIO,                     RTGETOPT_REQ_STRING },
+    { "--clipboard",                MODIFYVM_CLIPBOARD,                 RTGETOPT_REQ_STRING },
+    { "--vrdpport",                 MODIFYVM_VRDPPORT,                  RTGETOPT_REQ_STRING },
+    { "--vrdpaddress",              MODIFYVM_VRDPADDRESS,               RTGETOPT_REQ_STRING },
+    { "--vrdpauthtype",             MODIFYVM_VRDPAUTHTYPE,              RTGETOPT_REQ_STRING },
+    { "--vrdpmulticon",             MODIFYVM_VRDPMULTICON,              RTGETOPT_REQ_BOOL_ONOFF },
+    { "--vrdpreusecon",             MODIFYVM_VRDPREUSECON,              RTGETOPT_REQ_BOOL_ONOFF },
+    { "--vrdp",                     MODIFYVM_VRDP,                      RTGETOPT_REQ_BOOL_ONOFF },
+    { "--usbehci",                  MODIFYVM_USBEHCI,                   RTGETOPT_REQ_BOOL_ONOFF },
+    { "--usb",                      MODIFYVM_USB,                       RTGETOPT_REQ_BOOL_ONOFF },
+    { "--snapshotfolder",           MODIFYVM_SNAPSHOTFOLDER,            RTGETOPT_REQ_STRING },
+    { "--teleporter",               MODIFYVM_TELEPORTER_ENABLED,        RTGETOPT_REQ_BOOL_ONOFF },
+    { "--teleporterenabled",        MODIFYVM_TELEPORTER_ENABLED,        RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
+    { "--teleporterport",           MODIFYVM_TELEPORTER_PORT,           RTGETOPT_REQ_UINT32 },
+    { "--teleporteraddress",        MODIFYVM_TELEPORTER_ADDRESS,        RTGETOPT_REQ_STRING },
+    { "--teleporterpassword",       MODIFYVM_TELEPORTER_PASSWORD,       RTGETOPT_REQ_STRING },
+    { "--hardwareuuid",             MODIFYVM_HARDWARE_UUID,             RTGETOPT_REQ_STRING },
+};
+
 int handleModifyVM(HandlerArg *a)
 {
+    int c;
     HRESULT rc;
     Bstr name;
-    Bstr ostype;
-    uint32_t memorySize = 0;
-    uint32_t vramSize = 0;
-    char *acpi = NULL;
-    char *hwvirtex = NULL;
-    char *nestedpaging = NULL;
-    char *vtxvpid = NULL;
-    char *pae = NULL;
-    uint32_t numCpus = UINT32_MAX;
-    char *ioapic = NULL;
-    uint32_t monitorcount = ~0;
-    char *accelerate3d = NULL;
-    char *bioslogofadein = NULL;
-    char *bioslogofadeout = NULL;
-    uint32_t bioslogodisplaytime = ~0;
-    char *bioslogoimagepath = NULL;
-    char *biosbootmenumode = NULL;
-    char *biossystemtimeoffset = NULL;
-    char *biospxedebug = NULL;
-    DeviceType_T bootDevice[4];
-    int bootDeviceChanged[4] = { false };
-    char *hdds[50] = {0};
-    char *dvd = NULL;
-    char *dvdpassthrough = NULL;
-    char *idecontroller = NULL;
-    char *floppy = NULL;
-    char *audio = NULL;
-    char *audiocontroller = NULL;
-    char *clipboard = NULL;
-#ifdef VBOX_WITH_VRDP
-    char *vrdp = NULL;
-    uint16_t vrdpport = UINT16_MAX;
-    char *vrdpaddress = NULL;
-    char *vrdpauthtype = NULL;
-    char *vrdpmulticon = NULL;
-    char *vrdpreusecon = NULL;
-#endif
-    int   fUsbEnabled = -1;
-    int   fUsbEhciEnabled = -1;
-    char *snapshotFolder = NULL;
-    ULONG guestMemBalloonSize = (ULONG)-1;
-    ULONG guestStatInterval = (ULONG)-1;
-    int   fSataEnabled = -1;
-    int   fScsiEnabled = -1;
-    int   fScsiLsiLogic = -1;
-    int   sataPortCount = -1;
-    int   sataBootDevices[4] = {-1,-1,-1,-1};
+    Bstr machineuuid (a->argv[0]);
+    RTGETOPTUNION ValueUnion;
+    RTGETOPTSTATE GetOptState;
+    ComPtr <IMachine> machine;
+    ComPtr <IBIOSSettings> biosSettings;
 
     /* VM ID + at least one parameter. Parameter arguments are checked
      * individually. */
@@ -114,1316 +231,1195 @@ int handleModifyVM(HandlerArg *a)
     ULONG NetworkAdapterCount = 0;
     {
         ComPtr <ISystemProperties> info;
-        CHECK_ERROR_RET (a->virtualBox, COMGETTER(SystemProperties) (info.asOutParam()), 1);
-        CHECK_ERROR_RET (info, COMGETTER(NetworkAdapterCount) (&NetworkAdapterCount), 1);
+        CHECK_ERROR_RET(a->virtualBox, COMGETTER(SystemProperties)(info.asOutParam()), 1);
+        CHECK_ERROR_RET(info, COMGETTER(NetworkAdapterCount)(&NetworkAdapterCount), 1);
     }
     ULONG SerialPortCount = 0;
     {
         ComPtr <ISystemProperties> info;
-        CHECK_ERROR_RET (a->virtualBox, COMGETTER(SystemProperties) (info.asOutParam()), 1);
-        CHECK_ERROR_RET (info, COMGETTER(SerialPortCount) (&SerialPortCount), 1);
-    }
-
-    std::vector <char *> nics (NetworkAdapterCount, 0);
-    std::vector <char *> nictype (NetworkAdapterCount, 0);
-    std::vector <char *> cableconnected (NetworkAdapterCount, 0);
-    std::vector <char *> nictrace (NetworkAdapterCount, 0);
-    std::vector <char *> nictracefile (NetworkAdapterCount, 0);
-    std::vector <char *> nicspeed (NetworkAdapterCount, 0);
-    std::vector <char *> hostifdev (NetworkAdapterCount, 0);
-    std::vector <const char *> intnet (NetworkAdapterCount, 0);
-    std::vector <const char *> natnet (NetworkAdapterCount, 0);
-    std::vector <char *> macs (NetworkAdapterCount, 0);
-    std::vector <char *> uarts_mode (SerialPortCount, 0);
-    std::vector <ULONG>  uarts_base (SerialPortCount, 0);
-    std::vector <ULONG>  uarts_irq (SerialPortCount, 0);
-    std::vector <char *> uarts_path (SerialPortCount, 0);
-
-    for (int i = 1; i < a->argc; i++)
-    {
-        if (   !strcmp(a->argv[i], "--name")
-            || !strcmp(a->argv[i], "-name"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            name = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--ostype")
-                 || !strcmp(a->argv[i], "-ostype"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            ostype = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--memory")
-                 || !strcmp(a->argv[i], "-memory"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            memorySize = RTStrToUInt32(a->argv[i]);
-        }
-        else if (   !strcmp(a->argv[i], "--vram")
-                 || !strcmp(a->argv[i], "-vram"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            vramSize = RTStrToUInt32(a->argv[i]);
-        }
-        else if (   !strcmp(a->argv[i], "--acpi")
-                 || !strcmp(a->argv[i], "-acpi"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            acpi = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--ioapic")
-                 || !strcmp(a->argv[i], "-ioapic"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            ioapic = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--hwvirtex")
-                 || !strcmp(a->argv[i], "-hwvirtex"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            hwvirtex = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--nestedpaging")
-                 || !strcmp(a->argv[i], "-nestedpaging"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            nestedpaging = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--vtxvpid")
-                 || !strcmp(a->argv[i], "-vtxvpid"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            vtxvpid = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--pae")
-                 || !strcmp(a->argv[i], "-pae"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            pae = a->argv[i];
-        }
-        else if (!strcmp(a->argv[i], "--cpus"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            numCpus = RTStrToUInt32(a->argv[i]);
-            if (numCpus == UINT32_MAX)
-                return errorArgument("The number of cpus cannot be 0.", a->argv[i]);
-        }
-        else if (   !strcmp(a->argv[i], "--monitorcount")
-                 || !strcmp(a->argv[i], "-monitorcount"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            monitorcount = RTStrToUInt32(a->argv[i]);
-        }
-        else if (   !strcmp(a->argv[i], "--accelerate3d")
-                 || !strcmp(a->argv[i], "-accelerate3d"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            accelerate3d = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--bioslogofadein")
-                 || !strcmp(a->argv[i], "-bioslogofadein"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            bioslogofadein = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--bioslogofadeout")
-                 || !strcmp(a->argv[i], "-bioslogofadeout"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            bioslogofadeout = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--bioslogodisplaytime")
-                 || !strcmp(a->argv[i], "-bioslogodisplaytime"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            bioslogodisplaytime = RTStrToUInt32(a->argv[i]);
-        }
-        else if (   !strcmp(a->argv[i], "--bioslogoimagepath")
-                 || !strcmp(a->argv[i], "-bioslogoimagepath"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            bioslogoimagepath = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--biosbootmenu")
-                 || !strcmp(a->argv[i], "-biosbootmenu"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            biosbootmenumode = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--biossystemtimeoffset")
-                 || !strcmp(a->argv[i], "-biossystemtimeoffset"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            biossystemtimeoffset = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--biospxedebug")
-                 || !strcmp(a->argv[i], "-biospxedebug"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            biospxedebug = a->argv[i];
-        }
-        else if (   !strncmp(a->argv[i], "--boot", 6)
-                 || !strncmp(a->argv[i], "-boot", 5))
-        {
-            uint32_t n = 0;
-            if (!a->argv[i][5 + (a->argv[i][1] == '-')])
-                return errorSyntax(USAGE_MODIFYVM, "Missing boot slot number in '%s'", a->argv[i]);
-            if (VINF_SUCCESS != RTStrToUInt32Full(&a->argv[i][5 + (a->argv[i][1] == '-')], 10, &n))
-                return errorSyntax(USAGE_MODIFYVM, "Invalid boot slot number in '%s'", a->argv[i]);
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            if (!strcmp(a->argv[i], "none"))
-            {
-                bootDevice[n - 1] = DeviceType_Null;
-            }
-            else if (!strcmp(a->argv[i], "floppy"))
-            {
-                bootDevice[n - 1] = DeviceType_Floppy;
-            }
-            else if (!strcmp(a->argv[i], "dvd"))
-            {
-                bootDevice[n - 1] = DeviceType_DVD;
-            }
-            else if (!strcmp(a->argv[i], "disk"))
-            {
-                bootDevice[n - 1] = DeviceType_HardDisk;
-            }
-            else if (!strcmp(a->argv[i], "net"))
-            {
-                bootDevice[n - 1] = DeviceType_Network;
-            }
-            else
-                return errorArgument("Invalid boot device '%s'", a->argv[i]);
-
-            bootDeviceChanged[n - 1] = true;
-        }
-        else if (   !strcmp(a->argv[i], "--hda")
-                 || !strcmp(a->argv[i], "-hda"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            hdds[0] = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--hdb")
-                 || !strcmp(a->argv[i], "-hdb"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            hdds[1] = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--hdd")
-                 || !strcmp(a->argv[i], "-hdd"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            hdds[2] = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--dvd")
-                 || !strcmp(a->argv[i], "-dvd"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            dvd = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--dvdpassthrough")
-                 || !strcmp(a->argv[i], "-dvdpassthrough"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            dvdpassthrough = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--idecontroller")
-                 || !strcmp(a->argv[i], "-idecontroller"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            idecontroller = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--floppy")
-                 || !strcmp(a->argv[i], "-floppy"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            floppy = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--audio")
-                 || !strcmp(a->argv[i], "-audio"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            audio = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--audiocontroller")
-                 || !strcmp(a->argv[i], "-audiocontroller"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            audiocontroller = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--clipboard")
-                 || !strcmp(a->argv[i], "-clipboard"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            clipboard = a->argv[i];
-        }
-        else if (   !strncmp(a->argv[i], "--cableconnected", 16)
-                 || !strncmp(a->argv[i], "-cableconnected", 15))
-        {
-            unsigned n = parseNum(&a->argv[i][15 + (a->argv[i][1] == '-')], NetworkAdapterCount, "NIC");
-            if (!n)
-                return 1;
-
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-
-            cableconnected[n - 1] = a->argv[i + 1];
-            i++;
-        }
-        /* watch for the right order of these --nic* comparisons! */
-        else if (   !strncmp(a->argv[i], "--nictracefile", 14)
-                 || !strncmp(a->argv[i], "-nictracefile", 13))
-        {
-            unsigned n = parseNum(&a->argv[i][13 + (a->argv[i][1] == '-')], NetworkAdapterCount, "NIC");
-            if (!n)
-                return 1;
-            if (a->argc <= i + 1)
-            {
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            }
-            nictracefile[n - 1] = a->argv[i + 1];
-            i++;
-        }
-        else if (   !strncmp(a->argv[i], "--nictrace", 10)
-                 || !strncmp(a->argv[i], "-nictrace", 9))
-        {
-            unsigned n = parseNum(&a->argv[i][9 + (a->argv[i][1] == '-')], NetworkAdapterCount, "NIC");
-            if (!n)
-                return 1;
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            nictrace[n - 1] = a->argv[i + 1];
-            i++;
-        }
-        else if (   !strncmp(a->argv[i], "--nictype", 9)
-                 || !strncmp(a->argv[i], "-nictype", 8))
-        {
-            unsigned n = parseNum(&a->argv[i][8 + (a->argv[i][1] == '-')], NetworkAdapterCount, "NIC");
-            if (!n)
-                return 1;
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            nictype[n - 1] = a->argv[i + 1];
-            i++;
-        }
-        else if (   !strncmp(a->argv[i], "--nicspeed", 10)
-                 || !strncmp(a->argv[i], "-nicspeed", 9))
-        {
-            unsigned n = parseNum(&a->argv[i][9 + (a->argv[i][1] == '-')], NetworkAdapterCount, "NIC");
-            if (!n)
-                return 1;
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            nicspeed[n - 1] = a->argv[i + 1];
-            i++;
-        }
-        else if (   !strncmp(a->argv[i], "--nic", 5)
-                 || !strncmp(a->argv[i], "-nic", 4))
-        {
-            unsigned n = parseNum(&a->argv[i][4 + (a->argv[i][1] == '-')], NetworkAdapterCount, "NIC");
-            if (!n)
-                return 1;
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            nics[n - 1] = a->argv[i + 1];
-            i++;
-        }
-        else if (   !strncmp(a->argv[i], "--hostifdev", 11)
-                 || !strncmp(a->argv[i], "-hostifdev", 10)) /* backward compatibility */
-        {
-            unsigned n = parseNum(&a->argv[i][10 + (a->argv[i][1] == '-')], NetworkAdapterCount, "NIC");
-            if (!n)
-                return 1;
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            hostifdev[n - 1] = a->argv[i + 1];
-            i++;
-        }
-        else if (   !strncmp(a->argv[i], "--bridgeadapter", 15)
-                 || !strncmp(a->argv[i], "-bridgeadapter", 14))
-        {
-            unsigned n = parseNum(&a->argv[i][14 + (a->argv[i][1] == '-')], NetworkAdapterCount, "NIC");
-            if (!n)
-                return 1;
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            hostifdev[n - 1] = a->argv[i + 1];
-            i++;
-        }
-#if defined(VBOX_WITH_NETFLT)
-        else if (   !strncmp(a->argv[i], "--hostonlyadapter", 17)
-                 || !strncmp(a->argv[i], "-hostonlyadapter", 16))
-        {
-            unsigned n = parseNum(&a->argv[i][16 + (a->argv[i][1] == '-')], NetworkAdapterCount, "NIC");
-            if (!n)
-                return 1;
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            hostifdev[n - 1] = a->argv[i + 1];
-            i++;
-        }
-#endif
-        else if (   !strncmp(a->argv[i], "--intnet", 8)
-                 || !strncmp(a->argv[i], "-intnet", 7))
-        {
-            unsigned n = parseNum(&a->argv[i][7 + (a->argv[i][1] == '-')], NetworkAdapterCount, "NIC");
-            if (!n)
-                return 1;
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            intnet[n - 1] = a->argv[i + 1];
-            i++;
-        }
-        else if (   !strncmp(a->argv[i], "--natnet", 8)
-                 || !strncmp(a->argv[i], "-natnet", 7))
-        {
-            unsigned n = parseNum(&a->argv[i][7 + (a->argv[i][1] == '-')], NetworkAdapterCount, "NIC");
-            if (!n)
-                return 1;
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-
-            if (!strcmp(a->argv[i + 1], "default"))
-                natnet[n - 1] = "";
-            else
-            {
-                RTIPV4ADDR Network;
-                RTIPV4ADDR Netmask;
-                int rc = RTCidrStrToIPv4(a->argv[i + 1], &Network, &Netmask);
-                if (RT_FAILURE(rc))
-                    return errorArgument("Invalid IPv4 network '%s' specified -- CIDR notation expected.\n", a->argv[i + 1]);
-                if (Netmask & 0x1f)
-                    return errorArgument("Prefix length of the NAT network must be less than 28.\n");
-                natnet[n - 1] = a->argv[i + 1];
-            }
-            i++;
-        }
-        else if (   !strncmp(a->argv[i], "--macaddress", 12)
-                 || !strncmp(a->argv[i], "-macaddress", 11))
-        {
-            unsigned n = parseNum(&a->argv[i][11 + (a->argv[i][1] == '-')], NetworkAdapterCount, "NIC");
-            if (!n)
-                return 1;
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            macs[n - 1] = a->argv[i + 1];
-            i++;
-        }
-#ifdef VBOX_WITH_VRDP
-        else if (   !strcmp(a->argv[i], "--vrdp")
-                 || !strcmp(a->argv[i], "-vrdp"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            vrdp = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--vrdpport")
-                 || !strcmp(a->argv[i], "-vrdpport"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            if (!strcmp(a->argv[i], "default"))
-                vrdpport = 0;
-            else
-                vrdpport = RTStrToUInt16(a->argv[i]);
-        }
-        else if (   !strcmp(a->argv[i], "--vrdpaddress")
-                 || !strcmp(a->argv[i], "-vrdpaddress"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            vrdpaddress = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--vrdpauthtype")
-                 || !strcmp(a->argv[i], "-vrdpauthtype"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            vrdpauthtype = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--vrdpmulticon")
-                 || !strcmp(a->argv[i], "-vrdpmulticon"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            vrdpmulticon = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--vrdpreusecon")
-                 || !strcmp(a->argv[i], "-vrdpreusecon"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            vrdpreusecon = a->argv[i];
-        }
-#endif /* VBOX_WITH_VRDP */
-        else if (   !strcmp(a->argv[i], "--usb")
-                 || !strcmp(a->argv[i], "-usb"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            if (!strcmp(a->argv[i], "on") || !strcmp(a->argv[i], "enable"))
-                fUsbEnabled = 1;
-            else if (!strcmp(a->argv[i], "off") || !strcmp(a->argv[i], "disable"))
-                fUsbEnabled = 0;
-            else
-                return errorArgument("Invalid --usb argument '%s'", a->argv[i]);
-        }
-        else if (   !strcmp(a->argv[i], "--usbehci")
-                 || !strcmp(a->argv[i], "-usbehci"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            if (!strcmp(a->argv[i], "on") || !strcmp(a->argv[i], "enable"))
-                fUsbEhciEnabled = 1;
-            else if (!strcmp(a->argv[i], "off") || !strcmp(a->argv[i], "disable"))
-                fUsbEhciEnabled = 0;
-            else
-                return errorArgument("Invalid --usbehci argument '%s'", a->argv[i]);
-        }
-        else if (   !strcmp(a->argv[i], "--snapshotfolder")
-                 || !strcmp(a->argv[i], "-snapshotfolder"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            snapshotFolder = a->argv[i];
-        }
-        else if (   !strncmp(a->argv[i], "--uartmode", 10)
-                 || !strncmp(a->argv[i], "-uartmode", 9))
-        {
-            unsigned n = parseNum(&a->argv[i][9 + (a->argv[i][1] == '-')], SerialPortCount, "UART");
-            if (!n)
-                return 1;
-            i++;
-            if (!strcmp(a->argv[i], "disconnected"))
-            {
-                uarts_mode[n - 1] = a->argv[i];
-            }
-            else
-            {
-                if (!strcmp(a->argv[i], "server") || !strcmp(a->argv[i], "client"))
-                {
-                    uarts_mode[n - 1] = a->argv[i];
-                    i++;
-#ifdef RT_OS_WINDOWS
-                    if (!strncmp(a->argv[i], "\\\\.\\pipe\\", 9))
-                        return errorArgument("Uart pipe must start with \\\\.\\pipe\\");
-#endif
-                }
-                else if (!strcmp(a->argv[i], "file"))
-                {
-                    uarts_mode[n - 1] = a->argv[i];
-                    i++;
-                }
-                else
-                {
-                    uarts_mode[n - 1] = (char*)"device";
-                }
-                if (a->argc <= i)
-                    return errorArgument("Missing argument to --uartmode");
-                uarts_path[n - 1] = a->argv[i];
-            }
-        }
-        else if (   !strncmp(a->argv[i], "--uart", 6)
-                 || !strncmp(a->argv[i], "-uart", 5))
-        {
-            unsigned n = parseNum(&a->argv[i][5 + (a->argv[i][1] == '-')], SerialPortCount, "UART");
-            if (!n)
-                return 1;
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            if (!strcmp(a->argv[i], "off") || !strcmp(a->argv[i], "disable"))
-            {
-                uarts_base[n - 1] = (ULONG)-1;
-            }
-            else
-            {
-                if (a->argc <= i + 1)
-                    return errorArgument("Missing argument to '%s'", a->argv[i-1]);
-                uint32_t uVal;
-                int vrc;
-                vrc = RTStrToUInt32Ex(a->argv[i], NULL, 0, &uVal);
-                if (vrc != VINF_SUCCESS || uVal == 0)
-                    return errorArgument("Error parsing UART I/O base '%s'", a->argv[i]);
-                uarts_base[n - 1] = uVal;
-                i++;
-                vrc = RTStrToUInt32Ex(a->argv[i], NULL, 0, &uVal);
-                if (vrc != VINF_SUCCESS)
-                    return errorArgument("Error parsing UART IRQ '%s'", a->argv[i]);
-                uarts_irq[n - 1]  = uVal;
-            }
-        }
-#ifdef VBOX_WITH_MEM_BALLOONING
-        else if (   !strcmp(a->argv[i], "--guestmemoryballoon")
-                 || !strcmp(a->argv[i], "-guestmemoryballoon"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            uint32_t uVal;
-            int vrc;
-            vrc = RTStrToUInt32Ex(a->argv[i], NULL, 0, &uVal);
-            if (vrc != VINF_SUCCESS)
-                return errorArgument("Error parsing guest memory balloon size '%s'", a->argv[i]);
-            guestMemBalloonSize = uVal;
-        }
-#endif
-        else if (   !strcmp(a->argv[i], "--gueststatisticsinterval")
-                 || !strcmp(a->argv[i], "-gueststatisticsinterval"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            uint32_t uVal;
-            int vrc;
-            vrc = RTStrToUInt32Ex(a->argv[i], NULL, 0, &uVal);
-            if (vrc != VINF_SUCCESS)
-                return errorArgument("Error parsing guest statistics interval '%s'", a->argv[i]);
-            guestStatInterval = uVal;
-        }
-        else if (   !strcmp(a->argv[i], "--sata")
-                 || !strcmp(a->argv[i], "-sata"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            if (!strcmp(a->argv[i], "on") || !strcmp(a->argv[i], "enable"))
-                fSataEnabled = 1;
-            else if (!strcmp(a->argv[i], "off") || !strcmp(a->argv[i], "disable"))
-                fSataEnabled = 0;
-            else
-                return errorArgument("Invalid --usb argument '%s'", a->argv[i]);
-        }
-        else if (   !strcmp(a->argv[i], "--sataportcount")
-                 || !strcmp(a->argv[i], "-sataportcount"))
-        {
-            unsigned n;
-
-            if (a->argc <= i + 1)
-                return errorArgument("Missing arguments to '%s'", a->argv[i]);
-            i++;
-
-            n = parseNum(a->argv[i], 30, "SATA");
-            if (!n)
-                return 1;
-            sataPortCount = n;
-        }
-        else if (   !strncmp(a->argv[i], "--sataport", 10)
-                 || !strncmp(a->argv[i], "-sataport", 9))
-        {
-            unsigned n = parseNum(&a->argv[i][9 + (a->argv[i][1] == '-')], 30, "SATA");
-            if (!n)
-                return 1;
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            hdds[n-1+4] = a->argv[i];
-        }
-        else if (   !strncmp(a->argv[i], "--sataideemulation", 18)
-                 || !strncmp(a->argv[i], "-sataideemulation", 17))
-        {
-            unsigned bootDevicePos = 0;
-            unsigned n;
-
-            bootDevicePos = parseNum(&a->argv[i][17 + (a->argv[i][1] == '-')], 4, "SATA");
-            if (!bootDevicePos)
-                return 1;
-            bootDevicePos--;
-
-            if (a->argc <= i + 1)
-                return errorArgument("Missing arguments to '%s'", a->argv[i]);
-            i++;
-
-            n = parseNum(a->argv[i], 30, "SATA");
-            if (!n)
-                return 1;
-
-            sataBootDevices[bootDevicePos] = n-1;
-        }
-        else if (   !strcmp(a->argv[i], "--scsi")
-                 || !strcmp(a->argv[i], "-scsi"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            if (!strcmp(a->argv[i], "on") || !strcmp(a->argv[i], "enable"))
-                fScsiEnabled = 1;
-            else if (!strcmp(a->argv[i], "off") || !strcmp(a->argv[i], "disable"))
-                fScsiEnabled = 0;
-            else
-                return errorArgument("Invalid --scsi argument '%s'", a->argv[i]);
-        }
-        else if (   !strncmp(a->argv[i], "--scsiport", 10)
-                 || !strncmp(a->argv[i], "-scsiport", 9))
-        {
-            unsigned n = parseNum(&a->argv[i][9 + (a->argv[i][1] == '-')], 16, "SCSI");
-            if (!n)
-                return 1;
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            hdds[n-1+34] = a->argv[i];
-        }
-        else if (   !strcmp(a->argv[i], "--scsitype")
-                 || !strcmp(a->argv[i], "-scsitype"))
-        {
-            if (a->argc <= i + 1)
-                return errorArgument("Missing argument to '%s'", a->argv[i]);
-            i++;
-            if (!RTStrICmp(a->argv[i], "LsiLogic"))
-                fScsiLsiLogic = 1;
-            else if (!RTStrICmp(a->argv[i], "BusLogic"))
-                fScsiLsiLogic = 0;
-            else
-                return errorArgument("Invalid --scsitype argument '%s'", a->argv[i]);
-        }
-        else
-            return errorSyntax(USAGE_MODIFYVM, "Invalid parameter '%s'", Utf8Str(a->argv[i]).raw());
+        CHECK_ERROR_RET(a->virtualBox, COMGETTER(SystemProperties)(info.asOutParam()), 1);
+        CHECK_ERROR_RET(info, COMGETTER(SerialPortCount)(&SerialPortCount), 1);
     }
 
     /* try to find the given machine */
-    ComPtr <IMachine> machine;
-    Bstr uuid (a->argv[0]);
-    if (!Guid(uuid).isEmpty())
+    if (!Guid(machineuuid).isEmpty())
     {
-        CHECK_ERROR (a->virtualBox, GetMachine (uuid, machine.asOutParam()));
+        CHECK_ERROR_RET(a->virtualBox, GetMachine(machineuuid, machine.asOutParam()), 1);
     }
     else
     {
-        CHECK_ERROR (a->virtualBox, FindMachine(Bstr(a->argv[0]), machine.asOutParam()));
-        if (SUCCEEDED (rc))
-            machine->COMGETTER(Id)(uuid.asOutParam());
+        CHECK_ERROR_RET(a->virtualBox, FindMachine(Bstr(a->argv[0]), machine.asOutParam()), 1);
+        machine->COMGETTER(Id)(machineuuid.asOutParam());
     }
-    if (FAILED (rc))
-        return 1;
 
     /* open a session for the VM */
-    CHECK_ERROR_RET (a->virtualBox, OpenSession(a->session, uuid), 1);
+    CHECK_ERROR_RET(a->virtualBox, OpenSession(a->session, machineuuid), 1);
 
-    do
+    /* get the mutable session machine */
+    a->session->COMGETTER(Machine)(machine.asOutParam());
+    machine->COMGETTER(BIOSSettings)(biosSettings.asOutParam());
+
+    RTGetOptInit(&GetOptState, a->argc, a->argv, g_aModifyVMOptions,
+                 RT_ELEMENTS(g_aModifyVMOptions), 1, 0 /* fFlags */);
+
+    while (   SUCCEEDED (rc)
+           && (c = RTGetOpt(&GetOptState, &ValueUnion)))
     {
-        /* get the mutable session machine */
-        a->session->COMGETTER(Machine)(machine.asOutParam());
-
-        ComPtr <IBIOSSettings> biosSettings;
-        machine->COMGETTER(BIOSSettings)(biosSettings.asOutParam());
-
-        if (name)
-            CHECK_ERROR(machine, COMSETTER(Name)(name));
-        if (ostype)
+        switch (c)
         {
-            ComPtr<IGuestOSType> guestOSType;
-            CHECK_ERROR(a->virtualBox, GetGuestOSType(ostype, guestOSType.asOutParam()));
-            if (SUCCEEDED(rc) && guestOSType)
+            case MODIFYVM_NAME:
             {
-                CHECK_ERROR(machine, COMSETTER(OSTypeId)(ostype));
-            }
-            else
-            {
-                errorArgument("Invalid guest OS type '%s'", Utf8Str(ostype).raw());
-                rc = E_FAIL;
+                CHECK_ERROR(machine, COMSETTER(Name)(Bstr(ValueUnion.psz)));
                 break;
             }
-        }
-        if (memorySize > 0)
-            CHECK_ERROR(machine, COMSETTER(MemorySize)(memorySize));
-        if (vramSize > 0)
-            CHECK_ERROR(machine, COMSETTER(VRAMSize)(vramSize));
-        if (acpi)
-        {
-            if (!strcmp(acpi, "on"))
+            case MODIFYVM_OSTYPE:
             {
-                CHECK_ERROR(biosSettings, COMSETTER(ACPIEnabled)(true));
-            }
-            else if (!strcmp(acpi, "off"))
-            {
-                CHECK_ERROR(biosSettings, COMSETTER(ACPIEnabled)(false));
-            }
-            else
-            {
-                errorArgument("Invalid --acpi argument '%s'", acpi);
-                rc = E_FAIL;
-                break;
-            }
-        }
-        if (ioapic)
-        {
-            if (!strcmp(ioapic, "on"))
-            {
-                CHECK_ERROR(biosSettings, COMSETTER(IOAPICEnabled)(true));
-            }
-            else if (!strcmp(ioapic, "off"))
-            {
-                CHECK_ERROR(biosSettings, COMSETTER(IOAPICEnabled)(false));
-            }
-            else
-            {
-                errorArgument("Invalid --ioapic argument '%s'", ioapic);
-                rc = E_FAIL;
-                break;
-            }
-        }
-        if (hwvirtex)
-        {
-            if (!strcmp(hwvirtex, "on"))
-            {
-                CHECK_ERROR(machine, COMSETTER(HWVirtExEnabled)(TRUE));
-            }
-            else if (!strcmp(hwvirtex, "off"))
-            {
-                CHECK_ERROR(machine, COMSETTER(HWVirtExEnabled)(FALSE));
-            }
-            else
-            {
-                errorArgument("Invalid --hwvirtex argument '%s'", hwvirtex);
-                rc = E_FAIL;
-                break;
-            }
-        }
-        if (nestedpaging)
-        {
-            if (!strcmp(nestedpaging, "on"))
-            {
-                CHECK_ERROR(machine, COMSETTER(HWVirtExNestedPagingEnabled)(true));
-            }
-            else if (!strcmp(nestedpaging, "off"))
-            {
-                CHECK_ERROR(machine, COMSETTER(HWVirtExNestedPagingEnabled)(false));
-            }
-            else
-            {
-                errorArgument("Invalid --nestedpaging argument '%s'", ioapic);
-                rc = E_FAIL;
-                break;
-            }
-        }
-        if (vtxvpid)
-        {
-            if (!strcmp(vtxvpid, "on"))
-            {
-                CHECK_ERROR(machine, COMSETTER(HWVirtExVPIDEnabled)(true));
-            }
-            else if (!strcmp(vtxvpid, "off"))
-            {
-                CHECK_ERROR(machine, COMSETTER(HWVirtExVPIDEnabled)(false));
-            }
-            else
-            {
-                errorArgument("Invalid --vtxvpid argument '%s'", ioapic);
-                rc = E_FAIL;
-                break;
-            }
-        }
-        if (pae)
-        {
-            if (!strcmp(pae, "on"))
-            {
-                CHECK_ERROR(machine, COMSETTER(PAEEnabled)(true));
-            }
-            else if (!strcmp(pae, "off"))
-            {
-                CHECK_ERROR(machine, COMSETTER(PAEEnabled)(false));
-            }
-            else
-            {
-                errorArgument("Invalid --pae argument '%s'", ioapic);
-                rc = E_FAIL;
-                break;
-            }
-        }
-        if (numCpus != UINT32_MAX)
-        {
-            CHECK_ERROR(machine, COMSETTER(CPUCount)(numCpus));
-        }
-        if (monitorcount != ~0U)
-        {
-            CHECK_ERROR(machine, COMSETTER(MonitorCount)(monitorcount));
-        }
-        if (accelerate3d)
-        {
-            if (!strcmp(accelerate3d, "on"))
-            {
-                CHECK_ERROR(machine, COMSETTER(Accelerate3DEnabled)(true));
-            }
-            else if (!strcmp(accelerate3d, "off"))
-            {
-                CHECK_ERROR(machine, COMSETTER(Accelerate3DEnabled)(false));
-            }
-            else
-            {
-                errorArgument("Invalid --accelerate3d argument '%s'", ioapic);
-                rc = E_FAIL;
-                break;
-            }
-        }
-        if (bioslogofadein)
-        {
-            if (!strcmp(bioslogofadein, "on"))
-            {
-                CHECK_ERROR(biosSettings, COMSETTER(LogoFadeIn)(true));
-            }
-            else if (!strcmp(bioslogofadein, "off"))
-            {
-                CHECK_ERROR(biosSettings, COMSETTER(LogoFadeIn)(false));
-            }
-            else
-            {
-                errorArgument("Invalid --bioslogofadein argument '%s'", bioslogofadein);
-                rc = E_FAIL;
-                break;
-            }
-        }
-        if (bioslogofadeout)
-        {
-            if (!strcmp(bioslogofadeout, "on"))
-            {
-                CHECK_ERROR(biosSettings, COMSETTER(LogoFadeOut)(true));
-            }
-            else if (!strcmp(bioslogofadeout, "off"))
-            {
-                CHECK_ERROR(biosSettings, COMSETTER(LogoFadeOut)(false));
-            }
-            else
-            {
-                errorArgument("Invalid --bioslogofadeout argument '%s'", bioslogofadeout);
-                rc = E_FAIL;
-                break;
-            }
-        }
-        if (bioslogodisplaytime != ~0U)
-        {
-            CHECK_ERROR(biosSettings, COMSETTER(LogoDisplayTime)(bioslogodisplaytime));
-        }
-        if (bioslogoimagepath)
-        {
-            CHECK_ERROR(biosSettings, COMSETTER(LogoImagePath)(Bstr(bioslogoimagepath)));
-        }
-        if (biosbootmenumode)
-        {
-            if (!strcmp(biosbootmenumode, "disabled"))
-                CHECK_ERROR(biosSettings, COMSETTER(BootMenuMode)(BIOSBootMenuMode_Disabled));
-            else if (!strcmp(biosbootmenumode, "menuonly"))
-                CHECK_ERROR(biosSettings, COMSETTER(BootMenuMode)(BIOSBootMenuMode_MenuOnly));
-            else if (!strcmp(biosbootmenumode, "messageandmenu"))
-                CHECK_ERROR(biosSettings, COMSETTER(BootMenuMode)(BIOSBootMenuMode_MessageAndMenu));
-            else
-            {
-                errorArgument("Invalid --biosbootmenu argument '%s'", biosbootmenumode);
-                rc = E_FAIL;
-                break;
-            }
-
-        }
-        if (biossystemtimeoffset)
-        {
-            LONG64 timeOffset = RTStrToInt64(biossystemtimeoffset);
-            CHECK_ERROR(biosSettings, COMSETTER(TimeOffset)(timeOffset));
-        }
-        if (biospxedebug)
-        {
-            if (!strcmp(biospxedebug, "on"))
-            {
-                CHECK_ERROR(biosSettings, COMSETTER(PXEDebugEnabled)(true));
-            }
-            else if (!strcmp(biospxedebug, "off"))
-            {
-                CHECK_ERROR(biosSettings, COMSETTER(PXEDebugEnabled)(false));
-            }
-            else
-            {
-                errorArgument("Invalid --biospxedebug argument '%s'", biospxedebug);
-                rc = E_FAIL;
-                break;
-            }
-        }
-        for (int curBootDev = 0; curBootDev < 4; curBootDev++)
-        {
-            if (bootDeviceChanged[curBootDev])
-                CHECK_ERROR(machine, SetBootOrder (curBootDev + 1, bootDevice[curBootDev]));
-        }
-        if (hdds[0])
-        {
-            if (!strcmp(hdds[0], "none"))
-            {
-                machine->DetachHardDisk(Bstr("IDE"), 0, 0);
-            }
-            else
-            {
-                /* first guess is that it's a UUID */
-                Bstr uuid(hdds[0]);
-                ComPtr<IHardDisk> hardDisk;
-                rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
-                /* not successful? Then it must be a filename */
-                if (!hardDisk)
+                ComPtr<IGuestOSType> guestOSType;
+                CHECK_ERROR(a->virtualBox, GetGuestOSType(Bstr(ValueUnion.psz), guestOSType.asOutParam()));
+                if (SUCCEEDED(rc) && guestOSType)
                 {
-                    rc = a->virtualBox->FindHardDisk(Bstr(hdds[0]), hardDisk.asOutParam());
-                    if (FAILED(rc))
-                    {
-                        /* open the new hard disk object */
-                        CHECK_ERROR(a->virtualBox, OpenHardDisk(Bstr(hdds[0]), AccessMode_ReadWrite, false, Bstr(""), false, Bstr(""), hardDisk.asOutParam()));
-                    }
-                }
-                if (hardDisk)
-                {
-                    hardDisk->COMGETTER(Id)(uuid.asOutParam());
-                    CHECK_ERROR(machine, AttachHardDisk(uuid, Bstr("IDE"), 0, 0));
+                    CHECK_ERROR(machine, COMSETTER(OSTypeId)(Bstr(ValueUnion.psz)));
                 }
                 else
+                {
+                    errorArgument("Invalid guest OS type '%s'", Utf8Str(ValueUnion.psz).raw());
                     rc = E_FAIL;
-                if (FAILED(rc))
-                    break;
-            }
-        }
-        if (hdds[1])
-        {
-            if (!strcmp(hdds[1], "none"))
-            {
-                machine->DetachHardDisk(Bstr("IDE"), 0, 1);
-            }
-            else
-            {
-                /* first guess is that it's a UUID */
-                Bstr uuid(hdds[1]);
-                ComPtr<IHardDisk> hardDisk;
-                rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
-                /* not successful? Then it must be a filename */
-                if (!hardDisk)
-                {
-                    rc = a->virtualBox->FindHardDisk(Bstr(hdds[1]), hardDisk.asOutParam());
-                    if (FAILED(rc))
-                    {
-                        /* open the new hard disk object */
-                        CHECK_ERROR(a->virtualBox, OpenHardDisk(Bstr(hdds[1]), AccessMode_ReadWrite, false, Bstr(""), false, Bstr(""), hardDisk.asOutParam()));
-                    }
                 }
-                if (hardDisk)
+                break;
+            }
+
+            case MODIFYVM_MEMORY:
+            {
+                CHECK_ERROR(machine, COMSETTER(MemorySize)(ValueUnion.u32));
+                break;
+            }
+
+            case MODIFYVM_VRAM:
+            {
+                CHECK_ERROR(machine, COMSETTER(VRAMSize)(ValueUnion.u32));
+                break;
+            }
+
+            case MODIFYVM_FIRMWARE:
+            {
+                if (!strcmp(ValueUnion.psz, "efi"))
                 {
-                    hardDisk->COMGETTER(Id)(uuid.asOutParam());
-                    CHECK_ERROR(machine, AttachHardDisk(uuid, Bstr("IDE"), 0, 1));
+                    CHECK_ERROR(machine, COMSETTER(FirmwareType)(FirmwareType_EFI));
+                }
+                else if (!strcmp(ValueUnion.psz, "efi32"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(FirmwareType)(FirmwareType_EFI32));
+                }
+                else if (!strcmp(ValueUnion.psz, "efi64"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(FirmwareType)(FirmwareType_EFI64));
+                }
+                else if (!strcmp(ValueUnion.psz, "efidual"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(FirmwareType)(FirmwareType_EFIDUAL));
+                }
+                else if (!strcmp(ValueUnion.psz, "bios"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(FirmwareType)(FirmwareType_BIOS));
                 }
                 else
+                {
+                    errorArgument("Invalid --firmware argument '%s'", ValueUnion.psz);
                     rc = E_FAIL;
-                if (FAILED(rc))
-                    break;
-            }
-        }
-        if (hdds[2])
-        {
-            if (!strcmp(hdds[2], "none"))
-            {
-                machine->DetachHardDisk(Bstr("IDE"), 1, 1);
-            }
-            else
-            {
-                /* first guess is that it's a UUID */
-                Bstr uuid(hdds[2]);
-                ComPtr<IHardDisk> hardDisk;
-                rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
-                /* not successful? Then it must be a filename */
-                if (!hardDisk)
-                {
-                    rc = a->virtualBox->FindHardDisk(Bstr(hdds[2]), hardDisk.asOutParam());
-                    if (FAILED(rc))
-                    {
-                        /* open the new hard disk object */
-                        CHECK_ERROR(a->virtualBox, OpenHardDisk(Bstr(hdds[2]), AccessMode_ReadWrite, false, Bstr(""), false, Bstr(""), hardDisk.asOutParam()));
-                    }
                 }
-                if (hardDisk)
+                break;
+            }
+
+            case MODIFYVM_ACPI:
+            {
+                CHECK_ERROR(biosSettings, COMSETTER(ACPIEnabled)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_IOAPIC:
+            {
+                CHECK_ERROR(biosSettings, COMSETTER(IOAPICEnabled)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_PAE:
+            {
+                CHECK_ERROR(machine, SetCpuProperty(CpuPropertyType_PAE, ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_SYNTHCPU:
+            {
+                CHECK_ERROR(machine, SetCpuProperty(CpuPropertyType_Synthetic, ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_HWVIRTEX:
+            {
+                CHECK_ERROR(machine, SetHWVirtExProperty(HWVirtExPropertyType_Enabled, ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_HWVIRTEXEXCLUSIVE:
+            {
+                CHECK_ERROR(machine, SetHWVirtExProperty(HWVirtExPropertyType_Exclusive, ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_SETCPUID:
+            {
+                uint32_t id = ValueUnion.u32;
+                uint32_t aValue[4];
+
+                for (unsigned i = 0 ; i < 4 ; i++)
                 {
-                    hardDisk->COMGETTER(Id)(uuid.asOutParam());
-                    CHECK_ERROR(machine, AttachHardDisk(uuid, Bstr("IDE"), 1, 1));
+                    int vrc = RTGetOptFetchValue(&GetOptState, &ValueUnion, RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX);
+                    if (RT_FAILURE(vrc))
+                        return errorSyntax(USAGE_MODIFYVM,
+                                           "Missing or Invalid argument to '%s'",
+                                           GetOptState.pDef->pszLong);
+                    aValue[i] = ValueUnion.u32;
+                }
+                CHECK_ERROR(machine, SetCpuIdLeaf(id, aValue[0], aValue[1], aValue[2], aValue[3]));
+                break;
+            }
+
+            case MODIFYVM_DELCPUID:
+            {
+                CHECK_ERROR(machine, RemoveCpuIdLeaf(ValueUnion.u32));
+                break;
+            }
+
+            case MODIFYVM_DELALLCPUID:
+            {
+                CHECK_ERROR(machine, RemoveAllCpuIdLeafs());
+                break;
+            }
+
+            case MODIFYVM_NESTEDPAGING:
+            {
+                CHECK_ERROR(machine, SetHWVirtExProperty(HWVirtExPropertyType_NestedPaging, ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_VTXVPID:
+            {
+                CHECK_ERROR(machine, SetHWVirtExProperty(HWVirtExPropertyType_VPID, ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_CPUS:
+            {
+                CHECK_ERROR(machine, COMSETTER(CPUCount)(ValueUnion.u32));
+                break;
+            }
+
+            case MODIFYVM_MONITORCOUNT:
+            {
+                CHECK_ERROR(machine, COMSETTER(MonitorCount)(ValueUnion.u32));
+                break;
+            }
+
+            case MODIFYVM_ACCELERATE3D:
+            {
+                CHECK_ERROR(machine, COMSETTER(Accelerate3DEnabled)(ValueUnion.f));
+                break;
+            }
+
+#ifdef VBOX_WITH_VIDEOHWACCEL
+            case MODIFYVM_ACCELERATE2DVIDEO:
+            {
+                CHECK_ERROR(machine, COMSETTER(Accelerate2DVideoEnabled)(ValueUnion.f));
+                break;
+            }
+#endif
+
+            case MODIFYVM_BIOSLOGOFADEIN:
+            {
+                CHECK_ERROR(biosSettings, COMSETTER(LogoFadeIn)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_BIOSLOGOFADEOUT:
+            {
+                CHECK_ERROR(biosSettings, COMSETTER(LogoFadeOut)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_BIOSLOGODISPLAYTIME:
+            {
+                CHECK_ERROR(biosSettings, COMSETTER(LogoDisplayTime)(ValueUnion.u64));
+                break;
+            }
+
+            case MODIFYVM_BIOSLOGOIMAGEPATH:
+            {
+                CHECK_ERROR(biosSettings, COMSETTER(LogoImagePath)(Bstr(ValueUnion.psz)));
+                break;
+            }
+
+            case MODIFYVM_BIOSBOOTMENU:
+            {
+                if (!strcmp(ValueUnion.psz, "disabled"))
+                {
+                    CHECK_ERROR(biosSettings, COMSETTER(BootMenuMode)(BIOSBootMenuMode_Disabled));
+                }
+                else if (!strcmp(ValueUnion.psz, "menuonly"))
+                {
+                    CHECK_ERROR(biosSettings, COMSETTER(BootMenuMode)(BIOSBootMenuMode_MenuOnly));
+                }
+                else if (!strcmp(ValueUnion.psz, "messageandmenu"))
+                {
+                    CHECK_ERROR(biosSettings, COMSETTER(BootMenuMode)(BIOSBootMenuMode_MessageAndMenu));
                 }
                 else
-                    rc = E_FAIL;
-                if (FAILED(rc))
-                    break;
-            }
-        }
-        if (dvd)
-        {
-            ComPtr<IDVDDrive> dvdDrive;
-            machine->COMGETTER(DVDDrive)(dvdDrive.asOutParam());
-            ASSERT(dvdDrive);
-
-            /* unmount? */
-            if (!strcmp(dvd, "none"))
-            {
-                CHECK_ERROR(dvdDrive, Unmount());
-            }
-            /* host drive? */
-            else if (!strncmp(dvd, "host:", 5))
-            {
-                ComPtr<IHost> host;
-                CHECK_ERROR(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
-                com::SafeIfaceArray <IHostDVDDrive> hostDVDs;
-                rc = host->COMGETTER(DVDDrives)(ComSafeArrayAsOutParam(hostDVDs));
-
-                ComPtr<IHostDVDDrive> hostDVDDrive;
-                rc = host->FindHostDVDDrive(Bstr(dvd + 5), hostDVDDrive.asOutParam());
-                if (!hostDVDDrive)
                 {
-                    /* 2nd try: try with the real name, important on Linux+libhal */
-                    char szPathReal[RTPATH_MAX];
-                    if (RT_FAILURE(RTPathReal(dvd + 5, szPathReal, sizeof(szPathReal))))
+                    errorArgument("Invalid --biosbootmenu argument '%s'", ValueUnion.psz);
+                    rc = E_FAIL;
+                }
+                break;
+            }
+
+            case MODIFYVM_BIOSSYSTEMTIMEOFFSET:
+            {
+                CHECK_ERROR(biosSettings, COMSETTER(TimeOffset)(ValueUnion.i64));
+                break;
+            }
+
+            case MODIFYVM_BIOSPXEDEBUG:
+            {
+                CHECK_ERROR(biosSettings, COMSETTER(PXEDebugEnabled)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_BOOT:
+            {
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > 4))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid boot slot number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                if (!strcmp(ValueUnion.psz, "none"))
+                {
+                    CHECK_ERROR(machine, SetBootOrder(GetOptState.uIndex, DeviceType_Null));
+                }
+                else if (!strcmp(ValueUnion.psz, "floppy"))
+                {
+                    CHECK_ERROR(machine, SetBootOrder(GetOptState.uIndex, DeviceType_Floppy));
+                }
+                else if (!strcmp(ValueUnion.psz, "dvd"))
+                {
+                    CHECK_ERROR(machine, SetBootOrder(GetOptState.uIndex, DeviceType_DVD));
+                }
+                else if (!strcmp(ValueUnion.psz, "disk"))
+                {
+                    CHECK_ERROR(machine, SetBootOrder(GetOptState.uIndex, DeviceType_HardDisk));
+                }
+                else if (!strcmp(ValueUnion.psz, "net"))
+                {
+                    CHECK_ERROR(machine, SetBootOrder(GetOptState.uIndex, DeviceType_Network));
+                }
+                else
+                    return errorArgument("Invalid boot device '%s'", ValueUnion.psz);
+
+                break;
+            }
+
+            case MODIFYVM_HDA: // deprecated
+            {
+                if (!strcmp(ValueUnion.psz, "none"))
+                {
+                    machine->DetachDevice(Bstr("IDE Controller"), 0, 0);
+                }
+                else
+                {
+                    /* first guess is that it's a UUID */
+                    Bstr uuid(ValueUnion.psz);
+                    ComPtr<IMedium> hardDisk;
+                    rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
+                    /* not successful? Then it must be a filename */
+                    if (!hardDisk)
                     {
-                        errorArgument("Invalid host DVD drive name");
+                        rc = a->virtualBox->FindHardDisk(Bstr(ValueUnion.psz), hardDisk.asOutParam());
+                        if (FAILED(rc))
+                        {
+                            /* open the new hard disk object */
+                            CHECK_ERROR(a->virtualBox,
+                                         OpenHardDisk(Bstr(ValueUnion.psz),
+                                                      AccessMode_ReadWrite, false, Bstr(""),
+                                                      false, Bstr(""), hardDisk.asOutParam()));
+                        }
+                    }
+                    if (hardDisk)
+                    {
+                        hardDisk->COMGETTER(Id)(uuid.asOutParam());
+                        CHECK_ERROR(machine, AttachDevice(Bstr("IDE Controller"), 0, 0, DeviceType_HardDisk, uuid));
+                    }
+                    else
                         rc = E_FAIL;
-                        break;
-                    }
-                    rc = host->FindHostDVDDrive(Bstr(szPathReal), hostDVDDrive.asOutParam());
-                    if (!hostDVDDrive)
-                    {
-                        errorArgument("Invalid host DVD drive name");
-                        rc = E_FAIL;
-                        break;
-                    }
                 }
-                CHECK_ERROR(dvdDrive, CaptureHostDrive(hostDVDDrive));
-            }
-            else
-            {
-                /* first assume it's a UUID */
-                Bstr uuid(dvd);
-                ComPtr<IDVDImage> dvdImage;
-                rc = a->virtualBox->GetDVDImage(uuid, dvdImage.asOutParam());
-                if (FAILED(rc) || !dvdImage)
-                {
-                    /* must be a filename, check if it's in the collection */
-                    rc = a->virtualBox->FindDVDImage(Bstr(dvd), dvdImage.asOutParam());
-                    /* not registered, do that on the fly */
-                    if (!dvdImage)
-                    {
-                        Bstr emptyUUID;
-                        CHECK_ERROR(a->virtualBox, OpenDVDImage(Bstr(dvd), emptyUUID, dvdImage.asOutParam()));
-                    }
-                }
-                if (!dvdImage)
-                {
-                    rc = E_FAIL;
-                    break;
-                }
-
-                dvdImage->COMGETTER(Id)(uuid.asOutParam());
-                CHECK_ERROR(dvdDrive, MountImage(uuid));
-            }
-        }
-        if (dvdpassthrough)
-        {
-            ComPtr<IDVDDrive> dvdDrive;
-            machine->COMGETTER(DVDDrive)(dvdDrive.asOutParam());
-            ASSERT(dvdDrive);
-
-            CHECK_ERROR(dvdDrive, COMSETTER(Passthrough)(!strcmp(dvdpassthrough, "on")));
-        }
-        if (idecontroller)
-        {
-            ComPtr<IStorageController> storageController;
-            CHECK_ERROR(machine, GetStorageControllerByName(Bstr("IDE"), storageController.asOutParam()));
-
-            if (!RTStrICmp(idecontroller, "PIIX3"))
-            {
-                CHECK_ERROR(storageController, COMSETTER(ControllerType)(StorageControllerType_PIIX3));
-            }
-            else if (!RTStrICmp(idecontroller, "PIIX4"))
-            {
-                CHECK_ERROR(storageController, COMSETTER(ControllerType)(StorageControllerType_PIIX4));
-            }
-            else if (!RTStrICmp(idecontroller, "ICH6"))
-            {
-                CHECK_ERROR(storageController, COMSETTER(ControllerType)(StorageControllerType_ICH6));
-            }
-            else
-            {
-                errorArgument("Invalid --idecontroller argument '%s'", idecontroller);
-                rc = E_FAIL;
                 break;
             }
-        }
-        if (floppy)
-        {
-            ComPtr<IFloppyDrive> floppyDrive;
-            machine->COMGETTER(FloppyDrive)(floppyDrive.asOutParam());
-            ASSERT(floppyDrive);
 
-            /* disable? */
-            if (!strcmp(floppy, "disabled"))
+            case MODIFYVM_HDB: // deprecated
             {
-                /* disable the controller */
-                CHECK_ERROR(floppyDrive, COMSETTER(Enabled)(false));
+                if (!strcmp(ValueUnion.psz, "none"))
+                {
+                    machine->DetachDevice(Bstr("IDE Controller"), 0, 1);
+                }
+                else
+                {
+                    /* first guess is that it's a UUID */
+                    Bstr uuid(ValueUnion.psz);
+                    ComPtr<IMedium> hardDisk;
+                    rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
+                    /* not successful? Then it must be a filename */
+                    if (!hardDisk)
+                    {
+                        rc = a->virtualBox->FindHardDisk(Bstr(ValueUnion.psz), hardDisk.asOutParam());
+                        if (FAILED(rc))
+                        {
+                            /* open the new hard disk object */
+                            CHECK_ERROR(a->virtualBox,
+                                         OpenHardDisk(Bstr(ValueUnion.psz),
+                                                      AccessMode_ReadWrite, false, Bstr(""),
+                                                      false, Bstr(""), hardDisk.asOutParam()));
+                        }
+                    }
+                    if (hardDisk)
+                    {
+                        hardDisk->COMGETTER(Id)(uuid.asOutParam());
+                        CHECK_ERROR(machine, AttachDevice(Bstr("IDE Controller"), 0, 1, DeviceType_HardDisk, uuid));
+                    }
+                    else
+                        rc = E_FAIL;
+                }
+                break;
             }
-            else
+
+            case MODIFYVM_HDD: // deprecated
             {
-                /* enable the controller */
-                CHECK_ERROR(floppyDrive, COMSETTER(Enabled)(true));
+                if (!strcmp(ValueUnion.psz, "none"))
+                {
+                    machine->DetachDevice(Bstr("IDE Controller"), 1, 1);
+                }
+                else
+                {
+                    /* first guess is that it's a UUID */
+                    Bstr uuid(ValueUnion.psz);
+                    ComPtr<IMedium> hardDisk;
+                    rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
+                    /* not successful? Then it must be a filename */
+                    if (!hardDisk)
+                    {
+                        rc = a->virtualBox->FindHardDisk(Bstr(ValueUnion.psz), hardDisk.asOutParam());
+                        if (FAILED(rc))
+                        {
+                            /* open the new hard disk object */
+                            CHECK_ERROR(a->virtualBox,
+                                         OpenHardDisk(Bstr(ValueUnion.psz),
+                                                      AccessMode_ReadWrite, false, Bstr(""),
+                                                      false, Bstr(""), hardDisk.asOutParam()));
+                        }
+                    }
+                    if (hardDisk)
+                    {
+                        hardDisk->COMGETTER(Id)(uuid.asOutParam());
+                        CHECK_ERROR(machine, AttachDevice(Bstr("IDE Controller"), 1, 1, DeviceType_HardDisk, uuid));
+                    }
+                    else
+                        rc = E_FAIL;
+                }
+                break;
+            }
+
+            case MODIFYVM_IDECONTROLLER: // deprecated
+            {
+                ComPtr<IStorageController> storageController;
+                CHECK_ERROR(machine, GetStorageControllerByName(Bstr("IDE Controller"),
+                                                                 storageController.asOutParam()));
+
+                if (!RTStrICmp(ValueUnion.psz, "PIIX3"))
+                {
+                    CHECK_ERROR(storageController, COMSETTER(ControllerType)(StorageControllerType_PIIX3));
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "PIIX4"))
+                {
+                    CHECK_ERROR(storageController, COMSETTER(ControllerType)(StorageControllerType_PIIX4));
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "ICH6"))
+                {
+                    CHECK_ERROR(storageController, COMSETTER(ControllerType)(StorageControllerType_ICH6));
+                }
+                else
+                {
+                    errorArgument("Invalid --idecontroller argument '%s'", ValueUnion.psz);
+                    rc = E_FAIL;
+                }
+                break;
+            }
+
+            case MODIFYVM_SATAIDEEMULATION: // deprecated
+            {
+                ComPtr<IStorageController> SataCtl;
+                CHECK_ERROR(machine, GetStorageControllerByName(Bstr("SATA"), SataCtl.asOutParam()));
+
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > 4))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid SATA boot slot number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                if ((ValueUnion.u32 < 1) && (ValueUnion.u32 > 30))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid SATA port number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                if (SUCCEEDED(rc))
+                    CHECK_ERROR(SataCtl, SetIDEEmulationPort(GetOptState.uIndex, ValueUnion.u32));
+
+                break;
+            }
+
+            case MODIFYVM_SATAPORTCOUNT: // deprecated
+            {
+                ComPtr<IStorageController> SataCtl;
+                CHECK_ERROR(machine, GetStorageControllerByName(Bstr("SATA"), SataCtl.asOutParam()));
+
+                if (SUCCEEDED(rc) && ValueUnion.u32 > 0)
+                    CHECK_ERROR(SataCtl, COMSETTER(PortCount)(ValueUnion.u32));
+
+                break;
+            }
+
+            case MODIFYVM_SATAPORT: // deprecated
+            {
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > 30))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid SATA port number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                if (!strcmp(ValueUnion.psz, "none"))
+                {
+                    machine->DetachDevice(Bstr("SATA"), GetOptState.uIndex, 0);
+                }
+                else
+                {
+                    /* first guess is that it's a UUID */
+                    Bstr uuid(ValueUnion.psz);
+                    ComPtr<IMedium> hardDisk;
+                    rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
+                    /* not successful? Then it must be a filename */
+                    if (!hardDisk)
+                    {
+                        rc =  a->virtualBox->FindHardDisk(Bstr(ValueUnion.psz), hardDisk.asOutParam());
+                        if (FAILED(rc))
+                        {
+                            /* open the new hard disk object */
+                            CHECK_ERROR(a->virtualBox,
+                                         OpenHardDisk(Bstr(ValueUnion.psz), AccessMode_ReadWrite,
+                                                      false, Bstr(""), false,
+                                                      Bstr(""), hardDisk.asOutParam()));
+                        }
+                    }
+                    if (hardDisk)
+                    {
+                        hardDisk->COMGETTER(Id)(uuid.asOutParam());
+                        CHECK_ERROR(machine,
+                                     AttachDevice(Bstr("SATA"), GetOptState.uIndex,
+                                                  0, DeviceType_HardDisk, uuid));
+                    }
+                    else
+                        rc = E_FAIL;
+                }
+                break;
+            }
+
+            case MODIFYVM_SATA: // deprecated
+            {
+                if (!strcmp(ValueUnion.psz, "on") || !strcmp(ValueUnion.psz, "enable"))
+                {
+                    ComPtr<IStorageController> ctl;
+                    CHECK_ERROR(machine, AddStorageController(Bstr("SATA"), StorageBus_SATA, ctl.asOutParam()));
+                    CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_IntelAhci));
+                }
+                else if (!strcmp(ValueUnion.psz, "off") || !strcmp(ValueUnion.psz, "disable"))
+                    CHECK_ERROR(machine, RemoveStorageController(Bstr("SATA")));
+                else
+                    return errorArgument("Invalid --usb argument '%s'", ValueUnion.psz);
+                break;
+            }
+
+            case MODIFYVM_SCSIPORT: // deprecated
+            {
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > 16))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid SCSI port number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                if (!strcmp(ValueUnion.psz, "none"))
+                {
+                    rc = machine->DetachDevice(Bstr("LsiLogic"), GetOptState.uIndex, 0);
+                    if (FAILED(rc))
+                        CHECK_ERROR(machine, DetachDevice(Bstr("BusLogic"), GetOptState.uIndex, 0));
+                }
+                else
+                {
+                    /* first guess is that it's a UUID */
+                    Bstr uuid(ValueUnion.psz);
+                    ComPtr<IMedium> hardDisk;
+                    rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
+                    /* not successful? Then it must be a filename */
+                    if (!hardDisk)
+                    {
+                        rc = a->virtualBox->FindHardDisk(Bstr(ValueUnion.psz), hardDisk.asOutParam());
+                        if (FAILED(rc))
+                        {
+                            /* open the new hard disk object */
+                            CHECK_ERROR(a->virtualBox,
+                                         OpenHardDisk(Bstr(ValueUnion.psz),
+                                                           AccessMode_ReadWrite, false, Bstr(""),
+                                                           false, Bstr(""), hardDisk.asOutParam()));
+                        }
+                    }
+                    if (hardDisk)
+                    {
+                        hardDisk->COMGETTER(Id)(uuid.asOutParam());
+                        rc = machine->AttachDevice(Bstr("LsiLogic"), GetOptState.uIndex, 0, DeviceType_HardDisk, uuid);
+                        if (FAILED(rc))
+                            CHECK_ERROR(machine,
+                                         AttachDevice(Bstr("BusLogic"),
+                                                      GetOptState.uIndex, 0,
+                                                      DeviceType_HardDisk, uuid));
+                    }
+                    else
+                        rc = E_FAIL;
+                }
+                break;
+            }
+
+            case MODIFYVM_SCSITYPE: // deprecated
+            {
+                ComPtr<IStorageController> ctl;
+
+                if (!RTStrICmp(ValueUnion.psz, "LsiLogic"))
+                {
+                    rc = machine->RemoveStorageController(Bstr("BusLogic"));
+                    if (FAILED(rc))
+                        CHECK_ERROR(machine, RemoveStorageController(Bstr("LsiLogic")));
+
+                    CHECK_ERROR(machine,
+                                 AddStorageController(Bstr("LsiLogic"),
+                                                      StorageBus_SCSI,
+                                                      ctl.asOutParam()));
+
+                    if (SUCCEEDED(rc))
+                        CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_LsiLogic));
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "BusLogic"))
+                {
+                    rc = machine->RemoveStorageController(Bstr("LsiLogic"));
+                    if (FAILED(rc))
+                        CHECK_ERROR(machine, RemoveStorageController(Bstr("BusLogic")));
+
+                    CHECK_ERROR(machine,
+                                 AddStorageController(Bstr("BusLogic"),
+                                                      StorageBus_SCSI,
+                                                      ctl.asOutParam()));
+
+                    if (SUCCEEDED(rc))
+                        CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_BusLogic));
+                }
+                else
+                    return errorArgument("Invalid --scsitype argument '%s'", ValueUnion.psz);
+                break;
+            }
+
+            case MODIFYVM_SCSI: // deprecated
+            {
+                if (!strcmp(ValueUnion.psz, "on") || !strcmp(ValueUnion.psz, "enable"))
+                {
+                    ComPtr<IStorageController> ctl;
+
+                    CHECK_ERROR(machine, AddStorageController(Bstr("BusLogic"), StorageBus_SCSI, ctl.asOutParam()));
+                    if (SUCCEEDED(rc))
+                        CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_BusLogic));
+                }
+                else if (!strcmp(ValueUnion.psz, "off") || !strcmp(ValueUnion.psz, "disable"))
+                {
+                    rc = machine->RemoveStorageController(Bstr("BusLogic"));
+                    if (FAILED(rc))
+                        CHECK_ERROR(machine, RemoveStorageController(Bstr("LsiLogic")));
+                }
+                break;
+            }
+
+            case MODIFYVM_DVDPASSTHROUGH: // deprecated
+            {
+                CHECK_ERROR(machine, PassthroughDevice(Bstr("IDE Controller"), 1, 0, !strcmp(ValueUnion.psz, "on")));
+                break;
+            }
+
+            case MODIFYVM_DVD: // deprecated
+            {
+                ComPtr<IMedium> dvdMedium;
+                Bstr uuid(ValueUnion.psz);
 
                 /* unmount? */
-                if (!strcmp(floppy, "empty"))
+                if (!strcmp(ValueUnion.psz, "none"))
                 {
-                    CHECK_ERROR(floppyDrive, Unmount());
+                    /* nothing to do, NULL object will cause unmount */
                 }
                 /* host drive? */
-                else if (!strncmp(floppy, "host:", 5))
+                else if (!strncmp(ValueUnion.psz, "host:", 5))
                 {
                     ComPtr<IHost> host;
                     CHECK_ERROR(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
-                    com::SafeIfaceArray <IHostFloppyDrive> hostFloppies;
-                    CHECK_ERROR(host, COMGETTER(FloppyDrives)(ComSafeArrayAsOutParam(hostFloppies)));
-                    ComPtr<IHostFloppyDrive> hostFloppyDrive;
-                    rc = host->FindHostFloppyDrive(Bstr(floppy + 5), hostFloppyDrive.asOutParam());
-                    if (!hostFloppyDrive)
+                    rc = host->FindHostDVDDrive(Bstr(ValueUnion.psz + 5), dvdMedium.asOutParam());
+                    if (!dvdMedium)
                     {
-                        errorArgument("Invalid host floppy drive name");
-                        rc = E_FAIL;
-                        break;
+                        /* 2nd try: try with the real name, important on Linux+libhal */
+                        char szPathReal[RTPATH_MAX];
+                        if (RT_FAILURE(RTPathReal(ValueUnion.psz + 5, szPathReal, sizeof(szPathReal))))
+                        {
+                            errorArgument("Invalid host DVD drive name \"%s\"", ValueUnion.psz + 5);
+                            rc = E_FAIL;
+                            break;
+                        }
+                        rc = host->FindHostDVDDrive(Bstr(szPathReal), dvdMedium.asOutParam());
+                        if (!dvdMedium)
+                        {
+                            errorArgument("Invalid host DVD drive name \"%s\"", ValueUnion.psz + 5);
+                            rc = E_FAIL;
+                            break;
+                        }
                     }
-                    CHECK_ERROR(floppyDrive, CaptureHostDrive(hostFloppyDrive));
                 }
                 else
                 {
                     /* first assume it's a UUID */
-                    Bstr uuid(floppy);
-                    ComPtr<IFloppyImage> floppyImage;
-                    rc = a->virtualBox->GetFloppyImage(uuid, floppyImage.asOutParam());
-                    if (FAILED(rc) || !floppyImage)
+                    rc = a->virtualBox->GetDVDImage(uuid, dvdMedium.asOutParam());
+                    if (FAILED(rc) || !dvdMedium)
                     {
                         /* must be a filename, check if it's in the collection */
-                        rc = a->virtualBox->FindFloppyImage(Bstr(floppy), floppyImage.asOutParam());
+                        rc = a->virtualBox->FindDVDImage(Bstr(ValueUnion.psz), dvdMedium.asOutParam());
                         /* not registered, do that on the fly */
-                        if (!floppyImage)
+                        if (!dvdMedium)
                         {
                             Bstr emptyUUID;
-                            CHECK_ERROR(a->virtualBox, OpenFloppyImage(Bstr(floppy), emptyUUID, floppyImage.asOutParam()));
+                            CHECK_ERROR(a->virtualBox, OpenDVDImage(Bstr(ValueUnion.psz),
+                                         emptyUUID, dvdMedium.asOutParam()));
                         }
                     }
-                    if (!floppyImage)
+                    if (!dvdMedium)
                     {
                         rc = E_FAIL;
                         break;
                     }
-
-                    floppyImage->COMGETTER(Id)(uuid.asOutParam());
-                    CHECK_ERROR(floppyDrive, MountImage(uuid));
                 }
-            }
-        }
-        if (audio || audiocontroller)
-        {
-            ComPtr<IAudioAdapter> audioAdapter;
-            machine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());
-            ASSERT(audioAdapter);
 
-            if (audio)
+                /** @todo generalize this, allow arbitrary number of DVD drives
+                 * and as a consequence multiple attachments and different
+                 * storage controllers. */
+                if (dvdMedium)
+                    dvdMedium->COMGETTER(Id)(uuid.asOutParam());
+                CHECK_ERROR(machine, MountMedium(Bstr("IDE Controller"), 1, 0, uuid, FALSE /* aForce */));
+                break;
+            }
+
+            case MODIFYVM_FLOPPY: // deprecated
             {
+                Bstr uuid(ValueUnion.psz);
+                ComPtr<IMedium> floppyMedium;
+                ComPtr<IMediumAttachment> floppyAttachment;
+                machine->GetMediumAttachment(Bstr("Floppy Controller"), 0, 0, floppyAttachment.asOutParam());
+
                 /* disable? */
-                if (!strcmp(audio, "none"))
+                if (!strcmp(ValueUnion.psz, "disabled"))
+                {
+                    /* disable the controller */
+                    if (floppyAttachment)
+                        CHECK_ERROR(machine, DetachDevice(Bstr("Floppy Controller"), 0, 0));
+                }
+                else
+                {
+                    /* enable the controller */
+                    if (!floppyAttachment)
+                        CHECK_ERROR(machine, AttachDevice(Bstr("Floppy Controller"), 0, 0, DeviceType_Floppy, NULL));
+
+                    /* unmount? */
+                    if (    !strcmp(ValueUnion.psz, "none")
+                        ||  !strcmp(ValueUnion.psz, "empty"))   // deprecated
+                    {
+                        /* nothing to do, NULL object will cause unmount */
+                    }
+                    /* host drive? */
+                    else if (!strncmp(ValueUnion.psz, "host:", 5))
+                    {
+                        ComPtr<IHost> host;
+                        CHECK_ERROR(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
+                        rc = host->FindHostFloppyDrive(Bstr(ValueUnion.psz + 5), floppyMedium.asOutParam());
+                        if (!floppyMedium)
+                        {
+                            errorArgument("Invalid host floppy drive name \"%s\"", ValueUnion.psz + 5);
+                            rc = E_FAIL;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        /* first assume it's a UUID */
+                        rc = a->virtualBox->GetFloppyImage(uuid, floppyMedium.asOutParam());
+                        if (FAILED(rc) || !floppyMedium)
+                        {
+                            /* must be a filename, check if it's in the collection */
+                            rc = a->virtualBox->FindFloppyImage(Bstr(ValueUnion.psz), floppyMedium.asOutParam());
+                            /* not registered, do that on the fly */
+                            if (!floppyMedium)
+                            {
+                                Bstr emptyUUID;
+                                CHECK_ERROR(a->virtualBox,
+                                             OpenFloppyImage(Bstr(ValueUnion.psz),
+                                                             emptyUUID,
+                                                             floppyMedium.asOutParam()));
+                            }
+                        }
+                        if (!floppyMedium)
+                        {
+                            rc = E_FAIL;
+                            break;
+                        }
+                    }
+                    floppyMedium->COMGETTER(Id)(uuid.asOutParam());
+                    CHECK_ERROR(machine, MountMedium(Bstr("Floppy Controller"), 0, 0, uuid, FALSE /* aForce */));
+                }
+                break;
+            }
+
+            case MODIFYVM_NICTRACEFILE:
+            {
+                ComPtr<INetworkAdapter> nic;
+
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid NIC slot number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMSETTER(TraceFile)(Bstr(ValueUnion.psz)));
+                break;
+            }
+
+            case MODIFYVM_NICTRACE:
+            {
+                ComPtr<INetworkAdapter> nic;
+
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid NIC slot number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMSETTER(TraceEnabled)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_NICTYPE:
+            {
+                ComPtr<INetworkAdapter> nic;
+
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid NIC slot number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                if (!strcmp(ValueUnion.psz, "Am79C970A"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_Am79C970A));
+                }
+                else if (!strcmp(ValueUnion.psz, "Am79C973"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_Am79C973));
+                }
+#ifdef VBOX_WITH_E1000
+                else if (!strcmp(ValueUnion.psz, "82540EM"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_I82540EM));
+                }
+                else if (!strcmp(ValueUnion.psz, "82543GC"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_I82543GC));
+                }
+                else if (!strcmp(ValueUnion.psz, "82545EM"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_I82545EM));
+                }
+#endif
+#ifdef VBOX_WITH_VIRTIO
+                else if (!strcmp(ValueUnion.psz, "virtio"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_Virtio));
+                }
+#endif /* VBOX_WITH_VIRTIO */
+                else
+                {
+                    errorArgument("Invalid NIC type '%s' specified for NIC %lu", ValueUnion.psz, GetOptState.uIndex);
+                    rc = E_FAIL;
+                }
+                break;
+            }
+
+            case MODIFYVM_NICSPEED:
+            {
+                ComPtr<INetworkAdapter> nic;
+
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid NIC slot number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                if ((ValueUnion.u32 < 1000) && (ValueUnion.u32 > 4000000))
+                {
+                    errorArgument("Invalid --nicspeed%lu argument '%u'", GetOptState.uIndex, ValueUnion.u32);
+                    rc = E_FAIL;
+                    break;
+                }
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMSETTER(LineSpeed)(ValueUnion.u32));
+                break;
+            }
+
+            case MODIFYVM_NIC:
+            {
+                ComPtr<INetworkAdapter> nic;
+
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid NIC slot number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                if (!strcmp(ValueUnion.psz, "none"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(Enabled)(FALSE));
+                }
+                else if (!strcmp(ValueUnion.psz, "null"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    CHECK_ERROR(nic, Detach());
+                }
+                else if (!strcmp(ValueUnion.psz, "nat"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    CHECK_ERROR(nic, AttachToNAT());
+                }
+                else if (  !strcmp(ValueUnion.psz, "bridged")
+                        || !strcmp(ValueUnion.psz, "hostif")) /* backward compatibility */
+                {
+                    CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    CHECK_ERROR(nic, AttachToBridgedInterface());
+                }
+                else if (!strcmp(ValueUnion.psz, "intnet"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    CHECK_ERROR(nic, AttachToInternalNetwork());
+                }
+#if defined(VBOX_WITH_NETFLT)
+                else if (!strcmp(ValueUnion.psz, "hostonly"))
+                {
+
+                    CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    CHECK_ERROR(nic, AttachToHostOnlyInterface());
+                }
+#endif
+                else
+                {
+                    errorArgument("Invalid type '%s' specfied for NIC %lu", ValueUnion.psz, GetOptState.uIndex);
+                    rc = E_FAIL;
+                }
+                break;
+            }
+
+            case MODIFYVM_CABLECONNECTED:
+            {
+                ComPtr<INetworkAdapter> nic;
+
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid NIC slot number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMSETTER(CableConnected)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_BRIDGEADAPTER:
+            case MODIFYVM_HOSTONLYADAPTER:
+            {
+                ComPtr<INetworkAdapter> nic;
+
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid NIC slot number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                /* remove it? */
+                if (!strcmp(ValueUnion.psz, "none"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(HostInterface)(NULL));
+                }
+                else
+                {
+                    CHECK_ERROR(nic, COMSETTER(HostInterface)(Bstr(ValueUnion.psz)));
+                }
+                break;
+            }
+
+            case MODIFYVM_INTNET:
+            {
+                ComPtr<INetworkAdapter> nic;
+
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid NIC slot number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                /* remove it? */
+                if (!strcmp(ValueUnion.psz, "none"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(InternalNetwork)(NULL));
+                }
+                else
+                {
+                    CHECK_ERROR(nic, COMSETTER(InternalNetwork)(Bstr(ValueUnion.psz)));
+                }
+                break;
+            }
+
+            case MODIFYVM_NATNET:
+            {
+                ComPtr<INetworkAdapter> nic;
+
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid NIC slot number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMSETTER(NATNetwork)(Bstr(ValueUnion.psz)));
+
+                break;
+            }
+
+            case MODIFYVM_MACADDRESS:
+            {
+                ComPtr<INetworkAdapter> nic;
+
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid NIC slot number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                /* generate one? */
+                if (!strcmp(ValueUnion.psz, "auto"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(MACAddress)(NULL));
+                }
+                else
+                {
+                    CHECK_ERROR(nic, COMSETTER(MACAddress)(Bstr(ValueUnion.psz)));
+                }
+                break;
+            }
+
+            case MODIFYVM_UARTMODE:
+            {
+                ComPtr<ISerialPort> uart;
+                char *pszIRQ = NULL;
+
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > SerialPortCount))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid Serial Port number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                CHECK_ERROR_BREAK(machine, GetSerialPort(GetOptState.uIndex - 1, uart.asOutParam()));
+                ASSERT(uart);
+
+                if (!strcmp(ValueUnion.psz, "disconnected"))
+                {
+                    CHECK_ERROR(uart, COMSETTER(HostMode)(PortMode_Disconnected));
+                }
+                else if (   !strcmp(ValueUnion.psz, "server")
+                         || !strcmp(ValueUnion.psz, "client")
+                         || !strcmp(ValueUnion.psz, "file"))
+                {
+                    const char *pszMode = ValueUnion.psz;
+
+                    int vrc = RTGetOptFetchValue(&GetOptState, &ValueUnion, RTGETOPT_REQ_STRING);
+                    if (RT_FAILURE(vrc))
+                        return errorSyntax(USAGE_MODIFYVM,
+                                           "Missing or Invalid argument to '%s'",
+                                           GetOptState.pDef->pszLong);
+
+                    CHECK_ERROR(uart, COMSETTER(Path)(Bstr(ValueUnion.psz)));
+
+                    if (!strcmp(pszMode, "server"))
+                    {
+                        CHECK_ERROR(uart, COMSETTER(HostMode)(PortMode_HostPipe));
+                        CHECK_ERROR(uart, COMSETTER(Server)(TRUE));
+                    }
+                    else if (!strcmp(pszMode, "client"))
+                    {
+                        CHECK_ERROR(uart, COMSETTER(HostMode)(PortMode_HostPipe));
+                        CHECK_ERROR(uart, COMSETTER(Server)(FALSE));
+                    }
+                    else if (!strcmp(pszMode, "file"))
+                    {
+                        CHECK_ERROR(uart, COMSETTER(HostMode)(PortMode_RawFile));
+                    }
+                }
+                else
+                {
+                    CHECK_ERROR(uart, COMSETTER(Path)(Bstr(ValueUnion.psz)));
+                    CHECK_ERROR(uart, COMSETTER(HostMode)(PortMode_HostDevice));
+                }
+                break;
+            }
+
+            case MODIFYVM_UART:
+            {
+                ComPtr<ISerialPort> uart;
+
+                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > SerialPortCount))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid Serial Port number in '%s'",
+                                       GetOptState.pDef->pszLong);
+
+                CHECK_ERROR_BREAK(machine, GetSerialPort(GetOptState.uIndex - 1, uart.asOutParam()));
+                ASSERT(uart);
+
+                if (!strcmp(ValueUnion.psz, "off") || !strcmp(ValueUnion.psz, "disable"))
+                    CHECK_ERROR(uart, COMSETTER(Enabled)(FALSE));
+                else
+                {
+                    const char *pszIOBase = ValueUnion.psz;
+                    uint32_t uVal = 0;
+
+                    int vrc = RTGetOptFetchValue(&GetOptState, &ValueUnion, RTGETOPT_REQ_UINT32) != MODIFYVM_UART;
+                    if (RT_FAILURE(vrc))
+                        return errorSyntax(USAGE_MODIFYVM,
+                                           "Missing or Invalid argument to '%s'",
+                                           GetOptState.pDef->pszLong);
+
+                    CHECK_ERROR(uart, COMSETTER(IRQ)(ValueUnion.u32));
+
+                    vrc = RTStrToUInt32Ex(pszIOBase, NULL, 0, &uVal);
+                    if (vrc != VINF_SUCCESS || uVal == 0)
+                        return errorArgument("Error parsing UART I/O base '%s'", pszIOBase);
+                    CHECK_ERROR(uart, COMSETTER(IOBase)(uVal));
+
+                    CHECK_ERROR(uart, COMSETTER(Enabled)(TRUE));
+                }
+                break;
+            }
+
+            case MODIFYVM_GUESTSTATISTICSINTERVAL:
+            {
+                CHECK_ERROR(machine, COMSETTER(StatisticsUpdateInterval)(ValueUnion.u32));
+                break;
+            }
+
+#ifdef VBOX_WITH_MEM_BALLOONING
+            case MODIFYVM_GUESTMEMORYBALLOON:
+            {
+                CHECK_ERROR(machine, COMSETTER(MemoryBalloonSize)(ValueUnion.u32));
+                break;
+            }
+#endif
+
+            case MODIFYVM_AUDIOCONTROLLER:
+            {
+                ComPtr<IAudioAdapter> audioAdapter;
+                machine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());
+                ASSERT(audioAdapter);
+
+                if (!strcmp(ValueUnion.psz, "sb16"))
+                    CHECK_ERROR(audioAdapter, COMSETTER(AudioController)(AudioControllerType_SB16));
+                else if (!strcmp(ValueUnion.psz, "ac97"))
+                    CHECK_ERROR(audioAdapter, COMSETTER(AudioController)(AudioControllerType_AC97));
+                else
+                {
+                    errorArgument("Invalid --audiocontroller argument '%s'", ValueUnion.psz);
+                    rc = E_FAIL;
+                }
+                break;
+            }
+
+            case MODIFYVM_AUDIO:
+            {
+                ComPtr<IAudioAdapter> audioAdapter;
+                machine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());
+                ASSERT(audioAdapter);
+
+                /* disable? */
+                if (!strcmp(ValueUnion.psz, "none"))
                 {
                     CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(false));
                 }
-                else if (!strcmp(audio, "null"))
+                else if (!strcmp(ValueUnion.psz, "null"))
                 {
                     CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_Null));
                     CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
                 }
 #ifdef RT_OS_WINDOWS
 #ifdef VBOX_WITH_WINMM
-                else if (!strcmp(audio, "winmm"))
+                else if (!strcmp(ValueUnion.psz, "winmm"))
                 {
                     CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_WinMM));
                     CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
                 }
 #endif
-                else if (!strcmp(audio, "dsound"))
+                else if (!strcmp(ValueUnion.psz, "dsound"))
                 {
                     CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_DirectSound));
                     CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
                 }
 #endif /* RT_OS_WINDOWS */
 #ifdef RT_OS_LINUX
-                else if (!strcmp(audio, "oss"))
-                {
-                    CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_OSS));
-                    CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
-                }
 # ifdef VBOX_WITH_ALSA
-                else if (!strcmp(audio, "alsa"))
+                else if (!strcmp(ValueUnion.psz, "alsa"))
                 {
                     CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_ALSA));
                     CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
                 }
 # endif
 # ifdef VBOX_WITH_PULSE
-                else if (!strcmp(audio, "pulse"))
+                else if (!strcmp(ValueUnion.psz, "pulse"))
                 {
                     CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_Pulse));
                     CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
@@ -1431,613 +1427,211 @@ int handleModifyVM(HandlerArg *a)
 # endif
 #endif /* !RT_OS_LINUX */
 #ifdef RT_OS_SOLARIS
-                else if (!strcmp(audio, "solaudio"))
+                else if (!strcmp(ValueUnion.psz, "solaudio"))
                 {
                     CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_SolAudio));
                     CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
                 }
-
-# ifdef VBOX_WITH_SOLARIS_OSS
-                else if (!strcmp(audio, "oss"))
-                {
-                    CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_OSS));
-                    CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
-                }
-# endif
-
 #endif /* !RT_OS_SOLARIS */
 #ifdef RT_OS_DARWIN
-                else if (!strcmp(audio, "coreaudio"))
+                else if (!strcmp(ValueUnion.psz, "coreaudio"))
                 {
                     CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_CoreAudio));
                     CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
                 }
 
 #endif /* !RT_OS_DARWIN */
+# if defined(RT_OS_FREEBSD) || defined(RT_OS_LINUX) || defined(VBOX_WITH_SOLARIS_OSS)
+                else if (!strcmp(ValueUnion.psz, "oss"))
+                {
+                    CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_OSS));
+                    CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
+                }
+# endif
                 else
                 {
-                    errorArgument("Invalid --audio argument '%s'", audio);
+                    errorArgument("Invalid --audio argument '%s'", ValueUnion.psz);
                     rc = E_FAIL;
-                    break;
                 }
+                break;
             }
-            if (audiocontroller)
+
+            case MODIFYVM_CLIPBOARD:
             {
-                if (!strcmp(audiocontroller, "sb16"))
-                    CHECK_ERROR(audioAdapter, COMSETTER(AudioController)(AudioControllerType_SB16));
-                else if (!strcmp(audiocontroller, "ac97"))
-                    CHECK_ERROR(audioAdapter, COMSETTER(AudioController)(AudioControllerType_AC97));
+                if (!strcmp(ValueUnion.psz, "disabled"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(ClipboardMode)(ClipboardMode_Disabled));
+                }
+                else if (!strcmp(ValueUnion.psz, "hosttoguest"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(ClipboardMode)(ClipboardMode_HostToGuest));
+                }
+                else if (!strcmp(ValueUnion.psz, "guesttohost"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(ClipboardMode)(ClipboardMode_GuestToHost));
+                }
+                else if (!strcmp(ValueUnion.psz, "bidirectional"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(ClipboardMode)(ClipboardMode_Bidirectional));
+                }
                 else
                 {
-                    errorArgument("Invalid --audiocontroller argument '%s'", audiocontroller);
+                    errorArgument("Invalid --clipboard argument '%s'", ValueUnion.psz);
                     rc = E_FAIL;
-                    break;
                 }
+                break;
             }
-        }
-        /* Shared clipboard state */
-        if (clipboard)
-        {
-/*            ComPtr<IClipboardMode> clipboardMode;
-            machine->COMGETTER(ClipboardMode)(clipboardMode.asOutParam());
-            ASSERT(clipboardMode);
-*/
-            if (!strcmp(clipboard, "disabled"))
+
+#ifdef VBOX_WITH_VRDP
+            case MODIFYVM_VRDPPORT:
             {
-                CHECK_ERROR(machine, COMSETTER(ClipboardMode)(ClipboardMode_Disabled));
+                ComPtr<IVRDPServer> vrdpServer;
+                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
+                ASSERT(vrdpServer);
+
+                if (!strcmp(ValueUnion.psz, "default"))
+                    CHECK_ERROR(vrdpServer, COMSETTER(Ports)(Bstr("0")));
+                else
+                    CHECK_ERROR(vrdpServer, COMSETTER(Ports)(Bstr(ValueUnion.psz)));
+                break;
             }
-            else if (!strcmp(clipboard, "hosttoguest"))
+
+            case MODIFYVM_VRDPADDRESS:
             {
-                CHECK_ERROR(machine, COMSETTER(ClipboardMode)(ClipboardMode_HostToGuest));
+                ComPtr<IVRDPServer> vrdpServer;
+                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
+                ASSERT(vrdpServer);
+
+                CHECK_ERROR(vrdpServer, COMSETTER(NetAddress)(Bstr(ValueUnion.psz)));
+                break;
             }
-            else if (!strcmp(clipboard, "guesttohost"))
+
+            case MODIFYVM_VRDPAUTHTYPE:
             {
-                CHECK_ERROR(machine, COMSETTER(ClipboardMode)(ClipboardMode_GuestToHost));
+                ComPtr<IVRDPServer> vrdpServer;
+                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
+                ASSERT(vrdpServer);
+
+                if (!strcmp(ValueUnion.psz, "null"))
+                {
+                    CHECK_ERROR(vrdpServer, COMSETTER(AuthType)(VRDPAuthType_Null));
+                }
+                else if (!strcmp(ValueUnion.psz, "external"))
+                {
+                    CHECK_ERROR(vrdpServer, COMSETTER(AuthType)(VRDPAuthType_External));
+                }
+                else if (!strcmp(ValueUnion.psz, "guest"))
+                {
+                    CHECK_ERROR(vrdpServer, COMSETTER(AuthType)(VRDPAuthType_Guest));
+                }
+                else
+                {
+                    errorArgument("Invalid --vrdpauthtype argument '%s'", ValueUnion.psz);
+                    rc = E_FAIL;
+                }
+                break;
             }
-            else if (!strcmp(clipboard, "bidirectional"))
+
+            case MODIFYVM_VRDPMULTICON:
             {
-                CHECK_ERROR(machine, COMSETTER(ClipboardMode)(ClipboardMode_Bidirectional));
+                ComPtr<IVRDPServer> vrdpServer;
+                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
+                ASSERT(vrdpServer);
+
+                CHECK_ERROR(vrdpServer, COMSETTER(AllowMultiConnection)(ValueUnion.f));
+                break;
             }
-            else
+
+            case MODIFYVM_VRDPREUSECON:
             {
-                errorArgument("Invalid --clipboard argument '%s'", clipboard);
+                ComPtr<IVRDPServer> vrdpServer;
+                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
+                ASSERT(vrdpServer);
+
+                CHECK_ERROR(vrdpServer, COMSETTER(ReuseSingleConnection)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_VRDP:
+            {
+                ComPtr<IVRDPServer> vrdpServer;
+                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
+                ASSERT(vrdpServer);
+
+                CHECK_ERROR(vrdpServer, COMSETTER(Enabled)(ValueUnion.f));
+                break;
+            }
+#endif /* VBOX_WITH_VRDP */
+
+            case MODIFYVM_USBEHCI:
+            {
+                ComPtr<IUSBController> UsbCtl;
+                CHECK_ERROR(machine, COMGETTER(USBController)(UsbCtl.asOutParam()));
+                if (SUCCEEDED(rc))
+                    CHECK_ERROR(UsbCtl, COMSETTER(EnabledEhci)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_USB:
+            {
+                ComPtr<IUSBController> UsbCtl;
+                CHECK_ERROR(machine, COMGETTER(USBController)(UsbCtl.asOutParam()));
+                if (SUCCEEDED(rc))
+                    CHECK_ERROR(UsbCtl, COMSETTER(Enabled)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_SNAPSHOTFOLDER:
+            {
+                if (!strcmp(ValueUnion.psz, "default"))
+                    CHECK_ERROR(machine, COMSETTER(SnapshotFolder)(NULL));
+                else
+                    CHECK_ERROR(machine, COMSETTER(SnapshotFolder)(Bstr(ValueUnion.psz)));
+                break;
+            }
+
+            case MODIFYVM_TELEPORTER_ENABLED:
+            {
+                CHECK_ERROR(machine, COMSETTER(TeleporterEnabled)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_TELEPORTER_PORT:
+            {
+                CHECK_ERROR(machine, COMSETTER(TeleporterPort)(ValueUnion.u32));
+                break;
+            }
+
+            case MODIFYVM_TELEPORTER_ADDRESS:
+            {
+                CHECK_ERROR(machine, COMSETTER(TeleporterAddress)(Bstr(ValueUnion.psz)));
+                break;
+            }
+
+            case MODIFYVM_TELEPORTER_PASSWORD:
+            {
+                CHECK_ERROR(machine, COMSETTER(TeleporterPassword)(Bstr(ValueUnion.psz)));
+                break;
+            }
+
+            case MODIFYVM_HARDWARE_UUID:
+            {
+                CHECK_ERROR(machine, COMSETTER(HardwareUUID)(Bstr(ValueUnion.psz)));
+                break;
+            }
+
+            default:
+            {
+                errorGetOpt(USAGE_MODIFYVM, c, &ValueUnion);
                 rc = E_FAIL;
                 break;
             }
         }
-        /* iterate through all possible NICs */
-        for (ULONG n = 0; n < NetworkAdapterCount; n ++)
-        {
-            ComPtr<INetworkAdapter> nic;
-            CHECK_ERROR_RET (machine, GetNetworkAdapter (n, nic.asOutParam()), 1);
-
-            ASSERT(nic);
-
-            /* something about the NIC? */
-            if (nics[n])
-            {
-                if (!strcmp(nics[n], "none"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(Enabled) (FALSE), 1);
-                }
-                else if (!strcmp(nics[n], "null"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(Enabled) (TRUE), 1);
-                    CHECK_ERROR_RET(nic, Detach(), 1);
-                }
-                else if (!strcmp(nics[n], "nat"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(Enabled) (TRUE), 1);
-                    CHECK_ERROR_RET(nic, AttachToNAT(), 1);
-                }
-                else if (  !strcmp(nics[n], "bridged")
-                        || !strcmp(nics[n], "hostif")) /* backward compatibility */
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(Enabled) (TRUE), 1);
-                    CHECK_ERROR_RET(nic, AttachToBridgedInterface(), 1);
-                }
-                else if (!strcmp(nics[n], "intnet"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(Enabled) (TRUE), 1);
-                    CHECK_ERROR_RET(nic, AttachToInternalNetwork(), 1);
-                }
-#if defined(VBOX_WITH_NETFLT)
-                else if (!strcmp(nics[n], "hostonly"))
-                {
-
-                    CHECK_ERROR_RET(nic, COMSETTER(Enabled) (TRUE), 1);
-                    CHECK_ERROR_RET(nic, AttachToHostOnlyInterface(), 1);
-                }
-#endif
-                else
-                {
-                    errorArgument("Invalid type '%s' specfied for NIC %lu", nics[n], n + 1);
-                    rc = E_FAIL;
-                    break;
-                }
-            }
-
-            /* something about the NIC type? */
-            if (nictype[n])
-            {
-                if (!strcmp(nictype[n], "Am79C970A"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(AdapterType)(NetworkAdapterType_Am79C970A), 1);
-                }
-                else if (!strcmp(nictype[n], "Am79C973"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(AdapterType)(NetworkAdapterType_Am79C973), 1);
-                }
-#ifdef VBOX_WITH_E1000
-                else if (!strcmp(nictype[n], "82540EM"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(AdapterType)(NetworkAdapterType_I82540EM), 1);
-                }
-                else if (!strcmp(nictype[n], "82543GC"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(AdapterType)(NetworkAdapterType_I82543GC), 1);
-                }
-                else if (!strcmp(nictype[n], "82545EM"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(AdapterType)(NetworkAdapterType_I82545EM), 1);
-                }
-#endif
-                else
-                {
-                    errorArgument("Invalid NIC type '%s' specified for NIC %lu", nictype[n], n + 1);
-                    rc = E_FAIL;
-                    break;
-                }
-            }
-
-            /* something about the MAC address? */
-            if (macs[n])
-            {
-                /* generate one? */
-                if (!strcmp(macs[n], "auto"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(MACAddress)(NULL), 1);
-                }
-                else
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(MACAddress)(Bstr(macs[n])), 1);
-                }
-            }
-
-            /* something about the reported link speed? */
-            if (nicspeed[n])
-            {
-                uint32_t    u32LineSpeed;
-
-                u32LineSpeed = RTStrToUInt32(nicspeed[n]);
-
-                if (u32LineSpeed < 1000 || u32LineSpeed > 4000000)
-                {
-                    errorArgument("Invalid --nicspeed%lu argument '%s'", n + 1, nicspeed[n]);
-                    rc = E_FAIL;
-                    break;
-                }
-                CHECK_ERROR_RET(nic, COMSETTER(LineSpeed)(u32LineSpeed), 1);
-            }
-
-            /* the link status flag? */
-            if (cableconnected[n])
-            {
-                if (!strcmp(cableconnected[n], "on"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(CableConnected)(TRUE), 1);
-                }
-                else if (!strcmp(cableconnected[n], "off"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(CableConnected)(FALSE), 1);
-                }
-                else
-                {
-                    errorArgument("Invalid --cableconnected%lu argument '%s'", n + 1, cableconnected[n]);
-                    rc = E_FAIL;
-                    break;
-                }
-            }
-
-            /* the trace flag? */
-            if (nictrace[n])
-            {
-                if (!strcmp(nictrace[n], "on"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(TraceEnabled)(TRUE), 1);
-                }
-                else if (!strcmp(nictrace[n], "off"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(TraceEnabled)(FALSE), 1);
-                }
-                else
-                {
-                    errorArgument("Invalid --nictrace%lu argument '%s'", n + 1, nictrace[n]);
-                    rc = E_FAIL;
-                    break;
-                }
-            }
-
-            /* the tracefile flag? */
-            if (nictracefile[n])
-            {
-                CHECK_ERROR_RET(nic, COMSETTER(TraceFile)(Bstr(nictracefile[n])), 1);
-            }
-
-            /* the host interface device? */
-            if (hostifdev[n])
-            {
-                /* remove it? */
-                if (!strcmp(hostifdev[n], "none"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(HostInterface)(NULL), 1);
-                }
-                else
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(HostInterface)(Bstr(hostifdev[n])), 1);
-                }
-            }
-
-            /* the internal network name? */
-            if (intnet[n])
-            {
-                /* remove it? */
-                if (!strcmp(intnet[n], "none"))
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(InternalNetwork)(NULL), 1);
-                }
-                else
-                {
-                    CHECK_ERROR_RET(nic, COMSETTER(InternalNetwork)(Bstr(intnet[n])), 1);
-                }
-            }
-            /* the network of the NAT */
-            if (natnet[n])
-            {
-                CHECK_ERROR_RET(nic, COMSETTER(NATNetwork)(Bstr(natnet[n])), 1);
-            }
-        }
-        if (FAILED(rc))
-            break;
-
-        /* iterate through all possible serial ports */
-        for (ULONG n = 0; n < SerialPortCount; n ++)
-        {
-            ComPtr<ISerialPort> uart;
-            CHECK_ERROR_RET (machine, GetSerialPort (n, uart.asOutParam()), 1);
-
-            ASSERT(uart);
-
-            if (uarts_base[n])
-            {
-                if (uarts_base[n] == (ULONG)-1)
-                {
-                    CHECK_ERROR_RET(uart, COMSETTER(Enabled) (FALSE), 1);
-                }
-                else
-                {
-                    CHECK_ERROR_RET(uart, COMSETTER(IOBase) (uarts_base[n]), 1);
-                    CHECK_ERROR_RET(uart, COMSETTER(IRQ) (uarts_irq[n]), 1);
-                    CHECK_ERROR_RET(uart, COMSETTER(Enabled) (TRUE), 1);
-                }
-            }
-            if (uarts_mode[n])
-            {
-                if (!strcmp(uarts_mode[n], "disconnected"))
-                {
-                    CHECK_ERROR_RET(uart, COMSETTER(HostMode) (PortMode_Disconnected), 1);
-                }
-                else
-                {
-                    CHECK_ERROR_RET(uart, COMSETTER(Path) (Bstr(uarts_path[n])), 1);
-                    if (!strcmp(uarts_mode[n], "server"))
-                    {
-                        CHECK_ERROR_RET(uart, COMSETTER(HostMode) (PortMode_HostPipe), 1);
-                        CHECK_ERROR_RET(uart, COMSETTER(Server) (TRUE), 1);
-                    }
-                    else if (!strcmp(uarts_mode[n], "client"))
-                    {
-                        CHECK_ERROR_RET(uart, COMSETTER(HostMode) (PortMode_HostPipe), 1);
-                        CHECK_ERROR_RET(uart, COMSETTER(Server) (FALSE), 1);
-                    }
-                    else if (!strcmp(uarts_mode[n], "file"))
-                    {
-                        CHECK_ERROR_RET(uart, COMSETTER(HostMode) (PortMode_RawFile), 1);
-                    }
-                    else
-                    {
-                        CHECK_ERROR_RET(uart, COMSETTER(HostMode) (PortMode_HostDevice), 1);
-                    }
-                }
-            }
-        }
-        if (FAILED(rc))
-            break;
-
-#ifdef VBOX_WITH_VRDP
-        if (vrdp || (vrdpport != UINT16_MAX) || vrdpaddress || vrdpauthtype || vrdpmulticon || vrdpreusecon)
-        {
-            ComPtr<IVRDPServer> vrdpServer;
-            machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
-            ASSERT(vrdpServer);
-            if (vrdpServer)
-            {
-                if (vrdp)
-                {
-                    if (!strcmp(vrdp, "on"))
-                    {
-                        CHECK_ERROR(vrdpServer, COMSETTER(Enabled)(true));
-                    }
-                    else if (!strcmp(vrdp, "off"))
-                    {
-                        CHECK_ERROR(vrdpServer, COMSETTER(Enabled)(false));
-                    }
-                    else
-                    {
-                        errorArgument("Invalid --vrdp argument '%s'", vrdp);
-                        rc = E_FAIL;
-                        break;
-                    }
-                }
-                if (vrdpport != UINT16_MAX)
-                {
-                    CHECK_ERROR(vrdpServer, COMSETTER(Port)(vrdpport));
-                }
-                if (vrdpaddress)
-                {
-                    CHECK_ERROR(vrdpServer, COMSETTER(NetAddress)(Bstr(vrdpaddress)));
-                }
-                if (vrdpauthtype)
-                {
-                    if (!strcmp(vrdpauthtype, "null"))
-                    {
-                        CHECK_ERROR(vrdpServer, COMSETTER(AuthType)(VRDPAuthType_Null));
-                    }
-                    else if (!strcmp(vrdpauthtype, "external"))
-                    {
-                        CHECK_ERROR(vrdpServer, COMSETTER(AuthType)(VRDPAuthType_External));
-                    }
-                    else if (!strcmp(vrdpauthtype, "guest"))
-                    {
-                        CHECK_ERROR(vrdpServer, COMSETTER(AuthType)(VRDPAuthType_Guest));
-                    }
-                    else
-                    {
-                        errorArgument("Invalid --vrdpauthtype argument '%s'", vrdpauthtype);
-                        rc = E_FAIL;
-                        break;
-                    }
-                }
-                if (vrdpmulticon)
-                {
-                    if (!strcmp(vrdpmulticon, "on"))
-                    {
-                        CHECK_ERROR(vrdpServer, COMSETTER(AllowMultiConnection)(true));
-                    }
-                    else if (!strcmp(vrdpmulticon, "off"))
-                    {
-                        CHECK_ERROR(vrdpServer, COMSETTER(AllowMultiConnection)(false));
-                    }
-                    else
-                    {
-                        errorArgument("Invalid --vrdpmulticon argument '%s'", vrdpmulticon);
-                        rc = E_FAIL;
-                        break;
-                    }
-                }
-                if (vrdpreusecon)
-                {
-                    if (!strcmp(vrdpreusecon, "on"))
-                    {
-                        CHECK_ERROR(vrdpServer, COMSETTER(ReuseSingleConnection)(true));
-                    }
-                    else if (!strcmp(vrdpreusecon, "off"))
-                    {
-                        CHECK_ERROR(vrdpServer, COMSETTER(ReuseSingleConnection)(false));
-                    }
-                    else
-                    {
-                        errorArgument("Invalid --vrdpreusecon argument '%s'", vrdpreusecon);
-                        rc = E_FAIL;
-                        break;
-                    }
-                }
-            }
-        }
-#endif /* VBOX_WITH_VRDP */
-
-        /*
-         * USB enable/disable
-         */
-        if (fUsbEnabled != -1)
-        {
-            ComPtr<IUSBController> UsbCtl;
-            CHECK_ERROR(machine, COMGETTER(USBController)(UsbCtl.asOutParam()));
-            if (SUCCEEDED(rc))
-            {
-                CHECK_ERROR(UsbCtl, COMSETTER(Enabled)(!!fUsbEnabled));
-            }
-        }
-        /*
-         * USB EHCI enable/disable
-         */
-        if (fUsbEhciEnabled != -1)
-        {
-            ComPtr<IUSBController> UsbCtl;
-            CHECK_ERROR(machine, COMGETTER(USBController)(UsbCtl.asOutParam()));
-            if (SUCCEEDED(rc))
-            {
-                CHECK_ERROR(UsbCtl, COMSETTER(EnabledEhci)(!!fUsbEhciEnabled));
-            }
-        }
-
-        if (snapshotFolder)
-        {
-            if (!strcmp(snapshotFolder, "default"))
-            {
-                CHECK_ERROR(machine, COMSETTER(SnapshotFolder)(NULL));
-            }
-            else
-            {
-                CHECK_ERROR(machine, COMSETTER(SnapshotFolder)(Bstr(snapshotFolder)));
-            }
-        }
-
-        if (guestMemBalloonSize != (ULONG)-1)
-            CHECK_ERROR(machine, COMSETTER(MemoryBalloonSize)(guestMemBalloonSize));
-
-        if (guestStatInterval != (ULONG)-1)
-            CHECK_ERROR(machine, COMSETTER(StatisticsUpdateInterval)(guestStatInterval));
-
-        /*
-         * SATA controller enable/disable
-         */
-        if (fSataEnabled != -1)
-        {
-            if (fSataEnabled)
-            {
-                ComPtr<IStorageController> ctl;
-                CHECK_ERROR(machine, AddStorageController(Bstr("SATA"), StorageBus_SATA, ctl.asOutParam()));
-                CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_IntelAhci));
-            }
-            else
-                CHECK_ERROR(machine, RemoveStorageController(Bstr("SATA")));
-        }
-
-        for (uint32_t i = 4; i < 34; i++)
-        {
-            if (hdds[i])
-            {
-                if (!strcmp(hdds[i], "none"))
-                {
-                    machine->DetachHardDisk(Bstr("SATA"), i-4, 0);
-                }
-                else
-                {
-                    /* first guess is that it's a UUID */
-                    Bstr uuid(hdds[i]);
-                    ComPtr<IHardDisk> hardDisk;
-                    rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
-                    /* not successful? Then it must be a filename */
-                    if (!hardDisk)
-                    {
-                        rc =  a->virtualBox->FindHardDisk(Bstr(hdds[i]), hardDisk.asOutParam());
-                        if (FAILED(rc))
-                        {
-                            /* open the new hard disk object */
-                            CHECK_ERROR(a->virtualBox, OpenHardDisk(Bstr(hdds[i]), AccessMode_ReadWrite, false, Bstr(""), false, Bstr(""), hardDisk.asOutParam()));
-                        }
-                    }
-                    if (hardDisk)
-                    {
-                        hardDisk->COMGETTER(Id)(uuid.asOutParam());
-                        CHECK_ERROR(machine, AttachHardDisk(uuid, Bstr("SATA"), i-4, 0));
-                    }
-                    else
-                        rc = E_FAIL;
-                    if (FAILED(rc))
-                        break;
-                }
-            }
-        }
-
-        for (uint32_t i = 0; i < 4; i++)
-        {
-            if (sataBootDevices[i] != -1)
-            {
-                ComPtr<IStorageController> SataCtl;
-                CHECK_ERROR(machine, GetStorageControllerByName(Bstr("SATA"), SataCtl.asOutParam()));
-                if (SUCCEEDED(rc))
-                {
-                    CHECK_ERROR(SataCtl, SetIDEEmulationPort(i, sataBootDevices[i]));
-                }
-            }
-        }
-
-        if (sataPortCount != -1)
-        {
-            ComPtr<IStorageController> SataCtl;
-            CHECK_ERROR(machine, GetStorageControllerByName(Bstr("SATA"), SataCtl.asOutParam()));
-            if (SUCCEEDED(rc))
-            {
-                CHECK_ERROR(SataCtl, COMSETTER(PortCount)(sataPortCount));
-            }
-        }
-
-        /*
-         * SCSI controller enable/disable
-         */
-        if (fScsiEnabled != -1)
-        {
-            if (fScsiEnabled)
-            {
-                ComPtr<IStorageController> ctl;
-                if (!fScsiLsiLogic)
-                {
-                    CHECK_ERROR(machine, AddStorageController(Bstr("BusLogic"), StorageBus_SCSI, ctl.asOutParam()));
-                    if (SUCCEEDED(rc))
-                        CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_BusLogic));
-                }
-                else /* LsiLogic is default */
-                {
-                    CHECK_ERROR(machine, AddStorageController(Bstr("LsiLogic"), StorageBus_SCSI, ctl.asOutParam()));
-                    if (SUCCEEDED(rc))
-                        CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_LsiLogic));
-                }
-            }
-            else
-            {
-                rc = machine->RemoveStorageController(Bstr("LsiLogic"));
-                if (!SUCCEEDED(rc))
-                    CHECK_ERROR(machine, RemoveStorageController(Bstr("BusLogic")));
-            }
-        }
-
-        for (uint32_t i = 34; i < 50; i++)
-        {
-            if (hdds[i])
-            {
-                if (!strcmp(hdds[i], "none"))
-                {
-                    rc = machine->DetachHardDisk(Bstr("LsiLogic"), i-34, 0);
-                    if (!SUCCEEDED(rc))
-                        CHECK_ERROR(machine, DetachHardDisk(Bstr("BusLogic"), i-34, 0));
-                }
-                else
-                {
-                    /* first guess is that it's a UUID */
-                    Bstr uuid(hdds[i]);
-                    ComPtr<IHardDisk> hardDisk;
-                    rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
-                    /* not successful? Then it must be a filename */
-                    if (!hardDisk)
-                    {
-                        rc = a->virtualBox->FindHardDisk(Bstr(hdds[i]), hardDisk.asOutParam());
-                        if (FAILED(rc))
-                        {
-                            /* open the new hard disk object */
-                            CHECK_ERROR(a->virtualBox, OpenHardDisk(Bstr(hdds[i]), AccessMode_ReadWrite, false, Bstr(""), false, Bstr(""), hardDisk.asOutParam()));
-                        }
-                    }
-                    if (hardDisk)
-                    {
-                        hardDisk->COMGETTER(Id)(uuid.asOutParam());
-                        rc = machine->AttachHardDisk(uuid, Bstr("LsiLogic"), i-34, 0);
-                        if (!SUCCEEDED(rc))
-                            CHECK_ERROR(machine, AttachHardDisk(uuid, Bstr("BusLogic"), i-34, 0));
-                    }
-                    else
-                        rc = E_FAIL;
-                    if (FAILED(rc))
-                        break;
-                }
-            }
-        }
-
-        /* commit changes */
-        CHECK_ERROR(machine, SaveSettings());
     }
-    while (0);
+
+    /* commit changes */
+    if (SUCCEEDED(rc))
+        CHECK_ERROR(machine, SaveSettings());
 
     /* it's important to always close sessions */
     a->session->Close();

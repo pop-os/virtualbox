@@ -103,13 +103,13 @@ STDMETHODIMP CallbackWrapper::OnExtraDataChange(IN_BSTR machineId, IN_BSTR key, 
     return mVBoxCallback->OnExtraDataChange(machineId, key, value);
 }
 
-STDMETHODIMP CallbackWrapper::OnMediaRegistered(IN_BSTR mediaId, DeviceType_T mediaType,
+STDMETHODIMP CallbackWrapper::OnMediumRegistered(IN_BSTR mediaId, DeviceType_T mediaType,
                               BOOL registered)
 {
     if (mVBoxCallback.isNull())
         return S_OK;
 
-    return mVBoxCallback->OnMediaRegistered(mediaId, mediaType, registered);
+    return mVBoxCallback->OnMediumRegistered(mediaId, mediaType, registered);
 }
 
 
@@ -206,22 +206,6 @@ STDMETHODIMP CallbackWrapper::OnAdditionsStateChange()
     return mConsoleCallback->OnAdditionsStateChange();
 }
 
-STDMETHODIMP CallbackWrapper::OnDVDDriveChange()
-{
-    if (mConsoleCallback.isNull())
-        return S_OK;
-
-    return mConsoleCallback->OnDVDDriveChange();
-}
-
-STDMETHODIMP CallbackWrapper::OnFloppyDriveChange()
-{
-    if (mConsoleCallback.isNull())
-        return S_OK;
-
-    return mConsoleCallback->OnFloppyDriveChange();
-}
-
 STDMETHODIMP CallbackWrapper::OnNetworkAdapterChange(INetworkAdapter *aNetworkAdapter)
 {
     if (mConsoleCallback.isNull())
@@ -245,6 +229,15 @@ STDMETHODIMP CallbackWrapper::OnParallelPortChange(IParallelPort *aParallelPort)
 
     return mConsoleCallback->OnParallelPortChange(aParallelPort);
 }
+
+STDMETHODIMP CallbackWrapper::OnRemoteDisplayInfoChange()
+{
+    if (mConsoleCallback.isNull())
+        return S_OK;
+
+    return mConsoleCallback->OnRemoteDisplayInfoChange();
+}
+
 STDMETHODIMP CallbackWrapper::OnVRDPServerChange()
 {
     if (mConsoleCallback.isNull())
@@ -285,6 +278,14 @@ STDMETHODIMP CallbackWrapper::OnStorageControllerChange()
         return S_OK;
 
     return mConsoleCallback->OnStorageControllerChange();
+}
+
+STDMETHODIMP CallbackWrapper::OnMediumChange(IMediumAttachment *aMediumAttachment)
+{
+    if (mConsoleCallback.isNull())
+        return S_OK;
+
+    return mConsoleCallback->OnMediumChange(aMediumAttachment);
 }
 
 STDMETHODIMP CallbackWrapper::OnRuntimeError(BOOL fFatal, IN_BSTR id, IN_BSTR message)

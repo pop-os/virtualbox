@@ -20,7 +20,9 @@
  */
 
 #include <iprt/assert.h>
+#include <VBox/VMMDev.h>
 #include <VBox/VBoxGuest.h>
+#include <VBox/VBoxGuestLib.h>
 #include "VBoxUtils.h"
 
 #include "xf86.h"
@@ -29,10 +31,10 @@
 #include "compiler.h"
 
 #ifndef RT_OS_SOLARIS
-#include <asm/ioctl.h>
+# include <asm/ioctl.h>
 #endif
 
-#ifdef RT_OS_SOLARIS        /** @todo later Linux should also use R3 lib for this */
+#ifndef RT_OS_LINUX        /** @todo later Linux should also use R3 lib for this */
 int VBoxMouseInit(void)
 {
     int rc = VbglR3Init();
@@ -42,7 +44,7 @@ int VBoxMouseInit(void)
         return 1;
     }
 
-    rc = VbglR3SetMouseStatus(VBOXGUEST_MOUSE_GUEST_CAN_ABSOLUTE | VBOXGUEST_MOUSE_GUEST_NEEDS_HOST_CURSOR);
+    rc = VbglR3SetMouseStatus(VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE | VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR);
     if (RT_FAILURE(rc))
     {
         ErrorF("Error sending mouse pointer capabilities to VMM! rc = %d (%s)\n",
@@ -79,9 +81,9 @@ int VBoxMouseFini(void)
     VbglR3Term();
     return rc;
 }
-#else
-/* the vboxadd module file handle */
-static int g_vboxaddHandle = -1;
+#else  /* RT_OS_LINUX */
+/* the vboxguest module file handle */
+static int g_vboxguestHandle = -1;
 /* the request structure */
 static VMMDevReqMouseStatus *g_vmmreqMouseStatus = NULL;
 
@@ -94,12 +96,12 @@ int VBoxMouseInit(void)
     VMMDevReqMouseStatus req;
 
     /* return immediately if already initialized */
-    if (g_vboxaddHandle != -1)
+    if (g_vboxguestHandle != -1)
         return 0;
 
     /* open the driver */
-    g_vboxaddHandle = open(VBOXGUEST_DEVICE_NAME, O_RDWR, 0);
-    if (g_vboxaddHandle < 0)
+    g_vboxguestHandle = open(VBOXGUEST_DEVICE_NAME, O_RDWR, 0);
+    if (g_vboxguestHandle < 0)
     {
         ErrorF("Unable to open the virtual machine device: %s\n",
                strerror(errno));
@@ -117,11 +119,11 @@ int VBoxMouseInit(void)
 
     /* tell the host that we want absolute coordinates */
     vmmdevInitRequest((VMMDevRequestHeader*)&req, VMMDevReq_SetMouseStatus);
-    req.mouseFeatures = VBOXGUEST_MOUSE_GUEST_CAN_ABSOLUTE | VBOXGUEST_MOUSE_GUEST_NEEDS_HOST_CURSOR;
+    req.mouseFeatures = VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE | VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR;
     req.pointerXPos = 0;
     req.pointerYPos = 0;
 /** @todo r=bird: Michael, I thought we decided a long time ago that all these should be replaced by VbglR3. I assume this is just a leftover... */
-    if (ioctl(g_vboxaddHandle, VBOXGUEST_IOCTL_VMMREQUEST(sizeof(req)), (void*)&req) < 0)
+    if (ioctl(g_vboxguestHandle, VBOXGUEST_IOCTL_VMMREQUEST(sizeof(req)), (void*)&req) < 0)
     {
         ErrorF("Error sending mouse pointer capabilities to VMM! rc = %d (%s)\n",
                errno, strerror(errno));
@@ -142,16 +144,16 @@ int VBoxMouseInit(void)
 int VBoxMouseQueryPosition(unsigned int *abs_x, unsigned int *abs_y)
 {
     /* If we failed to initialise, say that we don't want absolute co-ordinates. */
-    if (g_vboxaddHandle < 0)
+    if (g_vboxguestHandle < 0)
         return 1;
     /* perform VMM request */
 /** @todo r=bird: Michael, ditto. */
-    if (ioctl(g_vboxaddHandle, VBOXGUEST_IOCTL_VMMREQUEST(vmmdevGetRequestSize(VMMDevReq_GetMouseStatus)), (void*)g_vmmreqMouseStatus) >= 0)
+    if (ioctl(g_vboxguestHandle, VBOXGUEST_IOCTL_VMMREQUEST(vmmdevGetRequestSize(VMMDevReq_GetMouseStatus)), (void*)g_vmmreqMouseStatus) >= 0)
     {
         if (RT_SUCCESS(g_vmmreqMouseStatus->header.rc))
         {
             /* does the host want absolute coordinates? */
-            if (g_vmmreqMouseStatus->mouseFeatures & VBOXGUEST_MOUSE_HOST_CAN_ABSOLUTE)
+            if (g_vmmreqMouseStatus->mouseFeatures & VMMDEV_MOUSE_HOST_CAN_ABSOLUTE)
             {
                 *abs_x = g_vmmreqMouseStatus->pointerXPos;
                 *abs_y = g_vmmreqMouseStatus->pointerYPos;
@@ -174,7 +176,7 @@ int VBoxMouseFini(void)
 {
     VMMDevReqMouseStatus req;
     /* If we are not initialised, there is nothing to do */
-    if (g_vboxaddHandle < 0)
+    if (g_vboxguestHandle < 0)
         return 0;
     /* tell VMM that we no longer support absolute mouse handling */
     vmmdevInitRequest((VMMDevRequestHeader*)&req, VMMDevReq_SetMouseStatus);
@@ -182,17 +184,17 @@ int VBoxMouseFini(void)
     req.pointerXPos = 0;
     req.pointerYPos = 0;
 /** @todo r=bird: Michael, ditto. */
-    if (ioctl(g_vboxaddHandle, VBOXGUEST_IOCTL_VMMREQUEST(sizeof(req)), (void*)&req) < 0)
+    if (ioctl(g_vboxguestHandle, VBOXGUEST_IOCTL_VMMREQUEST(sizeof(req)), (void*)&req) < 0)
     {
-        ErrorF("ioctl to vboxadd module failed, rc = %d (%s)\n",
+        ErrorF("ioctl to vboxguest module failed, rc = %d (%s)\n",
                errno, strerror(errno));
     }
 
     free(g_vmmreqMouseStatus);
     g_vmmreqMouseStatus = NULL;
-    close(g_vboxaddHandle);
-    g_vboxaddHandle = -1;
+    close(g_vboxguestHandle);
+    g_vboxguestHandle = -1;
     return 0;
 }
-#endif  /* !RT_OS_SOLARIS */
+#endif  /* RT_OS_LINUX */
 

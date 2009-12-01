@@ -1,4 +1,4 @@
-/** $Id: RTTimerLRCreate-generic.cpp $ */
+/** $Id: RTTimerLRCreate-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Low Resolution Timers, Generic RTTimerLRCreate() Implementation.
  */
@@ -33,6 +33,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/timer.h>
+#include "internal/iprt.h"
+
 #include <iprt/err.h>
 #include <iprt/assert.h>
 
@@ -50,4 +52,5 @@ RTDECL(int) RTTimerLRCreate(PRTTIMERLR phTimerLR, uint32_t uMilliesInterval, PFN
     }
     return rc;
 }
+RT_EXPORT_SYMBOL(RTTimerLRCreate);
 

@@ -92,7 +92,7 @@ do { \
 
 #define BOOL_STR(a) ((a) ? "TRUE" : "FALSE")
 
-#include <VBox/VBoxGuest.h>
+#include <VBox/VMMDev.h>
 
 /* All drivers should typically include these */
 #include "xf86.h"
@@ -201,6 +201,7 @@ typedef struct _VBOXRec
     int statePage, stateSize, stateMode;
     CARD32 *savedPal;
     CARD8 *fonts;
+    vgaRegRec vgaRegs;  /* Space for saving VGA information */
     /* DGA info */
     DGAModePtr pDGAMode;
     int nDGAMode;

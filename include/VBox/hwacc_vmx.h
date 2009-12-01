@@ -398,6 +398,22 @@ typedef const VMXMSR *PCVMXMSR;
 /** @} */
 
 
+/** @name VT-x capability qword
+ * @{
+ */
+#pragma pack(1)
+typedef union
+{
+    struct
+    {
+        uint32_t        disallowed0;
+        uint32_t        allowed1;
+    } n;
+    uint64_t            u;
+} VMX_CAPABILITY;
+#pragma pack()
+/** @} */
+
 /** @name VMX Basic Exit Reasons.
  * @{
  */
@@ -861,12 +877,18 @@ typedef const VMXMSR *PCVMXMSR;
 #define VMX_VMCS_CTRL_PROC_EXEC2_EPT                            RT_BIT(1)
 /** Descriptor table instructions cause VM-exits. */
 #define VMX_VMCS_CTRL_PROC_EXEC2_DESCRIPTOR_INSTR_EXIT          RT_BIT(2)
+/** RDTSCP causes a VM-exit. */
+#define VMX_VMCS_CTRL_PROC_EXEC2_RDTSCP_EXIT                    RT_BIT(3)
 /** Virtualize x2APIC mode. */
 #define VMX_VMCS_CTRL_PROC_EXEC2_X2APIC                         RT_BIT(4)
 /** VPID supported/enabled. */
 #define VMX_VMCS_CTRL_PROC_EXEC2_VPID                           RT_BIT(5)
 /** VM Exit when executing the WBINVD instruction. */
 #define VMX_VMCS_CTRL_PROC_EXEC2_WBINVD_EXIT                    RT_BIT(6)
+/** Unrestricted guest execution. */
+#define VMX_VMCS_CTRL_PROC_EXEC2_REAL_MODE                      RT_BIT(7)
+/** A specified nr of pause loops cause a VM-exit. */
+#define VMX_VMCS_CTRL_PROC_EXEC2_PAUSE_LOOP_EXIT                RT_BIT(10)
 /** @} */
 
 

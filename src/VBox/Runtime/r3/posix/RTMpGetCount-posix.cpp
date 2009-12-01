@@ -1,4 +1,4 @@
-/* $Id: RTMpGetCount-posix.cpp $ */
+/* $Id: RTMpGetCount-posix.cpp 11243 2008-08-08 13:19:14Z vboxsync $ */
 /** @file
  * IPRT - RTMpGetCount, POSIX.
  */

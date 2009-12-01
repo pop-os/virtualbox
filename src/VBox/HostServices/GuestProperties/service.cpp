@@ -20,7 +20,8 @@
  * additional information or have any questions.
  */
 
-/**
+/** @page pg_svc_guest_properties   Guest Property HGCM Service
+ *
  * This HGCM service allows the guest to set and query values in a property
  * store on the host.  The service proxies the guest requests to the service
  * owner on the host using a request callback provided by the owner, and is
@@ -38,23 +39,23 @@
  * is changed or when the request times out.
  */
 
-#define LOG_GROUP LOG_GROUP_HGCM
-
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#define LOG_GROUP LOG_GROUP_HGCM
 #include <VBox/HostServices/GuestPropertySvc.h>
 
 #include <VBox/log.h>
-#include <iprt/err.h>
+#include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/string.h>
-#include <iprt/mem.h>
 #include <iprt/autores.h>
-#include <iprt/time.h>
 #include <iprt/cpputils.h>
+#include <iprt/err.h>
+#include <iprt/mem.h>
 #include <iprt/req.h>
+#include <iprt/string.h>
 #include <iprt/thread.h>
+#include <iprt/time.h>
 
 #include <memory>  /* for auto_ptr */
 #include <string>
@@ -162,10 +163,12 @@ private:
     /** @todo we should have classes for thread and request handler thread */
     /** Queue of outstanding property change notifications */
     RTREQQUEUE *mReqQueue;
+    /** Request that we've left pending in a call to flushNotifications. */
+    PRTREQ mPendingDummyReq;
     /** Thread for processing the request queue */
     RTTHREAD mReqThread;
     /** Tell the thread that it should exit */
-    bool mfExitThread;
+    bool volatile mfExitThread;
     /** Callback function supplied by the host for notification of updates
      * to properties */
     PFNHGCMSVCEXT mpfnHostCallback;
@@ -221,8 +224,11 @@ private:
 
 public:
     explicit Service(PVBOXHGCMSVCHELPERS pHelpers)
-        : mpHelpers(pHelpers), mfExitThread(false), mpfnHostCallback(NULL),
-          mpvHostData(NULL)
+        : mpHelpers(pHelpers)
+        , mPendingDummyReq(NULL)
+        , mfExitThread(false)
+        , mpfnHostCallback(NULL)
+        , mpvHostData(NULL)
     {
         int rc = RTReqCreateQueue(&mReqQueue);
 #ifndef VBOX_GUEST_PROP_TEST_NOTHREAD
@@ -320,6 +326,7 @@ private:
     int setProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGuest);
     int delProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGuest);
     int enumProps(uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
+    int flushNotifications(uint32_t cMsTimeout);
     int getNotification(VBOXHGCMCALLHANDLE callHandle, uint32_t cParms,
                         VBOXHGCMSVCPARM paParms[]);
     int getOldNotificationInternal(const char *pszPattern,
@@ -349,6 +356,7 @@ private:
  * Thread function for processing the request queue
  * @copydoc FNRTTHREAD
  */
+/* static */
 DECLCALLBACK(int) Service::reqThreadFn(RTTHREAD ThreadSelf, void *pvUser)
 {
     SELF *pSelf = reinterpret_cast<SELF *>(pvUser);
@@ -359,29 +367,20 @@ DECLCALLBACK(int) Service::reqThreadFn(RTTHREAD ThreadSelf, void *pvUser)
 
 
 /**
- * Checking that the name passed by the guest fits our criteria for a
- * property name.
+ * Check that a string fits our criteria for a property name.
  *
  * @returns IPRT status code
- * @param   pszName   the name passed by the guest
- * @param   cbName    the number of bytes pszName points to, including the
+ * @param   pszName   the string to check, must be valid Utf8
+ * @param   cbName    the number of bytes @a pszName points to, including the
  *                    terminating '\0'
  * @thread  HGCM
  */
 int Service::validateName(const char *pszName, uint32_t cbName)
 {
     LogFlowFunc(("cbName=%d\n", cbName));
-
-    /*
-     * Validate the name, checking that it's proper UTF-8 and has
-     * a string terminator.
-     */
     int rc = VINF_SUCCESS;
     if (RT_SUCCESS(rc) && (cbName < 2))
         rc = VERR_INVALID_PARAMETER;
-    if (RT_SUCCESS(rc))
-        rc = RTStrValidateEncodingEx(pszName, RT_MIN(cbName, (uint32_t) MAX_NAME_LEN),
-                                     RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED);
     for (unsigned i = 0; RT_SUCCESS(rc) && i < cbName; ++i)
         if (pszName[i] == '*' || pszName[i] == '?' || pszName[i] == '|')
             rc = VERR_INVALID_PARAMETER;
@@ -391,28 +390,21 @@ int Service::validateName(const char *pszName, uint32_t cbName)
 
 
 /**
- * Check that the data passed by the guest fits our criteria for the value of
- * a guest property.
+ * Check a string fits our criteria for the value of a guest property.
  *
  * @returns IPRT status code
- * @param   pszValue  the value to store in the property
- * @param   cbValue   the number of bytes in the buffer pszValue points to
+ * @param   pszValue  the string to check, must be valid Utf8
+ * @param   cbValue   the length in bytes of @a pszValue, including the
+ *                    terminator
  * @thread  HGCM
  */
 int Service::validateValue(const char *pszValue, uint32_t cbValue)
 {
     LogFlowFunc(("cbValue=%d\n", cbValue));
 
-    /*
-     * Validate the value, checking that it's proper UTF-8 and has
-     * a string terminator.
-     */
     int rc = VINF_SUCCESS;
     if (RT_SUCCESS(rc) && cbValue == 0)
         rc = VERR_INVALID_PARAMETER;
-    if (RT_SUCCESS(rc))
-        rc = RTStrValidateEncodingEx(pszValue, RT_MIN(cbValue, (uint32_t) MAX_VALUE_LEN),
-                                     RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED);
     if (RT_SUCCESS(rc))
         LogFlow(("    pszValue=%s\n", cbValue > 0 ? pszValue : NULL));
     LogFlowFunc(("returning %Rrc\n", rc));
@@ -484,16 +476,12 @@ int Service::setPropertyBlock(uint32_t cParms, VBOXHGCMSVCPARM paParms[])
     {
         ++itEnd;
         for (unsigned i = 0; ppNames[i] != NULL; ++i)
-        {
-            bool found = false;
-            for (PropertyList::iterator it = mProperties.begin();
-                !found && it != itEnd; ++it)
+            for (PropertyList::iterator it = mProperties.begin(); it != itEnd; ++it)
                 if (it->mName.compare(ppNames[i]) == 0)
                 {
-                    found = true;
                     mProperties.erase(it);
+                    break;
                 }
-        }
     }
 
     /*
@@ -524,7 +512,7 @@ int Service::setPropertyBlock(uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 int Service::getProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
     int rc = VINF_SUCCESS;
-    const char *pcszName;
+    const char *pcszName = NULL;        /* shut up gcc */
     char *pchBuf;
     uint32_t cchName, cchBuf;
     char szFlags[MAX_FLAGS_LEN];
@@ -534,8 +522,8 @@ int Service::getProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[])
      */
     LogFlowThisFunc(("\n"));
     if (   cParms != 4  /* Hardcoded value as the next lines depend on it. */
-        || RT_FAILURE (paParms[0].getPointer ((const void **) &pcszName, &cchName))    /* name */
-        || RT_FAILURE (paParms[1].getPointer ((void **) &pchBuf, &cchBuf))    /* buffer */
+        || RT_FAILURE (paParms[0].getString(&pcszName, &cchName))  /* name */
+        || RT_FAILURE (paParms[1].getBuffer((void **) &pchBuf, &cchBuf))  /* buffer */
        )
         rc = VERR_INVALID_PARAMETER;
     else
@@ -600,7 +588,9 @@ int Service::getProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 int Service::setProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGuest)
 {
     int rc = VINF_SUCCESS;
-    const char *pcszName, *pcszValue, *pcszFlags = NULL;
+    const char *pcszName = NULL;        /* shut up gcc */
+    const char *pcszValue = NULL;       /* ditto */
+    const char *pcszFlags = NULL;
     uint32_t cchName, cchValue, cchFlags = 0;
     uint32_t fFlags = NILFLAG;
     RTTIMESPEC time;
@@ -618,13 +608,10 @@ int Service::setProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGues
      */
     if (   RT_SUCCESS(rc)
         && (   (cParms < 2) || (cParms > 3)  /* Hardcoded value as the next lines depend on it. */
-            || RT_FAILURE(paParms[0].getPointer ((const void **) &pcszName,
-                                                 &cchName)) /* name */
-            || RT_FAILURE(paParms[1].getPointer ((const void **) &pcszValue,
-                                                 &cchValue)) /* value */
+            || RT_FAILURE(paParms[0].getString(&pcszName, &cchName))  /* name */
+            || RT_FAILURE(paParms[1].getString(&pcszValue, &cchValue))  /* value */
             || (   (3 == cParms)
-                && RT_FAILURE(paParms[2].getPointer ((const void **) &pcszFlags,
-                                                     &cchFlags)) /* flags */
+                && RT_FAILURE(paParms[2].getString(&pcszFlags, &cchFlags)) /* flags */
                )
            )
        )
@@ -705,7 +692,7 @@ int Service::setProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGues
 int Service::delProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGuest)
 {
     int rc = VINF_SUCCESS;
-    const char *pcszName;
+    const char *pcszName = NULL;        /* shut up gcc */
     uint32_t cbName;
 
     LogFlowThisFunc(("\n"));
@@ -713,13 +700,12 @@ int Service::delProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGues
     /*
      * Check the user-supplied parameters.
      */
-    if (   (cParms != 1)  /* Hardcoded value as the next lines depend on it. */
-        || RT_FAILURE(paParms[0].getPointer ((const void **) &pcszName,
-                                             &cbName))  /* name */
+    if (   (cParms == 1)  /* Hardcoded value as the next lines depend on it. */
+        && RT_SUCCESS(paParms[0].getString(&pcszName, &cbName))  /* name */
        )
-        rc = VERR_INVALID_PARAMETER;
-    if (RT_SUCCESS(rc))
         rc = validateName(pcszName, cbName);
+    else
+        rc = VERR_INVALID_PARAMETER;
 
     /*
      * If the property exists, check its flags to see if we are allowed
@@ -776,9 +762,8 @@ int Service::enumProps(uint32_t cParms, VBOXHGCMSVCPARM paParms[])
     uint32_t cchPatterns = 0, cchBuf = 0;
     LogFlowThisFunc(("\n"));
     if (   (cParms != 3)  /* Hardcoded value as the next lines depend on it. */
-        || RT_FAILURE(paParms[0].getPointer ((const void **) &pcchPatterns,
-                                             &cchPatterns))  /* patterns */
-        || RT_FAILURE(paParms[1].getPointer ((void **) &pchBuf, &cchBuf))  /* return buffer */
+        || RT_FAILURE(paParms[0].getString(&pcchPatterns, &cchPatterns))  /* patterns */
+        || RT_FAILURE(paParms[1].getBuffer((void **) &pchBuf, &cchBuf))  /* return buffer */
        )
         rc = VERR_INVALID_PARAMETER;
     if (RT_SUCCESS(rc) && cchPatterns > MAX_PATTERN_LEN)
@@ -788,17 +773,12 @@ int Service::enumProps(uint32_t cParms, VBOXHGCMSVCPARM paParms[])
      * First repack the patterns into the format expected by RTStrSimplePatternMatch()
      */
     char pszPatterns[MAX_PATTERN_LEN];
-    if (NULL == pcchPatterns)
-        pszPatterns[0] = '\0';
-    else
-    {
-        for (unsigned i = 0; i < cchPatterns - 1; ++i)
-            if (pcchPatterns[i] != '\0')
-                pszPatterns[i] = pcchPatterns[i];
-            else
-                pszPatterns[i] = '|';
-        pszPatterns[cchPatterns - 1] = '\0';
-    }
+    for (unsigned i = 0; i < cchPatterns - 1; ++i)
+        if (pcchPatterns[i] != '\0')
+            pszPatterns[i] = pcchPatterns[i];
+        else
+            pszPatterns[i] = '|';
+    pszPatterns[cchPatterns - 1] = '\0';
 
     /*
      * Next enumerate into a temporary buffer.  This can throw, but this is
@@ -845,6 +825,46 @@ int Service::enumProps(uint32_t cParms, VBOXHGCMSVCPARM paParms[])
     return rc;
 }
 
+/**
+ * Flushes the notifications.
+ *
+ * @returns iprt status value
+ * @param   cMsTimeout  The timeout in milliseconds.
+ * @thread  HGCM
+ */
+int Service::flushNotifications(uint32_t cMsTimeout)
+{
+    LogFlowThisFunc(("cMsTimeout=%RU32\n", cMsTimeout));
+    int rc;
+
+#ifndef VBOX_GUEST_PROP_TEST_NOTHREAD
+    /*
+     * Wait for the thread to finish processing all current requests.
+     */
+    if (!mPendingDummyReq && !RTReqIsBusy(mReqQueue))
+        rc = VINF_SUCCESS;
+    else
+    {
+        if (!mPendingDummyReq)
+            rc = RTReqCallEx(mReqQueue, &mPendingDummyReq, 0 /*cMillies*/, RTREQFLAGS_VOID, (PFNRT)reqVoid, 0);
+        else
+            rc = VERR_TIMEOUT;
+        if (rc == VERR_TIMEOUT)
+            rc = RTReqWait(mPendingDummyReq, cMsTimeout);
+        if (RT_SUCCESS(rc))
+        {
+            RTReqFree(mPendingDummyReq);
+            mPendingDummyReq = NULL;
+        }
+    }
+#else
+    NOREF(cMsTimeout);
+    rc = VINF_SUCCESS;
+#endif /* VBOX_GUEST_PROP_TEST_NOTHREAD not defined */
+
+    return rc;
+}
+
 /** Helper query used by getOldNotification */
 int Service::getOldNotificationInternal(const char *pszPatterns,
                                         uint64_t u64Timestamp,
@@ -884,7 +904,7 @@ int Service::getNotificationWriteOut(VBOXHGCMSVCPARM paParms[], Property prop)
     uint64_t u64Timestamp;
     char *pchBuf;
     uint32_t cchBuf;
-    rc = paParms[2].getPointer((void **) &pchBuf, &cchBuf);
+    rc = paParms[2].getBuffer((void **) &pchBuf, &cchBuf);
     if (RT_SUCCESS(rc))
     {
         char szFlags[MAX_FLAGS_LEN];
@@ -926,8 +946,10 @@ int Service::getNotification(VBOXHGCMCALLHANDLE callHandle, uint32_t cParms,
                              VBOXHGCMSVCPARM paParms[])
 {
     int rc = VINF_SUCCESS;
-    char *pszPatterns, *pchBuf;
-    uint32_t cchPatterns = 0, cchBuf = 0;
+    char *pszPatterns = NULL;           /* shut up gcc */
+    char *pchBuf;
+    uint32_t cchPatterns = 0;
+    uint32_t cchBuf = 0;
     uint64_t u64Timestamp;
 
     /*
@@ -935,11 +957,9 @@ int Service::getNotification(VBOXHGCMCALLHANDLE callHandle, uint32_t cParms,
      */
     LogFlowThisFunc(("\n"));
     if (   (cParms != 4)  /* Hardcoded value as the next lines depend on it. */
-        || RT_FAILURE(paParms[0].getPointer ((void **) &pszPatterns, &cchPatterns))  /* patterns */
-        || pszPatterns[cchPatterns - 1] != '\0'  /* The patterns string must be zero-terminated */
-        || RT_FAILURE(paParms[1].getUInt64 (&u64Timestamp))  /* timestamp */
-        || RT_FAILURE(paParms[2].getPointer ((void **) &pchBuf, &cchBuf))  /* return buffer */
-        || cchBuf < 1
+        || RT_FAILURE(paParms[0].getString(&pszPatterns, &cchPatterns))  /* patterns */
+        || RT_FAILURE(paParms[1].getUInt64(&u64Timestamp))  /* timestamp */
+        || RT_FAILURE(paParms[2].getBuffer((void **) &pchBuf, &cchBuf))  /* return buffer */
        )
         rc = VERR_INVALID_PARAMETER;
     if (RT_SUCCESS(rc))
@@ -1024,7 +1044,7 @@ void Service::doNotifications(const char *pszProperty, uint64_t u64Timestamp)
             {
                 const char *pszPatterns;
                 uint32_t cchPatterns;
-                it->mParms[0].getPointer((void **) &pszPatterns, &cchPatterns);
+                it->mParms[0].getString(&pszPatterns, &cchPatterns);
                 if (prop.Matches(pszPatterns))
                 {
                     GuestCall call = *it;
@@ -1118,9 +1138,9 @@ void Service::doNotifications(const char *pszProperty, uint64_t u64Timestamp)
  * @thread  request thread
  */
 /* static */
-int Service::reqNotify(PFNHGCMSVCEXT pfnCallback, void *pvData,
-                       char *pszName, char *pszValue, uint32_t u32TimeHigh,
-                       uint32_t u32TimeLow, char *pszFlags)
+DECLCALLBACK(int) Service::reqNotify(PFNHGCMSVCEXT pfnCallback, void *pvData,
+                                     char *pszName, char *pszValue, uint32_t u32TimeHigh,
+                                     uint32_t u32TimeLow, char *pszFlags)
 {
     LogFlowFunc (("pfnCallback=%p, pvData=%p, pszName=%p, pszValue=%p, u32TimeHigh=%u, u32TimeLow=%u, pszFlags=%p\n", pfnCallback, pvData, pszName, pszValue, u32TimeHigh, u32TimeLow, pszFlags));
     LogFlowFunc (("pszName=%s\n", pszName));
@@ -1133,7 +1153,7 @@ int Service::reqNotify(PFNHGCMSVCEXT pfnCallback, void *pvData,
     HostCallbackData.pcszValue    = pszValue;
     HostCallbackData.u64Timestamp = RT_MAKE_U64(u32TimeLow, u32TimeHigh);
     HostCallbackData.pcszFlags    = pszFlags;
-    int rc = pfnCallback(pvData, 0, (void *)(&HostCallbackData),
+    int rc = pfnCallback(pvData, 0 /*u32Function*/, (void *)(&HostCallbackData),
                          sizeof(HostCallbackData));
     AssertRC(rc);
     LogFlowFunc (("Freeing strings\n"));
@@ -1270,6 +1290,20 @@ int Service::hostCall (uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paPa
                 rc = enumProps(cParms, paParms);
                 break;
 
+            /* The host wishes to flush all pending notification */
+            case FLUSH_NOTIFICATIONS_HOST:
+                LogFlowFunc(("FLUSH_NOTIFICATIONS_HOST\n"));
+                if (cParms == 1)
+                {
+                    uint32_t cMsTimeout;
+                    rc = paParms[0].getUInt32(&cMsTimeout);
+                    if (RT_SUCCESS(rc))
+                        rc = flushNotifications(cMsTimeout);
+                }
+                else
+                    rc = VERR_INVALID_PARAMETER;
+                break;
+
             default:
                 rc = VERR_NOT_SUPPORTED;
                 break;
@@ -1287,18 +1321,28 @@ int Service::hostCall (uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paPa
 int Service::uninit()
 {
     int rc = VINF_SUCCESS;
-    unsigned count = 0;
 
-    mfExitThread = true;
+    ASMAtomicWriteBool(&mfExitThread, true);
+
 #ifndef VBOX_GUEST_PROP_TEST_NOTHREAD
+    /*
+     * Send a dummy request to the thread so it is forced out of the loop and
+     * notice that the exit flag is set.  Give up waiting after 5 mins.
+     * We call flushNotifications first to try clean up any pending request.
+     */
+    flushNotifications(120*1000);
+
     rc = RTReqCallEx(mReqQueue, NULL, 0, RTREQFLAGS_NO_WAIT, (PFNRT)reqVoid, 0);
     if (RT_SUCCESS(rc))
+    {
+        unsigned count = 0;
         do
         {
             rc = RTThreadWait(mReqThread, 1000, NULL);
             ++count;
             Assert(RT_SUCCESS(rc) || ((VERR_TIMEOUT == rc) && (count != 5)));
         } while ((VERR_TIMEOUT == rc) && (count < 300));
+    }
 #endif /* VBOX_GUEST_PROP_TEST_NOTHREAD not defined */
     if (RT_SUCCESS(rc))
         RTReqDestroyQueue(mReqQueue);

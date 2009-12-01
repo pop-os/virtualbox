@@ -1,4 +1,4 @@
-/* $Id: CFGM.cpp $ */
+/* $Id: CFGM.cpp 23587 2009-10-06 17:10:52Z vboxsync $ */
 /** @file
  * CFGM - Configuration Manager.
  */
@@ -548,7 +548,7 @@ VMMR3DECL(int) CFGMR3QuerySize(PCFGMNODE pNode, const char *pszName, size_t *pcb
                 break;
 
             case CFGMVALUETYPE_STRING:
-                *pcb = pLeaf->Value.String.cch;
+                *pcb = pLeaf->Value.String.cb;
                 break;
 
             case CFGMVALUETYPE_BYTES:
@@ -637,10 +637,11 @@ VMMR3DECL(int) CFGMR3QueryString(PCFGMNODE pNode, const char *pszName, char *psz
     {
         if (pLeaf->enmType == CFGMVALUETYPE_STRING)
         {
-            if (cchString >= pLeaf->Value.String.cch)
+            size_t cbSrc = pLeaf->Value.String.cb;
+            if (cchString >= cbSrc)
             {
-                memcpy(pszString, pLeaf->Value.String.psz, pLeaf->Value.String.cch);
-                memset(pszString + pLeaf->Value.String.cch, 0, cchString - pLeaf->Value.String.cch);
+                memcpy(pszString, pLeaf->Value.String.psz, cbSrc);
+                memset(pszString + cbSrc, 0, cchString - cbSrc);
             }
             else
                 rc = VERR_CFGM_NOT_ENOUGH_SPACE;
@@ -670,10 +671,11 @@ VMMR3DECL(int) CFGMR3QueryStringDef(PCFGMNODE pNode, const char *pszName, char *
     {
         if (pLeaf->enmType == CFGMVALUETYPE_STRING)
         {
-            if (cchString >= pLeaf->Value.String.cch)
+            size_t cbSrc = pLeaf->Value.String.cb;
+            if (cchString >= cbSrc)
             {
-                memcpy(pszString, pLeaf->Value.String.psz, pLeaf->Value.String.cch);
-                memset(pszString + pLeaf->Value.String.cch, 0, cchString - pLeaf->Value.String.cch);
+                memcpy(pszString, pLeaf->Value.String.psz, cbSrc);
+                memset(pszString + cbSrc, 0, cchString - cbSrc);
             }
             else
                 rc = VERR_CFGM_NOT_ENOUGH_SPACE;
@@ -1004,50 +1006,52 @@ VMMR3DECL(int) CFGMR3ConstructDefaultTree(PVM pVM)
  */
 static int cfgmR3ResolveNode(PCFGMNODE pNode, const char *pszPath, PCFGMNODE *ppChild)
 {
-    if (pNode)
+    if (!pNode)
+        return VERR_CFGM_NO_PARENT;
+    PCFGMNODE pChild = NULL;
+    for (;;)
     {
-        PCFGMNODE pChild = NULL;
-        for (;;)
+        /* skip leading slashes. */
+        while (*pszPath == '/')
+            pszPath++;
+
+        /* End of path? */
+        if (!*pszPath)
         {
-            /* skip leading slashes. */
-            while (*pszPath == '/')
-                pszPath++;
-
-            /* End of path? */
-            if (!*pszPath)
-            {
-                if (!pChild)
-                    return VERR_CFGM_INVALID_CHILD_PATH;
-                *ppChild = pChild;
-                return VINF_SUCCESS;
-            }
-
-            /* find end of component. */
-            const char *pszNext = strchr(pszPath, '/');
-            if (!pszNext)
-                pszNext = strchr(pszPath,  '\0');
-            RTUINT cchName = pszNext - pszPath;
-
-            /* search child list. */
-            pChild = pNode->pFirstChild;
-            for ( ; pChild; pChild = pChild->pNext)
-                if (    pChild->cchName == cchName
-                    &&  !memcmp(pszPath, pChild->szName, cchName) )
-                    break;
-
-            /* if not found, we're done. */
             if (!pChild)
-                return VERR_CFGM_CHILD_NOT_FOUND;
-
-            /* next iteration */
-            pNode = pChild;
-            pszPath = pszNext;
+                return VERR_CFGM_INVALID_CHILD_PATH;
+            *ppChild = pChild;
+            return VINF_SUCCESS;
         }
 
-        /* won't get here */
+        /* find end of component. */
+        const char *pszNext = strchr(pszPath, '/');
+        if (!pszNext)
+            pszNext = strchr(pszPath,  '\0');
+        RTUINT cchName = pszNext - pszPath;
+
+        /* search child list. */
+        pChild = pNode->pFirstChild;
+        for ( ; pChild; pChild = pChild->pNext)
+            if (pChild->cchName == cchName)
+            {
+                int iDiff = memcmp(pszPath, pChild->szName, cchName);
+                if (iDiff <= 0)
+                {
+                    if (iDiff != 0)
+                        pChild = NULL;
+                    break;
+                }
+            }
+        if (!pChild)
+            return VERR_CFGM_CHILD_NOT_FOUND;
+
+        /* next iteration */
+        pNode = pChild;
+        pszPath = pszNext;
     }
-    else
-        return VERR_CFGM_NO_PARENT;
+
+    /* won't get here */
 }
 
 
@@ -1061,28 +1065,29 @@ static int cfgmR3ResolveNode(PCFGMNODE pNode, const char *pszPath, PCFGMNODE *pp
  */
 static int cfgmR3ResolveLeaf(PCFGMNODE pNode, const char *pszName, PCFGMLEAF *ppLeaf)
 {
-    int rc;
-    if (pNode)
+    if (!pNode)
+        return VERR_CFGM_NO_PARENT;
+
+    size_t      cchName = strlen(pszName);
+    PCFGMLEAF   pLeaf   = pNode->pFirstLeaf;
+    while (pLeaf)
     {
-        size_t      cchName = strlen(pszName);
-        PCFGMLEAF   pLeaf = pNode->pFirstLeaf;
-        while (pLeaf)
+        if (cchName == pLeaf->cchName)
         {
-            if (    cchName == pLeaf->cchName
-                && !memcmp(pszName, pLeaf->szName, cchName) )
+            int iDiff = memcmp(pszName, pLeaf->szName, cchName);
+            if (iDiff <= 0)
             {
+                if (iDiff != 0)
+                    break;
                 *ppLeaf = pLeaf;
                 return VINF_SUCCESS;
             }
-
-            /* next */
-            pLeaf = pLeaf->pNext;
         }
-        rc = VERR_CFGM_VALUE_NOT_FOUND;
+
+        /* next */
+        pLeaf = pLeaf->pNext;
     }
-    else
-        rc = VERR_CFGM_NO_PARENT;
-    return rc;
+    return VERR_CFGM_VALUE_NOT_FOUND;
 }
 
 
@@ -1172,6 +1177,34 @@ VMMR3DECL(int) CFGMR3InsertSubTree(PCFGMNODE pNode, const char *pszName, PCFGMNO
 
 
 /**
+ * Compares two names.
+ *
+ * @returns Similar to memcpy.
+ * @param   pszName1            The first name.
+ * @param   cchName1            The length of the first name.
+ * @param   pszName2            The second name.
+ * @param   cchName2            The length of the second name.
+ */
+DECLINLINE(int) cfgmR3CompareNames(const char *pszName1, size_t cchName1, const char *pszName2, size_t cchName2)
+{
+    int iDiff;
+    if (cchName1 <= cchName2)
+    {
+        iDiff = memcmp(pszName1, pszName2, cchName1);
+        if (!iDiff && cchName1 < cchName2)
+            iDiff = -1;
+    }
+    else
+    {
+        iDiff = memcmp(pszName1, pszName2, cchName2);
+        if (!iDiff)
+            iDiff = 1;
+    }
+    return iDiff;
+}
+
+
+/**
  * Insert a node.
  *
  * @returns VBox status code.
@@ -1249,17 +1282,20 @@ VMMR3DECL(int) CFGMR3InsertNode(PCFGMNODE pNode, const char *pszName, PCFGMNODE 
             /*
              * Check if already exists and find last node in chain.
              */
-            size_t cchName = strlen(pszName);
-            PCFGMNODE pPrev = pNode->pFirstChild;
-            if (pPrev)
+            size_t    cchName = strlen(pszName);
+            PCFGMNODE pPrev   = NULL;
+            PCFGMNODE pNext   = pNode->pFirstChild;
+            if (pNext)
             {
-                for (;; pPrev = pPrev->pNext)
+                for ( ; pNext; pPrev = pNext, pNext = pNext->pNext)
                 {
-                    if (    cchName == pPrev->cchName
-                        &&  !memcmp(pszName, pPrev->szName, cchName))
-                        return VERR_CFGM_NODE_EXISTS;
-                    if (!pPrev->pNext)
+                    int iDiff = cfgmR3CompareNames(pszName, cchName, pNext->szName, pNext->cchName);
+                    if (iDiff <= 0)
+                    {
+                        if (!iDiff)
+                            return VERR_CFGM_NODE_EXISTS;
                         break;
+                    }
                 }
             }
 
@@ -1280,12 +1316,15 @@ VMMR3DECL(int) CFGMR3InsertNode(PCFGMNODE pNode, const char *pszName, PCFGMNODE 
                 /*
                  * Insert into child list.
                  */
-                pNew->pNext         = NULL;
                 pNew->pPrev         = pPrev;
                 if (pPrev)
                     pPrev->pNext    = pNew;
                 else
                     pNode->pFirstChild = pNew;
+                pNew->pNext         = pNext;
+                if (pNext)
+                    pNext->pPrev    = pNew;
+
                 if (ppChild)
                     *ppChild = pNew;
                 rc = VINF_SUCCESS;
@@ -1385,17 +1424,20 @@ static int cfgmR3InsertLeaf(PCFGMNODE pNode, const char *pszName, PCFGMLEAF *ppL
             /*
              * Check if already exists and find last node in chain.
              */
-            size_t cchName = strlen(pszName);
-            PCFGMLEAF pPrev = pNode->pFirstLeaf;
-            if (pPrev)
+            size_t    cchName  = strlen(pszName);
+            PCFGMLEAF pPrev    = NULL;
+            PCFGMLEAF pNext    = pNode->pFirstLeaf;
+            if (pNext)
             {
-                for (;; pPrev = pPrev->pNext)
+                for ( ; pNext; pPrev = pNext, pNext = pNext->pNext)
                 {
-                    if (    cchName == pPrev->cchName
-                        &&  !memcmp(pszName, pPrev->szName, cchName))
-                        return VERR_CFGM_LEAF_EXISTS;
-                    if (!pPrev->pNext)
+                    int iDiff = cfgmR3CompareNames(pszName, cchName, pNext->szName, pNext->cchName);
+                    if (iDiff <= 0)
+                    {
+                        if (!iDiff)
+                            return VERR_CFGM_LEAF_EXISTS;
                         break;
+                    }
                 }
             }
 
@@ -1411,12 +1453,15 @@ static int cfgmR3InsertLeaf(PCFGMNODE pNode, const char *pszName, PCFGMLEAF *ppL
                 /*
                  * Insert into child list.
                  */
-                pNew->pNext         = NULL;
                 pNew->pPrev         = pPrev;
                 if (pPrev)
                     pPrev->pNext    = pNew;
                 else
                     pNode->pFirstLeaf = pNew;
+                pNew->pNext         = pNext;
+                if (pNext)
+                    pNext->pPrev    = pNew;
+
                 *ppLeaf = pNew;
                 rc = VINF_SUCCESS;
             }
@@ -1534,7 +1579,7 @@ static void cfgmR3FreeValue(PCFGMLEAF pLeaf)
             case CFGMVALUETYPE_STRING:
                 MMR3HeapFree(pLeaf->Value.String.psz);
                 pLeaf->Value.String.psz = NULL;
-                pLeaf->Value.String.cch = 0;
+                pLeaf->Value.String.cb = 0;
                 break;
 
             case CFGMVALUETYPE_INTEGER:
@@ -1582,11 +1627,11 @@ VMMR3DECL(int) CFGMR3InsertString(PCFGMNODE pNode, const char *pszName, const ch
         /*
          * Allocate string object first.
          */
-        size_t cchString = strlen(pszString) + 1;
-        char *pszStringCopy = (char *)MMR3HeapAlloc(pNode->pVM, MM_TAG_CFGM_STRING, RT_ALIGN_Z(cchString, 16));
+        size_t cbString = strlen(pszString) + 1;
+        char *pszStringCopy = (char *)MMR3HeapAlloc(pNode->pVM, MM_TAG_CFGM_STRING, cbString);
         if (pszStringCopy)
         {
-            memcpy(pszStringCopy, pszString, cchString);
+            memcpy(pszStringCopy, pszString, cbString);
 
             /*
              * Create value leaf and set it to string type.
@@ -1597,8 +1642,10 @@ VMMR3DECL(int) CFGMR3InsertString(PCFGMNODE pNode, const char *pszName, const ch
             {
                 pLeaf->enmType = CFGMVALUETYPE_STRING;
                 pLeaf->Value.String.psz = pszStringCopy;
-                pLeaf->Value.String.cch = cchString;
+                pLeaf->Value.String.cb  = cbString;
             }
+            else
+                MMR3HeapFree(pszStringCopy);
         }
         else
             rc = VERR_NO_MEMORY;
@@ -1609,6 +1656,91 @@ VMMR3DECL(int) CFGMR3InsertString(PCFGMNODE pNode, const char *pszName, const ch
     return rc;
 }
 
+
+/**
+ * Same as CFGMR3InsertString except the string value given in RTStrPrintfV
+ * fashion.
+ *
+ * @returns VBox status code.
+ * @param   pNode           Parent node.
+ * @param   pszName         Value name.
+ * @param   pszFormat       The value given as a format string.
+ * @param   va              Argument to pszFormat.
+ */
+VMMR3DECL(int) CFGMR3InsertStringFV(PCFGMNODE pNode, const char *pszName, const char *pszFormat, va_list va)
+{
+    int rc;
+    if (pNode)
+    {
+        /*
+         * Allocate string object first.
+         */
+        char *pszString = MMR3HeapAPrintfVU(pNode->pVM->pUVM, MM_TAG_CFGM_STRING, pszFormat, va);
+        if (pszString)
+        {
+            /*
+             * Create value leaf and set it to string type.
+             */
+            PCFGMLEAF pLeaf;
+            rc = cfgmR3InsertLeaf(pNode, pszName, &pLeaf);
+            if (RT_SUCCESS(rc))
+            {
+                pLeaf->enmType = CFGMVALUETYPE_STRING;
+                pLeaf->Value.String.psz = pszString;
+                pLeaf->Value.String.cb  = strlen(pszString) + 1;
+            }
+            else
+                MMR3HeapFree(pszString);
+        }
+        else
+            rc = VERR_NO_MEMORY;
+    }
+    else
+        rc = VERR_CFGM_NO_PARENT;
+
+    return rc;
+}
+
+
+/**
+ * Same as CFGMR3InsertString except the string value given in RTStrPrintf
+ * fashion.
+ *
+ * @returns VBox status code.
+ * @param   pNode           Parent node.
+ * @param   pszName         Value name.
+ * @param   pszFormat       The value given as a format string.
+ * @param   ...             Argument to pszFormat.
+ */
+VMMR3DECL(int) CFGMR3InsertStringF(PCFGMNODE pNode, const char *pszName, const char *pszFormat, ...)
+{
+    va_list va;
+    va_start(va, pszFormat);
+    int rc = CFGMR3InsertStringFV(pNode, pszName, pszFormat, va);
+    va_end(va);
+    return rc;
+}
+
+
+/**
+ * Same as CFGMR3InsertString except the string value given as a UTF-16 string.
+ *
+ * @returns VBox status code.
+ * @param   pNode           Parent node.
+ * @param   pszName         Value name.
+ * @param   pwszValue       The string value (UTF-16).
+ */
+VMMR3DECL(int) CFGMR3InsertStringW(PCFGMNODE pNode, const char *pszName, PCRTUTF16 pwszValue)
+{
+    char *pszValue;
+    int rc = RTUtf16ToUtf8(pwszValue, &pszValue);
+    if (RT_SUCCESS(rc))
+    {
+        rc = CFGMR3InsertString(pNode, pszName, pszValue);
+        RTStrFree(pszValue);
+    }
+    return rc;
+}
 
 
 /**
@@ -1630,7 +1762,7 @@ VMMR3DECL(int) CFGMR3InsertBytes(PCFGMNODE pNode, const char *pszName, const voi
             /*
              * Allocate string object first.
              */
-            void *pvCopy = MMR3HeapAlloc(pNode->pVM, MM_TAG_CFGM_STRING, RT_ALIGN_Z(cbBytes, 16));
+            void *pvCopy = MMR3HeapAlloc(pNode->pVM, MM_TAG_CFGM_STRING, cbBytes);
             if (pvCopy || !cbBytes)
             {
                 memcpy(pvCopy, pvBytes, cbBytes);
@@ -2377,14 +2509,14 @@ VMMR3DECL(int) CFGMR3QueryGCPtrSDef(PCFGMNODE pNode, const char *pszName, PRTGCI
  */
 VMMR3DECL(int) CFGMR3QueryStringAlloc(PCFGMNODE pNode, const char *pszName, char **ppszString)
 {
-    size_t cch;
-    int rc = CFGMR3QuerySize(pNode, pszName, &cch);
+    size_t cbString;
+    int rc = CFGMR3QuerySize(pNode, pszName, &cbString);
     if (RT_SUCCESS(rc))
     {
-        char *pszString = (char *)MMR3HeapAlloc(pNode->pVM, MM_TAG_CFGM_USER, cch);
+        char *pszString = (char *)MMR3HeapAlloc(pNode->pVM, MM_TAG_CFGM_USER, cbString);
         if (pszString)
         {
-            rc = CFGMR3QueryString(pNode, pszName, pszString, cch);
+            rc = CFGMR3QueryString(pNode, pszName, pszString, cbString);
             if (RT_SUCCESS(rc))
                 *ppszString = pszString;
             else
@@ -2409,19 +2541,19 @@ VMMR3DECL(int) CFGMR3QueryStringAlloc(PCFGMNODE pNode, const char *pszName, char
  */
 VMMR3DECL(int) CFGMR3QueryStringAllocDef(PCFGMNODE pNode, const char *pszName, char **ppszString, const char *pszDef)
 {
-    size_t cch;
-    int rc = CFGMR3QuerySize(pNode, pszName, &cch);
+    size_t cbString;
+    int rc = CFGMR3QuerySize(pNode, pszName, &cbString);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND || rc == VERR_CFGM_NO_PARENT)
     {
-        cch = strlen(pszDef) + 1;
+        cbString = strlen(pszDef) + 1;
         rc = VINF_SUCCESS;
     }
     if (RT_SUCCESS(rc))
     {
-        char *pszString = (char *)MMR3HeapAlloc(pNode->pVM, MM_TAG_CFGM_USER, cch);
+        char *pszString = (char *)MMR3HeapAlloc(pNode->pVM, MM_TAG_CFGM_USER, cbString);
         if (pszString)
         {
-            rc = CFGMR3QueryStringDef(pNode, pszName, pszString, cch, pszDef);
+            rc = CFGMR3QueryStringDef(pNode, pszName, pszString, cbString, pszDef);
             if (RT_SUCCESS(rc))
                 *ppszString = pszString;
             else
@@ -2442,7 +2574,7 @@ VMMR3DECL(int) CFGMR3QueryStringAllocDef(PCFGMNODE pNode, const char *pszName, c
 VMMR3DECL(void) CFGMR3Dump(PCFGMNODE pRoot)
 {
     LogRel(("************************* CFGM dump *************************\n"));
-    cfgmR3Info(pRoot->pVM, DBGFR3InfoLogRelHlp(), NULL);
+    cfgmR3Dump(pRoot, 0, DBGFR3InfoLogRelHlp());
     LogRel(("********************* End of CFGM dump **********************\n"));
 }
 
@@ -2519,11 +2651,11 @@ static void cfgmR3Dump(PCFGMNODE pRoot, unsigned iLevel, PCDBGFINFOHLP pHlp)
                 break;
 
             case CFGMVALUETYPE_STRING:
-                pHlp->pfnPrintf(pHlp, "  %-*s <string>  = \"%s\" (cch=%d)\n", (int)cchMax, pLeaf->szName, pLeaf->Value.String.psz, pLeaf->Value.String.cch);
+                pHlp->pfnPrintf(pHlp, "  %-*s <string>  = \"%s\" (cb=%zu)\n", (int)cchMax, pLeaf->szName, pLeaf->Value.String.psz, pLeaf->Value.String.cb);
                 break;
 
             case CFGMVALUETYPE_BYTES:
-                pHlp->pfnPrintf(pHlp, "  %-*s <bytes>   = \"%.*Rhxs\" (cb=%d)\n", (int)cchMax, pLeaf->szName, pLeaf->Value.Bytes.cb, pLeaf->Value.Bytes.pau8, pLeaf->Value.Bytes.cb);
+                pHlp->pfnPrintf(pHlp, "  %-*s <bytes>   = \"%.*Rhxs\" (cb=%zu)\n", (int)cchMax, pLeaf->szName, pLeaf->Value.Bytes.cb, pLeaf->Value.Bytes.pau8, pLeaf->Value.Bytes.cb);
                 break;
 
             default:

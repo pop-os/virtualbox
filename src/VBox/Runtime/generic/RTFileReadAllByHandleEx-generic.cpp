@@ -1,4 +1,4 @@
-/* $Id: RTFileReadAllByHandleEx-generic.cpp $ */
+/* $Id: RTFileReadAllByHandleEx-generic.cpp 21801 2009-07-26 17:45:31Z vboxsync $ */
 /** @file
  * IPRT - RTFileReadAllByHandleEx, generic implementation.
  */
@@ -29,11 +29,12 @@
  */
 
 
-
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/file.h>
+#include "internal/iprt.h"
+
 #include <iprt/mem.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
@@ -87,7 +88,7 @@ RTDECL(int) RTFileReadAllByHandleEx(RTFILE File, RTFOFF off, RTFOFF cbMax, uint3
                              * Success - fill in the return values.
                              */
                             *ppvFile = pvFile;
-                            *pcbFile = cbAllocFile;
+                            *pcbFile = cbAllocMem;
                         }
                     }
 
@@ -105,4 +106,5 @@ RTDECL(int) RTFileReadAllByHandleEx(RTFILE File, RTFOFF off, RTFOFF cbMax, uint3
     }
     return rc;
 }
+RT_EXPORT_SYMBOL(RTFileReadAllByHandleEx);
 

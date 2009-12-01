@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,16 +23,18 @@
 #ifndef __VBoxMediaManagerDlg_h__
 #define __VBoxMediaManagerDlg_h__
 
+/* Local includes */
 #include "VBoxMediaManagerDlg.gen.h"
+#include "COMDefs.h"
 #include "QIMainDialog.h"
 #include "QIWithRetranslateUI.h"
-#include "COMDefs.h"
 #include "VBoxDefs.h"
 #include "VBoxMediaComboBox.h"
 
+/* Local forwards */
 class MediaItem;
-class VBoxToolBar;
 class VBoxProgressBar;
+class VBoxToolBar;
 
 class VBoxMediaManagerDlg : public QIWithRetranslateUI2<QIMainDialog>,
                             public Ui::VBoxMediaManagerDlg
@@ -49,11 +51,12 @@ public:
                          Qt::WindowFlags aFlags = Qt::Dialog);
     ~VBoxMediaManagerDlg();
 
-    void setup (VBoxDefs::MediaType aType, bool aDoSelect,
+    void setup (VBoxDefs::MediumType aType, bool aDoSelect,
                 bool aRefresh = true,
                 const CMachine &aSessionMachine = CMachine(),
                 const QString &aSelectId = QString::null,
-                bool aShowDiffs = true);
+                bool aShowDiffs = true,
+                const QStringList &aUsedMediaIds = QStringList());
 
     static void showModeless (QWidget *aParent = NULL, bool aRefresh = true);
 
@@ -77,7 +80,7 @@ private slots:
 
     void mediumAdded (const VBoxMedium &aMedium);
     void mediumUpdated (const VBoxMedium &aMedium);
-    void mediumRemoved (VBoxDefs::MediaType aType, const QString &aId);
+    void mediumRemoved (VBoxDefs::MediumType aType, const QString &aId);
 
     void mediumEnumStarted();
     void mediumEnumerated (const VBoxMedium &aMedium);
@@ -102,8 +105,8 @@ private slots:
 
 private:
 
-    QTreeWidget* treeWidget (VBoxDefs::MediaType aType) const;
-    VBoxDefs::MediaType currentTreeWidgetType() const;
+    QTreeWidget* treeWidget (VBoxDefs::MediumType aType) const;
+    VBoxDefs::MediumType currentTreeWidgetType() const;
     QTreeWidget* currentTreeWidget() const;
 
     QTreeWidgetItem* selectedItem (const QTreeWidget *aTree) const;
@@ -111,7 +114,7 @@ private:
 
     void setCurrentItem (QTreeWidget *aTree, QTreeWidgetItem *aItem);
 
-    void addMediumToList (const QString &aLocation, VBoxDefs::MediaType aType);
+    void addMediumToList (const QString &aLocation, VBoxDefs::MediumType aType);
 
     MediaItem* createHardDiskItem (QTreeWidget *aTree, const VBoxMedium &aMedium) const;
 
@@ -152,10 +155,9 @@ private:
     /* Menu & Toolbar */
     QMenu       *mActionsContextMenu;
     QMenu       *mActionsMenu;
-    VBoxToolBar *mActionsToolBar;
+    VBoxToolBar *mToolBar;
     QAction     *mNewAction;
     QAction     *mAddAction;
-    QAction     *mEditAction;
     QAction     *mRemoveAction;
     QAction     *mReleaseAction;
     QAction     *mRefreshAction;
@@ -167,8 +169,9 @@ private:
     bool mDVDImagesInaccessible;
     bool mFloppyImagesInaccessible;
     QString mHDSelectedId;
-    QString mDVDSelectedId;
-    QString mFloppySelectedId;
+    QString mCDSelectedId;
+    QString mFDSelectedId;
+    QStringList mUsedMediaIds;
 };
 
 #endif /* __VBoxMediaManagerDlg_h__ */

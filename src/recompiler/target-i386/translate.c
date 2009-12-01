@@ -3145,14 +3145,16 @@ static void gen_debug(DisasContext *s, target_ulong cur_eip)
    if needed */
 static void gen_eob(DisasContext *s)
 {
-#ifdef VBOX
-    gen_check_external_event(s);
-#endif /* VBOX */
     if (s->cc_op != CC_OP_DYNAMIC)
         gen_op_set_cc_op(s->cc_op);
     if (s->tb->flags & HF_INHIBIT_IRQ_MASK) {
         tcg_gen_helper_0_0(helper_reset_inhibit_irq);
     }
+
+#ifdef VBOX
+    gen_check_external_event(s);
+#endif /* VBOX */
+
     if (s->singlestep_enabled) {
         tcg_gen_helper_0_0(helper_debug);
     } else if (s->tf) {
@@ -8078,8 +8080,10 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             gen_exception(s, EXCP0D_GPF, pc_start - s->cs_base);
         } else {
             modrm = ldub_code(s->pc++);
+#ifndef VBOX    /* mod bits are always understood to be 11 (0xc0) regardless of actual content; see AMD manuals */
             if ((modrm & 0xc0) != 0xc0)
                 goto illegal_op;
+#endif
             rm = (modrm & 7) | REX_B(s);
             reg = ((modrm >> 3) & 7) | rex_r;
             if (CODE64(s))
@@ -8118,8 +8122,10 @@ static target_ulong disas_insn(DisasContext *s, target_ulong pc_start)
             gen_exception(s, EXCP0D_GPF, pc_start - s->cs_base);
         } else {
             modrm = ldub_code(s->pc++);
+#ifndef VBOX    /* mod bits are always understood to be 11 (0xc0) regardless of actual content; see AMD manuals */
             if ((modrm & 0xc0) != 0xc0)
                 goto illegal_op;
+#endif
             rm = (modrm & 7) | REX_B(s);
             reg = ((modrm >> 3) & 7) | rex_r;
             if (CODE64(s))

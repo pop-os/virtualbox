@@ -1,4 +1,4 @@
-/* $Id: VMMGuruMeditation.cpp $ */
+/* $Id: VMMGuruMeditation.cpp 20875 2009-06-24 02:29:17Z vboxsync $ */
 /** @file
  * VMM - The Virtual Machine Monitor, Guru Meditation Code.
  */

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 24577 2009-11-11 10:31:52Z vboxsync $
 ## @file
 # Top-level makefile for the VMM.
 #
@@ -54,6 +54,9 @@ endif
 ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
  VMMR3_DEFS    += VBOX_WITH_PDM_ASYNC_COMPLETION
 endif
+ifdef VBOX_WITH_LIVE_MIGRATION
+ VMMR3_DEFS    += VBOX_WITH_LIVE_MIGRATION
+endif
 VMMR3_DEFS.darwin = VMM_R0_SWITCH_STACK
 VMMR3_DEFS.darwin.x86 = \
 	VBOX_WITH_2X_4GB_ADDR_SPACE   VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R3 \
@@ -74,6 +77,7 @@ VMMR3_SOURCES   = \
 	DBGFAddr.cpp \
 	DBGFAddrSpace.cpp \
 	DBGFBp.cpp \
+	DBGFCpu.cpp \
 	DBGFDisas.cpp \
 	DBGFInfo.cpp \
 	DBGFLog.cpp \
@@ -106,6 +110,7 @@ VMMR3_SOURCES   = \
 	PGMMap.cpp \
 	PGMPhys.cpp \
 	PGMPool.cpp \
+	PGMSavedState.cpp \
 	SELM.cpp \
 	SSM.cpp \
 	STAM.cpp \
@@ -167,7 +172,10 @@ endif
 ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
  VMMR3_SOURCES += \
  	PDMAsyncCompletion.cpp \
- 	PDMAsyncCompletionFile.cpp
+ 	PDMAsyncCompletionFile.cpp \
+ 	PDMAsyncCompletionFileFailsafe.cpp \
+ 	PDMAsyncCompletionFileNormal.cpp \
+ 	PDMAsyncCompletionFileCache.cpp
 endif
 
 VMMR3_SOURCES.x86 += \
@@ -183,6 +191,11 @@ VMMR3_SOURCES.amd64 = \
 VMMR3_SOURCES.darwin.x86 += \
 	VMMSwitcher/AMD64ToPAE.asm
 
+# SSM wish to know the build type, host os and arch.
+SSM.cpp_DEFS +=	\
+	KBUILD_TYPE=\"$(KBUILD_TYPE)\" \
+	KBUILD_TARGET=\"$(KBUILD_TARGET)\" \
+	KBUILD_TARGET_ARCH=\"$(KBUILD_TARGET_ARCH)\"
 
 #
 # The VMM DLL.
@@ -215,6 +228,17 @@ VBoxVMM_LDFLAGS.solaris = -mimpure-text
 #VBoxVMM_LIBS += aio
 # endif
 #endif
+
+
+
+#
+# SSMStandalone.lib/a for linking with VBoxSVC and other executables.
+#
+LIBRARIES += SSMStandalone
+SSMStandalone_TEMPLATE  = VBOXR3EXE
+SSMStandalone_DEFS      = IN_VMM_R3 IN_VMM_STATIC SSM_STANDALONE
+SSMStandalone_SOURCES   = SSM.cpp
+
 
 if1of ($(VBOX_LDR_FMT32), pe lx)
 

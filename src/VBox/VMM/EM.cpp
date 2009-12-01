@@ -1,4 +1,4 @@
-/* $Id: EM.cpp $ */
+/* $Id: EM.cpp 24938 2009-11-25 11:04:36Z vboxsync $ */
 /** @file
  * EM - Execution Monitor / Manager.
  */
@@ -83,7 +83,8 @@
 *   Internal Functions                                                         *
 *******************************************************************************/
 static DECLCALLBACK(int) emR3Save(PVM pVM, PSSMHANDLE pSSM);
-static DECLCALLBACK(int) emR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version);
+static DECLCALLBACK(int) emR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
+static const char *emR3GetStateName(EMSTATE enmState);
 static int emR3Debug(PVM pVM, PVMCPU pVCpu, int rc);
 static int emR3RemStep(PVM pVM, PVMCPU pVCpu);
 static int emR3RemExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone);
@@ -130,12 +131,13 @@ VMMR3DECL(int) EMR3Init(PVM pVM)
      * Saved state.
      */
     rc = SSMR3RegisterInternal(pVM, "em", 0, EM_SAVED_STATE_VERSION, 16,
+                               NULL, NULL, NULL,
                                NULL, emR3Save, NULL,
                                NULL, emR3Load, NULL);
     if (RT_FAILURE(rc))
         return rc;
 
-    for (unsigned i=0;i<pVM->cCPUs;i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -426,10 +428,9 @@ VMMR3DECL(int) EMR3InitCPU(PVM pVM)
 VMMR3DECL(void) EMR3Relocate(PVM pVM)
 {
     LogFlow(("EMR3Relocate\n"));
-    for (unsigned i=0;i<pVM->cCPUs;i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
-
         if (pVCpu->em.s.pStatsR3)
             pVCpu->em.s.pStatsRC = MMHyperR3ToRC(pVM, pVCpu->em.s.pStatsR3);
     }
@@ -443,12 +444,20 @@ VMMR3DECL(void) EMR3Relocate(PVM pVM)
  */
 VMMR3DECL(void) EMR3Reset(PVM pVM)
 {
-    LogFlow(("EMR3Reset: \n"));
-    for (unsigned i=0;i<pVM->cCPUs;i++)
+    Log(("EMR3Reset: \n"));
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
-
         pVCpu->em.s.fForceRAW = false;
+
+        /* VMR3Reset may return VINF_EM_RESET or VINF_EM_SUSPEND, so transition
+           out of the HALTED state here so that enmPrevState doesn't end up as
+           HALTED when EMR3Execute returns. */
+        if (pVCpu->em.s.enmState == EMSTATE_HALTED)
+        {
+            Log(("EMR3Reset: Cpu#%u %s -> %s\n", i, emR3GetStateName(pVCpu->em.s.enmState), i == 0 ? "EMSTATE_NONE" : "EMSTATE_WAIT_SIPI"));
+            pVCpu->em.s.enmState = i == 0 ? EMSTATE_NONE : EMSTATE_WAIT_SIPI;
+        }
     }
 }
 
@@ -493,7 +502,7 @@ VMMR3DECL(int) EMR3TermCPU(PVM pVM)
  */
 static DECLCALLBACK(int) emR3Save(PVM pVM, PSSMHANDLE pSSM)
 {
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -515,34 +524,35 @@ static DECLCALLBACK(int) emR3Save(PVM pVM, PSSMHANDLE pSSM)
  * @returns VBox status code.
  * @param   pVM             VM Handle.
  * @param   pSSM            SSM operation handle.
- * @param   u32Version      Data layout version.
+ * @param   uVersion        Data layout version.
+ * @param   uPass           The data pass.
  */
-static DECLCALLBACK(int) emR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
+static DECLCALLBACK(int) emR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
-    int rc = VINF_SUCCESS;
-
     /*
      * Validate version.
      */
-    if (    u32Version != EM_SAVED_STATE_VERSION
-        &&  u32Version != EM_SAVED_STATE_VERSION_PRE_SMP)
+    if (    uVersion != EM_SAVED_STATE_VERSION
+        &&  uVersion != EM_SAVED_STATE_VERSION_PRE_SMP)
     {
-        AssertMsgFailed(("emR3Load: Invalid version u32Version=%d (current %d)!\n", u32Version, EM_SAVED_STATE_VERSION));
+        AssertMsgFailed(("emR3Load: Invalid version uVersion=%d (current %d)!\n", uVersion, EM_SAVED_STATE_VERSION));
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     }
+    Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
 
     /*
      * Load the saved state.
      */
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
-        rc = SSMR3GetBool(pSSM, &pVCpu->em.s.fForceRAW);
+        int rc = SSMR3GetBool(pSSM, &pVCpu->em.s.fForceRAW);
         if (RT_FAILURE(rc))
             pVCpu->em.s.fForceRAW = false;
+        AssertRCReturn(rc, rc);
 
-        if (u32Version > EM_SAVED_STATE_VERSION_PRE_SMP)
+        if (uVersion > EM_SAVED_STATE_VERSION_PRE_SMP)
         {
             AssertCompile(sizeof(pVCpu->em.s.enmPrevState) == sizeof(uint32_t));
             rc = SSMR3GetU32(pSSM, (uint32_t *)&pVCpu->em.s.enmPrevState);
@@ -553,7 +563,7 @@ static DECLCALLBACK(int) emR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
         }
         Assert(!pVCpu->em.s.pCliStatTree);
     }
-    return rc;
+    return VINF_SUCCESS;
 }
 
 
@@ -580,7 +590,7 @@ VMMR3DECL(void) EMR3FatalError(PVMCPU pVCpu, int rc)
  * @returns pointer to read only state name,
  * @param   enmState    The state.
  */
-VMMR3DECL(const char *) EMR3GetStateName(EMSTATE enmState)
+static const char *emR3GetStateName(EMSTATE enmState)
 {
     switch (enmState)
     {
@@ -1257,7 +1267,20 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
          * EMT Rendezvous (must be serviced before termination).
          */
         if (VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS))
-            VMMR3EmtRendezvousFF(pVM, pVCpu);
+        {
+            rc2 = VMMR3EmtRendezvousFF(pVM, pVCpu);
+            UPDATE_RC();
+            /** @todo HACK ALERT! The following test is to make sure EM+TM things the VM is
+             * stopped/reset before the next VM state change is made. We need a better
+             * solution for this, or at least make it possible to do: (rc >= VINF_EM_FIRST
+             * && rc >= VINF_EM_SUSPEND). */
+            if (RT_UNLIKELY(rc == VINF_EM_SUSPEND || rc == VINF_EM_RESET || rc == VINF_EM_OFF))
+            {
+                Log2(("emR3ForcedActions: returns %Rrc\n", rc));
+                STAM_REL_PROFILE_STOP(&pVCpu->em.s.StatForcedActions, a);
+                return rc;
+            }
+        }
 
         /*
          * Termination request.
@@ -1340,7 +1363,20 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
          * EMT Rendezvous (make sure they are handled before the requests).
          */
         if (VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS))
-            VMMR3EmtRendezvousFF(pVM, pVCpu);
+        {
+            rc2 = VMMR3EmtRendezvousFF(pVM, pVCpu);
+            UPDATE_RC();
+            /** @todo HACK ALERT! The following test is to make sure EM+TM things the VM is
+             * stopped/reset before the next VM state change is made. We need a better
+             * solution for this, or at least make it possible to do: (rc >= VINF_EM_FIRST
+             * && rc >= VINF_EM_SUSPEND). */
+            if (RT_UNLIKELY(rc == VINF_EM_SUSPEND || rc == VINF_EM_RESET || rc == VINF_EM_OFF))
+            {
+                Log2(("emR3ForcedActions: returns %Rrc\n", rc));
+                STAM_REL_PROFILE_STOP(&pVCpu->em.s.StatForcedActions, a);
+                return rc;
+            }
+        }
 
         /*
          * Requests from other threads.
@@ -1348,21 +1384,30 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
         if (VM_FF_IS_PENDING_EXCEPT(pVM, VM_FF_REQUEST, VM_FF_PGM_NO_MEMORY))
         {
             rc2 = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY);
-            Assert(rc2 != VINF_EM_RESET); /* should be per-VCPU */
-            if (rc2 == VINF_EM_OFF || rc2 == VINF_EM_TERMINATE)
+            if (rc2 == VINF_EM_OFF || rc2 == VINF_EM_TERMINATE) /** @todo this shouldn't be necessary */
             {
                 Log2(("emR3ForcedActions: returns %Rrc\n", rc2));
                 STAM_REL_PROFILE_STOP(&pVCpu->em.s.StatForcedActions, a);
                 return rc2;
             }
             UPDATE_RC();
+            /** @todo HACK ALERT! The following test is to make sure EM+TM things the VM is
+             * stopped/reset before the next VM state change is made. We need a better
+             * solution for this, or at least make it possible to do: (rc >= VINF_EM_FIRST
+             * && rc >= VINF_EM_SUSPEND). */
+            if (RT_UNLIKELY(rc == VINF_EM_SUSPEND || rc == VINF_EM_RESET || rc == VINF_EM_OFF))
+            {
+                Log2(("emR3ForcedActions: returns %Rrc\n", rc));
+                STAM_REL_PROFILE_STOP(&pVCpu->em.s.StatForcedActions, a);
+                return rc;
+            }
         }
 
         /* Replay the handler notification changes. */
         if (VM_FF_IS_PENDING_EXCEPT(pVM, VM_FF_REM_HANDLER_NOTIFY, VM_FF_PGM_NO_MEMORY))
         {
             /* Try not to cause deadlocks. */
-            if (    pVM->cCPUs == 1
+            if (    pVM->cCpus == 1
                 ||  (   !PGMIsLockOwner(pVM)
                      && !IOMIsLockOwner(pVM))
                )
@@ -1397,6 +1442,16 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
                 return rc2;
             }
             UPDATE_RC();
+            /** @todo HACK ALERT! The following test is to make sure EM+TM things the VM is
+             * stopped/reset before the next VM state change is made. We need a better
+             * solution for this, or at least make it possible to do: (rc >= VINF_EM_FIRST
+             * && rc >= VINF_EM_SUSPEND). */
+            if (RT_UNLIKELY(rc == VINF_EM_SUSPEND || rc == VINF_EM_RESET || rc == VINF_EM_OFF))
+            {
+                Log2(("emR3ForcedActions: returns %Rrc\n", rc));
+                STAM_REL_PROFILE_STOP(&pVCpu->em.s.StatForcedActions, a);
+                return rc;
+            }
         }
 
         /* check that we got them all  */
@@ -1492,7 +1547,20 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
          * EMT Rendezvous (must be serviced before termination).
          */
         if (VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS))
-            VMMR3EmtRendezvousFF(pVM, pVCpu);
+        {
+            rc2 = VMMR3EmtRendezvousFF(pVM, pVCpu);
+            UPDATE_RC();
+            /** @todo HACK ALERT! The following test is to make sure EM+TM things the VM is
+             * stopped/reset before the next VM state change is made. We need a better
+             * solution for this, or at least make it possible to do: (rc >= VINF_EM_FIRST
+             * && rc >= VINF_EM_SUSPEND). */
+            if (RT_UNLIKELY(rc == VINF_EM_SUSPEND || rc == VINF_EM_RESET || rc == VINF_EM_OFF))
+            {
+                Log2(("emR3ForcedActions: returns %Rrc\n", rc));
+                STAM_REL_PROFILE_STOP(&pVCpu->em.s.StatForcedActions, a);
+                return rc;
+            }
+        }
 
         /*
          * Termination request.
@@ -1579,13 +1647,17 @@ VMMR3DECL(void) EMR3ReleaseOwnedLocks(PVM pVM)
  */
 VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
 {
-    LogFlow(("EMR3ExecuteVM: pVM=%p enmVMState=%d  enmState=%d (%s) fForceRAW=%d\n", pVM, pVM->enmVMState,
-             pVCpu->em.s.enmState, EMR3GetStateName(pVCpu->em.s.enmState), pVCpu->em.s.fForceRAW));
+    Log(("EMR3ExecuteVM: pVM=%p enmVMState=%d (%s)  enmState=%d (%s) enmPrevState=%d (%s) fForceRAW=%RTbool\n",
+         pVM,
+         pVM->enmVMState,          VMR3GetStateName(pVM->enmVMState),
+         pVCpu->em.s.enmState,     emR3GetStateName(pVCpu->em.s.enmState),
+         pVCpu->em.s.enmPrevState, emR3GetStateName(pVCpu->em.s.enmPrevState),
+         pVCpu->em.s.fForceRAW));
     VM_ASSERT_EMT(pVM);
     AssertMsg(   pVCpu->em.s.enmState == EMSTATE_NONE
               || pVCpu->em.s.enmState == EMSTATE_WAIT_SIPI
               || pVCpu->em.s.enmState == EMSTATE_SUSPENDED,
-              ("%s\n", EMR3GetStateName(pVCpu->em.s.enmState)));
+              ("%s\n", emR3GetStateName(pVCpu->em.s.enmState)));
 
     int rc = setjmp(pVCpu->em.s.u.FatalLongJump);
     if (rc == 0)
@@ -1702,7 +1774,7 @@ VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                 case VINF_EM_RESCHEDULE:
                 {
                     EMSTATE enmState = emR3Reschedule(pVM, pVCpu, pVCpu->em.s.pCtx);
-                    Log2(("EMR3ExecuteVM: VINF_EM_RESCHEDULE: %d -> %d (%s)\n", pVCpu->em.s.enmState, enmState, EMR3GetStateName(enmState)));
+                    Log2(("EMR3ExecuteVM: VINF_EM_RESCHEDULE: %d -> %d (%s)\n", pVCpu->em.s.enmState, enmState, emR3GetStateName(enmState)));
                     pVCpu->em.s.enmState = enmState;
                     break;
                 }
@@ -1743,7 +1815,7 @@ VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                     if (pVCpu->idCpu == 0)
                     {
                         EMSTATE enmState = emR3Reschedule(pVM, pVCpu, pVCpu->em.s.pCtx);
-                        Log2(("EMR3ExecuteVM: VINF_EM_RESET: %d -> %d (%s)\n", pVCpu->em.s.enmState, enmState, EMR3GetStateName(enmState)));
+                        Log2(("EMR3ExecuteVM: VINF_EM_RESET: %d -> %d (%s)\n", pVCpu->em.s.enmState, enmState, emR3GetStateName(enmState)));
                         pVCpu->em.s.enmState = enmState;
                     }
                     else
@@ -1781,6 +1853,7 @@ VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                  */
                 case VINF_EM_NO_MEMORY:
                     Log2(("EMR3ExecuteVM: VINF_EM_NO_MEMORY: %d -> %d\n", pVCpu->em.s.enmState, EMSTATE_SUSPENDED));
+                    pVCpu->em.s.enmPrevState = pVCpu->em.s.enmState;
                     pVCpu->em.s.enmState = EMSTATE_SUSPENDED;
                     TMR3NotifySuspend(pVM, pVCpu);
                     STAM_REL_PROFILE_ADV_STOP(&pVCpu->em.s.StatTotal, x);
@@ -1849,8 +1922,8 @@ VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                         AssertMsgFailed(("Unexpected warning or informational status code %Rra!\n", rc));
                         rc = VERR_EM_INTERNAL_ERROR;
                     }
+                    Log(("EMR3ExecuteVM: %Rrc: %d -> %d (EMSTATE_GURU_MEDITATION)\n", rc, pVCpu->em.s.enmState, EMSTATE_GURU_MEDITATION));
                     pVCpu->em.s.enmState = EMSTATE_GURU_MEDITATION;
-                    Log(("EMR3ExecuteVM returns %d\n", rc));
                     break;
             }
 
@@ -1916,6 +1989,7 @@ VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                 case EMSTATE_SUSPENDED:
                     TMR3NotifySuspend(pVM, pVCpu);
                     STAM_REL_PROFILE_ADV_STOP(&pVCpu->em.s.StatTotal, x);
+                    Log(("EMR3ExecuteVM: actually returns %Rrc (state %s / %s)\n", rc, emR3GetStateName(pVCpu->em.s.enmState), emR3GetStateName(pVCpu->em.s.enmPrevState)));
                     return VINF_EM_SUSPEND;
 
                 /*
@@ -1944,6 +2018,7 @@ VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                         /* switch to guru meditation mode */
                         pVCpu->em.s.enmState = EMSTATE_GURU_MEDITATION;
                         VMMR3FatalDump(pVM, pVCpu, rc);
+                        Log(("EMR3ExecuteVM: actually returns %Rrc (state %s / %s)\n", rc, emR3GetStateName(pVCpu->em.s.enmState), emR3GetStateName(pVCpu->em.s.enmPrevState)));
                         return rc;
                     }
 
@@ -1961,6 +2036,7 @@ VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                     VMMR3FatalDump(pVM, pVCpu, rc);
                     emR3Debug(pVM, pVCpu, rc);
                     STAM_REL_PROFILE_ADV_STOP(&pVCpu->em.s.StatTotal, x);
+                    Log(("EMR3ExecuteVM: actually returns %Rrc (state %s / %s)\n", rc, emR3GetStateName(pVCpu->em.s.enmState), emR3GetStateName(pVCpu->em.s.enmPrevState)));
                     return rc;
                 }
 
@@ -1974,6 +2050,7 @@ VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                     pVCpu->em.s.enmState = EMSTATE_GURU_MEDITATION;
                     TMR3NotifySuspend(pVM, pVCpu);
                     STAM_REL_PROFILE_ADV_STOP(&pVCpu->em.s.StatTotal, x);
+                    Log(("EMR3ExecuteVM: actually returns %Rrc (state %s / %s)\n", rc, emR3GetStateName(pVCpu->em.s.enmState), emR3GetStateName(pVCpu->em.s.enmPrevState)));
                     return VERR_EM_INTERNAL_ERROR;
             }
         } /* The Outer Main Loop */
@@ -1983,7 +2060,7 @@ VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
         /*
          * Fatal error.
          */
-        LogFlow(("EMR3ExecuteVM: returns %Rrc (longjmp / fatal error)\n", rc));
+        Log(("EMR3ExecuteVM: returns %Rrc because of longjmp / fatal error; (state %s / %s)\n", rc, emR3GetStateName(pVCpu->em.s.enmState), emR3GetStateName(pVCpu->em.s.enmPrevState)));
         TMR3NotifySuspend(pVM, pVCpu);
         VMMR3FatalDump(pVM, pVCpu, rc);
         emR3Debug(pVM, pVCpu, rc);

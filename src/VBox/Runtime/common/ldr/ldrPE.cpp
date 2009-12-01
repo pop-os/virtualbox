@@ -1,4 +1,4 @@
-/* $Id: ldrPE.cpp $ */
+/* $Id: ldrPE.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Binary Image Loader, Portable Executable (PE).
  */
@@ -34,6 +34,8 @@
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_LDR
 #include <iprt/ldr.h>
+#include "internal/iprt.h"
+
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
 #include <iprt/log.h>

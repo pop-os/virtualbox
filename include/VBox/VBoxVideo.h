@@ -1,5 +1,5 @@
 /** @file
- * VirtualBox Video interface
+ * VirtualBox Video interface.
  */
 
 /*
@@ -32,6 +32,10 @@
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
+
+#ifdef VBOX_WITH_HGSMI
+#include <VBox/VMMDev.h>
+#endif /* VBOX_WITH_HGSMI */
 
 /*
  * The last 4096 bytes of the guest VRAM contains the generic info for all
@@ -94,8 +98,8 @@
  * runtime heapsimple API. Use minimum 2 pages here, because the info area also may
  * contain other data (for example HGSMIHOSTFLAGS structure).
  */
-#define VBVA_ADAPTER_INFORMATION_SIZE  (8*_1K)
-#define VBVA_DISPLAY_INFORMATION_SIZE  (8*_1K)
+#define VBVA_ADAPTER_INFORMATION_SIZE  (16*_1K)
+#define VBVA_DISPLAY_INFORMATION_SIZE  (64*_1K)
 #define VBVA_MIN_BUFFER_SIZE           (64*_1K)
 #endif /* VBOX_WITH_HGSMI */
 
@@ -254,6 +258,11 @@ typedef struct _VBOXVIDEOINFOQUERYCONF32
 # ifdef VBOX_WITH_VIDEOHWACCEL
 #pragma pack(1)
 
+#define VBOXVHWA_VERSION_MAJ 0
+#define VBOXVHWA_VERSION_MIN 0
+#define VBOXVHWA_VERSION_BLD 6
+#define VBOXVHWA_VERSION_RSV 0
+
 typedef enum
 {
     VBOXVHWACMD_TYPE_SURF_CANCREATE = 1,
@@ -265,18 +274,30 @@ typedef enum
     VBOXVHWACMD_TYPE_SURF_FLIP,
     VBOXVHWACMD_TYPE_SURF_OVERLAY_UPDATE,
     VBOXVHWACMD_TYPE_SURF_OVERLAY_SETPOSITION,
+    VBOXVHWACMD_TYPE_SURF_COLORKEY_SET,
     VBOXVHWACMD_TYPE_QUERY_INFO1,
     VBOXVHWACMD_TYPE_QUERY_INFO2,
     VBOXVHWACMD_TYPE_ENABLE,
-    VBOXVHWACMD_TYPE_DISABLE
+    VBOXVHWACMD_TYPE_DISABLE,
+    VBOXVHWACMD_TYPE_HH_CONSTRUCT,
+    VBOXVHWACMD_TYPE_HH_RESET
 } VBOXVHWACMD_TYPE;
 
 /* the command processing was asynch, set by the host to indicate asynch command completion
  * must not be cleared once set, the command completion is performed by issuing a host->guest completion command
  * while keeping this flag unchanged */
-#define VBOXVHWACMD_FLAG_ASYNCH      0x00000001
+#define VBOXVHWACMD_FLAG_HG_ASYNCH               0x00010000
 /* asynch completion is performed by issuing the event */
-#define VBOXVHWACMD_FLAG_ASYNCH_EVENT 0x00000002
+#define VBOXVHWACMD_FLAG_GH_ASYNCH_EVENT         0x00000001
+/* issue interrupt on asynch completion */
+#define VBOXVHWACMD_FLAG_GH_ASYNCH_IRQ           0x00000002
+/* guest does not do any op on completion of this command, the host may copy the command and indicate that it does not need the command anymore
+ * by setting the VBOXVHWACMD_FLAG_HG_ASYNCH_RETURNED flag */
+#define VBOXVHWACMD_FLAG_GH_ASYNCH_NOCOMPLETION  0x00000004
+/* the host has copied the VBOXVHWACMD_FLAG_GH_ASYNCH_NOCOMPLETION command and returned it to the guest */
+#define VBOXVHWACMD_FLAG_HG_ASYNCH_RETURNED      0x00020000
+/* this is the host->host cmd, i.e. a configuration command posted by the host to the framebuffer */
+#define VBOXVHWACMD_FLAG_HH_CMD                  0x10000000
 
 typedef struct _VBOXVHWACMD
 {
@@ -286,6 +307,8 @@ typedef struct _VBOXVHWACMD
     volatile int32_t Flags; /* ored VBOXVHWACMD_FLAG_xxx values */
     uint64_t GuestVBVAReserved1; /* field internally used by the guest VBVA cmd handling, must NOT be modified by clients */
     uint64_t GuestVBVAReserved2; /* field internally used by the guest VBVA cmd handling, must NOT be modified by clients */
+    volatile uint32_t cRefs;
+    int32_t Reserved;
     union
     {
         struct _VBOXVHWACMD *pNext;
@@ -296,19 +319,20 @@ typedef struct _VBOXVHWACMD
 } VBOXVHWACMD;
 
 #define VBOXVHWACMD_HEADSIZE() (RT_OFFSETOF(VBOXVHWACMD, body))
-#define VBOXVHWACMD_SIZE(_tCmd) (VBOXVHWACMD_HEADSIZE() + sizeof(_tCmd))
+#define VBOXVHWACMD_SIZE_FROMBODYSIZE(_s) (VBOXVHWACMD_HEADSIZE() + (_s))
+#define VBOXVHWACMD_SIZE(_tCmd) (VBOXVHWACMD_SIZE_FROMBODYSIZE(sizeof(_tCmd)))
 typedef unsigned int VBOXVHWACMD_LENGTH;
 typedef uint64_t VBOXVHWA_SURFHANDLE;
-#define VBOXVHWACMD_SURFHANDLE_INVALID 0
+#define VBOXVHWA_SURFHANDLE_INVALID 0
 #define VBOXVHWACMD_BODY(_p, _t) ((_t*)(_p)->body)
 #define VBOXVHWACMD_HEAD(_pb) ((VBOXVHWACMD*)((uint8_t *)(_pb) - RT_OFFSETOF(VBOXVHWACMD, body)))
 
 typedef struct _VBOXVHWA_RECTL
 {
-    int32_t x;
-    int32_t y;
-    uint32_t w;
-    uint32_t h;
+    int32_t left;
+    int32_t top;
+    int32_t right;
+    int32_t bottom;
 } VBOXVHWA_RECTL;
 
 typedef struct _VBOXVHWA_COLORKEY
@@ -344,6 +368,13 @@ typedef struct _VBOXVHWA_PIXELFORMAT
         uint32_t rgbBBitMask;
         uint32_t yuvVBitMask;
     } m3;
+
+    union
+    {
+        uint32_t rgbABitMask;
+    } m4;
+
+    uint32_t Reserved;
 } VBOXVHWA_PIXELFORMAT;
 
 typedef struct _VBOXVHWA_SURFACEDESC
@@ -352,8 +383,10 @@ typedef struct _VBOXVHWA_SURFACEDESC
     uint32_t height;
     uint32_t width;
     uint32_t pitch;
+    uint32_t sizeX;
+    uint32_t sizeY;
     uint32_t cBackBuffers;
-    uint32_t Reserved1;
+    uint32_t Reserved;
     VBOXVHWA_COLORKEY DstOverlayCK;
     VBOXVHWA_COLORKEY DstBltCK;
     VBOXVHWA_COLORKEY SrcOverlayCK;
@@ -361,6 +394,8 @@ typedef struct _VBOXVHWA_SURFACEDESC
     VBOXVHWA_PIXELFORMAT PixelFormat;
     uint32_t surfCaps;
     uint32_t Reserved2;
+    VBOXVHWA_SURFHANDLE hSurf;
+    uint64_t offSurface;
 } VBOXVHWA_SURFACEDESC;
 
 typedef struct _VBOXVHWA_BLTFX
@@ -379,57 +414,58 @@ typedef struct _VBOXVHWA_OVERLAYFX
 {
     uint32_t flags;
     uint32_t Reserved1;
-    uint32_t rotationOp;
+    uint32_t fxFlags;
     uint32_t Reserved2;
     VBOXVHWA_COLORKEY DstCK;
     VBOXVHWA_COLORKEY SrcCK;
 } VBOXVHWA_OVERLAYFX;
 
-#define VBOXVHWA_CAPS_BLT             0x00000001
-#define VBOXVHWA_CAPS_BLTCOLORFILL    0x00000002
-#define VBOXVHWA_CAPS_BLTFOURCC       0x00000004
-#define VBOXVHWA_CAPS_BLTSTRETCH      0x00000008
-#define VBOXVHWA_CAPS_BLTQUEUE        0x00000010
+#define VBOXVHWA_CAPS_BLT               0x00000040
+#define VBOXVHWA_CAPS_BLTCOLORFILL      0x04000000
+#define VBOXVHWA_CAPS_BLTFOURCC         0x00000100
+#define VBOXVHWA_CAPS_BLTSTRETCH        0x00000200
+#define VBOXVHWA_CAPS_BLTQUEUE          0x00000080
 
-#define VBOXVHWA_CAPS_OVERLAY         0x00000100
-#define VBOXVHWA_CAPS_OVERLAYFOURCC   0x00000200
-#define VBOXVHWA_CAPS_OVERLAYSTRETCH  0x00000400
+#define VBOXVHWA_CAPS_OVERLAY           0x00000800
+#define VBOXVHWA_CAPS_OVERLAYFOURCC     0x00002000
+#define VBOXVHWA_CAPS_OVERLAYSTRETCH    0x00004000
+#define VBOXVHWA_CAPS_OVERLAYCANTCLIP   0x00001000
 
-#define VBOXVHWA_CAPS_COLORKEY        0x00010000
-#define VBOXVHWA_CAPS_COLORKEYHWASSIST         0x00020000
+#define VBOXVHWA_CAPS_COLORKEY          0x00400000
+#define VBOXVHWA_CAPS_COLORKEYHWASSIST  0x01000000
 
+#define VBOXVHWA_SCAPS_BACKBUFFER       0x00000004
+#define VBOXVHWA_SCAPS_COMPLEX          0x00000008
+#define VBOXVHWA_SCAPS_FLIP             0x00000010
+#define VBOXVHWA_SCAPS_FRONTBUFFER      0x00000020
+#define VBOXVHWA_SCAPS_OFFSCREENPLAIN   0x00000040
+#define VBOXVHWA_SCAPS_OVERLAY          0x00000080
+#define VBOXVHWA_SCAPS_PRIMARYSURFACE   0x00000200
+#define VBOXVHWA_SCAPS_SYSTEMMEMORY     0x00000800
+#define VBOXVHWA_SCAPS_VIDEOMEMORY      0x00004000
+#define VBOXVHWA_SCAPS_VISIBLE          0x00008000
+#define VBOXVHWA_SCAPS_LOCALVIDMEM      0x10000000
 
-#define VBOXVHWA_CAPS2_COPYFOURCC   0x00000001
+#define VBOXVHWA_PF_RGB                 0x00000040
+#define VBOXVHWA_PF_RGBTOYUV            0x00000100
+#define VBOXVHWA_PF_YUV                 0x00000200
+#define VBOXVHWA_PF_FOURCC              0x00000004
 
-#define VBOXVHWA_SCAPS_FLIP             0x00000001
-#define VBOXVHWA_SCAPS_PRIMARYSURFACE   0x00000002
-#define VBOXVHWA_SCAPS_OFFSCREENPLAIN   0x00000004
-#define VBOXVHWA_SCAPS_OVERLAY          0x00000008
-#define VBOXVHWA_SCAPS_VISIBLE          0x00000010
-#define VBOXVHWA_SCAPS_VIDEOMEMORY      0x00000020
-#define VBOXVHWA_SCAPS_LOCALVIDMEM      0x00000040
-
-
-#define VBOXVHWA_PF_RGB                 0x00000001
-#define VBOXVHWA_PF_RGBTOYUV            0x00000002
-#define VBOXVHWA_PF_YUV                 0x00000008
-#define VBOXVHWA_PF_FOURCC              0x00000010
-
-#define VBOXVHWA_LOCK_DISCARDCONTENTS   0x00000001
+#define VBOXVHWA_LOCK_DISCARDCONTENTS   0x00002000
 
 #define VBOXVHWA_CFG_ENABLED            0x00000001
 
-#define VBOXVHWA_SD_BACKBUFFERCOUNT     0x00000001
-#define VBOXVHWA_SD_CAPS                0x00000002
-#define VBOXVHWA_SD_CKDESTBLT           0x00000004
-#define VBOXVHWA_SD_CKDESTOVERLAY       0x00000008
-#define VBOXVHWA_SD_CKSRCBLT            0x00000010
-#define VBOXVHWA_SD_CKSRCOVERLAY        0x00000020
-#define VBOXVHWA_SD_HEIGHT              0x00000040
-#define VBOXVHWA_SD_PITCH               0x00000080
-#define VBOXVHWA_SD_PIXELFORMAT         0x00000100
-//#define VBOXVHWA_SD_REFRESHRATE       0x00000200
-#define VBOXVHWA_SD_WIDTH               0x00000400
+#define VBOXVHWA_SD_BACKBUFFERCOUNT     0x00000020
+#define VBOXVHWA_SD_CAPS                0x00000001
+#define VBOXVHWA_SD_CKDESTBLT           0x00004000
+#define VBOXVHWA_SD_CKDESTOVERLAY       0x00002000
+#define VBOXVHWA_SD_CKSRCBLT            0x00010000
+#define VBOXVHWA_SD_CKSRCOVERLAY        0x00008000
+#define VBOXVHWA_SD_HEIGHT              0x00000002
+#define VBOXVHWA_SD_PITCH               0x00000008
+#define VBOXVHWA_SD_PIXELFORMAT         0x00001000
+//#define VBOXVHWA_SD_REFRESHRATE       0x00040000
+#define VBOXVHWA_SD_WIDTH               0x00000004
 
 #define VBOXVHWA_CKEYCAPS_DESTBLT                  0x00000001
 #define VBOXVHWA_CKEYCAPS_DESTBLTCLRSPACE          0x00000002
@@ -440,17 +476,16 @@ typedef struct _VBOXVHWA_OVERLAYFX
 #define VBOXVHWA_CKEYCAPS_DESTOVERLAYCLRSPACEYUV   0x00000040
 #define VBOXVHWA_CKEYCAPS_DESTOVERLAYONEACTIVE     0x00000080
 #define VBOXVHWA_CKEYCAPS_DESTOVERLAYYUV           0x00000100
-#define VBOXVHWA_CKEYCAPS_NOCOSTOVERLAY            0x00000200
-#define VBOXVHWA_CKEYCAPS_SRCBLT                   0x00000400
-#define VBOXVHWA_CKEYCAPS_SRCBLTCLRSPACE           0x00000800
-#define VBOXVHWA_CKEYCAPS_SRCBLTCLRSPACEYUV        0x00001000
-#define VBOXVHWA_CKEYCAPS_SRCBLTYUV                0x00002000
-#define VBOXVHWA_CKEYCAPS_SRCOVERLAY               0x00004000
-#define VBOXVHWA_CKEYCAPS_SRCOVERLAYCLRSPACE       0x00008000
-#define VBOXVHWA_CKEYCAPS_SRCOVERLAYCLRSPACEYUV    0x00010000
-#define VBOXVHWA_CKEYCAPS_SRCOVERLAYONEACTIVE      0x00020000
-#define VBOXVHWA_CKEYCAPS_SRCOVERLAYYUV            0x00040000
-
+#define VBOXVHWA_CKEYCAPS_SRCBLT                   0x00000200
+#define VBOXVHWA_CKEYCAPS_SRCBLTCLRSPACE           0x00000400
+#define VBOXVHWA_CKEYCAPS_SRCBLTCLRSPACEYUV        0x00000800
+#define VBOXVHWA_CKEYCAPS_SRCBLTYUV                0x00001000
+#define VBOXVHWA_CKEYCAPS_SRCOVERLAY               0x00002000
+#define VBOXVHWA_CKEYCAPS_SRCOVERLAYCLRSPACE       0x00004000
+#define VBOXVHWA_CKEYCAPS_SRCOVERLAYCLRSPACEYUV    0x00008000
+#define VBOXVHWA_CKEYCAPS_SRCOVERLAYONEACTIVE      0x00010000
+#define VBOXVHWA_CKEYCAPS_SRCOVERLAYYUV            0x00020000
+#define VBOXVHWA_CKEYCAPS_NOCOSTOVERLAY            0x00040000
 
 #define VBOXVHWA_BLT_COLORFILL                      0x00000400
 #define VBOXVHWA_BLT_DDFX                           0x00000800
@@ -464,20 +499,72 @@ typedef struct _VBOXVHWA_OVERLAYFX
 #define VBOXVHWA_BLT_ROP                            0x00020000
 
 
+#define VBOXVHWA_OVER_DDFX                          0x00080000
+#define VBOXVHWA_OVER_HIDE                          0x00000200
+#define VBOXVHWA_OVER_KEYDEST                       0x00000400
+#define VBOXVHWA_OVER_KEYDESTOVERRIDE               0x00000800
+#define VBOXVHWA_OVER_KEYSRC                        0x00001000
+#define VBOXVHWA_OVER_KEYSRCOVERRIDE                0x00002000
+#define VBOXVHWA_OVER_SHOW                          0x00004000
+
+#define VBOXVHWA_CKEY_COLORSPACE                    0x00000001
+#define VBOXVHWA_CKEY_DESTBLT                       0x00000002
+#define VBOXVHWA_CKEY_DESTOVERLAY                   0x00000004
+#define VBOXVHWA_CKEY_SRCBLT                        0x00000008
+#define VBOXVHWA_CKEY_SRCOVERLAY                    0x00000010
+
+#define VBOXVHWA_BLT_ARITHSTRETCHY                  0x00000001
+#define VBOXVHWA_BLT_MIRRORLEFTRIGHT                0x00000002
+#define VBOXVHWA_BLT_MIRRORUPDOWN                   0x00000004
+
+#define VBOXVHWA_OVERFX_ARITHSTRETCHY               0x00000001
+#define VBOXVHWA_OVERFX_MIRRORLEFTRIGHT             0x00000002
+#define VBOXVHWA_OVERFX_MIRRORUPDOWN                0x00000004
+
+#define VBOXVHWA_CAPS2_CANRENDERWINDOWED            0x00080000
+#define VBOXVHWA_CAPS2_WIDESURFACES                 0x00001000
+#define VBOXVHWA_CAPS2_COPYFOURCC                   0x00008000
+//#define VBOXVHWA_CAPS2_FLIPINTERVAL                 0x00200000
+//#define VBOXVHWA_CAPS2_FLIPNOVSYNC                  0x00400000
 
 
-#define VBOXVHWA_OFFSET64_VOID        (~0L)
+#define VBOXVHWA_OFFSET64_VOID        (UINT64_MAX)
+
+typedef struct _VBOXVHWA_VERSION
+{
+    uint32_t maj;
+    uint32_t min;
+    uint32_t bld;
+    uint32_t reserved;
+} VBOXVHWA_VERSION;
 
 typedef struct _VBOXVHWACMD_QUERYINFO1
 {
-    uint32_t cfgFlags;
-    uint32_t caps;
-    uint32_t colorKeyCaps;
-    uint32_t stretchCaps;
-    uint32_t surfaceCaps;
-    uint32_t numOverlays;
-    uint32_t numFourCC;
+    union
+    {
+        struct
+        {
+            VBOXVHWA_VERSION guestVersion;
+        } in;
 
+        struct
+        {
+            uint32_t cfgFlags;
+            uint32_t caps;
+
+            uint32_t caps2;
+            uint32_t colorKeyCaps;
+
+            uint32_t stretchCaps;
+            uint32_t surfaceCaps;
+
+            uint32_t numOverlays;
+            uint32_t curOverlays;
+
+            uint32_t numFourCC;
+            uint32_t reserved;
+        } out;
+    } u;
 } VBOXVHWACMD_QUERYINFO1;
 
 typedef struct _VBOXVHWACMD_QUERYINFO2
@@ -486,41 +573,29 @@ typedef struct _VBOXVHWACMD_QUERYINFO2
     uint32_t FourCC[1];
 } VBOXVHWACMD_QUERYINFO2;
 
-#define VBOXVHWAINFO2_SIZE(_cFourCC) RT_OFFSETOF(VBOXVHWAINFO2, FourCC[_cFourCC])
+#define VBOXVHWAINFO2_SIZE(_cFourCC) RT_OFFSETOF(VBOXVHWACMD_QUERYINFO2, FourCC[_cFourCC])
 
 typedef struct _VBOXVHWACMD_SURF_CANCREATE
 {
+    VBOXVHWA_SURFACEDESC SurfInfo;
     union
     {
         struct
         {
-            VBOXVHWA_SURFACEDESC SurfInfo;
             uint32_t bIsDifferentPixelFormat;
             uint32_t Reserved;
         } in;
 
         struct
         {
-            uint32_t ErrInfo;
+            int32_t ErrInfo;
         } out;
     } u;
 } VBOXVHWACMD_SURF_CANCREATE;
 
 typedef struct _VBOXVHWACMD_SURF_CREATE
 {
-    union
-    {
-        struct
-        {
-            VBOXVHWA_SURFACEDESC SurfInfo;
-            uint64_t offSurface;
-        } in;
-
-        struct
-        {
-            VBOXVHWA_SURFHANDLE hSurf;
-        } out;
-    } u;
+    VBOXVHWA_SURFACEDESC SurfInfo;
 } VBOXVHWACMD_SURF_CREATE;
 
 typedef struct _VBOXVHWACMD_SURF_DESTROY
@@ -556,6 +631,9 @@ typedef struct _VBOXVHWACMD_SURF_UNLOCK
         struct
         {
             VBOXVHWA_SURFHANDLE hSurf;
+            uint32_t xUpdatedMemValid;
+            uint32_t reserved;
+            VBOXVHWA_RECTL xUpdatedMemRect;
         } in;
     } u;
 } VBOXVHWACMD_SURF_UNLOCK;
@@ -575,11 +653,46 @@ typedef struct _VBOXVHWACMD_SURF_BLT
             uint64_t offSrcSurface;
             VBOXVHWA_RECTL srcRect;
             uint32_t flags;
-            uint32_t reserved;
+            uint32_t xUpdatedSrcMemValid;
             VBOXVHWA_BLTFX desc;
+            VBOXVHWA_RECTL xUpdatedSrcMemRect;
         } in;
     } u;
 } VBOXVHWACMD_SURF_BLT;
+
+typedef struct _VBOXVHWACMD_SURF_FLIP
+{
+    uint64_t TargGuestSurfInfo;
+    uint64_t CurrGuestSurfInfo;
+    union
+    {
+        struct
+        {
+            VBOXVHWA_SURFHANDLE hTargSurf;
+            uint64_t offTargSurface;
+            VBOXVHWA_SURFHANDLE hCurrSurf;
+            uint64_t offCurrSurface;
+            uint32_t flags;
+            uint32_t xUpdatedTargMemValid;
+            VBOXVHWA_RECTL xUpdatedTargMemRect;
+        } in;
+    } u;
+} VBOXVHWACMD_SURF_FLIP;
+
+typedef struct _VBOXVHWACMD_SURF_COLORKEY_SET
+{
+    union
+    {
+        struct
+        {
+            VBOXVHWA_SURFHANDLE hSurf;
+            uint64_t offSurface;
+            VBOXVHWA_COLORKEY CKey;
+            uint32_t flags;
+            uint32_t reserved;
+        } in;
+    } u;
+} VBOXVHWACMD_SURF_COLORKEY_SET;
 
 typedef struct _VBOXVHWACMD_SURF_OVERLAY_UPDATE
 {
@@ -594,8 +707,9 @@ typedef struct _VBOXVHWACMD_SURF_OVERLAY_UPDATE
             uint64_t offSrcSurface;
             VBOXVHWA_RECTL srcRect;
             uint32_t flags;
-            uint32_t reserved;
+            uint32_t xUpdatedSrcMemValid;
             VBOXVHWA_OVERLAYFX desc;
+            VBOXVHWA_RECTL xUpdatedSrcMemRect;
         } in;
     } u;
 }VBOXVHWACMD_SURF_OVERLAY_UPDATE;
@@ -618,6 +732,23 @@ typedef struct _VBOXVHWACMD_SURF_OVERLAY_SETPOSITION
     } u;
 } VBOXVHWACMD_SURF_OVERLAY_SETPOSITION;
 
+typedef struct _VBOXVHWACMD_HH_CONSTRUCT
+{
+    void * pVM;
+} VBOXVHWACMD_HH_CONSTRUCT;
+
+typedef DECLCALLBACK(void) FNVBOXVHWA_HH_CALLBACK(void*);
+typedef FNVBOXVHWA_HH_CALLBACK *PFNVBOXVHWA_HH_CALLBACK;
+
+#define VBOXVHWA_HH_CALLBACK_SET(_pCmd, _pfn, _parg) \
+    do { \
+        (_pCmd)->GuestVBVAReserved1 = (uint64_t)(_pfn); \
+        (_pCmd)->GuestVBVAReserved2 = (uint64_t)(_parg); \
+    }while(0)
+
+#define VBOXVHWA_HH_CALLBACK_GET(_pCmd) ((PFNVBOXVHWA_HH_CALLBACK)(_pCmd)->GuestVBVAReserved1)
+#define VBOXVHWA_HH_CALLBACK_GET_ARG(_pCmd) ((void*)(_pCmd)->GuestVBVAReserved2)
+
 #pragma pack()
 # endif /* #ifdef VBOX_WITH_VIDEOHWACCEL */
 
@@ -626,10 +757,15 @@ typedef struct _VBOXVHWACMD_SURF_OVERLAY_SETPOSITION
 /* All structures are without alignment. */
 #pragma pack(1)
 
-typedef struct _VBVABUFFER
+typedef struct VBVAHOSTFLAGS
 {
     uint32_t u32HostEvents;
     uint32_t u32SupportedOrders;
+} VBVAHOSTFLAGS;
+
+typedef struct _VBVABUFFER
+{
+    VBVAHOSTFLAGS hostFlags;
 
     /* The offset where the data start in the buffer. */
     uint32_t off32Data;
@@ -719,7 +855,7 @@ typedef struct _VBVACONF32
     uint32_t u32Value;
 } VBVACONF32;
 
-typedef struct _VBVAINFOVIEW
+typedef struct VBVAINFOVIEW
 {
     /* Index of the screen, assigned by the guest. */
     uint32_t u32ViewIndex;
@@ -754,7 +890,7 @@ typedef struct _VBVAFLUSH
 #define VBVA_SCREEN_F_NONE   0x0000
 #define VBVA_SCREEN_F_ACTIVE 0x0001
 
-typedef struct _VBVAINFOSCREEN
+typedef struct VBVAINFOSCREEN
 {
     /* Which view contains the screen. */
     uint32_t u32ViewIndex;
@@ -764,6 +900,9 @@ typedef struct _VBVAINFOSCREEN
 
     /* Physical Y origin relative to the primary screen. */
     int32_t i32OriginY;
+
+    /* Offset of visible framebuffer relative to the framebuffer start. */
+    uint32_t u32StartOffset;
 
     /* The scan line size in bytes. */
     uint32_t u32LineSize;
@@ -791,13 +930,14 @@ typedef struct _VBVAENABLE
 {
     uint32_t u32Flags;
     uint32_t u32Offset;
+    int32_t  i32Result;
 
 } VBVAENABLE;
 
 typedef struct _VBVAMOUSEPOINTERSHAPE
 {
     /* The host result. */
-    uint32_t u32Result;
+    int32_t i32Result;
 
     /* VBOX_MOUSE_POINTER_* bit flags. */
     uint32_t fu32Flags;

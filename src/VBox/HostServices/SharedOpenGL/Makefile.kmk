@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 23452 2009-09-30 20:33:08Z vboxsync $
 ## @file
 # Sub-Makefile for the VirtualBox HGCM Service.
 #
@@ -51,6 +51,7 @@ endif # darwin
 VBoxSharedCrOpenGL_TEMPLATE = VBOXCROGLR3HOSTDLL
 ifdef VBOX_WITH_XPCOM
  VBoxSharedCrOpenGL_DEFS = VBOX_WITH_XPCOM
+ VBoxSharedCrOpenGL_CXXFLAGS = -Wno-non-virtual-dtor
 endif
 VBoxSharedCrOpenGL_INTERMEDIATES = \
 	$(TEMPLATE_VBOXMAINEXE_INTERMEDIATES)
@@ -126,6 +127,8 @@ VBoxOGLcrserverlib_SOURCES := \
 	crserverlib/server_winpos.c \
 	crserverlib/server_writeback.c \
 	crserverlib/server_getshaders.c \
+	crserverlib/server_framebuffer.c \
+	crserverlib/server_glsl.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_dispatch.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_retval.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_get.c \
@@ -140,11 +143,11 @@ VBoxOGLcrserverlib_CLEAN = \
 #
 # Generate files for VBoxOGLcrserverlib
 #
-$(VBOX_PATH_CROGL_GENFILES)/server_dispatch.h: $(addprefix $(PATH_SUB_CURRENT)/crserverlib/, server_dispatch_header.py server_special) $(VBOX_CROGL_API_FILES) | $$(dir $$@)
+$(VBOX_PATH_CROGL_GENFILES)/server_dispatch.h: $(addprefix $(PATH_SUB_CURRENT)/crserverlib/, server_dispatch_header.py server_special) $(VBOX_CROGL_API_FILES) $(PATH_ROOT)/src/VBox/GuestHost/OpenGL/state_tracker/state_special | $$(dir $$@)
 	$(call MSG_GENERATE,python,$@,$<)
 	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
 
-$(VBOX_PATH_CROGL_GENFILES)/server_dispatch.c: $(addprefix $(PATH_SUB_CURRENT)/crserverlib/, server_dispatch.py server_special) $(VBOX_CROGL_API_FILES) | $$(dir $$@)
+$(VBOX_PATH_CROGL_GENFILES)/server_dispatch.c: $(addprefix $(PATH_SUB_CURRENT)/crserverlib/, server_dispatch.py server_special) $(VBOX_CROGL_API_FILES) $(PATH_ROOT)/src/VBox/GuestHost/OpenGL/state_tracker/state_special | $$(dir $$@)
 	$(call MSG_GENERATE,python,$@,$<)
 	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
 
@@ -170,7 +173,9 @@ VBoxOGLcrunpacker_INCS           = \
 VBoxOGLcrunpacker_INTERMEDIATES  = \
 	$(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h \
 	$(VBOX_PATH_CROGL_GENFILES)/cr_opcodes.h \
-	$(VBOX_PATH_CROGL_GENFILES)/unpack_extend.h
+	$(VBOX_PATH_CROGL_GENFILES)/unpack_extend.h \
+	$(VBOX_PATH_CROGL_GENFILES)/state/cr_currentpointers.h \
+	$(VBOX_PATH_CROGL_GENFILES)/state/cr_statefuncs.h
 VBoxOGLcrunpacker_SOURCES  = \
 	unpacker/unpack_arrays.c \
 	unpacker/unpack_bounds.c \
@@ -196,6 +201,7 @@ VBoxOGLcrunpacker_SOURCES  = \
 	unpacker/unpack_writeback.c \
 	unpacker/unpack_visibleregion.c \
 	unpacker/unpack_shaders.c \
+	unpacker/unpack_framebuffer.c \
 	$(VBOX_PATH_CROGL_GENFILES)/unpack.c
 VBoxOGLcrunpacker_CLEAN = \
 	$(VBOX_PATH_CROGL_GENFILES)/unpack.c \
@@ -228,7 +234,13 @@ VBoxOGLrenderspu_SOURCES.win     = render/renderspu_wgl.c render/render.def
 VBoxOGLrenderspu_SOURCES.linux   = render/renderspu_glx.c
 VBoxOGLrenderspu_SOURCES.solaris = render/renderspu_glx.c
 VBoxOGLrenderspu_SOURCES.freebsd = render/renderspu_glx.c
-VBoxOGLrenderspu_SOURCES.darwin  = render/renderspu_agl.c
+ifdef VBOX_WITH_COCOA_QT
+ VBoxOGLrenderspu_SOURCES.darwin = \
+    render/renderspu_cocoa.c \
+    render/renderspu_cocoa_helper.m
+else
+ VBoxOGLrenderspu_SOURCES.darwin = render/renderspu_agl.c
+endif
 VBoxOGLrenderspu_LDFLAGS.darwin += -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxOGLrenderspu.dylib
 VBoxOGLrenderspu_LIBS = \
 	$(PATH_LIB)/VBoxOGLhostspuload$(VBOX_SUFF_LIB) \

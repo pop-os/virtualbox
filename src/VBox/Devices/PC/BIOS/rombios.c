@@ -1,5 +1,5 @@
 /////////////////////////////////////////////////////////////////////////
-// $Id: rombios.c $
+// $Id: rombios.c,v 1.176 2006/12/30 17:13:17 vruppert Exp $
 /////////////////////////////////////////////////////////////////////////
 //
 //  Copyright (C) 2002  MandrakeSoft S.A.
@@ -10039,6 +10039,7 @@ pci_present:
 pci_real_f02: ;; find pci device
   push esi
   push edi
+  push edx
   cmp al, #0x02
   jne pci_real_f03
   shl ecx, #16
@@ -10081,8 +10082,6 @@ pci_real_nextdev2:
   inc ebx
   cmp ebx, #0x10000
   jne pci_real_devloop2
-  mov dx, cx
-  shr ecx, #16
   mov ax, #0x8603
   jmp pci_real_fail
 pci_real_f08: ;; read configuration byte
@@ -10196,17 +10195,23 @@ pci_real_too_small:
 pci_real_unknown:
   mov ah, #0x81
 pci_real_fail:
+  pop edx
   pop edi
   pop esi
   stc
   ret
 pci_real_ok:
   xor ah, ah
+  pop edx
   pop edi
   pop esi
   clc
   ret
 
+;; prepare from reading the PCI config space; on input:
+;; bx = bus/dev/fn
+;; di = offset into config space header
+;; destroys eax and may modify di
 pci_real_select_reg:
   push dx
   mov eax, #0x800000

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,55 +20,84 @@
  * additional information or have any questions.
  */
 
+/* Global includes */
+#include <QDateTime>
+#include <QHeaderView>
+#include <QMenu>
+#include <QScrollBar>
+
+/* Local includes */
 #include <VBoxSnapshotsWgt.h>
 #include <VBoxProblemReporter.h>
 #include <VBoxSnapshotDetailsDlg.h>
 #include <VBoxTakeSnapshotDlg.h>
 #include <VBoxToolBar.h>
 
-/* Qt includes */
-#include <QMenu>
-#include <QHeaderView>
-#include <QScrollBar>
-#include <QDateTime>
-
-/** QListViewItem subclass for snapshots items */
+/**
+ *  QTreeWidgetItem subclass for snapshots items
+ */
 class SnapshotWgtItem : public QTreeWidgetItem
 {
 public:
 
-    /** Normal snapshot item */
+    enum { ItemType = QTreeWidgetItem::UserType + 1 };
+
+    /* Normal snapshot item (child of tree-widget) */
     SnapshotWgtItem (QTreeWidget *aTreeWidget, const CSnapshot &aSnapshot)
-        : QTreeWidgetItem (aTreeWidget)
+        : QTreeWidgetItem (aTreeWidget, ItemType)
+        , mIsCurrentState (false)
         , mSnapshot (aSnapshot)
     {
-        recache();
     }
 
-    /** Normal snapshot item */
+    /* Normal snapshot item (child of tree-widget-item) */
     SnapshotWgtItem (QTreeWidgetItem *aRootItem, const CSnapshot &aSnapshot)
-        : QTreeWidgetItem (aRootItem)
+        : QTreeWidgetItem (aRootItem, ItemType)
+        , mIsCurrentState (false)
         , mSnapshot (aSnapshot)
     {
-        recache();
     }
 
-    /** Current state item */
+    /* Current state item (child of tree-widget) */
     SnapshotWgtItem (QTreeWidget *aTreeWidget, const CMachine &aMachine)
-        : QTreeWidgetItem (aTreeWidget)
+        : QTreeWidgetItem (aTreeWidget, ItemType)
+        , mIsCurrentState (true)
         , mMachine (aMachine)
     {
         updateCurrentState (mMachine.GetState());
-        recache();
     }
 
-    /** Current state item */
+    /* Current state item (child of tree-widget-item) */
     SnapshotWgtItem (QTreeWidgetItem *aRootItem, const CMachine &aMachine)
-        : QTreeWidgetItem (aRootItem)
+        : QTreeWidgetItem (aRootItem, ItemType)
+        , mIsCurrentState (true)
         , mMachine (aMachine)
     {
         updateCurrentState (mMachine.GetState());
-        recache();
+    }
+
+    QVariant data (int aColumn, int aRole) const
+    {
+        switch (aRole)
+        {
+            case Qt::DisplayRole:
+                return mIsCurrentState ? QTreeWidgetItem::data (aColumn, aRole) : QVariant (QString ("%1%2")
+                                         .arg (QTreeWidgetItem::data (aColumn, Qt::DisplayRole).toString())
+                                         .arg (QTreeWidgetItem::data (aColumn, Qt::UserRole).toString()));
+            default:
+                break;
+        }
+        return QTreeWidgetItem::data (aColumn, aRole);
+    }
+
+    QString text (int aColumn) const
+    {
+        return QTreeWidgetItem::data (aColumn, Qt::DisplayRole).toString();
+    }
+
+    bool isCurrentStateItem() const
+    {
+        return mSnapshot.isNull();
     }
 
     int level()
@@ -96,7 +125,7 @@ public:
     void setItalic (bool aItalic)
     {
         QFont myFont = font (0);
-        myFont.setBold (aItalic);
+        myFont.setItalic (aItalic);
         setFont (0, myFont);
         adjustText();
     }
@@ -106,8 +135,22 @@ public:
 
     void recache()
     {
-        if (!mSnapshot.isNull())
+        if (mIsCurrentState)
         {
+            Assert (!mMachine.isNull());
+            mCurStateModified = mMachine.GetCurrentStateModified();
+            setText (0, mCurStateModified ?
+                        VBoxSnapshotsWgt::tr ("Current State (changed)", "Current State (Modified)") :
+                        VBoxSnapshotsWgt::tr ("Current State", "Current State (Unmodified)"));
+            mDesc = mCurStateModified ?
+                    VBoxSnapshotsWgt::tr ("The current state differs from the state stored in the current snapshot") :
+                    parent() != 0 ?
+                    VBoxSnapshotsWgt::tr ("The current state is identical to the state stored in the current snapshot") :
+                    QString::null;
+        }
+        else
+        {
+            Assert (!mSnapshot.isNull());
             mId = mSnapshot.GetId();
             setText (0, mSnapshot.GetName());
             mOnline = mSnapshot.GetOnline();
@@ -115,23 +158,6 @@ public:
             mDesc = mSnapshot.GetDescription();
             mTimestamp.setTime_t (mSnapshot.GetTimeStamp() / 1000);
             mCurStateModified = false;
-        }
-        else
-        {
-            Assert (!mMachine.isNull());
-            mCurStateModified = mMachine.GetCurrentStateModified();
-            setText (0, mCurStateModified ?
-                VBoxSnapshotsWgt::tr ("Current State (changed)",
-                                      "Current State (Modified)") :
-                VBoxSnapshotsWgt::tr ("Current State",
-                                      "Current State (Unmodified)"));
-            mDesc = mCurStateModified ?
-                VBoxSnapshotsWgt::tr ("The current state differs from the state "
-                                      "stored in the current snapshot") :
-                parent() != 0 ? /* we're not the only item in the view */
-                    VBoxSnapshotsWgt::tr ("The current state is identical to the state "
-                                          "stored in the current snapshot") :
-                    QString::null;
         }
         adjustText();
         recacheToolTip();
@@ -147,10 +173,49 @@ public:
         mTimestamp.setTime_t (mMachine.GetLastStateChange() / 1000);
     }
 
+    SnapshotAgeFormat updateAge()
+    {
+        QString age;
+
+        /* Age: [date time|%1d ago|%1h ago|%1min ago|%1sec ago] */
+        SnapshotAgeFormat ageFormat;
+        if (mTimestamp.daysTo (QDateTime::currentDateTime()) > 30)
+        {
+            age = VBoxSnapshotsWgt::tr (" (%1)").arg (mTimestamp.toString (Qt::LocalDate));
+            ageFormat = AgeMax;
+        }
+        else if (mTimestamp.secsTo (QDateTime::currentDateTime()) > 60 * 60 * 24)
+        {
+            age = VBoxSnapshotsWgt::tr (" (%n day(s) ago)", "", mTimestamp.secsTo (QDateTime::currentDateTime()) / 60 / 60 / 24);
+            ageFormat = AgeInDays;
+        }
+        else if (mTimestamp.secsTo (QDateTime::currentDateTime()) > 60 * 60)
+        {
+            age = VBoxSnapshotsWgt::tr (" (%n hour(s) ago)", "", mTimestamp.secsTo (QDateTime::currentDateTime()) / 60 / 60);
+            ageFormat = AgeInHours;
+        }
+        else if (mTimestamp.secsTo (QDateTime::currentDateTime()) > 60)
+        {
+            age = VBoxSnapshotsWgt::tr (" (%n minute(s) ago)", "", mTimestamp.secsTo (QDateTime::currentDateTime()) / 60);
+            ageFormat = AgeInMinutes;
+        }
+        else
+        {
+            age = VBoxSnapshotsWgt::tr (" (%n second(s) ago)", "", mTimestamp.secsTo (QDateTime::currentDateTime()));
+            ageFormat = AgeInSeconds;
+        }
+
+        /* Update data */
+        setData (0, Qt::UserRole, age);
+
+        return ageFormat;
+    }
+
 private:
 
     void adjustText()
     {
+        if (!treeWidget()) return; /* only for initialised items */
         QFontMetrics metrics (font (0));
         int hei0 = (metrics.height() > 16 ?
                    metrics.height() /* text */ : 16 /* icon */) +
@@ -174,7 +239,7 @@ private:
 
         if (!mSnapshot.isNull())
         {
-            /* the current snapshot is always bold */
+            /* The current snapshot is always bold */
             if (bold())
                 details = VBoxSnapshotsWgt::tr (" (current, ", "Snapshot details");
             else
@@ -183,28 +248,26 @@ private:
                                : VBoxSnapshotsWgt::tr ("offline)", "Snapshot details");
 
             if (dateTimeToday)
-                dateTime = VBoxSnapshotsWgt::tr ("Taken at %1", "Snapshot (time)")
-                    .arg (dateTime);
+                dateTime = VBoxSnapshotsWgt::tr ("Taken at %1", "Snapshot (time)").arg (dateTime);
             else
-                dateTime = VBoxSnapshotsWgt::tr ("Taken on %1", "Snapshot (date + time)")
-                    .arg (dateTime);
+                dateTime = VBoxSnapshotsWgt::tr ("Taken on %1", "Snapshot (date + time)").arg (dateTime);
         }
         else
         {
             dateTime = VBoxSnapshotsWgt::tr ("%1 since %2", "Current State (time or date + time)")
-                .arg (vboxGlobal().toString (mMachineState))
-                .arg (dateTime);
+                .arg (vboxGlobal().toString (mMachineState)).arg (dateTime);
         }
 
         QString toolTip = QString ("<nobr><b>%1</b>%2</nobr><br><nobr>%3</nobr>")
-            .arg (name) .arg (details)
-            .arg (dateTime);
+            .arg (name) .arg (details).arg (dateTime);
 
         if (!mDesc.isEmpty())
             toolTip += "<hr>" + mDesc;
 
         setToolTip (0, toolTip);
     }
+
+    bool mIsCurrentState;
 
     CSnapshot mSnapshot;
     CMachine mMachine;
@@ -243,25 +306,34 @@ private:
     bool &mProtector;
 };
 
-
 VBoxSnapshotsWgt::VBoxSnapshotsWgt (QWidget *aParent)
-    : QIWithRetranslateUI<QWidget> (aParent)
+    : QIWithRetranslateUI <QWidget> (aParent)
     , mCurSnapshotItem (0)
-    , mContextMenu (new QMenu (this))
-    , mContextMenuDirty (true)
     , mEditProtector (false)
     , mSnapshotActionGroup (new QActionGroup (this))
     , mCurStateActionGroup (new QActionGroup (this))
-    , mDiscardSnapshotAction (new QAction (mSnapshotActionGroup))
-    , mTakeSnapshotAction (new QAction (this))
-    , mRevertToCurSnapAction (new QAction (mCurStateActionGroup))
-    , mDiscardCurSnapAndStateAction (new QAction (mCurStateActionGroup))
-    , mShowSnapshotDetailsAction (new QAction (this))
+    , mRestoreSnapshotAction (new QAction (mSnapshotActionGroup))
+    , mDeleteSnapshotAction (new QAction (mSnapshotActionGroup))
+    , mShowSnapshotDetailsAction (new QAction (mSnapshotActionGroup))
+    , mTakeSnapshotAction (new QAction (mCurStateActionGroup))
 {
     /* Apply UI decorations */
     Ui::VBoxSnapshotsWgt::setupUi (this);
 
     mTreeWidget->header()->hide();
+
+    /* The snapshots widget is not very useful if there are a lot
+     * of snapshots in a tree and the current Qt style decides not
+     * to draw lines (branches) between the snapshot nodes; it is
+     * then often unclear which snapshot is a child of another.
+     * So on platforms whose styles do not normally draw branches,
+     * we use QWindowsStyle which is present on every platform and
+     * draws required thing like we want. */
+// #if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
+    QWindowsStyle *treeWidgetStyle = new QWindowsStyle;
+    mTreeWidget->setStyle (treeWidgetStyle);
+    connect (mTreeWidget, SIGNAL (destroyed (QObject *)), treeWidgetStyle, SLOT (deleteLater()));
+// #endif
 
     /* ToolBar creation */
     VBoxToolBar *toolBar = new VBoxToolBar (this);
@@ -270,60 +342,51 @@ VBoxSnapshotsWgt::VBoxSnapshotsWgt (QWidget *aParent)
     toolBar->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     toolBar->addAction (mTakeSnapshotAction);
-    toolBar->addActions (mCurStateActionGroup->actions());
     toolBar->addSeparator();
-    toolBar->addActions (mSnapshotActionGroup->actions());
+    toolBar->addAction (mRestoreSnapshotAction);
+    toolBar->addAction (mDeleteSnapshotAction);
     toolBar->addSeparator();
     toolBar->addAction (mShowSnapshotDetailsAction);
 
     ((QVBoxLayout*)layout())->insertWidget (0, toolBar);
 
     /* Setup actions */
-    mDiscardSnapshotAction->setIcon (VBoxGlobal::iconSetFull (
+    mRestoreSnapshotAction->setIcon (VBoxGlobal::iconSetFull (
         QSize (22, 22), QSize (16, 16),
-        ":/discard_snapshot_22px.png", ":/discard_snapshot_16px.png",
-        ":/discard_snapshot_dis_22px.png", ":/discard_snapshot_dis_16px.png"));
-    mTakeSnapshotAction->setIcon (VBoxGlobal::iconSetFull (
+        ":/discard_cur_state_22px.png", ":/discard_cur_state_16px.png", // TODO: Update Icons!
+        ":/discard_cur_state_dis_22px.png", ":/discard_cur_state_dis_16px.png")); // TODO: Update Icons!
+    mDeleteSnapshotAction->setIcon (VBoxGlobal::iconSetFull (
         QSize (22, 22), QSize (16, 16),
-        ":/take_snapshot_22px.png", ":/take_snapshot_16px.png",
-        ":/take_snapshot_dis_22px.png", ":/take_snapshot_dis_16px.png"));
-    mRevertToCurSnapAction->setIcon (VBoxGlobal::iconSetFull (
-        QSize (22, 22), QSize (16, 16),
-        ":/discard_cur_state_22px.png", ":/discard_cur_state_16px.png",
-        ":/discard_cur_state_dis_22px.png", ":/discard_cur_state_dis_16px.png"));
-    mDiscardCurSnapAndStateAction->setIcon (VBoxGlobal::iconSetFull (
-        QSize (22, 22), QSize (16, 16),
-        ":/discard_cur_state_snapshot_22px.png", ":/discard_cur_state_snapshot_16px.png",
-        ":/discard_cur_state_snapshot_dis_22px.png", ":/discard_cur_state_snapshot_dis_16px.png"));
+        ":/delete_snapshot_22px.png", ":/delete_snapshot_16px.png",
+        ":/delete_snapshot_dis_22px.png", ":/delete_snapshot_dis_16px.png"));
     mShowSnapshotDetailsAction->setIcon (VBoxGlobal::iconSetFull (
         QSize (22, 22), QSize (16, 16),
         ":/show_snapshot_details_22px.png", ":/show_snapshot_details_16px.png",
         ":/show_snapshot_details_dis_22px.png", ":/show_snapshot_details_dis_16px.png"));
+    mTakeSnapshotAction->setIcon (VBoxGlobal::iconSetFull (
+        QSize (22, 22), QSize (16, 16),
+        ":/take_snapshot_22px.png", ":/take_snapshot_16px.png",
+        ":/take_snapshot_dis_22px.png", ":/take_snapshot_dis_16px.png"));
 
-    mDiscardSnapshotAction->setShortcut (QString ("Ctrl+Shift+D"));
-    mTakeSnapshotAction->setShortcut (QString ("Ctrl+Shift+S"));
-    mRevertToCurSnapAction->setShortcut (QString ("Ctrl+Shift+R"));
-    mDiscardCurSnapAndStateAction->setShortcut (QString ("Ctrl+Shift+B"));
+    mRestoreSnapshotAction->setShortcut (QString ("Ctrl+Shift+R"));
+    mDeleteSnapshotAction->setShortcut (QString ("Ctrl+Shift+D"));
     mShowSnapshotDetailsAction->setShortcut (QString ("Ctrl+Space"));
+    mTakeSnapshotAction->setShortcut (QString ("Ctrl+Shift+S"));
+
+    mAgeUpdateTimer.setSingleShot (true);
 
     /* Setup connections */
     connect (mTreeWidget, SIGNAL (currentItemChanged (QTreeWidgetItem*, QTreeWidgetItem*)),
-             this, SLOT (onCurrentChanged (QTreeWidgetItem*, QTreeWidgetItem*)));
+             this, SLOT (onCurrentChanged (QTreeWidgetItem*)));
     connect (mTreeWidget, SIGNAL (customContextMenuRequested (const QPoint&)),
              this, SLOT (onContextMenuRequested (const QPoint&)));
     connect (mTreeWidget, SIGNAL (itemChanged (QTreeWidgetItem*, int)),
-             this, SLOT (onItemChanged (QTreeWidgetItem*, int)));
+             this, SLOT (onItemChanged (QTreeWidgetItem*)));
 
-    connect (mDiscardSnapshotAction, SIGNAL (triggered()),
-             this, SLOT (discardSnapshot()));
-    connect (mTakeSnapshotAction, SIGNAL (triggered()),
-             this, SLOT (takeSnapshot()));
-    connect (mRevertToCurSnapAction, SIGNAL (triggered()),
-             this, SLOT (discardCurState()));
-    connect (mDiscardCurSnapAndStateAction, SIGNAL (triggered()),
-             this, SLOT (discardCurSnapAndState()));
-    connect (mShowSnapshotDetailsAction, SIGNAL (triggered()),
-             this, SLOT (showSnapshotDetails()));
+    connect (mRestoreSnapshotAction, SIGNAL (triggered()), this, SLOT (restoreSnapshot()));
+    connect (mDeleteSnapshotAction, SIGNAL (triggered()), this, SLOT (deleteSnapshot()));
+    connect (mShowSnapshotDetailsAction, SIGNAL (triggered()), this, SLOT (showSnapshotDetails()));
+    connect (mTakeSnapshotAction, SIGNAL (triggered()), this, SLOT (takeSnapshot()));
 
     connect (&vboxGlobal(), SIGNAL (machineDataChanged (const VBoxMachineDataChangeEvent&)),
              this, SLOT (machineDataChanged (const VBoxMachineDataChangeEvent&)));
@@ -331,10 +394,8 @@ VBoxSnapshotsWgt::VBoxSnapshotsWgt (QWidget *aParent)
              this, SLOT (machineStateChanged (const VBoxMachineStateChangeEvent&)));
     connect (&vboxGlobal(), SIGNAL (sessionStateChanged (const VBoxSessionStateChangeEvent&)),
              this, SLOT (sessionStateChanged (const VBoxSessionStateChangeEvent&)));
-#if 0
-    connect (&vboxGlobal(), SIGNAL (snapshotChanged (const VBoxSnapshotEvent&)),
-             this, SLOT (snapshotChanged (const VBoxSnapshotEvent&)));
-#endif
+
+    connect (&mAgeUpdateTimer, SIGNAL (timeout()), this, SLOT (updateSnapshotsAge()));
 
     retranslateUi();
 }
@@ -358,115 +419,88 @@ void VBoxSnapshotsWgt::setMachine (const CMachine &aMachine)
 }
 
 
-void VBoxSnapshotsWgt::onCurrentChanged (QTreeWidgetItem *aItem,
-                                         QTreeWidgetItem* /* old */)
+void VBoxSnapshotsWgt::onCurrentChanged (QTreeWidgetItem *aItem)
 {
     /* Make the selected item visible */
-    if (aItem)
+    SnapshotWgtItem *item = aItem ? static_cast <SnapshotWgtItem*> (aItem) : 0;
+    if (item)
     {
-        SnapshotWgtItem *item = static_cast<SnapshotWgtItem*> (aItem);
         mTreeWidget->horizontalScrollBar()->setValue (0);
         mTreeWidget->scrollToItem (item);
-        mTreeWidget->horizontalScrollBar()->setValue (
-            mTreeWidget->indentation() * item->level());
+        mTreeWidget->horizontalScrollBar()->setValue (mTreeWidget->indentation() * item->level());
     }
 
     /* Whether another direct session is open or not */
     bool busy = mSessionState != KSessionState_Closed;
 
     /* Enable/disable snapshot actions */
-    mSnapshotActionGroup->setEnabled (!busy &&
-        aItem && mCurSnapshotItem && aItem != mCurSnapshotItem->child (0));
+    mSnapshotActionGroup->setEnabled (!busy && mCurSnapshotItem && item && !item->isCurrentStateItem());
 
     /* Enable/disable the details action regardles of the session state */
-    mShowSnapshotDetailsAction->setEnabled (
-        aItem && mCurSnapshotItem && aItem != mCurSnapshotItem->child (0));
+    mShowSnapshotDetailsAction->setEnabled (mCurSnapshotItem && item && !item->isCurrentStateItem());
 
     /* Enable/disable current state actions */
-    mCurStateActionGroup->setEnabled (!busy &&
-        aItem && mCurSnapshotItem && aItem == mCurSnapshotItem->child (0));
-
-    /* The Take Snapshot action is always enabled for the current state */
-    mTakeSnapshotAction->setEnabled ((!busy && mCurStateActionGroup->isEnabled()) ||
-                                     (aItem && !mCurSnapshotItem));
-
-    mContextMenuDirty = true;
+    mCurStateActionGroup->setEnabled ((!busy && mCurSnapshotItem && item && item->isCurrentStateItem()) ||
+                                      (item && !mCurSnapshotItem));
 }
 
 void VBoxSnapshotsWgt::onContextMenuRequested (const QPoint &aPoint)
 {
     QTreeWidgetItem *item = mTreeWidget->itemAt (aPoint);
-    if (!item)
+    SnapshotWgtItem *snapshotItem = item ? static_cast <SnapshotWgtItem*> (item) : 0;
+    if (!snapshotItem)
         return;
 
-    if (mContextMenuDirty)
+    QMenu menu;
+
+    if (mCurSnapshotItem && !snapshotItem->isCurrentStateItem())
     {
-        mContextMenu->clear();
-
-        if (!mCurSnapshotItem)
-        {
-            /* We have only one item -- current state */
-            mContextMenu->addAction (mTakeSnapshotAction);
-            mContextMenu->addActions (mCurStateActionGroup->actions());
-        }
-        else
-        {
-            if (item == mCurSnapshotItem->child (0))
-            {
-                /* Current state is selected */
-                mContextMenu->addAction (mTakeSnapshotAction);
-                mContextMenu->addActions (mCurStateActionGroup->actions());
-            }
-            else
-            {
-                /* Snapshot is selected */
-                mContextMenu->addActions (mSnapshotActionGroup->actions());
-                mContextMenu->addSeparator();
-                mContextMenu->addAction (mShowSnapshotDetailsAction);
-            }
-        }
-
-        mContextMenuDirty = false;
+        menu.addAction (mRestoreSnapshotAction);
+        menu.addAction (mDeleteSnapshotAction);
+        menu.addSeparator();
+        menu.addAction (mShowSnapshotDetailsAction);
     }
+    else
+        menu.addAction (mTakeSnapshotAction);
 
-    mContextMenu->exec (mTreeWidget->viewport()->mapToGlobal (aPoint));
+    menu.exec (mTreeWidget->viewport()->mapToGlobal (aPoint));
 }
 
-void VBoxSnapshotsWgt::onItemChanged (QTreeWidgetItem *aItem, int)
+void VBoxSnapshotsWgt::onItemChanged (QTreeWidgetItem *aItem)
 {
     if (mEditProtector)
         return;
 
-    SnapshotWgtItem *item = aItem ? static_cast<SnapshotWgtItem*> (aItem) : 0;
+    SnapshotWgtItem *item = aItem ? static_cast <SnapshotWgtItem*> (aItem) : 0;
 
     if (item)
     {
-        CSnapshot snap = mMachine.GetSnapshot (item->snapshotId());
-        if (!snap.isNull() && snap.isOk() &&
-            snap.GetName() != item->text (0))
+        CSnapshot snap = item->snapshotId().isNull() ? CSnapshot() : mMachine.GetSnapshot (item->snapshotId());
+        if (!snap.isNull() && snap.isOk() && snap.GetName() != item->text (0))
             snap.SetName (item->text (0));
     }
 }
 
-
-void VBoxSnapshotsWgt::discardSnapshot()
+void VBoxSnapshotsWgt::restoreSnapshot()
 {
-    SnapshotWgtItem *item = mTreeWidget->selectedItems().isEmpty() ? 0 :
-        static_cast<SnapshotWgtItem*> (mTreeWidget->selectedItems() [0]);
+    SnapshotWgtItem *item = !mTreeWidget->currentItem() ? 0 :
+        static_cast <SnapshotWgtItem*> (mTreeWidget->currentItem());
     AssertReturn (item, (void) 0);
 
     QString snapId = item->snapshotId();
     AssertReturn (!snapId.isNull(), (void) 0);
+    CSnapshot snapshot = mMachine.GetSnapshot (snapId);
+
+    if (!vboxProblem().askAboutSnapshotRestoring (snapshot.GetName()))
+        return;
 
     /* Open a direct session (this call will handle all errors) */
     CSession session = vboxGlobal().openSession (mMachineId);
     if (session.isNull())
         return;
 
-    QString snapName = mMachine.GetSnapshot (snapId).GetName();
-
     CConsole console = session.GetConsole();
-    CProgress progress = console.DiscardSnapshot (snapId);
+    CProgress progress = console.RestoreSnapshot (snapshot);
     if (console.isOk())
     {
         /* Show the progress dialog */
@@ -474,18 +508,71 @@ void VBoxSnapshotsWgt::discardSnapshot()
                                                vboxProblem().mainWindowShown());
 
         if (progress.GetResultCode() != 0)
-            vboxProblem().cannotDiscardSnapshot (progress, snapName);
+            vboxProblem().cannotRestoreSnapshot (progress, snapshot.GetName());
     }
     else
-        vboxProblem().cannotDiscardSnapshot (console, snapName);
+        vboxProblem().cannotRestoreSnapshot (progress, snapshot.GetName());
 
     session.Close();
 }
 
+void VBoxSnapshotsWgt::deleteSnapshot()
+{
+    SnapshotWgtItem *item = !mTreeWidget->currentItem() ? 0 :
+        static_cast <SnapshotWgtItem*> (mTreeWidget->currentItem());
+    AssertReturn (item, (void) 0);
+
+    QString snapId = item->snapshotId();
+    AssertReturn (!snapId.isNull(), (void) 0);
+    CSnapshot snapshot = mMachine.GetSnapshot (snapId);
+
+    if (!vboxProblem().askAboutSnapshotDeleting (snapshot.GetName()))
+        return;
+
+    /* Open a direct session (this call will handle all errors) */
+    CSession session = vboxGlobal().openSession (mMachineId);
+    if (session.isNull())
+        return;
+
+    CConsole console = session.GetConsole();
+    CProgress progress = console.DeleteSnapshot (snapId);
+    if (console.isOk())
+    {
+        /* Show the progress dialog */
+        vboxProblem().showModalProgressDialog (progress, mMachine.GetName(),
+                                               vboxProblem().mainWindowShown());
+
+        if (progress.GetResultCode() != 0)
+            vboxProblem().cannotDeleteSnapshot (progress,  snapshot.GetName());
+    }
+    else
+        vboxProblem().cannotDeleteSnapshot (console,  snapshot.GetName());
+
+    session.Close();
+}
+
+void VBoxSnapshotsWgt::showSnapshotDetails()
+{
+    SnapshotWgtItem *item = !mTreeWidget->currentItem() ? 0 :
+        static_cast <SnapshotWgtItem*> (mTreeWidget->currentItem());
+    AssertReturn (item, (void) 0);
+
+    CSnapshot snap = item->snapshot();
+    AssertReturn (!snap.isNull(), (void) 0);
+
+    CMachine snapMachine = snap.GetMachine();
+
+    VBoxSnapshotDetailsDlg dlg (this);
+    dlg.getFromSnapshot (snap);
+
+    if (dlg.exec() == QDialog::Accepted)
+        dlg.putBackToSnapshot();
+}
+
 void VBoxSnapshotsWgt::takeSnapshot()
 {
-    SnapshotWgtItem *item = mTreeWidget->selectedItems().isEmpty() ? 0 :
-        static_cast<SnapshotWgtItem*> (mTreeWidget->selectedItems() [0]);
+    SnapshotWgtItem *item = !mTreeWidget->currentItem() ? 0 :
+        static_cast <SnapshotWgtItem*> (mTreeWidget->currentItem());
     AssertReturn (item, (void) 0);
 
     VBoxTakeSnapshotDlg dlg (this);
@@ -500,7 +587,7 @@ void VBoxSnapshotsWgt::takeSnapshot()
     QTreeWidgetItemIterator iterator (mTreeWidget);
     while (*iterator)
     {
-        QString snapShot = (*iterator)->text (0);
+        QString snapShot = static_cast <SnapshotWgtItem*> (*iterator)->text (0);
         int pos = regExp.indexIn (snapShot);
         if (pos != -1)
             maxSnapShotIndex = regExp.cap (1).toInt() > maxSnapShotIndex ?
@@ -517,9 +604,8 @@ void VBoxSnapshotsWgt::takeSnapshot()
             return;
 
         CConsole console = session.GetConsole();
-        CProgress progress =
-                console.TakeSnapshot (dlg.mLeName->text().trimmed(),
-                                      dlg.mTeDescription->toPlainText());
+        CProgress progress = console.TakeSnapshot (dlg.mLeName->text().trimmed(),
+                                                   dlg.mTeDescription->toPlainText());
         if (console.isOk())
         {
             /* Show the progress dialog */
@@ -536,202 +622,117 @@ void VBoxSnapshotsWgt::takeSnapshot()
     }
 }
 
-void VBoxSnapshotsWgt::discardCurState()
-{
-    SnapshotWgtItem *item = mTreeWidget->selectedItems().isEmpty() ? 0 :
-        static_cast<SnapshotWgtItem*> (mTreeWidget->selectedItems() [0]);
-    AssertReturn (item, (void) 0);
 
-    /* Open a direct session (this call will handle all errors) */
-    CSession session = vboxGlobal().openSession (mMachineId);
-    if (session.isNull())
-        return;
-
-    CConsole console = session.GetConsole();
-    CProgress progress = console.DiscardCurrentState();
-    if (console.isOk())
-    {
-        /* show the progress dialog */
-        vboxProblem().showModalProgressDialog (progress, mMachine.GetName(),
-                                               vboxProblem().mainWindowShown());
-
-        if (progress.GetResultCode() != 0)
-            vboxProblem().cannotDiscardCurrentState (progress);
-    }
-    else
-        vboxProblem().cannotDiscardCurrentState (console);
-
-    session.Close();
-}
-
-void VBoxSnapshotsWgt::discardCurSnapAndState()
-{
-    if (!vboxProblem().askAboutSnapshotAndStateDiscarding())
-        return;
-
-    SnapshotWgtItem *item = mTreeWidget->selectedItems().isEmpty() ? 0 :
-        static_cast<SnapshotWgtItem*> (mTreeWidget->selectedItems() [0]);
-    AssertReturn (item, (void) 0);
-
-    /* Open a direct session (this call will handle all errors) */
-    CSession session = vboxGlobal().openSession (mMachineId);
-    if (session.isNull())
-        return;
-
-    CConsole console = session.GetConsole();
-    CProgress progress = console.DiscardCurrentSnapshotAndState();
-    if (console.isOk())
-    {
-        /* Show the progress dialog */
-        vboxProblem().showModalProgressDialog (progress, mMachine.GetName(),
-                                               vboxProblem().mainWindowShown());
-
-        if (progress.GetResultCode() != 0)
-            vboxProblem().cannotDiscardCurrentSnapshotAndState (progress);
-    }
-    else
-        vboxProblem().cannotDiscardCurrentSnapshotAndState (console);
-
-    session.Close();
-}
-
-void VBoxSnapshotsWgt::showSnapshotDetails()
-{
-    SnapshotWgtItem *item = mTreeWidget->selectedItems().isEmpty() ? 0 :
-        static_cast<SnapshotWgtItem*> (mTreeWidget->selectedItems() [0]);
-    AssertReturn (item, (void) 0);
-
-    CSnapshot snap = item->snapshot();
-    AssertReturn (!snap.isNull(), (void) 0);
-
-    CMachine snapMachine = snap.GetMachine();
-
-    VBoxSnapshotDetailsDlg dlg (this);
-    dlg.getFromSnapshot (snap);
-
-    if (dlg.exec() == QDialog::Accepted)
-        dlg.putBackToSnapshot();
-}
-
-
-void VBoxSnapshotsWgt::machineDataChanged (const VBoxMachineDataChangeEvent &aE)
+void VBoxSnapshotsWgt::machineDataChanged (const VBoxMachineDataChangeEvent &aEvent)
 {
     SnapshotEditBlocker guardBlock (mEditProtector);
 
-    if (aE.id != mMachineId)
-        return; /* not interested in other machines */
+    if (aEvent.id != mMachineId)
+        return;
 
     curStateItem()->recache();
 }
 
-void VBoxSnapshotsWgt::machineStateChanged (const VBoxMachineStateChangeEvent &aE)
+void VBoxSnapshotsWgt::machineStateChanged (const VBoxMachineStateChangeEvent &aEvent)
 {
     SnapshotEditBlocker guardBlock (mEditProtector);
 
-    if (aE.id != mMachineId)
-        return; /* not interested in other machines */
+    if (aEvent.id != mMachineId)
+        return;
 
     curStateItem()->recache();
-    curStateItem()->updateCurrentState (aE.state);
+    curStateItem()->updateCurrentState (aEvent.state);
 }
 
-void VBoxSnapshotsWgt::sessionStateChanged (const VBoxSessionStateChangeEvent &aE)
+void VBoxSnapshotsWgt::sessionStateChanged (const VBoxSessionStateChangeEvent &aEvent)
 {
     SnapshotEditBlocker guardBlock (mEditProtector);
 
-    if (aE.id != mMachineId)
-        return; /* not interested in other machines */
+    if (aEvent.id != mMachineId)
+        return;
 
-    mSessionState = aE.state;
-    onCurrentChanged (mTreeWidget->selectedItems().isEmpty() ? 0 :
-                      mTreeWidget->selectedItems() [0]);
+    mSessionState = aEvent.state;
+    onCurrentChanged (mTreeWidget->currentItem());
 }
 
-#if 0
-void VBoxSnapshotsWgt::snapshotChanged (const VBoxSnapshotEvent &aE)
+void VBoxSnapshotsWgt::updateSnapshotsAge()
 {
-    SnapshotEditBlocker guardBlock (mEditProtector);
+    if (mAgeUpdateTimer.isActive())
+        mAgeUpdateTimer.stop();
 
-    if (aE.machineId != mMachineId)
-        return; /* not interested in other machines */
+    SnapshotAgeFormat age = traverseSnapshotAge (mTreeWidget->invisibleRootItem());
 
-    switch (aE.what)
+    switch (age)
     {
-        case VBoxSnapshotEvent::Taken:
-        case VBoxSnapshotEvent::Discarded:
-        {
-            refreshAll();
+        case AgeInSeconds:
+            mAgeUpdateTimer.setInterval (5 * 1000);
             break;
-        }
-        case VBoxSnapshotEvent::Changed:
-        {
-            SnapshotWgtItem *lvi = findItem (aE.snapshotId);
-            if (!lvi)
-                refreshAll (false);
-            else
-                lvi->recache();
+        case AgeInMinutes:
+            mAgeUpdateTimer.setInterval (60 * 1000);
             break;
-        }
+        case AgeInHours:
+            mAgeUpdateTimer.setInterval (60 * 60 * 1000);
+            break;
+        case AgeInDays:
+            mAgeUpdateTimer.setInterval (24 * 60 * 60 * 1000);
+            break;
+        default:
+            mAgeUpdateTimer.setInterval (0);
+            break;
     }
+
+    if (mAgeUpdateTimer.interval() > 0)
+        mAgeUpdateTimer.start();
 }
-#endif
 
 void VBoxSnapshotsWgt::retranslateUi()
 {
     /* Translate uic generated strings */
     Ui::VBoxSnapshotsWgt::retranslateUi (this);
 
-    mDiscardSnapshotAction->setText (tr ("&Discard Snapshot"));
-    mTakeSnapshotAction->setText (tr ("Take &Snapshot"));
-    mRevertToCurSnapAction->setText (tr ("&Revert to Current Snapshot"));
-    mDiscardCurSnapAndStateAction->setText (tr ("D&iscard Current Snapshot and State"));
+    mRestoreSnapshotAction->setText (tr ("&Restore Snapshot"));
+    mDeleteSnapshotAction->setText (tr ("&Delete Snapshot"));
     mShowSnapshotDetailsAction->setText (tr ("S&how Details"));
+    mTakeSnapshotAction->setText (tr ("Take &Snapshot"));
 
-    mDiscardSnapshotAction->setStatusTip (tr ("Discard the selected snapshot of the virtual machine"));
+    mRestoreSnapshotAction->setStatusTip (tr ("Restore the selected snapshot of the virtual machine"));
+    mDeleteSnapshotAction->setStatusTip (tr ("Delete the selected snapshot of the virtual machine"));
+    mShowSnapshotDetailsAction->setStatusTip (tr ("Show the details of the selected snapshot"));
     mTakeSnapshotAction->setStatusTip (tr ("Take a snapshot of the current virtual machine state"));
-    mRevertToCurSnapAction->setStatusTip (tr ("Restore the virtual machine state from the state stored in the current snapshot"));
-    mDiscardCurSnapAndStateAction->setStatusTip (tr ("Discard the current snapshot and revert the machine to the state it had before the snapshot was taken"));
-    mShowSnapshotDetailsAction->setStatusTip (tr ("Show details of the selected snapshot"));
 
-    mDiscardSnapshotAction->setToolTip (mDiscardSnapshotAction->text().remove ('&').remove ('.') +
-        QString (" (%1)").arg (mDiscardSnapshotAction->shortcut().toString()));
-    mTakeSnapshotAction->setToolTip (mTakeSnapshotAction->text().remove ('&').remove ('.') +
-        QString (" (%1)").arg (mTakeSnapshotAction->shortcut().toString()));
-    mRevertToCurSnapAction->setToolTip (mRevertToCurSnapAction->text().remove ('&').remove ('.') +
-        QString (" (%1)").arg (mRevertToCurSnapAction->shortcut().toString()));
-    mDiscardCurSnapAndStateAction->setToolTip (mDiscardCurSnapAndStateAction->text().remove ('&').remove ('.') +
-        QString (" (%1)").arg (mDiscardCurSnapAndStateAction->shortcut().toString()));
+    mRestoreSnapshotAction->setToolTip (mRestoreSnapshotAction->text().remove ('&').remove ('.') +
+        QString (" (%1)").arg (mRestoreSnapshotAction->shortcut().toString()));
+    mDeleteSnapshotAction->setToolTip (mDeleteSnapshotAction->text().remove ('&').remove ('.') +
+        QString (" (%1)").arg (mDeleteSnapshotAction->shortcut().toString()));
     mShowSnapshotDetailsAction->setToolTip (mShowSnapshotDetailsAction->text().remove ('&').remove ('.') +
         QString (" (%1)").arg (mShowSnapshotDetailsAction->shortcut().toString()));
+    mTakeSnapshotAction->setToolTip (mTakeSnapshotAction->text().remove ('&').remove ('.') +
+        QString (" (%1)").arg (mTakeSnapshotAction->shortcut().toString()));
 }
 
-void VBoxSnapshotsWgt::refreshAll (bool aKeepSelected /* = true */)
+void VBoxSnapshotsWgt::refreshAll()
 {
     SnapshotEditBlocker guardBlock (mEditProtector);
 
-    QString selected, selectedFirstChild;
-    if (aKeepSelected)
+    if (mMachine.isNull())
     {
-        SnapshotWgtItem *cur = mTreeWidget->selectedItems().isEmpty() ? 0 :
-            static_cast<SnapshotWgtItem*> (mTreeWidget->selectedItems() [0]);
-        if (cur)
-        {
-            selected = cur->snapshotId();
-            if (cur->child (0))
-                selectedFirstChild =
-                    static_cast<SnapshotWgtItem*> (cur->child (0))->snapshotId();
-        }
+        onCurrentChanged();
+        return;
+    }
+
+    QString selectedItem, firstChildOfSelectedItem;
+    SnapshotWgtItem *cur = !mTreeWidget->currentItem() ? 0 :
+        static_cast <SnapshotWgtItem*> (mTreeWidget->currentItem());
+    if (cur)
+    {
+        selectedItem = cur->snapshotId();
+        if (cur->child (0))
+            firstChildOfSelectedItem = static_cast <SnapshotWgtItem*> (cur->child (0))->snapshotId();
     }
 
     mTreeWidget->clear();
 
-    if (mMachine.isNull())
-    {
-        onCurrentChanged (NULL);
-        return;
-    }
-
-    /* get the first snapshot */
+    /* Get the first snapshot */
     if (mMachine.GetSnapshotCount() > 0)
     {
         CSnapshot snapshot = mMachine.GetSnapshot (QString::null);
@@ -739,18 +740,17 @@ void VBoxSnapshotsWgt::refreshAll (bool aKeepSelected /* = true */)
         populateSnapshots (snapshot, 0);
         Assert (mCurSnapshotItem);
 
-        /* add the "current state" item */
-        new SnapshotWgtItem (mCurSnapshotItem, mMachine);
+        /* Add the "current state" item */
+        SnapshotWgtItem *csi = new SnapshotWgtItem (mCurSnapshotItem, mMachine);
+        csi->setBold (true);
+        csi->recache();
 
-        SnapshotWgtItem *cur = 0;
-        if (aKeepSelected)
-        {
-            cur = findItem (selected);
-            if (cur == 0)
-                cur = findItem (selectedFirstChild);
-        }
+        SnapshotWgtItem *cur = findItem (selectedItem);
+        if (cur == 0)
+            cur = findItem (firstChildOfSelectedItem);
         if (cur == 0)
             cur = curStateItem();
+
         mTreeWidget->scrollToItem (cur);
         mTreeWidget->setCurrentItem (cur);
         onCurrentChanged (cur);
@@ -759,11 +759,17 @@ void VBoxSnapshotsWgt::refreshAll (bool aKeepSelected /* = true */)
     {
         mCurSnapshotItem = 0;
 
-        /* add the "current state" item */
+        /* Add the "current state" item */
         SnapshotWgtItem *csi = new SnapshotWgtItem (mTreeWidget, mMachine);
+        csi->setBold (true);
+        csi->recache();
+
         mTreeWidget->setCurrentItem (csi);
         onCurrentChanged (csi);
     }
+
+    /* Updating age */
+    updateSnapshotsAge();
 
     mTreeWidget->resizeColumnToContents (0);
 }
@@ -773,7 +779,7 @@ SnapshotWgtItem* VBoxSnapshotsWgt::findItem (const QString &aSnapshotId)
     QTreeWidgetItemIterator it (mTreeWidget);
     while (*it)
     {
-        SnapshotWgtItem *lvi = static_cast<SnapshotWgtItem*> (*it);
+        SnapshotWgtItem *lvi = static_cast <SnapshotWgtItem*> (*it);
         if (lvi->snapshotId() == aSnapshotId)
             return lvi;
         ++ it;
@@ -784,32 +790,45 @@ SnapshotWgtItem* VBoxSnapshotsWgt::findItem (const QString &aSnapshotId)
 
 SnapshotWgtItem *VBoxSnapshotsWgt::curStateItem()
 {
-    QTreeWidgetItem *csi = mCurSnapshotItem ? mCurSnapshotItem->child (0)
-                         : mTreeWidget->invisibleRootItem()->child (0);
+    QTreeWidgetItem *csi = mCurSnapshotItem ?
+                           mCurSnapshotItem->child (mCurSnapshotItem->childCount() - 1) :
+                           mTreeWidget->invisibleRootItem()->child (0);
     Assert (csi);
-    return static_cast<SnapshotWgtItem*> (csi);
+    return static_cast <SnapshotWgtItem*> (csi);
 }
 
-void VBoxSnapshotsWgt::populateSnapshots (const CSnapshot &aSnapshot, QTreeWidgetItem *item)
+void VBoxSnapshotsWgt::populateSnapshots (const CSnapshot &aSnapshot, QTreeWidgetItem *aItem)
 {
-    SnapshotWgtItem *si = 0;
-    si = item ? new SnapshotWgtItem (item, aSnapshot) :
-                new SnapshotWgtItem (mTreeWidget, aSnapshot);
+    SnapshotWgtItem *item = aItem ? new SnapshotWgtItem (aItem, aSnapshot) :
+                                    new SnapshotWgtItem (mTreeWidget, aSnapshot);
+    item->recache();
 
     if (mMachine.GetCurrentSnapshot().GetId() == aSnapshot.GetId())
     {
-        si->setBold (true);
-        mCurSnapshotItem = si;
+        item->setBold (true);
+        mCurSnapshotItem = item;
     }
 
-    CSnapshotVector snapvec = aSnapshot.GetChildren();
-    for (int i = 0; i < snapvec.size(); ++i)
+    CSnapshotVector snapshots = aSnapshot.GetChildren();
+    foreach (const CSnapshot &snapshot, snapshots)
+        populateSnapshots (snapshot, item);
+
+    item->setExpanded (true);
+    item->setFlags (item->flags() | Qt::ItemIsEditable);
+}
+
+SnapshotAgeFormat VBoxSnapshotsWgt::traverseSnapshotAge (QTreeWidgetItem *aParentItem)
+{
+    SnapshotWgtItem *parentItem = aParentItem->type() == SnapshotWgtItem::ItemType ?
+                                  static_cast <SnapshotWgtItem*> (aParentItem) : 0;
+
+    SnapshotAgeFormat age = parentItem ? parentItem->updateAge() : AgeMax;
+    for (int i = 0; i < aParentItem->childCount(); ++ i)
     {
-        CSnapshot sn = snapvec[i];
-        populateSnapshots (sn, si);
+        SnapshotAgeFormat newAge = traverseSnapshotAge (aParentItem->child (i));
+        age = newAge < age ? newAge : age;
     }
 
-    si->setExpanded (true);
-    si->setFlags (si->flags() | Qt::ItemIsEditable);
+    return age;
 }
 

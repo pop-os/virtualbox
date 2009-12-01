@@ -1,4 +1,4 @@
-/* $Id: thread-r0drv-os2.cpp $ */
+/* $Id: thread-r0drv-os2.cpp 24287 2009-11-03 12:34:11Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 1), Ring-0 Driver, OS/2.
  */
@@ -32,11 +32,22 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-os2-kernel.h"
-
+#include "internal/iprt.h"
 #include <iprt/thread.h>
-#include <iprt/err.h>
+
+#include <iprt/asm.h>
 #include <iprt/assert.h>
+#include <iprt/err.h>
+#include <iprt/mp.h>
 #include "internal/thread.h"
+
+
+/*******************************************************************************
+*   Global Variables                                                           *
+*******************************************************************************/
+/** Per-cpu preemption counters. */
+static int32_t volatile g_acPreemptDisabled[256];
+
 
 
 RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void)
@@ -77,14 +88,10 @@ RTDECL(bool) RTThreadYield(void)
 RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread)
 {
     Assert(hThread == NIL_RTTHREAD);
-    return false;
-}
-
-
-RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
-{
-    /* yes, RTThreadPreemptIsPending is reliable. */
-    return true;
+    int32_t c = g_acPreemptDisabled[ASMGetApicId()];
+    AssertMsg(c >= 0 && c < 32, ("%d\n", c));
+    return c == 0
+        && ASMIntAreEnabled();
 }
 
 
@@ -111,19 +118,60 @@ RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
 }
 
 
+RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
+{
+    /* yes, RTThreadPreemptIsPending is reliable. */
+    return true;
+}
+
+
+RTDECL(bool) RTThreadPreemptIsPossible(void)
+{
+    /* no kernel preemption on OS/2. */
+    return false;
+}
+
+
 RTDECL(void) RTThreadPreemptDisable(PRTTHREADPREEMPTSTATE pState)
 {
     AssertPtr(pState);
-    Assert(pState->uchDummy != 42);
-    pState->uchDummy = 42;
-    /* Nothing to do here as OS/2 doesn't preempt kernel threads. */
+    Assert(pState->u32Reserved == 0);
+
+    /* No preemption on OS/2, so do our own accounting. */
+    int32_t c = ASMAtomicIncS32(&g_acPreemptDisabled[ASMGetApicId()]);
+    AssertMsg(c > 0 && c < 32, ("%d\n", c));
+    pState->u32Reserved = c;
+    RT_ASSERT_PREEMPT_CPUID_DISABLE(pState);
 }
 
 
 RTDECL(void) RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState)
 {
     AssertPtr(pState);
-    Assert(pState->uchDummy == 42);
-    pState->uchDummy = 0;
+    AssertMsg(pState->u32Reserved > 0 && pState->u32Reserved < 32, ("%d\n", pState->u32Reserved));
+    RT_ASSERT_PREEMPT_CPUID_RESTORE(pState);
+
+    /* No preemption on OS/2, so do our own accounting. */
+    int32_t volatile *pc = &g_acPreemptDisabled[ASMGetApicId()];
+    AssertMsg(pState->u32Reserved == (uint32_t)*pc, ("uchDummy=%d *pc=%d \n", pState->u32Reserved, *pc));
+    ASMAtomicUoWriteS32(pc, pState->u32Reserved - 1);
+    pState->u32Reserved = 0;
+}
+
+
+RTDECL(bool) RTThreadIsInInterrupt(RTTHREAD hThread)
+{
+    Assert(hThread == NIL_RTTHREAD); NOREF(hThread);
+
+    union
+    {
+        RTFAR16 fp;
+        uint8_t cInterruptLevel;
+    } u;
+    /** @todo OS/2: verify the usage of DHGETDOSV_INTERRUPTLEV. */
+    int rc = RTR0Os2DHQueryDOSVar(DHGETDOSV_INTERRUPTLEV, 0, &u.fp);
+    AssertReturn(rc == 0, true);
+
+    return u.cInterruptLevel > 0;
 }
 

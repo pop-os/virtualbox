@@ -1,4 +1,4 @@
-/* $Id: VBoxBFE.cpp $ */
+/* $Id: VBoxBFE.cpp 24018 2009-10-23 09:29:25Z vboxsync $ */
 /** @file
  * Basic Frontend (BFE): VBoxBFE main routines.
  *
@@ -332,10 +332,11 @@ void startProgressInfo(const char *pszStr)
 /**
  * Update progress display.
  */
-void callProgressInfo(PVM pVM, unsigned uPercent, void *pvUser)
+int callProgressInfo(PVM pVM, unsigned uPercent, void *pvUser)
 {
     if (gConsole)
         gConsole->progressInfo(pVM, uPercent, pvUser);
+    return VINF_SUCCESS;
 }
 
 /**
@@ -660,10 +661,10 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char **envp)
                 return SyntaxError("The network MAC address has an invalid length: %s (%s)\n", pszMac, pszArg);
             for (unsigned j = 0; j < RT_ELEMENTS(g_aNetDevs[i].Mac.au8); j++)
             {
-                char c1 = toupper(*pszMac++) - '0';
+                char c1 = RT_C_TO_UPPER(*pszMac++) - '0';
                 if (c1 > 9)
                     c1 -= 7;
-                char c2 = toupper(*pszMac++) - '0';
+                char c2 = RT_C_TO_UPPER(*pszMac++) - '0';
                 if (c2 > 9)
                     c2 -= 7;
                 if (c2 > 16 || c1 > 16)
@@ -964,8 +965,8 @@ leave:
         if (machineState != VMSTATE_OFF)
         {
             /* Power off VM */
-            PVMREQ pReq;
-            rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)VMR3PowerOff, 1, pVM);
+            rc = VMR3PowerOff(pVM);
+            AssertRC(rc);
         }
 
         /* And destroy it */
@@ -1269,42 +1270,27 @@ DECLCALLBACK(int) VMPowerUpThread(RTTHREAD Thread, void *pvUser)
      */
     if (RT_SUCCESS(rc))
     {
-        PVMREQ pReq;
-
         if (   g_fRestoreState
             && g_pszStateFile
             && *g_pszStateFile
             && RTPathExists(g_pszStateFile))
         {
             startProgressInfo("Restoring");
-            rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT,
-                             (PFNRT)VMR3Load, 4, pVM, g_pszStateFile, &callProgressInfo, (uintptr_t)NULL);
+            rc = VMR3LoadFromFile(pVM, g_pszStateFile, callProgressInfo, (uintptr_t)NULL);
             endProgressInfo();
             if (RT_SUCCESS(rc))
             {
-                VMR3ReqFree(pReq);
-                rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT,
-                                 (PFNRT)VMR3Resume, 1, pVM);
-                if (RT_SUCCESS(rc))
-                {
-                    rc = pReq->iStatus;
-                    VMR3ReqFree(pReq);
-                }
+                rc = VMR3Resume(pVM);
+                AssertRC(rc);
                 gDisplay->setRunning();
             }
             else
-                AssertMsgFailed(("VMR3Load failed, rc=%Rrc\n", rc));
+                AssertMsgFailed(("VMR3LoadFromFile failed, rc=%Rrc\n", rc));
         }
         else
         {
-            rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)VMR3PowerOn, 1, pVM);
-            if (RT_SUCCESS(rc))
-            {
-                rc = pReq->iStatus;
-                AssertRC(rc);
-                VMR3ReqFree(pReq);
-            }
-            else
+            rc = VMR3PowerOn(pVM);
+            if (RT_FAILURE(rc))
                 AssertMsgFailed(("VMR3PowerOn failed, rc=%Rrc\n", rc));
         }
     }

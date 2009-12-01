@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 23941 2009-10-21 15:40:36Z vboxsync $
 ## @file
 # Sub-Makefile for the VirtualBox Guest Addition X11 Client.
 #
@@ -29,6 +29,9 @@ PROGRAMS += VBoxClient
 
 VBoxClient_TEMPLATE = VBOXGUESTR3CPPEXE
 VBoxClient_DEFS += VBOX_X11_CLIPBOARD VBOX_WITH_HGCM
+ifdef VBOX_WITH_DBUS
+ VBoxClient_DEFS += VBOX_WITH_DBUS
+endif
 VBoxClient_DEFS.linux += _GNU_SOURCE
 VBoxClient_SOURCES = \
 	main.cpp
@@ -57,11 +60,14 @@ ifdef VBOX_X11_SEAMLESS_GUEST
 	seamless-host.cpp \
 	seamless-x11.cpp \
 	thread.cpp \
-	autoresize.cpp
+	display.cpp \
+	hostversion.cpp
  VBoxClient_LIBS += \
 	Xext Xmu
 endif
-
+ifdef VBOX_WITH_GUEST_PROPS
+ VBoxClient_DEFS += VBOX_WITH_GUEST_PROPS
+endif
 #
 # Link aginst libstdc++.a. (http://www.trilithium.com/johan/2005/06/static-libstdc/).
 # (It would've been preferred to avoid features depending on libstdc++, of course...)

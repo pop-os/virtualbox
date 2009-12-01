@@ -1,4 +1,4 @@
-/* $Id: HostHardwareLinux.h $ */
+/* $Id: HostHardwareLinux.h 23522 2009-10-02 23:27:33Z vboxsync $ */
 /** @file
  * Classes for handling hardware detection under Linux.  Please feel free to
  * expand these to work for other systems (Solaris!) or to add new ones for
@@ -25,14 +25,8 @@
 # define ____H_HOSTHARDWARELINUX
 
 #include <iprt/err.h>
-#include <string>
+#include <iprt/ministring_cpp.h>
 #include <vector>
-
-/** This should only be enabled when testing.  It causes all methods to be used
- * when probing for drives instead of stopping as soon as one method is
- * successful.  This is a global instead of a define in order to keep the test
- * code closer to the real code. */
-extern bool g_testHostHardwareLinux;
 
 /**
  * Class for probing and returning information about host DVD and floppy
@@ -47,41 +41,38 @@ public:
     struct DriveInfo
     {
         /** The device node of the drive. */
-        std::string mDevice;
+        iprt::MiniString mDevice;
         /** The hal unique device identifier, if available. */
-        std::string mUdi;
+        iprt::MiniString mUdi;
         /** A textual description of the drive. */
-        std::string mDescription;
+        iprt::MiniString mDescription;
 
         /** Constructors */
-        DriveInfo (std::string aDevice, std::string aUdi, std::string aDescription)
-            : mDevice (aDevice), mUdi (aUdi), mDescription (aDescription) {}
-        DriveInfo (std::string aDevice, std::string aUdi,
-                   const char *aDescription = NULL)
-            : mDevice (aDevice), mUdi (aUdi),
-            mDescription (aDescription != NULL ? aDescription : std::string ()) {}
-        DriveInfo (std::string aDevice, const char *aUdi = NULL,
-                   const char *aDescription = NULL)
-            : mDevice (aDevice), mUdi (aUdi != NULL ? aUdi : std::string ()),
-            mDescription (aDescription != NULL ? aDescription : std::string ()) {}
+        DriveInfo(const iprt::MiniString &aDevice,
+                  const iprt::MiniString &aUdi = "",
+                  const iprt::MiniString &aDescription = "")
+            : mDevice(aDevice),
+              mUdi(aUdi),
+              mDescription(aDescription)
+        { }
     };
-    
+
     /** List (resp vector) holding drive information */
-    typedef std::vector <DriveInfo> DriveInfoList;
+    typedef std::vector<DriveInfo> DriveInfoList;
 
     /**
      * Search for host floppy drives and rebuild the list, which remains empty
      * until the first time this method is called.
      * @returns iprt status code
      */
-    int updateFloppies ();
+    int updateFloppies();
 
     /**
      * Search for host DVD drives and rebuild the list, which remains empty
      * until the first time this method is called.
      * @returns iprt status code
      */
-    int updateDVDs ();
+    int updateDVDs();
 
     /** Get the first element in the list of floppy drives. */
     DriveInfoList::const_iterator FloppyBegin()
@@ -130,22 +121,24 @@ public:
     struct USBDeviceInfo
     {
         /** The device node of the device. */
-        std::string mDevice;
+        iprt::MiniString mDevice;
         /** The sysfs path of the device. */
-        std::string mSysfsPath;
+        iprt::MiniString mSysfsPath;
         /** Type for the list of interfaces. */
-        typedef std::vector <std::string> InterfaceList;
+        typedef std::vector<iprt::MiniString> InterfaceList;
         /** The sysfs paths of the device's interfaces. */
         InterfaceList mInterfaces;
 
         /** Constructors */
-        USBDeviceInfo (std::string aDevice, std::string aSysfsPath)
-            : mDevice (aDevice), mSysfsPath (aSysfsPath) {}
-        USBDeviceInfo () {}
+        USBDeviceInfo(const iprt::MiniString &aDevice,
+                      const iprt::MiniString &aSysfsPath)
+            : mDevice(aDevice),
+              mSysfsPath(aSysfsPath)
+        { }
     };
-    
+
     /** List (resp vector) holding drive information */
-    typedef std::vector <USBDeviceInfo> DeviceInfoList;
+    typedef std::vector<USBDeviceInfo> DeviceInfoList;
 
     /**
      * Search for host USB devices and rebuild the list, which remains empty

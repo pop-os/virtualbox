@@ -1,4 +1,4 @@
-/* $Id: RTThreadPreemptIsPendingTrusty-r0drv-generic.cpp $ */
+/* $Id: RTThreadPreemptIsPendingTrusty-r0drv-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - RTThreadPreemptIsPendingTrusty, Generic ring-0 driver implementation.
  */
@@ -28,10 +28,12 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/thread.h>
+#include "internal/iprt.h"
 
 
 RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
@@ -39,4 +41,5 @@ RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
     /* no, RTThreadPreemptIsPending is not reliable. */
     return false;
 }
+RT_EXPORT_SYMBOL(RTThreadPreemptIsPendingTrusty);
 

@@ -1,4 +1,4 @@
-/* $Id: RTMpGetMaxFrequency-generic.cpp $ */
+/* $Id: RTMpGetMaxFrequency-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Generic RTMpGetMaxFrequency.
  */
@@ -28,10 +28,12 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/mp.h>
+#include "internal/iprt.h"
 
 
 RTDECL(uint32_t) RTMpGetMaxFrequency(RTCPUID idCpu)
@@ -40,4 +42,5 @@ RTDECL(uint32_t) RTMpGetMaxFrequency(RTCPUID idCpu)
     /* this is a generic stub which returns "unknown". */
     return 0;
 }
+RT_EXPORT_SYMBOL(RTMpGetMaxFrequency);
 

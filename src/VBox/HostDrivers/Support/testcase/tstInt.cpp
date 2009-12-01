@@ -1,6 +1,6 @@
-/** $Id: tstInt.cpp $ */
+/* $Id: tstInt.cpp 25003 2009-11-26 14:27:19Z vboxsync $ */
 /** @file
- * Testcase: Test the interrupt gate feature of the support library.
+ * SUP Testcase - Test the interrupt gate feature of the support library.
  */
 
 /*
@@ -174,9 +174,9 @@ int main(int argc, char **argv)
                         {
                             uint64_t OneStartTick = ASMReadTSC();
                             rc = SUPR3CallVMMR0Ex(pVMR0, NIL_VMCPUID, VMMR0_DO_SLOW_NOP, 0, NULL);
-                            uint64_t Ticks = ASMReadTSC() - OneStartTick;
-                            if (Ticks < MinTicks)
-                                MinTicks = Ticks;
+                            uint64_t OneTicks = ASMReadTSC() - OneStartTick;
+                            if (OneTicks < MinTicks)
+                                MinTicks = OneTicks;
 
                             if (RT_UNLIKELY(rc != VINF_SUCCESS))
                             {

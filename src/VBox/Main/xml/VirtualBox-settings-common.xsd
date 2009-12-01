@@ -81,6 +81,12 @@
   </xsd:union>
 </xsd:simpleType>
 
+<xsd:simpleType name="TUInt32Hex">
+  <xsd:restriction base="xsd:string">
+    <xsd:pattern value="0x[A-Fa-f0-9]{1,8}"/>
+  </xsd:restriction>
+</xsd:simpleType>
+
 <xsd:simpleType name="TUInt64Hex">
   <xsd:restriction base="xsd:string">
     <xsd:pattern value="0x[A-Fa-f0-9]{1,16}"/>
@@ -215,6 +221,7 @@
     <xsd:enumeration value="82540EM"/>
     <xsd:enumeration value="82543GC"/>
     <xsd:enumeration value="82545EM"/>
+    <xsd:enumeration value="virtio"/>
   </xsd:restriction>
 </xsd:simpleType>
 
@@ -432,19 +439,24 @@
 </xsd:complexType>
 
 <xsd:complexType name="THWVirtExType">
-  <xsd:attribute name="enabled" type="TTriStateBoolType" default="default"/>
+  <xsd:attribute name="enabled" type="TTriStateBoolType"/>
+  <xsd:attribute name="exclusive" type="xsd:boolean"/>
 </xsd:complexType>
 
 <xsd:complexType name="THWVirtExNestedPagingType">
-  <xsd:attribute name="enabled" type="xsd:boolean" default="false"/>
+  <xsd:attribute name="enabled" type="xsd:boolean"/>
 </xsd:complexType>
 
 <xsd:complexType name="THWVirtExVPIDType">
-  <xsd:attribute name="enabled" type="xsd:boolean" default="false"/>
+  <xsd:attribute name="enabled" type="xsd:boolean"/>
+</xsd:complexType>
+
+<xsd:complexType name="TSyntheticCpuType">
+  <xsd:attribute name="enabled" type="xsd:boolean"/>
 </xsd:complexType>
 
 <xsd:complexType name="TPAEType">
-  <xsd:attribute name="enabled" type="xsd:boolean" default="false"/>
+  <xsd:attribute name="enabled" type="xsd:boolean"/>
 </xsd:complexType>
 
 <xsd:simpleType name="TCPUCount">
@@ -454,12 +466,34 @@
   </xsd:restriction>
 </xsd:simpleType>
 
+<xsd:complexType name="TCpuIdLeaf">
+  <xsd:attribute name="id"        type="TUInt32Hex"       use="required"/>
+  <xsd:attribute name="eax"       type="TUInt32Hex"       use="required"/>
+  <xsd:attribute name="ebx"       type="TUInt32Hex"       use="required"/>
+  <xsd:attribute name="ecx"       type="TUInt32Hex"       use="required"/>
+  <xsd:attribute name="edx"       type="TUInt32Hex"       use="required"/>
+</xsd:complexType>
+
+<xsd:complexType name="TCpuIdTree">
+  <xsd:sequence>
+    <xsd:element name="CpuIdLeaf" type="TCpuIdLeaf"
+                 minOccurs="0" maxOccurs="unbounded"/>
+  </xsd:sequence>
+</xsd:complexType>
+
 <xsd:complexType name="TCPU">
   <xsd:sequence>
     <xsd:element name="HardwareVirtEx" type="THWVirtExType" minOccurs="0"/>
     <xsd:element name="HardwareVirtExNestedPaging" type="THWVirtExNestedPagingType" minOccurs="0"/>
     <xsd:element name="HardwareVirtExVPID" type="THWVirtExVPIDType" minOccurs="0"/>
     <xsd:element name="PAE" type="TPAEType" minOccurs="0"/>
+    <xsd:element name="SyntheticCpu" type="TSyntheticCpuType" minOccurs="0"/>
+    <xsd:element name="CpuIdTree" type="TCpuIdTree" minOccurs="0">
+      <xsd:unique name="TCPU-CpuIdTree-CpuIdLeaf">
+        <xsd:selector xpath="vb:CpuIdLeaf"/>
+        <xsd:field xpath="@id"/>
+      </xsd:unique>
+    </xsd:element>
   </xsd:sequence>
   <xsd:attribute name="count" type="TCPUCount" default="1"/>
 </xsd:complexType>
@@ -499,11 +533,12 @@
     </xsd:simpleType>
   </xsd:attribute>
   <xsd:attribute name="accelerate3D" type="xsd:boolean" default="false"/>
+  <xsd:attribute name="accelerate2DVideo" type="xsd:boolean" default="false"/>
 </xsd:complexType>
 
 <xsd:complexType name="TRemoteDisplay">
   <xsd:attribute name="enabled" type="xsd:boolean" use="required"/>
-  <xsd:attribute name="port" type="xsd:unsignedInt" default="0"/>
+  <xsd:attribute name="port" type="xsd:token" default="0"/>
   <xsd:attribute name="netAddress" type="xsd:token" default=""/>
   <xsd:attribute name="authType" type="TVRDPAuthType" default="Null"/>
   <xsd:attribute name="authTimeout" type="xsd:unsignedInt" default="5000"/>

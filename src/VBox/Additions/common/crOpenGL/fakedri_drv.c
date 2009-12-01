@@ -81,6 +81,12 @@
 #define PAGESIZE 4096
 #endif
 
+#ifdef RT_ARCH_AMD64
+# define DRI_ELFSYM Elf64_Sym
+#else
+# define DRI_ELFSYM Elf32_Sym
+#endif
+
 static struct _glapi_table vbox_glapi_table;
 fakedri_glxapi_table glxim;
 
@@ -129,12 +135,17 @@ static void
 vboxPatchMesaExport(const char* psFuncName, const void *pStart, const void *pEnd)
 {
     Dl_info dlip;
-    Elf32_Sym* sym=0;
+    DRI_ELFSYM* sym=0;
     int rv;
     void *alPatch;
     void *pMesaEntry;
+#ifdef RT_ARCH_AMD64
+    char patch[5];
+    void *shift;
+#endif
 
 #ifndef VBOX_NO_MESA_PATCH_REPORTS
+    crDebug("");
     crDebug("vboxPatchMesaExport: %s", psFuncName);
 #endif
 
@@ -156,7 +167,7 @@ vboxPatchMesaExport(const char* psFuncName, const void *pStart, const void *pEnd
 #if VBOX_OGL_GLX_USE_CSTUBS
     {
         Dl_info dlip1;
-        Elf32_Sym* sym1=0;
+        DRI_ELFSYM* sym1=0;
         int rv;
 
         rv = dladdr1(pStart, &dlip1, (void**)&sym1, RTLD_DL_SYMENT);
@@ -178,8 +189,42 @@ vboxPatchMesaExport(const char* psFuncName, const void *pStart, const void *pEnd
 
     if (sym->st_size<(pEnd-pStart))
     {
+#ifdef RT_ARCH_AMD64
+        /* Try to insert 5 bytes jmpq to our stub code */
+
+    	if (5>(pEnd-pStart))
+        {
+            crDebug("Can't patch size too small.(%s)", psFuncName);
+            return;
+        }
+
+        shift = pStart-(dlip.dli_saddr+5);
+# ifndef VBOX_NO_MESA_PATCH_REPORTS
+        crDebug("Size is small, inserting jmpq with shift %p instead", shift);
+# endif
+
+        if ( ((((long)shift)&0x00000000) != 0) 
+             && ((((long)shift)&0x00000000) != 0xFFFFFFFF00000000))
+        {
+            crDebug("Can't patch offset is too big.(%s)", psFuncName);
+            return;
+        }
+
+        patch[0] = 0xE9;
+        patch[1] = ((char*)&shift)[0];
+        patch[2] = ((char*)&shift)[1];
+        patch[3] = ((char*)&shift)[2];
+        patch[4] = ((char*)&shift)[3];
+
+# ifndef VBOX_NO_MESA_PATCH_REPORTS
+        crDebug("Patch: E9 %x", *((int*)&patch[1]));
+# endif
+        pStart = &patch[0];
+        pEnd = &patch[5];
+#else
         crDebug("Can't patch size too small.(%s)", psFuncName);
         return;
+#endif //ifdef RT_ARCH_AMD64
     }
 
     /* Get aligned start adress we're going to patch*/

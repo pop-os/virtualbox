@@ -1,4 +1,4 @@
-/* $Id: VBoxManageGuestProp.cpp $ */
+/* $Id: VBoxManageGuestProp.cpp 24024 2009-10-23 11:53:22Z vboxsync $ */
 /** @file
  * VBoxManage - The 'guestproperty' command.
  */
@@ -32,10 +32,10 @@
 #include <VBox/com/errorprint.h>
 
 #include <VBox/com/VirtualBox.h>
+#include <VBox/com/EventQueue.h>
 
 #include <VBox/log.h>
 #include <iprt/asm.h>
-#include <iprt/semaphore.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/time.h>
@@ -66,19 +66,10 @@ public:
 #ifndef VBOX_WITH_XPCOM
         refcnt = 0;
 #endif
-#ifndef USE_XPCOM_QUEUE
-        int rc = RTSemEventMultiCreate(&mhEvent);
-        if (RT_FAILURE(rc))
-            mhEvent = NIL_RTSEMEVENTMULTI;
-#endif
     }
 
     virtual ~GuestPropertyCallback()
     {
-#ifndef USE_XPCOM_QUEUE
-        RTSemEventMultiDestroy(mhEvent);
-        mhEvent = NIL_RTSEMEVENTMULTI;
-#endif
     }
 
 #ifndef VBOX_WITH_XPCOM
@@ -93,24 +84,8 @@ public:
             delete this;
         return cnt;
     }
-    STDMETHOD(QueryInterface)(REFIID riid , void **ppObj)
-    {
-        if (riid == IID_IUnknown)
-        {
-            *ppObj = this;
-            AddRef();
-            return S_OK;
-        }
-        if (riid == IID_IVirtualBoxCallback)
-        {
-            *ppObj = this;
-            AddRef();
-            return S_OK;
-        }
-        *ppObj = NULL;
-        return E_NOINTERFACE;
-    }
 #endif /* !VBOX_WITH_XPCOM */
+    VBOX_SCRIPTABLE_DISPATCH_IMPL(IVirtualBoxCallback)
 
     NS_DECL_ISUPPORTS
 
@@ -142,8 +117,8 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(OnMediaRegistered)(IN_BSTR mediaId,
-                                 DeviceType_T mediaType, BOOL registered)
+    STDMETHOD(OnMediumRegistered)(IN_BSTR mediaId,
+                                  DeviceType_T mediaType, BOOL registered)
     {
         NOREF(mediaId);
         NOREF(mediaType);
@@ -184,24 +159,17 @@ public:
                                      IN_BSTR name, IN_BSTR value,
                                      IN_BSTR flags)
     {
-        HRESULT rc = S_OK;
         Utf8Str utf8Name(name);
         Guid uuid(machineId);
-        if (utf8Name.isNull())
-            rc = E_OUTOFMEMORY;
-        if (   SUCCEEDED(rc)
-            && uuid == mUuid
+        if (   uuid == mUuid
             && RTStrSimplePatternMultiMatch(mPatterns, RTSTR_MAX,
                                             utf8Name.raw(), RTSTR_MAX, NULL))
         {
             RTPrintf("Name: %lS, value: %lS, flags: %lS\n", name, value, flags);
             ASMAtomicWriteBool(&mSignalled, true);
-#ifndef USE_XPCOM_QUEUE
-            int rc = RTSemEventMultiSignal(mhEvent);
-            AssertRC(rc);
-#endif
+            com::EventQueue::getMainEventQueue()->interruptEventQueueProcessing();
         }
-        return rc;
+        return S_OK;
     }
 
     bool Signalled(void) const
@@ -209,24 +177,12 @@ public:
         return mSignalled;
     }
 
-#ifndef USE_XPCOM_QUEUE
-    /** Wrapper around RTSemEventMultiWait. */
-    int wait(uint32_t cMillies)
-    {
-        return RTSemEventMultiWait(mhEvent, cMillies);
-    }
-#endif
-
 private:
     bool volatile mSignalled;
     const char *mPatterns;
     Guid mUuid;
 #ifndef VBOX_WITH_XPCOM
     long refcnt;
-#endif
-#ifndef USE_XPCOM_QUEUE
-    /** Event semaphore to wait on. */
-    RTSEMEVENTMULTI mhEvent;
 #endif
 };
 
@@ -438,20 +394,6 @@ static int handleEnumGuestProperty(HandlerArg *a)
 }
 
 /**
- * Callback for processThreadEventQueue.
- *
- * @param   pvUser  Pointer to the callback object.
- *
- * @returns true if it should return or false if it should continue waiting for
- *          events.
- */
-static bool eventExitCheck(void *pvUser)
-{
-    GuestPropertyCallback const *pCallbacks = (GuestPropertyCallback const *)pvUser;
-    return pCallbacks->Signalled();
-}
-
-/**
  * Enumerates the properties in the guest property store.
  *
  * @returns 0 on success, 1 on failure
@@ -500,12 +442,10 @@ static int handleWaitGuestProperty(HandlerArg *a)
         return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
 
     /*
-     * Set up the callback and wait.
+     * Set up the callback and loop until signal or timeout.
      *
-     *
-     * The waiting is done is 1 sec at the time since there there are races
-     * between the callback and us going to sleep.  This also guards against
-     * neglecting XPCOM event queues as well as any select timeout restrictions.
+     * We do this in 1000 ms chunks to be on the safe side (there used to be
+     * better reasons for it).
      */
     Bstr uuid;
     machine->COMGETTER(Id)(uuid.asOutParam());
@@ -518,16 +458,27 @@ static int handleWaitGuestProperty(HandlerArg *a)
         return 1;
     }
     a->virtualBox->RegisterCallback(callback);
-
-    int vrc = com::EventQueue::processThreadEventQueue(cMsTimeout, eventExitCheck, (void *)cbImpl,
-                                                       1000 /*cMsPollInterval*/, false /*fReturnOnEvent*/);
-    if (   RT_FAILURE(vrc)
-        && vrc != VERR_CALLBACK_RETURN
-        && vrc != VERR_TIMEOUT)
+    uint64_t u64Started = RTTimeMilliTS();
+    do
     {
-        RTPrintf("Error waiting for event: %Rrc\n", vrc);
-        return 1;
-    }
+        unsigned cMsWait;
+        if (cMsTimeout == RT_INDEFINITE_WAIT)
+            cMsWait = 1000;
+        else
+        {
+            uint64_t cMsElapsed = RTTimeMilliTS() - u64Started;
+            if (cMsElapsed >= cMsTimeout)
+                break; /* timed out */
+            cMsWait = RT_MIN(1000, cMsTimeout - (uint32_t)cMsElapsed);
+        }
+        int vrc = com::EventQueue::getMainEventQueue()->processEventQueue(cMsWait);
+        if (    RT_FAILURE(vrc)
+            &&  vrc != VERR_TIMEOUT)
+        {
+            RTPrintf("Error waiting for event: %Rrc\n", vrc);
+            return 1;
+        }
+    } while (!cbImpl->Signalled());
 
     a->virtualBox->UnregisterCallback(callback);
 
@@ -569,4 +520,3 @@ int handleGuestProperty(HandlerArg *a)
     /* default: */
     return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
 }
-

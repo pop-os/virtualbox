@@ -1,4 +1,4 @@
-/* $Id: com.cpp $ */
+/* $Id: com.cpp 22708 2009-09-02 11:40:56Z vboxsync $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer
@@ -50,13 +50,13 @@
 
 #include <VBox/err.h>
 
-
 #ifdef RT_OS_DARWIN
 #define VBOX_USER_HOME_SUFFIX   "Library/VirtualBox"
 #else
 #define VBOX_USER_HOME_SUFFIX   ".VirtualBox"
 #endif
 
+#include "Logging.h"
 
 namespace com
 {
@@ -112,19 +112,19 @@ void GetInterfaceNameByIID (const GUID &aIID, BSTR *aName)
     nsresult rv;
     nsCOMPtr <nsIInterfaceInfoManager> iim =
         do_GetService (NS_INTERFACEINFOMANAGER_SERVICE_CONTRACTID, &rv);
-    if (NS_SUCCEEDED (rv))
+    if (NS_SUCCEEDED(rv))
     {
         nsCOMPtr <nsIInterfaceInfo> iinfo;
         rv = iim->GetInfoForIID (&aIID, getter_AddRefs (iinfo));
-        if (NS_SUCCEEDED (rv))
+        if (NS_SUCCEEDED(rv))
         {
             const char *iname = NULL;
             iinfo->GetNameShared (&iname);
             char *utf8IName = NULL;
-            if (RT_SUCCESS (RTStrCurrentCPToUtf8 (&utf8IName, iname)))
+            if (RT_SUCCESS(RTStrCurrentCPToUtf8 (&utf8IName, iname)))
             {
                 PRTUTF16 utf16IName = NULL;
-                if (RT_SUCCESS (RTStrToUtf16 (utf8IName, &utf16IName)))
+                if (RT_SUCCESS(RTStrToUtf16 (utf8IName, &utf16IName)))
                 {
                     *aName = SysAllocString ((OLECHAR *) utf16IName);
                     RTUtf16Free (utf16IName);
@@ -139,8 +139,8 @@ void GetInterfaceNameByIID (const GUID &aIID, BSTR *aName)
 
 int GetVBoxUserHomeDirectory (char *aDir, size_t aDirLen)
 {
-    AssertReturn (aDir, VERR_INVALID_POINTER);
-    AssertReturn (aDirLen > 0, VERR_BUFFER_OVERFLOW);
+    AssertReturn(aDir, VERR_INVALID_POINTER);
+    AssertReturn(aDirLen > 0, VERR_BUFFER_OVERFLOW);
 
     /* start with null */
     *aDir = 0;
@@ -155,10 +155,10 @@ int GetVBoxUserHomeDirectory (char *aDir, size_t aDirLen)
         /* get the full path name */
         char *VBoxUserHomeUtf8 = NULL;
         vrc = RTStrCurrentCPToUtf8 (&VBoxUserHomeUtf8, VBoxUserHome);
-        if (RT_SUCCESS (vrc))
+        if (RT_SUCCESS(vrc))
         {
             vrc = RTPathAbs (VBoxUserHomeUtf8, path, sizeof (path));
-            if (RT_SUCCESS (vrc))
+            if (RT_SUCCESS(vrc))
             {
                 if (aDirLen < strlen (path) + 1)
                     vrc = VERR_BUFFER_OVERFLOW;
@@ -172,7 +172,7 @@ int GetVBoxUserHomeDirectory (char *aDir, size_t aDirLen)
     {
         /* compose the config directory (full path) */
         vrc = RTPathUserHome (path, sizeof (path));
-        if (RT_SUCCESS (vrc))
+        if (RT_SUCCESS(vrc))
         {
             size_t len =
                 RTStrPrintf (aDir, aDirLen, "%s%c%s",
@@ -183,7 +183,7 @@ int GetVBoxUserHomeDirectory (char *aDir, size_t aDirLen)
     }
 
     /* ensure the home directory exists */
-    if (RT_SUCCESS (vrc))
+    if (RT_SUCCESS(vrc))
         if (!RTDirExists (aDir))
             vrc = RTDirCreateFullPath (aDir, 0777);
 
@@ -199,5 +199,20 @@ const Guid Guid::Empty; /* default ctor is OK */
 const nsID *SafeGUIDArray::nsIDRef::Empty = (const nsID *) Guid::Empty.raw();
 
 #endif /* (VBOX_WITH_XPCOM) */
+
+/**
+ * Used by ComPtr and friends to log details about reference counting.
+ * @param pcszFormat
+ */
+void LogRef(const char *pcszFormat, ...)
+{
+    char *pszNewMsg;
+    va_list args;
+    va_start(args, pcszFormat);
+    RTStrAPrintfV(&pszNewMsg, pcszFormat, args);
+    LogDJ((pszNewMsg));
+    RTStrFree(pszNewMsg);
+    va_end(args);
+}
 
 } /* namespace com */

@@ -1,8 +1,6 @@
-/* $Id:  $ */
+/* $Id: SUPDrv-darwin.cpp 24183 2009-10-30 11:08:03Z vboxsync $ */
 /** @file
- *
- * VBox host drivers - Ring-0 support drivers - Darwin host:
- * Darwin driver C code
+ * VirtualBox Support Driver - Darwin Specific Code.
  */
 
 /*
@@ -66,7 +64,7 @@
 #include <sys/proc.h>
 #include <sys/kauth.h>
 #include <IOKit/IOService.h>
-#include <IOKit/IOUserclient.h>
+#include <IOKit/IOUserClient.h>
 #include <IOKit/pwr_mgt/RootDomain.h>
 
 #ifdef VBOX_WITH_HOST_VMX
@@ -287,7 +285,7 @@ static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pv
         }
         else
             printf("VBoxDrv: failed to initialize device extension (rc=%d)\n", rc);
-        RTR0Term();
+        RTR0TermForced();
     }
     else
         printf("VBoxDrv: failed to initialize IPRT (rc=%d)\n", rc);
@@ -330,7 +328,7 @@ static kern_return_t    VBoxDrvDarwinStop(struct kmod_info *pKModInfo, void *pvD
     AssertRC(rc);
     g_Spinlock = NIL_RTSPINLOCK;
 
-    RTR0Term();
+    RTR0TermForced();
 
     memset(&g_DevExt, 0, sizeof(g_DevExt));
 #ifdef DEBUG

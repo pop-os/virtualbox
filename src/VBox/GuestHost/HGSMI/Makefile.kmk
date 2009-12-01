@@ -1,0 +1,49 @@
+# $Id: Makefile.kmk 22683 2009-09-01 17:53:07Z vboxsync $
+## @file
+# Sub-Makefile for the common HGSMI library.
+#
+
+#
+# Copyright (C) 2006-2009 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../..
+include	$(KBUILD_PATH)/subheader.kmk
+
+
+
+
+#
+# HGSMIGuestR0Lib - For guest additions drivers.
+#
+ifdef VBOX_WITH_ADDITION_DRIVERS
+LIBRARIES += HGSMIGuestR0Lib
+HGSMIGuestR0Lib_TEMPLATE     = VBOXGUESTR0LIB
+HGSMIGuestR0Lib_DEFS         =
+HGSMIGuestR0Lib_SOURCES      = \
+	HGSMICommon.cpp
+endif
+
+#
+# HGSMIHostLib - For host devices (R3 only).
+#
+LIBRARIES += HGSMIHostR3Lib
+HGSMIHostR3Lib_TEMPLATE      = VBOXR3
+HGSMIHostR3Lib_DEFS          =
+HGSMIHostR3Lib_SOURCES       = \
+	HGSMICommon.cpp
+
+include	$(KBUILD_PATH)/subfooter.kmk
+

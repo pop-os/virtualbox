@@ -137,6 +137,10 @@ typedef enum LOGGROUP
     LOG_GROUP_DEV_USB,
     /** VGA Device group. */
     LOG_GROUP_DEV_VGA,
+    /** Virtio PCI Device group. */
+    LOG_GROUP_DEV_VIRTIO,
+    /** Virtio Network Device group. */
+    LOG_GROUP_DEV_VIRTIO_NET,
     /** VMM Device group. */
     LOG_GROUP_DEV_VMM,
     /** VMM Device group for backdoor logging. */
@@ -324,7 +328,9 @@ typedef enum LOGGROUP
     /** VMM group. */
     LOG_GROUP_VMM,
     /** VRDP group */
-    LOG_GROUP_VRDP
+    LOG_GROUP_VRDP,
+    /** Webservice group. */
+    LOG_GROUP_WEBSERVICE
     /* !!!ALPHABETICALLY!!! */
 } VBOX_LOGGROUP;
 
@@ -383,6 +389,8 @@ typedef enum LOGGROUP
     "DEV_SMC",      \
     "DEV_USB",      \
     "DEV_VGA",      \
+    "DEV_VIRTIO",   \
+    "DEV_VIRTIO_NET", \
     "DEV_VMM",      \
     "DEV_VMM_BACKDOOR", \
     "DEV_VMM_STDERR",\
@@ -477,6 +485,7 @@ typedef enum LOGGROUP
     "VM",           \
     "VMM",          \
     "VRDP",         \
+    "WEBSERVICE",   \
 }
 
 /** @} */

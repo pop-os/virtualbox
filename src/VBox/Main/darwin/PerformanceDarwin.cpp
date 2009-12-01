@@ -1,7 +1,5 @@
-/* $Id: PerformanceDarwin.cpp $ */
-
+/* $Id: PerformanceDarwin.cpp 21701 2009-07-17 14:44:43Z vboxsync $ */
 /** @file
- *
  * VBox Darwin-specific Performance Classes implementation.
  */
 
@@ -21,7 +19,6 @@
  * additional information or have any questions.
  */
 
-#include <iprt/stdint.h>
 #include <mach/mach_error.h>
 #include <mach/mach_host.h>
 #include <mach/mach_init.h>
@@ -183,3 +180,4 @@ int CollectorDarwin::getProcessMemoryUsage(RTPROCESS process, ULONG *used)
 }
 
 }
+

@@ -1,4 +1,4 @@
-/* $Revision: 48062 $ */
+/* $Revision: 20220 $ */
 /** @file tstXPCOMCGlue.c
  * Demonstrator program to illustrate use of C bindings of Main API.
  *

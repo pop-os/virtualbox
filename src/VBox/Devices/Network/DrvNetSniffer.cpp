@@ -276,6 +276,61 @@ static DECLCALLBACK(void *) drvNetSnifferQueryInterface(PPDMIBASE pInterface, PD
 
 
 /**
+ * Detach a driver instance.
+ *
+ * @param   pDrvIns     The driver instance.
+ * @param   fFlags      Flags, combination of the PDM_TACH_FLAGS_* \#defines.
+ */
+static DECLCALLBACK(void) drvNetSnifferDetach(PPDMDRVINS pDrvIns, uint32_t fFlags)
+{
+    PDRVNETSNIFFER pThis = PDMINS_2_DATA(pDrvIns, PDRVNETSNIFFER);
+
+    LogFlow(("drvNetSnifferDetach: pDrvIns: %p, fFlags: %u\n", pDrvIns, fFlags));
+
+    pThis->pConnector = NULL;
+}
+
+
+/**
+ * Attach a driver instance.
+ *
+ * @returns VBox status code.
+ * @param   pDrvIns     The driver instance.
+ * @param   fFlags      Flags, combination of the PDM_TACH_FLAGS_* \#defines.
+ */
+static DECLCALLBACK(int) drvNetSnifferAttach(PPDMDRVINS pDrvIns, uint32_t fFlags)
+{
+    PDRVNETSNIFFER pThis = PDMINS_2_DATA(pDrvIns, PDRVNETSNIFFER);
+
+    LogFlow(("drvNetSnifferAttach: pDrvIns: %p, fFlags: %u\n", pDrvIns, fFlags));
+
+    /*
+     * Query the network connector interface.
+     */
+    PPDMIBASE   pBaseDown;
+    int rc = PDMDrvHlpAttach(pDrvIns, fFlags, &pBaseDown);
+    if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
+        pThis->pConnector = NULL;
+    else if (RT_SUCCESS(rc))
+    {
+        pThis->pConnector = (PPDMINETWORKCONNECTOR)pBaseDown->pfnQueryInterface(pBaseDown, PDMINTERFACE_NETWORK_CONNECTOR);
+        if (!pThis->pConnector)
+        {
+            AssertMsgFailed(("Configuration error: the driver below didn't export the network connector interface!\n"));
+            return VERR_PDM_MISSING_INTERFACE_BELOW;
+        }
+    }
+    else
+    {
+        AssertMsgFailed(("Failed to attach to driver below! rc=%Rrc\n", rc));
+        return rc;
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Destruct a driver instance.
  *
  * Most VM resources are freed by the VM. This callback is provided so that any non-VM
@@ -301,14 +356,9 @@ static DECLCALLBACK(void) drvNetSnifferDestruct(PPDMDRVINS pDrvIns)
 /**
  * Construct a NAT network transport driver instance.
  *
- * @returns VBox status.
- * @param   pDrvIns     The driver instance data.
- *                      If the registration structure is needed, pDrvIns->pDrvReg points to it.
- * @param   pCfgHandle  Configuration node handle for the driver. Use this to obtain the configuration
- *                      of the driver instance. It's also found in pDrvIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvNetSnifferConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) drvNetSnifferConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
 {
     PDRVNETSNIFFER pThis = PDMINS_2_DATA(pDrvIns, PDRVNETSNIFFER);
     LogFlow(("drvNetSnifferConstruct:\n"));
@@ -348,7 +398,13 @@ static DECLCALLBACK(int) drvNetSnifferConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
      */
     int rc = CFGMR3QueryString(pCfgHandle, "File", pThis->szFilename, sizeof(pThis->szFilename));
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
-        RTStrPrintf(pThis->szFilename, sizeof(pThis->szFilename), "./VBox-%x.pcap", RTProcSelf());
+    {
+        if (pDrvIns->iInstance > 0)
+            RTStrPrintf(pThis->szFilename, sizeof(pThis->szFilename), "./VBox-%x-%u.pcap", RTProcSelf(), pDrvIns->iInstance);
+        else
+            RTStrPrintf(pThis->szFilename, sizeof(pThis->szFilename), "./VBox-%x.pcap", RTProcSelf());
+    }
+
     else if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Failed to query \"File\", rc=%Rrc.\n", rc));
@@ -379,7 +435,7 @@ static DECLCALLBACK(int) drvNetSnifferConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
      * Query the network connector interface.
      */
     PPDMIBASE   pBaseDown;
-    rc = pDrvIns->pDrvHlp->pfnAttach(pDrvIns, &pBaseDown);
+    rc = PDMDrvHlpAttach(pDrvIns, fFlags, &pBaseDown);
     if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
         pThis->pConnector = NULL;
     else if (RT_SUCCESS(rc))
@@ -440,7 +496,7 @@ const PDMDRVREG g_DrvNetSniffer =
     /* fClass. */
     PDM_DRVREG_CLASS_NETWORK,
     /* cMaxInstances */
-    1,
+    UINT32_MAX,
     /* cbInstance */
     sizeof(DRVNETSNIFFER),
     /* pfnConstruct */
@@ -457,9 +513,15 @@ const PDMDRVREG g_DrvNetSniffer =
     NULL,
     /* pfnResume */
     NULL,
+    /* pfnAttach */
+    drvNetSnifferAttach,
     /* pfnDetach */
-    NULL,
+    drvNetSnifferDetach,
     /* pfnPowerOff */
-    NULL
+    NULL,
+    /* pfnSoftReset */
+    NULL,
+    /* u32EndVersion */
+    PDM_DRVREG_VERSION
 };
 

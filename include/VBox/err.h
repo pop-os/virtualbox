@@ -125,12 +125,12 @@
 /** Indicating that the VM is being turned off and that the EM should
  * exit to the VM awaiting the destruction request. */
 #define VINF_EM_OFF                         1109
-/** Indicating that the VM has been reset and that scheduling goes
- * back to startup defaults. */
-#define VINF_EM_RESET                       1110
 /** Indicating that the VM has been suspended and that the the thread
  * should wait for request telling it what to do next. */
-#define VINF_EM_SUSPEND                     1111
+#define VINF_EM_SUSPEND                     1110
+/** Indicating that the VM has been reset and that scheduling goes
+ * back to startup defaults. */
+#define VINF_EM_RESET                       1111
 /** Indicating that the VM has executed a halt instruction and that
  * the emulation thread should wait for an interrupt before resuming
  * execution. */
@@ -488,6 +488,7 @@
 #define VERR_SSM_UNIT_NOT_FOUND                 (-1801)
 /** The specified data unit wasn't owned by caller. */
 #define VERR_SSM_UNIT_NOT_OWNER                 (-1802)
+
 /** General saved state file integrity error. */
 #define VERR_SSM_INTEGRITY                      (-1810)
 /** The saved state file magic was not recognized. */
@@ -496,56 +497,122 @@
 #define VERR_SSM_INTEGRITY_VERSION              (-1812)
 /** The saved state file size didn't match the one in the header. */
 #define VERR_SSM_INTEGRITY_SIZE                 (-1813)
-/** The CRC of the saved state file did match. */
+/** The CRC of the saved state file did not match. */
 #define VERR_SSM_INTEGRITY_CRC                  (-1814)
-/** The current virtual machine id didn't match the virtual machine id. */
+/** The machine uuid field wasn't null. */
 #define VERR_SMM_INTEGRITY_MACHINE              (-1815)
+/** Saved state header integrity error. */
+#define VERR_SSM_INTEGRITY_HEADER               (-1816)
+/** Unit header integrity error. */
+#define VERR_SSM_INTEGRITY_UNIT                 (-1817)
 /** Invalid unit magic (internal data tag). */
-#define VERR_SSM_INTEGRITY_UNIT_MAGIC           (-1816)
+#define VERR_SSM_INTEGRITY_UNIT_MAGIC           (-1818)
 /** The file contained a data unit which no-one wants. */
-#define VERR_SSM_INTEGRITY_UNIT_NOT_FOUND       (-1817)
-/** Incorrect type sizes in the header. */
-#define VERR_SSM_INTEGRITY_SIZES                (-1818)
+#define VERR_SSM_INTEGRITY_UNIT_NOT_FOUND       (-1819)
 /** Incorrect version numbers in the header. */
-#define VERR_SSM_INTEGRITY_VBOX_VERSION         (-1819)
+#define VERR_SSM_INTEGRITY_VBOX_VERSION         (-1820)
+/** Footer integrity error. */
+#define VERR_SSM_INTEGRITY_FOOTER               (-1821)
+/** Record header integrity error. */
+#define VERR_SSM_INTEGRITY_REC_HDR              (-1822)
+/** Termination record integrity error. */
+#define VERR_SSM_INTEGRITY_REC_TERM             (-1823)
+/** Termination record CRC mismatch. */
+#define VERR_SSM_INTEGRITY_REC_TERM_CRC         (-1824)
+/** Decompression interity error.  */
+#define VERR_SSM_INTEGRITY_DECOMPRESSION        (-1825)
+/** Saved state directory iintegrity error.  */
+#define VERR_SSM_INTEGRITY_DIR                  (-1826)
+/** The saved state directory magic is wrong. */
+#define VERR_SSM_INTEGRITY_DIR_MAGIC            (-1827)
+
 /** A data unit in the saved state file was defined but didn't any
  * routine for processing it. */
-#define VERR_SSM_NO_LOAD_EXEC                   (-1820)
+#define VERR_SSM_NO_LOAD_EXEC                   (-1830)
 /** A restore routine attempted to load more data then the unit contained. */
-#define VERR_SSM_LOADED_TOO_MUCH                (-1821)
+#define VERR_SSM_LOADED_TOO_MUCH                (-1831)
 /** Not in the correct state for the attempted operation. */
-#define VERR_SSM_INVALID_STATE                  (-1822)
+#define VERR_SSM_INVALID_STATE                  (-1832)
+/** Not in the correct state for the attempted operation. */
+#define VERR_SSM_LOADED_TOO_LITTLE              (-1833)
 
 /** Unsupported data unit version.
  * A SSM user returns this if it doesn't know the u32Version. */
-#define VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION  (-1823)
+#define VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION  (-1840)
 /** The format of a data unit has changed.
  * A SSM user returns this if it's not able to read the format for
  * other reasons than u32Version. */
-#define VERR_SSM_DATA_UNIT_FORMAT_CHANGED       (-1824)
+#define VERR_SSM_DATA_UNIT_FORMAT_CHANGED       (-1841)
 /** The CPUID instruction returns different information when loading than when saved.
  * Normally caused by hardware changes on the host, but could also be caused by
  * changes in the BIOS setup. */
-#define VERR_SSM_LOAD_CPUID_MISMATCH            (-1825)
+#define VERR_SSM_LOAD_CPUID_MISMATCH            (-1842)
 /** The RAM size differes between the saved state and the VM config. */
-#define VERR_SSM_LOAD_MEMORY_SIZE_MISMATCH      (-1826)
+#define VERR_SSM_LOAD_MEMORY_SIZE_MISMATCH      (-1843)
 /** The state doesn't match the VM configuration in one or another way.
  * (There are certain PCI reconfiguration which the OS could potentially
  * do which can cause this problem. Check this out when it happens.) */
-#define VERR_SSM_LOAD_CONFIG_MISMATCH           (-1827)
+#define VERR_SSM_LOAD_CONFIG_MISMATCH           (-1844)
 /** The virtual clock freqency differs too much.
  * The clock source for the virtual time isn't reliable or the code have changed. */
-#define VERR_SSM_VIRTUAL_CLOCK_HZ               (-1828)
+#define VERR_SSM_VIRTUAL_CLOCK_HZ               (-1845)
 /** A timeout occured while waiting for async IDE operations to finish. */
-#define VERR_SSM_IDE_ASYNC_TIMEOUT              (-1829)
+#define VERR_SSM_IDE_ASYNC_TIMEOUT              (-1846)
 /** One of the structure magics was wrong. */
-#define VERR_SSM_STRUCTURE_MAGIC                (-1830)
+#define VERR_SSM_STRUCTURE_MAGIC                (-1847)
 /** The data in the saved state doesn't confirm to expectations. */
-#define VERR_SSM_UNEXPECTED_DATA                (-1831)
+#define VERR_SSM_UNEXPECTED_DATA                (-1848)
 /** Trying to read a 64-bit guest physical address into a 32-bit variable. */
-#define VERR_SSM_GCPHYS_OVERFLOW                (-1832)
+#define VERR_SSM_GCPHYS_OVERFLOW                (-1849)
 /** Trying to read a 64-bit guest virtual address into a 32-bit variable. */
-#define VERR_SSM_GCPTR_OVERFLOW                 (-1833)
+#define VERR_SSM_GCPTR_OVERFLOW                 (-1850)
+/** Vote for another pass.  */
+#define VINF_SSM_VOTE_FOR_ANOTHER_PASS          1851
+/** Vote for done tell SSM not to call again until the final pass. */
+#define VINF_SSM_VOTE_DONE_DONT_CALL_AGAIN      1852
+/** Vote for giving up.  */
+#define VERR_SSM_VOTE_FOR_GIVING_UP             (-1853)
+/** Don't call again until the final pass. */
+#define VINF_SSM_DONT_CALL_AGAIN                1854
+/** Giving up a live snapshot/teleportation attempt because of too many
+ * passes. */
+#define VERR_SSM_TOO_MANY_PASSES                (-1855)
+/** Giving up a live snapshot/teleportation attempt because the state grew to
+ * big. */
+#define VERR_SSM_STATE_GREW_TOO_BIG             (-1856)
+/** Giving up a live snapshot attempt because we're low on disk space.  */
+#define VERR_SSM_LOW_ON_DISK_SPACE              (-1857)
+/** The operation was cancelled. */
+#define VERR_SSM_CANCELLED                      (-1858)
+/** Nothing that can be cancelled.  */
+#define VERR_SSM_NO_PENDING_OPERATION           (-1859)
+/** The operation has already been cancelled. */
+#define VERR_SSM_ALREADY_CANCELLED              (-1860)
+/** The machine was powered off while saving. */
+#define VERR_SSM_LIVE_POWERED_OFF               (-1861)
+/** The live snapshot/teleportation operation was aborted because of a guru
+ *  meditation. */
+#define VERR_SSM_LIVE_GURU_MEDITATION           (-1862)
+/** The live snapshot/teleportation operation was aborted because of a fatal
+ *  runtime error. */
+#define VERR_SSM_LIVE_FATAL_ERROR               (-1863)
+/** The VM was suspended before or while saving, don't resume execution. */
+#define VINF_SSM_LIVE_SUSPENDED                  1864
+/** Complex SSM field fed to SSMR3PutStruct or SSMR3GetStruct.  Use the
+ * extended API. */
+#define VERR_SSM_FIELD_COMPLEX                  (-1864)
+/** Invalid size of a SSM field with the specified transformation. */
+#define VERR_SSM_FIELD_INVALID_SIZE             (-1865)
+/** The specified field is outside the structure.  */
+#define VERR_SSM_FIELD_OUT_OF_BOUNDS            (-1866)
+/** The field does not follow immediately the previous one. */
+#define VERR_SSM_FIELD_NOT_CONSECUTIVE          (-1867)
+/** The field contains an invalid callback or transformation index. */
+#define VERR_SSM_FIELD_INVALID_CALLBACK         (-1868)
+/** The field contains an invalid padding size. */
+#define VERR_SSM_FIELD_INVALID_PADDING_SIZE     (-1869)
+/** The field contains a value that is out of range. */
+#define VERR_SSM_FIELD_INVALID_VALUE            (-1870)
 /** @} */
 
 
@@ -980,9 +1047,9 @@
 /** The device doesn't support runtime driver attaching.
  * The PDMDEVREG::pfnAttach callback function is NULL. */
 #define VERR_PDM_DEVICE_NO_RT_ATTACH                (-2853)
-/** The device doesn't support runtime driver detaching.
- * The PDMDEVREG::pfnDetach callback function is NULL. */
-#define VERR_PDM_DEVICE_NO_RT_DETACH                (-2854)
+/** The driver doesn't support runtime driver attaching.
+ * The PDMDRVREG::pfnAttach callback function is NULL. */
+#define VERR_PDM_DRIVER_NO_RT_ATTACH                (-2854)
 /** Invalid host interface version. */
 #define VERR_PDM_HIF_INVALID_VERSION                (-2855)
 
@@ -1012,6 +1079,12 @@
 /** The driver properties were invalid, and as a consequence construction
  * failed. Caused my unusable media or similar problems. */
 #define VERR_PDM_DRIVER_INVALID_PROPERTIES          (-2866)
+/** Too many instances of a device. */
+#define VERR_PDM_TOO_MANY_DEVICE_INSTANCES          (-2867)
+/** Too many instances of a driver. */
+#define VERR_PDM_TOO_MANY_DRIVER_INSTANCES          (-2868)
+/** Too many instances of a usb device. */
+#define VERR_PDM_TOO_MANY_USB_DEVICE_INSTANCES      (-2869)
 /** @} */
 
 
@@ -1376,7 +1449,7 @@
  * @{
  */
 /** Switch back to host */
-#define VINF_PARAV_SWITCH_TO_HOST                     4400
+#define VINF_PARAV_SWITCH_TO_HOST                   4400
 
 /** @} */
 
@@ -1384,8 +1457,38 @@
  * @{
  */
 /** command processing is pending, a completion handler will be called */
-#define VINF_VHWA_CMD_PENDING                        4500
+#define VINF_VHWA_CMD_PENDING                       4500
 
+/** @} */
+
+
+/** @name VBox Webservice Status Codes
+ * @{
+ */
+/** Object not found. */
+#define VERR_COM_OBJECT_NOT_FOUND                  (-4601)
+/** Invalid machine state. */
+#define VERR_COM_INVALID_VM_STATE                  (-4602)
+/** VM error. */
+#define VERR_COM_VM_ERROR                          (-4603)
+/** File error. */
+#define VERR_COM_FILE_ERROR                        (-4604)
+/** IPRT error. */
+#define VERR_COM_IPRT_ERROR                        (-4605)
+/** PDM error. */
+#define VERR_COM_PDM_ERROR                         (-4606)
+/** Invalid object state. */
+#define VERR_COM_INVALID_OBJECT_STATE              (-4607)
+/** Host error. */
+#define VERR_COM_HOST_ERROR                        (-4608)
+/** Not supported. */
+#define VERR_COM_NOT_SUPPORTED                     (-4609)
+/** XML error. */
+#define VERR_COM_XML_ERROR                         (-4610)
+/** Invalid session state. */
+#define VERR_COM_INVALID_SESSION_STATE             (-4611)
+/** Invalid session state. */
+#define VERR_COM_OBJECT_IN_USE                     (-4612)
 /** @} */
 
 /* SED-END */

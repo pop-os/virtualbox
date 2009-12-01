@@ -52,13 +52,13 @@ void AudioAdapter::FinalRelease()
  */
 HRESULT AudioAdapter::init (Machine *aParent)
 {
-    LogFlowThisFunc (("aParent=%p\n", aParent));
+    LogFlowThisFunc(("aParent=%p\n", aParent));
 
     ComAssertRet (aParent, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
     /* Get the default audio driver out of the system properties */
     ComPtr<IVirtualBox> VBox;
@@ -71,7 +71,7 @@ HRESULT AudioAdapter::init (Machine *aParent)
     rc = sysProps->COMGETTER(DefaultAudioDriver)(&defaultAudioDriver);
     if (FAILED(rc)) return rc;
 
-    unconst (mParent) = aParent;
+    unconst(mParent) = aParent;
     /* mPeer is left null */
 
     mData.allocate();
@@ -95,19 +95,19 @@ HRESULT AudioAdapter::init (Machine *aParent)
  */
 HRESULT AudioAdapter::init (Machine *aParent, AudioAdapter *aThat)
 {
-    LogFlowThisFunc (("aParent=%p, aThat=%p\n", aParent, aThat));
+    LogFlowThisFunc(("aParent=%p, aThat=%p\n", aParent, aThat));
 
     ComAssertRet (aParent && aThat, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst (mParent) = aParent;
-    unconst (mPeer) = aThat;
+    unconst(mParent) = aParent;
+    unconst(mPeer) = aThat;
 
     AutoCaller thatCaller (aThat);
-    AssertComRCReturnRC (thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.rc());
 
     AutoReadLock thatLock (aThat);
     mData.share (aThat->mData);
@@ -127,19 +127,19 @@ HRESULT AudioAdapter::init (Machine *aParent, AudioAdapter *aThat)
  */
 HRESULT AudioAdapter::initCopy (Machine *aParent, AudioAdapter *aThat)
 {
-    LogFlowThisFunc (("aParent=%p, aThat=%p\n", aParent, aThat));
+    LogFlowThisFunc(("aParent=%p, aThat=%p\n", aParent, aThat));
 
     ComAssertRet (aParent && aThat, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst (mParent) = aParent;
+    unconst(mParent) = aParent;
     /* mPeer is left null */
 
     AutoCaller thatCaller (aThat);
-    AssertComRCReturnRC (thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.rc());
 
     AutoReadLock thatLock (aThat);
     mData.attachCopy (aThat->mData);
@@ -156,17 +156,17 @@ HRESULT AudioAdapter::initCopy (Machine *aParent, AudioAdapter *aThat)
  */
 void AudioAdapter::uninit()
 {
-    LogFlowThisFunc (("\n"));
+    LogFlowThisFunc(("\n"));
 
     /* Enclose the state transition Ready->InUninit->NotReady */
-    AutoUninitSpan autoUninitSpan (this);
+    AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
         return;
 
     mData.free();
 
-    unconst (mPeer).setNull();
-    unconst (mParent).setNull();
+    unconst(mPeer).setNull();
+    unconst(mParent).setNull();
 }
 
 // IAudioAdapter properties
@@ -176,10 +176,10 @@ STDMETHODIMP AudioAdapter::COMGETTER(Enabled)(BOOL *aEnabled)
 {
     CheckComArgOutPointerValid(aEnabled);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *aEnabled = mData->mEnabled;
 
@@ -188,14 +188,14 @@ STDMETHODIMP AudioAdapter::COMGETTER(Enabled)(BOOL *aEnabled)
 
 STDMETHODIMP AudioAdapter::COMSETTER(Enabled)(BOOL aEnabled)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     if (mData->mEnabled != aEnabled)
     {
@@ -210,10 +210,10 @@ STDMETHODIMP AudioAdapter::COMGETTER(AudioDriver)(AudioDriverType_T *aAudioDrive
 {
     CheckComArgOutPointerValid(aAudioDriver);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *aAudioDriver = mData->mAudioDriver;
 
@@ -222,14 +222,14 @@ STDMETHODIMP AudioAdapter::COMGETTER(AudioDriver)(AudioDriverType_T *aAudioDrive
 
 STDMETHODIMP AudioAdapter::COMSETTER(AudioDriver)(AudioDriverType_T aAudioDriver)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     HRESULT rc = S_OK;
 
@@ -289,10 +289,10 @@ STDMETHODIMP AudioAdapter::COMGETTER(AudioController)(AudioControllerType_T *aAu
 {
     CheckComArgOutPointerValid(aAudioController);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *aAudioController = mData->mAudioController;
 
@@ -301,14 +301,14 @@ STDMETHODIMP AudioAdapter::COMGETTER(AudioController)(AudioControllerType_T *aAu
 
 STDMETHODIMP AudioAdapter::COMSETTER(AudioController)(AudioControllerType_T aAudioController)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     HRESULT rc = S_OK;
 
@@ -360,16 +360,12 @@ AudioAdapter::Data::Data()
  *
  *  @note Locks this object for writing.
  */
-HRESULT AudioAdapter::loadSettings (const settings::Key &aMachineNode)
+HRESULT AudioAdapter::loadSettings(const settings::AudioAdapter &data)
 {
-    using namespace settings;
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.rc());
 
-    AssertReturn (!aMachineNode.isNull(), E_FAIL);
-
-    AutoCaller autoCaller (this);
-    AssertComRCReturnRC (autoCaller.rc());
-
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     /* Note: we assume that the default values for attributes of optional
      * nodes are assigned in the Data::Data() constructor and don't do it
@@ -382,68 +378,9 @@ HRESULT AudioAdapter::loadSettings (const settings::Key &aMachineNode)
      * the same setting of an object loaded from the old settings file must
      * default to B. */
 
-    /* AudioAdapter node (required) */
-    Key audioAdapterNode = aMachineNode.key ("AudioAdapter");
-
-    /* is the adapter enabled? (required) */
-    mData->mEnabled = audioAdapterNode.value <bool> ("enabled");
-
-    /* now check the audio adapter */
-    const char *controller = audioAdapterNode.stringValue ("controller");
-    if (strcmp (controller, "SB16") == 0)
-        mData->mAudioController = AudioControllerType_SB16;
-    else if (strcmp (controller, "AC97") == 0)
-        mData->mAudioController = AudioControllerType_AC97;
-
-    /* now check the audio driver (required) */
-    const char *driver = audioAdapterNode.stringValue ("driver");
-    if      (strcmp (driver, "Null") == 0)
-        mData->mAudioDriver = AudioDriverType_Null;
-#ifdef RT_OS_WINDOWS
-    else if (strcmp (driver, "WinMM") == 0)
-#ifdef VBOX_WITH_WINMM
-        mData->mAudioDriver = AudioDriverType_WinMM;
-#else
-        /* fall back to dsound */
-        mData->mAudioDriver = AudioDriverType_DirectSound;
-#endif
-    else if (strcmp (driver, "DirectSound") == 0)
-        mData->mAudioDriver = AudioDriverType_DirectSound;
-#endif // RT_OS_WINDOWS
-#ifdef RT_OS_SOLARIS
-    else if (strcmp (driver, "SolAudio") == 0)
-        mData->mAudioDriver = AudioDriverType_SolAudio;
-#endif // RT_OS_SOLARIS
-#ifdef RT_OS_LINUX
-    else if (strcmp (driver, "ALSA") == 0)
-# ifdef VBOX_WITH_ALSA
-        mData->mAudioDriver = AudioDriverType_ALSA;
-# else
-        /* fall back to OSS */
-        mData->mAudioDriver = AudioDriverType_OSS;
-# endif
-    else if (strcmp (driver, "Pulse") == 0)
-# ifdef VBOX_WITH_PULSE
-        mData->mAudioDriver = AudioDriverType_Pulse;
-# else
-        /* fall back to OSS */
-        mData->mAudioDriver = AudioDriverType_OSS;
-# endif
-#endif // RT_OS_LINUX
-#if defined (RT_OS_LINUX) || defined (RT_OS_FREEBSD) || defined(VBOX_WITH_SOLARIS_OSS)
-    else if (strcmp (driver, "OSS") == 0)
-        mData->mAudioDriver = AudioDriverType_OSS;
-#endif // RT_OS_LINUX || RT_OS_FREEBSD
-#ifdef RT_OS_DARWIN
-    else if (strcmp (driver, "CoreAudio") == 0)
-        mData->mAudioDriver = AudioDriverType_CoreAudio;
-#endif
-#ifdef RT_OS_OS2
-    else if (strcmp (driver, "MMPM") == 0)
-        mData->mAudioDriver = AudioDriverType_MMPM;
-#endif
-    else
-        AssertMsgFailed (("Invalid driver '%s'\n", driver));
+    mData->mEnabled = data.fEnabled;
+    mData->mAudioController = data.controllerType;
+    mData->mAudioDriver = data.driverType;
 
     return S_OK;
 }
@@ -455,110 +392,16 @@ HRESULT AudioAdapter::loadSettings (const settings::Key &aMachineNode)
  *
  *  @note Locks this object for reading.
  */
-HRESULT AudioAdapter::saveSettings (settings::Key &aMachineNode)
+HRESULT AudioAdapter::saveSettings(settings::AudioAdapter &data)
 {
-    using namespace settings;
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.rc());
 
-    AssertReturn (!aMachineNode.isNull(), E_FAIL);
+    AutoReadLock alock(this);
 
-    AutoCaller autoCaller (this);
-    AssertComRCReturnRC (autoCaller.rc());
-
-    AutoReadLock alock (this);
-
-    Key node = aMachineNode.createKey ("AudioAdapter");
-
-    const char *controllerStr = NULL;
-    switch (mData->mAudioController)
-    {
-        case AudioControllerType_SB16:
-        {
-            controllerStr = "SB16";
-            break;
-        }
-        default:
-        {
-            controllerStr = "AC97";
-            break;
-        }
-    }
-    node.setStringValue ("controller", controllerStr);
-
-    const char *driverStr = NULL;
-    switch (mData->mAudioDriver)
-    {
-        case AudioDriverType_Null:
-        {
-            driverStr = "Null";
-            break;
-        }
-#ifdef RT_OS_WINDOWS
-            case AudioDriverType_WinMM:
-# ifdef VBOX_WITH_WINMM
-            {
-                driverStr = "WinMM";
-                break;
-            }
-# endif
-            case AudioDriverType_DirectSound:
-            {
-                driverStr = "DirectSound";
-                break;
-            }
-#endif /* RT_OS_WINDOWS */
-#ifdef RT_OS_SOLARIS
-            case AudioDriverType_SolAudio:
-            {
-                driverStr = "SolAudio";
-                break;
-            }
-#endif
-#ifdef RT_OS_LINUX
-            case AudioDriverType_ALSA:
-# ifdef VBOX_WITH_ALSA
-            {
-                driverStr = "ALSA";
-                break;
-            }
-# endif
-            case AudioDriverType_Pulse:
-# ifdef VBOX_WITH_PULSE
-            {
-                driverStr = "Pulse";
-                break;
-            }
-# endif
-#endif /* RT_OS_LINUX */
-#if defined (RT_OS_LINUX) || defined (RT_OS_FREEBSD) || defined(VBOX_WITH_SOLARIS_OSS)
-            case AudioDriverType_OSS:
-            {
-                driverStr = "OSS";
-                break;
-            }
-#endif /* RT_OS_LINUX || RT_OS_FREEBSD */
-#ifdef RT_OS_DARWIN
-            case AudioDriverType_CoreAudio:
-            {
-                driverStr = "CoreAudio";
-                break;
-            }
-#endif
-#ifdef RT_OS_OS2
-            case AudioDriverType_MMPM:
-            {
-                driverStr = "MMPM";
-                break;
-            }
-#endif
-            default:
-                ComAssertMsgFailedRet (("Wrong audio driver type! driver = %d",
-                                        mData->mAudioDriver),
-                                       E_FAIL);
-    }
-    node.setStringValue ("driver", driverStr);
-
-    node.setValue <bool> ("enabled", !!mData->mEnabled);
-
+    data.fEnabled = !!mData->mEnabled;
+    data.controllerType = mData->mAudioController;
+    data.driverType = mData->mAudioDriver;
     return S_OK;
 }
 
@@ -568,10 +411,10 @@ HRESULT AudioAdapter::saveSettings (settings::Key &aMachineNode)
 bool AudioAdapter::rollback()
 {
     /* sanity */
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
     AssertComRCReturn (autoCaller.rc(), false);
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     bool changed = false;
 
@@ -593,7 +436,7 @@ bool AudioAdapter::rollback()
 void AudioAdapter::commit()
 {
     /* sanity */
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
     AssertComRCReturnVoid (autoCaller.rc());
 
     /* sanity too */
@@ -624,7 +467,7 @@ void AudioAdapter::copyFrom (AudioAdapter *aThat)
     AssertReturnVoid (aThat != NULL);
 
     /* sanity */
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
     AssertComRCReturnVoid (autoCaller.rc());
 
     /* sanity too */

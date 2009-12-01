@@ -1,4 +1,4 @@
-/* $Id: DevPcBios.h $ */
+/* $Id: DevPcBios.h 24707 2009-11-16 18:08:54Z vboxsync $ */
 /** @file
  * DevPcBios - PC BIOS Device, header shared with the BIOS code.
  */
@@ -25,20 +25,8 @@
 /** @def VBOX_DMI_TABLE_BASE */
 #define VBOX_DMI_TABLE_BASE          0xe1000
 #define VBOX_DMI_TABLE_VER           0x25
-#define VBOX_DMI_TABLE_ENTR          3
+#define VBOX_DMI_TABLE_ENTR          5
 #define VBOX_DMI_TABLE_SIZE          0x100
-
-
-/** @def VBOX_MPS_TABLE_BASE
- *
- * Must be located in the same page as the DMI table.
- */
-#define VBOX_MPS_TABLE_BASE          0xe1100
-
-#define VBOX_SMBIOS_MAJOR_VER        2
-#define VBOX_SMBIOS_MINOR_VER        5
-#define VBOX_SMBIOS_MAXSS            0xff   /* Not very accurate */
-
 
 /** @def VBOX_VMI_BIOS_BASE
  *
@@ -52,5 +40,8 @@
  */
 #define VBOX_LANBOOT_SEG             0xe200
 
-#endif
+#define VBOX_SMBIOS_MAJOR_VER        2
+#define VBOX_SMBIOS_MINOR_VER        5
+#define VBOX_SMBIOS_MAXSS            0xff   /* Not very accurate */
 
+#endif

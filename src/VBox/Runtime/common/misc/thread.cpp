@@ -1,4 +1,4 @@
-/* $Id: thread.cpp $ */
+/* $Id: thread.cpp 25000 2009-11-26 14:22:44Z vboxsync $ */
 /** @file
  * IPRT - Threads, common routines.
  */
@@ -29,12 +29,13 @@
  */
 
 
-
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_THREAD
 #include <iprt/thread.h>
+#include "internal/iprt.h"
+
 #include <iprt/log.h>
 #include <iprt/avl.h>
 #include <iprt/alloc.h>
@@ -87,9 +88,9 @@ static RTSPINLOCK       g_ThreadSpinlock = NIL_RTSPINLOCK;
 *   Internal Functions                                                         *
 *******************************************************************************/
 static void rtThreadDestroy(PRTTHREADINT pThread);
-static int rtThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, const char *pszName);
+static int rtThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, uint32_t fIntFlags, const char *pszName);
 static void rtThreadRemoveLocked(PRTTHREADINT pThread);
-static PRTTHREADINT rtThreadAlloc(RTTHREADTYPE enmType, unsigned fFlags, unsigned fIntFlags, const char *pszName);
+static PRTTHREADINT rtThreadAlloc(RTTHREADTYPE enmType, unsigned fFlags, uint32_t fIntFlags, const char *pszName);
 
 
 /** @page pg_rt_thread  IPRT Thread Internals
@@ -134,12 +135,12 @@ int rtThreadInit(void)
          * We assume the caller is the 1st thread, which we'll call 'main'.
          * But first, we'll create the semaphore.
          */
-        int rc = RTSemRWCreate(&g_ThreadRWSem);
+        rc = RTSemRWCreate(&g_ThreadRWSem);
         if (RT_SUCCESS(rc))
         {
             rc = rtThreadNativeInit();
             if (RT_SUCCESS(rc))
-                rc = rtThreadAdopt(RTTHREADTYPE_DEFAULT, 0, "main");
+                rc = rtThreadAdopt(RTTHREADTYPE_DEFAULT, 0, RTTHREADINT_FLAGS_MAIN, "main");
             if (RT_SUCCESS(rc))
                 rc = rtSchedNativeCalcDefaultPriority(RTTHREADTYPE_DEFAULT);
             if (RT_SUCCESS(rc))
@@ -234,7 +235,7 @@ DECLINLINE(void) rtThreadUnLockRD(void)
  * Adopts the calling thread.
  * No locks are taken or released by this function.
  */
-static int rtThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, const char *pszName)
+static int rtThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, uint32_t fIntFlags, const char *pszName)
 {
     Assert(!(fFlags & RTTHREADFLAGS_WAITABLE));
     fFlags &= ~RTTHREADFLAGS_WAITABLE;
@@ -245,7 +246,7 @@ static int rtThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, const char *pszN
      * we try inserting the thread because of locking.)
      */
     int rc = VERR_NO_MEMORY;
-    PRTTHREADINT pThread = rtThreadAlloc(enmType, fFlags, RTTHREADINT_FLAGS_ALIEN, pszName);
+    PRTTHREADINT pThread = rtThreadAlloc(enmType, fFlags, RTTHREADINT_FLAGS_ALIEN | fIntFlags, pszName);
     if (pThread)
     {
         RTNATIVETHREAD NativeThread = RTThreadNativeSelf();
@@ -291,7 +292,7 @@ RTDECL(int) RTThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, const char *psz
         }
 
         /* try adopt it */
-        rc = rtThreadAdopt(enmType, fFlags, pszName);
+        rc = rtThreadAdopt(enmType, fFlags, 0, pszName);
         Thread = RTThreadSelf();
         Log(("RTThreadAdopt: %RTthrd %RTnthrd '%s' enmType=%d fFlags=%#x rc=%Rrc\n",
              Thread, RTThreadNativeSelf(), pszName, enmType, fFlags, rc));
@@ -304,6 +305,7 @@ RTDECL(int) RTThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, const char *psz
         *pThread = Thread;
     return rc;
 }
+RT_EXPORT_SYMBOL(RTThreadAdopt);
 
 
 /**
@@ -317,7 +319,7 @@ RTDECL(int) RTThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, const char *psz
  * @param   fIntFlags   The internal thread flags.
  * @param   pszName     Pointer to the thread name.
  */
-PRTTHREADINT rtThreadAlloc(RTTHREADTYPE enmType, unsigned fFlags, unsigned fIntFlags, const char *pszName)
+PRTTHREADINT rtThreadAlloc(RTTHREADTYPE enmType, unsigned fFlags, uint32_t fIntFlags, const char *pszName)
 {
     PRTTHREADINT pThread = (PRTTHREADINT)RTMemAllocZ(sizeof(RTTHREADINT));
     if (pThread)
@@ -727,6 +729,7 @@ RTDECL(int) RTThreadCreate(PRTTHREAD pThread, PFNRTTHREAD pfnThread, void *pvUse
     AssertReleaseRC(rc);
     return rc;
 }
+RT_EXPORT_SYMBOL(RTThreadCreate);
 
 
 /**
@@ -751,6 +754,7 @@ RTDECL(int) RTThreadCreateV(PRTTHREAD pThread, PFNRTTHREAD pfnThread, void *pvUs
     RTStrPrintfV(szName, sizeof(szName), pszNameFmt, va);
     return RTThreadCreate(pThread, pfnThread, pvUser, cbStack, enmType, fFlags, szName);
 }
+RT_EXPORT_SYMBOL(RTThreadCreateV);
 
 
 /**
@@ -777,6 +781,7 @@ RTDECL(int) RTThreadCreateF(PRTTHREAD pThread, PFNRTTHREAD pfnThread, void *pvUs
     va_end(va);
     return rc;
 }
+RT_EXPORT_SYMBOL(RTThreadCreateF);
 
 
 /**
@@ -796,6 +801,7 @@ RTDECL(RTNATIVETHREAD) RTThreadGetNative(RTTHREAD Thread)
     }
     return NIL_RTNATIVETHREAD;
 }
+RT_EXPORT_SYMBOL(RTThreadGetNative);
 
 
 /**
@@ -812,6 +818,7 @@ RTDECL(RTTHREAD) RTThreadFromNative(RTNATIVETHREAD NativeThread)
         return pThread;
     return NIL_RTTHREAD;
 }
+RT_EXPORT_SYMBOL(RTThreadFromNative);
 
 
 /**
@@ -835,6 +842,7 @@ RTDECL(const char *) RTThreadSelfName(void)
     }
     return NULL;
 }
+RT_EXPORT_SYMBOL(RTThreadSelfName);
 
 
 /**
@@ -857,6 +865,7 @@ RTDECL(const char *) RTThreadGetName(RTTHREAD Thread)
     }
     return NULL;
 }
+RT_EXPORT_SYMBOL(RTThreadGetName);
 
 
 /**
@@ -889,6 +898,33 @@ RTDECL(int) RTThreadSetName(RTTHREAD Thread, const char *pszName)
     rtThreadRelease(pThread);
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTThreadSetName);
+
+
+/**
+ * Checks if the specified thread is the main thread.
+ *
+ * @returns true if it is, false if it isn't.
+ *
+ * @param   hThread     The thread handle.
+ *
+ * @remarks This function may not return the correct value when RTR3Init was
+ *          called on a thread of the than the main one.  This could for
+ *          instance happen when the DLL/DYLIB/SO containing IPRT is dynamically
+ *          loaded at run time by a different thread.
+ */
+RTDECL(bool) RTThreadIsMain(RTTHREAD hThread)
+{
+    PRTTHREADINT pThread = rtThreadGet(hThread);
+    if (pThread)
+    {
+        bool fRc = !!(pThread->fIntFlags & RTTHREADINT_FLAGS_MAIN);
+        rtThreadRelease(pThread);
+        return fRc;
+    }
+    return false;
+}
+RT_EXPORT_SYMBOL(RTThreadIsMain);
 
 
 /**
@@ -909,6 +945,7 @@ RTDECL(int) RTThreadUserSignal(RTTHREAD Thread)
         rc = VERR_INVALID_HANDLE;
     return rc;
 }
+RT_EXPORT_SYMBOL(RTThreadUserSignal);
 
 
 /**
@@ -932,6 +969,7 @@ RTDECL(int) RTThreadUserWait(RTTHREAD Thread, unsigned cMillies)
         rc = VERR_INVALID_HANDLE;
     return rc;
 }
+RT_EXPORT_SYMBOL(RTThreadUserWait);
 
 
 /**
@@ -955,6 +993,7 @@ RTDECL(int) RTThreadUserWaitNoResume(RTTHREAD Thread, unsigned cMillies)
         rc = VERR_INVALID_HANDLE;
     return rc;
 }
+RT_EXPORT_SYMBOL(RTThreadUserWaitNoResume);
 
 
 /**
@@ -976,6 +1015,7 @@ RTDECL(int) RTThreadUserReset(RTTHREAD Thread)
         rc = VERR_INVALID_HANDLE;
     return rc;
 }
+RT_EXPORT_SYMBOL(RTThreadUserReset);
 
 
 /**
@@ -1044,6 +1084,7 @@ RTDECL(int) RTThreadWait(RTTHREAD Thread, unsigned cMillies, int *prc)
     Assert(rc != VERR_INTERRUPTED);
     return rc;
 }
+RT_EXPORT_SYMBOL(RTThreadWait);
 
 
 /**
@@ -1059,6 +1100,7 @@ RTDECL(int) RTThreadWaitNoResume(RTTHREAD Thread, unsigned cMillies, int *prc)
 {
     return rtThreadWait(Thread, cMillies, prc, false);
 }
+RT_EXPORT_SYMBOL(RTThreadWaitNoResume);
 
 
 /**
@@ -1108,6 +1150,7 @@ RTDECL(int) RTThreadSetType(RTTHREAD Thread, RTTHREADTYPE enmType)
     }
     return rc;
 }
+RT_EXPORT_SYMBOL(RTThreadSetType);
 
 
 /**
@@ -1128,6 +1171,7 @@ RTDECL(RTTHREADTYPE) RTThreadGetType(RTTHREAD Thread)
     }
     return enmType;
 }
+RT_EXPORT_SYMBOL(RTThreadGetType);
 
 
 #ifdef IN_RING3
@@ -1156,6 +1200,7 @@ RTDECL(int32_t) RTThreadGetWriteLockCount(RTTHREAD Thread)
     rtThreadRelease(pThread);
     return cWriteLocks;
 }
+RT_EXPORT_SYMBOL(RTThreadGetWriteLockCount);
 
 
 /**
@@ -1170,6 +1215,7 @@ RTDECL(void) RTThreadWriteLockInc(RTTHREAD Thread)
     ASMAtomicIncS32(&pThread->cWriteLocks);
     rtThreadRelease(pThread);
 }
+RT_EXPORT_SYMBOL(RTThreadWriteLockInc);
 
 
 /**
@@ -1184,6 +1230,7 @@ RTDECL(void) RTThreadWriteLockDec(RTTHREAD Thread)
     ASMAtomicDecS32(&pThread->cWriteLocks);
     rtThreadRelease(pThread);
 }
+RT_EXPORT_SYMBOL(RTThreadWriteLockDec);
 
 
 /**
@@ -1209,6 +1256,7 @@ RTDECL(int32_t) RTThreadGetReadLockCount(RTTHREAD Thread)
     rtThreadRelease(pThread);
     return cReadLocks;
 }
+RT_EXPORT_SYMBOL(RTThreadGetReadLockCount);
 
 
 /**
@@ -1223,6 +1271,7 @@ RTDECL(void) RTThreadReadLockInc(RTTHREAD Thread)
     ASMAtomicIncS32(&pThread->cReadLocks);
     rtThreadRelease(pThread);
 }
+RT_EXPORT_SYMBOL(RTThreadReadLockInc);
 
 
 /**
@@ -1237,6 +1286,7 @@ RTDECL(void) RTThreadReadLockDec(RTTHREAD Thread)
     ASMAtomicDecS32(&pThread->cReadLocks);
     rtThreadRelease(pThread);
 }
+RT_EXPORT_SYMBOL(RTThreadReadLockDec);
 
 
 
@@ -1505,6 +1555,7 @@ RTDECL(void) RTThreadBlocking(RTTHREAD hThread, RTTHREADSTATE enmState, uint64_t
         rtThreadDeadlock(pThread, pCur, enmState, u64Block, pszFile, uLine, uId);
     }
 }
+RT_EXPORT_SYMBOL(RTThreadBlocking);
 
 
 /**
@@ -1521,6 +1572,7 @@ RTDECL(void) RTThreadUnblocked(RTTHREAD hThread, RTTHREADSTATE enmCurState)
     if (hThread && hThread->enmState == enmCurState)
         ASMAtomicWriteSize(&hThread->enmState, RTTHREADSTATE_RUNNING);
 }
+RT_EXPORT_SYMBOL(RTThreadUnblocked);
 
 #endif /* IN_RING3 */
 

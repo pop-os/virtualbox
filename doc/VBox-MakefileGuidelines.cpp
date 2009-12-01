@@ -1,4 +1,4 @@
-/* $Id: VBox-MakefileGuidelines.cpp $ */
+/* $Id: VBox-MakefileGuidelines.cpp 19033 2009-04-20 15:39:13Z vboxsync $ */
 /** @file
  * VBox - Makefile Guidelines.
  */

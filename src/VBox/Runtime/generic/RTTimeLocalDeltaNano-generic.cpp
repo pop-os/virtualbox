@@ -1,4 +1,4 @@
-/* $Id: RTTimeLocalDeltaNano-generic.cpp $ */
+/* $Id: RTTimeLocalDeltaNano-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Time, generic RTTimeLocalDeltaNano.
  */
@@ -33,10 +33,12 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/time.h>
+#include "internal/iprt.h"
 
 
 RTDECL(int64_t) RTTimeLocalDeltaNano(void)
 {
     return 0;
 }
+RT_EXPORT_SYMBOL(RTTimeLocalDeltaNano);
 

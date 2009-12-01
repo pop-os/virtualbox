@@ -1,4 +1,4 @@
-/* $Id: timer-r0drv-nt.cpp $ */
+/* $Id: timer-r0drv-nt.cpp 18988 2009-04-17 13:00:59Z vboxsync $ */
 /** @file
  * IPRT - Timers, Ring-0 Driver, NT.
  */

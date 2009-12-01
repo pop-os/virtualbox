@@ -1,4 +1,4 @@
-/* $Id: dbgmodnm.cpp $ */
+/* $Id: dbgmodnm.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Debug Map Reader For NM Like Mapfiles.
  */
@@ -28,10 +28,12 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/dbg.h>
+#include "internal/iprt.h"
 
 #include <iprt/err.h>
 #include <iprt/ctype.h>
@@ -201,9 +203,11 @@ static int rtDbgModNmScanFile(PRTDBGMODNM pThis, PRTSTREAM pStrm, bool fAddSymbo
     /*
      * Try parse the stream.
      */
-    char        szMod[RTDBG_SEGMENT_NAME_LENGTH] = "";
+    RTUINTPTR   SegZeroRva = fAddSymbols ? RTDbgModSegmentRva(pThis->hCnt, 0/*iSeg*/) : 0;
+    char        szSym[RTDBG_SYMBOL_NAME_LENGTH] = "";
+    size_t      cchMod  = 0;
+    size_t      offSym  = 0;
     unsigned    cchAddr = 0;
-    RTDBGSEGIDX iSeg    = 0;
     uint64_t    u64Low  = UINT64_MAX;
     uint64_t    u64High = 0;
     char        szLine[512];
@@ -260,8 +264,8 @@ static int rtDbgModNmScanFile(PRTDBGMODNM pThis, PRTSTREAM pStrm, bool fAddSymbo
                     if (ch != ']')
                         return VERR_DBG_NOT_LINUX_KALLSYMS;
                     char *pszEnd = pszModNameEnd + 1;
-                    if ((size_t)(pszModNameEnd - pszModName) >= sizeof(szMod)) /* lazy bird */
-                        pszModNameEnd = &pszModName[sizeof(szMod)-1];
+                    if ((size_t)(pszModNameEnd - pszModName) >= 128) /* lazy bird */
+                        return VERR_DBG_NOT_LINUX_KALLSYMS;
                     *pszModNameEnd = '\0';
                     if (*pszEnd)
                         pszEnd = RTStrStripL(pszEnd);
@@ -271,33 +275,33 @@ static int rtDbgModNmScanFile(PRTDBGMODNM pThis, PRTSTREAM pStrm, bool fAddSymbo
             }
 
             /*
-             * Did the module change? If so commit the previous segment.
+             * Did the module change? Then update the symbol prefix.
              */
-            if (    strcmp(pszModName, szMod)
-                &&  (   u64Low != UINT64_MAX
-                     || u64High != 0))
+            if (    cchMod != (size_t)(pszModNameEnd - pszModName)
+                ||  memcmp(pszModName, szSym, cchMod))
             {
-                if (!fAddSymbols)
+                cchMod = pszModNameEnd - pszModName;
+                if (cchMod == 0)
+                    offSym = 0;
+                else
                 {
-                    rc = RTDbgModSegmentAdd(pThis->hCnt, u64Low, u64High - u64Low + 1, szMod[0] ? szMod : "main", 0, &iSeg);
-                    if (RT_FAILURE(rc))
-                        return rc;
+                    memcpy(szSym, pszModName, cchMod);
+                    szSym[cchMod] = '.';
+                    offSym = cchMod + 1;
                 }
-                iSeg++;
-                u64Low = UINT64_MAX;
-                u64High = 0;
-                memcpy(szMod, pszModName, pszModNameEnd - pszModName + 1);
+                szSym[offSym] = '\0';
             }
 
             /*
              * Validate the type and add the symbol if it's a type we care for.
              */
             uint32_t    fFlags  = 0;
-            RTDBGSEGIDX iSegSym = iSeg;
+            RTDBGSEGIDX iSegSym = 0;
             switch (chType)
             {
                 /* absolute */
                 case 'a':
+                case '?': /* /proc/kallsyms */
                     iSegSym = RTDBGSEGIDX_ABS;
                     /// @todo fFlags |= RTDBG_SYM_FLAGS_LOCAL;
                     break;
@@ -387,13 +391,22 @@ static int rtDbgModNmScanFile(PRTDBGMODNM pThis, PRTSTREAM pStrm, bool fAddSymbo
             {
                 if (fAddSymbols)
                 {
-                    rc = RTDbgModSymbolAdd(pThis->hCnt, pszName, iSeg, u64Addr - RTDbgModSegmentRva(pThis->hCnt, iSeg), 0, fFlags, NULL);
-                    if (RT_FAILURE(rc))
+                    size_t cchName = pszNameEnd - pszName;
+                    if (cchName >= sizeof(szSym) - offSym)
+                        cchName = sizeof(szSym) - offSym - 1;
+                    memcpy(&szSym[offSym], pszName, cchName + 1);
+                    if (iSegSym == 0)
+                        rc = RTDbgModSymbolAdd(pThis->hCnt, szSym, iSegSym, u64Addr - SegZeroRva, 0/*cb*/, fFlags, NULL);
+                    else
+                        rc = RTDbgModSymbolAdd(pThis->hCnt, szSym, iSegSym, u64Addr, 0/*cb*/, fFlags, NULL);
+                    if (    RT_FAILURE(rc)
+                        &&  rc != VERR_DBG_DUPLICATE_SYMBOL
+                        &&  rc != VERR_DBG_ADDRESS_CONFLICT) /* (don't be too strict) */
                         return rc;
                 }
 
                 /* Track segment span. */
-                if (iSegSym == iSeg)
+                if (iSegSym == 0)
                 {
                     if (u64Low > u64Addr)
                         u64Low = u64Addr;
@@ -434,12 +447,16 @@ static int rtDbgModNmScanFile(PRTDBGMODNM pThis, PRTSTREAM pStrm, bool fAddSymbo
      */
     if (rc == VERR_EOF)
     {
-        if (    !fAddSymbols
-            &&  (   u64Low != UINT64_MAX
-                 || u64High != 0))
-            rc = RTDbgModSegmentAdd(pThis->hCnt, u64Low, u64High - u64Low + 1, szMod[0] ? szMod : "main", 0, &iSeg);
-        else
+        if (fAddSymbols)
             rc = VINF_SUCCESS;
+        else
+        {
+            if (    u64Low  != UINT64_MAX
+                 || u64High != 0)
+                rc = RTDbgModSegmentAdd(pThis->hCnt, u64Low, u64High - u64Low + 1, "main", 0, NULL);
+            else /* No sensible symbols... throw an error instead? */
+                rc = RTDbgModSegmentAdd(pThis->hCnt, 0, 0, "main", 0, NULL);
+        }
     }
 
     return rc;

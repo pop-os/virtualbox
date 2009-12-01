@@ -1,4 +1,4 @@
-/* $Id: server.cpp $ */
+/* $Id: server.cpp 24989 2009-11-26 11:31:46Z vboxsync $ */
 /** @file
  * XPCOM server process (VBoxSVC) start point.
  */
@@ -19,21 +19,13 @@
  * additional information or have any questions.
  */
 
-/* Make sure all the stdint.h macros are included - must come first! */
-#ifndef __STDC_LIMIT_MACROS
-# define __STDC_LIMIT_MACROS
-#endif
-#ifndef __STDC_CONSTANT_MACROS
-# define __STDC_CONSTANT_MACROS
-#endif
-
 #include <ipcIService.h>
 #include <ipcCID.h>
 
 #include <nsIComponentRegistrar.h>
 
-#if defined(XPCOM_GLUE)
-#include <nsXPCOMGlue.h>
+#ifdef XPCOM_GLUE
+# include <nsXPCOMGlue.h>
 #endif
 
 #include <nsEventQueueUtils.h>
@@ -47,22 +39,20 @@
 #include <VBox/version.h>
 
 #include <iprt/initterm.h>
-#include <iprt/path.h>
 #include <iprt/critsect.h>
+#include <iprt/getopt.h>
+#include <iprt/message.h>
+#include <iprt/stream.h>
+#include <iprt/path.h>
 #include <iprt/timer.h>
 
-#include <stdio.h>
-
-// for the signal handler
-#include <signal.h>
+#include <signal.h>     // for the signal handler
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
-#include <getopt.h>
-
-#ifndef RT_OS_OS2
-# include <sys/resource.h>
-#endif
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/resource.h>
 
 /////////////////////////////////////////////////////////////////////////////
 // VirtualBox component instantiation
@@ -77,16 +67,11 @@
 #include <ApplianceImpl.h>
 #include <SnapshotImpl.h>
 #include <MediumImpl.h>
-#include <HardDiskImpl.h>
-#include <HardDiskFormatImpl.h>
+#include <MediumFormatImpl.h>
 #include <ProgressImpl.h>
-#include <DVDDriveImpl.h>
-#include <FloppyDriveImpl.h>
 #include <VRDPServerImpl.h>
 #include <SharedFolderImpl.h>
 #include <HostImpl.h>
-#include <HostDVDDriveImpl.h>
-#include <HostFloppyDriveImpl.h>
 #include <HostNetworkInterfaceImpl.h>
 #include <GuestOSTypeImpl.h>
 #include <NetworkAdapterImpl.h>
@@ -129,37 +114,20 @@ NS_IMPL_THREADSAFE_ISUPPORTS1_CI(SnapshotMachine, IMachine)
 NS_DECL_CLASSINFO(Snapshot)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Snapshot, ISnapshot)
 
-NS_DECL_CLASSINFO(DVDImage)
-NS_IMPL_THREADSAFE_ISUPPORTS2_AMBIGUOUS_CI(DVDImage,
-                                           IMedium, ImageMediumBase,
-                                           IDVDImage, DVDImage)
-NS_DECL_CLASSINFO(FloppyImage)
-NS_IMPL_THREADSAFE_ISUPPORTS2_AMBIGUOUS_CI(FloppyImage,
-                                           IMedium, ImageMediumBase,
-                                           IFloppyImage, FloppyImage)
+NS_DECL_CLASSINFO(Medium)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Medium, IMedium)
 
-NS_DECL_CLASSINFO(HardDisk)
-NS_IMPL_THREADSAFE_ISUPPORTS2_AMBIGUOUS_CI(HardDisk,
-                                           IMedium, MediumBase,
-                                           IHardDisk, HardDisk)
+NS_DECL_CLASSINFO(MediumFormat)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI(MediumFormat, IMediumFormat)
 
-NS_DECL_CLASSINFO(HardDiskFormat)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(HardDiskFormat, IHardDiskFormat)
-
-NS_DECL_CLASSINFO(HardDiskAttachment)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(HardDiskAttachment, IHardDiskAttachment)
+NS_DECL_CLASSINFO(MediumAttachment)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI(MediumAttachment, IMediumAttachment)
 
 NS_DECL_CLASSINFO(Progress)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Progress, IProgress)
 
 NS_DECL_CLASSINFO(CombinedProgress)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(CombinedProgress, IProgress)
-
-NS_DECL_CLASSINFO(DVDDrive)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(DVDDrive, IDVDDrive)
-
-NS_DECL_CLASSINFO(FloppyDrive)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(FloppyDrive, IFloppyDrive)
 
 NS_DECL_CLASSINFO(SharedFolder)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(SharedFolder, ISharedFolder)
@@ -171,12 +139,6 @@ NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VRDPServer, IVRDPServer)
 
 NS_DECL_CLASSINFO(Host)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Host, IHost)
-
-NS_DECL_CLASSINFO(HostDVDDrive)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(HostDVDDrive, IHostDVDDrive)
-
-NS_DECL_CLASSINFO(HostFloppyDrive)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(HostFloppyDrive, IHostFloppyDrive)
 
 NS_DECL_CLASSINFO(HostNetworkInterface)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(HostNetworkInterface, IHostNetworkInterface)
@@ -240,7 +202,7 @@ enum
 
 static bool gAutoShutdown = false;
 
-static nsIEventQueue* gEventQ = nsnull;
+static nsIEventQueue  *gEventQ      = nsnull;
 static PRBool volatile gKeepRunning = PR_TRUE;
 
 /////////////////////////////////////////////////////////////////////////////
@@ -266,17 +228,17 @@ public:
      * itself before this method returns! The caller must not delete it in
      * either case.
      */
-    nsresult postTo (nsIEventQueue *aEventQ)
+    nsresult postTo(nsIEventQueue *aEventQ)
     {
-        AssertReturn (mEv.that == NULL, NS_ERROR_FAILURE);
-        AssertReturn (aEventQ, NS_ERROR_FAILURE);
-        nsresult rv = aEventQ->InitEvent (&mEv.e, NULL,
-                                          eventHandler, eventDestructor);
-        if (NS_SUCCEEDED (rv))
+        AssertReturn(mEv.that == NULL, NS_ERROR_FAILURE);
+        AssertReturn(aEventQ, NS_ERROR_FAILURE);
+        nsresult rv = aEventQ->InitEvent(&mEv.e, NULL,
+                                         eventHandler, eventDestructor);
+        if (NS_SUCCEEDED(rv))
         {
             mEv.that = this;
-            rv = aEventQ->PostEvent (&mEv.e);
-            if (NS_SUCCEEDED (rv))
+            rv = aEventQ->PostEvent(&mEv.e);
+            if (NS_SUCCEEDED(rv))
                 return rv;
         }
         delete this;
@@ -293,14 +255,14 @@ private:
         MyEvent *that;
     } mEv;
 
-    static void *PR_CALLBACK eventHandler (PLEvent *self)
+    static void *PR_CALLBACK eventHandler(PLEvent *self)
     {
-        return reinterpret_cast <Ev *> (self)->that->handler();
+        return reinterpret_cast<Ev *>(self)->that->handler();
     }
 
-    static void PR_CALLBACK eventDestructor (PLEvent *self)
+    static void PR_CALLBACK eventDestructor(PLEvent *self)
     {
-        delete reinterpret_cast <Ev *> (self)->that;
+        delete reinterpret_cast<Ev *>(self)->that;
     }
 };
 
@@ -317,13 +279,13 @@ public:
 
     virtual ~VirtualBoxClassFactory()
     {
-        LogFlowFunc (("Deleting VirtualBox...\n"));
+        LogFlowFunc(("Deleting VirtualBox...\n"));
 
         FinalRelease();
         sInstance = NULL;
 
-        LogFlowFunc (("VirtualBox object deleted.\n"));
-        printf ("Informational: VirtualBox object deleted.\n");
+        LogFlowFunc(("VirtualBox object deleted.\n"));
+        RTPrintf("Informational: VirtualBox object deleted.\n");
     }
 
     NS_IMETHOD_(nsrefcnt) Release()
@@ -340,30 +302,30 @@ public:
 
             PRBool onMainThread = PR_TRUE;
             if (gEventQ)
-                gEventQ->IsOnCurrentThread (&onMainThread);
+                gEventQ->IsOnCurrentThread(&onMainThread);
 
             PRBool timerStarted = PR_FALSE;
 
             /* sTimer is null if this call originates from FactoryDestructor()*/
             if (sTimer != NULL)
             {
-                LogFlowFunc (("Last VirtualBox instance was released.\n"));
-                LogFlowFunc (("Scheduling server shutdown in %d ms...\n",
-                              VBoxSVC_ShutdownDelay));
+                LogFlowFunc(("Last VirtualBox instance was released.\n"));
+                LogFlowFunc(("Scheduling server shutdown in %d ms...\n",
+                             VBoxSVC_ShutdownDelay));
 
                 /* make sure the previous timer (if any) is stopped;
                  * otherwise RTTimerStart() will definitely fail. */
-                RTTimerLRStop (sTimer);
+                RTTimerLRStop(sTimer);
 
-                int vrc = RTTimerLRStart (sTimer, uint64_t (VBoxSVC_ShutdownDelay) * 1000000);
-                AssertRC (vrc);
-                timerStarted = SUCCEEDED (vrc);
+                int vrc = RTTimerLRStart(sTimer, uint64_t(VBoxSVC_ShutdownDelay) * 1000000);
+                AssertRC(vrc);
+                timerStarted = SUCCEEDED(vrc);
             }
             else
             {
-                LogFlowFunc (("Last VirtualBox instance was released "
-                              "on XPCOM shutdown.\n"));
-                Assert (onMainThread);
+                LogFlowFunc(("Last VirtualBox instance was released "
+                             "on XPCOM shutdown.\n"));
+                Assert(onMainThread);
             }
 
             if (!timerStarted)
@@ -372,7 +334,7 @@ public:
                 {
                     /* Failed to start the timer, post the shutdown event
                      * manually if not on the main thread alreay. */
-                    ShutdownTimer (NULL, NULL, 0);
+                    ShutdownTimer(NULL, NULL, 0);
                 }
                 else
                 {
@@ -394,7 +356,7 @@ public:
                      * any more. Thus, we assert below.
                      */
 
-                    Assert (gEventQ == NULL);
+                    Assert(gEventQ == NULL);
                 }
             }
         }
@@ -407,13 +369,13 @@ public:
         /* called on the main thread */
         void *handler()
         {
-            LogFlowFunc (("\n"));
+            LogFlowFunc(("\n"));
 
-            Assert (RTCritSectIsInitialized (&sLock));
+            Assert(RTCritSectIsInitialized(&sLock));
 
             /* stop accepting GetInstance() requests on other threads during
              * possible destruction */
-            RTCritSectEnter (&sLock);
+            RTCritSectEnter(&sLock);
 
             nsrefcnt count = 0;
 
@@ -429,8 +391,8 @@ public:
             {
                 if (gAutoShutdown)
                 {
-                    Assert (sInstance == NULL);
-                    LogFlowFunc (("Terminating the server process...\n"));
+                    Assert(sInstance == NULL);
+                    LogFlowFunc(("Terminating the server process...\n"));
                     /* make it leave the event loop */
                     gKeepRunning = PR_FALSE;
                 }
@@ -440,30 +402,30 @@ public:
                 /* This condition is quite rare: a new client happened to
                  * connect after this event has been posted to the main queue
                  * but before it started to process it. */
-                LogFlowFunc (("Destruction is canceled (refcnt=%d).\n", count));
+                LogFlowFunc(("Destruction is canceled (refcnt=%d).\n", count));
             }
 
-            RTCritSectLeave (&sLock);
+            RTCritSectLeave(&sLock);
 
             return NULL;
         }
     };
 
-    static void ShutdownTimer (RTTIMERLR hTimerLR, void *pvUser, uint64_t /*iTick*/)
+    static void ShutdownTimer(RTTIMERLR hTimerLR, void *pvUser, uint64_t /*iTick*/)
     {
-        NOREF (hTimerLR);
-        NOREF (pvUser);
+        NOREF(hTimerLR);
+        NOREF(pvUser);
 
         /* A "too late" event is theoretically possible if somebody
          * manually ended the server after a destruction has been scheduled
          * and this method was so lucky that it got a chance to run before
          * the timer was killed. */
-        AssertReturnVoid (gEventQ);
+        AssertReturnVoid(gEventQ);
 
         /* post a quit event to the main queue */
         MaybeQuitEvent *ev = new MaybeQuitEvent();
-        nsresult rv = ev->postTo (gEventQ);
-        NOREF (rv);
+        nsresult rv = ev->postTo(gEventQ);
+        NOREF(rv);
 
         /* A failure above means we've been already stopped (for example
          * by Ctrl-C). FactoryDestructor() (NS_ShutdownXPCOM())
@@ -472,16 +434,16 @@ public:
 
     static NS_IMETHODIMP FactoryConstructor()
     {
-        LogFlowFunc (("\n"));
+        LogFlowFunc(("\n"));
 
         /* create a critsect to protect object construction */
-        if (RT_FAILURE (RTCritSectInit (&sLock)))
+        if (RT_FAILURE(RTCritSectInit(&sLock)))
             return NS_ERROR_OUT_OF_MEMORY;
 
-        int vrc = RTTimerLRCreateEx (&sTimer, 0, 0, ShutdownTimer, NULL);
-        if (RT_FAILURE (vrc))
+        int vrc = RTTimerLRCreateEx(&sTimer, 0, 0, ShutdownTimer, NULL);
+        if (RT_FAILURE(vrc))
         {
-            LogFlowFunc (("Failed to create a timer! (vrc=%Rrc)\n", vrc));
+            LogFlowFunc(("Failed to create a timer! (vrc=%Rrc)\n", vrc));
             return NS_ERROR_FAILURE;
         }
 
@@ -490,12 +452,12 @@ public:
 
     static NS_IMETHODIMP FactoryDestructor()
     {
-        LogFlowFunc (("\n"));
+        LogFlowFunc(("\n"));
 
-        RTTimerLRDestroy (sTimer);
+        RTTimerLRDestroy(sTimer);
         sTimer = NULL;
 
-        RTCritSectDelete (&sLock);
+        RTCritSectDelete(&sLock);
 
         if (sInstance != NULL)
         {
@@ -510,17 +472,17 @@ public:
         return NS_OK;
     }
 
-    static nsresult GetInstance (VirtualBox **inst)
+    static nsresult GetInstance(VirtualBox **inst)
     {
-        LogFlowFunc (("Getting VirtualBox object...\n"));
+        LogFlowFunc(("Getting VirtualBox object...\n"));
 
-        RTCritSectEnter (&sLock);
+        RTCritSectEnter(&sLock);
 
         if (!gKeepRunning)
         {
-            LogFlowFunc (("Process termination requested first. Refusing.\n"));
+            LogFlowFunc(("Process termination requested first. Refusing.\n"));
 
-            RTCritSectLeave (&sLock);
+            RTCritSectLeave(&sLock);
 
             /* this rv is what CreateInstance() on the client side returns
              * when the server process stops accepting events. Do the same
@@ -543,8 +505,8 @@ public:
 
                 sInstance->AddRef(); /* protect FinalConstruct() */
                 rv = sInstance->FinalConstruct();
-                printf ("Informational: VirtualBox object created (rc=%08X).\n", rv);
-                if (NS_FAILED (rv))
+                RTPrintf("Informational: VirtualBox object created (rc=%Rhrc).\n", rv);
+                if (NS_FAILED(rv))
                 {
                     /* On failure diring VirtualBox initialization, delete it
                      * immediately on the current thread by releasing all
@@ -557,13 +519,13 @@ public:
                      * info from a server-side IVirtualBoxErrorInfo object. */
                     sInstance->Release();
                     sInstance->Release();
-                    Assert (sInstance == NULL);
+                    Assert(sInstance == NULL);
                 }
                 else
                 {
                     /* On success, make sure the previous timer is stopped to
                      * cancel a scheduled server termination (if any). */
-                    RTTimerLRStop (sTimer);
+                    RTTimerLRStop(sTimer);
                 }
             }
             else
@@ -573,23 +535,22 @@ public:
         }
         else
         {
-            LogFlowFunc (("Using existing VirtualBox object...\n"));
+            LogFlowFunc(("Using existing VirtualBox object...\n"));
             nsrefcnt count = sInstance->AddRef();
-            Assert (count > 1);
+            Assert(count > 1);
 
             if (count == 2)
             {
-                LogFlowFunc (("Another client has requested a reference to VirtualBox, "
-                              "canceling detruction...\n"));
+                LogFlowFunc(("Another client has requested a reference to VirtualBox, canceling detruction...\n"));
 
                 /* make sure the previous timer is stopped */
-                RTTimerLRStop (sTimer);
+                RTTimerLRStop(sTimer);
             }
         }
 
         *inst = sInstance;
 
-        RTCritSectLeave (&sLock);
+        RTCritSectLeave(&sLock);
 
         return rv;
     }
@@ -609,12 +570,11 @@ private:
 };
 
 VirtualBoxClassFactory *VirtualBoxClassFactory::sInstance = NULL;
-RTCRITSECT VirtualBoxClassFactory::sLock = {0};
+RTCRITSECT VirtualBoxClassFactory::sLock;
 
 RTTIMERLR VirtualBoxClassFactory::sTimer = NIL_RTTIMERLR;
 
-NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR_WITH_RC
-    (VirtualBox, VirtualBoxClassFactory::GetInstance)
+NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR_WITH_RC(VirtualBox, VirtualBoxClassFactory::GetInstance)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -629,10 +589,10 @@ typedef NSFactoryDestructorProcPtr NSFactoryConsructorProcPtr;
  */
 struct nsModuleComponentInfoEx : nsModuleComponentInfo
 {
-    nsModuleComponentInfoEx () {}
-    nsModuleComponentInfoEx (int) {}
+    nsModuleComponentInfoEx() {}
+    nsModuleComponentInfoEx(int) {}
 
-    nsModuleComponentInfoEx (
+    nsModuleComponentInfoEx(
         const char*                                 aDescription,
         const nsCID&                                aCID,
         const char*                                 aContractID,
@@ -668,7 +628,7 @@ struct nsModuleComponentInfoEx : nsModuleComponentInfo
 
 static const nsModuleComponentInfoEx components[] =
 {
-    nsModuleComponentInfoEx (
+    nsModuleComponentInfoEx(
         "VirtualBox component",
         (nsCID) NS_VIRTUALBOX_CID,
         NS_VIRTUALBOX_CONTRACTID,
@@ -692,17 +652,17 @@ static const nsModuleComponentInfoEx components[] =
  *  caller.
  */
 nsresult
-NS_NewGenericFactoryEx (nsIGenericFactory **result,
-                        const nsModuleComponentInfoEx *info)
+NS_NewGenericFactoryEx(nsIGenericFactory **result,
+                       const nsModuleComponentInfoEx *info)
 {
-    AssertReturn (result, NS_ERROR_INVALID_POINTER);
+    AssertReturn(result, NS_ERROR_INVALID_POINTER);
 
-    nsresult rv = NS_NewGenericFactory (result, info);
-    if (NS_SUCCEEDED (rv) && info && info->mFactoryConstructor)
+    nsresult rv = NS_NewGenericFactory(result, info);
+    if (NS_SUCCEEDED(rv) && info && info->mFactoryConstructor)
     {
         rv = info->mFactoryConstructor();
-        if (NS_FAILED (rv))
-            NS_RELEASE (*result);
+        if (NS_FAILED(rv))
+            NS_RELEASE(*result);
     }
 
     return rv;
@@ -715,25 +675,26 @@ NS_NewGenericFactoryEx (nsIGenericFactory **result,
  * of the out-of-proc server.
  */
 static nsresult
-RegisterSelfComponents (nsIComponentRegistrar *registrar,
-                        const nsModuleComponentInfoEx *components,
-                        PRUint32 count)
+RegisterSelfComponents(nsIComponentRegistrar *registrar,
+                       const nsModuleComponentInfoEx *aComponents,
+                       PRUint32 count)
 {
     nsresult rc = NS_OK;
-    const nsModuleComponentInfoEx *info = components;
-    for (PRUint32 i = 0; i < count && NS_SUCCEEDED (rc); i++, info++)
+    const nsModuleComponentInfoEx *info = aComponents;
+    for (PRUint32 i = 0; i < count && NS_SUCCEEDED(rc); i++, info++)
     {
         /* skip components w/o a constructor */
-        if (!info->mConstructor) continue;
+        if (!info->mConstructor)
+            continue;
         /* create a new generic factory for a component and register it */
         nsIGenericFactory *factory;
-        rc = NS_NewGenericFactoryEx (&factory, info);
-        if (NS_SUCCEEDED (rc))
+        rc = NS_NewGenericFactoryEx(&factory, info);
+        if (NS_SUCCEEDED(rc))
         {
-            rc = registrar->RegisterFactory (info->mCID,
-                                             info->mDescription,
-                                             info->mContractID,
-                                             factory);
+            rc = registrar->RegisterFactory(info->mCID,
+                                            info->mDescription,
+                                            info->mContractID,
+                                            factory);
             factory->Release();
         }
     }
@@ -743,61 +704,61 @@ RegisterSelfComponents (nsIComponentRegistrar *registrar,
 /////////////////////////////////////////////////////////////////////////////
 
 static ipcIService *gIpcServ = nsnull;
-static char *pszPidFile = NULL;
+static const char *g_pszPidFile = NULL;
 
 class ForceQuitEvent : public MyEvent
 {
     void *handler()
     {
-        LogFlowFunc (("\n"));
+        LogFlowFunc(("\n"));
 
         gKeepRunning = PR_FALSE;
 
-        if (pszPidFile)
-            RTFileDelete(pszPidFile);
+        if (g_pszPidFile)
+            RTFileDelete(g_pszPidFile);
 
         return NULL;
     }
 };
 
-static void signal_handler (int /* sig */)
+static void signal_handler(int /* sig */)
 {
     if (gEventQ && gKeepRunning)
     {
         /* post a quit event to the queue */
         ForceQuitEvent *ev = new ForceQuitEvent();
-        ev->postTo (gEventQ);
+        ev->postTo(gEventQ);
     }
 }
 
-int main (int argc, char **argv)
+int main(int argc, char **argv)
 {
-    const struct option options[] =
+    /*
+     * Initialize the VBox runtime without loading
+     * the support driver
+     */
+    RTR3Init();
+
+    static const RTGETOPTDEF s_aOptions[] =
     {
-        { "automate",       no_argument,        NULL, 'a' },
-# if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
-        { "auto-shutdown",  no_argument,        NULL, 'A' },
-#endif
-        { "daemonize",      no_argument,        NULL, 'd' },
-        { "pidfile",        required_argument,  NULL, 'p' },
-# if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
-        { "pipe",           required_argument,  NULL, 'P' },
-#endif
-        { NULL,             0,                  NULL,  0  }
+        { "--automate",       'a', RTGETOPT_REQ_NOTHING },
+        { "--auto-shutdown",  'A', RTGETOPT_REQ_NOTHING },
+        { "--daemonize",      'd', RTGETOPT_REQ_NOTHING },
+        { "--pidfile",        'p', RTGETOPT_REQ_STRING  },
+        { "--pipe",           'P', RTGETOPT_REQ_UINT32  },
     };
-    int c;
 
-    bool fDaemonize = false;
-#ifndef RT_OS_OS2
-    static int daemon_pipe_fds[2] = {-1, -1};
-#endif
+    bool            fDaemonize = false;
+    int             daemon_pipe_wr = -1;
 
-    for (;;)
+    RTGETOPTSTATE   GetOptState;
+    int vrc = RTGetOptInit(&GetOptState, argc, argv, &s_aOptions[0], RT_ELEMENTS(s_aOptions), 1, 0 /*fFlags*/);
+    AssertRC(vrc);
+
+    RTGETOPTUNION   ValueUnion;
+    while ((vrc = RTGetOpt(&GetOptState, &ValueUnion)))
     {
-        c = getopt_long(argc, argv, "", options, NULL);
-        if (c == -1)
-            break;
-        switch (c)
+        switch (vrc)
         {
             case 'a':
             {
@@ -809,14 +770,12 @@ int main (int argc, char **argv)
                 break;
             }
 
-# if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
             /* Used together with '-P', see below. Internal use only. */
             case 'A':
             {
                 gAutoShutdown = true;
                 break;
             }
-#endif
 
             case 'd':
             {
@@ -826,51 +785,47 @@ int main (int argc, char **argv)
 
             case 'p':
             {
-                pszPidFile = optarg;
+                g_pszPidFile = ValueUnion.psz;
                 break;
             }
 
-# if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
-            /* we need to exec on darwin, this is just an internal
-             * hack for passing the pipe fd along to the final child. */
+            /* This is just an internal hack for passing the pipe write fd
+               along to the final child.  Internal use only. */
             case 'P':
             {
-                daemon_pipe_fds[1] = atoi(optarg);
+                daemon_pipe_wr = ValueUnion.u32;
                 break;
             }
-#endif
 
             default:
-            {
-                /* exit on invalid options */
-                return 1;
-            }
+                return RTGetOptPrintError(vrc, &ValueUnion);
         }
     }
 
-    static RTFILE pidFile = NIL_RTFILE;
-
-#ifdef RT_OS_OS2
+#ifdef RT_OS_OS2 /** @todo There is almost no need to make a special case of OS/2 here. Just the execv call needs to be told to create a background process... */
 
     /* nothing to do here, the process is supposed to be already
      * started daemonized when it is necessary */
     NOREF(fDaemonize);
 
-#else // ifdef RT_OS_OS2
+#else // !RT_OS_OS2
 
     if (fDaemonize)
     {
         /* create a pipe for communication between child and parent */
+        int daemon_pipe_fds[2] = {-1, -1};
         if (pipe(daemon_pipe_fds) < 0)
         {
-            printf("ERROR: pipe() failed (errno = %d)\n", errno);
+            RTMsgError("pipe() failed (errno = %d)", errno);
             return 1;
         }
+        daemon_pipe_wr = daemon_pipe_fds[1];
+        int daemon_pipe_rd = daemon_pipe_fds[0];
 
         pid_t childpid = fork();
         if (childpid == -1)
         {
-            printf("ERROR: fork() failed (errno = %d)\n", errno);
+            RTMsgError("fork() failed (errno = %d)", errno);
             return 1;
         }
 
@@ -880,23 +835,23 @@ int main (int argc, char **argv)
             bool fSuccess = false;
 
             /* close the writing end of the pipe */
-            close(daemon_pipe_fds[1]);
+            close(daemon_pipe_wr);
 
             /* try to read a message from the pipe */
-            char msg[10] = {0}; /* initialize so it's NULL terminated */
-            if (read(daemon_pipe_fds[0], msg, sizeof(msg)) > 0)
+            char msg[10 + 1];
+            RT_ZERO(msg); /* initialize so it's NULL terminated */
+            if (read(daemon_pipe_rd, msg, sizeof(msg) - 1) > 0)
             {
                 if (strcmp(msg, "READY") == 0)
                     fSuccess = true;
                 else
-                    printf ("ERROR: Unknown message from child "
-                            "process (%s)\n", msg);
+                    RTMsgError("Unknown message from child process (%s)", msg);
             }
             else
-                printf ("ERROR: 0 bytes read from child process\n");
+                RTMsgError("0 bytes read from child process");
 
             /* close the reading end of the pipe as well and exit */
-            close(daemon_pipe_fds[0]);
+            close(daemon_pipe_rd);
             return fSuccess ? 0 : 1;
         }
         /* we're the child process */
@@ -905,7 +860,7 @@ int main (int argc, char **argv)
         pid_t sid = setsid();
         if (sid < 0)
         {
-            printf("ERROR: setsid() failed (errno = %d)\n", errno);
+            RTMsgError("setsid() failed (errno = %d)", errno);
             return 1;
         }
 
@@ -915,7 +870,7 @@ int main (int argc, char **argv)
         childpid = fork();
         if (childpid == -1)
         {
-            printf("ERROR: second fork() failed (errno = %d)\n", errno);
+            RTMsgError("second fork() failed (errno = %d)", errno);
             return 1;
         }
 
@@ -925,18 +880,32 @@ int main (int argc, char **argv)
             exit(0);
         }
 
-        /* Redirect standard i/o streams to /dev/null */
-        if (daemon_pipe_fds[0] > 2)
+        /* Close all file handles except for the write end of the pipe. */
+        int fdMax;
+        struct rlimit lim;
+        if (getrlimit(RLIMIT_NOFILE, &lim) == 0)
+            fdMax = (int)RT_MIN(lim.rlim_cur, 65535); /* paranoia */
+        else
+            fdMax = 1024;
+        for (int fd = 0; fd < fdMax; fd++)
+            if (fd != daemon_pipe_wr)
+                close(fd);
+
+        /* Make sure the pipe isn't any of the standard handles. */
+        if (daemon_pipe_wr <= 2)
         {
-            freopen ("/dev/null", "r", stdin);
-            freopen ("/dev/null", "w", stdout);
-            freopen ("/dev/null", "w", stderr);
+            if (dup2(daemon_pipe_wr, 3) == 3)
+            {
+                close(daemon_pipe_wr);
+                daemon_pipe_wr = 3;
+            }
         }
 
-        /* close the reading end of the pipe */
-        close(daemon_pipe_fds[0]);
+        /* Redirect the standard handles to NULL by opening /dev/null three times. */
+        open("/dev/null", O_RDWR, 0);
+        open("/dev/null", O_RDWR, 0);
+        open("/dev/null", O_RDWR, 0);
 
-# if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
         /*
          * On leopard we're no longer allowed to use some of the core API's
          * after forking - this will cause us to hit an int3.
@@ -948,93 +917,86 @@ int main (int argc, char **argv)
          * exits making it impossible to autostart VBoxSVC when starting
          * a frontend (debugger and strace don't contain any useful info).
          */
-        const char *apszArgs[7];
+        const char *apszArgs[7 + 2];
         unsigned i = 0;
         apszArgs[i++] = argv[0];
         apszArgs[i++] = "--pipe";
         char szPipeArg[32];
-        RTStrPrintf (szPipeArg, sizeof (szPipeArg), "%d", daemon_pipe_fds[1]);
+        RTStrPrintf(szPipeArg, sizeof(szPipeArg), "%d", daemon_pipe_wr);
         apszArgs[i++] = szPipeArg;
-        if (pszPidFile)
+        if (g_pszPidFile)
         {
             apszArgs[i++] = "--pidfile";
-            apszArgs[i++] = pszPidFile;
+            apszArgs[i++] = g_pszPidFile;
         }
         if (gAutoShutdown)
             apszArgs[i++] = "--auto-shutdown";
-        apszArgs[i++] = NULL; Assert(i <= RT_ELEMENTS(apszArgs));
-        execv (apszArgs[0], (char * const *)apszArgs);
-        exit (0);
-# endif
+        apszArgs[i++] = NULL;   Assert(i <= RT_ELEMENTS(apszArgs));
+        execv(apszArgs[0], (char * const *)apszArgs);
+        exit(126);
     }
 
-#endif // ifdef RT_OS_OS2
+#endif // !RT_OS_OS2
 
-    /*
-     * Initialize the VBox runtime without loading
-     * the support driver
-     */
-    RTR3Init();
-
-    nsresult rc;
+    nsresult    rc;
 
     do
     {
         rc = com::Initialize();
-        if (NS_FAILED (rc))
+        if (NS_FAILED(rc))
         {
-            printf ("ERROR: Failed to initialize XPCOM! (rc=%08X)\n", rc);
+            RTMsgError("Failed to initialize XPCOM! (rc=%Rhrc)\n", rc);
             break;
         }
 
         nsCOMPtr <nsIComponentRegistrar> registrar;
-        rc = NS_GetComponentRegistrar (getter_AddRefs (registrar));
-        if (NS_FAILED (rc))
+        rc = NS_GetComponentRegistrar(getter_AddRefs(registrar));
+        if (NS_FAILED(rc))
         {
-            printf ("ERROR: Failed to get component registrar! (rc=%08X)\n", rc);
+            RTMsgError("Failed to get component registrar! (rc=%Rhrc)", rc);
             break;
         }
 
-        registrar->AutoRegister (nsnull);
-        rc = RegisterSelfComponents (registrar, components,
-                                     NS_ARRAY_LENGTH (components));
-        if (NS_FAILED (rc))
+        registrar->AutoRegister(nsnull);
+        rc = RegisterSelfComponents(registrar, components,
+                                    NS_ARRAY_LENGTH (components));
+        if (NS_FAILED(rc))
         {
-            printf ("ERROR: Failed to register server components! (rc=%08X)\n", rc);
+            RTMsgError("Failed to register server components! (rc=%Rhrc)", rc);
             break;
         }
 
         /* get the main thread's event queue (afaik, the dconnect service always
          * gets created upon XPCOM startup, so it will use the main (this)
          * thread's event queue to receive IPC events) */
-        rc = NS_GetMainEventQ (&gEventQ);
-        if (NS_FAILED (rc))
+        rc = NS_GetMainEventQ(&gEventQ);
+        if (NS_FAILED(rc))
         {
-            printf ("ERROR: Failed to get the main event queue! (rc=%08X)\n", rc);
+            RTMsgError("Failed to get the main event queue! (rc=%Rhrc)", rc);
             break;
         }
 
         nsCOMPtr<ipcIService> ipcServ (do_GetService(IPC_SERVICE_CONTRACTID, &rc));
         if (NS_FAILED (rc))
         {
-            printf ("ERROR: Failed to get IPC service! (rc=%08X)\n", rc);
+            RTMsgError("Failed to get IPC service! (rc=%Rhrc)", rc);
             break;
         }
 
-        NS_ADDREF (gIpcServ = ipcServ);
+        NS_ADDREF(gIpcServ = ipcServ);
 
-        LogFlowFunc (("Will use \"%s\" as server name.\n", VBOXSVC_IPC_NAME));
+        LogFlowFunc(("Will use \"%s\" as server name.\n", VBOXSVC_IPC_NAME));
 
-        rc = gIpcServ->AddName (VBOXSVC_IPC_NAME);
-        if (NS_FAILED (rc))
+        rc = gIpcServ->AddName(VBOXSVC_IPC_NAME);
+        if (NS_FAILED(rc))
         {
-            LogFlowFunc (("Failed to register the server name (rc=%08X)!\n"
-                          "Is another server already running?\n", rc));
+            LogFlowFunc(("Failed to register the server name (rc=%Rhrc (%08X))!\n"
+                         "Is another server already running?\n", rc, rc));
 
-            printf ("ERROR: Failed to register the server name \"%s\" (rc=%08X)!\n"
-                    "Is another server already running?\n",
-                    VBOXSVC_IPC_NAME, rc);
-            NS_RELEASE (gIpcServ);
+            RTMsgError("Failed to register the server name \"%s\" (rc=%Rhrc)!\n"
+                       "Is another server already running?\n",
+                       VBOXSVC_IPC_NAME, rc);
+            NS_RELEASE(gIpcServ);
             break;
         }
 
@@ -1042,62 +1004,55 @@ int main (int argc, char **argv)
             /* setup signal handling to convert some signals to a quit event */
             struct sigaction sa;
             sa.sa_handler = signal_handler;
-            sigemptyset (&sa.sa_mask);
+            sigemptyset(&sa.sa_mask);
             sa.sa_flags = 0;
-            sigaction (SIGINT, &sa, NULL);
-            sigaction (SIGQUIT, &sa, NULL);
-            sigaction (SIGTERM, &sa, NULL);
-            sigaction (SIGTRAP, &sa, NULL);
+            sigaction(SIGINT, &sa, NULL);
+            sigaction(SIGQUIT, &sa, NULL);
+            sigaction(SIGTERM, &sa, NULL);
+            sigaction(SIGTRAP, &sa, NULL);
         }
 
         {
             char szBuf[80];
             int  iSize;
 
-            iSize = snprintf (szBuf, sizeof(szBuf),
-                              "Sun VirtualBox XPCOM Server Version "
-                              VBOX_VERSION_STRING);
-            for (int i=iSize; i>0; i--)
+            iSize = RTStrPrintf(szBuf, sizeof(szBuf),
+                                "Sun VirtualBox XPCOM Server Version "
+                                VBOX_VERSION_STRING);
+            for (int i = iSize; i > 0; i--)
                 putchar('*');
-            printf ("\n%s\n", szBuf);
-            printf ("(C) 2008-2009 Sun Microsystems, Inc.\n"
-                    "All rights reserved.\n");
+            RTPrintf("\n%s\n", szBuf);
+            RTPrintf("(C) 2008-2009 Sun Microsystems, Inc.\n"
+                     "All rights reserved.\n");
 #ifdef DEBUG
-            printf ("Debug version.\n");
-#endif
-#if 0
-            /* in my opinion two lines enclosing the text look better */
-            for (int i=iSize; i>0; i--)
-                putchar('*');
-            putchar('\n');
+            RTPrintf("Debug version.\n");
 #endif
         }
 
-#ifndef RT_OS_OS2
-        if (daemon_pipe_fds[1] >= 0)
+        if (daemon_pipe_wr >= 0)
         {
-            printf ("\nStarting event loop....\n[send TERM signal to quit]\n");
+            RTPrintf("\nStarting event loop....\n[send TERM signal to quit]\n");
             /* now we're ready, signal the parent process */
-            write(daemon_pipe_fds[1], "READY", strlen("READY"));
+            write(daemon_pipe_wr, "READY", strlen("READY"));
         }
         else
-#endif
+            RTPrintf("\nStarting event loop....\n[press Ctrl-C to quit]\n");
+
+        if (g_pszPidFile)
         {
-            printf ("\nStarting event loop....\n[press Ctrl-C to quit]\n");
+            RTFILE hPidFile = NIL_RTFILE;
+            vrc = RTFileOpen(&hPidFile, g_pszPidFile, RTFILE_O_WRITE | RTFILE_O_CREATE_REPLACE | RTFILE_O_DENY_NONE);
+            if (RT_SUCCESS(vrc))
+            {
+                char szBuf[32];
+                const char *lf = "\n";
+                RTStrFormatNumber(szBuf, getpid(), 10, 0, 0, 0);
+                RTFileWrite(hPidFile, szBuf, strlen(szBuf), NULL);
+                RTFileWrite(hPidFile, lf, strlen(lf), NULL);
+                RTFileClose(hPidFile);
+            }
         }
 
-        if (pszPidFile)
-        {
-            char szBuf[32];
-            const char *lf = "\n";
-            RTFileOpen(&pidFile, pszPidFile, RTFILE_O_WRITE | RTFILE_O_CREATE_REPLACE);
-            RTStrFormatNumber(szBuf, getpid(), 10, 0, 0, 0);
-            RTFileWrite(pidFile, szBuf, strlen(szBuf), NULL);
-            RTFileWrite(pidFile, lf, strlen(lf), NULL);
-            RTFileClose(pidFile);
-        }
-
-#ifndef RT_OS_OS2
         // Increase the file table size to 10240 or as high as possible.
         struct rlimit lim;
         if (getrlimit(RLIMIT_NOFILE, &lim) == 0)
@@ -1107,18 +1062,17 @@ int main (int argc, char **argv)
             {
                 lim.rlim_cur = RT_MIN(lim.rlim_max, 10240);
                 if (setrlimit(RLIMIT_NOFILE, &lim) == -1)
-                    printf("WARNING: failed to increase file descriptor limit. (%d)\n", errno);
+                    RTPrintf("WARNING: failed to increase file descriptor limit. (%d)\n", errno);
             }
         }
         else
-            printf("WARNING: failed to obtain per-process file-descriptor limit (%d).\n", errno);
-#endif
+            RTPrintf("WARNING: failed to obtain per-process file-descriptor limit (%d).\n", errno);
 
         PLEvent *ev;
         while (gKeepRunning)
         {
-            gEventQ->WaitForEvent (&ev);
-            gEventQ->HandleEvent (ev);
+            gEventQ->WaitForEvent(&ev);
+            gEventQ->HandleEvent(ev);
         }
 
         /* stop accepting new events. Clients that happen to resolve our
@@ -1129,7 +1083,7 @@ int main (int argc, char **argv)
 
         /* unregister ourselves. After this point, clients will start a new
          * process because they won't be able to resolve the server name.*/
-        gIpcServ->RemoveName (VBOXSVC_IPC_NAME);
+        gIpcServ->RemoveName(VBOXSVC_IPC_NAME);
 
         /* process any remaining events. These events may include
          * CreateInstance() requests received right before we called
@@ -1137,36 +1091,30 @@ int main (int argc, char **argv)
          * restore gKeepRunning and continue to serve. */
         gEventQ->ProcessPendingEvents();
 
-        printf ("Terminated event loop.\n");
+        RTPrintf("Terminated event loop.\n");
     }
     while (0); // this scopes the nsCOMPtrs
 
-    NS_IF_RELEASE (gIpcServ);
-    NS_IF_RELEASE (gEventQ);
+    NS_IF_RELEASE(gIpcServ);
+    NS_IF_RELEASE(gEventQ);
 
     /* no nsCOMPtrs are allowed to be alive when you call com::Shutdown(). */
 
-    LogFlowFunc (("Calling com::Shutdown()...\n"));
+    LogFlowFunc(("Calling com::Shutdown()...\n"));
     rc = com::Shutdown();
-    LogFlowFunc (("Finished com::Shutdown() (rc=%08X)\n", rc));
+    LogFlowFunc(("Finished com::Shutdown() (rc=%Rhrc)\n", rc));
 
-    if (NS_FAILED (rc))
-        printf ("ERROR: Failed to shutdown XPCOM! (rc=%08X)\n", rc);
+    if (NS_FAILED(rc))
+        RTMsgError("Failed to shutdown XPCOM! (rc=%Rhrc)", rc);
 
-    printf ("XPCOM server has shutdown.\n");
+    RTPrintf("XPCOM server has shutdown.\n");
 
-    if (pszPidFile)
-    {
-        RTFileDelete(pszPidFile);
-    }
+    if (g_pszPidFile)
+        RTFileDelete(g_pszPidFile);
 
-#ifndef RT_OS_OS2
-    if (daemon_pipe_fds[1] >= 0)
-    {
-        /* close writing end of the pipe as well */
-        close(daemon_pipe_fds[1]);
-    }
-#endif
+    /* close writing end of the pipe as well */
+    if (daemon_pipe_wr >= 0)
+        close(daemon_pipe_wr);
 
     return 0;
 }

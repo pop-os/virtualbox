@@ -1,5 +1,5 @@
 /** @file
- * PDM - Pluggable Device Manager, Drivers.
+ * PDM - Pluggable Device Manager, Drivers. (VMM)
  */
 
 /*
@@ -35,6 +35,7 @@
 #include <VBox/pdmthread.h>
 #include <VBox/pdmifs.h>
 #include <VBox/pdmins.h>
+#include <VBox/pdmcommon.h>
 #include <VBox/tm.h>
 #include <VBox/ssm.h>
 #include <VBox/cfgm.h>
@@ -63,8 +64,9 @@ RT_C_DECLS_BEGIN
  * @param   pCfgHandle  Configuration node handle for the driver. Use this to obtain the configuration
  *                      of the driver instance. It's also found in pDrvIns->pCfgHandle as it's expected
  *                      to be used frequently in this function.
+ * @param   fFlags      Flags, combination of the PDM_TACH_FLAGS_* \#defines.
  */
-typedef DECLCALLBACK(int)   FNPDMDRVCONSTRUCT(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle);
+typedef DECLCALLBACK(int)   FNPDMDRVCONSTRUCT(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags);
 /** Pointer to a FNPDMDRVCONSTRUCT() function. */
 typedef FNPDMDRVCONSTRUCT *PFNPDMDRVCONSTRUCT;
 
@@ -151,6 +153,23 @@ typedef DECLCALLBACK(void)   FNPDMDRVPOWEROFF(PPDMDRVINS pDrvIns);
 typedef FNPDMDRVPOWEROFF *PFNPDMDRVPOWEROFF;
 
 /**
+ * Attach command.
+ *
+ * This is called to let the drive attach to a driver at runtime.  This is not
+ * called during VM construction, the driver constructor have to do this by
+ * calling PDMDrvHlpAttach.
+ *
+ * This is like plugging in the keyboard or mouse after turning on the PC.
+ *
+ * @returns VBox status code.
+ * @param   pDrvIns     The driver instance.
+ * @param   fFlags      Flags, combination of the PDM_TACH_FLAGS_* \#defines.
+ */
+typedef DECLCALLBACK(int)  FNPDMDRVATTACH(PPDMDRVINS pDrvIns, uint32_t fFlags);
+/** Pointer to a FNPDMDRVATTACH() function. */
+typedef FNPDMDRVATTACH *PFNPDMDRVATTACH;
+
+/**
  * Detach notification.
  *
  * This is called when a driver below it in the chain is detaching itself
@@ -159,8 +178,9 @@ typedef FNPDMDRVPOWEROFF *PFNPDMDRVPOWEROFF;
  * This is like ejecting a cdrom or floppy.
  *
  * @param   pDrvIns     The driver instance.
+ * @param   fFlags      PDM_TACH_FLAGS_NOT_HOT_PLUG or 0.
  */
-typedef DECLCALLBACK(void)  FNPDMDRVDETACH(PPDMDRVINS pDrvIns);
+typedef DECLCALLBACK(void)  FNPDMDRVDETACH(PPDMDRVINS pDrvIns, uint32_t fFlags);
 /** Pointer to a FNPDMDRVDETACH() function. */
 typedef FNPDMDRVDETACH *PFNPDMDRVDETACH;
 
@@ -204,11 +224,16 @@ typedef struct PDMDRVREG
     PFNPDMDRVSUSPEND    pfnSuspend;
     /** Resume notification - optional. */
     PFNPDMDRVRESUME     pfnResume;
+    /** Attach command - optional. */
+    PFNPDMDRVATTACH     pfnAttach;
     /** Detach notification - optional. */
     PFNPDMDRVDETACH     pfnDetach;
     /** Power off notification - optional. */
     PFNPDMDRVPOWEROFF   pfnPowerOff;
-
+    /** @todo */
+    PFNRT               pfnSoftReset;
+    /** Initialization safty marker. */
+    uint32_t            u32VersionEnd;
 } PDMDRVREG;
 /** Pointer to a PDM Driver Structure. */
 typedef PDMDRVREG *PPDMDRVREG;
@@ -216,9 +241,9 @@ typedef PDMDRVREG *PPDMDRVREG;
 typedef PDMDRVREG const *PCPDMDRVREG;
 
 /** Current DRVREG version number. */
-#define PDM_DRVREG_VERSION  0x80010000
+#define PDM_DRVREG_VERSION  0x80020000
 
-/** PDM Device Flags.
+/** PDM Driver Flags.
  * @{ */
 /** @def PDM_DRVREG_FLAGS_HOST_BITS_DEFAULT
  * The bit count for the current host. */
@@ -363,17 +388,19 @@ typedef struct PDMDRVHLP
      *
      * @returns VBox status code.
      * @param   pDrvIns             Driver instance.
+     * @param   fFlags              PDM_TACH_FLAGS_NOT_HOT_PLUG or 0.
      * @param   ppBaseInterface     Where to store the pointer to the base interface.
      */
-    DECLR3CALLBACKMEMBER(int, pfnAttach,(PPDMDRVINS pDrvIns, PPDMIBASE *ppBaseInterface));
+    DECLR3CALLBACKMEMBER(int, pfnAttach,(PPDMDRVINS pDrvIns, uint32_t fFlags, PPDMIBASE *ppBaseInterface));
 
     /**
      * Detach the driver the drivers below us.
      *
      * @returns VBox status code.
      * @param   pDrvIns             Driver instance.
+     * @param   fFlags              PDM_TACH_FLAGS_NOT_HOT_PLUG or 0.
      */
-    DECLR3CALLBACKMEMBER(int, pfnDetach,(PPDMDRVINS pDrvIns));
+    DECLR3CALLBACKMEMBER(int, pfnDetach,(PPDMDRVINS pDrvIns, uint32_t fFlags));
 
     /**
      * Detach the driver from the driver above it and destroy this
@@ -381,8 +408,9 @@ typedef struct PDMDRVHLP
      *
      * @returns VBox status code.
      * @param   pDrvIns             Driver instance.
+     * @param   fFlags              PDM_TACH_FLAGS_NOT_HOT_PLUG or 0.
      */
-    DECLR3CALLBACKMEMBER(int, pfnDetachSelf,(PPDMDRVINS pDrvIns));
+    DECLR3CALLBACKMEMBER(int, pfnDetachSelf,(PPDMDRVINS pDrvIns, uint32_t fFlags));
 
     /**
      * Prepare a media mount.
@@ -472,6 +500,24 @@ typedef struct PDMDRVHLP
     DECLR3CALLBACKMEMBER(int, pfnVMSetRuntimeErrorV,(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va));
 
     /**
+     * Gets the VM state.
+     *
+     * @returns VM state.
+     * @param   pDrvIns         The driver instance.
+     * @thread  Any thread (just keep in mind that it's volatile info).
+     */
+    DECLR3CALLBACKMEMBER(VMSTATE, pfnVMState, (PPDMDRVINS pDrvIns));
+
+    /**
+     * Checks if the VM was teleported and hasn't been fully resumed yet.
+     *
+     * @returns true / false.
+     * @param   pDrvIns         The driver instance.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(bool, pfnVMTeleportedAndNotFullyResumedYet,(PPDMDRVINS pDrvIns));
+
+    /**
      * Create a queue.
      *
      * @returns VBox status code.
@@ -481,20 +527,13 @@ typedef struct PDMDRVHLP
      * @param   cMilliesInterval    Number of milliseconds between polling the queue.
      *                              If 0 then the emulation thread will be notified whenever an item arrives.
      * @param   pfnCallback         The consumer function.
+     * @param   pszName             The queue base name. The instance number will be
+     *                              appended automatically.
      * @param   ppQueue             Where to store the queue handle on success.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnPDMQueueCreate,(PPDMDRVINS pDrvIns, RTUINT cbItem, RTUINT cItems, uint32_t cMilliesInterval, PFNPDMQUEUEDRV pfnCallback, PPDMQUEUE *ppQueue));
-
-    /**
-     * Register a poller function.
-     * TEMPORARY HACK FOR NETWORKING! DON'T USE!
-     *
-     * @returns VBox status code.
-     * @param   pDrvIns             Driver instance.
-     * @param   pfnPoller           The callback function.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnPDMPollerRegister,(PPDMDRVINS pDrvIns, PFNPDMDRVPOLLER pfnPoller));
+    DECLR3CALLBACKMEMBER(int, pfnPDMQueueCreate,(PPDMDRVINS pDrvIns, RTUINT cbItem, RTUINT cItems, uint32_t cMilliesInterval,
+                                                 PFNPDMQUEUEDRV pfnCallback, const char *pszName, PPDMQUEUE *ppQueue));
 
     /**
      * Query the virtual timer frequency.
@@ -535,20 +574,24 @@ typedef struct PDMDRVHLP
      *
      * @returns VBox status.
      * @param   pDrvIns         Driver instance.
-     * @param   pszName         Data unit name.
-     * @param   u32Instance     The instance identifier of the data unit.
-     *                          This must together with the name be unique.
-     * @param   u32Version      Data layout version number.
+     * @param   uVersion        Data layout version number.
      * @param   cbGuess         The approximate amount of data in the unit.
      *                          Only for progress indicators.
+     *
+     * @param   pfnLivePrep     Prepare live save callback, optional.
+     * @param   pfnLiveExec     Execute live save callback, optional.
+     * @param   pfnLiveVote     Vote live save callback, optional.
+     *
      * @param   pfnSavePrep     Prepare save callback, optional.
      * @param   pfnSaveExec     Execute save callback, optional.
      * @param   pfnSaveDone     Done save callback, optional.
+     *
      * @param   pfnLoadPrep     Prepare load callback, optional.
      * @param   pfnLoadExec     Execute load callback, optional.
      * @param   pfnLoadDone     Done load callback, optional.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSSMRegister,(PPDMDRVINS pDrvIns, const char *pszName, uint32_t u32Instance, uint32_t u32Version, size_t cbGuess,
+    DECLR3CALLBACKMEMBER(int, pfnSSMRegister,(PPDMDRVINS pDrvIns, uint32_t uVersion, size_t cbGuess,
+                                              PFNSSMDRVLIVEPREP pfnLivePrep, PFNSSMDRVLIVEEXEC pfnLiveExec, PFNSSMDRVLIVEVOTE pfnLiveVote,
                                               PFNSSMDRVSAVEPREP pfnSavePrep, PFNSSMDRVSAVEEXEC pfnSaveExec, PFNSSMDRVSAVEDONE pfnSaveDone,
                                               PFNSSMDRVLOADPREP pfnLoadPrep, PFNSSMDRVLOADEXEC pfnLoadExec, PFNSSMDRVLOADDONE pfnLoadDone));
 
@@ -558,10 +601,10 @@ typedef struct PDMDRVHLP
      * @returns VBox status.
      * @param   pDrvIns         Driver instance.
      * @param   pszName         Data unit name.
-     * @param   u32Instance     The instance identifier of the data unit.
+     * @param   uInstance       The instance identifier of the data unit.
      *                          This must together with the name be unique.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSSMDeregister,(PPDMDRVINS pDrvIns, const char *pszName, uint32_t u32Instance));
+    DECLR3CALLBACKMEMBER(int, pfnSSMDeregister,(PPDMDRVINS pDrvIns, const char *pszName, uint32_t uInstance));
 
     /**
      * Registers a statistics sample if statistics are enabled.
@@ -654,6 +697,30 @@ typedef struct PDMDRVHLP
     DECLR3CALLBACKMEMBER(int, pfnUSBRegisterHub,(PPDMDRVINS pDrvIns, uint32_t fVersions, uint32_t cPorts, PCPDMUSBHUBREG pUsbHubReg, PPCPDMUSBHUBHLP ppUsbHubHlp));
 
     /**
+     * Set up asynchronous handling of a suspend, reset or power off notification.
+     *
+     * This shall only be called when getting the notification.  It must be called
+     * for each one.
+     *
+     * @returns VBox status code.
+     * @param   pDrvIns             The driver instance.
+     * @param   pfnAsyncNotify      The callback.
+     * @thread  EMT(0)
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSetAsyncNotification, (PPDMDRVINS pDrvIns, PFNPDMDRVASYNCNOTIFY pfnAsyncNotify));
+
+    /**
+     * Notify EMT(0) that the driver has completed the asynchronous notification
+     * handling.
+     *
+     * This can be called at any time, spurious calls will simply be ignored.
+     *
+     * @param   pDrvIns             The driver instance.
+     * @thread  Any
+     */
+    DECLR3CALLBACKMEMBER(void, pfnAsyncNotificationCompleted, (PPDMDRVINS pDrvIns));
+
+    /**
      * Creates a PDM thread.
      *
      * This differs from the RTThreadCreate() API in that PDM takes care of suspending,
@@ -672,15 +739,6 @@ typedef struct PDMDRVHLP
      */
     DECLR3CALLBACKMEMBER(int, pfnPDMThreadCreate,(PPDMDRVINS pDrvIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADDRV pfnThread,
                                                   PFNPDMTHREADWAKEUPDRV pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName));
-
-    /**
-     * Gets the VM state.
-     *
-     * @returns VM state.
-     * @param   pDrvIns         The driver instance.
-     * @thread  Any thread (just keep in mind that it's volatile info).
-     */
-    DECLR3CALLBACKMEMBER(VMSTATE, pfnVMState, (PPDMDRVINS pDrvIns));
 
 #ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
     /**
@@ -709,7 +767,7 @@ typedef PDMDRVHLP *PPDMDRVHLP;
 typedef const PDMDRVHLP *PCPDMDRVHLP;
 
 /** Current DRVHLP version number. */
-#define PDM_DRVHLP_VERSION  0x90040000
+#define PDM_DRVHLP_VERSION  0x90050000
 
 
 
@@ -822,12 +880,63 @@ DECLINLINE(int) PDMDrvHlpVMSetRuntimeError(PPDMDRVINS pDrvIns, uint32_t fFlags, 
 #ifdef IN_RING3
 
 /**
+ * @copydoc PDMDRVHLP::pfnAttach
+ */
+DECLINLINE(int) PDMDrvHlpAttach(PPDMDRVINS pDrvIns, uint32_t fFlags, PPDMIBASE *ppBaseInterface)
+{
+    return pDrvIns->pDrvHlp->pfnAttach(pDrvIns, fFlags, ppBaseInterface);
+}
+
+/**
+ * Check that there is no driver below the us that we should attach to.
+ *
+ * @returns VERR_PDM_NO_ATTACHED_DRIVER if there is no driver.
+ * @param   pDrvIns     The driver instance.
+ */
+DECLINLINE(int) PDMDrvHlpNoAttach(PPDMDRVINS pDrvIns)
+{
+    return pDrvIns->pDrvHlp->pfnAttach(pDrvIns, 0, NULL);
+}
+
+/**
+ * @copydoc PDMDRVHLP::pfnDetach
+ */
+DECLINLINE(int) PDMDrvHlpDetach(PPDMDRVINS pDrvIns, uint32_t fFlags)
+{
+    return pDrvIns->pDrvHlp->pfnDetach(pDrvIns, fFlags);
+}
+
+/**
+ * @copydoc PDMDRVHLP::pfnDetachSelf
+ */
+DECLINLINE(int) PDMDrvHlpDetachSelf(PPDMDRVINS pDrvIns, uint32_t fFlags)
+{
+    return pDrvIns->pDrvHlp->pfnDetachSelf(pDrvIns, fFlags);
+}
+
+/**
+ * @copydoc PDMDRVHLP::pfnVMState
+ */
+DECLINLINE(VMSTATE) PDMDrvHlpVMState(PPDMDRVINS pDrvIns)
+{
+    return pDrvIns->pDrvHlp->pfnVMState(pDrvIns);
+}
+
+/**
+ * @copydoc PDMDRVHLP::pfnVMTeleportedAndNotFullyResumedYet
+ */
+DECLINLINE(bool) PDMDrvHlpVMTeleportedAndNotFullyResumedYet(PPDMDRVINS pDrvIns)
+{
+    return pDrvIns->pDrvHlp->pfnVMTeleportedAndNotFullyResumedYet(pDrvIns);
+}
+
+/**
  * @copydoc PDMDRVHLP::pfnPDMQueueCreate
  */
 DECLINLINE(int) PDMDrvHlpPDMQueueCreate(PPDMDRVINS pDrvIns, RTUINT cbItem, RTUINT cItems, uint32_t cMilliesInterval,
-                                        PFNPDMQUEUEDRV pfnCallback, PPDMQUEUE *ppQueue)
+                                        PFNPDMQUEUEDRV pfnCallback, const char *pszName, PPDMQUEUE *ppQueue)
 {
-    return pDrvIns->pDrvHlp->pfnPDMQueueCreate(pDrvIns, cbItem, cItems, cMilliesInterval, pfnCallback, ppQueue);
+    return pDrvIns->pDrvHlp->pfnPDMQueueCreate(pDrvIns, cbItem, cItems, cMilliesInterval, pfnCallback, pszName, ppQueue);
 }
 
 /**
@@ -855,15 +964,52 @@ DECLINLINE(int) PDMDrvHlpTMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFN
 }
 
 /**
+ * Register a save state data unit.
+ *
+ * @returns VBox status.
+ * @param   pDrvIns         Driver instance.
+ * @param   uVersion        Data layout version number.
+ * @param   cbGuess         The approximate amount of data in the unit.
+ *                          Only for progress indicators.
+ * @param   pfnSaveExec     Execute save callback, optional.
+ * @param   pfnLoadExec     Execute load callback, optional.
+ */
+DECLINLINE(int) PDMDrvHlpSSMRegister(PPDMDRVINS pDrvIns, uint32_t uVersion, size_t cbGuess,
+                                     PFNSSMDRVSAVEEXEC pfnSaveExec, PFNSSMDRVLOADEXEC pfnLoadExec)
+{
+    return pDrvIns->pDrvHlp->pfnSSMRegister(pDrvIns, uVersion, cbGuess,
+                                            NULL /*pfnLivePrep*/, NULL /*pfnLiveExec*/, NULL /*pfnLiveVote*/,
+                                            NULL /*pfnSavePrep*/, pfnSaveExec,          NULL /*pfnSaveDone*/,
+                                            NULL /*pfnLoadPrep*/, pfnLoadExec,          NULL /*pfnLoadDone*/);
+}
+
+/**
  * @copydoc PDMDRVHLP::pfnSSMRegister
  */
-DECLINLINE(int) PDMDrvHlpSSMRegister(PPDMDRVINS pDrvIns, const char *pszName, uint32_t u32Instance, uint32_t u32Version, size_t cbGuess,
-                                     PFNSSMDRVSAVEPREP pfnSavePrep, PFNSSMDRVSAVEEXEC pfnSaveExec, PFNSSMDRVSAVEDONE pfnSaveDone,
-                                     PFNSSMDRVLOADPREP pfnLoadPrep, PFNSSMDRVLOADEXEC pfnLoadExec, PFNSSMDRVLOADDONE pfnLoadDone)
+DECLINLINE(int) PDMDrvHlpSSMRegisterEx(PPDMDRVINS pDrvIns, uint32_t uVersion, size_t cbGuess,
+                                       PFNSSMDRVLIVEPREP pfnLivePrep, PFNSSMDRVLIVEEXEC pfnLiveExec, PFNSSMDRVLIVEVOTE pfnLiveVote,
+                                       PFNSSMDRVSAVEPREP pfnSavePrep, PFNSSMDRVSAVEEXEC pfnSaveExec, PFNSSMDRVSAVEDONE pfnSaveDone,
+                                       PFNSSMDRVLOADPREP pfnLoadPrep, PFNSSMDRVLOADEXEC pfnLoadExec, PFNSSMDRVLOADDONE pfnLoadDone)
 {
-    return pDrvIns->pDrvHlp->pfnSSMRegister(pDrvIns, pszName, u32Instance, u32Version, cbGuess,
+    return pDrvIns->pDrvHlp->pfnSSMRegister(pDrvIns, uVersion, cbGuess,
+                                            pfnLivePrep, pfnLiveExec, pfnLiveVote,
                                             pfnSavePrep, pfnSaveExec, pfnSaveDone,
                                             pfnLoadPrep, pfnLoadExec, pfnLoadDone);
+}
+
+/**
+ * Register a load done callback.
+ *
+ * @returns VBox status.
+ * @param   pDrvIns         Driver instance.
+ * @param   pfnLoadDone         Done load callback, optional.
+ */
+DECLINLINE(int) PDMDrvHlpSSMRegisterLoadDone(PPDMDRVINS pDrvIns, PFNSSMDRVLOADDONE pfnLoadDone)
+{
+    return pDrvIns->pDrvHlp->pfnSSMRegister(pDrvIns, 0 /*uVersion*/, 0 /*cbGuess*/,
+                                            NULL /*pfnLivePrep*/, NULL /*pfnLiveExec*/, NULL /*pfnLiveVote*/,
+                                            NULL /*pfnSavePrep*/, NULL /*pfnSaveExec*/, NULL /*pfnSaveDone*/,
+                                            NULL /*pfnLoadPrep*/, NULL /*pfnLoadExec*/, pfnLoadDone);
 }
 
 /**
@@ -903,20 +1049,28 @@ DECLINLINE(int) PDMDrvHlpUSBRegisterHub(PPDMDRVINS pDrvIns, uint32_t fVersions, 
 }
 
 /**
+ * @copydoc PDMDRVHLP::pfnSetAsyncNotification
+ */
+DECLINLINE(int) PDMDrvHlpSetAsyncNotification(PPDMDRVINS pDrvIns, PFNPDMDRVASYNCNOTIFY pfnAsyncNotify)
+{
+    return pDrvIns->pDrvHlp->pfnSetAsyncNotification(pDrvIns, pfnAsyncNotify);
+}
+
+/**
+ * @copydoc PDMDRVHLP::pfnAsyncNotificationCompleted
+ */
+DECLINLINE(void) PDMDrvHlpAsyncNotificationCompleted(PPDMDRVINS pDrvIns)
+{
+    pDrvIns->pDrvHlp->pfnAsyncNotificationCompleted(pDrvIns);
+}
+
+/**
  * @copydoc PDMDRVHLP::pfnPDMThreadCreate
  */
 DECLINLINE(int) PDMDrvHlpPDMThreadCreate(PPDMDRVINS pDrvIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADDRV pfnThread,
                                          PFNPDMTHREADWAKEUPDRV pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName)
 {
     return pDrvIns->pDrvHlp->pfnPDMThreadCreate(pDrvIns, ppThread, pvUser, pfnThread, pfnWakeup, cbStack, enmType, pszName);
-}
-
-/**
- * @copydoc PDMDRVHLP::pfnVMState
- */
-DECLINLINE(VMSTATE) PDMDrvHlpVMState(PPDMDRVINS pDrvIns)
-{
-    return pDrvIns->pDrvHlp->pfnVMState(pDrvIns);
 }
 
 #ifdef VBOX_WITH_PDM_ASYNC_COMPLETION

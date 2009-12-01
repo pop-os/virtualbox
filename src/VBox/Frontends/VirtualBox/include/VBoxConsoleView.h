@@ -39,6 +39,9 @@
 
 #if defined (Q_WS_MAC)
 # include <ApplicationServices/ApplicationServices.h>
+# ifndef QT_MAC_USE_COCOA
+#  include <Carbon/Carbon.h>
+# endif /* !QT_MAC_USE_COCOA */
 #endif
 
 class VBoxConsoleWnd;
@@ -68,6 +71,9 @@ public:
     VBoxConsoleView (VBoxConsoleWnd *mainWnd,
                      const CConsole &console,
                      VBoxDefs::RenderMode rm,
+#ifdef VBOX_WITH_VIDEOHWACCEL
+                     bool accelerate2DVideo,
+#endif
                      QWidget *parent = 0);
     ~VBoxConsoleView();
 
@@ -81,7 +87,11 @@ public:
     CConsole &console() { return mConsole; }
 
     bool pause (bool on);
-    bool isPaused() { return mLastState == KMachineState_Paused; }
+    bool isPaused()
+    {
+        return mLastState == KMachineState_Paused
+            || mLastState == KMachineState_TeleportingPausedVM;
+    }
     const QPixmap& pauseShot() const { return mPausedShot; }
 
     void setMouseIntegrationEnabled (bool enabled);
@@ -102,6 +112,7 @@ public:
     void toggleFSMode (const QSize &aSize = QSize());
 
     void setIgnoreMainwndResize (bool aYes) { mIgnoreMainwndResize = aYes; }
+    void setIgnoreGuestResize (bool aYes) { mIgnoreGuestResize = aYes; }
 
     QRect desktopGeometry();
 
@@ -131,6 +142,10 @@ public:
 
     void requestToResize (const QSize &aSize);
 
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    void scrollContentsBy (int dx, int dy);
+#endif
+
 #if defined(Q_WS_MAC)
     void updateDockIcon();
     void updateDockOverlay();
@@ -144,7 +159,7 @@ signals:
     void mouseStateChanged (int state);
     void machineStateChanged (KMachineState state);
     void additionsStateChanged (const QString &, bool, bool, bool);
-    void mediaDriveChanged (VBoxDefs::MediaType aType);
+    void mediaDriveChanged (VBoxDefs::MediumType aType);
     void networkStateChange();
     void usbStateChange();
     void sharedFoldersChanged();
@@ -220,7 +235,12 @@ private:
 
     void setPointerShape (MousePointerChangeEvent *me);
 
-    bool isRunning() { return mLastState == KMachineState_Running; }
+    bool isRunning()
+    {
+        return mLastState == KMachineState_Running
+            || mLastState == KMachineState_Teleporting
+            || mLastState == KMachineState_LiveSnapshotting;
+    }
 
     static void dimImage (QImage &img);
 
@@ -238,7 +258,7 @@ private:
     };
 
     void setDesktopGeometry (DesktopGeo aGeo, int aWidth, int aHeight);
-    void setDesktopGeoHint (int aWidth, int aHeight);
+    void storeConsoleSize (int aWidth, int aHeight);
     void calculateDesktopGeometry();
     void maybeRestrictMinimumSize();
 
@@ -273,6 +293,7 @@ private:
     bool mIgnoreMainwndResize : 1;
     bool mAutoresizeGuest : 1;
     bool mIgnoreFrameBufferResize : 1;
+    bool mIgnoreGuestResize : 1;
 
     /**
      * This flag indicates whether the last console resize should trigger
@@ -291,6 +312,9 @@ private:
 
 
     VBoxDefs::RenderMode mode;
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    bool mAccelerate2DVideo;
+#endif
 
     QRegion mLastVisibleRegion;
     QSize mNormalSize;
@@ -340,7 +364,7 @@ private:
 #endif
     DesktopGeo mDesktopGeo;
     QRect mDesktopGeometry;
-    QRect mLastSizeHint;
+    QRect mStoredConsoleSize;
     bool mPassCAD;
     bool mHideHostPointer;
     QCursor mLastCursor;

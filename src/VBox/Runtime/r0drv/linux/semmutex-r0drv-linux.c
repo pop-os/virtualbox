@@ -1,4 +1,4 @@
-/* $Id: semmutex-r0drv-linux.c $ */
+/* $Id: semmutex-r0drv-linux.c 24956 2009-11-25 14:26:50Z vboxsync $ */
 /** @file
  * IPRT - Mutex Semaphores, Ring-0 Driver, Linux.
  */
@@ -29,11 +29,11 @@
  */
 
 
-
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-linux-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/semaphore.h>
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
@@ -76,6 +76,7 @@ AssertReleaseMsgFailed(("This mutex implementation is buggy, fix it!\n"));
     }
     return VERR_NO_MEMORY;
 }
+RT_EXPORT_SYMBOL(RTSemMutexCreate);
 
 
 RTDECL(int)  RTSemMutexDestroy(RTSEMMUTEX MutexSem)
@@ -102,6 +103,7 @@ RTDECL(int)  RTSemMutexDestroy(RTSEMMUTEX MutexSem)
     RTMemFree(pMutexInt);
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTSemMutexDestroy);
 
 
 RTDECL(int)  RTSemMutexRequest(RTSEMMUTEX MutexSem, unsigned cMillies)
@@ -167,6 +169,8 @@ RTDECL(int)  RTSemMutexRequest(RTSEMMUTEX MutexSem, unsigned cMillies)
             /* wait */
             lTimeout = schedule_timeout(lTimeout);
 
+            after_wait(&Wait);
+
             /* Check if someone destroyed the semaphore while we was waiting. */
             if (pMutexInt->u32Magic != RTSEMMUTEX_MAGIC)
             {
@@ -186,6 +190,7 @@ RTDECL(int)  RTSemMutexRequest(RTSEMMUTEX MutexSem, unsigned cMillies)
     }
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTSemMutexRequest);
 
 
 RTDECL(int)  RTSemMutexRelease(RTSEMMUTEX MutexSem)
@@ -221,4 +226,5 @@ RTDECL(int)  RTSemMutexRelease(RTSEMMUTEX MutexSem)
 
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTSemMutexRelease);
 

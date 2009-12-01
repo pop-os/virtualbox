@@ -1,4 +1,4 @@
-/* $Revision: 54555 $ */
+/* $Revision: 24022 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Common code.
  */
@@ -54,14 +54,7 @@
 # include <iprt/net.h>
 # include <iprt/string.h>
 # include <iprt/rand.h>
-#endif
-/* VBox/x86.h not compatible with the Linux kernel sources */
-#ifdef RT_OS_LINUX
-# define X86_CPUID_VENDOR_AMD_EBX       0x68747541
-# define X86_CPUID_VENDOR_AMD_ECX       0x444d4163
-# define X86_CPUID_VENDOR_AMD_EDX       0x69746e65
-#else
-# include <VBox/x86.h>
+# include <iprt/path.h>
 #endif
 
 /*
@@ -82,46 +75,16 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-/* from x86.h - clashes with linux thus this duplication */
-#undef X86_CR0_PG
-#define X86_CR0_PG                          RT_BIT(31)
-#undef X86_CR0_PE
-#define X86_CR0_PE                          RT_BIT(0)
-#undef X86_CPUID_AMD_FEATURE_EDX_NX
-#define X86_CPUID_AMD_FEATURE_EDX_NX        RT_BIT(20)
-#undef MSR_K6_EFER
-#define MSR_K6_EFER                         0xc0000080
-#undef MSR_K6_EFER_NXE
-#define MSR_K6_EFER_NXE                     RT_BIT(11)
-#undef MSR_K6_EFER_LMA
-#define  MSR_K6_EFER_LMA                    RT_BIT(10)
-#undef X86_CR4_PGE
-#define X86_CR4_PGE                         RT_BIT(7)
-#undef X86_CR4_PAE
-#define X86_CR4_PAE                         RT_BIT(5)
-#undef X86_CPUID_AMD_FEATURE_EDX_LONG_MODE
-#define X86_CPUID_AMD_FEATURE_EDX_LONG_MODE RT_BIT(29)
-
-
 /** The frequency by which we recalculate the u32UpdateHz and
  * u32UpdateIntervalNS GIP members. The value must be a power of 2. */
 #define GIP_UPDATEHZ_RECALC_FREQ            0x800
-
-/**
- * Validates a session pointer.
- *
- * @returns true/false accordingly.
- * @param   pSession    The session.
- */
-#define SUP_IS_SESSION_VALID(pSession)  \
-    (   VALID_PTR(pSession) \
-     && pSession->u32Cookie == BIRD_INV)
 
 /** @def VBOX_SVN_REV
  * The makefile should define this if it can. */
 #ifndef VBOX_SVN_REV
 # define VBOX_SVN_REV 0
 #endif
+
 
 /*******************************************************************************
 *   Internal Functions                                                         *
@@ -141,7 +104,6 @@ static int      supdrvLdrAddUsage(PSUPDRVSESSION pSession, PSUPDRVLDRIMAGE pImag
 static void     supdrvLdrFree(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);
 static int      supdrvIOCtl_CallServiceModule(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPCALLSERVICE pReq);
 static int      supdrvIOCtl_LoggerSettings(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPLOGGERSETTINGS pReq);
-static SUPGIPMODE supdrvGipDeterminTscMode(PSUPDRVDEVEXT pDevExt);
 static int      supdrvGipCreate(PSUPDRVDEVEXT pDevExt);
 static void     supdrvGipDestroy(PSUPDRVDEVEXT pDevExt);
 static DECLCALLBACK(void) supdrvGipSyncTimer(PRTTIMER pTimer, void *pvUser, uint64_t iTick);
@@ -212,6 +174,11 @@ DECLASM(int)    UNWIND_WRAP(RTR0MemObjProtect)(RTR0MEMOBJ hMemObj, size_t offsub
 /*DECLASM(bool)   UNWIND_WRAP(RTR0MemObjIsMapping)(RTR0MEMOBJ MemObj); - not necessary */
 /*DECLASM(RTHCPHYS) UNWIND_WRAP(RTR0MemObjGetPagePhysAddr)(RTR0MEMOBJ MemObj, size_t iPage); - not necessary */
 DECLASM(int)    UNWIND_WRAP(RTR0MemObjFree)(RTR0MEMOBJ MemObj, bool fFreeMappings);
+DECLASM(int)    UNWIND_WRAP(RTR0MemUserCopyFrom)(void *pvDst, RTR3PTR R3PtrSrc, size_t cb);
+DECLASM(int)    UNWIND_WRAP(RTR0MemUserCopyTo)(RTR3PTR R3PtrDst, void const *pvSrc, size_t cb);
+/* RTR0MemUserIsValidAddr - not necessary */
+/* RTR0MemKernelIsValidAddr - not necessary */
+/* RTR0MemAreKrnlAndUsrDifferent - not necessary */
 /* RTProcSelf             - not necessary */
 /* RTR0ProcHandleSelf     - not necessary */
 DECLASM(int)    UNWIND_WRAP(RTSemFastMutexCreate)(PRTSEMFASTMUTEX pMutexSem);
@@ -260,7 +227,7 @@ DECLASM(int)    UNWIND_WRAP(RTThreadUserWaitNoResume)(RTTHREAD Thread, unsigned 
 /* RTThreadPreemptIsEnabled - not necessary */
 /* RTThreadPreemptIsPending - not necessary */
 /* RTThreadPreemptIsPendingTrusty - not necessary */
-DECLASM(void)   UNWIND_WRAP(RTThreadPreemptDisable)(RTTHREADPREEMPTSTATE pState);
+DECLASM(void)   UNWIND_WRAP(RTThreadPreemptDisable)(PRTTHREADPREEMPTSTATE pState);
 DECLASM(void)   UNWIND_WRAP(RTThreadPreemptRestore)(RTTHREADPREEMPTSTATE pState);
 /* RTLogDefaultInstance   - a bit of a gamble, but we do not want the overhead! */
 /* RTMpCpuId              - not necessary */
@@ -368,6 +335,11 @@ static SUPFUNC g_aFunctions[] =
     { "RTR0MemObjIsMapping",                    (void *)RTR0MemObjIsMapping },
     { "RTR0MemObjGetPagePhysAddr",              (void *)RTR0MemObjGetPagePhysAddr },
     { "RTR0MemObjFree",                         (void *)UNWIND_WRAP(RTR0MemObjFree) },
+    { "RTR0MemUserCopyFrom",                    (void *)UNWIND_WRAP(RTR0MemUserCopyFrom) },
+    { "RTR0MemUserCopyTo",                      (void *)UNWIND_WRAP(RTR0MemUserCopyTo) },
+    { "RTR0MemUserIsValidAddr",                 (void *)RTR0MemUserIsValidAddr },
+    { "RTR0MemKernelIsValidAddr",               (void *)RTR0MemKernelIsValidAddr },
+    { "RTR0MemAreKrnlAndUsrDifferent",          (void *)RTR0MemAreKrnlAndUsrDifferent },
 /* These don't work yet on linux - use fast mutexes!
     { "RTSemMutexCreate",                       (void *)RTSemMutexCreate },
     { "RTSemMutexRequest",                      (void *)RTSemMutexRequest },
@@ -421,8 +393,10 @@ static SUPFUNC g_aFunctions[] =
     { "RTThreadPreemptIsEnabled",               (void *)RTThreadPreemptIsEnabled },
     { "RTThreadPreemptIsPending",               (void *)RTThreadPreemptIsPending },
     { "RTThreadPreemptIsPendingTrusty",         (void *)RTThreadPreemptIsPendingTrusty },
+    { "RTThreadPreemptIsPossible",              (void *)RTThreadPreemptIsPossible },
     { "RTThreadPreemptDisable",                 (void *)UNWIND_WRAP(RTThreadPreemptDisable) },
     { "RTThreadPreemptRestore",                 (void *)UNWIND_WRAP(RTThreadPreemptRestore) },
+    { "RTThreadIsInInterrupt",                  (void *)RTThreadIsInInterrupt },
 
     { "RTLogDefaultInstance",                   (void *)RTLogDefaultInstance },
     { "RTMpCpuId",                              (void *)RTMpCpuId },
@@ -481,6 +455,8 @@ PFNRT g_apfnVBoxDrvIPRTDeps[] =
     (PFNRT)RTStrFree,
     /* VBoxNetAdp */
     (PFNRT)RTRandBytes,
+    /* VBoxUSB */
+    (PFNRT)RTPathStripFilename,
     NULL
 };
 #endif  /* RT_OS_DARWIN || RT_OS_SOLARIS || RT_OS_SOLARIS */
@@ -507,6 +483,8 @@ int VBOXCALL supdrvInitDevExt(PSUPDRVDEVEXT pDevExt)
                      RTLOGDEST_STDOUT | RTLOGDEST_DEBUGGER, NULL);
     if (RT_SUCCESS(rc))
         RTLogRelSetDefaultInstance(pRelLogger);
+    /** @todo Add native hook for getting logger config parameters and setting
+     *        them. On linux we should use the module parameter stuff... */
 #endif
 
     /*
@@ -1715,6 +1693,20 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                     pReq->Hdr.rc = VERR_INVALID_PARAMETER;
                     break;
             }
+            return 0;
+        }
+
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_VT_CAPS):
+        {
+            /* validate */
+            PSUPVTCAPS pReq = (PSUPVTCAPS)pReqHdr;
+            REQ_CHECK_SIZES(SUP_IOCTL_VT_CAPS);
+            REQ_CHECK_EXPR(SUP_IOCTL_VT_CAPS, pReq->Hdr.cbIn <= SUP_IOCTL_VT_CAPS_SIZE_IN);
+
+            /* execute */
+            pReq->Hdr.rc = SUPR0QueryVTCaps(pSession, &pReq->u.Out.Caps);
+            if (RT_FAILURE(pReq->Hdr.rc))
+                pReq->Hdr.cbOut = sizeof(pReq->Hdr);
             return 0;
         }
 
@@ -3299,353 +3291,6 @@ SUPR0DECL(int) SUPR0ComponentQueryFactory(PSUPDRVSESSION pSession, const char *p
 
 
 /**
- * Destructor for objects created by SUPSemEventCreate.
- *
- * @param   pvObj               The object handle.
- * @param   pvUser1             The IPRT event handle.
- * @param   pvUser2             NULL.
- */
-static DECLCALLBACK(void) supR0SemEventDestructor(void *pvObj, void *pvUser1, void *pvUser2)
-{
-    Assert(pvUser2 == NULL);
-    NOREF(pvObj);
-    RTSemEventDestroy((RTSEMEVENT)pvUser1);
-}
-
-
-SUPDECL(int) SUPSemEventCreate(PSUPDRVSESSION pSession, PSUPSEMEVENT phEvent)
-{
-    int         rc;
-    RTSEMEVENT  hEventReal;
-
-    /*
-     * Input validation.
-     */
-    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
-    AssertPtrReturn(phEvent, VERR_INVALID_POINTER);
-
-    /*
-     * Create the event semaphore object.
-     */
-    rc = RTSemEventCreate(&hEventReal);
-    if (RT_SUCCESS(rc))
-    {
-        void *pvObj = SUPR0ObjRegister(pSession, SUPDRVOBJTYPE_SEM_EVENT, supR0SemEventDestructor, hEventReal, NULL);
-        if (pvObj)
-        {
-            uint32_t h32;
-            rc = RTHandleTableAllocWithCtx(pSession->hHandleTable, pvObj, SUPDRV_HANDLE_CTX_EVENT, &h32);
-            if (RT_SUCCESS(rc))
-            {
-                *phEvent = (SUPSEMEVENT)(uintptr_t)h32;
-                return VINF_SUCCESS;
-            }
-            SUPR0ObjRelease(pvObj, pSession);
-        }
-        else
-            RTSemEventDestroy(hEventReal);
-    }
-    return rc;
-}
-
-
-SUPDECL(int) SUPSemEventClose(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent)
-{
-    uint32_t    h32;
-    PSUPDRVOBJ  pObj;
-
-    /*
-     * Input validation.
-     */
-    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
-    if (hEvent == NIL_SUPSEMEVENT)
-        return VINF_SUCCESS;
-    h32 = (uint32_t)(uintptr_t)hEvent;
-    if (h32 != (uintptr_t)hEvent)
-        return VERR_INVALID_HANDLE;
-
-    /*
-     * Do the job.
-     */
-    pObj = (PSUPDRVOBJ)RTHandleTableFreeWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT);
-    if (!pObj)
-        return VERR_INVALID_HANDLE;
-
-    Assert(pObj->cUsage >= 2);
-    SUPR0ObjRelease(pObj, pSession);        /* The free call above. */
-    return SUPR0ObjRelease(pObj, pSession); /* The handle table reference. */
-}
-
-
-SUPDECL(int) SUPSemEventSignal(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent)
-{
-    int         rc;
-    uint32_t    h32;
-    PSUPDRVOBJ  pObj;
-
-    /*
-     * Input validation.
-     */
-    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
-    h32 = (uint32_t)(uintptr_t)hEvent;
-    if (h32 != (uintptr_t)hEvent)
-        return VERR_INVALID_HANDLE;
-    pObj = (PSUPDRVOBJ)RTHandleTableLookupWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT);
-    if (!pObj)
-        return VERR_INVALID_HANDLE;
-
-    /*
-     * Do the job.
-     */
-    rc = RTSemEventSignal((RTSEMEVENT)pObj->pvUser1);
-
-    SUPR0ObjRelease(pObj, pSession);
-    return rc;
-}
-
-
-SUPDECL(int) SUPSemEventWait(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint32_t cMillies)
-{
-    int         rc;
-    uint32_t    h32;
-    PSUPDRVOBJ  pObj;
-
-    /*
-     * Input validation.
-     */
-    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
-    h32 = (uint32_t)(uintptr_t)hEvent;
-    if (h32 != (uintptr_t)hEvent)
-        return VERR_INVALID_HANDLE;
-    pObj = (PSUPDRVOBJ)RTHandleTableLookupWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT);
-    if (!pObj)
-        return VERR_INVALID_HANDLE;
-
-    /*
-     * Do the job.
-     */
-    rc = RTSemEventWait((RTSEMEVENT)pObj->pvUser1, cMillies);
-
-    SUPR0ObjRelease(pObj, pSession);
-    return rc;
-}
-
-
-SUPDECL(int) SUPSemEventWaitNoResume(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint32_t cMillies)
-{
-    int         rc;
-    uint32_t    h32;
-    PSUPDRVOBJ  pObj;
-
-    /*
-     * Input validation.
-     */
-    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
-    h32 = (uint32_t)(uintptr_t)hEvent;
-    if (h32 != (uintptr_t)hEvent)
-        return VERR_INVALID_HANDLE;
-    pObj = (PSUPDRVOBJ)RTHandleTableLookupWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT);
-    if (!pObj)
-        return VERR_INVALID_HANDLE;
-
-    /*
-     * Do the job.
-     */
-    rc = RTSemEventWaitNoResume((RTSEMEVENT)pObj->pvUser1, cMillies);
-
-    SUPR0ObjRelease(pObj, pSession);
-    return rc;
-}
-
-
-/**
- * Destructor for objects created by SUPSemEventMultiCreate.
- *
- * @param   pvObj               The object handle.
- * @param   pvUser1             The IPRT event handle.
- * @param   pvUser2             NULL.
- */
-static DECLCALLBACK(void) supR0SemEventMultiDestructor(void *pvObj, void *pvUser1, void *pvUser2)
-{
-    Assert(pvUser2 == NULL);
-    NOREF(pvObj);
-    RTSemEventMultiDestroy((RTSEMEVENTMULTI)pvUser1);
-}
-
-
-SUPDECL(int) SUPSemEventMultiCreate(PSUPDRVSESSION pSession, PSUPSEMEVENTMULTI phEventMulti)
-{
-    int             rc;
-    RTSEMEVENTMULTI hEventMultReal;
-
-    /*
-     * Input validation.
-     */
-    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
-    AssertPtrReturn(phEventMulti, VERR_INVALID_POINTER);
-
-    /*
-     * Create the event semaphore object.
-     */
-    rc = RTSemEventMultiCreate(&hEventMultReal);
-    if (RT_SUCCESS(rc))
-    {
-        void *pvObj = SUPR0ObjRegister(pSession, SUPDRVOBJTYPE_SEM_EVENT_MULTI, supR0SemEventMultiDestructor, hEventMultReal, NULL);
-        if (pvObj)
-        {
-            uint32_t h32;
-            rc = RTHandleTableAllocWithCtx(pSession->hHandleTable, pvObj, SUPDRV_HANDLE_CTX_EVENT_MULTI, &h32);
-            if (RT_SUCCESS(rc))
-            {
-                *phEventMulti = (SUPSEMEVENTMULTI)(uintptr_t)h32;
-                return VINF_SUCCESS;
-            }
-            SUPR0ObjRelease(pvObj, pSession);
-        }
-        else
-            RTSemEventMultiDestroy(hEventMultReal);
-    }
-    return rc;
-}
-
-
-SUPDECL(int) SUPSemEventMultiClose(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti)
-{
-    uint32_t    h32;
-    PSUPDRVOBJ  pObj;
-
-    /*
-     * Input validation.
-     */
-    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
-    if (hEventMulti == NIL_SUPSEMEVENTMULTI)
-        return VINF_SUCCESS;
-    h32 = (uint32_t)(uintptr_t)hEventMulti;
-    if (h32 != (uintptr_t)hEventMulti)
-        return VERR_INVALID_HANDLE;
-
-    /*
-     * Do the job.
-     */
-    pObj = (PSUPDRVOBJ)RTHandleTableFreeWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT_MULTI);
-    if (!pObj)
-        return VERR_INVALID_HANDLE;
-
-    Assert(pObj->cUsage >= 2);
-    SUPR0ObjRelease(pObj, pSession);        /* The free call above. */
-    return SUPR0ObjRelease(pObj, pSession); /* The handle table reference. */
-}
-
-
-SUPDECL(int) SUPSemEventMultiSignal(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti)
-{
-    int         rc;
-    uint32_t    h32;
-    PSUPDRVOBJ  pObj;
-
-    /*
-     * Input validation.
-     */
-    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
-    h32 = (uint32_t)(uintptr_t)hEventMulti;
-    if (h32 != (uintptr_t)hEventMulti)
-        return VERR_INVALID_HANDLE;
-    pObj = (PSUPDRVOBJ)RTHandleTableLookupWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT_MULTI);
-    if (!pObj)
-        return VERR_INVALID_HANDLE;
-
-    /*
-     * Do the job.
-     */
-    rc = RTSemEventMultiSignal((RTSEMEVENTMULTI)pObj->pvUser1);
-
-    SUPR0ObjRelease(pObj, pSession);
-    return rc;
-}
-
-
-SUPDECL(int) SUPSemEventMultiReset(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti)
-{
-    int         rc;
-    uint32_t    h32;
-    PSUPDRVOBJ  pObj;
-
-    /*
-     * Input validation.
-     */
-    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
-    h32 = (uint32_t)(uintptr_t)hEventMulti;
-    if (h32 != (uintptr_t)hEventMulti)
-        return VERR_INVALID_HANDLE;
-    pObj = (PSUPDRVOBJ)RTHandleTableLookupWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT_MULTI);
-    if (!pObj)
-        return VERR_INVALID_HANDLE;
-
-    /*
-     * Do the job.
-     */
-    rc = RTSemEventMultiReset((RTSEMEVENTMULTI)pObj->pvUser1);
-
-    SUPR0ObjRelease(pObj, pSession);
-    return rc;
-}
-
-
-SUPDECL(int) SUPSemEventMultiWait(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti, uint32_t cMillies)
-{
-    int         rc;
-    uint32_t    h32;
-    PSUPDRVOBJ  pObj;
-
-    /*
-     * Input validation.
-     */
-    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
-    h32 = (uint32_t)(uintptr_t)hEventMulti;
-    if (h32 != (uintptr_t)hEventMulti)
-        return VERR_INVALID_HANDLE;
-    pObj = (PSUPDRVOBJ)RTHandleTableLookupWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT_MULTI);
-    if (!pObj)
-        return VERR_INVALID_HANDLE;
-
-    /*
-     * Do the job.
-     */
-    rc = RTSemEventMultiWait((RTSEMEVENTMULTI)pObj->pvUser1, cMillies);
-
-    SUPR0ObjRelease(pObj, pSession);
-    return rc;
-}
-
-
-SUPDECL(int) SUPSemEventMultiWaitNoResume(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti, uint32_t cMillies)
-{
-    int         rc;
-    uint32_t    h32;
-    PSUPDRVOBJ  pObj;
-
-    /*
-     * Input validation.
-     */
-    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
-    h32 = (uint32_t)(uintptr_t)hEventMulti;
-    if (h32 != (uintptr_t)hEventMulti)
-        return VERR_INVALID_HANDLE;
-    pObj = (PSUPDRVOBJ)RTHandleTableLookupWithCtx(pSession->hHandleTable, h32, SUPDRV_HANDLE_CTX_EVENT_MULTI);
-    if (!pObj)
-        return VERR_INVALID_HANDLE;
-
-    /*
-     * Do the job.
-     */
-    rc = RTSemEventMultiWaitNoResume((RTSEMEVENTMULTI)pObj->pvUser1, cMillies);
-
-    SUPR0ObjRelease(pObj, pSession);
-    return rc;
-}
-
-
-/**
  * Adds a memory object to the session.
  *
  * @returns IPRT status code.
@@ -4676,106 +4321,6 @@ static int supdrvIOCtl_LoggerSettings(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSes
 
 
 /**
- * Gets the paging mode of the current CPU.
- *
- * @returns Paging mode, SUPPAGEINGMODE_INVALID on error.
- */
-SUPR0DECL(SUPPAGINGMODE) SUPR0GetPagingMode(void)
-{
-    SUPPAGINGMODE enmMode;
-
-    RTR0UINTREG cr0 = ASMGetCR0();
-    if ((cr0 & (X86_CR0_PG | X86_CR0_PE)) != (X86_CR0_PG | X86_CR0_PE))
-        enmMode = SUPPAGINGMODE_INVALID;
-    else
-    {
-        RTR0UINTREG cr4 = ASMGetCR4();
-        uint32_t fNXEPlusLMA = 0;
-        if (cr4 & X86_CR4_PAE)
-        {
-            uint32_t fAmdFeatures = ASMCpuId_EDX(0x80000001);
-            if (fAmdFeatures & (X86_CPUID_AMD_FEATURE_EDX_NX | X86_CPUID_AMD_FEATURE_EDX_LONG_MODE))
-            {
-                uint64_t efer = ASMRdMsr(MSR_K6_EFER);
-                if ((fAmdFeatures & X86_CPUID_AMD_FEATURE_EDX_NX)        && (efer & MSR_K6_EFER_NXE))
-                    fNXEPlusLMA |= RT_BIT(0);
-                if ((fAmdFeatures & X86_CPUID_AMD_FEATURE_EDX_LONG_MODE) && (efer & MSR_K6_EFER_LMA))
-                    fNXEPlusLMA |= RT_BIT(1);
-            }
-        }
-
-        switch ((cr4 & (X86_CR4_PAE | X86_CR4_PGE)) | fNXEPlusLMA)
-        {
-            case 0:
-                enmMode = SUPPAGINGMODE_32_BIT;
-                break;
-
-            case X86_CR4_PGE:
-                enmMode = SUPPAGINGMODE_32_BIT_GLOBAL;
-                break;
-
-            case X86_CR4_PAE:
-                enmMode = SUPPAGINGMODE_PAE;
-                break;
-
-            case X86_CR4_PAE | RT_BIT(0):
-                enmMode = SUPPAGINGMODE_PAE_NX;
-                break;
-
-            case X86_CR4_PAE | X86_CR4_PGE:
-                enmMode = SUPPAGINGMODE_PAE_GLOBAL;
-                break;
-
-            case X86_CR4_PAE | X86_CR4_PGE | RT_BIT(0):
-                enmMode = SUPPAGINGMODE_PAE_GLOBAL;
-                break;
-
-            case RT_BIT(1) | X86_CR4_PAE:
-                enmMode = SUPPAGINGMODE_AMD64;
-                break;
-
-            case RT_BIT(1) | X86_CR4_PAE | RT_BIT(0):
-                enmMode = SUPPAGINGMODE_AMD64_NX;
-                break;
-
-            case RT_BIT(1) | X86_CR4_PAE | X86_CR4_PGE:
-                enmMode = SUPPAGINGMODE_AMD64_GLOBAL;
-                break;
-
-            case RT_BIT(1) | X86_CR4_PAE | X86_CR4_PGE | RT_BIT(0):
-                enmMode = SUPPAGINGMODE_AMD64_GLOBAL_NX;
-                break;
-
-            default:
-                AssertMsgFailed(("Cannot happen! cr4=%#x fNXEPlusLMA=%d\n", cr4, fNXEPlusLMA));
-                enmMode = SUPPAGINGMODE_INVALID;
-                break;
-        }
-    }
-    return enmMode;
-}
-
-
-/**
- * Enables or disabled hardware virtualization extensions using native OS APIs.
- *
- * @returns VBox status code.
- * @retval  VINF_SUCCESS on success.
- * @retval  VERR_NOT_SUPPORTED if not supported by the native OS.
- *
- * @param   fEnable         Whether to enable or disable.
- */
-SUPR0DECL(int) SUPR0EnableVTx(bool fEnable)
-{
-#ifdef RT_OS_DARWIN
-    return supdrvOSEnableVTx(fEnable);
-#else
-    return VERR_NOT_SUPPORTED;
-#endif
-}
-
-
-/**
  * Creates the GIP.
  *
  * @returns VBox status code.
@@ -4941,8 +4486,10 @@ static DECLCALLBACK(void) supdrvGipSyncTimer(PRTTIMER pTimer, void *pvUser, uint
 {
     RTCCUINTREG     fOldFlags = ASMIntDisableFlags(); /* No interruptions please (real problem on S10). */
     PSUPDRVDEVEXT   pDevExt   = (PSUPDRVDEVEXT)pvUser;
+    uint64_t        u64TSC    = ASMReadTSC();
+    uint64_t        NanoTS    = RTTimeSystemNanoTS();
 
-    supdrvGipUpdate(pDevExt->pGip, RTTimeSystemNanoTS());
+    supdrvGipUpdate(pDevExt->pGip, NanoTS, u64TSC);
 
     ASMSetFlags(fOldFlags);
 }
@@ -4958,13 +4505,14 @@ static DECLCALLBACK(void) supdrvGipAsyncTimer(PRTTIMER pTimer, void *pvUser, uin
     RTCCUINTREG     fOldFlags = ASMIntDisableFlags(); /* No interruptions please (real problem on S10). */
     PSUPDRVDEVEXT   pDevExt   = (PSUPDRVDEVEXT)pvUser;
     RTCPUID         idCpu     = RTMpCpuId();
+    uint64_t        u64TSC    = ASMReadTSC();
     uint64_t        NanoTS    = RTTimeSystemNanoTS();
 
     /** @todo reset the transaction number and whatnot when iTick == 1. */
     if (pDevExt->idGipMaster == idCpu)
-        supdrvGipUpdate(pDevExt->pGip, NanoTS);
+        supdrvGipUpdate(pDevExt->pGip, NanoTS, u64TSC);
     else
-        supdrvGipUpdatePerCpu(pDevExt->pGip, NanoTS, ASMGetApicId());
+        supdrvGipUpdatePerCpu(pDevExt->pGip, NanoTS, u64TSC, ASMGetApicId());
 
     ASMSetFlags(fOldFlags);
 }
@@ -5178,64 +4726,6 @@ bool VBOXCALL supdrvDetermineAsyncTsc(uint64_t *poffMin)
 
 
 /**
- * Determin the GIP TSC mode.
- *
- * @returns The most suitable TSC mode.
- * @param   pDevExt     Pointer to the device instance data.
- */
-static SUPGIPMODE supdrvGipDeterminTscMode(PSUPDRVDEVEXT pDevExt)
-{
-    /*
-     * On SMP we're faced with two problems:
-     *      (1) There might be a skew between the CPU, so that cpu0
-     *          returns a TSC that is sligtly different from cpu1.
-     *      (2) Power management (and other things) may cause the TSC
-     *          to run at a non-constant speed, and cause the speed
-     *          to be different on the cpus. This will result in (1).
-     *
-     * So, on SMP systems we'll have to select the ASYNC update method
-     * if there are symphoms of these problems.
-     */
-    if (RTMpGetCount() > 1)
-    {
-        uint32_t uEAX, uEBX, uECX, uEDX;
-        uint64_t u64DiffCoresIgnored;
-
-        /* Permit the user and/or the OS specfic bits to force async mode. */
-        if (supdrvOSGetForcedAsyncTscMode(pDevExt))
-            return SUPGIPMODE_ASYNC_TSC;
-
-        /* Try check for current differences between the cpus. */
-        if (supdrvDetermineAsyncTsc(&u64DiffCoresIgnored))
-            return SUPGIPMODE_ASYNC_TSC;
-
-        /*
-         * If the CPU supports power management and is an AMD one we
-         * won't trust it unless it has the TscInvariant bit is set.
-         */
-        /* Check for "AuthenticAMD" */
-        ASMCpuId(0, &uEAX, &uEBX, &uECX, &uEDX);
-        if (    uEAX >= 1
-            &&  uEBX == X86_CPUID_VENDOR_AMD_EBX
-            &&  uECX == X86_CPUID_VENDOR_AMD_ECX
-            &&  uEDX == X86_CPUID_VENDOR_AMD_EDX)
-        {
-            /* Check for APM support and that TscInvariant is cleared. */
-            ASMCpuId(0x80000000, &uEAX, &uEBX, &uECX, &uEDX);
-            if (uEAX >= 0x80000007)
-            {
-                ASMCpuId(0x80000007, &uEAX, &uEBX, &uECX, &uEDX);
-                if (    !(uEDX & RT_BIT(8))/* TscInvariant */
-                    &&  (uEDX & 0x3e))  /* STC|TM|THERMTRIP|VID|FID. Ignore TS. */
-                    return SUPGIPMODE_ASYNC_TSC;
-            }
-        }
-    }
-    return SUPGIPMODE_SYNC_TSC;
-}
-
-
-/**
  * Invalidates the GIP data upon termination.
  *
  * @param   pGip        Pointer to the read-write kernel mapping of the GIP.
@@ -5260,15 +4750,18 @@ void VBOXCALL supdrvGipTerm(PSUPGLOBALINFOPAGE pGip)
  * @param   pGip            The GIP.
  * @param   pGipCpu         Pointer to the per cpu data.
  * @param   u64NanoTS       The current time stamp.
+ * @param   u64TSC          The current TSC.
  */
-static void supdrvGipDoUpdateCpu(PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pGipCpu, uint64_t u64NanoTS)
+static void supdrvGipDoUpdateCpu(PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pGipCpu, uint64_t u64NanoTS, uint64_t u64TSC)
 {
-    uint64_t    u64TSC;
     uint64_t    u64TSCDelta;
     uint32_t    u32UpdateIntervalTSC;
     uint32_t    u32UpdateIntervalTSCSlack;
     unsigned    iTSCHistoryHead;
     uint64_t    u64CpuHz;
+
+    /* Delta between this and the previous update. */
+    pGipCpu->u32UpdateIntervalNS = (uint32_t)(u64NanoTS - pGipCpu->u64NanoTS);
 
     /*
      * Update the NanoTS.
@@ -5279,7 +4772,6 @@ static void supdrvGipDoUpdateCpu(PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pGipCpu, ui
      * Calc TSC delta.
      */
     /** @todo validate the NanoTS delta, don't trust the OS to call us when it should... */
-    u64TSC = ASMReadTSC();
     u64TSCDelta = u64TSC - pGipCpu->u64TSC;
     ASMAtomicXchgU64(&pGipCpu->u64TSC, u64TSC);
 
@@ -5351,8 +4843,9 @@ static void supdrvGipDoUpdateCpu(PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pGipCpu, ui
  *
  * @param   pGip        Pointer to the GIP.
  * @param   u64NanoTS   The current nanosecond timesamp.
+ * @param   u64TSC      The current TSC timesamp.
  */
-void VBOXCALL supdrvGipUpdate(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS)
+void VBOXCALL supdrvGipUpdate(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, uint64_t u64TSC)
 {
     /*
      * Determin the relevant CPU data.
@@ -5403,7 +4896,7 @@ void VBOXCALL supdrvGipUpdate(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS)
     /*
      * Update the data.
      */
-    supdrvGipDoUpdateCpu(pGip, pGipCpu, u64NanoTS);
+    supdrvGipDoUpdateCpu(pGip, pGipCpu, u64NanoTS, u64TSC);
 
     /*
      * Complete transaction.
@@ -5417,9 +4910,10 @@ void VBOXCALL supdrvGipUpdate(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS)
  *
  * @param   pGip        Pointer to the GIP.
  * @param   u64NanoTS   The current nanosecond timesamp.
+ * @param   u64TSC      The current TSC timesamp.
  * @param   iCpu        The CPU index.
  */
-void VBOXCALL supdrvGipUpdatePerCpu(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, unsigned iCpu)
+void VBOXCALL supdrvGipUpdatePerCpu(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, uint64_t u64TSC, unsigned iCpu)
 {
     PSUPGIPCPU  pGipCpu;
 
@@ -5441,7 +4935,7 @@ void VBOXCALL supdrvGipUpdatePerCpu(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS,
         /*
          * Update the data.
          */
-        supdrvGipDoUpdateCpu(pGip, pGipCpu, u64NanoTS);
+        supdrvGipDoUpdateCpu(pGip, pGipCpu, u64NanoTS, u64TSC);
 
         /*
          * Complete transaction.

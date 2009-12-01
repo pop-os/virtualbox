@@ -1,4 +1,4 @@
-/* $Id: fileaio-win.cpp $ */
+/* $Id: fileaio-win.cpp 21494 2009-07-10 20:11:26Z vboxsync $ */
 /** @file
  * IPRT - File async I/O, native implementation for the Windows host platform.
  */
@@ -488,12 +488,11 @@ RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, unsigned cMi
     /*
      * Clear the wakeup flag and set rc.
      */
-    if (    pCtxInt->fWokenUp
+    bool fWokenUp = ASMAtomicXchgBool(&pCtxInt->fWokenUp, false);
+
+    if (    fWokenUp
         &&  RT_SUCCESS(rc))
-    {
-        ASMAtomicXchgBool(&pCtxInt->fWokenUp, false);
         rc = VERR_INTERRUPTED;
-    }
 
     return rc;
 }

@@ -1,4 +1,4 @@
-/* $Id: string.cpp $ */
+/* $Id: string.cpp 22736 2009-09-03 11:32:59Z vboxsync $ */
 /** @file
  * IPRT - String Manipulation.
  */
@@ -33,6 +33,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/string.h>
+#include "internal/iprt.h"
+
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
@@ -51,6 +53,7 @@ RTDECL(void)  RTStrFree(char *pszString)
     if (pszString)
         RTMemTmpFree(pszString);
 }
+RT_EXPORT_SYMBOL(RTStrFree);
 
 
 /**
@@ -68,6 +71,7 @@ RTDECL(char *) RTStrDup(const char *pszString)
         memcpy(psz, pszString, cch);
     return psz;
 }
+RT_EXPORT_SYMBOL(RTStrDup);
 
 
 /**
@@ -93,6 +97,7 @@ RTDECL(int)  RTStrDupEx(char **ppszString, const char *pszString)
     }
     return VERR_NO_MEMORY;
 }
+RT_EXPORT_SYMBOL(RTStrDupEx);
 
 
 /**
@@ -116,3 +121,7 @@ RTDECL(char *) RTStrDupN(const char *pszString, size_t cchMax)
     }
     return pszDst;
 }
+RT_EXPORT_SYMBOL(RTStrDupN);
+
+
+

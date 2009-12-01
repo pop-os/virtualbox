@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 25033 2009-11-27 01:35:26Z vboxsync $
 ## @file
 # Makefile for the VBox Main module.
 #
@@ -112,7 +112,7 @@ endif # xpcom
 # Strip documentation from source XIDL so that we don't get a full
 # recompile every time a comma in the documentation is changed.
 #
-$(VBOX_XIDL_FILE).ts |+ $(VBOX_XIDL_FILE): \
+$(VBOX_XIDL_FILE).ts +| $(VBOX_XIDL_FILE): \
 		$(VBOX_XIDL_FILE_SRC) \
 		$(VBOX_PATH_MAIN_SRC)/idl/docstrip.xsl \
 		| $$(dir $$@)
@@ -162,14 +162,17 @@ VBox-main-xidl_SOURCES = $(VBOX_XIDL_FILE_SRC)
 
 ifdef VBOX_WITH_PYTHON
 
+# or to some subdir?
+VBOX_PYTHON_CONSTANTS = $(PATH_TARGET)/VirtualBox_constants.py
+
 INSTALLS += VBox-python-glue
 VBox-python-glue_INST = $(INST_SDK)installer
-# This file also should go to Python site-wide modules directory
-# so for users it look 'just being here'
-VBox-python-glue_SOURCES = glue/vboxapi.py=>vboxapi/__init__.py
+VBox-python-glue_SOURCES = glue/vboxapi.py=>vboxapi/__init__.py  \
+                           $(VBOX_PYTHON_CONSTANTS)=>vboxapi/VirtualBox_constants.py
 
-VBOX_PYTHON_CONSTANTS = $(VBOX_PATH_SDK)/installer/vboxapi/VirtualBox_constants.py
-OTHERS += $(VBOX_PYTHON_CONSTANTS)
+$(VBOX_PYTHON_CONSTANTS):  $(VBOX_PATH_MAIN_SRC)/glue/constants-python.xsl $(VBOX_XIDL_FILE) | $$(dir $$@)
+	$(call MSG_TOOL,xsltproc,Python constants,$<,$@)
+	$(QUIET)$(VBOX_XSLTPROC) -o $@ $< $(VBOX_XIDL_FILE)
 
 endif # VBOX_WITH_PYTHON
 
@@ -194,11 +197,13 @@ PROGRAMS += VBoxSVC
 VBoxSVC_TEMPLATE = VBOXMAINEXE
 VBoxSVC_DEFS = \
 	VBOX_MAIN_SETTINGS_ADDONS \
+	IN_VMM_STATIC \
 	$(VBOX_MAIN_DEFS) \
 	$(if $(VBOX_WITH_VBOXSDL),VBOX_WITH_VBOXSDL,) \
 	$(if $(VBOX_WITH_VRDP),VBOX_WITH_VRDP,) \
 	$(if $(VBOX_WITH_HEADLESS),VBOX_WITH_HEADLESS,) \
 	$(if $(VBOX_WITH_QTGUI),VBOX_WITH_QTGUI,) \
+	$(if $(VBOX_WITH_COCOA_QT),VBOX_WITH_COCOA_QT,) \
 	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
 	$(if $(VBOX_MAIN_RELEASE_LOG),VBOX_MAIN_RELEASE_LOG LOG_ENABLED,) \
 	$(if $(VBOX_WITH_ALSA),VBOX_WITH_ALSA,) \
@@ -206,18 +211,21 @@ VBoxSVC_DEFS = \
 	$(if $(VBOX_WITH_WINMM),VBOX_WITH_WINMM,) \
 	$(if $(VBOX_WITH_SOLARIS_OSS),VBOX_WITH_SOLARIS_OSS,) \
 	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000,) \
+	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO,) \
 	$(if $(VBOX_WITH_AHCI),VBOX_WITH_AHCI,) \
 	$(if $(VBOX_WITH_LSILOGIC),VBOX_WITH_LSILOGIC,) \
 	$(if $(VBOX_WITH_LINUX_COMPILER_H),VBOX_WITH_LINUX_COMPILER_H,) \
 	$(if $(VBOX_WITH_RESOURCE_USAGE_API),VBOX_WITH_RESOURCE_USAGE_API,) \
 	$(if $(VBOX_WITH_PDM_ASYNC_COMPLETION),VBOX_WITH_PDM_ASYNC_COMPLETION,) \
 	$(if $(VBOX_WITH_DBUS),VBOX_WITH_DBUS,) \
-	$(if $(VBOX_USB_WITH_SYSFS),VBOX_USB_WITH_SYSFS,)
+	$(if $(VBOX_USB_WITH_SYSFS),VBOX_USB_WITH_SYSFS,) \
+	$(if $(VBOX_WITH_LIVE_MIGRATION),VBOX_WITH_LIVE_MIGRATION,)
 ifdef VBOX_WITH_USB
  VBoxSVC_DEFS += \
  	VBOX_WITH_USB \
  	$(if $(VBOX_WITH_EHCI),VBOX_WITH_EHCI,) \
- 	$(if $(VBOX_WITH_NEW_USB_CODE_ON_DARWIN),VBOX_WITH_NEW_USB_CODE_ON_DARWIN,)
+ 	$(if $(VBOX_WITH_NEW_USB_CODE_ON_DARWIN),VBOX_WITH_NEW_USB_CODE_ON_DARWIN,) \
+ 	$(if $(VBOX_WITH_NEW_USB_CODE_ON_SOLARIS),VBOX_WITH_NEW_USB_CODE_ON_SOLARIS,)
 endif
 VBoxSVC_DEFS.win += VBOX_COM_OUTOFPROC_MODULE
 VBoxSVC_DEFS.win.x86 += _WIN32_WINNT=0x0500
@@ -249,11 +257,8 @@ ifdef VBOX_WITH_USB
 endif
 
 VBoxSVC_LIBS += \
-	$(LIB_DDU) \
-	$(LIB_SETTINGS)
-VBoxSVC_LIBS.darwin = \
-	$(LIB_VMM) \
-	$(LIB_REM)
+	$(PATH_LIB)/SSMStandalone$(VBOX_SUFF_LIB) \
+	$(LIB_DDU)
 VBoxSVC_LIBS.solaris = \
 	adm \
 	nsl
@@ -277,24 +282,20 @@ VBoxSVC_SOURCES = \
 	Logging.cpp \
 	AutoLock.cpp \
 	Matching.cpp \
+	xml/Settings.cpp \
 	VirtualBoxBase.cpp \
 	VirtualBoxErrorInfoImpl.cpp \
 	VirtualBoxImpl.cpp \
-	VirtualBoxImplExtra.cpp \
 	ApplianceImpl.cpp \
+	xml/ovfreader.cpp \
 	VFSExplorerImpl.cpp \
 	MachineImpl.cpp \
 	SnapshotImpl.cpp \
 	MediumImpl.cpp \
-	HardDiskImpl.cpp \
-	HardDiskAttachmentImpl.cpp \
-	HardDiskFormatImpl.cpp \
+	MediumAttachmentImpl.cpp \
+	MediumFormatImpl.cpp \
 	ProgressImpl.cpp \
-	DVDDriveImpl.cpp \
-	FloppyDriveImpl.cpp \
 	HostImpl.cpp \
-	HostDVDDriveImpl.cpp \
-	HostFloppyDriveImpl.cpp \
 	HostNetworkInterfaceImpl.cpp \
 	DHCPServerImpl.cpp \
 	DHCPServerRunner.cpp \
@@ -308,7 +309,6 @@ VBoxSVC_SOURCES = \
 	SharedFolderImpl.cpp \
 	SystemPropertiesImpl.cpp \
 	BIOSSettingsImpl.cpp \
-	Version.cpp \
 	HostPower.cpp \
 	$(if $(VBOX_WITH_VRDP),VRDPServerImpl.cpp,) \
 	$(if $(VBOX_WITH_XPCOM),xpcom/server.cpp,) \
@@ -334,16 +334,12 @@ VBoxSVC_SOURCES.win = \
 VBoxSVC_SOURCES.linux = \
 	linux/HostHardwareLinux.cpp
 
-ifdef VBOX_WITH_DBUS
- VBoxSVC_SOURCES.linux += linux/vbox-dbus.cpp
-endif
-
 VBoxSVC_SOURCES.solaris = \
 	linux/vbox-libhal.cpp \
 	solaris/DynLoadLibSolaris.cpp
 
 VBoxSVC_SOURCES.freebsd = \
-	linux/vbox-libhal.cpp
+	freebsd/HostHardwareFreeBSD.cpp
 
 ifdef VBOX_WITH_USB
  ifdef VBOX_WITH_SYSFS_BY_DEFAULT
@@ -358,6 +354,7 @@ ifdef VBOX_WITH_USB
  VBoxSVC_SOURCES.os2     +=     os2/USBProxyServiceOs2.cpp
  VBoxSVC_SOURCES.solaris += solaris/USBProxyServiceSolaris.cpp
  VBoxSVC_SOURCES.win     +=     win/USBProxyServiceWindows.cpp
+ VBoxSVC_SOURCES.freebsd += freebsd/USBProxyServiceFreeBSD.cpp
 endif
 
 ifdef VBOX_WITH_NETFLT
@@ -448,12 +445,6 @@ $$(PATH_VBoxSVC)/xml_SettingsConverter_xsl.h: $(VBOX_XML_CONVERTER_TEMPLATE) $(V
 	$(call MSG_TOOL,bin2c,VBoxSVC,$<,$@)
 	$(QUIET)$(VBOX_BIN2C) _xml_SettingsConverter_xsl $< $@
 
-VirtualBoxImplExtra.cpp_DEPS  = \
- 	$(PATH_VBoxSVC)/xml_VirtualBox_settings_xsd.h \
-	$(PATH_VBoxSVC)/xml_VirtualBox_settings_common_xsd.h \
-	$(PATH_VBoxSVC)/xml_SettingsConverter_xsl.h
-VBoxSVC_CLEAN                += $(VirtualBoxImplExtra.cpp_DEPS)
-
 $(VBOX_XML_SCHEMADEFS_H): $(VBOX_XML_SCHEMADEFS_XSL) $(VBOX_XML_SCHEMA.$(KBUILD_TARGET)) $(VBOX_XML_SCHEMA_COMMON) | $$(dir $$@)
 	$(call MSG_GENERATE,SchemaDefs,$@,$<)
 	$(VBOX_XSLTPROC)  --stringparam mode declare -o $@ $(VBOX_XML_SCHEMADEFS_XSL) $(VBOX_XML_SCHEMA.$(KBUILD_TARGET))
@@ -465,18 +456,36 @@ $(VBOX_XML_SCHEMADEFS_CPP): $(VBOX_XML_SCHEMADEFS_XSL) $(VBOX_XML_SCHEMA.$(KBUIL
 OTHER_CLEAN += $(VBOX_XML_SCHEMADEFS_H) $(VBOX_XML_SCHEMADEFS_CPP)
 
 
-ifdef VBOX_WITH_CROGL
+if (defined(VBOX_WITH_CROGL) || defined(VBOX_WITH_VIDEOHWACCEL)) && !defined(VBOX_WITH_DEBUG_VCC_CRT)
  ifneq ($(KBUILD_TARGET),darwin)
   #
   # VBoxTestOGL - OpenGL support test app.
+  # Note! Doesn't link with VBOX_WITH_DEBUG_VCC_CRT defined because it uses Qt.
   #
+  ifdef VBOX_WITH_VIDEOHWACCEL
+   USES += qt4
+  endif
   PROGRAMS += VBoxTestOGL
-  VBoxTestOGL_TEMPLATE = VBOXMAINEXE
+  VBoxTestOGL_TEMPLATE = $(if $(VBOX_WITH_VIDEOHWACCEL),$(if $(VBOX_WITH_HARDENING),VBOXQT4GUI,VBOXQT4GUIEXE),VBOXMAINEXE)
   VBoxTestOGL_SOURCES = generic/OpenGLTestApp.cpp
   VBoxTestOGL_LIBS = \
-  	$(PATH_LIB)/VBoxOGLhostspuload$(VBOX_SUFF_LIB) \
-  	$(VBOX_LIB_OGL_HOSTCRUTIL) \
+    $(if $(VBOX_WITH_CROGL), \
+  	  $(PATH_LIB)/VBoxOGLhostspuload$(VBOX_SUFF_LIB) \
+  	  $(VBOX_LIB_OGL_HOSTCRUTIL),) \
+  	$(if $(VBOX_WITH_VIDEOHWACCEL), $(PATH_LIB)/VBoxOGL2D$(VBOX_SUFF_LIB),) \
   	$(LIB_RUNTIME)
+  VBoxTestOGL_DEFS += \
+    $(if $(VBOX_WITH_CROGL), VBOX_WITH_CROGL,) \
+    $(if $(VBOX_WITH_VIDEOHWACCEL), VBOX_WITH_VIDEOHWACCEL,) \
+	VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\" \
+	$(if $(VBOX_BLEEDING_EDGE),VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\",)
+  ifdef VBOX_WITH_VIDEOHWACCEL
+   VBoxTestOGL_QT_MODULES += Core Gui OpenGL
+   VBoxTestOGL_LDFLAGS.darwin += -framework OpenGL
+   VBoxTestOGL_LIBS.win     += $(PATH_SDK_WINPSDK_LIB)/Opengl32.lib
+   VBoxTestOGL_LIBS.solaris += GL
+  endif
+  VBoxTestOGL_LDFLAGS.win = /SUBSYSTEM:windows
  endif
 endif
 
@@ -512,28 +521,12 @@ VBoxSVCM_INTERMEDIATES += $(VBOX_IDL_HEADER.XPCOM)
 
 endif # VBOX_WITH_XPCOM
 
-
-#
-# VBoxSettings
-#
-DLLS += VBoxSettings
-VBoxSettings_TEMPLATE	= VBOXMAINDLL
-VBoxSettings_NAME       = $(basename $(notdir $(LIB_SETTINGS)))
-VBoxSettings_SDKS       = VBOX_LIBXSLT VBOX_LIBXML2 VBOX_ZLIB VBOX_BOOST
-VBoxSettings_DEFS       = IN_VBOXXML_R3
-VBoxSettings_INCS       = \
-	include
-VBoxSettings_SOURCES    = \
-	xml/xml.cpp \
-	xml/Settings.cpp
-VBoxSettings_LDFLAGS.darwin = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/$(notdir $(LIB_SETTINGS)) -Wl,-x # no debug info please.
-
-
 #
 # VBoxC module
 #
 DLLS += VBoxC
 VBoxC_TEMPLATE = VBOXMAINCOMP
+VBoxC_SDKS =  VBOX_LIBPNG VBOX_ZLIB
 VBoxC_DEFS = \
 	IN_RING3 \
 	$(VBOX_MAIN_DEFS) \
@@ -547,15 +540,23 @@ VBoxC_DEFS = \
 	$(if $(VBOX_WITH_SOLARIS_OSS),VBOX_WITH_SOLARIS_OSS,) \
 	$(if $(VBOX_WITH_CROSSBOW),VBOX_WITH_CROSSBOW,) \
 	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000,) \
+	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO,) \
 	$(if $(VBOX_WITH_EFI),VBOX_WITH_EFI,) \
 	$(if $(VBOX_WITH_HPET),VBOX_WITH_HPET,) \
 	$(if $(VBOX_WITH_SMC),VBOX_WITH_SMC,) \
 	$(if $(VBOX_WITH_LPC),VBOX_WITH_LPC,) \
-	$(if $(VBOX_WITH_PDM_ASYNC_COMPLETION),VBOX_WITH_PDM_ASYNC_COMPLETION,)
+	$(if $(VBOX_WITH_PDM_ASYNC_COMPLETION),VBOX_WITH_PDM_ASYNC_COMPLETION,) \
+	$(if $(VBOX_WITH_LIVE_MIGRATION),VBOX_WITH_LIVE_MIGRATION,)
 ifdef VBOX_WITH_USB
 VBoxC_DEFS += \
 	VBOX_WITH_USB \
 	$(if $(VBOX_WITH_EHCI),VBOX_WITH_EHCI,)
+endif
+ifdef VBOX_WITH_OLD_VBVA_LOCK
+VBoxC_DEFS += VBOX_WITH_OLD_VBVA_LOCK
+endif
+ifdef VBOX_WITH_HGSMI
+VBoxC_DEFS += VBOX_WITH_HGSMI
 endif
 ifdef VBOX_WITH_VIDEOHWACCEL
 VBoxC_DEFS += VBOX_WITH_VIDEOHWACCEL
@@ -603,7 +604,6 @@ VBoxC_SOURCES = \
 	Logging.cpp \
 	AutoLock.cpp \
 	VBoxDll.cpp \
-	Version.cpp \
 	USBDeviceImpl.cpp \
 	RemoteUSBDeviceImpl.cpp \
 	VirtualBoxBase.cpp \
@@ -614,11 +614,13 @@ VBoxC_SOURCES = \
 	VirtualBoxCallbackImpl.cpp \
 	ConsoleImpl.cpp \
 	ConsoleImpl2.cpp \
+	ConsoleImplTeleporter.cpp \
 	ConsoleVRDPServer.cpp \
 	GuestImpl.cpp \
 	KeyboardImpl.cpp \
 	MouseImpl.cpp \
 	DisplayImpl.cpp \
+	DisplayResampleImage.cpp \
 	MachineDebuggerImpl.cpp \
 	VBoxDriversRegister.cpp \
 	AudioSnifferInterface.cpp \
@@ -656,13 +658,9 @@ $$(PATH_VBoxC)/VBoxC.def: $(MAKEFILE_CURRENT)
 endif
 
 ConsoleImpl.cpp_DEFS = \
-	VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\"
+	VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\" \
+	$(if $(VBOX_BLEEDING_EDGE),VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\",)
 
-
-Version.cpp_DEFS  = VBOX_SVN_REV=$(VBOX_SVN_REV)
-Version.cpp_DEPS  = $(VBOX_SVN_REV_KMK)
-ConsoleImpl2.cpp_DEFS = VBOX_SVN_REV=\"$(VBOX_SVN_REV)\"
-ConsoleImpl2.cpp_DEPS = $(VBOX_SVN_REV_KMK)
 
 win/VBoxC.rc_DEPS = $(PATH_VBoxC)/VBoxC.rgs $(PATH_VBoxCOM)/VirtualBox.tlb
 VBoxC_CLEAN.win  += $(PATH_VBoxC)/VBoxC.rgs
@@ -686,14 +684,14 @@ VBoxCOM_SOURCES         = \
 	glue/errorprint.cpp \
 	glue/SupportErrorInfo.cpp \
 	glue/VirtualBoxErrorInfo.cpp
+VBoxCOM_INCS          += \
+	include
 ifeq ($(KBUILD_TARGET),win)
  VBoxCOM_DEFS.x86      += _WIN32_WINNT=0x0500
  VBoxCOM_DEFS.amd64    += _WIN32_WINNT=0x0510
  VBoxCOM_SOURCES       += \
 	$(PATH_VBoxCOM)/VirtualBox_i.c
 else # !win
- VBoxCOM_INCS          += \
-	include
  VBoxCOM_SOURCES       += \
 	xpcom/helpers.cpp
 endif # !win
@@ -767,10 +765,6 @@ $(VBOX_IDL_FILE.MSCOM): $(VBOX_PATH_MAIN_SRC)/idl/midl.xsl $(VBOX_XIDL_FILE) | $
 	$(call MSG_TOOL,xsltproc,VBoxSVC,$<,$@)
 	$(QUIET)$(VBOX_XSLTPROC) -o $@ $< $(VBOX_XIDL_FILE)
 
-$(VBOX_PYTHON_CONSTANTS):  $(VBOX_PATH_MAIN_SRC)/glue/constants-python.xsl $(VBOX_XIDL_FILE) | $$(dir $$@)
-	$(call MSG_TOOL,xsltproc,Python constants,$<,$@)
-	$(QUIET)$(VBOX_XSLTPROC) -o $@ $< $(VBOX_XIDL_FILE)
-
 # Aliases for testing purposes.
 ifdef VBOX_WITH_XPCOM
 testidl:    $(VBOX_IDL_FILE.XPCOM) $(VBOX_IDL_TYPELIB.XPCOM)
@@ -808,9 +802,7 @@ $(PATH_VBoxCOM)/VirtualBox_i.c \
 #
 VBoxSVC_VBOX_HEADERS = \
 	include/collection.h \
-	include/MachineImpl.h \
-	include/HostDVDDriveImpl.h \
-	include/HostFloppyDriveImpl.h
+	include/MachineImpl.h
 VBoxSVC_VBOX_TRANSLATIONS = \
 	nls/VBoxSVC_de.ts
 

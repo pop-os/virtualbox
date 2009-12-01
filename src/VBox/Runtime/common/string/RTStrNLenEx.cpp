@@ -1,4 +1,4 @@
-/* $Id: RTStrNLenEx.cpp $ */
+/* $Id: RTStrNLenEx.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - RTStrNLenEx.
  */
@@ -32,6 +32,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/string.h>
+#include "internal/iprt.h"
 
 
 RTDECL(int) RTStrNLenEx(const char *pszString, size_t cchMax, size_t *pcch)
@@ -45,4 +46,5 @@ RTDECL(int) RTStrNLenEx(const char *pszString, size_t cchMax, size_t *pcch)
     *pcch = pchEnd - pszString;
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTStrNLenEx);
 

@@ -1,4 +1,4 @@
-/* $Id: tstRTProcWait.cpp $ */
+/* $Id: tstRTProcWait.cpp 25000 2009-11-26 14:22:44Z vboxsync $ */
 /** @file
  * IPRT Testcase - RTProcWait.
  */
@@ -74,7 +74,7 @@ int main(int argc, char **argv)
     {
         /* Wait for it to complete. */
         int rc2;
-        int rc = RTThreadWait(Thread, RT_INDEFINITE_WAIT, &rc2);
+        rc = RTThreadWait(Thread, RT_INDEFINITE_WAIT, &rc2);
         if (RT_SUCCESS(rc))
             rc = rc2;
         if (RT_SUCCESS(rc))

@@ -1,4 +1,4 @@
-/* $Id: the-linux-kernel.h $ */
+/* $Id: the-linux-kernel.h 24956 2009-11-25 14:26:50Z vboxsync $ */
 /** @file
  * IPRT - Include all necessary headers for the Linux kernel.
  */
@@ -124,7 +124,7 @@
 #endif
 
 /*
- * 2.4 compatibility wrappers
+ * 2.4 / early 2.6 compatibility wrappers
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 7)
 
@@ -162,19 +162,35 @@ DECLINLINE(unsigned long) msecs_to_jiffies(unsigned int cMillies)
 
 # endif  /* < 2.4.29 || >= 2.6.0 */
 
+#endif /* < 2.6.7 */
+
+/*
+ * 2.4 compatibility wrappers
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
+
 # define prepare_to_wait(q, wait, state) \
     do { \
-        set_current_state(state); \
         add_wait_queue(q, wait); \
+        set_current_state(state); \
+    } while (0)
+
+# define after_wait(wait) \
+    do { \
+        list_del_init(&(wait)->task_list); \
     } while (0)
 
 # define finish_wait(q, wait) \
     do { \
-        remove_wait_queue(q, wait); \
         set_current_state(TASK_RUNNING); \
+        remove_wait_queue(q, wait); \
     } while (0)
 
-#endif /* < 2.6.7 */
+#else /* >= 2.6.0 */
+
+# define after_wait(wait)       do {} while (0)
+
+#endif /* >= 2.6.0 */
 
 /** @def TICK_NSEC
  * The time between ticks in nsec */
@@ -266,10 +282,6 @@ DECLINLINE(unsigned long) msecs_to_jiffies(unsigned int cMillies)
     } while (0)
 #endif
 
-#ifndef PAGE_OFFSET_MASK
-# define PAGE_OFFSET_MASK (PAGE_SIZE - 1)
-#endif
-
 /** @def ONE_MSEC_IN_JIFFIES
  * The number of jiffies that make up 1 millisecond. Must be at least 1! */
 #if HZ <= 1000
@@ -303,6 +315,15 @@ DECLINLINE(unsigned long) msecs_to_jiffies(unsigned int cMillies)
 # define IPRT_DEBUG_SEMS_ADDRESS(addr)  ( ((long)(addr) & (long)~UINT64_C(0xfffffff000000000)) )
 #else
 # define IPRT_DEBUG_SEMS_ADDRESS(addr)  ( (long)(addr) )
+#endif
+
+/*
+ * There are some conflicting defines in iprt/param.h, sort them out here.
+ */
+#ifndef ___iprt_param_h
+# undef PAGE_SIZE
+# undef PAGE_OFFSET_MASK
+# include <iprt/param.h>
 #endif
 
 #endif

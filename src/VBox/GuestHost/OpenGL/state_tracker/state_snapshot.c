@@ -1,4 +1,4 @@
-/* $Id: state_snapshot.c $ */
+/* $Id: state_snapshot.c 24891 2009-11-24 11:36:06Z vboxsync $ */
 
 /** @file
  * VBox Context state saving/loading used by VM snapshot
@@ -24,6 +24,9 @@
 #include "state/cr_statetypes.h"
 #include "state/cr_texture.h"
 #include "cr_mem.h"
+#include "cr_string.h"
+#include "cr_pixeldata.h"
+#include <stdio.h>
 
 #include <iprt/assert.h>
 #include <iprt/types.h>
@@ -424,11 +427,28 @@ static void crStateSaveBufferObjectCB(unsigned long key, void *data1, void *data
     CRASSERT(rc == VINF_SUCCESS);
     rc = SSMR3PutMem(pSSM, pBufferObj, sizeof(*pBufferObj));
     CRASSERT(rc == VINF_SUCCESS);
+
     if (pBufferObj->data)
     {
+        /*We could get here even though retainBufferData is false on host side, in case when we're taking snapshot
+          after state load and before this context was ever made current*/
         CRASSERT(pBufferObj->size>0);
         rc = SSMR3PutMem(pSSM, pBufferObj->data, pBufferObj->size);
         CRASSERT(rc == VINF_SUCCESS);
+    }
+    else if (pBufferObj->name!=0 && pBufferObj->size>0)
+    {
+        diff_api.BindBufferARB(GL_ARRAY_BUFFER_ARB, pBufferObj->name);
+        pBufferObj->pointer = diff_api.MapBufferARB(GL_ARRAY_BUFFER_ARB, GL_READ_ONLY_ARB);
+        rc = SSMR3PutMem(pSSM, &pBufferObj->pointer, sizeof(pBufferObj->pointer));
+        CRASSERT(rc == VINF_SUCCESS);
+        if (pBufferObj->pointer)
+        {
+            rc = SSMR3PutMem(pSSM, pBufferObj->pointer, pBufferObj->size);
+            CRASSERT(rc == VINF_SUCCESS);
+        }
+        diff_api.UnmapBufferARB(GL_ARRAY_BUFFER_ARB);
+        pBufferObj->pointer = NULL;
     }
 }
 
@@ -463,6 +483,32 @@ static void crStateSaveProgramCB(unsigned long key, void *data1, void *data2)
             CRASSERT(rc == VINF_SUCCESS);
         }
     }
+}
+
+static void crStateSaveFramebuffersCB(unsigned long key, void *data1, void *data2)
+{
+    CRFramebufferObject *pFBO = (CRFramebufferObject*) data1;
+    PSSMHANDLE pSSM = (PSSMHANDLE) data2;
+    int32_t rc;
+
+    rc = SSMR3PutMem(pSSM, &key, sizeof(key));
+    CRASSERT(rc == VINF_SUCCESS);
+
+    rc = SSMR3PutMem(pSSM, pFBO, sizeof(*pFBO));
+    CRASSERT(rc == VINF_SUCCESS);
+}
+
+static void crStateSaveRenderbuffersCB(unsigned long key, void *data1, void *data2)
+{
+    CRRenderbufferObject *pRBO = (CRRenderbufferObject*) data1;
+    PSSMHANDLE pSSM = (PSSMHANDLE) data2;
+    int32_t rc;
+
+    rc = SSMR3PutMem(pSSM, &key, sizeof(key));
+    CRASSERT(rc == VINF_SUCCESS);
+
+    rc = SSMR3PutMem(pSSM, pRBO, sizeof(*pRBO));
+    CRASSERT(rc == VINF_SUCCESS);
 }
 
 static int32_t crStateLoadProgram(CRProgram **ppProgram, PSSMHANDLE pSSM)
@@ -518,6 +564,237 @@ static int32_t crStateLoadProgram(CRProgram **ppProgram, PSSMHANDLE pSSM)
     }
 
     return VINF_SUCCESS;
+}
+
+static void crStateSaveString(const char *pStr, PSSMHANDLE pSSM)
+{
+    int32_t len;
+    int32_t rc;
+
+    if (pStr)
+    {
+        len = crStrlen(pStr)+1;
+
+        rc = SSMR3PutS32(pSSM, len);
+        CRASSERT(rc == VINF_SUCCESS);
+
+        rc = SSMR3PutMem(pSSM, pStr, len*sizeof(*pStr));
+        CRASSERT(rc == VINF_SUCCESS);
+    }
+    else
+    {
+        rc = SSMR3PutS32(pSSM, 0);
+        CRASSERT(rc == VINF_SUCCESS);
+    }
+}
+
+static char* crStateLoadString(PSSMHANDLE pSSM)
+{
+    int32_t len, rc;
+    char* pStr = NULL;
+
+    rc = SSMR3GetS32(pSSM, &len);
+    CRASSERT(rc == VINF_SUCCESS);
+
+    if (len!=0)
+    {
+        pStr = crAlloc(len*sizeof(*pStr));
+
+        rc = SSMR3GetMem(pSSM, pStr, len*sizeof(*pStr));
+        CRASSERT(rc == VINF_SUCCESS);
+    }
+
+    return pStr;
+}
+
+static void crStateSaveGLSLShaderCB(unsigned long key, void *data1, void *data2)
+{
+    CRGLSLShader *pShader = (CRGLSLShader*) data1;
+    PSSMHANDLE pSSM = (PSSMHANDLE) data2;
+    int32_t rc;
+
+    rc = SSMR3PutMem(pSSM, &key, sizeof(key));
+    CRASSERT(rc == VINF_SUCCESS);
+
+    rc = SSMR3PutMem(pSSM, pShader, sizeof(*pShader));
+    CRASSERT(rc == VINF_SUCCESS);
+
+    if (pShader->source)
+    {
+        crStateSaveString(pShader->source, pSSM);
+    }
+    else
+    {
+        GLint sLen=0;
+        GLchar *source=NULL;
+
+        diff_api.GetShaderiv(pShader->hwid, GL_SHADER_SOURCE_LENGTH, &sLen);
+        if (sLen>0)
+        {
+            source = (GLchar*) crAlloc(sLen);
+            diff_api.GetShaderSource(pShader->hwid, sLen, NULL, source);
+        }
+
+        crStateSaveString(source, pSSM);
+        if (source) crFree(source);
+    }
+}
+
+static CRGLSLShader* crStateLoadGLSLShader(PSSMHANDLE pSSM)
+{
+    CRGLSLShader *pShader;
+    int32_t rc;
+    unsigned long key;
+
+    pShader = crAlloc(sizeof(*pShader));
+    if (!pShader) return NULL;
+
+    rc = SSMR3GetMem(pSSM, &key, sizeof(key));
+    CRASSERT(rc == VINF_SUCCESS);
+
+    rc = SSMR3GetMem(pSSM, pShader, sizeof(*pShader));
+    CRASSERT(rc == VINF_SUCCESS);
+
+    pShader->source = crStateLoadString(pSSM);
+
+    return pShader;
+}
+
+
+static void crStateSaveGLSLShaderKeyCB(unsigned long key, void *data1, void *data2)
+{
+    CRGLSLShader *pShader = (CRGLSLShader*) data1;
+    PSSMHANDLE pSSM = (PSSMHANDLE) data2;
+    int32_t rc;
+
+    rc = SSMR3PutMem(pSSM, &key, sizeof(key));
+    CRASSERT(rc == VINF_SUCCESS);
+}
+
+static void crStateSaveGLSLProgramAttribs(CRGLSLProgramState *pState, PSSMHANDLE pSSM)
+{
+    GLuint i;
+    int32_t rc;
+
+    for (i=0; i<pState->cAttribs; ++i)
+    {
+        rc = SSMR3PutMem(pSSM, &pState->pAttribs[i].index, sizeof(pState->pAttribs[i].index));
+        CRASSERT(rc == VINF_SUCCESS);
+        crStateSaveString(pState->pAttribs[i].name, pSSM);
+    }
+}
+
+static void crStateSaveGLSLProgramCB(unsigned long key, void *data1, void *data2)
+{
+    CRGLSLProgram *pProgram = (CRGLSLProgram*) data1;
+    PSSMHANDLE pSSM = (PSSMHANDLE) data2;
+    int32_t rc;
+    uint32_t ui32;
+    GLint maxUniformLen, activeUniforms=0, uniformsCount=0, i, j;
+    GLchar *name = NULL;
+    GLenum type;
+    GLint size, location;
+
+    rc = SSMR3PutMem(pSSM, &key, sizeof(key));
+    CRASSERT(rc == VINF_SUCCESS);
+
+    rc = SSMR3PutMem(pSSM, pProgram, sizeof(*pProgram));
+    CRASSERT(rc == VINF_SUCCESS);
+
+    ui32 = crHashtableNumElements(pProgram->currentState.attachedShaders);
+    rc = SSMR3PutU32(pSSM, ui32);
+    CRASSERT(rc == VINF_SUCCESS);
+
+    crHashtableWalk(pProgram->currentState.attachedShaders, crStateSaveGLSLShaderKeyCB, pSSM);
+
+    if (pProgram->activeState.attachedShaders)
+    {
+        ui32 = crHashtableNumElements(pProgram->activeState.attachedShaders);
+        rc = SSMR3PutU32(pSSM, ui32);
+        CRASSERT(rc == VINF_SUCCESS);
+        crHashtableWalk(pProgram->currentState.attachedShaders, crStateSaveGLSLShaderCB, pSSM);
+    }
+
+    crStateSaveGLSLProgramAttribs(&pProgram->currentState, pSSM);
+    crStateSaveGLSLProgramAttribs(&pProgram->activeState, pSSM);
+
+    diff_api.GetProgramiv(pProgram->hwid, GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxUniformLen);
+    diff_api.GetProgramiv(pProgram->hwid, GL_ACTIVE_UNIFORMS, &activeUniforms);
+
+    if (activeUniforms>0)
+    {
+        name = (GLchar *) crAlloc((maxUniformLen+8)*sizeof(GLchar));
+
+        if (!name)
+        {
+            crWarning("crStateSaveGLSLProgramCB: out of memory");
+            return;
+        }
+    }
+
+    for (i=0; i<activeUniforms; ++i)
+    {
+        diff_api.GetActiveUniform(pProgram->hwid, i, maxUniformLen, NULL, &size, &type, name);
+        uniformsCount += size;
+    }
+    CRASSERT(uniformsCount>=activeUniforms);
+
+    rc = SSMR3PutS32(pSSM, uniformsCount);
+    CRASSERT(rc == VINF_SUCCESS);
+
+    if (activeUniforms>0)
+    {
+        GLfloat fdata[16];
+        GLint idata[16];
+        char *pIndexStr=NULL;
+
+        for (i=0; i<activeUniforms; ++i)
+        {
+            diff_api.GetActiveUniform(pProgram->hwid, i, maxUniformLen, NULL, &size, &type, name);
+
+            if (size>1)
+            {
+                pIndexStr = crStrchr(name, '[');
+                if (!pIndexStr)
+                {
+                    pIndexStr = name+crStrlen(name);
+                }
+            }
+
+            for (j=0; j<size; ++j)
+            {
+                if (size>1)
+                {
+                    sprintf(pIndexStr, "[%i]", j);
+                    location = diff_api.GetUniformLocation(pProgram->hwid, name);
+                }
+                else
+                {
+                    location = i;
+                }
+
+                rc = SSMR3PutMem(pSSM, &type, sizeof(type));
+                CRASSERT(rc == VINF_SUCCESS);
+
+                crStateSaveString(name, pSSM);
+            
+                if (crStateIsIntUniform(type))
+                {
+                    diff_api.GetUniformiv(pProgram->hwid, location, &idata[0]);
+                    rc = SSMR3PutMem(pSSM, &idata[0], crStateGetUniformSize(type)*sizeof(idata[0]));
+                    CRASSERT(rc == VINF_SUCCESS);
+                }
+                else
+                {
+                    diff_api.GetUniformfv(pProgram->hwid, location, &fdata[0]);
+                    rc = SSMR3PutMem(pSSM, &fdata[0], crStateGetUniformSize(type)*sizeof(fdata[0]));
+                    CRASSERT(rc == VINF_SUCCESS);
+                }
+            }
+        }
+
+        crFree(name);
+    }
 }
 
 int32_t crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM)
@@ -688,12 +965,41 @@ int32_t crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM)
     crStateSaveBufferObjectCB(0, pContext->bufferobject.nullBuffer, pSSM);
     /* Save all the rest */
     crHashtableWalk(pContext->bufferobject.buffers, crStateSaveBufferObjectCB, pSSM);
+    /* Restore binding */
+    diff_api.BindBufferARB(GL_ARRAY_BUFFER_ARB, pContext->bufferobject.arrayBuffer->name);
     /* Save pointers */
     rc = SSMR3PutU32(pSSM, pContext->bufferobject.arrayBuffer->name);
     AssertRCReturn(rc, rc);
     rc = SSMR3PutU32(pSSM, pContext->bufferobject.elementsBuffer->name);
     AssertRCReturn(rc, rc);
-#endif
+    /* Save bound array buffers*/ /*@todo vertexArrayStack*/
+    rc = SSMR3PutU32(pSSM, pContext->client.array.v.buffer->name);
+    AssertRCReturn(rc, rc);
+    rc = SSMR3PutU32(pSSM, pContext->client.array.c.buffer->name);
+    AssertRCReturn(rc, rc);
+    rc = SSMR3PutU32(pSSM, pContext->client.array.f.buffer->name);
+    AssertRCReturn(rc, rc);
+    rc = SSMR3PutU32(pSSM, pContext->client.array.s.buffer->name);
+    AssertRCReturn(rc, rc);
+    rc = SSMR3PutU32(pSSM, pContext->client.array.e.buffer->name);
+    AssertRCReturn(rc, rc);
+    rc = SSMR3PutU32(pSSM, pContext->client.array.i.buffer->name);
+    AssertRCReturn(rc, rc);
+    rc = SSMR3PutU32(pSSM, pContext->client.array.n.buffer->name);
+    AssertRCReturn(rc, rc);
+    for (i = 0; i < CR_MAX_TEXTURE_UNITS; i++)
+    {
+        rc = SSMR3PutU32(pSSM, pContext->client.array.t[i].buffer->name);
+        AssertRCReturn(rc, rc);
+    }
+# ifdef CR_NV_vertex_program
+    for (i = 0; i < CR_MAX_VERTEX_ATTRIBS; i++)
+    {
+        rc = SSMR3PutU32(pSSM, pContext->client.array.a[i].buffer->name);
+        AssertRCReturn(rc, rc);
+    }
+# endif
+#endif /*CR_ARB_vertex_buffer_object*/
 
     /* Save pixel/vertex programs */
     ui32 = crHashtableNumElements(pContext->program.programHash);
@@ -711,6 +1017,75 @@ int32_t crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM)
     AssertRCReturn(rc, rc);
     /* This one is unused it seems*/
     CRASSERT(!pContext->program.errorString);
+
+#ifdef CR_EXT_framebuffer_object
+    /* Save FBOs */
+    ui32 = crHashtableNumElements(pContext->framebufferobject.framebuffers);
+    rc = SSMR3PutU32(pSSM, ui32);
+    AssertRCReturn(rc, rc);
+    crHashtableWalk(pContext->framebufferobject.framebuffers, crStateSaveFramebuffersCB, pSSM);
+    ui32 = crHashtableNumElements(pContext->framebufferobject.renderbuffers);
+    rc = SSMR3PutU32(pSSM, ui32);
+    AssertRCReturn(rc, rc);
+    crHashtableWalk(pContext->framebufferobject.renderbuffers, crStateSaveRenderbuffersCB, pSSM);
+    rc = SSMR3PutU32(pSSM, pContext->framebufferobject.drawFB?pContext->framebufferobject.drawFB->id:0);
+    AssertRCReturn(rc, rc);
+    rc = SSMR3PutU32(pSSM, pContext->framebufferobject.readFB?pContext->framebufferobject.readFB->id:0);
+    AssertRCReturn(rc, rc);
+    rc = SSMR3PutU32(pSSM, pContext->framebufferobject.renderbuffer?pContext->framebufferobject.renderbuffer->id:0);
+    AssertRCReturn(rc, rc);
+#endif
+
+#ifdef CR_OPENGL_VERSION_2_0
+    /* Save GLSL related info */
+    ui32 = crHashtableNumElements(pContext->glsl.shaders);
+    rc = SSMR3PutU32(pSSM, ui32);
+    AssertRCReturn(rc, rc);
+    crHashtableWalk(pContext->glsl.shaders, crStateSaveGLSLShaderCB, pSSM);
+    ui32 = crHashtableNumElements(pContext->glsl.programs);
+    rc = SSMR3PutU32(pSSM, ui32);
+    AssertRCReturn(rc, rc);
+    crHashtableWalk(pContext->glsl.programs, crStateSaveGLSLProgramCB, pSSM);
+    rc = SSMR3PutU32(pSSM, pContext->glsl.activeProgram?pContext->glsl.activeProgram->id:0);
+    AssertRCReturn(rc, rc);
+#endif
+
+    {
+        CRViewportState *pVP = &pContext->viewport;
+        CRPixelPackState packing = pContext->client.pack;
+        GLint cbData = crPixelSize(GL_RGBA, GL_UNSIGNED_BYTE) * pVP->viewportH * pVP->viewportW;
+        void *pData = crAlloc(cbData);
+
+        if (!pData)
+        {
+            return VERR_NO_MEMORY;
+        }
+
+        diff_api.PixelStorei(GL_PACK_SKIP_ROWS, 0);
+        diff_api.PixelStorei(GL_PACK_SKIP_PIXELS, 0);
+        diff_api.PixelStorei(GL_PACK_ALIGNMENT, 1);
+        diff_api.PixelStorei(GL_PACK_ROW_LENGTH, 0);
+        diff_api.PixelStorei(GL_PACK_IMAGE_HEIGHT, 0);
+        diff_api.PixelStorei(GL_PACK_SKIP_IMAGES, 0);
+        diff_api.PixelStorei(GL_PACK_SWAP_BYTES, 0);
+        diff_api.PixelStorei(GL_PACK_LSB_FIRST, 0);
+
+        diff_api.ReadPixels(0, 0, pVP->viewportW, pVP->viewportH, GL_RGBA, GL_UNSIGNED_BYTE, pData);
+
+        diff_api.PixelStorei(GL_PACK_SKIP_ROWS, packing.skipRows);
+        diff_api.PixelStorei(GL_PACK_SKIP_PIXELS, packing.skipPixels);
+        diff_api.PixelStorei(GL_PACK_ALIGNMENT, packing.alignment);
+        diff_api.PixelStorei(GL_PACK_ROW_LENGTH, packing.rowLength);
+        diff_api.PixelStorei(GL_PACK_IMAGE_HEIGHT, packing.imageHeight);
+        diff_api.PixelStorei(GL_PACK_SKIP_IMAGES, packing.skipImages);
+        diff_api.PixelStorei(GL_PACK_SWAP_BYTES, packing.swapBytes);
+        diff_api.PixelStorei(GL_PACK_LSB_FIRST, packing.psLSBFirst);
+
+        rc = SSMR3PutMem(pSSM, pData, cbData);
+        AssertRCReturn(rc, rc);
+
+        crFree(pData);
+    }
 
     return VINF_SUCCESS;
 }
@@ -761,37 +1136,51 @@ int32_t crStateLoadContext(CRContext *pContext, PSSMHANDLE pSSM)
     SLC_COPYPTR(bufferobject.nullBuffer);
 #endif
 
-    SLC_COPYPTR(client.array.v.p);            /*@todo*/
-    SLC_COPYPTR(client.array.c.p);            /*@todo*/
-    SLC_COPYPTR(client.array.f.p);            /*@todo*/
-    SLC_COPYPTR(client.array.s.p);            /*@todo*/
-    SLC_COPYPTR(client.array.e.p);            /*@todo*/
-    SLC_COPYPTR(client.array.i.p);            /*@todo*/
-    SLC_COPYPTR(client.array.n.p);            /*@todo*/
+/*@todo, that should be removed probably as those should hold the offset values, so loading should be fine
+  but better check*/
+#if 0
+#ifdef CR_EXT_compiled_vertex_array
+    SLC_COPYPTR(client.array.v.prevPtr);
+    SLC_COPYPTR(client.array.c.prevPtr);
+    SLC_COPYPTR(client.array.f.prevPtr);
+    SLC_COPYPTR(client.array.s.prevPtr);
+    SLC_COPYPTR(client.array.e.prevPtr);
+    SLC_COPYPTR(client.array.i.prevPtr);
+    SLC_COPYPTR(client.array.n.prevPtr);
     for (i = 0 ; i < CR_MAX_TEXTURE_UNITS ; i++)
     {
-        SLC_COPYPTR(client.array.t[i].p);     /*@todo*/
+        SLC_COPYPTR(client.array.t[i].prevPtr);
     }
 
-#ifdef CR_ARB_vertex_buffer_object2
-    SLC_COPYPTR(client.array.v.buffer);       /*@todo*/
-    SLC_COPYPTR(client.array.c.buffer);       /*@todo*/
-    SLC_COPYPTR(client.array.f.buffer);       /*@todo*/
-    SLC_COPYPTR(client.array.s.buffer);       /*@todo*/
-    SLC_COPYPTR(client.array.e.buffer);       /*@todo*/
-    SLC_COPYPTR(client.array.i.buffer);       /*@todo*/
-    SLC_COPYPTR(client.array.n.buffer);       /*@todo*/
+# ifdef CR_NV_vertex_program
+    for (i = 0; i < CR_MAX_VERTEX_ATTRIBS; i++)
+    {
+        SLC_COPYPTR(client.array.a[i].prevPtr);
+    }
+# endif
+#endif
+#endif
+
+#ifdef CR_ARB_vertex_buffer_object
+    /*That just sets those pointers to NULL*/
+    SLC_COPYPTR(client.array.v.buffer);
+    SLC_COPYPTR(client.array.c.buffer);
+    SLC_COPYPTR(client.array.f.buffer);
+    SLC_COPYPTR(client.array.s.buffer);
+    SLC_COPYPTR(client.array.e.buffer);
+    SLC_COPYPTR(client.array.i.buffer);
+    SLC_COPYPTR(client.array.n.buffer);
     for (i = 0 ; i < CR_MAX_TEXTURE_UNITS ; i++)
     {
-        SLC_COPYPTR(client.array.t[i].buffer); /*@todo*/
+        SLC_COPYPTR(client.array.t[i].buffer);
     }
-#ifdef CR_NV_vertex_program
-    for (i = 0; i < CR_MAX_VERTEX_ATTRIBS; i++) {
+# ifdef CR_NV_vertex_program
+    for (i = 0; i < CR_MAX_VERTEX_ATTRIBS; i++)
     {
-        SLC_COPYPTR(client.array.a[i].buffer); /*@todo*/
+        SLC_COPYPTR(client.array.a[i].buffer);
     }
-#endif
-#endif /*CR_ARB_vertex_buffer_object2*/
+# endif
+#endif /*CR_ARB_vertex_buffer_object*/
 
     /*@todo CR_NV_vertex_program*/
     crStateCopyEvalPtrs1D(pTmpContext->eval.eval1D, pContext->eval.eval1D);
@@ -850,6 +1239,16 @@ int32_t crStateLoadContext(CRContext *pContext, PSSMHANDLE pSSM)
     {
         SLC_COPYPTR(transform.programStack[i].stack);
     }
+
+#ifdef CR_EXT_framebuffer_object
+    SLC_COPYPTR(framebufferobject.framebuffers);
+    SLC_COPYPTR(framebufferobject.renderbuffers);
+#endif
+
+#ifdef CR_OPENGL_VERSION_2_0
+    SLC_COPYPTR(glsl.shaders);
+    SLC_COPYPTR(glsl.programs);
+#endif
 
     /* Have to preserve original context id */
     CRASSERT(pTmpContext->id == pContext->id);
@@ -1047,21 +1446,80 @@ int32_t crStateLoadContext(CRContext *pContext, PSSMHANDLE pSSM)
             //DIRTY(pBufferObj->dirty, pContext->neg_bitid);
             //pBufferObj->dirtyStart = 0;
             //pBufferObj->dirtyLength = pBufferObj->size;
+        } 
+        else if (pBufferObj->name!=0 && pBufferObj->size>0)
+        {
+            rc = SSMR3GetMem(pSSM, &pBufferObj->data, sizeof(pBufferObj->data));
+            AssertRCReturn(rc, rc);
+
+            if (pBufferObj->data)
+            {
+                pBufferObj->data = crAlloc(pBufferObj->size);
+                rc = SSMR3GetMem(pSSM, pBufferObj->data, pBufferObj->size);
+                AssertRCReturn(rc, rc);
+            }
         }
+
 
         if (key!=0)
             crHashtableAdd(pContext->bufferobject.buffers, key, pBufferObj);        
     }
     //FILLDIRTY(GetCurrentBits()->bufferobject.dirty);
     /* Load pointers */
+#define CRS_GET_BO(name) (((name)==0) ? (pContext->bufferobject.nullBuffer) : crHashtableSearch(pContext->bufferobject.buffers, name))
     rc = SSMR3GetU32(pSSM, &ui);
     AssertRCReturn(rc, rc);
-    pContext->bufferobject.arrayBuffer = ui==0 ? pContext->bufferobject.nullBuffer
-                                                 : crHashtableSearch(pContext->bufferobject.buffers, ui);
+    pContext->bufferobject.arrayBuffer = CRS_GET_BO(ui);
     rc = SSMR3GetU32(pSSM, &ui);
     AssertRCReturn(rc, rc);
-    pContext->bufferobject.elementsBuffer = ui==0 ? pContext->bufferobject.nullBuffer
-                                                    : crHashtableSearch(pContext->bufferobject.buffers, ui);
+    pContext->bufferobject.elementsBuffer = CRS_GET_BO(ui);
+
+    /* Load bound array buffers*/
+    rc = SSMR3GetU32(pSSM, &ui);
+    AssertRCReturn(rc, rc);
+    pContext->client.array.v.buffer = CRS_GET_BO(ui);
+
+    rc = SSMR3GetU32(pSSM, &ui);
+    AssertRCReturn(rc, rc);
+    pContext->client.array.c.buffer = CRS_GET_BO(ui);
+
+    rc = SSMR3GetU32(pSSM, &ui);
+    AssertRCReturn(rc, rc);
+    pContext->client.array.f.buffer = CRS_GET_BO(ui);
+
+    rc = SSMR3GetU32(pSSM, &ui);
+    AssertRCReturn(rc, rc);
+    pContext->client.array.s.buffer = CRS_GET_BO(ui);
+
+    rc = SSMR3GetU32(pSSM, &ui);
+    AssertRCReturn(rc, rc);
+    pContext->client.array.e.buffer = CRS_GET_BO(ui);
+
+    rc = SSMR3GetU32(pSSM, &ui);
+    AssertRCReturn(rc, rc);
+    pContext->client.array.i.buffer = CRS_GET_BO(ui);
+
+    rc = SSMR3GetU32(pSSM, &ui);
+    AssertRCReturn(rc, rc);
+    pContext->client.array.n.buffer = CRS_GET_BO(ui);
+
+    for (i = 0; i < CR_MAX_TEXTURE_UNITS; i++)
+    {
+        rc = SSMR3GetU32(pSSM, &ui);
+        AssertRCReturn(rc, rc);
+        pContext->client.array.t[i].buffer = CRS_GET_BO(ui);
+    }
+# ifdef CR_NV_vertex_program
+    for (i = 0; i < CR_MAX_VERTEX_ATTRIBS; i++)
+    {
+        rc = SSMR3GetU32(pSSM, &ui);
+        AssertRCReturn(rc, rc);
+        pContext->client.array.a[i].buffer = CRS_GET_BO(ui);
+    }
+# endif
+#undef CRS_GET_BO
+
+    pContext->bufferobject.bResyncNeeded = GL_TRUE;
 #endif
 
     /* Load pixel/vertex programs */
@@ -1097,6 +1555,217 @@ int32_t crStateLoadContext(CRContext *pContext, PSSMHANDLE pSSM)
 
     /* Mark programs for resending to GPU */
     pContext->program.bResyncNeeded = GL_TRUE;
+
+#ifdef CR_EXT_framebuffer_object
+    /* Load FBOs */
+    rc = SSMR3GetU32(pSSM, &uiNumElems);
+    AssertRCReturn(rc, rc);
+    for (ui=0; ui<uiNumElems; ++ui)
+    {
+        CRFramebufferObject *pFBO;
+        pFBO = crAlloc(sizeof(*pFBO));
+        if (!pFBO) return VERR_NO_MEMORY;
+
+        rc = SSMR3GetMem(pSSM, &key, sizeof(key));
+        AssertRCReturn(rc, rc);
+
+        rc = SSMR3GetMem(pSSM, pFBO, sizeof(*pFBO));
+        AssertRCReturn(rc, rc);
+
+        crHashtableAdd(pContext->framebufferobject.framebuffers, key, pFBO);
+    }
+
+    rc = SSMR3GetU32(pSSM, &uiNumElems);
+    AssertRCReturn(rc, rc);
+    for (ui=0; ui<uiNumElems; ++ui)
+    {
+        CRRenderbufferObject *pRBO;
+        pRBO = crAlloc(sizeof(*pRBO));
+        if (!pRBO) return VERR_NO_MEMORY;
+
+        rc = SSMR3GetMem(pSSM, &key, sizeof(key));
+        AssertRCReturn(rc, rc);
+
+        rc = SSMR3GetMem(pSSM, pRBO, sizeof(*pRBO));
+        AssertRCReturn(rc, rc);
+
+        crHashtableAdd(pContext->framebufferobject.renderbuffers, key, pRBO);
+    }
+
+    rc = SSMR3GetU32(pSSM, &ui);
+    AssertRCReturn(rc, rc);
+    pContext->framebufferobject.drawFB = ui==0 ? NULL 
+                                               : crHashtableSearch(pContext->framebufferobject.framebuffers, ui);
+
+    rc = SSMR3GetU32(pSSM, &ui);
+    AssertRCReturn(rc, rc);
+    pContext->framebufferobject.readFB = ui==0 ? NULL 
+                                               : crHashtableSearch(pContext->framebufferobject.framebuffers, ui);
+
+    rc = SSMR3GetU32(pSSM, &ui);
+    AssertRCReturn(rc, rc);
+    pContext->framebufferobject.renderbuffer = ui==0 ? NULL 
+                                                     : crHashtableSearch(pContext->framebufferobject.renderbuffers, ui);
+
+    /* Mark FBOs/RBOs for resending to GPU */
+    pContext->framebufferobject.bResyncNeeded = GL_TRUE;
+#endif
+
+#ifdef CR_OPENGL_VERSION_2_0
+    /* Load GLSL related info */
+    rc = SSMR3GetU32(pSSM, &uiNumElems);
+    AssertRCReturn(rc, rc);
+
+    for (ui=0; ui<uiNumElems; ++ui)
+    {
+        CRGLSLShader *pShader = crStateLoadGLSLShader(pSSM);
+        if (!pShader) return VERR_SSM_UNEXPECTED_DATA;
+        crHashtableAdd(pContext->glsl.shaders, pShader->id, pShader);
+    }
+
+    rc = SSMR3GetU32(pSSM, &uiNumElems);
+    AssertRCReturn(rc, rc);
+
+    for (ui=0; ui<uiNumElems; ++ui)
+    {
+        CRGLSLProgram *pProgram;
+        uint32_t numShaders;
+
+        pProgram = crAlloc(sizeof(*pProgram));
+        if (!pProgram) return VERR_NO_MEMORY;
+
+        rc = SSMR3GetMem(pSSM, &key, sizeof(key));
+        AssertRCReturn(rc, rc);
+
+        rc = SSMR3GetMem(pSSM, pProgram, sizeof(*pProgram));
+        AssertRCReturn(rc, rc);
+
+        crHashtableAdd(pContext->glsl.programs, key, pProgram);
+
+        pProgram->currentState.attachedShaders = crAllocHashtable();
+
+        rc = SSMR3GetU32(pSSM, &numShaders);
+        AssertRCReturn(rc, rc);
+
+        for (k=0; k<numShaders; ++k)
+        {
+            rc = SSMR3GetMem(pSSM, &key, sizeof(key));
+            AssertRCReturn(rc, rc);
+            crHashtableAdd(pProgram->currentState.attachedShaders, key, crHashtableSearch(pContext->glsl.shaders, key));
+        }
+
+        if (pProgram->activeState.attachedShaders)  
+        {
+            pProgram->activeState.attachedShaders = crAllocHashtable();
+
+            rc = SSMR3GetU32(pSSM, &numShaders);
+            AssertRCReturn(rc, rc);
+
+            for (k=0; k<numShaders; ++k)
+            {
+                CRGLSLShader *pShader = crStateLoadGLSLShader(pSSM);
+                if (!pShader) return VERR_SSM_UNEXPECTED_DATA;
+                crHashtableAdd(pProgram->activeState.attachedShaders, pShader->id, pShader);
+            }
+        }
+
+        if (pProgram->currentState.cAttribs) 
+            pProgram->currentState.pAttribs = (CRGLSLAttrib*) crAlloc(pProgram->currentState.cAttribs*sizeof(CRGLSLAttrib));
+        for (k=0; k<pProgram->currentState.cAttribs; ++k)
+        {
+            rc = SSMR3GetMem(pSSM, &pProgram->currentState.pAttribs[k].index, sizeof(pProgram->currentState.pAttribs[k].index));
+            AssertRCReturn(rc, rc);
+            pProgram->currentState.pAttribs[k].name = crStateLoadString(pSSM);
+        }
+
+        if (pProgram->activeState.cAttribs) 
+            pProgram->activeState.pAttribs = (CRGLSLAttrib*) crAlloc(pProgram->activeState.cAttribs*sizeof(CRGLSLAttrib));
+        for (k=0; k<pProgram->activeState.cAttribs; ++k)
+        {
+            rc = SSMR3GetMem(pSSM, &pProgram->activeState.pAttribs[k].index, sizeof(pProgram->activeState.pAttribs[k].index));
+            AssertRCReturn(rc, rc);
+            pProgram->activeState.pAttribs[k].name = crStateLoadString(pSSM);
+        }
+
+        {
+            int32_t cUniforms;
+            rc = SSMR3GetS32(pSSM, &cUniforms);
+            pProgram->cUniforms = cUniforms;
+            AssertRCReturn(rc, rc);
+        }
+
+        if (pProgram->cUniforms)
+        {
+            pProgram->pUniforms = crAlloc(pProgram->cUniforms*sizeof(CRGLSLUniform));
+            if (!pProgram) return VERR_NO_MEMORY;
+
+            for (k=0; k<pProgram->cUniforms; ++k)
+            {
+                size_t itemsize, datasize;
+
+                rc = SSMR3GetMem(pSSM, &pProgram->pUniforms[k].type, sizeof(GLenum));
+                pProgram->pUniforms[k].name = crStateLoadString(pSSM);
+
+                if (crStateIsIntUniform(pProgram->pUniforms[k].type))
+                {
+                    itemsize = sizeof(GLint);
+                } else itemsize = sizeof(GLfloat);
+
+                datasize = crStateGetUniformSize(pProgram->pUniforms[k].type)*itemsize;
+                pProgram->pUniforms[k].data = crAlloc(datasize);
+                if (!pProgram->pUniforms[k].data) return VERR_NO_MEMORY;
+
+                rc = SSMR3GetMem(pSSM, pProgram->pUniforms[k].data, datasize);
+            }
+        }
+    }
+
+    rc = SSMR3GetU32(pSSM, &ui);
+    AssertRCReturn(rc, rc);
+    pContext->glsl.activeProgram = ui==0 ? NULL
+                                         : crHashtableSearch(pContext->glsl.programs, ui);
+
+    /*Mark for resending to GPU*/
+    pContext->glsl.bResyncNeeded = GL_TRUE;
+#endif
+
+    {
+        CRViewportState *pVP = &pContext->viewport;
+        CRPixelPackState unpack = pContext->client.unpack;
+        GLint cbData = crPixelSize(GL_RGBA, GL_UNSIGNED_BYTE) * pVP->viewportH * pVP->viewportW;
+        void *pData = crAlloc(cbData);
+
+        if (!pData)
+        {
+            return VERR_NO_MEMORY;
+        }
+
+        rc = SSMR3GetMem(pSSM, pData, cbData);
+        AssertRCReturn(rc, rc);
+
+        diff_api.PixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+        diff_api.PixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+        diff_api.PixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        diff_api.PixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+        diff_api.PixelStorei(GL_UNPACK_IMAGE_HEIGHT, 0);
+        diff_api.PixelStorei(GL_UNPACK_SKIP_IMAGES, 0);
+        diff_api.PixelStorei(GL_UNPACK_SWAP_BYTES, 0);
+        diff_api.PixelStorei(GL_UNPACK_LSB_FIRST, 0);
+
+        diff_api.WindowPos2iARB(0, 0);
+        diff_api.DrawPixels(pVP->viewportW, pVP->viewportH, GL_RGBA, GL_UNSIGNED_BYTE, pData);
+
+        diff_api.PixelStorei(GL_UNPACK_SKIP_ROWS, unpack.skipRows);
+        diff_api.PixelStorei(GL_UNPACK_SKIP_PIXELS, unpack.skipPixels);
+        diff_api.PixelStorei(GL_UNPACK_ALIGNMENT, unpack.alignment);
+        diff_api.PixelStorei(GL_UNPACK_ROW_LENGTH, unpack.rowLength);
+        diff_api.PixelStorei(GL_UNPACK_IMAGE_HEIGHT, unpack.imageHeight);
+        diff_api.PixelStorei(GL_UNPACK_SKIP_IMAGES, unpack.skipImages);
+        diff_api.PixelStorei(GL_UNPACK_SWAP_BYTES, unpack.swapBytes);
+        diff_api.PixelStorei(GL_UNPACK_LSB_FIRST, unpack.psLSBFirst);
+
+        crFree(pData);
+    }
 
     return VINF_SUCCESS;
 }

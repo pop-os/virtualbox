@@ -1,4 +1,4 @@
-/* $Id: PDMDevice.cpp $ */
+/* $Id: PDMDevice.cpp 24730 2009-11-17 16:51:03Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, Device parts.
  */
@@ -136,7 +136,8 @@ int pdmR3DevInit(PVM pVM)
     rc = PDMR3LdrGetSymbolR0(pVM, NULL, "g_pdmR0DevHlp", &pDevHlpR0);
     AssertReleaseRCReturn(rc, rc);
 
-    rc = PDMR3QueueCreateInternal(pVM, sizeof(PDMDEVHLPTASK), 8, 0, pdmR3DevHlpQueueConsumer, true, &pVM->pdm.s.pDevHlpQueueR3);
+    rc = PDMR3QueueCreateInternal(pVM, sizeof(PDMDEVHLPTASK), 8, 0, pdmR3DevHlpQueueConsumer, true, "DevHlp",
+                                  &pVM->pdm.s.pDevHlpQueueR3);
     AssertRCReturn(rc, rc);
     pVM->pdm.s.pDevHlpQueueR0 = PDMQueueR0Ptr(pVM->pdm.s.pDevHlpQueueR3);
     pVM->pdm.s.pDevHlpQueueRC = PDMQueueRCPtr(pVM->pdm.s.pDevHlpQueueR3);
@@ -207,6 +208,7 @@ int pdmR3DevInit(PVM pVM)
             AssertMsgRCReturn(rc, ("Configuration error: reading \"Priority\" for the '%s' device failed rc=%Rrc!\n", szName, rc), rc);
 
         /* Enumerate the device instances. */
+        uint32_t const iStart = i;
         for (pInstanceNode = CFGMR3GetFirstChild(pCur); pInstanceNode; pInstanceNode = CFGMR3GetNextChild(pInstanceNode))
         {
             paDevs[i].pNode = pInstanceNode;
@@ -225,6 +227,12 @@ int pdmR3DevInit(PVM pVM)
             /* next instance */
             i++;
         }
+
+        /* check the number of instances */
+        if (i - iStart > pDev->pDevReg->cMaxInstances)
+            AssertLogRelMsgFailedReturn(("Configuration error: Too many instances of %s was configured: %u, max %u\n",
+                                         szName, i - iStart, pDev->pDevReg->cMaxInstances),
+                                        VERR_PDM_TOO_MANY_DEVICE_INSTANCES);
     } /* devices */
     Assert(i == cDevs);
 
@@ -283,6 +291,7 @@ int pdmR3DevInit(PVM pVM)
         /*
          * Allocate the device instance.
          */
+        AssertReturn(paDevs[i].pDev->cInstances < paDevs[i].pDev->pDevReg->cMaxInstances, VERR_PDM_TOO_MANY_DEVICE_INSTANCES);
         size_t cb = RT_OFFSETOF(PDMDEVINS, achInstanceData[paDevs[i].pDev->pDevReg->cbInstance]);
         cb = RT_ALIGN_Z(cb, 16);
         PPDMDEVINS pDevIns;
@@ -315,6 +324,7 @@ int pdmR3DevInit(PVM pVM)
         //pDevIns->Internal.s.pPciBusR0           = 0;
         //pDevIns->Internal.s.pPciDeviceRC        = 0;
         //pDevIns->Internal.s.pPciBusRC           = 0;
+        pDevIns->Internal.s.fIntFlags           = PDMDEVINSINT_FLAGS_SUSPENDED;
         pDevIns->pDevHlpR3                      = fTrusted ? &g_pdmR3DevHlpTrusted : &g_pdmR3DevHlpUnTrusted;
         pDevIns->pDevHlpRC                      = pDevHlpRC;
         pDevIns->pDevHlpR0                      = pDevHlpR0;
@@ -355,11 +365,13 @@ int pdmR3DevInit(PVM pVM)
         /*
          * Call the constructor.
          */
+        paDevs[i].pDev->cInstances++;
         Log(("PDM: Constructing device '%s' instance %d...\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
         rc = pDevIns->pDevReg->pfnConstruct(pDevIns, pDevIns->iInstance, pDevIns->pCfgHandle);
         if (RT_FAILURE(rc))
         {
             LogRel(("PDM: Failed to construct '%s'/%d! %Rra\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, rc));
+            paDevs[i].pDev->cInstances--;
             /* because we're damn lazy right now, we'll say that the destructor will be called even if the constructor fails. */
             return rc;
         }
@@ -735,7 +747,7 @@ static DECLCALLBACK(void *) pdmR3DevReg_MMHeapAlloc(PPDMDEVREGCB pCallbacks, siz
  * @param   ppLun           Where to store the pointer to the LUN if found.
  * @thread  Try only do this in EMT...
  */
-int pdmR3DevFindLun(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPDMLUN *ppLun)
+int pdmR3DevFindLun(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPPDMLUN ppLun)
 {
     /*
      * Iterate registered devices looking for the device.
@@ -784,14 +796,15 @@ int pdmR3DevFindLun(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned
  * @param   pszDevice       Device name.
  * @param   iInstance       Device instance.
  * @param   iLun            The Logical Unit to obtain the interface of.
+ * @param   fFlags          Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  * @param   ppBase          Where to store the base interface pointer. Optional.
  * @thread  EMT
  */
-VMMR3DECL(int) PDMR3DeviceAttach(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPDMIBASE *ppBase)
+VMMR3DECL(int) PDMR3DeviceAttach(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, uint32_t fFlags, PPPDMIBASE ppBase)
 {
     VM_ASSERT_EMT(pVM);
-    LogFlow(("PDMR3DeviceAttach: pszDevice=%p:{%s} iInstance=%d iLun=%d ppBase=%p\n",
-             pszDevice, pszDevice, iInstance, iLun, ppBase));
+    LogFlow(("PDMR3DeviceAttach: pszDevice=%p:{%s} iInstance=%d iLun=%d fFlags=%#x ppBase=%p\n",
+             pszDevice, pszDevice, iInstance, iLun, fFlags, ppBase));
 
     /*
      * Find the LUN in question.
@@ -808,8 +821,7 @@ VMMR3DECL(int) PDMR3DeviceAttach(PVM pVM, const char *pszDevice, unsigned iInsta
         {
             if (!pLun->pTop)
             {
-                rc = pDevIns->pDevReg->pfnAttach(pDevIns, iLun);
-
+                rc = pDevIns->pDevReg->pfnAttach(pDevIns, iLun, fFlags);
             }
             else
                 rc = VERR_PDM_DRIVER_ALREADY_ATTACHED;
@@ -841,13 +853,40 @@ VMMR3DECL(int) PDMR3DeviceAttach(PVM pVM, const char *pszDevice, unsigned iInsta
  * @param   pszDevice       Device name.
  * @param   iInstance       Device instance.
  * @param   iLun            The Logical Unit to obtain the interface of.
+ * @param   fFlags          Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  * @thread  EMT
  */
-VMMR3DECL(int) PDMR3DeviceDetach(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun)
+VMMR3DECL(int) PDMR3DeviceDetach(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, uint32_t fFlags)
+{
+    return PDMR3DriverDetach(pVM, pszDevice, iInstance, iLun, NULL, 0, fFlags);
+}
+
+
+/**
+ * Attaches a preconfigured driver to an existing device or driver instance.
+ *
+ * This is used to change drivers and suchlike at runtime.  The driver or device
+ * at the end of the chain will be told to attach to whatever is configured
+ * below it.
+ *
+ * @returns VBox status code.
+ * @param   pVM             VM Handle.
+ * @param   pszDevice       Device name.
+ * @param   iInstance       Device instance.
+ * @param   iLun            The Logical Unit to obtain the interface of.
+ * @param   fFlags          Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
+ * @param   ppBase          Where to store the base interface pointer. Optional.
+ *
+ * @thread  EMT
+ */
+VMMR3DECL(int) PDMR3DriverAttach(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, uint32_t fFlags, PPPDMIBASE ppBase)
 {
     VM_ASSERT_EMT(pVM);
-    LogFlow(("PDMR3DeviceDetach: pszDevice=%p:{%s} iInstance=%d iLun=%d\n",
-             pszDevice, pszDevice, iInstance, iLun));
+    LogFlow(("PDMR3DriverAttach: pszDevice=%p:{%s} iInstance=%d iLun=%d fFlags=%#x ppBase=%p\n",
+             pszDevice, pszDevice, iInstance, iLun, fFlags, ppBase));
+
+    if (ppBase)
+        *ppBase = NULL;
 
     /*
      * Find the LUN in question.
@@ -857,21 +896,156 @@ VMMR3DECL(int) PDMR3DeviceDetach(PVM pVM, const char *pszDevice, unsigned iInsta
     if (RT_SUCCESS(rc))
     {
         /*
-         * Can we detach anything at runtime?
+         * Anything attached to the LUN?
          */
-        PPDMDEVINS pDevIns = pLun->pDevIns;
-        if (pDevIns->pDevReg->pfnDetach)
+        PPDMDRVINS pDrvIns = pLun->pTop;
+        if (!pDrvIns)
         {
-            if (pLun->pTop)
-                rc = pdmR3DrvDetach(pLun->pTop);
+            /* No, ask the device to attach to the new stuff. */
+            PPDMDEVINS pDevIns = pLun->pDevIns;
+            if (pDevIns->pDevReg->pfnAttach)
+            {
+                rc = pDevIns->pDevReg->pfnAttach(pDevIns, iLun, fFlags);
+                if (RT_SUCCESS(rc) && ppBase)
+                    *ppBase = pLun->pTop ? &pLun->pTop->IBase : NULL;
+            }
             else
-                rc = VINF_PDM_NO_DRIVER_ATTACHED_TO_LUN;
+                rc = VERR_PDM_DEVICE_NO_RT_ATTACH;
         }
         else
-            rc = VERR_PDM_DEVICE_NO_RT_DETACH;
+        {
+            /* Yes, find the bottom most driver and ask it to attach to the new stuff. */
+            while (pDrvIns->Internal.s.pDown)
+                pDrvIns = pDrvIns->Internal.s.pDown;
+            if (pDrvIns->pDrvReg->pfnAttach)
+            {
+                rc = pDrvIns->pDrvReg->pfnAttach(pDrvIns, fFlags);
+                if (RT_SUCCESS(rc) && ppBase)
+                    *ppBase = pDrvIns->Internal.s.pDown
+                            ? &pDrvIns->Internal.s.pDown->IBase
+                            : NULL;
+            }
+            else
+                rc = VERR_PDM_DRIVER_NO_RT_ATTACH;
+        }
     }
 
-    LogFlow(("PDMR3DeviceDetach: returns %Rrc\n", rc));
+    if (ppBase)
+        LogFlow(("PDMR3DriverAttach: returns %Rrc *ppBase=%p\n", rc, *ppBase));
+    else
+        LogFlow(("PDMR3DriverAttach: returns %Rrc\n", rc));
     return rc;
+}
+
+
+/**
+ * Detaches the specified driver instance.
+ *
+ * This is used to replumb drivers at runtime for simulating hot plugging and
+ * media changes.
+ *
+ * This is a superset of PDMR3DeviceDetach.  It allows detaching drivers from
+ * any driver or device by specifying the driver to start detaching at.  The
+ * only prerequisite is that the driver or device above implements the
+ * pfnDetach callback (PDMDRVREG / PDMDEVREG).
+ *
+ * @returns VBox status code.
+ * @param   pVM             VM Handle.
+ * @param   pszDevice       Device name.
+ * @param   iDevIns         Device instance.
+ * @param   iLun            The Logical Unit in which to look for the driver.
+ * @param   pszDriver       The name of the driver which to detach.  If NULL
+ *                          then the entire driver chain is detatched.
+ * @param   iOccurance      The occurance of that driver in the chain.  This is
+ *                          usually 0.
+ * @param   fFlags          Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
+ * @thread  EMT
+ */
+VMMR3DECL(int) PDMR3DriverDetach(PVM pVM, const char *pszDevice, unsigned iDevIns, unsigned iLun,
+                                 const char *pszDriver, unsigned iOccurance, uint32_t fFlags)
+{
+    LogFlow(("PDMR3DriverDetach: pszDevice=%p:{%s} iDevIns=%u iLun=%u pszDriver=%p:{%s} iOccurance=%u fFlags=%#x\n",
+             pszDevice, pszDevice, iDevIns, iLun, pszDriver, iOccurance, fFlags));
+    VM_ASSERT_EMT(pVM);
+    AssertPtr(pszDevice);
+    AssertPtrNull(pszDriver);
+    Assert(iOccurance == 0 || pszDriver);
+    Assert(!(fFlags & ~(PDM_TACH_FLAGS_NOT_HOT_PLUG)));
+
+    /*
+     * Find the LUN in question.
+     */
+    PPDMLUN pLun;
+    int rc = pdmR3DevFindLun(pVM, pszDevice, iDevIns, iLun, &pLun);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Locate the driver.
+         */
+        PPDMDRVINS pDrvIns = pLun->pTop;
+        if (pDrvIns)
+        {
+            if (pszDriver)
+            {
+                while (pDrvIns)
+                {
+                    if (!strcmp(pDrvIns->pDrvReg->szDriverName, pszDriver))
+                    {
+                        if (iOccurance == 0)
+                            break;
+                        iOccurance--;
+                    }
+                    pDrvIns = pDrvIns->Internal.s.pDown;
+                }
+            }
+            if (pDrvIns)
+                rc = pdmR3DrvDetach(pDrvIns, fFlags);
+            else
+                rc = VERR_PDM_DRIVER_INSTANCE_NOT_FOUND;
+        }
+        else
+            rc = VINF_PDM_NO_DRIVER_ATTACHED_TO_LUN;
+    }
+
+    LogFlow(("PDMR3DriverDetach: returns %Rrc\n", rc));
+    return rc;
+}
+
+
+/**
+ * Runtime detach and reattach of a new driver chain or sub chain.
+ *
+ * This is intended to be called on a non-EMT thread, this will instantiate the
+ * new driver (sub-)chain, and then the EMTs will do the actual replumbing.  The
+ * destruction of the old driver chain will be taken care of on the calling
+ * thread.
+ *
+ * @returns VBox status code.
+ * @param   pVM             VM Handle.
+ * @param   pszDevice       Device name.
+ * @param   iDevIns         Device instance.
+ * @param   iLun            The Logical Unit in which to look for the driver.
+ * @param   pszDriver       The name of the driver which to detach and replace.
+ *                          If NULL then the entire driver chain is to be
+ *                          reattached.
+ * @param   iOccurance      The occurance of that driver in the chain.  This is
+ *                          usually 0.
+ * @param   fFlags          Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
+ * @param   pCfg            The configuration of the new driver chain that is
+ *                          going to be attached.  The subtree starts with the
+ *                          node containing a Driver key, a Config subtree and
+ *                          optionally an AttachedDriver subtree.
+ *                          If this parameter is NULL, then this call will work
+ *                          like at a non-pause version of PDMR3DriverDetach.
+ * @param   ppBase          Where to store the base interface pointer to the new
+ *                          driver.  Optional.
+ *
+ * @thread  Any thread. The EMTs will be involved at some point though.
+ */
+VMMR3DECL(int)  PDMR3DriverReattach(PVM pVM, const char *pszDevice, unsigned iDevIns, unsigned iLun,
+                                    const char *pszDriver, unsigned iOccurance, uint32_t fFlags,
+                                    PCFGMNODE pCfg, PPPDMIBASE ppBase)
+{
+    return VERR_NOT_IMPLEMENTED;
 }
 

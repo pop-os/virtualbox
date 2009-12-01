@@ -1,4 +1,4 @@
-/* $Id: alloc.cpp $ */
+/* $Id: alloc.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation.
  */
@@ -32,7 +32,9 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include <iprt/alloc.h>
+#include <iprt/mem.h>
+#include "internal/iprt.h"
+
 #include <iprt/assert.h>
 #include <iprt/string.h>
 
@@ -52,6 +54,7 @@ RTDECL(void *) RTMemDup(const void *pvSrc, size_t cb) RT_NO_THROW
         memcpy(pvDst, pvSrc, cb);
     return pvDst;
 }
+RT_EXPORT_SYMBOL(RTMemDup);
 
 
 /**
@@ -74,5 +77,6 @@ RTDECL(void *) RTMemDupEx(const void *pvSrc, size_t cbSrc, size_t cbExtra) RT_NO
     }
     return pvDst;
 }
+RT_EXPORT_SYMBOL(RTMemDupEx);
 
 

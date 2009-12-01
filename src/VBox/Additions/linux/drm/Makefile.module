@@ -158,6 +158,8 @@ endif
 KFLAGS   := -D__KERNEL__ -DMODULE -DRT_OS_LINUX -DIN_RING0 -DIN_RT_R0 \
 	    -DIN_SUP_R0 -DVBOX -DVBOX_WITH_HGCM -DLOG_TO_BACKDOOR -DIN_MODULE \
 	    -DIN_GUEST_R0
+# our module does not export any symbol
+KFLAGS   += -DRT_NO_EXPORT_SYMBOL
 ifeq ($(BUILD_TARGET_ARCH),amd64)
  KFLAGS  += -DRT_ARCH_AMD64 -DVBOX_WITH_64_BITS_GUESTS
 else
@@ -229,7 +231,7 @@ endif
 install: $(MODULE)
 	@mkdir -p $(MODULE_DIR); \
 	install -m 0664 -o root -g root $(MODULE).$(MODULE_EXT) $(MODULE_DIR); \
-	PATH="$(PATH):/bin:/sbin" depmod -ae;
+	PATH="$(PATH):/bin:/sbin" depmod -a;
 
 endif # eq($(MAKECMDGOALS),clean)
 

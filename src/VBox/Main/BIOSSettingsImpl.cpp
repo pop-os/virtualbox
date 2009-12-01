@@ -51,16 +51,16 @@ void BIOSSettings::FinalRelease()
 HRESULT BIOSSettings::init (Machine *aParent)
 {
     LogFlowThisFuncEnter();
-    LogFlowThisFunc (("aParent: %p\n", aParent));
+    LogFlowThisFunc(("aParent: %p\n", aParent));
 
     ComAssertRet (aParent, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
     /* share the parent weakly */
-    unconst (mParent) = aParent;
+    unconst(mParent) = aParent;
 
     mData.allocate();
 
@@ -81,13 +81,13 @@ HRESULT BIOSSettings::init (Machine *aParent)
 HRESULT BIOSSettings::init (Machine *aParent, BIOSSettings *that)
 {
     LogFlowThisFuncEnter();
-    LogFlowThisFunc (("aParent: %p, that: %p\n", aParent, that));
+    LogFlowThisFunc(("aParent: %p, that: %p\n", aParent, that));
 
     ComAssertRet (aParent && that, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
     mParent = aParent;
     mPeer = that;
@@ -109,13 +109,13 @@ HRESULT BIOSSettings::init (Machine *aParent, BIOSSettings *that)
 HRESULT BIOSSettings::initCopy (Machine *aParent, BIOSSettings *that)
 {
     LogFlowThisFuncEnter();
-    LogFlowThisFunc (("aParent: %p, that: %p\n", aParent, that));
+    LogFlowThisFunc(("aParent: %p, that: %p\n", aParent, that));
 
     ComAssertRet (aParent && that, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
     mParent = aParent;
     // mPeer is left null
@@ -138,7 +138,7 @@ void BIOSSettings::uninit()
     LogFlowThisFuncEnter();
 
     /* Enclose the state transition Ready->InUninit->NotReady */
-    AutoUninitSpan autoUninitSpan (this);
+    AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
         return;
 
@@ -158,10 +158,10 @@ STDMETHODIMP BIOSSettings::COMGETTER(LogoFadeIn)(BOOL *enabled)
     if (!enabled)
         return E_POINTER;
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *enabled = mData->mLogoFadeIn;
 
@@ -170,14 +170,14 @@ STDMETHODIMP BIOSSettings::COMGETTER(LogoFadeIn)(BOOL *enabled)
 
 STDMETHODIMP BIOSSettings::COMSETTER(LogoFadeIn)(BOOL enable)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     mData.backup();
     mData->mLogoFadeIn = enable;
@@ -190,10 +190,10 @@ STDMETHODIMP BIOSSettings::COMGETTER(LogoFadeOut)(BOOL *enabled)
     if (!enabled)
         return E_POINTER;
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *enabled = mData->mLogoFadeOut;
 
@@ -202,14 +202,14 @@ STDMETHODIMP BIOSSettings::COMGETTER(LogoFadeOut)(BOOL *enabled)
 
 STDMETHODIMP BIOSSettings::COMSETTER(LogoFadeOut)(BOOL enable)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     mData.backup();
     mData->mLogoFadeOut = enable;
@@ -222,10 +222,10 @@ STDMETHODIMP BIOSSettings::COMGETTER(LogoDisplayTime)(ULONG *displayTime)
     if (!displayTime)
         return E_POINTER;
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *displayTime = mData->mLogoDisplayTime;
 
@@ -234,14 +234,14 @@ STDMETHODIMP BIOSSettings::COMGETTER(LogoDisplayTime)(ULONG *displayTime)
 
 STDMETHODIMP BIOSSettings::COMSETTER(LogoDisplayTime)(ULONG displayTime)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     mData.backup();
     mData->mLogoDisplayTime = displayTime;
@@ -254,10 +254,10 @@ STDMETHODIMP BIOSSettings::COMGETTER(LogoImagePath)(BSTR *imagePath)
     if (!imagePath)
         return E_POINTER;
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     mData->mLogoImagePath.cloneTo(imagePath);
     return S_OK;
@@ -269,14 +269,14 @@ STDMETHODIMP BIOSSettings::COMSETTER(LogoImagePath)(IN_BSTR imagePath)
     if (imagePath && !(*imagePath))
         return E_INVALIDARG;
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     mData.backup();
     mData->mLogoImagePath = imagePath;
@@ -289,10 +289,10 @@ STDMETHODIMP BIOSSettings::COMGETTER(BootMenuMode)(BIOSBootMenuMode_T *bootMenuM
     if (!bootMenuMode)
         return E_POINTER;
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *bootMenuMode = mData->mBootMenuMode;
     return S_OK;
@@ -300,14 +300,14 @@ STDMETHODIMP BIOSSettings::COMGETTER(BootMenuMode)(BIOSBootMenuMode_T *bootMenuM
 
 STDMETHODIMP BIOSSettings::COMSETTER(BootMenuMode)(BIOSBootMenuMode_T bootMenuMode)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     mData.backup();
     mData->mBootMenuMode = bootMenuMode;
@@ -320,10 +320,10 @@ STDMETHODIMP BIOSSettings::COMGETTER(ACPIEnabled)(BOOL *enabled)
     if (!enabled)
         return E_POINTER;
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *enabled = mData->mACPIEnabled;
 
@@ -332,14 +332,14 @@ STDMETHODIMP BIOSSettings::COMGETTER(ACPIEnabled)(BOOL *enabled)
 
 STDMETHODIMP BIOSSettings::COMSETTER(ACPIEnabled)(BOOL enable)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     mData.backup();
     mData->mACPIEnabled = enable;
@@ -352,10 +352,10 @@ STDMETHODIMP BIOSSettings::COMGETTER(IOAPICEnabled)(BOOL *enabled)
     if (!enabled)
         return E_POINTER;
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *enabled = mData->mIOAPICEnabled;
 
@@ -364,14 +364,14 @@ STDMETHODIMP BIOSSettings::COMGETTER(IOAPICEnabled)(BOOL *enabled)
 
 STDMETHODIMP BIOSSettings::COMSETTER(IOAPICEnabled)(BOOL enable)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     mData.backup();
     mData->mIOAPICEnabled = enable;
@@ -384,10 +384,10 @@ STDMETHODIMP BIOSSettings::COMGETTER(PXEDebugEnabled)(BOOL *enabled)
     if (!enabled)
         return E_POINTER;
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *enabled = mData->mPXEDebugEnabled;
 
@@ -396,14 +396,14 @@ STDMETHODIMP BIOSSettings::COMGETTER(PXEDebugEnabled)(BOOL *enabled)
 
 STDMETHODIMP BIOSSettings::COMSETTER(PXEDebugEnabled)(BOOL enable)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     mData.backup();
     mData->mPXEDebugEnabled = enable;
@@ -416,10 +416,10 @@ STDMETHODIMP BIOSSettings::COMGETTER(TimeOffset)(LONG64 *offset)
     if (!offset)
         return E_POINTER;
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *offset = mData->mTimeOffset;
 
@@ -428,14 +428,14 @@ STDMETHODIMP BIOSSettings::COMGETTER(TimeOffset)(LONG64 *offset)
 
 STDMETHODIMP BIOSSettings::COMSETTER(TimeOffset)(LONG64 offset)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     mData.backup();
     mData->mTimeOffset = offset;
@@ -458,90 +458,25 @@ STDMETHODIMP BIOSSettings::COMSETTER(TimeOffset)(LONG64 offset)
  *
  *  @note Locks this object for writing.
  */
-HRESULT BIOSSettings::loadSettings (const settings::Key &aMachineNode)
+HRESULT BIOSSettings::loadSettings(const settings::BIOSSettings &data)
 {
-    using namespace settings;
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.rc());
 
-    AssertReturn (!aMachineNode.isNull(), E_FAIL);
+    AutoWriteLock alock(this);
 
-    AutoCaller autoCaller (this);
-    AssertComRCReturnRC (autoCaller.rc());
+    mData->mACPIEnabled = data.fACPIEnabled;
+    mData->mIOAPICEnabled = data.fIOAPICEnabled;
 
-    AutoWriteLock alock (this);
+    mData->mLogoFadeIn = data.fLogoFadeIn;
+    mData->mLogoFadeOut = data.fLogoFadeOut;
+    mData->mLogoDisplayTime = data.ulLogoDisplayTime;
+    mData->mLogoImagePath = data.strLogoImagePath;
 
-    /* Note: we assume that the default values for attributes of optional
-     * nodes are assigned in the Data::Data() constructor and don't do it
-     * here. It implies that this method may only be called after constructing
-     * a new BIOSSettings object while all its data fields are in the default
-     * values. Exceptions are fields whose creation time defaults don't match
-     * values that should be applied when these fields are not explicitly set
-     * in the settings file (for backwards compatibility reasons). This takes
-     * place when a setting of a newly created object must default to A while
-     * the same setting of an object loaded from the old settings file must
-     * default to B. */
+    mData->mBootMenuMode = data.biosBootMenuMode;
 
-    /* BIOS node (required) */
-    Key biosNode = aMachineNode.key ("BIOS");
-
-    /* ACPI (required) */
-    {
-        Key acpiNode = biosNode.key ("ACPI");
-
-        mData->mACPIEnabled = acpiNode.value <bool> ("enabled");
-    }
-
-    /* IOAPIC (optional) */
-    {
-        Key ioapicNode = biosNode.findKey ("IOAPIC");
-        if (!ioapicNode.isNull())
-            mData->mIOAPICEnabled = ioapicNode.value <bool> ("enabled");
-    }
-
-    /* Logo (optional) */
-    {
-        Key logoNode = biosNode.findKey ("Logo");
-        if (!logoNode.isNull())
-        {
-            mData->mLogoFadeIn = logoNode.value <bool> ("fadeIn");
-            mData->mLogoFadeOut = logoNode.value <bool> ("fadeOut");
-            mData->mLogoDisplayTime = logoNode.value <ULONG> ("displayTime");
-            mData->mLogoImagePath = logoNode.stringValue ("imagePath");
-        }
-    }
-
-    /* boot menu (optional) */
-    {
-        Key bootMenuNode = biosNode.findKey ("BootMenu");
-        if (!bootMenuNode.isNull())
-        {
-            mData->mBootMenuMode = BIOSBootMenuMode_MessageAndMenu;
-            const char *modeStr = bootMenuNode.stringValue ("mode");
-
-            if (strcmp (modeStr, "Disabled") == 0)
-                mData->mBootMenuMode = BIOSBootMenuMode_Disabled;
-            else if (strcmp (modeStr, "MenuOnly") == 0)
-                mData->mBootMenuMode = BIOSBootMenuMode_MenuOnly;
-            else if (strcmp (modeStr, "MessageAndMenu") == 0)
-                mData->mBootMenuMode = BIOSBootMenuMode_MessageAndMenu;
-            else
-                ComAssertMsgFailedRet (("Invalid boot menu mode '%s'", modeStr),
-                                       E_FAIL);
-        }
-    }
-
-    /* PXE debug logging (optional) */
-    {
-        Key pxedebugNode = biosNode.findKey ("PXEDebug");
-        if (!pxedebugNode.isNull())
-            mData->mPXEDebugEnabled = pxedebugNode.value <bool> ("enabled");
-    }
-
-    /* time offset (optional) */
-    {
-        Key timeOffsetNode = biosNode.findKey ("TimeOffset");
-        if (!timeOffsetNode.isNull())
-            mData->mTimeOffset = timeOffsetNode.value <LONG64> ("value");
-    }
+    mData->mPXEDebugEnabled = data.fPXEDebugEnabled;
+    mData->mTimeOffset = data.llTimeOffset;
 
     return S_OK;
 }
@@ -553,74 +488,24 @@ HRESULT BIOSSettings::loadSettings (const settings::Key &aMachineNode)
  *
  *  @note Locks this object for reading.
  */
-HRESULT BIOSSettings::saveSettings (settings::Key &aMachineNode)
+HRESULT BIOSSettings::saveSettings(settings::BIOSSettings &data)
 {
-    using namespace settings;
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.rc());
 
-    AssertReturn (!aMachineNode.isNull(), E_FAIL);
+    AutoReadLock alock(this);
 
-    AutoCaller autoCaller (this);
-    AssertComRCReturnRC (autoCaller.rc());
+    data.fACPIEnabled = !!mData->mACPIEnabled;
+    data.fIOAPICEnabled = !!mData->mIOAPICEnabled;
 
-    AutoReadLock alock (this);
+    data.fLogoFadeIn = !!mData->mLogoFadeIn;
+    data.fLogoFadeOut = !!mData->mLogoFadeOut;
+    data.ulLogoDisplayTime = mData->mLogoDisplayTime;
+    data.strLogoImagePath = mData->mLogoImagePath;
 
-    Key biosNode = aMachineNode.createKey ("BIOS");
-
-    /* ACPI */
-    {
-        Key acpiNode = biosNode.createKey ("ACPI");
-        acpiNode.setValue <bool> ("enabled", !!mData->mACPIEnabled);
-    }
-
-    /* IOAPIC */
-    {
-        Key ioapicNode = biosNode.createKey ("IOAPIC");
-        ioapicNode.setValue <bool> ("enabled", !!mData->mIOAPICEnabled);
-    }
-
-    /* BIOS logo (optional) **/
-    {
-        Key logoNode = biosNode.createKey ("Logo");
-        logoNode.setValue <bool> ("fadeIn", !!mData->mLogoFadeIn);
-        logoNode.setValue <bool> ("fadeOut", !!mData->mLogoFadeOut);
-        logoNode.setValue <ULONG> ("displayTime", mData->mLogoDisplayTime);
-        logoNode.setValueOr <Bstr> ("imagePath", mData->mLogoImagePath, Bstr::Null);
-    }
-
-    /* boot menu (optional) */
-    {
-        Key bootMenuNode = biosNode.createKey ("BootMenu");
-        const char *modeStr = NULL;
-        switch (mData->mBootMenuMode)
-        {
-            case BIOSBootMenuMode_Disabled:
-                modeStr = "Disabled";
-                break;
-            case BIOSBootMenuMode_MenuOnly:
-                modeStr = "MenuOnly";
-                break;
-            case BIOSBootMenuMode_MessageAndMenu:
-                modeStr = "MessageAndMenu";
-                break;
-            default:
-                ComAssertMsgFailedRet (("Invalid boot menu type: %d",
-                                        mData->mBootMenuMode),
-                                       E_FAIL);
-        }
-        bootMenuNode.setStringValue ("mode", modeStr);
-    }
-
-    /* time offset (optional) */
-    {
-        Key timeOffsetNode = biosNode.createKey ("TimeOffset");
-        timeOffsetNode.setValue <LONG64> ("value", mData->mTimeOffset);
-    }
-
-    /* PXE debug flag (optional) */
-    {
-        Key pxedebugNode = biosNode.createKey ("PXEDebug");
-        pxedebugNode.setValue <bool> ("enabled", !!mData->mPXEDebugEnabled);
-    }
+    data.biosBootMenuMode = mData->mBootMenuMode;
+    data.fPXEDebugEnabled = !!mData->mPXEDebugEnabled;
+    data.llTimeOffset = mData->mTimeOffset;
 
     return S_OK;
 }
@@ -628,7 +513,7 @@ HRESULT BIOSSettings::saveSettings (settings::Key &aMachineNode)
 void BIOSSettings::commit()
 {
     /* sanity */
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
     AssertComRCReturnVoid (autoCaller.rc());
 
     /* sanity too */
@@ -656,7 +541,7 @@ void BIOSSettings::copyFrom (BIOSSettings *aThat)
     AssertReturnVoid (aThat != NULL);
 
     /* sanity */
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
     AssertComRCReturnVoid (autoCaller.rc());
 
     /* sanity too */
@@ -676,10 +561,10 @@ void BIOSSettings::applyDefaults (GuestOSType *aOsType)
     AssertReturnVoid (aOsType != NULL);
 
     /* sanity */
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
     AssertComRCReturnVoid (autoCaller.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     /* Initialize default BIOS settings here */
     mData->mIOAPICEnabled = aOsType->recommendedIOAPIC();

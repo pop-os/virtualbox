@@ -1,4 +1,4 @@
-/* $Id: threadpreempt-r0drv-darwin.cpp $ */
+/* $Id: threadpreempt-r0drv-darwin.cpp 22150 2009-08-11 09:41:58Z vboxsync $ */
 /** @file
  * IPRT - Thread Preemption, Ring-0 Driver, Darwin.
  */
@@ -28,16 +28,18 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-darwin-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/thread.h>
 
+#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/mp.h>
-#include <iprt/asm.h>
 
 
 /*******************************************************************************
@@ -51,7 +53,6 @@ typedef struct RTDARWINPREEMPTHACK
     uint32_t            cRecursion;
 } RTDARWINPREEMPTHACK;
 typedef RTDARWINPREEMPTHACK *PRTDARWINPREEMPTHACK;
-
 
 
 /*******************************************************************************
@@ -129,11 +130,18 @@ RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
 }
 
 
+RTDECL(bool) RTThreadPreemptIsPossible(void)
+{
+    /* yes, kernel preemption is possible. */
+    return true;
+}
+
+
 RTDECL(void) RTThreadPreemptDisable(PRTTHREADPREEMPTSTATE pState)
 {
     AssertPtr(pState);
-    Assert(pState->uchDummy != 42);
-    pState->uchDummy = 42;
+    Assert(pState->u32Reserved == 0);
+    pState->u32Reserved = 42;
 
     /*
      * Disable to prevent preemption while we grab the per-cpu spin lock.
@@ -155,14 +163,16 @@ RTDECL(void) RTThreadPreemptDisable(PRTTHREADPREEMPTSTATE pState)
     }
     ASMSetFlags(fSavedFlags);
     Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
+    RT_ASSERT_PREEMPT_CPUID_DISABLE(pState);
 }
 
 
 RTDECL(void) RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState)
 {
     AssertPtr(pState);
-    Assert(pState->uchDummy == 42);
-    pState->uchDummy = 0;
+    Assert(pState->u32Reserved == 42);
+    pState->u32Reserved = 0;
+    RT_ASSERT_PREEMPT_CPUID_RESTORE(pState);
 
     RTCPUID idCpu = RTMpCpuId();
     if (RT_UNLIKELY(idCpu < RT_ELEMENTS(g_aPreemptHacks)))
@@ -179,4 +189,12 @@ RTDECL(void) RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState)
     }
 }
 
+
+RTDECL(bool) RTThreadIsInInterrupt(RTTHREAD hThread)
+{
+    Assert(hThread == NIL_RTTHREAD); NOREF(hThread);
+    /** @todo Darwin: Implement RTThreadIsInInterrupt. Required for guest
+     *        additions! */
+    return !ASMIntAreEnabled();
+}
 

@@ -1,4 +1,4 @@
-/* $Id: getopt.cpp $ */
+/* $Id: getopt.cpp 24825 2009-11-20 14:41:05Z vboxsync $ */
 /** @file
  * IPRT - Command Line Parsing
  */
@@ -31,12 +31,15 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include <iprt/net.h>
+#include <iprt/net.h>                   /* must come before getopt.h */
 #include <iprt/getopt.h>
-#include <iprt/err.h>
-#include <iprt/string.h>
+#include "internal/iprt.h"
+
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
+#include <iprt/err.h>
+#include <iprt/message.h>
+#include <iprt/string.h>
 #include <iprt/uuid.h>
 
 
@@ -68,6 +71,7 @@ RTDECL(int) RTGetOptInit(PRTGETOPTSTATE pState, int argc, char **argv,
      *        first. */
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTGetOptInit);
 
 
 /**
@@ -188,15 +192,40 @@ static PCRTGETOPTDEF rtGetOptSearchLong(const char *pszOption, PCRTGETOPTDEF paO
                 /*
                  * A value is required with the argument. We're trying to be very
                  * understanding here and will permit any of the following:
-                 *      --long:value,  --long=value, --long value,
-                 *      --long: value, --long= value
+                 *      --long12:value,  --long12=value, --long12 value,
+                 *      --long:value,    --long=value,   --long value,
+                 *      --long: value,   --long= value
+                 *
+                 * If the option is index, then all trailing chars must be
+                 * digits.  For error reporting reasons we also match where
+                 * there is no index.
                  */
                 size_t cchLong = strlen(pOpt->pszLong);
-                if (    !strncmp(pszOption, pOpt->pszLong, cchLong)
-                    && (   pszOption[cchLong] == '\0'
+                if (!strncmp(pszOption, pOpt->pszLong, cchLong))
+                {
+                    if (pOpt->fFlags & RTGETOPT_FLAG_INDEX)
+                        while (RT_C_IS_DIGIT(pszOption[cchLong]))
+                            cchLong++;
+                    if (   pszOption[cchLong] == '\0'
                         || pszOption[cchLong] == ':'
-                        || pszOption[cchLong] == '='))
-                    return pOpt;
+                        || pszOption[cchLong] == '=')
+                        return pOpt;
+                }
+            }
+            else if (pOpt->fFlags & RTGETOPT_FLAG_INDEX)
+            {
+                /*
+                 * The option takes an index but no value.
+                 * As above, we also match where there is no index.
+                 */
+                size_t cchLong = strlen(pOpt->pszLong);
+                if (!strncmp(pszOption, pOpt->pszLong, cchLong))
+                {
+                    while (RT_C_IS_DIGIT(pszOption[cchLong]))
+                        cchLong++;
+                    if (pszOption[cchLong] == '\0')
+                        return pOpt;
+                }
             }
             else if (!strcmp(pszOption, pOpt->pszLong))
                 return pOpt;
@@ -228,9 +257,151 @@ static PCRTGETOPTDEF rtGetOptSearchShort(int chOption, PCRTGETOPTDEF paOptions, 
 }
 
 
+/**
+ * Value string -> Value union.
+ *
+ * @returns IPRT status code.
+ * @param   fFlags              The value flags.
+ * @param   pszValue            The value string.
+ * @param   pValueUnion         Where to return the processed value.
+ */
+static int rtGetOptProcessValue(uint32_t fFlags, const char *pszValue, PRTGETOPTUNION pValueUnion)
+{
+    /*
+     * Transform into a option value as requested.
+     * If decimal conversion fails, we'll check for "0x<xdigit>" and
+     * try a 16 based conversion. We will not interpret any of the
+     * generic ints as octals.
+     */
+    switch (fFlags & (  RTGETOPT_REQ_MASK
+                      | RTGETOPT_FLAG_HEX
+                      | RTGETOPT_FLAG_DEC
+                      | RTGETOPT_FLAG_OCT))
+    {
+        case RTGETOPT_REQ_STRING:
+            pValueUnion->psz = pszValue;
+            break;
+
+        case RTGETOPT_REQ_BOOL_ONOFF:
+            if (!RTStrICmp(pszValue, "on"))
+                pValueUnion->f = true;
+            else if (!RTStrICmp(pszValue, "off"))
+                pValueUnion->f = false;
+            else
+            {
+                pValueUnion->psz = pszValue;
+                return VERR_GETOPT_UNKNOWN_OPTION;
+            }
+            break;
+
+#define MY_INT_CASE(req,type,memb,convfn) \
+            case req: \
+            { \
+                type Value; \
+                if (    convfn(pszValue, 10, &Value) != VINF_SUCCESS \
+                    &&  (   pszValue[0] != '0' \
+                         || (pszValue[1] != 'x' && pszValue[1] != 'X') \
+                         || !RT_C_IS_XDIGIT(pszValue[2]) \
+                         || convfn(pszValue, 16, &Value) != VINF_SUCCESS ) ) \
+                    return VERR_GETOPT_INVALID_ARGUMENT_FORMAT; \
+                pValueUnion->memb = Value; \
+                break; \
+            }
+#define MY_BASE_INT_CASE(req,type,memb,convfn,base) \
+            case req: \
+            { \
+                type Value; \
+                if (convfn(pszValue, base, &Value) != VINF_SUCCESS) \
+                    return VERR_GETOPT_INVALID_ARGUMENT_FORMAT; \
+                pValueUnion->memb = Value; \
+                break; \
+            }
+
+        MY_INT_CASE(RTGETOPT_REQ_INT8,   int8_t,   i,   RTStrToInt8Full)
+        MY_INT_CASE(RTGETOPT_REQ_INT16,  int16_t,  i,   RTStrToInt16Full)
+        MY_INT_CASE(RTGETOPT_REQ_INT32,  int32_t,  i,   RTStrToInt32Full)
+        MY_INT_CASE(RTGETOPT_REQ_INT64,  int64_t,  i,   RTStrToInt64Full)
+        MY_INT_CASE(RTGETOPT_REQ_UINT8,  uint8_t,  u,   RTStrToUInt8Full)
+        MY_INT_CASE(RTGETOPT_REQ_UINT16, uint16_t, u,   RTStrToUInt16Full)
+        MY_INT_CASE(RTGETOPT_REQ_UINT32, uint32_t, u,   RTStrToUInt32Full)
+        MY_INT_CASE(RTGETOPT_REQ_UINT64, uint64_t, u,   RTStrToUInt64Full)
+
+        MY_BASE_INT_CASE(RTGETOPT_REQ_INT8   | RTGETOPT_FLAG_HEX, int8_t,   i,   RTStrToInt8Full,   16)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_INT16  | RTGETOPT_FLAG_HEX, int16_t,  i,   RTStrToInt16Full,  16)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_INT32  | RTGETOPT_FLAG_HEX, int32_t,  i,   RTStrToInt32Full,  16)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_INT64  | RTGETOPT_FLAG_HEX, int64_t,  i,   RTStrToInt64Full,  16)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_UINT8  | RTGETOPT_FLAG_HEX, uint8_t,  u,   RTStrToUInt8Full,  16)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_UINT16 | RTGETOPT_FLAG_HEX, uint16_t, u,   RTStrToUInt16Full, 16)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX, uint32_t, u,   RTStrToUInt32Full, 16)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_UINT64 | RTGETOPT_FLAG_HEX, uint64_t, u,   RTStrToUInt64Full, 16)
+
+        MY_BASE_INT_CASE(RTGETOPT_REQ_INT8   | RTGETOPT_FLAG_DEC, int8_t,   i,   RTStrToInt8Full,   10)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_INT16  | RTGETOPT_FLAG_DEC, int16_t,  i,   RTStrToInt16Full,  10)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_INT32  | RTGETOPT_FLAG_DEC, int32_t,  i,   RTStrToInt32Full,  10)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_INT64  | RTGETOPT_FLAG_DEC, int64_t,  i,   RTStrToInt64Full,  10)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_UINT8  | RTGETOPT_FLAG_DEC, uint8_t,  u,   RTStrToUInt8Full,  10)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_UINT16 | RTGETOPT_FLAG_DEC, uint16_t, u,   RTStrToUInt16Full, 10)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_DEC, uint32_t, u,   RTStrToUInt32Full, 10)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_UINT64 | RTGETOPT_FLAG_DEC, uint64_t, u,   RTStrToUInt64Full, 10)
+
+        MY_BASE_INT_CASE(RTGETOPT_REQ_INT8   | RTGETOPT_FLAG_OCT, int8_t,   i,   RTStrToInt8Full,   8)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_INT16  | RTGETOPT_FLAG_OCT, int16_t,  i,   RTStrToInt16Full,  8)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_INT32  | RTGETOPT_FLAG_OCT, int32_t,  i,   RTStrToInt32Full,  8)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_INT64  | RTGETOPT_FLAG_OCT, int64_t,  i,   RTStrToInt64Full,  8)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_UINT8  | RTGETOPT_FLAG_OCT, uint8_t,  u,   RTStrToUInt8Full,  8)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_UINT16 | RTGETOPT_FLAG_OCT, uint16_t, u,   RTStrToUInt16Full, 8)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_OCT, uint32_t, u,   RTStrToUInt32Full, 8)
+        MY_BASE_INT_CASE(RTGETOPT_REQ_UINT64 | RTGETOPT_FLAG_OCT, uint64_t, u,   RTStrToUInt64Full, 8)
+
+#undef MY_INT_CASE
+#undef MY_BASE_INT_CASE
+
+        case RTGETOPT_REQ_IPV4ADDR:
+        {
+            RTNETADDRIPV4 Addr;
+            if (rtgetoptConvertIPv4Addr(pszValue, &Addr) != VINF_SUCCESS)
+                return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
+            pValueUnion->IPv4Addr = Addr;
+            break;
+        }
+#if 0  /** @todo CIDR */
+#endif
+
+        case RTGETOPT_REQ_MACADDR:
+        {
+            RTMAC Addr;
+            if (rtgetoptConvertMacAddr(pszValue, &Addr) != VINF_SUCCESS)
+                return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
+            pValueUnion->MacAddr = Addr;
+            break;
+        }
+
+        case RTGETOPT_REQ_UUID:
+        {
+            RTUUID Uuid;
+            if (RTUuidFromStr(&Uuid, pszValue) != VINF_SUCCESS)
+                return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
+            pValueUnion->Uuid = Uuid;
+            break;
+        }
+
+        default:
+            AssertMsgFailed(("f=%#x\n", fFlags));
+            return VERR_INTERNAL_ERROR;
+    }
+
+    return VINF_SUCCESS;
+}
+
+
 RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion)
 {
+    /*
+     * Reset the variables kept in state.
+     */
     pState->pDef = NULL;
+    pState->uIndex = UINT64_MAX;
+
     /*
      * Make sure the union is completely cleared out, whatever happens below.
      */
@@ -334,125 +505,55 @@ RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion)
             else
             {
                 size_t cchLong = strlen(pOpt->pszLong);
-                if (    pszArgThis[cchLong]     == '\0'
-                    ||  pszArgThis[cchLong + 1] == '\0')
+                if (pOpt->fFlags & RTGETOPT_FLAG_INDEX)
                 {
-                    if (iThis + 1 >= pState->argc)
-                        return VERR_GETOPT_REQUIRED_ARGUMENT_MISSING;
-                    pszValue = pState->argv[iThis + 1];
-                    pState->iNext++;
+
+                    if (pszArgThis[cchLong] == '\0')
+                        return VERR_GETOPT_INDEX_MISSING;
+
+                    uint64_t uIndex;
+                    char *pszRet = NULL;
+                    int rc = RTStrToUInt64Ex(&pszArgThis[cchLong], &pszRet, 10, &uIndex);
+                    if (rc == VWRN_TRAILING_CHARS)
+                    {
+                        if (   pszRet[0] != ':'
+                            && pszRet[0] != '=')
+                            return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
+                        pState->uIndex = uIndex;
+                        pszValue = pszRet + 1;
+                    }
+                    else if (rc == VINF_SUCCESS)
+                    {
+                        if (iThis + 1 >= pState->argc)
+                            return VERR_GETOPT_REQUIRED_ARGUMENT_MISSING;
+                        pState->uIndex = uIndex;
+                        pszValue = pState->argv[iThis + 1];
+                        pState->iNext++;
+                    }
+                    else
+                        AssertMsgFailedReturn(("%s\n", pszArgThis), VERR_GETOPT_INVALID_ARGUMENT_FORMAT); /* search bug */
                 }
-                else /* same argument. */
-                    pszValue = &pszArgThis[cchLong + 1];
+                else
+                {
+                    if (    pszArgThis[cchLong]     == '\0'
+                        ||  pszArgThis[cchLong + 1] == '\0')
+                    {
+                        if (iThis + 1 >= pState->argc)
+                            return VERR_GETOPT_REQUIRED_ARGUMENT_MISSING;
+                        pszValue = pState->argv[iThis + 1];
+                        pState->iNext++;
+                    }
+                    else /* same argument. */
+                        pszValue = &pszArgThis[cchLong + 1];
+                }
             }
 
             /*
-             * Transform into a option value as requested.
-             * If decimal conversion fails, we'll check for "0x<xdigit>" and
-             * try a 16 based conversion. We will not interpret any of the
-             * generic ints as octals.
+             * Set up the ValueUnion.
              */
-            switch (pOpt->fFlags & (RTGETOPT_REQ_MASK | RTGETOPT_FLAG_HEX | RTGETOPT_FLAG_OCT | RTGETOPT_FLAG_DEC))
-            {
-                case RTGETOPT_REQ_STRING:
-                    pValueUnion->psz = pszValue;
-                    break;
-
-#define MY_INT_CASE(req,type,memb,convfn) \
-                    case req: \
-                    { \
-                        type Value; \
-                        if (    convfn(pszValue, 10, &Value) != VINF_SUCCESS \
-                            &&  (   pszValue[0] != '0' \
-                                 || (pszValue[1] != 'x' && pszValue[1] != 'X') \
-                                 || !RT_C_IS_XDIGIT(pszValue[2]) \
-                                 || convfn(pszValue, 16, &Value) != VINF_SUCCESS ) ) \
-                            return VERR_GETOPT_INVALID_ARGUMENT_FORMAT; \
-                        pValueUnion->memb = Value; \
-                        break; \
-                    }
-#define MY_BASE_INT_CASE(req,type,memb,convfn,base) \
-                    case req: \
-                    { \
-                        type Value; \
-                        if (convfn(pszValue, base, &Value) != VINF_SUCCESS) \
-                            return VERR_GETOPT_INVALID_ARGUMENT_FORMAT; \
-                        pValueUnion->memb = Value; \
-                        break; \
-                    }
-
-                MY_INT_CASE(RTGETOPT_REQ_INT8,   int8_t,   i,   RTStrToInt8Full)
-                MY_INT_CASE(RTGETOPT_REQ_INT16,  int16_t,  i,   RTStrToInt16Full)
-                MY_INT_CASE(RTGETOPT_REQ_INT32,  int32_t,  i,   RTStrToInt32Full)
-                MY_INT_CASE(RTGETOPT_REQ_INT64,  int64_t,  i,   RTStrToInt64Full)
-                MY_INT_CASE(RTGETOPT_REQ_UINT8,  uint8_t,  u,   RTStrToUInt8Full)
-                MY_INT_CASE(RTGETOPT_REQ_UINT16, uint16_t, u,   RTStrToUInt16Full)
-                MY_INT_CASE(RTGETOPT_REQ_UINT32, uint32_t, u,   RTStrToUInt32Full)
-                MY_INT_CASE(RTGETOPT_REQ_UINT64, uint64_t, u,   RTStrToUInt64Full)
-
-                MY_BASE_INT_CASE(RTGETOPT_REQ_INT8   | RTGETOPT_FLAG_HEX, int8_t,   i,   RTStrToInt8Full,   16)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_INT16  | RTGETOPT_FLAG_HEX, int16_t,  i,   RTStrToInt16Full,  16)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_INT32  | RTGETOPT_FLAG_HEX, int32_t,  i,   RTStrToInt32Full,  16)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_INT64  | RTGETOPT_FLAG_HEX, int64_t,  i,   RTStrToInt64Full,  16)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_UINT8  | RTGETOPT_FLAG_HEX, uint8_t,  u,   RTStrToUInt8Full,  16)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_UINT16 | RTGETOPT_FLAG_HEX, uint16_t, u,   RTStrToUInt16Full, 16)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX, uint32_t, u,   RTStrToUInt32Full, 16)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_UINT64 | RTGETOPT_FLAG_HEX, uint64_t, u,   RTStrToUInt64Full, 16)
-
-                MY_BASE_INT_CASE(RTGETOPT_REQ_INT8   | RTGETOPT_FLAG_DEC, int8_t,   i,   RTStrToInt8Full,   10)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_INT16  | RTGETOPT_FLAG_DEC, int16_t,  i,   RTStrToInt16Full,  10)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_INT32  | RTGETOPT_FLAG_DEC, int32_t,  i,   RTStrToInt32Full,  10)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_INT64  | RTGETOPT_FLAG_DEC, int64_t,  i,   RTStrToInt64Full,  10)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_UINT8  | RTGETOPT_FLAG_DEC, uint8_t,  u,   RTStrToUInt8Full,  10)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_UINT16 | RTGETOPT_FLAG_DEC, uint16_t, u,   RTStrToUInt16Full, 10)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_DEC, uint32_t, u,   RTStrToUInt32Full, 10)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_UINT64 | RTGETOPT_FLAG_DEC, uint64_t, u,   RTStrToUInt64Full, 10)
-
-                MY_BASE_INT_CASE(RTGETOPT_REQ_INT8   | RTGETOPT_FLAG_OCT, int8_t,   i,   RTStrToInt8Full,   8)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_INT16  | RTGETOPT_FLAG_OCT, int16_t,  i,   RTStrToInt16Full,  8)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_INT32  | RTGETOPT_FLAG_OCT, int32_t,  i,   RTStrToInt32Full,  8)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_INT64  | RTGETOPT_FLAG_OCT, int64_t,  i,   RTStrToInt64Full,  8)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_UINT8  | RTGETOPT_FLAG_OCT, uint8_t,  u,   RTStrToUInt8Full,  8)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_UINT16 | RTGETOPT_FLAG_OCT, uint16_t, u,   RTStrToUInt16Full, 8)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_OCT, uint32_t, u,   RTStrToUInt32Full, 8)
-                MY_BASE_INT_CASE(RTGETOPT_REQ_UINT64 | RTGETOPT_FLAG_OCT, uint64_t, u,   RTStrToUInt64Full, 8)
-
-#undef MY_INT_CASE
-#undef MY_BASE_INT_CASE
-
-                case RTGETOPT_REQ_IPV4ADDR:
-                {
-                    RTNETADDRIPV4 Addr;
-                    if (rtgetoptConvertIPv4Addr(pszValue, &Addr) != VINF_SUCCESS)
-                        return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-                    pValueUnion->IPv4Addr = Addr;
-                    break;
-                }
-#if 0  /** @todo CIDR */
-#endif
-
-                case RTGETOPT_REQ_MACADDR:
-                {
-                    RTMAC Addr;
-                    if (rtgetoptConvertMacAddr(pszValue, &Addr) != VINF_SUCCESS)
-                        return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-                    pValueUnion->MacAddr = Addr;
-                    break;
-                }
-
-                case RTGETOPT_REQ_UUID:
-                {
-                    RTUUID Uuid;
-                    if (RTUuidFromStr(&Uuid, pszValue) != VINF_SUCCESS)
-                        return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-                    pValueUnion->Uuid = Uuid;
-                    break;
-                }
-
-                default:
-                    AssertMsgFailed(("i=%d f=%#x\n", pOpt - &pState->paOptions[0], pOpt->fFlags));
-                    return VERR_INTERNAL_ERROR;
-            }
+            int rc = rtGetOptProcessValue(pOpt->fFlags, pszValue, pValueUnion);
+            if (RT_FAILURE(rc))
+                return rc;
         }
         else if (fShort)
         {
@@ -476,6 +577,19 @@ RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion)
                 pState->iNext++;
             }
         }
+        else if (pOpt->fFlags & RTGETOPT_FLAG_INDEX)
+        {
+            size_t cchLong = strlen(pOpt->pszLong);
+            if (pszArgThis[cchLong] == '\0')
+                return VERR_GETOPT_INDEX_MISSING;
+
+            uint64_t uIndex;
+            char *pszRet = NULL;
+            if (RTStrToUInt64Full(&pszArgThis[cchLong], 10, &uIndex) == VINF_SUCCESS)
+                pState->uIndex = uIndex;
+            else
+                AssertMsgFailedReturn(("%s\n", pszArgThis), VERR_GETOPT_INVALID_ARGUMENT_FORMAT); /* search bug */
+        }
 
         pState->pDef = pOpt;
         return pOpt->iShort;
@@ -495,4 +609,58 @@ RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion)
     pValueUnion->psz = pszArgThis;
     return VINF_GETOPT_NOT_OPTION;
 }
+RT_EXPORT_SYMBOL(RTGetOpt);
+
+
+RTDECL(int) RTGetOptFetchValue(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion, uint32_t fFlags)
+{
+    /*
+     * Validate input.
+     */
+    PCRTGETOPTDEF pOpt = pState->pDef;
+    AssertReturn(pOpt, VERR_GETOPT_UNKNOWN_OPTION);
+    AssertReturn(!(fFlags & ~RTGETOPT_VALID_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn((fFlags & RTGETOPT_REQ_MASK) != RTGETOPT_REQ_NOTHING, VERR_INVALID_PARAMETER);
+
+    /*
+     * Make sure the union is completely cleared out, whatever happens below.
+     */
+    pValueUnion->u64 = 0;
+    pValueUnion->pDef = NULL;
+
+    /*
+     * Pop off the next argument and convert it into a value union.
+     */
+    if (pState->iNext >= pState->argc)
+        return VERR_GETOPT_REQUIRED_ARGUMENT_MISSING;
+    int         iThis    = pState->iNext++;
+    const char *pszValue = pState->argv[iThis];
+    pValueUnion->pDef    = pOpt; /* in case of no value or error. */
+
+    return rtGetOptProcessValue(fFlags, pszValue, pValueUnion);
+}
+RT_EXPORT_SYMBOL(RTGetOptFetchValue);
+
+
+RTDECL(int) RTGetOptPrintError(int ch, PCRTGETOPTUNION pValueUnion)
+{
+    if (ch == VINF_GETOPT_NOT_OPTION)
+        RTMsgError("Invalid parameter: %s", pValueUnion->psz);
+    else if (ch > 0)
+    {
+        if (RT_C_IS_GRAPH(ch))
+            RTMsgError("Unhandled option: -%c", ch);
+        else
+            RTMsgError("Unhandled option: %i (%#x)", ch, ch);
+    }
+    else if (ch == VERR_GETOPT_UNKNOWN_OPTION)
+        RTMsgError("Unknown option: '%s'", pValueUnion->psz);
+    else if (pValueUnion->pDef)
+        RTMsgError("%s: %Rrs\n", pValueUnion->pDef->pszLong, ch);
+    else
+        RTMsgError("%Rrs\n", ch);
+
+    return 2; /** @todo add defines for EXIT_SUCCESS, EXIT_FAILURE, EXIT_INVAL, etc... */
+}
+RT_EXPORT_SYMBOL(RTGetOptPrintError);
 

@@ -1,10 +1,10 @@
-/* $Id: DevACPI.cpp $ */
+/* $Id: DevACPI.cpp 24669 2009-11-15 13:34:17Z vboxsync $ */
 /** @file
  * DevACPI - Advanced Configuration and Power Interface (ACPI) Device.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,14 +54,21 @@ int acpiCleanupDsdt(PPDMDEVINS pDevIns, void* pPtr);
 #define DEBUG_CHR       0x3001
 
 #define PM_TMR_FREQ     3579545
-#define PM1a_EVT_BLK    0x00004000
-#define PM1b_EVT_BLK    0x00000000              /**< not supported */
-#define PM1a_CTL_BLK    0x00004004
-#define PM1b_CTL_BLK    0x00000000              /**< not supported */
-#define PM2_CTL_BLK     0x00000000              /**< not supported */
-#define PM_TMR_BLK      0x00004008
-#define GPE0_BLK        0x00004020
-#define GPE1_BLK        0x00000000              /**< not supported */
+/* Default base for PM PIIX4 device */
+#define PM_PORT_BASE    0x4000
+/* Port offsets in PM device */
+enum
+{
+    PM1a_EVT_OFFSET                     = 0x00,
+    PM1b_EVT_OFFSET                     =   -1,   /**<  not supported  */
+    PM1a_CTL_OFFSET                     = 0x04,
+    PM1b_CTL_OFFSET                     =   -1,   /**<  not supported  */
+    PM2_CTL_OFFSET                      =   -1,   /**<  not supported  */
+    PM_TMR_OFFSET                       = 0x08,
+    GPE0_OFFSET                         = 0x20,
+    GPE1_OFFSET                         =   -1    /**<  not supported  */
+};
+
 #define BAT_INDEX       0x00004040
 #define BAT_DATA        0x00004044
 #define SYSI_INDEX      0x00004048
@@ -136,12 +143,12 @@ enum
     SYSTEM_INFO_INDEX_SMC_STATUS        = 3,
     SYSTEM_INFO_INDEX_FDC_STATUS        = 4,
     SYSTEM_INFO_INDEX_CPU0_STATUS       = 5,
-    SYSTEM_INFO_INDEX_CPU1_STATUS       = 6, 
-    SYSTEM_INFO_INDEX_CPU2_STATUS       = 7, 
-    SYSTEM_INFO_INDEX_CPU3_STATUS       = 8, 
-    SYSTEM_INFO_INDEX_HIGH_MEMORY_LENGTH= 9, 
-    SYSTEM_INFO_INDEX_RTC_STATUS        = 10, 
-    SYSTEM_INFO_INDEX_END               = 11, 
+    SYSTEM_INFO_INDEX_CPU1_STATUS       = 6,
+    SYSTEM_INFO_INDEX_CPU2_STATUS       = 7,
+    SYSTEM_INFO_INDEX_CPU3_STATUS       = 8,
+    SYSTEM_INFO_INDEX_HIGH_MEMORY_LENGTH= 9,
+    SYSTEM_INFO_INDEX_RTC_STATUS        = 10,
+    SYSTEM_INFO_INDEX_END               = 11,
     SYSTEM_INFO_INDEX_INVALID           = 0x80,
     SYSTEM_INFO_INDEX_VALID             = 0x200
 };
@@ -216,8 +223,14 @@ typedef struct ACPIState
     bool                fShowCpu;
     /** If Real Time Clock ACPI object to be shown */
     bool                fShowRtc;
+    /** I/O port address of PM device. */
+    RTIOPORT            uPmIoPortBase;
+    /** Flag whether the GC part of the device is enabled. */
+    bool                fGCEnabled;
+    /** Flag whether the R0 part of the device is enabled. */
+    bool                fR0Enabled;
     /** Aligning IBase. */
-    bool                afAlignment[5];
+    bool                afAlignment[4];
 
     /** ACPI port base interface. */
     PDMIBASE            IBase;
@@ -229,6 +242,11 @@ typedef struct ACPIState
     R3PTRTYPE(PPDMIBASE) pDrvBase;
     /** Pointer to the driver connector interface */
     R3PTRTYPE(PPDMIACPICONNECTOR) pDrv;
+
+    /* Pointer to default PCI config read function */
+    R3PTRTYPE(PFNPCICONFIGREAD)   pfnAcpiPciConfigRead;
+    /* Pointer to default PCI config write function */
+    R3PTRTYPE(PFNPCICONFIGWRITE)  pfnAcpiPciConfigWrite;
 } ACPIState;
 
 #pragma pack(1)
@@ -431,7 +449,7 @@ struct ACPITBLIOAPIC
 };
 AssertCompileSize(ACPITBLIOAPIC, 12);
 
-# ifdef IN_RING3 /**@todo r=bird: Move this down to where it's used. */
+# ifdef IN_RING3 /** @todo r=bird: Move this down to where it's used. */
 
 #  define PCAT_COMPAT   0x1                     /**< system has also a dual-8259 setup */
 
@@ -525,7 +543,8 @@ public:
      */
     AcpiTableMADT(uint32_t cCpus)
     {
-        m_cCpus = cCpus;
+        m_cCpus  = cCpus;
+        m_pbData = NULL;                /* size() uses this and gcc will complain if not initilized. */
         uint32_t cb = size();
         m_pbData = (uint8_t *)RTMemAllocZ(cb);
     }
@@ -573,6 +592,16 @@ RT_C_DECLS_END
 
 #ifdef IN_RING3
 
+static RTIOPORT acpiPmPort(ACPIState* pAcpi, int32_t offset)
+{
+    Assert(pAcpi->uPmIoPortBase != 0);
+
+    if (offset == -1)
+        return 0;
+
+    return RTIOPORT(pAcpi->uPmIoPortBase + offset);
+}
+
 /* Simple acpiChecksum: all the bytes must add up to 0. */
 static uint8_t acpiChecksum(const uint8_t * const data, size_t len)
 {
@@ -614,7 +643,7 @@ static void acpiPhyscpy(ACPIState *s, RTGCPHYS32 dst, const void * const src, si
 
 /** Differentiated System Description Table (DSDT) */
 
-static void acpiSetupDSDT(ACPIState *s, RTGCPHYS32 addr, 
+static void acpiSetupDSDT(ACPIState *s, RTGCPHYS32 addr,
                             void* pPtr, size_t uDsdtLen)
 {
     acpiPhyscpy(s, addr, pPtr, uDsdtLen);
@@ -656,14 +685,14 @@ static void acpiSetupFADT(ACPIState *s, RTGCPHYS32 addr_acpi1, RTGCPHYS32 addr_a
     fadt.u8AcpiDisable        = ACPI_DISABLE;
     fadt.u8S4BIOSReq          = 0;
     fadt.u8PStateCnt          = 0;
-    fadt.u32PM1aEVTBLK        = RT_H2LE_U32(PM1a_EVT_BLK);
-    fadt.u32PM1bEVTBLK        = RT_H2LE_U32(PM1b_EVT_BLK);
-    fadt.u32PM1aCTLBLK        = RT_H2LE_U32(PM1a_CTL_BLK);
-    fadt.u32PM1bCTLBLK        = RT_H2LE_U32(PM1b_CTL_BLK);
-    fadt.u32PM2CTLBLK         = RT_H2LE_U32(PM2_CTL_BLK);
-    fadt.u32PMTMRBLK          = RT_H2LE_U32(PM_TMR_BLK);
-    fadt.u32GPE0BLK           = RT_H2LE_U32(GPE0_BLK);
-    fadt.u32GPE1BLK           = RT_H2LE_U32(GPE1_BLK);
+    fadt.u32PM1aEVTBLK        = RT_H2LE_U32(acpiPmPort(s, PM1a_EVT_OFFSET));
+    fadt.u32PM1bEVTBLK        = RT_H2LE_U32(acpiPmPort(s, PM1b_EVT_OFFSET));
+    fadt.u32PM1aCTLBLK        = RT_H2LE_U32(acpiPmPort(s, PM1a_CTL_OFFSET));
+    fadt.u32PM1bCTLBLK        = RT_H2LE_U32(acpiPmPort(s, PM1b_CTL_OFFSET));
+    fadt.u32PM2CTLBLK         = RT_H2LE_U32(acpiPmPort(s, PM2_CTL_OFFSET));
+    fadt.u32PMTMRBLK          = RT_H2LE_U32(acpiPmPort(s, PM_TMR_OFFSET));
+    fadt.u32GPE0BLK           = RT_H2LE_U32(acpiPmPort(s, GPE0_OFFSET));
+    fadt.u32GPE1BLK           = RT_H2LE_U32(acpiPmPort(s, GPE1_OFFSET));
     fadt.u8PM1EVTLEN          = 4;
     fadt.u8PM1CTLLEN          = 2;
     fadt.u8PM2CTLLEN          = 0;
@@ -690,14 +719,14 @@ static void acpiSetupFADT(ACPIState *s, RTGCPHYS32 addr_acpi1, RTGCPHYS32 addr_a
     fadt.u8ResetVal           = ACPI_RESET_REG_VAL;
     fadt.u64XFACS             = RT_H2LE_U64((uint64_t)facs_addr);
     fadt.u64XDSDT             = RT_H2LE_U64((uint64_t)dsdt_addr);
-    acpiWriteGenericAddr(&fadt.X_PM1aEVTBLK, 1, 32, 0, 2, PM1a_EVT_BLK);
-    acpiWriteGenericAddr(&fadt.X_PM1bEVTBLK, 0,  0, 0, 0, PM1b_EVT_BLK);
-    acpiWriteGenericAddr(&fadt.X_PM1aCTLBLK, 1, 16, 0, 2, PM1a_CTL_BLK);
-    acpiWriteGenericAddr(&fadt.X_PM1bCTLBLK, 0,  0, 0, 0, PM1b_CTL_BLK);
-    acpiWriteGenericAddr(&fadt.X_PM2CTLBLK,  0,  0, 0, 0,  PM2_CTL_BLK);
-    acpiWriteGenericAddr(&fadt.X_PMTMRBLK,   1, 32, 0, 3,   PM_TMR_BLK);
-    acpiWriteGenericAddr(&fadt.X_GPE0BLK,    1, 16, 0, 1,     GPE0_BLK);
-    acpiWriteGenericAddr(&fadt.X_GPE1BLK,    0,  0, 0, 0,     GPE1_BLK);
+    acpiWriteGenericAddr(&fadt.X_PM1aEVTBLK, 1, 32, 0, 2, acpiPmPort(s, PM1a_EVT_OFFSET));
+    acpiWriteGenericAddr(&fadt.X_PM1bEVTBLK, 0,  0, 0, 0, acpiPmPort(s, PM1b_EVT_OFFSET));
+    acpiWriteGenericAddr(&fadt.X_PM1aCTLBLK, 1, 16, 0, 2, acpiPmPort(s, PM1a_CTL_OFFSET));
+    acpiWriteGenericAddr(&fadt.X_PM1bCTLBLK, 0,  0, 0, 0, acpiPmPort(s, PM1b_CTL_OFFSET));
+    acpiWriteGenericAddr(&fadt.X_PM2CTLBLK,  0,  0, 0, 0, acpiPmPort(s, PM2_CTL_OFFSET));
+    acpiWriteGenericAddr(&fadt.X_PMTMRBLK,   1, 32, 0, 3, acpiPmPort(s, PM_TMR_OFFSET));
+    acpiWriteGenericAddr(&fadt.X_GPE0BLK,    1, 16, 0, 1, acpiPmPort(s, GPE0_OFFSET));
+    acpiWriteGenericAddr(&fadt.X_GPE1BLK,    0,  0, 0, 0, acpiPmPort(s, GPE1_OFFSET));
     fadt.header.u8Checksum    = acpiChecksum((uint8_t *)&fadt, sizeof(fadt));
     acpiPhyscpy(s, addr_acpi2, &fadt, sizeof(fadt));
 
@@ -1071,7 +1100,7 @@ static uint32_t find_rsdp_space(void)
     return 0xe0000;
 }
 
-static void acpiPMTimerReset(ACPIState *s)
+static int acpiPMTimerReset(ACPIState *s)
 {
     uint64_t interval, freq;
 
@@ -1079,6 +1108,8 @@ static void acpiPMTimerReset(ACPIState *s)
     interval = ASMMultU64ByU32DivByU32(0xffffffff, freq, PM_TMR_FREQ);
     Log(("interval = %RU64\n", interval));
     TMTimerSet(s->CTX_SUFF(ts), TMTimerGet(s->CTX_SUFF(ts)) + interval);
+
+    return VINF_SUCCESS;
 }
 
 static DECLCALLBACK(void) acpiTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
@@ -1096,7 +1127,7 @@ static DECLCALLBACK(void) acpiTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *p
 /**
  * _BST method.
  */
-static void acpiFetchBatteryStatus(ACPIState *s)
+static int acpiFetchBatteryStatus(ACPIState *s)
 {
     uint32_t           *p = s->au8BatteryInfo;
     bool               fPresent;              /* battery present? */
@@ -1106,7 +1137,7 @@ static void acpiFetchBatteryStatus(ACPIState *s)
     int                rc;
 
     if (!s->pDrv)
-        return;
+        return VINF_SUCCESS;
     rc = s->pDrv->pfnQueryBatteryStatus(s->pDrv, &fPresent, &hostRemainingCapacity,
                                         &hostBatteryState, &hostPresentRate);
     AssertRC(rc);
@@ -1123,12 +1154,14 @@ static void acpiFetchBatteryStatus(ACPIState *s)
         p[BAT_STATUS_REMAINING_CAPACITY] = hostRemainingCapacity * 500; /* mWh */
     if (hostBatteryState == PDM_ACPI_BAT_STATE_CHARGED)
         p[BAT_STATUS_PRESENT_RATE] = 0; /* mV */
+
+    return VINF_SUCCESS;
 }
 
 /**
  * _BIF method.
  */
-static void acpiFetchBatteryInfo(ACPIState *s)
+static int acpiFetchBatteryInfo(ACPIState *s)
 {
     uint32_t *p = s->au8BatteryInfo;
 
@@ -1141,6 +1174,8 @@ static void acpiFetchBatteryInfo(ACPIState *s)
     p[BAT_INFO_DESIGN_CAPACITY_OF_LOW]     = 50;    /* mWh */
     p[BAT_INFO_CAPACITY_GRANULARITY_1]     = 1;     /* mWh */
     p[BAT_INFO_CAPACITY_GRANULARITY_2]     = 1;     /* mWh */
+
+    return VINF_SUCCESS;
 }
 
 /**
@@ -1334,19 +1369,19 @@ PDMBOTHCBDECL(int) acpiSysInfoDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
                             : 0;
                     break;
 
-                    
-                case SYSTEM_INFO_INDEX_CPU0_STATUS: 
-                case SYSTEM_INFO_INDEX_CPU1_STATUS: 
-                case SYSTEM_INFO_INDEX_CPU2_STATUS: 
-                case SYSTEM_INFO_INDEX_CPU3_STATUS: 
-                  *pu32 = s->fShowCpu 
-                    && s->uSystemInfoIndex - SYSTEM_INFO_INDEX_CPU0_STATUS < s->cCpus 
-                    ?   
-                      STA_DEVICE_PRESENT_MASK 
-                    | STA_DEVICE_ENABLED_MASK 
-                    | STA_DEVICE_SHOW_IN_UI_MASK 
-                    | STA_DEVICE_FUNCTIONING_PROPERLY_MASK 
-                    : 0; 
+
+                case SYSTEM_INFO_INDEX_CPU0_STATUS:
+                case SYSTEM_INFO_INDEX_CPU1_STATUS:
+                case SYSTEM_INFO_INDEX_CPU2_STATUS:
+                case SYSTEM_INFO_INDEX_CPU3_STATUS:
+                  *pu32 = s->fShowCpu
+                    && s->uSystemInfoIndex - SYSTEM_INFO_INDEX_CPU0_STATUS < s->cCpus
+                    ?
+                      STA_DEVICE_PRESENT_MASK
+                    | STA_DEVICE_ENABLED_MASK
+                    | STA_DEVICE_SHOW_IN_UI_MASK
+                    | STA_DEVICE_FUNCTIONING_PROPERLY_MASK
+                    : 0;
 
                  case SYSTEM_INFO_INDEX_RTC_STATUS:
                     *pu32 = s->fShowRtc ? (  STA_DEVICE_PRESENT_MASK
@@ -1628,11 +1663,74 @@ PDMBOTHCBDECL(int) acpiDchrWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port
 
 #endif /* DEBUG_ACPI */
 
+static int acpiRegisterPmHandlers(ACPIState*  pThis)
+{
+    int   rc = VINF_SUCCESS;
+
+#define R(offset, cnt, writer, reader, description) \
+    do { \
+        rc = PDMDevHlpIOPortRegister(pThis->pDevIns, acpiPmPort(pThis, offset), cnt, pThis, writer, reader, \
+                                      NULL, NULL, description); \
+        if (RT_FAILURE(rc)) \
+            return rc; \
+    } while (0)
+#define L       (GPE0_BLK_LEN / 2)
+
+    R(PM1a_EVT_OFFSET+2, 1, acpiPM1aEnWrite,       acpiPm1aEnRead,      "ACPI PM1a Enable");
+    R(PM1a_EVT_OFFSET,   1, acpiPM1aStsWrite,      acpiPm1aStsRead,     "ACPI PM1a Status");
+    R(PM1a_CTL_OFFSET,   1, acpiPM1aCtlWrite,      acpiPm1aCtlRead,     "ACPI PM1a Control");
+    R(PM_TMR_OFFSET,     1, NULL,                  acpiPMTmrRead,       "ACPI PM Timer");
+    R(GPE0_OFFSET + L,   L, acpiGpe0EnWrite,       acpiGpe0EnRead,      "ACPI GPE0 Enable");
+    R(GPE0_OFFSET,       L, acpiGpe0StsWrite,      acpiGpe0StsRead,     "ACPI GPE0 Status");
+#undef L
+#undef R
+
+    /* register GC stuff */
+    if (pThis->fGCEnabled)
+    {
+        rc = PDMDevHlpIOPortRegisterGC(pThis->pDevIns, acpiPmPort(pThis, PM_TMR_OFFSET),
+                                       1, 0, NULL, "acpiPMTmrRead",
+                                       NULL, NULL, "ACPI PM Timer");
+        AssertRCReturn(rc, rc);
+    }
+
+    /* register R0 stuff */
+    if (pThis->fR0Enabled)
+    {
+        rc = PDMDevHlpIOPortRegisterR0(pThis->pDevIns, acpiPmPort(pThis, PM_TMR_OFFSET),
+                                       1, 0, NULL, "acpiPMTmrRead",
+                                       NULL, NULL, "ACPI PM Timer");
+        AssertRCReturn(rc, rc);
+    }
+
+    return rc;
+}
+
+static int acpiUnregisterPmHandlers(ACPIState *pThis)
+{
+#define U(offset, cnt) \
+    do { \
+        int rc = PDMDevHlpIOPortDeregister(pThis->pDevIns, acpiPmPort(pThis, offset), cnt); \
+        AssertRCReturn(rc, rc); \
+    } while (0)
+#define L       (GPE0_BLK_LEN / 2)
+
+    U(PM1a_EVT_OFFSET+2, 1);
+    U(PM1a_EVT_OFFSET,   1);
+    U(PM1a_CTL_OFFSET,   1);
+    U(PM_TMR_OFFSET,     1);
+    U(GPE0_OFFSET + L,   L);
+    U(GPE0_OFFSET,       L);
+#undef L
+#undef U
+
+    return VINF_SUCCESS;
+}
 
 /**
- * Saved state structure description.
+ * Saved state structure description, version 4.
  */
-static const SSMFIELD g_AcpiSavedStateFields[] =
+static const SSMFIELD g_AcpiSavedStateFields4[] =
 {
     SSMFIELD_ENTRY(ACPIState, pm1a_en),
     SSMFIELD_ENTRY(ACPIState, pm1a_sts),
@@ -1642,34 +1740,80 @@ static const SSMFIELD g_AcpiSavedStateFields[] =
     SSMFIELD_ENTRY(ACPIState, gpe0_sts),
     SSMFIELD_ENTRY(ACPIState, uBatteryIndex),
     SSMFIELD_ENTRY(ACPIState, uSystemInfoIndex),
-    SSMFIELD_ENTRY(ACPIState, u64RamSize),      /** @todo not necessary to save this. */
+    SSMFIELD_ENTRY(ACPIState, u64RamSize),
     SSMFIELD_ENTRY(ACPIState, u8IndexShift),
     SSMFIELD_ENTRY(ACPIState, u8UseIOApic),
     SSMFIELD_ENTRY(ACPIState, uSleepState),
     SSMFIELD_ENTRY_TERM()
 };
 
+/**
+ * Saved state structure description, version 5.
+ */
+static const SSMFIELD g_AcpiSavedStateFields5[] =
+{
+    SSMFIELD_ENTRY(ACPIState, pm1a_en),
+    SSMFIELD_ENTRY(ACPIState, pm1a_sts),
+    SSMFIELD_ENTRY(ACPIState, pm1a_ctl),
+    SSMFIELD_ENTRY(ACPIState, pm_timer_initial),
+    SSMFIELD_ENTRY(ACPIState, gpe0_en),
+    SSMFIELD_ENTRY(ACPIState, gpe0_sts),
+    SSMFIELD_ENTRY(ACPIState, uBatteryIndex),
+    SSMFIELD_ENTRY(ACPIState, uSystemInfoIndex),
+    SSMFIELD_ENTRY(ACPIState, uSleepState),
+    SSMFIELD_ENTRY(ACPIState, u8IndexShift),
+    SSMFIELD_ENTRY(ACPIState, uPmIoPortBase),
+    SSMFIELD_ENTRY_TERM()
+};
+
+
 static DECLCALLBACK(int) acpi_save_state(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle)
 {
     ACPIState *s = PDMINS_2_DATA(pDevIns, ACPIState *);
-    return SSMR3PutStruct(pSSMHandle, s, &g_AcpiSavedStateFields[0]);
+    return SSMR3PutStruct(pSSMHandle, s, &g_AcpiSavedStateFields5[0]);
 }
 
 static DECLCALLBACK(int) acpi_load_state(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle,
-                                         uint32_t u32Version)
+                                         uint32_t uVersion, uint32_t uPass)
 {
     ACPIState *s = PDMINS_2_DATA(pDevIns, ACPIState *);
-    int rc;
 
-    if (u32Version != 4)
-        return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
 
-    rc = SSMR3GetStruct(pSSMHandle, s, &g_AcpiSavedStateFields[0]);
+    Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
+    /*
+     * Unregister PM handlers, will register with actual base
+     * after state successfully loaded.
+     */
+    int rc = acpiUnregisterPmHandlers(s);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    switch (uVersion)
+    {
+        case 4:
+            rc = SSMR3GetStruct(pSSMHandle, s, &g_AcpiSavedStateFields4[0]);
+            /** @todo Provide saner defaults for fields not found in saved state. */
+            break;
+        case 5:
+            rc = SSMR3GetStruct(pSSMHandle, s, &g_AcpiSavedStateFields5[0]);
+            break;
+        default:
+            return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
+    }
     if (RT_SUCCESS(rc))
     {
-        acpiFetchBatteryStatus(s);
-        acpiFetchBatteryInfo(s);
-        acpiPMTimerReset(s);
+        rc = acpiRegisterPmHandlers(s);
+        if (RT_FAILURE(rc))
+            return rc;
+        rc = acpiFetchBatteryStatus(s);
+        if (RT_FAILURE(rc))
+            return rc;
+        rc = acpiFetchBatteryInfo(s);
+        if (RT_FAILURE(rc))
+            return rc;
+        rc = acpiPMTimerReset(s);
+        if (RT_FAILURE(rc))
+            return rc;
     }
     return rc;
 }
@@ -1801,6 +1945,93 @@ static int acpiPlantTables(ACPIState *s)
     return acpiSetupXSDT(s, xsdt_addr + addend, cAddr, xsdt_addrs);
 }
 
+static int acpiUpdatePmHandlers(ACPIState *pThis, RTIOPORT uNewBase)
+{
+    Log(("acpi: rebasing PM 0x%x -> 0x%x\n", pThis->uPmIoPortBase, uNewBase));
+    if (uNewBase != pThis->uPmIoPortBase)
+    {
+        int rc;
+
+        rc = acpiUnregisterPmHandlers(pThis);
+        if (RT_FAILURE(rc))
+            return rc;
+
+        pThis->uPmIoPortBase = uNewBase;
+
+        rc = acpiRegisterPmHandlers(pThis);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    return VINF_SUCCESS;
+}
+
+static uint32_t acpiPciConfigRead(PPCIDEVICE pPciDev, uint32_t Address, unsigned cb)
+{
+    PPDMDEVINS pDevIns = pPciDev->pDevIns;
+    ACPIState*  pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
+
+    Log2(("acpi: PCI config read: 0x%x (%d)\n", Address, cb));
+
+    return pThis->pfnAcpiPciConfigRead(pPciDev, Address, cb);
+}
+
+static void acpiPciConfigWrite(PPCIDEVICE pPciDev, uint32_t Address, uint32_t u32Value, unsigned cb)
+{
+    PPDMDEVINS  pDevIns = pPciDev->pDevIns;
+    ACPIState  *pThis   = PDMINS_2_DATA(pDevIns, ACPIState *);
+
+    Log2(("acpi: PCI config write: 0x%x -> 0x%x (%d)\n", u32Value, Address, cb));
+    pThis->pfnAcpiPciConfigWrite(pPciDev, Address, u32Value, cb);
+
+    /* PMREGMISC written */
+    if (Address == 0x80)
+    {
+        /* Check Power Management IO Space Enable (PMIOSE) bit */
+        if (pPciDev->config[0x80] & 0x1)
+        {
+            int rc;
+
+            RTIOPORT uNewBase =
+                    RTIOPORT(RT_LE2H_U32(*(uint32_t*)&pPciDev->config[0x40]));
+            uNewBase &= 0xffc0;
+
+            rc = acpiUpdatePmHandlers(pThis, uNewBase);
+            Assert(RT_SUCCESS(rc));
+        }
+    }
+}
+
+static DECLCALLBACK(void) acpiReset(PPDMDEVINS pDevIns)
+{
+    ACPIState *s = PDMINS_2_DATA(pDevIns, ACPIState *);
+
+    s->pm1a_en           = 0;
+    s->pm1a_sts          = 0;
+    s->pm1a_ctl          = 0;
+    s->pm_timer_initial  = TMTimerGet(s->CTX_SUFF(ts));
+    acpiPMTimerReset(s);
+    s->uBatteryIndex     = 0;
+    s->uSystemInfoIndex  = 0;
+    s->gpe0_en           = 0;
+    s->gpe0_sts          = 0;
+    s->uSleepState       = 0;
+
+    /** @todo Should we really reset PM base? */
+    acpiUpdatePmHandlers(s, PM_PORT_BASE);
+
+    acpiPlantTables(s);
+}
+
+/**
+ * Relocates the GC pointer members.
+ */
+static DECLCALLBACK(void) acpiRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
+{
+    ACPIState *s = PDMINS_2_DATA(pDevIns, ACPIState *);
+    s->tsRC = TMTimerRCPtr(s->CTX_SUFF(ts));
+}
+
 /**
  * Construct a device instance for a VM.
  *
@@ -1876,23 +2107,24 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     rc = CFGMR3QueryBoolDef(pCfgHandle, "ShowCpu", &s->fShowCpu, false);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"ShowCpu\""));   
+                                N_("Configuration error: Failed to read \"ShowCpu\""));
 
-    bool fGCEnabled;
-    rc = CFGMR3QueryBool(pCfgHandle, "GCEnabled", &fGCEnabled);
+    rc = CFGMR3QueryBool(pCfgHandle, "GCEnabled", &s->fGCEnabled);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
-        fGCEnabled = true;
+        s->fGCEnabled = true;
     else if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"GCEnabled\""));
 
-    bool fR0Enabled;
-    rc = CFGMR3QueryBool(pCfgHandle, "R0Enabled", &fR0Enabled);
+    rc = CFGMR3QueryBool(pCfgHandle, "R0Enabled", &s->fR0Enabled);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
-        fR0Enabled = true;
+        s->fR0Enabled = true;
     else if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("configuration error: failed to read R0Enabled as boolean"));
+
+    /* Set default port base */
+    s->uPmIoPortBase = PM_PORT_BASE;
 
     /* */
     uint32_t rsdp_addr = find_rsdp_space();
@@ -1909,19 +2141,17 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     if (RT_FAILURE(rc))
         return rc;
 
-#define R(addr, cnt, writer, reader, description) \
+    rc = acpiRegisterPmHandlers(s);
+    if (RT_FAILURE(rc))
+        return rc;
+
+#define R(addr, cnt, writer, reader, description)       \
     do { \
         rc = PDMDevHlpIOPortRegister(pDevIns, addr, cnt, s, writer, reader, \
                                       NULL, NULL, description); \
         if (RT_FAILURE(rc)) \
             return rc; \
     } while (0)
-#define L       (GPE0_BLK_LEN / 2)
-
-    R(PM1a_EVT_BLK+2, 1, acpiPM1aEnWrite,       acpiPm1aEnRead,      "ACPI PM1a Enable");
-    R(PM1a_EVT_BLK,   1, acpiPM1aStsWrite,      acpiPm1aStsRead,     "ACPI PM1a Status");
-    R(PM1a_CTL_BLK,   1, acpiPM1aCtlWrite,      acpiPm1aCtlRead,     "ACPI PM1a Control");
-    R(PM_TMR_BLK,     1, NULL,                  acpiPMTmrRead,       "ACPI PM Timer");
     R(SMI_CMD,        1, acpiSmiWrite,          NULL,                "ACPI SMI");
 #ifdef DEBUG_ACPI
     R(DEBUG_HEX,      1, acpiDhexWrite,         NULL,                "ACPI Debug hex");
@@ -1931,27 +2161,8 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     R(BAT_DATA,       1, NULL,                  acpiBatDataRead,     "ACPI Battery status data");
     R(SYSI_INDEX,     1, acpiSysInfoIndexWrite, NULL,                "ACPI system info index");
     R(SYSI_DATA,      1, acpiSysInfoDataWrite,  acpiSysInfoDataRead, "ACPI system info data");
-    R(GPE0_BLK + L,   L, acpiGpe0EnWrite,       acpiGpe0EnRead,      "ACPI GPE0 Enable");
-    R(GPE0_BLK,       L, acpiGpe0StsWrite,      acpiGpe0StsRead,     "ACPI GPE0 Status");
     R(ACPI_RESET_BLK, 1, acpiResetWrite,        NULL,                "ACPI Reset");
-#undef L
 #undef R
-
-    /* register GC stuff */
-    if (fGCEnabled)
-    {
-        rc = PDMDevHlpIOPortRegisterGC(pDevIns, PM_TMR_BLK, 1, 0, NULL, "acpiPMTmrRead",
-                                       NULL, NULL, "ACPI PM Timer");
-        AssertRCReturn(rc, rc);
-    }
-
-    /* register R0 stuff */
-    if (fR0Enabled)
-    {
-        rc = PDMDevHlpIOPortRegisterR0(pDevIns, PM_TMR_BLK, 1, 0, NULL, "acpiPMTmrRead",
-                                       NULL, NULL, "ACPI PM Timer");
-        AssertRCReturn(rc, rc);
-    }
 
     rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, acpiTimer, dev,
                                 TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "ACPI Timer", &s->tsR3);
@@ -1969,34 +2180,40 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     PCIDevSetVendorId(dev, 0x8086); /* Intel */
     PCIDevSetDeviceId(dev, 0x7113); /* 82371AB */
 
+    /* See p. 50 of PIIX4 manual */
     dev->config[0x04] = 0x01; /* command */
     dev->config[0x05] = 0x00;
 
     dev->config[0x06] = 0x80; /* status */
     dev->config[0x07] = 0x02;
-    dev->config[0x08] = 0x08;
-    dev->config[0x09] = 0x00;
 
+    dev->config[0x08] = 0x08; /* revision number */
+
+    dev->config[0x09] = 0x00; /* class code */
     dev->config[0x0a] = 0x80;
     dev->config[0x0b] = 0x06;
 
-    dev->config[0x0e] = 0x80;
-    dev->config[0x0f] = 0x00;
+    dev->config[0x0e] = 0x80; /* header type */
 
-#if 0 /* The ACPI controller usually has no subsystem ID. */
-    dev->config[0x2c] = 0x86;
-    dev->config[0x2d] = 0x80;
-    dev->config[0x2e] = 0x00;
-    dev->config[0x2f] = 0x00;
+    dev->config[0x0f] = 0x00; /* reserved */
+
+    dev->config[0x3c] = SCI_INT; /* interrupt line */
+
+#if 0
+    dev->config[0x3d] = 0x01;    /* interrupt pin */
 #endif
-    dev->config[0x3c] = SCI_INT;
+
+    dev->config[0x40] = 0x01; /* PM base address, this bit marks it as IO range, not PA */
 
     rc = PDMDevHlpPCIRegister(pDevIns, dev);
     if (RT_FAILURE(rc))
         return rc;
 
-    rc = PDMDevHlpSSMRegister(pDevIns, pDevIns->pDevReg->szDeviceName, iInstance, 4, sizeof(*s),
-                              NULL, acpi_save_state, NULL, NULL, acpi_load_state,  NULL);
+    PDMDevHlpPCISetConfigCallbacks(pDevIns, dev,
+                                   acpiPciConfigRead,  &s->pfnAcpiPciConfigRead,
+                                   acpiPciConfigWrite, &s->pfnAcpiPciConfigWrite);
+
+    rc = PDMDevHlpSSMRegister(pDevIns, 5, sizeof(*s), acpi_save_state, acpi_load_state);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -2032,33 +2249,6 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to attach LUN #0"));
 
     return rc;
-}
-
-/**
- * Relocates the GC pointer members.
- */
-static DECLCALLBACK(void) acpiRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
-{
-    ACPIState *s = PDMINS_2_DATA(pDevIns, ACPIState *);
-    s->tsRC = TMTimerRCPtr(s->CTX_SUFF(ts));
-}
-
-static DECLCALLBACK(void) acpiReset(PPDMDEVINS pDevIns)
-{
-    ACPIState *s = PDMINS_2_DATA(pDevIns, ACPIState *);
-
-    s->pm1a_en           = 0;
-    s->pm1a_sts          = 0;
-    s->pm1a_ctl          = 0;
-    s->pm_timer_initial  = TMTimerGet(s->CTX_SUFF(ts));
-    acpiPMTimerReset(s);
-    s->uBatteryIndex     = 0;
-    s->uSystemInfoIndex  = 0;
-    s->gpe0_en           = 0;
-    s->gpe0_sts          = 0;
-    s->uSleepState       = 0;
-
-    acpiPlantTables(s);
 }
 
 /**

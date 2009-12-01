@@ -1,4 +1,4 @@
-/* $Id: MMAllHyper.cpp $ */
+/* $Id: MMAllHyper.cpp 22026 2009-08-06 11:36:27Z vboxsync $ */
 /** @file
  * MM - Memory Manager - Hypervisor Memory Area, All Contexts.
  */
@@ -150,6 +150,8 @@ static int mmHyperFree(PMMHYPERHEAP pHeap, PMMHYPERCHUNK pChunk);
 #ifdef MMHYPER_HEAP_STRICT
 static void mmHyperHeapCheck(PMMHYPERHEAP pHeap);
 #endif
+
+
 
 /**
  * Locks the hypervisor heap.

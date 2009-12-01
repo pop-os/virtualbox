@@ -1,4 +1,4 @@
-/* $Id: fileio-posix.cpp $ */
+/* $Id: fileio-posix.cpp 25076 2009-11-28 22:55:30Z vboxsync $ */
 /** @file
  * IPRT - File I/O, POSIX.
  */
@@ -46,6 +46,9 @@
 #else
 # include <unistd.h>
 # include <sys/time.h>
+#endif
+#ifdef RT_OS_LINUX
+# include <sys/file.h>
 #endif
 #if defined(RT_OS_OS2) && (!defined(__INNOTEK_LIBC__) || __INNOTEK_LIBC__ < 0x006)
 # include <io.h>
@@ -108,22 +111,14 @@ RTDECL(bool) RTFileExists(const char *pszPath)
 }
 
 
-RTR3DECL(int)  RTFileOpen(PRTFILE pFile, const char *pszFilename, unsigned fOpen)
+RTR3DECL(int) RTFileOpen(PRTFILE pFile, const char *pszFilename, uint32_t fOpen)
 {
     /*
      * Validate input.
      */
-    if (!VALID_PTR(pFile))
-    {
-        AssertMsgFailed(("Invalid pFile %p\n", pFile));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertPtrReturn(pFile, VERR_INVALID_POINTER);
     *pFile = NIL_RTFILE;
-    if (!VALID_PTR(pszFilename))
-    {
-        AssertMsgFailed(("Invalid pszFilename %p\n", pszFilename));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
 
     /*
      * Merge forced open flags and validate them.
@@ -166,6 +161,11 @@ RTR3DECL(int)  RTFileOpen(PRTFILE pFile, const char *pszFilename, unsigned fOpen
     if (fOpen & RTFILE_O_ASYNC_IO)
         fOpenMode |= O_DIRECT;
 #endif
+#if defined(O_DIRECT) && (defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD))
+    /* Disable the kernel cache. */
+    if (fOpen & RTFILE_O_NO_CACHE)
+        fOpenMode |= O_DIRECT;
+#endif
 
     /* create/truncate file */
     switch (fOpen & RTFILE_O_ACTION_MASK)
@@ -180,9 +180,15 @@ RTR3DECL(int)  RTFileOpen(PRTFILE pFile, const char *pszFilename, unsigned fOpen
 
     switch (fOpen & RTFILE_O_ACCESS_MASK)
     {
-        case RTFILE_O_READ:             fOpenMode |= O_RDONLY; break;
-        case RTFILE_O_WRITE:            fOpenMode |= O_WRONLY; break;
-        case RTFILE_O_READWRITE:        fOpenMode |= O_RDWR; break;
+        case RTFILE_O_READ:
+            fOpenMode |= O_RDONLY; /* RTFILE_O_APPEND is ignored. */
+            break;
+        case RTFILE_O_WRITE:
+            fOpenMode |= fOpen & RTFILE_O_APPEND ? O_APPEND | O_WRONLY : O_WRONLY;
+            break;
+        case RTFILE_O_READWRITE:
+            fOpenMode |= fOpen & RTFILE_O_APPEND ? O_APPEND | O_RDWR   : O_RDWR;
+            break;
         default:
             AssertMsgFailed(("RTFileOpen received an invalid RW value, fOpen=%#x\n", fOpen));
             return VERR_INVALID_PARAMETER;
@@ -213,14 +219,107 @@ RTR3DECL(int)  RTFileOpen(PRTFILE pFile, const char *pszFilename, unsigned fOpen
 #endif
     if (fh >= 0)
     {
+        iErr = 0;
+
         /*
          * Mark the file handle close on exec, unless inherit is specified.
          */
-        if (    !(fOpen & RTFILE_O_INHERIT)
+        if (    (fOpen & RTFILE_O_INHERIT)
 #ifdef O_NOINHERIT
-            ||  (fOpenMode & O_NOINHERIT) /* careful since it could be a dummy. */
+            &&  !(fOpenMode & O_NOINHERIT)  /* Take care since it might be a zero value dummy. */
 #endif
-            ||  fcntl(fh, F_SETFD, FD_CLOEXEC) >= 0)
+            )
+            iErr = fcntl(fh, F_SETFD, FD_CLOEXEC) >= 0 ? 0 : errno;
+
+        /*
+         * Switch direct I/O on now if requested and required.
+         */
+#if defined(RT_OS_DARWIN) \
+ || (defined(RT_OS_SOLARIS) && !defined(IN_GUEST))
+        if (iErr == 0 && (fOpen & RTFILE_O_NO_CACHE))
+        {
+# if defined(RT_OS_DARWIN)
+            iErr = fcntl(fh, F_NOCACHE, 1)        >= 0 ? 0 : errno;
+# else
+            iErr = directio(fh, DIRECTIO_ON)      >= 0 ? 0 : errno;
+# endif
+        }
+#endif
+
+        /*
+         * Implement / emulate file sharing.
+         *
+         * We need another mode which allows skipping this stuff completely
+         * and do things the UNIX way. So for the present this is just a debug
+         * aid that can be enabled by developers too lazy to test on Windows.
+         */
+#if 0 && defined(RT_OS_LINUX)
+        if (iErr == 0)
+        {
+            /* This approach doesn't work because only knfsd checks for these
+               buggers. :-( */
+            int iLockOp;
+            switch (fOpen & RTFILE_O_DENY_MASK)
+            {
+                default:
+                AssertFailed();
+                case RTFILE_O_DENY_NONE:
+                case RTFILE_O_DENY_NOT_DELETE:
+                    iLockOp = LOCK_MAND | LOCK_READ | LOCK_WRITE;
+                    break;
+                case RTFILE_O_DENY_READ:
+                case RTFILE_O_DENY_READ | RTFILE_O_DENY_NOT_DELETE:
+                    iLockOp = LOCK_MAND | LOCK_WRITE;
+                    break;
+                case RTFILE_O_DENY_WRITE:
+                case RTFILE_O_DENY_WRITE | RTFILE_O_DENY_NOT_DELETE:
+                    iLockOp = LOCK_MAND | LOCK_READ;
+                    break;
+                case RTFILE_O_DENY_WRITE | RTFILE_O_DENY_READ:
+                case RTFILE_O_DENY_WRITE | RTFILE_O_DENY_READ | RTFILE_O_DENY_NOT_DELETE:
+                    iLockOp = LOCK_MAND;
+                    break;
+            }
+            iErr = flock(fh, iLockOp | LOCK_NB);
+            if (iErr != 0)
+                iErr = errno == EAGAIN ? ETXTBSY : 0;
+        }
+#endif /* 0 && RT_OS_LINUX */
+#ifdef DEBUG_bird
+        if (iErr == 0)
+        {
+            /* This emulation is incomplete but useful. */
+            switch (fOpen & RTFILE_O_DENY_MASK)
+            {
+                default:
+                AssertFailed();
+                case RTFILE_O_DENY_NONE:
+                case RTFILE_O_DENY_NOT_DELETE:
+                case RTFILE_O_DENY_READ:
+                case RTFILE_O_DENY_READ | RTFILE_O_DENY_NOT_DELETE:
+                    break;
+                case RTFILE_O_DENY_WRITE:
+                case RTFILE_O_DENY_WRITE | RTFILE_O_DENY_NOT_DELETE:
+                case RTFILE_O_DENY_WRITE | RTFILE_O_DENY_READ:
+                case RTFILE_O_DENY_WRITE | RTFILE_O_DENY_READ | RTFILE_O_DENY_NOT_DELETE:
+                    if (fOpen & RTFILE_O_WRITE)
+                    {
+                        iErr = flock(fh, LOCK_EX | LOCK_NB);
+                        if (iErr != 0)
+                            iErr = errno == EAGAIN ? ETXTBSY : 0;
+                    }
+                    break;
+            }
+        }
+#endif
+#ifdef RT_OS_SOLARIS
+        /** @todo Use fshare_t and associates, it's a perfect match. see sys/fcntl.h */
+#endif
+
+        /*
+         * We're done.
+         */
+        if (iErr == 0)
         {
             *pFile = (RTFILE)fh;
             Assert((int)*pFile == fh);
@@ -228,7 +327,7 @@ RTR3DECL(int)  RTFileOpen(PRTFILE pFile, const char *pszFilename, unsigned fOpen
                      pFile, *pFile, pszFilename, pszFilename, fOpen, rc));
             return VINF_SUCCESS;
         }
-        iErr = errno;
+
         close(fh);
     }
     return RTErrConvertFromErrno(iErr);

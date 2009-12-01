@@ -1,4 +1,4 @@
-/* $Id: PGMPool.cpp $ */
+/* $Id: PGMPool.cpp 23519 2009-10-02 15:02:12Z vboxsync $ */
 /** @file
  * PGM Shadow Page Pool.
  */
@@ -109,6 +109,7 @@
 #include <VBox/err.h>
 #include <iprt/asm.h>
 #include <iprt/string.h>
+#include <VBox/dbg.h>
 
 
 /*******************************************************************************
@@ -117,7 +118,18 @@
 #ifdef PGMPOOL_WITH_MONITORING
 static DECLCALLBACK(int) pgmR3PoolAccessHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
 #endif /* PGMPOOL_WITH_MONITORING */
+#ifdef VBOX_WITH_DEBUGGER
+static DECLCALLBACK(int)  pgmR3PoolCmdCheck(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult);
+#endif
 
+#ifdef VBOX_WITH_DEBUGGER
+/** Command descriptors. */
+static const DBGCCMD    g_aCmds[] =
+{
+    /* pszCmd,  cArgsMin, cArgsMax, paArgDesc,                cArgDescs,    pResultDesc,        fFlags,     pfnHandler          pszSyntax,          ....pszDescription */
+    { "pgmpoolcheck",  0, 0,        NULL,                     0,            NULL,               0,          pgmR3PoolCmdCheck,  "",                 "Check the pgm pool pages." },
+};
+#endif
 
 /**
  * Initalizes the pool
@@ -320,23 +332,27 @@ int pgmR3PoolInit(PVM pVM)
     STAM_REG(pVM, &pPool->cUsedPages,                   STAMTYPE_U16,       "/PGM/Pool/cUsedPages",     STAMUNIT_PAGES,             "The number of pages currently in use.");
     STAM_REG(pVM, &pPool->cUsedPagesHigh,               STAMTYPE_U16_RESET, "/PGM/Pool/cUsedPagesHigh", STAMUNIT_PAGES,             "The high watermark for cUsedPages.");
     STAM_REG(pVM, &pPool->StatAlloc,                  STAMTYPE_PROFILE_ADV, "/PGM/Pool/Alloc",          STAMUNIT_TICKS_PER_CALL,    "Profiling of pgmPoolAlloc.");
-    STAM_REG(pVM, &pPool->StatClearAll,                 STAMTYPE_PROFILE,   "/PGM/Pool/ClearAll",       STAMUNIT_TICKS_PER_CALL,    "Profiling of pgmPoolClearAll.");
-    STAM_REG(pVM, &pPool->StatFlushAllInt,              STAMTYPE_PROFILE,   "/PGM/Pool/FlushAllInt",    STAMUNIT_TICKS_PER_CALL,    "Profiling of pgmPoolFlushAllInt.");
+    STAM_REG(pVM, &pPool->StatClearAll,                 STAMTYPE_PROFILE,   "/PGM/Pool/ClearAll",       STAMUNIT_TICKS_PER_CALL,    "Profiling of pgmR3PoolClearAll.");
+    STAM_REG(pVM, &pPool->StatR3Reset,                  STAMTYPE_PROFILE,   "/PGM/Pool/R3Reset",        STAMUNIT_TICKS_PER_CALL,    "Profiling of pgmR3PoolReset.");
     STAM_REG(pVM, &pPool->StatFlushPage,                STAMTYPE_PROFILE,   "/PGM/Pool/FlushPage",      STAMUNIT_TICKS_PER_CALL,    "Profiling of pgmPoolFlushPage.");
-    STAM_REG(pVM, &pPool->StatForceFlushPage,           STAMTYPE_COUNTER,   "/PGM/Pool/FlushForce",     STAMUNIT_OCCURENCES,        "Counting explicit flushes by PGMPoolFlushPage().");    
     STAM_REG(pVM, &pPool->StatFree,                     STAMTYPE_PROFILE,   "/PGM/Pool/Free",           STAMUNIT_TICKS_PER_CALL,    "Profiling of pgmPoolFree.");
+    STAM_REG(pVM, &pPool->StatForceFlushPage,           STAMTYPE_COUNTER,   "/PGM/Pool/FlushForce",     STAMUNIT_OCCURENCES,        "Counting explicit flushes by PGMPoolFlushPage().");
+    STAM_REG(pVM, &pPool->StatForceFlushDirtyPage,      STAMTYPE_COUNTER,   "/PGM/Pool/FlushForceDirty",     STAMUNIT_OCCURENCES,   "Counting explicit flushes of dirty pages by PGMPoolFlushPage().");
+    STAM_REG(pVM, &pPool->StatForceFlushReused,         STAMTYPE_COUNTER,   "/PGM/Pool/FlushReused",    STAMUNIT_OCCURENCES,        "Counting flushes for reused pages.");
     STAM_REG(pVM, &pPool->StatZeroPage,                 STAMTYPE_PROFILE,   "/PGM/Pool/ZeroPage",       STAMUNIT_TICKS_PER_CALL,    "Profiling time spent zeroing pages. Overlaps with Alloc.");
 # ifdef PGMPOOL_WITH_USER_TRACKING
     STAM_REG(pVM, &pPool->cMaxUsers,                    STAMTYPE_U16,       "/PGM/Pool/Track/cMaxUsers",            STAMUNIT_COUNT,      "Max user tracking records.");
     STAM_REG(pVM, &pPool->cPresent,                     STAMTYPE_U32,       "/PGM/Pool/Track/cPresent",             STAMUNIT_COUNT,      "Number of present page table entries.");
-    STAM_REG(pVM, &pPool->StatTrackDeref,               STAMTYPE_PROFILE,   "/PGM/Pool/Track/Deref",                STAMUNIT_OCCURENCES, "Profiling of pgmPoolTrackDeref.");
-    STAM_REG(pVM, &pPool->StatTrackFlushGCPhysPT,       STAMTYPE_PROFILE,   "/PGM/Pool/Track/FlushGCPhysPT",        STAMUNIT_OCCURENCES, "Profiling of pgmPoolTrackFlushGCPhysPT.");
-    STAM_REG(pVM, &pPool->StatTrackFlushGCPhysPTs,      STAMTYPE_PROFILE,   "/PGM/Pool/Track/FlushGCPhysPTs",       STAMUNIT_OCCURENCES, "Profiling of pgmPoolTrackFlushGCPhysPTs.");
-    STAM_REG(pVM, &pPool->StatTrackFlushGCPhysPTsSlow,  STAMTYPE_PROFILE,   "/PGM/Pool/Track/FlushGCPhysPTsSlow",   STAMUNIT_OCCURENCES, "Profiling of pgmPoolTrackFlushGCPhysPTsSlow.");
-    STAM_REG(pVM, &pPool->StatTrackFreeUpOneUser,       STAMTYPE_COUNTER,   "/PGM/Pool/Track/FreeUpOneUser",        STAMUNIT_OCCURENCES, "The number of times we were out of user tracking records.");
+    STAM_REG(pVM, &pPool->StatTrackDeref,               STAMTYPE_PROFILE,   "/PGM/Pool/Track/Deref",                STAMUNIT_TICKS_PER_CALL, "Profiling of pgmPoolTrackDeref.");
+    STAM_REG(pVM, &pPool->StatTrackFlushGCPhysPT,       STAMTYPE_PROFILE,   "/PGM/Pool/Track/FlushGCPhysPT",        STAMUNIT_TICKS_PER_CALL, "Profiling of pgmPoolTrackFlushGCPhysPT.");
+    STAM_REG(pVM, &pPool->StatTrackFlushGCPhysPTs,      STAMTYPE_PROFILE,   "/PGM/Pool/Track/FlushGCPhysPTs",       STAMUNIT_TICKS_PER_CALL, "Profiling of pgmPoolTrackFlushGCPhysPTs.");
+    STAM_REG(pVM, &pPool->StatTrackFlushGCPhysPTsSlow,  STAMTYPE_PROFILE,   "/PGM/Pool/Track/FlushGCPhysPTsSlow",   STAMUNIT_TICKS_PER_CALL, "Profiling of pgmPoolTrackFlushGCPhysPTsSlow.");
+    STAM_REG(pVM, &pPool->StatTrackFlushEntry,          STAMTYPE_COUNTER,   "/PGM/Pool/Track/Entry/Flush",          STAMUNIT_COUNT,          "Nr of flushed entries.");
+    STAM_REG(pVM, &pPool->StatTrackFlushEntryKeep,      STAMTYPE_COUNTER,   "/PGM/Pool/Track/Entry/Update",         STAMUNIT_COUNT,          "Nr of updated entries.");
+    STAM_REG(pVM, &pPool->StatTrackFreeUpOneUser,       STAMTYPE_COUNTER,   "/PGM/Pool/Track/FreeUpOneUser",        STAMUNIT_TICKS_PER_CALL, "The number of times we were out of user tracking records.");
 # endif
 # ifdef PGMPOOL_WITH_GCPHYS_TRACKING
-    STAM_REG(pVM, &pPool->StatTrackDerefGCPhys,         STAMTYPE_PROFILE,   "/PGM/Pool/Track/DrefGCPhys",           STAMUNIT_OCCURENCES, "Profiling deref activity related tracking GC physical pages.");
+    STAM_REG(pVM, &pPool->StatTrackDerefGCPhys,         STAMTYPE_PROFILE,   "/PGM/Pool/Track/DrefGCPhys",           STAMUNIT_TICKS_PER_CALL, "Profiling deref activity related tracking GC physical pages.");
     STAM_REG(pVM, &pPool->StatTrackLinearRamSearches,   STAMTYPE_COUNTER,   "/PGM/Pool/Track/LinearRamSearches",    STAMUNIT_OCCURENCES, "The number of times we had to do linear ram searches.");
     STAM_REG(pVM, &pPool->StamTrackPhysExtAllocFailures,STAMTYPE_COUNTER,   "/PGM/Pool/Track/PhysExtAllocFailures", STAMUNIT_OCCURENCES, "The number of failing pgmPoolTrackPhysExtAlloc calls.");
 # endif
@@ -344,22 +360,39 @@ int pgmR3PoolInit(PVM pVM)
     STAM_REG(pVM, &pPool->StatMonitorRZ,                STAMTYPE_PROFILE,   "/PGM/Pool/Monitor/RZ",                 STAMUNIT_TICKS_PER_CALL, "Profiling the RC/R0 access handler.");
     STAM_REG(pVM, &pPool->StatMonitorRZEmulateInstr,    STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/RZ/EmulateInstr",    STAMUNIT_OCCURENCES,     "Times we've failed interpreting the instruction.");
     STAM_REG(pVM, &pPool->StatMonitorRZFlushPage,       STAMTYPE_PROFILE,   "/PGM/Pool/Monitor/RZ/FlushPage",       STAMUNIT_TICKS_PER_CALL, "Profiling the pgmPoolFlushPage calls made from the RC/R0 access handler.");
+    STAM_REG(pVM, &pPool->StatMonitorRZFlushReinit,     STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/RZ/FlushReinit",     STAMUNIT_OCCURENCES,     "Times we've detected a page table reinit.");
+    STAM_REG(pVM, &pPool->StatMonitorRZFlushModOverflow,STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/RZ/FlushOverflow",   STAMUNIT_OCCURENCES,     "Counting flushes for pages that are modified too often.");
     STAM_REG(pVM, &pPool->StatMonitorRZFork,            STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/RZ/Fork",            STAMUNIT_OCCURENCES,     "Times we've detected fork().");
     STAM_REG(pVM, &pPool->StatMonitorRZHandled,         STAMTYPE_PROFILE,   "/PGM/Pool/Monitor/RZ/Handled",         STAMUNIT_TICKS_PER_CALL, "Profiling the RC/R0 access we've handled (except REP STOSD).");
     STAM_REG(pVM, &pPool->StatMonitorRZIntrFailPatch1,  STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/RZ/IntrFailPatch1",  STAMUNIT_OCCURENCES,     "Times we've failed interpreting a patch code instruction.");
     STAM_REG(pVM, &pPool->StatMonitorRZIntrFailPatch2,  STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/RZ/IntrFailPatch2",  STAMUNIT_OCCURENCES,     "Times we've failed interpreting a patch code instruction during flushing.");
     STAM_REG(pVM, &pPool->StatMonitorRZRepPrefix,       STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/RZ/RepPrefix",       STAMUNIT_OCCURENCES,     "The number of times we've seen rep prefixes we can't handle.");
     STAM_REG(pVM, &pPool->StatMonitorRZRepStosd,        STAMTYPE_PROFILE,   "/PGM/Pool/Monitor/RZ/RepStosd",        STAMUNIT_TICKS_PER_CALL, "Profiling the REP STOSD cases we've handled.");
+    STAM_REG(pVM, &pPool->StatMonitorRZFaultPT,         STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/RZ/Fault/PT",        STAMUNIT_OCCURENCES,     "Nr of handled PT faults.");
+    STAM_REG(pVM, &pPool->StatMonitorRZFaultPD,         STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/RZ/Fault/PD",        STAMUNIT_OCCURENCES,     "Nr of handled PD faults.");
+    STAM_REG(pVM, &pPool->StatMonitorRZFaultPDPT,       STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/RZ/Fault/PDPT",      STAMUNIT_OCCURENCES,     "Nr of handled PDPT faults.");
+    STAM_REG(pVM, &pPool->StatMonitorRZFaultPML4,       STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/RZ/Fault/PML4",      STAMUNIT_OCCURENCES,     "Nr of handled PML4 faults.");
     STAM_REG(pVM, &pPool->StatMonitorR3,                STAMTYPE_PROFILE,   "/PGM/Pool/Monitor/R3",                 STAMUNIT_TICKS_PER_CALL, "Profiling the R3 access handler.");
     STAM_REG(pVM, &pPool->StatMonitorR3EmulateInstr,    STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/R3/EmulateInstr",    STAMUNIT_OCCURENCES,     "Times we've failed interpreting the instruction.");
     STAM_REG(pVM, &pPool->StatMonitorR3FlushPage,       STAMTYPE_PROFILE,   "/PGM/Pool/Monitor/R3/FlushPage",       STAMUNIT_TICKS_PER_CALL, "Profiling the pgmPoolFlushPage calls made from the R3 access handler.");
+    STAM_REG(pVM, &pPool->StatMonitorR3FlushReinit,     STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/R3/FlushReinit",     STAMUNIT_OCCURENCES,     "Times we've detected a page table reinit.");
+    STAM_REG(pVM, &pPool->StatMonitorR3FlushModOverflow,STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/R3/FlushOverflow",   STAMUNIT_OCCURENCES,     "Counting flushes for pages that are modified too often.");
     STAM_REG(pVM, &pPool->StatMonitorR3Fork,            STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/R3/Fork",            STAMUNIT_OCCURENCES,     "Times we've detected fork().");
     STAM_REG(pVM, &pPool->StatMonitorR3Handled,         STAMTYPE_PROFILE,   "/PGM/Pool/Monitor/R3/Handled",         STAMUNIT_TICKS_PER_CALL, "Profiling the R3 access we've handled (except REP STOSD).");
     STAM_REG(pVM, &pPool->StatMonitorR3RepPrefix,       STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/R3/RepPrefix",       STAMUNIT_OCCURENCES,     "The number of times we've seen rep prefixes we can't handle.");
     STAM_REG(pVM, &pPool->StatMonitorR3RepStosd,        STAMTYPE_PROFILE,   "/PGM/Pool/Monitor/R3/RepStosd",        STAMUNIT_TICKS_PER_CALL, "Profiling the REP STOSD cases we've handled.");
+    STAM_REG(pVM, &pPool->StatMonitorR3FaultPT,         STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/R3/Fault/PT",        STAMUNIT_OCCURENCES,     "Nr of handled PT faults.");
+    STAM_REG(pVM, &pPool->StatMonitorR3FaultPD,         STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/R3/Fault/PD",        STAMUNIT_OCCURENCES,     "Nr of handled PD faults.");
+    STAM_REG(pVM, &pPool->StatMonitorR3FaultPDPT,       STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/R3/Fault/PDPT",      STAMUNIT_OCCURENCES,     "Nr of handled PDPT faults.");
+    STAM_REG(pVM, &pPool->StatMonitorR3FaultPML4,       STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/R3/Fault/PML4",      STAMUNIT_OCCURENCES,     "Nr of handled PML4 faults.");
     STAM_REG(pVM, &pPool->StatMonitorR3Async,           STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/R3/Async",           STAMUNIT_OCCURENCES,     "Times we're called in an async thread and need to flush.");
     STAM_REG(pVM, &pPool->cModifiedPages,               STAMTYPE_U16,       "/PGM/Pool/Monitor/cModifiedPages",     STAMUNIT_PAGES,          "The current cModifiedPages value.");
     STAM_REG(pVM, &pPool->cModifiedPagesHigh,           STAMTYPE_U16_RESET, "/PGM/Pool/Monitor/cModifiedPagesHigh", STAMUNIT_PAGES,          "The high watermark for cModifiedPages.");
+    STAM_REG(pVM, &pPool->StatResetDirtyPages,          STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/Dirty/Resets",       STAMUNIT_OCCURENCES,     "Times we've called pgmPoolResetDirtyPages (and there were dirty page).");
+    STAM_REG(pVM, &pPool->StatDirtyPage,                STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/Dirty/Pages",        STAMUNIT_OCCURENCES,     "Times we've called pgmPoolAddDirtyPage.");
+    STAM_REG(pVM, &pPool->StatDirtyPageDupFlush,        STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/Dirty/FlushDup",     STAMUNIT_OCCURENCES,     "Times we've had to flush duplicates for dirty page management.");
+    STAM_REG(pVM, &pPool->StatDirtyPageOverFlowFlush,   STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/Dirty/FlushOverflow",STAMUNIT_OCCURENCES,     "Times we've had to flush because of overflow.");
+
 # endif
 # ifdef PGMPOOL_WITH_CACHE
     STAM_REG(pVM, &pPool->StatCacheHits,                STAMTYPE_COUNTER,   "/PGM/Pool/Cache/Hits",                 STAMUNIT_OCCURENCES, "The number of pgmPoolAlloc calls satisfied by the cache.");
@@ -370,6 +403,19 @@ int pgmR3PoolInit(PVM pVM)
     STAM_REG(pVM, &pPool->StatCacheUncacheable,         STAMTYPE_COUNTER,   "/PGM/Pool/Cache/Uncacheable",          STAMUNIT_OCCURENCES, "The number of uncacheable allocations.");
 # endif
 #endif /* VBOX_WITH_STATISTICS */
+
+#ifdef VBOX_WITH_DEBUGGER
+    /*
+     * Debugger commands.
+     */
+    static bool s_fRegisteredCmds = false;
+    if (!s_fRegisteredCmds)
+    {
+        int rc = DBGCRegisterCommands(&g_aCmds[0], RT_ELEMENTS(g_aCmds));
+        if (RT_SUCCESS(rc))
+            s_fRegisteredCmds = true;
+    }
+#endif
 
     return VINF_SUCCESS;
 }
@@ -539,7 +585,7 @@ static DECLCALLBACK(int) pgmR3PoolAccessHandler(PVM pVM, RTGCPHYS GCPhys, void *
         if (!pPage->fReusedFlushPending)
         {
             pgmUnlock(pVM);
-            int rc = VMR3ReqCallEx(pPool->pVMR3, VMCPUID_ANY, NULL, 0, VMREQFLAGS_NO_WAIT | VMREQFLAGS_VOID, (PFNRT)pgmR3PoolFlushReusedPage, 2, pPool, pPage);
+            int rc = VMR3ReqCallVoidNoWait(pPool->pVMR3, VMCPUID_ANY, (PFNRT)pgmR3PoolFlushReusedPage, 2, pPool, pPage);
             AssertRCReturn(rc, rc);
             pgmLock(pVM);
             pPage->fReusedFlushPending = true;
@@ -578,5 +624,283 @@ static DECLCALLBACK(int) pgmR3PoolAccessHandler(PVM pVM, RTGCPHYS GCPhys, void *
     return VINF_PGM_HANDLER_DO_DEFAULT;
 }
 
+
+/**
+ * Rendezvous callback used by pgmR3PoolClearAll that clears all shadow pages
+ * and all modification counters.
+ *
+ * This is only called on one of the EMTs while the other ones are waiting for
+ * it to complete this function.
+ *
+ * @returns VINF_SUCCESS (VBox strict status code).
+ * @param   pVM     The VM handle.
+ * @param   pVCpu   The VMCPU for the EMT we're being called on. Unused.
+ * @param   pvUser  Unused parameter.
+ *
+ * @remark  Should only be used when monitoring is available, thus placed in
+ *          the PGMPOOL_WITH_MONITORING \#ifdef.
+ *          bird: This is no longer the case as we ditched the flush and are
+ *                using this instead of it...
+ */
+static DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, void *pvUser)
+{
+    PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
+    STAM_PROFILE_START(&pPool->StatClearAll, c);
+    LogFlow(("pgmPoolClearAllDoIt: cUsedPages=%d\n", pPool->cUsedPages));
+
+    pgmLock(pVM);
+
+#ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
+    pgmPoolResetDirtyPages(pVM);
+#endif
+
+    /*
+     * Iterate all the pages until we've encountered all that are in use.
+     * This is simple but not quite optimal solution.
+     */
+    unsigned cModifiedPages = 0; NOREF(cModifiedPages);
+    unsigned cLeft = pPool->cUsedPages;
+    unsigned iPage = pPool->cCurPages;
+    while (--iPage >= PGMPOOL_IDX_FIRST)
+    {
+        PPGMPOOLPAGE pPage = &pPool->aPages[iPage];
+        if (pPage->GCPhys != NIL_RTGCPHYS)
+        {
+            switch (pPage->enmKind)
+            {
+                /*
+                 * We only care about shadow page tables.
+                 */
+                case PGMPOOLKIND_32BIT_PT_FOR_32BIT_PT:
+                case PGMPOOLKIND_32BIT_PT_FOR_32BIT_4MB:
+                case PGMPOOLKIND_PAE_PT_FOR_32BIT_PT:
+                case PGMPOOLKIND_PAE_PT_FOR_32BIT_4MB:
+                case PGMPOOLKIND_PAE_PT_FOR_PAE_PT:
+                case PGMPOOLKIND_PAE_PT_FOR_PAE_2MB:
+                case PGMPOOLKIND_32BIT_PT_FOR_PHYS:
+                case PGMPOOLKIND_PAE_PT_FOR_PHYS:
+                {
+#ifdef PGMPOOL_WITH_USER_TRACKING
+                    if (pPage->cPresent)
+#endif
+                    {
+                        void *pvShw = PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pPage);
+                        STAM_PROFILE_START(&pPool->StatZeroPage, z);
+                        ASMMemZeroPage(pvShw);
+                        STAM_PROFILE_STOP(&pPool->StatZeroPage, z);
+#ifdef PGMPOOL_WITH_USER_TRACKING
+                        pPage->cPresent = 0;
+                        pPage->iFirstPresent = NIL_PGMPOOL_PRESENT_INDEX;
+#endif
+                    }
+#ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
+                    else
+                        Assert(!pPage->fDirty);
+#endif
+                }
+                /* fall thru */
+
+                default:
+#ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
+                    Assert(!pPage->fDirty);
+#endif
+                    Assert(!pPage->cModifications || ++cModifiedPages);
+                    Assert(pPage->iModifiedNext == NIL_PGMPOOL_IDX || pPage->cModifications);
+                    Assert(pPage->iModifiedPrev == NIL_PGMPOOL_IDX || pPage->cModifications);
+                    pPage->iModifiedNext = NIL_PGMPOOL_IDX;
+                    pPage->iModifiedPrev = NIL_PGMPOOL_IDX;
+                    pPage->cModifications = 0;
+                    break;
+
+            }
+            if (!--cLeft)
+                break;
+        }
+    }
+
+    /* swipe the special pages too. */
+    for (iPage = PGMPOOL_IDX_FIRST_SPECIAL; iPage < PGMPOOL_IDX_FIRST; iPage++)
+    {
+        PPGMPOOLPAGE pPage = &pPool->aPages[iPage];
+        if (pPage->GCPhys != NIL_RTGCPHYS)
+        {
+            Assert(!pPage->cModifications || ++cModifiedPages);
+            Assert(pPage->iModifiedNext == NIL_PGMPOOL_IDX || pPage->cModifications);
+            Assert(pPage->iModifiedPrev == NIL_PGMPOOL_IDX || pPage->cModifications);
+            pPage->iModifiedNext = NIL_PGMPOOL_IDX;
+            pPage->iModifiedPrev = NIL_PGMPOOL_IDX;
+            pPage->cModifications = 0;
+        }
+    }
+
+#ifndef DEBUG_michael
+    AssertMsg(cModifiedPages == pPool->cModifiedPages, ("%d != %d\n", cModifiedPages, pPool->cModifiedPages));
+#endif
+    pPool->iModifiedHead = NIL_PGMPOOL_IDX;
+    pPool->cModifiedPages = 0;
+
+#ifdef PGMPOOL_WITH_GCPHYS_TRACKING
+    /*
+     * Clear all the GCPhys links and rebuild the phys ext free list.
+     */
+    for (PPGMRAMRANGE pRam = pPool->CTX_SUFF(pVM)->pgm.s.CTX_SUFF(pRamRanges);
+         pRam;
+         pRam = pRam->CTX_SUFF(pNext))
+    {
+        unsigned iPage = pRam->cb >> PAGE_SHIFT;
+        while (iPage-- > 0)
+            PGM_PAGE_SET_TRACKING(&pRam->aPages[iPage], 0);
+    }
+
+    pPool->iPhysExtFreeHead = 0;
+    PPGMPOOLPHYSEXT paPhysExts = pPool->CTX_SUFF(paPhysExts);
+    const unsigned cMaxPhysExts = pPool->cMaxPhysExts;
+    for (unsigned i = 0; i < cMaxPhysExts; i++)
+    {
+        paPhysExts[i].iNext = i + 1;
+        paPhysExts[i].aidx[0] = NIL_PGMPOOL_IDX;
+        paPhysExts[i].aidx[1] = NIL_PGMPOOL_IDX;
+        paPhysExts[i].aidx[2] = NIL_PGMPOOL_IDX;
+    }
+    paPhysExts[cMaxPhysExts - 1].iNext = NIL_PGMPOOL_PHYSEXT_INDEX;
+#endif
+
+#ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
+    /* Clear all dirty pages. */
+    pPool->idxFreeDirtyPage = 0;
+    pPool->cDirtyPages      = 0;
+    for (unsigned i = 0; i < RT_ELEMENTS(pPool->aIdxDirtyPages); i++)
+        pPool->aIdxDirtyPages[i] = NIL_PGMPOOL_IDX;
+#endif
+
+    /* Clear the PGM_SYNC_CLEAR_PGM_POOL flag on all VCPUs to prevent redundant flushes. */
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        pVCpu->pgm.s.fSyncFlags &= ~PGM_SYNC_CLEAR_PGM_POOL;
+    }
+
+    pPool->cPresent = 0;
+    pgmUnlock(pVM);
+    PGM_INVL_ALL_VCPU_TLBS(pVM);
+    STAM_PROFILE_STOP(&pPool->StatClearAll, c);
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Clears the shadow page pool.
+ *
+ * @param   pVM         The VM handle.
+ */
+void pgmR3PoolClearAll(PVM pVM)
+{
+    int rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ONCE, pgmR3PoolClearAllRendezvous, NULL);
+    AssertRC(rc);
+}
+
 #endif /* PGMPOOL_WITH_MONITORING */
 
+#ifdef VBOX_WITH_DEBUGGER
+/**
+ * The '.pgmpoolcheck' command.
+ *
+ * @returns VBox status.
+ * @param   pCmd        Pointer to the command descriptor (as registered).
+ * @param   pCmdHlp     Pointer to command helper functions.
+ * @param   pVM         Pointer to the current VM (if any).
+ * @param   paArgs      Pointer to (readonly) array of arguments.
+ * @param   cArgs       Number of arguments in the array.
+ */
+static DECLCALLBACK(int) pgmR3PoolCmdCheck(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
+{
+    /*
+     * Validate input.
+     */
+    if (!pVM)
+        return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: The command requires a VM to be selected.\n");
+
+    PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
+
+    for (unsigned i = 0; i < pPool->cCurPages; i++)
+    {
+        PPGMPOOLPAGE pPage = &pPool->aPages[i];
+        bool fFirstMsg = true;
+
+        /* Todo: cover other paging modes too. */
+        if (pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT)
+        {
+            PX86PTPAE pShwPT = (PX86PTPAE)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pPage);
+            PX86PTPAE pGstPT;
+            int rc = PGM_GCPHYS_2_PTR(pPool->CTX_SUFF(pVM), pPage->GCPhys, &pGstPT); AssertReleaseRC(rc);
+
+            /* Check if any PTEs are out of sync. */
+            for (unsigned j = 0; j < RT_ELEMENTS(pShwPT->a); j++)
+            {
+                if (pShwPT->a[j].n.u1Present)
+                {
+                    RTHCPHYS HCPhys = -1;
+                    rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), pGstPT->a[j].u & X86_PTE_PAE_PG_MASK, &HCPhys);
+                    if (    rc != VINF_SUCCESS
+                        ||  (pShwPT->a[j].u & X86_PTE_PAE_PG_MASK) != HCPhys)
+                    {
+                        if (fFirstMsg)
+                        {
+                            pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Check pool page %RGp\n", pPage->GCPhys);
+                            fFirstMsg = false;
+                        }
+                        pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Mismatch HCPhys: rc=%d idx=%d guest %RX64 shw=%RX64 vs %RHp\n", rc, j, pGstPT->a[j].u, pShwPT->a[j].u, HCPhys);
+                    }
+                    else
+                    if (    pShwPT->a[j].n.u1Write
+                        &&  !pGstPT->a[j].n.u1Write)
+                    {
+                        if (fFirstMsg)
+                        {
+                            pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Check pool page %RGp\n", pPage->GCPhys);
+                            fFirstMsg = false;
+                        }
+                        pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Mismatch r/w gst/shw: idx=%d guest %RX64 shw=%RX64 vs %RHp\n", j, pGstPT->a[j].u, pShwPT->a[j].u, HCPhys);
+                    }
+                }
+            }
+
+            /* Make sure this page table can't be written to from any shadow mapping. */
+            RTHCPHYS HCPhysPT = -1;
+            rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), pPage->GCPhys, &HCPhysPT);
+            AssertMsgRC(rc, ("PGMPhysGCPhys2HCPhys failed with rc=%d for %RGp\n", rc, pPage->GCPhys));
+            if (rc == VINF_SUCCESS)
+            {
+                for (unsigned j = 0; j < pPool->cCurPages; j++)
+                {
+                    PPGMPOOLPAGE pTempPage = &pPool->aPages[j];
+
+                    if (pTempPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT)
+                    {
+                        PX86PTPAE pShwPT2 = (PX86PTPAE)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pTempPage);
+
+                        for (unsigned k = 0; k < RT_ELEMENTS(pShwPT->a); k++)
+                        {
+                            if (    pShwPT2->a[k].n.u1Present
+                                &&  pShwPT2->a[k].n.u1Write
+# ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
+                                &&  !pPage->fDirty
+# endif
+                                &&  ((pShwPT2->a[k].u & X86_PTE_PAE_PG_MASK) == HCPhysPT))
+                            {
+                                if (fFirstMsg)
+                                {
+                                    pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Check pool page %RGp\n", pPage->GCPhys);
+                                    fFirstMsg = false;
+                                }
+                                pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Mismatch: r/w: GCPhys=%RGp idx=%d shw %RX64 %RX64\n", pTempPage->GCPhys, k, pShwPT->a[k].u, pShwPT2->a[k].u);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return VINF_SUCCESS;
+}
+#endif /* VBOX_WITH_DEBUGGER */

@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceVMInfo-win.cpp $ */
+/* $Id: VBoxServiceVMInfo-win.cpp 24686 2009-11-16 10:14:48Z vboxsync $ */
 /** @file
  * VBoxVMInfo-win - Virtual machine (guest) information for the host.
  */
@@ -20,7 +20,6 @@
  */
 
 
-
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
@@ -36,7 +35,7 @@
 #include <iprt/semaphore.h>
 #include <iprt/system.h>
 #include <iprt/time.h>
-#include <VBox/VBoxGuest.h>
+#include <VBox/VBoxGuestLib.h>
 #include "VBoxServiceInternal.h"
 #include "VBoxServiceUtils.h"
 
@@ -330,87 +329,6 @@ BOOL VBoxServiceVMInfoWinIsLoggedIn(VBOXSERVICEVMINFOUSER* a_pUserInfo,
 
 #endif /* TARGET_NT4 */
 
-int VBoxServiceWinGetAddsVersion(uint32_t uiClientID)
-{
-    char szInstDir[_MAX_PATH] = {0};
-    char szRev[_MAX_PATH] = {0};
-    char szVer[_MAX_PATH] = {0};
-
-    HKEY hKey = NULL;
-    int rc;
-    DWORD dwSize = 0;
-    DWORD dwType = 0;
-
-    VBoxServiceVerbose(3, "Guest Additions version lookup: Looking up ...\n");
-
-    /* Check the new path first. */
-    rc = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Sun\\VirtualBox Guest Additions", 0, KEY_READ, &hKey);
-#ifdef RT_ARCH_AMD64
-    if (rc != ERROR_SUCCESS)
-    {  
-        /* Check Wow6432Node (for new entries). */
-        rc = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Wow6432Node\\Sun\\VirtualBox Guest Additions", 0, KEY_READ, &hKey);
-    }
-#endif
-
-    /* Still no luck? Then try the old xVM paths ... */
-    if (RT_FAILURE(rc))
-    {
-        rc = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Sun\\xVM VirtualBox Guest Additions", 0, KEY_READ, &hKey);
-#ifdef RT_ARCH_AMD64
-        if (rc != ERROR_SUCCESS)
-        {
-            /* Check Wow6432Node (for new entries). */
-            rc = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Wow6432Node\\Sun\\xVM VirtualBox Guest Additions", 0, KEY_READ, &hKey);
-        }
-#endif
-    }
-
-    /* Did we get something worth looking at? */
-    if (RT_FAILURE(rc))
-    {
-        VBoxServiceError("Failed to open registry key (guest additions)! Error: %Rrc\n", rc);
-    }
-    else
-    {
-        VBoxServiceVerbose(3, "Guest Additions version lookup: Key: 0x%p, rc: %Rrc\n", hKey, rc);
-        /* Installation directory. */
-        dwSize = sizeof(szInstDir);
-        rc = RegQueryValueEx(hKey, "InstallDir", NULL, &dwType, (BYTE*)(LPCTSTR)szInstDir, &dwSize);
-        if ((rc != ERROR_SUCCESS) && (rc != ERROR_FILE_NOT_FOUND))
-        {
-            VBoxServiceError("Failed to query registry key (install directory)! Error: %Rrc\n", rc);
-        }    
-        else
-        {
-            /* Flip slashes. */
-            for (char* pszTmp = &szInstDir[0]; *pszTmp; ++pszTmp)
-                if (*pszTmp == '\\')
-                    *pszTmp = '/';
-        }
-        /* Revision. */
-        dwSize = sizeof(szRev);
-        rc = RegQueryValueEx(hKey, "Revision", NULL, &dwType, (BYTE*)(LPCTSTR)szRev, &dwSize);
-        if ((rc != ERROR_SUCCESS) && (rc != ERROR_FILE_NOT_FOUND))
-            VBoxServiceError("Failed to query registry key (revision)! Error: %Rrc\n", rc);
-        /* Version. */
-        dwSize = sizeof(szVer);
-        rc = RegQueryValueEx(hKey, "Version", NULL, &dwType, (BYTE*)(LPCTSTR)szVer, &dwSize);
-        if ((rc != ERROR_SUCCESS) && (rc != ERROR_FILE_NOT_FOUND))
-            VBoxServiceError("Failed to query registry key (version)! Error: %Rrc\n", rc);
-    }
-
-    /* Write information to host. */
-    rc = VBoxServiceWritePropF(uiClientID, "/VirtualBox/GuestAdd/InstallDir", szInstDir);
-    rc = VBoxServiceWritePropF(uiClientID, "/VirtualBox/GuestAdd/Revision", szRev);
-    rc = VBoxServiceWritePropF(uiClientID, "/VirtualBox/GuestAdd/Version", szVer);
-
-    if (NULL != hKey)
-        RegCloseKey(hKey);
-
-    return rc;
-}
-
 int VBoxServiceWinGetComponentVersions(uint32_t uiClientID)
 {
     int rc;
@@ -439,6 +357,7 @@ int VBoxServiceWinGetComponentVersions(uint32_t uiClientID)
         { szSysDir, "VBoxService.exe", },
         { szSysDir, "VBoxTray.exe", },
         { szSysDir, "VBoxGINA.dll", },
+        { szSysDir, "VBoxCredProv.dll", },
 
  /* On 64-bit we don't yet have the OpenGL DLLs in native format.
     So just enumerate the 32-bit files in the SYSWOW directory. */
@@ -494,10 +413,9 @@ int VBoxServiceWinGetComponentVersions(uint32_t uiClientID)
     {
         rc = VBoxServiceGetFileVersionString(pTable->pszFilePath, pTable->pszFileName, szVer, sizeof(szVer));
         RTStrPrintf(szPropPath, sizeof(szPropPath), "/VirtualBox/GuestAdd/Components/%s", pTable->pszFileName);
-        rc = VBoxServiceWritePropF(uiClientID, szPropPath, szVer);
+        rc = VBoxServiceWritePropF(uiClientID, szPropPath, "%s", szVer);
         pTable++;
     }
 
     return VINF_SUCCESS;
 }
-

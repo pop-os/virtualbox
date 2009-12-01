@@ -49,6 +49,8 @@
 #include <QDesktopWidget>
 #include <QToolButton>
 
+#include <iprt/buildconfig.h>
+
 // VBoxVMDetailsView class
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -474,18 +476,18 @@ VBoxSelectorWnd (VBoxSelectorWnd **aSelf, QWidget* aParent,
     centralLayout->addLayout (rightVLayout, 2);
 
     /* VM list toolbar */
-    VBoxToolBar *vmTools = new VBoxToolBar (this);
+    mVMToolBar = new VBoxToolBar (this);
 #if MAC_LEOPARD_STYLE
     /* Enable unified toolbars on Mac OS X. Available on Qt >= 4.3 */
-    addToolBar (vmTools);
-    vmTools->setMacToolbar();
+    addToolBar (mVMToolBar);
+    mVMToolBar->setMacToolbar();
     /* No spacing/margin on the mac */
     VBoxGlobal::setLayoutMargin (centralLayout, 0);
     leftVLayout->setSpacing (0);
     rightVLayout->setSpacing (0);
     rightVLayout->insertSpacing (0, 10);
 #else /* MAC_LEOPARD_STYLE */
-    leftVLayout->addWidget (vmTools);
+    leftVLayout->addWidget (mVMToolBar);
     centralLayout->setSpacing (9);
     VBoxGlobal::setLayoutMargin (centralLayout, 5);
     leftVLayout->setSpacing (5);
@@ -532,17 +534,17 @@ VBoxSelectorWnd (VBoxSelectorWnd **aSelf, QWidget* aParent,
 
     /* add actions to the toolbar */
 
-    vmTools->setIconSize (QSize (32, 32));
-    vmTools->setToolButtonStyle (Qt::ToolButtonTextUnderIcon);
-    vmTools->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Preferred);
+    mVMToolBar->setIconSize (QSize (32, 32));
+    mVMToolBar->setToolButtonStyle (Qt::ToolButtonTextUnderIcon);
+    mVMToolBar->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Preferred);
 
-    vmTools->addAction (mVmNewAction);
-    vmTools->addAction (mVmConfigAction);
+    mVMToolBar->addAction (mVmNewAction);
+    mVMToolBar->addAction (mVmConfigAction);
 #if 0 /* delete action is really rare */
-    vmTools->addAction (mVmDeleteAction);
+    mVMToolBar->addAction (mVmDeleteAction);
 #endif
-    vmTools->addAction (mVmStartAction);
-    vmTools->addAction (mVmDiscardAction);
+    mVMToolBar->addAction (mVmStartAction);
+    mVMToolBar->addAction (mVmDiscardAction);
 
     /* add actions to menubar */
 
@@ -718,9 +720,9 @@ VBoxSelectorWnd::~VBoxSelectorWnd()
     {
         int y = mNormalGeo.y();
 #if defined (Q_WS_MAC) && !defined (QT_MAC_USE_COCOA)
-        /* The toolbar counts to the content not to the frame. Unfortunaly the
-         * toolbar isn't fully initialized when this window will be moved to
-         * the last position after VBox starting. As a workaround just do
+        /* The toolbar counts to the content not to the frame. Unfortunately
+         * the toolbar isn't fully initialized when this window will be moved
+         * to the last position after VBox starting. As a workaround just do
          * remove the toolbar height part when save the last position. */
         y -= ::darwinWindowToolBarHeight (this);
 #endif /* Q_WS_MAC && !QT_MAC_USE_COCOA */
@@ -904,18 +906,18 @@ void VBoxSelectorWnd::vmDelete (const QString &aUuid /*= QUuid_null*/)
                 return;
             CMachine machine = session.GetMachine();
             /* Detach all attached Hard Disks */
-            CHardDiskAttachmentVector vec = machine.GetHardDiskAttachments();
+            CMediumAttachmentVector vec = machine.GetMediumAttachments();
             for (int i = 0; i < vec.size(); ++ i)
             {
-                CHardDiskAttachment hda = vec [i];
+                CMediumAttachment hda = vec [i];
                 const QString ctlName = hda.GetController();
 
-                machine.DetachHardDisk(ctlName, hda.GetPort(), hda.GetDevice());
+                machine.DetachDevice(ctlName, hda.GetPort(), hda.GetDevice());
                 if (!machine.isOk())
                 {
                     CStorageController ctl = machine.GetStorageControllerByName(ctlName);
-                    vboxProblem().cannotDetachHardDisk (this, machine,
-                        vboxGlobal().getMedium (CMedium (hda.GetHardDisk())).location(),
+                    vboxProblem().cannotDetachDevice (this, machine, VBoxDefs::MediumType_HardDisk,
+                        vboxGlobal().getMedium (CMedium (hda.GetMedium())).location(),
                         ctl.GetBus(), hda.GetPort(), hda.GetDevice());
                 }
             }
@@ -979,8 +981,11 @@ void VBoxSelectorWnd::vmStart (const QString &aUuid /*= QUuid_null*/)
         return;
     }
 
-    AssertMsg (item->state() < KMachineState_Running,
-               ("Machine must be PoweredOff/Saved/Aborted"));
+    AssertMsg (   item->state() == KMachineState_PoweredOff
+               || item->state() == KMachineState_Saved
+               || item->state() == KMachineState_Teleported
+               || item->state() == KMachineState_Aborted
+               , ("Machine must be PoweredOff/Saved/Aborted (%d)", item->state()));
 
     QString id = item->id();
     CVirtualBox vbox = vboxGlobal().virtualBox();
@@ -1116,7 +1121,7 @@ void VBoxSelectorWnd::vmRefresh (const QString &aUuid /*= QUuid_null*/)
                    true /* aDescription */);
 
     if (!oldAccessible && item->accessible())
-        vboxGlobal().checkForAutoConvertedSettingsAfterRefresh();
+        fileExit();
 }
 
 void VBoxSelectorWnd::vmShowLogs (const QString &aUuid /*= QUuid_null*/)
@@ -1286,10 +1291,20 @@ bool VBoxSelectorWnd::eventFilter (QObject *aObject, QEvent *aEvent)
 void VBoxSelectorWnd::retranslateUi()
 {
 #ifdef VBOX_OSE
-    setWindowTitle (tr ("VirtualBox OSE"));
+    QString title (tr ("VirtualBox OSE"));
 #else
-    setWindowTitle (tr ("Sun VirtualBox"));
+    QString title (tr ("Sun VirtualBox"));
 #endif
+
+#ifdef VBOX_BLEEDING_EDGE
+    title += QString(" EXPERIMENTAL build ")
+          +  QString(RTBldCfgVersion())
+          +  QString(" r")
+          +  QString(RTBldCfgRevisionStr())
+          +  QString(" - "VBOX_BLEEDING_EDGE);
+#endif
+
+    setWindowTitle (title);
 
     mVmTabWidget->setTabText (mVmTabWidget->indexOf (mVmDetailsView), tr ("&Details"));
     /* note: Snapshots and Details tabs are changed dynamically by
@@ -1308,7 +1323,7 @@ void VBoxSelectorWnd::retranslateUi()
 
     mFileApplianceExportAction->setText (tr ("&Export Appliance..."));
     mFileApplianceExportAction->setShortcut (QKeySequence ("Ctrl+E"));
-    mFileApplianceExportAction->setStatusTip (tr ("Export an appliance out of VM's from VirtualBox"));
+    mFileApplianceExportAction->setStatusTip (tr ("Export one or more VirtualBox virtual machines as an appliance"));
 
 #ifdef Q_WS_MAC
     /*
@@ -1386,6 +1401,13 @@ void VBoxSelectorWnd::retranslateUi()
         mTrayIcon->refresh();
     }
 #endif
+
+#ifdef QT_MAC_USE_COCOA
+    /* There is a bug in Qt Cocoa which result in showing a "more
+     * arrow" when the necessary size of the toolbar is increased. So
+     * manually adjust the size after changing the text. */
+    mVMToolBar->adjustSize();
+#endif /* QT_MAC_USE_COCOA */
 }
 
 
@@ -1444,29 +1466,51 @@ void VBoxSelectorWnd::vmListViewCurrentChanged (bool aRefreshDetails,
         mVmConfigAction->setEnabled (modifyEnabled);
         mVmDeleteAction->setEnabled (modifyEnabled);
         mVmDiscardAction->setEnabled (state == KMachineState_Saved && !running);
-        mVmPauseAction->setEnabled (state == KMachineState_Running ||
-                                   state == KMachineState_Paused);
+        mVmPauseAction->setEnabled (   state == KMachineState_Running
+                                    || state == KMachineState_Teleporting
+                                    || state == KMachineState_LiveSnapshotting
+                                    || state == KMachineState_Paused
+                                    || state == KMachineState_TeleportingPausedVM /** @todo Live Migration: does this make sense? */
+                                   );
 
         /* change the Start button text accordingly */
-        if (state >= KMachineState_Running)
-        {
-            mVmStartAction->setText (tr ("S&how"));
-            mVmStartAction->setStatusTip (
-                tr ("Switch to the window of the selected virtual machine"));
-
-            mVmStartAction->setEnabled (item->canSwitchTo());
-        }
-        else
+        if (   state == KMachineState_PoweredOff
+            || state == KMachineState_Saved
+            || state == KMachineState_Teleported
+            || state == KMachineState_Aborted
+           )
         {
             mVmStartAction->setText (tr ("S&tart"));
+#ifdef QT_MAC_USE_COCOA
+            /* There is a bug in Qt Cocoa which result in showing a "more
+             * arrow" when the necessary size of the toolbar is increased. So
+             * manually adjust the size after changing the text. */
+            mVMToolBar->adjustSize();
+#endif /* QT_MAC_USE_COCOA */
             mVmStartAction->setStatusTip (
                 tr ("Start the selected virtual machine"));
 
             mVmStartAction->setEnabled (!running);
         }
+        else
+        {
+            mVmStartAction->setText (tr ("S&how"));
+#ifdef QT_MAC_USE_COCOA
+            /* There is a bug in Qt Cocoa which result in showing a "more
+             * arrow" when the necessary size of the toolbar is increased. So
+             * manually adjust the size after changing the text. */
+            mVMToolBar->adjustSize();
+#endif /* QT_MAC_USE_COCOA */
+            mVmStartAction->setStatusTip (
+                tr ("Switch to the window of the selected virtual machine"));
+
+            mVmStartAction->setEnabled (item->canSwitchTo());
+        }
 
         /* change the Pause/Resume button text accordingly */
-        if (state == KMachineState_Paused)
+        if (   state == KMachineState_Paused
+            || state == KMachineState_TeleportingPausedVM /*?*/
+           )
         {
             mVmPauseAction->setText (tr ("R&esume"));
             mVmPauseAction->setShortcut (QKeySequence ("Ctrl+P"));
@@ -1513,7 +1557,7 @@ void VBoxSelectorWnd::vmListViewCurrentChanged (bool aRefreshDetails,
             mVmDetailsView->setDetailsText
                 (tr ("<h3>"
                      "Welcome to VirtualBox!</h3>"
-                     "<p>The left part of this window is intended to display "
+                     "<p>The left part of this window is  "
                      "a list of all virtual machines on your computer. "
                      "The list is empty now because you haven't created any virtual "
                      "machines yet."
@@ -1592,7 +1636,7 @@ void VBoxSelectorWnd::mediumEnumFinished (const VBoxMediaList &list)
         /* look for at least one inaccessible media */
         VBoxMediaList::const_iterator it;
         for (it = list.begin(); it != list.end(); ++ it)
-            if ((*it).state() == KMediaState_Inaccessible)
+            if ((*it).state() == KMediumState_Inaccessible)
                 break;
 
         if (it != list.end() && vboxProblem().remindAboutInaccessibleMedia())
@@ -1854,26 +1898,36 @@ void VBoxTrayIcon::showSubMenu ()
         mVmDiscardAction->setEnabled (s == KMachineState_Saved && !running);
 
         /* Change the Start button text accordingly */
-        if (s >= KMachineState_Running)
-        {
-            mVmStartAction->setText (VBoxVMListView::tr ("S&how"));
-            mVmStartAction->setStatusTip (
-                  VBoxVMListView::tr ("Switch to the window of the selected virtual machine"));
-            mVmStartAction->setEnabled (pItem->canSwitchTo());
-        }
-        else
+        if (   s == KMachineState_PoweredOff
+            || s == KMachineState_Saved
+            || s == KMachineState_Teleported
+            || s == KMachineState_Aborted
+           )
         {
             mVmStartAction->setText (VBoxVMListView::tr ("S&tart"));
             mVmStartAction->setStatusTip (
                   VBoxVMListView::tr ("Start the selected virtual machine"));
             mVmStartAction->setEnabled (!running);
         }
+        else
+        {
+            mVmStartAction->setText (VBoxVMListView::tr ("S&how"));
+            mVmStartAction->setStatusTip (
+                  VBoxVMListView::tr ("Switch to the window of the selected virtual machine"));
+            mVmStartAction->setEnabled (pItem->canSwitchTo());
+        }
 
         /* Change the Pause/Resume button text accordingly */
-        mVmPauseAction->setEnabled (s == KMachineState_Running ||
-                                    s == KMachineState_Paused);
+        mVmPauseAction->setEnabled (   s == KMachineState_Running
+                                    || s == KMachineState_Teleporting
+                                    || s == KMachineState_LiveSnapshotting
+                                    || s == KMachineState_Paused
+                                    || s == KMachineState_TeleportingPausedVM
+                                   );
 
-        if (s == KMachineState_Paused)
+        if (   s == KMachineState_Paused
+            || s == KMachineState_TeleportingPausedVM /*?*/
+           )
         {
             mVmPauseAction->setText (VBoxVMListView::tr ("R&esume"));
             mVmPauseAction->setStatusTip (

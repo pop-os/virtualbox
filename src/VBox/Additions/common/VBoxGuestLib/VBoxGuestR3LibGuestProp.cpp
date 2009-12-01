@@ -1,7 +1,6 @@
-/* $Id: VBoxGuestR3LibGuestProp.cpp $ */
+/* $Id: VBoxGuestR3LibGuestProp.cpp 24320 2009-11-04 11:38:15Z vboxsync $ */
 /** @file
- * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions,
- * guest properties.
+ * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, guest properties.
  */
 
 /*
@@ -41,6 +40,8 @@
 /**
  * Structure containing information needed to enumerate through guest
  * properties.
+ *
+ * @remarks typedef in VBoxGuestLib.h.
  */
 struct VBGLR3GUESTPROPENUM
 {
@@ -65,9 +66,9 @@ using namespace guestProp;
 VBGLR3DECL(int) VbglR3GuestPropConnect(uint32_t *pu32ClientId)
 {
     VBoxGuestHGCMConnectInfo Info;
-    Info.result = (uint32_t)VERR_WRONG_ORDER; /** @todo drop the cast when the result type has been fixed! */
+    Info.result = VERR_WRONG_ORDER;
     Info.Loc.type = VMMDevHGCMLoc_LocalHost_Existing;
-    memset(&Info.Loc.u, 0, sizeof(Info.Loc.u));
+    RT_ZERO(Info.Loc.u);
     strcpy(Info.Loc.u.host.achName, "VBoxGuestPropSvc");
     Info.u32ClientID = UINT32_MAX;  /* try make valgrid shut up. */
 
@@ -91,7 +92,7 @@ VBGLR3DECL(int) VbglR3GuestPropConnect(uint32_t *pu32ClientId)
 VBGLR3DECL(int) VbglR3GuestPropDisconnect(uint32_t u32ClientId)
 {
     VBoxGuestHGCMDisconnectInfo Info;
-    Info.result = (uint32_t)VERR_WRONG_ORDER;  /** @todo drop the cast when the result type has been fixed! */
+    Info.result = VERR_WRONG_ORDER;
     Info.u32ClientID = u32ClientId;
 
     int rc = vbglR3DoIOCtl(VBOXGUEST_IOCTL_HGCM_DISCONNECT, &Info, sizeof(Info));
@@ -119,7 +120,7 @@ VBGLR3DECL(int) VbglR3GuestPropWrite(uint32_t u32ClientId, const char *pszName, 
     {
         SetProperty Msg;
 
-        Msg.hdr.result = (uint32_t)VERR_WRONG_ORDER;  /** @todo drop the cast when the result type has been fixed! */
+        Msg.hdr.result = VERR_WRONG_ORDER;
         Msg.hdr.u32ClientID = u32ClientId;
         Msg.hdr.u32Function = SET_PROP_VALUE;
         Msg.hdr.cParms = 3;
@@ -134,7 +135,7 @@ VBGLR3DECL(int) VbglR3GuestPropWrite(uint32_t u32ClientId, const char *pszName, 
     {
         DelProperty Msg;
 
-        Msg.hdr.result = (uint32_t)VERR_WRONG_ORDER;  /** @todo drop the cast when the result type has been fixed! */
+        Msg.hdr.result = VERR_WRONG_ORDER;
         Msg.hdr.u32ClientID = u32ClientId;
         Msg.hdr.u32Function = DEL_PROP;
         Msg.hdr.cParms = 1;
@@ -168,7 +169,7 @@ VBGLR3DECL(int) VbglR3GuestPropWriteValue(uint32_t u32ClientId, const char *pszN
     {
         SetPropertyValue Msg;
 
-        Msg.hdr.result = (uint32_t)VERR_WRONG_ORDER;  /** @todo drop the cast when the result type has been fixed! */
+        Msg.hdr.result = VERR_WRONG_ORDER;
         Msg.hdr.u32ClientID = u32ClientId;
         Msg.hdr.u32Function = SET_PROP_VALUE;
         Msg.hdr.cParms = 2;
@@ -182,7 +183,7 @@ VBGLR3DECL(int) VbglR3GuestPropWriteValue(uint32_t u32ClientId, const char *pszN
     {
         DelProperty Msg;
 
-        Msg.hdr.result = (uint32_t)VERR_WRONG_ORDER;  /** @todo drop the cast when the result type has been fixed! */
+        Msg.hdr.result = VERR_WRONG_ORDER;
         Msg.hdr.u32ClientID = u32ClientId;
         Msg.hdr.u32Function = DEL_PROP;
         Msg.hdr.cParms = 1;
@@ -276,7 +277,7 @@ VBGLR3DECL(int) VbglR3GuestPropRead(uint32_t u32ClientId, const char *pszName,
      */
     GetProperty Msg;
 
-    Msg.hdr.result = (uint32_t)VERR_WRONG_ORDER;  /** @todo drop the cast when the result type has been fixed! */
+    Msg.hdr.result = VERR_WRONG_ORDER;
     Msg.hdr.u32ClientID = u32ClientId;
     Msg.hdr.u32Function = GET_PROP;
     Msg.hdr.cParms = 4;
@@ -489,7 +490,7 @@ VBGLR3DECL(int) VbglR3GuestPropEnumRaw(uint32_t u32ClientId,
 {
     EnumProperties Msg;
 
-    Msg.hdr.result = (uint32_t)VERR_WRONG_ORDER;  /** @todo drop the cast when the result type has been fixed! */
+    Msg.hdr.result = VERR_WRONG_ORDER;
     Msg.hdr.u32ClientID = u32ClientId;
     Msg.hdr.u32Function = ENUM_PROPS;
     Msg.hdr.cParms = 3;
@@ -809,7 +810,7 @@ VBGLR3DECL(int) VbglR3GuestPropDelSet(uint32_t u32ClientId,
  * @param   cbBuf           The size of @a pvBuf
  * @param   u64Timestamp    The timestamp of the last event seen.  Pass zero
  *                          to wait for the next event.
- * @param   u32Timeout      Timeout in milliseconds.  Use RT_INDEFINITE_WAIT
+ * @param   cMillies        Timeout in milliseconds.  Use RT_INDEFINITE_WAIT
  *                          to wait indefinitely.
  * @param   ppszName        Where to store the pointer to the name retrieved.
  *                          Optional.
@@ -823,7 +824,7 @@ VBGLR3DECL(int) VbglR3GuestPropDelSet(uint32_t u32ClientId,
 VBGLR3DECL(int) VbglR3GuestPropWait(uint32_t u32ClientId,
                                     const char *pszPatterns,
                                     void *pvBuf, uint32_t cbBuf,
-                                    uint64_t u64Timestamp, uint32_t u32Timeout,
+                                    uint64_t u64Timestamp, uint32_t cMillies,
                                     char ** ppszName, char **ppszValue,
                                     uint64_t *pu64Timestamp, char **ppszFlags,
                                     uint32_t *pcbBufActual)
@@ -833,9 +834,9 @@ VBGLR3DECL(int) VbglR3GuestPropWait(uint32_t u32ClientId,
      */
     GetNotification Msg;
 
-    Msg.hdr.u32Timeout = u32Timeout;
+    Msg.hdr.u32Timeout = cMillies;
     Msg.hdr.fInterruptible = true;
-    Msg.hdr.info.result = (uint32_t)VERR_WRONG_ORDER;  /** @todo drop the cast when the result type has been fixed! */
+    Msg.hdr.info.result = VERR_WRONG_ORDER;
     Msg.hdr.info.u32ClientID = u32ClientId;
     Msg.hdr.info.u32Function = GET_NOTIFICATION;
     Msg.hdr.info.cParms = 4;

@@ -1,4 +1,4 @@
-/* $Id: semeventmulti-r0drv-linux.c $ */
+/* $Id: semeventmulti-r0drv-linux.c 24956 2009-11-25 14:26:50Z vboxsync $ */
 /** @file
  * IPRT - Multiple Release Event Semaphores, Ring-0 Driver, Linux.
  */
@@ -33,6 +33,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-linux-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/semaphore.h>
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
@@ -73,6 +74,7 @@ RTDECL(int) RTSemEventMultiCreate(PRTSEMEVENTMULTI pEventMultiSem)
     }
     return VERR_NO_MEMORY;
 }
+RT_EXPORT_SYMBOL(RTSemEventMultiCreate);
 
 
 RTDECL(int) RTSemEventMultiDestroy(RTSEMEVENTMULTI EventMultiSem)
@@ -96,6 +98,7 @@ RTDECL(int) RTSemEventMultiDestroy(RTSEMEVENTMULTI EventMultiSem)
     RTMemFree(pThis);
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTSemEventMultiDestroy);
 
 
 RTDECL(int) RTSemEventMultiSignal(RTSEMEVENTMULTI EventMultiSem)
@@ -116,6 +119,7 @@ RTDECL(int) RTSemEventMultiSignal(RTSEMEVENTMULTI EventMultiSem)
     wake_up_all(&pThis->Head);
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTSemEventMultiSignal);
 
 
 RTDECL(int) RTSemEventMultiReset(RTSEMEVENTMULTI EventMultiSem)
@@ -135,6 +139,7 @@ RTDECL(int) RTSemEventMultiReset(RTSEMEVENTMULTI EventMultiSem)
     ASMAtomicXchgU32(&pThis->fState, 0);
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTSemEventMultiReset);
 
 
 /**
@@ -175,6 +180,8 @@ static int rtSemEventMultiWait(PRTSEMEVENTMULTIINTERNAL pThis, unsigned cMillies
         /* wait */
         lTimeout = schedule_timeout(lTimeout);
 
+        after_wait(&Wait);
+
         /* Check if someone destroyed the semaphore while we were waiting. */
         if (pThis->u32Magic != RTSEMEVENTMULTI_MAGIC)
         {
@@ -210,6 +217,7 @@ RTDECL(int) RTSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies
         return VINF_SUCCESS;
     return rtSemEventMultiWait(pThis, cMillies, false /* fInterruptible */);
 }
+RT_EXPORT_SYMBOL(RTSemEventMultiWait);
 
 
 RTDECL(int) RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies)
@@ -224,4 +232,5 @@ RTDECL(int) RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI EventMultiSem, unsigned 
         return VINF_SUCCESS;
     return rtSemEventMultiWait(pThis, cMillies, true /* fInterruptible */);
 }
+RT_EXPORT_SYMBOL(RTSemEventMultiWaitNoResume);
 

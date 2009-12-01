@@ -1,4 +1,4 @@
-/* $Id: RTFileReadAllEx-generic.cpp $ */
+/* $Id: RTFileReadAllEx-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - RTFileReadAllEx, generic implementation.
  */
@@ -29,11 +29,12 @@
  */
 
 
-
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/file.h>
+#include "internal/iprt.h"
+
 #include <iprt/assert.h>
 #include <iprt/err.h>
 
@@ -51,4 +52,5 @@ RTDECL(int) RTFileReadAllEx(const char *pszFilename, RTFOFF off, RTFOFF cbMax, u
     }
     return rc;
 }
+RT_EXPORT_SYMBOL(RTFileReadAllEx);
 

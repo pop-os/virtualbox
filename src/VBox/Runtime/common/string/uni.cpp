@@ -1,4 +1,4 @@
-/* $Id: uni.cpp $ */
+/* $Id: uni.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Unicode.
  */
@@ -33,6 +33,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/uni.h>
+#include "internal/iprt.h"
+
 #include <iprt/alloc.h>
 
 
@@ -41,3 +43,5 @@ RTDECL(void) RTUniFree(PRTUNICP pusz)
     if (pusz)
         RTMemFree(pusz);
 }
+RT_EXPORT_SYMBOL(RTUniFree);
+

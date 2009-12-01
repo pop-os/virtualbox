@@ -1,4 +1,4 @@
-/* $Id: ldrELFRelocatable.cpp.h $ */
+/* $Id: ldrELFRelocatable.cpp.h 25000 2009-11-26 14:22:44Z vboxsync $ */
 /** @file
  * IPRT - Binary Image Loader, Template for ELF Relocatable Images.
  */
@@ -27,6 +27,7 @@
  * Clara, CA 95054 USA or visit http://www.sun.com if you need
  * additional information or have any questions.
  */
+
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
@@ -487,7 +488,7 @@ static DECLCALLBACK(int) RTLDRELF_NAME(EnumSymbols)(PRTLDRMODINTERNAL pMod, unsi
                  * Call back.
                  */
                 AssertMsgReturn(Value == (RTUINTPTR)Value, (FMT_ELF_ADDR "\n", Value), VERR_SYMBOL_VALUE_TOO_BIG);
-                int rc = pfnCallback(pMod, pszName, ~0, (RTUINTPTR)Value, pvUser);
+                rc = pfnCallback(pMod, pszName, ~0, (RTUINTPTR)Value, pvUser);
                 if (rc)
                     return rc;
             }
@@ -871,7 +872,7 @@ const char *RTLDRELF_NAME(GetSHdrName)(PRTLDRMODELF pModElf, Elf_Word offName, c
         /* read by for byte. */
         for (unsigned i = 0; i < cbName; i++, off++)
         {
-            int rc = pModElf->pReader->pfnRead(pModElf->pReader, pszName + i, 1, off);
+            rc = pModElf->pReader->pfnRead(pModElf->pReader, pszName + i, 1, off);
             if (RT_FAILURE(rc))
             {
                 pszName[i] = '\0';
@@ -1024,7 +1025,7 @@ static int RTLDRELF_NAME(Open)(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH 
     int rc = pReader->pfnRead(pReader, &pModElf->Ehdr, sizeof(pModElf->Ehdr), 0);
     if (RT_SUCCESS(rc))
     {
-        RTLDRARCH enmArchImage;
+        RTLDRARCH enmArchImage = RTLDRARCH_INVALID; /* shut up gcc */
         rc = RTLDRELF_NAME(ValidateElfHeader)(&pModElf->Ehdr, pszLogName, cbRawImage, &enmArchImage);
         if (RT_SUCCESS(rc))
         {

@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3LibClipboard.cpp $ */
+/* $Id: VBoxGuestR3LibClipboard.cpp 24320 2009-11-04 11:38:15Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, Clipboard.
  */
@@ -24,12 +24,9 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <VBox/HostServices/VBoxClipboardSvc.h>
-#include <VBox/VBoxGuest.h>
-#include <iprt/string.h>
 #include <iprt/assert.h>
+#include <iprt/string.h>
 #include "VBGLR3Internal.h"
-
-
 
 
 /**
@@ -44,7 +41,7 @@ VBGLR3DECL(int) VbglR3ClipboardConnect(uint32_t *pu32ClientId)
     VBoxGuestHGCMConnectInfo Info;
     Info.result = VERR_WRONG_ORDER;
     Info.Loc.type = VMMDevHGCMLoc_LocalHost_Existing;
-    memset(&Info.Loc.u, 0, sizeof(Info.Loc.u));
+    RT_ZERO(Info.Loc.u);
     strcpy(Info.Loc.u.host.achName, "VBoxSharedClipboard");
     Info.u32ClientID = UINT32_MAX;  /* try make valgrid shut up. */
 

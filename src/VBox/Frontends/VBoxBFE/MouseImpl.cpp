@@ -31,7 +31,7 @@
 #include <iprt/assert.h>
 #include <VBox/log.h>
 #include <iprt/asm.h>
-#include <VBox/VBoxDev.h>
+#include <VBox/VMMDev.h>
 #include "MouseImpl.h"
 #include "DisplayImpl.h"
 #include "VMMDevInterface.h"
@@ -71,7 +71,7 @@ int Mouse::setNeedsHostCursor(bool fNeedsHostCursor)
 
 int Mouse::setHostCursor(bool enable)
 {
-    uHostCaps = enable ? 0 : VMMDEV_MOUSEHOSTCANNOTHWPOINTER;
+    uHostCaps = enable ? 0 : VMMDEV_MOUSE_HOST_CANNOT_HWPOINTER;
     gVMMDev->SetMouseCapabilities(uHostCaps);
     return S_OK;
 }
@@ -95,7 +95,7 @@ int Mouse::PutMouseEvent(LONG dx, LONG dy, LONG dz, LONG buttonState)
      * longer wants to use absolute coordinates. If the VMM
      * device isn't aware of that yet, tell it.
      */
-    if (mouseCaps & VMMDEV_MOUSEHOSTWANTSABS)
+    if (mouseCaps & VMMDEV_MOUSE_HOST_CAN_ABSOLUTE)
     {
         gVMMDev->SetMouseCapabilities(uHostCaps);
     }
@@ -108,7 +108,7 @@ int Mouse::PutMouseEvent(LONG dx, LONG dy, LONG dz, LONG buttonState)
     if (buttonState & PDMIMOUSEPORT_BUTTON_MIDDLE)
         fButtons |= PDMIMOUSEPORT_BUTTON_MIDDLE;
 
-    int vrc = mpDrv->pUpPort->pfnPutEvent(mpDrv->pUpPort, dx, dy, dz, fButtons);
+    int vrc = mpDrv->pUpPort->pfnPutEvent(mpDrv->pUpPort, dx, dy, dz, 0 /* Horizontal wheel */, fButtons);
     if (RT_FAILURE (vrc))
         return E_FAIL;
 
@@ -135,9 +135,9 @@ int Mouse::PutMouseEventAbsolute(LONG x, LONG y, LONG dz, LONG buttonState)
      * longer wants to use absolute coordinates. If the VMM
      * device isn't aware of that yet, tell it.
      */
-    if (!(mouseCaps & VMMDEV_MOUSEHOSTWANTSABS))
+    if (!(mouseCaps & VMMDEV_MOUSE_HOST_CAN_ABSOLUTE))
     {
-        gVMMDev->SetMouseCapabilities(uHostCaps | VMMDEV_MOUSEHOSTWANTSABS);
+        gVMMDev->SetMouseCapabilities(uHostCaps | VMMDEV_MOUSE_HOST_CAN_ABSOLUTE);
     }
 
     ULONG displayWidth;
@@ -155,7 +155,7 @@ int Mouse::PutMouseEventAbsolute(LONG x, LONG y, LONG dz, LONG buttonState)
     AssertRC(vrc);
 
     // check if the guest actually wants absolute mouse positions
-    if (mouseCaps & VMMDEV_MOUSEGUESTWANTSABS)
+    if (mouseCaps & VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE)
     {
         uint32_t fButtons = 0;
         if (buttonState & PDMIMOUSEPORT_BUTTON_LEFT)
@@ -165,7 +165,7 @@ int Mouse::PutMouseEventAbsolute(LONG x, LONG y, LONG dz, LONG buttonState)
         if (buttonState & PDMIMOUSEPORT_BUTTON_MIDDLE)
             fButtons |= PDMIMOUSEPORT_BUTTON_MIDDLE;
 
-        vrc = mpDrv->pUpPort->pfnPutEvent(mpDrv->pUpPort, 1, 1, dz, fButtons);
+        vrc = mpDrv->pUpPort->pfnPutEvent(mpDrv->pUpPort, 1, 1, dz, 0 /* Horizontal wheel */, fButtons);
         if (RT_FAILURE (vrc))
             return E_FAIL;
     }
@@ -215,14 +215,9 @@ DECLCALLBACK(void) Mouse::drvDestruct(PPDMDRVINS pDrvIns)
 /**
  * Construct a mouse driver instance.
  *
- * @returns VBox status.
- * @param   pDrvIns     The driver instance data.
- *                      If the registration structure is needed, pDrvIns->pDrvReg points to it.
- * @param   pCfgHandle  Configuration node handle for the driver. Use this to obtain the configuration
- *                      of the driver instance. It's also found in pDrvIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @copydoc FNPDMDRVCONSTRUCT
  */
-DECLCALLBACK(int) Mouse::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle)
+DECLCALLBACK(int) Mouse::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
 {
     PDRVMAINMOUSE pData = PDMINS_2_DATA(pDrvIns, PDRVMAINMOUSE);
     LogFlow(("drvMainMouse_Construct: iInstance=%d\n", pDrvIns->iInstance));
@@ -232,14 +227,9 @@ DECLCALLBACK(int) Mouse::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle)
      */
     if (!CFGMR3AreValuesValid(pCfgHandle, "Object\0"))
         return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
-
-    PPDMIBASE pBaseIgnore;
-    int rc = pDrvIns->pDrvHlp->pfnAttach(pDrvIns, &pBaseIgnore);
-    if (rc != VERR_PDM_NO_ATTACHED_DRIVER)
-    {
-        AssertMsgFailed(("Configuration error: Not possible to attach anything to this driver!\n"));
-        return VERR_PDM_DRVINS_NO_ATTACH;
-    }
+    AssertMsgReturn(PDMDrvHlpNoAttach(pDrvIns) == VERR_PDM_NO_ATTACHED_DRIVER, 
+                    ("Configuration error: Not possible to attach anything to this driver!\n"),
+                    VERR_PDM_DRVINS_NO_ATTACH);
 
     /*
      * IBase.
@@ -260,7 +250,7 @@ DECLCALLBACK(int) Mouse::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle)
      * Get the Mouse object pointer and update the mpDrv member.
      */
     void *pv;
-    rc = CFGMR3QueryPtr(pCfgHandle, "Object", &pv);
+    int rc = CFGMR3QueryPtr(pCfgHandle, "Object", &pv);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: No/bad \"Object\" value! rc=%Rrc\n", rc));
@@ -307,6 +297,15 @@ const PDMDRVREG Mouse::DrvReg =
     NULL,
     /* pfnResume */
     NULL,
+    /* pfnAttach */
+    NULL,
     /* pfnDetach */
-    NULL
+    NULL, 
+    /* pfnPowerOff */
+    NULL, 
+    /* pfnSoftReset */
+    NULL,
+    /* u32EndVersion */
+    PDM_DRVREG_VERSION
 };
+

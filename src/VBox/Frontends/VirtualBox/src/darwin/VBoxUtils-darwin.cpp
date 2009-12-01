@@ -1,4 +1,4 @@
-/* $Id: VBoxUtils-darwin.cpp $ */
+/* $Id: VBoxUtils-darwin.cpp 22813 2009-09-07 14:27:59Z vboxsync $ */
 /** @file
  * Qt GUI - Utility Classes and Functions specific to Darwin.
  */
@@ -21,7 +21,7 @@
 
 #include "VBoxUtils-darwin.h"
 
-#include <iprt/assert.h>
+#include <iprt/mem.h>
 
 #include <QApplication>
 #include <QWidget>
@@ -221,7 +221,36 @@ CGImageRef darwinToCGImageRef (const QImage *aImage)
  */
 CGImageRef darwinToCGImageRef (const QPixmap *aPixmap)
 {
-    return aPixmap->toMacCGImageRef();
+    /* It seems Qt releases the memory to an returned CGImageRef when the
+     * associated QPixmap is destroyed. This shouldn't happen as long a
+     * CGImageRef has a retrain count. As a workaround we make a real copy. */
+    int bitmapBytesPerRow = aPixmap->width() * 4;
+    int bitmapByteCount = (bitmapBytesPerRow * aPixmap->height());
+    /* Create a memory block for the temporary image. It is initialized by zero
+     * which means black & zero alpha. */
+    void *pBitmapData = RTMemAllocZ (bitmapByteCount);
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    /* Create a context to paint on */
+    CGContextRef ctx = CGBitmapContextCreate (pBitmapData,
+                                              aPixmap->width(),
+                                              aPixmap->height(),
+                                              8,
+                                              bitmapBytesPerRow,
+                                              cs,
+                                              kCGImageAlphaPremultipliedFirst);
+    /* Get the CGImageRef from Qt */
+    CGImageRef qtPixmap = aPixmap->toMacCGImageRef();
+    /* Draw the image from Qt & convert the context back to a new CGImageRef. */
+    CGContextDrawImage (ctx, CGRectMake (0, 0, aPixmap->width(), aPixmap->height()), qtPixmap);
+    CGImageRef newImage = CGBitmapContextCreateImage (ctx);
+    /* Now release all used resources */
+    CGImageRelease (qtPixmap);
+    CGContextRelease (ctx);
+    CGColorSpaceRelease (cs);
+    RTMemFree (pBitmapData);
+
+    /* Return the new CGImageRef */
+    return newImage;
 }
 
 /**
@@ -409,7 +438,7 @@ void darwinDebugPrintEvent (const char *psz, EventRef evtRef)
       UInt32 keyCode = 0;
       ::GetEventParameter (evtRef, kEventParamKeyCode, typeUInt32, NULL,
                            sizeof (keyCode), NULL, &keyCode);
-      printf(" keyCode=%d (%#x) ", keyCode, keyCode);
+      printf(" keyCode=%d (%#x) ", (int)keyCode, (unsigned)keyCode);
 
       char macCharCodes[8] = {0,0,0,0, 0,0,0,0};
       ::GetEventParameter (evtRef, kEventParamKeyCode, typeChar, NULL,
@@ -422,7 +451,7 @@ void darwinDebugPrintEvent (const char *psz, EventRef evtRef)
       UInt32 modifierMask = 0;
       ::GetEventParameter (evtRef, kEventParamKeyModifiers, typeUInt32, NULL,
                            sizeof (modifierMask), NULL, &modifierMask);
-      printf(" modifierMask=%08x", modifierMask);
+      printf(" modifierMask=%08x", (unsigned)modifierMask);
 
       UniChar keyUnicodes[8] = {0,0,0,0, 0,0,0,0};
       ::GetEventParameter (evtRef, kEventParamKeyUnicodes, typeUnicodeText, NULL,
@@ -435,12 +464,12 @@ void darwinDebugPrintEvent (const char *psz, EventRef evtRef)
       UInt32 keyboardType = 0;
       ::GetEventParameter (evtRef, kEventParamKeyboardType, typeUInt32, NULL,
                            sizeof (keyboardType), NULL, &keyboardType);
-      printf(" keyboardType=%08x", keyboardType);
+      printf(" keyboardType=%08x", (unsigned)keyboardType);
 
       EventHotKeyID evtHotKeyId = {0,0};
       ::GetEventParameter (evtRef, typeEventHotKeyID, typeEventHotKeyID, NULL,
                            sizeof (evtHotKeyId), NULL, &evtHotKeyId);
-      printf(" evtHotKeyId={signature=%08x, .id=%08x}", evtHotKeyId.signature, evtHotKeyId.id);
+      printf(" evtHotKeyId={signature=%08x, .id=%08x}", (unsigned)evtHotKeyId.signature, (unsigned)evtHotKeyId.id);
       printf("\n");
   }
   else

@@ -1,4 +1,4 @@
-/* $Id: time-r0drv-darwin.cpp $ */
+/* $Id: time-r0drv-darwin.cpp 22052 2009-08-07 09:45:48Z vboxsync $ */
 /** @file
  * IPRT - Time, Ring-0 Driver, Darwin.
  */
@@ -34,7 +34,9 @@
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_TIME
 #include "the-darwin-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/time.h>
+
 #include <iprt/asm.h>
 
 

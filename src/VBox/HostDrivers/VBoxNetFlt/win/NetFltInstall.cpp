@@ -1,4 +1,4 @@
-/* $Id: NetFltInstall.cpp $ */
+/* $Id: NetFltInstall.cpp 25072 2009-11-28 20:14:17Z vboxsync $ */
 /** @file
  * NetFltInstall - VBoxNetFlt installer command line tool
  */
@@ -35,6 +35,51 @@ static VOID winNetCfgLogger (LPCWSTR szString)
     wprintf(L"%s", szString);
 }
 
+/** Wrapper aroung GetfullPathNameW that will try an alternative INF location.
+ *  
+ * The default location is the current directory.  If not found there, the 
+ * alternative locatoin is the executable directory.  If not found there either, 
+ * the first alternative is present to the caller. 
+ */ 
+static DWORD MyGetfullPathNameW(LPCWSTR pwszName, size_t cchFull, LPWSTR pwszFull)
+{
+#ifdef DEBUG_bird  /** @todo make this default behavior after 3.1. */
+    LPWSTR pwszFilePart;
+    DWORD dwSize = GetFullPathNameW(pwszName, cchFull, pwszFull, &pwszFilePart);
+    if(dwSize <= 0)
+        return dwSize;
+
+    /* if it doesn't exist, see if the file exists in the same directory as the executable. */
+    if (GetFileAttributesW(pwszFull) == INVALID_FILE_ATTRIBUTES)
+    {
+        WCHAR wsz[512];
+        DWORD cch = GetModuleFileNameW(GetModuleHandle(NULL), &wsz[0], sizeof(wsz) / sizeof(wsz[0]));
+        if(cch > 0)
+        {
+            while(cch > 0 && wsz[cch - 1] != '/' && wsz[cch - 1] != '\\' && wsz[cch - 1] != ':')
+                cch--;
+            unsigned i = 0;
+            while(cch < sizeof(wsz) / sizeof(wsz[0]))
+            {
+                wsz[cch] = pwszFilePart[i++];
+                if(!wsz[cch])
+                {
+                    dwSize = GetFullPathNameW(wsz, cchFull, pwszFull, NULL);
+                    if(   dwSize > 0 
+                       && GetFileAttributesW(pwszFull) != INVALID_FILE_ATTRIBUTES)
+                        return dwSize;
+                    break;
+                }
+                cch++;
+            }
+        }
+    }
+
+    /* fallback */
+#endif
+    return GetFullPathNameW(pwszName, cchFull, pwszFull, NULL);
+}
+
 static int InstallNetFlt()
 {
     WCHAR PtInf[MAX_PATH];
@@ -54,15 +99,17 @@ static int InstallNetFlt()
             hr = VBoxNetCfgWinQueryINetCfg(TRUE, VBOX_NETCFG_APP_NAME, &pnc, &lpszLockedBy);
             if(hr == S_OK)
             {
-                DWORD WinEr;
-                GetFullPathNameW(VBOX_NETFLT_PT_INF, sizeof(PtInf)/sizeof(PtInf[0]), PtInf, NULL);
-                WinEr = GetLastError();
-                if(WinEr == ERROR_SUCCESS)
+                DWORD dwSize;
+                dwSize = MyGetfullPathNameW(VBOX_NETFLT_PT_INF, sizeof(PtInf)/sizeof(PtInf[0]), PtInf);
+                if(dwSize > 0)
                 {
-                    GetFullPathNameW(VBOX_NETFLT_MP_INF, sizeof(MpInf)/sizeof(MpInf[0]), MpInf, NULL);
-                    WinEr = GetLastError();
-                    if(WinEr == ERROR_SUCCESS)
+                    /** @todo add size check for (sizeof(PtInf)/sizeof(PtInf[0])) == dwSize (string length in sizeof(PtInf[0])) */
+
+                    dwSize = MyGetfullPathNameW(VBOX_NETFLT_MP_INF, sizeof(MpInf)/sizeof(MpInf[0]), MpInf);
+                    if(dwSize > 0)
                     {
+                        /** @todo add size check for (sizeof(MpInf)/sizeof(MpInf[0])) == dwSize (string length in sizeof(MpInf[0])) */
+
                         LPCWSTR aInfs[] = {PtInf, MpInf};
                         hr = VBoxNetCfgWinNetFltInstall(pnc, aInfs, 2);
                         if(hr == S_OK)
@@ -77,13 +124,13 @@ static int InstallNetFlt()
                     }
                     else
                     {
-                        hr =  HRESULT_FROM_WIN32(WinEr);
+                        hr =  HRESULT_FROM_WIN32(GetLastError());
                         wprintf(L"error getting full inf path for VBoxNetFlt_m.inf (0x%x)\n", hr);
                     }
                 }
                 else
                 {
-                    hr =  HRESULT_FROM_WIN32(WinEr);
+                    hr =  HRESULT_FROM_WIN32(GetLastError());
                     wprintf(L"error getting full inf path for VBoxNetFlt.inf (0x%x)\n", hr);
                 }
 

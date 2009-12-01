@@ -188,9 +188,9 @@ QVariant HardwareItem::data (int aColumn, int aRole) const
                         case KVirtualSystemDescriptionType_OS: v = VBoxApplianceEditorWgt::tr ("Guest OS Type"); break;
                         case KVirtualSystemDescriptionType_CPU: v = VBoxApplianceEditorWgt::tr ("CPU"); break;
                         case KVirtualSystemDescriptionType_Memory: v = VBoxApplianceEditorWgt::tr ("RAM"); break;
-                        case KVirtualSystemDescriptionType_HardDiskControllerIDE: v = VBoxApplianceEditorWgt::tr ("Hard Disk Controller IDE"); break;
-                        case KVirtualSystemDescriptionType_HardDiskControllerSATA: v = VBoxApplianceEditorWgt::tr ("Hard Disk Controller SATA"); break;
-                        case KVirtualSystemDescriptionType_HardDiskControllerSCSI: v = VBoxApplianceEditorWgt::tr ("Hard Disk Controller SCSI"); break;
+                        case KVirtualSystemDescriptionType_HardDiskControllerIDE: v = VBoxApplianceEditorWgt::tr ("Hard Disk Controller (IDE)"); break;
+                        case KVirtualSystemDescriptionType_HardDiskControllerSATA: v = VBoxApplianceEditorWgt::tr ("Hard Disk Controller (SATA)"); break;
+                        case KVirtualSystemDescriptionType_HardDiskControllerSCSI: v = VBoxApplianceEditorWgt::tr ("Hard Disk Controller (SCSI)"); break;
                         case KVirtualSystemDescriptionType_CDROM: v = VBoxApplianceEditorWgt::tr ("DVD"); break;
                         case KVirtualSystemDescriptionType_Floppy: v = VBoxApplianceEditorWgt::tr ("Floppy"); break;
                         case KVirtualSystemDescriptionType_NetworkAdapter: v = VBoxApplianceEditorWgt::tr ("Network Adapter"); break;
@@ -356,6 +356,13 @@ QWidget * HardwareItem::createEditor (QWidget *aParent, const QStyleOptionViewIt
                     /* Fill the background with the highlight color in the case
                      * the button hasn't a rectangle shape. This prevents the
                      * display of parts from the current text on the Mac. */
+#ifdef QT_MAC_USE_COCOA
+                    /* Use the palette from the tree view, not the one from the
+                     * editor. */
+                    QPalette p = e->palette();
+                    p.setBrush (QPalette::Highlight, aParent->palette().brush (QPalette::Highlight));
+                    e->setPalette(p);
+#endif /* QT_MAC_USE_COCOA */
                     e->setAutoFillBackground (true);
                     e->setBackgroundRole (QPalette::Highlight);
                     editor = e;
@@ -412,6 +419,9 @@ QWidget * HardwareItem::createEditor (QWidget *aParent, const QStyleOptionViewIt
                     e->addItem (vboxGlobal().toString (KNetworkAdapterType_I82543GC), KNetworkAdapterType_I82543GC);
                     e->addItem (vboxGlobal().toString (KNetworkAdapterType_I82545EM), KNetworkAdapterType_I82545EM);
 #endif /* VBOX_WITH_E1000 */
+#ifdef VBOX_WITH_VIRTIO
+                    e->addItem (vboxGlobal().toString (KNetworkAdapterType_Virtio), KNetworkAdapterType_Virtio);
+#endif /* VBOX_WITH_VIRTIO */
                     editor = e;
                     break;
                 }
@@ -886,6 +896,27 @@ void VirtualSystemDelegate::updateEditorGeometry (QWidget *aEditor, const QStyle
     if (aEditor)
         aEditor->setGeometry (aOption.rect);
 }
+
+#ifdef QT_MAC_USE_COCOA
+bool VirtualSystemDelegate::eventFilter (QObject *aObject, QEvent *aEvent)
+{
+    if (aEvent->type() == QEvent::FocusOut)
+    {
+        /* On Mac OS X Cocoa the OS type selector widget loses it focus when
+         * the popup menu is shown. Prevent this here, cause otherwise the new
+         * selected OS will not be updated. */
+        VBoxOSTypeSelectorButton *button = qobject_cast<VBoxOSTypeSelectorButton*> (aObject);
+        if (button && button->isMenuShown())
+            return false;
+        /* The same counts for the text edit buttons of the license or
+         * description fields. */
+        else if (qobject_cast<VBoxLineTextEdit*> (aObject))
+            return false;
+    }
+
+    return QItemDelegate::eventFilter (aObject, aEvent);
+}
+#endif /* QT_MAC_USE_COCOA */
 
 ////////////////////////////////////////////////////////////////////////////////
 // VirtualSystemSortProxyModel

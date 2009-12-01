@@ -125,13 +125,13 @@ VirtualBoxConstructor (nsISupports *aOuter, REFNSIID aIID,
             /* Get the directory containing XPCOM components -- the VBoxSVC
              * executable is expected in the parent directory. */
             nsCOMPtr <nsIProperties> dirServ = do_GetService (NS_DIRECTORY_SERVICE_CONTRACTID, &rc);
-            if (NS_SUCCEEDED (rc))
+            if (NS_SUCCEEDED(rc))
             {
                 nsCOMPtr <nsIFile> componentDir;
                 rc = dirServ->Get (NS_XPCOM_COMPONENT_DIR,
                                    NS_GET_IID (nsIFile), getter_AddRefs (componentDir));
 
-                if (NS_SUCCEEDED (rc))
+                if (NS_SUCCEEDED(rc))
                 {
                     nsCAutoString path;
                     componentDir->GetNativePath (path);
@@ -200,11 +200,17 @@ VirtualBoxConstructor (nsISupports *aOuter, REFNSIID aIID,
                 const char *args[] = { VBoxSVCPath, "--automate", 0 };
                 RTPROCESS pid = NIL_RTPROCESS;
                 vrc = RTProcCreate (VBoxSVCPath, args, RTENV_DEFAULT, 0, &pid);
-                if (RT_FAILURE (vrc))
+                if (RT_FAILURE(vrc))
                 {
                     rc = NS_ERROR_FAILURE;
                     break;
                 }
+
+                /* need to wait for the pid to avoid zombie VBoxSVC.
+                 * ignore failure since it just means we'll have a zombie
+                 * VBoxSVC until we exit */
+                int vrc2 = RTProcWait(pid, RTPROCWAIT_FLAGS_BLOCK, NULL);
+                AssertRC(vrc2);
 #endif
 
                 /* wait for the server process to establish a connection */
@@ -212,7 +218,7 @@ VirtualBoxConstructor (nsISupports *aOuter, REFNSIID aIID,
                 {
                     RTThreadSleep (VBoxSVC_WaitSlice);
                     rc = ipcServ->ResolveClientName (VBOXSVC_IPC_NAME, &serverID);
-                    if (NS_SUCCEEDED (rc))
+                    if (NS_SUCCEEDED(rc))
                         break;
                     if (timeLeft <= VBoxSVC_WaitSlice)
                     {
@@ -240,7 +246,7 @@ VirtualBoxConstructor (nsISupports *aOuter, REFNSIID aIID,
             rc = dconServ->CreateInstance (serverID,
                                            (nsCID) NS_VIRTUALBOX_CID,
                                            aIID, aResult);
-            if (NS_SUCCEEDED (rc))
+            if (NS_SUCCEEDED(rc))
                 break;
 
             LogFlowFunc (("Failed to connect (rc=%Rhrc (%#08x))\n", rc, rc));
@@ -253,7 +259,7 @@ VirtualBoxConstructor (nsISupports *aOuter, REFNSIID aIID,
             {
                 nsresult rc2 =
                     ipcServ->ResolveClientName (VBOXSVC_IPC_NAME, &serverID);
-                if (NS_SUCCEEDED (rc2))
+                if (NS_SUCCEEDED(rc2))
                     break;
 
                 LogFlowFunc (("Server seems to have terminated before "

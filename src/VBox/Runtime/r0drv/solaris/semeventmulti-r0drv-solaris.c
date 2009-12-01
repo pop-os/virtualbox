@@ -1,4 +1,4 @@
-/* $Id: semeventmulti-r0drv-solaris.c $ */
+/* $Id: semeventmulti-r0drv-solaris.c 22991 2009-09-14 10:16:08Z vboxsync $ */
 /** @file
  * IPRT - Multiple Release Event Semaphores, Ring-0 Driver, Solaris.
  */
@@ -33,14 +33,15 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-solaris-kernel.h"
-
+#include "internal/iprt.h"
 #include <iprt/semaphore.h>
-#include <iprt/alloc.h>
-#include <iprt/asm.h>
-#include <iprt/assert.h>
-#include <iprt/err.h>
-#include <iprt/thread.h>
 
+#include <iprt/assert.h>
+#include <iprt/asm.h>
+#include <iprt/err.h>
+#include <iprt/mem.h>
+#include <iprt/mp.h>
+#include <iprt/thread.h>
 #include "internal/magics.h"
 
 
@@ -67,10 +68,12 @@ typedef struct RTSEMEVENTMULTIINTERNAL
 } RTSEMEVENTMULTIINTERNAL, *PRTSEMEVENTMULTIINTERNAL;
 
 
+
 RTDECL(int)  RTSemEventMultiCreate(PRTSEMEVENTMULTI pEventMultiSem)
 {
     Assert(sizeof(RTSEMEVENTMULTIINTERNAL) > sizeof(void *));
     AssertPtrReturn(pEventMultiSem, VERR_INVALID_POINTER);
+    RT_ASSERT_PREEMPTIBLE();
 
     PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)RTMemAlloc(sizeof(*pThis));
     if (pThis)
@@ -97,6 +100,7 @@ RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI EventMultiSem)
     AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC,
                     ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic),
                     VERR_INVALID_HANDLE);
+    RT_ASSERT_INTS_ON();
 
     mutex_enter(&pThis->Mtx);
     ASMAtomicIncU32(&pThis->u32Magic); /* make the handle invalid */
@@ -125,10 +129,13 @@ RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI EventMultiSem)
 RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI EventMultiSem)
 {
     PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)EventMultiSem;
+    RT_ASSERT_PREEMPT_CPUID_VAR();
+
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC,
                     ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic),
                     VERR_INVALID_HANDLE);
+    RT_ASSERT_INTS_ON();
 
     /*
      * If we're in interrupt context we need to unpin the underlying current
@@ -158,6 +165,8 @@ RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI EventMultiSem)
     }
 
     mutex_exit(&pThis->Mtx);
+
+    RT_ASSERT_PREEMPT_CPUID();
     return VINF_SUCCESS;
 }
 
@@ -165,10 +174,13 @@ RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI EventMultiSem)
 RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI EventMultiSem)
 {
     PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)EventMultiSem;
+    RT_ASSERT_PREEMPT_CPUID_VAR();
+
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC,
                     ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic),
                     VERR_INVALID_HANDLE);
+    RT_ASSERT_INTS_ON();
 
     /*
      * If we're in interrupt context we need to unpin the underlying current
@@ -191,6 +203,8 @@ RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI EventMultiSem)
 
     ASMAtomicXchgU8(&pThis->fSignaled, false);
     mutex_exit(&pThis->Mtx);
+
+    RT_ASSERT_PREEMPT_CPUID();
     return VINF_SUCCESS;
 }
 
@@ -203,11 +217,15 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
     AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC,
                     ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic),
                     VERR_INVALID_HANDLE);
+    if (cMillies)
+        RT_ASSERT_PREEMPTIBLE();
 
     mutex_enter(&pThis->Mtx);
 
     if (pThis->fSignaled)
         rc = VINF_SUCCESS;
+    else if (!cMillies)
+        rc = VERR_TIMEOUT;
     else
     {
         ASMAtomicIncU32(&pThis->cWaiters);

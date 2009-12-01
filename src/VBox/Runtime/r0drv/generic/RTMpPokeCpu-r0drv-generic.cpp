@@ -1,4 +1,4 @@
-/* $Id: RTMpPokeCpu-r0drv-generic.cpp $ */
+/* $Id: RTMpPokeCpu-r0drv-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - RTMpPokeCpu, Generic Implementation.
  */
@@ -33,6 +33,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/mp.h>
+#include "internal/iprt.h"
 
 
 static DECLCALLBACK(void) rtMpNtPokeCpuDummy(RTCPUID idCpu, void *pvUser1, void *pvUser2)
@@ -47,4 +48,5 @@ RTDECL(int) RTMpPokeCpu(RTCPUID idCpu)
 {
     return RTMpOnSpecific(idCpu, rtMpNtPokeCpuDummy, NULL, NULL);
 }
+RT_EXPORT_SYMBOL(RTMpPokeCpu);
 

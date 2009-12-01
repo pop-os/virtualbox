@@ -72,6 +72,12 @@ VBoxSettingsSelector::VBoxSettingsSelector (QWidget *aParent /* = NULL */)
 {
 }
 
+VBoxSettingsSelector::~VBoxSettingsSelector()
+{
+    qDeleteAll (mItemList);
+    mItemList.clear();
+}
+
 void VBoxSettingsSelector::setItemText (int aId, const QString &aText)
 {
     if (SelectorItem *item = findItem (aId))
@@ -367,7 +373,9 @@ VBoxSettingsToolBarSelector::VBoxSettingsToolBarSelector (QWidget *aParent /* = 
     mTbSelector = new VBoxToolBar (aParent);
     mTbSelector->setUsesTextLabel (true);
     mTbSelector->setIconSize (QSize (32, 32));
+#ifdef Q_WS_MAC
     mTbSelector->setShowToolBarButton (false);
+#endif /* Q_WS_MAC */
     /* Init the action group for house keeping */
     mActionGroup = new QActionGroup (this);
     mActionGroup->setExclusive (true);

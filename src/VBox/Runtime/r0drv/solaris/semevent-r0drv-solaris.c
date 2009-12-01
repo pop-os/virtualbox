@@ -1,4 +1,4 @@
-/* $Id: semevent-r0drv-solaris.c $ */
+/* $Id: semevent-r0drv-solaris.c 22991 2009-09-14 10:16:08Z vboxsync $ */
 /** @file
  * IPRT - Semaphores, Ring-0 Driver, Solaris.
  */
@@ -28,18 +28,20 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-solaris-kernel.h"
-
+#include "internal/iprt.h"
 #include <iprt/semaphore.h>
-#include <iprt/alloc.h>
+
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/err.h>
+#include <iprt/mem.h>
+#include <iprt/mp.h>
 #include <iprt/thread.h>
-
 #include "internal/magics.h"
 
 
@@ -66,10 +68,12 @@ typedef struct RTSEMEVENTINTERNAL
 } RTSEMEVENTINTERNAL, *PRTSEMEVENTINTERNAL;
 
 
+
 RTDECL(int)  RTSemEventCreate(PRTSEMEVENT pEventSem)
 {
     Assert(sizeof(RTSEMEVENTINTERNAL) > sizeof(void *));
     AssertPtrReturn(pEventSem, VERR_INVALID_POINTER);
+    RT_ASSERT_PREEMPTIBLE();
 
     PRTSEMEVENTINTERNAL pEventInt = (PRTSEMEVENTINTERNAL)RTMemAlloc(sizeof(*pEventInt));
     if (pEventInt)
@@ -96,6 +100,7 @@ RTDECL(int)  RTSemEventDestroy(RTSEMEVENT EventSem)
     AssertMsgReturn(pEventInt->u32Magic == RTSEMEVENT_MAGIC,
                     ("pEventInt=%p u32Magic=%#x\n", pEventInt, pEventInt->u32Magic),
                     VERR_INVALID_HANDLE);
+    RT_ASSERT_INTS_ON();
 
     mutex_enter(&pEventInt->Mtx);
     ASMAtomicIncU32(&pEventInt->u32Magic); /* make the handle invalid */
@@ -126,10 +131,13 @@ RTDECL(int)  RTSemEventDestroy(RTSEMEVENT EventSem)
 RTDECL(int)  RTSemEventSignal(RTSEMEVENT EventSem)
 {
     PRTSEMEVENTINTERNAL pEventInt = (PRTSEMEVENTINTERNAL)EventSem;
+    RT_ASSERT_PREEMPT_CPUID_VAR();
     AssertPtrReturn(pEventInt, VERR_INVALID_HANDLE);
     AssertMsgReturn(pEventInt->u32Magic == RTSEMEVENT_MAGIC,
                     ("pEventInt=%p u32Magic=%#x\n", pEventInt, pEventInt->u32Magic),
                     VERR_INVALID_HANDLE);
+    RT_ASSERT_INTS_ON();
+
     /*
      * If we're in interrupt context we need to unpin the underlying current
      * thread as this could lead to a deadlock (see #4259 for the full explanation)
@@ -165,8 +173,11 @@ RTDECL(int)  RTSemEventSignal(RTSEMEVENT EventSem)
         ASMAtomicXchgU8(&pEventInt->fSignaled, true);
 
     mutex_exit(&pEventInt->Mtx);
+
+    RT_ASSERT_PREEMPT_CPUID();
     return VINF_SUCCESS;
 }
+
 
 static int rtSemEventWait(RTSEMEVENT EventSem, unsigned cMillies, bool fInterruptible)
 {
@@ -176,6 +187,8 @@ static int rtSemEventWait(RTSEMEVENT EventSem, unsigned cMillies, bool fInterrup
     AssertMsgReturn(pEventInt->u32Magic == RTSEMEVENT_MAGIC,
                     ("pEventInt=%p u32Magic=%#x\n", pEventInt, pEventInt->u32Magic),
                     VERR_INVALID_HANDLE);
+    if (cMillies)
+        RT_ASSERT_PREEMPTIBLE();
 
     mutex_enter(&pEventInt->Mtx);
 
@@ -185,10 +198,12 @@ static int rtSemEventWait(RTSEMEVENT EventSem, unsigned cMillies, bool fInterrup
         ASMAtomicXchgU8(&pEventInt->fSignaled, false);
         rc = VINF_SUCCESS;
     }
+    else if (!cMillies)
+        rc = VERR_TIMEOUT;
     else
     {
         ASMAtomicIncU32(&pEventInt->cWaiters);
-        
+
         /*
          * Translate milliseconds into ticks and go to sleep.
          */

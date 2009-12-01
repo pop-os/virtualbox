@@ -1,4 +1,4 @@
-/* $Id: VBGLR3Internal.h $ */
+/* $Id: VBGLR3Internal.h 22970 2009-09-12 11:53:35Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 support library for the guest additions, Internal header.
  */
@@ -22,10 +22,12 @@
 #ifndef ___VBGLR3Internal_h
 #define ___VBGLR3Internal_h
 
-#if defined(RT_OS_WINDOWS)
+#if defined(RT_OS_WINDOWS) /** @todo explain why this is here. */
 # include <Windows.h>
 #endif
+#include <VBox/VMMDev.h>
 #include <VBox/VBoxGuest.h>
+#include <VBox/VBoxGuestLib.h>
 
 RT_C_DECLS_BEGIN
 
@@ -95,3 +97,4 @@ DECLINLINE(void) VbglHGCMParmPtrSetString(HGCMFunctionParameter *pParm, const ch
 RT_C_DECLS_END
 
 #endif
+

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 24907 2009-11-24 14:22:47Z vboxsync $
 ## @file
 # Sub-Makefile for VBoxManage (the cli frontend).
 #
@@ -28,8 +28,7 @@ ifdef VBOX_ONLY_DOCS
  VBoxManage_DEFS      += VBOX_ONLY_DOCS
  VBoxManage_SOURCES = \
 	VBoxManage.cpp \
- 	VBoxManageHelp.cpp \
-	VBoxManageSVN.cpp
+ 	VBoxManageHelp.cpp
  VBoxManage_LIBS      += $(LIB_RUNTIME)
 else # !VBOX_ONLY_DOCS
  VBoxManage_TEMPLATE   = VBOXMAINCLIENTEXE
@@ -41,33 +40,39 @@ else # !VBOX_ONLY_DOCS
  	$(if $(VBOX_WITH_SOLARIS_OSS), VBOX_WITH_SOLARIS_OSS) \
  	$(if $(VBOX_WITH_PULSE),VBOX_WITH_PULSE) \
  	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000) \
+ 	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO) \
  	$(if $(VBOX_WITH_AHCI), VBOX_WITH_AHCI) \
  	$(if $(VBOX_WITH_SCSI), VBOX_WITH_SCSI) \
  	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS) \
  	$(if $(VBOX_WITH_HOSTNETIF_API), VBOX_WITH_HOSTNETIF_API)
  VBoxManage_DEFS.win   = _WIN32_WINNT=0x0500
-ifdef VBOX_DYNAMIC_NET_ATTACH
- VBoxManage_DEFS += VBOX_DYNAMIC_NET_ATTACH
-endif
-ifdef VBOX_WITH_NETFLT
- VBoxManage_DEFS += VBOX_WITH_NETFLT
-endif
+ ifdef VBOX_DYNAMIC_NET_ATTACH
+  VBoxManage_DEFS += VBOX_DYNAMIC_NET_ATTACH
+ endif
+ ifdef VBOX_WITH_NETFLT
+  VBoxManage_DEFS += VBOX_WITH_NETFLT
+ endif
+ ifdef VBOX_WITH_VIDEOHWACCEL
+  VBoxManage_DEFS += VBOX_WITH_VIDEOHWACCEL
+ endif
  VBoxManage_SOURCES = \
  	VBoxManage.cpp \
- 	VBoxManageHelp.cpp \
- 	VBoxManageModifyVM.cpp \
- 	VBoxManageInfo.cpp \
- 	VBoxManageImport.cpp \
- 	VBoxManageMetrics.cpp \
- 	VBoxManageList.cpp \
- 	VBoxManageDisk.cpp \
- 	VBoxManageSnapshot.cpp \
- 	VBoxManageUSB.cpp \
  	VBoxInternalManage.cpp \
- 	VBoxManageHostonly.cpp \
+ 	VBoxManageControlVM.cpp \
  	VBoxManageDHCPServer.cpp \
+ 	VBoxManageDisk.cpp \
  	$(if $(VBOX_WITH_GUEST_PROPS),VBoxManageGuestProp.cpp) \
- 	VBoxManageSVN.cpp
+ 	VBoxManageHelp.cpp \
+ 	VBoxManageHostonly.cpp \
+ 	VBoxManageImport.cpp \
+ 	VBoxManageInfo.cpp \
+ 	VBoxManageList.cpp \
+ 	VBoxManageMetrics.cpp \
+ 	VBoxManageMisc.cpp \
+ 	VBoxManageModifyVM.cpp \
+ 	VBoxManageSnapshot.cpp \
+ 	VBoxManageStorageController.cpp \
+ 	VBoxManageUSB.cpp
 endif # !VBOX_ONLY_DOCS
 ifneq ($(KBUILD_TARGET),win)
  # Workaround for buggy gcc-4.3 compilers, see
@@ -82,10 +87,6 @@ endif
 ifndef VBOX_ONLY_DOCS
  VBoxManage_LIBS      += $(LIB_DDU)
 endif # !VBOX_ONLY_DOCS
-
-# VBoxManageSVN.cpp uses VBOX_SVN_REV.
-VBoxManageSVN.cpp_DEFS = VBOX_SVN_REV=$(VBOX_SVN_REV)
-VBoxManageSVN.cpp_DEPS = $(VBOX_SVN_REV_KMK)
 
 include $(KBUILD_PATH)/subfooter.kmk
 

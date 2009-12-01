@@ -1,4 +1,4 @@
-/* $Id: VBoxGuest-freebsd.c $ */
+/* $Id: VBoxGuest-freebsd.c 22583 2009-08-30 20:59:07Z vboxsync $ */
 /** @file
  * VirtualBox Guest Additions Driver for FreeBSD.
  */
@@ -26,22 +26,29 @@
 
 #include <sys/param.h>
 #include <sys/systm.h>
+#include <sys/conf.h>
 #include <sys/kernel.h>
 #include <sys/module.h>
 #include <sys/bus.h>
+#include <sys/poll.h>
+#include <sys/selinfo.h>
 #include <sys/queue.h>
+#include <sys/lock.h>
 #include <sys/lockmgr.h>
 #include <sys/types.h>
 #include <sys/conf.h>
 #include <sys/malloc.h>
 #include <sys/uio.h>
 #include <sys/file.h>
-#include <machine/bus.h>
 #include <sys/rman.h>
+#include <machine/bus.h>
 #include <machine/resource.h>
 #include <dev/pci/pcivar.h>
 #include <dev/pci/pcireg.h>
 
+#ifdef PVM
+#  undef PVM
+#endif
 #include "VBoxGuestInternal.h"
 #include <VBox/log.h>
 #include <iprt/assert.h>
@@ -55,8 +62,6 @@
 
 struct VBoxGuestDeviceState
 {
-    /** file node minor code */
-    unsigned           uMinor;
     /** Resource ID of the I/O port */
     int                iIOPortResId;
     /** Pointer to the I/O port resource. */
@@ -93,6 +98,7 @@ static d_close_t  VBoxGuestFreeBSDClose;
 static d_ioctl_t  VBoxGuestFreeBSDIOCtl;
 static d_write_t  VBoxGuestFreeBSDWrite;
 static d_read_t   VBoxGuestFreeBSDRead;
+static d_poll_t   VBoxGuestFreeBSDPoll;
 
 /*
  * IRQ related functions.
@@ -108,18 +114,23 @@ DECLVBGL(int)    VBoxGuestFreeBSDServiceCall(void *pvSession, unsigned uCmd, voi
 DECLVBGL(void *) VBoxGuestFreeBSDServiceOpen(uint32_t *pu32Version);
 DECLVBGL(int)    VBoxGuestFreeBSDServiceClose(void *pvSession);
 
+#ifndef D_NEEDMINOR
+# define D_NEEDMINOR 0
+#endif
+
 /*
  * Device node entry points.
  */
 static struct cdevsw    g_VBoxGuestFreeBSDChrDevSW =
 {
     .d_version =        D_VERSION,
-    .d_flags =          D_TRACKCLOSE,
+    .d_flags =          D_TRACKCLOSE | D_NEEDMINOR,
     .d_fdopen =         VBoxGuestFreeBSDOpen,
     .d_close =          VBoxGuestFreeBSDClose,
     .d_ioctl =          VBoxGuestFreeBSDIOCtl,
     .d_read =           VBoxGuestFreeBSDRead,
     .d_write =          VBoxGuestFreeBSDWrite,
+    .d_poll =           VBoxGuestFreeBSDPoll,
     .d_name =           DEVICE_NAME
 };
 
@@ -129,73 +140,10 @@ static VBOXGUESTDEVEXT      g_DevExt;
 static struct clonedevs    *g_pVBoxGuestFreeBSDClones;
 /** The dev_clone event handler tag. */
 static eventhandler_tag     g_VBoxGuestFreeBSDEHTag;
-
-/**
- * VBoxGuest Common ioctl wrapper from VBoxGuestLib.
- *
- * @returns VBox error code.
- * @param   pvSession           Opaque pointer to the session.
- * @param   uCmd                Requested function.
- * @param   pvData              IO data buffer.
- * @param   cbData              Size of the data buffer.
- * @param   pcbDataReturned     Where to store the amount of returned data.
- */
-DECLVBGL(int) VBoxGuestFreeBSDServiceCall(void *pvSession, unsigned uCmd, void *pvData, size_t cbData, size_t *pcbDataReturned)
-{
-    LogFlow((DEVICE_NAME ":VBoxGuestFreeBSDServiceCall %pvSesssion=%p uCmd=%u pvData=%p cbData=%d\n", pvSession, uCmd, pvData, cbData));
-
-    PVBOXGUESTSESSION pSession = (PVBOXGUESTSESSION)pvSession;
-    AssertPtrReturn(pSession, VERR_INVALID_POINTER);
-    AssertMsgReturn(pSession->pDevExt == &g_DevExt,
-                    ("SC: %p != %p\n", pSession->pDevExt, &g_DevExt), VERR_INVALID_HANDLE);
-
-    return VBoxGuestCommonIOCtl(uCmd, &g_DevExt, pSession, pvData, cbData, pcbDataReturned);
-}
-
-
-/**
- * FreeBSD Guest service open.
- *
- * @returns Opaque pointer to session object.
- * @param   pu32Version         Where to store VMMDev version.
- */
-DECLVBGL(void *) VBoxGuestFreeBSDServiceOpen(uint32_t *pu32Version)
-{
-    LogFlow((DEVICE_NAME ":VBoxGuestFreeBSDServiceOpen\n"));
-
-    AssertPtrReturn(pu32Version, NULL);
-    PVBOXGUESTSESSION pSession;
-    int rc = VBoxGuestCreateKernelSession(&g_DevExt, &pSession);
-    if (RT_SUCCESS(rc))
-    {
-        *pu32Version = VMMDEV_VERSION;
-        return pSession;
-    }
-    LogRel((DEVICE_NAME ":VBoxGuestCreateKernelSession failed. rc=%d\n", rc));
-    return NULL;
-}
-
-
-/**
- * FreeBSD Guest service close.
- *
- * @returns VBox error code.
- * @param   pvState             Opaque pointer to the session object.
- */
-DECLVBGL(int) VBoxGuestFreeBSDServiceClose(void *pvSession)
-{
-    LogFlow((DEVICE_NAME ":VBoxGuestFreeBSDServiceClose\n"));
-
-    PVBOXGUESTSESSION pSession = (PVBOXGUESTSESSION)pvSession;
-    AssertPtrReturn(pSession, VERR_INVALID_POINTER);
-    if (pSession)
-    {
-        VBoxGuestCloseSession(&g_DevExt, pSession);
-        return VINF_SUCCESS;
-    }
-    LogRel((DEVICE_NAME ":Invalid pSession.\n"));
-    return VERR_INVALID_HANDLE;
-}
+/** Reference counter */
+static volatile uint32_t    cUsers;
+/** selinfo structure used for polling. */
+static struct selinfo       g_SelInfo;
 
 /**
  * DEVFS event handler.
@@ -213,9 +161,11 @@ static void VBoxGuestFreeBSDClone(void *pvArg, struct ucred *pCred, char *pszNam
      */
     if (!ppDev)
         return;
-    if (dev_stdclone(pszName, NULL, "vboxguest", &iUnit) != 1)
+    if (strcmp(pszName, "vboxguest") == 0)
+        iUnit =  -1;
+    else if (dev_stdclone(pszName, NULL, "vboxguest", &iUnit) != 1)
         return;
-    if (iUnit >= 256 || iUnit < 0)
+    if (iUnit >= 256)
     {
         Log(("VBoxGuestFreeBSDClone: iUnit=%d >= 256 - rejected\n", iUnit));
         return;
@@ -228,7 +178,7 @@ static void VBoxGuestFreeBSDClone(void *pvArg, struct ucred *pCred, char *pszNam
     if (rc)
     {
         *ppDev = make_dev(&g_VBoxGuestFreeBSDChrDevSW,
-                          unit2minor(iUnit),
+                          iUnit,
                           UID_ROOT,
                           GID_WHEEL,
                           0644,
@@ -279,6 +229,7 @@ static int VBoxGuestFreeBSDOpen(struct cdev *pDev, int fOpen, struct thread *pTd
         if (ASMAtomicCmpXchgPtr(&pDev->si_drv1, pSession, (void *)0x42))
         {
             Log((DEVICE_NAME ":VBoxGuestFreeBSDOpen success: g_DevExt=%p pSession=%p rc=%d pid=%d\n", &g_DevExt, pSession, rc, (int)RTProcSelf()));
+            ASMAtomicIncU32(&cUsers);
             return 0;
         }
 
@@ -296,7 +247,7 @@ static int VBoxGuestFreeBSDOpen(struct cdev *pDev, int fOpen, struct thread *pTd
 static int VBoxGuestFreeBSDClose(struct cdev *pDev, int fFile, int DevType, struct thread *pTd)
 {
     PVBOXGUESTSESSION pSession = (PVBOXGUESTSESSION)pDev->si_drv1;
-    Log(("VBoxGuestFreeBSDClose: fFile=%#x iUnit=%d pSession=%p\n", fFile, minor2unit(minor(pDev)), pSession));
+    Log(("VBoxGuestFreeBSDClose: fFile=%#x pSession=%p\n", fFile, pSession));
 
     /*
      * Close the session if it's still hanging on to the device...
@@ -306,6 +257,9 @@ static int VBoxGuestFreeBSDClose(struct cdev *pDev, int fFile, int DevType, stru
         VBoxGuestCloseSession(&g_DevExt, pSession);
         if (!ASMAtomicCmpXchgPtr(&pDev->si_drv1, NULL, pSession))
             Log(("VBoxGuestFreeBSDClose: si_drv1=%p expected %p!\n", pDev->si_drv1, pSession));
+        ASMAtomicDecU32(&cUsers);
+        /* Don't use destroy_dev here because it may sleep resulting in a hanging user process. */
+        destroy_dev_sched(pDev);
     }
     else
         Log(("VBoxGuestFreeBSDClose: si_drv1=%p!\n", pSession));
@@ -409,23 +363,57 @@ static int VBoxGuestFreeBSDIOCtl(struct cdev *pDev, u_long ulCmd, caddr_t pvData
     return rc;
 }
 
-static ssize_t VBoxGuestFreeBSDWrite (struct cdev *pDev, struct uio *pUio, int fIo)
+static int VBoxGuestFreeBSDPoll (struct cdev *pDev, int fEvents, struct thread *td)
+{
+    int fEventsProcessed;
+
+    LogFlow((DEVICE_NAME "::Poll: fEvents=%d\n", fEvents));
+
+    PVBOXGUESTSESSION pSession = (PVBOXGUESTSESSION)pDev->si_drv1;
+    if (RT_UNLIKELY(!VALID_PTR(pSession))) {
+        Log((DEVICE_NAME "::Poll: no state data for %s\n", devtoname(pDev)));
+        return (fEvents & (POLLHUP|POLLIN|POLLRDNORM|POLLOUT|POLLWRNORM));
+    }
+
+    uint32_t u32CurSeq = ASMAtomicUoReadU32(&g_DevExt.u32MousePosChangedSeq);
+    if (pSession->u32MousePosChangedSeq != u32CurSeq)
+    {
+        fEventsProcessed = fEvents & (POLLIN | POLLRDNORM);
+        pSession->u32MousePosChangedSeq = u32CurSeq;
+    }
+    else
+    {
+        fEventsProcessed = 0;
+
+        selrecord(td, &g_SelInfo);
+    }
+
+    return fEventsProcessed;
+}
+
+static int VBoxGuestFreeBSDWrite (struct cdev *pDev, struct uio *pUio, int fIo)
 {
     return 0;
 }
 
-static ssize_t VBoxGuestFreeBSDRead (struct cdev *pDev, struct uio *pUio, int fIo)
+static int VBoxGuestFreeBSDRead (struct cdev *pDev, struct uio *pUio, int fIo)
 {
     return 0;
 }
 
 static int VBoxGuestFreeBSDDetach(device_t pDevice)
 {
-    struct VBoxGuestDeviceState *pState = (struct VBoxGuestDeviceState *)device_get_softc(pDevice);
+    struct VBoxGuestDeviceState *pState = device_get_softc(pDevice);
+
+    if (cUsers > 0)
+        return EBUSY;
 
     /*
-     * Reserve what we did in VBoxGuestFreeBSDAttach.
+     * Reverse what we did in VBoxGuestFreeBSDAttach.
      */
+    if (g_VBoxGuestFreeBSDEHTag != NULL)
+        EVENTHANDLER_DEREGISTER(dev_clone, g_VBoxGuestFreeBSDEHTag);
+
     clone_cleanup(&g_pVBoxGuestFreeBSDClones);
 
     VBoxGuestFreeBSDRemoveIRQ(pDevice, pState);
@@ -437,7 +425,6 @@ static int VBoxGuestFreeBSDDetach(device_t pDevice)
 
     VBoxGuestDeleteDevExt(&g_DevExt);
 
-    free(pState, M_VBOXDEV);
     RTR0Term();
 
     return 0;
@@ -458,6 +445,16 @@ static int VBoxGuestFreeBSDISR(void *pvState)
     return fOurIRQ ? 0 : 1;
 }
 
+void VBoxGuestNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
+{
+    LogFlow((DEVICE_NAME "::NativeISRMousePollEvent:\n"));
+
+    /*
+     * Wake up poll waiters.
+     */
+    selwakeup(&g_SelInfo);
+}
+
 /**
  * Sets IRQ for VMMDev.
  *
@@ -474,7 +471,8 @@ static int VBoxGuestFreeBSDAddIRQ(device_t pDevice, void *pvState)
     pState->pIrqRes = bus_alloc_resource_any(pDevice, SYS_RES_IRQ, &iResId, RF_SHAREABLE | RF_ACTIVE);
 
 #if __FreeBSD_version >= 700000
-    rc = bus_setup_intr(pDevice, pState->pIrqRes, INTR_TYPE_BIO, NULL, (driver_intr_t *)VBoxGuestFreeBSDISR, pState, &pState->pfnIrqHandler);
+    rc = bus_setup_intr(pDevice, pState->pIrqRes, INTR_TYPE_BIO | INTR_MPSAFE, NULL, (driver_intr_t *)VBoxGuestFreeBSDISR, pState,
+                        &pState->pfnIrqHandler);
 #else
     rc = bus_setup_intr(pDevice, pState->pIrqRes, INTR_TYPE_BIO, (driver_intr_t *)VBoxGuestFreeBSDISR, pState, &pState->pfnIrqHandler);
 #endif
@@ -513,6 +511,8 @@ static int VBoxGuestFreeBSDAttach(device_t pDevice)
     int iResId = 0;
     struct VBoxGuestDeviceState *pState = NULL;
 
+    cUsers = 0;
+
     /*
      * Initialize IPRT R0 driver, which internally calls OS-specific r0 init.
      */
@@ -524,21 +524,13 @@ static int VBoxGuestFreeBSDAttach(device_t pDevice)
     }
 
     pState = device_get_softc(pDevice);
-    if (!pState)
-    {
-        pState = malloc(sizeof(struct VBoxGuestDeviceState), M_VBOXDEV, M_NOWAIT | M_ZERO);
-        if (!pState)
-            return ENOMEM;
-
-        device_set_softc(pDevice, pState);
-    }
 
     /*
      * Allocate I/O port resource.
      */
     iResId                 = PCIR_BAR(0);
     pState->pIOPortRes     = bus_alloc_resource_any(pDevice, SYS_RES_IOPORT, &iResId, RF_ACTIVE);
-    pState->uIOPortBase    = bus_get_resource_start(pDevice, SYS_RES_IOPORT, iResId);
+    pState->uIOPortBase    = rman_get_start(pState->pIOPortRes);
     pState->iIOPortResId   = iResId;
     if (pState->uIOPortBase)
     {
@@ -548,17 +540,18 @@ static int VBoxGuestFreeBSDAttach(device_t pDevice)
         iResId                   = PCIR_BAR(1);
         pState->pVMMDevMemRes    = bus_alloc_resource_any(pDevice, SYS_RES_MEMORY, &iResId, RF_ACTIVE);
         pState->VMMDevMemHandle  = rman_get_bushandle(pState->pVMMDevMemRes);
-        pState->VMMDevMemSize    = bus_get_resource_count(pDevice, SYS_RES_MEMORY, iResId);
+        pState->VMMDevMemSize    = rman_get_size(pState->pVMMDevMemRes);
 
-        pState->pMMIOBase = (void *)pState->VMMDevMemHandle;
+        pState->pMMIOBase       = rman_get_virtual(pState->pVMMDevMemRes);
         pState->iVMMDevMemResId = iResId;
         if (pState->pMMIOBase)
         {
             /*
              * Call the common device extension initializer.
              */
-            rc = VBoxGuestInitDevExt(&g_DevExt, pState->uIOPortBase, pState->pMMIOBase,
-                                     pState->VMMDevMemSize, VBOXOSTYPE_FreeBSD, 0);
+            rc = VBoxGuestInitDevExt(&g_DevExt, pState->uIOPortBase,
+                                     pState->pMMIOBase, pState->VMMDevMemSize,
+                                     VBOXOSTYPE_FreeBSD, VMMDEV_EVENT_MOUSE_POSITION_CHANGED);
             if (RT_SUCCESS(rc))
             {
                 /*
@@ -628,5 +621,6 @@ static devclass_t VBoxGuestFreeBSDClass;
 DRIVER_MODULE(vboxguest, pci, VBoxGuestFreeBSDDriver, VBoxGuestFreeBSDClass, 0, 0);
 MODULE_VERSION(vboxguest, 1);
 
-int __gxx_personality_v0 = 0xdeadbeef;
+/* Common code that depend on g_DevExt. */
+#include "VBoxGuestIDC-unix.c.h"
 

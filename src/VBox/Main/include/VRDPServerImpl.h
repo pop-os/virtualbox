@@ -1,4 +1,4 @@
-/* $Id: VRDPServerImpl.h $ */
+/* $Id: VRDPServerImpl.h 24989 2009-11-26 11:31:46Z vboxsync $ */
 
 /** @file
  *
@@ -30,10 +30,15 @@
 
 class Machine;
 
+namespace settings
+{
+    struct VRDPSettings;
+}
+
 class ATL_NO_VTABLE VRDPServer :
-    public VirtualBoxBaseNEXT,
-    public VirtualBoxSupportErrorInfoImpl <VRDPServer, IVRDPServer>,
-    public VirtualBoxSupportTranslation <VRDPServer>,
+    public VirtualBoxBase,
+    public VirtualBoxSupportErrorInfoImpl<VRDPServer, IVRDPServer>,
+    public VirtualBoxSupportTranslation<VRDPServer>,
     VBOX_SCRIPTABLE_IMPL(IVRDPServer)
 {
 public:
@@ -44,7 +49,7 @@ public:
         {
             return this == &that ||
                    (mEnabled == that.mEnabled &&
-                    mVRDPPort == that.mVRDPPort &&
+                    mVRDPPorts == that.mVRDPPorts &&
                     mVRDPAddress == that.mVRDPAddress &&
                     mAuthType == that.mAuthType &&
                     mAuthTimeout == that.mAuthTimeout &&
@@ -53,7 +58,7 @@ public:
         }
 
         BOOL mEnabled;
-        ULONG mVRDPPort;
+        Bstr mVRDPPorts;
         Bstr mVRDPAddress;
         VRDPAuthType_T mAuthType;
         ULONG mAuthTimeout;
@@ -73,8 +78,6 @@ public:
         COM_INTERFACE_ENTRY2 (IDispatch, IVRDPServer)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
     DECLARE_EMPTY_CTOR_DTOR (VRDPServer)
 
     HRESULT FinalConstruct();
@@ -89,8 +92,8 @@ public:
     // IVRDPServer properties
     STDMETHOD(COMGETTER(Enabled)) (BOOL *aEnabled);
     STDMETHOD(COMSETTER(Enabled)) (BOOL aEnable);
-    STDMETHOD(COMGETTER(Port)) (ULONG *aPort);
-    STDMETHOD(COMSETTER(Port)) (ULONG aPort);
+    STDMETHOD(COMGETTER(Ports)) (BSTR *aPorts);
+    STDMETHOD(COMSETTER(Ports)) (IN_BSTR aPorts);
     STDMETHOD(COMGETTER(NetAddress)) (BSTR *aAddress);
     STDMETHOD(COMSETTER(NetAddress)) (IN_BSTR aAddress);
     STDMETHOD(COMGETTER(AuthType)) (VRDPAuthType_T *aType);
@@ -106,8 +109,8 @@ public:
 
     // public methods only for internal purposes
 
-    HRESULT loadSettings (const settings::Key &aMachineNode);
-    HRESULT saveSettings (settings::Key &aMachineNode);
+    HRESULT loadSettings(const settings::VRDPSettings &data);
+    HRESULT saveSettings(settings::VRDPSettings &data);
 
     bool isModified() { AutoWriteLock alock (this); return mData.isBackedUp(); }
     bool isReallyModified() { AutoWriteLock alock (this); return mData.hasActualChanges(); }
@@ -115,20 +118,15 @@ public:
     void commit();
     void copyFrom (VRDPServer *aThat);
 
-    // public methods for internal purposes only
-    // (ensure there is a caller and a read lock before calling them!)
-
-    const Backupable <Data> &data() const { return mData; }
-
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"VRDPServer"; }
 
 private:
 
-    const ComObjPtr <Machine, ComWeakRef> mParent;
-    const ComObjPtr <VRDPServer> mPeer;
+    const ComObjPtr<Machine, ComWeakRef> mParent;
+    const ComObjPtr<VRDPServer> mPeer;
 
-    Backupable <Data> mData;
+    Backupable<Data> mData;
 };
 
 #endif // ____H_VRDPSERVER

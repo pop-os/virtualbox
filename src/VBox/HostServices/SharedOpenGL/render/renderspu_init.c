@@ -25,7 +25,7 @@ SPUFunctions render_functions = {
 };
 
 RenderSPU render_spu;
-unsigned int render_spu_parent_window_id;
+uint64_t render_spu_parent_window_id;
 
 #ifdef CHROMIUM_THREADSAFE
 CRtsd _RenderTSD;
@@ -213,7 +213,8 @@ renderSPUInit( int id, SPU *child, SPU *self,
 #endif
 
 #ifdef DARWIN
-# ifndef __LP64__ /** @todo port to 64-bit darwin. */
+# ifdef VBOX_WITH_COCOA_QT
+# else /* VBOX_WITH_COCOA_QT */
     render_spu.hRootVisibleRegion = 0;
     render_spu.currentBufferName = 1;
     render_spu.uiDockUpdateTS = 0;
@@ -239,7 +240,7 @@ renderSPUInit( int id, SPU *child, SPU *self,
                                     GetEventTypeCount(eventList), eventList,
                                     NULL, NULL);
     render_spu.fInit = true;
-# endif /* !__LP64__ */
+# endif /* VBOX_WITH_COCOA_QT */
 #endif /* DARWIN */
 
     /*
@@ -385,7 +386,7 @@ static int renderSPUCleanup(void)
     render_spu.barrierHash = NULL;
 
 #ifdef RT_OS_DARWIN
-# ifndef __LP64__ /** @todo port to 64-bit darwin. */
+# ifndef VBOX_WITH_COCOA_QT
     render_spu.fInit = false;
     DisposeEventHandlerUPP(render_spu.hParentEventHandler);
     ReleaseWindowGroup(render_spu.pMasterGroup);
@@ -398,7 +399,8 @@ static int renderSPUCleanup(void)
     render_spu.currentBufferName = 1;
     render_spu.uiDockUpdateTS = 0;
     RTSemFastMutexDestroy(render_spu.syncMutex);
-# endif /* __LP64__ */
+# else /* VBOX_WITH_COCOA_QT */
+# endif /* VBOX_WITH_COCOA_QT */
 #endif /* RT_OS_DARWIN */
 
 #ifdef RT_OS_WINDOWS
@@ -434,7 +436,7 @@ int SPULoad( char **name, char **super, SPUInitFuncPtr *init,
     return 1;
 }
 
-DECLEXPORT(void) renderspuSetWindowId(unsigned int winId)
+DECLEXPORT(void) renderspuSetWindowId(uint64_t winId)
 {
     render_spu_parent_window_id = winId;
 }

@@ -1,4 +1,4 @@
-/* $Id: ConsoleVRDPServer.h $ */
+/* $Id: ConsoleVRDPServer.h 23643 2009-10-09 12:23:32Z vboxsync $ */
 
 /** @file
  *
@@ -184,6 +184,8 @@ private:
     IConsoleCallback *mConsoleCallback;
 
     VRDPInputSynch m_InputSynch;
+
+    int32_t mVRDPBindPort;
 #endif /* VBOX_WITH_VRDP */
 
     RTCRITSECT mCritSect;
@@ -232,9 +234,9 @@ private:
 class Console;
 
 class ATL_NO_VTABLE RemoteDisplayInfo :
-    public VirtualBoxBaseNEXT,
-    public VirtualBoxSupportErrorInfoImpl <RemoteDisplayInfo, IRemoteDisplayInfo>,
-    public VirtualBoxSupportTranslation <RemoteDisplayInfo>,
+    public VirtualBoxBase,
+    public VirtualBoxSupportErrorInfoImpl<RemoteDisplayInfo, IRemoteDisplayInfo>,
+    public VirtualBoxSupportTranslation<RemoteDisplayInfo>,
     VBOX_SCRIPTABLE_IMPL(IRemoteDisplayInfo)
 {
 public:
@@ -251,8 +253,6 @@ public:
         COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
     DECLARE_EMPTY_CTOR_DTOR (RemoteDisplayInfo)
 
     HRESULT FinalConstruct();
@@ -265,6 +265,7 @@ public:
     /* IRemoteDisplayInfo properties */
     #define DECL_GETTER(_aType, _aName) STDMETHOD(COMGETTER(_aName)) (_aType *a##_aName)
         DECL_GETTER (BOOL,    Active);
+        DECL_GETTER (LONG,    Port);
         DECL_GETTER (ULONG,   NumberOfClients);
         DECL_GETTER (LONG64,  BeginTime);
         DECL_GETTER (LONG64,  EndTime);
@@ -285,7 +286,7 @@ public:
 
 private:
 
-    const ComObjPtr <Console, ComWeakRef> mParent;
+    const ComObjPtr<Console, ComWeakRef> mParent;
 };
 
 #endif // ____H_CONSOLEVRDPSERVER

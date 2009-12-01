@@ -14,10 +14,11 @@
 void * PACKSPU_APIENTRY
 packspu_MapBufferARB( GLenum target, GLenum access )
 {
-    GLint size = -1;
     GET_CONTEXT(ctx);
     void *buffer;
+#if 0
     CRBufferObject *bufObj;
+    GLint size = -1;
 
     (void) crStateMapBufferARB( target, access );
 
@@ -51,16 +52,27 @@ packspu_MapBufferARB( GLenum target, GLenum access )
      * rewritten, we wouldn't have to fetch the current data here.
      */
     packspu_GetBufferSubDataARB(target, 0, bufObj->size, buffer);
+#else
+    CRASSERT(GL_TRUE == ctx->clientState->bufferobject.retainBufferData);
+    buffer = crStateMapBufferARB(target, access); 
+#endif
 
     return buffer;
+}
+
+void PACKSPU_APIENTRY packspu_GetBufferSubDataARB( GLenum target, GLintptrARB offset, GLsizeiptrARB size, void * data )
+{
+    crStateGetBufferSubDataARB(target, offset, size, data);
 }
 
 
 GLboolean PACKSPU_APIENTRY
 packspu_UnmapBufferARB( GLenum target )
 {
-    CRBufferObject *bufObj;
     GET_CONTEXT(ctx);
+
+#if CR_ARB_vertex_buffer_object
+    CRBufferObject *bufObj;
 
     if (target == GL_ARRAY_BUFFER_ARB) {
         bufObj = ctx->clientState->bufferobject.arrayBuffer;
@@ -72,10 +84,9 @@ packspu_UnmapBufferARB( GLenum target )
 
     /* send new buffer contents to server */
     crPackBufferDataARB( target, bufObj->size, bufObj->pointer, bufObj->usage );
+#endif
 
-    /* free the buffer / unmap it */
-    crFree(bufObj->pointer);
-
+    CRASSERT(GL_TRUE == ctx->clientState->bufferobject.retainBufferData);
     crStateUnmapBufferARB( target );
 
     return GL_TRUE;
@@ -83,11 +94,19 @@ packspu_UnmapBufferARB( GLenum target )
 
 
 void PACKSPU_APIENTRY
-packspu_BufferDataARB( GLenum target, GLsizeiptrARB size,
-                                             const GLvoid * data, GLenum usage )
+packspu_BufferDataARB(GLenum target, GLsizeiptrARB size, const GLvoid * data, GLenum usage)
 {
+    /*crDebug("packspu_BufferDataARB size:%d", size);*/
     crStateBufferDataARB(target, size, data, usage);
     crPackBufferDataARB(target, size, data, usage);
+}
+
+void PACKSPU_APIENTRY
+packspu_BufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeiptrARB size, const GLvoid * data)
+{
+    /*crDebug("packspu_BufferSubDataARB size:%d", size);*/
+    crStateBufferSubDataARB(target, offset, size, data);
+    crPackBufferSubDataARB(target, offset, size, data);
 }
 
 

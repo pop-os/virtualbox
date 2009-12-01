@@ -1,4 +1,4 @@
-/* $Id: tstIoCtl.cpp $ */
+/* $Id: tstIoCtl.cpp 23973 2009-10-22 12:34:22Z vboxsync $ */
 /** @file
  * IPRT Testcase - file IoCtl.
  */
@@ -67,7 +67,8 @@ int main()
 
     RTFILE    File;
 
-    if (RT_FAILURE(err = RTFileOpen(&File, "/dev/dsp", (RTFILE_O_READWRITE) | RTFILE_O_NON_BLOCK))) {
+    err = RTFileOpen(&File, "/dev/dsp", RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE | RTFILE_O_NON_BLOCK);
+    if (RT_FAILURE(err)) {
         printf("Fatal error: failed to open /dev/dsp:\n"
                "VBox error code: %d\n", err);
         return 1;

@@ -81,7 +81,7 @@ const int XKeyRelease = KeyRelease;
 #endif // Q_WS_X11
 
 #if defined (Q_WS_MAC)
-# include "VBoxDockIconPreview.h"
+# include "DockIconPreview.h"
 # include "DarwinKeyboard.h"
 # ifdef QT_MAC_USE_COCOA
 #  include "darwin/VBoxCocoaApplication.h"
@@ -342,12 +342,12 @@ private:
 class MediaDriveChangeEvent : public QEvent
 {
 public:
-    MediaDriveChangeEvent (VBoxDefs::MediaType aType)
+    MediaDriveChangeEvent (VBoxDefs::MediumType aType)
         : QEvent ((QEvent::Type) VBoxDefs::MediaDriveChangeEventType)
         , mType (aType) {}
-    VBoxDefs::MediaType type() const { return mType; }
+    VBoxDefs::MediumType type() const { return mType; }
 private:
-    VBoxDefs::MediaType mType;
+    VBoxDefs::MediumType mType;
 };
 
 /** Menu activation event */
@@ -460,22 +460,8 @@ public:
             delete this;
         return cnt;
     }
-    STDMETHOD(QueryInterface) (REFIID riid , void **ppObj)
-    {
-        if (riid == IID_IUnknown) {
-            *ppObj = this;
-            AddRef();
-            return S_OK;
-        }
-        if (riid == IID_IConsoleCallback) {
-            *ppObj = this;
-            AddRef();
-            return S_OK;
-        }
-        *ppObj = NULL;
-        return E_NOINTERFACE;
-    }
 #endif
+    VBOX_SCRIPTABLE_DISPATCH_IMPL(IConsoleCallback)
 
     STDMETHOD(OnMousePointerShapeChange) (BOOL visible, BOOL alpha,
                                           ULONG xhot, ULONG yhot,
@@ -529,22 +515,6 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(OnDVDDriveChange)()
-    {
-        LogFlowFunc (("DVD Drive changed\n"));
-        QApplication::postEvent (mView,
-            new MediaDriveChangeEvent (VBoxDefs::MediaType_DVD));
-        return S_OK;
-    }
-
-    STDMETHOD(OnFloppyDriveChange)()
-    {
-        LogFlowFunc (("Floppy Drive changed\n"));
-        QApplication::postEvent (mView,
-            new MediaDriveChangeEvent (VBoxDefs::MediaType_Floppy));
-        return S_OK;
-    }
-
     STDMETHOD(OnNetworkAdapterChange) (INetworkAdapter *aNetworkAdapter)
     {
         QApplication::postEvent (mView,
@@ -557,6 +527,26 @@ public:
         /* @todo */
         //QApplication::postEvent (mView,
         //    new StorageControllerChangeEvent ());
+        return S_OK;
+    }
+
+    STDMETHOD(OnMediumChange)(IMediumAttachment *aMediumAttachment)
+    {
+        CMediumAttachment att(aMediumAttachment);
+        switch (att.GetType())
+        {
+            case KDeviceType_Floppy:
+                QApplication::postEvent(mView,
+                    new MediaDriveChangeEvent(VBoxDefs::MediumType_Floppy));
+                break;
+            case KDeviceType_DVD:
+                QApplication::postEvent(mView,
+                    new MediaDriveChangeEvent(VBoxDefs::MediumType_DVD));
+                break;
+            default:
+                /* @todo later add hard disk change as well */
+                break;
+        }
         return S_OK;
     }
 
@@ -573,6 +563,11 @@ public:
     }
 
     STDMETHOD(OnVRDPServerChange)()
+    {
+        return S_OK;
+    }
+
+    STDMETHOD(OnRemoteDisplayInfoChange)()
     {
         return S_OK;
     }
@@ -709,6 +704,9 @@ public:
 VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
                                   const CConsole &console,
                                   VBoxDefs::RenderMode rm,
+#ifdef VBOX_WITH_VIDEOHWACCEL
+                                  bool accelerate2DVideo,
+#endif
                                   QWidget *parent)
     : QAbstractScrollArea (parent)
     , mMainWnd (mainWnd)
@@ -725,6 +723,7 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
     , mIgnoreMainwndResize (true)
     , mAutoresizeGuest (false)
     , mIgnoreFrameBufferResize (false)
+    , mIgnoreGuestResize (false)
     , mDoResize (false)
     , mGuestSupportsGraphics (false)
     , mNumLock (false)
@@ -733,6 +732,9 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
     , muNumLockAdaptionCnt (2)
     , muCapsLockAdaptionCnt (2)
     , mode (rm)
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    , mAccelerate2DVideo(accelerate2DVideo)
+#endif
 #if defined(Q_WS_WIN)
     , mAlphaCursor (NULL)
 #endif
@@ -785,11 +787,18 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
     /* No frame around the view */
     setFrameStyle (QFrame::NoFrame);
 
-#ifndef VBOX_WITH_VIDEOHWACCEL
-    VBoxViewport *pViewport = new VBoxViewport (this);
+#ifdef VBOX_GUI_USE_QGL
+    QWidget *pViewport;
+    switch (mode)
+    {
+        case VBoxDefs::QGLMode:
+            pViewport = new VBoxGLWidget (this, this);
+            break;
+        default:
+            pViewport = new VBoxViewport (this);
+    }
 #else
-//    /* TODO: temporary always use VBoxGLWidget for debugging */
-    VBoxGLWidget *pViewport = new VBoxGLWidget (this);
+    VBoxViewport *pViewport = new VBoxViewport (this);
 #endif
     setViewport (pViewport);
 //    pViewport->vboxDoInit();
@@ -811,7 +820,8 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
 
 #ifdef Q_WS_X11
     /* initialize the X keyboard subsystem */
-    initXKeyboard (QX11Info::display());
+    initMappedX11Keyboard(QX11Info::display(),
+            vboxGlobal().settings().publicProperty ("GUI/RemapScancodes"));
 #endif
 
     ::memset (mPressedKeys, 0, sizeof (mPressedKeys));
@@ -831,10 +841,17 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
         case VBoxDefs::QGLMode:
             mFrameBuf = new VBoxQGLFrameBuffer (this);
             break;
+//        case VBoxDefs::QGLOverlayMode:
+//            mFrameBuf = new VBoxQGLOverlayFrameBuffer (this);
+//            break;
 #endif
 #if defined (VBOX_GUI_USE_QIMAGE)
         case VBoxDefs::QImageMode:
-            mFrameBuf = new VBoxQImageFrameBuffer (this);
+            mFrameBuf =
+#ifdef VBOX_WITH_VIDEOHWACCEL
+                    mAccelerate2DVideo ? new VBoxOverlayFrameBuffer<VBoxQImageFrameBuffer>(this) :
+#endif
+                    new VBoxQImageFrameBuffer (this);
             break;
 #endif
 #if defined (VBOX_GUI_USE_SDL)
@@ -847,7 +864,11 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
              * i386 and segfaults on x86_64. */
             XFlush(QX11Info::display());
 # endif
-            mFrameBuf = new VBoxSDLFrameBuffer (this);
+            mFrameBuf =
+#if defined(VBOX_WITH_VIDEOHWACCEL) && defined(DEBUG_misha) /* not tested yet */
+                    mAccelerate2DVideo ? new VBoxOverlayFrameBuffer<VBoxSDLFrameBuffer> (this) :
+#endif
+                    new VBoxSDLFrameBuffer (this);
             /*
              *  disable scrollbars because we cannot correctly draw in a
              *  scrolled window using SDL
@@ -866,7 +887,11 @@ VBoxConsoleView::VBoxConsoleView (VBoxConsoleWnd *mainWnd,
             /* Indicate that we are doing all
              * drawing stuff ourself */
             pViewport->setAttribute (Qt::WA_PaintOnScreen);
-            mFrameBuf = new VBoxQuartz2DFrameBuffer (this);
+            mFrameBuf =
+#ifdef VBOX_WITH_VIDEOHWACCEL
+                    mAccelerate2DVideo ? new VBoxOverlayFrameBuffer<VBoxQuartz2DFrameBuffer> (this) :
+#endif
+            	    new VBoxQuartz2DFrameBuffer (this);
             break;
 #endif
         default:
@@ -1234,20 +1259,37 @@ bool VBoxConsoleView::event (QEvent *e)
 
             case VBoxDefs::ResizeEventType:
             {
+                /* Some situations require initial VGA Resize Request
+                 * to be ignored at all, leaving previous framebuffer,
+                 * console widget and vm window size preserved. */
+                if (mIgnoreGuestResize)
+                    return true;
+
                 bool oldIgnoreMainwndResize = mIgnoreMainwndResize;
                 mIgnoreMainwndResize = true;
 
                 VBoxResizeEvent *re = (VBoxResizeEvent *) e;
                 LogFlow (("VBoxDefs::ResizeEventType: %d x %d x %d bpp\n",
                           re->width(), re->height(), re->bitsPerPixel()));
+#ifdef DEBUG_michael
+                LogRel (("Resize event from guest: %d x %d x %d bpp\n",
+                         re->width(), re->height(), re->bitsPerPixel()));
+#endif
 
+                /* Store the new size to prevent unwanted resize hints being
+                 * sent back. */
+                storeConsoleSize(re->width(), re->height());
                 /* do frame buffer dependent resize */
-#if defined (Q_WS_X11) && (QT_VERSION >= 0x040309) && (QT_VERSION < 0x040401)
+
                 /* restoreOverrideCursor() is broken in Qt 4.4.0 if WA_PaintOnScreen
                  * widgets are present. This is the case on linux with SDL. As
                  * workaround we save/restore the arrow cursor manually. See
                  * http://trolltech.com/developer/task-tracker/index_html?id=206165&method=entry
-                 * for details. */
+                 * for details.
+                 *
+                 * Moreover the current cursor, which could be set by the guest,
+                 * should be restored after resize.
+                 */
                 QCursor cursor;
                 if (shouldHideHostPointer())
                     cursor = QCursor (Qt::BlankCursor);
@@ -1255,13 +1297,10 @@ bool VBoxConsoleView::event (QEvent *e)
                     cursor = viewport()->cursor();
                 mFrameBuf->resizeEvent (re);
                 viewport()->setCursor (cursor);
-#else
-                mFrameBuf->resizeEvent (re);
-                if (shouldHideHostPointer())
-                    viewport()->setCursor (QCursor (Qt::BlankCursor));
-                else
-                    viewport()->unsetCursor();
-#endif
+
+#ifdef Q_WS_MAC
+                mDockIconPreview->setOriginalSize (re->width(), re->height());
+#endif /* Q_WS_MAC */
 
                 /* This event appears in case of guest video was changed
                  * for somehow even without video resolution change.
@@ -1321,7 +1360,6 @@ bool VBoxConsoleView::event (QEvent *e)
                 if (mIgnoreFrameBufferResize)
                 {
                     mIgnoreFrameBufferResize = false;
-                    doResizeHint (mNormalSize);
                 }
 
                 return true;
@@ -1337,6 +1375,14 @@ bool VBoxConsoleView::event (QEvent *e)
                 /* mConsole.GetDisplay().UpdateCompleted(); - the event was acked already */
                 return true;
             }
+
+#ifdef VBOX_WITH_VIDEOHWACCEL
+            case VBoxDefs::VHWACommandProcessType:
+            {
+                mFrameBuf->doProcessVHWACommand(e);
+                return true;
+            }
+#endif
 
             case VBoxDefs::SetRegionEventType:
             {
@@ -1379,7 +1425,9 @@ bool VBoxConsoleView::event (QEvent *e)
                     if (mMouseAbsolute)
                     {
                         CMouse mouse = mConsole.GetMouse();
-                        mouse.PutMouseEventAbsolute (-1, -1, 0, 0);
+                        mouse.PutMouseEventAbsolute (-1, -1, 0,
+                                                     0 /* Horizontal wheel */,
+                                                     0);
                         captureMouse (false, false);
                     }
                     else
@@ -1389,6 +1437,8 @@ bool VBoxConsoleView::event (QEvent *e)
                 }
                 if (me->needsHostCursor())
                     mMainWnd->setMouseIntegrationLocked (false);
+                else
+                    mMainWnd->setMouseIntegrationLocked (true);
                 return true;
             }
 
@@ -1701,14 +1751,6 @@ bool VBoxConsoleView::event (QEvent *e)
                 return true;
             }
 #endif
-#ifdef VBOX_WITH_VIDEOHWACCEL
-            case VBoxDefs::VHWACommandProcessType:
-            {
-                VBoxVHWACommandProcessEvent *cmde = (VBoxVHWACommandProcessEvent *)e;
-                mFrameBuf->doProcessVHWACommand(cmde->command());
-                return true;
-            }
-#endif
             default:
                 break;
         }
@@ -1716,6 +1758,18 @@ bool VBoxConsoleView::event (QEvent *e)
 
     return QAbstractScrollArea::event (e);
 }
+
+#ifdef VBOX_WITH_VIDEOHWACCEL
+void VBoxConsoleView::scrollContentsBy (int dx, int dy)
+{
+    if (mAttached && mFrameBuf)
+    {
+        mFrameBuf->viewportScrolled(dx, dy);
+    }
+    QAbstractScrollArea::scrollContentsBy (dx, dy);
+}
+#endif
+
 
 bool VBoxConsoleView::eventFilter (QObject *watched, QEvent *e)
 {
@@ -1739,7 +1793,15 @@ bool VBoxConsoleView::eventFilter (QObject *watched, QEvent *e)
             {
                 QWheelEvent *we = (QWheelEvent *) e;
                 if (mouseEvent (we->type(), we->pos(), we->globalPos(),
-                                we->buttons(), we->modifiers(),
+#ifdef QT_MAC_USE_COCOA
+                                /* Qt Cocoa is buggy. It always reports a left
+                                 * button pressed when the mouse wheel event
+                                 * occurs. */
+                                0,
+#else /* QT_MAC_USE_COCOA */
+                                we->buttons(),
+#endif /* QT_MAC_USE_COCOA */
+                                we->modifiers(),
                                 we->delta(), we->orientation()))
                     return true; /* stop further event handling */
                 break;
@@ -1767,6 +1829,12 @@ bool VBoxConsoleView::eventFilter (QObject *watched, QEvent *e)
             {
                 if (mMouseCaptured)
                     updateMouseClipping();
+#ifdef VBOX_WITH_VIDEOHWACCEL
+                if (mFrameBuf)
+                {
+                    mFrameBuf->viewportResized((QResizeEvent*)e);
+                }
+#endif
                 break;
             }
             default:
@@ -2638,8 +2706,8 @@ QRect VBoxConsoleView::desktopGeometry()
         case DesktopGeo_Fixed:
         case DesktopGeo_Automatic:
             rc = QRect (0, 0,
-                        RT_MAX (mDesktopGeometry.width(), mLastSizeHint.width()),
-                        RT_MAX (mDesktopGeometry.height(), mLastSizeHint.height()));
+                        RT_MAX (mDesktopGeometry.width(), mStoredConsoleSize.width()),
+                        RT_MAX (mDesktopGeometry.height(), mStoredConsoleSize.height()));
             break;
         case DesktopGeo_Any:
             rc = QRect (0, 0, 0, 0);
@@ -2994,14 +3062,19 @@ bool VBoxConsoleView::mouseEvent (int aType, const QPoint &aPos, const QPoint &a
                                   Qt::MouseButtons aButtons, Qt::KeyboardModifiers aModifiers,
                                   int aWheelDelta, Qt::Orientation aWheelDir)
 {
-#if 0
-    char buf [256];
-    sprintf (buf,
-             "MOUSE: type=%03d x=%03d y=%03d btn=%03d btns=%08X mod=%08X "
-             "wdelta=%03d wdir=%03d",
-             aType, aPos.x(), aPos.y(), aButtons, aModifiers,
-             aWheelDelta, aWheelDir);
-    mMainWnd->statusBar()->message (buf);
+#if 1
+
+    LogRel3(("%s: type=%03d x=%03d y=%03d btns=%08X wdelta=%03d wdir=%s\n",
+             __PRETTY_FUNCTION__ , aType, aPos.x(), aPos.y(),
+               (aButtons & Qt::LeftButton ? 1 : 0)
+             | (aButtons & Qt::RightButton ? 2 : 0)
+             | (aButtons & Qt::MidButton ? 4 : 0)
+             | (aButtons & Qt::XButton1 ? 8 : 0)
+             | (aButtons & Qt::XButton2 ? 16 : 0),
+             aWheelDelta,
+               aWheelDir == Qt::Horizontal ? "Horizontal"
+             : aWheelDir == Qt::Vertical ? "Vertical" : "Unknown"));
+    Q_UNUSED (aModifiers);
 #else
     Q_UNUSED (aModifiers);
 #endif
@@ -3013,6 +3086,10 @@ bool VBoxConsoleView::mouseEvent (int aType, const QPoint &aPos, const QPoint &a
         state |= KMouseButtonState_RightButton;
     if (aButtons & Qt::MidButton)
         state |= KMouseButtonState_MiddleButton;
+    if (aButtons & Qt::XButton1)
+        state |= KMouseButtonState_XButton1;
+    if (aButtons & Qt::XButton2)
+        state |= KMouseButtonState_XButton2;
 
 #ifdef Q_WS_MAC
     /* Simulate the right click on
@@ -3023,14 +3100,17 @@ bool VBoxConsoleView::mouseEvent (int aType, const QPoint &aPos, const QPoint &a
         state = KMouseButtonState_RightButton;
 #endif /* Q_WS_MAC */
 
-    int wheel = 0;
+    int wheelVertical = 0;
+    int wheelHorizontal = 0;
     if (aWheelDir == Qt::Vertical)
     {
         /* the absolute value of wheel delta is 120 units per every wheel
          * move; positive deltas correspond to counterclockwize rotations
          * (usually up), negative -- to clockwize (usually down). */
-        wheel = - (aWheelDelta / 120);
+        wheelVertical = - (aWheelDelta / 120);
     }
+    else if (aWheelDir == Qt::Horizontal)
+        wheelHorizontal = aWheelDelta / 120;
 
     if (mMouseCaptured)
     {
@@ -3042,7 +3122,7 @@ bool VBoxConsoleView::mouseEvent (int aType, const QPoint &aPos, const QPoint &a
         CMouse mouse = mConsole.GetMouse();
         mouse.PutMouseEvent (aGlobalPos.x() - mLastPos.x(),
                              aGlobalPos.y() - mLastPos.y(),
-                             wheel, state);
+                             wheelVertical, wheelHorizontal, state);
 
 #if defined (Q_WS_MAC)
         /*
@@ -3185,7 +3265,8 @@ bool VBoxConsoleView::mouseEvent (int aType, const QPoint &aPos, const QPoint &a
             else if (cpnt.y() > ch) cpnt.setY (ch);
 
             CMouse mouse = mConsole.GetMouse();
-            mouse.PutMouseEventAbsolute (cpnt.x(), cpnt.y(), wheel, state);
+            mouse.PutMouseEventAbsolute (cpnt.x(), cpnt.y(), wheelVertical,
+                                         wheelHorizontal, state);
             return true; /* stop further event handling */
         }
         else
@@ -3238,8 +3319,13 @@ void VBoxConsoleView::onStateChange (KMachineState state)
     switch (state)
     {
         case KMachineState_Paused:
+        case KMachineState_TeleportingPausedVM:
         {
-            if (mode != VBoxDefs::TimerMode && mFrameBuf)
+            if (    mode != VBoxDefs::TimerMode
+                &&  mFrameBuf
+                &&  (   state      != KMachineState_TeleportingPausedVM
+                     || mLastState != KMachineState_Teleporting)
+               )
             {
                 /*
                  *  Take a screen snapshot. Note that TakeScreenShot() always
@@ -3272,7 +3358,9 @@ void VBoxConsoleView::onStateChange (KMachineState state)
         }
         case KMachineState_Running:
         {
-            if (mLastState == KMachineState_Paused)
+            if (   mLastState == KMachineState_Paused
+                || mLastState == KMachineState_TeleportingPausedVM
+               )
             {
                 if (mode != VBoxDefs::TimerMode && mFrameBuf)
                 {
@@ -3460,7 +3548,7 @@ void VBoxConsoleView::captureMouse (bool aCapture, bool aEmitSignal /* = true */
 #endif
         /* release mouse buttons */
         CMouse mouse = mConsole.GetMouse();
-        mouse.PutMouseEvent (0, 0, 0, 0);
+        mouse.PutMouseEvent (0, 0, 0, 0 /* Horizontal wheel */, 0);
     }
 
     mMouseCaptured = aCapture;
@@ -3942,6 +4030,10 @@ void VBoxConsoleView::doResizeHint (const QSize &aToSize)
         QSize sz (aToSize.isValid() ? aToSize : mMainWnd->centralWidget()->size());
         if (!aToSize.isValid())
             sz -= QSize (frameWidth() * 2, frameWidth() * 2);
+        /* Do not send out useless hints. */
+        if ((sz.width() == mStoredConsoleSize.width()) &&
+            (sz.height() == mStoredConsoleSize.height()))
+            return;
         /* We only actually send the hint if
          * 1) the autoresize property is set to true and
          * 2) either an explicit new size was given (e.g. if the request
@@ -3954,8 +4046,8 @@ void VBoxConsoleView::doResizeHint (const QSize &aToSize)
         {
             LogFlowFunc (("Will suggest %d x %d\n", sz.width(), sz.height()));
 
-            /* Increase the maximum allowed size to the new size if needed. */
-            setDesktopGeoHint (sz.width(), sz.height());
+            /* Remember the new size. */
+            storeConsoleSize (sz.width(), sz.height());
 
             mConsole.GetDisplay().SetVideoModeHint (sz.width(), sz.height(), 0, 0);
         }
@@ -3972,17 +4064,20 @@ void VBoxConsoleView::doResizeDesktop (int)
 }
 
 /**
- * Remember a geometry hint sent by the console window.  This is used to
- * determine the maximum supported guest resolution in the @a desktopGeometry
- * method.  A hint will always override other restrictions.
+ * Store the current size of the console (i.e. the viewport to the guest).
+ * This has two purposes.  One is to suppress unwanted resize events for
+ * which the new size is the same as the stored size.  The other is to expand
+ * the maximum size to which we will let the guest resize itself.  It makes
+ * no sense to forbid guest resizes which are less than the current resolution
+ * anyway.
  *
  * @param aWidth  width of the resolution hint
  * @param aHeight height of the resolution hint
  */
-void VBoxConsoleView::setDesktopGeoHint (int aWidth, int aHeight)
+void VBoxConsoleView::storeConsoleSize (int aWidth, int aHeight)
 {
     LogFlowThisFunc (("aWidth=%d, aHeight=%d\n", aWidth, aHeight));
-    mLastSizeHint = QRect (0, 0, aWidth, aHeight);
+    mStoredConsoleSize = QRect (0, 0, aWidth, aHeight);
 }
 
 /**
@@ -4017,12 +4112,12 @@ void VBoxConsoleView::setDesktopGeometry (DesktopGeo aGeo, int aWidth, int aHeig
                 mDesktopGeometry = QRect (0, 0, aWidth, aHeight);
             else
                 mDesktopGeometry = QRect (0, 0, 0, 0);
-            setDesktopGeoHint (0, 0);
+            storeConsoleSize (0, 0);
             break;
         case DesktopGeo_Automatic:
             mDesktopGeo = DesktopGeo_Automatic;
             mDesktopGeometry = QRect (0, 0, 0, 0);
-            setDesktopGeoHint (0, 0);
+            storeConsoleSize (0, 0);
             break;
         case DesktopGeo_Any:
             mDesktopGeo = DesktopGeo_Any;
@@ -4171,7 +4266,11 @@ void VBoxConsoleView::updateDockOverlay()
     if (mDockIconEnabled &&
         (mLastState == KMachineState_Running ||
          mLastState == KMachineState_Paused ||
+         mLastState == KMachineState_Teleporting ||
+         mLastState == KMachineState_LiveSnapshotting ||
          mLastState == KMachineState_Restoring ||
+         mLastState == KMachineState_TeleportingPausedVM ||
+         mLastState == KMachineState_TeleportingIn ||
          mLastState == KMachineState_Saving))
         updateDockIcon();
     else

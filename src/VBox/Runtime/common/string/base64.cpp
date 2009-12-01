@@ -1,4 +1,4 @@
-/* $Id: base64.cpp $ */
+/* $Id: base64.cpp 24678 2009-11-15 16:07:51Z vboxsync $ */
 /** @file
  * IPRT - Base64, MIME content transfer encoding.
  */
@@ -28,10 +28,13 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/base64.h>
+#include "internal/iprt.h"
+
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/ctype.h>
@@ -215,6 +218,7 @@ RTDECL(ssize_t) RTBase64DecodedSize(const char *pszString, char **ppszEnd)
         *ppszEnd = (char *)pszString;
     return cb;
 }
+RT_EXPORT_SYMBOL(RTBase64DecodedSize);
 
 
 /**
@@ -247,7 +251,7 @@ RTDECL(int) RTBase64Decode(const char *pszString, void *pvData, size_t cbData, s
     /*
      * Process input in groups of 4 input / 3 output chars.
      */
-    uint8_t     u8Trio[3];
+    uint8_t     u8Trio[3] = { 0, 0, 0 }; /* shuts up gcc */
     uint8_t    *pbData    = (uint8_t *)pvData;
     uint8_t     u8        = BASE64_INVALID;
     unsigned    c6Bits    = 0;
@@ -398,6 +402,7 @@ RTDECL(int) RTBase64Decode(const char *pszString, void *pvData, size_t cbData, s
         *pcbActual = pbData - (uint8_t *)pvData;
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTBase64Decode);
 
 
 /**
@@ -435,6 +440,7 @@ RTDECL(size_t) RTBase64EncodedLength(size_t cbData)
     cch -= (cch % RTBASE64_LINE_LEN) == 0;
     return cch;
 }
+RT_EXPORT_SYMBOL(RTBase64EncodedLength);
 
 
 /**
@@ -533,4 +539,5 @@ RTDECL(int) RTBase64Encode(const void *pvData, size_t cbData, char *pszBuf, size
         *pcchActual = pchDst - pszBuf;
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTBase64Encode);
 

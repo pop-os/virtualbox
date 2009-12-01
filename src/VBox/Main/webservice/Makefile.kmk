@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 24913 2009-11-24 14:45:04Z vboxsync $
 ## @file
 # Sub-Makefile for the VBox web service.
 #
@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2009 Sun Microsystems, Inc.
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -195,6 +195,10 @@ ifdef VBOX_GSOAP_INSTALLED
   vboxsoap_SOURCES = \
 	$(VBOXWEB_OUT_DIR)/soapC.cpp
  else
+  BLDPROGS += split-soapC
+  split-soapC_TEMPLATE = VBOXBLDPROG
+  split-soapC_SOURCES = split-soapC.cpp
+
   vboxsoap_SOURCES = \
   	$(VBOXWEB_OUT_DIR)/soapC-1.cpp \
   	$(VBOXWEB_OUT_DIR)/soapC-2.cpp \
@@ -219,10 +223,10 @@ ifdef VBOX_GSOAP_INSTALLED
  endif
  vboxsoap_CLEAN := $(vboxsoap_SOURCES) # lazy bird
  vboxsoap_SOURCES += \
-	$(VBOX_GSOAP_CXX_SOURCES)
+ 	$(VBOX_GSOAP_CXX_SOURCES)
  vboxsoap_ORDERDEPS = \
-	$(VBOXWEB_IDL_SRC) \
-	$(VBOXWEB_OUT_DIR)/gsoap_copy_all_ts
+ 	$(VBOXWEB_IDL_SRC) \
+ 	$(VBOXWEB_OUT_DIR)/gsoap_copy_all_ts
 
 ifdef VBOX_SOAP_PRECOMPILED_HEADER
  # This'll save a few seconds, but the compiler invocation currently makes it impracticable. This will
@@ -247,23 +251,23 @@ endif
  vboxwebsrv_TEMPLATE = VBOXMAINCLIENTEXE
  vboxwebsrv_DEFS += SOCKET_CLOSE_ON_EXEC
  vboxwebsrv_INCS = \
-     	$(VBOX_GSOAP_INCS) \
-     	$(VBOXWEB_OUT_DIR) \
-     	.
+ 	$(VBOX_GSOAP_INCS) \
+ 	$(VBOXWEB_OUT_DIR) \
+ 	.
  ifdef VBOX_USE_VCC80
   vboxwebsrv_CXXFLAGS.win += -bigobj
  endif
  vboxwebsrv_LIBS += \
-     	$(PATH_LIB)/vboxsoap$(VBOX_SUFF_LIB) \
-	$(VBOX_GSOAP_CXX_LIBS)
+ 	$(PATH_LIB)/vboxsoap$(VBOX_SUFF_LIB) \
+ 	$(VBOX_GSOAP_CXX_LIBS)
  vboxwebsrv_LIBS.solaris += socket nsl
  vboxwebsrv_SOURCES = \
-     	vboxweb.cpp \
-     	$(VBOXWEB_OUT_DIR)/methodmaps.cpp \
-     	$(VBOXWEB_OUT_DIR)/soapServer.cpp
+ 	vboxweb.cpp \
+ 	$(VBOXWEB_OUT_DIR)/methodmaps.cpp \
+ 	$(VBOXWEB_OUT_DIR)/soapServer.cpp
  vboxwebsrv_CLEAN = \
-     	$(VBOXWEB_OUT_DIR)/methodmaps.cpp \
-     	$(VBOXWEB_OUT_DIR)/soapServer.cpp
+ 	$(VBOXWEB_OUT_DIR)/methodmaps.cpp \
+ 	$(VBOXWEB_OUT_DIR)/soapServer.cpp
 
  vboxwebsrv_ORDERDEPS = $(VBOXWEB_OUT_DIR)/gsoap_copy_all_ts
  endif # !VBOX_ONLY_SDK
@@ -279,18 +283,18 @@ endif
   webtest_CXXFLAGS.win += -bigobj
  endif
  webtest_INCS := \
-     $(VBOX_GSOAP_INCS) \
-     $(VBOXWEB_OUT_DIR) \
-     .
+ 	$(VBOX_GSOAP_INCS) \
+ 	$(VBOXWEB_OUT_DIR) \
+ 	.
  webtest_LIBS += \
-     	$(PATH_LIB)/vboxsoap$(VBOX_SUFF_LIB) \
-	$(VBOX_GSOAP_CXX_LIBS)
+ 	$(PATH_LIB)/vboxsoap$(VBOX_SUFF_LIB) \
+ 	$(VBOX_GSOAP_CXX_LIBS)
  webtest_LIBS.solaris += nsl
  webtest_SOURCES = \
-     webtest.cpp \
-     $(VBOXWEB_OUT_DIR)/soapClient.cpp
+ 	webtest.cpp \
+ 	$(VBOXWEB_OUT_DIR)/soapClient.cpp
  webtest_CLEAN = \
-     $(VBOXWEB_OUT_DIR)/soapClient.cpp
+ 	$(VBOXWEB_OUT_DIR)/soapClient.cpp
 
  webtest_ORDERDEPS = $(VBOXWEB_OUT_DIR)/gsoap_copy_all_ts
  endif # !VBOX_ONLY_SDK
@@ -301,21 +305,21 @@ endif
  #
  ## @todo figure out whether the SDK really needs this or not...
  OTHER_CLEAN += \
-     $(wildcard $(VBOXWEB_OUT_DIR)/soap*.h) \
-     $(wildcard $(VBOXWEB_OUT_DIR)/soap*.cpp) \
-     $(wildcard $(VBOXWEB_OUT_DIR)/*.nsmap) \
-     $(VBOXWEB_GSOAPH_FROM_XSLT) \
-     $(VBOXWEB_GSOAPH_FROM_GSOAP) \
-     $(VBOXWEB_SOAP_CLIENT_H) \
-     $(VBOXWEB_SOAP_SERVER_H) \
-     $(VBOXWEB_OUT_DIR)/gsoap_generate_all_ts \
-     $(VBOXWEB_OUT_DIR)/gsoap_copy_all_ts \
-     $(wildcard $(PATH_TARGET_SOAPDEMOXML)/*) \
-     $(PATH_TARGET_SOAPDEMOXML)/dummy_file \
-     $(wildcard $(PATH_TARGET_SOAPDEMOHEADERS)/*) \
-     $(PATH_TARGET_SOAPDEMOHEADERS)/dummy_file \
-     $(wildcard $(PATH_TARGET_SOAPDEMONSMAPS)/*) \
-     $(PATH_TARGET_SOAPDEMONSMAPS)/dummy_file
+ 	$(wildcard $(VBOXWEB_OUT_DIR)/soap*.h) \
+ 	$(wildcard $(VBOXWEB_OUT_DIR)/soap*.cpp) \
+ 	$(wildcard $(VBOXWEB_OUT_DIR)/*.nsmap) \
+ 	$(VBOXWEB_GSOAPH_FROM_XSLT) \
+ 	$(VBOXWEB_GSOAPH_FROM_GSOAP) \
+ 	$(VBOXWEB_SOAP_CLIENT_H) \
+ 	$(VBOXWEB_SOAP_SERVER_H) \
+ 	$(VBOXWEB_OUT_DIR)/gsoap_generate_all_ts \
+ 	$(VBOXWEB_OUT_DIR)/gsoap_copy_all_ts \
+ 	$(wildcard $(PATH_TARGET_SOAPDEMOXML)/*) \
+ 	$(PATH_TARGET_SOAPDEMOXML)/dummy_file \
+ 	$(wildcard $(PATH_TARGET_SOAPDEMOHEADERS)/*) \
+ 	$(PATH_TARGET_SOAPDEMOHEADERS)/dummy_file \
+ 	$(wildcard $(PATH_TARGET_SOAPDEMONSMAPS)/*) \
+ 	$(PATH_TARGET_SOAPDEMONSMAPS)/dummy_file
 
 endif # VBOX_GSOAP_INSTALLED
 
@@ -327,6 +331,7 @@ ifdef VBOX_ONLY_SDK
  VBOXWEB_GLUE_PYTHON           = $(VBOX_PATH_SDK)/bindings/webservice/python/lib/VirtualBox_wrappers.py
  VBOXWEB_WS_PYTHON             = $(VBOX_PATH_SDK)/bindings/webservice/python/lib/VirtualBox_services.py
  VBOXWEB_WS_PERL               = $(VBOX_PATH_SDK)/bindings/webservice/perl/lib/vboxService.pm
+ VBOXWEB_WS_PHP                = $(VBOX_PATH_SDK)/bindings/webservice/php/lib/vboxServiceWrappers.php
  VBOXWEB_SAMPLES_AXIS_DIR      = $(VBOX_PATH_SDK)/bindings/webservice/java/axis/samples
  VBOXWEB_SAMPLES_JAXWS_DIR     = $(VBOX_PATH_SDK)/bindings/webservice/java/jax-ws/samples
  VBOXWEB_JAXWSSAMPLE           = $(VBOXWEB_SAMPLES_JAXWS_DIR)/clienttest.java
@@ -338,12 +343,16 @@ ifdef VBOX_ONLY_SDK
  VBOXWEB_JAVA15_JAR            = $(VBOXWEB_JAVALIB)/vboxws_java15.jar
  VBOXWEB_JAVA16_JAR            = $(VBOXWEB_JAVALIB)/vboxws_java16.jar
 
+define find_java_files
+ $(shell find $(1) -name \*.java)
+endef
+
 
  VBOX_JAXWS_LIBDIR             = $(VBOX_PATH_WEBSERVICE)/jaxlibs
  # well, not really good
  VBOX_JAVA15                   = $(firstword $(wildcard \
- 	/usr/lib/jvm/java-1.5.0-sun/bin/java \
- 	/usr/jdk/jdk1.5*/bin/java \
+	/usr/lib/jvm/java-1.5.0-sun/bin/java \
+	/usr/jdk/jdk1.5*/bin/java \
 	/opt/sun-jdk-1.5*/bin/java))
  ifndef VBOX_JAVA15
   $(error Failed to autodetect VBOX_JAVA15, please set it manually)
@@ -366,15 +375,16 @@ ifdef VBOX_ONLY_SDK
  VBOX_JAVA_PACKAGE             = org.virtualbox$(VBOX_API_SUFFIX)
 
  VBOXWEB_OTHERS               += \
-	$(VBOXWEB_GLUE_JAVA_TMP) \
-	$(VBOXWEB_GLUE_PYTHON) \
-	$(VBOXWEB_WS_PYTHON) \
-        $(VBOXWEB_WS_PERL) \
-	$(VBOXWEB_PYTHONWSSAMPLE)\
-	$(VBOXWEB_JAXWSSAMPLE) \
-	$(VBOXWEB_METRICSAMPLE) \
-	$(VBOXWEB_JAVA15_JAR) \
-	$(VBOXWEB_JAVA16_JAR)
+ 	$(VBOXWEB_GLUE_JAVA_TMP) \
+ 	$(VBOXWEB_GLUE_PYTHON) \
+ 	$(VBOXWEB_WS_PYTHON) \
+ 	$(VBOXWEB_WS_PERL) \
+ 	$(VBOXWEB_WS_PHP) \
+ 	$(VBOXWEB_PYTHONWSSAMPLE)\
+ 	$(VBOXWEB_JAXWSSAMPLE) \
+ 	$(VBOXWEB_METRICSAMPLE) \
+ 	$(VBOXWEB_JAVA15_JAR) \
+ 	$(VBOXWEB_JAVA16_JAR)
 
  #
  # Install sample code.
@@ -383,19 +393,20 @@ ifdef VBOX_ONLY_SDK
  vboxwebinst_INST = $(INST_SDK)bindings/webservice/
  vboxwebinst_MODE = a+rx,u+w
  vboxwebinst_SOURCES = \
-      samples/java/axis/clienttest.java=>java/axis/samples/clienttest.java \
-      samples/java/jax-ws/Makefile.glue=>java/jax-ws/src/Makefile \
-      samples/java/jax-ws/Makefile=>java/jax-ws/samples/Makefile \
-      samples/perl/clienttest.pl=>perl/samples/clienttest.pl \
-      samples/python/Makefile=>python/samples/Makefile \
-      samples/python/Makefile.glue=>python/lib/Makefile
+ 	samples/java/axis/clienttest.java=>java/axis/samples/clienttest.java \
+ 	samples/java/jax-ws/Makefile.glue=>java/jax-ws/src/Makefile \
+ 	samples/java/jax-ws/Makefile=>java/jax-ws/samples/Makefile \
+ 	samples/perl/clienttest.pl=>perl/samples/clienttest.pl \
+ 	samples/php/clienttest.php=>php/samples/clienttest.php \
+ 	samples/python/Makefile=>python/samples/Makefile \
+ 	samples/python/Makefile.glue=>python/lib/Makefile
 
  #
  # filesplitter - build helper, splits up the java classes.
  #
  BLDPROGS += filesplitter
  filesplitter_TEMPLATE = VBOXBLDPROG
- filesplitter_SOURCES = filesplitter.c
+ filesplitter_SOURCES = filesplitter.cpp
 
 endif # VBOX_ONLY_SDK
 
@@ -446,7 +457,8 @@ $(VBOXWEB_GLUE_PYTHON): $(VBOXWEB_IDL_SRC) $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL
 $(VBOXWEB_WS_PYTHON): $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL)
 	$(call MSG_GENERATE,,$@, WS Python bindings)
 	$(QUIET)$(MKDIR) -p $(@D)
-	$(QUIET)$(REDIRECT) -C $(@D) -- $(VBOX_WSDL2PY) -b --file  $(VBOXWEBSERVICE_WSDL)
+# Try both w/o and with --file option
+	$(QUIET)$(REDIRECT) -C $(@D) -- bash -c "$(VBOX_WSDL2PY) -b $(VBOXWEBSERVICE_WSDL) || $(VBOX_WSDL2PY) -b  --file $(VBOXWEBSERVICE_WSDL)"
 	$(QUIET)$(APPEND) $@ ''
 
 $(VBOXWEB_WS_PERL): $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL)
@@ -457,6 +469,11 @@ $(VBOXWEB_WS_PERL): $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL)
 	$(QUIET)$(SED) -e "s+http://www.virtualbox.org/Service+http://www.virtualbox.org/+" < $(VBOXWEB_WS_PERL) > $(VBOXWEB_WS_PERL).tmp
 	$(QUIET)$(MV) $(VBOXWEB_WS_PERL).tmp $(VBOXWEB_WS_PERL)
 	$(QUIET)$(APPEND) $@ ''
+
+$(VBOXWEB_WS_PHP): $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/websrv-php.xsl
+	$(call MSG_GENERATE,,$@,$(VBOXWEB_IDL_SRC) using websrv-php.xsl)
+	$(QUIET)$(MKDIR) -p $(@D)
+	$(QUIET)$(VBOX_XSLTPROC) $(VBOXWEB_XSLTPROC_VERBOSE) -o $@ $(VBOX_PATH_WEBSERVICE)/websrv-php.xsl $<
 
 endif # VBOX_ONLY_SDK
 
@@ -555,10 +572,9 @@ $(VBOXWEB_OUT_DIR)/soapC-1.cpp \
 + $(VBOXWEB_OUT_DIR)/soapC-18.cpp \
 + $(VBOXWEB_OUT_DIR)/soapC-19.cpp \
 + $(VBOXWEB_OUT_DIR)/soapC-20.cpp \
-: $(VBOXWEB_OUT_DIR)/soapC.cpp $(VBOX_PATH_WEBSERVICE)/split-soapC.sed | $$(dir $$@)
+: $(VBOXWEB_OUT_DIR)/soapC.cpp $$(TARGET_split-soapC) | $$(dir $$@)
 	$(RM) -f $(wildcard $(VBOXWEB_OUT_DIR)/soapC-?.cpp $(VBOXWEB_OUT_DIR)/soapC-??.cpp)
-	$(REDIRECT) -C $(VBOXWEB_OUT_DIR) -- \
-		$(SED) -f $(VBOX_PATH_WEBSERVICE)/split-soapC.sed soapC.cpp
+	$(TARGET_split-soapC) $(VBOXWEB_OUT_DIR)/soapC.cpp $(VBOXWEB_OUT_DIR) 20
 endif # !VBOX_WITHOUT_SPLIT_SOAPC
 
 endif # VBOX_GSOAP_INSTALLED
@@ -594,7 +610,10 @@ $(VBOXWEB_GLUE_JAVA_TMP): $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/glue-jaxws.
 	$(QUIET)$(TARGET_filesplitter) $@ $(VBOXWEB_PATH_SDK_GLUE_JAVA)
 	$(QUIET)$(CP) -f $(VBOX_PATH_WEBSERVICE)/../../../../COPYING.LIB $(VBOXWEB_PATH_SDK_GLUE_JAVA)
 
-$(VBOXWEB_JAVA15_JAR): $(VBOXWEB_GLUE_JAVA_TMP) $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL)
+$(VBOXWEB_GLUE_JAVA_TMP).done: $(VBOXWEB_GLUE_JAVA_TMP)
+	$(QUIET)$(APPEND) $@ ''
+
+$(VBOXWEB_JAVA15_JAR): $(VBOXWEB_GLUE_JAVA_TMP).done $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL)
 	$(QUIET)$(RM) -Rf $(VBOXWEB_JAVALIB)/gen15
 	$(QUIET)$(MKDIR) -p $(VBOXWEB_JAVALIB)/gen15
 	$(call MSG_GENERATE,,$@,JAX-WS for Java 1.5 bindings using $(VBOXWEBSERVICE_WSDL))
@@ -602,13 +621,13 @@ $(VBOXWEB_JAVA15_JAR): $(VBOXWEB_GLUE_JAVA_TMP) $(VBOXWEB_WSDL) $(VBOXWEBSERVICE
 	$(call MSG_L1,Compiling bridge code)
 	$(QUIET)$(VBOX_JAVAC15) -cp \
 		$(VBOXWEB_JAVALIB)/gen15:$(VBOX_JAXWS_LIBDIR)/jaxws-api.jar:$(VBOX_JAXWS_LIBDIR)/lib/jaxb-api.jar:$(VBOX_JAXWS_LIBDIR)/jsr181-api.jar \
-		$(VBOXWEB_PATH_SDK_GLUE_JAVA)/*.java  -d  $(VBOXWEB_JAVALIB)/gen15
+		$(call find_java_files,$(VBOXWEB_PATH_SDK_GLUE_JAVA))  -d  $(VBOXWEB_JAVALIB)/gen15
 	$(QUIET)$(SED) -e "s/vboxweb.wsdl/vboxweb$(VBOX_API_SUFFIX).wsdl/" <  $(VBOXWEBSERVICE_WSDL) > $(VBOXWEB_JAVALIB)/gen15/vboxwebService$(VBOX_API_SUFFIX).wsdl
 	$(QUIET)$(CP) -f $(VBOXWEB_WSDL) $(VBOXWEB_JAVALIB)/gen15/vboxweb$(VBOX_API_SUFFIX).wsdl
-	$(QUIET)$(RM) -f  $(VBOXWEB_JAVALIB)/gen15/*.java
+	$(QUIET)$(RM) -f  $(call find_java_files,$(VBOXWEB_JAVALIB))
 	$(QUIET)$(VBOX_JAR) cf $@ -C $(VBOXWEB_JAVALIB)/gen15 .
 
-$(VBOXWEB_JAVA16_JAR): $(VBOXWEB_GLUE_JAVA_TMP) $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL)
+$(VBOXWEB_JAVA16_JAR): $(VBOXWEB_GLUE_JAVA_TMP).done $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL)
 	$(QUIET)$(RM) -Rf $(VBOXWEB_JAVALIB)/gen16
 	$(MKDIR) -p $(VBOXWEB_JAVALIB)/gen16
 	$(call MSG_GENERATE,,$@,JAX-WS for Java 1.6 bindings using $(VBOXWEBSERVICE_WSDL))
@@ -618,7 +637,7 @@ $(VBOXWEB_JAVA16_JAR): $(VBOXWEB_GLUE_JAVA_TMP) $(VBOXWEB_WSDL) $(VBOXWEBSERVICE
 		$(VBOXWEB_PATH_SDK_GLUE_JAVA)/*.java  -d  $(VBOXWEB_JAVALIB)/gen16
 	$(QUIET)$(SED) -e "s/vboxweb.wsdl/vboxweb$(VBOX_API_SUFFIX).wsdl/" <  $(VBOXWEBSERVICE_WSDL) > $(VBOXWEB_JAVALIB)/gen16/vboxwebService$(VBOX_API_SUFFIX).wsdl
 	$(QUIET)$(CP) -f $(VBOXWEB_WSDL) $(VBOXWEB_JAVALIB)/gen16/vboxweb$(VBOX_API_SUFFIX).wsdl
-	$(QUIET)$(RM) -f  $(VBOXWEB_JAVALIB)/gen16/*.java
+	$(QUIET)$(RM) -f  $(call find_java_files,$(VBOXWEB_JAVALIB)/gen16)
 	$(QUIET)$(VBOX_JAR) cf $@ -C $(VBOXWEB_JAVALIB)/gen16 .
 
 endif # VBOX_ONLY_SDK

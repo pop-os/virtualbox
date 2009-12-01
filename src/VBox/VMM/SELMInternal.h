@@ -1,4 +1,4 @@
-/* $Id: SELMInternal.h $ */
+/* $Id: SELMInternal.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * SELM - Internal header file.
  */

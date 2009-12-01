@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,26 +20,32 @@
  * additional information or have any questions.
  */
 
-#include "QILabelSeparator.h"
-#include "VBoxGlobal.h"
-
-/* Qt includes */
+/* Global includes */
 #include <QLabel>
 #include <QHBoxLayout>
 
+/* Local includes */
+#include "QILabelSeparator.h"
+#include "VBoxGlobal.h"
+
 QILabelSeparator::QILabelSeparator (QWidget *aParent /* = NULL */, Qt::WindowFlags aFlags /* = 0 */)
     : QWidget (aParent, aFlags)
-    , mLabel (NULL)
+    , mLabel (0)
 {
     init();
 }
 
 QILabelSeparator::QILabelSeparator (const QString &aText, QWidget *aParent /* = NULL */, Qt::WindowFlags aFlags /* = 0 */)
     : QWidget (aParent, aFlags)
-    , mLabel (NULL)
+    , mLabel (0)
 {
     init();
     setText (aText);
+}
+
+QString QILabelSeparator::text() const
+{
+    return mLabel->text();
 }
 
 void QILabelSeparator::setBuddy (QWidget *aBuddy)
@@ -57,11 +63,6 @@ void QILabelSeparator::setText (const QString &aText)
     mLabel->setText (aText);
 }
 
-QString QILabelSeparator::text() const
-{
-    return mLabel->text();
-}
-
 void QILabelSeparator::init()
 {
     mLabel = new QLabel();
@@ -70,11 +71,12 @@ void QILabelSeparator::init()
     separator->setFrameShadow (QFrame::Sunken);
     separator->setEnabled (false);
     separator->setContentsMargins (0, 0, 0, 0);
-//    separator->setStyleSheet ("QFrame {border: 1px outset black; }");
+    // separator->setStyleSheet ("QFrame {border: 1px outset black; }");
     separator->setSizePolicy (QSizePolicy::MinimumExpanding, QSizePolicy::Preferred);
 
-    QHBoxLayout *layout = new QHBoxLayout (this);
-    VBoxGlobal::setLayoutMargin (layout, 0);
-    layout->addWidget (mLabel);
-    layout->addWidget (separator, Qt::AlignBottom);
+    QHBoxLayout *pLayout = new QHBoxLayout (this);
+    VBoxGlobal::setLayoutMargin (pLayout, 0);
+    pLayout->addWidget (mLabel);
+    pLayout->addWidget (separator, Qt::AlignBottom);
 }
+

@@ -1,10 +1,10 @@
-/* $Id: zip.cpp $ */
+/* $Id: zip.cpp 25000 2009-11-26 14:22:44Z vboxsync $ */
 /** @file
  * IPRT - Compression.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,6 +36,11 @@
 #define RTZIP_USE_ZLIB 1
 //#define RTZIP_USE_BZLIB 1
 #define RTZIP_USE_LZF 1
+#define RTZIP_LZF_BLOCK_BY_BLOCK
+//#define RTZIP_USE_LZJB 1
+//#define RTZIP_USE_LZO 1
+
+/** @todo FastLZ? QuickLZ? Others? */
 
 
 /*******************************************************************************
@@ -51,8 +56,17 @@
 # include <lzf.h>
 # include <iprt/crc32.h>
 #endif
+#ifdef RTZIP_USE_LZJB
+# include "lzjb.h"
+#endif
+#ifdef RTZIP_USE_LZO
+# include <lzo/lzo1x.h>
+#endif
 
 #include <iprt/zip.h>
+#include "internal/iprt.h"
+
+/*#include <iprt/asm.h>*/
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
@@ -221,10 +235,12 @@ typedef struct RTZIPDECOMP
         /** LZF 'stream'. */
         struct
         {
+# ifndef RTZIP_LZF_BLOCK_BY_BLOCK
             /** Current input buffer postition. */
             uint8_t    *pbInput;
             /** The number of bytes left in the input buffer. */
             size_t      cbInput;
+# endif
             /** The spill buffer.
              * LZF is a block based compressor and not a stream compressor. So,
              * we have to decompress full blocks if we want to get any of the data.
@@ -243,7 +259,6 @@ typedef struct RTZIPDECOMP
 
 
 #ifdef RTZIP_USE_STORE
-#include <stdio.h>
 
 /**
  * @copydoc RTZipCompress
@@ -401,7 +416,7 @@ static DECLCALLBACK(int) rtZipStoreDecompInit(PRTZIPDECOMP pZip)
     return VINF_SUCCESS;
 }
 
-#endif
+#endif /* RTZIP_USE_STORE */
 
 
 #ifdef RTZIP_USE_ZLIB
@@ -549,10 +564,12 @@ static DECLCALLBACK(int) rtZipZlibDecompress(PRTZIPDECOMP pZip, void *pvBuf, siz
 {
     pZip->u.Zlib.next_out = (Bytef *)pvBuf;
     pZip->u.Zlib.avail_out = (uInt)cbBuf;                   Assert(pZip->u.Zlib.avail_out == cbBuf);
-    int rc = Z_OK;
-    /* Be greedy reading input, even if no output buffer is left. It's possible
+
+    /*
+     * Be greedy reading input, even if no output buffer is left. It's possible
      * that it's just the end of stream marker which needs to be read. Happens
-     * for incompressible blocks just larger than the input buffer size.*/
+     * for incompressible blocks just larger than the input buffer size.
+     */
     while (pZip->u.Zlib.avail_out > 0 || pZip->u.Zlib.avail_in <= 0)
     {
         /*
@@ -571,7 +588,7 @@ static DECLCALLBACK(int) rtZipZlibDecompress(PRTZIPDECOMP pZip, void *pvBuf, siz
         /*
          * Pass it on to zlib.
          */
-        rc = inflate(&pZip->u.Zlib, Z_NO_FLUSH);
+        int rc = inflate(&pZip->u.Zlib, Z_NO_FLUSH);
         if (rc == Z_STREAM_END)
         {
             if (pcbWritten)
@@ -619,7 +636,7 @@ static DECLCALLBACK(int) rtZipZlibDecompInit(PRTZIPDECOMP pZip)
     return rc >= 0 ? VINF_SUCCESS : zipErrConvertFromZlib(rc);
 }
 
-#endif
+#endif /* RTZIP_USE_ZLIB */
 
 
 #ifdef RTZIP_USE_BZLIB
@@ -842,7 +859,7 @@ static DECLCALLBACK(int) rtZipBZlibDecompInit(PRTZIPDECOMP pZip)
     return rc >= 0 ? VINF_SUCCESS : zipErrConvertFromBZlib(rc);
 }
 
-#endif
+#endif /* RTZIP_USE_BZLIB */
 
 
 #ifdef RTZIP_USE_LZF
@@ -1077,6 +1094,77 @@ static DECLCALLBACK(int) rtZipLZFDecompress(PRTZIPDECOMP pZip, void *pvBuf, size
      * When possible we decompress directly to the user buffer, when
      * not possible we'll use the spill buffer.
      */
+# ifdef RTZIP_LZF_BLOCK_BY_BLOCK
+    size_t cbWritten = 0;
+    while (cbBuf > 0)
+    {
+        /*
+         * Anything in the spill buffer?
+         */
+        if (pZip->u.LZF.cbSpill > 0)
+        {
+            unsigned cb = (unsigned)RT_MIN(pZip->u.LZF.cbSpill, cbBuf);
+            memcpy(pvBuf, pZip->u.LZF.pbSpill, cb);
+            pZip->u.LZF.pbSpill += cb;
+            pZip->u.LZF.cbSpill -= cb;
+            cbWritten += cb;
+            cbBuf -= cb;
+            if (!cbBuf)
+                break;
+            pvBuf = (uint8_t *)pvBuf + cb;
+        }
+
+        /*
+         * We always read and work one block at a time.
+         */
+        RTZIPLZFHDR Hdr;
+        int rc = pZip->pfnIn(pZip->pvUser, &Hdr, sizeof(Hdr), NULL);
+        if (RT_FAILURE(rc))
+            return rc;
+        if (!rtZipLZFValidHeader(&Hdr))
+            return VERR_GENERAL_FAILURE; /** @todo Get better error codes for RTZip! */
+        if (Hdr.cbData > 0)
+        {
+            rc = pZip->pfnIn(pZip->pvUser, &pZip->abBuffer[0], Hdr.cbData, NULL);
+            if (RT_FAILURE(rc))
+                return rc;
+        }
+
+        /*
+         * Does the uncompressed data fit into the supplied buffer?
+         * If so we uncompress it directly into the user buffer, else we'll have to use the spill buffer.
+         */
+        unsigned cbUncompressed = Hdr.cbUncompressed;
+        if (cbUncompressed <= cbBuf)
+        {
+            unsigned cbOutput = lzf_decompress(&pZip->abBuffer[0], Hdr.cbData, pvBuf, cbUncompressed);
+            if (cbOutput != cbUncompressed)
+            {
+                AssertMsgFailed(("Decompression error, errno=%d. cbOutput=%#x cbUncompressed=%#x\n",
+                                 errno, cbOutput, cbUncompressed));
+                return VERR_GENERAL_FAILURE; /** @todo Get better error codes for RTZip! */
+            }
+            cbBuf -= cbUncompressed;
+            pvBuf = (uint8_t *)pvBuf + cbUncompressed;
+            cbWritten += cbUncompressed;
+        }
+        else
+        {
+            unsigned cbOutput = lzf_decompress(&pZip->abBuffer[0], Hdr.cbData, pZip->u.LZF.abSpill, cbUncompressed);
+            if (cbOutput != cbUncompressed)
+            {
+                AssertMsgFailed(("Decompression error, errno=%d. cbOutput=%#x cbUncompressed=%#x\n",
+                                 errno, cbOutput, cbUncompressed));
+                return VERR_GENERAL_FAILURE; /** @todo Get better error codes for RTZip! */
+            }
+            pZip->u.LZF.pbSpill = &pZip->u.LZF.abSpill[0];
+            pZip->u.LZF.cbSpill = cbUncompressed;
+        }
+    }
+
+    if (pcbWritten)
+        *pcbWritten = cbWritten;
+# else  /* !RTZIP_LZF_BLOCK_BY_BLOCK */
     while (cbBuf > 0)
     {
         /*
@@ -1197,7 +1285,7 @@ static DECLCALLBACK(int) rtZipLZFDecompress(PRTZIPDECOMP pZip, void *pvBuf, size
         if (pcbWritten)
             *pcbWritten += cbUncompressed;
     }
-
+# endif /* !RTZIP_LZF_BLOCK_BY_BLOCK */
     return VINF_SUCCESS;
 }
 
@@ -1221,8 +1309,10 @@ static DECLCALLBACK(int) rtZipLZFDecompInit(PRTZIPDECOMP pZip)
     pZip->pfnDecompress = rtZipLZFDecompress;
     pZip->pfnDestroy = rtZipLZFDecompDestroy;
 
+# ifndef RTZIP_LZF_BLOCK_BY_BLOCK
     pZip->u.LZF.pbInput    = NULL;
     pZip->u.LZF.cbInput    = 0;
+# endif
     pZip->u.LZF.cbSpill    = 0;
     pZip->u.LZF.pbSpill    = NULL;
 
@@ -1247,23 +1337,10 @@ RTDECL(int)     RTZipCompCreate(PRTZIPCOMP *ppZip, void *pvUser, PFNRTZIPOUT pfn
     /*
      * Validate input.
      */
-    if (    enmType < RTZIPTYPE_AUTO
-        ||  enmType > RTZIPTYPE_LZF)
-    {
-        AssertMsgFailed(("Invalid enmType=%d\n", enmType));
-        return VERR_INVALID_PARAMETER;
-    }
-    if (    enmLevel < RTZIPLEVEL_STORE
-        ||  enmLevel > RTZIPLEVEL_MAX)
-    {
-        AssertMsgFailed(("Invalid enmLevel=%d\n", enmLevel));
-        return VERR_INVALID_PARAMETER;
-    }
-    if (!pfnOut || !ppZip)
-    {
-        AssertMsgFailed(("Must supply pfnOut and ppZip!\n"));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertReturn(enmType >= RTZIPTYPE_INVALID && enmType < RTZIPTYPE_END, VERR_INVALID_PARAMETER);
+    AssertReturn(enmLevel >= RTZIPLEVEL_STORE && enmLevel <= RTZIPLEVEL_MAX, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pfnOut, VERR_INVALID_POINTER);
+    AssertPtrReturn(ppZip, VERR_INVALID_POINTER);
 
     /*
      * Allocate memory for the instance data.
@@ -1303,37 +1380,39 @@ RTDECL(int)     RTZipCompCreate(PRTZIPCOMP *ppZip, void *pvUser, PFNRTZIPOUT pfn
     pZip->enmType = enmType;
     pZip->pvUser  = pvUser;
     pZip->abBuffer[0] = enmType;       /* first byte is the compression type. */
-    int rc = VINF_SUCCESS;
+    int rc = VERR_NOT_IMPLEMENTED;
     switch (enmType)
     {
-#ifdef RTZIP_USE_STORE
         case RTZIPTYPE_STORE:
+#ifdef RTZIP_USE_STORE
             rc = rtZipStoreCompInit(pZip, enmLevel);
-            break;
 #endif
+            break;
 
-#ifdef RTZIP_USE_ZLIB
         case RTZIPTYPE_ZLIB:
+#ifdef RTZIP_USE_ZLIB
             rc = rtZipZlibCompInit(pZip, enmLevel);
-            break;
 #endif
+            break;
 
-#ifdef RTZIP_USE_BZLIB
         case RTZIPTYPE_BZLIB:
+#ifdef RTZIP_USE_BZLIB
             rc = rtZipBZlibCompInit(pZip, enmLevel);
-            break;
 #endif
+            break;
 
-#ifdef RTZIP_USE_LZF
         case RTZIPTYPE_LZF:
+#ifdef RTZIP_USE_LZF
             rc = rtZipLZFCompInit(pZip, enmLevel);
-            break;
 #endif
+            break;
+
+        case RTZIPTYPE_LZJB:
+        case RTZIPTYPE_LZO:
+            break;
 
         default:
-            AssertMsgFailed(("Not implemented!\n"));
-            rc = VERR_NOT_IMPLEMENTED;
-            break;
+            AssertFailedBreak();
     }
 
     if (RT_SUCCESS(rc))
@@ -1342,6 +1421,7 @@ RTDECL(int)     RTZipCompCreate(PRTZIPCOMP *ppZip, void *pvUser, PFNRTZIPOUT pfn
         RTMemFree(pZip);
     return rc;
 }
+RT_EXPORT_SYMBOL(RTZipCompCreate);
 
 
 /**
@@ -1358,6 +1438,7 @@ RTDECL(int)     RTZipCompress(PRTZIPCOMP pZip, const void *pvBuf, size_t cbBuf)
         return VINF_SUCCESS;
     return pZip->pfnCompress(pZip, pvBuf, cbBuf);
 }
+RT_EXPORT_SYMBOL(RTZipCompress);
 
 
 /**
@@ -1371,6 +1452,7 @@ RTDECL(int)     RTZipCompFinish(PRTZIPCOMP pZip)
 {
     return pZip->pfnFinish(pZip);
 }
+RT_EXPORT_SYMBOL(RTZipCompFinish);
 
 
 /**
@@ -1394,6 +1476,7 @@ RTDECL(int)     RTZipCompDestroy(PRTZIPCOMP pZip)
     RTMemFree(pZip);
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTZipCompDestroy);
 
 
 /**
@@ -1427,11 +1510,8 @@ RTDECL(int)     RTZipDecompCreate(PRTZIPDECOMP *ppZip, void *pvUser, PFNRTZIPIN 
     /*
      * Validate input.
      */
-    if (!pfnIn || !ppZip)
-    {
-        AssertMsgFailed(("Must supply pfnIn and ppZip!\n"));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertPtrReturn(pfnIn, VERR_INVALID_POINTER);
+    AssertPtrReturn(ppZip, VERR_INVALID_POINTER);
 
     /*
      * Allocate memory for the instance data.
@@ -1452,6 +1532,7 @@ RTDECL(int)     RTZipDecompCreate(PRTZIPDECOMP *ppZip, void *pvUser, PFNRTZIPIN 
     *ppZip = pZip;
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTZipDecompCreate);
 
 
 /**
@@ -1473,19 +1554,22 @@ static int rtzipDecompInit(PRTZIPDECOMP pZip)
      * Determin type and do type specific init.
      */
     pZip->enmType = (RTZIPTYPE)u8Type;
+    rc = VERR_NOT_SUPPORTED;
     switch (pZip->enmType)
     {
-#ifdef RTZIP_USE_STORE
         case RTZIPTYPE_STORE:
+#ifdef RTZIP_USE_STORE
             rc = rtZipStoreDecompInit(pZip);
-            break;
+#else
+            AssertMsgFailed(("Store is not include in this build!\n"));
 #endif
+            break;
 
         case RTZIPTYPE_ZLIB:
 #ifdef RTZIP_USE_ZLIB
             rc = rtZipZlibDecompInit(pZip);
 #else
-            AssertMsgFailedReturn(("Zlib is not include in this build!\n"), VERR_NOT_IMPLEMENTED);
+            AssertMsgFailed(("Zlib is not include in this build!\n"));
 #endif
             break;
 
@@ -1493,7 +1577,7 @@ static int rtzipDecompInit(PRTZIPDECOMP pZip)
 #ifdef RTZIP_USE_BZLIB
             rc = rtZipBZlibDecompInit(pZip);
 #else
-            AssertMsgFailedReturn(("BZlib is not include in this build!\n"), VERR_NOT_IMPLEMENTED);
+            AssertMsgFailed(("BZlib is not include in this build!\n"));
 #endif
             break;
 
@@ -1501,22 +1585,28 @@ static int rtzipDecompInit(PRTZIPDECOMP pZip)
 #ifdef RTZIP_USE_LZF
             rc = rtZipLZFDecompInit(pZip);
 #else
-            AssertMsgFailedReturn(("LZF is not include in this build!\n"), VERR_NOT_IMPLEMENTED);
+            AssertMsgFailed(("LZF is not include in this build!\n"));
 #endif
             break;
 
-        case RTZIPTYPE_INVALID:
-            AssertMsgFailed(("Invalid compression type RTZIPTYPE_INVALID!\n"));
-            rc = VERR_NOT_IMPLEMENTED;
+        case RTZIPTYPE_LZJB:
+#ifdef RTZIP_USE_LZJB
+            AssertMsgFailed(("LZJB streaming support is not implemented yet!\n"));
+#else
+            AssertMsgFailed(("LZJB is not include in this build!\n"));
+#endif
             break;
 
-        case RTZIPTYPE_AUTO:
-            AssertMsgFailed(("Invalid compression type RTZIPTYPE_AUTO!\n"));
-            rc = VERR_INVALID_MAGIC;
+        case RTZIPTYPE_LZO:
+#ifdef RTZIP_USE_LZJB
+            AssertMsgFailed(("LZO streaming support is not implemented yet!\n"));
+#else
+            AssertMsgFailed(("LZO is not include in this build!\n"));
+#endif
             break;
 
         default:
-            AssertMsgFailed(("Unknown compression type %d\n\n", pZip->enmType));
+            AssertMsgFailed(("Invalid compression type %d (%#x)!\n", pZip->enmType, pZip->enmType));
             rc = VERR_INVALID_MAGIC;
             break;
     }
@@ -1528,6 +1618,7 @@ static int rtzipDecompInit(PRTZIPDECOMP pZip)
 
     return rc;
 }
+
 
 /**
  * Decompresses a chunk of memory.
@@ -1563,6 +1654,8 @@ RTDECL(int)     RTZipDecompress(PRTZIPDECOMP pZip, void *pvBuf, size_t cbBuf, si
      */
     return pZip->pfnDecompress(pZip, pvBuf, cbBuf, pcbWritten);
 }
+RT_EXPORT_SYMBOL(RTZipDecompress);
+
 
 /**
  * Destroys the decompressor instance.
@@ -1585,5 +1678,235 @@ RTDECL(int)     RTZipDecompDestroy(PRTZIPDECOMP pZip)
     RTMemFree(pZip);
     return rc;
 }
+RT_EXPORT_SYMBOL(RTZipDecompDestroy);
 
+
+RTDECL(int) RTZipBlockCompress(RTZIPTYPE enmType, RTZIPLEVEL enmLevel, uint32_t fFlags,
+                               void const *pvSrc, size_t cbSrc,
+                               void *pvDst, size_t cbDst, size_t *pcbDstActual) RT_NO_THROW
+{
+    /* input validation - the crash and burn approach as speed is essential here. */
+    Assert(enmLevel <= RTZIPLEVEL_MAX && enmLevel >= RTZIPLEVEL_STORE);
+    Assert(!fFlags);
+
+    /*
+     * Deal with flags involving prefixes.
+     */
+    /** @todo later: type and/or compressed length prefix. */
+
+    /*
+     * The type specific part.
+     */
+    switch (enmType)
+    {
+        case RTZIPTYPE_LZF:
+        {
+#ifdef RTZIP_USE_LZF
+# if 0
+            static const uint8_t s_abZero4K[] =
+            {
+                0x01, 0x00, 0x00, 0xe0, 0xff, 0x00, 0xe0, 0xff,
+                0x00, 0xe0, 0xff, 0x00, 0xe0, 0xff, 0x00, 0xe0,
+                0xff, 0x00, 0xe0, 0xff, 0x00, 0xe0, 0xff, 0x00,
+                0xe0, 0xff, 0x00, 0xe0, 0xff, 0x00, 0xe0, 0xff,
+                0x00, 0xe0, 0xff, 0x00, 0xe0, 0xff, 0x00, 0xe0,
+                0xff, 0x00, 0xe0, 0xff, 0x00, 0xe0, 0xff, 0x00,
+                0xe0, 0x7d, 0x00
+            };
+            if (    cbSrc == _4K
+                &&  !((uintptr_t)pvSrc & 15)
+                &&  ASMMemIsZeroPage(pvSrc))
+            {
+                if (RT_UNLIKELY(cbDst < sizeof(s_abZero4K)))
+                    return VERR_BUFFER_OVERFLOW;
+                memcpy(pvDst, s_abZero4K, sizeof(s_abZero4K));
+                *pcbDstActual = sizeof(s_abZero4K);
+                break;
+            }
+# endif
+
+            unsigned cbDstActual = lzf_compress(pvSrc, cbSrc, pvDst, cbDst);
+            if (RT_UNLIKELY(cbDstActual < 1))
+                return VERR_BUFFER_OVERFLOW;
+            *pcbDstActual = cbDstActual;
+            break;
+#else
+            return VERR_NOT_SUPPORTED;
+#endif
+        }
+
+        case RTZIPTYPE_STORE:
+        {
+            if (cbDst < cbSrc)
+                return VERR_BUFFER_OVERFLOW;
+            memcpy(pvDst, pvSrc, cbSrc);
+            *pcbDstActual = cbSrc;
+            break;
+        }
+
+        case RTZIPTYPE_LZJB:
+        {
+#ifdef RTZIP_USE_LZJB
+            AssertReturn(cbDst > cbSrc, VERR_BUFFER_OVERFLOW);
+            size_t cbDstActual = lzjb_compress((void *)pvSrc, (uint8_t *)pvDst + 1, cbSrc, cbSrc, 0 /*??*/);
+            if (cbDstActual == cbSrc)
+                *(uint8_t *)pvDst = 0;
+            else
+                *(uint8_t *)pvDst = 1;
+            *pcbDstActual = cbDstActual + 1;
+            break;
+#else
+            return VERR_NOT_SUPPORTED;
+#endif
+        }
+
+        case RTZIPTYPE_LZO:
+        {
+#ifdef RTZIP_USE_LZO
+            uint64_t Scratch[RT_ALIGN(LZO1X_1_MEM_COMPRESS, sizeof(uint64_t)) / sizeof(uint64_t)];
+            int rc = lzo_init();
+            if (RT_UNLIKELY(rc != LZO_E_OK))
+                return VERR_INTERNAL_ERROR;
+
+            lzo_uint cbDstInOut = cbDst;
+            rc = lzo1x_1_compress((const lzo_bytep)pvSrc, cbSrc, (lzo_bytep )pvDst, &cbDstInOut, &Scratch[0]);
+            if (RT_UNLIKELY(rc != LZO_E_OK))
+                switch (rc)
+                {
+                    case LZO_E_OUTPUT_OVERRUN:  return VERR_BUFFER_OVERFLOW;
+                    default:                    return VERR_GENERAL_FAILURE;
+                }
+            *pcbDstActual = cbDstInOut;
+            break;
+#else
+            return VERR_NOT_SUPPORTED;
+#endif
+        }
+
+        case RTZIPTYPE_ZLIB:
+        case RTZIPTYPE_BZLIB:
+            return VERR_NOT_SUPPORTED;
+
+        default:
+            AssertMsgFailed(("%d\n", enmType));
+            return VERR_INVALID_PARAMETER;
+    }
+
+    return VINF_SUCCESS;
+}
+RT_EXPORT_SYMBOL(RTZipBlockCompress);
+
+
+RTDECL(int) RTZipBlockDecompress(RTZIPTYPE enmType, uint32_t fFlags,
+                                 void const *pvSrc, size_t cbSrc, size_t *pcbSrcActual,
+                                 void *pvDst, size_t cbDst, size_t *pcbDstActual) RT_NO_THROW
+{
+    /* input validation - the crash and burn approach as speed is essential here. */
+    Assert(!fFlags);
+
+    /*
+     * Deal with flags involving prefixes.
+     */
+    /** @todo later: type and/or compressed length prefix. */
+
+    /*
+     * The type specific part.
+     */
+    switch (enmType)
+    {
+        case RTZIPTYPE_LZF:
+        {
+#ifdef RTZIP_USE_LZF
+            unsigned cbDstActual = lzf_decompress(pvSrc, cbSrc, pvDst, cbDst);
+            if (RT_UNLIKELY(cbDstActual < 1))
+            {
+                if (errno == E2BIG)
+                    return VERR_BUFFER_OVERFLOW;
+                Assert(errno == EINVAL);
+                return VERR_GENERAL_FAILURE;
+            }
+            if (pcbDstActual)
+                *pcbDstActual = cbDstActual;
+            if (pcbSrcActual)
+                *pcbSrcActual = cbSrc;
+            break;
+#else
+            return VERR_NOT_SUPPORTED;
+#endif
+        }
+
+        case RTZIPTYPE_STORE:
+        {
+            if (cbDst < cbSrc)
+                return VERR_BUFFER_OVERFLOW;
+            memcpy(pvDst, pvSrc, cbSrc);
+            if (pcbDstActual)
+                *pcbDstActual = cbSrc;
+            if (pcbSrcActual)
+                *pcbSrcActual = cbSrc;
+            break;
+        }
+
+        case RTZIPTYPE_LZJB:
+        {
+#ifdef RTZIP_USE_LZJB
+            if (*(uint8_t *)pvSrc == 1)
+            {
+                int rc = lzjb_decompress((uint8_t *)pvSrc + 1, pvDst, cbSrc - 1, cbDst, 0 /*??*/);
+                if (RT_UNLIKELY(rc != 0))
+                    return VERR_GENERAL_FAILURE;
+                if (pcbDstActual)
+                    *pcbDstActual = cbDst;
+            }
+            else
+            {
+                AssertReturn(cbDst >= cbSrc - 1, VERR_BUFFER_OVERFLOW);
+                memcpy(pvDst, (uint8_t *)pvSrc + 1, cbSrc - 1);
+                if (pcbDstActual)
+                    *pcbDstActual = cbSrc - 1;
+            }
+            if (pcbSrcActual)
+                *pcbSrcActual = cbSrc;
+            break;
+#else
+            return VERR_NOT_SUPPORTED;
+#endif
+        }
+
+        case RTZIPTYPE_LZO:
+        {
+#ifdef RTZIP_USE_LZO
+            int rc = lzo_init();
+            if (RT_UNLIKELY(rc != LZO_E_OK))
+                return VERR_INTERNAL_ERROR;
+            lzo_uint cbDstInOut = cbDst;
+            rc = lzo1x_decompress((const lzo_bytep)pvSrc, cbSrc, (lzo_bytep)pvDst, &cbDstInOut, NULL);
+            if (RT_UNLIKELY(rc != LZO_E_OK))
+                switch (rc)
+                {
+                    case LZO_E_OUTPUT_OVERRUN:  return VERR_BUFFER_OVERFLOW;
+                    default:
+                    case LZO_E_INPUT_OVERRUN:   return VERR_GENERAL_FAILURE;
+                }
+            if (pcbSrcActual)
+                *pcbSrcActual = cbSrc;
+            if (pcbDstActual)
+                *pcbDstActual = cbDstInOut;
+            break;
+#else
+            return VERR_NOT_SUPPORTED;
+#endif
+        }
+
+        case RTZIPTYPE_ZLIB:
+        case RTZIPTYPE_BZLIB:
+            return VERR_NOT_SUPPORTED;
+
+        default:
+            AssertMsgFailed(("%d\n", enmType));
+            return VERR_INVALID_PARAMETER;
+    }
+    return VINF_SUCCESS;
+}
+RT_EXPORT_SYMBOL(RTZipBlockDecompress);
 

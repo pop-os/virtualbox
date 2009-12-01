@@ -1,4 +1,4 @@
-/* $Id: StorageControllerImpl.h $ */
+/* $Id: StorageControllerImpl.h 24250 2009-11-02 13:00:58Z vboxsync $ */
 
 /** @file
  *
@@ -32,8 +32,8 @@ class Machine;
 
 class ATL_NO_VTABLE StorageController :
     public VirtualBoxBaseWithChildrenNEXT,
-    public VirtualBoxSupportErrorInfoImpl <StorageController, IStorageController>,
-    public VirtualBoxSupportTranslation <StorageController>,
+    public VirtualBoxSupportErrorInfoImpl<StorageController, IStorageController>,
+    public VirtualBoxSupportTranslation<StorageController>,
     VBOX_SCRIPTABLE_IMPL(IStorageController)
 {
 private:
@@ -43,6 +43,7 @@ private:
         /* Constructor. */
         Data() : mStorageBus (StorageBus_IDE),
                  mStorageControllerType (StorageControllerType_PIIX4),
+                 mInstance (0),
                  mPortCount (2),
                  mPortIde0Master (0),
                  mPortIde0Slave (1),
@@ -51,21 +52,24 @@ private:
 
         bool operator== (const Data &that) const
         {
-            return this == &that || ((mStorageControllerType == that.mStorageControllerType) &&
-                    (mName           == that.mName) &&
-                    (mPortCount   == that.mPortCount) &&
-                    (mPortIde0Master == that.mPortIde0Master) &&
-                    (mPortIde0Slave  == that.mPortIde0Slave)  &&
-                    (mPortIde1Master == that.mPortIde1Master) &&
-                    (mPortIde1Slave  == that.mPortIde1Slave));
+            return    this == &that
+                   || (    (mStorageControllerType == that.mStorageControllerType)
+                        && (strName           == that.strName)
+                        && (mPortCount   == that.mPortCount)
+                        && (mPortIde0Master == that.mPortIde0Master)
+                        && (mPortIde0Slave  == that.mPortIde0Slave)
+                        && (mPortIde1Master == that.mPortIde1Master)
+                        && (mPortIde1Slave  == that.mPortIde1Slave));
         }
 
-        /** Uniuqe name of the storage controller. */
-        Bstr mName;
+        /** Unique name of the storage controller. */
+        Utf8Str strName;
         /** The connection type of thestorage controller. */
         StorageBus_T mStorageBus;
         /** Type of the Storage controller. */
         StorageControllerType_T mStorageControllerType;
+        /** Instance number of the storage controller. */
+        ULONG mInstance;
         /** Number of usable ports. */
         ULONG mPortCount;
 
@@ -94,18 +98,21 @@ public:
         COM_INTERFACE_ENTRY2 (IDispatch, IStorageController)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
     DECLARE_EMPTY_CTOR_DTOR (StorageController)
 
     HRESULT FinalConstruct();
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init (Machine *aParent, IN_BSTR aName,
-                  StorageBus_T aBus);
-    HRESULT init (Machine *aParent, StorageController *aThat, bool aReshare = false);
-    HRESULT initCopy (Machine *aParent, StorageController *aThat);
+    HRESULT init(Machine *aParent,
+                 const Utf8Str &aName,
+                 StorageBus_T aBus,
+                 ULONG aInstance);
+    HRESULT init(Machine *aParent,
+                 StorageController *aThat,
+                 bool aReshare = false);
+    HRESULT initCopy(Machine *aParent,
+                     StorageController *aThat);
     void uninit();
 
     // IStorageController properties
@@ -127,8 +134,10 @@ public:
 
     // public methods only for internal purposes
 
-    const Bstr &name() const { return mData->mName; }
+    const Utf8Str &name() const { return mData->strName; }
     StorageControllerType_T controllerType() const { return mData->mStorageControllerType; }
+    StorageBus_T storageBus() const { return mData->mStorageBus; }
+    ULONG instance() const { return mData->mInstance; }
 
     bool isModified() { AutoWriteLock alock (this); return mData.isBackedUp(); }
     bool isReallyModified() { AutoWriteLock alock (this); return mData.hasActualChanges(); }
@@ -141,10 +150,10 @@ public:
     void unshare();
 
     /** @note this doesn't require a read lock since mParent is constant. */
-    const ComObjPtr <Machine, ComWeakRef> &parent() { return mParent; };
+    const ComObjPtr<Machine, ComWeakRef> &parent() { return mParent; };
 
     const Backupable<Data> &data() { return mData; }
-    ComObjPtr <StorageController> peer() { return mPeer; }
+    ComObjPtr<StorageController> peer() { return mPeer; }
 
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"StorageController"; }
@@ -156,12 +165,9 @@ private:
     /** Parent object. */
     const ComObjPtr<Machine, ComWeakRef> mParent;
     /** Peer object. */
-    const ComObjPtr <StorageController> mPeer;
+    const ComObjPtr<StorageController> mPeer;
     /** Data. */
-    Backupable <Data> mData;
-
-    /* Instance number of the device in the running VM. */
-    ULONG mInstance;
+    Backupable<Data> mData;
 };
 
 #endif //!____H_STORAGECONTROLLERIMPL

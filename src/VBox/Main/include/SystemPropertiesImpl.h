@@ -1,4 +1,4 @@
-/* $Id: SystemPropertiesImpl.h $ */
+/* $Id: SystemPropertiesImpl.h 24346 2009-11-04 17:04:00Z vboxsync $ */
 
 /** @file
  *
@@ -25,18 +25,22 @@
 #define ____H_SYSTEMPROPERTIESIMPL
 
 #include "VirtualBoxBase.h"
-#include "HardDiskFormatImpl.h"
+#include "MediumFormatImpl.h"
 
 #include <VBox/com/array.h>
 
 #include <list>
 
 class VirtualBox;
+namespace settings
+{
+    struct SystemProperties;
+}
 
 class ATL_NO_VTABLE SystemProperties :
-    public VirtualBoxBaseNEXT,
-    public VirtualBoxSupportErrorInfoImpl <SystemProperties, ISystemProperties>,
-    public VirtualBoxSupportTranslation <SystemProperties>,
+    public VirtualBoxBase,
+    public VirtualBoxSupportErrorInfoImpl<SystemProperties, ISystemProperties>,
+    public VirtualBoxSupportTranslation<SystemProperties>,
     VBOX_SCRIPTABLE_IMPL(ISystemProperties)
 {
 public:
@@ -52,8 +56,6 @@ public:
         COM_INTERFACE_ENTRY  (ISystemProperties)
         COM_INTERFACE_ENTRY2 (IDispatch, ISystemProperties)
     END_COM_MAP()
-
-    NS_DECL_ISUPPORTS
 
     DECLARE_EMPTY_CTOR_DTOR (SystemProperties)
 
@@ -81,9 +83,9 @@ public:
     STDMETHOD(COMSETTER(DefaultMachineFolder)) (IN_BSTR aDefaultMachineFolder);
     STDMETHOD(COMGETTER(DefaultHardDiskFolder)) (BSTR *aDefaultHardDiskFolder);
     STDMETHOD(COMSETTER(DefaultHardDiskFolder)) (IN_BSTR aDefaultHardDiskFolder);
-    STDMETHOD(COMGETTER(HardDiskFormats)) (ComSafeArrayOut (IHardDiskFormat *, aHardDiskFormats));
-    STDMETHOD(COMGETTER(DefaultHardDiskFormat)) (BSTR *aDefaultHardDiskFolder);
-    STDMETHOD(COMSETTER(DefaultHardDiskFormat)) (IN_BSTR aDefaultHardDiskFolder);
+    STDMETHOD(COMGETTER(MediumFormats)) (ComSafeArrayOut (IMediumFormat *, aMediumFormats));
+    STDMETHOD(COMGETTER(DefaultHardDiskFormat)) (BSTR *aDefaultHardDiskFormat);
+    STDMETHOD(COMSETTER(DefaultHardDiskFormat)) (IN_BSTR aDefaultHardDiskFormat);
     STDMETHOD(COMGETTER(RemoteDisplayAuthLibrary)) (BSTR *aRemoteDisplayAuthLibrary);
     STDMETHOD(COMSETTER(RemoteDisplayAuthLibrary)) (IN_BSTR aRemoteDisplayAuthLibrary);
     STDMETHOD(COMGETTER(WebServiceAuthLibrary)) (BSTR *aWebServiceAuthLibrary);
@@ -92,56 +94,52 @@ public:
     STDMETHOD(COMSETTER(LogHistoryCount)) (ULONG count);
     STDMETHOD(COMGETTER(DefaultAudioDriver)) (AudioDriverType_T *aAudioDriver);
 
+    STDMETHOD(GetMaxDevicesPerPortForStorageBus) (StorageBus_T aBus, ULONG *aMaxDevicesPerPort);
+    STDMETHOD(GetMinPortCountForStorageBus) (StorageBus_T aBus, ULONG *aMinPortCount);
+    STDMETHOD(GetMaxPortCountForStorageBus) (StorageBus_T aBus, ULONG *aMaxPortCount);
+    STDMETHOD(GetMaxInstancesOfStorageBus)(StorageBus_T aBus, ULONG *aMaxInstances);
+    STDMETHOD(GetDeviceTypesForStorageBus)(StorageBus_T aBus, ComSafeArrayOut(DeviceType_T, aDeviceTypes));
+
     // public methods only for internal purposes
 
-    HRESULT loadSettings (const settings::Key &aGlobal);
-    HRESULT saveSettings (settings::Key &aGlobal);
+    HRESULT loadSettings(const settings::SystemProperties &data);
+    HRESULT saveSettings(settings::SystemProperties &data);
 
-    ComObjPtr <HardDiskFormat> hardDiskFormat (CBSTR aFormat);
+    ComObjPtr<MediumFormat> mediumFormat(CBSTR aFormat);
 
     // public methods for internal purposes only
     // (ensure there is a caller and a read lock before calling them!)
-
-    /** Default Machine path (as is, not full). Not thread safe (use object lock). */
-    const Bstr &defaultMachineFolder() const { return mDefaultMachineFolder; }
-    /** Default Machine path (full). Not thread safe (use object lock). */
-    const Bstr &defaultMachineFolderFull() const { return mDefaultMachineFolderFull; }
-    /** Default hard disk path (as is, not full). Not thread safe (use object lock). */
-    const Bstr &defaultHardDiskFolder() const { return mDefaultHardDiskFolder; }
-    /** Default hard disk path (full). Not thread safe (use object lock). */
-    const Bstr &defaultHardDiskFolderFull() const { return mDefaultHardDiskFolderFull; }
-
-    /** Default hard disk format. Not thread safe (use object lock). */
-    const Bstr &defaultHardDiskFormat() const { return mDefaultHardDiskFormat; }
 
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"SystemProperties"; }
 
 private:
 
-    typedef std::list <ComObjPtr <HardDiskFormat> > HardDiskFormatList;
+    typedef std::list<ComObjPtr<MediumFormat> > MediumFormatList;
 
-    HRESULT setDefaultMachineFolder (CBSTR aPath);
-    HRESULT setDefaultHardDiskFolder (CBSTR aPath);
-    HRESULT setDefaultHardDiskFormat (CBSTR aFormat);
+    HRESULT setDefaultMachineFolder(const Utf8Str &aPath);
+    HRESULT setDefaultHardDiskFolder(const Utf8Str &aPath);
+    HRESULT setDefaultHardDiskFormat(const Utf8Str &aFormat);
 
-    HRESULT setRemoteDisplayAuthLibrary (CBSTR aPath);
-    HRESULT setWebServiceAuthLibrary (CBSTR aPath);
+    HRESULT setRemoteDisplayAuthLibrary(const Utf8Str &aPath);
+    HRESULT setWebServiceAuthLibrary(const Utf8Str &aPath);
 
-    const ComObjPtr <VirtualBox, ComWeakRef> mParent;
+    const ComObjPtr<VirtualBox, ComWeakRef> mParent;
 
-    Bstr mDefaultMachineFolder;
-    Bstr mDefaultMachineFolderFull;
-    Bstr mDefaultHardDiskFolder;
-    Bstr mDefaultHardDiskFolderFull;
-    Bstr mDefaultHardDiskFormat;
+    Utf8Str m_strDefaultMachineFolder;
+    Utf8Str m_strDefaultMachineFolderFull;
+    Utf8Str m_strDefaultHardDiskFolder;
+    Utf8Str m_strDefaultHardDiskFolderFull;
+    Utf8Str m_strDefaultHardDiskFormat;
 
-    HardDiskFormatList mHardDiskFormats;
+    MediumFormatList mMediumFormats;
 
-    Bstr mRemoteDisplayAuthLibrary;
-    Bstr mWebServiceAuthLibrary;
+    Utf8Str m_strRemoteDisplayAuthLibrary;
+    Utf8Str m_strWebServiceAuthLibrary;
     ULONG mLogHistoryCount;
     AudioDriverType_T mDefaultAudioDriver;
+
+    friend class VirtualBox;
 };
 
 #endif // ____H_SYSTEMPROPERTIESIMPL

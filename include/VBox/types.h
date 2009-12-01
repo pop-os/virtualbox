@@ -94,9 +94,9 @@ typedef R3PTRTYPE(struct UVM *)     PUVM;
 typedef R3PTRTYPE(struct UVMCPU *)  PUVMCPU;
 
 /** Virtual CPU ID. */
-typedef uint32_t VMCPUID;
+typedef uint32_t                    VMCPUID;
 /** Pointer to a virtual CPU ID. */
-typedef VMCPUID *PVMCPUID;
+typedef VMCPUID                    *PVMCPUID;
 /** @name Special CPU ID values.
  * Most of these are for request scheduling.
  *
@@ -142,7 +142,8 @@ typedef VMCPUSET const *PCVMCPUSET;
 #define VMCPUSET_IS_EQUAL(pSet1, pSet2)     (memcmp(&(pSet1)->au32Bitmap, &(pSet2)->au32Bitmap, sizeof((pSet1)->au32Bitmap)) == 0)
 
 
-/** VM State
+/**
+ * VM State
  */
 typedef enum VMSTATE
 {
@@ -150,22 +151,58 @@ typedef enum VMSTATE
     VMSTATE_CREATING = 0,
     /** The VM is created. */
     VMSTATE_CREATED,
-    /** The VM is runnning. */
-    VMSTATE_RUNNING,
     /** The VM state is being loaded from file. */
     VMSTATE_LOADING,
-    /** The VM is screwed because of a failed state loading. */
-    VMSTATE_LOAD_FAILURE,
-    /** The VM state is being saved to file. */
-    VMSTATE_SAVING,
-    /** The VM is suspended. */
-    VMSTATE_SUSPENDED,
+    /** The VM is being powered on */
+    VMSTATE_POWERING_ON,
+    /** The VM is being resumed. */
+    VMSTATE_RESUMING,
+    /** The VM is runnning. */
+    VMSTATE_RUNNING,
+    /** Live save: The VM is running and the state is being saved. */
+    VMSTATE_RUNNING_LS,
     /** The VM is being reset. */
     VMSTATE_RESETTING,
-    /** The VM is in guru meditation over a fatal failure. */
-    VMSTATE_GURU_MEDITATION,
+    /** Live save: The VM is being reset and immediately suspended. */
+    VMSTATE_RESETTING_LS,
+    /** The VM is being suspended. */
+    VMSTATE_SUSPENDING,
+    /** Live save: The VM is being suspended during a live save operation, either as
+     * part of the normal flow or VMR3Reset. */
+    VMSTATE_SUSPENDING_LS,
+    /** Live save: The VM is being suspended by VMR3Suspend during live save. */
+    VMSTATE_SUSPENDING_EXT_LS,
+    /** The VM is suspended. */
+    VMSTATE_SUSPENDED,
+    /** Live save: The VM has been suspended and is waiting for the live save
+     * operation to move on. */
+    VMSTATE_SUSPENDED_LS,
+    /** Live save: The VM has been suspended by VMR3Suspend during a live save. */
+    VMSTATE_SUSPENDED_EXT_LS,
+    /** The VM is suspended and its state is being saved by EMT(0). (See SSM) */
+    VMSTATE_SAVING,
+    /** The VM is being debugged. (See DBGF.) */
+    VMSTATE_DEBUGGING,
+    /** Live save: The VM is being debugged while the live phase is going on. */
+    VMSTATE_DEBUGGING_LS,
+    /** The VM is being powered off. */
+    VMSTATE_POWERING_OFF,
+    /** Live save: The VM is being powered off and the save cancelled. */
+    VMSTATE_POWERING_OFF_LS,
     /** The VM is switched off, awaiting destruction. */
     VMSTATE_OFF,
+    /** Live save: Waiting for cancellation and transition to VMSTATE_OFF. */
+    VMSTATE_OFF_LS,
+    /** The VM is powered off because of a fatal error. */
+    VMSTATE_FATAL_ERROR,
+    /** Live save: Waiting for cancellation and transition to FatalError. */
+    VMSTATE_FATAL_ERROR_LS,
+    /** The VM is in guru meditation over a fatal failure. */
+    VMSTATE_GURU_MEDITATION,
+    /** Live save: Waiting for cancellation and transition to GuruMeditation. */
+    VMSTATE_GURU_MEDITATION_LS,
+    /** The VM is screwed because of a failed state loading. */
+    VMSTATE_LOAD_FAILURE,
     /** The VM is being destroyed. */
     VMSTATE_DESTROYING,
     /** Terminated. */
@@ -173,6 +210,108 @@ typedef enum VMSTATE
     /** hack forcing the size of the enum to 32-bits. */
     VMSTATE_MAKE_32BIT_HACK = 0x7fffffff
 } VMSTATE;
+
+/** @def VBOXSTRICTRC_STRICT_ENABLED
+ * Indicates that VBOXSTRICTRC is in strict mode.
+ */
+#if defined(__cplusplus) \
+ && ARCH_BITS == 64    /* cdecl requires classes and structs as hidden params. */ \
+ && !defined(_MSC_VER) /* trouble similar to 32-bit gcc. */ \
+ &&  (   defined(RT_STRICT) \
+      || defined(VBOX_STRICT) \
+      || defined(DEBUG) \
+      || defined(DOXYGEN_RUNNING) )
+# define VBOXSTRICTRC_STRICT_ENABLED 1
+# ifdef _MSC_VER
+#  pragma warning(disable:4190)
+# endif
+#endif
+
+/** We need RTERR_STRICT_RC.  */
+#if defined(VBOXSTRICTRC_STRICT_ENABLED) && !defined(RTERR_STRICT_RC)
+# define RTERR_STRICT_RC 1
+#endif
+
+/**
+ * Strict VirtualBox status code.
+ *
+ * This is normally an 32-bit integer and the only purpose of the type is to
+ * highlight the special handling that is required.  But in strict build it is a
+ * class that causes compilation and runtime errors for some of the incorrect
+ * handling.
+ */
+#ifdef VBOXSTRICTRC_STRICT_ENABLED
+struct VBOXSTRICTRC
+{
+protected:
+    /** The status code. */
+    int32_t m_rc;
+
+public:
+    /** Default constructor setting the status to VERR_IPE_UNINITIALIZED_STATUS. */
+    VBOXSTRICTRC()
+#ifdef VERR_IPE_UNINITIALIZED_STATUS
+        : m_rc(VERR_IPE_UNINITIALIZED_STATUS)
+#else
+        : m_rc(-233 /*VERR_IPE_UNINITIALIZED_STATUS*/)
+#endif
+    {
+    }
+
+    /** Constructor for normal integer status codes. */
+    VBOXSTRICTRC(int32_t const rc)
+        : m_rc(rc)
+    {
+    }
+
+    /** Getter that VBOXSTRICTRC_VAL can use. */
+    int32_t getValue() const                    { return m_rc; }
+
+    /** @name Comparison operators
+     * @{ */
+    bool operator==(int32_t rc) const           { return m_rc == rc; }
+    bool operator!=(int32_t rc) const           { return m_rc != rc; }
+    bool operator<=(int32_t rc) const           { return m_rc <= rc; }
+    bool operator>=(int32_t rc) const           { return m_rc >= rc; }
+    bool operator<(int32_t rc) const            { return m_rc < rc; }
+    bool operator>(int32_t rc) const            { return m_rc > rc; }
+    /** @} */
+
+    /** Special automatic cast for RT_SUCCESS_NP. */
+    operator RTErrStrictType2() const           { return RTErrStrictType2(m_rc); }
+
+private:
+    /** @name Constructors that will prevent some of the bad types.
+     * @{ */
+    VBOXSTRICTRC(uint8_t  rc) : m_rc(-999)      { NOREF(rc); }
+    VBOXSTRICTRC(uint16_t rc) : m_rc(-999)      { NOREF(rc); }
+    VBOXSTRICTRC(uint32_t rc) : m_rc(-999)      { NOREF(rc); }
+    VBOXSTRICTRC(uint64_t rc) : m_rc(-999)      { NOREF(rc); }
+
+    VBOXSTRICTRC(int8_t rc)   : m_rc(-999)      { NOREF(rc); }
+    VBOXSTRICTRC(int16_t rc)  : m_rc(-999)      { NOREF(rc); }
+    VBOXSTRICTRC(int64_t rc)  : m_rc(-999)      { NOREF(rc); }
+    /** @} */
+};
+#else
+typedef int32_t VBOXSTRICTRC;
+#endif
+
+/** @def VBOXSTRICTRC_VAL
+ * Explicit getter.
+ * @param rcStrict  The strict VirtualBox status code.
+ */
+#ifdef VBOXSTRICTRC_STRICT_ENABLED
+# define VBOXSTRICTRC_VAL(rcStrict) ( (rcStrict).getValue() )
+#else
+# define VBOXSTRICTRC_VAL(rcStrict) (rcStrict)
+#endif
+
+/** @def VBOXSTRICTRC_TODO
+ * Returns that needs dealing with.
+ * @param rcStrict  The strict VirtualBox status code.
+ */
+#define VBOXSTRICTRC_TODO(rcStrict) VBOXSTRICTRC_VAL(rcStrict)
 
 
 /** Pointer to a PDM Driver Base Interface. */
@@ -233,6 +372,8 @@ typedef PTMTIMER              *PPTMTIMER;
 
 /** SSM Operation handle. */
 typedef struct SSMHANDLE *PSSMHANDLE;
+/** Pointer to a const SSM stream method table. */
+typedef struct SSMSTRMOPS const *PCSSMSTRMOPS;
 
 /** Pointer to a CPUMCTX. */
 typedef struct CPUMCTX *PCPUMCTX;
@@ -630,8 +771,15 @@ typedef struct PGMPAGEMAPLOCK
     /** Just a dummy for the time being. */
     uint32_t    u32Dummy;
 #else
-    /** Pointer to the PGMPAGE. */
-    void       *pvPage;
+    /** Pointer to the PGMPAGE and lock type.
+     * bit-0 abuse: set=write, clear=read. */
+    uintptr_t   uPageAndType;
+/** Read lock type value. */
+# define PGMPAGEMAPLOCK_TYPE_READ    ((uintptr_t)0)
+/** Write lock type value. */
+# define PGMPAGEMAPLOCK_TYPE_WRITE   ((uintptr_t)1)
+/** Lock type mask. */
+# define PGMPAGEMAPLOCK_TYPE_MASK    ((uintptr_t)1)
     /** Pointer to the PGMCHUNKR3MAP. */
     void       *pvMap;
 #endif
@@ -639,6 +787,27 @@ typedef struct PGMPAGEMAPLOCK
 /** Pointer to a page mapping lock. */
 typedef PGMPAGEMAPLOCK *PPGMPAGEMAPLOCK;
 
+
+/** Configuration manager tree node - A key. */
+typedef struct CFGMNODE *PCFGMNODE;
+
+/** Configuration manager tree leaf - A value. */
+typedef struct CFGMLEAF *PCFGMLEAF;
+
+/**
+ * CPU modes.
+ */
+typedef enum CPUMMODE
+{
+    /** The usual invalid zero entry. */
+    CPUMMODE_INVALID = 0,
+    /** Real mode. */
+    CPUMMODE_REAL,
+    /** Protected mode (32-bit). */
+    CPUMMODE_PROTECTED,
+    /** Long mode (64-bit). */
+    CPUMMODE_LONG
+} CPUMMODE;
 
 /** @} */
 

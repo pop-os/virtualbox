@@ -1,4 +1,4 @@
-/* $Id: VMAll.cpp $ */
+/* $Id: VMAll.cpp 23012 2009-09-14 16:38:13Z vboxsync $ */
 /** @file
  * VM - Virtual Machine All Contexts.
  */
@@ -84,10 +84,8 @@ VMMDECL(int) VMSetErrorV(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat
      */
     va_list va2;
     va_copy(va2, args); /* Have to make a copy here or GCC will break. */
-    PVMREQ pReq;
-    VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3SetErrorUV, 7,   /* ASSUMES 3 source pos args! */
-                pVM->pUVM, rc, RT_SRC_POS_ARGS, pszFormat, &va2);
-    VMR3ReqFree(pReq);
+    VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)vmR3SetErrorUV, 7,   /* ASSUMES 3 source pos args! */
+                    pVM->pUVM, rc, RT_SRC_POS_ARGS, pszFormat, &va2);
     va_end(va2);
 
 #else
@@ -254,24 +252,31 @@ VMMDECL(int) VMSetRuntimeErrorV(PVM pVM, uint32_t fFlags, const char *pszErrorId
 #ifdef IN_RING3
     /*
      * Switch to EMT.
+     *
+     * If it's a no-wait request, we have to format the message into a buffer
+     * here since the variable arguments list will become invalid once we call
+     * va_end and return.
      */
-    va_list va2;
-    va_copy(va2, va); /* Have to make a copy here or GCC will break. */
     int rc;
-    PVMREQ pReq;
     if (    !(fFlags & VMSETRTERR_FLAGS_NO_WAIT)
         ||  VM_IS_EMT(pVM))
     {
-        rc = VMR3ReqCallU(pVM->pUVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, VMREQFLAGS_VBOX_STATUS,
-                          (PFNRT)vmR3SetRuntimeErrorV, 5, pVM, fFlags, pszErrorId, pszFormat, &va2);
-        if (RT_SUCCESS(rc))
-            rc = pReq->iStatus;
+        fFlags &= ~VMSETRTERR_FLAGS_NO_WAIT;
+
+        va_list va2;
+        va_copy(va2, va); /* Have to make a copy here or GCC will break. */
+        rc = VMR3ReqCallWaitU(pVM->pUVM, VMCPUID_ANY,
+                              (PFNRT)vmR3SetRuntimeErrorV, 5, pVM, fFlags, pszErrorId, pszFormat, &va2);
+        va_end(va2);
     }
     else
-        rc = VMR3ReqCallU(pVM->pUVM, VMCPUID_ANY, &pReq, 0, VMREQFLAGS_VBOX_STATUS | VMREQFLAGS_NO_WAIT,
-                          (PFNRT)vmR3SetRuntimeErrorV, 5, pVM, fFlags, pszErrorId, pszFormat, &va2);
-    VMR3ReqFree(pReq);
-    va_end(va2);
+    {
+        char *pszMessage = MMR3HeapAPrintfV(pVM, MM_TAG_VM, pszFormat, va);
+        rc = VMR3ReqCallNoWaitU(pVM->pUVM, VMCPUID_ANY,
+                                (PFNRT)vmR3SetRuntimeError, 4, pVM, fFlags, pszErrorId, pszMessage);
+        if (RT_FAILURE(rc))
+            MMR3HeapFree(pszMessage);
+    }
 
 #else
     /*

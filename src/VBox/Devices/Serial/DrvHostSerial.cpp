@@ -1,4 +1,4 @@
-/* $Id: DrvHostSerial.cpp $ */
+/* $Id: DrvHostSerial.cpp 23973 2009-10-22 12:34:22Z vboxsync $ */
 /** @file
  * VBox stream I/O devices: Host serial driver
  *
@@ -37,7 +37,7 @@
 #include <iprt/file.h>
 #include <iprt/alloc.h>
 
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 # include <errno.h>
 # ifdef RT_OS_SOLARIS
 #  include <sys/termios.h>
@@ -113,7 +113,7 @@ typedef struct DRVHOSTSERIAL
     /** the device path */
     char                        *pszDevicePath;
 
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     /** the device handle */
     RTFILE                      DeviceFile;
 # ifdef RT_OS_DARWIN
@@ -244,7 +244,7 @@ static DECLCALLBACK(int) drvHostSerialWrite(PPDMICHAR pInterface, const void *pv
 static DECLCALLBACK(int) drvHostSerialSetParameters(PPDMICHAR pInterface, unsigned Bps, char chParity, unsigned cDataBits, unsigned cStopBits)
 {
     PDRVHOSTSERIAL pThis = PDMICHAR_2_DRVHOSTSERIAL(pInterface);
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     struct termios *termiosSetup;
     int baud_rate;
 #elif defined(RT_OS_WINDOWS)
@@ -517,7 +517,7 @@ static DECLCALLBACK(int) drvHostSerialSendThread(PPDMDRVINS pDrvIns, PPDMTHREAD 
 #ifdef DEBUG
             uint64_t volatile u64Now = RTTimeNanoTS(); NOREF(u64Now);
 #endif
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 
             size_t cbWritten;
             rc = RTFileWrite(pThis->DeviceFile, abBuf, cb, &cbWritten);
@@ -598,7 +598,7 @@ static DECLCALLBACK(int) drvHostSerialSendThread(PPDMDRVINS pDrvIns, PPDMTHREAD 
             uint8_t abBuf[1];
             abBuf[0] = pThis->aSendQueue[iTail];
 
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 
             rc = RTFileWrite(pThis->DeviceFile, abBuf, cbProcessed, NULL);
 
@@ -763,7 +763,7 @@ static DECLCALLBACK(int) drvHostSerialRecvThread(PPDMDRVINS pDrvIns, PPDMTHREAD 
             }
             cbRemaining = cbRead;
 
-#elif defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
+#elif defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 
             size_t cbRead;
             struct pollfd aFDs[2];
@@ -848,6 +848,11 @@ static DECLCALLBACK(int) drvHostSerialRecvThread(PPDMDRVINS pDrvIns, PPDMTHREAD 
                 }
                 cbRemaining = dwNumberOfBytesTransferred;
             }
+            else if (dwEventMask & EV_BREAK)
+            {
+                Log(("HostSerial#%d: Detected break\n"));
+                rc = pThis->pDrvCharPort->pfnNotifyBreak(pThis->pDrvCharPort);
+            }
             else
             {
                 /* The status lines have changed. Notify the device. */
@@ -923,7 +928,7 @@ static DECLCALLBACK(int) drvHostSerialRecvThread(PPDMDRVINS pDrvIns, PPDMTHREAD 
 static DECLCALLBACK(int) drvHostSerialWakeupRecvThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
     PDRVHOSTSERIAL pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTSERIAL);
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     return RTFileWrite(pThis->WakeupPipeW, "", 1, NULL);
 #elif defined(RT_OS_WINDOWS)
     if (!SetEvent(pThis->hHaltEventSem))
@@ -934,7 +939,7 @@ static DECLCALLBACK(int) drvHostSerialWakeupRecvThread(PPDMDRVINS pDrvIns, PPDMT
 #endif
 }
 
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 /* -=-=-=-=- Monitor thread -=-=-=-=- */
 
 /**
@@ -1139,7 +1144,7 @@ static DECLCALLBACK(int) drvHostSerialSetModemLines(PPDMICHAR pInterface, bool R
 {
     PDRVHOSTSERIAL pThis = PDMICHAR_2_DRVHOSTSERIAL(pInterface);
 
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     int modemStateSet = 0;
     int modemStateClear = 0;
 
@@ -1173,21 +1178,42 @@ static DECLCALLBACK(int) drvHostSerialSetModemLines(PPDMICHAR pInterface, bool R
     return VINF_SUCCESS;
 }
 
+/**
+ * Sets the TD line into break condition.
+ *
+ * @returns VBox status code.
+ * @param   pInterface  Pointer to the interface structure containing the called function pointer.
+ * @param   fBreak      Set to true to let the device send a break false to put into normal operation.
+ * @thread  Any thread.
+ */
+static DECLCALLBACK(int) drvHostSerialSetBreak(PPDMICHAR pInterface, bool fBreak)
+{
+    PDRVHOSTSERIAL pThis = PDMICHAR_2_DRVHOSTSERIAL(pInterface);
+
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
+    if (fBreak)
+        ioctl(pThis->DeviceFile, TIOCSBRK);
+    else
+        ioctl(pThis->DeviceFile, TIOCCBRK);
+
+#elif defined(RT_OS_WINDOWS)
+    if (fBreak)
+        SetCommBreak(pThis->hDeviceFile);
+    else
+        ClearCommBreak(pThis->hDeviceFile);
+#endif
+
+    return VINF_SUCCESS;
+}
+
 /* -=-=-=-=- driver interface -=-=-=-=- */
 
 /**
  * Construct a char driver instance.
  *
- * @returns VBox status.
- * @param   pDrvIns     The driver instance data.
- *                      If the registration structure is needed,
- *                      pDrvIns->pDrvReg points to it.
- * @param   pCfgHandle  Configuration node handle for the driver. Use this to
- *                      obtain the configuration of the driver instance. It's
- *                      also found in pDrvIns->pCfgHandle as it's expected to
- *                      be used frequently in this function.
+ * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvHostSerialConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) drvHostSerialConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
 {
     PDRVHOSTSERIAL pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTSERIAL);
     LogFlow(("%s: iInstance=%d\n", __FUNCTION__, pDrvIns->iInstance));
@@ -1195,7 +1221,7 @@ static DECLCALLBACK(int) drvHostSerialConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
     /*
      * Init basic data members and interfaces.
      */
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     pThis->DeviceFile  = NIL_RTFILE;
 # ifdef RT_OS_DARWIN
     pThis->DeviceFileR = NIL_RTFILE;
@@ -1204,11 +1230,12 @@ static DECLCALLBACK(int) drvHostSerialConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
     pThis->WakeupPipeW = NIL_RTFILE;
 #endif
     /* IBase. */
-    pDrvIns->IBase.pfnQueryInterface        = drvHostSerialQueryInterface;
+    pDrvIns->IBase.pfnQueryInterface = drvHostSerialQueryInterface;
     /* IChar. */
-    pThis->IChar.pfnWrite                   = drvHostSerialWrite;
-    pThis->IChar.pfnSetParameters           = drvHostSerialSetParameters;
-    pThis->IChar.pfnSetModemLines           = drvHostSerialSetModemLines;
+    pThis->IChar.pfnWrite            = drvHostSerialWrite;
+    pThis->IChar.pfnSetParameters    = drvHostSerialSetParameters;
+    pThis->IChar.pfnSetModemLines    = drvHostSerialSetModemLines;
+    pThis->IChar.pfnSetBreak         = drvHostSerialSetBreak;
 
 /** @todo Initialize all members with NIL values!! The destructor is ALWAYS called. */
 
@@ -1260,10 +1287,10 @@ static DECLCALLBACK(int) drvHostSerialConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
 
 #else
 
-    rc = RTFileOpen(&pThis->DeviceFile, pThis->pszDevicePath, RTFILE_O_OPEN | RTFILE_O_READWRITE);
+    rc = RTFileOpen(&pThis->DeviceFile, pThis->pszDevicePath, RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
 # ifdef RT_OS_DARWIN
     if (RT_SUCCESS(rc))
-        rc = RTFileOpen(&pThis->DeviceFileR, pThis->pszDevicePath, RTFILE_O_OPEN | RTFILE_O_READ);
+        rc = RTFileOpen(&pThis->DeviceFileR, pThis->pszDevicePath, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
 # endif
 
 
@@ -1276,7 +1303,7 @@ static DECLCALLBACK(int) drvHostSerialConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
         {
             case VERR_ACCESS_DENIED:
                 return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
                                            N_("Cannot open host device '%s' for read/write access. Check the permissions "
                                               "of that device ('/bin/ls -l %s'): Most probably you need to be member "
                                               "of the device group. Make sure that you logout/login after changing "
@@ -1294,7 +1321,7 @@ static DECLCALLBACK(int) drvHostSerialConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
     }
 
     /* Set to non blocking I/O */
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 
     fcntl(pThis->DeviceFile, F_SETFL, O_NONBLOCK);
 # ifdef RT_OS_DARWIN
@@ -1346,7 +1373,7 @@ static DECLCALLBACK(int) drvHostSerialConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
     if (RT_FAILURE(rc))
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("HostSerial#%d cannot create send thread"), pDrvIns->iInstance);
 
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     /* Linux & darwin needs a separate thread which monitors the status lines. */
 # ifndef RT_OS_LINUX
     ioctl(pThis->DeviceFile, TIOCMGET, &pThis->fStatusLines);
@@ -1389,7 +1416,7 @@ static DECLCALLBACK(void) drvHostSerialDestruct(PPDMDRVINS pDrvIns)
     RTSemEventDestroy(pThis->SendSem);
     pThis->SendSem = NIL_RTSEMEVENT;
 
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 
     if (pThis->WakeupPipeW != NIL_RTFILE)
     {
@@ -1464,9 +1491,15 @@ const PDMDRVREG g_DrvHostSerial =
     NULL,
     /* pfnResume */
     NULL,
+    /* pfnAttach */
+    NULL,
     /* pfnDetach */
     NULL,
-    /** pfnPowerOff */
-    NULL
+    /* pfnPowerOff */
+    NULL,
+    /* pfnSoftReset */
+    NULL,
+    /* u32EndVersion */
+    PDM_DRVREG_VERSION
 };
 

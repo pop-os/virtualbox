@@ -1,4 +1,4 @@
-/* $Id: strprintf.cpp $ */
+/* $Id: strprintf.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - String Formatters.
  */
@@ -33,6 +33,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/string.h>
+#include "internal/iprt.h"
+
 #include <iprt/assert.h>
 
 
@@ -96,12 +98,15 @@ RTDECL(size_t) RTStrPrintfExV(PFNSTRFORMAT pfnFormat, void *pvArg, char *pszBuff
     Arg.cch = cchBuffer - 1;
     return RTStrFormatV(strbufoutput, &Arg, pfnFormat, pvArg, pszFormat, args);
 }
+RT_EXPORT_SYMBOL(RTStrPrintfExV);
 
 
 RTDECL(size_t) RTStrPrintfV(char *pszBuffer, size_t cchBuffer, const char *pszFormat, va_list args)
 {
     return RTStrPrintfExV(NULL, NULL, pszBuffer, cchBuffer, pszFormat, args);
 }
+RT_EXPORT_SYMBOL(RTStrPrintfV);
+
 
 RTDECL(size_t) RTStrPrintfEx(PFNSTRFORMAT pfnFormat, void *pvArg, char *pszBuffer, size_t cchBuffer, const char *pszFormat, ...)
 {
@@ -112,6 +117,8 @@ RTDECL(size_t) RTStrPrintfEx(PFNSTRFORMAT pfnFormat, void *pvArg, char *pszBuffe
     va_end(args);
     return cbRet;
 }
+RT_EXPORT_SYMBOL(RTStrPrintfEx);
+
 
 RTDECL(size_t) RTStrPrintf(char *pszBuffer, size_t cchBuffer, const char *pszFormat, ...)
 {
@@ -122,4 +129,5 @@ RTDECL(size_t) RTStrPrintf(char *pszBuffer, size_t cchBuffer, const char *pszFor
     va_end(args);
     return cbRet;
 }
+RT_EXPORT_SYMBOL(RTStrPrintf);
 

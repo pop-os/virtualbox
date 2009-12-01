@@ -1,4 +1,4 @@
-/* $Revision: 54555 $ */
+/* $Revision: 24498 $ */
 /** @file
  * VirtualBox Support Driver - IOCtl definitions.
  */
@@ -34,7 +34,7 @@
 /*
  * Basic types.
  */
-#include <iprt/stdint.h>
+#include <iprt/types.h>
 
 /*
  * IOCtl numbers.
@@ -183,20 +183,23 @@ typedef SUPREQHDR *PSUPREQHDR;
  * When incompatible changes are made, the upper major number has to be changed.
  *
  * Update rules:
- *  -# Only update the major number when incompatible changes has been made.
+ *  -# Only update the major number when incompatible changes have been made to
+ *     the IOC interface or the ABI provided via the functions returned by
+ *     SUPQUERYFUNCS.
  *  -# When adding new features (new IOC number, new flags, new exports, ++)
  *     only update the minor number and change SUPLib.cpp to require the
  *     new IOC version.
  *  -# When incrementing the major number, clear the minor part and reset
  *     any IOC version requirements in SUPLib.cpp.
+ *  -# When increment the major number, execute all pending work.
  *
  * @todo Pending work on next major version change:
  *          - Nothing.
  *
- * @remarks The current major version (0x0011YYYY) has never appeared on the
- *          trunk.
+ * @remarks Major version 0x0011YYYY was consumed by the 3.0.12 release. The
+ *          next major version used on the trunk will be 0x00120000!
  */
-#define SUPDRV_IOC_VERSION                              0x00110000
+#define SUPDRV_IOC_VERSION                              0x00100001
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE
@@ -1079,6 +1082,28 @@ typedef struct SUPSEMOP
 
 /** @} */
 
+/** @name SUP_IOCTL_VT_CAPS Input.
+ * @{
+ */
+/** Free contious memory. */
+#define SUP_IOCTL_VT_CAPS                               SUP_CTL_CODE_SIZE(26, SUP_IOCTL_VT_CAPS_SIZE)
+#define SUP_IOCTL_VT_CAPS_SIZE                          sizeof(SUPVTCAPS)
+#define SUP_IOCTL_VT_CAPS_SIZE_IN                       sizeof(SUPREQHDR)
+#define SUP_IOCTL_VT_CAPS_SIZE_OUT                      sizeof(SUPVTCAPS)
+typedef struct SUPVTCAPS
+{
+    /** The header. */
+    SUPREQHDR               Hdr;
+    union
+    {
+        struct
+        {
+            /** The VT capability dword. */
+            uint32_t        Caps;
+        } Out;
+    } u;
+} SUPVTCAPS, *PSUPVTCAPS;
+/** @} */
 
 #pragma pack()                          /* paranoia */
 

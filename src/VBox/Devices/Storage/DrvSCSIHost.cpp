@@ -1,4 +1,4 @@
-/* $Id: DrvSCSIHost.cpp $ */
+/* $Id: DrvSCSIHost.cpp 23973 2009-10-22 12:34:22Z vboxsync $ */
 /** @file
  *
  * VBox storage drivers:
@@ -440,16 +440,10 @@ static DECLCALLBACK(void) drvscsihostDestruct(PPDMDRVINS pDrvIns)
 /**
  * Construct a block driver instance.
  *
- * @returns VBox status.
- * @param   pDrvIns     The driver instance data.
- *                      If the registration structure is needed, pDrvIns->pDrvReg points to it.
- * @param   pCfgHandle  Configuration node handle for the driver. Use this to obtain the configuration
- *                      of the driver instance. It's also found in pDrvIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvscsihostConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) drvscsihostConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
 {
-    int rc = VINF_SUCCESS;
     PDRVSCSIHOST pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSIHOST);
 
     LogFlowFunc(("pDrvIns=%#p pCfgHandle=%#p\n", pDrvIns, pCfgHandle));
@@ -459,7 +453,7 @@ static DECLCALLBACK(int) drvscsihostConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
      */
     if (!CFGMR3AreValuesValid(pCfgHandle, "DevicePath\0"))
         return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
-                                N_("Invalid configuraton for host scsi access driver"));
+                                N_("Invalid configuration for host scsi access driver"));
 
     /*
      * Initialize interfaces.
@@ -474,7 +468,7 @@ static DECLCALLBACK(int) drvscsihostConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
     AssertMsgReturn(pThis->pDevScsiPort, ("Missing SCSI port interface above\n"), VERR_PDM_MISSING_INTERFACE);
 
     /* Create request queue. */
-    rc = RTReqCreateQueue(&pThis->pQueueRequests);
+    int rc = RTReqCreateQueue(&pThis->pQueueRequests);
     AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create request queue rc=%Rrc\n"), rc);
 
     /* Open the device. */
@@ -483,7 +477,7 @@ static DECLCALLBACK(int) drvscsihostConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"DevicePath\" value"));
 
-    rc = RTFileOpen(&pThis->DeviceFile, pThis->pszDevicePath, RTFILE_O_OPEN | RTFILE_O_READWRITE);
+    rc = RTFileOpen(&pThis->DeviceFile, pThis->pszDevicePath, RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
     if (RT_FAILURE(rc))
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
                                    N_("DrvSCSIHost#%d: Failed to open device '%s'"), pDrvIns->iInstance, pThis->pszDevicePath);
@@ -529,6 +523,15 @@ const PDMDRVREG g_DrvSCSIHost =
     NULL,
     /* pfnResume */
     NULL,
+    /* pfnAttach */
+    NULL,
     /* pfnDetach */
-    NULL
+    NULL,
+    /* pfnPowerOff */
+    NULL,
+    /* pfnSoftReset */
+    NULL,
+    /* u32EndVersion */
+    PDM_DRVREG_VERSION
 };
+

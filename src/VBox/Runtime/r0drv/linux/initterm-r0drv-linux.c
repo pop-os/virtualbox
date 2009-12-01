@@ -1,4 +1,4 @@
-/* $Id: initterm-r0drv-linux.c $ */
+/* $Id: initterm-r0drv-linux.c 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Initialization & Termination, R0 Driver, Linux.
  */
@@ -33,6 +33,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-linux-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/err.h>
 #include <iprt/assert.h>
 #include "internal/initterm.h"
@@ -44,7 +45,7 @@
 #ifdef RT_ARCH_AMD64
 /* in alloc-r0drv0-linux.c */
 extern void rtR0MemExecCleanup(void);
-#endif 
+#endif
 
 
 int rtR0InitNative(void)
@@ -57,6 +58,6 @@ void rtR0TermNative(void)
 {
 #ifdef RT_ARCH_AMD64
     rtR0MemExecCleanup();
-#endif 
+#endif
 }
 

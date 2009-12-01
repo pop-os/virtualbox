@@ -36,7 +36,12 @@
 #endif
 #include "VBoxUpdateDlg.h"
 
+#ifdef VBOX_WITH_VIDEOHWACCEL
+#include "VBoxFrameBuffer.h"
+#endif
+
 /* Qt includes */
+#include <QProgressDialog>
 #include <QLibraryInfo>
 #include <QFileDialog>
 #include <QToolTip>
@@ -187,22 +192,8 @@ public:
             delete this;
         return cnt;
     }
-    STDMETHOD(QueryInterface) (REFIID riid , void **ppObj)
-    {
-        if (riid == IID_IUnknown) {
-            *ppObj = this;
-            AddRef();
-            return S_OK;
-        }
-        if (riid == IID_IVirtualBoxCallback) {
-            *ppObj = this;
-            AddRef();
-            return S_OK;
-        }
-        *ppObj = NULL;
-        return E_NOINTERFACE;
-    }
 #endif
+    VBOX_SCRIPTABLE_DISPATCH_IMPL(IVirtualBoxCallback)
 
     // IVirtualBoxCallback methods
 
@@ -398,8 +389,8 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(OnMediaRegistered) (IN_BSTR id, DeviceType_T type,
-                                  BOOL registered)
+    STDMETHOD(OnMediumRegistered) (IN_BSTR id, DeviceType_T type,
+                                   BOOL registered)
     {
         /** @todo */
         Q_UNUSED (id);
@@ -554,13 +545,18 @@ static VBoxDefs::RenderMode vboxGetRenderMode (const char *aModeStr)
         else if (::strcmp (aModeStr, "quartz2d") == 0)
             mode = VBoxDefs::Quartz2DMode;
 #endif
-    }
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    /* temporary hack to enable QGL mode */
-    mode = VBoxDefs::QGLMode;
+#if defined (VBOX_GUI_USE_QGL)
+        else if (::strcmp (aModeStr, "qgl") == 0)
+            mode = VBoxDefs::QGLMode;
 #endif
-    return mode;
+//#if defined (VBOX_GUI_USE_QGL)
+//        else if (::strcmp (aModeStr, "qgloverlay") == 0)
+//            mode = VBoxDefs::QGLOverlayMode;
+//#endif
 
+    }
+
+    return mode;
 }
 
 /** @class VBoxGlobal
@@ -778,8 +774,8 @@ bool VBoxGlobal::brandingIsActive (bool aForce /* = false*/)
   */
 QString VBoxGlobal::brandingGetKey (QString aKey)
 {
-    QSettings settings(mBrandingConfig, QSettings::IniFormat);
-    return settings.value(QString("%1").arg(aKey)).toString();
+    QSettings s(mBrandingConfig, QSettings::IniFormat);
+    return s.value(QString("%1").arg(aKey)).toString();
 }
 
 #ifdef VBOX_GUI_WITH_SYSTRAY
@@ -979,9 +975,8 @@ QString VBoxGlobal::vmGuestOSTypeDescription (const QString &aTypeId) const
 }
 
 /**
- * Returns a string representation of the given channel number on the given
- * storage bus. Complementary to #toStorageChannel (KStorageBus, const
- * QString &) const.
+ * Returns a string representation of the given channel number on the given storage bus.
+ * Complementary to #toStorageChannel (KStorageBus, const QString &) const.
  */
 QString VBoxGlobal::toString (KStorageBus aBus, LONG aChannel) const
 {
@@ -996,21 +991,25 @@ QString VBoxGlobal::toString (KStorageBus aBus, LONG aChannel) const
                 channel = mStorageBusChannels [aChannel];
                 break;
             }
-
-            AssertMsgFailedBreak (("Invalid channel %d\n", aChannel));
-        }
-        case KStorageBus_SATA:
-        {
-            channel = mStorageBusChannels [2].arg (aChannel);
+            AssertMsgFailed (("Invalid IDE channel %d\n", aChannel));
             break;
         }
+        case KStorageBus_SATA:
         case KStorageBus_SCSI:
         {
             channel = mStorageBusChannels [2].arg (aChannel);
             break;
         }
+        case KStorageBus_Floppy:
+        {
+            AssertMsgFailed (("Floppy have no channels, only devices\n"));
+            break;
+        }
         default:
-            AssertFailedBreak();
+        {
+            AssertMsgFailed (("Invalid bus type %d\n", aBus));
+            break;
+        }
     }
 
     Assert (!channel.isNull());
@@ -1018,8 +1017,8 @@ QString VBoxGlobal::toString (KStorageBus aBus, LONG aChannel) const
 }
 
 /**
- * Returns a channel number on the given storage bus corresponding to the given
- * string representation. Complementary to #toString (KStorageBus, LONG) const.
+ * Returns a channel number on the given storage bus corresponding to the given string representation.
+ * Complementary to #toString (KStorageBus, LONG) const.
  */
 LONG VBoxGlobal::toStorageChannel (KStorageBus aBus, const QString &aChannel) const
 {
@@ -1029,39 +1028,41 @@ LONG VBoxGlobal::toStorageChannel (KStorageBus aBus, const QString &aChannel) co
     {
         case KStorageBus_IDE:
         {
-            QLongStringHash::const_iterator it =
-                qFind (mStorageBusChannels.begin(), mStorageBusChannels.end(),
-                       aChannel);
-            AssertMsgBreak (it != mStorageBusChannels.end(),
-                            ("No value for {%s}\n", aChannel.toLatin1().constData()));
+            QLongStringHash::const_iterator it = qFind (mStorageBusChannels.begin(), mStorageBusChannels.end(), aChannel);
+            AssertMsgBreak (it != mStorageBusChannels.end(), ("No value for {%s}\n", aChannel.toLatin1().constData()));
             channel = it.key();
             break;
         }
         case KStorageBus_SATA:
         case KStorageBus_SCSI:
         {
-            /// @todo use regexp to properly extract the %1 text
             QString tpl = mStorageBusChannels [2].arg ("");
             if (aChannel.startsWith (tpl))
             {
                 channel = aChannel.right (aChannel.length() - tpl.length()).toLong();
                 break;
             }
-
-            AssertMsgFailedBreak (("Invalid channel {%s}\n", aChannel.toLatin1().constData()));
+            AssertMsgFailed (("Invalid channel {%s}\n", aChannel.toLatin1().constData()));
+            break;
+        }
+        case KStorageBus_Floppy:
+        {
+            channel = 0;
             break;
         }
         default:
-            AssertFailedBreak();
+        {
+            AssertMsgFailed (("Invalid bus type %d\n", aBus));
+            break;
+        }
     }
 
     return channel;
 }
 
 /**
- * Returns a string representation of the given device number of the given
- * channel on the given storage bus. Complementary to #toStorageDevice
- * (KStorageBus, LONG, const QString &) const.
+ * Returns a string representation of the given device number of the given channel on the given storage bus.
+ * Complementary to #toStorageDevice (KStorageBus, LONG, const QString &) const.
  */
 QString VBoxGlobal::toString (KStorageBus aBus, LONG aChannel, LONG aDevice) const
 {
@@ -1078,19 +1079,26 @@ QString VBoxGlobal::toString (KStorageBus aBus, LONG aChannel, LONG aDevice) con
                 device = mStorageBusDevices [aDevice];
                 break;
             }
-
-            AssertMsgFailedBreak (("Invalid device %d\n", aDevice));
+            AssertMsgFailed (("Invalid device %d\n", aDevice));
+            break;
         }
         case KStorageBus_SATA:
         case KStorageBus_SCSI:
         {
-            AssertMsgBreak (aDevice == 0, ("Invalid device %d\n", aDevice));
-            /* always empty so far for SATA */
-            device = "";
+            AssertMsgFailed (("SATA & SCSI have no devices, only channels\n"));
+            break;
+        }
+        case KStorageBus_Floppy:
+        {
+            AssertMsgBreak (aChannel == 0, ("Invalid channel %d\n", aChannel));
+            device = mStorageBusDevices [2].arg (aDevice);
             break;
         }
         default:
-            AssertFailedBreak();
+        {
+            AssertMsgFailed (("Invalid bus type %d\n", aBus));
+            break;
+        }
     }
 
     Assert (!device.isNull());
@@ -1098,12 +1106,10 @@ QString VBoxGlobal::toString (KStorageBus aBus, LONG aChannel, LONG aDevice) con
 }
 
 /**
- * Returns a device number of the given channel on the given storage bus
- * corresponding to the given string representation. Complementary to #toString
- * (KStorageBus, LONG, LONG) const.
+ * Returns a device number of the given channel on the given storage bus corresponding to the given string representation.
+ * Complementary to #toString (KStorageBus, LONG, LONG) const.
  */
-LONG VBoxGlobal::toStorageDevice (KStorageBus aBus, LONG aChannel,
-                                  const QString &aDevice) const
+LONG VBoxGlobal::toStorageDevice (KStorageBus aBus, LONG aChannel, const QString &aDevice) const
 {
     NOREF (aChannel);
 
@@ -1113,62 +1119,165 @@ LONG VBoxGlobal::toStorageDevice (KStorageBus aBus, LONG aChannel,
     {
         case KStorageBus_IDE:
         {
-            QLongStringHash::const_iterator it =
-                qFind (mStorageBusDevices.begin(), mStorageBusDevices.end(),
-                       aDevice);
-            AssertMsg (it != mStorageBusDevices.end(),
-                       ("No value for {%s}", aDevice.toLatin1().constData()));
+            QLongStringHash::const_iterator it = qFind (mStorageBusDevices.begin(), mStorageBusDevices.end(), aDevice);
+            AssertMsgBreak (it != mStorageBusDevices.end(), ("No value for {%s}", aDevice.toLatin1().constData()));
             device = it.key();
             break;
         }
         case KStorageBus_SATA:
         case KStorageBus_SCSI:
         {
-            AssertMsgBreak(aDevice.isEmpty(), ("Invalid device {%s}\n", aDevice.toLatin1().constData()));
-            /* always zero for SATA so far. */
+            device = 0;
+            break;
+        }
+        case KStorageBus_Floppy:
+        {
+            AssertMsgBreak (aChannel == 0, ("Invalid channel %d\n", aChannel));
+            QString tpl = mStorageBusDevices [2].arg ("");
+            if (aDevice.startsWith (tpl))
+            {
+                device = aDevice.right (aDevice.length() - tpl.length()).toLong();
+                break;
+            }
+            AssertMsgFailed (("Invalid device {%s}\n", aDevice.toLatin1().constData()));
             break;
         }
         default:
-            AssertFailedBreak();
+        {
+            AssertMsgFailed (("Invalid bus type %d\n", aBus));
+            break;
+        }
     }
 
     return device;
 }
 
 /**
- * Returns a full string representation of the given device of the given channel
- * on the given storage bus. Complementary to #toStorageParams (KStorageBus,
- * LONG, LONG) const.
+ * Returns a full string representation of the given device of the given channel on the given storage bus.
+ * This method does not uses any separate string tags related to bus, channel, device, it has own
+ * separately translated string tags allowing to translate a full slot name into human readable format
+ * to be consistent with i18n.
+ * Complementary to #toStorageSlot (const QString &) const.
  */
-QString VBoxGlobal::toFullString (KStorageBus aBus, LONG aChannel,
-                                  LONG aDevice) const
+QString VBoxGlobal::toString (StorageSlot aSlot) const
 {
-    QString device;
+    switch (aSlot.bus)
+    {
+        case KStorageBus_IDE:
+        case KStorageBus_SATA:
+        case KStorageBus_SCSI:
+        case KStorageBus_Floppy:
+            break;
 
-    switch (aBus)
+        default:
+        {
+            AssertMsgFailed (("Invalid bus type %d\n", aSlot.bus));
+            break;
+        }
+    }
+
+    int maxPort = virtualBox().GetSystemProperties().GetMaxPortCountForStorageBus (aSlot.bus);
+    int maxDevice = virtualBox().GetSystemProperties().GetMaxDevicesPerPortForStorageBus (aSlot.bus);
+    if (aSlot.port < 0 || aSlot.port > maxPort)
+        AssertMsgFailed (("Invalid port %d\n", aSlot.port));
+    if (aSlot.device < 0 || aSlot.device > maxDevice)
+        AssertMsgFailed (("Invalid device %d\n", aSlot.device));
+
+    QString result;
+    switch (aSlot.bus)
     {
         case KStorageBus_IDE:
         {
-            device = QString ("%1 %2 %3")
-                .arg (vboxGlobal().toString (aBus))
-                .arg (vboxGlobal().toString (aBus, aChannel))
-                .arg (vboxGlobal().toString (aBus, aChannel, aDevice));
+            result = mSlotTemplates [aSlot.port * maxDevice + aSlot.device];
             break;
         }
         case KStorageBus_SATA:
+        {
+            result = mSlotTemplates [4].arg (aSlot.port);
+            break;
+        }
         case KStorageBus_SCSI:
         {
-            /* we only have one SATA/SCSI device so far which is always zero */
-            device = QString ("%1 %2")
-                .arg (vboxGlobal().toString (aBus))
-                .arg (vboxGlobal().toString (aBus, aChannel));
+            result = mSlotTemplates [5].arg (aSlot.port);
+            break;
+        }
+        case KStorageBus_Floppy:
+        {
+            result = mSlotTemplates [6].arg (aSlot.device);
             break;
         }
         default:
-            AssertFailedBreak();
+        {
+            AssertMsgFailed (("Invalid bus type %d\n", aSlot.bus));
+            break;
+        }
+    }
+    return result;
+}
+
+/**
+ * Returns a StorageSlot based on the given device of the given channel on the given storage bus.
+ * Complementary to #toFullString (StorageSlot) const.
+ */
+StorageSlot VBoxGlobal::toStorageSlot (const QString &aSlot) const
+{
+    int index = -1;
+    QRegExp regExp;
+    for (int i = 0; i < mSlotTemplates.size(); ++ i)
+    {
+        regExp = QRegExp (i >= 0 && i <= 3 ? mSlotTemplates [i] : mSlotTemplates [i].arg ("(\\d+)"));
+        if (regExp.indexIn (aSlot) != -1)
+        {
+            index = i;
+            break;
+        }
     }
 
-    return device;
+    StorageSlot result;
+    switch (index)
+    {
+        case 0:
+        case 1:
+        case 2:
+        case 3:
+        {
+            result.bus = KStorageBus_IDE;
+            int maxPort = virtualBox().GetSystemProperties().GetMaxPortCountForStorageBus (result.bus);
+            result.port = index / maxPort;
+            result.device = index % maxPort;
+            break;
+        }
+        case 4:
+        {
+            result.bus = KStorageBus_SATA;
+            int maxPort = virtualBox().GetSystemProperties().GetMaxPortCountForStorageBus (result.bus);
+            result.port = regExp.cap (1).toInt();
+            if (result.port < 0 || result.port > maxPort)
+                AssertMsgFailed (("Invalid port %d\n", result.port));
+            break;
+        }
+        case 5:
+        {
+            result.bus = KStorageBus_SCSI;
+            int maxPort = virtualBox().GetSystemProperties().GetMaxPortCountForStorageBus (result.bus);
+            result.port = regExp.cap (1).toInt();
+            if (result.port < 0 || result.port > maxPort)
+                AssertMsgFailed (("Invalid port %d\n", result.port));
+            break;
+        }
+        case 6:
+        {
+            result.bus = KStorageBus_Floppy;
+            int maxDevice = virtualBox().GetSystemProperties().GetMaxDevicesPerPortForStorageBus (result.bus);
+            result.device = regExp.cap (1).toInt();
+            if (result.device < 0 || result.device > maxDevice)
+                AssertMsgFailed (("Invalid device %d\n", result.device));
+            break;
+        }
+        default:
+            break;
+    }
+    return result;
 }
 
 /**
@@ -1317,24 +1426,18 @@ bool VBoxGlobal::toLPTPortNumbers (const QString &aName, ulong &aIRQ,
  *       problem though and needs to be addressed using exceptions (see also the
  *       @todo in VBoxMedium::details()).
  */
-QString VBoxGlobal::details (const CHardDisk &aHD,
-                             bool aPredictDiff)
+QString VBoxGlobal::details (const CMedium &aMedium, bool aPredictDiff)
 {
-    CMedium cmedium (aHD);
+    CMedium cmedium (aMedium);
     VBoxMedium medium;
 
     if (!findMedium (cmedium, medium))
     {
-        /* media may be new and not alredy in the media list, request refresh */
+        /* Medium may be new and not already in the media list, request refresh */
         startEnumeratingMedia();
         if (!findMedium (cmedium, medium))
-        {
-            /// @todo Still not found. Means that we are trying to get details
-            /// of a hard disk that was deleted by a third party before we got a
-            /// chance to complete the task. Returning null in this case should
-            /// be OK, For more information, see *** in VBoxMedium::etails().
-            return QString::null;
-        }
+            /* Medium might be deleted already, return null string */
+            return QString();
     }
 
     return medium.detailsHTML (true /* aNoDiffs */, aPredictDiff);
@@ -1345,12 +1448,12 @@ QString VBoxGlobal::details (const CHardDisk &aHD,
  */
 QString VBoxGlobal::details (const CUSBDevice &aDevice) const
 {
-    QString details;
+    QString sDetails;
     QString m = aDevice.GetManufacturer().trimmed();
     QString p = aDevice.GetProduct().trimmed();
     if (m.isEmpty() && p.isEmpty())
     {
-        details =
+        sDetails =
             tr ("Unknown device %1:%2", "USB device details")
             .arg (QString().sprintf ("%04hX", aDevice.GetVendorId()))
             .arg (QString().sprintf ("%04hX", aDevice.GetProductId()));
@@ -1358,15 +1461,15 @@ QString VBoxGlobal::details (const CUSBDevice &aDevice) const
     else
     {
         if (p.toUpper().startsWith (m.toUpper()))
-            details = p;
+            sDetails = p;
         else
-            details = m + " " + p;
+            sDetails = m + " " + p;
     }
     ushort r = aDevice.GetRevision();
     if (r != 0)
-        details += QString().sprintf (" [%04hX]", r);
+        sDetails += QString().sprintf (" [%04hX]", r);
 
-    return details.trimmed();
+    return sDetails.trimmed();
 }
 
 /**
@@ -1476,6 +1579,8 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
         "<tr><td width=40%><nobr><i>%1</i></nobr></td><td/><td/></tr>";
     static const char *sSectionItemTpl2 =
         "<tr><td width=40%><nobr>%1:</nobr></td><td/><td>%2</td></tr>";
+    static const char *sSectionItemTpl3 =
+        "<tr><td width=40%><nobr>%1</nobr></td><td/><td/></tr>";
 
     const QString &sectionTpl = aWithLinks ? sSectionHrefTpl : sSectionBoldTpl;
 
@@ -1528,18 +1633,18 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
             : tr ("Disabled", "details report (IO APIC)");
 
         /* PAE/NX */
-        QString pae = aMachine.GetPAEEnabled()
+        QString pae = aMachine.GetCpuProperty(KCpuPropertyType_PAE)
             ? tr ("Enabled", "details report (PAE/NX)")
             : tr ("Disabled", "details report (PAE/NX)");
 #endif /* VBOX_WITH_FULL_DETAILS_REPORT */
 
         /* VT-x/AMD-V */
-        QString virt = aMachine.GetHWVirtExEnabled()
+        QString virt = aMachine.GetHWVirtExProperty(KHWVirtExPropertyType_Enabled)
             ? tr ("Enabled", "details report (VT-x/AMD-V)")
             : tr ("Disabled", "details report (VT-x/AMD-V)");
 
         /* Nested Paging */
-        QString nested = aMachine.GetHWVirtExNestedPagingEnabled()
+        QString nested = aMachine.GetHWVirtExProperty(KHWVirtExPropertyType_NestedPaging)
             ? tr ("Enabled", "details report (Nested Paging)")
             : tr ("Disabled", "details report (Nested Paging)");
 
@@ -1590,6 +1695,16 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
 
         rows += 2;
 
+#ifdef VBOX_WITH_VIDEOHWACCEL
+        QString acc2dVideo = aMachine.GetAccelerate2DVideoEnabled()
+            ? tr ("Enabled", "details report (2D Video Acceleration)")
+            : tr ("Disabled", "details report (2D Video Acceleration)");
+
+        item += QString (sSectionItemTpl2)
+                .arg (tr ("2D Video Acceleration", "details report"), acc2dVideo);
+        ++ rows;
+#endif
+
         /* VRDP tab */
         CVRDPServer srv = aMachine.GetVRDPServer();
         if (!srv.isNull())
@@ -1597,7 +1712,7 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
             if (srv.GetEnabled())
                 item += QString (sSectionItemTpl2)
                         .arg (tr ("Remote Display Server Port", "details report (VRDP Server)"))
-                        .arg (srv.GetPort());
+                        .arg (srv.GetPorts());
             else
                 item += QString (sSectionItemTpl2)
                         .arg (tr ("Remote Display Server", "details report (VRDP Server)"))
@@ -1613,138 +1728,48 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
                   item); /* items */
     }
 
-    /* Hard Disks */
+    /* Storage */
     {
         /* Rows including section header and footer */
         int rows = 2;
 
         QString item;
 
-        CHardDiskAttachmentVector vec = aMachine.GetHardDiskAttachments();
-        for (int i = 0; i < vec.size(); ++ i)
+        CStorageControllerVector controllers = aMachine.GetStorageControllers();
+        foreach (const CStorageController &controller, controllers)
         {
-            CHardDiskAttachment hda = vec [i];
-            CHardDisk hd = hda.GetHardDisk();
+            item += QString (sSectionItemTpl3).arg (controller.GetName());
+            ++ rows;
 
-            /// @todo for the explaination of the below isOk() checks, see ***
-            /// in VBoxMedium::details().
-            if (hda.isOk())
+            CMediumAttachmentVector attachments = aMachine.GetMediumAttachmentsOfController (controller.GetName());
+            foreach (const CMediumAttachment &attachment, attachments)
             {
-                const QString controller = hda.GetController();
-                KStorageBus bus;
-
-                CStorageController ctrl = aMachine.GetStorageControllerByName(controller);
-                bus = ctrl.GetBus();
-
-                LONG port   = hda.GetPort();
-                LONG device = hda.GetDevice();
-                item += QString (sSectionItemTpl2)
-                        .arg (toFullString (bus, port, device))
-                        .arg (details (hd, false));
-                ++ rows;
+                CMedium medium = attachment.GetMedium();
+                if (attachment.isOk())
+                {
+                    item += QString (sSectionItemTpl2)
+                            .arg (QString ("&nbsp;&nbsp;") +
+                                  toString (StorageSlot (controller.GetBus(),
+                                                         attachment.GetPort(),
+                                                         attachment.GetDevice())))
+                            .arg (details (medium, false));
+                    ++ rows;
+                }
             }
         }
 
         if (item.isNull())
         {
             item = QString (sSectionItemTpl1)
-                   .arg (tr ("Not Attached", "details report (HDDs)"));
+                   .arg (tr ("Not Attached", "details report (Storage)"));
             ++ rows;
         }
 
         report += sectionTpl
             .arg (rows) /* rows */
-            .arg (":/hd_16px.png", /* icon */
-                  "#hdds", /* link */
-                  tr ("Hard Disks", "details report"), /* title */
-                  item); /* items */
-    }
-
-    /* DVD */
-    {
-        QString item;
-
-        CDVDDrive dvd = aMachine.GetDVDDrive();
-        switch (dvd.GetState())
-        {
-            case KDriveState_NotMounted:
-                item = QString (sSectionItemTpl1)
-                       .arg (tr ("Not mounted", "details report (DVD)"));
-                break;
-            case KDriveState_ImageMounted:
-            {
-                CDVDImage img = dvd.GetImage();
-                item = QString (sSectionItemTpl2)
-                       .arg (tr ("Image", "details report (DVD)"),
-                             locationForHTML (img.GetName()));
-                break;
-            }
-            case KDriveState_HostDriveCaptured:
-            {
-                CHostDVDDrive drv = dvd.GetHostDrive();
-                QString drvName = drv.GetName();
-                QString description = drv.GetDescription();
-                QString fullName = description.isEmpty() ?
-                    drvName :
-                    QString ("%1 (%2)").arg (description, drvName);
-                item = QString (sSectionItemTpl2)
-                       .arg (tr ("Host Drive", "details report (DVD)"),
-                             fullName);
-                break;
-            }
-            default:
-                AssertMsgFailed (("Invalid DVD state: %d", dvd.GetState()));
-        }
-
-        report += sectionTpl
-            .arg (2 + 1) /* rows */
-            .arg (":/cd_16px.png", /* icon */
-                  "#dvd", /* link */
-                  tr ("CD/DVD-ROM", "details report"), /* title */
-                  item); // items
-    }
-
-    /* Floppy */
-    {
-        QString item;
-
-        CFloppyDrive floppy = aMachine.GetFloppyDrive();
-        switch (floppy.GetState())
-        {
-            case KDriveState_NotMounted:
-                item = QString (sSectionItemTpl1)
-                       .arg (tr ("Not mounted", "details report (floppy)"));
-                break;
-            case KDriveState_ImageMounted:
-            {
-                CFloppyImage img = floppy.GetImage();
-                item = QString (sSectionItemTpl2)
-                       .arg (tr ("Image", "details report (floppy)"),
-                             locationForHTML (img.GetName()));
-                break;
-            }
-            case KDriveState_HostDriveCaptured:
-            {
-                CHostFloppyDrive drv = floppy.GetHostDrive();
-                QString drvName = drv.GetName();
-                QString description = drv.GetDescription();
-                QString fullName = description.isEmpty() ?
-                    drvName :
-                    QString ("%1 (%2)").arg (description, drvName);
-                item = QString (sSectionItemTpl2)
-                       .arg (tr ("Host Drive", "details report (floppy)"),
-                             fullName);
-                break;
-            }
-            default:
-                AssertMsgFailed (("Invalid floppy state: %d", floppy.GetState()));
-        }
-
-        report += sectionTpl
-            .arg (2 + 1) /* rows */
-            .arg (":/fd_16px.png", /* icon */
-                  "#floppy", /* link */
-                  tr ("Floppy", "details report"), /* title */
+            .arg (":/attachment_16px.png", /* icon */
+                  "#storage", /* link */
+                  tr ("Storage", "details report"), /* title */
                   item); /* items */
     }
 
@@ -2136,102 +2161,6 @@ bool VBoxGlobal::showVirtualBoxLicense()
 #endif /* defined(Q_WS_X11) && !defined(VBOX_OSE) */
 
 /**
- * Checks if any of the settings files were auto-converted and informs the user
- * if so. Returns @c false if the user select to exit the application.
- *
- * @param aAfterRefresh @c true to suppress the first simple dialog aExit
- *                      button. Used when calling after the VM refresh.
- */
-bool VBoxGlobal::checkForAutoConvertedSettings (bool aAfterRefresh /*= false*/)
-{
-    QString formatVersion = mVBox.GetSettingsFormatVersion();
-
-    bool isGlobalConverted = false;
-    QList <CMachine> machines;
-    QString fileList;
-    QString version;
-
-    CMachineVector vec = mVBox.GetMachines();
-    for (CMachineVector::ConstIterator m = vec.begin();
-         m != vec.end(); ++ m)
-    {
-        if (!m->GetAccessible())
-            continue;
-
-        version = m->GetSettingsFileVersion();
-        if (version != formatVersion)
-        {
-            machines.append (*m);
-            fileList += QString ("<tr><td><nobr>%1</nobr></td><td>&nbsp;&nbsp;</td>"
-                                 "</td><td><nobr><i>%2</i></nobr></td></tr>")
-                .arg (m->GetSettingsFilePath())
-                .arg (version);
-        }
-    }
-
-    if (!aAfterRefresh)
-    {
-        version = mVBox.GetSettingsFileVersion();
-        if (version != formatVersion)
-        {
-            isGlobalConverted = true;
-            fileList += QString ("<tr><td><nobr>%1</nobr></td><td>&nbsp;&nbsp;</td>"
-                                 "</td><td><nobr><i>%2</i></nobr></td></tr>")
-                .arg (mVBox.GetSettingsFilePath())
-                .arg (version);
-        }
-    }
-
-    if (!fileList.isNull())
-    {
-        fileList = QString ("<table cellspacing=0 cellpadding=0>%1</table>")
-                            .arg (fileList);
-
-        int rc = vboxProblem()
-            .warnAboutAutoConvertedSettings (formatVersion, fileList,
-                                             aAfterRefresh);
-
-        if (rc == QIMessageBox::Cancel)
-            return false;
-
-        Assert (rc == QIMessageBox::No || rc == QIMessageBox::Yes);
-
-        /* backup (optionally) and save all settings files
-         * (QIMessageBox::No = Backup, QIMessageBox::Yes = Save) */
-
-        foreach (CMachine m, machines)
-        {
-            CSession session = openSession (m.GetId());
-            if (!session.isNull())
-            {
-                CMachine sm = session.GetMachine();
-                if (rc == QIMessageBox::No)
-                    sm.SaveSettingsWithBackup();
-                else
-                    sm.SaveSettings();
-
-                if (!sm.isOk())
-                    vboxProblem().cannotSaveMachineSettings (sm);
-                session.Close();
-            }
-        }
-
-        if (isGlobalConverted)
-        {
-            if (rc == QIMessageBox::No)
-                mVBox.SaveSettingsWithBackup();
-            else
-                mVBox.SaveSettings();
-
-            if (!mVBox.isOk())
-                vboxProblem().cannotSaveGlobalSettings (mVBox);
-        }
-    }
-
-    return true;
-}
-
-/**
  *  Opens a direct session for a machine with the given ID.
  *  This method does user-friendly error handling (display error messages, etc.).
  *  and returns a null CSession object in case of any error.
@@ -2291,23 +2220,62 @@ bool VBoxGlobal::startMachine (const QString &id)
 }
 
 /**
- * Appends the given list of hard disks and all their children to the media
- * list. To be called only from VBoxGlobal::startEnumeratingMedia().
+ * Appends the NULL medium to the media list.
+ * For using with VBoxGlobal::startEnumeratingMedia() only.
  */
-static
-void AddHardDisksToList (const CHardDiskVector &aVector,
-                         VBoxMediaList &aList,
-                         VBoxMediaList::iterator aWhere,
-                         VBoxMedium *aParent = 0)
+static void addNullMediumToList (VBoxMediaList &aList, VBoxMediaList::iterator aWhere)
+{
+    VBoxMedium medium;
+    aList.insert (aWhere, medium);
+}
+
+/**
+ * Appends the given list of mediums to the media list.
+ * For using with VBoxGlobal::startEnumeratingMedia() only.
+ */
+static void addMediumsToList (const CMediumVector &aVector,
+                              VBoxMediaList &aList,
+                              VBoxMediaList::iterator aWhere,
+                              VBoxDefs::MediumType aType,
+                              VBoxMedium *aParent = 0)
+{
+    VBoxMediaList::iterator first = aWhere;
+
+    for (CMediumVector::ConstIterator it = aVector.begin(); it != aVector.end(); ++ it)
+    {
+        CMedium cmedium (*it);
+        VBoxMedium medium (cmedium, aType, aParent);
+
+        /* Search for a proper alphabetic position */
+        VBoxMediaList::iterator jt = first;
+        for (; jt != aWhere; ++ jt)
+            if ((*jt).name().localeAwareCompare (medium.name()) > 0)
+                break;
+
+        aList.insert (jt, medium);
+
+        /* Adjust the first item if inserted before it */
+        if (jt == first)
+            -- first;
+    }
+}
+
+/**
+ * Appends the given list of hard disks and all their children to the media list.
+ * For using with VBoxGlobal::startEnumeratingMedia() only.
+ */
+static void addHardDisksToList (const CMediumVector &aVector,
+                                VBoxMediaList &aList,
+                                VBoxMediaList::iterator aWhere,
+                                VBoxMedium *aParent = 0)
 {
     VBoxMediaList::iterator first = aWhere;
 
     /* First pass: Add siblings sorted */
-    for (CHardDiskVector::ConstIterator it = aVector.begin();
-         it != aVector.end(); ++ it)
+    for (CMediumVector::ConstIterator it = aVector.begin(); it != aVector.end(); ++ it)
     {
         CMedium cmedium (*it);
-        VBoxMedium medium (cmedium, VBoxDefs::MediaType_HardDisk, aParent);
+        VBoxMedium medium (cmedium, VBoxDefs::MediumType_HardDisk, aParent);
 
         /* Search for a proper alphabetic position */
         VBoxMediaList::iterator jt = first;
@@ -2325,11 +2293,11 @@ void AddHardDisksToList (const CHardDiskVector &aVector,
     /* Second pass: Add children */
     for (VBoxMediaList::iterator it = first; it != aWhere;)
     {
-        CHardDiskVector children = (*it).hardDisk().GetChildren();
+        CMediumVector children = (*it).medium().GetChildren();
         VBoxMedium *parent = &(*it);
 
         ++ it; /* go to the next sibling before inserting children */
-        AddHardDisksToList (children, aList, it, parent);
+        addHardDisksToList (children, aList, it, parent);
     }
 }
 
@@ -2376,55 +2344,12 @@ void VBoxGlobal::startEnumeratingMedia()
 
     /* composes a list of all currently known media & their children */
     mMediaList.clear();
-    {
-        AddHardDisksToList (mVBox.GetHardDisks(), mMediaList, mMediaList.end());
-    }
-    {
-        VBoxMediaList::iterator first = mMediaList.end();
-
-        CDVDImageVector vec = mVBox.GetDVDImages();
-        for (CDVDImageVector::ConstIterator it = vec.begin();
-             it != vec.end(); ++ it)
-        {
-            CMedium cmedium (*it);
-            VBoxMedium medium (cmedium, VBoxDefs::MediaType_DVD);
-
-            /* Search for a proper alphabetic position */
-            VBoxMediaList::iterator jt = first;
-            for (; jt != mMediaList.end(); ++ jt)
-                if ((*jt).name().localeAwareCompare (medium.name()) > 0)
-                    break;
-
-            mMediaList.insert (jt, medium);
-
-            /* Adjust the first item if inserted before it */
-            if (jt == first)
-                -- first;
-        }
-    }
-    {
-        VBoxMediaList::iterator first = mMediaList.end();
-
-        CFloppyImageVector vec = mVBox.GetFloppyImages();
-        for (CFloppyImageVector::ConstIterator it = vec.begin();
-             it != vec.end(); ++ it)
-        {
-            CMedium cmedium (*it);
-            VBoxMedium medium (cmedium, VBoxDefs::MediaType_Floppy);
-
-            /* Search for a proper alphabetic position */
-            VBoxMediaList::iterator jt = first;
-            for (; jt != mMediaList.end(); ++ jt)
-                if ((*jt).name().localeAwareCompare (medium.name()) > 0)
-                    break;
-
-            mMediaList.insert (jt, medium);
-
-            /* Adjust the first item if inserted before it */
-            if (jt == first)
-                -- first;
-        }
-    }
+    addNullMediumToList (mMediaList, mMediaList.end());
+    addHardDisksToList (mVBox.GetHardDisks(), mMediaList, mMediaList.end());
+    addMediumsToList (mVBox.GetHost().GetDVDDrives(), mMediaList, mMediaList.end(), VBoxDefs::MediumType_DVD);
+    addMediumsToList (mVBox.GetDVDImages(), mMediaList, mMediaList.end(), VBoxDefs::MediumType_DVD);
+    addMediumsToList (mVBox.GetHost().GetFloppyDrives(), mMediaList, mMediaList.end(), VBoxDefs::MediumType_Floppy);
+    addMediumsToList (mVBox.GetFloppyImages(), mMediaList, mMediaList.end(), VBoxDefs::MediumType_Floppy);
 
     /* enumeration thread class */
     class MediaEnumThread : public QThread
@@ -2494,25 +2419,28 @@ void VBoxGlobal::addMedium (const VBoxMedium &aMedium)
 
     VBoxMediaList::iterator it = mMediaList.begin();
 
-    if (aMedium.type() == VBoxDefs::MediaType_HardDisk)
+    if (aMedium.type() == VBoxDefs::MediumType_HardDisk)
     {
-        VBoxMediaList::iterator parent = mMediaList.end();
+        VBoxMediaList::iterator itParent = mMediaList.end();
 
         for (; it != mMediaList.end(); ++ it)
         {
-            if ((*it).type() != VBoxDefs::MediaType_HardDisk)
+            /* skip null medium that come first */
+            if ((*it).isNull()) continue;
+
+            if ((*it).type() != VBoxDefs::MediumType_HardDisk)
                 break;
 
-            if (aMedium.parent() != NULL && parent == mMediaList.end())
+            if (aMedium.parent() != NULL && itParent == mMediaList.end())
             {
                 if (&*it == aMedium.parent())
-                    parent = it;
+                    itParent = it;
             }
             else
             {
                 /* break if met a parent's sibling (will insert before it) */
                 if (aMedium.parent() != NULL &&
-                    (*it).parent() == (*parent).parent())
+                    (*it).parent() == (*itParent).parent())
                     break;
 
                 /* compare to aMedium's siblings */
@@ -2522,24 +2450,27 @@ void VBoxGlobal::addMedium (const VBoxMedium &aMedium)
             }
         }
 
-        AssertReturnVoid (aMedium.parent() == NULL || parent != mMediaList.end());
+        AssertReturnVoid (aMedium.parent() == NULL || itParent != mMediaList.end());
     }
     else
     {
         for (; it != mMediaList.end(); ++ it)
         {
+            /* skip null medium that come first */
+            if ((*it).isNull()) continue;
+
             /* skip HardDisks that come first */
-            if ((*it).type() == VBoxDefs::MediaType_HardDisk)
+            if ((*it).type() == VBoxDefs::MediumType_HardDisk)
                 continue;
 
             /* skip DVD when inserting Floppy */
-            if (aMedium.type() == VBoxDefs::MediaType_Floppy &&
-                (*it).type() == VBoxDefs::MediaType_DVD)
+            if (aMedium.type() == VBoxDefs::MediumType_Floppy &&
+                (*it).type() == VBoxDefs::MediumType_DVD)
                 continue;
 
             if ((*it).name().localeAwareCompare (aMedium.name()) > 0 ||
-                (aMedium.type() == VBoxDefs::MediaType_DVD &&
-                 (*it).type() == VBoxDefs::MediaType_Floppy))
+                (aMedium.type() == VBoxDefs::MediumType_DVD &&
+                 (*it).type() == VBoxDefs::MediumType_Floppy))
                 break;
         }
     }
@@ -2576,7 +2507,7 @@ void VBoxGlobal::updateMedium (const VBoxMedium &aMedium)
  *
  * @sa #currentMediaList()
  */
-void VBoxGlobal::removeMedium (VBoxDefs::MediaType aType, const QString &aId)
+void VBoxGlobal::removeMedium (VBoxDefs::MediumType aType, const QString &aId)
 {
     VBoxMediaList::Iterator it;
     for (it = mMediaList.begin(); it != mMediaList.end(); ++ it)
@@ -2594,7 +2525,7 @@ void VBoxGlobal::removeMedium (VBoxDefs::MediaType aType, const QString &aId)
     }
 #endif
 
-    VBoxMedium *parent = (*it).parent();
+    VBoxMedium *pParent = (*it).parent();
 
     /* remove the medium from the list to keep it in sync with the server "for
      * free" when the medium is deleted from one of our UIs */
@@ -2604,10 +2535,10 @@ void VBoxGlobal::removeMedium (VBoxDefs::MediaType aType, const QString &aId)
 
     /* also emit the parent update signal because some attributes like
      * isReadOnly() may have been changed after child removal */
-    if (parent != NULL)
+    if (pParent != NULL)
     {
-        parent->refresh();
-        emit mediumUpdated (*parent);
+        pParent->refresh();
+        emit mediumUpdated (*pParent);
     }
 }
 
@@ -2618,17 +2549,29 @@ void VBoxGlobal::removeMedium (VBoxDefs::MediaType aType, const QString &aId)
  */
 bool VBoxGlobal::findMedium (const CMedium &aObj, VBoxMedium &aMedium) const
 {
-    for (VBoxMediaList::ConstIterator it = mMediaList.begin();
-         it != mMediaList.end(); ++ it)
+    for (VBoxMediaList::ConstIterator it = mMediaList.begin(); it != mMediaList.end(); ++ it)
     {
-        if ((*it).medium() == aObj)
+        if (((*it).medium().isNull() && aObj.isNull()) ||
+            (!(*it).medium().isNull() && !aObj.isNull() && (*it).medium().GetId() == aObj.GetId()))
         {
             aMedium = (*it);
             return true;
         }
     }
-
     return false;
+}
+
+/**
+ *  Searches for a VBoxMedum object with the given medium id attribute.
+ *
+ *  @return VBoxMedum if found which is invalid otherwise.
+ */
+VBoxMedium VBoxGlobal::findMedium (const QString &aMediumId) const
+{
+    for (VBoxMediaList::ConstIterator it = mMediaList.begin(); it != mMediaList.end(); ++ it)
+        if ((*it).id() == aMediumId)
+            return *it;
+    return VBoxMedium();
 }
 
 #ifdef VBOX_GUI_WITH_SYSTRAY
@@ -2711,15 +2654,21 @@ void VBoxGlobal::retranslateUi()
 {
     mMachineStates [KMachineState_PoweredOff] = tr ("Powered Off", "MachineState");
     mMachineStates [KMachineState_Saved] =      tr ("Saved", "MachineState");
+    mMachineStates [KMachineState_Teleported] = tr ("Teleported", "MachineState");
     mMachineStates [KMachineState_Aborted] =    tr ("Aborted", "MachineState");
     mMachineStates [KMachineState_Running] =    tr ("Running", "MachineState");
     mMachineStates [KMachineState_Paused] =     tr ("Paused", "MachineState");
-    mMachineStates [KMachineState_Stuck] =      tr ("Stuck", "MachineState");
+    mMachineStates [KMachineState_Stuck] =      tr ("Guru Meditation", "MachineState");
+    mMachineStates [KMachineState_Teleporting] = tr ("Teleporting", "MachineState");
+    mMachineStates [KMachineState_LiveSnapshotting] = tr ("Taking Live Snapshot", "MachineState");
     mMachineStates [KMachineState_Starting] =   tr ("Starting", "MachineState");
     mMachineStates [KMachineState_Stopping] =   tr ("Stopping", "MachineState");
     mMachineStates [KMachineState_Saving] =     tr ("Saving", "MachineState");
     mMachineStates [KMachineState_Restoring] =  tr ("Restoring", "MachineState");
-    mMachineStates [KMachineState_Discarding] = tr ("Discarding", "MachineState");
+    mMachineStates [KMachineState_TeleportingPausedVM] = tr ("Teleporting Paused VM", "MachineState");
+    mMachineStates [KMachineState_TeleportingIn] = tr ("Teleporting", "MachineState");
+    mMachineStates [KMachineState_RestoringSnapshot] = tr ("Restoring Snapshot", "MachineState");
+    mMachineStates [KMachineState_DeletingSnapshot] = tr ("Deleting Snapshot", "MachineState");
     mMachineStates [KMachineState_SettingUp] =  tr ("Setting Up", "MachineState");
 
     mSessionStates [KSessionState_Closed] =     tr ("Closed", "SessionState");
@@ -2735,20 +2684,30 @@ void VBoxGlobal::retranslateUi()
     mDeviceTypes [KDeviceType_USB] =            tr ("USB", "DeviceType");
     mDeviceTypes [KDeviceType_SharedFolder] =   tr ("Shared Folder", "DeviceType");
 
-    mStorageBuses [KStorageBus_IDE] =   tr ("IDE", "StorageBus");
-    mStorageBuses [KStorageBus_SATA] =  tr ("SATA", "StorageBus");
-    mStorageBuses [KStorageBus_SCSI] =  tr ("SCSI", "StorageBus");
+    mStorageBuses [KStorageBus_IDE] =       tr ("IDE", "StorageBus");
+    mStorageBuses [KStorageBus_SATA] =      tr ("SATA", "StorageBus");
+    mStorageBuses [KStorageBus_SCSI] =      tr ("SCSI", "StorageBus");
+    mStorageBuses [KStorageBus_Floppy] =    tr ("Floppy", "StorageBus");
 
-    mStorageBusChannels [0] =   tr ("Primary", "StorageBusChannel");
-    mStorageBusChannels [1] =   tr ("Secondary", "StorageBusChannel");
-    mStorageBusChannels [2] =   tr ("Port %1", "StorageBusChannel");
+    mStorageBusChannels [0] = tr ("Primary", "StorageBusChannel");
+    mStorageBusChannels [1] = tr ("Secondary", "StorageBusChannel");
+    mStorageBusChannels [2] = tr ("Port %1", "StorageBusChannel");
 
-    mStorageBusDevices [0] =    tr ("Master", "StorageBusDevice");
-    mStorageBusDevices [1] =    tr ("Slave", "StorageBusDevice");
+    mStorageBusDevices [0] = tr ("Master", "StorageBusDevice");
+    mStorageBusDevices [1] = tr ("Slave", "StorageBusDevice");
+    mStorageBusDevices [2] = tr ("Device %1", "StorageBusDevice");
 
-    mDiskTypes [KHardDiskType_Normal] =         tr ("Normal", "DiskType");
-    mDiskTypes [KHardDiskType_Immutable] =      tr ("Immutable", "DiskType");
-    mDiskTypes [KHardDiskType_Writethrough] =   tr ("Writethrough", "DiskType");
+    mSlotTemplates [0] = tr ("IDE Primary Master", "New Storage UI : Slot Name");
+    mSlotTemplates [1] = tr ("IDE Primary Slave", "New Storage UI : Slot Name");
+    mSlotTemplates [2] = tr ("IDE Secondary Master", "New Storage UI : Slot Name");
+    mSlotTemplates [3] = tr ("IDE Secondary Slave", "New Storage UI : Slot Name");
+    mSlotTemplates [4] = tr ("SATA Port %1", "New Storage UI : Slot Name");
+    mSlotTemplates [5] = tr ("SCSI Port %1", "New Storage UI : Slot Name");
+    mSlotTemplates [6] = tr ("Floppy Device %1", "New Storage UI : Slot Name");
+
+    mDiskTypes [KMediumType_Normal] =           tr ("Normal", "DiskType");
+    mDiskTypes [KMediumType_Immutable] =        tr ("Immutable", "DiskType");
+    mDiskTypes [KMediumType_Writethrough] =     tr ("Writethrough", "DiskType");
     mDiskTypes_Differencing =                   tr ("Differencing", "DiskType");
 
     mVRDPAuthTypes [KVRDPAuthType_Null] =       tr ("Null", "VRDPAuthType");
@@ -2797,6 +2756,10 @@ void VBoxGlobal::retranslateUi()
         tr ("Intel PRO/1000 T Server (82543GC)", "NetworkAdapterType");
     mNetworkAdapterTypes [KNetworkAdapterType_I82545EM] =
         tr ("Intel PRO/1000 MT Server (82545EM)", "NetworkAdapterType");
+#ifdef VBOX_WITH_VIRTIO
+    mNetworkAdapterTypes [KNetworkAdapterType_Virtio] =
+        tr ("Paravirtualized Network (virtio-net)", "NetworkAdapterType");
+#endif /* VBOX_WITH_VIRTIO */
 
     mNetworkAttachmentTypes [KNetworkAttachmentType_Null] =
         tr ("Not attached", "NetworkAttachmentType");
@@ -2830,6 +2793,8 @@ void VBoxGlobal::retranslateUi()
         tr ("Lsilogic", "StorageControllerType");
     mStorageControllerTypes [KStorageControllerType_BusLogic] =
         tr ("BusLogic", "StorageControllerType");
+    mStorageControllerTypes [KStorageControllerType_I82078] =
+        tr ("I82078", "StorageControllerType");
 
     mUSBDeviceStates [KUSBDeviceState_NotSupported] =
         tr ("Not supported", "USBDeviceState");
@@ -3125,6 +3090,24 @@ QString VBoxGlobal::helpFile() const
                                  .arg (name)
                                  .arg (suffix);
     return manual;
+}
+
+QIcon VBoxGlobal::iconSet (const QPixmap &aNormal,
+                           const QPixmap &aDisabled,
+                           const QPixmap &aActive)
+{
+    QIcon iconSet;
+
+    Assert (aNormal);
+        iconSet.addPixmap (aNormal, QIcon::Normal);
+
+    if (!aDisabled.isNull())
+        iconSet.addPixmap (aDisabled, QIcon::Disabled);
+
+    if (!aActive.isNull())
+        iconSet.addPixmap (aActive, QIcon::Active);
+
+    return iconSet;
 }
 
 /* static */
@@ -3707,6 +3690,16 @@ quint64 VBoxGlobal::requiredVideoMemory (CMachine *aMachine)
     quint64 needMBytes = needBits % (8 * _1M) ? needBits / (8 * _1M) + 1 :
                          needBits / (8 * _1M) /* convert to megabytes */;
 
+    if (aMachine && !aMachine->isNull())
+    {
+       QString typeId = aMachine->GetOSTypeId();
+       if (typeId.startsWith("Windows"))
+       {
+           /* Windows guests need offscreen VRAM too for graphics acceleration features. */
+           needMBytes *= 2;
+       }
+    }
+
     return needMBytes * _1M;
 }
 
@@ -3995,6 +3988,7 @@ bool VBoxGlobal::activateWindow (WId aWId, bool aSwitchDesktop /* = true */)
 
 #else
 
+    NOREF (aWId);
     NOREF (aSwitchDesktop);
     AssertFailed();
     result = false;
@@ -4147,18 +4141,18 @@ QWidget *VBoxGlobal::findWidget (QWidget *aParent, const char *aName,
 QList <QPair <QString, QString> > VBoxGlobal::HDDBackends()
 {
     CSystemProperties systemProperties = vboxGlobal().virtualBox().GetSystemProperties();
-    QVector<CHardDiskFormat> hardDiskFormats = systemProperties.GetHardDiskFormats();
+    QVector<CMediumFormat> mediumFormats = systemProperties.GetMediumFormats();
     QList< QPair<QString, QString> > backendPropList;
-    for (int i = 0; i < hardDiskFormats.size(); ++ i)
+    for (int i = 0; i < mediumFormats.size(); ++ i)
     {
         /* File extensions */
-        QVector <QString> fileExtensions = hardDiskFormats [i].GetFileExtensions();
+        QVector <QString> fileExtensions = mediumFormats [i].GetFileExtensions();
         QStringList f;
         for (int a = 0; a < fileExtensions.size(); ++ a)
             f << QString ("*.%1").arg (fileExtensions [a]);
         /* Create a pair out of the backend description and all suffix's. */
         if (!f.isEmpty())
-            backendPropList << QPair<QString, QString> (hardDiskFormats [i].GetName(), f.join(" "));
+            backendPropList << QPair<QString, QString> (mediumFormats [i].GetName(), f.join(" "));
     }
     return backendPropList;
 }
@@ -4187,6 +4181,23 @@ QString VBoxGlobal::documentsPath()
     }
 }
 
+#ifdef VBOX_WITH_VIDEOHWACCEL
+/* static */
+bool VBoxGlobal::isAcceleration2DVideoAvailable()
+{
+    return VBoxQGLOverlay::isAcceleration2DVideoAvailable();
+}
+
+/** additional video memory required for the best 2D support performance
+ *  total amount of VRAM required is thus calculated as requiredVideoMemory + required2DOffscreenVideoMemory  */
+/* static */
+quint64 VBoxGlobal::required2DOffscreenVideoMemory()
+{
+    return VBoxQGLOverlay::required2DOffscreenVideoMemory();
+}
+
+#endif
+
 // Public slots
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4199,13 +4210,78 @@ QString VBoxGlobal::documentsPath()
  */
 bool VBoxGlobal::openURL (const QString &aURL)
 {
-    if (QDesktopServices::openUrl (aURL))
-        return true;
+    /* Service event */
+    class ServiceEvent : public QEvent
+    {
+        public:
 
-    /* If we go here it means we couldn't open the URL */
-    vboxProblem().cannotOpenURL (aURL);
+            ServiceEvent (bool aResult) : QEvent (QEvent::User), mResult (aResult) {}
 
-    return false;
+            bool result() const { return mResult; }
+
+        private:
+
+            bool mResult;
+    };
+
+    /* Service-Client object */
+    class ServiceClient : public QEventLoop
+    {
+        public:
+
+            ServiceClient() : mResult (false) {}
+
+            bool result() const { return mResult; }
+
+        private:
+
+            bool event (QEvent *aEvent)
+            {
+                if (aEvent->type() == QEvent::User)
+                {
+                    ServiceEvent *pEvent = static_cast <ServiceEvent*> (aEvent);
+                    mResult = pEvent->result();
+                    pEvent->accept();
+                    quit();
+                    return true;
+                }
+                return false;
+            }
+
+            bool mResult;
+    };
+
+    /* Service-Server object */
+    class ServiceServer : public QThread
+    {
+        public:
+
+            ServiceServer (ServiceClient &aClient, const QString &sURL)
+                : mClient (aClient), mURL (sURL) {}
+
+        private:
+
+            void run()
+            {
+                QApplication::postEvent (&mClient, new ServiceEvent (QDesktopServices::openUrl (mURL)));
+            }
+
+            ServiceClient &mClient;
+            const QString &mURL;
+    };
+
+    ServiceClient client;
+    ServiceServer server (client, aURL);
+    server.start();
+    client.exec();
+    server.wait();
+
+    bool result = client.result();
+
+    if (!result)
+        vboxProblem().cannotOpenURL (aURL);
+
+    return result;
 }
 
 /**
@@ -4335,7 +4411,7 @@ bool VBoxGlobal::event (QEvent *e)
 
             if (!ev->mLast)
             {
-                if (ev->mMedium.state() == KMediaState_Inaccessible &&
+                if (ev->mMedium.state() == KMediumState_Inaccessible &&
                     !ev->mMedium.result().isOk())
                     vboxProblem().cannotGetMediaAccessibility (ev->mMedium);
                 Assert (ev->mIterator != mMediaList.end());
@@ -4494,17 +4570,11 @@ void VBoxGlobal::init()
 
     /* Load the customized language as early as possible to get possible error
      * messages translated */
-    QString languageId = gset.languageId();
-    if (!languageId.isNull())
-        loadLanguage (languageId);
+    QString sLanguageId = gset.languageId();
+    if (!sLanguageId.isNull())
+        loadLanguage (sLanguageId);
 
     retranslateUi();
-
-    /* Note: the settings conversion check must be done before anything else
-     * that may unconditionally overwrite settings files in the new format (like
-     * SetExtraData()). But after loading the proper the language. */
-    if (!checkForAutoConvertedSettings())
-        return;
 
 #ifdef VBOX_GUI_WITH_SYSTRAY
     {
@@ -4636,14 +4706,20 @@ void VBoxGlobal::init()
         {KMachineState_PoweredOff, ":/state_powered_off_16px.png"},
         {KMachineState_Saved, ":/state_saved_16px.png"},
         {KMachineState_Aborted, ":/state_aborted_16px.png"},
+        {KMachineState_Teleported, ":/state_saved_16px.png"},           /** @todo Live Migration: New icon? (not really important) */
         {KMachineState_Running, ":/state_running_16px.png"},
         {KMachineState_Paused, ":/state_paused_16px.png"},
+        {KMachineState_Teleporting, ":/state_running_16px.png"},        /** @todo Live Migration: New icon? (not really important) */
+        {KMachineState_LiveSnapshotting, ":/state_running_16px.png"},   /** @todo Live Migration: New icon? (not really important) */
         {KMachineState_Stuck, ":/state_stuck_16px.png"},
         {KMachineState_Starting, ":/state_running_16px.png"}, /// @todo (dmik) separate icon?
         {KMachineState_Stopping, ":/state_running_16px.png"}, /// @todo (dmik) separate icon?
         {KMachineState_Saving, ":/state_saving_16px.png"},
         {KMachineState_Restoring, ":/state_restoring_16px.png"},
-        {KMachineState_Discarding, ":/state_discarding_16px.png"},
+        {KMachineState_TeleportingPausedVM, ":/state_saving_16px.png"}, /** @todo Live Migration: New icon? (not really important) */
+        {KMachineState_TeleportingIn, ":/state_restoring_16px.png"},    /** @todo Live Migration: New icon? (not really important) */
+        {KMachineState_RestoringSnapshot, ":/state_discarding_16px.png"},
+        {KMachineState_DeletingSnapshot, ":/state_discarding_16px.png"},
         {KMachineState_SettingUp, ":/settings_16px.png"},
     };
     for (uint n = 0; n < SIZEOF_ARRAY (kVMStateIcons); n ++)
@@ -4657,14 +4733,20 @@ void VBoxGlobal::init()
     mVMStateColors.insert (KMachineState_PoweredOff,    new QColor (Qt::gray));
     mVMStateColors.insert (KMachineState_Saved,         new QColor (Qt::yellow));
     mVMStateColors.insert (KMachineState_Aborted,       new QColor (Qt::darkRed));
+    mVMStateColors.insert (KMachineState_Teleported,    new QColor (Qt::red));
     mVMStateColors.insert (KMachineState_Running,       new QColor (Qt::green));
     mVMStateColors.insert (KMachineState_Paused,        new QColor (Qt::darkGreen));
     mVMStateColors.insert (KMachineState_Stuck,         new QColor (Qt::darkMagenta));
+    mVMStateColors.insert (KMachineState_Teleporting,   new QColor (Qt::blue));
+    mVMStateColors.insert (KMachineState_LiveSnapshotting, new QColor (Qt::green));
     mVMStateColors.insert (KMachineState_Starting,      new QColor (Qt::green));
     mVMStateColors.insert (KMachineState_Stopping,      new QColor (Qt::green));
     mVMStateColors.insert (KMachineState_Saving,        new QColor (Qt::green));
     mVMStateColors.insert (KMachineState_Restoring,     new QColor (Qt::green));
-    mVMStateColors.insert (KMachineState_Discarding,    new QColor (Qt::green));
+    mVMStateColors.insert (KMachineState_TeleportingPausedVM, new QColor (Qt::blue));
+    mVMStateColors.insert (KMachineState_TeleportingIn, new QColor (Qt::blue));
+    mVMStateColors.insert (KMachineState_RestoringSnapshot, new QColor (Qt::green));
+    mVMStateColors.insert (KMachineState_DeletingSnapshot, new QColor (Qt::green));
     mVMStateColors.insert (KMachineState_SettingUp,     new QColor (Qt::green));
 
     /* online/offline snapshot icons */
@@ -4794,12 +4876,12 @@ void VBoxGlobal::init()
         mDbgEnabled = mDbgAutoShow =  mDbgAutoShowCommandLine = mDbgAutoShowStatistics = false;
     if (mDbgEnabled)
     {
-        int rc = SUPR3HardenedLdrLoadAppPriv("VBoxDbg", &mhVBoxDbg);
-        if (RT_FAILURE(rc))
+        int vrc = SUPR3HardenedLdrLoadAppPriv("VBoxDbg", &mhVBoxDbg);
+        if (RT_FAILURE(vrc))
         {
             mhVBoxDbg = NIL_RTLDRMOD;
             mDbgAutoShow =  mDbgAutoShowCommandLine = mDbgAutoShowStatistics = false;
-            LogRel(("Failed to load VBoxDbg, rc=%Rrc\n", rc));
+            LogRel(("Failed to load VBoxDbg, rc=%Rrc\n", vrc));
         }
     }
 #endif
@@ -4927,7 +5009,7 @@ void VBoxUSBMenu::processAboutToShow()
     bool isUSBEmpty = host.GetUSBDevices().size() == 0;
     if (isUSBEmpty)
     {
-        QAction *action = addAction (tr ("<no available devices>", "USB devices"));
+        QAction *action = addAction (tr ("<no devices available>", "USB devices"));
         action->setEnabled (false);
         action->setToolTip (tr ("No supported devices connected to the host PC",
                                 "USB device tooltip"));

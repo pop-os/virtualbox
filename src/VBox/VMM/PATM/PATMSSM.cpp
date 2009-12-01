@@ -1,4 +1,4 @@
-/* $Id: PATMSSM.cpp $ */
+/* $Id: PATMSSM.cpp 23817 2009-10-16 11:48:31Z vboxsync $ */
 /** @file
  * PATMSSM - Dynamic Guest OS Patching Manager; Save and load state
  *
@@ -53,10 +53,234 @@
 #include <VBox/dis.h>
 #include <VBox/disopcode.h>
 
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
 #define PATM_SUBTRACT_PTR(a, b) *(uintptr_t *)&(a) = (uintptr_t)(a) - (uintptr_t)(b)
 #define PATM_ADD_PTR(a, b)      *(uintptr_t *)&(a) = (uintptr_t)(a) + (uintptr_t)(b)
 
+/*******************************************************************************
+*   Internal Functions                                                         *
+*******************************************************************************/
 static void patmCorrectFixup(PVM pVM, unsigned ulSSMVersion, PATM &patmInfo, PPATCHINFO pPatch, PRELOCREC pRec, int32_t offset, RTRCPTR *pFixup);
+
+/*******************************************************************************
+*   Global Variables                                                           *
+*******************************************************************************/
+/**
+ * SSM descriptor table for the PATM structure.
+ */
+static SSMFIELD const g_aPatmFields[] =
+{
+    /** @todo there are a bunch more fields here which can be marked as ignored. */
+    SSMFIELD_ENTRY_IGNORE(          PATM, offVM),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pPatchMemGC),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, pPatchMemHC),
+    SSMFIELD_ENTRY(                 PATM, cbPatchMem),
+    SSMFIELD_ENTRY(                 PATM, offPatchMem),
+    SSMFIELD_ENTRY(                 PATM, fOutOfMemory),
+    SSMFIELD_ENTRY_PAD_HC_AUTO(     3, 3),
+    SSMFIELD_ENTRY(                 PATM, deltaReloc),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, pGCStateHC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pGCStateGC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pGCStackGC),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, pGCStackHC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pCPUMCtxGC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pStatsGC),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, pStatsHC),
+    SSMFIELD_ENTRY(                 PATM, uCurrentPatchIdx),
+    SSMFIELD_ENTRY(                 PATM, ulCallDepth),
+    SSMFIELD_ENTRY(                 PATM, cPageRecords),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pPatchedInstrGCLowest),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pPatchedInstrGCHighest),
+    SSMFIELD_ENTRY_RCPTR(           PATM, PatchLookupTreeGC),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, PatchLookupTreeHC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pfnHelperCallGC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pfnHelperRetGC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pfnHelperJumpGC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pfnHelperIretGC),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, pGlobalPatchRec),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pfnSysEnterGC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pfnSysEnterPatchGC),
+    SSMFIELD_ENTRY(                 PATM, uSysEnterPatchIdx),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pvFaultMonitor),
+    SSMFIELD_ENTRY_GCPHYS(          PATM, mmio.GCPhys),
+    SSMFIELD_ENTRY_RCPTR(           PATM, mmio.pCachedData),
+    SSMFIELD_ENTRY_IGN_RCPTR(       PATM, mmio.Alignment0),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, savedstate.pSSM),
+    SSMFIELD_ENTRY(                 PATM, savedstate.cPatches),
+    SSMFIELD_ENTRY_PAD_HC64(        PATM, savedstate.Alignment0, sizeof(uint32_t)),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatNrOpcodeRead),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatDisabled),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatUnusable),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatEnabled),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInstalled),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInstalledFunctionPatches),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInstalledTrampoline),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInstalledJump),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInt3Callable),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInt3BlockRun),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatOverwritten),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatFixedConflicts),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatFlushed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPageBoundaryCrossed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatMonitored),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatHandleTrap),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatSwitchBack),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatSwitchBackFail),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPATMMemoryUsed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatDuplicateREQSuccess),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatDuplicateREQFailed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatDuplicateUseExisting),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatFunctionFound),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatFunctionNotFound),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchWrite),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchWriteDetect),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatDirty),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPushTrap),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchWriteInterpreted),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchWriteInterpretedFailed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatSysEnter),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatSysExit),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatEmulIret),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatEmulIretFailed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInstrDirty),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInstrDirtyGood),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInstrDirtyBad),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchPageInserted),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchPageRemoved),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchRefreshSuccess),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchRefreshFailed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatGenRet),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatGenRetReused),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatGenJump),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatGenCall),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatGenPopf),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatCheckPendingIRQ),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatFunctionLookupReplace),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatFunctionLookupInsert),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatU32FunctionMaxSlotsUsed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, Alignment0),
+    SSMFIELD_ENTRY_TERM()
+};
+
+/**
+ * SSM descriptor table for the PATMGCSTATE structure.
+ */
+static SSMFIELD const g_aPatmGCStateFields[] =
+{
+    SSMFIELD_ENTRY(                 PATMGCSTATE, uVMFlags),
+    SSMFIELD_ENTRY(                 PATMGCSTATE, uPendingAction),
+    SSMFIELD_ENTRY(                 PATMGCSTATE, uPatchCalls),
+    SSMFIELD_ENTRY(                 PATMGCSTATE, uScratch),
+    SSMFIELD_ENTRY(                 PATMGCSTATE, uIretEFlags),
+    SSMFIELD_ENTRY(                 PATMGCSTATE, uIretCS),
+    SSMFIELD_ENTRY(                 PATMGCSTATE, uIretEIP),
+    SSMFIELD_ENTRY(                 PATMGCSTATE, Psp),
+    SSMFIELD_ENTRY(                 PATMGCSTATE, fPIF),
+    SSMFIELD_ENTRY_RCPTR(           PATMGCSTATE, GCPtrInhibitInterrupts),
+    SSMFIELD_ENTRY_RCPTR(           PATMGCSTATE, GCCallPatchTargetAddr),
+    SSMFIELD_ENTRY_RCPTR(           PATMGCSTATE, GCCallReturnAddr),
+    SSMFIELD_ENTRY(                 PATMGCSTATE, Restore.uEAX),
+    SSMFIELD_ENTRY(                 PATMGCSTATE, Restore.uECX),
+    SSMFIELD_ENTRY(                 PATMGCSTATE, Restore.uEDI),
+    SSMFIELD_ENTRY(                 PATMGCSTATE, Restore.eFlags),
+    SSMFIELD_ENTRY(                 PATMGCSTATE, Restore.uFlags),
+    SSMFIELD_ENTRY_TERM()
+};
+
+/**
+ * SSM descriptor table for the PATMPATCHREC structure.
+ */
+static SSMFIELD const g_aPatmPatchRecFields[] =
+{
+    SSMFIELD_ENTRY(                 PATMPATCHREC, Core.Key),
+    SSMFIELD_ENTRY_IGNORE(          PATMPATCHREC, Core.pLeft),
+    SSMFIELD_ENTRY_IGNORE(          PATMPATCHREC, Core.pRight),
+    SSMFIELD_ENTRY_IGNORE(          PATMPATCHREC, Core.uchHeight),
+    SSMFIELD_ENTRY_PAD_HC_AUTO(     3, 3),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, CoreOffset.Key),
+    SSMFIELD_ENTRY_IGNORE(          PATMPATCHREC, CoreOffset.pLeft),
+    SSMFIELD_ENTRY_IGNORE(          PATMPATCHREC, CoreOffset.pRight),
+    SSMFIELD_ENTRY_IGNORE(          PATMPATCHREC, CoreOffset.uchHeight),
+    SSMFIELD_ENTRY_PAD_HC_AUTO(     3, 3),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.uState),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.uOldState),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.uOpMode),
+    SSMFIELD_ENTRY_RCPTR(           PATMPATCHREC, patch.pPrivInstrGC),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.pPrivInstrHC),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.aPrivInstr),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.cbPrivInstr),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.opcode),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.cbPatchJump),
+    SSMFIELD_ENTRY_RCPTR(           PATMPATCHREC, patch.pPatchJumpDestGC),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.pPatchBlockOffset),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.cbPatchBlockSize),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.uCurPatchOffset),
+    SSMFIELD_ENTRY_PAD_HC64(        PATMPATCHREC, patch.Alignment0, sizeof(uint32_t)),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.flags),
+    SSMFIELD_ENTRY_RCPTR(           PATMPATCHREC, patch.pInstrGCLowest),
+    SSMFIELD_ENTRY_RCPTR(           PATMPATCHREC, patch.pInstrGCHighest),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.FixupTree),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.nrFixups),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.nrJumpRecs), // should be zero?
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.JumpTree),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.Patch2GuestAddrTree),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.Guest2PatchAddrTree),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.nrPatch2GuestRecs),
+    SSMFIELD_ENTRY_PAD_HC64(        PATMPATCHREC, patch.Alignment1, sizeof(uint32_t)),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.cacheRec.pPatchLocStartHC), // saved as zero
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.cacheRec.pPatchLocEndHC),   // ditto
+    SSMFIELD_ENTRY_IGN_RCPTR(       PATMPATCHREC, patch.cacheRec.pGuestLoc),        // ditto
+    SSMFIELD_ENTRY_IGNORE(          PATMPATCHREC, patch.cacheRec.opsize),           // ditto
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.pTempInfo),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.cCodeWrites),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.cTraps),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.cInvalidWrites),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.uPatchIdx),
+    SSMFIELD_ENTRY(                 PATMPATCHREC, patch.bDirtyOpcode),
+    SSMFIELD_ENTRY_IGNORE(          PATMPATCHREC, patch.Alignment2),
+    SSMFIELD_ENTRY_TERM()
+};
+
+/**
+ * SSM descriptor table for the RELOCREC structure.
+ */
+static SSMFIELD const g_aPatmRelocRec[] =
+{
+    SSMFIELD_ENTRY_HCPTR_HACK_U32(  RELOCREC, Core.Key),        // Used to store the relocation type
+    SSMFIELD_ENTRY_IGN_HCPTR(       RELOCREC, Core.pLeft),
+    SSMFIELD_ENTRY_IGN_HCPTR(       RELOCREC, Core.pRight),
+    SSMFIELD_ENTRY_IGNORE(          RELOCREC, Core.uchHeight),
+    SSMFIELD_ENTRY_PAD_HC_AUTO(     3, 7),
+    SSMFIELD_ENTRY(                 RELOCREC, uType),
+    SSMFIELD_ENTRY_PAD_HC_AUTO(     0, 4),
+    SSMFIELD_ENTRY_HCPTR_HACK_U32(  RELOCREC, pRelocPos),       // converted to a patch member offset.
+    SSMFIELD_ENTRY_RCPTR(           RELOCREC, pSource),
+    SSMFIELD_ENTRY_RCPTR(           RELOCREC, pDest),
+    SSMFIELD_ENTRY_TERM()
+};
+
+/**
+ * SSM descriptor table for the RECPATCHTOGUEST structure.
+ */
+static SSMFIELD const g_aPatmRecPatchToGuest[] =
+{
+    SSMFIELD_ENTRY(                 RECPATCHTOGUEST, Core.Key),
+    SSMFIELD_ENTRY_PAD_HC_AUTO(     0, 4),
+    SSMFIELD_ENTRY_IGN_HCPTR(       RECPATCHTOGUEST, Core.pLeft),
+    SSMFIELD_ENTRY_IGN_HCPTR(       RECPATCHTOGUEST, Core.pRight),
+    SSMFIELD_ENTRY_IGNORE(          RECPATCHTOGUEST, Core.uchHeight),
+    SSMFIELD_ENTRY_PAD_HC_AUTO(     3, 7),
+    SSMFIELD_ENTRY_RCPTR(           RECPATCHTOGUEST, pOrgInstrGC),
+    SSMFIELD_ENTRY(                 RECPATCHTOGUEST, enmType),
+    SSMFIELD_ENTRY(                 RECPATCHTOGUEST, fDirty),
+    SSMFIELD_ENTRY(                 RECPATCHTOGUEST, fJumpTarget),
+    SSMFIELD_ENTRY(                 RECPATCHTOGUEST, u8DirtyOpcode),
+    SSMFIELD_ENTRY_PAD_HC_AUTO(     1, 5),
+    SSMFIELD_ENTRY_TERM()
+};
+
 
 #ifdef VBOX_STRICT
 /**
@@ -152,16 +376,16 @@ static DECLCALLBACK(int) patmSaveFixupRecords(PAVLPVNODECORE pNode, void *pVM1)
         /* Core.Key abused to store the fixup type. */
         if (*pFixup == pVM->pVMRC + RT_OFFSETOF(VM, aCpus[0].fLocalForcedActions))
             rec.Core.Key = (AVLPVKEY)PATM_FIXUP_CPU_FF_ACTION;
-        else 
+        else
         if (*pFixup == CPUMR3GetGuestCpuIdDefRCPtr(pVM))
             rec.Core.Key = (AVLPVKEY)PATM_FIXUP_CPUID_DEFAULT;
-        else 
+        else
         if (*pFixup == CPUMR3GetGuestCpuIdStdRCPtr(pVM))
             rec.Core.Key = (AVLPVKEY)PATM_FIXUP_CPUID_STANDARD;
-        else 
+        else
         if (*pFixup == CPUMR3GetGuestCpuIdExtRCPtr(pVM))
             rec.Core.Key = (AVLPVKEY)PATM_FIXUP_CPUID_EXTENDED;
-        else 
+        else
         if (*pFixup == CPUMR3GetGuestCpuIdCentaurRCPtr(pVM))
             rec.Core.Key = (AVLPVKEY)PATM_FIXUP_CPUID_CENTAUR;
     }
@@ -235,7 +459,7 @@ static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
  * @param   pVM             VM Handle.
  * @param   pSSM            SSM operation handle.
  */
-DECLCALLBACK(int) patmr3Save(PVM pVM, PSSMHANDLE pSSM)
+DECLCALLBACK(int) patmR3Save(PVM pVM, PSSMHANDLE pSSM)
 {
     PATM patmInfo = pVM->patm.s;
     int  rc;
@@ -298,25 +522,27 @@ DECLCALLBACK(int) patmr3Save(PVM pVM, PSSMHANDLE pSSM)
  * @returns VBox status code.
  * @param   pVM             VM Handle.
  * @param   pSSM            SSM operation handle.
- * @param   u32Version      Data layout version.
+ * @param   uVersion        Data layout version.
+ * @param   uPass           The data pass.
  */
-DECLCALLBACK(int) patmr3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
+DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
     PATM patmInfo;
     int  rc;
 
-    if (    u32Version != PATM_SSM_VERSION
-        &&  u32Version != PATM_SSM_VERSION_FIXUP_HACK
-        &&  u32Version != PATM_SSM_VERSION_VER16
+    if (    uVersion != PATM_SSM_VERSION
+        &&  uVersion != PATM_SSM_VERSION_FIXUP_HACK
+        &&  uVersion != PATM_SSM_VERSION_VER16
 #ifdef PATM_WITH_NEW_SSM
-        &&  u32Version != PATM_SSM_VERSION_GETPUTMEM)
+        &&  uVersion != PATM_SSM_VERSION_GETPUTMEM)
 #else
        )
 #endif
     {
-        AssertMsgFailed(("patmR3Load: Invalid version u32Version=%d!\n", u32Version));
+        AssertMsgFailed(("patmR3Load: Invalid version uVersion=%d!\n", uVersion));
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     }
+    Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
 
     pVM->patm.s.savedstate.pSSM = pSSM;
 
@@ -324,11 +550,17 @@ DECLCALLBACK(int) patmr3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
      * Restore PATM structure
      */
 #ifdef PATM_WITH_NEW_SSM
-    if (u32Version == PATM_SSM_VERSION_GETPUTMEM)
+    if (uVersion == PATM_SSM_VERSION_GETPUTMEM)
     {
 #endif
+#if 0
         rc = SSMR3GetMem(pSSM, &patmInfo, sizeof(patmInfo));
+#else
+        RT_ZERO(patmInfo);
+        rc = SSMR3GetStructEx(pSSM, &patmInfo, sizeof(patmInfo), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmFields[0], NULL);
+#endif
         AssertRCReturn(rc, rc);
+
 #ifdef PATM_WITH_NEW_SSM
     }
     else
@@ -477,10 +709,15 @@ DECLCALLBACK(int) patmr3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
      * Restore GC state memory
      */
 #ifdef PATM_WITH_NEW_SSM
-    if (u32Version == PATM_SSM_VERSION_GETPUTMEM)
+    if (uVersion == PATM_SSM_VERSION_GETPUTMEM)
     {
 #endif
+#if 0
         rc = SSMR3GetMem(pSSM, pVM->patm.s.pGCStateHC, sizeof(PATMGCSTATE));
+#else
+        RT_BZERO(pVM->patm.s.pGCStateHC, sizeof(PATMGCSTATE));
+        rc = SSMR3GetStructEx(pSSM, pVM->patm.s.pGCStateHC, sizeof(PATMGCSTATE), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmGCStateFields[0], NULL);
+#endif
         AssertRCReturn(rc, rc);
 #ifdef PATM_WITH_NEW_SSM
     }
@@ -569,7 +806,12 @@ DECLCALLBACK(int) patmr3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
     {
         PATMPATCHREC patch, *pPatchRec;
 
+#if 0
         rc = SSMR3GetMem(pSSM, &patch, sizeof(patch));
+#else
+        RT_ZERO(patch);
+        rc = SSMR3GetStructEx(pSSM, &patch, sizeof(patch), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmPatchRecFields[0], NULL);
+#endif
         AssertRCReturn(rc, rc);
 
         Assert(!(patch.patch.flags & PATMFL_GLOBAL_FUNCTIONS));
@@ -618,7 +860,12 @@ DECLCALLBACK(int) patmr3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
             int32_t offset;
             RTRCPTR *pFixup;
 
+#if 0
             rc = SSMR3GetMem(pSSM, &rec, sizeof(rec));
+#else
+            RT_ZERO(rec);
+            rc = SSMR3GetStructEx(pSSM, &rec, sizeof(rec), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmRelocRec[0], NULL);
+#endif
             AssertRCReturn(rc, rc);
 
             /* rec.pRelocPos now contains the relative position inside the hypervisor area. */
@@ -643,7 +890,7 @@ DECLCALLBACK(int) patmr3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
                     pFixup        = (RTRCPTR *)rec.pRelocPos;
                 }
 
-                patmCorrectFixup(pVM, u32Version, patmInfo, &pPatchRec->patch, &rec, offset, pFixup);
+                patmCorrectFixup(pVM, uVersion, patmInfo, &pPatchRec->patch, &rec, offset, pFixup);
             }
 
             rc = patmPatchAddReloc32(pVM, &pPatchRec->patch, rec.pRelocPos, rec.uType, rec.pSource, rec.pDest);
@@ -663,7 +910,13 @@ DECLCALLBACK(int) patmr3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
             pPatchRec->patch.nrPatch2GuestRecs = 0;    /* incremented by patmr3AddP2GLookupRecord */
             for (uint32_t i=0;i<nrPatch2GuestRecs;i++)
             {
+#if 0
                 rc = SSMR3GetMem(pSSM, &rec, sizeof(rec));
+#else
+                RT_ZERO(rec);
+                rc = SSMR3GetStructEx(pSSM, &rec, sizeof(rec), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmRecPatchToGuest[0], NULL);
+#endif
+
                 AssertRCReturn(rc, rc);
 
                 patmr3AddP2GLookupRecord(pVM, &pPatchRec->patch, (uintptr_t)rec.Core.Key + pVM->patm.s.pPatchMemHC, rec.pOrgInstrGC, rec.enmType, rec.fDirty);
@@ -718,7 +971,7 @@ DECLCALLBACK(int) patmr3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
         pFixup = (RTRCPTR *)pRec->pRelocPos;
 
         /* Correct fixups that refer to PATM structures in the hypervisor region (their addresses might have changed). */
-        patmCorrectFixup(pVM, u32Version, patmInfo, &pVM->patm.s.pGlobalPatchRec->patch, pRec, offset, pFixup);
+        patmCorrectFixup(pVM, uVersion, patmInfo, &pVM->patm.s.pGlobalPatchRec->patch, pRec, offset, pFixup);
     }
 
 #ifdef VBOX_WITH_STATISTICS

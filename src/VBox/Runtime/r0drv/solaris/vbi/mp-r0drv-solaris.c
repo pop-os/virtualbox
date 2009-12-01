@@ -1,4 +1,4 @@
-/* $Id: mp-r0drv-solaris.c $ */
+/* $Id: mp-r0drv-solaris.c 24386 2009-11-05 14:17:10Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Ring-0 Driver, Solaris.
  */
@@ -32,13 +32,15 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include "the-solaris-kernel.h"
-
+#include "../the-solaris-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/mp.h>
-#include <iprt/err.h>
+#include <iprt/cpuset.h>
+
 #include <iprt/asm.h>
-#include "internal-r0drv-solaris.h"
+#include <iprt/err.h>
 #include "r0drv/mp-r0drv.h"
+
 
 
 RTDECL(bool) RTMpIsCpuWorkPending(void)
@@ -183,6 +185,7 @@ static int rtmpOnAllSolarisWrapper(void *uArg, void *uIgnored1, void *uIgnored2)
 RTDECL(int) RTMpOnAll(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 {
     RTMPARGS Args;
+    RT_ASSERT_INTS_ON();
 
     Args.pfnWorker = pfnWorker;
     Args.pvUser1 = pvUser1;
@@ -226,6 +229,7 @@ RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 {
     int rc;
     RTMPARGS Args;
+    RT_ASSERT_INTS_ON();
 
     /* The caller is supposed to have disabled preemption, but take no chances. */
     vbi_preempt_disable();
@@ -234,7 +238,7 @@ RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
     Args.pvUser1 = pvUser1;
     Args.pvUser2 = pvUser2;
     Args.idCpu = RTMpCpuId();
-    Args.cHits = 0; 
+    Args.cHits = 0;
 
     vbi_execute_on_others(rtmpOnOthersSolarisWrapper, &Args);
 
@@ -272,6 +276,7 @@ RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1
 {
     int rc;
     RTMPARGS Args;
+    RT_ASSERT_INTS_ON();
 
     if (idCpu >= vbi_cpu_count())
         return VERR_CPU_NOT_FOUND;

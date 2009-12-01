@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 24667 2009-11-15 12:55:24Z vboxsync $
 ## @file
 # Sub-Makefile for XPCOM.
 #
@@ -246,17 +246,19 @@ endif # End of ugly stuff.
 TEMPLATE_XPCOMBLDPROG_ORDERDEPS         = $(foreach hdrinst, $(filter %-HEADERS, $(INSTALLS)), $(TARGET_$(hdrinst)))
 
 
-#
-# Template for building VBoxPhython against the Mac OS X 10.5 SDK.
-# ASSUMES that the SDK bits are in the .darwin properties we're overriding below.
-#
-TEMPLATE_XPCOMOSX104                    = XPCOM libraries (shared) built against the Mac OS X 10.4 SDK
-TEMPLATE_XPCOMOSX104_EXTENDS            = XPCOM
-TEMPLATE_XPCOMOSX104_CXXFLAGS.darwin    = $(filter-out $(VBOX_DARWIN_DEF_SDK_CXXFLAGS),$(TEMPLATE_XPCOM_CXXFLAGS.darwin)) $(VBOX_DARWIN_DEF_SDK_10_4_CXXFLAGS)
-TEMPLATE_XPCOMOSX104_CFLAGS.darwin      = $(filter-out $(VBOX_DARWIN_DEF_SDK_CFLAGS),$(TEMPLATE_XPCOM_CFLAGS.darwin)) $(VBOX_DARWIN_DEF_SDK_10_4_CFLAGS)
-TEMPLATE_XPCOMOSX104_LDFLAGS.darwin     = $(filter-out $(VBOX_DARWIN_DEF_SDK_LDFLAGS),$(TEMPLATE_XPCOM_LDFLAGS.darwin)) $(VBOX_DARWIN_DEF_SDK_10_4_LDFLAGS)
-TEMPLATE_XPCOMOSX104_DEFS.darwin        = $(filter-out $(VBOX_DARWIN_DEF_SDK_DEFS),$(TEMPLATE_XPCOM_DEFS.darwin)) $(VBOX_DARWIN_DEF_SDK_10_4_DEFS)
-TEMPLATE_XPCOMOSX104_INCS.darwin        = $(VBOX_PATH_MACOSX_SDK_10_4)/Developer/Headers/FlatCarbon
+ifeq ($(VBOX_DEF_MACOSX_VERSION_MIN),10.4)
+ #
+ # Template for building VBoxPhython against the Mac OS X 10.4 SDK.
+ # ASSUMES that the SDK bits are in the .darwin properties we're overriding below.
+ #
+ TEMPLATE_XPCOMOSX104                    = XPCOM libraries (shared) built against the Mac OS X 10.4 SDK
+ TEMPLATE_XPCOMOSX104_EXTENDS            = XPCOM
+ TEMPLATE_XPCOMOSX104_CXXFLAGS.darwin    = $(filter-out $(VBOX_DARWIN_DEF_SDK_CXXFLAGS),$(TEMPLATE_XPCOM_CXXFLAGS.darwin)) $(VBOX_DARWIN_DEF_SDK_10_4_CXXFLAGS)
+ TEMPLATE_XPCOMOSX104_CFLAGS.darwin      = $(filter-out $(VBOX_DARWIN_DEF_SDK_CFLAGS),$(TEMPLATE_XPCOM_CFLAGS.darwin)) $(VBOX_DARWIN_DEF_SDK_10_4_CFLAGS)
+ TEMPLATE_XPCOMOSX104_LDFLAGS.darwin     = $(filter-out $(VBOX_DARWIN_DEF_SDK_LDFLAGS),$(TEMPLATE_XPCOM_LDFLAGS.darwin)) $(VBOX_DARWIN_DEF_SDK_10_4_LDFLAGS)
+ TEMPLATE_XPCOMOSX104_DEFS.darwin        = $(filter-out $(VBOX_DARWIN_DEF_SDK_DEFS),$(TEMPLATE_XPCOM_DEFS.darwin)) $(VBOX_DARWIN_DEF_SDK_10_4_DEFS)
+ TEMPLATE_XPCOMOSX104_INCS.darwin        = $(VBOX_PATH_MACOSX_SDK_10_4)/Developer/Headers/FlatCarbon
+endif
 
 #
 # Template for building VBoxPhython against the Mac OS X 10.5 SDK.
@@ -1423,16 +1425,13 @@ else
  # Python Client Module - the C++/XPCOM bits.
  VBoxPython_TEMPLATE = XPCOM
  VBoxPython_DEFS = _IMPL_NS_COM _IMPL_NS_BASE EXPORT_XPTI_API EXPORT_XPT_API \
-                   VBOX_PYXPCOM VBOX_WITH_XPCOM
+ 	VBOX_PYXPCOM VBOX_WITH_XPCOM
  VBoxPython_DEFS.darwin = VBOX_PYXPCOM_VERSIONED
- VBoxPython_NAME.darwin = VBoxPython2_3
- VBoxPython_NAME.darwin.amd64 = VBoxPython2_6
+ VBoxPython_NAME.darwin = VBoxPython2_$(translate $(substr $(VBOX_DEF_MACOSX_VERSION_MIN),4),456,356)
  ifeq ($(KBUILD_TARGET),darwin)
   ## @todo kBuild - this ain't working: VBoxPython_DLLSUFF.darwin = .so
   VBoxPython_DLLSUFF = .so
  endif
- VBoxPython_CFLAGS.darwin   = $(VBOX_PYTHON_FRAMEWORK)
- VBoxPython_CXXFLAGS.darwin = $(VBOX_PYTHON_FRAMEWORK)
  VBoxPython_LDFLAGS.darwin  = $(VBOX_PYTHON_FRAMEWORK)
  VBoxPython_INCS = \
  	python/src \
@@ -1465,24 +1464,43 @@ else
  	$(PATH_BIN)/VBoxXPCOM$(VBOX_SUFF_DLL) \
  	$(VBOX_LIB_PYTHON)
 
- if !defined(VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_5) && "$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)" == "darwin.x86"
- # Same VBoxPython except built against the Mac OS X 10.5 SDK.
- DLLS += VBoxPython2_5
- VBoxPython2_5_EXTENDS = VBoxPython
- VBoxPython2_5_TEMPLATE = XPCOMOSX105
- VBoxPython2_5_NAME.darwin = VBoxPython2_5
- VBoxPython2_5_INCS = \
- 	python/src \
- 	$(VBOX_PATH_MACOSX_SDK_10_5)/System/Library/Frameworks/Python.framework/Headers
+ if  !defined(VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_5) \
+  && "$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)" == "darwin.x86" \
+  && "$(VBOX_DEF_MACOSX_VERSION_MIN)" != "10.5"
+  # Same as VBoxPython except built against the Mac OS X 10.5 SDK.
+  DLLS += VBoxPython2_5
+  VBoxPython2_5_EXTENDS = VBoxPython
+  VBoxPython2_5_TEMPLATE = XPCOMOSX105
+  VBoxPython2_5_NAME.darwin = VBoxPython2_5
+  VBoxPython2_5_INCS = \
+  	python/src \
+  	$(VBOX_PATH_MACOSX_SDK_10_5)/System/Library/Frameworks/Python.framework/Headers
  endif
 
- if !defined(VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_6) && "$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)" == "darwin.x86"
- # Same VBoxPython except built against the Mac OS X 10.6 SDK.
- DLLS += VBoxPython2_6
- VBoxPython2_6_EXTENDS = VBoxPython
- VBoxPython2_6_TEMPLATE = XPCOMOSX106
- VBoxPython2_6_NAME.darwin = VBoxPython2_6
- VBoxPython2_6_INCS = \
+ if defined(VBOX_WITH_VBOXPYTHON25_FOR_SOLARIS) && "$(KBUILD_TARGET)" == "solaris"
+  # Same as VBoxPython except built against the newer python version.
+  DLLS += VBoxPython2_5
+  VBoxPython2_5_EXTENDS = VBoxPython
+  VBoxPython2_5_TEMPLATE = XPCOM
+  VBoxPython2_5_NAME = VBoxPython2_5
+  VBoxPython2_5_INCS = \
+  	python/src \
+  	/usr/include/python2.5
+  VBoxPython2_5_LIBS = \
+  	$(PATH_LIB)/VBoxCOM$(VBOX_SUFF_LIB) \
+  	$(PATH_BIN)/VBoxXPCOM$(VBOX_SUFF_DLL) \
+  	/usr/lib/$(VBOX_TMP)libpython2.5$(SUFF_DLL)
+ endif
+
+ if !defined(VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_6) \
+  && "$(KBUILD_TARGET)" == "darwin" \
+  && "$(VBOX_DEF_MACOSX_VERSION_MIN)" != "10.6"
+  # Same as VBoxPython except built against the Mac OS X 10.6 SDK.
+  DLLS += VBoxPython2_6
+  VBoxPython2_6_EXTENDS = VBoxPython
+  VBoxPython2_6_TEMPLATE = XPCOMOSX106
+  VBoxPython2_6_NAME.darwin = VBoxPython2_6
+  VBoxPython2_6_INCS = \
  	python/src \
  	$(VBOX_PATH_MACOSX_SDK_10_6)/System/Library/Frameworks/Python.framework/Headers
  endif
@@ -1504,7 +1522,7 @@ else
  	python/server/factory.py=>server/factory.py \
  	python/server/loader.py=>server/loader.py \
  	python/server/module.py=>server/module.py \
-    python/server/policy.py=>server/policy.py
+ 	python/server/policy.py=>server/policy.py
 
 endif # !VBOX_WITH_MULTIVERSION_PYTHON
 endif # VBOX_WITH_PYTHON

@@ -115,6 +115,7 @@ public:
 #ifndef VBOX_WITH_XPCOM
         refcnt = 0;
 #endif
+        mLastVRDPPort = -1;
     }
 
     virtual ~ConsoleCallback() {}
@@ -133,24 +134,8 @@ public:
             delete this;
         return cnt;
     }
-    STDMETHOD(QueryInterface) (REFIID riid , void **ppObj)
-    {
-        if (riid == IID_IUnknown)
-        {
-            *ppObj = this;
-            AddRef();
-            return S_OK;
-        }
-        if (riid == IID_IConsoleCallback)
-        {
-            *ppObj = this;
-            AddRef();
-            return S_OK;
-        }
-        *ppObj = NULL;
-        return E_NOINTERFACE;
-    }
 #endif
+    VBOX_SCRIPTABLE_DISPATCH_IMPL(IConsoleCallback)
 
     STDMETHOD(OnMousePointerShapeChange) (BOOL visible, BOOL alpha, ULONG xHot, ULONG yHot,
                                           ULONG width, ULONG height, BYTE *shape)
@@ -167,7 +152,7 @@ public:
             gConsole->COMGETTER(Mouse)(mouse.asOutParam());
             if (mouse)
             {
-                mouse->PutMouseEventAbsolute(-1, -1, 0, 0);
+                mouse->PutMouseEventAbsolute(-1, -1, 0, 0 /* Horizontal wheel */, 0);
             }
         }
         return S_OK;
@@ -194,16 +179,6 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(OnDVDDriveChange)()
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnFloppyDriveChange)()
-    {
-        return S_OK;
-    }
-
     STDMETHOD(OnNetworkAdapterChange) (INetworkAdapter *aNetworkAdapter)
     {
         return S_OK;
@@ -224,12 +199,45 @@ public:
         return S_OK;
     }
 
+    STDMETHOD(OnRemoteDisplayInfoChange)()
+    {
+#ifdef VBOX_WITH_VRDP
+        if (gConsole)
+        {
+            ComPtr<IRemoteDisplayInfo> info;
+            gConsole->COMGETTER(RemoteDisplayInfo)(info.asOutParam());
+            if (info)
+            {
+                LONG port;
+                info->COMGETTER(Port)(&port);
+                if (port != mLastVRDPPort)
+                {
+                    if (port == -1)
+                        RTPrintf("VRDP server is inactive.\n");
+                    else if (port == 0)
+                        RTPrintf("VRDP server failed to start.\n");
+                    else
+                        RTPrintf("Listening on port %d.\n", port);
+
+                    mLastVRDPPort = port;
+                }
+            }
+        }
+#endif
+        return S_OK;
+    }
+
     STDMETHOD(OnUSBControllerChange)()
     {
         return S_OK;
     }
 
     STDMETHOD(OnStorageControllerChange)()
+    {
+        return S_OK;
+    }
+
+    STDMETHOD(OnMediumChange)(IMediumAttachment * /* aMediumAttachment */)
     {
         return S_OK;
     }
@@ -275,6 +283,7 @@ private:
 #ifndef VBOX_WITH_XPCOM
     long refcnt;
 #endif
+    long mLastVRDPPort;
 };
 
 #ifdef VBOX_WITH_XPCOM
@@ -350,8 +359,9 @@ static void show_usage()
 #ifdef VBOX_WITH_VRDP
              "   -v, -vrdp, --vrdp on|off|config       Enable (default) or disable the VRDP\n"
              "                                         server or don't change the setting\n"
-             "   -p, -vrdpport, --vrdpport <port>      Port number the VRDP server will bind\n"
-             "                                         to\n"
+             "   -p, -vrdpport, --vrdpport <ports>     Comma-separated list of ports the VRDP\n"
+             "                                         server can bind to. Use a dash between\n"
+             "                                         two port numbers to specify a range\n"
              "   -a, -vrdpaddress, --vrdpaddress <ip>  Interface IP the VRDP will bind to \n"
 #endif
 #ifdef VBOX_FFMPEG
@@ -418,7 +428,7 @@ static void parse_environ(unsigned long *pulFrameWidth, unsigned long *pulFrameH
 extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
 {
 #ifdef VBOX_WITH_VRDP
-    ULONG vrdpPort = ~0U;
+    const char *vrdpPort = NULL;
     const char *vrdpAddress = NULL;
     const char *vrdpEnabled = NULL;
 #endif
@@ -473,8 +483,8 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
         { "-startvm", 's', RTGETOPT_REQ_STRING },
         { "--startvm", 's', RTGETOPT_REQ_STRING },
 #ifdef VBOX_WITH_VRDP
-        { "-vrdpport", 'p', RTGETOPT_REQ_UINT32 },
-        { "--vrdpport", 'p', RTGETOPT_REQ_UINT32 },
+        { "-vrdpport", 'p', RTGETOPT_REQ_STRING },
+        { "--vrdpport", 'p', RTGETOPT_REQ_STRING },
         { "-vrdpaddress", 'a', RTGETOPT_REQ_STRING },
         { "--vrdpaddress", 'a', RTGETOPT_REQ_STRING },
         { "-vrdp", 'v', RTGETOPT_REQ_STRING },
@@ -525,7 +535,7 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
                 break;
 #ifdef VBOX_WITH_VRDP
             case 'p':
-                vrdpPort = ValueUnion.u32;
+                vrdpPort = ValueUnion.psz;
                 break;
             case 'a':
                 vrdpAddress = ValueUnion.psz;
@@ -648,11 +658,12 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
         return rc;
     }
 
+    ComPtr<IVirtualBox> virtualBox;
+    ComPtr<ISession> session;
+    bool fSessionOpened = false;
+
     do
     {
-        ComPtr<IVirtualBox> virtualBox;
-        ComPtr<ISession> session;
-
         rc = virtualBox.createLocalObject(CLSID_VirtualBox);
         if (FAILED(rc))
             RTPrintf("VBoxHeadless: ERROR: failed to create the VirtualBox object!\n");
@@ -697,6 +708,7 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
 
         // open a session
         CHECK_ERROR_BREAK(virtualBox, OpenSession (session, id));
+        fSessionOpened = true;
 
         /* get the console */
         ComPtr <IConsole> console;
@@ -751,7 +763,7 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
         }
         if (rc != S_OK)
         {
-            return -1;
+            break;
         }
 #endif /* defined(VBOX_FFMPEG) */
 
@@ -769,14 +781,18 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
                 continue;
             }
 #endif /* defined(VBOX_FFMPEG) */
-            VRDPFramebuffer *pFramebuffer = new VRDPFramebuffer ();
-            if (!pFramebuffer)
+            VRDPFramebuffer *pVRDPFramebuffer = new VRDPFramebuffer ();
+            if (!pVRDPFramebuffer)
             {
                 RTPrintf("Error: could not create framebuffer object %d\n", uScreenId);
-                return -1;
+                break;
             }
-            pFramebuffer->AddRef();
-            display->SetFramebuffer(uScreenId, pFramebuffer);
+            pVRDPFramebuffer->AddRef();
+            display->SetFramebuffer(uScreenId, pVRDPFramebuffer);
+        }
+        if (uScreenId < cMonitors)
+        {
+            break;
         }
 #endif
 
@@ -825,13 +841,10 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
             machineDebugger->COMSETTER(CSAMEnabled)(fCSAM);
         }
 
-        /* create an event queue */
-        EventQueue eventQ;
-
         /* initialize global references */
         gSession = session;
         gConsole = console;
-        gEventQ = &eventQ;
+        gEventQ = com::EventQueue::getMainEventQueue();
 
         /* register a callback for machine events */
         {
@@ -873,10 +886,11 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
             Log (("VBoxHeadless: Enabling VRDP server...\n"));
 
             /* set VRDP port if requested by the user */
-            if (vrdpPort != ~0U)
-                CHECK_ERROR_BREAK(vrdpServer, COMSETTER(Port)(vrdpPort));
-            else
-                CHECK_ERROR_BREAK(vrdpServer, COMGETTER(Port)(&vrdpPort));
+            if (vrdpPort != NULL)
+            {
+                Bstr bstr = vrdpPort;
+                CHECK_ERROR_BREAK(vrdpServer, COMSETTER(Ports)(bstr));
+            }
             /* set VRDP address if requested by the user */
             if (vrdpAddress != NULL)
             {
@@ -898,10 +912,6 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
         }
 #endif
         Log (("VBoxHeadless: Powering up the machine...\n"));
-#ifdef VBOX_WITH_VRDP
-        if (fVRDPEnable)
-            RTPrintf("Listening on port %d\n", !vrdpPort ? VRDP_DEFAULT_PORT : vrdpPort);
-#endif
 
         ComPtr <IProgress> progress;
         CHECK_ERROR_BREAK(console, PowerUp (progress.asOutParam()));
@@ -935,8 +945,8 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
 
         Event *e;
 
-        while (eventQ.waitForEvent (&e) && e)
-            eventQ.handleEvent (e);
+        while (gEventQ->waitForEvent (&e) && e)
+          gEventQ->handleEvent (e);
 
         Log (("VBoxHeadless: event loop has terminated...\n"));
 
@@ -950,7 +960,11 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
 #endif /* defined(VBOX_FFMPEG) */
 
         /* we don't have to disable VRDP here because we don't save the settings of the VM */
+    }
+    while (0);
 
+    if (fSessionOpened)
+    {
         /*
          * Close the session. This will also uninitialize the console and
          * unregister the callback we've registered before.
@@ -958,7 +972,10 @@ extern "C" DECLEXPORT (int) TrustedMain (int argc, char **argv, char **envp)
         Log (("VBoxHeadless: Closing the session...\n"));
         session->Close();
     }
-    while (0);
+
+    /* Must be before com::Shutdown */
+    session.setNull();
+    virtualBox.setNull();
 
     com::Shutdown();
 

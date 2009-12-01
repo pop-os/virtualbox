@@ -53,12 +53,46 @@ void crStateClientInitBits (CRClientBits *c)
 #endif
 }
 
+static void crStateUnlockClientPointer(CRClientPointer* cp)
+{
+    if (cp->locked)
+    {
+#ifndef IN_GUEST
+        if (cp->p) crFree(cp->p);
+#endif
+        cp->locked = GL_FALSE;
+    }
+}
+
 void crStateClientDestroy(CRClientState *c)
 {
+#ifdef CR_EXT_compiled_vertex_array
+    if (c->array.locked)
+    {
+        unsigned int i;
+
+        crStateUnlockClientPointer(&c->array.v);
+        crStateUnlockClientPointer(&c->array.c);
+        crStateUnlockClientPointer(&c->array.f);
+        crStateUnlockClientPointer(&c->array.s);
+        crStateUnlockClientPointer(&c->array.e);
+        crStateUnlockClientPointer(&c->array.i);
+        crStateUnlockClientPointer(&c->array.n);
+        for (i = 0 ; i < CR_MAX_TEXTURE_UNITS ; i++)
+        {
+            crStateUnlockClientPointer(&c->array.t[i]);
+        }
+        for (i = 0; i < CR_MAX_VERTEX_ATTRIBS; i++)
+        {
+            crStateUnlockClientPointer(&c->array.a[i]);
+        }
+    }
+#endif
 }
 
 void crStateClientInit(CRClientState *c) 
 {
+    CRContext *g = GetCurrentContext();
     unsigned int i;
 
     /* pixel pack/unpack */
@@ -82,14 +116,28 @@ void crStateClientInit(CRClientState *c)
     /* ARB multitexture */
     c->curClientTextureUnit = 0;
 
+#ifdef CR_EXT_compiled_vertex_array
+    c->array.lockFirst = 0;
+    c->array.lockCount = 0;
+    c->array.locked = GL_FALSE;
+# ifdef IN_GUEST
+    c->array.synced = GL_FALSE;
+# endif
+#endif
+
     /* vertex array */
     c->array.v.p = NULL;
     c->array.v.size = 4;
     c->array.v.type = GL_FLOAT;
     c->array.v.stride = 0;
     c->array.v.enabled = 0;
-#ifdef CR_ARB_vertex_buffer_object2
-    c->array.v.buffer = g->bufferobject.vertexBuffer;
+#ifdef CR_ARB_vertex_buffer_object
+    c->array.v.buffer = g ? g->bufferobject.arrayBuffer : NULL;
+#endif
+#ifdef CR_EXT_compiled_vertex_array
+    c->array.v.locked = GL_FALSE;
+    c->array.v.prevPtr = NULL;
+    c->array.v.prevStride = 0;
 #endif
 
     /* color array */
@@ -98,8 +146,13 @@ void crStateClientInit(CRClientState *c)
     c->array.c.type = GL_FLOAT;
     c->array.c.stride = 0;
     c->array.c.enabled = 0;
-#ifdef CR_ARB_vertex_buffer_object2
-    c->array.c.buffer = g->bufferobject.vertexBuffer;
+#ifdef CR_ARB_vertex_buffer_object
+    c->array.c.buffer = g ? g->bufferobject.arrayBuffer : NULL;
+#endif
+#ifdef CR_EXT_compiled_vertex_array
+    c->array.c.locked = GL_FALSE;
+    c->array.c.prevPtr = NULL;
+    c->array.c.prevStride = 0;
 #endif
 
     /* fog array */
@@ -108,8 +161,13 @@ void crStateClientInit(CRClientState *c)
     c->array.f.type = GL_FLOAT;
     c->array.f.stride = 0;
     c->array.f.enabled = 0;
-#ifdef CR_ARB_vertex_buffer_object2
-    c->array.f.buffer = g->bufferobject.vertexBuffer;
+#ifdef CR_ARB_vertex_buffer_object
+    c->array.f.buffer = g ? g->bufferobject.arrayBuffer : NULL;
+#endif
+#ifdef CR_EXT_compiled_vertex_array
+    c->array.f.locked = GL_FALSE;
+    c->array.f.prevPtr = NULL;
+    c->array.f.prevStride = 0;
 #endif
 
     /* secondary color array */
@@ -118,8 +176,13 @@ void crStateClientInit(CRClientState *c)
     c->array.s.type = GL_FLOAT;
     c->array.s.stride = 0;
     c->array.s.enabled = 0;
-#ifdef CR_ARB_vertex_buffer_object2
-    c->array.s.buffer = g->bufferobject.vertexBuffer;
+#ifdef CR_ARB_vertex_buffer_object
+    c->array.s.buffer = g ? g->bufferobject.arrayBuffer : NULL;
+#endif
+#ifdef CR_EXT_compiled_vertex_array
+    c->array.s.locked = GL_FALSE;
+    c->array.s.prevPtr = NULL;
+    c->array.s.prevStride = 0;
 #endif
 
     /* edge flag array */
@@ -128,8 +191,13 @@ void crStateClientInit(CRClientState *c)
     c->array.e.type = GL_FLOAT;
     c->array.e.stride = 0;
     c->array.e.enabled = 0;
-#ifdef CR_ARB_vertex_buffer_object2
-    c->array.e.buffer = g->bufferobject.vertexBuffer;
+#ifdef CR_ARB_vertex_buffer_object
+    c->array.e.buffer = g ? g->bufferobject.arrayBuffer : NULL;
+#endif
+#ifdef CR_EXT_compiled_vertex_array
+    c->array.e.locked = GL_FALSE;
+    c->array.e.prevPtr = NULL;
+    c->array.e.prevStride = 0;
 #endif
 
     /* color index array */
@@ -138,8 +206,13 @@ void crStateClientInit(CRClientState *c)
     c->array.i.type = GL_FLOAT;
     c->array.i.stride = 0;
     c->array.i.enabled = 0;
-#ifdef CR_ARB_vertex_buffer_object2
-    c->array.i.buffer = g->bufferobject.vertexBuffer;
+#ifdef CR_ARB_vertex_buffer_object
+    c->array.i.buffer = g ? g->bufferobject.arrayBuffer : NULL;
+#endif
+#ifdef CR_EXT_compiled_vertex_array
+    c->array.i.locked = GL_FALSE;
+    c->array.i.prevPtr = NULL;
+    c->array.i.prevStride = 0;
 #endif
 
     /* normal array */
@@ -148,8 +221,13 @@ void crStateClientInit(CRClientState *c)
     c->array.n.type = GL_FLOAT;
     c->array.n.stride = 0;
     c->array.n.enabled = 0;
-#ifdef CR_ARB_vertex_buffer_object2
-    c->array.n.buffer = g->bufferobject.vertexBuffer;
+#ifdef CR_ARB_vertex_buffer_object
+    c->array.n.buffer = g ? g->bufferobject.arrayBuffer : NULL;
+#endif
+#ifdef CR_EXT_compiled_vertex_array
+    c->array.n.locked = GL_FALSE;
+    c->array.n.prevPtr = NULL;
+    c->array.n.prevStride = 0;
 #endif
 
     /* texcoord arrays */
@@ -160,8 +238,13 @@ void crStateClientInit(CRClientState *c)
         c->array.t[i].type = GL_FLOAT;
         c->array.t[i].stride = 0;
         c->array.t[i].enabled = 0;
-#ifdef CR_ARB_vertex_buffer_object2
-        c->array.t[i].buffer = g->bufferobject.vertexBuffer;
+#ifdef CR_ARB_vertex_buffer_object
+        c->array.t[i].buffer = g ? g->bufferobject.arrayBuffer : NULL;
+#endif
+#ifdef CR_EXT_compiled_vertex_array
+        c->array.t[i].locked = GL_FALSE;
+        c->array.t[i].prevPtr = NULL;
+        c->array.t[i].prevStride = 0;
 #endif
     }
 
@@ -172,8 +255,13 @@ void crStateClientInit(CRClientState *c)
         c->array.a[i].type = 0;
         c->array.a[i].size = 0;
         c->array.a[i].stride = 0;
-#ifdef CR_ARB_vertex_buffer_object2
-        c->array.a[i].buffer = g->bufferobject.vertexBuffer;
+#ifdef CR_ARB_vertex_buffer_object
+        c->array.a[i].buffer = g ? g->bufferobject.arrayBuffer : NULL;
+#endif
+#ifdef CR_EXT_compiled_vertex_array
+        c->array.a[i].locked = GL_FALSE;
+        c->array.a[i].prevPtr = NULL;
+        c->array.a[i].prevStride = 0;
 #endif
     }
 #endif
@@ -465,6 +553,12 @@ crStateClientSetPointer(CRClientPointer *cp, GLint size,
 {
     CRContext *g = GetCurrentContext();
 
+#ifdef CR_EXT_compiled_vertex_array
+    crStateUnlockClientPointer(cp);
+    cp->prevPtr = cp->p;
+    cp->prevStride = cp->stride;
+#endif
+
     cp->p = (unsigned char *) pointer;
     cp->size = size;
     cp->type = type;
@@ -597,7 +691,16 @@ void STATE_APIENTRY crStateSecondaryColorPointerEXT(GLint size,
         return;
     }
 
-    if (size != 3)
+    /*Note: According to opengl spec, only size==3 should be accepted here.
+     *But it turns out that most drivers accept size==4 here as well, and 4th value
+     *could even be accessed in shaders code.
+     *Having a strict check here, leads to difference between guest and host gpu states, which
+     *in turn could lead to crashes when using server side VBOs.
+     *@todo: add error reporting to state's VBO related functions and abort dispatching to
+     *real gpu on any failure to prevent other possible issues.
+     */
+
+    if ((size != 3) && (size != 4))
     {
         crStateError(__LINE__, __FILE__, GL_INVALID_VALUE, "glSecondaryColorPointerEXT: invalid size: %d", size);
         return;
@@ -845,7 +948,7 @@ void STATE_APIENTRY crStateGetVertexAttribPointervNV(GLuint index, GLenum pname,
 
 void STATE_APIENTRY crStateGetVertexAttribPointervARB(GLuint index, GLenum pname, GLvoid **pointer)
 {
-        crStateGetVertexAttribPointervNV(index, pname, pointer);
+    crStateGetVertexAttribPointervNV(index, pname, pointer);
 }
 
 
@@ -912,6 +1015,10 @@ void STATE_APIENTRY crStateInterleavedArrays(GLenum format, GLsizei stride, cons
     cp = &(c->array.v);
     cp->type = GL_FLOAT;
     cp->enabled = GL_TRUE;
+
+#ifdef CR_EXT_compiled_vertex_array
+    crStateUnlockClientPointer(cp);
+#endif
 
     switch (format) 
     {
@@ -989,6 +1096,10 @@ void STATE_APIENTRY crStateInterleavedArrays(GLenum format, GLsizei stride, cons
     cp = &(c->array.n);
     cp->enabled = GL_TRUE;
     cp->stride = stride;
+#ifdef CR_EXT_compiled_vertex_array
+    crStateUnlockClientPointer(cp);
+#endif
+
     switch (format) 
     {
         case GL_T4F_C4F_N3F_V4F:
@@ -1036,6 +1147,10 @@ void STATE_APIENTRY crStateInterleavedArrays(GLenum format, GLsizei stride, cons
     cp = &(c->array.c);
     cp->enabled = GL_TRUE;
     cp->stride = stride;
+#ifdef CR_EXT_compiled_vertex_array
+    crStateUnlockClientPointer(cp);
+#endif
+
     switch (format) 
     {
         case GL_T4F_C4F_N3F_V4F:
@@ -1106,6 +1221,10 @@ void STATE_APIENTRY crStateInterleavedArrays(GLenum format, GLsizei stride, cons
     cp = &(c->array.t[c->curClientTextureUnit]);
     cp->enabled = GL_TRUE;
     cp->stride = stride;
+#ifdef CR_EXT_compiled_vertex_array
+    crStateUnlockClientPointer(cp);
+#endif
+
     switch (format) 
     {
         case GL_T4F_C4F_N3F_V4F:
@@ -1297,6 +1416,72 @@ void STATE_APIENTRY crStatePopClientAttrib( void )
     DIRTY(cb->dirty, g->neg_bitid);
 }
 
+static void crStateLockClientPointer(CRClientPointer* cp)
+{
+    crStateUnlockClientPointer(cp);
+    if (cp->enabled)
+    {
+        cp->locked = GL_TRUE;
+    }
+}
+
+void STATE_APIENTRY crStateLockArraysEXT(GLint first, GLint count)
+{
+    CRContext *g = GetCurrentContext();
+    CRClientState *c = &(g->client);
+    unsigned int i;
+
+    c->array.locked = GL_TRUE;
+    c->array.lockFirst = first;
+    c->array.lockCount = count;
+#ifdef IN_GUEST
+    c->array.synced = GL_FALSE;
+#endif
+
+    crStateLockClientPointer(&c->array.v);
+    crStateLockClientPointer(&c->array.c);
+    crStateLockClientPointer(&c->array.f);
+    crStateLockClientPointer(&c->array.s);
+    crStateLockClientPointer(&c->array.e);
+    crStateLockClientPointer(&c->array.i);
+    crStateLockClientPointer(&c->array.n);
+    for (i = 0 ; i < CR_MAX_TEXTURE_UNITS ; i++)
+    {
+        crStateLockClientPointer(&c->array.t[i]);
+    }
+    for (i = 0; i < CR_MAX_VERTEX_ATTRIBS; i++)
+    {
+        crStateLockClientPointer(&c->array.a[i]);
+    }
+}
+
+void STATE_APIENTRY crStateUnlockArraysEXT()
+{
+    CRContext *g = GetCurrentContext();
+    CRClientState *c = &(g->client);
+    unsigned int i;
+
+    c->array.locked = GL_FALSE;
+#ifdef IN_GUEST
+    c->array.synced = GL_FALSE;
+#endif
+
+    crStateUnlockClientPointer(&c->array.v);
+    crStateUnlockClientPointer(&c->array.c);
+    crStateUnlockClientPointer(&c->array.f);
+    crStateUnlockClientPointer(&c->array.s);
+    crStateUnlockClientPointer(&c->array.e);
+    crStateUnlockClientPointer(&c->array.i);
+    crStateUnlockClientPointer(&c->array.n);
+    for (i = 0 ; i < CR_MAX_TEXTURE_UNITS ; i++)
+    {
+        crStateUnlockClientPointer(&c->array.t[i]);
+    }
+    for (i = 0; i < CR_MAX_VERTEX_ATTRIBS; i++)
+    {
+        crStateUnlockClientPointer(&c->array.a[i]);
+    }
+}
 
 void STATE_APIENTRY crStateVertexArrayRangeNV(GLsizei length, const GLvoid *pointer)
 {
@@ -1311,6 +1496,24 @@ void STATE_APIENTRY crStateFlushVertexArrayRangeNV(void)
     crWarning("crStateFlushVertexArrayRangeNV not implemented");
 }
 
+/*Returns if the given clientpointer could be used on server side directly*/
+#define CRSTATE_IS_SERVER_CP(cp) (!(cp).enabled || !(cp).p || ((cp).buffer && (cp).buffer->name) || ((cp).locked))
+
+static void crStateDumpClientPointer(CRClientPointer *cp, const char *name, int i)
+{
+  if (i<0 && cp->enabled)
+  {
+    crDebug("CP(%s): enabled:%d ptr:%p buffer:%p buffer.name:%i locked: %i %s",
+            name, cp->enabled, cp->p, cp->buffer, cp->buffer? cp->buffer->name:-1, (int)cp->locked,
+            CRSTATE_IS_SERVER_CP(*cp) ? "":"!FAIL!");
+  }
+  else if (0==i || cp->enabled)
+  {
+    crDebug("CP(%s%i): enabled:%d ptr:%p buffer:%p buffer.name:%i locked: %i %s",
+            name, i, cp->enabled, cp->p, cp->buffer, cp->buffer? cp->buffer->name:-1, (int)cp->locked,
+            CRSTATE_IS_SERVER_CP(*cp) ? "":"!FAIL!");
+  }
+}
 
 /*
  * Determine if the enabled arrays all live on the server
@@ -1322,40 +1525,55 @@ GLboolean crStateUseServerArrays(void)
     CRContext *g = GetCurrentContext();
     CRClientState *c = &(g->client);
     int i;
+    GLboolean res;
 
-    if (!c->array.v.enabled)
-        return GL_FALSE;
+    res =    CRSTATE_IS_SERVER_CP(c->array.v)
+          && CRSTATE_IS_SERVER_CP(c->array.n)
+          && CRSTATE_IS_SERVER_CP(c->array.c)
+          && CRSTATE_IS_SERVER_CP(c->array.i)
+          && CRSTATE_IS_SERVER_CP(c->array.e)
+          && CRSTATE_IS_SERVER_CP(c->array.s)
+          && CRSTATE_IS_SERVER_CP(c->array.f);
 
-    if (c->array.v.enabled && (!c->array.v.buffer || !c->array.v.buffer->name))
-        return GL_FALSE;
+    if (res)
+    {
+        for (i = 0; (unsigned int)i < g->limits.maxTextureUnits; i++)
+            if (!CRSTATE_IS_SERVER_CP(c->array.t[i]))
+            {
+                res = GL_FALSE;
+                break;    
+            }
+    }
 
-    if (c->array.n.enabled && (!c->array.n.buffer || !c->array.n.buffer->name))
-        return GL_FALSE;
+    if (res)
+    {
+        for (i = 0; (unsigned int)i < g->limits.maxVertexProgramAttribs; i++)
+            if (!CRSTATE_IS_SERVER_CP(c->array.a[i]))
+            {
+                res = GL_FALSE;
+                break;    
+            }
+    }
 
-    if (c->array.c.enabled && (!c->array.c.buffer || !c->array.c.buffer->name))
-        return GL_FALSE;
+#if defined(DEBUG) && 0
+    if (!res)
+    {
+        crStateDumpClientPointer(&c->array.v, "v", -1);
+        crStateDumpClientPointer(&c->array.n, "n", -1);
+        crStateDumpClientPointer(&c->array.c, "c", -1);
+        crStateDumpClientPointer(&c->array.i, "i", -1);
+        crStateDumpClientPointer(&c->array.e, "e", -1);
+        crStateDumpClientPointer(&c->array.s, "s", -1);
+        crStateDumpClientPointer(&c->array.f, "f", -1);
+        for (i = 0; (unsigned int)i < g->limits.maxTextureUnits; i++)
+            crStateDumpClientPointer(&c->array.t[i], "tex", i);
+        for (i = 0; (unsigned int)i < g->limits.maxVertexProgramAttribs; i++)
+            crStateDumpClientPointer(&c->array.a[i], "attrib", i);
+        crDebug("crStateUseServerArrays->%d", res);
+    }
+#endif
 
-    if (c->array.i.enabled && (!c->array.i.buffer || !c->array.i.buffer->name))
-        return GL_FALSE;
-
-    for (i = 0; (unsigned int)i < g->limits.maxTextureUnits; i++)
-         if (c->array.t[i].enabled && (!c->array.t[i].buffer || !c->array.t[i].buffer->name))
-                return GL_FALSE;
-
-    if (c->array.e.enabled && (!c->array.e.buffer || !c->array.e.buffer->name))
-         return GL_FALSE;
-
-    if (c->array.s.enabled && (!c->array.s.buffer || !c->array.s.buffer->name))
-         return GL_FALSE;
-
-    if (c->array.f.enabled && (!c->array.f.buffer || !c->array.f.buffer->name))
-         return GL_FALSE;
-
-    for (i = 0; (unsigned int)i < g->limits.maxVertexProgramAttribs; i++)
-         if (c->array.a[i].enabled && (!c->array.a[i].buffer || !c->array.a[i].buffer->name))
-                return GL_FALSE;
-
-    return GL_TRUE;
+    return res;
 #else
     return GL_FALSE;
 #endif
@@ -1772,4 +1990,35 @@ crStateClientSwitch(CRClientBits *cb, CRbitvalue *bitID,
         }
         CLEARDIRTY2(cb->enableClientState, bitID);
     }
+}
+
+CRClientPointer* crStateGetClientPointerByIndex(int index, CRVertexArrays *array)
+{
+    CRASSERT(array && index>=0 && index<CRSTATECLIENT_MAX_VERTEXARRAYS);
+
+    if (index<7)
+    {
+        switch (index)
+        {
+            case 0: return &array->v;
+            case 1: return &array->c;
+            case 2: return &array->f;
+            case 3: return &array->s;
+            case 4: return &array->e;
+            case 5: return &array->i;
+            case 6: return &array->n;
+        }
+    }
+    else if (index<(7+CR_MAX_TEXTURE_UNITS))
+    {
+        return &array->t[index-7];
+    }
+    else
+    {
+        return &array->a[index-7-CR_MAX_TEXTURE_UNITS];
+    }
+
+    /*silence the compiler warning*/
+    CRASSERT(false);
+    return NULL;
 }

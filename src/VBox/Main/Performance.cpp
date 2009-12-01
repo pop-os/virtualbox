@@ -1,4 +1,4 @@
-/* $Id: Performance.cpp $ */
+/* $Id: Performance.cpp 22173 2009-08-11 15:38:59Z vboxsync $ */
 
 /** @file
  *
@@ -117,7 +117,7 @@ bool BaseMetric::collectorBeat(uint64_t nowAt)
 
 /*bool BaseMetric::associatedWith(ComPtr<IUnknown> object)
 {
-    LogFlowThisFunc (("mObject(%p) == object(%p) is %s.\n", mObject, object, mObject == object ? "true" : "false"));
+    LogFlowThisFunc(("mObject(%p) == object(%p) is %s.\n", mObject, object, mObject == object ? "true" : "false"));
     return mObject == object;
 }*/
 
@@ -163,7 +163,7 @@ void HostCpuLoadRaw::collect()
         if (totalDiff == 0)
         {
             /* This is only possible if none of counters has changed! */
-            LogFlowThisFunc (("Impossible! User, kernel and idle raw "
+            LogFlowThisFunc(("Impossible! User, kernel and idle raw "
                 "counters has not changed since last sample.\n" ));
             mUser->put(0);
             mKernel->put(0);
@@ -431,34 +431,34 @@ Filter::Filter(ComSafeArrayIn(IN_BSTR, metricNames),
      */
     if (ComSafeArrayInIsNull(metricNames))
     {
-        com::SafeArray <BSTR> nameArray;
+        com::SafeArray<BSTR> nameArray;
         if (ComSafeArrayInIsNull(objects))
         {
-            com::SafeIfaceArray <IUnknown> objectArray;
+            com::SafeIfaceArray<IUnknown> objectArray;
             objectArray.reset(0);
             init(ComSafeArrayAsInParam(nameArray),
                  ComSafeArrayAsInParam(objectArray));
         }
         else
         {
-            com::SafeIfaceArray <IUnknown> objectArray(ComSafeArrayInArg(objects));
+            com::SafeIfaceArray<IUnknown> objectArray(ComSafeArrayInArg(objects));
             init(ComSafeArrayAsInParam(nameArray),
                  ComSafeArrayAsInParam(objectArray));
         }
     }
     else
     {
-        com::SafeArray <IN_BSTR> nameArray(ComSafeArrayInArg(metricNames));
+        com::SafeArray<IN_BSTR> nameArray(ComSafeArrayInArg(metricNames));
         if (ComSafeArrayInIsNull(objects))
         {
-            com::SafeIfaceArray <IUnknown> objectArray;
+            com::SafeIfaceArray<IUnknown> objectArray;
             objectArray.reset(0);
             init(ComSafeArrayAsInParam(nameArray),
                  ComSafeArrayAsInParam(objectArray));
         }
         else
         {
-            com::SafeIfaceArray <IUnknown> objectArray(ComSafeArrayInArg(objects));
+            com::SafeIfaceArray<IUnknown> objectArray(ComSafeArrayInArg(objects));
             init(ComSafeArrayAsInParam(nameArray),
                  ComSafeArrayAsInParam(objectArray));
         }
@@ -468,18 +468,18 @@ Filter::Filter(ComSafeArrayIn(IN_BSTR, metricNames),
 void Filter::init(ComSafeArrayIn(IN_BSTR, metricNames),
                   ComSafeArrayIn(IUnknown *, objects))
 {
-    com::SafeArray <IN_BSTR> nameArray(ComSafeArrayInArg(metricNames));
-    com::SafeIfaceArray <IUnknown> objectArray(ComSafeArrayInArg(objects));
+    com::SafeArray<IN_BSTR> nameArray(ComSafeArrayInArg(metricNames));
+    com::SafeIfaceArray<IUnknown> objectArray(ComSafeArrayInArg(objects));
 
     if (!objectArray.size())
     {
         if (nameArray.size())
         {
             for (size_t i = 0; i < nameArray.size(); ++i)
-                processMetricList(std::string(com::Utf8Str(nameArray[i])), ComPtr<IUnknown>());
+                processMetricList(com::Utf8Str(nameArray[i]), ComPtr<IUnknown>());
         }
         else
-            processMetricList(std::string("*"), ComPtr<IUnknown>());
+            processMetricList("*", ComPtr<IUnknown>());
     }
     else
     {
@@ -487,30 +487,30 @@ void Filter::init(ComSafeArrayIn(IN_BSTR, metricNames),
             switch (nameArray.size())
             {
                 case 0:
-                    processMetricList(std::string("*"), objectArray[i]);
+                    processMetricList("*", objectArray[i]);
                     break;
                 case 1:
-                    processMetricList(std::string(com::Utf8Str(nameArray[0])), objectArray[i]);
+                    processMetricList(com::Utf8Str(nameArray[0]), objectArray[i]);
                     break;
                 default:
-                    processMetricList(std::string(com::Utf8Str(nameArray[i])), objectArray[i]);
+                    processMetricList(com::Utf8Str(nameArray[i]), objectArray[i]);
                     break;
             }
     }
 }
 
-void Filter::processMetricList(const std::string &name, const ComPtr<IUnknown> object)
+void Filter::processMetricList(const com::Utf8Str &name, const ComPtr<IUnknown> object)
 {
-    std::string::size_type startPos = 0;
+    size_t startPos = 0;
 
-    for (std::string::size_type pos = name.find(",");
+    for (size_t pos = name.find(",");
          pos != std::string::npos;
          pos = name.find(",", startPos))
     {
-        mElements.push_back(std::make_pair(object, name.substr(startPos, pos - startPos)));
+        mElements.push_back(std::make_pair(object, std::string(name.substr(startPos, pos - startPos).c_str())));
         startPos = pos + 1;
     }
-    mElements.push_back(std::make_pair(object, name.substr(startPos)));
+    mElements.push_back(std::make_pair(object, std::string(name.substr(startPos).c_str())));
 }
 
 /**

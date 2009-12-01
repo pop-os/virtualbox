@@ -1,4 +1,4 @@
-/* $Id: dbgmodcontainer.cpp $ */
+/* $Id: dbgmodcontainer.cpp 22111 2009-08-09 20:12:09Z vboxsync $ */
 /** @file
  * IPRT - Debug Info Container.
  */
@@ -28,10 +28,12 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/dbg.h>
+#include "internal/iprt.h"
 
 #include <iprt/avl.h>
 #include <iprt/err.h>
@@ -175,7 +177,7 @@ static DECLCALLBACK(int) rtDbgModContainer_LineByAddr(PRTDBGMODINT pMod, RTDBGSE
     AssertMsgReturn(iSeg < pThis->cSegs,
                     ("iSeg=%#x cSegs=%#x\n", pThis->cSegs),
                     VERR_DBG_INVALID_SEGMENT_INDEX);
-    AssertMsgReturn(pThis->paSegs[iSeg].cb < off,
+    AssertMsgReturn(off < pThis->paSegs[iSeg].cb,
                     ("off=%RTptr cbSeg=%RTptr\n", off, pThis->paSegs[iSeg].cb),
                     VERR_DBG_INVALID_SEGMENT_OFFSET);
 
@@ -302,7 +304,7 @@ static DECLCALLBACK(int) rtDbgModContainer_SymbolByAddr(PRTDBGMODINT pMod, RTDBG
                     ("iSeg=%#x cSegs=%#x\n", pThis->cSegs),
                     VERR_DBG_INVALID_SEGMENT_INDEX);
     AssertMsgReturn(    iSeg >= RTDBGSEGIDX_SPECIAL_FIRST
-                    ||  pThis->paSegs[iSeg].cb <= off,
+                    ||  off <= pThis->paSegs[iSeg].cb,
                     ("off=%RTptr cbSeg=%RTptr\n", off, pThis->paSegs[iSeg].cb),
                     VERR_DBG_INVALID_SEGMENT_OFFSET);
 
@@ -412,7 +414,7 @@ static DECLCALLBACK(int) rtDbgModContainer_SymbolAdd(PRTDBGMODINT pMod, const ch
                                        : &pThis->paSegs[iSeg].SymAddrTree;
             if (RTAvlrUIntPtrInsert(pAddrTree, &pSymbol->AddrCore))
             {
-                if (RTAvlU32Insert(&pThis->LineOrdinalTree, &pSymbol->OrdinalCore))
+                if (RTAvlU32Insert(&pThis->SymbolOrdinalTree, &pSymbol->OrdinalCore))
                 {
                     if (piOrdinal)
                         *piOrdinal = pThis->iNextSymbolOrdinal;
@@ -540,7 +542,7 @@ static DECLCALLBACK(RTDBGSEGIDX) rtDbgModContainer_RvaToSegOff(PRTDBGMODINT pMod
 {
     PRTDBGMODCTN          pThis = (PRTDBGMODCTN)pMod->pvDbgPriv;
     PCRTDBGMODCTNSEGMENT  paSeg = pThis->paSegs;
-    uint32_t const              cSegs = pThis->cSegs;
+    uint32_t const        cSegs = pThis->cSegs;
     if (cSegs <= 7)
     {
         /*

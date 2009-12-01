@@ -1,4 +1,4 @@
-/* $Id: ldrPE.h $ */
+/* $Id: ldrPE.h 24106 2009-10-27 03:30:45Z vboxsync $ */
 /** @file
  * IPRT - Windows NT PE Structures and Constants.
  */
@@ -181,6 +181,20 @@
 #define  IMAGE_ORDINAL_FLAG64  0x8000000000000000ULL
 #define  IMAGE_ORDINAL64(ord)  ((ord) &  0xffff)
 #define  IMAGE_SNAP_BY_ORDINAL64(ord)  (!!((ord) & IMAGE_ORDINAL_FLAG64))
+
+
+/* debug dir */
+#define  IMAGE_DEBUG_TYPE_UNKNOWN  0x0
+#define  IMAGE_DEBUG_TYPE_COFF  0x1
+#define  IMAGE_DEBUG_TYPE_CODEVIEW  0x2
+#define  IMAGE_DEBUG_TYPE_FPO  0x3
+#define  IMAGE_DEBUG_TYPE_MISC  0x4
+#define  IMAGE_DEBUG_TYPE_EXCEPTION  0x5
+#define  IMAGE_DEBUG_TYPE_FIXUP  0x6
+#define  IMAGE_DEBUG_TYPE_OMAP_TO_SRC  0x7
+#define  IMAGE_DEBUG_TYPE_OMAP_FROM_SRC  0x8
+#define  IMAGE_DEBUG_TYPE_BORLAND  0x9
+#define  IMAGE_DEBUG_TYPE_RESERVED10  0x10
 
 
 /*******************************************************************************
@@ -439,6 +453,19 @@ typedef struct _IMAGE_LOAD_CONFIG_DIRECTORY64
 } IMAGE_LOAD_CONFIG_DIRECTORY64;
 typedef IMAGE_LOAD_CONFIG_DIRECTORY64 *PIMAGE_LOAD_CONFIG_DIRECTORY64;
 
+
+typedef struct _IMAGE_DEBUG_DIRECTORY
+{
+    uint32_t  Characteristics;
+    uint32_t  TimeDateStamp;
+    uint16_t  MajorVersion;
+    uint16_t  MinorVersion;
+    uint32_t  Type;
+    uint32_t  SizeOfData;
+    uint32_t  AddressOfRawData;
+    uint32_t  PointerToRawData;
+} IMAGE_DEBUG_DIRECTORY;
+typedef IMAGE_DEBUG_DIRECTORY *PIMAGE_DEBUG_DIRECTORY;
 
 #pragma pack()
 

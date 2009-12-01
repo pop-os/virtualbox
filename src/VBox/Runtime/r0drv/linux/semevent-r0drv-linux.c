@@ -1,4 +1,4 @@
-/* $Id: semevent-r0drv-linux.c $ */
+/* $Id: semevent-r0drv-linux.c 24956 2009-11-25 14:26:50Z vboxsync $ */
 /** @file
  * IPRT - Single Release Event Semaphores, Ring-0 Driver, Linux.
  */
@@ -33,6 +33,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-linux-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/semaphore.h>
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
@@ -73,6 +74,7 @@ RTDECL(int)  RTSemEventCreate(PRTSEMEVENT pEventSem)
     }
     return VERR_NO_MEMORY;
 }
+RT_EXPORT_SYMBOL(RTSemEventCreate);
 
 
 RTDECL(int)  RTSemEventDestroy(RTSEMEVENT EventSem)
@@ -99,6 +101,7 @@ RTDECL(int)  RTSemEventDestroy(RTSEMEVENT EventSem)
     RTMemFree(pEventInt);
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTSemEventDestroy);
 
 
 RTDECL(int)  RTSemEventSignal(RTSEMEVENT EventSem)
@@ -124,6 +127,7 @@ RTDECL(int)  RTSemEventSignal(RTSEMEVENT EventSem)
 
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTSemEventSignal);
 
 
 /**
@@ -147,7 +151,7 @@ static int rtSemEventWait(PRTSEMEVENTINTERNAL pEventInt, unsigned cMillies, bool
 #endif
     for (;;)
     {
-        /* make everything thru schedule() atomic scheduling wise. */
+        /* make everything thru schedule_timeout() atomic scheduling wise. */
         prepare_to_wait(&pEventInt->Head, &Wait, fInterruptible ? TASK_INTERRUPTIBLE : TASK_UNINTERRUPTIBLE);
 
         /* check the condition. */
@@ -163,6 +167,8 @@ static int rtSemEventWait(PRTSEMEVENTINTERNAL pEventInt, unsigned cMillies, bool
 
         /* wait */
         lTimeout = schedule_timeout(lTimeout);
+
+        after_wait(&Wait);
 
         /* Check if someone destroyed the semaphore while we were waiting. */
         if (pEventInt->u32Magic != RTSEMEVENT_MAGIC)
@@ -203,6 +209,7 @@ RTDECL(int) RTSemEventWait(RTSEMEVENT EventSem, unsigned cMillies)
         return VINF_SUCCESS;
     return rtSemEventWait(pEventInt, cMillies, false /* fInterruptible */);
 }
+RT_EXPORT_SYMBOL(RTSemEventWait);
 
 
 RTDECL(int) RTSemEventWaitNoResume(RTSEMEVENT EventSem, unsigned cMillies)
@@ -221,4 +228,5 @@ RTDECL(int) RTSemEventWaitNoResume(RTSEMEVENT EventSem, unsigned cMillies)
         return VINF_SUCCESS;
     return rtSemEventWait(pEventInt, cMillies, true /* fInterruptible */);
 }
+RT_EXPORT_SYMBOL(RTSemEventWaitNoResume);
 

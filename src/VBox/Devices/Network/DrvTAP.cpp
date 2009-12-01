@@ -1,4 +1,4 @@
-/** $Id: DrvTAP.cpp $ */
+/** $Id: DrvTAP.cpp 24010 2009-10-23 08:28:33Z vboxsync $ */
 /** @file
  * Universial TAP network transport driver.
  */
@@ -27,6 +27,7 @@
 #include <VBox/pdmdrv.h>
 
 #include <iprt/assert.h>
+#include <iprt/ctype.h>
 #include <iprt/file.h>
 #include <iprt/string.h>
 #include <iprt/path.h>
@@ -56,7 +57,6 @@
 # include <net/if.h>
 # include <stropts.h>
 # include <fcntl.h>
-# include <ctype.h>
 # include <stdlib.h>
 # include <stdio.h>
 # ifdef VBOX_WITH_CROSSBOW
@@ -646,7 +646,7 @@ static DECLCALLBACK(int) SolarisTAPAttach(PDRVTAP pThis)
     if (pThis->pszDeviceName)
     {
         size_t cch = strlen(pThis->pszDeviceName);
-        if (cch > 1 && isdigit(pThis->pszDeviceName[cch - 1]) != 0)
+        if (cch > 1 && RT_C_IS_DIGIT(pThis->pszDeviceName[cch - 1]) != 0)
             iPPA = pThis->pszDeviceName[cch - 1] - '0';
     }
 
@@ -881,14 +881,9 @@ static DECLCALLBACK(void) drvTAPDestruct(PPDMDRVINS pDrvIns)
 /**
  * Construct a TAP network transport driver instance.
  *
- * @returns VBox status.
- * @param   pDrvIns     The driver instance data.
- *                      If the registration structure is needed, pDrvIns->pDrvReg points to it.
- * @param   pCfgHandle  Configuration node handle for the driver. Use this to obtain the configuration
- *                      of the driver instance. It's also found in pDrvIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
 {
     PDRVTAP pThis = PDMINS_2_DATA(pDrvIns, PDRVTAP);
 
@@ -925,10 +920,9 @@ static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     /*
      * Check that no-one is attached to us.
      */
-    int rc = pDrvIns->pDrvHlp->pfnAttach(pDrvIns, NULL);
-    if (rc != VERR_PDM_NO_ATTACHED_DRIVER)
-        return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRVINS_NO_ATTACH,
-                                N_("Configuration error: Cannot attach drivers to the TAP driver"));
+    AssertMsgReturn(PDMDrvHlpNoAttach(pDrvIns) == VERR_PDM_NO_ATTACHED_DRIVER,
+                    ("Configuration error: Not possible to attach anything to this driver!\n"),
+                    VERR_PDM_DRVINS_NO_ATTACH);
 
     /*
      * Query the network port interface.
@@ -941,6 +935,7 @@ static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     /*
      * Read the configuration.
      */
+    int rc;
 #if defined(RT_OS_SOLARIS)   /** @todo Other platforms' TAP code should be moved here from ConsoleImpl & VBoxBFE. */
     rc = CFGMR3QueryStringAlloc(pCfgHandle, "TAPSetupApplication", &pThis->pszSetupApplication);
     if (RT_SUCCESS(rc))
@@ -1095,8 +1090,15 @@ const PDMDRVREG g_DrvHostInterface =
     NULL, /** @todo Do power on, suspend and resume handlers! */
     /* pfnResume */
     NULL,
+    /* pfnAttach */
+    NULL,
     /* pfnDetach */
     NULL,
     /* pfnPowerOff */
-    NULL
+    NULL,
+    /* pfnSoftReset */
+    NULL,
+    /* u32EndVersion */
+    PDM_DRVREG_VERSION
 };
+

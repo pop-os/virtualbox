@@ -1,4 +1,4 @@
-/* $Id: SELM.cpp $ */
+/* $Id: SELM.cpp 22890 2009-09-09 23:11:31Z vboxsync $ */
 /** @file
  * SELM - The Selector Manager.
  */
@@ -111,7 +111,7 @@
 *   Internal Functions                                                         *
 *******************************************************************************/
 static DECLCALLBACK(int)  selmR3Save(PVM pVM, PSSMHANDLE pSSM);
-static DECLCALLBACK(int)  selmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version);
+static DECLCALLBACK(int)  selmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
 static DECLCALLBACK(int)  selmR3LoadDone(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int)  selmR3GuestGDTWriteHandler(PVM pVM, RTGCPTR GCPtr, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
 static DECLCALLBACK(int)  selmR3GuestLDTWriteHandler(PVM pVM, RTGCPTR GCPtr, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
@@ -198,6 +198,7 @@ VMMR3DECL(int) SELMR3Init(PVM pVM)
      * Register the saved state data unit.
      */
     rc = SSMR3RegisterInternal(pVM, "selm", 1, SELM_SAVED_STATE_VERSION, sizeof(SELM),
+                               NULL, NULL, NULL,
                                NULL, selmR3Save, NULL,
                                NULL, selmR3Load, selmR3LoadDone);
     if (RT_FAILURE(rc))
@@ -396,7 +397,7 @@ VMMR3DECL(void) SELMR3Relocate(PVM pVM)
     PX86DESC paGdt = pVM->selm.s.paGdtR3;
     LogFlow(("SELMR3Relocate\n"));
 
-    for (unsigned i=0;i<pVM->cCPUs;i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -694,18 +695,20 @@ static DECLCALLBACK(int) selmR3Save(PVM pVM, PSSMHANDLE pSSM)
  * @returns VBox status code.
  * @param   pVM             VM Handle.
  * @param   pSSM            SSM operation handle.
- * @param   u32Version      Data layout version.
+ * @param   uVersion        Data layout version.
+ * @param   uPass           The data pass.
  */
-static DECLCALLBACK(int) selmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
+static DECLCALLBACK(int) selmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
     LogFlow(("selmR3Load:\n"));
+    Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
 
     /*
      * Validate version.
      */
-    if (u32Version != SELM_SAVED_STATE_VERSION)
+    if (uVersion != SELM_SAVED_STATE_VERSION)
     {
-        AssertMsgFailed(("selmR3Load: Invalid version u32Version=%d!\n", u32Version));
+        AssertMsgFailed(("selmR3Load: Invalid version uVersion=%d!\n", uVersion));
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     }
 
@@ -2054,15 +2057,18 @@ static int selmR3GetSelectorInfo64(PVM pVM, PVMCPU pVCpu, RTSEL Sel, PDBGFSELINF
     pSelInfo->u.Raw64 = Desc;
     if (Desc.Gen.u1DescType)
     {
+        /*
+         * 64-bit code selectors are wide open, it's not possible to detect
+         * 64-bit data or stack selectors without also dragging in assumptions
+         * about current CS (i.e. that's we're executing in 64-bit mode).  So,
+         * the selinfo user needs to deal with this in the context the info is
+         * used unfortunately.
+         */
         if (    Desc.Gen.u1Long
-            &&  Desc.Gen.u1DefBig
+            &&  !Desc.Gen.u1DefBig
             &&  (Desc.Gen.u4Type & X86_SEL_TYPE_CODE))
         {
-            /* 64-bit code selectors are wide open. It's not possible to
-               detect 64-bit data or stack selectors without also dragging
-               in assumptions about current CS. So, the selinfo user needs
-               to deal with this in the context the info is used unfortunately.
-               Note. We ignore the segment limit hacks that was added by AMD. */
+            /* Note! We ignore the segment limit hacks that was added by AMD. */
             pSelInfo->GCPtrBase = 0;
             pSelInfo->cbLimit   = ~(RTGCUINTPTR)0;
         }

@@ -1,4 +1,4 @@
-/* $Id: HWVMXR0.cpp $ */
+/* $Id: HWVMXR0.cpp 24829 2009-11-20 15:02:10Z vboxsync $ */
 /** @file
  * HWACCM VMX - Host Context Ring 0.
  */
@@ -110,9 +110,6 @@ VMMR0DECL(int) VMXR0EnableCpu(PHWACCM_CPUINFO pCpu, PVM pVM, void *pvPageCpu, RT
     AssertReturn(pPageCpuPhys, VERR_INVALID_PARAMETER);
     AssertReturn(pvPageCpu, VERR_INVALID_PARAMETER);
 
-#if defined(LOG_ENABLED) && !defined(DEBUG_bird)
-    SUPR0Printf("VMXR0EnableCpu cpu %d page (%x) %x\n", pCpu->idCpu, pvPageCpu, (uint32_t)pPageCpuPhys);
-#endif
     if (pVM)
     {
         /* Set revision dword at the beginning of the VMXON structure. */
@@ -159,10 +156,6 @@ VMMR0DECL(int) VMXR0DisableCpu(PHWACCM_CPUINFO pCpu, void *pvPageCpu, RTHCPHYS p
 
     /* And clear the X86_CR4_VMXE bit */
     ASMSetCR4(ASMGetCR4() & ~X86_CR4_VMXE);
-
-#if defined(LOG_ENABLED) && !defined(DEBUG_bird)
-    SUPR0Printf("VMXR0DisableCpu cpu %d\n", pCpu->idCpu);
-#endif
     return VINF_SUCCESS;
 }
 
@@ -218,7 +211,7 @@ VMMR0DECL(int) VMXR0InitVM(PVM pVM)
 #endif
 
     /* Allocate VMCBs for all guest CPUs. */
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -301,7 +294,7 @@ VMMR0DECL(int) VMXR0InitVM(PVM pVM)
  */
 VMMR0DECL(int) VMXR0TermVM(PVM pVM)
 {
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -376,7 +369,7 @@ VMMR0DECL(int) VMXR0SetupVM(PVM pVM)
 
     AssertReturn(pVM, VERR_INVALID_PARAMETER);
 
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -2598,7 +2591,6 @@ ResumeExecution:
      *
      */
 
-
     /* All done! Let's start VM execution. */
     STAM_PROFILE_ADV_START(&pVCpu->hwaccm.s.StatInGC, z);
     Assert(idCpuCheck == RTMpCpuId());
@@ -2729,7 +2721,7 @@ ResumeExecution:
         HWACCMDumpRegs(pVM, pVCpu, pCtx);
 #endif
 
-    Log2(("E%d: New EIP=%RGv\n", exitReason, (RTGCPTR)pCtx->rip));
+    Log2(("E%d: New EIP=%x:%RGv\n", (uint32_t)exitReason, pCtx->cs, (RTGCPTR)pCtx->rip));
     Log2(("Exit reason %d, exitQualification %RGv\n", (uint32_t)exitReason, exitQualification));
     Log2(("instrInfo=%d instrError=%d instr length=%d\n", (uint32_t)instrInfo, (uint32_t)instrError, (uint32_t)cbInstr));
     Log2(("Interruption error code %d\n", (uint32_t)errCode));
@@ -3036,7 +3028,7 @@ ResumeExecution:
 #endif
                 Assert(CPUMIsGuestInRealModeEx(pCtx));
 
-                LogFlow(("Real mode X86_XCPT_GP instruction emulation at %RGv\n", (RTGCPTR)pCtx->rip));
+                LogFlow(("Real mode X86_XCPT_GP instruction emulation at %x:%RGv\n", pCtx->cs, (RTGCPTR)pCtx->rip));
 
                 rc = EMInterpretDisasOne(pVM, pVCpu, CPUMCTX2CORE(pCtx), pDis, &cbOp);
                 if (RT_SUCCESS(rc))
@@ -3264,6 +3256,7 @@ ResumeExecution:
             }
 
 #ifdef VBOX_STRICT
+            case X86_XCPT_XF:   /* SIMD exception. */
             case X86_XCPT_DE:   /* Divide error. */
             case X86_XCPT_UD:   /* Unknown opcode exception. */
             case X86_XCPT_SS:   /* Stack segment exception. */
@@ -3723,13 +3716,13 @@ ResumeExecution:
                 {
                     Log2(("IOMInterpretOUTSEx %RGv %x size=%d\n", (RTGCPTR)pCtx->rip, uPort, cbSize));
                     STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitIOStringWrite);
-                    rc = IOMInterpretOUTSEx(pVM, CPUMCTX2CORE(pCtx), uPort, pDis->prefix, cbSize);
+                    rc = VBOXSTRICTRC_TODO(IOMInterpretOUTSEx(pVM, CPUMCTX2CORE(pCtx), uPort, pDis->prefix, cbSize));
                 }
                 else
                 {
                     Log2(("IOMInterpretINSEx  %RGv %x size=%d\n", (RTGCPTR)pCtx->rip, uPort, cbSize));
                     STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitIOStringRead);
-                    rc = IOMInterpretINSEx(pVM, CPUMCTX2CORE(pCtx), uPort, pDis->prefix, cbSize);
+                    rc = VBOXSTRICTRC_TODO(IOMInterpretINSEx(pVM, CPUMCTX2CORE(pCtx), uPort, pDis->prefix, cbSize));
                 }
             }
             else
@@ -3745,7 +3738,7 @@ ResumeExecution:
             if (fIOWrite)
             {
                 STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitIOWrite);
-                rc = IOMIOPortWrite(pVM, uPort, pCtx->eax & uAndVal, cbSize);
+                rc = VBOXSTRICTRC_TODO(IOMIOPortWrite(pVM, uPort, pCtx->eax & uAndVal, cbSize));
                 if (rc == VINF_IOM_HC_IOPORT_WRITE)
                     HWACCMR0SavePendingIOPortWrite(pVCpu, pCtx->rip, pCtx->rip + cbInstr, uPort, uAndVal, cbSize);
             }
@@ -3754,7 +3747,7 @@ ResumeExecution:
                 uint32_t u32Val = 0;
 
                 STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitIORead);
-                rc = IOMIOPortRead(pVM, uPort, &u32Val, cbSize);
+                rc = VBOXSTRICTRC_TODO(IOMIOPortRead(pVM, uPort, &u32Val, cbSize));
                 if (IOM_SUCCESS(rc))
                 {
                     /* Write back to the EAX register. */
@@ -3871,7 +3864,7 @@ ResumeExecution:
             GCPhys += VMX_EXIT_QUALIFICATION_APIC_ACCESS_OFFSET(exitQualification);
 
             LogFlow(("Apic access at %RGp\n", GCPhys));
-            rc = IOMMMIOPhysHandler(pVM, (uAccessType == VMX_APIC_ACCESS_TYPE_LINEAR_READ) ? 0 : X86_TRAP_PF_RW, CPUMCTX2CORE(pCtx), GCPhys);
+            rc = VBOXSTRICTRC_TODO(IOMMMIOPhysHandler(pVM, (uAccessType == VMX_APIC_ACCESS_TYPE_LINEAR_READ) ? 0 : X86_TRAP_PF_RW, CPUMCTX2CORE(pCtx), GCPhys));
             if (rc == VINF_SUCCESS)
             {
                 STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit2Sub1, y1);
@@ -4247,7 +4240,7 @@ static void vmxR0FlushVPID(PVM pVM, PVMCPU pVCpu, VMX_FLUSH enmFlush, RTGCPTR GC
         descriptor[0] = pVCpu->hwaccm.s.uCurrentASID;
         descriptor[1] = GCPtr;
         int rc = VMXR0InvVPID(enmFlush, &descriptor[0]);
-        AssertRC(rc);
+        AssertMsg(rc == VINF_SUCCESS, ("VMXR0InvVPID %x %x %RGv failed with %d\n", enmFlush, pVCpu->hwaccm.s.uCurrentASID, GCPtr, rc));
     }
 }
 #endif /* HWACCM_VTX_WITH_VPID */
@@ -4556,7 +4549,7 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, R
     RTHCUINTREG     uOldEFlags;
 
     /* @todo This code is not guest SMP safe (hyper stack and switchers) */
-    AssertReturn(pVM->cCPUs == 1, VERR_TOO_MANY_CPUS);
+    AssertReturn(pVM->cCpus == 1, VERR_TOO_MANY_CPUS);
     AssertReturn(pVM->hwaccm.s.pfnHost32ToGuest64R0, VERR_INTERNAL_ERROR);
     Assert(pVCpu->hwaccm.s.vmx.VMCSCache.Write.cValidEntries <= RT_ELEMENTS(pVCpu->hwaccm.s.vmx.VMCSCache.Write.aField));
     Assert(pVCpu->hwaccm.s.vmx.VMCSCache.Read.cValidEntries <= RT_ELEMENTS(pVCpu->hwaccm.s.vmx.VMCSCache.Read.aField));

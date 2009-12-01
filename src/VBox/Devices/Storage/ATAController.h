@@ -1,4 +1,4 @@
-/* $Id: ATAController.h $ */
+/* $Id: ATAController.h 24772 2009-11-18 19:10:17Z vboxsync $ */
 /** @file
  * DevATA, DevAHCI - Shared ATA/ATAPI controller types.
  */
@@ -365,7 +365,10 @@ typedef struct AHCIATACONTROLLER
     uint8_t             AsyncIOReqHead;
     /** The position at which to get a new request for the AIO thread. */
     uint8_t             AsyncIOReqTail;
-    uint8_t             Alignment3[2]; /**< Explicit padding of the 2 byte gap. */
+    /** Whether to call RTThreadUserSignal and PDMDevHlpAsyncNotificationCompleted
+     * when idle.  Before setting this, call RTThreadUserReset. */
+    bool volatile       fSignalIdle;
+    uint8_t             Alignment3[1]; /**< Explicit padding of the 1 byte gap. */
     /** Magic delay before triggering interrupts in DMA mode. */
     uint32_t            DelayIRQMillies;
     /** The mutex protecting the request queue. */
@@ -431,12 +434,12 @@ int ataControllerInit(PPDMDEVINS pDevIns, PAHCIATACONTROLLER pCtl, PPDMIBASE pDr
 int ataControllerDestroy(PAHCIATACONTROLLER pCtl);
 
 /**
- * Power off a controller.
+ * Tests if the controller is idle, leaving the PDM notifications on if busy.
  *
- * @returns nothing.
+ * @returns true if idle, false if idle.
  * @param   pCtl the controller instance.
  */
-void ataControllerPowerOff(PAHCIATACONTROLLER pCtl);
+bool ataControllerIsIdle(PAHCIATACONTROLLER pCtl);
 
 /**
  * Reset a controller instance to an initial state.
@@ -445,14 +448,6 @@ void ataControllerPowerOff(PAHCIATACONTROLLER pCtl);
  * @param   pCtl Pointer to the controller.
  */
 void ataControllerReset(PAHCIATACONTROLLER pCtl);
-
-/**
- * Suspend operation of an controller.
- *
- * @returns nothing
- * @param   pCtl The controller instance.
- */
-void ataControllerSuspend(PAHCIATACONTROLLER pCtl);
 
 /**
  * Resume operation of an controller.
@@ -482,15 +477,6 @@ void ataControllerRelocate(PAHCIATACONTROLLER pCtl, RTGCINTPTR offDelta);
 int ataControllerSaveExec(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSM);
 
 /**
- * Prepare state save operation.
- *
- * @returns VBox status code.
- * @param   pCtl    The controller instance.
- * @param   pSSM    SSM operation handle.
- */
-int ataControllerSavePrep(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSM);
-
-/**
  * Excute state load operation.
  *
  * @returns VBox status code.
@@ -498,15 +484,6 @@ int ataControllerSavePrep(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSM);
  * @param   pSSM    SSM operation handle.
  */
 int ataControllerLoadExec(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSM);
-
-/**
- * Prepare state load operation.
- *
- * @returns VBox status code.
- * @param   pCtl    The controller instance.
- * @param   pSSM    SSM operation handle.
- */
-int ataControllerLoadPrep(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSM);
 
 #endif /* IN_RING3 */
 

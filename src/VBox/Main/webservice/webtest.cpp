@@ -46,8 +46,9 @@ int main(int argc, char* argv[])
                "webtest: VirtualBox webservice testcase.\n"
                "Usage:\n"
                " - IWebsessionManager:\n"
-               "   - webtest logon <user> <pass>: IWebsessionManage::logon().\n"
-               "   - webtest getsession <vboxref>: IWebsessionManage::getSessionObject().\n"
+               "   - webtest logon <user> <pass>: IWebsessionManager::logon().\n"
+               "   - webtest getsession <vboxref>: IWebsessionManager::getSessionObject().\n"
+               "   - webtest logoff <vboxref>: IWebsessionManager::logoff().\n"
                " - IVirtualBox:\n"
                "   - webtest version <vboxref>: IVirtualBox::getVersion().\n"
                "   - webtest gethost <vboxref>: IVirtualBox::getHost().\n"
@@ -83,7 +84,6 @@ int main(int argc, char* argv[])
             _vbox__IWebsessionManager_USCORElogon req;
             req.username = argv[2];
             req.password = argv[3];
-            std::cout << "logon: user = \"" << req.username << "\", pass = \"" << req.password << "\"\n";
             _vbox__IWebsessionManager_USCORElogonResponse resp;
 
             if (!(soaprc = soap_call___vbox__IWebsessionManager_USCORElogon(&soap,
@@ -110,6 +110,24 @@ int main(int argc, char* argv[])
                                                             &req,
                                                             &resp)))
                 std::cout << "session: \"" << resp.returnval << "\"\n";
+        }
+    }
+    else if (!strcmp(pcszMode, "logoff"))
+    {
+        if (argc < 3)
+            std::cout << "Not enough arguments for \"" << pcszMode << "\" mode.\n";
+        else
+        {
+            _vbox__IWebsessionManager_USCORElogoff req;
+            req.refIVirtualBox = argv[2];
+            _vbox__IWebsessionManager_USCORElogoffResponse resp;
+
+            if (!(soaprc = soap_call___vbox__IWebsessionManager_USCORElogoff(&soap,
+                                                            pcszArgEndpoint,
+                                                            NULL,
+                                                            &req,
+                                                            &resp)))
+                ;
         }
     }
     else if (!strcmp(pcszMode, "version"))
@@ -229,32 +247,15 @@ int main(int argc, char* argv[])
                                                            NULL,
                                                            &req,
                                                            &resp)))
-        {
-            size_t c = resp.returnval.size();
-            for (size_t i = 0;
-                 i < c;
-                 ++i)
             {
-                std::cout << "DVD drive " << i << ": objref " << resp.returnval[i] << "\n";
+                size_t c = resp.returnval.size();
+                for (size_t i = 0;
+                    i < c;
+                    ++i)
+                {
+                    std::cout << "DVD drive " << i << ": objref " << resp.returnval[i] << "\n";
+                }
             }
-        }
-        }
-    }
-    else if (!strcmp(pcszMode, "getdvdname"))
-    {
-        if (argc < 3)
-            std::cout << "Not enough arguments for \"" << pcszMode << "\" mode.\n";
-        else
-        {
-            _vbox__IHostDVDDrive_USCOREgetName req;
-            req._USCOREthis = argv[2];
-            _vbox__IHostDVDDrive_USCOREgetNameResponse resp;
-            if (!(soaprc = soap_call___vbox__IHostDVDDrive_USCOREgetName(&soap,
-                                                              pcszArgEndpoint,
-                                                              NULL,
-                                                              &req,
-                                                              &resp)))
-                std::cout << "Name is: \"" << resp.returnval << "\"\n";
         }
     }
     else if (!strcmp(pcszMode, "getname"))

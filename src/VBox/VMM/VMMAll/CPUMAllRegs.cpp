@@ -1,4 +1,4 @@
-/* $Id: CPUMAllRegs.cpp $ */
+/* $Id: CPUMAllRegs.cpp 24953 2009-11-25 14:00:05Z vboxsync $ */
 /** @file
  * CPUM - CPU Monitor(/Manager) - Getters and Setters.
  */
@@ -786,6 +786,13 @@ VMMDECL(uint64_t)  CPUMGetGuestMsr(PVMCPU pVCpu, unsigned idMsr)
             u64 = pVCpu->cpum.s.GuestMsr.msr.tscAux;
             break;
 
+        case MSR_IA32_PERF_STATUS:
+            /** @todo: could really be not exactly correct, maybe use host's values */
+            /* Keep consistent with helper_rdmsr() in REM */
+            u64 =     (1000ULL                /* TSC increment by tick */)
+                    | (((uint64_t)4ULL) << 40 /* CPU multiplier */       );
+            break;
+
         /* fs & gs base skipped on purpose as the current context might not be up-to-date. */
         default:
             AssertFailed();
@@ -1072,7 +1079,7 @@ VMMDECL(void) CPUMGetGuestCpuId(PVMCPU pVCpu, uint32_t iLeaf, uint32_t *pEax, ui
     *pEdx = pCpuId->edx;
 
     if (    iLeaf == 1
-        &&  pVM->cCPUs > 1)
+        &&  pVM->cCpus > 1)
     {
         /* Bits 31-24: Initial APIC ID */
         Assert(pVCpu->idCpu <= 255);
@@ -1081,11 +1088,12 @@ VMMDECL(void) CPUMGetGuestCpuId(PVMCPU pVCpu, uint32_t iLeaf, uint32_t *pEax, ui
 
     if (    iLeaf == 4
         &&  fHasMoreCaches
-        &&  pVM->cpum.s.enmCPUVendor == CPUMCPUVENDOR_INTEL)
+        &&  pVM->cpum.s.enmGuestCpuVendor == CPUMCPUVENDOR_INTEL)
     {
-        /* Report unified L0 cache, Linux'es num_cpu_cores() requires
+        /* Report L0 data cache, Linux'es num_cpu_cores() requires
          * that to be non-0 to detect core count correctly. */
-        *pEax |= (1 << 5) | 3;
+        *pEax |= (1 << 5) /* level 1 */ | 1 /* 1 - data cache, 2 - i-cache, 3 - unified */ ;
+        *pEbx = 63 /* linesize 64 */ ;
     }
 
     Log2(("CPUMGetGuestCpuId: iLeaf=%#010x %RX32 %RX32 %RX32 %RX32\n", iLeaf, *pEax, *pEbx, *pEcx, *pEdx));
@@ -1147,7 +1155,7 @@ VMMDECL(void) CPUMSetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
             if (pVM->cpum.s.aGuestCpuIdStd[0].eax >= 1)
                 pVM->cpum.s.aGuestCpuIdStd[1].edx |= X86_CPUID_FEATURE_EDX_APIC;
             if (    pVM->cpum.s.aGuestCpuIdExt[0].eax >= 0x80000001
-                &&  pVM->cpum.s.enmCPUVendor == CPUMCPUVENDOR_AMD)
+                &&  pVM->cpum.s.enmGuestCpuVendor == CPUMCPUVENDOR_AMD)
                 pVM->cpum.s.aGuestCpuIdExt[1].edx |= X86_CPUID_AMD_FEATURE_EDX_APIC;
             LogRel(("CPUMSetGuestCpuIdFeature: Enabled APIC\n"));
             break;
@@ -1222,7 +1230,7 @@ VMMDECL(void) CPUMSetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
             if (pVM->cpum.s.aGuestCpuIdStd[0].eax >= 1)
                 pVM->cpum.s.aGuestCpuIdStd[1].edx |= X86_CPUID_FEATURE_EDX_PAE;
             if (    pVM->cpum.s.aGuestCpuIdExt[0].eax >= 0x80000001
-                &&  pVM->cpum.s.enmCPUVendor == CPUMCPUVENDOR_AMD)
+                &&  pVM->cpum.s.enmGuestCpuVendor == CPUMCPUVENDOR_AMD)
                 pVM->cpum.s.aGuestCpuIdExt[1].edx |= X86_CPUID_AMD_FEATURE_EDX_PAE;
             LogRel(("CPUMSetGuestCpuIdFeature: Enabled PAE\n"));
             break;
@@ -1285,7 +1293,7 @@ VMMDECL(void) CPUMSetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
             if (pVM->cpum.s.aGuestCpuIdStd[0].eax >= 1)
                 pVM->cpum.s.aGuestCpuIdStd[1].edx |= X86_CPUID_FEATURE_EDX_PAT;
             if (    pVM->cpum.s.aGuestCpuIdExt[0].eax >= 0x80000001
-                &&  pVM->cpum.s.enmCPUVendor == CPUMCPUVENDOR_AMD)
+                &&  pVM->cpum.s.enmGuestCpuVendor == CPUMCPUVENDOR_AMD)
                 pVM->cpum.s.aGuestCpuIdExt[1].edx |= X86_CPUID_AMD_FEATURE_EDX_PAT;
             LogRel(("CPUMClearGuestCpuIdFeature: Enabled PAT\n"));
             break;
@@ -1310,10 +1318,9 @@ VMMDECL(void) CPUMSetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
             AssertMsgFailed(("enmFeature=%d\n", enmFeature));
             break;
     }
-    for (unsigned i=0;i<pVM->cCPUs;i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
-
         pVCpu->cpum.s.fChanged |= CPUM_CHANGED_CPUID;
     }
 }
@@ -1376,7 +1383,7 @@ VMMDECL(void) CPUMClearGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
             if (pVM->cpum.s.aGuestCpuIdStd[0].eax >= 1)
                 pVM->cpum.s.aGuestCpuIdStd[1].edx &= ~X86_CPUID_FEATURE_EDX_APIC;
             if (    pVM->cpum.s.aGuestCpuIdExt[0].eax >= 0x80000001
-                &&  pVM->cpum.s.enmCPUVendor == CPUMCPUVENDOR_AMD)
+                &&  pVM->cpum.s.enmGuestCpuVendor == CPUMCPUVENDOR_AMD)
                 pVM->cpum.s.aGuestCpuIdExt[1].edx &= ~X86_CPUID_AMD_FEATURE_EDX_APIC;
             Log(("CPUMSetGuestCpuIdFeature: Disabled APIC\n"));
             break;
@@ -1395,7 +1402,7 @@ VMMDECL(void) CPUMClearGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
             if (pVM->cpum.s.aGuestCpuIdStd[0].eax >= 1)
                 pVM->cpum.s.aGuestCpuIdStd[1].edx &= ~X86_CPUID_FEATURE_EDX_PAE;
             if (    pVM->cpum.s.aGuestCpuIdExt[0].eax >= 0x80000001
-                &&  pVM->cpum.s.enmCPUVendor == CPUMCPUVENDOR_AMD)
+                &&  pVM->cpum.s.enmGuestCpuVendor == CPUMCPUVENDOR_AMD)
                 pVM->cpum.s.aGuestCpuIdExt[1].edx &= ~X86_CPUID_AMD_FEATURE_EDX_PAE;
             LogRel(("CPUMClearGuestCpuIdFeature: Disabled PAE!\n"));
             break;
@@ -1406,7 +1413,7 @@ VMMDECL(void) CPUMClearGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
             if (pVM->cpum.s.aGuestCpuIdStd[0].eax >= 1)
                 pVM->cpum.s.aGuestCpuIdStd[1].edx &= ~X86_CPUID_FEATURE_EDX_PAT;
             if (    pVM->cpum.s.aGuestCpuIdExt[0].eax >= 0x80000001
-                &&  pVM->cpum.s.enmCPUVendor == CPUMCPUVENDOR_AMD)
+                &&  pVM->cpum.s.enmGuestCpuVendor == CPUMCPUVENDOR_AMD)
                 pVM->cpum.s.aGuestCpuIdExt[1].edx &= ~X86_CPUID_AMD_FEATURE_EDX_PAT;
             LogRel(("CPUMClearGuestCpuIdFeature: Disabled PAT!\n"));
             break;
@@ -1430,14 +1437,24 @@ VMMDECL(void) CPUMClearGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
             AssertMsgFailed(("enmFeature=%d\n", enmFeature));
             break;
     }
-    for (unsigned i=0;i<pVM->cCPUs;i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
-
         pVCpu->cpum.s.fChanged |= CPUM_CHANGED_CPUID;
     }
 }
 
+
+/**
+ * Gets the host CPU vendor
+ *
+ * @returns CPU vendor
+ * @param   pVM     The VM handle.
+ */
+VMMDECL(CPUMCPUVENDOR) CPUMGetHostCpuVendor(PVM pVM)
+{
+    return pVM->cpum.s.enmHostCpuVendor;
+}
 
 /**
  * Gets the CPU vendor
@@ -1445,9 +1462,9 @@ VMMDECL(void) CPUMClearGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
  * @returns CPU vendor
  * @param   pVM     The VM handle.
  */
-VMMDECL(CPUMCPUVENDOR) CPUMGetCPUVendor(PVM pVM)
+VMMDECL(CPUMCPUVENDOR) CPUMGetGuestCpuVendor(PVM pVM)
 {
-    return pVM->cpum.s.enmCPUVendor;
+    return pVM->cpum.s.enmGuestCpuVendor;
 }
 
 

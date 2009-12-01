@@ -1,6 +1,6 @@
-/* $Id: gvmm.h $ */
+/* $Id: gvmm.h 21217 2009-07-04 14:26:39Z vboxsync $ */
 /** @file
- * GVMM - The Global VM Manager.
+ * GVMM - The Global VM Manager. (VMM)
  */
 
 /*

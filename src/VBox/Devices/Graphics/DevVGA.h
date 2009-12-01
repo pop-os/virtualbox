@@ -1,4 +1,4 @@
-/* $Id: DevVGA.h $ */
+/* $Id: DevVGA.h 25062 2009-11-27 19:24:14Z vboxsync $ */
 /** @file
  * DevVGA - VBox VGA/VESA device, internal header.
  */
@@ -45,8 +45,9 @@
  */
 
 #ifdef VBOX_WITH_HGSMI
-#include "HGSMI/HGSMIHost.h"
+# include "HGSMI/HGSMIHost.h"
 #endif /* VBOX_WITH_HGSMI */
+#include "DevVGASavedState.h"
 
 #define MSR_COLOR_EMULATION 0x01
 #define MSR_PAGE_SELECT     0x20
@@ -77,14 +78,7 @@
 #define VBE_DISPI_INDEX_X_OFFSET        0x8
 #define VBE_DISPI_INDEX_Y_OFFSET        0x9
 #define VBE_DISPI_INDEX_VBOX_VIDEO      0xa
-#ifdef VBOX_WITH_HGSMI
-/* @todo this will break saved state and is inefficient. use 2 PCI io ports. */
-#define VBE_DISPI_INDEX_VBVA_HOST       0xb
-#define VBE_DISPI_INDEX_VBVA_GUEST      0xc
-#define VBE_DISPI_INDEX_NB              0xd
-#else
 #define VBE_DISPI_INDEX_NB              0xb
-#endif /* !VBOX_WITH_HGSMI */
 
 #define VBE_DISPI_ID0                   0xB0C0
 #define VBE_DISPI_ID1                   0xB0C1
@@ -96,9 +90,7 @@
 /* The VBOX interface id. Indicates support for VBE_DISPI_INDEX_VBOX_VIDEO. */
 #define VBE_DISPI_ID_VBOX_VIDEO         0xBE00
 #ifdef VBOX_WITH_HGSMI
-/* The VBOX interface id. Indicates support for VBVA shared memory interface,
- * VBE_DISPI_INDEX_VBVA_GUEST_CMD and VBE_DISPI_INDEX_VBVA_HOST_CMD VBE indexes.
- */
+/* The VBOX interface id. Indicates support for VBVA shared memory interface. */
 #define VBE_DISPI_ID_HGSMI              0xBE01
 #endif /* VBOX_WITH_HGSMI */
 #endif /* VBOX */
@@ -284,11 +276,14 @@ typedef struct VGAState {
     bool                        fRenderVRAM;
     bool                        Padding1[2];
 
+    uint32_t                    cMonitors;
+
 #ifdef VBOX_WITH_HGSMI
     R3PTRTYPE(PHGSMIINSTANCE)   pHGSMI;
 #endif /* VBOX_WITH_HGSMI */
 
     /** Current refresh timer interval. */
+    uint32_t                    Padding2;
     uint32_t                    cMilliesRefreshInterval;
     /** Refresh timer handle - HC. */
     PTMTIMERR3                  RefreshTimer;
@@ -311,9 +306,16 @@ typedef struct VGAState {
     PDMIBASE                    Base;
     /** The display port interface. */
     PDMIDISPLAYPORT             Port;
+# if HC_ARCH_BITS == 32
+    uint32_t                    Padding8;
+# endif
 #if defined(VBOX_WITH_HGSMI) && defined(VBOX_WITH_VIDEOHWACCEL)
     /** VBVA callbacks interface */
     PDMDDISPLAYVBVACALLBACKS    VBVACallbacks;
+#else
+# if HC_ARCH_BITS == 32
+    uint32_t                    Padding3;
+# endif
 #endif
     /** Pointer to base interface of the driver. */
     R3PTRTYPE(PPDMIBASE)        pDrvBase;
@@ -394,6 +396,11 @@ typedef struct VGAState {
     /** Palette data. */
     uint32_t                    au32LogoPalette[256];
 #endif /* VBOX */
+#ifdef VBOX_WITH_HGSMI
+    /** Base port in the assigned PCI I/O space. */
+    RTIOPORT                    IOPortBase;
+    uint8_t                     Padding7[6];
+#endif /* VBOX_WITH_HGSMI */
 } VGAState;
 #ifdef VBOX
 /** VGA state. */
@@ -449,10 +456,25 @@ static inline int c6_to_8(int v)
 int      VBVAInit       (PVGASTATE pVGAState);
 void     VBVADestroy    (PVGASTATE pVGAState);
 int      VBVAUpdateDisplay (PVGASTATE pVGAState);
+void     VBVAReset (PVGASTATE pVGAState);
+/* @return host-guest flags that were set on reset
+ * this allows the caller to make further cleaning when needed,
+ * e.g. reset the IRQ */
+uint32_t HGSMIReset (PHGSMIINSTANCE pIns);
 
 # ifdef VBOX_WITH_VIDEOHWACCEL
 int vbvaVHWACommandCompleteAsynch(PPDMDDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd);
+int vbvaVHWAConstruct (PVGASTATE pVGAState);
+int vbvaVHWADisable (PVGASTATE pVGAState);
+int vbvaVHWAReset (PVGASTATE pVGAState);
+
+int vboxVBVASaveStatePrep (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 # endif
+
+int vboxVBVASaveStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
+int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Version);
+int vboxVBVALoadStateDone (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
+
 #endif /* VBOX_WITH_HGSMI */
 
 #ifndef VBOX

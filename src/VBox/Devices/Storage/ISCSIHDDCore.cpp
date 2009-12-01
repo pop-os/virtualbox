@@ -23,7 +23,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_VD_ISCSI
-#include "VBoxHDD-Internal.h"
+#include <VBox/VBoxHDD-Plugin.h>
 #define VBOX_VDICORE_VD /* Signal that the header is included from here. */
 #include "VDICore.h"
 #include <VBox/err.h>
@@ -308,10 +308,10 @@ typedef struct ISCSIIMAGE
     unsigned            uOpenFlags;
     /** Number of re-login retries when a connection fails. */
     uint32_t            cISCSIRetries;
-    /** Size of volume in sectors. */
-    uint32_t            cVolume;
     /** Sector size on volume. */
     uint32_t            cbSector;
+    /** Size of volume in sectors. */
+    uint64_t            cVolume;
     /** Total volume size in bytes. Easiert that multiplying the above values all the time. */
     uint64_t            cbSize;
 
@@ -489,6 +489,12 @@ DECLINLINE(int) iscsiError(PISCSIIMAGE pImage, int rc, RT_SRC_POS_DECL,
         pImage->pInterfaceErrorCallbacks->pfnError(pImage->pInterfaceError->pvUser, rc, RT_SRC_POS_ARGS,
                                                    pszFormat, va);
     va_end(va);
+
+#ifdef LOG_ENABLED
+    va_start(va, pszFormat);
+    Log(("iscsiError(%d/%s): %N\n", iLine, pszFunction, pszFormat, &va));
+    va_end(va);
+#endif
     return rc;
 }
 
@@ -635,7 +641,7 @@ static int iscsiTransportWrite(PISCSIIMAGE pImage, PISCSIREQ paRequest, unsigned
     uint32_t pad = 0;
     unsigned int i;
 
-    LogFlow(("drvISCSITransportTcpWrite: cnRequest=%d (%s:%d)\n", cnRequest, pImage->pszHostname, pImage->uPort));
+    LogFlow(("iscsiTransportWrite: cnRequest=%d (%s:%d)\n", cnRequest, pImage->pszHostname, pImage->uPort));
     if (pImage->Socket == NIL_RTSOCKET)
     {
         /* Attempt to reconnect if the connection was previously broken. */
@@ -691,7 +697,7 @@ static int iscsiTransportWrite(PISCSIIMAGE pImage, PISCSIREQ paRequest, unsigned
         rc = VERR_BROKEN_PIPE;
     }
 
-    LogFlow(("drvISCSITransportTcpWrite: returns %Rrc\n", rc));
+    LogFlow(("iscsiTransportWrite: returns %Rrc\n", rc));
     return rc;
 }
 
@@ -980,7 +986,12 @@ restart:
         aReqBHS[4] = itt;
         aReqBHS[5] = RT_H2N_U32(1 << 16);   /* CID=1,reserved */
         aReqBHS[6] = RT_H2N_U32(pImage->CmdSN);
+#if 0 /** @todo This ExpStatSN hack is required to make the netbsd-iscsi target working. Could be a bug in the target,
+       * but they claim a bunch of other initiators works fine with it... Needs looking into. */
+        aReqBHS[7] = RT_H2N_U32(RT_MIN(pImage->ExpCmdSN, pImage->MaxCmdSN));
+#else
         aReqBHS[7] = RT_H2N_U32(pImage->ExpStatSN);
+#endif
         aReqBHS[8] = 0;             /* reserved */
         aReqBHS[9] = 0;             /* reserved */
         aReqBHS[10] = 0;            /* reserved */
@@ -1257,7 +1268,7 @@ static int iscsiDetach(PISCSIIMAGE pImage)
     uint32_t cnISCSIReq = 0;
     ISCSIREQ aISCSIReq[4];
     uint32_t aReqBHS[12];
-    LogFlow(("drvISCSIDetach: entering\n"));
+    LogFlow(("iscsiDetach: entering\n"));
 
     RTSemMutexRequest(pImage->Mutex, RT_INDEFINITE_WAIT);
 
@@ -1325,7 +1336,7 @@ static int iscsiDetach(PISCSIIMAGE pImage)
 
     RTSemMutexRelease(pImage->Mutex);
 
-    LogFlow(("drvISCSIDetach: leaving\n"));
+    LogFlow(("iscsiDetach: leaving\n"));
     LogRel(("iSCSI: logout to target %s\n", pImage->pszTargetName));
     return VINF_SUCCESS;
 }
@@ -1756,17 +1767,16 @@ static int iscsiRecvPDU(PISCSIIMAGE pImage, uint32_t itt, PISCSIRES paRes, uint3
             else if (   cmd == ISCSIOP_NOP_IN
                      && RT_N2H_U32(pcvResSeg[5]) != ISCSI_TASK_TAG_RSVD)
             {
-                const uint32_t *pcvResSeg = (const uint32_t *)aResBuf.pvSeg;
                 uint32_t cnISCSIReq;
                 ISCSIREQ aISCSIReq[4];
                 uint32_t aReqBHS[12];
 
                 aReqBHS[0] = RT_H2N_U32(ISCSI_IMMEDIATE_DELIVERY_BIT | ISCSI_FINAL_BIT | ISCSIOP_NOP_OUT);
                 aReqBHS[1] = RT_H2N_U32(0); /* TotalAHSLength=0,DataSementLength=0 */
-                aReqBHS[2] = pcvResSeg[2];	/* copy LUN from NOP-In */
-                aReqBHS[3] = pcvResSeg[3];	/* copy LUN from NOP-In */
+                aReqBHS[2] = pcvResSeg[2];      /* copy LUN from NOP-In */
+                aReqBHS[3] = pcvResSeg[3];      /* copy LUN from NOP-In */
                 aReqBHS[4] = RT_H2N_U32(ISCSI_TASK_TAG_RSVD); /* ITT, reply */
-                aReqBHS[5] = pcvResSeg[5];	/* copy TTT from NOP-In */
+                aReqBHS[5] = pcvResSeg[5];      /* copy TTT from NOP-In */
                 aReqBHS[6] = RT_H2N_U32(pImage->CmdSN);
                 aReqBHS[7] = RT_H2N_U32(pImage->ExpStatSN);
                 aReqBHS[8] = 0;             /* reserved */
@@ -2463,6 +2473,7 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
     SCSIREQ sr;
     uint8_t sense[32];
     uint8_t data8[8];
+    uint8_t data12[12];
 
     /*
      * Inquire available LUNs - purely dummy request.
@@ -2588,48 +2599,86 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
     /*
      * Determine sector size and capacity of the volume immediately.
      */
-    uint8_t cdb_cap[10];
+    uint8_t cdb_cap[16];
 
-    cdb_cap[0] = SCSI_READ_CAPACITY;
-    cdb_cap[1] = 0;         /* reserved */
-    cdb_cap[2] = 0;         /* reserved */
-    cdb_cap[3] = 0;         /* reserved */
-    cdb_cap[4] = 0;         /* reserved */
-    cdb_cap[5] = 0;         /* reserved */
-    cdb_cap[6] = 0;         /* reserved */
-    cdb_cap[7] = 0;         /* reserved */
-    cdb_cap[8] = 0;         /* reserved */
-    cdb_cap[9] = 0;         /* control */
+    RT_ZERO(data12);
+    RT_ZERO(cdb_cap);
+    cdb_cap[0] = SCSI_SERVICE_ACTION_IN_16;
+    cdb_cap[1] = SCSI_SVC_ACTION_IN_READ_CAPACITY_16;   /* subcommand */
+    cdb_cap[10+3] = sizeof(data12);                     /* allocation length (dword) */
 
     sr.enmXfer = SCSIXFER_FROM_TARGET;
     sr.cbCmd = sizeof(cdb_cap);
     sr.pvCmd = cdb_cap;
     sr.cbI2TData = 0;
     sr.pcvI2TData = NULL;
-    sr.cbT2IData = sizeof(data8);
-    sr.pvT2IData = data8;
+    sr.cbT2IData = sizeof(data12);
+    sr.pvT2IData = data12;
     sr.cbSense = sizeof(sense);
     sr.pvSense = sense;
 
     rc = iscsiCommand(pImage, &sr);
-    if (RT_SUCCESS(rc))
+    if (   RT_SUCCESS(rc)
+        && sr.status == SCSI_STATUS_OK)
     {
-        pImage->cVolume = (data8[0] << 24) | (data8[1] << 16) | (data8[2] << 8) | data8[3];
+        pImage->cVolume = RT_BE2H_U64(*(uint64_t *)&data12[0]);
         pImage->cVolume++;
-        pImage->cbSector = (data8[4] << 24) | (data8[5] << 16) | (data8[6] << 8) | data8[7];
-        pImage->cbSize = (uint64_t)(pImage->cVolume) * pImage->cbSector;
-        if (pImage->cVolume == 0 || pImage->cbSector == 0)
+        pImage->cbSector = RT_BE2H_U32(*(uint32_t *)&data12[8]);
+        pImage->cbSize = pImage->cVolume * pImage->cbSector;
+        if (pImage->cVolume == 0 || pImage->cbSector != 512 || pImage->cbSize < pImage->cVolume)
         {
             rc = iscsiError(pImage, VERR_VD_ISCSI_INVALID_TYPE,
-                            RT_SRC_POS, N_("iSCSI: target address %s, target name %s, SCSI LUN %lld reports media sector count=%lu sector size=%lu"),
+                            RT_SRC_POS, N_("iSCSI: target address %s, target name %s, SCSI LUN %lld reports media sector count=%llu sector size=%u"),
                             pImage->pszTargetAddress, pImage->pszTargetName,
                             pImage->LUN, pImage->cVolume, pImage->cbSector);
         }
     }
     else
     {
-        LogRel(("iSCSI: Could not determine capacity of target %s, rc=%Rrc\n", pImage->pszTargetName, rc));
-        goto out;
+        uint8_t cdb_capfb[10];
+
+        RT_ZERO(data8);
+        cdb_capfb[0] = SCSI_READ_CAPACITY;
+        cdb_capfb[1] = 0;   /* reserved */
+        cdb_capfb[2] = 0;   /* reserved */
+        cdb_capfb[3] = 0;   /* reserved */
+        cdb_capfb[4] = 0;   /* reserved */
+        cdb_capfb[5] = 0;   /* reserved */
+        cdb_capfb[6] = 0;   /* reserved */
+        cdb_capfb[7] = 0;   /* reserved */
+        cdb_capfb[8] = 0;   /* reserved */
+        cdb_capfb[9] = 0;   /* control */
+
+        sr.enmXfer = SCSIXFER_FROM_TARGET;
+        sr.cbCmd = sizeof(cdb_capfb);
+        sr.pvCmd = cdb_capfb;
+        sr.cbI2TData = 0;
+        sr.pcvI2TData = NULL;
+        sr.cbT2IData = sizeof(data8);
+        sr.pvT2IData = data8;
+        sr.cbSense = sizeof(sense);
+        sr.pvSense = sense;
+
+        rc = iscsiCommand(pImage, &sr);
+        if (RT_SUCCESS(rc))
+        {
+            pImage->cVolume = (data8[0] << 24) | (data8[1] << 16) | (data8[2] << 8) | data8[3];
+            pImage->cVolume++;
+            pImage->cbSector = (data8[4] << 24) | (data8[5] << 16) | (data8[6] << 8) | data8[7];
+            pImage->cbSize = pImage->cVolume * pImage->cbSector;
+            if (pImage->cVolume == 0 || pImage->cbSector != 512)
+            {
+                rc = iscsiError(pImage, VERR_VD_ISCSI_INVALID_TYPE,
+                                RT_SRC_POS, N_("iSCSI: fallback capacity detectio for target address %s, target name %s, SCSI LUN %lld reports media sector count=%llu sector size=%u"),
+                                pImage->pszTargetAddress, pImage->pszTargetName,
+                                pImage->LUN, pImage->cVolume, pImage->cbSector);
+            }
+        }
+        else
+        {
+            LogRel(("iSCSI: Could not determine capacity of target %s, rc=%Rrc\n", pImage->pszTargetName, rc));
+            goto out;
+        }
     }
 
     /*
@@ -2731,7 +2780,7 @@ out:
 
 
 /** @copydoc VBOXHDDBACKEND::pfnCheckIfValid */
-static int iscsiCheckIfValid(const char *pszFilename)
+static int iscsiCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk)
 {
     LogFlowFunc(("pszFilename=\"%s\"\n", pszFilename));
 
@@ -2792,14 +2841,13 @@ static int iscsiOpen(const char *pszFilename, unsigned uOpenFlags,
 
     rc = iscsiOpenImage(pImage, uOpenFlags);
     if (RT_SUCCESS(rc))
-        *ppBackendData = pImage;
-
-out:
-    if (RT_SUCCESS(rc))
-    {
+    {    
         LogFlowFunc(("target %s cVolume %d, cbSector %d\n", pImage->pszTargetName, pImage->cVolume, pImage->cbSector));
         LogRel(("iSCSI: target address %s, target name %s, SCSI LUN %lld\n", pImage->pszTargetAddress, pImage->pszTargetName, pImage->LUN));
+        *ppBackendData = pImage;
     }
+
+out:
     LogFlowFunc(("returns %Rrc (pBackendData=%#p)\n", rc, *ppBackendData));
     return rc;
 }
@@ -3485,7 +3533,7 @@ static void iscsiDump(void *pBackendData)
     if (pImage)
     {
         /** @todo put something useful here */
-        RTLogPrintf("Header: cVolume=%u\n", pImage->cVolume);
+        pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Header: cVolume=%u\n", pImage->cVolume);
     }
 }
 

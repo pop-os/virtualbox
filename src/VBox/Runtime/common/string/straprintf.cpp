@@ -1,4 +1,4 @@
-/* $Id: straprintf.cpp $ */
+/* $Id: straprintf.cpp 24427 2009-11-06 08:52:12Z vboxsync $ */
 /** @file
  * IPRT - Allocating String Formatters.
  */
@@ -28,10 +28,13 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/string.h>
+#include "internal/iprt.h"
+
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
 
@@ -177,6 +180,7 @@ RTDECL(int) RTStrAPrintfV(char **ppszBuffer, const char *pszFormat, va_list args
 
     return cbRet;
 }
+RT_EXPORT_SYMBOL(RTStrAPrintfV);
 
 
 RTDECL(int) RTStrAPrintf(char **ppszBuffer, const char *pszFormat, ...)
@@ -187,4 +191,28 @@ RTDECL(int) RTStrAPrintf(char **ppszBuffer, const char *pszFormat, ...)
     va_end(args);
     return cbRet;
 }
+RT_EXPORT_SYMBOL(RTStrAPrintf);
+
+
+RTDECL(char *) RTStrAPrintf2V(const char *pszFormat, va_list args)
+{
+    char *pszBuffer;
+    RTStrAPrintfV(&pszBuffer, pszFormat, args);
+    return pszBuffer;
+}
+RT_EXPORT_SYMBOL(RTStrAPrintf2V);
+
+
+RTDECL(char *) RTStrAPrintf2(const char *pszFormat, ...)
+{
+    va_list va;
+    char   *pszBuffer;
+
+    va_start(va, pszFormat);
+    RTStrAPrintfV(&pszBuffer, pszFormat, va);
+    va_end(va);
+
+    return pszBuffer;
+}
+RT_EXPORT_SYMBOL(RTStrAPrintf2);
 

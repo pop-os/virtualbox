@@ -1,5 +1,5 @@
 /** @file
- * PDM - Pluggable Device Manager, Interfaces.
+ * PDM - Pluggable Device Manager, Interfaces. (VMM)
  */
 
 /*
@@ -216,10 +216,11 @@ typedef struct PDMIMOUSEPORT
      * @param   i32DeltaX       The X delta.
      * @param   i32DeltaY       The Y delta.
      * @param   i32DeltaZ       The Z delta.
+     * @param   i32DeltaW       The W (horizontal scroll button) delta.
      * @param   fButtonStates   The button states, see the PDMIMOUSEPORT_BUTTON_* \#defines.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnPutEvent,(PPDMIMOUSEPORT pInterface, int32_t i32DeltaX, int32_t i32DeltaY, int32_t i32DeltaZ, uint32_t fButtonStates));
+    DECLR3CALLBACKMEMBER(int, pfnPutEvent,(PPDMIMOUSEPORT pInterface, int32_t i32DeltaX, int32_t i32DeltaY, int32_t i32DeltaZ, int32_t i32DeltaW, uint32_t fButtonStates));
 } PDMIMOUSEPORT;
 
 /** Mouse button defines for PDMIMOUSEPORT::pfnPutEvent.
@@ -227,6 +228,8 @@ typedef struct PDMIMOUSEPORT
 #define PDMIMOUSEPORT_BUTTON_LEFT   RT_BIT(0)
 #define PDMIMOUSEPORT_BUTTON_RIGHT  RT_BIT(1)
 #define PDMIMOUSEPORT_BUTTON_MIDDLE RT_BIT(2)
+#define PDMIMOUSEPORT_BUTTON_X1     RT_BIT(3)
+#define PDMIMOUSEPORT_BUTTON_X2     RT_BIT(4)
 /** @} */
 
 
@@ -361,21 +364,31 @@ typedef struct PDMIDISPLAYPORT
     DECLR3CALLBACKMEMBER(int, pfnSetRefreshRate,(PPDMIDISPLAYPORT pInterface, uint32_t cMilliesInterval));
 
     /**
-     * Create a 32-bbp snapshot of the display.
+     * Create a 32-bbp screenshot of the display.
      *
-     * This will create a 32-bbp bitmap with dword aligned scanline length. Because
-     * of a wish for no locks in the graphics device, this must be called from the
-     * emulation thread.
+     * This will allocate and return a 32-bbp bitmap. Size of the bitmap scanline in bytes is 4*width.
+     *
+     * The allocated bitmap buffer must be freed with pfnFreeScreenshot.
      *
      * @param   pInterface          Pointer to this interface.
-     * @param   pvData              Pointer the buffer to copy the bits to.
-     * @param   cbData              Size of the buffer.
-     * @param   pcx                 Where to store the width of the bitmap. (optional)
-     * @param   pcy                 Where to store the height of the bitmap. (optional)
-     * @param   pcbData             Where to store the actual size of the bitmap. (optional)
+     * @param   ppu8Data            Where to store the pointer to the allocated buffer.
+     * @param   pcbData             Where to store the actual size of the bitmap.
+     * @param   pcx                 Where to store the width of the bitmap.
+     * @param   pcy                 Where to store the height of the bitmap.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSnapshot,(PPDMIDISPLAYPORT pInterface, void *pvData, size_t cbData, uint32_t *pcx, uint32_t *pcy, size_t *pcbData));
+    DECLR3CALLBACKMEMBER(int, pfnTakeScreenshot,(PPDMIDISPLAYPORT pInterface, uint8_t **ppu8Data, size_t *pcbData, uint32_t *pcx, uint32_t *pcy));
+
+    /**
+     * Free screenshot buffer.
+     *
+     * This will free the memory buffer allocated by pfnTakeScreenshot.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   ppu8Data            Pointer to the buffer returned by pfnTakeScreenshot.
+     * @thread  Any.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnFreeScreenshot,(PPDMIDISPLAYPORT pInterface, uint8_t *pu8Data));
 
     /**
      * Copy bitmap to the display.
@@ -421,6 +434,10 @@ typedef struct PDMIDISPLAYPORT
 
 
 typedef struct _VBOXVHWACMD *PVBOXVHWACMD; /**< @todo r=bird: _VBOXVHWACMD -> VBOXVHWACMD; avoid using 1 or 2 leading underscores. Also, a line what it is to make doxygen happy. */
+typedef struct VBVACMDHDR *PVBVACMDHDR;
+typedef struct VBVAINFOSCREEN *PVBVAINFOSCREEN;
+typedef struct VBVAINFOVIEW *PVBVAINFOVIEW;
+typedef struct VBVAHOSTFLAGS *PVBVAHOSTFLAGS;
 
 /** Pointer to a display connector interface. */
 typedef struct PDMIDISPLAYCONNECTOR *PPDMIDISPLAYCONNECTOR;
@@ -530,6 +547,97 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @thread  The emulation thread.
      */
     DECLR3CALLBACKMEMBER(void, pfnVHWACommandProcess, (PPDMIDISPLAYCONNECTOR pInterface, PVBOXVHWACMD pCmd));
+
+    /**
+     * The specified screen enters VBVA mode.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   uScreenId           The screen updates are for.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnVBVAEnable,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, PVBVAHOSTFLAGS pHostFlags));
+
+    /**
+     * The specified screen leaves VBVA mode.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   uScreenId           The screen updates are for.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnVBVADisable,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId));
+
+    /**
+     * A sequence of pfnVBVAUpdateProcess calls begins.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   uScreenId           The screen updates are for.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnVBVAUpdateBegin,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId));
+
+    /**
+     * Process the guest VBVA command.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   pCmd                Video HW Acceleration Command to be processed.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnVBVAUpdateProcess,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, const PVBVACMDHDR pCmd, size_t cbCmd));
+
+    /**
+     * A sequence of pfnVBVAUpdateProcess calls ends.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   uScreenId           The screen updates are for.
+     * @param   x                   The upper left corner x coordinate of the combined rectangle of all VBVA updates.
+     * @param   y                   The upper left corner y coordinate of the rectangle.
+     * @param   cx                  The width of the rectangle.
+     * @param   cy                  The height of the rectangle.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnVBVAUpdateEnd,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, int32_t x, int32_t y, uint32_t cx, uint32_t cy));
+
+    /**
+     * Resize the display.
+     * This is called when the resolution changes. This usually happens on
+     * request from the guest os, but may also happen as the result of a reset.
+     * If the callback returns VINF_VGA_RESIZE_IN_PROGRESS, the caller (VGA device)
+     * must not access the connector and return.
+     *
+     * @todo Merge with pfnResize.
+     *
+     * @returns VINF_SUCCESS if the framebuffer resize was completed,
+     *          VINF_VGA_RESIZE_IN_PROGRESS if resize takes time and not yet finished.
+     * @param   pInterface          Pointer to this interface.
+     * @param   pView               The description of VRAM block for this screen.
+     * @param   pScreen             The data of screen being resized.
+     * @param   pvVRAM              Address of the guest VRAM.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnVBVAResize,(PPDMIDISPLAYCONNECTOR pInterface, const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN pScreen, void *pvVRAM));
+
+    /**
+     * Update the pointer shape.
+     * This is called when the mouse pointer shape changes. The new shape
+     * is passed as a caller allocated buffer that will be freed after returning
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   fVisible            Visibility indicator (if false, the other parameters are undefined).
+     * @param   fAlpha              Flag whether alpha channel is being passed.
+     * @param   xHot                Pointer hot spot x coordinate.
+     * @param   yHot                Pointer hot spot y coordinate.
+     * @param   x                   Pointer new x coordinate on screen.
+     * @param   y                   Pointer new y coordinate on screen.
+     * @param   cx                  Pointer width in pixels.
+     * @param   cy                  Pointer height in pixels.
+     * @param   cbScanline          Size of one scanline in bytes.
+     * @param   pvShape             New shape buffer.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnVBVAMousePointerShape,(PPDMIDISPLAYCONNECTOR pInterface, bool fVisible, bool fAlpha,
+                                                        uint32_t xHot, uint32_t yHot,
+                                                        uint32_t cx, uint32_t cy,
+                                                        const void *pvShape));
 
     /** Read-only attributes.
      * For preformance reasons some readonly attributes are kept in the interface.
@@ -1348,6 +1456,15 @@ typedef struct PDMICHARPORT
      * @thread  Any thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnNotifyStatusLinesChanged,(PPDMICHARPORT pInterface, uint32_t fNewStatusLines));
+
+    /**
+     * Notify the device/driver that a break occurred.
+     *
+     * @returns VBox statsus code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnNotifyBreak,(PPDMICHARPORT pInterface));
 } PDMICHARPORT;
 
 
@@ -1394,6 +1511,15 @@ typedef struct PDMICHAR
      */
     DECLR3CALLBACKMEMBER(int, pfnSetModemLines,(PPDMICHAR pInterface, bool fRequestToSend, bool fDataTerminalReady));
 
+    /**
+     * Sets the TD line into break condition.
+     *
+     * @returns VBox status code.
+     * @param   pInterface  Pointer to the interface structure containing the called function pointer.
+     * @param   fBreak      Set to true to let the device send a break false to put into normal operation.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSetBreak,(PPDMICHAR pInterface, bool fBreak));
 } PDMICHAR;
 
 
@@ -1705,11 +1831,11 @@ typedef struct PDMIVMMDEVPORT
      * Note that there can only be one set of credentials and the guest may or may not
      * query them and may do whatever it wants with them.
      *
-     * @returns VBox status code
-     * @param   pszUsername            User name, may be empty (UTF-8)
-     * @param   pszPassword            Password, may be empty (UTF-8)
-     * @param   pszDomain              Domain name, may be empty (UTF-8)
-     * @param   fFlags                 Bitflags
+     * @returns VBox status code.
+     * @param   pszUsername            User name, may be empty (UTF-8).
+     * @param   pszPassword            Password, may be empty (UTF-8).
+     * @param   pszDomain              Domain name, may be empty (UTF-8).
+     * @param   fFlags                 VMMDEV_SETCREDENTIALS_*.
      */
     DECLR3CALLBACKMEMBER(int, pfnSetCredentials,(PPDMIVMMDEVPORT pInterface, const char *pszUsername,
                                                  const char *pszPassword, const char *pszDomain,
@@ -1767,14 +1893,25 @@ typedef struct PDMIVMMDEVPORT
 
 } PDMIVMMDEVPORT;
 
+/** @name Flags for PDMIVMMDEVPORT::pfnSetCredentials.
+ * @{ */
+/** The guest should perform a logon with the credentials. */
+#define VMMDEV_SETCREDENTIALS_GUESTLOGON                    RT_BIT(0)
+/** The guest should prevent local logons. */
+#define VMMDEV_SETCREDENTIALS_NOLOCALLOGON                  RT_BIT(1)
+/** The guest should verify the credentials. */
+#define VMMDEV_SETCREDENTIALS_JUDGE                         RT_BIT(15)
+/** @} */
+
+
 /** Forward declaration of the video accelerator command memory. */
-struct _VBVAMEMORY;
+struct VBVAMEMORY;
 /** Forward declaration of the guest information structure. */
 struct VBoxGuestInfo;
 /** Forward declaration of the guest statistics structure */
 struct VBoxGuestStatistics;
 /** Pointer to video accelerator command memory. */
-typedef struct _VBVAMEMORY *PVBVAMEMORY;
+typedef struct VBVAMEMORY *PVBVAMEMORY;
 
 /** Pointer to a VMMDev connector interface. */
 typedef struct PDMIVMMDEVCONNECTOR *PPDMIVMMDEVCONNECTOR;
@@ -2429,8 +2566,8 @@ typedef struct PDMISCSICONNECTOR
      * Submits a SCSI request for execution.
      *
      * @returns VBox status code.
-     * @param   pInterface    Pointer to this interface.
-     * @param   pSCSIRequest  Pointer to the SCSI request to execute.
+     * @param   pInterface      Pointer to this interface.
+     * @param   pSCSIRequest    Pointer to the SCSI request to execute.
      */
      DECLR3CALLBACKMEMBER(int, pfnSCSIRequestSend, (PPDMISCSICONNECTOR pInterface, PPDMSCSIREQUEST pSCSIRequest));
 

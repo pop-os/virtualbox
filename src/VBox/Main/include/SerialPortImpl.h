@@ -27,11 +27,17 @@
 #include "VirtualBoxBase.h"
 
 class Machine;
+class GuestOSType;
+
+namespace settings
+{
+    struct SerialPort;
+}
 
 class ATL_NO_VTABLE SerialPort :
-    public VirtualBoxBaseNEXT,
-    public VirtualBoxSupportErrorInfoImpl <SerialPort, ISerialPort>,
-    public VirtualBoxSupportTranslation <SerialPort>,
+    public VirtualBoxBase,
+    public VirtualBoxSupportErrorInfoImpl<SerialPort, ISerialPort>,
+    public VirtualBoxSupportTranslation<SerialPort>,
     VBOX_SCRIPTABLE_IMPL(ISerialPort)
 {
 public:
@@ -80,8 +86,6 @@ public:
         COM_INTERFACE_ENTRY2 (IDispatch, ISerialPort)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
     DECLARE_EMPTY_CTOR_DTOR (SerialPort)
 
     HRESULT FinalConstruct();
@@ -110,14 +114,15 @@ public:
 
     // public methods only for internal purposes
 
-    HRESULT loadSettings (const settings::Key &aPortNode);
-    HRESULT saveSettings (settings::Key &aPortNode);
+    HRESULT loadSettings(const settings::SerialPort &data);
+    HRESULT saveSettings(settings::SerialPort &data);
 
     bool isModified() { AutoWriteLock alock (this); return mData.isBackedUp(); }
     bool isReallyModified() { AutoWriteLock alock (this); return mData.hasActualChanges(); }
     bool rollback();
     void commit();
     void copyFrom (SerialPort *aThat);
+    void applyDefaults (GuestOSType *aOsType);
 
     // public methods for internal purposes only
     // (ensure there is a caller and a read lock before calling them!)
@@ -129,10 +134,10 @@ private:
 
     HRESULT checkSetPath (CBSTR aPath);
 
-    const ComObjPtr <Machine, ComWeakRef> mParent;
-    const ComObjPtr <SerialPort> mPeer;
+    const ComObjPtr<Machine, ComWeakRef> mParent;
+    const ComObjPtr<SerialPort> mPeer;
 
-    Backupable <Data> mData;
+    Backupable<Data> mData;
 };
 
 #endif // ____H_FLOPPYDRIVEIMPL

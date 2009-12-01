@@ -1,4 +1,4 @@
-/* $Id: HWACCMR0.cpp $ */
+/* $Id: HWACCMR0.cpp 24848 2009-11-22 01:29:32Z vboxsync $ */
 /** @file
  * HWACCM - Host Context Ring 0.
  */
@@ -112,14 +112,17 @@ static struct
     } vmx;
     struct
     {
-        /** Set by the ring-0 driver to indicate SVM is supported by the CPU. */
-        bool                        fSupported;
+        /* HWCR msr (for diagnostics) */
+        uint64_t                    msrHWCR;
 
         /** SVM revision. */
         uint32_t                    u32Rev;
 
         /** SVM feature bits from cpuid 0x8000000a */
         uint32_t                    u32Features;
+
+        /** Set by the ring-0 driver to indicate SVM is supported by the CPU. */
+        bool                        fSupported;
     } svm;
     /** Saved error from detection */
     int32_t         lLastError;
@@ -359,13 +362,15 @@ VMMR0DECL(int) HWACCMR0Init(void)
                 if (RT_SUCCESS(rc))
                     rc = hwaccmR0CheckCpuRcArray(aRc, RT_ELEMENTS(aRc), &idCpu);
 
-                AssertMsgRC(rc, ("HWACCMR0InitCPU failed for cpu %d with rc=%d\n", idCpu, rc));
-
+#ifndef DEBUG_bird
+                AssertMsg(rc == VINF_SUCCESS || rc == VERR_SVM_IN_USE, ("HWACCMR0InitCPU failed for cpu %d with rc=%d\n", idCpu, rc));
+#endif
                 if (RT_SUCCESS(rc))
                 {
                     /* Query AMD features. */
                     ASMCpuId(0x8000000A, &HWACCMR0Globals.svm.u32Rev, &HWACCMR0Globals.uMaxASID, &u32Dummy, &HWACCMR0Globals.svm.u32Features);
-
+                    /* Read the HWCR msr for diagnostics. */
+                    HWACCMR0Globals.svm.msrHWCR    = ASMRdMsr(MSR_K8_HWCR);
                     HWACCMR0Globals.svm.fSupported = true;
                 }
                 else
@@ -555,22 +560,28 @@ static DECLCALLBACK(void) HWACCMR0InitCPU(RTCPUID idCpu, void *pvUser1, void *pv
         {
             /* Turn on SVM in the EFER MSR. */
             val = ASMRdMsr(MSR_K6_EFER);
-            if (!(val & MSR_K6_EFER_SVME))
-                ASMWrMsr(MSR_K6_EFER, val | MSR_K6_EFER_SVME);
-
-            /* Paranoia. */
-            val = ASMRdMsr(MSR_K6_EFER);
             if (val & MSR_K6_EFER_SVME)
             {
-                /* Restore previous value. */
-                ASMWrMsr(MSR_K6_EFER, val & ~MSR_K6_EFER_SVME);
-                paRc[idCpu] = VINF_SUCCESS;
+                paRc[idCpu] = VERR_SVM_IN_USE;
             }
             else
-                paRc[idCpu] = VERR_SVM_ILLEGAL_EFER_MSR;
+            {
+                ASMWrMsr(MSR_K6_EFER, val | MSR_K6_EFER_SVME);
+
+                /* Paranoia. */
+                val = ASMRdMsr(MSR_K6_EFER);
+                if (val & MSR_K6_EFER_SVME)
+                {
+                    /* Restore previous value. */
+                    ASMWrMsr(MSR_K6_EFER, val & ~MSR_K6_EFER_SVME);
+                    paRc[idCpu] = VINF_SUCCESS;
+                }
+                else
+                    paRc[idCpu] = VERR_SVM_ILLEGAL_EFER_MSR;
+            }
         }
         else
-            paRc[idCpu] = HWACCMR0Globals.lLastError = VERR_SVM_DISABLED;
+            paRc[idCpu] = VERR_SVM_DISABLED;
     }
     else
         AssertFailed(); /* can't happen */
@@ -900,6 +911,7 @@ VMMR0DECL(int) HWACCMR0InitVM(PVM pVM)
     pVM->hwaccm.s.vmx.msr.vmx_cr4_fixed1    = HWACCMR0Globals.vmx.msr.vmx_cr4_fixed1;
     pVM->hwaccm.s.vmx.msr.vmx_vmcs_enum     = HWACCMR0Globals.vmx.msr.vmx_vmcs_enum;
     pVM->hwaccm.s.vmx.msr.vmx_eptcaps       = HWACCMR0Globals.vmx.msr.vmx_eptcaps;
+    pVM->hwaccm.s.svm.msrHWCR               = HWACCMR0Globals.svm.msrHWCR;
     pVM->hwaccm.s.svm.u32Rev                = HWACCMR0Globals.svm.u32Rev;
     pVM->hwaccm.s.svm.u32Features           = HWACCMR0Globals.svm.u32Features;
     pVM->hwaccm.s.cpuid.u32AMDFeatureECX    = HWACCMR0Globals.cpuid.u32AMDFeatureECX;
@@ -918,7 +930,7 @@ VMMR0DECL(int) HWACCMR0InitVM(PVM pVM)
 #endif
     }
 
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -1003,7 +1015,7 @@ VMMR0DECL(int) HWACCMR0SetupVM(PVM pVM)
 
     ASMAtomicWriteBool(&pCpu->fInUse, true);
 
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         /* On first entry we'll sync everything. */
         pVM->aCpus[i].hwaccm.s.fContextUseFlags = HWACCM_CHANGED_ALL;
@@ -1300,7 +1312,7 @@ VMMR0DECL(PVMCPU)  HWACCMR0GetVMCPU(PVM pVM)
     RTCPUID idHostCpu = RTMpCpuId();
 
     /** @todo optimize for large number of VCPUs when that becomes more common. */
-    for (VMCPUID idCpu = 0; idCpu < pVM->cCPUs; idCpu++)
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         PVMCPU pVCpu = &pVM->aCpus[idCpu];
 
@@ -1684,11 +1696,11 @@ VMMR0DECL(void) HWACCMDumpRegs(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 
     Log(("FPU:\n"
         "FCW=%04x FSW=%04x FTW=%02x\n"
-        "res1=%02x FOP=%04x FPUIP=%08x CS=%04x Rsvrd1=%04x\n"
+        "FOP=%04x FPUIP=%08x CS=%04x Rsvrd1=%04x\n"
         "FPUDP=%04x DS=%04x Rsvrd2=%04x MXCSR=%08x MXCSR_MASK=%08x\n"
         ,
         pCtx->fpu.FCW, pCtx->fpu.FSW, pCtx->fpu.FTW,
-        pCtx->fpu.huh1, pCtx->fpu.FOP, pCtx->fpu.FPUIP, pCtx->fpu.CS, pCtx->fpu.Rsvrd1,
+        pCtx->fpu.FOP, pCtx->fpu.FPUIP, pCtx->fpu.CS, pCtx->fpu.Rsvrd1,
         pCtx->fpu.FPUDP, pCtx->fpu.DS, pCtx->fpu.Rsrvd2,
         pCtx->fpu.MXCSR, pCtx->fpu.MXCSR_MASK));
 

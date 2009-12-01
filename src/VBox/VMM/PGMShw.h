@@ -1,4 +1,4 @@
-/* $Id: PGMShw.h $ */
+/* $Id: PGMShw.h 24077 2009-10-26 14:08:59Z vboxsync $ */
 /** @file
  * VBox - Page Manager / Monitor, Shadow Paging Template.
  */

@@ -30,7 +30,6 @@
 
 /* VBox Forwardes */
 class VBoxVMSettingsNetworkPage;
-class VBoxVMSettingsNetworkDetails;
 
 class VBoxVMSettingsNetwork : public QIWithRetranslateUI <QWidget>,
                               public Ui::VBoxVMSettingsNetwork
@@ -39,7 +38,7 @@ class VBoxVMSettingsNetwork : public QIWithRetranslateUI <QWidget>,
 
 public:
 
-    VBoxVMSettingsNetwork (VBoxVMSettingsNetworkPage *aParent);
+    VBoxVMSettingsNetwork (VBoxVMSettingsNetworkPage *aParent, bool aDisableStaticControls = false);
 
     void getFromAdapter (const CNetworkAdapter &aAdapter);
     void putBackToAdapter();
@@ -55,26 +54,31 @@ public:
 
 protected:
 
+    void showEvent (QShowEvent *aEvent);
+
     void retranslateUi();
 
 private slots:
 
     void updateAttachmentAlternative();
     void updateAlternativeName();
-    void detailsClicked();
+    void toggleAdvanced();
+    void generateMac();
 
 private:
 
     void populateComboboxes();
 
     VBoxVMSettingsNetworkPage *mParent;
-    VBoxVMSettingsNetworkDetails *mDetails;
     CNetworkAdapter mAdapter;
     QIWidgetValidator *mValidator;
 
     QString mBrgName;
     QString mIntName;
     QString mHoiName;
+
+    bool mPolished;
+    bool mDisableStaticControls;
 };
 
 class VBoxVMSettingsNetworkPage : public VBoxSettingsPage
@@ -83,7 +87,7 @@ class VBoxVMSettingsNetworkPage : public VBoxSettingsPage
 
 public:
 
-    VBoxVMSettingsNetworkPage();
+    VBoxVMSettingsNetworkPage (bool aDisableStaticControls = false);
 
     QStringList brgList (bool aRefresh = false);
     QStringList intList (bool aRefresh = false);
@@ -111,6 +115,8 @@ private:
     QStringList mBrgList;
     QStringList mIntList;
     QStringList mHoiList;
+
+    bool mDisableStaticControls;
 };
 
 #endif // __VBoxVMSettingsNetwork_h__

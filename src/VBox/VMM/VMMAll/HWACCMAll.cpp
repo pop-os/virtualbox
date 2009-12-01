@@ -1,4 +1,4 @@
-/* $Id: HWACCMAll.cpp $ */
+/* $Id: HWACCMAll.cpp 24833 2009-11-20 16:11:19Z vboxsync $ */
 /** @file
  * HWACCM - All contexts.
  */
@@ -167,9 +167,15 @@ VMMDECL(int) HWACCMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCPtr)
 {
     VMCPUID idCurCpu = VMMGetCpuId(pVM);
 
-    for (VMCPUID idCpu = 0; idCpu < pVM->cCPUs; idCpu++)
+    STAM_COUNTER_INC(&pVM->aCpus[idCurCpu].hwaccm.s.StatFlushPage);
+
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         PVMCPU pVCpu = &pVM->aCpus[idCpu];
+
+        /* Nothing to do if a TLB flush is already pending; the VCPU should have already been poked if it were active */
+        if (VMCPU_FF_ISSET(pVCpu, VMCPU_FF_TLB_FLUSH))
+            continue;
 
         if (pVCpu->idCpu == idCurCpu)
         {
@@ -198,6 +204,7 @@ VMMDECL(int) HWACCMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCPtr)
     return VINF_SUCCESS;
 }
 
+
 /**
  * Flush the TLBs of all VCPUs
  *
@@ -206,12 +213,14 @@ VMMDECL(int) HWACCMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCPtr)
  */
 VMMDECL(int) HWACCMFlushTLBOnAllVCpus(PVM pVM)
 {
-    if (pVM->cCPUs == 1)
+    if (pVM->cCpus == 1)
         return HWACCMFlushTLB(&pVM->aCpus[0]);
 
     VMCPUID idThisCpu = VMMGetCpuId(pVM);
 
-    for (VMCPUID idCpu = 0; idCpu < pVM->cCPUs; idCpu++)
+    STAM_COUNTER_INC(&pVM->aCpus[idThisCpu].hwaccm.s.StatFlushTLB);
+
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         PVMCPU pVCpu = &pVM->aCpus[idCpu];
 
@@ -288,7 +297,7 @@ VMMDECL(int) HWACCMInvalidatePhysPage(PVM pVM, RTGCPHYS GCPhys)
     {
         VMCPUID idThisCpu = VMMGetCpuId(pVM);
 
-        for (VMCPUID idCpu = 0; idCpu < pVM->cCPUs; idCpu++)
+        for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
         {
             PVMCPU pVCpu = &pVM->aCpus[idCpu];
 
@@ -303,13 +312,13 @@ VMMDECL(int) HWACCMInvalidatePhysPage(PVM pVM, RTGCPHYS GCPhys)
                 &&  pVCpu->hwaccm.s.fCheckedTLBFlush)
             {
                 STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTlbShootdownFlush);
-    #ifdef IN_RING0
+# ifdef IN_RING0
                 RTCPUID idHostCpu = pVCpu->hwaccm.s.idEnteredCpu;
                 if (idHostCpu != NIL_RTCPUID)
                     hwaccmMpPokeCpu(pVCpu, idHostCpu);
-    #else
+# else
                 VMR3NotifyCpuFFU(pVCpu->pUVCpu, VMNOTIFYFF_FLAGS_POKE);
-    #endif
+# endif
             }
             else
                 STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatFlushTLBManual);

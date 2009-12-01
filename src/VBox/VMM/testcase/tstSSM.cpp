@@ -1,4 +1,4 @@
-/* $Id: tstSSM.cpp $ */
+/* $Id: tstSSM.cpp 23593 2009-10-07 12:59:56Z vboxsync $ */
 /** @file
  * Saved State Manager Testcase.
  */
@@ -44,11 +44,29 @@
 #include <iprt/path.h>
 
 
-const uint8_t gabPage[PAGE_SIZE] = {0};
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
+#define TSTSSM_BIG_CONFIG   1
 
-const char gachMem1[] = "sdfg\1asdfa\177hjkl;sdfghjkl;dfghjkl;dfghjkl;\0\0asdf;kjasdf;lkjasd;flkjasd;lfkjasd\0;lfk";
+#ifdef TSTSSM_BIG_CONFIG
+# define TSTSSM_ITEM_SIZE    (512*_1M)
+#else
+# define TSTSSM_ITEM_SIZE    (5*_1M)
+#endif
 
-uint8_t gabBigMem[8*1024*1024];
+
+/*******************************************************************************
+*   Global Variables                                                           *
+*******************************************************************************/
+const uint8_t   gabPage[PAGE_SIZE] = {0};
+const char      gachMem1[] = "sdfg\1asdfa\177hjkl;sdfghjkl;dfghjkl;dfghjkl;\0\0asdf;kjasdf;lkjasd;flkjasd;lfkjasd\0;lfk";
+#ifdef TSTSSM_BIG_CONFIG
+uint8_t         gabBigMem[_1M];
+#else
+uint8_t         gabBigMem[8*_1M];
+#endif
+
 
 /** initializes gabBigMem with some non zero stuff. */
 void initBigMem(void)
@@ -72,6 +90,10 @@ void initBigMem(void)
         RTStrPrintf(szTmp, sizeof(szTmp), "aaaa%08Xzzzz", (uint32_t)(uintptr_t)pb);
         memcpy(pb, szTmp, 16);
     }
+
+    /* add some zero pages */
+    memset(&gabBigMem[sizeof(gabBigMem) / 4],     0, PAGE_SIZE * 4);
+    memset(&gabBigMem[sizeof(gabBigMem) / 4 * 3], 0, PAGE_SIZE * 4);
 #endif
 }
 
@@ -153,7 +175,7 @@ DECLCALLBACK(int) Item01Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 #undef ITEM
 
     uint64_t u64Elapsed = RTTimeNanoTS() - u64Start;
-    RTPrintf("tstSSM: Saved 1st item in %RI64 ns\n", u64Elapsed);
+    RTPrintf("tstSSM: Saved 1st item in %'RI64 ns\n", u64Elapsed);
     return 0;
 }
 
@@ -163,9 +185,17 @@ DECLCALLBACK(int) Item01Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  * @returns VBox status code.
  * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
+ * @param   uVersion        The data layout version.
+ * @param   uPass           The data pass.
  */
-DECLCALLBACK(int) Item01Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Version)
+DECLCALLBACK(int) Item01Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
+    if (uVersion != 0)
+    {
+        RTPrintf("Item01: uVersion=%#x, expected 0\n", uVersion);
+        return VERR_GENERAL_FAILURE;
+    }
+
     /*
      * Load the memory block.
      */
@@ -301,7 +331,7 @@ DECLCALLBACK(int) Item02Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     }
 
     uint64_t u64Elapsed = RTTimeNanoTS() - u64Start;
-    RTPrintf("tstSSM: Saved 2nd item in %RI64 ns\n", u64Elapsed);
+    RTPrintf("tstSSM: Saved 2nd item in %'RI64 ns\n", u64Elapsed);
     return 0;
 }
 
@@ -311,9 +341,17 @@ DECLCALLBACK(int) Item02Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  * @returns VBox status code.
  * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
+ * @param   uVersion        The data layout version.
+ * @param   uPass           The data pass.
  */
-DECLCALLBACK(int) Item02Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Version)
+DECLCALLBACK(int) Item02Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
+    if (uVersion != 0)
+    {
+        RTPrintf("Item02: uVersion=%#x, expected 0\n", uVersion);
+        return VERR_GENERAL_FAILURE;
+    }
+
     /*
      * Load the size.
      */
@@ -378,7 +416,7 @@ DECLCALLBACK(int) Item03Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     /*
      * Put the size.
      */
-    uint32_t cb = 512*_1M;
+    uint32_t cb = TSTSSM_ITEM_SIZE;
     int rc = SSMR3PutU32(pSSM, cb);
     if (RT_FAILURE(rc))
     {
@@ -407,7 +445,7 @@ DECLCALLBACK(int) Item03Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     }
 
     uint64_t u64Elapsed = RTTimeNanoTS() - u64Start;
-    RTPrintf("tstSSM: Saved 3rd item in %RI64 ns\n", u64Elapsed);
+    RTPrintf("tstSSM: Saved 3rd item in %'RI64 ns\n", u64Elapsed);
     return 0;
 }
 
@@ -417,9 +455,17 @@ DECLCALLBACK(int) Item03Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  * @returns VBox status code.
  * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
+ * @param   uVersion        The data layout version.
+ * @param   uPass           The data pass.
  */
-DECLCALLBACK(int) Item03Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Version)
+DECLCALLBACK(int) Item03Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
+    if (uVersion != 123)
+    {
+        RTPrintf("Item03: uVersion=%#x, expected 123\n", uVersion);
+        return VERR_GENERAL_FAILURE;
+    }
+
     /*
      * Load the size.
      */
@@ -430,9 +476,9 @@ DECLCALLBACK(int) Item03Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Ve
         RTPrintf("Item03: SSMR3GetU32 -> %Rrc\n", rc);
         return rc;
     }
-    if (cb != 512*_1M)
+    if (cb != TSTSSM_ITEM_SIZE)
     {
-        RTPrintf("Item03: loaded size doesn't match the real thing. %#x != %#x\n", cb, 512*_1M);
+        RTPrintf("Item03: loaded size doesn't match the real thing. %#x != %#x\n", cb, TSTSSM_ITEM_SIZE);
         return VERR_GENERAL_FAILURE;
     }
 
@@ -446,12 +492,12 @@ DECLCALLBACK(int) Item03Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Ve
         rc = SSMR3GetMem(pSSM, &achPage[0], PAGE_SIZE);
         if (RT_FAILURE(rc))
         {
-            RTPrintf("Item03: SSMR3GetMem(,,%#x) -> %Rrc offset %#x\n", PAGE_SIZE, rc, 512*_1M - cb);
+            RTPrintf("Item03: SSMR3GetMem(,,%#x) -> %Rrc offset %#x\n", PAGE_SIZE, rc, TSTSSM_ITEM_SIZE - cb);
             return rc;
         }
         if (memcmp(achPage, pu8Org, PAGE_SIZE))
         {
-            RTPrintf("Item03: compare failed. mem offset=%#x\n", 512*_1M - cb);
+            RTPrintf("Item03: compare failed. mem offset=%#x\n", TSTSSM_ITEM_SIZE - cb);
             return VERR_GENERAL_FAILURE;
         }
 
@@ -505,7 +551,7 @@ DECLCALLBACK(int) Item04Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     }
 
     uint64_t u64Elapsed = RTTimeNanoTS() - u64Start;
-    RTPrintf("tstSSM: Saved 4th item in %RI64 ns\n", u64Elapsed);
+    RTPrintf("tstSSM: Saved 4th item in %'RI64 ns\n", u64Elapsed);
     return 0;
 }
 
@@ -515,9 +561,17 @@ DECLCALLBACK(int) Item04Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  * @returns VBox status code.
  * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
+ * @param   uVersion        The data layout version.
+ * @param   uPass           The data pass.
  */
-DECLCALLBACK(int) Item04Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Version)
+DECLCALLBACK(int) Item04Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
+    if (uVersion != 42)
+    {
+        RTPrintf("Item04: uVersion=%#x, expected 42\n", uVersion);
+        return VERR_GENERAL_FAILURE;
+    }
+
     /*
      * Load the size.
      */
@@ -599,7 +653,7 @@ static int createFakeVM(PVM *ppVM)
                     pVM->enmVMState = VMSTATE_CREATED;
                     pVM->pVMR3 = pVM;
                     pVM->pUVM = pUVM;
-                    pVM->cCPUs = 1;
+                    pVM->cCpus = 1;
                     pVM->aCpus[0].pVMR3 = pVM;
                     pVM->aCpus[0].hNativeThread = RTThreadNativeSelf();
 
@@ -651,8 +705,9 @@ int main(int argc, char **argv)
      * Register a few callbacks.
      */
     rc = SSMR3RegisterDevice(pVM, NULL, "SSM Testcase Data Item no.1 (all types)", 1, 0, 256, NULL,
-        NULL, Item01Save, NULL,
-        NULL, Item01Load, NULL);
+                             NULL, NULL, NULL,
+                             NULL, Item01Save, NULL,
+                             NULL, Item01Load, NULL);
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3Register #1 -> %Rrc\n", rc);
@@ -660,8 +715,9 @@ int main(int argc, char **argv)
     }
 
     rc = SSMR3RegisterDevice(pVM, NULL, "SSM Testcase Data Item no.2 (rand mem)", 2, 0, _1M * 8, NULL,
-        NULL, Item02Save, NULL,
-        NULL, Item02Load, NULL);
+                             NULL, NULL, NULL,
+                             NULL, Item02Save, NULL,
+                             NULL, Item02Load, NULL);
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3Register #2 -> %Rrc\n", rc);
@@ -669,8 +725,9 @@ int main(int argc, char **argv)
     }
 
     rc = SSMR3RegisterDevice(pVM, NULL, "SSM Testcase Data Item no.3 (big mem)", 0, 123, 512*_1M, NULL,
-        NULL, Item03Save, NULL,
-        NULL, Item03Load, NULL);
+                             NULL, NULL, NULL,
+                             NULL, Item03Save, NULL,
+                             NULL, Item03Load, NULL);
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3Register #3 -> %Rrc\n", rc);
@@ -678,8 +735,9 @@ int main(int argc, char **argv)
     }
 
     rc = SSMR3RegisterDevice(pVM, NULL, "SSM Testcase Data Item no.4 (big zero mem)", 0, 42, 512*_1M, NULL,
-        NULL, Item04Save, NULL,
-        NULL, Item04Load, NULL);
+                             NULL, NULL, NULL,
+                             NULL, Item04Save, NULL,
+                             NULL, Item04Load, NULL);
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3Register #4 -> %Rrc\n", rc);
@@ -697,7 +755,7 @@ int main(int argc, char **argv)
         return 1;
     }
     uint64_t u64Elapsed = RTTimeNanoTS() - u64Start;
-    RTPrintf("tstSSM: Saved in %RI64 ns\n", u64Elapsed);
+    RTPrintf("tstSSM: Saved in %'RI64 ns\n", u64Elapsed);
 
     RTFSOBJINFO Info;
     rc = RTPathQueryInfo(pszFilename, &Info, RTFSOBJATTRADD_NOTHING);
@@ -706,33 +764,44 @@ int main(int argc, char **argv)
         RTPrintf("tstSSM: failed to query file size: %Rrc\n", rc);
         return 1;
     }
-    RTPrintf("tstSSM: file size %RI64 bytes\n", Info.cbObject);
+    RTPrintf("tstSSM: file size %'RI64 bytes\n", Info.cbObject);
 
     /*
      * Attempt a load.
      */
     u64Start = RTTimeNanoTS();
-    rc = SSMR3Load(pVM, pszFilename, SSMAFTER_RESUME, NULL, NULL);
+    rc = SSMR3Load(pVM, pszFilename, NULL /*pStreamOps*/, NULL /*pStreamOpsUser*/,
+                   SSMAFTER_RESUME, NULL /*pfnProgress*/, NULL /*pvProgressUser*/);
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3Load #1 -> %Rrc\n", rc);
         return 1;
     }
     u64Elapsed = RTTimeNanoTS() - u64Start;
-    RTPrintf("tstSSM: Loaded in %RI64 ns\n", u64Elapsed);
+    RTPrintf("tstSSM: Loaded in %'RI64 ns\n", u64Elapsed);
 
     /*
      * Validate it.
      */
     u64Start = RTTimeNanoTS();
-    rc = SSMR3ValidateFile(pszFilename);
+    rc = SSMR3ValidateFile(pszFilename, false /* fChecksumIt*/ );
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3ValidateFile #1 -> %Rrc\n", rc);
         return 1;
     }
     u64Elapsed = RTTimeNanoTS() - u64Start;
-    RTPrintf("tstSSM: Validated in %RI64 ns\n", u64Elapsed);
+    RTPrintf("tstSSM: Validated without checksumming in %'RI64 ns\n", u64Elapsed);
+
+    u64Start = RTTimeNanoTS();
+    rc = SSMR3ValidateFile(pszFilename, true /* fChecksumIt */);
+    if (RT_FAILURE(rc))
+    {
+        RTPrintf("SSMR3ValidateFile #1 -> %Rrc\n", rc);
+        return 1;
+    }
+    u64Elapsed = RTTimeNanoTS() - u64Start;
+    RTPrintf("tstSSM: Validated and checksummed in %'RI64 ns\n", u64Elapsed);
 
     /*
      * Open it and read.
@@ -746,7 +815,7 @@ int main(int argc, char **argv)
         return 1;
     }
     u64Elapsed = RTTimeNanoTS() - u64Start;
-    RTPrintf("tstSSM: Opened in %RI64 ns\n", u64Elapsed);
+    RTPrintf("tstSSM: Opened in %'RI64 ns\n", u64Elapsed);
 
     /* negative */
     u64Start = RTTimeNanoTS();
@@ -757,67 +826,75 @@ int main(int argc, char **argv)
         return 1;
     }
     u64Elapsed = RTTimeNanoTS() - u64Start;
-    RTPrintf("tstSSM: Failed seek in %RI64 ns\n", u64Elapsed);
+    RTPrintf("tstSSM: Failed seek in %'RI64 ns\n", u64Elapsed);
 
-    /* 2nd unit */
+    /* another negative, now only the instance number isn't matching. */
     rc = SSMR3Seek(pSSM, "SSM Testcase Data Item no.2 (rand mem)", 0, NULL);
-    if (RT_FAILURE(rc))
+    if (rc != VERR_SSM_UNIT_NOT_FOUND)
     {
-        RTPrintf("SSMR3Seek #1 unit 2-> %Rrc\n", rc);
+        RTPrintf("SSMR3Seek #1 unit 2 -> %Rrc\n", rc);
         return 1;
     }
-    uint32_t u32Version = 0xbadc0ded;
-    rc = SSMR3Seek(pSSM, "SSM Testcase Data Item no.2 (rand mem)", 0, &u32Version);
+
+    /* 2nd unit */
+    rc = SSMR3Seek(pSSM, "SSM Testcase Data Item no.2 (rand mem)", 2, NULL);
     if (RT_FAILURE(rc))
     {
-        RTPrintf("SSMR3Seek #1 unit 2-> %Rrc\n", rc);
+        RTPrintf("SSMR3Seek #1 unit 2 -> %Rrc [2]\n", rc);
+        return 1;
+    }
+    uint32_t uVersion = 0xbadc0ded;
+    rc = SSMR3Seek(pSSM, "SSM Testcase Data Item no.2 (rand mem)", 2, &uVersion);
+    if (RT_FAILURE(rc))
+    {
+        RTPrintf("SSMR3Seek #1 unit 2 -> %Rrc [3]\n", rc);
         return 1;
     }
     u64Start = RTTimeNanoTS();
-    rc = Item02Load(NULL, pSSM, u32Version);
+    rc = Item02Load(NULL, pSSM, uVersion, SSM_PASS_FINAL);
     if (RT_FAILURE(rc))
     {
         RTPrintf("Item02Load #1 -> %Rrc\n", rc);
         return 1;
     }
     u64Elapsed = RTTimeNanoTS() - u64Start;
-    RTPrintf("tstSSM: Loaded 2nd item in %RI64 ns\n", u64Elapsed);
+    RTPrintf("tstSSM: Loaded 2nd item in %'RI64 ns\n", u64Elapsed);
 
     /* 1st unit */
-    u32Version = 0xbadc0ded;
-    rc = SSMR3Seek(pSSM, "SSM Testcase Data Item no.1 (all types)", 0, &u32Version);
+    uVersion = 0xbadc0ded;
+    rc = SSMR3Seek(pSSM, "SSM Testcase Data Item no.1 (all types)", 1, &uVersion);
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3Seek #1 unit 1 -> %Rrc\n", rc);
         return 1;
     }
     u64Start = RTTimeNanoTS();
-    rc = Item01Load(NULL, pSSM, u32Version);
+    rc = Item01Load(NULL, pSSM, uVersion, SSM_PASS_FINAL);
     if (RT_FAILURE(rc))
     {
         RTPrintf("Item01Load #1 -> %Rrc\n", rc);
         return 1;
     }
     u64Elapsed = RTTimeNanoTS() - u64Start;
-    RTPrintf("tstSSM: Loaded 1st item in %RI64 ns\n", u64Elapsed);
+    RTPrintf("tstSSM: Loaded 1st item in %'RI64 ns\n", u64Elapsed);
 
     /* 3st unit */
-    u32Version = 0xbadc0ded;
-    rc = SSMR3Seek(pSSM, "SSM Testcase Data Item no.3 (big mem)", 123, &u32Version);
+    uVersion = 0xbadc0ded;
+    rc = SSMR3Seek(pSSM, "SSM Testcase Data Item no.3 (big mem)", 0, &uVersion);
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3Seek #3 unit 1 -> %Rrc\n", rc);
         return 1;
     }
     u64Start = RTTimeNanoTS();
-    rc = Item03Load(NULL, pSSM, u32Version);
+    rc = Item03Load(NULL, pSSM, uVersion, SSM_PASS_FINAL);
     if (RT_FAILURE(rc))
     {
         RTPrintf("Item01Load #3 -> %Rrc\n", rc);
         return 1;
     }
     u64Elapsed = RTTimeNanoTS() - u64Start;
-    RTPrintf("tstSSM: Loaded 3rd item in %RI64 ns\n", u64Elapsed);
+    RTPrintf("tstSSM: Loaded 3rd item in %'RI64 ns\n", u64Elapsed);
 
     /* close */
     rc = SSMR3Close(pSSM);

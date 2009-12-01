@@ -101,6 +101,8 @@ __FBSDID("$FreeBSD: src/sys/netinet/libalias/alias_ftp.c,v 1.29.2.1.4.1 2009/04/
 # include <slirp.h>
 # include "alias_local.h"
 # include "alias_mod.h"
+# define isspace(ch)    RT_C_IS_SPACE(ch)
+# define isdigit(ch)    RT_C_IS_DIGIT(ch)
 #endif /* VBOX */
 
 #define FTP_CONTROL_PORT_NUMBER 21
@@ -675,24 +677,45 @@ NewFtpMessage(struct libalias *la, struct ip *pip,
 
                 if (ftp_message_type == FTP_PORT_COMMAND) {
                     /* Generate PORT command string. */
+#ifndef VBOX
                     sprintf(stemp, "PORT %d,%d,%d,%d,%d,%d\r\n",
                         a1, a2, a3, a4, p1, p2);
+#else
+                    RTStrPrintf(stemp, sizeof(stemp), "PORT %d,%d,%d,%d,%d,%d\r\n",
+                        a1, a2, a3, a4, p1, p2);
+#endif
                 } else {
                     /* Generate 227 reply string. */
+#ifndef VBOX
                     sprintf(stemp,
                         "227 Entering Passive Mode (%d,%d,%d,%d,%d,%d)\r\n",
                         a1, a2, a3, a4, p1, p2);
+#else
+                    RTStrPrintf(stemp, sizeof(stemp),
+                        "227 Entering Passive Mode (%d,%d,%d,%d,%d,%d)\r\n",
+                        a1, a2, a3, a4, p1, p2);
+#endif
                 }
                 break;
             case FTP_EPRT_COMMAND:
                 /* Generate EPRT command string. */
+#ifndef VBOX
                 sprintf(stemp, "EPRT |1|%d.%d.%d.%d|%d|\r\n",
                     a1, a2, a3, a4, ntohs(alias_port));
+#else
+                RTStrPrintf(stemp, sizeof(stemp), "EPRT |1|%d.%d.%d.%d|%d|\r\n",
+                    a1, a2, a3, a4, ntohs(alias_port));
+#endif
                 break;
             case FTP_229_REPLY:
                 /* Generate 229 reply string. */
+#ifndef VBOX
                 sprintf(stemp, "229 Entering Extended Passive Mode (|||%d|)\r\n",
                     ntohs(alias_port));
+#else
+                RTStrPrintf(stemp, sizeof(stemp), "229 Entering Extended Passive Mode (|||%d|)\r\n",
+                    ntohs(alias_port));
+#endif
                 break;
             }
 

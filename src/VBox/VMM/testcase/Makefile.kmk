@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 24800 2009-11-19 16:01:14Z vboxsync $
 ## @file
 # Sub-Makefile for the VMM testcases.
 #
@@ -30,7 +30,16 @@ ifneq ($(KBUILD_TARGET),win)
 PROGRAMS   += tstVMMFork
 endif
 ifdef VBOX_WITH_TESTCASES
- PROGRAMS  += tstCFGM tstSSM tstMMHyperHeap tstVMREQ tstMicro tstCompiler tstVMMR0CallHost-1 tstVMMR0CallHost-2
+ PROGRAMS  += \
+ 	tstCFGM \
+ 	tstCompressionBenchmark \
+ 	tstSSM \
+ 	tstMMHyperHeap \
+ 	tstVMREQ \
+ 	tstMicro \
+ 	tstCompiler \
+ 	tstVMMR0CallHost-1 \
+ 	tstVMMR0CallHost-2
  ifneq ($(KBUILD_TARGET),l4)
   PROGRAMS += tstAnimate
  endif
@@ -39,6 +48,7 @@ endif # VBOX_WITH_TESTCASES
 
 ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
  PROGRAMS  += tstPDMAsyncCompletion
+ PROGRAMS  += tstPDMAsyncCompletionStress
 endif
 
 # Where we put our temporary files (just for simplicity)
@@ -87,6 +97,11 @@ VBOX_PATH_VMM_SRC = $(PATH_ROOT)/src/VBox/VMM
 #
 tstVMStructGC_TEMPLATE  = VBOXGCEXE
 tstVMStructGC_DEFS      = IN_VMM_RC IN_DIS IN_RT_RC IN_RT_GC
+ifeq ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),darwin.x86)
+tstVMStructGC_DEFS     += \
+	VBOX_WITH_2X_4GB_ADDR_SPACE   VBOX_WITH_2X_4GB_ADDR_SPACE_IN_RC \
+	VBOX_WITH_HYBRID_32BIT_KERNEL VBOX_WITH_HYBRID_32BIT_KERNEL_IN_RC
+endif
 ifdef VBOX_WITH_R0_LOGGING
 tstVMStructGC_DEFS     += VBOX_WITH_R0_LOGGING
 endif
@@ -95,6 +110,11 @@ tstVMStructGC_INCS      = $(VBOX_PATH_VMM_SRC) $(VBOX_PATH_VMM_SRC)/PATM
 
 tstVMStructSize_TEMPLATE= VBOXR3AUTOTST
 tstVMStructSize_DEFS    = IN_VMM_R3 IN_DIS
+ifeq ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),darwin.x86)
+tstVMStructSize_DEFS   += \
+	VBOX_WITH_2X_4GB_ADDR_SPACE   VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R3 \
+	VBOX_WITH_HYBRID_32BIT_KERNEL VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R3
+endif
 tstVMStructSize_INCS    = $(VBOX_PATH_VMM_SRC) $(VBOX_PATH_VMM_SRC)/PATM $(VBOX_VMM_TESTCASE_OUT_DIR)
 tstVMStructSize_SOURCES = tstVMStructSize.cpp
 tstVMStructSize.cpp_DEPS= $(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructGC.h
@@ -144,6 +164,9 @@ tstInstrEmul_LIBS       = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
 tstCFGM_TEMPLATE        = VBOXR3TSTEXE
 tstCFGM_SOURCES         = tstCFGM.cpp
 tstCFGM_LIBS            = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+tstCompressionBenchmark_TEMPLATE = VBOXR3TSTEXE
+tstCompressionBenchmark_SOURCES  = tstCompressionBenchmark.cpp
 
 tstVMM_TEMPLATE         = VBOXR3EXE
 tstVMM_SOURCES          = tstVMM.cpp
@@ -209,6 +232,10 @@ ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
 tstPDMAsyncCompletion_TEMPLATE         = VBOXR3EXE
 tstPDMAsyncCompletion_SOURCES          = tstPDMAsyncCompletion.cpp
 tstPDMAsyncCompletion_LIBS             = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
+
+tstPDMAsyncCompletionStress_TEMPLATE         = VBOXR3EXE
+tstPDMAsyncCompletionStress_SOURCES          = tstPDMAsyncCompletionStress.cpp
+tstPDMAsyncCompletionStress_LIBS             = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
 endif
 
 include	$(KBUILD_PATH)/subfooter.kmk

@@ -1,4 +1,4 @@
-; $Id: AMD64andLegacy.mac $
+; $Id: AMD64andLegacy.mac 21946 2009-08-03 15:32:17Z vboxsync $
 ;; @file
 ; VMM - World Switchers, template for AMD64 to PAE and 32-bit.
 ;

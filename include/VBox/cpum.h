@@ -612,6 +612,7 @@ typedef enum CPUMCPUVENDOR
     CPUMCPUVENDOR_AMD,
     CPUMCPUVENDOR_VIA,
     CPUMCPUVENDOR_UNKNOWN,
+    CPUMCPUVENDOR_SYNTHETIC,
     /** 32bit hackishness. */
     CPUMCPUVENDOR_32BIT_HACK = 0x7fffffff
 } CPUMCPUVENDOR;
@@ -705,9 +706,11 @@ VMMDECL(void)       CPUMSetGuestCtx(PVMCPU pVCpu, const PCPUMCTX pCtx);
  * @{  */
 
 
-VMMDECL(bool)       CPUMIsGuestIn16BitCode(PVMCPU pVCpu);
-VMMDECL(bool)       CPUMIsGuestIn32BitCode(PVMCPU pVCpu);
-VMMDECL(CPUMCPUVENDOR) CPUMGetCPUVendor(PVM pVM);
+VMMDECL(bool)           CPUMIsGuestIn16BitCode(PVMCPU pVCpu);
+VMMDECL(bool)           CPUMIsGuestIn32BitCode(PVMCPU pVCpu);
+
+VMMDECL(CPUMCPUVENDOR)  CPUMGetGuestCpuVendor(PVM pVM);
+VMMDECL(CPUMCPUVENDOR)  CPUMGetHostCpuVendor(PVM pVM);
 
 /**
  * Tests if the guest is running in real mode or not.
@@ -959,23 +962,7 @@ VMMDECL(bool)           CPUMIsHyperDebugStateActive(PVMCPU pVCpu);
 VMMDECL(void)           CPUMDeactivateHyperDebugState(PVMCPU pVCpu);
 VMMDECL(uint32_t)       CPUMGetGuestCPL(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore);
 VMMDECL(bool)           CPUMAreHiddenSelRegsValid(PVM pVM);
-
-/**
- * CPU modes.
- */
-typedef enum CPUMMODE
-{
-    /** The usual invalid zero entry. */
-    CPUMMODE_INVALID = 0,
-    /** Real mode. */
-    CPUMMODE_REAL,
-    /** Protected mode (32-bit). */
-    CPUMMODE_PROTECTED,
-    /** Long mode (64-bit). */
-    CPUMMODE_LONG
-} CPUMMODE;
-
-VMMDECL(CPUMMODE)  CPUMGetGuestMode(PVMCPU pVCpu);
+VMMDECL(CPUMMODE)       CPUMGetGuestMode(PVMCPU pVCpu);
 
 
 #ifdef IN_RING3

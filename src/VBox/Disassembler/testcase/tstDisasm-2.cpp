@@ -1,4 +1,4 @@
-/* $Id: tstDisasm-2.cpp $ */
+/* $Id: tstDisasm-2.cpp 24011 2009-10-23 08:30:17Z vboxsync $ */
 /** @file
  * Testcase - Generic Disassembler Tool.
  */
@@ -941,7 +941,7 @@ int main(int argc, char **argv)
             {
                 /** @todo this stuff belongs in IPRT, same stuff as mac address reading. Could be reused for IPv6 with a different item size.*/
                 /* skip white space */
-                while (isspace(*psz))
+                while (RT_C_IS_SPACE(*psz))
                     psz++;
                 if (!*psz)
                     break;
@@ -950,7 +950,7 @@ int main(int argc, char **argv)
                 int iNum = HexDigitToNum(*psz++);
                 if (iNum == -1)
                     return 1;
-                if (!isspace(*psz) && *psz)
+                if (!RT_C_IS_SPACE(*psz) && *psz)
                 {
                     int iDigit = HexDigitToNum(*psz++);
                     if (iDigit == -1)

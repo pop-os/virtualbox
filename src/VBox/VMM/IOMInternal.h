@@ -1,4 +1,4 @@
-/* $Id: IOMInternal.h $ */
+/* $Id: IOMInternal.h 22924 2009-09-10 22:00:36Z vboxsync $ */
 /** @file
  * IOM - Internal header file.
  */
@@ -29,6 +29,7 @@
 #include <VBox/pgm.h>
 #include <VBox/pdmcritsect.h>
 #include <VBox/param.h>
+#include <iprt/assert.h>
 #include <iprt/avl.h>
 
 
@@ -129,6 +130,7 @@ typedef struct IOMMMIOSTATS
     /** Number of writes to this address from R0/RC which was serviced in R3. */
     STAMCOUNTER                 WriteRZToR3;
 } IOMMMIOSTATS;
+AssertCompileMemberAlignment(IOMMMIOSTATS, ReadR3, 8);
 /** Pointer to I/O port statistics. */
 typedef IOMMMIOSTATS *PIOMMMIOSTATS;
 
@@ -240,7 +242,7 @@ typedef struct IOMIOPORTSTATS
 {
     /** Avl node core with the port as Key. */
     AVLOIOPORTNODECORE          Core;
-#if HC_ARCH_BITS == 64 && !defined(RT_OS_WINDOWS)
+#if HC_ARCH_BITS != 64 || !defined(RT_OS_WINDOWS)
     uint32_t                    u32Alignment; /**< The sizeof(Core) differs. */
 #endif
     /** Number of INs to this port from R3. */
@@ -266,6 +268,7 @@ typedef struct IOMIOPORTSTATS
     /** Number of OUTs to this port from R0/RC which was serviced in R3. */
     STAMCOUNTER                 OutRZToR3;
 } IOMIOPORTSTATS;
+AssertCompileMemberAlignment(IOMIOPORTSTATS, InR3, 8);
 /** Pointer to I/O port statistics. */
 typedef IOMIOPORTSTATS *PIOMIOPORTSTATS;
 
@@ -429,35 +432,9 @@ PIOMIOPORTSTATS iomR3IOPortStatsCreate(PVM pVM, RTIOPORT Port, const char *pszDe
 PIOMMMIOSTATS   iomR3MMIOStatsCreate(PVM pVM, RTGCPHYS GCPhys, const char *pszDesc);
 #endif /* IN_RING3 */
 
-/**
- * \#PF Handler callback for MMIO ranges.
- *
- * @returns VBox status code (appropriate for GC return).
- *
- * @param   pVM         VM Handle.
- * @param   uErrorCode  CPU Error code.
- * @param   pRegFrame   Trap register frame.
- * @param   pvFault     The fault address (cr2).
- * @param   GCPhysFault The GC physical address corresponding to pvFault.
- * @param   pvUser      Pointer to the MMIO range entry.
- */
-VMMDECL(int) IOMMMIOHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
-
+VMMDECL(int)        IOMMMIOHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
 #ifdef IN_RING3
-/**
- * \#PF Handler callback for MMIO ranges.
- *
- * @returns VINF_SUCCESS if the handler have carried out the operation.
- * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
- * @param   pVM             VM Handle.
- * @param   GCPhys          The physical address the guest is writing to.
- * @param   pvPhys          The HC mapping of that address.
- * @param   pvBuf           What the guest is reading/writing.
- * @param   cbBuf           How much it's reading/writing.
- * @param   enmAccessType   The access type.
- * @param   pvUser      Pointer to the MMIO range entry.
- */
-DECLCALLBACK(int) IOMR3MMIOHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
+DECLCALLBACK(int)   IOMR3MMIOHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
 #endif
 
 

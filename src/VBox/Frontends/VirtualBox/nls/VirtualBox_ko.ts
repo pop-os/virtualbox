@@ -33,15 +33,15 @@
     <name>AttachmentsModel</name>
     <message>
         <source>Double-click to add a new attachment</source>
-        <translation>새 하드디스크를 연결하려면 두 번 누르십시오</translation>
+        <translation type="obsolete">새 하드디스크를 연결하려면 두 번 누르십시오</translation>
     </message>
     <message>
         <source>Hard Disk</source>
-        <translation>하드디스크</translation>
+        <translation type="obsolete">하드디스크</translation>
     </message>
     <message>
         <source>Slot</source>
-        <translation>슬롯</translation>
+        <translation type="obsolete">슬롯</translation>
     </message>
 </context>
 <context>
@@ -63,15 +63,15 @@
         <translation>&lt;html&gt;&lt;b&gt;%1 (rc=%2)&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;</translation>
     </message>
     <message>
-        <source>It may help to reinstall VirtualBox.</source>
+        <source>Please try reinstalling VirtualBox.</source>
         <translation>VirtualBox를 다시 설치하시면 해결될 수도 있습니다.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.&lt;br/&gt;&lt;br/&gt;There are known problems with Linux 2.6.29. If you are running such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. After that, re-compile the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
-        <translation>VirtualBox 커널 드라이버에서 충분한 메모리를 할당할 수 없었거나, 일부 매핑 동작이 실패한 것 같습니다.&lt;br /&gt;&lt;br /&gt;리눅스 커널 2.6.29에는 알려진 문제가 있습니다. 리눅스 커널 2.6.29를 사용하신다면, /usr/src/vboxdrv-*/Makefile을 편집하시고, &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;을 추가하십시오. 그 다음 루트 권한으로 이 명령어를 내려서 커널 모듈을 다시 컴파일하십시오.&lt;br /&gt;&lt;br /&gt;&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br /&gt;&lt;br /&gt;.</translation>
+        <translation type="obsolete">VirtualBox 커널 드라이버에서 충분한 메모리를 할당할 수 없었거나, 일부 매핑 동작이 실패한 것 같습니다.&lt;br /&gt;&lt;br /&gt;리눅스 커널 2.6.29에는 알려진 문제가 있습니다. 리눅스 커널 2.6.29를 사용하신다면, /usr/src/vboxdrv-*/Makefile을 편집하시고, &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;을 추가하십시오. 그 다음 루트 권한으로 이 명령어를 내려서 커널 모듈을 다시 컴파일하십시오.&lt;br /&gt;&lt;br /&gt;&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br /&gt;&lt;br /&gt;.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Re-setup the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
         <translation>VirtualBox 리눅스 커널 드라이버(vboxdrv)가 불러와지지 않았거나 /dev/vobxdrv에 접근할 수 없습니다. 루트 권한으로 다음 명령어를 실행시켜서 커널 모듈을 다시 설정하십시오.&lt;br /&gt;&lt;br /&gt;&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br /&gt;&lt;br /&gt;우분투, 페도라, 맨드리바 사용자들께서는 DKMS 패키지를 설치하는 것을 추천합니다. 이 패키지를 사용하면 리눅스 커널이 바뀌었을 때 자동으로 커널 모듈을 다시 컴파일합니다.</translation>
     </message>
     <message>
@@ -87,7 +87,7 @@
         <translation>&lt;b&gt;커널 드라이버에 접근할 수 없습니다!&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;</translation>
     </message>
     <message>
-        <source>Unknown %2 error during initialization of the Runtime</source>
+        <source>Unknown error %2 during initialization of the Runtime</source>
         <translation>런타임을 초기화하는 중 알 수 없슨 %2 오류가 발생했습니다</translation>
     </message>
     <message>
@@ -95,12 +95,16 @@
         <translation>커널 드라이버에 접근할 수 없음</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not fit to this version of VirtualBox. The installation of VirtualBox was apparently not successful. It may help to completely uninstall and re-install VirtualBox.</source>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Please try completely uninstalling and reinstalling VirtualBox.</source>
         <translation>이 버전의 VirtualBox에서는 현재 설치되어 있는 커널 모듈을 사용할 수 없습니다. VirtualBox 설치 과정이 실패했을 수도 있습니다. 완전히 삭제한 다음 다시 설치해 보십시오.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not fit to this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;should fix that problem. Make sure that you don&apos;t mix the OSE version and the PUEL version of VirtualBox.</source>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
         <translation>이 버전의 VirtualBox에서는 현재 설치되어 있는 커널 모듈을 사용할 수 없습니다. VirtualBox 설치 과정이 실패했을 수도 있습니다. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; 명령을 실행시키면 문제를 해결할 수도 있습니다. VirtualBox OSE 버전과 PUEL 버전을 같이 설치하지 마십시오..</translation>
+    </message>
+    <message>
+        <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -129,7 +133,7 @@
     <name>QIHelpButton</name>
     <message>
         <source>&amp;Help</source>
-        <translation>도움말(&amp;H)</translation>
+        <translation type="obsolete">도움말(&amp;H)</translation>
     </message>
 </context>
 <context>
@@ -323,10 +327,17 @@
     </message>
 </context>
 <context>
+    <name>QILabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">복사(&amp;C)</translation>
+    </message>
+</context>
+<context>
     <name>QILabelPrivate</name>
     <message>
         <source>&amp;Copy</source>
-        <translation>복사(&amp;C)</translation>
+        <translation type="obsolete">복사(&amp;C)</translation>
     </message>
 </context>
 <context>
@@ -373,7 +384,7 @@
         <translation>잘못되었</translation>
     </message>
     <message>
-        <source>&lt;qt&gt;Value of the &lt;b&gt;%1&lt;/b&gt; field on the &lt;b&gt;%2&lt;/b&gt; page is %3.&lt;/qt&gt;</source>
+        <source>&lt;qt&gt;The value of the &lt;b&gt;%1&lt;/b&gt; field on the &lt;b&gt;%2&lt;/b&gt; page is %3.&lt;/qt&gt;</source>
         <translation>&lt;qt&gt;&lt;b&gt;%2&lt;/b&gt; 페이지의 &lt;b&gt;%1&lt;/b&gt; 필드의 값이 %3습니다.&lt;/qt&gt;</translation>
     </message>
     <message>
@@ -493,15 +504,15 @@
         <translation>RAM</translation>
     </message>
     <message>
-        <source>Hard Disk Controller IDE</source>
+        <source>Hard Disk Controller (IDE)</source>
         <translation>IDE 하드 디스크 컨트롤러</translation>
     </message>
     <message>
-        <source>Hard Disk Controller SATA</source>
+        <source>Hard Disk Controller (SATA)</source>
         <translation>SATA 하드 디스크 컨트롤러</translation>
     </message>
     <message>
-        <source>Hard Disk Controller SCSI</source>
+        <source>Hard Disk Controller (SCSI)</source>
         <translation>SCSI 하드 디스크 컨트롤러</translation>
     </message>
     <message>
@@ -569,18 +580,18 @@
     </message>
     <message>
         <source>&amp;Revert to the current snapshot</source>
-        <translation>현재 스냅샷으로 되돌리기(&amp;R)</translation>
+        <translation type="obsolete">현재 스냅샷으로 되돌리기(&amp;R)</translation>
     </message>
     <message>
         <source>Revert the machine state to the state stored in the current snapshot</source>
-        <translation>현재 스냅샷에 저장된 상태로 되돌립니다</translation>
+        <translation type="obsolete">현재 스냅샷에 저장된 상태로 되돌립니다</translation>
     </message>
     <message>
         <source>S&amp;end the shutdown signal</source>
         <translation>컴퓨터 끄기 신호 보내기(&amp;E)</translation>
     </message>
     <message>
-        <source>&lt;p&gt;When checked, the machine state will be restored from the state stored in the current snapshot right after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and go back to the current snapshot.&lt;/p&gt;</source>
+        <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
         <translation>&lt;p&gt;선택하면 가상 머신을 끈 다음 현재 스냅샷으로 가상 머신의 상태를 되돌립니다. 마지막 세션의 작업 결과를 삭제하고 현재 스냅샷으로 되돌아가려고 할 때 유용합니다.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -594,6 +605,14 @@
     <message>
         <source>&lt;p&gt;Turns off the virtual machine.&lt;/p&gt;&lt;p&gt;Note that this action will stop machine execution immediately so that the guest operating system running inside it will not be able to perform a clean shutdown procedure which may result in &lt;i&gt;data loss&lt;/i&gt; inside the virtual machine. Selecting this action is recommended only if the virtual machine does not respond to the &lt;b&gt;Send the shutdown signal&lt;/b&gt; action.&lt;/p&gt;</source>
         <translation>&lt;p&gt;가상 머신의 전원을 끕니다.&lt;/p&gt;&lt;p&gt;이 동작을 사용하면 가상 머신의 실행을 즉시 중단시킵니다. 게스트 운영체제에서는 정상적인 시스템 종료 절차를 밟을 수 없기 때문에 가상 머신의 &lt;i&gt;데이터 손실&lt;/i&gt;이 생길 수 있습니다. &lt;b&gt;컴퓨터 끄기 신호 보내기&lt;/b&gt; 동작에 가상 머신이 응답하지 않을 때만 사용하는 것을 추천합니다.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Restore the machine state stored in the current snapshot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Restore current snapshot &apos;%1&apos;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -686,39 +705,39 @@
     </message>
     <message>
         <source>&amp;Floppy Image...</source>
-        <translation>플로피 이미지(&amp;F)...</translation>
+        <translation type="obsolete">플로피 이미지(&amp;F)...</translation>
     </message>
     <message>
         <source>Mount a floppy image file</source>
-        <translation>플로피 디스크 이미지 파일을 마운트합니다</translation>
+        <translation type="obsolete">플로피 디스크 이미지 파일을 마운트합니다</translation>
     </message>
     <message>
         <source>Unmount F&amp;loppy</source>
-        <translation>플로피 장치 마운트 해제(&amp;L)</translation>
+        <translation type="obsolete">플로피 장치 마운트 해제(&amp;L)</translation>
     </message>
     <message>
         <source>Unmount the currently mounted floppy media</source>
-        <translation>현재 마운트된 플로피 미디어를 마운트 해제합니다</translation>
+        <translation type="obsolete">현재 마운트된 플로피 미디어를 마운트 해제합니다</translation>
     </message>
     <message>
         <source>&amp;CD/DVD-ROM Image...</source>
-        <translation>CD/DVD-ROM 이미지(&amp;C)...</translation>
+        <translation type="obsolete">CD/DVD-ROM 이미지(&amp;C)...</translation>
     </message>
     <message>
         <source>Mount a CD/DVD-ROM image file</source>
-        <translation>CD/DVD-ROM 이미지 파일을 마운트합니다</translation>
+        <translation type="obsolete">CD/DVD-ROM 이미지 파일을 마운트합니다</translation>
     </message>
     <message>
         <source>Unmount C&amp;D/DVD-ROM</source>
-        <translation>CD/DVD 드라이브 마운트 해제(&amp;F)</translation>
+        <translation type="obsolete">CD/DVD 드라이브 마운트 해제(&amp;F)</translation>
     </message>
     <message>
         <source>Unmount the currently mounted CD/DVD-ROM media</source>
-        <translation>현재 마운트된 CD/DVD-ROM 미디어를 마운트 해제합니다</translation>
+        <translation type="obsolete">현재 마운트된 CD/DVD-ROM 미디어를 마운트 해제합니다</translation>
     </message>
     <message>
         <source>Remote Dis&amp;play</source>
-        <translation>원격 디스플레이(&amp;P)</translation>
+        <translation type="obsolete">원격 디스플레이(&amp;P)</translation>
     </message>
     <message>
         <source>Enable or disable remote desktop (RDP) connections to this machine</source>
@@ -729,7 +748,7 @@
         <translation>공유 폴더(&amp;S)...</translation>
     </message>
     <message>
-        <source>Open the dialog to operate on shared folders</source>
+        <source>Create or modify shared folders</source>
         <translation>공유 폴더 대화상자를 엽니다</translation>
     </message>
     <message>
@@ -742,11 +761,11 @@
     </message>
     <message>
         <source>Mount &amp;Floppy</source>
-        <translation>플로피 장치 마운트(&amp;F)</translation>
+        <translation type="obsolete">플로피 장치 마운트(&amp;F)</translation>
     </message>
     <message>
         <source>Mount &amp;CD/DVD-ROM</source>
-        <translation>CD/DVD 드라이브 마운트(&amp;F)</translation>
+        <translation type="obsolete">CD/DVD 드라이브 마운트(&amp;F)</translation>
     </message>
     <message>
         <source>&amp;USB Devices</source>
@@ -765,7 +784,7 @@
         <translation>도움말(&amp;H)</translation>
     </message>
     <message>
-        <source>&lt;hr&gt;VRDP Server is listening on port %1</source>
+        <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
         <translation>&lt;hr&gt;포트 %1에서 VRDP 서버가 응답을 기다리는 중</translation>
     </message>
     <message>
@@ -806,7 +825,7 @@
     </message>
     <message>
         <source>Host Drive </source>
-        <translation>호스트 드라이브 </translation>
+        <translation type="obsolete">호스트 드라이브 </translation>
     </message>
     <message>
         <source>&amp;Machine</source>
@@ -814,30 +833,30 @@
     </message>
     <message>
         <source>&amp;Network Adapters</source>
-        <translation>네트워크 어댑터(&amp;N)</translation>
+        <translation type="obsolete">네트워크 어댑터(&amp;N)</translation>
     </message>
     <message>
         <source>Adapter %1</source>
         <comment>network</comment>
-        <translation>어댑터 %1</translation>
+        <translation type="obsolete">어댑터 %1</translation>
     </message>
     <message>
         <source>Mount the selected physical drive of the host PC</source>
         <comment>Floppy tip</comment>
-        <translation>호스트 PC의 선택한 물리적 드라이브를 마운트합니다</translation>
+        <translation type="obsolete">호스트 PC의 선택한 물리적 드라이브를 마운트합니다</translation>
     </message>
     <message>
         <source>Mount the selected physical drive of the host PC</source>
         <comment>CD/DVD tip</comment>
-        <translation>호스트 PC의 선택한 물리적 드라이브를 마운트합니다</translation>
+        <translation type="obsolete">호스트 PC의 선택한 물리적 드라이브를 마운트합니다</translation>
     </message>
     <message>
         <source>Disconnect the cable from the selected virtual network adapter</source>
-        <translation>선택한 가상 네트워크 어댑터에서 케이블 연결을 해제합니다</translation>
+        <translation type="obsolete">선택한 가상 네트워크 어댑터에서 케이블 연결을 해제합니다</translation>
     </message>
     <message>
         <source>Connect the cable to the selected virtual network adapter</source>
-        <translation>선택한 가상 네트워크 어댑터에 케이블을 연결합니다</translation>
+        <translation type="obsolete">선택한 가상 네트워크 어댑터에 케이블을 연결합니다</translation>
     </message>
     <message>
         <source>Seam&amp;less Mode</source>
@@ -850,47 +869,47 @@
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the floppy media:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>Floppy tooltip</comment>
-        <translation>&lt;qt&gt;&lt;nobr&gt;플로피 미디어의 활동 상태를 표시합니다:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;플로피 미디어의 활동 상태를 표시합니다:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Host Drive&lt;/b&gt;: %1&lt;/nobr&gt;</source>
         <comment>Floppy tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;호스트 드라이브&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;호스트 드라이브&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Image&lt;/b&gt;: %1&lt;/nobr&gt;</source>
         <comment>Floppy tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;이미지&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;이미지&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No media mounted&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>Floppy tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;미디어가 마운트되지 않았음&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;미디어가 마운트되지 않았음&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD-ROM media:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>DVD-ROM tooltip</comment>
-        <translation>&lt;qt&gt;&lt;nobr&gt;CD/DVD-ROM 미디어의 활동 상태를 표시합니다:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;CD/DVD-ROM 미디어의 활동 상태를 표시합니다:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Host Drive&lt;/b&gt;: %1&lt;/nobr&gt;</source>
         <comment>DVD-ROM tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;호스트 드라이브&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;호스트 드라이브&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Image&lt;/b&gt;: %1&lt;/nobr&gt;</source>
         <comment>DVD-ROM tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;이미지&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;이미지&lt;/b&gt;: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No media mounted&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>DVD-ROM tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;미디어가 마운트되지 않았음&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;미디어가 마운트되지 않았음&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of virtual hard disks:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
+        <source>&lt;qt&gt;&lt;nobr&gt;Indicates activity on the the virtual hard disks:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>HDD tooltip</comment>
-        <translation>&lt;qt&gt;&lt;nobr&gt;가상 하드디스크의 활동 상태를 표시합니다:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;가상 하드디스크의 활동 상태를 표시합니다:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hard disks attached&lt;/b&gt;&lt;/nobr&gt;</source>
@@ -900,7 +919,7 @@
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;qt&gt;&lt;nobr&gt;네트워크 인터페이스의 활동 상태를 표시합니다:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;네트워크 인터페이스의 활동 상태를 표시합니다:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: cable %3&lt;/nobr&gt;</source>
@@ -925,7 +944,7 @@
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;qt&gt;&lt;nobr&gt;연결된 USB 장치의 활동 상태를 표시합니다:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;연결된 USB 장치의 활동 상태를 표시합니다:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No USB devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
@@ -938,9 +957,9 @@
         <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB 컨트롤러가 비활성화됨&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of shared folders:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
+        <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the machineof the machine&apos;sapos;s shared folders: shared folders:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
         <comment>Shared folders tooltip</comment>
-        <translation>&lt;qt&gt;&lt;nobr&gt;공유 폴더의 활동 상태를 표시합니다:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;&lt;nobr&gt;공유 폴더의 활동 상태를 표시합니다:&lt;/nobr&gt;%1&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No shared folders&lt;/b&gt;&lt;/nobr&gt;</source>
@@ -1004,6 +1023,99 @@
         <comment>Virtualization Stuff LED</comment>
         <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
     </message>
+    <message>
+        <source> EXPERIMENTAL build %1r%2 - %3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;CD/DVD Devices</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Floppy Devices</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Network Adapters...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change the settings of network adapters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Remote Display</source>
+        <translation type="unfinished">원격 디스플레이(&amp;R)</translation>
+    </message>
+    <message>
+        <source>Remote Desktop (RDP) Server</source>
+        <comment>enable/disable...</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>More CD/DVD Images...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unmount CD/DVD Device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>More Floppy Images...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unmount Floppy Device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No CD/DVD Devices Attached</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No Floppy Devices Attached</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the virtual hard disks:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>HDD tooltip</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>CD/DVD tooltip</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No CD/DVD devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>CD/DVD tooltip</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>FD tooltip</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No floppy devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>FD tooltip</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>Shared folders tooltip</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxDownloaderWgt</name>
@@ -1052,7 +1164,7 @@ p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through the process of exporting an appliance. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please select the virtual machines that should be exported to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please select the virtual machines that you wish to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -1078,7 +1190,7 @@ p, li { white-space: pre-wrap; }
         <translation>가상 시스템 내보내기 설정</translation>
     </message>
     <message>
-        <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the shown properties by double-clicking on the items.</source>
+        <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the properties shown by double-clicking on the items.</source>
         <translation>선택한 가상 머신의 추가 설정값을 변경할 수 있습니다. 대부분 항목은 두 번 누르면 편집할 수 있습니다.</translation>
     </message>
     <message>
@@ -1102,15 +1214,15 @@ p, li { white-space: pre-wrap; }
         <translation>OVF 0.9로 쓰기(&amp;W)</translation>
     </message>
     <message>
-        <source>Please choose a filename to export the OVF in.</source>
+        <source>Please choose a filename to export the OVF to.</source>
         <translation>내보낼 OVF 파일을 선택하십시오.</translation>
     </message>
     <message>
-        <source>Please complete the additionally fields like the username, password and the bucket. Finally you have to provide a filename for the OVF target.</source>
+        <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
         <translation>사용자 이름, 암호, 저장소 정보와 같은 추가 정보를 입력해 주십시오. 그 다음 OVF 파일 이름을 지정하십시오.</translation>
     </message>
     <message>
-        <source>Please complete the additionally fields like the username, password, hostname and the bucket. Finally you have to provide a filename for the OVF target.</source>
+        <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
         <translation>사용자 이름, 암호, 호스트 이름, 저장소 정보와 같은 추가 정보를 입력해 주십시오. 그 다음 OVF 파일 이름을 지정하십시오.</translation>
     </message>
     <message>
@@ -1122,7 +1234,7 @@ p, li { white-space: pre-wrap; }
         <translation>파일 삭제 중...</translation>
     </message>
     <message>
-        <source>Please specify the target for the OVF export. You can choose between a local file system export, the uploading of the OVF to the Sun Cloud service or an S3 storage server.</source>
+        <source>Please specify the target for the OVF export. You can choose between a local file system export, uploading the OVF to the Sun Cloud service or an S3 storage server.</source>
         <translation>OVF로 내보낼 장소를 선택하십시오. 로컬 파일로 내보내거나, OVF 파일을 Sun 클라우드 서비스 및 S3 저장소 서버로 바로 업로드할 수 있습니다.</translation>
     </message>
     <message>
@@ -1173,7 +1285,7 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;선택하지 않음&gt;</translation>
     </message>
     <message>
-        <source>Please use the &lt;b&gt;Other...&lt;/b&gt; item from the drop-down list to select a desired path.</source>
+        <source>Please use the &lt;b&gt;Other...&lt;/b&gt; item from the drop-down list to select a path.</source>
         <translation>원하시는 경로를 선택하려면 드롭다운 목록에서 &lt;b&gt;기타...&lt;/b&gt; 항목을 선택하십시오.</translation>
     </message>
     <message>
@@ -1205,11 +1317,11 @@ p, li { white-space: pre-wrap; }
         <translation>복사(&amp;C)</translation>
     </message>
     <message>
-        <source>Please type the desired folder path here.</source>
+        <source>Please type the folder path here.</source>
         <translation>원하는 폴더 경로를 입력하십시오.</translation>
     </message>
     <message>
-        <source>Please type the desired file path here.</source>
+        <source>Please type the file path here.</source>
         <translation>원하는 파일 경로를 입력하십시오.</translation>
     </message>
 </context>
@@ -1294,7 +1406,7 @@ p, li { white-space: pre-wrap; }
         <translation>호스트 키(&amp;H):</translation>
     </message>
     <message>
-        <source>Displays the key used as a Host Key in the VM window. Activate the entry field and press a new Host Key. Note that alphanumeric, cursor movement and editing keys cannot be used as a Host Key.</source>
+        <source>Displays the key used as a Host Key in the VM window. Activate the entry field and press a new Host Key. Note that alphanumeric, cursor movement and editing keys cannot be used.</source>
         <translation>가상 머신 창에서 사용될 호스트 키를 설정합니다. 항목을 활성화시킨 다음 새 호스트 키를 입력하십시오. 숫자나 문자, 커서 이동 및 편집 키는 호스트 키로 사용할 수 없습니다.</translation>
     </message>
     <message>
@@ -1623,6 +1735,34 @@ p, li { white-space: pre-wrap; }
         <source>Next Check:</source>
         <translation>다음 검사 시간:</translation>
     </message>
+    <message>
+        <source>Check for:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Choose this if you only wish to be notified about stable updates to VirtualBox.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Stable release versions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Choose this if you wish to be notified about all new VirtualBox releases.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;All new releases</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Choose this to be notified about all new VirtualBox releases and pre-release versions of VirtualBox.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>All new releases and &amp;pre-releases</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxGlobal</name>
@@ -1699,12 +1839,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Not Attached</source>
         <comment>details report (HDDs)</comment>
-        <translation>연결되지 않음</translation>
+        <translation type="obsolete">연결되지 않음</translation>
     </message>
     <message>
         <source>Hard Disks</source>
         <comment>details report</comment>
-        <translation>하드디스크</translation>
+        <translation type="obsolete">하드디스크</translation>
     </message>
     <message>
         <source>Enabled</source>
@@ -1729,42 +1869,42 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Not mounted</source>
         <comment>details report (floppy)</comment>
-        <translation>마운트되지 않음</translation>
+        <translation type="obsolete">마운트되지 않음</translation>
     </message>
     <message>
         <source>Image</source>
         <comment>details report (floppy)</comment>
-        <translation>이미지</translation>
+        <translation type="obsolete">이미지</translation>
     </message>
     <message>
         <source>Host Drive</source>
         <comment>details report (floppy)</comment>
-        <translation>호스트 드라이브</translation>
+        <translation type="obsolete">호스트 드라이브</translation>
     </message>
     <message>
         <source>Floppy</source>
         <comment>details report</comment>
-        <translation>플로피 디스크</translation>
+        <translation type="obsolete">플로피 디스크</translation>
     </message>
     <message>
         <source>Not mounted</source>
         <comment>details report (DVD)</comment>
-        <translation>마운트되지 않음</translation>
+        <translation type="obsolete">마운트되지 않음</translation>
     </message>
     <message>
         <source>Image</source>
         <comment>details report (DVD)</comment>
-        <translation>이미지</translation>
+        <translation type="obsolete">이미지</translation>
     </message>
     <message>
         <source>Host Drive</source>
         <comment>details report (DVD)</comment>
-        <translation>호스트 드라이브</translation>
+        <translation type="obsolete">호스트 드라이브</translation>
     </message>
     <message>
         <source>CD/DVD-ROM</source>
         <comment>details report</comment>
-        <translation>CD/DVD-ROM</translation>
+        <translation type="obsolete">CD/DVD-ROM</translation>
     </message>
     <message>
         <source>Disabled</source>
@@ -1869,7 +2009,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Discarding</source>
         <comment>MachineState</comment>
-        <translation>삭제하는 중</translation>
+        <translation type="obsolete">삭제하는 중</translation>
     </message>
     <message>
         <source>Closed</source>
@@ -2097,7 +2237,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Stuck</source>
         <comment>MachineState</comment>
-        <translation>문제 발생</translation>
+        <translation type="obsolete">문제 발생</translation>
     </message>
     <message>
         <source>Disconnected</source>
@@ -2307,32 +2447,32 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;Type&amp;nbsp;(Format):&amp;nbsp;&amp;nbsp;%2&amp;nbsp;(%3)&lt;/nobr&gt;</source>
         <comment>hard disk</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;종류&amp;nbsp;(형식):&amp;nbsp;&amp;nbsp;%2&amp;nbsp;(%3)&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;종류&amp;nbsp;(형식):&amp;nbsp;&amp;nbsp;%2&amp;nbsp;(%3)&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;Attached to:&amp;nbsp;&amp;nbsp;%1&lt;/nobr&gt;</source>
         <comment>medium</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;다음에 연결됨:&amp;nbsp;&amp;nbsp;%1&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;다음에 연결됨:&amp;nbsp;&amp;nbsp;%1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
         <comment>medium</comment>
-        <translation>&lt;i&gt;연결되지&amp;nbsp;않음&lt;/i&gt;</translation>
+        <translation type="obsolete">&lt;i&gt;연결되지&amp;nbsp;않음&lt;/i&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;i&gt;Checking accessibility...&lt;/i&gt;</source>
         <comment>medium</comment>
-        <translation>&lt;br&gt;&lt;i&gt;접근 가능성 검사 중...&lt;/i&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;i&gt;접근 가능성 검사 중...&lt;/i&gt;</translation>
     </message>
     <message>
         <source>&lt;hr&gt;Failed to check media accessibility.&lt;br&gt;%1.</source>
         <comment>medium</comment>
-        <translation>&lt;hr&gt;미디어 접근 가능성을 검사하는 데 실패했습니다.&lt;br&gt;%1.</translation>
+        <translation type="obsolete">&lt;hr&gt;미디어 접근 가능성을 검사하는 데 실패했습니다.&lt;br&gt;%1.</translation>
     </message>
     <message>
         <source>&lt;hr&gt;&lt;img src=%1/&gt;&amp;nbsp;Attaching this hard disk will be performed indirectly using a newly created differencing hard disk.</source>
         <comment>medium</comment>
-        <translation>&lt;hr&gt;&lt;img src=%1/&gt;&amp;nbsp;이 하드디스크의 변경 사항을 저장하는 새 가상 하드디스크를 통해서 간접적으로 연결됩니다.</translation>
+        <translation type="obsolete">&lt;hr&gt;&lt;img src=%1/&gt;&amp;nbsp;이 하드디스크의 변경 사항을 저장하는 새 가상 하드디스크를 통해서 간접적으로 연결됩니다.</translation>
     </message>
     <message>
         <source>Checking...</source>
@@ -2346,11 +2486,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;hr&gt;Some of the media in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these media.</source>
-        <translation>&lt;hr&gt;이 하드디스크의 미디어 중 일부에 접근할 수 없습니다. 가상 미디어 관리자의 &lt;b&gt;변경 사항을 저장하는 하드디스크 보이기&lt;/b&gt; 모드를 사용하셔서 이 미디어를 찾아 보십시오.</translation>
+        <translation type="obsolete">&lt;hr&gt;이 하드디스크의 미디어 중 일부에 접근할 수 없습니다. 가상 미디어 관리자의 &lt;b&gt;변경 사항을 저장하는 하드디스크 보이기&lt;/b&gt; 모드를 사용하셔서 이 미디어를 찾아 보십시오.</translation>
     </message>
     <message>
         <source>%1&lt;hr&gt;This base hard disk is indirectly attached using the following differencing hard disk:&lt;br&gt;%2%3</source>
-        <translation>%1&lt;hr&gt;이 하드디스크는 다음의 변경 사항을 저장하는 하드디스크를 통하여 간접적으로 연결되어 있습니다:&lt;br&gt;%2%3</translation>
+        <translation type="obsolete">%1&lt;hr&gt;이 하드디스크는 다음의 변경 사항을 저장하는 하드디스크를 통하여 간접적으로 연결되어 있습니다:&lt;br&gt;%2%3</translation>
     </message>
     <message>
         <source>3D Acceleration</source>
@@ -2522,6 +2662,194 @@ p, li { white-space: pre-wrap; }
         <comment>PortMode</comment>
         <translation>생(RAW) 파일</translation>
     </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (2D Video Acceleration)</comment>
+        <translation type="unfinished">사용함</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (2D Video Acceleration)</comment>
+        <translation type="unfinished">사용 안함</translation>
+    </message>
+    <message>
+        <source>2D Video Acceleration</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not Attached</source>
+        <comment>details report (Storage)</comment>
+        <translation type="unfinished">연결되지 않음</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>details report</comment>
+        <translation type="unfinished">저장소</translation>
+    </message>
+    <message>
+        <source>Teleported</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Guru Meditation</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Teleporting</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Taking Live Snapshot</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Teleporting Paused VM</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restoring Snapshot</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deleting Snapshot</source>
+        <comment>MachineState</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Floppy</source>
+        <comment>StorageBus</comment>
+        <translation type="unfinished">플로피 디스크</translation>
+    </message>
+    <message>
+        <source>Device %1</source>
+        <comment>StorageBusDevice</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>IDE Primary Master</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>IDE Primary Slave</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>IDE Secondary Master</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>IDE Secondary Slave</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SATA Port %1</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SCSI Port %1</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Floppy Device %1</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paravirtualized Network (virtio-net)</source>
+        <comment>NetworkAdapterType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>I82078</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Empty</source>
+        <comment>medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host Drive &apos;%1&apos;</source>
+        <comment>medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host Drive %1 (%2)</source>
+        <comment>medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p style=white-space:pre&gt;Type (Format):  %1 (%2)&lt;/p&gt;</source>
+        <comment>medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Attached to:  %1&lt;/p&gt;</source>
+        <comment>image</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;Not Attached&lt;/i&gt;</source>
+        <comment>image</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;Checking accessibility...&lt;/i&gt;</source>
+        <comment>medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to check media accessibility.</source>
+        <comment>medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;No medium selected&lt;/b&gt;</source>
+        <comment>medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You can also change this while the machine is running.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;No media available&lt;/b&gt;</source>
+        <comment>medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You can create media images using the virtual media manager.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Attaching this hard disk will be performed indirectly using a newly created differencing hard disk.</source>
+        <comment>medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some of the media in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these media.</source>
+        <comment>medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This base hard disk is indirectly attached using the following differencing hard disk:</source>
+        <comment>medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxGlobalSettings</name>
@@ -2539,10 +2867,21 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>VBoxHelpButton</name>
+    <message>
+        <source>&amp;Help</source>
+        <translation type="unfinished">도움말(&amp;H)</translation>
+    </message>
+</context>
+<context>
     <name>VBoxImportApplianceWgt</name>
     <message>
         <source>Importing Appliance ...</source>
         <translation>가상 시스템 가져오는 중...</translation>
+    </message>
+    <message>
+        <source>Reading Appliance ...</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2570,7 +2909,7 @@ p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through importing an appliance. &lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;In order to import an appliance, you have to select a file describing the appliance first. Currently VirtualBox supports the Open Virtualization Format (OVF). To continue, select the file to import below:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
@@ -2596,7 +2935,7 @@ p, li { white-space: pre-wrap; }
         <translation>가상 시스템 가져오기 설정</translation>
     </message>
     <message>
-        <source>These are the virtual machines as described in the appliance with their suggested mappings for importing into VirtualBox. You can change many of the shown properties by double-clicking on the items and disable others by using the check boxes below.</source>
+        <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
         <translation>아래 목록은 가상 시스템 설명 파일에 나와 있는 가상 머신이며, 이를 VirtualBox로 가져왔을 때의 형태입니다. 보여져 있는 속성을 두 번 누르면 변경할 수도 있으며, 체크 상자를 사용해서 비활성화시킬 수도 있습니다.</translation>
     </message>
     <message>
@@ -2712,11 +3051,11 @@ p, li { white-space: pre-wrap; }
     <name>VBoxMediaComboBox</name>
     <message>
         <source>No media available. Use the Virtual Media Manager to add media of the corresponding type.</source>
-        <translation>사용할 수 있는 미디어가 없습니다. 해당하는 미디어를 추가하려면 가상 미디어 관리자를 사용하십시오.</translation>
+        <translation type="obsolete">사용할 수 있는 미디어가 없습니다. 해당하는 미디어를 추가하려면 가상 미디어 관리자를 사용하십시오.</translation>
     </message>
     <message>
         <source>&lt;no media&gt;</source>
-        <translation>&lt;미디어 없음&gt;</translation>
+        <translation type="obsolete">&lt;미디어 없음&gt;</translation>
     </message>
 </context>
 <context>
@@ -2854,6 +3193,21 @@ p, li { white-space: pre-wrap; }
         <source>&amp;Floppy Images</source>
         <translation>플로피 이미지(&amp;F)</translation>
     </message>
+    <message>
+        <source>Attached to</source>
+        <comment>VMM: Virtual Disk</comment>
+        <translation type="unfinished">다음에 연결됨</translation>
+    </message>
+    <message>
+        <source>Attached to</source>
+        <comment>VMM: CD/DVD Image</comment>
+        <translation type="unfinished">다음에 연결됨</translation>
+    </message>
+    <message>
+        <source>Attached to</source>
+        <comment>VMM: Floppy Image</comment>
+        <translation type="unfinished">다음에 연결됨</translation>
+    </message>
 </context>
 <context>
     <name>VBoxMiniToolBar</name>
@@ -2868,6 +3222,13 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Close VM</source>
         <translation>가상 머신 닫기</translation>
+    </message>
+</context>
+<context>
+    <name>VBoxNetworkDialog</name>
+    <message>
+        <source>Network Adapters</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3234,15 +3595,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Failed to discard the snapshot &lt;b&gt;%1&lt;/b&gt; of the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation>가상 머신 &lt;b&gt;%2&lt;/b&gt;의 저장된 상태 &lt;b&gt;%1&lt;/b&gt;을(를) 삭제하는 데 실패했습니다.</translation>
+        <translation type="obsolete">가상 머신 &lt;b&gt;%2&lt;/b&gt;의 저장된 상태 &lt;b&gt;%1&lt;/b&gt;을(를) 삭제하는 데 실패했습니다.</translation>
     </message>
     <message>
         <source>Failed to discard the current state of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>가상 머신 &lt;b&gt;%1&lt;/b&gt;의 현재 상태를 삭제하는 데 실패했습니다.</translation>
+        <translation type="obsolete">가상 머신 &lt;b&gt;%1&lt;/b&gt;의 현재 상태를 삭제하는 데 실패했습니다.</translation>
     </message>
     <message>
         <source>Failed to discard the current snapshot and the current state of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>가상 머신 &lt;b&gt;%1&lt;/b&gt;의 현재 스냅샷과 상태를 삭제하는 데 실패했습니다.</translation>
+        <translation type="obsolete">가상 머신 &lt;b&gt;%1&lt;/b&gt;의 현재 스냅샷과 상태를 삭제하는 데 실패했습니다.</translation>
     </message>
     <message>
         <source>There is no virtual machine named &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -3253,11 +3614,11 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;p&gt;가상 머신 &lt;b&gt;%1&lt;/b&gt;을(를) 영구적으로 삭제하시겠습니까?&lt;/p&gt;&lt;p&gt;이 동작은 실행 취소할 수 없습니다.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Are you sure you want to unregister the inaccessible virtual machine &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;You will no longer be able to register it back from GUI.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Are you sure you want to unregister the inaccessible virtual machine &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;You will not be able to register it again from GUI.&lt;/p&gt;</source>
         <translation>&lt;p&gt;접근할 수 없는 가상 머신 &lt;b&gt;%1&lt;/b&gt;의 등록을 해제하시겠습니까?&lt;/p&gt;&lt;p&gt;GUI를 사용해서 다시 등록할 수 없습니다.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Are you sure you want to discard the saved state of the virtual machine &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;This operation is equivalent to resetting or powering off the machine without doing a proper shutdown by means of the guest OS.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Are you sure you want to discard the saved state of the virtual machine &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;This operation is equivalent to resetting or powering off the machine without doing a proper shutdown of the guest OS.&lt;/p&gt;</source>
         <translation>&lt;p&gt;가상 머신 &lt;b&gt;%1&lt;/b&gt;의 저장된 상태를 삭제하시겠습니까?&lt;/p&gt;&lt;p&gt;이 동작은 게스트 OS를 올바르게 종료하지 않은 상태에서 전원을 끄거나 재부팅하는 것과 같습니다.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -3281,7 +3642,7 @@ p, li { white-space: pre-wrap; }
         <translation>가상 머신 &lt;b&gt;%2&lt;/b&gt;에서 USB 장치 &lt;b&gt;%1&lt;/b&gt;을(를) 제거할 수 없습니다.</translation>
     </message>
     <message>
-        <source>Failed to create a shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) for the virtual machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <source>Failed to create the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) for the virtual machine &lt;b&gt;%3&lt;/b&gt;.</source>
         <translation>가상 머신 &lt;b&gt;%3&lt;/b&gt;에 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;을(를) 가리키는 공유 폴더 &lt;b&gt;%1&lt;/b&gt;을(를) 추가할 수 없습니다.</translation>
     </message>
     <message>
@@ -3293,7 +3654,7 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;p&gt;현재 가상 머신의 비디오 모드에서 게스트 운영체제가 &lt;b&gt;마우스 통합&lt;/b&gt;을 지원하지 않습니다. 게스트 운영체제에서 마우스를 사용하기 위해서 가상 머신 디스플레이나 호스트 키를 눌러서 마우스를 잡아야 합니다.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The Virtual Machine is currently in the &lt;b&gt;Paused&lt;/b&gt; state and therefore does not accept any keyboard or mouse input. If you want to continue to work inside the VM, you need to resume it by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The Virtual Machine is currently in the &lt;b&gt;Paused&lt;/b&gt; state and not able to see any keyboard or mouse input. If you want to continue to work inside the VM, you need to resume it by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
         <translation>&lt;p&gt;현재 가상 머신이 &lt;b&gt;일시 정지&lt;/b&gt;되어 있습니다. 키보드와 마우스 입력을 더 이상 받아들이지 않을 것입니다. 가상 머신을 사용하려면 메뉴 표시줄에서 다시 시작을 선택하십시오.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -3326,15 +3687,15 @@ p, li { white-space: pre-wrap; }
         <translation>심각성: </translation>
     </message>
     <message>
-        <source>&lt;p&gt;A fatal error has occurred during virtual machine execution! The virtual machine will be powered off. It is suggested to use the clipboard to copy the following error message for further examination:&lt;/p&gt;</source>
+        <source>&lt;p&gt;A fatal error has occurred during virtual machine execution! The virtual machine will be powered off. Please copy the following error message using the clipboard to help diagnose the problem:&lt;/p&gt;</source>
         <translation>&lt;qt&gt;가상 머신을 실행하는 중 치명적인 오류가 발생하였습니다! 가상 머신의 전원이 꺼질 것입니다. 다음에 사용하기 위해서 아래에 나타나는 오류 메시지를 복사해 둘 것을 추천합니다:&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;An error has occurred during virtual machine execution! The error details are shown below. You can try to correct the described error and resume the virtual machine execution.&lt;/p&gt;</source>
+        <source>&lt;p&gt;An error has occurred during virtual machine execution! The error details are shown below. You may try to correct the error and resume the virtual machine execution.&lt;/p&gt;</source>
         <translation>&lt;p&gt;가상 머신을 실행하는 중 오류가 발생하였습니다! 자세한 정보는 아래에 나와 있습니다. 아래에 설명된 오류를 고쳐서 가상 머신의 실행을 다시 시도할 수 있습니다.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The virtual machine execution may run into an error condition as described below. You may ignore this message, but it is suggested to perform an appropriate action to make sure the described error will not happen.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The virtual machine execution may run into an error condition as described below. We suggest that you take an appropriate action to avert the error.&lt;/p&gt;</source>
         <translation>&lt;p&gt;가상 머신을 실행하는 중 다음의 오류 조건에 걸릴 수도 있습니다. 이 메시지를 무시할 수 있지만, 가능하다면 적절한 작업을 통해서 이 오류가 발생하지 않도록 수정하시기 바랍니다.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -3371,15 +3732,15 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;p&gt;언어 파일 &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;을(를) 불러올 수 없습니다.&lt;p&gt;언어를 내장되어 있는 영어로 초기화합니다. VirtualBox 주 창의 &lt;b&gt;파일&lt;/b&gt; 메뉴의 &lt;b&gt;환경 설정&lt;/b&gt; 대화상자를 연 다음, &lt;b&gt;언어&lt;/b&gt; 페이지에 있는 언어 중 하나를 선택하십시오.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;VirtualBox Guest Additions installed in the Guest OS are too old: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) will most likely stop working properly.&lt;/p&gt;&lt;p&gt;Please update Guest Additions to the current version by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too old: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) will most likely stop working properly.&lt;/p&gt;&lt;p&gt;Please update the Guest Additions to the current version by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation>&lt;p&gt;게스트 운영체제에 설치된 VirtualBox 게스트 확장이 너무 오래되었습니다. 예상하는 버전은 %2이지만 설치된 버전은 %1입니다. 마우스 통합, 게스트 디스플레이 자동 크기 조정 같은 게스트 확장이 필요한 기능들이 작동하지 않을 수 있습니다.&lt;/p&gt;&lt;p&gt;&lt;b&gt;장치&lt;/b&gt; 메뉴의 &lt;b&gt;게스트 확장 설치&lt;/b&gt; 항목을 선택하셔서 새 버전의 게스트 확장을 설치하십시오.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;VirtualBox Guest Additions installed in the Guest OS are outdated: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) may not work as expected.&lt;/p&gt;&lt;p&gt;It is recommended to update Guest Additions to the current version  by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are outdated: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) may not work as expected.&lt;/p&gt;&lt;p&gt;It is recommended to update the Guest Additions to the current version  by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation>&lt;p&gt;게스트 운영체제에 설치된 VirtualBox 게스트 확장이 오래되었습니다. 예상하는 버전은 %2이지만 설치된 버전은 %1입니다. 마우스 통합, 게스트 디스플레이 자동 크기 조정 같은 게스트 확장이 필요한 기능들이 예상한 대로 작동하지 않을 수 있습니다.&lt;/p&gt;&lt;p&gt;&lt;b&gt;장치&lt;/b&gt; 메뉴의 &lt;b&gt;게스트 확장 설치&lt;/b&gt; 항목을 선택하셔서 새 버전의 게스트 확장을 설치하십시오.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;VirtualBox Guest Additions installed in the Guest OS are too recent for this version of VirtualBox: the installed version is %1, the expected version is %2.&lt;/p&gt;&lt;p&gt;Using a newer version of Additions with an older version of VirtualBox is not supported. Please install the current version of Guest Additions by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too recent for this version of VirtualBox: the installed version is %1, the expected version is %2.&lt;/p&gt;&lt;p&gt;Using a newer version of Additions with an older version of VirtualBox is not supported. Please install the current version of the Guest Additions by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation>&lt;p&gt;게스트 운영체제에 설치된 VirtualBox 게스트 확장의 버전이 높습니다. 예상하는 버전은 %2이지만 설치된 버전은 %1입니다.&lt;/p&gt;새 버전의 게스트 확장을 오래된 버전의 VirtualBox에서 사용하는 것은 지원되지 않습니다. &lt;b&gt;장치&lt;/b&gt; 메뉴의 &lt;b&gt;게스트 확장 설치&lt;/b&gt; 항목을 선택하셔서 현재 버전의 게스트 확장을 설치하십시오.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -3391,7 +3752,7 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;p&gt;공유 폴더 &lt;b&gt;%1&lt;/b&gt;(&lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;을(를) 가리키는)을(를) 가상 머신 &lt;b&gt;%3&lt;/b&gt;에서 삭제할 수 없습니다.&lt;/p&gt;&lt;p&gt;이 공유 폴더를 사용하고 있는 게스트 OS의 모든 프로그램을 종료하시고 다시 시도해 보십시오.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Could not find the VirtualBox Guest Additions CD image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; or &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you want to download this CD image from the Internet?&lt;/p&gt;</source>
+        <source>&lt;p&gt;Could not find the VirtualBox Guest Additions CD image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; or &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this CD image from the Internet?&lt;/p&gt;</source>
         <translation>&lt;p&gt;VirtualBox 게스트 확장 CD 이미지 파일 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;이나 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;을(를) 찾을 수 없습니다.&lt;/p&gt;&lt;p&gt;이 CD 이미지를 인터넷에서 다운로드하시겠습니까?&lt;/p&gt;</translation>
     </message>
     <message>
@@ -3403,15 +3764,15 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;p&gt;&lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt;에서 VirtualBox 게스트 확장 CD 이미지 파일을 다운로드하시겠습니까? (크기: %3 바이트)&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions CD image has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you want to register this CD image and mount it on the virtual CD/DVD drive?&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions CD image has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this CD image and mount it on the virtual CD/DVD drive?&lt;/p&gt;</source>
         <translation>&lt;p&gt;VirtualBox 게스트 확장 CD 이미지 파일을 &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt;에서 다운로드했으며 &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;&lt;/nobr&gt;에 저장했습니다.&lt;/p&gt;&lt;p&gt;이 CD 이미지를 등록하고 가상 CD/DVD 드라이브에 마운트하시겠습니까?&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the color quality of the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color quality to see if this message disappears or you can simply disable the message now if you are sure the required color quality (%4&amp;nbsp;bit) is not available in the given guest OS.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
         <translation>&lt;p&gt;가상 머신 창은 &lt;b&gt;%1&amp;nbsp;비트&lt;/b&gt; 모드에 최적화되어 있지만 현재 가상 디스플레이의 색 설정은 &lt;b&gt;%2&amp;nbsp;비트&lt;/b&gt;입니다.&lt;/p&gt;&lt;p&gt;게스트 운영체제의 성능을 향상시키려면 게스트 운영체제의 디스플레이 속성을 여시고 사용 가능한 경우 &lt;b&gt;%3&amp;nbsp;비트&lt;/b&gt; 모드를 선택하십시오.&lt;/p&gt;&lt;p&gt;&lt;b&gt;메모&lt;/b&gt;: OS/2 같은 일부 운영체제는 실제로 32&amp;nbsp;비트 모드에서 작동하지만 24&amp;nbsp;비트 모드를 사용한다고 보고합니다. 만약 이 메시지가 나타나면 다른 색 품질을 선택하거나 게스트 운영체제에서 필요한 색 품질(%4&amp;nbsp;비트)을 지원하지 않으면 이 메시지를 비활성화 시킬 수 있습니다.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings dialog or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you want to continue?&lt;/p&gt;</source>
+        <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings dialog or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you wish to continue?&lt;/p&gt;</source>
         <translation>&lt;p&gt;새 가상 머신에 하드디스크를 연결하지 않았습니다. 게스트 운영체제가 설치되어 있는 하드디스크나 또 다른 부팅 가능한 미디어를 연결하지 않는 한 머신은 부팅되지 않을 것입니다.&lt;/p&gt;&lt;p&gt;계속 진행하시겠습니까?&lt;/p&gt;</translation>
     </message>
     <message>
@@ -3502,7 +3863,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&amp;Backup</source>
         <comment>warnAboutAutoConvertedSettings message box</comment>
-        <translation>백업(&amp;B)</translation>
+        <translation type="obsolete">백업(&amp;B)</translation>
     </message>
     <message>
         <source>Switch</source>
@@ -3515,7 +3876,7 @@ p, li { white-space: pre-wrap; }
         <translation>전환</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Do you really want to reset the virtual machine?&lt;/p&gt;&lt;p&gt;When the machine is reset, unsaved data of all applications running inside it will be lost.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Do you really want to reset the virtual machine?&lt;/p&gt;&lt;p&gt;This will cause any unsaved data in applications running inside it to be lost.&lt;/p&gt;</source>
         <translation>&lt;p&gt;가상 머신을 초기화시키겠습니까?&lt;/p&gt;&lt;p&gt;이 머신을 초기화시키면 가상 머신 안의 저장되지 않은 모든 데이터는 손실됩니다.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -3540,12 +3901,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&amp;Create</source>
         <comment>hard disk</comment>
-        <translation>만들기(&amp;C)</translation>
+        <translation type="obsolete">만들기(&amp;C)</translation>
     </message>
     <message>
         <source>Select</source>
         <comment>hard disk</comment>
-        <translation>선택</translation>
+        <translation type="obsolete">선택</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not enter seamless mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;</source>
@@ -3556,7 +3917,7 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;p&gt;게스트 비디오 메모리가 부족해서 심리스 모드로 들어갈 수 없습니다.&lt;/p&gt;&lt;p&gt;가상 머신의 비디오 메모리를 &lt;b&gt;%1&lt;/b&gt; 이상으로 설정하십시오.&lt;/p&gt;&lt;p&gt;그래도 전체 화면 모드로 들어가려면 &lt;b&gt;무시&lt;/b&gt; 단추를 누르시고, &lt;b&gt;취소&lt;/b&gt; 단추를 누르면 작업을 취소합니다.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>You have already installed the latest VirtualBox version. Please repeat the version check later.</source>
+        <source>You are already running the most recent version of VirtualBox.</source>
         <translation>최신 버전의 VirtualBox를 사용하고 있습니다. 나중에 다시 확인하십시오.</translation>
     </message>
     <message>
@@ -3600,7 +3961,7 @@ p, li { white-space: pre-wrap; }
         <translation>모든 경고 초기화(&amp;R)</translation>
     </message>
     <message>
-        <source>Cause all suppressed warnings and messages to be shown again</source>
+        <source>Go back to showing all suppressed warnings and messages</source>
         <translation>모든 경고 메시지를 다시 보이도록 설정합니다</translation>
     </message>
     <message>
@@ -3641,7 +4002,7 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;p&gt;미디어 목록에서 %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;을(를)&lt;/nobr&gt; 삭제하시겠습니까?&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Note that this hard disk is inaccessible so that its storage unit cannot be deleted right now.</source>
+        <source>Note that as this hard disk is inaccessible its storage unit cannot be deleted right now.</source>
         <translation>이 하드디스크에 접근할 수 없기 때문에 저장소 유닛을 삭제할 수 없습니다.</translation>
     </message>
     <message>
@@ -3649,7 +4010,7 @@ p, li { white-space: pre-wrap; }
         <translation>다음 대화 상자에서 저장소 유닛을 같이 삭제하거나 나중에 사용하기 위해서 삭제하지 않을지 여부를 선택할 수 있습니다.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Note that the storage unit of this medium will not be deleted and therefore it will be possible to add it to the list later again.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Note that the storage unit of this medium will not be deleted and that it will be possible to add it to the list later again.&lt;/p&gt;</source>
         <translation>&lt;p&gt;이 미디어의 저장소 유닛은 삭제되지 않을 것이며 다음에 다시 사용할 때 추가할 수 있습니다.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -3680,28 +4041,28 @@ p, li { white-space: pre-wrap; }
         <translation>하드디스크 &lt;b&gt;%1&lt;/b&gt;의 저장소 유닛을 삭제할 수 없습니다.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;There are no unused hard disks available for the newly created attachment.&lt;/p&gt;&lt;p&gt;Press the &lt;b&gt;Create&lt;/b&gt; button to start the &lt;i&gt;New Virtual Disk&lt;/i&gt; wizard and create a new hard disk, or press the &lt;b&gt;Select&lt;/b&gt; button to open the &lt;i&gt;Virtual Media Manager&lt;/i&gt; and select what to do.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;새로 연결할 수 있는 하드디스크가 없습니다.&lt;/p&gt;&lt;p&gt;&lt;b&gt;만들기&lt;/b&gt; 단추를 누르면 새 하드디스크를 만들 수 있는 &lt;i&gt;새 가상 디스크&lt;/i&gt; 마법사를 열 수 있으며, &lt;b&gt;선택&lt;/b&gt; 단추를 누르면 &lt;i&gt;가상 미디어 관리자&lt;/i&gt;를 열어서 할 수 있는 일을 선택할 수 있습니다.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;There are no unused hard disks available for the newly created attachment.&lt;/p&gt;&lt;p&gt;Press the &lt;b&gt;Create&lt;/b&gt; button to start the &lt;i&gt;New Virtual Disk&lt;/i&gt; wizard and create a new hard disk, or press the &lt;b&gt;Select&lt;/b&gt; if you wish to open the &lt;i&gt;Virtual Media Manager&lt;/i&gt;.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;새로 연결할 수 있는 하드디스크가 없습니다.&lt;/p&gt;&lt;p&gt;&lt;b&gt;만들기&lt;/b&gt; 단추를 누르면 새 하드디스크를 만들 수 있는 &lt;i&gt;새 가상 디스크&lt;/i&gt; 마법사를 열 수 있으며, &lt;b&gt;선택&lt;/b&gt; 단추를 누르면 &lt;i&gt;가상 미디어 관리자&lt;/i&gt;를 열어서 할 수 있는 일을 선택할 수 있습니다.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to create the hard disk storage &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;</source>
         <translation>하드디스크 저장소 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;을(를) 만들 수 없습니다.</translation>
     </message>
     <message>
-        <source>Failed to attach the hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; to the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>하드디스크 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;을(를) 가상 머신 &lt;b&gt;%3&lt;/b&gt;의 &lt;i&gt;%2&lt;/i&gt; 슬롯에 연결할 수 없습니다.</translation>
+        <source>Failed to attach the hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; to slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="obsolete">하드디스크 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;을(를) 가상 머신 &lt;b&gt;%3&lt;/b&gt;의 &lt;i&gt;%2&lt;/i&gt; 슬롯에 연결할 수 없습니다.</translation>
     </message>
     <message>
-        <source>Failed to detach the hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>하드디스크 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;을(를) 가상 머신 &lt;b&gt;%3&lt;/b&gt;의 &lt;i&gt;%2&lt;/i&gt; 슬롯에서 연결 해제할 수 없습니다.</translation>
+        <source>Failed to detach the hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="obsolete">하드디스크 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;을(를) 가상 머신 &lt;b&gt;%3&lt;/b&gt;의 &lt;i&gt;%2&lt;/i&gt; 슬롯에서 연결 해제할 수 없습니다.</translation>
     </message>
     <message>
-        <source>Failed to mount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; to the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>%1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;을(를) 가상 머신 &lt;b&gt;%3&lt;/b&gt;에 마운트하는 데 실패했습니다.</translation>
+        <source>Failed to mount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; on the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="obsolete">%1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;을(를) 가상 머신 &lt;b&gt;%3&lt;/b&gt;에 마운트하는 데 실패했습니다.</translation>
     </message>
     <message>
         <source>Failed to unmount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; from the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>%1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;을(를) 가상 머신 &lt;b&gt;%3&lt;/b&gt;에서 마운트 해제하는 데 실패했습니다.</translation>
+        <translation type="obsolete">%1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;을(를) 가상 머신 &lt;b&gt;%3&lt;/b&gt;에서 마운트 해제하는 데 실패했습니다.</translation>
     </message>
     <message>
         <source>Failed to open the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
@@ -3712,7 +4073,7 @@ p, li { white-space: pre-wrap; }
         <translation>%1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;을(를) 닫는 데 실패했습니다.</translation>
     </message>
     <message>
-        <source>Failed to get the accessibility state of the medium &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <source>Failed to determine the accessibility state of the medium &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
         <translation>미디어 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;의 접근성을 검사하는 데 실패했습니다.</translation>
     </message>
     <message>
@@ -3720,7 +4081,7 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;p&gt;다음 이유로 VirtualBox 온라인 등록 서비스에 연결할 수 없습니다:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version from this direct link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
+        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
         <translation>&lt;p&gt;VirtualBox 새 버전이 출시되었습니다! &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt; 웹 사이트에 새 버전 &lt;b&gt;%1&lt;/b&gt;이(가) 올라와 있습니다.&lt;/p&gt;&lt;p&gt;이 링크를 사용해서 새 버전을 다운로드하십시오:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
     </message>
     <message>
@@ -3732,31 +4093,31 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;p&gt;하나 이상의 등록된 가상 하드디스크나, CD/DVD 또는 플로피 미디어에 접근할 수 없습니다. 접근할 수 있게 될 때까지 이들 미디어를 사용하는 가상 머신을 작동할 수 없습니다.&lt;/p&gt;&lt;p&gt;&lt;b&gt;검사하기&lt;/b&gt; 단추를 눌러서 가상 미디어 관리자를 연 다음 어떤 미디어에 접근할 수 없는가 확인하거나, &lt;b&gt;무시&lt;/b&gt; 단추를 눌러서 이 메시지를 무시할 수 있습니다.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Your existing VirtualBox settings files were automatically converted from the old format to a new format necessary for the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;More&lt;/b&gt; if you want to get more information about what files were converted and access additional actions.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Exit&lt;/b&gt; to terminate the VirtualBox application without saving the results of the conversion to disk.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;존재하는 VirtualBox 설정 파일이 새로운 버전의 형식으로 변환될 것입니다.&lt;/p&gt;&lt;p&gt;&lt;b&gt;확인&lt;/b&gt; 단추를 누르면 설정 파일을 변환하면서 VirtualBox를 시작하며 &lt;b&gt;더 보기&lt;/b&gt; 단추를 누르면 어떤 파일이 변환되며 어떤 추가 동작을 진행하는지 알 수 있습니다.&lt;/p&gt;&lt;p&gt;&lt;b&gt;종료&lt;/b&gt; 단추를 누르면 VirtualBox 설정 파일을 변환하지 않고 종료합니다.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;Your existing VirtualBox settings files were automatically converted from the old format to a new format required by the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;More&lt;/b&gt; if you want to get more information about what files were converted and access additional actions.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Exit&lt;/b&gt; to terminate the VirtualBox application without saving the results of the conversion to disk.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;존재하는 VirtualBox 설정 파일이 새로운 버전의 형식으로 변환될 것입니다.&lt;/p&gt;&lt;p&gt;&lt;b&gt;확인&lt;/b&gt; 단추를 누르면 설정 파일을 변환하면서 VirtualBox를 시작하며 &lt;b&gt;더 보기&lt;/b&gt; 단추를 누르면 어떤 파일이 변환되며 어떤 추가 동작을 진행하는지 알 수 있습니다.&lt;/p&gt;&lt;p&gt;&lt;b&gt;종료&lt;/b&gt; 단추를 누르면 VirtualBox 설정 파일을 변환하지 않고 종료합니다.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;More</source>
         <comment>warnAboutAutoConvertedSettings message box</comment>
-        <translation>더 보기(&amp;M)</translation>
+        <translation type="obsolete">더 보기(&amp;M)</translation>
     </message>
     <message>
         <source>E&amp;xit</source>
         <comment>warnAboutAutoConvertedSettings message box</comment>
-        <translation>종료(&amp;X)</translation>
+        <translation type="obsolete">종료(&amp;X)</translation>
     </message>
     <message>
         <source>&lt;p&gt;The following VirtualBox settings files have been automatically converted to the new settings file format version &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;However, the results of the conversion were not saved back to disk yet. Please press:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Backup&lt;/b&gt; to create backup copies of the settings files in the old format before saving them in the new format;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Overwrite&lt;/b&gt; to save all auto-converted files without creating backup copies (it will not be possible to use these settings files with an older version of VirtualBox afterwards);&lt;/li&gt;%2&lt;/ul&gt;&lt;p&gt;It is recommended to always select &lt;b&gt;Backup&lt;/b&gt; because in this case it will be possible to go back to the previous version of VirtualBox (if necessary) without losing your current settings. See the VirtualBox Manual for more information about downgrading.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;다음 VirtualBox 설정 파일들은 새 설정 파일 형식 버전 &lt;b&gt;%1&lt;/b&gt;(으)로 자동으로 변환되었습니다.&lt;/p&gt;&lt;p&gt;그러나 변환 결과가 아직 디스크에 저장되지 않았습니다.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;백업&lt;/b&gt; 단추를 누르면 변환하기 전 파일을 백업해 둡니다.&lt;/li&gt;&lt;li&gt;&lt;b&gt;덮어쓰기&lt;/b&gt; 단추를 누르면 백업 파일을 만들지 않고 변환된 파일을 덮어씁니다. 나중에 과거 버전의 VirtualBox에서 이 설정 파일을 사용할 수 없습니다. &lt;/li&gt;%2&lt;/ul&gt;&lt;p&gt;이전 버전의 VirtualBox로 돌아갈 때를 대비해서 현재 설정을 보존할 수 있는 &lt;b&gt;백업&lt;/b&gt; 단추를 누르는 것을 추천합니다. 다운그레이딩에 대해서는 VirtualBox 설명서를 참고하십시오.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;다음 VirtualBox 설정 파일들은 새 설정 파일 형식 버전 &lt;b&gt;%1&lt;/b&gt;(으)로 자동으로 변환되었습니다.&lt;/p&gt;&lt;p&gt;그러나 변환 결과가 아직 디스크에 저장되지 않았습니다.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;백업&lt;/b&gt; 단추를 누르면 변환하기 전 파일을 백업해 둡니다.&lt;/li&gt;&lt;li&gt;&lt;b&gt;덮어쓰기&lt;/b&gt; 단추를 누르면 백업 파일을 만들지 않고 변환된 파일을 덮어씁니다. 나중에 과거 버전의 VirtualBox에서 이 설정 파일을 사용할 수 없습니다. &lt;/li&gt;%2&lt;/ul&gt;&lt;p&gt;이전 버전의 VirtualBox로 돌아갈 때를 대비해서 현재 설정을 보존할 수 있는 &lt;b&gt;백업&lt;/b&gt; 단추를 누르는 것을 추천합니다. 다운그레이딩에 대해서는 VirtualBox 설명서를 참고하십시오.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;li&gt;&lt;b&gt;Exit&lt;/b&gt; to terminate VirtualBox without saving the results of the conversion to disk.&lt;/li&gt;</source>
-        <translation>&lt;li&gt;&lt;b&gt;끝내기&lt;/b&gt; 단추를 누르면 변환된 파일을 디스크에 저장하지 않고 VirtualBox를 종료합니다.&lt;/li&gt;</translation>
+        <translation type="obsolete">&lt;li&gt;&lt;b&gt;끝내기&lt;/b&gt; 단추를 누르면 변환된 파일을 디스크에 저장하지 않고 VirtualBox를 종료합니다.&lt;/li&gt;</translation>
     </message>
     <message>
         <source>O&amp;verwrite</source>
         <comment>warnAboutAutoConvertedSettings message box</comment>
-        <translation>덮어쓰기(&amp;V)</translation>
+        <translation type="obsolete">덮어쓰기(&amp;V)</translation>
     </message>
     <message>
         <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution has been stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt; and the image file &lt;tt&gt;VBox.png&lt;/tt&gt;, which you can find in the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; directory, as well as a description of what you were doing when this error happened. Note that you can also access the above files by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; if you want to power off the machine or press &lt;b&gt;Ignore&lt;/b&gt; if you want to leave it as is for debugging. Please note that debugging requires special knowledge and tools, so it is recommended to press &lt;b&gt;OK&lt;/b&gt; now.&lt;/p&gt;</source>
@@ -3765,17 +4126,17 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>hard disk</source>
         <comment>failed to close ...</comment>
-        <translation>하드디스크</translation>
+        <translation type="obsolete">하드디스크</translation>
     </message>
     <message>
         <source>CD/DVD image</source>
         <comment>failed to close ...</comment>
-        <translation>CD/DVD 이미지</translation>
+        <translation type="obsolete">CD/DVD 이미지</translation>
     </message>
     <message>
         <source>floppy image</source>
         <comment>failed to close ...</comment>
-        <translation>플로피 이미지</translation>
+        <translation type="obsolete">플로피 이미지</translation>
     </message>
     <message>
         <source>A file named &lt;b&gt;%1&lt;/b&gt; already exists. Are you sure you want to replace it?&lt;br /&gt;&lt;br /&gt;The file already exists in &quot;%2&quot;. Replacing it will overwrite its contents.</source>
@@ -3798,7 +4159,7 @@ p, li { white-space: pre-wrap; }
         <translation>호스트 시스템의 USB에 접근할 수 없습니다. 게스트 시스템에서 USB를 사용하려면 USB 파일 시스템(usbfs), D-Bus/HAL 서비스 둘 중 하나를 활성화한 다음 VirtualBox를 다시 시작하십시오.</translation>
     </message>
     <message>
-        <source>You are trying to shut down the guest with the ACPI power button. This is currently not possible because the guest does not use the ACPI subsystem.</source>
+        <source>You are trying to shut down the guest with the ACPI power button. This is currently not possible because the guest does not support software shutdown.</source>
         <translation>게스트 시스템을 ACPI를 통해서 종료하려고 하고 있습니다. 게스트 운영 체제에서 ACPI를 사용하지 않으므로 작동하지 않을 것입니다.</translation>
     </message>
     <message>
@@ -3815,11 +4176,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you wish to delete the selected snapshot and saved state?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;선택한 스냅샷과 저장된 상태를 삭제하시겠습니까?&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;선택한 스냅샷과 저장된 상태를 삭제하시겠습니까?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Discard</source>
-        <translation>삭제</translation>
+        <translation type="obsolete">삭제</translation>
     </message>
     <message>
         <source>Cancel</source>
@@ -3847,7 +4208,7 @@ p, li { white-space: pre-wrap; }
         <translation>호스트 전용 네트워크 인터페이스를 만들 수 없습니다.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Your existing VirtualBox settings files will be automatically converted from the old format to a new format necessary for the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;Exit&lt;/b&gt; if you want to terminate the VirtualBox application without any further actions.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Your existing VirtualBox settings files will be automatically converted from the old format to a new format required by the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;Exit&lt;/b&gt; if you want to terminate the VirtualBox application without any further actions.&lt;/p&gt;</source>
         <translation>&lt;p&gt;기존 VirtualBox 설정 파일이 예전 형식에서 새 형식으로 변환될 것입니다.&lt;/p&gt;&lt;p&gt;&lt;b&gt;확인&lt;/b&gt; 단추를 누르면 변환 작업을 시작하며, &lt;b&gt;종료&lt;/b&gt; 단추를 누르면 변환하지 않고 VirtualBox를 종료합니다.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -3879,7 +4240,7 @@ p, li { white-space: pre-wrap; }
         <translation>가상 시스템 &lt;b&gt;%1&lt;/b&gt;을(를) 내보낼 수 없습니다.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Deleting this host-only network will lead to the deleting of the host-only interface this network is based on. Do you want to remove the (host-only network) interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; this interface may be in use by one or more virtual network adapters belonging to one of your VMs. After it is removed, these adapters will no longer be usable until you correct their settings by either choosing a different interface name or a different adapter attachment type.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Deleting this host-only network will remove the host-only interface this network is based on. Do you want to remove the (host-only network) interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note:&lt;/b&gt; this interface may be in use by one or more virtual network adapters belonging to one of your VMs. After it is removed, these adapters will no longer be usable until you correct their settings by either choosing a different interface name or a different adapter attachment type.&lt;/p&gt;</source>
         <translation>&lt;p&gt;이 호스트 전용 네트워크를 삭제하면, 이 네트워크가 사용하는 호스트 전용 인터페이스를 삭제합니다. 호스트 전용 네트워크 인터페이스 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;을(를)&lt;/nobr&gt; 삭제하시겠습니까?&lt;/p&gt;&lt;p&gt;&lt;b&gt;메모:&lt;/b&gt; 하나 이상의 다른 가상 머신에서 이 인터페이스를 사용하고 있을 수도 있습니다. 다른 어댑터를 연결하거나, 새 인터페이스 이름을 지정하지 않는 한 이 어댑터를 다른 가상 머신에서 사용할 수 없습니다.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -3906,16 +4267,215 @@ p, li { white-space: pre-wrap; }
         <source>Failed to remove file.</source>
         <translation>파일을 삭제하는 데 실패했습니다.</translation>
     </message>
+    <message>
+        <source>You seem to have the USBFS filesystem mounted at /sys/bus/usb/drivers. We strongly recommend that you change this, as it is a severe mis-configuration of your system which could cause USB devices to fail in unexpected ways.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You are running an EXPERIMENTAL build of VirtualBox. This version is not suitable for production use.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to restore snapshot &lt;b&gt;%1&lt;/b&gt;? This will cause you to lose your current machine state, which cannot be recovered.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Deleting the snapshot will cause the state information saved in it to be lost, and disk data spread over several image files that VirtualBox has created together with the snapshot will be merged into one file. This can be a lengthy process, and the information in the snapshot cannot be recovered.&lt;/p&gt;&lt;/p&gt;Are you sure you want to delete the selected snapshot &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete</source>
+        <translation type="unfinished">삭제</translation>
+    </message>
+    <message>
+        <source>Failed to restore the snapshot &lt;b&gt;%1&lt;/b&gt; of the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to delete the snapshot &lt;b&gt;%1&lt;/b&gt; of the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;There are no unused media available for the newly created attachment.&lt;/p&gt;&lt;p&gt;Press the &lt;b&gt;Create&lt;/b&gt; button to start the &lt;i&gt;New Virtual Disk&lt;/i&gt; wizard and create a new medium, or press the &lt;b&gt;Select&lt;/b&gt; if you wish to open the &lt;i&gt;Virtual Media Manager&lt;/i&gt;.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Create</source>
+        <comment>medium</comment>
+        <translation type="unfinished">만들기(&amp;C)</translation>
+    </message>
+    <message>
+        <source>&amp;Select</source>
+        <comment>medium</comment>
+        <translation type="unfinished">선택(&amp;S)</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;There are no unused media available for the newly created attachment.&lt;/p&gt;&lt;p&gt;Press the &lt;b&gt;Select&lt;/b&gt; if you wish to open the &lt;i&gt;Virtual Media Manager&lt;/i&gt;.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to attach the %1 to slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to detach the %1 from slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unable to mount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; on the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> Would you like to force mounting of this medium?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unable to unmount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; from the machine &lt;b&gt;%3&lt;/b&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> Would you like to force unmounting of this medium?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Force Unmount</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Failed to eject the disk from the virtual drive. The drive may be locked by the guest operating system. Please check this and try again.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not insert the VirtualBox Guest Additions installer CD image into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no CD/DVD-ROM drives. Please add a drive using the storage page of the virtual machine settings dialog.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>E&amp;xit</source>
+        <comment>warnAboutSettingsAutoConversion message box</comment>
+        <translation type="unfinished">종료(&amp;X)</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The following VirtualBox settings files will be automatically converted from the old format to a new format required by the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;Exit&lt;/b&gt; if you want to terminate the VirtualBox application without any further actions.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>hard disk</source>
+        <comment>failed to mount ...</comment>
+        <translation type="unfinished">하드디스크</translation>
+    </message>
+    <message>
+        <source>CD/DVD</source>
+        <comment>failed to mount ... host-drive</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CD/DVD image</source>
+        <comment>failed to mount ...</comment>
+        <translation type="unfinished">CD/DVD 이미지</translation>
+    </message>
+    <message>
+        <source>floppy</source>
+        <comment>failed to mount ... host-drive</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>floppy image</source>
+        <comment>failed to mount ...</comment>
+        <translation type="unfinished">플로피 이미지</translation>
+    </message>
+    <message>
+        <source>hard disk</source>
+        <comment>failed to attach ...</comment>
+        <translation type="unfinished">하드디스크</translation>
+    </message>
+    <message>
+        <source>CD/DVD device</source>
+        <comment>failed to attach ...</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>floppy device</source>
+        <comment>failed to close ...</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxProgressDialog</name>
     <message>
         <source>&amp;Cancel</source>
-        <translation type="obsolete">취소(&amp;C)</translation>
+        <translation type="unfinished">취소(&amp;C)</translation>
     </message>
     <message>
         <source>Time remaining: %1</source>
-        <translation>남은 시간: %1</translation>
+        <translation type="obsolete">남은 시간: %1</translation>
+    </message>
+    <message>
+        <source>%1 days, %2 hours remaining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 days, %2 minutes remaining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 days remaining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>1 day, %1 hours remaining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>1 day, %1 minutes remaining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>1 day remaining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 hours, %2 minutes remaining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>1 hour, %1 minutes remaining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>1 hour remaining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 minutes remaining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>1 minute, %2 seconds remaining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>1 minute remaining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 seconds remaining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A few seconds remaining</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Canceling...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel the current operation</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3937,7 +4497,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">전자 우편 주소(&amp;E)</translation>
     </message>
     <message>
-        <source>Enter your valid e-mail address.</source>
+        <source>Enter your e-mail address. Please use a valid address here.</source>
         <translation>올바른 전자 우편 주소를 입력해 주십시오.</translation>
     </message>
     <message>
@@ -3953,7 +4513,7 @@ p, li { white-space: pre-wrap; }
         <translation>연결 협상을 진행할 수 없습니다.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Please note that Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;이 등록 양식을 작성하셔서 VirtualBox를 사용하고 있다는 것을 알려 주십시오. 선택적으로 VirtualBox 뉴스와 업데이트를 받을 수도 있습니다.&lt;/p&gt;&lt;p&gt;영문자로 전체 이름을 작성하시고 전자 우편 주소를 적어 주십시오. 썬 마이크로시스템즈에서는 수집한 개인 정보를 제 3자에게 보내지 않으며, 이 정보를 사용하여 VirtualBox 사용 통계를 모으고 연락하는 데만 사용할 것입니다. 개인 정보를 어떻게 사용하는가에 대해서 알아보시려면 VirtualBox 설명서의 &lt;b&gt;개인 정보 정책&lt;/b&gt; 섹션이나 VirtualBox 웹 사이트의 &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;개인 정보 정책&lt;/a&gt;을 참고하십시오.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -3973,11 +4533,11 @@ p, li { white-space: pre-wrap; }
         <translation>국가 및 지역 선택</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use the Latin characters to fill the fields below. Please note that Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
         <translation>&lt;p&gt;이 등록 양식을 작성하셔서 VirtualBox를 사용하고 있다는 것을 알려 주십시오. 선택적으로 VirtualBox 뉴스와 업데이트를 받을 수도 있습니다.&lt;/p&gt;&lt;p&gt;영문자로 전체 이름을 작성하시고 전자 우편 주소를 적어 주십시오. Sun 마이크로시스템즈에서는 수집한 개인 정보를 제 3자에게 보내지 않으며, 이 정보를 사용하여 VirtualBox 사용 통계를 모으고 연락하는 데만 사용할 것입니다. 개인 정보를 어떻게 사용하는가에 대해서 알아보시려면 VirtualBox 설명서의 &lt;b&gt;개인 정보 정책&lt;/b&gt; 섹션이나 VirtualBox 웹 사이트의 &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;개인 정보 정책&lt;/a&gt;을 참고하십시오.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>I &amp;have a Sun Online account already:</source>
+        <source>I &amp;already have a Sun Online account:</source>
         <translation>Sun 온라인 계정이 이미 있습니다(&amp;H):</translation>
     </message>
     <message>
@@ -3989,7 +4549,7 @@ p, li { white-space: pre-wrap; }
         <translation>암호(&amp;P):</translation>
     </message>
     <message>
-        <source>I &amp;would like to register creating a new Sun Online account:</source>
+        <source>I &amp;would like to create a new Sun Online account:</source>
         <translation>Sun 온라인 계정을 등록하겠습니다(&amp;W):</translation>
     </message>
     <message>
@@ -4030,6 +4590,21 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Shared Folders</source>
         <translation>공유 폴더</translation>
+    </message>
+</context>
+<context>
+    <name>VBoxScreenshotViewer</name>
+    <message>
+        <source>Screenshot of %1 (%2)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to view non-scaled screenshot.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to view scaled screenshot.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4160,7 +4735,7 @@ p, li { white-space: pre-wrap; }
         <translation>가상 머신의 실행을 일시 중지합니다</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is intended to display a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
         <translation>&lt;h3&gt;VirtualBox에 오신 것을 환영합니다!&lt;/h3&gt;&lt;p&gt;이 창의 왼쪽 부분은 컴퓨터에 있는 모든 가상 머신 목록을 표시합니다. 아직 가상 머신을 만들지 않았기 때문에 이 목록은 현재 비어 있습니다.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;새 가상 머신을 만들시려면, 창 위쪽 도구 모음의 &lt;b&gt;새로 만들기&lt;/b&gt; 단추를 누르십시오.&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; 키를 누르면 상황에 맞는 도움말을 볼 수 있으며, 최근 정보와 뉴스를 보려면 &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt;를 방문하십시오.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -4193,7 +4768,7 @@ p, li { white-space: pre-wrap; }
         <translation>가상 시스템 내보내기(&amp;E)...</translation>
     </message>
     <message>
-        <source>Export an appliance out of VM&apos;s from VirtualBox</source>
+        <source>Export one or more VirtualBox virtual machines as an appliance</source>
         <translation>VirtualBox의 가상 시스템 내보내기</translation>
     </message>
     <message>
@@ -4204,7 +4779,7 @@ p, li { white-space: pre-wrap; }
 <context>
     <name>VBoxSettingsDialog</name>
     <message>
-        <source>&lt;i&gt;Select a settings category from the list on the left side and move the mouse over a settings item to get more information&lt;/i&gt;.</source>
+        <source>&lt;i&gt;Select a settings category from the list on the left-hand side and move the mouse over a settings item to get more information&lt;/i&gt;.</source>
         <translation>&lt;i&gt;왼쪽에서 설정 분류를 선택하시고 설정 항목 위에 마우스를 올려 놓으시면 정보가 나타납니다&lt;/i&gt;.</translation>
     </message>
     <message>
@@ -4228,19 +4803,19 @@ p, li { white-space: pre-wrap; }
     <name>VBoxSnapshotDetailsDlg</name>
     <message>
         <source>VBoxSnapshotDetailsDlg</source>
-        <translation>VBoxSnapshotDetailsDlg</translation>
+        <translation type="obsolete">VBoxSnapshotDetailsDlg</translation>
     </message>
     <message>
         <source>&amp;Name</source>
-        <translation>이름(&amp;N)</translation>
+        <translation type="obsolete">이름(&amp;N)</translation>
     </message>
     <message>
         <source>&amp;Description</source>
-        <translation>설명(&amp;D)</translation>
+        <translation type="obsolete">설명(&amp;D)</translation>
     </message>
     <message>
         <source>&amp;Machine Details</source>
-        <translation>자세한 정보(&amp;M)</translation>
+        <translation type="obsolete">자세한 정보(&amp;M)</translation>
     </message>
     <message>
         <source>Details of %1 (%2)</source>
@@ -4248,14 +4823,34 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Snapshot Details</source>
-        <translation>스냅샷 정보</translation>
+        <translation type="obsolete">스냅샷 정보</translation>
+    </message>
+    <message>
+        <source>Click to enlarge the screenshot.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Name:</source>
+        <translation type="unfinished">이름(&amp;N):</translation>
+    </message>
+    <message>
+        <source>Taken:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Description:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>D&amp;etails:</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>VBoxSnapshotsWgt</name>
     <message>
         <source>[snapshot]</source>
-        <translation>[스냅샷]</translation>
+        <translation type="obsolete">[스냅샷]</translation>
     </message>
     <message>
         <source>VBoxSnapshotsWgt</source>
@@ -4263,7 +4858,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Discard Snapshot</source>
-        <translation>스냅샷 삭제(&amp;D)</translation>
+        <translation type="obsolete">스냅샷 삭제(&amp;D)</translation>
     </message>
     <message>
         <source>Take &amp;Snapshot</source>
@@ -4271,7 +4866,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>D&amp;iscard Current Snapshot and State</source>
-        <translation>현재 스냅샷과 상태 삭제(&amp;I)</translation>
+        <translation type="obsolete">현재 스냅샷과 상태 삭제(&amp;I)</translation>
     </message>
     <message>
         <source>S&amp;how Details</source>
@@ -4331,7 +4926,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Discard the selected snapshot of the virtual machine</source>
-        <translation>선택한 가상 머신의 스냅샷을 삭제합니다</translation>
+        <translation type="obsolete">선택한 가상 머신의 스냅샷을 삭제합니다</translation>
     </message>
     <message>
         <source>Take a snapshot of the current virtual machine state</source>
@@ -4339,19 +4934,63 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Revert to Current Snapshot</source>
-        <translation>현재 스냅샷으로 되돌리기(&amp;R)</translation>
+        <translation type="obsolete">현재 스냅샷으로 되돌리기(&amp;R)</translation>
     </message>
     <message>
         <source>Restore the virtual machine state from the state stored in the current snapshot</source>
-        <translation>가상 머신의 상태를 현재 스냅샷에 저장되어 있는 상태로 되돌립니다</translation>
+        <translation type="obsolete">가상 머신의 상태를 현재 스냅샷에 저장되어 있는 상태로 되돌립니다</translation>
     </message>
     <message>
         <source>Discard the current snapshot and revert the machine to the state it had before the snapshot was taken</source>
-        <translation>현재 스냅샷을 삭제하고 가상 머신을 스냅샷이 찍히기 전의 상태로 되돌립니다</translation>
+        <translation type="obsolete">현재 스냅샷을 삭제하고 가상 머신을 스냅샷이 찍히기 전의 상태로 되돌립니다</translation>
     </message>
     <message>
-        <source>Show details of the selected snapshot</source>
+        <source>Show the details of the selected snapshot</source>
         <translation>선택한 스냅샷의 자세한 정보를 봅니다</translation>
+    </message>
+    <message>
+        <source> (%1)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source> (%n day(s) ago)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source> (%n hour(s) ago)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source> (%n minute(s) ago)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source> (%n second(s) ago)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>&amp;Restore Snapshot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Delete Snapshot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Restore the selected snapshot of the virtual machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete the selected snapshot of the virtual machine</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4391,7 +5030,7 @@ p, li { white-space: pre-wrap; }
         <translation>바꾸기(&amp;R)...</translation>
     </message>
     <message>
-        <source>Replaces the current text with the content of a given file.</source>
+        <source>Replaces the current text with the content of a file.</source>
         <translation>현재 텍스트의 내용을 주어진 파일의 내용으로 바꿉니다.</translation>
     </message>
     <message>
@@ -4430,7 +5069,7 @@ p, li { white-space: pre-wrap; }
 <context>
     <name>VBoxUSBMenu</name>
     <message>
-        <source>&lt;no available devices&gt;</source>
+        <source>&lt;no devices available&gt;</source>
         <comment>USB devices</comment>
         <translation>&lt;사용 가능한 장치가 없음&gt;</translation>
     </message>
@@ -4515,7 +5154,7 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;p&gt;이 마법사는 VirtualBox 웹 사이트에 접속해서 새 버전이 있는지 확인합니다.&lt;/p&gt;&lt;p&gt;새 버전을 지금 확인하려면 &lt;b&gt;검사하기&lt;/b&gt; 단추를 누르고, 나중에 확인하려면 &lt;b&gt;취소&lt;/b&gt; 단추를 누르십시오.&lt;/p&gt;&lt;p&gt;&lt;b&gt;도움말&lt;/b&gt; 메뉴에서 &lt;b&gt;업데이트 찾기...&lt;/b&gt; 항목을 선택해서 언제든지 이 마법사를 실행할 수 있습니다.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version from this direct link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
+        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
         <translation>&lt;p&gt;VirtualBox 새 버전이 출시되었습니다! &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt; 웹 사이트에 새 버전 &lt;b&gt;%1&lt;/b&gt;이(가) 올라와 있습니다.&lt;/p&gt;&lt;p&gt;이 링크를 사용해서 새 버전을 다운로드하십시오:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
     </message>
     <message>
@@ -4523,7 +5162,7 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;p&gt;다음 네트워크 오류로 인하여 새 버전 정보를 찾을 수 없습니다:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>You have already installed the latest VirtualBox version. Please repeat the version check later.</source>
+        <source>You are already running the most recent version of VirtualBox.</source>
         <translation>최신 버전의 VirtualBox를 사용하고 있습니다. 나중에 다시 확인하십시오.</translation>
     </message>
 </context>
@@ -4556,7 +5195,7 @@ p, li { white-space: pre-wrap; }
         <translation>처음 실행 마법사</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for installing an operating system of your choice onto this virtual machine.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel execution of this wizard.&lt;/p&gt;</source>
+        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for installing an operating system of your choice onto this virtual machine.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
         <translation>&lt;p&gt; 처음으로 새 가상 머신을 만들기 시작할 것입니다. 이 마법사는 새로운 가상 머신을 만들고 운영체제를 설치하는 것을 도와 줄 것입니다.&lt;/p&gt;&lt;p&gt;&lt;b&gt;앞으로&lt;/b&gt; 단추를 누르면 이 마법사의 다음 페이지로, &lt;b&gt;뒤로&lt;/b&gt; 단추를 누르면 이전 페이지로 이동합니다. &lt;b&gt;취소&lt;/b&gt; 단추를 누르면 이 마법사에서 빠져나올 수 있습니다.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -4564,7 +5203,7 @@ p, li { white-space: pre-wrap; }
         <translation>처음 실행 마법사에 오신 것을 환영합니다!</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Select the type of the media you would like to use for installation purposes below.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Select the type of media you would like to use for installation.&lt;/p&gt;</source>
         <translation>&lt;p&gt;설치에 사용할 미디어 종류를 선택하십시오.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -4589,11 +5228,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Host Drive</source>
-        <translation>호스트 드라이브(&amp;H)</translation>
+        <translation type="obsolete">호스트 드라이브(&amp;H)</translation>
     </message>
     <message>
         <source>&amp;Image File</source>
-        <translation>이미지 파일(&amp;I)</translation>
+        <translation type="obsolete">이미지 파일(&amp;I)</translation>
     </message>
     <message>
         <source>Select Installation Media</source>
@@ -4617,14 +5256,14 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Host Drive %1</source>
-        <translation>호스트 드라이브 %1</translation>
+        <translation type="obsolete">호스트 드라이브 %1</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for booting an operating system of your choice on the virtual machine.&lt;/p&gt;&lt;p&gt;Note that you will not be able to install an operating system into this virtual machine right now because you did not attach any hard disk to it. If this is not what you want, you can cancel execution of this wizard, select &lt;b&gt;Settings&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window to access the settings dialog of this machine and change the hard disk configuration.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel execution of this wizard.&lt;/p&gt;</source>
+        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for booting an operating system of your choice on the virtual machine.&lt;/p&gt;&lt;p&gt;Note that you will not be able to install an operating system into this virtual machine right now because you did not attach any hard disk to it. If this is not what you want, you can cancel the execution of this wizard, select &lt;b&gt;Settings&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window to access the settings dialog of this machine and change the hard disk configuration.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
         <translation>&lt;p&gt;새 가상 머신을 처음으로 시작했습니다. 이 마법사는 선택한 가상 머신에서 운영체제를 시작하기 위한 단계를 도와 줍니다.&lt;/p&gt;&lt;p&gt;아직까지 하드디스크가 연결되어 있지 않기 때문에 이 가상 머신에 운영체제를 즉시 설치할 수는 없습니다. 이것을 원하지 않으신다면 이 마법사의 실행을 취소한 다음 주 창의 &lt;b&gt;머신&lt;/b&gt; 메뉴의 &lt;b&gt;설정&lt;/b&gt; 항목에서 하드디스크 설정을 편집하십시오.&lt;/p&gt;&lt;p&gt;&lt;b&gt;다음&lt;/b&gt; 단추를 누르면 이 마법사의 다음 쪽으로 진행하며 &lt;b&gt;이전&lt;/b&gt; 단추를 누르면 이전 쪽으로 돌아갑니다. &lt;b&gt;취소&lt;/b&gt; 단추를 눌러서 언제든지 마법사를 끝낼 수 있습니다.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Select the type of the media you would like to use for booting an operating system.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Select the type of media you would like to use for booting an operating system.&lt;/p&gt;</source>
         <translation>&lt;p&gt;운영체제를 부팅하는 데 사용할 미디어 종류를 선택하십시오.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -4654,7 +5293,7 @@ p, li { white-space: pre-wrap; }
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the above is correct, press the &lt;span style=&quot; font-weight:600;&quot;&gt;Finish&lt;/span&gt; button. Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;span style=&quot; font-weight:600;&quot;&gt;Unmount...&lt;/span&gt; action in the &lt;span style=&quot; font-weight:600;&quot;&gt;Devices&lt;/span&gt; menu&lt;span style=&quot; font-weight:600;&quot;&gt;.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+        <translation type="obsolete">&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
 &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Arial&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;위 사항이 올바르다면 &lt;span style=&quot; font-weight:600;&quot;&gt;완료&lt;/span&gt; 단추를 누르십시오. 누른 다음에는 선택한 미디어를 가상 머신에 임시로 마운트하고 가상 머신을 시작합니다.&lt;/p&gt;
@@ -4678,6 +5317,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Cancel</source>
         <translation>취소</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;&lt;p&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;&lt;p&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;b&gt;Unmount...&lt;/b&gt; action in the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4728,11 +5371,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>CD/DVD-ROM Statistics</source>
-        <translation>CD/DVD-ROM 통계</translation>
+        <translation type="obsolete">CD/DVD-ROM 통계</translation>
     </message>
     <message>
         <source>Network Adapter Statistics</source>
-        <translation>네트워크 어댑터 통계</translation>
+        <translation type="obsolete">네트워크 어댑터 통계</translation>
     </message>
     <message>
         <source>Version %1.%2</source>
@@ -4759,11 +5402,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Hard Disk Statistics</source>
-        <translation>하드디스크 통계</translation>
+        <translation type="obsolete">하드디스크 통계</translation>
     </message>
     <message>
         <source>No Hard Disks</source>
-        <translation>하드디스크 없음</translation>
+        <translation type="obsolete">하드디스크 없음</translation>
     </message>
     <message>
         <source>No Network Adapters</source>
@@ -4786,6 +5429,23 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>VBoxVMInformationDlg</source>
         <translation>VBoxVMInformationDlg</translation>
+    </message>
+    <message>
+        <source>Not Available</source>
+        <comment>details report (VRDP server port)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storage Statistics</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No Storage Devices</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Network Statistics</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4875,7 +5535,7 @@ p, li { white-space: pre-wrap; }
 <context>
     <name>VBoxVMSettingsAudio</name>
     <message>
-        <source>When checked, the virtual PCI audio card is plugged into the virtual machine that uses the specified driver to communicate to the host audio card.</source>
+        <source>When checked, a virtual PCI audio card will be plugged into the virtual machine and will communicate with the host audio system using the specified driver.</source>
         <translation>선택하면 지정한 드라이버를 사용하여 호스트 오디오 카드와 통신하는 가상 PCI 오디오 카드를 가상 머신에 설치합니다.</translation>
     </message>
     <message>
@@ -4903,61 +5563,61 @@ p, li { white-space: pre-wrap; }
     <name>VBoxVMSettingsCD</name>
     <message>
         <source>Host CD/DVD drive is not selected</source>
-        <translation>호스트 CD/DVD 드라이브가 선택되지 않았습니다</translation>
+        <translation type="obsolete">호스트 CD/DVD 드라이브가 선택되지 않았습니다</translation>
     </message>
     <message>
         <source>CD/DVD image file is not selected</source>
-        <translation>CD/DVD 이미지 파일이 선택되지 않았습니다</translation>
+        <translation type="obsolete">CD/DVD 이미지 파일이 선택되지 않았습니다</translation>
     </message>
     <message>
         <source>When checked, mounts the specified media to the CD/DVD drive of the virtual machine. Note that the CD/DVD drive is always connected to the Secondary Master IDE controller of the machine.</source>
-        <translation>선택하면 지정한 미디어를 가상 머신의 CD/DVD 드라이브에 마운트합니다. CD/DVD 드라이브는 항상 가상 머신의 세컨더리 마스터에 연결됩니다.</translation>
+        <translation type="obsolete">선택하면 지정한 미디어를 가상 머신의 CD/DVD 드라이브에 마운트합니다. CD/DVD 드라이브는 항상 가상 머신의 세컨더리 마스터에 연결됩니다.</translation>
     </message>
     <message>
         <source>&amp;Mount CD/DVD Drive</source>
-        <translation>CD/DVD 드라이브 마운트(&amp;F)</translation>
+        <translation type="obsolete">CD/DVD 드라이브 마운트(&amp;F)</translation>
     </message>
     <message>
         <source>Mounts the specified CD/DVD drive to the virtual CD/DVD drive.</source>
-        <translation>지정한 CD/DVD 드라이브를 가상 CD/DVD 드라이브로 마운트합니다.</translation>
+        <translation type="obsolete">지정한 CD/DVD 드라이브를 가상 CD/DVD 드라이브로 마운트합니다.</translation>
     </message>
     <message>
         <source>Host CD/DVD &amp;Drive</source>
-        <translation>호스트 CD/DVD 드라이브(&amp;D)</translation>
+        <translation type="obsolete">호스트 CD/DVD 드라이브(&amp;D)</translation>
     </message>
     <message>
         <source>Lists host CD/DVD drives available to mount to the virtual machine.</source>
-        <translation>가상 머신에 마운트할 수 있는 호스트 CD/DVD 드라이브를 표시합니다.</translation>
+        <translation type="obsolete">가상 머신에 마운트할 수 있는 호스트 CD/DVD 드라이브를 표시합니다.</translation>
     </message>
     <message>
         <source>When checked, allows the guest to send ATAPI commands directly to the host drive which makes it possible to use CD/DVD writers connected to the host inside the VM. Note that writing audio CD inside the VM is not yet supported.</source>
-        <translation>선택하면 게스트 운영체제에서 호스트 드라이브로 ATAPI 명령을 바로 보냅니다. 이는 가상 머신에서 호스트에 연결된 CD/DVD 라이터를 사용할 수 있도록 합니다. 현재 가상 머신 안에서 오디오 CD를 기록하는 것은 지원되지 않습니다.</translation>
+        <translation type="obsolete">선택하면 게스트 운영체제에서 호스트 드라이브로 ATAPI 명령을 바로 보냅니다. 이는 가상 머신에서 호스트에 연결된 CD/DVD 라이터를 사용할 수 있도록 합니다. 현재 가상 머신 안에서 오디오 CD를 기록하는 것은 지원되지 않습니다.</translation>
     </message>
     <message>
         <source>Enable &amp;Passthrough</source>
-        <translation>통과 사용하기(&amp;E)</translation>
+        <translation type="obsolete">통과 사용하기(&amp;E)</translation>
     </message>
     <message>
         <source>Mounts the specified CD/DVD image to the virtual CD/DVD drive.</source>
-        <translation>지정한 CD/DVD 이미지를 가상 CD/DVD 드라이브로 마운트합니다.</translation>
+        <translation type="obsolete">지정한 CD/DVD 이미지를 가상 CD/DVD 드라이브로 마운트합니다.</translation>
     </message>
     <message>
         <source>&amp;ISO Image File</source>
-        <translation>ISO 이미지 파일(&amp;I)</translation>
+        <translation type="obsolete">ISO 이미지 파일(&amp;I)</translation>
     </message>
     <message>
         <source>Displays the image file to mount to the virtual CD/DVD drive and allows to quickly select a different image.</source>
-        <translation>가상 CD/DVD 드라이브에 마운트되어 있는 이미지를 표시하고 변경할 수 있도록 합니다.</translation>
+        <translation type="obsolete">가상 CD/DVD 드라이브에 마운트되어 있는 이미지를 표시하고 변경할 수 있도록 합니다.</translation>
     </message>
     <message>
         <source>Invokes the Virtual Media Manager to select a CD/DVD image to mount.</source>
-        <translation>마운트할 CD/DVD 이미지를 선택할 수 있는 가상 미디어 관리자를 엽니다.</translation>
+        <translation type="obsolete">마운트할 CD/DVD 이미지를 선택할 수 있는 가상 미디어 관리자를 엽니다.</translation>
     </message>
 </context>
 <context>
     <name>VBoxVMSettingsDisplay</name>
     <message>
-        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; for video memory which is the minimum amount required to switch the virtual machine to fullscreen or seamless mode.</source>
+        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required to switch the virtual machine to fullscreen or seamless mode.</source>
         <translation>가상 머신을 전체 화면이나 심리스 모드로 전환하려면 가상 머신에 &lt;b&gt;%1&lt;/b&gt; 이상의 비디오 메모리를 할당해야 합니다.</translation>
     </message>
     <message>
@@ -4985,7 +5645,7 @@ p, li { white-space: pre-wrap; }
         <translation>확장 기능:</translation>
     </message>
     <message>
-        <source>When checked, the virtual machine will get access to the 3D graphics capabilities available on the host.</source>
+        <source>When checked, the virtual machine will be given access to the 3D graphics capabilities available on the host.</source>
         <translation>호스트 머신에서 3차원 그래픽을 사용할 수 있는 경우 선택하면 가상 머신에서도 3차원 그래픽을 사용할 수 있습니다.</translation>
     </message>
     <message>
@@ -5010,7 +5670,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Displays the VRDP Server port number. You may specify &lt;tt&gt;0&lt;/tt&gt; (zero) to reset the port to the default value.</source>
-        <translation>VRDP 서버 포트 번호를 표시합니다. &lt;tt&gt;0&lt;/tt&gt;을 지정하면 기본값으로 초기화합니다.</translation>
+        <translation type="obsolete">VRDP 서버 포트 번호를 표시합니다. &lt;tt&gt;0&lt;/tt&gt;을 지정하면 기본값으로 초기화합니다.</translation>
     </message>
     <message>
         <source>Authentication &amp;Method:</source>
@@ -5027,6 +5687,22 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Specifies the timeout for guest authentication, in milliseconds.</source>
         <translation>밀리초 단위의 게스트 인증 제한 시간을 표시합니다.</translation>
+    </message>
+    <message>
+        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required for HD Video to be played efficiently.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, the virtual machine will be given access to the Video Acceleration capabilities available on the host.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &amp;2D Video Acceleration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The VRDP Server port number. You may specify &lt;tt&gt;0&lt;/tt&gt; (zero), to select port 3389, the standard port for RDP.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5103,52 +5779,56 @@ p, li { white-space: pre-wrap; }
         <source>you have selected a 64-bit guest OS type for this VM. VirtualBox does not currently support more than one virtual CPU for 64-bit guests executed on 32-bit hosts.</source>
         <translation>이 가상 머신에 64비트 게스트 운영체제를 사용하기로 선택했습니다. VirtualBox에서는 32비트 호스트에서 64비트 게스트를 실행할 때, 게스트 운영체제에 하나 이상의 가상 CPU를 할당할 수 없습니다.</translation>
     </message>
+    <message>
+        <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxVMSettingsFD</name>
     <message>
         <source>Host floppy drive is not selected</source>
-        <translation>호스트 플로피 드라이브가 선택되지 않았습니다</translation>
+        <translation type="obsolete">호스트 플로피 드라이브가 선택되지 않았습니다</translation>
     </message>
     <message>
         <source>Floppy image file is not selected</source>
-        <translation>플로피 이미지 파일이 선택되지 않았습니다</translation>
+        <translation type="obsolete">플로피 이미지 파일이 선택되지 않았습니다</translation>
     </message>
     <message>
         <source>When checked, mounts the specified media to the Floppy drive of the virtual machine.</source>
-        <translation>선택하면 지정한 미디어를 가상 머신의 플로피 드라이브에 마운트합니다.</translation>
+        <translation type="obsolete">선택하면 지정한 미디어를 가상 머신의 플로피 드라이브에 마운트합니다.</translation>
     </message>
     <message>
         <source>&amp;Mount Floppy Drive</source>
-        <translation>플로피 장치 마운트(&amp;F)</translation>
+        <translation type="obsolete">플로피 장치 마운트(&amp;F)</translation>
     </message>
     <message>
         <source>Mounts the specified host Floppy drive to the virtual Floppy drive.</source>
-        <translation>지정한 플로피 드라이브를 가상 플로피 드라이브로 마운트합니다.</translation>
+        <translation type="obsolete">지정한 플로피 드라이브를 가상 플로피 드라이브로 마운트합니다.</translation>
     </message>
     <message>
         <source>Host Floppy &amp;Drive</source>
-        <translation>호스트 플로피 드라이브(&amp;D)</translation>
+        <translation type="obsolete">호스트 플로피 드라이브(&amp;D)</translation>
     </message>
     <message>
         <source>Lists host Floppy drives available to mount to the virtual machine.</source>
-        <translation>가상 머신에 마운트할 수 있는 호스트 플로피 드라이브를 표시합니다.</translation>
+        <translation type="obsolete">가상 머신에 마운트할 수 있는 호스트 플로피 드라이브를 표시합니다.</translation>
     </message>
     <message>
         <source>Mounts the specified Floppy image to the virtual Floppy drive.</source>
-        <translation>지정한 플로피 이미지를 가상 플로피 드라이브로 마운트합니다.</translation>
+        <translation type="obsolete">지정한 플로피 이미지를 가상 플로피 드라이브로 마운트합니다.</translation>
     </message>
     <message>
         <source>&amp;Image File</source>
-        <translation>이미지 파일(&amp;I)</translation>
+        <translation type="obsolete">이미지 파일(&amp;I)</translation>
     </message>
     <message>
         <source>Displays the image file to mount to the virtual Floppy drive and allows to quickly select a different image.</source>
-        <translation>가상 플로피 드라이브에 마운트되어 있는 이미지를 표시하고 변경할 수 있도록 합니다.</translation>
+        <translation type="obsolete">가상 플로피 드라이브에 마운트되어 있는 이미지를 표시하고 변경할 수 있도록 합니다.</translation>
     </message>
     <message>
         <source>Invokes the Virtual Media Manager to select a Floppy image to mount.</source>
-        <translation>마운트할 플로피 이미지를 선택할 수 있는 가상 미디어 관리자를 엽니다.</translation>
+        <translation type="obsolete">마운트할 플로피 이미지를 선택할 수 있는 가상 미디어 관리자를 엽니다.</translation>
     </message>
 </context>
 <context>
@@ -5158,7 +5838,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</translation>
     </message>
     <message>
-        <source>Displays the path where snapshots of this virtual machine will be stored. Note that snapshots can take quite a lot of disk space.</source>
+        <source>Displays the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of disk space.</source>
         <translation>이 가상 머신의 스냅샷을 저장할 경로를 표시합니다. 스냅샷은 많은 디스크 공간을 차지할 수도 있습니다.</translation>
     </message>
     <message>
@@ -5214,7 +5894,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">부팅 순서(&amp;T):</translation>
     </message>
     <message>
-        <source>Defines the boot device order. Use checkboxes to the left to enable or disable individual boot devices. Move items up and down to change the device order.</source>
+        <source>Defines the boot device order. Use the checkboxes on the left to enable or disable individual boot devices. Move items up and down to change the device order.</source>
         <translation type="obsolete">부트 장치의 순서를 정합니다. 체크 상자를 사용해서 각각 부트 장치를 켜거나 끌 수 있습니다. 항목을 위나 아래로 이동해서 순서를 바꿀 수 있습니다.</translation>
     </message>
     <message>
@@ -5250,7 +5930,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">ACPI 사용하기(&amp;C)</translation>
     </message>
     <message>
-        <source>When checked, the virtual machine will support the Input Output APIC (IO APIC), which may slightly decrease the VM performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
+        <source>When checked, the virtual machine will support the Input Output APIC (IO APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
         <translation type="obsolete">선택하면 가상 머신에서 IO APIC를 사용합니다. 이 경우 가상 머신의 성능이 저하될 수도 있습니다. &lt;b&gt;주의:&lt;/b&gt; 게스트 운영체제로 윈도를 설치한 후에 이 기능을 끄지 마십시오!</translation>
     </message>
     <message>
@@ -5278,7 +5958,7 @@ p, li { white-space: pre-wrap; }
         <translation>클립보드 공유(&amp;S):</translation>
     </message>
     <message>
-        <source>Defines the mode of sharing the clipboard between the guest and the host OS. Note that this feature requires Guest Additions to be installed in the guest OS.</source>
+        <source>Selects which clipboard data will be copied between the guest and the host OS. This feature requires Guest Additions to be installed in the guest OS.</source>
         <translation>호스트와 게스트 운영체제 사이의 클립보드 공유 모드를 설정합니다. 이 기능을 사용하려면 게스트 확장이 게스트 운영체제에 설치되어야 합니다.</translation>
     </message>
     <message>
@@ -5298,7 +5978,7 @@ p, li { white-space: pre-wrap; }
         <translation>설명(&amp;D)</translation>
     </message>
     <message>
-        <source>Displays the description of the virtual machine. The description field is useful for commenting configuration details of the installed guest OS.</source>
+        <source>Displays the description of the virtual machine. The description field is useful for commenting on configuration details of the installed guest OS.</source>
         <translation>가상 머신의 설명을 표시합니다. 설치한 게스트 운영체제의 설정을 적어두는 데 도움이 될 수 있습니다.</translation>
     </message>
     <message>
@@ -5314,11 +5994,11 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">마운트된 미디어 기억하기(&amp;R)</translation>
     </message>
     <message>
-        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; for video memory which is the minimum amount required to switch the virtual machine to fullscreen or seamless mode.</source>
+        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required to switch the virtual machine to fullscreen or seamless mode.</source>
         <translation type="obsolete">가상 머신의 비디오 메모리가 전체 화면이나 심리스 모드로 전환하기 위해 필요한 것(&lt;b&gt;%1&lt;/b&gt;)보다 부족합니다.</translation>
     </message>
     <message>
-        <source>When checked, the virtual machine will get access to the 3D graphics capabilities available on the host.</source>
+        <source>When checked, the virtual machine will be given access to the 3D graphics capabilities available on the host.</source>
         <translation type="obsolete">호스트 머신에서 3차원 그래픽을 사용할 수 있는 경우 선택하면 가상 머신에서도 3차원 그래픽을 사용할 수 있습니다.</translation>
     </message>
     <message>
@@ -5334,7 +6014,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">컴퓨터의 메모리(&lt;b&gt;%2&lt;/b&gt;)의 &lt;b&gt;%1%&lt;/b&gt; 이상을 가상 머신에 할당하였습니다. 호스트 운영체제의 메모리가 부족합니다. 좀 더 적은 양을 선택하십시오.</translation>
     </message>
     <message>
-        <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. Not enough memory might be left for your host operating system. Continue at your own risk.</source>
+        <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. There might not be enough memory left for your host operating system. Continue at your own risk.</source>
         <translation type="obsolete">컴퓨터의 메모리(&lt;b&gt;%2&lt;/b&gt;)의 &lt;b&gt;%1%&lt;/b&gt; 이상을 가상 머신에 할당하였습니다. 호스트 운영체제의 메모리가 부족해질 수도 있습니다. 실행하는 동안 주의하십시오.</translation>
     </message>
     <message>
@@ -5369,72 +6049,288 @@ p, li { white-space: pre-wrap; }
         <source>Show In &amp;Fullscreen/Seamless</source>
         <translation>전체 화면/심리스 모드에서 보이기(&amp;F)</translation>
     </message>
+    <message>
+        <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show At &amp;Top Of Screen</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxVMSettingsHD</name>
     <message>
         <source>No hard disk is selected for &lt;i&gt;%1&lt;/i&gt;</source>
-        <translation>&lt;i&gt;%1&lt;/i&gt;의 하드디스크가 선택되지 않았습니다</translation>
+        <translation type="obsolete">&lt;i&gt;%1&lt;/i&gt;의 하드디스크가 선택되지 않았습니다</translation>
     </message>
     <message>
         <source>&lt;i&gt;%1&lt;/i&gt; uses the hard disk that is already attached to &lt;i&gt;%2&lt;/i&gt;</source>
-        <translation>&lt;i&gt;%1&lt;/i&gt;이(가) 가상 머신 &lt;i&gt;%2&lt;/i&gt;에 연결된 하드디스크를 사용하고 있습니다</translation>
+        <translation type="obsolete">&lt;i&gt;%1&lt;/i&gt;이(가) 가상 머신 &lt;i&gt;%2&lt;/i&gt;에 연결된 하드디스크를 사용하고 있습니다</translation>
     </message>
     <message>
         <source>&amp;Add Attachment</source>
-        <translation>연결하기(&amp;A)</translation>
+        <translation type="obsolete">연결하기(&amp;A)</translation>
     </message>
     <message>
         <source>&amp;Remove Attachment</source>
-        <translation> 연결 끊기(&amp;R)</translation>
+        <translation type="obsolete"> 연결 끊기(&amp;R)</translation>
     </message>
     <message>
         <source>&amp;Select Hard Disk</source>
-        <translation>하드디스크 선택(&amp;S)</translation>
+        <translation type="obsolete">하드디스크 선택(&amp;S)</translation>
     </message>
     <message>
         <source>Adds a new hard disk attachment.</source>
-        <translation>새 하드디스크를 연결합니다.</translation>
+        <translation type="obsolete">새 하드디스크를 연결합니다.</translation>
     </message>
     <message>
         <source>Removes the highlighted hard disk attachment.</source>
-        <translation>하드디스크의 연결을 끊습니다.</translation>
+        <translation type="obsolete">하드디스크의 연결을 끊습니다.</translation>
     </message>
     <message>
         <source>&amp;Attachments</source>
-        <translation>연결(&amp;A)</translation>
+        <translation type="obsolete">연결(&amp;A)</translation>
     </message>
     <message>
         <source>Invokes the Virtual Media Manager to select a hard disk to attach to the currently highlighted slot.</source>
-        <translation>현재 강조된 슬롯에 연결할 수 있는 하드디스크를 선택할 수 있는 가상 미디어 관리자를 엽니다.</translation>
+        <translation type="obsolete">현재 강조된 슬롯에 연결할 수 있는 하드디스크를 선택할 수 있는 가상 미디어 관리자를 엽니다.</translation>
     </message>
     <message>
         <source>Lists all hard disks attached to this machine. Use a mouse click or the &lt;tt&gt;Space&lt;/tt&gt; key on the highlighted item to activate the drop-down list and choose the desired value. Use the context menu or buttons to the right to add or remove hard disk attachments.</source>
-        <translation>이 가상 머신에 연결된 모든 하드디스크의 목록입니다. 강조된 항목에서 마우스를 누르거나 &lt;tt&gt;Space&lt;/tt&gt; 키를 누르면 드롭다운 목록이 표시되며, 원하는 값을 선택할 수 있습니다. 컨텍스트 메뉴나 오른쪽에 있는 단추를 사용하면 새 가상 하드디스크를 연결할 수 있습니다.</translation>
+        <translation type="obsolete">이 가상 머신에 연결된 모든 하드디스크의 목록입니다. 강조된 항목에서 마우스를 누르거나 &lt;tt&gt;Space&lt;/tt&gt; 키를 누르면 드롭다운 목록이 표시되며, 원하는 값을 선택할 수 있습니다. 컨텍스트 메뉴나 오른쪽에 있는 단추를 사용하면 새 가상 하드디스크를 연결할 수 있습니다.</translation>
     </message>
     <message>
-        <source>If checked, it will show differencing hard disks actually attached to the slots instead of their base hard disks (shown in case of indirect attachments) and will also let attach other differencing hard disks explicitly. Check this only if you need a complex hard disk setup.</source>
+        <source>If checked, shows the differencing hard disks that are attached to slots rather than their base hard disks (shown for indirect attachments) and allows explicit attaching of differencing hard disks. Check this only if you need a complex hard disk setup.</source>
         <translation>선택하면 가상 하드디스크를 바로 연결하지 않고 변경 사항을 저장하는 하드디스크를 보여주며, 다른 변경 사항이 저장된 하드디스크를 연결할 수 있습니다. 복잡한 디스크 구성을 사용하려는 경우에만 선택하십시오.</translation>
     </message>
     <message>
         <source>&amp;Show Differencing Hard Disks</source>
-        <translation>변경 사항을 저장하는 하드디스크 보이기(&amp;S)</translation>
+        <translation type="obsolete">변경 사항을 저장하는 하드디스크 보이기(&amp;S)</translation>
     </message>
     <message>
         <source>When checked, enables an additional virtual controller (either SATA or SCSI) of this machine.</source>
-        <translation>선택하면 이 가상 머신에 추가 가상 컨트롤러(SATA/SCSI)를 연결합니다.</translation>
+        <translation type="obsolete">선택하면 이 가상 머신에 추가 가상 컨트롤러(SATA/SCSI)를 연결합니다.</translation>
     </message>
     <message>
         <source>&amp;Enable Additional Controller</source>
-        <translation>추가 컨트롤러 사용하기(&amp;A)</translation>
+        <translation type="obsolete">추가 컨트롤러 사용하기(&amp;A)</translation>
     </message>
     <message>
         <source>IDE &amp;Controller Type</source>
-        <translation>IDE 컨트롤러 종류(&amp;C)</translation>
+        <translation type="obsolete">IDE 컨트롤러 종류(&amp;C)</translation>
     </message>
     <message>
         <source>Defines the type of the virtual IDE controller. Depending on this value, VirtualBox will provide different virtual IDE hardware devices to the guest OS.</source>
-        <translation>가상 IDE 컨트롤러의 종류를 정의합니다. 이 값에 따라서 VirtualBox 가상 머신의 IDE 하드웨어 종류가 달라집니다.</translation>
+        <translation type="obsolete">가상 IDE 컨트롤러의 종류를 정의합니다. 이 값에 따라서 VirtualBox 가상 머신의 IDE 하드웨어 종류가 달라집니다.</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Bus:&amp;nbsp;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Type:&amp;nbsp;&amp;nbsp;%3&lt;/nobr&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Expand/Collapse&amp;nbsp;Item&lt;/nobr&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Add&amp;nbsp;Hard&amp;nbsp;Disk&lt;/nobr&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Add&amp;nbsp;CD/DVD&amp;nbsp;Device&lt;/nobr&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;Add&amp;nbsp;Floppy&amp;nbsp;Device&lt;/nobr&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No hard disk is selected for &lt;i&gt;%1&lt;/i&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;%1&lt;/i&gt; uses a medium that is already attached to &lt;i&gt;%2&lt;/i&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add IDE Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add SATA Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add SCSI Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Floppy Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Attachment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Hard Disk</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add CD/DVD Device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Floppy Device</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Attachment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adds a new controller to the end of the Storage Tree.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Removes the controller highlighted in the Storage Tree.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adds a new attachment to the Storage Tree using currently selected controller as parent.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Removes the attachment highlighted in the Storage Tree.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>IDE Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SATA Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SCSI Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Floppy Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hard &amp;Disk:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;CD/DVD Device:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Floppy Device:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Storage Tree</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Contains all storage controllers for this machine and the virtual images and host drives attached to them.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Information</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Storage Tree can contain several controllers of different types. This machine currently has no controllers.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Attributes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Name:</source>
+        <translation type="unfinished">이름(&amp;N):</translation>
+    </message>
+    <message>
+        <source>Changes the name of the storage controller currently selected in the Storage Tree.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Type:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selects the sub-type of the storage controller currently selected in the Storage Tree.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>S&amp;lot:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selects the slot on the storage controller used by this attachment. The available slots depend on the type of the controller and other attachments on it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selects the virtual disk image or the host drive used by this attachment.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opens the Virtual Media Manager to select a virtual image for this attachment.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Open Virtual Media Manager</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>D&amp;ifferencing Disks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, allows the guest to send ATAPI commands directly to the host-drive which makes it possible to use CD/DVD writers connected to the host inside the VM. Note that writing audio CD inside the VM is not yet supported.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Passthrough</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Virtual Size:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Actual Size:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Size:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Location:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Type (Format):</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Attached To:</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5529,15 +6425,43 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Open additional options dialog for current attachment type.</source>
-        <translation>현재 연결 종류의 고급 설정 대화 상자를 표시합니다.</translation>
+        <translation type="obsolete">현재 연결 종류의 고급 설정 대화 상자를 표시합니다.</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
         <translation>이름(&amp;N):</translation>
     </message>
     <message>
-        <source>Selects the name of the network adapter if attachment type is equivalent to &lt;b&gt;Bridged Adapter&lt;/b&gt; or &lt;b&gt;Host-only Adapter&lt;/b&gt; and the name of the internal network if attachment type is equivalent to &lt;b&gt;Internal Network&lt;/b&gt;.</source>
+        <source>Selects the name of the network adapter for &lt;b&gt;Bridged Adapter&lt;/b&gt; or &lt;b&gt;Host-only Adapter&lt;/b&gt; attachments and the name of the network &lt;b&gt;Internal Network&lt;/b&gt; attachments.</source>
         <translation>연결 종류가 &lt;b&gt;브리지 어댑터&lt;/b&gt; 및 &lt;b&gt;호스트 전용 어댑터&lt;/b&gt;인 경우 해당하는 어댑터를 선택하시고, &lt;b&gt;내부 네트워크&lt;/b&gt;인 경우 내부 네트워크의 이름을 입력하십시오.</translation>
+    </message>
+    <message>
+        <source>A&amp;dvanced</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shows or hides additional network adapter options.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Mac Address:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Displays the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</source>
+        <translation type="unfinished">이 어댑터의 MAC 주소를 표시합니다. {0-9,A-F} 사이의 글자만 사용해서 총 12글자입니다. 두 번째 숫자는 짝수여야 합니다.</translation>
+    </message>
+    <message>
+        <source>Generates a new random MAC address.</source>
+        <translation type="unfinished">새 무작위적 MAC 주소를 생성합니다.</translation>
+    </message>
+    <message>
+        <source>Indicates whether the virtual network cable is plugged in on machine startup or not.</source>
+        <translation type="unfinished">가상 네트워크 케이블이 머신 시작 시 연결되거나 연결되지 않음을 표시합니다.</translation>
+    </message>
+    <message>
+        <source>&amp;Cable connected</source>
+        <translation type="unfinished">케이블 연결됨(&amp;C)</translation>
     </message>
 </context>
 <context>
@@ -5608,27 +6532,27 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Guest &amp;MAC Address:</source>
-        <translation>게스트 MAC 주소(&amp;A):</translation>
+        <translation type="obsolete">게스트 MAC 주소(&amp;A):</translation>
     </message>
     <message>
         <source>Displays the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</source>
-        <translation>이 어댑터의 MAC 주소를 표시합니다. {0-9,A-F} 사이의 글자만 사용해서 총 12글자입니다. 두 번째 숫자는 짝수여야 합니다.</translation>
+        <translation type="obsolete">이 어댑터의 MAC 주소를 표시합니다. {0-9,A-F} 사이의 글자만 사용해서 총 12글자입니다. 두 번째 숫자는 짝수여야 합니다.</translation>
     </message>
     <message>
         <source>Generates a new random MAC address.</source>
-        <translation>새 무작위적 MAC 주소를 생성합니다.</translation>
+        <translation type="obsolete">새 무작위적 MAC 주소를 생성합니다.</translation>
     </message>
     <message>
         <source>&amp;Cable connected</source>
-        <translation>케이블 연결됨(&amp;C)</translation>
+        <translation type="obsolete">케이블 연결됨(&amp;C)</translation>
     </message>
     <message>
         <source>Indicates whether the virtual network cable is plugged in on machine startup or not.</source>
-        <translation>가상 네트워크 케이블이 머신 시작 시 연결되거나 연결되지 않음을 표시합니다.</translation>
+        <translation type="obsolete">가상 네트워크 케이블이 머신 시작 시 연결되거나 연결되지 않음을 표시합니다.</translation>
     </message>
     <message>
         <source>Additional Options</source>
-        <translation>추가 옵션</translation>
+        <translation type="obsolete">추가 옵션</translation>
     </message>
 </context>
 <context>
@@ -5659,16 +6583,16 @@ p, li { white-space: pre-wrap; }
         <translation>IRQ(&amp;I):</translation>
     </message>
     <message>
-        <source>Displays the IRQ number of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may be used only if the &lt;b&gt;IO APIC&lt;/b&gt; is enabled for this virtual machine.</source>
-        <translation>이 병렬 포트의 IRQ 번호를 표시합니다. &lt;tt&gt;0&lt;/tt&gt;부터 &lt;tt&gt;255&lt;/tt&gt; 까지의 숫자를 사용할 수 있으며, &lt;tt&gt;15&lt;/tt&gt; 이상의 숫자는 이 가상 머신의 &lt;b&gt;IO APIC&lt;/b&gt; 설정이 활성화되어 있어야만 사용 가능합니다.</translation>
+        <source>Displays the IRQ number of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; is enabled for this virtual machine.</source>
+        <translation type="obsolete">이 병렬 포트의 IRQ 번호를 표시합니다. &lt;tt&gt;0&lt;/tt&gt;부터 &lt;tt&gt;255&lt;/tt&gt; 까지의 숫자를 사용할 수 있으며, &lt;tt&gt;15&lt;/tt&gt; 이상의 숫자는 이 가상 머신의 &lt;b&gt;IO APIC&lt;/b&gt; 설정이 활성화되어 있어야만 사용 가능합니다.</translation>
     </message>
     <message>
         <source>I/O Po&amp;rt:</source>
         <translation>I/O 포트(&amp;R):</translation>
     </message>
     <message>
-        <source>Displays the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
-        <translation>이 병렬 포트의 I/O 포트 주소를 표시합니다. 16진수 숫자&lt;tt&gt;0x0&lt;/tt&gt;부터 &lt;tt&gt;0xFFFF&lt;/tt&gt; 사이의 숫자를 사용할 수 있습니다.</translation>
+        <source>Displays the base I/O port address of this parallel port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <translation type="obsolete">이 병렬 포트의 I/O 포트 주소를 표시합니다. 16진수 숫자&lt;tt&gt;0x0&lt;/tt&gt;부터 &lt;tt&gt;0xFFFF&lt;/tt&gt; 사이의 숫자를 사용할 수 있습니다.</translation>
     </message>
     <message>
         <source>Port &amp;Path:</source>
@@ -5678,19 +6602,27 @@ p, li { white-space: pre-wrap; }
         <source>Displays the host parallel device name.</source>
         <translation>호스트 병렬 장치 이름을 표시합니다.</translation>
     </message>
+    <message>
+        <source>Displays the IRQ number of this parallel port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Displays the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxVMSettingsParallelPage</name>
     <message>
-        <source>Duplicate port number is selected </source>
+        <source>Duplicate port number selected </source>
         <translation>포트 번호가 중복됩니다</translation>
     </message>
     <message>
-        <source>Port path is not specified </source>
+        <source>Port path not specified </source>
         <translation>포트 경로가 지정되지 않았습니다</translation>
     </message>
     <message>
-        <source>Duplicate port path is entered </source>
+        <source>Duplicate port path entered </source>
         <translation>포트 경로가 중복됩니다</translation>
     </message>
 </context>
@@ -5698,15 +6630,15 @@ p, li { white-space: pre-wrap; }
     <name>VBoxVMSettingsSF</name>
     <message>
         <source>&amp;Add New Shared Folder</source>
-        <translation>새 공유 폴더 추가하기(&amp;A)</translation>
+        <translation type="obsolete">새 공유 폴더 추가하기(&amp;A)</translation>
     </message>
     <message>
         <source>&amp;Edit Selected Shared Folder</source>
-        <translation>선택한 공유 폴더 편집하기(&amp;E)</translation>
+        <translation type="obsolete">선택한 공유 폴더 편집하기(&amp;E)</translation>
     </message>
     <message>
         <source>&amp;Remove Selected Shared Folder</source>
-        <translation>선택한 공유 폴더 삭제하기(&amp;R)</translation>
+        <translation type="obsolete">선택한 공유 폴더 삭제하기(&amp;R)</translation>
     </message>
     <message>
         <source>Adds a new shared folder definition.</source>
@@ -5751,6 +6683,26 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Access</source>
         <translation>접근</translation>
+    </message>
+    <message>
+        <source> Global Folders</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Add Shared Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Edit Shared Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Remove Shared Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Folders List</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5820,16 +6772,16 @@ p, li { white-space: pre-wrap; }
         <translation>IRQ(&amp;I):</translation>
     </message>
     <message>
-        <source>Displays the IRQ number of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may be used only if the &lt;b&gt;IO APIC&lt;/b&gt; is enabled for this virtual machine.</source>
-        <translation>이 직렬 포트의 IRQ 번호를 표시합니다. &lt;tt&gt;0&lt;/tt&gt;부터 &lt;tt&gt;255&lt;/tt&gt; 까지의 숫자를 사용할 수 있으며, &lt;tt&gt;15&lt;/tt&gt; 이상의 숫자는 이 가상 머신의 &lt;b&gt;IO APIC&lt;/b&gt; 설정이 활성화되어 있어야만 사용 가능합니다.</translation>
+        <source>Displays the IRQ number of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; is enabled for this virtual machine.</source>
+        <translation type="obsolete">이 직렬 포트의 IRQ 번호를 표시합니다. &lt;tt&gt;0&lt;/tt&gt;부터 &lt;tt&gt;255&lt;/tt&gt; 까지의 숫자를 사용할 수 있으며, &lt;tt&gt;15&lt;/tt&gt; 이상의 숫자는 이 가상 머신의 &lt;b&gt;IO APIC&lt;/b&gt; 설정이 활성화되어 있어야만 사용 가능합니다.</translation>
     </message>
     <message>
         <source>I/O Po&amp;rt:</source>
         <translation>I/O 포트(&amp;R):</translation>
     </message>
     <message>
-        <source>Displays the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
-        <translation>이 직렬 포트의 I/O 포트 주소를 표시합니다. 16진수 숫자&lt;tt&gt;0x0&lt;/tt&gt;부터 &lt;tt&gt;0xFFFF&lt;/tt&gt; 사이의 숫자를 사용할 수 있습니다.</translation>
+        <source>Displays the base I/O port address of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <translation type="obsolete">이 직렬 포트의 I/O 포트 주소를 표시합니다. 16진수 숫자&lt;tt&gt;0x0&lt;/tt&gt;부터 &lt;tt&gt;0xFFFF&lt;/tt&gt; 사이의 숫자를 사용할 수 있습니다.</translation>
     </message>
     <message>
         <source>Port &amp;Mode:</source>
@@ -5840,7 +6792,7 @@ p, li { white-space: pre-wrap; }
         <translation>이 직렬 포트의 작동 상태를 조정합니다. &lt;b&gt;연결되지 않음&lt;/b&gt;을 선택하면 게스트 운영체제에서는 직렬 포트를 감지할 것이지만 작동하지는 않을 것입니다.</translation>
     </message>
     <message>
-        <source>If checked, the pipe specified in the &lt;b&gt;Port Path&lt;/b&gt; field will be created by the virtual machine when it starts. Otherwise, the virtual machine will try to use the existing pipe.</source>
+        <source>If checked, the pipe specified in the &lt;b&gt;Port Path&lt;/b&gt; field will be created by the virtual machine when it starts. Otherwise, the virtual machine will assume that the pipe exists and try to use it.</source>
         <translation>만약 선택한다면 가상 머신을 시작할 때 &lt;b&gt;포트 경로&lt;/b&gt;에 지정한 파이프를 만듭니다. 그렇지 않다면 가상 머신에서는 존재하는 파이프를 사용하려고 시도합니다.</translation>
     </message>
     <message>
@@ -5852,26 +6804,34 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">포트 경로(&amp;P):</translation>
     </message>
     <message>
-        <source>Displays the path to the serial port&apos;s pipe on the host when the port works in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port works in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
+        <source>Displays the path to the serial port&apos;s pipe on the host when the port is working in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port is working in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
         <translation>&lt;b&gt;호스트 파이프&lt;/b&gt; 모드로 작동할 때는 직렬 포트의 파이프 경로를 표시하고, &lt;b&gt;호스트 장치&lt;/b&gt; 모드로 작동할 때는 호스트의 직렬 장치 이름을 표시합니다.</translation>
     </message>
     <message>
         <source>Port/File &amp;Path:</source>
         <translation>포트/파일 경로(&amp;P):</translation>
     </message>
+    <message>
+        <source>Displays the IRQ number of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Displays the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxVMSettingsSerialPage</name>
     <message>
-        <source>Duplicate port number is selected </source>
+        <source>Duplicate port number selected </source>
         <translation>포트 번호가 중복됩니다</translation>
     </message>
     <message>
-        <source>Port path is not specified </source>
+        <source>Port path not specified </source>
         <translation>포트 경로가 지정되지 않았습니다</translation>
     </message>
     <message>
-        <source>Duplicate port path is entered </source>
+        <source>Duplicate port path entered </source>
         <translation>포트 경로가 중복됩니다</translation>
     </message>
 </context>
@@ -5882,7 +6842,7 @@ p, li { white-space: pre-wrap; }
         <translation>컴퓨터 메모리(&lt;b&gt;%2&lt;/b&gt;)의 &lt;b&gt;%1%&lt;/b&gt; 이상을 가상 머신에 할당하였습니다. 호스트 운영체제의 메모리가 부족합니다. 좀 더 적은 양을 선택하십시오.</translation>
     </message>
     <message>
-        <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. Not enough memory might be left for your host operating system. Continue at your own risk.</source>
+        <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. There might not be enough memory left for your host operating system. Continue at your own risk.</source>
         <translation>컴퓨터 메모리(&lt;b&gt;%2&lt;/b&gt;)의 &lt;b&gt;%1%&lt;/b&gt; 이상을 가상 머신에 할당하였습니다. 호스트 운영체제의 메모리가 부족해질 수도 있습니다. 실행하는 동안 주의하십시오.</translation>
     </message>
     <message>
@@ -5913,7 +6873,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;qt&gt;%1&amp;nbsp;CPUs&lt;/qt&gt;</source>
         <comment>%1 is 32 for now</comment>
-        <translation>&lt;qt&gt;CPU&amp;nbsp;%1개&lt;/qt&gt;</translation>
+        <translation type="obsolete">&lt;qt&gt;CPU&amp;nbsp;%1개&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>&amp;Motherboard</source>
@@ -5936,7 +6896,7 @@ p, li { white-space: pre-wrap; }
         <translation>부팅 순서(&amp;B):</translation>
     </message>
     <message>
-        <source>Defines the boot device order. Use checkboxes to the left to enable or disable individual boot devices. Move items up and down to change the device order.</source>
+        <source>Defines the boot device order. Use the checkboxes on the left to enable or disable individual boot devices. Move items up and down to change the device order.</source>
         <translation>부트 장치의 순서를 정합니다. 체크 상자를 사용해서 각각 부트 장치를 켜거나 끌 수 있습니다. 항목을 위나 아래로 이동해서 순서를 바꿀 수 있습니다.</translation>
     </message>
     <message>
@@ -5961,14 +6921,14 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When checked, the virtual machine will support the Advanced Configuration and Power Management Interface (ACPI). &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
-        <translation>선택하면 가상 머신에서 고급 설정 및 전원 관리(ACPI)를 사용합니다. &lt;b&gt;주의:&lt;/b&gt; 게스트 운영체제로 윈도를 설치한 후에 이 기능을 끄지 마십시오!</translation>
+        <translation type="obsolete">선택하면 가상 머신에서 고급 설정 및 전원 관리(ACPI)를 사용합니다. &lt;b&gt;주의:&lt;/b&gt; 게스트 운영체제로 윈도를 설치한 후에 이 기능을 끄지 마십시오!</translation>
     </message>
     <message>
         <source>Enable &amp;ACPI</source>
-        <translation>ACPI 사용하기(&amp;A)</translation>
+        <translation type="obsolete">ACPI 사용하기(&amp;A)</translation>
     </message>
     <message>
-        <source>When checked, the virtual machine will support the Input Output APIC (IO APIC), which may slightly decrease the VM performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
+        <source>When checked, the virtual machine will support the Input Output APIC (IO APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
         <translation>선택하면 가상 머신에서 IO APIC를 사용합니다. 이 경우 가상 머신의 성능이 저하될 수도 있습니다. &lt;b&gt;주의:&lt;/b&gt; 게스트 운영체제로 윈도를 설치한 후에 이 기능을 끄지 마십시오!</translation>
     </message>
     <message>
@@ -6018,6 +6978,19 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Enable Nested Pa&amp;ging</source>
         <translation>네스티드 페이징 사용하기(&amp;G)</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;%1&amp;nbsp;CPUs&lt;/qt&gt;</source>
+        <comment>%1 is host cpu count * 2 for now</comment>
+        <translation type="unfinished">&lt;qt&gt;CPU&amp;nbsp;%1개&lt;/qt&gt;</translation>
+    </message>
+    <message>
+        <source>When checked, the guest will support the Extended Firmware Interface (EFI), which is required to boot certain guest OSes. Non-EFI aware OSes will not be able to boot if this option is activated.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &amp;EFI (special OSes only)</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

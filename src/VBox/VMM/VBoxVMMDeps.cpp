@@ -1,4 +1,4 @@
-/* $Id: VBoxVMMDeps.cpp $ */
+/* $Id: VBoxVMMDeps.cpp 24061 2009-10-25 23:54:32Z vboxsync $ */
 /** @file
  * VBoxVMM link dependencies - drag all we want into the link!
  */
@@ -41,7 +41,8 @@ PFNRT g_apfnDeps[] =
     (PFNRT)DBGFR3DisasInstrEx,
     (PFNRT)DBGFR3LogModifyFlags,
     (PFNRT)DBGFR3StackWalkEnd,
-    (PFNRT)DBGFR3SymbolByAddr,
+    (PFNRT)DBGFR3AsSymbolByAddr,
+    (PFNRT)DBGFR3CpuGetMode,
     (PFNRT)DBGFR3MemScan,
     (PFNRT)EMInterpretInstruction,
     (PFNRT)IOMIOPortRead,

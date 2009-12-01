@@ -624,6 +624,35 @@ void STATE_APIENTRY crStateGenTextures(GLsizei n, GLuint *textures)
 	}
 }
 
+static void crStateTextureCheckFBOAPs(CRFramebufferObject *pFBO, GLuint texture)
+{
+    GLuint u;
+    CRFBOAttachmentPoint *ap;
+
+    if (!pFBO) return;
+
+    for (u=0; u<CR_MAX_COLOR_ATTACHMENTS; ++u)
+    {
+        ap = &pFBO->color[u];
+        if (ap->type==GL_TEXTURE && ap->name==texture)
+        {
+            crStateFramebufferTexture1DEXT(GL_FRAMEBUFFER_EXT, u+GL_COLOR_ATTACHMENT0_EXT, 0, 0, 0);
+        }
+    }
+
+    ap = &pFBO->depth;
+    if (ap->type==GL_TEXTURE && ap->name==texture)
+    {
+        crStateFramebufferTexture1DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, 0, 0, 0);
+    }
+
+    ap = &pFBO->stencil;
+    if (ap->type==GL_TEXTURE && ap->name==texture)
+    {
+        crStateFramebufferTexture1DEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, 0, 0, 0);
+    }
+}
+
 void STATE_APIENTRY crStateDeleteTextures(GLsizei n, const GLuint *textures) 
 {
 	CRContext *g = GetCurrentContext();
@@ -691,6 +720,11 @@ void STATE_APIENTRY crStateDeleteTextures(GLsizei n, const GLuint *textures)
 				}
 #endif
 			}
+
+#ifdef CR_EXT_framebuffer_object
+            crStateTextureCheckFBOAPs(g->framebufferobject.drawFB, name);
+            crStateTextureCheckFBOAPs(g->framebufferobject.readFB, name);
+#endif
 			crStateDeleteTextureObject(tObj);
 		}
 	}

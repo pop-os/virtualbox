@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 24860 2009-11-23 10:20:30Z vboxsync $
 ## @file
 # Makefile for the Linux installer.
 #
@@ -112,7 +112,6 @@ VBOX_LNX_STRIP_BIN = \
 		VBoxNetDHCP $(if $(VBOX_WITH_HARDENING),VBoxNetDHCP.so,) \
 		VBoxNetAdpCtl \
 		VBoxSVC \
-		VBoxSettings.so \
 		VBoxXPCOM.so \
 		VBoxXPCOMC.so \
 		VBoxXPCOMIPCD \
@@ -177,8 +176,8 @@ ifdef VBOX_WITH_DOCS_PACKING
 	UserManual.pdf \
 	$(foreach f,$(VBOX_MANUAL_ADD_LANGUAGES),UserManual_$(f).pdf)
  ifdef VBOX_WITH_DOCS_CHM
- VBOX_LNX_NO_STRIP += \
-	VirtualBox.chm \
+  VBOX_LNX_NO_STRIP += \
+  	VirtualBox.chm \
 	$(foreach f,$(VBOX_MANUAL_ADD_LANGUAGES),VirtualBox_$(f).chm)
  endif
  VBOX_LNX_STRIP_BIN += \
@@ -235,6 +234,13 @@ ifdef VBOX_WITH_WEBSERVICES
  VBOX_LNX_STRIP_BIN += \
 	vboxwebsrv \
 	webtest
+endif
+
+# EFI firmware
+ifdef VBOX_WITH_EFIFW_PACKING
+  VBOX_LNX_NO_STRIP += \
+	VBoxEFI32.fd \
+	VBoxEFI64.fd
 endif
 
 #

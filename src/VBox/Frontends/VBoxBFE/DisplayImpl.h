@@ -27,7 +27,7 @@
 #include <VBox/pdm.h>
 
 #include "Framebuffer.h"
-struct _VBVACMDHDR;
+struct VBVACMDHDR;
 
 class VMDisplay
 {
@@ -41,7 +41,7 @@ public:
     int handleDisplayResize (int w, int h);
     void handleDisplayUpdate (int x, int y, int cx, int cy);
 
-    int VideoAccelEnable (bool fEnable, struct _VBVAMEMORY *pVbvaMemory);
+    int VideoAccelEnable (bool fEnable, struct VBVAMEMORY *pVbvaMemory);
     void VideoAccelFlush (void);
     bool VideoAccelAllowed (void);
 
@@ -68,7 +68,7 @@ private:
     void updateDisplayData();
 
     static DECLCALLBACK(void*) drvQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface);
-    static DECLCALLBACK(int)   drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle);
+    static DECLCALLBACK(int)   drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags);
     static DECLCALLBACK(int)   displayResizeCallback(PPDMIDISPLAYCONNECTOR pInterface, uint32_t bpp, void *pvVRAM, uint32_t cbLine, uint32_t cx, uint32_t cy);
     static DECLCALLBACK(void)  displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInterface,
                                                      uint32_t x, uint32_t y, uint32_t cx, uint32_t cy);
@@ -87,22 +87,22 @@ private:
 
     ULONG mSupportedAccelOps;
 
-    struct _VBVAMEMORY *mpVbvaMemory;
+    struct VBVAMEMORY *mpVbvaMemory;
     bool        mfVideoAccelEnabled;
 
-    struct _VBVAMEMORY *mpPendingVbvaMemory;
+    struct VBVAMEMORY *mpPendingVbvaMemory;
     bool        mfPendingVideoAccelEnable;
     bool        mfMachineRunning;
 
     uint8_t    *mpu8VbvaPartial;
     uint32_t   mcbVbvaPartial;
 
-    bool vbvaFetchCmd (struct _VBVACMDHDR **ppHdr, uint32_t *pcbCmd);
-    void vbvaReleaseCmd (struct _VBVACMDHDR *pHdr, int32_t cbCmd);
+    bool vbvaFetchCmd (struct VBVACMDHDR **ppHdr, uint32_t *pcbCmd);
+    void vbvaReleaseCmd (struct VBVACMDHDR *pHdr, int32_t cbCmd);
 
     void handleResizeCompletedEMT (void);
     volatile uint32_t mu32ResizeStatus;
-    
+
     enum {
         ResizeStatus_Void,
         ResizeStatus_InProgress,

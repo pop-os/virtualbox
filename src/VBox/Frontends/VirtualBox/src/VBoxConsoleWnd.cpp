@@ -20,7 +20,29 @@
  * additional information or have any questions.
  */
 
-/* VBox includes */
+/* Global includes */
+#include <QActionGroup>
+#include <QDesktopWidget>
+#include <QDir>
+#include <QFileInfo>
+#include <QMenuBar>
+#include <QProgressBar>
+#include <QTimer>
+
+#ifdef Q_WS_X11
+# include <QX11Info>
+#endif
+#ifdef Q_WS_MAC
+# include <QPainter>
+#endif
+
+/* Local includes */
+#include "QIFileDialog.h"
+#include "QIHotKeyEdit.h"
+#include "QIHttp.h"
+#include "QIStateIndicator.h"
+#include "QIStatusBar.h"
+#include "QIWidgetValidator.h"
 #include "VBoxConsoleWnd.h"
 #include "VBoxConsoleView.h"
 #include "VBoxCloseVMDlg.h"
@@ -31,48 +53,31 @@
 #include "VBoxProblemReporter.h"
 #include "VBoxTakeSnapshotDlg.h"
 #include "VBoxVMFirstRunWzd.h"
+#include "VBoxVMSettingsNetwork.h"
 #include "VBoxVMSettingsSF.h"
 #include "VBoxVMInformationDlg.h"
-#include "QIFileDialog.h"
-#include "QIHotKeyEdit.h"
-#include "QIHttp.h"
-#include "QIStateIndicator.h"
-#include "QIStatusBar.h"
 
-/* Qt includes */
-#include <QActionGroup>
-#include <QDesktopWidget>
-#include <QDir>
-#include <QFileInfo>
-#include <QMenuBar>
-#include <QProgressBar>
-#include <QTimer>
 #ifdef Q_WS_X11
-# include <QX11Info>
+# include <X11/Xlib.h>
+# include <XKeyboard.h>
 #endif
-
-#include <VBox/VBoxGuest.h>
-
-#if defined(Q_WS_X11)
-#include <X11/Xlib.h>
-#include <XKeyboard.h>
-#endif
-
 #ifdef Q_WS_MAC
 # include "VBoxUtils.h"
 # include "VBoxIChatTheaterWrapper.h"
 # include <ApplicationServices/ApplicationServices.h>
-  /* Qt includes */
-# include <QPainter>
 #endif
-
 #ifdef VBOX_WITH_DEBUGGER_GUI
 # include <VBox/err.h>
 # include <iprt/ldr.h>
 #endif
 
+#include <VBox/VMMDev.h> /** @todo @bugref{4084} */
+#include <iprt/buildconfig.h>
 #include <iprt/param.h>
 #include <iprt/path.h>
+
+/* Global forwards */
+extern void qt_set_sequence_auto_mnemonic (bool on);
 
 /** class StatusTipEvent
  *
@@ -91,11 +96,6 @@ public:
 
     QString mTip;
 };
-
-#ifdef RT_OS_DARWIN
-class Q3Http;
-class Q3HttpResponseHeader;
-#endif
 
 class VBoxAdditionsDownloader : public VBoxDownloaderWgt
 {
@@ -195,6 +195,44 @@ private:
     QAction *mAction;
 };
 
+struct MountTarget
+{
+    MountTarget() : name (QString ("")), port (0), device (0), id (QString()), type (VBoxDefs::MediumType_Invalid) {}
+    MountTarget (const QString &aName, LONG aPort, LONG aDevice)
+        : name (aName), port (aPort), device (aDevice), id (QString()), type (VBoxDefs::MediumType_Invalid) {}
+    MountTarget (const QString &aName, LONG aPort, LONG aDevice, const QString &aId)
+        : name (aName), port (aPort), device (aDevice), id (aId), type (VBoxDefs::MediumType_Invalid) {}
+    MountTarget (const QString &aName, LONG aPort, LONG aDevice, VBoxDefs::MediumType aType)
+        : name (aName), port (aPort), device (aDevice), id (QString()), type (aType) {}
+    QString name;
+    LONG port;
+    LONG device;
+    QString id;
+    VBoxDefs::MediumType type;
+};
+Q_DECLARE_METATYPE (MountTarget);
+
+int searchMaxSnapshotIndex (const CMachine &aMachine, const CSnapshot &aSnapshot, const QString &aNameTemplate)
+{
+    int maxIndex = 0;
+    QRegExp regExp (QString ("^") + aNameTemplate.arg ("([0-9]+)") + QString ("$"));
+    if (!aSnapshot.isNull())
+    {
+        /* Check the current snapshot name */
+        QString name = aSnapshot.GetName();
+        int pos = regExp.indexIn (name);
+        if (pos != -1)
+            maxIndex = regExp.cap (1).toInt() > maxIndex ? regExp.cap (1).toInt() : maxIndex;
+        /* Traversing all the snapshot children */
+        foreach (const CSnapshot &child, aSnapshot.GetChildren())
+        {
+            int maxIndexOfChildren = searchMaxSnapshotIndex (aMachine, child, aNameTemplate);
+            maxIndex = maxIndexOfChildren > maxIndex ? maxIndexOfChildren : maxIndex;
+        }
+    }
+    return maxIndex;
+}
+
 /** \class VBoxConsoleWnd
  *
  *  The VBoxConsoleWnd class is a VM console window, one of two main VBox
@@ -212,39 +250,105 @@ private:
  *               this object's constructor is called (necessary to avoid
  *               recursion in VBoxGlobal::consoleWnd())
  */
-VBoxConsoleWnd::
-VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent,
-                Qt::WindowFlags aFlags /* = Qt::Window */)
-    : QIWithRetranslateUI2<QMainWindow> (aParent, aFlags)
+VBoxConsoleWnd::VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent, Qt::WindowFlags aFlags /* = Qt::Window */)
+    : QIWithRetranslateUI2 <QMainWindow> (aParent, aFlags)
+    /* Machine State */
+    , mMachineState (KMachineState_Null)
+    /* Window Variables */
+    , mConsoleStyle (0)
+    /* Menu Items */
     , mMainMenu (0)
-#ifdef VBOX_WITH_DEBUGGER_GUI
-    , mDbgStatisticsAction (NULL)
-    , mDbgCommandLineAction (NULL)
-    , mDbgLoggingAction (NULL)
-    , mDbgMenu (NULL)
+    , mVMMenu (0)
+    , mVMMenuMini (0)
+    , mDevicesMenu (0)
+    , mDevicesCDMenu (0)
+    , mDevicesFDMenu (0)
+    , mDevicesNetworkMenu (0)
+    , mDevicesSFMenu (0)
+    , mDevicesUSBMenu (0)
+    , mVmDisMouseIntegrMenu (0)
+#if 0 /* TODO: Allow to setup status-bar! */
+    , mDevicesVRDPMenu (0)
+    , mVmAutoresizeMenu (0)
 #endif
-    , console (0)
-    , machine_state (KMachineState_Null)
-    , no_auto_close (false)
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    , mDbgMenu (0)
+#endif
+    , mHelpMenu (0)
+    /* Action Groups */
+    , mRunningActions (0)
+    , mRunningOrPausedActions (0)
+    /* Machine Menu Actions */
+    , mVmFullscreenAction (0)
+    , mVmSeamlessAction (0)
+    , mVmAutoresizeGuestAction (0)
+    , mVmAdjustWindowAction (0)
+    , mVmDisableMouseIntegrAction (0)
+    , mVmTypeCADAction (0)
+#ifdef Q_WS_X11
+    , mVmTypeCABSAction (0)
+#endif
+    , mVmTakeSnapshotAction (0)
+    , mVmShowInformationDlgAction (0)
+    , mVmResetAction (0)
+    , mVmPauseAction (0)
+    , mVmACPIShutdownAction (0)
+    , mVmCloseAction (0)
+    /* Device Menu Actions */
+    , mDevicesNetworkDialogAction (0)
+    , mDevicesSFDialogAction (0)
+    , mDevicesSwitchVrdpSeparator (0)
+    , mDevicesSwitchVrdpAction (0)
+    , mDevicesInstallGuestToolsAction (0)
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    /* Debug Menu Actions */
+    , mDbgStatisticsAction (0)
+    , mDbgCommandLineAction (0)
+    , mDbgLoggingAction (0)
+#endif
+    /* Widgets */
+    , mConsole (0)
+    , mMiniToolBar (0)
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    , mDbgGui (0)
+    , mDbgGuiVT (0)
+#endif
+    /* LED Update Timer */
+    , mIdleTimer (new QTimer (this))
+    /* LEDs */
+    , mHDLed (0)
+    , mCDLed (0)
+#if 0 /* TODO: Allow to setup status-bar! */
+    , mFDLed (0)
+#endif
+    , mNetLed (0)
+    , mUSBLed (0)
+    , mSFLed (0)
+    , mVirtLed (0)
+    , mMouseLed (0)
+    , mHostkeyLed (0)
+    , mHostkeyLedContainer (0)
+    , mHostkeyName (0)
+#if 0 /* TODO: Allow to setup status-bar! */
+    , mVrdpLed (0)
+    , mAutoresizeLed (0)
+#endif
+    , mIsOpenViewFinished (false)
+    , mIsFirstTimeStarted (false)
+    , mIsAutoSaveMedia (true)
+    , mNoAutoClose (false)
     , mIsFullscreen (false)
     , mIsSeamless (false)
     , mIsSeamlessSupported (false)
     , mIsGraphicsSupported (false)
     , mIsWaitingModeResize (false)
-    , was_max (false)
-    , console_style (0)
-    , mIsOpenViewFinished (false)
-    , mIsFirstTimeStarted (false)
-    , mIsAutoSaveMedia (true)
-#ifdef VBOX_WITH_DEBUGGER_GUI
-    , mDbgGui (NULL)
-    , mDbgGuiVT (NULL)
-#endif
+    , mWasMax (false)
 {
     if (aSelf)
         *aSelf = this;
 
-    idle_timer = new QTimer (this);
+    /* Cache IMedium data! */
+    vboxGlobal().startEnumeratingMedia();
 
 #if !(defined (Q_WS_WIN) || defined (Q_WS_MAC))
     /* The default application icon (will change to the VM-specific icon in
@@ -253,85 +357,60 @@ VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent,
     setWindowIcon (QIcon (":/VirtualBox_48px.png"));
 #endif
 
-    /* ensure status bar is created */
+    /* Ensure status bar is created */
     setStatusBar (new QIStatusBar (this));
 
-    ///// Actions ///////////////////////////////////////////////////////////
-
-    /* a group for all actions that are enabled only when the VM is running.
+    /* A group for all actions that are enabled only when the VM is running.
      * Note that only actions whose enabled state depends exclusively on the
      * execution state of the VM are added to this group. */
     mRunningActions = new QActionGroup (this);
     mRunningActions->setExclusive (false);
 
-    /* a group for all actions that are enabled when the VM is running or
+    /* A group for all actions that are enabled when the VM is running or
      * paused. Note that only actions whose enabled state depends exclusively
      * on the execution state of the VM are added to this group. */
     mRunningOrPausedActions = new QActionGroup (this);
     mRunningOrPausedActions->setExclusive (false);
 
     /* VM menu actions */
-
     mVmFullscreenAction = new QAction (this);
-    mVmFullscreenAction->setIcon (
-        VBoxGlobal::iconSetOnOff (
-            ":/fullscreen_on_16px.png", ":/fullscreen_16px.png",
-            ":/fullscreen_on_disabled_16px.png", ":/fullscreen_disabled_16px.png"));
+    mVmFullscreenAction->setIcon (VBoxGlobal::iconSetOnOff (
+        ":/fullscreen_on_16px.png", ":/fullscreen_16px.png",
+        ":/fullscreen_on_disabled_16px.png", ":/fullscreen_disabled_16px.png"));
     mVmFullscreenAction->setCheckable (true);
 
     mVmSeamlessAction = new QAction (this);
-    mVmSeamlessAction->setIcon (
-        VBoxGlobal::iconSetOnOff (
-            ":/seamless_on_16px.png", ":/seamless_16px.png",
-            ":/seamless_on_disabled_16px.png", ":/seamless_disabled_16px.png"));
+    mVmSeamlessAction->setIcon (VBoxGlobal::iconSetOnOff (
+        ":/seamless_on_16px.png", ":/seamless_16px.png",
+        ":/seamless_on_disabled_16px.png", ":/seamless_disabled_16px.png"));
     mVmSeamlessAction->setCheckable (true);
 
     mVmAutoresizeGuestAction = new QAction (mRunningActions);
-    mVmAutoresizeGuestAction->setIcon (
-        VBoxGlobal::iconSetOnOff (
-            ":/auto_resize_on_on_16px.png", ":/auto_resize_on_16px.png",
-            ":/auto_resize_on_on_disabled_16px.png", ":/auto_resize_on_disabled_16px.png"));
+    mVmAutoresizeGuestAction->setIcon (VBoxGlobal::iconSetOnOff (
+        ":/auto_resize_on_on_16px.png", ":/auto_resize_on_16px.png",
+        ":/auto_resize_on_on_disabled_16px.png", ":/auto_resize_on_disabled_16px.png"));
     mVmAutoresizeGuestAction->setCheckable (true);
     mVmAutoresizeGuestAction->setEnabled (false);
 
     mVmAdjustWindowAction = new QAction (this);
-    mVmAdjustWindowAction->setIcon (
-        VBoxGlobal::iconSet (":/adjust_win_size_16px.png",
-                             ":/adjust_win_size_disabled_16px.png"));
+    mVmAdjustWindowAction->setIcon (VBoxGlobal::iconSet (
+        ":/adjust_win_size_16px.png", ":/adjust_win_size_disabled_16px.png"));
+
+    mVmDisableMouseIntegrAction = new QAction (this);
+    mVmDisableMouseIntegrAction->setIcon (VBoxGlobal::iconSetOnOff (
+        ":/mouse_can_seamless_on_16px.png", ":/mouse_can_seamless_16px.png",
+        ":/mouse_can_seamless_on_disabled_16px.png", ":/mouse_can_seamless_disabled_16px.png"));
+    mVmDisableMouseIntegrAction->setCheckable (true);
 
     mVmTypeCADAction = new QAction (mRunningActions);
-    mVmTypeCADAction->setIcon (VBoxGlobal::iconSet (":/hostkey_16px.png",
-                                                      ":/hostkey_disabled_16px.png"));
+    mVmTypeCADAction->setIcon (VBoxGlobal::iconSet (
+        ":/hostkey_16px.png", ":/hostkey_disabled_16px.png"));
 
 #if defined(Q_WS_X11)
     mVmTypeCABSAction = new QAction (mRunningActions);
-    mVmTypeCABSAction->setIcon (VBoxGlobal::iconSet (":/hostkey_16px.png",
-                                                       ":/hostkey_disabled_16px.png"));
+    mVmTypeCABSAction->setIcon (VBoxGlobal::iconSet (
+        ":/hostkey_16px.png", ":/hostkey_disabled_16px.png"));
 #endif
-
-    mVmResetAction = new QAction (mRunningActions);
-    mVmResetAction->setIcon (VBoxGlobal::iconSet (":/reset_16px.png",
-                                                    ":/reset_disabled_16px.png"));
-
-    mVmPauseAction = new QAction (this);
-    mVmPauseAction->setIcon (
-        /* checkbox over the pause icon doesn't look nice */
-#if 0
-        VBoxGlobal::iconSetOnOff (
-            ":/pause_on_16px.png", ":/pause_16px.png",
-            ":/pause_on_disabled_16px.png", ":/pause_disabled_16px.png"));
-#else
-        VBoxGlobal::iconSet (":/pause_16px.png", ":/pause_disabled_16px.png"));
-#endif
-    mVmPauseAction->setCheckable (true);
-
-    mVmACPIShutdownAction = new QAction (mRunningActions);
-    mVmACPIShutdownAction->setIcon (
-        VBoxGlobal::iconSet (":/acpi_16px.png", ":/acpi_disabled_16px.png"));
-
-    mVmCloseAction = new QAction (this);
-    mVmCloseAction->setMenuRole (QAction::QuitRole);
-    mVmCloseAction->setIcon (VBoxGlobal::iconSet (":/exit_16px.png"));
 
     mVmTakeSnapshotAction = new QAction (mRunningOrPausedActions);
     mVmTakeSnapshotAction->setIcon (VBoxGlobal::iconSet (
@@ -341,47 +420,44 @@ VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent,
     mVmShowInformationDlgAction->setIcon (VBoxGlobal::iconSet (
         ":/session_info_16px.png", ":/session_info_disabled_16px.png"));
 
-    mVmDisableMouseIntegrAction = new QAction (this);
-    mVmDisableMouseIntegrAction->setIcon (
-        VBoxGlobal::iconSetOnOff (
-            ":/mouse_can_seamless_on_16px.png", ":/mouse_can_seamless_16px.png",
-            ":/mouse_can_seamless_on_disabled_16px.png", ":/mouse_can_seamless_disabled_16px.png"));
-    mVmDisableMouseIntegrAction->setCheckable (true);
+    mVmResetAction = new QAction (mRunningActions);
+    mVmResetAction->setIcon (VBoxGlobal::iconSet (
+        ":/reset_16px.png", ":/reset_disabled_16px.png"));
+
+    mVmPauseAction = new QAction (this);
+    mVmPauseAction->setIcon (VBoxGlobal::iconSet (
+        ":/pause_16px.png", ":/pause_disabled_16px.png"));
+    mVmPauseAction->setCheckable (true);
+
+    mVmACPIShutdownAction = new QAction (mRunningActions);
+    mVmACPIShutdownAction->setIcon (VBoxGlobal::iconSet (
+        ":/acpi_16px.png", ":/acpi_disabled_16px.png"));
+
+    mVmCloseAction = new QAction (this);
+    mVmCloseAction->setMenuRole (QAction::QuitRole);
+    mVmCloseAction->setIcon (VBoxGlobal::iconSet (":/exit_16px.png"));
 
     /* Devices menu actions */
-
-    mDevicesMountFloppyImageAction = new QAction (mRunningOrPausedActions);
-
-    mDevicesUnmountFloppyAction = new QAction (this);
-    mDevicesUnmountFloppyAction->setIcon (
-        VBoxGlobal::iconSet (":/fd_unmount_16px.png",
-                             ":/fd_unmount_dis_16px.png"));
-
-    mDevicesMountDVDImageAction = new QAction (mRunningOrPausedActions);
-
-    mDevicesUnmountDVDAction = new QAction (this);
-    mDevicesUnmountDVDAction->setIcon (
-        VBoxGlobal::iconSet (":/cd_unmount_16px.png",
-                             ":/cd_unmount_dis_16px.png"));
+    mDevicesNetworkDialogAction = new QAction (mRunningOrPausedActions);
+    mDevicesNetworkDialogAction->setIcon (VBoxGlobal::iconSet (
+        ":/nw_16px.png", ":/nw_disabled_16px.png"));
 
     mDevicesSFDialogAction = new QAction (mRunningOrPausedActions);
-    mDevicesSFDialogAction->setIcon (
-        VBoxGlobal::iconSet (":/shared_folder_16px.png",
-                             ":/shared_folder_disabled_16px.png"));
+    mDevicesSFDialogAction->setIcon (VBoxGlobal::iconSet (
+        ":/shared_folder_16px.png", ":/shared_folder_disabled_16px.png"));
 
     mDevicesSwitchVrdpAction = new QAction (mRunningOrPausedActions);
-    mDevicesSwitchVrdpAction->setIcon (
-        VBoxGlobal::iconSetOnOff (
-            ":/vrdp_on_16px.png", ":/vrdp_16px.png",
-            ":/vrdp_on_disabled_16px.png", ":/vrdp_disabled_16px.png"));
+    mDevicesSwitchVrdpAction->setIcon (VBoxGlobal::iconSetOnOff (
+        ":/vrdp_on_16px.png", ":/vrdp_16px.png",
+        ":/vrdp_on_disabled_16px.png", ":/vrdp_disabled_16px.png"));
     mDevicesSwitchVrdpAction->setCheckable (true);
 
     mDevicesInstallGuestToolsAction = new QAction (mRunningActions);
-    mDevicesInstallGuestToolsAction->setIcon (
-        VBoxGlobal::iconSet (":/guesttools_16px.png",
-                             ":/guesttools_disabled_16px.png"));
+    mDevicesInstallGuestToolsAction->setIcon (VBoxGlobal::iconSet (
+        ":/guesttools_16px.png", ":/guesttools_disabled_16px.png"));
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
+    /* Debug menu actions */
     if (vboxGlobal().isDebuggerEnabled())
     {
         mDbgStatisticsAction = new QAction (this);
@@ -396,29 +472,30 @@ VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent,
     }
     else
     {
-        mDbgStatisticsAction = NULL;
-        mDbgCommandLineAction = NULL;
-        mDbgLoggingAction = NULL;
+        mDbgStatisticsAction = 0;
+        mDbgCommandLineAction = 0;
+        mDbgLoggingAction = 0;
     }
 #endif
 
     /* Help menu actions */
-
     mHelpActions.setup (this);
 
-    ///// Menubar ///////////////////////////////////////////////////////////
-
+    /* Menu Items */
     mMainMenu = new QIMenu (this);
+    mDevicesCDMenu = new QMenu (this);
+    mDevicesFDMenu = new QMenu (this);
+    mDevicesNetworkMenu = new QMenu (this);
+    mDevicesSFMenu = new QMenu (this);
+    mDevicesUSBMenu = new VBoxUSBMenu (this);
 
     /* Machine submenu */
-
     mVMMenu = menuBar()->addMenu (QString::null);
     mMainMenu->addMenu (mVMMenu);
-
-    /* dynamic & status line popup menus */
+    mVmDisMouseIntegrMenu = new VBoxSwitchMenu (mVMMenu, mVmDisableMouseIntegrAction, true);
+#if 0 /* TODO: Allow to setup status-bar! */
     mVmAutoresizeMenu = new VBoxSwitchMenu (mVMMenu, mVmAutoresizeGuestAction);
-    mVmDisMouseIntegrMenu = new VBoxSwitchMenu (mVMMenu, mVmDisableMouseIntegrAction,
-                                               true /* inverted toggle state */);
+#endif
 
     mVMMenu->addAction (mVmFullscreenAction);
     mVMMenu->addAction (mVmSeamlessAction);
@@ -428,7 +505,7 @@ VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent,
     mVMMenu->addAction (mVmDisableMouseIntegrAction);
     mVMMenu->addSeparator();
     mVMMenu->addAction (mVmTypeCADAction);
-#if defined(Q_WS_X11)
+#ifdef Q_WS_X11
     mVMMenu->addAction (mVmTypeCABSAction);
 #endif
     mVMMenu->addSeparator();
@@ -445,47 +522,30 @@ VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent,
     mVMMenu->addAction (mVmCloseAction);
 
     /* Devices submenu */
-
     mDevicesMenu = menuBar()->addMenu (QString::null);
     mMainMenu->addMenu (mDevicesMenu);
 
-    /* dynamic & statusline popup menus */
-
-    mDevicesMountDVDMenu = mDevicesMenu->addMenu (VBoxGlobal::iconSet (":/cd_16px.png", ":/cd_disabled_16px.png"), QString::null);
-    mDevicesMenu->addAction (mDevicesUnmountDVDAction);
-    mDevicesMenu->addSeparator();
-
-    mDevicesMountFloppyMenu = mDevicesMenu->addMenu (VBoxGlobal::iconSet (":/fd_16px.png", ":/fd_disabled_16px.png"), QString::null);
-    mDevicesMenu->addAction (mDevicesUnmountFloppyAction);
-    mDevicesMenu->addSeparator();
-
-    mDevicesNetworkMenu = mDevicesMenu->addMenu (VBoxGlobal::iconSet (":/nw_16px.png", ":/nw_disabled_16px.png"), QString::null);
-    mDevicesMenu->addSeparator();
-
-    mDevicesUSBMenu = new VBoxUSBMenu (mDevicesMenu);
-    mDevicesMenu->addMenu (mDevicesUSBMenu);
+    mDevicesCDMenu->setIcon (VBoxGlobal::iconSet (":/cd_16px.png", ":/cd_disabled_16px.png"));
+    mDevicesFDMenu->setIcon (VBoxGlobal::iconSet (":/fd_16px.png", ":/fd_disabled_16px.png"));
     mDevicesUSBMenu->setIcon (VBoxGlobal::iconSet (":/usb_16px.png", ":/usb_disabled_16px.png"));
-    mDevicesUSBMenuSeparator = mDevicesMenu->addSeparator();
 
-    /* see showIndicatorContextMenu for a description of mDevicesSFMenu */
-    /* mDevicesSFMenu = mDevicesMenu->addMenu (QString::null); */
+    mDevicesMenu->addMenu (mDevicesCDMenu);
+    mDevicesMenu->addMenu (mDevicesFDMenu);
+    mDevicesMenu->addAction (mDevicesNetworkDialogAction);
     mDevicesMenu->addAction (mDevicesSFDialogAction);
-    mDevicesSFMenuSeparator = mDevicesMenu->addSeparator();
+    mDevicesMenu->addMenu (mDevicesUSBMenu);
 
-    /* Currently not needed cause there is no state icon in the statusbar */
-    /* mDevicesVRDPMenu = new VBoxSwitchMenu (mDevicesMenu, mDevicesSwitchVrdpAction); */
+#if 0 /* TODO: Allow to setup status-bar! */
+    mDevicesVRDPMenu = new VBoxSwitchMenu (mDevicesMenu, mDevicesSwitchVrdpAction);
+#endif
+    mDevicesSwitchVrdpSeparator = mDevicesMenu->addSeparator();
     mDevicesMenu->addAction (mDevicesSwitchVrdpAction);
-    mDevicesVRDPMenuSeparator = mDevicesMenu->addSeparator();
 
+    mDevicesMenu->addSeparator();
     mDevicesMenu->addAction (mDevicesInstallGuestToolsAction);
 
-    /* reset the "context menu" flag */
-    mDevicesMountFloppyMenu->menuAction()->setData (false);
-    mDevicesMountDVDMenu->menuAction()->setData (false);
-    mDevicesUSBMenu->menuAction()->setData (false);
-
 #ifdef VBOX_WITH_DEBUGGER_GUI
-    /* Debug popup menu */
+    /* Debug submenu */
     if (vboxGlobal().isDebuggerEnabled())
     {
         mDbgMenu = menuBar()->addMenu (QString::null);
@@ -495,75 +555,74 @@ VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent,
         mDbgMenu->addAction (mDbgLoggingAction);
     }
     else
-        mDbgMenu = NULL;
+        mDbgMenu = 0;
 #endif
 
     /* Help submenu */
-
     mHelpMenu = menuBar()->addMenu (QString::null);
     mMainMenu->addMenu (mHelpMenu);
-
     mHelpActions.addTo (mHelpMenu);
 
-    /* Machine submenu for mini toolbar */
-    mMiniVMMenu = new QMenu (this);
-    mMiniVMMenu->addAction (mVmTypeCADAction);
+    /* Machine submenu for mini-toolbar */
+    mVMMenuMini = new QMenu (this);
+    mVMMenuMini->addAction (mVmTypeCADAction);
 #ifdef Q_WS_X11
-    mMiniVMMenu->addAction (mVmTypeCABSAction);
+    mVMMenuMini->addAction (mVmTypeCABSAction);
 #endif
-    mMiniVMMenu->addSeparator();
-    mMiniVMMenu->addAction (mVmTakeSnapshotAction);
-    mMiniVMMenu->addSeparator();
-    mMiniVMMenu->addAction (mVmShowInformationDlgAction);
-    mMiniVMMenu->addSeparator();
-    mMiniVMMenu->addAction (mVmResetAction);
-    mMiniVMMenu->addAction (mVmPauseAction);
-    mMiniVMMenu->addAction (mVmACPIShutdownAction);
+    mVMMenuMini->addSeparator();
+    mVMMenuMini->addAction (mVmTakeSnapshotAction);
+    mVMMenuMini->addSeparator();
+    mVMMenuMini->addAction (mVmShowInformationDlgAction);
+    mVMMenuMini->addSeparator();
+    mVMMenuMini->addAction (mVmResetAction);
+    mVMMenuMini->addAction (mVmPauseAction);
+    mVMMenuMini->addAction (mVmACPIShutdownAction);
 
-    ///// Status bar ////////////////////////////////////////////////////////
-
-    QWidget *indicatorBox = new QWidget ();
+    /* Status bar */
+    QWidget *indicatorBox = new QWidget;
     QHBoxLayout *indicatorBoxHLayout = new QHBoxLayout (indicatorBox);
     VBoxGlobal::setLayoutMargin (indicatorBoxHLayout, 0);
     indicatorBoxHLayout->setSpacing (5);
+
     /* i/o devices */
-    hd_light = new QIStateIndicator (KDeviceActivity_Idle);
-    hd_light->setStateIcon (KDeviceActivity_Idle, QPixmap (":/hd_16px.png"));
-    hd_light->setStateIcon (KDeviceActivity_Reading, QPixmap (":/hd_read_16px.png"));
-    hd_light->setStateIcon (KDeviceActivity_Writing, QPixmap (":/hd_write_16px.png"));
-    hd_light->setStateIcon (KDeviceActivity_Null, QPixmap (":/hd_disabled_16px.png"));
-    indicatorBoxHLayout->addWidget (hd_light);
-    cd_light = new QIStateIndicator (KDeviceActivity_Idle);
-    cd_light->setStateIcon (KDeviceActivity_Idle, QPixmap (":/cd_16px.png"));
-    cd_light->setStateIcon (KDeviceActivity_Reading, QPixmap (":/cd_read_16px.png"));
-    cd_light->setStateIcon (KDeviceActivity_Writing, QPixmap (":/cd_write_16px.png"));
-    cd_light->setStateIcon (KDeviceActivity_Null, QPixmap (":/cd_disabled_16px.png"));
-    indicatorBoxHLayout->addWidget (cd_light);
-    fd_light = new QIStateIndicator (KDeviceActivity_Idle);
-    fd_light->setStateIcon (KDeviceActivity_Idle, QPixmap (":/fd_16px.png"));
-    fd_light->setStateIcon (KDeviceActivity_Reading, QPixmap (":/fd_read_16px.png"));
-    fd_light->setStateIcon (KDeviceActivity_Writing, QPixmap (":/fd_write_16px.png"));
-    fd_light->setStateIcon (KDeviceActivity_Null, QPixmap (":/fd_disabled_16px.png"));
-    fd_light->hide(); /* This LED hidden due to little importance (defect #3630) */
-    indicatorBoxHLayout->addWidget (fd_light);
-    net_light = new QIStateIndicator (KDeviceActivity_Idle);
-    net_light->setStateIcon (KDeviceActivity_Idle, QPixmap (":/nw_16px.png"));
-    net_light->setStateIcon (KDeviceActivity_Reading, QPixmap (":/nw_read_16px.png"));
-    net_light->setStateIcon (KDeviceActivity_Writing, QPixmap (":/nw_write_16px.png"));
-    net_light->setStateIcon (KDeviceActivity_Null, QPixmap (":/nw_disabled_16px.png"));
-    indicatorBoxHLayout->addWidget (net_light);
-    usb_light = new QIStateIndicator (KDeviceActivity_Idle);
-    usb_light->setStateIcon (KDeviceActivity_Idle, QPixmap (":/usb_16px.png"));
-    usb_light->setStateIcon (KDeviceActivity_Reading, QPixmap (":/usb_read_16px.png"));
-    usb_light->setStateIcon (KDeviceActivity_Writing, QPixmap (":/usb_write_16px.png"));
-    usb_light->setStateIcon (KDeviceActivity_Null, QPixmap (":/usb_disabled_16px.png"));
-    indicatorBoxHLayout->addWidget (usb_light);
-    sf_light = new QIStateIndicator (KDeviceActivity_Idle);
-    sf_light->setStateIcon (KDeviceActivity_Idle, QPixmap (":/shared_folder_16px.png"));
-    sf_light->setStateIcon (KDeviceActivity_Reading, QPixmap (":/shared_folder_read_16px.png"));
-    sf_light->setStateIcon (KDeviceActivity_Writing, QPixmap (":/shared_folder_write_16px.png"));
-    sf_light->setStateIcon (KDeviceActivity_Null, QPixmap (":/shared_folder_disabled_16px.png"));
-    indicatorBoxHLayout->addWidget (sf_light);
+    mHDLed = new QIStateIndicator (KDeviceActivity_Idle);
+    mHDLed->setStateIcon (KDeviceActivity_Idle, QPixmap (":/hd_16px.png"));
+    mHDLed->setStateIcon (KDeviceActivity_Reading, QPixmap (":/hd_read_16px.png"));
+    mHDLed->setStateIcon (KDeviceActivity_Writing, QPixmap (":/hd_write_16px.png"));
+    mHDLed->setStateIcon (KDeviceActivity_Null, QPixmap (":/hd_disabled_16px.png"));
+    indicatorBoxHLayout->addWidget (mHDLed);
+    mCDLed = new QIStateIndicator (KDeviceActivity_Idle);
+    mCDLed->setStateIcon (KDeviceActivity_Idle, QPixmap (":/cd_16px.png"));
+    mCDLed->setStateIcon (KDeviceActivity_Reading, QPixmap (":/cd_read_16px.png"));
+    mCDLed->setStateIcon (KDeviceActivity_Writing, QPixmap (":/cd_write_16px.png"));
+    mCDLed->setStateIcon (KDeviceActivity_Null, QPixmap (":/cd_disabled_16px.png"));
+    indicatorBoxHLayout->addWidget (mCDLed);
+#if 0 /* TODO: Allow to setup status-bar! */
+    mFDLed = new QIStateIndicator (KDeviceActivity_Idle);
+    mFDLed->setStateIcon (KDeviceActivity_Idle, QPixmap (":/fd_16px.png"));
+    mFDLed->setStateIcon (KDeviceActivity_Reading, QPixmap (":/fd_read_16px.png"));
+    mFDLed->setStateIcon (KDeviceActivity_Writing, QPixmap (":/fd_write_16px.png"));
+    mFDLed->setStateIcon (KDeviceActivity_Null, QPixmap (":/fd_disabled_16px.png"));
+    indicatorBoxHLayout->addWidget (mFDLed);
+#endif
+    mNetLed = new QIStateIndicator (KDeviceActivity_Idle);
+    mNetLed->setStateIcon (KDeviceActivity_Idle, QPixmap (":/nw_16px.png"));
+    mNetLed->setStateIcon (KDeviceActivity_Reading, QPixmap (":/nw_read_16px.png"));
+    mNetLed->setStateIcon (KDeviceActivity_Writing, QPixmap (":/nw_write_16px.png"));
+    mNetLed->setStateIcon (KDeviceActivity_Null, QPixmap (":/nw_disabled_16px.png"));
+    indicatorBoxHLayout->addWidget (mNetLed);
+    mUSBLed = new QIStateIndicator (KDeviceActivity_Idle);
+    mUSBLed->setStateIcon (KDeviceActivity_Idle, QPixmap (":/usb_16px.png"));
+    mUSBLed->setStateIcon (KDeviceActivity_Reading, QPixmap (":/usb_read_16px.png"));
+    mUSBLed->setStateIcon (KDeviceActivity_Writing, QPixmap (":/usb_write_16px.png"));
+    mUSBLed->setStateIcon (KDeviceActivity_Null, QPixmap (":/usb_disabled_16px.png"));
+    indicatorBoxHLayout->addWidget (mUSBLed);
+    mSFLed = new QIStateIndicator (KDeviceActivity_Idle);
+    mSFLed->setStateIcon (KDeviceActivity_Idle, QPixmap (":/shared_folder_16px.png"));
+    mSFLed->setStateIcon (KDeviceActivity_Reading, QPixmap (":/shared_folder_read_16px.png"));
+    mSFLed->setStateIcon (KDeviceActivity_Writing, QPixmap (":/shared_folder_write_16px.png"));
+    mSFLed->setStateIcon (KDeviceActivity_Null, QPixmap (":/shared_folder_disabled_16px.png"));
+    indicatorBoxHLayout->addWidget (mSFLed);
 
     /* virtualization */
     mVirtLed = new QIStateIndicator (0);
@@ -575,135 +634,102 @@ VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent,
     separator->setFrameStyle (QFrame::VLine | QFrame::Sunken);
     indicatorBoxHLayout->addWidget (separator);
 
-#if 0 // do not show these indicators, information overload
-    /* vrdp state */
-    vrdp_state = new QIStateIndicator (0, indicatorBox, "vrdp_state", Qt::WNoAutoErase);
-    vrdp_state->setStateIcon (0, QPixmap (":/vrdp_disabled_16px.png"));
-    vrdp_state->setStateIcon (1, QPixmap (":/vrdp_16px.png"));
-    /* auto resize state */
-    autoresize_state = new QIStateIndicator (1, indicatorBox, "autoresize_state", Qt::WNoAutoErase);
-    autoresize_state->setStateIcon (0, QPixmap (":/auto_resize_off_disabled_16px.png"));
-    autoresize_state->setStateIcon (1, QPixmap (":/auto_resize_off_16px.png"));
-    autoresize_state->setStateIcon (2, QPixmap (":/auto_resize_on_disabled_16px.png"));
-    autoresize_state->setStateIcon (3, QPixmap (":/auto_resize_on_16px.png"));
+    /* mouse */
+    mMouseLed = new QIStateIndicator (0);
+    mMouseLed->setStateIcon (0, QPixmap (":/mouse_disabled_16px.png"));
+    mMouseLed->setStateIcon (1, QPixmap (":/mouse_16px.png"));
+    mMouseLed->setStateIcon (2, QPixmap (":/mouse_seamless_16px.png"));
+    mMouseLed->setStateIcon (3, QPixmap (":/mouse_can_seamless_16px.png"));
+    mMouseLed->setStateIcon (4, QPixmap (":/mouse_can_seamless_uncaptured_16px.png"));
+    indicatorBoxHLayout->addWidget (mMouseLed);
+
+    /* host key */
+    mHostkeyLedContainer = new QWidget;
+    QHBoxLayout *hostkeyLEDContainerLayout = new QHBoxLayout (mHostkeyLedContainer);
+    VBoxGlobal::setLayoutMargin (hostkeyLEDContainerLayout, 0);
+    hostkeyLEDContainerLayout->setSpacing (3);
+    indicatorBoxHLayout->addWidget (mHostkeyLedContainer);
+
+    mHostkeyLed = new QIStateIndicator (0);
+    mHostkeyLed->setStateIcon (0, QPixmap (":/hostkey_16px.png"));
+    mHostkeyLed->setStateIcon (1, QPixmap (":/hostkey_captured_16px.png"));
+    mHostkeyLed->setStateIcon (2, QPixmap (":/hostkey_pressed_16px.png"));
+    mHostkeyLed->setStateIcon (3, QPixmap (":/hostkey_captured_pressed_16px.png"));
+    hostkeyLEDContainerLayout->addWidget (mHostkeyLed);
+    mHostkeyName = new QLabel (QIHotKeyEdit::keyName (vboxGlobal().settings().hostKey()));
+    hostkeyLEDContainerLayout->addWidget (mHostkeyName);
+
+#if 0 /* TODO: Allow to setup status-bar! */
+    /* VRDP Led */
+    mVrdpLed = new QIStateIndicator (0, indicatorBox, "mVrdpLed", Qt::WNoAutoErase);
+    mVrdpLed->setStateIcon (0, QPixmap (":/vrdp_disabled_16px.png"));
+    mVrdpLed->setStateIcon (1, QPixmap (":/vrdp_16px.png"));
+    /* Auto-Resize LED */
+    mAutoresizeLed = new QIStateIndicator (1, indicatorBox, "mAutoresizeLed", Qt::WNoAutoErase);
+    mAutoresizeLed->setStateIcon (0, QPixmap (":/auto_resize_off_disabled_16px.png"));
+    mAutoresizeLed->setStateIcon (1, QPixmap (":/auto_resize_off_16px.png"));
+    mAutoresizeLed->setStateIcon (2, QPixmap (":/auto_resize_on_disabled_16px.png"));
+    mAutoresizeLed->setStateIcon (3, QPixmap (":/auto_resize_on_16px.png"));
 #endif
 
-    /* mouse */
-    mouse_state = new QIStateIndicator (0);
-    mouse_state->setStateIcon (0, QPixmap (":/mouse_disabled_16px.png"));
-    mouse_state->setStateIcon (1, QPixmap (":/mouse_16px.png"));
-    mouse_state->setStateIcon (2, QPixmap (":/mouse_seamless_16px.png"));
-    mouse_state->setStateIcon (3, QPixmap (":/mouse_can_seamless_16px.png"));
-    mouse_state->setStateIcon (4, QPixmap (":/mouse_can_seamless_uncaptured_16px.png"));
-    indicatorBoxHLayout->addWidget (mouse_state);
-    /* host key */
-    hostkey_hbox = new QWidget();
-    QHBoxLayout *hostkeyHBoxLayout = new QHBoxLayout (hostkey_hbox);
-    VBoxGlobal::setLayoutMargin (hostkeyHBoxLayout, 0);
-    hostkeyHBoxLayout->setSpacing (3);
-    indicatorBoxHLayout->addWidget (hostkey_hbox);
-
-    hostkey_state = new QIStateIndicator (0);
-    hostkey_state->setStateIcon (0, QPixmap (":/hostkey_16px.png"));
-    hostkey_state->setStateIcon (1, QPixmap (":/hostkey_captured_16px.png"));
-    hostkey_state->setStateIcon (2, QPixmap (":/hostkey_pressed_16px.png"));
-    hostkey_state->setStateIcon (3, QPixmap (":/hostkey_captured_pressed_16px.png"));
-    hostkeyHBoxLayout->addWidget (hostkey_state);
-    hostkey_name = new QLabel (QIHotKeyEdit::keyName (vboxGlobal().settings().hostKey()));
-    hostkeyHBoxLayout->addWidget (hostkey_name);
     /* add to statusbar */
     statusBar()->addPermanentWidget (indicatorBox, 0);
 
-    /////////////////////////////////////////////////////////////////////////
-
+    /* Retranslate UI */
     retranslateUi();
 
-    setWindowTitle (caption_prefix);
+    setWindowTitle (mCaptionPrefix);
 
-    ///// Connections ///////////////////////////////////////////////////////
-
-    connect (mVmFullscreenAction, SIGNAL (toggled (bool)),
-             this, SLOT (vmFullscreen (bool)));
-    connect (mVmSeamlessAction, SIGNAL (toggled (bool)),
-             this, SLOT (vmSeamless (bool)));
-    connect (mVmAutoresizeGuestAction, SIGNAL (toggled (bool)),
-             this, SLOT (vmAutoresizeGuest (bool)));
-    connect (mVmAdjustWindowAction, SIGNAL (triggered()),
-             this, SLOT (vmAdjustWindow()));
-
-    connect (mVmTypeCADAction, SIGNAL(triggered()), this, SLOT(vmTypeCAD()));
-#if defined(Q_WS_X11)
-    connect (mVmTypeCABSAction, SIGNAL(triggered()), this, SLOT(vmTypeCABS()));
+    /* Connections */
+    connect (mVmFullscreenAction, SIGNAL (toggled (bool)), this, SLOT (vmFullscreen (bool)));
+    connect (mVmSeamlessAction, SIGNAL (toggled (bool)), this, SLOT (vmSeamless (bool)));
+    connect (mVmAutoresizeGuestAction, SIGNAL (toggled (bool)), this, SLOT (vmAutoresizeGuest (bool)));
+    connect (mVmAdjustWindowAction, SIGNAL (triggered()), this, SLOT (vmAdjustWindow()));
+    connect (mVmDisableMouseIntegrAction, SIGNAL (toggled (bool)), this, SLOT (vmDisableMouseIntegration (bool)));
+    connect (mVmTypeCADAction, SIGNAL (triggered()), this, SLOT (vmTypeCAD()));
+#ifdef Q_WS_X11
+    connect (mVmTypeCABSAction, SIGNAL (triggered()), this, SLOT (vmTypeCABS()));
 #endif
-    connect (mVmResetAction, SIGNAL(triggered()), this, SLOT (vmReset()));
-    connect (mVmPauseAction, SIGNAL(toggled (bool)), this, SLOT (vmPause (bool)));
+    connect (mVmTakeSnapshotAction, SIGNAL (triggered()), this, SLOT (vmTakeSnapshot()));
+    connect (mVmShowInformationDlgAction, SIGNAL (triggered()), this, SLOT (vmShowInfoDialog()));
+    connect (mVmResetAction, SIGNAL (triggered()), this, SLOT (vmReset()));
+    connect (mVmPauseAction, SIGNAL (toggled (bool)), this, SLOT (vmPause (bool)));
     connect (mVmACPIShutdownAction, SIGNAL (triggered()), this, SLOT (vmACPIShutdown()));
-    connect (mVmCloseAction, SIGNAL(triggered()), this, SLOT (vmClose()));
+    connect (mVmCloseAction, SIGNAL (triggered()), this, SLOT (vmClose()));
 
-    connect (mVmTakeSnapshotAction, SIGNAL(triggered()), this, SLOT(vmTakeSnapshot()));
-    connect (mVmShowInformationDlgAction, SIGNAL(triggered()), this, SLOT (vmShowInfoDialog()));
+    connect (mDevicesCDMenu, SIGNAL (aboutToShow()), this, SLOT (prepareStorageMenu()));
+    connect (mDevicesFDMenu, SIGNAL (aboutToShow()), this, SLOT (prepareStorageMenu()));
+    connect (mDevicesNetworkMenu, SIGNAL (aboutToShow()), this, SLOT (prepareNetworkMenu()));
+    connect (mDevicesSFMenu, SIGNAL (aboutToShow()), this, SLOT (prepareSFMenu()));
+    connect (mDevicesUSBMenu, SIGNAL(triggered (QAction *)), this, SLOT(switchUSB (QAction *)));
 
-    connect (mVmDisableMouseIntegrAction, SIGNAL(toggled (bool)), this, SLOT(vmDisableMouseIntegr (bool)));
+    connect (mDevicesNetworkDialogAction, SIGNAL (triggered()), this, SLOT (devicesOpenNetworkDialog()));
+    connect (mDevicesSFDialogAction, SIGNAL (triggered()), this, SLOT (devicesOpenSFDialog()));
+    connect (mDevicesSwitchVrdpAction, SIGNAL (toggled (bool)), this, SLOT (devicesSwitchVrdp (bool)));
+    connect (mDevicesInstallGuestToolsAction, SIGNAL (triggered()), this, SLOT (devicesInstallGuestAdditions()));
 
-    connect (mDevicesMountFloppyImageAction, SIGNAL(triggered()), this, SLOT(devicesMountFloppyImage()));
-    connect (mDevicesUnmountFloppyAction, SIGNAL(triggered()), this, SLOT(devicesUnmountFloppy()));
-    connect (mDevicesMountDVDImageAction, SIGNAL(triggered()), this, SLOT(devicesMountDVDImage()));
-    connect (mDevicesUnmountDVDAction, SIGNAL(triggered()), this, SLOT(devicesUnmountDVD()));
-    connect (mDevicesSwitchVrdpAction, SIGNAL(toggled (bool)), this, SLOT(devicesSwitchVrdp (bool)));
-    connect (mDevicesSFDialogAction, SIGNAL(triggered()), this, SLOT(devicesOpenSFDialog()));
-    connect (mDevicesInstallGuestToolsAction, SIGNAL(triggered()), this, SLOT(devicesInstallGuestAdditions()));
-
-
-    connect (mDevicesMountFloppyMenu, SIGNAL(aboutToShow()), this, SLOT(prepareFloppyMenu()));
-    connect (mDevicesMountDVDMenu, SIGNAL(aboutToShow()), this, SLOT(prepareDVDMenu()));
-    connect (mDevicesNetworkMenu, SIGNAL(aboutToShow()), this, SLOT(prepareNetworkMenu()));
-
-    connect (statusBar(), SIGNAL(messageChanged (const QString &)), this, SLOT(statusTipChanged (const QString &)));
-
-    connect (mDevicesMountFloppyMenu, SIGNAL(triggered(QAction *)), this, SLOT(captureFloppy(QAction *)));
-    connect (mDevicesMountDVDMenu, SIGNAL(triggered(QAction *)), this, SLOT(captureDVD(QAction *)));
-    connect (mDevicesUSBMenu, SIGNAL(triggered(QAction *)), this, SLOT(switchUSB(QAction *)));
-    connect (mDevicesNetworkMenu, SIGNAL(triggered(QAction *)), this, SLOT(activateNetworkMenu(QAction *)));
-
-    connect (mDevicesMountFloppyMenu, SIGNAL (hovered (QAction *)),
-             this, SLOT (setDynamicMenuItemStatusTip (QAction *)));
-    connect (mDevicesMountDVDMenu, SIGNAL (hovered (QAction *)),
-             this, SLOT (setDynamicMenuItemStatusTip (QAction *)));
-    connect (mDevicesNetworkMenu, SIGNAL (hovered (QAction *)),
-             this, SLOT (setDynamicMenuItemStatusTip (QAction *)));
-
-    /* Cleanup the status bar tip when a menu with dynamic items is
-     * hidden. This is necessary for context menus in the first place but also
-     * for normal menus (because Qt will not do it on pressing ESC if the menu
-     * is constructed of dynamic items only) */
-    connect (mDevicesMountFloppyMenu, SIGNAL (aboutToHide()),
-             statusBar(), SLOT (clearMessage()));
-    connect (mDevicesMountDVDMenu, SIGNAL (aboutToHide()),
-             statusBar(), SLOT (clearMessage()));
-    connect (mDevicesNetworkMenu, SIGNAL (aboutToHide()),
-             statusBar(), SLOT (clearMessage()));
-
-    connect (fd_light, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
+    connect (mCDLed, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
              this, SLOT (showIndicatorContextMenu (QIStateIndicator *, QContextMenuEvent *)));
-    connect (cd_light, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
-             this, SLOT (showIndicatorContextMenu (QIStateIndicator *, QContextMenuEvent *)));
-    connect (usb_light, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
-             this, SLOT (showIndicatorContextMenu (QIStateIndicator *, QContextMenuEvent *)));
-    connect (sf_light, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
-             this, SLOT (showIndicatorContextMenu (QIStateIndicator *, QContextMenuEvent *)));
-    connect (net_light, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
-             this, SLOT (showIndicatorContextMenu (QIStateIndicator *, QContextMenuEvent *)));
-
-#if 0
-    connect (vrdp_state, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
-             this, SLOT (showIndicatorContextMenu (QIStateIndicator *, QContextMenuEvent *)));
-    connect (autoresize_state, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
+#if 0 /* TODO: Allow to setup status-bar! */
+    connect (mFDLed, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
              this, SLOT (showIndicatorContextMenu (QIStateIndicator *, QContextMenuEvent *)));
 #endif
-    connect (mouse_state, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
+    connect (mNetLed, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
              this, SLOT (showIndicatorContextMenu (QIStateIndicator *, QContextMenuEvent *)));
+    connect (mUSBLed, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
+             this, SLOT (showIndicatorContextMenu (QIStateIndicator *, QContextMenuEvent *)));
+    connect (mSFLed, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
+             this, SLOT (showIndicatorContextMenu (QIStateIndicator *, QContextMenuEvent *)));
+    connect (mMouseLed, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
+             this, SLOT (showIndicatorContextMenu (QIStateIndicator *, QContextMenuEvent *)));
+#if 0 /* TODO: Allow to setup status-bar! */
+    connect (mVrdpLed, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
+             this, SLOT (showIndicatorContextMenu (QIStateIndicator *, QContextMenuEvent *)));
+    connect (mAutoresizeLed, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
+             this, SLOT (showIndicatorContextMenu (QIStateIndicator *, QContextMenuEvent *)));
+#endif
 
-    /* watch global settings changes */
+    /* Watch global settings changes */
     connect (&vboxGlobal().settings(), SIGNAL (propertyChanged (const char *, const char *)),
              this, SLOT (processGlobalSettingChange (const char *, const char *)));
 #ifdef Q_WS_MAC
@@ -725,13 +751,13 @@ VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent,
 #ifdef Q_WS_MAC
     /* For the status bar on Cocoa */
     setUnifiedTitleAndToolBarOnMac (true);
-
 # ifdef VBOX_WITH_ICHAT_THEATER
-//    int setAttr[] = { kHIWindowBitDoesNotShowBadgeInDock, 0 };
-//    HIWindowChangeAttributes (window, setAttr, NULL);
+    // int setAttr[] = { kHIWindowBitDoesNotShowBadgeInDock, 0 };
+    // HIWindowChangeAttributes (window, setAttr, 0);
     initSharedAVManager();
 # endif
 #endif
+
     mMaskShift.scale (0, 0, Qt::IgnoreAspectRatio);
 }
 
@@ -740,25 +766,20 @@ VBoxConsoleWnd::~VBoxConsoleWnd()
     closeView();
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
-    /* destroy the debugger gui */
     dbgDestroy();
 #endif
 }
-
-//
-// Public members
-/////////////////////////////////////////////////////////////////////////////
 
 /**
  *  Opens a new console view to interact with a given VM.
  *  Does nothing if the console view is already opened.
  *  Used by VBoxGlobal::startMachine(), should not be called directly.
  */
-bool VBoxConsoleWnd::openView (const CSession &session)
+bool VBoxConsoleWnd::openView (const CSession &aSession)
 {
     LogFlowFuncEnter();
 
-    if (console)
+    if (mConsole)
     {
         LogFlowFunc (("Already opened\n"));
         LogFlowFuncLeave();
@@ -772,27 +793,19 @@ bool VBoxConsoleWnd::openView (const CSession &session)
     ::SetFrontProcess (&psn);
 #endif /* Q_WS_MAC */
 
-    csession = session;
+    mSession = aSession;
 
     if (!centralWidget())
     {
         setCentralWidget (new QWidget (this));
-        QGridLayout *pMainLayout = new QGridLayout(centralWidget());
+        QGridLayout *pMainLayout = new QGridLayout (centralWidget());
         VBoxGlobal::setLayoutMargin (pMainLayout, 0);
         pMainLayout->setSpacing (0);
 
-        mShiftingSpacerLeft = new QSpacerItem (0, 0,
-                                               QSizePolicy::Fixed,
-                                               QSizePolicy::Fixed);
-        mShiftingSpacerTop = new QSpacerItem (0, 0,
-                                              QSizePolicy::Fixed,
-                                              QSizePolicy::Fixed);
-        mShiftingSpacerRight = new QSpacerItem (0, 0,
-                                                QSizePolicy::Fixed,
-                                                QSizePolicy::Fixed);
-        mShiftingSpacerBottom = new QSpacerItem (0, 0,
-                                                 QSizePolicy::Fixed,
-                                                 QSizePolicy::Fixed);
+        mShiftingSpacerLeft = new QSpacerItem (0, 0, QSizePolicy::Fixed, QSizePolicy::Fixed);
+        mShiftingSpacerTop = new QSpacerItem (0, 0, QSizePolicy::Fixed, QSizePolicy::Fixed);
+        mShiftingSpacerRight = new QSpacerItem (0, 0, QSizePolicy::Fixed, QSizePolicy::Fixed);
+        mShiftingSpacerBottom = new QSpacerItem (0, 0, QSizePolicy::Fixed, QSizePolicy::Fixed);
         pMainLayout->addItem (mShiftingSpacerTop, 0, 0, 1, -1);
         pMainLayout->addItem (mShiftingSpacerLeft, 1, 0);
         pMainLayout->addItem (mShiftingSpacerRight, 1, 2);
@@ -801,21 +814,30 @@ bool VBoxConsoleWnd::openView (const CSession &session)
 
     mVmPauseAction->setChecked (false);
 
-    VBoxDefs::RenderMode mode = vboxGlobal().vmRenderMode();
+    CConsole console = mSession.GetConsole();
+    AssertWrapperOk (mSession);
 
-    CConsole cconsole = csession.GetConsole();
-    AssertWrapperOk (csession);
+    CMachine machine = mSession.GetMachine();
 
-    console = new VBoxConsoleView (this, cconsole, mode, centralWidget());
-    static_cast <QGridLayout*> (centralWidget()->layout())->addWidget (console, 1, 1, Qt::AlignVCenter | Qt::AlignHCenter);
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    /* Need to force the QGL framebuffer in case 2D Video Acceleration is supported & enabled */
+    bool bAccelerate2DVideo = machine.GetAccelerate2DVideoEnabled()
+            && VBoxGlobal::isAcceleration2DVideoAvailable()
+    ;
+#endif
 
-    CMachine cmachine = csession.GetMachine();
+    mConsole = new VBoxConsoleView (this, console, vboxGlobal().vmRenderMode(),
+#ifdef VBOX_WITH_VIDEOHWACCEL
+                                    bAccelerate2DVideo,
+#endif
+                                    centralWidget());
+    qobject_cast <QGridLayout*> (centralWidget()->layout())->addWidget (mConsole, 1, 1, Qt::AlignVCenter | Qt::AlignHCenter);
 
     /* Mini toolbar */
-    bool isActive = !(cmachine.GetExtraData (VBoxDefs::GUI_ShowMiniToolBar) == "no");
-    bool isAtTop = (cmachine.GetExtraData (VBoxDefs::GUI_MiniToolBarAlignment) == "top");
-    bool isAutoHide = !(cmachine.GetExtraData (VBoxDefs::GUI_MiniToolBarAutoHide) == "off");
-    QList <QMenu*> menus (QList <QMenu*> () << mMiniVMMenu << mDevicesMenu);
+    bool isActive = !(machine.GetExtraData (VBoxDefs::GUI_ShowMiniToolBar) == "no");
+    bool isAtTop = (machine.GetExtraData (VBoxDefs::GUI_MiniToolBarAlignment) == "top");
+    bool isAutoHide = !(machine.GetExtraData (VBoxDefs::GUI_MiniToolBarAutoHide) == "off");
+    QList <QMenu*> menus (QList <QMenu*>() << mVMMenuMini << mDevicesMenu);
     mMiniToolBar = new VBoxMiniToolBar (centralWidget(), isAtTop ? VBoxMiniToolBar::AlignTop : VBoxMiniToolBar::AlignBottom,
                                         isActive, isAutoHide);
     *mMiniToolBar << menus;
@@ -829,12 +851,12 @@ bool VBoxConsoleWnd::openView (const CSession &session)
     /* Set the VM-specific application icon */
     /* Not on Mac OS X. The dock icon is handled below. */
 #ifndef Q_WS_MAC
-    setWindowIcon (vboxGlobal().vmGuestOSTypeIcon (cmachine.GetOSTypeId()));
+    setWindowIcon (vboxGlobal().vmGuestOSTypeIcon (machine.GetOSTypeId()));
 #endif
 
     /* Restore the position of the window and some options */
     {
-        QString str = cmachine.GetExtraData (VBoxDefs::GUI_LastWindowPosition);
+        QString str = machine.GetExtraData (VBoxDefs::GUI_LastWindowPosition);
 
         bool ok = false, max = false;
         int x = 0, y = 0, w = 0, h = 0;
@@ -857,19 +879,19 @@ bool VBoxConsoleWnd::openView (const CSession &session)
             setGeometry (mNormalGeo);
 
             /* Normalize to the optimal size */
-            console->normalizeGeometry (true /* adjustPosition */);
+            mConsole->normalizeGeometry (true /* adjustPosition */);
 
             if (max)
             {
                 /* Maximize if needed */
                 setWindowState (windowState() | Qt::WindowMaximized);
-                was_max = max;
+                mWasMax = max;
             }
         }
         else
         {
             /* Normalize to the optimal size */
-            console->normalizeGeometry (true /* adjustPosition */);
+            mConsole->normalizeGeometry (true /* adjustPosition */);
 
             /* Move newly created window to the screen center. */
             mNormalGeo = geometry();
@@ -883,98 +905,106 @@ bool VBoxConsoleWnd::openView (const CSession &session)
         qApp->processEvents();
 
         mVmSeamlessAction->setEnabled (false);
-        str = cmachine.GetExtraData (VBoxDefs::GUI_Seamless);
+        str = machine.GetExtraData (VBoxDefs::GUI_Seamless);
         if (str == "on")
             mVmSeamlessAction->setChecked (true);
 
-        str = cmachine.GetExtraData (VBoxDefs::GUI_AutoresizeGuest);
+        str = machine.GetExtraData (VBoxDefs::GUI_AutoresizeGuest);
         if (str != "off")
             mVmAutoresizeGuestAction->setChecked (true);
 
-        str = cmachine.GetExtraData (VBoxDefs::GUI_FirstRun);
+        str = machine.GetExtraData (VBoxDefs::GUI_FirstRun);
         if (str == "yes")
             mIsFirstTimeStarted = true;
         else if (!str.isEmpty())
-            cmachine.SetExtraData (VBoxDefs::GUI_FirstRun, QString::null);
+            machine.SetExtraData (VBoxDefs::GUI_FirstRun, QString::null);
 
-        str = cmachine.GetExtraData (VBoxDefs::GUI_SaveMountedAtRuntime);
+        str = machine.GetExtraData (VBoxDefs::GUI_SaveMountedAtRuntime);
         if (str == "no")
             mIsAutoSaveMedia = false;
 
         /* Check if one of extended modes to be activated on loading */
-        QString fsMode = cmachine.GetExtraData (VBoxDefs::GUI_Fullscreen);
-        QString slMode = cmachine.GetExtraData (VBoxDefs::GUI_Seamless);
+        QString fsMode = machine.GetExtraData (VBoxDefs::GUI_Fullscreen);
+        QString slMode = machine.GetExtraData (VBoxDefs::GUI_Seamless);
         bool extendedMode = fsMode == "on" || slMode == "on";
 
         /* If one of extended modes to be loaded we have to ignore default
          * console resize event which will come from VGA Device on loading. */
         if (extendedMode)
-            console->requestToResize (QSize (w, h - menuBar()->height() - statusBar()->height()));
+            mConsole->requestToResize (QSize (w, h - menuBar()->height() - statusBar()->height()));
     }
 
+    /* initialize storage stuff */
+    int cdDevicesCount = 0;
+    int fdDevicesCount = 0;
+    const CMediumAttachmentVector &attachments = machine.GetMediumAttachments();
+    foreach (const CMediumAttachment &attachment, attachments)
+    {
+        if (attachment.GetType() == KDeviceType_DVD)
+            ++ cdDevicesCount;
+        if (attachment.GetType() == KDeviceType_Floppy)
+            ++ fdDevicesCount;
+    }
+    mDevicesCDMenu->menuAction()->setData (cdDevicesCount);
+    mDevicesFDMenu->menuAction()->setData (fdDevicesCount);
+    mDevicesCDMenu->menuAction()->setVisible (cdDevicesCount);
+    mDevicesFDMenu->menuAction()->setVisible (fdDevicesCount);
+
     /* initialize usb stuff */
-    CUSBController usbctl = cmachine.GetUSBController();
+    CUSBController usbctl = machine.GetUSBController();
     if (usbctl.isNull())
     {
         /* hide usb_menu & usb_separator & usb_status_led */
         mDevicesUSBMenu->setVisible (false);
-        mDevicesUSBMenuSeparator->setVisible (false);
-        usb_light->setHidden (true);
+        mUSBLed->setHidden (true);
     }
     else
     {
         bool isUSBEnabled = usbctl.GetEnabled();
         mDevicesUSBMenu->setEnabled (isUSBEnabled);
-        mDevicesUSBMenu->setConsole (cconsole);
-        usb_light->setState (isUSBEnabled ? KDeviceActivity_Idle
-                                          : KDeviceActivity_Null);
+        mDevicesUSBMenu->setConsole (console);
+        mUSBLed->setState (isUSBEnabled ? KDeviceActivity_Idle : KDeviceActivity_Null);
     }
 
     /* initialize vrdp stuff */
-    CVRDPServer vrdpsrv = cmachine.GetVRDPServer();
+    CVRDPServer vrdpsrv = machine.GetVRDPServer();
     if (vrdpsrv.isNull())
     {
         /* hide vrdp_menu_action & vrdp_separator & vrdp_status_icon */
         mDevicesSwitchVrdpAction->setVisible (false);
-        mDevicesVRDPMenuSeparator->setVisible (false);
-#if 0
-        vrdp_state->setHidden (true);
+        mDevicesSwitchVrdpSeparator->setVisible (false);
+#if 0 /* TODO: Allow to setup status-bar! */
+        mVrdpLed->setHidden (true);
 #endif
     }
 
     /* start an idle timer that will update device lighths */
-    connect (idle_timer, SIGNAL (timeout()), SLOT (updateDeviceLights()));
-    idle_timer->start (50);
+    connect (mIdleTimer, SIGNAL (timeout()), SLOT (updateDeviceLights()));
+    mIdleTimer->start (50);
 
-    connect (console, SIGNAL (mouseStateChanged (int)),
-             this, SLOT (updateMouseState (int)));
-    connect (console, SIGNAL (keyboardStateChanged (int)),
-             hostkey_state, SLOT (setState (int)));
-    connect (console, SIGNAL (machineStateChanged (KMachineState)),
-             this, SLOT (updateMachineState (KMachineState)));
-    connect (console, SIGNAL (additionsStateChanged (const QString&, bool, bool, bool)),
+    connect (mConsole, SIGNAL (mouseStateChanged (int)), this, SLOT (updateMouseState (int)));
+    connect (mConsole, SIGNAL (keyboardStateChanged (int)), mHostkeyLed, SLOT (setState (int)));
+    connect (mConsole, SIGNAL (machineStateChanged (KMachineState)), this, SLOT (updateMachineState (KMachineState)));
+    connect (mConsole, SIGNAL (additionsStateChanged (const QString&, bool, bool, bool)),
              this, SLOT (updateAdditionsState (const QString &, bool, bool, bool)));
-    connect (console, SIGNAL (mediaDriveChanged (VBoxDefs::MediaType)),
-             this, SLOT (updateMediaDriveState (VBoxDefs::MediaType)));
-    connect (console, SIGNAL (usbStateChange()),
-             this, SLOT (updateUsbState()));
-    connect (console, SIGNAL (networkStateChange()),
-             this, SLOT (updateNetworkAdarptersState()));
-    connect (console, SIGNAL (sharedFoldersChanged()),
-             this, SLOT (updateSharedFoldersState()));
+    connect (mConsole, SIGNAL (mediaDriveChanged (VBoxDefs::MediumType)),
+             this, SLOT (updateMediaDriveState (VBoxDefs::MediumType)));
+    connect (mConsole, SIGNAL (usbStateChange()), this, SLOT (updateUsbState()));
+    connect (mConsole, SIGNAL (networkStateChange()), this, SLOT (updateNetworkAdaptersState()));
+    connect (mConsole, SIGNAL (sharedFoldersChanged()), this, SLOT (updateSharedFoldersState()));
 
 #ifdef Q_WS_MAC
     QString testStr = vboxGlobal().virtualBox().GetExtraData (VBoxDefs::GUI_RealtimeDockIconUpdateEnabled).toLower();
     /* Default to true if it is an empty value */
     bool f = (testStr.isEmpty() || testStr == "true");
-    console->setDockIconEnabled (f);
-    console->updateDockOverlay();
+    mConsole->setDockIconEnabled (f);
+    mConsole->updateDockOverlay();
 #endif
 
-    /* set the correct initial machine_state value */
-    machine_state = cconsole.GetState();
+    /* set the correct initial mMachineState value */
+    mMachineState = console.GetState();
 
-    console->normalizeGeometry (false /* adjustPosition */);
+    mConsole->normalizeGeometry (false /* adjustPosition */);
 
     updateAppearanceOf (AllStuff);
 
@@ -995,212 +1025,10 @@ bool VBoxConsoleWnd::openView (const CSession &session)
     return true;
 }
 
-void VBoxConsoleWnd::activateUICustomizations()
-{
-    VBoxGlobalSettings settings = vboxGlobal().settings();
-    /* Process known keys */
-    menuBar()->setHidden (settings.isFeatureActive ("noMenuBar"));
-    statusBar()->setHidden (settings.isFeatureActive ("noStatusBar"));
-}
-
-void VBoxConsoleWnd::finalizeOpenView()
-{
-    LogFlowFuncEnter();
-
-    /* Notify the console scroll-view about the console-window is opened. */
-    console->onViewOpened();
-
-    bool saved = machine_state == KMachineState_Saved;
-
-    CMachine cmachine = csession.GetMachine();
-    CConsole cconsole = console->console();
-
-    if (mIsFirstTimeStarted)
-    {
-        VBoxVMFirstRunWzd wzd (cmachine, this);
-        wzd.exec();
-
-        /* Remove GUI_FirstRun extra data key from the machine settings
-         * file after showing the wizard once. */
-        cmachine.SetExtraData (VBoxDefs::GUI_FirstRun, QString::null);
-    }
-
-    /* start the VM */
-    CProgress progress =    vboxGlobal().isStartPausedEnabled()
-                         || vboxGlobal().isDebuggerAutoShowEnabled()
-                       ? cconsole.PowerUpPaused()
-                       : cconsole.PowerUp();
-
-    /* check for an immediate failure */
-    if (!cconsole.isOk())
-    {
-        vboxProblem().cannotStartMachine (cconsole);
-        /* close this window (this will call closeView()) */
-        close();
-
-        LogFlowFunc (("Error starting VM\n"));
-        LogFlowFuncLeave();
-        return;
-    }
-
-    console->attach();
-
-    /* Disable auto closure because we want to have a chance to show the
-     * error dialog on startup failure */
-    no_auto_close = true;
-
-    /* show the "VM starting / restoring" progress dialog */
-
-    if (saved)
-        vboxProblem().showModalProgressDialog (progress, cmachine.GetName(),
-                                               this, 0);
-    else
-        vboxProblem().showModalProgressDialog (progress, cmachine.GetName(),
-                                               this);
-
-    if (progress.GetResultCode() != 0)
-    {
-        vboxProblem().cannotStartMachine (progress);
-        /* close this window (this will call closeView()) */
-        close();
-
-        LogFlowFunc (("Error starting VM\n"));
-        LogFlowFuncLeave();
-        return;
-    }
-
-    no_auto_close = false;
-
-    /* Check if we missed a really quick termination after successful
-     * startup, and process it if we did. */
-    if (machine_state < KMachineState_Running)
-    {
-        close();
-        LogFlowFuncLeave();
-        return;
-    }
-
-    /* Currently the machine is started and the guest API could be used...
-     * Checking if the fullscreen mode should be activated */
-    QString str = cmachine.GetExtraData (VBoxDefs::GUI_Fullscreen);
-    if (str == "on")
-        mVmFullscreenAction->setChecked (true);
-
-    /* If seamless mode should be enabled then check if it is enabled
-     * currently and re-enable it if seamless is supported */
-    if (   mVmSeamlessAction->isChecked()
-        && mIsSeamlessSupported
-        && mIsGraphicsSupported)
-        toggleFullscreenMode (true, true);
-#ifdef VBOX_WITH_DEBUGGER_GUI
-    /* Open the debugger in "full screen" mode requested by the user. */
-    else if (vboxGlobal().isDebuggerAutoShowEnabled())
-    {
-        /* console in upper left corner of the desktop. */
-        QRect rct(0, 0, 0, 0);
-        QDesktopWidget *desktop = QApplication::desktop();
-        if (desktop)
-            rct = desktop->availableGeometry(pos());
-        move (QPoint (rct.x(), rct.y()));
-
-        if (vboxGlobal().isDebuggerAutoShowStatisticsEnabled())
-            dbgShowStatistics();
-        if (vboxGlobal().isDebuggerAutoShowCommandLineEnabled())
-            dbgShowCommandLine();
-
-        if (!vboxGlobal().isStartPausedEnabled())
-            console->pause (false);
-    }
-#endif
-
-    mIsOpenViewFinished = true;
-    LogFlowFuncLeave();
-
-#ifdef VBOX_WITH_UPDATE_REQUEST
-    vboxGlobal().showUpdateDialog (false /* aForce */);
-#endif
-
-    /* Finally check the status of required features. */
-    checkRequiredFeatures();
-
-    /* Re-request all the static values finally after
-     * view is really opened and attached. */
-    updateAppearanceOf (VirtualizationStuff);
-}
-
-/**
- *  Closes the console view opened by openView().
- *  Does nothing if no console view was opened.
- */
-void VBoxConsoleWnd::closeView()
-{
-    LogFlowFuncEnter();
-
-    if (!console)
-    {
-        LogFlow (("Already closed!\n"));
-        LogFlowFuncLeave();
-        return;
-    }
-
-    console->detach();
-    centralWidget()->layout()->removeWidget (console);
-    delete console;
-    console = 0;
-    csession.Close();
-    csession.detach();
-
-    LogFlowFuncLeave();
-}
-
-/**
- *  Refreshes the console view by readressing this call to
- *  VBoxConsoleView::refresh(). Does nothing if the console view doesn't
- *  exist (i.e., as before openView() or after stopView()).
- */
-void VBoxConsoleWnd::refreshView()
-{
-    if ( console ) {
-        console->refresh();
-    }
-}
-
-/**
- *  This slot is called just after leaving the fullscreen/seamless mode,
- *  when the console was resized to previous size.
- */
-void VBoxConsoleWnd::onExitFullscreen()
-{
-    console->setIgnoreMainwndResize (false);
-}
-
-void VBoxConsoleWnd::unlockActionsSwitch()
-{
-    if (mIsSeamless)
-        mVmSeamlessAction->setEnabled (true);
-    else if (mIsFullscreen)
-        mVmFullscreenAction->setEnabled (true);
-    else
-    {
-        mVmSeamlessAction->setEnabled (mIsSeamlessSupported && mIsGraphicsSupported);
-        mVmFullscreenAction->setEnabled (true);
-    }
-
-#ifdef Q_WS_MAC
-    if (!mIsSeamless)
-    {
-        /* Fade back to the normal gamma */
-        CGDisplayFade (mFadeToken, 0.5, kCGDisplayBlendSolidColor, kCGDisplayBlendNormal, 0.0, 0.0, 0.0, false);
-        CGReleaseDisplayFadeReservation (mFadeToken);
-    }
-    console->setMouseCoalescingEnabled (true);
-#endif
-}
-
 void VBoxConsoleWnd::setMouseIntegrationLocked (bool aDisabled)
 {
-    mVmDisableMouseIntegrAction->setChecked (aDisabled);
-    mVmDisableMouseIntegrAction->setEnabled (false);
+    mVmDisableMouseIntegrAction->setChecked (false);
+    mVmDisableMouseIntegrAction->setEnabled (aDisabled);
 }
 
 /**
@@ -1233,13 +1061,175 @@ void VBoxConsoleWnd::popupMainMenu (bool aCenter)
 #endif
 }
 
-//
-// Protected Members
-/////////////////////////////////////////////////////////////////////////////
-
-bool VBoxConsoleWnd::event (QEvent *e)
+void VBoxConsoleWnd::installGuestAdditionsFrom (const QString &aSource)
 {
-    switch (e->type())
+    CVirtualBox vbox = vboxGlobal().virtualBox();
+    QString uuid;
+
+    CMedium image = vbox.FindDVDImage (aSource);
+    if (image.isNull())
+    {
+        image = vbox.OpenDVDImage (aSource, uuid);
+        if (vbox.isOk())
+            uuid = image.GetId();
+    }
+    else
+        uuid = image.GetId();
+
+    if (!vbox.isOk())
+        return vboxProblem().cannotOpenMedium (this, vbox, VBoxDefs::MediumType_DVD, aSource);
+
+    Assert (!uuid.isNull());
+    CMachine m = mSession.GetMachine();
+
+    QString ctrName;
+    LONG ctrPort = -1, ctrDevice = -1;
+    /* Searching for the first suitable slot */
+    {
+        CStorageControllerVector controllers = m.GetStorageControllers();
+        int i = 0;
+        while (i < controllers.size() && ctrName.isNull())
+        {
+            CStorageController controller = controllers [i];
+            CMediumAttachmentVector attachments = m.GetMediumAttachmentsOfController (controller.GetName());
+            int j = 0;
+            while (j < attachments.size() && ctrName.isNull())
+            {
+                CMediumAttachment attachment = attachments [j];
+                if (attachment.GetType() == KDeviceType_DVD)
+                {
+                    ctrName = controller.GetName();
+                    ctrPort = attachment.GetPort();
+                    ctrDevice = attachment.GetDevice();
+                }
+                ++ j;
+            }
+            ++ i;
+        }
+    }
+
+    if (!ctrName.isNull())
+    {
+        bool isMounted = false;
+
+        /* Mount medium to the predefined port/device */
+        m.MountMedium (ctrName, ctrPort, ctrDevice, uuid, false /* force */);
+        if (m.isOk())
+            isMounted = true;
+        else
+        {
+            /* Ask for force mounting */
+            if (vboxProblem().cannotRemountMedium (this, m, VBoxMedium (image, VBoxDefs::MediumType_DVD), true /* mount? */, true /* retry? */) == QIMessageBox::Ok)
+            {
+                /* Force mount medium to the predefined port/device */
+                m.MountMedium (ctrName, ctrPort, ctrDevice, uuid, true /* force */);
+                if (m.isOk())
+                    isMounted = true;
+                else
+                    vboxProblem().cannotRemountMedium (this, m, VBoxMedium (image, VBoxDefs::MediumType_DVD), true /* mount? */, false /* retry? */);
+            }
+        }
+
+        /* Save medium mounted at runtime */
+        if (isMounted && mIsAutoSaveMedia)
+        {
+            m.SaveSettings();
+            if (!m.isOk())
+                vboxProblem().cannotSaveMachineSettings (m);
+        }
+    }
+    else
+        vboxProblem().cannotMountGuestAdditions (m.GetName());
+}
+
+void VBoxConsoleWnd::setMask (const QRegion &aRegion)
+{
+    QRegion region = aRegion;
+
+    /* The global mask shift cause of toolbars and such things. */
+    region.translate (mMaskShift.width(), mMaskShift.height());
+
+    /* Including mini toolbar area */
+    QRegion toolBarRegion (mMiniToolBar->mask());
+    toolBarRegion.translate (mMiniToolBar->mapToGlobal (toolBarRegion.boundingRect().topLeft()) - QPoint (1, 0));
+    region += toolBarRegion;
+
+    /* Restrict the drawing to the available space on the screen.
+     * (The &operator is better than the previous used -operator,
+     * because this excludes space around the real screen also.
+     * This is necessary for the mac.) */
+    region &= mStrictedRegion;
+
+#ifdef Q_WS_WIN
+    QRegion difference = mPrevRegion.subtract (region);
+
+    /* Region offset calculation */
+    int fleft = 0, ftop = 0;
+
+    /* Visible region calculation */
+    HRGN newReg = CreateRectRgn (0, 0, 0, 0);
+    CombineRgn (newReg, region.handle(), 0, RGN_COPY);
+    OffsetRgn (newReg, fleft, ftop);
+
+    /* Invisible region calculation */
+    HRGN diffReg = CreateRectRgn (0, 0, 0, 0);
+    CombineRgn (diffReg, difference.handle(), 0, RGN_COPY);
+    OffsetRgn (diffReg, fleft, ftop);
+
+    /* Set the current visible region and clean the previous */
+    SetWindowRgn (winId(), newReg, FALSE);
+    RedrawWindow (0, 0, diffReg, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
+    RedrawWindow (mConsole->viewport()->winId(), 0, 0, RDW_INVALIDATE);
+
+    mPrevRegion = region;
+#elif defined (Q_WS_MAC)
+# if defined (VBOX_GUI_USE_QUARTZ2D)
+    if (vboxGlobal().vmRenderMode() == VBoxDefs::Quartz2DMode)
+    {
+        /* If we are using the Quartz2D backend we have to trigger
+         * an repaint only. All the magic clipping stuff is done
+         * in the paint engine. */
+        ::darwinWindowInvalidateShape (mConsole->viewport());
+    }
+    else
+# endif
+    {
+        /* This is necessary to avoid the flicker by an mask update.
+         * See http://lists.apple.com/archives/Carbon-development/2001/Apr/msg01651.html
+         * for the hint.
+         * There *must* be a better solution. */
+        if (!region.isEmpty())
+            region |= QRect (0, 0, 1, 1);
+        // /* Save the current region for later processing in the darwin event handler. */
+        // mCurrRegion = region;
+        // /* We repaint the screen before the ReshapeCustomWindow command. Unfortunately
+        //  * this command flushes a copy of the backbuffer to the screen after the new
+        //  * mask is set. This leads into a missplaced drawing of the content. Currently
+        //  * no alternative to this and also this is not 100% perfect. */
+        // repaint();
+        // qApp->processEvents();
+        // /* Now force the reshaping of the window. This is definitly necessary. */
+        // ReshapeCustomWindow (reinterpret_cast <WindowPtr> (winId()));
+        QMainWindow::setMask (region);
+        // HIWindowInvalidateShadow (::darwinToWindowRef (mConsole->viewport()));
+    }
+#else
+    QMainWindow::setMask (region);
+#endif
+}
+
+void VBoxConsoleWnd::clearMask()
+{
+#ifdef Q_WS_WIN
+    SetWindowRgn (winId(), 0, TRUE);
+#else
+    QMainWindow::clearMask();
+#endif
+}
+
+bool VBoxConsoleWnd::event (QEvent *aEvent)
+{
+    switch (aEvent->type())
     {
         /* By handling every Resize and Move we keep track of the normal
          * (non-minimized and non-maximized) window geometry. Shame on Qt
@@ -1247,7 +1237,7 @@ bool VBoxConsoleWnd::event (QEvent *e)
 
         case QEvent::Resize:
         {
-            QResizeEvent *re = (QResizeEvent *) e;
+            QResizeEvent *re = (QResizeEvent *) aEvent;
 
             if (!mIsWaitingModeResize && !isWindowMaximized() &&
                 !isTrueFullscreen() && !isTrueSeamless())
@@ -1292,7 +1282,7 @@ bool VBoxConsoleWnd::event (QEvent *e)
 #endif
         case StatusTipEvent::Type:
         {
-            StatusTipEvent *ev = (StatusTipEvent*) e;
+            StatusTipEvent *ev = (StatusTipEvent*) aEvent;
             statusBar()->showMessage (ev->mTip);
             break;
         }
@@ -1300,10 +1290,10 @@ bool VBoxConsoleWnd::event (QEvent *e)
             break;
     }
 
-    return QMainWindow::event (e);
+    return QMainWindow::event (aEvent);
 }
 
-void VBoxConsoleWnd::closeEvent (QCloseEvent *e)
+void VBoxConsoleWnd::closeEvent (QCloseEvent *aEvent)
 {
     LogFlowFuncEnter();
 
@@ -1312,264 +1302,254 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *e)
     static const char *kPowerOff = "powerOff";
     static const char *kDiscardCurState = "discardCurState";
 
-    if (!console)
+    if (!mConsole)
     {
-        e->accept();
+        aEvent->accept();
         LogFlowFunc (("Console already destroyed!"));
         LogFlowFuncLeave();
         return;
     }
 
-    if (machine_state > KMachineState_Paused &&
-        machine_state != KMachineState_Stuck)
+    switch (mMachineState)
     {
-        /*
-         *  The machine is in some temporary state like Saving or Stopping.
-         *  Ignore the close event. When it is Stopping, it will be soon closed
-         *  anyway from updateMachineState(). In all other cases, an appropriate
-         *  progress dialog will be shown within a few seconds.
-         */
-        e->ignore();
-    }
-    else
-    if (machine_state < KMachineState_Running)
-    {
-        /*
-         *  the machine has been already powered off or saved or aborted --
-         *  close the window immediately
-         */
-        e->accept();
-    }
-    else
-    {
-        /* start with ignore the close event */
-        e->ignore();
+        case KMachineState_PoweredOff:
+        case KMachineState_Saved:
+        case KMachineState_Teleported:
+        case KMachineState_Aborted:
+            /* The machine has been already powered off or saved or aborted -- close the window immediately. */
+            aEvent->accept();
+            break;
 
-        bool isACPIEnabled = csession.GetConsole().GetGuestEnteredACPIMode();
+        default:
+            /* The machine is in some temporary state like Saving or Stopping.
+             * Ignore the close event. When it is Stopping, it will be soon closed anyway from updateMachineState().
+             * In all other cases, an appropriate progress dialog will be shown within a few seconds. */
+            aEvent->ignore();
+            break;
 
-        bool success = true;
+        case KMachineState_Teleporting:      /** @todo Live Migration: Test closing a VM that's being teleported or snapshotted. */
+        case KMachineState_LiveSnapshotting:
+        case KMachineState_Running:
+        case KMachineState_Paused:
+        case KMachineState_TeleportingPausedVM: /** @todo Live Migration: Check out this. */
+        case KMachineState_Stuck:
+            /* Start with ignoring the close event */
+            aEvent->ignore();
 
-        bool wasPaused = machine_state == KMachineState_Paused ||
-                         machine_state == KMachineState_Stuck;
-        if (!wasPaused)
-        {
-            /* Suspend the VM and ignore the close event if failed to do so.
-             * pause() will show the error message to the user. */
-            success = console->pause (true);
-        }
+            bool isACPIEnabled = mSession.GetConsole().GetGuestEnteredACPIMode();
 
-        if (success)
-        {
-            success = false;
+            bool success = true;
 
-            CMachine cmachine = csession.GetMachine();
-            VBoxCloseVMDlg dlg (this);
-            QString typeId = cmachine.GetOSTypeId();
-            dlg.pmIcon->setPixmap (vboxGlobal().vmGuestOSTypeIcon (typeId));
-
-            /* make the Discard checkbox invisible if there are no snapshots */
-            dlg.mCbDiscardCurState->setVisible (cmachine.GetSnapshotCount() > 0);
-
-            if (machine_state != KMachineState_Stuck)
+            bool wasPaused = mMachineState == KMachineState_Paused
+                          || mMachineState == KMachineState_Stuck
+                          || mMachineState == KMachineState_TeleportingPausedVM;
+            if (!wasPaused)
             {
-                /* read the last user's choice for the given VM */
-                QStringList lastAction =
-                    cmachine.GetExtraData (VBoxDefs::GUI_LastCloseAction).split (',');
-                AssertWrapperOk (cmachine);
-                if (lastAction [0] == kSave)
+                /* Suspend the VM and ignore the close event if failed to do so.
+                 * pause() will show the error message to the user. */
+                success = mConsole->pause (true);
+            }
+
+            if (success)
+            {
+                success = false;
+
+                CMachine machine = mSession.GetMachine();
+                VBoxCloseVMDlg dlg (this);
+                QString typeId = machine.GetOSTypeId();
+                dlg.pmIcon->setPixmap (vboxGlobal().vmGuestOSTypeIcon (typeId));
+
+                /* Make the Discard checkbox invisible if there are no snapshots */
+                dlg.mCbDiscardCurState->setVisible (machine.GetSnapshotCount() > 0);
+                if (!machine.GetCurrentSnapshot().isNull())
+                    dlg.mCbDiscardCurState->setText (dlg.mCbDiscardCurState->text().arg (machine.GetCurrentSnapshot().GetName()));
+
+                if (mMachineState != KMachineState_Stuck)
                 {
-                    dlg.mRbShutdown->setEnabled (isACPIEnabled);
-                    dlg.mRbSave->setChecked (true);
-                    dlg.mRbSave->setFocus();
+                    /* Read the last user's choice for the given VM */
+                    QStringList lastAction = machine.GetExtraData (VBoxDefs::GUI_LastCloseAction).split (',');
+                    AssertWrapperOk (machine);
+                    if (lastAction [0] == kSave)
+                    {
+                        dlg.mRbShutdown->setEnabled (isACPIEnabled);
+                        dlg.mRbSave->setChecked (true);
+                        dlg.mRbSave->setFocus();
+                    }
+                    else if (lastAction [0] == kPowerOff || !isACPIEnabled)
+                    {
+                        dlg.mRbShutdown->setEnabled (isACPIEnabled);
+                        dlg.mRbPowerOff->setChecked (true);
+                        dlg.mRbPowerOff->setFocus();
+                    }
+                    else /* The default is ACPI Shutdown */
+                    {
+                        dlg.mRbShutdown->setChecked (true);
+                        dlg.mRbShutdown->setFocus();
+                    }
+                    dlg.mCbDiscardCurState->setChecked (lastAction.count() > 1 && lastAction [1] == kDiscardCurState);
                 }
-                else if (lastAction [0] == kPowerOff || !isACPIEnabled)
+                else
                 {
-                    dlg.mRbShutdown->setEnabled (isACPIEnabled);
+                    /* The stuck VM can only be powered off; disable anything else and choose PowerOff */
+                    dlg.mRbSave->setEnabled (false);
+                    dlg.mRbShutdown->setEnabled (false);
                     dlg.mRbPowerOff->setChecked (true);
-                    dlg.mRbPowerOff->setFocus();
                 }
-                else /* the default is ACPI Shutdown */
+
+                bool wasShutdown = false;
+
+                if (dlg.exec() == QDialog::Accepted)
                 {
-                    dlg.mRbShutdown->setChecked (true);
-                    dlg.mRbShutdown->setFocus();
-                }
-                dlg.mCbDiscardCurState->setChecked (lastAction.count() > 1 &&
-                                                    lastAction [1] == kDiscardCurState);
-            }
-            else
-            {
-                /* The stuck VM can only be powered off; disable anything
-                 * else and choose PowerOff */
-                dlg.mRbSave->setEnabled (false);
-                dlg.mRbShutdown->setEnabled (false);
-                dlg.mRbPowerOff->setChecked (true);
-            }
+                    /* Disable auto closure because we want to have a chance to show
+                     * the error dialog on save state / power off failure. */
+                    mNoAutoClose = true;
 
-            bool wasShutdown = false;
+                    CConsole console = mConsole->console();
 
-            if (dlg.exec() == QDialog::Accepted)
-            {
-                /* Disable auto closure because we want to have a chance to show the
-                 * error dialog on save state / power off failure. */
-                no_auto_close = true;
-
-                CConsole cconsole = console->console();
-
-                if (dlg.mRbSave->isChecked())
-                {
-                    CProgress progress = cconsole.SaveState();
-
-                    if (cconsole.isOk())
+                    if (dlg.mRbSave->isChecked())
                     {
-                        /* show the "VM saving" progress dialog */
-                        vboxProblem()
-                            .showModalProgressDialog (progress, cmachine.GetName(),
-                                                      this, 0);
-                        if (progress.GetResultCode() != 0)
-                            vboxProblem().cannotSaveMachineState (progress);
-                        else
-                            success = true;
-                    }
-                    else
-                        vboxProblem().cannotSaveMachineState (cconsole);
-                }
-                else
-                if (dlg.mRbShutdown->isChecked())
-                {
-                    /* unpause the VM to let it grab the ACPI shutdown event */
-                    console->pause (false);
-                    /* prevent the subsequent unpause request */
-                    wasPaused = true;
-                    /* signal ACPI shutdown (if there is no ACPI device, the
-                     * operation will fail) */
-                    cconsole.PowerButton();
-                    wasShutdown = cconsole.isOk();
-                    if (!wasShutdown)
-                        vboxProblem().cannotACPIShutdownMachine (cconsole);
-                    /* success is always false because we never accept the close
-                     * window action when doing ACPI shutdown */
-                    success = false;
-                }
-                else
-                if (dlg.mRbPowerOff->isChecked())
-                {
-                    CProgress progress = cconsole.PowerDown();
+                        CProgress progress = console.SaveState();
 
-                    if (cconsole.isOk())
-                    {
-                        /* show the power down progress dialog */
-                        vboxProblem()
-                            .showModalProgressDialog (progress, cmachine.GetName(),
-                                                      this, 0);
-                        if (progress.GetResultCode() != 0)
-                            vboxProblem().cannotStopMachine (progress);
+                        if (console.isOk())
+                        {
+                            /* Show the "VM saving" progress dialog */
+                            vboxProblem().showModalProgressDialog (progress, machine.GetName(), this, 0);
+                            if (progress.GetResultCode() != 0)
+                                vboxProblem().cannotSaveMachineState (progress);
+                            else
+                                success = true;
+                        }
                         else
-                            success = true;
+                            vboxProblem().cannotSaveMachineState (console);
                     }
-                    else
-                        vboxProblem().cannotStopMachine (cconsole);
+                    else if (dlg.mRbShutdown->isChecked())
+                    {
+                        /* Unpause the VM to let it grab the ACPI shutdown event */
+                        mConsole->pause (false);
+                        /* Prevent the subsequent unpause request */
+                        wasPaused = true;
+                        /* Signal ACPI shutdown (if there is no ACPI device, the
+                         * operation will fail) */
+                        console.PowerButton();
+                        wasShutdown = console.isOk();
+                        if (!wasShutdown)
+                            vboxProblem().cannotACPIShutdownMachine (console);
+                        /* Success is always false because we never accept the close
+                         * window action when doing ACPI shutdown */
+                        success = false;
+                    }
+                    else if (dlg.mRbPowerOff->isChecked())
+                    {
+                        CProgress progress = console.PowerDown();
+
+                        if (console.isOk())
+                        {
+                            /* Show the power down progress dialog */
+                            vboxProblem().showModalProgressDialog (progress, machine.GetName(), this, 0);
+                            if (progress.GetResultCode() != 0)
+                                vboxProblem().cannotStopMachine (progress);
+                            else
+                                success = true;
+                        }
+                        else
+                            vboxProblem().cannotStopMachine (console);
+
+                        if (success)
+                        {
+                            /* Note: leave success = true even if we fail to
+                             * discard the current state later -- the console window
+                             * will closed anyway */
+
+                            /* Discard the current state if requested */
+                            if (dlg.mCbDiscardCurState->isChecked() && dlg.mCbDiscardCurState->isVisibleTo (&dlg))
+                            {
+                                CSnapshot snapshot = machine.GetCurrentSnapshot();
+                                CProgress progress = console.RestoreSnapshot (snapshot);
+                                if (console.isOk())
+                                {
+                                    /* Show the progress dialog */
+                                    vboxProblem().showModalProgressDialog (progress, machine.GetName(), this);
+                                    if (progress.GetResultCode() != 0)
+                                        vboxProblem().cannotRestoreSnapshot (progress, snapshot.GetName());
+                                }
+                                else
+                                    vboxProblem().cannotRestoreSnapshot (console, snapshot.GetName());
+                            }
+                        }
+                    }
 
                     if (success)
                     {
-                        /* Note: leave success = true even if we fail to
-                         * discard the current state later -- the console window
-                         * will closed anyway */
+                        /* Accept the close action on success */
+                        aEvent->accept();
+                    }
 
-                        /* discard the current state if requested */
-                        if (dlg.mCbDiscardCurState->isChecked() &&
-                            dlg.mCbDiscardCurState->isVisibleTo (&dlg))
-                        {
-                            CProgress progress = cconsole.DiscardCurrentState();
-                            if (cconsole.isOk())
-                            {
-                                /* show the progress dialog */
-                                vboxProblem()
-                                    .showModalProgressDialog (progress,
-                                                              cmachine.GetName(),
-                                                              this);
-                                if (progress.GetResultCode() != 0)
-                                    vboxProblem()
-                                        .cannotDiscardCurrentState (progress);
-                            }
-                            else
-                                vboxProblem().cannotDiscardCurrentState (cconsole);
-                        }
+                    if (success || wasShutdown)
+                    {
+                        /* Read the last user's choice for the given VM */
+                        QStringList prevAction = machine.GetExtraData (VBoxDefs::GUI_LastCloseAction).split (',');
+                        /* Memorize the last user's choice for the given VM */
+                        QString lastAction = kPowerOff;
+                        if (dlg.mRbSave->isChecked())
+                            lastAction = kSave;
+                        else if (dlg.mRbShutdown->isChecked() ||
+                                 (dlg.mRbPowerOff->isChecked() && prevAction [0] == kShutdown && !isACPIEnabled))
+                            lastAction = kShutdown;
+                        else if (dlg.mRbPowerOff->isChecked())
+                            lastAction = kPowerOff;
+                        else
+                            AssertFailed();
+                        if (dlg.mCbDiscardCurState->isChecked())
+                            (lastAction += ",") += kDiscardCurState;
+                        machine.SetExtraData (VBoxDefs::GUI_LastCloseAction, lastAction);
+                        AssertWrapperOk (machine);
                     }
                 }
-
-                if (success)
-                {
-                    /* accept the close action on success */
-                    e->accept();
-                }
-
-                if (success || wasShutdown)
-                {
-                    /* read the last user's choice for the given VM */
-                    QStringList prevAction =
-                        cmachine.GetExtraData (VBoxDefs::GUI_LastCloseAction).split (',');
-                    /* memorize the last user's choice for the given VM */
-                    QString lastAction = kPowerOff;
-                    if (dlg.mRbSave->isChecked())
-                        lastAction = kSave;
-                    else if (dlg.mRbShutdown->isChecked() ||
-                             (dlg.mRbPowerOff->isChecked() &&
-                              prevAction [0] == kShutdown &&
-                              !isACPIEnabled))
-                        lastAction = kShutdown;
-                    else if (dlg.mRbPowerOff->isChecked())
-                        lastAction = kPowerOff;
-                    else
-                        AssertFailed();
-                    if (dlg.mCbDiscardCurState->isChecked())
-                        (lastAction += ",") += kDiscardCurState;
-                    cmachine.SetExtraData (VBoxDefs::GUI_LastCloseAction, lastAction);
-                    AssertWrapperOk (cmachine);
-                }
             }
-        }
 
-        no_auto_close = false;
+            mNoAutoClose = false;
 
-        if (machine_state < KMachineState_Running)
-        {
-            /*
-             *  the machine has been stopped while showing the Close or the Pause
-             *  failure dialog -- accept the close event immediately
-             */
-            e->accept();
-        }
-        else
-        {
-            if (!success)
+            if (   mMachineState == KMachineState_PoweredOff
+                || mMachineState == KMachineState_Saved
+                || mMachineState == KMachineState_Teleported
+                || mMachineState == KMachineState_Aborted
+               )
             {
-                /* restore the running state if needed */
-                if (!wasPaused && machine_state == KMachineState_Paused)
-                    console->pause (false);
+                /* The machine has been stopped while showing the Close or the Pause
+                 * failure dialog -- accept the close event immediately. */
+                aEvent->accept();
             }
-        }
+            else
+            {
+                if (!success)
+                {
+                    /* Restore the running state if needed */
+                    if (!wasPaused && mMachineState == KMachineState_Paused)
+                        mConsole->pause (false);
+                }
+            }
+            break;
     }
 
-    if (e->isAccepted())
+    if (aEvent->isAccepted())
     {
 #ifndef VBOX_GUI_SEPARATE_VM_PROCESS
         vboxGlobal().selectorWnd().show();
 #endif
 
         /* Stop LED update timer */
-        idle_timer->stop();
-        idle_timer->disconnect (SIGNAL (timeout()), this, SLOT (updateDeviceLights()));
+        mIdleTimer->stop();
+        mIdleTimer->disconnect (SIGNAL (timeout()), this, SLOT (updateDeviceLights()));
 
         /* Hide console window */
         hide();
 
         /* Save the position of the window and some options */
-        CMachine machine = csession.GetMachine();
+        CMachine machine = mSession.GetMachine();
         QString winPos = QString ("%1,%2,%3,%4")
             .arg (mNormalGeo.x()).arg (mNormalGeo.y())
             .arg (mNormalGeo.width()).arg (mNormalGeo.height());
-        if (isWindowMaximized() || (mIsFullscreen && was_max)
-                          || (mIsSeamless && was_max))
+        if (isWindowMaximized() || (mIsFullscreen && mWasMax) || (mIsSeamless && mWasMax))
             winPos += QString (",%1").arg (VBoxDefs::GUI_LastWindowPosition_Max);
 
         machine.SetExtraData (VBoxDefs::GUI_LastWindowPosition, winPos);
@@ -1595,34 +1575,30 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *e)
         emit closing();
     }
 
-    LogFlowFunc (("accepted=%d\n", e->isAccepted()));
+    LogFlowFunc (("accepted=%d\n", aEvent->isAccepted()));
     LogFlowFuncLeave();
 }
 
-#if defined(Q_WS_X11)
-bool VBoxConsoleWnd::x11Event (XEvent *event)
+#ifdef Q_WS_X11
+bool VBoxConsoleWnd::x11Event (XEvent *aEvent)
 {
-    // Qt bug: when the console view grabs the keyboard, FocusIn, FocusOut,
-    // WindowActivate and WindowDeactivate Qt events are not properly sent
-    // on top level window (i.e. this) deactivation. The fix is to substiute
-    // the mode in FocusOut X11 event structure to NotifyNormal to cause
-    // Qt to process it as desired.
-    if (console && event->type == FocusOut)
+    /* Qt bug: when the console view grabs the keyboard, FocusIn, FocusOut,
+     * WindowActivate and WindowDeactivate Qt events are not properly sent
+     * on top level window (i.e. this) deactivation. The fix is to substiute
+     * the mode in FocusOut X11 event structure to NotifyNormal to cause
+     * Qt to process it as desired. */
+    if (mConsole && aEvent->type == FocusOut)
     {
-        if (event->xfocus.mode == NotifyWhileGrabbed  &&
-            (event->xfocus.detail == NotifyAncestor ||
-             event->xfocus.detail == NotifyInferior ||
-             event->xfocus.detail == NotifyNonlinear))
+        if (aEvent->xfocus.mode == NotifyWhileGrabbed  &&
+            (aEvent->xfocus.detail == NotifyAncestor ||
+             aEvent->xfocus.detail == NotifyInferior ||
+             aEvent->xfocus.detail == NotifyNonlinear))
         {
-             event->xfocus.mode = NotifyNormal;
+             aEvent->xfocus.mode = NotifyNormal;
         }
     }
     return false;
 }
-#endif
-
-#ifdef Q_WS_MAC
-extern void qt_set_sequence_auto_mnemonic (bool on);
 #endif
 
 /**
@@ -1632,11 +1608,14 @@ extern void qt_set_sequence_auto_mnemonic (bool on);
 void VBoxConsoleWnd::retranslateUi()
 {
 #ifdef VBOX_OSE
-    caption_prefix = tr ("VirtualBox OSE");
+    mCaptionPrefix = tr ("VirtualBox OSE");
 #else
-    caption_prefix = tr ("Sun VirtualBox");
+    mCaptionPrefix = tr ("Sun VirtualBox");
 #endif
 
+#ifdef VBOX_BLEEDING_EDGE
+    mCaptionPrefix += tr (" EXPERIMENTAL build %1r%2 - %3").arg (RTBldCfgVersion()).arg (RTBldCfgRevisionStr()).arg (VBOX_BLEEDING_EDGE);
+#endif
     /*
      *  Note: All action shortcuts should be added to the menu text in the
      *  form of "\tHost+<Key>" where <Key> is the shortcut key according
@@ -1650,9 +1629,13 @@ void VBoxConsoleWnd::retranslateUi()
      */
 
     /* VM actions */
-
 #ifdef Q_WS_MAC
     qt_set_sequence_auto_mnemonic (false);
+#endif
+
+    mVmDisMouseIntegrMenu->setToolTip (tr ("Mouse Integration", "enable/disable..."));
+#if 0 /* TODO: Allow to setup status-bar! */
+    mVmAutoresizeMenu->setToolTip (tr ("Auto-resize Guest Display", "enable/disable..."));
 #endif
 
     mVmFullscreenAction->setText (VBoxGlobal::insertKeyToActionText (tr ("&Fullscreen Mode"), "F"));
@@ -1661,30 +1644,28 @@ void VBoxConsoleWnd::retranslateUi()
     mVmSeamlessAction->setText (VBoxGlobal::insertKeyToActionText (tr ("Seam&less Mode"), "L"));
     mVmSeamlessAction->setStatusTip (tr ("Switch to seamless desktop integration mode"));
 
-    mVmDisMouseIntegrMenu->setToolTip (tr ("Mouse Integration",
-                                           "enable/disable..."));
-    mVmAutoresizeMenu->setToolTip (tr ("Auto-resize Guest Display",
-                                       "enable/disable..."));
-    mVmAutoresizeGuestAction->setText (VBoxGlobal::insertKeyToActionText (tr ("Auto-resize &Guest Display"),
-                                                                          "G"));
-    mVmAutoresizeGuestAction->setStatusTip (
-        tr ("Automatically resize the guest display when the window is resized "
-            "(requires Guest Additions)"));
+    mVmAutoresizeGuestAction->setText (VBoxGlobal::insertKeyToActionText (tr ("Auto-resize &Guest Display"), "G"));
+    mVmAutoresizeGuestAction->setStatusTip (tr ("Automatically resize the guest display when the "
+                                                "window is resized (requires Guest Additions)"));
 
     mVmAdjustWindowAction->setText (VBoxGlobal::insertKeyToActionText (tr ("&Adjust Window Size"), "A"));
-    mVmAdjustWindowAction->setStatusTip (
-        tr ("Adjust window size and position to best fit the guest display"));
+    mVmAdjustWindowAction->setStatusTip (tr ("Adjust window size and position to best fit the guest display"));
+
+    /* mVmDisableMouseIntegrAction is set up in updateAppearanceOf() */
 
     mVmTypeCADAction->setText (VBoxGlobal::insertKeyToActionText (tr ("&Insert Ctrl-Alt-Del"), "Del"));
-    mVmTypeCADAction->setStatusTip (
-        tr ("Send the Ctrl-Alt-Del sequence to the virtual machine"));
+    mVmTypeCADAction->setStatusTip (tr ("Send the Ctrl-Alt-Del sequence to the virtual machine"));
 
 #if defined(Q_WS_X11)
-    mVmTypeCABSAction->setText (VBoxGlobal::insertKeyToActionText (tr ("&Insert Ctrl-Alt-Backspace"),
-                                                                   "Backspace"));
-    mVmTypeCABSAction->setStatusTip (
-        tr ("Send the Ctrl-Alt-Backspace sequence to the virtual machine"));
+    mVmTypeCABSAction->setText (VBoxGlobal::insertKeyToActionText (tr ("&Insert Ctrl-Alt-Backspace"), "Backspace"));
+    mVmTypeCABSAction->setStatusTip (tr ("Send the Ctrl-Alt-Backspace sequence to the virtual machine"));
 #endif
+
+    mVmTakeSnapshotAction->setText (VBoxGlobal::insertKeyToActionText (tr ("Take &Snapshot..."), "S"));
+    mVmTakeSnapshotAction->setStatusTip (tr ("Take a snapshot of the virtual machine"));
+
+    mVmShowInformationDlgAction->setText (VBoxGlobal::insertKeyToActionText (tr ("Session I&nformation Dialog"), "N"));
+    mVmShowInformationDlgAction->setStatusTip (tr ("Show Session Information Dialog"));
 
     mVmResetAction->setText (VBoxGlobal::insertKeyToActionText (tr ("&Reset"), "R"));
     mVmResetAction->setStatusTip (tr ("Reset the virtual machine"));
@@ -1697,57 +1678,35 @@ void VBoxConsoleWnd::retranslateUi()
 #else /* Q_WS_MAC */
     mVmACPIShutdownAction->setText (VBoxGlobal::insertKeyToActionText (tr ("ACPI S&hutdown"), "H"));
 #endif /* !Q_WS_MAC */
-    mVmACPIShutdownAction->setStatusTip (
-        tr ("Send the ACPI Power Button press event to the virtual machine"));
+    mVmACPIShutdownAction->setStatusTip (tr ("Send the ACPI Power Button press event to the virtual machine"));
 
     mVmCloseAction->setText (VBoxGlobal::insertKeyToActionText (tr ("&Close..." ), "Q"));
     mVmCloseAction->setStatusTip (tr ("Close the virtual machine"));
     mVmCloseAction->setMenuRole (QAction::QuitRole);
 
-    mVmTakeSnapshotAction->setText (VBoxGlobal::insertKeyToActionText (tr ("Take &Snapshot..."), "S"));
-    mVmTakeSnapshotAction->setStatusTip (tr ("Take a snapshot of the virtual machine"));
-
-    mVmShowInformationDlgAction->setText (VBoxGlobal::insertKeyToActionText (tr ("Session I&nformation Dialog"),
-                                                                             "N"));
-    mVmShowInformationDlgAction->setStatusTip (tr ("Show Session Information Dialog"));
-
-    /* mVmDisableMouseIntegrAction is set up in updateAppearanceOf() */
-
     /* Devices actions */
+    mDevicesCDMenu->setTitle (tr ("&CD/DVD Devices"));
+    mDevicesFDMenu->setTitle (tr ("&Floppy Devices"));
 
-    mDevicesMountFloppyImageAction->setText (tr ("&Floppy Image..."));
-    mDevicesMountFloppyImageAction->setStatusTip (tr ("Mount a floppy image file"));
-
-    mDevicesUnmountFloppyAction->setText (tr ("Unmount F&loppy"));
-    mDevicesUnmountFloppyAction->setStatusTip (
-        tr ("Unmount the currently mounted floppy media"));
-
-    mDevicesMountDVDImageAction->setText (tr ("&CD/DVD-ROM Image..."));
-    mDevicesMountDVDImageAction->setStatusTip (
-        tr ("Mount a CD/DVD-ROM image file"));
-
-    mDevicesUnmountDVDAction->setText (tr ("Unmount C&D/DVD-ROM"));
-    mDevicesUnmountDVDAction->setStatusTip (
-        tr ("Unmount the currently mounted CD/DVD-ROM media"));
-
-    /* mDevicesVRDPMenu->setToolTip (tr ("Remote Desktop (RDP) Server",
-                                     "enable/disable...")); */
-    mDevicesSwitchVrdpAction->setText (tr ("Remote Dis&play"));
-    mDevicesSwitchVrdpAction->setStatusTip (
-        tr ("Enable or disable remote desktop (RDP) connections to this machine"));
+    mDevicesNetworkDialogAction->setText (tr ("&Network Adapters..."));
+    mDevicesNetworkDialogAction->setStatusTip (tr ("Change the settings of network adapters"));
 
     mDevicesSFDialogAction->setText (tr ("&Shared Folders..."));
-    mDevicesSFDialogAction->setStatusTip (
-        tr ("Open the dialog to operate on shared folders"));
+    mDevicesSFDialogAction->setStatusTip (tr ("Create or modify shared folders"));
 
-    mDevicesInstallGuestToolsAction->setText (VBoxGlobal::insertKeyToActionText (tr ("&Install Guest Additions..."),
-                                                                                 "D"));
-    mDevicesInstallGuestToolsAction->setStatusTip (
-        tr ("Mount the Guest Additions installation image"));
+    mDevicesSwitchVrdpAction->setText (tr ("&Remote Display"));
+    mDevicesSwitchVrdpAction->setStatusTip (tr ("Enable or disable remote desktop (RDP) connections to this machine"));
+#if 0 /* TODO: Allow to setup status-bar! */
+    mDevicesVRDPMenu->setToolTip (tr ("Remote Desktop (RDP) Server", "enable/disable..."));
+#endif
+
+    mDevicesInstallGuestToolsAction->setText (VBoxGlobal::insertKeyToActionText (tr ("&Install Guest Additions..."), "D"));
+    mDevicesInstallGuestToolsAction->setStatusTip (tr ("Mount the Guest Additions installation image"));
+
+    mDevicesUSBMenu->setTitle (tr ("&USB Devices"));
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
     /* Debug actions */
-
     if (mDbgStatisticsAction)
         mDbgStatisticsAction->setText (tr ("&Statistics...", "debug action"));
     if (mDbgCommandLineAction)
@@ -1757,42 +1716,26 @@ void VBoxConsoleWnd::retranslateUi()
 #endif
 
     /* Help actions */
-
     mHelpActions.retranslateUi();
 
-    /* Devices menu submenus */
-
-    mDevicesMountFloppyMenu->setTitle (tr ("Mount &Floppy"));
-    mDevicesMountDVDMenu->setTitle (tr ("Mount &CD/DVD-ROM"));
-    mDevicesNetworkMenu->setTitle (tr ("&Network Adapters"));
-    mDevicesUSBMenu->setTitle (tr ("&USB Devices"));
-
-    /* main menu & seamless popup menu */
-
+    /* Main menu & seamless popup menu */
     mVMMenu->setTitle (tr ("&Machine"));
-//    mVMMenu->setIcon (VBoxGlobal::iconSet (":/machine_16px.png"));
+    // mVMMenu->setIcon (VBoxGlobal::iconSet (":/machine_16px.png"));
 
-    mMiniVMMenu->setTitle (tr ("&Machine"));
+    mVMMenuMini->setTitle (tr ("&Machine"));
 
     mDevicesMenu->setTitle (tr ("&Devices"));
-//    mDevicesMenu->setIcon (VBoxGlobal::iconSet (":/settings_16px.png"));
+    // mDevicesMenu->setIcon (VBoxGlobal::iconSet (":/settings_16px.png"));
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
     if (vboxGlobal().isDebuggerEnabled())
         mDbgMenu->setTitle (tr ("De&bug"));
 #endif
     mHelpMenu->setTitle (tr ("&Help"));
-//    mHelpMenu->setIcon (VBoxGlobal::iconSet (":/help_16px.png"));
+    // mHelpMenu->setIcon (VBoxGlobal::iconSet (":/help_16px.png"));
 
-    /* status bar widgets */
-
-#if 0
-    autoresize_state->setToolTip (
-        tr ("Indicates whether the guest display auto-resize function is On "
-            "(<img src=:/auto_resize_on_16px.png/>) or Off (<img src=:/auto_resize_off_16px.png/>). "
-            "Note that this function requires Guest Additions to be installed in the guest OS."));
-#endif
-    mouse_state->setToolTip (
+    /* Status bar widgets */
+    mMouseLed->setToolTip (
         tr ("Indicates whether the host mouse pointer is captured by the guest OS:<br>"
             "<nobr><img src=:/mouse_disabled_16px.png/>&nbsp;&nbsp;pointer is not captured</nobr><br>"
             "<nobr><img src=:/mouse_16px.png/>&nbsp;&nbsp;pointer is captured</nobr><br>"
@@ -1800,380 +1743,1091 @@ void VBoxConsoleWnd::retranslateUi()
             "<nobr><img src=:/mouse_can_seamless_16px.png/>&nbsp;&nbsp;MI is Off, pointer is captured</nobr><br>"
             "<nobr><img src=:/mouse_can_seamless_uncaptured_16px.png/>&nbsp;&nbsp;MI is Off, pointer is not captured</nobr><br>"
             "Note that the mouse integration feature requires Guest Additions to be installed in the guest OS."));
-    hostkey_state->setToolTip (
+    mHostkeyLed->setToolTip (
         tr ("Indicates whether the keyboard is captured by the guest OS "
             "(<img src=:/hostkey_captured_16px.png/>) or not (<img src=:/hostkey_16px.png/>)."));
-    hostkey_name->setToolTip (
+    mHostkeyName->setToolTip (
         tr ("Shows the currently assigned Host key.<br>"
             "This key, when pressed alone, toggles the keyboard and mouse "
             "capture state. It can also be used in combination with other keys "
             "to quickly perform actions from the main menu."));
-    hostkey_name->setText (QIHotKeyEdit::keyName (vboxGlobal().settings().hostKey()));
+    mHostkeyName->setText (QIHotKeyEdit::keyName (vboxGlobal().settings().hostKey()));
+
+#if 0 /* TODO: Allow to setup status-bar! */
+    mAutoresizeLed->setToolTip (
+        tr ("Indicates whether the guest display auto-resize function is On "
+            "(<img src=:/auto_resize_on_16px.png/>) or Off (<img src=:/auto_resize_off_16px.png/>). "
+            "Note that this function requires Guest Additions to be installed in the guest OS."));
+#endif
 
     updateAppearanceOf (AllStuff);
 }
 
-//
-// Private members
-/////////////////////////////////////////////////////////////////////////////
-
-void VBoxConsoleWnd::updateAppearanceOf (int element)
+void VBoxConsoleWnd::finalizeOpenView()
 {
-    if (!console) return;
+    LogFlowFuncEnter();
 
-    CMachine cmachine = csession.GetMachine();
-    CConsole cconsole = console->console();
+    /* Notify the console scroll-view about the console-window is opened. */
+    mConsole->onViewOpened();
 
-    bool isRunningOrPaused = machine_state == KMachineState_Running ||
-                             machine_state == KMachineState_Paused;
+    bool saved = mMachineState == KMachineState_Saved;
 
-    if (element & Caption)
+    CMachine machine = mSession.GetMachine();
+    CConsole console = mConsole->console();
+
+    if (mIsFirstTimeStarted)
     {
-        QString snapshotName;
-        if (cmachine.GetSnapshotCount() > 0)
-        {
-            CSnapshot snapshot = cmachine.GetCurrentSnapshot();
-            snapshotName = " (" + snapshot.GetName() + ")";
-        }
-        setWindowTitle (cmachine.GetName() + snapshotName +
-                        " [" + vboxGlobal().toString (machine_state) + "] - " +
-                        caption_prefix);
-        mMiniToolBar->setDisplayText (cmachine.GetName() + snapshotName);
-//#ifdef Q_WS_MAC
-//        SetWindowTitleWithCFString (reinterpret_cast <WindowPtr> (this->winId()), CFSTR("sfds"));
-//SetWindowAlternateTitle
-//#endif
+        VBoxVMFirstRunWzd wzd (machine, this);
+        wzd.exec();
+
+        /* Remove GUI_FirstRun extra data key from the machine settings
+         * file after showing the wizard once. */
+        machine.SetExtraData (VBoxDefs::GUI_FirstRun, QString::null);
     }
-    if (element & FloppyStuff)
+
+    /* Start the VM */
+    CProgress progress = vboxGlobal().isStartPausedEnabled() || vboxGlobal().isDebuggerAutoShowEnabled() ?
+                         console.PowerUpPaused() : console.PowerUp();
+
+    /* Check for an immediate failure */
+    if (!console.isOk())
     {
-        mDevicesMountFloppyMenu->setEnabled (isRunningOrPaused);
-        CFloppyDrive floppy = cmachine.GetFloppyDrive();
-        KDriveState state = floppy.GetState();
-        bool mounted = state != KDriveState_NotMounted;
-        mDevicesUnmountFloppyAction->setEnabled (isRunningOrPaused && mounted);
-        fd_light->setState (mounted ? KDeviceActivity_Idle : KDeviceActivity_Null);
-        QString tip = tr ("<qt><nobr>Indicates the activity of the floppy media:</nobr>"
-                          "%1</qt>",
-                          "Floppy tooltip");
-        QString name;
-        switch (state)
-        {
-            case KDriveState_HostDriveCaptured:
-            {
-                CHostFloppyDrive drv = floppy.GetHostDrive();
-                QString drvName = drv.GetName();
-                QString description = drv.GetDescription();
-                QString fullName = description.isEmpty() ?
-                    drvName :
-                    QString ("%1 (%2)").arg (description, drvName);
-                name = tr ("<br><nobr><b>Host Drive</b>: %1</nobr>",
-                           "Floppy tooltip").arg (fullName);
-                break;
-            }
-            case KDriveState_ImageMounted:
-            {
-                name = tr ("<br><nobr><b>Image</b>: %1</nobr>",
-                           "Floppy tooltip")
-                    .arg (QDir::toNativeSeparators (floppy.GetImage().GetLocation()));
-                break;
-            }
-            case KDriveState_NotMounted:
-            {
-                name = tr ("<br><nobr><b>No media mounted</b></nobr>",
-                           "Floppy tooltip");
-                break;
-            }
-            default:
-                AssertMsgFailed (("Invalid floppy drive state: %d\n", state));
-        }
-        fd_light->setToolTip (tip.arg (name));
+        vboxProblem().cannotStartMachine (console);
+        /* close this window (this will call closeView()) */
+        close();
+
+        LogFlowFunc (("Error starting VM\n"));
+        LogFlowFuncLeave();
+        return;
     }
-    if (element & DVDStuff)
+
+    mConsole->attach();
+
+    /* Disable auto closure because we want to have a chance to show the
+     * error dialog on startup failure */
+    mNoAutoClose = true;
+
+    /* show the "VM starting / restoring" progress dialog */
+
+    if (saved)
+        vboxProblem().showModalProgressDialog (progress, machine.GetName(), this, 0);
+    else
+        vboxProblem().showModalProgressDialog (progress, machine.GetName(), this);
+
+    if (progress.GetResultCode() != 0)
     {
-        mDevicesMountDVDMenu->setEnabled (isRunningOrPaused);
-        CDVDDrive dvd = cmachine.GetDVDDrive();
-        KDriveState state = dvd.GetState();
-        bool mounted = state != KDriveState_NotMounted;
-        mDevicesUnmountDVDAction->setEnabled (isRunningOrPaused && mounted);
-        cd_light->setState (mounted ? KDeviceActivity_Idle : KDeviceActivity_Null);
-        QString tip = tr ("<qt><nobr>Indicates the activity of the CD/DVD-ROM media:</nobr>"
-                          "%1</qt>",
-                          "DVD-ROM tooltip");
-        QString name;
-        switch (state)
-        {
-            case KDriveState_HostDriveCaptured:
-            {
-                CHostDVDDrive drv = dvd.GetHostDrive();
-                QString drvName = drv.GetName();
-                QString description = drv.GetDescription();
-                QString fullName = description.isEmpty() ?
-                    drvName :
-                    QString ("%1 (%2)").arg (description, drvName);
-                name = tr ("<br><nobr><b>Host Drive</b>: %1</nobr>",
-                           "DVD-ROM tooltip").arg (fullName);
-                break;
-            }
-            case KDriveState_ImageMounted:
-            {
-                name = tr ("<br><nobr><b>Image</b>: %1</nobr>",
-                           "DVD-ROM tooltip")
-                    .arg (QDir::toNativeSeparators (dvd.GetImage().GetLocation()));
-                break;
-            }
-            case KDriveState_NotMounted:
-            {
-                name = tr ("<br><nobr><b>No media mounted</b></nobr>",
-                           "DVD-ROM tooltip");
-                break;
-            }
-            default:
-                AssertMsgFailed (("Invalid DVD drive state: %d\n", state));
-        }
-        cd_light->setToolTip (tip.arg (name));
+        vboxProblem().cannotStartMachine (progress);
+        /* close this window (this will call closeView()) */
+        close();
+
+        LogFlowFunc (("Error starting VM\n"));
+        LogFlowFuncLeave();
+        return;
     }
-    if (element & HardDiskStuff)
-    {
-        QString tip = tr ("<qt><nobr>Indicates the activity of virtual hard disks:</nobr>"
-                          "%1</qt>",
-                          "HDD tooltip");
-        QString data;
-        bool hasDisks = false;
-        CHardDiskAttachmentVector vec = cmachine.GetHardDiskAttachments();
-        for (CHardDiskAttachmentVector::ConstIterator hda = vec.begin();
-             hda != vec.end(); ++ hda)
-        {
-            CHardDisk hd = hda->GetHardDisk();
-            const QString ctlName = hda->GetController();
-            CStorageController ctl = cmachine.GetStorageControllerByName(ctlName);
 
-            data += QString ("<br><nobr><b>%1 %2</b>: %3</nobr>")
-                .arg (vboxGlobal().toString (ctl.GetBus(), hda->GetPort()))
-                .arg (vboxGlobal().toString (ctl.GetBus(), hda->GetPort(),
-                                             hda->GetDevice()))
-                .arg (QDir::convertSeparators (hd.GetLocation()));
-            hasDisks = true;
-        }
-        if (!hasDisks)
-            data += tr ("<br><nobr><b>No hard disks attached</b></nobr>",
-                        "HDD tooltip");
-        hd_light->setToolTip (tip.arg (data));
-        hd_light->setState (hasDisks ? KDeviceActivity_Idle : KDeviceActivity_Null);
+    mNoAutoClose = false;
+
+    /* Check if we missed a really quick termination after successful
+     * startup, and process it if we did. */
+    if (   mMachineState == KMachineState_PoweredOff
+        || mMachineState == KMachineState_Saved
+        || mMachineState == KMachineState_Teleported
+        || mMachineState == KMachineState_Aborted
+       )
+    {
+        close();
+        LogFlowFuncLeave();
+        return;
     }
-    if (element & NetworkStuff)
+
+    /* Currently the machine is started and the guest API could be used...
+     * Checking if the fullscreen mode should be activated */
+    QString str = machine.GetExtraData (VBoxDefs::GUI_Fullscreen);
+    if (str == "on")
+        mVmFullscreenAction->setChecked (true);
+
+    /* If seamless mode should be enabled then check if it is enabled
+     * currently and re-enable it if seamless is supported */
+    if (mVmSeamlessAction->isChecked() && mIsSeamlessSupported && mIsGraphicsSupported)
+        toggleFullscreenMode (true, true);
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    /* Open the debugger in "full screen" mode requested by the user. */
+    else if (vboxGlobal().isDebuggerAutoShowEnabled())
     {
-        ulong maxCount = vboxGlobal().virtualBox()
-                        .GetSystemProperties().GetNetworkAdapterCount();
-        ulong count = 0;
-        for (ulong slot = 0; slot < maxCount; slot++)
-            if (cmachine.GetNetworkAdapter (slot).GetEnabled())
-                count++;
-        net_light->setState (count > 0 ? KDeviceActivity_Idle
-                                       : KDeviceActivity_Null);
+        /* console in upper left corner of the desktop. */
+        QRect rct (0, 0, 0, 0);
+        QDesktopWidget *desktop = QApplication::desktop();
+        if (desktop)
+            rct = desktop->availableGeometry(pos());
+        move (QPoint (rct.x(), rct.y()));
 
-        mDevicesNetworkMenu->setEnabled (isRunningOrPaused && count > 0);
+        if (vboxGlobal().isDebuggerAutoShowStatisticsEnabled())
+            dbgShowStatistics();
+        if (vboxGlobal().isDebuggerAutoShowCommandLineEnabled())
+            dbgShowCommandLine();
 
-        /* update tooltip */
-        QString ttip = tr ("<qt><nobr>Indicates the activity of the network "
-                           "interfaces:</nobr>"
-                           "%1</qt>",
-                           "Network adapters tooltip");
-        QString info;
-
-        for (ulong slot = 0; slot < maxCount; ++ slot)
-        {
-            CNetworkAdapter adapter = cmachine.GetNetworkAdapter (slot);
-            if (adapter.GetEnabled())
-                info += tr ("<br><nobr><b>Adapter %1 (%2)</b>: cable %3</nobr>",
-                            "Network adapters tooltip")
-                    .arg (slot+1)
-                    .arg (vboxGlobal().toString (adapter.GetAttachmentType()))
-                    .arg (adapter.GetCableConnected() ?
-                          tr ("connected", "Network adapters tooltip") :
-                          tr ("disconnected", "Network adapters tooltip"));
-        }
-
-        if (info.isNull())
-            info = tr ("<br><nobr><b>All network adapters are disabled</b></nobr>",
-                       "Network adapters tooltip");
-
-        net_light->setToolTip (ttip.arg (info));
+        if (!vboxGlobal().isStartPausedEnabled())
+            mConsole->pause (false);
     }
-    if (element & USBStuff)
-    {
-        if (!usb_light->isHidden())
-        {
-            /* update tooltip */
-            QString ttip = tr ("<qt><nobr>Indicates the activity of the "
-                               "attached USB devices:</nobr>"
-                               "%1</qt>",
-                               "USB device tooltip");
-            QString info;
-
-            CUSBController usbctl = cmachine.GetUSBController();
-            if (    !usbctl.isNull()
-                &&  usbctl.GetEnabled())
-            {
-                mDevicesUSBMenu->setEnabled (isRunningOrPaused);
-
-                CUSBDeviceVector devsvec = cconsole.GetUSBDevices();
-                for (int i = 0; i < devsvec.size(); ++i)
-                {
-                    CUSBDevice usb = devsvec[i];
-                    info += QString ("<br><b><nobr>%1</nobr></b>")
-                                     .arg (vboxGlobal().details (usb));
-                }
-                if (info.isNull())
-                    info = tr ("<br><nobr><b>No USB devices attached</b></nobr>",
-                               "USB device tooltip");
-            }
-            else
-            {
-                mDevicesUSBMenu->setEnabled (false);
-
-                info = tr ("<br><nobr><b>USB Controller is disabled</b></nobr>",
-                           "USB device tooltip");
-            }
-
-            usb_light->setToolTip (ttip.arg (info));
-        }
-    }
-    if (element & VRDPStuff)
-    {
-        CVRDPServer vrdpsrv = csession.GetMachine().GetVRDPServer();
-        if (!vrdpsrv.isNull())
-        {
-            /* update menu&status icon state */
-            bool isVRDPEnabled = vrdpsrv.GetEnabled();
-            mDevicesSwitchVrdpAction->setChecked (isVRDPEnabled);
-#if 0
-            vrdp_state->setState (isVRDPEnabled ? 1 : 0);
-
-            /* compose status icon tooltip */
-            QString tip = tr ("Indicates whether the Remote Display (VRDP Server) "
-                              "is enabled (<img src=:/vrdp_16px.png/>) or not "
-                              "(<img src=:/vrdp_disabled_16px.png/>)."
-                              );
-            if (vrdpsrv.GetEnabled())
-                tip += tr ("<hr>VRDP Server is listening on port %1").arg (vrdpsrv.GetPort());
-            vrdp_state->setToolTip (tip);
 #endif
+
+    mIsOpenViewFinished = true;
+    LogFlowFuncLeave();
+
+#ifdef VBOX_WITH_UPDATE_REQUEST
+    vboxGlobal().showUpdateDialog (false /* aForce */);
+#endif
+
+    /* Finally check the status of required features. */
+    checkRequiredFeatures();
+
+    /* Re-request all the static values finally after
+     * view is really opened and attached. */
+    updateAppearanceOf (VirtualizationStuff);
+}
+
+/**
+ *  Helper to safely close the main console window.
+ *
+ *  This method ensures that close() will not be called if there is some
+ *  modal widget currently being executed, as it can cause uninitialization
+ *  at the point of code where it is not expected at all (example:
+ *  VBoxConsoleView::mouseEvent() calling
+ *  VBoxProblemReporter::confirmInputCapture()). Instead, an attempt to
+ *  close the current modal widget is done and tryClose() is rescheduled for
+ *  later execution using a single-shot zero timer.
+ *
+ *  In particular, this method is used by updateMachineState() when the VM
+ *  goes offline, which can even happen if we are inside the modal event loop,
+ *  (for example, the VM has been externally powered off or the guest OS
+ *  has initiated a shutdown procedure).
+ */
+void VBoxConsoleWnd::tryClose()
+{
+    /* First close any open modal & popup widgets. Use a single shot with
+     * timeout 0 to allow the widgets to cleany close and test then again. If
+     * all open widgets are closed destroy ourself. */
+    QWidget *widget = QApplication::activeModalWidget() ?
+                      QApplication::activeModalWidget() :
+                      QApplication::activePopupWidget() ?
+                      QApplication::activePopupWidget() : 0;
+    if (widget)
+    {
+        widget->close();
+        QTimer::singleShot (0, this, SLOT (tryClose()));
+    }
+    else
+        close();
+}
+
+void VBoxConsoleWnd::vmFullscreen (bool aOn)
+{
+    bool ok = toggleFullscreenMode (aOn, false /* aSeamless */);
+    if (!ok)
+    {
+        /* On failure, restore the previous button state */
+        mVmFullscreenAction->blockSignals (true);
+        mVmFullscreenAction->setChecked (!aOn);
+        mVmFullscreenAction->blockSignals (false);
+    }
+}
+
+void VBoxConsoleWnd::vmSeamless (bool aOn)
+{
+    /* Check if it is possible to enter/leave seamless mode */
+    if ((mIsSeamlessSupported && mIsGraphicsSupported) || !aOn)
+    {
+        bool ok = toggleFullscreenMode (aOn, true /* aSeamless */);
+        if (!ok)
+        {
+            /* On failure, restore the previous button state */
+            mVmSeamlessAction->blockSignals (true);
+            mVmSeamlessAction->setChecked (!aOn);
+            mVmSeamlessAction->blockSignals (false);
         }
     }
-    if (element & SharedFolderStuff)
+}
+
+void VBoxConsoleWnd::vmAutoresizeGuest (bool on)
+{
+    if (!mConsole)
+        return;
+
+#if 0 /* TODO: Allow to setup status-bar! */
+    mAutoresizeLed->setState (on ? 3 : 1);
+#endif
+
+    mConsole->setAutoresizeGuest (on);
+}
+
+void VBoxConsoleWnd::vmAdjustWindow()
+{
+    if (mConsole)
     {
-        QString tip = tr ("<qt><nobr>Indicates the activity of shared folders:</nobr>"
-                          "%1</qt>",
-                          "Shared folders tooltip");
+        if (isWindowMaximized())
+            showNormal();
+        mConsole->normalizeGeometry (true /* adjustPosition */);
+    }
+}
 
-        QString data;
-        QMap <QString, QString> sfs;
+void VBoxConsoleWnd::vmDisableMouseIntegration (bool aOff)
+{
+    if (mConsole)
+    {
+        mConsole->setMouseIntegrationEnabled (!aOff);
+        updateAppearanceOf (DisableMouseIntegrAction);
+    }
+}
 
-        /// @todo later: add global folders
+void VBoxConsoleWnd::vmTypeCAD()
+{
+    if (mConsole)
+    {
+        CKeyboard keyboard  = mConsole->console().GetKeyboard();
+        Assert (!keyboard.isNull());
+        keyboard.PutCAD();
+        AssertWrapperOk (keyboard);
+    }
+}
 
-        /* permanent folders */
-        CSharedFolderVector psfvec = cmachine.GetSharedFolders();
+#ifdef Q_WS_X11
+void VBoxConsoleWnd::vmTypeCABS()
+{
+    if (mConsole)
+    {
+        CKeyboard keyboard  = mConsole->console().GetKeyboard();
+        Assert (!keyboard.isNull());
+        static QVector <LONG> sSequence (6);
+        sSequence[0] = 0x1d; // Ctrl down
+        sSequence[1] = 0x38; // Alt down
+        sSequence[2] = 0x0E; // Backspace down
+        sSequence[3] = 0x8E; // Backspace up
+        sSequence[4] = 0xb8; // Alt up
+        sSequence[5] = 0x9d; // Ctrl up
+        keyboard.PutScancodes (sSequence);
+        AssertWrapperOk (keyboard);
+    }
+}
+#endif
 
-        for (int i = 0; i < psfvec.size(); ++i)
+void VBoxConsoleWnd::vmTakeSnapshot()
+{
+    AssertReturn (mConsole, (void) 0);
+
+    /* remember the paused state */
+    bool wasPaused = mMachineState == KMachineState_Paused;
+    if (!wasPaused)
+    {
+        /* Suspend the VM and ignore the close event if failed to do so.
+         * pause() will show the error message to the user. */
+        if (!mConsole->pause (true))
+            return;
+    }
+
+    CMachine machine = mSession.GetMachine();
+
+    VBoxTakeSnapshotDlg dlg (this);
+
+    QString typeId = machine.GetOSTypeId();
+    dlg.mLbIcon->setPixmap (vboxGlobal().vmGuestOSTypeIcon (typeId));
+
+    /* search for the max available filter index */
+    QString nameTemplate = tr ("Snapshot %1");
+    int maxSnapshotIndex = searchMaxSnapshotIndex (machine, machine.GetSnapshot (QString()), nameTemplate);
+    dlg.mLeName->setText (nameTemplate.arg (++ maxSnapshotIndex));
+
+    if (dlg.exec() == QDialog::Accepted)
+    {
+        CConsole console = mSession.GetConsole();
+
+        CProgress progress = console.TakeSnapshot (dlg.mLeName->text().trimmed(), dlg.mTeDescription->toPlainText());
+
+        if (console.isOk())
         {
-            CSharedFolder sf = psfvec[i];
-            sfs.insert (sf.GetName(), sf.GetHostPath());
+            /* Show the "Taking Snapshot" progress dialog */
+            vboxProblem().showModalProgressDialog (progress, machine.GetName(), this, 0);
+
+            if (progress.GetResultCode() != 0)
+                vboxProblem().cannotTakeSnapshot (progress);
         }
+        else
+            vboxProblem().cannotTakeSnapshot (console);
+    }
 
-        /* transient folders */
-        CSharedFolderVector tsfvec = cconsole.GetSharedFolders();
+    /* Restore the running state if needed */
+    if (!wasPaused)
+        mConsole->pause (false);
+}
 
-        for (int i = 0; i < tsfvec.size(); ++i)
+void VBoxConsoleWnd::vmShowInfoDialog()
+{
+    VBoxVMInformationDlg::createInformationDlg (mSession, mConsole);
+}
+
+void VBoxConsoleWnd::vmReset()
+{
+    if (mConsole)
+    {
+        if (vboxProblem().confirmVMReset (this))
+            mConsole->console().Reset();
+    }
+}
+
+void VBoxConsoleWnd::vmPause (bool aOn)
+{
+    if (mConsole)
+    {
+        mConsole->pause (aOn);
+        updateAppearanceOf (PauseAction);
+    }
+}
+
+void VBoxConsoleWnd::vmACPIShutdown()
+{
+    if (!mSession.GetConsole().GetGuestEnteredACPIMode())
+        return vboxProblem().cannotSendACPIToMachine();
+
+    if (mConsole)
+    {
+        CConsole console = mConsole->console();
+        console.PowerButton();
+        if (!console.isOk())
+            vboxProblem().cannotACPIShutdownMachine (console);
+    }
+}
+
+void VBoxConsoleWnd::vmClose()
+{
+    if (mConsole)
+        close();
+}
+
+void VBoxConsoleWnd::devicesSwitchVrdp (bool aOn)
+{
+    if (!mConsole) return;
+
+    CVRDPServer vrdpServer = mSession.GetMachine().GetVRDPServer();
+    /* This method should not be executed if vrdpServer is null */
+    Assert (!vrdpServer.isNull());
+
+    vrdpServer.SetEnabled (aOn);
+    updateAppearanceOf (VRDPStuff);
+}
+
+void VBoxConsoleWnd::devicesOpenNetworkDialog()
+{
+    if (!mConsole) return;
+
+    VBoxNetworkDialog dlg (mConsole, mSession);
+    dlg.exec();
+}
+
+void VBoxConsoleWnd::devicesOpenSFDialog()
+{
+    if (!mConsole) return;
+
+    VBoxSFDialog dlg (mConsole, mSession);
+    dlg.exec();
+}
+
+void VBoxConsoleWnd::devicesInstallGuestAdditions()
+{
+    char szAppPrivPath [RTPATH_MAX];
+    int rc = RTPathAppPrivateNoArch (szAppPrivPath, sizeof (szAppPrivPath));
+    AssertRC (rc);
+
+    QString src1 = QString (szAppPrivPath) + "/VBoxGuestAdditions.iso";
+    QString src2 = qApp->applicationDirPath() + "/additions/VBoxGuestAdditions.iso";
+
+    /* Check the standard image locations */
+    if (QFile::exists (src1))
+        return installGuestAdditionsFrom (src1);
+    else if (QFile::exists (src2))
+        return installGuestAdditionsFrom (src2);
+
+    /* Check for the already registered image */
+    CVirtualBox vbox = vboxGlobal().virtualBox();
+    QString name = QString ("VBoxGuestAdditions_%1.iso").arg (vbox.GetVersion().remove ("_OSE"));
+
+    CMediumVector vec = vbox.GetDVDImages();
+    for (CMediumVector::ConstIterator it = vec.begin(); it != vec.end(); ++ it)
+    {
+        QString path = it->GetLocation();
+        /* Compare the name part ignoring the file case */
+        QString fn = QFileInfo (path).fileName();
+        if (RTPathCompare (name.toUtf8().constData(), fn.toUtf8().constData()) == 0)
+            return installGuestAdditionsFrom (path);
+    }
+
+    /* Download the required image */
+    int result = vboxProblem().cannotFindGuestAdditions (
+        QDir::toNativeSeparators (src1), QDir::toNativeSeparators (src2));
+    if (result == QIMessageBox::Yes)
+    {
+        QString source = QString ("http://download.virtualbox.org/virtualbox/%1/")
+                                  .arg (vbox.GetVersion().remove ("_OSE")) + name;
+        QString target = QDir (vboxGlobal().virtualBox().GetHomeFolder())
+                               .absoluteFilePath (name);
+
+        VBoxAdditionsDownloader *dl =
+            new VBoxAdditionsDownloader (source, target, mDevicesInstallGuestToolsAction);
+        statusBar()->addWidget (dl, 0);
+        dl->start();
+    }
+}
+
+void VBoxConsoleWnd::prepareStorageMenu()
+{
+    QMenu *menu = qobject_cast <QMenu*> (sender());
+    Assert (menu);
+    menu->clear();
+
+    KDeviceType deviceType = menu == mDevicesCDMenu ? KDeviceType_DVD :
+                             menu == mDevicesFDMenu ? KDeviceType_Floppy :
+                                                      KDeviceType_Null;
+    Assert (deviceType != KDeviceType_Null);
+
+    VBoxDefs::MediumType mediumType = menu == mDevicesCDMenu ? VBoxDefs::MediumType_DVD :
+                                      menu == mDevicesFDMenu ? VBoxDefs::MediumType_Floppy :
+                                                               VBoxDefs::MediumType_Invalid;
+    Assert (mediumType != VBoxDefs::MediumType_Invalid);
+
+    CMachine machine = mSession.GetMachine();
+    const CMediumAttachmentVector &attachments = machine.GetMediumAttachments();
+    foreach (const CMediumAttachment &attachment, attachments)
+    {
+        CStorageController controller = machine.GetStorageControllerByName (attachment.GetController());
+        if (   !controller.isNull()
+            && (attachment.GetType() == deviceType))
         {
-            CSharedFolder sf = tsfvec[i];
-            sfs.insert (sf.GetName(), sf.GetHostPath());
+            /* Attachment menu item */
+            QMenu *attachmentMenu = 0;
+            if (menu->menuAction()->data().toInt() > 1)
+            {
+                attachmentMenu = new QMenu (menu);
+                attachmentMenu->setTitle (QString ("%1 (%2)").arg (controller.GetName())
+                                          .arg (vboxGlobal().toString (StorageSlot (controller.GetBus(),
+                                                                                    attachment.GetPort(),
+                                                                                    attachment.GetDevice()))));
+                switch (controller.GetBus())
+                {
+                    case KStorageBus_IDE:
+                        attachmentMenu->setIcon (QIcon (":/ide_16px.png")); break;
+                    case KStorageBus_SATA:
+                        attachmentMenu->setIcon (QIcon (":/sata_16px.png")); break;
+                    case KStorageBus_SCSI:
+                        attachmentMenu->setIcon (QIcon (":/scsi_16px.png")); break;
+                    case KStorageBus_Floppy:
+                        attachmentMenu->setIcon (QIcon (":/floppy_16px.png")); break;
+                    default:
+                        break;
+                }
+                menu->addMenu (attachmentMenu);
+            }
+            else attachmentMenu = menu;
+
+            /* Mount Medium actions */
+            CMediumVector mediums;
+            switch (mediumType)
+            {
+                case VBoxDefs::MediumType_DVD:
+                    mediums += vboxGlobal().virtualBox().GetHost().GetDVDDrives();
+                    mediums += vboxGlobal().virtualBox().GetDVDImages();
+                    break;
+                case VBoxDefs::MediumType_Floppy:
+                    mediums += vboxGlobal().virtualBox().GetHost().GetFloppyDrives();
+                    mediums += vboxGlobal().virtualBox().GetFloppyImages();
+                    break;
+                default:
+                    break;
+            }
+
+            int mediumsToBeShown = 0;
+            const int maxMediumsToBeShown = 5;
+            CMedium currentMedium = attachment.GetMedium();
+            QString currentId = currentMedium.isNull() ? QString::null : currentMedium.GetId();
+            bool currentUsed = false;
+            foreach (CMedium medium, mediums)
+            {
+                bool isMediumUsed = false;
+                foreach (const CMediumAttachment &otherAttachment, attachments)
+                {
+                    if (otherAttachment != attachment)
+                    {
+                        CMedium otherMedium = otherAttachment.GetMedium();
+                        if (!otherMedium.isNull() && otherMedium.GetId() == medium.GetId())
+                        {
+                            isMediumUsed = true;
+                            break;
+                        }
+                    }
+                }
+                if (!isMediumUsed)
+                {
+                    if (!currentUsed && !currentMedium.isNull() && mediumsToBeShown == maxMediumsToBeShown - 1)
+                        medium = currentMedium;
+
+                    if (medium.GetId() == currentId)
+                        currentUsed = true;
+
+                    QAction *mountMediumAction = new QAction (VBoxMedium (medium, mediumType).name(), attachmentMenu);
+                    mountMediumAction->setCheckable (true);
+                    mountMediumAction->setChecked (!currentMedium.isNull() && medium.GetId() == currentId);
+                    mountMediumAction->setData (QVariant::fromValue (MountTarget (controller.GetName(),
+                                                                                  attachment.GetPort(),
+                                                                                  attachment.GetDevice(),
+                                                                                  medium.GetId())));
+                    connect (mountMediumAction, SIGNAL (triggered (bool)), this, SLOT (mountMedium()));
+                    attachmentMenu->addAction (mountMediumAction);
+                    ++ mediumsToBeShown;
+                    if (mediumsToBeShown == maxMediumsToBeShown)
+                        break;
+                }
+            }
+
+            /* Virtual Media Manager action */
+            QAction *callVMMAction = new QAction (attachmentMenu);
+            callVMMAction->setIcon (QIcon (":/diskimage_16px.png"));
+            callVMMAction->setData (QVariant::fromValue (MountTarget (controller.GetName(),
+                                                                      attachment.GetPort(),
+                                                                      attachment.GetDevice(),
+                                                                      mediumType)));
+            connect (callVMMAction, SIGNAL (triggered (bool)), this, SLOT (mountMedium()));
+            attachmentMenu->addAction (callVMMAction);
+
+            /* Separator */
+            attachmentMenu->addSeparator();
+
+            /* Unmount Medium action */
+            QAction *unmountMediumAction = new QAction (attachmentMenu);
+            unmountMediumAction->setEnabled (!currentMedium.isNull());
+            unmountMediumAction->setData (QVariant::fromValue (MountTarget (controller.GetName(),
+                                                                            attachment.GetPort(),
+                                                                            attachment.GetDevice())));
+            connect (unmountMediumAction, SIGNAL (triggered (bool)), this, SLOT (mountMedium()));
+            attachmentMenu->addAction (unmountMediumAction);
+
+            /* Switch CD/FD naming */
+            switch (mediumType)
+            {
+                case VBoxDefs::MediumType_DVD:
+                    callVMMAction->setText (tr ("More CD/DVD Images..."));
+                    unmountMediumAction->setText (tr ("Unmount CD/DVD Device"));
+                    unmountMediumAction->setIcon (VBoxGlobal::iconSet (":/cd_unmount_16px.png",
+                                                                       ":/cd_unmount_dis_16px.png"));
+                    break;
+                case VBoxDefs::MediumType_Floppy:
+                    callVMMAction->setText (tr ("More Floppy Images..."));
+                    unmountMediumAction->setText (tr ("Unmount Floppy Device"));
+                    unmountMediumAction->setIcon (VBoxGlobal::iconSet (":/fd_unmount_16px.png",
+                                                                       ":/fd_unmount_dis_16px.png"));
+                    break;
+                default:
+                    break;
+            }
         }
+    }
 
-        for (QMap <QString, QString>::const_iterator it = sfs.constBegin();
-             it != sfs.constEnd(); ++ it)
+    if (menu->menuAction()->data().toInt() == 0)
+    {
+        /* Empty menu item */
+        Assert (menu->isEmpty());
+        QAction *emptyMenuAction = new QAction (menu);
+        emptyMenuAction->setEnabled (false);
+        switch (mediumType)
         {
-            /* Select slashes depending on the OS type */
-            if (VBoxGlobal::isDOSType (cconsole.GetGuest().GetOSTypeId()))
-                data += QString ("<br><nobr><b>\\\\vboxsvr\\%1&nbsp;</b></nobr>"
-                                 "<nobr>%2</nobr>")
-                    .arg (it.key(), it.value());
+            case VBoxDefs::MediumType_DVD:
+                emptyMenuAction->setText (tr ("No CD/DVD Devices Attached"));
+                break;
+            case VBoxDefs::MediumType_Floppy:
+                emptyMenuAction->setText (tr ("No Floppy Devices Attached"));
+                break;
+            default:
+                break;
+        }
+        emptyMenuAction->setIcon (VBoxGlobal::iconSet (":/delete_16px.png", ":/delete_dis_16px.png"));
+        menu->addAction (emptyMenuAction);
+    }
+}
+
+void VBoxConsoleWnd::prepareNetworkMenu()
+{
+    mDevicesNetworkMenu->clear();
+    mDevicesNetworkMenu->addAction (mDevicesNetworkDialogAction);
+}
+
+void VBoxConsoleWnd::prepareSFMenu()
+{
+    mDevicesSFMenu->clear();
+    mDevicesSFMenu->addAction (mDevicesSFDialogAction);
+}
+
+void VBoxConsoleWnd::mountMedium()
+{
+    /* Get sender action */
+    QAction *action = qobject_cast <QAction*> (sender());
+    Assert (action);
+
+    /* Get current machine */
+    CMachine machine = mSession.GetMachine();
+
+    /* Get mount-target */
+    MountTarget target = action->data().value <MountTarget>();
+
+    /* Current mount-target attributes */
+    CMediumAttachment currentAttachment = machine.GetMediumAttachment (target.name, target.port, target.device);
+    CMedium currentMedium = currentAttachment.GetMedium();
+    QString currentId = currentMedium.isNull() ? QString ("") : currentMedium.GetId();
+
+    /* New mount-target attributes */
+    QString newId = QString ("");
+    bool selectWithMediaManager = target.type != VBoxDefs::MediumType_Invalid;
+
+    /* Open Virtual Media Manager to select image id */
+    if (selectWithMediaManager)
+    {
+        /* Search for already used images */
+        QStringList usedImages;
+        foreach (const CMediumAttachment &attachment, machine.GetMediumAttachments())
+        {
+            CMedium medium = attachment.GetMedium();
+            if (attachment != currentAttachment && !medium.isNull() && !medium.GetHostDrive())
+                usedImages << medium.GetId();
+        }
+        /* Open VMM Dialog */
+        VBoxMediaManagerDlg dlg (this);
+        dlg.setup (target.type, true /* select? */, true /* refresh? */, machine, currentId, true, usedImages);
+        if (dlg.exec() == QDialog::Accepted)
+            newId = dlg.selectedId();
+        else return;
+    }
+    /* Use medium which was sent */
+    else if (!target.id.isNull() && target.id != currentId)
+        newId = target.id;
+
+    bool mount = !newId.isEmpty();
+
+    /* Remount medium to the predefined port/device */
+    bool wasMounted = false;
+    machine.MountMedium (target.name, target.port, target.device, newId, false /* force */);
+    if (machine.isOk())
+        wasMounted = true;
+    else
+    {
+        /* Ask for force remounting */
+        if (vboxProblem().cannotRemountMedium (this, machine, vboxGlobal().findMedium (mount ? newId : currentId), mount, true /* retry? */) == QIMessageBox::Ok)
+        {
+            /* Force remount medium to the predefined port/device. */
+            machine.MountMedium (target.name, target.port, target.device, newId, true /* force */);
+            if (machine.isOk())
+                wasMounted = true;
             else
-                data += QString ("<br><nobr><b>%1&nbsp;</b></nobr>"
-                                 "<nobr>%2</nobr>")
-                    .arg (it.key(), it.value());
+                vboxProblem().cannotRemountMedium (this, machine, vboxGlobal().findMedium (mount ? newId : currentId), mount, false /* retry? */);
         }
-
-        if (sfs.count() == 0)
-            data = tr ("<br><nobr><b>No shared folders</b></nobr>",
-                       "Shared folders tooltip");
-
-        sf_light->setToolTip (tip.arg (data));
     }
-    if (element & VirtualizationStuff)
+
+    /* Save medium mounted at runtime */
+    if (wasMounted && mIsAutoSaveMedia)
     {
-        bool virtEnabled = cconsole.GetDebugger().GetHWVirtExEnabled();
-        QString virtualization = virtEnabled ?
-            VBoxGlobal::tr ("Enabled", "details report (VT-x/AMD-V)") :
-            VBoxGlobal::tr ("Disabled", "details report (VT-x/AMD-V)");
-
-        bool nestEnabled = cconsole.GetDebugger().GetHWVirtExNestedPagingEnabled();
-        QString nestedPaging = nestEnabled ?
-            VBoxVMInformationDlg::tr ("Enabled", "nested paging") :
-            VBoxVMInformationDlg::tr ("Disabled", "nested paging");
-
-        QString tip (tr ("Indicates the status of the hardware virtualization "
-                         "features used by this virtual machine:"
-                         "<br><nobr><b>%1:</b>&nbsp;%2</nobr>"
-                         "<br><nobr><b>%3:</b>&nbsp;%4</nobr>",
-                         "Virtualization Stuff LED")
-                         .arg (VBoxGlobal::tr ("VT-x/AMD-V", "details report"), virtualization)
-                         .arg (VBoxVMInformationDlg::tr ("Nested Paging"), nestedPaging));
-
-        int cpuCount = cconsole.GetMachine().GetCPUCount();
-        if (cpuCount > 1)
-            tip += tr ("<br><nobr><b>%1:</b>&nbsp;%2</nobr>", "Virtualization Stuff LED")
-                      .arg (VBoxGlobal::tr ("Processor(s)", "details report")).arg (cpuCount);
-
-        mVirtLed->setToolTip (tip);
-        mVirtLed->setState (virtEnabled);
+        machine.SaveSettings();
+        if (!machine.isOk())
+            vboxProblem().cannotSaveMachineSettings (machine);
     }
-    if (element & PauseAction)
+}
+
+/**
+ *  Attach/Detach selected USB Device.
+ */
+void VBoxConsoleWnd::switchUSB (QAction *aAction)
+{
+    if (!mConsole) return;
+
+    CConsole console = mSession.GetConsole();
+    AssertWrapperOk (mSession);
+
+    CUSBDevice usb = mDevicesUSBMenu->getUSB (aAction);
+    /* if null then some other item but a USB device is selected */
+    if (usb.isNull())
+        return;
+
+    if (!aAction->isChecked())
     {
-        if (!mVmPauseAction->isChecked())
+        console.DetachUSBDevice (usb.GetId());
+        if (!console.isOk())
         {
-            mVmPauseAction->setText (VBoxGlobal::insertKeyToActionText (tr ("&Pause"), "P"));
-            mVmPauseAction->setStatusTip (
-                tr ("Suspend the execution of the virtual machine"));
+            /// @todo (r=dmik) the dialog should be either modeless
+            //  or we have to pause the VM
+            vboxProblem().cannotDetachUSBDevice (console, vboxGlobal().details (usb));
         }
-        else
-        {
-            mVmPauseAction->setText (VBoxGlobal::insertKeyToActionText (tr ("R&esume"), "P"));
-            mVmPauseAction->setStatusTip (
-                tr ("Resume the execution of the virtual machine" ) );
-        }
-        mVmPauseAction->setEnabled (isRunningOrPaused);
     }
-    if (element & DisableMouseIntegrAction)
+    else
     {
-        if (!mVmDisableMouseIntegrAction->isChecked())
+        console.AttachUSBDevice (usb.GetId());
+        if (!console.isOk())
         {
-            mVmDisableMouseIntegrAction->setText (VBoxGlobal::insertKeyToActionText (tr ("Disable &Mouse Integration"),
-                                                                                     "I"));
-            mVmDisableMouseIntegrAction->setStatusTip (
-                tr ("Temporarily disable host mouse pointer integration"));
+            /// @todo (r=dmik) the dialog should be either modeless
+            //  or we have to pause the VM
+            vboxProblem().cannotAttachUSBDevice (console, vboxGlobal().details (usb));
         }
-        else
-        {
-            mVmDisableMouseIntegrAction->setText (VBoxGlobal::insertKeyToActionText (tr ("Enable &Mouse Integration"),
-                                                                                     "I"));
-            mVmDisableMouseIntegrAction->setStatusTip (
-                tr ("Enable temporarily disabled host mouse pointer integration"));
-        }
-        if (machine_state == KMachineState_Running)
-            mVmDisableMouseIntegrAction->setEnabled (console->isMouseAbsolute());
-        else
-            mVmDisableMouseIntegrAction->setEnabled (false);
     }
+}
+
+void VBoxConsoleWnd::showIndicatorContextMenu (QIStateIndicator *aInd, QContextMenuEvent *aEvent)
+{
+    if (aInd == mCDLed)
+    {
+        mDevicesCDMenu->exec (aEvent->globalPos());
+    }
+#if 0 /* TODO: Allow to setup status-bar! */
+    else if (aInd == mFDLed)
+    {
+        mDevicesFDMenu->exec (aEvent->globalPos());
+    }
+#endif
+    else if (aInd == mNetLed)
+    {
+        if (mDevicesNetworkMenu->isEnabled())
+            mDevicesNetworkMenu->exec (aEvent->globalPos());
+    }
+    else if (aInd == mUSBLed)
+    {
+        if (mDevicesUSBMenu->isEnabled())
+            mDevicesUSBMenu->exec (aEvent->globalPos());
+    }
+    else if (aInd == mSFLed)
+    {
+        if (mDevicesSFMenu->isEnabled())
+            mDevicesSFMenu->exec (aEvent->globalPos());
+    }
+    else if (aInd == mMouseLed)
+    {
+        mVmDisMouseIntegrMenu->exec (aEvent->globalPos());
+    }
+#if 0 /* TODO: Allow to setup status-bar! */
+    else if (aInd == mVrdpLed)
+    {
+        mDevicesVRDPMenu->exec (aEvent->globalPos());
+    }
+    else if (aInd == mAutoresizeLed)
+    {
+        mVmAutoresizeMenu->exec (aEvent->globalPos());
+    }
+#endif
+}
+
+void VBoxConsoleWnd::updateDeviceLights()
+{
+    if (mConsole)
+    {
+        CConsole &console = mConsole->console();
+        int st;
+        if (mHDLed->state() != KDeviceActivity_Null)
+        {
+            st = console.GetDeviceActivity (KDeviceType_HardDisk);
+            if (mHDLed->state() != st)
+                mHDLed->setState (st);
+        }
+        if (mCDLed->state() != KDeviceActivity_Null)
+        {
+            st = console.GetDeviceActivity (KDeviceType_DVD);
+            if (mCDLed->state() != st)
+                mCDLed->setState (st);
+        }
+#if 0 /* TODO: Allow to setup status-bar! */
+        if (mFDLed->state() != KDeviceActivity_Null)
+        {
+            st = console.GetDeviceActivity (KDeviceType_Floppy);
+            if (mFDLed->state() != st)
+                mFDLed->setState (st);
+        }
+#endif
+        if (mNetLed->state() != KDeviceActivity_Null)
+        {
+            st = console.GetDeviceActivity (KDeviceType_Network);
+            if (mNetLed->state() != st)
+                mNetLed->setState (st);
+        }
+        if (mUSBLed->state() != KDeviceActivity_Null)
+        {
+            st = console.GetDeviceActivity (KDeviceType_USB);
+            if (mUSBLed->state() != st)
+                mUSBLed->setState (st);
+        }
+        if (mSFLed->state() != KDeviceActivity_Null)
+        {
+            st = console.GetDeviceActivity (KDeviceType_SharedFolder);
+            if (mSFLed->state() != st)
+                mSFLed->setState (st);
+        }
+    }
+}
+
+void VBoxConsoleWnd::updateMachineState (KMachineState aState)
+{
+    bool guruMeditation = false;
+
+    if (mConsole && mMachineState != aState)
+    {
+        switch (aState)
+        {
+            case KMachineState_Stuck:
+            {
+                guruMeditation = true;
+                break;
+            }
+            case KMachineState_Paused:
+            {
+                if (!mVmPauseAction->isChecked())
+                    mVmPauseAction->setChecked (true);
+                break;
+            }
+            case KMachineState_Running:
+            case KMachineState_Teleporting:         /** @todo Live Migration: Check out this. */
+            case KMachineState_LiveSnapshotting:
+            {
+                if (   (   mMachineState == KMachineState_Paused
+                        || mMachineState == KMachineState_TeleportingPausedVM)
+                    && mVmPauseAction->isChecked()
+                   )
+                    mVmPauseAction->setChecked (false);
+                break;
+            }
+#ifdef Q_WS_X11
+            case KMachineState_Starting:
+            case KMachineState_Restoring:
+            case KMachineState_TeleportingIn:
+            {
+                /* The keyboard handler may wish to do some release logging
+                   on startup.  Tell it that the logger is now active. */
+                doXKeyboardLogging (QX11Info::display());
+                break;
+            }
+#endif
+            default:
+                break;
+        }
+
+        bool isRunningOrPaused = aState == KMachineState_Running
+                              || aState == KMachineState_Teleporting
+                              || aState == KMachineState_LiveSnapshotting /** @todo Live Migration: Check out this. */
+                              || aState == KMachineState_Paused;
+
+        /* Enable/Disable actions that are not managed by updateAppearanceOf() */
+
+        mRunningActions->setEnabled (   aState == KMachineState_Running
+                                     || aState == KMachineState_Teleporting
+                                     || aState == KMachineState_LiveSnapshotting  /** @todo Live Migration: Check out this. */
+                                    );
+        mRunningOrPausedActions->setEnabled (isRunningOrPaused);
+
+        mMachineState = aState;
+
+        updateAppearanceOf (Caption |
+                            HardDiskStuff | DVDStuff | FloppyStuff |
+                            NetworkStuff | USBStuff | VRDPStuff |
+                            PauseAction | DisableMouseIntegrAction);
+
+        if (   aState == KMachineState_PoweredOff
+            || aState == KMachineState_Saved
+            || aState == KMachineState_Teleported
+            || aState == KMachineState_Aborted
+           )
+        {
+            /* VM has been powered off or saved or aborted, no matter
+             * internally or externally -- we must *safely* close the console
+             * window unless auto closure is disabled. */
+            if (!mNoAutoClose)
+                tryClose();
+        }
+    }
+
+    if (guruMeditation)
+    {
+        mConsole->setIgnoreGuestResize (true);
+
+        CConsole console = mConsole->console();
+        QString logFolder = console.GetMachine().GetLogFolder();
+
+        /* Take the screenshot for debugging purposes and save it */
+        QString fname = logFolder + "/VBox.png";
+
+        CDisplay dsp = console.GetDisplay();
+        QImage shot = QImage (dsp.GetWidth(), dsp.GetHeight(), QImage::Format_RGB32);
+        dsp.TakeScreenShot (shot.bits(), shot.width(), shot.height());
+        shot.save (QFile::encodeName (fname), "PNG");
+
+        if (vboxProblem().remindAboutGuruMeditation (console, QDir::toNativeSeparators (logFolder)))
+        {
+            qApp->processEvents();
+            console.PowerDown();
+            if (!console.isOk())
+                vboxProblem().cannotStopMachine (console);
+        }
+    }
+
+#ifdef Q_WS_MAC
+    if (mConsole)
+        mConsole->updateDockOverlay();
+#endif
+}
+
+void VBoxConsoleWnd::updateMouseState (int aState)
+{
+    mVmDisableMouseIntegrAction->setEnabled (aState & VBoxConsoleView::MouseAbsolute);
+
+    if ((aState & VBoxConsoleView::MouseAbsoluteDisabled) &&
+        (aState & VBoxConsoleView::MouseAbsolute) &&
+        !(aState & VBoxConsoleView::MouseCaptured))
+    {
+        mMouseLed->setState (4);
+    }
+    else
+    {
+        mMouseLed->setState (aState & (VBoxConsoleView::MouseAbsolute | VBoxConsoleView::MouseCaptured));
+    }
+}
+
+void VBoxConsoleWnd::updateAdditionsState (const QString &aVersion,
+                                           bool aActive,
+                                           bool aSeamlessSupported,
+                                           bool aGraphicsSupported)
+{
+    mVmAutoresizeGuestAction->setEnabled (aActive && aGraphicsSupported);
+    if ((mIsSeamlessSupported != aSeamlessSupported) ||
+        (mIsGraphicsSupported != aGraphicsSupported))
+    {
+        mVmSeamlessAction->setEnabled (aSeamlessSupported && aGraphicsSupported);
+        mIsSeamlessSupported = aSeamlessSupported;
+        mIsGraphicsSupported = aGraphicsSupported;
+        /* If seamless mode should be enabled then check if it is enabled
+         * currently and re-enable it if open-view procedure is finished */
+        if (mVmSeamlessAction->isChecked() && mIsOpenViewFinished && aSeamlessSupported && aGraphicsSupported)
+            toggleFullscreenMode (true, true);
+        /* Disable auto-resizing if advanced graphics are not available */
+        mConsole->setAutoresizeGuest (mIsGraphicsSupported && mVmAutoresizeGuestAction->isChecked());
+        mVmAutoresizeGuestAction->setEnabled (mIsGraphicsSupported);
+    }
+
+    /* Check the GA version only in case of additions are active */
+    if (!aActive)
+        return;
+
+    /* Check the Guest Additions version and warn the user about possible
+     * compatibility issues in case if the installed version is outdated. */
+    uint version = aVersion.toUInt();
+    QString versionStr = QString ("%1.%2")
+        .arg (RT_HIWORD (version)).arg (RT_LOWORD (version));
+    QString expectedStr = QString ("%1.%2")
+        .arg (VMMDEV_VERSION_MAJOR).arg (VMMDEV_VERSION_MINOR); /** @todo r=bird: This isn't want we want! We want the VirtualBox version of the additions, all three numbers. See @bugref{4084}.*/
+
+    if (RT_HIWORD (version) < VMMDEV_VERSION_MAJOR)
+    {
+        vboxProblem().warnAboutTooOldAdditions (this, versionStr, expectedStr);
+    }
+    else if (RT_HIWORD (version) == VMMDEV_VERSION_MAJOR &&
+             RT_LOWORD (version) <  VMMDEV_VERSION_MINOR)
+    {
+        vboxProblem().warnAboutOldAdditions (this, versionStr, expectedStr);
+    }
+    else if (version > VMMDEV_VERSION)
+    {
+        vboxProblem().warnAboutNewAdditions (this, versionStr, expectedStr);
+    }
+}
+
+void VBoxConsoleWnd::updateNetworkAdaptersState()
+{
+    updateAppearanceOf (NetworkStuff);
+}
+
+void VBoxConsoleWnd::updateUsbState()
+{
+    updateAppearanceOf (USBStuff);
+}
+
+void VBoxConsoleWnd::updateMediaDriveState (VBoxDefs::MediumType aType)
+{
+    Assert (aType == VBoxDefs::MediumType_DVD || aType == VBoxDefs::MediumType_Floppy);
+    updateAppearanceOf (aType == VBoxDefs::MediumType_DVD ? DVDStuff :
+                        aType == VBoxDefs::MediumType_Floppy ? FloppyStuff :
+                        AllStuff);
+}
+
+void VBoxConsoleWnd::updateSharedFoldersState()
+{
+    updateAppearanceOf (SharedFolderStuff);
+}
+
+/**
+ *  This slot is called just after leaving the fullscreen/seamless mode,
+ *  when the console was resized to previous size.
+ */
+void VBoxConsoleWnd::onExitFullscreen()
+{
+    mConsole->setIgnoreMainwndResize (false);
+}
+
+void VBoxConsoleWnd::unlockActionsSwitch()
+{
+    if (mIsSeamless)
+        mVmSeamlessAction->setEnabled (true);
+    else if (mIsFullscreen)
+        mVmFullscreenAction->setEnabled (true);
+    else
+    {
+        mVmSeamlessAction->setEnabled (mIsSeamlessSupported && mIsGraphicsSupported);
+        mVmFullscreenAction->setEnabled (true);
+    }
+
+#ifdef Q_WS_MAC
+    if (!mIsSeamless)
+    {
+        /* Fade back to the normal gamma */
+        CGDisplayFade (mFadeToken, 0.5, kCGDisplayBlendSolidColor, kCGDisplayBlendNormal, 0.0, 0.0, 0.0, false);
+        CGReleaseDisplayFadeReservation (mFadeToken);
+    }
+    mConsole->setMouseCoalescingEnabled (true);
+#endif
+}
+
+void VBoxConsoleWnd::mtExitMode()
+{
+    if (mIsSeamless)
+        mVmSeamlessAction->toggle();
+    else
+        mVmFullscreenAction->toggle();
+}
+
+void VBoxConsoleWnd::mtCloseVM()
+{
+    mVmCloseAction->trigger();
+}
+
+void VBoxConsoleWnd::mtMaskUpdate()
+{
+    if (mIsSeamless)
+        setMask (mConsole->lastVisibleRegion());
+}
+
+void VBoxConsoleWnd::changeDockIconUpdate (const VBoxChangeDockIconUpdateEvent &aEvent)
+{
+#ifdef Q_WS_MAC
+    if (mConsole)
+    {
+        mConsole->setDockIconEnabled (aEvent.mChanged);
+        mConsole->updateDockOverlay();
+    }
+#else
+    Q_UNUSED (aEvent);
+#endif
+}
+
+/**
+ *  Called (on non-UI thread!) when a global GUI setting changes.
+ */
+void VBoxConsoleWnd::processGlobalSettingChange (const char * /* aPublicName */, const char * /* aName */)
+{
+    mHostkeyName->setText (QIHotKeyEdit::keyName (vboxGlobal().settings().hostKey()));
 }
 
 /**
@@ -2184,17 +2838,17 @@ void VBoxConsoleWnd::updateAppearanceOf (int element)
  */
 void VBoxConsoleWnd::checkRequiredFeatures()
 {
-    if (!console) return;
+    if (!mConsole) return;
 
-    CConsole cconsole = console->console();
+    CConsole console = mConsole->console();
 
     /* Check if the virtualization feature is required. */
     bool is64BitsGuest    = vboxGlobal().virtualBox().GetGuestOSType (
-                            cconsole.GetGuest().GetOSTypeId()).GetIs64Bit();
+                            console.GetGuest().GetOSTypeId()).GetIs64Bit();
     bool fRecommendVirtEx = vboxGlobal().virtualBox().GetGuestOSType (
-                            cconsole.GetGuest().GetOSTypeId()).GetRecommendedVirtEx();
+                            console.GetGuest().GetOSTypeId()).GetRecommendedVirtEx();
     Assert(!is64BitsGuest || fRecommendVirtEx);
-    bool isVirtEnabled    = cconsole.GetDebugger().GetHWVirtExEnabled();
+    bool isVirtEnabled    = console.GetDebugger().GetHWVirtExEnabled();
     if (fRecommendVirtEx && !isVirtEnabled)
     {
         bool ret;
@@ -2213,6 +2867,331 @@ void VBoxConsoleWnd::checkRequiredFeatures()
     }
 }
 
+void VBoxConsoleWnd::activateUICustomizations()
+{
+    VBoxGlobalSettings settings = vboxGlobal().settings();
+    /* Process known keys */
+    menuBar()->setHidden (settings.isFeatureActive ("noMenuBar"));
+    statusBar()->setHidden (settings.isFeatureActive ("noStatusBar"));
+}
+
+void VBoxConsoleWnd::updateAppearanceOf (int aElement)
+{
+    if (!mConsole) return;
+
+    CMachine machine = mSession.GetMachine();
+    CConsole console = mConsole->console();
+
+    bool isStrictRunningOrPaused = mMachineState == KMachineState_Running
+                                || mMachineState == KMachineState_Paused;
+    bool isRunningOrPaused = isStrictRunningOrPaused
+                          || mMachineState == KMachineState_Teleporting
+                          || mMachineState == KMachineState_LiveSnapshotting;
+
+    if (aElement & Caption)
+    {
+        QString snapshotName;
+        if (machine.GetSnapshotCount() > 0)
+        {
+            CSnapshot snapshot = machine.GetCurrentSnapshot();
+            snapshotName = " (" + snapshot.GetName() + ")";
+        }
+        setWindowTitle (machine.GetName() + snapshotName +
+                        " [" + vboxGlobal().toString (mMachineState) + "] - " +
+                        mCaptionPrefix);
+        mMiniToolBar->setDisplayText (machine.GetName() + snapshotName);
+    }
+    if (aElement & HardDiskStuff)
+    {
+        QString tip = tr ("<p style='white-space:pre'><nobr>Indicates the activity "
+                          "of the virtual hard disks:</nobr>%1</p>", "HDD tooltip");
+        QString data;
+        bool attachmentsPresent = false;
+
+        CStorageControllerVector controllers = machine.GetStorageControllers();
+        foreach (const CStorageController &controller, controllers)
+        {
+            QString attData;
+            CMediumAttachmentVector attachments = machine.GetMediumAttachmentsOfController (controller.GetName());
+            foreach (const CMediumAttachment &attachment, attachments)
+            {
+                if (attachment.GetType() != KDeviceType_HardDisk)
+                    continue;
+                attData += QString ("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
+                    .arg (vboxGlobal().toString (StorageSlot (controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
+                    .arg (VBoxMedium (attachment.GetMedium(), VBoxDefs::MediumType_HardDisk).location());
+                attachmentsPresent = true;
+            }
+            if (!attData.isNull())
+                data += QString ("<br><nobr><b>%1</b></nobr>").arg (controller.GetName()) + attData;
+        }
+
+        if (!attachmentsPresent)
+            data += tr ("<br><nobr><b>No hard disks attached</b></nobr>", "HDD tooltip");
+
+        mHDLed->setToolTip (tip.arg (data));
+        mHDLed->setState (attachmentsPresent ? KDeviceActivity_Idle : KDeviceActivity_Null);
+    }
+    if (aElement & DVDStuff)
+    {
+        QString tip = tr ("<p style='white-space:pre'><nobr>Indicates the activity "
+                          "of the CD/DVD devices:</nobr>%1</p>", "CD/DVD tooltip");
+        QString data;
+        bool attachmentsPresent = false;
+
+        CStorageControllerVector controllers = machine.GetStorageControllers();
+        foreach (const CStorageController &controller, controllers)
+        {
+            QString attData;
+            CMediumAttachmentVector attachments = machine.GetMediumAttachmentsOfController (controller.GetName());
+            foreach (const CMediumAttachment &attachment, attachments)
+            {
+                if (attachment.GetType() != KDeviceType_DVD)
+                    continue;
+                VBoxMedium vboxMedium (attachment.GetMedium(), VBoxDefs::MediumType_DVD);
+                attData += QString ("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
+                    .arg (vboxGlobal().toString (StorageSlot (controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
+                    .arg (vboxMedium.isNull() || vboxMedium.isHostDrive() ? vboxMedium.name() : vboxMedium.location());
+                if (!vboxMedium.isNull())
+                    attachmentsPresent = true;
+            }
+            if (!attData.isNull())
+                data += QString ("<br><nobr><b>%1</b></nobr>").arg (controller.GetName()) + attData;
+        }
+
+        if (data.isNull())
+            data = tr ("<br><nobr><b>No CD/DVD devices attached</b></nobr>", "CD/DVD tooltip");
+
+        mCDLed->setToolTip (tip.arg (data));
+        mCDLed->setState (attachmentsPresent ? KDeviceActivity_Idle : KDeviceActivity_Null);
+    }
+#if 0 /* TODO: Allow to setup status-bar! */
+    if (aElement & FloppyStuff)
+    {
+        QString tip = tr ("<p style='white-space:pre'><nobr>Indicates the activity "
+                          "of the floppy devices:</nobr>%1</p>", "FD tooltip");
+        QString data;
+        bool attachmentsPresent = false;
+
+        CStorageControllerVector controllers = machine.GetStorageControllers();
+        foreach (const CStorageController &controller, controllers)
+        {
+            QString attData;
+            CMediumAttachmentVector attachments = machine.GetMediumAttachmentsOfController (controller.GetName());
+            foreach (const CMediumAttachment &attachment, attachments)
+            {
+                if (attachment.GetType() != KDeviceType_Floppy)
+                    continue;
+                VBoxMedium vboxMedium (attachment.GetMedium(), VBoxDefs::MediumType_Floppy);
+                attData += QString ("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
+                    .arg (vboxGlobal().toString (StorageSlot (controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
+                    .arg (vboxMedium.isNull() || vboxMedium.isHostDrive() ? vboxMedium.name() : vboxMedium.location());
+                if (!vboxMedium.isNull())
+                    attachmentsPresent = true;
+            }
+            if (!attData.isNull())
+                data += QString ("<br><nobr><b>%1</b></nobr>").arg (controller.GetName()) + attData;
+        }
+
+        if (data.isNull())
+            data = tr ("<br><nobr><b>No floppy devices attached</b></nobr>", "FD tooltip");
+
+        mFDLed->setToolTip (tip.arg (data));
+        mFDLed->setState (attachmentsPresent ? KDeviceActivity_Idle : KDeviceActivity_Null);
+    }
+#endif
+    if (aElement & NetworkStuff)
+    {
+        ulong maxCount = vboxGlobal().virtualBox().GetSystemProperties().GetNetworkAdapterCount();
+        ulong count = 0;
+        for (ulong slot = 0; slot < maxCount; ++ slot)
+            if (machine.GetNetworkAdapter (slot).GetEnabled())
+                ++ count;
+        mNetLed->setState (count > 0 ? KDeviceActivity_Idle : KDeviceActivity_Null);
+
+        mDevicesNetworkDialogAction->setEnabled (isStrictRunningOrPaused && count > 0);
+        mDevicesNetworkMenu->setEnabled (isStrictRunningOrPaused && count > 0);
+
+        QString tip = tr ("<p style='white-space:pre'><nobr>Indicates the activity of the "
+                           "network interfaces:</nobr>%1</p>", "Network adapters tooltip");
+        QString info;
+
+        for (ulong slot = 0; slot < maxCount; ++ slot)
+        {
+            CNetworkAdapter adapter = machine.GetNetworkAdapter (slot);
+            if (adapter.GetEnabled())
+                info += tr ("<br><nobr><b>Adapter %1 (%2)</b>: cable %3</nobr>", "Network adapters tooltip")
+                    .arg (slot + 1)
+                    .arg (vboxGlobal().toString (adapter.GetAttachmentType()))
+                    .arg (adapter.GetCableConnected() ?
+                          tr ("connected", "Network adapters tooltip") :
+                          tr ("disconnected", "Network adapters tooltip"));
+        }
+
+        if (info.isNull())
+            info = tr ("<br><nobr><b>All network adapters are disabled</b></nobr>", "Network adapters tooltip");
+
+        mNetLed->setToolTip (tip.arg (info));
+    }
+    if (aElement & USBStuff)
+    {
+        if (!mUSBLed->isHidden())
+        {
+            QString tip = tr ("<p style='white-space:pre'><nobr>Indicates the activity of "
+                              "the attached USB devices:</nobr>%1</p>", "USB device tooltip");
+            QString info;
+
+            CUSBController usbctl = machine.GetUSBController();
+            if (!usbctl.isNull() && usbctl.GetEnabled())
+            {
+                mDevicesUSBMenu->setEnabled (isStrictRunningOrPaused);
+
+                CUSBDeviceVector devsvec = console.GetUSBDevices();
+                for (int i = 0; i < devsvec.size(); ++ i)
+                {
+                    CUSBDevice usb = devsvec [i];
+                    info += QString ("<br><b><nobr>%1</nobr></b>").arg (vboxGlobal().details (usb));
+                }
+                if (info.isNull())
+                    info = tr ("<br><nobr><b>No USB devices attached</b></nobr>", "USB device tooltip");
+            }
+            else
+            {
+                mDevicesUSBMenu->setEnabled (false);
+                info = tr ("<br><nobr><b>USB Controller is disabled</b></nobr>", "USB device tooltip");
+            }
+
+            mUSBLed->setToolTip (tip.arg (info));
+        }
+    }
+    if (aElement & VRDPStuff)
+    {
+        CVRDPServer vrdpsrv = mSession.GetMachine().GetVRDPServer();
+        if (!vrdpsrv.isNull())
+        {
+            /* update menu&status icon state */
+            bool isVRDPEnabled = vrdpsrv.GetEnabled();
+            mDevicesSwitchVrdpAction->setChecked (isVRDPEnabled);
+#if 0 /* TODO: Allow to setup status-bar! */
+            mVrdpLed->setState (isVRDPEnabled ? 1 : 0);
+
+            QString tip = tr ("Indicates whether the Remote Display (VRDP Server) "
+                              "is enabled (<img src=:/vrdp_16px.png/>) or not "
+                              "(<img src=:/vrdp_disabled_16px.png/>).");
+            if (vrdpsrv.GetEnabled())
+                tip += tr ("<hr>The VRDP Server is listening on port %1").arg (vrdpsrv.GetPort());
+            mVrdpLed->setToolTip (tip);
+#endif
+        }
+    }
+    if (aElement & SharedFolderStuff)
+    {
+        QString tip = tr ("<p style='white-space:pre'><nobr>Indicates the activity of "
+                          "the machine's shared folders:</nobr>%1</p>", "Shared folders tooltip");
+
+        QString data;
+        QMap <QString, QString> sfs;
+
+        mDevicesSFMenu->setEnabled (true);
+
+        /* Permanent folders */
+        CSharedFolderVector psfvec = machine.GetSharedFolders();
+
+        for (int i = 0; i < psfvec.size(); ++ i)
+        {
+            CSharedFolder sf = psfvec [i];
+            sfs.insert (sf.GetName(), sf.GetHostPath());
+        }
+
+        /* Transient folders */
+        CSharedFolderVector tsfvec = console.GetSharedFolders();
+
+        for (int i = 0; i < tsfvec.size(); ++ i)
+        {
+            CSharedFolder sf = tsfvec[i];
+            sfs.insert (sf.GetName(), sf.GetHostPath());
+        }
+
+        for (QMap <QString, QString>::const_iterator it = sfs.constBegin(); it != sfs.constEnd(); ++ it)
+        {
+            /* Select slashes depending on the OS type */
+            if (VBoxGlobal::isDOSType (console.GetGuest().GetOSTypeId()))
+                data += QString ("<br><nobr><b>\\\\vboxsvr\\%1&nbsp;</b></nobr><nobr>%2</nobr>")
+                                 .arg (it.key(), it.value());
+            else
+                data += QString ("<br><nobr><b>%1&nbsp;</b></nobr><nobr>%2</nobr>")
+                                 .arg (it.key(), it.value());
+        }
+
+        if (sfs.count() == 0)
+            data = tr ("<br><nobr><b>No shared folders</b></nobr>", "Shared folders tooltip");
+
+        mSFLed->setToolTip (tip.arg (data));
+    }
+    if (aElement & VirtualizationStuff)
+    {
+        bool virtEnabled = console.GetDebugger().GetHWVirtExEnabled();
+        QString virtualization = virtEnabled ?
+            VBoxGlobal::tr ("Enabled", "details report (VT-x/AMD-V)") :
+            VBoxGlobal::tr ("Disabled", "details report (VT-x/AMD-V)");
+
+        bool nestEnabled = console.GetDebugger().GetHWVirtExNestedPagingEnabled();
+        QString nestedPaging = nestEnabled ?
+            VBoxVMInformationDlg::tr ("Enabled", "nested paging") :
+            VBoxVMInformationDlg::tr ("Disabled", "nested paging");
+
+        QString tip (tr ("Indicates the status of the hardware virtualization "
+                         "features used by this virtual machine:"
+                         "<br><nobr><b>%1:</b>&nbsp;%2</nobr>"
+                         "<br><nobr><b>%3:</b>&nbsp;%4</nobr>",
+                         "Virtualization Stuff LED")
+                         .arg (VBoxGlobal::tr ("VT-x/AMD-V", "details report"), virtualization)
+                         .arg (VBoxVMInformationDlg::tr ("Nested Paging"), nestedPaging));
+
+        int cpuCount = console.GetMachine().GetCPUCount();
+        if (cpuCount > 1)
+            tip += tr ("<br><nobr><b>%1:</b>&nbsp;%2</nobr>", "Virtualization Stuff LED")
+                       .arg (VBoxGlobal::tr ("Processor(s)", "details report")).arg (cpuCount);
+
+        mVirtLed->setToolTip (tip);
+        mVirtLed->setState (virtEnabled);
+    }
+    if (aElement & PauseAction)
+    {
+        if (!mVmPauseAction->isChecked())
+        {
+            mVmPauseAction->setText (VBoxGlobal::insertKeyToActionText (tr ("&Pause"), "P"));
+            mVmPauseAction->setStatusTip (tr ("Suspend the execution of the virtual machine"));
+        }
+        else
+        {
+            mVmPauseAction->setText (VBoxGlobal::insertKeyToActionText (tr ("R&esume"), "P"));
+            mVmPauseAction->setStatusTip (tr ("Resume the execution of the virtual machine" ) );
+        }
+        mVmPauseAction->setEnabled (isRunningOrPaused);
+    }
+    if (aElement & DisableMouseIntegrAction)
+    {
+        if (!mVmDisableMouseIntegrAction->isChecked())
+        {
+            mVmDisableMouseIntegrAction->setText (VBoxGlobal::insertKeyToActionText (tr ("Disable &Mouse Integration"), "I"));
+            mVmDisableMouseIntegrAction->setStatusTip (tr ("Temporarily disable host mouse pointer integration"));
+        }
+        else
+        {
+            mVmDisableMouseIntegrAction->setText (VBoxGlobal::insertKeyToActionText (tr ("Enable &Mouse Integration"), "I"));
+            mVmDisableMouseIntegrAction->setStatusTip (tr ("Enable temporarily disabled host mouse pointer integration"));
+        }
+        if (   mMachineState == KMachineState_Running
+            || mMachineState == KMachineState_Teleporting
+            || mMachineState == KMachineState_LiveSnapshotting
+           )
+            mVmDisableMouseIntegrAction->setEnabled (mConsole->isMouseAbsolute());
+        else
+            mVmDisableMouseIntegrAction->setEnabled (false);
+    }
+}
+
 /**
  * @return @c true if successfully performed the requested operation and false
  * otherwise.
@@ -2224,20 +3203,20 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
      * this. */
 
     QSize initialSize = size();
-    if (aSeamless || console->isAutoresizeGuestActive())
+    if (aSeamless || mConsole->isAutoresizeGuestActive())
     {
         QRect screen = aSeamless ?
             QApplication::desktop()->availableGeometry (this) :
             QApplication::desktop()->screenGeometry (this);
-        ULONG64 availBits = csession.GetMachine().GetVRAMSize() /* vram */
+        ULONG64 availBits = mSession.GetMachine().GetVRAMSize() /* vram */
                           * _1M /* mb to bytes */
                           * 8; /* to bits */
-        ULONG guestBpp = console->console().GetDisplay().GetBitsPerPixel();
+        ULONG guestBpp = mConsole->console().GetDisplay().GetBitsPerPixel();
         ULONG64 usedBits = (screen.width() /* display width */
                          * screen.height() /* display height */
                          * guestBpp
                          + _1M * 8) /* current cache per screen - may be changed in future */
-                         * csession.GetMachine().GetMonitorCount() /**< @todo fix assumption that all screens have same resolution */
+                         * mSession.GetMachine().GetMonitorCount() /**< @todo fix assumption that all screens have same resolution */
                          + 4096 * 8; /* adapter info */
         if (aOn && (availBits < usedBits))
         {
@@ -2259,7 +3238,7 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
         }
     }
 
-    AssertReturn (console, false);
+    AssertReturn (mConsole, false);
     AssertReturn ((mHiddenChildren.empty() == aOn), false);
     AssertReturn ((aSeamless && mIsSeamless != aOn) ||
                   (!aSeamless && mIsFullscreen != aOn), false);
@@ -2310,7 +3289,7 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
         mVmAutoresizeGuestAction->setEnabled (!aOn);
         mVmDisableMouseIntegrAction->setEnabled (!aOn);
 
-        console->console().GetDisplay().SetSeamlessMode (aOn);
+        mConsole->console().GetDisplay().SetSeamlessMode (aOn);
         mIsSeamless = aOn;
     }
     else
@@ -2332,15 +3311,15 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
 
     if (aOn)
     {
-        consoleSize = console->frameSize();
-        consoleSize -= QSize (console->frameWidth() * 2, console->frameWidth() * 2);
+        consoleSize = mConsole->frameSize();
+        consoleSize -= QSize (mConsole->frameWidth() * 2, mConsole->frameWidth() * 2);
 
         /* Toggle console to manual resize mode. */
-        console->setIgnoreMainwndResize (true);
+        mConsole->setIgnoreMainwndResize (true);
 
         /* Memorize the maximized state. */
         QDesktopWidget *dtw = QApplication::desktop();
-        was_max = isWindowMaximized() &&
+        mWasMax = isWindowMaximized() &&
                   dtw->availableGeometry().width()  == frameSize().width() &&
                   dtw->availableGeometry().height() == frameSize().height();
 
@@ -2348,8 +3327,8 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
          * fullscreen/seamless state to restore this minimum size before
          * the exiting fullscreen. Required for correct scroll-view and
          * guest display update in SDL mode. */
-        prev_min_size = console->minimumSize();
-        console->setMinimumSize (0, 0);
+        mPrevMinSize = mConsole->minimumSize();
+        mConsole->setMinimumSize (0, 0);
 
         /* let the widget take the whole available desktop space */
         QRect scrGeo = aSeamless ?
@@ -2387,11 +3366,11 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
         palette.setColor (centralWidget()->backgroundRole(), Qt::black);
         centralWidget()->setPalette (palette);
         centralWidget()->setAutoFillBackground (!aSeamless);
-        console_style = console->frameStyle();
-        console->setFrameStyle (QFrame::NoFrame);
-        console->setMaximumSize (scrGeo.size());
-        console->setHorizontalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
-        console->setVerticalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
+        mConsoleStyle = mConsole->frameStyle();
+        mConsole->setFrameStyle (QFrame::NoFrame);
+        mConsole->setMaximumSize (scrGeo.size());
+        mConsole->setHorizontalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
+        mConsole->setVerticalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
     }
     else
     {
@@ -2404,7 +3383,7 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
         /* Restore the previous scroll-view minimum size before the exiting
          * fullscreen. Required for correct scroll-view and guest display
          * update in SDL mode. */
-        console->setMinimumSize (prev_min_size);
+        mConsole->setMinimumSize (mPrevMinSize);
 
 #ifdef Q_WS_MAC
         if (aSeamless)
@@ -2423,10 +3402,10 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
         clearMask();
         centralWidget()->setPalette (mErasePalette);
         centralWidget()->setAutoFillBackground (false);
-        console->setFrameStyle (console_style);
-        console->setMaximumSize (console->sizeHint());
-        console->setHorizontalScrollBarPolicy (Qt::ScrollBarAsNeeded);
-        console->setVerticalScrollBarPolicy (Qt::ScrollBarAsNeeded);
+        mConsole->setFrameStyle (mConsoleStyle);
+        mConsole->setMaximumSize (mConsole->sizeHint());
+        mConsole->setHorizontalScrollBarPolicy (Qt::ScrollBarAsNeeded);
+        mConsole->setVerticalScrollBarPolicy (Qt::ScrollBarAsNeeded);
 
         /* Show everything hidden when going fullscreen. */
         foreach (QPointer <QWidget> child, mHiddenChildren)
@@ -2467,7 +3446,7 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
 #endif
 
     /* Send guest size hint */
-    console->toggleFSMode (consoleSize);
+    mConsole->toggleFSMode (consoleSize);
 
     /* Process all console attributes changes and sub-widget hidings */
     qApp->processEvents();
@@ -2489,22 +3468,6 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
     return true;
 }
 
-void VBoxConsoleWnd::changeDockIconUpdate (const VBoxChangeDockIconUpdateEvent &e)
-{
-#ifdef Q_WS_MAC
-    if (console)
-    {
-        console->setDockIconEnabled (e.mChanged);
-        console->updateDockOverlay();
-    }
-#else
-    Q_UNUSED (e);
-#endif
-}
-
-//
-// Private slots
-/////////////////////////////////////////////////////////////////////////////
 void VBoxConsoleWnd::switchToFullscreen (bool aOn, bool aSeamless)
 {
 #ifdef Q_WS_MAC
@@ -2533,8 +3496,16 @@ void VBoxConsoleWnd::switchToFullscreen (bool aOn, bool aSeamless)
             setGeometry (mNormalGeometry);
         }
     else
+    {
         /* Here we are going really fullscreen */
         setWindowState (windowState() ^ Qt::WindowFullScreen);
+# ifdef QT_MAC_USE_COCOA
+        /* Disable the auto show menubar feature of Qt in fullscreen. */
+        if (aOn)
+            SetSystemUIMode (kUIModeAllHidden, 0);
+# endif /* QT_MAC_USE_COCOA */
+    }
+
 # ifndef QT_MAC_USE_COCOA
     /* Reassign the correct window group. */
     SetWindowGroup (::darwinToNativeWindow (this), g);
@@ -2572,1164 +3543,46 @@ void VBoxConsoleWnd::setViewInSeamlessMode (const QRect &aTargetRect)
 #endif // !Q_WS_MAC
 }
 
-void VBoxConsoleWnd::mtExitMode()
+/**
+ *  Closes the console view opened by openView().
+ *  Does nothing if no console view was opened.
+ */
+void VBoxConsoleWnd::closeView()
 {
-    if (mIsSeamless)
-        mVmSeamlessAction->toggle();
-    else
-        mVmFullscreenAction->toggle();
-}
+    LogFlowFuncEnter();
 
-void VBoxConsoleWnd::mtCloseVM()
-{
-    mVmCloseAction->trigger();
-}
-
-void VBoxConsoleWnd::mtMaskUpdate()
-{
-    if (mIsSeamless)
-        setMask (console->lastVisibleRegion());
-}
-
-void VBoxConsoleWnd::vmFullscreen (bool aOn)
-{
-    bool ok = toggleFullscreenMode (aOn, false /* aSeamless */);
-    if (!ok)
+    if (!mConsole)
     {
-        /* on failure, restore the previous button state */
-        mVmFullscreenAction->blockSignals (true);
-        mVmFullscreenAction->setChecked (!aOn);
-        mVmFullscreenAction->blockSignals (false);
-    }
-}
-
-void VBoxConsoleWnd::vmSeamless (bool aOn)
-{
-    /* check if it is possible to enter/leave seamless mode */
-    if ((mIsSeamlessSupported && mIsGraphicsSupported) || !aOn)
-    {
-        bool ok = toggleFullscreenMode (aOn, true /* aSeamless */);
-        if (!ok)
-        {
-            /* on failure, restore the previous button state */
-            mVmSeamlessAction->blockSignals (true);
-            mVmSeamlessAction->setChecked (!aOn);
-            mVmSeamlessAction->blockSignals (false);
-        }
-    }
-}
-
-void VBoxConsoleWnd::vmAutoresizeGuest (bool on)
-{
-    if (!console)
+        LogFlow (("Already closed!\n"));
+        LogFlowFuncLeave();
         return;
+    }
 
-    /* Currently, we use only "off" and "on" icons. Later,
-     * we may want to use disabled versions of icons when no guest additions
-     * are available (to indicate that this function is ineffective). */
-#if 0
-    autoresize_state->setState (on ? 3 : 1);
-#endif
+    mConsole->detach();
+    centralWidget()->layout()->removeWidget (mConsole);
+    delete mConsole;
+    mConsole = 0;
+    mSession.Close();
+    mSession.detach();
 
-    console->setAutoresizeGuest (on);
+    LogFlowFuncLeave();
 }
 
-void VBoxConsoleWnd::vmAdjustWindow()
-{
-    if (console)
-    {
-        if (isWindowMaximized())
-            showNormal();
-        console->normalizeGeometry (true /* adjustPosition */);
-    }
-}
-
-void VBoxConsoleWnd::vmTypeCAD()
-{
-    if (console)
-    {
-        CKeyboard keyboard  = console->console().GetKeyboard();
-        Assert (!keyboard.isNull());
-        keyboard.PutCAD();
-        AssertWrapperOk (keyboard);
-    }
-}
-
-void VBoxConsoleWnd::vmTypeCABS()
-{
-#if defined(Q_WS_X11)
-    if (console)
-    {
-        CKeyboard keyboard  = console->console().GetKeyboard();
-        Assert (!keyboard.isNull());
-        static QVector <LONG> sSequence (6);
-        sSequence[0] = 0x1d; // Ctrl down
-        sSequence[1] = 0x38; // Alt down
-        sSequence[2] = 0x0E; // Backspace down
-        sSequence[3] = 0x8E; // Backspace up
-        sSequence[4] = 0xb8; // Alt up
-        sSequence[5] = 0x9d; // Ctrl up
-        keyboard.PutScancodes (sSequence);
-        AssertWrapperOk (keyboard);
-    }
-#else
-    /* we have to define this slot anyway because MOC doesn't understand ifdefs */
-#endif
-}
-
-void VBoxConsoleWnd::vmReset()
-{
-    if (console)
-    {
-        if (vboxProblem().confirmVMReset (this))
-            console->console().Reset();
-    }
-}
-
-void VBoxConsoleWnd::vmPause (bool on)
-{
-    if (console)
-    {
-        console->pause (on);
-        updateAppearanceOf (PauseAction);
-    }
-}
-
-void VBoxConsoleWnd::vmACPIShutdown()
-{
-    if (!csession.GetConsole().GetGuestEnteredACPIMode())
-        return vboxProblem().cannotSendACPIToMachine();
-
-    if (console)
-    {
-        CConsole cconsole = console->console();
-        cconsole.PowerButton();
-        if (!cconsole.isOk())
-            vboxProblem().cannotACPIShutdownMachine (cconsole);
-    }
-}
-
-void VBoxConsoleWnd::vmClose()
-{
-    if (console)
-    {
-        close();
-    }
-}
-
-void VBoxConsoleWnd::vmTakeSnapshot()
-{
-    AssertReturn (console, (void) 0);
-
-    /* remember the paused state */
-    bool wasPaused = machine_state == KMachineState_Paused;
-    if (!wasPaused)
-    {
-        /* Suspend the VM and ignore the close event if failed to do so.
-         * pause() will show the error message to the user. */
-        if (!console->pause (true))
-            return;
-    }
-
-    CMachine cmachine = csession.GetMachine();
-
-    VBoxTakeSnapshotDlg dlg (this);
-
-    QString typeId = cmachine.GetOSTypeId();
-    dlg.mLbIcon->setPixmap (vboxGlobal().vmGuestOSTypeIcon (typeId));
-
-    /* search for the max available filter index */
-    int maxSnapShotIndex = 0;
-    QString snapShotName = tr ("Snapshot %1");
-    QRegExp regExp (QString ("^") + snapShotName.arg ("([0-9]+)") + QString ("$"));
-    CSnapshot index = cmachine.GetSnapshot (QString::null);
-    while (!index.isNull())
-    {
-        /* Check the current snapshot name */
-        QString name = index.GetName();
-        int pos = regExp.indexIn (name);
-        if (pos != -1)
-            maxSnapShotIndex = regExp.cap (1).toInt() > maxSnapShotIndex ?
-                               regExp.cap (1).toInt() : maxSnapShotIndex;
-        /* Traversing to the next child */
-        CSnapshotVector c = index.GetChildren();
-        if (c.size() > 0)
-            index = c[0];
-        else
-            break;
-    }
-    dlg.mLeName->setText (snapShotName.arg (maxSnapShotIndex + 1));
-
-    if (dlg.exec() == QDialog::Accepted)
-    {
-        CConsole cconsole = csession.GetConsole();
-
-        CProgress progress =
-            cconsole.TakeSnapshot (dlg.mLeName->text().trimmed(),
-                                   dlg.mTeDescription->toPlainText());
-
-        if (cconsole.isOk())
-        {
-            /* show the "Taking Snapshot" progress dialog */
-            vboxProblem().
-                showModalProgressDialog (progress, cmachine.GetName(), this, 0);
-
-            if (progress.GetResultCode() != 0)
-                vboxProblem().cannotTakeSnapshot (progress);
-        }
-        else
-            vboxProblem().cannotTakeSnapshot (cconsole);
-    }
-
-    /* restore the running state if needed */
-    if (!wasPaused)
-        console->pause (false);
-}
-
-void VBoxConsoleWnd::vmShowInfoDialog()
-{
-    VBoxVMInformationDlg::createInformationDlg (csession, console);
-}
-
-void VBoxConsoleWnd::vmDisableMouseIntegr (bool aOff)
-{
-    if (console)
-    {
-        console->setMouseIntegrationEnabled (!aOff);
-        updateAppearanceOf (DisableMouseIntegrAction);
-    }
-}
-
-void VBoxConsoleWnd::devicesMountFloppyImage()
-{
-    if (!console) return;
-
-    VBoxMediaManagerDlg dlg (this);
-
-    dlg.setup (VBoxDefs::MediaType_Floppy, true /* aDoSelect */,
-               true /* aRefresh */, csession.GetMachine());
-
-    if (dlg.exec() == QDialog::Accepted)
-    {
-        CFloppyDrive drv = csession.GetMachine().GetFloppyDrive();
-
-        drv.MountImage (dlg.selectedId());
-
-        AssertWrapperOk (drv);
-        if (drv.isOk())
-        {
-            if (mIsAutoSaveMedia)
-            {
-                CMachine m = csession.GetMachine();
-                m.SaveSettings();
-                if (!m.isOk())
-                    vboxProblem().cannotSaveMachineSettings (m);
-            }
-        }
-    }
-}
-
-void VBoxConsoleWnd::devicesUnmountFloppy()
-{
-    if (!console) return;
-
-    CFloppyDrive drv = csession.GetMachine().GetFloppyDrive();
-    drv.Unmount();
-    if (drv.isOk())
-    {
-        if (mIsAutoSaveMedia)
-        {
-            CMachine m = csession.GetMachine();
-            m.SaveSettings();
-            if (!m.isOk())
-                vboxProblem().cannotSaveMachineSettings (m);
-        }
-    }
-
-    if (drv.GetState() != KDriveState_NotMounted)
-    {
-        /* Looks like Main make no force unmounting here
-         * but IFloppyDrive::Unmount() is called synchronously.
-         * Also Main performs rollback for this procedure if
-         * it was failed by some reason - for example if the
-         * guest OS locked IFloppyDrive preventing image from
-         * unmounting - so no way to know the error was really
-         * occured. Thats why we just checking the drive state
-         * and warn a user about problem if present. */
-        vboxProblem().cannotEjectDrive();
-    }
-}
-
-void VBoxConsoleWnd::devicesMountDVDImage()
-{
-    if (!console) return;
-
-    VBoxMediaManagerDlg dlg (this);
-
-    dlg.setup (VBoxDefs::MediaType_DVD, true /* aDoSelect */,
-               true /* aRefresh */, csession.GetMachine());
-
-    if (dlg.exec() == QDialog::Accepted)
-    {
-        CDVDDrive drv = csession.GetMachine().GetDVDDrive();
-
-        drv.MountImage (dlg.selectedId());
-
-        AssertWrapperOk (drv);
-        if (drv.isOk())
-        {
-            if (mIsAutoSaveMedia)
-            {
-                CMachine m = csession.GetMachine();
-                m.SaveSettings();
-                if (!m.isOk())
-                    vboxProblem().cannotSaveMachineSettings (m);
-            }
-        }
-    }
-}
-
-
-void VBoxConsoleWnd::devicesUnmountDVD()
-{
-    if (!console) return;
-
-    CDVDDrive drv = csession.GetMachine().GetDVDDrive();
-    drv.Unmount();
-    AssertWrapperOk (drv);
-    if (drv.isOk())
-    {
-        if (mIsAutoSaveMedia)
-        {
-            CMachine m = csession.GetMachine();
-            m.SaveSettings();
-            if (!m.isOk())
-                vboxProblem().cannotSaveMachineSettings (m);
-        }
-    }
-
-    if (drv.GetState() != KDriveState_NotMounted)
-    {
-        /* Looks like Main make no force unmounting here
-         * but IDVDDrive::Unmount() is called synchronously.
-         * Also Main performs rollback for this procedure if
-         * it was failed by some reason - for example if the
-         * guest OS locked IDVDDrive preventing image from
-         * unmounting - so no way to know the error was really
-         * occured. Thats why we just checking the drive state
-         * and warn a user about problem if present. */
-        vboxProblem().cannotEjectDrive();
-    }
-}
-
-void VBoxConsoleWnd::devicesSwitchVrdp (bool aOn)
-{
-    if (!console) return;
-
-    CVRDPServer vrdpServer = csession.GetMachine().GetVRDPServer();
-    /* this method should not be executed if vrdpServer is null */
-    Assert (!vrdpServer.isNull());
-
-    vrdpServer.SetEnabled (aOn);
-    updateAppearanceOf (VRDPStuff);
-}
-
-void VBoxConsoleWnd::devicesOpenSFDialog()
-{
-    if (!console) return;
-
-    VBoxSFDialog dlg (console, csession);
-    dlg.exec();
-}
-
-void VBoxConsoleWnd::devicesInstallGuestAdditions()
-{
-#if defined (DEBUG_dmik) /* subscribe yourself here if you care for this behavior. */
-    QString src1 = qApp->applicationDirPath() + "/../../release/bin/VBoxGuestAdditions.iso";
-    QString src2 = qApp->applicationDirPath() + "/../../release/bin/additions/VBoxGuestAdditions.iso";
-#else
-    char szAppPrivPath [RTPATH_MAX];
-    int rc = RTPathAppPrivateNoArch (szAppPrivPath, sizeof (szAppPrivPath));
-    AssertRC (rc);
-
-    QString src1 = QString (szAppPrivPath) + "/VBoxGuestAdditions.iso";
-    QString src2 = qApp->applicationDirPath() + "/additions/VBoxGuestAdditions.iso";
-#endif
-
-    /* Check the standard image locations */
-    if (QFile::exists (src1))
-        return installGuestAdditionsFrom (src1);
-    else if (QFile::exists (src2))
-        return installGuestAdditionsFrom (src2);
-
-    /* Check for the already registered image */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-    QString name = QString ("VBoxGuestAdditions_%1.iso")
-                            .arg (vbox.GetVersion().remove ("_OSE"));
-
-    CDVDImageVector vec = vbox.GetDVDImages();
-    for (CDVDImageVector::ConstIterator it = vec.begin();
-         it != vec.end(); ++ it)
-    {
-        QString path = it->GetLocation();
-        /* Compare the name part ignoring the file case */
-        QString fn = QFileInfo (path).fileName();
-        if (RTPathCompare (name.toUtf8().constData(), fn.toUtf8().constData()) == 0)
-            return installGuestAdditionsFrom (path);
-    }
-
-    /* Download the required image */
-    int result = vboxProblem().cannotFindGuestAdditions (
-        QDir::toNativeSeparators (src1), QDir::toNativeSeparators (src2));
-    if (result == QIMessageBox::Yes)
-    {
-        QString source = QString ("http://download.virtualbox.org/virtualbox/%1/")
-                                  .arg (vbox.GetVersion().remove ("_OSE")) + name;
-        QString target = QDir (vboxGlobal().virtualBox().GetHomeFolder())
-                               .absoluteFilePath (name);
-
-        VBoxAdditionsDownloader *dl =
-            new VBoxAdditionsDownloader (source, target, mDevicesInstallGuestToolsAction);
-        statusBar()->addWidget (dl, 0);
-        dl->start();
-    }
-}
-
-void VBoxConsoleWnd::installGuestAdditionsFrom (const QString &aSource)
-{
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-    QString uuid;
-
-    CDVDImage image = vbox.FindDVDImage (aSource);
-    if (image.isNull())
-    {
-        image = vbox.OpenDVDImage (aSource, uuid);
-        if (vbox.isOk())
-            uuid = image.GetId();
-    }
-    else
-        uuid = image.GetId();
-
-    if (!vbox.isOk())
-        return vboxProblem().cannotOpenMedium (this, vbox,
-                                               VBoxDefs::MediaType_DVD, aSource);
-
-    Assert (!uuid.isNull());
-    CDVDDrive drv = csession.GetMachine().GetDVDDrive();
-    drv.MountImage (uuid);
-    AssertWrapperOk (drv);
-    if (drv.isOk())
-    {
-        if (mIsAutoSaveMedia)
-        {
-            CMachine m = csession.GetMachine();
-            m.SaveSettings();
-            if (!m.isOk())
-                vboxProblem().cannotSaveMachineSettings (m);
-        }
-    }
-}
-
-void VBoxConsoleWnd::setMask (const QRegion &aRegion)
-{
-    QRegion region = aRegion;
-
-    /* The global mask shift cause of toolbars and such things. */
-    region.translate (mMaskShift.width(), mMaskShift.height());
-
-    /* Including mini toolbar area */
-    QRegion toolBarRegion (mMiniToolBar->mask());
-    toolBarRegion.translate (mMiniToolBar->mapToGlobal (toolBarRegion.boundingRect().topLeft()) - QPoint (1, 0));
-    region += toolBarRegion;
-
-    /* Restrict the drawing to the available space on the screen.
-     * (The &operator is better than the previous used -operator,
-     * because this excludes space around the real screen also.
-     * This is necessary for the mac.) */
-    region &= mStrictedRegion;
-
-#ifdef Q_WS_WIN
-    QRegion difference = mPrevRegion.subtract (region);
-
-    /* Region offset calculation */
-    int fleft = 0, ftop = 0;
-    /* I think this isn't necessary anymore because the 4 shifting spacer.
-     * Has to be verified. */
-//    if (isTopLevel())
-//    {
-//        ftop = topData()->ftop;
-//        fleft = topData()->fleft;
-//    }
-
-    /* Visible region calculation */
-    HRGN newReg = CreateRectRgn (0, 0, 0, 0);
-    CombineRgn (newReg, region.handle(), 0, RGN_COPY);
-    OffsetRgn (newReg, fleft, ftop);
-
-    /* Invisible region calculation */
-    HRGN diffReg = CreateRectRgn (0, 0, 0, 0);
-    CombineRgn (diffReg, difference.handle(), 0, RGN_COPY);
-    OffsetRgn (diffReg, fleft, ftop);
-
-    /* Set the current visible region and clean the previous */
-    SetWindowRgn (winId(), newReg, FALSE);
-    RedrawWindow (NULL, NULL, diffReg, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
-    RedrawWindow (console->viewport()->winId(), NULL, NULL, RDW_INVALIDATE);
-
-    mPrevRegion = region;
-#elif defined(Q_WS_MAC)
-# if defined(VBOX_GUI_USE_QUARTZ2D)
-    if (vboxGlobal().vmRenderMode() == VBoxDefs::Quartz2DMode)
-    {
-        /* If we are using the Quartz2D backend we have to trigger
-         * an repaint only. All the magic clipping stuff is done
-         * in the paint engine. */
-        ::darwinWindowInvalidateShape (console->viewport());
-    }
-    else
-# endif
-    {
-        /* This is necessary to avoid the flicker by an mask update.
-         * See http://lists.apple.com/archives/Carbon-development/2001/Apr/msg01651.html
-         * for the hint.
-         * There *must* be a better solution. */
-        if (!region.isEmpty())
-            region |= QRect (0, 0, 1, 1);
-//        /* Save the current region for later processing in the darwin event handler. */
-//        mCurrRegion = region;
-//        /* We repaint the screen before the ReshapeCustomWindow command. Unfortunately
-//         * this command flushes a copy of the backbuffer to the screen after the new
-//         * mask is set. This leads into a missplaced drawing of the content. Currently
-//         * no alternative to this and also this is not 100% perfect. */
-//        repaint();
-//        qApp->processEvents();
-//        /* Now force the reshaping of the window. This is definitly necessary. */
-//        ReshapeCustomWindow (reinterpret_cast <WindowPtr> (winId()));
-        QMainWindow::setMask (region);
-//        HIWindowInvalidateShadow (::darwinToWindowRef (console->viewport()));
-    }
-#else
-    QMainWindow::setMask (region);
-#endif
-}
-
-void VBoxConsoleWnd::clearMask()
-{
-#ifdef Q_WS_WIN
-    SetWindowRgn (winId(), 0, TRUE);
-#else
-    QMainWindow::clearMask();
-#endif
-}
-
-/**
- *  Prepares the "Mount Floppy..." menu by populating the existent host
- *  floppies.
- */
-void VBoxConsoleWnd::prepareFloppyMenu()
-{
-    if (!console) return;
-
-    mDevicesMountFloppyMenu->clear();
-
-    CHostFloppyDrive selected = csession.GetMachine().GetFloppyDrive().GetHostDrive();
-
-    hostFloppyMap.clear();
-    CHostFloppyDriveVector drvvec =
-        vboxGlobal().virtualBox().GetHost().GetFloppyDrives();
-    for (int i = 0; i < drvvec.size(); ++i)
-    {
-        CHostFloppyDrive hostFloppy = drvvec[i];
-        /** @todo set icon */
-        QString drvName = hostFloppy.GetName();
-        QString description = hostFloppy.GetDescription();
-        QString fullName = description.isEmpty() ?
-            drvName :
-            QString ("%1 (%2)").arg (description, drvName);
-        QAction *action = mDevicesMountFloppyMenu->addAction (tr ("Host Drive ") + fullName);
-        action->setStatusTip (tr ("Mount the selected physical drive of the host PC",
-                                  "Floppy tip"));
-        hostFloppyMap [action] = hostFloppy;
-        if (machine_state != KMachineState_Running && machine_state != KMachineState_Paused)
-            action->setEnabled (false);
-        else if (!selected.isNull())
-            if (!selected.GetName().compare (hostFloppy.GetName()))
-                action->setEnabled (false);
-    }
-
-    if (mDevicesMountFloppyMenu->actions().count() > 0)
-        mDevicesMountFloppyMenu->addSeparator();
-    mDevicesMountFloppyMenu->addAction (mDevicesMountFloppyImageAction);
-
-    /* if shown as a context menu */
-    if(mDevicesMountFloppyMenu->menuAction()->data().toBool())
-    {
-        mDevicesMountFloppyMenu->addSeparator();
-        mDevicesMountFloppyMenu->addAction (mDevicesUnmountFloppyAction);
-    }
-}
-
-/**
- *  Prepares the "Capture DVD..." menu by populating the existent host
- *  CD/DVD-ROM drives.
- */
-void VBoxConsoleWnd::prepareDVDMenu()
-{
-    if (!console) return;
-
-    mDevicesMountDVDMenu->clear();
-
-    CHostDVDDrive selected = csession.GetMachine().GetDVDDrive().GetHostDrive();
-
-    hostDVDMap.clear();
-    CHostDVDDriveVector drvvec =
-        vboxGlobal().virtualBox().GetHost().GetDVDDrives();
-    for (int i = 0; i < drvvec.size(); ++i)
-    {
-        CHostDVDDrive hostDVD = drvvec[i];
-        /** @todo set icon */
-        QString drvName = hostDVD.GetName();
-        QString description = hostDVD.GetDescription();
-        QString fullName = description.isEmpty() ?
-            drvName :
-            QString ("%1 (%2)").arg (description, drvName);
-        QAction *action = mDevicesMountDVDMenu->addAction (
-            tr ("Host Drive ") + fullName);
-        action->setStatusTip (tr ("Mount the selected physical drive of the host PC",
-                                  "CD/DVD tip"));
-        hostDVDMap [action] = hostDVD;
-        if (machine_state != KMachineState_Running && machine_state != KMachineState_Paused)
-            action->setEnabled (false);
-        else if (!selected.isNull())
-            if (!selected.GetName().compare (hostDVD.GetName()))
-                action->setEnabled (false);
-    }
-
-    if (mDevicesMountDVDMenu->actions().count() > 0)
-        mDevicesMountDVDMenu->addSeparator();
-    mDevicesMountDVDMenu->addAction (mDevicesMountDVDImageAction);
-
-    /* if shown as a context menu */
-    if(mDevicesMountDVDMenu->menuAction()->data().toBool())
-    {
-        mDevicesMountDVDMenu->addSeparator();
-        mDevicesMountDVDMenu->addAction (mDevicesUnmountDVDAction);
-    }
-}
-
-/**
- *  Prepares the "Network adapter" menu by populating the existent adapters.
- */
-void VBoxConsoleWnd::prepareNetworkMenu()
-{
-    mDevicesNetworkMenu->clear();
-    ulong count = qMin ((ULONG) 4,
-        vboxGlobal().virtualBox().GetSystemProperties().GetNetworkAdapterCount());
-    for (ulong slot = 0; slot < count; ++ slot)
-    {
-        CNetworkAdapter adapter = csession.GetMachine().GetNetworkAdapter (slot);
-        QAction *action = mDevicesNetworkMenu->addAction (tr ("Adapter %1", "network").arg (slot+1));
-        action->setEnabled (adapter.GetEnabled());
-        action->setCheckable (true);
-        action->setChecked (adapter.GetEnabled() && adapter.GetCableConnected());
-        action->setData (static_cast<qulonglong> (slot));
-    }
-}
-
-void VBoxConsoleWnd::setDynamicMenuItemStatusTip (QAction *aAction)
-{
-    QString tip;
-
-    if (sender() == mDevicesNetworkMenu)
-    {
-        tip = aAction->isChecked() ?
-            tr ("Disconnect the cable from the selected virtual network adapter") :
-            tr ("Connect the cable to the selected virtual network adapter");
-    }
-
-    if (!tip.isNull())
-    {
-        StatusTipEvent *ev = new StatusTipEvent (tip);
-        QApplication::postEvent (this, ev);
-        mWaitForStatusBarChange = true;
-    }
-}
-
-void VBoxConsoleWnd::statusTipChanged (const QString & /*aMes*/)
-{
-    mStatusBarChangedInside = mWaitForStatusBarChange;
-    mWaitForStatusBarChange = false;
-}
-
-void VBoxConsoleWnd::clearStatusBar()
-{
-    if (mStatusBarChangedInside)
-        statusBar()->clearMessage();
-}
-
-/**
- *  Captures a floppy device corresponding to a given menu action.
- */
-void VBoxConsoleWnd::captureFloppy (QAction *aAction)
-{
-    if (!console) return;
-
-    CHostFloppyDrive d = hostFloppyMap [aAction];
-    /* if null then some other item but host drive is selected */
-    if (d.isNull()) return;
-
-    CFloppyDrive drv = csession.GetMachine().GetFloppyDrive();
-    drv.CaptureHostDrive (d);
-    AssertWrapperOk (drv);
-
-    if (drv.isOk())
-    {
-        if (mIsAutoSaveMedia)
-        {
-            CMachine m = csession.GetMachine();
-            m.SaveSettings();
-            if (!m.isOk())
-                vboxProblem().cannotSaveMachineSettings (m);
-        }
-    }
-}
-
-/**
- *  Captures a CD/DVD-ROM device corresponding to a given menu action.
- */
-void VBoxConsoleWnd::captureDVD (QAction *aAction)
-{
-    if (!console) return;
-
-    CHostDVDDrive d = hostDVDMap [aAction];
-    /* if null then some other item but host drive is selected */
-    if (d.isNull()) return;
-
-    CDVDDrive drv = csession.GetMachine().GetDVDDrive();
-    drv.CaptureHostDrive (d);
-    AssertWrapperOk (drv);
-
-    if (drv.isOk())
-    {
-        if (mIsAutoSaveMedia)
-        {
-            CMachine m = csession.GetMachine();
-            m.SaveSettings();
-            if (!m.isOk())
-                vboxProblem().cannotSaveMachineSettings (m);
-        }
-    }
-}
-
-/**
- *  Switch the cable connected/disconnected for the selected network adapter
- */
-void VBoxConsoleWnd::activateNetworkMenu (QAction *aAction)
-{
-    ulong slot = aAction->data().toULongLong();
-    CNetworkAdapter adapter = csession.GetMachine().GetNetworkAdapter (slot);
-    bool connected = adapter.GetCableConnected();
-    if (adapter.GetEnabled())
-        adapter.SetCableConnected (!connected);
-}
-
-/**
- *  Attach/Detach selected USB Device.
- */
-void VBoxConsoleWnd::switchUSB (QAction *aAction)
-{
-    if (!console) return;
-
-    CConsole cconsole = csession.GetConsole();
-    AssertWrapperOk (csession);
-
-    CUSBDevice usb = mDevicesUSBMenu->getUSB (aAction);
-    /* if null then some other item but a USB device is selected */
-    if (usb.isNull())
-        return;
-
-    if (!aAction->isChecked())
-    {
-        cconsole.DetachUSBDevice (usb.GetId());
-        if (!cconsole.isOk())
-        {
-            /// @todo (r=dmik) the dialog should be either modeless
-            //  or we have to pause the VM
-            vboxProblem().cannotDetachUSBDevice (cconsole,
-                                                 vboxGlobal().details (usb));
-        }
-    }
-    else
-    {
-        cconsole.AttachUSBDevice (usb.GetId());
-        if (!cconsole.isOk())
-        {
-            /// @todo (r=dmik) the dialog should be either modeless
-            //  or we have to pause the VM
-            vboxProblem().cannotAttachUSBDevice (cconsole,
-                                                 vboxGlobal().details (usb));
-        }
-    }
-}
-
-void VBoxConsoleWnd::showIndicatorContextMenu (QIStateIndicator *ind, QContextMenuEvent *e)
-{
-    if (ind == cd_light)
-    {
-        /* set "this is a context menu" flag */
-        mDevicesMountDVDMenu->menuAction()->setData (true);
-        mDevicesMountDVDMenu->exec (e->globalPos());
-        mDevicesMountDVDMenu->menuAction()->setData (false);
-    }
-    else
-    if (ind == fd_light)
-    {
-        /* set "this is a context menu" flag */
-        mDevicesMountFloppyMenu->menuAction()->setData (true);
-        mDevicesMountFloppyMenu->exec (e->globalPos());
-        mDevicesMountFloppyMenu->menuAction()->setData (false);
-    }
-    else
-    if (ind == usb_light)
-    {
-        if (mDevicesUSBMenu->isEnabled())
-        {
-            /* set "this is a context menu" flag */
-            mDevicesUSBMenu->menuAction()->setData (true);
-            mDevicesUSBMenu->exec (e->globalPos());
-            mDevicesUSBMenu->menuAction()->setData (false);
-        }
-    }
-    else
-    /* if (ind == vrdp_state)
-    {
-        mDevicesVRDPMenu->exec (e->globalPos());
-    }
-    else */
-    if (ind == autoresize_state)
-    {
-        mVmAutoresizeMenu->exec (e->globalPos());
-    }
-    else
-    if (ind == mouse_state)
-    {
-        mVmDisMouseIntegrMenu->exec (e->globalPos());
-    }
-    else
-    if (ind == sf_light)
-    {
-        /* Showing the context menu that always contains a single item is a
-         * bit stupid; let's better execute this item's action directly. The
-         * menu itself is kept just in case if we need more than one item in
-         * the future. */
-        /* mDevicesSFMenu->exec (e->globalPos()); */
-        if (mDevicesSFDialogAction->isEnabled())
-            mDevicesSFDialogAction->trigger();
-    }
-    else
-    if (ind == net_light)
-    {
-        if (mDevicesNetworkMenu->isEnabled())
-        {
-            /* set "this is a context menu" flag */
-            mDevicesNetworkMenu->menuAction()->setData (true);
-            mDevicesNetworkMenu->exec (e->globalPos());
-            mDevicesNetworkMenu->menuAction()->setData (false);
-        }
-    }
-}
-
-void VBoxConsoleWnd::updateDeviceLights()
-{
-    if (console) {
-        CConsole &cconsole = console->console();
-        int st;
-        if (hd_light->state() != KDeviceActivity_Null) {
-            st = cconsole.GetDeviceActivity (KDeviceType_HardDisk);
-            if (hd_light->state() != st)
-                hd_light->setState (st);
-        }
-        if (cd_light->state() != KDeviceActivity_Null) {
-            st = cconsole.GetDeviceActivity (KDeviceType_DVD);
-            if (cd_light->state() != st)
-                cd_light->setState (st);
-        }
-        if (fd_light->state() != KDeviceActivity_Null) {
-            st = cconsole.GetDeviceActivity (KDeviceType_Floppy);
-            if (fd_light->state() != st)
-                fd_light->setState (st);
-        }
-        if (net_light->state() != KDeviceActivity_Null) {
-            st = cconsole.GetDeviceActivity (KDeviceType_Network);
-            if (net_light->state() != st)
-                net_light->setState (st);
-        }
-        if (usb_light->state() != KDeviceActivity_Null) {
-            st = cconsole.GetDeviceActivity (KDeviceType_USB);
-            if (usb_light->state() != st)
-                usb_light->setState (st);
-        }
-        if (sf_light->state() != KDeviceActivity_Null) {
-            st = cconsole.GetDeviceActivity (KDeviceType_SharedFolder);
-            if (sf_light->state() != st)
-                sf_light->setState (st);
-        }
-    }
-}
-
-void VBoxConsoleWnd::updateMachineState (KMachineState state)
-{
-    bool guruMeditation = false;
-
-    if (console && machine_state != state)
-    {
-        if (state >= KMachineState_Running)
-        {
-            switch (state)
-            {
-                case KMachineState_Stuck:
-                {
-                    guruMeditation = true;
-                    break;
-                }
-                case KMachineState_Paused:
-                {
-                    if (!mVmPauseAction->isChecked())
-                        mVmPauseAction->setChecked (true);
-                    break;
-                }
-                case KMachineState_Running:
-                {
-                    if (machine_state == KMachineState_Paused && mVmPauseAction->isChecked())
-                        mVmPauseAction->setChecked (false);
-                    break;
-                }
-#ifdef Q_WS_X11
-                case KMachineState_Starting:
-                {
-                    /* The keyboard handler may wish to do some release logging
-                       on startup.  Tell it that the logger is now active. */
-                    doXKeyboardLogging(QX11Info::display());
-                    break;
-                }
-#endif
-                default:
-                    break;
-            }
-        }
-
-        bool isRunningOrPaused = state == KMachineState_Running ||
-                                 state == KMachineState_Paused;
-
-        /* enable/disable actions that are not managed by
-         * updateAppearanceOf() */
-
-        mRunningActions->setEnabled (state == KMachineState_Running);
-        mRunningOrPausedActions->setEnabled (isRunningOrPaused);
-
-        machine_state = state;
-
-        updateAppearanceOf (Caption | FloppyStuff | DVDStuff | NetworkStuff |
-                            USBStuff | VRDPStuff | PauseAction |
-                            DisableMouseIntegrAction);
-
-        if (state < KMachineState_Running)
-        {
-            /*
-             *  VM has been powered off or saved or aborted, no matter
-             *  internally or externally -- we must *safely* close the console
-             *  window unless auto closure is disabled.
-             */
-            if (!no_auto_close)
-                tryClose();
-        }
-    }
-
-    if (guruMeditation)
-    {
-        CConsole cconsole = console->console();
-        QString logFolder = cconsole.GetMachine().GetLogFolder();
-
-        /* Take the screenshot for debugging purposes and save it */
-        QString fname = logFolder + "/VBox.png";
-
-        /// @todo for some reason, IDisplay::takeScreenShot() may not work
-        /// properly on a VM which is Stuck -- investigate it.
-        CDisplay dsp = cconsole.GetDisplay();
-        QImage shot = QImage (dsp.GetWidth(), dsp.GetHeight(), QImage::Format_RGB32);
-        dsp.TakeScreenShot (shot.bits(), shot.width(), shot.height());
-        shot.save (QFile::encodeName (fname), "PNG");
-
-        if (vboxProblem().remindAboutGuruMeditation (
-                cconsole, QDir::toNativeSeparators (logFolder)))
-        {
-            qApp->processEvents();
-            cconsole.PowerDown();
-            if (!cconsole.isOk())
-                vboxProblem().cannotStopMachine (cconsole);
-        }
-    }
-
-#ifdef Q_WS_MAC
-    if (console)
-        console->updateDockOverlay();
-#endif
-}
-
-void VBoxConsoleWnd::updateMouseState (int state)
-{
-    mVmDisableMouseIntegrAction->setEnabled (state & VBoxConsoleView::MouseAbsolute);
-
-    if ((state & VBoxConsoleView::MouseAbsoluteDisabled) &&
-        (state & VBoxConsoleView::MouseAbsolute) &&
-        !(state & VBoxConsoleView::MouseCaptured))
-    {
-        mouse_state->setState (4);
-    }
-    else
-    {
-        mouse_state->setState (state & (VBoxConsoleView::MouseAbsolute |
-                                        VBoxConsoleView::MouseCaptured));
-    }
-}
-
-
-void VBoxConsoleWnd::updateAdditionsState (const QString &aVersion,
-                                           bool aActive,
-                                           bool aSeamlessSupported,
-                                           bool aGraphicsSupported)
-{
-    mVmAutoresizeGuestAction->setEnabled (aActive && aGraphicsSupported);
-    if (   (mIsSeamlessSupported != aSeamlessSupported)
-        || (mIsGraphicsSupported != aGraphicsSupported))
-    {
-        mVmSeamlessAction->setEnabled (aSeamlessSupported && aGraphicsSupported);
-        mIsSeamlessSupported = aSeamlessSupported;
-        mIsGraphicsSupported = aGraphicsSupported;
-        /* If seamless mode should be enabled then check if it is enabled
-         * currently and re-enable it if open-view procedure is finished */
-        if (   mVmSeamlessAction->isChecked()
-            && mIsOpenViewFinished
-            && aSeamlessSupported
-            && aGraphicsSupported)
-            toggleFullscreenMode (true, true);
-        /* Disable auto-resizing if advanced graphics are not available */
-        console->setAutoresizeGuest (   mIsGraphicsSupported
-                                     && mVmAutoresizeGuestAction->isChecked());
-        mVmAutoresizeGuestAction->setEnabled (mIsGraphicsSupported);
-    }
-
-    /* Check the GA version only in case of additions are active */
-    if (!aActive)
-        return;
-
-    /* Check the Guest Additions version and warn the user about possible
-     * compatibility issues in case if the installed version is outdated. */
-    uint version = aVersion.toUInt();
-    QString versionStr = QString ("%1.%2")
-        .arg (RT_HIWORD (version)).arg (RT_LOWORD (version));
-    QString expectedStr = QString ("%1.%2")
-        .arg (VMMDEV_VERSION_MAJOR).arg (VMMDEV_VERSION_MINOR);
-
-    if (RT_HIWORD (version) < VMMDEV_VERSION_MAJOR)
-    {
-        vboxProblem().warnAboutTooOldAdditions (this, versionStr, expectedStr);
-    }
-    else if (RT_HIWORD (version) == VMMDEV_VERSION_MAJOR &&
-             RT_LOWORD (version) <  VMMDEV_VERSION_MINOR)
-    {
-        vboxProblem().warnAboutOldAdditions (this, versionStr, expectedStr);
-    }
-    else if (version > VMMDEV_VERSION)
-    {
-        vboxProblem().warnAboutNewAdditions (this, versionStr, expectedStr);
-    }
-}
-
-void VBoxConsoleWnd::updateMediaDriveState (VBoxDefs::MediaType aType)
-{
-    Assert (aType == VBoxDefs::MediaType_DVD || aType == VBoxDefs::MediaType_Floppy);
-    updateAppearanceOf (aType == VBoxDefs::MediaType_DVD ? DVDStuff :
-                        aType == VBoxDefs::MediaType_Floppy ? FloppyStuff :
-                        AllStuff);
-}
-
-void VBoxConsoleWnd::updateSharedFoldersState()
-{
-    updateAppearanceOf (SharedFolderStuff);
-}
-
-void VBoxConsoleWnd::updateUsbState()
-{
-    updateAppearanceOf (USBStuff);
-}
-
-void VBoxConsoleWnd::updateNetworkAdarptersState()
-{
-    updateAppearanceOf (NetworkStuff);
-}
-
-/**
- *  Helper to safely close the main console window.
- *
- *  This method ensures that close() will not be called if there is some
- *  modal widget currently being executed, as it can cause uninitialization
- *  at the point of code where it is not expected at all (example:
- *  VBoxConsoleView::mouseEvent() calling
- *  VBoxProblemReporter::confirmInputCapture()). Instead, an attempt to
- *  close the current modal widget is done and tryClose() is rescheduled for
- *  later execution using a single-shot zero timer.
- *
- *  In particular, this method is used by updateMachineState() when the VM
- *  goes offline, which can even happen if we are inside the modal event loop,
- *  (for example, the VM has been externally powered off or the guest OS
- *  has initiated a shutdown procedure).
- */
-void VBoxConsoleWnd::tryClose()
-{
-    /* First close any open modal & popup widgets. Use a single shot with
-     * timeout 0 to allow the widgets to cleany close and test then again. If
-     * all open widgets are closed destroy ourself. */
-
-    /// #warning "port me":
-    /// @todo (r=dsen) we have to test this on windows
-
-    QWidget *widget = QApplication::activeModalWidget() ?
-                      QApplication::activeModalWidget() :
-                      QApplication::activePopupWidget() ?
-                      QApplication::activePopupWidget() : 0;
-    if (widget)
-    {
-        widget->close();
-        QTimer::singleShot (0, this, SLOT (tryClose()));
-    }
-    else
-        close();
-}
-
-/**
- *  Called (on non-UI thread!) when a global GUI setting changes.
- */
-void VBoxConsoleWnd::processGlobalSettingChange (const char * /*publicName*/,
-                                                 const char * /*name*/)
-{
-    hostkey_name->setText (QIHotKeyEdit::keyName (vboxGlobal().settings().hostKey()));
-}
+#ifdef VBOX_WITH_DEBUGGER_GUI
 
 /**
  * Prepare the Debug menu.
  */
 void VBoxConsoleWnd::dbgPrepareDebugMenu()
 {
-#ifdef VBOX_WITH_DEBUGGER_GUI
     /* The "Logging" item. */
     bool fEnabled = false;
     bool fChecked = false;
-    CConsole cconsole = csession.GetConsole();
-    if (cconsole.isOk())
+    CConsole console = mSession.GetConsole();
+    if (console.isOk())
     {
-        CMachineDebugger cdebugger = cconsole.GetDebugger();
-        if (cconsole.isOk())
+        CMachineDebugger cdebugger = console.GetDebugger();
+        if (console.isOk())
         {
             fEnabled = true;
             fChecked = cdebugger.GetLogEnabled() != FALSE;
@@ -3739,7 +3592,6 @@ void VBoxConsoleWnd::dbgPrepareDebugMenu()
         mDbgLoggingAction->setEnabled (fEnabled);
     if (fChecked != mDbgLoggingAction->isChecked())
         mDbgLoggingAction->setChecked (fChecked);
-#endif /* VBOX_WITH_DEBUGGER_GUI */
 }
 
 /**
@@ -3747,10 +3599,8 @@ void VBoxConsoleWnd::dbgPrepareDebugMenu()
  */
 void VBoxConsoleWnd::dbgShowStatistics()
 {
-#ifdef VBOX_WITH_DEBUGGER_GUI
     if (dbgCreated())
         mDbgGuiVT->pfnShowStatistics (mDbgGui);
-#endif
 }
 
 /**
@@ -3758,30 +3608,24 @@ void VBoxConsoleWnd::dbgShowStatistics()
  */
 void VBoxConsoleWnd::dbgShowCommandLine()
 {
-#ifdef VBOX_WITH_DEBUGGER_GUI
     if (dbgCreated())
         mDbgGuiVT->pfnShowCommandLine (mDbgGui);
-#endif
 }
 
 /**
  * Called when the Debug->Logging menu item is selected.
  */
-void VBoxConsoleWnd::dbgLoggingToggled(bool aState)
+void VBoxConsoleWnd::dbgLoggingToggled (bool aState)
 {
     NOREF(aState);
-#ifdef VBOX_WITH_DEBUGGER_GUI
-    CConsole cconsole = csession.GetConsole();
-    if (cconsole.isOk())
+    CConsole console = mSession.GetConsole();
+    if (console.isOk())
     {
-        CMachineDebugger cdebugger = cconsole.GetDebugger();
-        if (cconsole.isOk())
-            cdebugger.SetLogEnabled(aState);
+        CMachineDebugger cdebugger = console.GetDebugger();
+        if (console.isOk())
+            cdebugger.SetLogEnabled (aState);
     }
-#endif
 }
-
-#ifdef VBOX_WITH_DEBUGGER_GUI
 
 /**
  * Ensures that the debugger GUI instance is ready.
@@ -3799,18 +3643,18 @@ bool VBoxConsoleWnd::dbgCreated()
         return false;
 
     PFNDBGGUICREATE pfnGuiCreate;
-    int rc = RTLdrGetSymbol (hLdrMod, "DBGGuiCreate", (void **)&pfnGuiCreate);
+    int rc = RTLdrGetSymbol (hLdrMod, "DBGGuiCreate", (void**) &pfnGuiCreate);
     if (RT_SUCCESS (rc))
     {
-        ISession *pISession = csession.raw();
+        ISession *pISession = mSession.raw();
         rc = pfnGuiCreate (pISession, &mDbgGui, &mDbgGuiVT);
         if (RT_SUCCESS (rc))
         {
-            if (    DBGGUIVT_ARE_VERSIONS_COMPATIBLE (mDbgGuiVT->u32Version, DBGGUIVT_VERSION)
-                ||  mDbgGuiVT->u32EndVersion == mDbgGuiVT->u32Version)
+            if (DBGGUIVT_ARE_VERSIONS_COMPATIBLE (mDbgGuiVT->u32Version, DBGGUIVT_VERSION) ||
+                mDbgGuiVT->u32EndVersion == mDbgGuiVT->u32Version)
             {
-                mDbgGuiVT->pfnSetParent (mDbgGui, (QWidget *)this);
-                mDbgGuiVT->pfnSetMenu (mDbgGui, (QMenu *)mDbgMenu);
+                mDbgGuiVT->pfnSetParent (mDbgGui, (QWidget*) this);
+                mDbgGuiVT->pfnSetMenu (mDbgGui, (QMenu*) mDbgMenu);
                 dbgAdjustRelativePos();
                 return true;
             }
@@ -3824,8 +3668,8 @@ bool VBoxConsoleWnd::dbgCreated()
     else
         LogRel (("RTLdrGetSymbol(,\"DBGGuiCreate\",) -> %Rrc\n", rc));
 
-    mDbgGui = NULL;
-    mDbgGuiVT = NULL;
+    mDbgGui = 0;
+    mDbgGuiVT = 0;
     return false;
 }
 
@@ -3837,8 +3681,8 @@ void VBoxConsoleWnd::dbgDestroy()
     if (mDbgGui)
     {
         mDbgGuiVT->pfnDestroy (mDbgGui);
-        mDbgGui = NULL;
-        mDbgGuiVT = NULL;
+        mDbgGui = 0;
+        mDbgGuiVT = 0;
     }
 }
 
@@ -3856,8 +3700,64 @@ void VBoxConsoleWnd::dbgAdjustRelativePos()
 
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
+VBoxNetworkDialog::VBoxNetworkDialog (QWidget *aParent, CSession &aSession)
+    : QIWithRetranslateUI <QDialog> (aParent)
+    , mSettings (0)
+    , mSession (aSession)
+{
+    setModal (true);
+    /* Setup Dialog's options */
+    setWindowIcon (QIcon (":/nw_16px.png"));
+    setSizeGripEnabled (true);
+
+    /* Setup main dialog's layout */
+    QVBoxLayout *mainLayout = new QVBoxLayout (this);
+    VBoxGlobal::setLayoutMargin (mainLayout, 10);
+    mainLayout->setSpacing (10);
+
+    /* Setup settings layout */
+    mSettings = new VBoxVMSettingsNetworkPage (true);
+    mSettings->setOrderAfter (this);
+    VBoxGlobal::setLayoutMargin (mSettings->layout(), 0);
+    mSettings->getFrom (aSession.GetMachine());
+    mainLayout->addWidget (mSettings);
+
+    /* Setup button's layout */
+    QIDialogButtonBox *buttonBox = new QIDialogButtonBox (QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Help);
+
+    connect (buttonBox, SIGNAL (helpRequested()), &vboxProblem(), SLOT (showHelpHelpDialog()));
+    connect (buttonBox, SIGNAL (accepted()), this, SLOT (accept()));
+    connect (buttonBox, SIGNAL (rejected()), this, SLOT (reject()));
+    mainLayout->addWidget (buttonBox);
+
+    retranslateUi();
+}
+
+void VBoxNetworkDialog::retranslateUi()
+{
+    setWindowTitle (tr ("Network Adapters"));
+}
+
+void VBoxNetworkDialog::accept()
+{
+    mSettings->putBackTo();
+    CMachine machine = mSession.GetMachine();
+    machine.SaveSettings();
+    if (!machine.isOk())
+        vboxProblem().cannotSaveMachineSettings (machine);
+    QDialog::accept();
+}
+
+void VBoxNetworkDialog::showEvent (QShowEvent *aEvent)
+{
+    resize (450, 300);
+    VBoxGlobal::centerWidget (this, parentWidget());
+    setMinimumWidth (400);
+    QDialog::showEvent (aEvent);
+}
+
 VBoxSFDialog::VBoxSFDialog (QWidget *aParent, CSession &aSession)
-    : QIWithRetranslateUI<QDialog> (aParent)
+    : QIWithRetranslateUI <QDialog> (aParent)
     , mSettings (0)
     , mSession (aSession)
 {

@@ -1,4 +1,4 @@
-/* $Id: CPUMInternal.h $ */
+/* $Id: CPUMInternal.h 23794 2009-10-15 11:50:03Z vboxsync $ */
 /** @file
  * CPUM - Internal header file.
  */
@@ -285,8 +285,10 @@ typedef struct CPUM
         uint32_t            ecx;
     } CPUFeaturesExt;
 
-    /* CPU manufacturer. */
-    CPUMCPUVENDOR           enmCPUVendor;
+    /* Host CPU manufacturer. */
+    CPUMCPUVENDOR           enmHostCpuVendor;
+    /* Guest CPU manufacturer. */
+    CPUMCPUVENDOR           enmGuestCpuVendor;
 
     /** CR4 mask */
     struct
@@ -297,7 +299,9 @@ typedef struct CPUM
 
     /** Have we entered rawmode? */
     bool                    fRawEntered;
-    uint8_t                 abPadding[3 + (HC_ARCH_BITS == 64) * 4];
+    /** Synthetic CPU type? */
+    bool                    fSyntheticCpu;
+    uint8_t                 abPadding[2 + (HC_ARCH_BITS == 64) * 4];
 
     /** The standard set of CpuId leafs. */
     CPUMCPUID               aGuestCpuIdStd[6];
@@ -308,8 +312,10 @@ typedef struct CPUM
     /** The default set of CpuId leafs. */
     CPUMCPUID               GuestCpuIdDef;
 
+#if HC_ARCH_BITS == 32
     /** Align the next member, and thereby the structure, on a 64-byte boundrary. */
-    uint8_t                 abPadding2[HC_ARCH_BITS == 32 ? 8 : 4];
+    uint8_t                 abPadding2[4];
+#endif
 
     /**
      * Guest context on raw mode entry.

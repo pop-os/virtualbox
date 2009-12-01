@@ -1,4 +1,4 @@
-/* $Id: RTProcIsRunningByName-generic.cpp $ */
+/* $Id: RTProcIsRunningByName-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - RTProcIsRunningByName, generic stub.
  */
@@ -28,10 +28,12 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/process.h>
+#include "internal/iprt.h"
 
 
 RTR3DECL(bool) RTProcIsRunningByName(const char *pszName)

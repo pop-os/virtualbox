@@ -92,6 +92,7 @@ WITH_HARDENING=1
 BUILD_LIBXML2=
 BUILD_LIBXSLT=
 BUILD_LIBCURL=
+BUILD_LIBSSL=
 CC="gcc"
 CC32=""
 CC64=""
@@ -105,6 +106,7 @@ AS86="as86"
 XSLTPROC="xsltproc"
 GENISOIMAGE="genisoimage"
 MKISOFS="mkisofs"
+INCCRYPTO=""
 LIBCRYPTO="-lcrypto"
 LIBPTHREAD="-lpthread"
 LIBCAP="-lcap"
@@ -119,6 +121,7 @@ INCZ=""
 LIBZ="-lz"
 INCPNG=""
 LIBPNG="-lpng"
+CXX_FLAGS=""
 if [ "$OS" = "freebsd" ]; then
   INCCURL="-I/usr/local/include"
   LIBCURL="-L/usr/local/lib -lcurl"
@@ -255,8 +258,8 @@ test_compile()
   echo "compiling the following source file:" >> $LOG
   cat $ODIR.tmp_src.cc >> $LOG
   echo "using the following command line:" >> $LOG
-  echo "$CXX -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc \"$1\"" >> $LOG
-  $CXX -g -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc $1 >> $LOG 2>&1
+  echo "$CXX $CXX_FLAGS -g -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc \"$1\"" >> $LOG
+  $CXX $CXX_FLAGS -g -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc $1 >> $LOG 2>&1
   if [ $? -ne 0 ]; then
     if [ -z "$4" ]; then
       echo
@@ -264,7 +267,6 @@ test_compile()
       echo "  Check the file $LOG for detailed error information."
       fail
     else
-      echo "not found."
       echo >> $LOG
       echo >> $LOG
     fi
@@ -808,26 +810,28 @@ check_libidl()
 #
 check_ssl()
 {
-  test_header ssl
-  cat > $ODIR.tmp_src.cc << EOF
+  if [ -z "$BUILD_LIBSSL" ]; then
+    test_header ssl
+    cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <openssl/opensslv.h>
 extern "C" int main(void)
 {
   printf("found version %s", OPENSSL_VERSION_TEXT);
-#if OPENSSL_VERSION_NUMBER >= 0x00907000
+#if OPENSSL_VERSION_NUMBER >= 0x00908000
   printf(", OK.\n");
   return 0;
 #else
-  printf(", expected version 0.9.7 or higher\n");
+  printf(", expected version 0.9.8 or higher\n");
   return 1;
 #endif
 }
 EOF
-  if test_compile $LIBCRYPTO libcrypto openssl; then
-    if test_execute nofatal; then
-      cnf_append "SDK_VBOX_OPENSSL_INCS" ""
-      cnf_append "SDK_VBOX_OPENSSL_LIBS" "`strip_l "$LIBCRYPTO"`"
+    if test_compile "$INCCRYPTO $LIBCRYPTO" libcrypto openssl; then
+      if test_execute nofatal; then
+        cnf_append "SDK_VBOX_OPENSSL_INCS" "`strip_I "$INCCRYPTO"`"
+        cnf_append "SDK_VBOX_OPENSSL_LIBS" "`strip_l "$LIBCRYPTO"`"
+      fi
     fi
   fi
 }
@@ -923,9 +927,7 @@ extern "C" int main(void)
 }
 EOF
   [ -n "$INCPNG" ] && I_INCPNG=`prefix_I "$INCPNG"`
-#  if test_compile "$LIBPNG $I_INCPNG" libpng libpng nofatal; then
   if test_compile "$LIBPNG $I_INCPNG" libpng libpng; then
-#    if test_execute nofatal; then
     if test_execute; then
       cnf_append "SDK_VBOX_LIBPNG_LIBS" "`strip_l "$LIBPNG"`"
       cnf_append "SDK_VBOX_LIBPNG_INCS" "$INCPNG"
@@ -998,6 +1000,7 @@ EOF
       return 0;
     fi
   fi
+  echo "not found."
   test_header linux_pam
   cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
@@ -1123,6 +1126,7 @@ EOF
       cnf_append "VBOX_WITH_SECURELABEL" ""
     fi
   else
+    echo "not found -- disabling VBoxSDL secure label."
     cnf_append "VBOX_WITH_SECURELABEL" ""
   fi
 }
@@ -1238,6 +1242,22 @@ EOF
   fi
 }
 
+#
+# Check for OpenGL
+#
+check_opengl()
+{
+  # On darwin this is a on/off decision only
+  if [ "$OS" = "darwin" ]; then
+    test_header "OpenGL support"
+    echo "enabled"
+    cnf_append "VBOX_WITH_CROGL"     "1"
+  else
+    check_xmu
+    check_mesa
+  fi
+}
+
 
 #
 # Check for the Xmu library, needed by OpenGL
@@ -1275,7 +1295,6 @@ EOF
     cnf_append "VBOX_XMU_LIBS" "`strip_l "$LIBXMU"`"
   fi
 }
-
 
 #
 # Check for Mesa, needed by OpenGL
@@ -1323,15 +1342,29 @@ check_qt4()
   foundqt4=
   test_header Qt4
   if [ "$OS" = "darwin" ]; then
-    if [ -f "/System/Library/Frameworks/QtCore.framework/QtCore" ]; then
-      PATH_SDK_QT4="/System/Library/Framework/QtCore.framework"
-    elif [ -f "/Library/Frameworks/QtCore.framework/QtCore" ]; then
-      PATH_SDK_QT4="/Library/Frameworks/QtCore.framework"
-    fi
+    # First check if there is the internal version of Qt. If yes nothing else
+    # has to be done.
+    QT_INTERNAL=`/bin/ls -rd1 $PWD/tools/$BUILD_TARGET.$BUILD_PLATFORM_ARCH/qt/* 2> /dev/null`
+    for t in $QT_INTERNAL; do
+        if [ -f "$t/Frameworks/QtCoreVBox.framework/QtCoreVBox" ]; then
+          cnf_append "VBOX_WITH_QT4_SUN" "1"
+          log_success "use internal version"
+          return
+        fi
+    done
+    # Now try the user provided directory and some of the standard directories.
+    QT_TRIES="$QT4DIR /System/Library /Library"
+    for t in $QT_TRIES; do
+        if [ -f "$t/Frameworks/QtCore.framework/QtCore" ]; then
+          PATH_SDK_QT4="$t"
+          break
+        fi
+    done
+    # Add the necessary params for building the test application
     if [ -n "$PATH_SDK_QT4" ]; then
       foundqt4=1
-      INCQT4="$PATH_SDK_QT4/Headers"
-      LIBQT4=
+      INCQT4=-I$PATH_SDK_QT4/Frameworks/QtCore.framework/Headers
+      LIBQT4=-F$PATH_SDK_QT4/Frameworks
       FLGQT4="-framework QtCore"
     else
       log_failure "Qt4 framework not found (can be disabled using --disable-qt4)"
@@ -1371,11 +1404,11 @@ check_qt4()
 extern "C" int main(void)
 {
   printf("found version %s", QT_VERSION_STR);
-#if QT_VERSION >= 0x040300
+#if QT_VERSION >= 0x040400
   printf(", OK.\n");
   return 0;
 #else
-  printf(", expected version 4.3.0 or higher\n");
+  printf(", expected version 4.4.0 or higher\n");
   return 1;
 #endif
 }
@@ -1404,11 +1437,11 @@ EOF
 extern "C" int main(void)
 {
   printf("found version %s", QT_VERSION_STR);
-#if QT_VERSION >= 0x040300
+#if QT_VERSION >= 0x040400
   printf(", OK.\n");
   return 0;
 #else
-  printf(", expected version 4.3.0 or higher\n");
+  printf(", expected version 4.4.0 or higher\n");
   return 1;
 #endif
 }
@@ -1416,7 +1449,21 @@ EOF
     [ -n "$INCQT4" ] && I_INCQT4=`prefix_I "$INCQT4"`
     if test_compile "$LIBQT4 $LIBPTHREAD $I_INCQT4 $FLGQT4" qt4 qt4 nofatal; then
       if test_execute_path "`strip_L "$LIBQT4"`"; then
-        if [ "$OS" != "darwin" ]; then
+        if [ "$OS" = "darwin" ]; then
+          # Successful build & run the test application so add the necessary
+          # params to AutoConfig.kmk
+          cnf_append "PATH_SDK_QT4_INC" "$PATH_SDK_QT4/Frameworks"
+          cnf_append "PATH_SDK_QT4_LIB" "$PATH_SDK_QT4/Frameworks"
+          cnf_append "PATH_SDK_QT4" "$PATH_SDK_QT4/Frameworks"
+          # Check for the moc tool in the Qt directory found & some standard
+          # directories.
+          for q in $PATH_SDK_QT4 /usr /Developer/Tools/Qt; do
+            if which_wrapper "$q/bin/moc" > /dev/null; then
+              cnf_append "PATH_TOOL_QT4" "$q"
+              cnf_append "PATH_TOOL_QT4_BIN" "$q/bin"
+            fi
+          done
+        else
           # strip .../QtCore as we add components ourself
           INCQT4=`echo "$INCQT4"|$KBUILD_SED 's|\([^ ]*\)/QtCore|\1|g; s| $||g'`
           # store only the first path, remove all other pathes
@@ -1584,6 +1631,19 @@ check_kbuild()
     echo "export PATH" >> $ENV
     echo "unset path_kbuild_bin path_dev_bin" >> $ENV
     KBUILD_SED="$KBUILDDIR_BIN/kmk_sed"
+  elif [ "$OS.$BUILD_MACHINE" = "darwin.amd64" ]; then
+    # Currently there are no amd64 kBuild bins. So use the x86 variant in any case.
+    KBUILDDIR_BIN="$KBUILDDIR/bin/$OS.x86"
+    echo "export PATH_KBUILD=\"`cd $KBUILDDIR ; pwd`\"" >> $ENV
+    echo "export PATH_DEVTOOLS=\"$DEVDIR\"" >> $ENV
+    echo "path_kbuild_bin=\"\$PATH_KBUILD/bin/\$BUILD_TARGET.x86\"" >> $ENV
+    echo "export PATH_KBUILD_BIN=\"\$path_kbuild_bin\"" >> $ENV
+    echo "path_dev_bin=\"\$PATH_DEVTOOLS/\$BUILD_TARGET.\$BUILD_PLATFORM_ARCH\"/bin" >> $ENV
+    echo "echo \"\$PATH\" | grep -q \"\$path_kbuild_bin\" || PATH=\"\$path_kbuild_bin:\$PATH\"" >> $ENV
+    echo "echo \"\$PATH\" | grep -q \"\$path_dev_bin\" || PATH=\"\$path_dev_bin:\$PATH\"" >> $ENV
+    echo "export PATH" >> $ENV
+    echo "unset path_kbuild_bin path_dev_bin" >> $ENV
+    KBUILD_SED="$KBUILDDIR_BIN/kmk_sed"
   elif check_avail "kmk" KBUILDDIR really; then
     # check for installed kBuild
     KBUILD_SED="`which_wrapper kmk_sed`"
@@ -1675,6 +1735,14 @@ EOF
 check_python()
 {
   test_header "python support"
+
+  # On darwin this is a on/off decision only
+  if [ "$OS" = "darwin" ]; then
+    echo "enabled"
+    cnf_append "VBOX_WITH_PYTHON"     "1"
+    return
+  fi
+
   cat > $ODIR.tmp_src.cc << EOF
 #include <cstdio>
 #include <Python.h>
@@ -1835,20 +1903,37 @@ check_darwinversion()
   test_header "Darwin version"
   darwin_ver=`uname -r`
   case "$darwin_ver" in
+    10\.*)
+      darwin_ver="10.6"
+      sdk=/Developer/SDKs/MacOSX10.5.sdk
+      CXX_FLAGS="-mmacosx-version-min=10.5 -isysroot $sdk -Wl,-syslibroot,$sdk"
+#      test "$CC" = "gcc" && CC="gcc-4.0"
+#      test "$CXX" = "g++" && CXX="g++-4.0"
+      ;;
     9\.*)
       darwin_ver="10.5"
-      #cnf_append "VBOX_TARGET_MAC_OS_X_VERSION_10_5" "1"
+      sdk=/Developer/SDKs/MacOSX10.5.sdk
+      CXX_FLAGS="-mmacosx-version-min=10.5 -isysroot $sdk -Wl,-syslibroot,$sdk"
+#      test "$CC" = "gcc" && CC="gcc-4.0"
+#      test "$CXX" = "g++" && CXX="g++-4.0"
+      cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_6" "1"
       ;;
     8\.*)
       darwin_ver="10.4"
+      sdk=/Developer/SDKs/MacOSX10.4u.sdk 
+      CXX_FLAGS="-mmacosx-version-min=10.4 -isysroot $sdk -Wl,-syslibroot,$sdk"
+#      test "$CC" = "gcc" && CC="gcc-4.0"
+#      test "$CXX" = "g++" && CXX="g++-4.0"
+      cnf_append "VBOX_WITH_COCOA_QT" ""
+      cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_6" "1"
       ;;
     *)
-      echo "  failed to determin darwin version. (uname -r: $darwin_ver)"
+      echo "  failed to determine Darwin version. (uname -r: $darwin_ver)"
       fail
       darwin_ver="unknown"
       ;;
   esac
-  log_success "found version $darwin_ver"
+  log_success "found version $darwin_ver (SDK: $sdk)"
 }
 
 
@@ -1877,45 +1962,53 @@ check_i386elfgcc()
 #
 show_help()
 {
-  cat << EOF
+cat << EOF
 Usage: ./configure [OPTIONS]...
 
 Configuration:
   -h, --help               display this help and exit
   --nofatal                don't abort on errors
-  --disable-xpcom          disable XPCOM and related stuff
-  --disable-python         disable python bindings
-  --disable-sdl-ttf        disable SDL_ttf detection
-  --disable-alsa           disable the ALSA sound backend
-  --disable-pulse          disable the PulseAudio backend
-  --disable-dbus           don't use DBus and hal for hardware detection
-  --disable-kmods          don't build Linux kernel modules (host and guest)
+EOF
+[ $WITH_XPCOM   -eq 1 ] && echo "  --disable-xpcom          disable XPCOM and related stuff"
+[ $WITH_PYTHON  -eq 1 ] && echo "  --disable-python         disable python bindings"
+[ $WITH_SDL_TTF -eq 1 ] && echo "  --disable-sdl-ttf        disable SDL_ttf detection"
+[ $WITH_ALSA    -eq 1 ] && echo "  --disable-alsa           disable the ALSA sound backend"
+[ $WITH_PULSE   -eq 1 ] && echo "  --disable-pulse          disable the PulseAudio backend"
+[ $WITH_DBUS    -eq 1 ] && echo "  --disable-dbus           don't use DBus and hal for hardware detection"
+[ $WITH_KMODS   -eq 1 ] && echo "  --disable-kmods          don't build Linux kernel modules (host and guest)"
+[ $WITH_OPENGL  -eq 1 ] && echo "  --disable-opengl         disable OpenGL support"
+[ $WITH_GSOAP   -eq 0 ] && echo "  --enable-webservice      enable the webservice stuff"
+cat << EOF
   --disable-hardening      don't be strict about /dev/vboxdrv access
-  --disable-opengl         disable OpenGL support
-  --enable-webservice      enable the webservice stuff
   --build-libxml2          build libxml2 from sources
   --build-libxslt          build libxslt from sources
+  --build-libssl           build openssl from sources (PUEL only)
   --build-libcurl          build libcurl from sources (PUEL only)
-  --setup-wine             setup a Wine directory and register the hhc hack
+EOF
+[ "$OS"   != "darwin" ] && echo "  --setup-wine             setup a Wine directory and register the hhc hack"
+cat << EOF
 
 Paths:
   --with-gcc=PATH          location of the gcc compiler [$CC]
   --with-g++=PATH          location of the g++ compiler [$CXX]
   --with-kbuild=DIR        kbuild directory [$KBUILDDIR]
   --with-iasl=PATH         location of the iasl compiler [$IASL]
-  --with-linux=DIR         Linux kernel source directory [$LINUX]
   --with-mkisofs=PATH      location of mkisofs [$MKISOFS]
-  --with-qt-dir=DIR        directory for Qt4 headers/libraries [pkgconfig]
-  --with-gsoap-dir=PATH    directory for gSOAP compiler/headers/libraries
-                           (soapcpp2 and wsdl2h, soapstd2.h, libgsoap++.a/so)
-  --with-gsoap-import=PATH directory for gSOAP import files (stlvector.h)
+EOF
+[ "$OS"    = "linux" ] && echo "  --with-linux=DIR         Linux kernel source directory [$LINUX]"
+[ $WITH_QT4    -eq 1 ] && echo "  --with-qt-dir=DIR        directory for Qt4 headers/libraries [pkgconfig]"
+[ $WITH_GSOAP  -eq 1 ] && echo "  --with-gsoap-dir=PATH    directory for gSOAP compiler/headers/libraries"
+[ $WITH_GSOAP  -eq 1 ] && echo "                           (soapcpp2 and wsdl2h, soapstd2.h, libgsoap++.a/so)"
+[ $WITH_GSOAP  -eq 1 ] && echo "  --with-gsoap-import=PATH directory for gSOAP import files (stlvector.h)"
+cat << EOF
+  --with-openssl-dir=DIR   directory for OpenSSL headers/libraries
   --out-path=PATH          the folder to which configuration and build output
                            should go
 
 Build type:
   -d, --build-debug        build with debugging symbols and assertions
   --build-profile          build with profiling support
-  --build-headless         build headless (without any X11 frontend)
+  --build-headless         build headless (without any GUI frontend)
 EOF
   exit 0
 }
@@ -1924,6 +2017,29 @@ EOF
 #
 # The body.
 #
+
+# test if we are OSE
+if [ $OSE -eq 1 -a -d "`cd \`dirname $0\`; pwd`/src/VBox/Devices/USB" ]; then
+  echo "Found USB devices, assuming VBOX_OSE = FALSE" >> $LOG
+  echo >> $LOG
+  OSE=0
+fi
+
+# Change OS specific defaults; must be before all other stuff
+if [ "$OS" = "darwin" ]; then
+  WITH_SDL=0
+  WITH_SDL_TTF=0
+  WITH_X11=0
+  WITH_ALSA=0
+  WITH_PULSE=0
+  WITH_DBUS=0
+  WITH_KMODS=0
+  BUILD_LIBXSLT=1
+  BUILD_LIBXML2=1
+  [ $OSE -eq 1 ] || BUILD_LIBCURL=1
+  [ $OSE -eq 1 ] || BUILD_LIBSSL=1
+fi
+
 
 # scan command line options
 for option in $*; do
@@ -1954,6 +2070,11 @@ for option in $*; do
       QT4DIR=`echo $option | cut -d'=' -f2`
       QT4DIR_PKGCONFIG=0
       ;;
+    --with-openssl-dir=*)
+      OPENSSLDIR=`echo $option | cut -d'=' -f2`
+      INCCRYPTO="-I${OPENSSLDIR}/include"
+      LIBCRYPTO="${OPENSSLDIR}/lib/libcrypto.a"
+      ;;
     --with-gsoap-dir=*)
       GSOAP=`echo $option | cut -d'=' -f2`
       ;;
@@ -1969,44 +2090,47 @@ for option in $*; do
     --with-mkisofs=*)
       MKISOFS=`echo $option | cut -d'=' -f2`
       ;;
+    --target-arch=*)
+      TARGET_MACHINE=`echo $option | cut -d'=' -f2`
+      ;;
     --disable-xpcom)
-      WITH_XPCOM=0
+      [ $WITH_XPCOM -eq 1 ] && WITH_XPCOM=0
       ;;
     --disable-python)
-      WITH_PYTHON=0
+      [ $WITH_PYTHON -eq 1 ] && WITH_PYTHON=0
       ;;
     --disable-sdl-ttf)
-      WITH_SDL_TTF=0
+      [ $WITH_SDL_TTF -eq 1 ] && WITH_SDL_TTF=0
       ;;
     --disable-qt)
-      WITH_QT4=0
+      [ $WITH_QT4 -eq 1 ] && WITH_QT4=0
       ;;
     --disable-qt4)
-      WITH_QT4=0
+      [ $WITH_QT4 -eq 1 ] && WITH_QT4=0
       ;;
     --disable-alsa)
-      WITH_ALSA=0
+      [ $WITH_ALSA -eq 1 ] && WITH_ALSA=0
       ;;
     --disable-pulse)
-      WITH_PULSE=0
+      [ $WITH_PULSE -eq 1 ] && WITH_PULSE=0
       ;;
     --disable-dbus)
-      WITH_DBUS=0
+      [ $WITH_DBUS -eq 1 ] && WITH_DBUS=0
       ;;
     --disable-kmods)
-      WITH_KMODS=0
+      [ $WITH_KMODS -eq 1 ] && WITH_KMODS=0
       ;;
     --disable-opengl)
-      WITH_OPENGL=0
+      [ $WITH_OPENGL -eq 1 ] && WITH_OPENGL=0
+      ;;
+    --enable-webservice)
+      [ $WITH_GSOAP -eq 0 ] && WITH_GSOAP=1
       ;;
     --disable-hardening)
       WITH_HARDENING=0
       ;;
     --enable-hardening)
       WITH_HARDENING=2
-      ;;
-    --enable-webservice)
-      WITH_GSOAP=1
       ;;
     --build-debug|-d)
       BUILD_TYPE=debug
@@ -2019,6 +2143,9 @@ for option in $*; do
       ;;
     --build-libxslt)
       BUILD_LIBXSLT=1
+      ;;
+    --build-libssl)
+      BUILD_LIBSSL=1
       ;;
     --build-libcurl)
       BUILD_LIBCURL=1
@@ -2056,7 +2183,7 @@ for option in $*; do
       fi
       ;;
     --setup-wine)
-      SETUP_WINE=1
+      [ "$OS" != "darwin" ] && SETUP_WINE=1
       ;;
     *)
       echo
@@ -2103,13 +2230,6 @@ cat > $ENV << EOF
 
 EOF
 
-# test if we are OSE
-if [ $OSE -eq 1 -a -d "`cd \`dirname $0\`; pwd`/src/VBox/Devices/USB" ]; then
-  echo "Found USB devices, assuming VBOX_OSE = FALSE" >> $LOG
-  echo >> $LOG
-  OSE=0
-fi
-
 if [ "$BUILD_TYPE" = "debug" ]; then
   echo "Creating DEBUG build!" >> $LOG
 elif [ "$BUILD_TYPE" = "profile" ]; then
@@ -2152,17 +2272,8 @@ if [ -n "$HEADLESS" ]; then
   cnf_append "VBOX_HEADLESS" "1"
 fi
 
-if [ $WITH_OPENGL -eq 0 ]; then
-  cnf_append "VBOX_WITH_CROGL" ""
-fi
-
-if [ "$OS" = "darwin" ]; then
-  BUILD_LIBXSLT=1
-  BUILD_LIBXML2=1
-  BUILD_LIBCURL=1
-fi
-
 # emit disable directives corresponding to any --disable-xxx options.
+[ $WITH_OPENGL -eq 0 ]    && cnf_append "VBOX_WITH_CROGL" ""
 [ $WITH_XPCOM -eq 0 ]     && cnf_append "VBOX_WITH_MAIN" ""
 [ $WITH_QT4 -eq 0   ]     && cnf_append "VBOX_WITH_QTGUI" ""
 [ $WITH_SDL_TTF -eq 0 ]   && cnf_append "VBOX_WITH_SECURELABEL" ""
@@ -2170,6 +2281,10 @@ fi
 [ $WITH_HARDENING -eq 0 ] && cnf_append "VBOX_WITHOUT_HARDENING" "1"
 [ $WITH_HARDENING -eq 2 ] && cnf_append "VBOX_WITH_HARDENING" "2"
 
+# Darwin-specific
+if [ "$OS" = "darwin" ]; then
+  check_darwinversion
+fi
 # the tools
 check_gcc
 [ "$OS" != "darwin"  ] && check_as86
@@ -2185,11 +2300,10 @@ check_gcc
 [ $WITH_XPCOM  -eq 1 ] && check_libxml2
 [ $WITH_XPCOM  -eq 1 ] && check_libxslt
 [ $WITH_LIBIDL -eq 1 ] && check_libidl
-# build openssl on Darwin in every case
-[ "$OS" != "darwin"  ] && check_ssl
+check_ssl
+check_curl
 [ "$OS" != "darwin"  ] && check_z
 [ "$OS" != "darwin" -a "$OS" != "freebsd" ] && check_png
-check_curl
 [ $OSE -eq 0 -a "$OS" = "linux" ] && check_pam
 [ $WITH_SDL -eq 1 ]    && check_sdl
 [ $WITH_SDL_TTF -eq 1 -a $OSE -eq 0 ] && check_sdl_ttf
@@ -2197,10 +2311,9 @@ check_curl
 # TODO check for xcomposite-dev (X11/extensions/Xcomposite.h, additions only)
 # TODO check for libxdamange-dev (X11/extensions/Xdamage.h, additions only)
 [ $WITH_X11    -eq 1 ] && check_xcursor
-[ $WITH_OPENGL -eq 1 ] && check_xmu
-[ "$OS" != "darwin" -a $WITH_OPENGL -eq 1 ] && check_mesa
+[ $WITH_OPENGL -eq 1 ] && check_opengl
 [ $WITH_QT4    -eq 1 ] && check_qt4
-[ $WITH_PYTHON -eq 1 -a "$OS" != "darwin" ] && check_python
+[ $WITH_PYTHON -eq 1 ] && check_python
 
 # Linux-specific
 if [ "$OS" = "linux" ]; then
@@ -2240,12 +2353,6 @@ if [ $OSE -ge 1 ]; then
   else
     cnf_append "VBOX_WITH_WEBSERVICES" ""
   fi
-fi
-
-# Darwin-specific
-if [ "$OS" = "darwin" ]; then
-  check_darwinversion
-  check_i386elfgcc
 fi
 
 # success!

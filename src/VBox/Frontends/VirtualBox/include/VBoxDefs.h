@@ -68,21 +68,21 @@ extern const QUuid QUuid_null;
 /** Common namespace for all enums */
 struct VBoxDefs
 {
-    /** Media type. */
-    enum MediaType
+    /** Medium type. */
+    enum MediumType
     {
-        MediaType_Invalid,
-        MediaType_HardDisk,
-        MediaType_DVD,
-        MediaType_Floppy,
-        MediaType_All
+        MediumType_Invalid,
+        MediumType_HardDisk,
+        MediumType_DVD,
+        MediumType_Floppy,
+        MediumType_All
     };
 
     /** VM display rendering mode. */
     enum RenderMode
     {
         InvalidRenderMode, TimerMode, QImageMode, SDLMode, DDRAWMode, Quartz2DMode
-#ifdef VBOX_WITH_VIDEOHWACCEL
+#ifdef VBOX_GUI_USE_QGL
         , QGLMode
 #endif
     };
@@ -128,7 +128,7 @@ struct VBoxDefs
 #endif
         AddVDMUrlsEventType,
         ChangeDockIconUpdateEventType
-#ifdef VBOX_WITH_VIDEOHWACCEL
+#ifdef VBOX_GUI_USE_QGL
         ,
         VHWACommandProcessType
 #endif
@@ -178,6 +178,7 @@ struct VBoxDefs
     static const char* GUI_Export_Username;
     static const char* GUI_Export_Hostname;
     static const char* GUI_Export_Bucket;
+    static const char* GUI_PreventBetaWarning;
 };
 
 #define MAC_LEOPARD_STYLE defined(Q_WS_MAC) && (QT_VERSION >= 0x040300)

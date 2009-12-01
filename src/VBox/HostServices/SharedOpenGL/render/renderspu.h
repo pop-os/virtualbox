@@ -12,7 +12,11 @@
 #include <windows.h>
 #define RENDER_APIENTRY __stdcall
 #elif defined(DARWIN)
-#include <AGL/AGL.h>
+# ifndef VBOX_WITH_COCOA_QT
+#  include <AGL/AGL.h>
+# else
+#  include "renderspu_cocoa_helper.h"
+# endif
 #define RENDER_APIENTRY
 #else
 #include <GL/glx.h>
@@ -28,6 +32,7 @@
 #define MAX_VISUALS 32
 
 #ifdef RT_OS_DARWIN
+# ifndef VBOX_WITH_COCOA_QT
 enum
 {
     /* Event classes */
@@ -43,6 +48,7 @@ enum
     kEventVBoxBoundsChanged = 'bchg'
 };
 pascal OSStatus windowEvtHndlr(EventHandlerCallRef myHandler, EventRef event, void* userData);
+# endif
 #endif /* RT_OS_DARWIN */
 
 /**
@@ -54,7 +60,9 @@ typedef struct {
 #if defined(WINDOWS)
     HDC device_context;
 #elif defined(DARWIN)
+# ifndef VBOX_WITH_COCOA_QT
     WindowRef window;
+# endif
 #elif defined(GLX)
     Display *dpy;
     XVisualInfo *visual;
@@ -81,6 +89,7 @@ typedef struct {
     HWND hWnd;
     HDC device_context;
 #elif defined(DARWIN)
+# ifndef VBOX_WITH_COCOA_QT
     WindowRef window;
     WindowRef nativeWindow; /**< for render_to_app_window */
     WindowRef appWindow;
@@ -89,6 +98,11 @@ typedef struct {
     AGLContext dummyContext;
     RgnHandle hVisibleRegion;
     /* unsigned long context_ptr; */
+# else
+    NativeViewRef window;
+    NativeViewRef nativeWindow; /**< for render_to_app_window */
+    NativeGLCtxRef *currentCtx;
+# endif
 #elif defined(GLX)
     Window window;
     Window nativeWindow;  /**< for render_to_app_window */
@@ -116,7 +130,11 @@ typedef struct _ContextInfo {
 #if defined(WINDOWS)
     HGLRC hRC;
 #elif defined(DARWIN)
+# ifndef VBOX_WITH_COCOA_QT
     AGLContext context;
+# else
+    NativeGLCtxRef context;
+# endif
 #elif defined(GLX)
     GLXContext context;
 #endif
@@ -216,6 +234,7 @@ typedef struct {
 #endif
 
 #ifdef RT_OS_DARWIN
+# ifndef VBOX_WITH_COCOA_QT
     RgnHandle hRootVisibleRegion;
     RTSEMFASTMUTEX syncMutex;
     EventHandlerUPP hParentEventHandler;
@@ -224,6 +243,7 @@ typedef struct {
     GLint currentBufferName;
     uint64_t uiDockUpdateTS;
     bool fInit;
+# endif
 #endif /* RT_OS_DARWIN */
 } RenderSPU;
 
@@ -251,7 +271,7 @@ typedef struct _VBOX_RENDERSPU_DESTROY_WINDOW {
 extern RenderSPU render_spu;
 
 /* @todo remove this hack */
-extern unsigned int render_spu_parent_window_id;
+extern uint64_t render_spu_parent_window_id;
 
 #ifdef CHROMIUM_THREADSAFE
 extern CRtsd _RenderTSD;
@@ -277,6 +297,11 @@ extern void renderspu_SystemWindowVisibleRegion(WindowInfo *window, GLint cRects
 extern void renderspu_SystemWindowApplyVisibleRegion(WindowInfo *window);
 #ifdef RT_OS_DARWIN
 extern void renderspu_SystemSetRootVisibleRegion(GLint cRects, GLint *pRects);
+# ifdef VBOX_WITH_COCOA_QT
+extern void renderspu_SystemFlush();
+extern void renderspu_SystemFinish();
+extern void renderspu_SystemBindFramebufferEXT(GLenum target, GLuint framebuffer);
+# endif
 #endif
 extern void renderspu_SystemShowWindow( WindowInfo *window, GLboolean showIt );
 extern void renderspu_SystemMakeCurrent( WindowInfo *window, GLint windowInfor, ContextInfo *context );
@@ -292,7 +317,7 @@ extern void RENDER_APIENTRY renderspuSwapBuffers( GLint window, GLint flags );
 #ifdef __cplusplus
 extern "C" {
 #endif
-DECLEXPORT(void) renderspuSetWindowId(unsigned int winId);
+DECLEXPORT(void) renderspuSetWindowId(uint64_t winId);
 DECLEXPORT(void) renderspuSetRootVisibleRegion(GLint cRects, GLint *pRects);
 #ifdef __cplusplus
 }

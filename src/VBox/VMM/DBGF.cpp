@@ -1,4 +1,4 @@
-/* $Id: DBGF.cpp $ */
+/* $Id: DBGF.cpp 24999 2009-11-26 13:36:37Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility.
  */
@@ -619,65 +619,81 @@ static int dbgfR3VMMWait(PVM pVM)
         /*
          * Wait.
          */
+        uint32_t cPollHack = 1; /** @todo this interface is horrible now that we're using lots of VMR3ReqCall stuff all over DBGF. */
         for (;;)
         {
-            int rc = RTSemPingWait(&pVM->dbgf.s.PingPong, 250);
-            if (RT_SUCCESS(rc))
-                break;
-            if (rc != VERR_TIMEOUT)
+            int rc;
+            if (    !VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS | VM_FF_REQUEST)
+                &&  !VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_REQUEST))
             {
-                LogFlow(("dbgfR3VMMWait: returns %Rrc\n", rc));
-                return rc;
+                rc = RTSemPingWait(&pVM->dbgf.s.PingPong, cPollHack);
+                if (RT_SUCCESS(rc))
+                    break;
+                if (rc != VERR_TIMEOUT)
+                {
+                    LogFlow(("dbgfR3VMMWait: returns %Rrc\n", rc));
+                    return rc;
+                }
             }
 
             if (VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS))
-                VMMR3EmtRendezvousFF(pVM, pVCpu);
-
-            if (    VM_FF_ISPENDING(pVM, VM_FF_REQUEST)
-                ||  VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_REQUEST))
+            {
+                rc = VMMR3EmtRendezvousFF(pVM, pVCpu);
+                cPollHack = 1;
+            }
+            else if (   VM_FF_ISPENDING(pVM, VM_FF_REQUEST)
+                     || VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_REQUEST))
             {
                 LogFlow(("dbgfR3VMMWait: Processes requests...\n"));
                 rc = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY);
                 if (rc == VINF_SUCCESS)
                     rc = VMR3ReqProcessU(pVM->pUVM, pVCpu->idCpu);
                 LogFlow(("dbgfR3VMMWait: VMR3ReqProcess -> %Rrc rcRet=%Rrc\n", rc, rcRet));
-                if (rc >= VINF_EM_FIRST && rc <= VINF_EM_LAST)
-                {
-                    switch (rc)
-                    {
-                        case VINF_EM_DBG_BREAKPOINT:
-                        case VINF_EM_DBG_STEPPED:
-                        case VINF_EM_DBG_STEP:
-                        case VINF_EM_DBG_STOP:
-                            AssertMsgFailed(("rc=%Rrc\n", rc));
-                            break;
+                cPollHack = 1;
+            }
+            else
+            {
+                rc = VINF_SUCCESS;
+                if (cPollHack < 120)
+                    cPollHack++;
+            }
 
-                        /* return straight away */
-                        case VINF_EM_TERMINATE:
-                        case VINF_EM_OFF:
-                            LogFlow(("dbgfR3VMMWait: returns %Rrc\n", rc));
-                            return rc;
-
-                        /* remember return code. */
-                        default:
-                            AssertReleaseMsgFailed(("rc=%Rrc is not in the switch!\n", rc));
-                        case VINF_EM_RESET:
-                        case VINF_EM_SUSPEND:
-                        case VINF_EM_HALT:
-                        case VINF_EM_RESUME:
-                        case VINF_EM_RESCHEDULE:
-                        case VINF_EM_RESCHEDULE_REM:
-                        case VINF_EM_RESCHEDULE_RAW:
-                            if (rc < rcRet || rcRet == VINF_SUCCESS)
-                                rcRet = rc;
-                            break;
-                    }
-                }
-                else if (RT_FAILURE(rc))
+            if (rc >= VINF_EM_FIRST && rc <= VINF_EM_LAST)
+            {
+                switch (rc)
                 {
-                    LogFlow(("dbgfR3VMMWait: returns %Rrc\n", rc));
-                    return rc;
+                    case VINF_EM_DBG_BREAKPOINT:
+                    case VINF_EM_DBG_STEPPED:
+                    case VINF_EM_DBG_STEP:
+                    case VINF_EM_DBG_STOP:
+                        AssertMsgFailed(("rc=%Rrc\n", rc));
+                        break;
+
+                    /* return straight away */
+                    case VINF_EM_TERMINATE:
+                    case VINF_EM_OFF:
+                        LogFlow(("dbgfR3VMMWait: returns %Rrc\n", rc));
+                        return rc;
+
+                    /* remember return code. */
+                    default:
+                        AssertReleaseMsgFailed(("rc=%Rrc is not in the switch!\n", rc));
+                    case VINF_EM_RESET:
+                    case VINF_EM_SUSPEND:
+                    case VINF_EM_HALT:
+                    case VINF_EM_RESUME:
+                    case VINF_EM_RESCHEDULE:
+                    case VINF_EM_RESCHEDULE_REM:
+                    case VINF_EM_RESCHEDULE_RAW:
+                        if (rc < rcRet || rcRet == VINF_SUCCESS)
+                            rcRet = rc;
+                        break;
                 }
+            }
+            else if (RT_FAILURE(rc))
+            {
+                LogFlow(("dbgfR3VMMWait: returns %Rrc\n", rc));
+                return rc;
             }
         }
 
@@ -852,13 +868,8 @@ VMMR3DECL(int) DBGFR3Attach(PVM pVM)
     /*
      * Call the VM, use EMT for serialization.
      */
-    PVMREQ pReq;
-    int rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)dbgfR3Attach, 1, pVM);
-    if (RT_SUCCESS(rc))
-        rc = pReq->iStatus;
-    VMR3ReqFree(pReq);
-
-    return rc;
+    /** @todo SMP */
+    return VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)dbgfR3Attach, 1, pVM);
 }
 
 
@@ -1074,7 +1085,7 @@ VMMR3DECL(int) DBGFR3Step(PVM pVM, VMCPUID idCpu)
      */
     AssertReturn(pVM->dbgf.s.fAttached, VERR_DBGF_NOT_ATTACHED);
     AssertReturn(RTSemPongIsSpeaker(&pVM->dbgf.s.PingPong), VERR_SEM_OUT_OF_TURN);
-    AssertReturn(idCpu < pVM->cCPUs, VERR_INVALID_PARAMETER);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
 
     /*
      * Send the ping back to the emulation thread telling it to run.

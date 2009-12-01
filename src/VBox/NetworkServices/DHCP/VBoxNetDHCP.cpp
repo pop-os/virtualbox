@@ -1,4 +1,4 @@
-/* $Id: VBoxNetDHCP.cpp $ */
+/* $Id: VBoxNetDHCP.cpp 22562 2009-08-28 17:58:24Z vboxsync $ */
 /** @file
  * VBoxNetDHCP - DHCP Service for connecting to IntNet.
  */
@@ -28,21 +28,21 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include <iprt/net.h>
-#include <iprt/initterm.h>
 #include <iprt/alloca.h>
+#include <iprt/buildconfig.h>
 #include <iprt/err.h>
-#include <iprt/time.h>
-#include <iprt/stream.h>
-#include <iprt/path.h>
-#include <iprt/param.h>
+#include <iprt/net.h>                   /* must come before getopt */
 #include <iprt/getopt.h>
+#include <iprt/initterm.h>
+#include <iprt/param.h>
+#include <iprt/path.h>
+#include <iprt/stream.h>
+#include <iprt/time.h>
 #include <iprt/string.h>
 
 #include <VBox/sup.h>
 #include <VBox/intnet.h>
 #include <VBox/vmm.h>
-#include <VBox/version.h>
 
 #include "../NetLib/VBoxNetLib.h"
 
@@ -651,8 +651,8 @@ void VBoxNetDhcp::explodeConfig(void)
         VBoxNetDhcpCfg *pCfg = m_Cfgs[iCfg];
 
         /* Expand the IP lease range. */
-        uint32_t const uEnd = RT_N2H_U32(pCfg->m_UpperAddr.u);
-        for (uint32_t i = RT_N2H_U32(pCfg->m_LowerAddr.u); i <= uEnd; i++)
+        uint32_t const uLast = RT_N2H_U32(pCfg->m_UpperAddr.u);
+        for (uint32_t i = RT_N2H_U32(pCfg->m_LowerAddr.u); i <= uLast; i++)
         {
             RTNETADDRIPV4 IPv4Addr;
             IPv4Addr.u = RT_H2N_U32(i);
@@ -816,7 +816,7 @@ int VBoxNetDhcp::parseArgs(int argc, char **argv)
                 break;
 
             case 'V':
-                RTPrintf("%sr%d\n", VBOX_VERSION_STRING, VBOX_SVN_REV);
+                RTPrintf("%sr%u\n", RTBldCfgVersion(), RTBldCfgRevision());
                 return 0;
 
             case 'h':
@@ -827,7 +827,7 @@ int VBoxNetDhcp::parseArgs(int argc, char **argv)
                          "Usage: VBoxNetDHCP <options>\n"
                          "\n"
                          "Options:\n",
-                         VBOX_VERSION_STRING);
+                         RTBldCfgVersion());
                 for (size_t i = 0; i < RT_ELEMENTS(s_aOptionDefs); i++)
                     RTPrintf("    -%c, %s\n", s_aOptionDefs[i].iShort, s_aOptionDefs[i].pszLong);
                 return 1;

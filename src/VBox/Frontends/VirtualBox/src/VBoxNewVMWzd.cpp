@@ -20,33 +20,14 @@
  * additional information or have any questions.
  */
 
+/* VBox includes */
 #include "VBoxNewVMWzd.h"
+#include "VBoxVMSettingsHD.h"
 #include "VBoxUtils.h"
 #include "VBoxGlobal.h"
 #include "VBoxProblemReporter.h"
 #include "VBoxNewHDWzd.h"
 #include "VBoxMediaManagerDlg.h"
-
-/**
- * Calculates a suitable page step size for the given max value.
- * The returned size is so that there will be no more than 32 pages.
- * The minimum returned page size is 4.
- */
-static int calcPageStep (int aMax)
-{
-    /* Reasonable max. number of page steps is 32 */
-    uint page = ((uint) aMax + 31) / 32;
-    /* Make it a power of 2 */
-    uint p = page, p2 = 0x1;
-    while ((p >>= 1))
-        p2 <<= 1;
-    if (page != p2)
-        p2 <<= 1;
-    if (p2 < 4)
-        p2 = 4;
-    return (int) p2;
-}
-
 
 VBoxNewVMWzd::VBoxNewVMWzd (QWidget *aParent)
     : QIWithRetranslateUI<QIAbstractWizard> (aParent)
@@ -66,15 +47,8 @@ VBoxNewVMWzd::VBoxNewVMWzd (QWidget *aParent)
     connect (mOSTypeSelector, SIGNAL (osTypeChanged()), this, SLOT (onOSTypeChanged()));
 
     /* Memory page */
-    CSystemProperties sysProps = vboxGlobal().virtualBox().GetSystemProperties();
-    const uint MinRAM = sysProps.GetMinGuestRAM();
-    const uint MaxRAM = sysProps.GetMaxGuestRAM();
-    mSlRAM->setPageStep (calcPageStep (MaxRAM));
-    mSlRAM->setSingleStep (mSlRAM->pageStep() / 4);
-    mSlRAM->setTickInterval (mSlRAM->pageStep());
-    mSlRAM->setRange ((MinRAM / mSlRAM->pageStep()) * mSlRAM->pageStep(), MaxRAM);
     mLeRAM->setFixedWidthByText ("99999");
-    mLeRAM->setValidator (new QIntValidator (MinRAM, MaxRAM, this));
+    mLeRAM->setValidator (new QIntValidator (mSlRAM->minRAM(), mSlRAM->maxRAM(), this));
 
     mWvalMemory = new QIWidgetValidator (mPageMemory, this);
     connect (mWvalMemory, SIGNAL (validityChanged (const QIWidgetValidator*)),
@@ -95,7 +69,7 @@ VBoxNewVMWzd::VBoxNewVMWzd (QWidget *aParent)
               hdLayout->spacing() - 1;
     QSpacerItem *spacer = new QSpacerItem (wid, 0, QSizePolicy::Fixed, QSizePolicy::Fixed);
     hdLayout->addItem (spacer, 2, 0);
-    mHDCombo->setType (VBoxDefs::MediaType_HardDisk);
+    mHDCombo->setType (VBoxDefs::MediumType_HardDisk);
     mHDCombo->repopulate();
     mTbVmm->setIcon (VBoxGlobal::iconSet (":/select_file_16px.png",
                                           ":/select_file_dis_16px.png"));
@@ -156,14 +130,10 @@ void VBoxNewVMWzd::retranslateUi()
         tr ("The recommended size of the boot hard disk is <b>%1</b> MB.")
             .arg (type.GetRecommendedHDD()));
 
-    CSystemProperties sysProps = vboxGlobal().virtualBox().GetSystemProperties();
-    const uint MinRAM = sysProps.GetMinGuestRAM();
-    const uint MaxRAM = sysProps.GetMaxGuestRAM();
-
     mTxRAMMin->setText (QString ("<qt>%1&nbsp;%2</qt>")
-                        .arg (MinRAM).arg (tr ("MB", "megabytes")));
+                        .arg (mSlRAM->minRAM()).arg (tr ("MB", "megabytes")));
     mTxRAMMax->setText (QString ("<qt>%1&nbsp;%2</qt>")
-                        .arg (MaxRAM).arg (tr ("MB", "megabytes")));
+                        .arg (mSlRAM->maxRAM()).arg (tr ("MB", "megabytes")));
 
     QWidget *page = mPageStack->currentWidget();
 
@@ -199,7 +169,7 @@ void VBoxNewVMWzd::accept()
 void VBoxNewVMWzd::showMediaManager()
 {
     VBoxMediaManagerDlg dlg (this);
-    dlg.setup (VBoxDefs::MediaType_HardDisk, true);
+    dlg.setup (VBoxDefs::MediumType_HardDisk, true);
 
     if (dlg.exec() == QDialog::Accepted)
     {
@@ -235,7 +205,7 @@ void VBoxNewVMWzd::hdTypeChanged()
     mTbVmm->setEnabled (mExistRadio->isChecked());
     if (mExistRadio->isChecked())
         mHDCombo->setFocus();
-    
+
     mWvalHDD->revalidate();
 }
 
@@ -245,20 +215,17 @@ void VBoxNewVMWzd::revalidate (QIWidgetValidator *aWval)
     bool valid = aWval->isOtherValid();
 
     /* Do individual validations for pages */
-    ulong memorySize = vboxGlobal().virtualBox().GetHost().GetMemorySize();
-    ulong summarySize = (ulong)(mSlRAM->value()) +
-                        (ulong)(VBoxGlobal::requiredVideoMemory() / _1M);
     if (aWval->widget() == mPageMemory)
     {
         valid = true;
-        if (summarySize > 0.75 * memorySize)
+        if (mSlRAM->value() > (int)mSlRAM->maxRAMAlw())
             valid = false;
     }
     else if (aWval->widget() == mPageHDD)
     {
         valid = true;
-        if (    (mGbHDA->isChecked()) 
-            &&  (mHDCombo->id().isNull())
+        if (    (mGbHDA->isChecked())
+            &&  (vboxGlobal().findMedium (mHDCombo->id()).isNull())
             &&  (mExistRadio->isChecked()))
         {
             valid = false;
@@ -373,7 +340,7 @@ bool VBoxNewVMWzd::constructMachine()
 
     /* VRAM size - select maximum between recommended and minimum for fullscreen */
     mMachine.SetVRAMSize (qMax (type.GetRecommendedVRAM(),
-                                (ULONG) (VBoxGlobal::requiredVideoMemory() / _1M)));
+                                (ULONG) (VBoxGlobal::requiredVideoMemory(&mMachine) / _1M)));
 
     /* Enabling audio by default */
     mMachine.GetAudioAdapter().SetEnabled (true);
@@ -386,6 +353,14 @@ bool VBoxNewVMWzd::constructMachine()
         usbController.SetEnabledEhci (true);
     }
 
+    /* Create default storage controllers */
+    QString ideCtrName = VBoxVMSettingsHD::tr ("IDE Controller");
+    QString floppyCtrName = VBoxVMSettingsHD::tr ("Floppy Controller");
+    KStorageBus ideBus = KStorageBus_IDE;
+    KStorageBus floppyBus = KStorageBus_Floppy;
+    mMachine.AddStorageController (ideCtrName, ideBus);
+    mMachine.AddStorageController (floppyCtrName, floppyBus);
+
     /* Register the VM prior to attaching hard disks */
     vbox.RegisterMachine (mMachine);
     if (!vbox.isOk())
@@ -394,8 +369,7 @@ bool VBoxNewVMWzd::constructMachine()
         return false;
     }
 
-    /* Boot hard disk (IDE Primary Master) */
-    if (mGbHDA->isChecked())
+    /* Attach default devices */
     {
         bool success = false;
         QString machineId = mMachine.GetId();
@@ -403,7 +377,25 @@ bool VBoxNewVMWzd::constructMachine()
         if (!session.isNull())
         {
             CMachine m = session.GetMachine();
-            m.AttachHardDisk (mHDCombo->id(), QString("IDE"), 0, 0);
+
+            /* Boot hard disk (IDE Primary Master) */
+            if (mGbHDA->isChecked())
+            {
+                m.AttachDevice (ideCtrName, 0, 0, KDeviceType_HardDisk, mHDCombo->id());
+                if (!m.isOk())
+                    vboxProblem().cannotAttachDevice (this, m, VBoxDefs::MediumType_HardDisk, mHDCombo->location(), ideBus, 0, 0);
+            }
+
+            /* Attach empty CD/DVD ROM Device */
+            m.AttachDevice (ideCtrName, 1, 0, KDeviceType_DVD, QString(""));
+            if (!m.isOk())
+                vboxProblem().cannotAttachDevice (this, m, VBoxDefs::MediumType_DVD, QString(), ideBus, 1, 0);
+
+            /* Attach empty Floppy Device */
+            m.AttachDevice (floppyCtrName, 0, 0, KDeviceType_Floppy, QString(""));
+            if (!m.isOk())
+                vboxProblem().cannotAttachDevice (this, m, VBoxDefs::MediumType_Floppy, QString(), floppyBus, 0, 0);
+
             if (m.isOk())
             {
                 m.SaveSettings();
@@ -412,10 +404,7 @@ bool VBoxNewVMWzd::constructMachine()
                 else
                     vboxProblem().cannotSaveMachineSettings (m, this);
             }
-            else
-                vboxProblem().cannotAttachHardDisk (this, m,
-                                                    mHDCombo->location(),
-                                                    KStorageBus_IDE, 0, 0);
+
             session.Close();
         }
         if (!success)
@@ -453,7 +442,7 @@ void VBoxNewVMWzd::ensureNewHardDiskDeleted()
         }
 
         if (success)
-            vboxGlobal().removeMedium (VBoxDefs::MediaType_HardDisk, id);
+            vboxGlobal().removeMedium (VBoxDefs::MediumType_HardDisk, id);
         else
             vboxProblem().cannotDeleteHardDiskStorage (this, mHardDisk,
                                                        progress);

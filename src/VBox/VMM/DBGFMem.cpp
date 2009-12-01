@@ -1,4 +1,4 @@
-/* $Id: DBGFMem.cpp $ */
+/* $Id: DBGFMem.cpp 24061 2009-10-25 23:54:32Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility, Memory Methods.
  */
@@ -43,13 +43,14 @@
  * @param   pVM         The VM handle.
  * @param   idCpu       The ID of the CPU context to search in.
  * @param   pAddress    Where to store the mixed address.
+ * @param   pu64Align   The alignment restriction imposed on the search result.
  * @param   pcbRange    The number of bytes to scan. Passed as a pointer because
  *                      it may be 64-bit.
  * @param   pabNeedle   What to search for - exact search.
  * @param   cbNeedle    Size of the search byte string.
  * @param   pHitAddress Where to put the address of the first hit.
  */
-static DECLCALLBACK(int) dbgfR3MemScan(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, PCRTGCUINTPTR pcbRange,
+static DECLCALLBACK(int) dbgfR3MemScan(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, PCRTGCUINTPTR pcbRange, RTGCUINTPTR *puAlign,
                                        const uint8_t *pabNeedle, size_t cbNeedle, PDBGFADDRESS pHitAddress)
 {
     Assert(idCpu == VMMGetCpuId(pVM));
@@ -76,8 +77,11 @@ static DECLCALLBACK(int) dbgfR3MemScan(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAd
         ||  DBGFADDRESS_IS_PHYS(pAddress)
         )
     {
+        RTGCPHYS GCPhysAlign = *puAlign;
+        if (GCPhysAlign != *puAlign)
+            return VERR_OUT_OF_RANGE;
         RTGCPHYS PhysHit;
-        rc = PGMR3DbgScanPhysical(pVM, pAddress->FlatPtr, cbRange, pabNeedle, cbNeedle, &PhysHit);
+        rc = PGMR3DbgScanPhysical(pVM, pAddress->FlatPtr, cbRange, GCPhysAlign, pabNeedle, cbNeedle, &PhysHit);
         if (RT_SUCCESS(rc))
             DBGFR3AddrFromPhys(pVM, pHitAddress, PhysHit);
     }
@@ -91,7 +95,7 @@ static DECLCALLBACK(int) dbgfR3MemScan(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAd
             return VERR_DBGF_MEM_NOT_FOUND;
 #endif
         RTGCUINTPTR GCPtrHit;
-        rc = PGMR3DbgScanVirtual(pVM, pVCpu, pAddress->FlatPtr, cbRange, pabNeedle, cbNeedle, &GCPtrHit);
+        rc = PGMR3DbgScanVirtual(pVM, pVCpu, pAddress->FlatPtr, cbRange, *puAlign, pabNeedle, cbNeedle, &GCPtrHit);
         if (RT_SUCCESS(rc))
             DBGFR3AddrFromFlat(pVM, pHitAddress, GCPtrHit);
     }
@@ -113,24 +117,21 @@ static DECLCALLBACK(int) dbgfR3MemScan(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAd
  * @param   idCpu       The ID of the CPU context to search in.
  * @param   pAddress    Where to store the mixed address.
  * @param   cbRange     The number of bytes to scan.
- * @param   pabNeedle   What to search for - exact search.
+ * @param   uAlign      The alignment restriction imposed on the result.
+ *                      Usually set to 1.
+ * @param   pvNeedle    What to search for - exact search.
  * @param   cbNeedle    Size of the search byte string.
  * @param   pHitAddress Where to put the address of the first hit.
  *
  * @thread  Any thread.
  */
-VMMR3DECL(int) DBGFR3MemScan(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, RTGCUINTPTR cbRange, const uint8_t *pabNeedle, size_t cbNeedle, PDBGFADDRESS pHitAddress)
+VMMR3DECL(int) DBGFR3MemScan(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, RTGCUINTPTR cbRange, RTGCUINTPTR uAlign,
+                             const void *pvNeedle, size_t cbNeedle, PDBGFADDRESS pHitAddress)
 {
-    AssertReturn(idCpu < pVM->cCPUs, VERR_INVALID_PARAMETER);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
+    return VMR3ReqCallWait(pVM, idCpu, (PFNRT)dbgfR3MemScan, 8,
+                           pVM, idCpu, pAddress, &cbRange, &uAlign, pvNeedle, cbNeedle, pHitAddress);
 
-    PVMREQ pReq;
-    int rc = VMR3ReqCall(pVM, idCpu, &pReq, RT_INDEFINITE_WAIT,
-                         (PFNRT)dbgfR3MemScan, 7, pVM, idCpu, pAddress, &cbRange, pabNeedle, cbNeedle, pHitAddress);
-    if (RT_SUCCESS(rc))
-        rc = pReq->iStatus;
-    VMR3ReqFree(pReq);
-
-    return rc;
 }
 
 
@@ -206,22 +207,13 @@ static DECLCALLBACK(int) dbgfR3MemRead(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAd
  */
 VMMR3DECL(int) DBGFR3MemRead(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void *pvBuf, size_t cbRead)
 {
-    AssertReturn(idCpu < pVM->cCPUs, VERR_INVALID_PARAMETER);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
     if ((pAddress->fFlags & DBGFADDRESS_FLAGS_TYPE_MASK) == DBGFADDRESS_FLAGS_RING0)
     {
         AssertCompile(sizeof(RTHCUINTPTR) <= sizeof(pAddress->FlatPtr));
         return VMMR3ReadR0Stack(pVM, idCpu, (RTHCUINTPTR)pAddress->FlatPtr, pvBuf, cbRead);
     }
-    else
-    {
-        PVMREQ pReq;
-        int rc = VMR3ReqCallU(pVM->pUVM, idCpu, &pReq, RT_INDEFINITE_WAIT, 0,
-                              (PFNRT)dbgfR3MemRead, 5, pVM, idCpu, pAddress, pvBuf, cbRead);
-        if (RT_SUCCESS(rc))
-            rc = pReq->iStatus;
-        VMR3ReqFree(pReq);
-        return rc;
-    }
+    return VMR3ReqCallWaitU(pVM->pUVM, idCpu, (PFNRT)dbgfR3MemRead, 5, pVM, idCpu, pAddress, pvBuf, cbRead);
 }
 
 
@@ -294,19 +286,12 @@ VMMR3DECL(int) DBGFR3MemReadString(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddres
     if (cchBuf <= 0)
         return VERR_INVALID_PARAMETER;
     memset(pszBuf, 0, cchBuf);
-    AssertReturn(idCpu < pVM->cCPUs, VERR_INVALID_PARAMETER);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
 
     /*
      * Pass it on to the EMT.
      */
-    PVMREQ pReq;
-    int rc = VMR3ReqCallU(pVM->pUVM, idCpu, &pReq, RT_INDEFINITE_WAIT, 0,
-                          (PFNRT)dbgfR3MemReadString, 5, pVM, idCpu, pAddress, pszBuf, cchBuf);
-    if (RT_SUCCESS(rc))
-        rc = pReq->iStatus;
-    VMR3ReqFree(pReq);
-
-    return rc;
+    return VMR3ReqCallWaitU(pVM->pUVM, idCpu, (PFNRT)dbgfR3MemReadString, 5, pVM, idCpu, pAddress, pszBuf, cchBuf);
 }
 
 
@@ -380,16 +365,8 @@ static DECLCALLBACK(int) dbgfR3MemWrite(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pA
  */
 VMMR3DECL(int) DBGFR3MemWrite(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void const *pvBuf, size_t cbWrite)
 {
-    AssertReturn(idCpu < pVM->cCPUs, VERR_INVALID_PARAMETER);
-
-    PVMREQ pReq;
-    int rc = VMR3ReqCallU(pVM->pUVM, idCpu, &pReq, RT_INDEFINITE_WAIT, 0,
-                          (PFNRT)dbgfR3MemWrite, 5, pVM, idCpu, pAddress, pvBuf, cbWrite);
-    if (RT_SUCCESS(rc))
-        rc = pReq->iStatus;
-    VMR3ReqFree(pReq);
-
-    return rc;
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
+    return VMR3ReqCallWaitU(pVM->pUVM, idCpu, (PFNRT)dbgfR3MemWrite, 5, pVM, idCpu, pAddress, pvBuf, cbWrite);
 }
 
 
@@ -402,11 +379,44 @@ static DECLCALLBACK(int) dbgfR3SelQueryInfo(PVM pVM, VMCPUID idCpu, RTSEL Sel, u
      * Make the query.
      */
     int rc;
-    if (!(fFlags & DBGFSELQI_FLAGS_DT_GUEST))
+    if (!(fFlags & DBGFSELQI_FLAGS_DT_SHADOW))
     {
         PVMCPU pVCpu = VMMGetCpuById(pVM, idCpu);
         VMCPU_ASSERT_EMT(pVCpu);
         rc = SELMR3GetSelectorInfo(pVM, pVCpu, Sel, pSelInfo);
+
+        /*
+         * 64-bit mode HACKS for making data and stack selectors wide open when
+         * queried. This is voodoo magic.
+         */
+        if (fFlags & DBGFSELQI_FLAGS_DT_ADJ_64BIT_MODE)
+        {
+            /* Expand 64-bit data and stack selectors. The check is a bit bogus... */
+            if (    RT_SUCCESS(rc)
+                &&  (pSelInfo->fFlags & (  DBGFSELINFO_FLAGS_LONG_MODE | DBGFSELINFO_FLAGS_REAL_MODE | DBGFSELINFO_FLAGS_PROT_MODE
+                                         | DBGFSELINFO_FLAGS_GATE      | DBGFSELINFO_FLAGS_HYPER
+                                         | DBGFSELINFO_FLAGS_INVALID   | DBGFSELINFO_FLAGS_NOT_PRESENT))
+                     == DBGFSELINFO_FLAGS_LONG_MODE
+                &&  pSelInfo->cbLimit != ~(RTGCPTR)0
+                &&  CPUMIsGuestIn64BitCode(pVCpu, CPUMGetGuestCtxCore(pVCpu)) )
+            {
+                pSelInfo->GCPtrBase = 0;
+                pSelInfo->cbLimit   = ~(RTGCPTR)0;
+            }
+            else if (   Sel == 0
+                     && CPUMIsGuestIn64BitCode(pVCpu, CPUMGetGuestCtxCore(pVCpu)))
+            {
+                pSelInfo->GCPtrBase = 0;
+                pSelInfo->cbLimit   = ~(RTGCPTR)0;
+                pSelInfo->Sel       = 0;
+                pSelInfo->SelGate   = 0;
+                pSelInfo->fFlags    = DBGFSELINFO_FLAGS_LONG_MODE;
+                pSelInfo->u.Raw64.Gen.u1Present  = 1;
+                pSelInfo->u.Raw64.Gen.u1Long     = 1;
+                pSelInfo->u.Raw64.Gen.u1DescType = 1;
+                rc = VINF_SUCCESS;
+            }
+        }
     }
     else
     {
@@ -447,8 +457,10 @@ static DECLCALLBACK(int) dbgfR3SelQueryInfo(PVM pVM, VMCPUID idCpu, RTSEL Sel, u
  */
 VMMR3DECL(int) DBGFR3SelQueryInfo(PVM pVM, VMCPUID idCpu, RTSEL Sel, uint32_t fFlags, PDBGFSELINFO pSelInfo)
 {
-    AssertReturn(idCpu < pVM->cCPUs, VERR_INVALID_PARAMETER);
-    AssertReturn(!(fFlags & ~(DBGFSELQI_FLAGS_DT_GUEST | DBGFSELQI_FLAGS_DT_SHADOW)), VERR_INVALID_PARAMETER);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
+    AssertReturn(!(fFlags & ~(DBGFSELQI_FLAGS_DT_GUEST | DBGFSELQI_FLAGS_DT_SHADOW | DBGFSELQI_FLAGS_DT_ADJ_64BIT_MODE)), VERR_INVALID_PARAMETER);
+    AssertReturn(    (fFlags & (DBGFSELQI_FLAGS_DT_SHADOW | DBGFSELQI_FLAGS_DT_ADJ_64BIT_MODE))
+                  !=           (DBGFSELQI_FLAGS_DT_SHADOW | DBGFSELQI_FLAGS_DT_ADJ_64BIT_MODE), VERR_INVALID_PARAMETER);
 
     /* Clear the return data here on this thread. */
     memset(pSelInfo, 0, sizeof(*pSelInfo));
@@ -456,14 +468,7 @@ VMMR3DECL(int) DBGFR3SelQueryInfo(PVM pVM, VMCPUID idCpu, RTSEL Sel, uint32_t fF
     /*
      * Dispatch the request to a worker running on the target CPU.
      */
-    PVMREQ pReq;
-    int rc = VMR3ReqCallU(pVM->pUVM, idCpu, &pReq, RT_INDEFINITE_WAIT, 0,
-                          (PFNRT)dbgfR3SelQueryInfo, 5, pVM, idCpu, Sel, fFlags, pSelInfo);
-    if (RT_SUCCESS(rc))
-        rc = pReq->iStatus;
-    VMR3ReqFree(pReq);
-
-    return rc;
+    return VMR3ReqCallWaitU(pVM->pUVM, idCpu, (PFNRT)dbgfR3SelQueryInfo, 5, pVM, idCpu, Sel, fFlags, pSelInfo);
 }
 
 

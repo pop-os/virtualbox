@@ -1,4 +1,4 @@
-/* $Id: ldrkStuff.cpp $ */
+/* $Id: ldrkStuff.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Binary Image Loader, kLdr Interface.
  */
@@ -34,6 +34,8 @@
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_LDR
 #include <iprt/ldr.h>
+#include "internal/iprt.h"
+
 #include <iprt/file.h>
 #include <iprt/alloc.h>
 #include <iprt/alloca.h>

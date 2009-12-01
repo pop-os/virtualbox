@@ -1,4 +1,4 @@
-/* $Id: logrelellipsis.cpp $ */
+/* $Id: logrelellipsis.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * Runtime VBox - Logger, the release ellipsis variants.
  */
@@ -28,10 +28,13 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/log.h>
+#include "internal/iprt.h"
+
 #include <iprt/stdarg.h>
 
 
@@ -57,6 +60,7 @@ RTDECL(void) RTLogRelLogger(PRTLOGGER pLogger, unsigned fFlags, unsigned iGroup,
     RTLogRelLoggerV(pLogger, fFlags, iGroup, pszFormat, args);
     va_end(args);
 }
+RT_EXPORT_SYMBOL(RTLogRelLogger);
 
 
 /**
@@ -74,4 +78,5 @@ RTDECL(void) RTLogRelPrintf(const char *pszFormat, ...)
     RTLogRelPrintfV(pszFormat, args);
     va_end(args);
 }
+RT_EXPORT_SYMBOL(RTLogRelPrintf);
 

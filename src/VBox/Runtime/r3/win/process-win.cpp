@@ -1,4 +1,4 @@
-/* $Id: process-win.cpp $ */
+/* $Id: process-win.cpp 22497 2009-08-27 09:09:59Z vboxsync $ */
 /** @file
  * IPRT - Process, Win32.
  */
@@ -82,7 +82,7 @@ NtQueryInformationProcess (
 
 /** @todo r=michael This function currently does not work correctly if the arguments
                     contain spaces. */
-RTR3DECL(int)   RTProcCreate(const char *pszExec, const char * const *papszArgs, RTENV Env, unsigned fFlags, PRTPROCESS pProcess)
+RTR3DECL(int) RTProcCreate(const char *pszExec, const char * const *papszArgs, RTENV Env, unsigned fFlags, PRTPROCESS pProcess)
 {
     /*
      * Validate input.

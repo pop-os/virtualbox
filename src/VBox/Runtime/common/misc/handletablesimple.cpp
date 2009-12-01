@@ -1,4 +1,4 @@
-/* $Id: handletablesimple.cpp $ */
+/* $Id: handletablesimple.cpp 25000 2009-11-26 14:22:44Z vboxsync $ */
 /** @file
  * IPRT - Handle Tables.
  */
@@ -28,10 +28,13 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/handletable.h>
+#include "internal/iprt.h"
+
 #include <iprt/mem.h>
 #include <iprt/spinlock.h>
 #include <iprt/err.h>
@@ -57,7 +60,7 @@ RTDECL(int)     RTHandleTableAlloc(RTHANDLETABLE hHandleTable, void *pvObj, uint
     /*
      * Allocation loop.
      */
-    RTSPINLOCKTMP Tmp;
+    RTSPINLOCKTMP Tmp /*= no init */;
     rtHandleTableLock(pThis, &Tmp);
 
     int rc;
@@ -166,7 +169,7 @@ RTDECL(int)     RTHandleTableAlloc(RTHANDLETABLE hHandleTable, void *pvObj, uint
 
                 /* link all entries into a free list. */
                 Assert(!(pThis->cCur % RTHT_LEVEL2_ENTRIES));
-                for (uint32_t i = 0; i < RTHT_LEVEL2_ENTRIES - 1; i++)
+                for (i = 0; i < RTHT_LEVEL2_ENTRIES - 1; i++)
                     RTHT_SET_FREE_IDX((PRTHTENTRYFREE)&paTable[i], i + 1 + pThis->cCur);
                 RTHT_SET_FREE_IDX((PRTHTENTRYFREE)&paTable[RTHT_LEVEL2_ENTRIES - 1], NIL_RTHT_INDEX);
 
@@ -199,6 +202,7 @@ RTDECL(int)     RTHandleTableAlloc(RTHANDLETABLE hHandleTable, void *pvObj, uint
 
     return rc;
 }
+RT_EXPORT_SYMBOL(RTHandleTableAlloc);
 
 
 RTDECL(void *)  RTHandleTableLookup(RTHANDLETABLE hHandleTable, uint32_t h)
@@ -212,7 +216,7 @@ RTDECL(void *)  RTHandleTableLookup(RTHANDLETABLE hHandleTable, uint32_t h)
     void *pvObj = NULL;
 
     /* acquire the lock */
-    RTSPINLOCKTMP Tmp;
+    RTSPINLOCKTMP Tmp /*= no init */;
     rtHandleTableLock(pThis, &Tmp);
 
     /*
@@ -239,6 +243,7 @@ RTDECL(void *)  RTHandleTableLookup(RTHANDLETABLE hHandleTable, uint32_t h)
     rtHandleTableUnlock(pThis, &Tmp);
     return pvObj;
 }
+RT_EXPORT_SYMBOL(RTHandleTableLookup);
 
 
 RTDECL(void *)  RTHandleTableFree(RTHANDLETABLE hHandleTable, uint32_t h)
@@ -252,7 +257,7 @@ RTDECL(void *)  RTHandleTableFree(RTHANDLETABLE hHandleTable, uint32_t h)
     void *pvObj = NULL;
 
     /* acquire the lock */
-    RTSPINLOCKTMP Tmp;
+    RTSPINLOCKTMP Tmp /*= no init */;
     rtHandleTableLock(pThis, &Tmp);
 
     /*
@@ -302,4 +307,5 @@ RTDECL(void *)  RTHandleTableFree(RTHANDLETABLE hHandleTable, uint32_t h)
     rtHandleTableUnlock(pThis, &Tmp);
     return pvObj;
 }
+RT_EXPORT_SYMBOL(RTHandleTableFree);
 

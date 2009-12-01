@@ -1,4 +1,4 @@
-/* $Id: memobj-r0drv-solaris.c $ */
+/* $Id: memobj-r0drv-solaris.c 24426 2009-11-06 07:38:42Z vboxsync $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, Solaris.
  */
@@ -32,13 +32,14 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include "the-solaris-kernel.h"
-
+#include "../the-solaris-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/memobj.h>
-#include <iprt/mem.h>
-#include <iprt/err.h>
+
 #include <iprt/assert.h>
+#include <iprt/err.h>
 #include <iprt/log.h>
+#include <iprt/mem.h>
 #include <iprt/param.h>
 #include <iprt/process.h>
 #include "internal/memobj.h"
@@ -57,7 +58,9 @@ typedef struct RTR0MEMOBJSOLARIS
     /** Pointer to kernel memory cookie. */
     ddi_umem_cookie_t   Cookie;
     /** Shadow locked pages. */
-    void              *handle;
+    void               *pvHandle;
+    /** Access during locking. */
+    int                 fAccess;
 } RTR0MEMOBJSOLARIS, *PRTR0MEMOBJSOLARIS;
 
 
@@ -81,16 +84,24 @@ int rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
             break;
 
         case RTR0MEMOBJTYPE_LOCK:
-            vbi_unlock_va(pMemSolaris->Core.pv, pMemSolaris->Core.cb, pMemSolaris->handle);
+            vbi_unlock_va(pMemSolaris->Core.pv, pMemSolaris->Core.cb, pMemSolaris->fAccess, pMemSolaris->pvHandle);
             break;
 
         case RTR0MEMOBJTYPE_MAPPING:
             vbi_unmap(pMemSolaris->Core.pv, pMemSolaris->Core.cb);
             break;
 
+        case RTR0MEMOBJTYPE_RES_VIRT:
+        {
+            if (pMemSolaris->Core.u.ResVirt.R0Process == NIL_RTR0PROCESS)
+                vmem_xfree(heap_arena, pMemSolaris->Core.pv, pMemSolaris->Core.cb);
+            else
+                AssertFailed();
+            break;
+        }
+
         /* unused */
         case RTR0MEMOBJTYPE_PHYS:
-        case RTR0MEMOBJTYPE_RES_VIRT:
         default:
             AssertMsgFailed(("enmType=%d\n", pMemSolaris->Core.enmType));
             return VERR_INTERNAL_ERROR;
@@ -115,7 +126,7 @@ int rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecu
     }
 
     pMemSolaris->Core.pv = virtAddr;
-    pMemSolaris->handle = NULL;
+    pMemSolaris->pvHandle = NULL;
     *ppMem = &pMemSolaris->Core;
     return VINF_SUCCESS;
 }
@@ -140,7 +151,7 @@ int rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecut
         return VERR_NO_LOW_MEMORY;
     }
     pMemSolaris->Core.pv = virtAddr;
-    pMemSolaris->handle = NULL;
+    pMemSolaris->pvHandle = NULL;
     *ppMem = &pMemSolaris->Core;
     return VINF_SUCCESS;
 }
@@ -167,7 +178,7 @@ int rtR0MemObjNativeAllocCont(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecu
     Assert(phys < (uint64_t)1 << 32);
     pMemSolaris->Core.pv = virtAddr;
     pMemSolaris->Core.u.Cont.Phys = phys;
-    pMemSolaris->handle = NULL;
+    pMemSolaris->pvHandle = NULL;
     *ppMem = &pMemSolaris->Core;
     return VINF_SUCCESS;
 }
@@ -213,18 +224,25 @@ int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t c
     if (!pMemSolaris)
         return VERR_NO_MEMORY;
 
-    void *ppl;
+    int fPageAccess = S_READ;
+    if (fAccess & RTMEM_PROT_WRITE)
+        fPageAccess = S_WRITE;
+    if (fAccess & RTMEM_PROT_EXEC)
+        fPageAccess = S_EXEC;
+    void *pvPageList = NULL;
 
     /* Lock down user pages */
-    int rc = vbi_lock_va((caddr_t)R3Ptr, cb, &ppl);
+    int rc = vbi_lock_va((caddr_t)R3Ptr, cb, fPageAccess, &pvPageList);
     if (rc != 0)
     {
         cmn_err(CE_NOTE,"rtR0MemObjNativeLockUser: vbi_lock_va failed rc=%d\n", rc);
+        rtR0MemObjDelete(&pMemSolaris->Core);
         return VERR_LOCK_FAILED;
     }
 
     pMemSolaris->Core.u.Lock.R0Process = (RTR0PROCESS)vbi_proc();
-    pMemSolaris->handle = ppl;
+    pMemSolaris->pvHandle = pvPageList;
+    pMemSolaris->fAccess = fPageAccess;
     *ppMem = &pMemSolaris->Core;
     return VINF_SUCCESS;
 }
@@ -238,16 +256,23 @@ int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, 
     if (!pMemSolaris)
         return VERR_NO_MEMORY;
 
-    void *ppl;
-    int rc = vbi_lock_va((caddr_t)pv, cb, &ppl);
+    int fPageAccess = S_READ;
+    if (fAccess & RTMEM_PROT_WRITE)
+        fPageAccess = S_WRITE;
+    if (fAccess & RTMEM_PROT_EXEC)
+        fPageAccess = S_EXEC;
+    void *pvPageList = NULL;
+    int rc = vbi_lock_va((caddr_t)pv, cb, fPageAccess, &pvPageList);
     if (rc != 0)
     {
         cmn_err(CE_NOTE,"rtR0MemObjNativeLockKernel: vbi_lock_va failed rc=%d\n", rc);
+        rtR0MemObjDelete(&pMemSolaris->Core);
         return VERR_LOCK_FAILED;
     }
 
     pMemSolaris->Core.u.Lock.R0Process = NIL_RTR0PROCESS;
-    pMemSolaris->handle = ppl;
+    pMemSolaris->pvHandle = pvPageList;
+    pMemSolaris->fAccess = fPageAccess;
     *ppMem = &pMemSolaris->Core;
     return VINF_SUCCESS;
 }
@@ -255,7 +280,26 @@ int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, 
 
 int rtR0MemObjNativeReserveKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixed, size_t cb, size_t uAlignment)
 {
-    return VERR_NOT_IMPLEMENTED;
+    PRTR0MEMOBJSOLARIS  pMemSolaris;
+    void               *pv;
+
+    /*
+     * Use xalloc.
+     */
+    pv = vmem_xalloc(heap_arena, cb, uAlignment, 0 /*phase*/, 0 /*nocross*/,
+                     NULL /*minaddr*/, NULL /*maxaddr*/, VM_SLEEP);
+    if (!pv)
+        return VERR_NO_MEMORY;
+    pMemSolaris = (PRTR0MEMOBJSOLARIS)rtR0MemObjNew(sizeof(*pMemSolaris), RTR0MEMOBJTYPE_RES_VIRT, pv, cb);
+    if (!pMemSolaris)
+    {
+        vmem_xfree(heap_arena, pv, cb);
+        return VERR_NO_MEMORY;
+    }
+
+    pMemSolaris->Core.u.ResVirt.R0Process = NIL_RTR0PROCESS;
+    *ppMem = &pMemSolaris->Core;
+    return VINF_SUCCESS;
 }
 
 
@@ -267,15 +311,17 @@ int rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3PtrFixed, 
 int rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, void *pvFixed, size_t uAlignment,
                               unsigned fProt, size_t offSub, size_t cbSub)
 {
-    /* @todo rtR0MemObjNativeMapKernel / Solaris - Should be fairly simple alloc kernel memory and memload it. */
+    /** @todo rtR0MemObjNativeMapKernel / Solaris - Should be fairly simple alloc kernel memory and memload it. */
     return VERR_NOT_IMPLEMENTED;
 }
+
 
 int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, PRTR0MEMOBJINTERNAL pMemToMap, RTR3PTR R3PtrFixed, size_t uAlignment, unsigned fProt, RTR0PROCESS R0Process)
 {
     AssertMsgReturn(R3PtrFixed == (RTR3PTR)-1, ("%p\n", R3PtrFixed), VERR_NOT_SUPPORTED);
     AssertMsgReturn(R0Process == RTR0ProcHandleSelf(), ("%p != %p\n", R0Process, RTR0ProcHandleSelf()), VERR_NOT_SUPPORTED);
-    AssertMsgReturn(uAlignment == 0 || uAlignment == PAGE_SIZE, ("%d\n", uAlignment), VERR_NOT_SUPPORTED);
+    if (uAlignment > PAGE_SIZE)
+        return VERR_NOT_SUPPORTED;
 
     PRTR0MEMOBJSOLARIS pMemToMapSolaris = (PRTR0MEMOBJSOLARIS)pMemToMap;
     size_t size = pMemToMapSolaris->Core.cb;
@@ -299,7 +345,7 @@ int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, PRTR0MEMOBJINTERNAL pMem
         {
             cmn_err(CE_NOTE, "rtR0MemObjNativeMapUser: no page to map.\n");
             rc = VERR_MAP_FAILED;
-            goto done;
+            goto l_done;
         }
         pv = (void *)((uintptr_t)pv + PAGE_SIZE);
     }
@@ -310,7 +356,7 @@ int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, PRTR0MEMOBJINTERNAL pMem
         cmn_err(CE_NOTE, "rtR0MemObjNativeMapUser: vbi failure.\n");
         rc = VERR_MAP_FAILED;
         rtR0MemObjDelete(&pMemSolaris->Core);
-        goto done;
+        goto l_done;
     }
     else
         rc = VINF_SUCCESS;
@@ -318,7 +364,7 @@ int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, PRTR0MEMOBJINTERNAL pMem
     pMemSolaris->Core.u.Mapping.R0Process = (RTR0PROCESS)vbi_proc();
     pMemSolaris->Core.pv = addr;
     *ppMem = &pMemSolaris->Core;
-done:
+l_done:
     kmem_free(paddrs, sizeof(uint64_t) * cPages);
     return rc;
 }

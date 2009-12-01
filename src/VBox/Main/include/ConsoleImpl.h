@@ -1,4 +1,4 @@
-/* $Id: ConsoleImpl.h $ */
+/* $Id: ConsoleImpl.h 24899 2009-11-24 13:31:21Z vboxsync $ */
 
 /** @file
  *
@@ -33,6 +33,7 @@ class Keyboard;
 class Mouse;
 class Display;
 class MachineDebugger;
+class TeleporterStateSrc;
 class OUSBDevice;
 class RemoteUSBDevice;
 class SharedFolder;
@@ -78,8 +79,8 @@ typedef struct VUSBIRHCONFIG *PVUSBIRHCONFIG;
 /** IConsole implementation class */
 class ATL_NO_VTABLE Console :
     public VirtualBoxBaseWithChildrenNEXT,
-    public VirtualBoxSupportErrorInfoImpl <Console, IConsole>,
-    public VirtualBoxSupportTranslation <Console>,
+    public VirtualBoxSupportErrorInfoImpl<Console, IConsole>,
+    public VirtualBoxSupportTranslation<Console>,
     VBOX_SCRIPTABLE_IMPL(IConsole)
 {
     Q_OBJECT
@@ -95,8 +96,6 @@ public:
         COM_INTERFACE_ENTRY(IConsole)
         COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
-
-    NS_DECL_ISUPPORTS
 
     Console();
     ~Console();
@@ -143,11 +142,11 @@ public:
     STDMETHOD(FindUSBDeviceById) (IN_BSTR aId, IUSBDevice **aDevice);
     STDMETHOD(CreateSharedFolder) (IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable);
     STDMETHOD(RemoveSharedFolder) (IN_BSTR aName);
-    STDMETHOD(TakeSnapshot) (IN_BSTR aName, IN_BSTR aDescription,
-                             IProgress **aProgress);
-    STDMETHOD(DiscardSnapshot) (IN_BSTR aId, IProgress **aProgress);
-    STDMETHOD(DiscardCurrentState) (IProgress **aProgress);
-    STDMETHOD(DiscardCurrentSnapshotAndState) (IProgress **aProgress);
+    STDMETHOD(TakeSnapshot)(IN_BSTR aName, IN_BSTR aDescription,
+                            IProgress **aProgress);
+    STDMETHOD(DeleteSnapshot)(IN_BSTR aId, IProgress **aProgress);
+    STDMETHOD(RestoreSnapshot)(ISnapshot *aSnapshot, IProgress **aProgress);
+    STDMETHOD(Teleport)(IN_BSTR aHostname, ULONG aPort, IN_BSTR aPassword, ULONG aMaxDowntime, IProgress **aProgress);
     STDMETHOD(RegisterCallback) (IConsoleCallback *aCallback);
     STDMETHOD(UnregisterCallback)(IConsoleCallback *aCallback);
 
@@ -164,7 +163,7 @@ public:
     Display *getDisplay() const { return mDisplay; }
     MachineDebugger *getMachineDebugger() const { return mDebugger; }
 
-    const ComPtr <IMachine> &machine() const { return mMachine; }
+    const ComPtr<IMachine> &machine() const { return mMachine; }
 
     /** Method is called only from ConsoleVRDPServer */
     IVRDPServer *getVRDPServer() const { return mVRDPServer; }
@@ -174,12 +173,11 @@ public:
     HRESULT updateMachineState (MachineState_T aMachineState);
 
     // events from IInternalSessionControl
-    HRESULT onDVDDriveChange();
-    HRESULT onFloppyDriveChange();
-    HRESULT onNetworkAdapterChange (INetworkAdapter *aNetworkAdapter);
+    HRESULT onNetworkAdapterChange (INetworkAdapter *aNetworkAdapter, BOOL changeAdapter);
     HRESULT onSerialPortChange (ISerialPort *aSerialPort);
     HRESULT onParallelPortChange (IParallelPort *aParallelPort);
     HRESULT onStorageControllerChange ();
+    HRESULT onMediumChange(IMediumAttachment *aMediumAttachment, BOOL aForce);
     HRESULT onVRDPServerChange();
     HRESULT onUSBControllerChange();
     HRESULT onSharedFolderChange (BOOL aGlobal);
@@ -215,6 +213,7 @@ public:
                                  IVirtualBoxErrorInfo *aError);
     void onRuntimeError (BOOL aFatal, IN_BSTR aErrorID, IN_BSTR aMessage);
     HRESULT onShowWindow (BOOL aCheck, BOOL *aCanShow, ULONG64 *aWinId);
+    void onRemoteDisplayInfoChange();
 
     static const PDMDRVREG DrvStatusReg;
 
@@ -222,6 +221,11 @@ public:
     {
         setError (E_FAIL, tr("Could not load the external authentication library '%s' (%Rrc)"), filename, rc);
     }
+
+    static HRESULT handleUnexpectedExceptions(RT_SRC_POS_DECL);
+
+    static const char *convertControllerTypeToDev(StorageControllerType_T enmCtrlType);
+    static HRESULT convertBusPortDeviceToLun(StorageBus_T enmBus, LONG port, LONG device, unsigned &uLun);
 
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"Console"; }
@@ -388,38 +392,38 @@ public:
         Bstr mHostPath;
         BOOL mWritable;
     };
-    typedef std::map <Bstr, ComObjPtr <SharedFolder> > SharedFolderMap;
+    typedef std::map <Bstr, ComObjPtr<SharedFolder> > SharedFolderMap;
     typedef std::map <Bstr, SharedFolderData> SharedFolderDataMap;
 
 private:
 
-    typedef std::list <ComObjPtr <OUSBDevice> > USBDeviceList;
-    typedef std::list <ComObjPtr <RemoteUSBDevice> > RemoteUSBDeviceList;
+    typedef std::list <ComObjPtr<OUSBDevice> > USBDeviceList;
+    typedef std::list <ComObjPtr<RemoteUSBDevice> > RemoteUSBDeviceList;
 
     HRESULT addVMCaller (bool aQuiet = false, bool aAllowNullVM = false);
     void releaseVMCaller();
 
-    HRESULT consoleInitReleaseLog (const ComPtr <IMachine> aMachine);
+    HRESULT consoleInitReleaseLog (const ComPtr<IMachine> aMachine);
 
     HRESULT powerUp (IProgress **aProgress, bool aPaused);
     HRESULT powerDown (Progress *aProgress = NULL);
 
     HRESULT callTapSetupApplication(bool isStatic, RTFILE tapFD, Bstr &tapDevice,
                                     Bstr &tapSetupApplication);
-#if defined(RT_OS_LINUX) && !defined(VBOX_WITH_NETFLT)
+#if (defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)) && !defined(VBOX_WITH_NETFLT)
     HRESULT attachToTapInterface(INetworkAdapter *networkAdapter);
     HRESULT detachFromTapInterface(INetworkAdapter *networkAdapter);
 #endif
     HRESULT powerDownHostInterfaces();
 
-    HRESULT setMachineState (MachineState_T aMachineState, bool aUpdateServer = true);
-    HRESULT setMachineStateLocally (MachineState_T aMachineState)
+    HRESULT setMachineState(MachineState_T aMachineState, bool aUpdateServer = true);
+    HRESULT setMachineStateLocally(MachineState_T aMachineState)
     {
         return setMachineState (aMachineState, false /* aUpdateServer */);
     }
 
     HRESULT findSharedFolder (CBSTR aName,
-                              ComObjPtr <SharedFolder> &aSharedFolder,
+                              ComObjPtr<SharedFolder> &aSharedFolder,
                               bool aSetError = false);
 
     HRESULT fetchSharedFolders (BOOL aGlobal);
@@ -438,14 +442,13 @@ private:
                              PCFGMNODE pInst, bool fAttachDetach);
     static DECLCALLBACK(void) vmstateChangeCallback(PVM aVM, VMSTATE aState,
                                                     VMSTATE aOldState, void *aUser);
-    HRESULT doDriveChange (const char *pszDevice, unsigned uInstance,
-                           unsigned uLun, DriveState_T eState,
-                           DriveState_T *peState, const char *pszPath,
-                           bool fPassthrough);
     static DECLCALLBACK(int) changeDrive (Console *pThis, const char *pszDevice,
                                           unsigned uInstance, unsigned uLun,
-                                          DriveState_T eState, DriveState_T *peState,
-                                          const char *pszPath, bool fPassthrough);
+                                          bool fHostDrive, const char *pszPath,
+                                          const char *pszFormat, bool fPassthrough,
+                                          bool fForce);
+    HRESULT doMediumChange(IMediumAttachment *aMediumAttachment, bool fForce);
+
 #ifdef VBOX_DYNAMIC_NET_ATTACH
     HRESULT doNetworkAdapterChange (const char *pszDevice, unsigned uInstance,
                                     unsigned uLun, INetworkAdapter *aNetworkAdapter);
@@ -458,22 +461,22 @@ private:
     HRESULT attachUSBDevice (IUSBDevice *aHostDevice, ULONG aMaskedIfs);
     HRESULT detachUSBDevice (USBDeviceList::iterator &aIt);
 
-    static DECLCALLBACK(int)
-    usbAttachCallback (Console *that, IUSBDevice *aHostDevice, PCRTUUID aUuid,
+    static DECLCALLBACK(int) usbAttachCallback (Console *that, IUSBDevice *aHostDevice, PCRTUUID aUuid,
                        bool aRemote, const char *aAddress, ULONG aMaskedIfs);
-    static DECLCALLBACK(int)
-    usbDetachCallback (Console *that, USBDeviceList::iterator *aIt, PCRTUUID aUuid);
+    static DECLCALLBACK(int) usbDetachCallback (Console *that, USBDeviceList::iterator *aIt, PCRTUUID aUuid);
 #endif
 
-    static DECLCALLBACK (int)
-    stateProgressCallback (PVM pVM, unsigned uPercent, void *pvUser);
+    static DECLCALLBACK(int)    fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser);
 
-    static DECLCALLBACK(void)
-    setVMErrorCallback (PVM pVM, void *pvUser, int rc, RT_SRC_POS_DECL,
-                        const char *pszFormat, va_list args);
+    static DECLCALLBACK(int)    stateProgressCallback(PVM pVM, unsigned uPercent, void *pvUser);
 
-    static DECLCALLBACK(void)
-    setVMRuntimeErrorCallback (PVM pVM, void *pvUser, uint32_t fFatal,
+    static DECLCALLBACK(void)   setVMErrorCallback(PVM pVM, void *pvUser, int rc, RT_SRC_POS_DECL,
+                                                   const char *pszFormat, va_list args);
+
+    static DECLCALLBACK(void) setVMRuntimeErrorCallbackF (PVM pVM, void *pvUser, uint32_t fFatal,
+                               const char *pszErrorId,
+                               const char *pszFormat, ...);
+    static DECLCALLBACK(void) setVMRuntimeErrorCallback (PVM pVM, void *pvUser, uint32_t fFatal,
                                const char *pszErrorId,
                                const char *pszFormat, va_list va);
 
@@ -487,7 +490,7 @@ private:
     static DECLCALLBACK(void *) drvStatus_QueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface);
     static DECLCALLBACK(void)   drvStatus_UnitChanged(PPDMILEDCONNECTORS pInterface, unsigned iLUN);
     static DECLCALLBACK(void)   drvStatus_Destruct(PPDMDRVINS pDrvIns);
-    static DECLCALLBACK(int)    drvStatus_Construct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle);
+    static DECLCALLBACK(int)    drvStatus_Construct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags);
 
     int mcAudioRefs;
     volatile uint32_t mcVRDPClients;
@@ -500,39 +503,47 @@ private:
     int loadStateFileExecInternal (PSSMHANDLE pSSM, uint32_t u32Version);
 
     static DECLCALLBACK(void)   saveStateFileExec (PSSMHANDLE pSSM, void *pvUser);
-    static DECLCALLBACK(int)    loadStateFileExec (PSSMHANDLE pSSM, void *pvUser, uint32_t u32Version);
+    static DECLCALLBACK(int)    loadStateFileExec (PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32_t uPass);
 
 #ifdef VBOX_WITH_GUEST_PROPS
-    static DECLCALLBACK(int)    doGuestPropNotification (void *pvExtension, uint32_t,
-                                                         void *pvParms, uint32_t cbParms);
-    HRESULT doEnumerateGuestProperties (CBSTR aPatterns,
-                                        ComSafeArrayOut(BSTR, aNames),
-                                        ComSafeArrayOut(BSTR, aValues),
-                                        ComSafeArrayOut(ULONG64, aTimestamps),
-                                        ComSafeArrayOut(BSTR, aFlags));
+    static DECLCALLBACK(int)    doGuestPropNotification(void *pvExtension, uint32_t, void *pvParms, uint32_t cbParms);
+    HRESULT                     doMoveGuestPropertiesOnPowerOff(bool fSaving);
+    HRESULT                     doEnumerateGuestProperties(CBSTR aPatterns,
+                                                           ComSafeArrayOut(BSTR, aNames),
+                                                           ComSafeArrayOut(BSTR, aValues),
+                                                           ComSafeArrayOut(ULONG64, aTimestamps),
+                                                           ComSafeArrayOut(BSTR, aFlags));
 
     bool enabledGuestPropertiesVRDP (void);
     void updateGuestPropertiesVRDPLogon (uint32_t u32ClientId, const char *pszUser, const char *pszDomain);
     void updateGuestPropertiesVRDPDisconnect (uint32_t u32ClientId);
 #endif
 
+    /** @name Teleporter support
+     * @{ */
+    static DECLCALLBACK(int)    teleporterSrcThreadWrapper(RTTHREAD hThread, void *pvUser);
+    HRESULT                     teleporterSrc(TeleporterStateSrc *pState);
+    HRESULT                     teleporterSrcReadACK(TeleporterStateSrc *pState, const char *pszWhich, const char *pszNAckMsg = NULL);
+    HRESULT                     teleporterSrcSubmitCommand(TeleporterStateSrc *pState, const char *pszCommand, bool fWaitForAck = true);
+    int                         teleporterTrg(PVM pVM, IMachine *pMachine, bool fStartPaused, Progress *pProgress);
+    static DECLCALLBACK(int)    teleporterTrgServeConnection(RTSOCKET Sock, void *pvUser);
+    /** @} */
+
     bool mSavedStateDataLoaded : 1;
 
-    const ComPtr <IMachine> mMachine;
-    const ComPtr <IInternalMachineControl> mControl;
+    const ComPtr<IMachine> mMachine;
+    const ComPtr<IInternalMachineControl> mControl;
 
     const ComPtr <IVRDPServer> mVRDPServer;
-    const ComPtr <IDVDDrive> mDVDDrive;
-    const ComPtr <IFloppyDrive> mFloppyDrive;
 
     ConsoleVRDPServer * const mConsoleVRDPServer;
 
-    const ComObjPtr <Guest> mGuest;
-    const ComObjPtr <Keyboard> mKeyboard;
-    const ComObjPtr <Mouse> mMouse;
-    const ComObjPtr <Display> mDisplay;
-    const ComObjPtr <MachineDebugger> mDebugger;
-    const ComObjPtr <RemoteDisplayInfo> mRemoteDisplayInfo;
+    const ComObjPtr<Guest> mGuest;
+    const ComObjPtr<Keyboard> mKeyboard;
+    const ComObjPtr<Mouse> mMouse;
+    const ComObjPtr<Display> mDisplay;
+    const ComObjPtr<MachineDebugger> mDebugger;
+    const ComObjPtr<RemoteDisplayInfo> mRemoteDisplayInfo;
 
     USBDeviceList mUSBDevices;
     RemoteUSBDeviceList mRemoteUSBDevices;
@@ -551,16 +562,15 @@ private:
     bool mVMDestroying : 1;
     /** true when power down is initiated by vmstateChangeCallback (EMT) */
     bool mVMPoweredOff : 1;
+    /** true when vmstateChangeCallback shouldn't initiate a power down.  */
+    bool mVMIsAlreadyPoweringOff : 1;
 
-    /** The current DVD drive state in the VM.
-     * This does not have to match the state maintained in the DVD. */
-    DriveState_T meDVDState;
-    /** The current Floppy drive state in the VM.
-     * This does not have to match the state maintained in the Floppy. */
-    DriveState_T meFloppyState;
     /** The current network attachment type in the VM.
-     * This does not have to match the state maintained in the NetworkAdapter. */
-    static NetworkAttachmentType_T meAttachmentType[SchemaDefs::NetworkAdapterCount];
+     * This doesn't have to match the network attachment type
+     * maintained in the NetworkAdapter. This is needed to
+     * change the network attachment dynamically.
+     */
+    NetworkAttachmentType_T meAttachmentType[SchemaDefs::NetworkAdapterCount];
 
     VMMDev * const mVMMDev;
     AudioSniffer * const mAudioSniffer;
@@ -572,17 +582,26 @@ private:
     PPDMLED     mapNetworkLeds[SchemaDefs::NetworkAdapterCount];
     PPDMLED     mapSharedFolderLed;
     PPDMLED     mapUSBLed[2];
-#if !defined(VBOX_WITH_NETFLT) && defined(RT_OS_LINUX)
+#if !defined(VBOX_WITH_NETFLT) && (defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD))
     Utf8Str     maTAPDeviceName[8];
     RTFILE      maTapFD[8];
 #endif
 
     bool mVMStateChangeCallbackDisabled;
 
-    /* Local machine state value */
+    /** Local machine state value. */
     MachineState_T mMachineState;
 
-    typedef std::list <ComPtr <IConsoleCallback> > CallbackList;
+    /** Pointer to the progress object of a live cancelable task.
+     *
+     * This is currently only used by Console::Teleport(), but is intended to later
+     * be used by the live snapshot code path as well.  Actions like
+     * Console::PowerDown, which automatically cancels out the running snapshot /
+     * teleportion operation, will cancel the teleportation / live snapshot
+     * operation before starting. */
+    ComObjPtr<Progress> mptrCancelableProgress;
+
+    typedef std::list <ComPtr<IConsoleCallback> > CallbackList;
     CallbackList mCallbacks;
 
     struct
@@ -626,5 +645,5 @@ private:
     friend struct VMTask;
 };
 
-#endif // ____H_CONSOLEIMPL
+#endif // !____H_CONSOLEIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

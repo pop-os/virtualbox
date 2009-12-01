@@ -43,10 +43,12 @@ public:
 
     QString id (int = -1) const;
     QString location (int = -1) const;
+    VBoxDefs::MediumType type() const { return mType; }
 
     void setCurrentItem (const QString &aItemId);
-    void setType (VBoxDefs::MediaType aMediaType);
+    void setType (VBoxDefs::MediumType aMediumType);
     void setMachineId (const QString &aMachineId = QString::null);
+    void setNullItemPresent (bool aNullItemPresent);
 
     void setShowDiffs (bool aShowDiffs);
     bool showDiffs() const { return mShowDiffs; }
@@ -58,7 +60,7 @@ protected slots:
 
     void mediumAdded (const VBoxMedium &);
     void mediumUpdated (const VBoxMedium &);
-    void mediumRemoved (VBoxDefs::MediaType, const QString &);
+    void mediumRemoved (VBoxDefs::MediumType, const QString &);
 
     void processActivated (int aIndex);
 //    void processIndexChanged (int aIndex);
@@ -67,8 +69,6 @@ protected slots:
 
 protected:
 
-    void addNoMediaItem();
-
     void updateToolTip (int);
 
     void appendItem (const VBoxMedium &);
@@ -76,7 +76,7 @@ protected:
 
     bool findMediaIndex (const QString &aId, int &aIndex);
 
-    VBoxDefs::MediaType mType;
+    VBoxDefs::MediumType mType;
 
     /** Obtruncated VBoxMedium structure. */
     struct Medium
@@ -97,6 +97,7 @@ protected:
     QString mLastId;
 
     bool mShowDiffs : 1;
+    bool mShowNullItem : 1;
 
     QString mMachineId;
 };

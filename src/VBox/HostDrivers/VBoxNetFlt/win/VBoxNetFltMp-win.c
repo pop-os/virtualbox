@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltMp-win.c $ */
+/* $Id: VBoxNetFltMp-win.c 24758 2009-11-18 12:57:48Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Miniport edge of ndis filter driver
  */
@@ -455,35 +455,14 @@ vboxNetFltWinSendPassThru(
     Assert(fStatus == NDIS_STATUS_SUCCESS);
     if (fStatus == NDIS_STATUS_SUCCESS)
     {
-#ifdef DEBUG_NETFLT_LOOPBACK
-# error "implement (see comments in the sources below this #error:)"
-        /* @todo FIXME no need the PPACKET_INFO mechanism here;
-        instead the the NDIS_PACKET.ProtocolReserved + INTERLOCKED_SINGLE_LIST mechanism \
-        similar to that used in TrasferData handling should be used;
-        */
-//        /* need to enqueue to enable callback discarding
-//         * since we now always discard all callbacks */
-//        PPACKET_INFO pInfo = vboxNetFltWinDoSend(&fStatus, pAdapt, pMyPacket);
-//
-//        Assert(pInfo);
-#else
+#if !defined(VBOX_LOOPBACK_USEFLAGS) /* || defined(DEBUG_NETFLT_PACKETS) */
+        /* no need for the loop enqueue & check in a passthru mode , ndis will do everything for us */
+#endif
         NdisSend(&fStatus,
                  pAdapt->hBindingHandle,
                  pMyPacket);
-#endif
         if (fStatus != NDIS_STATUS_PENDING)
         {
-#ifdef DEBUG_NETFLT_LOOPBACK
-# error "implement (see comments in the sources below this #error:)"
-        /* @todo FIXME no need for the PPACKET_INFO mechanism here;
-        instead the the NDIS_PACKET.ProtocolReserved + INTERLOCKED_SINGLE_LIST mechanism \
-        similar to that used in TrasferData handling should be used;
-        */
-
-//            vboxNetFltWinDoCompleteSendViaInfo(pAdapt, pInfo);
-//            vboxNetFltWinPpFreePacketInfo(pInfo);
-#endif
-
 #ifndef WIN9X
             NdisIMCopySendCompletePerPacketInfo (pPacket, pMyPacket);
 #endif
@@ -499,6 +478,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinMpDoDeinitialization(PADAPT pAdapt)
     PVBOXNETFLTINS pNetFlt = PADAPT_2_PVBOXNETFLTINS(pAdapt);
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
     uint64_t NanoTS = RTTimeSystemNanoTS();
+    int cPPUsage;
 
     Assert(vboxNetFltWinGetOpState(&pAdapt->MPState) == kVBoxNetDevOpState_Initialized);
     /*
@@ -516,6 +496,12 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinMpDoDeinitialization(PADAPT pAdapt)
     RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
 
     vboxNetFltWinWaitDereference(&pAdapt->MPState);
+
+    /* check packet pool is empty */
+    cPPUsage = NdisPacketPoolUsage(pAdapt->hRecvPacketPoolHandle);
+    Assert(cPPUsage == 0);
+    /* for debugging only, ignore the err in release */
+    NOREF(cPPUsage);
 
     vboxNetFltWinSetOpState(&pAdapt->MPState, kVBoxNetDevOpState_Deinitialized);
 
@@ -754,11 +740,12 @@ static NDIS_STATUS vboxNetFltWinMpInitialize(
                             {
                                 Assert(vboxNetFltWinGetOpState(&pAdapt->MPState) == kVBoxNetDevOpState_Initialized);
                                 vboxNetFltWinSetOpState(&pAdapt->MPState, kVBoxNetDevOpState_Initialized);
-
+#if 0
                                 NdisMIndicateStatus(pAdapt->hMiniportHandle,
                                                          NDIS_STATUS_MEDIA_CONNECT,
                                                          (PVOID)NULL,
                                                          0);
+#endif
                             }
                             else
                             {
@@ -841,61 +828,38 @@ vboxNetFltWinMpSendPackets(
 
             pPacket = pPacketArray[i];
 
-#ifdef DEBUG_NETFLT_LOOPBACK
-# error "implement (see comments in the sources below this #error:)"
-        /* @todo FIXME no need for the PPACKET_INFO mechanism here;
-        instead the the NDIS_PACKET.ProtocolReserved + INTERLOCKED_SINGLE_LIST mechanism \
-        similar to that used in TrasferData handling should be used;
-        */
-
-//            if(vboxNetFltWinIsLoopedBackPacket(pAdapt, pPacket, false))
-#else
-            if(vboxNetFltWinIsLoopedBackPacket(pPacket))
-#endif
-
-            {
-                /* we should not have loopbacks on send */
-                Assert(0);
-
-                NdisMSendComplete(pAdapt->hMiniportHandle,
-                                  pPacket,
-                                  NDIS_STATUS_SUCCESS);
-            }
-            else
-            {
-                if(!cNetFltRefs
+            if(!cNetFltRefs
                     || (fStatus = vboxNetFltWinQuEnqueuePacket(pNetFlt, pPacket, PACKET_SRC_HOST)) != NDIS_STATUS_SUCCESS)
-                {
+            {
 #ifndef VBOXNETADP
-                    fStatus = vboxNetFltWinSendPassThru(pAdapt, pPacket);
+                fStatus = vboxNetFltWinSendPassThru(pAdapt, pPacket);
 #else
-                    if(!cNetFltRefs)
-                    {
+                if(!cNetFltRefs)
+                {
 # ifdef VBOXNETADP_REPORT_DISCONNECTED
-                        fStatus = NDIS_STATUS_MEDIA_DISCONNECT;
-                        STATISTIC_INCREASE(pAdapt->cTxError);
+                    fStatus = NDIS_STATUS_MEDIA_DISCONNECT;
+                    STATISTIC_INCREASE(pAdapt->cTxError);
 # else
-                        fStatus = NDIS_STATUS_SUCCESS;
+                    fStatus = NDIS_STATUS_SUCCESS;
 # endif
-                    }
+                }
 #endif
 
-                    if (fStatus != NDIS_STATUS_PENDING)
-                    {
-                        NdisMSendComplete(pAdapt->hMiniportHandle,
+                if (fStatus != NDIS_STATUS_PENDING)
+                {
+                    NdisMSendComplete(pAdapt->hMiniportHandle,
                                       pPacket,
                                       fStatus);
-                    }
-                    else
-                    {
-                        cAdaptRefs--;
-                    }
                 }
                 else
                 {
                     cAdaptRefs--;
-                    cNetFltRefs--;
                 }
+            }
+            else
+            {
+                cAdaptRefs--;
+                cNetFltRefs--;
             }
         }
 
@@ -2459,20 +2423,7 @@ vboxNetFltWinMpReturnPacket(
 
         PNDIS_PACKET    MyPacket;
         PRECV_RSVD      RecvRsvd;
-#ifdef DEBUG_NETFLT_LOOPBACK
-# error "implement (see comments in the sources below this #error:)"
-        /* @todo FIXME no need for the PPACKET_INFO mechanism here;
-        instead the the NDIS_PACKET.ProtocolReserved + INTERLOCKED_SINGLE_LIST mechanism \
-        similar to that used in TrasferData handling should be used;
-        */
 
-//        PPACKET_INFO pInfo = vboxNetFltWinDoCompleteIndicateReceive(pAdapt, Packet);
-//
-//        if(pInfo)
-//        {
-//            vboxNetFltWinPpFreePacketInfo(pInfo);
-//        }
-#endif
         RecvRsvd = (PRECV_RSVD)(Packet->MiniportReserved);
         MyPacket = RecvRsvd->pOriginalPkt;
 

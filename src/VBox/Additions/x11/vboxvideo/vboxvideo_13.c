@@ -51,42 +51,7 @@
  * Authors: Paulo César Pereira de Andrade <pcpa@conectiva.com.br>
  */
 
-#ifdef DEBUG_michael
-# define DEBUG_VIDEO 1
-#endif
-#ifdef DEBUG_VIDEO
-
-#define TRACE \
-do { \
-    xf86Msg(X_INFO, __PRETTY_FUNCTION__); \
-    xf86Msg(X_INFO, ": entering\n"); \
-} while(0)
-#define TRACE2 \
-do { \
-    xf86Msg(X_INFO, __PRETTY_FUNCTION__); \
-    xf86Msg(X_INFO, ": leaving\n"); \
-} while(0)
-#define TRACE3(...) \
-do { \
-    xf86Msg(X_INFO, __PRETTY_FUNCTION__); \
-    xf86Msg(X_INFO, __VA_ARGS__); \
-} while(0)
-
-#else  /* DEBUG_VIDEO not defined */
-
-#define TRACE       do { } while(0)
-#define TRACE2      do { } while(0)
-#define TRACE3(...) do { } while(0)
-
-#endif  /* DEBUG_VIDEO not defined */
-
-#ifdef XFree86LOADER
-# include "xorg-server.h"
-#else
-# ifdef HAVE_CONFIG_H
-#  include "config.h"
-# endif
-#endif
+#include "xorg-server.h"
 #include "vboxvideo.h"
 #include "version-generated.h"
 #include <xf86.h>
@@ -105,6 +70,9 @@ do { \
 /* #define DPMS_SERVER
 #include "extensions/dpms.h" */
 
+/* VGA hardware functions for setting and restoring text mode */
+#include "vgaHW.h"
+
 /* X.org 1.3+ mode setting */
 #include "xf86Crtc.h"
 #include "xf86Modes.h"
@@ -113,7 +81,12 @@ do { \
 
 static const OptionInfoRec * VBOXAvailableOptions(int chipid, int busid);
 static void VBOXIdentify(int flags);
+#ifndef PCIACCESS
 static Bool VBOXProbe(DriverPtr drv, int flags);
+#else
+static Bool VBOXPciProbe(DriverPtr drv, int entity_num,
+     struct pci_device *dev, intptr_t match_data);
+#endif
 static Bool VBOXPreInit(ScrnInfoPtr pScrn, int flags);
 static Bool VBOXScreenInit(int Index, ScreenPtr pScreen, int argc,
                            char **argv);
@@ -130,13 +103,36 @@ static void VBOXFreeRec(ScrnInfoPtr pScrn);
 /* locally used functions */
 static Bool VBOXMapVidMem(ScrnInfoPtr pScrn);
 static void VBOXUnmapVidMem(ScrnInfoPtr pScrn);
-static void VBOXLoadPalette(ScrnInfoPtr pScrn, int numColors,
-                            int *indices,
-                            LOCO *colors, VisualPtr pVisual);
-static void SaveFonts(ScrnInfoPtr pScrn);
-static void RestoreFonts(ScrnInfoPtr pScrn);
 static Bool VBOXSaveRestore(ScrnInfoPtr pScrn,
                             vbeSaveRestoreFunction function);
+
+enum GenericTypes
+{
+    CHIP_VBOX_GENERIC
+};
+
+#ifdef PCIACCESS
+static const struct pci_id_match vbox_device_match[] = {
+    {
+        VBOX_VENDORID, VBOX_DEVICEID, PCI_MATCH_ANY, PCI_MATCH_ANY,
+        0, 0, 0
+    },
+
+    { 0, 0, 0 },
+};
+#endif
+
+/* Supported chipsets */
+static SymTabRec VBOXChipsets[] =
+{
+    {VBOX_DEVICEID, "vbox"},
+    {-1,	 NULL}
+};
+
+static PciChipsets VBOXPCIchipsets[] = {
+  { VBOX_DEVICEID, VBOX_DEVICEID, RES_SHARED_VGA },
+  { -1,		-1,		    RES_UNDEFINED },
+};
 
 /*
  * This contains the functions needed by the server after loading the
@@ -146,27 +142,24 @@ static Bool VBOXSaveRestore(ScrnInfoPtr pScrn,
  * this DriverRec be an upper-case version of the driver name.
  */
 
-_X_EXPORT DriverRec VBOXDRV = {
+_X_EXPORT DriverRec VBOXVIDEO = {
     VBOX_VERSION,
     VBOX_DRIVER_NAME,
     VBOXIdentify,
+#ifdef PCIACCESS
+    NULL,
+#else
     VBOXProbe,
+#endif
     VBOXAvailableOptions,
     NULL,
     0,
-    NULL
-};
+    NULL,
 
-/* Supported chipsets */
-static SymTabRec VBOXChipsets[] =
-{
-    {VBOX_VESA_DEVICEID, "vbox"},
-    {-1,	 NULL}
-};
-
-static PciChipsets VBOXPCIchipsets[] = {
-  { VBOX_DEVICEID, VBOX_DEVICEID, RES_SHARED_VGA },
-  { -1,		-1,		    RES_UNDEFINED },
+#ifdef PCIACCESS
+    vbox_device_match,
+    VBOXPciProbe
+#endif
 };
 
 /* No options for now */
@@ -209,16 +202,10 @@ VBOXCrtcResize(ScrnInfoPtr scrn, int width, int height)
     VBOXPtr pVBox = VBOXGetRec(scrn);
     Bool rc = TRUE;
 
-    TRACE3("width=%d, height=%d\n", width, height);
-    /* We only support horizontal resolutions which are a multiple of 8.  Round down if
-       necessary. */
-    if (width % 8 != 0)
-    {
-        xf86DrvMsg(scrn->scrnIndex, X_WARNING,
-                   "VirtualBox only supports virtual screen widths which are a multiple of 8.  Rounding down from %d to %d\n",
-                   width, width - (width % 8));
-        width = width - (width % 8);
-    }
+    TRACE_LOG("width=%d, height=%d\n", width, height);
+    /* We only support horizontal resolutions which are a multiple of 8. 
+     * Round up if necessary. */
+    width = (width + 7) & ~7;
     if (width * height * bpp / 8 >= scrn->videoRam * 1024)
     {
         xf86DrvMsg(scrn->scrnIndex, X_ERROR,
@@ -249,8 +236,14 @@ VBOXCrtcResize(ScrnInfoPtr scrn, int width, int height)
         scrn->virtualX = width;
         scrn->virtualY = height;
         scrn->displayWidth = width;
+#ifdef VBOX_DRI
+        if (pVBox->useDRI)
+            VBOXDRIUpdateStride(scrn, pVBox);
+#endif
+        /* Write the new values to the hardware */
+        rc = xf86SetDesiredModes(scrn);
     }
-    TRACE3("returning %s\n", rc ? "TRUE" : "FALSE");
+    TRACE_LOG("returning %s\n", rc ? "TRUE" : "FALSE");
     return rc;
 }
 
@@ -274,7 +267,7 @@ vbox_crtc_mode_fixup (xf86CrtcPtr crtc, DisplayModePtr mode,
     int xRes = adjusted_mode->HDisplay;
 
     (void) mode;
-    TRACE3("name=%s, HDisplay=%d, VDisplay=%d\n", adjusted_mode->name,
+    TRACE_LOG("name=%s, HDisplay=%d, VDisplay=%d\n", adjusted_mode->name,
            adjusted_mode->HDisplay, adjusted_mode->VDisplay);
     /* We only support horizontal resolutions which are a multiple of 8.  Round down if
        necessary. */
@@ -297,7 +290,7 @@ vbox_crtc_mode_set (xf86CrtcPtr crtc, DisplayModePtr mode,
                     DisplayModePtr adjusted_mode, int x, int y)
 {
     (void) mode;
-    TRACE3("name=%s, HDisplay=%d, VDisplay=%d, x=%d, y=%d\n", adjusted_mode->name,
+    TRACE_LOG("name=%s, HDisplay=%d, VDisplay=%d, x=%d, y=%d\n", adjusted_mode->name,
            adjusted_mode->HDisplay, adjusted_mode->VDisplay, x, y);
     VBOXSetMode(crtc->scrn, adjusted_mode);
     VBOXAdjustFrame(crtc->scrn->scrnIndex, x, y, 0);
@@ -350,16 +343,16 @@ vbox_output_mode_valid (xf86OutputPtr output, DisplayModePtr mode)
 {
     ScrnInfoPtr pScrn = output->scrn;
     int rc = MODE_OK;
-    TRACE3("HDisplay=%d, VDisplay=%d\n", mode->HDisplay, mode->VDisplay);
+    TRACE_LOG("HDisplay=%d, VDisplay=%d\n", mode->HDisplay, mode->VDisplay);
     /* We always like modes specified by the user in the configuration
      * file, as doing otherwise is likely to annoy people. */
     if (   !(mode->type & M_T_USERDEF)
         && vbox_device_available(VBOXGetRec(pScrn))
-        && !vboxHostLikesVideoMode(pScrn, mode->HDisplay,
-                                   mode->VDisplay, pScrn->bitsPerPixel)
+        && !vboxHostLikesVideoMode(pScrn, mode->HDisplay, mode->VDisplay,
+                                   pScrn->bitsPerPixel)
        )
         rc = MODE_BAD;
-    TRACE3("returning %s\n", MODE_OK == rc ? "MODE_OK" : "MODE_BAD");
+    TRACE_LOG("returning %s\n", MODE_OK == rc ? "MODE_OK" : "MODE_BAD");
     return rc;
 }
 
@@ -385,7 +378,7 @@ static void
 vbox_output_add_mode (DisplayModePtr *pModes, const char *pszName, int x, int y,
                       Bool isPreferred, Bool isUserDef)
 {
-    TRACE3("pszName=%s, x=%d, y=%d\n", pszName, x, y);
+    TRACE_LOG("pszName=%s, x=%d, y=%d\n", pszName, x, y);
     DisplayModePtr pMode = xnfcalloc(1, sizeof(DisplayModeRec));
 
     pMode->status        = MODE_OK;
@@ -421,22 +414,16 @@ vbox_output_get_modes (xf86OutputPtr output)
     ScrnInfoPtr pScrn = output->scrn;
     VBOXPtr pVBox = VBOXGetRec(pScrn);
 
-    TRACE;
+    TRACE_ENTRY();
     if (vbox_device_available(pVBox))
     {
         uint32_t x, y, bpp, display;
         rc = vboxGetDisplayChangeRequest(pScrn, &x, &y, &bpp, &display);
-        /** @todo - check the display number once we support multiple displays. */
+        /* @todo - check the display number once we support multiple displays. */
         /* If we don't find a display request, see if we have a saved hint
          * from a previous session. */
-        if (rc)
-            TRACE3("Got a display change request for %dx%d\n", x, y);
         if (!rc || (0 == x) || (0 == y))
-        {
             rc = vboxRetrieveVideoMode(pScrn, &x, &y, &bpp);
-            if (rc)
-                TRACE3("Retrieved a video mode of %dx%d\n", x, y);
-        }
         if (rc && (0 != x) && (0 != y)) {
             /* We prefer a slightly smaller size to a slightly larger one */
             x -= (x % 8);
@@ -452,8 +439,7 @@ vbox_output_get_modes (xf86OutputPtr output)
             vbox_output_add_mode(&pModes, pScrn->display->modes[i], x, y,
                                  FALSE, TRUE);
     }
-
-    TRACE2;
+    TRACE_EXIT();
     return pModes;
 }
 
@@ -481,52 +467,6 @@ static const xf86OutputFuncsRec VBOXOutputFuncs = {
      .set_property = vbox_output_set_property,
 #endif
     .destroy = vbox_output_stub
-};
-
-/*
- * List of symbols from other modules that this module references.  This
- * list is used to tell the loader that it is OK for symbols here to be
- * unresolved providing that it hasn't been told that they are essential
- * via a call to xf86LoaderReqSymbols() or xf86LoaderReqSymLists().  The
- * purpose is this is to avoid warnings about unresolved symbols that are
- * not required.
- */
-static const char *fbSymbols[] = {
-    "fbPictureInit",
-    "fbScreenInit",
-    NULL
-};
-
-static const char *shadowfbSymbols[] = {
-  "ShadowFBInit2",
-  NULL
-};
-
-static const char *vbeSymbols[] = {
-    "VBEExtendedInit",
-    "VBEFindSupportedDepths",
-    "VBEGetModeInfo",
-    "VBEGetVBEInfo",
-    "VBEGetVBEMode",
-    "VBEPrintModes",
-    "VBESaveRestore",
-    "VBESetDisplayStart",
-    "VBESetGetDACPaletteFormat",
-    "VBESetGetLogicalScanlineLength",
-    "VBESetGetPaletteData",
-    "VBESetModeNames",
-    "VBESetModeParameters",
-    "VBESetVBEMode",
-    "VBEValidateModes",
-    "vbeDoEDID",
-    "vbeFree",
-    NULL
-};
-
-static const char *ramdacSymbols[] = {
-    "xf86InitCursor",
-    "xf86CreateCursorInfoRec",
-    NULL
 };
 
 #ifdef XFree86LOADER
@@ -563,12 +503,13 @@ vboxSetup(pointer Module, pointer Options, int *ErrorMajor, int *ErrorMinor)
     if (!Initialised)
     {
         Initialised = TRUE;
-        xf86AddDriver(&VBOXDRV, Module, 0);
-        LoaderRefSymLists(fbSymbols,
-                          shadowfbSymbols,
-                          vbeSymbols,
-                          ramdacSymbols,
-                          NULL);
+#ifdef PCIACCESS
+        xf86AddDriver(&VBOXVIDEO, Module, HaveDriverFuncs);
+#else
+        xf86AddDriver(&VBOXVIDEO, Module, 0);
+#endif
+        xf86Msg(X_CONFIG, "Load address of symbol \"VBOXVIDEO\" is %p\n",
+                (void *)&VBOXVIDEO);
         return (pointer)TRUE;
     }
 
@@ -596,14 +537,47 @@ VBOXIdentify(int flags)
  * do a minimal probe for supported hardware.
  */
 
+#ifdef PCIACCESS
+static Bool
+VBOXPciProbe(DriverPtr drv, int entity_num, struct pci_device *dev,
+             intptr_t match_data)
+{
+    ScrnInfoPtr pScrn;
+
+    TRACE_ENTRY();
+    pScrn = xf86ConfigPciEntity(NULL, 0, entity_num, VBOXPCIchipsets,
+                                NULL, NULL, NULL, NULL, NULL);
+    if (pScrn != NULL) {
+        VBOXPtr pVBox = VBOXGetRec(pScrn);
+
+        pScrn->driverVersion = VBOX_VERSION;
+        pScrn->driverName    = VBOX_DRIVER_NAME;
+        pScrn->name          = VBOX_NAME;
+        pScrn->Probe         = NULL;
+        pScrn->PreInit       = VBOXPreInit;
+        pScrn->ScreenInit    = VBOXScreenInit;
+        pScrn->SwitchMode    = VBOXSwitchMode;
+        pScrn->ValidMode     = VBOXValidMode;
+        pScrn->AdjustFrame   = VBOXAdjustFrame;
+        pScrn->EnterVT       = VBOXEnterVT;
+        pScrn->LeaveVT       = VBOXLeaveVT;
+        pScrn->FreeScreen    = VBOXFreeScreen;
+
+        pVBox->pciInfo = dev;
+    }
+
+    TRACE_LOG("returning %s\n", BOOL_STR(pScrn != NULL));
+    return (pScrn != NULL);
+}
+#endif
+
+#ifndef PCIACCESS
 static Bool
 VBOXProbe(DriverPtr drv, int flags)
 {
     Bool foundScreen = FALSE;
-    int numDevSections, numUsed;
+    int numDevSections;
     GDevPtr *devSections;
-    int *usedChips;
-    int i;
 
     /*
      * Find the config file Device sections that match this
@@ -615,6 +589,9 @@ VBOXProbe(DriverPtr drv, int flags)
 
     /* PCI BUS */
     if (xf86GetPciVideoInfo()) {
+        int numUsed;
+        int *usedChips;
+        int i;
 	numUsed = xf86MatchPciInstances(VBOX_NAME, VBOX_VENDORID,
 					VBOXChipsets, VBOXPCIchipsets,
 					devSections, numDevSections,
@@ -633,7 +610,7 @@ VBOXProbe(DriverPtr drv, int flags)
 			pScrn->driverName    = VBOX_DRIVER_NAME;
 			pScrn->name	     = VBOX_NAME;
 			pScrn->Probe	     = VBOXProbe;
-                        pScrn->PreInit       = VBOXPreInit;
+            pScrn->PreInit       = VBOXPreInit;
 			pScrn->ScreenInit    = VBOXScreenInit;
 			pScrn->SwitchMode    = VBOXSwitchMode;
 			pScrn->ValidMode     = VBOXValidMode;
@@ -648,10 +625,12 @@ VBOXProbe(DriverPtr drv, int flags)
 	    xfree(usedChips);
 	}
     }
+
     xfree(devSections);
 
     return (foundScreen);
 }
+#endif
 
 /*
  * QUOTE from the XFree86 DESIGN document:
@@ -701,44 +680,51 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
 
     /* Entity information seems to mean bus information. */
     pVBox->pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
-    if (pVBox->pEnt->location.type != BUS_PCI)
-        return FALSE;
-
-    /* The ramdac module is needed for the hardware cursor. */
-    if (!xf86LoadSubModule(pScrn, "ramdac"))
-        return FALSE;
-    xf86LoaderReqSymLists(ramdacSymbols, NULL);
 
     /* We need the vbe module because we use VBE code to save and restore
        text mode, in order to keep our code simple. */
     if (!xf86LoadSubModule(pScrn, "vbe"))
         return (FALSE);
-    xf86LoaderReqSymLists(vbeSymbols, NULL);
 
-    /* The framebuffer module. */
-    if (xf86LoadSubModule(pScrn, "fb") == NULL)
+    if ((pVBox->pVbe = VBEExtendedInit(NULL, pVBox->pEnt->index,
+                                       SET_BIOS_SCRATCH
+                                       | RESTORE_BIOS_SCRATCH)) == NULL)
         return (FALSE);
-    xf86LoaderReqSymLists(fbSymbols, NULL);
 
-    if (!xf86LoadSubModule(pScrn, "shadowfb"))
+#ifndef PCIACCESS
+    if (pVBox->pEnt->location.type != BUS_PCI)
         return FALSE;
-    xf86LoaderReqSymLists(shadowfbSymbols, NULL);
 
     pVBox->pciInfo = xf86GetPciInfoForEntity(pVBox->pEnt->index);
     pVBox->pciTag = pciTag(pVBox->pciInfo->bus,
                            pVBox->pciInfo->device,
                            pVBox->pciInfo->func);
+#endif
+
+    /* The ramdac module is needed for the hardware cursor. */
+    if (!xf86LoadSubModule(pScrn, "ramdac"))
+        return FALSE;
+
+    /* The framebuffer module. */
+    if (xf86LoadSubModule(pScrn, "fb") == NULL)
+        return (FALSE);
+
+    if (!xf86LoadSubModule(pScrn, "shadowfb"))
+        return FALSE;
+
+    if (!xf86LoadSubModule(pScrn, "vgahw"))
+        return FALSE;
 
     /* Set up our ScrnInfoRec structure to describe our virtual
        capabilities to X. */
 
-    pScrn->rgbBits = 8;
+    pScrn->chipset = "vbox";
 
-    /* I assume that this is no longer a requirement in the config file. */
+    /* This *is* still needed, at least for server version 1.3 */
     pScrn->monitor = pScrn->confScreen->monitor;
 
-    pScrn->chipset = "vbox";
     pScrn->progClock = TRUE;
+    pScrn->rgbBits = 8;
 
     /* Using the PCI information caused problems with non-powers-of-two
        sized video RAM configurations */
@@ -775,6 +761,12 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
     memcpy(pVBox->Options, VBOXOptions, sizeof(VBOXOptions));
     xf86ProcessOptions(pScrn->scrnIndex, pScrn->options, pVBox->Options);
 
+    /* Work around a bug in the original X server modesetting code, which
+     * took the first valid values set to these two as maxima over the
+     * server lifetime. */
+    pScrn->virtualX = 32000;
+    pScrn->virtualY = 32000;
+
     /* Initialise CRTC and output configuration for use with randr1.2. */
     xf86CrtcConfigInit(pScrn, &VBOXCrtcConfigFuncs);
 
@@ -784,30 +776,8 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
     /* Set up our single virtual output. */
     output = xf86OutputCreate(pScrn, &VBOXOutputFuncs, "VBOX1");
 
-    /* Set a sane minimum mode size and the maximum allowed by the available VRAM */
-    {
-#if 0
-        unsigned maxSize, trySize = 512;
-
-        do {
-            maxSize = trySize;
-            trySize += 128;
-        } while (trySize * trySize * pScrn->bitsPerPixel / 8 < pScrn->videoRam * 1024);
-#else
-        unsigned maxSize = 32000;
-#endif
-
-        xf86CrtcSetSizeRange(pScrn, 64, 64, maxSize, maxSize);
-
-        /* I don't know exactly what these are for (and they are only used in a couple
-           of places in the X server code), but due to a bug in RandR 1.2 they place
-           an upper limit on possible resolutions.  To add to the fun, they get set
-           automatically if we don't do it ourselves. */
-        pScrn->display->virtualX = maxSize;
-        pScrn->display->virtualY = maxSize;
-        xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-                   "The maximum supported resolution is currently %dx%d\n", maxSize, maxSize);
-    }
+    /* Set a sane minimum and maximum mode size */
+    xf86CrtcSetSizeRange(pScrn, 64, 64, 32000, 32000);
 
     /* We are not interested in the monitor section in the configuration file. */
     xf86OutputUseScreenMonitor(output, FALSE);
@@ -837,6 +807,15 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
     /* Framebuffer-related setup */
     pScrn->bitmapBitOrder = BITMAP_BIT_ORDER;
 
+    /* VGA hardware initialisation */
+    if (!vgaHWGetHWRec(pScrn))
+        return FALSE;
+
+#ifdef VBOX_DRI
+    /* Load the dri module. */
+    if (!xf86LoadSubModule(pScrn, "dri"))
+        return FALSE;
+#endif
     return (TRUE);
 }
 
@@ -855,10 +834,10 @@ vboxEnableDisableFBAccess(int scrnIndex, Bool enable)
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     VBOXPtr pVBox = VBOXGetRec(pScrn);
 
-    TRACE3("enable=%s\n", enable ? "TRUE" : "FALSE");
+    TRACE_LOG("enable=%s\n", enable ? "TRUE" : "FALSE");
     pVBox->accessEnabled = enable;
     pVBox->EnableDisableFBAccess(scrnIndex, enable);
-    TRACE2;
+    TRACE_EXIT();
 }
 
 /*
@@ -883,15 +862,12 @@ VBOXScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     VisualPtr visual;
     unsigned flags;
 
-    /* We make use of the X11 VBE code to save and restore text mode, in
-       order to keep our code simple. */
-    if ((pVBox->pVbe = VBEExtendedInit(NULL, pVBox->pEnt->index,
-                                       SET_BIOS_SCRATCH
-                                       | RESTORE_BIOS_SCRATCH)) == NULL)
-        return (FALSE);
-
     if (pVBox->mapPhys == 0) {
+#ifdef PCIACCESS
+        pVBox->mapPhys = pVBox->pciInfo->regions[0].base_addr;
+#else
         pVBox->mapPhys = pVBox->pciInfo->memBase[0];
+#endif
 /*        pVBox->mapSize = 1 << pVBox->pciInfo->size[0]; */
         /* Using the PCI information caused problems with
            non-powers-of-two sized video RAM configurations */
@@ -917,12 +893,20 @@ VBOXScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     if (!miSetPixmapDepths())
         return (FALSE);
 
+    /* Needed before we initialise DRI. */
+    pScrn->virtualX = (pScrn->virtualX + 7) & ~7;
+    pScrn->displayWidth = pScrn->virtualX;
+
+#ifdef VBOX_DRI
+    pVBox->useDRI = VBOXDRIScreenInit(scrnIndex, pScreen, pVBox);
+#endif
+
     /* I checked in the sources, and XFree86 4.2 does seem to support
        this function for 32bpp. */
     if (!fbScreenInit(pScreen, pVBox->base,
                       pScrn->virtualX, pScrn->virtualY,
                       pScrn->xDpi, pScrn->yDpi,
-                      pScrn->virtualX, pScrn->bitsPerPixel))
+                      pScrn->displayWidth, pScrn->bitsPerPixel))
         return (FALSE);
 
     /* Fixup RGB ordering */
@@ -962,21 +946,16 @@ VBOXScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
         return FALSE;
     }
 
-    /* set the viewport */
-    VBOXAdjustFrame(scrnIndex, pScrn->frameX0, pScrn->frameY0, 0);
-
     /* software cursor */
     miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
 
-    /* colourmap code - apparently, we need this even in Truecolour */
+    /* colourmap code */
     if (!miCreateDefColormap(pScreen))
 	return (FALSE);
 
     flags = CMAP_RELOAD_ON_MODE_SWITCH;
 
-    if(!xf86HandleColormaps(pScreen, 256,
-        8 /* DAC is switchable to 8 bits per primary color */,
-        VBOXLoadPalette, NULL, flags))
+    if(!vgaHWHandleColormaps(pScreen))
         return (FALSE);
 
     /* Hook our observer function ito the chain which is called when
@@ -1006,8 +985,12 @@ VBOXScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
             xf86DrvMsg(scrnIndex, X_INFO,
                       "The VBox video extensions are now enabled.\n");
         vboxEnableGraphicsCap(pVBox);
-        /* Report the largest resolution that we support */
     }
+
+#ifdef VBOX_DRI
+    if (pVBox->useDRI)
+        pVBox->useDRI = VBOXDRIFinishScreenInit(pScreen);
+#endif
     return (TRUE);
 }
 
@@ -1018,10 +1001,14 @@ VBOXEnterVT(int scrnIndex, int flags)
     VBOXPtr pVBox = VBOXGetRec(pScrn);
     bool rc;
 
-    TRACE;
+    TRACE_ENTRY();
     pVBox->vtSwitch = FALSE;
+#ifdef VBOX_DRI
+    if (pVBox->useDRI)
+        DRIUnlock(screenInfo.screens[scrnIndex]);
+#endif
     rc = xf86SetDesiredModes(pScrn);
-    TRACE3("returning %s\n", rc ? "TRUE" : "FALSE");
+    TRACE_LOG("returning %s\n", rc ? "TRUE" : "FALSE");
     return rc;
 }
 
@@ -1031,7 +1018,7 @@ VBOXLeaveVT(int scrnIndex, int flags)
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     VBOXPtr pVBox = VBOXGetRec(pScrn);
 
-    TRACE;
+    TRACE_ENTRY();
     pVBox->vtSwitch = TRUE;
     VBOXSaveRestore(pScrn, MODE_RESTORE);
     if (vbox_device_available(pVBox))
@@ -1040,7 +1027,11 @@ VBOXLeaveVT(int scrnIndex, int flags)
             vboxDisableVbva(pScrn);
         vboxDisableGraphicsCap(pVBox);
     }
-    TRACE2;
+#ifdef VBOX_DRI
+    if (pVBox->useDRI)
+        DRILock(screenInfo.screens[scrnIndex], 0);
+#endif
+    TRACE_EXIT();
 }
 
 static Bool
@@ -1048,6 +1039,12 @@ VBOXCloseScreen(int scrnIndex, ScreenPtr pScreen)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     VBOXPtr pVBox = VBOXGetRec(pScrn);
+
+#ifdef VBOX_DRI
+    if (pVBox->useDRI)
+        VBOXDRICloseScreen(pScreen, pVBox);
+    pVBox->useDRI = false;
+#endif
 
     if (vbox_device_available(pVBox))
     {
@@ -1063,6 +1060,9 @@ VBOXCloseScreen(int scrnIndex, ScreenPtr pScreen)
 	VBOXUnmapVidMem(pScrn);
     }
     pScrn->vtSema = FALSE;
+    
+    /* Destroy the VGA hardware record */
+    vgaHWFreeHWRec(pScrn);
 
     /* Remove our observer functions from the X server call chains. */
     pScrn->EnableDisableFBAccess = pVBox->EnableDisableFBAccess;
@@ -1094,7 +1094,7 @@ VBOXValidMode(int scrn, DisplayModePtr p, Bool flag, int pass)
     DisplayModePtr mode;
     float v;
 
-    TRACE3("HDisplay=%d, VDisplay=%d, flag=%s, pass=%d\n",
+    TRACE_LOG("HDisplay=%d, VDisplay=%d, flag=%s, pass=%d\n",
            p->HDisplay, p->VDisplay, flag ? "TRUE" : "FALSE", pass);
     if (pass != MODECHECK_FINAL) {
         if (!warned) {
@@ -1128,7 +1128,7 @@ VBOXValidMode(int scrn, DisplayModePtr p, Bool flag, int pass)
     {
         xf86DrvMsg(scrn, X_WARNING, "Graphics mode %s rejected by the X server\n", p->name);
     }
-    TRACE3("returning %d\n", ret);
+    TRACE_LOG("returning %d\n", ret);
     return ret;
 }
 
@@ -1139,7 +1139,7 @@ VBOXSwitchMode(int scrnIndex, DisplayModePtr pMode, int flags)
     VBOXPtr pVBox;
     Bool rc;
 
-    TRACE3("HDisplay=%d, VDisplay=%d\n", pMode->HDisplay, pMode->VDisplay);
+    TRACE_LOG("HDisplay=%d, VDisplay=%d\n", pMode->HDisplay, pMode->VDisplay);
     pScrn = xf86Screens[scrnIndex];  /* Why does X have three ways of refering to the screen? */
     pVBox = VBOXGetRec(pScrn);
     /* We want to disable access to the framebuffer before switching mode.
@@ -1149,7 +1149,7 @@ VBOXSwitchMode(int scrnIndex, DisplayModePtr pMode, int flags)
     rc = xf86SetSingleMode(pScrn, pMode, 0);
     if (pVBox->accessEnabled)
         pVBox->EnableDisableFBAccess(scrnIndex, TRUE);
-    TRACE3("returning %s\n", rc ? "TRUE" : "FALSE");
+    TRACE_LOG("returning %s\n", rc ? "TRUE" : "FALSE");
     return rc;
 }
 
@@ -1163,7 +1163,8 @@ VBOXSetMode(ScrnInfoPtr pScrn, DisplayModePtr pMode)
     Bool rc = TRUE;
 
     int bpp = pScrn->depth == 24 ? 32 : 16;
-    TRACE3("HDisplay=%d, VDisplay=%d\n", pMode->HDisplay, pMode->VDisplay);
+    TRACE_LOG("HDisplay=%d, VDisplay=%d, displayWidth=%d\n",
+              pMode->HDisplay, pMode->VDisplay, pScrn->displayWidth);
     pVBox = VBOXGetRec(pScrn);
     /* Don't fiddle with the hardware if we are switched
      * to a virtual terminal. */
@@ -1207,7 +1208,7 @@ VBOXSetMode(ScrnInfoPtr pScrn, DisplayModePtr pMode)
             }
         }
     }
-    TRACE3("returning %s\n", rc ? "TRUE" : "FALSE");
+    TRACE_LOG("returning %s\n", rc ? "TRUE" : "FALSE");
     return rc;
 }
 
@@ -1217,7 +1218,7 @@ VBOXAdjustFrame(int scrnIndex, int x, int y, int flags)
     VBOXPtr pVBox = VBOXGetRec(xf86Screens[scrnIndex]);
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
 
-    TRACE;
+    TRACE_ENTRY();
     /* Don't fiddle with the hardware if we are switched
      * to a virtual terminal. */
     if (!pVBox->vtSwitch) {
@@ -1230,7 +1231,7 @@ VBOXAdjustFrame(int scrnIndex, int x, int y, int flags)
         if (pVBox->useVbva == TRUE)
             vboxEnableVbva(pScrn);
     }
-    TRACE2;
+    TRACE_EXIT();
 }
 
 static void
@@ -1245,29 +1246,34 @@ VBOXMapVidMem(ScrnInfoPtr pScrn)
     VBOXPtr pVBox = VBOXGetRec(pScrn);
     Bool rc = TRUE;
 
-    TRACE;
-    if (NULL == pVBox->base)
+    TRACE_ENTRY();
+    if (!pVBox->base)
     {
         pScrn->memPhysBase = pVBox->mapPhys;
         pScrn->fbOffset = pVBox->mapOff;
 
+#ifdef PCIACCESS
+        (void) pci_device_map_range(pVBox->pciInfo,
+                                    pScrn->memPhysBase,
+                                    pVBox->mapSize,
+                                    PCI_DEV_MAP_FLAG_WRITABLE,
+                                    & pVBox->base);
+#else
         pVBox->base = xf86MapPciMem(pScrn->scrnIndex,
                                     VIDMEM_FRAMEBUFFER,
                                     pVBox->pciTag, pVBox->mapPhys,
                                     (unsigned) pVBox->mapSize);
-
-        if (pVBox->base) {
-            pScrn->memPhysBase = pVBox->mapPhys;
-            pVBox->VGAbase = xf86MapDomainMemory(pScrn->scrnIndex, 0,
-                                                 pVBox->pciTag,
-                                                 0xa0000, 0x10000);
+#endif
+        if (pVBox->base)
+        {
+            /* We need this for saving/restoring textmode */
+            VGAHWPTR(pScrn)->IOBase = pScrn->domainIOBase;
+            rc = vgaHWMapMem(pScrn);
         }
-        /* We need this for saving/restoring textmode */
-        pVBox->ioBase = pScrn->domainIOBase;
-
-        rc = pVBox->base != NULL;
+        else
+            rc = FALSE;
     }
-    TRACE3("returning %s\n", rc ? "TRUE" : "FALSE");
+    TRACE_LOG("returning %s\n", rc ? "TRUE" : "FALSE");
     return rc;
 }
 
@@ -1276,252 +1282,23 @@ VBOXUnmapVidMem(ScrnInfoPtr pScrn)
 {
     VBOXPtr pVBox = VBOXGetRec(pScrn);
 
-    TRACE;
+    TRACE_ENTRY();
     if (pVBox->base == NULL)
         return;
 
+#ifdef PCIACCESS
+    (void) pci_device_unmap_range(pVBox->pciInfo,
+                                  pVBox->base,
+                                  pVBox->mapSize);
+#else
     xf86UnMapVidMem(pScrn->scrnIndex, pVBox->base,
                     (unsigned) pVBox->mapSize);
-    xf86UnMapVidMem(pScrn->scrnIndex, pVBox->VGAbase, 0x10000);
+#endif
+    vgaHWUnmapMem(pScrn);
     pVBox->base = NULL;
-    TRACE2;
+    TRACE_EXIT();
 }
 
-static void
-VBOXLoadPalette(ScrnInfoPtr pScrn, int numColors, int *indices,
-		LOCO *colors, VisualPtr pVisual)
-{
-    VBOXPtr pVBox = VBOXGetRec(pScrn);
-    int i, idx;
-#define VBOXDACDelay()							    \
-    do {								    \
-	   (void)inb(pVBox->ioBase + VGA_IOBASE_COLOR + VGA_IN_STAT_1_OFFSET); \
-	   (void)inb(pVBox->ioBase + VGA_IOBASE_COLOR + VGA_IN_STAT_1_OFFSET); \
-    } while (0)
-
-    TRACE;
-    for (i = 0; i < numColors; i++) {
-	   idx = indices[i];
-	   outb(pVBox->ioBase + VGA_DAC_WRITE_ADDR, idx);
-	   VBOXDACDelay();
-	   outb(pVBox->ioBase + VGA_DAC_DATA, colors[idx].red);
-	   VBOXDACDelay();
-	   outb(pVBox->ioBase + VGA_DAC_DATA, colors[idx].green);
-	   VBOXDACDelay();
-	   outb(pVBox->ioBase + VGA_DAC_DATA, colors[idx].blue);
-	   VBOXDACDelay();
-    }
-    TRACE2;
-}
-
-/*
- * Just adapted from the std* functions in vgaHW.c
- */
-static void
-WriteAttr(VBOXPtr pVBox, int index, int value)
-{
-    (void) inb(pVBox->ioBase + VGA_IOBASE_COLOR + VGA_IN_STAT_1_OFFSET);
-
-    index |= 0x20;
-    outb(pVBox->ioBase + VGA_ATTR_INDEX, index);
-    outb(pVBox->ioBase + VGA_ATTR_DATA_W, value);
-}
-
-static int
-ReadAttr(VBOXPtr pVBox, int index)
-{
-    (void) inb(pVBox->ioBase + VGA_IOBASE_COLOR + VGA_IN_STAT_1_OFFSET);
-
-    index |= 0x20;
-    outb(pVBox->ioBase + VGA_ATTR_INDEX, index);
-    return (inb(pVBox->ioBase + VGA_ATTR_DATA_R));
-}
-
-#define WriteMiscOut(value)	outb(pVBox->ioBase + VGA_MISC_OUT_W, value)
-#define ReadMiscOut()		inb(pVBox->ioBase + VGA_MISC_OUT_R)
-#define WriteSeq(index, value) \
-        outb(pVBox->ioBase + VGA_SEQ_INDEX, (index));\
-        outb(pVBox->ioBase + VGA_SEQ_DATA, value)
-
-static int
-ReadSeq(VBOXPtr pVBox, int index)
-{
-    outb(pVBox->ioBase + VGA_SEQ_INDEX, index);
-
-    return (inb(pVBox->ioBase + VGA_SEQ_DATA));
-}
-
-#define WriteGr(index, value)				\
-    outb(pVBox->ioBase + VGA_GRAPH_INDEX, index);	\
-    outb(pVBox->ioBase + VGA_GRAPH_DATA, value)
-
-static int
-ReadGr(VBOXPtr pVBox, int index)
-{
-    outb(pVBox->ioBase + VGA_GRAPH_INDEX, index);
-
-    return (inb(pVBox->ioBase + VGA_GRAPH_DATA));
-}
-
-#define WriteCrtc(index, value)						     \
-    outb(pVBox->ioBase + (VGA_IOBASE_COLOR + VGA_CRTC_INDEX_OFFSET), index); \
-    outb(pVBox->ioBase + (VGA_IOBASE_COLOR + VGA_CRTC_DATA_OFFSET), value)
-
-static void
-SeqReset(VBOXPtr pVBox, Bool start)
-{
-    if (start) {
-	   WriteSeq(0x00, 0x01);		/* Synchronous Reset */
-    }
-    else {
-	   WriteSeq(0x00, 0x03);		/* End Reset */
-    }
-}
-
-static void
-SaveFonts(ScrnInfoPtr pScrn)
-{
-    VBOXPtr pVBox = VBOXGetRec(pScrn);
-    unsigned char miscOut, attr10, gr4, gr5, gr6, seq2, seq4, scrn;
-    Bool cont = TRUE;
-
-    TRACE;
-    if (pVBox->fonts != NULL)
-	cont = FALSE;
-
-    if (cont)
-    {
-        /* If in graphics mode, don't save anything */
-        attr10 = ReadAttr(pVBox, 0x10);
-        if (attr10 & 0x01)
-            cont = FALSE;
-    }
-
-    if (cont)
-    {
-        pVBox->fonts = xalloc(16384);
-
-        /* save the registers that are needed here */
-        miscOut = ReadMiscOut();
-        gr4 = ReadGr(pVBox, 0x04);
-        gr5 = ReadGr(pVBox, 0x05);
-        gr6 = ReadGr(pVBox, 0x06);
-        seq2 = ReadSeq(pVBox, 0x02);
-        seq4 = ReadSeq(pVBox, 0x04);
-
-        /* Force into colour mode */
-        WriteMiscOut(miscOut | 0x01);
-
-        scrn = ReadSeq(pVBox, 0x01) | 0x20;
-        SeqReset(pVBox, TRUE);
-        WriteSeq(0x01, scrn);
-        SeqReset(pVBox, FALSE);
-
-        WriteAttr(pVBox, 0x10, 0x01);	/* graphics mode */
-
-        /*font1 */
-        WriteSeq(0x02, 0x04);	/* write to plane 2 */
-        WriteSeq(0x04, 0x06);	/* enable plane graphics */
-        WriteGr(0x04, 0x02);	/* read plane 2 */
-        WriteGr(0x05, 0x00);	/* write mode 0, read mode 0 */
-        WriteGr(0x06, 0x05);	/* set graphics */
-        slowbcopy_frombus(pVBox->VGAbase, pVBox->fonts, 8192);
-
-        /* font2 */
-        WriteSeq(0x02, 0x08);	/* write to plane 3 */
-        WriteSeq(0x04, 0x06);	/* enable plane graphics */
-        WriteGr(0x04, 0x03);	/* read plane 3 */
-        WriteGr(0x05, 0x00);	/* write mode 0, read mode 0 */
-        WriteGr(0x06, 0x05);	/* set graphics */
-        slowbcopy_frombus(pVBox->VGAbase, pVBox->fonts + 8192, 8192);
-
-        scrn = ReadSeq(pVBox, 0x01) & ~0x20;
-        SeqReset(pVBox, TRUE);
-        WriteSeq(0x01, scrn);
-        SeqReset(pVBox, FALSE);
-
-        /* Restore clobbered registers */
-        WriteAttr(pVBox, 0x10, attr10);
-        WriteSeq(0x02, seq2);
-        WriteSeq(0x04, seq4);
-        WriteGr(0x04, gr4);
-        WriteGr(0x05, gr5);
-        WriteGr(0x06, gr6);
-        WriteMiscOut(miscOut);
-    }
-    TRACE2;
-}
-
-static void
-RestoreFonts(ScrnInfoPtr pScrn)
-{
-    VBOXPtr pVBox = VBOXGetRec(pScrn);
-    unsigned char miscOut, attr10, gr1, gr3, gr4, gr5, gr6, gr8, seq2, seq4, scrn;
-
-    TRACE;
-    if (pVBox->fonts != NULL)
-    {
-        /* save the registers that are needed here */
-        miscOut = ReadMiscOut();
-        attr10 = ReadAttr(pVBox, 0x10);
-        gr1 = ReadGr(pVBox, 0x01);
-        gr3 = ReadGr(pVBox, 0x03);
-        gr4 = ReadGr(pVBox, 0x04);
-        gr5 = ReadGr(pVBox, 0x05);
-        gr6 = ReadGr(pVBox, 0x06);
-        gr8 = ReadGr(pVBox, 0x08);
-        seq2 = ReadSeq(pVBox, 0x02);
-        seq4 = ReadSeq(pVBox, 0x04);
-
-        /* Force into colour mode */
-        WriteMiscOut(miscOut | 0x01);
-
-        scrn = ReadSeq(pVBox, 0x01) & ~0x20;
-        SeqReset(pVBox, TRUE);
-        WriteSeq(0x01, scrn);
-        SeqReset(pVBox, FALSE);
-
-        WriteAttr(pVBox, 0x10, 0x01);	/* graphics mode */
-        if (pScrn->depth == 4) {
-	    /* GJA */
-	    WriteGr(0x03, 0x00);	/* don't rotate, write unmodified */
-	    WriteGr(0x08, 0xFF);	/* write all bits in a byte */
-	    WriteGr(0x01, 0x00);	/* all planes come from CPU */
-        }
-
-        WriteSeq(0x02, 0x04);   /* write to plane 2 */
-        WriteSeq(0x04, 0x06);   /* enable plane graphics */
-        WriteGr(0x04, 0x02);    /* read plane 2 */
-        WriteGr(0x05, 0x00);    /* write mode 0, read mode 0 */
-        WriteGr(0x06, 0x05);    /* set graphics */
-        slowbcopy_tobus(pVBox->fonts, pVBox->VGAbase, 8192);
-
-        WriteSeq(0x02, 0x08);   /* write to plane 3 */
-        WriteSeq(0x04, 0x06);   /* enable plane graphics */
-        WriteGr(0x04, 0x03);    /* read plane 3 */
-        WriteGr(0x05, 0x00);    /* write mode 0, read mode 0 */
-        WriteGr(0x06, 0x05);    /* set graphics */
-        slowbcopy_tobus(pVBox->fonts + 8192, pVBox->VGAbase, 8192);
-
-        scrn = ReadSeq(pVBox, 0x01) & ~0x20;
-        SeqReset(pVBox, TRUE);
-        WriteSeq(0x01, scrn);
-        SeqReset(pVBox, FALSE);
-
-        /* restore the registers that were changed */
-        WriteMiscOut(miscOut);
-        WriteAttr(pVBox, 0x10, attr10);
-        WriteGr(0x01, gr1);
-        WriteGr(0x03, gr3);
-        WriteGr(0x04, gr4);
-        WriteGr(0x05, gr5);
-        WriteGr(0x06, gr6);
-        WriteGr(0x08, gr8);
-        WriteSeq(0x02, seq2);
-        WriteSeq(0x04, seq4);
-    }
-    TRACE2;
-}
 
 Bool
 VBOXSaveRestore(ScrnInfoPtr pScrn, vbeSaveRestoreFunction function)
@@ -1529,7 +1306,7 @@ VBOXSaveRestore(ScrnInfoPtr pScrn, vbeSaveRestoreFunction function)
     VBOXPtr pVBox;
     Bool rc = TRUE;
 
-    TRACE;
+    TRACE_ENTRY();
     if (MODE_QUERY < 0 || function > MODE_RESTORE)
 	rc = FALSE;
 
@@ -1544,7 +1321,7 @@ VBOXSaveRestore(ScrnInfoPtr pScrn, vbeSaveRestoreFunction function)
 
 	    /* Make sure we save at least this information in case of failure */
             (void)VBEGetVBEMode(pVBox->pVbe, &pVBox->stateMode);
-            SaveFonts(pScrn);
+            vgaHWSaveFonts(pScrn, &pVBox->vgaRegs);
 
             if (!VBESaveRestore(pVBox->pVbe,function,(pointer)&pVBox->state,
                                 &pVBox->stateSize,&pVBox->statePage)
@@ -1578,10 +1355,10 @@ VBOXSaveRestore(ScrnInfoPtr pScrn, vbeSaveRestoreFunction function)
             if (function == MODE_RESTORE)
             {
                 VBESetVBEMode(pVBox->pVbe, pVBox->stateMode, NULL);
-                RestoreFonts(pScrn);
+                vgaHWRestoreFonts(pScrn, &pVBox->vgaRegs);
             }
         }
     }
-    TRACE3("returning %s\n", rc ? "TRUE" : "FALSE");
+    TRACE_LOG("returning %s\n", rc ? "TRUE" : "FALSE");
     return rc;
 }

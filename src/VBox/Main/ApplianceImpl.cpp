@@ -1,4 +1,4 @@
-/* $Id: ApplianceImpl.cpp $ */
+/* $Id: ApplianceImpl.cpp 24990 2009-11-26 11:33:37Z vboxsync $ */
 /** @file
  *
  * IAppliance and IVirtualSystem COM class implementations.
@@ -25,6 +25,8 @@
 #include <iprt/dir.h>
 #include <iprt/file.h>
 #include <iprt/s3.h>
+#include <iprt/sha.h>
+#include <iprt/manifest.h>
 
 #include <VBox/param.h>
 #include <VBox/version.h>
@@ -35,171 +37,13 @@
 #include "GuestOSTypeImpl.h"
 #include "ProgressImpl.h"
 #include "MachineImpl.h"
+#include "MediumImpl.h"
+
 #include "HostNetworkInterfaceImpl.h"
 
 #include "Logging.h"
 
-#include "VBox/xml.h"
-
 using namespace std;
-
-////////////////////////////////////////////////////////////////////////////////
-//
-// hardware definitions
-//
-////////////////////////////////////////////////////////////////////////////////
-
-struct DiskImage
-{
-    Utf8Str strDiskId;              // value from DiskSection/Disk/@diskId
-    int64_t iCapacity;              // value from DiskSection/Disk/@capacity;
-                                    // (maximum size for dynamic images, I guess; we always translate this to bytes)
-    int64_t iPopulatedSize;         // optional value from DiskSection/Disk/@populatedSize
-                                    // (actual used size of disk, always in bytes; can be an estimate of used disk
-                                    // space, but cannot be larger than iCapacity; -1 if not set)
-    Utf8Str strFormat;              // value from DiskSection/Disk/@format
-                // typically http://www.vmware.com/specifications/vmdk.html#sparse
-
-    // fields from /References/File; the spec says the file reference from disk can be empty,
-    // so in that case, strFilename will be empty, then a new disk should be created
-    Utf8Str strHref;                // value from /References/File/@href (filename); if empty, then the remaining fields are ignored
-    int64_t iSize;                  // value from /References/File/@size (optional according to spec; then we set -1 here)
-    int64_t iChunkSize;             // value from /References/File/@chunkSize (optional, unsupported)
-    Utf8Str strCompression;         // value from /References/File/@compression (optional, can be "gzip" according to spec)
-};
-
-struct VirtualHardwareItem
-{
-    Utf8Str strDescription;
-    Utf8Str strCaption;
-    Utf8Str strElementName;
-
-    uint32_t ulInstanceID;
-    uint32_t ulParent;
-
-    OVFResourceType_T resourceType;
-    Utf8Str strOtherResourceType;
-    Utf8Str strResourceSubType;
-
-    Utf8Str strHostResource;            // "Abstractly specifies how a device shall connect to a resource on the deployment platform.
-                                        // Not all devices need a backing." Used with disk items, for which this references a virtual
-                                        // disk from the Disks section.
-    bool fAutomaticAllocation;
-    bool fAutomaticDeallocation;
-    Utf8Str strConnection;              // "All Ethernet adapters that specify the same abstract network connection name within an OVF
-                                        // package shall be deployed on the same network. The abstract network connection name shall be
-                                        // listed in the NetworkSection at the outermost envelope level." We ignore this and only set up
-                                        // a network adapter depending on the network name.
-    Utf8Str strAddress;                 // "Device-specific. For an Ethernet adapter, this specifies the MAC address."
-    Utf8Str strAddressOnParent;         // "For a device, this specifies its location on the controller."
-    Utf8Str strAllocationUnits;         // "Specifies the units of allocation used. For example, “byte * 2^20”."
-    uint64_t ullVirtualQuantity;        // "Specifies the quantity of resources presented. For example, “256”."
-    uint64_t ullReservation;            // "Specifies the minimum quantity of resources guaranteed to be available."
-    uint64_t ullLimit;                  // "Specifies the maximum quantity of resources that will be granted."
-    uint64_t ullWeight;                 // "Specifies a relative priority for this allocation in relation to other allocations."
-
-    Utf8Str strConsumerVisibility;
-    Utf8Str strMappingBehavior;
-    Utf8Str strPoolID;
-    uint32_t ulBusNumber;               // seen with IDE controllers, but not listed in OVF spec
-
-    uint32_t ulLineNumber;              // line number of <Item> element in XML source; cached for error messages
-
-    VirtualHardwareItem()
-        : ulInstanceID(0), fAutomaticAllocation(false), fAutomaticDeallocation(false), ullVirtualQuantity(0), ullReservation(0), ullLimit(0), ullWeight(0), ulBusNumber(0), ulLineNumber(0)
-    {};
-};
-
-typedef map<Utf8Str, DiskImage> DiskImagesMap;
-
-struct VirtualSystem;
-
-typedef map<uint32_t, VirtualHardwareItem> HardwareItemsMap;
-
-struct HardDiskController
-{
-    uint32_t             idController;           // instance ID (Item/InstanceId); this gets referenced from HardDisk
-    enum ControllerSystemType { IDE, SATA, SCSI };
-    ControllerSystemType system;                 // one of IDE, SATA, SCSI
-    Utf8Str              strControllerType;      // controller subtype (Item/ResourceSubType); e.g. "LsiLogic"; can be empty (esp. for IDE)
-    Utf8Str              strAddress;             // for IDE
-    uint32_t             ulBusNumber;            // for IDE
-
-    HardDiskController()
-        : idController(0),
-          ulBusNumber(0)
-    {
-    }
-};
-
-typedef map<uint32_t, HardDiskController> ControllersMap;
-
-struct VirtualDisk
-{
-    uint32_t            idController;           // SCSI (or IDE) controller this disk is connected to;
-                                                // points into VirtualSystem.mapControllers
-    uint32_t            ulAddressOnParent;      // parsed strAddressOnParent of hardware item; will be 0 or 1 for IDE
-                                                // and possibly higher for disks attached to SCSI controllers (untested)
-    Utf8Str             strDiskId;              // if the hard disk has an ovf:/disk/<id> reference,
-                                                // this receives the <id> component; points to one of the
-                                                // references in Appliance::Data.mapDisks
-};
-
-typedef map<Utf8Str, VirtualDisk> VirtualDisksMap;
-
-struct EthernetAdapter
-{
-    Utf8Str             strAdapterType;         // "PCNet32" or "E1000" or whatever; from <rasd:ResourceSubType>
-    Utf8Str             strNetworkName;         // from <rasd:Connection>
-};
-
-typedef list<EthernetAdapter> EthernetAdaptersList;
-
-struct VirtualSystem
-{
-    Utf8Str             strName;                // copy of VirtualSystem/@id
-
-    Utf8Str             strDescription;         // copy of VirtualSystem/Info content
-
-    CIMOSType_T         cimos;
-    Utf8Str             strCimosDesc;           // readable description of the cimos type in the case of cimos = 0/1/102
-    Utf8Str             strVirtualSystemType;   // generic hardware description; OVF says this can be something like "vmx-4" or "xen";
-                                                // VMware Workstation 6.5 is "vmx-07"
-
-    HardwareItemsMap    mapHardwareItems;       // map of virtual hardware items, sorted by unique instance ID
-
-    uint64_t            ullMemorySize;          // always in bytes, copied from llHardwareItems; default = 0 (unspecified)
-    uint16_t            cCPUs;                  // no. of CPUs, copied from llHardwareItems; default = 1
-
-    EthernetAdaptersList llEthernetAdapters;    // (one for each VirtualSystem/Item[@ResourceType=10]element)
-
-    ControllersMap      mapControllers;
-            // list of hard disk controllers
-            // (one for each VirtualSystem/Item[@ResourceType=6] element with accumulated data from children)
-
-    VirtualDisksMap     mapVirtualDisks;
-            // (one for each VirtualSystem/Item[@ResourceType=17] element with accumulated data from children)
-
-    bool                fHasFloppyDrive;        // true if there's a floppy item in mapHardwareItems
-    bool                fHasCdromDrive;         // true if there's a CD-ROM item in mapHardwareItems; ISO images are not yet supported by OVFtool
-    bool                fHasUsbController;      // true if there's a USB controller item in mapHardwareItems
-
-    Utf8Str             strSoundCardType;       // if not empty, then the system wants a soundcard; this then specifies the hardware;
-                                                // VMware Workstation 6.5 uses "ensoniq1371" for example
-
-    Utf8Str             strLicenseText;         // license info if any; receives contents of VirtualSystem/EulaSection/License
-
-    Utf8Str             strProduct;             // product info if any; receives contents of VirtualSystem/ProductSection/Product
-    Utf8Str             strVendor;              // product info if any; receives contents of VirtualSystem/ProductSection/Vendor
-    Utf8Str             strVersion;             // product info if any; receives contents of VirtualSystem/ProductSection/Version
-    Utf8Str             strProductUrl;          // product info if any; receives contents of VirtualSystem/ProductSection/ProductUrl
-    Utf8Str             strVendorUrl;           // product info if any; receives contents of VirtualSystem/ProductSection/VendorUrl
-
-    VirtualSystem()
-        : ullMemorySize(0), cCPUs(1), fHasFloppyDrive(false), fHasCdromDrive(false), fHasUsbController(false)
-    {
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -207,20 +51,44 @@ struct VirtualSystem
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+/* Describe a location for the import/export. The location could be a file on a
+ * local hard disk or a remote target based on the supported inet protocols. */
+struct Appliance::LocationInfo
+{
+    LocationInfo()
+      : storageType(VFSType_File) {}
+    VFSType_T storageType; /* Which type of storage should be handled */
+    Utf8Str strPath;       /* File path for the import/export */
+    Utf8Str strHostname;   /* Hostname on remote storage locations (could be empty) */
+    Utf8Str strUsername;   /* Username on remote storage locations (could be empty) */
+    Utf8Str strPassword;   /* Password on remote storage locations (could be empty) */
+};
+
 // opaque private instance data of Appliance class
 struct Appliance::Data
 {
-    Utf8Str                 strPath;            // file name last given to either read() or write()
+ 	Data()
+ 	  : pReader(NULL) {}
 
-    DiskImagesMap           mapDisks;           // map of DiskImage structs, sorted by DiskImage.strDiskId
+ 	~Data()
+ 	{
+ 	    if (pReader)
+ 	    {
+ 	        delete pReader;
+ 	        pReader = NULL;
+ 	    }
+ 	}
 
-    list<VirtualSystem>     llVirtualSystems;   // list of virtual systems, created by and valid after read()
+    LocationInfo locInfo; /* The location info for the currently processed OVF */
 
-    list< ComObjPtr<VirtualSystemDescription> > virtualSystemDescriptions; //
+    OVFReader *pReader;
+
+    list< ComObjPtr<VirtualSystemDescription> > virtualSystemDescriptions;
 
     list<Utf8Str> llWarnings;
 
-    ULONG                   ulWeightPerOperation;   // for progress calculations
+    ULONG ulWeightPerOperation;
+    Utf8Str strOVFSHA1Digest;
 };
 
 struct VirtualSystemDescription::Data
@@ -234,76 +102,69 @@ struct VirtualSystemDescription::Data
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static Utf8Str stripFilename(const Utf8Str &strFile)
-{
-    Utf8Str str2(strFile);
-    RTPathStripFilename(str2.mutableRaw());
-    return str2;
-}
-
 static const struct
 {
     CIMOSType_T     cim;
     const char      *pcszVbox;
 }
-    g_osTypes[] =
-    {
-        { CIMOSType_CIMOS_Unknown,                              SchemaDefs_OSTypeId_Other },
-        { CIMOSType_CIMOS_OS2,                                  SchemaDefs_OSTypeId_OS2 },
-        { CIMOSType_CIMOS_MSDOS,                                SchemaDefs_OSTypeId_DOS },
-        { CIMOSType_CIMOS_WIN3x,                                SchemaDefs_OSTypeId_Windows31 },
-        { CIMOSType_CIMOS_WIN95,                                SchemaDefs_OSTypeId_Windows95 },
-        { CIMOSType_CIMOS_WIN98,                                SchemaDefs_OSTypeId_Windows98 },
-        { CIMOSType_CIMOS_WINNT,                                SchemaDefs_OSTypeId_WindowsNT4 },
-        { CIMOSType_CIMOS_NetWare,                              SchemaDefs_OSTypeId_Netware },
-        { CIMOSType_CIMOS_NovellOES,                            SchemaDefs_OSTypeId_Netware },
-        { CIMOSType_CIMOS_Solaris,                              SchemaDefs_OSTypeId_OpenSolaris },
-        { CIMOSType_CIMOS_SunOS,                                SchemaDefs_OSTypeId_OpenSolaris },
-        { CIMOSType_CIMOS_FreeBSD,                              SchemaDefs_OSTypeId_FreeBSD },
-        { CIMOSType_CIMOS_NetBSD,                               SchemaDefs_OSTypeId_NetBSD },
-        { CIMOSType_CIMOS_QNX,                                  SchemaDefs_OSTypeId_QNX },
-        { CIMOSType_CIMOS_Windows2000,                          SchemaDefs_OSTypeId_Windows2000 },
-        { CIMOSType_CIMOS_WindowsMe,                            SchemaDefs_OSTypeId_WindowsMe },
-        { CIMOSType_CIMOS_OpenBSD,                              SchemaDefs_OSTypeId_OpenBSD },
-        { CIMOSType_CIMOS_WindowsXP,                            SchemaDefs_OSTypeId_WindowsXP },
-        { CIMOSType_CIMOS_WindowsXPEmbedded,                    SchemaDefs_OSTypeId_WindowsXP },
-        { CIMOSType_CIMOS_WindowsEmbeddedforPointofService,     SchemaDefs_OSTypeId_WindowsXP },
-        { CIMOSType_CIMOS_MicrosoftWindowsServer2003,           SchemaDefs_OSTypeId_Windows2003 },
-        { CIMOSType_CIMOS_MicrosoftWindowsServer2003_64,        SchemaDefs_OSTypeId_Windows2003_64 },
-        { CIMOSType_CIMOS_WindowsXP_64,                         SchemaDefs_OSTypeId_WindowsXP_64 },
-        { CIMOSType_CIMOS_WindowsVista,                         SchemaDefs_OSTypeId_WindowsVista },
-        { CIMOSType_CIMOS_WindowsVista_64,                      SchemaDefs_OSTypeId_WindowsVista_64 },
-        { CIMOSType_CIMOS_MicrosoftWindowsServer2008,           SchemaDefs_OSTypeId_Windows2008 },
-        { CIMOSType_CIMOS_MicrosoftWindowsServer2008_64,        SchemaDefs_OSTypeId_Windows2008_64 },
-        { CIMOSType_CIMOS_FreeBSD_64,                           SchemaDefs_OSTypeId_FreeBSD_64 },
-        { CIMOSType_CIMOS_RedHatEnterpriseLinux,                SchemaDefs_OSTypeId_RedHat },
-        { CIMOSType_CIMOS_RedHatEnterpriseLinux_64,             SchemaDefs_OSTypeId_RedHat_64 },
-        { CIMOSType_CIMOS_Solaris_64,                           SchemaDefs_OSTypeId_OpenSolaris_64 },
-        { CIMOSType_CIMOS_SUSE,                                 SchemaDefs_OSTypeId_OpenSUSE },
-        { CIMOSType_CIMOS_SLES,                                 SchemaDefs_OSTypeId_OpenSUSE },
-        { CIMOSType_CIMOS_NovellLinuxDesktop,                   SchemaDefs_OSTypeId_OpenSUSE },
-        { CIMOSType_CIMOS_SUSE_64,                              SchemaDefs_OSTypeId_OpenSUSE_64 },
-        { CIMOSType_CIMOS_SLES_64,                              SchemaDefs_OSTypeId_OpenSUSE_64 },
-        { CIMOSType_CIMOS_LINUX,                                SchemaDefs_OSTypeId_Linux },
-        { CIMOSType_CIMOS_SunJavaDesktopSystem,                 SchemaDefs_OSTypeId_Linux },
-        { CIMOSType_CIMOS_TurboLinux,                           SchemaDefs_OSTypeId_Linux},
+g_osTypes[] =
+{
+    { CIMOSType_CIMOS_Unknown,                              SchemaDefs_OSTypeId_Other },
+    { CIMOSType_CIMOS_OS2,                                  SchemaDefs_OSTypeId_OS2 },
+    { CIMOSType_CIMOS_MSDOS,                                SchemaDefs_OSTypeId_DOS },
+    { CIMOSType_CIMOS_WIN3x,                                SchemaDefs_OSTypeId_Windows31 },
+    { CIMOSType_CIMOS_WIN95,                                SchemaDefs_OSTypeId_Windows95 },
+    { CIMOSType_CIMOS_WIN98,                                SchemaDefs_OSTypeId_Windows98 },
+    { CIMOSType_CIMOS_WINNT,                                SchemaDefs_OSTypeId_WindowsNT4 },
+    { CIMOSType_CIMOS_NetWare,                              SchemaDefs_OSTypeId_Netware },
+    { CIMOSType_CIMOS_NovellOES,                            SchemaDefs_OSTypeId_Netware },
+    { CIMOSType_CIMOS_Solaris,                              SchemaDefs_OSTypeId_OpenSolaris },
+    { CIMOSType_CIMOS_SunOS,                                SchemaDefs_OSTypeId_OpenSolaris },
+    { CIMOSType_CIMOS_FreeBSD,                              SchemaDefs_OSTypeId_FreeBSD },
+    { CIMOSType_CIMOS_NetBSD,                               SchemaDefs_OSTypeId_NetBSD },
+    { CIMOSType_CIMOS_QNX,                                  SchemaDefs_OSTypeId_QNX },
+    { CIMOSType_CIMOS_Windows2000,                          SchemaDefs_OSTypeId_Windows2000 },
+    { CIMOSType_CIMOS_WindowsMe,                            SchemaDefs_OSTypeId_WindowsMe },
+    { CIMOSType_CIMOS_OpenBSD,                              SchemaDefs_OSTypeId_OpenBSD },
+    { CIMOSType_CIMOS_WindowsXP,                            SchemaDefs_OSTypeId_WindowsXP },
+    { CIMOSType_CIMOS_WindowsXPEmbedded,                    SchemaDefs_OSTypeId_WindowsXP },
+    { CIMOSType_CIMOS_WindowsEmbeddedforPointofService,     SchemaDefs_OSTypeId_WindowsXP },
+    { CIMOSType_CIMOS_MicrosoftWindowsServer2003,           SchemaDefs_OSTypeId_Windows2003 },
+    { CIMOSType_CIMOS_MicrosoftWindowsServer2003_64,        SchemaDefs_OSTypeId_Windows2003_64 },
+    { CIMOSType_CIMOS_WindowsXP_64,                         SchemaDefs_OSTypeId_WindowsXP_64 },
+    { CIMOSType_CIMOS_WindowsVista,                         SchemaDefs_OSTypeId_WindowsVista },
+    { CIMOSType_CIMOS_WindowsVista_64,                      SchemaDefs_OSTypeId_WindowsVista_64 },
+    { CIMOSType_CIMOS_MicrosoftWindowsServer2008,           SchemaDefs_OSTypeId_Windows2008 },
+    { CIMOSType_CIMOS_MicrosoftWindowsServer2008_64,        SchemaDefs_OSTypeId_Windows2008_64 },
+    { CIMOSType_CIMOS_FreeBSD_64,                           SchemaDefs_OSTypeId_FreeBSD_64 },
+    { CIMOSType_CIMOS_RedHatEnterpriseLinux,                SchemaDefs_OSTypeId_RedHat },
+    { CIMOSType_CIMOS_RedHatEnterpriseLinux_64,             SchemaDefs_OSTypeId_RedHat_64 },
+    { CIMOSType_CIMOS_Solaris_64,                           SchemaDefs_OSTypeId_OpenSolaris_64 },
+    { CIMOSType_CIMOS_SUSE,                                 SchemaDefs_OSTypeId_OpenSUSE },
+    { CIMOSType_CIMOS_SLES,                                 SchemaDefs_OSTypeId_OpenSUSE },
+    { CIMOSType_CIMOS_NovellLinuxDesktop,                   SchemaDefs_OSTypeId_OpenSUSE },
+    { CIMOSType_CIMOS_SUSE_64,                              SchemaDefs_OSTypeId_OpenSUSE_64 },
+    { CIMOSType_CIMOS_SLES_64,                              SchemaDefs_OSTypeId_OpenSUSE_64 },
+    { CIMOSType_CIMOS_LINUX,                                SchemaDefs_OSTypeId_Linux },
+    { CIMOSType_CIMOS_SunJavaDesktopSystem,                 SchemaDefs_OSTypeId_Linux },
+    { CIMOSType_CIMOS_TurboLinux,                           SchemaDefs_OSTypeId_Linux},
 
-            //                { CIMOSType_CIMOS_TurboLinux_64, },
+    //                { CIMOSType_CIMOS_TurboLinux_64, },
 
-        { CIMOSType_CIMOS_Mandriva,                             SchemaDefs_OSTypeId_Mandriva },
-        { CIMOSType_CIMOS_Mandriva_64,                          SchemaDefs_OSTypeId_Mandriva_64 },
-        { CIMOSType_CIMOS_Ubuntu,                               SchemaDefs_OSTypeId_Ubuntu },
-        { CIMOSType_CIMOS_Ubuntu_64,                            SchemaDefs_OSTypeId_Ubuntu_64 },
-        { CIMOSType_CIMOS_Debian,                               SchemaDefs_OSTypeId_Debian },
-        { CIMOSType_CIMOS_Debian_64,                            SchemaDefs_OSTypeId_Debian_64 },
-        { CIMOSType_CIMOS_Linux_2_4_x,                          SchemaDefs_OSTypeId_Linux24 },
-        { CIMOSType_CIMOS_Linux_2_4_x_64,                       SchemaDefs_OSTypeId_Linux24_64 },
-        { CIMOSType_CIMOS_Linux_2_6_x,                          SchemaDefs_OSTypeId_Linux26 },
-        { CIMOSType_CIMOS_Linux_2_6_x_64,                       SchemaDefs_OSTypeId_Linux26_64 },
-        { CIMOSType_CIMOS_Linux_64,                             SchemaDefs_OSTypeId_Linux26_64 }
+    { CIMOSType_CIMOS_Mandriva,                             SchemaDefs_OSTypeId_Mandriva },
+    { CIMOSType_CIMOS_Mandriva_64,                          SchemaDefs_OSTypeId_Mandriva_64 },
+    { CIMOSType_CIMOS_Ubuntu,                               SchemaDefs_OSTypeId_Ubuntu },
+    { CIMOSType_CIMOS_Ubuntu_64,                            SchemaDefs_OSTypeId_Ubuntu_64 },
+    { CIMOSType_CIMOS_Debian,                               SchemaDefs_OSTypeId_Debian },
+    { CIMOSType_CIMOS_Debian_64,                            SchemaDefs_OSTypeId_Debian_64 },
+    { CIMOSType_CIMOS_Linux_2_4_x,                          SchemaDefs_OSTypeId_Linux24 },
+    { CIMOSType_CIMOS_Linux_2_4_x_64,                       SchemaDefs_OSTypeId_Linux24_64 },
+    { CIMOSType_CIMOS_Linux_2_6_x,                          SchemaDefs_OSTypeId_Linux26 },
+    { CIMOSType_CIMOS_Linux_2_6_x_64,                       SchemaDefs_OSTypeId_Linux26_64 },
+    { CIMOSType_CIMOS_Linux_64,                             SchemaDefs_OSTypeId_Linux26_64 }
 };
 
-/* Pattern structure for matching the os type description field */
+/* Pattern structure for matching the OS type description field */
 struct osTypePattern
 {
     const char *pcszPattern;
@@ -456,7 +317,6 @@ STDMETHODIMP VirtualBox::CreateAppliance(IAppliance** anAppliance)
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_EMPTY_CTOR_DTOR(Appliance)
-struct shutup {};
 
 /**
  * Appliance COM initializer.
@@ -487,6 +347,11 @@ HRESULT Appliance::init(VirtualBox *aVirtualBox)
  */
 void Appliance::uninit()
 {
+    /* Enclose the state transition Ready->InUninit->NotReady */
+    AutoUninitSpan autoUninitSpan(this);
+    if (autoUninitSpan.uninitDone())
+        return;
+
     delete m;
     m = NULL;
 }
@@ -497,1367 +362,511 @@ void Appliance::uninit()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+HRESULT Appliance::searchUniqueVMName(Utf8Str& aName) const
+{
+    IMachine *machine = NULL;
+    char *tmpName = RTStrDup(aName.c_str());
+    int i = 1;
+    /* @todo: Maybe too cost-intensive; try to find a lighter way */
+    while (mVirtualBox->FindMachine(Bstr(tmpName), &machine) != VBOX_E_OBJECT_NOT_FOUND)
+    {
+        RTStrFree(tmpName);
+        RTStrAPrintf(&tmpName, "%s_%d", aName.c_str(), i);
+        ++i;
+    }
+    aName = tmpName;
+    RTStrFree(tmpName);
+
+    return S_OK;
+}
+
+HRESULT Appliance::searchUniqueDiskImageFilePath(Utf8Str& aName) const
+{
+    IMedium *harddisk = NULL;
+    char *tmpName = RTStrDup(aName.c_str());
+    int i = 1;
+    /* Check if the file exists or if a file with this path is registered
+     * already */
+    /* @todo: Maybe too cost-intensive; try to find a lighter way */
+    while (RTPathExists(tmpName) ||
+           mVirtualBox->FindHardDisk(Bstr(tmpName), &harddisk) != VBOX_E_OBJECT_NOT_FOUND)
+    {
+        RTStrFree(tmpName);
+        char *tmpDir = RTStrDup(aName.c_str());
+        RTPathStripFilename(tmpDir);;
+        char *tmpFile = RTStrDup(RTPathFilename(aName.c_str()));
+        RTPathStripExt(tmpFile);
+        const char *tmpExt = RTPathExt(aName.c_str());
+        RTStrAPrintf(&tmpName, "%s%c%s_%d%s", tmpDir, RTPATH_DELIMITER, tmpFile, i, tmpExt);
+        RTStrFree(tmpFile);
+        RTStrFree(tmpDir);
+        ++i;
+    }
+    aName = tmpName;
+    RTStrFree(tmpName);
+
+    return S_OK;
+}
+
 /**
- * Private helper method that goes thru the elements of the given "current" element in the OVF XML
- * and handles the contained child elements (which can be "Section" or "Content" elements).
- *
- * @param pcszPath Path spec of the XML file, for error messages.
- * @param pReferencesElement "References" element from OVF, for looking up file specifications; can be NULL if no such element is present.
- * @param pCurElem Element whose children are to be analyzed here.
- * @return
+ * Called from the import and export background threads to synchronize the second
+ * background disk thread's progress object with the current progress object so
+ * that the user interface sees progress correctly and that cancel signals are
+ * passed on to the second thread.
+ * @param pProgressThis Progress object of the current thread.
+ * @param pProgressAsync Progress object of asynchronous task running in background.
  */
-HRESULT Appliance::LoopThruSections(const char *pcszPath,
-                                    const xml::ElementNode *pReferencesElem,
-                                    const xml::ElementNode *pCurElem)
+void Appliance::waitForAsyncProgress(ComObjPtr<Progress> &pProgressThis,
+                                     ComPtr<IProgress> &pProgressAsync)
 {
     HRESULT rc;
 
-    xml::NodesLoop loopChildren(*pCurElem);
-    const xml::ElementNode *pElem;
-    while ((pElem = loopChildren.forAllNodes()))
+    // now loop until the asynchronous operation completes and then report its result
+    BOOL fCompleted;
+    BOOL fCanceled;
+    ULONG currentPercent;
+    while (SUCCEEDED(pProgressAsync->COMGETTER(Completed(&fCompleted))))
     {
-        const char *pcszElemName = pElem->getName();
-        const char *pcszTypeAttr = "";
-        const xml::AttributeNode *pTypeAttr;
-        if ((pTypeAttr = pElem->findAttribute("type")))
-            pcszTypeAttr = pTypeAttr->getValue();
+        rc = pProgressThis->COMGETTER(Canceled)(&fCanceled);
+        if (FAILED(rc)) throw rc;
+        if (fCanceled)
+        {
+            pProgressAsync->Cancel();
+            break;
+        }
 
-        if (    (!strcmp(pcszElemName, "DiskSection"))
-             || (    (!strcmp(pcszElemName, "Section"))
-                  && (!strcmp(pcszTypeAttr, "ovf:DiskSection_Type"))
-                )
-           )
-        {
-            if (!(SUCCEEDED((rc = HandleDiskSection(pcszPath, pReferencesElem, pElem)))))
-                return rc;
-        }
-       else if (    (!strcmp(pcszElemName, "NetworkSection"))
-                  || (    (!strcmp(pcszElemName, "Section"))
-                       && (!strcmp(pcszTypeAttr, "ovf:NetworkSection_Type"))
-                     )
-                )
-        {
-            if (!(SUCCEEDED((rc = HandleNetworkSection(pcszPath, pElem)))))
-                return rc;
-        }
-        else if (    (!strcmp(pcszElemName, "DeploymentOptionSection")))
-        {
-            // TODO
-        }
-        else if (    (!strcmp(pcszElemName, "Info")))
-        {
-            // child of VirtualSystemCollection -- TODO
-        }
-        else if (    (!strcmp(pcszElemName, "ResourceAllocationSection")))
-        {
-            // child of VirtualSystemCollection -- TODO
-        }
-        else if (    (!strcmp(pcszElemName, "StartupSection")))
-        {
-            // child of VirtualSystemCollection -- TODO
-        }
-        else if (    (!strcmp(pcszElemName, "VirtualSystem"))
-                  || (    (!strcmp(pcszElemName, "Content"))
-                       && (!strcmp(pcszTypeAttr, "ovf:VirtualSystem_Type"))
-                     )
-                )
-        {
-            if (!(SUCCEEDED((rc = HandleVirtualSystemContent(pcszPath, pElem)))))
-                return rc;
-        }
-        else if (    (!strcmp(pcszElemName, "VirtualSystemCollection"))
-                  || (    (!strcmp(pcszElemName, "Content"))
-                       && (!strcmp(pcszTypeAttr, "ovf:VirtualSystemCollection_Type"))
-                     )
-                )
-        {
-            // TODO ResourceAllocationSection
+        rc = pProgressAsync->COMGETTER(Percent(&currentPercent));
+        if (FAILED(rc)) throw rc;
+        if (!pProgressThis.isNull())
+            pProgressThis->SetCurrentOperationProgress(currentPercent);
+        if (fCompleted)
+            break;
 
-            // recurse for this, since it has VirtualSystem elements as children
-            if (!(SUCCEEDED((rc = LoopThruSections(pcszPath, pReferencesElem, pElem)))))
-                return rc;
+        /* Make sure the loop is not too tight */
+        rc = pProgressAsync->WaitForCompletion(100);
+        if (FAILED(rc)) throw rc;
+    }
+    // report result of asynchronous operation
+    LONG iRc;
+    rc = pProgressAsync->COMGETTER(ResultCode)(&iRc);
+    if (FAILED(rc)) throw rc;
+
+
+    // if the thread of the progress object has an error, then
+    // retrieve the error info from there, or it'll be lost
+    if (FAILED(iRc))
+    {
+        ProgressErrorInfo info(pProgressAsync);
+        Utf8Str str(info.getText());
+        const char *pcsz = str.c_str();
+        HRESULT rc2 = setError(iRc, pcsz);
+        throw rc2;
+    }
+}
+
+void Appliance::addWarning(const char* aWarning, ...)
+{
+    va_list args;
+    va_start(args, aWarning);
+    Utf8StrFmtVA str(aWarning, args);
+    va_end(args);
+    m->llWarnings.push_back(str);
+}
+
+void Appliance::disksWeight(uint32_t &ulTotalMB, uint32_t &cDisks) const
+{
+    ulTotalMB = 0;
+    cDisks = 0;
+    /* Weigh the disk images according to their sizes */
+    list< ComObjPtr<VirtualSystemDescription> >::const_iterator it;
+    for (it = m->virtualSystemDescriptions.begin();
+         it != m->virtualSystemDescriptions.end();
+         ++it)
+    {
+        ComObjPtr<VirtualSystemDescription> vsdescThis = (*it);
+        /* One for every hard disk of the Virtual System */
+        std::list<VirtualSystemDescriptionEntry*> avsdeHDs = vsdescThis->findByType(VirtualSystemDescriptionType_HardDiskImage);
+        std::list<VirtualSystemDescriptionEntry*>::const_iterator itH;
+        for (itH = avsdeHDs.begin();
+             itH != avsdeHDs.end();
+             ++itH)
+        {
+            const VirtualSystemDescriptionEntry *pHD = *itH;
+            ulTotalMB += pHD->ulSizeMB;
+            ++cDisks;
         }
     }
 
-    return S_OK;
 }
 
-/**
- * Private helper method that handles disk sections in the OVF XML.
- * Gets called indirectly from IAppliance::read().
- *
- * @param pcszPath Path spec of the XML file, for error messages.
- * @param pReferencesElement "References" element from OVF, for looking up file specifications; can be NULL if no such element is present.
- * @param pSectionElem Section element for which this helper is getting called.
- * @return
- */
-HRESULT Appliance::HandleDiskSection(const char *pcszPath,
-                                     const xml::ElementNode *pReferencesElem,
-                                     const xml::ElementNode *pSectionElem)
+HRESULT Appliance::setUpProgressFS(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription)
 {
-    // contains "Disk" child elements
-    xml::NodesLoop loopDisks(*pSectionElem, "Disk");
-    const xml::ElementNode *pelmDisk;
-    while ((pelmDisk = loopDisks.forAllNodes()))
+    HRESULT rc;
+
+    /* Create the progress object */
+    pProgress.createObject();
+
+    /* Weigh the disk images according to their sizes */
+    uint32_t ulTotalMB;
+    uint32_t cDisks;
+    disksWeight(ulTotalMB, cDisks);
+
+    ULONG cOperations = 1 + cDisks;     // one op per disk plus 1 for the XML
+
+    ULONG ulTotalOperationsWeight;
+    if (ulTotalMB)
     {
-        DiskImage d;
-        const char *pcszBad = NULL;
-        const char *pcszDiskId;
-        const char *pcszFormat;
-        if (!(pelmDisk->getAttributeValue("diskId", pcszDiskId)))
-            pcszBad = "diskId";
-        else if (!(pelmDisk->getAttributeValue("format", pcszFormat)))
-            pcszBad = "format";
-        else if (!(pelmDisk->getAttributeValue("capacity", d.iCapacity)))
-            pcszBad = "capacity";
-        else
-        {
-            d.strDiskId = pcszDiskId;
-            d.strFormat = pcszFormat;
-
-            if (!(pelmDisk->getAttributeValue("populatedSize", d.iPopulatedSize)))
-                // optional
-                d.iPopulatedSize = -1;
-
-            const char *pcszFileRef;
-            if (pelmDisk->getAttributeValue("fileRef", pcszFileRef)) // optional
-            {
-                // look up corresponding /References/File nodes (list built above)
-                const xml::ElementNode *pFileElem;
-                if (    pReferencesElem
-                     && ((pFileElem = pReferencesElem->findChildElementFromId(pcszFileRef)))
-                   )
-                {
-                    // copy remaining values from file node then
-                    const char *pcszBadInFile = NULL;
-                    const char *pcszHref;
-                    if (!(pFileElem->getAttributeValue("href", pcszHref)))
-                        pcszBadInFile = "href";
-                    else if (!(pFileElem->getAttributeValue("size", d.iSize)))
-                        d.iSize = -1;       // optional
-
-                    d.strHref = pcszHref;
-
-                    // if (!(pFileElem->getAttributeValue("size", d.iChunkSize))) TODO
-                    d.iChunkSize = -1;       // optional
-                    const char *pcszCompression;
-                    if (pFileElem->getAttributeValue("compression", pcszCompression))
-                        d.strCompression = pcszCompression;
-
-                    if (pcszBadInFile)
-                        return setError(VBOX_E_FILE_ERROR,
-                                        tr("Error reading \"%s\": missing or invalid attribute '%s' in 'File' element, line %d"),
-                                        pcszPath,
-                                        pcszBadInFile,
-                                        pFileElem->getLineNumber());
-                }
-                else
-                    return setError(VBOX_E_FILE_ERROR,
-                                    tr("Error reading \"%s\": cannot find References/File element for ID '%s' referenced by 'Disk' element, line %d"),
-                                    pcszPath,
-                                    pcszFileRef,
-                                    pelmDisk->getLineNumber());
-            }
-        }
-
-        if (pcszBad)
-            return setError(VBOX_E_FILE_ERROR,
-                            tr("Error reading \"%s\": missing or invalid attribute '%s' in 'DiskSection' element, line %d"),
-                            pcszPath,
-                            pcszBad,
-                            pelmDisk->getLineNumber());
-
-        m->mapDisks[d.strDiskId] = d;
+        m->ulWeightPerOperation = (ULONG)((double)ulTotalMB * 1  / 100);    // use 1% of the progress for the XML
+        ulTotalOperationsWeight = ulTotalMB + m->ulWeightPerOperation;
+    }
+    else
+    {
+        // no disks to export:
+        ulTotalOperationsWeight = 1;
+        m->ulWeightPerOperation = 1;
     }
 
-    return S_OK;
-}
-
-/**
- * Private helper method that handles network sections in the OVF XML.
- * Gets called indirectly from IAppliance::read().
- *
- * @param pcszPath Path spec of the XML file, for error messages.
- * @param pSectionElem Section element for which this helper is getting called.
- * @return
- */
-HRESULT Appliance::HandleNetworkSection(const char * /* pcszPath */,
-                                        const xml::ElementNode * /* pSectionElem */)
-{
-    // we ignore network sections for now
-
-//     xml::NodesLoop loopNetworks(*pSectionElem, "Network");
-//     const xml::Node *pelmNetwork;
-//     while ((pelmNetwork = loopNetworks.forAllNodes()))
-//     {
-//         Network n;
-//         if (!(pelmNetwork->getAttributeValue("name", n.strNetworkName)))
-//             return setError(VBOX_E_FILE_ERROR,
-//                             tr("Error reading \"%s\": missing 'name' attribute in 'Network', line %d"),
-//                             pcszPath,
-//                             pelmNetwork->getLineNumber());
-//
-//         m->mapNetworks[n.strNetworkName] = n;
-//     }
-
-    return S_OK;
-}
-
-/**
- * Private helper method that handles a "VirtualSystem" element in the OVF XML.
- * Gets called indirectly from IAppliance::read().
- *
- * @param pcszPath
- * @param pContentElem
- * @return
- */
-HRESULT Appliance::HandleVirtualSystemContent(const char *pcszPath,
-                                              const xml::ElementNode *pelmVirtualSystem)
-{
-    VirtualSystem vsys;
-
-    const xml::AttributeNode *pIdAttr = pelmVirtualSystem->findAttribute("id");
-    if (pIdAttr)
-        vsys.strName = pIdAttr->getValue();
-
-    xml::NodesLoop loop(*pelmVirtualSystem);      // all child elements
-    const xml::ElementNode *pelmThis;
-    while ((pelmThis = loop.forAllNodes()))
-    {
-        const char *pcszElemName = pelmThis->getName();
-        const xml::AttributeNode *pTypeAttr = pelmThis->findAttribute("type");
-        const char *pcszTypeAttr = (pTypeAttr) ? pTypeAttr->getValue() : "";
-
-        if (    (!strcmp(pcszElemName, "EulaSection"))
-             || (!strcmp(pcszTypeAttr, "ovf:EulaSection_Type"))
-           )
-        {
-         /* <EulaSection>
-                <Info ovf:msgid="6">License agreement for the Virtual System.</Info>
-                <License ovf:msgid="1">License terms can go in here.</License>
-            </EulaSection> */
-
-            const xml::ElementNode *pelmLicense;
-            if ((pelmLicense = pelmThis->findChildElement("License")))
-                vsys.strLicenseText = pelmLicense->getValue();
-        }
-        if (    (!strcmp(pcszElemName, "ProductSection"))
-             || (!strcmp(pcszTypeAttr, "ovf:ProductSection_Type"))
-           )
-        {
-            /* <Section ovf:required="false" xsi:type="ovf:ProductSection_Type">
-                <Info>Meta-information about the installed software</Info>
-                <Product>VAtest</Product>
-                <Vendor>SUN Microsystems</Vendor>
-                <Version>10.0</Version>
-                <ProductUrl>http://blogs.sun.com/VirtualGuru</ProductUrl>
-                <VendorUrl>http://www.sun.com</VendorUrl>
-               </Section> */
-            const xml::ElementNode *pelmProduct;
-            if ((pelmProduct = pelmThis->findChildElement("Product")))
-                vsys.strProduct = pelmProduct->getValue();
-            const xml::ElementNode *pelmVendor;
-            if ((pelmVendor = pelmThis->findChildElement("Vendor")))
-                vsys.strVendor = pelmVendor->getValue();
-            const xml::ElementNode *pelmVersion;
-            if ((pelmVersion = pelmThis->findChildElement("Version")))
-                vsys.strVersion = pelmVersion->getValue();
-            const xml::ElementNode *pelmProductUrl;
-            if ((pelmProductUrl = pelmThis->findChildElement("ProductUrl")))
-                vsys.strProductUrl = pelmProductUrl->getValue();
-            const xml::ElementNode *pelmVendorUrl;
-            if ((pelmVendorUrl = pelmThis->findChildElement("VendorUrl")))
-                vsys.strVendorUrl = pelmVendorUrl->getValue();
-        }
-        else if (    (!strcmp(pcszElemName, "VirtualHardwareSection"))
-                  || (!strcmp(pcszTypeAttr, "ovf:VirtualHardwareSection_Type"))
-                )
-        {
-            const xml::ElementNode *pelmSystem, *pelmVirtualSystemType;
-            if ((pelmSystem = pelmThis->findChildElement("System")))
-            {
-             /* <System>
-                    <vssd:Description>Description of the virtual hardware section.</vssd:Description>
-                    <vssd:ElementName>vmware</vssd:ElementName>
-                    <vssd:InstanceID>1</vssd:InstanceID>
-                    <vssd:VirtualSystemIdentifier>MyLampService</vssd:VirtualSystemIdentifier>
-                    <vssd:VirtualSystemType>vmx-4</vssd:VirtualSystemType>
-                </System>*/
-                if ((pelmVirtualSystemType = pelmSystem->findChildElement("VirtualSystemType")))
-                    vsys.strVirtualSystemType = pelmVirtualSystemType->getValue();
-            }
-
-            xml::NodesLoop loopVirtualHardwareItems(*pelmThis, "Item");      // all "Item" child elements
-            const xml::ElementNode *pelmItem;
-            while ((pelmItem = loopVirtualHardwareItems.forAllNodes()))
-            {
-                VirtualHardwareItem i;
-
-                i.ulLineNumber = pelmItem->getLineNumber();
-
-                xml::NodesLoop loopItemChildren(*pelmItem);      // all child elements
-                const xml::ElementNode *pelmItemChild;
-                while ((pelmItemChild = loopItemChildren.forAllNodes()))
-                {
-                    const char *pcszItemChildName = pelmItemChild->getName();
-                    if (!strcmp(pcszItemChildName, "Description"))
-                        i.strDescription = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "Caption"))
-                        i.strCaption = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "ElementName"))
-                        i.strElementName = pelmItemChild->getValue();
-                    else if (    (!strcmp(pcszItemChildName, "InstanceID"))
-                              || (!strcmp(pcszItemChildName, "InstanceId"))
-                            )
-                        pelmItemChild->copyValue(i.ulInstanceID);
-                    else if (!strcmp(pcszItemChildName, "HostResource"))
-                        i.strHostResource = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "ResourceType"))
-                    {
-                        uint32_t ulType;
-                        pelmItemChild->copyValue(ulType);
-                        i.resourceType = (OVFResourceType_T)ulType;
-                    }
-                    else if (!strcmp(pcszItemChildName, "OtherResourceType"))
-                        i.strOtherResourceType = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "ResourceSubType"))
-                        i.strResourceSubType = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "AutomaticAllocation"))
-                        i.fAutomaticAllocation = (!strcmp(pelmItemChild->getValue(), "true")) ? true : false;
-                    else if (!strcmp(pcszItemChildName, "AutomaticDeallocation"))
-                        i.fAutomaticDeallocation = (!strcmp(pelmItemChild->getValue(), "true")) ? true : false;
-                    else if (!strcmp(pcszItemChildName, "Parent"))
-                        pelmItemChild->copyValue(i.ulParent);
-                    else if (!strcmp(pcszItemChildName, "Connection"))
-                        i.strConnection = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "Address"))
-                        i.strAddress = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "AddressOnParent"))
-                        i.strAddressOnParent = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "AllocationUnits"))
-                        i.strAllocationUnits = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "VirtualQuantity"))
-                        pelmItemChild->copyValue(i.ullVirtualQuantity);
-                    else if (!strcmp(pcszItemChildName, "Reservation"))
-                        pelmItemChild->copyValue(i.ullReservation);
-                    else if (!strcmp(pcszItemChildName, "Limit"))
-                        pelmItemChild->copyValue(i.ullLimit);
-                    else if (!strcmp(pcszItemChildName, "Weight"))
-                        pelmItemChild->copyValue(i.ullWeight);
-                    else if (!strcmp(pcszItemChildName, "ConsumerVisibility"))
-                        i.strConsumerVisibility = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "MappingBehavior"))
-                        i.strMappingBehavior = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "PoolID"))
-                        i.strPoolID = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "BusNumber"))
-                        pelmItemChild->copyValue(i.ulBusNumber);
-                    else
-                        return setError(VBOX_E_FILE_ERROR,
-                                        tr("Error reading \"%s\": unknown element \"%s\" under Item element, line %d"),
-                                        pcszPath,
-                                        pcszItemChildName,
-                                        i.ulLineNumber);
-                }
-
-                // store!
-                vsys.mapHardwareItems[i.ulInstanceID] = i;
-            }
-
-            // now go thru all hardware items and handle them according to their type;
-            // in this first loop we handle all items _except_ hard disk images,
-            // which we'll handle in a second loop below
-            HardwareItemsMap::const_iterator itH;
-            for (itH = vsys.mapHardwareItems.begin();
-                 itH != vsys.mapHardwareItems.end();
-                 ++itH)
-            {
-                const VirtualHardwareItem &i = itH->second;
-
-                // do some analysis
-                switch (i.resourceType)
-                {
-                    case OVFResourceType_Processor:     // 3
-                        /*  <rasd:Caption>1 virtual CPU</rasd:Caption>
-                            <rasd:Description>Number of virtual CPUs</rasd:Description>
-                            <rasd:ElementName>virtual CPU</rasd:ElementName>
-                            <rasd:InstanceID>1</rasd:InstanceID>
-                            <rasd:ResourceType>3</rasd:ResourceType>
-                            <rasd:VirtualQuantity>1</rasd:VirtualQuantity>*/
-                        if (i.ullVirtualQuantity < UINT16_MAX)
-                            vsys.cCPUs = (uint16_t)i.ullVirtualQuantity;
-                        else
-                            return setError(VBOX_E_FILE_ERROR,
-                                            tr("Error reading \"%s\": CPU count %RI64 is larger than %d, line %d"),
-                                            pcszPath,
-                                            i.ullVirtualQuantity,
-                                            UINT16_MAX,
-                                            i.ulLineNumber);
-                    break;
-
-                    case OVFResourceType_Memory:        // 4
-                        if (    (i.strAllocationUnits == "MegaBytes")           // found in OVF created by OVF toolkit
-                             || (i.strAllocationUnits == "MB")                  // found in MS docs
-                             || (i.strAllocationUnits == "byte * 2^20")         // suggested by OVF spec DSP0243 page 21
-                           )
-                            vsys.ullMemorySize = i.ullVirtualQuantity * 1024 * 1024;
-                        else
-                            return setError(VBOX_E_FILE_ERROR,
-                                            tr("Error reading \"%s\": Invalid allocation unit \"%s\" specified with memory size item, line %d"),
-                                            pcszPath,
-                                            i.strAllocationUnits.c_str(),
-                                            i.ulLineNumber);
-                    break;
-
-                    case OVFResourceType_IDEController:          // 5
-                    {
-                        /*  <Item>
-                                <rasd:Caption>ideController0</rasd:Caption>
-                                <rasd:Description>IDE Controller</rasd:Description>
-                                <rasd:InstanceId>5</rasd:InstanceId>
-                                <rasd:ResourceType>5</rasd:ResourceType>
-                                <rasd:Address>0</rasd:Address>
-                                <rasd:BusNumber>0</rasd:BusNumber>
-                            </Item> */
-                        HardDiskController hdc;
-                        hdc.system = HardDiskController::IDE;
-                        hdc.idController = i.ulInstanceID;
-                        hdc.strControllerType = i.strResourceSubType;
-                        hdc.strAddress = i.strAddress;
-                        hdc.ulBusNumber = i.ulBusNumber;
-
-                        vsys.mapControllers[i.ulInstanceID] = hdc;
-                    }
-                    break;
-
-                    case OVFResourceType_ParallelSCSIHBA:        // 6       SCSI controller
-                    {
-                        /*  <Item>
-                                <rasd:Caption>SCSI Controller 0 - LSI Logic</rasd:Caption>
-                                <rasd:Description>SCI Controller</rasd:Description>
-                                <rasd:ElementName>SCSI controller</rasd:ElementName>
-                                <rasd:InstanceID>4</rasd:InstanceID>
-                                <rasd:ResourceSubType>LsiLogic</rasd:ResourceSubType>
-                                <rasd:ResourceType>6</rasd:ResourceType>
-                            </Item> */
-                        HardDiskController hdc;
-                        hdc.system = HardDiskController::SCSI;
-                        hdc.idController = i.ulInstanceID;
-                        hdc.strControllerType = i.strResourceSubType;
-
-                        vsys.mapControllers[i.ulInstanceID] = hdc;
-                    }
-                    break;
-
-                    case OVFResourceType_EthernetAdapter: // 10
-                    {
-                        /*  <Item>
-                            <rasd:Caption>Ethernet adapter on 'Bridged'</rasd:Caption>
-                            <rasd:AutomaticAllocation>true</rasd:AutomaticAllocation>
-                            <rasd:Connection>Bridged</rasd:Connection>
-                            <rasd:InstanceID>6</rasd:InstanceID>
-                            <rasd:ResourceType>10</rasd:ResourceType>
-                            <rasd:ResourceSubType>E1000</rasd:ResourceSubType>
-                            </Item>
-
-                            OVF spec DSP 0243 page 21:
-                           "For an Ethernet adapter, this specifies the abstract network connection name
-                            for the virtual machine. All Ethernet adapters that specify the same abstract
-                            network connection name within an OVF package shall be deployed on the same
-                            network. The abstract network connection name shall be listed in the NetworkSection
-                            at the outermost envelope level." */
-
-                        // only store the name
-                        EthernetAdapter ea;
-                        ea.strAdapterType = i.strResourceSubType;
-                        ea.strNetworkName = i.strConnection;
-                        vsys.llEthernetAdapters.push_back(ea);
-                    }
-                    break;
-
-                    case OVFResourceType_FloppyDrive: // 14
-                        vsys.fHasFloppyDrive = true;           // we have no additional information
-                    break;
-
-                    case OVFResourceType_CDDrive:       // 15
-                        /*  <Item ovf:required="false">
-                                <rasd:Caption>cdrom1</rasd:Caption>
-                                <rasd:InstanceId>7</rasd:InstanceId>
-                                <rasd:ResourceType>15</rasd:ResourceType>
-                                <rasd:AutomaticAllocation>true</rasd:AutomaticAllocation>
-                                <rasd:Parent>5</rasd:Parent>
-                                <rasd:AddressOnParent>0</rasd:AddressOnParent>
-                            </Item> */
-                            // I tried to see what happens if I set an ISO for the CD-ROM in VMware Workstation,
-                            // but then the ovftool dies with "Device backing not supported". So I guess if
-                            // VMware can't export ISOs, then we don't need to be able to import them right now.
-                        vsys.fHasCdromDrive = true;           // we have no additional information
-                    break;
-
-                    case OVFResourceType_HardDisk: // 17
-                        // handled separately in second loop below
-                    break;
-
-                    case OVFResourceType_OtherStorageDevice:        // 20       SATA controller
-                    {
-                        /* <Item>
-                            <rasd:Description>SATA Controller</rasd:Description>
-                            <rasd:Caption>sataController0</rasd:Caption>
-                            <rasd:InstanceID>4</rasd:InstanceID>
-                            <rasd:ResourceType>20</rasd:ResourceType>
-                            <rasd:ResourceSubType>AHCI</rasd:ResourceSubType>
-                            <rasd:Address>0</rasd:Address>
-                            <rasd:BusNumber>0</rasd:BusNumber>
-                        </Item> */
-                        if (i.strCaption.startsWith ("sataController", Utf8Str::CaseInsensitive) &&
-                            !i.strResourceSubType.compare ("AHCI", Utf8Str::CaseInsensitive))
-                        {
-                            HardDiskController hdc;
-                            hdc.system = HardDiskController::SATA;
-                            hdc.idController = i.ulInstanceID;
-                            hdc.strControllerType = i.strResourceSubType;
-
-                            vsys.mapControllers[i.ulInstanceID] = hdc;
-                        }
-                        else
-                            return setError(VBOX_E_FILE_ERROR,
-                                            tr("Error reading \"%s\": Host resource of type \"Other Storage Device (%d)\" is supported with SATA AHCI controllers only, line %d"),
-                                            pcszPath,
-                                            OVFResourceType_OtherStorageDevice,
-                                            i.ulLineNumber);
-                    }
-                    break;
-
-                    case OVFResourceType_USBController: // 23
-                        /*  <Item ovf:required="false">
-                                <rasd:Caption>usb</rasd:Caption>
-                                <rasd:Description>USB Controller</rasd:Description>
-                                <rasd:InstanceId>3</rasd:InstanceId>
-                                <rasd:ResourceType>23</rasd:ResourceType>
-                                <rasd:Address>0</rasd:Address>
-                                <rasd:BusNumber>0</rasd:BusNumber>
-                            </Item> */
-                        vsys.fHasUsbController = true;           // we have no additional information
-                    break;
-
-                    case OVFResourceType_SoundCard: // 35
-                        /*  <Item ovf:required="false">
-                                <rasd:Caption>sound</rasd:Caption>
-                                <rasd:Description>Sound Card</rasd:Description>
-                                <rasd:InstanceId>10</rasd:InstanceId>
-                                <rasd:ResourceType>35</rasd:ResourceType>
-                                <rasd:ResourceSubType>ensoniq1371</rasd:ResourceSubType>
-                                <rasd:AutomaticAllocation>false</rasd:AutomaticAllocation>
-                                <rasd:AddressOnParent>3</rasd:AddressOnParent>
-                            </Item> */
-                        vsys.strSoundCardType = i.strResourceSubType;
-                    break;
-
-                    default:
-                        return setError(VBOX_E_FILE_ERROR,
-                                        tr("Error reading \"%s\": Unknown resource type %d in hardware item, line %d"),
-                                        pcszPath,
-                                        i.resourceType,
-                                        i.ulLineNumber);
-                } // end switch
-            }
-
-            // now run through the items for a second time, but handle only
-            // hard disk images; otherwise the code would fail if a hard
-            // disk image appears in the OVF before its hard disk controller
-            for (itH = vsys.mapHardwareItems.begin();
-                 itH != vsys.mapHardwareItems.end();
-                 ++itH)
-            {
-                const VirtualHardwareItem &i = itH->second;
-
-                // do some analysis
-                switch (i.resourceType)
-                {
-                    case OVFResourceType_HardDisk: // 17
-                    {
-                        /*  <Item>
-                                <rasd:Caption>Harddisk 1</rasd:Caption>
-                                <rasd:Description>HD</rasd:Description>
-                                <rasd:ElementName>Hard Disk</rasd:ElementName>
-                                <rasd:HostResource>ovf://disk/lamp</rasd:HostResource>
-                                <rasd:InstanceID>5</rasd:InstanceID>
-                                <rasd:Parent>4</rasd:Parent>
-                                <rasd:ResourceType>17</rasd:ResourceType>
-                            </Item> */
-
-                        // look up the hard disk controller element whose InstanceID equals our Parent;
-                        // this is how the connection is specified in OVF
-                        ControllersMap::const_iterator it = vsys.mapControllers.find(i.ulParent);
-                        if (it == vsys.mapControllers.end())
-                            return setError(VBOX_E_FILE_ERROR,
-                                            tr("Error reading \"%s\": Hard disk item with instance ID %d specifies invalid parent %d, line %d"),
-                                            pcszPath,
-                                            i.ulInstanceID,
-                                            i.ulParent,
-                                            i.ulLineNumber);
-                        //const HardDiskController &hdc = it->second;
-
-                        VirtualDisk vd;
-                        vd.idController = i.ulParent;
-                        i.strAddressOnParent.toInt(vd.ulAddressOnParent);
-                        // ovf://disk/lamp
-                        // 123456789012345
-                        if (i.strHostResource.substr(0, 11) == "ovf://disk/")
-                            vd.strDiskId = i.strHostResource.substr(11);
-                        else if (i.strHostResource.substr(0, 10) == "ovf:/disk/")
-                            vd.strDiskId = i.strHostResource.substr(10);
-                        else if (i.strHostResource.substr(0, 6) == "/disk/")
-                            vd.strDiskId = i.strHostResource.substr(6);
-
-                        if (    !(vd.strDiskId.length())
-                             || (m->mapDisks.find(vd.strDiskId) == m->mapDisks.end())
-                           )
-                            return setError(VBOX_E_FILE_ERROR,
-                                            tr("Error reading \"%s\": Hard disk item with instance ID %d specifies invalid host resource \"%s\", line %d"),
-                                            pcszPath,
-                                            i.ulInstanceID,
-                                            i.strHostResource.c_str(),
-                                            i.ulLineNumber);
-
-                        vsys.mapVirtualDisks[vd.strDiskId] = vd;
-                    }
-                    break;
-                }
-            }
-        }
-        else if (    (!strcmp(pcszElemName, "OperatingSystemSection"))
-                  || (!strcmp(pcszTypeAttr, "ovf:OperatingSystemSection_Type"))
-                )
-        {
-            uint64_t cimos64;
-            if (!(pelmThis->getAttributeValue("id", cimos64)))
-                return setError(VBOX_E_FILE_ERROR,
-                                tr("Error reading \"%s\": missing or invalid 'ovf:id' attribute in operating system section element, line %d"),
-                                pcszPath,
-                                pelmThis->getLineNumber());
-
-            vsys.cimos = (CIMOSType_T)cimos64;
-            const xml::ElementNode *pelmCIMOSDescription;
-            if ((pelmCIMOSDescription = pelmThis->findChildElement("Description")))
-                vsys.strCimosDesc = pelmCIMOSDescription->getValue();
-        }
-        else if (    (!strcmp(pcszElemName, "AnnotationSection"))
-                  || (!strcmp(pcszTypeAttr, "ovf:AnnotationSection_Type"))
-                )
-        {
-            const xml::ElementNode *pelmAnnotation;
-            if ((pelmAnnotation = pelmThis->findChildElement("Annotation")))
-                vsys.strDescription = pelmAnnotation->getValue();
-        }
-    }
-
-    // now create the virtual system
-    m->llVirtualSystems.push_back(vsys);
-
-    return S_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//
-// IAppliance public methods
-//
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Public method implementation.
- * @param
- * @return
- */
-STDMETHODIMP Appliance::COMGETTER(Path)(BSTR *aPath)
-{
-    if (!aPath)
-        return E_POINTER;
-
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    AutoReadLock alock(this);
-
-    Bstr bstrPath(m->strPath);
-    bstrPath.cloneTo(aPath);
-
-    return S_OK;
-}
-
-/**
- * Public method implementation.
- * @param
- * @return
- */
-STDMETHODIMP Appliance::COMGETTER(Disks)(ComSafeArrayOut(BSTR, aDisks))
-{
-    CheckComArgOutSafeArrayPointerValid(aDisks);
-
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    AutoReadLock alock(this);
-
-    size_t c = m->mapDisks.size();
-    com::SafeArray<BSTR> sfaDisks(c);
-
-    DiskImagesMap::const_iterator it;
-    size_t i = 0;
-    for (it = m->mapDisks.begin();
-         it != m->mapDisks.end();
-         ++it, ++i)
-    {
-        // create a string representing this disk
-        const DiskImage &d = it->second;
-        char *psz = NULL;
-        RTStrAPrintf(&psz,
-                     "%s\t"
-                     "%RI64\t"
-                     "%RI64\t"
-                     "%s\t"
-                     "%s\t"
-                     "%RI64\t"
-                     "%RI64\t"
-                     "%s",
-                     d.strDiskId.c_str(),
-                     d.iCapacity,
-                     d.iPopulatedSize,
-                     d.strFormat.c_str(),
-                     d.strHref.c_str(),
-                     d.iSize,
-                     d.iChunkSize,
-                     d.strCompression.c_str());
-        Utf8Str utf(psz);
-        Bstr bstr(utf);
-        // push to safearray
-        bstr.cloneTo(&sfaDisks[i]);
-        RTStrFree(psz);
-    }
-
-    sfaDisks.detachTo(ComSafeArrayOutArg(aDisks));
-
-    return S_OK;
-}
-
-/**
- * Public method implementation.
- * @param
- * @return
- */
-STDMETHODIMP Appliance::COMGETTER(VirtualSystemDescriptions)(ComSafeArrayOut(IVirtualSystemDescription*, aVirtualSystemDescriptions))
-{
-    CheckComArgOutSafeArrayPointerValid(aVirtualSystemDescriptions);
-
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    AutoReadLock alock(this);
-
-    SafeIfaceArray<IVirtualSystemDescription> sfaVSD(m->virtualSystemDescriptions);
-    sfaVSD.detachTo(ComSafeArrayOutArg(aVirtualSystemDescriptions));
-
-    return S_OK;
-}
-
-/**
- * Public method implementation.
- * @param path
- * @return
- */
-STDMETHODIMP Appliance::Read(IN_BSTR path)
-{
-    HRESULT rc = S_OK;
-
-    if (!path)
-        return E_POINTER;
-
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    AutoWriteLock alock(this);
-
-    // see if we can handle this file; for now we insist it has an ".ovf" extension
-    m->strPath = path;
-    if (!m->strPath.endsWith(".ovf", Utf8Str::CaseInsensitive))
-        return setError(VBOX_E_FILE_ERROR,
-                        tr("Appliance file must have .ovf extension"));
-
-    try
-    {
-        xml::XmlFileParser parser;
-        xml::Document doc;
-        parser.read(m->strPath.raw(),
-                    doc);
-
-        const xml::ElementNode *pRootElem = doc.getRootElement();
-        if (strcmp(pRootElem->getName(), "Envelope"))
-            return setError(VBOX_E_FILE_ERROR,
-                            tr("Root element in OVF file must be \"Envelope\"."));
-
-        // OVF has the following rough layout:
-        /*
-            -- <References> ....  files referenced from other parts of the file, such as VMDK images
-            -- Metadata, comprised of several section commands
-            -- virtual machines, either a single <VirtualSystem>, or a <VirtualSystemCollection>
-            -- optionally <Strings> for localization
-        */
-
-        // get all "File" child elements of "References" section so we can look up files easily;
-        // first find the "References" sections so we can look up files
-        xml::ElementNodesList listFileElements;      // receives all /Envelope/References/File nodes
-        const xml::ElementNode *pReferencesElem;
-        if ((pReferencesElem = pRootElem->findChildElement("References")))
-            pReferencesElem->getChildElements(listFileElements, "File");
-
-        // now go though the sections
-        if (!(SUCCEEDED(rc = LoopThruSections(m->strPath.raw(), pReferencesElem, pRootElem))))
-            return rc;
-    }
-    catch(xml::Error &x)
-    {
-        return setError(VBOX_E_FILE_ERROR,
-                        x.what());
-    }
-
-    return S_OK;
-}
-
-/**
- * Public method implementation.
- * @return
- */
-STDMETHODIMP Appliance::Interpret()
-{
-    // @todo:
-    //  - don't use COM methods but the methods directly (faster, but needs appropriate locking of that objects itself (s. HardDisk))
-    //  - Appropriate handle errors like not supported file formats
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    AutoWriteLock(this);
-
-    HRESULT rc = S_OK;
-
-    /* Clear any previous virtual system descriptions */
-    m->virtualSystemDescriptions.clear();
-
-    /* We need the default path for storing disk images */
-    ComPtr<ISystemProperties> systemProps;
-    rc = mVirtualBox->COMGETTER(SystemProperties)(systemProps.asOutParam());
-    CheckComRCReturnRC(rc);
-    Bstr bstrDefaultHardDiskLocation;
-    rc = systemProps->COMGETTER(DefaultHardDiskFolder)(bstrDefaultHardDiskLocation.asOutParam());
-    CheckComRCReturnRC(rc);
-
-    /* Try/catch so we can clean up on error */
-    try
-    {
-        list<VirtualSystem>::const_iterator it;
-        /* Iterate through all virtual systems */
-        for (it = m->llVirtualSystems.begin();
-             it != m->llVirtualSystems.end();
-             ++it)
-        {
-            const VirtualSystem &vsysThis = *it;
-
-            ComObjPtr<VirtualSystemDescription> pNewDesc;
-            rc = pNewDesc.createObject();
-            CheckComRCThrowRC(rc);
-            rc = pNewDesc->init();
-            CheckComRCThrowRC(rc);
-
-            /* Guest OS type */
-            Utf8Str strOsTypeVBox,
-                    strCIMOSType = Utf8StrFmt("%RI32", (uint32_t)vsysThis.cimos);
-            convertCIMOSType2VBoxOSType(strOsTypeVBox, vsysThis.cimos, vsysThis.strCimosDesc);
-            pNewDesc->addEntry(VirtualSystemDescriptionType_OS,
-                               "",
-                               strCIMOSType,
-                               strOsTypeVBox);
-
-            /* VM name */
-            /* If the there isn't any name specified create a default one out of
-             * the OS type */
-            Utf8Str nameVBox = vsysThis.strName;
-            if (nameVBox.isEmpty())
-                nameVBox = strOsTypeVBox;
-            searchUniqueVMName(nameVBox);
-            pNewDesc->addEntry(VirtualSystemDescriptionType_Name,
-                               "",
-                               vsysThis.strName,
-                               nameVBox);
-
-            /* VM Product */
-            if (!vsysThis.strProduct.isEmpty())
-                pNewDesc->addEntry(VirtualSystemDescriptionType_Product,
-                                    "",
-                                    vsysThis.strProduct,
-                                    vsysThis.strProduct);
-
-            /* VM Vendor */
-            if (!vsysThis.strVendor.isEmpty())
-                pNewDesc->addEntry(VirtualSystemDescriptionType_Vendor,
-                                    "",
-                                    vsysThis.strVendor,
-                                    vsysThis.strVendor);
-
-            /* VM Version */
-            if (!vsysThis.strVersion.isEmpty())
-                pNewDesc->addEntry(VirtualSystemDescriptionType_Version,
-                                    "",
-                                    vsysThis.strVersion,
-                                    vsysThis.strVersion);
-
-            /* VM ProductUrl */
-            if (!vsysThis.strProductUrl.isEmpty())
-                pNewDesc->addEntry(VirtualSystemDescriptionType_ProductUrl,
-                                    "",
-                                    vsysThis.strProductUrl,
-                                    vsysThis.strProductUrl);
-
-            /* VM VendorUrl */
-            if (!vsysThis.strVendorUrl.isEmpty())
-                pNewDesc->addEntry(VirtualSystemDescriptionType_VendorUrl,
-                                    "",
-                                    vsysThis.strVendorUrl,
-                                    vsysThis.strVendorUrl);
-
-            /* VM description */
-            if (!vsysThis.strDescription.isEmpty())
-                pNewDesc->addEntry(VirtualSystemDescriptionType_Description,
-                                    "",
-                                    vsysThis.strDescription,
-                                    vsysThis.strDescription);
-
-            /* VM license */
-            if (!vsysThis.strLicenseText.isEmpty())
-                pNewDesc->addEntry(VirtualSystemDescriptionType_License,
-                                    "",
-                                    vsysThis.strLicenseText,
-                                    vsysThis.strLicenseText);
-
-            /* Now that we know the OS type, get our internal defaults based on that. */
-            ComPtr<IGuestOSType> pGuestOSType;
-            rc = mVirtualBox->GetGuestOSType(Bstr(strOsTypeVBox), pGuestOSType.asOutParam());
-            CheckComRCThrowRC(rc);
-
-            /* CPU count */
-            ULONG cpuCountVBox = vsysThis.cCPUs;
-            /* Check for the constrains */
-            if (cpuCountVBox > SchemaDefs::MaxCPUCount)
-            {
-                addWarning(tr("The virtual system \"%s\" claims support for %u CPU's, but VirtualBox has support for max %u CPU's only."),
-                           vsysThis.strName.c_str(), cpuCountVBox, SchemaDefs::MaxCPUCount);
-                cpuCountVBox = SchemaDefs::MaxCPUCount;
-            }
-            if (vsysThis.cCPUs == 0)
-                cpuCountVBox = 1;
-            pNewDesc->addEntry(VirtualSystemDescriptionType_CPU,
-                               "",
-                               Utf8StrFmt("%RI32", (uint32_t)vsysThis.cCPUs),
-                               Utf8StrFmt("%RI32", (uint32_t)cpuCountVBox));
-
-            /* RAM */
-            uint64_t ullMemSizeVBox = vsysThis.ullMemorySize / _1M;
-            /* Check for the constrains */
-            if (ullMemSizeVBox != 0 &&
-                (ullMemSizeVBox < MM_RAM_MIN_IN_MB ||
-                 ullMemSizeVBox > MM_RAM_MAX_IN_MB))
-            {
-                addWarning(tr("The virtual system \"%s\" claims support for %llu MB RAM size, but VirtualBox has support for min %u & max %u MB RAM size only."),
-                              vsysThis.strName.c_str(), ullMemSizeVBox, MM_RAM_MIN_IN_MB, MM_RAM_MAX_IN_MB);
-                ullMemSizeVBox = RT_MIN(RT_MAX(ullMemSizeVBox, MM_RAM_MIN_IN_MB), MM_RAM_MAX_IN_MB);
-            }
-            if (vsysThis.ullMemorySize == 0)
-            {
-                /* If the RAM of the OVF is zero, use our predefined values */
-                ULONG memSizeVBox2;
-                rc = pGuestOSType->COMGETTER(RecommendedRAM)(&memSizeVBox2);
-                CheckComRCThrowRC(rc);
-                /* VBox stores that in MByte */
-                ullMemSizeVBox = (uint64_t)memSizeVBox2;
-            }
-            pNewDesc->addEntry(VirtualSystemDescriptionType_Memory,
-                               "",
-                               Utf8StrFmt("%RI64", (uint64_t)vsysThis.ullMemorySize),
-                               Utf8StrFmt("%RI64", (uint64_t)ullMemSizeVBox));
-
-            /* Audio */
-            if (!vsysThis.strSoundCardType.isNull())
-                /* Currently we set the AC97 always.
-                   @todo: figure out the hardware which could be possible */
-                pNewDesc->addEntry(VirtualSystemDescriptionType_SoundCard,
-                                   "",
-                                   vsysThis.strSoundCardType,
-                                   Utf8StrFmt("%RI32", (uint32_t)AudioControllerType_AC97));
-
-#ifdef VBOX_WITH_USB
-            /* USB Controller */
-            if (vsysThis.fHasUsbController)
-                pNewDesc->addEntry(VirtualSystemDescriptionType_USBController, "", "", "");
-#endif /* VBOX_WITH_USB */
-
-            /* Network Controller */
-            size_t cEthernetAdapters = vsysThis.llEthernetAdapters.size();
-            if (cEthernetAdapters > 0)
-            {
-                /* Check for the constrains */
-                if (cEthernetAdapters > SchemaDefs::NetworkAdapterCount)
-                    addWarning(tr("The virtual system \"%s\" claims support for %zu network adapters, but VirtualBox has support for max %u network adapter only."),
-                                  vsysThis.strName.c_str(), cEthernetAdapters, SchemaDefs::NetworkAdapterCount);
-
-                /* Get the default network adapter type for the selected guest OS */
-                NetworkAdapterType_T defaultAdapterVBox = NetworkAdapterType_Am79C970A;
-                rc = pGuestOSType->COMGETTER(AdapterType)(&defaultAdapterVBox);
-                CheckComRCThrowRC(rc);
-
-                EthernetAdaptersList::const_iterator itEA;
-                /* Iterate through all abstract networks. We support 8 network
-                 * adapters at the maximum, so the first 8 will be added only. */
-                size_t a = 0;
-                for (itEA = vsysThis.llEthernetAdapters.begin();
-                     itEA != vsysThis.llEthernetAdapters.end() && a < SchemaDefs::NetworkAdapterCount;
-                     ++itEA, ++a)
-                {
-                    const EthernetAdapter &ea = *itEA; // logical network to connect to
-                    Utf8Str strNetwork = ea.strNetworkName;
-                    // make sure it's one of these two
-                    if (    (strNetwork.compare("Null", Utf8Str::CaseInsensitive))
-                         && (strNetwork.compare("NAT", Utf8Str::CaseInsensitive))
-                         && (strNetwork.compare("Bridged", Utf8Str::CaseInsensitive))
-                         && (strNetwork.compare("Internal", Utf8Str::CaseInsensitive))
-                         && (strNetwork.compare("HostOnly", Utf8Str::CaseInsensitive))
-                       )
-                        strNetwork = "Bridged";     // VMware assumes this is the default apparently
-
-                    /* Figure out the hardware type */
-                    NetworkAdapterType_T nwAdapterVBox = defaultAdapterVBox;
-                    if (!ea.strAdapterType.compare("PCNet32", Utf8Str::CaseInsensitive))
-                    {
-                        /* If the default adapter is already one of the two
-                         * PCNet adapters use the default one. If not use the
-                         * Am79C970A as fallback. */
-                        if (!(defaultAdapterVBox == NetworkAdapterType_Am79C970A ||
-                              defaultAdapterVBox == NetworkAdapterType_Am79C973))
-                            nwAdapterVBox = NetworkAdapterType_Am79C970A;
-                    }
-#ifdef VBOX_WITH_E1000
-                    /* VMWare accidentally write this with VirtualCenter 3.5,
-                       so make sure in this case always to use the VMWare one */
-                    else if (!ea.strAdapterType.compare("E10000", Utf8Str::CaseInsensitive))
-                        nwAdapterVBox = NetworkAdapterType_I82545EM;
-                    else if (!ea.strAdapterType.compare("E1000", Utf8Str::CaseInsensitive))
-                    {
-                        /* Check if this OVF was written by VirtualBox */
-                        if (vsysThis.strVirtualSystemType.contains("virtualbox", Utf8Str::CaseInsensitive))
-                        {
-                            /* If the default adapter is already one of the three
-                             * E1000 adapters use the default one. If not use the
-                             * I82545EM as fallback. */
-                            if (!(defaultAdapterVBox == NetworkAdapterType_I82540EM ||
-                                  defaultAdapterVBox == NetworkAdapterType_I82543GC ||
-                                  defaultAdapterVBox == NetworkAdapterType_I82545EM))
-                            nwAdapterVBox = NetworkAdapterType_I82540EM;
-                        }
-                        else
-                            /* Always use this one since it's what VMware uses */
-                            nwAdapterVBox = NetworkAdapterType_I82545EM;
-                    }
-#endif /* VBOX_WITH_E1000 */
-
-                    pNewDesc->addEntry(VirtualSystemDescriptionType_NetworkAdapter,
-                                       "",      // ref
-                                       ea.strNetworkName,      // orig
-                                       Utf8StrFmt("%RI32", (uint32_t)nwAdapterVBox),   // conf
-                                       0,
-                                       Utf8StrFmt("type=%s", strNetwork.c_str()));       // extra conf
-                }
-            }
-
-            /* Floppy Drive */
-            if (vsysThis.fHasFloppyDrive)
-                pNewDesc->addEntry(VirtualSystemDescriptionType_Floppy, "", "", "");
-
-            /* CD Drive */
-            /* @todo: I can't disable the CDROM. So nothing to do for now */
-            /*
-            if (vsysThis.fHasCdromDrive)
-                pNewDesc->addEntry(VirtualSystemDescriptionType_CDROM, "", "", "");*/
-
-            /* Hard disk Controller */
-            uint16_t cIDEused = 0;
-            uint16_t cSATAused = 0; NOREF(cSATAused);
-            uint16_t cSCSIused = 0; NOREF(cSCSIused);
-            ControllersMap::const_iterator hdcIt;
-            /* Iterate through all hard disk controllers */
-            for (hdcIt = vsysThis.mapControllers.begin();
-                 hdcIt != vsysThis.mapControllers.end();
-                 ++hdcIt)
-            {
-                const HardDiskController &hdc = hdcIt->second;
-                Utf8Str strControllerID = Utf8StrFmt("%RI32", (uint32_t)hdc.idController);
-
-                switch (hdc.system)
-                {
-                    case HardDiskController::IDE:
-                        {
-                            /* Check for the constrains */
-                            /* @todo: I'm very confused! Are these bits *one* controller or
-                               is every port/bus declared as an extra controller. */
-                            if (cIDEused < 4)
-                            {
-                                // @todo: figure out the IDE types
-                                /* Use PIIX4 as default */
-                                Utf8Str strType = "PIIX4";
-                                if (!hdc.strControllerType.compare("PIIX3", Utf8Str::CaseInsensitive))
-                                    strType = "PIIX3";
-                                else if (!hdc.strControllerType.compare("ICH6", Utf8Str::CaseInsensitive))
-                                    strType = "ICH6";
-                                pNewDesc->addEntry(VirtualSystemDescriptionType_HardDiskControllerIDE,
-                                                   strControllerID,
-                                                   hdc.strControllerType,
-                                                   strType);
-                            }
-                            else
-                            {
-                                /* Warn only once */
-                                if (cIDEused == 1)
-                                    addWarning(tr("The virtual \"%s\" system requests support for more than one IDE controller, but VirtualBox has support for only one."),
-                                               vsysThis.strName.c_str());
-
-                            }
-                            ++cIDEused;
-                            break;
-                        }
-
-                    case HardDiskController::SATA:
-                        {
-#ifdef VBOX_WITH_AHCI
-                            /* Check for the constrains */
-                            if (cSATAused < 1)
-                            {
-                                // @todo: figure out the SATA types
-                                /* We only support a plain AHCI controller, so use them always */
-                                pNewDesc->addEntry(VirtualSystemDescriptionType_HardDiskControllerSATA,
-                                                   strControllerID,
-                                                   hdc.strControllerType,
-                                                   "AHCI");
-                            }
-                            else
-                            {
-                                /* Warn only once */
-                                if (cSATAused == 1)
-                                    addWarning(tr("The virtual system \"%s\" requests support for more than one SATA controller, but VirtualBox has support for only one"),
-                                               vsysThis.strName.c_str());
-
-                            }
-                            ++cSATAused;
-                            break;
-#else /* !VBOX_WITH_AHCI */
-                            addWarning(tr("The virtual system \"%s\" requests at least one SATA controller but this version of VirtualBox does not provide a SATA controller emulation"),
-                                      vsysThis.strName.c_str());
-#endif /* !VBOX_WITH_AHCI */
-                        }
-
-                    case HardDiskController::SCSI:
-                        {
-#ifdef VBOX_WITH_LSILOGIC
-                            /* Check for the constrains */
-                            if (cSCSIused < 1)
-                            {
-                                Utf8Str hdcController = "LsiLogic";
-                                if (!hdc.strControllerType.compare("BusLogic", Utf8Str::CaseInsensitive))
-                                    hdcController = "BusLogic";
-                                pNewDesc->addEntry(VirtualSystemDescriptionType_HardDiskControllerSCSI,
-                                                   strControllerID,
-                                                   hdc.strControllerType,
-                                                   hdcController);
-                            }
-                            else
-                                addWarning(tr("The virtual system \"%s\" requests support for an additional SCSI controller of type \"%s\" with ID %s, but VirtualBox presently supports only one SCSI controller."),
-                                           vsysThis.strName.c_str(),
-                                           hdc.strControllerType.c_str(),
-                                           strControllerID.c_str());
-                            ++cSCSIused;
-                            break;
-#else /* !VBOX_WITH_LSILOGIC */
-                            addWarning(tr("The virtual system \"%s\" requests at least one SATA controller but this version of VirtualBox does not provide a SCSI controller emulation"),
-                                       vsysThis.strName.c_str());
-#endif /* !VBOX_WITH_LSILOGIC */
-                        }
-                }
-            }
-
-            /* Hard disks */
-            if (vsysThis.mapVirtualDisks.size() > 0)
-            {
-                VirtualDisksMap::const_iterator itVD;
-                /* Iterate through all hard disks ()*/
-                for (itVD = vsysThis.mapVirtualDisks.begin();
-                     itVD != vsysThis.mapVirtualDisks.end();
-                     ++itVD)
-                {
-                    const VirtualDisk &hd = itVD->second;
-                    /* Get the associated disk image */
-                    const DiskImage &di = m->mapDisks[hd.strDiskId];
-
-                    // @todo:
-                    //  - figure out all possible vmdk formats we also support
-                    //  - figure out if there is a url specifier for vhd already
-                    //  - we need a url specifier for the vdi format
-                    if (   di.strFormat.compare("http://www.vmware.com/specifications/vmdk.html#sparse", Utf8Str::CaseInsensitive)
-                        || di.strFormat.compare("http://www.vmware.com/specifications/vmdk.html#compressed", Utf8Str::CaseInsensitive))
-                    {
-                        /* If the href is empty use the VM name as filename */
-                        Utf8Str strFilename = di.strHref;
-                        if (!strFilename.length())
-                            strFilename = Utf8StrFmt("%s.vmdk", nameVBox.c_str());
-                        /* Construct a unique target path */
-                        Utf8StrFmt strPath("%ls%c%s",
-                                           bstrDefaultHardDiskLocation.raw(),
-                                           RTPATH_DELIMITER,
-                                           strFilename.c_str());
-                        searchUniqueDiskImageFilePath(strPath);
-
-                        /* find the description for the hard disk controller
-                         * that has the same ID as hd.idController */
-                        const VirtualSystemDescriptionEntry *pController;
-                        if (!(pController = pNewDesc->findControllerFromID(hd.idController)))
-                            throw setError(E_FAIL,
-                                           tr("Cannot find hard disk controller with OVF instance ID %RI32 to which disk \"%s\" should be attached"),
-                                           hd.idController,
-                                           di.strHref.c_str());
-
-                        /* controller to attach to, and the bus within that controller */
-                        Utf8StrFmt strExtraConfig("controller=%RI16;channel=%RI16",
-                                                  pController->ulIndex,
-                                                  hd.ulAddressOnParent);
-                        ULONG ulSize = 0;
-                        if (di.iCapacity != -1)
-                            ulSize = (ULONG)(di.iCapacity / _1M);
-                        else if (di.iPopulatedSize != -1)
-                            ulSize = (ULONG)(di.iPopulatedSize / _1M);
-                        else if (di.iSize != -1)
-                            ulSize = (ULONG)(di.iSize / _1M);
-                        if (ulSize == 0)
-                            ulSize = 10000;         // assume 10 GB, this is for the progress bar only anyway
-                        pNewDesc->addEntry(VirtualSystemDescriptionType_HardDiskImage,
-                                           hd.strDiskId,
-                                           di.strHref,
-                                           strPath,
-                                           ulSize,
-                                           strExtraConfig);
-                    }
-                    else
-                        throw setError(VBOX_E_FILE_ERROR,
-                                       tr("Unsupported format for virtual disk image in OVF: \"%s\"", di.strFormat.c_str()));
-                }
-            }
-
-            m->virtualSystemDescriptions.push_back(pNewDesc);
-        }
-    }
-    catch (HRESULT aRC)
-    {
-        /* On error we clear the list & return */
-        m->virtualSystemDescriptions.clear();
-        rc = aRC;
-    }
-
+    Log(("Setting up progress object: ulTotalMB = %d, cDisks = %d, => cOperations = %d, ulTotalOperationsWeight = %d, m->ulWeightPerOperation = %d\n",
+         ulTotalMB, cDisks, cOperations, ulTotalOperationsWeight, m->ulWeightPerOperation));
+
+    rc = pProgress->init(mVirtualBox, static_cast<IAppliance*>(this),
+                         bstrDescription,
+                         TRUE /* aCancelable */,
+                         cOperations, // ULONG cOperations,
+                         ulTotalOperationsWeight, // ULONG ulTotalOperationsWeight,
+                         bstrDescription, // CBSTR bstrFirstOperationDescription,
+                         m->ulWeightPerOperation); // ULONG ulFirstOperationWeight,
     return rc;
 }
 
-struct Appliance::TaskImportMachines
+HRESULT Appliance::setUpProgressImportS3(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription)
 {
-    TaskImportMachines(Appliance *aThat, Progress *aProgress)
-        : pAppliance(aThat)
-        , progress(aProgress)
-        , rc(S_OK)
-    {}
-    ~TaskImportMachines() {}
+    HRESULT rc;
 
-    HRESULT startThread();
+    /* Create the progress object */
+    pProgress.createObject();
 
+    /* Weigh the disk images according to their sizes */
+    uint32_t ulTotalMB;
+    uint32_t cDisks;
+    disksWeight(ulTotalMB, cDisks);
+
+    ULONG cOperations = 1 + 1 + 1 + cDisks;     // one op per disk plus 1 for init, plus 1 for the manifest file & 1 plus for the import */
+
+    ULONG ulTotalOperationsWeight = ulTotalMB;
+    if (!ulTotalOperationsWeight)
+        // no disks to export:
+        ulTotalOperationsWeight = 1;
+
+    ULONG ulImportWeight = (ULONG)((double)ulTotalOperationsWeight * 50  / 100);  // use 50% for import
+    ulTotalOperationsWeight += ulImportWeight;
+
+    m->ulWeightPerOperation = ulImportWeight; /* save for using later */
+
+    ULONG ulInitWeight = (ULONG)((double)ulTotalOperationsWeight * 0.1  / 100);  // use 0.1% for init
+    ulTotalOperationsWeight += ulInitWeight;
+
+    Log(("Setting up progress object: ulTotalMB = %d, cDisks = %d, => cOperations = %d, ulTotalOperationsWeight = %d, m->ulWeightPerOperation = %d\n",
+         ulTotalMB, cDisks, cOperations, ulTotalOperationsWeight, m->ulWeightPerOperation));
+
+    rc = pProgress->init(mVirtualBox, static_cast<IAppliance*>(this),
+                         bstrDescription,
+                         TRUE /* aCancelable */,
+                         cOperations, // ULONG cOperations,
+                         ulTotalOperationsWeight, // ULONG ulTotalOperationsWeight,
+                         Bstr(tr("Init")), // CBSTR bstrFirstOperationDescription,
+                         ulInitWeight); // ULONG ulFirstOperationWeight,
+    return rc;
+}
+
+HRESULT Appliance::setUpProgressWriteS3(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription)
+{
+    HRESULT rc;
+
+    /* Create the progress object */
+    pProgress.createObject();
+
+    /* Weigh the disk images according to their sizes */
+    uint32_t ulTotalMB;
+    uint32_t cDisks;
+    disksWeight(ulTotalMB, cDisks);
+
+    ULONG cOperations = 1 + 1 + 1 + cDisks;     // one op per disk plus 1 for the OVF, plus 1 for the mf & 1 plus to the temporary creation */
+
+    ULONG ulTotalOperationsWeight;
+    if (ulTotalMB)
+    {
+        m->ulWeightPerOperation = (ULONG)((double)ulTotalMB * 1  / 100);    // use 1% of the progress for OVF file upload (we didn't know the size at this point)
+        ulTotalOperationsWeight = ulTotalMB + m->ulWeightPerOperation;
+    }
+    else
+    {
+        // no disks to export:
+        ulTotalOperationsWeight = 1;
+        m->ulWeightPerOperation = 1;
+    }
+    ULONG ulOVFCreationWeight = (ULONG)((double)ulTotalOperationsWeight * 50.0 / 100.0); /* Use 50% for the creation of the OVF & the disks */
+    ulTotalOperationsWeight += ulOVFCreationWeight;
+
+    Log(("Setting up progress object: ulTotalMB = %d, cDisks = %d, => cOperations = %d, ulTotalOperationsWeight = %d, m->ulWeightPerOperation = %d\n",
+         ulTotalMB, cDisks, cOperations, ulTotalOperationsWeight, m->ulWeightPerOperation));
+
+    rc = pProgress->init(mVirtualBox, static_cast<IAppliance*>(this),
+                         bstrDescription,
+                         TRUE /* aCancelable */,
+                         cOperations, // ULONG cOperations,
+                         ulTotalOperationsWeight, // ULONG ulTotalOperationsWeight,
+                         bstrDescription, // CBSTR bstrFirstOperationDescription,
+                         ulOVFCreationWeight); // ULONG ulFirstOperationWeight,
+    return rc;
+}
+
+void Appliance::parseURI(Utf8Str strUri, LocationInfo &locInfo) const
+{
+    /* Check the URI for the protocol */
+    if (strUri.startsWith("file://", Utf8Str::CaseInsensitive)) /* File based */
+    {
+        locInfo.storageType = VFSType_File;
+        strUri = strUri.substr(sizeof("file://") - 1);
+    }
+    else if (strUri.startsWith("SunCloud://", Utf8Str::CaseInsensitive)) /* Sun Cloud service */
+    {
+        locInfo.storageType = VFSType_S3;
+        strUri = strUri.substr(sizeof("SunCloud://") - 1);
+    }
+    else if (strUri.startsWith("S3://", Utf8Str::CaseInsensitive)) /* S3 service */
+    {
+        locInfo.storageType = VFSType_S3;
+        strUri = strUri.substr(sizeof("S3://") - 1);
+    }
+    else if (strUri.startsWith("webdav://", Utf8Str::CaseInsensitive)) /* webdav service */
+        throw E_NOTIMPL;
+
+    /* Not necessary on a file based URI */
+    if (locInfo.storageType != VFSType_File)
+    {
+        size_t uppos = strUri.find("@"); /* username:password combo */
+        if (uppos != Utf8Str::npos)
+        {
+            locInfo.strUsername = strUri.substr(0, uppos);
+            strUri = strUri.substr(uppos + 1);
+            size_t upos = locInfo.strUsername.find(":");
+            if (upos != Utf8Str::npos)
+            {
+                locInfo.strPassword = locInfo.strUsername.substr(upos + 1);
+                locInfo.strUsername = locInfo.strUsername.substr(0, upos);
+            }
+        }
+        size_t hpos = strUri.find("/"); /* hostname part */
+        if (hpos != Utf8Str::npos)
+        {
+            locInfo.strHostname = strUri.substr(0, hpos);
+            strUri = strUri.substr(hpos);
+        }
+    }
+
+    locInfo.strPath = strUri;
+}
+
+void Appliance::parseBucket(Utf8Str &aPath, Utf8Str &aBucket) const
+{
+    /* Buckets are S3 specific. So parse the bucket out of the file path */
+    if (!aPath.startsWith("/"))
+        throw setError(E_INVALIDARG,
+                       tr("The path '%s' must start with /"), aPath.c_str());
+    size_t bpos = aPath.find("/", 1);
+    if (bpos != Utf8Str::npos)
+    {
+        aBucket = aPath.substr(1, bpos - 1); /* The bucket without any slashes */
+        aPath = aPath.substr(bpos); /* The rest of the file path */
+    }
+    /* If there is no bucket name provided reject it */
+    if (aBucket.isEmpty())
+        throw setError(E_INVALIDARG,
+                       tr("You doesn't provide a bucket name in the URI '%s'"), aPath.c_str());
+}
+
+Utf8Str Appliance::manifestFileName(Utf8Str aPath) const
+{
+    /* Get the name part */
+    char *pszMfName = RTStrDup(RTPathFilename(aPath.c_str()));
+    /* Strip any extensions */
+    RTPathStripExt(pszMfName);
+    /* Path without the filename */
+    aPath.stripFilename();
+    /* Format the manifest path */
+    Utf8StrFmt strMfFile("%s/%s.mf", aPath.c_str(), pszMfName);
+    RTStrFree(pszMfName);
+    return strMfFile;
+}
+
+struct Appliance::TaskOVF
+{
+    TaskOVF(Appliance *aThat)
+      : pAppliance(aThat)
+      , rc(S_OK) {}
+
+    static int updateProgress(unsigned uPercent, void *pvUser);
+
+    LocationInfo locInfo;
     Appliance *pAppliance;
     ComObjPtr<Progress> progress;
     HRESULT rc;
 };
 
-HRESULT Appliance::TaskImportMachines::startThread()
+struct Appliance::TaskImportOVF: Appliance::TaskOVF
 {
-    int vrc = RTThreadCreate(NULL, Appliance::taskThreadImportMachines, this,
-                             0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
-                             "Appliance::Task");
-    ComAssertMsgRCRet(vrc,
-                      ("Could not create taskThreadImportMachines (%Rrc)\n", vrc), E_FAIL);
+    enum TaskType
+    {
+        Read,
+        Import
+    };
 
-    return S_OK;
+    TaskImportOVF(Appliance *aThat)
+        : TaskOVF(aThat)
+        , taskType(Read) {}
+
+    int startThread();
+
+    TaskType taskType;
+};
+
+struct Appliance::TaskExportOVF: Appliance::TaskOVF
+{
+    enum OVFFormat
+    {
+        unspecified,
+        OVF_0_9,
+        OVF_1_0
+    };
+    enum TaskType
+    {
+        Write
+    };
+
+    TaskExportOVF(Appliance *aThat)
+        : TaskOVF(aThat)
+        , taskType(Write) {}
+
+    int startThread();
+
+    TaskType taskType;
+    OVFFormat enFormat;
+};
+
+struct MyHardDiskAttachment
+{
+    Guid                uuid;
+    ComPtr<IMachine>    pMachine;
+    Bstr                controllerType;
+    int32_t             lChannel;
+    int32_t             lDevice;
+};
+
+/* static */
+int Appliance::TaskOVF::updateProgress(unsigned uPercent, void *pvUser)
+{
+    Appliance::TaskOVF* pTask = *(Appliance::TaskOVF**)pvUser;
+
+    if (pTask &&
+        !pTask->progress.isNull())
+    {
+        BOOL fCanceled;
+        pTask->progress->COMGETTER(Canceled)(&fCanceled);
+        if (fCanceled)
+            return -1;
+        pTask->progress->SetCurrentOperationProgress(uPercent);
+    }
+    return VINF_SUCCESS;
 }
 
-/**
- * Public method implementation.
- * @param aProgress
- * @return
- */
-STDMETHODIMP Appliance::ImportMachines(IProgress **aProgress)
+HRESULT Appliance::readImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress)
 {
-    CheckComArgOutPointerValid(aProgress);
+    /* Initialize our worker task */
+    std::auto_ptr<TaskImportOVF> task(new TaskImportOVF(this));
+    /* What should the task do */
+    task->taskType = TaskImportOVF::Read;
+    /* Copy the current location info to the task */
+    task->locInfo = aLocInfo;
 
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    AutoReadLock(this);
-
-    HRESULT rc = S_OK;
-
-    ComObjPtr<Progress> progress;
-    try
+    BstrFmt bstrDesc = BstrFmt(tr("Read appliance '%s'"),
+                               aLocInfo.strPath.c_str());
+    HRESULT rc;
+    /* Create the progress object */
+    aProgress.createObject();
+    if (task->locInfo.storageType == VFSType_File)
     {
-        Bstr progressDesc = BstrFmt(tr("Import appliance '%s'"),
-                                    m->strPath.raw());
-        rc = setUpProgress(progress, progressDesc);
-        if (FAILED(rc)) throw rc;
-
-        /* Initialize our worker task */
-        std::auto_ptr<TaskImportMachines> task(new TaskImportMachines(this, progress));
-        //AssertComRCThrowRC (task->autoCaller.rc());
-
-        rc = task->startThread();
-        if (FAILED(rc)) throw rc;
-
-        task.release();
+        /* 1 operation only */
+        rc = aProgress->init(mVirtualBox, static_cast<IAppliance*>(this),
+                             bstrDesc,
+                             TRUE /* aCancelable */);
     }
-    catch (HRESULT aRC)
+    else
     {
-        rc = aRC;
+        /* 4/5 is downloading, 1/5 is reading */
+        rc = aProgress->init(mVirtualBox, static_cast<IAppliance*>(this),
+                             bstrDesc,
+                             TRUE /* aCancelable */,
+                             2, // ULONG cOperations,
+                             5, // ULONG ulTotalOperationsWeight,
+                             BstrFmt(tr("Download appliance '%s'"),
+                                     aLocInfo.strPath.c_str()), // CBSTR bstrFirstOperationDescription,
+                             4); // ULONG ulFirstOperationWeight,
     }
+    if (FAILED(rc)) throw rc;
 
-    if (SUCCEEDED(rc))
-        /* Return progress to the caller */
-        progress.queryInterfaceTo(aProgress);
+    task->progress = aProgress;
+
+    rc = task->startThread();
+    CheckComRCThrowRC(rc);
+
+    /* Don't destruct on success */
+    task.release();
 
     return rc;
 }
 
-struct MyHardDiskAttachment
+HRESULT Appliance::importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress)
 {
-    Guid    uuid;
-    ComPtr<IMachine> pMachine;
-    Bstr    controllerType;
-    int32_t lChannel;
-    int32_t lDevice;
-};
+    /* Initialize our worker task */
+    std::auto_ptr<TaskImportOVF> task(new TaskImportOVF(this));
+    /* What should the task do */
+    task->taskType = TaskImportOVF::Import;
+    /* Copy the current location info to the task */
+    task->locInfo = aLocInfo;
+
+    Bstr progressDesc = BstrFmt(tr("Import appliance '%s'"),
+                                aLocInfo.strPath.c_str());
+
+    HRESULT rc = S_OK;
+
+    /* todo: This progress init stuff should be done a little bit more generic */
+    if (task->locInfo.storageType == VFSType_File)
+        rc = setUpProgressFS(aProgress, progressDesc);
+    else
+        rc = setUpProgressImportS3(aProgress, progressDesc);
+    if (FAILED(rc)) throw rc;
+
+    task->progress = aProgress;
+
+    rc = task->startThread();
+    CheckComRCThrowRC(rc);
+
+    /* Don't destruct on success */
+    task.release();
+
+    return rc;
+}
 
 /**
- * Worker thread implementation for ImportMachines().
+ * Worker thread implementation for Read() (ovf reader).
  * @param aThread
  * @param pvUser
  */
 /* static */
-DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, void *pvUser)
+DECLCALLBACK(int) Appliance::taskThreadImportOVF(RTTHREAD /* aThread */, void *pvUser)
 {
-    std::auto_ptr<TaskImportMachines> task(static_cast<TaskImportMachines*>(pvUser));
+    std::auto_ptr<TaskImportOVF> task(static_cast<TaskImportOVF*>(pvUser));
     AssertReturn(task.get(), VERR_GENERAL_FAILURE);
 
     Appliance *pAppliance = task->pAppliance;
@@ -1865,19 +874,229 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
     LogFlowFuncEnter();
     LogFlowFunc(("Appliance %p\n", pAppliance));
 
-    AutoCaller autoCaller(pAppliance);
+    HRESULT rc = S_OK;
+
+    switch(task->taskType)
+    {
+        case TaskImportOVF::Read:
+        {
+            if (task->locInfo.storageType == VFSType_File)
+                rc = pAppliance->readFS(task.get());
+            else if (task->locInfo.storageType == VFSType_S3)
+                rc = pAppliance->readS3(task.get());
+            break;
+        }
+        case TaskImportOVF::Import:
+        {
+            if (task->locInfo.storageType == VFSType_File)
+                rc = pAppliance->importFS(task.get());
+            else if (task->locInfo.storageType == VFSType_S3)
+                rc = pAppliance->importS3(task.get());
+            break;
+        }
+    }
+
+    LogFlowFunc(("rc=%Rhrc\n", rc));
+    LogFlowFuncLeave();
+
+    return VINF_SUCCESS;
+}
+
+int Appliance::TaskImportOVF::startThread()
+{
+    int vrc = RTThreadCreate(NULL, Appliance::taskThreadImportOVF, this,
+                             0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
+                             "Appliance::Task");
+
+    ComAssertMsgRCRet(vrc,
+                      ("Could not create taskThreadImportOVF (%Rrc)\n", vrc), E_FAIL);
+
+    return S_OK;
+}
+
+int Appliance::readFS(TaskImportOVF *pTask)
+{
+    LogFlowFuncEnter();
+    LogFlowFunc(("Appliance %p\n", this));
+
+    AutoCaller autoCaller(this);
     CheckComRCReturnRC(autoCaller.rc());
 
-    AutoWriteLock appLock(pAppliance);
+    AutoWriteLock appLock(this);
 
     HRESULT rc = S_OK;
 
-    ComPtr<IVirtualBox> pVirtualBox(pAppliance->mVirtualBox);
+    try
+    {
+        /* Read & parse the XML structure of the OVF file */
+        m->pReader = new OVFReader(pTask->locInfo.strPath);
+        /* Create the SHA1 sum of the OVF file for later validation */
+        char *pszDigest;
+        int vrc = RTSha1Digest(pTask->locInfo.strPath.c_str(), &pszDigest);
+        if (RT_FAILURE(vrc))
+            throw setError(VBOX_E_FILE_ERROR,
+                           tr("Couldn't calculate SHA1 digest for file '%s' (%Rrc)"),
+                           RTPathFilename(pTask->locInfo.strPath.c_str()), vrc);
+        m->strOVFSHA1Digest = pszDigest;
+        RTStrFree(pszDigest);
+    }
+    catch(xml::Error &x)
+    {
+        rc = setError(VBOX_E_FILE_ERROR,
+                      x.what());
+    }
+
+    pTask->rc = rc;
+
+    if (!pTask->progress.isNull())
+        pTask->progress->notifyComplete(rc);
+
+    LogFlowFunc(("rc=%Rhrc\n", rc));
+    LogFlowFuncLeave();
+
+    return VINF_SUCCESS;
+}
+
+int Appliance::readS3(TaskImportOVF *pTask)
+{
+    LogFlowFuncEnter();
+    LogFlowFunc(("Appliance %p\n", this));
+
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
+
+    AutoWriteLock appLock(this);
+
+    HRESULT rc = S_OK;
+    int vrc = VINF_SUCCESS;
+    RTS3 hS3 = NIL_RTS3;
+    char szOSTmpDir[RTPATH_MAX];
+    RTPathTemp(szOSTmpDir, sizeof(szOSTmpDir));
+    /* The template for the temporary directory created below */
+    char *pszTmpDir;
+    RTStrAPrintf(&pszTmpDir, "%s"RTPATH_SLASH_STR"vbox-ovf-XXXXXX", szOSTmpDir);
+    list< pair<Utf8Str, ULONG> > filesList;
+    Utf8Str strTmpOvf;
+
+    try
+    {
+        /* Extract the bucket */
+        Utf8Str tmpPath = pTask->locInfo.strPath;
+        Utf8Str bucket;
+        parseBucket(tmpPath, bucket);
+
+        /* We need a temporary directory which we can put the OVF file & all
+         * disk images in */
+        vrc = RTDirCreateTemp(pszTmpDir);
+        if (RT_FAILURE(vrc))
+            throw setError(VBOX_E_FILE_ERROR,
+                           tr("Cannot create temporary directory '%s'"), pszTmpDir);
+
+        /* The temporary name of the target OVF file */
+        strTmpOvf = Utf8StrFmt("%s/%s", pszTmpDir, RTPathFilename(tmpPath.c_str()));
+
+        /* Next we have to download the OVF */
+        vrc = RTS3Create(&hS3, pTask->locInfo.strUsername.c_str(), pTask->locInfo.strPassword.c_str(), pTask->locInfo.strHostname.c_str(), "virtualbox-agent/"VBOX_VERSION_STRING);
+        if(RT_FAILURE(vrc))
+            throw setError(VBOX_E_IPRT_ERROR,
+                           tr("Cannot create S3 service handler"));
+        RTS3SetProgressCallback(hS3, pTask->updateProgress, &pTask);
+
+        /* Get it */
+        char *pszFilename = RTPathFilename(strTmpOvf.c_str());
+        vrc = RTS3GetKey(hS3, bucket.c_str(), pszFilename, strTmpOvf.c_str());
+        if (RT_FAILURE(vrc))
+        {
+            if(vrc == VERR_S3_CANCELED)
+                throw S_OK; /* todo: !!!!!!!!!!!!! */
+            else if(vrc == VERR_S3_ACCESS_DENIED)
+                throw setError(E_ACCESSDENIED,
+                               tr("Cannot download file '%s' from S3 storage server (Access denied). Make sure that your credentials are right. Also check that your host clock is properly synced"), pszFilename);
+            else if(vrc == VERR_S3_NOT_FOUND)
+                throw setError(VBOX_E_FILE_ERROR,
+                               tr("Cannot download file '%s' from S3 storage server (File not found)"), pszFilename);
+            else
+                throw setError(VBOX_E_IPRT_ERROR,
+                               tr("Cannot download file '%s' from S3 storage server (%Rrc)"), pszFilename, vrc);
+        }
+
+        /* Close the connection early */
+        RTS3Destroy(hS3);
+        hS3 = NIL_RTS3;
+
+        if (!pTask->progress.isNull())
+            pTask->progress->SetNextOperation(Bstr(tr("Reading")), 1);
+
+        /* Prepare the temporary reading of the OVF */
+        ComObjPtr<Progress> progress;
+        LocationInfo li;
+        li.strPath = strTmpOvf;
+        /* Start the reading from the fs */
+        rc = readImpl(li, progress);
+        if (FAILED(rc)) throw rc;
+
+        /* Unlock the appliance for the reading thread */
+        appLock.unlock();
+        /* Wait until the reading is done, but report the progress back to the
+           caller */
+        ComPtr<IProgress> progressInt(progress);
+        waitForAsyncProgress(pTask->progress, progressInt); /* Any errors will be thrown */
+
+        /* Again lock the appliance for the next steps */
+        appLock.lock();
+    }
+    catch(HRESULT aRC)
+    {
+        rc = aRC;
+    }
+    /* Cleanup */
+    RTS3Destroy(hS3);
+    /* Delete all files which where temporary created */
+    if (RTPathExists(strTmpOvf.c_str()))
+    {
+        vrc = RTFileDelete(strTmpOvf.c_str());
+        if(RT_FAILURE(vrc))
+            rc = setError(VBOX_E_FILE_ERROR,
+                          tr("Cannot delete file '%s' (%Rrc)"), strTmpOvf.c_str(), vrc);
+    }
+    /* Delete the temporary directory */
+    if (RTPathExists(pszTmpDir))
+    {
+        vrc = RTDirRemove(pszTmpDir);
+        if(RT_FAILURE(vrc))
+            rc = setError(VBOX_E_FILE_ERROR,
+                          tr("Cannot delete temporary directory '%s' (%Rrc)"), pszTmpDir, vrc);
+    }
+    if (pszTmpDir)
+        RTStrFree(pszTmpDir);
+
+    pTask->rc = rc;
+
+    if (!pTask->progress.isNull())
+        pTask->progress->notifyComplete(rc);
+
+    LogFlowFunc(("rc=%Rhrc\n", rc));
+    LogFlowFuncLeave();
+
+    return VINF_SUCCESS;
+}
+
+int Appliance::importFS(TaskImportOVF *pTask)
+{
+    LogFlowFuncEnter();
+    LogFlowFunc(("Appliance %p\n", this));
+
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
+
+    AutoWriteLock appLock(this);
+
+    HRESULT rc = S_OK;
 
     // rollback for errors:
     // a list of images that we created/imported
     list<MyHardDiskAttachment> llHardDiskAttachments;
-    list< ComPtr<IHardDisk> > llHardDisksCreated;
+    list< ComPtr<IMedium> > llHardDisksCreated;
     list<Guid> llMachinesRegistered;
 
     ComPtr<ISession> session;
@@ -1885,13 +1104,91 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
     rc = session.createInprocObject(CLSID_Session);
     CheckComRCReturnRC(rc);
 
+    const OVFReader &reader = *m->pReader;
+    // this is safe to access because this thread only gets started
+    // if pReader != NULL
+
+    /* If an manifest file exists, verify the content. Therefor we need all
+     * files which are referenced by the OVF & the OVF itself */
+    Utf8Str strMfFile = manifestFileName(pTask->locInfo.strPath);
+    list<Utf8Str> filesList;
+    if (RTPathExists(strMfFile.c_str()))
+    {
+        Utf8Str strSrcDir(pTask->locInfo.strPath);
+        strSrcDir.stripFilename();
+        /* Add every disks of every virtual system to an internal list */
+        list< ComObjPtr<VirtualSystemDescription> >::const_iterator it;
+        for (it = m->virtualSystemDescriptions.begin();
+             it != m->virtualSystemDescriptions.end();
+             ++it)
+        {
+            ComObjPtr<VirtualSystemDescription> vsdescThis = (*it);
+            std::list<VirtualSystemDescriptionEntry*> avsdeHDs = vsdescThis->findByType(VirtualSystemDescriptionType_HardDiskImage);
+            std::list<VirtualSystemDescriptionEntry*>::const_iterator itH;
+            for (itH = avsdeHDs.begin();
+                 itH != avsdeHDs.end();
+                 ++itH)
+            {
+                VirtualSystemDescriptionEntry *vsdeHD = *itH;
+                /* Find the disk from the OVF's disk list */
+                DiskImagesMap::const_iterator itDiskImage = reader.m_mapDisks.find(vsdeHD->strRef);
+                const DiskImage &di = itDiskImage->second;
+                Utf8StrFmt strSrcFilePath("%s%c%s", strSrcDir.c_str(), RTPATH_DELIMITER, di.strHref.c_str());
+                filesList.push_back(strSrcFilePath);
+            }
+        }
+        /* Create the test list */
+        PRTMANIFESTTEST pTestList = (PRTMANIFESTTEST)RTMemAllocZ(sizeof(RTMANIFESTTEST)*(filesList.size()+1));
+        pTestList[0].pszTestFile = (char*)pTask->locInfo.strPath.c_str();
+        pTestList[0].pszTestDigest = (char*)m->strOVFSHA1Digest.c_str();
+        int vrc = VINF_SUCCESS;
+        size_t i = 1;
+        list<Utf8Str>::const_iterator it1;
+        for (it1 = filesList.begin();
+             it1 != filesList.end();
+             ++it1, ++i)
+        {
+            char* pszDigest;
+            vrc = RTSha1Digest((*it1).c_str(), &pszDigest);
+            pTestList[i].pszTestFile = (char*)(*it1).c_str();
+            pTestList[i].pszTestDigest = pszDigest;
+        }
+        size_t cIndexOnError;
+        vrc = RTManifestVerify(strMfFile.c_str(), pTestList, filesList.size() + 1, &cIndexOnError);
+        if (vrc == VERR_MANIFEST_DIGEST_MISMATCH)
+            rc = setError(VBOX_E_FILE_ERROR,
+                          tr("The SHA1 digest of '%s' doesn't match to the one in '%s'"),
+                          RTPathFilename(pTestList[cIndexOnError].pszTestFile),
+                          RTPathFilename(strMfFile.c_str()));
+        else if (RT_FAILURE(vrc))
+            rc = setError(VBOX_E_FILE_ERROR,
+                          tr("Couldn't verify the content of '%s' against the available files (%Rrc)"),
+                          RTPathFilename(strMfFile.c_str()),
+                          vrc);
+        /* Cleanup */
+        for (size_t j = 1;
+             j < filesList.size();
+             ++j)
+            RTStrFree(pTestList[j].pszTestDigest);
+        RTMemFree(pTestList);
+        if (FAILED(rc))
+        {
+            /* Return on error */
+            pTask->rc = rc;
+
+            if (!pTask->progress.isNull())
+                pTask->progress->notifyComplete(rc);
+            return rc;
+        }
+    }
+
     list<VirtualSystem>::const_iterator it;
     list< ComObjPtr<VirtualSystemDescription> >::const_iterator it1;
     /* Iterate through all virtual systems of that appliance */
     size_t i = 0;
-    for (it = pAppliance->m->llVirtualSystems.begin(),
-            it1 = pAppliance->m->virtualSystemDescriptions.begin();
-         it != pAppliance->m->llVirtualSystems.end();
+    for (it = reader.m_llVirtualSystems.begin(),
+         it1 = m->virtualSystemDescriptions.begin();
+         it != reader.m_llVirtualSystems.end();
          ++it, ++it1, ++i)
     {
         const VirtualSystem &vsysThis = *it;
@@ -1912,7 +1209,7 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
 
             /* Now that we know the base system get our internal defaults based on that. */
             ComPtr<IGuestOSType> osType;
-            rc = pVirtualBox->GetGuestOSType(Bstr(strOsTypeVBox), osType.asOutParam());
+            rc = mVirtualBox->GetGuestOSType(Bstr(strOsTypeVBox), osType.asOutParam());
             if (FAILED(rc)) throw rc;
 
             /* Create the machine */
@@ -1922,7 +1219,7 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
                 throw setError(VBOX_E_FILE_ERROR,
                                tr("Missing VM name"));
             const Utf8Str &strNameVBox = vsdeName.front()->strVbox;
-            rc = pVirtualBox->CreateMachine(Bstr(strNameVBox), Bstr(strOsTypeVBox),
+            rc = mVirtualBox->CreateMachine(Bstr(strNameVBox), Bstr(strOsTypeVBox),
                                                  Bstr(), Bstr(),
                                                  pNewMachine.asOutParam());
             if (FAILED(rc)) throw rc;
@@ -1947,7 +1244,7 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
             /* We need HWVirt & IO-APIC if more than one CPU is requested */
             if (tmpCount > 1)
             {
-                rc = pNewMachine->COMSETTER(HWVirtExEnabled)(TRUE);
+                rc = pNewMachine->SetHWVirtExProperty(HWVirtExPropertyType_Enabled, TRUE);
                 if (FAILED(rc)) throw rc;
 
                 fEnableIOApic = true;
@@ -2070,22 +1367,24 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
                         rc = pNetworkAdapter->AttachToBridgedInterface();
                         if (FAILED(rc)) throw rc;
                         ComPtr<IHost> host;
-                        rc = pVirtualBox->COMGETTER(Host)(host.asOutParam());
+                        rc = mVirtualBox->COMGETTER(Host)(host.asOutParam());
                         if (FAILED(rc)) throw rc;
                         com::SafeIfaceArray<IHostNetworkInterface> nwInterfaces;
                         rc = host->COMGETTER(NetworkInterfaces)(ComSafeArrayAsOutParam(nwInterfaces));
                         if (FAILED(rc)) throw rc;
                         /* We search for the first host network interface which
                          * is usable for bridged networking */
-                        for (size_t i=0; i < nwInterfaces.size(); ++i)
+                        for (size_t j = 0;
+                             j < nwInterfaces.size();
+                             ++j)
                         {
                             HostNetworkInterfaceType_T itype;
-                            rc = nwInterfaces[i]->COMGETTER(InterfaceType)(&itype);
+                            rc = nwInterfaces[j]->COMGETTER(InterfaceType)(&itype);
                             if (FAILED(rc)) throw rc;
                             if (itype == HostNetworkInterfaceType_Bridged)
                             {
                                 Bstr name;
-                                rc = nwInterfaces[i]->COMGETTER(Name)(name.asOutParam());
+                                rc = nwInterfaces[j]->COMGETTER(Name)(name.asOutParam());
                                 if (FAILED(rc)) throw rc;
                                 /* Set the interface name to attach to */
                                 pNetworkAdapter->COMSETTER(HostInterface)(name);
@@ -2101,22 +1400,24 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
                         rc = pNetworkAdapter->AttachToHostOnlyInterface();
                         if (FAILED(rc)) throw rc;
                         ComPtr<IHost> host;
-                        rc = pVirtualBox->COMGETTER(Host)(host.asOutParam());
+                        rc = mVirtualBox->COMGETTER(Host)(host.asOutParam());
                         if (FAILED(rc)) throw rc;
                         com::SafeIfaceArray<IHostNetworkInterface> nwInterfaces;
                         rc = host->COMGETTER(NetworkInterfaces)(ComSafeArrayAsOutParam(nwInterfaces));
                         if (FAILED(rc)) throw rc;
                         /* We search for the first host network interface which
                          * is usable for host only networking */
-                        for (size_t i=0; i < nwInterfaces.size(); ++i)
+                        for (size_t j = 0;
+                             j < nwInterfaces.size();
+                             ++j)
                         {
                             HostNetworkInterfaceType_T itype;
-                            rc = nwInterfaces[i]->COMGETTER(InterfaceType)(&itype);
+                            rc = nwInterfaces[j]->COMGETTER(InterfaceType)(&itype);
                             if (FAILED(rc)) throw rc;
                             if (itype == HostNetworkInterfaceType_HostOnly)
                             {
                                 Bstr name;
-                                rc = nwInterfaces[i]->COMGETTER(Name)(name.asOutParam());
+                                rc = nwInterfaces[j]->COMGETTER(Name)(name.asOutParam());
                                 if (FAILED(rc)) throw rc;
                                 /* Set the interface name to attach to */
                                 pNetworkAdapter->COMSETTER(HostInterface)(name);
@@ -2128,30 +1429,15 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
                 }
             }
 
-            /* Floppy drive */
-            std::list<VirtualSystemDescriptionEntry*> vsdeFloppy = vsdescThis->findByType(VirtualSystemDescriptionType_Floppy);
-            // Floppy support is enabled if there's at least one such entry; to disable floppy support,
-            // the type of the floppy item would have been changed to "ignore"
-            bool fFloppyEnabled = vsdeFloppy.size() > 0;
-            ComPtr<IFloppyDrive> floppyDrive;
-            rc = pNewMachine->COMGETTER(FloppyDrive)(floppyDrive.asOutParam());
-            if (FAILED(rc)) throw rc;
-            rc = floppyDrive->COMSETTER(Enabled)(fFloppyEnabled);
-            if (FAILED(rc)) throw rc;
-
-            /* CDROM drive */
-            /* @todo: I can't disable the CDROM. So nothing to do for now */
-            // std::list<VirtualSystemDescriptionEntry*> vsdeFloppy = vsd->findByType(VirtualSystemDescriptionType_CDROM);
-
             /* Hard disk controller IDE */
             std::list<VirtualSystemDescriptionEntry*> vsdeHDCIDE = vsdescThis->findByType(VirtualSystemDescriptionType_HardDiskControllerIDE);
             if (vsdeHDCIDE.size() > 1)
                 throw setError(VBOX_E_FILE_ERROR,
-                               tr("Too many IDE controllers in OVF; VirtualBox only supports one"));
+                               tr("Too many IDE controllers in OVF; import facility only supports one"));
             if (vsdeHDCIDE.size() == 1)
             {
                 ComPtr<IStorageController> pController;
-                rc = pNewMachine->GetStorageControllerByName(Bstr("IDE"), pController.asOutParam());
+                rc = pNewMachine->AddStorageController(Bstr("IDE Controller"), StorageBus_IDE, pController.asOutParam());
                 if (FAILED(rc)) throw rc;
 
                 const char *pcszIDEType = vsdeHDCIDE.front()->strVbox.c_str();
@@ -2172,14 +1458,14 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
             std::list<VirtualSystemDescriptionEntry*> vsdeHDCSATA = vsdescThis->findByType(VirtualSystemDescriptionType_HardDiskControllerSATA);
             if (vsdeHDCSATA.size() > 1)
                 throw setError(VBOX_E_FILE_ERROR,
-                               tr("Too many SATA controllers in OVF; VirtualBox only supports one"));
+                               tr("Too many SATA controllers in OVF; import facility only supports one"));
             if (vsdeHDCSATA.size() > 0)
             {
                 ComPtr<IStorageController> pController;
                 const Utf8Str &hdcVBox = vsdeHDCSATA.front()->strVbox;
                 if (hdcVBox == "AHCI")
                 {
-                    rc = pNewMachine->AddStorageController(Bstr("SATA"), StorageBus_SATA, pController.asOutParam());
+                    rc = pNewMachine->AddStorageController(Bstr("SATA Controller"), StorageBus_SATA, pController.asOutParam());
                     if (FAILED(rc)) throw rc;
                 }
                 else
@@ -2194,7 +1480,7 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
             std::list<VirtualSystemDescriptionEntry*> vsdeHDCSCSI = vsdescThis->findByType(VirtualSystemDescriptionType_HardDiskControllerSCSI);
             if (vsdeHDCSCSI.size() > 1)
                 throw setError(VBOX_E_FILE_ERROR,
-                               tr("Too many SCSI controllers in OVF; VirtualBox only supports one"));
+                               tr("Too many SCSI controllers in OVF; import facility only supports one"));
             if (vsdeHDCSCSI.size() > 0)
             {
                 ComPtr<IStorageController> pController;
@@ -2209,7 +1495,7 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
                                    tr("Invalid SCSI controller type \"%s\""),
                                    hdcVBox.c_str());
 
-                rc = pNewMachine->AddStorageController(Bstr("SCSI"), StorageBus_SCSI, pController.asOutParam());
+                rc = pNewMachine->AddStorageController(Bstr("SCSI Controller"), StorageBus_SCSI, pController.asOutParam());
                 if (FAILED(rc)) throw rc;
                 rc = pController->COMSETTER(ControllerType)(controllerType);
                 if (FAILED(rc)) throw rc;
@@ -2217,7 +1503,7 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
 #endif /* VBOX_WITH_LSILOGIC */
 
             /* Now its time to register the machine before we add any hard disks */
-            rc = pVirtualBox->RegisterMachine(pNewMachine);
+            rc = mVirtualBox->RegisterMachine(pNewMachine);
             if (FAILED(rc)) throw rc;
 
             Bstr newMachineId_;
@@ -2228,26 +1514,149 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
             // store new machine for roll-back in case of errors
             llMachinesRegistered.push_back(newMachineId);
 
+            // Add floppies and CD-ROMs to the appropriate controllers.
+            std::list<VirtualSystemDescriptionEntry*> vsdeFloppy = vsdescThis->findByType(VirtualSystemDescriptionType_Floppy);
+            if (vsdeFloppy.size() > 1)
+                throw setError(VBOX_E_FILE_ERROR,
+                               tr("Too many floppy controllers in OVF; import facility only supports one"));
+            std::list<VirtualSystemDescriptionEntry*> vsdeCDROM = vsdescThis->findByType(VirtualSystemDescriptionType_CDROM);
+            if (    (vsdeFloppy.size() > 0)
+                 || (vsdeCDROM.size() > 0)
+               )
+            {
+                // If there's an error here we need to close the session, so
+                // we need another try/catch block.
+
+                try
+                {
+                    /* In order to attach things we need to open a session
+                     * for the new machine */
+                    rc = mVirtualBox->OpenSession(session, newMachineId_);
+                    if (FAILED(rc)) throw rc;
+                    fSessionOpen = true;
+
+                    ComPtr<IMachine> sMachine;
+                    rc = session->COMGETTER(Machine)(sMachine.asOutParam());
+                    if (FAILED(rc)) throw rc;
+
+                    // floppy first
+                    if (vsdeFloppy.size() == 1)
+                    {
+                        ComPtr<IStorageController> pController;
+                        rc = sMachine->AddStorageController(Bstr("Floppy Controller"), StorageBus_Floppy, pController.asOutParam());
+                        if (FAILED(rc)) throw rc;
+
+                        Bstr bstrName;
+                        rc = pController->COMGETTER(Name)(bstrName.asOutParam());
+                        if (FAILED(rc)) throw rc;
+
+                        // this is for rollback later
+                        MyHardDiskAttachment mhda;
+                        mhda.uuid = newMachineId;
+                        mhda.pMachine = pNewMachine;
+                        mhda.controllerType = bstrName;
+                        mhda.lChannel = 0;
+                        mhda.lDevice = 0;
+
+                        Log(("Attaching floppy\n"));
+
+                        rc = sMachine->AttachDevice(mhda.controllerType,
+                                                    mhda.lChannel,
+                                                    mhda.lDevice,
+                                                    DeviceType_Floppy,
+                                                    Bstr(""));
+                        if (FAILED(rc)) throw rc;
+
+                        llHardDiskAttachments.push_back(mhda);
+                    }
+
+
+                    // CD-ROMs next
+                    for (std::list<VirtualSystemDescriptionEntry*>::const_iterator jt = vsdeCDROM.begin();
+                         jt != vsdeCDROM.end();
+                         ++jt)
+                    {
+                        // for now always attach to secondary master on IDE controller;
+                        // there seems to be no useful information in OVF where else to
+                        // attach jt (@todo test with latest versions of OVF software)
+
+                        // find the IDE controller
+                        const HardDiskController *pController = NULL;
+                        for (ControllersMap::const_iterator kt = vsysThis.mapControllers.begin();
+                             kt != vsysThis.mapControllers.end();
+                             ++kt)
+                        {
+                            if (kt->second.system == HardDiskController::IDE)
+                            {
+                                pController = &kt->second;
+                            }
+                        }
+
+                        if (!pController)
+                            throw setError(VBOX_E_FILE_ERROR,
+                                           tr("OVF wants a CD-ROM drive but cannot find IDE controller, which is required in this version of VirtualBox"));
+
+                        // this is for rollback later
+                        MyHardDiskAttachment mhda;
+                        mhda.uuid = newMachineId;
+                        mhda.pMachine = pNewMachine;
+
+                        ConvertDiskAttachmentValues(*pController,
+                                                    2,     // interpreted as secondary master
+                                                    mhda.controllerType,        // Bstr
+                                                    mhda.lChannel,
+                                                    mhda.lDevice);
+
+                        Log(("Attaching CD-ROM to channel %d on device %d\n", mhda.lChannel, mhda.lDevice));
+
+                        rc = sMachine->AttachDevice(mhda.controllerType,
+                                                    mhda.lChannel,
+                                                    mhda.lDevice,
+                                                    DeviceType_DVD,
+                                                    Bstr(""));
+                        if (FAILED(rc)) throw rc;
+
+                        llHardDiskAttachments.push_back(mhda);
+                    } // end for (itHD = avsdeHDs.begin();
+
+                    rc = sMachine->SaveSettings();
+                    if (FAILED(rc)) throw rc;
+
+                    // only now that we're done with all disks, close the session
+                    rc = session->Close();
+                    if (FAILED(rc)) throw rc;
+                    fSessionOpen = false;
+                }
+                catch(HRESULT /* aRC */)
+                {
+                    if (fSessionOpen)
+                        session->Close();
+
+                    throw;
+                }
+            }
+
             /* Create the hard disks & connect them to the appropriate controllers. */
             std::list<VirtualSystemDescriptionEntry*> avsdeHDs = vsdescThis->findByType(VirtualSystemDescriptionType_HardDiskImage);
             if (avsdeHDs.size() > 0)
             {
-                /* If in the next block an error occur we have to deregister
-                   the machine, so make an extra try/catch block. */
-                ComPtr<IHardDisk> srcHdVBox;
+                // If there's an error here we need to close the session, so
+                // we need another try/catch block.
+                ComPtr<IMedium> srcHdVBox;
                 bool fSourceHdNeedsClosing = false;
 
                 try
                 {
                     /* In order to attach hard disks we need to open a session
                      * for the new machine */
-                    rc = pVirtualBox->OpenSession(session, newMachineId_);
+                    rc = mVirtualBox->OpenSession(session, newMachineId_);
                     if (FAILED(rc)) throw rc;
                     fSessionOpen = true;
 
                     /* The disk image has to be on the same place as the OVF file. So
                      * strip the filename out of the full file path. */
-                    Utf8Str strSrcDir = stripFilename(pAppliance->m->strPath);
+                    Utf8Str strSrcDir(pTask->locInfo.strPath);
+                    strSrcDir.stripFilename();
 
                     /* Iterate over all given disk images */
                     list<VirtualSystemDescriptionEntry*>::const_iterator itHD;
@@ -2257,24 +1666,23 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
                     {
                         VirtualSystemDescriptionEntry *vsdeHD = *itHD;
 
-                        const char *pcszDstFilePath = vsdeHD->strVbox.c_str();
                         /* Check if the destination file exists already or the
                          * destination path is empty. */
-                        if (    !(*pcszDstFilePath)
-                             || RTPathExists(pcszDstFilePath)
+                        if (    vsdeHD->strVbox.isEmpty()
+                             || RTPathExists(vsdeHD->strVbox.c_str())
                            )
                             /* This isn't allowed */
                             throw setError(VBOX_E_FILE_ERROR,
                                            tr("Destination file '%s' exists",
-                                              pcszDstFilePath));
+                                              vsdeHD->strVbox.c_str()));
 
                         /* Find the disk from the OVF's disk list */
-                        DiskImagesMap::const_iterator itDiskImage = pAppliance->m->mapDisks.find(vsdeHD->strRef);
+                        DiskImagesMap::const_iterator itDiskImage = reader.m_mapDisks.find(vsdeHD->strRef);
                         /* vsdeHD->strRef contains the disk identifier (e.g. "vmdisk1"), which should exist
                            in the virtual system's disks map under that ID and also in the global images map. */
                         VirtualDisksMap::const_iterator itVirtualDisk = vsysThis.mapVirtualDisks.find(vsdeHD->strRef);
 
-                        if (    itDiskImage == pAppliance->m->mapDisks.end()
+                        if (    itDiskImage == reader.m_mapDisks.end()
                              || itVirtualDisk == vsysThis.mapVirtualDisks.end()
                            )
                             throw setError(E_FAIL,
@@ -2284,14 +1692,14 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
                         const VirtualDisk &vd = itVirtualDisk->second;
 
                         /* Make sure all target directories exists */
-                        rc = VirtualBox::ensureFilePathExists(pcszDstFilePath);
+                        rc = VirtualBox::ensureFilePathExists(vsdeHD->strVbox.c_str());
                         if (FAILED(rc))
                             throw rc;
 
                         // subprogress object for hard disk
                         ComPtr<IProgress> pProgress2;
 
-                        ComPtr<IHardDisk> dstHdVBox;
+                        ComPtr<IMedium> dstHdVBox;
                         /* If strHref is empty we have to create a new file */
                         if (di.strHref.isEmpty())
                         {
@@ -2301,16 +1709,16 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
                                 || di.strFormat.compare("http://www.vmware.com/specifications/vmdk.html#compressed", Utf8Str::CaseInsensitive))
                                 srcFormat = L"VMDK";
                             /* Create an empty hard disk */
-                            rc = pVirtualBox->CreateHardDisk(srcFormat, Bstr(pcszDstFilePath), dstHdVBox.asOutParam());
+                            rc = mVirtualBox->CreateHardDisk(srcFormat, Bstr(vsdeHD->strVbox), dstHdVBox.asOutParam());
                             if (FAILED(rc)) throw rc;
 
                             /* Create a dynamic growing disk image with the given capacity */
-                            rc = dstHdVBox->CreateBaseStorage(di.iCapacity / _1M, HardDiskVariant_Standard, pProgress2.asOutParam());
+                            rc = dstHdVBox->CreateBaseStorage(di.iCapacity / _1M, MediumVariant_Standard, pProgress2.asOutParam());
                             if (FAILED(rc)) throw rc;
 
                             /* Advance to the next operation */
-                            if (!task->progress.isNull())
-                                task->progress->setNextOperation(BstrFmt(tr("Creating virtual disk image '%s'"), pcszDstFilePath),
+                            if (!pTask->progress.isNull())
+                                pTask->progress->SetNextOperation(BstrFmt(tr("Creating virtual disk image '%s'"), vsdeHD->strVbox.c_str()),
                                                                  vsdeHD->ulSizeMB);     // operation's weight, as set up with the IProgress originally
                         }
                         else
@@ -2329,7 +1737,7 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
                              * attached already from a previous import) */
 
                             /* First open the existing disk image */
-                            rc = pVirtualBox->OpenHardDisk(Bstr(strSrcFilePath),
+                            rc = mVirtualBox->OpenHardDisk(Bstr(strSrcFilePath),
                                                            AccessMode_ReadOnly,
                                                            false, Bstr(""), false, Bstr(""),
                                                            srcHdVBox.asOutParam());
@@ -2341,20 +1749,20 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
                             rc = srcHdVBox->COMGETTER(Format)(srcFormat.asOutParam());
                             if (FAILED(rc)) throw rc;
                             /* Create a new hard disk interface for the destination disk image */
-                            rc = pVirtualBox->CreateHardDisk(srcFormat, Bstr(pcszDstFilePath), dstHdVBox.asOutParam());
+                            rc = mVirtualBox->CreateHardDisk(srcFormat, Bstr(vsdeHD->strVbox), dstHdVBox.asOutParam());
                             if (FAILED(rc)) throw rc;
                             /* Clone the source disk image */
-                            rc = srcHdVBox->CloneTo(dstHdVBox, HardDiskVariant_Standard, NULL, pProgress2.asOutParam());
+                            rc = srcHdVBox->CloneTo(dstHdVBox, MediumVariant_Standard, NULL, pProgress2.asOutParam());
                             if (FAILED(rc)) throw rc;
 
                             /* Advance to the next operation */
-                            if (!task->progress.isNull())
-                                task->progress->setNextOperation(BstrFmt(tr("Importing virtual disk image '%s'"), strSrcFilePath.c_str()),
+                            if (!pTask->progress.isNull())
+                                pTask->progress->SetNextOperation(BstrFmt(tr("Importing virtual disk image '%s'"), strSrcFilePath.c_str()),
                                                                  vsdeHD->ulSizeMB);     // operation's weight, as set up with the IProgress originally);
                         }
 
                         // now wait for the background disk operation to complete; this throws HRESULTs on error
-                        pAppliance->waitForAsyncProgress(task->progress, pProgress2);
+                        waitForAsyncProgress(pTask->progress, pProgress2);
 
                         if (fSourceHdNeedsClosing)
                         {
@@ -2380,60 +1788,19 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
                         mhda.uuid = newMachineId;
                         mhda.pMachine = pNewMachine;
 
-                        switch (hdc.system)
-                        {
-                            case HardDiskController::IDE:
-                                // For the IDE bus, the channel parameter can be either 0 or 1, to specify the primary
-                                // or secondary IDE controller, respectively. For the primary controller of the IDE bus,
-                                // the device number can be either 0 or 1, to specify the master or the slave device,
-                                // respectively. For the secondary IDE controller, the device number is always 1 because
-                                // the master device is reserved for the CD-ROM drive.
-                                mhda.controllerType = Bstr("IDE");
-                                switch (vd.ulAddressOnParent)
-                                {
-                                    case 0:     // interpret this as primary master
-                                        mhda.lChannel = (long)0;
-                                        mhda.lDevice = (long)0;
-                                    break;
+                        ConvertDiskAttachmentValues(hdc,
+                                                    vd.ulAddressOnParent,
+                                                    mhda.controllerType,        // Bstr
+                                                    mhda.lChannel,
+                                                    mhda.lDevice);
 
-                                    case 1:     // interpret this as primary slave
-                                        mhda.lChannel = (long)0;
-                                        mhda.lDevice = (long)1;
-                                    break;
+                        Log(("Attaching disk %s to channel %d on device %d\n", vsdeHD->strVbox.c_str(), mhda.lChannel, mhda.lDevice));
 
-                                    case 2:     // interpret this as secondary slave
-                                        mhda.lChannel = (long)1;
-                                        mhda.lDevice = (long)1;
-                                    break;
-
-                                    default:
-                                        throw setError(VBOX_E_NOT_SUPPORTED,
-                                                       tr("Invalid channel %RI16 specified; IDE controllers support only 0, 1 or 2"), vd.ulAddressOnParent);
-                                    break;
-                                }
-                            break;
-
-                            case HardDiskController::SATA:
-                                mhda.controllerType = Bstr("SATA");
-                                mhda.lChannel = (long)vd.ulAddressOnParent;
-                                mhda.lDevice = (long)0;
-                            break;
-
-                            case HardDiskController::SCSI:
-                                mhda.controllerType = Bstr("SCSI");
-                                mhda.lChannel = (long)vd.ulAddressOnParent;
-                                mhda.lDevice = (long)0;
-                            break;
-
-                            default: break;
-                        }
-
-                        Log(("Attaching disk %s to channel %d on device %d\n", pcszDstFilePath, mhda.lChannel, mhda.lDevice));
-
-                        rc = sMachine->AttachHardDisk(hdId,
-                                                      mhda.controllerType,
-                                                      mhda.lChannel,
-                                                      mhda.lDevice);
+                        rc = sMachine->AttachDevice(mhda.controllerType,
+                                                    mhda.lChannel,
+                                                    mhda.lDevice,
+                                                    DeviceType_HardDisk,
+                                                    hdId);
                         if (FAILED(rc)) throw rc;
 
                         llHardDiskAttachments.push_back(mhda);
@@ -2483,14 +1850,14 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
              ++itM)
         {
             const MyHardDiskAttachment &mhda = *itM;
-            rc2 = pVirtualBox->OpenSession(session, Bstr(mhda.uuid));
+            rc2 = mVirtualBox->OpenSession(session, Bstr(mhda.uuid));
             if (SUCCEEDED(rc2))
             {
                 ComPtr<IMachine> sMachine;
                 rc2 = session->COMGETTER(Machine)(sMachine.asOutParam());
                 if (SUCCEEDED(rc2))
                 {
-                    rc2 = sMachine->DetachHardDisk(Bstr(mhda.controllerType), mhda.lChannel, mhda.lDevice);
+                    rc2 = sMachine->DetachDevice(Bstr(mhda.controllerType), mhda.lChannel, mhda.lDevice);
                     rc2 = sMachine->SaveSettings();
                 }
                 session->Close();
@@ -2498,12 +1865,12 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
         }
 
         // now clean up all hard disks we created
-        list< ComPtr<IHardDisk> >::iterator itHD;
+        list< ComPtr<IMedium> >::iterator itHD;
         for (itHD = llHardDisksCreated.begin();
              itHD != llHardDisksCreated.end();
              ++itHD)
         {
-            ComPtr<IHardDisk> pDisk = *itHD;
+            ComPtr<IMedium> pDisk = *itHD;
             ComPtr<IProgress> pProgress;
             rc2 = pDisk->DeleteStorage(pProgress.asOutParam());
             rc2 = pProgress->WaitForCompletion(-1);
@@ -2517,16 +1884,16 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
         {
             const Guid &guid = *itID;
             ComPtr<IMachine> failedMachine;
-            rc2 = pVirtualBox->UnregisterMachine(guid.toUtf16(), failedMachine.asOutParam());
+            rc2 = mVirtualBox->UnregisterMachine(guid.toUtf16(), failedMachine.asOutParam());
             if (SUCCEEDED(rc2))
                 rc2 = failedMachine->DeleteSettings();
         }
     }
 
-    task->rc = rc;
+    pTask->rc = rc;
 
-    if (!task->progress.isNull())
-        task->progress->notifyComplete(rc);
+    if (!pTask->progress.isNull())
+        pTask->progress->notifyComplete(rc);
 
     LogFlowFunc(("rc=%Rhrc\n", rc));
     LogFlowFuncLeave();
@@ -2534,222 +1901,279 @@ DECLCALLBACK(int) Appliance::taskThreadImportMachines(RTTHREAD /* aThread */, vo
     return VINF_SUCCESS;
 }
 
-struct Appliance::TaskWriteOVF
+/**
+ * Helper that converts VirtualSystem attachment values into VirtualBox attachment values.
+ * Throws HRESULT values on errors!
+ *
+ * @param hdc
+ * @param vd
+ * @param mhda
+ */
+void Appliance::ConvertDiskAttachmentValues(const HardDiskController &hdc,
+                                            uint32_t ulAddressOnParent,
+                                            Bstr &controllerType,
+                                            int32_t &lChannel,
+                                            int32_t &lDevice)
 {
-    enum OVFFormat
+    switch (hdc.system)
     {
-        unspecified,
-        OVF_0_9,
-        OVF_1_0
-    };
-    enum TaskType
-    {
-        Write
-    };
+        case HardDiskController::IDE:
+            // For the IDE bus, the channel parameter can be either 0 or 1, to specify the primary
+            // or secondary IDE controller, respectively. For the primary controller of the IDE bus,
+            // the device number can be either 0 or 1, to specify the master or the slave device,
+            // respectively. For the secondary IDE controller, the device number is always 1 because
+            // the master device is reserved for the CD-ROM drive.
+            controllerType = Bstr("IDE Controller");
+            switch (ulAddressOnParent)
+            {
+                case 0:     // interpret this as primary master
+                    lChannel = (long)0;
+                    lDevice = (long)0;
+                break;
 
-    TaskWriteOVF(OVFFormat aFormat, Appliance *aThat)
-        : taskType(Write),
-          storageType(VFSType_File),
-          enFormat(aFormat),
-          pAppliance(aThat),
-          rc(S_OK)
-    {}
-    ~TaskWriteOVF() {}
+                case 1:     // interpret this as primary slave
+                    lChannel = (long)0;
+                    lDevice = (long)1;
+                break;
 
-    int startThread();
-    static int uploadProgress(unsigned uPercent, void *pvUser);
+                case 2:     // interpret this as secondary master
+                    lChannel = (long)1;
+                    lDevice = (long)0;
+                break;
 
-    TaskType taskType;
-    VFSType_T storageType;
-    Utf8Str filepath;
-    Utf8Str hostname;
-    Utf8Str username;
-    Utf8Str password;
-    OVFFormat enFormat;
-    Appliance *pAppliance;
-    ComObjPtr<Progress> progress;
-    HRESULT rc;
-};
+                case 3:     // interpret this as secondary slave
+                    lChannel = (long)1;
+                    lDevice = (long)1;
+                break;
 
-int Appliance::TaskWriteOVF::startThread()
-{
-    int vrc = RTThreadCreate(NULL, Appliance::taskThreadWriteOVF, this,
-                             0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
-                             "Appliance::Task");
+                default:
+                    throw setError(VBOX_E_NOT_SUPPORTED,
+                                    tr("Invalid channel %RI16 specified; IDE controllers support only 0, 1 or 2"), ulAddressOnParent);
+                break;
+            }
+        break;
 
-    ComAssertMsgRCRet(vrc,
-                      ("Could not create taskThreadWriteOVF (%Rrc)\n", vrc), E_FAIL);
+        case HardDiskController::SATA:
+            controllerType = Bstr("SATA Controller");
+            lChannel = (long)ulAddressOnParent;
+            lDevice = (long)0;
+        break;
 
-    return S_OK;
+        case HardDiskController::SCSI:
+            controllerType = Bstr("SCSI Controller");
+            lChannel = (long)ulAddressOnParent;
+            lDevice = (long)0;
+        break;
+
+        default: break;
+    }
 }
 
-/* static */
-int Appliance::TaskWriteOVF::uploadProgress(unsigned uPercent, void *pvUser)
+int Appliance::importS3(TaskImportOVF *pTask)
 {
-    Appliance::TaskWriteOVF* pTask = *(Appliance::TaskWriteOVF**)pvUser;
+    LogFlowFuncEnter();
+    LogFlowFunc(("Appliance %p\n", this));
 
-    if (pTask &&
-        !pTask->progress.isNull())
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
+
+    AutoWriteLock appLock(this);
+
+    int vrc = VINF_SUCCESS;
+    RTS3 hS3 = NIL_RTS3;
+    char szOSTmpDir[RTPATH_MAX];
+    RTPathTemp(szOSTmpDir, sizeof(szOSTmpDir));
+    /* The template for the temporary directory created below */
+    char *pszTmpDir;
+    RTStrAPrintf(&pszTmpDir, "%s"RTPATH_SLASH_STR"vbox-ovf-XXXXXX", szOSTmpDir);
+    list< pair<Utf8Str, ULONG> > filesList;
+
+    HRESULT rc = S_OK;
+    try
     {
-        BOOL fCanceled;
-        pTask->progress->COMGETTER(Canceled)(&fCanceled);
-        if (fCanceled)
-            return -1;
-        pTask->progress->setCurrentOperationProgress(uPercent);
+        /* Extract the bucket */
+        Utf8Str tmpPath = pTask->locInfo.strPath;
+        Utf8Str bucket;
+        parseBucket(tmpPath, bucket);
+
+        /* We need a temporary directory which we can put the all disk images
+         * in */
+        vrc = RTDirCreateTemp(pszTmpDir);
+        if (RT_FAILURE(vrc))
+            throw setError(VBOX_E_FILE_ERROR,
+                           tr("Cannot create temporary directory '%s'"), pszTmpDir);
+
+        /* Add every disks of every virtual system to an internal list */
+        list< ComObjPtr<VirtualSystemDescription> >::const_iterator it;
+        for (it = m->virtualSystemDescriptions.begin();
+             it != m->virtualSystemDescriptions.end();
+             ++it)
+        {
+            ComObjPtr<VirtualSystemDescription> vsdescThis = (*it);
+            std::list<VirtualSystemDescriptionEntry*> avsdeHDs = vsdescThis->findByType(VirtualSystemDescriptionType_HardDiskImage);
+            std::list<VirtualSystemDescriptionEntry*>::const_iterator itH;
+            for (itH = avsdeHDs.begin();
+                 itH != avsdeHDs.end();
+                 ++itH)
+            {
+                const Utf8Str &strTargetFile = (*itH)->strOvf;
+                if (!strTargetFile.isEmpty())
+                {
+                    /* The temporary name of the target disk file */
+                    Utf8StrFmt strTmpDisk("%s/%s", pszTmpDir, RTPathFilename(strTargetFile.c_str()));
+                    filesList.push_back(pair<Utf8Str, ULONG>(strTmpDisk, (*itH)->ulSizeMB));
+                }
+            }
+        }
+
+        /* Next we have to download the disk images */
+        vrc = RTS3Create(&hS3, pTask->locInfo.strUsername.c_str(), pTask->locInfo.strPassword.c_str(), pTask->locInfo.strHostname.c_str(), "virtualbox-agent/"VBOX_VERSION_STRING);
+        if(RT_FAILURE(vrc))
+            throw setError(VBOX_E_IPRT_ERROR,
+                           tr("Cannot create S3 service handler"));
+        RTS3SetProgressCallback(hS3, pTask->updateProgress, &pTask);
+
+        /* Download all files */
+        for (list< pair<Utf8Str, ULONG> >::const_iterator it1 = filesList.begin(); it1 != filesList.end(); ++it1)
+        {
+            const pair<Utf8Str, ULONG> &s = (*it1);
+            const Utf8Str &strSrcFile = s.first;
+            /* Construct the source file name */
+            char *pszFilename = RTPathFilename(strSrcFile.c_str());
+            /* Advance to the next operation */
+            if (!pTask->progress.isNull())
+                pTask->progress->SetNextOperation(BstrFmt(tr("Downloading file '%s'"), pszFilename), s.second);
+
+            vrc = RTS3GetKey(hS3, bucket.c_str(), pszFilename, strSrcFile.c_str());
+            if (RT_FAILURE(vrc))
+            {
+                if(vrc == VERR_S3_CANCELED)
+                    throw S_OK; /* todo: !!!!!!!!!!!!! */
+                else if(vrc == VERR_S3_ACCESS_DENIED)
+                    throw setError(E_ACCESSDENIED,
+                                   tr("Cannot download file '%s' from S3 storage server (Access denied). Make sure that your credentials are right. Also check that your host clock is properly synced"), pszFilename);
+                else if(vrc == VERR_S3_NOT_FOUND)
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Cannot download file '%s' from S3 storage server (File not found)"), pszFilename);
+                else
+                    throw setError(VBOX_E_IPRT_ERROR,
+                                   tr("Cannot download file '%s' from S3 storage server (%Rrc)"), pszFilename, vrc);
+            }
+        }
+
+        /* Provide a OVF file (haven't to exist) so the import routine can
+         * figure out where the disk images/manifest file are located. */
+        Utf8StrFmt strTmpOvf("%s/%s", pszTmpDir, RTPathFilename(tmpPath.c_str()));
+        /* Now check if there is an manifest file. This is optional. */
+        Utf8Str strManifestFile = manifestFileName(strTmpOvf);
+        char *pszFilename = RTPathFilename(strManifestFile.c_str());
+        if (!pTask->progress.isNull())
+            pTask->progress->SetNextOperation(BstrFmt(tr("Downloading file '%s'"), pszFilename), 1);
+
+        /* Try to download it. If the error is VERR_S3_NOT_FOUND, it isn't fatal. */
+        vrc = RTS3GetKey(hS3, bucket.c_str(), pszFilename, strManifestFile.c_str());
+        if (RT_SUCCESS(vrc))
+            filesList.push_back(pair<Utf8Str, ULONG>(strManifestFile, 0));
+        else if (RT_FAILURE(vrc))
+        {
+            if(vrc == VERR_S3_CANCELED)
+                throw S_OK; /* todo: !!!!!!!!!!!!! */
+            else if(vrc == VERR_S3_NOT_FOUND)
+                vrc = VINF_SUCCESS; /* Not found is ok */
+            else if(vrc == VERR_S3_ACCESS_DENIED)
+                throw setError(E_ACCESSDENIED,
+                               tr("Cannot download file '%s' from S3 storage server (Access denied). Make sure that your credentials are right. Also check that your host clock is properly synced"), pszFilename);
+            else
+                throw setError(VBOX_E_IPRT_ERROR,
+                               tr("Cannot download file '%s' from S3 storage server (%Rrc)"), pszFilename, vrc);
+        }
+
+        /* Close the connection early */
+        RTS3Destroy(hS3);
+        hS3 = NIL_RTS3;
+
+        if (!pTask->progress.isNull())
+            pTask->progress->SetNextOperation(BstrFmt(tr("Importing appliance")), m->ulWeightPerOperation);
+
+        ComObjPtr<Progress> progress;
+        /* Import the whole temporary OVF & the disk images */
+        LocationInfo li;
+        li.strPath = strTmpOvf;
+        rc = importImpl(li, progress);
+        if (FAILED(rc)) throw rc;
+
+        /* Unlock the appliance for the fs import thread */
+        appLock.unlock();
+        /* Wait until the import is done, but report the progress back to the
+           caller */
+        ComPtr<IProgress> progressInt(progress);
+        waitForAsyncProgress(pTask->progress, progressInt); /* Any errors will be thrown */
+
+        /* Again lock the appliance for the next steps */
+        appLock.lock();
     }
+    catch(HRESULT aRC)
+    {
+        rc = aRC;
+    }
+    /* Cleanup */
+    RTS3Destroy(hS3);
+    /* Delete all files which where temporary created */
+    for (list< pair<Utf8Str, ULONG> >::const_iterator it1 = filesList.begin(); it1 != filesList.end(); ++it1)
+    {
+        const char *pszFilePath = (*it1).first.c_str();
+        if (RTPathExists(pszFilePath))
+        {
+            vrc = RTFileDelete(pszFilePath);
+            if(RT_FAILURE(vrc))
+                rc = setError(VBOX_E_FILE_ERROR,
+                              tr("Cannot delete file '%s' (%Rrc)"), pszFilePath, vrc);
+        }
+    }
+    /* Delete the temporary directory */
+    if (RTPathExists(pszTmpDir))
+    {
+        vrc = RTDirRemove(pszTmpDir);
+        if(RT_FAILURE(vrc))
+            rc = setError(VBOX_E_FILE_ERROR,
+                          tr("Cannot delete temporary directory '%s' (%Rrc)"), pszTmpDir, vrc);
+    }
+    if (pszTmpDir)
+        RTStrFree(pszTmpDir);
+
+    pTask->rc = rc;
+
+    if (!pTask->progress.isNull())
+        pTask->progress->notifyComplete(rc);
+
+    LogFlowFunc(("rc=%Rhrc\n", rc));
+    LogFlowFuncLeave();
+
     return VINF_SUCCESS;
 }
 
-STDMETHODIMP Appliance::CreateVFSExplorer(IN_BSTR aURI, IVFSExplorer **aExplorer)
-{
-    HRESULT rc = S_OK;
-
-    CheckComArgOutPointerValid(aExplorer);
-
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    AutoReadLock(this);
-
-    Utf8Str uri(aURI);
-    /* Check which kind of export the user has requested */
-    VFSType_T type = VFSType_File;
-    Utf8Str strProtocol = "";
-    /* Check the URI for the target format */
-    if (uri.startsWith("SunCloud://", Utf8Str::CaseInsensitive)) /* Sun Cloud service */
-    {
-        throw E_NOTIMPL;
-//        type = VFSType_S3;
-//        strProtocol = "SunCloud://";
-    }
-    else if (uri.startsWith("S3://", Utf8Str::CaseInsensitive)) /* S3 service */
-    {
-        throw E_NOTIMPL;
-//        type = VFSType_S3;
-//        strProtocol = "S3://";
-    }
-    else if (uri.startsWith("webdav://", Utf8Str::CaseInsensitive)) /* webdav service */
-        throw E_NOTIMPL;
-
-    Utf8Str strFilepath;
-    Utf8Str strHostname;
-    Utf8Str strUsername;
-    Utf8Str strPassword;
-    parseURI(uri, strProtocol, strFilepath, strHostname, strUsername, strPassword);
-
-    ComObjPtr<VFSExplorer> explorer;
-    explorer.createObject();
-
-    rc = explorer->init(type, strFilepath, strHostname, strUsername, strPassword, mVirtualBox);
-
-    if (SUCCEEDED(rc))
-        /* Return explorer to the caller */
-        explorer.queryInterfaceTo(aExplorer);
-
-    return rc;
-}
-
-STDMETHODIMP Appliance::Write(IN_BSTR format, IN_BSTR path, IProgress **aProgress)
-{
-    HRESULT rc = S_OK;
-
-    CheckComArgOutPointerValid(aProgress);
-
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    AutoWriteLock(this);
-
-    // see if we can handle this file; for now we insist it has an ".ovf" extension
-    Utf8Str strPath = path;
-    if (!strPath.endsWith(".ovf", Utf8Str::CaseInsensitive))
-        return setError(VBOX_E_FILE_ERROR,
-                        tr("Appliance file must have .ovf extension"));
-
-    ComObjPtr<Progress> progress;
-    Utf8Str strFormat(format);
-    TaskWriteOVF::OVFFormat ovfF;
-    if (strFormat == "ovf-0.9")
-        ovfF = TaskWriteOVF::OVF_0_9;
-    else if (strFormat == "ovf-1.0")
-        ovfF = TaskWriteOVF::OVF_1_0;
-    else
-        return setError(VBOX_E_FILE_ERROR,
-                        tr("Invalid format \"%s\" specified"), strFormat.c_str());
-
-    rc = writeImpl(ovfF, strPath, progress);
-
-    if (SUCCEEDED(rc))
-        /* Return progress to the caller */
-        progress.queryInterfaceTo(aProgress);
-
-    return rc;
-}
-
-void Appliance::parseURI(Utf8Str strUri, const Utf8Str &strProtocol, Utf8Str &strFilepath, Utf8Str &strHostname, Utf8Str &strUsername, Utf8Str &strPassword)
-{
-    /* Remove the protocol */
-    if (strUri.startsWith(strProtocol, Utf8Str::CaseInsensitive))
-        strUri = strUri.substr(strProtocol.length());
-    size_t uppos = strUri.find("@");
-    if (uppos != Utf8Str::npos)
-    {
-        strUsername = strUri.substr(0, uppos);
-        strUri = strUri.substr(uppos + 1);
-        size_t upos = strUsername.find(":");
-        if (upos != Utf8Str::npos)
-        {
-            strPassword = strUsername.substr(upos + 1);
-            strUsername = strUsername.substr(0, upos);
-        }
-    }
-    size_t hpos = strUri.find("/");
-    if (hpos != Utf8Str::npos)
-    {
-        strHostname = strUri.substr(0, hpos);
-        strUri = strUri.substr(hpos);
-    }
-    strFilepath = strUri;
-}
-
-HRESULT Appliance::writeImpl(int aFormat, Utf8Str aPath, ComObjPtr<Progress> &aProgress)
+HRESULT Appliance::writeImpl(int aFormat, const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress)
 {
     HRESULT rc = S_OK;
     try
     {
-        m->strPath = aPath;
-
         /* Initialize our worker task */
-        std::auto_ptr<TaskWriteOVF> task(new TaskWriteOVF((TaskWriteOVF::OVFFormat)aFormat, this));
+        std::auto_ptr<TaskExportOVF> task(new TaskExportOVF(this));
+        /* What should the task do */
+        task->taskType = TaskExportOVF::Write;
+        /* The OVF version to write */
+        task->enFormat = (TaskExportOVF::OVFFormat)aFormat;
+        /* Copy the current location info to the task */
+        task->locInfo = aLocInfo;
 
-        /* Check which kind of export the user has requested */
-        Utf8Str strProtocol = "";
-        /* Check the URI for the target format */
-        if (m->strPath.startsWith("SunCloud://", Utf8Str::CaseInsensitive)) /* Sun Cloud service */
-        {
-            throw E_NOTIMPL;
-//            task->storageType = VFSType_S3;
-//            strProtocol = "SunCloud://";
-        }
-        else if (m->strPath.startsWith("S3://", Utf8Str::CaseInsensitive)) /* S3 service */
-        {
-            throw E_NOTIMPL;
-//            task->storageType = VFSType_S3;
-//            strProtocol = "S3://";
-        }
-        else if (m->strPath.startsWith("webdav://", Utf8Str::CaseInsensitive)) /* webdav service */
-            throw E_NOTIMPL;
-
-        parseURI(m->strPath, strProtocol, task->filepath, task->hostname, task->username, task->password);
         Bstr progressDesc = BstrFmt(tr("Export appliance '%s'"),
-                                    task->filepath.c_str());
+                                    task->locInfo.strPath.c_str());
 
         /* todo: This progress init stuff should be done a little bit more generic */
-        if (task->storageType == VFSType_S3)
-            rc = setUpProgressUpload(aProgress, progressDesc);
+        if (task->locInfo.storageType == VFSType_File)
+            rc = setUpProgressFS(aProgress, progressDesc);
         else
-            rc = setUpProgress(aProgress, progressDesc);
-        if (FAILED(rc)) throw rc;
+            rc = setUpProgressWriteS3(aProgress, progressDesc);
 
         task->progress = aProgress;
 
@@ -2769,7 +2193,7 @@ HRESULT Appliance::writeImpl(int aFormat, Utf8Str aPath, ComObjPtr<Progress> &aP
 
 DECLCALLBACK(int) Appliance::taskThreadWriteOVF(RTTHREAD /* aThread */, void *pvUser)
 {
-    std::auto_ptr<TaskWriteOVF> task(static_cast<TaskWriteOVF*>(pvUser));
+    std::auto_ptr<TaskExportOVF> task(static_cast<TaskExportOVF*>(pvUser));
     AssertReturn(task.get(), VERR_GENERAL_FAILURE);
 
     Appliance *pAppliance = task->pAppliance;
@@ -2781,11 +2205,11 @@ DECLCALLBACK(int) Appliance::taskThreadWriteOVF(RTTHREAD /* aThread */, void *pv
 
     switch(task->taskType)
     {
-        case TaskWriteOVF::Write:
+        case TaskExportOVF::Write:
         {
-            if (task->storageType == VFSType_File)
+            if (task->locInfo.storageType == VFSType_File)
                 rc = pAppliance->writeFS(task.get());
-            else if (task->storageType == VFSType_S3)
+            else if (task->locInfo.storageType == VFSType_S3)
                 rc = pAppliance->writeS3(task.get());
             break;
         }
@@ -2797,13 +2221,19 @@ DECLCALLBACK(int) Appliance::taskThreadWriteOVF(RTTHREAD /* aThread */, void *pv
     return VINF_SUCCESS;
 }
 
-/**
- * Worker thread implementation for Write() (ovf writer).
- * @param aThread
- * @param pvUser
- */
-/* static */
-int Appliance::writeFS(TaskWriteOVF *pTask)
+int Appliance::TaskExportOVF::startThread()
+{
+    int vrc = RTThreadCreate(NULL, Appliance::taskThreadWriteOVF, this,
+                             0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
+                             "Appliance::Task");
+
+    ComAssertMsgRCRet(vrc,
+                      ("Could not create taskThreadWriteOVF (%Rrc)\n", vrc), E_FAIL);
+
+    return S_OK;
+}
+
+int Appliance::writeFS(TaskExportOVF *pTask)
 {
     LogFlowFuncEnter();
     LogFlowFunc(("Appliance %p\n", this));
@@ -2820,10 +2250,10 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
         xml::Document doc;
         xml::ElementNode *pelmRoot = doc.createRootElement("Envelope");
 
-        pelmRoot->setAttribute("ovf:version", (pTask->enFormat == TaskWriteOVF::OVF_1_0) ? "1.0" : "0.9");
+        pelmRoot->setAttribute("ovf:version", (pTask->enFormat == TaskExportOVF::OVF_1_0) ? "1.0" : "0.9");
         pelmRoot->setAttribute("xml:lang", "en-US");
 
-        Utf8Str strNamespace = (pTask->enFormat == TaskWriteOVF::OVF_0_9)
+        Utf8Str strNamespace = (pTask->enFormat == TaskExportOVF::OVF_0_9)
             ? "http://www.vmware.com/schema/ovf/1/envelope"     // 0.9
             : "http://schemas.dmtf.org/ovf/envelope/1";         // 1.0
         pelmRoot->setAttribute("xmlns", strNamespace);
@@ -2844,7 +2274,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
                 <Disk ovf:capacity="4294967296" ovf:diskId="lamp" ovf:format="http://www.vmware.com/specifications/vmdk.html#compressed" ovf:populatedSize="1924967692"/>
             </DiskSection> */
         xml::ElementNode *pelmDiskSection;
-        if (pTask->enFormat == TaskWriteOVF::OVF_0_9)
+        if (pTask->enFormat == TaskExportOVF::OVF_0_9)
         {
             // <Section xsi:type="ovf:DiskSection_Type">
             pelmDiskSection = pelmRoot->createChild("Section");
@@ -2867,7 +2297,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
                 </Network>
             </NetworkSection> */
         xml::ElementNode *pelmNetworkSection;
-        if (pTask->enFormat == TaskWriteOVF::OVF_0_9)
+        if (pTask->enFormat == TaskExportOVF::OVF_0_9)
         {
             // <Section xsi:type="ovf:NetworkSection_Type">
             pelmNetworkSection = pelmRoot->createChild("Section");
@@ -2891,7 +2321,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
         xml::ElementNode *pelmToAddVirtualSystemsTo;
         if (m->virtualSystemDescriptions.size() > 1)
         {
-            if (pTask->enFormat == TaskWriteOVF::OVF_0_9)
+            if (pTask->enFormat == TaskExportOVF::OVF_0_9)
                 throw setError(VBOX_E_FILE_ERROR,
                                tr("Cannot export more than one virtual system with OVF 0.9, use OVF 1.0"));
 
@@ -2912,7 +2342,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
             ComObjPtr<VirtualSystemDescription> vsdescThis = (*it);
 
             xml::ElementNode *pelmVirtualSystem;
-            if (pTask->enFormat == TaskWriteOVF::OVF_0_9)
+            if (pTask->enFormat == TaskExportOVF::OVF_0_9)
             {
                 // <Section xsi:type="ovf:NetworkSection_Type">
                 pelmVirtualSystem = pelmToAddVirtualSystemsTo->createChild("Content");
@@ -2956,7 +2386,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
                     <VendorUrl>http://www.sun.com</VendorUrl>
                 </Section> */
                 xml::ElementNode *pelmAnnotationSection;
-                if (pTask->enFormat == TaskWriteOVF::OVF_0_9)
+                if (pTask->enFormat == TaskExportOVF::OVF_0_9)
                 {
                     // <Section ovf:required="false" xsi:type="ovf:ProductSection_Type">
                     pelmAnnotationSection = pelmVirtualSystem->createChild("Section");
@@ -2988,7 +2418,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
                         <Annotation>Plan 9</Annotation>
                     </Section> */
                 xml::ElementNode *pelmAnnotationSection;
-                if (pTask->enFormat == TaskWriteOVF::OVF_0_9)
+                if (pTask->enFormat == TaskExportOVF::OVF_0_9)
                 {
                     // <Section ovf:required="false" xsi:type="ovf:AnnotationSection_Type">
                     pelmAnnotationSection = pelmVirtualSystem->createChild("Section");
@@ -3011,7 +2441,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
                    <License ovf:msgid="1">License terms can go in here.</License>
                    </EulaSection> */
                 xml::ElementNode *pelmEulaSection;
-                if (pTask->enFormat == TaskWriteOVF::OVF_0_9)
+                if (pTask->enFormat == TaskExportOVF::OVF_0_9)
                 {
                     pelmEulaSection = pelmVirtualSystem->createChild("Section");
                     pelmEulaSection->setAttribute("xsi:type", "ovf:EulaSection_Type");
@@ -3033,7 +2463,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
                     <Description>Linux 2.6.x</Description>
                 </OperatingSystemSection> */
             xml::ElementNode *pelmOperatingSystemSection;
-            if (pTask->enFormat == TaskWriteOVF::OVF_0_9)
+            if (pTask->enFormat == TaskExportOVF::OVF_0_9)
             {
                 pelmOperatingSystemSection = pelmVirtualSystem->createChild("Section");
                 pelmOperatingSystemSection->setAttribute("xsi:type", "ovf:OperatingSystemSection_Type");
@@ -3049,7 +2479,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
 
             // <VirtualHardwareSection ovf:id="hw1" ovf:transport="iso">
             xml::ElementNode *pelmVirtualHardwareSection;
-            if (pTask->enFormat == TaskWriteOVF::OVF_0_9)
+            if (pTask->enFormat == TaskExportOVF::OVF_0_9)
             {
                 // <Section xsi:type="ovf:VirtualHardwareSection_Type">
                 pelmVirtualHardwareSection = pelmVirtualSystem->createChild("Section");
@@ -3072,7 +2502,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
             pelmSystem->createChild("vssd:ElementName")->addContent("Virtual Hardware Family"); // required OVF 1.0
 
             // <vssd:InstanceId>0</vssd:InstanceId>
-            if (pTask->enFormat == TaskWriteOVF::OVF_0_9)
+            if (pTask->enFormat == TaskExportOVF::OVF_0_9)
                 pelmSystem->createChild("vssd:InstanceId")->addContent("0");
             else // capitalization changed...
                 pelmSystem->createChild("vssd:InstanceID")->addContent("0");
@@ -3081,7 +2511,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
             pelmSystem->createChild("vssd:VirtualSystemIdentifier")->addContent(strVMName);
             // <vssd:VirtualSystemType>vmx-4</vssd:VirtualSystemType>
             const char *pcszHardware = "virtualbox-2.2";
-            if (pTask->enFormat == TaskWriteOVF::OVF_0_9)
+            if (pTask->enFormat == TaskExportOVF::OVF_0_9)
                 // pretend to be vmware compatible then
                 pcszHardware = "vmx-6";
             pelmSystem->createChild("vssd:VirtualSystemType")->addContent(pcszHardware);
@@ -3150,7 +2580,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
                                 strDescription = "Number of virtual CPUs";
                                 type = OVFResourceType_Processor; // 3
                                 desc.strVbox.toInt(uTemp);
-                                lVirtualQuantity = uTemp;
+                                lVirtualQuantity = (int32_t)uTemp;
                                 strCaption = Utf8StrFmt("%d virtual CPU", lVirtualQuantity);     // without this ovftool won't eat the item
                             }
                         break;
@@ -3437,7 +2867,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
                         if (!strCaption.isEmpty())
                         {
                             pItem->createChild("rasd:Caption")->addContent(strCaption);
-                            if (pTask->enFormat == TaskWriteOVF::OVF_1_0)
+                            if (pTask->enFormat == TaskExportOVF::OVF_1_0)
                                 pItem->createChild("rasd:ElementName")->addContent(strCaption);
                         }
 
@@ -3446,7 +2876,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
 
                         // <rasd:InstanceID>1</rasd:InstanceID>
                         xml::ElementNode *pelmInstanceID;
-                        if (pTask->enFormat == TaskWriteOVF::OVF_0_9)
+                        if (pTask->enFormat == TaskExportOVF::OVF_0_9)
                             pelmInstanceID = pItem->createChild("rasd:InstanceId");
                         else
                             pelmInstanceID = pItem->createChild("rasd:InstanceID");      // capitalization changed...
@@ -3477,7 +2907,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
                             pItem->createChild("rasd:Address")->addContent(Utf8StrFmt("%d", lAddress));
 
                         if (lBusNumber != -1)
-                            if (pTask->enFormat == TaskWriteOVF::OVF_0_9) // BusNumber is invalid OVF 1.0 so only write it in 0.9 mode for OVFTool compatibility
+                            if (pTask->enFormat == TaskExportOVF::OVF_0_9) // BusNumber is invalid OVF 1.0 so only write it in 0.9 mode for OVFTool compatibility
                                 pItem->createChild("rasd:BusNumber")->addContent(Utf8StrFmt("%d", lBusNumber));
 
                         if (ulParent)
@@ -3502,6 +2932,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
             pelmNetwork->createChild("Description")->addContent("Logical network used by this appliance.");
         }
 
+        list<Utf8Str> diskList;
         map<Utf8Str, const VirtualSystemDescriptionEntry*>::const_iterator itS;
         uint32_t ulFile = 1;
         for (itS = mapDisks.begin();
@@ -3523,13 +2954,14 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
             // output filename
             const Utf8Str &strTargetFileNameOnly = pDiskEntry->strOvf;
             // target path needs to be composed from where the output OVF is
-            Utf8Str strTargetFilePath = stripFilename(m->strPath);
+            Utf8Str strTargetFilePath(pTask->locInfo.strPath);
+            strTargetFilePath.stripFilename();
             strTargetFilePath.append("/");
             strTargetFilePath.append(strTargetFileNameOnly);
 
             // clone the disk:
-            ComPtr<IHardDisk> pSourceDisk;
-            ComPtr<IHardDisk> pTargetDisk;
+            ComPtr<IMedium> pSourceDisk;
+            ComPtr<IMedium> pTargetDisk;
             ComPtr<IProgress> pProgress2;
 
             Log(("Finding source disk \"%ls\"\n", bstrSrcFilePath.raw()));
@@ -3549,12 +2981,12 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
             try
             {
                 // create a flat copy of the source disk image
-                rc = pSourceDisk->CloneTo(pTargetDisk, HardDiskVariant_VmdkStreamOptimized, NULL, pProgress2.asOutParam());
+                rc = pSourceDisk->CloneTo(pTargetDisk, MediumVariant_VmdkStreamOptimized, NULL, pProgress2.asOutParam());
                 if (FAILED(rc)) throw rc;
 
                 // advance to the next operation
                 if (!pTask->progress.isNull())
-                    pTask->progress->setNextOperation(BstrFmt(tr("Exporting virtual disk image '%s'"), strSrcFilePath.c_str()),
+                    pTask->progress->SetNextOperation(BstrFmt(tr("Exporting virtual disk image '%s'"), strSrcFilePath.c_str()),
                                                      pDiskEntry->ulSizeMB);     // operation's weight, as set up with the IProgress originally);
 
                 // now wait for the background disk operation to complete; this throws HRESULTs on error
@@ -3565,8 +2997,9 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
                 // upon error after registering, close the disk or
                 // it'll stick in the registry forever
                 pTargetDisk->Close();
-                throw;
+                throw rc3;
             }
+            diskList.push_back(strTargetFilePath);
 
             // we need the following for the XML
             uint64_t cbFile = 0;        // actual file size
@@ -3602,7 +3035,24 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
 
         // now go write the XML
         xml::XmlFileWriter writer(doc);
-        writer.write(m->strPath.c_str());
+        writer.write(pTask->locInfo.strPath.c_str());
+
+        /* Create & write the manifest file */
+        const char** ppManifestFiles = (const char**)RTMemAlloc(sizeof(char*)*diskList.size() + 1);
+        ppManifestFiles[0] = pTask->locInfo.strPath.c_str();
+        list<Utf8Str>::const_iterator it1;
+        size_t i = 1;
+        for (it1 = diskList.begin();
+             it1 != diskList.end();
+             ++it1, ++i)
+            ppManifestFiles[i] = (*it1).c_str();
+        Utf8Str strMfFile = manifestFileName(pTask->locInfo.strPath.c_str());
+        int vrc = RTManifestWriteFiles(strMfFile.c_str(), ppManifestFiles, diskList.size()+1);
+        if (RT_FAILURE(vrc))
+            throw setError(VBOX_E_FILE_ERROR,
+                           tr("Couldn't create manifest file '%s' (%Rrc)"),
+                           RTPathFilename(strMfFile.c_str()), vrc);
+        RTMemFree(ppManifestFiles);
     }
     catch(xml::Error &x)
     {
@@ -3625,13 +3075,7 @@ int Appliance::writeFS(TaskWriteOVF *pTask)
     return VINF_SUCCESS;
 }
 
-/**
- * Worker thread implementation for Upload() (ovf uploader).
- * @param aThread
- * @param pvUser
- */
-/* static */
-int Appliance::writeS3(TaskWriteOVF *pTask)
+int Appliance::writeS3(TaskExportOVF *pTask)
 {
     LogFlowFuncEnter();
     LogFlowFunc(("Appliance %p\n", this));
@@ -3643,25 +3087,8 @@ int Appliance::writeS3(TaskWriteOVF *pTask)
 
     AutoWriteLock appLock(this);
 
-    /* Buckets are S3 specific. So parse the bucket out of the file path */
-    Utf8Str tmpPath = pTask->filepath;
-    if (!tmpPath.startsWith("/"))
-        return setError(E_INVALIDARG,
-                        tr("The path '%s' must start with /"), tmpPath.c_str());
-    Utf8Str bucket;
-    size_t bpos = tmpPath.find("/", 1);
-    if (bpos != Utf8Str::npos)
-    {
-        bucket = tmpPath.substr(1, bpos - 1); /* The bucket without any slashes */
-        tmpPath = tmpPath.substr(bpos); /* The rest of the file path */
-    }
-    /* If there is no bucket name provided reject the upload */
-    if (bucket.isEmpty())
-        return setError(E_INVALIDARG,
-                        tr("You doesn't provide a bucket name in the URI"), tmpPath.c_str());
-
     int vrc = VINF_SUCCESS;
-    RTS3 hS3 = NULL;
+    RTS3 hS3 = NIL_RTS3;
     char szOSTmpDir[RTPATH_MAX];
     RTPathTemp(szOSTmpDir, sizeof(szOSTmpDir));
     /* The template for the temporary directory created below */
@@ -3670,24 +3097,31 @@ int Appliance::writeS3(TaskWriteOVF *pTask)
     list< pair<Utf8Str, ULONG> > filesList;
 
     // todo:
-    // - getting the tmp directory (especially on win)
     // - usable error codes
     // - seems snapshot filenames are problematic {uuid}.vdi
     try
     {
+        /* Extract the bucket */
+        Utf8Str tmpPath = pTask->locInfo.strPath;
+        Utf8Str bucket;
+        parseBucket(tmpPath, bucket);
+
         /* We need a temporary directory which we can put the OVF file & all
          * disk images in */
         vrc = RTDirCreateTemp(pszTmpDir);
-        if (RT_FAILURE(rc))
+        if (RT_FAILURE(vrc))
             throw setError(VBOX_E_FILE_ERROR,
                            tr("Cannot create temporary directory '%s'"), pszTmpDir);
 
         /* The temporary name of the target OVF file */
-        Utf8StrFmt strTmpOvf("%s/%s", pszTmpDir, RTPathFilename(tmpPath));
+        Utf8StrFmt strTmpOvf("%s/%s", pszTmpDir, RTPathFilename(tmpPath.c_str()));
 
         /* Prepare the temporary writing of the OVF */
         ComObjPtr<Progress> progress;
-        rc = writeImpl(pTask->enFormat, strTmpOvf.c_str(), progress);
+        /* Create a temporary file based location info for the sub task */
+        LocationInfo li;
+        li.strPath = strTmpOvf;
+        rc = writeImpl(pTask->enFormat, li, progress);
         if (FAILED(rc)) throw rc;
 
         /* Unlock the appliance for the writing thread */
@@ -3706,6 +3140,8 @@ int Appliance::writeS3(TaskWriteOVF *pTask)
                            tr("Cannot find source file '%s'"), strTmpOvf.c_str());
         /* Add the OVF file */
         filesList.push_back(pair<Utf8Str, ULONG>(strTmpOvf, m->ulWeightPerOperation)); /* Use 1% of the total for the OVF file upload */
+        Utf8Str strMfFile = manifestFileName(strTmpOvf);
+        filesList.push_back(pair<Utf8Str, ULONG>(strMfFile , m->ulWeightPerOperation)); /* Use 1% of the total for the manifest file upload */
 
         /* Now add every disks of every virtual system */
         list< ComObjPtr<VirtualSystemDescription> >::const_iterator it;
@@ -3722,7 +3158,8 @@ int Appliance::writeS3(TaskWriteOVF *pTask)
             {
                 const Utf8Str &strTargetFileNameOnly = (*itH)->strOvf;
                 /* Target path needs to be composed from where the output OVF is */
-                Utf8Str strTargetFilePath = stripFilename(m->strPath);
+                Utf8Str strTargetFilePath(strTmpOvf);
+                strTargetFilePath.stripFilename();
                 strTargetFilePath.append("/");
                 strTargetFilePath.append(strTargetFileNameOnly);
                 vrc = RTPathExists(strTargetFilePath.c_str()); /* Paranoid check */
@@ -3733,11 +3170,11 @@ int Appliance::writeS3(TaskWriteOVF *pTask)
             }
         }
         /* Next we have to upload the OVF & all disk images */
-        vrc = RTS3Create(&hS3, pTask->username.c_str(), pTask->password.c_str(), pTask->hostname.c_str(), "virtualbox-agent/"VBOX_VERSION_STRING);
+        vrc = RTS3Create(&hS3, pTask->locInfo.strUsername.c_str(), pTask->locInfo.strPassword.c_str(), pTask->locInfo.strHostname.c_str(), "virtualbox-agent/"VBOX_VERSION_STRING);
         if(RT_FAILURE(vrc))
             throw setError(VBOX_E_IPRT_ERROR,
                            tr("Cannot create S3 service handler"));
-        RTS3SetProgressCallback(hS3, pTask->uploadProgress, &pTask);
+        RTS3SetProgressCallback(hS3, pTask->updateProgress, &pTask);
 
         /* Upload all files */
         for (list< pair<Utf8Str, ULONG> >::const_iterator it1 = filesList.begin(); it1 != filesList.end(); ++it1)
@@ -3746,7 +3183,7 @@ int Appliance::writeS3(TaskWriteOVF *pTask)
             char *pszFilename = RTPathFilename(s.first.c_str());
             /* Advance to the next operation */
             if (!pTask->progress.isNull())
-                pTask->progress->setNextOperation(BstrFmt(tr("Uploading file '%s'"), pszFilename), s.second);
+                pTask->progress->SetNextOperation(BstrFmt(tr("Uploading file '%s'"), pszFilename), s.second);
             vrc = RTS3PutKey(hS3, bucket.c_str(), pszFilename, s.first.c_str());
             if (RT_FAILURE(vrc))
             {
@@ -3754,7 +3191,7 @@ int Appliance::writeS3(TaskWriteOVF *pTask)
                     break;
                 else if(vrc == VERR_S3_ACCESS_DENIED)
                     throw setError(E_ACCESSDENIED,
-                                   tr("Cannot upload file '%s' to S3 storage server (Access denied)"), pszFilename);
+                                   tr("Cannot upload file '%s' to S3 storage server (Access denied). Make sure that your credentials are right. Also check that your host clock is properly synced"), pszFilename);
                 else if(vrc == VERR_S3_NOT_FOUND)
                     throw setError(VBOX_E_FILE_ERROR,
                                    tr("Cannot upload file '%s' to S3 storage server (File not found)"), pszFilename);
@@ -3763,23 +3200,24 @@ int Appliance::writeS3(TaskWriteOVF *pTask)
                                    tr("Cannot upload file '%s' to S3 storage server (%Rrc)"), pszFilename, vrc);
             }
         }
-
     }
     catch(HRESULT aRC)
     {
         rc = aRC;
     }
     /* Cleanup */
-    if (hS3)
-        RTS3Destroy(hS3);
+    RTS3Destroy(hS3);
     /* Delete all files which where temporary created */
     for (list< pair<Utf8Str, ULONG> >::const_iterator it1 = filesList.begin(); it1 != filesList.end(); ++it1)
     {
-        const pair<Utf8Str, ULONG> &s = (*it1);
-        vrc = RTFileDelete(s.first.c_str());
-        if(RT_FAILURE(vrc))
-            rc = setError(VBOX_E_FILE_ERROR,
-                          tr("Cannot delete file '%s' (%Rrc)"), s.first.c_str(), vrc);
+        const char *pszFilePath = (*it1).first.c_str();
+        if (RTPathExists(pszFilePath))
+        {
+            vrc = RTFileDelete(pszFilePath);
+            if(RT_FAILURE(vrc))
+                rc = setError(VBOX_E_FILE_ERROR,
+                              tr("Cannot delete file '%s' (%Rrc)"), pszFilePath, vrc);
+        }
     }
     /* Delete the temporary directory */
     if (RTPathExists(pszTmpDir))
@@ -3801,6 +3239,720 @@ int Appliance::writeS3(TaskWriteOVF *pTask)
     LogFlowFuncLeave();
 
     return VINF_SUCCESS;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// IAppliance public methods
+//
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Public method implementation.
+ * @param
+ * @return
+ */
+STDMETHODIMP Appliance::COMGETTER(Path)(BSTR *aPath)
+{
+    if (!aPath)
+        return E_POINTER;
+
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
+
+    AutoReadLock alock(this);
+
+    Bstr bstrPath(m->locInfo.strPath);
+    bstrPath.cloneTo(aPath);
+
+    return S_OK;
+}
+
+/**
+ * Public method implementation.
+ * @param
+ * @return
+ */
+STDMETHODIMP Appliance::COMGETTER(Disks)(ComSafeArrayOut(BSTR, aDisks))
+{
+    CheckComArgOutSafeArrayPointerValid(aDisks);
+
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
+
+    AutoReadLock alock(this);
+
+    if (m->pReader) // OVFReader instantiated?
+    {
+        size_t c = m->pReader->m_mapDisks.size();
+        com::SafeArray<BSTR> sfaDisks(c);
+
+        DiskImagesMap::const_iterator it;
+        size_t i = 0;
+        for (it = m->pReader->m_mapDisks.begin();
+             it != m->pReader->m_mapDisks.end();
+             ++it, ++i)
+        {
+            // create a string representing this disk
+            const DiskImage &d = it->second;
+            char *psz = NULL;
+            RTStrAPrintf(&psz,
+                         "%s\t"
+                         "%RI64\t"
+                         "%RI64\t"
+                         "%s\t"
+                         "%s\t"
+                         "%RI64\t"
+                         "%RI64\t"
+                         "%s",
+                         d.strDiskId.c_str(),
+                         d.iCapacity,
+                         d.iPopulatedSize,
+                         d.strFormat.c_str(),
+                         d.strHref.c_str(),
+                         d.iSize,
+                         d.iChunkSize,
+                         d.strCompression.c_str());
+            Utf8Str utf(psz);
+            Bstr bstr(utf);
+            // push to safearray
+            bstr.cloneTo(&sfaDisks[i]);
+            RTStrFree(psz);
+        }
+
+        sfaDisks.detachTo(ComSafeArrayOutArg(aDisks));
+    }
+
+    return S_OK;
+}
+
+/**
+ * Public method implementation.
+ * @param
+ * @return
+ */
+STDMETHODIMP Appliance::COMGETTER(VirtualSystemDescriptions)(ComSafeArrayOut(IVirtualSystemDescription*, aVirtualSystemDescriptions))
+{
+    CheckComArgOutSafeArrayPointerValid(aVirtualSystemDescriptions);
+
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
+
+    AutoReadLock alock(this);
+
+    SafeIfaceArray<IVirtualSystemDescription> sfaVSD(m->virtualSystemDescriptions);
+    sfaVSD.detachTo(ComSafeArrayOutArg(aVirtualSystemDescriptions));
+
+    return S_OK;
+}
+
+/**
+ * Public method implementation.
+ * @param path
+ * @return
+ */
+STDMETHODIMP Appliance::Read(IN_BSTR path, IProgress **aProgress)
+{
+    if (!path) return E_POINTER;
+    CheckComArgOutPointerValid(aProgress);
+
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
+
+    AutoWriteLock alock(this);
+
+    if (m->pReader)
+ 	{
+ 	    delete m->pReader;
+ 	    m->pReader = NULL;
+ 	}
+
+    // see if we can handle this file; for now we insist it has an ".ovf" extension
+    Utf8Str strPath (path);
+    if (!strPath.endsWith(".ovf", Utf8Str::CaseInsensitive))
+        return setError(VBOX_E_FILE_ERROR,
+                        tr("Appliance file must have .ovf extension"));
+
+    ComObjPtr<Progress> progress;
+    HRESULT rc = S_OK;
+    try
+    {
+        /* Parse all necessary info out of the URI */
+        parseURI(strPath, m->locInfo);
+        rc = readImpl(m->locInfo, progress);
+    }
+    catch (HRESULT aRC)
+    {
+        rc = aRC;
+    }
+
+    if (SUCCEEDED(rc))
+        /* Return progress to the caller */
+        progress.queryInterfaceTo(aProgress);
+
+    return S_OK;
+}
+
+/**
+ * Public method implementation.
+ * @return
+ */
+STDMETHODIMP Appliance::Interpret()
+{
+    // @todo:
+    //  - don't use COM methods but the methods directly (faster, but needs appropriate locking of that objects itself (s. HardDisk))
+    //  - Appropriate handle errors like not supported file formats
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
+
+    AutoWriteLock(this);
+
+    HRESULT rc = S_OK;
+
+    /* Clear any previous virtual system descriptions */
+    m->virtualSystemDescriptions.clear();
+
+    /* We need the default path for storing disk images */
+    ComPtr<ISystemProperties> systemProps;
+    rc = mVirtualBox->COMGETTER(SystemProperties)(systemProps.asOutParam());
+    CheckComRCReturnRC(rc);
+    Bstr bstrDefaultHardDiskLocation;
+    rc = systemProps->COMGETTER(DefaultHardDiskFolder)(bstrDefaultHardDiskLocation.asOutParam());
+    CheckComRCReturnRC(rc);
+
+    if (!m->pReader)
+        return setError(E_FAIL,
+                        tr("Cannot interpret appliance without reading it first (call read() before interpret())"));
+
+    /* Try/catch so we can clean up on error */
+    try
+    {
+        list<VirtualSystem>::const_iterator it;
+        /* Iterate through all virtual systems */
+        for (it = m->pReader->m_llVirtualSystems.begin();
+             it != m->pReader->m_llVirtualSystems.end();
+             ++it)
+        {
+            const VirtualSystem &vsysThis = *it;
+
+            ComObjPtr<VirtualSystemDescription> pNewDesc;
+            rc = pNewDesc.createObject();
+            CheckComRCThrowRC(rc);
+            rc = pNewDesc->init();
+            CheckComRCThrowRC(rc);
+
+            /* Guest OS type */
+            Utf8Str strOsTypeVBox,
+                    strCIMOSType = Utf8StrFmt("%RI32", (uint32_t)vsysThis.cimos);
+            convertCIMOSType2VBoxOSType(strOsTypeVBox, vsysThis.cimos, vsysThis.strCimosDesc);
+            pNewDesc->addEntry(VirtualSystemDescriptionType_OS,
+                               "",
+                               strCIMOSType,
+                               strOsTypeVBox);
+
+            /* VM name */
+            /* If the there isn't any name specified create a default one out of
+             * the OS type */
+            Utf8Str nameVBox = vsysThis.strName;
+            if (nameVBox.isEmpty())
+                nameVBox = strOsTypeVBox;
+            searchUniqueVMName(nameVBox);
+            pNewDesc->addEntry(VirtualSystemDescriptionType_Name,
+                               "",
+                               vsysThis.strName,
+                               nameVBox);
+
+            /* VM Product */
+            if (!vsysThis.strProduct.isEmpty())
+                pNewDesc->addEntry(VirtualSystemDescriptionType_Product,
+                                    "",
+                                    vsysThis.strProduct,
+                                    vsysThis.strProduct);
+
+            /* VM Vendor */
+            if (!vsysThis.strVendor.isEmpty())
+                pNewDesc->addEntry(VirtualSystemDescriptionType_Vendor,
+                                    "",
+                                    vsysThis.strVendor,
+                                    vsysThis.strVendor);
+
+            /* VM Version */
+            if (!vsysThis.strVersion.isEmpty())
+                pNewDesc->addEntry(VirtualSystemDescriptionType_Version,
+                                    "",
+                                    vsysThis.strVersion,
+                                    vsysThis.strVersion);
+
+            /* VM ProductUrl */
+            if (!vsysThis.strProductUrl.isEmpty())
+                pNewDesc->addEntry(VirtualSystemDescriptionType_ProductUrl,
+                                    "",
+                                    vsysThis.strProductUrl,
+                                    vsysThis.strProductUrl);
+
+            /* VM VendorUrl */
+            if (!vsysThis.strVendorUrl.isEmpty())
+                pNewDesc->addEntry(VirtualSystemDescriptionType_VendorUrl,
+                                    "",
+                                    vsysThis.strVendorUrl,
+                                    vsysThis.strVendorUrl);
+
+            /* VM description */
+            if (!vsysThis.strDescription.isEmpty())
+                pNewDesc->addEntry(VirtualSystemDescriptionType_Description,
+                                    "",
+                                    vsysThis.strDescription,
+                                    vsysThis.strDescription);
+
+            /* VM license */
+            if (!vsysThis.strLicenseText.isEmpty())
+                pNewDesc->addEntry(VirtualSystemDescriptionType_License,
+                                    "",
+                                    vsysThis.strLicenseText,
+                                    vsysThis.strLicenseText);
+
+            /* Now that we know the OS type, get our internal defaults based on that. */
+            ComPtr<IGuestOSType> pGuestOSType;
+            rc = mVirtualBox->GetGuestOSType(Bstr(strOsTypeVBox), pGuestOSType.asOutParam());
+            CheckComRCThrowRC(rc);
+
+            /* CPU count */
+            ULONG cpuCountVBox = vsysThis.cCPUs;
+            /* Check for the constrains */
+            if (cpuCountVBox > SchemaDefs::MaxCPUCount)
+            {
+                addWarning(tr("The virtual system \"%s\" claims support for %u CPU's, but VirtualBox has support for max %u CPU's only."),
+                           vsysThis.strName.c_str(), cpuCountVBox, SchemaDefs::MaxCPUCount);
+                cpuCountVBox = SchemaDefs::MaxCPUCount;
+            }
+            if (vsysThis.cCPUs == 0)
+                cpuCountVBox = 1;
+            pNewDesc->addEntry(VirtualSystemDescriptionType_CPU,
+                               "",
+                               Utf8StrFmt("%RI32", (uint32_t)vsysThis.cCPUs),
+                               Utf8StrFmt("%RI32", (uint32_t)cpuCountVBox));
+
+            /* RAM */
+            uint64_t ullMemSizeVBox = vsysThis.ullMemorySize / _1M;
+            /* Check for the constrains */
+            if (ullMemSizeVBox != 0 &&
+                (ullMemSizeVBox < MM_RAM_MIN_IN_MB ||
+                 ullMemSizeVBox > MM_RAM_MAX_IN_MB))
+            {
+                addWarning(tr("The virtual system \"%s\" claims support for %llu MB RAM size, but VirtualBox has support for min %u & max %u MB RAM size only."),
+                              vsysThis.strName.c_str(), ullMemSizeVBox, MM_RAM_MIN_IN_MB, MM_RAM_MAX_IN_MB);
+                ullMemSizeVBox = RT_MIN(RT_MAX(ullMemSizeVBox, MM_RAM_MIN_IN_MB), MM_RAM_MAX_IN_MB);
+            }
+            if (vsysThis.ullMemorySize == 0)
+            {
+                /* If the RAM of the OVF is zero, use our predefined values */
+                ULONG memSizeVBox2;
+                rc = pGuestOSType->COMGETTER(RecommendedRAM)(&memSizeVBox2);
+                CheckComRCThrowRC(rc);
+                /* VBox stores that in MByte */
+                ullMemSizeVBox = (uint64_t)memSizeVBox2;
+            }
+            pNewDesc->addEntry(VirtualSystemDescriptionType_Memory,
+                               "",
+                               Utf8StrFmt("%RI64", (uint64_t)vsysThis.ullMemorySize),
+                               Utf8StrFmt("%RI64", (uint64_t)ullMemSizeVBox));
+
+            /* Audio */
+            if (!vsysThis.strSoundCardType.isEmpty())
+                /* Currently we set the AC97 always.
+                   @todo: figure out the hardware which could be possible */
+                pNewDesc->addEntry(VirtualSystemDescriptionType_SoundCard,
+                                   "",
+                                   vsysThis.strSoundCardType,
+                                   Utf8StrFmt("%RI32", (uint32_t)AudioControllerType_AC97));
+
+#ifdef VBOX_WITH_USB
+            /* USB Controller */
+            if (vsysThis.fHasUsbController)
+                pNewDesc->addEntry(VirtualSystemDescriptionType_USBController, "", "", "");
+#endif /* VBOX_WITH_USB */
+
+            /* Network Controller */
+            size_t cEthernetAdapters = vsysThis.llEthernetAdapters.size();
+            if (cEthernetAdapters > 0)
+            {
+                /* Check for the constrains */
+                if (cEthernetAdapters > SchemaDefs::NetworkAdapterCount)
+                    addWarning(tr("The virtual system \"%s\" claims support for %zu network adapters, but VirtualBox has support for max %u network adapter only."),
+                                  vsysThis.strName.c_str(), cEthernetAdapters, SchemaDefs::NetworkAdapterCount);
+
+                /* Get the default network adapter type for the selected guest OS */
+                NetworkAdapterType_T defaultAdapterVBox = NetworkAdapterType_Am79C970A;
+                rc = pGuestOSType->COMGETTER(AdapterType)(&defaultAdapterVBox);
+                CheckComRCThrowRC(rc);
+
+                EthernetAdaptersList::const_iterator itEA;
+                /* Iterate through all abstract networks. We support 8 network
+                 * adapters at the maximum, so the first 8 will be added only. */
+                size_t a = 0;
+                for (itEA = vsysThis.llEthernetAdapters.begin();
+                     itEA != vsysThis.llEthernetAdapters.end() && a < SchemaDefs::NetworkAdapterCount;
+                     ++itEA, ++a)
+                {
+                    const EthernetAdapter &ea = *itEA; // logical network to connect to
+                    Utf8Str strNetwork = ea.strNetworkName;
+                    // make sure it's one of these two
+                    if (    (strNetwork.compare("Null", Utf8Str::CaseInsensitive))
+                         && (strNetwork.compare("NAT", Utf8Str::CaseInsensitive))
+                         && (strNetwork.compare("Bridged", Utf8Str::CaseInsensitive))
+                         && (strNetwork.compare("Internal", Utf8Str::CaseInsensitive))
+                         && (strNetwork.compare("HostOnly", Utf8Str::CaseInsensitive))
+                       )
+                        strNetwork = "Bridged";     // VMware assumes this is the default apparently
+
+                    /* Figure out the hardware type */
+                    NetworkAdapterType_T nwAdapterVBox = defaultAdapterVBox;
+                    if (!ea.strAdapterType.compare("PCNet32", Utf8Str::CaseInsensitive))
+                    {
+                        /* If the default adapter is already one of the two
+                         * PCNet adapters use the default one. If not use the
+                         * Am79C970A as fallback. */
+                        if (!(defaultAdapterVBox == NetworkAdapterType_Am79C970A ||
+                              defaultAdapterVBox == NetworkAdapterType_Am79C973))
+                            nwAdapterVBox = NetworkAdapterType_Am79C970A;
+                    }
+#ifdef VBOX_WITH_E1000
+                    /* VMWare accidentally write this with VirtualCenter 3.5,
+                       so make sure in this case always to use the VMWare one */
+                    else if (!ea.strAdapterType.compare("E10000", Utf8Str::CaseInsensitive))
+                        nwAdapterVBox = NetworkAdapterType_I82545EM;
+                    else if (!ea.strAdapterType.compare("E1000", Utf8Str::CaseInsensitive))
+                    {
+                        /* Check if this OVF was written by VirtualBox */
+                        if (Utf8Str(vsysThis.strVirtualSystemType).contains("virtualbox", Utf8Str::CaseInsensitive))
+                        {
+                            /* If the default adapter is already one of the three
+                             * E1000 adapters use the default one. If not use the
+                             * I82545EM as fallback. */
+                            if (!(defaultAdapterVBox == NetworkAdapterType_I82540EM ||
+                                  defaultAdapterVBox == NetworkAdapterType_I82543GC ||
+                                  defaultAdapterVBox == NetworkAdapterType_I82545EM))
+                            nwAdapterVBox = NetworkAdapterType_I82540EM;
+                        }
+                        else
+                            /* Always use this one since it's what VMware uses */
+                            nwAdapterVBox = NetworkAdapterType_I82545EM;
+                    }
+#endif /* VBOX_WITH_E1000 */
+
+                    pNewDesc->addEntry(VirtualSystemDescriptionType_NetworkAdapter,
+                                       "",      // ref
+                                       ea.strNetworkName,      // orig
+                                       Utf8StrFmt("%RI32", (uint32_t)nwAdapterVBox),   // conf
+                                       0,
+                                       Utf8StrFmt("type=%s", strNetwork.c_str()));       // extra conf
+                }
+            }
+
+            /* Floppy Drive */
+            if (vsysThis.fHasFloppyDrive)
+                pNewDesc->addEntry(VirtualSystemDescriptionType_Floppy, "", "", "");
+
+            /* CD Drive */
+            if (vsysThis.fHasCdromDrive)
+                pNewDesc->addEntry(VirtualSystemDescriptionType_CDROM, "", "", "");
+
+            /* Hard disk Controller */
+            uint16_t cIDEused = 0;
+            uint16_t cSATAused = 0; NOREF(cSATAused);
+            uint16_t cSCSIused = 0; NOREF(cSCSIused);
+            ControllersMap::const_iterator hdcIt;
+            /* Iterate through all hard disk controllers */
+            for (hdcIt = vsysThis.mapControllers.begin();
+                 hdcIt != vsysThis.mapControllers.end();
+                 ++hdcIt)
+            {
+                const HardDiskController &hdc = hdcIt->second;
+                Utf8Str strControllerID = Utf8StrFmt("%RI32", (uint32_t)hdc.idController);
+
+                switch (hdc.system)
+                {
+                    case HardDiskController::IDE:
+                        {
+                            /* Check for the constrains */
+                            /* @todo: I'm very confused! Are these bits *one* controller or
+                               is every port/bus declared as an extra controller. */
+                            if (cIDEused < 4)
+                            {
+                                // @todo: figure out the IDE types
+                                /* Use PIIX4 as default */
+                                Utf8Str strType = "PIIX4";
+                                if (!hdc.strControllerType.compare("PIIX3", Utf8Str::CaseInsensitive))
+                                    strType = "PIIX3";
+                                else if (!hdc.strControllerType.compare("ICH6", Utf8Str::CaseInsensitive))
+                                    strType = "ICH6";
+                                pNewDesc->addEntry(VirtualSystemDescriptionType_HardDiskControllerIDE,
+                                                   strControllerID,
+                                                   hdc.strControllerType,
+                                                   strType);
+                            }
+                            else
+                            {
+                                /* Warn only once */
+                                if (cIDEused == 1)
+                                    addWarning(tr("The virtual \"%s\" system requests support for more than one IDE controller, but VirtualBox has support for only one."),
+                                               vsysThis.strName.c_str());
+
+                            }
+                            ++cIDEused;
+                            break;
+                        }
+
+                    case HardDiskController::SATA:
+                        {
+#ifdef VBOX_WITH_AHCI
+                            /* Check for the constrains */
+                            if (cSATAused < 1)
+                            {
+                                // @todo: figure out the SATA types
+                                /* We only support a plain AHCI controller, so use them always */
+                                pNewDesc->addEntry(VirtualSystemDescriptionType_HardDiskControllerSATA,
+                                                   strControllerID,
+                                                   hdc.strControllerType,
+                                                   "AHCI");
+                            }
+                            else
+                            {
+                                /* Warn only once */
+                                if (cSATAused == 1)
+                                    addWarning(tr("The virtual system \"%s\" requests support for more than one SATA controller, but VirtualBox has support for only one"),
+                                               vsysThis.strName.c_str());
+
+                            }
+                            ++cSATAused;
+                            break;
+#else /* !VBOX_WITH_AHCI */
+                            addWarning(tr("The virtual system \"%s\" requests at least one SATA controller but this version of VirtualBox does not provide a SATA controller emulation"),
+                                      vsysThis.strName.c_str());
+#endif /* !VBOX_WITH_AHCI */
+                        }
+
+                    case HardDiskController::SCSI:
+                        {
+#ifdef VBOX_WITH_LSILOGIC
+                            /* Check for the constrains */
+                            if (cSCSIused < 1)
+                            {
+                                Utf8Str hdcController = "LsiLogic";
+                                if (!hdc.strControllerType.compare("BusLogic", Utf8Str::CaseInsensitive))
+                                    hdcController = "BusLogic";
+                                pNewDesc->addEntry(VirtualSystemDescriptionType_HardDiskControllerSCSI,
+                                                   strControllerID,
+                                                   hdc.strControllerType,
+                                                   hdcController);
+                            }
+                            else
+                                addWarning(tr("The virtual system \"%s\" requests support for an additional SCSI controller of type \"%s\" with ID %s, but VirtualBox presently supports only one SCSI controller."),
+                                           vsysThis.strName.c_str(),
+                                           hdc.strControllerType.c_str(),
+                                           strControllerID.c_str());
+                            ++cSCSIused;
+                            break;
+#else /* !VBOX_WITH_LSILOGIC */
+                            addWarning(tr("The virtual system \"%s\" requests at least one SATA controller but this version of VirtualBox does not provide a SCSI controller emulation"),
+                                       vsysThis.strName.c_str());
+#endif /* !VBOX_WITH_LSILOGIC */
+                        }
+                }
+            }
+
+            /* Hard disks */
+            if (vsysThis.mapVirtualDisks.size() > 0)
+            {
+                VirtualDisksMap::const_iterator itVD;
+                /* Iterate through all hard disks ()*/
+                for (itVD = vsysThis.mapVirtualDisks.begin();
+                     itVD != vsysThis.mapVirtualDisks.end();
+                     ++itVD)
+                {
+                    const VirtualDisk &hd = itVD->second;
+                    /* Get the associated disk image */
+                    const DiskImage &di = m->pReader->m_mapDisks[hd.strDiskId];
+
+                    // @todo:
+                    //  - figure out all possible vmdk formats we also support
+                    //  - figure out if there is a url specifier for vhd already
+                    //  - we need a url specifier for the vdi format
+                    if (   di.strFormat.compare("http://www.vmware.com/specifications/vmdk.html#sparse", Utf8Str::CaseInsensitive)
+                        || di.strFormat.compare("http://www.vmware.com/specifications/vmdk.html#compressed", Utf8Str::CaseInsensitive))
+                    {
+                        /* If the href is empty use the VM name as filename */
+                        Utf8Str strFilename = di.strHref;
+                        if (!strFilename.length())
+                            strFilename = Utf8StrFmt("%s.vmdk", nameVBox.c_str());
+                        /* Construct a unique target path */
+                        Utf8StrFmt strPath("%ls%c%s",
+                                           bstrDefaultHardDiskLocation.raw(),
+                                           RTPATH_DELIMITER,
+                                           strFilename.c_str());
+                        searchUniqueDiskImageFilePath(strPath);
+
+                        /* find the description for the hard disk controller
+                         * that has the same ID as hd.idController */
+                        const VirtualSystemDescriptionEntry *pController;
+                        if (!(pController = pNewDesc->findControllerFromID(hd.idController)))
+                            throw setError(E_FAIL,
+                                           tr("Cannot find hard disk controller with OVF instance ID %RI32 to which disk \"%s\" should be attached"),
+                                           hd.idController,
+                                           di.strHref.c_str());
+
+                        /* controller to attach to, and the bus within that controller */
+                        Utf8StrFmt strExtraConfig("controller=%RI16;channel=%RI16",
+                                                  pController->ulIndex,
+                                                  hd.ulAddressOnParent);
+                        ULONG ulSize = 0;
+                        if (di.iCapacity != -1)
+                            ulSize = (ULONG)(di.iCapacity / _1M);
+                        else if (di.iPopulatedSize != -1)
+                            ulSize = (ULONG)(di.iPopulatedSize / _1M);
+                        else if (di.iSize != -1)
+                            ulSize = (ULONG)(di.iSize / _1M);
+                        if (ulSize == 0)
+                            ulSize = 10000;         // assume 10 GB, this is for the progress bar only anyway
+                        pNewDesc->addEntry(VirtualSystemDescriptionType_HardDiskImage,
+                                           hd.strDiskId,
+                                           di.strHref,
+                                           strPath,
+                                           ulSize,
+                                           strExtraConfig);
+                    }
+                    else
+                        throw setError(VBOX_E_FILE_ERROR,
+                                       tr("Unsupported format for virtual disk image in OVF: \"%s\"", di.strFormat.c_str()));
+                }
+            }
+
+            m->virtualSystemDescriptions.push_back(pNewDesc);
+        }
+    }
+    catch (HRESULT aRC)
+    {
+        /* On error we clear the list & return */
+        m->virtualSystemDescriptions.clear();
+        rc = aRC;
+    }
+
+    return rc;
+}
+
+/**
+ * Public method implementation.
+ * @param aProgress
+ * @return
+ */
+STDMETHODIMP Appliance::ImportMachines(IProgress **aProgress)
+{
+    CheckComArgOutPointerValid(aProgress);
+
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
+
+    AutoReadLock(this);
+
+    if (!m->pReader)
+        return setError(E_FAIL,
+                        tr("Cannot import machines without reading it first (call read() before importMachines())"));
+
+    ComObjPtr<Progress> progress;
+    HRESULT rc = S_OK;
+    try
+    {
+        rc = importImpl(m->locInfo, progress);
+    }
+    catch (HRESULT aRC)
+    {
+        rc = aRC;
+    }
+
+    if (SUCCEEDED(rc))
+        /* Return progress to the caller */
+        progress.queryInterfaceTo(aProgress);
+
+    return rc;
+}
+
+STDMETHODIMP Appliance::CreateVFSExplorer(IN_BSTR aURI, IVFSExplorer **aExplorer)
+{
+    CheckComArgOutPointerValid(aExplorer);
+
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
+
+    AutoReadLock(this);
+
+    ComObjPtr<VFSExplorer> explorer;
+    HRESULT rc = S_OK;
+    try
+    {
+        Utf8Str uri(aURI);
+        /* Check which kind of export the user has requested */
+        LocationInfo li;
+        parseURI(uri, li);
+        /* Create the explorer object */
+        explorer.createObject();
+        rc = explorer->init(li.storageType, li.strPath, li.strHostname, li.strUsername, li.strPassword, mVirtualBox);
+    }
+    catch (HRESULT aRC)
+    {
+        rc = aRC;
+    }
+
+    if (SUCCEEDED(rc))
+        /* Return explorer to the caller */
+        explorer.queryInterfaceTo(aExplorer);
+
+    return rc;
+}
+
+STDMETHODIMP Appliance::Write(IN_BSTR format, IN_BSTR path, IProgress **aProgress)
+{
+    if (!path) return E_POINTER;
+    CheckComArgOutPointerValid(aProgress);
+
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
+
+    AutoWriteLock(this);
+
+    // see if we can handle this file; for now we insist it has an ".ovf" extension
+    Utf8Str strPath = path;
+    if (!strPath.endsWith(".ovf", Utf8Str::CaseInsensitive))
+        return setError(VBOX_E_FILE_ERROR,
+                        tr("Appliance file must have .ovf extension"));
+
+    Utf8Str strFormat(format);
+    TaskExportOVF::OVFFormat ovfF;
+    if (strFormat == "ovf-0.9")
+        ovfF = TaskExportOVF::OVF_0_9;
+    else if (strFormat == "ovf-1.0")
+        ovfF = TaskExportOVF::OVF_1_0;
+    else
+        return setError(VBOX_E_FILE_ERROR,
+                        tr("Invalid format \"%s\" specified"), strFormat.c_str());
+
+    ComObjPtr<Progress> progress;
+    HRESULT rc = S_OK;
+    try
+    {
+        /* Parse all necessary info out of the URI */
+        parseURI(strPath, m->locInfo);
+        rc = writeImpl(ovfF, m->locInfo, progress);
+    }
+    catch (HRESULT aRC)
+    {
+        rc = aRC;
+    }
+
+    if (SUCCEEDED(rc))
+        /* Return progress to the caller */
+        progress.queryInterfaceTo(aProgress);
+
+    return rc;
 }
 
 /**
@@ -3834,240 +3986,6 @@ STDMETHODIMP Appliance::GetWarnings(ComSafeArrayOut(BSTR, aWarnings))
     return S_OK;
 }
 
-HRESULT Appliance::searchUniqueVMName(Utf8Str& aName) const
-{
-    IMachine *machine = NULL;
-    char *tmpName = RTStrDup(aName.c_str());
-    int i = 1;
-    /* @todo: Maybe too cost-intensive; try to find a lighter way */
-    while (mVirtualBox->FindMachine(Bstr(tmpName), &machine) != VBOX_E_OBJECT_NOT_FOUND)
-    {
-        RTStrFree(tmpName);
-        RTStrAPrintf(&tmpName, "%s_%d", aName.c_str(), i);
-        ++i;
-    }
-    aName = tmpName;
-    RTStrFree(tmpName);
-
-    return S_OK;
-}
-
-HRESULT Appliance::searchUniqueDiskImageFilePath(Utf8Str& aName) const
-{
-    IHardDisk *harddisk = NULL;
-    char *tmpName = RTStrDup(aName.c_str());
-    int i = 1;
-    /* Check if the file exists or if a file with this path is registered
-     * already */
-    /* @todo: Maybe too cost-intensive; try to find a lighter way */
-    while (RTPathExists(tmpName) ||
-           mVirtualBox->FindHardDisk(Bstr(tmpName), &harddisk) != VBOX_E_OBJECT_NOT_FOUND)
-    {
-        RTStrFree(tmpName);
-        char *tmpDir = RTStrDup(aName.c_str());
-        RTPathStripFilename(tmpDir);;
-        char *tmpFile = RTStrDup(RTPathFilename(aName.c_str()));
-        RTPathStripExt(tmpFile);
-        const char *tmpExt = RTPathExt(aName.c_str());
-        RTStrAPrintf(&tmpName, "%s%c%s_%d%s", tmpDir, RTPATH_DELIMITER, tmpFile, i, tmpExt);
-        RTStrFree(tmpFile);
-        RTStrFree(tmpDir);
-        ++i;
-    }
-    aName = tmpName;
-    RTStrFree(tmpName);
-
-    return S_OK;
-}
-
-/**
- * Sets up the given progress object so that it represents disk images accurately
- * during importMachines() and write().
- * @param pProgress
- * @param bstrDescription
- * @return
- */
-HRESULT Appliance::setUpProgress(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription)
-{
-    HRESULT rc;
-
-    /* Create the progress object */
-    pProgress.createObject();
-
-    // weigh the disk images according to their sizes
-    uint32_t ulTotalMB = 0;
-    uint32_t cDisks = 0;
-    list< ComObjPtr<VirtualSystemDescription> >::const_iterator it;
-    for (it = m->virtualSystemDescriptions.begin();
-         it != m->virtualSystemDescriptions.end();
-         ++it)
-    {
-        ComObjPtr<VirtualSystemDescription> vsdescThis = (*it);
-        /* One for every hard disk of the Virtual System */
-        std::list<VirtualSystemDescriptionEntry*> avsdeHDs = vsdescThis->findByType(VirtualSystemDescriptionType_HardDiskImage);
-        std::list<VirtualSystemDescriptionEntry*>::const_iterator itH;
-        for (itH = avsdeHDs.begin();
-             itH != avsdeHDs.end();
-             ++itH)
-        {
-            const VirtualSystemDescriptionEntry *pHD = *itH;
-            ulTotalMB += pHD->ulSizeMB;
-            ++cDisks;
-        }
-    }
-
-    ULONG cOperations = 1 + cDisks;     // one op per disk plus 1 for the XML
-
-    ULONG ulTotalOperationsWeight;
-    if (ulTotalMB)
-    {
-        m->ulWeightPerOperation = (ULONG)((double)ulTotalMB * 1  / 100);    // use 1% of the progress for the XML
-        ulTotalOperationsWeight = ulTotalMB + m->ulWeightPerOperation;
-    }
-    else
-    {
-        // no disks to export:
-        ulTotalOperationsWeight = 1;
-        m->ulWeightPerOperation = 1;
-    }
-
-    Log(("Setting up progress object: ulTotalMB = %d, cDisks = %d, => cOperations = %d, ulTotalOperationsWeight = %d, m->ulWeightPerOperation = %d\n",
-         ulTotalMB, cDisks, cOperations, ulTotalOperationsWeight, m->ulWeightPerOperation));
-
-    rc = pProgress->init(mVirtualBox, static_cast<IAppliance*>(this),
-                         bstrDescription,
-                         TRUE /* aCancelable */,
-                         cOperations, // ULONG cOperations,
-                         ulTotalOperationsWeight, // ULONG ulTotalOperationsWeight,
-                         bstrDescription, // CBSTR bstrFirstOperationDescription,
-                         m->ulWeightPerOperation); // ULONG ulFirstOperationWeight,
-    return rc;
-}
-
-HRESULT Appliance::setUpProgressUpload(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription)
-{
-    HRESULT rc;
-
-    /* Create the progress object */
-    pProgress.createObject();
-
-    // weigh the disk images according to their sizes
-    uint32_t ulTotalMB = 0;
-    uint32_t cDisks = 0;
-    list< ComObjPtr<VirtualSystemDescription> >::const_iterator it;
-    for (it = m->virtualSystemDescriptions.begin();
-         it != m->virtualSystemDescriptions.end();
-         ++it)
-    {
-        ComObjPtr<VirtualSystemDescription> vsdescThis = (*it);
-        /* One for every hard disk of the Virtual System */
-        std::list<VirtualSystemDescriptionEntry*> avsdeHDs = vsdescThis->findByType(VirtualSystemDescriptionType_HardDiskImage);
-        std::list<VirtualSystemDescriptionEntry*>::const_iterator itH;
-        for (itH = avsdeHDs.begin();
-             itH != avsdeHDs.end();
-             ++itH)
-        {
-            const VirtualSystemDescriptionEntry *pHD = *itH;
-            ulTotalMB += pHD->ulSizeMB;
-            ++cDisks;
-        }
-    }
-
-    ULONG cOperations = 1 + 1 + cDisks;     // one op per disk plus 1 for the OVF & 1 plus to the temporary creation */
-
-    ULONG ulTotalOperationsWeight;
-    if (ulTotalMB)
-    {
-        m->ulWeightPerOperation = (ULONG)((double)ulTotalMB * 1  / 100);    // use 1% of the progress for OVF file upload (we didn't know the size at this point)
-        ulTotalOperationsWeight = ulTotalMB + m->ulWeightPerOperation;
-    }
-    else
-    {
-        // no disks to export:
-        ulTotalOperationsWeight = 1;
-        m->ulWeightPerOperation = 1;
-    }
-    ULONG ulOVFCreationWeight = (ULONG)((double)ulTotalOperationsWeight * 50.0 / 100.0); /* Use 50% for the creation of the OVF & the disks */
-    ulTotalOperationsWeight += ulOVFCreationWeight;
-
-    Log(("Setting up progress object: ulTotalMB = %d, cDisks = %d, => cOperations = %d, ulTotalOperationsWeight = %d, m->ulWeightPerOperation = %d\n",
-         ulTotalMB, cDisks, cOperations, ulTotalOperationsWeight, m->ulWeightPerOperation));
-
-    rc = pProgress->init(mVirtualBox, static_cast<IAppliance*>(this),
-                         bstrDescription,
-                         TRUE /* aCancelable */,
-                         cOperations, // ULONG cOperations,
-                         ulTotalOperationsWeight, // ULONG ulTotalOperationsWeight,
-                         bstrDescription, // CBSTR bstrFirstOperationDescription,
-                         ulOVFCreationWeight); // ULONG ulFirstOperationWeight,
-    return rc;
-}
-
-/**
- * Called from the import and export background threads to synchronize the second
- * background disk thread's progress object with the current progress object so
- * that the user interface sees progress correctly and that cancel signals are
- * passed on to the second thread.
- * @param pProgressThis Progress object of the current thread.
- * @param pProgressAsync Progress object of asynchronous task running in background.
- */
-void Appliance::waitForAsyncProgress(ComObjPtr<Progress> &pProgressThis,
-                                     ComPtr<IProgress> &pProgressAsync)
-{
-    HRESULT rc;
-
-    // now loop until the asynchronous operation completes and then report its result
-    BOOL fCompleted;
-    BOOL fCanceled;
-    ULONG currentPercent;
-    while (SUCCEEDED(pProgressAsync->COMGETTER(Completed(&fCompleted))))
-    {
-        rc = pProgressThis->COMGETTER(Canceled)(&fCanceled);
-        if (FAILED(rc)) throw rc;
-        if (fCanceled)
-        {
-            pProgressAsync->Cancel();
-            break;
-        }
-
-        rc = pProgressAsync->COMGETTER(Percent(&currentPercent));
-        if (FAILED(rc)) throw rc;
-        if (!pProgressThis.isNull())
-            pProgressThis->setCurrentOperationProgress(currentPercent);
-        if (fCompleted)
-            break;
-
-        /* Make sure the loop is not too tight */
-        rc = pProgressAsync->WaitForCompletion(100);
-        if (FAILED(rc)) throw rc;
-    }
-    // report result of asynchronous operation
-    LONG iRc;
-    rc = pProgressAsync->COMGETTER(ResultCode)(&iRc);
-    if (FAILED(rc)) throw rc;
-
-
-    // if the thread of the progress object has an error, then
-    // retrieve the error info from there, or it'll be lost
-    if (FAILED(iRc))
-    {
-        ProgressErrorInfo info(pProgressAsync);
-        Utf8Str str(info.getText());
-        const char *pcsz = str.c_str();
-        HRESULT rc2 = setError(iRc, pcsz);
-        throw rc2;
-    }
-}
-
-void Appliance::addWarning(const char* aWarning, ...)
-{
-    va_list args;
-    va_start(args, aWarning);
-    Utf8StrFmtVA str(aWarning, args);
-    va_end(args);
-    m->llWarnings.push_back(str);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 // IVirtualSystemDescription constructor / destructor
@@ -4075,7 +3993,6 @@ void Appliance::addWarning(const char* aWarning, ...)
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_EMPTY_CTOR_DTOR(VirtualSystemDescription)
-struct shutup3 {};
 
 /**
  * COM initializer.
@@ -4476,19 +4393,17 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
     AutoCaller autoCaller(this);
     CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock(this);
+    AutoReadLock alock1(this);
 
     ComObjPtr<VirtualSystemDescription> pNewDesc;
 
     try
     {
-        Bstr bstrName;
+        Bstr bstrName1;
         Bstr bstrDescription;
         Bstr bstrGuestOSType;
         uint32_t cCPUs;
         uint32_t ulMemSizeMB;
-        BOOL fDVDEnabled;
-        BOOL fFloppyEnabled;
         BOOL fUSBEnabled;
         BOOL fAudioEnabled;
         AudioControllerType_T audioController;
@@ -4497,7 +4412,7 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
         ComPtr<IAudioAdapter> pAudioAdapter;
 
         // get name
-        bstrName = mUserData->mName;
+        bstrName1 = mUserData->mName;
         // get description
         bstrDescription = mUserData->mDescription;
         // get guest OS
@@ -4515,14 +4430,6 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
         // PAEEnabled?
         // snapshotFolder?
         // VRDPServer?
-
-        // floppy
-        rc = mFloppyDrive->COMGETTER(Enabled)(&fFloppyEnabled);
-        if (FAILED(rc)) throw rc;
-
-        // CD-ROM ?!?
-        // ComPtr<IDVDDrive> pDVDDrive;
-        fDVDEnabled = 1;
 
         // this is more tricky so use the COM method
         rc = COMGETTER(USBController)(pUsbController.asOutParam());
@@ -4552,7 +4459,7 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
                            strOsTypeVBox);
 
         /* VM name */
-        Utf8Str strVMName(bstrName);
+        Utf8Str strVMName(bstrName1);
         pNewDesc->addEntry(VirtualSystemDescriptionType_Name,
                            "",
                            strVMName,
@@ -4573,7 +4480,7 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
                            strCpuCount);
 
         /* Memory */
-        Utf8Str strMemory = Utf8StrFmt("%RI32", (uint64_t)ulMemSizeMB * _1M);
+        Utf8Str strMemory = Utf8StrFmt("%RI64", (uint64_t)ulMemSizeMB * _1M);
         pNewDesc->addEntry(VirtualSystemDescriptionType_Memory,
                            "",
                            strMemory,
@@ -4585,7 +4492,7 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
 
 //     <const name="HardDiskControllerIDE" value="6" />
         ComPtr<IStorageController> pController;
-        rc = GetStorageControllerByName(Bstr("IDE"), pController.asOutParam());
+        rc = GetStorageControllerByName(Bstr("IDE Controller"), pController.asOutParam());
         if (FAILED(rc)) throw rc;
         Utf8Str strVbox;
         StorageControllerType_T ctlr;
@@ -4609,7 +4516,7 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
 
 #ifdef VBOX_WITH_AHCI
 //     <const name="HardDiskControllerSATA" value="7" />
-        rc = GetStorageControllerByName(Bstr("SATA"), pController.asOutParam());
+        rc = GetStorageControllerByName(Bstr("SATA Controller"), pController.asOutParam());
         if (SUCCEEDED(rc))
         {
             strVbox = "AHCI";
@@ -4623,7 +4530,7 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
 
 #ifdef VBOX_WITH_LSILOGIC
 //     <const name="HardDiskControllerSCSI" value="8" />
-        rc = GetStorageControllerByName(Bstr("SCSI"), pController.asOutParam());
+        rc = GetStorageControllerByName(Bstr("SCSI Controller"), pController.asOutParam());
         if (SUCCEEDED(rc))
         {
             rc = pController->COMGETTER(ControllerType)(&ctlr);
@@ -4647,15 +4554,18 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
 #endif // VBOX_WITH_LSILOGIC
 
 //     <const name="HardDiskImage" value="9" />
-        HDData::AttachmentList::iterator itA;
-        for (itA = mHDData->mAttachments.begin();
-             itA != mHDData->mAttachments.end();
+//     <const name="Floppy" value="18" />
+//     <const name="CDROM" value="19" />
+
+        MediaData::AttachmentList::iterator itA;
+        for (itA = mMediaData->mAttachments.begin();
+             itA != mMediaData->mAttachments.end();
              ++itA)
         {
-            ComObjPtr<HardDiskAttachment> pHDA = *itA;
+            ComObjPtr<MediumAttachment> pHDA = *itA;
 
             // the attachment's data
-            ComPtr<IHardDisk> pHardDisk;
+            ComPtr<IMedium> pMedium;
             ComPtr<IStorageController> ctl;
             Bstr controllerName;
 
@@ -4666,13 +4576,17 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
             if (FAILED(rc)) throw rc;
 
             StorageBus_T storageBus;
+            DeviceType_T deviceType;
             LONG lChannel;
             LONG lDevice;
 
             rc = ctl->COMGETTER(Bus)(&storageBus);
             if (FAILED(rc)) throw rc;
 
-            rc = pHDA->COMGETTER(HardDisk)(pHardDisk.asOutParam());
+            rc = pHDA->COMGETTER(Type)(&deviceType);
+            if (FAILED(rc)) throw rc;
+
+            rc = pHDA->COMGETTER(Medium)(pMedium.asOutParam());
             if (FAILED(rc)) throw rc;
 
             rc = pHDA->COMGETTER(Port)(&lChannel);
@@ -4681,21 +4595,44 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
             rc = pHDA->COMGETTER(Device)(&lDevice);
             if (FAILED(rc)) throw rc;
 
-            Bstr bstrLocation;
-            rc = pHardDisk->COMGETTER(Location)(bstrLocation.asOutParam());
-            if (FAILED(rc)) throw rc;
-            Bstr bstrName;
-            rc = pHardDisk->COMGETTER(Name)(bstrName.asOutParam());
-            if (FAILED(rc)) throw rc;
+            Utf8Str strTargetVmdkName;
+            Utf8Str strLocation;
+            ULONG64 ullSize = 0;
 
-            // force reading state, or else size will be returned as 0
-            MediaState_T ms;
-            rc = pHardDisk->COMGETTER(State)(&ms);
-            if (FAILED(rc)) throw rc;
+            if (    deviceType == DeviceType_HardDisk
+                 && pMedium
+               )
+            {
+                Bstr bstrLocation;
+                rc = pMedium->COMGETTER(Location)(bstrLocation.asOutParam());
+                if (FAILED(rc)) throw rc;
+                strLocation = bstrLocation;
 
-            ULONG64 ullSize;
-            rc = pHardDisk->COMGETTER(Size)(&ullSize);
-            if (FAILED(rc)) throw rc;
+                Bstr bstrName;
+                rc = pMedium->COMGETTER(Name)(bstrName.asOutParam());
+                if (FAILED(rc)) throw rc;
+
+                strTargetVmdkName = bstrName;
+                strTargetVmdkName.stripExt();
+                strTargetVmdkName.append(".vmdk");
+
+                // we need the size of the image so we can give it to addEntry();
+                // later, on export, the progress weight will be based on this.
+                // pMedium can be a differencing image though; in that case, we
+                // need to use the size of the base instead.
+                ComPtr<IMedium> pBaseMedium;
+                rc = pMedium->COMGETTER(Base)(pBaseMedium.asOutParam());
+                        // returns pMedium if there are no diff images
+                if (FAILED(rc)) throw rc;
+
+                // force reading state, or else size will be returned as 0
+                MediumState_T ms;
+                rc = pBaseMedium->RefreshState(&ms);
+                if (FAILED(rc)) throw rc;
+
+                rc = pBaseMedium->COMGETTER(Size)(&ullSize);
+                if (FAILED(rc)) throw rc;
+            }
 
             // and how this translates to the virtual system
             int32_t lControllerVsys = 0;
@@ -4711,11 +4648,13 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
                         lChannelVsys = 0;
                     else if (lChannel == 0 && lDevice == 1) // primary slave
                         lChannelVsys = 1;
-                    else if (lChannel == 1 && lDevice == 1) // secondary slave; secondary master is always CDROM
+                    else if (lChannel == 1 && lDevice == 0) // secondary master; by default this is the CD-ROM but as of VirtualBox 3.1 that can change
                         lChannelVsys = 2;
+                    else if (lChannel == 1 && lDevice == 1) // secondary slave
+                        lChannelVsys = 3;
                     else
                         throw setError(VBOX_E_NOT_SUPPORTED,
-                                       tr("Cannot handle hard disk attachment: channel is %d, device is %d"), lChannel, lDevice);
+                                    tr("Cannot handle medium attachment: channel is %d, device is %d"), lChannel, lDevice);
 
                     lControllerVsys = lIDEControllerIndex;
                 break;
@@ -4730,31 +4669,51 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
                     lControllerVsys = lSCSIControllerIndex;
                 break;
 
+                case StorageBus_Floppy:
+                    lChannelVsys = 0;
+                    lControllerVsys = 0;
+                break;
+
                 default:
                     throw setError(VBOX_E_NOT_SUPPORTED,
-                                   tr("Cannot handle hard disk attachment: storageBus is %d, channel is %d, device is %d"), storageBus, lChannel, lDevice);
+                                tr("Cannot handle medium attachment: storageBus is %d, channel is %d, device is %d"), storageBus, lChannel, lDevice);
                 break;
             }
 
-            Utf8Str strTargetVmdkName(bstrName);
-            RTPathStripExt(strTargetVmdkName.mutableRaw());
-            strTargetVmdkName.append(".vmdk");
+            Utf8StrFmt strExtra("controller=%RI32;channel=%RI32", lControllerVsys, lChannelVsys);
+            Utf8Str strEmpty;
 
-            pNewDesc->addEntry(VirtualSystemDescriptionType_HardDiskImage,
-                               strTargetVmdkName,   // disk ID: let's use the name
-                               strTargetVmdkName,   // OVF value:
-                               Utf8Str(bstrLocation), // vbox value: media path
-                               (uint32_t)(ullSize / _1M),
-                               Utf8StrFmt("controller=%RI32;channel=%RI32", lControllerVsys, lChannelVsys));
+            switch (deviceType)
+            {
+                case DeviceType_HardDisk:
+                    Log(("Adding VirtualSystemDescriptionType_HardDiskImage, disk size: %RI64\n", ullSize));
+                    pNewDesc->addEntry(VirtualSystemDescriptionType_HardDiskImage,
+                                       strTargetVmdkName,   // disk ID: let's use the name
+                                       strTargetVmdkName,   // OVF value:
+                                       strLocation, // vbox value: media path
+                                       (uint32_t)(ullSize / _1M),
+                                       strExtra);
+                break;
+
+                case DeviceType_DVD:
+                    pNewDesc->addEntry(VirtualSystemDescriptionType_CDROM,
+                                       strEmpty,   // disk ID
+                                       strEmpty,   // OVF value
+                                       strEmpty, // vbox value
+                                       1,           // ulSize
+                                       strExtra);
+                break;
+
+                case DeviceType_Floppy:
+                    pNewDesc->addEntry(VirtualSystemDescriptionType_Floppy,
+                                       strEmpty,      // disk ID
+                                       strEmpty,      // OVF value
+                                       strEmpty,      // vbox value
+                                       1,       // ulSize
+                                       strExtra);
+                break;
+            }
         }
-
-        /* Floppy Drive */
-        if (fFloppyEnabled)
-            pNewDesc->addEntry(VirtualSystemDescriptionType_Floppy, "", "", "");
-
-        /* CD Drive */
-        if (fDVDEnabled)
-            pNewDesc->addEntry(VirtualSystemDescriptionType_CDROM, "", "", "");
 
 //     <const name="NetworkAdapter" />
         size_t a;

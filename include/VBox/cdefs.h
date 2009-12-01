@@ -178,7 +178,12 @@
 #endif
 
 /** @def IN_SUP_R0
- * Used to indicate whether we're inside the same link module as the Ring 0 Support Library or not.
+ * Used to indicate whether we're inside the same link module as the Ring 0
+ * Support Library or not.
+ */
+/** @def IN_SUP_STATIC
+ * Used to indicate that the Support Library is built or used as a static
+ * library.
  */
 /** @def SUPR0DECL(type)
  * Support library export or import declaration.
@@ -243,6 +248,10 @@
 
 
 
+/** @def IN_VMM_STATIC
+ * Used to indicate that the virtual machine monitor is built or used as a
+ * static library.
+ */
 /** @def IN_VMM_R3
  * Used to indicate whether we're inside the same link module as the ring 3 part of the
  * virtual machine monitor or not.
@@ -252,9 +261,19 @@
  * @param   type    The return type of the function declaration.
  */
 #ifdef IN_VMM_R3
-# define VMMR3DECL(type)    DECLEXPORT(type) VBOXCALL
+# ifdef IN_VMM_STATIC
+#  define VMMR3DECL(type)           DECLHIDDEN(type) VBOXCALL
+# else
+#  define VMMR3DECL(type)           DECLEXPORT(type) VBOXCALL
+# endif
+#elif defined(IN_RING3)
+# ifdef IN_VMM_STATIC
+#  define VMMR3DECL(type)           DECLHIDDEN(type) VBOXCALL
+# else
+#  define VMMR3DECL(type)           DECLIMPORT(type) VBOXCALL
+# endif
 #else
-# define VMMR3DECL(type)    DECLIMPORT(type) VBOXCALL
+# define VMMR3DECL(type)            DECL_INVALID(type)
 #endif
 
 /** @def IN_VMM_R0
@@ -266,9 +285,11 @@
  * @param   type    The return type of the function declaration.
  */
 #ifdef IN_VMM_R0
-# define VMMR0DECL(type)    DECLEXPORT(type) VBOXCALL
+# define VMMR0DECL(type)            DECLEXPORT(type) VBOXCALL
+#elif defined(IN_RING0)
+# define VMMR0DECL(type)            DECLIMPORT(type) VBOXCALL
 #else
-# define VMMR0DECL(type)    DECLIMPORT(type) VBOXCALL
+# define VMMR0DECL(type)            DECL_INVALID(type)
 #endif
 
 /** @def IN_VMM_RC
@@ -280,9 +301,11 @@
  * @param   type    The return type of the function declaration.
  */
 #ifdef IN_VMM_RC
-# define VMMRCDECL(type)    DECLEXPORT(type) VBOXCALL
+# define VMMRCDECL(type)            DECLEXPORT(type) VBOXCALL
+#elif defined(IN_RC)
+# define VMMRCDECL(type)            DECLIMPORT(type) VBOXCALL
 #else
-# define VMMRCDECL(type)    DECLIMPORT(type) VBOXCALL
+# define VMMRCDECL(type)            DECL_INVALID(type)
 #endif
 
 /** @def VMMRZDECL
@@ -290,19 +313,73 @@
  * @param   type    The return type of the function declaration.
  */
 #if defined(IN_VMM_R0) || defined(IN_VMM_RC)
-# define VMMRZDECL(type)    DECLEXPORT(type) VBOXCALL
+# define VMMRZDECL(type)            DECLEXPORT(type) VBOXCALL
+#elif defined(IN_RING0) || defined(IN_RZ)
+# define VMMRZDECL(type)            DECLIMPORT(type) VBOXCALL
 #else
-# define VMMRZDECL(type)    DECLIMPORT(type) VBOXCALL
+# define VMMRZDECL(type)            DECL_INVALID(type)
 #endif
 
 /** @def VMMDECL
  * VMM export or import declaration.
  * @param   type    The return type of the function declaration.
  */
-#if defined(IN_VMM_R3) || defined(IN_VMM_R0) || defined(IN_VMM_RC)
-# define VMMDECL(type)      DECLEXPORT(type) VBOXCALL
+#ifdef IN_VMM_STATIC
+# define VMMDECL(type)              DECLHIDDEN(type) VBOXCALL
+#elif defined(IN_VMM_R3) || defined(IN_VMM_R0) || defined(IN_VMM_RC)
+# define VMMDECL(type)              DECLEXPORT(type) VBOXCALL
 #else
-# define VMMDECL(type)      DECLIMPORT(type) VBOXCALL
+# define VMMDECL(type)              DECLIMPORT(type) VBOXCALL
+#endif
+
+/** @def VMM_INT_DECL
+ * VMM internal function.
+ * @param   type    The return type of the function declaration.
+ */
+#if defined(IN_VMM_R3) || defined(IN_VMM_R0) || defined(IN_VMM_RC)
+# define VMM_INT_DECL(type)         DECLHIDDEN(type) VBOXCALL
+#else
+# define VMM_INT_DECL(type)         DECL_INVALID(type)
+#endif
+
+/** @def VMMR3_INT_DECL
+ * VMM internal function, ring-3.
+ * @param   type    The return type of the function declaration.
+ */
+#ifdef IN_VMM_R3
+# define VMMR3_INT_DECL(type)       DECLHIDDEN(type) VBOXCALL
+#else
+# define VMMR3_INT_DECL(type)       DECL_INVALID(type)
+#endif
+
+/** @def VMMR0_INT_DECL
+ * VMM internal function, ring-0.
+ * @param   type    The return type of the function declaration.
+ */
+#ifdef IN_VMM_R0
+# define VMMR0_INT_DECL(type)       DECLHIDDEN(type) VBOXCALL
+#else
+# define VMMR0_INT_DECL(type)       DECL_INVALID(type)
+#endif
+
+/** @def VMMRC_INT_DECL
+ * VMM internal function, raw-mode context.
+ * @param   type    The return type of the function declaration.
+ */
+#ifdef IN_VMM_RC
+# define VMMRC_INT_DECL(type)       DECLHIDDEN(type) VBOXCALL
+#else
+# define VMMRC_INT_DECL(type)       DECL_INVALID(type)
+#endif
+
+/** @def VMMRZ_INT_DECL
+ * VMM internal function, ring-0 + raw-mode context.
+ * @param   type    The return type of the function declaration.
+ */
+#ifdef IN_VMM_RZ
+# define VMMRZ_INT_DECL(type)       DECLHIDDEN(type) VBOXCALL
+#else
+# define VMMRZ_INT_DECL(type)       DECL_INVALID(type)
 #endif
 
 

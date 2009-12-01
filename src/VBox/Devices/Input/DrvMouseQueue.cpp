@@ -68,6 +68,7 @@ typedef struct DRVMOUSEQUEUEITEM
     int32_t             i32DeltaX;
     int32_t             i32DeltaY;
     int32_t             i32DeltaZ;
+    int32_t             i32DeltaW;
     uint32_t            fButtonStates;
 } DRVMOUSEQUEUEITEM, *PDRVMOUSEQUEUEITEM;
 
@@ -119,7 +120,7 @@ static DECLCALLBACK(void *)  drvMouseQueueQueryInterface(PPDMIBASE pInterface, P
  * @param   fButtonStates   The button states.
  * @thread  Any thread.
  */
-static DECLCALLBACK(int) drvMouseQueuePutEvent(PPDMIMOUSEPORT pInterface, int32_t i32DeltaX, int32_t i32DeltaY, int32_t i32DeltaZ, uint32_t fButtonStates)
+static DECLCALLBACK(int) drvMouseQueuePutEvent(PPDMIMOUSEPORT pInterface, int32_t i32DeltaX, int32_t i32DeltaY, int32_t i32DeltaZ, int32_t i32DeltaW, uint32_t fButtonStates)
 {
     PDRVMOUSEQUEUE pDrv = IMOUSEPORT_2_DRVMOUSEQUEUE(pInterface);
     if (pDrv->fInactive)
@@ -131,6 +132,7 @@ static DECLCALLBACK(int) drvMouseQueuePutEvent(PPDMIMOUSEPORT pInterface, int32_
         pItem->i32DeltaX = i32DeltaX;
         pItem->i32DeltaY = i32DeltaY;
         pItem->i32DeltaZ = i32DeltaZ;
+        pItem->i32DeltaW = i32DeltaW;
         pItem->fButtonStates = fButtonStates;
         PDMQueueInsert(pDrv->pQueue, &pItem->Core);
         return VINF_SUCCESS;
@@ -153,7 +155,7 @@ static DECLCALLBACK(bool) drvMouseQueueConsumer(PPDMDRVINS pDrvIns, PPDMQUEUEITE
 {
     PDRVMOUSEQUEUE        pThis = PDMINS_2_DATA(pDrvIns, PDRVMOUSEQUEUE);
     PDRVMOUSEQUEUEITEM    pItem = (PDRVMOUSEQUEUEITEM)pItemCore;
-    int rc = pThis->pUpPort->pfnPutEvent(pThis->pUpPort, pItem->i32DeltaX, pItem->i32DeltaY, pItem->i32DeltaZ, pItem->fButtonStates);
+    int rc = pThis->pUpPort->pfnPutEvent(pThis->pUpPort, pItem->i32DeltaX, pItem->i32DeltaY, pItem->i32DeltaZ, pItem->i32DeltaW, pItem->fButtonStates);
     return RT_SUCCESS(rc);
 }
 
@@ -225,16 +227,11 @@ static DECLCALLBACK(void) drvMouseQueuePowerOff(PPDMDRVINS pDrvIns)
 
 
 /**
- * Construct a mouse driver instance.
- *
- * @returns VBox status.
- * @param   pDrvIns     The driver instance data.
- *                      If the registration structure is needed, pDrvIns->pDrvReg points to it.
- * @param   pCfgHandle  Configuration node handle for the driver. Use this to obtain the configuration
- *                      of the driver instance. It's also found in pDrvIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * Construct a mouse driver instance. 
+ *  
+ * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvMouseQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) drvMouseQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
 {
     PDRVMOUSEQUEUE pDrv = PDMINS_2_DATA(pDrvIns, PDRVMOUSEQUEUE);
     LogFlow(("drvMouseQueueConstruct: iInstance=%d\n", pDrvIns->iInstance));
@@ -268,7 +265,7 @@ static DECLCALLBACK(int) drvMouseQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
      * Attach driver below and query it's connector interface.
      */
     PPDMIBASE pDownBase;
-    int rc = pDrvIns->pDrvHlp->pfnAttach(pDrvIns, &pDownBase);
+    int rc = PDMDrvHlpAttach(pDrvIns, fFlags, &pDownBase);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Failed to attach driver below us! rc=%Rra\n", rc));
@@ -304,7 +301,7 @@ static DECLCALLBACK(int) drvMouseQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
         return rc;
     }
 
-    rc = PDMDrvHlpPDMQueueCreate(pDrvIns, sizeof(DRVMOUSEQUEUEITEM), cItems, cMilliesInterval, drvMouseQueueConsumer, &pDrv->pQueue);
+    rc = PDMDrvHlpPDMQueueCreate(pDrvIns, sizeof(DRVMOUSEQUEUEITEM), cItems, cMilliesInterval, drvMouseQueueConsumer, "Mouse", &pDrv->pQueue);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Failed to create driver: cItems=%d cMilliesInterval=%d rc=%Rrc\n", cItems, cMilliesInterval, rc));
@@ -348,10 +345,15 @@ const PDMDRVREG g_DrvMouseQueue =
     drvMouseQueueSuspend,
     /* pfnResume */
     drvMouseQueueResume,
+    /* pfnAttach */
+    NULL,
     /* pfnDetach */
     NULL,
-    /** pfnPowerOff */
-    drvMouseQueuePowerOff
+    /* pfnPowerOff */
+    drvMouseQueuePowerOff,
+    /* pfnSoftReset */
+    NULL,
+    /* u32EndVersion */
+    PDM_DRVREG_VERSION
 };
-
 

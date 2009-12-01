@@ -1,4 +1,4 @@
-/* $Id: RTLogDefaultInit-generic.cpp $ */
+/* $Id: RTLogDefaultInit-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Default Log Init, Generic Dummy.
  */
@@ -28,11 +28,16 @@
  * additional information or have any questions.
  */
 
+
+/*******************************************************************************
+*   Header Files                                                               *
+*******************************************************************************/
 #include <iprt/log.h>
+
 
 RTDECL(PRTLOGGER) RTLogDefaultInit(void)
 {
     return NULL;
 }
-
+RT_EXPORT_SYMBOL(RTLogDefaultInit);
 

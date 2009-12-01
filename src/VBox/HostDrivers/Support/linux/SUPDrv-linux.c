@@ -1,4 +1,4 @@
-/* $Rev: 52819 $ */
+/* $Rev: 25090 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
@@ -43,7 +43,7 @@
 #include <iprt/semaphore.h>
 #include <iprt/initterm.h>
 #include <iprt/process.h>
-#include <iprt/err.h>
+#include <VBox/err.h>
 #include <iprt/mem.h>
 #include <VBox/log.h>
 #include <iprt/mp.h>
@@ -124,9 +124,6 @@ extern int nmi_active;
 # endif
 
 #endif /* CONFIG_X86_LOCAL_APIC */
-
-#define xstr(s) str(s)
-#define str(s) #s
 
 
 /*******************************************************************************
@@ -497,7 +494,7 @@ static int __init VBoxDrvLinuxInit(void)
                  * which hopefilly prevents any usage of hardware performance counters
                  * and therefore triggering of NMIs. */
                 printk(KERN_ERR DEVICE_NAME
-                       ": Warning: 2.6.31+ kernel detected. Most likely the hwardware performance\n"
+                       ": Warning: 2.6.31+ kernel detected. Most likely the hardware performance\n"
                                 DEVICE_NAME
                        ": counter framework which can generate NMIs is active. You have to prevent\n"
                                 DEVICE_NAME
@@ -616,7 +613,7 @@ no_error:
                                g_DevExt.pGip->u32Mode == SUPGIPMODE_SYNC_TSC ? "'synchronous'" : "'asynchronous'");
                         LogFlow(("VBoxDrv::ModuleInit returning %#x\n", rc));
                         printk(KERN_DEBUG DEVICE_NAME ": Successfully loaded version "
-                                VBOX_VERSION_STRING " (interface " xstr(SUPDRV_IOC_VERSION) ").\n");
+                                VBOX_VERSION_STRING " (interface " RT_XSTR(SUPDRV_IOC_VERSION) ").\n");
                         return rc;
                     }
 #ifdef VBOX_WITH_SUSPEND_NOTIFICATION
@@ -627,7 +624,7 @@ no_error:
             }
 
             rc = -EINVAL;
-            RTR0Term();
+            RTR0TermForced();
         }
         else
             rc = -EINVAL;
@@ -688,7 +685,7 @@ static void __exit VBoxDrvLinuxUnload(void)
      * Destroy GIP, delete the device extension and terminate IPRT.
      */
     supdrvDeleteDevExt(&g_DevExt);
-    RTR0Term();
+    RTR0TermForced();
 }
 
 
@@ -1064,7 +1061,7 @@ MODULE_AUTHOR("Sun Microsystems, Inc.");
 MODULE_DESCRIPTION("VirtualBox Support Driver");
 MODULE_LICENSE("GPL");
 #ifdef MODULE_VERSION
-MODULE_VERSION(VBOX_VERSION_STRING " (" xstr(SUPDRV_IOC_VERSION) ")");
+MODULE_VERSION(VBOX_VERSION_STRING " (" RT_XSTR(SUPDRV_IOC_VERSION) ")");
 #endif
 
 module_param(force_async_tsc, int, 0444);

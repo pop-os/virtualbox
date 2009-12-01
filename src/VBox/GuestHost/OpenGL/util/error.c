@@ -98,6 +98,11 @@ static void outputChromiumMessage( FILE *output, char *str )
             australia ? ", mate!" : ""
             );
     fflush( output );
+
+#if defined(DEBUG) && defined(WINDOWS)
+    OutputDebugString(str);
+    OutputDebugString("\n");
+#endif
 }
 
 #ifdef WINDOWS
@@ -175,6 +180,7 @@ DECLEXPORT(void) crError( char *format, ... )
     va_start( args, format );
     vsprintf( txt + offset, format, args );
 #if defined(IN_GUEST)
+    crDebug("%s", txt);
     outputChromiumMessage( stderr, txt );
 #else
     LogRel(("%s\n", txt));
@@ -227,11 +233,16 @@ DECLEXPORT(void) crWarning( char *format, ... )
         va_start( args, format );
         vsprintf( txt + offset, format, args );
 #if defined(IN_GUEST)
+        crDebug("%s", txt);
         outputChromiumMessage( stderr, txt );
 #else
         LogRel(("%s\n", txt));
 #endif
         va_end( args );
+
+#if defined(WINDOWS) && defined(DEBUG) && !defined(IN_GUEST)
+        DebugBreak();
+#endif
     }
 }
 
@@ -250,6 +261,7 @@ DECLEXPORT(void) crInfo( char *format, ... )
     va_start( args, format );
     vsprintf( txt + offset, format, args );
 #if defined(IN_GUEST)
+    crDebug("%s", txt);
     outputChromiumMessage( stderr, txt );
 #else
     LogRel(("%s\n", txt));
@@ -355,6 +367,9 @@ DECLEXPORT(void) crDebug( char *format, ... )
 #if defined(IN_GUEST)
     outputChromiumMessage( output, txt );
 #else
+# if defined(DEBUG) && defined(DEBUG_leo)
+    outputChromiumMessage( output, txt );
+# endif
     if (output==stderr)
     {
         LogRel(("%s\n", txt));

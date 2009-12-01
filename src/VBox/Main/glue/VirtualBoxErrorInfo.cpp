@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxErrorInfo.cpp $ */
+/* $Id: VirtualBoxErrorInfo.cpp 22173 2009-08-11 15:38:59Z vboxsync $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer:
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,9 +40,11 @@ namespace com
 /**
  * Initializes the error info object with the given error details.
  */
-HRESULT VirtualBoxErrorInfo::init (HRESULT aResultCode, const GUID *aIID,
-                                   const char *aComponent, const char *aText,
-                                   IVirtualBoxErrorInfo *aNext)
+HRESULT VirtualBoxErrorInfo::init(HRESULT aResultCode,
+                                  const GUID *aIID,
+                                  const char *aComponent,
+                                  const Utf8Str &strText,
+                                  IVirtualBoxErrorInfo *aNext)
 {
     mResultCode = aResultCode;
 
@@ -50,7 +52,7 @@ HRESULT VirtualBoxErrorInfo::init (HRESULT aResultCode, const GUID *aIID,
         mIID = *aIID;
 
     mComponent = aComponent;
-    mText = aText;
+    mText = strText;
     mNext = aNext;
 
     return S_OK;
@@ -68,12 +70,12 @@ STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(ResultCode) (LONG *aResultCode)
     return S_OK;
 }
 
-STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(InterfaceID) (OUT_GUID aIID)
+STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(InterfaceID) (BSTR *aIID)
 {
     if (!aIID)
         return E_POINTER;
 
-    mIID.cloneTo (aIID);
+    mIID.toUtf16().cloneTo(aIID);
     return S_OK;
 }
 
@@ -82,7 +84,7 @@ STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(Component) (BSTR *aComponent)
     if (!aComponent)
         return E_POINTER;
 
-    mComponent.cloneTo (aComponent);
+    mComponent.cloneTo(aComponent);
     return S_OK;
 }
 
@@ -91,7 +93,7 @@ STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(Text) (BSTR *aText)
     if (!aText)
         return E_POINTER;
 
-    mText.cloneTo (aText);
+    mText.cloneTo(aText);
     return S_OK;
 }
 
@@ -101,7 +103,7 @@ STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(Next) (IVirtualBoxErrorInfo **aNext)
         return E_POINTER;
 
     /* this will set aNext to NULL if mNext is null */
-    return mNext.queryInterfaceTo (aNext);
+    return mNext.queryInterfaceTo(aNext);
 }
 
 #if !defined (VBOX_WITH_XPCOM)
@@ -112,7 +114,7 @@ STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(Next) (IVirtualBoxErrorInfo **aNext)
  */
 HRESULT VirtualBoxErrorInfo::init (IErrorInfo *aInfo)
 {
-    AssertReturn (aInfo, E_FAIL);
+    AssertReturn(aInfo, E_FAIL);
 
     HRESULT rc = S_OK;
 
@@ -141,7 +143,11 @@ STDMETHODIMP VirtualBoxErrorInfo::GetDescription (BSTR *description)
 
 STDMETHODIMP VirtualBoxErrorInfo::GetGUID (GUID *guid)
 {
-    return COMGETTER(InterfaceID) (guid);
+    Bstr iid;
+    HRESULT rc = COMGETTER(InterfaceID) (iid.asOutParam());
+    if (SUCCEEDED(rc))
+        *guid = Guid(iid);
+    return rc;
 }
 
 STDMETHODIMP VirtualBoxErrorInfo::GetHelpContext (DWORD *pdwHelpContext)
@@ -167,7 +173,7 @@ STDMETHODIMP VirtualBoxErrorInfo::GetSource (BSTR *source)
  */
 HRESULT VirtualBoxErrorInfo::init (nsIException *aInfo)
 {
-    AssertReturn (aInfo, E_FAIL);
+    AssertReturn(aInfo, E_FAIL);
 
     HRESULT rc = S_OK;
 
@@ -178,7 +184,8 @@ HRESULT VirtualBoxErrorInfo::init (nsIException *aInfo)
     rc = aInfo->GetResult (&mResultCode);
     AssertComRC (rc);
     Utf8Str message;
-    rc = aInfo->GetMessage (message.asOutParam());
+    rc = aInfo->GetMessage(message.asOutParam());
+    message.jolt();
     AssertComRC (rc);
     mText = message;
 
@@ -194,7 +201,7 @@ NS_IMETHODIMP VirtualBoxErrorInfo::GetMessage (char **aMessage)
     if (!aMessage)
         return NS_ERROR_INVALID_POINTER;
 
-    Utf8Str (mText).cloneTo (aMessage);
+    Utf8Str (mText).cloneTo(aMessage);
     return S_OK;
 }
 
@@ -244,10 +251,10 @@ NS_IMETHODIMP VirtualBoxErrorInfo::GetLocation (nsIStackFrame **aLocation)
 /* readonly attribute nsIException inner; */
 NS_IMETHODIMP VirtualBoxErrorInfo::GetInner (nsIException **aInner)
 {
-    ComPtr <IVirtualBoxErrorInfo> info;
+    ComPtr<IVirtualBoxErrorInfo> info;
     nsresult rv = COMGETTER(Next) (info.asOutParam());
-    CheckComRCReturnRC (rv);
-    return info.queryInterfaceTo (aInner);
+    CheckComRCReturnRC(rv);
+    return info.queryInterfaceTo(aInner);
 }
 
 /* readonly attribute nsISupports data; */
@@ -283,21 +290,21 @@ NS_IMPL_THREADSAFE_ISUPPORTS2 (VirtualBoxErrorInfo,
 HRESULT VirtualBoxErrorInfoGlue::init (IVirtualBoxErrorInfo *aHead,
                                        IVirtualBoxErrorInfo *aTail)
 {
-    AssertReturn (aHead != NULL, E_INVALIDARG);
-    AssertReturn (aTail != NULL, E_INVALIDARG);
+    AssertReturn(aHead != NULL, E_INVALIDARG);
+    AssertReturn(aTail != NULL, E_INVALIDARG);
 
     HRESULT rc = S_OK;
 
-    typedef std::list <ComPtr <IVirtualBoxErrorInfo> > List;
+    typedef std::list <ComPtr<IVirtualBoxErrorInfo> > List;
     List list;
 
-    ComPtr <IVirtualBoxErrorInfo> cur = aHead;
+    ComPtr<IVirtualBoxErrorInfo> cur = aHead;
 
     do
     {
-        ComPtr <IVirtualBoxErrorInfo> next;
+        ComPtr<IVirtualBoxErrorInfo> next;
         rc = cur->COMGETTER(Next) (next.asOutParam());
-        CheckComRCReturnRC (rc);
+        CheckComRCReturnRC(rc);
 
         if (next.isNull())
             break;
@@ -317,7 +324,7 @@ HRESULT VirtualBoxErrorInfoGlue::init (IVirtualBoxErrorInfo *aHead,
 
     for (List::iterator it = list.end(), prev = it; it != list.begin(); -- it)
     {
-        ComObjPtr <VirtualBoxErrorInfoGlue> wrapper;
+        ComObjPtr<VirtualBoxErrorInfoGlue> wrapper;
         rc = wrapper.createObject();
         CheckComRCBreakRC (rc);
 
@@ -348,7 +355,7 @@ HRESULT VirtualBoxErrorInfoGlue::init (IVirtualBoxErrorInfo *aHead,
 HRESULT VirtualBoxErrorInfoGlue::protectedInit (IVirtualBoxErrorInfo *aReal,
                                                 IVirtualBoxErrorInfo *aNext)
 {
-    AssertReturn (aReal != NULL, E_INVALIDARG);
+    AssertReturn(aReal != NULL, E_INVALIDARG);
 
     mReal = aReal;
     mNext = aNext;
@@ -365,7 +372,7 @@ STDMETHODIMP VirtualBoxErrorInfoGlue::COMGETTER(Next) (IVirtualBoxErrorInfo **aN
         return E_POINTER;
 
     /* this will set aNext to NULL if mNext is null */
-    return mNext.queryInterfaceTo (aNext);
+    return mNext.queryInterfaceTo(aNext);
 }
 
 #if defined (VBOX_WITH_XPCOM)

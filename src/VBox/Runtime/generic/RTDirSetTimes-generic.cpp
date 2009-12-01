@@ -1,4 +1,4 @@
-/* $Id: RTDirSetTimes-generic.cpp $ */
+/* $Id: RTDirSetTimes-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - RTDirSetTimes, generic implementation.
  */
@@ -29,7 +29,6 @@
  */
 
 
-
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
@@ -41,6 +40,8 @@
 #endif
 
 #include <iprt/dir.h>
+#include "internal/iprt.h"
+
 #include <iprt/path.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>

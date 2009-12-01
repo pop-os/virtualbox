@@ -1,4 +1,4 @@
-/* $Id: VBox-CodingGuidelines.cpp $ */
+/* $Id: VBox-CodingGuidelines.cpp 21449 2009-07-09 16:24:17Z vboxsync $ */
 /** @file
  * VBox - Coding Guidelines.
  */
@@ -115,6 +115,9 @@
  *      - Headers in /include/VBox shall not contain any slash-slash C++
  *        comments, only ANSI C comments!
  *
+ *      - Comments on \#else indicates what begins while the comment on a
+ *        \#endif indicates what ended.
+ *
  *
  * (1) It is common practice on Unix to have a single symbol namespace for an
  *     entire process. If one is careless symbols might be resolved in a
@@ -124,7 +127,6 @@
  *     shared libraries. The Windows / PE __declspect(import) and
  *     __declspect(export) constructs are the main reason for this.
  *     OTOH, we do perhaps have a bit too detailed graining of this in VMM...
- *
  *
  *
  * @subsection sec_vbox_guideline_compulsory_sub64  64-bit and 32-bit
@@ -195,6 +197,43 @@
  *              uint64_t u64 = u8 << 24;
  *              // u64 == 0xfffffffffe000000
  *        @endcode
+ *
+ *
+ * @subsection sec_vbox_guideline_compulsory_cppmain   C++ guidelines for Main
+ *
+ * Main is currently (2009) full of hard-to-maintain code that uses complicated
+ * templates. The new mid-term goal for Main is to have less custom templates
+ * instead of more for the following reasons:
+ *
+ *  -  Template code is harder to read and understand. Custom templates create
+ *     territories which only the code writer understands.
+ *
+ *  -  Errors in using templates create terrible C++ compiler messages.
+ *
+ *  -  Template code is really hard to look at in a debugger.
+ *
+ *  -  Templates slow down the compiler a lot.
+ *
+ *  In particular, the following bits should be considered deprecated and should
+ *  NOT be used in new code:
+ *
+ *  -  everything in include/iprt/cpputils.h (auto_ref_ptr, exception_trap_base,
+ *     char_auto_ptr and friends)
+ *
+ *  Generally, in many cases, a simple class with a proper destructor can achieve
+ *  the same effect as a 1,000-line template include file, and the code is
+ *  much more accessible that way.
+ *
+ *  Using standard STL templates like std::list, std::vector and std::map is OK.
+ *  Exceptions are:
+ *
+ *  -  Guest Additions because we don't want to link against libstdc++ there.
+ *
+ *  -  std::string should not be used because we have iprt::MiniString and
+ *     com::Utf8Str which can convert efficiently with COM's UTF-16 strings.
+ *
+ *  -  std::auto_ptr<> in general; that part of the C++ standard is just broken.
+ *     Write a destructor that calls delete.
  *
  *
  *
@@ -376,6 +415,7 @@
  * Some of the warnings can seem kind of innocent at first glance. So, let's take the
  * most common ones and explain them.
  *
+ *
  * @subsection sec_vbox_guideline_warnings_signed_unsigned_compare      Signed / Unsigned Compare
  *
  * GCC says: "warning: comparison between signed and unsigned integer expressions"
@@ -399,6 +439,7 @@ int main()
  * unsigned long before doing the compare.
  *
  *
+ *
  * @section sec_vbox_guideline_svn          Subversion Commit Rules
  *
  *
@@ -416,6 +457,9 @@ int main()
  *
  *      - If you make a user visible change, such as fixing a reported bug,
  *        make sure you add an entry to doc/manual/user_ChangeLogImpl.xml.
+ *
+ *      - If you are adding files make sure set the right attributes.
+ *        svn-ps.sh/cmd was created for this purpose, please make use of it.
  *
  *
  * After checking in:

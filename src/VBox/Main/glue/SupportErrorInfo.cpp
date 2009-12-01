@@ -1,4 +1,4 @@
-/* $Id: SupportErrorInfo.cpp $ */
+/* $Id: SupportErrorInfo.cpp 22178 2009-08-11 16:20:17Z vboxsync $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer:
@@ -97,27 +97,32 @@ void MultiResult::decCounter()
  * code is returned.
  */
 /* static */
-HRESULT SupportErrorInfoBase::setErrorInternal (
-    HRESULT aResultCode, const GUID *aIID,
-    const char *aComponent, const char *aText,
-    bool aWarning, IVirtualBoxErrorInfo *aInfo /*= NULL*/)
+HRESULT SupportErrorInfoBase::setErrorInternal(HRESULT aResultCode,
+                                               const GUID *aIID,
+                                               const char *aComponent,
+                                               const Utf8Str &strText,
+                                               bool aWarning,
+                                               IVirtualBoxErrorInfo *aInfo /*= NULL*/)
 {
     /* whether multi-error mode is turned on */
     bool preserve = ((uintptr_t) RTTlsGet (MultiResult::sCounter)) > 0;
 
-    LogRel (("ERROR [COM]: aRC=%#08x aIID={%Vuuid} aComponent={%s} aText={%s} "
-             "aWarning=%RTbool, aInfo=%p, preserve=%RTbool\n",
-             aResultCode, aIID, aComponent, aText, aWarning, aInfo,
-             preserve));
+    LogRel(("ERROR [COM]: aRC=%#08x aIID={%Vuuid} aComponent={%s} aText={%s} aWarning=%RTbool, aInfo=%p, preserve=%RTbool\n",
+            aResultCode,
+            aIID,
+            aComponent,
+            strText.c_str(),
+            aWarning,
+            aInfo,
+            preserve));
 
     if (aInfo == NULL)
     {
         /* these are mandatory, others -- not */
-        AssertReturn ((!aWarning && FAILED (aResultCode)) ||
+        AssertReturn((!aWarning && FAILED (aResultCode)) ||
                       (aWarning && aResultCode != S_OK),
                       E_FAIL);
-        AssertReturn (aText != NULL, E_FAIL);
-        AssertReturn (*aText != '\0', E_FAIL);
+        AssertReturn(!strText.isEmpty(), E_FAIL);
 
         /* reset the error severity bit if it's a warning */
         if (aWarning)
@@ -128,34 +133,34 @@ HRESULT SupportErrorInfoBase::setErrorInternal (
 
     do
     {
-        ComPtr <IVirtualBoxErrorInfo> info;
+        ComPtr<IVirtualBoxErrorInfo> info;
 
 #if !defined (VBOX_WITH_XPCOM)
 
-        ComPtr <IVirtualBoxErrorInfo> curInfo;
+        ComPtr<IVirtualBoxErrorInfo> curInfo;
         if (preserve)
         {
             /* get the current error info if any */
-            ComPtr <IErrorInfo> err;
+            ComPtr<IErrorInfo> err;
             rc = ::GetErrorInfo (0, err.asOutParam());
             CheckComRCBreakRC (rc);
-            rc = err.queryInterfaceTo (curInfo.asOutParam());
+            rc = err.queryInterfaceTo(curInfo.asOutParam());
             if (FAILED (rc))
             {
                 /* create a IVirtualBoxErrorInfo wrapper for the native
                  * IErrorInfo object */
-                ComObjPtr <VirtualBoxErrorInfo> wrapper;
+                ComObjPtr<VirtualBoxErrorInfo> wrapper;
                 rc = wrapper.createObject();
-                if (SUCCEEDED (rc))
+                if (SUCCEEDED(rc))
                 {
                     rc = wrapper->init (err);
-                    if (SUCCEEDED (rc))
+                    if (SUCCEEDED(rc))
                         curInfo = wrapper;
                 }
             }
         }
         /* On failure, curInfo will stay null */
-        Assert (SUCCEEDED (rc) || curInfo.isNull());
+        Assert (SUCCEEDED(rc) || curInfo.isNull());
 
         /* set the current error info and preserve the previous one if any */
         if (aInfo != NULL)
@@ -166,7 +171,7 @@ HRESULT SupportErrorInfoBase::setErrorInternal (
             }
             else
             {
-                ComObjPtr <VirtualBoxErrorInfoGlue> infoObj;
+                ComObjPtr<VirtualBoxErrorInfoGlue> infoObj;
                 rc = infoObj.createObject();
                 CheckComRCBreakRC (rc);
 
@@ -182,55 +187,55 @@ HRESULT SupportErrorInfoBase::setErrorInternal (
         }
         else
         {
-            ComObjPtr <VirtualBoxErrorInfo> infoObj;
+            ComObjPtr<VirtualBoxErrorInfo> infoObj;
             rc = infoObj.createObject();
             CheckComRCBreakRC (rc);
 
-            rc = infoObj->init (aResultCode, aIID, aComponent, aText, curInfo);
+            rc = infoObj->init (aResultCode, aIID, aComponent, strText.c_str(), curInfo);
             CheckComRCBreakRC (rc);
 
             info = infoObj;
         }
 
-        ComPtr <IErrorInfo> err;
-        rc = info.queryInterfaceTo (err.asOutParam());
-        if (SUCCEEDED (rc))
+        ComPtr<IErrorInfo> err;
+        rc = info.queryInterfaceTo(err.asOutParam());
+        if (SUCCEEDED(rc))
             rc = ::SetErrorInfo (0, err);
 
 #else // !defined (VBOX_WITH_XPCOM)
 
         nsCOMPtr <nsIExceptionService> es;
         es = do_GetService (NS_EXCEPTIONSERVICE_CONTRACTID, &rc);
-        if (NS_SUCCEEDED (rc))
+        if (NS_SUCCEEDED(rc))
         {
             nsCOMPtr <nsIExceptionManager> em;
             rc = es->GetCurrentExceptionManager (getter_AddRefs (em));
             CheckComRCBreakRC (rc);
 
-            ComPtr <IVirtualBoxErrorInfo> curInfo;
+            ComPtr<IVirtualBoxErrorInfo> curInfo;
             if (preserve)
             {
                 /* get the current error info if any */
-                ComPtr <nsIException> ex;
+                ComPtr<nsIException> ex;
                 rc = em->GetCurrentException (ex.asOutParam());
                 CheckComRCBreakRC (rc);
-                rc = ex.queryInterfaceTo (curInfo.asOutParam());
+                rc = ex.queryInterfaceTo(curInfo.asOutParam());
                 if (FAILED (rc))
                 {
                     /* create a IVirtualBoxErrorInfo wrapper for the native
                      * nsIException object */
-                    ComObjPtr <VirtualBoxErrorInfo> wrapper;
+                    ComObjPtr<VirtualBoxErrorInfo> wrapper;
                     rc = wrapper.createObject();
-                    if (SUCCEEDED (rc))
+                    if (SUCCEEDED(rc))
                     {
                         rc = wrapper->init (ex);
-                        if (SUCCEEDED (rc))
+                        if (SUCCEEDED(rc))
                             curInfo = wrapper;
                     }
                 }
             }
             /* On failure, curInfo will stay null */
-            Assert (SUCCEEDED (rc) || curInfo.isNull());
+            Assert (SUCCEEDED(rc) || curInfo.isNull());
 
             /* set the current error info and preserve the previous one if any */
             if (aInfo != NULL)
@@ -241,7 +246,7 @@ HRESULT SupportErrorInfoBase::setErrorInternal (
                 }
                 else
                 {
-                    ComObjPtr <VirtualBoxErrorInfoGlue> infoObj;
+                    ComObjPtr<VirtualBoxErrorInfoGlue> infoObj;
                     rc = infoObj.createObject();
                     CheckComRCBreakRC (rc);
 
@@ -258,19 +263,19 @@ HRESULT SupportErrorInfoBase::setErrorInternal (
             }
             else
             {
-                ComObjPtr <VirtualBoxErrorInfo> infoObj;
+                ComObjPtr<VirtualBoxErrorInfo> infoObj;
                 rc = infoObj.createObject();
                 CheckComRCBreakRC (rc);
 
-                rc = infoObj->init (aResultCode, aIID, aComponent, aText, curInfo);
+                rc = infoObj->init(aResultCode, aIID, aComponent, strText, curInfo);
                 CheckComRCBreakRC (rc);
 
                 info = infoObj;
             }
 
-            ComPtr <nsIException> ex;
-            rc = info.queryInterfaceTo (ex.asOutParam());
-            if (SUCCEEDED (rc))
+            ComPtr<nsIException> ex;
+            rc = info.queryInterfaceTo(ex.asOutParam());
+            if (SUCCEEDED(rc))
                 rc = em->SetCurrentException (ex);
         }
         else if (rc == NS_ERROR_UNEXPECTED)
@@ -297,7 +302,7 @@ HRESULT SupportErrorInfoBase::setErrorInternal (
 
     AssertComRC (rc);
 
-    return SUCCEEDED (rc) ? aResultCode : rc;
+    return SUCCEEDED(rc) ? aResultCode : rc;
 }
 
 /* static */
@@ -331,6 +336,15 @@ HRESULT SupportErrorInfoBase::setError (HRESULT aResultCode, const char *aText, 
     HRESULT rc = setErrorV (aResultCode, mainInterfaceID(), componentName(),
                             aText, args);
     va_end (args);
+    return rc;
+}
+
+HRESULT SupportErrorInfoBase::setError (HRESULT aResultCode, const Utf8Str &strText)
+{
+    HRESULT rc = setError(aResultCode,
+                          mainInterfaceID(),
+                          componentName(),
+                          strText);
     return rc;
 }
 

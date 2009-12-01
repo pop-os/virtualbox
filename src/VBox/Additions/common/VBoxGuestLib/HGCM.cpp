@@ -1,7 +1,9 @@
+/* $Revision: 21461 $ */
 /** @file
+ * VBoxGuestLib - Host-Guest Communication Manager.
  *
- * VBoxGuestLib - A support library for VirtualBox guest additions:
- * Host-Guest Communication Manager
+ * These public functions can be only used by other drivers. They all
+ * do an IOCTL to VBoxGuest via IDC.
  */
 
 /*
@@ -20,14 +22,9 @@
  * additional information or have any questions.
  */
 
-/* These public functions can be only used by other drivers.
- * They all do an IOCTL to VBoxGuest.
- */
-
 /* Entire file is ifdef'ed with !VBGL_VBOXGUEST */
 #ifndef VBGL_VBOXGUEST
 
-#include <VBox/VBoxGuestLib.h>
 #include "VBGLInternal.h"
 
 #include <iprt/assert.h>
@@ -36,16 +33,25 @@
 
 #define VBGL_HGCM_ASSERTMsg AssertReleaseMsg
 
-int vbglHGCMInit (void)
+/**
+ * Initializes the HGCM VBGL bits.
+ *
+ * @return VBox status code.
+ */
+int vbglR0HGCMInit (void)
 {
-    RTSemFastMutexCreate(&g_vbgldata.mutexHGCMHandle);
-
-    return VINF_SUCCESS;
+    return RTSemFastMutexCreate(&g_vbgldata.mutexHGCMHandle);
 }
 
-int vbglHGCMTerminate (void)
+/**
+ * Initializes the HGCM VBGL bits.
+ *
+ * @return VBox status code.
+ */
+int vbglR0HGCMTerminate (void)
 {
     RTSemFastMutexDestroy(g_vbgldata.mutexHGCMHandle);
+    g_vbgldata.mutexHGCMHandle = NIL_RTSEMFASTMUTEX;
 
     return VINF_SUCCESS;
 }
@@ -203,4 +209,5 @@ DECLVBGL(int) VbglHGCMCallTimed (VBGLHGCMHANDLE handle,
     return rc;
 }
 
-#endif /* VBGL_VBOXGUEST */
+#endif /* !VBGL_VBOXGUEST */
+

@@ -308,7 +308,7 @@ tcp_input(PNATState pData, register struct mbuf *m, int iphlen, struct socket *i
         so->so_m = 0;
         ti = so->so_ti;
 
-        /* @todo (r -vvl) clarify why it might happens */
+        /** @todo (vvl) clarify why it might happens */
         if (ti == NULL)
         {
             LogRel(("NAT: ti is null. can't do any reseting connection actions\n"));
@@ -1581,7 +1581,7 @@ dodata:
              */
             case TCPS_SYN_RECEIVED:
             case TCPS_ESTABLISHED:
-                if (so->so_emu == EMU_CTL)        /* no shutdown on socket */
+                if(so->so_emu == EMU_CTL)        /* no shutdown on socket */
                     tp->t_state = TCPS_LAST_ACK;
                 else
                     tp->t_state = TCPS_CLOSE_WAIT;

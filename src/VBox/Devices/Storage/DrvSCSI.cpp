@@ -1,4 +1,4 @@
-/* $Id: DrvSCSI.cpp $ */
+/* $Id: DrvSCSI.cpp 24751 2009-11-18 01:13:11Z vboxsync $ */
 /** @file
  *
  * VBox storage drivers:
@@ -88,6 +88,11 @@ typedef struct DRVSCSI
     PPDMTHREAD              pAsyncIOThread;
     /** Queue for passing the requests to the thread. */
     PRTREQQUEUE             pQueueRequests;
+    /** Request that we've left pending on wakeup or reset. */
+    PRTREQ                  pPendingDummyReq;
+    /** Indicates whether PDMDrvHlpAsyncNotificationCompleted should be called by
+     * any of the dummy functions. */
+    bool volatile           fDummySignal;
     /** Release statistics: number of bytes written. */
     STAMCOUNTER             StatBytesWritten;
     /** Release statistics: number of bytes read. */
@@ -607,9 +612,9 @@ static int drvscsiProcessRequestOne(PDRVSCSI pThis, PPDMSCSIREQUEST pRequest)
     int rc = VINF_SUCCESS;
     int iTxDir;
     int rcCompletion;
-    uint64_t uOffset;
-    uint32_t cbToTransfer;
-    uint32_t cSegmentsLeft;
+    uint64_t uOffset       = UINT64_MAX;    /* initialized to shut up gcc warnings. */
+    uint32_t cbToTransfer  = UINT32_MAX;    /* ditto */
+    uint32_t cSegmentsLeft = UINT32_MAX;    /* ditto */
 
     LogFlowFunc(("Entered\n"));
 
@@ -670,12 +675,29 @@ static int drvscsiProcessRequestOne(PDRVSCSI pThis, PPDMSCSIREQUEST pRequest)
 }
 
 /**
+ * Dummy request function used by drvscsiReset to wait for all pending requests
+ * to complete prior to the device reset.
+ *
+ * @param   pThis           Pointer to the instace data.
+ * @returns VINF_SUCCESS.
+ */
+static int drvscsiAsyncIOLoopSyncCallback(PDRVSCSI pThis)
+{
+    if (pThis->fDummySignal)
+        PDMDrvHlpAsyncNotificationCompleted(pThis->pDrvIns);
+    return VINF_SUCCESS;
+}
+
+/**
  * Request function to wakeup the thread.
  *
+ * @param   pThis           Pointer to the instace data.
  * @returns VWRN_STATE_CHANGED.
  */
-static int drvscsiAsyncIOLoopWakeupFunc(void)
+static int drvscsiAsyncIOLoopWakeupFunc(PDRVSCSI pThis)
 {
+    if (pThis->fDummySignal)
+        PDMDrvHlpAsyncNotificationCompleted(pThis->pDrvIns);
     return VWRN_STATE_CHANGED;
 }
 
@@ -683,7 +705,7 @@ static int drvscsiAsyncIOLoopWakeupFunc(void)
  * The thread function which processes the requests asynchronously.
  *
  * @returns VBox status code.
- * @param   pDrvIns    Pointer to the device instance data.
+ * @param   pDrvIns    Pointer to the driver instance data.
  * @param   pThread    Pointer to the thread instance data.
  */
 static int drvscsiAsyncIOLoop(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
@@ -705,16 +727,48 @@ static int drvscsiAsyncIOLoop(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
     return VINF_SUCCESS;
 }
 
+/**
+ * Deals with any pending dummy request
+ *
+ * @returns true if no pending dummy request, false if still pending.
+ * @param   pThis               The instance data.
+ * @param   cMillies            The number of milliseconds to wait for any
+ *                              pending request to finish.
+ */
+static bool drvscsiAsyncIOLoopNoPendingDummy(PDRVSCSI pThis, uint32_t cMillies)
+{
+    if (!pThis->pPendingDummyReq)
+        return true;
+    int rc = RTReqWait(pThis->pPendingDummyReq, cMillies);
+    if (RT_FAILURE(rc))
+        return false;
+    RTReqFree(pThis->pPendingDummyReq);
+    pThis->pPendingDummyReq = NULL;
+    return true;
+}
+
 static int drvscsiAsyncIOLoopWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
-    int rc;
     PDRVSCSI pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSI);
     PRTREQ pReq;
+    int rc;
 
     AssertMsgReturn(pThis->pQueueRequests, ("pQueueRequests is NULL\n"), VERR_INVALID_STATE);
 
-    rc = RTReqCall(pThis->pQueueRequests, &pReq, 10000 /* 10 sec. */, (PFNRT)drvscsiAsyncIOLoopWakeupFunc, 0);
-    AssertMsgRC(rc, ("Inserting request into queue failed rc=%Rrc\n", rc));
+    if (!drvscsiAsyncIOLoopNoPendingDummy(pThis, 10000 /* 10 sec */))
+    {
+        LogRel(("drvscsiAsyncIOLoopWakeup#%u: previous dummy request is still pending\n", pDrvIns->iInstance));
+        return VERR_TIMEOUT;
+    }
+
+    rc = RTReqCall(pThis->pQueueRequests, &pReq, 10000 /* 10 sec. */, (PFNRT)drvscsiAsyncIOLoopWakeupFunc, 1, pThis);
+    if (RT_SUCCESS(rc))
+        RTReqFree(pReq);
+    else
+    {
+        pThis->pPendingDummyReq = pReq;
+        LogRel(("drvscsiAsyncIOLoopWakeup#%u: %Rrc pReq=%p\n", pDrvIns->iInstance, rc, pReq));
+    }
 
     return rc;
 }
@@ -757,6 +811,99 @@ static DECLCALLBACK(void *)  drvscsiQueryInterface(PPDMIBASE pInterface, PDMINTE
 }
 
 /**
+ * Worker for drvscsiReset, drvscsiSuspend and drvscsiPowerOff.
+ *
+ * @param   pDrvIns         The driver instance.
+ * @param   pfnAsyncNotify  The async callback.
+ */
+static void drvscsiR3ResetOrSuspendOrPowerOff(PPDMDRVINS pDrvIns, PFNPDMDRVASYNCNOTIFY pfnAsyncNotify)
+{
+    PDRVSCSI pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSI);
+
+    if (!pThis->pQueueRequests)
+        return;
+
+    ASMAtomicWriteBool(&pThis->fDummySignal, true);
+    if (drvscsiAsyncIOLoopNoPendingDummy(pThis, 0 /*ms*/))
+    {
+        if (!RTReqIsBusy(pThis->pQueueRequests))
+        {
+            ASMAtomicWriteBool(&pThis->fDummySignal, false);
+            return;
+        }
+
+        PRTREQ pReq;
+        int rc = RTReqCall(pThis->pQueueRequests, &pReq, 0 /*ms*/, (PFNRT)drvscsiAsyncIOLoopSyncCallback, 1, pThis);
+        if (RT_SUCCESS(rc))
+        {
+            ASMAtomicWriteBool(&pThis->fDummySignal, false);
+            RTReqFree(pReq);
+            return;
+        }
+
+        pThis->pPendingDummyReq = pReq;
+    }
+    PDMDrvHlpSetAsyncNotification(pDrvIns, pfnAsyncNotify);
+}
+
+/**
+ * Callback employed by drvscsiSuspend and drvscsiPowerOff.
+ *
+ * @returns true if we've quiesced, false if we're still working.
+ * @param   pDrvIns     The driver instance.
+ */
+static DECLCALLBACK(bool) drvscsiIsAsyncSuspendOrPowerOffDone(PPDMDRVINS pDrvIns)
+{
+    PDRVSCSI pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSI);
+
+    if (!drvscsiAsyncIOLoopNoPendingDummy(pThis, 0 /*ms*/))
+        return false;
+    ASMAtomicWriteBool(&pThis->fDummySignal, false);
+    PDMR3ThreadSuspend(pThis->pAsyncIOThread);
+    return true;
+}
+
+/**
+ * @copydoc FNPDMDRVPOWEROFF
+ */
+static DECLCALLBACK(void) drvscsiPowerOff(PPDMDRVINS pDrvIns)
+{
+    drvscsiR3ResetOrSuspendOrPowerOff(pDrvIns, drvscsiIsAsyncSuspendOrPowerOffDone);
+}
+
+/**
+ * @copydoc FNPDMDRVSUSPEND
+ */
+static DECLCALLBACK(void) drvscsiSuspend(PPDMDRVINS pDrvIns)
+{
+    drvscsiR3ResetOrSuspendOrPowerOff(pDrvIns, drvscsiIsAsyncSuspendOrPowerOffDone);
+}
+
+/**
+ * Callback employed by drvscsiReset.
+ *
+ * @returns true if we've quiesced, false if we're still working.
+ * @param   pDrvIns     The driver instance.
+ */
+static DECLCALLBACK(bool) drvscsiIsAsyncResetDone(PPDMDRVINS pDrvIns)
+{
+    PDRVSCSI pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSI);
+
+    if (!drvscsiAsyncIOLoopNoPendingDummy(pThis, 0 /*ms*/))
+        return false;
+    ASMAtomicWriteBool(&pThis->fDummySignal, false);
+    return true;
+}
+
+/**
+ * @copydoc FNPDMDRVRESET
+ */
+static DECLCALLBACK(void) drvscsiReset(PPDMDRVINS pDrvIns)
+{
+    drvscsiR3ResetOrSuspendOrPowerOff(pDrvIns, drvscsiIsAsyncResetDone);
+}
+
+/**
  * Destruct a driver instance.
  *
  * Most VM resources are freed by the VM. This callback is provided so that any non-VM
@@ -771,6 +918,9 @@ static DECLCALLBACK(void) drvscsiDestruct(PPDMDRVINS pDrvIns)
 
     if (pThis->pQueueRequests)
     {
+        if (!drvscsiAsyncIOLoopNoPendingDummy(pThis, 100 /*ms*/))
+            LogRel(("drvscsiDestruct#%u: previous dummy request is still pending\n", pDrvIns->iInstance));
+
         rc = RTReqDestroyQueue(pThis->pQueueRequests);
         AssertMsgRC(rc, ("Failed to destroy queue rc=%Rrc\n", rc));
     }
@@ -780,31 +930,26 @@ static DECLCALLBACK(void) drvscsiDestruct(PPDMDRVINS pDrvIns)
 /**
  * Construct a block driver instance.
  *
- * @returns VBox status.
- * @param   pDrvIns     The driver instance data.
- *                      If the registration structure is needed, pDrvIns->pDrvReg points to it.
- * @param   pCfgHandle  Configuration node handle for the driver. Use this to obtain the configuration
- *                      of the driver instance. It's also found in pDrvIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
 {
-    int rc = VINF_SUCCESS;
-    PDMBLOCKTYPE enmType;
     PDRVSCSI pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSI);
 
     LogFlowFunc(("pDrvIns=%#p pCfgHandle=%#p\n", pDrvIns, pCfgHandle));
 
     /*
-     * Initialize interfaces.
+     * Initialize the instance data.
      */
-    pDrvIns->IBase.pfnQueryInterface                    = drvscsiQueryInterface;
-    pThis->ISCSIConnector.pfnSCSIRequestSend            = drvscsiRequestSend;
+    pThis->pDrvIns                           = pDrvIns;
+    pThis->ISCSIConnector.pfnSCSIRequestSend = drvscsiRequestSend;
+
+    pDrvIns->IBase.pfnQueryInterface         = drvscsiQueryInterface;
 
     /*
      * Try attach driver below and query it's block interface.
      */
-    rc = pDrvIns->pDrvHlp->pfnAttach(pDrvIns, &pThis->pDrvBase);
+    int rc = PDMDrvHlpAttach(pDrvIns, fFlags, &pThis->pDrvBase);
     AssertMsgReturn(RT_SUCCESS(rc), ("Attaching driver below failed rc=%Rrc\n", rc), rc);
 
     /*
@@ -844,12 +989,11 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHand
     /* Try to get the optional async block interface. */
     pThis->pDrvBlockAsync = (PDMIBLOCKASYNC *)pThis->pDrvBase->pfnQueryInterface(pThis->pDrvBase, PDMINTERFACE_BLOCK_ASYNC);
 
-    enmType = pThis->pDrvBlock->pfnGetType(pThis->pDrvBlock);
+    PDMBLOCKTYPE enmType = pThis->pDrvBlock->pfnGetType(pThis->pDrvBlock);
     if (enmType != PDMBLOCKTYPE_HARD_DISK)
-    {
-        AssertMsgFailed(("Configuration error: Not a disk or cd/dvd-rom. enmType=%d\n", enmType));
-        return VERR_PDM_UNSUPPORTED_BLOCK_TYPE;
-    }
+        return PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_UNSUPPORTED_BLOCK_TYPE, RT_SRC_POS,
+                                   N_("Only hard disks are currently supported as SCSI devices (enmType=%d)"),
+                                   enmType);
     pThis->enmType = enmType;
     pThis->cSectors = pThis->pDrvBlock->pfnGetSize(pThis->pDrvBlock) / 512;
 
@@ -858,10 +1002,13 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHand
     AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create request queue rc=%Rrc\n"), rc);
 
     /* Register statistics counter. */
+    /** @todo aeichner: Find a way to put the instance number of the attached
+     * controller device when we support more than one controller of the same type.
+     * At the moment we have the 0 hardcoded. */
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatBytesRead, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,
-                            "Amount of data read.", "/Devices/SCSI/%d/ReadBytes", pDrvIns->iInstance);
+                            "Amount of data read.", "/Devices/SCSI0/%d/ReadBytes", pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatBytesWritten, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,
-                            "Amount of data written.", "/Devices/SCSI/%d/WrittenBytes", pDrvIns->iInstance);
+                            "Amount of data written.", "/Devices/SCSI0/%d/WrittenBytes", pDrvIns->iInstance);
 
     /* Create I/O thread. */
     rc = PDMDrvHlpPDMThreadCreate(pDrvIns, &pThis->pAsyncIOThread, pThis, drvscsiAsyncIOLoop,
@@ -899,13 +1046,19 @@ const PDMDRVREG g_DrvSCSI =
     /* pfnPowerOn */
     NULL,
     /* pfnReset */
-    NULL,
+    drvscsiReset,
     /* pfnSuspend */
-    NULL,
+    drvscsiSuspend,
     /* pfnResume */
+    NULL,
+    /* pfnAttach */
     NULL,
     /* pfnDetach */
     NULL,
     /* pfnPowerOff */
-    NULL
+    drvscsiPowerOff,
+    /* pfnSoftReset */
+    NULL,
+    /* u32EndVersion */
+    PDM_DRVREG_VERSION
 };

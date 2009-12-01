@@ -1,4 +1,4 @@
-/* $Id: TM.cpp $ */
+/* $Id: TM.cpp 23794 2009-10-15 11:50:03Z vboxsync $ */
 /** @file
  * TM - Time Manager.
  */
@@ -161,7 +161,7 @@
 static bool                 tmR3HasFixedTSC(PVM pVM);
 static uint64_t             tmR3CalibrateTSC(PVM pVM);
 static DECLCALLBACK(int)    tmR3Save(PVM pVM, PSSMHANDLE pSSM);
-static DECLCALLBACK(int)    tmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version);
+static DECLCALLBACK(int)    tmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
 static DECLCALLBACK(void)   tmR3TimerCallback(PRTTIMER pTimer, void *pvUser, uint64_t iTick);
 static void                 tmR3TimerQueueRun(PVM pVM, PTMTIMERQUEUE pQueue);
 static void                 tmR3TimerQueueRunVirtualSync(PVM pVM);
@@ -177,7 +177,7 @@ static DECLCALLBACK(void)   tmR3InfoClocks(PVM pVM, PCDBGFINFOHLP pHlp, const ch
  * @returns VBox status code.
  * @param   pVM         The VM to operate on.
  */
-VMMR3DECL(int) TMR3Init(PVM pVM)
+VMM_INT_DECL(int) TMR3Init(PVM pVM)
 {
     LogFlow(("TMR3Init:\n"));
 
@@ -200,7 +200,7 @@ VMMR3DECL(int) TMR3Init(PVM pVM)
     pVM->tm.s.paTimerQueuesRC = MMHyperR3ToRC(pVM, pv);
 
     pVM->tm.s.offVM = RT_OFFSETOF(VM, tm.s);
-    pVM->tm.s.idTimerCpu = pVM->cCPUs - 1; /* The last CPU. */
+    pVM->tm.s.idTimerCpu = pVM->cCpus - 1; /* The last CPU. */
     pVM->tm.s.paTimerQueuesR3[TMCLOCK_VIRTUAL].enmClock        = TMCLOCK_VIRTUAL;
     pVM->tm.s.paTimerQueuesR3[TMCLOCK_VIRTUAL].u64Expire       = INT64_MAX;
     pVM->tm.s.paTimerQueuesR3[TMCLOCK_VIRTUAL_SYNC].enmClock   = TMCLOCK_VIRTUAL_SYNC;
@@ -525,6 +525,7 @@ VMMR3DECL(int) TMR3Init(PVM pVM)
      * Register saved state.
      */
     rc = SSMR3RegisterInternal(pVM, "tm", 1, TM_SAVED_STATE_VERSION, sizeof(uint64_t) * 8,
+                               NULL, NULL, NULL,
                                NULL, tmR3Save, NULL,
                                NULL, tmR3Load, NULL);
     if (RT_FAILURE(rc))
@@ -625,7 +626,7 @@ VMMR3DECL(int) TMR3Init(PVM pVM)
     STAM_REG(pVM, &pVM->tm.s.StatTSCUnderflow,                        STAMTYPE_COUNTER, "/TM/TSC/Underflow",                   STAMUNIT_OCCURENCES, "TSC underflow; corrected with last seen value .");
 #endif /* VBOX_WITH_STATISTICS */
 
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
         STAMR3RegisterF(pVM, &pVM->aCpus[i].tm.s.offTSCRawSrc, STAMTYPE_U64, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS, "TSC offset relative the raw source", "/TM/TSC/offCPU%u", i);
 
 #ifdef VBOX_WITH_STATISTICS
@@ -666,7 +667,7 @@ VMMR3DECL(int) TMR3Init(PVM pVM)
  * @returns VBox status code.
  * @param   pVM         The VM to operate on.
  */
-VMMR3DECL(int) TMR3InitCPU(PVM pVM)
+VMM_INT_DECL(int) TMR3InitCPU(PVM pVM)
 {
     LogFlow(("TMR3InitCPU\n"));
     return VINF_SUCCESS;
@@ -688,7 +689,7 @@ static bool tmR3HasFixedTSC(PVM pVM)
     {
         uint32_t uEAX, uEBX, uECX, uEDX;
 
-        if (CPUMGetCPUVendor(pVM) == CPUMCPUVENDOR_AMD)
+        if (CPUMGetHostCpuVendor(pVM) == CPUMCPUVENDOR_AMD)
         {
             /*
              * AuthenticAMD - Check for APM support and that TscInvariant is set.
@@ -708,7 +709,7 @@ static bool tmR3HasFixedTSC(PVM pVM)
                     return true;
             }
         }
-        else if (CPUMGetCPUVendor(pVM) == CPUMCPUVENDOR_INTEL)
+        else if (CPUMGetHostCpuVendor(pVM) == CPUMCPUVENDOR_INTEL)
         {
             /*
              * GenuineIntel - Check the model number.
@@ -835,7 +836,7 @@ static uint64_t tmR3CalibrateTSC(PVM pVM)
  * @returns VBox status code.
  * @param   pVM         The VM to operate on.
  */
-VMMR3DECL(int) TMR3InitFinalize(PVM pVM)
+VMM_INT_DECL(int) TMR3InitFinalize(PVM pVM)
 {
     int rc;
 
@@ -883,7 +884,7 @@ VMMR3DECL(int) TMR3InitFinalize(PVM pVM)
  * @param   pVM     The VM.
  * @param   offDelta    Relocation delta relative to old location.
  */
-VMMR3DECL(void) TMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
+VMM_INT_DECL(void) TMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 {
     int rc;
     LogFlow(("TMR3Relocate\n"));
@@ -931,7 +932,7 @@ VMMR3DECL(void) TMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
  * @returns VBox status code.
  * @param   pVM         The VM to operate on.
  */
-VMMR3DECL(int) TMR3Term(PVM pVM)
+VMM_INT_DECL(int) TMR3Term(PVM pVM)
 {
     AssertMsg(pVM->tm.s.offVM, ("bad init order!\n"));
     if (pVM->tm.s.pTimer)
@@ -954,9 +955,9 @@ VMMR3DECL(int) TMR3Term(PVM pVM)
  * @returns VBox status code.
  * @param   pVM         The VM to operate on.
  */
-VMMR3DECL(int) TMR3TermCPU(PVM pVM)
+VMM_INT_DECL(int) TMR3TermCPU(PVM pVM)
 {
-    return 0;
+    return VINF_SUCCESS;
 }
 
 
@@ -969,7 +970,7 @@ VMMR3DECL(int) TMR3TermCPU(PVM pVM)
  *
  * @param   pVM     VM handle.
  */
-VMMR3DECL(void) TMR3Reset(PVM pVM)
+VMM_INT_DECL(void) TMR3Reset(PVM pVM)
 {
     LogFlow(("TMR3Reset:\n"));
     VM_ASSERT_EMT(pVM);
@@ -1022,7 +1023,7 @@ VMMR3DECL(void) TMR3Reset(PVM pVM)
  * @param   pRCPtrValue     Where to store the symbol value.
  * @remark  This has to     work before TMR3Relocate() is called.
  */
-VMMR3DECL(int) TMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue)
+VMM_INT_DECL(int) TMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue)
 {
     if (!strcmp(pszSymbol, "g_pSUPGlobalInfoPage"))
         *pRCPtrValue = MMHyperR3ToRC(pVM, &pVM->tm.s.pvGIPRC);
@@ -1044,7 +1045,7 @@ static DECLCALLBACK(int) tmR3Save(PVM pVM, PSSMHANDLE pSSM)
 {
     LogFlow(("tmR3Save:\n"));
 #ifdef VBOX_STRICT
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
         Assert(!pVCpu->tm.s.fTSCTicking);
@@ -1070,11 +1071,10 @@ static DECLCALLBACK(int) tmR3Save(PVM pVM, PSSMHANDLE pSSM)
     /* real time clock */
     SSMR3PutU64(pSSM, TMCLOCK_FREQ_REAL);
 
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    /* the cpu tick clock. */
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
-
-        /* the cpu tick clock. */
         SSMR3PutU64(pSSM, TMCpuTickGet(pVCpu));
     }
     return SSMR3PutU64(pSSM, pVM->tm.s.cTSCTicksPerSecond);
@@ -1087,14 +1087,16 @@ static DECLCALLBACK(int) tmR3Save(PVM pVM, PSSMHANDLE pSSM)
  * @returns VBox status code.
  * @param   pVM             VM Handle.
  * @param   pSSM            SSM operation handle.
- * @param   u32Version      Data layout version.
+ * @param   uVersion        Data layout version.
+ * @param   uPass           The data pass.
  */
-static DECLCALLBACK(int) tmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
+static DECLCALLBACK(int) tmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
     LogFlow(("tmR3Load:\n"));
 
+    Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
 #ifdef VBOX_STRICT
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
         Assert(!pVCpu->tm.s.fTSCTicking);
@@ -1106,9 +1108,9 @@ static DECLCALLBACK(int) tmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
     /*
      * Validate version.
      */
-    if (u32Version != TM_SAVED_STATE_VERSION)
+    if (uVersion != TM_SAVED_STATE_VERSION)
     {
-        AssertMsgFailed(("tmR3Load: Invalid version u32Version=%d!\n", u32Version));
+        AssertMsgFailed(("tmR3Load: Invalid version uVersion=%d!\n", uVersion));
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     }
 
@@ -1157,7 +1159,7 @@ static DECLCALLBACK(int) tmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
     }
 
     /* the cpu tick clock. */
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -1266,7 +1268,7 @@ static int tmr3TimerCreate(PVM pVM, TMCLOCK enmClock, const char *pszDesc, PPTMT
  *                          until the timer is fully destroyed (i.e. a bit after TMTimerDestroy()).
  * @param   ppTimer         Where to store the timer on success.
  */
-VMMR3DECL(int) TMR3TimerCreateDevice(PVM pVM, PPDMDEVINS pDevIns, TMCLOCK enmClock, PFNTMTIMERDEV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer)
+VMM_INT_DECL(int) TMR3TimerCreateDevice(PVM pVM, PPDMDEVINS pDevIns, TMCLOCK enmClock, PFNTMTIMERDEV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer)
 {
     AssertReturn(!(fFlags & ~(TMTIMER_FLAGS_NO_CRIT_SECT)), VERR_INVALID_PARAMETER);
 
@@ -1303,8 +1305,8 @@ VMMR3DECL(int) TMR3TimerCreateDevice(PVM pVM, PPDMDEVINS pDevIns, TMCLOCK enmClo
  *                          until the timer is fully destroyed (i.e. a bit after TMTimerDestroy()).
  * @param   ppTimer         Where to store the timer on success.
  */
-VMMR3DECL(int) TMR3TimerCreateDriver(PVM pVM, PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser,
-                                     uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer)
+VMM_INT_DECL(int) TMR3TimerCreateDriver(PVM pVM, PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser,
+                                        uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer)
 {
     AssertReturn(!(fFlags & ~(TMTIMER_FLAGS_NO_CRIT_SECT)), VERR_INVALID_PARAMETER);
 
@@ -1559,7 +1561,7 @@ VMMR3DECL(int) TMR3TimerDestroy(PTMTIMER pTimer)
  * @param   pVM             VM handle.
  * @param   pDevIns         Device which timers should be destroyed.
  */
-VMMR3DECL(int) TMR3TimerDestroyDevice(PVM pVM, PPDMDEVINS pDevIns)
+VMM_INT_DECL(int) TMR3TimerDestroyDevice(PVM pVM, PPDMDEVINS pDevIns)
 {
     LogFlow(("TMR3TimerDestroyDevice: pDevIns=%p\n", pDevIns));
     if (!pDevIns)
@@ -1592,7 +1594,7 @@ VMMR3DECL(int) TMR3TimerDestroyDevice(PVM pVM, PPDMDEVINS pDevIns)
  * @param   pVM             VM handle.
  * @param   pDrvIns         Driver which timers should be destroyed.
  */
-VMMR3DECL(int) TMR3TimerDestroyDriver(PVM pVM, PPDMDRVINS pDrvIns)
+VMM_INT_DECL(int) TMR3TimerDestroyDriver(PVM pVM, PPDMDRVINS pDrvIns)
 {
     LogFlow(("TMR3TimerDestroyDriver: pDrvIns=%p\n", pDrvIns));
     if (!pDrvIns)
@@ -1744,11 +1746,11 @@ VMMR3DECL(void) TMR3TimerQueuesDo(PVM pVM)
      * Only the dedicated timer EMT should do stuff here.
      * (fRunningQueues is only used as an indicator.)
      */
-    Assert(pVM->tm.s.idTimerCpu < pVM->cCPUs);
+    Assert(pVM->tm.s.idTimerCpu < pVM->cCpus);
     PVMCPU pVCpuDst = &pVM->aCpus[pVM->tm.s.idTimerCpu];
     if (VMMGetCpu(pVM) != pVCpuDst)
     {
-        Assert(pVM->cCPUs > 1);
+        Assert(pVM->cCpus > 1);
         return;
     }
     STAM_PROFILE_START(&pVM->tm.s.StatDoQueues, a);
@@ -2205,7 +2207,7 @@ static void tmR3TimerQueueRunVirtualSync(PVM pVM)
  *
  * @thread  EMTs
  */
-VMMR3DECL(void) TMR3VirtualSyncFF(PVM pVM, PVMCPU pVCpu)
+VMM_INT_DECL(void) TMR3VirtualSyncFF(PVM pVM, PVMCPU pVCpu)
 {
     Log2(("TMR3VirtualSyncFF:\n"));
 
@@ -2435,7 +2437,7 @@ VMMR3DECL(int) TMR3TimerSetCritSect(PTMTIMERR3 pTimer, PPDMCRITSECT pCritSect)
  * @param   pVM             The VM instance.
  * @param   pTime           Where to store the time.
  */
-VMMR3DECL(PRTTIMESPEC) TMR3UTCNow(PVM pVM, PRTTIMESPEC pTime)
+VMM_INT_DECL(PRTTIMESPEC) TMR3UTCNow(PVM pVM, PRTTIMESPEC pTime)
 {
     RTTimeNow(pTime);
     RTTimeSpecSubNano(pTime, ASMAtomicReadU64(&pVM->tm.s.offVirtualSync) - ASMAtomicReadU64((uint64_t volatile *)&pVM->tm.s.offVirtualSyncGivenUp));
@@ -2520,13 +2522,7 @@ VMMR3DECL(int) TMR3NotifyResume(PVM pVM, PVMCPU pVCpu)
  */
 VMMDECL(int) TMR3SetWarpDrive(PVM pVM, uint32_t u32Percent)
 {
-    PVMREQ pReq;
-    int rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT,
-                         (PFNRT)tmR3SetWarpDrive, 2, pVM, u32Percent);
-    if (RT_SUCCESS(rc))
-        rc = pReq->iStatus;
-    VMR3ReqFree(pReq);
-    return rc;
+    return VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)tmR3SetWarpDrive, 2, pVM, u32Percent);
 }
 
 
@@ -2682,7 +2678,7 @@ static DECLCALLBACK(void) tmR3InfoClocks(PVM pVM, PCDBGFINFOHLP pHlp, const char
     const uint64_t u64VirtualSync = TMVirtualSyncGet(pVM);
     const uint64_t u64Real        = TMRealGet(pVM);
 
-    for (unsigned i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU   pVCpu  = &pVM->aCpus[i];
         uint64_t u64TSC = TMCpuTickGet(pVCpu);

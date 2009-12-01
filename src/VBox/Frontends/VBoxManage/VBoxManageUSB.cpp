@@ -1,4 +1,4 @@
-/* $Id: VBoxManageUSB.cpp $ */
+/* $Id: VBoxManageUSB.cpp 22489 2009-08-26 21:00:26Z vboxsync $ */
 /** @file
  * VBoxManage - VirtualBox's command-line interface.
  */
@@ -78,6 +78,10 @@ public:
         Guid guid(iid);
         if (guid == Guid(NS_GET_IID(IUnknown)))
             *ppvObject = (IUnknown *)this;
+#ifdef RT_OS_WINDOWS
+        else if (guid == Guid(NS_GET_IID(IDispatch)))
+            *ppvObject = (IDispatch *)this;
+#endif
         else if (guid == Guid(NS_GET_IID(IUSBDevice)))
             *ppvObject = (IUSBDevice *)this;
         else
@@ -325,9 +329,9 @@ int handleUSBFilter (HandlerArg *a)
                         return errorArgument("Missing argument to '%s'", a->argv[i]);
                     i++;
                     uint32_t u32;
-                    rc = RTStrToUInt32Full(a->argv[i], 0, &u32);
-                    if (RT_FAILURE(rc))
-                        return errorArgument("Failed to convert the --maskedinterfaces value '%s' to a number, rc=%Rrc", a->argv[i], rc);
+                    int vrc = RTStrToUInt32Full(a->argv[i], 0, &u32);
+                    if (RT_FAILURE(vrc))
+                        return errorArgument("Failed to convert the --maskedinterfaces value '%s' to a number, vrc=%Rrc", a->argv[i], vrc);
                     cmd.mFilter.mMaskedInterfaces = u32;
                 }
                 else if (   !strcmp(a->argv[i], "--action")
@@ -542,7 +546,7 @@ int handleUSBFilter (HandlerArg *a)
             if (cmd.mGlobal)
             {
                 ComPtr <IHostUSBDeviceFilter> flt;
-                CHECK_ERROR_BREAK (host, RemoveUSBDeviceFilter (cmd.mIndex, flt.asOutParam()));
+                CHECK_ERROR_BREAK (host, RemoveUSBDeviceFilter (cmd.mIndex));
             }
             else
             {

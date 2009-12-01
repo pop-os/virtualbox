@@ -23,27 +23,9 @@
 #include "QIWidgetValidator.h"
 #include "VBoxVMSettingsSystem.h"
 
-#define ITEM_TYPE_ROLE Qt::UserRole + 1
+#include <iprt/cdefs.h>
 
-/**
- *  Calculates a suitable page step size for the given max value. The returned
- *  size is so that there will be no more than 32 pages. The minimum returned
- *  page size is 4.
- */
-static int calcPageStep (int aMax)
-{
-    /* reasonable max. number of page steps is 32 */
-    uint page = ((uint) aMax + 31) / 32;
-    /* make it a power of 2 */
-    uint p = page, p2 = 0x1;
-    while ((p >>= 1))
-        p2 <<= 1;
-    if (page != p2)
-        p2 <<= 1;
-    if (p2 < 4)
-        p2 = 4;
-    return (int) p2;
-}
+#define ITEM_TYPE_ROLE Qt::UserRole + 1
 
 VBoxVMSettingsSystem::VBoxVMSettingsSystem()
 {
@@ -52,14 +34,13 @@ VBoxVMSettingsSystem::VBoxVMSettingsSystem()
 
     /* Setup constants */
     CSystemProperties sys = vboxGlobal().virtualBox().GetSystemProperties();
-    const uint MinRAM = sys.GetMinGuestRAM();
-    const uint MaxRAM = sys.GetMaxGuestRAM();
-    const uint MinCPU = sys.GetMinGuestCPUCount();
-    const uint MaxCPU = sys.GetMaxGuestCPUCount();
+    uint hostCPUs = vboxGlobal().virtualBox().GetHost().GetProcessorCount();
+    mMinGuestCPU = sys.GetMinGuestCPUCount();
+    mMaxGuestCPU = RT_MIN (2 * hostCPUs, sys.GetMaxGuestCPUCount());
 
     /* Setup validators */
-    mLeMemory->setValidator (new QIntValidator (MinRAM, MaxRAM, this));
-    mLeCPU->setValidator (new QIntValidator (MinCPU, MaxCPU, this));
+    mLeMemory->setValidator (new QIntValidator (mSlMemory->minRAM(), mSlMemory->maxRAM(), this));
+    mLeCPU->setValidator (new QIntValidator (mMinGuestCPU, mMaxGuestCPU, this));
 
     /* Setup connections */
     connect (mSlMemory, SIGNAL (valueChanged (int)),
@@ -93,13 +74,12 @@ VBoxVMSettingsSystem::VBoxVMSettingsSystem()
     mTbBootItemDown->setIcon (VBoxGlobal::iconSet (":/list_movedown_16px.png",
                                                    ":/list_movedown_disabled_16px.png"));
 
-    /* Setup memory slider */
-    mSlMemory->setPageStep (calcPageStep (MaxRAM));
-    mSlMemory->setSingleStep (mSlMemory->pageStep() / 4);
-    mSlMemory->setTickInterval (mSlMemory->pageStep());
-    /* Setup the scale so that ticks are at page step boundaries */
-    mSlMemory->setMinimum ((MinRAM / mSlMemory->pageStep()) * mSlMemory->pageStep());
-    mSlMemory->setMaximum (MaxRAM);
+#ifdef Q_WS_MAC
+    /* We need a little space for the focus rect. */
+    mLtBootOrder->setContentsMargins (3, 3, 3, 3);
+    mLtBootOrder->setSpacing (3);
+#endif /* Q_WS_MAC */
+
     /* Limit min/max. size of QLineEdit */
     mLeMemory->setFixedWidthByText (QString().fill ('8', 5));
     /* Ensure mLeMemory value and validation is updated */
@@ -110,8 +90,10 @@ VBoxVMSettingsSystem::VBoxVMSettingsSystem()
     mSlCPU->setSingleStep (1);
     mSlCPU->setTickInterval (1);
     /* Setup the scale so that ticks are at page step boundaries */
-    mSlCPU->setMinimum (MinCPU);
-    mSlCPU->setMaximum (MaxCPU);
+    mSlCPU->setMinimum (mMinGuestCPU);
+    mSlCPU->setMaximum (mMaxGuestCPU);
+    mSlCPU->setOptimalHint (1, hostCPUs);
+    mSlCPU->setWarningHint (hostCPUs, mMaxGuestCPU);
     /* Limit min/max. size of QLineEdit */
     mLeCPU->setFixedWidthByText (QString().fill ('8', 3));
     /* Ensure mLeMemory value and validation is updated */
@@ -177,11 +159,11 @@ void VBoxVMSettingsSystem::getFrom (const CMachine &aMachine)
         adjustBootOrderTWSize();
     }
 
-    /* ACPI */
-    mCbAcpi->setChecked (biosSettings.GetACPIEnabled());
-
     /* IO APIC */
     mCbApic->setChecked (biosSettings.GetIOAPICEnabled());
+
+    /* EFI */
+    mCbEFI->setChecked (mMachine.GetFirmwareType() >= KFirmwareType_EFI && mMachine.GetFirmwareType() <= KFirmwareType_EFIDUAL);
 
     /* CPU count */
     bool fVTxAMDVSupported = vboxGlobal().virtualBox().GetHost()
@@ -194,16 +176,16 @@ void VBoxVMSettingsSystem::getFrom (const CMachine &aMachine)
     bool fPAESupported = vboxGlobal().virtualBox().GetHost()
                          .GetProcessorFeature (KProcessorFeature_PAE);
     mCbPae->setEnabled (fPAESupported);
-    mCbPae->setChecked (aMachine.GetPAEEnabled());
+    mCbPae->setChecked (aMachine.GetCpuProperty(KCpuPropertyType_PAE));
 
     /* VT-x/AMD-V */
     mCbVirt->setEnabled (fVTxAMDVSupported);
-    mCbVirt->setChecked (aMachine.GetHWVirtExEnabled());
+    mCbVirt->setChecked (aMachine.GetHWVirtExProperty(KHWVirtExPropertyType_Enabled));
 
     /* Nested Paging */
     mCbNestedPaging->setEnabled (fVTxAMDVSupported &&
-                                 aMachine.GetHWVirtExEnabled());
-    mCbNestedPaging->setChecked (aMachine.GetHWVirtExNestedPagingEnabled());
+                                 aMachine.GetHWVirtExProperty(KHWVirtExPropertyType_Enabled));
+    mCbNestedPaging->setChecked (aMachine.GetHWVirtExProperty(KHWVirtExPropertyType_NestedPaging));
 
     if (mValidator)
         mValidator->revalidate();
@@ -240,25 +222,25 @@ void VBoxVMSettingsSystem::putBackTo()
         }
     }
 
-    /* ACPI */
-    biosSettings.SetACPIEnabled (mCbAcpi->isChecked());
-
     /* IO APIC */
     biosSettings.SetIOAPICEnabled (mCbApic->isChecked() ||
                                    mSlCPU->value() > 1);
+
+    /* EFI */
+    mMachine.SetFirmwareType (mCbEFI->isChecked() ? KFirmwareType_EFI : KFirmwareType_BIOS);
 
     /* RAM size */
     mMachine.SetCPUCount (mSlCPU->value());
 
     /* PAE/NX */
-    mMachine.SetPAEEnabled (mCbPae->isChecked());
+    mMachine.SetCpuProperty(KCpuPropertyType_PAE, mCbPae->isChecked());
 
     /* VT-x/AMD-V */
-    mMachine.SetHWVirtExEnabled (mCbVirt->checkState() == Qt::Checked ||
-                                 mSlCPU->value() > 1);
+    mMachine.SetHWVirtExProperty(KHWVirtExPropertyType_Enabled,
+                                 mCbVirt->checkState() == Qt::Checked || mSlCPU->value() > 1);
 
     /* Nested Paging */
-    mMachine.SetHWVirtExNestedPagingEnabled (mCbNestedPaging->isChecked());
+    mMachine.SetHWVirtExProperty(KHWVirtExPropertyType_NestedPaging, mCbNestedPaging->isChecked());
 }
 
 void VBoxVMSettingsSystem::setValidator (QIWidgetValidator *aVal)
@@ -270,95 +252,24 @@ void VBoxVMSettingsSystem::setValidator (QIWidgetValidator *aVal)
 
 bool VBoxVMSettingsSystem::revalidate (QString &aWarning, QString & /* aTitle */)
 {
-    /* Come up with some nice round percent boundraries relative to
-     * the system memory. A max of 75% on a 256GB config is ridiculous,
-     * even on an 8GB rig reserving 2GB for the OS is way to conservative.
-     * The max numbers can be estimated using the following program:
-     *
-     *      double calcMaxPct(uint64_t cbRam)
-     *      {
-     *          double cbRamOverhead = cbRam * 0.0390625; // 160 bytes per page.
-     *          double cbRamForTheOS = RT_MAX(RT_MIN(_512M, cbRam * 0.25), _64M);
-     *          double OSPct  = (cbRamOverhead + cbRamForTheOS) * 100.0 / cbRam;
-     *          double MaxPct = 100 - OSPct;
-     *          return MaxPct;
-     *      }
-     *
-     *      int main()
-     *      {
-     *          uint64_t cbRam = _1G;
-     *          for (; !(cbRam >> 33); cbRam += _1G)
-     *              printf("%8lluGB %.1f%% %8lluKB\n", cbRam >> 30, calcMaxPct(cbRam),
-     *                     (uint64_t)(cbRam * calcMaxPct(cbRam) / 100.0) >> 20);
-     *          for (; !(cbRam >> 51); cbRam <<= 1)
-     *              printf("%8lluGB %.1f%% %8lluKB\n", cbRam >> 30, calcMaxPct(cbRam),
-     *                     (uint64_t)(cbRam * calcMaxPct(cbRam) / 100.0) >> 20);
-     *          return 0;
-     *      }
-     *
-     * Note. We might wanna put these calculations somewhere global later. */
-
-    /* System RAM amount test */
     ulong fullSize = vboxGlobal().virtualBox().GetHost().GetMemorySize();
-    double maxPct  = 0.75;
-    double warnPct = 0.50;
-    if (fullSize < 3072)
-        /* done */;
-    else if (fullSize < 4096)   /* 3GB */
-        maxPct  = 0.80;
-    else if (fullSize < 6144)   /* 4-5GB */
-    {
-        maxPct  = 0.84;
-        warnPct = 0.60;
-    }
-    else if (fullSize < 8192)   /* 6-7GB */
-    {
-        maxPct  = 0.88;
-        warnPct = 0.65;
-    }
-    else if (fullSize < 16384)  /* 8-15GB */
-    {
-        maxPct  = 0.90;
-        warnPct = 0.70;
-    }
-    else if (fullSize < 32768)  /* 16-31GB */
-    {
-        maxPct  = 0.93;
-        warnPct = 0.75;
-    }
-    else if (fullSize < 65536)  /* 32-63GB */
-    {
-        maxPct  = 0.94;
-        warnPct = 0.80;
-    }
-    else if (fullSize < 131072) /* 64-127GB */
-    {
-        maxPct  = 0.95;
-        warnPct = 0.85;
-    }
-    else                        /* 128GB- */
-    {
-        maxPct  = 0.96;
-        warnPct = 0.90;
-    }
-
-    if (mSlMemory->value() > maxPct * fullSize)
+    if (mSlMemory->value() > (int)mSlMemory->maxRAMAlw())
     {
         aWarning = tr (
             "you have assigned more than <b>%1%</b> of your computer's memory "
             "(<b>%2</b>) to the virtual machine. Not enough memory is left "
             "for your host operating system. Please select a smaller amount.")
-            .arg ((unsigned)(maxPct * 100))
+            .arg ((unsigned)qRound ((double)mSlMemory->maxRAMAlw() / fullSize * 100.0))
             .arg (vboxGlobal().formatSize ((uint64_t)fullSize * _1M));
         return false;
     }
-    if (mSlMemory->value() > warnPct * fullSize)
+    if (mSlMemory->value() > (int)mSlMemory->maxRAMOpt())
     {
         aWarning = tr (
             "you have assigned more than <b>%1%</b> of your computer's memory "
-            "(<b>%2</b>) to the virtual machine. Not enough memory might be "
+            "(<b>%2</b>) to the virtual machine. There might not be enough memory "
             "left for your host operating system. Continue at your own risk.")
-            .arg ((unsigned)(warnPct * 100))
+            .arg ((unsigned)qRound ((double)mSlMemory->maxRAMOpt() / fullSize * 100.0))
             .arg (vboxGlobal().formatSize ((uint64_t)fullSize * _1M));
         return true;
     }
@@ -418,10 +329,10 @@ void VBoxVMSettingsSystem::setOrderAfter (QWidget *aWidget)
     setTabOrder (mLeMemory, mTwBootOrder);
     setTabOrder (mTwBootOrder, mTbBootItemUp);
     setTabOrder (mTbBootItemUp, mTbBootItemDown);
-    setTabOrder (mTbBootItemDown, mCbAcpi);
-    setTabOrder (mCbAcpi, mCbApic);
+    setTabOrder (mTbBootItemDown, mCbApic);
+    setTabOrder (mCbApic, mCbEFI);
 
-    setTabOrder (mCbApic, mSlCPU);
+    setTabOrder (mCbEFI, mSlCPU);
     setTabOrder (mSlCPU, mLeCPU);
     setTabOrder (mLeCPU, mCbPae);
 
@@ -453,12 +364,12 @@ void VBoxVMSettingsSystem::retranslateUi()
     CSystemProperties sys = vboxGlobal().virtualBox().GetSystemProperties();
 
     /* Retranslate the memory slider legend */
-    mLbMemoryMin->setText (tr ("<qt>%1&nbsp;MB</qt>").arg (sys.GetMinGuestRAM()));
-    mLbMemoryMax->setText (tr ("<qt>%1&nbsp;MB</qt>").arg (sys.GetMaxGuestRAM()));
+    mLbMemoryMin->setText (tr ("<qt>%1&nbsp;MB</qt>").arg (mSlMemory->minRAM()));
+    mLbMemoryMax->setText (tr ("<qt>%1&nbsp;MB</qt>").arg (mSlMemory->maxRAM()));
 
     /* Retranslate the cpu slider legend */
-    mLbCPUMin->setText (tr ("<qt>%1&nbsp;CPU</qt>", "%1 is 1 for now").arg (sys.GetMinGuestCPUCount()));
-    mLbCPUMax->setText (tr ("<qt>%1&nbsp;CPUs</qt>", "%1 is 32 for now").arg (sys.GetMaxGuestCPUCount()));
+    mLbCPUMin->setText (tr ("<qt>%1&nbsp;CPU</qt>", "%1 is 1 for now").arg (mMinGuestCPU));
+    mLbCPUMax->setText (tr ("<qt>%1&nbsp;CPUs</qt>", "%1 is host cpu count * 2 for now").arg (mMaxGuestCPU));
 }
 
 void VBoxVMSettingsSystem::valueChangedRAM (int aVal)
@@ -524,9 +435,19 @@ void VBoxVMSettingsSystem::adjustBootOrderTWSize()
 
     QAbstractItemView *iv = qobject_cast <QAbstractItemView*> (mTwBootOrder);
 
+    int h = 2 * mTwBootOrder->frameWidth();
+    int w = h;
+#ifdef Q_WS_MAC
+    int left, top, right, bottom;
+    mTwBootOrder->getContentsMargins (&left, &top, &right, &bottom);
+    h += top + bottom;
+    w += left + right;
+#else /* Q_WS_MAC */
+    w += 4;
+#endif /* Q_WS_MAC */
     mTwBootOrder->setFixedSize (
-        iv->sizeHintForColumn (0) + 2 * mTwBootOrder->frameWidth() + 4,
-        iv->sizeHintForRow (0) * mTwBootOrder->topLevelItemCount() + 2 * mTwBootOrder->frameWidth());
+        iv->sizeHintForColumn (0) + w,
+        iv->sizeHintForRow (0) * mTwBootOrder->topLevelItemCount() + h);
 
     /* Update the layout system */
     if (mTabMotherboard->layout())

@@ -1,4 +1,4 @@
-/* $Id: MachineImpl.h $ */
+/* $Id: MachineImpl.h 24989 2009-11-26 11:31:46Z vboxsync $ */
 
 /** @file
  *
@@ -28,15 +28,14 @@
 #include "ProgressImpl.h"
 #include "SnapshotImpl.h"
 #include "VRDPServerImpl.h"
-#include "DVDDriveImpl.h"
-#include "FloppyDriveImpl.h"
-#include "HardDiskAttachmentImpl.h"
+#include "MediumAttachmentImpl.h"
 #include "NetworkAdapterImpl.h"
 #include "AudioAdapterImpl.h"
 #include "SerialPortImpl.h"
 #include "ParallelPortImpl.h"
 #include "BIOSSettingsImpl.h"
-#include "StorageControllerImpl.h"
+#include "StorageControllerImpl.h"          // required for MachineImpl.h to compile on Windows
+#include "VBox/settings.h"
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
 #include "PerformanceImpl.h"
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
@@ -60,7 +59,6 @@
 
 class VirtualBox;
 class Progress;
-class CombinedProgress;
 class Keyboard;
 class Mouse;
 class Display;
@@ -69,16 +67,27 @@ class USBController;
 class Snapshot;
 class SharedFolder;
 class HostUSBDevice;
+class StorageController;
 
 class SessionMachine;
+
+namespace settings
+{
+    class MachineConfigFile;
+    struct Snapshot;
+    struct Hardware;
+    struct Storage;
+    struct StorageController;
+    struct MachineRegistryEntry;
+}
 
 // Machine class
 ////////////////////////////////////////////////////////////////////////////////
 
 class ATL_NO_VTABLE Machine :
     public VirtualBoxBaseWithChildrenNEXT,
-    public VirtualBoxSupportErrorInfoImpl <Machine, IMachine>,
-    public VirtualBoxSupportTranslation <Machine>,
+    public VirtualBoxSupportErrorInfoImpl<Machine, IMachine>,
+    public VirtualBoxSupportTranslation<Machine>,
     VBOX_SCRIPTABLE_IMPL(IMachine)
 {
     Q_OBJECT
@@ -86,6 +95,8 @@ class ATL_NO_VTABLE Machine :
 public:
 
     enum InstanceType { IsMachine, IsSessionMachine, IsSnapshotMachine };
+
+    enum InitMode { Init_New, Init_Import, Init_Registered };
 
     /**
      * Internal machine data.
@@ -110,15 +121,15 @@ public:
         struct Session
         {
             /** Control of the direct session opened by openSession() */
-            ComPtr <IInternalSessionControl> mDirectControl;
+            ComPtr<IInternalSessionControl> mDirectControl;
 
-            typedef std::list <ComPtr <IInternalSessionControl> > RemoteControlList;
+            typedef std::list<ComPtr<IInternalSessionControl> > RemoteControlList;
 
             /** list of controls of all opened remote sessions */
             RemoteControlList mRemoteControls;
 
             /** openRemoteSession() and OnSessionEnd() progress indicator */
-            ComObjPtr <Progress> mProgress;
+            ComObjPtr<Progress> mProgress;
 
             /**
              * PID of the session object that must be passed to openSession() to
@@ -134,14 +145,14 @@ public:
             Bstr mType;
 
             /** Session machine object */
-            ComObjPtr <SessionMachine> mMachine;
+            ComObjPtr<SessionMachine> mMachine;
 
             /**
              * Successfully locked media list. The 2nd value in the pair is true
              * if the medium is locked for writing and false if locked for
              * reading.
              */
-            typedef std::list <std::pair <ComPtr <IMedium>, bool > > LockedMedia;
+            typedef std::list<std::pair<ComPtr<IMedium>, bool > > LockedMedia;
             LockedMedia mLockedMedia;
         };
 
@@ -150,13 +161,15 @@ public:
 
         const Guid mUuid;
         BOOL mRegistered;
+        InitMode mInitMode;
 
         /** Flag indicating that the config file is read-only. */
         BOOL mConfigFileReadonly;
-        Bstr mConfigFile;
-        Bstr mConfigFileFull;
+        Utf8Str m_strConfigFile;
+        Utf8Str m_strConfigFileFull;
 
-        Utf8Str mSettingsFileVersion;
+        // machine settings XML file
+        settings::MachineConfigFile *m_pMachineConfigFile;
 
         BOOL mAccessible;
         com::ErrorInfo mAccessError;
@@ -175,9 +188,11 @@ public:
 
         Session mSession;
 
-        ComObjPtr <Snapshot> mFirstSnapshot;
-        ComObjPtr <Snapshot> mCurrentSnapshot;
+        ComObjPtr<Snapshot> mFirstSnapshot;
+        ComObjPtr<Snapshot> mCurrentSnapshot;
 
+        // protectes the snapshots tree of this machine
+        RWLockHandle mSnapshotsTreeLockHandle;
     };
 
     /**
@@ -191,7 +206,7 @@ public:
      */
     struct SSData
     {
-        Bstr mStateFilePath;
+        Utf8Str mStateFilePath;
     };
 
     /**
@@ -211,14 +226,18 @@ public:
         UserData();
         ~UserData();
 
-        bool operator== (const UserData &that) const
+        bool operator==(const UserData &that) const
         {
-            return this == &that ||
-                   (mName == that.mName &&
-                    mNameSync == that.mNameSync &&
-                    mDescription == that.mDescription &&
-                    mOSTypeId == that.mOSTypeId &&
-                    mSnapshotFolderFull == that.mSnapshotFolderFull);
+            return this == &that
+                || (   mName                 == that.mName
+                    && mNameSync             == that.mNameSync
+                    && mDescription          == that.mDescription
+                    && mOSTypeId             == that.mOSTypeId
+                    && mSnapshotFolderFull   == that.mSnapshotFolderFull
+                    && mTeleporterEnabled    == that.mTeleporterEnabled
+                    && mTeleporterPort       == that.mTeleporterPort
+                    && mTeleporterAddress    == that.mTeleporterAddress
+                    && mTeleporterPassword   == that.mTeleporterPassword);
         }
 
         Bstr    mName;
@@ -227,6 +246,10 @@ public:
         Bstr    mOSTypeId;
         Bstr    mSnapshotFolder;
         Bstr    mSnapshotFolderFull;
+        BOOL    mTeleporterEnabled;
+        ULONG   mTeleporterPort;
+        Bstr    mTeleporterAddress;
+        Bstr    mTeleporterPassword;
     };
 
     /**
@@ -244,9 +267,9 @@ public:
          */
         struct GuestProperty {
             /** Property name */
-            Bstr mName;
+            Utf8Str strName;
             /** Property value */
-            Bstr mValue;
+            Utf8Str strValue;
             /** Property timestamp */
             ULONG64 mTimestamp;
             /** Property flags */
@@ -256,49 +279,60 @@ public:
         HWData();
         ~HWData();
 
-        bool operator== (const HWData &that) const;
+        bool operator==(const HWData &that) const;
 
         Bstr           mHWVersion;
+        Guid           mHardwareUUID;   /**< If Null, use mData.mUuid. */
         ULONG          mMemorySize;
         ULONG          mMemoryBalloonSize;
         ULONG          mStatisticsUpdateInterval;
         ULONG          mVRAMSize;
         ULONG          mMonitorCount;
         BOOL           mHWVirtExEnabled;
+        BOOL           mHWVirtExExclusive;
         BOOL           mHWVirtExNestedPagingEnabled;
         BOOL           mHWVirtExVPIDEnabled;
-        BOOL           mAccelerate3DEnabled;
+        BOOL           mAccelerate2DVideoEnabled;
         BOOL           mPAEEnabled;
+        BOOL           mSyntheticCpu;
         ULONG          mCPUCount;
+        BOOL           mAccelerate3DEnabled;
 
-        DeviceType_T   mBootOrder [SchemaDefs::MaxBootPosition];
+        settings::CpuIdLeaf mCpuIdStdLeafs[10];
+        settings::CpuIdLeaf mCpuIdExtLeafs[10];
 
-        typedef std::list <ComObjPtr <SharedFolder> > SharedFolderList;
+        DeviceType_T   mBootOrder[SchemaDefs::MaxBootPosition];
+
+        typedef std::list< ComObjPtr<SharedFolder> > SharedFolderList;
         SharedFolderList mSharedFolders;
+
         ClipboardMode_T mClipboardMode;
-        typedef std::list <GuestProperty> GuestPropertyList;
+
+        typedef std::list<GuestProperty> GuestPropertyList;
         GuestPropertyList mGuestProperties;
         BOOL           mPropertyServiceActive;
-        Bstr           mGuestPropertyNotificationPatterns;
+        Utf8Str        mGuestPropertyNotificationPatterns;
+
+        FirmwareType_T mFirmwareType;
     };
 
     /**
-     *  Hard disk data.
+     *  Hard disk and other media data.
      *
      *  The usage policy is the same as for HWData, but a separate structure
      *  is necessary because hard disk data requires different procedures when
      *  taking or discarding snapshots, etc.
      *
-     *  The data variable is |mHDData|.
+     *  The data variable is |mMediaData|.
      */
-    struct HDData
+    struct MediaData
     {
-        HDData();
-        ~HDData();
+        MediaData();
+        ~MediaData();
 
-        bool operator== (const HDData &that) const;
+        bool operator==(const MediaData &that) const;
 
-        typedef std::list< ComObjPtr<HardDiskAttachment> > AttachmentList;
+        typedef std::list< ComObjPtr<MediumAttachment> > AttachmentList;
         AttachmentList mAttachments;
     };
 
@@ -314,11 +348,11 @@ public:
      *  children. The usage pattern is:
      *
      *  @code
-     *      AutoCaller autoCaller (this);
-     *      CheckComRCReturnRC (autoCaller.rc());
+     *      AutoCaller autoCaller(this);
+     *      CheckComRCReturnRC(autoCaller.rc());
      *
-     *      Machine::AutoStateDependency <MutableStateDep> adep (mParent);
-     *      CheckComRCReturnRC (stateDep.rc());
+     *      Machine::AutoStateDependency<MutableStateDep> adep(mParent);
+     *      CheckComRCReturnRC(stateDep.rc());
      *      ...
      *      // code that depends on the particular machine state
      *      ...
@@ -338,18 +372,18 @@ public:
     {
     public:
 
-        AutoStateDependency (Machine *aThat)
-            : mThat (aThat), mRC (S_OK)
-            , mMachineState (MachineState_Null)
-            , mRegistered (FALSE)
+        AutoStateDependency(Machine *aThat)
+            : mThat(aThat), mRC(S_OK)
+            , mMachineState(MachineState_Null)
+            , mRegistered(FALSE)
         {
-            Assert (aThat);
-            mRC = aThat->addStateDependency (taDepType, &mMachineState,
-                                             &mRegistered);
+            Assert(aThat);
+            mRC = aThat->addStateDependency(taDepType, &mMachineState,
+                                            &mRegistered);
         }
         ~AutoStateDependency()
         {
-            if (SUCCEEDED (mRC))
+            if (SUCCEEDED(mRC))
                 mThat->releaseStateDependency();
         }
 
@@ -357,7 +391,7 @@ public:
          *  destroyed. Note that will reset #rc() to E_FAIL. */
         void release()
         {
-            AssertReturnVoid (SUCCEEDED (mRC));
+            AssertReturnVoid(SUCCEEDED(mRC));
             mThat->releaseStateDependency();
             mRC = E_FAIL;
         }
@@ -367,16 +401,16 @@ public:
          *  rechecked to ensure the operation succeeded. */
         void add()
         {
-            AssertReturnVoid (!SUCCEEDED (mRC));
-            mRC = mThat->addStateDependency (taDepType, &mMachineState,
-                                             &mRegistered);
+            AssertReturnVoid(!SUCCEEDED(mRC));
+            mRC = mThat->addStateDependency(taDepType, &mMachineState,
+                                            &mRegistered);
         }
 
         /** Returns the result of Machine::addStateDependency(). */
         HRESULT rc() const { return mRC; }
 
-        /** Shortcut to SUCCEEDED (rc()). */
-        bool isOk() const { return SUCCEEDED (mRC); }
+        /** Shortcut to SUCCEEDED(rc()). */
+        bool isOk() const { return SUCCEEDED(mRC); }
 
         /** Returns the machine state value as returned by
          *  Machine::addStateDependency(). */
@@ -395,12 +429,12 @@ public:
 
     private:
 
-        DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP (AutoStateDependency)
-        DECLARE_CLS_NEW_DELETE_NOOP (AutoStateDependency)
+        DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoStateDependency)
+        DECLARE_CLS_NEW_DELETE_NOOP(AutoStateDependency)
     };
 
     /**
-     *  Shortcut to AutoStateDependency <AnyStateDep>.
+     *  Shortcut to AutoStateDependency<AnyStateDep>.
      *  See AutoStateDependency to get the usage pattern.
      *
      *  Accepts any machine state and guarantees the state won't change before
@@ -410,10 +444,10 @@ public:
      *  rely on any particular machine state and should return the failed
      *  result code to the upper level.
      */
-    typedef AutoStateDependency <AnyStateDep> AutoAnyStateDependency;
+    typedef AutoStateDependency<AnyStateDep> AutoAnyStateDependency;
 
     /**
-     *  Shortcut to AutoStateDependency <MutableStateDep>.
+     *  Shortcut to AutoStateDependency<MutableStateDep>.
      *  See AutoStateDependency to get the usage pattern.
      *
      *  Succeeds only if the machine state is in one of the mutable states, and
@@ -427,10 +461,10 @@ public:
      *  children objects (DVDDrive, NetworkAdapter, AudioAdapter, etc.) to
      *  provide data protection and consistency.
      */
-    typedef AutoStateDependency <MutableStateDep> AutoMutableStateDependency;
+    typedef AutoStateDependency<MutableStateDep> AutoMutableStateDependency;
 
     /**
-     *  Shortcut to AutoStateDependency <MutableOrSavedStateDep>.
+     *  Shortcut to AutoStateDependency<MutableOrSavedStateDep>.
      *  See AutoStateDependency to get the usage pattern.
      *
      *  Succeeds only if the machine state is in one of the mutable states, or
@@ -443,10 +477,10 @@ public:
      *  Intended to be used within setter methods of IMachine
      *  children objects that may also operate on Saved machines.
      */
-    typedef AutoStateDependency <MutableOrSavedStateDep> AutoMutableOrSavedStateDependency;
+    typedef AutoStateDependency<MutableOrSavedStateDep> AutoMutableOrSavedStateDependency;
 
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (Machine)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Machine)
 
     DECLARE_NOT_AGGREGATABLE(Machine)
 
@@ -458,35 +492,41 @@ public:
         COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
-    DECLARE_EMPTY_CTOR_DTOR (Machine)
+    DECLARE_EMPTY_CTOR_DTOR(Machine)
 
     HRESULT FinalConstruct();
     void FinalRelease();
 
-    enum InitMode { Init_New, Init_Existing, Init_Registered };
-
     // public initializer/uninitializer for internal purposes only
-    HRESULT init (VirtualBox *aParent, CBSTR aConfigFile,
-                  InitMode aMode, CBSTR aName = NULL,
-                  GuestOSType *aOsType = NULL,
-                  BOOL aNameSync = TRUE, const Guid *aId = NULL);
+    HRESULT init(VirtualBox *aParent,
+                 const Utf8Str &strConfigFile,
+                 InitMode aMode,
+                 CBSTR aName = NULL,
+                 GuestOSType *aOsType = NULL,
+                 BOOL aNameSync = TRUE,
+                 const Guid *aId = NULL);
     void uninit();
 
+protected:
+    HRESULT initDataAndChildObjects();
+    void uninitDataAndChildObjects();
+
+public:
     // IMachine properties
     STDMETHOD(COMGETTER(Parent))(IVirtualBox **aParent);
-    STDMETHOD(COMGETTER(Accessible)) (BOOL *aAccessible);
-    STDMETHOD(COMGETTER(AccessError)) (IVirtualBoxErrorInfo **aAccessError);
+    STDMETHOD(COMGETTER(Accessible))(BOOL *aAccessible);
+    STDMETHOD(COMGETTER(AccessError))(IVirtualBoxErrorInfo **aAccessError);
     STDMETHOD(COMGETTER(Name))(BSTR *aName);
     STDMETHOD(COMSETTER(Name))(IN_BSTR aName);
     STDMETHOD(COMGETTER(Description))(BSTR *aDescription);
     STDMETHOD(COMSETTER(Description))(IN_BSTR aDescription);
     STDMETHOD(COMGETTER(Id))(BSTR *aId);
-    STDMETHOD(COMGETTER(OSTypeId)) (BSTR *aOSTypeId);
-    STDMETHOD(COMSETTER(OSTypeId)) (IN_BSTR aOSTypeId);
+    STDMETHOD(COMGETTER(OSTypeId))(BSTR *aOSTypeId);
+    STDMETHOD(COMSETTER(OSTypeId))(IN_BSTR aOSTypeId);
     STDMETHOD(COMGETTER(HardwareVersion))(BSTR *aVersion);
     STDMETHOD(COMSETTER(HardwareVersion))(IN_BSTR aVersion);
+    STDMETHOD(COMGETTER(HardwareUUID))(BSTR *aUUID);
+    STDMETHOD(COMSETTER(HardwareUUID))(IN_BSTR aUUID);
     STDMETHOD(COMGETTER(MemorySize))(ULONG *memorySize);
     STDMETHOD(COMSETTER(MemorySize))(ULONG memorySize);
     STDMETHOD(COMGETTER(CPUCount))(ULONG *cpuCount);
@@ -501,83 +541,101 @@ public:
     STDMETHOD(COMSETTER(MonitorCount))(ULONG monitorCount);
     STDMETHOD(COMGETTER(Accelerate3DEnabled))(BOOL *enabled);
     STDMETHOD(COMSETTER(Accelerate3DEnabled))(BOOL enabled);
+    STDMETHOD(COMGETTER(Accelerate2DVideoEnabled))(BOOL *enabled);
+    STDMETHOD(COMSETTER(Accelerate2DVideoEnabled))(BOOL enabled);
     STDMETHOD(COMGETTER(BIOSSettings))(IBIOSSettings **biosSettings);
-    STDMETHOD(COMGETTER(HWVirtExEnabled))(BOOL *enabled);
-    STDMETHOD(COMSETTER(HWVirtExEnabled))(BOOL enabled);
-    STDMETHOD(COMGETTER(HWVirtExNestedPagingEnabled))(BOOL *enabled);
-    STDMETHOD(COMSETTER(HWVirtExNestedPagingEnabled))(BOOL enabled);
-    STDMETHOD(COMGETTER(HWVirtExVPIDEnabled))(BOOL *enabled);
-    STDMETHOD(COMSETTER(HWVirtExVPIDEnabled))(BOOL enabled);
-    STDMETHOD(COMGETTER(PAEEnabled))(BOOL *enabled);
-    STDMETHOD(COMSETTER(PAEEnabled))(BOOL enabled);
     STDMETHOD(COMGETTER(SnapshotFolder))(BSTR *aSavedStateFolder);
     STDMETHOD(COMSETTER(SnapshotFolder))(IN_BSTR aSavedStateFolder);
-    STDMETHOD(COMGETTER(HardDiskAttachments))(ComSafeArrayOut (IHardDiskAttachment *, aAttachments));
+    STDMETHOD(COMGETTER(MediumAttachments))(ComSafeArrayOut(IMediumAttachment *, aAttachments));
     STDMETHOD(COMGETTER(VRDPServer))(IVRDPServer **vrdpServer);
-    STDMETHOD(COMGETTER(DVDDrive))(IDVDDrive **dvdDrive);
-    STDMETHOD(COMGETTER(FloppyDrive))(IFloppyDrive **floppyDrive);
     STDMETHOD(COMGETTER(AudioAdapter))(IAudioAdapter **audioAdapter);
-    STDMETHOD(COMGETTER(USBController)) (IUSBController * *aUSBController);
-    STDMETHOD(COMGETTER(SettingsFilePath)) (BSTR *aFilePath);
-    STDMETHOD(COMGETTER(SettingsFileVersion)) (BSTR *aSettingsFileVersion);
-    STDMETHOD(COMGETTER(SettingsModified)) (BOOL *aModified);
-    STDMETHOD(COMGETTER(SessionState)) (SessionState_T *aSessionState);
-    STDMETHOD(COMGETTER(SessionType)) (BSTR *aSessionType);
-    STDMETHOD(COMGETTER(SessionPid)) (ULONG *aSessionPid);
-    STDMETHOD(COMGETTER(State)) (MachineState_T *machineState);
-    STDMETHOD(COMGETTER(LastStateChange)) (LONG64 *aLastStateChange);
-    STDMETHOD(COMGETTER(StateFilePath)) (BSTR *aStateFilePath);
-    STDMETHOD(COMGETTER(LogFolder)) (BSTR *aLogFolder);
-    STDMETHOD(COMGETTER(CurrentSnapshot)) (ISnapshot **aCurrentSnapshot);
-    STDMETHOD(COMGETTER(SnapshotCount)) (ULONG *aSnapshotCount);
+    STDMETHOD(COMGETTER(USBController))(IUSBController * *aUSBController);
+    STDMETHOD(COMGETTER(SettingsFilePath))(BSTR *aFilePath);
+    STDMETHOD(COMGETTER(SettingsModified))(BOOL *aModified);
+    STDMETHOD(COMGETTER(SessionState))(SessionState_T *aSessionState);
+    STDMETHOD(COMGETTER(SessionType))(BSTR *aSessionType);
+    STDMETHOD(COMGETTER(SessionPid))(ULONG *aSessionPid);
+    STDMETHOD(COMGETTER(State))(MachineState_T *machineState);
+    STDMETHOD(COMGETTER(LastStateChange))(LONG64 *aLastStateChange);
+    STDMETHOD(COMGETTER(StateFilePath))(BSTR *aStateFilePath);
+    STDMETHOD(COMGETTER(LogFolder))(BSTR *aLogFolder);
+    STDMETHOD(COMGETTER(CurrentSnapshot))(ISnapshot **aCurrentSnapshot);
+    STDMETHOD(COMGETTER(SnapshotCount))(ULONG *aSnapshotCount);
     STDMETHOD(COMGETTER(CurrentStateModified))(BOOL *aCurrentStateModified);
-    STDMETHOD(COMGETTER(SharedFolders)) (ComSafeArrayOut (ISharedFolder *, aSharedFolders));
-    STDMETHOD(COMGETTER(ClipboardMode)) (ClipboardMode_T *aClipboardMode);
-    STDMETHOD(COMSETTER(ClipboardMode)) (ClipboardMode_T aClipboardMode);
-    STDMETHOD(COMGETTER(GuestPropertyNotificationPatterns)) (BSTR *aPattern);
-    STDMETHOD(COMSETTER(GuestPropertyNotificationPatterns)) (IN_BSTR aPattern);
-    STDMETHOD(COMGETTER(StorageControllers)) (ComSafeArrayOut(IStorageController *, aStorageControllers));
+    STDMETHOD(COMGETTER(SharedFolders))(ComSafeArrayOut(ISharedFolder *, aSharedFolders));
+    STDMETHOD(COMGETTER(ClipboardMode))(ClipboardMode_T *aClipboardMode);
+    STDMETHOD(COMSETTER(ClipboardMode))(ClipboardMode_T aClipboardMode);
+    STDMETHOD(COMGETTER(GuestPropertyNotificationPatterns))(BSTR *aPattern);
+    STDMETHOD(COMSETTER(GuestPropertyNotificationPatterns))(IN_BSTR aPattern);
+    STDMETHOD(COMGETTER(StorageControllers))(ComSafeArrayOut(IStorageController *, aStorageControllers));
+    STDMETHOD(COMGETTER(TeleporterEnabled))(BOOL *aEnabled);
+    STDMETHOD(COMSETTER(TeleporterEnabled))(BOOL aEnabled);
+    STDMETHOD(COMGETTER(TeleporterPort))(ULONG *aPort);
+    STDMETHOD(COMSETTER(TeleporterPort))(ULONG aPort);
+    STDMETHOD(COMGETTER(TeleporterAddress))(BSTR *aAddress);
+    STDMETHOD(COMSETTER(TeleporterAddress))(IN_BSTR aAddress);
+    STDMETHOD(COMGETTER(TeleporterPassword))(BSTR *aPassword);
+    STDMETHOD(COMSETTER(TeleporterPassword))(IN_BSTR aPassword);
 
     // IMachine methods
     STDMETHOD(SetBootOrder)(ULONG aPosition, DeviceType_T aDevice);
     STDMETHOD(GetBootOrder)(ULONG aPosition, DeviceType_T *aDevice);
-    STDMETHOD(AttachHardDisk)(IN_BSTR aId, IN_BSTR aControllerName,
-                              LONG aControllerPort, LONG aDevice);
-    STDMETHOD(GetHardDisk)(IN_BSTR aControllerName, LONG aControllerPort, LONG aDevice,
-                           IHardDisk **aHardDisk);
-    STDMETHOD(DetachHardDisk)(IN_BSTR aControllerName, LONG aControllerPort, LONG aDevice);
-    STDMETHOD(GetSerialPort) (ULONG slot, ISerialPort **port);
-    STDMETHOD(GetParallelPort) (ULONG slot, IParallelPort **port);
-    STDMETHOD(GetNetworkAdapter) (ULONG slot, INetworkAdapter **adapter);
-    STDMETHOD(GetNextExtraDataKey)(IN_BSTR aKey, BSTR *aNextKey, BSTR *aNextValue);
+    STDMETHOD(AttachDevice)(IN_BSTR aControllerName, LONG aControllerPort,
+                            LONG aDevice, DeviceType_T aType, IN_BSTR aId);
+    STDMETHOD(DetachDevice)(IN_BSTR aControllerName, LONG aControllerPort, LONG aDevice);
+    STDMETHOD(PassthroughDevice)(IN_BSTR aControllerName, LONG aControllerPort, LONG aDevice, BOOL aPassthrough);
+    STDMETHOD(MountMedium)(IN_BSTR aControllerName, LONG aControllerPort,
+                           LONG aDevice, IN_BSTR aId, BOOL aForce);
+    STDMETHOD(GetMedium)(IN_BSTR aControllerName, LONG aControllerPort, LONG aDevice,
+                         IMedium **aMedium);
+    STDMETHOD(GetSerialPort)(ULONG slot, ISerialPort **port);
+    STDMETHOD(GetParallelPort)(ULONG slot, IParallelPort **port);
+    STDMETHOD(GetNetworkAdapter)(ULONG slot, INetworkAdapter **adapter);
+    STDMETHOD(GetExtraDataKeys)(ComSafeArrayOut(BSTR, aKeys));
     STDMETHOD(GetExtraData)(IN_BSTR aKey, BSTR *aValue);
     STDMETHOD(SetExtraData)(IN_BSTR aKey, IN_BSTR aValue);
+    STDMETHOD(GetCpuProperty)(CpuPropertyType_T property, BOOL *aVal);
+    STDMETHOD(SetCpuProperty)(CpuPropertyType_T property, BOOL aVal);
+    STDMETHOD(GetCpuIdLeaf)(ULONG id, ULONG *aValEax, ULONG *aValEbx, ULONG *aValEcx, ULONG *aValEdx);
+    STDMETHOD(SetCpuIdLeaf)(ULONG id, ULONG aValEax, ULONG aValEbx, ULONG aValEcx, ULONG aValEdx);
+    STDMETHOD(RemoveCpuIdLeaf)(ULONG id);
+    STDMETHOD(RemoveAllCpuIdLeafs)();
+    STDMETHOD(GetHWVirtExProperty)(HWVirtExPropertyType_T property, BOOL *aVal);
+    STDMETHOD(SetHWVirtExProperty)(HWVirtExPropertyType_T property, BOOL aVal);
     STDMETHOD(SaveSettings)();
-    STDMETHOD(SaveSettingsWithBackup) (BSTR *aBakFileName);
     STDMETHOD(DiscardSettings)();
     STDMETHOD(DeleteSettings)();
     STDMETHOD(Export)(IAppliance *aAppliance, IVirtualSystemDescription **aDescription);
-    STDMETHOD(GetSnapshot) (IN_BSTR aId, ISnapshot **aSnapshot);
-    STDMETHOD(FindSnapshot) (IN_BSTR aName, ISnapshot **aSnapshot);
-    STDMETHOD(SetCurrentSnapshot) (IN_BSTR aId);
-    STDMETHOD(CreateSharedFolder) (IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable);
-    STDMETHOD(RemoveSharedFolder) (IN_BSTR aName);
-    STDMETHOD(CanShowConsoleWindow) (BOOL *aCanShow);
-    STDMETHOD(ShowConsoleWindow) (ULONG64 *aWinId);
-    STDMETHOD(GetGuestProperty) (IN_BSTR aName, BSTR *aValue, ULONG64 *aTimestamp, BSTR *aFlags);
-    STDMETHOD(GetGuestPropertyValue) (IN_BSTR aName, BSTR *aValue);
-    STDMETHOD(GetGuestPropertyTimestamp) (IN_BSTR aName, ULONG64 *aTimestamp);
-    STDMETHOD(SetGuestProperty) (IN_BSTR aName, IN_BSTR aValue, IN_BSTR aFlags);
-    STDMETHOD(SetGuestPropertyValue) (IN_BSTR aName, IN_BSTR aValue);
-    STDMETHOD(EnumerateGuestProperties) (IN_BSTR aPattern, ComSafeArrayOut(BSTR, aNames), ComSafeArrayOut(BSTR, aValues), ComSafeArrayOut(ULONG64, aTimestamps), ComSafeArrayOut(BSTR, aFlags));
-    STDMETHOD(GetHardDiskAttachmentsOfController)(IN_BSTR aName, ComSafeArrayOut (IHardDiskAttachment *, aAttachments));
-    STDMETHOD(AddStorageController) (IN_BSTR aName, StorageBus_T aConnectionType, IStorageController **controller);
-    STDMETHOD(RemoveStorageController (IN_BSTR aName));
-    STDMETHOD(GetStorageControllerByName (IN_BSTR aName, IStorageController **storageController));
+    STDMETHOD(GetSnapshot)(IN_BSTR aId, ISnapshot **aSnapshot);
+    STDMETHOD(FindSnapshot)(IN_BSTR aName, ISnapshot **aSnapshot);
+    STDMETHOD(SetCurrentSnapshot)(IN_BSTR aId);
+    STDMETHOD(CreateSharedFolder)(IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable);
+    STDMETHOD(RemoveSharedFolder)(IN_BSTR aName);
+    STDMETHOD(CanShowConsoleWindow)(BOOL *aCanShow);
+    STDMETHOD(ShowConsoleWindow)(ULONG64 *aWinId);
+    STDMETHOD(GetGuestProperty)(IN_BSTR aName, BSTR *aValue, ULONG64 *aTimestamp, BSTR *aFlags);
+    STDMETHOD(GetGuestPropertyValue)(IN_BSTR aName, BSTR *aValue);
+    STDMETHOD(GetGuestPropertyTimestamp)(IN_BSTR aName, ULONG64 *aTimestamp);
+    STDMETHOD(SetGuestProperty)(IN_BSTR aName, IN_BSTR aValue, IN_BSTR aFlags);
+    STDMETHOD(SetGuestPropertyValue)(IN_BSTR aName, IN_BSTR aValue);
+    STDMETHOD(EnumerateGuestProperties)(IN_BSTR aPattern, ComSafeArrayOut(BSTR, aNames), ComSafeArrayOut(BSTR, aValues), ComSafeArrayOut(ULONG64, aTimestamps), ComSafeArrayOut(BSTR, aFlags));
+    STDMETHOD(GetMediumAttachmentsOfController)(IN_BSTR aName, ComSafeArrayOut(IMediumAttachment *, aAttachments));
+    STDMETHOD(GetMediumAttachment)(IN_BSTR aConstrollerName, LONG aControllerPort, LONG aDevice, IMediumAttachment **aAttachment);
+    STDMETHOD(AddStorageController)(IN_BSTR aName, StorageBus_T aConnectionType, IStorageController **controller);
+    STDMETHOD(RemoveStorageController(IN_BSTR aName));
+    STDMETHOD(GetStorageControllerByName(IN_BSTR aName, IStorageController **storageController));
+    STDMETHOD(GetStorageControllerByInstance(ULONG aInstance, IStorageController **storageController));
+    STDMETHOD(COMGETTER(FirmwareType)) (FirmwareType_T *aFirmware);
+    STDMETHOD(COMSETTER(FirmwareType)) (FirmwareType_T  aFirmware);
+
+    STDMETHOD(QuerySavedThumbnailSize)(ULONG *aSize, ULONG *aWidth, ULONG *aHeight);
+    STDMETHOD(ReadSavedThumbnailToArray)(BOOL aBGR, ULONG *aWidth, ULONG *aHeight, ComSafeArrayOut(BYTE, aData));
+    STDMETHOD(QuerySavedScreenshotPNGSize)(ULONG *aSize, ULONG *aWidth, ULONG *aHeight);
+    STDMETHOD(ReadSavedScreenshotPNGToArray)(ULONG *aWidth, ULONG *aHeight, ComSafeArrayOut(BYTE, aData));
 
     // public methods only for internal purposes
 
-    InstanceType type() const { return mType; }
+    InstanceType getType() const { return mType; }
 
     /// @todo (dmik) add lock and make non-inlined after revising classes
     //  that use it. Note: they should enter Machine lock to keep the returned
@@ -594,7 +652,7 @@ public:
      * used by ready Machine children (whose readiness is bound to the parent's
      * one) or after doing addCaller() manually.
      */
-    const ComObjPtr <VirtualBox, ComWeakRef> &virtualBox() const { return mParent; }
+    const ComObjPtr<VirtualBox, ComWeakRef>& getVirtualBox() const { return mParent; }
 
     /**
      * Returns this machine ID.
@@ -603,7 +661,7 @@ public:
      * used by ready Machine children (whose readiness is bound to the parent's
      * one) or after adding a caller manually.
      */
-    const Guid &id() const { return mData->mUuid; }
+    const Guid& getId() const { return mData->mUuid; }
 
     /**
      * Returns the snapshot ID this machine represents or an empty UUID if this
@@ -613,7 +671,7 @@ public:
      * used by ready Machine children (whose readiness is bound to the parent's
      * one) or after adding a caller manually.
      */
-    inline const Guid &snapshotId() const;
+    inline const Guid& getSnapshotId() const;
 
     /**
      * Returns this machine's full settings file path.
@@ -622,7 +680,7 @@ public:
      * Intended to be used only after doing addCaller() manually and locking it
      * for reading.
      */
-    const Bstr &settingsFileFull() const { return mData->mConfigFileFull; }
+    const Utf8Str& getSettingsFileFull() const { return mData->m_strConfigFileFull; }
 
     /**
      * Returns this machine name.
@@ -631,144 +689,154 @@ public:
      * Intended to be used only after doing addCaller() manually and locking it
      * for reading.
      */
-    const Bstr &name() const { return mUserData->mName; }
+    const Bstr& getName() const { return mUserData->mName; }
 
     // callback handlers
-    virtual HRESULT onDVDDriveChange() { return S_OK; }
-    virtual HRESULT onFloppyDriveChange() { return S_OK; }
-    virtual HRESULT onNetworkAdapterChange(INetworkAdapter * /* networkAdapter */) { return S_OK; }
+    virtual HRESULT onNetworkAdapterChange(INetworkAdapter * /* networkAdapter */, BOOL /* changeAdapter */) { return S_OK; }
     virtual HRESULT onSerialPortChange(ISerialPort * /* serialPort */) { return S_OK; }
     virtual HRESULT onParallelPortChange(IParallelPort * /* parallelPort */) { return S_OK; }
     virtual HRESULT onVRDPServerChange() { return S_OK; }
     virtual HRESULT onUSBControllerChange() { return S_OK; }
     virtual HRESULT onStorageControllerChange() { return S_OK; }
+    virtual HRESULT onMediumChange(IMediumAttachment * /* mediumAttachment */, BOOL /* force */) { return S_OK; }
     virtual HRESULT onSharedFolderChange() { return S_OK; }
 
-    HRESULT saveRegistryEntry (settings::Key &aEntryNode);
+    HRESULT saveRegistryEntry(settings::MachineRegistryEntry &data);
 
-    int calculateFullPath (const char *aPath, Utf8Str &aResult);
-    void calculateRelativePath (const char *aPath, Utf8Str &aResult);
+    int calculateFullPath(const Utf8Str &strPath, Utf8Str &aResult);
+    void calculateRelativePath(const Utf8Str &strPath, Utf8Str &aResult);
 
-    void getLogFolder (Utf8Str &aLogFolder);
+    void getLogFolder(Utf8Str &aLogFolder);
 
-    HRESULT openSession (IInternalSessionControl *aControl);
-    HRESULT openRemoteSession (IInternalSessionControl *aControl,
-                               IN_BSTR aType, IN_BSTR aEnvironment,
-                               Progress *aProgress);
-    HRESULT openExistingSession (IInternalSessionControl *aControl);
+    HRESULT openSession(IInternalSessionControl *aControl);
+    HRESULT openRemoteSession(IInternalSessionControl *aControl,
+                              IN_BSTR aType, IN_BSTR aEnvironment,
+                              Progress *aProgress);
+    HRESULT openExistingSession(IInternalSessionControl *aControl);
 
-#if defined (RT_OS_WINDOWS)
+#if defined(RT_OS_WINDOWS)
 
-    bool isSessionOpen (ComObjPtr <SessionMachine> &aMachine,
-                        ComPtr <IInternalSessionControl> *aControl = NULL,
-                        HANDLE *aIPCSem = NULL, bool aAllowClosing = false);
-    bool isSessionSpawning (RTPROCESS *aPID = NULL);
+    bool isSessionOpen(ComObjPtr<SessionMachine> &aMachine,
+                       ComPtr<IInternalSessionControl> *aControl = NULL,
+                       HANDLE *aIPCSem = NULL, bool aAllowClosing = false);
+    bool isSessionSpawning(RTPROCESS *aPID = NULL);
 
-    bool isSessionOpenOrClosing (ComObjPtr <SessionMachine> &aMachine,
-                                 ComPtr <IInternalSessionControl> *aControl = NULL,
-                                 HANDLE *aIPCSem = NULL)
-    { return isSessionOpen (aMachine, aControl, aIPCSem, true /* aAllowClosing */); }
+    bool isSessionOpenOrClosing(ComObjPtr<SessionMachine> &aMachine,
+                                ComPtr<IInternalSessionControl> *aControl = NULL,
+                                HANDLE *aIPCSem = NULL)
+    { return isSessionOpen(aMachine, aControl, aIPCSem, true /* aAllowClosing */); }
 
-#elif defined (RT_OS_OS2)
+#elif defined(RT_OS_OS2)
 
-    bool isSessionOpen (ComObjPtr <SessionMachine> &aMachine,
-                        ComPtr <IInternalSessionControl> *aControl = NULL,
-                        HMTX *aIPCSem = NULL, bool aAllowClosing = false);
+    bool isSessionOpen(ComObjPtr<SessionMachine> &aMachine,
+                       ComPtr<IInternalSessionControl> *aControl = NULL,
+                       HMTX *aIPCSem = NULL, bool aAllowClosing = false);
 
-    bool isSessionSpawning (RTPROCESS *aPID = NULL);
+    bool isSessionSpawning(RTPROCESS *aPID = NULL);
 
-    bool isSessionOpenOrClosing (ComObjPtr <SessionMachine> &aMachine,
-                                 ComPtr <IInternalSessionControl> *aControl = NULL,
+    bool isSessionOpenOrClosing(ComObjPtr<SessionMachine> &aMachine,
+                                 ComPtr<IInternalSessionControl> *aControl = NULL,
                                  HMTX *aIPCSem = NULL)
-    { return isSessionOpen (aMachine, aControl, aIPCSem, true /* aAllowClosing */); }
+    { return isSessionOpen(aMachine, aControl, aIPCSem, true /* aAllowClosing */); }
 
 #else
 
-    bool isSessionOpen (ComObjPtr <SessionMachine> &aMachine,
-                        ComPtr <IInternalSessionControl> *aControl = NULL,
-                        bool aAllowClosing = false);
+    bool isSessionOpen(ComObjPtr<SessionMachine> &aMachine,
+                       ComPtr<IInternalSessionControl> *aControl = NULL,
+                       bool aAllowClosing = false);
     bool isSessionSpawning();
 
-    bool isSessionOpenOrClosing (ComObjPtr <SessionMachine> &aMachine,
-                                 ComPtr <IInternalSessionControl> *aControl = NULL)
-    { return isSessionOpen (aMachine, aControl, true /* aAllowClosing */); }
+    bool isSessionOpenOrClosing(ComObjPtr<SessionMachine> &aMachine,
+                                ComPtr<IInternalSessionControl> *aControl = NULL)
+    { return isSessionOpen(aMachine, aControl, true /* aAllowClosing */); }
 
 #endif
 
     bool checkForSpawnFailure();
 
-    HRESULT trySetRegistered (BOOL aRegistered);
+    HRESULT trySetRegistered(BOOL aRegistered);
 
-    HRESULT getSharedFolder (CBSTR aName,
-                             ComObjPtr <SharedFolder> &aSharedFolder,
-                             bool aSetError = false)
+    HRESULT getSharedFolder(CBSTR aName,
+                            ComObjPtr<SharedFolder> &aSharedFolder,
+                            bool aSetError = false)
     {
-        AutoWriteLock alock (this);
-        return findSharedFolder (aName, aSharedFolder, aSetError);
+        AutoWriteLock alock(this);
+        return findSharedFolder(aName, aSharedFolder, aSetError);
     }
 
-    HRESULT addStateDependency (StateDependency aDepType = AnyStateDep,
-                                MachineState_T *aState = NULL,
-                                BOOL *aRegistered = NULL);
+    HRESULT addStateDependency(StateDependency aDepType = AnyStateDep,
+                               MachineState_T *aState = NULL,
+                               BOOL *aRegistered = NULL);
     void releaseStateDependency();
 
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"Machine"; }
 
+    /**
+     * Returns the handle of the snapshots tree lock. This lock is
+     * machine-specific because there is one snapshots tree per
+     * IMachine; the lock protects the "first snapshot" member in
+     * IMachine and all the children and parent links in snapshot
+     * objects pointed to therefrom.
+     *
+     * Locking order:
+     * a) object lock of the machine;
+     * b) snapshots tree lock of the machine;
+     * c) individual snapshot object locks in parent->child order,
+     *    if needed; they are _not_ needed for the tree itself
+     *    (as defined above).
+     */
+    RWLockHandle* snapshotsTreeLockHandle() const
+    {
+        return &mData->mSnapshotsTreeLockHandle;
+    }
+
 protected:
 
     HRESULT registeredInit();
 
-    HRESULT checkStateDependency (StateDependency aDepType);
+    HRESULT checkStateDependency(StateDependency aDepType);
 
-    inline Machine *machine();
-
-    HRESULT initDataAndChildObjects();
-    void uninitDataAndChildObjects();
+    inline Machine *getMachine();
 
     void ensureNoStateDependencies();
 
-    virtual HRESULT setMachineState (MachineState_T aMachineState);
+    virtual HRESULT setMachineState(MachineState_T aMachineState);
 
-    HRESULT findSharedFolder (CBSTR aName,
-                              ComObjPtr <SharedFolder> &aSharedFolder,
-                              bool aSetError = false);
+    HRESULT findSharedFolder(CBSTR aName,
+                             ComObjPtr<SharedFolder> &aSharedFolder,
+                             bool aSetError = false);
 
-    HRESULT loadSettings (bool aRegistered);
-    HRESULT loadSnapshot (const settings::Key &aNode, const Guid &aCurSnapshotId,
-                          Snapshot *aParentSnapshot);
-    HRESULT loadHardware (const settings::Key &aNode);
-    HRESULT loadStorageControllers (const settings::Key &aNode, bool aRegistered,
-                           const Guid *aSnapshotId = NULL);
-    HRESULT loadStorageDevices (ComObjPtr<StorageController> aStorageController,
-                                const settings::Key &aNode, bool aRegistered,
-                                const Guid *aSnapshotId = NULL);
+    HRESULT loadSettings(bool aRegistered);
+    HRESULT loadSnapshot(const settings::Snapshot &data,
+                         const Guid &aCurSnapshotId,
+                         Snapshot *aParentSnapshot);
+    HRESULT loadHardware(const settings::Hardware &data);
+    HRESULT loadStorageControllers(const settings::Storage &data,
+                                   bool aRegistered,
+                                   const Guid *aSnapshotId = NULL);
+    HRESULT loadStorageDevices(StorageController *aStorageController,
+                               const settings::StorageController &data,
+                               bool aRegistered,
+                               const Guid *aSnapshotId = NULL);
 
-    HRESULT findSnapshotNode (Snapshot *aSnapshot, settings::Key &aMachineNode,
-                              settings::Key *aSnapshotsNode,
-                              settings::Key *aSnapshotNode);
+    HRESULT findSnapshot(const Guid &aId, ComObjPtr<Snapshot> &aSnapshot,
+                         bool aSetError = false);
+    HRESULT findSnapshot(IN_BSTR aName, ComObjPtr<Snapshot> &aSnapshot,
+                         bool aSetError = false);
 
-    HRESULT findSnapshot (const Guid &aId, ComObjPtr <Snapshot> &aSnapshot,
-                          bool aSetError = false);
-    HRESULT findSnapshot (IN_BSTR aName, ComObjPtr <Snapshot> &aSnapshot,
-                          bool aSetError = false);
-
-    HRESULT getStorageControllerByName(CBSTR aName,
-                                       ComObjPtr <StorageController> &aStorageController,
+    HRESULT getStorageControllerByName(const Utf8Str &aName,
+                                       ComObjPtr<StorageController> &aStorageController,
                                        bool aSetError = false);
 
-    HRESULT getHardDiskAttachmentsOfController(CBSTR aName,
-                                               HDData::AttachmentList &aAttachments);
+    HRESULT getMediumAttachmentsOfController(CBSTR aName,
+                                             MediaData::AttachmentList &aAttachments);
 
     enum
     {
         /* flags for #saveSettings() */
         SaveS_ResetCurStateModified = 0x01,
         SaveS_InformCallbacksAnyway = 0x02,
-        /* ops for #saveSnapshotSettings() */
-        SaveSS_NoOp = 0x00, SaveSS_AddOp = 0x01,
-        SaveSS_UpdateAttrsOp = 0x02, SaveSS_UpdateAllOp = 0x03,
-        SaveSS_OpMask = 0xF,
         /* flags for #saveSnapshotSettings() */
         SaveSS_CurStateModified = 0x40,
         SaveSS_CurrentId = 0x80,
@@ -778,79 +846,73 @@ protected:
         SaveSTS_StateTimeStamp = 0x80,
     };
 
-    HRESULT prepareSaveSettings (bool &aRenamed, bool &aNew);
-    HRESULT saveSettings (int aFlags = 0);
+    HRESULT prepareSaveSettings(bool &aRenamed, bool &aNew);
+    HRESULT saveSettings(int aFlags = 0);
 
-    HRESULT saveSnapshotSettings (Snapshot *aSnapshot, int aOpFlags);
-    HRESULT saveSnapshotSettingsWorker (settings::Key &aMachineNode,
-                                        Snapshot *aSnapshot, int aOpFlags);
+    HRESULT saveAllSnapshots();
 
-    HRESULT saveSnapshot (settings::Key &aNode, Snapshot *aSnapshot, bool aAttrsOnly);
-    HRESULT saveHardware (settings::Key &aNode);
-    HRESULT saveStorageControllers (settings::Key &aNode);
-    HRESULT saveStorageDevices (ComObjPtr<StorageController> aStorageController,
-                                settings::Key &aNode);
+    HRESULT saveHardware(settings::Hardware &data);
+    HRESULT saveStorageControllers(settings::Storage &data);
+    HRESULT saveStorageDevices(ComObjPtr<StorageController> aStorageController,
+                               settings::StorageController &data);
 
-    HRESULT saveStateSettings (int aFlags);
+    HRESULT saveStateSettings(int aFlags);
 
-    HRESULT getExtraData(const Utf8Str &aKey, Utf8Str &aValue);
-
-    HRESULT createImplicitDiffs (const Bstr &aFolder,
-                                 ComObjPtr <Progress> &aProgress,
-                                 bool aOnline);
+    HRESULT createImplicitDiffs(const Bstr &aFolder,
+                                IProgress *aProgress,
+                                ULONG aWeight,
+                                bool aOnline);
     HRESULT deleteImplicitDiffs();
 
-    void fixupHardDisks(bool aCommit, bool aOnline = false);
+    MediumAttachment* findAttachment(const MediaData::AttachmentList &ll,
+                                     IN_BSTR aControllerName,
+                                     LONG aControllerPort,
+                                     LONG aDevice);
+    MediumAttachment* findAttachment(const MediaData::AttachmentList &ll,
+                                     ComObjPtr<Medium> pMedium);
+    MediumAttachment* findAttachment(const MediaData::AttachmentList &ll,
+                                     Guid &id);
 
-    HRESULT lockConfig();
-    HRESULT unlockConfig();
+    void fixupMedia(bool aCommit, bool aOnline = false);
 
-    /** @note This method is not thread safe */
-    BOOL isConfigLocked()
-    {
-        return !!mData && mData->mHandleCfgFile != NIL_RTFILE;
-    }
-
-    bool isInOwnDir (Utf8Str *aSettingsDir = NULL);
+    bool isInOwnDir(Utf8Str *aSettingsDir = NULL);
 
     bool isModified();
-    bool isReallyModified (bool aIgnoreUserData = false);
-    void rollback (bool aNotify);
+    bool isReallyModified(bool aIgnoreUserData = false);
+    void rollback(bool aNotify);
     void commit();
-    void copyFrom (Machine *aThat);
+    void copyFrom(Machine *aThat);
 
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
-    void registerMetrics (PerformanceCollector *aCollector, Machine *aMachine, RTPROCESS pid);
-    void unregisterMetrics (PerformanceCollector *aCollector, Machine *aMachine);
+    void registerMetrics(PerformanceCollector *aCollector, Machine *aMachine, RTPROCESS pid);
+    void unregisterMetrics(PerformanceCollector *aCollector, Machine *aMachine);
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
 
     const InstanceType mType;
 
-    const ComObjPtr <Machine, ComWeakRef> mPeer;
+    const ComObjPtr<Machine, ComWeakRef> mPeer;
 
-    const ComObjPtr <VirtualBox, ComWeakRef> mParent;
+    const ComObjPtr<VirtualBox, ComWeakRef> mParent;
 
-    Shareable <Data> mData;
-    Shareable <SSData> mSSData;
+    Shareable<Data> mData;
+    Shareable<SSData> mSSData;
 
-    Backupable <UserData> mUserData;
-    Backupable <HWData> mHWData;
-    Backupable <HDData> mHDData;
+    Backupable<UserData> mUserData;
+    Backupable<HWData> mHWData;
+    Backupable<MediaData> mMediaData;
 
     // the following fields need special backup/rollback/commit handling,
     // so they cannot be a part of HWData
 
-    const ComObjPtr <VRDPServer> mVRDPServer;
-    const ComObjPtr <DVDDrive> mDVDDrive;
-    const ComObjPtr <FloppyDrive> mFloppyDrive;
-    const ComObjPtr <SerialPort>
+    const ComObjPtr<VRDPServer> mVRDPServer;
+    const ComObjPtr<SerialPort>
         mSerialPorts [SchemaDefs::SerialPortCount];
-    const ComObjPtr <ParallelPort>
+    const ComObjPtr<ParallelPort>
         mParallelPorts [SchemaDefs::ParallelPortCount];
-    const ComObjPtr <AudioAdapter> mAudioAdapter;
-    const ComObjPtr <USBController> mUSBController;
-    const ComObjPtr <BIOSSettings> mBIOSSettings;
-    const ComObjPtr <NetworkAdapter>
+    const ComObjPtr<AudioAdapter> mAudioAdapter;
+    const ComObjPtr<USBController> mUSBController;
+    const ComObjPtr<BIOSSettings> mBIOSSettings;
+    const ComObjPtr<NetworkAdapter>
         mNetworkAdapters [SchemaDefs::NetworkAdapterCount];
 
     typedef std::list< ComObjPtr<StorageController> > StorageControllerList;
@@ -872,7 +934,7 @@ protected:
  *  instance is also locked in the same lock mode. Keep it in mind.
  */
 class ATL_NO_VTABLE SessionMachine :
-    public VirtualBoxSupportTranslation <SessionMachine>,
+    public VirtualBoxSupportTranslation<SessionMachine>,
     public Machine,
     VBOX_SCRIPTABLE_IMPL(IInternalMachineControl)
 {
@@ -891,16 +953,14 @@ public:
         COM_INTERFACE_ENTRY(IInternalMachineControl)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
-    DECLARE_EMPTY_CTOR_DTOR (SessionMachine)
+    DECLARE_EMPTY_CTOR_DTOR(SessionMachine)
 
     HRESULT FinalConstruct();
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init (Machine *aMachine);
-    void uninit() { uninit (Uninit::Unexpected); }
+    HRESULT init(Machine *aMachine);
+    void uninit() { uninit(Uninit::Unexpected); }
 
     // util::Lockable interface
     RWLockHandle *lockHandle() const;
@@ -909,71 +969,71 @@ public:
     STDMETHOD(SetRemoveSavedState)(BOOL aRemove);
     STDMETHOD(UpdateState)(MachineState_T machineState);
     STDMETHOD(GetIPCId)(BSTR *id);
-    STDMETHOD(RunUSBDeviceFilters) (IUSBDevice *aUSBDevice, BOOL *aMatched, ULONG *aMaskedIfs);
-    STDMETHOD(CaptureUSBDevice) (IN_BSTR aId);
-    STDMETHOD(DetachUSBDevice) (IN_BSTR aId, BOOL aDone);
+    STDMETHOD(RunUSBDeviceFilters)(IUSBDevice *aUSBDevice, BOOL *aMatched, ULONG *aMaskedIfs);
+    STDMETHOD(CaptureUSBDevice)(IN_BSTR aId);
+    STDMETHOD(DetachUSBDevice)(IN_BSTR aId, BOOL aDone);
     STDMETHOD(AutoCaptureUSBDevices)();
     STDMETHOD(DetachAllUSBDevices)(BOOL aDone);
     STDMETHOD(OnSessionEnd)(ISession *aSession, IProgress **aProgress);
-    STDMETHOD(BeginSavingState) (IProgress *aProgress, BSTR *aStateFilePath);
-    STDMETHOD(EndSavingState) (BOOL aSuccess);
-    STDMETHOD(AdoptSavedState) (IN_BSTR aSavedStateFile);
-    STDMETHOD(BeginTakingSnapshot) (IConsole *aInitiator,
-                                    IN_BSTR aName, IN_BSTR aDescription,
-                                    IProgress *aProgress, BSTR *aStateFilePath,
-                                    IProgress **aServerProgress);
-    STDMETHOD(EndTakingSnapshot) (BOOL aSuccess);
-    STDMETHOD(DiscardSnapshot) (IConsole *aInitiator, IN_BSTR aId,
-                               MachineState_T *aMachineState, IProgress **aProgress);
-    STDMETHOD(DiscardCurrentState) (
-        IConsole *aInitiator, MachineState_T *aMachineState, IProgress **aProgress);
-    STDMETHOD(DiscardCurrentSnapshotAndState) (
-        IConsole *aInitiator, MachineState_T *aMachineState, IProgress **aProgress);
-    STDMETHOD(PullGuestProperties) (ComSafeArrayOut(BSTR, aNames), ComSafeArrayOut(BSTR, aValues),
+    STDMETHOD(BeginSavingState)(IProgress *aProgress, BSTR *aStateFilePath);
+    STDMETHOD(EndSavingState)(BOOL aSuccess);
+    STDMETHOD(AdoptSavedState)(IN_BSTR aSavedStateFile);
+    STDMETHOD(BeginTakingSnapshot)(IConsole *aInitiator,
+                                   IN_BSTR aName,
+                                   IN_BSTR aDescription,
+                                   IProgress *aConsoleProgress,
+                                   BOOL fTakingSnapshotOnline,
+                                   BSTR *aStateFilePath);
+    STDMETHOD(EndTakingSnapshot)(BOOL aSuccess);
+    STDMETHOD(DeleteSnapshot)(IConsole *aInitiator, IN_BSTR aId,
+                              MachineState_T *aMachineState, IProgress **aProgress);
+    STDMETHOD(RestoreSnapshot)(IConsole *aInitiator,
+                               ISnapshot *aSnapshot,
+                               MachineState_T *aMachineState,
+                               IProgress **aProgress);
+    STDMETHOD(PullGuestProperties)(ComSafeArrayOut(BSTR, aNames), ComSafeArrayOut(BSTR, aValues),
               ComSafeArrayOut(ULONG64, aTimestamps), ComSafeArrayOut(BSTR, aFlags));
-    STDMETHOD(PushGuestProperties) (ComSafeArrayIn(IN_BSTR, aNames), ComSafeArrayIn(IN_BSTR, aValues),
+    STDMETHOD(PushGuestProperties)(ComSafeArrayIn(IN_BSTR, aNames), ComSafeArrayIn(IN_BSTR, aValues),
               ComSafeArrayIn(ULONG64, aTimestamps), ComSafeArrayIn(IN_BSTR, aFlags));
-    STDMETHOD(PushGuestProperty) (IN_BSTR aName, IN_BSTR aValue,
+    STDMETHOD(PushGuestProperty)(IN_BSTR aName, IN_BSTR aValue,
                                   ULONG64 aTimestamp, IN_BSTR aFlags);
-    STDMETHOD(LockMedia)() { return lockMedia(); }
+    STDMETHOD(LockMedia)()   { return lockMedia(); }
+    STDMETHOD(UnlockMedia)() { unlockMedia(); return S_OK; }
 
     // public methods only for internal purposes
 
     bool checkForDeath();
 
-    HRESULT onDVDDriveChange();
-    HRESULT onFloppyDriveChange();
-    HRESULT onNetworkAdapterChange(INetworkAdapter *networkAdapter);
+    HRESULT onNetworkAdapterChange(INetworkAdapter *networkAdapter, BOOL changeAdapter);
     HRESULT onStorageControllerChange();
+    HRESULT onMediumChange(IMediumAttachment *aMediumAttachment, BOOL aForce);
     HRESULT onSerialPortChange(ISerialPort *serialPort);
     HRESULT onParallelPortChange(IParallelPort *parallelPort);
     HRESULT onVRDPServerChange();
     HRESULT onUSBControllerChange();
-    HRESULT onUSBDeviceAttach (IUSBDevice *aDevice,
-                               IVirtualBoxErrorInfo *aError,
-                               ULONG aMaskedIfs);
-    HRESULT onUSBDeviceDetach (IN_BSTR aId,
-                               IVirtualBoxErrorInfo *aError);
+    HRESULT onUSBDeviceAttach(IUSBDevice *aDevice,
+                              IVirtualBoxErrorInfo *aError,
+                              ULONG aMaskedIfs);
+    HRESULT onUSBDeviceDetach(IN_BSTR aId,
+                              IVirtualBoxErrorInfo *aError);
     HRESULT onSharedFolderChange();
 
-    bool hasMatchingUSBFilter (const ComObjPtr <HostUSBDevice> &aDevice, ULONG *aMaskedIfs);
+    bool hasMatchingUSBFilter(const ComObjPtr<HostUSBDevice> &aDevice, ULONG *aMaskedIfs);
 
 private:
 
     struct SnapshotData
     {
-        SnapshotData() : mLastState (MachineState_Null) {}
+        SnapshotData() : mLastState(MachineState_Null) {}
 
         MachineState_T mLastState;
 
         // used when taking snapshot
-        ComObjPtr <Snapshot> mSnapshot;
-        ComObjPtr <Progress> mServerProgress;
-        ComObjPtr <CombinedProgress> mCombinedProgress;
+        ComObjPtr<Snapshot> mSnapshot;
 
         // used when saving state
         Guid mProgressId;
-        Bstr mStateFilePath;
+        Utf8Str mStateFilePath;
     };
 
     struct Uninit
@@ -981,30 +1041,27 @@ private:
         enum Reason { Unexpected, Abnormal, Normal };
     };
 
-    struct Task;
-    struct TakeSnapshotTask;
-    struct DiscardSnapshotTask;
-    struct DiscardCurrentStateTask;
+    struct SnapshotTask;
+    struct DeleteSnapshotTask;
+    struct RestoreSnapshotTask;
 
-    friend struct TakeSnapshotTask;
-    friend struct DiscardSnapshotTask;
-    friend struct DiscardCurrentStateTask;
+    friend struct DeleteSnapshotTask;
+    friend struct RestoreSnapshotTask;
 
-    void uninit (Uninit::Reason aReason);
+    void uninit(Uninit::Reason aReason);
 
-    HRESULT endSavingState (BOOL aSuccess);
-    HRESULT endTakingSnapshot (BOOL aSuccess);
+    HRESULT endSavingState(BOOL aSuccess);
+    HRESULT endTakingSnapshot(BOOL aSuccess);
 
-    typedef std::map <ComObjPtr <Machine>, MachineState_T> AffectedMachines;
+    typedef std::map<ComObjPtr<Machine>, MachineState_T> AffectedMachines;
 
-    void takeSnapshotHandler (TakeSnapshotTask &aTask);
-    void discardSnapshotHandler (DiscardSnapshotTask &aTask);
-    void discardCurrentStateHandler (DiscardCurrentStateTask &aTask);
+    void deleteSnapshotHandler(DeleteSnapshotTask &aTask);
+    void restoreSnapshotHandler(RestoreSnapshotTask &aTask);
 
     HRESULT lockMedia();
     void unlockMedia();
 
-    HRESULT setMachineState (MachineState_T aMachineState);
+    HRESULT setMachineState(MachineState_T aMachineState);
     HRESULT updateMachineStateOnClient();
 
     HRESULT mRemoveSavedState;
@@ -1012,19 +1069,19 @@ private:
     SnapshotData mSnapshotData;
 
     /** interprocess semaphore handle for this machine */
-#if defined (RT_OS_WINDOWS)
+#if defined(RT_OS_WINDOWS)
     HANDLE mIPCSem;
     Bstr mIPCSemName;
-    friend bool Machine::isSessionOpen (ComObjPtr <SessionMachine> &aMachine,
-                                        ComPtr <IInternalSessionControl> *aControl,
-                                        HANDLE *aIPCSem, bool aAllowClosing);
-#elif defined (RT_OS_OS2)
+    friend bool Machine::isSessionOpen(ComObjPtr<SessionMachine> &aMachine,
+                                       ComPtr<IInternalSessionControl> *aControl,
+                                       HANDLE *aIPCSem, bool aAllowClosing);
+#elif defined(RT_OS_OS2)
     HMTX mIPCSem;
     Bstr mIPCSemName;
-    friend bool Machine::isSessionOpen (ComObjPtr <SessionMachine> &aMachine,
-                                        ComPtr <IInternalSessionControl> *aControl,
-                                        HMTX *aIPCSem, bool aAllowClosing);
-#elif defined (VBOX_WITH_SYS_V_IPC_SESSION_WATCHER)
+    friend bool Machine::isSessionOpen(ComObjPtr<SessionMachine> &aMachine,
+                                       ComPtr<IInternalSessionControl> *aControl,
+                                       HMTX *aIPCSem, bool aAllowClosing);
+#elif defined(VBOX_WITH_SYS_V_IPC_SESSION_WATCHER)
     int mIPCSem;
 # ifdef VBOX_WITH_NEW_SYS_V_KEYGEN
     Bstr mIPCKey;
@@ -1033,7 +1090,7 @@ private:
 # error "Port me!"
 #endif
 
-    static DECLCALLBACK(int) taskHandler (RTTHREAD thread, void *pvUser);
+    static DECLCALLBACK(int) taskHandler(RTTHREAD thread, void *pvUser);
 };
 
 // SnapshotMachine class
@@ -1048,7 +1105,7 @@ private:
  *  instance is also locked in the same lock mode. Keep it in mind.
  */
 class ATL_NO_VTABLE SnapshotMachine :
-    public VirtualBoxSupportTranslation <SnapshotMachine>,
+    public VirtualBoxSupportTranslation<SnapshotMachine>,
     public Machine
 {
 public:
@@ -1065,19 +1122,20 @@ public:
         COM_INTERFACE_ENTRY(IMachine)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
-    DECLARE_EMPTY_CTOR_DTOR (SnapshotMachine)
+    DECLARE_EMPTY_CTOR_DTOR(SnapshotMachine)
 
     HRESULT FinalConstruct();
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init (SessionMachine *aSessionMachine,
-                  IN_GUID aSnapshotId, IN_BSTR aStateFilePath);
-    HRESULT init (Machine *aMachine,
-                  const settings::Key &aHWNode, const settings::Key &aHDAsNode,
-                  IN_GUID aSnapshotId, IN_BSTR aStateFilePath);
+    HRESULT init(SessionMachine *aSessionMachine,
+                 IN_GUID aSnapshotId,
+                 const Utf8Str &aStateFilePath);
+    HRESULT init(Machine *aMachine,
+                 const settings::Hardware &hardware,
+                 const settings::Storage &storage,
+                 IN_GUID aSnapshotId,
+                 const Utf8Str &aStateFilePath);
     void uninit();
 
     // util::Lockable interface
@@ -1085,12 +1143,12 @@ public:
 
     // public methods only for internal purposes
 
-    HRESULT onSnapshotChange (Snapshot *aSnapshot);
+    HRESULT onSnapshotChange(Snapshot *aSnapshot);
 
     // unsafe inline public methods for internal purposes only (ensure there is
     // a caller and a read lock before calling them!)
 
-    const Guid &snapshotId() const { return mSnapshotId; }
+    const Guid& getSnapshotId() const { return mSnapshotId; }
 
 private:
 
@@ -1101,10 +1159,10 @@ private:
 
 // third party methods that depend on SnapshotMachine definiton
 
-inline const Guid &Machine::snapshotId() const
+inline const Guid &Machine::getSnapshotId() const
 {
     return mType != IsSnapshotMachine ? Guid::Empty :
-                    static_cast <const SnapshotMachine *> (this)->snapshotId();
+                    static_cast<const SnapshotMachine *>(this)->getSnapshotId();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1117,7 +1175,7 @@ inline const Guid &Machine::snapshotId() const
  *  object's pointer itself. For SessoinMachine objects, returns the peer
  *  (primary) machine pointer.
  */
-inline Machine *Machine::machine()
+inline Machine *Machine::getMachine()
 {
     if (mType == IsSessionMachine)
         return mPeer;

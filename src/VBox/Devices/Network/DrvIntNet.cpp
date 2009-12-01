@@ -1,4 +1,4 @@
-/* $Id: DrvIntNet.cpp $ */
+/* $Id: DrvIntNet.cpp 23918 2009-10-20 17:25:29Z vboxsync $ */
 /** @file
  * DrvIntNet - Internal network transport driver.
  */
@@ -32,11 +32,12 @@
 #include <VBox/log.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/thread.h>
+#include <iprt/ctype.h>
+#include <iprt/net.h>
 #include <iprt/semaphore.h>
 #include <iprt/string.h>
 #include <iprt/time.h>
-#include <iprt/ctype.h>
+#include <iprt/thread.h>
 
 #include "../Builtins.h"
 
@@ -90,6 +91,13 @@ typedef struct DRVINTNET
      * as late as possible. */
     bool                    fActivateEarlyDeactivateLate;
 
+#ifdef LOG_ENABLED
+    /** The nano ts of the last transfer. */
+    uint64_t                u64LastTransferTS;
+    /** The nano ts of the last receive. */
+    uint64_t                u64LastReceiveTS;
+#endif
+
 #ifdef VBOX_WITH_STATISTICS
     /** Profiling packet transmit runs. */
     STAMPROFILE             StatTransmit;
@@ -97,12 +105,6 @@ typedef struct DRVINTNET
     STAMPROFILEADV          StatReceive;
 #endif /* VBOX_WITH_STATISTICS */
 
-#ifdef LOG_ENABLED
-    /** The nano ts of the last transfer. */
-    uint64_t                u64LastTransferTS;
-    /** The nano ts of the last receive. */
-    uint64_t                u64LastReceiveTS;
-#endif
     /** The network name. */
     char                    szNetwork[INTNET_MAX_NETWORK_NAME];
 } DRVINTNET, *PDRVINTNET;
@@ -630,6 +632,32 @@ static DECLCALLBACK(void) drvIntNetResume(PPDMDRVINS pDrvIns)
         drvIntNetUpdateMacAddress(pThis); /* (could be a state restore) */
         drvIntNetSetActive(pThis, true /* fActive */);
     }
+    if (   PDMDrvHlpVMTeleportedAndNotFullyResumedYet(pDrvIns)
+        && pThis->pConfigIf)
+    {
+        /*
+         * We've just been teleported and need to drop a hint to the switch
+         * since we're likely to have changed to a different port.  We just
+         * push out some ethernet frame that doesn't mean anything to anyone.
+         * For this purpose ethertype 0x801e was chosen since it was registered
+         * to Sun (dunno what it is/was used for though).
+         */
+        union
+        {
+            RTNETETHERHDR   Hdr;
+            uint8_t         ab[128];
+        } Frame;
+        RT_ZERO(Frame);
+        Frame.Hdr.DstMac.au16[0] = 0xffff;
+        Frame.Hdr.DstMac.au16[1] = 0xffff;
+        Frame.Hdr.DstMac.au16[2] = 0xffff;
+        Frame.Hdr.EtherType      = RT_H2BE_U16(0x801e);
+        int rc = pThis->pConfigIf->pfnGetMac(pThis->pConfigIf, &Frame.Hdr.SrcMac);
+        if (RT_SUCCESS(rc))
+            rc = drvIntNetSend(&pThis->INetworkConnector, &Frame, sizeof(Frame));
+        if (RT_FAILURE(rc))
+            LogRel(("IntNet#%u: Sending dummy frame failed: %Rrc\n", pDrvIns->iInstance, rc));
+    }
 }
 
 
@@ -742,14 +770,9 @@ static DECLCALLBACK(void) drvIntNetDestruct(PPDMDRVINS pDrvIns)
 /**
  * Construct a TAP network transport driver instance.
  *
- * @returns VBox status.
- * @param   pDrvIns     The driver instance data.
- *                      If the registration structure is needed, pDrvIns->pDrvReg points to it.
- * @param   pCfgHandle  Configuration node handle for the driver. Use this to obtain the configuration
- *                      of the driver instance. It's also found in pDrvIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
 {
     PDRVINTNET pThis = PDMINS_2_DATA(pDrvIns, PDRVINTNET);
     bool f;
@@ -795,12 +818,9 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
     /*
      * Check that no-one is attached to us.
      */
-    int rc = pDrvIns->pDrvHlp->pfnAttach(pDrvIns, NULL);
-    if (rc != VERR_PDM_NO_ATTACHED_DRIVER)
-    {
-        AssertMsgFailed(("Configuration error: Cannot attach drivers to the TAP driver!\n"));
-        return VERR_PDM_DRVINS_NO_ATTACH;
-    }
+    AssertMsgReturn(PDMDrvHlpNoAttach(pDrvIns) == VERR_PDM_NO_ATTACHED_DRIVER,
+                    ("Configuration error: Not possible to attach anything to this driver!\n"),
+                    VERR_PDM_DRVINS_NO_ATTACH);
 
     /*
      * Query the network port interface.
@@ -825,7 +845,7 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
     /** @cfgm{Network, string}
      * The name of the internal network to connect to.
      */
-    rc = CFGMR3QueryString(pCfgHandle, "Network", OpenReq.szNetwork, sizeof(OpenReq.szNetwork));
+    int rc = CFGMR3QueryString(pCfgHandle, "Network", OpenReq.szNetwork, sizeof(OpenReq.szNetwork));
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"Network\" value"));
@@ -1140,9 +1160,15 @@ const PDMDRVREG g_DrvIntNet =
     drvIntNetSuspend,
     /* pfnResume */
     drvIntNetResume,
+    /* pfnAttach */
+    NULL,
     /* pfnDetach */
     NULL,
     /* pfnPowerOff */
-    drvIntNetPowerOff
+    drvIntNetPowerOff,
+    /* pfnSoftReset */
+    NULL,
+    /* u32EndVersion */
+    PDM_DRVREG_VERSION
 };
 

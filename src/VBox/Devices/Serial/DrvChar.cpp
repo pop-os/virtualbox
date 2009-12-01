@@ -70,10 +70,12 @@ typedef struct DRVCHAR
     uint32_t                    iSendQueueHead;
     uint32_t                    iSendQueueTail;
 
+    uintptr_t                   AlignmentPadding;
     /** Read/write statistics */
     STAMCOUNTER                 StatBytesRead;
     STAMCOUNTER                 StatBytesWritten;
 } DRVCHAR, *PDRVCHAR;
+AssertCompileMemberAlignment(DRVCHAR, StatBytesRead, 8);
 
 
 /** Converts a pointer to DRVCHAR::IChar to a PDRVCHAR. */
@@ -283,21 +285,28 @@ static DECLCALLBACK(int) drvCharSetModemLines(PPDMICHAR pInterface, bool Request
     return VINF_SUCCESS;
 }
 
+/**
+ * Sets the TD line into break condition.
+ *
+ * @returns VBox status code.
+ * @param   pInterface  Pointer to the interface structure containing the called function pointer.
+ * @param   fBreak      Set to true to let the device send a break false to put into normal operation.
+ * @thread  Any thread.
+ */
+static DECLCALLBACK(int) drvCharSetBreak(PPDMICHAR pInterface, bool fBreak)
+{
+    /* Nothing to do here. */
+    return VINF_SUCCESS;
+}
+
 /* -=-=-=-=- driver interface -=-=-=-=- */
 
 /**
  * Construct a char driver instance.
- *
- * @returns VBox status.
- * @param   pDrvIns     The driver instance data.
- *                      If the registration structure is needed,
- *                      pDrvIns->pDrvReg points to it.
- * @param   pCfgHandle  Configuration node handle for the driver. Use this to
- *                      obtain the configuration of the driver instance. It's
- *                      also found in pDrvIns->pCfgHandle as it's expected to
- *                      be used frequently in this function.
+ *  
+ * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvCharConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) drvCharConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
 {
     PDRVCHAR pThis = PDMINS_2_DATA(pDrvIns, PDRVCHAR);
     LogFlow(("%s: iInstance=%d\n", __FUNCTION__, pDrvIns->iInstance));
@@ -313,6 +322,7 @@ static DECLCALLBACK(int) drvCharConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHand
     pThis->IChar.pfnWrite                   = drvCharWrite;
     pThis->IChar.pfnSetParameters           = drvCharSetParameters;
     pThis->IChar.pfnSetModemLines           = drvCharSetModemLines;
+    pThis->IChar.pfnSetBreak                = drvCharSetBreak;
 
     /*
      * Get the ICharPort interface of the above driver/device.
@@ -325,7 +335,7 @@ static DECLCALLBACK(int) drvCharConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHand
      * Attach driver below and query its stream interface.
      */
     PPDMIBASE pBase;
-    int rc = pDrvIns->pDrvHlp->pfnAttach(pDrvIns, &pBase);
+    int rc = PDMDrvHlpAttach(pDrvIns, fFlags, &pBase);
     if (RT_FAILURE(rc))
         return rc; /* Don't call PDMDrvHlpVMSetError here as we assume that the driver already set an appropriate error */
     pThis->pDrvStream = (PPDMISTREAM)pBase->pfnQueryInterface(pBase, PDMINTERFACE_STREAM);
@@ -427,9 +437,15 @@ const PDMDRVREG g_DrvChar =
     NULL,
     /* pfnResume */
     NULL,
-    /* pfnDetach */
+    /* pfnAttach */
     NULL,
-    /** pfnPowerOff */
-    NULL
+    /* pfnDetach */
+    NULL, 
+    /* pfnPowerOff */
+    NULL, 
+    /* pfnSoftReset */
+    NULL,
+    /* u32EndVersion */
+    PDM_DRVREG_VERSION
 };
 

@@ -1,4 +1,4 @@
-/* $Id: RTLogWriteStdErr-generic.cpp $ */
+/* $Id: RTLogWriteStdErr-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Log To StdErr, Generic.
  */
@@ -28,11 +28,17 @@
  * additional information or have any questions.
  */
 
+
+/*******************************************************************************
+*   Header Files                                                               *
+*******************************************************************************/
 #include <iprt/log.h>
+#include "internal/iprt.h"
 #include <stdio.h>
 
 RTDECL(void) RTLogWriteStdErr(const char *pch, size_t cb)
 {
     fwrite(pch, 1, cb, stderr);
 }
+RT_EXPORT_SYMBOL(RTLogWriteStdErr);
 

@@ -1,4 +1,4 @@
-/* $Id: AudioAdapterImpl.h $ */
+/* $Id: AudioAdapterImpl.h 24989 2009-11-26 11:31:46Z vboxsync $ */
 
 /** @file
  *
@@ -28,10 +28,15 @@
 
 class Machine;
 
+namespace settings
+{
+    struct AudioAdapter;
+}
+
 class ATL_NO_VTABLE AudioAdapter :
-    public VirtualBoxBaseNEXT,
-    public VirtualBoxSupportErrorInfoImpl <AudioAdapter, IAudioAdapter>,
-    public VirtualBoxSupportTranslation <AudioAdapter>,
+    public VirtualBoxBase,
+    public VirtualBoxSupportErrorInfoImpl<AudioAdapter, IAudioAdapter>,
+    public VirtualBoxSupportTranslation<AudioAdapter>,
     VBOX_SCRIPTABLE_IMPL(IAudioAdapter)
 {
 public:
@@ -65,8 +70,6 @@ public:
         COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
     DECLARE_EMPTY_CTOR_DTOR (AudioAdapter)
 
     HRESULT FinalConstruct();
@@ -87,8 +90,8 @@ public:
 
     // public methods only for internal purposes
 
-    HRESULT loadSettings (const settings::Key &aMachineNode);
-    HRESULT saveSettings (settings::Key &aMachineNode);
+    HRESULT loadSettings(const settings::AudioAdapter &data);
+    HRESULT saveSettings(settings::AudioAdapter &data);
 
     bool isModified() { AutoWriteLock alock (this); return mData.isBackedUp(); }
     bool isReallyModified() { AutoWriteLock alock (this); return mData.hasActualChanges(); }
@@ -96,20 +99,15 @@ public:
     void commit();
     void copyFrom (AudioAdapter *aThat);
 
-    // public methods for internal purposes only
-    // (ensure there is a caller and a read lock before calling them!)
-
-    const Backupable <Data> &data() const { return mData; }
-
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"AudioAdapter"; }
 
 private:
 
-    const ComObjPtr <Machine, ComWeakRef> mParent;
-    const ComObjPtr <AudioAdapter> mPeer;
+    const ComObjPtr<Machine, ComWeakRef> mParent;
+    const ComObjPtr<AudioAdapter> mPeer;
 
-    Backupable <Data> mData;
+    Backupable<Data> mData;
 };
 
 #endif // ____H_AUDIOADAPTER

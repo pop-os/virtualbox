@@ -1,4 +1,4 @@
-/* $Id: semnoint-generic.cpp $ */
+/* $Id: semnoint-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Generic Non-Interruptable Wait and Request Functions.
  */
@@ -34,6 +34,8 @@
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_SEM
 #include <iprt/semaphore.h>
+#include "internal/iprt.h"
+
 #include <iprt/time.h>
 #include <iprt/err.h>
 #include <iprt/assert.h>
@@ -65,6 +67,7 @@ RTDECL(int) RTSemEventWait(RTSEMEVENT EventSem, unsigned cMillies)
     }
     return rc;
 }
+RT_EXPORT_SYMBOL(RTSemEventWait);
 
 
 RTDECL(int) RTSemEventMultiWait(RTSEMEVENTMULTI EventSem, unsigned cMillies)
@@ -92,6 +95,7 @@ RTDECL(int) RTSemEventMultiWait(RTSEMEVENTMULTI EventSem, unsigned cMillies)
     }
     return rc;
 }
+RT_EXPORT_SYMBOL(RTSemEventMultiWait);
 
 
 RTDECL(int) RTSemMutexRequest(RTSEMMUTEX Mutex, unsigned cMillies)
@@ -119,4 +123,5 @@ RTDECL(int) RTSemMutexRequest(RTSEMMUTEX Mutex, unsigned cMillies)
     }
     return rc;
 }
+RT_EXPORT_SYMBOL(RTSemMutexRequest);
 

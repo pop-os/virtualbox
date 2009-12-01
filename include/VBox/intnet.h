@@ -1,5 +1,5 @@
 /** @file
- * INETNET - Internal Networking.
+ * INETNET - Internal Networking. (DEV,++)
  */
 
 /*
@@ -102,6 +102,8 @@ typedef struct INTNETBUF
     uint32_t        cbSend;
     /** The size of the receive area. */
     uint32_t        cbRecv;
+    /** Alignment. */
+    uint32_t        u32Align;
     /** The receive buffer. */
     INTNETRINGBUF   Recv;
     /** The send buffer. */

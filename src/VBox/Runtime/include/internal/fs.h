@@ -1,4 +1,4 @@
-/* $Id: fs.h $ */
+/* $Id: fs.h 21675 2009-07-17 12:18:30Z vboxsync $ */
 /** @file
  * IPRT - Internal RTFs header.
  */
@@ -44,7 +44,6 @@ RTFMODE rtFsModeNormalize(RTFMODE fMode, const char *pszName, size_t cbName);
 bool    rtFsModeIsValid(RTFMODE fMode);
 bool    rtFsModeIsValidPermissions(RTFMODE fMode);
 
-size_t  rtPathVolumeSpecLen(const char *pszPath);
 #ifndef RT_OS_WINDOWS
 void    rtFsConvertStatToObjInfo(PRTFSOBJINFO pObjInfo, const struct stat *pStat, const char *pszName, unsigned cbName);
 #endif

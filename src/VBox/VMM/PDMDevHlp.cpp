@@ -1,4 +1,4 @@
-/* $Id: PDMDevHlp.cpp $ */
+/* $Id: PDMDevHlp.cpp 24744 2009-11-17 22:33:38Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, Device Helpers.
  */
@@ -398,16 +398,23 @@ static DECLCALLBACK(int) pdmR3DevHlp_ROMRegister(PPDMDEVINS pDevIns, RTGCPHYS GC
 
 
 /** @copydoc PDMDEVHLPR3::pfnSSMRegister */
-static DECLCALLBACK(int) pdmR3DevHlp_SSMRegister(PPDMDEVINS pDevIns, const char *pszName, uint32_t u32Instance, uint32_t u32Version, size_t cbGuess,
+static DECLCALLBACK(int) pdmR3DevHlp_SSMRegister(PPDMDEVINS pDevIns, uint32_t uVersion, size_t cbGuess, const char *pszBefore,
+                                                 PFNSSMDEVLIVEPREP pfnLivePrep, PFNSSMDEVLIVEEXEC pfnLiveExec, PFNSSMDEVLIVEVOTE pfnLiveVote,
                                                  PFNSSMDEVSAVEPREP pfnSavePrep, PFNSSMDEVSAVEEXEC pfnSaveExec, PFNSSMDEVSAVEDONE pfnSaveDone,
                                                  PFNSSMDEVLOADPREP pfnLoadPrep, PFNSSMDEVLOADEXEC pfnLoadExec, PFNSSMDEVLOADDONE pfnLoadDone)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
-    LogFlow(("pdmR3DevHlp_SSMRegister: caller='%s'/%d: pszName=%p:{%s} u32Instance=%#x u32Version=#x cbGuess=%#x pfnSavePrep=%p pfnSaveExec=%p pfnSaveDone=%p pszLoadPrep=%p pfnLoadExec=%p pfnLoaddone=%p\n",
-             pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, pszName, pszName, u32Instance, u32Version, cbGuess, pfnSavePrep, pfnSaveExec, pfnSaveDone, pfnLoadPrep, pfnLoadExec, pfnLoadDone));
+    LogFlow(("pdmR3DevHlp_SSMRegister: caller='%s'/%d: uVersion=#x cbGuess=%#x pszBefore=%p:{%s}\n"
+             "    pfnLivePrep=%p pfnLiveExec=%p pfnLiveVote=%p pfnSavePrep=%p pfnSaveExec=%p pfnSaveDone=%p pszLoadPrep=%p pfnLoadExec=%p pfnLoadDone=%p\n",
+             pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, uVersion, cbGuess, pszBefore, pszBefore,
+             pfnLivePrep, pfnLiveExec, pfnLiveVote,
+             pfnSavePrep, pfnSaveExec, pfnSaveDone,
+             pfnLoadPrep, pfnLoadExec, pfnLoadDone));
 
-    int rc = SSMR3RegisterDevice(pDevIns->Internal.s.pVMR3, pDevIns, pszName, u32Instance, u32Version, cbGuess, NULL,
+    int rc = SSMR3RegisterDevice(pDevIns->Internal.s.pVMR3, pDevIns, pDevIns->pDevReg->szDeviceName, pDevIns->iInstance,
+                                 uVersion, cbGuess, pszBefore,
+                                 pfnLivePrep, pfnLiveExec, pfnLiveVote,
                                  pfnSavePrep, pfnSaveExec, pfnSaveDone,
                                  pfnLoadPrep, pfnLoadExec, pfnLoadDone);
 
@@ -839,9 +846,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_DriverAttach(PPDMDEVINS pDevIns, RTUINT iLu
      * Get the attached driver configuration.
      */
     int rc;
-    char szNode[48];
-    RTStrPrintf(szNode, sizeof(szNode), "LUN#%d", iLun);
-    PCFGMNODE   pNode = CFGMR3GetChild(pDevIns->Internal.s.pCfgHandle, szNode);
+    PCFGMNODE pNode = CFGMR3GetChildF(pDevIns->Internal.s.pCfgHandle, "LUN#%u", iLun);
     if (pNode)
     {
         char *pszName;
@@ -852,7 +857,8 @@ static DECLCALLBACK(int) pdmR3DevHlp_DriverAttach(PPDMDEVINS pDevIns, RTUINT iLu
              * Find the driver.
              */
             PPDMDRV pDrv = pdmR3DrvLookup(pVM, pszName);
-            if (pDrv)
+            if (    pDrv
+                &&  pDrv->cInstances < pDrv->pDrvReg->cMaxInstances)
             {
                 /* config node */
                 PCFGMNODE pConfigNode = CFGMR3GetChild(pNode, "Config");
@@ -880,6 +886,8 @@ static DECLCALLBACK(int) pdmR3DevHlp_DriverAttach(PPDMDEVINS pDevIns, RTUINT iLu
                         pNew->Internal.s.pDrv           = pDrv;
                         pNew->Internal.s.pVM            = pVM;
                         //pNew->Internal.s.fDetaching     = false;
+                        pNew->Internal.s.fVMSuspended   = true;
+                        //pNew->Internal.s.pfnAsyncNotify = NULL;
                         pNew->Internal.s.pCfgHandle     = pNode;
                         pNew->pDrvHlp                   = &g_pdmR3DrvHlp;
                         pNew->pDrvReg                   = pDrv->pDrvReg;
@@ -894,7 +902,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_DriverAttach(PPDMDEVINS pDevIns, RTUINT iLu
                          * Link with LUN and call the constructor.
                          */
                         pLun->pTop = pLun->pBottom = pNew;
-                        rc = pDrv->pDrvReg->pfnConstruct(pNew, pNew->pCfgHandle);
+                        rc = pDrv->pDrvReg->pfnConstruct(pNew, pNew->pCfgHandle, 0 /*fFlags*/);
                         if (RT_SUCCESS(rc))
                         {
                             MMR3HeapFree(pszName);
@@ -922,6 +930,11 @@ static DECLCALLBACK(int) pdmR3DevHlp_DriverAttach(PPDMDEVINS pDevIns, RTUINT iLu
                 }
                 else
                     AssertMsgFailed(("Failed to create Config node! rc=%Rrc\n", rc));
+            }
+            else if (pDrv)
+            {
+                AssertMsgFailed(("Too many instances of driver '%s', max is %u\n", pszName, pDrv->pDrvReg->cMaxInstances));
+                rc = VERR_PDM_TOO_MANY_DRIVER_INSTANCES;
             }
             else
             {
@@ -1023,6 +1036,32 @@ static DECLCALLBACK(int) pdmR3DevHlp_VMSetRuntimeErrorV(PPDMDEVINS pDevIns, uint
     PDMDEV_ASSERT_DEVINS(pDevIns);
     int rc = VMSetRuntimeErrorV(pDevIns->Internal.s.pVMR3, fFlags, pszErrorId, pszFormat, va);
     return rc;
+}
+
+
+/** @copydoc PDMDEVHLPR3::pfnVMState */
+static DECLCALLBACK(VMSTATE) pdmR3DevHlp_VMState(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+
+    VMSTATE enmVMState = VMR3GetState(pDevIns->Internal.s.pVMR3);
+
+    LogFlow(("pdmR3DevHlp_VMState: caller='%s'/%d: returns %d (%s)\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance,
+             enmVMState, VMR3GetStateName(enmVMState)));
+    return enmVMState;
+}
+
+
+/** @copydoc PDMDEVHLPR3::pfnVMTeleportedAndNotFullyResumedYet */
+static DECLCALLBACK(bool) pdmR3DevHlp_VMTeleportedAndNotFullyResumedYet(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+
+    bool fRc = VMR3TeleportedAndNotFullyResumedYet(pDevIns->Internal.s.pVMR3);
+
+    LogFlow(("pdmR3DevHlp_VMState: caller='%s'/%d: returns %RTbool\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance,
+             fRc));
+    return fRc;
 }
 
 
@@ -1216,15 +1255,22 @@ static DECLCALLBACK(int) pdmR3DevHlp_RTCRegister(PPDMDEVINS pDevIns, PCPDMRTCREG
 
 /** @copydoc PDMDEVHLPR3::pfnPDMQueueCreate */
 static DECLCALLBACK(int) pdmR3DevHlp_PDMQueueCreate(PPDMDEVINS pDevIns, RTUINT cbItem, RTUINT cItems, uint32_t cMilliesInterval,
-                                                    PFNPDMQUEUEDEV pfnCallback, bool fGCEnabled, PPDMQUEUE *ppQueue)
+                                                    PFNPDMQUEUEDEV pfnCallback, bool fGCEnabled, const char *pszName, PPDMQUEUE *ppQueue)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    LogFlow(("pdmR3DevHlp_PDMQueueCreate: caller='%s'/%d: cbItem=%#x cItems=%#x cMilliesInterval=%u pfnCallback=%p fGCEnabled=%RTbool ppQueue=%p\n",
-             pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, cbItem, cItems, cMilliesInterval, pfnCallback, fGCEnabled, ppQueue));
+    LogFlow(("pdmR3DevHlp_PDMQueueCreate: caller='%s'/%d: cbItem=%#x cItems=%#x cMilliesInterval=%u pfnCallback=%p fGCEnabled=%RTbool pszName=%p:{%s} ppQueue=%p\n",
+             pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, cbItem, cItems, cMilliesInterval, pfnCallback, fGCEnabled, pszName, pszName, ppQueue));
 
     PVM pVM = pDevIns->Internal.s.pVMR3;
     VM_ASSERT_EMT(pVM);
-    int rc = PDMR3QueueCreateDevice(pVM, pDevIns, cbItem, cItems, cMilliesInterval, pfnCallback, fGCEnabled, ppQueue);
+
+    if (pDevIns->iInstance > 0)
+    {
+        pszName = MMR3HeapAPrintf(pVM, MM_TAG_PDM_DEVICE_DESC, "%s_%u", pszName, pDevIns->iInstance);
+        AssertLogRelReturn(pszName, VERR_NO_MEMORY);
+    }
+
+    int rc = PDMR3QueueCreateDevice(pVM, pDevIns, cbItem, cItems, cMilliesInterval, pfnCallback, fGCEnabled, pszName, ppQueue);
 
     LogFlow(("pdmR3DevHlp_PDMQueueCreate: caller='%s'/%d: returns %Rrc *ppQueue=%p\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, rc, *ppQueue));
     return rc;
@@ -2100,7 +2146,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_PhysRead(PPDMDEVINS pDevIns, RTGCPHYS GCPhy
              pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, GCPhys, pvBuf, cbRead));
 
 #if defined(VBOX_STRICT) && defined(PDM_DEVHLP_DEADLOCK_DETECTION)
-    if (!VM_IS_EMT(pVM)) /** @todo not true for SMP. oh joy! */
+    if (!VM_IS_EMT(pVM))
     {
         char szNames[128];
         uint32_t cLocks = PDMR3CritSectCountOwned(pVM, szNames, sizeof(szNames));
@@ -2128,7 +2174,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_PhysWrite(PPDMDEVINS pDevIns, RTGCPHYS GCPh
              pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, GCPhys, pvBuf, cbWrite));
 
 #if defined(VBOX_STRICT) && defined(PDM_DEVHLP_DEADLOCK_DETECTION)
-    if (!VM_IS_EMT(pVM)) /** @todo not true for SMP. oh joy! */
+    if (!VM_IS_EMT(pVM))
     {
         char szNames[128];
         uint32_t cLocks = PDMR3CritSectCountOwned(pVM, szNames, sizeof(szNames));
@@ -2140,7 +2186,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_PhysWrite(PPDMDEVINS pDevIns, RTGCPHYS GCPh
     if (VM_IS_EMT(pVM))
         rc = PGMPhysWrite(pVM, GCPhys, pvBuf, cbWrite);
     else
-        rc = PGMR3PhysWriteExternal(pVM, GCPhys, pvBuf, cbWrite);
+        rc = PGMR3PhysWriteExternal(pVM, GCPhys, pvBuf, cbWrite, pDevIns->pDevReg->szDeviceName);
 
     Log(("pdmR3DevHlp_PhysWrite: caller='%s'/%d: returns %Rrc\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, rc));
     return rc;
@@ -2157,7 +2203,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_PhysGCPhys2CCPtr(PPDMDEVINS pDevIns, RTGCPH
     AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
 
 #if defined(VBOX_STRICT) && defined(PDM_DEVHLP_DEADLOCK_DETECTION)
-    if (!VM_IS_EMT(pVM)) /** @todo not true for SMP. oh joy! */
+    if (!VM_IS_EMT(pVM))
     {
         char szNames[128];
         uint32_t cLocks = PDMR3CritSectCountOwned(pVM, szNames, sizeof(szNames));
@@ -2182,7 +2228,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_PhysGCPhys2CCPtrReadOnly(PPDMDEVINS pDevIns
     AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
 
 #if defined(VBOX_STRICT) && defined(PDM_DEVHLP_DEADLOCK_DETECTION)
-    if (!VM_IS_EMT(pVM)) /** @todo not true for SMP. oh joy! */
+    if (!VM_IS_EMT(pVM))
     {
         char szNames[128];
         uint32_t cLocks = PDMR3CritSectCountOwned(pVM, szNames, sizeof(szNames));
@@ -2283,16 +2329,55 @@ static DECLCALLBACK(int) pdmR3DevHlp_PhysGCPtr2GCPhys(PPDMDEVINS pDevIns, RTGCPT
 }
 
 
-/** @copydoc PDMDEVHLPR3::pfnVMState */
-static DECLCALLBACK(VMSTATE) pdmR3DevHlp_VMState(PPDMDEVINS pDevIns)
+/** @copydoc PDMDEVHLPR3::pfnSetAsyncNotification */
+static DECLCALLBACK(int) pdmR3DevHlp_SetAsyncNotification(PPDMDEVINS pDevIns, PFNPDMDEVASYNCNOTIFY pfnAsyncNotify)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
+    VM_ASSERT_EMT0(pDevIns->Internal.s.pVMR3);
+    LogFlow(("pdmR3DevHlp_SetAsyncNotification: caller='%s'/%d: pfnAsyncNotify=%p\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, pfnAsyncNotify));
 
+    int rc = VINF_SUCCESS;
+    AssertStmt(pfnAsyncNotify, rc = VERR_INVALID_PARAMETER);
+    AssertStmt(!pDevIns->Internal.s.pfnAsyncNotify, rc = VERR_WRONG_ORDER);
+    AssertStmt(pDevIns->Internal.s.fIntFlags & (PDMDEVINSINT_FLAGS_SUSPENDED | PDMDEVINSINT_FLAGS_RESET), rc = VERR_WRONG_ORDER);
     VMSTATE enmVMState = VMR3GetState(pDevIns->Internal.s.pVMR3);
+    AssertStmt(   enmVMState == VMSTATE_SUSPENDING
+               || enmVMState == VMSTATE_SUSPENDING_EXT_LS
+               || enmVMState == VMSTATE_SUSPENDING_LS
+               || enmVMState == VMSTATE_RESETTING
+               || enmVMState == VMSTATE_RESETTING_LS
+               || enmVMState == VMSTATE_POWERING_OFF
+               || enmVMState == VMSTATE_POWERING_OFF_LS,
+               rc = VERR_INVALID_STATE);
 
-    LogFlow(("pdmR3DevHlp_VMState: caller='%s'/%d: returns %d (%s)\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance,
-             enmVMState, VMR3GetStateName(enmVMState)));
-    return enmVMState;
+    if (RT_SUCCESS(rc))
+        pDevIns->Internal.s.pfnAsyncNotify = pfnAsyncNotify;
+
+    LogFlow(("pdmR3DevHlp_SetAsyncNotification: caller='%s'/%d: returns %Rrc\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, rc));
+    return rc;
+}
+
+
+/** @copydoc PDMDEVHLPR3::pfnAsyncNotificationCompleted */
+static DECLCALLBACK(void) pdmR3DevHlp_AsyncNotificationCompleted(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+
+    VMSTATE enmVMState = VMR3GetState(pVM);
+    if (   enmVMState == VMSTATE_SUSPENDING
+        || enmVMState == VMSTATE_SUSPENDING_EXT_LS
+        || enmVMState == VMSTATE_SUSPENDING_LS
+        || enmVMState == VMSTATE_RESETTING
+        || enmVMState == VMSTATE_RESETTING_LS
+        || enmVMState == VMSTATE_POWERING_OFF
+        || enmVMState == VMSTATE_POWERING_OFF_LS)
+    {
+        LogFlow(("pdmR3DevHlp_AsyncNotificationCompleted: caller='%s'/%d:\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+        VMR3AsyncPdmNotificationWakeupU(pVM->pUVM);
+    }
+    else
+        LogFlow(("pdmR3DevHlp_AsyncNotificationCompleted: caller='%s'/%d: enmVMState=%d\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, enmVMState));
 }
 
 
@@ -2361,12 +2446,10 @@ static DECLCALLBACK(int) pdmR3DevHlp_VMSuspend(PPDMDEVINS pDevIns)
     LogFlow(("pdmR3DevHlp_VMSuspend: caller='%s'/%d:\n",
              pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
 
-    if (pVM->cCPUs > 1)
+    if (pVM->cCpus > 1)
     {
         /* We own the IOM lock here and could cause a deadlock by waiting for a VCPU that is blocking on the IOM lock. */
-        PVMREQ pReq;
-        rc = VMR3ReqCallU(pVM->pUVM, VMCPUID_ANY_QUEUE, &pReq, 0, VMREQFLAGS_NO_WAIT,
-                          (PFNRT)VMR3Suspend, 1, pVM);
+        rc = VMR3ReqCallNoWaitU(pVM->pUVM, VMCPUID_ANY_QUEUE, (PFNRT)VMR3Suspend, 1, pVM);
         AssertRC(rc);
         rc = VINF_EM_SUSPEND;
     }
@@ -2388,12 +2471,10 @@ static DECLCALLBACK(int) pdmR3DevHlp_VMPowerOff(PPDMDEVINS pDevIns)
     LogFlow(("pdmR3DevHlp_VMPowerOff: caller='%s'/%d:\n",
              pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
 
-    if (pVM->cCPUs > 1)
+    if (pVM->cCpus > 1)
     {
         /* We own the IOM lock here and could cause a deadlock by waiting for a VCPU that is blocking on the IOM lock. */
-        PVMREQ pReq;
-        rc = VMR3ReqCallU(pVM->pUVM, VMCPUID_ANY_QUEUE, &pReq, 0, VMREQFLAGS_NO_WAIT,
-                          (PFNRT)VMR3PowerOff, 1, pVM);
+        rc = VMR3ReqCallNoWaitU(pVM->pUVM, VMCPUID_ANY_QUEUE, (PFNRT)VMR3PowerOff, 1, pVM);
         AssertRC(rc);
         /* Set the VCPU state to stopped here as well to make sure no
          * inconsistency with the EM state occurs.
@@ -2618,7 +2699,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_MMIO2Register(PPDMDEVINS pDevIns, uint32_t 
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
-    LogFlow(("pdmR3DevHlp_MMIO2Register: caller='%s'/%d: iRegion=#x cb=%#RGp fFlags=%RX32 ppv=%p pszDescp=%p:{%s}\n",
+    LogFlow(("pdmR3DevHlp_MMIO2Register: caller='%s'/%d: iRegion=%#x cb=%#RGp fFlags=%RX32 ppv=%p pszDescp=%p:{%s}\n",
              pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, iRegion, cb, fFlags, ppv, pszDesc, pszDesc));
 
 /** @todo PGMR3PhysMMIO2Register mangles the description, move it here and
@@ -2637,7 +2718,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_MMIO2Deregister(PPDMDEVINS pDevIns, uint32_
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
-    LogFlow(("pdmR3DevHlp_MMIO2Deregister: caller='%s'/%d: iRegion=#x\n",
+    LogFlow(("pdmR3DevHlp_MMIO2Deregister: caller='%s'/%d: iRegion=%#x\n",
              pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, iRegion));
 
     AssertReturn(iRegion == UINT32_MAX, VERR_INVALID_PARAMETER);
@@ -2656,7 +2737,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_MMIO2Map(PPDMDEVINS pDevIns, uint32_t iRegi
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
-    LogFlow(("pdmR3DevHlp_MMIO2Map: caller='%s'/%d: iRegion=#x GCPhys=%#RGp\n",
+    LogFlow(("pdmR3DevHlp_MMIO2Map: caller='%s'/%d: iRegion=%#x GCPhys=%#RGp\n",
              pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, iRegion, GCPhys));
 
     int rc = PGMR3PhysMMIO2Map(pDevIns->Internal.s.pVMR3, pDevIns, iRegion, GCPhys);
@@ -2673,7 +2754,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_MMIO2Unmap(PPDMDEVINS pDevIns, uint32_t iRe
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
-    LogFlow(("pdmR3DevHlp_MMIO2Unmap: caller='%s'/%d: iRegion=#x GCPhys=%#RGp\n",
+    LogFlow(("pdmR3DevHlp_MMIO2Unmap: caller='%s'/%d: iRegion=%#x GCPhys=%#RGp\n",
              pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, iRegion, GCPhys));
 
     int rc = PGMR3PhysMMIO2Unmap(pDevIns->Internal.s.pVMR3, pDevIns, iRegion, GCPhys);
@@ -2692,7 +2773,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_MMHyperMapMMIO2(PPDMDEVINS pDevIns, uint32_
     PDMDEV_ASSERT_DEVINS(pDevIns);
     PVM pVM = pDevIns->Internal.s.pVMR3;
     VM_ASSERT_EMT(pVM);
-    LogFlow(("pdmR3DevHlp_MMHyperMapMMIO2: caller='%s'/%d: iRegion=#x off=%RGp cb=%RGp pszDesc=%p:{%s} pRCPtr=%p\n",
+    LogFlow(("pdmR3DevHlp_MMHyperMapMMIO2: caller='%s'/%d: iRegion=%#x off=%RGp cb=%RGp pszDesc=%p:{%s} pRCPtr=%p\n",
              pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, iRegion, off, cb, pszDesc, pszDesc, pRCPtr));
 
     if (pDevIns->iInstance > 0)
@@ -2718,7 +2799,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_MMIO2MapKernel(PPDMDEVINS pDevIns, uint32_t
     PDMDEV_ASSERT_DEVINS(pDevIns);
     PVM pVM = pDevIns->Internal.s.pVMR3;
     VM_ASSERT_EMT(pVM);
-    LogFlow(("pdmR3DevHlp_MMIO2MapKernel: caller='%s'/%d: iRegion=#x off=%RGp cb=%RGp pszDesc=%p:{%s} pR0Ptr=%p\n",
+    LogFlow(("pdmR3DevHlp_MMIO2MapKernel: caller='%s'/%d: iRegion=%#x off=%RGp cb=%RGp pszDesc=%p:{%s} pR0Ptr=%p\n",
              pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, iRegion, off, cb, pszDesc, pszDesc, pR0Ptr));
 
     if (pDevIns->iInstance > 0)
@@ -2793,6 +2874,8 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTrusted =
     pdmR3DevHlp_VMSetErrorV,
     pdmR3DevHlp_VMSetRuntimeError,
     pdmR3DevHlp_VMSetRuntimeErrorV,
+    pdmR3DevHlp_VMState,
+    pdmR3DevHlp_VMTeleportedAndNotFullyResumedYet,
     pdmR3DevHlp_AssertEMT,
     pdmR3DevHlp_AssertOther,
     pdmR3DevHlp_DBGFStopV,
@@ -2806,7 +2889,11 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTrusted =
     pdmR3DevHlp_UTCNow,
     pdmR3DevHlp_PDMThreadCreate,
     pdmR3DevHlp_PhysGCPtr2GCPhys,
-    pdmR3DevHlp_VMState,
+    pdmR3DevHlp_SetAsyncNotification,
+    pdmR3DevHlp_AsyncNotificationCompleted,
+    0,
+    0,
+    0,
     0,
     0,
     0,
@@ -3254,6 +3341,8 @@ const PDMDEVHLPR3 g_pdmR3DevHlpUnTrusted =
     pdmR3DevHlp_VMSetErrorV,
     pdmR3DevHlp_VMSetRuntimeError,
     pdmR3DevHlp_VMSetRuntimeErrorV,
+    pdmR3DevHlp_VMState,
+    pdmR3DevHlp_VMTeleportedAndNotFullyResumedYet,
     pdmR3DevHlp_AssertEMT,
     pdmR3DevHlp_AssertOther,
     pdmR3DevHlp_DBGFStopV,
@@ -3267,7 +3356,11 @@ const PDMDEVHLPR3 g_pdmR3DevHlpUnTrusted =
     pdmR3DevHlp_UTCNow,
     pdmR3DevHlp_PDMThreadCreate,
     pdmR3DevHlp_PhysGCPtr2GCPhys,
-    pdmR3DevHlp_VMState,
+    pdmR3DevHlp_SetAsyncNotification,
+    pdmR3DevHlp_AsyncNotificationCompleted,
+    0,
+    0,
+    0,
     0,
     0,
     0,

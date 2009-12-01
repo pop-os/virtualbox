@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 23452 2009-09-30 20:33:08Z vboxsync $
 ## @file
 # Sub-Makefile for the VirtualBox Guest/Host OpenGL part
 #
@@ -97,8 +97,7 @@ VBoxOGLhostcrutil_pixel.c_CFLAGS.win.x86 += -Od
 VBoxOGLhostcrutil_EXTENDS  = VBoxOGLcrutil
 VBoxOGLhostcrutil_TEMPLATE = VBOXCROGLR3HOSTDLL
 VBoxOGLhostcrutil_LDFLAGS.darwin = $(VBoxOGLcrutil_LDFLAGS.darwin) \
-	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxOGLhostcrutil.dylib \
-	-current_version $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD)
+	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxOGLhostcrutil.dylib
 ## @todo kBuild bug, possibly same as ticket #51: PATH_SDK_DXSDK_LIB is expanded too early.
 # Update. bug 51 was fixed.
 # Still fails as PATH_SDK_DXSDK_LIB is empty.
@@ -124,6 +123,7 @@ VBoxOGLcrpacker_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/cr_packfunctions.h \
 	$(VBOX_PATH_CROGL_GENFILES)/cr_opcodes.h \
 	$(VBOX_PATH_CROGL_GENFILES)/state/cr_currentpointers.h \
+	$(VBOX_PATH_CROGL_GENFILES)/state/cr_statefuncs.h \
 	$(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h
 VBoxOGLcrpacker_SOURCES = \
 	packer/pack_arrays.c \
@@ -159,6 +159,7 @@ VBoxOGLcrpacker_SOURCES = \
 	packer/pack_swap_texture.c \
 	packer/pack_visibleregion.c \
 	packer/pack_shaders.c \
+	packer/pack_framebuffer.c \
 	$(VBOX_PATH_CROGL_GENFILES)/pack_arrays_swap.c \
 	$(VBOX_PATH_CROGL_GENFILES)/pack_bounds_swap.c \
 	$(VBOX_PATH_CROGL_GENFILES)/pack_bufferobject_swap.c \
@@ -338,6 +339,8 @@ VBoxOGLcrstate_SOURCES = \
 	state_tracker/state_texdiff.c \
 	state_tracker/state_transform.c \
 	state_tracker/state_viewport.c \
+	state_tracker/state_framebuffer.c \
+	state_tracker/state_glsl.c \
 	$(VBOX_PATH_CROGL_GENFILES)/state_buffer_gen.c \
 	$(VBOX_PATH_CROGL_GENFILES)/state_current_gen.c \
 	$(VBOX_PATH_CROGL_GENFILES)/state_fog_gen.c \
@@ -477,8 +480,7 @@ VBoxOGLerrorspu_LIBS = \
 VBoxOGLhosterrorspu_EXTENDS  = VBoxOGLerrorspu
 VBoxOGLhosterrorspu_TEMPLATE = VBOXCROGLR3HOSTDLL
 VBoxOGLhosterrorspu_LDFLAGS.darwin += $(VBoxOGLerrorspu_LDFLAGS.darwin) \
-	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxOGLhosterrorspu.dylib \
-	-current_version $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD)
+	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxOGLhosterrorspu.dylib
 VBoxOGLhosterrorspu_LIBS  = \
 	$(VBOX_LIB_OGL_HOSTCRUTIL) \
 	$(LIB_RUNTIME)

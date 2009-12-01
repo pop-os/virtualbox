@@ -1,4 +1,4 @@
-/* $Id: NetIf-darwin.cpp $ */
+/* $Id: NetIf-darwin.cpp 24678 2009-11-15 16:07:51Z vboxsync $ */
 /** @file
  * Main - NetIfList, Darwin implementation.
  */
@@ -58,7 +58,7 @@
 #include "Logging.h"
 
 #if 0
-int NetIfList(std::list <ComObjPtr <HostNetworkInterface> > &list)
+int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
 {
     int sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (sock < 0)
@@ -274,13 +274,13 @@ static int getDefaultIfaceIndex(unsigned short *pu16Index)
     return 0; /* Failed to find default interface, take the first one in the list. */
 }
 
-int NetIfList(std::list <ComObjPtr <HostNetworkInterface> > &list)
+int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
 {
     int rc = VINF_SUCCESS;
     size_t cbNeeded;
     char *pBuf, *pNext;
     int aiMib[6];
-    unsigned short u16DefaultIface;
+    unsigned short u16DefaultIface = 0; /* initialized to shut up gcc */
 
     /* Get the index of the interface associated with default route. */
     rc = getDefaultIfaceIndex(&u16DefaultIface);

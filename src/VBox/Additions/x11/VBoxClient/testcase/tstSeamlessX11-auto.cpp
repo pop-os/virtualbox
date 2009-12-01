@@ -30,7 +30,6 @@
 #include <iprt/semaphore.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
-#include <VBox/VBoxGuest.h>
 
 #include "../seamless.h"
 
@@ -204,21 +203,6 @@ Status XGetWindowAttributes(Display *display, Window w,
     return 0;
 }
 
-extern "C" Status XFetchName(Display *display, Window w,
-                             char **window_name_return);
-Status XFetchName(Display *display, Window w, char **window_name_return)
-{
-    AssertPtrReturn(window_name_return, 1);
-    for (unsigned i = 0; i < g_cSmlsWindows; ++i)
-        if (g_paSmlsWindows[i] == w)
-        {
-            *window_name_return = (char *)RTMemDup(g_papszSmlsWinNames[i],
-                                           strlen(g_papszSmlsWinNames[i]) + 1);
-            return *window_name_return != NULL;
-        }
-    return 0;
-}
-
 extern "C" Status XGetWMNormalHints(Display *display, Window w,
                                     XSizeHints *hints_return,
                                     long *supplied_return);
@@ -359,8 +343,7 @@ struct SMLSFIXTURE
 
 static Window g_ahWin1[] = { 20 };
 static XWindowAttributes g_aAttrib1Before[] =
-{ { 100, 200, 200, 300, 0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    IsViewable }
+{ { 100, 200, 200, 300, 0, 0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, IsViewable }
 };
 static XRectangle g_aRectangle1[] =
 {
@@ -368,8 +351,7 @@ static XRectangle g_aRectangle1[] =
     { 50, 50, 150, 250 }
 };
 static XWindowAttributes g_aAttrib1After[] =
-{ { 200, 300, 200, 300, 0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    IsViewable }
+{ { 200, 300, 200, 300, 0, 0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, IsViewable }
 };
 static const char *g_apszNames1[] = { "Test Window" };
 
@@ -408,8 +390,7 @@ static SMLSFIXTURE g_testMove =
 /*** Test fixture to test the code against X11 configure (resize) events ***/
 
 static XWindowAttributes g_aAttrib2Before[] =
-{ { 100, 200, 200, 300, 0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    IsViewable }
+{ { 100, 200, 200, 300, 0, 0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, IsViewable }
 };
 static XRectangle g_aRectangle2Before[] =
 {
@@ -444,8 +425,7 @@ static SMLSFIXTURE g_testResize =
 /*** Test fixture to test the code against X11 map events ***/
 
 static XWindowAttributes g_aAttrib3Before[] =
-{ { 200, 300, 200, 300, 0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    IsUnmapped }
+{ { 200, 300, 200, 300, 0, 0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, IsUnmapped }
 };
 
 AssertCompile(RT_ELEMENTS(g_ahWin1) == RT_ELEMENTS(g_aAttrib3Before));
@@ -475,8 +455,7 @@ static SMLSFIXTURE g_testMap =
 /*** Test fixture to test the code against X11 unmap events ***/
 
 static XWindowAttributes g_aAttrib4After[] =
-{ { 100, 200, 300, 400, 0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    IsUnmapped }
+{ { 100, 200, 300, 400, 0, 0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, IsUnmapped }
 };
 
 AssertCompile(RT_ELEMENTS(g_ahWin1) == RT_ELEMENTS(g_aAttrib4After));

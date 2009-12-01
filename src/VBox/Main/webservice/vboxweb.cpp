@@ -2,7 +2,7 @@
  * vboxweb.cpp:
  *      hand-coded parts of the webservice server. This is linked with the
  *      generated code in out/.../src/VBox/Main/webservice/methodmaps.cpp
- *      (and static gSOAP server code) to implement the actual webservice
+ *      (plus static gSOAP server code) to implement the actual webservice
  *      server, to which clients can connect.
  *
  * Copyright (C) 2006-2009 Sun Microsystems, Inc.
@@ -20,18 +20,16 @@
  * additional information or have any questions.
  */
 
+// shared webservice header
+#include "vboxweb.h"
+
 // vbox headers
 #include <VBox/com/com.h>
-#include <VBox/com/string.h>
-#include <VBox/com/Guid.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
 #include <VBox/com/EventQueue.h>
-#include <VBox/com/VirtualBox.h>
-#include <VBox/err.h>
 #include <VBox/VRDPAuth.h>
 #include <VBox/version.h>
-#include <VBox/log.h>
 
 #include <iprt/lock.h>
 #include <iprt/rand.h>
@@ -39,7 +37,6 @@
 #include <iprt/getopt.h>
 #include <iprt/ctype.h>
 #include <iprt/process.h>
-#include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/ldr.h>
 
@@ -53,14 +50,10 @@
 
 // standard headers
 #include <map>
-#include <sstream>
 
 #ifdef __GNUC__
 #pragma GCC visibility pop
 #endif
-
-// shared webservice header
-#include "vboxweb.h"
 
 // include generated namespaces table
 #include "vboxwebsrv.nsmap"
@@ -97,13 +90,13 @@ ComPtr<IVirtualBox>     g_pVirtualBox = NULL;
 extern const char       *g_pcszISession,
                         *g_pcszIVirtualBox;
 
+// globals for vboxweb command-line arguments
 #define DEFAULT_TIMEOUT_SECS 300
 #define DEFAULT_TIMEOUT_SECS_STRING "300"
-
 int                     g_iWatchdogTimeoutSecs = DEFAULT_TIMEOUT_SECS;
 int                     g_iWatchdogCheckInterval = 5;
 
-const char              *g_pcszBindToHost = NULL;        // host; NULL = current machine
+const char              *g_pcszBindToHost = NULL;       // host; NULL = current machine
 unsigned int            g_uBindToPort = 18083;          // port
 unsigned int            g_uBacklog = 100;               // backlog = max queue size for requests
 
@@ -204,24 +197,40 @@ void DisplayHelp()
     }
 }
 
+/**
+ * Implementation for WEBLOG macro defined in vboxweb.h; this prints a message
+ * to the console and optionally to the file that may have been given to the
+ * vboxwebsrv command line.
+ * @param pszFormat
+ */
 void WebLog(const char *pszFormat, ...)
 {
     va_list args;
     va_start(args, pszFormat);
-    RTPrintfV(pszFormat, args);
+    char *psz = NULL;
+    RTStrAPrintfV(&psz, pszFormat, args);
     va_end(args);
 
+    // terminal
+    RTPrintf("%s", psz);
+
+    // log file
     if (g_pstrLog)
     {
-        va_list args2;
-        va_start(args2, pszFormat);
-        RTStrmPrintfV(g_pstrLog, pszFormat, args);
-        va_end(args2);
-
+        RTStrmPrintf(g_pstrLog, "%s", psz);
         RTStrmFlush(g_pstrLog);
     }
+
+    // logger instance
+    RTLogLoggerEx(LOG_INSTANCE, RTLOGGRPFLAGS_DJ, LOG_GROUP, "%s", psz);
+
+    RTStrFree(psz);
 }
 
+/**
+ * Helper for printing SOAP error messages.
+ * @param soap
+ */
 void WebLogSoapError(struct soap *soap)
 {
     if (soap_check_state(soap))
@@ -240,7 +249,9 @@ void WebLogSoapError(struct soap *soap)
 
 /**
  * Start up the webservice server. This keeps running and waits
- * for incoming SOAP connections.
+ * for incoming SOAP connections; for each request that comes in,
+ * it calls method implementation code, most of it in the generated
+ * code in methodmaps.cpp.
  *
  * @param argc
  * @param argv[]
@@ -416,10 +427,11 @@ int main(int argc, char* argv[])
                g_uBindToPort,
                m);
 
-        for (unsigned long long i = 1;
+        for (uint64_t i = 1;
              ;
              i++)
         {
+            // call gSOAP to handle incoming SOAP connection
             s = soap_accept(&soap);
             if (s < 0)
             {
@@ -452,8 +464,8 @@ int main(int argc, char* argv[])
             soap_destroy(&soap); // clean up class instances
             soap_end(&soap); // clean up everything and close socket
 
-            // every COM thread needs to process its event queue, or memory leaks
-            int vrc = com::EventQueue::processThreadEventQueue(0);
+            // we have to process main event queue
+            int vrc = com::EventQueue::getMainEventQueue()->processEventQueue(0);
         }
     }
     soap_done(&soap); // close master socket and detach environment
@@ -481,7 +493,7 @@ int fntWatchdog(RTTHREAD ThreadSelf, void *pvUser)
     while (1)
     {
         WEBDEBUG(("Watchdog: sleeping %d seconds\n", g_iWatchdogCheckInterval));
-        RTThreadSleep(g_iWatchdogCheckInterval*1000);
+        RTThreadSleep(g_iWatchdogCheckInterval * 1000);
 
         time_t                      tNow;
         time(&tNow);
@@ -530,12 +542,12 @@ int fntWatchdog(RTTHREAD ThreadSelf, void *pvUser)
  * @param ex
  */
 void RaiseSoapFault(struct soap *soap,
-                    const std::string &str,
+                    const char *pcsz,
                     int extype,
                     void *ex)
 {
     // raise the fault
-    soap_sender_fault(soap, str.c_str(), NULL);
+    soap_sender_fault(soap, pcsz, NULL);
 
     struct SOAP_ENV__Detail *pDetail = (struct SOAP_ENV__Detail*)soap_malloc(soap, sizeof(struct SOAP_ENV__Detail));
 
@@ -572,14 +584,11 @@ void RaiseSoapInvalidObjectFault(struct soap *soap,
     _vbox__InvalidObjectFault *ex = soap_new__vbox__InvalidObjectFault(soap, 1);
     ex->badObjectID = obj;
 
-    /* std::ostringstream ostr;
-    ostr << std::hex << ex->badObjectID; */
-
     std::string str("VirtualBox error: ");
     str += "Invalid managed object reference \"" + obj + "\"";
 
     RaiseSoapFault(soap,
-                   str,
+                   str.c_str(),
                    SOAP_TYPE__vbox__InvalidObjectFault,
                    ex);
 }
@@ -605,8 +614,9 @@ std::string ConvertComString(const com::Bstr &bstr)
  * @param bstr
  * @return
  */
-std::string ConvertComString(const com::Guid &bstr)
+std::string ConvertComString(const com::Guid &uuid)
 {
+    com::Bstr bstr(uuid);
     com::Utf8Str ustr(bstr);
     const char *pcsz;
     if ((pcsz = ustr.raw()))
@@ -639,17 +649,10 @@ void RaiseSoapRuntimeFault(struct soap *soap,
     ex->interfaceID = ConvertComString(info.getInterfaceID());
 
     // compose descriptive message
-    std::ostringstream ostr;
-    ostr << std::hex << ex->resultCode;
-
-    std::string str("VirtualBox error: ");
-    str += ex->text;
-    str += " (0x";
-    str += ostr.str();
-    str += ")";
+    com::Utf8StrFmt str("VirtualBox error: %s (0x%RU32)", ex->text.c_str(), ex->resultCode);
 
     RaiseSoapFault(soap,
-                   str,
+                   str.c_str(),
                    SOAP_TYPE__vbox__RuntimeFault,
                    ex);
 }

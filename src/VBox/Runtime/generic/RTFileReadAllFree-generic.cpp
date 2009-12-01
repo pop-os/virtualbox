@@ -1,4 +1,4 @@
-/* $Id: RTFileReadAllFree-generic.cpp $ */
+/* $Id: RTFileReadAllFree-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - RTFileReadAllFree, generic implementation.
  */
@@ -29,11 +29,12 @@
  */
 
 
-
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/file.h>
+#include "internal/iprt.h"
+
 #include <iprt/mem.h>
 #include <iprt/assert.h>
 
@@ -52,5 +53,5 @@ RTDECL(void) RTFileReadAllFree(void *pvFile, size_t cbFile)
 
     RTMemFree(pvFile);
 }
-
+RT_EXPORT_SYMBOL(RTFileReadAllFree);
 

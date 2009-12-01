@@ -1,4 +1,4 @@
-/* $Id: VMMSwitcher.cpp $ */
+/* $Id: VMMSwitcher.cpp 24009 2009-10-23 08:25:56Z vboxsync $ */
 /** @file
  * VMM - The Virtual Machine Monitor, World Switcher(s).
  */
@@ -776,7 +776,7 @@ static void vmmR3SwitcherGenericRelocate(PVM pVM, PVMMSWITCHERDEF pSwitcher, RTR
             else
             {
                 RTLogPrintf("  %04x: %02x '%c' (nowhere)\n",
-                            offCode, pu8CodeR3[offCode], isprint(pu8CodeR3[offCode]) ? pu8CodeR3[offCode] : ' ');
+                            offCode, pu8CodeR3[offCode], RT_C_IS_PRINT(pu8CodeR3[offCode]) ? pu8CodeR3[offCode] : ' ');
                 offCode++;
                 continue;
             }
@@ -813,7 +813,7 @@ static void vmmR3SwitcherGenericRelocate(PVM pVM, PVMMSWITCHERDEF pSwitcher, RTR
                 else
                 {
                     RTLogPrintf("  %04x: %02x '%c'\n",
-                                offCode, pu8CodeR3[offCode], isprint(pu8CodeR3[offCode]) ? pu8CodeR3[offCode] : ' ');
+                                offCode, pu8CodeR3[offCode], RT_C_IS_PRINT(pu8CodeR3[offCode]) ? pu8CodeR3[offCode] : ' ');
                     cbInstr = 1;
                 }
                 offCode += cbInstr;

@@ -1,4 +1,4 @@
-; $Id: tstAsmLock-1.asm $
+; $Id: tstAsmLock-1.asm 8979 2008-05-20 19:48:26Z vboxsync $
 ;; @file
 ; Disassembly testcase - Valid lock sequences and related instructions.
 ;

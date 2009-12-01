@@ -1,4 +1,4 @@
-/* $Id: RTAssertMsg2Weak.cpp $ */
+/* $Id: RTAssertMsg2Weak.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - RTAssertMsg2Weak.
  */
@@ -33,6 +33,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/assert.h>
+#include "internal/iprt.h"
+
 #include <iprt/stdarg.h>
 
 
@@ -43,4 +45,5 @@ RTDECL(void) AssertMsg2(const char *pszFormat, ...)
     RTAssertMsg2V(pszFormat, va);
     va_end(va);
 }
+RT_EXPORT_SYMBOL(AssertMsg2);
 

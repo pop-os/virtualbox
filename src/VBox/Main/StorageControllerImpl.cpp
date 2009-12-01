@@ -1,4 +1,4 @@
-/* $Id: StorageControllerImpl.cpp $ */
+/* $Id: StorageControllerImpl.cpp 24250 2009-11-02 13:00:58Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -61,23 +61,27 @@ void StorageController::FinalRelease()
  * @returns COM result indicator.
  * @param aParent       Pointer to our parent object.
  * @param aName         Name of the storage controller.
+ * @param aInstance     Instance number of the storage controller.
  */
-HRESULT StorageController::init (Machine *aParent, IN_BSTR aName, 
-                                 StorageBus_T aStorageBus)
+HRESULT StorageController::init(Machine *aParent,
+                                const Utf8Str &aName,
+                                StorageBus_T aStorageBus,
+                                ULONG aInstance)
 {
-    LogFlowThisFunc (("aParent=%p aName=\"%ls\"\n", aParent, aName));
+    LogFlowThisFunc(("aParent=%p aName=\"%s\" aInstance=%u\n",
+                     aParent, aName.raw(), aInstance));
 
-    ComAssertRet (aParent && aName, E_INVALIDARG);
+    ComAssertRet(aParent && !aName.isEmpty(), E_INVALIDARG);
     if (   (aStorageBus <= StorageBus_Null)
-        || (aStorageBus >  StorageBus_SCSI))
+        || (aStorageBus >  StorageBus_Floppy))
         return setError (E_INVALIDARG,
             tr ("Invalid storage connection type"));
 
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst (mParent) = aParent;
+    unconst(mParent) = aParent;
     /* mPeer is left null */
 
     /* register with parent early, since uninit() will unconditionally
@@ -86,7 +90,8 @@ HRESULT StorageController::init (Machine *aParent, IN_BSTR aName,
 
     mData.allocate();
 
-    mData->mName = aName;
+    mData->strName = aName;
+    mData->mInstance = aInstance;
     mData->mStorageBus = aStorageBus;
 
     switch (aStorageBus)
@@ -102,6 +107,11 @@ HRESULT StorageController::init (Machine *aParent, IN_BSTR aName,
         case StorageBus_SCSI:
             mData->mPortCount = 16;
             mData->mStorageControllerType = StorageControllerType_LsiLogic;
+            break;
+        case StorageBus_Floppy:
+            /** @todo allow 2 floppies later */
+            mData->mPortCount = 1;
+            mData->mStorageControllerType = StorageControllerType_I82078;
             break;
     }
 
@@ -131,16 +141,16 @@ HRESULT StorageController::init (Machine *aParent,
                                  StorageController *aThat,
                                  bool aReshare /* = false */)
 {
-    LogFlowThisFunc (("aParent=%p, aThat=%p, aReshare=%RTbool\n",
+    LogFlowThisFunc(("aParent=%p, aThat=%p, aReshare=%RTbool\n",
                       aParent, aThat, aReshare));
 
     ComAssertRet (aParent && aThat, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst (mParent) = aParent;
+    unconst(mParent) = aParent;
 
     /* register with parent early, since uninit() will unconditionally
      * unregister on failure */
@@ -148,18 +158,18 @@ HRESULT StorageController::init (Machine *aParent,
 
     /* sanity */
     AutoCaller thatCaller (aThat);
-    AssertComRCReturnRC (thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.rc());
 
     if (aReshare)
     {
         AutoWriteLock thatLock (aThat);
 
-        unconst (aThat->mPeer) = this;
+        unconst(aThat->mPeer) = this;
         mData.attach (aThat->mData);
     }
     else
     {
-        unconst (mPeer) = aThat;
+        unconst(mPeer) = aThat;
 
         AutoReadLock thatLock (aThat);
         mData.share (aThat->mData);
@@ -178,21 +188,21 @@ HRESULT StorageController::init (Machine *aParent,
  */
 HRESULT StorageController::initCopy (Machine *aParent, StorageController *aThat)
 {
-    LogFlowThisFunc (("aParent=%p, aThat=%p\n", aParent, aThat));
+    LogFlowThisFunc(("aParent=%p, aThat=%p\n", aParent, aThat));
 
     ComAssertRet (aParent && aThat, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst (mParent) = aParent;
+    unconst(mParent) = aParent;
     /* mPeer is left null */
 
     mParent->addDependentChild (this);
 
     AutoCaller thatCaller (aThat);
-    AssertComRCReturnRC (thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.rc());
 
     AutoReadLock thatlock (aThat);
     mData.attachCopy (aThat->mData);
@@ -210,10 +220,10 @@ HRESULT StorageController::initCopy (Machine *aParent, StorageController *aThat)
  */
 void StorageController::uninit()
 {
-    LogFlowThisFunc (("\n"));
+    LogFlowThisFunc(("\n"));
 
     /* Enclose the state transition Ready->InUninit->NotReady */
-    AutoUninitSpan autoUninitSpan (this);
+    AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
         return;
 
@@ -221,8 +231,8 @@ void StorageController::uninit()
 
     mParent->removeDependentChild (this);
 
-    unconst (mPeer).setNull();
-    unconst (mParent).setNull();
+    unconst(mPeer).setNull();
+    unconst(mParent).setNull();
 }
 
 
@@ -232,11 +242,11 @@ STDMETHODIMP StorageController::COMGETTER(Name) (BSTR *aName)
 {
     CheckComArgOutPointerValid(aName);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* mName is constant during life time, no need to lock */
-    mData.data()->mName.cloneTo (aName);
+    mData.data()->strName.cloneTo(aName);
 
     return S_OK;
 }
@@ -245,10 +255,10 @@ STDMETHODIMP StorageController::COMGETTER(Bus) (StorageBus_T *aBus)
 {
     CheckComArgOutPointerValid(aBus);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *aBus = mData->mStorageBus;
 
@@ -259,10 +269,10 @@ STDMETHODIMP StorageController::COMGETTER(ControllerType) (StorageControllerType
 {
     CheckComArgOutPointerValid(aControllerType);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *aControllerType = mData->mStorageControllerType;
 
@@ -271,10 +281,10 @@ STDMETHODIMP StorageController::COMGETTER(ControllerType) (StorageControllerType
 
 STDMETHODIMP StorageController::COMSETTER(ControllerType) (StorageControllerType_T aControllerType)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     HRESULT rc = S_OK;
 
@@ -301,11 +311,17 @@ STDMETHODIMP StorageController::COMSETTER(ControllerType) (StorageControllerType
                 rc = E_INVALIDARG;
             break;
         }
+        case StorageBus_Floppy:
+        {
+            if (aControllerType != StorageControllerType_I82078)
+                rc = E_INVALIDARG;
+            break;
+        }
         default:
             AssertMsgFailed(("Invalid controller type %d\n", mData->mStorageBus));
     }
 
-    if (!SUCCEEDED (rc))
+    if (!SUCCEEDED(rc))
         return setError(rc,
                         tr ("Invalid controller type %d"),
                         aControllerType);
@@ -319,97 +335,69 @@ STDMETHODIMP StorageController::COMGETTER(MaxDevicesPerPortCount) (ULONG *aMaxDe
 {
     CheckComArgOutPointerValid(aMaxDevices);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
-    switch (mData->mStorageBus)
-    {
-        case StorageBus_SATA:
-        case StorageBus_SCSI:
-        {
-            /* SATA and both SCSI controllers only support one device per port. */
-            *aMaxDevices = 1;
-            break;
-        }
-        case StorageBus_IDE:
-        {
-            /* The IDE controllers support 2 devices. One as master and one as slave. */
-            *aMaxDevices = 2;
-            break;
-        }
-        default:
-            AssertMsgFailed(("Invalid controller type %d\n", mData->mStorageBus));
-    }
+    ComPtr<IVirtualBox> VBox;
+    HRESULT rc = mParent->COMGETTER(Parent)(VBox.asOutParam());
+    if (FAILED(rc))
+        return rc;
 
-    return S_OK;
+    ComPtr<ISystemProperties> sysProps;
+    rc = VBox->COMGETTER(SystemProperties)(sysProps.asOutParam());
+    if (FAILED(rc))
+        return rc;
+
+    rc = sysProps->GetMaxDevicesPerPortForStorageBus(mData->mStorageBus, aMaxDevices);
+    return rc;
 }
 
 STDMETHODIMP StorageController::COMGETTER(MinPortCount) (ULONG *aMinPortCount)
 {
     CheckComArgOutPointerValid(aMinPortCount);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
-    switch (mData->mStorageBus)
-    {
-        case StorageBus_SATA:
-        {
-            *aMinPortCount = 1;
-            break;
-        }
-        case StorageBus_SCSI:
-        {
-            *aMinPortCount = 16;
-            break;
-        }
-        case StorageBus_IDE:
-        {
-            *aMinPortCount = 2;
-            break;
-        }
-        default:
-            AssertMsgFailed(("Invalid controller type %d\n", mData->mStorageBus));
-    }
+    ComPtr<IVirtualBox> VBox;
+    HRESULT rc = mParent->COMGETTER(Parent)(VBox.asOutParam());
+    if (FAILED(rc))
+        return rc;
 
-    return S_OK;
+    ComPtr<ISystemProperties> sysProps;
+    rc = VBox->COMGETTER(SystemProperties)(sysProps.asOutParam());
+    if (FAILED(rc))
+        return rc;
+
+    rc = sysProps->GetMinPortCountForStorageBus(mData->mStorageBus, aMinPortCount);
+    return rc;
 }
 
 STDMETHODIMP StorageController::COMGETTER(MaxPortCount) (ULONG *aMaxPortCount)
 {
     CheckComArgOutPointerValid(aMaxPortCount);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
-    switch (mData->mStorageBus)
-    {
-        case StorageBus_SATA:
-        {
-            *aMaxPortCount = 30;
-            break;
-        }
-        case StorageBus_SCSI:
-        {
-            *aMaxPortCount = 16;
-            break;
-        }
-        case StorageBus_IDE:
-        {
-            *aMaxPortCount = 2;
-            break;
-        }
-        default:
-            AssertMsgFailed(("Invalid controller type %d\n", mData->mStorageBus));
-    }
+    ComPtr<IVirtualBox> VBox;
+    HRESULT rc = mParent->COMGETTER(Parent)(VBox.asOutParam());
+    if (FAILED(rc))
+        return rc;
 
-    return S_OK;
+    ComPtr<ISystemProperties> sysProps;
+    rc = VBox->COMGETTER(SystemProperties)(sysProps.asOutParam());
+    if (FAILED(rc))
+        return rc;
+
+    rc = sysProps->GetMaxPortCountForStorageBus(mData->mStorageBus, aMaxPortCount);
+    return rc;
 }
 
 
@@ -417,10 +405,10 @@ STDMETHODIMP StorageController::COMGETTER(PortCount) (ULONG *aPortCount)
 {
     CheckComArgOutPointerValid(aPortCount);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *aPortCount = mData->mPortCount;
 
@@ -430,7 +418,7 @@ STDMETHODIMP StorageController::COMGETTER(PortCount) (ULONG *aPortCount)
 
 STDMETHODIMP StorageController::COMSETTER(PortCount) (ULONG aPortCount)
 {
-    LogFlowThisFunc (("aPortCount=%u\n", aPortCount));
+    LogFlowThisFunc(("aPortCount=%u\n", aPortCount));
 
     switch (mData->mStorageBus)
     {
@@ -460,7 +448,7 @@ STDMETHODIMP StorageController::COMSETTER(PortCount) (ULONG aPortCount)
         case StorageBus_IDE:
         {
             /*
-             * The port count is fixed to 2. 
+             * The port count is fixed to 2.
              */
             if (aPortCount != 2)
                 return setError (E_INVALIDARG,
@@ -468,18 +456,30 @@ STDMETHODIMP StorageController::COMSETTER(PortCount) (ULONG aPortCount)
                         aPortCount, 2, 2);
             break;
         }
+        case StorageBus_Floppy:
+        {
+            /** @todo allow 2 floppies later */
+            /*
+             * The port count is fixed to 1.
+             */
+            if (aPortCount != 1)
+                return setError (E_INVALIDARG,
+                    tr ("Invalid port count: %lu (must be in range [%lu, %lu])"),
+                        aPortCount, 1, 1);
+            break;
+        }
         default:
             AssertMsgFailed(("Invalid controller type %d\n", mData->mStorageBus));
     }
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     if (mData->mPortCount != aPortCount)
     {
@@ -497,28 +497,28 @@ STDMETHODIMP StorageController::COMSETTER(PortCount) (ULONG aPortCount)
 
 STDMETHODIMP StorageController::COMGETTER(Instance) (ULONG *aInstance)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* The machine doesn't need to be mutable. */
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
-    *aInstance = mInstance;
+    *aInstance = mData->mInstance;
 
     return S_OK;
 }
 
 STDMETHODIMP StorageController::COMSETTER(Instance) (ULONG aInstance)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* The machine doesn't need to be mutable. */
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
-    mInstance = aInstance;
+    mData->mInstance = aInstance;
 
     return S_OK;
 }
@@ -530,10 +530,10 @@ STDMETHODIMP StorageController::GetIDEEmulationPort(LONG DevicePosition, LONG *a
 {
     CheckComArgOutPointerValid(aPortNumber);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     if (mData->mStorageControllerType != StorageControllerType_IntelAhci)
         return setError (E_NOTIMPL,
@@ -562,13 +562,13 @@ STDMETHODIMP StorageController::GetIDEEmulationPort(LONG DevicePosition, LONG *a
 
 STDMETHODIMP StorageController::SetIDEEmulationPort(LONG DevicePosition, LONG aPortNumber)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
-    AutoWriteLock alock (this);
+    CheckComRCReturnRC(adep.rc());
+    AutoWriteLock alock(this);
 
     if (mData->mStorageControllerType != StorageControllerType_IntelAhci)
         return setError (E_NOTIMPL,
@@ -606,10 +606,10 @@ STDMETHODIMP StorageController::SetIDEEmulationPort(LONG DevicePosition, LONG aP
 /** @note Locks objects for writing! */
 bool StorageController::rollback()
 {
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
     AssertComRCReturn (autoCaller.rc(), false);
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     bool dataChanged = false;
 
@@ -631,7 +631,7 @@ bool StorageController::rollback()
 void StorageController::commit()
 {
     /* sanity */
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
     AssertComRCReturnVoid (autoCaller.rc());
 
     /* sanity too */
@@ -663,7 +663,7 @@ void StorageController::commit()
 void StorageController::unshare()
 {
     /* sanity */
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
     AssertComRCReturnVoid (autoCaller.rc());
 
     /* sanity too */
@@ -682,7 +682,7 @@ void StorageController::unshare()
         mData.commit();
     }
 
-    unconst (mPeer).setNull();
+    unconst(mPeer).setNull();
 }
 
 // private methods

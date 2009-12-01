@@ -1,4 +1,4 @@
-/* $Id: sysfs.h $ */
+/* $Id: sysfs.h 23332 2009-09-25 13:26:57Z vboxsync $ */
 /** @file
  * IPRT - Linux sysfs access.
  */

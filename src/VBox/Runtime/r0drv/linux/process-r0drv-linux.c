@@ -1,4 +1,4 @@
-/* $Id: process-r0drv-linux.c $ */
+/* $Id: process-r0drv-linux.c 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Process, Ring-0 Driver, Linux.
  */
@@ -28,10 +28,12 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-linux-kernel.h"
+#include "internal/iprt.h"
 
 #include <iprt/process.h>
 
@@ -40,10 +42,12 @@ RTDECL(RTPROCESS) RTProcSelf(void)
 {
     return (RTPROCESS)current->tgid;
 }
+RT_EXPORT_SYMBOL(RTProcSelf);
 
 
 RTR0DECL(RTR0PROCESS) RTR0ProcHandleSelf(void)
 {
     return (RTR0PROCESS)current->tgid;
 }
+RT_EXPORT_SYMBOL(RTR0ProcHandleSelf);
 

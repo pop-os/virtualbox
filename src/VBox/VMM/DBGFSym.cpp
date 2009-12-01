@@ -1,4 +1,4 @@
-/* $Id: DBGFSym.cpp $ */
+/* $Id: DBGFSym.cpp 25015 2009-11-26 15:27:42Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility, Symbol Management.
  */
@@ -165,7 +165,7 @@ static int dbgfR3SymbolInsert(PVM pVM, const char *pszName, RTGCPTR Address, siz
                 if (!pName)
                 {
                     /* make new symbol space node. */
-                    PDBGFSYMSPACE pName = (PDBGFSYMSPACE)MMR3HeapAlloc(pVM, MM_TAG_DBGF_SYMBOL, sizeof(*pName) + cchName);
+                    pName = (PDBGFSYMSPACE)MMR3HeapAlloc(pVM, MM_TAG_DBGF_SYMBOL, sizeof(*pName) + cchName);
                     if (pName)
                     {
                         pName->Core.pszString = (char *)memcpy(pName + 1, pszName, cchName);
@@ -229,10 +229,10 @@ static PDBGFSYM dbgfR3SymbolGetName(PVM pVM, const char *pszSymbol)
  */
 static char *dbgfR3Strip(char *psz)
 {
-    while (*psz && isspace(*psz))
+    while (*psz && RT_C_IS_SPACE(*psz))
         psz++;
     char *psz2 = strchr(psz, '\0') - 1;
-    while (psz2 >= psz && isspace(*psz2))
+    while (psz2 >= psz && RT_C_IS_SPACE(*psz2))
         *psz2-- = '\0';
     return psz;
 }
@@ -454,41 +454,41 @@ SYMFILETYPE dbgfR3ModuleProbe(FILE *pFile)
             ||  strstr(szHead, "Linker script and memory map"))
             return SYMFILETYPE_LD_MAP;
 
-        if (   isxdigit(szHead[0])
-            && isxdigit(szHead[1])
-            && isxdigit(szHead[2])
-            && isxdigit(szHead[3])
-            && isxdigit(szHead[4])
-            && isxdigit(szHead[5])
-            && isxdigit(szHead[6])
-            && isxdigit(szHead[7])
+        if (   RT_C_IS_XDIGIT(szHead[0])
+            && RT_C_IS_XDIGIT(szHead[1])
+            && RT_C_IS_XDIGIT(szHead[2])
+            && RT_C_IS_XDIGIT(szHead[3])
+            && RT_C_IS_XDIGIT(szHead[4])
+            && RT_C_IS_XDIGIT(szHead[5])
+            && RT_C_IS_XDIGIT(szHead[6])
+            && RT_C_IS_XDIGIT(szHead[7])
             && szHead[8] == ' '
-            && isalpha(szHead[9])
+            && RT_C_IS_ALPHA(szHead[9])
             && szHead[10] == ' '
-            && (isalpha(szHead[11]) || szHead[11] == '_' || szHead[11] == '$')
+            && (RT_C_IS_ALPHA(szHead[11]) || szHead[11] == '_' || szHead[11] == '$')
             )
             return SYMFILETYPE_LINUX_SYSTEM_MAP;
 
-        if (   isxdigit(szHead[0])
-            && isxdigit(szHead[1])
-            && isxdigit(szHead[2])
-            && isxdigit(szHead[3])
-            && isxdigit(szHead[4])
-            && isxdigit(szHead[5])
-            && isxdigit(szHead[6])
-            && isxdigit(szHead[7])
-            && isxdigit(szHead[8])
-            && isxdigit(szHead[9])
-            && isxdigit(szHead[10])
-            && isxdigit(szHead[11])
-            && isxdigit(szHead[12])
-            && isxdigit(szHead[13])
-            && isxdigit(szHead[14])
-            && isxdigit(szHead[15])
+        if (   RT_C_IS_XDIGIT(szHead[0])
+            && RT_C_IS_XDIGIT(szHead[1])
+            && RT_C_IS_XDIGIT(szHead[2])
+            && RT_C_IS_XDIGIT(szHead[3])
+            && RT_C_IS_XDIGIT(szHead[4])
+            && RT_C_IS_XDIGIT(szHead[5])
+            && RT_C_IS_XDIGIT(szHead[6])
+            && RT_C_IS_XDIGIT(szHead[7])
+            && RT_C_IS_XDIGIT(szHead[8])
+            && RT_C_IS_XDIGIT(szHead[9])
+            && RT_C_IS_XDIGIT(szHead[10])
+            && RT_C_IS_XDIGIT(szHead[11])
+            && RT_C_IS_XDIGIT(szHead[12])
+            && RT_C_IS_XDIGIT(szHead[13])
+            && RT_C_IS_XDIGIT(szHead[14])
+            && RT_C_IS_XDIGIT(szHead[15])
             && szHead[16] == ' '
-            && isalpha(szHead[17])
+            && RT_C_IS_ALPHA(szHead[17])
             && szHead[18] == ' '
-            && (isalpha(szHead[19]) || szHead[19] == '_' || szHead[19] == '$')
+            && (RT_C_IS_ALPHA(szHead[19]) || szHead[19] == '_' || szHead[19] == '$')
             )
             return SYMFILETYPE_LINUX_SYSTEM_MAP;
 
@@ -532,7 +532,7 @@ static int dbgfR3LoadLinuxSystemMap(PVM pVM, FILE *pFile, RTGCUINTPTR ModuleAddr
             &&  u64Address != (RTGCUINTPTR)~0)
         {
             pszEnd++;
-            if (    isalpha(*pszEnd)
+            if (    RT_C_IS_ALPHA(*pszEnd)
                 &&  (pszEnd[1] == ' ' || pszEnd[1] == '\t'))
             {
                 psz = dbgfR3Strip(pszEnd + 2);
@@ -950,72 +950,6 @@ VMMR3DECL(int) DBGFR3SymbolByName(PVM pVM, const char *pszSymbol, PDBGFSYMBOL pS
 
     return VERR_SYMBOL_NOT_FOUND;
 #endif
-}
-
-
-/**
- * Duplicates a symbol.
- *
- * @returns Pointer to the duplicated symbol.
- * @param   pVM             The VM handle.
- * @param   pSymbol         The symbol to duplicate.
- */
-static PDBGFSYMBOL dbgfR3SymbolDup(PVM pVM, PCDBGFSYMBOL pSymbol)
-{
-    size_t cb = strlen(pSymbol->szName) + RT_OFFSETOF(DBGFSYMBOL, szName[1]);
-    PDBGFSYMBOL pDup = (PDBGFSYMBOL)MMR3HeapAlloc(pVM, MM_TAG_DBGF_SYMBOL_DUP, cb);
-    if (pDup)
-        memcpy(pDup, pSymbol, cb);
-    return pDup;
-}
-
-
-/**
- * Find symbol by address (nearest), allocate return buffer.
- *
- * @returns Pointer to the symbol. Must be freed using DBGFR3SymbolFree().
- * @returns NULL if the symbol was not found or if we're out of memory.
- * @param   pVM                 VM handle.
- * @param   Address             Address.
- * @param   poffDisplacement    Where to store the symbol displacement from Address.
- */
-VMMR3DECL(PDBGFSYMBOL) DBGFR3SymbolByAddrAlloc(PVM pVM, RTGCUINTPTR Address, PRTGCINTPTR poffDisplacement)
-{
-    DBGFSYMBOL Symbol;
-    int rc = DBGFR3SymbolByAddr(pVM, Address, poffDisplacement, &Symbol);
-    if (RT_FAILURE(rc))
-        return NULL;
-    return dbgfR3SymbolDup(pVM, &Symbol);
-}
-
-
-/**
- * Find symbol by name (first), allocate return buffer.
- *
- * @returns Pointer to the symbol. Must be freed using DBGFR3SymbolFree().
- * @returns NULL if the symbol was not found or if we're out of memory.
- * @param   pVM                 VM handle.
- * @param   pszSymbol           Symbol name.
- */
-VMMR3DECL(PDBGFSYMBOL) DBGFR3SymbolByNameAlloc(PVM pVM, const char *pszSymbol)
-{
-    DBGFSYMBOL Symbol;
-    int rc = DBGFR3SymbolByName(pVM, pszSymbol, &Symbol);
-    if (RT_FAILURE(rc))
-        return NULL;
-    return dbgfR3SymbolDup(pVM, &Symbol);
-}
-
-
-/**
- * Frees a symbol returned by DBGFR3SymbolbyNameAlloc() or DBGFR3SymbolByAddressAlloc().
- *
- * @param   pSymbol         Pointer to the symbol.
- */
-VMMR3DECL(void) DBGFR3SymbolFree(PDBGFSYMBOL pSymbol)
-{
-    if (pSymbol)
-        MMR3HeapFree(pSymbol);
 }
 
 

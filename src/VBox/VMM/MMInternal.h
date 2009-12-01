@@ -1,4 +1,4 @@
-/* $Id: MMInternal.h $ */
+/* $Id: MMInternal.h 22939 2009-09-11 00:00:02Z vboxsync $ */
 /** @file
  * MM - Internal header file.
  */
@@ -27,6 +27,7 @@
 #include <VBox/sup.h>
 #include <VBox/stam.h>
 #include <VBox/pdmcritsect.h>
+#include <iprt/assert.h>
 #include <iprt/avl.h>
 #include <iprt/critsect.h>
 
@@ -66,6 +67,10 @@ typedef struct MMHEAPSTAT
     /** Pointer to the heap the memory belongs to. */
     struct MMHEAP          *pHeap;
 #ifdef MMR3HEAP_WITH_STATISTICS
+# if HC_ARCH_BITS == 32
+    /** Aligning the statistics on an 8 byte boundrary (for uint64_t and STAM). */
+    void                   *pvAlignment;
+# endif
     /** Number of allocation. */
     uint64_t                cAllocations;
     /** Number of reallocations. */
@@ -82,8 +87,12 @@ typedef struct MMHEAPSTAT
     size_t                  cbCurAllocated;
 #endif
 } MMHEAPSTAT;
+#if defined(MMR3HEAP_WITH_STATISTICS) && defined(IN_RING3)
+AssertCompileMemberAlignment(MMHEAPSTAT, cAllocations, 8);
+#endif
 /** Pointer to heap statistics record. */
 typedef MMHEAPSTAT *PMMHEAPSTAT;
+
 
 
 
@@ -168,6 +177,9 @@ typedef struct MMUKHEAPSTAT
     /** Number of bytes currently allocated. */
     size_t                  cbCurAllocated;
 } MMUKHEAPSTAT;
+#ifdef IN_RING3
+AssertCompileMemberAlignment(MMUKHEAPSTAT, cAllocations, 8);
+#endif
 /** Pointer to heap statistics record. */
 typedef MMUKHEAPSTAT *PMMUKHEAPSTAT;
 
@@ -202,9 +214,16 @@ typedef struct MMUKHEAP
     PAVLULNODECORE          pStatTree;
     /** The VM handle. */
     PUVM                    pUVM;
+#if HC_ARCH_BITS == 32
+    /** Aligning the statistics on an 8 byte boundrary (for uint64_t and STAM). */
+    void                   *pvAlignment;
+#endif
     /** Heap global statistics. */
     MMUKHEAPSTAT            Stat;
 } MMUKHEAP;
+#ifdef IN_RING3
+AssertCompileMemberAlignment(MMUKHEAP, Stat, 8);
+#endif
 /** Pointer to MM Heap structure. */
 typedef MMUKHEAP *PMMUKHEAP;
 
@@ -276,6 +295,7 @@ typedef struct MMHYPERSTAT
     /** Max number of bytes allocated. */
     uint32_t                cbMaxAllocated;
 } MMHYPERSTAT;
+AssertCompileMemberAlignment(MMHYPERSTAT, cAllocations, 8);
 /** Pointer to hypervisor heap statistics record. */
 typedef MMHYPERSTAT *PMMHYPERSTAT;
 
@@ -535,6 +555,10 @@ typedef struct MMPAGEPOOL
 #ifdef VBOX_WITH_STATISTICS
     /** Number of free pages in pool. */
     uint32_t                            cFreePages;
+# if HC_ARCH_BITS == 32
+    /** Aligning the statistics on an 8 byte boundrary. */
+    uint32_t                            u32Alignment;
+# endif
     /** Number of alloc calls. */
     STAMCOUNTER                         cAllocCalls;
     /** Number of free calls. */
@@ -547,6 +571,12 @@ typedef struct MMPAGEPOOL
     STAMCOUNTER                         cErrors;
 #endif
 } MMPAGEPOOL;
+#ifndef IN_RC
+AssertCompileMemberAlignment(MMPAGEPOOL, cSubPools, 4);
+# ifdef VBOX_WITH_STATISTICS
+AssertCompileMemberAlignment(MMPAGEPOOL, cAllocCalls, 8);
+# endif
+#endif
 /** Pointer to page pool. */
 typedef MMPAGEPOOL *PMMPAGEPOOL;
 

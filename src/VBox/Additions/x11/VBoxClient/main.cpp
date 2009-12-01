@@ -35,7 +35,7 @@
 #include <iprt/path.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
-#include <VBox/VBoxGuest.h>
+#include <VBox/VBoxGuestLib.h>
 #include <VBox/log.h>
 
 #include "VBoxClient.h"
@@ -132,11 +132,14 @@ void vboxClientSetSignalHandlers(void)
  */
 void vboxClientUsage(const char *pcszFileName)
 {
-    RTPrintf("Usage: %s --clipboard|--autoresize|--seamless [-d|--nodaemon]\n", pcszFileName);
+    RTPrintf("Usage: %s --clipboard|--display|--checkhostversion|--seamless [-d|--nodaemon]\n", pcszFileName);
     RTPrintf("Start the VirtualBox X Window System guest services.\n\n");
     RTPrintf("Options:\n");
     RTPrintf("  --clipboard      start the shared clipboard service\n");
-    RTPrintf("  --autoresize     start the display auto-resize service\n");
+    RTPrintf("  --display     start the display management service\n");
+# ifdef VBOX_WITH_GUEST_PROPS
+    RTPrintf("  --checkhostversion      start the host version notifier service\n");
+# endif
     RTPrintf("  --seamless       start the seamless windows service\n");
     RTPrintf("  -d, --nodaemon   continue running as a system service\n");
     RTPrintf("\n");
@@ -175,10 +178,10 @@ int main(int argc, char *argv[])
             else
                 fSuccess = false;
         }
-        else if (!strcmp(argv[i], "--autoresize"))
+        else if (!strcmp(argv[i], "--display"))
         {
             if (g_pService == NULL)
-                g_pService = VBoxClient::GetAutoResizeService();
+                g_pService = VBoxClient::GetDisplayService();
             else
                 fSuccess = false;
         }
@@ -186,6 +189,13 @@ int main(int argc, char *argv[])
         {
             if (g_pService == NULL)
                 g_pService = VBoxClient::GetSeamlessService();
+            else
+                fSuccess = false;
+        }
+        else if (!strcmp(argv[i], "--checkhostversion"))
+        {
+            if (g_pService == NULL)
+                g_pService = VBoxClient::GetHostVersionService();
             else
                 fSuccess = false;
         }
@@ -213,9 +223,9 @@ int main(int argc, char *argv[])
         {
             RTPrintf("VBoxClient: failed to daemonize.  Exiting.\n");
             Log(("VBoxClient: failed to daemonize.  Exiting.\n"));
-#ifdef DEBUG
+# ifdef DEBUG
             RTPrintf("Error %Rrc\n", rc);
-#endif
+# endif
             return 1;
         }
     }
@@ -253,7 +263,7 @@ int main(int argc, char *argv[])
     XSetErrorHandler(vboxClientXLibErrorHandler);
     /* Set an X11 I/O error handler, so that we can shutdown properly on fatal errors. */
     XSetIOErrorHandler(vboxClientXLibIOErrorHandler);
-    g_pService->run();
+    g_pService->run(fDaemonise);
     VBoxClient::CleanUp();
     return 1;  /* We should never get here. */
 }

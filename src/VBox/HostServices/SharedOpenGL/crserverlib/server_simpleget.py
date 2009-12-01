@@ -48,6 +48,7 @@ for index in range(len(funcs)):
     """ % (types[index], types[index])
     print '\t(void) params;'
     print '\tget_values = (%s *) crAlloc( tablesize );' % types[index]
+    print '\tif (tablesize>0)'
     print '\tcr_server.head_spu->dispatch_table.%s( pname, get_values );' % func_name
     print """
     if (GL_TEXTURE_BINDING_1D==pname
@@ -59,9 +60,16 @@ for index in range(len(funcs)):
         GLuint texid;
         CRASSERT(tablesize/sizeof(%s)==1);
         texid = (GLuint) *get_values;
-        *get_values = (%s) crServerTranslateTextureID(texid);
+        *get_values = (%s) (texid - cr_server.curClient->number * 100000);
     }
-    """ % (types[index], types[index])
+    else if (GL_CURRENT_PROGRAM==pname)
+    {
+        GLuint programid;
+        CRASSERT(tablesize/sizeof(%s)==1);
+        programid = (GLuint) *get_values;
+        *get_values = (%s) crStateGLSLProgramHWIDtoID(programid);
+    }
+    """ % (types[index], types[index], types[index], types[index])
     print '\tcrServerReturnValue( get_values, tablesize );'
     print '\tcrFree(get_values);'
     print '}\n'

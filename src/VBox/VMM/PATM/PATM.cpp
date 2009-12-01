@@ -1,4 +1,4 @@
-/* $Id: PATM.cpp $ */
+/* $Id: PATM.cpp 23107 2009-09-17 16:19:58Z vboxsync $ */
 /** @file
  * PATM - Dynamic Guest OS Patching Manager
  *
@@ -176,13 +176,10 @@ VMMR3DECL(int) PATMR3Init(PVM pVM)
      * Register save and load state notificators.
      */
     rc = SSMR3RegisterInternal(pVM, "PATM", 0, PATM_SSM_VERSION, sizeof(pVM->patm.s) + PATCH_MEMORY_SIZE  + PAGE_SIZE + PATM_STACK_TOTAL_SIZE + PAGE_SIZE,
-                               NULL, patmr3Save, NULL,
-                               NULL, patmr3Load, NULL);
-    if (RT_FAILURE(rc))
-    {
-        AssertRC(rc);
-        return rc;
-    }
+                               NULL, NULL, NULL,
+                               NULL, patmR3Save, NULL,
+                               NULL, patmR3Load, NULL);
+    AssertRCReturn(rc, rc);
 
 #ifdef VBOX_WITH_DEBUGGER
     /*
@@ -6007,7 +6004,7 @@ VMMR3DECL(int) PATMR3HandleTrap(PVM pVM, PCPUMCTX pCtx, RTRCPTR pEip, RTGCPTR *p
     PRECPATCHTOGUEST pPatchToGuestRec = 0;
     PVMCPU           pVCpu = VMMGetCpu0(pVM);
 
-    Assert(pVM->cCPUs == 1);
+    Assert(pVM->cCpus == 1);
 
     pNewEip   = 0;
     *ppNewEip = 0;

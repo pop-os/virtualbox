@@ -1,4 +1,4 @@
-/* $Id: VMMDevState.h $ */
+/* $Id: VMMDevState.h 24076 2009-10-26 13:39:50Z vboxsync $ */
 /** @file
  * VMMDev - Guest <-> VMM/Host communication device, internal header.
  */
@@ -22,9 +22,7 @@
 #ifndef ___VMMDev_VMMDevState_h
 #define ___VMMDev_VMMDevState_h
 
-#include <VBox/cdefs.h>
-#include <VBox/types.h>
-
+#include <VBox/VMMDev.h>
 #include <VBox/pdmdev.h>
 #include <VBox/pdmifs.h>
 
@@ -36,11 +34,13 @@ typedef struct VMMDevState
     /** The PCI device structure. */
     PCIDevice dev;
 
+    /** The critical section for this device. */
+    PDMCRITSECT CritSect;
+
     /** hypervisor address space size */
     uint32_t hypervisorSize;
 
-    /** bit 0: guest capability (1 == wants), bit 1: flag value has changed */
-    /** bit 2: host capability (1 == wants), bit 3: flag value has changed */
+    /** mouse capabilities of host and guest */
     uint32_t mouseCapabilities;
     /** absolute mouse position in pixels */
     uint32_t mouseXAbs;
@@ -175,6 +175,9 @@ typedef struct VMMDevState
     /** Don't clear credentials */
     bool fKeepCredentials;
 
+    /** Heap enabled. */
+    bool fHeapEnabled;
+
 #ifdef VBOX_WITH_HGCM
     /** List of pending HGCM requests, used for saving the HGCM state. */
     R3PTRTYPE(PVBOXHGCMCMD) pHGCMCmdList;
@@ -194,10 +197,8 @@ typedef struct VMMDevState
         /** Partner of ILeds. */
         R3PTRTYPE(PPDMILEDCONNECTORS)       pLedsConnector;
     } SharedFolders;
-
-    /** The critical section for this device. */
-    PDMCRITSECT CritSect;
 } VMMDevState;
+AssertCompileMemberAlignment(VMMDevState, CritSect, 8);
 
 void VMMDevNotifyGuest (VMMDevState *pVMMDevState, uint32_t u32EventMask);
 void VMMDevCtlSetGuestFilterMask (VMMDevState *pVMMDevState,

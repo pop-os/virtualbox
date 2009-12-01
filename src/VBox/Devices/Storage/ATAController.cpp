@@ -1,4 +1,4 @@
-/* $Id: ATAController.cpp $ */
+/* $Id: ATAController.cpp 24772 2009-11-18 19:10:17Z vboxsync $ */
 /** @file
  * DevATA, DevAHCI - Shared ATA/ATAPI controller code (disk and cdrom).
  *
@@ -247,11 +247,9 @@ static void ataAsyncIOPutRequest(PAHCIATACONTROLLER pCtl, const AHCIATARequest *
     pCtl->AsyncIOReqHead %= RT_ELEMENTS(pCtl->aAsyncIORequests);
     rc = RTSemMutexRelease(pCtl->AsyncIORequestMutex);
     AssertRC(rc);
-    LogBird(("ata: %x: signalling\n", pCtl->IOPortBase1));
     rc = PDMR3CritSectScheduleExitEvent(&pCtl->lock, pCtl->AsyncIOSem);
     if (RT_FAILURE(rc))
     {
-        LogBird(("ata: %x: schedule failed, rc=%Rrc\n", pCtl->IOPortBase1, rc));
         rc = RTSemEventSignal(pCtl->AsyncIOSem);
         AssertRC(rc);
     }
@@ -2252,13 +2250,11 @@ static void atapiParseCmdVirtualATAPI(AHCIATADevState *s)
                         {
                         PAHCIATACONTROLLER pCtl = ATADEVSTATE_2_CONTROLLER(s);
                         PPDMDEVINS pDevIns = ATADEVSTATE_2_DEVINS(s);
-                        PVMREQ pReq;
 
                         PDMCritSectLeave(&pCtl->lock);
-                        rc = VMR3ReqCall(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT,
-                                         (PFNRT)s->pDrvMount->pfnUnmount, 2, s->pDrvMount, false);
+                        rc = VMR3ReqCallWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
+                                             (PFNRT)s->pDrvMount->pfnUnmount, 2, s->pDrvMount, false);
                         AssertReleaseRC(rc);
-                        VMR3ReqFree(pReq);
                         {
                             STAM_PROFILE_START(&pCtl->StatLockWait, a);
                             PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
@@ -2746,6 +2742,8 @@ static DECLCALLBACK(void) ataMountNotify(PPDMIMOUNTNOTIFY pInterface)
     if (!pIf->pDrvBlock)
         return;
 
+    LogRel(("ATA: LUN#%d: CD/DVD, total number of sectors %Ld, passthrough unchanged\n", pIf->iLUN, pIf->cTotalSectors));
+
     if (pIf->fATAPI)
         pIf->cTotalSectors = pIf->pDrvBlock->pfnGetSize(pIf->pDrvBlock) / 2048;
     else
@@ -3082,23 +3080,41 @@ static void ataParseCmd(AHCIATADevState *s, uint8_t cmd)
 static bool ataWaitForAsyncIOIsIdle(PAHCIATACONTROLLER pCtl, unsigned cMillies)
 {
     uint64_t        u64Start;
+    bool            fRc;
+
+    /* Hope for the simple way out...  */
+    if (ataAsyncIOIsIdle(pCtl, false /*fStrict*/))
+        return true;
 
     /*
-     * Wait for any pending async operation to finish
+     * Have to wait. Do the setup while owning the mutex to avoid races.
      */
+    RTSemMutexRequest(pCtl->AsyncIORequestMutex, RT_INDEFINITE_WAIT);
+
+    RTThreadUserReset(pCtl->AsyncIOThread);
+    ASMAtomicWriteBool(&pCtl->fSignalIdle, true);
+
+    RTSemMutexRelease(pCtl->AsyncIORequestMutex);
+
     u64Start = RTTimeMilliTS();
     for (;;)
     {
-        if (ataAsyncIOIsIdle(pCtl, false))
-            return true;
+        fRc = ataAsyncIOIsIdle(pCtl, false /*fStrict*/);
+        if (fRc)
+            break;
+
         if (RTTimeMilliTS() - u64Start >= cMillies)
             break;
 
-        /* Sleep for a bit. */
-        RTThreadSleep(100);
+        int rc = RTThreadUserWait(pCtl->AsyncIOThread, 100 /*ms*/);
+        AssertMsg(   (   RT_SUCCESS(rc)
+                      && ataAsyncIOIsIdle(pCtl, false /*fStrict*/))
+                  || rc == VERR_TIMEOUT,
+                  ("rc=%Rrc irq=%u\n", rc, pCtl->irq));
     }
 
-    return false;
+    ASMAtomicWriteBool(&pCtl->fSignalIdle, false);
+    return fRc;
 }
 
 #endif /* IN_RING3 */
@@ -3821,15 +3837,38 @@ static void ataDMATransfer(PAHCIATACONTROLLER pCtl)
 static void ataSuspendRedo(PAHCIATACONTROLLER pCtl)
 {
     PPDMDEVINS  pDevIns = CONTROLLER_2_DEVINS(pCtl);
-    PVMREQ      pReq;
     int         rc;
 
     pCtl->fRedoIdle = true;
-    rc = VMR3ReqCall(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT,
-                     (PFNRT)PDMDevHlpVMSuspend, 1, pDevIns);
+    rc = VMR3ReqCallWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
+                         (PFNRT)PDMDevHlpVMSuspend, 1, pDevIns);
     AssertReleaseRC(rc);
-    VMR3ReqFree(pReq);
 }
+
+
+/**
+ * Signal ataWaitForAsyncIOIsIdle that we're idle (if we actually are).
+ *
+ * @param   pCtl        The controller.
+ */
+static void ataAsyncSignalIdle(PAHCIATACONTROLLER pCtl)
+{
+    /*
+     * Take the mutex here and recheck the idle indicator as there might be
+     * interesting races, like in the ataReset code.
+     */
+    int rc = RTSemMutexRequest(pCtl->AsyncIORequestMutex, RT_INDEFINITE_WAIT); AssertRC(rc);
+
+    if (    pCtl->fSignalIdle
+        &&  ataAsyncIOIsIdle(pCtl, false /*fStrict*/))
+    {
+        PDMDevHlpAsyncNotificationCompleted(pCtl->pDevInsR3);
+        RTThreadUserSignal(pCtl->AsyncIOThread);
+    }
+
+    rc = RTSemMutexRelease(pCtl->AsyncIORequestMutex); AssertRC(rc);
+}
+
 
 /** Asynch I/O thread for an interface. Once upon a time this was readable
  * code with several loops and a different semaphore for each purpose. But
@@ -3851,6 +3890,8 @@ static DECLCALLBACK(int) ataAsyncIOLoop(RTTHREAD ThreadSelf, void *pvUser)
         /* Keep this thread from doing anything as long as EMT is suspended. */
         while (pCtl->fRedoIdle)
         {
+            if (pCtl->fSignalIdle)
+                ataAsyncSignalIdle(pCtl);
             rc = RTSemEventWait(pCtl->SuspendIOSem, RT_INDEFINITE_WAIT);
             if (RT_FAILURE(rc) || pCtl->fShutdown)
                 break;
@@ -3861,9 +3902,9 @@ static DECLCALLBACK(int) ataAsyncIOLoop(RTTHREAD ThreadSelf, void *pvUser)
         /* Wait for work.  */
         if (pReq == NULL)
         {
-            LogBird(("ata: %x: going to sleep...\n", pCtl->IOPortBase1));
+            if (pCtl->fSignalIdle)
+                ataAsyncSignalIdle(pCtl);
             rc = RTSemEventWait(pCtl->AsyncIOSem, RT_INDEFINITE_WAIT);
-            LogBird(("ata: %x: waking up\n", pCtl->IOPortBase1));
             if (RT_FAILURE(rc) || pCtl->fShutdown)
                 break;
 
@@ -3893,9 +3934,7 @@ static DECLCALLBACK(int) ataAsyncIOLoop(RTTHREAD ThreadSelf, void *pvUser)
         /* Do our work.  */
         {
         STAM_PROFILE_START(&pCtl->StatLockWait, a);
-        LogBird(("ata: %x: entering critsect\n", pCtl->IOPortBase1));
         PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
-        LogBird(("ata: %x: entered\n", pCtl->IOPortBase1));
         STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
         }
 
@@ -4292,25 +4331,16 @@ static DECLCALLBACK(int) ataAsyncIOLoop(RTTHREAD ThreadSelf, void *pvUser)
 #endif /* DEBUG || VBOX_WITH_STATISTICS */
         }
 
-        LogBird(("ata: %x: leaving critsect\n", pCtl->IOPortBase1));
         PDMCritSectLeave(&pCtl->lock);
     }
 
-    /* Cleanup the state.  */
-    if (pCtl->AsyncIOSem)
-    {
-        RTSemEventDestroy(pCtl->AsyncIOSem);
-        pCtl->AsyncIOSem = NIL_RTSEMEVENT;
-    }
-    if (pCtl->SuspendIOSem)
-    {
-        RTSemEventDestroy(pCtl->SuspendIOSem);
-        pCtl->SuspendIOSem = NIL_RTSEMEVENT;
-    }
+    /* Signal the ultimate idleness. */
+    if (pCtl->fSignalIdle)
+        PDMDevHlpAsyncNotificationCompleted(pCtl->pDevInsR3);
+    RTThreadUserSignal(ThreadSelf);
+
     /* Do not destroy request mutex yet, still needed for proper shutdown. */
     pCtl->fShutdown = false;
-    /* This must be last, as it also signals thread exit to EMT. */
-    pCtl->AsyncIOThread = NIL_RTTHREAD;
 
     Log2(("%s: Ctl: return %Rrc\n", __FUNCTION__, rc));
     return rc;
@@ -4607,9 +4637,7 @@ int ataControllerIOPortWrite1(PAHCIATACONTROLLER pCtl, RTIOPORT Port, uint32_t u
     }
     else
         AssertMsgFailed(("ataIOPortWrite1: unsupported write to port %x val=%x size=%d\n", Port, u32, cb));
-    LogBird(("ata: leaving critsect\n"));
     PDMCritSectLeave(&pCtl->lock);
-    LogBird(("ata: left critsect\n"));
     return rc;
 }
 
@@ -4862,51 +4890,51 @@ int ataControllerDestroy(PAHCIATACONTROLLER pCtl)
     Log(("%s:\n", __FUNCTION__));
 
     /*
-     * Terminate all async helper threads
+     * Terminate the async helper thread and wait for it to finish up.
      */
     if (pCtl->AsyncIOThread != NIL_RTTHREAD)
     {
-        ASMAtomicXchgU32(&pCtl->fShutdown, true);
+        ASMAtomicWriteU32(&pCtl->fShutdown, true);
         rc = RTSemEventSignal(pCtl->AsyncIOSem);
         AssertRC(rc);
-    }
 
-    if (pCtl->CTX_SUFF(pDevIns))
-    {
-        /*
-         * Wait for them to complete whatever they are doing and then
-         * for them to terminate.
-         */
-        if (ataWaitForAllAsyncIOIsIdle(pCtl, 20000))
-        {
-            uint64_t    u64Start = RTTimeMilliTS();
-            bool        fAllDone;
-            for (;;)
-            {
-                /* check */
-                fAllDone = true;
-                fAllDone &= (pCtl->AsyncIOThread == NIL_RTTHREAD);
-
-                if (    fAllDone
-                    ||  RTTimeMilliTS() - u64Start >= 500)
-                    break;
-
-                /* Sleep for a bit. */
-                RTThreadSleep(100);
-            }
-            AssertMsg(fAllDone, ("Some of the async I/O threads are still running!\n"));
-        }
+        rc = RTThreadWait(pCtl->AsyncIOThread, 30000 /* 30 s*/, NULL);
+        if (RT_SUCCESS(rc))
+            pCtl->AsyncIOThread = NIL_RTTHREAD;
         else
-            AssertMsgFailed(("Async I/O is still busy!\n"));
+            LogRel(("PIIX3 ATA Dtor: Ctl/irq=%u is still executing, DevSel=%d AIOIf=%d CmdIf0=%#04x CmdIf1=%#04x rc=%Rrc\n",
+                    pCtl->irq, pCtl->iSelectedIf, pCtl->iAIOIf,
+                    pCtl->aIfs[0].uATARegCommand, pCtl->aIfs[1].uATARegCommand, rc));
     }
 
     /*
      * Now the request mutexes are no longer needed. Free resources.
      */
-    if (pCtl->AsyncIORequestMutex)
+    if (pCtl->AsyncIORequestMutex != NIL_RTSEMMUTEX)
     {
         RTSemMutexDestroy(pCtl->AsyncIORequestMutex);
-        pCtl->AsyncIORequestMutex = NIL_RTSEMEVENT;
+        pCtl->AsyncIORequestMutex = NIL_RTSEMMUTEX;
+    }
+    if (pCtl->AsyncIOSem != NIL_RTSEMEVENT)
+    {
+        RTSemEventDestroy(pCtl->AsyncIOSem);
+        pCtl->AsyncIOSem = NIL_RTSEMEVENT;
+    }
+    if (pCtl->SuspendIOSem != NIL_RTSEMEVENT)
+    {
+        RTSemEventDestroy(pCtl->SuspendIOSem);
+        pCtl->SuspendIOSem = NIL_RTSEMEVENT;
+    }
+
+    /* try one final time */
+    if (pCtl->AsyncIOThread != NIL_RTTHREAD)
+    {
+        rc = RTThreadWait(pCtl->AsyncIOThread, 1 /*ms*/, NULL);
+        if (RT_SUCCESS(rc))
+        {
+            pCtl->AsyncIOThread = NIL_RTTHREAD;
+            LogRel(("AHCI ATA Dtor: Ctl/irq=%u actually completed.\n", pCtl->irq));
+        }
     }
 
     return VINF_SUCCESS;
@@ -5148,20 +5176,6 @@ static DECLCALLBACK(int)  ataAttach(PPDMDEVINS pDevIns, unsigned iLUN)
 }
 #endif
 
-/**
- * Suspend notification.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- */
-void ataControllerSuspend(PAHCIATACONTROLLER pCtl)
-{
-    Log(("%s:\n", __FUNCTION__));
-    if (!ataWaitForAllAsyncIOIsIdle(pCtl, 20000))
-        AssertMsgFailed(("Async I/O didn't stop in 20 seconds!\n"));
-    return;
-}
-
 
 /**
  * Resume notification.
@@ -5185,58 +5199,20 @@ void ataControllerResume(PAHCIATACONTROLLER pCtl)
 
 
 /**
- * Power Off notification.
+ * Tests if the controller is idle, leaving the PDM notifications on if busy.
  *
- * @returns VBox status.
- * @param   pCtl     The controller instance.
+ * @returns true if idle, false if idle.
+ * @param   pCtl the controller instance.
  */
-void ataControllerPowerOff(PAHCIATACONTROLLER pCtl)
+bool ataControllerIsIdle(PAHCIATACONTROLLER pCtl)
 {
-    Log(("%s:\n", __FUNCTION__));
-    if (!ataWaitForAllAsyncIOIsIdle(pCtl, 20000))
-        AssertMsgFailed(("Async I/O didn't stop in 20 seconds!\n"));
-    return;
-}
-
-/**
- * Prepare state save and load operation.
- *
- * @returns VBox status code.
- * @param   pDevIns         Device instance of the device which registered the data unit.
- * @param   pSSM            SSM operation handle.
- */
-static int ataSaveLoadPrep(PAHCIATACONTROLLER pCtl)
-{
-    /* sanity - the suspend notification will wait on the async stuff. */
-    Assert(ataAsyncIOIsIdle(pCtl, false));
-    if (!ataAsyncIOIsIdle(pCtl, false))
-        return VERR_SSM_IDE_ASYNC_TIMEOUT;
-
-    return VINF_SUCCESS;
-}
-
-/**
- * Prepare state save operation.
- *
- * @returns VBox status code.
- * @param   pCtl    The controller instance.
- * @param   pSSM    SSM operation handle.
- */
-DECLCALLBACK(int) ataControllerSavePrep(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSM)
-{
-    return ataSaveLoadPrep(pCtl);
-}
-
-/**
- * Prepare state load operation.
- *
- * @returns VBox status code.
- * @param   pCtl    The controller instance.
- * @param   pSSM    SSM operation handle.
- */
-DECLCALLBACK(int) ataControllerLoadPrep(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSM)
-{
-    return ataSaveLoadPrep(pCtl);
+    ASMAtomicWriteBool(&pCtl->fSignalIdle, true);
+    if (ataAsyncIOIsIdle(pCtl, false /*fStrict*/))
+    {
+        ASMAtomicWriteBool(&pCtl->fSignalIdle, false);
+        return true;
+    }
+    return false;
 }
 
 /**
@@ -5244,78 +5220,78 @@ DECLCALLBACK(int) ataControllerLoadPrep(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSM
  *
  * @returns VBox status code.
  * @param   pCtl        Controller instance.
- * @param   pSSMHandle  The handle to save the state to.
+ * @param   pSSM  The handle to save the state to.
  */
-int ataControllerSaveExec(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSMHandle)
+int ataControllerSaveExec(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSM)
 {
-    SSMR3PutU32(pSSMHandle, ATA_CTL_SAVED_STATE_VERSION);
-    SSMR3PutU8(pSSMHandle, pCtl->iSelectedIf);
-    SSMR3PutU8(pSSMHandle, pCtl->iAIOIf);
-    SSMR3PutU8(pSSMHandle, pCtl->uAsyncIOState);
-    SSMR3PutBool(pSSMHandle, pCtl->fChainedTransfer);
-    SSMR3PutBool(pSSMHandle, pCtl->fReset);
-    SSMR3PutBool(pSSMHandle, pCtl->fRedo);
-    SSMR3PutBool(pSSMHandle, pCtl->fRedoIdle);
-    SSMR3PutBool(pSSMHandle, pCtl->fRedoDMALastDesc);
-    SSMR3PutMem(pSSMHandle, &pCtl->BmDma, sizeof(pCtl->BmDma));
-    SSMR3PutGCPhys32(pSSMHandle, pCtl->pFirstDMADesc);
-    SSMR3PutGCPhys32(pSSMHandle, pCtl->pLastDMADesc);
-    SSMR3PutGCPhys32(pSSMHandle, pCtl->pRedoDMABuffer);
-    SSMR3PutU32(pSSMHandle, pCtl->cbRedoDMABuffer);
+    SSMR3PutU32(pSSM, ATA_CTL_SAVED_STATE_VERSION);
+    SSMR3PutU8(pSSM, pCtl->iSelectedIf);
+    SSMR3PutU8(pSSM, pCtl->iAIOIf);
+    SSMR3PutU8(pSSM, pCtl->uAsyncIOState);
+    SSMR3PutBool(pSSM, pCtl->fChainedTransfer);
+    SSMR3PutBool(pSSM, pCtl->fReset);
+    SSMR3PutBool(pSSM, pCtl->fRedo);
+    SSMR3PutBool(pSSM, pCtl->fRedoIdle);
+    SSMR3PutBool(pSSM, pCtl->fRedoDMALastDesc);
+    SSMR3PutMem(pSSM, &pCtl->BmDma, sizeof(pCtl->BmDma));
+    SSMR3PutGCPhys32(pSSM, pCtl->pFirstDMADesc);
+    SSMR3PutGCPhys32(pSSM, pCtl->pLastDMADesc);
+    SSMR3PutGCPhys32(pSSM, pCtl->pRedoDMABuffer);
+    SSMR3PutU32(pSSM, pCtl->cbRedoDMABuffer);
 
     for (uint32_t j = 0; j < RT_ELEMENTS(pCtl->aIfs); j++)
     {
-        SSMR3PutBool(pSSMHandle, pCtl->aIfs[j].fLBA48);
-        SSMR3PutBool(pSSMHandle, pCtl->aIfs[j].fATAPI);
-        SSMR3PutBool(pSSMHandle, pCtl->aIfs[j].fIrqPending);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].cMultSectors);
-        SSMR3PutU32(pSSMHandle, pCtl->aIfs[j].PCHSGeometry.cCylinders);
-        SSMR3PutU32(pSSMHandle, pCtl->aIfs[j].PCHSGeometry.cHeads);
-        SSMR3PutU32(pSSMHandle, pCtl->aIfs[j].PCHSGeometry.cSectors);
-        SSMR3PutU32(pSSMHandle, pCtl->aIfs[j].cSectorsPerIRQ);
-        SSMR3PutU64(pSSMHandle, pCtl->aIfs[j].cTotalSectors);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegFeature);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegFeatureHOB);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegError);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegNSector);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegNSectorHOB);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegSector);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegSectorHOB);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegLCyl);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegLCylHOB);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegHCyl);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegHCylHOB);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegSelect);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegStatus);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegCommand);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATARegDevCtl);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uATATransferMode);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].uTxDir);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].iBeginTransfer);
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].iSourceSink);
-        SSMR3PutBool(pSSMHandle, pCtl->aIfs[j].fDMA);
-        SSMR3PutBool(pSSMHandle, pCtl->aIfs[j].fATAPITransfer);
-        SSMR3PutU32(pSSMHandle, pCtl->aIfs[j].cbTotalTransfer);
-        SSMR3PutU32(pSSMHandle, pCtl->aIfs[j].cbElementaryTransfer);
-        SSMR3PutU32(pSSMHandle, pCtl->aIfs[j].iIOBufferCur);
-        SSMR3PutU32(pSSMHandle, pCtl->aIfs[j].iIOBufferEnd);
-        SSMR3PutU32(pSSMHandle, pCtl->aIfs[j].iIOBufferPIODataStart);
-        SSMR3PutU32(pSSMHandle, pCtl->aIfs[j].iIOBufferPIODataEnd);
-        SSMR3PutU32(pSSMHandle, pCtl->aIfs[j].iATAPILBA);
-        SSMR3PutU32(pSSMHandle, pCtl->aIfs[j].cbATAPISector);
-        SSMR3PutMem(pSSMHandle, &pCtl->aIfs[j].aATAPICmd, sizeof(pCtl->aIfs[j].aATAPICmd));
-        SSMR3PutMem(pSSMHandle, &pCtl->aIfs[j].abATAPISense, sizeof(pCtl->aIfs[j].abATAPISense));
-        SSMR3PutU8(pSSMHandle, pCtl->aIfs[j].cNotifiedMediaChange);
-        SSMR3PutU32(pSSMHandle, pCtl->aIfs[j].MediaEventStatus);
-        SSMR3PutMem(pSSMHandle, pCtl->aIfs[j].pLed, sizeof(PDMLED));
-        SSMR3PutU32(pSSMHandle, pCtl->aIfs[j].cbIOBuffer);
+        SSMR3PutBool(pSSM, pCtl->aIfs[j].fLBA48);
+        SSMR3PutBool(pSSM, pCtl->aIfs[j].fATAPI);
+        SSMR3PutBool(pSSM, pCtl->aIfs[j].fIrqPending);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].cMultSectors);
+        SSMR3PutU32(pSSM, pCtl->aIfs[j].PCHSGeometry.cCylinders);
+        SSMR3PutU32(pSSM, pCtl->aIfs[j].PCHSGeometry.cHeads);
+        SSMR3PutU32(pSSM, pCtl->aIfs[j].PCHSGeometry.cSectors);
+        SSMR3PutU32(pSSM, pCtl->aIfs[j].cSectorsPerIRQ);
+        SSMR3PutU64(pSSM, pCtl->aIfs[j].cTotalSectors);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegFeature);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegFeatureHOB);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegError);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegNSector);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegNSectorHOB);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegSector);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegSectorHOB);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegLCyl);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegLCylHOB);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegHCyl);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegHCylHOB);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegSelect);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegStatus);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegCommand);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATARegDevCtl);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uATATransferMode);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].uTxDir);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].iBeginTransfer);
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].iSourceSink);
+        SSMR3PutBool(pSSM, pCtl->aIfs[j].fDMA);
+        SSMR3PutBool(pSSM, pCtl->aIfs[j].fATAPITransfer);
+        SSMR3PutU32(pSSM, pCtl->aIfs[j].cbTotalTransfer);
+        SSMR3PutU32(pSSM, pCtl->aIfs[j].cbElementaryTransfer);
+        SSMR3PutU32(pSSM, pCtl->aIfs[j].iIOBufferCur);
+        SSMR3PutU32(pSSM, pCtl->aIfs[j].iIOBufferEnd);
+        SSMR3PutU32(pSSM, pCtl->aIfs[j].iIOBufferPIODataStart);
+        SSMR3PutU32(pSSM, pCtl->aIfs[j].iIOBufferPIODataEnd);
+        SSMR3PutU32(pSSM, pCtl->aIfs[j].iATAPILBA);
+        SSMR3PutU32(pSSM, pCtl->aIfs[j].cbATAPISector);
+        SSMR3PutMem(pSSM, &pCtl->aIfs[j].aATAPICmd, sizeof(pCtl->aIfs[j].aATAPICmd));
+        SSMR3PutMem(pSSM, &pCtl->aIfs[j].abATAPISense, sizeof(pCtl->aIfs[j].abATAPISense));
+        SSMR3PutU8(pSSM, pCtl->aIfs[j].cNotifiedMediaChange);
+        SSMR3PutU32(pSSM, pCtl->aIfs[j].MediaEventStatus);
+        SSMR3PutMem(pSSM, pCtl->aIfs[j].pLed, sizeof(PDMLED));
+        SSMR3PutU32(pSSM, pCtl->aIfs[j].cbIOBuffer);
         if (pCtl->aIfs[j].cbIOBuffer)
-            SSMR3PutMem(pSSMHandle, pCtl->aIfs[j].CTX_SUFF(pbIOBuffer), pCtl->aIfs[j].cbIOBuffer);
+            SSMR3PutMem(pSSM, pCtl->aIfs[j].CTX_SUFF(pbIOBuffer), pCtl->aIfs[j].cbIOBuffer);
         else
             Assert(pCtl->aIfs[j].CTX_SUFF(pbIOBuffer) == NULL);
     }
 
-    return SSMR3PutU32(pSSMHandle, ~0); /* sanity/terminator */
+    return SSMR3PutU32(pSSM, ~0); /* sanity/terminator */
 }
 
 
@@ -5324,16 +5300,16 @@ int ataControllerSaveExec(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSMHandle)
  *
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
- * @param   pSSMHandle  The handle to the saved state.
+ * @param   pSSM  The handle to the saved state.
  */
-int ataControllerLoadExec(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSMHandle)
+int ataControllerLoadExec(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSM)
 {
     int             rc;
     uint32_t        u32Version;
     uint32_t        u32;
 
     /* Test for correct version. */
-    rc = SSMR3GetU32(pSSMHandle, &u32Version);
+    rc = SSMR3GetU32(pSSM, &u32Version);
     AssertRCReturn(rc, rc);
 
     if (   u32Version != ATA_CTL_SAVED_STATE_VERSION
@@ -5351,64 +5327,64 @@ int ataControllerLoadExec(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSMHandle)
         return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
     }
 
-    SSMR3GetU8(pSSMHandle, &pCtl->iSelectedIf);
-    SSMR3GetU8(pSSMHandle, &pCtl->iAIOIf);
-    SSMR3GetU8(pSSMHandle, &pCtl->uAsyncIOState);
-    SSMR3GetBool(pSSMHandle, &pCtl->fChainedTransfer);
-    SSMR3GetBool(pSSMHandle, (bool *)&pCtl->fReset);
-    SSMR3GetBool(pSSMHandle, (bool *)&pCtl->fRedo);
-    SSMR3GetBool(pSSMHandle, (bool *)&pCtl->fRedoIdle);
-    SSMR3GetBool(pSSMHandle, (bool *)&pCtl->fRedoDMALastDesc);
-    SSMR3GetMem(pSSMHandle, &pCtl->BmDma, sizeof(pCtl->BmDma));
-    SSMR3GetGCPhys32(pSSMHandle, &pCtl->pFirstDMADesc);
-    SSMR3GetGCPhys32(pSSMHandle, &pCtl->pLastDMADesc);
-    SSMR3GetGCPhys32(pSSMHandle, &pCtl->pRedoDMABuffer);
-    SSMR3GetU32(pSSMHandle, &pCtl->cbRedoDMABuffer);
+    SSMR3GetU8(pSSM, &pCtl->iSelectedIf);
+    SSMR3GetU8(pSSM, &pCtl->iAIOIf);
+    SSMR3GetU8(pSSM, &pCtl->uAsyncIOState);
+    SSMR3GetBool(pSSM, &pCtl->fChainedTransfer);
+    SSMR3GetBool(pSSM, (bool *)&pCtl->fReset);
+    SSMR3GetBool(pSSM, (bool *)&pCtl->fRedo);
+    SSMR3GetBool(pSSM, (bool *)&pCtl->fRedoIdle);
+    SSMR3GetBool(pSSM, (bool *)&pCtl->fRedoDMALastDesc);
+    SSMR3GetMem(pSSM, &pCtl->BmDma, sizeof(pCtl->BmDma));
+    SSMR3GetGCPhys32(pSSM, &pCtl->pFirstDMADesc);
+    SSMR3GetGCPhys32(pSSM, &pCtl->pLastDMADesc);
+    SSMR3GetGCPhys32(pSSM, &pCtl->pRedoDMABuffer);
+    SSMR3GetU32(pSSM, &pCtl->cbRedoDMABuffer);
 
     for (uint32_t j = 0; j < RT_ELEMENTS(pCtl->aIfs); j++)
     {
-        SSMR3GetBool(pSSMHandle, &pCtl->aIfs[j].fLBA48);
-        SSMR3GetBool(pSSMHandle, &pCtl->aIfs[j].fATAPI);
-        SSMR3GetBool(pSSMHandle, &pCtl->aIfs[j].fIrqPending);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].cMultSectors);
-        SSMR3GetU32(pSSMHandle, &pCtl->aIfs[j].PCHSGeometry.cCylinders);
-        SSMR3GetU32(pSSMHandle, &pCtl->aIfs[j].PCHSGeometry.cHeads);
-        SSMR3GetU32(pSSMHandle, &pCtl->aIfs[j].PCHSGeometry.cSectors);
-        SSMR3GetU32(pSSMHandle, &pCtl->aIfs[j].cSectorsPerIRQ);
-        SSMR3GetU64(pSSMHandle, &pCtl->aIfs[j].cTotalSectors);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegFeature);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegFeatureHOB);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegError);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegNSector);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegNSectorHOB);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegSector);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegSectorHOB);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegLCyl);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegLCylHOB);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegHCyl);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegHCylHOB);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegSelect);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegStatus);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegCommand);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATARegDevCtl);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uATATransferMode);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].uTxDir);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].iBeginTransfer);
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].iSourceSink);
-        SSMR3GetBool(pSSMHandle, &pCtl->aIfs[j].fDMA);
-        SSMR3GetBool(pSSMHandle, &pCtl->aIfs[j].fATAPITransfer);
-        SSMR3GetU32(pSSMHandle, &pCtl->aIfs[j].cbTotalTransfer);
-        SSMR3GetU32(pSSMHandle, &pCtl->aIfs[j].cbElementaryTransfer);
-        SSMR3GetU32(pSSMHandle, &pCtl->aIfs[j].iIOBufferCur);
-        SSMR3GetU32(pSSMHandle, &pCtl->aIfs[j].iIOBufferEnd);
-        SSMR3GetU32(pSSMHandle, &pCtl->aIfs[j].iIOBufferPIODataStart);
-        SSMR3GetU32(pSSMHandle, &pCtl->aIfs[j].iIOBufferPIODataEnd);
-        SSMR3GetU32(pSSMHandle, &pCtl->aIfs[j].iATAPILBA);
-        SSMR3GetU32(pSSMHandle, &pCtl->aIfs[j].cbATAPISector);
-        SSMR3GetMem(pSSMHandle, &pCtl->aIfs[j].aATAPICmd, sizeof(pCtl->aIfs[j].aATAPICmd));
+        SSMR3GetBool(pSSM, &pCtl->aIfs[j].fLBA48);
+        SSMR3GetBool(pSSM, &pCtl->aIfs[j].fATAPI);
+        SSMR3GetBool(pSSM, &pCtl->aIfs[j].fIrqPending);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].cMultSectors);
+        SSMR3GetU32(pSSM, &pCtl->aIfs[j].PCHSGeometry.cCylinders);
+        SSMR3GetU32(pSSM, &pCtl->aIfs[j].PCHSGeometry.cHeads);
+        SSMR3GetU32(pSSM, &pCtl->aIfs[j].PCHSGeometry.cSectors);
+        SSMR3GetU32(pSSM, &pCtl->aIfs[j].cSectorsPerIRQ);
+        SSMR3GetU64(pSSM, &pCtl->aIfs[j].cTotalSectors);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegFeature);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegFeatureHOB);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegError);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegNSector);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegNSectorHOB);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegSector);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegSectorHOB);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegLCyl);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegLCylHOB);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegHCyl);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegHCylHOB);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegSelect);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegStatus);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegCommand);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATARegDevCtl);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uATATransferMode);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].uTxDir);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].iBeginTransfer);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].iSourceSink);
+        SSMR3GetBool(pSSM, &pCtl->aIfs[j].fDMA);
+        SSMR3GetBool(pSSM, &pCtl->aIfs[j].fATAPITransfer);
+        SSMR3GetU32(pSSM, &pCtl->aIfs[j].cbTotalTransfer);
+        SSMR3GetU32(pSSM, &pCtl->aIfs[j].cbElementaryTransfer);
+        SSMR3GetU32(pSSM, &pCtl->aIfs[j].iIOBufferCur);
+        SSMR3GetU32(pSSM, &pCtl->aIfs[j].iIOBufferEnd);
+        SSMR3GetU32(pSSM, &pCtl->aIfs[j].iIOBufferPIODataStart);
+        SSMR3GetU32(pSSM, &pCtl->aIfs[j].iIOBufferPIODataEnd);
+        SSMR3GetU32(pSSM, &pCtl->aIfs[j].iATAPILBA);
+        SSMR3GetU32(pSSM, &pCtl->aIfs[j].cbATAPISector);
+        SSMR3GetMem(pSSM, &pCtl->aIfs[j].aATAPICmd, sizeof(pCtl->aIfs[j].aATAPICmd));
         if (u32Version > ATA_CTL_SAVED_STATE_VERSION_WITHOUT_FULL_SENSE)
         {
-            SSMR3GetMem(pSSMHandle, &pCtl->aIfs[j].abATAPISense, sizeof(pCtl->aIfs[j].abATAPISense));
+            SSMR3GetMem(pSSM, &pCtl->aIfs[j].abATAPISense, sizeof(pCtl->aIfs[j].abATAPISense));
         }
         else
         {
@@ -5416,43 +5392,43 @@ int ataControllerLoadExec(PAHCIATACONTROLLER pCtl, PSSMHANDLE pSSMHandle)
             memset(pCtl->aIfs[j].abATAPISense, '\0', sizeof(pCtl->aIfs[j].abATAPISense));
             pCtl->aIfs[j].abATAPISense[0] = 0x70 | (1 << 7);
             pCtl->aIfs[j].abATAPISense[7] = 10;
-            SSMR3GetU8(pSSMHandle, &uATAPISenseKey);
-            SSMR3GetU8(pSSMHandle, &uATAPIASC);
+            SSMR3GetU8(pSSM, &uATAPISenseKey);
+            SSMR3GetU8(pSSM, &uATAPIASC);
             pCtl->aIfs[j].abATAPISense[2] = uATAPISenseKey & 0x0f;
             pCtl->aIfs[j].abATAPISense[12] = uATAPIASC;
         }
         /** @todo triple-check this hack after passthrough is working */
-        SSMR3GetU8(pSSMHandle, &pCtl->aIfs[j].cNotifiedMediaChange);
+        SSMR3GetU8(pSSM, &pCtl->aIfs[j].cNotifiedMediaChange);
         if (u32Version > ATA_CTL_SAVED_STATE_VERSION_WITHOUT_EVENT_STATUS)
-            SSMR3GetU32(pSSMHandle, (uint32_t*)&pCtl->aIfs[j].MediaEventStatus);
+            SSMR3GetU32(pSSM, (uint32_t*)&pCtl->aIfs[j].MediaEventStatus);
         else
             pCtl->aIfs[j].MediaEventStatus = ATA_EVENT_STATUS_UNCHANGED;
 
         PDMLED Led;
-        SSMR3GetMem(pSSMHandle, &Led, sizeof(PDMLED));
-        SSMR3GetU32(pSSMHandle, &pCtl->aIfs[j].cbIOBuffer);
+        SSMR3GetMem(pSSM, &Led, sizeof(PDMLED));
+        SSMR3GetU32(pSSM, &pCtl->aIfs[j].cbIOBuffer);
         if (pCtl->aIfs[j].cbIOBuffer)
         {
             if (pCtl->aIfs[j].CTX_SUFF(pbIOBuffer))
-                SSMR3GetMem(pSSMHandle, pCtl->aIfs[j].CTX_SUFF(pbIOBuffer), pCtl->aIfs[j].cbIOBuffer);
+                SSMR3GetMem(pSSM, pCtl->aIfs[j].CTX_SUFF(pbIOBuffer), pCtl->aIfs[j].cbIOBuffer);
             else
             {
                 LogRel(("ATA: No buffer for %d\n", j));
-                if (SSMR3HandleGetAfter(pSSMHandle) != SSMAFTER_DEBUG_IT)
-                    return VERR_SSM_LOAD_CONFIG_MISMATCH;
+                if (SSMR3HandleGetAfter(pSSM) != SSMAFTER_DEBUG_IT)
+                    return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("No buffer for %d"), j);
 
                 /* skip the buffer if we're loading for the debugger / animator. */
                 uint8_t u8Ignored;
                 size_t cbLeft = pCtl->aIfs[j].cbIOBuffer;
                 while (cbLeft-- > 0)
-                    SSMR3GetU8(pSSMHandle, &u8Ignored);
+                    SSMR3GetU8(pSSM, &u8Ignored);
             }
         }
         else
             Assert(pCtl->aIfs[j].CTX_SUFF(pbIOBuffer) == NULL);
     }
 
-    rc = SSMR3GetU32(pSSMHandle, &u32);
+    rc = SSMR3GetU32(pSSM, &u32);
     if (RT_FAILURE(rc))
         return rc;
     if (u32 != ~0U)
@@ -5476,6 +5452,10 @@ DECLCALLBACK(int) ataControllerInit(PPDMDEVINS pDevIns, PAHCIATACONTROLLER pCtl,
     pCtl->pDevInsR3 = pDevIns;
     pCtl->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
     pCtl->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
+    pCtl->AsyncIOSem = NIL_RTSEMEVENT;
+    pCtl->SuspendIOSem = NIL_RTSEMEVENT;
+    pCtl->AsyncIORequestMutex = NIL_RTSEMMUTEX;
+    pCtl->AsyncIOThread = NIL_RTTHREAD;
 
     for (uint32_t j = 0; j < RT_ELEMENTS(pCtl->aIfs); j++)
     {
@@ -5506,14 +5486,15 @@ DECLCALLBACK(int) ataControllerInit(PPDMDEVINS pDevIns, PAHCIATACONTROLLER pCtl,
      */
     pCtl->uAsyncIOState = AHCIATA_AIO_NEW;
     rc = RTSemEventCreate(&pCtl->AsyncIOSem);
-    AssertRC(rc);
+    AssertRCReturn(rc, rc);
     rc = RTSemEventCreate(&pCtl->SuspendIOSem);
-    AssertRC(rc);
+    AssertRCReturn(rc, rc);
     rc = RTSemMutexCreate(&pCtl->AsyncIORequestMutex);
-    AssertRC(rc);
+    AssertRCReturn(rc, rc);
     ataAsyncIOClearRequests(pCtl);
-    rc = RTThreadCreate(&pCtl->AsyncIOThread, ataAsyncIOLoop, (void *)pCtl, 128*1024, RTTHREADTYPE_IO, 0, "ATA");
-    AssertRC(rc);
+    rc = RTThreadCreateF(&pCtl->AsyncIOThread, ataAsyncIOLoop, (void *)pCtl, 128*1024,
+                         RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "AHCI-ATA-%u", pCtl->irq);
+    AssertRCReturn(rc, rc);
     Assert(pCtl->AsyncIOThread != NIL_RTTHREAD && pCtl->AsyncIOSem != NIL_RTSEMEVENT && pCtl->SuspendIOSem != NIL_RTSEMEVENT && pCtl->AsyncIORequestMutex != NIL_RTSEMMUTEX);
     Log(("%s: controller AIO thread id %#x; sem %p susp_sem %p mutex %p\n", __FUNCTION__, pCtl->AsyncIOThread, pCtl->AsyncIOSem, pCtl->SuspendIOSem, pCtl->AsyncIORequestMutex));
 

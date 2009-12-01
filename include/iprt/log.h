@@ -273,8 +273,8 @@ struct RTLOGGER
     PFNRTLOGPREFIX          pfnPrefix;
     /** Prefix callback argument. */
     void                   *pvPrefixUserArg;
-    /** Mutex. */
-    RTSEMFASTMUTEX          MutexSem;
+    /** Spinning mutex semaphore. */
+    RTSEMSPINMUTEX          hSpinMtx;
     /** Magic number. */
     uint32_t                u32Magic;
     /** Logger instance flags - RTLOGFLAGS. */
@@ -284,7 +284,7 @@ struct RTLOGGER
     /** Handle to log file (if open). */
     RTFILE                  File;
     /** Pointer to filename.
-     * (The memory is allocated in the smae block as RTLOGGER.) */
+     * (The memory is allocated in the same block as RTLOGGER.) */
     char                   *pszFilename;
     /** Pointer to the group name array.
      * (The data is readonly and provided by the user.) */
@@ -356,7 +356,7 @@ typedef enum RTLOGFLAGS
     /** New lines should be prefixed with timestamp. */
     RTLOGFLAGS_PREFIX_TS            = 0x40000000,
     /** The prefix mask. */
-    RTLOGFLAGS_PREFIX_MASK          = 0x7cff8000
+    RTLOGFLAGS_PREFIX_MASK          = 0x7dff8000
 } RTLOGFLAGS;
 
 /**
@@ -401,8 +401,10 @@ typedef enum RTLOGGRPFLAGS
     RTLOGGRPFLAGS_BIRD         = 0x00010000,
     /** aleksey logging. */
     RTLOGGRPFLAGS_ALEKSEY      = 0x00020000,
+    /** dj logging. */
+    RTLOGGRPFLAGS_DJ           = 0x00040000,
     /** NoName logging. */
-    RTLOGGRPFLAGS_NONAME       = 0x00040000
+    RTLOGGRPFLAGS_NONAME       = 0x00080000
 } RTLOGGRPFLAGS;
 
 /**
@@ -472,7 +474,7 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup, c
  * Governs the use of variadic macros.
  */
 #ifndef LOG_USE_C99
-# if defined(RT_ARCH_AMD64)
+# if defined(RT_ARCH_AMD64) || defined(RT_OS_DARWIN)
 #  define LOG_USE_C99
 # endif
 #endif
@@ -611,11 +613,15 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup, c
  */
 #define LogAleksey(a)   LogIt(LOG_INSTANCE, RTLOGGRPFLAGS_ALEKSEY,  LOG_GROUP, a)
 
+/** @def LogDJ
+ * dj logging.
+ */
+#define LogDJ(a)        LogIt(LOG_INSTANCE, RTLOGGRPFLAGS_DJ,  LOG_GROUP, a)
+
 /** @def LogNoName
  * NoName logging.
  */
 #define LogNoName(a)    LogIt(LOG_INSTANCE, RTLOGGRPFLAGS_NONAME,   LOG_GROUP, a)
-
 
 /** @def LogWarning
  * The same as Log(), but prepents a <tt>"WARNING! "</tt> string to the message.
@@ -855,15 +861,15 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup, c
 #ifdef RTLOG_REL_ENABLED
 # if defined(LOG_USE_C99)
 #  define _LogRelRemoveParentheseis(...)                __VA_ARGS__
-#   define _LogRelIt(pvInst, fFlags, iGroup, ...)       RTLogLoggerEx((PRTLOGGER)pvInst, fFlags, iGroup, __VA_ARGS__)
-#   define LogRelIt(pvInst, fFlags, iGroup, fmtargs) \
+#  define _LogRelIt(pvInst, fFlags, iGroup, ...) \
     do \
     { \
         PRTLOGGER LogRelIt_pLogger = (PRTLOGGER)(pvInst) ? (PRTLOGGER)(pvInst) : RTLogRelDefaultInstance(); \
         if (LogRelIt_pLogger) \
-            _LogRelIt(LogRelIt_pLogger, fFlags, iGroup, _LogRelRemoveParentheseis fmtargs); \
-        LogIt(LOG_INSTANCE, fFlags, iGroup, fmtargs); \
+            RTLogLoggerEx(LogRelIt_pLogger, fFlags, iGroup, __VA_ARGS__); \
+        _LogIt(LOG_INSTANCE, fFlags, iGroup, __VA_ARGS__); \
     } while (0)
+#  define LogRelIt(pvInst, fFlags, iGroup, fmtargs)     _LogRelIt(pvInst, fFlags, iGroup, _LogRelRemoveParentheseis fmtargs)
 # else
 #  define LogRelIt(pvInst, fFlags, iGroup, fmtargs) \
    do \
@@ -922,6 +928,32 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup, c
  */
 #define LogRelFlow(a)      LogRelIt(LOG_REL_INSTANCE, RTLOGGRPFLAGS_FLOW,     LOG_GROUP, a)
 
+/** @def LogRelFunc
+ * Release logging.  Prepends the given log message with the function name
+ * followed by a semicolon and space.
+ */
+#ifdef LOG_USE_C99
+# define LogRelFunc(a) \
+    _LogRelIt(LOG_REL_INSTANCE, RTLOGGRPFLAGS_LEVEL_1, LOG_GROUP, LOG_FN_FMT ": %M", __PRETTY_FUNCTION__, _LogRemoveParentheseis a )
+# define LogFunc(a) \
+           _LogIt(LOG_INSTANCE, RTLOGGRPFLAGS_LEVEL_1, LOG_GROUP, LOG_FN_FMT ": %M", __PRETTY_FUNCTION__, _LogRemoveParentheseis a )
+#else
+# define LogRelFunc(a) \
+    do { LogRel((LOG_FN_FMT ": ", __PRETTY_FUNCTION__)); LogRel(a); } while (0)
+#endif
+
+/** @def LogRelThisFunc
+ * The same as LogRelFunc but for class functions (methods): the resulting log
+ * line is additionally prepended with a hex value of |this| pointer.
+ */
+#ifdef LOG_USE_C99
+# define LogRelThisFunc(a) \
+    _LogRelIt(LOG_REL_INSTANCE, RTLOGGRPFLAGS_LEVEL_1, LOG_GROUP, "{%p} " LOG_FN_FMT ": %M", this, __PRETTY_FUNCTION__, _LogRemoveParentheseis a )
+#else
+# define LogRelThisFunc(a) \
+    do { LogRel(("{%p} " LOG_FN_FMT ": ", this, __PRETTY_FUNCTION__)); LogRel(a); } while (0)
+#endif
+
 /** @def LogRelFlowFunc
  * Release logging.  Macro to log the execution flow inside C/C++ functions.
  *
@@ -930,22 +962,13 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup, c
  *
  * @param   a   Log message in format <tt>("string\n" [, args])</tt>.
  */
+#ifdef LOG_USE_C99
+# define LogRelFlowFunc(a) \
+    _LogRelIt(LOG_REL_INSTANCE, RTLOGGRPFLAGS_FLOW, LOG_GROUP, LOG_FN_FMT ": %M", __PRETTY_FUNCTION__, _LogRemoveParentheseis a )
+#else
 # define LogRelFlowFunc(a) \
     do { LogRelFlow((LOG_FN_FMT ": ", __PRETTY_FUNCTION__)); LogRelFlow(a); } while (0)
-
-/** @def LogRelFunc
- * Release logging.  Prepends the given log message with the function name
- * followed by a semicolon and space.
- */
-#define LogRelFunc(a) \
-    do { LogRel((LOG_FN_FMT ": ", __PRETTY_FUNCTION__)); LogRel(a); } while (0)
-
-/** @def LogRelThisFunc
- * The same as LogRelFunc but for class functions (methods): the resulting log
- * line is additionally prepended with a hex value of |this| pointer.
- */
-#define LogRelThisFunc(a) \
-    do { LogRel(("{%p} " LOG_FN_FMT ": ", this, __PRETTY_FUNCTION__)); LogRel(a); } while (0)
+#endif
 
 /** @def LogRelLelik
  *  lelik logging.
@@ -1455,6 +1478,17 @@ RTDECL(int) RTLogSetCustomPrefixCallback(PRTLOGGER pLogger, PFNRTLOGPREFIX pfnCa
 RTDECL(int) RTLogCopyGroupsAndFlags(PRTLOGGER pDstLogger, PCRTLOGGER pSrcLogger, unsigned fFlagsOr, unsigned fFlagsAnd);
 
 /**
+ * Get the current log group settings as a string.
+ *
+ * @returns VINF_SUCCESS or VERR_BUFFER_OVERFLOW.
+ * @param   pLogger             Logger instance (NULL for default logger).
+ * @param   pszBuf              The output buffer.
+ * @param   cchBuf              The size of the output buffer. Must be greater
+ *                              than zero.
+ */
+RTDECL(int) RTLogGetGroupSettings(PRTLOGGER pLogger, char *pszBuf, size_t cchBuf);
+
+/**
  * Updates the group settings for the logger instance using the specified
  * specification string.
  *
@@ -1476,6 +1510,39 @@ RTDECL(int) RTLogGroupSettings(PRTLOGGER pLogger, const char *pszVar);
  * @param   pszVar      Value to parse.
  */
 RTDECL(int) RTLogFlags(PRTLOGGER pLogger, const char *pszVar);
+
+#ifndef IN_RC
+/**
+ * Get the current log flags as a string.
+ *
+ * @returns VINF_SUCCESS or VERR_BUFFER_OVERFLOW.
+ * @param   pLogger             Logger instance (NULL for default logger).
+ * @param   pszBuf              The output buffer.
+ * @param   cchBuf              The size of the output buffer. Must be greater
+ *                              than zero.
+ */
+RTDECL(int) RTLogGetFlags(PRTLOGGER pLogger, char *pszBuf, size_t cchBuf);
+
+/**
+ * Updates the logger desination using the specified string.
+ *
+ * @returns VINF_SUCCESS or VERR_BUFFER_OVERFLOW.
+ * @param   pLogger             Logger instance (NULL for default logger).
+ * @param   pszVar              The value to parse.
+ */
+RTDECL(int) RTLogDestinations(PRTLOGGER pLogger, char const *pszVar);
+
+/**
+ * Get the current log destinations as a string.
+ *
+ * @returns VINF_SUCCESS or VERR_BUFFER_OVERFLOW.
+ * @param   pLogger             Logger instance (NULL for default logger).
+ * @param   pszBuf              The output buffer.
+ * @param   cchBuf              The size of the output buffer. Must be greater
+ *                              than 0.
+ */
+RTDECL(int) RTLogGetDestinations(PRTLOGGER pLogger, char *pszBuf, size_t cchBuf);
+#endif /* !IN_RC */
 
 /**
  * Flushes the specified logger.

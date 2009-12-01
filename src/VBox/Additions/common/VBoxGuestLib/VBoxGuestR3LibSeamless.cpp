@@ -1,4 +1,4 @@
-/** $Id: VBoxGuestR3LibSeamless.cpp $ */
+/* $Id: VBoxGuestR3LibSeamless.cpp 24968 2009-11-25 16:53:42Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, Seamless mode.
  */
@@ -26,37 +26,23 @@
 #include <iprt/assert.h>
 #include <iprt/string.h>
 
-#include <VBox/VBoxGuest.h>
-#include <VBox/VBoxDev.h>
+#include <VBox/VMMDev.h>
 #include <VBox/log.h>
 
 #include "VBGLR3Internal.h"
+
 
 /**
  * Tell the host that we support (or no longer support) seamless mode.
  *
  * @returns IPRT status value
  * @param   fState whether or not we support seamless mode
- *
- * @todo    Currently this will trample over any other capabilities the guest may have.
- *          This will have to be fixed when more capabilities are added at the latest.
  */
 VBGLR3DECL(int) VbglR3SeamlessSetCap(bool fState)
 {
-    VMMDevReqGuestCapabilities vmmreqGuestCaps;
-    int rc = VINF_SUCCESS;
-
-    memset(&vmmreqGuestCaps, 0, sizeof(vmmreqGuestCaps));
-    vmmdevInitRequest(&vmmreqGuestCaps.header, VMMDevReq_ReportGuestCapabilities);
-    vmmreqGuestCaps.caps = fState ? VMMDEV_GUEST_SUPPORTS_SEAMLESS : 0;
-    rc = vbglR3GRPerform(&vmmreqGuestCaps.header);
-#ifdef DEBUG
-    if (RT_SUCCESS(rc))
-        LogRel(("Successfully set the seamless capability on the host.\n"));
-    else
-        LogRel(("Failed to set the seamless capability on the host, rc = %Rrc.\n", rc));
-#endif
-    return rc;
+    if (fState)
+        return VbglR3SetGuestCaps(VMMDEV_GUEST_SUPPORTS_SEAMLESS, 0);
+    return VbglR3SetGuestCaps(0, VMMDEV_GUEST_SUPPORTS_SEAMLESS);
 }
 
 /**

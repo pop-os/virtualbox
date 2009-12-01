@@ -378,6 +378,15 @@ RTDECL(RTTHREADTYPE) RTThreadGetType(RTTHREAD Thread);
 RTDECL(int) RTThreadSetName(RTTHREAD Thread, const char *pszName);
 
 /**
+ * Checks if the specified thread is the main thread.
+ *
+ * @returns true if it is, false if it isn't.
+ *
+ * @param   hThread     The thread handle.
+ */
+RTDECL(bool) RTThreadIsMain(RTTHREAD hThread);
+
+/**
  * Signal the user event.
  *
  * @returns     iprt status code.
@@ -431,8 +440,12 @@ RTDECL(int) RTThreadPoke(RTTHREAD hThread);
 /**
  * Check if preemption is currently enabled or not for the current thread.
  *
+ * @note    This may return true even on systems where preemption isn't
+ *          possible. In that case, it means no call to RTThreadPreemptDisable
+ *          has been made and interrupts are still enabled.
+ *
  * @returns true if preemtion is enabled, false if preemetion is disabled.
- * @param       hThread         Must be NIL_RTTHREAD for now.
+ * @param   hThread             Must be NIL_RTTHREAD for now.
  */
 RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread);
 
@@ -450,9 +463,16 @@ RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread);
 /**
  * Is RTThreadPreemptIsPending reliable?
  *
- * @returns true if pending, false if not.
+ * @returns true if reliable, false if not.
  */
 RTDECL(bool) RTThreadPreemptIsPendingTrusty(void);
+
+/**
+ * Is preemption possible on this system.
+ *
+ * @returns true if possible, false if not.
+ */
+RTDECL(bool) RTThreadPreemptIsPossible(void);
 
 /**
  * Preemption state saved by RTThreadPreemptDisable and used by
@@ -460,20 +480,26 @@ RTDECL(bool) RTThreadPreemptIsPendingTrusty(void);
  */
 typedef struct RTTHREADPREEMPTSTATE
 {
+    /** In debug builds this will be used to check for cpu migration. */
+    RTCPUID         idCpu;
 #ifdef RT_OS_WINDOWS
-    /** The old IRQL. Don't touch. */
-    unsigned char uchOldIrql;
-# define RTTHREADPREEMPTSTATE_INITIALIZER { 255 }
+    /** The old IRQL. Don't touch! */
+    unsigned char   uchOldIrql;
+    /** Reserved, MBZ. */
+    uint8_t         bReserved1;
+    /** Reserved, MBZ. */
+    uint8_t         bReserved2;
+    /** Reserved, MBZ. */
+    uint8_t         bReserved3;
+# define RTTHREADPREEMPTSTATE_INITIALIZER { NIL_RTCPUID, 255, 0, 0, 0 }
 #elif defined(RT_OS_SOLARIS)
-    /** Dummy unused placeholder. */
-    unsigned char uchDummy;
     /** The Old PIL. Don't touch! */
     uint32_t        uOldPil;
-# define RTTHREADPREEMPTSTATE_INITIALIZER { 0, UINT32_MAX }
+# define RTTHREADPREEMPTSTATE_INITIALIZER { NIL_RTCPUID, UINT32_MAX }
 #else
-    /** Dummy unused placeholder. */
-    unsigned char uchDummy;
-# define RTTHREADPREEMPTSTATE_INITIALIZER { 0 }
+    /** Reserved, MBZ. */
+    uint32_t        u32Reserved;
+# define RTTHREADPREEMPTSTATE_INITIALIZER { NIL_RTCPUID, 0 }
 #endif
 } RTTHREADPREEMPTSTATE;
 /** Pointer to a preemption state. */
@@ -499,6 +525,14 @@ RTDECL(void) RTThreadPreemptDisable(PRTTHREADPREEMPTSTATE pState);
  * @param  pState               The state return by RTThreadPreemptDisable.
  */
 RTDECL(void) RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState);
+
+/**
+ * Check if the thread is executing in interrupt context.
+ *
+ * @returns true if in interrupt context, false if not.
+ * @param       hThread         Must be NIL_RTTHREAD for now.
+ */
+RTDECL(bool) RTThreadIsInInterrupt(RTTHREAD hThread);
 
 #endif /* IN_RING0 */
 

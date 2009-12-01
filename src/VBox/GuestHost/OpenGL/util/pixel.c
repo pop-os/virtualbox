@@ -101,10 +101,8 @@ int crPixelSize( GLenum format, GLenum type )
             bytes = 4;
             break;
         default:
-            /*
-            crError( "Unknown pixel type in crPixelSize: 0x%x", (unsigned int) type );
-            */
-            return -1;
+            crWarning( "Unknown pixel type in crPixelSize: type:0x%x(fmt:0x%x)", (unsigned int) type, (unsigned int) format);
+            return 0;
     }
 
     switch (format) {
@@ -137,10 +135,8 @@ int crPixelSize( GLenum format, GLenum type )
             bytes *= 4;
             break;
         default:
-            /*
-            crError( "Unknown pixel format in crPixelSize: 0x%x", (unsigned int) format );
-            */
-            return -1;
+            crWarning( "Unknown pixel format in crPixelSize: type:0x%x(fmt:0x%x)", (unsigned int) type, (unsigned int) format);
+            return 0;
     }
 
     return bytes;
@@ -1270,6 +1266,11 @@ unsigned int crImageSize( GLenum format, GLenum type, GLsizei width, GLsizei hei
     {
         /* This was wrong in the old code! */
         bytes = ((width + 7) / 8) * height;
+    }
+    else if (GL_DEPTH_COMPONENT==format && type!=GL_FLOAT)
+    {
+        /*GL_DEPTH_COMPONENT with GL_UNSIGNED_BYTE seems to be more than 1 byte per pixel*/
+        bytes = 4 * width * height * crPixelSize( format, type );
     }
     else
     {

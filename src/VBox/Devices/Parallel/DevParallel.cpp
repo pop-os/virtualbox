@@ -1,4 +1,4 @@
-/* $Id: DevParallel.cpp $ */
+/* $Id: DevParallel.cpp 24265 2009-11-02 15:21:30Z vboxsync $ */
 /** @file
  * DevParallel - Parallel (Port) Device Emulation.
  *
@@ -560,63 +560,71 @@ PDMBOTHCBDECL(int) parallelIOPortReadECP(PPDMDEVINS pDevIns, void *pvUser,
 
 #ifdef IN_RING3
 /**
- * Saves a state of the serial port device.
- *
- * @returns VBox status code.
- * @param   pDevIns     The device instance.
- * @param   pSSMHandle  The handle to save the state to.
+ * @copydoc FNSSMDEVLIVEEXEC
  */
-static DECLCALLBACK(int) parallelSaveExec(PPDMDEVINS pDevIns,
-                                          PSSMHANDLE pSSMHandle)
+static DECLCALLBACK(int) parallelLiveExec(PPDMDEVINS pDevIns,
+                                          PSSMHANDLE pSSM,
+                                          uint32_t uPass)
 {
     ParallelState *pThis = PDMINS_2_DATA(pDevIns, ParallelState *);
 
-    SSMR3PutU8(pSSMHandle, pThis->reg_data);
-    SSMR3PutU8(pSSMHandle, pThis->reg_status);
-    SSMR3PutU8(pSSMHandle, pThis->reg_control);
-    SSMR3PutS32(pSSMHandle, pThis->irq);
-    SSMR3PutU32(pSSMHandle, pThis->base);
-
-    return SSMR3PutU32(pSSMHandle, ~0); /* sanity/terminator */
+    SSMR3PutS32(pSSM, pThis->irq);
+    SSMR3PutU32(pSSM, pThis->base);
+    SSMR3PutU32(pSSM, ~0); /* sanity/terminator */
+    return VINF_SSM_DONT_CALL_AGAIN;
 }
 
 /**
- * Loads a saved serial port device state.
- *
- * @returns VBox status code.
- * @param   pDevIns     The device instance.
- * @param   pSSMHandle  The handle to the saved state.
- * @param   u32Version  The data unit version number.
+ * @copydoc FNSSMDEVSAVEEXEC
  */
-static DECLCALLBACK(int) parallelLoadExec(PPDMDEVINS pDevIns,
-                                          PSSMHANDLE pSSMHandle,
-                                          uint32_t u32Version)
+static DECLCALLBACK(int) parallelSaveExec(PPDMDEVINS pDevIns,
+                                          PSSMHANDLE pSSM)
 {
-    int          rc;
-    uint32_t     u32;
     ParallelState *pThis = PDMINS_2_DATA(pDevIns, ParallelState *);
 
-    if (u32Version != PARALLEL_SAVED_STATE_VERSION)
+    SSMR3PutU8(pSSM, pThis->reg_data);
+    SSMR3PutU8(pSSM, pThis->reg_status);
+    SSMR3PutU8(pSSM, pThis->reg_control);
+
+    parallelLiveExec(pDevIns, pSSM, 0);
+    return VINF_SUCCESS;
+}
+
+/**
+ * @copydoc FNSSMDEVLOADEXEC
+ */
+static DECLCALLBACK(int) parallelLoadExec(PPDMDEVINS pDevIns,
+                                          PSSMHANDLE pSSM,
+                                          uint32_t uVersion,
+                                          uint32_t uPass)
+{
+    ParallelState *pThis = PDMINS_2_DATA(pDevIns, ParallelState *);
+
+    AssertMsgReturn(uVersion == PARALLEL_SAVED_STATE_VERSION, ("%d\n", uVersion), VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION);
+    Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
+    if (uPass == SSM_PASS_FINAL)
     {
-        AssertLogRelMsgFailed(("u32Version=%d\n", u32Version));
-        return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
+        SSMR3GetU8(pSSM, &pThis->reg_data);
+        SSMR3GetU8(pSSM, &pThis->reg_status);
+        SSMR3GetU8(pSSM, &pThis->reg_control);
     }
 
-    SSMR3GetU8(pSSMHandle, &pThis->reg_data);
-    SSMR3GetU8(pSSMHandle, &pThis->reg_status);
-    SSMR3GetU8(pSSMHandle, &pThis->reg_control);
-    SSMR3GetS32(pSSMHandle, &pThis->irq);
-    SSMR3GetU32(pSSMHandle, &pThis->base);
-
-    rc = SSMR3GetU32(pSSMHandle, &u32);
+    /* the config */
+    int32_t  iIrq;
+    SSMR3GetS32(pSSM, &iIrq);
+    uint32_t uIoBase;
+    SSMR3GetU32(pSSM, &uIoBase);
+    uint32_t u32;
+    int rc = SSMR3GetU32(pSSM, &u32);
     if (RT_FAILURE(rc))
         return rc;
+    AssertMsgReturn(u32 == ~0U, ("%#x\n", u32), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
 
-    if (u32 != ~0U)
-    {
-        AssertLogRelMsgFailed(("u32=%#x expected ~0\n", u32));
-        return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
-    }
+    if (pThis->irq != iIrq)
+        return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("IRQ changed: config=%#x state=%#x"), pThis->irq, iIrq);
+
+    if (pThis->base != uIoBase)
+        return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("IOBase changed: config=%#x state=%#x"), pThis->base, uIoBase);
 
     /* not necessary... but it doesn't harm. */
     pThis->pDevInsR3 = pDevIns;
@@ -808,19 +816,8 @@ static DECLCALLBACK(int) parallelConstruct(PPDMDEVINS pDevIns,
 #endif
     }
 
-    rc = PDMDevHlpSSMRegister(
-        pDevIns,                        /* pDevIns */
-        pDevIns->pDevReg->szDeviceName, /* pszName */
-        iInstance,                      /* u32Instance */
-        PARALLEL_SAVED_STATE_VERSION,   /* u32Version */
-        sizeof (*pThis),                /* cbGuess */
-        NULL,                           /* pfnSavePrep */
-        parallelSaveExec,               /* pfnSaveExec */
-        NULL,                           /* pfnSaveDone */
-        NULL,                           /* pfnLoadPrep */
-        parallelLoadExec,               /* pfnLoadExec */
-        NULL                            /* pfnLoadDone */
-        );
+    rc = PDMDevHlpSSMRegister3(pDevIns, PARALLEL_SAVED_STATE_VERSION, sizeof(*pThis),
+                               parallelLiveExec, parallelSaveExec, parallelLoadExec);
     if (RT_FAILURE(rc))
         return rc;
 

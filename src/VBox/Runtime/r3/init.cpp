@@ -1,4 +1,4 @@
-/* $Id: init.cpp $ */
+/* $Id: init.cpp 24287 2009-11-03 12:34:11Z vboxsync $ */
 /** @file
  * IPRT - Init Ring-3.
  */
@@ -41,6 +41,9 @@
 # include <unistd.h>
 # ifndef RT_OS_OS2
 #  include <pthread.h>
+#  include <signal.h>
+#  include <errno.h>
+#  define IPRT_USE_SIG_CHILD_DUMMY
 # endif
 #endif
 #ifdef RT_OS_OS2
@@ -123,6 +126,26 @@ RTDATADECL(bool) g_fRTAlignmentChecks = false;
 #endif
 
 
+/**
+ * atexit callback.
+ *
+ * This makes sure any loggers are flushed and will later also work the
+ * termination callback chain.
+ */
+static void rtR3ExitCallback(void)
+{
+    if (g_cUsers > 0)
+    {
+        PRTLOGGER pLogger = RTLogGetDefaultInstance();
+        if (pLogger)
+            RTLogFlush(pLogger);
+
+        pLogger = RTLogRelDefaultInstance();
+        if (pLogger)
+            RTLogFlush(pLogger);
+    }
+}
+
 
 #ifndef RT_OS_WINDOWS
 /**
@@ -135,11 +158,21 @@ static void rtR3ForkChildCallback(void)
 #endif /* RT_OS_WINDOWS */
 
 #ifdef RT_OS_OS2
+/** Fork completion callback for OS/2.  Only called in the child. */
+static void rtR3ForkOs2ChildCompletionCallback(void *pvArg, int rc, __LIBC_FORKCTX enmCtx)
+{
+    Assert(enmCtx == __LIBC_FORK_CTX_CHILD); NOREF(enmCtx);
+    NOREF(pvArg);
+
+    if (!rc)
+        rtR3ForkChildCallback();
+}
+
 /** Low-level fork callback for OS/2.  */
 int rtR3ForkOs2Child(__LIBC_PFORKHANDLE pForkHandle, __LIBC_FORKOP enmOperation)
 {
-    if (enmOperation == __LIBC_FORK_STAGE_COMPLETION_CHILD)
-        rtR3ForkChildCallback();
+    if (enmOperation == __LIBC_FORK_OP_EXEC_CHILD)
+        return pForkHandle->pfnCompletionCallback(pForkHandle, rtR3ForkOs2ChildCompletionCallback, NULL, __LIBC_FORK_CTX_CHILD);
     return 0;
 }
 
@@ -182,6 +215,21 @@ static int rtR3InitProgramPath(const char *pszProgramPath)
     g_offrtProcName = offName;
     return VINF_SUCCESS;
 }
+
+
+#ifdef IPRT_USE_SIG_CHILD_DUMMY
+/**
+ * Dummy SIGCHILD handler.
+ *
+ * Assigned on rtR3Init only when SIGCHILD handler is set SIGIGN or SIGDEF to
+ * ensure waitpid works properly for the terminated processes.
+ */
+static void rtR3SigChildHandler(int iSignal)
+{
+    NOREF(iSignal);
+}
+#endif /* IPRT_USE_SIG_CHILD_DUMMY */
+
 
 /**
  * rtR3Init worker.
@@ -268,11 +316,47 @@ static int rtR3InitBody(bool fInitSUPLib, const char *pszProgramPath)
     /* Init C runtime locale. */
     setlocale(LC_CTYPE, "");
 
-    /* Fork callbacks. */
+    /* Fork and exit callbacks. */
 #if !defined(RT_OS_WINDOWS) && !defined(RT_OS_OS2)
     rc = pthread_atfork(NULL, NULL, rtR3ForkChildCallback);
     AssertMsg(rc == 0, ("%d\n", rc));
 #endif
+    atexit(rtR3ExitCallback);
+
+#ifdef IPRT_USE_SIG_CHILD_DUMMY
+    /*
+     * SIGCHLD must not be ignored (that's default), otherwise posix compliant waitpid
+     * implementations won't work right.
+     */
+    for (;;)
+    {
+        struct sigaction saOld;
+        rc = sigaction(SIGCHLD, 0, &saOld);         AssertMsg(rc == 0, ("%d/%d\n", rc, errno));
+        if (    rc != 0
+            ||  (saOld.sa_flags & SA_SIGINFO)
+            || (   saOld.sa_handler != SIG_IGN
+                && saOld.sa_handler != SIG_DFL)
+           )
+            break;
+
+        /* Try install dummy handler. */
+        struct sigaction saNew = saOld;
+        saNew.sa_flags   = SA_NOCLDSTOP | SA_RESTART;
+        saNew.sa_handler = rtR3SigChildHandler;
+        rc = sigemptyset(&saNew.sa_mask);           AssertMsg(rc == 0, ("%d/%d\n", rc, errno));
+        struct sigaction saOld2;
+        rc = sigaction(SIGCHLD, &saNew, &saOld2);   AssertMsg(rc == 0, ("%d/%d\n", rc, errno));
+        if (    rc != 0
+            ||  (   saOld2.sa_handler == saOld.sa_handler
+                 && !(saOld2.sa_flags & SA_SIGINFO))
+           )
+            break;
+
+        /* Race during dynamic load, restore and try again... */
+        sigaction(SIGCHLD, &saOld2, NULL);
+        RTThreadYield();
+    }
+#endif /* IPRT_USE_SIG_CHILD_DUMMY */
 
 #ifdef IPRT_WITH_ALIGNMENT_CHECKS
     /*
