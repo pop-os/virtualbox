@@ -1,4 +1,4 @@
-/* $Id: mp-solaris.cpp $ */
+/* $Id: mp-solaris.cpp 12108 2008-09-04 20:17:24Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Solaris.
  */

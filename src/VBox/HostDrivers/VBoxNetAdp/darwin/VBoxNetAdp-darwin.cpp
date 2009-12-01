@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdp-darwin.cpp $ */
+/* $Id: VBoxNetAdp-darwin.cpp 24228 2009-10-30 22:52:32Z vboxsync $ */
 /** @file
  * VBoxNetAdp - Virtual Network Adapter Driver (Host), Darwin Specific Code.
  */
@@ -400,7 +400,7 @@ static int VBoxNetAdpDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFla
         }
 
         default:
-            OSDBGPRINT(("VBoxNetAdpDarwinIOCtl: unknown command %x.\n", IOCBASECMD(iCmd)));
+            OSDBGPRINT(("VBoxNetAdpDarwinIOCtl: unknown command %lx.\n", IOCBASECMD(iCmd)));
             return EINVAL;
     }
 

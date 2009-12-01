@@ -244,6 +244,19 @@ protected:
     Process (QWidget *aParent = 0) : QProcess (aParent) {}
 };
 
+struct StorageSlot
+{
+    StorageSlot() : bus (KStorageBus_Null), port (0), device (0) {}
+    StorageSlot (const StorageSlot &aOther) : bus (aOther.bus), port (aOther.port), device (aOther.device) {}
+    StorageSlot (KStorageBus aBus, LONG aPort, LONG aDevice) : bus (aBus), port (aPort), device (aDevice) {}
+    StorageSlot& operator= (const StorageSlot &aOther) { bus = aOther.bus; port = aOther.port; device = aOther.device; return *this; }
+    bool operator== (const StorageSlot &aOther) const { return bus == aOther.bus && port == aOther.port && device == aOther.device; }
+    bool operator!= (const StorageSlot &aOther) const { return bus != aOther.bus || port != aOther.port || device != aOther.device; }
+    bool isNull() { return bus == KStorageBus_Null; }
+    KStorageBus bus; LONG port; LONG device;
+};
+Q_DECLARE_METATYPE (StorageSlot);
+
 // VBoxGlobal class
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -386,6 +399,7 @@ public:
             case KStorageControllerType_IntelAhci: sb = KStorageBus_SATA; break;
             case KStorageControllerType_LsiLogic:
             case KStorageControllerType_BusLogic: sb = KStorageBus_SCSI; break;
+            case KStorageControllerType_I82078: sb = KStorageBus_Floppy; break;
             default:
               AssertMsgFailed (("toStorageBusType: %d not handled\n", aControllerType)); break;
         }
@@ -398,23 +412,24 @@ public:
     QString toString (KStorageBus aBus, LONG aChannel, LONG aDevice) const;
     LONG toStorageDevice (KStorageBus aBus, LONG aChannel, const QString &aDevice) const;
 
-    QString toFullString (KStorageBus aBus, LONG aChannel, LONG aDevice) const;
+    QString toString (StorageSlot aSlot) const;
+    StorageSlot toStorageSlot (const QString &aSlot) const;
 
-    QString toString (KHardDiskType t) const
+    QString toString (KMediumType t) const
     {
         AssertMsg (!mDiskTypes.value (t).isNull(), ("No text for %d", t));
         return mDiskTypes.value (t);
     }
 
     /**
-     * Similar to toString (KHardDiskType), but returns 'Differencing' for
+     * Similar to toString (KMediumType), but returns 'Differencing' for
      * normal hard disks that have a parent.
      */
-    QString hardDiskTypeString (const CHardDisk &aHD) const
+    QString mediumTypeString (const CMedium &aHD) const
     {
         if (!aHD.GetParent().isNull())
         {
-            Assert (aHD.GetType() == KHardDiskType_Normal);
+            Assert (aHD.GetType() == KMediumType_Normal);
             return mDiskTypes_Differencing;
         }
         return toString (aHD.GetType());
@@ -459,7 +474,7 @@ public:
         return mStorageControllerTypes.value (t);
     }
 
-    KStorageControllerType toIDEControllerType (const QString &s) const
+    KStorageControllerType toControllerType (const QString &s) const
     {
         QULongStringHash::const_iterator it =
             qFind (mStorageControllerTypes.begin(), mStorageControllerTypes.end(), s);
@@ -596,7 +611,7 @@ public:
 
     /* details generators */
 
-    QString details (const CHardDisk &aHD, bool aPredictDiff);
+    QString details (const CMedium &aHD, bool aPredictDiff);
 
     QString details (const CUSBDevice &aDevice) const;
     QString toolTip (const CUSBDevice &aDevice) const;
@@ -612,11 +627,6 @@ public:
     double findLicenseFile (const QStringList &aFilesList, QRegExp aPattern, QString &aLicenseFile) const;
     bool showVirtualBoxLicense();
 #endif
-
-    bool checkForAutoConvertedSettings (bool aAfterRefresh = false);
-
-    void checkForAutoConvertedSettingsAfterRefresh()
-    { checkForAutoConvertedSettings (true); }
 
     CSession openSession (const QString &aId, bool aExisting = false);
 
@@ -643,9 +653,10 @@ public:
 
     void addMedium (const VBoxMedium &);
     void updateMedium (const VBoxMedium &);
-    void removeMedium (VBoxDefs::MediaType, const QString &);
+    void removeMedium (VBoxDefs::MediumType, const QString &);
 
     bool findMedium (const CMedium &, VBoxMedium &) const;
+    VBoxMedium findMedium (const QString &aMediumId) const;
 
     /** Compact version of #findMediumTo(). Asserts if not found. */
     VBoxMedium getMedium (const CMedium &aObj) const
@@ -682,6 +693,9 @@ public:
     static void loadLanguage (const QString &aLangId = QString::null);
     QString helpFile() const;
 
+    static QIcon iconSet (const QPixmap &aNormal,
+                          const QPixmap &aDisabled = QPixmap(),
+                          const QPixmap &aActive = QPixmap());
     static QIcon iconSet (const char *aNormal,
                           const char *aDisabled = NULL,
                           const char *aActive = NULL);
@@ -756,6 +770,14 @@ public:
 
     static QString documentsPath();
 
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    static bool isAcceleration2DVideoAvailable();
+
+    /** additional video memory required for the best 2D support performance
+     *  total amount of VRAM required is thus calculated as requiredVideoMemory + required2DOffscreenVideoMemory  */
+    static quint64 required2DOffscreenVideoMemory();
+#endif
+
 signals:
 
     /**
@@ -784,7 +806,7 @@ signals:
     void mediumUpdated (const VBoxMedium &);
 
     /** Emitted when the media is removed using #removeMedia(). */
-    void mediumRemoved (VBoxDefs::MediaType, const QString &);
+    void mediumRemoved (VBoxDefs::MediumType, const QString &);
 
     /* signals emitted when the VirtualBox callback is called by the server
      * (note that currently these signals are emitted only when the application
@@ -898,6 +920,7 @@ private:
     QULongStringHash mStorageBuses;
     QLongStringHash mStorageBusChannels;
     QLongStringHash mStorageBusDevices;
+    QULongStringHash mSlotTemplates;
 
     QULongStringHash mDiskTypes;
     QString mDiskTypes_Differencing;

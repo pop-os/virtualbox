@@ -1,4 +1,4 @@
-/* $Id: DevEEPROM.cpp $ */
+/* $Id: DevEEPROM.cpp 24038 2009-10-23 14:17:37Z vboxsync $ */
 /** @file
  * DevEEPROM - Microware-compatible 64x16-bit 93C46 EEPROM Emulation.
  */
@@ -21,6 +21,7 @@
 
 #define LOG_GROUP LOG_GROUP_DEV_E1000   /// @todo Add a EEPROM logging group.
 #include <VBox/log.h>
+#include <VBox/pdmdev.h>
 #include <iprt/string.h>
 #include "DevEEPROM.h"
 
@@ -242,3 +243,35 @@ uint32_t EEPROM93C46::read()
     return m_u32InternalWires;
 }
 
+void EEPROM93C46::save(PSSMHANDLE pSSM)
+{
+    SSMR3PutU8(  pSSM, EEPROM93C46_SAVEDSTATE_VERSION);
+    SSMR3PutU8(  pSSM, m_eState);
+    SSMR3PutU8(  pSSM, m_eOp);
+    SSMR3PutBool(pSSM, m_fWriteEnabled);
+    SSMR3PutU32( pSSM, m_u32InternalWires);
+    SSMR3PutU16( pSSM, m_u16Word);
+    SSMR3PutU16( pSSM, m_u16Mask);
+    SSMR3PutU16( pSSM, m_u16Addr);
+    SSMR3PutMem( pSSM, m_au16Data, sizeof(m_au16Data));
+}
+
+int EEPROM93C46::load(PSSMHANDLE pSSM)
+{
+    int rc;
+    uint8_t uVersion;
+
+    rc = SSMR3GetU8(pSSM, &uVersion);
+    AssertRCReturn(rc, rc);
+    if (uVersion != EEPROM93C46_SAVEDSTATE_VERSION)
+        return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
+
+    SSMR3GetU8(  pSSM, (uint8_t*)&m_eState);
+    SSMR3GetU8(  pSSM, (uint8_t*)&m_eOp);
+    SSMR3GetBool(pSSM, &m_fWriteEnabled);
+    SSMR3GetU32( pSSM, &m_u32InternalWires);
+    SSMR3GetU16( pSSM, &m_u16Word);
+    SSMR3GetU16( pSSM, &m_u16Mask);
+    SSMR3GetU16( pSSM, &m_u16Addr);
+    return SSMR3GetMem( pSSM, m_au16Data, sizeof(m_au16Data));
+}

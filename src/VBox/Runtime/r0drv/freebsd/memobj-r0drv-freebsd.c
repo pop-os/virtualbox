@@ -1,4 +1,4 @@
-/* $Id: memobj-r0drv-freebsd.c $ */
+/* $Id: memobj-r0drv-freebsd.c 23610 2009-10-07 21:22:10Z vboxsync $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, FreeBSD.
  */
@@ -211,6 +211,13 @@ int rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecu
                 pPage = vm_page_alloc(pMemFreeBSD->pObject, PageIndex,
                                       VM_ALLOC_NOBUSY | VM_ALLOC_SYSTEM |
                                       VM_ALLOC_WIRED);
+
+#if __FreeBSD_version >= 800000 /** @todo Find exact version number */
+                /* Fixes crashes during VM termination on FreeBSD8-CURRENT amd64
+                 * with kernel debugging enabled. */
+                vm_page_set_valid(pPage, 0, PAGE_SIZE);
+#endif
+
                 if (pPage)
                 {
                     vm_page_lock_queues();
@@ -443,6 +450,12 @@ static int rtR0MemObjNativeReserveInMap(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixe
         return VERR_INVALID_PARAMETER;
 
     /*
+     * Check that the specified alignment is supported.
+     */
+    if (uAlignment > PAGE_SIZE)
+        return VERR_NOT_SUPPORTED;
+
+    /*
      * Create the object.
      */
     PRTR0MEMOBJFREEBSD pMemFreeBSD = (PRTR0MEMOBJFREEBSD)rtR0MemObjNew(sizeof(*pMemFreeBSD), RTR0MEMOBJTYPE_RES_VIRT, NULL, cb);
@@ -458,7 +471,7 @@ static int rtR0MemObjNativeReserveInMap(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixe
         vm_offset_t MapAddress = pvFixed != (void *)-1
                                ? (vm_offset_t)pvFixed
                                : vm_map_min(pMap);
-        if (pvFixed)
+        if (pvFixed != (void *)-1)
             vm_map_remove(pMap,
                           MapAddress,
                           MapAddress + cb);
@@ -515,6 +528,14 @@ int rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, 
 {
     AssertMsgReturn(!offSub && !cbSub, ("%#x %#x\n", offSub, cbSub), VERR_NOT_SUPPORTED);
     AssertMsgReturn(pvFixed == (void *)-1, ("%p\n", pvFixed), VERR_NOT_SUPPORTED);
+
+    /*
+     * Check that the specified alignment is supported.
+     */
+    if (uAlignment > PAGE_SIZE)
+        return VERR_NOT_SUPPORTED;
+
+
 
 /* Phys: see pmap_mapdev in i386/i386/pmap.c (http://fxr.watson.org/fxr/source/i386/i386/pmap.c?v=RELENG62#L2860) */
 
@@ -589,8 +610,13 @@ int rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, 
 /* see http://markmail.org/message/udhq33tefgtyfozs */
 int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RTR3PTR R3PtrFixed, size_t uAlignment, unsigned fProt, RTR0PROCESS R0Process)
 {
+    /*
+     * Check for unsupported stuff.
+     */
     AssertMsgReturn(R0Process == RTR0ProcHandleSelf(), ("%p != %p\n", R0Process, RTR0ProcHandleSelf()), VERR_NOT_SUPPORTED);
     AssertMsgReturn(R3PtrFixed == (RTR3PTR)-1, ("%p\n", R3PtrFixed), VERR_NOT_SUPPORTED);
+    if (uAlignment > PAGE_SIZE)
+        return VERR_NOT_SUPPORTED;
 
     int             rc;
     vm_object_t     pObjectToMap = ((PRTR0MEMOBJFREEBSD)pMemToMap)->pObject;

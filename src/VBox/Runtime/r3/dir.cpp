@@ -1,4 +1,4 @@
-/* $Id: dir.cpp $ */
+/* $Id: dir.cpp 21675 2009-07-17 12:18:30Z vboxsync $ */
 /** @file
  * IPRT - Directory Manipulation.
  */
@@ -51,8 +51,8 @@
 #include <iprt/err.h>
 #include <iprt/assert.h>
 #include <iprt/uni.h>
-#include "internal/fs.h"
 #include "internal/dir.h"
+#include "internal/path.h"
 
 
 static DECLCALLBACK(bool) rtDirFilterWinNtMatch(PRTDIR pDir, const char *pszName);

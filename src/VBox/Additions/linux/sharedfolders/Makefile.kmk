@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 24376 2009-11-05 10:57:34Z vboxsync $
 ## @file
 # Sub-Makefile for the vboxvfs (linux shared folders module).
 #
@@ -22,7 +22,7 @@
 SUB_DEPTH = ../../../../..
 include	$(KBUILD_PATH)/subheader.kmk
 
-PROGRAMS += mountvboxsf
+PROGRAMS += mount.vboxsf
 INSTALLS += vboxvfs-mod vboxvfs-sh
 ifdef VBOX_WITH_ADDITION_DRIVERS
  SYSMODS += vboxvfs
@@ -52,14 +52,15 @@ vboxvfs-sh_CLEAN      += $(PATH_vboxvfs-sh)/build_in_tmp
 
 #
 # The module (for syntax checking).
+# The DEBUG_HASH* stuff is for CONFIG_DYNAMIC_DEBUG-enabled kernels
 #
 vboxvfs_TEMPLATE        = VBOXGUESTR0
 vboxvfs_NOINST          = 1
 vboxvfs_CFLAGS          = -fshort-wchar
 vboxvfs_DEFS            = \
 	MODULE IN_RT_R0 VBOXGUEST VBOX_WITH_HGCM \
-	KBUILD_MODNAME=KBUILD_STR\(vboxadd\) \
-	KBUILD_BASENAME=KBUILD_STR\(vboxadd\) \
+	KBUILD_MODNAME=KBUILD_STR\(vboxvfs\) \
+        KBUILD_BASENAME=KBUILD_STR\(vboxvfs\) \
 	DEBUG_HASH=2 DEBUG_HASH2=3
 vboxvfs_INCS            = \
 	$(PATH_ROOT)/src/VBox/Additions/common/VBoxGuestLib \
@@ -70,8 +71,7 @@ vboxvfs_SOURCES         = \
 	dirops.c \
 	regops.c
 vboxvfs_LIBS            = \
-	$(VBOX_LIB_VBGL_R0) \
-	$(VBOX_LIB_IPRT_GUEST_R0)
+	$(VBOX_LIB_VBGL_R0)
 
 # detect fc6 2.6.18
 vboxvfs_DEFS           += $(foreach inc,$(VBOX_LINUX_INCS),\
@@ -88,9 +88,9 @@ vboxvfs_DEFS           += $(foreach inc,$(VBOX_LINUX_INCS),\
 #
 # The mount util.
 #
-mountvboxsf_TEMPLATE    = VBOXGUESTR3EXE
-mountvboxsf_DEFS        = _GNU_SOURCE
-mountvboxsf_SOURCES     = \
+mount.vboxsf_TEMPLATE    = VBOXGUESTR3EXE
+mount.vboxsf_DEFS        = _GNU_SOURCE
+mount.vboxsf_SOURCES     = \
 	mount.vboxsf.c
 
 
@@ -101,7 +101,7 @@ $$(PATH_vboxvfs-sh)/build_in_tmp: \
 		$(VBOX_VERSION_STAMP) \
 		| $$(dir $$@)
 	$(call MSG_TOOL,Creating,,$@)
-	$(QUIET)$(SED) -e "s;_VERSION_;${VBOX_VERSION_STRING};g; s;_MODULE_;vboxvfs;g" < $< > $@
+	$(QUIET)$(SED) -e "s;_VERSION_;${VBOX_VERSION_STRING};g; s;_MODULE_;vboxvfs;g" --output $@ $<
 	$(QUIET)chmod 0755 $@
 
 $$(PATH_vboxvfs-mod)/dkms.conf: \
@@ -109,7 +109,7 @@ $$(PATH_vboxvfs-mod)/dkms.conf: \
 		$(VBOX_VERSION_STAMP) \
 		| $$(dir $$@)
 	$(call MSG_TOOL,Creating,,$@)
-	$(QUIET)$(SED) -e "s;_VERSION_;${VBOX_VERSION_STRING};g" < $< > $@
+	$(QUIET)$(SED) -e "s;_VERSION_;${VBOX_VERSION_STRING};g" --output $@ $<
 
 include	$(KBUILD_PATH)/subfooter.kmk
 

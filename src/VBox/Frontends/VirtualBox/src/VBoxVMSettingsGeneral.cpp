@@ -55,6 +55,13 @@ bool VBoxVMSettingsGeneral::is64BitOSTypeSelected() const
     return mOSTypeSelector->type().GetIs64Bit();
 }
 
+#ifdef VBOX_WITH_VIDEOHWACCEL
+bool VBoxVMSettingsGeneral::isWindowsOSTypeSelected() const
+{
+    return mOSTypeSelector->type().GetFamilyId() == "Windows";
+}
+#endif
+
 void VBoxVMSettingsGeneral::getFrom (const CMachine &aMachine)
 {
     mMachine = aMachine;
@@ -158,7 +165,7 @@ void VBoxVMSettingsGeneral::retranslateUi()
 
     /* Path selector */
     mPsSnapshot->setWhatsThis (tr ("Displays the path where snapshots of this "
-                                   "virtual machine will be stored. Note that "
+                                   "virtual machine will be stored. Be aware that "
                                    "snapshots can take quite a lot of disk "
                                    "space."));
 

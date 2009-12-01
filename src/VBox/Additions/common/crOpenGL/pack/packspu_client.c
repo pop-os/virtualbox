@@ -136,6 +136,20 @@ void PACKSPU_APIENTRY packspu_VertexAttribPointerNV( GLuint index, GLint size, G
     crStateVertexAttribPointerNV( index, size, type, stride, pointer );
 }
 
+void PACKSPU_APIENTRY packspu_IndexPointer( GLenum type, GLsizei stride, const GLvoid *pointer )
+{
+#if CR_ARB_vertex_buffer_object
+    GET_CONTEXT(ctx);
+    if (ctx->clientState->extensions.ARB_vertex_buffer_object) {
+        if (pack_spu.swap)
+            crPackIndexPointerSWAP( type, stride, pointer );
+        else
+            crPackIndexPointer( type, stride, pointer );
+    }
+#endif
+    crStateIndexPointer(type, stride, pointer);
+}
+
 void PACKSPU_APIENTRY packspu_GetPointerv( GLenum pname, GLvoid **params )
 {
     crStateGetPointerv( pname, params );
@@ -152,6 +166,9 @@ void PACKSPU_APIENTRY packspu_InterleavedArrays( GLenum format, GLsizei stride, 
             crPackInterleavedArrays( format, stride, pointer );
     }
 #endif
+
+    /*crDebug("packspu_InterleavedArrays");*/
+
     crStateInterleavedArrays( format, stride, pointer );
 }
 
@@ -159,15 +176,28 @@ void PACKSPU_APIENTRY packspu_InterleavedArrays( GLenum format, GLsizei stride, 
 void PACKSPU_APIENTRY
 packspu_ArrayElement( GLint index )
 {
+/*@todo cash guest/host pointers calculation and use appropriate path here without crStateUseServerArrays call*/
+#if 1
     GLboolean serverArrays = GL_FALSE;
 
 #if CR_ARB_vertex_buffer_object
     GET_CONTEXT(ctx);
+    /*crDebug("packspu_ArrayElement index:%i", index);*/
     if (ctx->clientState->extensions.ARB_vertex_buffer_object)
         serverArrays = crStateUseServerArrays();
 #endif
 
     if (serverArrays) {
+        GET_CONTEXT(ctx);
+        CRClientState *clientState = &(ctx->clientState->client);
+
+        /*Note the comment in packspu_LockArraysEXT*/
+        if (clientState->array.locked && !clientState->array.synced)
+        {
+            crPackLockArraysEXT(clientState->array.lockFirst, clientState->array.lockCount);
+            clientState->array.synced = GL_TRUE;
+        }
+
         /* Send the DrawArrays command over the wire */
         if (pack_spu.swap)
             crPackArrayElementSWAP( index );
@@ -183,6 +213,11 @@ packspu_ArrayElement( GLint index )
         else
             crPackExpandArrayElement( index, clientState );
     }
+#else
+    GET_CONTEXT(ctx);
+    CRClientState *clientState = &(ctx->clientState->client);
+    crPackExpandArrayElement(index, clientState);
+#endif
 }
 
 
@@ -193,11 +228,22 @@ packspu_DrawElements( GLenum mode, GLsizei count, GLenum type, const GLvoid *ind
 
 #if CR_ARB_vertex_buffer_object
     GET_CONTEXT(ctx);
+    /*crDebug("DrawElements count=%d, indices=%p", count, indices);*/
     if (ctx->clientState->extensions.ARB_vertex_buffer_object)
         serverArrays = crStateUseServerArrays();
 #endif
 
     if (serverArrays) {
+        GET_CONTEXT(ctx);
+        CRClientState *clientState = &(ctx->clientState->client);
+
+        /*Note the comment in packspu_LockArraysEXT*/
+        if (clientState->array.locked && !clientState->array.synced)
+        {
+            crPackLockArraysEXT(clientState->array.lockFirst, clientState->array.lockCount);
+            clientState->array.synced = GL_TRUE;
+        }
+        
         /* Send the DrawArrays command over the wire */
         if (pack_spu.swap)
             crPackDrawElementsSWAP( mode, count, type, indices );
@@ -211,7 +257,11 @@ packspu_DrawElements( GLenum mode, GLsizei count, GLenum type, const GLvoid *ind
         if (pack_spu.swap)
             crPackExpandDrawElementsSWAP( mode, count, type, indices, clientState );
         else
+        {
+            //packspu_Begin(mode);
             crPackExpandDrawElements( mode, count, type, indices, clientState );
+            //packspu_End();
+        }
     }
 }
 
@@ -223,11 +273,22 @@ packspu_DrawRangeElements( GLenum mode, GLuint start, GLuint end, GLsizei count,
 
 #if CR_ARB_vertex_buffer_object
     GET_CONTEXT(ctx);
+    /*crDebug("DrawRangeElements count=%d", count);*/
     if (ctx->clientState->extensions.ARB_vertex_buffer_object)
          serverArrays = crStateUseServerArrays();
 #endif
 
     if (serverArrays) {
+        GET_CONTEXT(ctx);
+        CRClientState *clientState = &(ctx->clientState->client);
+
+        /*Note the comment in packspu_LockArraysEXT*/
+        if (clientState->array.locked && !clientState->array.synced)
+        {
+            crPackLockArraysEXT(clientState->array.lockFirst, clientState->array.lockCount);
+            clientState->array.synced = GL_TRUE;
+        }
+
         /* Send the DrawRangeElements command over the wire */
         if (pack_spu.swap)
             crPackDrawRangeElementsSWAP( mode, start, end, count, type, indices );
@@ -241,7 +302,9 @@ packspu_DrawRangeElements( GLenum mode, GLuint start, GLuint end, GLsizei count,
         if (pack_spu.swap)
             crPackExpandDrawRangeElementsSWAP( mode, start, end, count, type, indices, clientState );
         else
+        {
             crPackExpandDrawRangeElements( mode, start, end, count, type, indices, clientState );
+        }
     }
 }
 
@@ -253,11 +316,22 @@ packspu_DrawArrays( GLenum mode, GLint first, GLsizei count )
 
 #if CR_ARB_vertex_buffer_object
     GET_CONTEXT(ctx);
+    /*crDebug("DrawArrays count=%d", count);*/
     if (ctx->clientState->extensions.ARB_vertex_buffer_object)
          serverArrays = crStateUseServerArrays();
 #endif
 
     if (serverArrays) {
+        GET_CONTEXT(ctx);
+        CRClientState *clientState = &(ctx->clientState->client);
+
+        /*Note the comment in packspu_LockArraysEXT*/
+        if (clientState->array.locked && !clientState->array.synced)
+        {
+            crPackLockArraysEXT(clientState->array.lockFirst, clientState->array.lockCount);
+            clientState->array.synced = GL_TRUE;
+        }
+
         /* Send the DrawArrays command over the wire */
         if (pack_spu.swap)
             crPackDrawArraysSWAP( mode, first, count );
@@ -301,55 +375,38 @@ void PACKSPU_APIENTRY packspu_MultiDrawElementsEXT( GLenum mode, const GLsizei *
 
 void PACKSPU_APIENTRY packspu_EnableClientState( GLenum array )
 {
-    crStateEnableClientState( array );
+    crStateEnableClientState(array);
+    crPackEnableClientState(array);
 }
 
 void PACKSPU_APIENTRY packspu_DisableClientState( GLenum array )
 {
-    crStateDisableClientState( array );
+    crStateDisableClientState(array);
+    crPackDisableClientState(array);
 }
 
 void PACKSPU_APIENTRY packspu_ClientActiveTextureARB( GLenum texUnit )
 {
-    crStateClientActiveTextureARB( texUnit );
-    /* XXX also send to server for texcoord arrays? */
+    crStateClientActiveTextureARB(texUnit);
+    crPackClientActiveTextureARB(texUnit);
+}
+
+void PACKSPU_APIENTRY packspu_EnableVertexAttribArrayARB(GLuint index)
+{
+    crStateEnableVertexAttribArrayARB(index);
+    crPackEnableVertexAttribArrayARB(index);
 }
 
 
+void PACKSPU_APIENTRY packspu_DisableVertexAttribArrayARB(GLuint index)
+{
+    crStateDisableVertexAttribArrayARB(index);
+    crPackDisableVertexAttribArrayARB(index);
+}
+
 void PACKSPU_APIENTRY packspu_Enable( GLenum cap )
 {
-    switch (cap) {
-    case GL_VERTEX_ARRAY:
-    case GL_NORMAL_ARRAY:
-    case GL_COLOR_ARRAY:
-    case GL_INDEX_ARRAY:
-    case GL_TEXTURE_COORD_ARRAY:
-    case GL_EDGE_FLAG_ARRAY:
-    case GL_FOG_COORDINATE_ARRAY_EXT:
-    case GL_SECONDARY_COLOR_ARRAY_EXT:
-#if CR_NV_vertex_program
-    case GL_VERTEX_ATTRIB_ARRAY0_NV:
-    case GL_VERTEX_ATTRIB_ARRAY1_NV:
-    case GL_VERTEX_ATTRIB_ARRAY2_NV:
-    case GL_VERTEX_ATTRIB_ARRAY3_NV:
-    case GL_VERTEX_ATTRIB_ARRAY4_NV:
-    case GL_VERTEX_ATTRIB_ARRAY5_NV:
-    case GL_VERTEX_ATTRIB_ARRAY6_NV:
-    case GL_VERTEX_ATTRIB_ARRAY7_NV:
-    case GL_VERTEX_ATTRIB_ARRAY8_NV:
-    case GL_VERTEX_ATTRIB_ARRAY9_NV:
-    case GL_VERTEX_ATTRIB_ARRAY10_NV:
-    case GL_VERTEX_ATTRIB_ARRAY11_NV:
-    case GL_VERTEX_ATTRIB_ARRAY12_NV:
-    case GL_VERTEX_ATTRIB_ARRAY13_NV:
-    case GL_VERTEX_ATTRIB_ARRAY14_NV:
-    case GL_VERTEX_ATTRIB_ARRAY15_NV:
-#endif /* CR_NV_vertex_program */
-        crStateEnableClientState(cap);
-        break;
-    default:
-        ;
-    }
+    crStateEnable(cap);
 
     if (pack_spu.swap)
         crPackEnableSWAP(cap);
@@ -360,38 +417,7 @@ void PACKSPU_APIENTRY packspu_Enable( GLenum cap )
 
 void PACKSPU_APIENTRY packspu_Disable( GLenum cap )
 {
-    switch (cap) {
-    case GL_VERTEX_ARRAY:
-    case GL_NORMAL_ARRAY:
-    case GL_COLOR_ARRAY:
-    case GL_INDEX_ARRAY:
-    case GL_TEXTURE_COORD_ARRAY:
-    case GL_EDGE_FLAG_ARRAY:
-    case GL_FOG_COORDINATE_ARRAY_EXT:
-    case GL_SECONDARY_COLOR_ARRAY_EXT:
-#if CR_NV_vertex_program
-    case GL_VERTEX_ATTRIB_ARRAY0_NV:
-    case GL_VERTEX_ATTRIB_ARRAY1_NV:
-    case GL_VERTEX_ATTRIB_ARRAY2_NV:
-    case GL_VERTEX_ATTRIB_ARRAY3_NV:
-    case GL_VERTEX_ATTRIB_ARRAY4_NV:
-    case GL_VERTEX_ATTRIB_ARRAY5_NV:
-    case GL_VERTEX_ATTRIB_ARRAY6_NV:
-    case GL_VERTEX_ATTRIB_ARRAY7_NV:
-    case GL_VERTEX_ATTRIB_ARRAY8_NV:
-    case GL_VERTEX_ATTRIB_ARRAY9_NV:
-    case GL_VERTEX_ATTRIB_ARRAY10_NV:
-    case GL_VERTEX_ATTRIB_ARRAY11_NV:
-    case GL_VERTEX_ATTRIB_ARRAY12_NV:
-    case GL_VERTEX_ATTRIB_ARRAY13_NV:
-    case GL_VERTEX_ATTRIB_ARRAY14_NV:
-    case GL_VERTEX_ATTRIB_ARRAY15_NV:
-#endif /* CR_NV_vertex_program */
-        crStateDisableClientState(cap);
-        break;
-    default:
-        ;
-    }
+    crStateDisable(cap);
 
     if (pack_spu.swap)
         crPackDisableSWAP(cap);
@@ -399,13 +425,53 @@ void PACKSPU_APIENTRY packspu_Disable( GLenum cap )
         crPackDisable(cap);
 }
 
+GLboolean PACKSPU_APIENTRY packspu_IsEnabled(GLenum cap)
+{
+    GLboolean res = crStateIsEnabled(cap);
+#ifdef DEBUG
+    {    
+    	GET_THREAD(thread);
+	    int writeback = 1;
+	    GLboolean return_val = (GLboolean) 0;
+        crPackIsEnabled(cap, &return_val, &writeback);
+	    packspuFlush( (void *) thread );
+	    while (writeback)
+		  crNetRecv();
+        CRASSERT(return_val==res);
+    }
+#endif
+
+    return res;
+}
 
 void PACKSPU_APIENTRY packspu_PushClientAttrib( GLbitfield mask )
 {
     crStatePushClientAttrib(mask);
+    crPackPushClientAttrib(mask);
 }
 
 void PACKSPU_APIENTRY packspu_PopClientAttrib( void )
 {
     crStatePopClientAttrib();
+    crPackPopClientAttrib();
+}
+
+void PACKSPU_APIENTRY packspu_LockArraysEXT(GLint first, GLint count)
+{
+    if (first>=0 && count>0)
+    {
+        crStateLockArraysEXT(first, count);
+        /*Note: this is a workaround for quake3 based apps.
+          It's modifying vertex data between glLockArraysEXT and glDrawElements calls,
+          so we'd pass data to host right before the glDrawSomething call.
+        */
+        /*crPackLockArraysEXT(first, count);*/
+    } 
+    else crDebug("Ignoring packspu_LockArraysEXT: first:%i, count:%i", first, count);
+}
+
+void PACKSPU_APIENTRY packspu_UnlockArraysEXT()
+{
+    crStateUnlockArraysEXT();
+    crPackUnlockArraysEXT();
 }

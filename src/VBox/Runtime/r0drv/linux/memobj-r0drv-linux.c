@@ -1,4 +1,4 @@
-/* $Revision: 54555 $ */
+/* $Revision: 23611 $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, Linux.
  */
@@ -442,8 +442,7 @@ int rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
                 if (pTask && pTask->mm)
                     up_read(&pTask->mm->mmap_sem);
             }
-            else
-                AssertFailed(); /* not implemented for R0 */
+            /* else: kernel memory - nothing to do here. */
             break;
 
         case RTR0MEMOBJTYPE_RES_VIRT:
@@ -831,10 +830,89 @@ int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t c
 }
 
 
-int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fFlags)
+int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fAccess)
 {
-    /* What is there to lock? Should/Can we fake this? */
-    return VERR_NOT_SUPPORTED;
+    void           *pvLast = (uint8_t *)pv + cb - 1;
+    size_t const    cPages = cb >> PAGE_SHIFT;
+    PRTR0MEMOBJLNX  pMemLnx;
+    bool            fLinearMapping;
+    int             rc;
+    uint8_t        *pbPage;
+    size_t          iPage;
+    NOREF(fAccess);
+
+    /*
+     * Classify the memory and check that we can deal with it.
+     */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
+    fLinearMapping = virt_addr_valid(pvLast)          && virt_addr_valid(pv);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 0)
+    fLinearMapping = VALID_PAGE(virt_to_page(pvLast)) && VALID_PAGE(virt_to_page(pv));
+#else
+# error "not supported"
+#endif
+    if (!fLinearMapping)
+    {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 19)
+        if (   !RTR0MemKernelIsValidAddr(pv)
+            || !RTR0MemKernelIsValidAddr(pv + cb))
+#endif
+            return VERR_INVALID_PARAMETER;
+    }
+
+    /*
+     * Allocate the memory object.
+     */
+    pMemLnx = (PRTR0MEMOBJLNX)rtR0MemObjNew(RT_OFFSETOF(RTR0MEMOBJLNX, apPages[cPages]), RTR0MEMOBJTYPE_LOCK, pv, cb);
+    if (!pMemLnx)
+        return VERR_NO_MEMORY;
+
+    /*
+     * Gather the pages.
+     * We ASSUME all kernel pages are non-swappable.
+     */
+    rc     = VINF_SUCCESS;
+    pbPage = (uint8_t *)pvLast;
+    iPage  = cPages;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 19)
+    if (!fLinearMapping)
+    {
+        while (iPage-- > 0)
+        {
+            struct page *pPage = vmalloc_to_page(pbPage);
+            if (RT_UNLIKELY(!pPage))
+            {
+                rc = VERR_LOCK_FAILED;
+                break;
+            }
+            pMemLnx->apPages[iPage] = pPage;
+            pbPage -= PAGE_SIZE;
+        }
+    }
+    else
+#endif
+    {
+        while (iPage-- > 0)
+        {
+            pMemLnx->apPages[iPage] = virt_to_page(pbPage);
+            pbPage -= PAGE_SIZE;
+        }
+    }
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Complete the memory object and return.
+         */
+        pMemLnx->Core.u.Lock.R0Process = NIL_RTR0PROCESS;
+        pMemLnx->cPages = cPages;
+        Assert(!pMemLnx->fMappedToRing0);
+        *ppMem = &pMemLnx->Core;
+
+        return VINF_SUCCESS;
+    }
+
+    rtR0MemObjDelete(&pMemLnx->Core);
+    return rc;
 }
 
 
@@ -847,7 +925,8 @@ int rtR0MemObjNativeReserveKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixed, siz
 
     /* check for unsupported stuff. */
     AssertMsgReturn(pvFixed == (void *)-1, ("%p\n", pvFixed), VERR_NOT_SUPPORTED);
-    AssertMsgReturn(uAlignment <= PAGE_SIZE, ("%#x\n", uAlignment), VERR_NOT_SUPPORTED);
+    if (uAlignment > PAGE_SIZE)
+        return VERR_NOT_SUPPORTED;
 
     /*
      * Allocate a dummy page and create a page pointer array for vmap such that
@@ -961,6 +1040,12 @@ int rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3PtrFixed, 
         return VERR_NOT_SUPPORTED;
 
     /*
+     * Check that the specified alignment is supported.
+     */
+    if (uAlignment > PAGE_SIZE)
+        return VERR_NOT_SUPPORTED;
+
+    /*
      * Let rtR0MemObjLinuxDoMmap do the difficult bits.
      */
     down_write(&pTask->mm->mmap_sem);
@@ -994,7 +1079,8 @@ int rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, 
     /* Fail if requested to do something we can't. */
     AssertMsgReturn(!offSub && !cbSub, ("%#x %#x\n", offSub, cbSub), VERR_NOT_SUPPORTED);
     AssertMsgReturn(pvFixed == (void *)-1, ("%p\n", pvFixed), VERR_NOT_SUPPORTED);
-    AssertMsgReturn(uAlignment <= PAGE_SIZE, ("%#x\n", uAlignment), VERR_NOT_SUPPORTED);
+    if (uAlignment > PAGE_SIZE)
+        return VERR_NOT_SUPPORTED;
 
     /*
      * Create the IPRT memory object.
@@ -1069,10 +1155,20 @@ int rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, 
 
 #ifdef VBOX_USE_PAE_HACK
 /**
- * Replace the PFN of a PTE entry of a reserved page. This hack is required for older Linux
- * kernels which don't provide remap_pfn_range().
+ * Replace the PFN of a PTE with the address of the actual page.
+ *
+ * The caller maps a reserved dummy page at the address with the desired access
+ * and flags.
+ *
+ * This hack is required for older Linux kernels which don't provide
+ * remap_pfn_range().
+ *
+ * @returns 0 on success, -ENOMEM on failure.
+ * @param   mm          The memory context.
+ * @param   ulAddr      The mapping address.
+ * @param   Phys        The physical address of the page to map.
  */
-static int fixPte(struct mm_struct *mm, unsigned long ulAddr, unsigned long long u64Phys)
+static int rtR0MemObjLinuxFixPte(struct mm_struct *mm, unsigned long ulAddr, RTHCPHYS Phys)
 {
     int rc = -ENOMEM;
     pgd_t *pgd;
@@ -1090,9 +1186,9 @@ static int fixPte(struct mm_struct *mm, unsigned long ulAddr, unsigned long long
             {
                 pte_t pte = *ptep;
                 pte.pte_high &= 0xfff00000;
-                pte.pte_high |= ((u64Phys >> 32) & 0x000fffff);
+                pte.pte_high |= ((Phys >> 32) & 0x000fffff);
                 pte.pte_low  &= 0x00000fff;
-                pte.pte_low  |= (u64Phys & 0xfffff000);
+                pte.pte_low  |= (Phys & 0xfffff000);
                 set_pte(ptep, pte);
                 pte_unmap(ptep);
                 rc = 0;
@@ -1112,12 +1208,29 @@ int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RT
     PRTR0MEMOBJLNX      pMemLnxToMap = (PRTR0MEMOBJLNX)pMemToMap;
     int                 rc           = VERR_NO_MEMORY;
     PRTR0MEMOBJLNX      pMemLnx;
+#ifdef VBOX_USE_PAE_HACK
+    struct page        *pDummyPage;
+    RTHCPHYS            DummyPhys;
+#endif
 
     /*
      * Check for restrictions.
      */
     if (!pTask)
         return VERR_NOT_SUPPORTED;
+    if (uAlignment > PAGE_SIZE)
+        return VERR_NOT_SUPPORTED;
+
+#ifdef VBOX_USE_PAE_HACK
+    /*
+     * Allocate a dummy page for use when mapping the memory.
+     */
+    pDummyPage = alloc_page(GFP_USER);
+    if (!pDummyPage)
+        return VERR_NO_MEMORY;
+    SetPageReserved(pDummyPage);
+    DummyPhys = page_to_phys(pDummyPage);
+#endif
 
     /*
      * Create the IPRT memory object.
@@ -1141,16 +1254,7 @@ int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RT
             unsigned long   ulAddrCur = (unsigned long)pv;
             const size_t    cPages = pMemLnxToMap->Core.cb >> PAGE_SHIFT;
             size_t          iPage;
-#ifdef VBOX_USE_PAE_HACK
-            struct page     *pDummyPage = alloc_page(GFP_USER);
-            RTHCPHYS        DummyPhys;
 
-            if (!pDummyPage)
-                goto error;
-
-            SetPageReserved(pDummyPage);
-            DummyPhys = page_to_phys(pDummyPage);
-#endif
             rc = 0;
             if (pMemLnxToMap->cPages)
             {
@@ -1175,12 +1279,8 @@ int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RT
                     rc = remap_pfn_range(vma, ulAddrCur, page_to_pfn(pMemLnxToMap->apPages[iPage]), PAGE_SIZE, fPg);
 #elif defined(VBOX_USE_PAE_HACK)
                     rc = remap_page_range(vma, ulAddrCur, DummyPhys, PAGE_SIZE, fPg);
-                    if (rc)
-                    {
-                        rc = VERR_NO_MEMORY;
-                        break;
-                    }
-                    rc = fixPte(pTask->mm, ulAddrCur, Phys);
+                    if (!rc)
+                        rc = rtR0MemObjLinuxFixPte(pTask->mm, ulAddrCur, Phys);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0) || defined(HAVE_26_STYLE_REMAP_PAGE_RANGE)
                     rc = remap_page_range(vma, ulAddrCur, Phys, PAGE_SIZE, fPg);
 #else /* 2.4 */
@@ -1222,12 +1322,8 @@ int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RT
                         rc = remap_pfn_range(vma, ulAddrCur, Phys, PAGE_SIZE, fPg);
 #elif defined(VBOX_USE_PAE_HACK)
                         rc = remap_page_range(vma, ulAddrCur, DummyPhys, PAGE_SIZE, fPg);
-                        if (rc)
-                        {
-                            rc = VERR_NO_MEMORY;
-                            break;
-                        }
-                        rc = fixPte(pTask->mm, ulAddrCur, Phys);
+                        if (!rc)
+                            rc = rtR0MemObjLinuxFixPte(pTask->mm, ulAddrCur, Phys);
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0) || defined(HAVE_26_STYLE_REMAP_PAGE_RANGE)
                         rc = remap_page_range(vma, ulAddrCur, Phys, PAGE_SIZE, fPg);
 #else /* 2.4 */
@@ -1241,12 +1337,12 @@ int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RT
                     }
                 }
             }
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 11) && defined(CONFIG_X86_PAE)
-            __free_page(pDummyPage);
-#endif
             if (!rc)
             {
                 up_write(&pTask->mm->mmap_sem);
+#ifdef VBOX_USE_PAE_HACK
+                __free_page(pDummyPage);
+#endif
 
                 pMemLnx->Core.pv = pv;
                 pMemLnx->Core.u.Mapping.R0Process = R0Process;
@@ -1258,17 +1354,13 @@ int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RT
              * Bail out.
              */
             MY_DO_MUNMAP(pTask->mm, (unsigned long)pv, pMemLnxToMap->Core.cb);
-            if (rc != VERR_INTERNAL_ERROR)
-                rc = VERR_NO_MEMORY;
         }
-
-#ifdef VBOX_USE_PAE_HACK
-error:
-#endif
         up_write(&pTask->mm->mmap_sem);
-
         rtR0MemObjDelete(&pMemLnx->Core);
     }
+#ifdef VBOX_USE_PAE_HACK
+    __free_page(pDummyPage);
+#endif
 
     return rc;
 }

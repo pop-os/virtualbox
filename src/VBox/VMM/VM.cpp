@@ -1,4 +1,4 @@
-/* $Id: VM.cpp $ */
+/* $Id: VM.cpp 25075 2009-11-28 22:29:28Z vboxsync $ */
 /** @file
  * VM - Virtual Machine
  */
@@ -31,13 +31,14 @@
  *
  * In hindsight this component is a big design mistake, all this stuff really
  * belongs in the VMM component.  It just seemed like a kind of ok idea at a
- * time when the VMM bit was a bit vague.  'VM' also happend to be the name of
- * the per-VM instance structure (see vm.h), so it kind of made sense.  However
- * as it turned out, VMM(.cpp) is almost empty all it provides in ring-3 is some
- * minor functionally and some "routing" services.
+ * time when the VMM bit was a kind of vague.  'VM' also happend to be the name
+ * of the per-VM instance structure (see vm.h), so it kind of made sense.
+ * However as it turned out, VMM(.cpp) is almost empty all it provides in ring-3
+ * is some minor functionally and some "routing" services.
  *
  * Fixing this is just a matter of some more or less straight forward
- * refactoring, the question is just when someone will get to it.
+ * refactoring, the question is just when someone will get to it. Moving the EMT
+ * would be a good start.
  *
  */
 
@@ -123,31 +124,22 @@ static PVMATDTOR    g_pVMAtDtorHead = NULL;
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-static int               vmR3CreateUVM(uint32_t cCPUs, PUVM *ppUVM);
-static int               vmR3CreateU(PUVM pUVM, uint32_t cCPUs, PFNCFGMCONSTRUCTOR pfnCFGMConstructor, void *pvUserCFGM);
+static int               vmR3CreateUVM(uint32_t cCpus, PUVM *ppUVM);
+static int               vmR3CreateU(PUVM pUVM, uint32_t cCpus, PFNCFGMCONSTRUCTOR pfnCFGMConstructor, void *pvUserCFGM);
 static int               vmR3InitRing3(PVM pVM, PUVM pUVM);
 static int               vmR3InitVMCpu(PVM pVM);
 static int               vmR3InitRing0(PVM pVM);
 static int               vmR3InitGC(PVM pVM);
 static int               vmR3InitDoCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
 static DECLCALLBACK(size_t) vmR3LogPrefixCallback(PRTLOGGER pLogger, char *pchBuf, size_t cchBuf, void *pvUser);
-static DECLCALLBACK(int) vmR3PowerOn(PVM pVM);
-static DECLCALLBACK(int) vmR3Suspend(PVM pVM);
-static DECLCALLBACK(int) vmR3Resume(PVM pVM);
-static DECLCALLBACK(int) vmR3Save(PVM pVM, const char *pszFilename, PFNVMPROGRESS pfnProgress, void *pvUser);
-static DECLCALLBACK(int) vmR3Load(PVM pVM, const char *pszFilename, PFNVMPROGRESS pfnProgress, void *pvUser);
-static DECLCALLBACK(int) vmR3PowerOff(PVM pVM);
 static void              vmR3DestroyUVM(PUVM pUVM, uint32_t cMilliesEMTWait);
 static void              vmR3AtDtor(PVM pVM);
-static int               vmR3AtResetU(PUVM pUVM);
-static DECLCALLBACK(int) vmR3Reset(PVM pVM);
-static DECLCALLBACK(int) vmR3AtStateRegisterU(PUVM pUVM, PFNVMATSTATE pfnAtState, void *pvUser);
-static DECLCALLBACK(int) vmR3AtStateDeregisterU(PUVM pUVM, PFNVMATSTATE pfnAtState, void *pvUser);
-static DECLCALLBACK(int) vmR3AtErrorRegisterU(PUVM pUVM, PFNVMATERROR pfnAtError, void *pvUser);
-static DECLCALLBACK(int) vmR3AtErrorDeregisterU(PUVM pUVM, PFNVMATERROR pfnAtError, void *pvUser);
+static bool              vmR3ValidateStateTransition(VMSTATE enmStateOld, VMSTATE enmStateNew);
+static void              vmR3DoAtState(PVM pVM, PUVM pUVM, VMSTATE enmStateNew, VMSTATE enmStateOld);
+static int               vmR3TrySetState(PVM pVM, const char *pszWho, unsigned cTransitions, ...);
+static void              vmR3SetStateLocked(PVM pVM, PUVM pUVM, VMSTATE enmStateNew, VMSTATE enmStateOld);
+static void              vmR3SetState(PVM pVM, VMSTATE enmStateNew, VMSTATE enmStateOld);
 static int               vmR3SetErrorU(PUVM pUVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...);
-static DECLCALLBACK(int) vmR3AtRuntimeErrorRegisterU(PUVM pUVM, PFNVMATRUNTIMEERROR pfnAtRuntimeError, void *pvUser);
-static DECLCALLBACK(int) vmR3AtRuntimeErrorDeregisterU(PUVM pUVM, PFNVMATRUNTIMEERROR pfnAtRuntimeError, void *pvUser);
 
 
 /**
@@ -181,7 +173,7 @@ VMMR3DECL(int)   VMR3GlobalInit(void)
  *
  * @returns 0 on success.
  * @returns VBox error code on failure.
- * @param   cCPUs               Number of virtual CPUs for the new VM.
+ * @param   cCpus               Number of virtual CPUs for the new VM.
  * @param   pfnVMAtError        Pointer to callback function for setting VM
  *                              errors. This was added as an implicit call to
  *                              VMR3AtErrorRegister() since there is no way the
@@ -194,9 +186,10 @@ VMMR3DECL(int)   VMR3GlobalInit(void)
  * @param   pvUserCFGM          The user argument passed to pfnCFGMConstructor.
  * @param   ppVM                Where to store the 'handle' of the created VM.
  */
-VMMR3DECL(int)   VMR3Create(uint32_t cCPUs, PFNVMATERROR pfnVMAtError, void *pvUserVM, PFNCFGMCONSTRUCTOR pfnCFGMConstructor, void *pvUserCFGM, PVM *ppVM)
+VMMR3DECL(int)   VMR3Create(uint32_t cCpus, PFNVMATERROR pfnVMAtError, void *pvUserVM, PFNCFGMCONSTRUCTOR pfnCFGMConstructor, void *pvUserCFGM, PVM *ppVM)
 {
-    LogFlow(("VMR3Create: cCPUs=%RU32 pfnVMAtError=%p pvUserVM=%p  pfnCFGMConstructor=%p pvUserCFGM=%p ppVM=%p\n", cCPUs, pfnVMAtError, pvUserVM, pfnCFGMConstructor, pvUserCFGM, ppVM));
+    LogFlow(("VMR3Create: cCpus=%RU32 pfnVMAtError=%p pvUserVM=%p  pfnCFGMConstructor=%p pvUserCFGM=%p ppVM=%p\n",
+             cCpus, pfnVMAtError, pvUserVM, pfnCFGMConstructor, pvUserCFGM, ppVM));
 
     /*
      * Because of the current hackiness of the applications
@@ -215,14 +208,14 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCPUs, PFNVMATERROR pfnVMAtError, void *pvU
     /*
      * Validate input.
      */
-    AssertLogRelMsgReturn(cCPUs > 0 && cCPUs <= VMM_MAX_CPU_COUNT, ("%RU32\n", cCPUs), VERR_TOO_MANY_CPUS);
+    AssertLogRelMsgReturn(cCpus > 0 && cCpus <= VMM_MAX_CPU_COUNT, ("%RU32\n", cCpus), VERR_TOO_MANY_CPUS);
 
     /*
      * Create the UVM so we can register the at-error callback
      * and consoliate a bit of cleanup code.
      */
     PUVM pUVM = NULL;                   /* shuts up gcc */
-    int rc = vmR3CreateUVM(cCPUs, &pUVM);
+    int rc = vmR3CreateUVM(cCpus, &pUVM);
     if (RT_FAILURE(rc))
         return rc;
     if (pfnVMAtError)
@@ -244,8 +237,8 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCPUs, PFNVMATERROR pfnVMAtError, void *pvU
              *       that only EMT(0) is servicing VMCPUID_ANY requests when pVM is NULL.
              */
             PVMREQ pReq;
-            rc = VMR3ReqCallU(pUVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, 0, (PFNRT)vmR3CreateU, 4,
-                              pUVM, cCPUs, pfnCFGMConstructor, pvUserCFGM);
+            rc = VMR3ReqCallU(pUVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, VMREQFLAGS_VBOX_STATUS,
+                              (PFNRT)vmR3CreateU, 4, pUVM, cCpus, pfnCFGMConstructor, pvUserCFGM);
             if (RT_SUCCESS(rc))
             {
                 rc = pReq->iStatus;
@@ -261,7 +254,7 @@ VMMR3DECL(int)   VMR3Create(uint32_t cCPUs, PFNVMATERROR pfnVMAtError, void *pvU
                 }
             }
             else
-                AssertMsgFailed(("VMR3ReqCall failed rc=%Rrc\n", rc));
+                AssertMsgFailed(("VMR3ReqCallU failed rc=%Rrc\n", rc));
 
             /*
              * An error occurred during VM creation. Set the error message directly
@@ -432,14 +425,13 @@ static int vmR3CreateUVM(uint32_t cCpus, PUVM *ppUVM)
     /*
      * Create and initialize the UVM.
      */
-    PUVM pUVM = (PUVM)RTMemAllocZ(RT_OFFSETOF(UVM, aCpus[cCpus]));
+    PUVM pUVM = (PUVM)RTMemPageAllocZ(RT_OFFSETOF(UVM, aCpus[cCpus]));
     AssertReturn(pUVM, VERR_NO_MEMORY);
     pUVM->u32Magic = UVM_MAGIC;
     pUVM->cCpus = cCpus;
 
     AssertCompile(sizeof(pUVM->vm.s) <= sizeof(pUVM->vm.padding));
 
-    pUVM->vm.s.ppAtResetNext = &pUVM->vm.s.pAtReset;
     pUVM->vm.s.ppAtStateNext = &pUVM->vm.s.pAtState;
     pUVM->vm.s.ppAtErrorNext = &pUVM->vm.s.pAtError;
     pUVM->vm.s.ppAtRuntimeErrorNext = &pUVM->vm.s.pAtRuntimeError;
@@ -460,66 +452,77 @@ static int vmR3CreateUVM(uint32_t cCpus, PUVM *ppUVM)
     {
         /* Allocate a halt method event semaphore for each VCPU. */
         for (i = 0; i < cCpus; i++)
+            pUVM->aCpus[i].vm.s.EventSemWait = NIL_RTSEMEVENT;
+        for (i = 0; i < cCpus; i++)
         {
             rc = RTSemEventCreate(&pUVM->aCpus[i].vm.s.EventSemWait);
             if (RT_FAILURE(rc))
                 break;
         }
-
         if (RT_SUCCESS(rc))
         {
-            /*
-             * Init fundamental (sub-)components - STAM, MMR3Heap and PDMLdr.
-             */
-            rc = STAMR3InitUVM(pUVM);
+            rc = RTCritSectInit(&pUVM->vm.s.AtStateCritSect);
             if (RT_SUCCESS(rc))
             {
-                rc = MMR3InitUVM(pUVM);
+                rc = RTCritSectInit(&pUVM->vm.s.AtErrorCritSect);
                 if (RT_SUCCESS(rc))
                 {
-                    rc = PDMR3InitUVM(pUVM);
+                    /*
+                     * Init fundamental (sub-)components - STAM, MMR3Heap and PDMLdr.
+                     */
+                    rc = STAMR3InitUVM(pUVM);
                     if (RT_SUCCESS(rc))
                     {
-                        /*
-                         * Start the emulation threads for all VMCPUs.
-                         */
-                        for (i = 0; i < cCpus; i++)
-                        {
-                            rc = RTThreadCreateF(&pUVM->aCpus[i].vm.s.ThreadEMT, vmR3EmulationThread, &pUVM->aCpus[i], _1M,
-                                                 RTTHREADTYPE_EMULATION, RTTHREADFLAGS_WAITABLE,
-                                                 cCpus > 1 ? "EMT-%u" : "EMT", i);
-                            if (RT_FAILURE(rc))
-                                break;
-
-                            pUVM->aCpus[i].vm.s.NativeThreadEMT = RTThreadGetNative(pUVM->aCpus[i].vm.s.ThreadEMT);
-                        }
-
+                        rc = MMR3InitUVM(pUVM);
                         if (RT_SUCCESS(rc))
                         {
-                            *ppUVM = pUVM;
-                            return VINF_SUCCESS;
-                        }
+                            rc = PDMR3InitUVM(pUVM);
+                            if (RT_SUCCESS(rc))
+                            {
+                                /*
+                                 * Start the emulation threads for all VMCPUs.
+                                 */
+                                for (i = 0; i < cCpus; i++)
+                                {
+                                    rc = RTThreadCreateF(&pUVM->aCpus[i].vm.s.ThreadEMT, vmR3EmulationThread, &pUVM->aCpus[i], _1M,
+                                                         RTTHREADTYPE_EMULATION, RTTHREADFLAGS_WAITABLE,
+                                                         cCpus > 1 ? "EMT-%u" : "EMT", i);
+                                    if (RT_FAILURE(rc))
+                                        break;
 
-                        /* bail out. */
-                        while (i-- > 0)
-                        {
-                            /** @todo rainy day: terminate the EMTs. */
+                                    pUVM->aCpus[i].vm.s.NativeThreadEMT = RTThreadGetNative(pUVM->aCpus[i].vm.s.ThreadEMT);
+                                }
+
+                                if (RT_SUCCESS(rc))
+                                {
+                                    *ppUVM = pUVM;
+                                    return VINF_SUCCESS;
+                                }
+
+                                /* bail out. */
+                                while (i-- > 0)
+                                {
+                                    /** @todo rainy day: terminate the EMTs. */
+                                }
+                                PDMR3TermUVM(pUVM);
+                            }
+                            MMR3TermUVM(pUVM);
                         }
-                        PDMR3TermUVM(pUVM);
+                        STAMR3TermUVM(pUVM);
                     }
-                    MMR3TermUVM(pUVM);
+                    RTCritSectDelete(&pUVM->vm.s.AtErrorCritSect);
                 }
-                STAMR3TermUVM(pUVM);
+                RTCritSectDelete(&pUVM->vm.s.AtStateCritSect);
             }
-            for (i = 0; i < cCpus; i++)
-            {
-                RTSemEventDestroy(pUVM->aCpus[i].vm.s.EventSemWait);
-                pUVM->aCpus[i].vm.s.EventSemWait = NIL_RTSEMEVENT;
-            }
+        }
+        for (i = 0; i < cCpus; i++)
+        {
+            RTSemEventDestroy(pUVM->aCpus[i].vm.s.EventSemWait);
+            pUVM->aCpus[i].vm.s.EventSemWait = NIL_RTSEMEVENT;
         }
         RTTlsFree(pUVM->vm.s.idxTLS);
     }
-    RTMemFree(pUVM);
+    RTMemPageFree(pUVM);
     return rc;
 }
 
@@ -563,18 +566,18 @@ static int vmR3CreateU(PUVM pUVM, uint32_t cCpus, PFNCFGMCONSTRUCTOR pfnCFGMCons
         AssertRelease(VALID_PTR(pVM));
         AssertRelease(pVM->pVMR0 == CreateVMReq.pVMR0);
         AssertRelease(pVM->pSession == pUVM->vm.s.pSession);
-        AssertRelease(pVM->cCPUs == cCpus);
+        AssertRelease(pVM->cCpus == cCpus);
         AssertRelease(pVM->offVMCPU == RT_UOFFSETOF(VM, aCpus));
 
-        Log(("VMR3Create: Created pUVM=%p pVM=%p pVMR0=%p hSelf=%#x cCPUs=%RU32\n",
-             pUVM, pVM, pVM->pVMR0, pVM->hSelf, pVM->cCPUs));
+        Log(("VMR3Create: Created pUVM=%p pVM=%p pVMR0=%p hSelf=%#x cCpus=%RU32\n",
+             pUVM, pVM, pVM->pVMR0, pVM->hSelf, pVM->cCpus));
 
         /*
          * Initialize the VM structure and our internal data (VMINT).
          */
         pVM->pUVM = pUVM;
 
-        for (uint32_t i = 0; i < pVM->cCPUs; i++)
+        for (VMCPUID i = 0; i < pVM->cCpus; i++)
         {
             pVM->aCpus[i].pUVCpu        = &pUVM->aCpus[i];
             pVM->aCpus[i].idCpu         = i;
@@ -618,7 +621,7 @@ static int vmR3CreateU(PUVM pUVM, uint32_t cCpus, PFNCFGMCONSTRUCTOR pfnCFGMCons
                 AssertLogRelMsgRC(rc, ("Configuration error: Querying \"NumCPUs\" as integer failed, rc=%Rrc\n", rc));
                 if (RT_SUCCESS(rc) && cCPUsCfg != cCpus)
                 {
-                    AssertLogRelMsgFailed(("Configuration error: \"NumCPUs\"=%RU32 and VMR3CreateVM::cCPUs=%RU32 does not match!\n",
+                    AssertLogRelMsgFailed(("Configuration error: \"NumCPUs\"=%RU32 and VMR3CreateVM::cCpus=%RU32 does not match!\n",
                                            cCPUsCfg, cCpus));
                     rc = VERR_INVALID_PARAMETER;
                 }
@@ -676,7 +679,7 @@ static int vmR3CreateU(PUVM pUVM, uint32_t cCpus, PFNCFGMCONSTRUCTOR pfnCFGMCons
                                         /*
                                          * Set the state and link into the global list.
                                          */
-                                        vmR3SetState(pVM, VMSTATE_CREATED);
+                                        vmR3SetState(pVM, VMSTATE_CREATED, VMSTATE_CREATING);
                                         pUVM->pNext = g_pUVMsHead;
                                         g_pUVMsHead = pUVM;
 
@@ -764,14 +767,9 @@ static int vmR3InitRing3(PVM pVM, PUVM pUVM)
     /*
      * Register the other EMTs with GVM.
      */
-    for (VMCPUID idCpu = 1; idCpu < pVM->cCPUs; idCpu++)
+    for (VMCPUID idCpu = 1; idCpu < pVM->cCpus; idCpu++)
     {
-        PVMREQ pReq;
-        rc = VMR3ReqCallU(pUVM, idCpu, &pReq, RT_INDEFINITE_WAIT, 0 /*fFlags*/,
-                          (PFNRT)vmR3RegisterEMT, 2, pVM, idCpu);
-        if (RT_SUCCESS(rc))
-            rc = pReq->iStatus;
-        VMR3ReqFree(pReq);
+        rc = VMR3ReqCallWaitU(pUVM, idCpu, (PFNRT)vmR3RegisterEMT, 2, pVM, idCpu);
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -797,13 +795,13 @@ static int vmR3InitRing3(PVM pVM, PUVM pUVM)
         STAM_REG(pVM, &pVM->StatSwitcherJmpCR3,     STAMTYPE_PROFILE_ADV, "/VM/Switcher/ToGC/JmpCR3",   STAMUNIT_TICKS_PER_CALL,"Profiling switching to GC.");
         STAM_REG(pVM, &pVM->StatSwitcherRstrRegs,   STAMTYPE_PROFILE_ADV, "/VM/Switcher/ToGC/RstrRegs", STAMUNIT_TICKS_PER_CALL,"Profiling switching to GC.");
 
-        for (unsigned iCpu=0;iCpu<pVM->cCPUs;iCpu++)
+        for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
         {
-            rc = STAMR3RegisterF(pVM, &pUVM->aCpus[iCpu].vm.s.StatHaltYield,  STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling halted state yielding.", "/PROF/VM/CPU%d/Halt/Yield", iCpu);
+            rc = STAMR3RegisterF(pVM, &pUVM->aCpus[idCpu].vm.s.StatHaltYield,  STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling halted state yielding.", "/PROF/VM/CPU%d/Halt/Yield", idCpu);
             AssertRC(rc);
-            rc = STAMR3RegisterF(pVM, &pUVM->aCpus[iCpu].vm.s.StatHaltBlock,  STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling halted state blocking.", "/PROF/VM/CPU%d/Halt/Block", iCpu);
+            rc = STAMR3RegisterF(pVM, &pUVM->aCpus[idCpu].vm.s.StatHaltBlock,  STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling halted state blocking.", "/PROF/VM/CPU%d/Halt/Block", idCpu);
             AssertRC(rc);
-            rc = STAMR3RegisterF(pVM, &pUVM->aCpus[iCpu].vm.s.StatHaltTimers, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling halted state timer tasks.", "/PROF/VM/CPU%d/Halt/Timers", iCpu);
+            rc = STAMR3RegisterF(pVM, &pUVM->aCpus[idCpu].vm.s.StatHaltTimers, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling halted state timer tasks.", "/PROF/VM/CPU%d/Halt/Timers", idCpu);
             AssertRC(rc);
         }
 
@@ -812,6 +810,9 @@ static int vmR3InitRing3(PVM pVM, PUVM pUVM)
         STAM_REG(pVM, &pUVM->vm.s.StatReqAllocRecycled, STAMTYPE_COUNTER,  "/VM/Req/AllocRecycled",  STAMUNIT_OCCURENCES,        "Number of VMR3ReqAlloc returning a recycled packet.");
         STAM_REG(pVM, &pUVM->vm.s.StatReqFree,       STAMTYPE_COUNTER,     "/VM/Req/Free",           STAMUNIT_OCCURENCES,        "Number of VMR3ReqFree calls.");
         STAM_REG(pVM, &pUVM->vm.s.StatReqFreeOverflow, STAMTYPE_COUNTER,   "/VM/Req/FreeOverflow",   STAMUNIT_OCCURENCES,        "Number of times the request was actually freed.");
+        STAM_REG(pVM, &pUVM->vm.s.StatReqProcessed,  STAMTYPE_COUNTER,     "/VM/Req/Processed",      STAMUNIT_OCCURENCES,        "Number of processed requests (any queue).");
+        STAM_REG(pVM, &pUVM->vm.s.StatReqMoreThan1,  STAMTYPE_COUNTER,     "/VM/Req/MoreThan1",      STAMUNIT_OCCURENCES,        "Number of times there are more than one request on the queue when processing it.");
+        STAM_REG(pVM, &pUVM->vm.s.StatReqPushBackRaces, STAMTYPE_COUNTER,  "/VM/Req/PushBackRaces",  STAMUNIT_OCCURENCES,        "Number of push back races.");
 
         rc = CPUMR3Init(pVM);
         if (RT_SUCCESS(rc))
@@ -1140,302 +1141,583 @@ VMMR3DECL(void)   VMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 
 
 /**
- * Power on the virtual machine.
+ * EMT rendezvous worker for VMR3PowerOn.
  *
- * @returns 0 on success.
- * @returns VBox error code on failure.
- * @param   pVM         VM to power on.
- * @thread      Any thread.
- * @vmstate     Created
- * @vmstateto   Running
+ * @returns VERR_VM_INVALID_VM_STATE or VINF_SUCCESS. (This is a strict return
+ *          code, see FNVMMEMTRENDEZVOUS.)
+ *
+ * @param   pVM             The VM handle.
+ * @param   pVCpu           The VMCPU handle of the EMT.
+ * @param   pvUser          Ignored.
  */
-VMMR3DECL(int)   VMR3PowerOn(PVM pVM)
+static DECLCALLBACK(VBOXSTRICTRC) vmR3PowerOn(PVM pVM, PVMCPU pVCpu, void *pvUser)
 {
-    LogFlow(("VMR3PowerOn: pVM=%p\n", pVM));
+    LogFlow(("vmR3PowerOn: pVM=%p pVCpu=%p/#%u\n", pVM, pVCpu, pVCpu->idCpu));
+    Assert(!pvUser); NOREF(pvUser);
 
     /*
-     * Validate input.
+     * The first thread thru here tries to change the state.  We shouldn't be
+     * called again if this fails.
      */
-    if (!pVM)
+    if (pVCpu->idCpu == pVM->cCpus - 1)
     {
-        AssertMsgFailed(("Invalid VM pointer\n"));
-        return VERR_INVALID_PARAMETER;
+        int rc = vmR3TrySetState(pVM, "VMR3PowerOn", 1, VMSTATE_POWERING_ON, VMSTATE_CREATED);
+        if (RT_FAILURE(rc))
+            return rc;
     }
 
-    /*
-     * Request the operation in EMT (in order as VCPU 0 does all the work)
-     */
-    PVMREQ pReq;
-    int rc = VMR3ReqCall(pVM, VMCPUID_ALL, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3PowerOn, 1, pVM);
-    if (RT_SUCCESS(rc))
-    {
-        rc = pReq->iStatus;
-        VMR3ReqFree(pReq);
-    }
-
-    LogFlow(("VMR3PowerOn: returns %Rrc\n", rc));
-    return rc;
-}
-
-
-/**
- * Power on the virtual machine.
- *
- * @returns 0 on success.
- * @returns VBox error code on failure.
- * @param   pVM         VM to power on.
- * @thread  EMT
- */
-static DECLCALLBACK(int) vmR3PowerOn(PVM pVM)
-{
-    LogFlow(("vmR3PowerOn: pVM=%p\n", pVM));
+    VMSTATE enmVMState = VMR3GetState(pVM);
+    AssertMsgReturn(enmVMState == VMSTATE_POWERING_ON,
+                    ("%s\n", VMR3GetStateName(enmVMState)),
+                    VERR_INTERNAL_ERROR_4);
 
     /*
-     * EMT(0) does the actual power on work *before* the other EMTs
-     * get here, they just need to set their state to STARTED so they
-     * get out of the EMT loop and into EM.
+     * All EMTs changes their state to started.
      */
-    PVMCPU pVCpu = VMMGetCpu(pVM);
     VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED);
-    if (pVCpu->idCpu != 0)
-        return VINF_SUCCESS;
 
     /*
-     * Validate input.
+     * EMT(0) is last thru here and it will make the notification calls
+     * and advance the state.
      */
-    if (pVM->enmVMState != VMSTATE_CREATED)
+    if (pVCpu->idCpu == 0)
     {
-        AssertMsgFailed(("Invalid VM state %d\n", pVM->enmVMState));
-        return VERR_VM_INVALID_VM_STATE;
+        PDMR3PowerOn(pVM);
+        vmR3SetState(pVM, VMSTATE_RUNNING, VMSTATE_POWERING_ON);
     }
-
-    /*
-     * Change the state, notify the components and resume the execution.
-     */
-    vmR3SetState(pVM, VMSTATE_RUNNING);
-    PDMR3PowerOn(pVM);
 
     return VINF_SUCCESS;
 }
 
 
 /**
- * Suspends a running VM.
+ * Powers on the virtual machine.
  *
- * @returns 0 on success.
- * @returns VBox error code on failure.
- * @param   pVM     VM to suspend.
+ * @returns VBox status code.
+ *
+ * @param   pVM         The VM to power on.
+ *
  * @thread      Any thread.
- * @vmstate     Running
- * @vmstateto   Suspended
+ * @vmstate     Created
+ * @vmstateto   PoweringOn+Running
  */
-VMMR3DECL(int) VMR3Suspend(PVM pVM)
+VMMR3DECL(int) VMR3PowerOn(PVM pVM)
 {
-    LogFlow(("VMR3Suspend: pVM=%p\n", pVM));
+    LogFlow(("VMR3PowerOn: pVM=%p\n", pVM));
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
     /*
-     * Validate input.
+     * Gather all the EMTs to reduce the init TSC drift and keep
+     * the state changing APIs a bit uniform.
      */
-    if (!pVM)
-    {
-        AssertMsgFailed(("Invalid VM pointer\n"));
-        return VERR_INVALID_PARAMETER;
-    }
-
-    /*
-     * Request the operation in EMT. (in reverse order as VCPU 0 does the actual work)
-     */
-    PVMREQ pReq = NULL;
-    int rc = VMR3ReqCall(pVM, VMCPUID_ALL_REVERSE, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3Suspend, 1, pVM);
-    if (RT_SUCCESS(rc))
-    {
-        rc = pReq->iStatus;
-        VMR3ReqFree(pReq);
-    }
-    else
-        Assert(pReq == NULL);
-
-    LogFlow(("VMR3Suspend: returns %Rrc\n", rc));
+    int rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_DESCENDING | VMMEMTRENDEZVOUS_FLAGS_STOP_ON_ERROR,
+                                vmR3PowerOn, NULL);
+    LogFlow(("VMR3PowerOn: returns %Rrc\n", rc));
     return rc;
 }
 
 
 /**
- * Suspends a running VM and prevent state saving until the VM is resumed or stopped.
+ * Does the suspend notifications.
  *
- * @returns 0 on success.
- * @returns VBox error code on failure.
- * @param   pVM     VM to suspend.
- * @thread      Any thread.
- * @vmstate     Running
- * @vmstateto   Suspended
+ * @param  pVM      The VM handle.
+ * @thread  EMT(0)
  */
-VMMR3DECL(int) VMR3SuspendNoSave(PVM pVM)
+static void vmR3SuspendDoWork(PVM pVM)
 {
-    pVM->vm.s.fPreventSaveState = true;
-    return VMR3Suspend(pVM);
+    PDMR3Suspend(pVM);
 }
 
 
 /**
- * Suspends a running VM.
+ * EMT rendezvous worker for VMR3Suspend.
  *
- * @returns 0 on success.
- * @returns VBox error code on failure.
- * @param   pVM     VM to suspend.
- * @thread  EMT
+ * @returns VERR_VM_INVALID_VM_STATE or VINF_EM_SUSPEND. (This is a strict
+ *          return code, see FNVMMEMTRENDEZVOUS.)
+ *
+ * @param   pVM             The VM handle.
+ * @param   pVCpu           The VMCPU handle of the EMT.
+ * @param   pvUser          Ignored.
  */
-static DECLCALLBACK(int) vmR3Suspend(PVM pVM)
+static DECLCALLBACK(VBOXSTRICTRC) vmR3Suspend(PVM pVM, PVMCPU pVCpu, void *pvUser)
 {
-    LogFlow(("vmR3Suspend: pVM=%p\n", pVM));
+    LogFlow(("vmR3Suspend: pVM=%p pVCpu=%p/#%u\n", pVM, pVCpu, pVCpu->idCpu));
+    Assert(!pvUser); NOREF(pvUser);
 
     /*
-     * Validate input.
+     * The first EMT switches the state to suspending.  If this fails because
+     * something was racing us in one way or the other, there will be no more
+     * calls and thus the state assertion below is not going to annoy anyone.
      */
-    if (pVM->enmVMState != VMSTATE_RUNNING)
+    if (pVCpu->idCpu == pVM->cCpus - 1)
     {
-        AssertMsgFailed(("Invalid VM state %d\n", pVM->enmVMState));
-        return VERR_VM_INVALID_VM_STATE;
+        int rc = vmR3TrySetState(pVM, "VMR3Suspend", 2,
+                                 VMSTATE_SUSPENDING,        VMSTATE_RUNNING,
+                                 VMSTATE_SUSPENDING_EXT_LS, VMSTATE_RUNNING_LS);
+        if (RT_FAILURE(rc))
+            return rc;
     }
 
-    PVMCPU pVCpu = VMMGetCpu(pVM);
-    /* Only VCPU 0 does the actual work (*after* all the other CPUs has been here). */
-    if (pVCpu->idCpu != 0)
-        return VINF_EM_SUSPEND;
+    VMSTATE enmVMState = VMR3GetState(pVM);
+    AssertMsgReturn(    enmVMState == VMSTATE_SUSPENDING
+                    ||  enmVMState == VMSTATE_SUSPENDING_EXT_LS,
+                    ("%s\n", VMR3GetStateName(enmVMState)),
+                    VERR_INTERNAL_ERROR_4);
 
     /*
-     * Change the state, notify the components and resume the execution.
+     * EMT(0) does the actually suspending *after* all the other CPUs have
+     * been thru here.
      */
-    vmR3SetState(pVM, VMSTATE_SUSPENDED);
-    PDMR3Suspend(pVM);
+    if (pVCpu->idCpu == 0)
+    {
+        vmR3SuspendDoWork(pVM);
+
+        int rc = vmR3TrySetState(pVM, "VMR3Suspend", 2,
+                                 VMSTATE_SUSPENDED,        VMSTATE_SUSPENDING,
+                                 VMSTATE_SUSPENDED_EXT_LS, VMSTATE_SUSPENDING_EXT_LS);
+        if (RT_FAILURE(rc))
+            return VERR_INTERNAL_ERROR_3;
+    }
 
     return VINF_EM_SUSPEND;
 }
 
 
 /**
- * Resume VM execution.
+ * Suspends a running VM.
  *
- * @returns 0 on success.
- * @returns VBox error code on failure.
- * @param   pVM         The VM to resume.
+ * @returns VBox status code. When called on EMT, this will be a strict status
+ *          code that has to be propagated up the call stack.
+ *
+ * @param   pVM     The VM to suspend.
+ *
  * @thread      Any thread.
- * @vmstate     Suspended
- * @vmstateto   Running
+ * @vmstate     Running or RunningLS
+ * @vmstateto   Suspending + Suspended or SuspendingExtLS + SuspendedExtLS
  */
-VMMR3DECL(int)   VMR3Resume(PVM pVM)
+VMMR3DECL(int) VMR3Suspend(PVM pVM)
 {
-    LogFlow(("VMR3Resume: pVM=%p\n", pVM));
+    LogFlow(("VMR3Suspend: pVM=%p\n", pVM));
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
     /*
-     * Validate input.
+     * Gather all the EMTs to make sure there are no races before
+     * changing the VM state.
      */
-    if (!pVM)
-    {
-        AssertMsgFailed(("Invalid VM pointer\n"));
-        return VERR_INVALID_PARAMETER;
-    }
-
-    /*
-     * Request the operation in EMT. (in VCPU order as VCPU 0 does the actual work)
-     */
-    PVMREQ pReq = NULL;
-    int rc = VMR3ReqCall(pVM, VMCPUID_ALL, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3Resume, 1, pVM);
-    if (RT_SUCCESS(rc))
-    {
-        rc = pReq->iStatus;
-        VMR3ReqFree(pReq);
-    }
-    else
-        Assert(pReq == NULL);
-
-    LogFlow(("VMR3Resume: returns %Rrc\n", rc));
+    int rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_DESCENDING | VMMEMTRENDEZVOUS_FLAGS_STOP_ON_ERROR,
+                                vmR3Suspend, NULL);
+    LogFlow(("VMR3Suspend: returns %Rrc\n", rc));
     return rc;
 }
 
 
 /**
- * Resume VM execution.
+ * EMT rendezvous worker for VMR3Resume.
  *
- * @returns 0 on success.
- * @returns VBox error code on failure.
- * @param   pVM         The VM to resume.
- * @thread  EMT
+ * @returns VERR_VM_INVALID_VM_STATE or VINF_EM_RESUME. (This is a strict
+ *          return code, see FNVMMEMTRENDEZVOUS.)
+ *
+ * @param   pVM             The VM handle.
+ * @param   pVCpu           The VMCPU handle of the EMT.
+ * @param   pvUser          Ignored.
  */
-static DECLCALLBACK(int) vmR3Resume(PVM pVM)
+static DECLCALLBACK(VBOXSTRICTRC) vmR3Resume(PVM pVM, PVMCPU pVCpu, void *pvUser)
 {
-    LogFlow(("vmR3Resume: pVM=%p\n", pVM));
-
-    PVMCPU pVCpu = VMMGetCpu(pVM);
-    /* Only VCPU 0 does the actual work (*before* the others wake up). */
-    if (pVCpu->idCpu != 0)
-        return VINF_EM_RESUME;
+    LogFlow(("vmR3Resume: pVM=%p pVCpu=%p/#%u\n", pVM, pVCpu, pVCpu->idCpu));
+    Assert(!pvUser); NOREF(pvUser);
 
     /*
-     * Validate input.
+     * The first thread thru here tries to change the state.  We shouldn't be
+     * called again if this fails.
      */
-    if (pVM->enmVMState != VMSTATE_SUSPENDED)
+    if (pVCpu->idCpu == pVM->cCpus - 1)
     {
-        AssertMsgFailed(("Invalid VM state %d\n", pVM->enmVMState));
-        return VERR_VM_INVALID_VM_STATE;
+        int rc = vmR3TrySetState(pVM, "VMR3Resume", 1, VMSTATE_RESUMING, VMSTATE_SUSPENDED);
+        if (RT_FAILURE(rc))
+            return rc;
     }
 
+    VMSTATE enmVMState = VMR3GetState(pVM);
+    AssertMsgReturn(enmVMState == VMSTATE_RESUMING,
+                    ("%s\n", VMR3GetStateName(enmVMState)),
+                    VERR_INTERNAL_ERROR_4);
+
+#if 0
     /*
-     * Change the state, notify the components and resume the execution.
+     * All EMTs changes their state to started.
      */
-    pVM->vm.s.fPreventSaveState = false;
-    vmR3SetState(pVM, VMSTATE_RUNNING);
-    PDMR3Resume(pVM);
+    VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED);
+#endif
+
+    /*
+     * EMT(0) is last thru here and it will make the notification calls
+     * and advance the state.
+     */
+    if (pVCpu->idCpu == 0)
+    {
+        PDMR3Resume(pVM);
+        vmR3SetState(pVM, VMSTATE_RUNNING, VMSTATE_RESUMING);
+        pVM->vm.s.fTeleportedAndNotFullyResumedYet = false;
+    }
 
     return VINF_EM_RESUME;
 }
 
 
 /**
- * Save current VM state.
+ * Resume VM execution.
  *
- * To save and terminate the VM, the VM must be suspended before the call.
+ * @returns VBox status code. When called on EMT, this will be a strict status
+ *          code that has to be propagated up the call stack.
  *
- * @returns 0 on success.
- * @returns VBox error code on failure.
- * @param   pVM             VM which state should be saved.
- * @param   pszFilename     Name of the save state file.
- * @param   pfnProgress     Progress callback. Optional.
- * @param   pvUser          User argument for the progress callback.
+ * @param   pVM         The VM to resume.
+ *
  * @thread      Any thread.
  * @vmstate     Suspended
- * @vmstateto   Unchanged state.
+ * @vmstateto   Running
  */
-VMMR3DECL(int) VMR3Save(PVM pVM, const char *pszFilename, PFNVMPROGRESS pfnProgress, void *pvUser)
+VMMR3DECL(int) VMR3Resume(PVM pVM)
 {
-    LogFlow(("VMR3Save: pVM=%p pszFilename=%p:{%s} pfnProgress=%p pvUser=%p\n", pVM, pszFilename, pszFilename, pfnProgress, pvUser));
+    LogFlow(("VMR3Resume: pVM=%p\n", pVM));
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+
+    /*
+     * Gather all the EMTs to make sure there are no races before
+     * changing the VM state.
+     */
+    int rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_DESCENDING | VMMEMTRENDEZVOUS_FLAGS_STOP_ON_ERROR,
+                                vmR3Resume, NULL);
+    LogFlow(("VMR3Resume: returns %Rrc\n", rc));
+    return rc;
+}
+
+
+/**
+ * EMT rendezvous worker for VMR3Save and VMR3Teleport that suspends the VM
+ * after the live step has been completed.
+ *
+ * @returns VERR_VM_INVALID_VM_STATE or VINF_EM_RESUME. (This is a strict
+ *          return code, see FNVMMEMTRENDEZVOUS.)
+ *
+ * @param   pVM             The VM handle.
+ * @param   pVCpu           The VMCPU handle of the EMT.
+ * @param   pvUser          The pfSuspended argument of vmR3SaveTeleport.
+ */
+static DECLCALLBACK(VBOXSTRICTRC) vmR3LiveDoSuspend(PVM pVM, PVMCPU pVCpu, void *pvUser)
+{
+    LogFlow(("vmR3LiveDoSuspend: pVM=%p pVCpu=%p/#%u\n", pVM, pVCpu, pVCpu->idCpu));
+    bool *pfSuspended = (bool *)pvUser;
+
+    /*
+     * The first thread thru here tries to change the state.  We shouldn't be
+     * called again if this fails.
+     */
+    if (pVCpu->idCpu == pVM->cCpus - 1U)
+    {
+        PUVM     pUVM = pVM->pUVM;
+        int      rc;
+
+        RTCritSectEnter(&pUVM->vm.s.AtStateCritSect);
+        VMSTATE enmVMState = pVM->enmVMState;
+        switch (enmVMState)
+        {
+            case VMSTATE_RUNNING_LS:
+                vmR3SetStateLocked(pVM, pUVM, VMSTATE_SUSPENDING_LS, VMSTATE_RUNNING_LS);
+                rc = VINF_SUCCESS;
+                break;
+
+            case VMSTATE_SUSPENDED_EXT_LS:
+            case VMSTATE_SUSPENDED_LS:          /* (via reset) */
+                rc = VINF_SUCCESS;
+                break;
+
+            case VMSTATE_DEBUGGING_LS:
+                rc = VERR_TRY_AGAIN;
+                break;
+
+            case VMSTATE_OFF_LS:
+                vmR3SetStateLocked(pVM, pUVM, VMSTATE_OFF, VMSTATE_OFF_LS);
+                rc = VERR_SSM_LIVE_POWERED_OFF;
+                break;
+
+            case VMSTATE_FATAL_ERROR_LS:
+                vmR3SetStateLocked(pVM, pUVM, VMSTATE_FATAL_ERROR, VMSTATE_FATAL_ERROR_LS);
+                rc = VERR_SSM_LIVE_FATAL_ERROR;
+                break;
+
+            case VMSTATE_GURU_MEDITATION_LS:
+                vmR3SetStateLocked(pVM, pUVM, VMSTATE_GURU_MEDITATION, VMSTATE_GURU_MEDITATION_LS);
+                rc = VERR_SSM_LIVE_GURU_MEDITATION;
+                break;
+
+            case VMSTATE_POWERING_OFF_LS:
+            case VMSTATE_SUSPENDING_EXT_LS:
+            case VMSTATE_RESETTING_LS:
+            default:
+                AssertMsgFailed(("%s\n", VMR3GetStateName(enmVMState)));
+                rc = VERR_INTERNAL_ERROR_3;
+                break;
+        }
+        RTCritSectLeave(&pUVM->vm.s.AtStateCritSect);
+        if (RT_FAILURE(rc))
+        {
+            LogFlow(("vmR3LiveDoSuspend: returns %Rrc (state was %s)\n", rc, VMR3GetStateName(enmVMState)));
+            return rc;
+        }
+    }
+
+    VMSTATE enmVMState = VMR3GetState(pVM);
+    AssertMsgReturn(enmVMState == VMSTATE_SUSPENDING_LS,
+                    ("%s\n", VMR3GetStateName(enmVMState)),
+                    VERR_INTERNAL_ERROR_4);
+
+    /*
+     * Only EMT(0) have work to do since it's last thru here.
+     */
+    if (pVCpu->idCpu == 0)
+    {
+        vmR3SuspendDoWork(pVM);
+        int rc = vmR3TrySetState(pVM, "VMR3Suspend", 1,
+                                 VMSTATE_SUSPENDED_LS, VMSTATE_SUSPENDING_LS);
+        if (RT_FAILURE(rc))
+            return VERR_INTERNAL_ERROR_3;
+
+        *pfSuspended = true;
+    }
+
+    return VINF_EM_SUSPEND;
+}
+
+
+/**
+ * EMT rendezvous worker that VMR3Save and VMR3Teleport uses to clean up a
+ * SSMR3LiveDoStep1 failure.
+ *
+ * Doing this as a rendezvous operation avoids all annoying transition
+ * states.
+ *
+ * @returns VERR_VM_INVALID_VM_STATE, VINF_SUCCESS or some specific VERR_SSM_*
+ *          status code. (This is a strict return code, see FNVMMEMTRENDEZVOUS.)
+ *
+ * @param   pVM             The VM handle.
+ * @param   pVCpu           The VMCPU handle of the EMT.
+ * @param   pvUser          The pfSuspended argument of vmR3SaveTeleport.
+ */
+static DECLCALLBACK(VBOXSTRICTRC) vmR3LiveDoStep1Cleanup(PVM pVM, PVMCPU pVCpu, void *pvUser)
+{
+    LogFlow(("vmR3LiveDoStep1Cleanup: pVM=%p pVCpu=%p/#%u\n", pVM, pVCpu, pVCpu->idCpu));
+    bool *pfSuspended = (bool *)pvUser;
+    NOREF(pVCpu);
+
+    int rc = vmR3TrySetState(pVM, "vmR3LiveDoStep1Cleanup", 6,
+                             VMSTATE_OFF,               VMSTATE_OFF_LS,                     /* 1 */
+                             VMSTATE_FATAL_ERROR,       VMSTATE_FATAL_ERROR_LS,             /* 2 */
+                             VMSTATE_GURU_MEDITATION,   VMSTATE_GURU_MEDITATION_LS,         /* 3 */
+                             VMSTATE_SUSPENDED,         VMSTATE_SUSPENDED_LS,               /* 4 */
+                             VMSTATE_SUSPENDED,         VMSTATE_SAVING,
+                             VMSTATE_SUSPENDED,         VMSTATE_SUSPENDED_EXT_LS,
+                             VMSTATE_RUNNING,           VMSTATE_RUNNING_LS,
+                             VMSTATE_DEBUGGING,         VMSTATE_DEBUGGING_LS);
+    if (rc == 1)
+        rc = VERR_SSM_LIVE_POWERED_OFF;
+    else if (rc == 2)
+        rc = VERR_SSM_LIVE_FATAL_ERROR;
+    else if (rc == 3)
+        rc = VERR_SSM_LIVE_GURU_MEDITATION;
+    else if (rc == 4)
+    {
+        *pfSuspended = true;
+        rc = VINF_SUCCESS;
+    }
+    else if (rc > 0)
+        rc = VINF_SUCCESS;
+    return rc;
+}
+
+
+/**
+ * EMT(0) worker for VMR3Save and VMR3Teleport that completes the live save.
+ *
+ * @returns VBox status code.
+ * @retval  VINF_SSM_LIVE_SUSPENDED if VMR3Suspend was called.
+ *
+ * @param   pVM             The VM handle.
+ * @param   pSSM            The handle of saved state operation.
+ *
+ * @thread  EMT(0)
+ */
+static DECLCALLBACK(int) vmR3LiveDoStep2(PVM pVM, PSSMHANDLE pSSM)
+{
+    LogFlow(("vmR3LiveDoStep2: pVM=%p pSSM=%p\n", pVM, pSSM));
+    VM_ASSERT_EMT0(pVM);
+
+    /*
+     * Advance the state and mark if VMR3Suspend was called.
+     */
+    int rc = VINF_SUCCESS;
+    VMSTATE enmVMState = VMR3GetState(pVM);
+    if (enmVMState == VMSTATE_SUSPENDED_LS)
+        vmR3SetState(pVM, VMSTATE_SAVING, VMSTATE_SUSPENDED_LS);
+    else
+    {
+        if (enmVMState != VMSTATE_SAVING)
+            vmR3SetState(pVM, VMSTATE_SAVING, VMSTATE_SUSPENDED_EXT_LS);
+        rc = VINF_SSM_LIVE_SUSPENDED;
+    }
+
+    /*
+     * Finish up and release the handle. Careful with the status codes.
+     */
+    int rc2 = SSMR3LiveDoStep2(pSSM);
+    if (rc == VINF_SUCCESS || (RT_FAILURE(rc2) && RT_SUCCESS(rc)))
+        rc = rc2;
+
+    rc2 = SSMR3LiveDone(pSSM);
+    if (rc == VINF_SUCCESS || (RT_FAILURE(rc2) && RT_SUCCESS(rc)))
+        rc = rc2;
+
+    /*
+     * Advance to the final state and return.
+     */
+    vmR3SetState(pVM, VMSTATE_SUSPENDED, VMSTATE_SAVING);
+    Assert(rc > VINF_EM_LAST || rc < VINF_EM_FIRST);
+    return rc;
+}
+
+
+/**
+ * Worker for vmR3SaveTeleport that validates the state and calls SSMR3Save or
+ * SSMR3LiveSave.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pVM             The VM handle.
+ * @param   cMsMaxDowntime  The maximum downtime given as milliseconds.
+ * @param   pszFilename     The name of the file.  NULL if pStreamOps is used.
+ * @param   pStreamOps      The stream methods.  NULL if pszFilename is used.
+ * @param   pvStreamOpsUser The user argument to the stream methods.
+ * @param   enmAfter        What to do afterwards.
+ * @param   pfnProgress     Progress callback. Optional.
+ * @param   pvProgressUser  User argument for the progress callback.
+ * @param   ppSSM           Where to return the saved state handle in case of a
+ *                          live snapshot scenario.
+ * @thread  EMT
+ */
+static DECLCALLBACK(int) vmR3Save(PVM pVM, uint32_t cMsMaxDowntime, const char *pszFilename, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser,
+                                  SSMAFTER enmAfter, PFNVMPROGRESS pfnProgress, void *pvProgressUser, PSSMHANDLE *ppSSM)
+{
+    LogFlow(("vmR3Save: pVM=%p cMsMaxDowntime=%u pszFilename=%p:{%s} pStreamOps=%p pvStreamOpsUser=%p enmAfter=%d pfnProgress=%p pvProgressUser=%p ppSSM=%p\n",
+             pVM, cMsMaxDowntime, pszFilename, pszFilename, pStreamOps, pvStreamOpsUser, enmAfter, pfnProgress, pvProgressUser, ppSSM));
 
     /*
      * Validate input.
      */
-    if (!pVM)
-    {
-        AssertMsgFailed(("Invalid VM pointer\n"));
-        return VERR_INVALID_PARAMETER;
-    }
-    if (!pszFilename)
-    {
-        AssertMsgFailed(("Must specify a filename to save the state to, wise guy!\n"));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertPtrNull(pszFilename);
+    AssertPtrNull(pStreamOps);
+    AssertPtr(pVM);
+    Assert(   enmAfter == SSMAFTER_DESTROY
+           || enmAfter == SSMAFTER_CONTINUE
+           || enmAfter == SSMAFTER_TELEPORT);
+    AssertPtr(ppSSM);
+    *ppSSM = NULL;
 
     /*
-     * Request the operation in EMT.
+     * Change the state and perform/start the saving.
      */
-    PVMREQ pReq;
-    int rc = VMR3ReqCall(pVM, 0 /* VCPU 0 */, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3Save, 4, pVM, pszFilename, pfnProgress, pvUser);
-    if (RT_SUCCESS(rc))
+    int rc = vmR3TrySetState(pVM, "VMR3Save", 2,
+                             VMSTATE_SAVING,     VMSTATE_SUSPENDED,
+                             VMSTATE_RUNNING_LS, VMSTATE_RUNNING);
+    if (rc == 1 && enmAfter != SSMAFTER_TELEPORT)
     {
-        rc = pReq->iStatus;
-        VMR3ReqFree(pReq);
+        Assert(!pStreamOps);
+        rc = SSMR3Save(pVM, pszFilename, enmAfter, pfnProgress, pvProgressUser);
+        vmR3SetState(pVM, VMSTATE_SUSPENDED, VMSTATE_SAVING);
+    }
+    else if (rc == 2 || enmAfter == SSMAFTER_TELEPORT)
+    {
+        if (enmAfter == SSMAFTER_TELEPORT)
+            pVM->vm.s.fTeleportedAndNotFullyResumedYet = true;
+        rc = SSMR3LiveSave(pVM, cMsMaxDowntime, pszFilename, pStreamOps, pvStreamOpsUser,
+                           enmAfter, pfnProgress, pvProgressUser, ppSSM);
+        /* (We're not subject to cancellation just yet.) */
+    }
+    else
+        Assert(RT_FAILURE(rc));
+    return rc;
+}
+
+
+/**
+ * Commmon worker for VMR3Save and VMR3Teleport.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pVM             The VM handle.
+ * @param   cMsMaxDowntime      The maximum downtime given as milliseconds.
+ * @param   pszFilename     The name of the file.  NULL if pStreamOps is used.
+ * @param   pStreamOps      The stream methods.  NULL if pszFilename is used.
+ * @param   pvStreamOpsUser The user argument to the stream methods.
+ * @param   enmAfter        What to do afterwards.
+ * @param   pfnProgress     Progress callback. Optional.
+ * @param   pvProgressUser  User argument for the progress callback.
+ * @param   pfSuspended     Set if we suspended the VM.
+ *
+ * @thread  Non-EMT
+ */
+static int vmR3SaveTeleport(PVM pVM, uint32_t cMsMaxDowntime,
+                            const char *pszFilename, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser,
+                            SSMAFTER enmAfter, PFNVMPROGRESS pfnProgress, void *pvProgressUser, bool *pfSuspended)
+{
+    /*
+     * Request the operation in EMT(0).
+     */
+    PSSMHANDLE pSSM;
+    int rc = VMR3ReqCallWaitU(pVM->pUVM, 0 /*idDstCpu*/,
+                              (PFNRT)vmR3Save, 9, pVM, cMsMaxDowntime, pszFilename, pStreamOps, pvStreamOpsUser,
+                              enmAfter, pfnProgress, pvProgressUser, &pSSM);
+    if (    RT_SUCCESS(rc)
+        &&  pSSM)
+    {
+        /*
+         * Live snapshot.
+         *
+         * The state handling here is kind of tricky, doing it on EMT(0) helps
+         * a bit. See the VMSTATE diagram for details.
+         */
+        rc = SSMR3LiveDoStep1(pSSM);
+        if (RT_SUCCESS(rc))
+        {
+            if (VMR3GetState(pVM) != VMSTATE_SAVING)
+                for (;;)
+                {
+                    /* Try suspend the VM. */
+                    rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_DESCENDING | VMMEMTRENDEZVOUS_FLAGS_STOP_ON_ERROR,
+                                            vmR3LiveDoSuspend, pfSuspended);
+                    if (rc != VERR_TRY_AGAIN)
+                        break;
+
+                    /* Wait for the state to change. */
+                    RTThreadSleep(250); /** @todo Live Migration: fix this polling wait by some smart use of multiple release event  semaphores.. */
+                }
+            if (RT_SUCCESS(rc))
+                rc = VMR3ReqCallWaitU(pVM->pUVM, 0 /*idDstCpu*/, (PFNRT)vmR3LiveDoStep2, 2, pVM, pSSM);
+            else
+            {
+                int rc2 = VMR3ReqCallWaitU(pVM->pUVM, 0 /*idDstCpu*/, (PFNRT)SSMR3LiveDone, 1, pSSM);
+                AssertMsg(rc2 == rc, ("%Rrc != %Rrc\n", rc2, rc));
+            }
+        }
+        else
+        {
+            int rc2 = VMR3ReqCallWaitU(pVM->pUVM, 0 /*idDstCpu*/, (PFNRT)SSMR3LiveDone, 1, pSSM);
+            AssertMsg(rc2 == rc, ("%Rrc != %Rrc\n", rc2, rc));
+
+            rc2 = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ONCE, vmR3LiveDoStep1Cleanup, pfSuspended);
+            if (RT_FAILURE(rc2) && rc == VERR_SSM_CANCELLED)
+                rc = rc2;
+        }
     }
 
-    LogFlow(("VMR3Save: returns %Rrc\n", rc));
     return rc;
 }
 
@@ -1443,141 +1725,163 @@ VMMR3DECL(int) VMR3Save(PVM pVM, const char *pszFilename, PFNVMPROGRESS pfnProgr
 /**
  * Save current VM state.
  *
- * To save and terminate the VM, the VM must be suspended before the call.
+ * Can be used for both saving the state and creating snapshots.
  *
- * @returns 0 on success.
- * @returns VBox error code on failure.
- * @param   pVM             VM which state should be saved.
- * @param   pszFilename     Name of the save state file.
- * @param   pfnProgress     Progress callback. Optional.
- * @param   pvUser          User argument for the progress callback.
- * @thread  EMT
+ * When called for a VM in the Running state, the saved state is created live
+ * and the VM is only suspended when the final part of the saving is preformed.
+ * The VM state will not be restored to Running in this case and it's up to the
+ * caller to call VMR3Resume if this is desirable.  (The rational is that the
+ * caller probably wish to reconfigure the disks before resuming the VM.)
+ *
+ * @returns VBox status code.
+ *
+ * @param   pVM                 The VM which state should be saved.
+ * @param   pszFilename         The name of the save state file.
+ * @param   fContinueAfterwards Whether continue execution afterwards or not.
+ *                              When in doubt, set this to true.
+ * @param   pfnProgress         Progress callback. Optional.
+ * @param   pvUser              User argument for the progress callback.
+ * @param   pfSuspended         Set if we suspended the VM.
+ *
+ * @thread      Non-EMT.
+ * @vmstate     Suspended or Running
+ * @vmstateto   Saving+Suspended or
+ *              RunningLS+SuspeningLS+SuspendedLS+Saving+Suspended.
  */
-static DECLCALLBACK(int) vmR3Save(PVM pVM, const char *pszFilename, PFNVMPROGRESS pfnProgress, void *pvUser)
+VMMR3DECL(int) VMR3Save(PVM pVM, const char *pszFilename, bool fContinueAfterwards,
+                        PFNVMPROGRESS pfnProgress, void *pvUser, bool *pfSuspended)
 {
-    LogFlow(("vmR3Save: pVM=%p pszFilename=%p:{%s} pfnProgress=%p pvUser=%p\n", pVM, pszFilename, pszFilename, pfnProgress, pvUser));
+    LogFlow(("VMR3Save: pVM=%p pszFilename=%p:{%s} fContinueAfterwards=%RTbool pfnProgress=%p pvUser=%p pfSuspended=%p\n",
+             pVM, pszFilename, pszFilename, fContinueAfterwards, pfnProgress, pvUser, pfSuspended));
 
     /*
      * Validate input.
      */
-    if (pVM->enmVMState != VMSTATE_SUSPENDED)
-    {
-        AssertMsgFailed(("Invalid VM state %d\n", pVM->enmVMState));
-        return VERR_VM_INVALID_VM_STATE;
-    }
-
-    /* If we are in an inconsistent state, then we don't allow state saving. */
-    if (pVM->vm.s.fPreventSaveState)
-    {
-        LogRel(("VMM: vmR3Save: saving the VM state is not allowed at this moment\n"));
-        return VERR_VM_SAVE_STATE_NOT_ALLOWED;
-    }
+    AssertPtr(pfSuspended);
+    *pfSuspended = false;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_OTHER_THREAD(pVM);
+    AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
+    AssertReturn(*pszFilename, VERR_INVALID_PARAMETER);
+    AssertPtrNullReturn(pfnProgress, VERR_INVALID_POINTER);
 
     /*
-     * Change the state and perform the save.
+     * Join paths with VMR3Teleport.
      */
-    vmR3SetState(pVM, VMSTATE_SAVING);
-    int rc = SSMR3Save(pVM, pszFilename, SSMAFTER_CONTINUE, pfnProgress,  pvUser);
-    vmR3SetState(pVM, VMSTATE_SUSPENDED);
-
+    SSMAFTER enmAfter = fContinueAfterwards ? SSMAFTER_CONTINUE : SSMAFTER_DESTROY;
+    int rc = vmR3SaveTeleport(pVM, 250 /*cMsMaxDowntime*/,
+                              pszFilename, NULL /*pStreamOps*/, NULL /*pvStreamOpsUser*/,
+                              enmAfter, pfnProgress, pvUser, pfSuspended);
+    LogFlow(("VMR3Save: returns %Rrc (*pfSuspended=%RTbool)\n", rc, *pfSuspended));
     return rc;
 }
 
 
 /**
- * Loads a new VM state.
+ * Teleport the VM (aka live migration).
  *
- * To restore a saved state on VM startup, call this function and then
- * resume the VM instead of powering it on.
+ * @returns VBox status code.
  *
- * @returns 0 on success.
- * @returns VBox error code on failure.
- * @param   pVM             VM which state should be saved.
- * @param   pszFilename     Name of the save state file.
- * @param   pfnProgress     Progress callback. Optional.
- * @param   pvUser          User argument for the progress callback.
- * @thread      Any thread.
- * @vmstate     Created, Suspended
- * @vmstateto   Suspended
+ * @param   pVM                 The VM which state should be saved.
+ * @param   cMsMaxDowntime      The maximum downtime given as milliseconds.
+ * @param   pStreamOps          The stream methods.
+ * @param   pvStreamOpsUser     The user argument to the stream methods.
+ * @param   pfnProgress         Progress callback. Optional.
+ * @param   pvProgressUser      User argument for the progress callback.
+ * @param   pfSuspended         Set if we suspended the VM.
+ *
+ * @thread      Non-EMT.
+ * @vmstate     Suspended or Running
+ * @vmstateto   Saving+Suspended or
+ *              RunningLS+SuspeningLS+SuspendedLS+Saving+Suspended.
  */
-VMMR3DECL(int)   VMR3Load(PVM pVM, const char *pszFilename, PFNVMPROGRESS pfnProgress, void *pvUser)
+VMMR3DECL(int) VMR3Teleport(PVM pVM, uint32_t cMsMaxDowntime, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser,
+                            PFNVMPROGRESS pfnProgress, void *pvProgressUser, bool *pfSuspended)
 {
-    LogFlow(("VMR3Load: pVM=%p pszFilename=%p:{%s} pfnProgress=%p pvUser=%p\n", pVM, pszFilename, pszFilename, pfnProgress, pvUser));
+    LogFlow(("VMR3Teleport: pVM=%p cMsMaxDowntime=%u pStreamOps=%p pvStreamOps=%p pfnProgress=%p pvProgressUser=%p\n",
+             pVM, cMsMaxDowntime, pStreamOps, pvStreamOpsUser, pfnProgress, pvProgressUser));
 
     /*
      * Validate input.
      */
-    if (!pVM)
-    {
-        AssertMsgFailed(("Invalid VM pointer\n"));
-        return VERR_INVALID_PARAMETER;
-    }
-    if (!pszFilename)
-    {
-        AssertMsgFailed(("Must specify a filename to load the state from, wise guy!\n"));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertPtr(pfSuspended);
+    *pfSuspended = false;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_OTHER_THREAD(pVM);
+    AssertPtrReturn(pStreamOps, VERR_INVALID_POINTER);
+    AssertPtrNullReturn(pfnProgress, VERR_INVALID_POINTER);
 
     /*
-     * Request the operation in EMT.
+     * Join paths with VMR3Save.
      */
-    PVMREQ pReq;
-    int rc = VMR3ReqCall(pVM, 0 /* VCPU 0 */, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3Load, 4, pVM, pszFilename, pfnProgress, pvUser);
-    if (RT_SUCCESS(rc))
-    {
-        rc = pReq->iStatus;
-        VMR3ReqFree(pReq);
-    }
-
-    LogFlow(("VMR3Load: returns %Rrc\n", rc));
+    int rc = vmR3SaveTeleport(pVM, cMsMaxDowntime,
+                              NULL /*pszFilename*/, pStreamOps, pvStreamOpsUser,
+                              SSMAFTER_TELEPORT, pfnProgress, pvProgressUser, pfSuspended);
+    LogFlow(("VMR3Teleport: returns %Rrc (*pfSuspended=%RTbool)\n", rc, *pfSuspended));
     return rc;
 }
 
 
+
 /**
- * Loads a new VM state.
+ * EMT(0) worker for VMR3LoadFromFile and VMR3LoadFromStream.
  *
- * To restore a saved state on VM startup, call this function and then
- * resume the VM instead of powering it on.
+ * @returns VBox status code.
  *
- * @returns 0 on success.
- * @returns VBox error code on failure.
- * @param   pVM             VM which state should be saved.
- * @param   pszFilename     Name of the save state file.
+ * @param   pVM             The VM handle.
+ * @param   pszFilename     The name of the file.  NULL if pStreamOps is used.
+ * @param   pStreamOps      The stream methods.  NULL if pszFilename is used.
+ * @param   pvStreamOpsUser The user argument to the stream methods.
  * @param   pfnProgress     Progress callback. Optional.
  * @param   pvUser          User argument for the progress callback.
+ * @param   fTeleporting    Indicates whether we're teleporting or not.
+ *
  * @thread  EMT.
  */
-static DECLCALLBACK(int) vmR3Load(PVM pVM, const char *pszFilename, PFNVMPROGRESS pfnProgress, void *pvUser)
+static DECLCALLBACK(int) vmR3Load(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser,
+                                  PFNVMPROGRESS pfnProgress, void *pvProgressUser, bool fTeleporting)
 {
-    LogFlow(("vmR3Load: pVM=%p pszFilename=%p:{%s} pfnProgress=%p pvUser=%p\n", pVM, pszFilename, pszFilename, pfnProgress, pvUser));
+    LogFlow(("vmR3Load: pVM=%p pszFilename=%p:{%s} pStreamOps=%p pvStreamOpsUser=%p pfnProgress=%p pvProgressUser=%p fTeleporting=%RTbool\n",
+             pVM, pszFilename, pszFilename, pStreamOps, pvStreamOpsUser, pfnProgress, pvProgressUser, fTeleporting));
 
     /*
-     * Validate input.
+     * Validate input (paranoia).
      */
-    if (    pVM->enmVMState != VMSTATE_SUSPENDED
-        &&  pVM->enmVMState != VMSTATE_CREATED)
-    {
-        AssertMsgFailed(("Invalid VM state %d\n", pVM->enmVMState));
-        return VMSetError(pVM, VERR_VM_INVALID_VM_STATE, RT_SRC_POS, N_("Invalid VM state (%s) for restoring state from '%s'"),
-                          VMR3GetStateName(pVM->enmVMState), pszFilename);
-    }
+    AssertPtr(pVM);
+    AssertPtrNull(pszFilename);
+    AssertPtrNull(pStreamOps);
+    AssertPtrNull(pfnProgress);
 
     /*
      * Change the state and perform the load.
+     *
+     * Always perform a relocation round afterwards to make sure hypervisor
+     * selectors and such are correct.
      */
-    vmR3SetState(pVM, VMSTATE_LOADING);
-    int rc = SSMR3Load(pVM, pszFilename, SSMAFTER_RESUME, pfnProgress,  pvUser);
+    int rc = vmR3TrySetState(pVM, "VMR3Load", 2,
+                             VMSTATE_LOADING, VMSTATE_CREATED,
+                             VMSTATE_LOADING, VMSTATE_SUSPENDED);
+    if (RT_FAILURE(rc))
+        return rc;
+    pVM->vm.s.fTeleportedAndNotFullyResumedYet = fTeleporting;
+
+    uint32_t cErrorsPriorToSave = VMR3GetErrorCount(pVM);
+    rc = SSMR3Load(pVM, pszFilename, pStreamOps, pvStreamOpsUser, SSMAFTER_RESUME, pfnProgress, pvProgressUser);
     if (RT_SUCCESS(rc))
     {
-        /* Not paranoia anymore; the saved guest might use different hypervisor selectors. We must call VMR3Relocate. */
-        VMR3Relocate(pVM, 0);
-        vmR3SetState(pVM, VMSTATE_SUSPENDED);
+        VMR3Relocate(pVM, 0 /*offDelta*/);
+        vmR3SetState(pVM, VMSTATE_SUSPENDED, VMSTATE_LOADING);
     }
     else
     {
-        vmR3SetState(pVM, VMSTATE_LOAD_FAILURE);
-        rc = VMSetError(pVM, rc, RT_SRC_POS, N_("Unable to restore the virtual machine's saved state from '%s'.  It may be damaged or from an older version of VirtualBox.  Please discard the saved state before starting the virtual machine"), pszFilename);
+        pVM->vm.s.fTeleportedAndNotFullyResumedYet = false;
+        vmR3SetState(pVM, VMSTATE_LOAD_FAILURE, VMSTATE_LOADING);
+        if (cErrorsPriorToSave == VMR3GetErrorCount(pVM))
+            rc = VMSetError(pVM, rc, RT_SRC_POS,
+                            N_("Unable to restore the virtual machine's saved state from '%s'. "
+                               "It may be damaged or from an older version of VirtualBox.  "
+                               "Please discard the saved state before starting the virtual machine"),
+                            pszFilename);
     }
 
     return rc;
@@ -1585,161 +1889,261 @@ static DECLCALLBACK(int) vmR3Load(PVM pVM, const char *pszFilename, PFNVMPROGRES
 
 
 /**
- * Power Off the VM.
+ * Loads a VM state into a newly created VM or a one that is suspended.
  *
- * @returns 0 on success.
- * @returns VBox error code on failure.
- * @param   pVM     VM which should be destroyed.
+ * To restore a saved state on VM startup, call this function and then resume
+ * the VM instead of powering it on.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pVM             The VM handle.
+ * @param   pszFilename     The name of the save state file.
+ * @param   pfnProgress     Progress callback. Optional.
+ * @param   pvUser          User argument for the progress callback.
+ *
+ * @thread      Any thread.
+ * @vmstate     Created, Suspended
+ * @vmstateto   Loading+Suspended
+ */
+VMMR3DECL(int) VMR3LoadFromFile(PVM pVM, const char *pszFilename, PFNVMPROGRESS pfnProgress, void *pvUser)
+{
+    LogFlow(("VMR3LoadFromFile: pVM=%p pszFilename=%p:{%s} pfnProgress=%p pvUser=%p\n",
+             pVM, pszFilename, pszFilename, pfnProgress, pvUser));
+
+    /*
+     * Validate input.
+     */
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
+
+    /*
+     * Forward the request to EMT(0).  No need to setup a rendezvous here
+     * since there is no execution taking place when this call is allowed.
+     */
+    int rc = VMR3ReqCallWaitU(pVM->pUVM, 0 /*idDstCpu*/, (PFNRT)vmR3Load, 7,
+                              pVM, pszFilename, (uintptr_t)NULL /*pStreamOps*/, (uintptr_t)NULL /*pvStreamOpsUser*/, pfnProgress, pvUser,
+                              false /*fTeleporting*/);
+    LogFlow(("VMR3LoadFromFile: returns %Rrc\n", rc));
+    return rc;
+}
+
+
+/**
+ * VMR3LoadFromFile for arbritrary file streams.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pVM             The VM handle.
+ * @param   pStreamOps      The stream methods.
+ * @param   pvStreamOpsUser The user argument to the stream methods.
+ * @param   pfnProgress     Progress callback. Optional.
+ * @param   pvProgressUser  User argument for the progress callback.
+ *
+ * @thread      Any thread.
+ * @vmstate     Created, Suspended
+ * @vmstateto   Loading+Suspended
+ */
+VMMR3DECL(int) VMR3LoadFromStream(PVM pVM, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser,
+                                  PFNVMPROGRESS pfnProgress, void *pvProgressUser)
+{
+    LogFlow(("VMR3LoadFromStream: pVM=%p pStreamOps=%p pvStreamOpsUser=%p pfnProgress=%p pvProgressUser=%p\n",
+             pVM, pStreamOps, pvStreamOpsUser, pfnProgress, pvProgressUser));
+
+    /*
+     * Validate input.
+     */
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertPtrReturn(pStreamOps, VERR_INVALID_POINTER);
+
+    /*
+     * Forward the request to EMT(0).  No need to setup a rendezvous here
+     * since there is no execution taking place when this call is allowed.
+     */
+    int rc = VMR3ReqCallWaitU(pVM->pUVM, 0 /*idDstCpu*/, (PFNRT)vmR3Load, 7,
+                              pVM, (uintptr_t)NULL /*pszFilename*/, pStreamOps, pvStreamOpsUser, pfnProgress, pvProgressUser,
+                              true /*fTeleporting*/);
+    LogFlow(("VMR3LoadFromStream: returns %Rrc\n", rc));
+    return rc;
+}
+
+
+/**
+ * EMT rendezvous worker for VMR3PowerOff.
+ *
+ * @returns VERR_VM_INVALID_VM_STATE or VINF_EM_OFF. (This is a strict
+ *          return code, see FNVMMEMTRENDEZVOUS.)
+ *
+ * @param   pVM             The VM handle.
+ * @param   pVCpu           The VMCPU handle of the EMT.
+ * @param   pvUser          Ignored.
+ */
+static DECLCALLBACK(VBOXSTRICTRC) vmR3PowerOff(PVM pVM, PVMCPU pVCpu, void *pvUser)
+{
+    LogFlow(("vmR3PowerOff: pVM=%p pVCpu=%p/#%u\n", pVM, pVCpu, pVCpu->idCpu));
+    Assert(!pvUser); NOREF(pvUser);
+
+    /*
+     * The first EMT thru here will change the state to PoweringOff.
+     */
+    if (pVCpu->idCpu == pVM->cCpus - 1)
+    {
+        int rc = vmR3TrySetState(pVM, "VMR3PowerOff", 10,
+                                 VMSTATE_POWERING_OFF,    VMSTATE_RUNNING,
+                                 VMSTATE_POWERING_OFF,    VMSTATE_SUSPENDED,
+                                 VMSTATE_POWERING_OFF,    VMSTATE_DEBUGGING,
+                                 VMSTATE_POWERING_OFF,    VMSTATE_LOAD_FAILURE,
+                                 VMSTATE_POWERING_OFF,    VMSTATE_GURU_MEDITATION,
+                                 VMSTATE_POWERING_OFF,    VMSTATE_FATAL_ERROR,
+                                 VMSTATE_POWERING_OFF,    VMSTATE_CREATED, /** @todo update the diagram! */
+                                 VMSTATE_POWERING_OFF_LS, VMSTATE_RUNNING_LS,
+                                 VMSTATE_POWERING_OFF_LS, VMSTATE_DEBUGGING_LS,
+                                 VMSTATE_POWERING_OFF_LS, VMSTATE_GURU_MEDITATION_LS,
+                                 VMSTATE_POWERING_OFF_LS, VMSTATE_FATAL_ERROR_LS);
+        if (RT_FAILURE(rc))
+            return rc;
+        if (rc >= 7)
+            SSMR3Cancel(pVM);
+    }
+
+    /*
+     * Check the state.
+     */
+    VMSTATE enmVMState = VMR3GetState(pVM);
+    AssertMsgReturn(   enmVMState == VMSTATE_POWERING_OFF
+                    || enmVMState == VMSTATE_POWERING_OFF_LS,
+                    ("%s\n", VMR3GetStateName(enmVMState)),
+                    VERR_VM_INVALID_VM_STATE);
+
+    /*
+     * EMT(0) does the actual power off work here *after* all the other EMTs
+     * have been thru and entered the STOPPED state.
+     */
+    VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STOPPED);
+    if (pVCpu->idCpu == 0)
+    {
+        /*
+         * For debugging purposes, we will log a summary of the guest state at this point.
+         */
+        if (enmVMState != VMSTATE_GURU_MEDITATION)
+        {
+            /** @todo SMP support? */
+            PVMCPU pVCpu = VMMGetCpu(pVM);
+
+            /** @todo make the state dumping at VMR3PowerOff optional. */
+            RTLogRelPrintf("****************** Guest state at power off ******************\n");
+            DBGFR3Info(pVM, "cpumguest", "verbose", DBGFR3InfoLogRelHlp());
+            RTLogRelPrintf("***\n");
+            DBGFR3Info(pVM, "mode", NULL, DBGFR3InfoLogRelHlp());
+            RTLogRelPrintf("***\n");
+            DBGFR3Info(pVM, "activetimers", NULL, DBGFR3InfoLogRelHlp());
+            RTLogRelPrintf("***\n");
+            DBGFR3Info(pVM, "gdt", NULL, DBGFR3InfoLogRelHlp());
+            /** @todo dump guest call stack. */
+#if 1 // "temporary" while debugging #1589
+            RTLogRelPrintf("***\n");
+            uint32_t esp = CPUMGetGuestESP(pVCpu);
+            if (    CPUMGetGuestSS(pVCpu) == 0
+                &&  esp < _64K)
+            {
+                uint8_t abBuf[PAGE_SIZE];
+                RTLogRelPrintf("***\n"
+                               "ss:sp=0000:%04x ", esp);
+                uint32_t Start = esp & ~(uint32_t)63;
+                int rc = PGMPhysSimpleReadGCPhys(pVM, abBuf, Start, 0x100);
+                if (RT_SUCCESS(rc))
+                    RTLogRelPrintf("0000:%04x TO 0000:%04x:\n"
+                                   "%.*Rhxd\n",
+                                   Start, Start + 0x100 - 1,
+                                   0x100, abBuf);
+                else
+                    RTLogRelPrintf("rc=%Rrc\n", rc);
+
+                /* grub ... */
+                if (esp < 0x2000 && esp > 0x1fc0)
+                {
+                    rc = PGMPhysSimpleReadGCPhys(pVM, abBuf, 0x8000, 0x800);
+                    if (RT_SUCCESS(rc))
+                        RTLogRelPrintf("0000:8000 TO 0000:87ff:\n"
+                                       "%.*Rhxd\n",
+                                       0x800, abBuf);
+                }
+                /* microsoft cdrom hang ... */
+                if (true)
+                {
+                    rc = PGMPhysSimpleReadGCPhys(pVM, abBuf, 0x8000, 0x200);
+                    if (RT_SUCCESS(rc))
+                        RTLogRelPrintf("2000:0000 TO 2000:01ff:\n"
+                                       "%.*Rhxd\n",
+                                       0x200, abBuf);
+                }
+            }
+#endif
+            RTLogRelPrintf("************** End of Guest state at power off ***************\n");
+        }
+
+        /*
+         * Perform the power off notifications and advance the state to
+         * Off or OffLS.
+         */
+        PDMR3PowerOff(pVM);
+
+        PUVM pUVM = pVM->pUVM;
+        RTCritSectEnter(&pUVM->vm.s.AtStateCritSect);
+        enmVMState = pVM->enmVMState;
+        if (enmVMState == VMSTATE_POWERING_OFF_LS)
+            vmR3SetStateLocked(pVM, pUVM, VMSTATE_OFF_LS, VMSTATE_POWERING_OFF_LS);
+        else
+            vmR3SetStateLocked(pVM, pUVM, VMSTATE_OFF,    VMSTATE_POWERING_OFF);
+        RTCritSectLeave(&pUVM->vm.s.AtStateCritSect);
+    }
+    return VINF_EM_OFF;
+}
+
+
+/**
+ * Power off the VM.
+ *
+ * @returns VBox status code. When called on EMT, this will be a strict status
+ *          code that has to be propagated up the call stack.
+ *
+ * @param   pVM     The handle of the VM to be powered off.
+ *
  * @thread      Any thread.
  * @vmstate     Suspended, Running, Guru Meditation, Load Failure
- * @vmstateto   Off
+ * @vmstateto   Off or OffLS
  */
 VMMR3DECL(int)   VMR3PowerOff(PVM pVM)
 {
     LogFlow(("VMR3PowerOff: pVM=%p\n", pVM));
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
     /*
-     * Validate input.
+     * Gather all the EMTs to make sure there are no races before
+     * changing the VM state.
      */
-    if (!pVM)
-    {
-        AssertMsgFailed(("Invalid VM pointer\n"));
-        return VERR_INVALID_PARAMETER;
-    }
-
-    /*
-     * Request the operation in EMT. (in reverse order as VCPU 0 does the actual work)
-     */
-    PVMREQ pReq = NULL;
-    int rc = VMR3ReqCall(pVM, VMCPUID_ALL_REVERSE, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3PowerOff, 1, pVM);
-    if (RT_SUCCESS(rc))
-    {
-        rc = pReq->iStatus;
-        VMR3ReqFree(pReq);
-    }
-    else
-        Assert(pReq == NULL);
-
+    int rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_DESCENDING | VMMEMTRENDEZVOUS_FLAGS_STOP_ON_ERROR,
+                                vmR3PowerOff, NULL);
     LogFlow(("VMR3PowerOff: returns %Rrc\n", rc));
     return rc;
 }
 
 
 /**
- * Power Off the VM.
- *
- * @returns 0 on success.
- * @returns VBox error code on failure.
- * @param   pVM     VM which should be destroyed.
- * @thread      EMT.
- */
-static DECLCALLBACK(int) vmR3PowerOff(PVM pVM)
-{
-    LogFlow(("vmR3PowerOff: pVM=%p\n", pVM));
-
-    /*
-     * Validate input.
-     */
-    if (    pVM->enmVMState != VMSTATE_RUNNING
-        &&  pVM->enmVMState != VMSTATE_SUSPENDED
-        &&  pVM->enmVMState != VMSTATE_LOAD_FAILURE
-        &&  pVM->enmVMState != VMSTATE_GURU_MEDITATION)
-    {
-        AssertMsgFailed(("Invalid VM state %d\n", pVM->enmVMState));
-        return VERR_VM_INVALID_VM_STATE;
-    }
-
-    /*
-     * EMT(0) does the actual power off work here *after* all the other EMTs
-     * have been thru and entered the STOPPED state.
-     */
-    PVMCPU pVCpu = VMMGetCpu(pVM);
-    VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STOPPED);
-    if (pVCpu->idCpu != 0)
-        return VINF_EM_OFF;
-
-    /*
-     * For debugging purposes, we will log a summary of the guest state at this point.
-     */
-    if (pVM->enmVMState != VMSTATE_GURU_MEDITATION)
-    {
-        /* @todo SMP support? */
-        PVMCPU pVCpu = VMMGetCpu(pVM);
-
-        /** @todo make the state dumping at VMR3PowerOff optional. */
-        RTLogRelPrintf("****************** Guest state at power off ******************\n");
-        DBGFR3Info(pVM, "cpumguest", "verbose", DBGFR3InfoLogRelHlp());
-        RTLogRelPrintf("***\n");
-        DBGFR3Info(pVM, "mode", NULL, DBGFR3InfoLogRelHlp());
-        RTLogRelPrintf("***\n");
-        DBGFR3Info(pVM, "activetimers", NULL, DBGFR3InfoLogRelHlp());
-        RTLogRelPrintf("***\n");
-        DBGFR3Info(pVM, "gdt", NULL, DBGFR3InfoLogRelHlp());
-        /** @todo dump guest call stack. */
-#if 1 // temporary while debugging #1589
-        RTLogRelPrintf("***\n");
-        uint32_t esp = CPUMGetGuestESP(pVCpu);
-        if (    CPUMGetGuestSS(pVCpu) == 0
-            &&  esp < _64K)
-        {
-            uint8_t abBuf[PAGE_SIZE];
-            RTLogRelPrintf("***\n"
-                           "ss:sp=0000:%04x ", esp);
-            uint32_t Start = esp & ~(uint32_t)63;
-            int rc = PGMPhysSimpleReadGCPhys(pVM, abBuf, Start, 0x100);
-            if (RT_SUCCESS(rc))
-                RTLogRelPrintf("0000:%04x TO 0000:%04x:\n"
-                               "%.*Rhxd\n",
-                               Start, Start + 0x100 - 1,
-                               0x100, abBuf);
-            else
-                RTLogRelPrintf("rc=%Rrc\n", rc);
-
-            /* grub ... */
-            if (esp < 0x2000 && esp > 0x1fc0)
-            {
-                rc = PGMPhysSimpleReadGCPhys(pVM, abBuf, 0x8000, 0x800);
-                if (RT_SUCCESS(rc))
-                    RTLogRelPrintf("0000:8000 TO 0000:87ff:\n"
-                                   "%.*Rhxd\n",
-                                   0x800, abBuf);
-            }
-            /* microsoft cdrom hang ... */
-            if (true)
-            {
-                rc = PGMPhysSimpleReadGCPhys(pVM, abBuf, 0x8000, 0x200);
-                if (RT_SUCCESS(rc))
-                    RTLogRelPrintf("2000:0000 TO 2000:01ff:\n"
-                                   "%.*Rhxd\n",
-                                   0x200, abBuf);
-            }
-        }
-#endif
-        RTLogRelPrintf("************** End of Guest state at power off ***************\n");
-    }
-
-    /*
-     * Change the state to OFF and notify the components.
-     */
-    vmR3SetState(pVM, VMSTATE_OFF);
-    PDMR3PowerOff(pVM);
-
-    return VINF_EM_OFF;
-}
-
-
-/**
  * Destroys the VM.
- * The VM must be powered off (or never really powered on) to call this function.
- * The VM handle is destroyed and can no longer be used up successful return.
+ *
+ * The VM must be powered off (or never really powered on) to call this
+ * function. The VM handle is destroyed and can no longer be used up successful
+ * return.
  *
  * @returns VBox status code.
- * @param   pVM     VM which should be destroyed.
- * @thread      Any thread but the emulation thread.
+ *
+ * @param   pVM     The handle of the VM which should be destroyed.
+ *
+ * @thread      EMT(0) or any none emulation thread.
  * @vmstate     Off, Created
  * @vmstateto   N/A
  */
-VMMR3DECL(int)   VMR3Destroy(PVM pVM)
+VMMR3DECL(int) VMR3Destroy(PVM pVM)
 {
     LogFlow(("VMR3Destroy: pVM=%p\n", pVM));
 
@@ -1748,16 +2152,15 @@ VMMR3DECL(int)   VMR3Destroy(PVM pVM)
      */
     if (!pVM)
         return VERR_INVALID_PARAMETER;
-    AssertPtrReturn(pVM, VERR_INVALID_POINTER);
-    AssertMsgReturn(   pVM->enmVMState == VMSTATE_OFF
-                    || pVM->enmVMState == VMSTATE_CREATED,
-                    ("Invalid VM state %d\n", pVM->enmVMState),
-                    VERR_VM_INVALID_VM_STATE);
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    Assert(VMMGetCpuId(pVM) == 0 || VMMGetCpuId(pVM) == NIL_VMCPUID);
 
     /*
      * Change VM state to destroying and unlink the VM.
      */
-    vmR3SetState(pVM, VMSTATE_DESTROYING);
+    int rc = vmR3TrySetState(pVM, "VMR3Destroy", 1, VMSTATE_DESTROYING, VMSTATE_OFF);
+    if (RT_FAILURE(rc))
+        return rc;
 
     /** @todo lock this when we start having multiple machines in a process... */
     PUVM pUVM = pVM->pUVM; AssertPtr(pUVM);
@@ -1776,12 +2179,14 @@ VMMR3DECL(int)   VMR3Destroy(PVM pVM)
 
     /*
      * Notify registered at destruction listeners.
-     * (That's the debugger console.)
      */
     vmR3AtDtor(pVM);
 
     /*
-     * If we are the EMT of VCPU 0, then we'll delay the cleanup till later.
+     * EMT(0) does the final cleanup, so if we're it calling VMR3Destroy then
+     * we'll have to postpone parts of it till later.  Otherwise, call
+     * vmR3Destroy on each of the EMTs in ending with EMT(0) doing the bulk
+     * of the cleanup.
      */
     if (VMMGetCpuId(pVM) == 0)
     {
@@ -1789,36 +2194,20 @@ VMMR3DECL(int)   VMR3Destroy(PVM pVM)
         pUVM->vm.s.fTerminateEMT = true;
         VM_FF_SET(pVM, VM_FF_TERMINATE);
 
-        /* Inform all other VCPUs too. */
-        for (VMCPUID idCpu = 1; idCpu < pVM->cCPUs; idCpu++)
+        /* Terminate the other EMTs. */
+        for (VMCPUID idCpu = 1; idCpu < pVM->cCpus; idCpu++)
         {
-            /*
-             * Request EMT to do the larger part of the destruction.
-             */
-            PVMREQ pReq = NULL;
-            int rc = VMR3ReqCallU(pUVM, idCpu, &pReq, RT_INDEFINITE_WAIT, 0, (PFNRT)vmR3Destroy, 1, pVM);
-            if (RT_SUCCESS(rc))
-                rc = pReq->iStatus;
-            AssertRC(rc);
-            VMR3ReqFree(pReq);
+            int rc = VMR3ReqCallWaitU(pUVM, idCpu, (PFNRT)vmR3Destroy, 1, pVM);
+            AssertLogRelRC(rc);
         }
     }
     else
     {
-        /*
-         * Request EMT to do the larger part of the destruction. (in reverse order as VCPU 0 does the real cleanup)
-         */
-        PVMREQ pReq = NULL;
-        int rc = VMR3ReqCallU(pUVM, VMCPUID_ALL_REVERSE, &pReq, RT_INDEFINITE_WAIT, 0, (PFNRT)vmR3Destroy, 1, pVM);
-        if (RT_SUCCESS(rc))
-            rc = pReq->iStatus;
-        AssertRC(rc);
-        VMR3ReqFree(pReq);
+        /* vmR3Destroy on all EMTs, ending with EMT(0). */
+        int rc = VMR3ReqCallWaitU(pUVM, VMCPUID_ALL_REVERSE, (PFNRT)vmR3Destroy, 1, pVM);
+        AssertLogRelRC(rc);
 
-        /*
-         * Now do the final bit where the heap and VM structures are freed up.
-         * This will also wait 30 secs for the emulation threads to terminate.
-         */
+        /* Wait for EMTs and destroy the UVM. */
         vmR3DestroyUVM(pUVM, 30000);
     }
 
@@ -1830,122 +2219,133 @@ VMMR3DECL(int)   VMR3Destroy(PVM pVM)
 /**
  * Internal destruction worker.
  *
- * This will do nearly all of the job, including sacking the EMT.
+ * This is either called from VMR3Destroy via VMR3ReqCallU or from
+ * vmR3EmulationThreadWithId when EMT(0) terminates after having called
+ * VMR3Destroy().
  *
- * @returns VBox status.
- * @param   pVM     VM handle.
+ * When called on EMT(0), it will performed the great bulk of the destruction.
+ * When called on the other EMTs, they will do nothing and the whole purpose is
+ * to return VINF_EM_TERMINATE so they break out of their run loops.
+ *
+ * @returns VINF_EM_TERMINATE.
+ * @param   pVM     The VM handle.
  */
 DECLCALLBACK(int) vmR3Destroy(PVM pVM)
 {
-    PUVM pUVM = pVM->pUVM;
+    PUVM   pUVM  = pVM->pUVM;
     PVMCPU pVCpu = VMMGetCpu(pVM);
-
-    NOREF(pUVM);
-    LogFlow(("vmR3Destroy: pVM=%p pUVM=%p\n", pVM, pUVM));
-    VM_ASSERT_EMT(pVM);
-
-    /* Only VCPU 0 does the full cleanup. */
-    if (pVCpu->idCpu != 0)
-        return VINF_EM_TERMINATE;
+    Assert(pVCpu);
+    LogFlow(("vmR3Destroy: pVM=%p pUVM=%p pVCpu=%p idCpu=%u\n", pVM, pUVM, pVCpu, pVCpu->idCpu));
 
     /*
-     * Dump statistics to the log.
+     * Only VCPU 0 does the full cleanup.
      */
+    if (pVCpu->idCpu == 0)
+    {
+
+        /*
+         * Dump statistics to the log.
+         */
 #if defined(VBOX_WITH_STATISTICS) || defined(LOG_ENABLED)
-    RTLogFlags(NULL, "nodisabled nobuffered");
+        RTLogFlags(NULL, "nodisabled nobuffered");
 #endif
 #ifdef VBOX_WITH_STATISTICS
-    STAMR3Dump(pVM, "*");
+        STAMR3Dump(pVM, "*");
 #else
-    LogRel(("************************* Statistics *************************\n"));
-    STAMR3DumpToReleaseLog(pVM, "*");
-    LogRel(("********************* End of statistics **********************\n"));
+        LogRel(("************************* Statistics *************************\n"));
+        STAMR3DumpToReleaseLog(pVM, "*");
+        LogRel(("********************* End of statistics **********************\n"));
 #endif
 
-    /*
-     * Destroy the VM components.
-     */
-    int rc = TMR3Term(pVM);
-    AssertRC(rc);
+        /*
+         * Destroy the VM components.
+         */
+        int rc = TMR3Term(pVM);
+        AssertRC(rc);
 #ifdef VBOX_WITH_DEBUGGER
-    rc = DBGCTcpTerminate(pVM, pUVM->vm.s.pvDBGC);
-    pVM->pUVM->vm.s.pvDBGC = NULL;
+        rc = DBGCTcpTerminate(pVM, pUVM->vm.s.pvDBGC);
+        pUVM->vm.s.pvDBGC = NULL;
 #endif
-    AssertRC(rc);
-    rc = DBGFR3Term(pVM);
-    AssertRC(rc);
-    rc = PDMR3Term(pVM);
-    AssertRC(rc);
-    rc = EMR3Term(pVM);
-    AssertRC(rc);
-    rc = IOMR3Term(pVM);
-    AssertRC(rc);
-    rc = CSAMR3Term(pVM);
-    AssertRC(rc);
-    rc = PATMR3Term(pVM);
-    AssertRC(rc);
-    rc = TRPMR3Term(pVM);
-    AssertRC(rc);
-    rc = SELMR3Term(pVM);
-    AssertRC(rc);
-    rc = REMR3Term(pVM);
-    AssertRC(rc);
-    rc = HWACCMR3Term(pVM);
-    AssertRC(rc);
-    rc = PGMR3Term(pVM);
-    AssertRC(rc);
-    rc = VMMR3Term(pVM); /* Terminates the ring-0 code! */
-    AssertRC(rc);
-    rc = CPUMR3Term(pVM);
-    AssertRC(rc);
-    rc = PDMR3CritSectTerm(pVM);
-    AssertRC(rc);
-    rc = MMR3Term(pVM);
-    AssertRC(rc);
+        AssertRC(rc);
+        rc = DBGFR3Term(pVM);
+        AssertRC(rc);
+        rc = PDMR3Term(pVM);
+        AssertRC(rc);
+        rc = EMR3Term(pVM);
+        AssertRC(rc);
+        rc = IOMR3Term(pVM);
+        AssertRC(rc);
+        rc = CSAMR3Term(pVM);
+        AssertRC(rc);
+        rc = PATMR3Term(pVM);
+        AssertRC(rc);
+        rc = TRPMR3Term(pVM);
+        AssertRC(rc);
+        rc = SELMR3Term(pVM);
+        AssertRC(rc);
+        rc = REMR3Term(pVM);
+        AssertRC(rc);
+        rc = HWACCMR3Term(pVM);
+        AssertRC(rc);
+        rc = PGMR3Term(pVM);
+        AssertRC(rc);
+        rc = VMMR3Term(pVM); /* Terminates the ring-0 code! */
+        AssertRC(rc);
+        rc = CPUMR3Term(pVM);
+        AssertRC(rc);
+        SSMR3Term(pVM);
+        rc = PDMR3CritSectTerm(pVM);
+        AssertRC(rc);
+        rc = MMR3Term(pVM);
+        AssertRC(rc);
 
-    /*
-     * We're done in this thread (EMT).
-     */
-    ASMAtomicUoWriteBool(&pVM->pUVM->vm.s.fTerminateEMT, true);
-    ASMAtomicWriteU32(&pVM->fGlobalForcedActions, VM_FF_TERMINATE);
-    LogFlow(("vmR3Destroy: returning %Rrc\n", VINF_EM_TERMINATE));
+        /*
+         * We're done in this thread (EMT).
+         */
+        ASMAtomicUoWriteBool(&pUVM->vm.s.fTerminateEMT, true);
+        ASMAtomicWriteU32(&pVM->fGlobalForcedActions, VM_FF_TERMINATE);
+        LogFlow(("vmR3Destroy: returning %Rrc\n", VINF_EM_TERMINATE));
+    }
     return VINF_EM_TERMINATE;
 }
 
 
 /**
- * Destroys the shared VM structure, leaving only UVM behind.
+ * Called at the end of the EMT procedure to take care of the final cleanup.
  *
- * This is called by EMT right before terminating.
+ * Currently only EMT(0) will do work here.  It will destroy the shared VM
+ * structure if it is still around.  If EMT(0) was the caller of VMR3Destroy it
+ * will destroy UVM and nothing will be left behind upon exit.  But if some
+ * other thread is calling VMR3Destroy, they will clean up UVM after all EMTs
+ * has exitted.
  *
  * @param   pUVM        The UVM handle.
+ * @param   idCpu       The virtual CPU id.
  */
-void vmR3DestroyFinalBitFromEMT(PUVM pUVM)
+void vmR3DestroyFinalBitFromEMT(PUVM pUVM, VMCPUID idCpu)
 {
+    /*
+     * Only EMT(0) has work to do here.
+     */
+    if (idCpu != 0)
+        return;
+    Assert(   !pUVM->pVM
+           || VMMGetCpuId(pUVM->pVM) == 0);
+
+    /*
+     * If we have a shared VM structure, change its state to Terminated and
+     * tell GVMM to destroy it.
+     */
     if (pUVM->pVM)
     {
-        PVMCPU pVCpu = VMMGetCpu(pUVM->pVM);
-
-        /* VCPU 0 does all the cleanup work. */
-        if (pVCpu->idCpu != 0)
-            return;
-
-        /*
-         * Modify state and then terminate MM.
-         * (MM must be delayed until this point so we don't destroy the callbacks and the request packet.)
-         */
-        vmR3SetState(pUVM->pVM, VMSTATE_TERMINATED);
-
-        /*
-         * Tell GVMM to destroy the VM and free its resources.
-         */
+        vmR3SetState(pUVM->pVM, VMSTATE_TERMINATED, VMSTATE_DESTROYING);
         int rc = SUPR3CallVMMR0Ex(pUVM->pVM->pVMR0, 0 /*idCpu*/, VMMR0_DO_GVMM_DESTROY_VM, 0, NULL);
-        AssertRC(rc);
+        AssertLogRelRC(rc);
         pUVM->pVM = NULL;
     }
 
     /*
-     * Did an EMT call VMR3Destroy and end up having to do all the work?
+     * If EMT(0) called VMR3Destroy, then it will destroy UVM as well.
      */
     if (pUVM->vm.s.fEMTDoesTheCleanup)
         vmR3DestroyUVM(pUVM, 30000);
@@ -1956,7 +2356,7 @@ void vmR3DestroyFinalBitFromEMT(PUVM pUVM)
  * Destroys the UVM portion.
  *
  * This is called as the final step in the VM destruction or as the cleanup
- * in case of a creation failure. If EMT called VMR3Destroy, meaning
+ * in case of a creation failure. If EMT(0) called VMR3Destroy, meaning
  * VMINTUSERPERVM::fEMTDoesTheCleanup is true, it will call this as
  * vmR3DestroyFinalBitFromEMT completes.
  *
@@ -2102,7 +2502,7 @@ static void vmR3DestroyUVM(PUVM pUVM, uint32_t cMilliesEMTWait)
     RTTlsFree(pUVM->vm.s.idxTLS);
 
     ASMAtomicUoWriteU32(&pUVM->u32Magic, UINT32_MAX);
-    RTMemFree(pUVM);
+    RTMemPageFree(pUVM);
 
     RTLogFlush(NULL);
 }
@@ -2116,7 +2516,7 @@ static void vmR3DestroyUVM(PUVM pUVM, uint32_t cMilliesEMTWait)
  * @param   pVMPrev     The previous VM
  *                      Use NULL to start the enumeration.
  */
-VMMR3DECL(PVM)   VMR3EnumVMs(PVM pVMPrev)
+VMMR3DECL(PVM) VMR3EnumVMs(PVM pVMPrev)
 {
     /*
      * This is quick and dirty. It has issues with VM being
@@ -2138,7 +2538,7 @@ VMMR3DECL(PVM)   VMR3EnumVMs(PVM pVMPrev)
  * @param   pfnAtDtor       Pointer to callback.
  * @param   pvUser          User argument.
  */
-VMMR3DECL(int)   VMR3AtDtorRegister(PFNVMATDTOR pfnAtDtor, void *pvUser)
+VMMR3DECL(int) VMR3AtDtorRegister(PFNVMATDTOR pfnAtDtor, void *pvUser)
 {
     /*
      * Check if already registered.
@@ -2183,7 +2583,7 @@ VMMR3DECL(int)   VMR3AtDtorRegister(PFNVMATDTOR pfnAtDtor, void *pvUser)
  * @returns VBox status code.
  * @param   pfnAtDtor       Pointer to callback.
  */
-VMMR3DECL(int)   VMR3AtDtorDeregister(PFNVMATDTOR pfnAtDtor)
+VMMR3DECL(int) VMR3AtDtorDeregister(PFNVMATDTOR pfnAtDtor)
 {
     /*
      * Find it, unlink it and free it.
@@ -2233,43 +2633,6 @@ static void vmR3AtDtor(PVM pVM)
 
 
 /**
- * Reset the current VM.
- *
- * @returns VBox status code.
- * @param   pVM     VM to reset.
- */
-VMMR3DECL(int)   VMR3Reset(PVM pVM)
-{
-    int rc = VINF_SUCCESS;
-
-    /*
-     * Check the state.
-     */
-    if (!pVM)
-        return VERR_INVALID_PARAMETER;
-    if (    pVM->enmVMState != VMSTATE_RUNNING
-        &&  pVM->enmVMState != VMSTATE_SUSPENDED)
-    {
-        AssertMsgFailed(("Invalid VM state %d\n", pVM->enmVMState));
-        return VERR_VM_INVALID_VM_STATE;
-    }
-
-    /*
-     * Queue reset request to the emulation thread
-     * and wait for it to be processed. (in reverse order as VCPU 0 does the real cleanup)
-     */
-    PVMREQ pReq = NULL;
-    rc = VMR3ReqCall(pVM, VMCPUID_ALL_REVERSE, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3Reset, 1, pVM);
-    if (RT_SUCCESS(rc))
-        rc = pReq->iStatus;
-    AssertRC(rc);
-    VMR3ReqFree(pReq);
-
-    return rc;
-}
-
-
-/**
  * Worker which checks integrity of some internal structures.
  * This is yet another attempt to track down that AVL tree crash.
  */
@@ -2283,398 +2646,157 @@ static void vmR3CheckIntegrity(PVM pVM)
 
 
 /**
- * Reset request processor.
+ * EMT rendezvous worker for VMR3Reset.
  *
- * This is called by the emulation threads as a response to the
- * reset request issued by VMR3Reset().
+ * This is called by the emulation threads as a response to the reset request
+ * issued by VMR3Reset().
  *
- * @returns VBox status code.
- * @param   pVM     VM to reset.
+ * @returns VERR_VM_INVALID_VM_STATE, VINF_EM_RESET or VINF_EM_SUSPEND. (This
+ *          is a strict return code, see FNVMMEMTRENDEZVOUS.)
+ *
+ * @param   pVM             The VM handle.
+ * @param   pVCpu           The VMCPU handle of the EMT.
+ * @param   pvUser          Ignored.
  */
-static DECLCALLBACK(int) vmR3Reset(PVM pVM)
+static DECLCALLBACK(VBOXSTRICTRC) vmR3Reset(PVM pVM, PVMCPU pVCpu, void *pvUser)
 {
-    PVMCPU pVCpu = VMMGetCpu(pVM);
+    Assert(!pvUser); NOREF(pvUser);
+
+    /*
+     * The first EMT will try change the state to resetting.  If this fails,
+     * we won't get called for the other EMTs.
+     */
+    if (pVCpu->idCpu == pVM->cCpus - 1)
+    {
+        int rc = vmR3TrySetState(pVM, "VMR3Reset", 3,
+                                 VMSTATE_RESETTING,     VMSTATE_RUNNING,
+                                 VMSTATE_RESETTING,     VMSTATE_SUSPENDED,
+                                 VMSTATE_RESETTING_LS,  VMSTATE_RUNNING_LS);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    /*
+     * Check the state.
+     */
+    VMSTATE enmVMState = VMR3GetState(pVM);
+    AssertLogRelMsgReturn(   enmVMState == VMSTATE_RESETTING
+                          || enmVMState == VMSTATE_RESETTING_LS,
+                          ("%s\n", VMR3GetStateName(enmVMState)),
+                          VERR_INTERNAL_ERROR_4);
 
     /*
      * EMT(0) does the full cleanup *after* all the other EMTs has been
      * thru here and been told to enter the EMSTATE_WAIT_SIPI state.
+     *
+     * Because there are per-cpu reset routines and order may/is important,
+     * the following sequence looks a bit ugly...
      */
+    if (pVCpu->idCpu == 0)
+        vmR3CheckIntegrity(pVM);
+
+    /* Reset the VCpu state. */
     VMCPU_ASSERT_STATE(pVCpu, VMCPUSTATE_STARTED);
 
     /* Clear all pending forced actions. */
     VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_ALL_MASK & ~VMCPU_FF_REQUEST);
 
-    if (pVCpu->idCpu != 0)
-    {
-        CPUMR3ResetCpu(pVCpu);
-        return VINF_EM_RESET;
-    }
-
-    /*
-     * As a safety precaution we temporarily change the state while resetting.
-     * (If VMR3Reset was not called from EMT we might have change state... let's ignore that fact for now.)
-     */
-    VMSTATE enmVMState = pVM->enmVMState;
-    Assert(enmVMState == VMSTATE_SUSPENDED || enmVMState == VMSTATE_RUNNING);
-    vmR3SetState(pVM, VMSTATE_RESETTING);
-    vmR3CheckIntegrity(pVM);
-
-
     /*
      * Reset the VM components.
      */
-    PATMR3Reset(pVM);
-    CSAMR3Reset(pVM);
-    PGMR3Reset(pVM);                    /* We clear VM RAM in PGMR3Reset. It's vital PDMR3Reset is executed
-                                         * _afterwards_. E.g. ACPI sets up RAM tables during init/reset. */
-    MMR3Reset(pVM);
-    PDMR3Reset(pVM);
-    SELMR3Reset(pVM);
-    TRPMR3Reset(pVM);
-    vmR3AtResetU(pVM->pUVM);
-    REMR3Reset(pVM);
-    IOMR3Reset(pVM);
-    CPUMR3Reset(pVM);
-    TMR3Reset(pVM);
-    EMR3Reset(pVM);
-    HWACCMR3Reset(pVM);                 /* This must come *after* PATM, CSAM, CPUM, SELM and TRPM. */
+    if (pVCpu->idCpu == 0)
+    {
+        PATMR3Reset(pVM);
+        CSAMR3Reset(pVM);
+        PGMR3Reset(pVM);                    /* We clear VM RAM in PGMR3Reset. It's vital PDMR3Reset is executed
+                                             * _afterwards_. E.g. ACPI sets up RAM tables during init/reset. */
+/** @todo PGMR3Reset should be called after PDMR3Reset really, because we'll trash OS <-> hardware
+ * communication structures residing in RAM when done in the other order.  I.e. the device must be
+ * quiesced first, then we clear the memory and plan tables. Probably have to make these things
+ * explicit in some way, some memory setup pass or something.
+ * (Example: DevAHCI may assert if memory is zeroed before it've read the FIS.)
+ *
+ * @bugref{4467}
+ */
+        MMR3Reset(pVM);
+        PDMR3Reset(pVM);
+        SELMR3Reset(pVM);
+        TRPMR3Reset(pVM);
+        REMR3Reset(pVM);
+        IOMR3Reset(pVM);
+        CPUMR3Reset(pVM);
+    }
+    CPUMR3ResetCpu(pVCpu);
+    if (pVCpu->idCpu == 0)
+    {
+        TMR3Reset(pVM);
+        EMR3Reset(pVM);
+        HWACCMR3Reset(pVM);                 /* This must come *after* PATM, CSAM, CPUM, SELM and TRPM. */
 
 #ifdef LOG_ENABLED
-    /*
-     * Debug logging.
-     */
-    RTLogPrintf("\n\nThe VM was reset:\n");
-    DBGFR3Info(pVM, "cpum", "verbose", NULL);
+        /*
+         * Debug logging.
+         */
+        RTLogPrintf("\n\nThe VM was reset:\n");
+        DBGFR3Info(pVM, "cpum", "verbose", NULL);
 #endif
 
-    /*
-     * Restore the state.
-     */
-    vmR3CheckIntegrity(pVM);
-    Assert(pVM->enmVMState == VMSTATE_RESETTING);
-    vmR3SetState(pVM, enmVMState);
-
-    return VINF_EM_RESET;
-}
-
-
-/**
- * Walks the list of at VM reset callbacks and calls them
- *
- * @returns VBox status code.
- *          Any failure is fatal.
- * @param   pUVM        Pointe to the user mode VM structure.
- */
-static int vmR3AtResetU(PUVM pUVM)
-{
-    /*
-     * Walk the list and call them all.
-     */
-    int rc = VINF_SUCCESS;
-    for (PVMATRESET pCur = pUVM->vm.s.pAtReset; pCur; pCur = pCur->pNext)
-    {
-        /* do the call */
-        switch (pCur->enmType)
-        {
-            case VMATRESETTYPE_DEV:
-                rc = pCur->u.Dev.pfnCallback(pCur->u.Dev.pDevIns, pCur->pvUser);
-                break;
-            case VMATRESETTYPE_INTERNAL:
-                rc = pCur->u.Internal.pfnCallback(pUVM->pVM, pCur->pvUser);
-                break;
-            case VMATRESETTYPE_EXTERNAL:
-                pCur->u.External.pfnCallback(pCur->pvUser);
-                break;
-            default:
-                AssertMsgFailed(("Invalid at-reset type %d!\n", pCur->enmType));
-                return VERR_INTERNAL_ERROR;
-        }
-
-        if (RT_FAILURE(rc))
-        {
-            AssertMsgFailed(("At-reset handler %s failed with rc=%d\n", pCur->pszDesc, rc));
-            return rc;
-        }
-    }
-
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Internal registration function
- */
-static int vmr3AtResetRegisterU(PUVM pUVM, void *pvUser, const char *pszDesc, PVMATRESET *ppNew)
-{
-    /*
-     * Allocate restration structure.
-     */
-    PVMATRESET pNew = (PVMATRESET)MMR3HeapAllocU(pUVM, MM_TAG_VM,  sizeof(*pNew));
-    if (pNew)
-    {
-        /* fill data. */
-        pNew->pszDesc   = pszDesc;
-        pNew->pvUser    = pvUser;
-
-        /* insert */
-        pNew->pNext     = *pUVM->vm.s.ppAtResetNext;
-        *pUVM->vm.s.ppAtResetNext = pNew;
-        pUVM->vm.s.ppAtResetNext = &pNew->pNext;
-
-        *ppNew = pNew;
-        return VINF_SUCCESS;
-    }
-    return VERR_NO_MEMORY;
-}
-
-
-/**
- * Registers an at VM reset callback.
- *
- * @returns VBox status code.
- * @param   pVM             The VM.
- * @param   pDevInst        Device instance.
- * @param   pfnCallback     Callback function.
- * @param   pvUser          User argument.
- * @param   pszDesc         Description (optional).
- */
-VMMR3DECL(int)   VMR3AtResetRegister(PVM pVM, PPDMDEVINS pDevInst, PFNVMATRESET pfnCallback, void *pvUser, const char *pszDesc)
-{
-    /*
-     * Validate.
-     */
-    if (!pDevInst)
-    {
-        AssertMsgFailed(("pDevIns is NULL!\n"));
-        return VERR_INVALID_PARAMETER;
-    }
-
-    /*
-     * Create the new entry.
-     */
-    PVMATRESET pNew;
-    int rc = vmr3AtResetRegisterU(pVM->pUVM, pvUser, pszDesc, &pNew);
-    if (RT_SUCCESS(rc))
-    {
         /*
-         * Fill in type data.
+         * Since EMT(0) is the last to go thru here, it will advance the state.
+         * When a live save is active, we will move on to SuspendingLS but
+         * leave it for VMR3Reset to do the actual suspending due to deadlock risks.
          */
-        pNew->enmType               = VMATRESETTYPE_DEV;
-        pNew->u.Dev.pfnCallback     = pfnCallback;
-        pNew->u.Dev.pDevIns         = pDevInst;
-    }
-
-    return rc;
-}
-
-
-/**
- * Registers an at VM reset internal callback.
- *
- * @returns VBox status code.
- * @param   pVM             The VM.
- * @param   pfnCallback     Callback function.
- * @param   pvUser          User argument.
- * @param   pszDesc         Description (optional).
- */
-VMMR3DECL(int)   VMR3AtResetRegisterInternal(PVM pVM, PFNVMATRESETINT pfnCallback, void *pvUser, const char *pszDesc)
-{
-    /*
-     * Validate.
-     */
-    if (!pfnCallback)
-    {
-        AssertMsgFailed(("pfnCallback is NULL!\n"));
-        return VERR_INVALID_PARAMETER;
-    }
-
-    /*
-     * Create the new entry.
-     */
-    PVMATRESET pNew;
-    int rc = vmr3AtResetRegisterU(pVM->pUVM, pvUser, pszDesc, &pNew);
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * Fill in type data.
-         */
-        pNew->enmType                   = VMATRESETTYPE_INTERNAL;
-        pNew->u.Internal.pfnCallback    = pfnCallback;
-    }
-
-    return rc;
-}
-
-
-/**
- * Registers an at VM reset external callback.
- *
- * @returns VBox status code.
- * @param   pVM             The VM.
- * @param   pfnCallback     Callback function.
- * @param   pvUser          User argument.
- * @param   pszDesc         Description (optional).
- */
-VMMR3DECL(int)   VMR3AtResetRegisterExternal(PVM pVM, PFNVMATRESETEXT pfnCallback, void *pvUser, const char *pszDesc)
-{
-    /*
-     * Validate.
-     */
-    if (!pfnCallback)
-    {
-        AssertMsgFailed(("pfnCallback is NULL!\n"));
-        return VERR_INVALID_PARAMETER;
-    }
-
-    /*
-     * Create the new entry.
-     */
-    PVMATRESET pNew;
-    int rc = vmr3AtResetRegisterU(pVM->pUVM, pvUser, pszDesc, &pNew);
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * Fill in type data.
-         */
-        pNew->enmType                   = VMATRESETTYPE_EXTERNAL;
-        pNew->u.External.pfnCallback    = pfnCallback;
-    }
-
-    return rc;
-}
-
-
-/**
- * Unlinks and frees a callback.
- *
- * @returns Pointer to the next callback structure.
- * @param   pUVM            Pointer to the user mode VM structure.
- * @param   pCur            The one to free.
- * @param   pPrev           The one before pCur.
- */
-static PVMATRESET vmr3AtResetFreeU(PUVM pUVM, PVMATRESET pCur, PVMATRESET pPrev)
-{
-    /*
-     * Unlink it.
-     */
-    PVMATRESET pNext = pCur->pNext;
-    if (pPrev)
-    {
-        pPrev->pNext = pNext;
-        if (!pNext)
-            pUVM->vm.s.ppAtResetNext = &pPrev->pNext;
-    }
-    else
-    {
-        pUVM->vm.s.pAtReset = pNext;
-        if (!pNext)
-            pUVM->vm.s.ppAtResetNext = &pUVM->vm.s.pAtReset;
-    }
-
-    /*
-     * Free it.
-     */
-    MMR3HeapFree(pCur);
-
-    return pNext;
-}
-
-
-/**
- * Deregisters an at VM reset callback.
- *
- * @returns VBox status code.
- * @param   pVM             The VM.
- * @param   pDevIns         Device instance.
- * @param   pfnCallback     Callback function.
- */
-VMMR3DECL(int)   VMR3AtResetDeregister(PVM pVM, PPDMDEVINS pDevIns, PFNVMATRESET pfnCallback)
-{
-    int         rc = VERR_VM_ATRESET_NOT_FOUND;
-    PVMATRESET  pPrev = NULL;
-    PVMATRESET  pCur = pVM->pUVM->vm.s.pAtReset;
-    while (pCur)
-    {
-        if (    pCur->enmType == VMATRESETTYPE_DEV
-            &&  pCur->u.Dev.pDevIns == pDevIns
-            &&  (   !pfnCallback
-                 || pCur->u.Dev.pfnCallback == pfnCallback))
+        PUVM pUVM = pVM->pUVM;
+        RTCritSectEnter(&pUVM->vm.s.AtStateCritSect);
+        enmVMState = pVM->enmVMState;
+        if (enmVMState == VMSTATE_RESETTING)
         {
-            pCur = vmr3AtResetFreeU(pVM->pUVM, pCur, pPrev);
-            rc = VINF_SUCCESS;
+            if (pUVM->vm.s.enmPrevVMState == VMSTATE_SUSPENDED)
+                vmR3SetStateLocked(pVM, pUVM, VMSTATE_SUSPENDED, VMSTATE_RESETTING);
+            else
+                vmR3SetStateLocked(pVM, pUVM, VMSTATE_RUNNING,   VMSTATE_RESETTING);
         }
         else
+            vmR3SetStateLocked(pVM, pUVM, VMSTATE_SUSPENDING_LS, VMSTATE_RESETTING_LS);
+        RTCritSectLeave(&pUVM->vm.s.AtStateCritSect);
+
+        vmR3CheckIntegrity(pVM);
+
+        /*
+         * Do the suspend bit as well.
+         * It only requires some EMT(0) work at present.
+         */
+        if (enmVMState != VMSTATE_RESETTING)
         {
-            pPrev = pCur;
-            pCur = pCur->pNext;
+            vmR3SuspendDoWork(pVM);
+            vmR3SetState(pVM, VMSTATE_SUSPENDED_LS, VMSTATE_SUSPENDING_LS);
         }
     }
 
-    AssertRC(rc);
-    return rc;
+    return enmVMState == VMSTATE_RESETTING
+         ? VINF_EM_RESET
+         : VINF_EM_SUSPEND; /** @todo VINF_EM_SUSPEND has lower priority than VINF_EM_RESET, so fix races. Perhaps add a new code for this combined case. */
 }
 
 
 /**
- * Deregisters an at VM reset internal callback.
+ * Reset the current VM.
  *
  * @returns VBox status code.
- * @param   pVM             The VM.
- * @param   pfnCallback     Callback function.
+ * @param   pVM     VM to reset.
  */
-VMMR3DECL(int)   VMR3AtResetDeregisterInternal(PVM pVM, PFNVMATRESETINT pfnCallback)
+VMMR3DECL(int) VMR3Reset(PVM pVM)
 {
-    int         rc = VERR_VM_ATRESET_NOT_FOUND;
-    PVMATRESET  pPrev = NULL;
-    PVMATRESET  pCur = pVM->pUVM->vm.s.pAtReset;
-    while (pCur)
-    {
-        if (    pCur->enmType == VMATRESETTYPE_INTERNAL
-            &&  pCur->u.Internal.pfnCallback == pfnCallback)
-        {
-            pCur = vmr3AtResetFreeU(pVM->pUVM, pCur, pPrev);
-            rc = VINF_SUCCESS;
-        }
-        else
-        {
-            pPrev = pCur;
-            pCur = pCur->pNext;
-        }
-    }
+    LogFlow(("VMR3Reset:\n"));
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
-    AssertRC(rc);
-    return rc;
-}
-
-
-/**
- * Deregisters an at VM reset external callback.
- *
- * @returns VBox status code.
- * @param   pVM             The VM.
- * @param   pfnCallback     Callback function.
- */
-VMMR3DECL(int)   VMR3AtResetDeregisterExternal(PVM pVM, PFNVMATRESETEXT pfnCallback)
-{
-    int         rc = VERR_VM_ATRESET_NOT_FOUND;
-    PVMATRESET  pPrev = NULL;
-    PVMATRESET  pCur = pVM->pUVM->vm.s.pAtReset;
-    while (pCur)
-    {
-        if (    pCur->enmType == VMATRESETTYPE_INTERNAL
-            &&  pCur->u.External.pfnCallback == pfnCallback)
-        {
-            pCur = vmr3AtResetFreeU(pVM->pUVM, pCur, pPrev);
-            rc = VINF_SUCCESS;
-        }
-        else
-        {
-            pPrev = pCur;
-            pCur = pCur->pNext;
-        }
-    }
-
-    AssertRC(rc);
+    /*
+     * Gather all the EMTs to make sure there are no races before
+     * changing the VM state.
+     */
+    int rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_DESCENDING | VMMEMTRENDEZVOUS_FLAGS_STOP_ON_ERROR,
+                                vmR3Reset, NULL);
+    LogFlow(("VMR3Reset: returns %Rrc\n", rc));
     return rc;
 }
 
@@ -2704,16 +2826,34 @@ VMMR3DECL(const char *) VMR3GetStateName(VMSTATE enmState)
     {
         case VMSTATE_CREATING:          return "CREATING";
         case VMSTATE_CREATED:           return "CREATED";
-        case VMSTATE_RUNNING:           return "RUNNING";
         case VMSTATE_LOADING:           return "LOADING";
-        case VMSTATE_LOAD_FAILURE:      return "LOAD_FAILURE";
-        case VMSTATE_SAVING:            return "SAVING";
-        case VMSTATE_SUSPENDED:         return "SUSPENDED";
+        case VMSTATE_POWERING_ON:       return "POWERING_ON";
+        case VMSTATE_RESUMING:          return "RESUMING";
+        case VMSTATE_RUNNING:           return "RUNNING";
+        case VMSTATE_RUNNING_LS:        return "RUNNING_LS";
         case VMSTATE_RESETTING:         return "RESETTING";
+        case VMSTATE_RESETTING_LS:      return "RESETTING_LS";
+        case VMSTATE_SUSPENDED:         return "SUSPENDED";
+        case VMSTATE_SUSPENDED_LS:      return "SUSPENDED_LS";
+        case VMSTATE_SUSPENDED_EXT_LS:  return "SUSPENDED_EXT_LS";
+        case VMSTATE_SUSPENDING:        return "SUSPENDING";
+        case VMSTATE_SUSPENDING_LS:     return "SUSPENDING_LS";
+        case VMSTATE_SUSPENDING_EXT_LS: return "SUSPENDING_EXT_LS";
+        case VMSTATE_SAVING:            return "SAVING";
+        case VMSTATE_DEBUGGING:         return "DEBUGGING";
+        case VMSTATE_DEBUGGING_LS:      return "DEBUGGING_LS";
+        case VMSTATE_POWERING_OFF:      return "POWERING_OFF";
+        case VMSTATE_POWERING_OFF_LS:   return "POWERING_OFF_LS";
+        case VMSTATE_FATAL_ERROR:       return "FATAL_ERROR";
+        case VMSTATE_FATAL_ERROR_LS:    return "FATAL_ERROR_LS";
         case VMSTATE_GURU_MEDITATION:   return "GURU_MEDITATION";
+        case VMSTATE_GURU_MEDITATION_LS:return "GURU_MEDITATION_LS";
+        case VMSTATE_LOAD_FAILURE:      return "LOAD_FAILURE";
         case VMSTATE_OFF:               return "OFF";
+        case VMSTATE_OFF_LS:            return "OFF_LS";
         case VMSTATE_DESTROYING:        return "DESTROYING";
         case VMSTATE_TERMINATED:        return "TERMINATED";
+
         default:
             AssertMsgFailed(("Unknown state %d\n", enmState));
             return "Unknown!\n";
@@ -2722,47 +2862,397 @@ VMMR3DECL(const char *) VMR3GetStateName(VMSTATE enmState)
 
 
 /**
- * Sets the current VM state.
+ * Validates the state transition in strict builds.
  *
- * @returns The current VM state.
- * @param   pVM             VM handle.
- * @param   enmStateNew     The new state.
+ * @returns true if valid, false if not.
+ *
+ * @param   enmStateOld         The old (current) state.
+ * @param   enmStateNew         The proposed new state.
+ *
+ * @remarks The reference for this is found in doc/vp/VMM.vpp, the VMSTATE
+ *          diagram (under State Machine Diagram).
  */
-void vmR3SetState(PVM pVM, VMSTATE enmStateNew)
+static bool vmR3ValidateStateTransition(VMSTATE enmStateOld, VMSTATE enmStateNew)
 {
-    /*
-     * Validate state machine transitions before doing the actual change.
-     */
-    VMSTATE enmStateOld = pVM->enmVMState;
+#ifdef VBOX_STRICT
     switch (enmStateOld)
     {
-        case VMSTATE_OFF:
-            Assert(enmStateNew != VMSTATE_GURU_MEDITATION);
+        case VMSTATE_CREATING:
+            AssertMsgReturn(enmStateNew == VMSTATE_CREATED, ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
             break;
 
+        case VMSTATE_CREATED:
+            AssertMsgReturn(   enmStateNew == VMSTATE_LOADING
+                            || enmStateNew == VMSTATE_POWERING_ON
+                            || enmStateNew == VMSTATE_POWERING_OFF
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_LOADING:
+            AssertMsgReturn(   enmStateNew == VMSTATE_SUSPENDED
+                            || enmStateNew == VMSTATE_LOAD_FAILURE
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_POWERING_ON:
+            AssertMsgReturn(   enmStateNew == VMSTATE_RUNNING
+                            /*|| enmStateNew == VMSTATE_FATAL_ERROR ?*/
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_RESUMING:
+            AssertMsgReturn(   enmStateNew == VMSTATE_RUNNING
+                            /*|| enmStateNew == VMSTATE_FATAL_ERROR ?*/
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_RUNNING:
+            AssertMsgReturn(   enmStateNew == VMSTATE_POWERING_OFF
+                            || enmStateNew == VMSTATE_SUSPENDING
+                            || enmStateNew == VMSTATE_RESETTING
+                            || enmStateNew == VMSTATE_RUNNING_LS
+                            || enmStateNew == VMSTATE_DEBUGGING
+                            || enmStateNew == VMSTATE_FATAL_ERROR
+                            || enmStateNew == VMSTATE_GURU_MEDITATION
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_RUNNING_LS:
+            AssertMsgReturn(   enmStateNew == VMSTATE_POWERING_OFF_LS
+                            || enmStateNew == VMSTATE_SUSPENDING_LS
+                            || enmStateNew == VMSTATE_SUSPENDING_EXT_LS
+                            || enmStateNew == VMSTATE_RESETTING_LS
+                            || enmStateNew == VMSTATE_RUNNING
+                            || enmStateNew == VMSTATE_DEBUGGING_LS
+                            || enmStateNew == VMSTATE_FATAL_ERROR_LS
+                            || enmStateNew == VMSTATE_GURU_MEDITATION_LS
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_RESETTING:
+            AssertMsgReturn(enmStateNew == VMSTATE_RUNNING, ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_RESETTING_LS:
+            AssertMsgReturn(   enmStateNew == VMSTATE_SUSPENDING_LS
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_SUSPENDING:
+            AssertMsgReturn(enmStateNew == VMSTATE_SUSPENDED, ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_SUSPENDING_LS:
+            AssertMsgReturn(   enmStateNew == VMSTATE_SUSPENDING
+                            || enmStateNew == VMSTATE_SUSPENDED_LS
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_SUSPENDING_EXT_LS:
+            AssertMsgReturn(   enmStateNew == VMSTATE_SUSPENDING
+                            || enmStateNew == VMSTATE_SUSPENDED_EXT_LS
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_SUSPENDED:
+            AssertMsgReturn(   enmStateNew == VMSTATE_POWERING_OFF
+                            || enmStateNew == VMSTATE_SAVING
+                            || enmStateNew == VMSTATE_RESETTING
+                            || enmStateNew == VMSTATE_RESUMING
+                            || enmStateNew == VMSTATE_LOADING
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_SUSPENDED_LS:
+            AssertMsgReturn(   enmStateNew == VMSTATE_SUSPENDED
+                            || enmStateNew == VMSTATE_SAVING
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_SUSPENDED_EXT_LS:
+            AssertMsgReturn(   enmStateNew == VMSTATE_SUSPENDED
+                            || enmStateNew == VMSTATE_SAVING
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_SAVING:
+            AssertMsgReturn(enmStateNew == VMSTATE_SUSPENDED, ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_DEBUGGING:
+            AssertMsgReturn(   enmStateNew == VMSTATE_RUNNING
+                            || enmStateNew == VMSTATE_POWERING_OFF
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_DEBUGGING_LS:
+            AssertMsgReturn(   enmStateNew == VMSTATE_DEBUGGING
+                            || enmStateNew == VMSTATE_RUNNING_LS
+                            || enmStateNew == VMSTATE_POWERING_OFF_LS
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_POWERING_OFF:
+            AssertMsgReturn(enmStateNew == VMSTATE_OFF, ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_POWERING_OFF_LS:
+            AssertMsgReturn(   enmStateNew == VMSTATE_POWERING_OFF
+                            || enmStateNew == VMSTATE_OFF_LS
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_OFF:
+            AssertMsgReturn(enmStateNew == VMSTATE_DESTROYING, ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_OFF_LS:
+            AssertMsgReturn(enmStateNew == VMSTATE_OFF, ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_FATAL_ERROR:
+            AssertMsgReturn(enmStateNew == VMSTATE_POWERING_OFF, ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_FATAL_ERROR_LS:
+            AssertMsgReturn(   enmStateNew == VMSTATE_FATAL_ERROR
+                            || enmStateNew == VMSTATE_POWERING_OFF_LS
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_GURU_MEDITATION:
+            AssertMsgReturn(   enmStateNew == VMSTATE_DEBUGGING
+                            || enmStateNew == VMSTATE_POWERING_OFF
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_GURU_MEDITATION_LS:
+            AssertMsgReturn(   enmStateNew == VMSTATE_GURU_MEDITATION
+                            || enmStateNew == VMSTATE_DEBUGGING_LS
+                            || enmStateNew == VMSTATE_POWERING_OFF_LS
+                            , ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_LOAD_FAILURE:
+            AssertMsgReturn(enmStateNew == VMSTATE_POWERING_OFF, ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_DESTROYING:
+            AssertMsgReturn(enmStateNew == VMSTATE_TERMINATED, ("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
+            break;
+
+        case VMSTATE_TERMINATED:
         default:
-            /** @todo full validation. */
+            AssertMsgFailedReturn(("%s -> %s\n", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)), false);
             break;
     }
+#endif /* VBOX_STRICT */
+    return true;
+}
 
-    pVM->enmVMState = enmStateNew;
+
+/**
+ * Does the state change callouts.
+ *
+ * The caller owns the AtStateCritSect.
+ *
+ * @param   pVM                 The VM handle.
+ * @param   pUVM                The UVM handle.
+ * @param   enmStateNew         The New state.
+ * @param   enmStateOld         The old state.
+ */
+static void vmR3DoAtState(PVM pVM, PUVM pUVM, VMSTATE enmStateNew, VMSTATE enmStateOld)
+{
     LogRel(("Changing the VM state from '%s' to '%s'.\n", VMR3GetStateName(enmStateOld),  VMR3GetStateName(enmStateNew)));
 
-    /*
-     * Call the at state change callbacks.
-     */
-    for (PVMATSTATE pCur = pVM->pUVM->vm.s.pAtState; pCur; pCur = pCur->pNext)
+    for (PVMATSTATE pCur = pUVM->vm.s.pAtState; pCur; pCur = pCur->pNext)
     {
         pCur->pfnAtState(pVM, enmStateNew, enmStateOld, pCur->pvUser);
-        if (    pVM->enmVMState != enmStateNew
+        if (    enmStateNew     != VMSTATE_DESTROYING
             &&  pVM->enmVMState == VMSTATE_DESTROYING)
             break;
         AssertMsg(pVM->enmVMState == enmStateNew,
                   ("You are not allowed to change the state while in the change callback, except "
                    "from destroying the VM. There are restrictions in the way the state changes "
                    "are propagated up to the EM execution loop and it makes the program flow very "
-                   "difficult to follow.\n"));
+                   "difficult to follow. (%s, expected %s, old %s)\n",
+                   VMR3GetStateName(pVM->enmVMState), VMR3GetStateName(enmStateNew),
+                   VMR3GetStateName(enmStateOld)));
     }
+}
+
+
+/**
+ * Sets the current VM state, with the AtStatCritSect already entered.
+ *
+ * @param   pVM                 The VM handle.
+ * @param   pUVM                The UVM handle.
+ * @param   enmStateNew         The new state.
+ * @param   enmStateOld         The old state.
+ */
+static void vmR3SetStateLocked(PVM pVM, PUVM pUVM, VMSTATE enmStateNew, VMSTATE enmStateOld)
+{
+    vmR3ValidateStateTransition(enmStateOld, enmStateNew);
+
+    AssertMsg(pVM->enmVMState == enmStateOld,
+              ("%s != %s\n", VMR3GetStateName(pVM->enmVMState), VMR3GetStateName(enmStateOld)));
+    pUVM->vm.s.enmPrevVMState = enmStateOld;
+    pVM->enmVMState           = enmStateNew;
+
+    vmR3DoAtState(pVM, pUVM, enmStateNew, enmStateOld);
+}
+
+
+/**
+ * Sets the current VM state.
+ *
+ * @param   pVM             VM handle.
+ * @param   enmStateNew     The new state.
+ * @param   enmStateOld     The old state (for asserting only).
+ */
+static void vmR3SetState(PVM pVM, VMSTATE enmStateNew, VMSTATE enmStateOld)
+{
+    PUVM pUVM = pVM->pUVM;
+    RTCritSectEnter(&pUVM->vm.s.AtStateCritSect);
+
+    AssertMsg(pVM->enmVMState == enmStateOld,
+              ("%s != %s\n", VMR3GetStateName(pVM->enmVMState), VMR3GetStateName(enmStateOld)));
+    vmR3SetStateLocked(pVM, pUVM, enmStateNew, pVM->enmVMState);
+
+    RTCritSectLeave(&pUVM->vm.s.AtStateCritSect);
+}
+
+
+/**
+ * Tries to perform a state transition.
+ *
+ * @returns The 1-based ordinal of the succeeding transition.
+ *          VERR_VM_INVALID_VM_STATE and Assert+LogRel on failure.
+ *
+ * @param   pVM                 The VM handle.
+ * @param   pszWho              Who is trying to change it.
+ * @param   cTransitions        The number of transitions in the ellipsis.
+ * @param   ...                 Transition pairs; new, old.
+ */
+static int vmR3TrySetState(PVM pVM, const char *pszWho, unsigned cTransitions, ...)
+{
+    va_list va;
+    VMSTATE enmStateNew = VMSTATE_CREATED;
+    VMSTATE enmStateOld = VMSTATE_CREATED;
+
+#ifdef VBOX_STRICT
+    /*
+     * Validate the input first.
+     */
+    va_start(va, cTransitions);
+    for (unsigned i = 0; i < cTransitions; i++)
+    {
+        enmStateNew = (VMSTATE)va_arg(va, /*VMSTATE*/int);
+        enmStateOld = (VMSTATE)va_arg(va, /*VMSTATE*/int);
+        vmR3ValidateStateTransition(enmStateOld, enmStateNew);
+    }
+    va_end(va);
+#endif
+
+    /*
+     * Grab the lock and see if any of the proposed transisions works out.
+     */
+    va_start(va, cTransitions);
+    int     rc          = VERR_VM_INVALID_VM_STATE;
+    PUVM    pUVM        = pVM->pUVM;
+    RTCritSectEnter(&pUVM->vm.s.AtStateCritSect);
+
+    VMSTATE enmStateCur = pVM->enmVMState;
+
+    for (unsigned i = 0; i < cTransitions; i++)
+    {
+        enmStateNew = (VMSTATE)va_arg(va, /*VMSTATE*/int);
+        enmStateOld = (VMSTATE)va_arg(va, /*VMSTATE*/int);
+        if (enmStateCur == enmStateOld)
+        {
+            vmR3SetStateLocked(pVM, pUVM, enmStateNew, enmStateOld);
+            rc = i + 1;
+            break;
+        }
+    }
+
+    if (RT_FAILURE(rc))
+    {
+        /*
+         * Complain about it.
+         */
+        if (cTransitions == 1)
+            LogRel(("%s: %s -> %s failed, because the VM state is actually %s\n",
+                    pszWho, VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew), VMR3GetStateName(enmStateCur)));
+        else
+        {
+            va_end(va);
+            va_start(va, cTransitions);
+            LogRel(("%s:\n", pszWho));
+            for (unsigned i = 0; i < cTransitions; i++)
+            {
+                enmStateNew = (VMSTATE)va_arg(va, /*VMSTATE*/int);
+                enmStateOld = (VMSTATE)va_arg(va, /*VMSTATE*/int);
+                LogRel(("%s%s -> %s",
+                        i ? ", " : " ", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)));
+            }
+            LogRel((" failed, because the VM state is actually %s\n", VMR3GetStateName(enmStateCur)));
+        }
+
+        VMSetError(pVM, VERR_VM_INVALID_VM_STATE, RT_SRC_POS,
+                   N_("%s failed because the VM state is %s instead of %s"),
+                   VMR3GetStateName(enmStateCur), VMR3GetStateName(enmStateOld));
+        AssertMsgFailed(("%s: %s -> %s failed, state is actually %s\n",
+                         pszWho, VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew), VMR3GetStateName(enmStateCur)));
+    }
+
+    RTCritSectLeave(&pUVM->vm.s.AtStateCritSect);
+    va_end(va);
+    Assert(rc > 0 || rc < 0);
+    return rc;
+}
+
+
+/**
+ * Flag a guru meditation ... a hack.
+ *
+ * @param   pVM             The VM handle
+ *
+ * @todo    Rewrite this part. The guru meditation should be flagged
+ *          immediately by the VMM and not by VMEmt.cpp when it's all over.
+ */
+void vmR3SetGuruMeditation(PVM pVM)
+{
+    PUVM pUVM = pVM->pUVM;
+    RTCritSectEnter(&pUVM->vm.s.AtStateCritSect);
+
+    VMSTATE enmStateCur = pVM->enmVMState;
+    if (enmStateCur == VMSTATE_RUNNING)
+        vmR3SetStateLocked(pVM, pUVM, VMSTATE_GURU_MEDITATION, VMSTATE_RUNNING);
+    else if (enmStateCur == VMSTATE_RUNNING_LS)
+    {
+        vmR3SetStateLocked(pVM, pUVM, VMSTATE_GURU_MEDITATION_LS, VMSTATE_RUNNING_LS);
+        SSMR3Cancel(pVM);
+    }
+
+    RTCritSectLeave(&pUVM->vm.s.AtStateCritSect);
+}
+
+
+/**
+ * Checks if the VM was teleported and hasn't been fully resumed yet.
+ *
+ * This applies to both sides of the teleportation since we may leave a working
+ * clone behind and the user is allowed to resume this...
+ *
+ * @returns true / false.
+ * @param   pVM                 The VM handle.
+ * @thread  Any thread.
+ */
+VMMR3DECL(bool) VMR3TeleportedAndNotFullyResumedYet(PVM pVM)
+{
+    VM_ASSERT_VALID_EXT_RETURN(pVM, false);
+    return pVM->vm.s.fTeleportedAndNotFullyResumedYet;
 }
 
 
@@ -2778,49 +3268,20 @@ void vmR3SetState(PVM pVM, VMSTATE enmStateNew)
  * @param   pvUser          User argument.
  * @thread  Any.
  */
-VMMR3DECL(int)   VMR3AtStateRegister(PVM pVM, PFNVMATSTATE pfnAtState, void *pvUser)
+VMMR3DECL(int) VMR3AtStateRegister(PVM pVM, PFNVMATSTATE pfnAtState, void *pvUser)
 {
     LogFlow(("VMR3AtStateRegister: pfnAtState=%p pvUser=%p\n", pfnAtState, pvUser));
 
     /*
      * Validate input.
      */
-    if (!pfnAtState)
-    {
-        AssertMsgFailed(("callback is required\n"));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertPtrReturn(pfnAtState, VERR_INVALID_PARAMETER);
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
-    /*
-     * Make sure we're in EMT (to avoid the logging).
-     */
-    PVMREQ pReq;
-    int rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3AtStateRegisterU, 3, pVM->pUVM, pfnAtState, pvUser);
-    if (RT_FAILURE(rc))
-        return rc;
-    rc = pReq->iStatus;
-    VMR3ReqFree(pReq);
-
-    LogFlow(("VMR3AtStateRegister: returns %Rrc\n", rc));
-    return rc;
-}
-
-
-/**
- * Registers a VM state change callback.
- *
- * @returns VBox status code.
- * @param   pUVM            Pointer to the user mode VM structure.
- * @param   pfnAtState      Pointer to callback.
- * @param   pvUser          User argument.
- * @thread  EMT
- */
-static DECLCALLBACK(int) vmR3AtStateRegisterU(PUVM pUVM, PFNVMATSTATE pfnAtState, void *pvUser)
-{
     /*
      * Allocate a new record.
      */
-
+    PUVM pUVM = pVM->pUVM;
     PVMATSTATE pNew = (PVMATSTATE)MMR3HeapAllocU(pUVM, MM_TAG_VM, sizeof(*pNew));
     if (!pNew)
         return VERR_NO_MEMORY;
@@ -2830,9 +3291,11 @@ static DECLCALLBACK(int) vmR3AtStateRegisterU(PUVM pUVM, PFNVMATSTATE pfnAtState
     pNew->pvUser     = pvUser;
 
     /* insert */
+    RTCritSectEnter(&pUVM->vm.s.AtStateCritSect);
     pNew->pNext      = *pUVM->vm.s.ppAtStateNext;
     *pUVM->vm.s.ppAtStateNext = pNew;
     pUVM->vm.s.ppAtStateNext = &pNew->pNext;
+    RTCritSectLeave(&pUVM->vm.s.AtStateCritSect);
 
     return VINF_SUCCESS;
 }
@@ -2847,46 +3310,18 @@ static DECLCALLBACK(int) vmR3AtStateRegisterU(PUVM pUVM, PFNVMATSTATE pfnAtState
  * @param   pvUser          User argument.
  * @thread  Any.
  */
-VMMR3DECL(int)   VMR3AtStateDeregister(PVM pVM, PFNVMATSTATE pfnAtState, void *pvUser)
+VMMR3DECL(int) VMR3AtStateDeregister(PVM pVM, PFNVMATSTATE pfnAtState, void *pvUser)
 {
     LogFlow(("VMR3AtStateDeregister: pfnAtState=%p pvUser=%p\n", pfnAtState, pvUser));
 
     /*
      * Validate input.
      */
-    if (!pfnAtState)
-    {
-        AssertMsgFailed(("callback is required\n"));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertPtrReturn(pfnAtState, VERR_INVALID_PARAMETER);
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
-    /*
-     * Make sure we're in EMT (to avoid the logging).
-     */
-    PVMREQ pReq;
-    int rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3AtStateDeregisterU, 3, pVM->pUVM, pfnAtState, pvUser);
-    if (RT_FAILURE(rc))
-        return rc;
-    rc = pReq->iStatus;
-    VMR3ReqFree(pReq);
-
-    LogFlow(("VMR3AtStateDeregister: returns %Rrc\n", rc));
-    return rc;
-}
-
-
-/**
- * Deregisters a VM state change callback.
- *
- * @returns VBox status code.
- * @param   pUVM            Pointer to the user mode VM structure.
- * @param   pfnAtState      Pointer to callback.
- * @param   pvUser          User argument.
- * @thread  EMT
- */
-static DECLCALLBACK(int) vmR3AtStateDeregisterU(PUVM pUVM, PFNVMATSTATE pfnAtState, void *pvUser)
-{
-    LogFlow(("vmR3AtStateDeregisterU: pfnAtState=%p pvUser=%p\n", pfnAtState, pvUser));
+    PUVM pUVM = pVM->pUVM;
+    RTCritSectEnter(&pUVM->vm.s.AtStateCritSect);
 
     /*
      * Search the list for the entry.
@@ -2903,6 +3338,7 @@ static DECLCALLBACK(int) vmR3AtStateDeregisterU(PUVM pUVM, PFNVMATSTATE pfnAtSta
     if (!pCur)
     {
         AssertMsgFailed(("pfnAtState=%p was not found\n", pfnAtState));
+        RTCritSectLeave(&pUVM->vm.s.AtStateCritSect);
         return VERR_FILE_NOT_FOUND;
     }
 
@@ -2921,6 +3357,8 @@ static DECLCALLBACK(int) vmR3AtStateDeregisterU(PUVM pUVM, PFNVMATSTATE pfnAtSta
         if (!pCur->pNext)
             pUVM->vm.s.ppAtStateNext = &pUVM->vm.s.pAtState;
     }
+
+    RTCritSectLeave(&pUVM->vm.s.AtStateCritSect);
 
     /*
      * Free it.
@@ -2960,38 +3398,16 @@ VMMR3DECL(int)   VMR3AtErrorRegister(PVM pVM, PFNVMATERROR pfnAtError, void *pvU
 VMMR3DECL(int)   VMR3AtErrorRegisterU(PUVM pUVM, PFNVMATERROR pfnAtError, void *pvUser)
 {
     LogFlow(("VMR3AtErrorRegister: pfnAtError=%p pvUser=%p\n", pfnAtError, pvUser));
-    AssertPtrReturn(pfnAtError, VERR_INVALID_PARAMETER);
 
     /*
-     * Make sure we're in EMT (to avoid the logging).
+     * Validate input.
      */
-    PVMREQ pReq;
-    int rc = VMR3ReqCallU(pUVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, 0, (PFNRT)vmR3AtErrorRegisterU, 3, pUVM, pfnAtError, pvUser);
-    if (RT_FAILURE(rc))
-        return rc;
-    rc = pReq->iStatus;
-    VMR3ReqFree(pReq);
+    AssertPtrReturn(pfnAtError, VERR_INVALID_PARAMETER);
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
 
-    LogFlow(("VMR3AtErrorRegister: returns %Rrc\n", rc));
-    return rc;
-}
-
-
-/**
- * Registers a VM error callback.
- *
- * @returns VBox status code.
- * @param   pUVM            Pointer to the user mode VM structure.
- * @param   pfnAtError      Pointer to callback.
- * @param   pvUser          User argument.
- * @thread  EMT
- */
-static DECLCALLBACK(int) vmR3AtErrorRegisterU(PUVM pUVM, PFNVMATERROR pfnAtError, void *pvUser)
-{
     /*
      * Allocate a new record.
      */
-
     PVMATERROR pNew = (PVMATERROR)MMR3HeapAllocU(pUVM, MM_TAG_VM, sizeof(*pNew));
     if (!pNew)
         return VERR_NO_MEMORY;
@@ -3001,9 +3417,11 @@ static DECLCALLBACK(int) vmR3AtErrorRegisterU(PUVM pUVM, PFNVMATERROR pfnAtError
     pNew->pvUser     = pvUser;
 
     /* insert */
+    RTCritSectEnter(&pUVM->vm.s.AtErrorCritSect);
     pNew->pNext      = *pUVM->vm.s.ppAtErrorNext;
     *pUVM->vm.s.ppAtErrorNext = pNew;
     pUVM->vm.s.ppAtErrorNext = &pNew->pNext;
+    RTCritSectLeave(&pUVM->vm.s.AtErrorCritSect);
 
     return VINF_SUCCESS;
 }
@@ -3018,46 +3436,18 @@ static DECLCALLBACK(int) vmR3AtErrorRegisterU(PUVM pUVM, PFNVMATERROR pfnAtError
  * @param   pvUser          User argument.
  * @thread  Any.
  */
-VMMR3DECL(int)   VMR3AtErrorDeregister(PVM pVM, PFNVMATERROR pfnAtError, void *pvUser)
+VMMR3DECL(int) VMR3AtErrorDeregister(PVM pVM, PFNVMATERROR pfnAtError, void *pvUser)
 {
     LogFlow(("VMR3AtErrorDeregister: pfnAtError=%p pvUser=%p\n", pfnAtError, pvUser));
 
     /*
      * Validate input.
      */
-    if (!pfnAtError)
-    {
-        AssertMsgFailed(("callback is required\n"));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertPtrReturn(pfnAtError, VERR_INVALID_PARAMETER);
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
-    /*
-     * Make sure we're in EMT (to avoid the logging).
-     */
-    PVMREQ pReq;
-    int rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3AtErrorDeregisterU, 3, pVM->pUVM, pfnAtError, pvUser);
-    if (RT_FAILURE(rc))
-        return rc;
-    rc = pReq->iStatus;
-    VMR3ReqFree(pReq);
-
-    LogFlow(("VMR3AtErrorDeregister: returns %Rrc\n", rc));
-    return rc;
-}
-
-
-/**
- * Deregisters a VM error callback.
- *
- * @returns VBox status code.
- * @param   pUVM            Pointer to the user mode VM structure.
- * @param   pfnAtError      Pointer to callback.
- * @param   pvUser          User argument.
- * @thread  EMT
- */
-static DECLCALLBACK(int)    vmR3AtErrorDeregisterU(PUVM pUVM, PFNVMATERROR pfnAtError, void *pvUser)
-{
-    LogFlow(("vmR3AtErrorDeregisterU: pfnAtError=%p pvUser=%p\n", pfnAtError, pvUser));
+    PUVM pUVM = pVM->pUVM;
+    RTCritSectEnter(&pUVM->vm.s.AtErrorCritSect);
 
     /*
      * Search the list for the entry.
@@ -3074,6 +3464,7 @@ static DECLCALLBACK(int)    vmR3AtErrorDeregisterU(PUVM pUVM, PFNVMATERROR pfnAt
     if (!pCur)
     {
         AssertMsgFailed(("pfnAtError=%p was not found\n", pfnAtError));
+        RTCritSectLeave(&pUVM->vm.s.AtErrorCritSect);
         return VERR_FILE_NOT_FOUND;
     }
 
@@ -3092,6 +3483,8 @@ static DECLCALLBACK(int)    vmR3AtErrorDeregisterU(PUVM pUVM, PFNVMATERROR pfnAt
         if (!pCur->pNext)
             pUVM->vm.s.ppAtErrorNext = &pUVM->vm.s.pAtError;
     }
+
+    RTCritSectLeave(&pUVM->vm.s.AtErrorCritSect);
 
     /*
      * Free it.
@@ -3156,8 +3549,26 @@ VMMR3DECL(void) VMR3SetErrorWorker(PVM pVM)
     /*
      * Call the at error callbacks.
      */
-    for (PVMATERROR pCur = pVM->pUVM->vm.s.pAtError; pCur; pCur = pCur->pNext)
+    PUVM pUVM = pVM->pUVM;
+    RTCritSectEnter(&pUVM->vm.s.AtErrorCritSect);
+    ASMAtomicIncU32(&pUVM->vm.s.cRuntimeErrors);
+    for (PVMATERROR pCur = pUVM->vm.s.pAtError; pCur; pCur = pCur->pNext)
         vmR3SetErrorWorkerDoCall(pVM, pCur, rc, RT_SRC_POS_ARGS, "%s", pszMessage);
+    RTCritSectLeave(&pUVM->vm.s.AtErrorCritSect);
+}
+
+
+/**
+ * Gets the number of errors raised via VMSetError.
+ *
+ * This can be used avoid double error messages.
+ *
+ * @returns The error count.
+ * @param   pVM             The VM handle.
+ */
+VMMR3DECL(uint32_t) VMR3GetErrorCount(PVM pVM)
+{
+    return pVM->pUVM->vm.s.cErrors;
 }
 
 
@@ -3194,16 +3605,18 @@ static int vmR3SetErrorU(PUVM pUVM, int rc, RT_SRC_POS_DECL, const char *pszForm
  */
 DECLCALLBACK(void) vmR3SetErrorUV(PUVM pUVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list *pArgs)
 {
-#ifdef LOG_ENABLED
     /*
      * Log the error.
      */
-    RTLogPrintf("VMSetError: %s(%d) %s\n", pszFile, iLine, pszFunction);
     va_list va3;
     va_copy(va3, *pArgs);
-    RTLogPrintfV(pszFormat, va3);
+    RTLogRelPrintf("VMSetError: %s(%d) %s\nVMSetError: %N\n", pszFile, iLine, pszFunction, pszFormat, &va3);
     va_end(va3);
-    RTLogPrintf("\n");
+
+#ifdef LOG_ENABLED
+    va_copy(va3, *pArgs);
+    RTLogPrintf("VMSetError: %s(%d) %s\n%N\n", pszFile, iLine, pszFunction, pszFormat, &va3);
+    va_end(va3);
 #endif
 
     /*
@@ -3215,13 +3628,18 @@ DECLCALLBACK(void) vmR3SetErrorUV(PUVM pUVM, int rc, RT_SRC_POS_DECL, const char
     /*
      * Call the at error callbacks.
      */
+    bool fCalledSomeone = false;
+    RTCritSectEnter(&pUVM->vm.s.AtErrorCritSect);
+    ASMAtomicIncU32(&pUVM->vm.s.cErrors);
     for (PVMATERROR pCur = pUVM->vm.s.pAtError; pCur; pCur = pCur->pNext)
     {
         va_list va2;
         va_copy(va2, *pArgs);
         pCur->pfnAtError(pUVM->pVM, pCur->pvUser, rc, RT_SRC_POS_ARGS, pszFormat, va2);
         va_end(va2);
+        fCalledSomeone = true;
     }
+    RTCritSectLeave(&pUVM->vm.s.AtErrorCritSect);
 }
 
 
@@ -3241,42 +3659,13 @@ VMMR3DECL(int)   VMR3AtRuntimeErrorRegister(PVM pVM, PFNVMATRUNTIMEERROR pfnAtRu
     /*
      * Validate input.
      */
-    if (!pfnAtRuntimeError)
-    {
-        AssertMsgFailed(("callback is required\n"));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertPtrReturn(pfnAtRuntimeError, VERR_INVALID_PARAMETER);
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
-    /*
-     * Make sure we're in EMT (to avoid the logging).
-     */
-    PVMREQ pReq;
-    int rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3AtRuntimeErrorRegisterU, 3, pVM->pUVM, pfnAtRuntimeError, pvUser);
-    if (RT_FAILURE(rc))
-        return rc;
-    rc = pReq->iStatus;
-    VMR3ReqFree(pReq);
-
-    LogFlow(("VMR3AtRuntimeErrorRegister: returns %Rrc\n", rc));
-    return rc;
-}
-
-
-/**
- * Registers a VM runtime error callback.
- *
- * @returns VBox status code.
- * @param   pUVM            Pointer to the user mode VM structure.
- * @param   pfnAtRuntimeError   Pointer to callback.
- * @param   pvUser              User argument.
- * @thread  EMT
- */
-static DECLCALLBACK(int)    vmR3AtRuntimeErrorRegisterU(PUVM pUVM, PFNVMATRUNTIMEERROR pfnAtRuntimeError, void *pvUser)
-{
     /*
      * Allocate a new record.
      */
-
+    PUVM pUVM = pVM->pUVM;
     PVMATRUNTIMEERROR pNew = (PVMATRUNTIMEERROR)MMR3HeapAllocU(pUVM, MM_TAG_VM, sizeof(*pNew));
     if (!pNew)
         return VERR_NO_MEMORY;
@@ -3286,9 +3675,11 @@ static DECLCALLBACK(int)    vmR3AtRuntimeErrorRegisterU(PUVM pUVM, PFNVMATRUNTIM
     pNew->pvUser            = pvUser;
 
     /* insert */
+    RTCritSectEnter(&pUVM->vm.s.AtErrorCritSect);
     pNew->pNext             = *pUVM->vm.s.ppAtRuntimeErrorNext;
     *pUVM->vm.s.ppAtRuntimeErrorNext = pNew;
     pUVM->vm.s.ppAtRuntimeErrorNext = &pNew->pNext;
+    RTCritSectLeave(&pUVM->vm.s.AtErrorCritSect);
 
     return VINF_SUCCESS;
 }
@@ -3310,39 +3701,11 @@ VMMR3DECL(int)   VMR3AtRuntimeErrorDeregister(PVM pVM, PFNVMATRUNTIMEERROR pfnAt
     /*
      * Validate input.
      */
-    if (!pfnAtRuntimeError)
-    {
-        AssertMsgFailed(("callback is required\n"));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertPtrReturn(pfnAtRuntimeError, VERR_INVALID_PARAMETER);
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
-    /*
-     * Make sure we're in EMT (to avoid the logging).
-     */
-    PVMREQ pReq;
-    int rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)vmR3AtRuntimeErrorDeregisterU, 3, pVM->pUVM, pfnAtRuntimeError, pvUser);
-    if (RT_FAILURE(rc))
-        return rc;
-    rc = pReq->iStatus;
-    VMR3ReqFree(pReq);
-
-    LogFlow(("VMR3AtRuntimeErrorDeregister: returns %Rrc\n", rc));
-    return rc;
-}
-
-
-/**
- * Deregisters a VM runtime error callback.
- *
- * @returns VBox status code.
- * @param   pUVM            Pointer to the user mode VM structure.
- * @param   pfnAtRuntimeError   Pointer to callback.
- * @param   pvUser              User argument.
- * @thread  EMT
- */
-static DECLCALLBACK(int)    vmR3AtRuntimeErrorDeregisterU(PUVM pUVM, PFNVMATRUNTIMEERROR pfnAtRuntimeError, void *pvUser)
-{
-    LogFlow(("vmR3AtRuntimeErrorDeregisterU: pfnAtRuntimeError=%p pvUser=%p\n", pfnAtRuntimeError, pvUser));
+    PUVM pUVM = pVM->pUVM;
+    RTCritSectEnter(&pUVM->vm.s.AtErrorCritSect);
 
     /*
      * Search the list for the entry.
@@ -3359,6 +3722,7 @@ static DECLCALLBACK(int)    vmR3AtRuntimeErrorDeregisterU(PUVM pUVM, PFNVMATRUNT
     if (!pCur)
     {
         AssertMsgFailed(("pfnAtRuntimeError=%p was not found\n", pfnAtRuntimeError));
+        RTCritSectLeave(&pUVM->vm.s.AtErrorCritSect);
         return VERR_FILE_NOT_FOUND;
     }
 
@@ -3378,6 +3742,8 @@ static DECLCALLBACK(int)    vmR3AtRuntimeErrorDeregisterU(PUVM pUVM, PFNVMATRUNT
             pUVM->vm.s.ppAtRuntimeErrorNext = &pUVM->vm.s.pAtRuntimeError;
     }
 
+    RTCritSectLeave(&pUVM->vm.s.AtErrorCritSect);
+
     /*
      * Free it.
      */
@@ -3386,6 +3752,31 @@ static DECLCALLBACK(int)    vmR3AtRuntimeErrorDeregisterU(PUVM pUVM, PFNVMATRUNT
     MMR3HeapFree(pCur);
 
     return VINF_SUCCESS;
+}
+
+
+/**
+ * EMT rendezvous worker that vmR3SetRuntimeErrorCommon uses to safely change
+ * the state to FatalError(LS).
+ *
+ * @returns VERR_VM_INVALID_VM_STATE or VINF_SUCCESS. (This is a strict return
+ *          code, see FNVMMEMTRENDEZVOUS.)
+ *
+ * @param   pVM             The VM handle.
+ * @param   pVCpu           The VMCPU handle of the EMT.
+ * @param   pvUser          Ignored.
+ */
+static DECLCALLBACK(VBOXSTRICTRC) vmR3SetRuntimeErrorChangeState(PVM pVM, PVMCPU pVCpu, void *pvUser)
+{
+    NOREF(pVCpu);
+    Assert(!pvUser); NOREF(pvUser);
+
+    int rc = vmR3TrySetState(pVM, "VMSetRuntimeError", 2,
+                             VMSTATE_FATAL_ERROR,    VMSTATE_RUNNING,
+                             VMSTATE_FATAL_ERROR_LS, VMSTATE_RUNNING_LS);
+    if (rc == 2)
+        SSMR3Cancel(pVM);
+    return RT_SUCCESS(rc) ? VINF_SUCCESS : rc;
 }
 
 
@@ -3409,24 +3800,28 @@ static int vmR3SetRuntimeErrorCommon(PVM pVM, uint32_t fFlags, const char *pszEr
     /*
      * Take actions before the call.
      */
-    int rc = VINF_SUCCESS;
+    int rc;
     if (fFlags & VMSETRTERR_FLAGS_FATAL)
-        /** @todo Add some special VM state for the FATAL variant that isn't resumable.
-         *        It's too risky for 2.2.0, do after branching. */
-        rc = VMR3SuspendNoSave(pVM);
+        rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ONCE, vmR3SetRuntimeErrorChangeState, NULL);
     else if (fFlags & VMSETRTERR_FLAGS_SUSPEND)
         rc = VMR3Suspend(pVM);
+    else
+        rc = VINF_SUCCESS;
 
     /*
      * Do the callback round.
      */
-    for (PVMATRUNTIMEERROR pCur = pVM->pUVM->vm.s.pAtRuntimeError; pCur; pCur = pCur->pNext)
+    PUVM pUVM = pVM->pUVM;
+    RTCritSectEnter(&pUVM->vm.s.AtErrorCritSect);
+    ASMAtomicIncU32(&pUVM->vm.s.cRuntimeErrors);
+    for (PVMATRUNTIMEERROR pCur = pUVM->vm.s.pAtRuntimeError; pCur; pCur = pCur->pNext)
     {
         va_list va;
         va_copy(va, *pVa);
         pCur->pfnAtRuntimeError(pVM, pCur->pvUser, fFlags, pszErrorId, pszFormat, va);
         va_end(va);
     }
+    RTCritSectLeave(&pUVM->vm.s.AtErrorCritSect);
 
     return rc;
 }
@@ -3492,6 +3887,39 @@ VMMR3DECL(int) VMR3SetRuntimeErrorWorker(PVM pVM)
  * @param   pVM             The VM handle.
  * @param   fFlags          The error flags.
  * @param   pszErrorId      Error ID string.
+ * @param   pszMessage      The error message residing the MM heap.
+ *
+ * @thread  EMT
+ */
+DECLCALLBACK(int) vmR3SetRuntimeError(PVM pVM, uint32_t fFlags, const char *pszErrorId, char *pszMessage)
+{
+#if 0 /** @todo make copy of the error msg. */
+    /*
+     * Make a copy of the message.
+     */
+    va_list va2;
+    va_copy(va2, *pVa);
+    vmSetRuntimeErrorCopy(pVM, fFlags, pszErrorId, pszFormat, va2);
+    va_end(va2);
+#endif
+
+    /*
+     * Join paths with VMR3SetRuntimeErrorWorker.
+     */
+    int rc = vmR3SetRuntimeErrorCommonF(pVM, fFlags, pszErrorId, "%s", pszMessage);
+    MMR3HeapFree(pszMessage);
+    return rc;
+}
+
+
+/**
+ * Worker for VMSetRuntimeErrorV for doing the job on EMT in ring-3.
+ *
+ * @returns VBox status code with modifications, see VMSetRuntimeErrorV.
+ *
+ * @param   pVM             The VM handle.
+ * @param   fFlags          The error flags.
+ * @param   pszErrorId      Error ID string.
  * @param   pszFormat       Format string.
  * @param   pVa             Pointer to the format arguments.
  *
@@ -3511,6 +3939,20 @@ DECLCALLBACK(int) vmR3SetRuntimeErrorV(PVM pVM, uint32_t fFlags, const char *psz
      * Join paths with VMR3SetRuntimeErrorWorker.
      */
     return vmR3SetRuntimeErrorCommon(pVM, fFlags, pszErrorId, pszFormat, pVa);
+}
+
+
+/**
+ * Gets the number of runtime errors raised via VMR3SetRuntimeError.
+ *
+ * This can be used avoid double error messages.
+ *
+ * @returns The runtime error count.
+ * @param   pVM             The VM handle.
+ */
+VMMR3DECL(uint32_t) VMR3GetRuntimeErrorCount(PVM pVM)
+{
+    return pVM->pUVM->vm.s.cRuntimeErrors;
 }
 
 
@@ -3600,3 +4042,4 @@ VMMR3DECL(RTTHREAD) VMR3GetVMCPUThreadU(PUVM pUVM)
 
     return pUVCpu->vm.s.ThreadEMT;
 }
+

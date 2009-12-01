@@ -1,5 +1,4 @@
-#ifdef VBOX
-/* $Id:  $ */
+/* $Id: DevPS2.cpp 24396 2009-11-05 16:09:32Z vboxsync $ */
 /** @file
  * DevPS2 - PS/2 keyboard & mouse controller device.
  */
@@ -56,7 +55,7 @@
 
 #include "../Builtins.h"
 
-#define PCKBD_SAVED_STATE_VERSION 2
+#define PCKBD_SAVED_STATE_VERSION 3
 
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
@@ -70,99 +69,90 @@ PDMBOTHCBDECL(int) kbdIOPortStatusRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
 PDMBOTHCBDECL(int) kbdIOPortCommandWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
 RT_C_DECLS_END
 #endif /* !VBOX_DEVICE_STRUCT_TESTCASE */
-#endif /* VBOX */
 
-
-#ifndef VBOX
-#include "vl.h"
-#endif
-
-#ifdef VBOX
 /* debug PC keyboard */
 #define DEBUG_KBD
 
 /* debug PC keyboard : only mouse */
 #define DEBUG_MOUSE
-#endif /* VBOX */
 
-/*	Keyboard Controller Commands */
-#define KBD_CCMD_READ_MODE	0x20	/* Read mode bits */
-#define KBD_CCMD_WRITE_MODE	0x60	/* Write mode bits */
-#define KBD_CCMD_GET_VERSION	0xA1	/* Get controller version */
-#define KBD_CCMD_MOUSE_DISABLE	0xA7	/* Disable mouse interface */
-#define KBD_CCMD_MOUSE_ENABLE	0xA8	/* Enable mouse interface */
-#define KBD_CCMD_TEST_MOUSE	0xA9	/* Mouse interface test */
-#define KBD_CCMD_SELF_TEST	0xAA	/* Controller self test */
-#define KBD_CCMD_KBD_TEST	0xAB	/* Keyboard interface test */
-#define KBD_CCMD_KBD_DISABLE	0xAD	/* Keyboard interface disable */
-#define KBD_CCMD_KBD_ENABLE	0xAE	/* Keyboard interface enable */
+/*      Keyboard Controller Commands */
+#define KBD_CCMD_READ_MODE      0x20    /* Read mode bits */
+#define KBD_CCMD_WRITE_MODE     0x60    /* Write mode bits */
+#define KBD_CCMD_GET_VERSION    0xA1    /* Get controller version */
+#define KBD_CCMD_MOUSE_DISABLE  0xA7    /* Disable mouse interface */
+#define KBD_CCMD_MOUSE_ENABLE   0xA8    /* Enable mouse interface */
+#define KBD_CCMD_TEST_MOUSE     0xA9    /* Mouse interface test */
+#define KBD_CCMD_SELF_TEST      0xAA    /* Controller self test */
+#define KBD_CCMD_KBD_TEST       0xAB    /* Keyboard interface test */
+#define KBD_CCMD_KBD_DISABLE    0xAD    /* Keyboard interface disable */
+#define KBD_CCMD_KBD_ENABLE     0xAE    /* Keyboard interface enable */
 #define KBD_CCMD_READ_INPORT    0xC0    /* read input port */
-#define KBD_CCMD_READ_OUTPORT	0xD0    /* read output port */
-#define KBD_CCMD_WRITE_OUTPORT	0xD1    /* write output port */
-#define KBD_CCMD_WRITE_OBUF	0xD2
-#define KBD_CCMD_WRITE_AUX_OBUF	0xD3    /* Write to output buffer as if
-					   initiated by the auxiliary device */
-#define KBD_CCMD_WRITE_MOUSE	0xD4	/* Write the following byte to the mouse */
+#define KBD_CCMD_READ_OUTPORT   0xD0    /* read output port */
+#define KBD_CCMD_WRITE_OUTPORT  0xD1    /* write output port */
+#define KBD_CCMD_WRITE_OBUF     0xD2
+#define KBD_CCMD_WRITE_AUX_OBUF 0xD3    /* Write to output buffer as if
+                                           initiated by the auxiliary device */
+#define KBD_CCMD_WRITE_MOUSE    0xD4    /* Write the following byte to the mouse */
 #define KBD_CCMD_DISABLE_A20    0xDD    /* HP vectra only ? */
 #define KBD_CCMD_ENABLE_A20     0xDF    /* HP vectra only ? */
 #define KBD_CCMD_READ_TSTINP    0xE0    /* Read test inputs T0, T1 */
-#define KBD_CCMD_RESET	        0xFE
+#define KBD_CCMD_RESET          0xFE
 
 /* Keyboard Commands */
-#define KBD_CMD_SET_LEDS	0xED	/* Set keyboard leds */
-#define KBD_CMD_ECHO     	0xEE
-#define KBD_CMD_GET_ID 	        0xF2	/* get keyboard ID */
-#define KBD_CMD_SET_RATE	0xF3	/* Set typematic rate */
-#define KBD_CMD_ENABLE		0xF4	/* Enable scanning */
-#define KBD_CMD_RESET_DISABLE	0xF5	/* reset and disable scanning */
-#define KBD_CMD_RESET_ENABLE   	0xF6    /* reset and enable scanning */
-#define KBD_CMD_RESET		0xFF	/* Reset */
+#define KBD_CMD_SET_LEDS        0xED    /* Set keyboard leds */
+#define KBD_CMD_ECHO            0xEE
+#define KBD_CMD_SCANCODE        0xF0    /* Get/set scancode set */
+#define KBD_CMD_GET_ID          0xF2    /* get keyboard ID */
+#define KBD_CMD_SET_RATE        0xF3    /* Set typematic rate */
+#define KBD_CMD_ENABLE          0xF4    /* Enable scanning */
+#define KBD_CMD_RESET_DISABLE   0xF5    /* reset and disable scanning */
+#define KBD_CMD_RESET_ENABLE    0xF6    /* reset and enable scanning */
+#define KBD_CMD_RESET           0xFF    /* Reset */
 
 /* Keyboard Replies */
-#define KBD_REPLY_POR		0xAA	/* Power on reset */
-#define KBD_REPLY_ACK		0xFA	/* Command ACK */
-#define KBD_REPLY_RESEND	0xFE	/* Command NACK, send the cmd again */
+#define KBD_REPLY_POR           0xAA    /* Power on reset */
+#define KBD_REPLY_ACK           0xFA    /* Command ACK */
+#define KBD_REPLY_RESEND        0xFE    /* Command NACK, send the cmd again */
 
 /* Status Register Bits */
-#define KBD_STAT_OBF 		0x01	/* Keyboard output buffer full */
-#define KBD_STAT_IBF 		0x02	/* Keyboard input buffer full */
-#define KBD_STAT_SELFTEST	0x04	/* Self test successful */
-#define KBD_STAT_CMD		0x08	/* Last write was a command write (0=data) */
-#define KBD_STAT_UNLOCKED	0x10	/* Zero if keyboard locked */
-#define KBD_STAT_MOUSE_OBF	0x20	/* Mouse output buffer full */
-#define KBD_STAT_GTO 		0x40	/* General receive/xmit timeout */
-#define KBD_STAT_PERR 		0x80	/* Parity error */
+#define KBD_STAT_OBF            0x01    /* Keyboard output buffer full */
+#define KBD_STAT_IBF            0x02    /* Keyboard input buffer full */
+#define KBD_STAT_SELFTEST       0x04    /* Self test successful */
+#define KBD_STAT_CMD            0x08    /* Last write was a command write (0=data) */
+#define KBD_STAT_UNLOCKED       0x10    /* Zero if keyboard locked */
+#define KBD_STAT_MOUSE_OBF      0x20    /* Mouse output buffer full */
+#define KBD_STAT_GTO            0x40    /* General receive/xmit timeout */
+#define KBD_STAT_PERR           0x80    /* Parity error */
 
 /* Controller Mode Register Bits */
-#define KBD_MODE_KBD_INT	0x01	/* Keyboard data generate IRQ1 */
-#define KBD_MODE_MOUSE_INT	0x02	/* Mouse data generate IRQ12 */
-#define KBD_MODE_SYS 		0x04	/* The system flag (?) */
-#define KBD_MODE_NO_KEYLOCK	0x08	/* The keylock doesn't affect the keyboard if set */
-#define KBD_MODE_DISABLE_KBD	0x10	/* Disable keyboard interface */
-#define KBD_MODE_DISABLE_MOUSE	0x20	/* Disable mouse interface */
-#define KBD_MODE_KCC 		0x40	/* Scan code conversion to PC format */
-#define KBD_MODE_RFU		0x80
+#define KBD_MODE_KBD_INT        0x01    /* Keyboard data generate IRQ1 */
+#define KBD_MODE_MOUSE_INT      0x02    /* Mouse data generate IRQ12 */
+#define KBD_MODE_SYS            0x04    /* The system flag (?) */
+#define KBD_MODE_NO_KEYLOCK     0x08    /* The keylock doesn't affect the keyboard if set */
+#define KBD_MODE_DISABLE_KBD    0x10    /* Disable keyboard interface */
+#define KBD_MODE_DISABLE_MOUSE  0x20    /* Disable mouse interface */
+#define KBD_MODE_KCC            0x40    /* Scan code conversion to PC format */
+#define KBD_MODE_RFU            0x80
 
 /* Mouse Commands */
-#define AUX_SET_SCALE11		0xE6	/* Set 1:1 scaling */
-#define AUX_SET_SCALE21		0xE7	/* Set 2:1 scaling */
-#define AUX_SET_RES		0xE8	/* Set resolution */
-#define AUX_GET_SCALE		0xE9	/* Get scaling factor */
-#define AUX_SET_STREAM		0xEA	/* Set stream mode */
-#define AUX_POLL		0xEB	/* Poll */
-#define AUX_RESET_WRAP		0xEC	/* Reset wrap mode */
-#define AUX_SET_WRAP		0xEE	/* Set wrap mode */
-#define AUX_SET_REMOTE		0xF0	/* Set remote mode */
-#define AUX_GET_TYPE		0xF2	/* Get type */
-#define AUX_SET_SAMPLE		0xF3	/* Set sample rate */
-#define AUX_ENABLE_DEV		0xF4	/* Enable aux device */
-#define AUX_DISABLE_DEV		0xF5	/* Disable aux device */
-#define AUX_SET_DEFAULT		0xF6
-#define AUX_RESET		0xFF	/* Reset aux device */
-#define AUX_ACK			0xFA	/* Command byte ACK. */
-#ifdef VBOX
-#define AUX_NACK			0xFE	/* Command byte NACK. */
-#endif
+#define AUX_SET_SCALE11         0xE6    /* Set 1:1 scaling */
+#define AUX_SET_SCALE21         0xE7    /* Set 2:1 scaling */
+#define AUX_SET_RES             0xE8    /* Set resolution */
+#define AUX_GET_SCALE           0xE9    /* Get scaling factor */
+#define AUX_SET_STREAM          0xEA    /* Set stream mode */
+#define AUX_POLL                0xEB    /* Poll */
+#define AUX_RESET_WRAP          0xEC    /* Reset wrap mode */
+#define AUX_SET_WRAP            0xEE    /* Set wrap mode */
+#define AUX_SET_REMOTE          0xF0    /* Set remote mode */
+#define AUX_GET_TYPE            0xF2    /* Get type */
+#define AUX_SET_SAMPLE          0xF3    /* Set sample rate */
+#define AUX_ENABLE_DEV          0xF4    /* Enable aux device */
+#define AUX_DISABLE_DEV         0xF5    /* Disable aux device */
+#define AUX_SET_DEFAULT         0xF6
+#define AUX_RESET               0xFF    /* Reset aux device */
+#define AUX_ACK                 0xFA    /* Command byte ACK. */
+#define AUX_NACK                0xFE    /* Command byte NACK. */
 
 #define MOUSE_STATUS_REMOTE     0x40
 #define MOUSE_STATUS_ENABLED    0x20
@@ -170,15 +160,13 @@ RT_C_DECLS_END
 
 #define KBD_QUEUE_SIZE 256
 
+# define MOUSE_REPORT_HORIZONTAL  0x01
+# define MOUSE_OUTSTANDING_CLICK  0x02
+
 typedef struct {
-#ifndef VBOX
-    uint8_t aux[KBD_QUEUE_SIZE];
-#endif /* !VBOX */
     uint8_t data[KBD_QUEUE_SIZE];
     int rptr, wptr, count;
 } KBDQueue;
-
-#ifdef VBOX
 
 #define MOUSE_CMD_QUEUE_SIZE 8
 
@@ -195,20 +183,18 @@ typedef struct {
     int rptr, wptr, count;
 } MouseEventQueue;
 
-#endif /* VBOX */
-
 typedef struct KBDState {
     KBDQueue queue;
-#ifdef VBOX
     MouseCmdQueue mouse_command_queue;
     MouseEventQueue mouse_event_queue;
-#endif /* VBOX */
     uint8_t write_cmd; /* if non zero, write data to port 60 is expected */
     uint8_t status;
     uint8_t mode;
     /* keyboard state */
     int32_t kbd_write_cmd;
     int32_t scan_enabled;
+    int32_t translate;
+    int32_t scancode_set;   /* 1=XT, 2=AT, 3=PS/2 */
     /* mouse state */
     int32_t mouse_write_cmd;
     uint8_t mouse_status;
@@ -220,9 +206,10 @@ typedef struct KBDState {
     int32_t mouse_dx; /* current values, needed for 'poll' mode */
     int32_t mouse_dy;
     int32_t mouse_dz;
+    int32_t mouse_dw;
+    int32_t mouse_flags;
     uint8_t mouse_buttons;
 
-#ifdef VBOX
     /** Pointer to the device instance - RC. */
     PPDMDEVINSRC                pDevInsRC;
     /** Pointer to the device instance - R3 . */
@@ -262,13 +249,21 @@ typedef struct KBDState {
         /** The mouse interface of the attached mouse driver. */
         R3PTRTYPE(PPDMIMOUSECONNECTOR)      pDrv;
     } Mouse;
-#endif
 } KBDState;
 
+/* Table to convert from PC scancodes to raw scancodes.  */
+static const unsigned char ps2_raw_keycode[128] = {
+      0,118, 22, 30, 38, 37, 46, 54, 61, 62, 70, 69, 78, 85,102, 13,
+     21, 29, 36, 45, 44, 53, 60, 67, 68, 77, 84, 91, 90, 20, 28, 27,
+     35, 43, 52, 51, 59, 66, 75, 76, 82, 14, 18, 93, 26, 34, 33, 42,
+     50, 49, 58, 65, 73, 74, 89,124, 17, 41, 88,  5,  6,  4, 12,  3,
+     11,  2, 10,  1,  9,119,126,108,117,125,123,107,115,116,121,105,
+    114,122,112,113,127, 96, 97,120,  7, 15, 23, 31, 39, 47, 55, 63,
+     71, 79, 86, 94,  8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 87,111,
+     19, 25, 57, 81, 83, 92, 95, 98, 99,100,101,103,104,106,109,110
+};
+
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
-#ifndef VBOX
-KBDState kbd_state;
-#endif
 
 /* update irq and KBD_STAT_[MOUSE_]OBF */
 /* XXX: not generating the irqs if KBD_MODE_DISABLE_KBD is set may be
@@ -276,16 +271,13 @@ KBDState kbd_state;
 static void kbd_update_irq(KBDState *s)
 {
     KBDQueue *q = &s->queue;
-#ifdef VBOX
     MouseCmdQueue *mcq = &s->mouse_command_queue;
     MouseEventQueue *meq = &s->mouse_event_queue;
-#endif /* VBOX */
     int irq12_level, irq1_level;
 
     irq1_level = 0;
     irq12_level = 0;
     s->status &= ~(KBD_STAT_OBF | KBD_STAT_MOUSE_OBF);
-#ifdef VBOX
     if (q->count != 0)
     {
         s->status |= KBD_STAT_OBF;
@@ -298,46 +290,26 @@ static void kbd_update_irq(KBDState *s)
         if (s->mode & KBD_MODE_MOUSE_INT)
             irq12_level = 1;
     }
-#else /* !VBOX */
-    if (q->count != 0) {
-        s->status |= KBD_STAT_OBF;
-        if (q->aux[q->rptr]) {
-            s->status |= KBD_STAT_MOUSE_OBF;
-            if (s->mode & KBD_MODE_MOUSE_INT)
-                irq12_level = 1;
-        } else {
-            if ((s->mode & KBD_MODE_KBD_INT) &&
-                !(s->mode & KBD_MODE_DISABLE_KBD))
-                irq1_level = 1;
-        }
-    }
-#endif /* !VBOX */
-#ifndef VBOX
-    pic_set_irq(1, irq1_level);
-    pic_set_irq(12, irq12_level);
-#else /* VBOX */
     PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), 1, irq1_level);
     PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), 12, irq12_level);
-#endif /* VBOX */
 }
 
 static void kbd_queue(KBDState *s, int b, int aux)
 {
     KBDQueue *q = &s->queue;
-#ifdef VBOX
     MouseCmdQueue *mcq = &s->mouse_command_queue;
     MouseEventQueue *meq = &s->mouse_event_queue;
-#endif /* VBOX */
 
 #if defined(DEBUG_MOUSE) || defined(DEBUG_KBD)
-    if (aux)
-        Log(("mouse event: 0x%02x\n", b));
+    if (aux == 1)
+        LogRel3(("%s: mouse command response: 0x%02x\n", __PRETTY_FUNCTION__, b));
+    else if (aux == 2)
+        LogRel3(("%s: mouse event data: 0x%02x\n", __PRETTY_FUNCTION__, b));
 #ifdef DEBUG_KBD
     else
-        Log(("kbd event: 0x%02x\n", b));
+        LogRel3(("%s: kbd event: 0x%02x\n", __PRETTY_FUNCTION__, b));
 #endif
 #endif
-#ifdef VBOX
     switch (aux)
     {
         case 0: /* keyboard */
@@ -367,15 +339,6 @@ static void kbd_queue(KBDState *s, int b, int aux)
         default:
             AssertMsgFailed(("aux=%d\n", aux));
     }
-#else /* !VBOX */
-    if (q->count >= KBD_QUEUE_SIZE)
-        return;
-    q->aux[q->wptr] = aux;
-    q->data[q->wptr] = b;
-    if (++q->wptr == KBD_QUEUE_SIZE)
-        q->wptr = 0;
-    q->count++;
-#endif /* !VBOX */
     kbd_update_irq(s);
 }
 
@@ -383,6 +346,14 @@ static void kbd_queue(KBDState *s, int b, int aux)
 static void pc_kbd_put_keycode(void *opaque, int keycode)
 {
     KBDState *s = (KBDState*)opaque;
+
+    /* XXX: add support for scancode sets 1 and 3 */
+    if (!s->translate && keycode < 0xe0 && s->scancode_set == 2)
+    {
+        if (keycode & 0x80)
+           kbd_queue(s, 0xf0, 0);
+        keycode = ps2_raw_keycode[keycode & 0x7f];
+    }
     kbd_queue(s, keycode, 0);
 }
 #endif /* IN_RING3 */
@@ -398,14 +369,9 @@ static uint32_t kbd_read_status(void *opaque, uint32_t addr)
     return val;
 }
 
-#ifndef VBOX
-static void kbd_write_command(void *opaque, uint32_t addr, uint32_t val)
-{
-#else /* VBOX (we need VMReset return code passed back) */
 static int kbd_write_command(void *opaque, uint32_t addr, uint32_t val)
 {
     int rc = VINF_SUCCESS;
-#endif /* VBOX */
     KBDState *s = (KBDState*)opaque;
 
 #ifdef DEBUG_KBD
@@ -452,11 +418,7 @@ static int kbd_write_command(void *opaque, uint32_t addr, uint32_t val)
     case KBD_CCMD_READ_OUTPORT:
         /* XXX: check that */
 #ifdef TARGET_I386
-# ifndef VBOX
-        val = 0x01 | (ioport_get_a20() << 1);
-# else /* VBOX */
         val = 0x01 | (PDMDevHlpA20IsEnabled(s->CTX_SUFF(pDevIns)) << 1);
-# endif /* VBOX */
 #else
         val = 0x01;
 #endif
@@ -468,28 +430,20 @@ static int kbd_write_command(void *opaque, uint32_t addr, uint32_t val)
         break;
 #ifdef TARGET_I386
     case KBD_CCMD_ENABLE_A20:
-#ifndef VBOX
-        ioport_set_a20(1);
-#else /* VBOX */
 # ifndef IN_RING3
         if (!PDMDevHlpA20IsEnabled(s->CTX_SUFF(pDevIns)))
             rc = VINF_IOM_HC_IOPORT_WRITE;
 # else /* IN_RING3 */
         PDMDevHlpA20Set(s->CTX_SUFF(pDevIns), true);
 # endif /* IN_RING3 */
-#endif /* VBOX */
         break;
     case KBD_CCMD_DISABLE_A20:
-#ifndef VBOX
-        ioport_set_a20(0);
-#else /* VBOX */
 # ifndef IN_RING3
         if (PDMDevHlpA20IsEnabled(s->CTX_SUFF(pDevIns)))
             rc = VINF_IOM_HC_IOPORT_WRITE;
 # else /* IN_RING3 */
         PDMDevHlpA20Set(s->CTX_SUFF(pDevIns), false);
 # endif /* !IN_RING3 */
-#endif /* VBOX */
         break;
 #endif
     case KBD_CCMD_READ_TSTINP:
@@ -498,20 +452,16 @@ static int kbd_write_command(void *opaque, uint32_t addr, uint32_t val)
         kbd_queue(s, val, 0);
         break;
     case KBD_CCMD_RESET:
-#ifndef VBOX
-        qemu_system_reset_request();
-#else /* VBOX */
-# ifndef IN_RING3
+#ifndef IN_RING3
         rc = VINF_IOM_HC_IOPORT_WRITE;
-# else /* IN_RING3 */
+#else /* IN_RING3 */
         rc = PDMDevHlpVMReset(s->CTX_SUFF(pDevIns));
-# endif /* !IN_RING3 */
-#endif /* VBOX */
+#endif /* !IN_RING3 */
         break;
     case 0xff:
         /* ignore that - I don't know what is its use */
         break;
-#ifdef VBOX /* Make OS/2 happy. */
+    /* Make OS/2 happy. */
     /* The 8042 RAM is readble using commands 0x20 thru 0x3f, and writable
        by 0x60 thru 0x7f. Now days only the firs byte, the mode, is used.
        We'll ignore the writes (0x61..7f) and return 0 for all the reads
@@ -523,34 +473,25 @@ static int kbd_write_command(void *opaque, uint32_t addr, uint32_t val)
         kbd_queue(s, 0, 0);
         Log(("kbd: reading non-standard RAM addr %#x\n", val & 0x1f));
         break;
-#endif
     default:
         Log(("kbd: unsupported keyboard cmd=0x%02x\n", val));
         break;
     }
-#ifdef VBOX
     return rc;
-#endif
 }
 
 static uint32_t kbd_read_data(void *opaque, uint32_t addr)
 {
     KBDState *s = (KBDState*)opaque;
     KBDQueue *q;
-#ifdef VBOX
     MouseCmdQueue *mcq;
     MouseEventQueue *meq;
-#endif /* VBOX */
     int val, index, aux;
 
     q = &s->queue;
-#ifdef VBOX
     mcq = &s->mouse_command_queue;
     meq = &s->mouse_event_queue;
     if (q->count == 0 && mcq->count == 0 && meq->count == 0) {
-#else /* !VBOX */
-    if (q->count == 0) {
-#endif /* !VBOX */
         /* NOTE: if no data left, we return the last keyboard one
            (needed for EMM386) */
         /* XXX: need a timer to do things correctly */
@@ -559,7 +500,6 @@ static uint32_t kbd_read_data(void *opaque, uint32_t addr)
             index = KBD_QUEUE_SIZE - 1;
         val = q->data[index];
     } else {
-#ifdef VBOX
         aux = (s->status & KBD_STAT_MOUSE_OBF);
         if (!aux)
         {
@@ -585,25 +525,11 @@ static uint32_t kbd_read_data(void *opaque, uint32_t addr)
                 meq->count--;
             }
         }
-#else /* !VBOX */
-        aux = q->aux[q->rptr];
-        val = q->data[q->rptr];
-        if (++q->rptr == KBD_QUEUE_SIZE)
-            q->rptr = 0;
-        q->count--;
-#endif /* !VBOX */
         /* reading deasserts IRQ */
-#ifndef VBOX
-        if (aux)
-            pic_set_irq(12, 0);
-        else
-            pic_set_irq(1, 0);
-#else /* VBOX */
         if (aux)
             PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), 12, 0);
         else
             PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), 1, 0);
-#endif /* VBOX */
     }
     /* reassert IRQs if data left */
     kbd_update_irq(s);
@@ -616,13 +542,10 @@ static uint32_t kbd_read_data(void *opaque, uint32_t addr)
 static void kbd_reset_keyboard(KBDState *s)
 {
     s->scan_enabled = 1;
+    s->scancode_set = 2;
 }
 
-#ifndef VBOX
-static void kbd_write_keyboard(KBDState *s, int val)
-#else
 static int  kbd_write_keyboard(KBDState *s, int val)
-#endif
 {
     switch(s->kbd_write_cmd) {
     default:
@@ -646,6 +569,7 @@ static int  kbd_write_keyboard(KBDState *s, int val)
             s->scan_enabled = 1;
             kbd_queue(s, KBD_REPLY_ACK, 0);
             break;
+        case KBD_CMD_SCANCODE:
         case KBD_CMD_SET_LEDS:
         case KBD_CMD_SET_RATE:
             s->kbd_write_cmd = val;
@@ -671,6 +595,23 @@ static int  kbd_write_keyboard(KBDState *s, int val)
             break;
         }
         break;
+    case KBD_CMD_SCANCODE:
+#ifdef IN_RING3
+        if (val == 0) {
+            if (s->scancode_set == 1)
+                pc_kbd_put_keycode(s, 0x43);
+            else if (s->scancode_set == 2)
+                pc_kbd_put_keycode(s, 0x41);
+            else if (s->scancode_set == 3)
+                pc_kbd_put_keycode(s, 0x3f);
+        } else {
+            if (val >= 1 && val <= 3) 
+                s->scancode_set = val;
+            kbd_queue(s, KBD_REPLY_ACK, 0);
+        }
+#else
+        return VINF_IOM_HC_IOPORT_WRITE;
+#endif
     case KBD_CMD_SET_LEDS:
         {
 #ifdef IN_RING3
@@ -698,21 +639,18 @@ static int  kbd_write_keyboard(KBDState *s, int val)
     return VINF_SUCCESS;
 }
 
-#ifdef VBOX
 static void kbd_mouse_send_packet(KBDState *s, bool fToCmdQueue)
-#else /* !VBOX */
-static void kbd_mouse_send_packet(KBDState *s)
-#endif /* !VBOX */
 {
-#ifdef VBOX
     int aux = fToCmdQueue ? 1 : 2;
-#endif /* VBOX */
     unsigned int b;
-    int dx1, dy1, dz1;
+    int dx1, dy1, dz1, dw1;
 
     dx1 = s->mouse_dx;
     dy1 = s->mouse_dy;
     dz1 = s->mouse_dz;
+    dw1 = s->mouse_dw;
+    LogRel3(("%s: dx=%d, dy=%d, dz=%d, dw=%d\n", __PRETTY_FUNCTION__,
+             dx1, dy1, dz1, dw1));
     /* XXX: increase range to 8 bits ? */
     if (dx1 > 127)
         dx1 = 127;
@@ -723,15 +661,9 @@ static void kbd_mouse_send_packet(KBDState *s)
     else if (dy1 < -127)
         dy1 = -127;
     b = 0x08 | ((dx1 < 0) << 4) | ((dy1 < 0) << 5) | (s->mouse_buttons & 0x07);
-#ifdef VBOX
     kbd_queue(s, b, aux);
     kbd_queue(s, dx1 & 0xff, aux);
     kbd_queue(s, dy1 & 0xff, aux);
-#else /* !VBOX */
-    kbd_queue(s, b, 1);
-    kbd_queue(s, dx1 & 0xff, 1);
-    kbd_queue(s, dy1 & 0xff, 1);
-#endif /* !VBOX */
     /* extra byte for IMPS/2 or IMEX */
     switch(s->mouse_type) {
     default:
@@ -741,23 +673,28 @@ static void kbd_mouse_send_packet(KBDState *s)
             dz1 = 127;
         else if (dz1 < -127)
                 dz1 = -127;
-#ifdef VBOX
         kbd_queue(s, dz1 & 0xff, aux);
-#else /* !VBOX */
-        kbd_queue(s, dz1 & 0xff, 1);
-#endif /* !VBOX */
         break;
     case 4:
-        if (dz1 > 7)
-            dz1 = 7;
-        else if (dz1 < -7)
-            dz1 = -7;
-        b = (dz1 & 0x0f) | ((s->mouse_buttons & 0x18) << 1);
-#ifdef VBOX
+        if (dz1 > 1)
+            dz1 = 1;
+        else if (dz1 < -1)
+            dz1 = -1;
+        else if (dw1 > 1)
+            dw1 = 1;
+        else if (dw1 < -1)
+            dw1 = -1;
+        if (dz1)
+            dw1 = 0;
+        if ((s->mouse_flags & MOUSE_REPORT_HORIZONTAL) && dw1)
+            b = 0x40 | (dw1 & 0x3f);
+        else
+        {
+            b =   (dz1 & 0x0f) | ((dw1 << 1) & 0x0f)
+                | ((s->mouse_buttons & 0x18) << 1);
+            s->mouse_flags &= ~MOUSE_OUTSTANDING_CLICK;
+        }
         kbd_queue(s, b, aux);
-#else /* !VBOX */
-        kbd_queue(s, b, 1);
-#endif /* !VBOX */
         break;
     }
 
@@ -765,11 +702,12 @@ static void kbd_mouse_send_packet(KBDState *s)
     s->mouse_dx -= dx1;
     s->mouse_dy -= dy1;
     s->mouse_dz -= dz1;
+    s->mouse_dw -= dw1;
 }
 
 #ifdef IN_RING3
 static void pc_kbd_mouse_event(void *opaque,
-                               int dx, int dy, int dz, int buttons_state)
+                               int dx, int dy, int dz, int dw, int buttons_state)
 {
     KBDState *s = (KBDState*)opaque;
 
@@ -780,54 +718,37 @@ static void pc_kbd_mouse_event(void *opaque,
     s->mouse_dx += dx;
     s->mouse_dy -= dy;
     s->mouse_dz += dz;
-#ifndef VBOX
-    /* XXX: SDL sometimes generates nul events: we delete them */
-    if (s->mouse_dx == 0 && s->mouse_dy == 0 && s->mouse_dz == 0 &&
-        s->mouse_buttons == buttons_state)
-	return;
-#else
-    /* This issue does not affect VBox, and under some circumstances (which?)
-     * we may wish to send null events to make mouse integration work. */
-#endif
+    s->mouse_dw += dw;
+    /* In horizontal reporting mode, we may need to send an additional packet
+     * for the forth and fifth buttons, as they can't share a packet with a
+     * horizontal scroll delta. */
+    if (   s->mouse_type == 4
+        && (s->mouse_buttons & 0x18) != (buttons_state & 0x18))
+        s->mouse_flags |= MOUSE_OUTSTANDING_CLICK;
     s->mouse_buttons = buttons_state;
 
-#ifdef VBOX
     if (!(s->mouse_status & MOUSE_STATUS_REMOTE) &&
         (s->mouse_event_queue.count < (MOUSE_EVENT_QUEUE_SIZE - 4))) {
         for(;;) {
             /* if not remote, send event. Multiple events are sent if
                too big deltas */
             kbd_mouse_send_packet(s, false);
-            if (s->mouse_dx == 0 && s->mouse_dy == 0 && s->mouse_dz == 0)
+            if (s->mouse_dx == 0 && s->mouse_dy == 0 && s->mouse_dz == 0 && s->mouse_dw == 0 && !(s->mouse_flags & MOUSE_OUTSTANDING_CLICK))
                 break;
         }
     }
-#else /* !VBOX */
-    if (!(s->mouse_status & MOUSE_STATUS_REMOTE) &&
-        (s->queue.count < (KBD_QUEUE_SIZE - 16))) {
-        for(;;) {
-            /* if not remote, send event. Multiple events are sent if
-               too big deltas */
-            kbd_mouse_send_packet(s);
-            if (s->mouse_dx == 0 && s->mouse_dy == 0 && s->mouse_dz == 0)
-                break;
-        }
-    }
-#endif /* !VBOX */
 }
 #endif /* IN_RING3 */
 
 static void kbd_write_mouse(KBDState *s, int val)
 {
 #ifdef DEBUG_MOUSE
-    Log(("kbd: write mouse 0x%02x\n", val));
+    LogRelFlowFunc(("kbd: write mouse 0x%02x\n", val));
 #endif
-#ifdef VBOX
     /* Flush the mouse command response queue. */
     s->mouse_command_queue.count = 0;
     s->mouse_command_queue.rptr = 0;
     s->mouse_command_queue.wptr = 0;
-#endif /* VBOX */
     switch(s->mouse_write_cmd) {
     default:
     case -1:
@@ -880,11 +801,7 @@ static void kbd_write_mouse(KBDState *s, int val)
             break;
         case AUX_POLL:
             kbd_queue(s, AUX_ACK, 1);
-#ifdef VBOX
             kbd_mouse_send_packet(s, true);
-#else /* !VBOX */
-            kbd_mouse_send_packet(s);
-#endif /* !VBOX */
             break;
         case AUX_ENABLE_DEV:
             s->mouse_status |= MOUSE_STATUS_ENABLED;
@@ -893,12 +810,10 @@ static void kbd_write_mouse(KBDState *s, int val)
         case AUX_DISABLE_DEV:
             s->mouse_status &= ~MOUSE_STATUS_ENABLED;
             kbd_queue(s, AUX_ACK, 1);
-#ifdef VBOX
             /* Flush the mouse events queue. */
             s->mouse_event_queue.count = 0;
             s->mouse_event_queue.rptr = 0;
             s->mouse_event_queue.wptr = 0;
-#endif /* VBOX */
             break;
         case AUX_SET_DEFAULT:
             s->mouse_sample_rate = 100;
@@ -914,15 +829,12 @@ static void kbd_write_mouse(KBDState *s, int val)
             kbd_queue(s, AUX_ACK, 1);
             kbd_queue(s, 0xaa, 1);
             kbd_queue(s, s->mouse_type, 1);
-#ifdef VBOX
             /* Flush the mouse events queue. */
             s->mouse_event_queue.count = 0;
             s->mouse_event_queue.rptr = 0;
             s->mouse_event_queue.wptr = 0;
-#endif /* VBOX */
             break;
         default:
-#ifdef VBOX
             /* NACK all commands we don't know.
 
                The usecase for this is the OS/2 mouse driver which will try
@@ -941,13 +853,13 @@ static void kbd_write_mouse(KBDState *s, int val)
                invalid, the reply is ERROR: fc. */
             /** @todo send error if we NACKed the previous command? */
             kbd_queue(s, AUX_NACK, 1);
-#endif
             break;
         }
         break;
     case AUX_SET_SAMPLE:
         s->mouse_sample_rate = val;
         /* detect IMPS/2 or IMEX */
+        /* And enable horizontal scrolling reporting when requested */
         switch(s->mouse_detect_state) {
         default:
         case 0:
@@ -959,17 +871,34 @@ static void kbd_write_mouse(KBDState *s, int val)
                 s->mouse_detect_state = 2;
             else if (val == 200)
                 s->mouse_detect_state = 3;
+            else if ((val == 80) && s->mouse_type == 4 /* IMEX */)
+                /* enable horizontal scrolling, byte two */
+                s->mouse_detect_state = 4;
             else
                 s->mouse_detect_state = 0;
             break;
         case 2:
             if (val == 80)
+            {
+                LogRelFlowFunc(("switching mouse device to IMPS/2 mode\n"));
                 s->mouse_type = 3; /* IMPS/2 */
+            }
             s->mouse_detect_state = 0;
             break;
         case 3:
             if (val == 80)
+            {
+                LogRelFlowFunc(("switching mouse device to IMEX mode\n"));
                 s->mouse_type = 4; /* IMEX */
+            }
+            s->mouse_detect_state = 0;
+            break;
+        case 4:
+            if (val == 40)
+            {
+                LogFlowFunc(("enabling IMEX horizontal scrolling reporting\n"));
+                s->mouse_flags |= MOUSE_REPORT_HORIZONTAL;
+            }
             s->mouse_detect_state = 0;
             break;
         }
@@ -984,14 +913,9 @@ static void kbd_write_mouse(KBDState *s, int val)
     }
 }
 
-#ifndef VBOX
-static void kbd_write_data(void *opaque, uint32_t addr, uint32_t val)
-{
-#else /* VBOX */
 static int kbd_write_data(void *opaque, uint32_t addr, uint32_t val)
 {
     int rc = VINF_SUCCESS;
-#endif /* VBOX */
     KBDState *s = (KBDState*)opaque;
 
 #ifdef DEBUG_KBD
@@ -1004,6 +928,7 @@ static int kbd_write_data(void *opaque, uint32_t addr, uint32_t val)
         break;
     case KBD_CCMD_WRITE_MODE:
         s->mode = val;
+        s->translate = (s->mode & KBD_MODE_KCC) == KBD_MODE_KCC;
         kbd_update_irq(s);
         break;
     case KBD_CCMD_WRITE_OBUF:
@@ -1014,27 +939,19 @@ static int kbd_write_data(void *opaque, uint32_t addr, uint32_t val)
         break;
     case KBD_CCMD_WRITE_OUTPORT:
 #ifdef TARGET_I386
-# ifndef VBOX
-        ioport_set_a20((val >> 1) & 1);
-# else /* VBOX */
 #  ifndef IN_RING3
         if (PDMDevHlpA20IsEnabled(s->CTX_SUFF(pDevIns)) != !!(val & 2))
             rc = VINF_IOM_HC_IOPORT_WRITE;
 #  else /* IN_RING3 */
         PDMDevHlpA20Set(s->CTX_SUFF(pDevIns), !!(val & 2));
 #  endif /* !IN_RING3 */
-# endif /* VBOX */
 #endif
         if (!(val & 1)) {
-#ifndef VBOX
-            qemu_system_reset_request();
-#else /* VBOX */
 # ifndef IN_RING3
             rc = VINF_IOM_HC_IOPORT_WRITE;
 # else
             rc = PDMDevHlpVMReset(s->CTX_SUFF(pDevIns));
 # endif
-#endif /* VBOX */
         }
         break;
     case KBD_CCMD_WRITE_MOUSE:
@@ -1044,10 +961,7 @@ static int kbd_write_data(void *opaque, uint32_t addr, uint32_t val)
         break;
     }
     s->write_cmd = 0;
-
-#ifdef VBOX
     return rc;
-#endif
 }
 
 #ifdef IN_RING3
@@ -1056,18 +970,18 @@ static void kbd_reset(void *opaque)
 {
     KBDState *s = (KBDState*)opaque;
     KBDQueue *q;
-#ifdef VBOX
     MouseCmdQueue *mcq;
     MouseEventQueue *meq;
-#endif /* VBOX */
 
     s->kbd_write_cmd = -1;
     s->mouse_write_cmd = -1;
     s->mode = KBD_MODE_KBD_INT | KBD_MODE_MOUSE_INT;
     s->status = KBD_STAT_CMD | KBD_STAT_UNLOCKED;
-#ifdef VBOX /* Resetting everything, keyword was not working right on NT4 reboot. */
+    /* Resetting everything, keyword was not working right on NT4 reboot. */
     s->write_cmd = 0;
     s->scan_enabled = 0;
+    s->translate = 0;
+    s->scancode_set = 2;
     s->mouse_status = 0;
     s->mouse_resolution = 0;
     s->mouse_sample_rate = 0;
@@ -1077,13 +991,13 @@ static void kbd_reset(void *opaque)
     s->mouse_dx = 0;
     s->mouse_dy = 0;
     s->mouse_dz = 0;
+    s->mouse_dw = 0;
+    s->mouse_flags = 0;
     s->mouse_buttons = 0;
-#endif
     q = &s->queue;
     q->rptr = 0;
     q->wptr = 0;
     q->count = 0;
-#ifdef VBOX
     mcq = &s->mouse_command_queue;
     mcq->rptr = 0;
     mcq->wptr = 0;
@@ -1092,15 +1006,12 @@ static void kbd_reset(void *opaque)
     meq->rptr = 0;
     meq->wptr = 0;
     meq->count = 0;
-#endif /* VBOX */
 }
 
 static void kbd_save(QEMUFile* f, void* opaque)
 {
-#ifdef VBOX
     uint32_t    cItems;
     int i;
-#endif /* VBOX */
     KBDState *s = (KBDState*)opaque;
 
     qemu_put_8s(f, &s->write_cmd);
@@ -1118,9 +1029,14 @@ static void kbd_save(QEMUFile* f, void* opaque)
     qemu_put_be32s(f, &s->mouse_dx);
     qemu_put_be32s(f, &s->mouse_dy);
     qemu_put_be32s(f, &s->mouse_dz);
+    qemu_put_be32s(f, &s->mouse_dw);
+    qemu_put_be32s(f, &s->mouse_flags);
     qemu_put_8s(f, &s->mouse_buttons);
 
-#ifdef VBOX
+    /* XXX: s->scancode_set isn't being saved, but we only really support set 2,
+     * so no real harm done.
+     */
+
     /*
      * We have to save the queues too.
      */
@@ -1144,23 +1060,16 @@ static void kbd_save(QEMUFile* f, void* opaque)
 
     /* terminator */
     SSMR3PutU32(f, ~0);
-#endif /* VBOX */
 }
 
 static int kbd_load(QEMUFile* f, void* opaque, int version_id)
 {
-#ifdef VBOX
     uint32_t    u32, i;
     int         rc;
-#endif
     KBDState *s = (KBDState*)opaque;
 
-    if (version_id != PCKBD_SAVED_STATE_VERSION)
-#ifndef VBOX
-        return -EINVAL;
-#else
+    if (version_id < 2 || version_id > PCKBD_SAVED_STATE_VERSION)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
-#endif
     qemu_get_8s(f, &s->write_cmd);
     qemu_get_8s(f, &s->status);
     qemu_get_8s(f, &s->mode);
@@ -1176,8 +1085,12 @@ static int kbd_load(QEMUFile* f, void* opaque, int version_id)
     qemu_get_be32s(f, (uint32_t *)&s->mouse_dx);
     qemu_get_be32s(f, (uint32_t *)&s->mouse_dy);
     qemu_get_be32s(f, (uint32_t *)&s->mouse_dz);
+    if (version_id > 2)
+    {
+        SSMR3GetS32(f, &s->mouse_dw);
+        SSMR3GetS32(f, &s->mouse_flags);
+    }
     qemu_get_8s(f, &s->mouse_buttons);
-#ifdef VBOX
     s->queue.count = 0;
     s->queue.rptr = 0;
     s->queue.wptr = 0;
@@ -1187,6 +1100,10 @@ static int kbd_load(QEMUFile* f, void* opaque, int version_id)
     s->mouse_event_queue.count = 0;
     s->mouse_event_queue.rptr = 0;
     s->mouse_event_queue.wptr = 0;
+
+    /* Determine the translation state. */
+    s->translate = (s->mode & KBD_MODE_KCC) == KBD_MODE_KCC;
+    s->scancode_set = 2;    /* XXX: See comment in kbd_save(). */
 
     /*
      * Load the queues
@@ -1254,32 +1171,12 @@ static int kbd_load(QEMUFile* f, void* opaque, int version_id)
         AssertMsgFailed(("u32=%#x\n", u32));
         return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
     }
-#endif /* VBOX */
     return 0;
 }
-
-#ifndef VBOX
-void kbd_init(void)
-{
-    KBDState *s = &kbd_state;
-
-    kbd_reset(s);
-    register_savevm("pckbd", 0, 1, kbd_save, kbd_load, s);
-    register_ioport_read(0x60, 1, 1, kbd_read_data, s);
-    register_ioport_write(0x60, 1, 1, kbd_write_data, s);
-    register_ioport_read(0x64, 1, 1, kbd_read_status, s);
-    register_ioport_write(0x64, 1, 1, kbd_write_command, s);
-
-    qemu_add_kbd_event_handler(pc_kbd_put_keycode, s);
-    qemu_add_mouse_event_handler(pc_kbd_mouse_event, s);
-    qemu_register_reset(kbd_reset, s);
-}
-#endif /* !VBOX */
-
 #endif /* IN_RING3 */
 
 
-#ifdef VBOX /* VirtualBox code start */
+/* VirtualBox code start */
 
 /* -=-=-=-=-=- wrappers -=-=-=-=-=- */
 
@@ -1427,11 +1324,13 @@ static DECLCALLBACK(int) kbdSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle)
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
  * @param   pSSMHandle  The handle to the saved state.
- * @param   u32Version  The data unit version number.
+ * @param   uVersion    The data unit version number.
+ * @param   uPass       The data pass.
  */
-static DECLCALLBACK(int) kbdLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle, uint32_t u32Version)
+static DECLCALLBACK(int) kbdLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle, uint32_t uVersion, uint32_t uPass)
 {
-    return kbd_load(pSSMHandle, PDMINS_2_DATA(pDevIns, KBDState *), u32Version);
+    Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
+    return kbd_load(pSSMHandle, PDMINS_2_DATA(pDevIns, KBDState *), uVersion);
 }
 
 /**
@@ -1534,12 +1433,12 @@ static DECLCALLBACK(void *)  kbdMouseQueryInterface(PPDMIBASE pInterface, PDMINT
  * @param   i32DeltaZ       The Z delta.
  * @param   fButtonStates   The button states.
  */
-static DECLCALLBACK(int) kbdMousePutEvent(PPDMIMOUSEPORT pInterface, int32_t i32DeltaX, int32_t i32DeltaY, int32_t i32DeltaZ, uint32_t fButtonStates)
+static DECLCALLBACK(int) kbdMousePutEvent(PPDMIMOUSEPORT pInterface, int32_t i32DeltaX, int32_t i32DeltaY, int32_t i32DeltaZ, int32_t i32DeltaW, uint32_t fButtonStates)
 {
     KBDState *pThis = IMOUSEPORT_2_KBDSTATE(pInterface);
     int rc = PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
     AssertReleaseRC(rc);
-    pc_kbd_mouse_event(pThis, i32DeltaX, i32DeltaY, i32DeltaZ, fButtonStates);
+    pc_kbd_mouse_event(pThis, i32DeltaX, i32DeltaY, i32DeltaZ, i32DeltaW, fButtonStates);
     PDMCritSectLeave(&pThis->CritSect);
     return VINF_SUCCESS;
 }
@@ -1560,13 +1459,19 @@ static DECLCALLBACK(int) kbdMousePutEvent(PPDMIMOUSEPORT pInterface, int32_t i32
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
  * @param   iLUN        The logical unit which is being detached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  * @remark  The keyboard controller doesn't support this action, this is just
  *          implemented to try out the driver<->device structure.
  */
-static DECLCALLBACK(int)  kbdAttach(PPDMDEVINS pDevIns, unsigned iLUN)
+static DECLCALLBACK(int)  kbdAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
     int         rc;
     KBDState   *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
+
+    AssertMsgReturn(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG,
+                    ("PS/2 device does not support hotplugging\n"),
+                    VERR_INVALID_PARAMETER);
+
     switch (iLUN)
     {
         /* LUN #0: keyboard */
@@ -1631,10 +1536,11 @@ static DECLCALLBACK(int)  kbdAttach(PPDMDEVINS pDevIns, unsigned iLUN)
  *
  * @param   pDevIns     The device instance.
  * @param   iLUN        The logical unit which is being detached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  * @remark  The keyboard controller doesn't support this action, this is just
  *          implemented to try out the driver<->device structure.
  */
-static DECLCALLBACK(void)  kbdDetach(PPDMDEVINS pDevIns, unsigned iLUN)
+static DECLCALLBACK(void)  kbdDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
 #if 0
     /*
@@ -1662,6 +1568,7 @@ static DECLCALLBACK(void)  kbdDetach(PPDMDEVINS pDevIns, unsigned iLUN)
 #endif
 }
 
+
 /**
  * @copydoc FNPDMDEVRELOCATE
  */
@@ -1670,6 +1577,7 @@ static DECLCALLBACK(void) kdbRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
     KBDState   *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
     pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
 }
+
 
 /**
  * Destruct a device instance for a VM.
@@ -1684,6 +1592,7 @@ static DECLCALLBACK(int) kbdDestruct(PPDMDEVINS pDevIns)
 
     return VINF_SUCCESS;
 }
+
 
 /**
  * Construct a device instance for a VM.
@@ -1768,19 +1677,17 @@ static DECLCALLBACK(int) kbdConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
         if (RT_FAILURE(rc))
             return rc;
     }
-    rc = PDMDevHlpSSMRegister(pDevIns, g_DevicePS2KeyboardMouse.szDeviceName, iInstance, PCKBD_SAVED_STATE_VERSION, sizeof(*pThis),
-                              NULL, kbdSaveExec, NULL,
-                              NULL, kbdLoadExec, NULL);
+    rc = PDMDevHlpSSMRegister(pDevIns, PCKBD_SAVED_STATE_VERSION, sizeof(*pThis), kbdSaveExec, kbdLoadExec);
     if (RT_FAILURE(rc))
         return rc;
 
     /*
      * Attach to the keyboard and mouse drivers.
      */
-    rc = kbdAttach(pDevIns, 0 /* keyboard LUN # */);
+    rc = kbdAttach(pDevIns, 0 /* keyboard LUN # */, PDM_TACH_FLAGS_NOT_HOT_PLUG);
     if (RT_FAILURE(rc))
         return rc;
-    rc = kbdAttach(pDevIns, 1 /* aux/mouse LUN # */);
+    rc = kbdAttach(pDevIns, 1 /* aux/mouse LUN # */, PDM_TACH_FLAGS_NOT_HOT_PLUG);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -1851,6 +1758,5 @@ const PDMDEVREG g_DevicePS2KeyboardMouse =
 };
 
 #endif /* IN_RING3 */
-#endif /* VBOX */
 #endif /* !VBOX_DEVICE_STRUCT_TESTCASE */
 

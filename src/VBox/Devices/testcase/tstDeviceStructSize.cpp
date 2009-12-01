@@ -1,4 +1,4 @@
-/* $Id: tstDeviceStructSize.cpp $ */
+/* $Id: tstDeviceStructSize.cpp 24616 2009-11-12 17:34:59Z vboxsync $ */
 /** @file
  * tstDeviceStructSize - testcase for check structure sizes/alignment
  *                       and to verify that HC and GC uses the same
@@ -34,8 +34,16 @@
 #include "../Graphics/DevVGA.cpp"
 #undef LOG_GROUP
 #include "../Input/DevPS2.cpp"
+#ifdef VBOX_WITH_E1000
+# undef LOG_GROUP
+# include "../Network/DevE1000.cpp"
+#endif
 #undef LOG_GROUP
 #include "../Network/DevPCNet.cpp"
+#ifdef VBOX_WITH_VIRTIO
+# undef LOG_GROUP
+# include "../Network/DevVirtioNet.cpp"
+#endif
 #undef LOG_GROUP
 #include "../PC/DevACPI.cpp"
 #undef LOG_GROUP
@@ -46,35 +54,6 @@
 #include "../PC/DevRTC.cpp"
 #undef LOG_GROUP
 #include "../PC/DevAPIC.cpp"
-#undef LOG_GROUP
-#include "../Storage/DevATA.cpp"
-#ifdef VBOX_WITH_USB
-# undef LOG_GROUP
-# include "../USB/DevOHCI.cpp"
-# include "../USB/DevEHCI.cpp"
-#endif
-#undef LOG_GROUP
-#include "../VMMDev/VBoxDev.cpp"
-#undef LOG_GROUP
-#include "../Parallel/DevParallel.cpp"
-#undef LOG_GROUP
-#include "../Serial/DevSerial.cpp"
-#ifdef VBOX_WITH_AHCI
-# undef LOG_GROUP
-# include "../Storage/DevAHCI.cpp"
-#endif
-#ifdef VBOX_WITH_E1000
-# undef LOG_GROUP
-# include "../Network/DevE1000.cpp"
-#endif
-#ifdef VBOX_WITH_BUSLOGIC
-# undef LOG_GROUP
-# include "../Storage/DevBusLogic.cpp"
-#endif
-#ifdef VBOX_WITH_LSILOGIC
-# undef LOG_GROUP
-# include "../Storage/DevLsiLogicSCSI.cpp"
-#endif
 #ifdef VBOX_WITH_HPET
 # undef LOG_GROUP
 # include "../PC/DevHPET.cpp"
@@ -86,6 +65,31 @@
 #ifdef VBOX_WITH_SMC
 # undef LOG_GROUP
 # include "../PC/DevSMC.cpp"
+#endif
+#undef LOG_GROUP
+#include "../Storage/DevATA.cpp"
+#ifdef VBOX_WITH_USB
+# undef LOG_GROUP
+# include "../USB/DevOHCI.cpp"
+# include "../USB/DevEHCI.cpp"
+#endif
+#undef LOG_GROUP
+#include "../VMMDev/VMMDev.cpp"
+#undef LOG_GROUP
+#include "../Parallel/DevParallel.cpp"
+#undef LOG_GROUP
+#include "../Serial/DevSerial.cpp"
+#ifdef VBOX_WITH_AHCI
+# undef LOG_GROUP
+# include "../Storage/DevAHCI.cpp"
+#endif
+#ifdef VBOX_WITH_BUSLOGIC
+# undef LOG_GROUP
+# include "../Storage/DevBusLogic.cpp"
+#endif
+#ifdef VBOX_WITH_LSILOGIC
+# undef LOG_GROUP
+# include "../Storage/DevLsiLogicSCSI.cpp"
 #endif
 
 #include <stdio.h>
@@ -133,10 +137,15 @@
 #define CHECK_MEMBER_ALIGNMENT(strct, member, align) \
     do \
     { \
-        if ( RT_OFFSETOF(strct, member) & ((align) - 1) ) \
+        if (RT_OFFSETOF(strct, member) & ((align) - 1) ) \
         { \
-            printf("%s::%s offset=%d expected alignment %d, meaning %d off\n", #strct, #member, RT_OFFSETOF(strct, member), \
-                   align, RT_OFFSETOF(strct, member) & (align - 1)); \
+            printf("%s::%s offset=%#x (%u) expected alignment %x, meaning %#x (%u) off\n", \
+                   #strct, #member, \
+                   (unsigned)RT_OFFSETOF(strct, member), \
+                   (unsigned)RT_OFFSETOF(strct, member), \
+                   (unsigned)(align), \
+                   (unsigned)(((align) - RT_OFFSETOF(strct, member)) & ((align) - 1)), \
+                   (unsigned)(((align) - RT_OFFSETOF(strct, member)) & ((align) - 1)) ); \
             rc++; \
         } \
     } while (0)
@@ -148,7 +157,13 @@
     do { \
         if (RT_ALIGN_Z(sizeof(type), (align)) != sizeof(type)) \
         { \
-            printf("%s size=%#x, align=%#x %#x bytes off\n", #type, (int)sizeof(type), (align), (int)RT_ALIGN_Z(sizeof(type), align) - (int)sizeof(type)); \
+            printf("%s size=%#x (%u), align=%#x %#x (%u) bytes off\n", \
+                   #type, \
+                   (unsigned)sizeof(type), \
+                   (unsigned)sizeof(type), \
+                   (align), \
+                   (unsigned)RT_ALIGN_Z(sizeof(type), align) - (unsigned)sizeof(type), \
+                   (unsigned)RT_ALIGN_Z(sizeof(type), align) - (unsigned)sizeof(type)); \
             rc++; \
         } \
     } while (0)
@@ -156,14 +171,20 @@
 /**
  * Checks that a internal struct padding is big enough.
  */
-#define CHECK_PADDING(strct, member) \
+#define CHECK_PADDING(strct, member, align) \
     do \
     { \
         strct *p; \
         if (sizeof(p->member.s) > sizeof(p->member.padding)) \
         { \
             printf("padding of %s::%s is too small, padding=%d struct=%d correct=%d\n", #strct, #member, \
-                   (int)sizeof(p->member.padding), (int)sizeof(p->member.s), (int)RT_ALIGN_Z(sizeof(p->member.s), 32)); \
+                   (int)sizeof(p->member.padding), (int)sizeof(p->member.s), (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
+            rc++; \
+        } \
+        else if (RT_ALIGN_Z(sizeof(p->member.padding), (align)) != sizeof(p->member.padding)) \
+        { \
+            printf("padding of %s::%s is misaligned, padding=%d correct=%d\n", #strct, #member, \
+                   (int)sizeof(p->member.padding), (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
             rc++; \
         } \
     } while (0)
@@ -225,40 +246,70 @@ int main()
     CHECK_SIZE(uint8_t, 8/8);
     CHECK_SIZE(int8_t, 8/8);
 
-    /*
-     * Misc alignment checks.
-     */
+    /* Basic alignment checks. */
     CHECK_MEMBER_ALIGNMENT(PDMDEVINS, achInstanceData, 64);
     CHECK_MEMBER_ALIGNMENT(PCIDEVICE, Int.s, 16);
     CHECK_MEMBER_ALIGNMENT(PCIDEVICE, Int.s.aIORegions, 16);
-    CHECK_MEMBER_ALIGNMENT(PCIBUS, devices, 16);
-    CHECK_MEMBER_ALIGNMENT(PCIGLOBALS, pci_irq_levels, 16);
-    CHECK_MEMBER_ALIGNMENT(PCNetState, u64LastPoll, 8);
-    CHECK_MEMBER_ALIGNMENT(VGASTATE, Dev, 8);
-    CHECK_MEMBER_ALIGNMENT(VGASTATE, StatRZMemoryRead, 8);
+
+    /*
+     * Misc alignment checks (keep this somewhat alphabetical).
+     */
+    CHECK_MEMBER_ALIGNMENT(AHCI, lock, 8);
+    CHECK_MEMBER_ALIGNMENT(AHCIATACONTROLLER, lock, 8);
+    CHECK_MEMBER_ALIGNMENT(AHCIATACONTROLLER, StatAsyncOps, 8);
 #ifdef VBOX_WITH_STATISTICS
-//    CHECK_MEMBER_ALIGNMENT(PCNetState, StatMMIOReadGC, 8);
-    CHECK_MEMBER_ALIGNMENT(DEVPIC, StatSetIrqGC, 8);
     CHECK_MEMBER_ALIGNMENT(APICDeviceInfo, StatMMIOReadGC, 8);
-    CHECK_MEMBER_ALIGNMENT(IOAPICState, StatMMIOReadGC, 8);
-    CHECK_MEMBER_ALIGNMENT(IOAPICState, StatMMIOReadGC, 8);
 #endif
-    CHECK_MEMBER_ALIGNMENT(PITState, StatPITIrq, 8);
     CHECK_MEMBER_ALIGNMENT(ATADevState, cTotalSectors, 8);
     CHECK_MEMBER_ALIGNMENT(ATADevState, StatATADMA, 8);
     CHECK_MEMBER_ALIGNMENT(ATADevState, StatReads, 8);
+    CHECK_MEMBER_ALIGNMENT(ATACONTROLLER, lock, 8);
     CHECK_MEMBER_ALIGNMENT(ATACONTROLLER, StatAsyncOps, 8);
+    CHECK_MEMBER_ALIGNMENT(DEVPARALLELSTATE, CritSect, 8);
+#ifdef VBOX_WITH_STATISTICS
+    CHECK_MEMBER_ALIGNMENT(DEVPIC, StatSetIrqGC, 8);
+#endif
+    CHECK_MEMBER_ALIGNMENT(E1KSTATE, cs, 8);
+    CHECK_MEMBER_ALIGNMENT(E1KSTATE, csRx, 8);
+    //CHECK_MEMBER_ALIGNMENT(E1KSTATE, csTx, 8);
 #ifdef VBOX_WITH_USB
-    CHECK_MEMBER_ALIGNMENT(OHCI, RootHub, 8);
-# ifdef VBOX_WITH_STATISTICS
-    CHECK_MEMBER_ALIGNMENT(OHCI, StatCanceledIsocUrbs, 8);
-# endif
     CHECK_MEMBER_ALIGNMENT(EHCI, RootHub, 8);
 # ifdef VBOX_WITH_STATISTICS
     CHECK_MEMBER_ALIGNMENT(EHCI, StatCanceledIsocUrbs, 8);
 # endif
 #endif
-
+#ifdef VBOX_WITH_STATISTICS
+    CHECK_MEMBER_ALIGNMENT(IOAPICState, StatMMIOReadGC, 8);
+    CHECK_MEMBER_ALIGNMENT(IOAPICState, StatMMIOReadGC, 8);
+#endif
+    CHECK_MEMBER_ALIGNMENT(KBDState, CritSect, 8);
+    CHECK_MEMBER_ALIGNMENT(LSILOGISCSI, ReplyPostQueueCritSect, 8);
+    CHECK_MEMBER_ALIGNMENT(LSILOGISCSI, ReplyFreeQueueCritSect, 8);
+#ifdef VBOX_WITH_USB
+    CHECK_MEMBER_ALIGNMENT(OHCI, RootHub, 8);
+# ifdef VBOX_WITH_STATISTICS
+    CHECK_MEMBER_ALIGNMENT(OHCI, StatCanceledIsocUrbs, 8);
+# endif
+#endif
+    CHECK_MEMBER_ALIGNMENT(PCIBUS, devices, 16);
+    CHECK_MEMBER_ALIGNMENT(PCIBUS, devices, 16);
+    CHECK_MEMBER_ALIGNMENT(PCIGLOBALS, pci_irq_levels, 16);
+    CHECK_MEMBER_ALIGNMENT(PCNetState, u64LastPoll, 8);
+    CHECK_MEMBER_ALIGNMENT(PCNetState, CritSect, 8);
+#ifdef VBOX_WITH_STATISTICS
+    CHECK_MEMBER_ALIGNMENT(PCNetState, StatMMIOReadGC, 8);
+#endif
+    CHECK_MEMBER_ALIGNMENT(PITState, StatPITIrq, 8);
+    CHECK_MEMBER_ALIGNMENT(SerialState, CritSect, 8);
+    CHECK_MEMBER_ALIGNMENT(VGASTATE, Dev, 8);
+    CHECK_MEMBER_ALIGNMENT(VGASTATE, lock, 8);
+    CHECK_MEMBER_ALIGNMENT(VGASTATE, StatRZMemoryRead, 8);
+    CHECK_MEMBER_ALIGNMENT(VMMDevState, CritSect, 8);
+#ifdef VBOX_WITH_VIRTIO
+    CHECK_MEMBER_ALIGNMENT(VPCISTATE, cs, 8);
+    CHECK_MEMBER_ALIGNMENT(VPCISTATE, led, 4);
+    CHECK_MEMBER_ALIGNMENT(VPCISTATE, Queues, 8);
+#endif
 
     /*
      * Compare HC and GC.

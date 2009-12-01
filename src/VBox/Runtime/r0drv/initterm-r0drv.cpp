@@ -1,4 +1,4 @@
-/* $Id: initterm-r0drv.cpp $ */
+/* $Id: initterm-r0drv.cpp 24179 2009-10-30 10:26:43Z vboxsync $ */
 /** @file
  * IPRT - Initialization & Termination, R0 Driver, Common.
  */
@@ -33,9 +33,13 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/initterm.h>
+#include "internal/iprt.h"
+
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
+#include <iprt/mp.h>
+#include <iprt/thread.h>
 #ifndef IN_GUEST /* play safe for now */
 # include "r0drv/mp-r0drv.h"
 # include "r0drv/power-r0drv.h"
@@ -65,6 +69,7 @@ RTR0DECL(int) RTR0Init(unsigned fReserved)
 {
     int rc;
     Assert(fReserved == 0);
+    RT_ASSERT_PREEMPTIBLE();
 
     /*
      * The first user initializes it.
@@ -103,6 +108,7 @@ RTR0DECL(int) RTR0Init(unsigned fReserved)
     }
     return rc;
 }
+RT_EXPORT_SYMBOL(RTR0Init);
 
 
 static void rtR0Term(void)
@@ -123,16 +129,21 @@ static void rtR0Term(void)
  */
 RTR0DECL(void) RTR0Term(void)
 {
-    int32_t cNewUsers = ASMAtomicDecS32(&g_crtR0Users);
+    int32_t cNewUsers;
+    RT_ASSERT_PREEMPTIBLE();
+
+    cNewUsers = ASMAtomicDecS32(&g_crtR0Users);
     Assert(cNewUsers >= 0);
     if (cNewUsers == 0)
         rtR0Term();
 }
+RT_EXPORT_SYMBOL(RTR0Term);
 
 
 /* Note! Should *not* be exported since it's only for static linking. */
 RTR0DECL(void) RTR0TermForced(void)
 {
+    RT_ASSERT_PREEMPTIBLE();
     AssertMsg(g_crtR0Users == 1, ("%d\n", g_crtR0Users));
 
     rtR0Term();

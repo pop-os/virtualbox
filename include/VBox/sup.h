@@ -1,5 +1,5 @@
 /** @file
- * SUP - Support Library.
+ * SUP - Support Library. (HDrv)
  */
 
 /*
@@ -127,8 +127,10 @@ typedef struct SUPGIPCPU
      * This history is used to calculate u32UpdateIntervalTSC.
      */
     volatile uint32_t   au32TSCHistory[8];
+    /** The interval between the last two NanoTS updates. (experiment for now) */
+    volatile uint32_t   u32UpdateIntervalNS;
     /** Reserved for future per processor data. */
-    volatile uint32_t   au32Reserved[6];
+    volatile uint32_t   au32Reserved[5];
 } SUPGIPCPU;
 AssertCompileSize(SUPGIPCPU, 96);
 /*AssertCompileMemberAlignment(SUPGIPCPU, u64TSC, 8); -fixme */
@@ -290,6 +292,13 @@ typedef SUPVMMR0REQHDR *PSUPVMMR0REQHDR;
 #define SUP_VMMR0_DO_NOP        2
 /** @} */
 
+/** SUPR3QueryVTCaps capability flags
+ * @{
+ */
+#define SUPVTCAPS_AMD_V             RT_BIT(0)
+#define SUPVTCAPS_VT_X              RT_BIT(1)
+#define SUPVTCAPS_NESTED_PAGING     RT_BIT(2)
+/** @} */
 
 /**
  * Request for generic FNSUPR0SERVICEREQHANDLER calls.
@@ -925,11 +934,20 @@ SUPR3DECL(int) SUPR3HardenedLdrLoadAppPriv(const char *pszFilename, PRTLDRMOD ph
 
 
 /**
- * Check if the host kernel can run in VMX root mode. 
- *    
- * @returns VINF_SUCCESS if supported, error code indicating why if not. 
+ * Check if the host kernel can run in VMX root mode.
+ *
+ * @returns VINF_SUCCESS if supported, error code indicating why if not.
  */
 SUPR3DECL(int) SUPR3QueryVTxSupported(void);
+
+
+/**
+ * Return VT-x/AMD-V capabilities.
+ *
+ * @returns VINF_SUCCESS if supported, error code indicating why if not.
+ * @param   pfCaps      Pointer to capability dword (out).
+ */
+SUPR3DECL(int) SUPR3QueryVTCaps(uint32_t *pfCaps);
 
 /** @} */
 #endif /* IN_RING3 */
@@ -996,6 +1014,7 @@ SUPR0DECL(int) SUPR0PageMapKernel(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_
 SUPR0DECL(int) SUPR0PageProtect(PSUPDRVSESSION pSession, RTR3PTR pvR3, RTR0PTR pvR0, uint32_t offSub, uint32_t cbSub, uint32_t fProt);
 SUPR0DECL(int) SUPR0PageFree(PSUPDRVSESSION pSession, RTR3PTR pvR3);
 SUPR0DECL(int) SUPR0GipMap(PSUPDRVSESSION pSession, PRTR3PTR ppGipR3, PRTHCPHYS pHCPhysGip);
+SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps);
 SUPR0DECL(int) SUPR0GipUnmap(PSUPDRVSESSION pSession);
 SUPR0DECL(int) SUPR0Printf(const char *pszFormat, ...);
 SUPR0DECL(SUPPAGINGMODE) SUPR0GetPagingMode(void);

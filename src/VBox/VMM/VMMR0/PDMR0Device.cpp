@@ -1,4 +1,4 @@
-/* $Id: PDMR0Device.cpp $ */
+/* $Id: PDMR0Device.cpp 24139 2009-10-28 13:24:26Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, R0 Device parts.
  */
@@ -453,7 +453,7 @@ static DECLCALLBACK(void) pdmR0ApicHlp_SetInterruptFF(PPDMDEVINS pDevIns, PDMAPI
     PVM    pVM   = pDevIns->Internal.s.pVMR0;
     PVMCPU pVCpu = &pVM->aCpus[idCpu];
 
-    AssertReturnVoid(idCpu < pVM->cCPUs);
+    AssertReturnVoid(idCpu < pVM->cCpus);
 
     LogFlow(("pdmR0ApicHlp_SetInterruptFF: CPU%d=caller=%p/%d: VM_FF_INTERRUPT %d -> 1 (CPU%d)\n",
              VMMGetCpuId(pVM), pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC), idCpu));
@@ -504,7 +504,7 @@ static DECLCALLBACK(void) pdmR0ApicHlp_ClearInterruptFF(PPDMDEVINS pDevIns, PDMA
     PVM    pVM   = pDevIns->Internal.s.pVMR0;
     PVMCPU pVCpu = &pVM->aCpus[idCpu];
 
-    AssertReturnVoid(idCpu < pVM->cCPUs);
+    AssertReturnVoid(idCpu < pVM->cCpus);
 
     LogFlow(("pdmR0ApicHlp_ClearInterruptFF: caller=%p/%d: VM_FF_INTERRUPT %d -> 0\n",
              pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC)));

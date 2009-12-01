@@ -310,7 +310,7 @@ void VBoxMiniToolBar::paintEvent (QPaintEvent *aEvent)
     QPainter painter;
     painter.begin (this);
     painter.fillRect (aEvent->rect(), palette().brush (QPalette::Window));
-    painter.end ();
+    painter.end();
     VBoxToolBar::paintEvent (aEvent);
 }
 
@@ -371,6 +371,9 @@ void VBoxMiniToolBar::recreateMask()
         default:
             break;
     }
+    /* Make sure any old mask is removed first */
+    clearMask();
+    /* Set the new mask */
     QPolygon polygon;
     polygon.setPoints (4, points);
     setMask (polygon);

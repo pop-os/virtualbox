@@ -1,4 +1,4 @@
-/* $Id: memobj-r0drv-nt.cpp $ */
+/* $Id: memobj-r0drv-nt.cpp 23610 2009-10-07 21:22:10Z vboxsync $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, NT.
  */
@@ -662,6 +662,12 @@ static int rtR0MemObjNtMap(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, voi
                            unsigned fProt, RTR0PROCESS R0Process)
 {
     int rc = VERR_MAP_FAILED;
+
+    /*
+     * Check that the specified alignment is supported.
+     */
+    if (uAlignment > PAGE_SIZE)
+        return VERR_NOT_SUPPORTED;
 
     /*
      * There are two basic cases here, either we've got an MDL and can

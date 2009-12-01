@@ -1,4 +1,4 @@
-/* $Id: VBoxGuest.cpp $ */
+/* $Id: VBoxGuest.cpp 23916 2009-10-20 17:14:40Z vboxsync $ */
 /** @file
  * VBoxGuest - Guest Additions Driver, Common Code.
  */
@@ -20,13 +20,12 @@
  */
 
 
-
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP   LOG_GROUP_DEFAULT
 #include "VBoxGuestInternal.h"
-#include <VBox/VBoxDev.h> /* for VMMDEV_RAM_SIZE */
+#include <VBox/VMMDev.h> /* for VMMDEV_RAM_SIZE */
 #include <VBox/log.h>
 #include <iprt/mem.h>
 #include <iprt/time.h>
@@ -45,7 +44,7 @@
 *   Internal Functions                                                         *
 *******************************************************************************/
 #ifdef VBOX_WITH_HGCM
-static DECLCALLBACK(void) VBoxGuestHGCMAsyncWaitCallback(VMMDevHGCMRequestHeader *pHdrNonVolatile, void *pvUser, uint32_t u32User);
+static DECLCALLBACK(int) VBoxGuestHGCMAsyncWaitCallback(VMMDevHGCMRequestHeader *pHdrNonVolatile, void *pvUser, uint32_t u32User);
 #endif
 
 
@@ -63,13 +62,165 @@ static DECLCALLBACK(void) VBoxGuestHGCMAsyncWaitCallback(VMMDevHGCMRequestHeader
  */
 static int vboxGuestInitFixateGuestMappings(PVBOXGUESTDEVEXT pDevExt)
 {
-    /** @todo implement this using RTR0MemObjReserveKernel() (it needs to be implemented everywhere too). */
+    /*
+     * Query the required space.
+     */
+    VMMDevReqHypervisorInfo *pReq;
+    int rc = VbglGRAlloc((VMMDevRequestHeader **)&pReq, sizeof(VMMDevReqHypervisorInfo), VMMDevReq_GetHypervisorInfo);
+    if (RT_FAILURE(rc))
+        return rc;
+    pReq->hypervisorStart = 0;
+    pReq->hypervisorSize  = 0;
+    rc = VbglGRPerform(&pReq->header);
+    if (RT_FAILURE(rc)) /* this shouldn't happen! */
+    {
+        VbglGRFree(&pReq->header);
+        return rc;
+    }
+
+    /*
+     * The VMM will report back if there is nothing it wants to map, like for
+     * insance in VT-x and AMD-V mode.
+     */
+    if (pReq->hypervisorSize == 0)
+        Log(("vboxGuestInitFixateGuestMappings: nothing to do\n"));
+    else
+    {
+        /*
+         * We have to try several times since the host can be picky
+         * about certain addresses.
+         */
+        RTR0MEMOBJ  hFictive     = NIL_RTR0MEMOBJ;
+        uint32_t    cbHypervisor = pReq->hypervisorSize;
+        RTR0MEMOBJ  ahTries[5];
+        uint32_t    iTry;
+        bool        fBitched = false;
+        Log(("vboxGuestInitFixateGuestMappings: cbHypervisor=%#x\n", cbHypervisor));
+        for (iTry = 0; iTry < RT_ELEMENTS(ahTries); iTry++)
+        {
+            /*
+             * Reserve space, or if that isn't supported, create a object for
+             * some fictive physical memory and map that in to kernel space.
+             *
+             * To make the code a bit uglier, most systems cannot help with
+             * 4MB alignment, so we have to deal with that in addition to
+             * having two ways of getting the memory.
+             */
+            uint32_t    uAlignment = _4M;
+            RTR0MEMOBJ  hObj;
+            rc = RTR0MemObjReserveKernel(&hObj, (void *)-1, RT_ALIGN_32(cbHypervisor, _4M), uAlignment);
+            if (rc == VERR_NOT_SUPPORTED)
+            {
+                uAlignment = PAGE_SIZE;
+                rc = RTR0MemObjReserveKernel(&hObj, (void *)-1, RT_ALIGN_32(cbHypervisor, _4M) + _4M, uAlignment);
+            }
+            if (rc == VERR_NOT_SUPPORTED)
+            {
+                if (hFictive == NIL_RTR0MEMOBJ)
+                {
+                    rc = RTR0MemObjEnterPhys(&hObj, VBOXGUEST_HYPERVISOR_PHYSICAL_START, cbHypervisor + _4M);
+                    if (RT_FAILURE(rc))
+                        break;
+                    hFictive = hObj;
+                }
+                uAlignment = _4M;
+                rc = RTR0MemObjMapKernel(&hObj, hFictive, (void *)-1, uAlignment, RTMEM_PROT_READ | RTMEM_PROT_WRITE);
+                if (rc == VERR_NOT_SUPPORTED)
+                {
+                    uAlignment = PAGE_SIZE;
+                    rc = RTR0MemObjMapKernel(&hObj, hFictive, (void *)-1, uAlignment, RTMEM_PROT_READ | RTMEM_PROT_WRITE);
+                }
+            }
+            if (RT_FAILURE(rc))
+            {
+                LogRel(("VBoxGuest: Failed to reserve memory for the hypervisor: rc=%Rrc (cbHypervisor=%#x uAlignment=%#x iTry=%u)\n",
+                        rc, cbHypervisor, uAlignment, iTry));
+                fBitched = true;
+                break;
+            }
+
+            /*
+             * Try set it.
+             */
+            pReq->header.requestType = VMMDevReq_SetHypervisorInfo;
+            pReq->header.rc          = VERR_INTERNAL_ERROR;
+            pReq->hypervisorSize     = cbHypervisor;
+            pReq->hypervisorStart    = (uintptr_t)RTR0MemObjAddress(hObj);
+            if (    uAlignment == PAGE_SIZE
+                &&  pReq->hypervisorStart & (_4M - 1))
+                pReq->hypervisorStart = RT_ALIGN_32(pReq->hypervisorStart, _4M);
+            AssertMsg(RT_ALIGN_32(pReq->hypervisorStart, _4M) == pReq->hypervisorStart, ("%#x\n", pReq->hypervisorStart));
+
+            rc = VbglGRPerform(&pReq->header);
+            if (RT_SUCCESS(rc))
+            {
+                pDevExt->hGuestMappings = hFictive != NIL_RTR0MEMOBJ ? hFictive : hObj;
+                LogRel(("VBoxGuest: %p LB %#x; uAlignment=%#x iTry=%u hGuestMappings=%p (%s)\n",
+                     	RTR0MemObjAddress(pDevExt->hGuestMappings),
+                     	RTR0MemObjSize(pDevExt->hGuestMappings),
+                     	uAlignment, iTry, pDevExt->hGuestMappings, hFictive != NIL_RTR0PTR ? "fictive" : "reservation"));
+                break;
+            }
+            ahTries[iTry] = hObj;
+        }
+
+        /*
+         * Cleanup failed attempts.
+         */
+        while (iTry-- > 0)
+            RTR0MemObjFree(ahTries[iTry], false /* fFreeMappings */);
+        if (    RT_FAILURE(rc)
+            &&  hFictive != NIL_RTR0PTR)
+            RTR0MemObjFree(hFictive, false /* fFreeMappings */);
+        if (RT_FAILURE(rc) && !fBitched)
+            LogRel(("VBoxGuest: Warning: failed to reserve %#d of memory for guest mappings.\n", cbHypervisor));
+    }
+    VbglGRFree(&pReq->header);
+
+    /*
+     * We ignore failed attempts for now.
+     */
     return VINF_SUCCESS;
 }
 
 
 /**
- * Initializes the interrupt filter mask.
+ * Undo what vboxGuestInitFixateGuestMappings did.
+ *
+ * @param   pDevExt     The device extension.
+ */
+static void vboxGuestTermUnfixGuestMappings(PVBOXGUESTDEVEXT pDevExt)
+{
+    if (pDevExt->hGuestMappings != NIL_RTR0PTR)
+    {
+        /*
+         * Tell the host that we're going to free the memory we reserved for
+         * it, the free it up. (Leak the memory if anything goes wrong here.)
+         */
+        VMMDevReqHypervisorInfo *pReq;
+        int rc = VbglGRAlloc((VMMDevRequestHeader **)&pReq, sizeof(VMMDevReqHypervisorInfo), VMMDevReq_SetHypervisorInfo);
+        if (RT_SUCCESS(rc))
+        {
+            pReq->hypervisorStart = 0;
+            pReq->hypervisorSize  = 0;
+            rc = VbglGRPerform(&pReq->header);
+            VbglGRFree(&pReq->header);
+        }
+        if (RT_SUCCESS(rc))
+        {
+            rc = RTR0MemObjFree(pDevExt->hGuestMappings, true /* fFreeMappings */);
+            AssertRC(rc);
+        }
+        else
+            LogRel(("vboxGuestTermUnfixGuestMappings: Failed to unfix the guest mappings! rc=%Rrc\n", rc));
+
+        pDevExt->hGuestMappings = NIL_RTR0MEMOBJ;
+    }
+}
+
+
+/**
+ * Sets the interrupt filter mask during initialization and termination.
  *
  * This will ASSUME that we're the ones in carge over the mask, so
  * we'll simply clear all bits we don't set.
@@ -78,18 +229,18 @@ static int vboxGuestInitFixateGuestMappings(PVBOXGUESTDEVEXT pDevExt)
  * @param   pDevExt     The device extension.
  * @param   fMask       The new mask.
  */
-static int vboxGuestInitFilterMask(PVBOXGUESTDEVEXT pDevExt, uint32_t fMask)
+static int vboxGuestSetFilterMask(PVBOXGUESTDEVEXT pDevExt, uint32_t fMask)
 {
     VMMDevCtlGuestFilterMask *pReq;
     int rc = VbglGRAlloc((VMMDevRequestHeader **)&pReq, sizeof(*pReq), VMMDevReq_CtlGuestFilterMask);
     if (RT_SUCCESS(rc))
     {
         pReq->u32OrMask = fMask;
-        pReq->u32NotMask = ~fMask; /* It's an AND mask. */
+        pReq->u32NotMask = ~fMask;
         rc = VbglGRPerform(&pReq->header);
         if (    RT_FAILURE(rc)
             ||  RT_FAILURE(pReq->header.rc))
-            LogRel(("vboxGuestInitCtlFilterMask: failed with rc=%Rrc and VMMDev rc=%Rrc\n",
+            LogRel(("vboxGuestSetFilterMask: failed with rc=%Rrc and VMMDev rc=%Rrc\n",
                     rc, pReq->header.rc));
         VbglGRFree(&pReq->header);
     }
@@ -141,19 +292,30 @@ static int vboxGuestInitReportGuestInfo(PVBOXGUESTDEVEXT pDevExt, VBOXOSTYPE enm
  * @param   cbMMIO          The size of the MMIO memory mapping.
  *                          This is optional, pass 0 if not present.
  * @param   enmOSType       The guest OS type to report to the VMMDev.
- * @param   fEvents         Additional requested events (like Mouse events).
+ * @param   fFixedEvents    Events that will be enabled upon init and no client
+ *                          will ever be allowed to mask.
  */
 int VBoxGuestInitDevExt(PVBOXGUESTDEVEXT pDevExt, uint16_t IOPortBase,
-                        void *pvMMIOBase, uint32_t cbMMIO, VBOXOSTYPE enmOSType, uint32_t fEvents)
+                        void *pvMMIOBase, uint32_t cbMMIO, VBOXOSTYPE enmOSType, uint32_t fFixedEvents)
 {
     int rc, rc2;
+
+    /*
+     * Adjust fFixedEvents.
+     */
+#ifdef VBOX_WITH_HGCM
+    fFixedEvents |= VMMDEV_EVENT_HGCM;
+#endif
 
     /*
      * Initalize the data.
      */
     pDevExt->IOPortBase = IOPortBase;
     pDevExt->pVMMDevMemory = NULL;
+    pDevExt->fFixedEvents = fFixedEvents;
+    pDevExt->hGuestMappings = NIL_RTR0MEMOBJ;
     pDevExt->pIrqAckEvents = NULL;
+    pDevExt->PhysIrqAckEvents = NIL_RTCCPHYS;
     pDevExt->WaitList.pHead = NULL;
     pDevExt->WaitList.pTail = NULL;
 #ifdef VBOX_WITH_HGCM
@@ -189,14 +351,14 @@ int VBoxGuestInitDevExt(PVBOXGUESTDEVEXT pDevExt, uint16_t IOPortBase,
     /*
      * Create the wait and seesion spinlocks.
      */
-    rc = RTSpinlockCreate(&pDevExt->WaitSpinlock);
+    rc = RTSpinlockCreate(&pDevExt->EventSpinlock);
     if (RT_SUCCESS(rc))
         rc = RTSpinlockCreate(&pDevExt->SessionSpinlock);
     if (RT_FAILURE(rc))
     {
         Log(("VBoxGuestInitDevExt: failed to spinlock, rc=%d!\n", rc));
-        if (pDevExt->WaitSpinlock != NIL_RTSPINLOCK)
-            RTSpinlockDestroy(pDevExt->WaitSpinlock);
+        if (pDevExt->EventSpinlock != NIL_RTSPINLOCK)
+            RTSpinlockDestroy(pDevExt->EventSpinlock);
         return rc;
     }
 
@@ -211,14 +373,13 @@ int VBoxGuestInitDevExt(PVBOXGUESTDEVEXT pDevExt, uint16_t IOPortBase,
         rc = VbglGRAlloc((VMMDevRequestHeader **)&pDevExt->pIrqAckEvents, sizeof(VMMDevEvents), VMMDevReq_AcknowledgeEvents);
         if (RT_SUCCESS(rc))
         {
+            pDevExt->PhysIrqAckEvents = VbglPhysHeapGetPhysAddr(pDevExt->pIrqAckEvents);
+            Assert(pDevExt->PhysIrqAckEvents != 0);
+
             rc = vboxGuestInitReportGuestInfo(pDevExt, enmOSType);
             if (RT_SUCCESS(rc))
             {
-#ifdef VBOX_WITH_HGCM
-                rc = vboxGuestInitFilterMask(pDevExt, VMMDEV_EVENT_HGCM | fEvents);
-#else
-                rc = vboxGuestInitFilterMask(pDevExt, fEvents);
-#endif
+                rc = vboxGuestSetFilterMask(pDevExt, fFixedEvents);
                 if (RT_SUCCESS(rc))
                 {
                     /*
@@ -245,7 +406,7 @@ int VBoxGuestInitDevExt(PVBOXGUESTDEVEXT pDevExt, uint16_t IOPortBase,
     else
         Log(("VBoxGuestInitDevExt: VbglInit failed, rc=%Rrc\n", rc));
 
-    rc2 = RTSpinlockDestroy(pDevExt->WaitSpinlock); AssertRC(rc2);
+    rc2 = RTSpinlockDestroy(pDevExt->EventSpinlock); AssertRC(rc2);
     rc2 = RTSpinlockDestroy(pDevExt->SessionSpinlock); AssertRC(rc2);
     return rc; /* (failed) */
 }
@@ -267,6 +428,7 @@ static void VBoxGuestDeleteWaitList(PVBOXGUESTWAITLIST pList)
         pWait->pPrev = NULL;
         rc2 = RTSemEventMultiDestroy(pWait->Event); AssertRC(rc2);
         pWait->Event = NIL_RTSEMEVENTMULTI;
+        pWait->pSession = NULL;
         RTMemFree(pWait);
     }
     pList->pHead = NULL;
@@ -286,13 +448,20 @@ void VBoxGuestDeleteDevExt(PVBOXGUESTDEVEXT pDevExt)
 {
     int rc2;
     Log(("VBoxGuestDeleteDevExt:\n"));
+    LogRel(("VBoxGuest: The additions driver is terminating.\n"));
 
-/** @todo tell VMMDev that the guest additions are no longer running (clear all capability masks).
- * Like calling VBoxGuestSetGuestCapabilities. This wasn't done initially since it was not
- * relevant for OS/2. On solaris modules can be unloaded, so we should implement it.
- */
+    /*
+     * Unfix the guest mappings, filter all events and clear
+     * all capabilities.
+     */
+    vboxGuestTermUnfixGuestMappings(pDevExt);
+    VBoxGuestSetGuestCapabilities(0, UINT32_MAX);
+    vboxGuestSetFilterMask(pDevExt, 0);
 
-    rc2 = RTSpinlockDestroy(pDevExt->WaitSpinlock); AssertRC(rc2);
+    /*
+     * Cleanup resources.
+     */
+    rc2 = RTSpinlockDestroy(pDevExt->EventSpinlock); AssertRC(rc2);
     rc2 = RTSpinlockDestroy(pDevExt->SessionSpinlock); AssertRC(rc2);
 
     VBoxGuestDeleteWaitList(&pDevExt->WaitList);
@@ -392,7 +561,7 @@ void VBoxGuestCloseSession(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession)
             Info.u32ClientID = pSession->aHGCMClientIds[i];
             pSession->aHGCMClientIds[i] = 0;
             Log(("VBoxGuestCloseSession: disconnecting client id %#RX32\n", Info.u32ClientID));
-            VbglHGCMDisconnect(&Info, VBoxGuestHGCMAsyncWaitCallback, pDevExt, RT_INDEFINITE_WAIT);
+            VbglR0HGCMInternalDisconnect(&Info, VBoxGuestHGCMAsyncWaitCallback, pDevExt, RT_INDEFINITE_WAIT);
         }
 #endif
 
@@ -448,8 +617,9 @@ DECLINLINE(void) VBoxGuestWaitUnlink(PVBOXGUESTWAITLIST pList, PVBOXGUESTWAIT pW
  *
  * @returns The wait-for-event entry.
  * @param   pDevExt         The device extension.
+ * @param   pSession        The session that's allocating this. Can be NULL.
  */
-static PVBOXGUESTWAIT VBoxGuestWaitAlloc(PVBOXGUESTDEVEXT pDevExt)
+static PVBOXGUESTWAIT VBoxGuestWaitAlloc(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession)
 {
     /*
      * Allocate it one way or the other.
@@ -458,13 +628,13 @@ static PVBOXGUESTWAIT VBoxGuestWaitAlloc(PVBOXGUESTDEVEXT pDevExt)
     if (pWait)
     {
         RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
-        RTSpinlockAcquireNoInts(pDevExt->WaitSpinlock, &Tmp);
+        RTSpinlockAcquireNoInts(pDevExt->EventSpinlock, &Tmp);
 
         pWait = pDevExt->FreeList.pTail;
         if (pWait)
             VBoxGuestWaitUnlink(&pDevExt->FreeList, pWait);
 
-        RTSpinlockReleaseNoInts(pDevExt->WaitSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, &Tmp);
     }
     if (!pWait)
     {
@@ -496,6 +666,7 @@ static PVBOXGUESTWAIT VBoxGuestWaitAlloc(PVBOXGUESTDEVEXT pDevExt)
     pWait->pPrev = NULL;
     pWait->fReqEvents = 0;
     pWait->fResEvents = 0;
+    pWait->pSession = pSession;
 #ifdef VBOX_WITH_HGCM
     pWait->pHGCMReq = NULL;
 #endif
@@ -531,9 +702,9 @@ static void VBoxGuestWaitFreeLocked(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTWAIT pWa
 static void VBoxGuestWaitFreeUnlocked(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTWAIT pWait)
 {
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
-    RTSpinlockAcquireNoInts(pDevExt->WaitSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pDevExt->EventSpinlock, &Tmp);
     VBoxGuestWaitFreeLocked(pDevExt, pWait);
-    RTSpinlockReleaseNoInts(pDevExt->WaitSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, &Tmp);
 }
 
 
@@ -617,7 +788,7 @@ DECLINLINE(int) WaitEventCheckCondition(PVBOXGUESTDEVEXT pDevExt, VBoxGuestWaitE
     if (fMatches)
     {
         ASMAtomicAndU32(&pDevExt->f32PendingEvents, ~fMatches);
-        RTSpinlockReleaseNoInts(pDevExt->WaitSpinlock, pTmp);
+        RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, pTmp);
 
         pInfo->u32EventFlagsOut = fMatches;
         pInfo->u32Result = VBOXGUEST_WAITEVENT_OK;
@@ -631,8 +802,8 @@ DECLINLINE(int) WaitEventCheckCondition(PVBOXGUESTDEVEXT pDevExt, VBoxGuestWaitE
 }
 
 
-static int VBoxGuestCommonIOCtl_WaitEvent(PVBOXGUESTDEVEXT pDevExt, VBoxGuestWaitEventInfo *pInfo, size_t *pcbDataReturned,
-                                          bool fInterruptible)
+static int VBoxGuestCommonIOCtl_WaitEvent(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession,
+                                          VBoxGuestWaitEventInfo *pInfo,  size_t *pcbDataReturned, bool fInterruptible)
 {
     pInfo->u32EventFlagsOut = 0;
     pInfo->u32Result = VBOXGUEST_WAITEVENT_ERROR;
@@ -654,11 +825,11 @@ static int VBoxGuestCommonIOCtl_WaitEvent(PVBOXGUESTDEVEXT pDevExt, VBoxGuestWai
      * Check the condition up front, before doing the wait-for-event allocations.
      */
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
-    RTSpinlockAcquireNoInts(pDevExt->WaitSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pDevExt->EventSpinlock, &Tmp);
     int rc = WaitEventCheckCondition(pDevExt, pInfo, iEvent, fReqEvents, &Tmp);
     if (rc == VINF_SUCCESS)
         return rc;
-    RTSpinlockReleaseNoInts(pDevExt->WaitSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, &Tmp);
 
     if (!pInfo->u32TimeoutIn)
     {
@@ -667,7 +838,7 @@ static int VBoxGuestCommonIOCtl_WaitEvent(PVBOXGUESTDEVEXT pDevExt, VBoxGuestWai
         return VERR_TIMEOUT;
     }
 
-    PVBOXGUESTWAIT pWait = VBoxGuestWaitAlloc(pDevExt);
+    PVBOXGUESTWAIT pWait = VBoxGuestWaitAlloc(pDevExt, pSession);
     if (!pWait)
         return VERR_NO_MEMORY;
     pWait->fReqEvents = fReqEvents;
@@ -677,7 +848,7 @@ static int VBoxGuestCommonIOCtl_WaitEvent(PVBOXGUESTDEVEXT pDevExt, VBoxGuestWai
      * If the wait condition is met, return.
      * Otherwise enter into the list and go to sleep waiting for the ISR to signal us.
      */
-    RTSpinlockAcquireNoInts(pDevExt->WaitSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pDevExt->EventSpinlock, &Tmp);
     rc = WaitEventCheckCondition(pDevExt, pInfo, iEvent, fReqEvents, &Tmp);
     if (rc == VINF_SUCCESS)
     {
@@ -685,7 +856,7 @@ static int VBoxGuestCommonIOCtl_WaitEvent(PVBOXGUESTDEVEXT pDevExt, VBoxGuestWai
         return rc;
     }
     VBoxGuestWaitAppend(&pDevExt->WaitList, pWait);
-    RTSpinlockReleaseNoInts(pDevExt->WaitSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, &Tmp);
 
     if (fInterruptible)
         rc = RTSemEventMultiWaitNoResume(pWait->Event,
@@ -705,16 +876,17 @@ static int VBoxGuestCommonIOCtl_WaitEvent(PVBOXGUESTDEVEXT pDevExt, VBoxGuestWai
     /*
      * Unlink the wait item and dispose of it.
      */
-    RTSpinlockAcquireNoInts(pDevExt->WaitSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pDevExt->EventSpinlock, &Tmp);
     VBoxGuestWaitUnlink(&pDevExt->WaitList, pWait);
     const uint32_t fResEvents = pWait->fResEvents;
     VBoxGuestWaitFreeLocked(pDevExt, pWait);
-    RTSpinlockReleaseNoInts(pDevExt->WaitSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, &Tmp);
 
     /*
      * Now deal with the return code.
      */
-    if (fResEvents)
+    if (    fResEvents
+        &&  fResEvents != UINT32_MAX)
     {
         pInfo->u32EventFlagsOut = fResEvents;
         pInfo->u32Result = VBOXGUEST_WAITEVENT_OK;
@@ -724,15 +896,17 @@ static int VBoxGuestCommonIOCtl_WaitEvent(PVBOXGUESTDEVEXT pDevExt, VBoxGuestWai
             Log(("VBoxGuestCommonIOCtl: WAITEVENT: returns %#x/%d\n", pInfo->u32EventFlagsOut, iEvent));
         rc = VINF_SUCCESS;
     }
+    else if (   fResEvents == UINT32_MAX
+             || rc == VERR_INTERRUPTED)
+    {
+        pInfo->u32Result = VBOXGUEST_WAITEVENT_INTERRUPTED;
+        rc == VERR_INTERRUPTED;
+        Log(("VBoxGuestCommonIOCtl: WAITEVENT: returns VERR_INTERRUPTED\n"));
+    }
     else if (rc == VERR_TIMEOUT)
     {
         pInfo->u32Result = VBOXGUEST_WAITEVENT_TIMEOUT;
         Log(("VBoxGuestCommonIOCtl: WAITEVENT: returns VERR_TIMEOUT\n"));
-    }
-    else if (rc == VERR_INTERRUPTED)
-    {
-        pInfo->u32Result = VBOXGUEST_WAITEVENT_INTERRUPTED;
-        Log(("VBoxGuestCommonIOCtl: WAITEVENT: returns VERR_INTERRUPTED\n"));
     }
     else
     {
@@ -748,6 +922,61 @@ static int VBoxGuestCommonIOCtl_WaitEvent(PVBOXGUESTDEVEXT pDevExt, VBoxGuestWai
     }
 
     return rc;
+}
+
+
+static int VBoxGuestCommonIOCtl_CancelAllWaitEvents(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession)
+{
+    RTSPINLOCKTMP           Tmp   = RTSPINLOCKTMP_INITIALIZER;
+#if defined(RT_OS_SOLARIS)
+    RTTHREADPREEMPTSTATE    State = RTTHREADPREEMPTSTATE_INITIALIZER;
+#endif
+    PVBOXGUESTWAIT          pWait;
+    int                     rc = 0;
+
+    Log(("VBoxGuestCommonIOCtl: CANCEL_ALL_WAITEVENTS\n"));
+
+    /*
+     * Walk the event list and wake up anyone with a matching session.
+     *
+     * Note! On Solaris we have to do really ugly stuff here because
+     *       RTSemEventMultiSignal cannot be called with interrupts disabled.
+     *       The hack is racy, but what we can we do... (Eliminate this
+     *       termination hack, perhaps?)
+     */
+#if defined(RT_OS_SOLARIS)
+    RTThreadPreemptDisable(&State);
+    RTSpinlockAcquireNoInts(pDevExt->EventSpinlock, &Tmp);
+    do
+    {
+        for (pWait = pDevExt->WaitList.pHead; pWait; pWait = pWait->pNext)
+            if (    pWait->pSession   == pSession
+                &&  pWait->fResEvents != UINT32_MAX)
+            {
+                RTSEMEVENTMULTI     hEvent;
+                pWait->fResEvents = UINT32_MAX;
+                RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, &Tmp);
+                /* HACK ALRET! This races wakeup + reuse! */
+                rc |= RTSemEventMultiSignal(hEvent);
+                RTSpinlockAcquireNoInts(pDevExt->EventSpinlock, &Tmp);
+                break;
+            }
+    } while (pWait);
+    RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, &Tmp);
+    RTThreadPreemptDisable(&State);
+#else
+    RTSpinlockAcquireNoInts(pDevExt->EventSpinlock, &Tmp);
+    for (pWait = pDevExt->WaitList.pHead; pWait; pWait = pWait->pNext)
+        if (pWait->pSession == pSession)
+        {
+            pWait->fResEvents = UINT32_MAX;
+            rc |= RTSemEventMultiSignal(pWait->Event);
+        }
+    RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, &Tmp);
+#endif
+    Assert(rc == 0);
+
+    return VINF_SUCCESS;
 }
 
 
@@ -839,7 +1068,7 @@ static int VBoxGuestCommonIOCtl_CtlFilterMask(PVBOXGUESTDEVEXT pDevExt, VBoxGues
 
     pReq->u32OrMask = pInfo->u32OrMask;
     pReq->u32NotMask = pInfo->u32NotMask;
-
+    pReq->u32NotMask &= ~pDevExt->fFixedEvents; /* don't permit these to be cleared! */
     rc = VbglGRPerform(&pReq->header);
     if (RT_FAILURE(rc))
         Log(("VBoxGuestCommonIOCtl: CTL_FILTER_MASK: VbglGRPerform failed, rc=%Rrc!\n", rc));
@@ -858,7 +1087,7 @@ static int VBoxGuestCommonIOCtl_CtlFilterMask(PVBOXGUESTDEVEXT pDevExt, VBoxGues
 AssertCompile(RT_INDEFINITE_WAIT == (uint32_t)RT_INDEFINITE_WAIT); /* assumed by code below */
 
 /** Worker for VBoxGuestHGCMAsyncWaitCallback*. */
-static void VBoxGuestHGCMAsyncWaitCallbackWorker(VMMDevHGCMRequestHeader volatile *pHdr, PVBOXGUESTDEVEXT pDevExt,
+static int VBoxGuestHGCMAsyncWaitCallbackWorker(VMMDevHGCMRequestHeader volatile *pHdr, PVBOXGUESTDEVEXT pDevExt,
                                                  bool fInterruptible, uint32_t cMillies)
 {
 
@@ -873,19 +1102,19 @@ static void VBoxGuestHGCMAsyncWaitCallbackWorker(VMMDevHGCMRequestHeader volatil
     PVBOXGUESTWAIT pWait;
     for (;;)
     {
-        RTSpinlockAcquireNoInts(pDevExt->WaitSpinlock, &Tmp);
+        RTSpinlockAcquireNoInts(pDevExt->EventSpinlock, &Tmp);
         if ((pHdr->fu32Flags & VBOX_HGCM_REQ_DONE) != 0)
         {
-            RTSpinlockReleaseNoInts(pDevExt->WaitSpinlock, &Tmp);
-            return;
+            RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, &Tmp);
+            return VINF_SUCCESS;
         }
-        RTSpinlockReleaseNoInts(pDevExt->WaitSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, &Tmp);
 
-        pWait = VBoxGuestWaitAlloc(pDevExt);
+        pWait = VBoxGuestWaitAlloc(pDevExt, NULL);
         if (pWait)
             break;
         if (fInterruptible)
-            return;
+            return VERR_INTERRUPTED;
         RTThreadSleep(1);
     }
     pWait->fReqEvents = VMMDEV_EVENT_HGCM;
@@ -896,35 +1125,38 @@ static void VBoxGuestHGCMAsyncWaitCallbackWorker(VMMDevHGCMRequestHeader volatil
      * If the condition is met, return.
      * Otherwise link us into the HGCM wait list and go to sleep.
      */
-    RTSpinlockAcquireNoInts(pDevExt->WaitSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pDevExt->EventSpinlock, &Tmp);
     if ((pHdr->fu32Flags & VBOX_HGCM_REQ_DONE) != 0)
     {
         VBoxGuestWaitFreeLocked(pDevExt, pWait);
-        RTSpinlockReleaseNoInts(pDevExt->WaitSpinlock, &Tmp);
-        return;
+        RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, &Tmp);
+        return VINF_SUCCESS;
     }
     VBoxGuestWaitAppend(&pDevExt->HGCMWaitList, pWait);
-    RTSpinlockReleaseNoInts(pDevExt->WaitSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, &Tmp);
 
     int rc;
     if (fInterruptible)
         rc = RTSemEventMultiWaitNoResume(pWait->Event, cMillies);
     else
         rc = RTSemEventMultiWait(pWait->Event, cMillies);
+    if (rc == VERR_SEM_DESTROYED)
+        return rc;
 
     /*
-     * This shouldn't ever return failure...
      * Unlink, free and return.
      */
-    if (rc == VERR_SEM_DESTROYED)
-        return;
-    if (RT_FAILURE(rc))
+    if (    RT_FAILURE(rc)
+        &&  rc != VERR_TIMEOUT
+        &&  (    !fInterruptible
+             ||  rc != VERR_INTERRUPTED))
         LogRel(("VBoxGuestHGCMAsyncWaitCallback: wait failed! %Rrc\n", rc));
 
-    RTSpinlockAcquireNoInts(pDevExt->WaitSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pDevExt->EventSpinlock, &Tmp);
     VBoxGuestWaitUnlink(&pDevExt->HGCMWaitList, pWait);
     VBoxGuestWaitFreeLocked(pDevExt, pWait);
-    RTSpinlockReleaseNoInts(pDevExt->WaitSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, &Tmp);
+    return rc;
 }
 
 
@@ -933,14 +1165,14 @@ static void VBoxGuestHGCMAsyncWaitCallbackWorker(VMMDevHGCMRequestHeader volatil
  *
  * It operates in a manner similar to VBoxGuestCommonIOCtl_WaitEvent.
  */
-static DECLCALLBACK(void) VBoxGuestHGCMAsyncWaitCallback(VMMDevHGCMRequestHeader *pHdr, void *pvUser, uint32_t u32User)
+static DECLCALLBACK(int) VBoxGuestHGCMAsyncWaitCallback(VMMDevHGCMRequestHeader *pHdr, void *pvUser, uint32_t u32User)
 {
     PVBOXGUESTDEVEXT pDevExt = (PVBOXGUESTDEVEXT)pvUser;
-    LogFunc(("requestType=%d\n", pHdr->header.requestType));
-    VBoxGuestHGCMAsyncWaitCallbackWorker((VMMDevHGCMRequestHeader volatile *)pHdr,
-                                         pDevExt,
-                                         false /* fInterruptible */,
-                                         u32User  /* cMillies */);
+    Log(("VBoxGuestHGCMAsyncWaitCallback: requestType=%d\n", pHdr->header.requestType));
+    return VBoxGuestHGCMAsyncWaitCallbackWorker((VMMDevHGCMRequestHeader volatile *)pHdr,
+                                                pDevExt,
+                                                false /* fInterruptible */,
+                                                u32User  /* cMillies */);
 }
 
 
@@ -949,15 +1181,16 @@ static DECLCALLBACK(void) VBoxGuestHGCMAsyncWaitCallback(VMMDevHGCMRequestHeader
  *
  * It operates in a manner similar to VBoxGuestCommonIOCtl_WaitEvent.
  */
-static DECLCALLBACK(void) VBoxGuestHGCMAsyncWaitCallbackInterruptible(VMMDevHGCMRequestHeader *pHdr,
+static DECLCALLBACK(int) VBoxGuestHGCMAsyncWaitCallbackInterruptible(VMMDevHGCMRequestHeader *pHdr,
                                                                       void *pvUser, uint32_t u32User)
 {
     PVBOXGUESTDEVEXT pDevExt = (PVBOXGUESTDEVEXT)pvUser;
-    LogFunc(("requestType=%d\n", pHdr->header.requestType));
-    VBoxGuestHGCMAsyncWaitCallbackWorker((VMMDevHGCMRequestHeader volatile *)pHdr,
-                                         pDevExt,
-                                         true /* fInterruptible */,
-                                         u32User /* cMillies */ );
+    Log(("VBoxGuestHGCMAsyncWaitCallbackInterruptible: requestType=%d\n", pHdr->header.requestType));
+    return VBoxGuestHGCMAsyncWaitCallbackWorker((VMMDevHGCMRequestHeader volatile *)pHdr,
+                                                pDevExt,
+                                                true /* fInterruptible */,
+                                                u32User /* cMillies */ );
+
 }
 
 
@@ -973,7 +1206,7 @@ static int VBoxGuestCommonIOCtl_HGCMConnect(PVBOXGUESTDEVEXT pDevExt, PVBOXGUEST
          pInfo->Loc.type == VMMDevHGCMLoc_LocalHost || pInfo->Loc.type == VMMDevHGCMLoc_LocalHost_Existing
          ? pInfo->Loc.u.host.achName : "<not local host>"));
 
-    int rc = VbglHGCMConnect(pInfo, VBoxGuestHGCMAsyncWaitCallback, pDevExt, RT_INDEFINITE_WAIT);
+    int rc = VbglR0HGCMInternalConnect(pInfo, VBoxGuestHGCMAsyncWaitCallback, pDevExt, RT_INDEFINITE_WAIT);
     if (RT_SUCCESS(rc))
     {
         Log(("VBoxGuestCommonIOCtl: HGCM_CONNECT: u32Client=%RX32 result=%Rrc (rc=%Rrc)\n",
@@ -1003,7 +1236,7 @@ static int VBoxGuestCommonIOCtl_HGCMConnect(PVBOXGUESTDEVEXT pDevExt, PVBOXGUEST
                 VBoxGuestHGCMDisconnectInfo Info;
                 Info.result = 0;
                 Info.u32ClientID = pInfo->u32ClientID;
-                VbglHGCMDisconnect(&Info, VBoxGuestHGCMAsyncWaitCallback, pDevExt, RT_INDEFINITE_WAIT);
+                VbglR0HGCMInternalDisconnect(&Info, VBoxGuestHGCMAsyncWaitCallback, pDevExt, RT_INDEFINITE_WAIT);
                 return VERR_TOO_MANY_OPEN_FILES;
             }
         }
@@ -1045,7 +1278,7 @@ static int VBoxGuestCommonIOCtl_HGCMDisconnect(PVBOXGUESTDEVEXT pDevExt, PVBOXGU
      * to deal with cancelled requests.
      */
     Log(("VBoxGuestCommonIOCtl: HGCM_DISCONNECT: u32Client=%RX32\n", pInfo->u32ClientID));
-    int rc = VbglHGCMDisconnect(pInfo, VBoxGuestHGCMAsyncWaitCallback, pDevExt, RT_INDEFINITE_WAIT);
+    int rc = VbglR0HGCMInternalDisconnect(pInfo, VBoxGuestHGCMAsyncWaitCallback, pDevExt, RT_INDEFINITE_WAIT);
     if (RT_SUCCESS(rc))
     {
         Log(("VBoxGuestCommonIOCtl: HGCM_DISCONNECT: result=%Rrc\n", pInfo->result));
@@ -1118,21 +1351,22 @@ static int VBoxGuestCommonIOCtl_HGCMCall(PVBOXGUESTDEVEXT pDevExt,
      */
     Log(("VBoxGuestCommonIOCtl: HGCM_CALL: u32Client=%RX32\n", pInfo->u32ClientID));
     int rc;
+    uint32_t fFlags = pSession->R0Process == NIL_RTR0PROCESS ? VBGLR0_HGCMCALL_F_KERNEL : VBGLR0_HGCMCALL_F_USER;
 #ifdef RT_ARCH_AMD64
     if (f32bit)
     {
         if (fInterruptible)
-            rc = VbglHGCMCall32(pInfo, VBoxGuestHGCMAsyncWaitCallbackInterruptible, pDevExt, cMillies);
+            rc = VbglR0HGCMInternalCall32(pInfo, cbData - cbExtra, fFlags, VBoxGuestHGCMAsyncWaitCallbackInterruptible, pDevExt, cMillies);
         else
-            rc = VbglHGCMCall32(pInfo, VBoxGuestHGCMAsyncWaitCallback, pDevExt, cMillies);
+            rc = VbglR0HGCMInternalCall32(pInfo, cbData - cbExtra, fFlags, VBoxGuestHGCMAsyncWaitCallback, pDevExt, cMillies);
     }
     else
 #endif
     {
         if (fInterruptible)
-            rc = VbglHGCMCall(pInfo, VBoxGuestHGCMAsyncWaitCallbackInterruptible, pDevExt, cMillies);
+            rc = VbglR0HGCMInternalCall(pInfo, cbData - cbExtra, fFlags, VBoxGuestHGCMAsyncWaitCallbackInterruptible, pDevExt, cMillies);
         else
-            rc = VbglHGCMCall(pInfo, VBoxGuestHGCMAsyncWaitCallback, pDevExt, cMillies);
+            rc = VbglR0HGCMInternalCall(pInfo, cbData - cbExtra, fFlags, VBoxGuestHGCMAsyncWaitCallback, pDevExt, cMillies);
     }
     if (RT_SUCCESS(rc))
     {
@@ -1140,7 +1374,8 @@ static int VBoxGuestCommonIOCtl_HGCMCall(PVBOXGUESTDEVEXT pDevExt,
         if (pcbDataReturned)
             *pcbDataReturned = cbActual;
     }
-    Log(("VBoxGuestCommonIOCtl: HGCM_CALL: Failed. rc=%Rrc.\n", rc));
+    else
+        Log(("VBoxGuestCommonIOCtl: HGCM_CALL: Failed. rc=%Rrc.\n", rc));
     return rc;
 }
 
@@ -1163,7 +1398,7 @@ static int VBoxGuestCommonIOCtl_HGCMClipboardReConnect(PVBOXGUESTDEVEXT pDevExt,
         VBoxGuestHGCMDisconnectInfo Info;
         Info.result = VERR_WRONG_ORDER;
         Info.u32ClientID = pDevExt->u32ClipboardClientId;
-        rc = VbglHGCMDisconnect(&Info, VBoxGuestHGCMAsyncWaitCallback, pDevExt, RT_INDEFINITE_WAIT);
+        rc = VbglR0HGCMInternalDisconnect(&Info, VBoxGuestHGCMAsyncWaitCallback, pDevExt, RT_INDEFINITE_WAIT);
         if (RT_SUCCESS(rc))
         {
             LogRel(("VBoxGuestCommonIOCtl: CLIPBOARD_CONNECT: failed to disconnect old client. VbglHGCMDisconnect -> rc=%Rrc\n", rc));
@@ -1186,7 +1421,7 @@ static int VBoxGuestCommonIOCtl_HGCMClipboardReConnect(PVBOXGUESTDEVEXT pDevExt,
     Info.u32ClientID = 0;
     Info.result = VERR_WRONG_ORDER;
 
-    rc = VbglHGCMConnect(&Info, VBoxGuestHGCMAsyncWaitCallback, pDevExt, RT_INDEFINITE_WAIT);
+    rc = VbglR0HGCMInternalConnect(&Info, VBoxGuestHGCMAsyncWaitCallback, pDevExt, RT_INDEFINITE_WAIT);
     if (RT_FAILURE(rc))
     {
         LogRel(("VBoxGuestCommonIOCtl: CLIPBOARD_CONNECT: VbglHGCMConnected -> rc=%Rrc\n", rc));
@@ -1243,11 +1478,17 @@ static int VBoxGuestCommonIOCtl_Log(const char *pch, size_t cbData, size_t *pcbD
  * @param   cbData              The max size of the data buffer.
  * @param   pcbDataReturned     Where to store the amount of returned data. Can be NULL.
  */
-int  VBoxGuestCommonIOCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession,
-                          void *pvData, size_t cbData, size_t *pcbDataReturned)
+int VBoxGuestCommonIOCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession,
+                         void *pvData, size_t cbData, size_t *pcbDataReturned)
 {
     Log(("VBoxGuestCommonIOCtl: iFunction=%#x pDevExt=%p pSession=%p pvData=%p cbData=%zu\n",
          iFunction, pDevExt, pSession, pvData, cbData));
+
+    /*
+     * Make sure the returned data size is set to zero.
+     */
+    if (pcbDataReturned)
+        *pcbDataReturned = 0;
 
     /*
      * Define some helper macros to simplify validation.
@@ -1344,8 +1585,14 @@ int  VBoxGuestCommonIOCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUE
 
             case VBOXGUEST_IOCTL_WAITEVENT:
                 CHECKRET_MIN_SIZE("WAITEVENT", sizeof(VBoxGuestWaitEventInfo));
-                rc = VBoxGuestCommonIOCtl_WaitEvent(pDevExt, (VBoxGuestWaitEventInfo *)pvData, pcbDataReturned,
-                                                    pSession->R0Process != NIL_RTR0PROCESS);
+                rc = VBoxGuestCommonIOCtl_WaitEvent(pDevExt, pSession, (VBoxGuestWaitEventInfo *)pvData,
+                                                    pcbDataReturned, pSession->R0Process != NIL_RTR0PROCESS);
+                break;
+
+            case VBOXGUEST_IOCTL_CANCEL_ALL_WAITEVENTS:
+                if (cbData != 0)
+                    rc = VERR_INVALID_PARAMETER;
+                rc = VBoxGuestCommonIOCtl_CancelAllWaitEvents(pDevExt, pSession);
                 break;
 
             case VBOXGUEST_IOCTL_CTL_FILTER_MASK:
@@ -1399,82 +1646,118 @@ int  VBoxGuestCommonIOCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUE
  *
  * @returns true if it was our interrupt, false if it wasn't.
  * @param   pDevExt     The VBoxGuest device extension.
- *
- * @remarks Assums that interrupts are disabled, I think.
  */
 bool VBoxGuestCommonISR(PVBOXGUESTDEVEXT pDevExt)
 {
+    bool                    fMousePositionChanged = false;
+    RTSPINLOCKTMP           Tmp                   = RTSPINLOCKTMP_INITIALIZER;
+    VMMDevEvents volatile  *pReq                  = pDevExt->pIrqAckEvents;
+    int                     rc                    = 0;
+    bool                    fOurIrq;
+
     /*
-     * Now we have to find out whether it was our IRQ. Read the event mask
-     * from our device to see if there are any pending events.
+     * Make sure we've initalized the device extension.
      */
-    bool fOurIrq = pDevExt->pVMMDevMemory->V.V1_04.fHaveEvents;
+    if (RT_UNLIKELY(!pReq))
+        return false;
+
+    /*
+     * Enter the spinlock and check if it's our IRQ or not.
+     *
+     * Note! Solaris cannot do RTSemEventMultiSignal with interrupts disabled
+     *       so we're entering the spinlock without disabling them.  This works
+     *       fine as long as we never called in a nested fashion.
+     */
+#if defined(RT_OS_SOLARIS)
+    RTSpinlockAcquire(pDevExt->EventSpinlock, &Tmp);
+#else
+    RTSpinlockAcquireNoInts(pDevExt->EventSpinlock, &Tmp);
+#endif
+    fOurIrq = pDevExt->pVMMDevMemory->V.V1_04.fHaveEvents;
     if (fOurIrq)
     {
-        /* Acknowlegde events. */
-        VMMDevEvents *pReq = pDevExt->pIrqAckEvents;
-        int rc = VbglGRPerform(&pReq->header);
-        if (    RT_SUCCESS(rc)
-            &&  RT_SUCCESS(pReq->header.rc))
+        /*
+         * Acknowlegde events.
+         * We don't use VbglGRPerform here as it may take another spinlocks.
+         */
+        pReq->header.rc = VERR_INTERNAL_ERROR;
+        pReq->events    = 0;
+        ASMCompilerBarrier();
+        ASMOutU32(pDevExt->IOPortBase + VMMDEV_PORT_OFF_REQUEST, (uint32_t)pDevExt->PhysIrqAckEvents);
+        ASMCompilerBarrier();   /* paranoia */
+        if (RT_SUCCESS(pReq->header.rc))
         {
-            uint32_t fEvents = pReq->events;
+            uint32_t        fEvents = pReq->events;
+            PVBOXGUESTWAIT  pWait;
+
             Log(("VBoxGuestCommonISR: acknowledge events succeeded %#RX32\n", fEvents));
 
             /*
-             * Enter the spinlock and examin the waiting threads.
+             * VMMDEV_EVENT_MOUSE_POSITION_CHANGED can only be polled for.
              */
-            int rc2 = 0;
-            PVBOXGUESTWAIT pWait;
-            RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
-            RTSpinlockAcquireNoInts(pDevExt->WaitSpinlock, &Tmp);
+            if (fEvents & VMMDEV_EVENT_MOUSE_POSITION_CHANGED)
+            {
+                fMousePositionChanged = true;
+                fEvents &= ~VMMDEV_EVENT_MOUSE_POSITION_CHANGED;
+            }
 
-            /** @todo This looks wrong: Seems like VMMDEV_EVENT_HGCM will always be set in
-             *        f32PendingEvents... */
 #ifdef VBOX_WITH_HGCM
-            /* The HGCM event/list is kind of different in that we evaluate all entries. */
+            /*
+             * The HGCM event/list is kind of different in that we evaluate all entries.
+             */
             if (fEvents & VMMDEV_EVENT_HGCM)
+            {
                 for (pWait = pDevExt->HGCMWaitList.pHead; pWait; pWait = pWait->pNext)
                     if (    !pWait->fResEvents
                         &&  (pWait->pHGCMReq->fu32Flags & VBOX_HGCM_REQ_DONE))
                     {
                         pWait->fResEvents = VMMDEV_EVENT_HGCM;
-                        rc2 |= RTSemEventMultiSignal(pWait->Event);
+                        rc |= RTSemEventMultiSignal(pWait->Event);
                     }
-#endif
-
-            /* VMMDEV_EVENT_MOUSE_POSITION_CHANGED can only be polled for. */
-#if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
-            if (fEvents & VMMDEV_EVENT_MOUSE_POSITION_CHANGED)
-            {
-                pDevExt->u32MousePosChangedSeq++;
-                VBoxGuestNativeISRMousePollEvent(pDevExt);
+                fEvents &= ~VMMDEV_EVENT_HGCM;
             }
 #endif
-            fEvents &= ~VMMDEV_EVENT_MOUSE_POSITION_CHANGED;
 
-            /* Normal FIFO evaluation. */
+            /*
+             * Normal FIFO waiter evaluation.
+             */
             fEvents |= pDevExt->f32PendingEvents;
             for (pWait = pDevExt->WaitList.pHead; pWait; pWait = pWait->pNext)
-                if (!pWait->fResEvents)
+                if (    (pWait->fReqEvents & fEvents)
+                    &&  !pWait->fResEvents)
                 {
                     pWait->fResEvents = pWait->fReqEvents & fEvents;
                     fEvents &= ~pWait->fResEvents;
-                    rc2 |= RTSemEventMultiSignal(pWait->Event);
+                    rc |= RTSemEventMultiSignal(pWait->Event);
                     if (!fEvents)
                         break;
                 }
-
-            ASMAtomicXchgU32(&pDevExt->f32PendingEvents, fEvents);
-            RTSpinlockReleaseNoInts(pDevExt->WaitSpinlock, &Tmp);
-            Assert(rc2 == 0);
+            ASMAtomicWriteU32(&pDevExt->f32PendingEvents, fEvents);
         }
         else /* something is serious wrong... */
-            Log(("VBoxGuestCommonISR: acknowledge events failed rc=%d, header rc=%d (events=%#x)!!\n",
-                 rc, pReq->header.rc, pReq->events));
+            Log(("VBoxGuestCommonISR: acknowledge events failed rc=%d (events=%#x)!!\n",
+                 pReq->header.rc, pReq->events));
     }
     else
         LogFlow(("VBoxGuestCommonISR: not ours\n"));
 
+    /*
+     * Work the poll and async notification queues on OSes that implements that.
+     * Do this outside the spinlock to prevent some recursive spinlocking.
+     */
+#if defined(RT_OS_SOLARIS)
+    RTSpinlockRelease(pDevExt->EventSpinlock, &Tmp);
+#else
+    RTSpinlockReleaseNoInts(pDevExt->EventSpinlock, &Tmp);
+#endif
+
+    if (fMousePositionChanged)
+    {
+        ASMAtomicIncU32(&pDevExt->u32MousePosChangedSeq);
+        VBoxGuestNativeISRMousePollEvent(pDevExt);
+    }
+
+    Assert(rc == 0);
     return fOurIrq;
 }
 

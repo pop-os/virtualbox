@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltInternal.h $ */
+/* $Id: VBoxNetFltInternal.h 24123 2009-10-28 02:46:59Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Internal Header.
  */
@@ -182,12 +182,40 @@ typedef struct VBOXNETFLTINS
             void volatile *pvArpStream;
             /** Pointer to the unbound promiscuous stream. */
             void volatile *pvPromiscStream;
+            /** Whether we are attaching to IPv6 stream dynamically now. */
+            bool volatile fAttaching;
             /** Layered device handle to the interface. */
             ldi_handle_t hIface;
             /** The MAC address of the interface. */
             RTMAC Mac;
             /** Mutex protection used for loopback. */
             RTSEMFASTMUTEX hFastMtx;
+            /** Mutex protection used for dynamic IPv6 attaches. */
+            RTSEMFASTMUTEX hPollMtx;
+            /** @} */
+# elif defined(RT_OS_FREEBSD)
+            /** @name FreeBSD instance data.
+             * @{ */
+            /** Interface handle */
+            struct ifnet *ifp;
+            /** Netgraph node handle */
+            node_p node;
+            /** Input hook */
+            hook_p input;
+            /** Output hook */
+            hook_p output;
+            /** Original interface flags */
+            unsigned int flags;
+            /** Input queue */
+            struct ifqueue inq;
+            /** Output queue */
+            struct ifqueue outq;
+            /** Input task */
+            struct task tskin;
+            /** Output task */
+            struct task tskout;
+            /** The MAC address of the interface. */
+            RTMAC Mac;
             /** @} */
 # elif defined(RT_OS_WINDOWS)
             /** @name Windows instance data.
@@ -221,8 +249,10 @@ typedef struct VBOXNETFLTINS
 # endif
 #elif defined(RT_OS_LINUX)
         uint8_t abPadding[320];
+#elif defined(RT_OS_FREEBSD)
+        uint8_t abPadding[320];
 #else
-        uint8_t abPadding[64];
+        uint8_t abPadding[128];
 #endif
     } u;
 

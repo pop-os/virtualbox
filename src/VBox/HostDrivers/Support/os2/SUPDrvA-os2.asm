@@ -1,4 +1,4 @@
-; $Id: SUPDrvA-os2.asm $
+; $Id: SUPDrvA-os2.asm 22077 2009-08-07 16:01:57Z vboxsync $
 ;; @file
 ; VBoxDrv - OS/2 assembly file, the first file in the link.
 ;

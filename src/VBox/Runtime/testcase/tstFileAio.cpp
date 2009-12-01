@@ -1,4 +1,4 @@
-/* $Id: tstFileAio.cpp $ */
+/* $Id: tstFileAio.cpp 25000 2009-11-26 14:22:44Z vboxsync $ */
 /** @file
  * IPRT Testcase - File Async I/O.
  */
@@ -185,7 +185,7 @@ void tstFileAioTestReadWriteBasic(RTFILE File, bool fWrite, void *pvTestBuf, siz
                         }
 
                         NanoTS = RTTimeNanoTS() - NanoTS;
-                        unsigned SpeedKBs = cbTestFile / (NanoTS / 1000000000.0) / 1024;
+                        unsigned SpeedKBs = (unsigned)(cbTestFile / (NanoTS / 1000000000.0) / 1024);
 
                         RTPrintf("tstFileAio: Completed simple %s test: %d.%03d MB/sec\n",
                                  fWrite ? "write" : "read",
@@ -273,7 +273,7 @@ int main()
     tstFileAioTestReadWriteBasic(File, true, pvTestBuf, 64*_1K, 100*_1M, cReqsMax);
     /* Reopen the file. */
     RTFileClose(File);
-    rc = RTFileOpen(&File, "tstFileAio#1.tst", RTFILE_O_READWRITE | RTFILE_O_DENY_NONE | RTFILE_O_ASYNC_IO);
+    rc = RTFileOpen(&File, "tstFileAio#1.tst", RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE | RTFILE_O_ASYNC_IO);
     if (RT_SUCCESS(rc))
     {
         tstFileAioTestReadWriteBasic(File, false, pvTestBuf, 64*_1K, 100*_1M, cReqsMax);

@@ -1,4 +1,4 @@
-/* $Id: thread-r0drv-nt.cpp $ */
+/* $Id: thread-r0drv-nt.cpp 24034 2009-10-23 13:04:13Z vboxsync $ */
 /** @file
  * IPRT - Threads, Ring-0 Driver, NT.
  */
@@ -32,13 +32,15 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-nt-kernel.h"
-
+#include "internal/iprt.h"
 #include <iprt/thread.h>
-#include <iprt/err.h>
-#include <iprt/assert.h>
-#include <iprt/asm.h>
 
+#include <iprt/asm.h>
+#include <iprt/assert.h>
+#include <iprt/err.h>
+#include <iprt/mp.h>
 #include "internal-r0drv-nt.h"
+
 
 RT_C_DECLS_BEGIN
 NTSTATUS NTAPI ZwYieldExecution(void);
@@ -81,10 +83,8 @@ RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread)
     KIRQL Irql = KeGetCurrentIrql();
     if (Irql > APC_LEVEL)
         return false;
-#if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
-    if (!(ASMGetFlags() & 0x00000200 /* X86_EFL_IF */))
+    if (!ASMIntAreEnabled())
         return false;
-#endif
     return true;
 }
 
@@ -156,6 +156,13 @@ RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
 }
 
 
+RTDECL(bool) RTThreadPreemptIsPossible(void)
+{
+    /* yes, kernel preemption is possible. */
+    return true;
+}
+
+
 RTDECL(void) RTThreadPreemptDisable(PRTTHREADPREEMPTSTATE pState)
 {
     AssertPtr(pState);
@@ -163,6 +170,7 @@ RTDECL(void) RTThreadPreemptDisable(PRTTHREADPREEMPTSTATE pState)
     Assert(KeGetCurrentIrql() <= DISPATCH_LEVEL);
 
     KeRaiseIrql(DISPATCH_LEVEL, &pState->uchOldIrql);
+    RT_ASSERT_PREEMPT_CPUID_DISABLE(pState);
 }
 
 
@@ -170,7 +178,17 @@ RTDECL(void) RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState)
 {
     AssertPtr(pState);
 
+    RT_ASSERT_PREEMPT_CPUID_RESTORE(pState);
     KeLowerIrql(pState->uchOldIrql);
     pState->uchOldIrql = 255;
+}
+
+
+RTDECL(bool) RTThreadIsInInterrupt(RTTHREAD hThread)
+{
+    Assert(hThread == NIL_RTTHREAD); NOREF(hThread);
+
+    KIRQL CurIrql = KeGetCurrentIrql();
+    return CurIrql > PASSIVE_LEVEL; /** @todo Is there a more correct way? */
 }
 

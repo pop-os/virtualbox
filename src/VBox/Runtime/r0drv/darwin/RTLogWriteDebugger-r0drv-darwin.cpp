@@ -1,4 +1,4 @@
-/* $Id: RTLogWriteDebugger-r0drv-darwin.cpp $ */
+/* $Id: RTLogWriteDebugger-r0drv-darwin.cpp 22052 2009-08-07 09:45:48Z vboxsync $ */
 /** @file
  * IPRT - Log To Debugger, Ring-0 Driver, Darwin.
  */
@@ -33,13 +33,13 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-darwin-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/log.h>
-#include <iprt/assert.h>
 
 
 RTDECL(void) RTLogWriteDebugger(const char *pch, size_t cb)
 {
-    kprintf("%.*s", cb, pch);
+    kprintf("%.*s", (int)cb, pch);
     return;
 }
 

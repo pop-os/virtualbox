@@ -335,7 +335,8 @@ DECLINLINE(int) VDInterfaceAdd(PVDINTERFACE pInterface, const char *pszName,
 }
 
 /**
- * Interface to deliver error messages to upper layers.
+ * Interface to deliver error messages (and also informational messages)
+ * to upper layers.
  *
  * Per disk interface. Optional, but think twice if you want to miss the
  * opportunity of reporting better human-readable error messages.
@@ -353,7 +354,8 @@ typedef struct VDINTERFACEERROR
     VDINTERFACETYPE enmInterface;
 
     /**
-     * Error message callback.
+     * Error message callback. Must be able to accept special IPRT format
+     * strings.
      *
      * @param   pvUser          The opaque data passed on container creation.
      * @param   rc              The VBox error code.
@@ -362,6 +364,17 @@ typedef struct VDINTERFACEERROR
      * @param   va              Error message arguments.
      */
     DECLR3CALLBACKMEMBER(void, pfnError, (void *pvUser, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list va));
+
+    /**
+     * Informational message callback. May be NULL. Used e.g. in
+     * VDDumpImages(). Must be able to accept special IPRT format strings.
+     *
+     * @return  VBox status code.
+     * @param   pvUser          The opaque data passed on container creation.
+     * @param   pszFormat       Error message format string.
+     * @param   ...             Error message arguments.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnMessage, (void *pvUser, const char *pszFormat, ...));
 
 } VDINTERFACEERROR, *PVDINTERFACEERROR;
 
@@ -401,6 +414,10 @@ typedef DECLCALLBACK(int) FNVDCOMPLETED(void *pvUser, void **ppvCaller);
 /** Pointer to FNVDCOMPLETED() */
 typedef FNVDCOMPLETED *PFNVDCOMPLETED;
 
+/** Open the storage readonly. */
+#define VD_INTERFACEASYNCIO_OPEN_FLAGS_READONLY RT_BIT(0)
+/** Create the storage backend if it doesn't exist. */
+#define VD_INTERFACEASYNCIO_OPEN_FLAGS_CREATE RT_BIT(1)
 
 /**
  * Support interface for asynchronous I/O
@@ -425,7 +442,8 @@ typedef struct VDINTERFACEASYNCIO
      * @return  VBox status code.
      * @param   pvUser          The opaque data passed on container creation.
      * @param   pszLocation     Name of the location to open.
-     * @param   fReadonly       Whether to open the storage medium read only.
+     * @param   uOpenFlags      Flags for opening the backend.
+     *                          See VD_INTERFACEASYNCIO_OPEN_FLAGS_* #defines
      * @param   pfnCompleted    The callabck which is called whenever a task
      *                          completed. The backend has to pass the user data
      *                          of the request initiator (ie the one who calls
@@ -433,7 +451,7 @@ typedef struct VDINTERFACEASYNCIO
      *                          if this is NULL.
      * @param   ppStorage       Where to store the opaque storage handle.
      */
-    DECLR3CALLBACKMEMBER(int, pfnOpen, (void *pvUser, const char *pszLocation, bool fReadonly,
+    DECLR3CALLBACKMEMBER(int, pfnOpen, (void *pvUser, const char *pszLocation, unsigned uOpenFlags,
                                         PFNVDCOMPLETED pfnCompleted, void **ppStorage));
 
     /**
@@ -454,6 +472,17 @@ typedef struct VDINTERFACEASYNCIO
      * @param   pcbSize         Where to store the size of the storage backend.
      */
     DECLR3CALLBACKMEMBER(int, pfnGetSize, (void *pvUser, void *pStorage, uint64_t *pcbSize));
+
+    /**
+     * Sets the size of the opened storage backend if possible.
+     *
+     * @return  VBox status code.
+     * @retval  VERR_NOT_SUPPORTED if the backend does not support this operation.
+     * @param   pvUser          The opaque data passed on container creation.
+     * @param   pStorage        The opaque storage handle to close.
+     * @param   cbSize          The new size of the image.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSetSize, (void *pvUser, void *pStorage, uint64_t cbSize));
 
     /**
      * Synchronous write callback.
@@ -1213,11 +1242,12 @@ VBOXDDU_DECL(void) VDDestroy(PVBOXHDD pDisk);
  * Try to get the backend name which can use this image.
  *
  * @return  VBox status code.
+ * @param   pVDIfsDisk      Pointer to the per-disk VD interface list.
  * @param   pszFilename     Name of the image file for which the backend is queried.
  * @param   ppszFormat      Receives pointer of the UTF-8 string which contains the format name.
  *                          The returned pointer must be freed using RTStrFree().
  */
-VBOXDDU_DECL(int) VDGetFormat(const char *pszFilename, char **ppszFormat);
+VBOXDDU_DECL(int) VDGetFormat(PVDINTERFACE pVDIfsDisk, const char *pszFilename, char **ppszFormat);
 
 /**
  * Opens an image file.

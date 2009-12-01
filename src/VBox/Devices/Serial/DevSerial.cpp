@@ -1,4 +1,4 @@
-/* $Id: DevSerial.cpp $ */
+/* $Id: DevSerial.cpp 24792 2009-11-19 14:48:18Z vboxsync $ */
 /** @file
  * DevSerial - 16450 UART emulation.
  */
@@ -71,50 +71,50 @@
 *******************************************************************************/
 #define SERIAL_SAVED_STATE_VERSION  3
 
-#define UART_LCR_DLAB	            0x80	/* Divisor latch access bit */
+#define UART_LCR_DLAB               0x80        /* Divisor latch access bit */
 
-#define UART_IER_MSI	            0x08	/* Enable Modem status interrupt */
-#define UART_IER_RLSI	            0x04	/* Enable receiver line status interrupt */
-#define UART_IER_THRI	            0x02	/* Enable Transmitter holding register int. */
-#define UART_IER_RDI	            0x01	/* Enable receiver data interrupt */
+#define UART_IER_MSI                0x08        /* Enable Modem status interrupt */
+#define UART_IER_RLSI               0x04        /* Enable receiver line status interrupt */
+#define UART_IER_THRI               0x02        /* Enable Transmitter holding register int. */
+#define UART_IER_RDI                0x01        /* Enable receiver data interrupt */
 
-#define UART_IIR_NO_INT	            0x01	/* No interrupts pending */
-#define UART_IIR_ID	                0x06	/* Mask for the interrupt ID */
+#define UART_IIR_NO_INT             0x01        /* No interrupts pending */
+#define UART_IIR_ID                     0x06    /* Mask for the interrupt ID */
 
-#define UART_IIR_MSI	            0x00	/* Modem status interrupt */
-#define UART_IIR_THRI	            0x02	/* Transmitter holding register empty */
-#define UART_IIR_RDI	            0x04	/* Receiver data interrupt */
-#define UART_IIR_RLSI	            0x06	/* Receiver line status interrupt */
+#define UART_IIR_MSI                0x00        /* Modem status interrupt */
+#define UART_IIR_THRI               0x02        /* Transmitter holding register empty */
+#define UART_IIR_RDI                0x04        /* Receiver data interrupt */
+#define UART_IIR_RLSI               0x06        /* Receiver line status interrupt */
 
 /*
  * These are the definitions for the Modem Control Register
  */
-#define UART_MCR_LOOP	            0x10	/* Enable loopback test mode */
-#define UART_MCR_OUT2	            0x08	/* Out2 complement */
-#define UART_MCR_OUT1	            0x04	/* Out1 complement */
-#define UART_MCR_RTS	            0x02	/* RTS complement */
-#define UART_MCR_DTR	            0x01	/* DTR complement */
+#define UART_MCR_LOOP               0x10        /* Enable loopback test mode */
+#define UART_MCR_OUT2               0x08        /* Out2 complement */
+#define UART_MCR_OUT1               0x04        /* Out1 complement */
+#define UART_MCR_RTS                0x02        /* RTS complement */
+#define UART_MCR_DTR                0x01        /* DTR complement */
 
 /*
  * These are the definitions for the Modem Status Register
  */
-#define UART_MSR_DCD	            0x80	/* Data Carrier Detect */
-#define UART_MSR_RI	                0x40	/* Ring Indicator */
-#define UART_MSR_DSR	            0x20	/* Data Set Ready */
-#define UART_MSR_CTS	            0x10	/* Clear to Send */
-#define UART_MSR_DDCD	            0x08	/* Delta DCD */
-#define UART_MSR_TERI	            0x04	/* Trailing edge ring indicator */
-#define UART_MSR_DDSR	            0x02	/* Delta DSR */
-#define UART_MSR_DCTS	            0x01	/* Delta CTS */
-#define UART_MSR_ANY_DELTA          0x0F	/* Any of the delta bits! */
+#define UART_MSR_DCD                0x80        /* Data Carrier Detect */
+#define UART_MSR_RI                     0x40    /* Ring Indicator */
+#define UART_MSR_DSR                0x20        /* Data Set Ready */
+#define UART_MSR_CTS                0x10        /* Clear to Send */
+#define UART_MSR_DDCD               0x08        /* Delta DCD */
+#define UART_MSR_TERI               0x04        /* Trailing edge ring indicator */
+#define UART_MSR_DDSR               0x02        /* Delta DSR */
+#define UART_MSR_DCTS               0x01        /* Delta CTS */
+#define UART_MSR_ANY_DELTA          0x0F        /* Any of the delta bits! */
 
-#define UART_LSR_TEMT	            0x40	/* Transmitter empty */
-#define UART_LSR_THRE	            0x20	/* Transmit-hold-register empty */
-#define UART_LSR_BI	                0x10	/* Break interrupt indicator */
-#define UART_LSR_FE	                0x08	/* Frame error indicator */
-#define UART_LSR_PE	                0x04	/* Parity error indicator */
-#define UART_LSR_OE	                0x02	/* Overrun error indicator */
-#define UART_LSR_DR	                0x01	/* Receiver data ready */
+#define UART_LSR_TEMT               0x40        /* Transmitter empty */
+#define UART_LSR_THRE               0x20        /* Transmit-hold-register empty */
+#define UART_LSR_BI                     0x10    /* Break interrupt indicator */
+#define UART_LSR_FE                     0x08    /* Frame error indicator */
+#define UART_LSR_PE                     0x04    /* Parity error indicator */
+#define UART_LSR_OE                     0x02    /* Overrun error indicator */
+#define UART_LSR_DR                     0x01    /* Receiver data ready */
 
 
 /*******************************************************************************
@@ -199,6 +199,8 @@ static void serial_update_irq(SerialState *s)
         s->iir = UART_IIR_THRI;
     } else if (s->msr_changed && (s->ier & UART_IER_RLSI)) {
         s->iir = UART_IIR_RLSI;
+    } else if (s->lsr & UART_LSR_BI) {
+        s->iir = 0; /* No special status bit */
     } else {
         s->iir = UART_IIR_NO_INT;
     }
@@ -307,6 +309,12 @@ static int serial_ioport_write(void *opaque, uint32_t addr, uint32_t val)
             break_enable = (val >> 6) & 1;
             if (break_enable != s->last_break_enable) {
                 s->last_break_enable = break_enable;
+                if (RT_LIKELY(s->pDrvChar))
+                {
+                    Log(("serial_io_port_write: Set break %d\n", break_enable));
+                    int rc = s->pDrvChar->pfnSetBreak(s->pDrvChar, !!break_enable);
+                    AssertRC(rc);
+                }
             }
         }
         break;
@@ -493,6 +501,22 @@ static DECLCALLBACK(int) serialNotifyStatusLinesChanged(PPDMICHARPORT pInterface
     return VINF_SUCCESS;
 }
 
+static DECLCALLBACK(int) serialNotifyBreak(PPDMICHARPORT pInterface)
+{
+    SerialState *pThis = PDMICHARPORT_2_SERIALSTATE(pInterface);
+
+    Log(("%s: pInterface=%p\n", __FUNCTION__, pInterface));
+
+    PDMCritSectEnter(&pThis->CritSect, VERR_PERMISSION_DENIED);
+
+    pThis->lsr |= UART_LSR_BI;
+    serial_update_irq(pThis);
+
+    PDMCritSectLeave(&pThis->CritSect);
+
+    return VINF_SUCCESS;
+}
+
 #endif /* IN_RING3 */
 
 /**
@@ -564,91 +588,104 @@ PDMBOTHCBDECL(int) serialIOPortRead(PPDMDEVINS pDevIns, void *pvUser,
 #ifdef IN_RING3
 
 /**
- * Saves a state of the serial port device.
- *
- * @returns VBox status code.
- * @param   pDevIns     The device instance.
- * @param   pSSMHandle  The handle to save the state to.
+ * @copydoc FNSSMDEVLIVEEXEC
  */
-static DECLCALLBACK(int) serialSaveExec(PPDMDEVINS pDevIns,
-                                        PSSMHANDLE pSSMHandle)
+static DECLCALLBACK(int) serialLiveExec(PPDMDEVINS pDevIns,
+                                        PSSMHANDLE pSSM,
+                                        uint32_t uPass)
 {
     SerialState *pThis = PDMINS_2_DATA(pDevIns, SerialState *);
-
-    SSMR3PutU16(pSSMHandle, pThis->divider);
-    SSMR3PutU8(pSSMHandle, pThis->rbr);
-    SSMR3PutU8(pSSMHandle, pThis->ier);
-    SSMR3PutU8(pSSMHandle, pThis->lcr);
-    SSMR3PutU8(pSSMHandle, pThis->mcr);
-    SSMR3PutU8(pSSMHandle, pThis->lsr);
-    SSMR3PutU8(pSSMHandle, pThis->msr);
-    SSMR3PutU8(pSSMHandle, pThis->scr);
-    SSMR3PutS32(pSSMHandle, pThis->thr_ipending);
-    SSMR3PutS32(pSSMHandle, pThis->irq);
-    SSMR3PutS32(pSSMHandle, pThis->last_break_enable);
-    SSMR3PutU32(pSSMHandle, pThis->base);
-    SSMR3PutBool(pSSMHandle, pThis->msr_changed);
-    return SSMR3PutU32(pSSMHandle, ~0); /* sanity/terminator */
+    SSMR3PutS32(pSSM, pThis->irq);
+    SSMR3PutU32(pSSM, pThis->base);
+    return VINF_SSM_DONT_CALL_AGAIN;
 }
 
 /**
- * Loads a saved serial port device state.
- *
- * @returns VBox status code.
- * @param   pDevIns     The device instance.
- * @param   pSSMHandle  The handle to the saved state.
- * @param   u32Version  The data unit version number.
+ * @copydoc FNSSMDEVSAVEEXEC
  */
-static DECLCALLBACK(int) serialLoadExec(PPDMDEVINS pDevIns,
-                                        PSSMHANDLE pSSMHandle,
-                                        uint32_t u32Version)
+static DECLCALLBACK(int) serialSaveExec(PPDMDEVINS pDevIns,
+                                        PSSMHANDLE pSSM)
 {
-    int          rc;
-    uint32_t     u32;
     SerialState *pThis = PDMINS_2_DATA(pDevIns, SerialState *);
 
-    if (u32Version != SERIAL_SAVED_STATE_VERSION)
+    SSMR3PutU16(pSSM, pThis->divider);
+    SSMR3PutU8(pSSM, pThis->rbr);
+    SSMR3PutU8(pSSM, pThis->ier);
+    SSMR3PutU8(pSSM, pThis->lcr);
+    SSMR3PutU8(pSSM, pThis->mcr);
+    SSMR3PutU8(pSSM, pThis->lsr);
+    SSMR3PutU8(pSSM, pThis->msr);
+    SSMR3PutU8(pSSM, pThis->scr);
+    SSMR3PutS32(pSSM, pThis->thr_ipending);
+    SSMR3PutS32(pSSM, pThis->irq);
+    SSMR3PutS32(pSSM, pThis->last_break_enable);
+    SSMR3PutU32(pSSM, pThis->base);
+    SSMR3PutBool(pSSM, pThis->msr_changed);
+    return SSMR3PutU32(pSSM, ~0); /* sanity/terminator */
+}
+
+/**
+ * @copydoc FNSSMDEVLOADEXEC
+ */
+static DECLCALLBACK(int) serialLoadExec(PPDMDEVINS pDevIns,
+                                        PSSMHANDLE pSSM,
+                                        uint32_t uVersion,
+                                        uint32_t uPass)
+{
+    SerialState *pThis = PDMINS_2_DATA(pDevIns, SerialState *);
+
+    AssertMsgReturn(uVersion == SERIAL_SAVED_STATE_VERSION, ("%d\n", uVersion), VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION);
+
+    if (uPass == SSM_PASS_FINAL)
     {
-        AssertMsgFailed(("u32Version=%d\n", u32Version));
-        return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
+        SSMR3GetU16(pSSM, &pThis->divider);
+        SSMR3GetU8(pSSM, &pThis->rbr);
+        SSMR3GetU8(pSSM, &pThis->ier);
+        SSMR3GetU8(pSSM, &pThis->lcr);
+        SSMR3GetU8(pSSM, &pThis->mcr);
+        SSMR3GetU8(pSSM, &pThis->lsr);
+        SSMR3GetU8(pSSM, &pThis->msr);
+        SSMR3GetU8(pSSM, &pThis->scr);
+        SSMR3GetS32(pSSM, &pThis->thr_ipending);
     }
 
-    SSMR3GetU16(pSSMHandle, &pThis->divider);
-    SSMR3GetU8(pSSMHandle, &pThis->rbr);
-    SSMR3GetU8(pSSMHandle, &pThis->ier);
-    SSMR3GetU8(pSSMHandle, &pThis->lcr);
-    SSMR3GetU8(pSSMHandle, &pThis->mcr);
-    SSMR3GetU8(pSSMHandle, &pThis->lsr);
-    SSMR3GetU8(pSSMHandle, &pThis->msr);
-    SSMR3GetU8(pSSMHandle, &pThis->scr);
-    SSMR3GetS32(pSSMHandle, &pThis->thr_ipending);
-    SSMR3GetS32(pSSMHandle, &pThis->irq);
-    SSMR3GetS32(pSSMHandle, &pThis->last_break_enable);
-    SSMR3GetU32(pSSMHandle, &pThis->base);
-    SSMR3GetBool(pSSMHandle, &pThis->msr_changed);
+    int32_t  iIrq;
+    SSMR3GetS32(pSSM, &iIrq);
 
-    rc = SSMR3GetU32(pSSMHandle, &u32);
-    if (RT_FAILURE(rc))
-        return rc;
+    if (uPass == SSM_PASS_FINAL)
+        SSMR3GetS32(pSSM, &pThis->last_break_enable);
 
-    if (u32 != ~0U)
+    uint32_t IOBase;
+    int rc = SSMR3GetU32(pSSM, &IOBase);
+    AssertRCReturn(rc, rc);
+
+    if (    pThis->irq  != iIrq
+        ||  pThis->base != IOBase)
+        return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("Config mismatch - saved irq=%#x iobase=%#x; configured irq=%#x iobase=%#x"),
+                                iIrq, IOBase, pThis->irq, pThis->base);
+
+    if (uPass == SSM_PASS_FINAL)
     {
-        AssertLogRelMsgFailed(("u32=%#x expected ~0\n", u32));
-        return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
-    }
-    /* Be careful with pointers in the structure; they are not preserved
-     * in the saved state. */
+        SSMR3GetBool(pSSM, &pThis->msr_changed);
 
-    if (pThis->lsr & UART_LSR_DR)
-    {
-        int rc = RTSemEventSignal(pThis->ReceiveSem);
-        AssertRC(rc);
+        uint32_t u32;
+        rc = SSMR3GetU32(pSSM, &u32);
+        if (RT_FAILURE(rc))
+            return rc;
+        AssertMsgReturn(u32 == ~0U, ("%#x\n", u32), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+
+        if (pThis->lsr & UART_LSR_DR)
+        {
+            rc = RTSemEventSignal(pThis->ReceiveSem);
+            AssertRC(rc);
+        }
+
+        /* this isn't strictly necessary but cannot hurt... */
+        pThis->pDevInsR3 = pDevIns;
+        pThis->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
+        pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
     }
 
-    /* this isn't strictly necessary but cannot hurt... */
-    pThis->pDevInsR3 = pDevIns;
-    pThis->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
-    pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
     return VINF_SUCCESS;
 }
 
@@ -765,8 +802,9 @@ static DECLCALLBACK(int) serialConstruct(PPDMDEVINS pDevIns,
     pThis->IBase.pfnQueryInterface = serialQueryInterface;
 
     /* ICharPort */
-    pThis->ICharPort.pfnNotifyRead = serialNotifyRead;
+    pThis->ICharPort.pfnNotifyRead               = serialNotifyRead;
     pThis->ICharPort.pfnNotifyStatusLinesChanged = serialNotifyStatusLinesChanged;
+    pThis->ICharPort.pfnNotifyBreak              = serialNotifyBreak;
 
 #ifdef VBOX_SERIAL_PCI
     /* the PCI device */
@@ -881,30 +919,28 @@ static DECLCALLBACK(int) serialConstruct(PPDMDEVINS pDevIns,
         return rc;
 
     if (pThis->fGCEnabled)
+    {
         rc = PDMDevHlpIOPortRegisterGC(pDevIns, io_base, 8, 0, "serialIOPortWrite",
                                       "serialIOPortRead", NULL, NULL, "Serial");
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
 
     if (pThis->fR0Enabled)
+    {
         rc = PDMDevHlpIOPortRegisterR0(pDevIns, io_base, 8, 0, "serialIOPortWrite",
                                       "serialIOPortRead", NULL, NULL, "Serial");
+        if (RT_FAILURE(rc))
+            return rc;
+    }
 #endif /* !VBOX_SERIAL_PCI */
 
     /*
      * Saved state.
      */
-    rc = PDMDevHlpSSMRegister(
-        pDevIns,                /* pDevIns */
-        pDevIns->pDevReg->szDeviceName, /* pszName */
-        iInstance,              /* u32Instance */
-        SERIAL_SAVED_STATE_VERSION, /* u32Version */
-        sizeof (*pThis),        /* cbGuess */
-        NULL,                   /* pfnSavePrep */
-        serialSaveExec,         /* pfnSaveExec */
-        NULL,                   /* pfnSaveDone */
-        NULL,                   /* pfnLoadPrep */
-        serialLoadExec,         /* pfnLoadExec */
-        NULL                    /* pfnLoadDone */
-        );
+    rc = PDMDevHlpSSMRegister3(pDevIns, SERIAL_SAVED_STATE_VERSION, sizeof (*pThis),
+                               serialLiveExec, serialSaveExec, serialLoadExec);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -960,7 +996,7 @@ const PDMDEVREG g_DeviceSerialPort =
     /* fClass */
     PDM_DEVREG_CLASS_SERIAL,
     /* cMaxInstances */
-    1,
+    UINT32_MAX,
     /* cbInstance */
     sizeof(SerialState),
     /* pfnConstruct */

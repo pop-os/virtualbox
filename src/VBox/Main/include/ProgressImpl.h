@@ -1,4 +1,4 @@
-/* $Id: ProgressImpl.h $ */
+/* $Id: ProgressImpl.h 24989 2009-11-26 11:31:46Z vboxsync $ */
 /** @file
  *
  * VirtualBox COM class implementation
@@ -39,9 +39,9 @@ class VirtualBox;
  * Base component class for progress objects.
  */
 class ATL_NO_VTABLE ProgressBase :
-    public VirtualBoxBaseNEXT,
+    public VirtualBoxBase,
     public com::SupportErrorInfoBase,
-    public VirtualBoxSupportTranslation <ProgressBase>,
+    public VirtualBoxSupportTranslation<ProgressBase>,
     VBOX_SCRIPTABLE_IMPL(IProgress)
 {
 protected:
@@ -81,31 +81,39 @@ public:
     STDMETHOD(COMGETTER(Operation)) (ULONG *aCount);
     STDMETHOD(COMGETTER(OperationDescription)) (BSTR *aOperationDescription);
     STDMETHOD(COMGETTER(OperationPercent)) (ULONG *aOperationPercent);
+    STDMETHOD(COMSETTER(Timeout)) (ULONG aTimeout);
+    STDMETHOD(COMGETTER(Timeout)) (ULONG *aTimeout);
 
     // public methods only for internal purposes
 
     static HRESULT setErrorInfoOnThread (IProgress *aProgress);
+    bool setCancelCallback(void (*pfnCallback)(void *), void *pvUser);
+
 
     // unsafe inline public methods for internal purposes only (ensure there is
     // a caller and a read lock before calling them!)
 
-    BOOL completed() const { return mCompleted; }
-    HRESULT resultCode() const { return mResultCode; }
+    BOOL getCompleted() const { return mCompleted; }
+    HRESULT getResultCode() const { return mResultCode; }
     double calcTotalPercent();
 
 protected:
+    void checkForAutomaticTimeout(void);
 
 #if !defined (VBOX_COM_INPROC)
     /** Weak parent. */
-    const ComObjPtr <VirtualBox, ComWeakRef> mParent;
+    const ComObjPtr<VirtualBox, ComWeakRef> mParent;
 #endif
 
-    const ComPtr <IUnknown> mInitiator;
+    const ComPtr<IUnknown> mInitiator;
 
     const Guid mId;
     const Bstr mDescription;
 
     uint64_t m_ullTimestamp;                        // progress object creation timestamp, for ETA computation
+
+    void (*m_pfnCancelCallback)(void *);
+    void *m_pvCancelUserArg;
 
     /* The fields below are to be properly initalized by subclasses */
 
@@ -113,7 +121,7 @@ protected:
     BOOL mCancelable;
     BOOL mCanceled;
     HRESULT mResultCode;
-    ComPtr <IVirtualBoxErrorInfo> mErrorInfo;
+    ComPtr<IVirtualBoxErrorInfo> mErrorInfo;
 
     ULONG m_cOperations;                            // number of operations (so that progress dialog can display something like 1/3)
     ULONG m_ulTotalOperationsWeight;                // sum of weights of all operations, given to constructor
@@ -124,6 +132,7 @@ protected:
     Bstr m_bstrOperationDescription;                // name of current operation; initially from constructor, changed with setNextOperation()
     ULONG m_ulCurrentOperationWeight;               // weight of current operation, given to setNextOperation()
     ULONG m_ulOperationPercent;                     // percentage of current operation, set with setCurrentOperationProgress()
+    ULONG m_cMsTimeout;                             /**< Automatic timeout value. 0 means none. */
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -132,8 +141,8 @@ protected:
  * Normal progress object.
  */
 class ATL_NO_VTABLE Progress :
-    public com::SupportErrorInfoDerived <ProgressBase, Progress, IProgress>,
-    public VirtualBoxSupportTranslation <Progress>
+    public com::SupportErrorInfoDerived<ProgressBase, Progress, IProgress>,
+    public VirtualBoxSupportTranslation<Progress>
 {
 
 public:
@@ -149,8 +158,6 @@ public:
         COM_INTERFACE_ENTRY  (IProgress)
         COM_INTERFACE_ENTRY2 (IDispatch, IProgress)
     END_COM_MAP()
-
-    NS_DECL_ISUPPORTS
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -172,7 +179,8 @@ public:
                   VirtualBox *aParent,
 #endif
                   IUnknown *aInitiator,
-                  CBSTR aDescription, BOOL aCancelable,
+                  CBSTR aDescription,
+                  BOOL aCancelable,
                   OUT_GUID aId = NULL)
     {
         return init(
@@ -230,13 +238,17 @@ public:
                   VirtualBox *aParent,
 #endif
                   IUnknown *aInitiator,
-                  CBSTR aDescription, BOOL aCancelable,
-                  ULONG cOperations, ULONG ulTotalOperationsWeight,
-                  CBSTR bstrFirstOperationDescription, ULONG ulFirstOperationWeight,
+                  CBSTR aDescription,
+                  BOOL aCancelable,
+                  ULONG cOperations,
+                  ULONG ulTotalOperationsWeight,
+                  CBSTR bstrFirstOperationDescription,
+                  ULONG ulFirstOperationWeight,
                   OUT_GUID aId = NULL);
 
-    HRESULT init (BOOL aCancelable, ULONG aOperationCount,
-                  CBSTR aOperationDescription);
+    HRESULT init(BOOL aCancelable,
+                 ULONG aOperationCount,
+                 CBSTR aOperationDescription);
 
     void uninit();
 
@@ -245,17 +257,19 @@ public:
     STDMETHOD(WaitForOperationCompletion)(ULONG aOperation, LONG aTimeout);
     STDMETHOD(Cancel)();
 
+    STDMETHOD(SetCurrentOperationProgress)(ULONG aPercent);
+    STDMETHOD(SetNextOperation)(IN_BSTR bstrNextOperationDescription, ULONG ulNextOperationsWeight);
+
     // public methods only for internal purposes
 
-    HRESULT setCurrentOperationProgress(ULONG aPercent);
-    HRESULT setNextOperation(CBSTR bstrNextOperationDescription, ULONG ulNextOperationsWeight);
+    HRESULT setResultCode(HRESULT aResultCode);
 
     HRESULT notifyComplete(HRESULT aResultCode);
-    HRESULT notifyComplete(HRESULT aResultCode, const GUID &aIID,
+    HRESULT notifyComplete(HRESULT aResultCode,
+                           const GUID &aIID,
                            const Bstr &aComponent,
                            const char *aText, ...);
-    HRESULT notifyCompleteBstr(HRESULT aResultCode, const GUID &aIID,
-                               const Bstr &aComponent, const Bstr &aText);
+    bool notifyPointOfNoReturn(void);
 
     /** For com::SupportErrorInfoImpl. */
     static const char *ComponentName() { return "Progress"; }
@@ -304,8 +318,8 @@ private:
  *       will be in a loop calling a method that returns immediately.
  */
 class ATL_NO_VTABLE CombinedProgress :
-    public com::SupportErrorInfoDerived <ProgressBase, CombinedProgress, IProgress>,
-    public VirtualBoxSupportTranslation <CombinedProgress>
+    public com::SupportErrorInfoDerived<ProgressBase, CombinedProgress, IProgress>,
+    public VirtualBoxSupportTranslation<CombinedProgress>
 {
 
 public:
@@ -321,8 +335,6 @@ public:
         COM_INTERFACE_ENTRY  (IProgress)
         COM_INTERFACE_ENTRY2 (IDispatch, IProgress)
     END_COM_MAP()
-
-    NS_DECL_ISUPPORTS
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -400,11 +412,25 @@ public:
     STDMETHOD(COMGETTER(Operation)) (ULONG *aCount);
     STDMETHOD(COMGETTER(OperationDescription)) (BSTR *aOperationDescription);
     STDMETHOD(COMGETTER(OperationPercent)) (ULONG *aOperationPercent);
+    STDMETHOD(COMSETTER(Timeout)) (ULONG aTimeout);
+    STDMETHOD(COMGETTER(Timeout)) (ULONG *aTimeout);
 
     // IProgress methods
     STDMETHOD(WaitForCompletion) (LONG aTimeout);
     STDMETHOD(WaitForOperationCompletion) (ULONG aOperation, LONG aTimeout);
     STDMETHOD(Cancel)();
+
+    STDMETHOD(SetCurrentOperationProgress)(ULONG aPercent)
+    {
+        NOREF(aPercent);
+        return E_NOTIMPL;
+    }
+
+    STDMETHOD(SetNextOperation)(IN_BSTR bstrNextOperationDescription, ULONG ulNextOperationsWeight)
+    {
+        NOREF(bstrNextOperationDescription); NOREF(ulNextOperationsWeight);
+        return E_NOTIMPL;
+    }
 
     // public methods only for internal purposes
 
@@ -415,7 +441,7 @@ private:
 
     HRESULT checkProgress();
 
-    typedef std::vector <ComPtr <IProgress> > ProgressVector;
+    typedef std::vector <ComPtr<IProgress> > ProgressVector;
     ProgressVector mProgresses;
 
     size_t mProgress;

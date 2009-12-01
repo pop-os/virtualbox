@@ -1,4 +1,4 @@
-/* $Id: VBoxHDD.cpp $ */
+/* $Id: VBoxHDD.cpp 24887 2009-11-24 09:01:37Z vboxsync $ */
 /** @file
  * VBoxHDD - VBox HDD Container implementation.
  */
@@ -39,13 +39,26 @@
 #include <iprt/path.h>
 #include <iprt/param.h>
 
-#include "VBoxHDD-Internal.h"
+#include <VBox/VBoxHDD-Plugin.h>
 
 
 #define VBOXHDDDISK_SIGNATURE 0x6f0e2a7d
 
 /** Buffer size used for merging images. */
 #define VD_MERGE_BUFFER_SIZE    (16 * _1M)
+
+/**
+ * VD async I/O interface storage descriptor.
+ */
+typedef struct VDIASYNCIOSTORAGE
+{
+    /** File handle. */
+    RTFILE         File;
+    /** Completion callback. */
+    PFNVDCOMPLETED pfnCompleted;
+    /** Thread for async access. */
+    RTTHREAD       ThreadAsync;
+} VDIASYNCIOSTORAGE, *PVDIASYNCIOSTORAGE;
 
 /**
  * VBox HDD Container image descriptor.
@@ -115,6 +128,11 @@ struct VBOXHDD
     PVDINTERFACE        pInterfaceError;
     /** Pointer to the error interface we use if available. */
     PVDINTERFACEERROR   pInterfaceErrorCallbacks;
+
+    /** Fallback async interface. */
+    VDINTERFACE         VDIAsyncIO;
+    /** Fallback async I/O interface callback table. */
+    VDINTERFACEASYNCIO  VDIAsyncIOCallbacks;
 };
 
 
@@ -134,6 +152,7 @@ extern VBOXHDDBACKEND g_RawBackend;
 extern VBOXHDDBACKEND g_VmdkBackend;
 extern VBOXHDDBACKEND g_VDIBackend;
 extern VBOXHDDBACKEND g_VhdBackend;
+extern VBOXHDDBACKEND g_ParallelsBackend;
 #ifdef VBOX_WITH_ISCSI
 extern VBOXHDDBACKEND g_ISCSIBackend;
 #endif
@@ -145,7 +164,8 @@ static PVBOXHDDBACKEND aStaticBackends[] =
     &g_RawBackend,
     &g_VmdkBackend,
     &g_VDIBackend,
-    &g_VhdBackend
+    &g_VhdBackend,
+    &g_ParallelsBackend
 #ifdef VBOX_WITH_ISCSI
     ,&g_ISCSIBackend
 #endif
@@ -705,6 +725,152 @@ out:
 }
 
 /**
+ * VD async I/O interface open callback.
+ */
+static int vdAsyncIOOpen(void *pvUser, const char *pszLocation, unsigned uOpenFlags,
+                         PFNVDCOMPLETED pfnCompleted, void **ppStorage)
+{
+    PVDIASYNCIOSTORAGE pStorage = (PVDIASYNCIOSTORAGE)RTMemAllocZ(sizeof(VDIASYNCIOSTORAGE));
+
+    if (!pStorage)
+        return VERR_NO_MEMORY;
+
+    pStorage->pfnCompleted = pfnCompleted;
+
+    uint32_t fOpen = 0;
+
+    if (uOpenFlags & VD_INTERFACEASYNCIO_OPEN_FLAGS_READONLY)
+        fOpen |= RTFILE_O_READ      | RTFILE_O_DENY_NONE;
+    else
+        fOpen |= RTFILE_O_READWRITE | RTFILE_O_DENY_WRITE;
+
+    if (uOpenFlags & VD_INTERFACEASYNCIO_OPEN_FLAGS_CREATE)
+        fOpen |= RTFILE_O_CREATE;
+    else
+        fOpen |= RTFILE_O_OPEN;
+
+    /* Open the file. */
+    int rc = RTFileOpen(&pStorage->File, pszLocation, fOpen);
+    if (RT_SUCCESS(rc))
+    {
+        *ppStorage = pStorage;
+        return VINF_SUCCESS;
+    }
+
+    RTMemFree(pStorage);
+    return rc;
+}
+
+/**
+ * VD async I/O interface close callback.
+ */
+static int vdAsyncIOClose(void *pvUser, void *pvStorage)
+{
+    PVDIASYNCIOSTORAGE pStorage = (PVDIASYNCIOSTORAGE)pvStorage;
+
+    RTFileClose(pStorage->File);
+    RTMemFree(pStorage);
+    return VINF_SUCCESS;
+}
+
+/**
+ * VD async I/O interface callback for retrieving the file size.
+ */
+static int vdAsyncIOGetSize(void *pvUser, void *pvStorage, uint64_t *pcbSize)
+{
+    PVDIASYNCIOSTORAGE pStorage = (PVDIASYNCIOSTORAGE)pvStorage;
+
+    return RTFileGetSize(pStorage->File, pcbSize);
+}
+
+/**
+ * VD async I/O interface callback for setting the file size.
+ */
+static int vdAsyncIOSetSize(void *pvUser, void *pvStorage, uint64_t cbSize)
+{
+    PVDIASYNCIOSTORAGE pStorage = (PVDIASYNCIOSTORAGE)pvStorage;
+
+    return RTFileSetSize(pStorage->File, cbSize);
+}
+
+/**
+ * VD async I/O interface callback for a synchronous write to the file.
+ */
+static int vdAsyncIOWriteSync(void *pvUser, void *pvStorage, uint64_t uOffset,
+                             size_t cbWrite, const void *pvBuf, size_t *pcbWritten)
+{
+    PVDIASYNCIOSTORAGE pStorage = (PVDIASYNCIOSTORAGE)pvStorage;
+
+    return RTFileWriteAt(pStorage->File, uOffset, pvBuf, cbWrite, pcbWritten);
+}
+
+/**
+ * VD async I/O interface callback for a synchronous read from the file.
+ */
+static int vdAsyncIOReadSync(void *pvUser, void *pvStorage, uint64_t uOffset,
+                             size_t cbRead, void *pvBuf, size_t *pcbRead)
+{
+    PVDIASYNCIOSTORAGE pStorage = (PVDIASYNCIOSTORAGE)pvStorage;
+
+    return RTFileReadAt(pStorage->File, uOffset, pvBuf, cbRead, pcbRead);
+}
+
+/**
+ * VD async I/O interface callback for a synchronous flush of the file data.
+ */
+static int vdAsyncIOFlushSync(void *pvUser, void *pvStorage)
+{
+    PVDIASYNCIOSTORAGE pStorage = (PVDIASYNCIOSTORAGE)pvStorage;
+
+    return RTFileFlush(pStorage->File);
+}
+
+/**
+ * VD async I/O interface callback for a asynchronous read from the file.
+ */
+static int vdAsyncIOReadAsync(void *pvUser, void *pStorage, uint64_t uOffset,
+                              PCPDMDATASEG paSegments, size_t cSegments,
+                              size_t cbRead, void *pvCompletion,
+                              void **ppTask)
+{
+    return VERR_NOT_IMPLEMENTED;
+}
+
+/**
+ * VD async I/O interface callback for a asynchronous write to the file.
+ */
+static int vdAsyncIOWriteAsync(void *pvUser, void *pStorage, uint64_t uOffset,
+                               PCPDMDATASEG paSegments, size_t cSegments,
+                               size_t cbWrite, void *pvCompletion,
+                               void **ppTask)
+{
+    return VERR_NOT_IMPLEMENTED;
+}
+
+/**
+ * VD async I/O interface callback for a asynchronous flush of the file data.
+ */
+static int vdAsyncIOFlushAsync(void *pvUser, void *pStorage,
+                               void *pvCompletion, void **ppTask)
+{
+    return VERR_NOT_IMPLEMENTED;
+}
+
+/**
+ * internal: send output to the log (unconditionally).
+ */
+int vdLogMessage(void *pvUser, const char *pszFormat, ...)
+{
+    NOREF(pvUser);
+    va_list args;
+    va_start(args, pszFormat);
+    RTLogPrintf(pszFormat, args);
+    va_end(args);
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Initializes HDD backends.
  *
  * @returns VBox status code.
@@ -877,6 +1043,28 @@ VBOXDDU_DECL(int) VDCreate(PVDINTERFACE pVDIfsDisk, PVBOXHDD *ppDisk)
             pDisk->pInterfaceError = VDInterfaceGet(pVDIfsDisk, VDINTERFACETYPE_ERROR);
             if (pDisk->pInterfaceError)
                 pDisk->pInterfaceErrorCallbacks = VDGetInterfaceError(pDisk->pInterfaceError);
+
+            /* Use the fallback async I/O interface if the caller doesn't provide one. */
+            PVDINTERFACE pVDIfAsyncIO = VDInterfaceGet(pVDIfsDisk, VDINTERFACETYPE_ASYNCIO);
+            if (!pVDIfAsyncIO)
+            {
+                pDisk->VDIAsyncIOCallbacks.cbSize        = sizeof(VDINTERFACEASYNCIO);
+                pDisk->VDIAsyncIOCallbacks.enmInterface  = VDINTERFACETYPE_ASYNCIO;
+                pDisk->VDIAsyncIOCallbacks.pfnOpen       = vdAsyncIOOpen;
+                pDisk->VDIAsyncIOCallbacks.pfnClose      = vdAsyncIOClose;
+                pDisk->VDIAsyncIOCallbacks.pfnGetSize    = vdAsyncIOGetSize;
+                pDisk->VDIAsyncIOCallbacks.pfnSetSize    = vdAsyncIOSetSize;
+                pDisk->VDIAsyncIOCallbacks.pfnReadSync   = vdAsyncIOReadSync;
+                pDisk->VDIAsyncIOCallbacks.pfnWriteSync  = vdAsyncIOWriteSync;
+                pDisk->VDIAsyncIOCallbacks.pfnFlushSync  = vdAsyncIOFlushSync;
+                pDisk->VDIAsyncIOCallbacks.pfnReadAsync  = vdAsyncIOReadAsync;
+                pDisk->VDIAsyncIOCallbacks.pfnWriteAsync = vdAsyncIOWriteAsync;
+                pDisk->VDIAsyncIOCallbacks.pfnFlushAsync = vdAsyncIOFlushAsync;
+                rc = VDInterfaceAdd(&pDisk->VDIAsyncIO, "VD_AsyncIO", VDINTERFACETYPE_ASYNCIO,
+                                    &pDisk->VDIAsyncIOCallbacks, pDisk, &pDisk->pVDIfsDisk);
+                AssertRC(rc);
+            }
+
             *ppDisk = pDisk;
         }
         else
@@ -917,13 +1105,17 @@ VBOXDDU_DECL(void) VDDestroy(PVBOXHDD pDisk)
  *          VINF_SUCCESS if a plugin was found.
  *                       ppszFormat contains the string which can be used as backend name.
  *          VERR_NOT_SUPPORTED if no backend was found.
+ * @param   pVDIfsDisk      Pointer to the per-disk VD interface list.
  * @param   pszFilename     Name of the image file for which the backend is queried.
  * @param   ppszFormat      Receives pointer of the UTF-8 string which contains the format name.
  *                          The returned pointer must be freed using RTStrFree().
  */
-VBOXDDU_DECL(int) VDGetFormat(const char *pszFilename, char **ppszFormat)
+VBOXDDU_DECL(int) VDGetFormat(PVDINTERFACE pVDIfsDisk, const char *pszFilename, char **ppszFormat)
 {
     int rc = VERR_NOT_SUPPORTED;
+    PVDINTERFACE pVDIfAsyncIO;
+    VDINTERFACEASYNCIO VDIAsyncIOCallbacks;
+    VDINTERFACE        VDIAsyncIO;
 
     LogFlowFunc(("pszFilename=\"%s\"\n", pszFilename));
     /* Check arguments. */
@@ -937,12 +1129,33 @@ VBOXDDU_DECL(int) VDGetFormat(const char *pszFilename, char **ppszFormat)
     if (!g_apBackends)
         VDInit();
 
+    /* Use the fallback async I/O interface if the caller doesn't provide one. */
+    pVDIfAsyncIO = VDInterfaceGet(pVDIfsDisk, VDINTERFACETYPE_ASYNCIO);
+    if (!pVDIfAsyncIO)
+    {
+        VDIAsyncIOCallbacks.cbSize        = sizeof(VDINTERFACEASYNCIO);
+        VDIAsyncIOCallbacks.enmInterface  = VDINTERFACETYPE_ASYNCIO;
+        VDIAsyncIOCallbacks.pfnOpen       = vdAsyncIOOpen;
+        VDIAsyncIOCallbacks.pfnClose      = vdAsyncIOClose;
+        VDIAsyncIOCallbacks.pfnGetSize    = vdAsyncIOGetSize;
+        VDIAsyncIOCallbacks.pfnSetSize    = vdAsyncIOSetSize;
+        VDIAsyncIOCallbacks.pfnReadSync   = vdAsyncIOReadSync;
+        VDIAsyncIOCallbacks.pfnWriteSync  = vdAsyncIOWriteSync;
+        VDIAsyncIOCallbacks.pfnFlushSync  = vdAsyncIOFlushSync;
+        VDIAsyncIOCallbacks.pfnReadAsync  = vdAsyncIOReadAsync;
+        VDIAsyncIOCallbacks.pfnWriteAsync = vdAsyncIOWriteAsync;
+        VDIAsyncIOCallbacks.pfnFlushAsync = vdAsyncIOFlushAsync;
+        rc = VDInterfaceAdd(&VDIAsyncIO, "VD_AsyncIO", VDINTERFACETYPE_ASYNCIO,
+                            &VDIAsyncIOCallbacks, NULL, &pVDIfsDisk);
+        AssertRC(rc);
+    }
+
     /* Find the backend supporting this file format. */
     for (unsigned i = 0; i < g_cBackends; i++)
     {
         if (g_apBackends[i]->pfnCheckIfValid)
         {
-            rc = g_apBackends[i]->pfnCheckIfValid(pszFilename);
+            rc = g_apBackends[i]->pfnCheckIfValid(pszFilename, pVDIfsDisk);
             if (    RT_SUCCESS(rc)
                 /* The correct backend has been found, but there is a small
                  * incompatibility so that the file cannot be used. Stop here
@@ -1055,7 +1268,7 @@ VBOXDDU_DECL(int) VDOpen(PVBOXHDD pDisk, const char *pszBackend,
         if (RT_FAILURE(rc))
         {
             if (!(uOpenFlags & VD_OPEN_FLAGS_READONLY)
-                &&  (rc == VERR_ACCESS_DENIED
+                &&  (   rc == VERR_ACCESS_DENIED
                      || rc == VERR_PERMISSION_DENIED
                      || rc == VERR_WRITE_PROTECT
                      || rc == VERR_SHARING_VIOLATION
@@ -1069,7 +1282,7 @@ VBOXDDU_DECL(int) VDOpen(PVBOXHDD pDisk, const char *pszBackend,
             if (RT_FAILURE(rc))
             {
                 rc = vdError(pDisk, rc, RT_SRC_POS,
-                             N_("VD: error opening image file '%s'"), pszFilename);
+                             N_("VD: error %Rrc opening image file '%s'"), rc, pszFilename);
                 break;
             }
         }
@@ -1530,9 +1743,10 @@ VBOXDDU_DECL(int) VDCreateDiff(PVBOXHDD pDisk, const char *pszBackend,
         }
 
         pImage->uOpenFlags = uOpenFlags & VD_OPEN_FLAGS_HONOR_SAME;
+        uImageFlags |= VD_IMAGE_FLAGS_DIFF;
         rc = pImage->Backend->pfnCreate(pImage->pszFilename, pDisk->cbSize,
-                                        uImageFlags, pszComment,
-                                        &pDisk->PCHSGeometry,
+                                        uImageFlags | VD_IMAGE_FLAGS_DIFF,
+                                        pszComment, &pDisk->PCHSGeometry,
                                         &pDisk->LCHSGeometry, pUuid,
                                         uOpenFlags & ~VD_OPEN_FLAGS_HONOR_SAME,
                                         0, 99,
@@ -1543,7 +1757,7 @@ VBOXDDU_DECL(int) VDCreateDiff(PVBOXHDD pDisk, const char *pszBackend,
 
         if (RT_SUCCESS(rc) && pDisk->cImages != 0)
         {
-            pImage->uImageFlags |= VD_IMAGE_FLAGS_DIFF;
+            pImage->uImageFlags = uImageFlags;
 
             /* Switch previous image to read-only mode. */
             unsigned uOpenFlagsPrevImg;
@@ -2029,6 +2243,21 @@ VBOXDDU_DECL(int) VDCopy(PVBOXHDD pDiskFrom, unsigned nImage, PVBOXHDD pDiskTo,
                 if (!RTStrICmp(pszBackend, "RAW"))
                     uImageFlags |= VD_IMAGE_FLAGS_FIXED;
 
+                /* Fix broken PCHS geometry. Can happen for two reasons: either
+                 * the backend mixes up PCHS and LCHS, or the application used
+                 * to create the source image has put garbage in it. */
+                /** @todo double-check if the VHD backend correctly handles
+                 * PCHS and LCHS geometry. also reconsider our current paranoia
+                 * level when it comes to geometry settings here and in the
+                 * backends. */
+                if (PCHSGeometryFrom.cHeads > 16 || PCHSGeometryFrom.cSectors > 63)
+                {
+                    Assert(RT_MIN(cbSize / 512 / 16 / 63, 16383) - (uint32_t)RT_MIN(cbSize / 512 / 16 / 63, 16383));
+                    PCHSGeometryFrom.cCylinders = (uint32_t)RT_MIN(cbSize / 512 / 16 / 63, 16383);
+                    PCHSGeometryFrom.cHeads = 16;
+                    PCHSGeometryFrom.cSectors = 63;
+                }
+
                 rc = VDCreateBase(pDiskTo, pszBackend, pszFilename, cbSize,
                                   uImageFlags, szComment,
                                   &PCHSGeometryFrom, &LCHSGeometryFrom,
@@ -2112,7 +2341,10 @@ VBOXDDU_DECL(int) VDCopy(PVBOXHDD pDiskFrom, unsigned nImage, PVBOXHDD pDiskTo,
 
         if (RT_SUCCESS(rc))
         {
-            pImageTo->Backend->pfnSetModificationUuid(pImageTo->pvBackendData, &ImageModificationUuid);
+            /* Only set modification UUID if it is non-null, since the source
+             * backend might not provide a valid modification UUID. */
+            if (!RTUuidIsNull(&ImageModificationUuid))
+                pImageTo->Backend->pfnSetModificationUuid(pImageTo->pvBackendData, &ImageModificationUuid);
             /** @todo double-check this - it makes little sense to copy over the parent modification uuid,
              * as the destination image can have a totally different parent. */
 #if 0
@@ -3472,11 +3704,22 @@ VBOXDDU_DECL(void) VDDumpImages(PVBOXHDD pDisk)
         AssertPtrBreak(pDisk);
         AssertMsg(pDisk->u32Signature == VBOXHDDDISK_SIGNATURE, ("u32Signature=%08x\n", pDisk->u32Signature));
 
-        RTLogPrintf("--- Dumping VD Disk, Images=%u\n", pDisk->cImages);
+        int (*pfnMessage)(void *, const char *, ...) = NULL;
+        void *pvUser = pDisk->pInterfaceError->pvUser;
+
+        if (pDisk->pInterfaceErrorCallbacks && VALID_PTR(pDisk->pInterfaceErrorCallbacks->pfnMessage))
+            pfnMessage = pDisk->pInterfaceErrorCallbacks->pfnMessage;
+        else
+        {
+            pDisk->pInterfaceErrorCallbacks->pfnMessage = vdLogMessage;
+            pfnMessage = vdLogMessage;
+        }
+
+        pfnMessage(pvUser, "--- Dumping VD Disk, Images=%u\n", pDisk->cImages);
         for (PVDIMAGE pImage = pDisk->pBase; pImage; pImage = pImage->pNext)
         {
-            RTLogPrintf("Dumping VD image \"%s\" (Backend=%s)\n",
-                        pImage->pszFilename, pImage->Backend->pszBackendName);
+            pfnMessage(pvUser, "Dumping VD image \"%s\" (Backend=%s)\n",
+                       pImage->pszFilename, pImage->Backend->pszBackendName);
             pImage->Backend->pfnDump(pImage->pvBackendData);
         }
     } while (0);

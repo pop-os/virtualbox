@@ -1,4 +1,4 @@
-/* $Id: TRPMGCHandlers.cpp $ */
+/* $Id: TRPMGCHandlers.cpp 22493 2009-08-26 22:22:16Z vboxsync $ */
 /** @file
  * TRPM - Guest Context Trap Handlers, CPP part
  */
@@ -877,7 +877,8 @@ static int trpmGCTrap0dHandler(PVM pVM, PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFram
     if (    pVCpu->trpm.s.uActiveErrorCode == 0
         &&  (Cpu.pCurInstr->optype & OPTYPE_PORTIO))
     {
-        rc = EMInterpretPortIO(pVM, pVCpu, pRegFrame, &Cpu, cbOp);
+        VBOXSTRICTRC rcStrict = EMInterpretPortIO(pVM, pVCpu, pRegFrame, &Cpu, cbOp);
+        rc = VBOXSTRICTRC_TODO(rcStrict);
         return trpmGCExitTrap(pVM, pVCpu, rc, pRegFrame);
     }
 

@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceInternal.h $ */
+/* $Id: VBoxServiceInternal.h 23575 2009-10-06 08:23:38Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Services.
  */
@@ -82,6 +82,8 @@ typedef struct
 
     /**
      * Does termination cleanups.
+     *
+     * @remarks This may be called even if pfnInit hasn't been called!
      */
     DECLCALLBACKMEMBER(void, pfnTerm)(void);
 } VBOXSERVICE;

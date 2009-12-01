@@ -30,9 +30,9 @@ class Console;
 class VirtualBox;
 
 class ATL_NO_VTABLE SharedFolder :
-    public VirtualBoxBaseNEXT,
-    public VirtualBoxSupportErrorInfoImpl <SharedFolder, ISharedFolder>,
-    public VirtualBoxSupportTranslation <SharedFolder>,
+    public VirtualBoxBase,
+    public VirtualBoxSupportErrorInfoImpl<SharedFolder, ISharedFolder>,
+    public VirtualBoxSupportTranslation<SharedFolder>,
     VBOX_SCRIPTABLE_IMPL(ISharedFolder)
 {
 public:
@@ -59,8 +59,6 @@ public:
         COM_INTERFACE_ENTRY2 (IDispatch, ISharedFolder)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
     DECLARE_EMPTY_CTOR_DTOR (SharedFolder)
 
     HRESULT FinalConstruct();
@@ -86,9 +84,9 @@ public:
     // public methods that don't need a lock (because access constant data)
     // (ensure there is a caller added before calling them!)
 
-    const Bstr &name() const { return m.name; }
-    const Bstr &hostPath() const { return m.hostPath; }
-    BOOL writable() const { return m.writable; }
+    const Bstr& getName() const { return m.name; }
+    const Bstr& getHostPath() const { return m.hostPath; }
+    BOOL isWritable() const { return m.writable; }
 
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"SharedFolder"; }
@@ -103,9 +101,9 @@ private:
     VirtualBoxBaseWithChildrenNEXT *const mParent;
 
     /* weak parents (only one of them is not null) */
-    const ComObjPtr <Machine, ComWeakRef> mMachine;
-    const ComObjPtr <Console, ComWeakRef> mConsole;
-    const ComObjPtr <VirtualBox, ComWeakRef> mVirtualBox;
+    const ComObjPtr<Machine, ComWeakRef> mMachine;
+    const ComObjPtr<Console, ComWeakRef> mConsole;
+    const ComObjPtr<VirtualBox, ComWeakRef> mVirtualBox;
 
     Data m;
 };

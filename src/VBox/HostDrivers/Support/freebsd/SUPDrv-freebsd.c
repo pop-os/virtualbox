@@ -1,4 +1,4 @@
-/* $Id: SUPDrv-freebsd.c $ */
+/* $Id: SUPDrv-freebsd.c 22678 2009-09-01 15:12:40Z vboxsync $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - FreeBSD specifics.
  */
@@ -139,7 +139,9 @@ static int VBoxDrvFreeBSDModuleEvent(struct module *pMod, int enmEventType, void
             break;
 
         case MOD_UNLOAD:
+            mtx_unlock(&Giant);
             rc = VBoxDrvFreeBSDUnload();
+            mtx_lock(&Giant);
             break;
 
         case MOD_SHUTDOWN:

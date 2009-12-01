@@ -979,9 +979,9 @@ DECLINLINE(uint8_t) ASMGetApicId(void)
  */
 DECLINLINE(bool) ASMIsIntelCpuEx(uint32_t uEBX, uint32_t uECX, uint32_t uEDX)
 {
-    return uEBX == 0x756e6547
-        && uECX == 0x6c65746e
-        && uEDX == 0x49656e69;
+    return uEBX == UINT32_C(0x756e6547)
+        && uECX == UINT32_C(0x6c65746e)
+        && uEDX == UINT32_C(0x49656e69);
 }
 
 
@@ -996,6 +996,36 @@ DECLINLINE(bool) ASMIsIntelCpu(void)
     uint32_t uEAX, uEBX, uECX, uEDX;
     ASMCpuId(0, &uEAX, &uEBX, &uECX, &uEDX);
     return ASMIsIntelCpuEx(uEBX, uECX, uEDX);
+}
+
+
+/**
+ * Tests if it a authentic AMD CPU based on the ASMCpuId(0) output.
+ *
+ * @returns true/false.
+ * @param   uEBX    EBX return from ASMCpuId(0)
+ * @param   uECX    ECX return from ASMCpuId(0)
+ * @param   uEDX    EDX return from ASMCpuId(0)
+ */
+DECLINLINE(bool) ASMIsAmdCpuEx(uint32_t uEBX, uint32_t uECX, uint32_t uEDX)
+{
+    return uEBX == UINT32_C(0x68747541)
+        && uECX == UINT32_C(0x444d4163)
+        && uEDX == UINT32_C(0x69746e65);
+}
+
+
+/**
+ * Tests if this is an authentic AMD CPU.
+ *
+ * @returns true/false.
+ * @remarks ASSUMES that cpuid is supported by the CPU.
+ */
+DECLINLINE(bool) ASMIsAmdCpu(void)
+{
+    uint32_t uEAX, uEBX, uECX, uEDX;
+    ASMCpuId(0, &uEAX, &uEBX, &uECX, &uEDX);
+    return ASMIsAmdCpuEx(uEBX, uECX, uEDX);
 }
 
 
@@ -5122,6 +5152,8 @@ DECLINLINE(bool) ASMMemIsZeroPage(void const *pvPage)
  * @param   pv      Pointer to the memory block.
  * @param   cb      Number of bytes in the block. This MUST be aligned on 32-bit!
  * @param   u8      The value it's supposed to be filled with.
+ *
+ * @todo Fix name, it is a predicate function but it's not returning boolean!
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
 DECLASM(void *) ASMMemIsAll8(void const *pv, size_t cb, uint8_t u8);
@@ -5149,6 +5181,8 @@ DECLINLINE(void *) ASMMemIsAll8(void const *pv, size_t cb, uint8_t u8)
  * @param   pv      Pointer to the memory block.
  * @param   cb      Number of bytes in the block. This MUST be aligned on 32-bit!
  * @param   u32     The value it's supposed to be filled with.
+ *
+ * @todo Fix name, it is a predicate function but it's not returning boolean!
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
 DECLASM(uint32_t *) ASMMemIsAllU32(void const *pv, size_t cb, uint32_t u32);

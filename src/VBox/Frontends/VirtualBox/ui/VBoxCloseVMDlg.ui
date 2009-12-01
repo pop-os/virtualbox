@@ -49,7 +49,7 @@
           </sizepolicy>
          </property>
          <property name="pixmap" >
-          <pixmap resource="../VirtualBox.qrc" >:/os_unknown.png</pixmap>
+          <pixmap resource="../VirtualBox2.qrc" >:/os_unknown.png</pixmap>
          </property>
         </widget>
        </item>
@@ -94,7 +94,7 @@
             <string/>
            </property>
            <property name="pixmap" >
-            <pixmap resource="../VirtualBox.qrc" >:/state_saved_16px.png</pixmap>
+            <pixmap resource="../VirtualBox1.qrc" >:/state_saved_16px.png</pixmap>
            </property>
           </widget>
          </item>
@@ -120,7 +120,7 @@
             <string/>
            </property>
            <property name="pixmap" >
-            <pixmap resource="../VirtualBox.qrc" >:/acpi_16px.png</pixmap>
+            <pixmap resource="../VirtualBox1.qrc" >:/acpi_16px.png</pixmap>
            </property>
           </widget>
          </item>
@@ -146,7 +146,7 @@
             <string/>
            </property>
            <property name="pixmap" >
-            <pixmap resource="../VirtualBox.qrc" >:/poweroff_16px.png</pixmap>
+            <pixmap resource="../VirtualBox1.qrc" >:/poweroff_16px.png</pixmap>
            </property>
           </widget>
          </item>
@@ -201,13 +201,13 @@
             <bool>false</bool>
            </property>
            <property name="toolTip" >
-            <string>Revert the machine state to the state stored in the current snapshot</string>
+            <string>Restore the machine state stored in the current snapshot</string>
            </property>
            <property name="whatsThis" >
-            <string>&lt;p>When checked, the machine state will be restored from the state stored in the current snapshot right after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and go back to the current snapshot.&lt;/p></string>
+            <string>&lt;p>When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p></string>
            </property>
            <property name="text" >
-            <string>&amp;Revert to the current snapshot</string>
+            <string>&amp;Restore current snapshot '%1'</string>
            </property>
           </widget>
          </item>
@@ -235,7 +235,8 @@
   </customwidget>
  </customwidgets>
  <resources>
-  <include location="../VirtualBox.qrc" />
+  <include location="../VirtualBox1.qrc" />
+  <include location="../VirtualBox2.qrc" />
  </resources>
  <connections>
   <connection>

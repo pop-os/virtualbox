@@ -1,6 +1,5 @@
 /** @file
- * Shared Folders:
- * Common header for host service and guest clients.
+ * Shared Folders: Common header for host service and guest clients. (ADD,HSvc)
  */
 
 /*
@@ -32,12 +31,14 @@
 #define ___VBox_shflsvc_h
 
 #include <VBox/types.h>
-#include <VBox/VBoxGuest.h>
+#include <VBox/VBoxGuest2.h>
+#include <VBox/VMMDev.h>
 #include <VBox/hgcmsvc.h>
 #include <iprt/fs.h>
 
 
-/** Some bit flag manipulation macros. to be moved to VBox/cdefs.h? */
+/** @name Some bit flag manipulation macros.
+ * @{  */
 #ifndef BIT_FLAG
 #define BIT_FLAG(__Field,__Flag)       ((__Field) & (__Flag))
 #endif
@@ -49,6 +50,7 @@
 #ifndef BIT_FLAG_CLEAR
 #define BIT_FLAG_CLEAR(__Field,__Flag) ((__Field) &= ~(__Flag))
 #endif
+/** @} */
 
 
 /**
@@ -333,6 +335,9 @@ typedef enum _SHFLCREATERESULT
 #define SHFL_CF_ACCESS_ATTR_WRITE       (0x00020000)
 /** Read/Write access requested. */
 #define SHFL_CF_ACCESS_ATTR_READWRITE   (SHFL_CF_ACCESS_READ | SHFL_CF_ACCESS_WRITE)
+
+/** The file is opened in append mode. Ignored if SHFL_CF_ACCESS_WRITE is not set. */
+#define SHFL_CF_ACCESS_APPEND           (0x00040000)
 
 /** @} */
 

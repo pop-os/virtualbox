@@ -1,4 +1,4 @@
-; $Id: tstMicroGCA.asm $
+; $Id: tstMicroGCA.asm 13813 2008-11-04 21:55:34Z vboxsync $
 ;; @file
 ; tstMicroGCA
 ;

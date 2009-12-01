@@ -30,9 +30,9 @@ class Console;
 #define GUEST_STAT_INVALID          (ULONG)-1
 
 class ATL_NO_VTABLE Guest :
-    public VirtualBoxSupportErrorInfoImpl <Guest, IGuest>,
-    public VirtualBoxSupportTranslation <Guest>,
-    public VirtualBoxBaseNEXT,
+    public VirtualBoxSupportErrorInfoImpl<Guest, IGuest>,
+    public VirtualBoxSupportTranslation<Guest>,
+    public VirtualBoxBase,
     VBOX_SCRIPTABLE_IMPL(IGuest)
 {
 public:
@@ -46,8 +46,6 @@ public:
         COM_INTERFACE_ENTRY(IGuest)
         COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
-
-    NS_DECL_ISUPPORTS
 
     DECLARE_EMPTY_CTOR_DTOR (Guest)
 
@@ -106,7 +104,7 @@ private:
 
     ULONG mCurrentGuestStat[GuestStatisticType_MaxVal];
 
-    ComObjPtr <Console, ComWeakRef> mParent;
+    ComObjPtr<Console, ComWeakRef> mParent;
     Data mData;
 };
 

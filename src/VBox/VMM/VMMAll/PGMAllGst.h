@@ -1,4 +1,4 @@
-/* $Id: PGMAllGst.h $ */
+/* $Id: PGMAllGst.h 24997 2009-11-26 13:20:33Z vboxsync $ */
 /** @file
  * VBox - Page Manager, Guest Paging Template - All context code.
  */
@@ -42,10 +42,10 @@ RT_C_DECLS_END
  *
  * @returns VBox status.
  * @param   pVCpu       The VMCPU handle.
- * @param   GCPtr       Guest Context virtual address of the page. Page aligned!
+ * @param   GCPtr       Guest Context virtual address of the page.
  * @param   pfFlags     Where to store the flags. These are X86_PTE_*, even for big pages.
  * @param   pGCPhys     Where to store the GC physical address of the page.
- *                      This is page aligned. The fact that the
+ *                      This is page aligned!
  */
 PGM_GST_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGCPHYS pGCPhys)
 {
@@ -61,6 +61,12 @@ PGM_GST_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGC
     return VINF_SUCCESS;
 
 #elif PGM_GST_TYPE == PGM_TYPE_32BIT || PGM_GST_TYPE == PGM_TYPE_PAE || PGM_GST_TYPE == PGM_TYPE_AMD64
+
+#if PGM_GST_MODE != PGM_MODE_AMD64
+    /* Boundary check. */
+    if (GCPtr >= _4G)
+        return VERR_INVALID_ADDRESS;
+# endif
 
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     /*
@@ -181,6 +187,12 @@ PGM_GST_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t f
 
     Assert((cb & PAGE_OFFSET_MASK) == 0);
 
+#if PGM_GST_MODE != PGM_MODE_AMD64
+    /* Boundary check. */
+    if (GCPtr >= _4G)
+        return VERR_INVALID_ADDRESS;
+# endif
+
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     for (;;)
     {
@@ -285,6 +297,12 @@ PGM_GST_DECL(int, GetPDE)(PVMCPU pVCpu, RTGCPTR GCPtr, PX86PDEPAE pPDE)
 #if PGM_GST_TYPE == PGM_TYPE_32BIT \
  || PGM_GST_TYPE == PGM_TYPE_PAE   \
  || PGM_GST_TYPE == PGM_TYPE_AMD64
+
+#if PGM_GST_MODE != PGM_MODE_AMD64
+    /* Boundary check. */
+    if (GCPtr >= _4G)
+        return VERR_INVALID_ADDRESS;
+# endif
 
 # if PGM_GST_TYPE == PGM_TYPE_32BIT
     X86PDE    Pde = pgmGstGet32bitPDE(&pVCpu->pgm.s, GCPtr);
@@ -485,7 +503,7 @@ PGM_GST_DECL(bool, HandlerVirtualUpdate)(PVM pVM, uint32_t cr4)
     pgmLock(pVM);
     STAM_PROFILE_START(&pVM->pgm.s.CTX_MID_Z(Stat,SyncCR3HandlerVirtualUpdate), a);
 
-    for (unsigned i=0;i<pVM->cCPUs;i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PGMHVUSTATE State;
         PVMCPU      pVCpu = &pVM->aCpus[i];
@@ -510,7 +528,7 @@ PGM_GST_DECL(bool, HandlerVirtualUpdate)(PVM pVM, uint32_t cr4)
         Log(("HandlerVirtualUpdate: resets bits\n"));
         RTAvlroGCPtrDoWithAll(&pVM->pgm.s.CTX_SUFF(pTrees)->VirtHandlers, true, pgmHandlerVirtualResetOne, pVM);
 
-        for (unsigned i=0;i<pVM->cCPUs;i++)
+        for (VMCPUID i = 0; i < pVM->cCpus; i++)
         {
             PVMCPU pVCpu = &pVM->aCpus[i];
             pVCpu->pgm.s.fSyncFlags &= ~PGM_SYNC_UPDATE_PAGE_BIT_VIRTUAL;

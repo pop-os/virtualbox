@@ -1,5 +1,4 @@
-
-/* $Id: VBoxServiceUtils.cpp $ */
+/* $Id: VBoxServiceUtils.cpp 24866 2009-11-23 12:49:24Z vboxsync $ */
 /** @file
  * VBoxServiceUtils - Some utility functions.
  */
@@ -25,23 +24,37 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #ifdef RT_OS_WINDOWS
-#include <windows.h>
+# include <Windows.h>
 #endif
 
 #include <iprt/assert.h>
 #include <iprt/mem.h>
 #include <iprt/string.h>
 
-#include <VBox/VBoxGuest.h>
+#include <VBox/VBoxGuestLib.h>
 #include "VBoxServiceInternal.h"
 
 
 #ifdef VBOX_WITH_GUEST_PROPS
+/**
+ * Wrapper around VbglR3GuestPropWriteValue that does value formatting and
+ * logging.
+ *
+ * @returns VBox status code. Errors will be logged.
+ *
+ * @param   u32ClientId     The HGCM client ID for the guest property session.
+ * @param   pszName         The property name.
+ * @param   pszValueFormat  The property format string.  If this is NULL then
+ *                          the property will be removed.
+ * @param   ...             Format arguments.
+ */
 int VBoxServiceWritePropF(uint32_t u32ClientId, const char *pszName, const char *pszValueFormat, ...)
 {
     int rc;
     if (pszValueFormat != NULL)
     {
+        /** @todo Log the value as well? just copy the guts of
+         *        VbglR3GuestPropWriteValueV. */
         VBoxServiceVerbose(3, "Writing guest property \"%s\"\n", pszName);
         va_list va;
         va_start(va, pszValueFormat);
@@ -51,13 +64,18 @@ int VBoxServiceWritePropF(uint32_t u32ClientId, const char *pszName, const char 
              VBoxServiceError("Error writing guest property \"%s\" (rc=%Rrc)\n", pszName, rc);
     }
     else
+    {
         rc = VbglR3GuestPropWriteValue(u32ClientId, pszName, NULL);
+        if (RT_FAILURE(rc))
+            VBoxServiceError("Error removing guest property \"%s\" (rc=%Rrc)\n", pszName, rc);
+    }
     return rc;
 }
 #endif /* VBOX_WITH_GUEST_PROPS */
 
 
 #ifdef RT_OS_WINDOWS
+/** @todo return an iprt status code instead of BOOL */
 BOOL VBoxServiceGetFileString(const char* pszFileName,
                               char* pszBlock,
                               char* pszString,
@@ -82,14 +100,17 @@ BOOL VBoxServiceGetFileString(const char* pszFileName,
 
     if (!dwLen)
     {
-        VBoxServiceError("No file information found! File = %s, Error: %ld\n", pszFileName, GetLastError());
+        /* Don't print this to release log -- this confuses people if a file
+         * isn't present because it's optional / was not installed intentionally. */
+        VBoxServiceVerbose(3, "No file information found! File = %s, Error: %Rrc\n",
+            pszFileName, RTErrConvertFromWin32(GetLastError()));
         return FALSE;
     }
 
     lpData = (LPTSTR) RTMemTmpAlloc(dwLen);
     if (!lpData)
     {
-        VBoxServiceError("Could not allocate temp buffer!\n");
+        VBoxServiceError("Could not allocate temp buffer for file string lookup!\n");
         return FALSE;
     }
 
@@ -105,19 +126,20 @@ BOOL VBoxServiceGetFileString(const char* pszFileName,
             ZeroMemory(pszString, *puiSize);
             memcpy(pszString, lpValue, uiSize);
         }
-        else VBoxServiceError("Could not query value!\n");
+        else VBoxServiceVerbose(3, "No file string value for \"%s\" in file \"%s\" available!\n", pszBlock, pszFileName);
     }
-    else VBoxServiceError("Could not get file version info!\n");
+    else VBoxServiceVerbose(3, "No file version table for file \"%s\" available!\n", pszFileName);
 
     RTMemFree(lpData);
     return bRet;
 }
 
 
+/** @todo return an iprt status code instead of BOOL */
 BOOL VBoxServiceGetFileVersion(const char* pszFileName,
-                               DWORD* pdwMajor, 
-                               DWORD* pdwMinor, 
-                               DWORD* pdwBuildNumber, 
+                               DWORD* pdwMajor,
+                               DWORD* pdwMinor,
+                               DWORD* pdwBuildNumber,
                                DWORD* pdwRevisionNumber)
 {
     DWORD dwHandle, dwLen = 0;
@@ -153,7 +175,7 @@ BOOL VBoxServiceGetFileVersion(const char* pszFileName,
         lpData = (LPTSTR) RTMemTmpAlloc(dwLen);
         if (!lpData)
         {
-            VBoxServiceError("Could not allocate temp buffer!\n");
+            VBoxServiceError("Could not allocate temp buffer for file version string!\n");
             return FALSE;
         }
 
@@ -165,10 +187,11 @@ BOOL VBoxServiceGetFileVersion(const char* pszFileName,
                 *pdwMinor = LOWORD(pFileInfo->dwFileVersionMS);
                 *pdwBuildNumber = HIWORD(pFileInfo->dwFileVersionLS);
                 *pdwRevisionNumber = LOWORD(pFileInfo->dwFileVersionLS);
+                bRet = TRUE;
             }
-            else VBoxServiceError("Could not query file information value!\n");
+            else VBoxServiceVerbose(3, "No file version value for file \"%s\" available!\n", pszFileName);
         }
-        else VBoxServiceError("Could not get file version info!\n");
+        else VBoxServiceVerbose(3, "No file version struct for file \"%s\" available!\n", pszFileName);
 
         RTMemFree(lpData);
     }
@@ -196,3 +219,4 @@ BOOL VBoxServiceGetFileVersionString(const char* pszPath, const char* pszFileNam
     return bRet;
 }
 #endif /* !RT_OS_WINDOWS */
+

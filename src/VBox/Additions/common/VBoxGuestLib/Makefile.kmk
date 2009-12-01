@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 24259 2009-11-02 14:46:15Z vboxsync $
 ## @file
 # Sub-Makefile for the common guest addition code library.
 #
@@ -25,21 +25,17 @@ include	$(KBUILD_PATH)/subheader.kmk
 #
 # Target config.
 #
-LIBRARIES += \
-	VBoxGuestR0Lib \
-	VBoxGuestR0LibBase
+ifdef VBOX_WITH_ADDITION_DRIVERS
+ LIBRARIES += \
+ 	VBoxGuestR0Lib \
+ 	VBoxGuestR0LibBase
+endif
 LIBRARIES += \
 	VBoxGuestR3Lib \
 	VBoxGuestR3LibShared
 if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd)
  LIBRARIES += \
-  	VBoxGuestR3LibXFree86
-endif
-
-ifndef VBOX_WITH_ADDITION_DRIVERS
- if1of ($(KBUILD_TARGET), linux l4) # All drivers are optional, can skip RuntimeGuestR0.
-  LIBRARIES := $(filter-out VBoxGuestR0Lib VBoxGuestR0LibBase, $(LIBRARIES))
- endif
+ 	VBoxGuestR3LibXFree86
 endif
 
 
@@ -57,7 +53,9 @@ VBoxGuestR0Lib_SOURCES      = \
 	Init.cpp \
 	VMMDev.cpp \
 	HGCM.cpp \
-	VBoxCalls.c
+	VBoxCalls.c \
+	VbglR0CanUsePhysPageList.cpp
+
 
 #
 # VBoxGuestR0LibBase
@@ -72,7 +70,8 @@ VBoxGuestR0LibBase_SOURCES  = \
 	PhysHeap.cpp \
 	Init.cpp \
 	VMMDev.cpp \
-	HGCMInternal.cpp
+	HGCMInternal.cpp \
+	VbglR0CanUsePhysPageList.cpp
 
 #
 # VBoxGuestR3Lib
@@ -84,9 +83,12 @@ VBoxGuestR3Lib_DEFS        = \
 VBoxGuestR3Lib_SOURCES     = \
 	VBoxGuestR3Lib.cpp \
 	VBoxGuestR3LibClipboard.cpp \
+	VBoxGuestR3LibCredentials.cpp \
 	VBoxGuestR3LibDaemonize.cpp \
 	VBoxGuestR3LibGR.cpp \
-	$(if $(VBOX_WITH_GUEST_PROPS),VBoxGuestR3LibGuestProp.cpp,) \
+	$(if $(VBOX_WITH_GUEST_PROPS), \
+		VBoxGuestR3LibGuestProp.cpp \
+		VBoxGuestR3LibHostVersion.cpp,) \
 	VBoxGuestR3LibMouse.cpp \
 	VBoxGuestR3LibMisc.cpp \
 	VBoxGuestR3LibSeamless.cpp \
@@ -95,12 +97,17 @@ VBoxGuestR3Lib_SOURCES     = \
 ifeq ($(KBUILD_TARGET),win) ## @todo get rid of this hack (as soon as it's all implemented / #defined).
  VBoxGuestR3Lib_SOURCES   = \
 	VBoxGuestR3Lib.cpp \
+	VBoxGuestR3LibCredentials.cpp \
 	VBoxGuestR3LibGR.cpp \
-	$(if $(VBOX_WITH_GUEST_PROPS),VBoxGuestR3LibGuestProp.cpp,) \
+	$(if $(VBOX_WITH_GUEST_PROPS), \
+		VBoxGuestR3LibGuestProp.cpp \
+		VBoxGuestR3LibHostVersion.cpp,) \
 	VBoxGuestR3LibMisc.cpp \
 	VBoxGuestR3LibTime.cpp
 endif
-
+#VBoxGuestR3LibMisc.cpp uses VBOX_SVN_REV.
+VBoxGuestR3LibMisc.cpp_DEFS = VBOX_SVN_REV=$(VBOX_SVN_REV)
+VBoxGuestR3LibMisc.cpp_DEPS = $(VBOX_SVN_REV_KMK)
 
 #
 # VBoxGuestR3LibShared - a PIC variant of VBoxGuestR3Lib for linking into .so/.dll/.dylib.

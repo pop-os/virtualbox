@@ -1,4 +1,4 @@
-/* $Id: PDMAllQueue.cpp $ */
+/* $Id: PDMAllQueue.cpp 23012 2009-09-14 16:38:13Z vboxsync $ */
 /** @file
  * PDM Queue - Transport data and tasks to EMT and R3.
  */
@@ -57,7 +57,10 @@ VMMDECL(PPDMQUEUEITEMCORE) PDMQueueAlloc(PPDMQUEUE pQueue)
     {
         i = pQueue->iFreeTail;
         if (i == pQueue->iFreeHead)
+        {
+            STAM_REL_COUNTER_INC(&pQueue->StatAllocFailures);
             return NULL;
+        }
         pNew = pQueue->aFreeItems[i].CTX_SUFF(pItem);
         iNext = (i + 1) % (pQueue->cItems + PDMQUEUE_FREE_SLACK);
     } while (!ASMAtomicCmpXchgU32(&pQueue->iFreeTail, iNext, i));
@@ -97,6 +100,8 @@ VMMDECL(void) PDMQueueInsert(PPDMQUEUE pQueue, PPDMQUEUEITEMCORE pItem)
         VMR3NotifyGlobalFFU(pVM->pUVM, VMNOTIFYFF_FLAGS_DONE_REM);
 #endif
     }
+    STAM_REL_COUNTER_INC(&pQueue->StatInsert);
+    STAM_STATS({ ASMAtomicIncU32(&pQueue->cStatPending); });
 }
 
 
@@ -186,8 +191,6 @@ VMMDECL(void) PDMQueueFlush(PPDMQUEUE pQueue)
     VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_PDM_QUEUE_FLUSH, (uintptr_t)pQueue);
 
 #else /* IN_RING3: */
-    PVMREQ pReq;
-    VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)PDMR3QueueFlushWorker, 2, pVM, pQueue);
-    VMR3ReqFree(pReq);
+    VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)PDMR3QueueFlushWorker, 2, pVM, pQueue);
 #endif
 }

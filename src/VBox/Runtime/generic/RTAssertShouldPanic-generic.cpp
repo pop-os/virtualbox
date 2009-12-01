@@ -1,4 +1,4 @@
-/* $Id: RTAssertShouldPanic-generic.cpp $ */
+/* $Id: RTAssertShouldPanic-generic.cpp 22133 2009-08-10 13:23:25Z vboxsync $ */
 /** @file
  * IPRT - Assertions, generic RTAssertShouldPanic.
  */
@@ -28,23 +28,21 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/assert.h>
+#include "internal/iprt.h"
 
 
 RTDECL(bool) RTAssertShouldPanic(void)
 {
+#if 0 /* Enable this to not panic on assertions. (Make sure this code is used!) */
+    return false;
+#else
     return true;
+#endif
 }
+RT_EXPORT_SYMBOL(RTAssertShouldPanic);
 
-
-#if defined(IN_RING0) && defined(RT_OS_LINUX) && defined(IN_MODULE)
-/*
- * When we build this in the Linux kernel module, we wish to make the
- * symbols available to other modules as well.
- */
-#  include "the-linux-kernel.h"
-EXPORT_SYMBOL(RTAssertShouldPanic);
-#endif /* IN_RING0 && RT_OS_LINUX && IN_MODULE */

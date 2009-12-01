@@ -1,4 +1,4 @@
-/* $Id: assert-r0drv-solaris.c $ */
+/* $Id: assert-r0drv-solaris.c 22073 2009-08-07 15:26:56Z vboxsync $ */
 /** @file
  * IPRT - Assertion Workers, Ring-0 Drivers, Solaris.
  */
@@ -33,12 +33,13 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-solaris-kernel.h"
-
+#include "internal/iprt.h"
 #include <iprt/assert.h>
-#include <iprt/log.h>
-#include <iprt/string.h>
-#include <iprt/stdarg.h>
+
 #include <iprt/asm.h>
+#include <iprt/log.h>
+#include <iprt/stdarg.h>
+#include <iprt/string.h>
 
 
 /*******************************************************************************

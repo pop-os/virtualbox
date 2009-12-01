@@ -1,4 +1,4 @@
-/* $Id: DBGFDisas.cpp $ */
+/* $Id: DBGFDisas.cpp 23012 2009-09-14 16:38:13Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility, Disassembler.
  */
@@ -56,6 +56,8 @@ typedef struct
     PVM             pVM;
     /** The VMCPU handle. */
     PVMCPU          pVCpu;
+    /** The address space for resolving symbol. */
+    RTDBGAS         hAs;
     /** Pointer to the first byte in the segemnt. */
     RTGCUINTPTR     GCPtrSegBase;
     /** Pointer to the byte after the end of the segment. (might have wrapped!) */
@@ -105,6 +107,9 @@ static int dbgfR3DisasInstrFirst(PVM pVM, PVMCPU pVCpu, PDBGFSELINFO pSelInfo, P
     pState->enmMode         = enmMode;
     pState->pvPageGC        = 0;
     pState->pvPageR3        = NULL;
+    pState->hAs             = pSelInfo->fFlags & DBGFSELINFO_FLAGS_HYPER /** @todo Deal more explicitly with RC in DBGFR3Disas*. */
+                            ? DBGF_AS_RC_AND_GC_GLOBAL
+                            : DBGF_AS_GLOBAL;
     pState->pVM             = pVM;
     pState->pVCpu           = pVCpu;
     pState->fLocked         = false;
@@ -256,25 +261,21 @@ static DECLCALLBACK(int) dbgfR3DisasGetSymbol(PCDISCPUSTATE pCpu, uint32_t u32Se
 {
     PDBGFDISASSTATE pState   = (PDBGFDISASSTATE)pCpu;
     PCDBGFSELINFO   pSelInfo = (PCDBGFSELINFO)pvUser;
-    DBGFSYMBOL      Sym;
+    DBGFADDRESS     Addr;
+    RTDBGSYMBOL     Sym;
     RTGCINTPTR      off;
     int             rc;
 
-    if (DIS_FMT_SEL_IS_REG(u32Sel))
+    if (   DIS_FMT_SEL_IS_REG(u32Sel)
+        ?  DIS_FMT_SEL_GET_REG(u32Sel) == DIS_SELREG_CS
+        :  pSelInfo->Sel == DIS_FMT_SEL_GET_VALUE(u32Sel))
     {
-        if (DIS_FMT_SEL_GET_REG(u32Sel) == DIS_SELREG_CS)
-            rc = DBGFR3SymbolByAddr(pState->pVM, uAddress + pSelInfo->GCPtrBase, &off, &Sym);
-        else
-            rc = VERR_SYMBOL_NOT_FOUND; /** @todo implement this */
+        rc = DBGFR3AddrFromSelInfoOff(pState->pVM, &Addr, pSelInfo, uAddress);
+        if (RT_SUCCESS(rc))
+            rc = DBGFR3AsSymbolByAddr(pState->pVM, pState->hAs, &Addr, &off, &Sym, NULL /*phMod*/);
     }
     else
-    {
-        if (pSelInfo->Sel == DIS_FMT_SEL_GET_VALUE(u32Sel))
-            rc = DBGFR3SymbolByAddr(pState->pVM, uAddress + pSelInfo->GCPtrBase, &off, &Sym);
-        else
-            rc = VERR_SYMBOL_NOT_FOUND; /** @todo implement this */
-    }
-
+        rc = VERR_SYMBOL_NOT_FOUND; /** @todo implement this */
     if (RT_SUCCESS(rc))
     {
         size_t cchName = strlen(Sym.szName);
@@ -549,7 +550,7 @@ VMMR3DECL(int) DBGFR3DisasInstrEx(PVM pVM, VMCPUID idCpu, RTSEL Sel, RTGCPTR GCP
                                   char *pszOutput, uint32_t cchOutput, uint32_t *pcbInstr)
 {
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
-    AssertReturn(idCpu < pVM->cCPUs, VERR_INVALID_CPU_ID);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
 
     /*
      * Optimize the common case where we're called on the EMT of idCpu since
@@ -561,17 +562,8 @@ VMMR3DECL(int) DBGFR3DisasInstrEx(PVM pVM, VMCPUID idCpu, RTSEL Sel, RTGCPTR GCP
         &&  pVCpu->idCpu == idCpu)
         rc = dbgfR3DisasInstrExOnVCpu(pVM, pVCpu, Sel, &GCPtr, fFlags, pszOutput, cchOutput, pcbInstr);
     else
-    {
-        PVMREQ pReq = NULL;
-        rc = VMR3ReqCall(pVM, idCpu, &pReq, RT_INDEFINITE_WAIT,
-                         (PFNRT)dbgfR3DisasInstrExOnVCpu, 8,
-                         pVM, VMMGetCpuById(pVM, idCpu), Sel, &GCPtr, fFlags, pszOutput, cchOutput, pcbInstr);
-        if (RT_SUCCESS(rc))
-        {
-            rc = pReq->iStatus;
-            VMR3ReqFree(pReq);
-        }
-    }
+        rc = VMR3ReqCallWait(pVM, idCpu, (PFNRT)dbgfR3DisasInstrExOnVCpu, 8,
+                             pVM, VMMGetCpuById(pVM, idCpu), Sel, &GCPtr, fFlags, pszOutput, cchOutput, pcbInstr);
     return rc;
 }
 

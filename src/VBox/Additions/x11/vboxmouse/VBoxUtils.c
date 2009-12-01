@@ -20,7 +20,9 @@
  */
 
 #include <iprt/assert.h>
-#include <VBox/VBoxGuest.h>
+#include <iprt/err.h>
+#include <VBox/VMMDev.h>
+#include <VBox/VBoxGuestLib.h>
 #include "VBoxUtils.h"
 
 #include "xf86.h"
@@ -44,6 +46,7 @@ static Bool gDeviceOpenFailed = FALSE;
 int VBoxMouseInit(void)
 {
     int rc;
+    uint32_t fFeatures = 0;
     if (gDeviceOpenFailed)
         return 1;
     rc = VbglR3Init();
@@ -54,7 +57,10 @@ int VBoxMouseInit(void)
         return 1;
     }
 
-    rc = VbglR3SetMouseStatus(VBOXGUEST_MOUSE_GUEST_CAN_ABSOLUTE /* | VBOXGUEST_MOUSE_GUEST_NEEDS_HOST_CURSOR */);
+    rc = VbglR3GetMouseStatus(&fFeatures, NULL, NULL);
+    if (RT_SUCCESS(rc))
+        rc = VbglR3SetMouseStatus(  fFeatures
+                                  | VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE);
     if (RT_FAILURE(rc))
     {
         ErrorF("Error sending mouse pointer capabilities to VMM! rc = %d (%s)\n",
@@ -87,7 +93,7 @@ int VBoxMouseQueryPosition(unsigned int *pcx, unsigned int *pcy)
     if (RT_SUCCESS(rc))
         rc = VbglR3GetMouseStatus(&fFeatures, &cx, &cy);
     if (   RT_SUCCESS(rc)
-        && !(fFeatures & VBOXGUEST_MOUSE_HOST_CAN_ABSOLUTE))
+        && !(fFeatures & VMMDEV_MOUSE_HOST_CAN_ABSOLUTE))
         rc = VERR_NOT_SUPPORTED;
     if (RT_SUCCESS(rc))
     {
@@ -102,7 +108,11 @@ int VBoxMouseFini(void)
 {
     if (gDeviceOpenFailed)
         return VINF_SUCCESS;
-    int rc = VbglR3SetMouseStatus(0);
+    uint32_t fFeatures;
+    int rc = VbglR3GetMouseStatus(&fFeatures, NULL, NULL);
+    if (RT_SUCCESS(rc))
+        rc = VbglR3SetMouseStatus(  fFeatures
+                                  & ~VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE);
     VbglR3Term();
     return rc;
 }

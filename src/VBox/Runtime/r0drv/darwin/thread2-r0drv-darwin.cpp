@@ -1,4 +1,4 @@
-/* $Id: thread2-r0drv-darwin.cpp $ */
+/* $Id: thread2-r0drv-darwin.cpp 22052 2009-08-07 09:45:48Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 2), Ring-0 Driver, Darwin.
  */
@@ -28,13 +28,17 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-darwin-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/thread.h>
-#include <iprt/err.h>
+
+#include <iprt/asm.h>
 #include <iprt/assert.h>
+#include <iprt/err.h>
 #include "internal/thread.h"
 
 
@@ -101,6 +105,7 @@ int rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enmType)
             AssertMsgFailed(("enmType=%d\n", enmType));
             return VERR_INVALID_PARAMETER;
     }
+    RT_ASSERT_INTS_ON();
 
     /*
      * Do the actual modification.
@@ -155,6 +160,8 @@ static void rtThreadNativeMain(void *pvArg, wait_result_t Ignored)
 
 int rtThreadNativeCreate(PRTTHREADINT pThreadInt, PRTNATIVETHREAD pNativeThread)
 {
+    RT_ASSERT_PREEMPTIBLE();
+
     thread_t NativeThread;
     kern_return_t kr = kernel_thread_start(rtThreadNativeMain, pThreadInt, &NativeThread);
     if (kr == KERN_SUCCESS)

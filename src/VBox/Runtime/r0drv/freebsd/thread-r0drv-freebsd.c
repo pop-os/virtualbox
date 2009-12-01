@@ -1,4 +1,4 @@
-/* $Id: thread-r0drv-freebsd.c $ */
+/* $Id: thread-r0drv-freebsd.c 22151 2009-08-11 09:46:23Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 1), Ring-0 Driver, FreeBSD.
  */
@@ -32,11 +32,13 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-freebsd-kernel.h"
-
+#include "internal/iprt.h"
 #include <iprt/thread.h>
-#include <iprt/err.h>
-#include <iprt/assert.h>
 
+#include <iprt/asm.h>
+#include <iprt/assert.h>
+#include <iprt/err.h>
+#include <iprt/mp.h>
 #include "internal/thread.h"
 
 
@@ -111,7 +113,8 @@ RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread)
 {
     Assert(hThread == NIL_RTTHREAD);
 
-    return curthread->td_critnest == 0;
+    return curthread->td_critnest == 0
+        && ASMIntAreEnabled(); /** @todo is there a native freebsd function/macro for this? */
 }
 
 
@@ -130,22 +133,40 @@ RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
 }
 
 
+RTDECL(bool) RTThreadPreemptIsPossible(void)
+{
+    /* yes, kernel preemption is possible. */
+    return true;
+}
+
+
 RTDECL(void) RTThreadPreemptDisable(PRTTHREADPREEMPTSTATE pState)
 {
     AssertPtr(pState);
-    Assert(pState->uchDummy != 42);
-    pState->uchDummy = 42;
+    Assert(pState->u32Reserved == 0);
+    pState->u32Reserved = 42;
 
     critical_enter();
+    RT_ASSERT_PREEMPT_CPUID_DISABLE(pState);
 }
 
 
 RTDECL(void) RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState)
 {
     AssertPtr(pState);
-    Assert(pState->uchDummy == 42);
-    pState->uchDummy = 0;
+    Assert(pState->u32Reserved == 42);
+    pState->u32Reserved = 0;
 
+    RT_ASSERT_PREEMPT_CPUID_RESTORE(pState);
     critical_exit();
+}
+
+
+RTDECL(bool) RTThreadIsInInterrupt(RTTHREAD hThread)
+{
+    Assert(hThread == NIL_RTTHREAD); NOREF(hThread);
+    /** @todo FreeBSD: Implement RTThreadIsInInterrupt. Required for guest
+     *        additions! */
+    return !ASMIntAreEnabled();
 }
 

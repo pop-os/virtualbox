@@ -1,4 +1,4 @@
-/* $Id: tstSupSem.cpp $ */
+/* $Id: tstSupSem.cpp 20903 2009-06-24 19:32:12Z vboxsync $ */
 /** @file
  * Support Library Testcase - Ring-3 Semaphore interface.
  */

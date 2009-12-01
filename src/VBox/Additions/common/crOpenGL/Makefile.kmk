@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 23694 2009-10-12 13:46:26Z vboxsync $
 ## @file
 # Sub-Makefile for the VirtualBox Guest OpenGL part
 #
@@ -83,7 +83,7 @@ if1of ($(KBUILD_TARGET),linux solaris)
 	$(VBOX_PATH_MESA_SOURCE)/src/mesa/glapi \
 	$(VBOX_PATH_MESA_SOURCE)/src/mesa/main \
 	$(VBOX_PATH_MESA_SOURCE)/src/mesa/drivers/dri/common \
-	$(PATH_ROOT)/src/VBox/Additions/x11/x11include/libdrm-2.4.5
+	$(PATH_ROOT)/src/VBox/Additions/x11/x11include/libdrm-2.4.13
  VBoxOGL_DEFS     += VBOX_NO_NATIVEGL
 endif
 ifdef VBoxOGL_DRI
@@ -376,6 +376,8 @@ VBoxOGLpackspu_SOURCES    = \
 	pack/packspu_pixel.c \
 	pack/packspu_texture.c \
 	pack/packspu_getshaders.c \
+	pack/packspu_glsl.c \
+	pack/packspu_framebuffer.c \
 	$(VBOX_PATH_CROGL_GENFILES)/packspu.c \
 	$(VBOX_PATH_CROGL_GENFILES)/packspu_get.c \
 	$(VBOX_PATH_CROGL_GENFILES)/packspu_flush.c \

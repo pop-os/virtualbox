@@ -32,7 +32,8 @@
 #define ___VBox_HostService_GuestPropertyService_h
 
 #include <VBox/types.h>
-#include <VBox/VBoxGuest.h>
+#include <VBox/VMMDev.h>
+#include <VBox/VBoxGuest2.h>
 #include <VBox/hgcmsvc.h>
 #include <VBox/log.h>
 #include <iprt/assert.h>
@@ -123,7 +124,7 @@ enum { MAX_FLAGS_LEN =   sizeof("TRANSIENT, RDONLYGUEST") };
  */
 DECLINLINE(int) validateFlags(const char *pcszFlags, uint32_t *pfFlags)
 {
-    const static uint32_t sFlagList[] =
+    static const uint32_t s_aFlagList[] =
     {
         TRANSIENT, READONLY, RDONLYGUEST, RDONLYHOST
     };
@@ -131,32 +132,33 @@ DECLINLINE(int) validateFlags(const char *pcszFlags, uint32_t *pfFlags)
     int rc = VINF_SUCCESS;
     uint32_t fFlags = 0;
     AssertLogRelReturn(VALID_PTR(pfFlags), VERR_INVALID_POINTER);
-    AssertLogRelReturn(VALID_PTR(pcszFlags), VERR_INVALID_POINTER);
-    while (' ' == *pcszNext)
-        ++pcszNext;
-    while ((*pcszNext != '\0') && RT_SUCCESS(rc))
+
+    if (pcszFlags)
     {
-        unsigned i = 0;
-        for (; i < RT_ELEMENTS(sFlagList); ++i)
-            if (RTStrNICmp(pcszNext, flagName(sFlagList[i]),
-                           flagNameLen(sFlagList[i])
-                           ) == 0
-               )
-                break;
-        if (RT_ELEMENTS(sFlagList) == i)
-             rc = VERR_PARSE_ERROR;
-        else
+        while (' ' == *pcszNext)
+            ++pcszNext;
+        while ((*pcszNext != '\0') && RT_SUCCESS(rc))
         {
-            fFlags |= sFlagList[i];
-            pcszNext += flagNameLen(sFlagList[i]);
-            while (' ' == *pcszNext)
-                ++pcszNext;
-            if (',' == *pcszNext)
-                ++pcszNext;
-            else if (*pcszNext != '\0')
+            unsigned i = 0;
+            for (; i < RT_ELEMENTS(s_aFlagList); ++i)
+                if (RTStrNICmp(pcszNext, flagName(s_aFlagList[i]),
+                               flagNameLen(s_aFlagList[i])) == 0)
+                    break;
+            if (RT_ELEMENTS(s_aFlagList) == i)
                 rc = VERR_PARSE_ERROR;
-            while (' ' == *pcszNext)
-                ++pcszNext;
+            else
+            {
+                fFlags |= s_aFlagList[i];
+                pcszNext += flagNameLen(s_aFlagList[i]);
+                while (' ' == *pcszNext)
+                    ++pcszNext;
+                if (',' == *pcszNext)
+                    ++pcszNext;
+                else if (*pcszNext != '\0')
+                    rc = VERR_PARSE_ERROR;
+                while (' ' == *pcszNext)
+                    ++pcszNext;
+            }
         }
     }
     if (RT_SUCCESS(rc))
@@ -173,7 +175,7 @@ DECLINLINE(int) validateFlags(const char *pcszFlags, uint32_t *pfFlags)
  */
 DECLINLINE(int) writeFlags(uint32_t fFlags, char *pszFlags)
 {
-    const static uint32_t sFlagList[] =
+    static const uint32_t s_aFlagList[] =
     {
         TRANSIENT, READONLY, RDONLYGUEST, RDONLYHOST
     };
@@ -185,13 +187,13 @@ DECLINLINE(int) writeFlags(uint32_t fFlags, char *pszFlags)
     if (RT_SUCCESS(rc))
     {
         unsigned i = 0;
-        for (; i < RT_ELEMENTS(sFlagList); ++i)
+        for (; i < RT_ELEMENTS(s_aFlagList); ++i)
         {
-            if (sFlagList[i] == (fFlags & sFlagList[i]))
+            if (s_aFlagList[i] == (fFlags & s_aFlagList[i]))
             {
-                strcpy(pszNext, flagName(sFlagList[i]));
-                pszNext += flagNameLen(sFlagList[i]);
-                fFlags &= ~sFlagList[i];
+                strcpy(pszNext, flagName(s_aFlagList[i]));
+                pszNext += flagNameLen(s_aFlagList[i]);
+                fFlags &= ~s_aFlagList[i];
                 if (fFlags != NILFLAG)
                 {
                     strcpy(pszNext, ", ");
@@ -242,7 +244,14 @@ enum eHostFn
      * Enumerate guest properties.
      * The parameter format matches that of ENUM_PROPS.
      */
-    ENUM_PROPS_HOST = 6
+    ENUM_PROPS_HOST = 6,
+
+    /**
+     * Flush notifications.
+     * Takes one 32-bit unsigned integer parameter that gives the number of
+     * milliseconds to wait for the worker thread to get the work done.
+     */
+    FLUSH_NOTIFICATIONS_HOST
 };
 
 /**

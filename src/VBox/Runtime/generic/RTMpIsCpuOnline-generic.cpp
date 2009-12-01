@@ -1,4 +1,4 @@
-/* $Id: RTMpIsCpuOnline-generic.cpp $ */
+/* $Id: RTMpIsCpuOnline-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Generic RTMpIsCpuOnline.
  */
@@ -33,10 +33,12 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/mp.h>
+#include "internal/iprt.h"
 
 
 RTDECL(bool) RTMpIsCpuOnline(RTCPUID idCpu)
 {
     return RTMpCpuId() == idCpu;
 }
+RT_EXPORT_SYMBOL(RTMpIsCpuOnline);
 

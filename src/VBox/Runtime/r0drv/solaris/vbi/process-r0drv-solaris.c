@@ -1,4 +1,4 @@
-/* $Id: process-r0drv-solaris.c $ */
+/* $Id: process-r0drv-solaris.c 24386 2009-11-05 14:17:10Z vboxsync $ */
 /** @file
  * IPRT - Process Management, Ring-0 Driver, Solaris.
  */
@@ -28,12 +28,14 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include "the-solaris-kernel.h"
-
+#include "../the-solaris-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/process.h>
+
 
 
 RTDECL(RTPROCESS) RTProcSelf(void)

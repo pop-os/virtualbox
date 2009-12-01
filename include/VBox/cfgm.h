@@ -1,5 +1,5 @@
 /** @file
- * CFGM - Configuration Manager.
+ * CFGM - Configuration Manager. (VMM)
  */
 
 /*
@@ -37,12 +37,6 @@
 /** @defgroup   grp_cfgm        The Configuration Manager API
  * @{
  */
-
-/** Configuration manager tree node - A key. */
-typedef struct CFGMNODE *PCFGMNODE;
-
-/** Configuration manager tree leaf - A value. */
-typedef struct CFGMLEAF *PCFGMLEAF;
 
 /**
  * Configuration manager value type.
@@ -107,6 +101,9 @@ VMMR3DECL(void)         CFGMR3SetRestrictedRoot(PCFGMNODE pNode);
 VMMR3DECL(void)         CFGMR3RemoveNode(PCFGMNODE pNode);
 VMMR3DECL(int)          CFGMR3InsertInteger(PCFGMNODE pNode, const char *pszName, uint64_t u64Integer);
 VMMR3DECL(int)          CFGMR3InsertString(PCFGMNODE pNode, const char *pszName, const char *pszString);
+VMMR3DECL(int)          CFGMR3InsertStringF(PCFGMNODE pNode, const char *pszName, const char *pszFormat, ...);
+VMMR3DECL(int)          CFGMR3InsertStringFV(PCFGMNODE pNode, const char *pszName, const char *pszFormat, va_list va);
+VMMR3DECL(int)          CFGMR3InsertStringW(PCFGMNODE pNode, const char *pszName, PCRTUTF16 pwszValue);
 VMMR3DECL(int)          CFGMR3InsertBytes(PCFGMNODE pNode, const char *pszName, const void *pvBytes, size_t cbBytes);
 VMMR3DECL(int)          CFGMR3RemoveValue(PCFGMNODE pNode, const char *pszName);
 

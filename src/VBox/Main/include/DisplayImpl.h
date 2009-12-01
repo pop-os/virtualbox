@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.h $ */
+/* $Id: DisplayImpl.h 25069 2009-11-28 10:17:22Z vboxsync $ */
 
 /** @file
  *
@@ -29,7 +29,7 @@
 
 #include <iprt/semaphore.h>
 #include <VBox/pdmdrv.h>
-#include <VBox/VBoxGuest.h>
+#include <VBox/VMMDev.h>
 #include <VBox/VBoxVideo.h>
 
 class Console;
@@ -79,13 +79,24 @@ typedef struct _DISPLAYFBINFO
         int h;
     } pendingResize;
 
+#ifdef VBOX_WITH_HGSMI
+    bool fVBVAEnabled;
+    uint32_t cVBVASkipUpdate;
+    struct {
+       int32_t xLeft;
+       int32_t yTop;
+       int32_t xRight;
+       int32_t yBottom;
+    } vbvaSkippedRect;
+    PVBVAHOSTFLAGS pVBVAHostFlags;
+#endif /* VBOX_WITH_HGSMI */
 } DISPLAYFBINFO;
 
 class ATL_NO_VTABLE Display :
-    public VirtualBoxBaseNEXT,
+    public VirtualBoxBase,
     VBOX_SCRIPTABLE_IMPL(IConsoleCallback),
-    public VirtualBoxSupportErrorInfoImpl <Display, IDisplay>,
-    public VirtualBoxSupportTranslation <Display>,
+    public VirtualBoxSupportErrorInfoImpl<Display, IDisplay>,
+    public VirtualBoxSupportTranslation<Display>,
     VBOX_SCRIPTABLE_IMPL(IDisplay)
 {
 
@@ -102,8 +113,6 @@ public:
         COM_INTERFACE_ENTRY(IDisplay)
         COM_INTERFACE_ENTRY2(IDispatch,IDisplay)
     END_COM_MAP()
-
-    NS_DECL_ISUPPORTS
 
     DECLARE_EMPTY_CTOR_DTOR (Display)
 
@@ -159,16 +168,6 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(OnDVDDriveChange)()
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnFloppyDriveChange)()
-    {
-        return S_OK;
-    }
-
     STDMETHOD(OnNetworkAdapterChange) (INetworkAdapter *aNetworkAdapter)
     {
         return S_OK;
@@ -189,7 +188,17 @@ public:
         return S_OK;
     }
 
+    STDMETHOD(OnMediumChange)(IMediumAttachment *aMediumAttachment)
+    {
+        return S_OK;
+    }
+
     STDMETHOD(OnVRDPServerChange)()
+    {
+        return S_OK;
+    }
+
+    STDMETHOD(OnRemoteDisplayInfoChange)()
     {
         return S_OK;
     }
@@ -261,7 +270,7 @@ private:
                                                 unsigned uScreenId);
 
     static DECLCALLBACK(void*) drvQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface);
-    static DECLCALLBACK(int)   drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle);
+    static DECLCALLBACK(int)   drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags);
     static DECLCALLBACK(void)  drvDestruct(PPDMDRVINS pDrvIns);
     static DECLCALLBACK(int)   displayResizeCallback(PPDMIDISPLAYCONNECTOR pInterface, uint32_t bpp, void *pvVRAM, uint32_t cbLine, uint32_t cx, uint32_t cy);
     static DECLCALLBACK(void)  displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInterface,
@@ -276,10 +285,23 @@ private:
     static DECLCALLBACK(void) displayVHWACommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVHWACMD pCommand);
 #endif
 
-    static DECLCALLBACK(void)   displaySSMSave (PSSMHANDLE pSSM, void *pvUser);
-    static DECLCALLBACK(int)    displaySSMLoad (PSSMHANDLE pSSM, void *pvUser, uint32_t u32Version);
+#ifdef VBOX_WITH_HGSMI
+    static DECLCALLBACK(int)  displayVBVAEnable(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, PVBVAHOSTFLAGS pHostFlags);
+    static DECLCALLBACK(void) displayVBVADisable(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId);
+    static DECLCALLBACK(void) displayVBVAUpdateBegin(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId);
+    static DECLCALLBACK(void) displayVBVAUpdateProcess(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, const PVBVACMDHDR pCmd, size_t cbCmd);
+    static DECLCALLBACK(void) displayVBVAUpdateEnd(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, int32_t x, int32_t y, uint32_t cx, uint32_t cy);
+    static DECLCALLBACK(int)  displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN pScreen, void *pvVRAM);
+    static DECLCALLBACK(int)  displayVBVAMousePointerShape(PPDMIDISPLAYCONNECTOR pInterface, bool fVisible, bool fAlpha, uint32_t xHot, uint32_t yHot, uint32_t cx, uint32_t cy, const void *pvShape);
+#endif
 
-    const ComObjPtr <Console, ComWeakRef> mParent;
+
+    static DECLCALLBACK(void)   displaySSMSaveScreenshot(PSSMHANDLE pSSM, void *pvUser);
+    static DECLCALLBACK(int)    displaySSMLoadScreenshot(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32_t uPass);
+    static DECLCALLBACK(void)   displaySSMSave(PSSMHANDLE pSSM, void *pvUser);
+    static DECLCALLBACK(int)    displaySSMLoad(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32_t uPass);
+
+    const ComObjPtr<Console, ComWeakRef> mParent;
     /** Pointer to the associated display driver. */
     struct DRVMAINDISPLAY  *mpDrv;
     /** Pointer to the device instance for the VMM Device. */
@@ -317,7 +339,38 @@ private:
     void vbvaReleaseCmd (VBVACMDHDR *pHdr, int32_t cbCmd);
 
     void handleResizeCompletedEMT (void);
+
+#ifdef VBOX_WITH_OLD_VBVA_LOCK
+    RTCRITSECT mVBVALock;
+    volatile uint32_t mfu32PendingVideoAccelDisable;
+    
+    int vbvaLock(void);
+    void vbvaUnlock(void);
+
+public:
+    static int displayTakeScreenshotEMT(Display *pDisplay, uint8_t **ppu8Data, size_t *pcbData, uint32_t *pu32Width, uint32_t *pu32Height);
+
+private:
+    static void InvalidateAndUpdateEMT(Display *pDisplay);
+    static int DrawToScreenEMT(Display *pDisplay, BYTE *address, ULONG x, ULONG y, ULONG width, ULONG height);
+
+    int videoAccelRefreshProcess(void);
+
+    /* Functions run under VBVA lock. */
+    int videoAccelEnable (bool fEnable, VBVAMEMORY *pVbvaMemory);
+    void videoAccelFlush (void);
+#endif /* VBOX_WITH_OLD_VBVA_LOCK */
+
+#ifdef VBOX_WITH_HGSMI
+    volatile uint32_t mu32UpdateVBVAFlags;
+#endif
 };
+
+void gdImageCopyResampled (uint8_t *dst, uint8_t *src,
+                           int dstX, int dstY,
+                           int srcX, int srcY,
+                           int dstW, int dstH, int srcW, int srcH);
+
 
 #endif // ____H_DISPLAYIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

@@ -1,4 +1,4 @@
-/* $Id: GVMMR0.cpp $ */
+/* $Id: GVMMR0.cpp 24985 2009-11-26 10:49:44Z vboxsync $ */
 /** @file
  * GVMM - Global VM Manager.
  */
@@ -599,7 +599,11 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PVM *ppV
                          */
                         const uint32_t  cbVM   = RT_UOFFSETOF(VM, aCpus[cCpus]);
                         const uint32_t  cPages = RT_ALIGN_32(cbVM, PAGE_SIZE) >> PAGE_SHIFT;
+#ifdef RT_OS_DARWIN /** @todo Figure out why this is broken. Is it only on snow leopard? */
+                        rc = RTR0MemObjAllocLow(&pGVM->gvmm.s.VMMemObj, (cPages + 1) << PAGE_SHIFT, false /* fExecutable */);
+#else
                         rc = RTR0MemObjAllocLow(&pGVM->gvmm.s.VMMemObj, cPages << PAGE_SHIFT, false /* fExecutable */);
+#endif
                         if (RT_SUCCESS(rc))
                         {
                             PVM pVM = (PVM)RTR0MemObjAddress(pGVM->gvmm.s.VMMemObj); AssertPtr(pVM);
@@ -609,7 +613,7 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PVM *ppV
                             pVM->pSession   = pSession;
                             pVM->hSelf      = iHandle;
                             pVM->cbSelf     = cbVM;
-                            pVM->cCPUs      = cCpus;
+                            pVM->cCpus      = cCpus;
                             pVM->offVMCPU   = RT_UOFFSETOF(VM, aCpus);
 
                             rc = RTR0MemObjAllocPage(&pGVM->gvmm.s.VMPagesMemObj, cPages * sizeof(SUPPAGE), false /* fExecutable */);
@@ -1099,7 +1103,7 @@ GVMMR0DECL(int) GVMMR0RegisterVCpu(PVM pVM, VMCPUID idCpu)
     if (RT_FAILURE(rc))
         return rc;
 
-    AssertReturn(idCpu < pVM->cCPUs, VERR_INVALID_CPU_ID);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
     AssertReturn(pGVM->aCpus[idCpu].hEMT == NIL_RTNATIVETHREAD, VERR_ACCESS_DENIED);
 
     pGVM->aCpus[idCpu].hEMT = RTThreadNativeSelf();
@@ -1706,6 +1710,7 @@ DECLINLINE(int) gvmmR0SchedPokeOne(PGVM pGVM, PVMCPU pVCpu)
         return VINF_GVM_NOT_BUSY_IN_GC;
     }
 
+    /* Note: this function is not implemented on Darwin and Linux (kernel < 2.6.19) */
     RTMpPokeCpu(idHostCpu);
     return VINF_SUCCESS;
 }

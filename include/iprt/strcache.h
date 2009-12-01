@@ -1,4 +1,4 @@
-/* $Id: strcache.h $ */
+/* $Id: strcache.h 20374 2009-06-08 00:43:21Z vboxsync $ */
 /** @file
  * IPRT - String Cache, stub implementation.
  */

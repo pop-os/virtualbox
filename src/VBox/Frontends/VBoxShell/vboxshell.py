@@ -50,12 +50,6 @@ class GuestMonitor:
     def onAdditionsStateChange(self):
         print  "%s: onAdditionsStateChange" %(self.mach.name)
 
-    def onDVDDriveChange(self):
-        print  "%s: onDVDDriveChange" %(self.mach.name)
-
-    def onFloppyDriveChange(self):
-        print  "%s: onFloppyDriveChange" %(self.mach.name)
-
     def onNetworkAdapterChange(self, adapter):
         print  "%s: onNetworkAdapterChange" %(self.mach.name)
 
@@ -67,6 +61,9 @@ class GuestMonitor:
 
     def onStorageControllerChange(self):
         print  "%s: onStorageControllerChange" %(self.mach.name)
+
+    def onMediumChange(self, attachment):
+        print  "%s: onMediumChange" %(self.mach.name)
 
     def onVRDPServerChange(self):
         print  "%s: onVRDPServerChange" %(self.mach.name)
@@ -216,8 +213,15 @@ def progressBar(ctx,p,wait=1000):
             print "%d %%\r" %(p.percent),
             sys.stdout.flush()
             p.waitForCompletion(wait)
+            ctx['global'].waitForEvents(0)
     except KeyboardInterrupt:
         print "Interrupted."
+
+
+def reportError(ctx,session,rc):
+    if not ctx['remote']:
+            print session.QueryErrorObject(rc)
+
 
 def createVm(ctx,name,kind,base):
     mgr = ctx['mgr']
@@ -237,8 +241,8 @@ def removeVm(ctx,mach):
     session = ctx['global'].openMachineSession(id)
     try:
        mach = session.machine
-       for d in ctx['global'].getArray(mach, 'hardDiskAttachments'):
-          mach.detachHardDisk(d.controller, d.port, d.device)
+       for d in ctx['global'].getArray(mach, 'mediumAttachments'):
+          mach.detachDevice(d.controller, d.port, d.device)
     except:
        traceback.print_exc()
     mach.saveSettings()
@@ -274,9 +278,7 @@ def startVm(ctx,mach,type):
          # if session not opened, close doesn't make sense
         session.close()
     else:
-        # Not yet implemented error string query API for remote API
-        if not ctx['remote']:
-            print session.QueryErrorObject(rc)
+       reportError(ctx,session,rc)
 
 def getMachines(ctx, invalidate = False):
     if ctx['vb'] is not None:
@@ -334,6 +336,51 @@ def monitorVBox(ctx, dur):
         pass
     vbox.unregisterCallback(cb)
 
+
+def takeScreenshot(ctx,console,args):
+    from PIL import Image
+    display = console.display
+    if len(args) > 0:
+        f = args[0]
+    else:
+        f = "/tmp/screenshot.png"
+    if len(args) > 1:
+        w = args[1]
+    else:
+        w = console.display.width
+    if len(args) > 2:
+        h = args[2]
+    else:
+        h = console.display.height
+    print "Saving screenshot (%d x %d) in %s..." %(w,h,f)
+    data = display.takeScreenShotSlow(w,h)
+    size = (w,h)
+    mode = "RGBA"
+    im = Image.frombuffer(mode, size, data, "raw", mode, 0, 1)
+    im.save(f, "PNG")
+
+
+def teleport(ctx,session,console,args):
+    if args[0].find(":") == -1:
+        print "Use host:port format for teleport target"
+        return
+    (host,port) = args[0].split(":")
+    if len(args) > 1:
+        passwd = args[1]
+    else:
+        passwd = ""
+
+    port = int(port)
+    print "Teleporting to %s:%d..." %(host,port)
+    progress = console.teleport(host, port, passwd)
+    progressBar(ctx, progress, 100)
+    completed = progress.completed
+    rc = int(progress.resultCode)
+    if rc == 0:
+        print "Success!"
+    else:
+        reportError(ctx,session,rc)
+
 def cmdExistingVm(ctx,mach,cmd,args):
     mgr=ctx['mgr']
     vb=ctx['vb']
@@ -346,7 +393,7 @@ def cmdExistingVm(ctx,mach,cmd,args):
         if g_verbose:
             traceback.print_exc()
         return
-    if session.state != ctx['ifaces'].SessionState_Open:
+    if str(session.state) != str(ctx['ifaces'].SessionState_Open):
         print "Session to '%s' in wrong state: %s" %(mach.name, session.state)
         return
     # unfortunately IGuest is suppressed, thus WebServices knows not about it
@@ -362,7 +409,9 @@ def cmdExistingVm(ctx,mach,cmd,args):
          'stats':           lambda: guestStats(ctx, mach),
          'guest':           lambda: guestExec(ctx, mach, console, args),
          'monitorGuest':    lambda: monitorGuest(ctx, mach, console, args),
-         'save':            lambda: progressBar(ctx,console.saveState())
+         'save':            lambda: progressBar(ctx,console.saveState()),
+         'screenshot':      lambda: takeScreenshot(ctx,console,args),
+         'teleport':        lambda: teleport(ctx,session,console,args)
          }
     try:
         ops[cmd]()
@@ -422,7 +471,11 @@ def helpCmd(ctx, args):
 
 def listCmd(ctx, args):
     for m in getMachines(ctx, True):
-        print "Machine '%s' [%s], state=%s" %(m.name,m.id,m.sessionState)
+        if m.teleporterEnabled:
+            tele = "[T] "
+        else:
+            tele = "    "
+        print "%sMachine '%s' [%s], state=%s" %(tele,m.name,m.id,m.sessionState)
     return 0
 
 def getControllerType(type):
@@ -443,6 +496,21 @@ def getControllerType(type):
     else:
         return "Unknown"
 
+def getFirmwareType(type):
+    if type == 0:
+        return "invalid"
+    elif type == 1:
+        return "bios"
+    elif type == 2:
+        return "efi"
+    elif type == 3:
+        return "efi64"
+    elif type == 4:
+        return "efidual"
+    else:
+        return "Unknown"
+
+
 def infoCmd(ctx,args):
     if (len(args) < 2):
         print "usage: info [vmname|uuid]"
@@ -455,6 +523,7 @@ def infoCmd(ctx,args):
     print "  Name [name]: %s" %(mach.name)
     print "  ID [n/a]: %s" %(mach.id)
     print "  OS Type [n/a]: %s" %(os.description)
+    print "  Firmware [firmwareType]: %s (%s)" %(getFirmwareType(mach.firmwareType),mach.firmwareType)
     print
     print "  CPUs [CPUCount]: %d" %(mach.CPUCount)
     print "  RAM [memorySize]: %dM" %(mach.memorySize)
@@ -464,14 +533,22 @@ def infoCmd(ctx,args):
     print "  Clipboard mode [clipboardMode]: %d" %(mach.clipboardMode)
     print "  Machine status [n/a]: %d" % (mach.sessionState)
     print
+    if mach.teleporterEnabled:
+        print "  Teleport target on port %d (%s)" %(mach.teleporterPort, mach.teleporterPassword)
+    print
     bios = mach.BIOSSettings
     print "  ACPI [BIOSSettings.ACPIEnabled]: %s" %(asState(bios.ACPIEnabled))
     print "  APIC [BIOSSettings.IOAPICEnabled]: %s" %(asState(bios.IOAPICEnabled))
-    print "  PAE [PAEEnabled]: %s" %(asState(int(mach.PAEEnabled)))
-    print "  Hardware virtualization [HWVirtExEnabled]: " + asState(mach.HWVirtExEnabled)
-    print "  VPID support [HWVirtExVPIDEnabled]: " + asState(mach.HWVirtExVPIDEnabled)
+    hwVirtEnabled = mach.getHWVirtExProperty(ctx['global'].constants.HWVirtExPropertyType_Enabled)
+    print "  Hardware virtualization [mach.setHWVirtExProperty(ctx['global'].constants.HWVirtExPropertyType_Enabled,value)]: " + asState(hwVirtEnabled)
+    hwVirtVPID = mach.getHWVirtExProperty(ctx['global'].constants.HWVirtExPropertyType_VPID)
+    print "  VPID support [mach.setHWVirtExProperty(ctx['global'].constants.HWVirtExPropertyType_VPID,value)]: " + asState(hwVirtVPID)
+    hwVirtNestedPaging = mach.getHWVirtExProperty(ctx['global'].constants.HWVirtExPropertyType_NestedPaging)
+    print "  Nested paging [mach.setHWVirtExProperty(ctx['global'].constants.HWVirtExPropertyType_NestedPaging,value)]: " + asState(hwVirtNestedPaging)
+
     print "  Hardware 3d acceleration[accelerate3DEnabled]: " + asState(mach.accelerate3DEnabled)
-    print "  Nested paging [HWVirtExNestedPagingEnabled]: " + asState(mach.HWVirtExNestedPagingEnabled)
+    print "  Hardware 2d video acceleration[accelerate2DVideoEnabled]: " + asState(mach.accelerate2DVideoEnabled)
+
     print "  Last changed [n/a]: " + time.asctime(time.localtime(long(mach.lastStateChange)/1000))
     print "  VRDP server [VRDPServer.enabled]: %s" %(asState(mach.VRDPServer.enabled))
 
@@ -482,47 +559,43 @@ def infoCmd(ctx,args):
     for controller in controllers:
         print "    %s %s bus: %d" % (controller.name, getControllerType(controller.controllerType), controller.bus)
 
-    disks = ctx['global'].getArray(mach, 'hardDiskAttachments')
-    if disks:
+    attaches = ctx['global'].getArray(mach, 'mediumAttachments')
+    if attaches:
         print
-        print "  Hard disk(s):"
-    for disk in disks:
-        print "    Controller: %s port: %d device: %d:" % (disk.controller, disk.port, disk.device)
-        hd = disk.hardDisk
-        print "    id: %s" %(hd.id)
-        print "    location: %s" %(hd.location)
-        print "    name: %s"  %(hd.name)
-        print "    format: %s"  %(hd.format)
-        print
+        print "  Mediums:"
+    for a in attaches:
+        print "   Controller: %s port: %d device: %d type: %s:" % (a.controller, a.port, a.device, a.type)
+        m = a.medium
+        if a.type == ctx['global'].constants.DeviceType_HardDisk:
+            print "   HDD:"
+            print "    Id: %s" %(m.id)
+            print "    Location: %s" %(m.location)
+            print "    Name: %s"  %(m.name)
+            print "    Format: %s"  %(m.format)
 
-    dvd = mach.DVDDrive
-    if dvd.getHostDrive():
-        hdvd = dvd.getHostDrive()
-        print "  DVD:"
-        print "    Host disk: %s" %(hdvd.name)
-        print
+        if a.type == ctx['global'].constants.DeviceType_DVD:
+            print "   DVD:"
+            if m:
+                print "    Id: %s" %(m.id)
+                print "    Name: %s" %(m.name)
+                if m.hostDrive:
+                    print "    Host DVD %s" %(m.location)
+                    if a.passthrough:
+                         print "    [passthrough mode]"
+                else:
+                    print "    Virtual image at %s" %(m.location)
+                    print "    Size: %s" %(m.size)
 
-    if dvd.getImage():
-        vdvd = dvd.getImage()
-        print "  DVD:"
-        print "    Image at: %s" %(vdvd.location)
-        print "    Size: %s" %(vdvd.size)
-        print "    Id: %s" %(vdvd.id)
-        print
-
-    floppy = mach.floppyDrive
-    if floppy.getHostDrive():
-        hfloppy = floppy.getHostDrive()
-        print "  Floppy:"
-        print "    Host disk: %s" %(hfloppy.name)
-        print
-
-    if floppy.getImage():
-        vfloppy = floppy.getImage()
-        print "  Floppy:"
-        print "    Image at: %s" %(vfloppy.location)
-        print "    Size: %s" %(vfloppy.size)
-        print
+        if a.type == ctx['global'].constants.DeviceType_Floppy:
+            print "   Floppy:"
+            if m:
+                print "    Id: %s" %(m.id)
+                print "    Name: %s" %(m.name)
+                if m.hostDrive:
+                    print "    Host floppy %s" %(m.location)
+                else:
+                    print "    Virtual image at %s" %(m.location)
+                    print "    Size: %s" %(m.size)
 
     return 0
 
@@ -614,6 +687,65 @@ def guestCmd(ctx, args):
     cmdExistingVm(ctx, mach, 'guest', ' '.join(args[2:]))
     return 0
 
+def screenshotCmd(ctx, args):
+    if (len(args) < 3):
+        print "usage: screenshot name file <width> <height>"
+        return 0
+    mach = argsToMach(ctx,args)
+    if mach == None:
+        return 0
+    cmdExistingVm(ctx, mach, 'screenshot', args[2:])
+    return 0
+
+def teleportCmd(ctx, args):
+    if (len(args) < 3):
+        print "usage: teleport name host:port <password>"
+        return 0
+    mach = argsToMach(ctx,args)
+    if mach == None:
+        return 0
+    cmdExistingVm(ctx, mach, 'teleport', args[2:])
+    return 0
+
+def openportalCmd(ctx, args):
+    if (len(args) < 3):
+        print "usage: openportal name port <password>"
+        return 0
+    mach = argsToMach(ctx,args)
+    if mach == None:
+        return 0
+    port = int(args[2])
+    if (len(args) > 3):
+        passwd = args[3]
+    else:
+        passwd = ""
+    if not mach.teleporterEnabled or mach.teleporterPort != port or passwd:
+        session = ctx['global'].openMachineSession(mach.id)
+        mach1 = session.machine
+        mach1.teleporterEnabled = True
+        mach1.teleporterPort = port
+        mach1.teleporterPassword = passwd
+        mach1.saveSettings()
+        session.close()
+    startVm(ctx, mach, "gui")
+    return 0
+
+def closeportalCmd(ctx, args):
+    if (len(args) < 2):
+        print "usage: closeportal name"
+        return 0
+    mach = argsToMach(ctx,args)
+    if mach == None:
+        return 0
+    if mach.teleporterEnabled:
+        session = ctx['global'].openMachineSession(mach.id)
+        mach1 = session.machine
+        mach1.teleporterEnabled = False
+        mach1.saveSettings()
+        session.close()
+    return 0
+
+
 def setvarCmd(ctx, args):
     if (len(args) < 4):
         print "usage: setvar [vmname|uuid] expr value"
@@ -673,7 +805,7 @@ def hostCmd(ctx, args):
    cnt = host.processorCount
    print "Processor count:",cnt
    for i in range(0,cnt):
-      print "Processor #%d speed: %dMHz" %(i,host.getProcessorSpeed(i))
+      print "Processor #%d speed: %dMHz %s" %(i,host.getProcessorSpeed(i), host.getProcessorDescription(i))
 
    print "RAM: %dM (free %dM)" %(host.memorySize, host.memoryAvailable)
    print "OS: %s (%s)" %(host.operatingSystem, host.OSVersion)
@@ -731,6 +863,8 @@ def getAdapterType(ctx, type):
           type == ctx['global'].constants.NetworkAdapterType_I82545EM or
           type == ctx['global'].constants.NetworkAdapterType_I82543GC):
         return "e1000"
+    elif (type == ctx['global'].constants.NetworkAdapterType_Virtio):
+        return "virtio"
     elif (type == ctx['global'].constants.NetworkAdapterType_Null):
         return None
     else:
@@ -967,7 +1101,11 @@ commands = {'help':['Prints help information', helpCmd, 0],
             'runScript':['Run VBox script: runScript script.vbox', runScriptCmd, 0],
             'sleep':['Sleep for specified number of seconds: sleep 3.14159', sleepCmd, 0],
             'shell':['Execute external shell command: shell "ls /etc/rc*"', shellCmd, 0],
-            'exportVm':['Export VM in OVF format: export Win /tmp/win.ovf', exportVMCmd, 0]
+            'exportVm':['Export VM in OVF format: export Win /tmp/win.ovf', exportVMCmd, 0],
+            'screenshot':['Take VM screenshot to a file: screenshot Win /tmp/win.png 1024 768', screenshotCmd, 0],
+            'teleport':['Teleport VM to another box (see openportal): teleport Win anotherhost:8000 <passwd>', teleportCmd, 0],
+            'openportal':['Open portal for teleportation of VM from another box (see teleport): openportal Win 8000 <passwd>', openportalCmd, 0],
+            'closeportal':['Close teleportation portal (see openportal,teleport): closeportal Win', closeportalCmd, 0]
             }
 
 def runCommandArgs(ctx, args):
@@ -1077,7 +1215,7 @@ def interpret(ctx):
             print e
             if g_verbose:
                 traceback.print_exc()
-
+        ctx['global'].waitForEvents(0)
     try:
         # There is no need to disable metric collection. This is just an example.
         if ct['perf']:
@@ -1119,7 +1257,6 @@ def main(argv):
            'type':g_virtualBoxManager.type,
            'run': lambda cmd,args: runCommandCb(ctx, cmd, args),
            'machById': lambda id: machById(ctx,id),
-           'progressBar': lambda p: progressBar(ctx,p),
            'progressBar': lambda p: progressBar(ctx,p),
            '_machlist':None
            }

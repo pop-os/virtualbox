@@ -1,5 +1,5 @@
 /** @file
- * PCI - The PCI Controller And Devices.
+ * PCI - The PCI Controller And Devices. (DEV)
  */
 
 /*
@@ -198,7 +198,7 @@ typedef struct PCIDevice
     /** Internal data. */
     union
     {
-#ifdef __PCIDEVICEINT_DECLARED__
+#ifdef PCIDEVICEINT_DECLARED
         PCIDEVICEINT        s;
 #endif
         char                padding[256];

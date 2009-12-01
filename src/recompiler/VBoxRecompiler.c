@@ -1,4 +1,4 @@
-/* $Id: VBoxRecompiler.c $ */
+/* $Id: VBoxRecompiler.c 23019 2009-09-15 06:41:25Z vboxsync $ */
 /** @file
  * VBox Recompiler - QEMU.
  */
@@ -87,7 +87,7 @@ unsigned long get_phys_page_offset(target_ulong addr);
 *   Internal Functions                                                         *
 *******************************************************************************/
 static DECLCALLBACK(int) remR3Save(PVM pVM, PSSMHANDLE pSSM);
-static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version);
+static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
 static void     remR3StateUpdate(PVM pVM, PVMCPU pVCpu);
 static int      remR3InitPhysRamSizeAndDirtyMap(PVM pVM, bool fGuarded);
 
@@ -338,6 +338,7 @@ REMR3DECL(int) REMR3Init(PVM pVM)
      * Register the saved state data unit.
      */
     rc = SSMR3RegisterInternal(pVM, "rem", 1, REM_SAVED_STATE_VERSION, sizeof(uint32_t) * 10,
+                               NULL, NULL, NULL,
                                NULL, remR3Save, NULL,
                                NULL, remR3Load, NULL);
     if (RT_FAILURE(rc))
@@ -658,25 +659,28 @@ static DECLCALLBACK(int) remR3Save(PVM pVM, PSSMHANDLE pSSM)
  * @returns VBox status code.
  * @param   pVM             VM Handle.
  * @param   pSSM            SSM operation handle.
- * @param   u32Version      Data layout version.
+ * @param   uVersion        Data layout version.
+ * @param   uPass           The data pass.
  */
-static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
+static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
     uint32_t u32Dummy;
     uint32_t fRawRing0 = false;
     uint32_t u32Sep;
-    unsigned i;
+    uint32_t i;
     int rc;
     PREM pRem;
+
     LogFlow(("remR3Load:\n"));
+    Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
 
     /*
      * Validate version.
      */
-    if (    u32Version != REM_SAVED_STATE_VERSION
-        &&  u32Version != REM_SAVED_STATE_VERSION_VER1_6)
+    if (    uVersion != REM_SAVED_STATE_VERSION
+        &&  uVersion != REM_SAVED_STATE_VERSION_VER1_6)
     {
-        AssertMsgFailed(("remR3Load: Invalid version u32Version=%d!\n", u32Version));
+        AssertMsgFailed(("remR3Load: Invalid version uVersion=%d!\n", uVersion));
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     }
 
@@ -698,7 +702,7 @@ static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version
     pRem = &pVM->rem.s;
     Assert(!pRem->fInREM);
     SSMR3GetU32(pSSM,   &pRem->Env.hflags);
-    if (u32Version == REM_SAVED_STATE_VERSION_VER1_6)
+    if (uVersion == REM_SAVED_STATE_VERSION_VER1_6)
     {
         /* Redundant REM CPU state has to be loaded, but can be ignored. */
         CPUX86State_Ver16 temp;
@@ -719,7 +723,7 @@ static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version
     if (fRawRing0)
         pRem->Env.state |= CPU_RAW_RING0;
 
-    if (u32Version == REM_SAVED_STATE_VERSION_VER1_6)
+    if (uVersion == REM_SAVED_STATE_VERSION_VER1_6)
     {
         /*
          * Load the REM stuff.
@@ -772,10 +776,9 @@ static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version
     /*
      * Sync the whole CPU state when executing code in the recompiler.
      */
-    for (i=0;i<pVM->cCPUs;i++)
+    for (i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
-
         CPUMSetChangedFlags(pVCpu, CPUM_CHANGED_ALL);
     }
     return VINF_SUCCESS;
@@ -2822,7 +2825,7 @@ REMR3DECL(void) REMR3ReplayHandlerNotifications(PVM pVM)
         } while (idxHead != UINT32_MAX);
 
 #ifdef VBOX_STRICT
-        if (pVM->cCPUs == 1)
+        if (pVM->cCpus == 1)
         {
             /* Check that all records are now on the free list. */
             for (c = 0, idxNext = pVM->rem.s.idxFreeList; idxNext != UINT32_MAX;
@@ -3636,18 +3639,14 @@ static DECLCALLBACK(int) remR3DisasEnableStepping(PVM pVM, bool fEnable)
  */
 REMR3DECL(int) REMR3DisasEnableStepping(PVM pVM, bool fEnable)
 {
-    PVMREQ  pReq;
-    int     rc;
+    int rc;
 
     LogFlow(("REMR3DisasEnableStepping: fEnable=%d\n", fEnable));
     if (VM_IS_EMT(pVM))
         return remR3DisasEnableStepping(pVM, fEnable);
 
-    rc = VMR3ReqCall(pVM, VMCPUID_ANY, &pReq, RT_INDEFINITE_WAIT, (PFNRT)remR3DisasEnableStepping, 2, pVM, fEnable);
+    rc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)remR3DisasEnableStepping, 2, pVM, fEnable);
     AssertRC(rc);
-    if (RT_SUCCESS(rc))
-        rc = pReq->iStatus;
-    VMR3ReqFree(pReq);
     return rc;
 }
 
@@ -3845,10 +3844,12 @@ void target_disas(FILE *phFile, target_ulong uCode, target_ulong cb, int fFlags)
  */
 const char *lookup_symbol(target_ulong orig_addr)
 {
-    RTGCINTPTR off = 0;
-    DBGFSYMBOL Sym;
-    PVM pVM = cpu_single_env->pVM;
-    int rc = DBGFR3SymbolByAddr(pVM, orig_addr, &off, &Sym);
+    PVM         pVM = cpu_single_env->pVM;
+    RTGCINTPTR  off = 0;
+    RTDBGSYMBOL Sym;
+    DBGFADDRESS Addr;
+
+    int rc = DBGFR3AsSymbolByAddr(pVM, DBGF_AS_GLOBAL, DBGFR3AddrFromFlat(pVM, &Addr, orig_addr), &off, &Sym, NULL /*phMod*/);
     if (RT_SUCCESS(rc))
     {
         static char szSym[sizeof(Sym.szName) + 48];

@@ -29,10 +29,15 @@
 class Machine;
 class GuestOSType;
 
+namespace settings
+{
+    struct BIOSSettings;
+}
+
 class ATL_NO_VTABLE BIOSSettings :
-    public VirtualBoxSupportErrorInfoImpl <BIOSSettings, IBIOSSettings>,
-    public VirtualBoxSupportTranslation <BIOSSettings>,
-    public VirtualBoxBaseNEXT,
+    public VirtualBoxSupportErrorInfoImpl<BIOSSettings, IBIOSSettings>,
+    public VirtualBoxSupportTranslation<BIOSSettings>,
+    public VirtualBoxBase,
     VBOX_SCRIPTABLE_IMPL(IBIOSSettings)
 {
 public:
@@ -86,8 +91,6 @@ public:
         COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
     HRESULT FinalConstruct();
     void FinalRelease();
 
@@ -118,10 +121,8 @@ public:
 
     // public methods only for internal purposes
 
-    HRESULT loadSettings (const settings::Key &aMachineNode);
-    HRESULT saveSettings (settings::Key &aMachineNode);
-
-    const Backupable <Data> &data() const { return mData; }
+    HRESULT loadSettings(const settings::BIOSSettings &data);
+    HRESULT saveSettings(settings::BIOSSettings &data);
 
     bool isModified() { AutoWriteLock alock (this); return mData.isBackedUp(); }
     bool isReallyModified() { AutoWriteLock alock (this); return mData.hasActualChanges(); }
@@ -135,9 +136,9 @@ public:
 
 private:
 
-    ComObjPtr <Machine, ComWeakRef> mParent;
-    ComObjPtr <BIOSSettings> mPeer;
-    Backupable <Data> mData;
+    ComObjPtr<Machine, ComWeakRef> mParent;
+    ComObjPtr<BIOSSettings> mPeer;
+    Backupable<Data> mData;
 };
 
 #endif // ____H_BIOSSETTINGS

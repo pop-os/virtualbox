@@ -1,4 +1,4 @@
-/* $Id: DevPIC.cpp $ */
+/* $Id: DevPIC.cpp 24012 2009-10-23 08:32:55Z vboxsync $ */
 /** @file
  * DevPIC - Intel 8259 Programmable Interrupt Controller (PIC) Device.
  */
@@ -751,7 +751,6 @@ PDMBOTHCBDECL(int) picIOPortElcrWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
 
 #ifdef IN_RING3
 
-#ifdef DEBUG
 /**
  * PIC status info callback.
  *
@@ -787,7 +786,6 @@ static DECLCALLBACK(void) picInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const 
         pHlp->pfnPrintf(pHlp, "  elcr_mask                 = %02x\n", pThis->aPics[i].elcr_mask);
     }
 }
-#endif /* DEBUG */
 
 /**
  * Saves a state of the programmable interrupt controller device.
@@ -827,14 +825,16 @@ static DECLCALLBACK(int) picSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle)
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
  * @param   pSSMHandle  The handle to the saved state.
- * @param   u32Version  The data unit version number.
+ * @param   uVersion    The data unit version number.
+ * @param   uPass       The data pass.
  */
-static DECLCALLBACK(int) picLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle, uint32_t u32Version)
+static DECLCALLBACK(int) picLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle, uint32_t uVersion, uint32_t uPass)
 {
     PDEVPIC pThis = PDMINS_2_DATA(pDevIns, PDEVPIC);
 
-    if (u32Version != 1)
+    if (uVersion != 1)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
+    Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
 
     for (unsigned i = 0; i < RT_ELEMENTS(pThis->aPics); i++)
     {
@@ -1040,19 +1040,15 @@ static DECLCALLBACK(int)  picConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
             return rc;
     }
 
-    rc = PDMDevHlpSSMRegister(pDevIns, pDevIns->pDevReg->szDeviceName, iInstance, 1 /* version */, sizeof(*pThis),
-                              NULL, picSaveExec, NULL,
-                              NULL, picLoadExec, NULL);
+    rc = PDMDevHlpSSMRegister(pDevIns, 1 /* uVersion */, sizeof(*pThis), picSaveExec, picLoadExec);
     if (RT_FAILURE(rc))
         return rc;
 
 
-#ifdef DEBUG
     /*
      * Register the info item.
      */
     PDMDevHlpDBGFInfoRegister(pDevIns, "pic", "PIC info.", picInfo);
-#endif
 
     /*
      * Initialize the device state.

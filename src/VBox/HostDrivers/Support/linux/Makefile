@@ -1,6 +1,6 @@
-#
+# $Revision: 25097 $
+## @file
 # Makefile for the VirtualBox Linux Host Driver.
-# (For 2.6.x this file must be called 'Makefile'!)
 #
 
 #
@@ -76,6 +76,7 @@ override MODULE = vboxdrv
 OBJS   = \
 	linux/SUPDrv-linux.o \
 	SUPDrv.o \
+	SUPDrvAgnostic.o \
 	r0drv/alloc-r0drv.o \
 	r0drv/initterm-r0drv.o \
 	r0drv/memobj-r0drv.o \
@@ -85,6 +86,7 @@ OBJS   = \
 	r0drv/linux/alloc-r0drv-linux.o \
 	r0drv/linux/initterm-r0drv-linux.o \
 	r0drv/linux/memobj-r0drv-linux.o \
+	r0drv/linux/memuserkernel-r0drv-linux.o \
 	r0drv/linux/mp-r0drv-linux.o \
 	r0drv/linux/mpnotification-r0drv-linux.o \
 	r0drv/linux/process-r0drv-linux.o \
@@ -96,7 +98,9 @@ OBJS   = \
 	r0drv/linux/thread2-r0drv-linux.o \
 	r0drv/linux/time-r0drv-linux.o \
 	r0drv/linux/timer-r0drv-linux.o \
+	r0drv/generic/semspinmutex-r0drv-generic.o \
 	common/err/RTErrConvertFromErrno.o \
+	common/err/RTErrConvertToErrno.o \
 	common/log/log.o \
 	common/log/logellipsis.o \
 	common/log/logrel.o \
@@ -115,6 +119,7 @@ OBJS   = \
 	generic/RTLogWriteStdErr-stub-generic.o \
 	generic/RTLogWriteStdOut-stub-generic.o \
 	generic/RTLogWriteUser-generic.o \
+	generic/uuid-generic.o \
 	VBox/log-vbox.o \
 	VBox/strformat-vbox.o
 ifeq ($(BUILD_TARGET_ARCH),x86)
@@ -252,7 +257,7 @@ $(MODULE):
 install: $(MODULE)
 	@mkdir -p $(MODULE_DIR); \
 	install -m 0664 -o root -g root $(MODULE).$(MODULE_EXT) $(MODULE_DIR); \
-	PATH="$(PATH):/bin:/sbin" depmod -ae; \
+	PATH="$(PATH):/bin:/sbin" depmod -a; \
 	rm -f /etc/vbox/module_not_compiled
 
 install_rpm: $(MODULE)
@@ -262,6 +267,6 @@ install_rpm: $(MODULE)
 endif # eq($(MAKECMDGOALS),clean)
 
 clean:
-	for f in . linux r0drv r0drv/linux VBox common/err common/string common/log generic math/gcc; \
+	for f in . linux r0drv r0drv/generic r0drv/linux VBox common/err common/string common/log generic math/gcc; \
 	    do rm -f $$f/*.o $$f/.*.cmd $$f/.*.flags; done
 	rm -rf .vboxdrv* .tmp_ver* vboxdrv.* Module.symvers Modules.symvers modules.order

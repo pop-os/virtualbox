@@ -1,6 +1,6 @@
-/* $Id: s3.cpp $ */
+/* $Id: s3.cpp 23973 2009-10-22 12:34:22Z vboxsync $ */
 /** @file
- * S3 communication API.
+ * IPRT - S3 communication API.
  */
 
 /*
@@ -32,7 +32,8 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include "iprt/s3.h"
+#include <iprt/s3.h>
+#include "internal/iprt.h"
 
 #include <iprt/err.h>
 #include <iprt/mem.h>
@@ -47,6 +48,10 @@
 
 #include "internal/magics.h"
 
+
+/*******************************************************************************
+*   Structures and Typedefs                                                    *
+*******************************************************************************/
 typedef struct RTS3INTERNAL
 {
     uint32_t u32Magic;
@@ -70,6 +75,7 @@ typedef struct RTS3TMPMEMCHUNK
 } RTS3TMPMEMCHUNK;
 typedef RTS3TMPMEMCHUNK *PRTS3TMPMEMCHUNK;
 
+
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
@@ -90,6 +96,7 @@ typedef RTS3TMPMEMCHUNK *PRTS3TMPMEMCHUNK;
         AssertPtrReturnVoid(hS3); \
         AssertReturnVoid((hS3)->u32Magic == RTS3_MAGIC); \
     } while (0)
+
 
 /*******************************************************************************
 *   Private RTS3 helper                                                        *
@@ -245,7 +252,11 @@ static int rtS3Perform(PRTS3INTERNAL pS3Int)
         {
             case CURLE_URL_MALFORMAT:
             case CURLE_COULDNT_RESOLVE_HOST:
+#if defined(CURLE_REMOTE_FILE_NOT_FOUND)
             case CURLE_REMOTE_FILE_NOT_FOUND: rc = VERR_S3_NOT_FOUND; break;
+#elif defined(CURLE_FILE_COULDNT_READ_FILE)
+            case CURLE_FILE_COULDNT_READ_FILE: rc = VERR_S3_NOT_FOUND; break;
+#endif
 #if defined(CURLE_REMOTE_ACCESS_DENIED)
             case CURLE_REMOTE_ACCESS_DENIED: rc = VERR_S3_ACCESS_DENIED; break;
 #elif defined(CURLE_FTP_ACCESS_DENIED)
@@ -861,7 +872,7 @@ RTR3DECL(int) RTS3GetKey(RTS3 hS3, const char* pszBucketName, const char* pszKey
 
     /* Open the file */
     RTFILE hFile;
-    int rc = RTFileOpen(&hFile, pszFileName, RTFILE_O_CREATE | RTFILE_O_WRITE);
+    int rc = RTFileOpen(&hFile, pszFileName, RTFILE_O_CREATE | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -902,6 +913,10 @@ RTR3DECL(int) RTS3GetKey(RTS3 hS3, const char* pszBucketName, const char* pszKey
     /* Close the open file */
     RTFileClose(hFile);
 
+    /* If there was an error delete the newly created file */
+    if (RT_FAILURE(rc))
+        RTFileDelete(pszFileName);
+
     return rc;
 }
 
@@ -915,7 +930,7 @@ RTR3DECL(int) RTS3PutKey(RTS3 hS3, const char* pszBucketName, const char* pszKey
 
     /* Open the file */
     RTFILE hFile;
-    int rc = RTFileOpen(&hFile, pszFileName, RTFILE_O_OPEN | RTFILE_O_READ);
+    int rc = RTFileOpen(&hFile, pszFileName, RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_NONE);
     if (RT_FAILURE(rc))
         return rc;
 

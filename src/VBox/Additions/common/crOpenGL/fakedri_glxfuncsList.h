@@ -96,4 +96,3 @@ GLXAPI_ENTRY(CreateGLXPixmapMESA)
 GLXAPI_ENTRY(GetCurrentDisplayEXT)
 GLXAPI_ENTRY(FreeContextEXT)
 #endif
-

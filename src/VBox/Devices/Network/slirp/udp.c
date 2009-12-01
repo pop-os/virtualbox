@@ -106,6 +106,8 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
      * If not enough data to reflect UDP length, drop.
      */
     len = ntohs((u_int16_t)uh->uh_ulen);
+    Assert((ip->ip_len == len));
+    Assert((ip->ip_len + iphlen == m->m_len));
 
     if (ip->ip_len != len)
     {
@@ -139,7 +141,7 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         {
 
 #endif
-            if (cksum(m, len + iphlen))
+            if(cksum(m, len + iphlen))
             {
                 udpstat.udps_badsum++;
                 Log3(("NAT: IP(id: %hd) has bad (udp) cksum\n", ip->ip_id));
@@ -159,15 +161,33 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         goto done;
     }
 
+    if (   pData->use_host_resolver
+        && ntohs(uh->uh_dport) == 53
+        && CTL_CHECK(ntohl(ip->ip_dst.s_addr), CTL_DNS))
+    {
+        struct sockaddr_in dst, src;
+        src.sin_addr.s_addr = ip->ip_dst.s_addr;
+        src.sin_port = uh->uh_dport;
+        dst.sin_addr.s_addr = ip->ip_src.s_addr;
+        dst.sin_port = uh->uh_sport;
+        /* udp_output2 will do opposite operations on mbuf*/
+
+        m->m_data += sizeof(struct udpiphdr);
+        m->m_len -= sizeof(struct udpiphdr);
+        udp_output2(pData, NULL, m, &src, &dst, IPTOS_LOWDELAY);
+        goto done;
+    }
     /*
      *  handle TFTP
      */
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     if (   ntohs(uh->uh_dport) == TFTP_SERVER
         && CTL_CHECK(ntohl(ip->ip_dst.s_addr), CTL_TFTP))
     {
         tftp_input(pData, m);
         goto done;
     }
+#endif
 
     /*
      * Locate pcb for datagram.
@@ -207,7 +227,7 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
             Log3(("NAT: IP(id: %hd) failed to create socket\n", ip->ip_id));
             goto bad;
         }
-        if (udp_attach(pData, so, slirp_get_service(IPPROTO_UDP, uh->uh_dport, uh->uh_sport)) == -1)
+        if (udp_attach(pData, so, 0) == -1)
         {
             Log3(("NAT: IP(id: %hd) udp_attach errno = %d-%s\n",
                         ip->ip_id, errno, strerror(errno)));
@@ -237,7 +257,8 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
     /*
      * DNS proxy
      */
-    if (   (ip->ip_dst.s_addr == htonl(ntohl(special_addr.s_addr) | CTL_DNS))
+    if (   pData->use_dns_proxy
+        && (ip->ip_dst.s_addr == htonl(ntohl(special_addr.s_addr) | CTL_DNS))
         && (ntohs(uh->uh_dport) == 53))
     {
         dnsproxy_query(pData, so, m, iphlen);
@@ -272,7 +293,8 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         so->so_m = NULL;
     }
 
-    m_free(pData, so->so_m);   /* used for ICMP if error on sorecvfrom */
+    if (so->so_m)
+        m_free(pData, so->so_m);   /* used for ICMP if error on sorecvfrom */
 
     /* restore the orig mbuf packet */
     m->m_len += iphlen;
@@ -320,7 +342,7 @@ int udp_output2(PNATState pData, struct socket *so, struct mbuf *m,
     ui = mtod(m, struct udpiphdr *);
     memset(ui->ui_x1, 0, 9);
     ui->ui_pr = IPPROTO_UDP;
-    ui->ui_len = htons(m->m_len - sizeof(struct ip)); /* + sizeof (struct udphdr)); */
+    ui->ui_len = htons(m->m_len - sizeof(struct ip));
     /* XXXXX Check for from-one-location sockets, or from-any-location sockets */
     ui->ui_src = saddr->sin_addr;
     ui->ui_dst = daddr->sin_addr;
@@ -376,60 +398,57 @@ int udp_output(PNATState pData, struct socket *so, struct mbuf *m,
 int
 udp_attach(PNATState pData, struct socket *so, int service_port)
 {
-    struct sockaddr_in addr;
+    struct sockaddr_in *addr;
     struct sockaddr sa_addr;
     socklen_t socklen = sizeof(struct sockaddr);
     int status;
+    int opt = 1;
 
-    if ((so->s = socket(AF_INET, SOCK_DGRAM, 0)) != -1)
-    {
-        /*
-         * Here, we bind() the socket.  Although not really needed
-         * (sendto() on an unbound socket will bind it), it's done
-         * here so that emulation of ytalk etc. don't have to do it
-         */
-        memset(&addr, 0, sizeof(addr));
+    if ((so->s = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
+        goto error;
+    /*
+     * Here, we bind() the socket.  Although not really needed
+     * (sendto() on an unbound socket will bind it), it's done
+     * here so that emulation of ytalk etc. don't have to do it
+     */
+    memset(&sa_addr, 0, sizeof(struct sockaddr));
+    addr = (struct sockaddr_in *)&sa_addr;
 #ifdef RT_OS_DARWIN
-        addr.sin_len = sizeof(addr);
+    addr->sin_len = sizeof(struct sockaddr_in);
 #endif
-        addr.sin_family = AF_INET;
-        addr.sin_port = service_port;
-        addr.sin_addr.s_addr = pData->bindIP.s_addr;
-        fd_nonblock(so->s);
-        if (bind(so->s, (struct sockaddr *)&addr, sizeof(addr)) < 0)
-        {
-            int lasterrno = errno;
-            closesocket(so->s);
-            so->s = -1;
-#ifdef RT_OS_WINDOWS
-            WSASetLastError(lasterrno);
-#else
-            errno = lasterrno;
-#endif
-        }
-        else
-        {
-            int opt = 1;
-            /* success, insert in queue */
-            so->so_expire = curtime + SO_EXPIRE;
-            /* enable broadcast for later use */
-            setsockopt(so->s, SOL_SOCKET, SO_BROADCAST, (const char *)&opt, sizeof(opt));
-            status = getsockname(so->s, &sa_addr, &socklen);
-            Assert(status == 0 && sa_addr.sa_family == AF_INET);
-            so->so_hlport = ((struct sockaddr_in *)&sa_addr)->sin_port;
-            so->so_hladdr.s_addr = ((struct sockaddr_in *)&sa_addr)->sin_addr.s_addr;
-            SOCKET_LOCK_CREATE(so);
-            QSOCKET_LOCK(udb);
-            insque(pData, so, &udb);
-            NSOCK_INC();
-            QSOCKET_UNLOCK(udb);
-        }
-    }
-    else
+    addr->sin_family = AF_INET;
+    addr->sin_port = service_port;
+    addr->sin_addr.s_addr = pData->bindIP.s_addr;
+    fd_nonblock(so->s);
+    if (bind(so->s, &sa_addr, sizeof(struct sockaddr_in)) < 0)
     {
-        LogRel(("NAT: can't create datagramm socket\n"));
+        int lasterrno = errno;
+        closesocket(so->s);
+        so->s = -1;
+#ifdef RT_OS_WINDOWS
+        WSASetLastError(lasterrno);
+#else
+        errno = lasterrno;
+#endif
+        goto error;
     }
+    /* success, insert in queue */
+    so->so_expire = curtime + SO_EXPIRE;
+    /* enable broadcast for later use */
+    setsockopt(so->s, SOL_SOCKET, SO_BROADCAST, (const char *)&opt, sizeof(opt));
+    status = getsockname(so->s, &sa_addr, &socklen);
+    Assert(status == 0 && sa_addr.sa_family == AF_INET);
+    so->so_hlport = ((struct sockaddr_in *)&sa_addr)->sin_port;
+    so->so_hladdr.s_addr = ((struct sockaddr_in *)&sa_addr)->sin_addr.s_addr;
+    SOCKET_LOCK_CREATE(so);
+    QSOCKET_LOCK(udb);
+    insque(pData, so, &udb);
+    NSOCK_INC();
+    QSOCKET_UNLOCK(udb);
     return so->s;
+error:
+    LogRel(("NAT: can't create datagramm socket\n"));
+    return -1;
 }
 
 void
@@ -484,249 +503,7 @@ udp_tos(struct socket *so)
 void
 udp_emu(PNATState pData, struct socket *so, struct mbuf *m)
 {
-#ifndef VBOX_WITH_SLIRP_ALIAS
-    struct sockaddr_in addr;
-    socklen_t addrlen = sizeof(addr);
-#ifdef EMULATE_TALK
-    CTL_MSG_OLD *omsg;
-    CTL_MSG *nmsg;
-    char buff[sizeof(CTL_MSG)];
-    u_char type;
-
-    struct talk_request
-    {
-        struct talk_request *next;
-        struct socket *udp_so;
-        struct socket *tcp_so;
-    } *req;
-
-    static struct talk_request *req_tbl = 0;
-
-#endif
-
-    struct cu_header
-    {
-        uint16_t  d_family;               /* destination family */
-        uint16_t  d_port;                 /* destination port */
-        uint32_t  d_addr;                 /* destination address */
-        uint16_t  s_family;               /* source family */
-        uint16_t  s_port;                 /* source port */
-        uint32_t  so_addr;                /* source address */
-        uint32_t  seqn;                   /* sequence number */
-        uint16_t  message;                /* message */
-        uint16_t  data_type;              /* data type */
-        uint16_t  pkt_len;                /* packet length */
-    } *cu_head;
-
-    switch(so->so_emu)
-    {
-#ifdef EMULATE_TALK
-        case EMU_TALK:
-        case EMU_NTALK:
-            /*
-             * Talk emulation. We always change the ctl_addr to get
-             * some answers from the daemon. When an ANNOUNCE comes,
-             * we send LEAVE_INVITE to the local daemons. Also when a
-             * DELETE comes, we send copies to the local daemons.
-             */
-            if (getsockname(so->s, (struct sockaddr *)&addr, &addrlen) < 0)
-                return;
-
-#define IS_OLD  (so->so_emu == EMU_TALK)
-
-#define COPY_MSG(dest, src) \
-            do { \
-                dest->type = src->type; \
-                dest->id_num = src->id_num; \
-                dest->pid = src->pid; \
-                dest->addr = src->addr; \
-                dest->ctl_addr = src->ctl_addr; \
-                memcpy(&dest->l_name, &src->l_name, NAME_SIZE_OLD); \
-                memcpy(&dest->r_name, &src->r_name, NAME_SIZE_OLD); \
-                memcpy(&dest->r_tty, &src->r_tty, TTY_SIZE);
-            } while (0)
-
-#define OTOSIN(ptr, field) ((struct sockaddr_in *)&ptr->field)
-/* old_sockaddr to sockaddr_in */
-
-
-            if (IS_OLD)
-            {
-                /* old talk */
-                omsg = mtod(m, CTL_MSG_OLD*);
-                nmsg = (CTL_MSG *) buff;
-                type = omsg->type;
-                OTOSIN(omsg, ctl_addr)->sin_port = addr.sin_port;
-                OTOSIN(omsg, ctl_addr)->sin_addr = our_addr;
-                strncpy(omsg->l_name, getlogin(), NAME_SIZE_OLD);
-            }
-            else
-            {
-                /* new talk */
-                omsg = (CTL_MSG_OLD *) buff;
-                nmsg = mtod(m, CTL_MSG *);
-                type = nmsg->type;
-                OTOSIN(nmsg, ctl_addr)->sin_port = addr.sin_port;
-                OTOSIN(nmsg, ctl_addr)->sin_addr = our_addr;
-                strncpy(nmsg->l_name, getlogin(), NAME_SIZE_OLD);
-            }
-
-            if (type == LOOK_UP)
-                return;         /* for LOOK_UP this is enough */
-
-            if (IS_OLD)
-            {
-                /* make a copy of the message */
-                COPY_MSG(nmsg, omsg);
-                nmsg->vers = 1;
-                nmsg->answer = 0;
-            }
-            else
-                COPY_MSG(omsg, nmsg);
-
-            /*
-             * If if is an ANNOUNCE message, we go through the
-             * request table to see if a tcp port has already
-             * been redirected for this socket. If not, we solisten()
-             * a new socket and add this entry to the table.
-             * The port number of the tcp socket and our IP
-             * are put to the addr field of the message structures.
-             * Then a LEAVE_INVITE is sent to both local daemon
-             * ports, 517 and 518. This is why we have two copies
-             * of the message, one in old talk and one in new talk
-             * format.
-             */
-
-            if (type == ANNOUNCE)
-            {
-                int s;
-                u_short temp_port;
-
-                for (req = req_tbl; req; req = req->next)
-                    if (so == req->udp_so)
-                        break;          /* found it */
-
-                if (!req)
-                {
-                    /* no entry for so, create new */
-                    req = (struct talk_request *)RTMemAlloc(sizeof(struct talk_request));
-                    req->udp_so = so;
-                    req->tcp_so = solisten(0,
-                                           OTOSIN(omsg, addr)->sin_addr.s_addr,
-                                           OTOSIN(omsg, addr)->sin_port,
-                                           SS_FACCEPTONCE);
-                    req->next = req_tbl;
-                    req_tbl = req;
-                }
-
-                /* replace port number in addr field */
-                addrlen = sizeof(addr);
-                getsockname(req->tcp_so->s, (struct sockaddr *) &addr, &addrlen);
-                OTOSIN(omsg, addr)->sin_port = addr.sin_port;
-                OTOSIN(omsg, addr)->sin_addr = our_addr;
-                OTOSIN(nmsg, addr)->sin_port = addr.sin_port;
-                OTOSIN(nmsg, addr)->sin_addr = our_addr;
-
-                /* send LEAVE_INVITEs */
-                temp_port = OTOSIN(omsg, ctl_addr)->sin_port;
-                OTOSIN(omsg, ctl_addr)->sin_port = 0;
-                OTOSIN(nmsg, ctl_addr)->sin_port = 0;
-                omsg->type = nmsg->type = LEAVE_INVITE;
-
-                s = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
-                addr.sin_addr = our_addr;
-                addr.sin_family = AF_INET;
-                addr.sin_port = htons(517);
-                sendto(s, (char *)omsg, sizeof(*omsg), 0,
-                       (struct sockaddr *)&addr, sizeof(addr));
-                addr.sin_port = htons(518);
-                sendto(s, (char *)nmsg, sizeof(*nmsg), 0,
-                       (struct sockaddr *) &addr, sizeof(addr));
-                closesocket(s) ;
-
-                omsg->type = nmsg->type = ANNOUNCE;
-                OTOSIN(omsg, ctl_addr)->sin_port = temp_port;
-                OTOSIN(nmsg, ctl_addr)->sin_port = temp_port;
-            }
-
-            /*
-             * If it is a DELETE message, we send a copy to the
-             * local daemons. Then we delete the entry corresponding
-             * to our socket from the request table.
-             */
-
-            if (type == DELETE)
-            {
-                struct talk_request *temp_req, *req_next;
-                int s;
-                u_short temp_port;
-
-                temp_port = OTOSIN(omsg, ctl_addr)->sin_port;
-                OTOSIN(omsg, ctl_addr)->sin_port = 0;
-                OTOSIN(nmsg, ctl_addr)->sin_port = 0;
-
-                s = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
-                addr.sin_addr = our_addr;
-                addr.sin_family = AF_INET;
-                addr.sin_port = htons(517);
-                sendto(s, (char *)omsg, sizeof(*omsg), 0,
-                       (struct sockaddr *)&addr, sizeof(addr));
-                addr.sin_port = htons(518);
-                sendto(s, (char *)nmsg, sizeof(*nmsg), 0,
-                        (struct sockaddr *)&addr, sizeof(addr));
-                closesocket(s);
-
-                OTOSIN(omsg, ctl_addr)->sin_port = temp_port;
-                OTOSIN(nmsg, ctl_addr)->sin_port = temp_port;
-
-                /* delete table entry */
-                if (so == req_tbl->udp_so)
-                {
-                    temp_req = req_tbl;
-                    req_tbl = req_tbl->next;
-                    RTMemFree(temp_req);
-                }
-                else
-                {
-                    temp_req = req_tbl;
-                    for (req = req_tbl->next; req; req = req_next)
-                    {
-                        req_next = req->next;
-                        if (so == req->udp_so)
-                        {
-                            temp_req->next = req_next;
-                            RTMemFree(req);
-                            break;
-                        }
-                        else
-                            temp_req = req;
-                    }
-                }
-            }
-
-            return;
-#endif
-
-        case EMU_CUSEEME:
-            /*
-             * Cu-SeeMe emulation.
-             * Hopefully the packet is more that 16 bytes long. We don't
-             * do any other tests, just replace the address and port
-             * fields.
-             */
-            if (m->m_len >= sizeof (*cu_head))
-            {
-                if (getsockname(so->s, (struct sockaddr *)&addr, &addrlen) < 0)
-                    return;
-                cu_head = mtod(m, struct cu_header *);
-                cu_head->s_port  = addr.sin_port;
-                cu_head->so_addr = our_addr.s_addr;
-            }
-            return;
-    }
-#else /*!VBOX_WITH_SLIRP_ALIAS*/
     so->so_emu = 0;
-#endif /* VBOX_WITH_SLIRP_ALIAS */
 }
 
 struct socket *

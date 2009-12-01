@@ -1,4 +1,4 @@
-/* $Id: tstFile.cpp $ */
+/* $Id: tstFile.cpp 25000 2009-11-26 14:22:44Z vboxsync $ */
 /** @file
  * IPRT Testcase - File I/O.
  */
@@ -179,7 +179,7 @@ int main()
             }
             else
             {
-                size_t cbWritten = 0;
+                cbWritten = 0;
                 while (cbWritten < sizeof(szTestBuf))
                 {
                     size_t cbWrittenPart;

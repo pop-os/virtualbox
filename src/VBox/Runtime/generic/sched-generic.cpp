@@ -1,4 +1,4 @@
-/* $Id: sched-generic.cpp $ */
+/* $Id: sched-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Scheduling, generic stubs.
  */
@@ -34,6 +34,8 @@
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_THREAD
 #include <iprt/thread.h>
+#include "internal/iprt.h"
+
 #include <iprt/log.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>

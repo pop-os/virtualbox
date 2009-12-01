@@ -6,6 +6,7 @@
 #include <VBox/err.h>
 #include <VBox/pdmdrv.h>
 #include <iprt/assert.h>
+#include <iprt/file.h>
 #ifndef RT_OS_WINDOWS
 # include <sys/ioctl.h>
 # include <poll.h>
@@ -14,18 +15,16 @@
 # define _WINSOCK2API_
 # include <IPHlpApi.h>
 #endif
-#ifdef VBOX_WITH_SLIRP_ALIAS
-# include <alias.h>
-#endif
+#include <alias.h>
 
 #if !defined(RT_OS_WINDOWS)
 
 #  define DO_ENGAGE_EVENT1(so, fdset, label)                        \
     do {                                                            \
-        if (    so->so_poll_index != -1                             \
-             && so->s == polls[so->so_poll_index].fd) {             \
-             polls[so->so_poll_index].events |= N_(fdset ## _poll); \
-             break; /* out of this loop */                          \
+        if(    so->so_poll_index != -1                              \
+            && so->s == polls[so->so_poll_index].fd) {              \
+            polls[so->so_poll_index].events |= N_(fdset ## _poll);  \
+            break; /* out of this loop */                           \
         }                                                           \
         AssertRelease(poll_index < (nfds));                         \
         AssertRelease(poll_index >= 0 && poll_index < (nfds));      \
@@ -39,11 +38,11 @@
 
 #  define DO_ENGAGE_EVENT2(so, fdset1, fdset2, label)           \
     do {                                                        \
-        if (    so->so_poll_index != -1                         \
-             && so->s == polls[so->so_poll_index].fd) {         \
-             polls[so->so_poll_index].events |=                 \
-                 N_(fdset1 ## _poll) | N_(fdset1 ## _poll);     \
-             break; /* out of this loop */                      \
+        if(    so->so_poll_index != -1                          \
+            && so->s == polls[so->so_poll_index].fd) {          \
+            polls[so->so_poll_index].events |=                  \
+                N_(fdset1 ## _poll) | N_(fdset1 ## _poll);      \
+            break; /* out of this loop */                       \
         }                                                       \
         AssertRelease(poll_index < (nfds));                     \
         polls[poll_index].fd = (so)->s;                         \
@@ -190,6 +189,9 @@
 
 #define LOG_NAT_SOCK(so, proto, winevent, r_fdset, w_fdset, x_fdset) DO_LOG_NAT_SOCK((so), proto, (winevent), r_fdset, w_fdset, x_fdset)
 
+static void activate_port_forwarding(PNATState, struct ethhdr *);
+static uint32_t find_guest_ip(PNATState, const uint8_t *);
+
 static const uint8_t special_ethaddr[6] =
 {
     0x52, 0x54, 0x00, 0x12, 0x35, 0x00
@@ -271,8 +273,10 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
                 RTMemFree(addresses);
                 return VERR_NO_MEMORY;
             }
-            LogRel(("NAT: adding %R[IP4] to DNS server list\n", &((struct sockaddr_in *)saddr)->sin_addr));
-            if ((((struct sockaddr_in *)saddr)->sin_addr.s_addr & htonl(IN_CLASSA_NET)) == ntohl(INADDR_LOOPBACK & IN_CLASSA_NET)) {
+            LogRel(("NAT: adding %R[IP4] to DNS server list\n",
+                    &((struct sockaddr_in *)saddr)->sin_addr));
+            if ((((  struct sockaddr_in *)saddr)->sin_addr.s_addr & htonl(IN_CLASSA_NET)) ==
+                     ntohl(INADDR_LOOPBACK & IN_CLASSA_NET)) {
                 da->de_addr.s_addr = htonl(ntohl(special_addr.s_addr) | CTL_ALIAS);
             }
             else
@@ -329,59 +333,85 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
 
 #else /* !RT_OS_WINDOWS */
 
+static int RTFileGets(RTFILE File, void *pvBuf, size_t cbBufSize, size_t *pcbRead)
+{
+    size_t cbRead;
+    char bTest;
+    int rc = VERR_NO_MEMORY;
+    char *pu8Buf = (char *)pvBuf;
+    *pcbRead = 0;
+    while(   RT_SUCCESS(rc = RTFileRead(File, &bTest, 1, &cbRead))
+          && (pu8Buf - (char *)pvBuf) < cbBufSize)
+    {
+        if (cbRead == 0)
+            return VERR_EOF;
+        if (bTest == '\r' || bTest == '\n')
+        {
+            *pu8Buf = 0;
+            return VINF_SUCCESS;
+        }
+        *pu8Buf = bTest;
+         pu8Buf++;
+        (*pcbRead)++;
+    }
+    return rc;
+}
 static int get_dns_addr_domain(PNATState pData, bool fVerbose,
                                struct in_addr *pdns_addr,
                                const char **ppszDomain)
 {
     char buff[512];
     char buff2[256];
-    FILE *f = NULL;
+    RTFILE f;
     int found = 0;
     struct in_addr tmp_addr;
+    int rc;
+    size_t bytes;
 
 #ifdef RT_OS_OS2
     /* Try various locations. */
     char *etc = getenv("ETC");
     if (etc)
     {
-        snprintf(buff, sizeof(buff), "%s/RESOLV2", etc);
-        f = fopen(buff, "rt");
+        RTStrmPrintf(buff, sizeof(buff), "%s/RESOLV2", etc);
+        rc = RTFileOpen(&f, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
     }
-    if (!f)
+    if (RT_FAILURE(rc))
     {
-        snprintf(buff, sizeof(buff), "%s/RESOLV2", _PATH_ETC);
-        f = fopen(buff, "rt");
+        RTStrmPrintf(buff, sizeof(buff), "%s/RESOLV2", _PATH_ETC);
+        rc = RTFileOpen(&f, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
     }
-    if (!f)
+    if (RT_FAILURE(rc))
     {
-        snprintf(buff, sizeof(buff), "%s/resolv.conf", _PATH_ETC);
-        f = fopen(buff, "rt");
+        RTStrmPrintf(buff, sizeof(buff), "%s/resolv.conf", _PATH_ETC);
+        rc = RTFileOpen(&f, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
     }
 #else
-#ifndef DEBUG_vvl
-    f = fopen("/etc/resolv.conf", "r");
-#else
+# ifndef DEBUG_vvl
+    rc = RTFileOpen(&f, "/etc/resolv.conf", RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+# else
     char *home = getenv("HOME");
-    snprintf(buff, sizeof(buff), "%s/resolv.conf", home);
-    f = fopen(buff, "r");
-    if (f != NULL)
+    RTStrPrintf(buff, sizeof(buff), "%s/resolv.conf", home);
+    rc = RTFileOpen(&f, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+    if (RT_SUCCESS(rc))
     {
         Log(("NAT: DNS we're using %s\n", buff));
     }
     else
     {
-        f = fopen("/etc/resolv.conf", "r");
+        rc = RTFileOpen(&f, "/etc/resolv.conf", RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
         Log(("NAT: DNS we're using %s\n", buff));
     }
+# endif
 #endif
-#endif
-    if (!f)
+    if (RT_FAILURE(rc))
         return -1;
 
     if (ppszDomain)
         *ppszDomain = NULL;
     Log(("nat: DNS Servers:\n"));
-    while (fgets(buff, 512, f) != NULL)
+    while (    RT_SUCCESS(rc = RTFileGets(f, buff, 512, &bytes))
+            && rc != VERR_EOF)
     {
         struct dns_entry *da = NULL;
         if (sscanf(buff, "nameserver%*[ \t]%256s", buff2) == 1)
@@ -412,8 +442,8 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
             tok = strtok_r(&buff[6], " \t\n", &saveptr);
             LIST_FOREACH(dd, &pData->dns_domain_list_head, dd_list)
             {
-                if (    tok != NULL
-                     && strcmp(tok, dd->dd_pszDomain) == 0)
+                if(    tok != NULL
+                    && strcmp(tok, dd->dd_pszDomain) == 0)
                 {
                     found = 1;
                     break;
@@ -432,7 +462,7 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
             }
         }
     }
-    fclose(f);
+    RTFileClose(f);
     if (!found)
         return -1;
     return 0;
@@ -472,7 +502,7 @@ int get_dns_addr(PNATState pData, struct in_addr *pdns_addr)
 
 #ifndef VBOX_WITH_NAT_SERVICE
 int slirp_init(PNATState *ppData, const char *pszNetAddr, uint32_t u32Netmask,
-               bool fPassDomain, void *pvUser)
+               bool fPassDomain, bool fUseHostResolver, void *pvUser)
 #else
 int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
                bool fPassDomain, void *pvUser)
@@ -487,7 +517,8 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
     if (u32Netmask & 0x1f)
         /* CTL is x.x.x.15, bootp passes up to 16 IPs (15..31) */
         return VERR_INVALID_PARAMETER;
-    pData->fPassDomain = fPassDomain;
+    pData->fPassDomain = !fUseHostResolver ? fPassDomain : false;
+    pData->use_host_resolver = fUseHostResolver;
     pData->pvUser = pvUser;
     pData->netmask = u32Netmask;
 
@@ -513,35 +544,44 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
 
     link_up = 1;
 
+    rc = bootp_dhcp_init(pData);
+    if (rc != 0)
+    {
+        LogRel(("NAT: DHCP server initialization was failed\n"));
+        return VINF_NAT_DNS;
+    }
     debug_init();
     if_init(pData);
     ip_init(pData);
     icmp_init(pData);
 
     /* Initialise mbufs *after* setting the MTU */
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     m_init(pData);
+#else
+    mbuf_init(pData);
+#endif
 
 #ifndef VBOX_WITH_NAT_SERVICE
     inet_aton(pszNetAddr, &special_addr);
 #else
     special_addr.s_addr = u32NetAddr;
 #endif
-#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
     pData->slirp_ethaddr = &special_ethaddr[0];
-#endif
     alias_addr.s_addr = special_addr.s_addr | htonl(CTL_ALIAS);
     /* @todo: add ability to configure this staff */
 
     /* set default addresses */
     inet_aton("127.0.0.1", &loopback_addr);
-    if (slirp_init_dns_list(pData) < 0)
-        fNATfailed = 1;
+    if (!pData->use_host_resolver)
+    {
+        if (slirp_init_dns_list(pData) < 0)
+            fNATfailed = 1;
 
-    dnsproxy_init(pData);
+        dnsproxy_init(pData);
+    }
 
     getouraddr(pData);
-
-#ifdef VBOX_WITH_SLIRP_ALIAS
     {
         int flags = 0;
         struct in_addr proxy_addr;
@@ -552,15 +592,18 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
             AssertMsgFailed(("NAT: LibAlias default rule wasn't initialized\n"));
         }
         flags = LibAliasSetMode(pData->proxy_alias, 0, 0);
+#ifndef NO_FW_PUNCH
+        flags |= PKT_ALIAS_PUNCH_FW;
+#endif
         flags |= PKT_ALIAS_LOG; /* set logging */
         flags = LibAliasSetMode(pData->proxy_alias, flags, ~0);
         proxy_addr.s_addr = htonl(ntohl(special_addr.s_addr) | CTL_ALIAS);
         LibAliasSetAddress(pData->proxy_alias, proxy_addr);
         ftp_alias_load(pData);
         nbt_alias_load(pData);
-
+        if (pData->use_host_resolver)
+            dns_alias_load(pData);
     }
-#endif
     return fNATfailed ? VINF_NAT_DNS : VINF_SUCCESS;
 }
 
@@ -570,26 +613,10 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
 void slirp_register_statistics(PNATState pData, PPDMDRVINS pDrvIns)
 {
 #ifdef VBOX_WITH_STATISTICS
-# define COUNTER(name, type, units, dsc)                            \
-    do {                                                            \
-        PDMDrvHlpSTAMRegisterF(pDrvIns,                             \
-                               &pData->Stat ## name,                \
-                               type,                                \
-                               STAMVISIBILITY_ALWAYS,               \
-                               units,                               \
-                               dsc,                                 \
-                               "/Drivers/NAT%u/" #name,             \
-                               pDrvIns->iInstance);                 \
-    } while (0)
-
-# define PROFILE_COUNTER(name, dsc)     COUNTER(name, STAMTYPE_PROFILE, STAMUNIT_TICKS_PER_CALL, dsc)
-# define COUNTING_COUNTER(name, dsc)    COUNTER(name, STAMTYPE_COUNTER, STAMUNIT_COUNT,          dsc)
-
+# define PROFILE_COUNTER(name, dsc)     REGISTER_COUNTER(name, pData, STAMTYPE_PROFILE, STAMUNIT_TICKS_PER_CALL, dsc)
+# define COUNTING_COUNTER(name, dsc)    REGISTER_COUNTER(name, pData, STAMTYPE_COUNTER, STAMUNIT_COUNT,          dsc)
 # include "counters.h"
-
 # undef COUNTER
-# undef PROFILE_COUNTER
-# undef COUNTING_COUNTER
 /** @todo register statistics for the variables dumped by:
  *  ipstats(pData); tcpstats(pData); udpstats(pData); icmpstats(pData);
  *  mbufstats(pData); sockstats(pData); */
@@ -602,13 +629,9 @@ void slirp_register_statistics(PNATState pData, PPDMDRVINS pDrvIns)
 void slirp_deregister_statistics(PNATState pData, PPDMDRVINS pDrvIns)
 {
 #ifdef VBOX_WITH_STATISTICS
-# define PROFILE_COUNTER(name, dsc)     PDMDrvHlpSTAMDeregister(pDrvIns, &pData->Stat ## name)
-# define COUNTING_COUNTER(name, dsc)    PDMDrvHlpSTAMDeregister(pDrvIns, &pData->Stat ## name)
-
+# define PROFILE_COUNTER(name, dsc)     DEREGISTER_COUNTER(name, pData)
+# define COUNTING_COUNTER(name, dsc)    DEREGISTER_COUNTER(name, pData)
 # include "counters.h"
-
-# undef COUNTING_COUNTER
-# undef PROFILE_COUNTER
 #endif /* VBOX_WITH_STATISTICS */
 }
 
@@ -650,7 +673,7 @@ void slirp_term(PNATState pData)
     pData->pfIcmpCloseHandle(pData->icmp_socket.sh);
     FreeLibrary(pData->hmIcmpLibrary);
     RTMemFree(pData->pvIcmpBuffer);
-# else
+#else
     closesocket(pData->icmp_socket.s);
 #endif
 
@@ -658,20 +681,22 @@ void slirp_term(PNATState pData)
     slirp_release_dns_list(pData);
     ftp_alias_unload(pData);
     nbt_alias_unload(pData);
-#ifdef VBOX_WITH_SLIRP_ALIAS
+    if (pData->use_host_resolver)
+        dns_alias_unload(pData);
     while(!LIST_EMPTY(&instancehead))
     {
         struct libalias *la = LIST_FIRST(&instancehead);
         /* libalias do all clean up */
         LibAliasUninit(la);
     }
-#endif
     while(!LIST_EMPTY(&pData->arp_cache))
     {
         struct arp_cache_entry *ac = LIST_FIRST(&pData->arp_cache);
         LIST_REMOVE(ac, list);
         RTMemFree(ac);
     }
+    bootp_dhcp_fini(pData);
+    m_fini(pData);
 #ifdef RT_OS_WINDOWS
     WSACleanup();
 #endif
@@ -696,7 +721,6 @@ void slirp_term(PNATState pData)
 
 #define CONN_CANFSEND(so) (((so)->so_state & (SS_FCANTSENDMORE|SS_ISFCONNECTED)) == SS_ISFCONNECTED)
 #define CONN_CANFRCV(so)  (((so)->so_state & (SS_FCANTRCVMORE|SS_ISFCONNECTED)) == SS_ISFCONNECTED)
-#define UPD_NFDS(x)       do { if (nfds < (x)) nfds = (x); } while (0)
 
 /*
  * curtime kept to an accuracy of 1ms
@@ -746,6 +770,7 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
     do_slowtimo = 0;
     if (!link_up)
         goto done;
+
     /*
      * *_slowtimo needs calling if there are IP fragments
      * in the fragment queue, or there are TCP connections active
@@ -761,6 +786,7 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
             if (!TAILQ_EMPTY(&ipq[i]))
             {
                 do_slowtimo = 1;
+                slirp_arm_slow_timer(pData->pvUser);
                 break;
             }
         }
@@ -775,6 +801,18 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
 #if !defined(RT_OS_WINDOWS)
         so->so_poll_index = -1;
 #endif
+        if (pData->fmbuf_water_line == 1)
+        {
+            if (mbuf_alloced < pData->mbuf_water_line_limit/2)
+            {
+                pData->fmbuf_water_warn_sent = 0;
+                pData->fmbuf_water_line = 0;
+            }
+#ifndef RT_OS_WINDOWS
+            poll_index = 0;
+#endif
+            goto done;
+        }
         STAM_COUNTER_INC(&pData->StatTCP);
 
         /*
@@ -783,7 +821,10 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
         if (    time_fasttimo == 0
                 && so->so_tcpcb != NULL
                 && so->so_tcpcb->t_flags & TF_DELACK)
+        {
             time_fasttimo = curtime; /* Flag when we want a fasttimo */
+            slirp_arm_fast_timer(pData->pvUser);
+        }
 
         /*
          * NOFDREF can include still connecting to local-host,
@@ -843,6 +884,18 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
     QSOCKET_FOREACH(so, so_next, udp)
     /* { */
 
+        if (pData->fmbuf_water_line == 1)
+        {
+            if (mbuf_alloced < pData->mbuf_water_line_limit/2)
+            {
+                pData->fmbuf_water_line = 0;
+                pData->fmbuf_water_warn_sent = 0;
+            }
+#ifndef RT_OS_WINDOWS
+            poll_index = 0;
+#endif
+            goto done;
+        }
         STAM_COUNTER_INC(&pData->StatUDP);
 #if !defined(RT_OS_WINDOWS)
         so->so_poll_index = -1;
@@ -868,7 +921,10 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
                 CONTINUE_NO_UNLOCK(udp);
             }
             else
+            {
                 do_slowtimo = 1; /* Let socket expire */
+                slirp_arm_slow_timer(pData->pvUser);
+            }
         }
 
         /*
@@ -968,6 +1024,15 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
      */
     QSOCKET_FOREACH(so, so_next, tcp)
     /* { */
+        if (pData->fmbuf_water_line == 1)
+        {
+            if (mbuf_alloced < pData->mbuf_water_line_limit/2)
+            {
+                pData->fmbuf_water_line = 0;
+                pData->fmbuf_water_warn_sent = 0;
+            }
+            goto done;
+        }
 
 #ifdef VBOX_WITH_SLIRP_MT
         if (   so->so_state & SS_NOFDREF
@@ -1256,6 +1321,15 @@ tcp_input_close:
      */
      QSOCKET_FOREACH(so, so_next, udp)
      /* { */
+        if (pData->fmbuf_water_line == 1)
+        {
+            if (mbuf_alloced < pData->mbuf_water_line_limit/2)
+            {
+                pData->fmbuf_water_line = 0;
+                pData->fmbuf_water_warn_sent = 0;
+            }
+            goto done;
+        }
 #ifdef VBOX_WITH_SLIRP_MT
         if (   so->so_state & SS_NOFDREF
             && so->so_deleted == 1)
@@ -1298,7 +1372,7 @@ tcp_input_close:
     }
 
 done:
-#ifndef VBOX_WITH_SLIRP_MT
+#if 0
     /*
      * See if we can start outputting
      */
@@ -1309,21 +1383,6 @@ done:
     STAM_PROFILE_STOP(&pData->StatPoll, a);
 }
 
-#ifndef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
-#define ETH_ALEN        6
-#define ETH_HLEN        14
-
-#define ARPOP_REQUEST   1               /* ARP request                  */
-#define ARPOP_REPLY     2               /* ARP reply                    */
-
-struct ethhdr
-{
-    unsigned char   h_dest[ETH_ALEN];           /* destination eth addr */
-    unsigned char   h_source[ETH_ALEN];         /* source ether addr    */
-    unsigned short  h_proto;                    /* packet type ID field */
-};
-AssertCompileSize(struct ethhdr, 14);
-#endif
 
 struct arphdr
 {
@@ -1359,22 +1418,32 @@ static void arp_input(PNATState pData, struct mbuf *m)
     htip = ntohl(*(uint32_t*)ah->ar_tip);
     tip = *(uint32_t*)ah->ar_tip;
 
-    mr = m_get(pData);
-#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
-    reh = mtod(mr, struct ethhdr *);
-    memcpy(reh->h_source, eh->h_source, ETH_ALEN); /* XXX: if_encap will swap src and dst*/
-    Log4(("NAT: arp:%R[ether]->%R[ether]\n",
-        reh->h_source, reh->h_dest));
-    Log4(("NAT: arp: %R[IP4]\n", &tip));
-#endif
-    mr->m_data += if_maxlinkhdr;
-    mr->m_len = sizeof(struct arphdr);
-    rah = mtod(mr, struct arphdr *);
 
     ar_op = ntohs(ah->ar_op);
     switch(ar_op)
     {
         case ARPOP_REQUEST:
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
+            mr = m_get(pData);
+
+            reh = mtod(mr, struct ethhdr *);
+            memcpy(reh->h_source, eh->h_source, ETH_ALEN); /* XXX: if_encap will swap src and dst*/
+            Log4(("NAT: arp:%R[ether]->%R[ether]\n",
+                reh->h_source, reh->h_dest));
+            Log4(("NAT: arp: %R[IP4]\n", &tip));
+
+            mr->m_data += if_maxlinkhdr;
+            mr->m_len = sizeof(struct arphdr);
+            rah = mtod(mr, struct arphdr *);
+#else
+            mr = m_getcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR);
+            reh = mtod(mr, struct ethhdr *);
+            mr->m_data += ETH_HLEN;
+            rah = mtod(mr, struct arphdr *);
+            mr->m_len = sizeof(struct arphdr);
+            Assert(mr);
+            memcpy(reh->h_source, eh->h_source, ETH_ALEN); /* XXX: if_encap will swap src and dst*/
+#endif
 #ifdef VBOX_WITH_NAT_SERVICE
             if (tip == special_addr.s_addr) goto arp_ok;
 #endif
@@ -1391,6 +1460,8 @@ static void arp_input(PNATState pData, struct mbuf *m)
                         goto arp_ok;
                     }
                 }
+                m_free(pData, m);
+                m_free(pData, mr);
                 return;
         arp_ok:
                 rah->ar_hrd = htons(1);
@@ -1412,28 +1483,40 @@ static void arp_input(PNATState pData, struct mbuf *m)
                 memcpy(rah->ar_sip, ah->ar_tip, 4);
                 memcpy(rah->ar_tha, ah->ar_sha, ETH_ALEN);
                 memcpy(rah->ar_tip, ah->ar_sip, 4);
-                if_encap(pData, ETH_P_ARP, mr);
+                if_encap(pData, ETH_P_ARP, mr, ETH_ENCAP_URG);
                 m_free(pData, m);
+            }
+            /*Gratuitous ARP*/
+            if (  *(uint32_t *)ah->ar_sip == *(uint32_t *)ah->ar_tip
+                && memcmp(ah->ar_tha, broadcast_ethaddr, ETH_ALEN) == 0
+                &&  memcmp(eh->h_dest, broadcast_ethaddr, ETH_ALEN) == 0)
+            {
+                /* we've received anounce about address asignment
+                 * Let's do ARP cache update
+                 */
+                if (slirp_arp_cache_update(pData, *(uint32_t *)ah->ar_tip, &eh->h_dest[0]) == 0)
+                {
+                    m_free(pData, mr);
+                    m_free(pData, m);
+                    break;
+                }
+                slirp_arp_cache_add(pData, *(uint32_t *)ah->ar_tip, &eh->h_dest[0]);
+                /* good opportunity to activate port-forwarding on address (self)asignment*/
+                activate_port_forwarding(pData, eh);
             }
             break;
         case ARPOP_REPLY:
         {
-            struct arp_cache_entry *ac = NULL;
-            if (slirp_update_arp_cache(pData, *(uint32_t *)ah->ar_sip, ah->ar_sha) == 0)
+            if (slirp_arp_cache_update(pData, *(uint32_t *)ah->ar_sip, &ah->ar_sha[0]) == 0)
             {
                 m_free(pData, m);
                 break;
             }
-            ac = RTMemAllocZ(sizeof(struct arp_cache_entry));
-            if (ac == NULL)
-            {
-                LogRel(("NAT: Can't allocate arp cache entry\n"));
-                m_free(pData, m);
-                return;
-            }
-            ac->ip = *(uint32_t *)ah->ar_sip;
-            memcpy(ac->ether, ah->ar_sha, ETH_ALEN);
-            LIST_INSERT_HEAD(&pData->arp_cache, ac, list);
+            slirp_arp_cache_add(pData, *(uint32_t *)ah->ar_sip, ah->ar_sha);
+            /*after/save restore we need up port forwarding again*/
+            if (pData->port_forwarding_activated == 0)
+                activate_port_forwarding(pData, eh);
+            m_free(pData, m);
         }
         break;
         default:
@@ -1441,13 +1524,33 @@ static void arp_input(PNATState pData, struct mbuf *m)
     }
 }
 
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
 void slirp_input(PNATState pData, const uint8_t *pkt, int pkt_len)
+#else
+void slirp_input(PNATState pData, void *pvArg)
+#endif
 {
     struct mbuf *m;
     int proto;
     static bool fWarnedIpv6;
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
     struct ethhdr *eh = (struct ethhdr*)pkt;
+    int size = 0;
+#else
+    struct ethhdr *eh;
+#endif
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
+    m = (struct mbuf *)pvArg;
+    if (m->m_len < ETH_HLEN)
+    {
+        LogRel(("NAT: packet having size %d has been ingnored\n", m->m_len));
+        m_free(pData, m);
+        return;
+    }
+    eh = mtod(m, struct ethhdr *);
+    proto = ntohs(eh->h_proto);
+#else
     Log2(("NAT: slirp_input %d\n", pkt_len));
     if (pkt_len < ETH_HLEN)
     {
@@ -1455,7 +1558,7 @@ void slirp_input(PNATState pData, const uint8_t *pkt, int pkt_len)
         return;
     }
     Log4(("NAT: in:%R[ether]->%R[ether]\n", &eh->h_source, &eh->h_dest));
-#ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
+
     if (memcmp(eh->h_source, special_ethaddr, ETH_ALEN) == 0)
     {
         /* @todo vasily: add ether logging routine in debug.c */
@@ -1463,24 +1566,45 @@ void slirp_input(PNATState pData, const uint8_t *pkt, int pkt_len)
         RTMemFree((void *)pkt);
         return;
     }
-#endif
 
-    m = m_get(pData);
+    if (pkt_len < MSIZE)
+    {
+        size = MCLBYTES;
+    }
+    else if (pkt_len < MCLBYTES)
+    {
+        size = MCLBYTES;
+    }
+    else if(pkt_len < MJUM9BYTES)
+    {
+        size = MJUM9BYTES;
+    }
+    else if (pkt_len < MJUM16BYTES)
+    {
+        size = MJUM16BYTES;
+    }
+    else
+    {
+        AssertMsgFailed(("Unsupported size"));
+    }
+    m = m_getjcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR, size);
     if (!m)
     {
         LogRel(("NAT: can't allocate new mbuf\n"));
+        RTMemFree((void *)pkt);
         return;
     }
 
-    /* Note: we add to align the IP header */
-
-    if (M_FREEROOM(m) < pkt_len)
-       m_inc(m, pkt_len);
-
     m->m_len = pkt_len ;
     memcpy(m->m_data, pkt, pkt_len);
-
     proto = ntohs(*(uint16_t *)(pkt + 12));
+#endif
+    /* Note: we add to align the IP header */
+
+
+    if (pData->port_forwarding_activated == 0)
+        activate_port_forwarding(pData, mtod(m, struct ethhdr *));
+
     switch(proto)
     {
         case ETH_P_ARP:
@@ -1491,6 +1615,20 @@ void slirp_input(PNATState pData, const uint8_t *pkt, int pkt_len)
              * the first outgoing connection gets an incorrect timestamp. */
             updtime(pData);
             m_adj(m, ETH_HLEN);
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
+            M_ASSERTPKTHDR(m);
+            m->m_pkthdr.header = mtod(m, void *);
+#endif
+#if 1
+            if (   pData->fmbuf_water_line
+                && pData->fmbuf_water_warn_sent == 0
+                && (curtime - pData->tsmbuf_water_warn_sent) > 500)
+            {
+                icmp_error(pData, m, ICMP_SOURCEQUENCH, 0, 0, "Out of resources!!!");
+                pData->fmbuf_water_warn_sent = 1;
+                pData->tsmbuf_water_warn_sent = curtime;
+            }
+#endif
             ip_input(pData, m);
             break;
         case ETH_P_IPV6:
@@ -1506,31 +1644,36 @@ void slirp_input(PNATState pData, const uint8_t *pkt, int pkt_len)
             m_free(pData, m);
             break;
     }
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
     RTMemFree((void *)pkt);
+#endif
 }
 
 /* output the IP packet to the ethernet device */
-void if_encap(PNATState pData, uint16_t eth_proto, struct mbuf *m)
+void if_encap(PNATState pData, uint16_t eth_proto, struct mbuf *m, int flags)
 {
     struct ethhdr *eh;
     uint8_t *buf = NULL;
+    size_t mlen = 0;
+    STAM_PROFILE_START(&pData->StatIF_encap, a);
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     m->m_data -= if_maxlinkhdr;
     m->m_len += ETH_HLEN;
     eh = mtod(m, struct ethhdr *);
 
-    if (MBUF_HEAD(m) != m->m_data)
+    if(MBUF_HEAD(m) != m->m_data)
     {
         LogRel(("NAT: ethernet detects corruption of the packet"));
         AssertMsgFailed(("!!Ethernet frame corrupted!!"));
     }
-
-#ifndef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
-    memcpy(eh->h_dest, client_ethaddr, ETH_ALEN);
-    memcpy(eh->h_source, special_ethaddr, ETH_ALEN - 1);
-    /* XXX: not correct */
-    eh->h_source[5] = CTL_ALIAS;
 #else
+    M_ASSERTPKTHDR(m);
+    m->m_data -= ETH_HLEN;
+    m->m_len += ETH_HLEN;
+    eh = mtod(m, struct ethhdr *);
+#endif
+
     if (memcmp(eh->h_source, special_ethaddr, ETH_ALEN) != 0)
     {
         memcpy(eh->h_dest, eh->h_source, ETH_ALEN);
@@ -1542,97 +1685,192 @@ void if_encap(PNATState pData, uint16_t eth_proto, struct mbuf *m)
             goto done;
         }
     }
-#endif
-    eh->h_proto = htons(eth_proto);
-#if 0
-    slirp_output(pData->pvUser, m, mtod(m, uint8_t *), m->m_len);
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
+    mlen = m->m_len;
 #else
-    buf = RTMemAlloc(1600);
+    mlen = m_length(m, NULL);
+    buf = RTMemAlloc(mlen);
     if (buf == NULL)
     {
         LogRel(("NAT: Can't alloc memory for outgoing buffer\n"));
         goto done;
     }
-    memcpy(buf, mtod(m, uint8_t *), m->m_len);
-    slirp_output(pData->pvUser, NULL, buf, m->m_len);
+#endif
+    eh->h_proto = htons(eth_proto);
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
+    m_copydata(m, 0, mlen, (char *)buf);
+#else
+    if (flags & ETH_ENCAP_URG)
+        slirp_urg_output(pData->pvUser, m, mtod(m, const uint8_t *), mlen);
+    else
+        slirp_output(pData->pvUser, m, mtod(m, const uint8_t *), mlen);
+#endif
 done:
+    STAM_PROFILE_STOP(&pData->StatIF_encap, a);
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
     m_free(pData, m);
 #endif
 }
 
-int slirp_redir(PNATState pData, int is_udp, struct in_addr host_addr, int host_port,
-                struct in_addr guest_addr, int guest_port)
+/**
+ * Still we're using dhcp server leasing to map ether to IP
+ * @todo  see rt_lookup_in_cache
+ */
+static uint32_t find_guest_ip(PNATState pData, const uint8_t *eth_addr)
 {
-    struct socket *so;
-#ifdef VBOX_WITH_SLIRP_ALIAS
-    struct alias_link *link;
-    struct libalias *lib;
-    int flags;
-    struct sockaddr sa;
-    struct sockaddr_in *psin;
-    socklen_t socketlen;
-    struct in_addr alias;
-    int rc;
-#endif
-    Log2(("NAT: set redirect %s hp:%d gp:%d\n", (is_udp?"UDP":"TCP"), host_port, guest_port));
-    if (is_udp)
+    uint32_t ip = INADDR_ANY;
+    if (eth_addr == NULL)
+        goto done;
+    if (memcmp(eth_addr, zerro_ethaddr, ETH_ALEN) == 0
+        || memcmp(eth_addr, broadcast_ethaddr, ETH_ALEN) == 0)
+        goto done;
+    if(slirp_arp_lookup_ip_by_ether(pData, eth_addr, &ip) == 0)
+        goto done;
+    bootp_cache_lookup_ip_by_ether(pData, eth_addr, &ip);
+done:
+    return ip;
+}
+
+/**
+ * We need check if we've activated port forwarding
+ * for specific machine ... that of course relates to
+ * service mode
+ * @todo finish this for service case
+ */
+static void activate_port_forwarding(PNATState pData, struct ethhdr *ethdr)
+{
+    struct port_forward_rule *rule = NULL;
+
+    pData->port_forwarding_activated = 1;
+    /* check mac here */
+    LIST_FOREACH(rule, &pData->port_forward_rule_head, list)
     {
-        so = udp_listen(pData, host_addr.s_addr, htons(host_port), guest_addr.s_addr,
-                        htons(guest_port), 0);
-    }
-    else
-    {
-        so = solisten(pData, host_addr.s_addr, htons(host_port), guest_addr.s_addr,
-                      htons(guest_port), 0);
-    }
-    if (so == NULL)
-    {
-        return -1;
-    }
-#ifndef VBOX_WITH_SLIRP_ALIAS
-    Log2(("NAT: redirecting socket %R[natsock]\n", so));
-    return (so != NULL ? 0 : -1);
+        struct socket *so;
+        struct alias_link *link;
+        struct libalias *lib;
+        int flags;
+        struct sockaddr sa;
+        struct sockaddr_in *psin;
+        socklen_t socketlen;
+        struct in_addr alias;
+        int rc;
+        uint32_t guest_addr; /* need to understand if we already give address to guest */
+
+        if (rule->activated)
+            continue; /*already activated */
+#ifdef VBOX_WITH_NAT_SERVICE
+        if (memcmp(rule->mac_address, ethdr->h_source, ETH_ALEN) != 0)
+            continue; /*not right mac, @todo: it'd be better do the list port forwarding per mac */
+        guest_addr = find_guest_ip(pData, ethdr->h_source);
 #else
-
-    psin = (struct sockaddr_in *)&sa;
-    psin->sin_family = AF_INET;
-    psin->sin_port = 0;
-    psin->sin_addr.s_addr = INADDR_ANY;
-    socketlen = sizeof(struct sockaddr);
-
-    rc = getsockname(so->s, &sa, &socketlen);
-    if (rc < 0 || sa.sa_family != AF_INET)
-    {
-        Log(("NAT: can't get socket's name\n"));
-        return 1;
-    }
-
-    psin = (struct sockaddr_in *)&sa;
-
-#if 1
-    lib = LibAliasInit(pData, NULL);
-    flags = LibAliasSetMode(lib, 0, 0);
-    flags |= PKT_ALIAS_LOG; /* set logging */
-    flags |= PKT_ALIAS_REVERSE; /* set logging */
-    flags = LibAliasSetMode(lib, flags, ~0);
-#else
-    lib = LIST_FIRST(&instancehead);
+#if 0
+        if (memcmp(client_ethaddr, ethdr->h_source, ETH_ALEN) != 0)
+            continue;
+#endif
+        guest_addr = find_guest_ip(pData, ethdr->h_source);
+#endif
+        if (guest_addr == INADDR_ANY)
+        {
+            /* the address wasn't granted */
+            pData->port_forwarding_activated = 0;
+            return;
+        }
+#if defined(DEBUG_vvl) && !defined(VBOX_WITH_NAT_SERVICE)
+        Assert(rule->guest_addr.s_addr == guest_addr);
 #endif
 
-    alias.s_addr =  htonl(ntohl(guest_addr.s_addr) | CTL_ALIAS);
-    link = LibAliasRedirectPort(lib, psin->sin_addr, htons(host_port),
-        alias, htons(guest_port),
-        special_addr,  -1, /* not very clear for now*/
-        (is_udp ? IPPROTO_UDP : IPPROTO_TCP));
-    if (link == NULL)
-    {
-        Log(("NAT: can't create redirect\n"));
-        return 1;
-    }
-    so->so_la = lib;
+        LogRel(("NAT: set redirect %s hp:%d gp:%d\n", (rule->proto == IPPROTO_UDP?"UDP":"TCP"),
+            rule->host_port, rule->guest_port));
+        if (rule->proto == IPPROTO_UDP)
+        {
+            so = udp_listen(pData, rule->bind_ip.s_addr, htons(rule->host_port), guest_addr,
+                            htons(rule->guest_port), 0);
+        }
+        else
+        {
+            so = solisten(pData, rule->bind_ip.s_addr, htons(rule->host_port), guest_addr,
+                          htons(rule->guest_port), 0);
+        }
+        if (so == NULL)
+        {
+            LogRel(("NAT: failed redirect %s hp:%d gp:%d\n", (rule->proto == IPPROTO_UDP?"UDP":"TCP"),
+                rule->host_port, rule->guest_port));
+            goto remove_port_forwarding;
+        }
 
+        psin = (struct sockaddr_in *)&sa;
+        psin->sin_family = AF_INET;
+        psin->sin_port = 0;
+        psin->sin_addr.s_addr = INADDR_ANY;
+        socketlen = sizeof(struct sockaddr);
+
+        rc = getsockname(so->s, &sa, &socketlen);
+        if (rc < 0 || sa.sa_family != AF_INET)
+        {
+            LogRel(("NAT: failed redirect %s hp:%d gp:%d\n", (rule->proto == IPPROTO_UDP?"UDP":"TCP"),
+                rule->host_port, rule->guest_port));
+            goto remove_port_forwarding;
+        }
+
+        psin = (struct sockaddr_in *)&sa;
+
+        lib = LibAliasInit(pData, NULL);
+        flags = LibAliasSetMode(lib, 0, 0);
+        flags |= PKT_ALIAS_LOG; /* set logging */
+        flags |= PKT_ALIAS_REVERSE; /* set logging */
+        flags = LibAliasSetMode(lib, flags, ~0);
+
+        alias.s_addr =  htonl(ntohl(guest_addr) | CTL_ALIAS);
+        link = LibAliasRedirectPort(lib, psin->sin_addr, htons(rule->host_port),
+            alias, htons(rule->guest_port),
+            special_addr,  -1, /* not very clear for now*/
+            rule->proto);
+        if (link == NULL)
+        {
+            LogRel(("NAT: failed redirect %s hp:%d gp:%d\n", (rule->proto == IPPROTO_UDP?"UDP":"TCP"),
+                rule->host_port, rule->guest_port));
+            goto remove_port_forwarding;
+        }
+        so->so_la = lib;
+        rule->activated = 1;
+        continue;
+    remove_port_forwarding:
+        LIST_REMOVE(rule, list);
+        RTMemFree(rule);
+    }
+}
+
+/**
+ * Changes in 3.1 instead of opening new socket do the following:
+ * gain more information:
+ *  1. bind IP
+ *  2. host port
+ *  3. guest port
+ *  4. proto
+ *  5. guest MAC address
+ * the guest's MAC address is rather important for service, but we easily
+ * could get it from VM configuration in DrvNAT or Service, the idea is activating
+ * corresponding port-forwarding
+ */
+int slirp_redir(PNATState pData, int is_udp, struct in_addr host_addr, int host_port,
+                struct in_addr guest_addr, int guest_port, const uint8_t *ethaddr)
+{
+    struct port_forward_rule *rule = NULL;
+    Assert(memcmp(ethaddr, zerro_ethaddr, ETH_ALEN) == 0);
+    rule = RTMemAllocZ(sizeof(struct port_forward_rule));
+    if (rule == NULL)
+        return 1;
+    rule->proto = (is_udp ? IPPROTO_UDP : IPPROTO_TCP);
+    rule->host_port = host_port;
+    rule->guest_port = guest_port;
+#ifndef VBOX_WITH_NAT_SERVICE
+    rule->guest_addr.s_addr = guest_addr.s_addr;
+#endif
+    rule->bind_ip.s_addr = host_addr.s_addr;
+    memcpy(rule->mac_address, ethaddr, ETH_ALEN);
+    /* @todo add mac address */
+    LIST_INSERT_HEAD(&pData->port_forward_rule_head, rule, list);
     return 0;
-#endif
 }
 
 int slirp_add_exec(PNATState pData, int do_pty, const char *args, int addr_low_byte,
@@ -1644,7 +1882,7 @@ int slirp_add_exec(PNATState pData, int do_pty, const char *args, int addr_low_b
 
 void slirp_set_ethaddr(PNATState pData, const uint8_t *ethaddr)
 {
-#ifndef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
+#ifndef VBOX_WITH_NAT_SERVICE
     memcpy(client_ethaddr, ethaddr, ETH_ALEN);
 #endif
 }
@@ -1700,30 +1938,6 @@ void *slirp_get_queue(PNATState pData)
 }
 #endif
 
-uint16_t slirp_get_service(int proto, uint16_t dport, uint16_t sport)
-{
-    uint16_t hdport, hsport, service;
-    hdport = ntohs(dport);
-    hsport = ntohs(sport);
-    Log2(("proto: %d, dport: %d sport: %d\n", proto, hdport, hsport));
-    service = 0;
-#if 0
-    /* Always return 0 here */
-    switch (hdport)
-    {
-        case 500:
-                if (hsport != 500) /* vpnc by default try operate in src:500/dst:500 mode*/
-                /* Not sure why this make Cisco VPN client's connection more stable,
-                 * at least on some servers
-                 */
-                    service = sport;
-        break;
-    }
-#endif
-    Log2(("service : %d\n", service));
-    return htons(service);
-}
-
 void slirp_set_dhcp_TFTP_prefix(PNATState pData, const char *tftpPrefix)
 {
     Log2(("tftp_prefix:%s\n", tftpPrefix));
@@ -1757,8 +1971,15 @@ int slirp_set_binding_address(PNATState pData, char *addr)
 
 void slirp_set_dhcp_dns_proxy(PNATState pData, bool fDNSProxy)
 {
-    Log2(("NAT: DNS proxy switched %s\n", (fDNSProxy ? "on" : "off")));
-    pData->use_dns_proxy = fDNSProxy;
+    if (!pData->use_host_resolver)
+    {
+        Log2(("NAT: DNS proxy switched %s\n", (fDNSProxy ? "on" : "off")));
+        pData->use_dns_proxy = fDNSProxy;
+    }
+    else
+    {
+        LogRel(("NAT: Host Resolver conflicts with DNS proxy, the last one was forcely ignored\n"));
+    }
 }
 
 #define CHECK_ARG(name, val, lim_min, lim_max)                                  \
@@ -1798,13 +2019,68 @@ void slirp_set_tcp_sndspace(PNATState pData, int kilobytes)
     tcp_sndspace = kilobytes * _1K;
 }
 
+/*
+ * Looking for Ether by ip in ARP-cache
+ * Note: it´s responsible of caller to allocate buffer for result
+ * @returns 0 - if found, 1 - otherwise
+ */
+int slirp_arp_lookup_ether_by_ip(PNATState pData, uint32_t ip, uint8_t *ether)
+{
+    struct arp_cache_entry *ac = NULL;
+    int rc = 1;
+    if (ether == NULL)
+        return rc;
+
+    if (LIST_EMPTY(&pData->arp_cache))
+        return rc;
+
+    LIST_FOREACH(ac, &pData->arp_cache, list)
+    {
+        if (ac->ip == ip)
+        {
+            memcpy(ether, ac->ether, ETH_ALEN);
+            rc = 0;
+            return rc;
+        }
+    }
+    return rc;
+}
+
+/*
+ * Looking for IP by Ether in ARP-cache
+ * Note: it´s responsible of caller to allocate buffer for result
+ * @returns 0 - if found, 1 - otherwise
+ */
+int slirp_arp_lookup_ip_by_ether(PNATState pData, const uint8_t *ether, uint32_t *ip)
+{
+    struct arp_cache_entry *ac = NULL;
+    int rc = 1;
+    *ip = INADDR_ANY;
+    if (LIST_EMPTY(&pData->arp_cache))
+        return rc;
+    LIST_FOREACH(ac, &pData->arp_cache, list)
+    {
+        if (memcmp(ether, ac->ether, ETH_ALEN))
+        {
+            *ip = ac->ip;
+            rc = 0;
+            return rc;
+        }
+    }
+    return rc;
+}
+
 void slirp_arp_who_has(PNATState pData, uint32_t dst)
 {
     struct mbuf *m;
     struct ethhdr *ehdr;
     struct arphdr *ahdr;
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     m = m_get(pData);
+#else
+    m = m_getcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR);
+#endif
     if (m == NULL)
     {
         LogRel(("NAT: Can't alloc mbuf for ARP request\n"));
@@ -1822,15 +2098,21 @@ void slirp_arp_who_has(PNATState pData, uint32_t dst)
     *(uint32_t *)ahdr->ar_sip = htonl(ntohl(special_addr.s_addr) | CTL_ALIAS);
     memset(ahdr->ar_tha, 0xff, ETH_ALEN); /*broadcast*/
     *(uint32_t *)ahdr->ar_tip = dst;
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     m->m_data += if_maxlinkhdr;
     m->m_len = sizeof(struct arphdr);
-    if_encap(pData, ETH_P_ARP, m);
+#else
+    /* warn!!! should falls in mbuf minimal size */
+    m->m_len = sizeof(struct arphdr) + ETH_HLEN;
+#endif
+    if_encap(pData, ETH_P_ARP, m, ETH_ENCAP_URG);
 }
+
 /* updates the arp cache
  * @returns 0 - if has found and updated
  *          1 - if hasn't found.
  */
-int slirp_update_arp_cache(PNATState pData, uint32_t dst, const uint8_t *mac)
+int slirp_arp_cache_update(PNATState pData, uint32_t dst, const uint8_t *mac)
 {
     struct arp_cache_entry *ac;
     LIST_FOREACH(ac, &pData->arp_cache, list)
@@ -1843,3 +2125,31 @@ int slirp_update_arp_cache(PNATState pData, uint32_t dst, const uint8_t *mac)
     }
     return 1;
 }
+
+void slirp_arp_cache_add(PNATState pData, uint32_t ip, const uint8_t *ether)
+{
+    struct arp_cache_entry *ac = NULL;
+    ac = RTMemAllocZ(sizeof(struct arp_cache_entry));
+    if (ac == NULL)
+    {
+        LogRel(("NAT: Can't allocate arp cache entry\n"));
+        return;
+    }
+    ac->ip = ip;
+    memcpy(ac->ether, ether, ETH_ALEN);
+    LIST_INSERT_HEAD(&pData->arp_cache, ac, list);
+}
+
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
+void slirp_set_mtu(PNATState pData, int mtu)
+{
+    if (mtu < 20 || mtu >= 16000)
+    {
+        LogRel(("NAT: mtu(%d) is out of range (20;16000] mtu forcely assigned to 1500\n", mtu));
+        mtu = 1500;
+    }
+    if_mtu =
+    if_mru = mtu;
+}
+#endif
+void slirp_set_dhcp_mtu(PNATState, int);

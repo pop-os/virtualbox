@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxBase.cpp $ */
+/* $Id: VirtualBoxBase.cpp 23279 2009-09-24 10:46:57Z vboxsync $ */
 
 /** @file
  *
@@ -200,7 +200,7 @@ HRESULT VirtualBoxBaseProto::addCaller (State *aState /* = NULL */,
 
             ++ mInitUninitWaiters;
 
-            LogFlowThisFunc ((mState == InInit ?
+            LogFlowThisFunc((mState == InInit ?
                               "Waiting for AutoInitSpan/AutoReinitSpan to "
                               "finish...\n" :
                               "Waiting for AutoMayUninitSpan to finish...\n"));
@@ -787,10 +787,10 @@ HRESULT VirtualBoxSupportErrorInfoImplBase::setErrorInternal (
                  preserve));
 
     /* these are mandatory, others -- not */
-    AssertReturn ((!aWarning && FAILED (aResultCode)) ||
+    AssertReturn((!aWarning && FAILED (aResultCode)) ||
                   (aWarning && aResultCode != S_OK),
                   E_FAIL);
-    AssertReturn (!aText.isEmpty(), E_FAIL);
+    AssertReturn(!aText.isEmpty(), E_FAIL);
 
     /* reset the error severity bit if it's a warning */
     if (aWarning)
@@ -800,88 +800,88 @@ HRESULT VirtualBoxSupportErrorInfoImplBase::setErrorInternal (
 
     do
     {
-        ComObjPtr <VirtualBoxErrorInfo> info;
+        ComObjPtr<VirtualBoxErrorInfo> info;
         rc = info.createObject();
         CheckComRCBreakRC (rc);
 
 #if !defined (VBOX_WITH_XPCOM)
 
-        ComPtr <IVirtualBoxErrorInfo> curInfo;
+        ComPtr<IVirtualBoxErrorInfo> curInfo;
         if (preserve)
         {
             /* get the current error info if any */
-            ComPtr <IErrorInfo> err;
+            ComPtr<IErrorInfo> err;
             rc = ::GetErrorInfo (0, err.asOutParam());
             CheckComRCBreakRC (rc);
-            rc = err.queryInterfaceTo (curInfo.asOutParam());
+            rc = err.queryInterfaceTo(curInfo.asOutParam());
             if (FAILED (rc))
             {
                 /* create a IVirtualBoxErrorInfo wrapper for the native
                  * IErrorInfo object */
-                ComObjPtr <VirtualBoxErrorInfo> wrapper;
+                ComObjPtr<VirtualBoxErrorInfo> wrapper;
                 rc = wrapper.createObject();
-                if (SUCCEEDED (rc))
+                if (SUCCEEDED(rc))
                 {
                     rc = wrapper->init (err);
-                    if (SUCCEEDED (rc))
+                    if (SUCCEEDED(rc))
                         curInfo = wrapper;
                 }
             }
         }
         /* On failure, curInfo will stay null */
-        Assert (SUCCEEDED (rc) || curInfo.isNull());
+        Assert (SUCCEEDED(rc) || curInfo.isNull());
 
         /* set the current error info and preserve the previous one if any */
         rc = info->init (aResultCode, aIID, aComponent, aText, curInfo);
         CheckComRCBreakRC (rc);
 
-        ComPtr <IErrorInfo> err;
-        rc = info.queryInterfaceTo (err.asOutParam());
-        if (SUCCEEDED (rc))
+        ComPtr<IErrorInfo> err;
+        rc = info.queryInterfaceTo(err.asOutParam());
+        if (SUCCEEDED(rc))
             rc = ::SetErrorInfo (0, err);
 
 #else // !defined (VBOX_WITH_XPCOM)
 
         nsCOMPtr <nsIExceptionService> es;
         es = do_GetService (NS_EXCEPTIONSERVICE_CONTRACTID, &rc);
-        if (NS_SUCCEEDED (rc))
+        if (NS_SUCCEEDED(rc))
         {
             nsCOMPtr <nsIExceptionManager> em;
             rc = es->GetCurrentExceptionManager (getter_AddRefs (em));
             CheckComRCBreakRC (rc);
 
-            ComPtr <IVirtualBoxErrorInfo> curInfo;
+            ComPtr<IVirtualBoxErrorInfo> curInfo;
             if (preserve)
             {
                 /* get the current error info if any */
-                ComPtr <nsIException> ex;
+                ComPtr<nsIException> ex;
                 rc = em->GetCurrentException (ex.asOutParam());
                 CheckComRCBreakRC (rc);
-                rc = ex.queryInterfaceTo (curInfo.asOutParam());
+                rc = ex.queryInterfaceTo(curInfo.asOutParam());
                 if (FAILED (rc))
                 {
                     /* create a IVirtualBoxErrorInfo wrapper for the native
                      * nsIException object */
-                    ComObjPtr <VirtualBoxErrorInfo> wrapper;
+                    ComObjPtr<VirtualBoxErrorInfo> wrapper;
                     rc = wrapper.createObject();
-                    if (SUCCEEDED (rc))
+                    if (SUCCEEDED(rc))
                     {
                         rc = wrapper->init (ex);
-                        if (SUCCEEDED (rc))
+                        if (SUCCEEDED(rc))
                             curInfo = wrapper;
                     }
                 }
             }
             /* On failure, curInfo will stay null */
-            Assert (SUCCEEDED (rc) || curInfo.isNull());
+            Assert (SUCCEEDED(rc) || curInfo.isNull());
 
             /* set the current error info and preserve the previous one if any */
             rc = info->init (aResultCode, aIID, aComponent, aText, curInfo);
             CheckComRCBreakRC (rc);
 
-            ComPtr <nsIException> ex;
-            rc = info.queryInterfaceTo (ex.asOutParam());
-            if (SUCCEEDED (rc))
+            ComPtr<nsIException> ex;
+            rc = info.queryInterfaceTo(ex.asOutParam());
+            if (SUCCEEDED(rc))
                 rc = em->SetCurrentException (ex);
         }
         else if (rc == NS_ERROR_UNEXPECTED)
@@ -908,159 +908,7 @@ HRESULT VirtualBoxSupportErrorInfoImplBase::setErrorInternal (
 
     AssertComRC (rc);
 
-    return SUCCEEDED (rc) ? aResultCode : rc;
-}
-
-// VirtualBoxBaseWithChildren methods
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- *  Uninitializes all dependent children registered with #addDependentChild().
- *
- *  @note
- *      This method will call uninit() methods of children. If these methods
- *      access the parent object, uninitDependentChildren() must be called
- *      either at the beginning of the parent uninitialization sequence (when
- *      it is still operational) or after setReady(false) is called to
- *      indicate the parent is out of action.
- */
-void VirtualBoxBaseWithChildren::uninitDependentChildren()
-{
-    /// @todo (r=dmik) see todo in VirtualBoxBase.h, in
-    //  template <class C> void removeDependentChild (C *child)
-
-    LogFlowThisFuncEnter();
-
-    AutoWriteLock alock (this);
-    AutoWriteLock mapLock (mMapLock);
-
-    LogFlowThisFunc (("count=%d...\n", mDependentChildren.size()));
-
-    if (mDependentChildren.size())
-    {
-        /* We keep the lock until we have enumerated all children.
-         * Those ones that will try to call #removeDependentChild() from
-         * a different thread will have to wait */
-
-        Assert (mUninitDoneSem == NIL_RTSEMEVENT);
-        int vrc = RTSemEventCreate (&mUninitDoneSem);
-        AssertRC (vrc);
-
-        Assert (mChildrenLeft == 0);
-        mChildrenLeft = (unsigned)mDependentChildren.size();
-
-        for (DependentChildren::iterator it = mDependentChildren.begin();
-            it != mDependentChildren.end(); ++ it)
-        {
-            VirtualBoxBase *child = (*it).second;
-            Assert (child);
-            if (child)
-                child->uninit();
-        }
-
-        mDependentChildren.clear();
-    }
-
-    /* Wait until all children started uninitializing on their own
-     * (and therefore are waiting for some parent's method or for
-     * #removeDependentChild() to return) are finished uninitialization */
-
-    if (mUninitDoneSem != NIL_RTSEMEVENT)
-    {
-        /* let stuck children run */
-        mapLock.leave();
-        alock.leave();
-
-        LogFlowThisFunc (("Waiting for uninitialization of all children...\n"));
-
-        RTSemEventWait (mUninitDoneSem, RT_INDEFINITE_WAIT);
-
-        alock.enter();
-        mapLock.enter();
-
-        RTSemEventDestroy (mUninitDoneSem);
-        mUninitDoneSem = NIL_RTSEMEVENT;
-        Assert (mChildrenLeft == 0);
-    }
-
-    LogFlowThisFuncLeave();
-}
-
-/**
- *  Returns a pointer to the dependent child corresponding to the given
- *  interface pointer (used as a key in the map) or NULL if the interface
- *  pointer doesn't correspond to any child registered using
- *  #addDependentChild().
- *
- *  @param  unk
- *      Pointer to map to the dependent child object (it is ComPtr <IUnknown>
- *      rather than IUnknown *, to guarantee IUnknown * identity)
- *  @return
- *      Pointer to the dependent child object
- */
-VirtualBoxBase *VirtualBoxBaseWithChildren::getDependentChild (
-    const ComPtr <IUnknown> &unk)
-{
-    AssertReturn (!!unk, NULL);
-
-    AutoWriteLock alock (mMapLock);
-    if (mUninitDoneSem != NIL_RTSEMEVENT)
-        return NULL;
-
-    DependentChildren::const_iterator it = mDependentChildren.find (unk);
-    if (it == mDependentChildren.end())
-        return NULL;
-    return (*it).second;
-}
-
-/** Helper for addDependentChild() template method */
-void VirtualBoxBaseWithChildren::addDependentChild (
-    const ComPtr <IUnknown> &unk, VirtualBoxBase *child)
-{
-    AssertReturn (!!unk && child, (void) 0);
-
-    AutoWriteLock alock (mMapLock);
-
-    if (mUninitDoneSem != NIL_RTSEMEVENT)
-    {
-        // for this very unlikely case, we have to increase the number of
-        // children left, for symmetry with #removeDependentChild()
-        ++ mChildrenLeft;
-        return;
-    }
-
-    std::pair <DependentChildren::iterator, bool> result =
-        mDependentChildren.insert (DependentChildren::value_type (unk, child));
-    AssertMsg (result.second, ("Failed to insert a child to the map\n"));
-}
-
-/** Helper for removeDependentChild() template method */
-void VirtualBoxBaseWithChildren::removeDependentChild (const ComPtr <IUnknown> &unk)
-{
-    /// @todo (r=dmik) see todo in VirtualBoxBase.h, in
-    //  template <class C> void removeDependentChild (C *child)
-
-    AssertReturn (!!unk, (void) 0);
-
-    AutoWriteLock alock (mMapLock);
-
-    if (mUninitDoneSem != NIL_RTSEMEVENT)
-    {
-        // uninitDependentChildren() is in action, just increase the number
-        // of children left and signal a semaphore when it reaches zero
-        Assert (mChildrenLeft != 0);
-        -- mChildrenLeft;
-        if (mChildrenLeft == 0)
-        {
-            int vrc = RTSemEventSignal (mUninitDoneSem);
-            AssertRC (vrc);
-        }
-        return;
-    }
-
-    DependentChildren::size_type result = mDependentChildren.erase (unk);
-    AssertMsg (result == 1, ("Failed to remove a child from the map\n"));
-    NOREF (result);
+    return SUCCEEDED(rc) ? aResultCode : rc;
 }
 
 // VirtualBoxBaseWithChildrenNEXT methods
@@ -1089,7 +937,7 @@ void VirtualBoxBaseWithChildren::removeDependentChild (const ComPtr <IUnknown> &
  */
 void VirtualBoxBaseWithChildrenNEXT::uninitDependentChildren()
 {
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
 
     /* sanity */
     AssertReturnVoid (autoCaller.state() == InUninit ||
@@ -1104,7 +952,7 @@ void VirtualBoxBaseWithChildrenNEXT::uninitDependentChildren()
         /* strongly reference the weak child from the map to make sure it won't
          * be deleted while we've released the lock */
         DependentChildren::iterator it = mDependentChildren.begin();
-        ComPtr <IUnknown> unk = it->first;
+        ComPtr<IUnknown> unk = it->first;
         Assert (!unk.isNull());
 
         VirtualBoxBase *child = it->second;
@@ -1143,7 +991,7 @@ void VirtualBoxBaseWithChildrenNEXT::uninitDependentChildren()
  * The relation is checked by using the given interface pointer as a key in the
  * map of dependent children.
  *
- * Note that ComPtr <IUnknown> is used as an argument instead of IUnknown * in
+ * Note that ComPtr<IUnknown> is used as an argument instead of IUnknown * in
  * order to guarantee IUnknown identity and disambiguation by doing
  * QueryInterface (IUnknown) rather than a regular C cast.
  *
@@ -1152,18 +1000,17 @@ void VirtualBoxBaseWithChildrenNEXT::uninitDependentChildren()
  *
  * @note Locks #childrenLock() for reading.
  */
-VirtualBoxBaseNEXT *
-VirtualBoxBaseWithChildrenNEXT::getDependentChild (const ComPtr <IUnknown> &aUnk)
+VirtualBoxBase* VirtualBoxBaseWithChildrenNEXT::getDependentChild(const ComPtr<IUnknown> &aUnk)
 {
-    AssertReturn (!aUnk.isNull(), NULL);
+    AssertReturn(!aUnk.isNull(), NULL);
 
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
 
     /* return NULL if uninitDependentChildren() is in action */
     if (autoCaller.state() == InUninit)
         return NULL;
 
-    AutoReadLock alock (childrenLock());
+    AutoReadLock alock(childrenLock());
 
     DependentChildren::const_iterator it = mDependentChildren.find (aUnk);
     if (it == mDependentChildren.end())
@@ -1173,20 +1020,20 @@ VirtualBoxBaseWithChildrenNEXT::getDependentChild (const ComPtr <IUnknown> &aUnk
 }
 
 /** Helper for addDependentChild(). */
-void VirtualBoxBaseWithChildrenNEXT::doAddDependentChild (
-    IUnknown *aUnk, VirtualBoxBaseNEXT *aChild)
+void VirtualBoxBaseWithChildrenNEXT::doAddDependentChild(IUnknown *aUnk,
+                                                         VirtualBoxBase *aChild)
 {
     AssertReturnVoid (aUnk != NULL);
     AssertReturnVoid (aChild != NULL);
 
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
 
     /* sanity */
     AssertReturnVoid (autoCaller.state() == InInit ||
                       autoCaller.state() == Ready ||
                       autoCaller.state() == Limited);
 
-    AutoWriteLock alock (childrenLock());
+    AutoWriteLock alock(childrenLock());
 
     std::pair <DependentChildren::iterator, bool> result =
         mDependentChildren.insert (DependentChildren::value_type (aUnk, aChild));
@@ -1198,7 +1045,7 @@ void VirtualBoxBaseWithChildrenNEXT::doRemoveDependentChild (IUnknown *aUnk)
 {
     AssertReturnVoid (aUnk);
 
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
 
     /* sanity */
     AssertReturnVoid (autoCaller.state() == InUninit ||
@@ -1206,7 +1053,7 @@ void VirtualBoxBaseWithChildrenNEXT::doRemoveDependentChild (IUnknown *aUnk)
                       autoCaller.state() == Ready ||
                       autoCaller.state() == Limited);
 
-    AutoWriteLock alock (childrenLock());
+    AutoWriteLock alock(childrenLock());
 
     DependentChildren::size_type result = mDependentChildren.erase (aUnk);
     AssertMsg (result == 1, ("Failed to remove child %p from the map\n", aUnk));

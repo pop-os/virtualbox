@@ -38,22 +38,36 @@
  */
 
 /** Size of a MD5 hash. */
-#define RTMD5HASHSIZE 16
+#define RTMD5_HASH_SIZE     16
+/** @deprecated Use RTMD5_HASH_SIZE. */
+#define RTMD5HASHSIZE       RTMD5_HASH_SIZE
+/** Size of a MD5 hash. */
+#define RTMD5_STRING_LEN    32
 
 /**
  * MD5 hash algorithm context.
  */
 typedef struct RTMD5CONTEXT
 {
+    uint32_t in[16];
     uint32_t buf[4];
     uint32_t bits[2];
-    uint32_t in[16];
 } RTMD5CONTEXT;
 
 /** Pointer to MD5 hash algorithm context. */
 typedef RTMD5CONTEXT *PRTMD5CONTEXT;
 
 RT_C_DECLS_BEGIN
+
+/**
+ * Compute the MD5 hash of the data.
+ *
+ * @param   pvBuf       Pointer to data.
+ * @param   cbBuf       Length of data (in bytes).
+ * @param   pabDigest   Where to store the hash.
+ *                      (What's passed is a pointer to the caller's buffer.)
+ */
+RTDECL(void) RTMd5(const void *pvBuf, size_t cbBuf, uint8_t pabDigest[RTMD5HASHSIZE]);
 
 /**
  * Initialize MD5 context.
@@ -74,14 +88,40 @@ RTDECL(void) RTMd5Update(PRTMD5CONTEXT pCtx, const void *pvBuf, size_t cbBuf);
 /**
  * Compute the MD5 hash of the data.
  *
- * @param   pabDigest  Where to store the hash.
- *                     (What's passed is a pointer to the caller's buffer.)
- * @param   pCtx       Pointer to the MD5 context.
+ * @param   pabDigest   Where to store the hash.
+ *                      (What's passed is a pointer to the caller's buffer.)
+ * @param   pCtx        Pointer to the MD5 context.
  */
 RTDECL(void) RTMd5Final(uint8_t pabDigest[RTMD5HASHSIZE], PRTMD5CONTEXT pCtx);
+
+/**
+ * Converts a MD5 hash to a digest string.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   pabDigest   The binary digest returned by RTMd5Final or RTMd5.
+ * @param   pszDigest   Where to return the stringified digest.
+ * @param   cchDigest   The size of the output buffer. Should be at least
+ *                      RTMD5_STRING_LEN + 1 bytes.
+ */
+RTDECL(int) RTMd5ToString(uint8_t const pabDigest[RTMD5_HASH_SIZE], char *pszDigest, size_t cchDigest);
+
+/**
+ * Converts a MD5 hash to a digest string.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   pszDigest   The strigified digest. Leading and trailing spaces are
+ *                      ignored.
+ * @param   pabDigest   Where to store the hash. (What is passed is a pointer to
+ *                      the caller's buffer.)
+ */
+RTDECL(int) RTMd5FromString(char const *pszDigest, uint8_t pabDigest[RTMD5_HASH_SIZE]);
+
 
 RT_C_DECLS_END
 
 /** @} */
 
-#endif /* !__iprt_md5_h__ */
+#endif
+

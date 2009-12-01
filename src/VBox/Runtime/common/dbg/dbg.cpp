@@ -1,4 +1,4 @@
-/* $Id: dbg.cpp $ */
+/* $Id: dbg.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Debug Misc.
  */
@@ -32,6 +32,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/dbg.h>
+#include "internal/iprt.h"
+
 #include <iprt/mem.h>
 
 
@@ -45,6 +47,7 @@ RTDECL(PRTDBGSYMBOL) RTDbgSymbolAlloc(void)
 {
     return (PRTDBGSYMBOL)RTMemAllocZ(sizeof(RTDBGSYMBOL));
 }
+RT_EXPORT_SYMBOL(RTDbgSymbolAlloc);
 
 
 /**
@@ -58,6 +61,7 @@ RTDECL(PRTDBGSYMBOL) RTDbgSymbolDup(PCRTDBGSYMBOL pSymInfo)
 {
     return (PRTDBGSYMBOL)RTMemDup(pSymInfo, sizeof(*pSymInfo));
 }
+RT_EXPORT_SYMBOL(RTDbgSymbolDup);
 
 
 /**
@@ -69,6 +73,7 @@ RTDECL(void) RTDbgSymbolFree(PRTDBGSYMBOL pSymInfo)
 {
     RTMemFree(pSymInfo);
 }
+RT_EXPORT_SYMBOL(RTDbgSymbolFree);
 
 
 /**
@@ -80,6 +85,7 @@ RTDECL(PRTDBGLINE) RTDbgLineAlloc(void)
 {
     return (PRTDBGLINE)RTMemAllocZ(sizeof(RTDBGLINE));
 }
+RT_EXPORT_SYMBOL(RTDbgLineAlloc);
 
 
 /**
@@ -93,6 +99,7 @@ RTDECL(PRTDBGLINE) RTDbgLineDup(PCRTDBGLINE pLine)
 {
     return (PRTDBGLINE)RTMemDup(pLine, sizeof(*pLine));
 }
+RT_EXPORT_SYMBOL(RTDbgLineDup);
 
 
 /**
@@ -104,5 +111,6 @@ RTDECL(void) RTDbgLineFree(PRTDBGLINE pLine)
 {
     RTMemFree(pLine);
 }
+RT_EXPORT_SYMBOL(RTDbgLineFree);
 
 

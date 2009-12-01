@@ -1,4 +1,4 @@
-/* $Id: fileio-win.cpp $ */
+/* $Id: fileio-win.cpp 24892 2009-11-24 12:02:04Z vboxsync $ */
 /** @file
  * IPRT - File I/O, native implementation for the Windows host platform.
  */
@@ -128,34 +128,6 @@ DECLINLINE(bool) IsBeyondLimit(RTFILE File, uint64_t offSeek, unsigned uMethod)
 }
 
 
-RTDECL(bool) RTFileExists(const char *pszPath)
-{
-    bool fRc = false;
-
-    /*
-     * Convert to UTF-16.
-     */
-    PRTUTF16 pwszString;
-    int rc = RTStrToUtf16(pszPath, &pwszString);
-    AssertRC(rc);
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * Query and check attributes.
-         */
-        DWORD dwAttr = GetFileAttributesW((LPCWSTR)pwszString);
-        fRc = dwAttr != INVALID_FILE_ATTRIBUTES
-            && !(dwAttr & (  FILE_ATTRIBUTE_DIRECTORY
-                           | FILE_ATTRIBUTE_DEVICE
-                           | FILE_ATTRIBUTE_REPARSE_POINT));
-        RTUtf16Free(pwszString);
-    }
-
-    LogFlow(("RTFileExists(%p:{%s}): returns %RTbool\n", pszPath, pszPath, fRc));
-    return fRc;
-}
-
-
 RTR3DECL(int) RTFileFromNative(PRTFILE pFile, RTHCINTPTR uNative)
 {
     HANDLE h = (HANDLE)uNative;
@@ -178,7 +150,7 @@ RTR3DECL(RTHCINTPTR) RTFileToNative(RTFILE File)
 }
 
 
-RTR3DECL(int)  RTFileOpen(PRTFILE pFile, const char *pszFilename, unsigned fOpen)
+RTR3DECL(int) RTFileOpen(PRTFILE pFile, const char *pszFilename, uint32_t fOpen)
 {
     /*
      * Validate input.
@@ -229,27 +201,40 @@ RTR3DECL(int)  RTFileOpen(PRTFILE pFile, const char *pszFilename, unsigned fOpen
     DWORD dwDesiredAccess;
     switch (fOpen & RTFILE_O_ACCESS_MASK)
     {
-        case RTFILE_O_READ:        dwDesiredAccess = GENERIC_READ; break;
-        case RTFILE_O_WRITE:       dwDesiredAccess = GENERIC_WRITE; break;
-        case RTFILE_O_READWRITE:   dwDesiredAccess = GENERIC_READ | GENERIC_WRITE; break;
+        case RTFILE_O_READ:
+            dwDesiredAccess = FILE_GENERIC_READ; /* RTFILE_O_APPEND is ignored. */
+            break;
+        case RTFILE_O_WRITE:
+            dwDesiredAccess = fOpen & RTFILE_O_APPEND
+                            ? FILE_GENERIC_WRITE & ~FILE_WRITE_DATA
+                            : FILE_GENERIC_WRITE;
+            break;
+        case RTFILE_O_READWRITE:
+            dwDesiredAccess = fOpen & RTFILE_O_APPEND
+                            ? FILE_GENERIC_READ | (FILE_GENERIC_WRITE & ~FILE_WRITE_DATA)
+                            : FILE_GENERIC_READ | FILE_GENERIC_WRITE;
+            break;
         default:
             AssertMsgFailed(("Impossible fOpen=%#x\n", fOpen));
             return VERR_INVALID_PARAMETER;
     }
+    if (dwCreationDisposition == TRUNCATE_EXISTING)
+        /* Required for truncating the file (see MSDN), it is *NOT* part of FILE_GENERIC_WRITE. */
+        dwDesiredAccess |= GENERIC_WRITE;
 
     /* RTFileSetMode needs following rights as well. */
     switch (fOpen & RTFILE_O_ACCESS_ATTR_MASK)
     {
-        case RTFILE_O_ACCESS_ATTR_READ:      dwDesiredAccess |= FILE_READ_ATTRIBUTES | SYNCHRONIZE; break;
+        case RTFILE_O_ACCESS_ATTR_READ:      dwDesiredAccess |= FILE_READ_ATTRIBUTES  | SYNCHRONIZE; break;
         case RTFILE_O_ACCESS_ATTR_WRITE:     dwDesiredAccess |= FILE_WRITE_ATTRIBUTES | SYNCHRONIZE; break;
         case RTFILE_O_ACCESS_ATTR_READWRITE: dwDesiredAccess |= FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES | SYNCHRONIZE; break;
         default:
             /* Attributes access is the same as the file access. */
             switch (fOpen & RTFILE_O_ACCESS_MASK)
             {
-                case RTFILE_O_READ:      dwDesiredAccess |= FILE_READ_ATTRIBUTES | SYNCHRONIZE; break;
-                case RTFILE_O_WRITE:     dwDesiredAccess |= FILE_WRITE_ATTRIBUTES | SYNCHRONIZE; break;
-                case RTFILE_O_READWRITE: dwDesiredAccess |= FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES | SYNCHRONIZE; break;
+                case RTFILE_O_READ:          dwDesiredAccess |= FILE_READ_ATTRIBUTES  | SYNCHRONIZE; break;
+                case RTFILE_O_WRITE:         dwDesiredAccess |= FILE_WRITE_ATTRIBUTES | SYNCHRONIZE; break;
+                case RTFILE_O_READWRITE:     dwDesiredAccess |= FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES | SYNCHRONIZE; break;
                 default:
                     AssertMsgFailed(("Impossible fOpen=%#x\n", fOpen));
                     return VERR_INVALID_PARAMETER;
@@ -257,7 +242,6 @@ RTR3DECL(int)  RTFileOpen(PRTFILE pFile, const char *pszFilename, unsigned fOpen
     }
 
     DWORD dwShareMode;
-    Assert(RTFILE_O_DENY_READWRITE == RTFILE_O_DENY_ALL && !RTFILE_O_DENY_NONE);
     switch (fOpen & RTFILE_O_DENY_MASK)
     {
         case RTFILE_O_DENY_NONE:                                dwShareMode = FILE_SHARE_READ | FILE_SHARE_WRITE; break;
@@ -290,6 +274,11 @@ RTR3DECL(int)  RTFileOpen(PRTFILE pFile, const char *pszFilename, unsigned fOpen
         dwFlagsAndAttributes |= FILE_FLAG_WRITE_THROUGH;
     if (fOpen & RTFILE_O_ASYNC_IO)
         dwFlagsAndAttributes |= FILE_FLAG_OVERLAPPED;
+    if (fOpen & RTFILE_O_NO_CACHE)
+    {
+        dwFlagsAndAttributes |= FILE_FLAG_NO_BUFFERING;
+        dwDesiredAccess &= ~FILE_APPEND_DATA;
+    }
 
     /*
      * Open/Create the file.
@@ -797,6 +786,15 @@ RTR3DECL(int) RTFileSetMode(RTFILE File, RTFMODE fMode)
         return rc;
     }
     return VINF_SUCCESS;
+}
+
+
+RTR3DECL(int) RTFileQueryFsSizes(RTFILE hFile, PRTFOFF pcbTotal, RTFOFF *pcbFree,
+                                 uint32_t *pcbBlock, uint32_t *pcbSector)
+{
+    /** @todo implement this using NtQueryVolumeInformationFile(hFile,,,,
+     *        FileFsSizeInformation). */
+    return VERR_NOT_SUPPORTED;
 }
 
 

@@ -1,4 +1,4 @@
-/* $Id: term.cpp $ */
+/* $Id: term.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Common Termination Code.
  */
@@ -32,6 +32,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/initterm.h>
+#include "internal/iprt.h"
+
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
@@ -142,6 +144,7 @@ RTDECL(int) RTTermRegisterCallback(PFNRTTERMCALLBACK pfnCallback, void *pvUser)
 
     return rc;
 }
+RT_EXPORT_SYMBOL(RTTermRegisterCallback);
 
 
 RTDECL(int) RTTermDeregisterCallback(PFNRTTERMCALLBACK pfnCallback, void *pvUser)
@@ -191,6 +194,7 @@ RTDECL(int) RTTermDeregisterCallback(PFNRTTERMCALLBACK pfnCallback, void *pvUser
 
     return rc;
 }
+RT_EXPORT_SYMBOL(RTTermDeregisterCallback);
 
 
 RTDECL(void) RTTermRunCallbacks(RTTERMREASON enmReason, int32_t iStatus)
@@ -239,4 +243,5 @@ RTDECL(void) RTTermRunCallbacks(RTTERMREASON enmReason, int32_t iStatus)
     RTSemFastMutexDestroy(hFastMutex);
     RTOnceReset(&g_InitTermCallbacksOnce); /* for the testcase */
 }
+RT_EXPORT_SYMBOL(RTTermRunCallbacks);
 

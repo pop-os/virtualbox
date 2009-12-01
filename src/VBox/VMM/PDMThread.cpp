@@ -1,4 +1,4 @@
-/* $Id: PDMThread.cpp $ */
+/* $Id: PDMThread.cpp 24244 2009-11-02 10:26:09Z vboxsync $ */
 /** @file
  * PDM Thread - VM Thread Management.
  */
@@ -894,6 +894,12 @@ VMMR3DECL(int) PDMR3ThreadSuspend(PPDMTHREAD pThread)
     AssertPtrReturn(pThread, VERR_INVALID_POINTER);
     AssertReturn(pThread->u32Version == PDMTHREAD_VERSION, VERR_INVALID_MAGIC);
     Assert(pThread->Thread != RTThreadSelf());
+
+    /*
+     * This is a noop if the thread is already suspended.
+     */
+    if (pThread->enmState == PDMTHREADSTATE_SUSPENDED)
+        return VINF_SUCCESS;
 
     /*
      * Change the state to resuming and kick the thread.

@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxImpl.h $ */
+/* $Id: VirtualBoxImpl.h 24858 2009-11-23 09:56:20Z vboxsync $ */
 
 /** @file
  *
@@ -26,34 +26,26 @@
 
 #include "VirtualBoxBase.h"
 
-#include "VBox/com/EventQueue.h"
-
-#include <list>
-#include <vector>
-#include <map>
-
 #ifdef RT_OS_WINDOWS
 # include "win/resource.h"
 #endif
 
-#ifdef VBOX_WITH_RESOURCE_USAGE_API
-#include "PerformanceImpl.h"
-#endif /* VBOX_WITH_RESOURCE_USAGE_API */
+namespace com
+{
+    class Event;
+    class EventQueue;
+}
 
 class Machine;
 class SessionMachine;
-class HardDisk;
-class DVDImage;
-class FloppyImage;
-class MachineCollection;
+class Medium;
 class GuestOSType;
-class GuestOSTypeCollection;
 class SharedFolder;
 class Progress;
-class ProgressCollection;
 class Host;
 class SystemProperties;
 class DHCPServer;
+class PerformanceCollector;
 
 #ifdef RT_OS_WINDOWS
 class SVCHlpClient;
@@ -61,33 +53,31 @@ class SVCHlpClient;
 
 struct VMClientWatcherData;
 
+namespace settings
+{
+    class MainConfigFile;
+}
+
 class ATL_NO_VTABLE VirtualBox :
     public VirtualBoxBaseWithChildrenNEXT,
-    public VirtualBoxSupportErrorInfoImpl <VirtualBox, IVirtualBox>,
-    public VirtualBoxSupportTranslation <VirtualBox>,
+    public VirtualBoxSupportErrorInfoImpl<VirtualBox, IVirtualBox>,
+    public VirtualBoxSupportTranslation<VirtualBox>,
+    VBOX_SCRIPTABLE_IMPL(IVirtualBox)
 #ifdef RT_OS_WINDOWS
-    public IDispatchImpl<IVirtualBox, &IID_IVirtualBox, &LIBID_VirtualBox,
-                         kTypeLibraryMajorVersion, kTypeLibraryMinorVersion>,
-    public CComCoClass<VirtualBox, &CLSID_VirtualBox>
-#else
-    public IVirtualBox
+    , public CComCoClass<VirtualBox, &CLSID_VirtualBox>
 #endif
 {
 
 public:
 
-    typedef std::list <ComPtr <IVirtualBoxCallback> > CallbackList;
-    typedef std::vector <ComPtr <IVirtualBoxCallback> > CallbackVector;
-
-    typedef std::vector <ComObjPtr <SessionMachine> > SessionMachineVector;
-    typedef std::vector <ComObjPtr <Machine> > MachineVector;
-
-    typedef std::vector <ComPtr <IInternalSessionControl> > InternalControlVector;
+    typedef std::list< ComPtr<IVirtualBoxCallback> > CallbackList;
+    typedef std::list< ComObjPtr<SessionMachine> > SessionMachineList;
+    typedef std::list< ComPtr<IInternalSessionControl> > InternalControlList;
 
     class CallbackEvent;
     friend class CallbackEvent;
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (VirtualBox)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(VirtualBox)
 
     DECLARE_CLASSFACTORY_SINGLETON(VirtualBox)
 
@@ -102,9 +92,7 @@ public:
         COM_INTERFACE_ENTRY(IVirtualBox)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
-    /* to postpone generation of the default ctor/dtor */
+    // to postpone generation of the default ctor/dtor
     VirtualBox();
     ~VirtualBox();
 
@@ -113,6 +101,8 @@ public:
 
     /* public initializer/uninitializer for internal purposes only */
     HRESULT init();
+    HRESULT initMachines();
+    HRESULT initMedia();
     void uninit();
 
     /* IVirtualBox properties */
@@ -121,14 +111,12 @@ public:
     STDMETHOD(COMGETTER(PackageType)) (BSTR *aPackageType);
     STDMETHOD(COMGETTER(HomeFolder)) (BSTR *aHomeFolder);
     STDMETHOD(COMGETTER(SettingsFilePath)) (BSTR *aSettingsFilePath);
-    STDMETHOD(COMGETTER(SettingsFileVersion)) (BSTR *aSettingsFileVersion);
-    STDMETHOD(COMGETTER(SettingsFormatVersion)) (BSTR *aSettingsFormatVersion);
     STDMETHOD(COMGETTER(Host)) (IHost **aHost);
     STDMETHOD(COMGETTER(SystemProperties)) (ISystemProperties **aSystemProperties);
     STDMETHOD(COMGETTER(Machines)) (ComSafeArrayOut (IMachine *, aMachines));
-    STDMETHOD(COMGETTER(HardDisks)) (ComSafeArrayOut (IHardDisk *, aHardDisks));
-    STDMETHOD(COMGETTER(DVDImages)) (ComSafeArrayOut (IDVDImage *, aDVDImages));
-    STDMETHOD(COMGETTER(FloppyImages)) (ComSafeArrayOut (IFloppyImage *, aFloppyImages));
+    STDMETHOD(COMGETTER(HardDisks)) (ComSafeArrayOut (IMedium *, aHardDisks));
+    STDMETHOD(COMGETTER(DVDImages)) (ComSafeArrayOut (IMedium *, aDVDImages));
+    STDMETHOD(COMGETTER(FloppyImages)) (ComSafeArrayOut (IMedium *, aFloppyImages));
     STDMETHOD(COMGETTER(ProgressOperations)) (ComSafeArrayOut (IProgress *, aOperations));
     STDMETHOD(COMGETTER(GuestOSTypes)) (ComSafeArrayOut (IGuestOSType *, aGuestOSTypes));
     STDMETHOD(COMGETTER(SharedFolders)) (ComSafeArrayOut (ISharedFolder *, aSharedFolders));
@@ -149,28 +137,28 @@ public:
     STDMETHOD(CreateAppliance) (IAppliance **anAppliance);
 
     STDMETHOD(CreateHardDisk)(IN_BSTR aFormat, IN_BSTR aLocation,
-                               IHardDisk **aHardDisk);
+                               IMedium **aHardDisk);
     STDMETHOD(OpenHardDisk) (IN_BSTR aLocation, AccessMode_T accessMode,
                              BOOL aSetImageId, IN_BSTR aImageId,
                              BOOL aSetParentId, IN_BSTR aParentId,
-                             IHardDisk **aHardDisk);
-    STDMETHOD(GetHardDisk) (IN_BSTR aId, IHardDisk **aHardDisk);
-    STDMETHOD(FindHardDisk) (IN_BSTR aLocation, IHardDisk **aHardDisk);
+                             IMedium **aHardDisk);
+    STDMETHOD(GetHardDisk) (IN_BSTR aId, IMedium **aHardDisk);
+    STDMETHOD(FindHardDisk) (IN_BSTR aLocation, IMedium **aHardDisk);
 
     STDMETHOD(OpenDVDImage) (IN_BSTR aLocation, IN_BSTR aId,
-                             IDVDImage **aDVDImage);
-    STDMETHOD(GetDVDImage) (IN_BSTR aId, IDVDImage **aDVDImage);
-    STDMETHOD(FindDVDImage) (IN_BSTR aLocation, IDVDImage **aDVDImage);
+                             IMedium **aDVDImage);
+    STDMETHOD(GetDVDImage) (IN_BSTR aId, IMedium **aDVDImage);
+    STDMETHOD(FindDVDImage) (IN_BSTR aLocation, IMedium **aDVDImage);
 
     STDMETHOD(OpenFloppyImage) (IN_BSTR aLocation, IN_BSTR aId,
-                                IFloppyImage **aFloppyImage);
-    STDMETHOD(GetFloppyImage) (IN_BSTR aId, IFloppyImage **aFloppyImage);
-    STDMETHOD(FindFloppyImage) (IN_BSTR aLocation, IFloppyImage **aFloppyImage);
+                                IMedium **aFloppyImage);
+    STDMETHOD(GetFloppyImage) (IN_BSTR aId, IMedium **aFloppyImage);
+    STDMETHOD(FindFloppyImage) (IN_BSTR aLocation, IMedium **aFloppyImage);
 
     STDMETHOD(GetGuestOSType) (IN_BSTR aId, IGuestOSType **aType);
     STDMETHOD(CreateSharedFolder) (IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable);
     STDMETHOD(RemoveSharedFolder) (IN_BSTR aName);
-    STDMETHOD(GetNextExtraDataKey) (IN_BSTR aKey, BSTR *aNextKey, BSTR *aNextValue);
+    STDMETHOD(GetExtraDataKeys) (ComSafeArrayOut(BSTR, aKeys));
     STDMETHOD(GetExtraData) (IN_BSTR aKey, BSTR *aValue);
     STDMETHOD(SetExtraData) (IN_BSTR aKey, IN_BSTR aValue);
     STDMETHOD(OpenSession) (ISession *aSession, IN_BSTR aMachineId);
@@ -185,335 +173,131 @@ public:
     STDMETHOD(WaitForPropertyChange) (IN_BSTR aWhat, ULONG aTimeout,
                                       BSTR *aChanged, BSTR *aValues);
 
-    STDMETHOD(SaveSettings)();
-    STDMETHOD(SaveSettingsWithBackup) (BSTR *aBakFileName);
-
-//    STDMETHOD(CreateDHCPServerForInterface) (/*IHostNetworkInterface * aIinterface, */IDHCPServer ** aServer);
     STDMETHOD(CreateDHCPServer) (IN_BSTR aName, IDHCPServer ** aServer);
-//    STDMETHOD(FindDHCPServerForInterface) (IHostNetworkInterface * aIinterface, IDHCPServer ** aServer);
     STDMETHOD(FindDHCPServerByNetworkName) (IN_BSTR aName, IDHCPServer ** aServer);
     STDMETHOD(RemoveDHCPServer) (IDHCPServer * aServer);
+    STDMETHOD(CheckFirmwarePresent)(FirmwareType_T aFirmwareType, IN_BSTR aVersion,
+                                    BSTR * aUrl, BSTR * aFile, BOOL * aResult);
 
     /* public methods only for internal purposes */
+#ifdef DEBUG
+    void dumpAllBackRefs();
+#endif
 
-    HRESULT postEvent (Event *event);
+    HRESULT postEvent(Event *event);
 
-    HRESULT addProgress (IProgress *aProgress);
-    HRESULT removeProgress (IN_GUID aId);
+    HRESULT addProgress(IProgress *aProgress);
+    HRESULT removeProgress(IN_GUID aId);
 
 #ifdef RT_OS_WINDOWS
     typedef DECLCALLBACKPTR (HRESULT, SVCHelperClientFunc)
         (SVCHlpClient *aClient, Progress *aProgress, void *aUser, int *aVrc);
-    HRESULT startSVCHelperClient (bool aPrivileged,
-                                  SVCHelperClientFunc aFunc,
-                                  void *aUser, Progress *aProgress);
+    HRESULT startSVCHelperClient(bool aPrivileged,
+                                 SVCHelperClientFunc aFunc,
+                                 void *aUser, Progress *aProgress);
 #endif
 
     void addProcessToReap (RTPROCESS pid);
     void updateClientWatcher();
 
-    void onMachineStateChange (const Guid &aId, MachineState_T aState);
-    void onMachineDataChange (const Guid &aId);
+    void onMachineStateChange(const Guid &aId, MachineState_T aState);
+    void onMachineDataChange(const Guid &aId);
     BOOL onExtraDataCanChange(const Guid &aId, IN_BSTR aKey, IN_BSTR aValue,
                               Bstr &aError);
     void onExtraDataChange(const Guid &aId, IN_BSTR aKey, IN_BSTR aValue);
-    void onMachineRegistered (const Guid &aId, BOOL aRegistered);
-    void onSessionStateChange (const Guid &aId, SessionState_T aState);
+    void onMachineRegistered(const Guid &aId, BOOL aRegistered);
+    void onSessionStateChange(const Guid &aId, SessionState_T aState);
 
-    void onSnapshotTaken (const Guid &aMachineId, const Guid &aSnapshotId);
-    void onSnapshotDiscarded (const Guid &aMachineId, const Guid &aSnapshotId);
-    void onSnapshotChange (const Guid &aMachineId, const Guid &aSnapshotId);
-    void onGuestPropertyChange (const Guid &aMachineId, IN_BSTR aName, IN_BSTR aValue,
-                                IN_BSTR aFlags);
+    void onSnapshotTaken(const Guid &aMachineId, const Guid &aSnapshotId);
+    void onSnapshotDeleted(const Guid &aMachineId, const Guid &aSnapshotId);
+    void onSnapshotChange(const Guid &aMachineId, const Guid &aSnapshotId);
+    void onGuestPropertyChange(const Guid &aMachineId, IN_BSTR aName, IN_BSTR aValue,
+                               IN_BSTR aFlags);
 
-    ComObjPtr <GuestOSType> getUnknownOSType();
+    ComObjPtr<GuestOSType> getUnknownOSType();
 
-    void getOpenedMachines (SessionMachineVector &aMachines,
-                            InternalControlVector *aControls = NULL);
+    void getOpenedMachines(SessionMachineList &aMachines,
+                           InternalControlList *aControls = NULL);
 
-    /** Shortcut to #getOpenedMachines (aMachines, &aControls). */
-    void getOpenedMachinesAndControls (SessionMachineVector &aMachines,
-                                       InternalControlVector &aControls)
-    { getOpenedMachines (aMachines, &aControls); }
-
-    bool isMachineIdValid (const Guid &aId)
+    bool isMachineIdValid(const Guid &aId)
     {
-        return SUCCEEDED (findMachine (aId, false /* aSetError */, NULL));
+        return SUCCEEDED(findMachine(aId, false /* aSetError */, NULL));
     }
 
     HRESULT findMachine (const Guid &aId, bool aSetError,
-                         ComObjPtr <Machine> *machine = NULL);
+                         ComObjPtr<Machine> *machine = NULL);
 
     HRESULT findHardDisk(const Guid *aId, CBSTR aLocation,
-                          bool aSetError, ComObjPtr<HardDisk> *aHardDisk = NULL);
+                          bool aSetError, ComObjPtr<Medium> *aHardDisk = NULL);
     HRESULT findDVDImage(const Guid *aId, CBSTR aLocation,
-                         bool aSetError, ComObjPtr<DVDImage> *aImage = NULL);
+                         bool aSetError, ComObjPtr<Medium> *aImage = NULL);
     HRESULT findFloppyImage(const Guid *aId, CBSTR aLocation,
-                            bool aSetError, ComObjPtr<FloppyImage> *aImage = NULL);
+                            bool aSetError, ComObjPtr<Medium> *aImage = NULL);
 
-    const ComObjPtr <Host> &host() { return mData.mHost; }
-    const ComObjPtr <SystemProperties> &systemProperties()
-        { return mData.mSystemProperties; }
+    HRESULT findGuestOSType(CBSTR bstrOSType,
+                            GuestOSType*& pGuestOSType);
+
+    const ComObjPtr<Host>& host() const;
+    const ComObjPtr<SystemProperties>& systemProperties() const;
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
-    const ComObjPtr <PerformanceCollector> &performanceCollector()
-        { return mData.mPerformanceCollector; }
+    const ComObjPtr<PerformanceCollector>& performanceCollector() const;
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
 
+    const Utf8Str& getDefaultMachineFolder() const;
+    const Utf8Str& getDefaultHardDiskFolder() const;
+    const Utf8Str& getDefaultHardDiskFormat() const;
 
     /** Returns the VirtualBox home directory */
-    const Utf8Str &homeDir() { return mData.mHomeDir; }
+    const Utf8Str& homeDir() const;
 
-    int calculateFullPath (const char *aPath, Utf8Str &aResult);
-    void calculateRelativePath (const char *aPath, Utf8Str &aResult);
+    int calculateFullPath(const Utf8Str &strPath, Utf8Str &aResult);
+    void calculateRelativePath(const Utf8Str &strPath, Utf8Str &aResult);
 
-    HRESULT registerHardDisk(HardDisk *aHardDisk, bool aSaveRegistry = true);
-    HRESULT unregisterHardDisk(HardDisk *aHardDisk, bool aSaveRegistry = true);
+    HRESULT registerHardDisk(Medium *aHardDisk, bool aSaveRegistry = true);
+    HRESULT unregisterHardDisk(Medium *aHardDisk, bool aSaveRegistry = true);
 
-    HRESULT registerDVDImage(DVDImage *aImage, bool aSaveRegistry = true);
-    HRESULT unregisterDVDImage(DVDImage *aImage, bool aSaveRegistry = true);
+    HRESULT registerDVDImage(Medium *aImage, bool aSaveRegistry = true);
+    HRESULT unregisterDVDImage(Medium *aImage, bool aSaveRegistry = true);
 
-    HRESULT registerFloppyImage (FloppyImage *aImage, bool aSaveRegistry = true);
-    HRESULT unregisterFloppyImage (FloppyImage *aImage, bool aSaveRegistry = true);
+    HRESULT registerFloppyImage (Medium *aImage, bool aSaveRegistry = true);
+    HRESULT unregisterFloppyImage (Medium *aImage, bool aSaveRegistry = true);
 
-    HRESULT cast (IHardDisk *aFrom, ComObjPtr<HardDisk> &aTo);
+    HRESULT cast (IMedium *aFrom, ComObjPtr<Medium> &aTo);
 
     HRESULT saveSettings();
-    HRESULT updateSettings (const char *aOldPath, const char *aNewPath);
+    HRESULT updateSettings(const char *aOldPath, const char *aNewPath);
 
-    const Bstr &settingsFileName() { return mData.mCfgFile.mName; }
-
-    static HRESULT ensureFilePathExists (const char *aFileName);
-
-    static HRESULT loadSettingsTree (settings::XmlTreeBackend &aTree,
-                                     xml::File &aFile,
-                                     bool aValidate,
-                                     bool aCatchLoadErrors,
-                                     bool aAddDefaults,
-                                     Utf8Str *aFormatVersion = NULL);
-
-    /**
-     * Shortcut to loadSettingsTree (aTree, aFile, true, true, true).
-     *
-     * Used when the settings file is to be loaded for the first time for the
-     * given object in order to recreate it from the stored settings.
-     *
-     * @param aFormatVersion Where to store the current format version of the
-     *                       loaded settings tree.
-     */
-    static HRESULT loadSettingsTree_FirstTime (settings::XmlTreeBackend &aTree,
-                                               xml::File &aFile,
-                                               Utf8Str &aFormatVersion)
-    {
-        return loadSettingsTree (aTree, aFile, true, true, true,
-                                 &aFormatVersion);
-    }
-
-    /**
-     * Shortcut to loadSettingsTree (aTree, aFile, true, false, true).
-     *
-     * Used when the settings file is loaded again (after it has been fully
-     * checked and validated by #loadSettingsTree_FirstTime()) in order to
-     * look at settings that don't have any representation within object's
-     * data fields.
-     */
-    static HRESULT loadSettingsTree_Again (settings::XmlTreeBackend &aTree,
-                                           xml::File &aFile)
-    {
-        return loadSettingsTree (aTree, aFile, true, false, true);
-    }
-
-    /**
-     * Shortcut to loadSettingsTree (aTree, aFile, true, false, false).
-     *
-     * Used when the settings file is loaded again (after it has been fully
-     * checked and validated by #loadSettingsTree_FirstTime()) in order to
-     * update some settings and then save them back.
-     */
-    static HRESULT loadSettingsTree_ForUpdate (settings::XmlTreeBackend &aTree,
-                                               xml::File &aFile)
-    {
-        return loadSettingsTree (aTree, aFile, true, false, false);
-    }
-
-    static HRESULT saveSettingsTree (settings::TreeBackend &aTree,
-                                     xml::File &aFile,
-                                     Utf8Str &aFormatVersion);
-
-    static HRESULT backupSettingsFile (const Bstr &aFileName,
-                                       const Utf8Str &aOldFormat,
-                                       Bstr &aBakFileName);
+    static HRESULT ensureFilePathExists(const Utf8Str &strFileName);
 
     static HRESULT handleUnexpectedExceptions (RT_SRC_POS_DECL);
 
-    /**
-     * Returns a lock handle used to protect changes to the hard disk hierarchy
-     * (e.g. serialize access to the HardDisk::mParent fields and methods
-     * adding/removing children). When using this lock, the following rules must
-     * be obeyed:
-     *
-     * 1. The write lock on this handle must be either held alone on the thread
-     *    or requested *after* the VirtualBox object lock. Mixing with other
-     *    locks is prohibited.
-     *
-     * 2. The read lock on this handle may be intermixed with any other lock
-     *    with the exception that it must be requested *after* the VirtualBox
-     *    object lock.
-     */
-    RWLockHandle *hardDiskTreeLockHandle() { return &mHardDiskTreeLockHandle; }
+    const Utf8Str& settingsFilePath();
 
-    /**
-     * Reimplements VirtualBoxWithTypedChildren::childrenLock() to return a
-     * dedicated lock instead of the main object lock. The dedicated lock for
-     * child map operations frees callers of init() methods of these children
-     * from acquiring a write parent (VirtualBox) lock (which would be mandatory
-     * otherwise). Since VirtualBox has a lot of heterogenous children which
-     * init() methods are called here and there, it definitely makes sense.
-     */
-    RWLockHandle *childrenLock() { return &mChildrenMapLockHandle; }
+    RWLockHandle& hardDiskTreeLockHandle();
+    RWLockHandle* childrenLock();
 
     /* for VirtualBoxSupportErrorInfoImpl */
     static const wchar_t *getComponentName() { return L"VirtualBox"; }
 
 private:
 
-    typedef std::list <ComObjPtr <Machine> > MachineList;
-    typedef std::list <ComObjPtr <GuestOSType> > GuestOSTypeList;
-
-    typedef std::map <Guid, ComPtr <IProgress> > ProgressMap;
-
-    typedef std::list <ComObjPtr <HardDisk> > HardDiskList;
-    typedef std::list <ComObjPtr <DVDImage> > DVDImageList;
-    typedef std::list <ComObjPtr <FloppyImage> > FloppyImageList;
-    typedef std::list <ComObjPtr <SharedFolder> > SharedFolderList;
-    typedef std::list <ComObjPtr <DHCPServer> > DHCPServerList;
-
-    typedef std::map <Guid, ComObjPtr<HardDisk> > HardDiskMap;
-
-    HRESULT checkMediaForConflicts2 (const Guid &aId, const Bstr &aLocation,
-                                     Utf8Str &aConflictType);
-
-    HRESULT loadMachines (const settings::Key &aGlobal);
-    HRESULT loadMedia (const settings::Key &aGlobal);
-    HRESULT loadNetservices (const settings::Key &aGlobal);
+    HRESULT checkMediaForConflicts2(const Guid &aId, const Utf8Str &aLocation,
+                                    Utf8Str &aConflictType);
 
     HRESULT registerMachine (Machine *aMachine);
 
     HRESULT registerDHCPServer(DHCPServer *aDHCPServer,
-                                         bool aSaveRegistry = true);
+                               bool aSaveRegistry = true);
     HRESULT unregisterDHCPServer(DHCPServer *aDHCPServer,
-                                         bool aSaveRegistry = true);
+                                 bool aSaveRegistry = true);
 
-    HRESULT lockConfig();
-    HRESULT unlockConfig();
+    struct Data;            // opaque data structure, defined in VirtualBoxImpl.cpp
+    Data *m;
 
-    /** @note This method is not thread safe */
-    bool isConfigLocked() { return mData.mCfgFile.mHandle != NIL_RTFILE; }
-
-    /**
-     *  Main VirtualBox data structure.
-     *  @note |const| members are persistent during lifetime so can be accessed
-     *  without locking.
-     */
-    struct Data
-    {
-        Data();
-
-        struct CfgFile
-        {
-            CfgFile() : mHandle (NIL_RTFILE) {}
-
-            const Bstr mName;
-            RTFILE mHandle;
-            /** Flag indicating that the config file is read-only. */
-            BOOL mReadonly;
-        };
-
-        // const data members not requiring locking
-        const Utf8Str mHomeDir;
-
-        // const objects not requiring locking
-        const ComObjPtr <Host> mHost;
-        const ComObjPtr <SystemProperties> mSystemProperties;
-#ifdef VBOX_WITH_RESOURCE_USAGE_API
-        const ComObjPtr <PerformanceCollector> mPerformanceCollector;
-#endif /* VBOX_WITH_RESOURCE_USAGE_API */
-
-        CfgFile mCfgFile;
-
-        Utf8Str mSettingsFileVersion;
-
-        MachineList mMachines;
-        GuestOSTypeList mGuestOSTypes;
-
-        ProgressMap mProgressOperations;
-
-        HardDiskList mHardDisks;
-        DVDImageList mDVDImages;
-        FloppyImageList mFloppyImages;
-        SharedFolderList mSharedFolders;
-        DHCPServerList mDHCPServers;
-
-        /// @todo NEWMEDIA do we really need this map? Used only in
-        /// find() it seems
-        HardDiskMap mHardDiskMap;
-
-        CallbackList mCallbacks;
-    };
-
-    Data mData;
-
-    /** Client watcher thread data structure */
-    struct ClientWatcherData
-    {
-        ClientWatcherData()
-#if defined(RT_OS_WINDOWS)
-            : mUpdateReq (NULL)
-#elif defined(RT_OS_OS2)
-            : mUpdateReq (NIL_RTSEMEVENT)
-#elif defined(VBOX_WITH_SYS_V_IPC_SESSION_WATCHER)
-            : mUpdateReq (NIL_RTSEMEVENT)
-#else
-# error "Port me!"
-#endif
-            , mThread (NIL_RTTHREAD) {}
-
-        // const objects not requiring locking
-#if defined(RT_OS_WINDOWS)
-        const HANDLE mUpdateReq;
-#elif defined(RT_OS_OS2)
-        const RTSEMEVENT mUpdateReq;
-#elif defined(VBOX_WITH_SYS_V_IPC_SESSION_WATCHER)
-        const RTSEMEVENT mUpdateReq;
-#else
-# error "Port me!"
-#endif
-        const RTTHREAD mThread;
-
-        typedef std::list <RTPROCESS> ProcessList;
-        ProcessList mProcesses;
-    };
-
-    ClientWatcherData mWatcherData;
-
-    const RTTHREAD mAsyncEventThread;
-    EventQueue * const mAsyncEventQ;
-
-    /**
-     * "Safe" lock. May only be used if guaranteed that no other locks are
-     * requested while holding it and no functions that may do so are called.
-     * Currently, protects the following:
-     *
-     * - mProgressOperations
-     */
-    RWLockHandle mSafeLock;
-
-    RWLockHandle mHardDiskTreeLockHandle;
-    RWLockHandle mChildrenMapLockHandle;
-
+    /* static variables (defined in VirtualBoxImpl.cpp) */
     static Bstr sVersion;
     static ULONG sRevision;
     static Bstr sPackageType;
-    static Bstr sSettingsFormatVersion;
 
     static DECLCALLBACK(int) ClientWatcher (RTTHREAD thread, void *pvUser);
     static DECLCALLBACK(int) AsyncEventHandler (RTTHREAD thread, void *pvUser);
@@ -525,36 +309,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/**
- *  Abstract callback event class to asynchronously call VirtualBox callbacks
- *  on a dedicated event thread. Subclasses reimplement #handleCallback()
- *  to call appropriate IVirtualBoxCallback methods depending on the event
- *  to be dispatched.
- *
- *  @note The VirtualBox instance passed to the constructor is strongly
- *  referenced, so that the VirtualBox singleton won't be released until the
- *  event gets handled by the event thread.
- */
-class VirtualBox::CallbackEvent : public Event
-{
-public:
-
-    CallbackEvent (VirtualBox *aVirtualBox) : mVirtualBox (aVirtualBox)
-    {
-        Assert (aVirtualBox);
-    }
-
-    void *handler();
-
-    virtual void handleCallback (const ComPtr <IVirtualBoxCallback> &aCallback) = 0;
-
-private:
-
-    /*
-     *  Note that this is a weak ref -- the CallbackEvent handler thread
-     *  is bound to the lifetime of the VirtualBox instance, so it's safe.
-     */
-    ComObjPtr <VirtualBox, ComWeakRef> mVirtualBox;
-};
 #endif // ____H_VIRTUALBOXIMPL
-/* vi: set tabstop=4 shiftwidth=4 expandtab: */

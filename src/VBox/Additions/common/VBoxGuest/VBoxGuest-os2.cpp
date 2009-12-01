@@ -1,4 +1,4 @@
-/* $Id: VBoxGuest-os2.cpp $ */
+/* $Id: VBoxGuest-os2.cpp 24287 2009-11-03 12:34:11Z vboxsync $ */
 /** @file
  * VBoxGuest - OS/2 specifics.
  */
@@ -54,8 +54,6 @@
 #include <os2ddk/bsekee.h>
 
 #include "VBoxGuestInternal.h"
-#include <VBox/VBoxGuest.h>
-#include <VBox/VBoxDev.h>               /* VMMDEV_RAM_SIZE */
 #include <VBox/version.h>
 #include <iprt/initterm.h>
 #include <iprt/string.h>
@@ -158,10 +156,12 @@ DECLASM(int) VBoxGuestOS2Init(const char *pszArgs)
                 rc = VBoxGuestInitDevExt(&g_DevExt, g_IOPortBase,
                                          RTR0MemObjAddress(g_MemMapMMIO),
                                          RTR0MemObjSize(g_MemMapMMIO),
-                                         vboxGuestOS2DetectVersion());
+                                         vboxGuestOS2DetectVersion(),
+                                         0);
             else
                 rc = VBoxGuestInitDevExt(&g_DevExt, g_IOPortBase, NULL, 0,
-                                         vboxGuestOS2DetectVersion());
+                                         vboxGuestOS2DetectVersion(),
+                                         0);
             if (RT_SUCCESS(rc))
             {
                 /*
@@ -606,9 +606,8 @@ DECLASM(int) VBoxGuestOS2IOCtl(uint16_t sfn, uint8_t iCat, uint8_t iFunction, vo
         /*
          * Process the IOCtl.
          */
-        size_t cbDataReturned = 0;
-        rc = VBoxGuestCommonIOCtl(iFunction, &g_DevExt, pSession,
-                                  pvParm, *pcbParm, &cbDataReturned);
+        size_t cbDataReturned;
+        rc = VBoxGuestCommonIOCtl(iFunction, &g_DevExt, pSession, pvParm, *pcbParm, &cbDataReturned);
 
         /*
          * Unlock the buffers.
@@ -648,6 +647,13 @@ DECLASM(bool) VBoxGuestOS2ISR(void)
     Log(("VBoxGuestOS2ISR\n"));
 
     return VBoxGuestCommonISR(&g_DevExt);
+}
+
+
+void VBoxGuestNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
+{
+    /* No polling on OS/2 */
+    NOREF(pDevExt);
 }
 
 

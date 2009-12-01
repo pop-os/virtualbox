@@ -41,16 +41,13 @@
 #endif
 
 class ATL_NO_VTABLE Session :
-    public VirtualBoxBaseNEXT,
-    public VirtualBoxSupportErrorInfoImpl <Session, ISession>,
-    public VirtualBoxSupportTranslation <Session>,
-#ifdef RT_OS_WINDOWS
+    public VirtualBoxBase,
+    public VirtualBoxSupportErrorInfoImpl<Session, ISession>,
+    public VirtualBoxSupportTranslation<Session>,
     VBOX_SCRIPTABLE_IMPL(ISession),
-    VBOX_SCRIPTABLE_IMPL(IInternalSessionControl),
-    public CComCoClass<Session, &CLSID_Session>
-#else
-    public ISession,
-    public IInternalSessionControl
+    VBOX_SCRIPTABLE_IMPL(IInternalSessionControl)
+#ifdef RT_OS_WINDOWS
+    , public CComCoClass<Session, &CLSID_Session>
 #endif
 {
 public:
@@ -64,13 +61,11 @@ public:
 
     BEGIN_COM_MAP(Session)
         COM_INTERFACE_ENTRY2(IDispatch, ISession)
-        COM_INTERFACE_ENTRY2(IDispatch, IInternalSessionControl)        
+        COM_INTERFACE_ENTRY2(IDispatch, IInternalSessionControl)
         COM_INTERFACE_ENTRY(IInternalSessionControl)
         COM_INTERFACE_ENTRY(ISupportErrorInfo)
         COM_INTERFACE_ENTRY(ISession)
     END_COM_MAP()
-
-    NS_DECL_ISUPPORTS
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -95,12 +90,11 @@ public:
     STDMETHOD(AssignRemoteMachine) (IMachine *aMachine, IConsole *aConsole);
     STDMETHOD(UpdateMachineState) (MachineState_T aMachineState);
     STDMETHOD(Uninitialize)();
-    STDMETHOD(OnDVDDriveChange)();
-    STDMETHOD(OnFloppyDriveChange)();
-    STDMETHOD(OnNetworkAdapterChange)(INetworkAdapter *networkAdapter);
+    STDMETHOD(OnNetworkAdapterChange)(INetworkAdapter *networkAdapter, BOOL changeAdapter);
     STDMETHOD(OnSerialPortChange)(ISerialPort *serialPort);
     STDMETHOD(OnParallelPortChange)(IParallelPort *parallelPort);
     STDMETHOD(OnStorageControllerChange)();
+    STDMETHOD(OnMediumChange)(IMediumAttachment *aMediumAttachment, BOOL aForce);
     STDMETHOD(OnVRDPServerChange)();
     STDMETHOD(OnUSBControllerChange)();
     STDMETHOD(OnSharedFolderChange) (BOOL aGlobal);
@@ -127,14 +121,14 @@ private:
     SessionState_T mState;
     SessionType_T mType;
 
-    ComPtr <IInternalMachineControl> mControl;
+    ComPtr<IInternalMachineControl> mControl;
 
-    ComObjPtr <Console> mConsole;
+    ComObjPtr<Console> mConsole;
 
-    ComPtr <IMachine> mRemoteMachine;
-    ComPtr <IConsole> mRemoteConsole;
+    ComPtr<IMachine> mRemoteMachine;
+    ComPtr<IConsole> mRemoteConsole;
 
-    ComPtr <IVirtualBox> mVirtualBox;
+    ComPtr<IVirtualBox> mVirtualBox;
 
     /* interprocess semaphore handle (id) for the opened machine */
 #if defined(RT_OS_WINDOWS)

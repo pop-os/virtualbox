@@ -1,4 +1,4 @@
-/* $Id: MouseImpl.h $ */
+/* $Id: MouseImpl.h 23223 2009-09-22 15:50:03Z vboxsync $ */
 
 /** @file
  *
@@ -33,25 +33,24 @@
 class MouseEvent
 {
 public:
-    MouseEvent() : dx(0), dy(0), dz(0), state(-1) {}
-    MouseEvent(int _dx, int _dy, int _dz, int _state) :
-        dx(_dx), dy(_dy), dz(_dz), state(_state) {}
+    MouseEvent() : dx(0), dy(0), dz(0), dw(0), state(-1) {}
+    MouseEvent(int32_t _dx, int32_t _dy, int32_t _dz, int32_t _dw, int32_t _state) :
+        dx(_dx), dy(_dy), dz(_dz), dw(_dw), state(_state) {}
     bool isValid()
     {
         return state != -1;
     }
-    // not logical to be int but that's how it's defined in QEMU
-    /** @todo r=bird: and what is the logical declaration then? We'll be using int32_t btw. */
-    int dx, dy, dz;
-    int state;
+    /* Note: dw is the horizontal scroll wheel */
+    int32_t dx, dy, dz, dw;
+    int32_t state;
 };
 // template instantiation
 typedef ConsoleEventBuffer<MouseEvent> MouseEventBuffer;
 
 class ATL_NO_VTABLE Mouse :
-    public VirtualBoxBaseNEXT,
-    public VirtualBoxSupportErrorInfoImpl <Mouse, IMouse>,
-    public VirtualBoxSupportTranslation <Mouse>,
+    public VirtualBoxBase,
+    public VirtualBoxSupportErrorInfoImpl<Mouse, IMouse>,
+    public VirtualBoxSupportTranslation<Mouse>,
     VBOX_SCRIPTABLE_IMPL(IMouse)
 {
 public:
@@ -68,8 +67,6 @@ public:
         COM_INTERFACE_ENTRY2 (IDispatch, IMouse)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
     DECLARE_EMPTY_CTOR_DTOR (Mouse)
 
     HRESULT FinalConstruct();
@@ -84,9 +81,9 @@ public:
     STDMETHOD(COMGETTER(NeedsHostCursor)) (BOOL *needsHostCursor);
 
     // IMouse methods
-    STDMETHOD(PutMouseEvent)(LONG dx, LONG dy, LONG dz,
+    STDMETHOD(PutMouseEvent)(LONG dx, LONG dy, LONG dz, LONG dw,
                              LONG buttonState);
-    STDMETHOD(PutMouseEventAbsolute)(LONG x, LONG y, LONG dz,
+    STDMETHOD(PutMouseEventAbsolute)(LONG x, LONG y, LONG dz, LONG dw,
                                      LONG buttonState);
 
     // for VirtualBoxSupportErrorInfoImpl
@@ -97,10 +94,10 @@ public:
 private:
 
     static DECLCALLBACK(void *) drvQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface);
-    static DECLCALLBACK(int)    drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle);
+    static DECLCALLBACK(int)    drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags);
     static DECLCALLBACK(void)   drvDestruct(PPDMDRVINS pDrvIns);
 
-    const ComObjPtr <Console, ComWeakRef> mParent;
+    const ComObjPtr<Console, ComWeakRef> mParent;
     /** Pointer to the associated mouse driver. */
     struct DRVMAINMOUSE    *mpDrv;
 

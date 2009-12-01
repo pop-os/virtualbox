@@ -22,6 +22,7 @@
 #include "SerialPortImpl.h"
 #include "MachineImpl.h"
 #include "VirtualBoxImpl.h"
+#include "GuestOSTypeImpl.h"
 #include "Logging.h"
 
 #include <iprt/string.h>
@@ -54,15 +55,15 @@ void SerialPort::FinalRelease()
  */
 HRESULT SerialPort::init (Machine *aParent, ULONG aSlot)
 {
-    LogFlowThisFunc (("aParent=%p, aSlot=%d\n", aParent, aSlot));
+    LogFlowThisFunc(("aParent=%p, aSlot=%d\n", aParent, aSlot));
 
     ComAssertRet (aParent, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst (mParent) = aParent;
+    unconst(mParent) = aParent;
     /* mPeer is left null */
 
     mData.allocate();
@@ -88,19 +89,19 @@ HRESULT SerialPort::init (Machine *aParent, ULONG aSlot)
  */
 HRESULT SerialPort::init (Machine *aParent, SerialPort *aThat)
 {
-    LogFlowThisFunc (("aParent=%p, aThat=%p\n", aParent, aThat));
+    LogFlowThisFunc(("aParent=%p, aThat=%p\n", aParent, aThat));
 
     ComAssertRet (aParent && aThat, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst (mParent) = aParent;
-    unconst (mPeer) = aThat;
+    unconst(mParent) = aParent;
+    unconst(mPeer) = aThat;
 
     AutoCaller thatCaller (aThat);
-    AssertComRCReturnRC (thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.rc());
 
     AutoReadLock thatLock (aThat);
     mData.share (aThat->mData);
@@ -120,19 +121,19 @@ HRESULT SerialPort::init (Machine *aParent, SerialPort *aThat)
  */
 HRESULT SerialPort::initCopy (Machine *aParent, SerialPort *aThat)
 {
-    LogFlowThisFunc (("aParent=%p, aThat=%p\n", aParent, aThat));
+    LogFlowThisFunc(("aParent=%p, aThat=%p\n", aParent, aThat));
 
     ComAssertRet (aParent && aThat, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst (mParent) = aParent;
+    unconst(mParent) = aParent;
     /* mPeer is left null */
 
     AutoCaller thatCaller (aThat);
-    AssertComRCReturnRC (thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.rc());
 
     AutoReadLock thatLock (aThat);
     mData.attachCopy (aThat->mData);
@@ -149,17 +150,17 @@ HRESULT SerialPort::initCopy (Machine *aParent, SerialPort *aThat)
  */
 void SerialPort::uninit()
 {
-    LogFlowThisFunc (("\n"));
+    LogFlowThisFunc(("\n"));
 
     /* Enclose the state transition Ready->InUninit->NotReady */
-    AutoUninitSpan autoUninitSpan (this);
+    AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
         return;
 
     mData.free();
 
-    unconst (mPeer).setNull();
-    unconst (mParent).setNull();
+    unconst(mPeer).setNull();
+    unconst(mParent).setNull();
 }
 
 // public methods only for internal purposes
@@ -173,16 +174,12 @@ void SerialPort::uninit()
  *
  *  @note Locks this object for writing.
  */
-HRESULT SerialPort::loadSettings (const settings::Key &aPortNode)
+HRESULT SerialPort::loadSettings(const settings::SerialPort &data)
 {
-    using namespace settings;
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.rc());
 
-    AssertReturn (!aPortNode.isNull(), E_FAIL);
-
-    AutoCaller autoCaller (this);
-    AssertComRCReturnRC (autoCaller.rc());
-
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     /* Note: we assume that the default values for attributes of optional
      * nodes are assigned in the Data::Data() constructor and don't do it
@@ -196,32 +193,22 @@ HRESULT SerialPort::loadSettings (const settings::Key &aPortNode)
      * default to B. */
 
     /* enabled (required) */
-    mData->mEnabled = aPortNode.value <bool> ("enabled");
+    mData->mEnabled = data.fEnabled;
     /* I/O base (required) */
-    mData->mIOBase = aPortNode.value <ULONG> ("IOBase");
+    mData->mIOBase = data.ulIOBase;
     /* IRQ (required) */
-    mData->mIRQ = aPortNode.value <ULONG> ("IRQ");
+    mData->mIRQ = data.ulIRQ;
     /* host mode (required) */
-    const char *mode = aPortNode.stringValue ("hostMode");
-    if (strcmp (mode, "RawFile") == 0)
-        mData->mHostMode = PortMode_RawFile;
-    else if (strcmp (mode, "HostPipe") == 0)
-        mData->mHostMode = PortMode_HostPipe;
-    else if (strcmp (mode, "HostDevice") == 0)
-        mData->mHostMode = PortMode_HostDevice;
-    else if (strcmp (mode, "Disconnected") == 0)
-        mData->mHostMode = PortMode_Disconnected;
-    else
-        ComAssertMsgFailedRet (("Invalid port mode '%s'", mode), E_FAIL);
+    mData->mHostMode = data.portMode;
 
     /* pipe/device path (optional, defaults to null) */
-    Bstr path = aPortNode.stringValue ("path");
-    HRESULT rc = checkSetPath (path);
-    CheckComRCReturnRC (rc);
+    Bstr path(data.strPath);
+    HRESULT rc = checkSetPath(path);
+    CheckComRCReturnRC(rc);
     mData->mPath = path;
 
     /* server mode (optional, defaults to false) */
-    mData->mServer = aPortNode.value <bool> ("server");
+    mData->mServer = data.fServer;
 
     return S_OK;
 }
@@ -235,50 +222,23 @@ HRESULT SerialPort::loadSettings (const settings::Key &aPortNode)
  *
  *  @note Locks this object for reading.
  */
-HRESULT SerialPort::saveSettings (settings::Key &aPortNode)
+HRESULT SerialPort::saveSettings(settings::SerialPort &data)
 {
-    using namespace settings;
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.rc());
 
-    AssertReturn (!aPortNode.isNull(), E_FAIL);
+    AutoReadLock alock(this);
 
-    AutoCaller autoCaller (this);
-    AssertComRCReturnRC (autoCaller.rc());
-
-    AutoReadLock alock (this);
-
-    aPortNode.setValue <bool> ("enabled", !!mData->mEnabled);
-    aPortNode.setValue <ULONG> ("IOBase", mData->mIOBase, 16);
-    aPortNode.setValue <ULONG> ("IRQ", mData->mIRQ);
-
-    const char *mode = NULL;
-    switch (mData->mHostMode)
-    {
-        case PortMode_Disconnected:
-            mode = "Disconnected";
-            break;
-        case PortMode_HostPipe:
-            mode = "HostPipe";
-            break;
-        case PortMode_HostDevice:
-            mode = "HostDevice";
-            break;
-        case PortMode_RawFile:
-            mode = "RawFile";
-            break;
-        default:
-            ComAssertMsgFailedRet (("Invalid serial port mode: %d",
-                                    mData->mHostMode),
-                                   E_FAIL);
-    }
-    aPortNode.setStringValue ("hostMode", mode);
+    data.fEnabled = !!mData->mEnabled;
+    data.ulIOBase = mData->mIOBase;
+    data.ulIRQ = mData->mIRQ;
+    data.portMode = mData->mHostMode;
 
     /* Always save non-null mPath and mServer to preserve the user values for
      * later use. Note that 'server' is false by default in XML so we don't
      * save it when it's false. */
-    if (!mData->mPath.isEmpty())
-        aPortNode.setValue <Bstr> ("path", mData->mPath);
-    if (mData->mServer)
-        aPortNode.setValue <bool> ("server", !!mData->mServer);
+    data.strPath = mData->mPath;
+    data.fServer = !!mData->mServer;
 
     return S_OK;
 }
@@ -289,10 +249,10 @@ HRESULT SerialPort::saveSettings (settings::Key &aPortNode)
 bool SerialPort::rollback()
 {
     /* sanity */
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
     AssertComRCReturn (autoCaller.rc(), false);
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     bool changed = false;
 
@@ -314,7 +274,7 @@ bool SerialPort::rollback()
 void SerialPort::commit()
 {
     /* sanity */
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
     AssertComRCReturnVoid (autoCaller.rc());
 
     /* sanity too */
@@ -345,7 +305,7 @@ void SerialPort::copyFrom (SerialPort *aThat)
     AssertReturnVoid (aThat != NULL);
 
     /* sanity */
-    AutoCaller autoCaller (this);
+    AutoCaller autoCaller(this);
     AssertComRCReturnVoid (autoCaller.rc());
 
     /* sanity too */
@@ -360,6 +320,25 @@ void SerialPort::copyFrom (SerialPort *aThat)
     mData.assignCopy (aThat->mData);
 }
 
+void SerialPort::applyDefaults (GuestOSType *aOsType)
+{
+    AssertReturnVoid (aOsType != NULL);
+
+    /* sanity */
+    AutoCaller autoCaller(this);
+    AssertComRCReturnVoid (autoCaller.rc());
+
+    AutoWriteLock alock(this);
+
+    uint32_t numSerialEnabled = aOsType->numSerialEnabled();
+
+    /* Enable port if requested */
+    if (mData->mSlot < numSerialEnabled)
+    {
+        mData->mEnabled = true;
+    }
+}
+
 // ISerialPort properties
 /////////////////////////////////////////////////////////////////////////////
 
@@ -367,10 +346,10 @@ STDMETHODIMP SerialPort::COMGETTER(Enabled) (BOOL *aEnabled)
 {
     CheckComArgOutPointerValid(aEnabled);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *aEnabled = mData->mEnabled;
 
@@ -379,16 +358,16 @@ STDMETHODIMP SerialPort::COMGETTER(Enabled) (BOOL *aEnabled)
 
 STDMETHODIMP SerialPort::COMSETTER(Enabled) (BOOL aEnabled)
 {
-    LogFlowThisFunc (("aEnabled=%RTbool\n", aEnabled));
+    LogFlowThisFunc(("aEnabled=%RTbool\n", aEnabled));
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     if (mData->mEnabled != aEnabled)
     {
@@ -408,10 +387,10 @@ STDMETHODIMP SerialPort::COMGETTER(HostMode) (PortMode_T *aHostMode)
 {
     CheckComArgOutPointerValid(aHostMode);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *aHostMode = mData->mHostMode;
 
@@ -420,14 +399,14 @@ STDMETHODIMP SerialPort::COMGETTER(HostMode) (PortMode_T *aHostMode)
 
 STDMETHODIMP SerialPort::COMSETTER(HostMode) (PortMode_T aHostMode)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     HRESULT rc = S_OK;
     bool emitChangeEvent = false;
@@ -482,10 +461,10 @@ STDMETHODIMP SerialPort::COMGETTER(Slot) (ULONG *aSlot)
 {
     CheckComArgOutPointerValid(aSlot);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *aSlot = mData->mSlot;
 
@@ -496,10 +475,10 @@ STDMETHODIMP SerialPort::COMGETTER(IRQ) (ULONG *aIRQ)
 {
     CheckComArgOutPointerValid(aIRQ);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *aIRQ = mData->mIRQ;
 
@@ -516,14 +495,14 @@ STDMETHODIMP SerialPort::COMSETTER(IRQ)(ULONG aIRQ)
                 "%lu (must be in range [0, %lu])"),
             mData->mSlot, aIRQ, 255);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     HRESULT rc = S_OK;
     bool emitChangeEvent = false;
@@ -550,10 +529,10 @@ STDMETHODIMP SerialPort::COMGETTER(IOBase) (ULONG *aIOBase)
 {
     CheckComArgOutPointerValid(aIOBase);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *aIOBase = mData->mIOBase;
 
@@ -570,14 +549,14 @@ STDMETHODIMP SerialPort::COMSETTER(IOBase)(ULONG aIOBase)
                 "%lu (must be in range [0, 0x%X])"),
             mData->mSlot, aIOBase, 0, 0xFFFF);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     HRESULT rc = S_OK;
     bool emitChangeEvent = false;
@@ -604,12 +583,12 @@ STDMETHODIMP SerialPort::COMGETTER(Path) (BSTR *aPath)
 {
     CheckComArgOutPointerValid(aPath);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
-    mData->mPath.cloneTo (aPath);
+    mData->mPath.cloneTo(aPath);
 
     return S_OK;
 }
@@ -619,7 +598,7 @@ STDMETHODIMP SerialPort::COMGETTER(Path) (BSTR *aPath)
  */
 HRESULT SerialPort::checkSetPath (CBSTR aPath)
 {
-    AssertReturn (isWriteLockOnCurrentThread(), E_FAIL);
+    AssertReturn(isWriteLockOnCurrentThread(), E_FAIL);
 
     if ((mData->mHostMode == PortMode_HostDevice ||
          mData->mHostMode == PortMode_HostPipe ||
@@ -635,14 +614,14 @@ HRESULT SerialPort::checkSetPath (CBSTR aPath)
 
 STDMETHODIMP SerialPort::COMSETTER(Path) (IN_BSTR aPath)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     /* we treat empty as null when e.g. saving to XML, do the same here */
     if (aPath && *aPath == '\0')
@@ -651,7 +630,7 @@ STDMETHODIMP SerialPort::COMSETTER(Path) (IN_BSTR aPath)
     if (mData->mPath != aPath)
     {
         HRESULT rc = checkSetPath (aPath);
-        CheckComRCReturnRC (rc);
+        CheckComRCReturnRC(rc);
 
         mData.backup();
         mData->mPath = aPath;
@@ -669,10 +648,10 @@ STDMETHODIMP SerialPort::COMGETTER(Server) (BOOL *aServer)
 {
     CheckComArgOutPointerValid(aServer);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     *aServer = mData->mServer;
 
@@ -681,14 +660,14 @@ STDMETHODIMP SerialPort::COMGETTER(Server) (BOOL *aServer)
 
 STDMETHODIMP SerialPort::COMSETTER(Server) (BOOL aServer)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* the machine needs to be mutable */
     Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC (adep.rc());
+    CheckComRCReturnRC(adep.rc());
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     if (mData->mServer != aServer)
     {

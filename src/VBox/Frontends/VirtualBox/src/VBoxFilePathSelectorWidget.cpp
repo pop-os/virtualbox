@@ -290,7 +290,7 @@ void VBoxFilePathSelectorWidget::retranslateUi()
     {
         mNoneStr = tr ("<not selected>");
         mNoneTip = tr ("Please use the <b>Other...</b> item from the drop-down "
-                       "list to select a desired path.");
+                       "list to select a path.");
     }
 
     /* Retranslate 'path' item */
@@ -389,27 +389,27 @@ void VBoxFilePathSelectorWidget::selectPath()
     if (initDir.isNull())
         initDir = mHomeDir;
 
-    QString path;
+    QString selPath;
     switch (mMode)
     {
         case Mode_File_Open:
-            path = QIFileDialog::getOpenFileName (initDir, mFileFilters, parentWidget(), mFileDialogTitle); break;
+            selPath = QIFileDialog::getOpenFileName (initDir, mFileFilters, parentWidget(), mFileDialogTitle); break;
         case Mode_File_Save:
             {
-                path = QIFileDialog::getSaveFileName (initDir, mFileFilters, parentWidget(), mFileDialogTitle);
-                if (!path.isEmpty() && QFileInfo (path).suffix().isEmpty())
-                    path = QString ("%1.%2").arg (path).arg (mDefaultSaveExt);
+                selPath = QIFileDialog::getSaveFileName (initDir, mFileFilters, parentWidget(), mFileDialogTitle);
+                if (!selPath.isEmpty() && QFileInfo (selPath).suffix().isEmpty())
+                    selPath = QString ("%1.%2").arg (selPath).arg (mDefaultSaveExt);
                 break;
             }
         case Mode_Folder:
-            path = QIFileDialog::getExistingDirectory (initDir, parentWidget(), mFileDialogTitle); break;
+            selPath = QIFileDialog::getExistingDirectory (initDir, parentWidget(), mFileDialogTitle); break;
     }
 
-    if (path.isNull())
+    if (selPath.isNull())
         return;
 
-    path.remove (QRegExp ("[\\\\/]$"));
-    changePath (path);
+    selPath.remove (QRegExp ("[\\\\/]$"));
+    changePath (selPath);
 }
 
 QIcon VBoxFilePathSelectorWidget::defaultIcon() const
@@ -508,8 +508,8 @@ void VBoxFilePathSelectorWidget::refreshText()
             setItemText (PathId, mPath);
         setItemIcon (PathId, QIcon());
         setToolTip (mMode == Mode_Folder ?
-            tr ("Please type the desired folder path here.") :
-            tr ("Please type the desired file path here."));
+            tr ("Please type the folder path here.") :
+            tr ("Please type the file path here."));
 
         if (mIsMouseAwaited)
         {

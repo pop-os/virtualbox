@@ -76,6 +76,9 @@ private:
 
     CMachine mMachine;
     QIWidgetValidator *mValidator;
+
+    uint mMinGuestCPU;
+    uint mMaxGuestCPU;
 };
 
 #endif // __VBoxVMSettingsSystem_h__

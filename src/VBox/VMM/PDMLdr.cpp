@@ -1,4 +1,4 @@
-/* $Id: PDMLdr.cpp $ */
+/* $Id: PDMLdr.cpp 25015 2009-11-26 15:27:42Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device Manager, module loader.
  */
@@ -497,7 +497,7 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
                             if (pUVM->pdm.s.pModules)
                             {
                                 /* we don't expect this list to be very long, so rather save the tail pointer. */
-                                PPDMMOD pCur = pUVM->pdm.s.pModules;
+                                pCur = pUVM->pdm.s.pModules;
                                 while (pCur->pNext)
                                     pCur = pCur->pNext;
                                 pCur->pNext = pModule;
@@ -528,12 +528,13 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
         int rc2 = RTLdrClose(pModule->hLdrMod);
         AssertRC(rc2);
     }
-    RTMemFree(pModule);
-    RTMemTmpFree(pszFile);
 
     /* Don't consider VERR_PDM_MODULE_NAME_CLASH and VERR_NO_MEMORY above as these are very unlikely. */
     if (RT_FAILURE(rc))
-        return VMSetError(pVM, rc, RT_SRC_POS, N_("Cannot load GC module %s"), pszFilename);
+        rc = VMSetError(pVM, rc, RT_SRC_POS, N_("Cannot load GC module %s"), pszFilename);
+
+    RTMemFree(pModule);
+    RTMemTmpFree(pszFile);
     return rc;
 }
 
@@ -601,7 +602,7 @@ static int pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName)
         if (pUVM->pdm.s.pModules)
         {
             /* we don't expect this list to be very long, so rather save the tail pointer. */
-            PPDMMOD pCur = pUVM->pdm.s.pModules;
+            pCur = pUVM->pdm.s.pModules;
             while (pCur->pNext)
                 pCur = pCur->pNext;
             pCur->pNext = pModule;

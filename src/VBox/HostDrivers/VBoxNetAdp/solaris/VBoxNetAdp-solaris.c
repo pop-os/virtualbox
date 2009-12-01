@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdp-solaris.c $ */
+/* $Id: VBoxNetAdp-solaris.c 24684 2009-11-16 09:30:40Z vboxsync $ */
 /** @file
  * VBoxNetAdapter - Network Adapter Driver (Host), Solaris Specific Code.
  */
@@ -22,10 +22,6 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#if defined(DEBUG_ramshankar) && !defined(LOG_ENABLED)
-# define LOG_ENABLED
-#endif
-
 #define LOG_GROUP LOG_GROUP_NET_ADP_DRV
 #include <VBox/log.h>
 #include <VBox/err.h>
@@ -56,12 +52,17 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-#define VBOXSOLQUOTE2(x)         #x
-#define VBOXSOLQUOTE(x)          VBOXSOLQUOTE2(x)
 #define DEVICE_NAME              "vboxnet"
 /** The module descriptions as seen in 'modinfo'. */
 #define DEVICE_DESC_DRV          "VirtualBox NetAdp"
 #define VBOXNETADP_MTU           1500
+
+#if defined(DEBUG_ramshankar)
+# undef Log
+# define Log        LogRel
+# undef LogFlow
+# define LogFlow    LogRel
+#endif
 
 static int VBoxNetAdpSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd);
 static int VBoxNetAdpSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd);
@@ -165,7 +166,7 @@ static struct dev_ops g_VBoxNetAdpSolarisDevOps =
 static struct modldrv g_VBoxNetAdpSolarisDriver =
 {
     &mod_driverops,                 /* extern from kernel */
-    DEVICE_DESC_DRV " " VBOX_VERSION_STRING "r" VBOXSOLQUOTE(VBOX_SVN_REV),
+    DEVICE_DESC_DRV " " VBOX_VERSION_STRING "r"  RT_XSTR(VBOX_SVN_REV),
     &g_VBoxNetAdpSolarisDevOps
 };
 

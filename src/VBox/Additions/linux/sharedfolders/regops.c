@@ -26,7 +26,38 @@
 
 #include "vfsmod.h"
 
-#define CHUNK_SIZE 4096
+
+static void *alloc_bounch_buffer (size_t *tmp_sizep, PRTCCPHYS physp, size_t xfer_size, const char *caller)
+{
+    size_t tmp_size;
+    void *tmp;
+
+    /* try for big first. */
+    tmp_size = RT_ALIGN_Z(xfer_size, PAGE_SIZE);
+    if (tmp_size > 16U*_1K)
+        tmp_size = 16U*_1K;
+    tmp = kmalloc (tmp_size, GFP_KERNEL);
+    if (!tmp) {
+
+        /* fall back on a page sized buffer. */
+        tmp = kmalloc (PAGE_SIZE, GFP_KERNEL);
+        if (!tmp) {
+            LogRel(("%s: could not allocate bounce buffer for xfer_size=%zu %s\n", caller, xfer_size));
+            return NULL;
+        }
+        tmp_size = PAGE_SIZE;
+    }
+
+    *tmp_sizep = tmp_size;
+    *physp = virt_to_phys(tmp);
+    return tmp;
+}
+
+static void free_bounch_buffer (void *tmp)
+{
+    kfree (tmp);
+}
+
 
 /* fops */
 static int
@@ -34,6 +65,9 @@ sf_reg_read_aux (const char *caller, struct sf_glob_info *sf_g,
                  struct sf_reg_info *sf_r, void *buf, uint32_t *nread,
                  uint64_t pos)
 {
+        /** @todo bird: yes, kmap() and kmalloc() input only. Since the buffer is
+         *        contiguous in physical memory (kmalloc or single page), we should
+         *        use a physical address here to speed things up. */
         int rc = vboxCallRead (&client_handle, &sf_g->map, sf_r->handle,
                                pos, nread, buf, false /* already locked? */);
         if (RT_FAILURE (rc)) {
@@ -49,6 +83,9 @@ sf_reg_write_aux (const char *caller, struct sf_glob_info *sf_g,
                   struct sf_reg_info *sf_r, void *buf, uint32_t *nwritten,
                   uint64_t pos)
 {
+        /** @todo bird: yes, kmap() and kmalloc() input only. Since the buffer is
+         *        contiguous in physical memory (kmalloc or single page), we should
+         *        use a physical address here to speed things up. */
         int rc = vboxCallWrite (&client_handle, &sf_g->map, sf_r->handle,
                                 pos, nwritten, buf, false /* already locked? */);
         if (RT_FAILURE (rc)) {
@@ -64,6 +101,8 @@ sf_reg_read (struct file *file, char *buf, size_t size, loff_t *off)
 {
         int err;
         void *tmp;
+        RTCCPHYS tmp_phys;
+        size_t tmp_size;
         size_t left = size;
         ssize_t total_bytes_read = 0;
         struct inode *inode = file->f_dentry->d_inode;
@@ -83,16 +122,14 @@ sf_reg_read (struct file *file, char *buf, size_t size, loff_t *off)
                 return 0;
         }
 
-        tmp = kmalloc (CHUNK_SIZE, GFP_KERNEL);
-        if (!tmp) {
-                LogRelFunc(("could not allocate bounce buffer memory %d bytes\n", CHUNK_SIZE));
-                return -ENOMEM;
-        }
+        tmp = alloc_bounch_buffer (&tmp_size, &tmp_phys, size, __PRETTY_FUNCTION__);
+        if (!tmp)
+            return -ENOMEM;
 
         while (left) {
                 uint32_t to_read, nread;
 
-                to_read = CHUNK_SIZE;
+                to_read = tmp_size;
                 if (to_read > left) {
                         to_read = (uint32_t) left;
                 }
@@ -117,11 +154,11 @@ sf_reg_read (struct file *file, char *buf, size_t size, loff_t *off)
         }
 
         *off += total_bytes_read;
-        kfree (tmp);
+        free_bounch_buffer (tmp);
         return total_bytes_read;
 
  fail:
-        kfree (tmp);
+        free_bounch_buffer (tmp);
         return err;
 }
 
@@ -130,6 +167,8 @@ sf_reg_write (struct file *file, const char *buf, size_t size, loff_t *off)
 {
         int err;
         void *tmp;
+        RTCCPHYS tmp_phys;
+        size_t tmp_size;
         size_t left = size;
         ssize_t total_bytes_written = 0;
         struct inode *inode = file->f_dentry->d_inode;
@@ -160,16 +199,14 @@ sf_reg_write (struct file *file, const char *buf, size_t size, loff_t *off)
         if (!size)
                 return 0;
 
-        tmp = kmalloc (CHUNK_SIZE, GFP_KERNEL);
-        if (!tmp) {
-                LogRelFunc(("could not allocate bounce buffer memory %d bytes\n", CHUNK_SIZE));
+        tmp = alloc_bounch_buffer (&tmp_size, &tmp_phys, size, __PRETTY_FUNCTION__);
+        if (!tmp)
                 return -ENOMEM;
-        }
 
         while (left) {
                 uint32_t to_write, nwritten;
 
-                to_write = CHUNK_SIZE;
+                to_write = tmp_size;
                 if (to_write > left) {
                         to_write = (uint32_t) left;
                 }
@@ -180,7 +217,14 @@ sf_reg_write (struct file *file, const char *buf, size_t size, loff_t *off)
                         goto fail;
                 }
 
-                err = sf_reg_write_aux (__func__, sf_g, sf_r, tmp, &nwritten, pos);
+#if 1
+                if (VbglR0CanUsePhysPageList()) {
+                    err = VbglR0SfWritePhysCont (&client_handle, &sf_g->map, sf_r->handle,
+                                                 pos, &nwritten, tmp_phys);
+                    err = RT_FAILURE(err) ? -EPROTO : 0;
+                } else
+#endif
+                    err = sf_reg_write_aux (__func__, sf_g, sf_r, tmp, &nwritten, pos);
                 if (err)
                         goto fail;
 
@@ -197,11 +241,11 @@ sf_reg_write (struct file *file, const char *buf, size_t size, loff_t *off)
                 inode->i_size = *off;
 
         sf_i->force_restat = 1;
-        kfree (tmp);
+        free_bounch_buffer (tmp);
         return total_bytes_written;
 
  fail:
-        kfree (tmp);
+        free_bounch_buffer (tmp);
         return err;
 }
 
@@ -226,7 +270,7 @@ sf_reg_open (struct inode *inode, struct file *file)
                 return -ENOMEM;
         }
 
-        memset(&params, 0, sizeof(params));
+        RT_ZERO(params);
         params.Handle = SHFL_HANDLE_NIL;
         /* We check the value of params.Handle afterwards to find out if
          * the call succeeded or failed, as the API does not seem to cleanly
@@ -275,6 +319,11 @@ sf_reg_open (struct inode *inode, struct file *file)
                 default:
                         BUG ();
                 }
+        }
+
+        if (file->f_flags & O_APPEND) {
+                LogFunc(("O_APPEND set\n"));
+                params.CreateFlags |= SHFL_CF_ACCESS_APPEND;
         }
 
         params.Info.Attr.fMode = inode->i_mode;

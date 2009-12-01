@@ -38,8 +38,6 @@
 #include "VBoxVMSettingsSystem.h"
 #include "VBoxVMSettingsDisplay.h"
 #include "VBoxVMSettingsHD.h"
-#include "VBoxVMSettingsCD.h"
-#include "VBoxVMSettingsFD.h"
 #include "VBoxVMSettingsAudio.h"
 #include "VBoxVMSettingsNetwork.h"
 #include "VBoxVMSettingsSerial.h"
@@ -270,39 +268,11 @@ VBoxVMSettingsDlg::VBoxVMSettingsDlg (QWidget *aParent,
     /* Storage page */
     if (isAvailable (StorageId))
     {
+        prefPage = new VBoxVMSettingsHD();
+        connect (prefPage, SIGNAL (storageChanged()), this, SLOT (resetFirstRunFlag()));
         addItem (":/hd_32px.png", ":/hd_disabled_32px.png",
-                 ":/hd_16px.png", ":/hd_disabled_16px.png",
-                 StorageId, "#storage");
-
-        /* HD page */
-        if (isAvailable (HDId))
-        {
-            prefPage = new VBoxVMSettingsHD();
-            connect (prefPage, SIGNAL (hdChanged()), this, SLOT (resetFirstRunFlag()));
-            addItem (":/hd_32px.png", ":/hd_disabled_32px.png",
-                     ":/hd_16px.png", ":/hd_disabled_16px.png",
-                     HDId, "#hdds", prefPage, StorageId);
-        }
-
-        /* CD page */
-        if (isAvailable (CDId))
-        {
-            prefPage = new VBoxVMSettingsCD();
-            connect (prefPage, SIGNAL (cdChanged()), this, SLOT (resetFirstRunFlag()));
-            addItem (":/cd_32px.png", ":/cd_disabled_32px.png",
-                     ":/cd_16px.png", ":/cd_disabled_16px.png",
-                     CDId, "#dvd", prefPage, StorageId);
-        }
-
-        /* FD page */
-        if (isAvailable (FDId))
-        {
-            prefPage = new VBoxVMSettingsFD();
-            connect (prefPage, SIGNAL (fdChanged()), this, SLOT (resetFirstRunFlag()));
-            addItem (":/fd_32px.png", ":/fd_disabled_32px.png",
-                     ":/fd_16px.png", ":/fd_disabled_16px.png",
-                     FDId, "#floppy", prefPage, StorageId);
-        }
+                 ":/attachment_16px.png", ":/attachment_disabled_16px.png",
+                 StorageId, "#storage", prefPage);
     }
 
     /* Audio page */
@@ -432,7 +402,18 @@ void VBoxVMSettingsDlg::putBackTo()
         qobject_cast <VBoxVMSettingsSystem*> (mSelector->idToPage (SystemId));
     if (generalPage && systemPage &&
         generalPage->is64BitOSTypeSelected() && !systemPage->isHWVirtExEnabled())
-        mMachine.SetHWVirtExEnabled (true);
+        mMachine.SetHWVirtExProperty(KHWVirtExPropertyType_Enabled, true);
+
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    /* Disable 2D Video Acceleration for non-Windows guests */
+    if (generalPage && !generalPage->isWindowsOSTypeSelected())
+    {
+        VBoxVMSettingsDisplay *displayPage =
+            qobject_cast <VBoxVMSettingsDisplay*> (mSelector->idToPage (DisplayId));
+        if (displayPage && displayPage->isAcceleration2DVideoSelected())
+            mMachine.SetAccelerate2DVideoEnabled (false);
+    }
+#endif
 
     /* Clear the "GUI_FirstRun" extra data key in case if the boot order
      * and/or disk configuration were changed */
@@ -557,6 +538,25 @@ bool VBoxVMSettingsDlg::correlate (QWidget *aPage, QString &aWarning)
         }
 #endif
     }
+
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    /* 2D Video Acceleration is available for Windows guests only */
+    if (aPage == mSelector->idToPage (DisplayId))
+    {
+        VBoxVMSettingsGeneral *generalPage =
+            qobject_cast <VBoxVMSettingsGeneral*> (mSelector->idToPage (GeneralId));
+        VBoxVMSettingsDisplay *displayPage =
+            qobject_cast <VBoxVMSettingsDisplay*> (mSelector->idToPage (DisplayId));
+        if (generalPage && displayPage &&
+            displayPage->isAcceleration2DVideoSelected() && !generalPage->isWindowsOSTypeSelected())
+        {
+            aWarning = tr (
+                "you have 2D Video Acceleration enabled. As 2D Video Acceleration "
+                "is supported for Windows guests only, this feature will be disabled.");
+            return true;
+        }
+    }
+#endif
 
     return true;
 }

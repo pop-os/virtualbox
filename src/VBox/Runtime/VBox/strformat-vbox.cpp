@@ -1,4 +1,4 @@
-/* $Id: strformat-vbox.cpp $ */
+/* $Id: strformat-vbox.cpp 25000 2009-11-26 14:22:44Z vboxsync $ */
 /** @file
  * IPRT - VBox String Formatter extensions.
  */
@@ -106,7 +106,7 @@ size_t rtstrFormatVBox(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, const char *
             case 'r':
             {
                 int rc = va_arg(*pArgs, int);
-                char ch = *(*ppszFormat)++;
+                ch = *(*ppszFormat)++;
 #ifdef IN_RING3                         /* we don't want this anywhere else yet. */
                 PCRTSTATUSMSG pMsg = RTErrGet(rc);
                 switch (ch)
@@ -151,7 +151,7 @@ size_t rtstrFormatVBox(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, const char *
 
             case 'h':
             {
-                char ch = *(*ppszFormat)++;
+                ch = *(*ppszFormat)++;
                 switch (ch)
                 {
                     /*

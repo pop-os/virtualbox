@@ -156,6 +156,7 @@ public:
 
     /* Special problem handlers */
     void showBETAWarning();
+    void showBEBWarning();
 
 #ifdef Q_WS_X11
     void cannotFindLicenseFiles (const QString &aPath);
@@ -209,15 +210,13 @@ public:
     bool warnAboutVirtNotEnabledGuestRequired();
 
     void cannotSetSnapshotFolder (const CMachine &aMachine, const QString &aPath);
-    bool askAboutSnapshotAndStateDiscarding();
-    void cannotDiscardSnapshot (const CConsole &aConsole,
-                                const QString &aSnapshotName);
-    void cannotDiscardSnapshot (const CProgress &aProgress,
-                                const QString &aSnapshotName);
-    void cannotDiscardCurrentState (const CConsole &console);
-    void cannotDiscardCurrentState (const CProgress &progress);
-    void cannotDiscardCurrentSnapshotAndState (const CConsole &console);
-    void cannotDiscardCurrentSnapshotAndState (const CProgress &progress);
+
+    bool askAboutSnapshotRestoring (const QString &aSnapshotName);
+    bool askAboutSnapshotDeleting (const QString &aSnapshotName);
+    void cannotRestoreSnapshot (const CConsole &aConsole, const QString &aSnapshotName);
+    void cannotRestoreSnapshot (const CProgress &aProgress, const QString &aSnapshotName);
+    void cannotDeleteSnapshot (const CConsole &aConsole, const QString &aSnapshotName);
+    void cannotDeleteSnapshot (const CProgress &aProgress, const QString &aSnapshotName);
 
     void cannotFindMachineByName (const CVirtualBox &vbox, const QString &name);
 
@@ -238,30 +237,29 @@ public:
                                             const QString &aLocation);
     int confirmDeleteHardDiskStorage (QWidget *aParent,
                                       const QString &aLocation);
-    void cannotDeleteHardDiskStorage (QWidget *aParent, const CHardDisk &aHD,
+    void cannotDeleteHardDiskStorage (QWidget *aParent, const CMedium &aHD,
                                       const CProgress &aProgress);
 
     int confirmDetachAddControllerSlots (QWidget *aParent) const;
     int confirmChangeAddControllerSlots (QWidget *aParent) const;
-    int confirmRunNewHDWzdOrVDM (QWidget* aParent);
+    int confirmRunNewHDWzdOrVDM (KDeviceType aDeviceType);
+
+    int confirmRemovingOfLastDVDDevice() const;
 
     void cannotCreateHardDiskStorage (QWidget *aParent, const CVirtualBox &aVBox,
                                       const QString &aLocaiton,
-                                      const CHardDisk &aHD,
+                                      const CMedium &aHD,
                                       const CProgress &aProgress);
-    void cannotAttachHardDisk (QWidget *aParent, const CMachine &aMachine,
-                               const QString &aLocation, KStorageBus aBus,
-                               LONG aChannel, LONG aDevice);
-    void cannotDetachHardDisk (QWidget *aParent, const CMachine &aMachine,
-                               const QString &aLocation, KStorageBus aBus,
-                               LONG aChannel, LONG aDevice);
+    void cannotAttachDevice (QWidget *aParent, const CMachine &aMachine,
+                             VBoxDefs::MediumType aType, const QString &aLocation,
+                             KStorageBus aBus, LONG aChannel, LONG aDevice);
+    void cannotDetachDevice (QWidget *aParent, const CMachine &aMachine,
+                             VBoxDefs::MediumType aType, const QString &aLocation,
+                             KStorageBus aBus, LONG aChannel, LONG aDevice);
 
-    void cannotMountMedium (QWidget *aParent, const CMachine &aMachine,
-                            const VBoxMedium &aMedium, const COMResult &aResult);
-    void cannotUnmountMedium (QWidget *aParent, const CMachine &aMachine,
-                            const VBoxMedium &aMedium, const COMResult &aResult);
+    int cannotRemountMedium (QWidget *aParent, const CMachine &aMachine, const VBoxMedium &aMedium, bool aMount, bool aRetry);
     void cannotOpenMedium (QWidget *aParent, const CVirtualBox &aVBox,
-                           VBoxDefs::MediaType aType, const QString &aLocation);
+                           VBoxDefs::MediumType aType, const QString &aLocation);
     void cannotCloseMedium (QWidget *aParent, const VBoxMedium &aMedium,
                             const COMResult &aResult);
     void cannotEjectDrive();
@@ -299,8 +297,8 @@ public:
                                    const QString &, const QString &);
 
     int cannotFindGuestAdditions (const QString &aSrc1, const QString &aSrc2);
-    void cannotDownloadGuestAdditions (const QString &aURL,
-                                       const QString &aReason);
+    void cannotDownloadGuestAdditions (const QString &aURL, const QString &aReason);
+    void cannotMountGuestAdditions (const QString &aMachineName);
     bool confirmDownloadAdditions (const QString &aURL, ulong aSize);
     bool confirmMountAdditions (const QString &aURL, const QString &aSrc);
     void warnAboutTooOldAdditions (QWidget *, const QString &, const QString &);
@@ -325,9 +323,7 @@ public:
     void remindAboutMouseIntegration (bool aSupportsAbsolute);
     bool remindAboutPausedVMInput();
 
-    int warnAboutAutoConvertedSettings (const QString &aFormatVersion,
-                                        const QString &aFileList,
-                                        bool aAfterRefresh);
+    int warnAboutSettingsAutoConversion (const QString &aFileList, bool aAfterRefresh);
 
     bool remindAboutInaccessibleMedia();
 
@@ -359,7 +355,8 @@ public:
                            const QString &errorID,
                            const QString &errorMsg) const;
 
-    static QString toAccusative (VBoxDefs::MediaType aType);
+    static QString mediumToAccusative (VBoxDefs::MediumType aType, bool aIsHostDrive = false);
+    static QString deviceToAccusative (VBoxDefs::MediumType aType);
 
     static QString formatRC (HRESULT aRC);
 

@@ -75,11 +75,12 @@ tcp_output(PNATState pData, register struct tcpcb *tp)
     register struct socket *so = tp->t_socket;
     register long len, win;
     int off, flags, error;
-    register struct mbuf *m;
+    register struct mbuf *m = NULL;
     register struct tcpiphdr *ti;
     u_char opt[MAX_TCPOPTLEN];
     unsigned optlen, hdrlen;
     int idle, sendalot;
+    int size;
 
     DEBUG_CALL("tcp_output");
     DEBUG_ARG("tp = %lx", (long )tp);
@@ -370,7 +371,31 @@ send:
             tcpstat.tcps_sndbyte += len;
         }
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
         m = m_get(pData);
+#else
+        if ((len + hdrlen + ETH_HLEN) < MSIZE)
+        {
+            size = MCLBYTES;
+        }
+        else if ((len + hdrlen + ETH_HLEN) < MCLBYTES)
+        {
+            size = MCLBYTES;
+        }
+        else if((len + hdrlen + ETH_HLEN) < MJUM9BYTES)
+        {
+            size = MJUM9BYTES;
+        }
+        else if ((len + hdrlen + ETH_HLEN) < MJUM16BYTES)
+        {
+            size = MJUM16BYTES;
+        }
+        else
+        {
+            AssertMsgFailed(("Unsupported size"));
+        }
+        m = m_getjcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR, size);
+#endif
         if (m == NULL)
         {
 /*          error = ENOBUFS; */
@@ -378,6 +403,9 @@ send:
             goto out;
         }
         m->m_data += if_maxlinkhdr;
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
+        m->m_pkthdr.header = mtod(m, void *);
+#endif
         m->m_len = hdrlen;
 
         /*
@@ -419,6 +447,7 @@ send:
         else
             tcpstat.tcps_sndwinup++;
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
         m = m_get(pData);
         if (m == NULL)
         {
@@ -426,7 +455,39 @@ send:
             error = 1;
             goto out;
         }
+#else
+        if ((hdrlen + ETH_HLEN) < MSIZE)
+        {
+            size = MCLBYTES;
+        }
+        else if ((hdrlen + ETH_HLEN) < MCLBYTES)
+        {
+            size = MCLBYTES;
+        }
+        else if((hdrlen + ETH_HLEN) < MJUM9BYTES)
+        {
+            size = MJUM9BYTES;
+        }
+        else if ((hdrlen + ETH_HLEN) < MJUM16BYTES)
+        {
+            size = MJUM16BYTES;
+        }
+        else
+        {
+            AssertMsgFailed(("Unsupported size"));
+        }
+        m = m_getjcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR, size);
+#endif
+        if (m == NULL)
+        {
+/*          error = ENOBUFS; */
+            error = 1;
+            goto out;
+        }
         m->m_data += if_maxlinkhdr;
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
+        m->m_pkthdr.header = mtod(m, void *);
+#endif
         m->m_len = hdrlen;
     }
 
@@ -574,13 +635,18 @@ send:
      * to handle ttl and tos; we could keep them in
      * the template, but need a way to checksum without them.
      */
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     Assert(m->m_len == (hdrlen + len));
+#else
+    M_ASSERTPKTHDR(m);
+    m->m_pkthdr.header = mtod(m, void *);
+#endif
     m->m_len = hdrlen + len; /* XXX Needed? m_len should be correct */
 
     {
         ((struct ip *)ti)->ip_len = m->m_len;
         ((struct ip *)ti)->ip_ttl = ip_defttl;
-        ((struct ip *)ti)->ip_tos = so->so_iptos;
+       ((struct ip *)ti)->ip_tos = so->so_iptos;
 
         /* #if BSD >= 43 */
         /* Don't do IP options... */
@@ -588,20 +654,8 @@ send:
         error = ip_output(m, tp->t_inpcb->inp_options, &tp->t_inpcb->inp_route,
                          so->so_options & SO_DONTROUTE, 0);
 #endif
-#ifdef VBOX_WITH_NAT_SERVICE
-        {
-            struct ethhdr *eh0, *eh;
-            eh = (struct ethhdr *)m->m_dat;
-
-            if (so->so_m != NULL)
-            {
-                eh0 = (struct ethhdr *)so->so_m->m_dat;
-                memcpy(eh->h_source, eh0->h_source, ETH_ALEN);
-            }
-        }
-#endif
-#ifdef VBOX_WITH_SLIRP_ALIAS
-        if (so->so_la != NULL)
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
+        if(so->so_la != NULL)
             m->m_la = so->so_la;
 #endif
         error = ip_output(pData, so, m);
@@ -631,6 +685,8 @@ out:
             return (0);
         }
 #endif
+        if (m != NULL)
+            m_free(pData, m);
         return (error);
     }
     tcpstat.tcps_sndtotal++;

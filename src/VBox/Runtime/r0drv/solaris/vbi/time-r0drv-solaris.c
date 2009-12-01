@@ -1,4 +1,4 @@
-/* $Id: time-r0drv-solaris.c $ */
+/* $Id: time-r0drv-solaris.c 24386 2009-11-05 14:17:10Z vboxsync $ */
 /** @file
  * IPRT - Time, Ring-0 Driver, Solaris.
  */
@@ -32,9 +32,9 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include "the-solaris-kernel.h"
 #define RTTIME_INCL_TIMESPEC
-
+#include "../the-solaris-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/time.h>
 
 
@@ -66,3 +66,4 @@ RTDECL(PRTTIMESPEC) RTTimeNow(PRTTIMESPEC pTime)
 {
     return RTTimeSpecSetNano(pTime, vbi_tod());
 }
+

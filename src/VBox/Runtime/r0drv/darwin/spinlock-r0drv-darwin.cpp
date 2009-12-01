@@ -1,4 +1,4 @@
-/* $Id: spinlock-r0drv-darwin.cpp $ */
+/* $Id: spinlock-r0drv-darwin.cpp 22052 2009-08-07 09:45:48Z vboxsync $ */
 /** @file
  * IPRT - Spinlocks, Ring-0 Driver, Darwin.
  */
@@ -33,11 +33,14 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-darwin-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/spinlock.h>
-#include <iprt/err.h>
-#include <iprt/alloc.h>
+
 #include <iprt/assert.h>
 #include <iprt/asm.h>
+#include <iprt/err.h>
+#include <iprt/mem.h>
+#include <iprt/thread.h>
 
 #include "internal/magics.h"
 
@@ -60,6 +63,8 @@ typedef struct RTSPINLOCKINTERNAL
 
 RTDECL(int)  RTSpinlockCreate(PRTSPINLOCK pSpinlock)
 {
+    RT_ASSERT_PREEMPTIBLE();
+
     /*
      * Allocate.
      */

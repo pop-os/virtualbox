@@ -222,8 +222,10 @@ typedef struct X86CPUIDFEATECX
     unsigned    u1SSSE3 : 1;
     /** Bit 10 - CNTX-ID - L1 Context ID. */
     unsigned    u1CNTXID : 1;
-    /** Reserved. */
-    unsigned    u2Reserved2 : 2;
+    /** Bit 11 - FMA. */
+    unsigned    u1FMA : 1;
+    /** Bit 12 - Reserved. */
+    unsigned    u1Reserved2 : 1;
     /** Bit 13 - CX16 - CMPXCHG16B. */
     unsigned    u1CX16 : 1;
     /** Bit 14 - xTPR Update Control. Processor supports changing IA32_MISC_ENABLES[bit 23]. */
@@ -244,8 +246,10 @@ typedef struct X86CPUIDFEATECX
     unsigned    u1MOVBE : 1;
     /** Bit 23 - POPCNT - Supports POPCNT. */
     unsigned    u1POPCNT : 1;
-    /** Reserved. */
-    unsigned    u2Reserved4 : 2;
+    /** Bit 24 - Reserved. */
+    unsigned    u1Reserved4 : 1;
+    /** Bit 25 - AES. */
+    unsigned    u1AES : 1;
     /** Bit 26 - XSAVE - Supports XSAVE. */
     unsigned    u1XSAVE : 1;
     /** Bit 27 - OSXSAVE - Supports OSXSAVE. */
@@ -354,6 +358,8 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
  */
 /** ECX Bit 0 - SSE3 - Supports SSE3 or not. */
 #define X86_CPUID_FEATURE_ECX_SSE3      RT_BIT(0)
+/** ECX Bit 1 - PCLMUL - PCLMULQDQ support (for AES-GCM). */
+#define X86_CPUID_FEATURE_ECX_PCLMUL    RT_BIT(1)
 /** ECX Bit 2 - DTES64 - DS Area 64-bit Layout. */
 #define X86_CPUID_FEATURE_ECX_DTES64    RT_BIT(2)
 /** ECX Bit 3 - MONITOR - Supports MONITOR/MWAIT. */
@@ -372,6 +378,8 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_FEATURE_ECX_SSSE3     RT_BIT(9)
 /** ECX Bit 10 - CNTX-ID - L1 Context ID. */
 #define X86_CPUID_FEATURE_ECX_CNTXID    RT_BIT(10)
+/** ECX Bit 12 - FMA. */
+#define X86_CPUID_FEATURE_ECX_FMA       RT_BIT(12)
 /** ECX Bit 13 - CX16 - CMPXCHG16B. */
 #define X86_CPUID_FEATURE_ECX_CX16      RT_BIT(13)
 /** ECX Bit 14 - xTPR Update Control. Processor supports changing IA32_MISC_ENABLES[bit 23]. */
@@ -388,12 +396,16 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_FEATURE_ECX_X2APIC    RT_BIT(21)
 /** ECX Bit 22 - MOVBE instruction. */
 #define X86_CPUID_FEATURE_ECX_MOVBE     RT_BIT(22)
-/** ECX Bit 23 - POPCOUNT instruction. */
-#define X86_CPUID_FEATURE_ECX_POPCOUNT  RT_BIT(23)
+/** ECX Bit 23 - POPCNT instruction. */
+#define X86_CPUID_FEATURE_ECX_POPCNT    RT_BIT(23)
+/** ECX Bit 25 - AES instructions. */
+#define X86_CPUID_FEATURE_ECX_AES       RT_BIT(25)
 /** ECX Bit 26 - XSAVE instruction. */
 #define X86_CPUID_FEATURE_ECX_XSAVE     RT_BIT(26)
 /** ECX Bit 27 - OSXSAVE instruction. */
 #define X86_CPUID_FEATURE_ECX_OSXSAVE   RT_BIT(27)
+/** ECX Bit 28 - AVX. */
+#define X86_CPUID_FEATURE_ECX_AVX       RT_BIT(28)
 
 
 /** Bit 0 - FPU - x87 FPU on Chip. */
@@ -462,9 +474,9 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
  * @{
  */
 /** Bit 0 - FPU - x87 FPU on Chip. */
-#define X86_CPUID_AMD_FEATURE_EDX_FPU   RT_BIT(0)
+#define X86_CPUID_AMD_FEATURE_EDX_FPU       RT_BIT(0)
 /** Bit 1 - VME - Virtual 8086 Mode Enhancements. */
-#define X86_CPUID_AMD_FEATURE_EDX_VME    RT_BIT(1)
+#define X86_CPUID_AMD_FEATURE_EDX_VME       RT_BIT(1)
 /** Bit 2 - DE - Debugging extensions. */
 #define X86_CPUID_AMD_FEATURE_EDX_DE        RT_BIT(2)
 /** Bit 3 - PSE - Page Size Extension. */
@@ -536,6 +548,10 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_AMD_FEATURE_ECX_3DNOWPRF  RT_BIT(8)
 /** Bit 9 - OSVW - AMD OS visible workaround. */
 #define X86_CPUID_AMD_FEATURE_ECX_OSVW      RT_BIT(9)
+/** Bit 10 - IBS - Instruct based sampling. */
+#define X86_CPUID_AMD_FEATURE_ECX_IBS       RT_BIT(10)
+/** Bit 11 - SSE5 - SSE5 instruction support. */
+#define X86_CPUID_AMD_FEATURE_ECX_SSE5      RT_BIT(11)
 /** Bit 12 - SKINIT - AMD SKINIT: SKINIT, STGI, and DEV support. */
 #define X86_CPUID_AMD_FEATURE_ECX_SKINIT    RT_BIT(12)
 /** Bit 13 - WDT - AMD Watchdog timer support. */
@@ -825,6 +841,9 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 /** Machine Check Global Control Register. */
 #define MSR_IA32_MCP_CTRL                   0x17B
 
+/** Trace/Profile Resource Control (R/W) */
+#define MSR_IA32_DEBUGCTL                   0x1D9
+
 /* Page Attribute Table. */
 #define MSR_IA32_CR_PAT                     0x277
 
@@ -866,6 +885,8 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define MSR_IA32_VMX_PROCBASED_CTLS2        0x48B
 /** EPT capabilities. */
 #define MSR_IA32_VMX_EPT_CAPS               0x48C
+/** DS Save Area (R/W). */
+#define MSR_IA32_DS_AREA                    0x600
 /** X2APIC MSR ranges. */
 #define MSR_IA32_APIC_START                 0x800
 #define MSR_IA32_APIC_END                   0x900
@@ -915,6 +936,8 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define MSR_K7_PERFCTR1                     0xc0010005
 #define MSR_K7_PERFCTR2                     0xc0010006
 #define MSR_K7_PERFCTR3                     0xc0010007
+
+#define MSR_K8_HWCR                         0xc0010015
 
 /** K8 LSTAR - Long mode SYSCALL target (RIP). */
 #define MSR_K8_LSTAR                        0xc0000082
@@ -1471,9 +1494,9 @@ typedef struct X86PDE2MPAEBITS
     /** No Execute flag. */
     uint32_t    u1NoExecute : 1;
 } X86PDE2MPAEBITS;
-/** Pointer to a 4MB PAE page table entry. */
+/** Pointer to a 2MB PAE page table entry. */
 typedef X86PDE2MPAEBITS *PX86PDE2MPAEBITS;
-/** Pointer to a 4MB PAE page table entry. */
+/** Pointer to a 2MB PAE page table entry. */
 typedef const X86PDE2MPAEBITS *PCX86PDE2MPAEBITS;
 
 /** @} */
@@ -1870,9 +1893,8 @@ typedef struct X86FXSTATE
     uint16_t    FCW;
     /** Status word. */
     uint16_t    FSW;
-    /** Tag word (it's a byte actually). */
-    uint8_t     FTW;
-    uint8_t     huh1;
+    /** Tag word. (The upper byte is always zero.) */
+    uint16_t    FTW;
     /** Opcode. */
     uint16_t    FOP;
     /** Instruction pointer. */
@@ -1941,24 +1963,24 @@ typedef const X86FXSTATE *PCX86FXSTATE;
  */
 typedef struct X86DESCATTRBITS
 {
-    /** Segment Type. */
+    /** 00 - Segment Type. */
     unsigned    u4Type : 4;
-    /** Descriptor Type. System(=0) or code/data selector */
+    /** 04 - Descriptor Type. System(=0) or code/data selector */
     unsigned    u1DescType : 1;
-    /** Descriptor Privelege level. */
+    /** 05 - Descriptor Privelege level. */
     unsigned    u2Dpl : 2;
-    /** Flags selector present(=1) or not. */
+    /** 07 - Flags selector present(=1) or not. */
     unsigned    u1Present : 1;
-    /** Segment limit 16-19. */
+    /** 08 - Segment limit 16-19. */
     unsigned    u4LimitHigh : 4;
-    /** Available for system software. */
+    /** 0c - Available for system software. */
     unsigned    u1Available : 1;
-    /** 32 bits mode: Reserved - 0, long mode: Long Attribute Bit. */
+    /** 0d - 32 bits mode: Reserved - 0, long mode: Long Attribute Bit. */
     unsigned    u1Long : 1;
-    /** This flags meaning depends on the segment type. Try make sense out
+    /** 0e - This flags meaning depends on the segment type. Try make sense out
      * of the intel manual yourself.  */
     unsigned    u1DefBig : 1;
-    /** Granularity of the limit. If set 4KB granularity is used, if
+    /** 0f - Granularity of the limit. If set 4KB granularity is used, if
      * clear byte. */
     unsigned    u1Granularity : 1;
 } X86DESCATTRBITS;

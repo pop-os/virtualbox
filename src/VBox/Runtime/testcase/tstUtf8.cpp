@@ -1,4 +1,4 @@
-/* $Id: tstUtf8.cpp $ */
+/* $Id: tstUtf8.cpp 25000 2009-11-26 14:22:44Z vboxsync $ */
 /** @file
  * IPRT Testcase - UTF-8 and UTF-16 string conversions.
  */
@@ -41,6 +41,7 @@
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/test.h>
+#include <iprt/ministring_cpp.h>
 
 #include <stdlib.h> /** @todo use our random. */
 
@@ -467,7 +468,6 @@ void test2(RTTEST hTest)
         if (mymemcmp(pwszUtf16, g_wszAll, sizeof(g_wszAll), 16))
             RTTestFailed(hTest, "UTF-8 -> UTF-16 failed compare!");
 
-        char *pszUtf8;
         rc = RTUtf16ToUtf8(pwszUtf16, &pszUtf8);
         if (rc == VINF_SUCCESS)
         {
@@ -804,6 +804,8 @@ void Benchmarks(RTTEST hTest)
         char szBuf[sizeof(g_szAll)];
     } s_Buf;
 
+    RTTestSub(hTest, "Benchmarks");
+/** @todo add RTTest* methods for reporting benchmark results. */
     RTTestPrintf(hTest, RTTESTLVL_ALWAYS, "Benchmarking RTStrToUtf16Ex:  "); /** @todo figure this stuff into the test framework. */
     PRTUTF16 pwsz = &s_Buf.wszBuf[0];
     int rc = RTStrToUtf16Ex(&g_szAll[0], RTSTR_MAX, &pwsz, RT_ELEMENTS(s_Buf.wszBuf), NULL);
@@ -821,7 +823,7 @@ void Benchmarks(RTTEST hTest)
             }
         }
         uint64_t u64Elapsed = RTTimeNanoTS() - u64Start;
-        RTTestPrintf(hTest, RTTESTLVL_ALWAYS, "%d in %RI64ns\n", i, u64Elapsed);
+        RTTestPrintf(hTest, RTTESTLVL_ALWAYS, "%d in %'RI64 ns\n", i, u64Elapsed);
     }
 
     RTTestPrintf(hTest, RTTESTLVL_ALWAYS, "Benchmarking RTUtf16ToUtf8Ex: ");
@@ -841,9 +843,10 @@ void Benchmarks(RTTEST hTest)
             }
         }
         uint64_t u64Elapsed = RTTimeNanoTS() - u64Start;
-        RTTestPrintf(hTest, RTTESTLVL_ALWAYS, "%d in %RI64ns\n", i, u64Elapsed);
+        RTTestPrintf(hTest, RTTESTLVL_ALWAYS, "%d in %'RI64 ns\n", i, u64Elapsed);
     }
 
+    RTTestSubDone(hTest);
 }
 
 
@@ -925,6 +928,281 @@ static void testStrStr(RTTEST hTest)
 }
 
 
+void testMinistring(RTTEST hTest)
+{
+    RTTestSub(hTest, "class iprt::MiniString");
+
+#define CHECK(expr) \
+    do { \
+        if (!(expr)) \
+            RTTestFailed(hTest, "%d: FAILED %s", __LINE__, #expr); \
+    } while (0)
+
+#define CHECK_DUMP(expr, value) \
+    do { \
+        if (!(expr)) \
+            RTTestFailed(hTest, "%d: FAILED %s, got \"%s\"", __LINE__, #expr, value); \
+    } while (0)
+
+#define CHECK_DUMP_I(expr) \
+    do { \
+        if (!(expr)) \
+            RTTestFailed(hTest, "%d: FAILED %s, got \"%d\"", __LINE__, #expr, expr); \
+    } while (0)
+
+    iprt::MiniString empty;
+    CHECK( (empty.length() == 0) );
+    CHECK( (empty.capacity() == 0) );
+
+    iprt::MiniString sixbytes("12345");
+    CHECK( (sixbytes.length() == 5) );
+    CHECK( (sixbytes.capacity() == 6) );
+
+    sixbytes.append("678");
+    CHECK( (sixbytes.length() == 8) );
+    CHECK( (sixbytes.capacity() == 9) );
+
+    char *psz = sixbytes.mutableRaw();
+        // 12345678
+        //       ^
+        // 0123456
+    psz[6] = '\0';
+    sixbytes.jolt();
+    CHECK( (sixbytes.length() == 6) );
+    CHECK( (sixbytes.capacity() == 7) );
+
+    iprt::MiniString morebytes("tobereplaced");
+    morebytes = "newstring ";
+    morebytes.append(sixbytes);
+
+    CHECK_DUMP( (morebytes == "newstring 123456"), morebytes.c_str() );
+
+    iprt::MiniString third(morebytes);
+    third.reserve(100 * 1024);      // 100 KB
+    CHECK_DUMP( (third == "newstring 123456"), morebytes.c_str() );
+    CHECK( (third.capacity() == 100 * 1024) );
+    CHECK( (third.length() == morebytes.length()) );        // must not have changed
+
+    iprt::MiniString copy1(morebytes);
+    iprt::MiniString copy2 = morebytes;
+    CHECK( (copy1 == copy2) );
+
+    copy1 = NULL;
+    CHECK( (copy1.length() == 0) );
+
+    copy1 = "";
+    CHECK( (copy1.length() == 0) );
+
+    CHECK( (iprt::MiniString("abc") < iprt::MiniString("def")) );
+    CHECK( (iprt::MiniString("abc") != iprt::MiniString("def")) );
+    CHECK_DUMP_I( (iprt::MiniString("def") > iprt::MiniString("abc")) );
+
+    copy2.setNull();
+    for (int i = 0;
+         i < 100;
+         ++i)
+    {
+        copy2.reserve(50);      // should be ignored after 50 loops
+        copy2.append("1");
+    }
+    CHECK( (copy2.length() == 100) );
+
+    copy2.setNull();
+    for (int i = 0;
+         i < 100;
+         ++i)
+    {
+        copy2.reserve(50);      // should be ignored after 50 loops
+        copy2.append('1');
+    }
+    CHECK( (copy2.length() == 100) );
+
+#undef CHECK
+}
+
+
+void testLatin1(RTTEST hTest)
+{
+    RTTestSub(hTest, "Latin1 conversion functions");
+
+    /* Test Utf16 -> Latin1 */
+    size_t cch_szAll = 0;
+    size_t cbShort = RTUtf16CalcLatin1Len(g_wszAll);
+    RTTEST_CHECK(hTest, cbShort == 0);
+    int rc = RTUtf16CalcLatin1LenEx(g_wszAll, 255, &cch_szAll);
+    RTTEST_CHECK(hTest, (cch_szAll == 255));
+    rc = RTUtf16CalcLatin1LenEx(g_wszAll, RTSTR_MAX, &cch_szAll);
+    RTTEST_CHECK_RC(hTest, rc, VERR_NO_TRANSLATION);
+    char *psz = NULL;
+    RTUTF16 wszShort[256] = { 0 };
+    for (unsigned i = 0; i < 255; ++i)
+        wszShort[i] = i + 1;
+    cbShort = RTUtf16CalcLatin1Len(wszShort);
+    RTTEST_CHECK(hTest, cbShort == 255);
+    rc = RTUtf16ToLatin1(wszShort, &psz);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+    {
+        RTTEST_CHECK(hTest, (strlen(psz) == 255));
+        for (unsigned i = 0, j = 1; psz[i] != '\0'; ++i, ++j)
+            if (psz[i] != (char) j)
+            {
+                RTTestFailed(hTest, "conversion of g_wszAll to Latin1 failed at position %u\n", i);
+                break;
+            }
+    }
+    RTStrFree(psz);
+    rc = RTUtf16ToLatin1(g_wszAll, &psz);
+    RTTEST_CHECK_RC(hTest, rc, VERR_NO_TRANSLATION);
+    char sz[512];
+    char *psz2 = &sz[0];
+    size_t cchActual = 0;
+    rc = RTUtf16ToLatin1Ex(g_wszAll, sizeof(sz) - 1, &psz2, sizeof(sz),
+                           &cchActual);
+    RTTEST_CHECK_RC(hTest, rc, VERR_NO_TRANSLATION);
+    RTTEST_CHECK_MSG(hTest, cchActual == 0,
+                     (hTest, "cchActual=%lu\n", cchActual));
+    rc = RTUtf16ToLatin1Ex(g_wszAll, 255, &psz2, sizeof(sz),
+                           &cchActual);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+    {
+        RTTEST_CHECK(hTest, (cchActual == 255));
+        RTTEST_CHECK(hTest, (cchActual == strlen(sz)));
+        for (unsigned i = 0, j = 1; psz2[i] != '\0'; ++i, ++j)
+            if (psz2[i] != (char) j)
+            {
+                RTTestFailed(hTest, "second conversion of g_wszAll to Latin1 failed at position %u\n", i);
+                break;
+            }
+    }
+    rc = RTUtf16ToLatin1Ex(g_wszAll, 128, &psz2, 128, &cchActual);
+    RTTEST_CHECK_RC(hTest, rc, VERR_BUFFER_OVERFLOW);
+    RTTEST_CHECK_MSG(hTest, cchActual == 128,
+                     (hTest, "cchActual=%lu\n", cchActual));
+    rc = RTUtf16ToLatin1Ex(g_wszAll, 255, &psz, 0, &cchActual);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+    {
+        RTTEST_CHECK(hTest, (cchActual == 255));
+        RTTEST_CHECK(hTest, (cchActual == strlen(psz)));
+        for (unsigned i = 0, j = 1; psz[i] != '\0'; ++i, ++j)
+            if (   ((j < 0x100) && (psz[i] != (char) j))
+                || ((j > 0xff) && psz[i] != '?'))
+            {
+                RTTestFailed(hTest, "third conversion of g_wszAll to Latin1 failed at position %u\n", i);
+                break;
+            }
+    }
+    const char *pszBad = "H\0e\0l\0l\0o\0\0\xDC\0\xD8\0";
+    rc = RTUtf16ToLatin1Ex((RTUTF16 *) pszBad, RTSTR_MAX, &psz2, sizeof(sz),
+                           &cchActual);
+    RTTEST_CHECK_RC(hTest, rc, VERR_INVALID_UTF16_ENCODING);
+    RTStrFree(psz);
+
+    /* Test Latin1 -> Utf16 */
+    const char *pszLat1 = "\x01\x20\x40\x80\x81";
+    RTTEST_CHECK(hTest, (RTLatin1CalcUtf16Len(pszLat1) == 5));
+    rc = RTLatin1CalcUtf16LenEx(pszLat1, 3, &cchActual);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+        RTTEST_CHECK(hTest, (cchActual == 3));
+    rc = RTLatin1CalcUtf16LenEx(pszLat1, RTSTR_MAX, &cchActual);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+        RTTEST_CHECK(hTest, (cchActual == 5));
+    RTUTF16 *pwc = NULL;
+    RTUTF16 wc[6];
+    RTUTF16 *pwc2 = &wc[0];
+    size_t cwActual = 0;
+    rc = RTLatin1ToUtf16(pszLat1, &pwc);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+        RTTEST_CHECK(hTest,    (pwc[0] == 1) && (pwc[1] == 0x20)
+                            && (pwc[2] == 0x40) && (pwc[3] == 0x80)
+                            && (pwc[4] == 0x81) && (pwc[5] == '\0'));
+    RTUtf16Free(pwc);
+    rc = RTLatin1ToUtf16Ex(pszLat1, RTSTR_MAX, &pwc, 0, &cwActual);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+    {
+        RTTEST_CHECK(hTest, (cwActual == 5));
+        RTTEST_CHECK(hTest,    (pwc[0] == 1) && (pwc[1] == 0x20)
+                            && (pwc[2] == 0x40) && (pwc[3] == 0x80)
+                            && (pwc[4] == 0x81) && (pwc[5] == '\0'));
+    }
+    RTUtf16Free(pwc);
+    rc = RTLatin1ToUtf16Ex(pszLat1, RTSTR_MAX, &pwc, 0, NULL);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+        RTTEST_CHECK(hTest,    (pwc[0] == 1) && (pwc[1] == 0x20)
+                            && (pwc[2] == 0x40) && (pwc[3] == 0x80)
+                            && (pwc[4] == 0x81) && (pwc[5] == '\0'));
+    rc = RTLatin1ToUtf16Ex(pszLat1, RTSTR_MAX, &pwc2, RT_ELEMENTS(wc),
+                           &cwActual);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+    {
+        RTTEST_CHECK(hTest, (cwActual == 5));
+        RTTEST_CHECK(hTest,    (wc[0] == 1) && (wc[1] == 0x20)
+                            && (wc[2] == 0x40) && (wc[3] == 0x80)
+                            && (wc[4] == 0x81) && (wc[5] == '\0'));
+    }
+    rc = RTLatin1ToUtf16Ex(pszLat1, 3, &pwc2, RT_ELEMENTS(wc),
+                           &cwActual);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+    {
+        RTTEST_CHECK(hTest, (cwActual == 3));
+        RTTEST_CHECK(hTest,    (wc[0] == 1) && (wc[1] == 0x20)
+                            && (wc[2] == 0x40) && (wc[3] == '\0'));
+    }
+    rc = RTLatin1ToUtf16Ex(pszLat1, RTSTR_MAX, &pwc2, RT_ELEMENTS(wc) - 1,
+                           &cwActual);
+    RTTEST_CHECK_RC(hTest, rc, VERR_BUFFER_OVERFLOW);
+    /** @todo Either fix the documentation or fix the code - cchActual is
+     * set to the number of bytes actually encoded. */
+    RTTEST_CHECK(hTest, (cwActual == 5));
+    RTTestSubDone(hTest);
+}
+
+
+static void testNoTransation(RTTEST hTest)
+{
+
+    /*
+     * Try trigger a VERR_NO_TRANSLATION error in convert to
+     * current CP to latin-1.
+     */
+    const RTUTF16 s_swzTest1[] = { 0x2358, 0x2242, 0x2357, 0x2359,  0x22f9, 0x2c4e, 0x0030, 0x0060,
+                                   0x0092, 0x00c1, 0x00f2, 0x1f80,  0x0088, 0x2c38, 0x2c30, 0x0000 };
+    char *pszTest1;
+    int rc = RTUtf16ToUtf8(s_swzTest1, &pszTest1);
+    RTTESTI_CHECK_RC_RETV(rc, VINF_SUCCESS);
+
+    RTTestSub(hTest, "VERR_NO_TRANSLATION/RTStrUtf8ToCurrentCP");
+    char *pszOut;
+    rc = RTStrUtf8ToCurrentCP(&pszOut, pszTest1);
+    if (RT_SUCCESS(rc))
+    {
+        RTTESTI_CHECK(!strcmp(pszOut, pszTest1));
+        RTTestIPrintf(RTTESTLVL_ALWAYS, "CurrentCP is UTF-8 or similar\n");
+        RTStrFree(pszOut);
+    }
+    else
+        RTTESTI_CHECK_RC(rc, VERR_NO_TRANSLATION);
+
+    RTTestSub(hTest, "VERR_NO_TRANSLATION/RTUtf16ToLatin1");
+    rc = RTUtf16ToLatin1(s_swzTest1, &pszOut);
+    RTTESTI_CHECK_RC(rc, VERR_NO_TRANSLATION);
+    if (RT_SUCCESS(rc))
+        RTStrFree(pszOut);
+
+    RTStrFree(pszTest1);
+    RTTestSubDone(hTest);
+}
+
+
 int main()
 {
     /*
@@ -945,6 +1223,10 @@ int main()
     test3(hTest);
     TstRTStrXCmp(hTest);
     testStrStr(hTest);
+    testMinistring(hTest);
+    testLatin1(hTest);
+    testNoTransation(hTest);
+
     Benchmarks(hTest);
 
     /*

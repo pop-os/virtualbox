@@ -1,4 +1,4 @@
-/* $Id: VBoxManageList.cpp $ */
+/* $Id: VBoxManageList.cpp 25019 2009-11-26 15:38:39Z vboxsync $ */
 /** @file
  * VBoxManage - The 'list' command.
  */
@@ -77,6 +77,7 @@ enum enOptionCodes
 #if defined(VBOX_WITH_NETFLT)
     LISTHOSTONLYIFS,
 #endif
+    LISTHOSTCPUIDS,
     LISTHOSTINFO,
     LISTHDDBACKENDS,
     LISTHDDS,
@@ -90,26 +91,27 @@ enum enOptionCodes
 
 static const RTGETOPTDEF g_aListOptions[]
     = {
-        { "--long",             'l', RTGETOPT_REQ_NOTHING },
-        { "vms",                LISTVMS, RTGETOPT_REQ_NOTHING },
-        { "runningvms",         LISTRUNNINGVMS, RTGETOPT_REQ_NOTHING },
-        { "ostypes",            LISTOSTYPES, RTGETOPT_REQ_NOTHING },
-        { "hostdvds",           LISTHOSTDVDS, RTGETOPT_REQ_NOTHING },
-        { "hostfloppies",       LISTHOSTFLOPPIES, RTGETOPT_REQ_NOTHING },
-        { "hostifs",             LISTBRIDGEDIFS, RTGETOPT_REQ_NOTHING }, /* backward compatibility */
-        { "bridgedifs",          LISTBRIDGEDIFS, RTGETOPT_REQ_NOTHING },
+        { "--long",             'l',                    RTGETOPT_REQ_NOTHING },
+        { "vms",                LISTVMS,                RTGETOPT_REQ_NOTHING },
+        { "runningvms",         LISTRUNNINGVMS,         RTGETOPT_REQ_NOTHING },
+        { "ostypes",            LISTOSTYPES,            RTGETOPT_REQ_NOTHING },
+        { "hostdvds",           LISTHOSTDVDS,           RTGETOPT_REQ_NOTHING },
+        { "hostfloppies",       LISTHOSTFLOPPIES,       RTGETOPT_REQ_NOTHING },
+        { "hostifs",            LISTBRIDGEDIFS,         RTGETOPT_REQ_NOTHING }, /* backward compatibility */
+        { "bridgedifs",         LISTBRIDGEDIFS,         RTGETOPT_REQ_NOTHING },
 #if defined(VBOX_WITH_NETFLT)
-        { "hostonlyifs",          LISTHOSTONLYIFS, RTGETOPT_REQ_NOTHING },
+        { "hostonlyifs",        LISTHOSTONLYIFS,        RTGETOPT_REQ_NOTHING },
 #endif
-        { "hostinfo",           LISTHOSTINFO, RTGETOPT_REQ_NOTHING },
-        { "hddbackends",        LISTHDDBACKENDS, RTGETOPT_REQ_NOTHING },
-        { "hdds",               LISTHDDS, RTGETOPT_REQ_NOTHING },
-        { "dvds",               LISTDVDS, RTGETOPT_REQ_NOTHING },
-        { "floppies",           LISTFLOPPIES, RTGETOPT_REQ_NOTHING },
-        { "usbhost",            LISTUSBHOST, RTGETOPT_REQ_NOTHING },
-        { "usbfilters",         LISTUSBFILTERS, RTGETOPT_REQ_NOTHING },
-        { "systemproperties",   LISTSYSTEMPROPERTIES, RTGETOPT_REQ_NOTHING },
-        { "dhcpservers",        LISTDHCPSERVERS, RTGETOPT_REQ_NOTHING }
+        { "hostinfo",           LISTHOSTINFO,           RTGETOPT_REQ_NOTHING },
+        { "hostcpuids",         LISTHOSTCPUIDS,         RTGETOPT_REQ_NOTHING },
+        { "hddbackends",        LISTHDDBACKENDS,        RTGETOPT_REQ_NOTHING },
+        { "hdds",               LISTHDDS,               RTGETOPT_REQ_NOTHING },
+        { "dvds",               LISTDVDS,               RTGETOPT_REQ_NOTHING },
+        { "floppies",           LISTFLOPPIES,           RTGETOPT_REQ_NOTHING },
+        { "usbhost",            LISTUSBHOST,            RTGETOPT_REQ_NOTHING },
+        { "usbfilters",         LISTUSBFILTERS,         RTGETOPT_REQ_NOTHING },
+        { "systemproperties",   LISTSYSTEMPROPERTIES,   RTGETOPT_REQ_NOTHING },
+        { "dhcpservers",        LISTDHCPSERVERS,        RTGETOPT_REQ_NOTHING }
       };
 
 int handleList(HandlerArg *a)
@@ -142,6 +144,7 @@ int handleList(HandlerArg *a)
             case LISTHOSTONLYIFS:
 #endif
             case LISTHOSTINFO:
+            case LISTHOSTCPUIDS:
             case LISTHDDBACKENDS:
             case LISTHDDS:
             case LISTDVDS:
@@ -229,7 +232,10 @@ int handleList(HandlerArg *a)
                             switch (machineState)
                             {
                                 case MachineState_Running:
+                                case MachineState_Teleporting:
+                                case MachineState_LiveSnapshotting:
                                 case MachineState_Paused:
+                                case MachineState_TeleportingPausedVM:
                                     rc = showVMInfo(a->virtualBox,
                                                     machines[i],
                                                     (fOptLong) ? VMINFO_STANDARD : VMINFO_COMPACT);
@@ -269,16 +275,19 @@ int handleList(HandlerArg *a)
         {
             ComPtr<IHost> host;
             CHECK_ERROR(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
-            com::SafeIfaceArray <IHostDVDDrive> coll;
+            com::SafeIfaceArray <IMedium> coll;
             CHECK_ERROR(host, COMGETTER(DVDDrives)(ComSafeArrayAsOutParam(coll)));
             if (SUCCEEDED(rc))
             {
                 for (size_t i = 0; i < coll.size(); ++ i)
                 {
-                    ComPtr<IHostDVDDrive> dvdDrive = coll[i];
+                    ComPtr<IMedium> dvdDrive = coll[i];
+                    Bstr uuid;
+                    dvdDrive->COMGETTER(Id)(uuid.asOutParam());
+                    RTPrintf("UUID:         %s\n", Utf8Str(uuid).raw());
                     Bstr name;
                     dvdDrive->COMGETTER(Name)(name.asOutParam());
-                    RTPrintf("Name:        %lS\n\n", name.raw());
+                    RTPrintf("Name:         %lS\n\n", name.raw());
                 }
             }
         }
@@ -288,16 +297,19 @@ int handleList(HandlerArg *a)
         {
             ComPtr<IHost> host;
             CHECK_ERROR(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
-            com::SafeIfaceArray <IHostFloppyDrive> coll;
+            com::SafeIfaceArray <IMedium> coll;
             CHECK_ERROR(host, COMGETTER(FloppyDrives)(ComSafeArrayAsOutParam(coll)));
             if (SUCCEEDED(rc))
             {
                 for (size_t i = 0; i < coll.size(); ++i)
                 {
-                    ComPtr<IHostFloppyDrive> floppyDrive = coll[i];
+                    ComPtr<IMedium> floppyDrive = coll[i];
+                    Bstr uuid;
+                    floppyDrive->COMGETTER(Id)(uuid.asOutParam());
+                    RTPrintf("UUID:         %s\n", Utf8Str(uuid).raw());
                     Bstr name;
                     floppyDrive->COMGETTER(Name)(name.asOutParam());
-                    RTPrintf("Name:        %lS\n\n", name.raw());
+                    RTPrintf("Name:         %lS\n\n", name.raw());
                 }
             }
         }
@@ -402,10 +414,8 @@ int handleList(HandlerArg *a)
                     RTPrintf("Processor#%u speed: %lu MHz\n", i, processorSpeed);
                 else
                     RTPrintf("Processor#%u speed: unknown\n", i, processorSpeed);
-#if 0 /* not yet implemented in Main */
                 CHECK_ERROR (Host, GetProcessorDescription(i, processorDescription.asOutParam()));
                 RTPrintf("Processor#%u description: %lS\n", i, processorDescription.raw());
-#endif
             }
 
             ULONG memorySize = 0;
@@ -426,29 +436,58 @@ int handleList(HandlerArg *a)
         }
         break;
 
+        case LISTHOSTCPUIDS:
+        {
+            ComPtr<IHost> Host;
+            CHECK_ERROR(a->virtualBox, COMGETTER(Host)(Host.asOutParam()));
+
+            RTPrintf("Host CPUIDs:\n\nLeaf no.  EAX      EBX      ECX      EDX\n");
+            ULONG uCpuNo = 0; /* ASSUMES that CPU#0 is online. */
+            static uint32_t const s_auCpuIdRanges[] =
+            {
+                UINT32_C(0x00000000), UINT32_C(0x0000007f),
+                UINT32_C(0x80000000), UINT32_C(0x8000007f),
+                UINT32_C(0xc0000000), UINT32_C(0xc000007f)
+            };
+            for (unsigned i = 0; i < RT_ELEMENTS(s_auCpuIdRanges); i += 2)
+            {
+                ULONG uEAX, uEBX, uECX, uEDX, cLeafs;
+                CHECK_ERROR(Host, GetProcessorCpuIdLeaf(uCpuNo, s_auCpuIdRanges[i], 0, &cLeafs, &uEBX, &uECX, &uEDX));
+                if (cLeafs < s_auCpuIdRanges[i] || cLeafs > s_auCpuIdRanges[i+1])
+                    continue;
+                cLeafs++;
+                for (ULONG iLeaf = s_auCpuIdRanges[i]; iLeaf <= cLeafs; iLeaf++)
+                {
+                    CHECK_ERROR(Host, GetProcessorCpuIdLeaf(uCpuNo, iLeaf, 0, &uEAX, &uEBX, &uECX, &uEDX));
+                    RTPrintf("%08x  %08x %08x %08x %08x\n", iLeaf, uEAX, uEBX, uECX, uEDX);
+                }
+            }
+        }
+        break;
+
         case LISTHDDBACKENDS:
         {
             ComPtr<ISystemProperties> systemProperties;
             CHECK_ERROR(a->virtualBox,
                         COMGETTER(SystemProperties) (systemProperties.asOutParam()));
-            com::SafeIfaceArray <IHardDiskFormat> hardDiskFormats;
+            com::SafeIfaceArray <IMediumFormat> mediumFormats;
             CHECK_ERROR(systemProperties,
-                        COMGETTER(HardDiskFormats) (ComSafeArrayAsOutParam (hardDiskFormats)));
+                        COMGETTER(MediumFormats) (ComSafeArrayAsOutParam (mediumFormats)));
 
             RTPrintf("Supported hard disk backends:\n\n");
-            for (size_t i = 0; i < hardDiskFormats.size(); ++ i)
+            for (size_t i = 0; i < mediumFormats.size(); ++ i)
             {
                 /* General information */
                 Bstr id;
-                CHECK_ERROR(hardDiskFormats [i],
+                CHECK_ERROR(mediumFormats [i],
                             COMGETTER(Id) (id.asOutParam()));
 
                 Bstr description;
-                CHECK_ERROR(hardDiskFormats [i],
+                CHECK_ERROR(mediumFormats [i],
                             COMGETTER(Id) (description.asOutParam()));
 
                 ULONG caps;
-                CHECK_ERROR(hardDiskFormats [i],
+                CHECK_ERROR(mediumFormats [i],
                             COMGETTER(Capabilities) (&caps));
 
                 RTPrintf("Backend %u: id='%ls' description='%ls' capabilities=%#06x extensions='",
@@ -456,12 +495,12 @@ int handleList(HandlerArg *a)
 
                 /* File extensions */
                 com::SafeArray <BSTR> fileExtensions;
-                CHECK_ERROR(hardDiskFormats [i],
+                CHECK_ERROR(mediumFormats [i],
                             COMGETTER(FileExtensions) (ComSafeArrayAsOutParam (fileExtensions)));
-                for (size_t a = 0; a < fileExtensions.size(); ++ a)
+                for (size_t j = 0; j < fileExtensions.size(); ++ j)
                 {
-                    RTPrintf ("%ls", Bstr (fileExtensions [a]).raw());
-                    if (a != fileExtensions.size()-1)
+                    RTPrintf ("%ls", Bstr (fileExtensions [j]).raw());
+                    if (j != fileExtensions.size()-1)
                         RTPrintf (",");
                 }
                 RTPrintf ("'");
@@ -472,7 +511,7 @@ int handleList(HandlerArg *a)
                 com::SafeArray <DataType_T> propertyTypes;
                 com::SafeArray <ULONG> propertyFlags;
                 com::SafeArray <BSTR> propertyDefaults;
-                CHECK_ERROR(hardDiskFormats [i],
+                CHECK_ERROR(mediumFormats [i],
                             DescribeProperties (ComSafeArrayAsOutParam (propertyNames),
                                                 ComSafeArrayAsOutParam (propertyDescriptions),
                                                 ComSafeArrayAsOutParam (propertyTypes),
@@ -482,19 +521,19 @@ int handleList(HandlerArg *a)
                 RTPrintf (" properties=(");
                 if (propertyNames.size() > 0)
                 {
-                    for (size_t a = 0; a < propertyNames.size(); ++ a)
+                    for (size_t j = 0; j < propertyNames.size(); ++ j)
                     {
                         RTPrintf ("\n  name='%ls' desc='%ls' type=",
-                                Bstr (propertyNames [a]).raw(), Bstr (propertyDescriptions [a]).raw());
-                        switch (propertyTypes [a])
+                                Bstr (propertyNames [j]).raw(), Bstr (propertyDescriptions [j]).raw());
+                        switch (propertyTypes [j])
                         {
                             case DataType_Int32: RTPrintf ("int"); break;
                             case DataType_Int8: RTPrintf ("byte"); break;
                             case DataType_String: RTPrintf ("string"); break;
                         }
-                        RTPrintf (" flags=%#04x", propertyFlags [a]);
-                        RTPrintf (" default='%ls'", Bstr (propertyDefaults [a]).raw());
-                        if (a != propertyNames.size()-1)
+                        RTPrintf (" flags=%#04x", propertyFlags [j]);
+                        RTPrintf (" default='%ls'", Bstr (propertyDefaults [j]).raw());
+                        if (j != propertyNames.size()-1)
                             RTPrintf (", ");
                     }
                 }
@@ -505,25 +544,43 @@ int handleList(HandlerArg *a)
 
         case LISTHDDS:
         {
-            com::SafeIfaceArray<IHardDisk> hdds;
+            com::SafeIfaceArray<IMedium> hdds;
             CHECK_ERROR(a->virtualBox, COMGETTER(HardDisks)(ComSafeArrayAsOutParam (hdds)));
             for (size_t i = 0; i < hdds.size(); ++ i)
             {
-                ComPtr<IHardDisk> hdd = hdds[i];
+                ComPtr<IMedium> hdd = hdds[i];
                 Bstr uuid;
                 hdd->COMGETTER(Id)(uuid.asOutParam());
-                RTPrintf("UUID:         %s\n", Utf8Str(uuid).raw());
+                RTPrintf("UUID:       %s\n", Utf8Str(uuid).raw());
                 Bstr format;
                 hdd->COMGETTER(Format)(format.asOutParam());
-                RTPrintf("Format:       %lS\n", format.raw());
+                RTPrintf("Format:     %lS\n", format.raw());
                 Bstr filepath;
                 hdd->COMGETTER(Location)(filepath.asOutParam());
-                RTPrintf("Location:     %lS\n", filepath.raw());
-                MediaState_T enmState;
+                RTPrintf("Location:   %lS\n", filepath.raw());
+                MediumState_T enmState;
                 /// @todo NEWMEDIA check accessibility of all parents
                 /// @todo NEWMEDIA print the full state value
-                hdd->COMGETTER(State)(&enmState);
-                RTPrintf("Accessible:   %s\n", enmState != MediaState_Inaccessible ? "yes" : "no");
+                hdd->RefreshState(&enmState);
+                RTPrintf("Accessible: %s\n", enmState != MediumState_Inaccessible ? "yes" : "no");
+
+                MediumType_T type;
+                hdd->COMGETTER(Type)(&type);
+                const char *typeStr = "unknown";
+                switch (type)
+                {
+                    case MediumType_Normal:
+                        typeStr = "normal";
+                        break;
+                    case MediumType_Immutable:
+                        typeStr = "immutable";
+                        break;
+                    case MediumType_Writethrough:
+                        typeStr = "writethrough";
+                        break;
+                }
+                RTPrintf("Type:       %s\n", typeStr);
+
                 com::SafeArray<BSTR> machineIds;
                 hdd->COMGETTER(MachineIds)(ComSafeArrayAsOutParam(machineIds));
                 for (size_t j = 0; j < machineIds.size(); ++ j)
@@ -535,7 +592,7 @@ int handleList(HandlerArg *a)
                     machine->COMGETTER(Name)(name.asOutParam());
                     machine->COMGETTER(Id)(uuid.asOutParam());
                     RTPrintf("%s%lS (UUID: %lS)\n",
-                            j == 0 ? "Usage:        " : "              ",
+                            j == 0 ? "Usage:      " : "            ",
                             name.raw(), machineIds[j]);
                 }
                 /// @todo NEWMEDIA check usage in snapshots too
@@ -548,21 +605,35 @@ int handleList(HandlerArg *a)
 
         case LISTDVDS:
         {
-            com::SafeIfaceArray<IDVDImage> dvds;
+            com::SafeIfaceArray<IMedium> dvds;
             CHECK_ERROR(a->virtualBox, COMGETTER(DVDImages)(ComSafeArrayAsOutParam(dvds)));
             for (size_t i = 0; i < dvds.size(); ++ i)
             {
-                ComPtr<IDVDImage> dvdImage = dvds[i];
+                ComPtr<IMedium> dvdImage = dvds[i];
                 Bstr uuid;
                 dvdImage->COMGETTER(Id)(uuid.asOutParam());
                 RTPrintf("UUID:       %s\n", Utf8Str(uuid).raw());
                 Bstr filePath;
                 dvdImage->COMGETTER(Location)(filePath.asOutParam());
                 RTPrintf("Path:       %lS\n", filePath.raw());
-                MediaState_T enmState;
-                dvdImage->COMGETTER(State)(&enmState);
-                RTPrintf("Accessible: %s\n", enmState != MediaState_Inaccessible ? "yes" : "no");
-                /** @todo usage */
+                MediumState_T enmState;
+                dvdImage->RefreshState(&enmState);
+                RTPrintf("Accessible: %s\n", enmState != MediumState_Inaccessible ? "yes" : "no");
+
+                com::SafeArray<BSTR> machineIds;
+                dvdImage->COMGETTER(MachineIds)(ComSafeArrayAsOutParam(machineIds));
+                for (size_t j = 0; j < machineIds.size(); ++ j)
+                {
+                    ComPtr<IMachine> machine;
+                    CHECK_ERROR(a->virtualBox, GetMachine(machineIds[j], machine.asOutParam()));
+                    ASSERT(machine);
+                    Bstr name;
+                    machine->COMGETTER(Name)(name.asOutParam());
+                    machine->COMGETTER(Id)(uuid.asOutParam());
+                    RTPrintf("%s%lS (UUID: %lS)\n",
+                            j == 0 ? "Usage:      " : "            ",
+                            name.raw(), machineIds[j]);
+                }
                 RTPrintf("\n");
             }
         }
@@ -570,21 +641,35 @@ int handleList(HandlerArg *a)
 
         case LISTFLOPPIES:
         {
-            com::SafeIfaceArray<IFloppyImage> floppies;
+            com::SafeIfaceArray<IMedium> floppies;
             CHECK_ERROR(a->virtualBox, COMGETTER(FloppyImages)(ComSafeArrayAsOutParam(floppies)));
             for (size_t i = 0; i < floppies.size(); ++ i)
             {
-                ComPtr<IFloppyImage> floppyImage = floppies[i];
+                ComPtr<IMedium> floppyImage = floppies[i];
                 Bstr uuid;
                 floppyImage->COMGETTER(Id)(uuid.asOutParam());
                 RTPrintf("UUID:       %s\n", Utf8Str(uuid).raw());
                 Bstr filePath;
                 floppyImage->COMGETTER(Location)(filePath.asOutParam());
                 RTPrintf("Path:       %lS\n", filePath.raw());
-                MediaState_T enmState;
-                floppyImage->COMGETTER(State)(&enmState);
-                RTPrintf("Accessible: %s\n", enmState != MediaState_Inaccessible ? "yes" : "no");
-                /** @todo usage */
+                MediumState_T enmState;
+                floppyImage->RefreshState(&enmState);
+                RTPrintf("Accessible: %s\n", enmState != MediumState_Inaccessible ? "yes" : "no");
+
+                com::SafeArray<BSTR> machineIds;
+                floppyImage->COMGETTER(MachineIds)(ComSafeArrayAsOutParam(machineIds));
+                for (size_t j = 0; j < machineIds.size(); ++ j)
+                {
+                    ComPtr<IMachine> machine;
+                    CHECK_ERROR(a->virtualBox, GetMachine(machineIds[j], machine.asOutParam()));
+                    ASSERT(machine);
+                    Bstr name;
+                    machine->COMGETTER(Name)(name.asOutParam());
+                    machine->COMGETTER(Id)(uuid.asOutParam());
+                    RTPrintf("%s%lS (UUID: %lS)\n",
+                            j == 0 ? "Usage:      " : "            ",
+                            name.raw(), machineIds[j]);
+                }
                 RTPrintf("\n");
             }
         }
@@ -747,23 +832,61 @@ int handleList(HandlerArg *a)
             BOOL flag;
 
             systemProperties->COMGETTER(MinGuestRAM)(&ulValue);
-            RTPrintf("Minimum guest RAM size:      %u Megabytes\n", ulValue);
+            RTPrintf("Minimum guest RAM size:          %u Megabytes\n", ulValue);
             systemProperties->COMGETTER(MaxGuestRAM)(&ulValue);
-            RTPrintf("Maximum guest RAM size:      %u Megabytes\n", ulValue);
+            RTPrintf("Maximum guest RAM size:          %u Megabytes\n", ulValue);
+            systemProperties->COMGETTER(MinGuestVRAM)(&ulValue);
+            RTPrintf("Minimum video RAM size:          %u Megabytes\n", ulValue);
             systemProperties->COMGETTER(MaxGuestVRAM)(&ulValue);
-            RTPrintf("Maximum video RAM size:      %u Megabytes\n", ulValue);
+            RTPrintf("Maximum video RAM size:          %u Megabytes\n", ulValue);
+            systemProperties->COMGETTER(MinGuestCPUCount)(&ulValue);
+            RTPrintf("Minimum guest CPU count:         %u\n", ulValue);
+            systemProperties->COMGETTER(MaxGuestCPUCount)(&ulValue);
+            RTPrintf("Maximum guest CPU count:         %u\n", ulValue);
             systemProperties->COMGETTER(MaxVDISize)(&ul64Value);
-            RTPrintf("Maximum VDI size:            %lu Megabytes\n", ul64Value);
-            systemProperties->COMGETTER(DefaultHardDiskFolder)(str.asOutParam());
-            RTPrintf("Default hard disk folder:    %lS\n", str.raw());
+            RTPrintf("Maximum VDI size:                %lu Megabytes\n", ul64Value);
+            systemProperties->COMGETTER(NetworkAdapterCount)(&ulValue);
+            RTPrintf("Maximum Network Adapter count:   %u\n", ulValue);
+            systemProperties->COMGETTER(SerialPortCount)(&ulValue);
+            RTPrintf("Maximum Serial Port count:       %u\n", ulValue);
+            systemProperties->COMGETTER(ParallelPortCount)(&ulValue);
+            RTPrintf("Maximum Parallel Port count:     %u\n", ulValue);
+            systemProperties->COMGETTER(MaxBootPosition)(&ulValue);
+            RTPrintf("Maximum Boot Position:           %u\n", ulValue);
+            systemProperties->GetMaxInstancesOfStorageBus(StorageBus_IDE, &ulValue);
+            RTPrintf("Maximum IDE Controllers:         %u\n", ulValue);
+            systemProperties->GetMaxPortCountForStorageBus(StorageBus_IDE, &ulValue);
+            RTPrintf("Maximum IDE Port count:          %u\n", ulValue);
+            systemProperties->GetMaxDevicesPerPortForStorageBus(StorageBus_IDE, &ulValue);
+            RTPrintf("Maximum Devices per IDE Port:    %u\n", ulValue);
+            systemProperties->GetMaxInstancesOfStorageBus(StorageBus_SATA, &ulValue);
+            RTPrintf("Maximum SATA Controllers:        %u\n", ulValue);
+            systemProperties->GetMaxPortCountForStorageBus(StorageBus_SATA, &ulValue);
+            RTPrintf("Maximum SATA Port count:         %u\n", ulValue);
+            systemProperties->GetMaxDevicesPerPortForStorageBus(StorageBus_SATA, &ulValue);
+            RTPrintf("Maximum Devices per SATA Port:   %u\n", ulValue);
+            systemProperties->GetMaxInstancesOfStorageBus(StorageBus_SCSI, &ulValue);
+            RTPrintf("Maximum SCSI Controllers:        %u\n", ulValue);
+            systemProperties->GetMaxPortCountForStorageBus(StorageBus_SCSI, &ulValue);
+            RTPrintf("Maximum SCSI Port count:         %u\n", ulValue);
+            systemProperties->GetMaxDevicesPerPortForStorageBus(StorageBus_SCSI, &ulValue);
+            RTPrintf("Maximum Devices per SCSI Port:   %u\n", ulValue);
+            systemProperties->GetMaxInstancesOfStorageBus(StorageBus_Floppy, &ulValue);
+            RTPrintf("Maximum Floppy Controllers:      %u\n", ulValue);
+            systemProperties->GetMaxPortCountForStorageBus(StorageBus_Floppy, &ulValue);
+            RTPrintf("Maximum Floppy Port count:       %u\n", ulValue);
+            systemProperties->GetMaxDevicesPerPortForStorageBus(StorageBus_Floppy, &ulValue);
+            RTPrintf("Maximum Devices per Floppy Port: %u\n", ulValue);
             systemProperties->COMGETTER(DefaultMachineFolder)(str.asOutParam());
-            RTPrintf("Default machine folder:      %lS\n", str.raw());
+            RTPrintf("Default machine folder:          %lS\n", str.raw());
+            systemProperties->COMGETTER(DefaultHardDiskFolder)(str.asOutParam());
+            RTPrintf("Default hard disk folder:        %lS\n", str.raw());
             systemProperties->COMGETTER(RemoteDisplayAuthLibrary)(str.asOutParam());
-            RTPrintf("VRDP authentication library: %lS\n", str.raw());
+            RTPrintf("VRDP authentication library:     %lS\n", str.raw());
             systemProperties->COMGETTER(WebServiceAuthLibrary)(str.asOutParam());
-            RTPrintf("Webservice auth. library:    %lS\n", str.raw());
+            RTPrintf("Webservice auth. library:        %lS\n", str.raw());
             systemProperties->COMGETTER(LogHistoryCount)(&ulValue);
-            RTPrintf("Log history count:           %u\n", ulValue);
+            RTPrintf("Log history count:               %u\n", ulValue);
 
         }
         break;

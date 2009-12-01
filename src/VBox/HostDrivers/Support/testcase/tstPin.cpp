@@ -1,7 +1,6 @@
+/* $Id: tstPin.cpp 25003 2009-11-26 14:27:19Z vboxsync $ */
 /** @file
- *
- * VBox host drivers - Ring-0 support drivers - Testcases:
- * Test the memory locking interface
+ * SUP Testcase - Memory locking interface (ring 3).
  */
 
 /*
@@ -60,7 +59,7 @@ int main(int argc, char **argv)
          * Simple test.
          */
         void *pv;
-        int rc = SUPR3PageAlloc(1, &pv);
+        rc = SUPR3PageAlloc(1, &pv);
         AssertRC(rc);
         RTPrintf("pv=%p\n", pv);
         SUPPAGE aPages[1];
@@ -176,9 +175,9 @@ int main(int argc, char **argv)
         SUPR3PageAlloc(BIG_SIZEPP >> PAGE_SHIFT, &pv);
         if (pv)
         {
-            static SUPPAGE      aPages[BIG_SIZE >> PAGE_SHIFT];
+            static SUPPAGE s_aPages[BIG_SIZE >> PAGE_SHIFT];
             void *pvAligned = RT_ALIGN_P(pv, PAGE_SIZE);
-            rc = supR3PageLock(pvAligned, BIG_SIZE >> PAGE_SHIFT, &aPages[0]);
+            rc = supR3PageLock(pvAligned, BIG_SIZE >> PAGE_SHIFT, &s_aPages[0]);
             if (!rc)
             {
                 /* dump */
@@ -186,7 +185,7 @@ int main(int argc, char **argv)
                 memset(pv, 0x42, BIG_SIZEPP);
                 #if 0
                 for (unsigned j = 0; j < (BIG_SIZE >> PAGE_SHIFT); j++)
-                    RTPrintf("%2d: vrt=%p phys=%08x\n", j, (char *)pvAligned + (j << PAGE_SHIFT), (uintptr_t)aPages[j].pvPhys);
+                    RTPrintf("%2d: vrt=%p phys=%08x\n", j, (char *)pvAligned + (j << PAGE_SHIFT), (uintptr_t)s_aPages[j].pvPhys);
                 #endif
 
                 /* unlock */

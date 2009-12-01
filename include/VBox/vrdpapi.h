@@ -1,6 +1,5 @@
 /** @file
- * VBox Remote Desktop Protocol:
- * Public APIs.
+ * VBox Remote Desktop Protocol - Public APIs. (VRDP)
  */
 
 /*
@@ -570,6 +569,13 @@ typedef struct _VRDPUSBREQNEGOTIATERET_2
  * uint32_t.
  */
 #define VRDP_QI_ENCRYPTION_STYLE       (13)
+
+/** TCP port where the server listens.
+ *  Values: 0 - VRDP server failed to start.
+ *          -1 - .
+ * int32_t.
+ */
+#define VRDP_QI_PORT                   (14)
 
 
 /** Hints what has been intercepted by the application. */

@@ -73,8 +73,9 @@ que teniu instal·lat el connector libgstreamer-plugins-base.</translation>
     <message numerus="yes">
         <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
         <translation>
-            <numerusform>No es troba un còdec requerit. Necessiteu instal·lar els següents còdecs per reproduir aquest contingut: %0</numerusform>
-            <numerusform></numerusform>
+            <numerusform>No es troba un còdec requerit. Necessiteu instal·lar el còdec següent per reproduir aquest contingut: %0</numerusform>
+            <numerusform>No es troba un còdec requerit. Necessiteu instal·lar els còdecs següents per reproduir aquest contingut: %0</numerusform>
+            <numerusform>No es troba un còdec requerit. Necessiteu instal·lar els còdecs següents per reproduir aquest contingut: %0</numerusform>
         </translation>
     </message>
     <message>
@@ -4878,15 +4879,17 @@ Trieu un nom de fitxer diferent.</translation>
     <message numerus="yes">
         <source>%1 takes at most %n argument(s). %2 is therefore invalid.</source>
         <translation>
+            <numerusform>%1 fa servir com a màxim %n(s) argument. Per tant, %2 no és vàlid.</numerusform>
             <numerusform>%1 fa servir com a màxim %n(s) arguments. Per tant, %2 no és vàlid.</numerusform>
-            <numerusform></numerusform>
+            <numerusform>%1 fa servir com a màxim %n(s) arguments. Per tant, %2 no és vàlid.</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%1 requires at least %n argument(s). %2 is therefore invalid.</source>
         <translation>
+            <numerusform>%1 requereix com a mínim %n argument. Per tant, %2 no és vàlid.</numerusform>
             <numerusform>%1 requereix com a mínim %n arguments. Per tant, %2 no és vàlid.</numerusform>
-            <numerusform></numerusform>
+            <numerusform>%1 requereix com a mínim %n arguments. Per tant, %2 no és vàlid.</numerusform>
         </translation>
     </message>
     <message>
@@ -5063,59 +5066,59 @@ Trieu un nom de fitxer diferent.</translation>
     </message>
     <message>
         <source>The module import feature is not supported</source>
-        <translation type="unfinished"></translation>
+        <translation>La importació de mòduls no està suportada</translation>
     </message>
     <message>
         <source>A variable by name %1 has already been declared in the prolog.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ja s&apos;ha declarat una variable amb el nom %1 al pròleg.</translation>
     </message>
     <message>
         <source>No value is available for the external variable by name %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>No hi ha cap valor disponible per a la variable externa amb el nom %1.</translation>
     </message>
     <message>
         <source>The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</source>
-        <translation type="unfinished"></translation>
+        <translation>El nomespai per a una funció definida per l&apos;usuari no pot estar buit (proveu amb el prefix predefinit %1 que existeix per a casos com aquest)</translation>
     </message>
     <message>
         <source>The namespace %1 is reserved; therefore user defined functions may not use it. Try the predefined prefix %2, which exists for these cases.</source>
-        <translation type="unfinished"></translation>
+        <translation>El nomespai %1 està reservat; a més, les funcions definides per l&apos;usuari no haurien de fer-lo servir. Proveu el prefix predefinit %2 que existeix per a casos com aquest.</translation>
     </message>
     <message>
         <source>The namespace of a user defined function in a library module must be equivalent to the module namespace. In other words, it should be %1 instead of %2</source>
-        <translation type="unfinished"></translation>
+        <translation>El nomespai d&apos;una funció definida per l&apos;usuari en un mòdul de biblioteca ha de ser equivalent al mòdul namespace. En altres paraules, hauria de ser %1 en lloc de %2</translation>
     </message>
     <message>
         <source>A function already exists with the signature %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ja existeix una funció amb la signatura %1.</translation>
     </message>
     <message>
         <source>No external functions are supported. All supported functions can be used directly, without first declaring them as external</source>
-        <translation type="unfinished"></translation>
+        <translation>No estan suportades funcions externes. Totes les funcions suportades es poden utilitzar direcctament, sense haver-les de declarar primerament com a externes</translation>
     </message>
     <message>
         <source>An argument by name %1 has already been declared. Every argument name must be unique.</source>
-        <translation type="unfinished"></translation>
+        <translation>Un argument amb el nom %1 ja ha estat declarat. Tots els noms d&apos;arguments han de ser únics.</translation>
     </message>
     <message>
         <source>The name of a variable bound in a for-expression must be different from the positional variable. Hence, the two variables named %1 collide.</source>
-        <translation type="unfinished"></translation>
+        <translation>El nom d&apos;una variable lligada a una expressió for ha de ser diferent d&apos;una variableposicional. Per tant, les dues variables anomnades %1 xoquen.</translation>
     </message>
     <message>
         <source>The Schema Validation Feature is not supported. Hence, %1-expressions may not be used.</source>
-        <translation type="unfinished"></translation>
+        <translation>La Característica de validació esquemàtica no està suportada. Per tant, les expressions %1 no es poden utilitzar.</translation>
     </message>
     <message>
         <source>None of the pragma expressions are supported. Therefore, a fallback expression must be present</source>
-        <translation type="unfinished"></translation>
+        <translation>Cap de les expressions pragma no està suportada. A mes, una expressió fallback ha d&apos;estar present</translation>
     </message>
     <message>
         <source>The %1-axis is unsupported in XQuery</source>
-        <translation type="unfinished"></translation>
+        <translation>L&apos;eix %1 no està suportat a XQuery</translation>
     </message>
     <message>
         <source>%1 is not a valid numeric literal.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 no és un literal numèric vàlid.</translation>
     </message>
     <message>
         <source>No function by name %1 is available.</source>
@@ -5123,39 +5126,39 @@ Trieu un nom de fitxer diferent.</translation>
     </message>
     <message>
         <source>The namespace URI cannot be the empty string when binding to a prefix, %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>El nomespai URI no pot ser una cadena buida quan estigui vinculat a un prefix, %1.</translation>
     </message>
     <message>
         <source>%1 is an invalid namespace URI.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 no és un nomespai URI vàlid.</translation>
     </message>
     <message>
         <source>It is not possible to bind to the prefix %1</source>
-        <translation type="unfinished"></translation>
+        <translation>No és possible la vinculació al prefix %1</translation>
     </message>
     <message>
         <source>Namespace %1 can only be bound to %2 (and it is, in either case, pre-declared).</source>
-        <translation type="unfinished"></translation>
+        <translation>El nomespai %1 nomé pot vincular-se a %2 (i està, en qualsevol cas, predeclarat).</translation>
     </message>
     <message>
         <source>Prefix %1 can only be bound to %2 (and it is, in either case, pre-declared).</source>
-        <translation type="unfinished"></translation>
+        <translation>El prefix %1 nomé pot vincular-se a %2 (i està, en qualsevol cas, predeclarat).</translation>
     </message>
     <message>
         <source>Two namespace declaration attributes have the same name: %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Dos atributs de declaració nomespai tenen el mateix nom: %1.</translation>
     </message>
     <message>
         <source>The namespace URI must be a constant and cannot use enclosed expressions.</source>
-        <translation type="unfinished"></translation>
+        <translation>El nomespai URI ha de ser una constant i no pot fer servir expressions tancades.</translation>
     </message>
     <message>
         <source>An attribute by name %1 has already appeared on this element.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ja ha aparegut un atribut am el nom%1 en aquest element.</translation>
     </message>
     <message>
         <source>A direct element constructor is not well-formed. %1 is ended with %2.</source>
-        <translation type="unfinished"></translation>
+        <translation>Un constructor d&apos;element directe no s&apos;ha format correctament. %1 s&apos;ha finalitzat amb %2.</translation>
     </message>
     <message>
         <source>The name %1 does not refer to any schema type.</source>
@@ -5163,23 +5166,23 @@ Trieu un nom de fitxer diferent.</translation>
     </message>
     <message>
         <source>%1 is an complex type. Casting to complex types is not possible. However, casting to atomic types such as %2 works.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 és un tipus complexe. La fundició a tipus complexes no és possible. Tot i així, la fundició a tipus atòmics com %2 sí que funciona.</translation>
     </message>
     <message>
         <source>%1 is not an atomic type. Casting is only possible to atomic types.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 no és un tipus atòmic. La fundició només és possible per a tipus atòmics.</translation>
     </message>
     <message>
         <source>%1 is not a valid name for a processing-instruction. Therefore this name test will never match.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 no és un nom vàlid per a una instrucció de processat. A més aquest nom de prova mai coincidirà.</translation>
     </message>
     <message>
         <source>%1 is not in the in-scope attribute declarations. Note that the schema import feature is not supported.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 no és una declaració d&apos;atribut in-scope. Tingueu en compte que la característica d&apos;importació d&apos;esquemes no està suportada.</translation>
     </message>
     <message>
         <source>The name of an extension expression must be in a namespace.</source>
-        <translation type="unfinished"></translation>
+        <translation>El nom d&apos;una expressió extensió ha d&apos;estar en un nomespai.</translation>
     </message>
     <message>
         <source>empty</source>
@@ -5207,23 +5210,23 @@ Trieu un nom de fitxer diferent.</translation>
     </message>
     <message>
         <source>Promoting %1 to %2 may cause loss of precision.</source>
-        <translation type="unfinished"></translation>
+        <translation>Si es promou %1 a %2 es pot produir una pèrdua de precissió.</translation>
     </message>
     <message>
         <source>The focus is undefined.</source>
-        <translation type="unfinished"></translation>
+        <translation>El focus no està definit.</translation>
     </message>
     <message>
         <source>It&apos;s not possible to add attributes after any other kind of node.</source>
-        <translation type="unfinished"></translation>
+        <translation>No és possible afegir atributs després de qualsevol tipus de node.</translation>
     </message>
     <message>
         <source>An attribute by name %1 has already been created.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ja s&apos;ha declarat un atribut am el nom %1.</translation>
     </message>
     <message>
         <source>Only the Unicode Codepoint Collation is supported(%1). %2 is unsupported.</source>
-        <translation type="unfinished"></translation>
+        <translation>Només està suportat el Unicode Codepoint Collation (%1). %2 no està suportat.</translation>
     </message>
 </context>
 <context>

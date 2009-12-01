@@ -57,7 +57,7 @@ VBoxVMSettingsDisplay::VBoxVMSettingsDisplay()
 
     /* Setup validators */
     mLeMemory->setValidator (new QIntValidator (MinVRAM, MaxVRAM, this));
-    mLeVRDPPort->setValidator (new QIntValidator (0, 0xFFFF, this));
+    mLeVRDPPort->setValidator (new QRegExpValidator (QRegExp ("(([0-9]{1,5}(\\-[0-9]{1,5}){0,1}),)*([0-9]{1,5}(\\-[0-9]{1,5}){0,1})"), this));
     mLeVRDPTimeout->setValidator (new QIntValidator (this));
 
     /* Setup connections */
@@ -73,6 +73,11 @@ VBoxVMSettingsDisplay::VBoxVMSettingsDisplay()
     /* Setup the scale so that ticks are at page step boundaries */
     mSlMemory->setMinimum ((MinVRAM / mSlMemory->pageStep()) * mSlMemory->pageStep());
     mSlMemory->setMaximum (MaxVRAM);
+    mSlMemory->setSnappingEnabled (true);
+    quint64 needMBytes = VBoxGlobal::requiredVideoMemory (&mMachine) / _1M;
+    mSlMemory->setErrorHint (0, 1);
+    mSlMemory->setWarningHint (1, needMBytes);
+    mSlMemory->setOptimalHint (needMBytes, MaxVRAM);
     /* Limit min/max. size of QLineEdit */
     mLeMemory->setFixedWidthByText (QString().fill ('8', 4));
     /* Ensure mLeMemory value and validation is updated */
@@ -84,14 +89,22 @@ VBoxVMSettingsDisplay::VBoxVMSettingsDisplay()
     /* Initially disabled */
     mCbVRDP->setChecked (false);
 
-#ifdef QT_MAC_USE_COCOA
-    /* No OpenGL on Snow Leopard 64-bit yet */
     mCb3D->setEnabled (false);
-#endif /* QT_MAC_USE_COCOA */
+
+#ifndef VBOX_WITH_VIDEOHWACCEL
+    mCb2DVideo->setVisible (false);
+#endif
 
     /* Applying language settings */
     retranslateUi();
 }
+
+#ifdef VBOX_WITH_VIDEOHWACCEL
+bool VBoxVMSettingsDisplay::isAcceleration2DVideoSelected() const
+{
+    return mCb2DVideo->isChecked();
+}
+#endif
 
 void VBoxVMSettingsDisplay::getFrom (const CMachine &aMachine)
 {
@@ -106,12 +119,17 @@ void VBoxVMSettingsDisplay::getFrom (const CMachine &aMachine)
     mCb3D->setEnabled (isAccelerationSupported);
     mCb3D->setChecked (mMachine.GetAccelerate3DEnabled());
 
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    mCb2DVideo->setEnabled (VBoxGlobal::isAcceleration2DVideoAvailable());
+    mCb2DVideo->setChecked (mMachine.GetAccelerate2DVideoEnabled());
+#endif
+
     /* VRDP Settings */
     CVRDPServer vrdp = mMachine.GetVRDPServer();
     if (!vrdp.isNull())
     {
         mCbVRDP->setChecked (vrdp.GetEnabled());
-        mLeVRDPPort->setText (QString::number (vrdp.GetPort()));
+        mLeVRDPPort->setText (vrdp.GetPorts());
         mCbVRDPMethod->setCurrentIndex (mCbVRDPMethod->
                                         findText (vboxGlobal().toString (vrdp.GetAuthType())));
         mLeVRDPTimeout->setText (QString::number (vrdp.GetAuthTimeout()));
@@ -131,12 +149,17 @@ void VBoxVMSettingsDisplay::putBackTo()
     /* 3D Acceleration */
     mMachine.SetAccelerate3DEnabled (mCb3D->isChecked());
 
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    /* 2D Video Acceleration */
+    mMachine.SetAccelerate2DVideoEnabled (mCb2DVideo->isChecked());
+#endif
+
     /* VRDP Settings */
     CVRDPServer vrdp = mMachine.GetVRDPServer();
     if (!vrdp.isNull())
     {
         vrdp.SetEnabled (mCbVRDP->isChecked());
-        vrdp.SetPort (mLeVRDPPort->text().toULong());
+        vrdp.SetPorts (mLeVRDPPort->text());
         vrdp.SetAuthType (vboxGlobal().toVRDPAuthType (mCbVRDPMethod->currentText()));
         vrdp.SetAuthTimeout (mLeVRDPTimeout->text().toULong());
     }
@@ -147,6 +170,10 @@ void VBoxVMSettingsDisplay::setValidator (QIWidgetValidator *aVal)
     mValidator = aVal;
     connect (mCb3D, SIGNAL (stateChanged (int)),
              mValidator, SLOT (revalidate()));
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    connect (mCb2DVideo, SIGNAL (stateChanged (int)),
+             mValidator, SLOT (revalidate()));
+#endif
     connect (mCbVRDP, SIGNAL (toggled (bool)),
              mValidator, SLOT (revalidate()));
     connect (mLeVRDPPort, SIGNAL (textChanged (const QString&)),
@@ -162,12 +189,26 @@ bool VBoxVMSettingsDisplay::revalidate (QString &aWarning, QString & /* aTitle *
     if ((quint64) mSlMemory->value() * _1M < needBytes)
     {
         aWarning = tr (
-            "you have assigned less than <b>%1</b> for video memory which is "
+            "you have assigned less than <b>%1</b> of video memory which is "
             "the minimum amount required to switch the virtual machine to "
             "fullscreen or seamless mode.")
             .arg (vboxGlobal().formatSize (needBytes, 0, VBoxDefs::FormatSize_RoundUp));
         return true;
     }
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    if (mCb2DVideo->isChecked())
+    {
+        quint64 needBytesWith2D = needBytes + VBoxGlobal::required2DOffscreenVideoMemory();
+        if ((quint64) mSlMemory->value() * _1M < needBytesWith2D)
+        {
+            aWarning = tr (
+                "you have assigned less than <b>%1</b> of video memory which is "
+                "the minimum amount required for HD Video to be played efficiently.")
+                .arg (vboxGlobal().formatSize (needBytesWith2D, 0, VBoxDefs::FormatSize_RoundUp));
+            return true;
+        }
+    }
+#endif
 
     /* 3D Acceleration support test */
     // TODO : W8 for NaN //
@@ -181,8 +222,12 @@ void VBoxVMSettingsDisplay::setOrderAfter (QWidget *aWidget)
     setTabOrder (mTwDisplay->focusProxy(), mSlMemory);
     setTabOrder (mSlMemory, mLeMemory);
     setTabOrder (mLeMemory, mCb3D);
-
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    setTabOrder (mCb3D, mCb2DVideo);
+    setTabOrder (mCb2DVideo, mCbVRDP);
+#else
     setTabOrder (mCb3D, mCbVRDP);
+#endif
     setTabOrder (mCbVRDP, mLeVRDPPort);
     setTabOrder (mLeVRDPPort, mCbVRDPMethod);
     setTabOrder (mCbVRDPMethod, mLeVRDPTimeout);

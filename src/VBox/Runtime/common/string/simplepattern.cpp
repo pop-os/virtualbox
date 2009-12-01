@@ -1,4 +1,4 @@
-/* $Id: simplepattern.cpp $ */
+/* $Id: simplepattern.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - RTStrSimplePattern.
  */
@@ -33,6 +33,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/string.h>
+#include "internal/iprt.h"
+
 #include <iprt/assert.h>
 
 
@@ -89,6 +91,7 @@ RTDECL(bool) RTStrSimplePatternMatch(const char *pszPattern, const char *pszStri
     }
 #endif
 }
+RT_EXPORT_SYMBOL(RTStrSimplePatternMatch);
 
 
 RTDECL(bool) RTStrSimplePatternNMatch(const char *pszPattern, size_t cchPattern,
@@ -152,6 +155,7 @@ RTDECL(bool) RTStrSimplePatternNMatch(const char *pszPattern, size_t cchPattern,
         cchPattern--;
     }
 }
+RT_EXPORT_SYMBOL(RTStrSimplePatternNMatch);
 
 
 RTDECL(bool) RTStrSimplePatternMultiMatch(const char *pszPatterns, size_t cchPatterns,
@@ -190,5 +194,5 @@ RTDECL(bool) RTStrSimplePatternMultiMatch(const char *pszPatterns, size_t cchPat
         *poffMatchingPattern = RTSTR_MAX;
     return false;
 }
-
+RT_EXPORT_SYMBOL(RTStrSimplePatternMultiMatch);
 

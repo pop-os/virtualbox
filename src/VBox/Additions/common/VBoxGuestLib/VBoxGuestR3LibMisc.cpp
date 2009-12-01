@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3LibMisc.cpp $ */
+/* $Id: VBoxGuestR3LibMisc.cpp 24742 2009-11-17 21:58:02Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, Misc.
  */
@@ -24,9 +24,53 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/mem.h>
+#include <iprt/string.h>
 #include <VBox/log.h>
-
+#include <VBox/version.h>
 #include "VBGLR3Internal.h"
+
+
+/**
+ * Wait for the host to signal one or more events and return which.
+ *
+ * The events will only be delivered by the host if they have been enabled
+ * previously using @a VbglR3CtlFilterMask.  If one or several of the events
+ * have already been signalled but not yet waited for, this function will return
+ * immediately and return those events.
+ *
+ * @returns IPRT status code
+ *
+ * @param   fMask       The events we want to wait for, or-ed together.
+ * @param   cMillies    How long to wait before giving up and returning
+ *                      (VERR_TIMEOUT). Use RT_INDEFINITE_WAIT to wait until we
+ *                      are interrupted or one of the events is signalled.
+ * @param   pfEvents    Where to store the events signalled. Optional.
+ */
+VBGLR3DECL(int) VbglR3WaitEvent(uint32_t fMask, uint32_t cMillies, uint32_t *pfEvents)
+{
+    LogFlow(("VbglR3WaitEvent: fMask=0x%x, cMillies=%u, pfEvents=%p\n",
+             fMask, cMillies, pfEvents));
+    AssertReturn((fMask & ~VMMDEV_EVENT_VALID_EVENT_MASK) == 0, VERR_INVALID_PARAMETER);
+    AssertPtrNullReturn(pfEvents, VERR_INVALID_POINTER);
+
+    VBoxGuestWaitEventInfo waitEvent;
+    waitEvent.u32TimeoutIn = cMillies;
+    waitEvent.u32EventMaskIn = fMask;
+    waitEvent.u32Result = VBOXGUEST_WAITEVENT_ERROR;
+    waitEvent.u32EventFlagsOut = 0;
+    int rc = vbglR3DoIOCtl(VBOXGUEST_IOCTL_WAITEVENT, &waitEvent, sizeof(waitEvent));
+    if (RT_SUCCESS(rc))
+    {
+        AssertMsg(waitEvent.u32Result == VBOXGUEST_WAITEVENT_OK, ("%d\n", waitEvent.u32Result));
+        if (pfEvents)
+            *pfEvents = waitEvent.u32EventFlagsOut;
+    }
+
+    LogFlow(("VbglR3WaitEvent: rc=%Rrc, u32EventFlagsOut=0x%x. u32Result=%d\n",
+             rc, waitEvent.u32EventFlagsOut, waitEvent.u32Result));
+    return rc;
+}
+
 
 /**
  * Cause any pending WaitEvent calls (VBOXGUEST_IOCTL_WAITEVENT) to return
@@ -132,21 +176,256 @@ VBGLR3DECL(int) VbglR3CtlFilterMask(uint32_t fOr, uint32_t fNot)
  */
 VBGLR3DECL(int) VbglR3SetGuestCaps(uint32_t fOr, uint32_t fNot)
 {
-    VMMDevReqGuestCapabilities2 vmmreqGuestCaps;
-    int rc;
+    VMMDevReqGuestCapabilities2 Req;
 
-    vmmdevInitRequest(&vmmreqGuestCaps.header, VMMDevReq_SetGuestCapabilities);
-    vmmreqGuestCaps.u32OrMask = fOr;
-    vmmreqGuestCaps.u32NotMask = fNot;
-    rc = vbglR3GRPerform(&vmmreqGuestCaps.header);
+    vmmdevInitRequest(&Req.header, VMMDevReq_SetGuestCapabilities);
+    Req.u32OrMask = fOr;
+    Req.u32NotMask = fNot;
+    int rc = vbglR3GRPerform(&Req.header);
 #ifdef DEBUG
     if (RT_SUCCESS(rc))
-        LogRel(("Successfully changed guest capabilities: or mask 0x%x, not mask 0x%x.\n",
-                fOr, fNot));
+        LogRel(("Successfully changed guest capabilities: or mask 0x%x, not mask 0x%x.\n", fOr, fNot));
     else
-        LogRel(("Failed to change guest capabilities: or mask 0x%x, not mask 0x%x.  rc = %Rrc.\n",
-                fOr, fNot, rc));
+        LogRel(("Failed to change guest capabilities: or mask 0x%x, not mask 0x%x.  rc=%Rrc.\n", fOr, fNot, rc));
 #endif
     return rc;
 }
 
+
+/**
+ * Fallback for vbglR3GetAdditionsVersion.
+ */
+static int vbglR3GetAdditionsCompileTimeVersion(char **ppszVer, char **ppszRev)
+{
+    if (ppszVer)
+    {
+        *ppszVer = RTStrDup(VBOX_VERSION_STRING);
+        if (!*ppszVer)
+            return VERR_NO_STR_MEMORY;
+    }
+
+    if (ppszRev)
+    {
+        char szRev[64];
+        RTStrPrintf(szRev, sizeof(szRev), "%d", VBOX_SVN_REV);
+        *ppszRev = RTStrDup(szRev);
+        if (!*ppszRev)
+        {
+            if (ppszVer)
+            {
+                RTStrFree(*ppszVer);
+                *ppszVer = NULL;
+            }
+            return VERR_NO_STR_MEMORY;
+        }
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+#ifdef RT_OS_WINDOWS
+/**
+ * Looks up the storage path handle (registry).
+ *
+ * @returns IPRT status value
+ * @param   hKey        Receives pointer of allocated version string. NULL is
+ *                      accepted. The returned pointer must be closed by
+ *                      vbglR3CloseAdditionsWinStoragePath().
+ */
+static int vbglR3GetAdditionsWinStoragePath(PHKEY phKey)
+{
+    /*
+     * Try get the *installed* version first.
+     */
+    LONG r;
+
+    /* Check the new path first. */
+    r = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Sun\\VirtualBox Guest Additions", 0, KEY_READ, phKey);
+# ifdef RT_ARCH_AMD64
+    if (r != ERROR_SUCCESS)
+    {
+        /* Check Wow6432Node (for new entries). */
+        r = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Wow6432Node\\Sun\\VirtualBox Guest Additions", 0, KEY_READ, phKey);
+    }
+# endif
+
+    /* Still no luck? Then try the old xVM paths ... */
+    if (r != ERROR_SUCCESS)
+    {
+        r = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Sun\\xVM VirtualBox Guest Additions", 0, KEY_READ, phKey);
+# ifdef RT_ARCH_AMD64
+        if (r != ERROR_SUCCESS)
+        {
+            /* Check Wow6432Node (for new entries). */
+            r = RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\Wow6432Node\\Sun\\xVM VirtualBox Guest Additions", 0, KEY_READ, phKey);
+        }
+# endif
+    }
+    return RTErrConvertFromNtStatus(r);
+}
+
+
+/**
+ * Closes the storage path handle (registry).
+ *
+ * @returns IPRT status value
+ * @param   hKey        Handle to close, retrieved by
+ *                      vbglR3GetAdditionsWinStoragePath().
+ */
+static int vbglR3CloseAdditionsWinStoragePath(HKEY hKey)
+{
+    return RTErrConvertFromNtStatus(RegCloseKey(hKey));
+}
+#endif /* RT_OS_WINDOWS */ 
+
+
+/**
+ * Retrieves the installed Guest Additions version and/or revision.
+ *
+ * @returns IPRT status value
+ * @param   ppszVer     Receives pointer of allocated version string. NULL is
+ *                      accepted. The returned pointer must be freed using
+ *                      RTStrFree().
+ * @param   ppszRev     Receives pointer of allocated revision string. NULL is
+ *                      accepted. The returned pointer must be freed using
+ *                      RTStrFree().
+ */
+VBGLR3DECL(int) VbglR3GetAdditionsVersion(char **ppszVer, char **ppszRev)
+{
+#ifdef RT_OS_WINDOWS
+    HKEY hKey;
+    int rc = vbglR3GetAdditionsWinStoragePath(&hKey);
+    if (RT_SUCCESS(rc))
+    {
+        /* Version. */
+        LONG l;
+        DWORD dwType;
+        DWORD dwSize = 32;
+        char *pszTmp;
+        if (ppszVer)
+        {
+            pszTmp = (char*)RTMemAlloc(dwSize);
+            if (pszTmp)
+            {
+                l = RegQueryValueEx(hKey, "Version", NULL, &dwType, (BYTE*)(LPCTSTR)pszTmp, &dwSize);
+                if (l == ERROR_SUCCESS)
+                {
+                    if (dwType == REG_SZ)
+                        rc = RTStrDupEx(ppszVer, pszTmp);
+                    else
+                        rc = VERR_INVALID_PARAMETER;
+                }
+                else
+                {
+                    rc = RTErrConvertFromNtStatus(l);
+                }
+                RTMemFree(pszTmp);
+            }
+            else
+                rc = VERR_NO_MEMORY;
+        }
+        /* Revision. */
+        if (ppszRev)
+        {
+            dwSize = 32; /* Reset */
+            pszTmp = (char*)RTMemAlloc(dwSize);
+            if (pszTmp)
+            {
+                l = RegQueryValueEx(hKey, "Revision", NULL, &dwType, (BYTE*)(LPCTSTR)pszTmp, &dwSize);
+                if (l == ERROR_SUCCESS)
+                {
+                    if (dwType == REG_SZ)
+                        rc = RTStrDupEx(ppszRev, pszTmp);
+                    else
+                        rc = VERR_INVALID_PARAMETER;
+                }
+                else
+                {
+                    rc = RTErrConvertFromNtStatus(l);
+                }
+                RTMemFree(pszTmp);
+            }
+            else
+                rc = VERR_NO_MEMORY;
+
+            if (RT_FAILURE(rc) && ppszVer)
+            {
+                RTStrFree(*ppszVer);
+                *ppszVer = NULL;
+            }
+        }
+        rc = vbglR3CloseAdditionsWinStoragePath(hKey);
+    }
+    else
+    {
+        /*
+         * No registry entries found, return the version string compiled
+         * into this binary.
+         */
+        rc = vbglR3GetAdditionsCompileTimeVersion(ppszVer, ppszRev);
+    }
+    return rc;
+
+#else  /* !RT_OS_WINDOWS */
+    /*
+     * On non-Windows platforms just return the compile-time version string.
+     */
+    return vbglR3GetAdditionsCompileTimeVersion(ppszVer, ppszRev);
+#endif /* !RT_OS_WINDOWS */
+}
+
+
+/**
+ * Retrieves the installation path of Guest Additions.
+ *
+ * @returns IPRT status value
+ * @param   ppszPath    Receives pointer of allocated installation path string.
+ *                      The returned pointer must be freed using
+ *                      RTStrFree().
+ */
+VBGLR3DECL(int) VbglR3GetAdditionsInstallationPath(char **ppszPath)
+{
+    int rc;
+#ifdef RT_OS_WINDOWS
+    HKEY hKey;
+    rc = vbglR3GetAdditionsWinStoragePath(&hKey);
+    if (RT_SUCCESS(rc))
+    {
+        /* Installation directory. */
+        DWORD dwType;
+        DWORD dwSize = _MAX_PATH * sizeof(char);
+        char *pszTmp = (char*)RTMemAlloc(dwSize + 1);
+        if (pszTmp)
+        {
+            LONG l = RegQueryValueEx(hKey, "InstallDir", NULL, &dwType, (BYTE*)(LPCTSTR)pszTmp, &dwSize);
+            if ((l != ERROR_SUCCESS) && (l != ERROR_FILE_NOT_FOUND))
+            {
+                rc = RTErrConvertFromNtStatus(l);
+            }
+            else
+            {
+                if (dwType == REG_SZ)
+                    rc = RTStrDupEx(ppszPath, pszTmp);
+                else
+                    rc = VERR_INVALID_PARAMETER;
+                if (RT_SUCCESS(rc))
+                {
+                    /* Flip slashes. */
+                    for (char *pszTmp2 = ppszPath[0]; *pszTmp2; ++pszTmp2)
+                        if (*pszTmp2 == '\\')
+                            *pszTmp2 = '/';
+                }
+            }
+            RTMemFree(pszTmp);
+        }
+        else
+            rc = VERR_NO_MEMORY;
+        rc = vbglR3CloseAdditionsWinStoragePath(hKey);
+    }
+#else
+    /** @todo implement me */
+    rc = VERR_NOT_IMPLEMENTED;
+#endif
+    return rc;
+}

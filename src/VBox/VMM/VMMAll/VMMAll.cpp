@@ -1,4 +1,4 @@
-/* $Id: VMMAll.cpp $ */
+/* $Id: VMMAll.cpp 22906 2009-09-10 11:19:27Z vboxsync $ */
 /** @file
  * VMM All Contexts.
  */
@@ -63,7 +63,7 @@ VMMDECL(VMCPUID) VMMGetCpuId(PVM pVM)
     return VMR3GetVMCPUId(pVM);
 
 #elif defined(IN_RING0)
-    if (pVM->cCPUs == 1)
+    if (pVM->cCpus == 1)
         return 0;
     return HWACCMR0GetVMCPUId(pVM);
 
@@ -86,11 +86,11 @@ VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
     VMCPUID idCpu = VMR3GetVMCPUId(pVM);
     if (idCpu == NIL_VMCPUID)
         return NULL;
-    Assert(idCpu < pVM->cCPUs);
+    Assert(idCpu < pVM->cCpus);
     return &pVM->aCpus[VMR3GetVMCPUId(pVM)];
 
 #elif defined(IN_RING0)
-    if (pVM->cCPUs == 1)
+    if (pVM->cCpus == 1)
         return &pVM->aCpus[0];
     return HWACCMR0GetVMCPU(pVM);
 
@@ -108,7 +108,7 @@ VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
  */
 VMMDECL(PVMCPU) VMMGetCpu0(PVM pVM)
 {
-    Assert(pVM->cCPUs == 1);
+    Assert(pVM->cCpus == 1);
     return &pVM->aCpus[0];
 }
 
@@ -123,7 +123,7 @@ VMMDECL(PVMCPU) VMMGetCpu0(PVM pVM)
  */
 VMMDECL(PVMCPU) VMMGetCpuById(PVM pVM, RTCPUID idCpu)
 {
-    AssertReturn(idCpu < pVM->cCPUs, NULL);
+    AssertReturn(idCpu < pVM->cCpus, NULL);
     return &pVM->aCpus[idCpu];
 }
 
@@ -152,4 +152,3 @@ VMMDECL(VMMSWITCHER) VMMGetSwitcher(PVM pVM)
 {
     return pVM->vmm.s.enmSwitcher;
 }
-

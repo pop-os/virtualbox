@@ -1,4 +1,4 @@
-/* $Id: RTMpIsCpuWorkPending-r0drv-generic.cpp $ */
+/* $Id: RTMpIsCpuWorkPending-r0drv-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - RTMpIsCpuWorkPending, Generic.
  */
@@ -33,6 +33,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/mp.h>
+#include "internal/iprt.h"
 
 
 /**
@@ -44,4 +45,5 @@ RTDECL(bool) RTMpIsCpuWorkPending(void)
 {
     return false;
 }
+RT_EXPORT_SYMBOL(RTMpIsCpuWorkPending);
 

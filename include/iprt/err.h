@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,6 +45,95 @@ RT_C_DECLS_BEGIN
  * @{
  */
 
+#ifdef __cplusplus
+/**
+ * Strict type validation class.
+ *
+ * This is only really useful for type checking the arguments to RT_SUCCESS,
+ * RT_SUCCESS_NP, RT_FAILURE and RT_FAILURE_NP.  The RTErrStrictType2
+ * constructor is for integration with external status code strictness regimes.
+ */
+class RTErrStrictType
+{
+protected:
+    int32_t m_rc;
+
+public:
+    /**
+     * Constructor for interaction with external status code strictness regimes.
+     *
+     * This is a special constructor for helping external return code validator
+     * classes interact cleanly with RT_SUCCESS, RT_SUCCESS_NP, RT_FAILURE and
+     * RT_FAILURE_NP while barring automatic cast to integer.
+     *
+     * @param   rcObj       IPRT status code object from an automatic cast.
+     */
+    RTErrStrictType(RTErrStrictType2 const rcObj)
+        : m_rc(rcObj.getValue())
+    {
+    }
+
+    /**
+     * Integer constructor used by RT_SUCCESS_NP.
+     *
+     * @param   rc          IPRT style status code.
+     */
+    RTErrStrictType(int32_t rc)
+        : m_rc(rc)
+    {
+    }
+
+#if 0 /** @todo figure where int32_t is long instead of int. */
+    /**
+     * Integer constructor used by RT_SUCCESS_NP.
+     *
+     * @param   rc          IPRT style status code.
+     */
+    RTErrStrictType(signed int rc)
+        : m_rc(rc)
+    {
+    }
+#endif
+
+    /**
+     * Test for success.
+     */
+    bool success() const
+    {
+        return m_rc >= 0;
+    }
+
+private:
+    /** @name Try ban a number of wrong types.
+     * @{ */
+    RTErrStrictType(uint8_t rc)         : m_rc(-999) { NOREF(rc); }
+    RTErrStrictType(uint16_t rc)        : m_rc(-999) { NOREF(rc); }
+    RTErrStrictType(uint32_t rc)        : m_rc(-999) { NOREF(rc); }
+    RTErrStrictType(uint64_t rc)        : m_rc(-999) { NOREF(rc); }
+    RTErrStrictType(int8_t rc)          : m_rc(-999) { NOREF(rc); }
+    RTErrStrictType(int16_t rc)         : m_rc(-999) { NOREF(rc); }
+    RTErrStrictType(int64_t rc)         : m_rc(-999) { NOREF(rc); }
+    /** @todo fight long here - clashes with int32_t/int64_t on some platforms. */
+    /** @} */
+};
+#endif /* __cplusplus */
+
+
+/** @def RTERR_STRICT_RC
+ * Indicates that RT_SUCCESS_NP, RT_SUCCESS, RT_FAILURE_NP and RT_FAILURE should
+ * make type enforcing at compile time.
+ *
+ * @remarks     Only define this for C++ code.
+ */
+#if defined(__cplusplus) \
+ && !defined(RTERR_STRICT_RC) \
+ && (   defined(DOXYGEN_RUNNING) \
+     || defined(DEBUG) \
+     || defined(RT_STRICT) )
+# define RTERR_STRICT_RC        1
+#endif
+
+
 /** @def RT_SUCCESS
  * Check for success. We expect success in normal cases, that is the code path depending on
  * this check is normally taken. To prevent any prediction use RT_SUCCESS_NP instead.
@@ -54,7 +143,7 @@ RT_C_DECLS_BEGIN
  *
  * @param   rc  The iprt status code to test.
  */
-#define RT_SUCCESS(rc)      ( RT_LIKELY((int)(rc) >= VINF_SUCCESS) )
+#define RT_SUCCESS(rc)      ( RT_LIKELY(RT_SUCCESS_NP(rc)) )
 
 /** @def RT_SUCCESS_NP
  * Check for success. Don't predict the result.
@@ -64,7 +153,11 @@ RT_C_DECLS_BEGIN
  *
  * @param   rc  The iprt status code to test.
  */
-#define RT_SUCCESS_NP(rc)   ( (int)(rc) >= VINF_SUCCESS )
+#ifdef RTERR_STRICT_RC
+# define RT_SUCCESS_NP(rc)   ( RTErrStrictType(rc).success() )
+#else
+# define RT_SUCCESS_NP(rc)   ( (int)(rc) >= VINF_SUCCESS )
+#endif
 
 /** @def RT_FAILURE
  * Check for failure. We don't expect in normal cases, that is the code path depending on
@@ -405,7 +498,7 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_INVALID_UUID_FORMAT            (-49)
 /** The specified process was not found. */
 #define VERR_PROCESS_NOT_FOUND              (-50)
-/** The process specified to a non-block wait had not exitted. */
+/** The process specified to a non-block wait had not exited. */
 #define VERR_PROCESS_RUNNING                (-51)
 /** Retry the operation. */
 #define VERR_TRY_AGAIN                      (-52)
@@ -415,17 +508,17 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_PARSE_ERROR                    (-53)
 /** Value out of range. */
 #define VERR_OUT_OF_RANGE                   (-54)
-/** A numeric convertion encountered a value which was too big for the target. */
+/** A numeric conversion encountered a value which was too big for the target. */
 #define VERR_NUMBER_TOO_BIG                 (-55)
-/** A numeric convertion encountered a value which was too big for the target. */
+/** A numeric conversion encountered a value which was too big for the target. */
 #define VWRN_NUMBER_TOO_BIG                 55
 /** The number begin converted (string) contained no digits. */
 #define VERR_NO_DIGITS                      (-56)
 /** The number begin converted (string) contained no digits. */
 #define VWRN_NO_DIGITS                      56
-/** Encountered a '-' during convertion to an unsigned value. */
+/** Encountered a '-' during conversion to an unsigned value. */
 #define VERR_NEGATIVE_UNSIGNED              (-57)
-/** Encountered a '-' during convertion to an unsigned value. */
+/** Encountered a '-' during conversion to an unsigned value. */
 #define VWRN_NEGATIVE_UNSIGNED              57
 /** Error while characters translation (unicode and so). */
 #define VERR_NO_TRANSLATION                 (-58)
@@ -493,7 +586,7 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_END_OF_STRING                  (-83)
 /** End of string. */
 #define VINF_END_OF_STRING                  83
-/** A page count is ouf of range. */
+/** A page count is out of range. */
 #define VERR_PAGE_COUNT_OUT_OF_RANGE        (-84)
 /** Generic object destroyed status. */
 #define VERR_OBJECT_DESTROYED               (-85)
@@ -509,6 +602,10 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_CALLBACK_RETURN                (-88)
 /** Return instigated by a callback or similar. */
 #define VINF_CALLBACK_RETURN                88
+/** Authentication failure. */
+#define VERR_AUTHENTICATION_FAILURE         (-89)
+/** Not a power of two. */
+#define VERR_NOT_POWER_OF_TWO               (-90)
 /** @} */
 
 
@@ -592,8 +689,10 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_FILE_AIO_NOT_SUBMITTED         (-135)
 /** A request was not prepared and thus could not be submitted. */
 #define VERR_FILE_AIO_NOT_PREPARED          (-136)
-/** Not all requests could be submitted due to ressource shortage. */
+/** Not all requests could be submitted due to resource shortage. */
 #define VERR_FILE_AIO_INSUFFICIENT_RESSOURCES (-137)
+/** Device or resource is busy. */
+#define VERR_RESOURCE_BUSY                  (-138)
 /** @} */
 
 
@@ -614,6 +713,8 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_DISK_INVALID_FORMAT            (-155)
 /** Too many symbolic links. */
 #define VERR_TOO_MANY_SYMLINKS              (-156)
+/** The OS does not support setting the time stamps on a symbolic link. */
+#define VERR_NS_SYMLINK_SET_TIME            (-157)
 /** @} */
 
 
@@ -650,6 +751,9 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_IPE_UNEXPECTED_INFO_STATUS     (-231)
 /** Internal error: Unexpected status code. */
 #define VERR_IPE_UNEXPECTED_ERROR_STATUS    (-232)
+/** Internal error: Uninitialized status code.
+ * @remarks This is used by value elsewhere.  */
+#define VERR_IPE_UNINITIALIZED_STATUS       (-233)
 /** @} */
 
 
@@ -732,6 +836,10 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_DEADLOCK                       (-365)
 /** Ping-Pong listen or speak out of turn error. */
 #define VERR_SEM_OUT_OF_TURN                (-366)
+/** Tried to take a semaphore in a bad context. */
+#define VERR_SEM_BAD_CONTEXT                (-367)
+/** Don't spin for the semaphore, but it is safe to try grab it. */
+#define VINF_SEM_BAD_CONTEXT                (367)
 /** @} */
 
 
@@ -825,6 +933,12 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_TCP_SERVER_STOP                    (-500)
 /** The server was stopped. */
 #define VINF_TCP_SERVER_STOP                    500
+/** The TCP server was shut down using RTTcpServerShutdown. */
+#define VERR_TCP_SERVER_SHUTDOWN                (-501)
+/** The TCP server was destroyed. */
+#define VERR_TCP_SERVER_DESTROYED               (-502)
+/** The TCP server has no client associated with it. */
+#define VINF_TCP_SERVER_NO_CLIENT               503
 /** @} */
 
 
@@ -947,7 +1061,7 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 /** The module contains no symbol information. */
 #define VERR_DBG_NO_SYMBOLS                     (-651)
 /** The specified segment:offset address was invalid. Typically an attempt at
- * addressing outside the segment boundrary. */
+ * addressing outside the segment boundary. */
 #define VERR_DBG_INVALID_ADDRESS                (-652)
 /** Invalid segment index. */
 #define VERR_DBG_INVALID_SEGMENT_INDEX          (-653)
@@ -995,7 +1109,7 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
  */
 /** Invalid RT request type.
  * For the RTReqAlloc() case, the caller just specified an illegal enmType. For
- * all the other occurences it means indicates corruption, broken logic, or stupid
+ * all the other occurrences it means indicates corruption, broken logic, or stupid
  * interface user. */
 #define VERR_RT_REQUEST_INVALID_TYPE            (-700)
 /** Invalid RT request state.
@@ -1035,14 +1149,16 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 
 /** @name RTGetOpt status codes
  * @{ */
-/** RTGetOpt: command line option not recognized. */
+/** RTGetOpt: Command line option not recognized. */
 #define VERR_GETOPT_UNKNOWN_OPTION              (-825)
-/** RTGetOpt: command line option needs argument. */
+/** RTGetOpt: Command line option needs argument. */
 #define VERR_GETOPT_REQUIRED_ARGUMENT_MISSING   (-826)
-/** RTGetOpt: command line option has argument with bad format. */
+/** RTGetOpt: Command line option has argument with bad format. */
 #define VERR_GETOPT_INVALID_ARGUMENT_FORMAT     (-827)
 /** RTGetOpt: Not an option. */
 #define VINF_GETOPT_NOT_OPTION                  828
+/** RTGetOpt: Command line option needs an index. */
+#define VERR_GETOPT_INDEX_MISSING               (-829)
 /** @} */
 
 /** @name RTCache status codes
@@ -1065,6 +1181,24 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_S3_BUCKET_NOT_EMPTY                (-878)
 /** The current operation was canceled */
 #define VERR_S3_CANCELED                        (-879)
+/** @} */
+
+/** @name RTManifest status codes
+ * @{ */
+/** A digest type used in the manifest file isn't supported */
+#define VERR_MANIFEST_UNSUPPORTED_DIGEST_TYPE   (-900)
+/** An entry in the manifest file couldn't be interpreted correctly */
+#define VERR_MANIFEST_WRONG_FILE_FORMAT         (-901)
+/** A digest doesn't match the corresponding file */
+#define VERR_MANIFEST_DIGEST_MISMATCH           (-902)
+/** The file list doesn't match to the content of the manifest file */
+#define VERR_MANIFEST_FILE_MISMATCH             (-903)
+/** @} */
+
+/** @name RTTar status codes
+ * @{ */
+/** The checksum of a tar header record doesn't match */
+#define VERR_TAR_CHKSUM_MISMATCH                (-925)
 /** @} */
 
 /* SED-END */

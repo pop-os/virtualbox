@@ -256,9 +256,11 @@ process_mount_opts (const char *s, struct opts *opts)
                     opts->remount = 1;
                     break;
                 case HOUID:
+                    /** @todo convert string to id. */
                     opts->uid = safe_atoi (val, val_len, 10);
                     break;
                 case HOGID:
+                    /** @todo convert string to id. */
                     opts->gid = safe_atoi (val, val_len, 10);
                     break;
                 case HOTTL:
@@ -557,6 +559,24 @@ main (int argc, char **argv)
     mntinf.fmask = opts.fmask;
 
     err = mount (NULL, mount_point, "vboxsf", flags, &mntinf);
+    if (err == -1 && errno == EPROTO)
+    {
+        /* Sometimes the mount utility messes up the share name.  Try to
+         * un-mangle it again. */
+        char szCWD[4096];
+        size_t cchCWD;
+        if (!getcwd(szCWD, sizeof(szCWD)))
+            panic_err("%s: failed to get the current working directory", argv[0]);
+        cchCWD = strlen(szCWD);
+        if (!strncmp(host_name, szCWD, cchCWD))
+        {
+            while (host_name[cchCWD] == '/')
+                ++cchCWD;
+            /* We checked before that we have enough space */
+            strcpy (mntinf.name, host_name + cchCWD);
+        }
+        err = mount (NULL, mount_point, "vboxsf", flags, &mntinf);
+    }
     if (err == -1 && errno == EPROTO)
     {
         /* New mount tool with old vboxsf module? Try again using the old

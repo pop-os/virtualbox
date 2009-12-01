@@ -1,4 +1,4 @@
-/* $Id: uuid-win.cpp $ */
+/* $Id: uuid-win.cpp 9743 2008-06-16 22:53:02Z vboxsync $ */
 /** @file
  * IPRT - UUID, Windows implementation.
  */

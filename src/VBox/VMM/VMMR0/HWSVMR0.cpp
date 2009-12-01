@@ -1,4 +1,4 @@
-/* $Id: HWSVMR0.cpp $ */
+/* $Id: HWSVMR0.cpp 24994 2009-11-26 12:09:48Z vboxsync $ */
 /** @file
  * HWACCM SVM - Host Context Ring 0.
  */
@@ -59,8 +59,6 @@ static void svmR0SetMSRPermission(PVMCPU pVCpu, unsigned ulMSR, bool fRead, bool
 /*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
-/* IO operation lookup arrays. */
-static uint32_t const g_aIOSize[4] = {1, 2, 0, 4};
 
 /**
  * Sets up and activates AMD-V on the current CPU
@@ -77,11 +75,6 @@ VMMR0DECL(int) SVMR0EnableCpu(PHWACCM_CPUINFO pCpu, PVM pVM, void *pvPageCpu, RT
     AssertReturn(pvPageCpu, VERR_INVALID_PARAMETER);
 
     /* We must turn on AMD-V and setup the host state physical address, as those MSRs are per-cpu/core. */
-
-#if defined(LOG_ENABLED) && !defined(DEBUG_bird)
-    SUPR0Printf("SVMR0EnableCpu cpu %d page (%x) %x\n", pCpu->idCpu, pvPageCpu, (uint32_t)pPageCpuPhys);
-#endif
-
     uint64_t val = ASMRdMsr(MSR_K6_EFER);
     if (val & MSR_K6_EFER_SVME)
         return VERR_SVM_IN_USE;
@@ -107,10 +100,6 @@ VMMR0DECL(int) SVMR0DisableCpu(PHWACCM_CPUINFO pCpu, void *pvPageCpu, RTHCPHYS p
 {
     AssertReturn(pPageCpuPhys, VERR_INVALID_PARAMETER);
     AssertReturn(pvPageCpu, VERR_INVALID_PARAMETER);
-
-#if defined(LOG_ENABLED) && !defined(DEBUG_bird)
-    SUPR0Printf("SVMR0DisableCpu cpu %d\n", pCpu->idCpu);
-#endif
 
     /* Turn off AMD-V in the EFER MSR. */
     uint64_t val = ASMRdMsr(MSR_K6_EFER);
@@ -176,7 +165,7 @@ VMMR0DECL(int) SVMR0InitVM(PVM pVM)
     }
 
     /* Allocate VMCBs for all guest CPUs. */
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -226,7 +215,7 @@ VMMR0DECL(int) SVMR0InitVM(PVM pVM)
  */
 VMMR0DECL(int) SVMR0TermVM(PVM pVM)
 {
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
@@ -277,7 +266,7 @@ VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
 
     Assert(pVM->hwaccm.s.svm.fSupported);
 
-    for (VMCPUID i = 0; i < pVM->cCPUs; i++)
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU    pVCpu = &pVM->aCpus[i];
         SVM_VMCB *pVMCB = (SVM_VMCB *)pVM->aCpus[i].hwaccm.s.svm.pVMCB;
@@ -368,7 +357,7 @@ VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
         pVMCB->guest.u64GPAT = 0x0007040600070406ULL;
 
         /* The following MSRs are saved automatically by vmload/vmsave, so we allow the guest
-         * to modify them directly. 
+         * to modify them directly.
          */
         svmR0SetMSRPermission(pVCpu, MSR_K8_LSTAR, true, true);
         svmR0SetMSRPermission(pVCpu, MSR_K8_CSTAR, true, true);
@@ -430,7 +419,7 @@ static void svmR0SetMSRPermission(PVMCPU pVCpu, unsigned ulMSR, bool fRead, bool
         ASMBitClear(pMSRBitmap, ulBit);
     else
         ASMBitSet(pMSRBitmap, ulBit);
-    
+
     if (fWrite)
         ASMBitClear(pMSRBitmap, ulBit + 1);
     else
@@ -1445,6 +1434,29 @@ ResumeExecution:
     SVM_READ_SELREG(FS, fs);
     SVM_READ_SELREG(GS, gs);
 
+    /* Correct the hidden CS granularity flag.  Haven't seen it being wrong in
+       any other register (yet). */
+    if (   !pCtx->csHid.Attr.n.u1Granularity
+        &&  pCtx->csHid.Attr.n.u1Present
+        &&  pCtx->csHid.u32Limit > UINT32_C(0xfffff))
+    {
+        Assert((pCtx->csHid.u32Limit & 0xfff) == 0xfff);
+        pCtx->csHid.Attr.n.u1Granularity = 1;
+    }
+#define SVM_ASSERT_SEL_GRANULARITY(reg) \
+        AssertMsg(   !pCtx->reg##Hid.Attr.n.u1Present \
+                  || (   pCtx->reg##Hid.Attr.n.u1Granularity \
+                      ? (pCtx->reg##Hid.u32Limit & 0xfff) == 0xfff \
+                      :  pCtx->reg##Hid.u32Limit <= 0xfffff), \
+                  ("%#x %#x %#llx\n", pCtx->reg##Hid.u32Limit, pCtx->reg##Hid.Attr.u, pCtx->reg##Hid.u64Base))
+    SVM_ASSERT_SEL_GRANULARITY(ss);
+    SVM_ASSERT_SEL_GRANULARITY(cs);
+    SVM_ASSERT_SEL_GRANULARITY(ds);
+    SVM_ASSERT_SEL_GRANULARITY(es);
+    SVM_ASSERT_SEL_GRANULARITY(fs);
+    SVM_ASSERT_SEL_GRANULARITY(gs);
+#undef  SVM_ASSERT_SEL_GRANULARITY
+
     /* Remaining guest CPU context: TR, IDTR, GDTR, LDTR; must sync everything otherwise we can get out of sync when jumping to ring 3. */
     SVM_READ_SELREG(LDTR, ldtr);
     SVM_READ_SELREG(TR, tr);
@@ -2186,13 +2198,13 @@ ResumeExecution:
                 {
                     Log2(("IOMInterpretOUTSEx %RGv %x size=%d\n", (RTGCPTR)pCtx->rip, IoExitInfo.n.u16Port, uIOSize));
                     STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitIOStringWrite);
-                    rc = IOMInterpretOUTSEx(pVM, CPUMCTX2CORE(pCtx), IoExitInfo.n.u16Port, pDis->prefix, uIOSize);
+                    rc = VBOXSTRICTRC_TODO(IOMInterpretOUTSEx(pVM, CPUMCTX2CORE(pCtx), IoExitInfo.n.u16Port, pDis->prefix, uIOSize));
                 }
                 else
                 {
                     Log2(("IOMInterpretINSEx  %RGv %x size=%d\n", (RTGCPTR)pCtx->rip, IoExitInfo.n.u16Port, uIOSize));
                     STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitIOStringRead);
-                    rc = IOMInterpretINSEx(pVM, CPUMCTX2CORE(pCtx), IoExitInfo.n.u16Port, pDis->prefix, uIOSize);
+                    rc = VBOXSTRICTRC_TODO(IOMInterpretINSEx(pVM, CPUMCTX2CORE(pCtx), IoExitInfo.n.u16Port, pDis->prefix, uIOSize));
                 }
             }
             else
@@ -2207,7 +2219,7 @@ ResumeExecution:
             {
                 Log2(("IOMIOPortWrite %RGv %x %x size=%d\n", (RTGCPTR)pCtx->rip, IoExitInfo.n.u16Port, pCtx->eax & uAndVal, uIOSize));
                 STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitIOWrite);
-                rc = IOMIOPortWrite(pVM, IoExitInfo.n.u16Port, pCtx->eax & uAndVal, uIOSize);
+                rc = VBOXSTRICTRC_TODO(IOMIOPortWrite(pVM, IoExitInfo.n.u16Port, pCtx->eax & uAndVal, uIOSize));
                 if (rc == VINF_IOM_HC_IOPORT_WRITE)
                     HWACCMR0SavePendingIOPortWrite(pVCpu, pCtx->rip, pVMCB->ctrl.u64ExitInfo2, IoExitInfo.n.u16Port, uAndVal, uIOSize);
             }
@@ -2216,7 +2228,7 @@ ResumeExecution:
                 uint32_t u32Val = 0;
 
                 STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitIORead);
-                rc = IOMIOPortRead(pVM, IoExitInfo.n.u16Port, &u32Val, uIOSize);
+                rc = VBOXSTRICTRC_TODO(IOMIOPortRead(pVM, IoExitInfo.n.u16Port, &u32Val, uIOSize));
                 if (IOM_SUCCESS(rc))
                 {
                     /* Write back to the EAX register. */
@@ -2241,10 +2253,13 @@ ResumeExecution:
                 /* If any IO breakpoints are armed, then we should check if a debug trap needs to be generated. */
                 if (pCtx->dr[7] & X86_DR7_ENABLED_MASK)
                 {
+                    /* IO operation lookup arrays. */
+                    static uint32_t const aIOSize[4] = {1, 2, 0, 4};
+
                     STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatDRxIOCheck);
                     for (unsigned i=0;i<4;i++)
                     {
-                        unsigned uBPLen = g_aIOSize[X86_DR7_GET_LEN(pCtx->dr[7], i)];
+                        unsigned uBPLen = aIOSize[X86_DR7_GET_LEN(pCtx->dr[7], i)];
 
                         if (    (IoExitInfo.n.u16Port >= pCtx->dr[i] && IoExitInfo.n.u16Port < pCtx->dr[i] + uBPLen)
                             &&  (pCtx->dr[7] & (X86_DR7_L(i) | X86_DR7_G(i)))
@@ -2815,9 +2830,10 @@ VMMR0DECL(int) SVMR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, R
     RTHCUINTREG     uOldEFlags;
 
     /* @todo This code is not guest SMP safe (hyper stack and switchers) */
-    AssertReturn(pVM->cCPUs == 1, VERR_TOO_MANY_CPUS);
+    AssertReturn(pVM->cCpus == 1, VERR_TOO_MANY_CPUS);
     Assert(pfnHandler);
 
+    /* Disable interrupts. */
     uOldEFlags = ASMIntDisableFlags();
 
     CPUMSetHyperESP(pVCpu, VMMGetStackRC(pVM));

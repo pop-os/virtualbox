@@ -1,4 +1,4 @@
-/* $Id: tstStrToNum.cpp $ */
+/* $Id: tstStrToNum.cpp 24781 2009-11-19 10:46:32Z vboxsync $ */
 /** @file
  * IPRT Testcase - String To Number Conversion.
  */
@@ -28,6 +28,7 @@
  * additional information or have any questions.
  */
 
+#include <iprt/initterm.h>
 #include <iprt/string.h>
 #include <iprt/stream.h>
 #include <iprt/err.h>
@@ -94,6 +95,8 @@ struct TstU32
 
 int main()
 {
+    RTR3Init();
+
     int cErrors = 0;
     static const struct TstU64 aTstU64[] =
     {

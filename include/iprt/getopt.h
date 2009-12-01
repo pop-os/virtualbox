@@ -83,16 +83,24 @@ RT_C_DECLS_BEGIN
 #define RTGETOPT_REQ_MACADDR                    14
 /** The value must be a valid UUID. */
 #define RTGETOPT_REQ_UUID                       15
+/** The value must be a string with value as "on" or "off". */
+#define RTGETOPT_REQ_BOOL_ONOFF                 16
 /** The mask of the valid required types. */
-#define RTGETOPT_REQ_MASK                       15
+#define RTGETOPT_REQ_MASK                       31
 /** Treat the value as hexadecimal - only applicable with the RTGETOPT_REQ_*INT*. */
 #define RTGETOPT_FLAG_HEX                       RT_BIT(16)
 /** Treat the value as octal - only applicable with the RTGETOPT_REQ_*INT*. */
 #define RTGETOPT_FLAG_OCT                       RT_BIT(17)
 /** Treat the value as decimal - only applicable with the RTGETOPT_REQ_*INT*. */
 #define RTGETOPT_FLAG_DEC                       RT_BIT(18)
+/** The index value is attached to the argument - only valid for long arguments. */
+#define RTGETOPT_FLAG_INDEX                     RT_BIT(19)
 /** Mask of valid bits - for validation. */
-#define RTGETOPT_VALID_MASK                     ( RTGETOPT_REQ_MASK | RTGETOPT_FLAG_HEX | RTGETOPT_FLAG_OCT | RTGETOPT_FLAG_DEC )
+#define RTGETOPT_VALID_MASK                     (  RTGETOPT_REQ_MASK \
+                                                 | RTGETOPT_FLAG_HEX \
+                                                 | RTGETOPT_FLAG_OCT \
+                                                 | RTGETOPT_FLAG_DEC \
+                                                 | RTGETOPT_FLAG_INDEX)
 /** @} */
 
 /**
@@ -165,6 +173,8 @@ typedef union RTGETOPTUNION
     int64_t         i;
     /** An unsigned integer value. */
     uint64_t        u;
+    /** A boolean flag. */
+    bool            f;
 } RTGETOPTUNION;
 /** Pointer to an option argument union. */
 typedef RTGETOPTUNION *PRTGETOPTUNION;
@@ -192,6 +202,8 @@ typedef struct RTGETOPTSTATE
     const char     *pszNextShort;
     /** The option definition which matched. NULL otherwise. */
     PCRTGETOPTDEF   pDef;
+    /** The index of an index option, otherwise UINT64_MAX. */
+    uint64_t        uIndex;
     /* More members will be added later for dealing with initial
        call, optional sorting, '--' and so on. */
 } RTGETOPTSTATE;
@@ -321,6 +333,42 @@ int main(int argc, char **argv)
  *                      that argument, depending on the type that is required.
  */
 RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion);
+
+/**
+ * Fetch an additional value.
+ *
+ * This is used for special cases where an option have more than one value.
+ *
+ *
+ * @returns VINF_SUCCESS on success.
+ * @returns IPRT error status on parse error.
+ * @returns VERR_INVALID_PARAMETER if the flags are wrong.
+ * @returns VERR_GETOPT_UNKNOWN_OPTION when pState->pDef is null.
+ * @returns VERR_GETOPT_REQUIRED_ARGUMENT_MISSING if there are no more
+ *          available arguments. pValueUnion->pDef is NULL.
+ * @returns VERR_GETOPT_INVALID_ARGUMENT_FORMAT and pValueUnion->pDef if
+ *          value conversion failed.
+ *
+ * @param   pState      The state previously initialized with RTGetOptInit.
+ * @param   pValueUnion Union with value; in the event of an error, psz member
+ *                      points to erroneous parameter; otherwise, for options
+ *                      that require an argument, this contains the value of
+ *                      that argument, depending on the type that is required.
+ * @param   fFlags      The flags.
+ */
+RTDECL(int) RTGetOptFetchValue(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion, uint32_t fFlags);
+
+/**
+ * Print error messages for a RTGetOpt default case.
+ *
+ * Uses RTMsgError.
+ *
+ * @returns Suitable exit code.
+ *
+ * @param   ch          The RTGetOpt return value.
+ * @param   pValueUnion The value union returned by RTGetOpt.
+ */
+RTDECL(int) RTGetOptPrintError(int ch, PCRTGETOPTUNION pValueUnion);
 
 /** @} */
 

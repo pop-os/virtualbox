@@ -1,4 +1,4 @@
-/* $Id: ApplianceImpl.h $ */
+/* $Id: ApplianceImpl.h 24526 2009-11-09 19:34:28Z vboxsync $ */
 
 /** @file
  *
@@ -24,21 +24,19 @@
 #ifndef ____H_APPLIANCEIMPL
 #define ____H_APPLIANCEIMPL
 
+/* VBox includes */
 #include "VirtualBoxBase.h"
 
-namespace xml
-{
-    class Node;
-    class ElementNode;
-}
+#include "ovfreader.h"
 
+/* VBox forward declarations */
 class VirtualBox;
 class Progress;
 
 class ATL_NO_VTABLE Appliance :
-    public VirtualBoxBaseWithChildrenNEXT,
-    public VirtualBoxSupportErrorInfoImpl <Appliance, IAppliance>,
-    public VirtualBoxSupportTranslation <Appliance>,
+    public VirtualBoxBase,
+    public VirtualBoxSupportErrorInfoImpl<Appliance, IAppliance>,
+    public VirtualBoxSupportTranslation<Appliance>,
     VBOX_SCRIPTABLE_IMPL(IAppliance)
 {
 public:
@@ -53,8 +51,6 @@ public:
         COM_INTERFACE_ENTRY(IAppliance)
         COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
-
-    NS_DECL_ISUPPORTS
 
     DECLARE_EMPTY_CTOR_DTOR (Appliance)
 
@@ -75,7 +71,7 @@ public:
 
     /* IAppliance methods */
     /* Import methods */
-    STDMETHOD(Read)(IN_BSTR path);
+    STDMETHOD(Read)(IN_BSTR path, IProgress **aProgress);
     STDMETHOD(Interpret)(void);
     STDMETHOD(ImportMachines)(IProgress **aProgress);
     /* Export methods */
@@ -89,34 +85,52 @@ public:
     /* private instance data */
 private:
     /** weak VirtualBox parent */
-    const ComObjPtr <VirtualBox, ComWeakRef> mVirtualBox;
+    const ComObjPtr<VirtualBox, ComWeakRef> mVirtualBox;
 
-    struct Data;            // obscure, defined in AppliannceImpl.cpp
+    struct Data;            // opaque, defined in ApplianceImpl.cpp
     Data *m;
-
-    HRESULT LoopThruSections(const char *pcszPath, const xml::ElementNode *pReferencesElem, const xml::ElementNode *pCurElem);
-    HRESULT HandleDiskSection(const char *pcszPath, const xml::ElementNode *pReferencesElem, const xml::ElementNode *pSectionElem);
-    HRESULT HandleNetworkSection(const char *pcszPath, const xml::ElementNode *pSectionElem);
-    HRESULT HandleVirtualSystemContent(const char *pcszPath, const xml::ElementNode *pContentElem);
 
     HRESULT searchUniqueVMName(Utf8Str& aName) const;
     HRESULT searchUniqueDiskImageFilePath(Utf8Str& aName) const;
-    HRESULT setUpProgress(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription);
-    HRESULT setUpProgressUpload(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription);
     void waitForAsyncProgress(ComObjPtr<Progress> &pProgressThis, ComPtr<IProgress> &pProgressAsync);
     void addWarning(const char* aWarning, ...);
 
-    void parseURI(Utf8Str strUri, const Utf8Str &strProtocol, Utf8Str &strFilepath, Utf8Str &strHostname, Utf8Str &strUsername, Utf8Str &strPassword);
-    HRESULT writeImpl(int aFormat, Utf8Str aPath, ComObjPtr<Progress> &aProgress);
+    void disksWeight(uint32_t &ulTotalMB, uint32_t &cDisks) const;
+    HRESULT setUpProgressFS(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription);
+    HRESULT setUpProgressImportS3(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription);
+    HRESULT setUpProgressWriteS3(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription);
 
-    struct TaskImportMachines;  /* Worker thread for import */
-    static DECLCALLBACK(int) taskThreadImportMachines(RTTHREAD thread, void *pvUser);
+    struct LocationInfo;
+    void parseURI(Utf8Str strUri, LocationInfo &locInfo) const;
+    void parseBucket(Utf8Str &aPath, Utf8Str &aBucket) const;
+    Utf8Str manifestFileName(Utf8Str aPath) const;
 
-    struct TaskWriteOVF;        /* Worker threads for export */
+    HRESULT readImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+    HRESULT importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+
+    struct TaskOVF;
+    struct TaskImportOVF; /* Worker threads for import */
+    static DECLCALLBACK(int) taskThreadImportOVF(RTTHREAD aThread, void *pvUser);
+
+    int readFS(TaskImportOVF *pTask);
+    int readS3(TaskImportOVF *pTask);
+
+    int importFS(TaskImportOVF *pTask);
+    int importS3(TaskImportOVF *pTask);
+
+    void ConvertDiskAttachmentValues(const HardDiskController &hdc,
+                                     uint32_t ulAddressOnParent,
+                                     Bstr &controllerType,
+                                     int32_t &lChannel,
+                                     int32_t &lDevice);
+
+    HRESULT writeImpl(int aFormat, const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+
+    struct TaskExportOVF; /* Worker threads for export */
     static DECLCALLBACK(int) taskThreadWriteOVF(RTTHREAD aThread, void *pvUser);
 
-    int writeFS(TaskWriteOVF *pTask);
-    int writeS3(TaskWriteOVF *pTask);
+    int writeFS(TaskExportOVF *pTask);
+    int writeS3(TaskExportOVF *pTask);
 
     friend class Machine;
 };
@@ -134,9 +148,9 @@ struct VirtualSystemDescriptionEntry
 };
 
 class ATL_NO_VTABLE VirtualSystemDescription :
-    public VirtualBoxBaseWithChildrenNEXT,
-    public VirtualBoxSupportErrorInfoImpl <VirtualSystemDescription, IVirtualSystemDescription>,
-    public VirtualBoxSupportTranslation <VirtualSystemDescription>,
+    public VirtualBoxBase,
+    public VirtualBoxSupportErrorInfoImpl<VirtualSystemDescription, IVirtualSystemDescription>,
+    public VirtualBoxSupportTranslation<VirtualSystemDescription>,
     VBOX_SCRIPTABLE_IMPL(IVirtualSystemDescription)
 {
     friend class Appliance;
@@ -153,8 +167,6 @@ public:
         COM_INTERFACE_ENTRY(IVirtualSystemDescription)
         COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
-
-    NS_DECL_ISUPPORTS
 
     DECLARE_EMPTY_CTOR_DTOR (VirtualSystemDescription)
 

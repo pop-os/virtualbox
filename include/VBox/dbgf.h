@@ -1,5 +1,5 @@
 /** @file
- * DBGF - Debugger Facility.
+ * DBGF - Debugger Facility. (VMM)
  */
 
 /*
@@ -118,6 +118,7 @@ typedef const DBGFADDRESS *PCDBGFADDRESS;
 /** @} */
 
 VMMR3DECL(int)          DBGFR3AddrFromSelOff(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, RTSEL Sel, RTUINTPTR off);
+VMMR3DECL(int)          DBGFR3AddrFromSelInfoOff(PVM pVM, PDBGFADDRESS pAddress, PCDBGFSELINFO pSelInfo, RTUINTPTR off);
 VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromFlat(PVM pVM, PDBGFADDRESS pAddress, RTGCUINTPTR FlatPtr);
 VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromPhys(PVM pVM, PDBGFADDRESS pAddress, RTGCPHYS PhysAddr);
 VMMR3DECL(bool)         DBGFR3AddrIsValid(PVM pVM, PCDBGFADDRESS pAddress);
@@ -411,6 +412,10 @@ VMMDECL(bool)           DBGFIsStepping(PVMCPU pVCpu);
 
 
 
+VMMR3DECL(CPUMMODE)     DBGFR3CpuGetMode(PVM pVM, VMCPUID idCpu);
+
+
+
 
 /** Pointer to a info helper callback structure. */
 typedef struct DBGFINFOHLP *PDBGFINFOHLP;
@@ -637,6 +642,10 @@ VMMR3DECL(int)          DBGFR3AsLoadImage(PVM pVM, RTDBGAS hDbgAs, const char *p
 VMMR3DECL(int)          DBGFR3AsLoadMap(PVM pVM, RTDBGAS hDbgAs, const char *pszFilename, const char *pszModName, PCDBGFADDRESS pModAddress, RTDBGSEGIDX iModSeg, RTGCUINTPTR uSubtrahend, uint32_t fFlags);
 VMMR3DECL(int)          DBGFR3AsLinkModule(PVM pVM, RTDBGAS hDbgAs, RTDBGMOD hMod, PCDBGFADDRESS pModAddress, RTDBGSEGIDX iModSeg, uint32_t fFlags);
 
+VMMR3DECL(int)          DBGFR3AsSymbolByAddr(PVM pVM, RTDBGAS hDbgAs, PCDBGFADDRESS pAddress, PRTGCINTPTR poffDisp, PRTDBGSYMBOL pSymbol, PRTDBGMOD phMod);
+VMMR3DECL(PRTDBGSYMBOL) DBGFR3AsSymbolByAddrA(PVM pVM, RTDBGAS hDbgAs, PCDBGFADDRESS pAddress, PRTGCINTPTR poffDisp, PRTDBGMOD phMod);
+VMMR3DECL(int)          DBGFR3AsSymbolByName(PVM pVM, RTDBGAS hDbgAs, const char *pszSymbol, PRTDBGSYMBOL pSymbol, PRTDBGMOD phMod);
+
 /* The following are soon to be obsoleted: */
 VMMR3DECL(int)          DBGFR3ModuleLoad(PVM pVM, const char *pszFilename, RTGCUINTPTR AddressDelta, const char *pszName, RTGCUINTPTR ModuleAddress, unsigned cbImage);
 VMMR3DECL(void)         DBGFR3ModuleRelocate(PVM pVM, RTGCUINTPTR OldImageBase, RTGCUINTPTR NewImageBase, RTGCUINTPTR cbImage,
@@ -644,9 +653,7 @@ VMMR3DECL(void)         DBGFR3ModuleRelocate(PVM pVM, RTGCUINTPTR OldImageBase, 
 VMMR3DECL(int)          DBGFR3SymbolAdd(PVM pVM, RTGCUINTPTR ModuleAddress, RTGCUINTPTR SymbolAddress, RTUINT cbSymbol, const char *pszSymbol);
 VMMR3DECL(int)          DBGFR3SymbolByAddr(PVM pVM, RTGCUINTPTR Address, PRTGCINTPTR poffDisplacement, PDBGFSYMBOL pSymbol);
 VMMR3DECL(int)          DBGFR3SymbolByName(PVM pVM, const char *pszSymbol, PDBGFSYMBOL pSymbol);
-VMMR3DECL(PDBGFSYMBOL)  DBGFR3SymbolByAddrAlloc(PVM pVM, RTGCUINTPTR Address, PRTGCINTPTR poffDisplacement);
-VMMR3DECL(PDBGFSYMBOL)  DBGFR3SymbolByNameAlloc(PVM pVM, const char *pszSymbol);
-VMMR3DECL(void)         DBGFR3SymbolFree(PDBGFSYMBOL pSymbol);
+
 VMMR3DECL(int)          DBGFR3LineByAddr(PVM pVM, RTGCUINTPTR Address, PRTGCINTPTR poffDisplacement, PDBGFLINE pLine);
 VMMR3DECL(PDBGFLINE)    DBGFR3LineByAddrAlloc(PVM pVM, RTGCUINTPTR Address, PRTGCINTPTR poffDisplacement);
 VMMR3DECL(void)         DBGFR3LineFree(PDBGFLINE pLine);
@@ -724,9 +731,9 @@ typedef struct DBGFSTACKFRAME const  *PCDBGFSTACKFRAME;
 typedef struct DBGFSTACKFRAME
 {
     /** Frame number. */
-    RTUINT          iFrame;
+    uint32_t        iFrame;
     /** Frame flags. */
-    RTUINT          fFlags;
+    uint32_t        fFlags;
     /** The frame address.
      * The off member is [e|r]bp and the Sel member is ss. */
     DBGFADDRESS     AddrFrame;
@@ -737,7 +744,7 @@ typedef struct DBGFSTACKFRAME
      * The off member is [e|r]ip and the Sel member is cs. */
     DBGFADDRESS     AddrPC;
     /** Pointer to the symbol nearest the program counter (PC). NULL if not found. */
-    PDBGFSYMBOL     pSymPC;
+    PRTDBGSYMBOL    pSymPC;
     /** Pointer to the linnumber nearest the program counter (PC). NULL if not found. */
     PDBGFLINE       pLinePC;
 
@@ -754,7 +761,7 @@ typedef struct DBGFSTACKFRAME
      * The off member is [e|r]ip and the Sel member is cs. */
     DBGFADDRESS     AddrReturnPC;
     /** Pointer to the symbol nearest the return PC. NULL if not found. */
-    PDBGFSYMBOL     pSymReturnPC;
+    PRTDBGSYMBOL    pSymReturnPC;
     /** Pointer to the linnumber nearest the return PC. NULL if not found. */
     PDBGFLINE       pLineReturnPC;
 
@@ -791,6 +798,12 @@ typedef struct DBGFSTACKFRAME
 #define DBGFSTACKFRAME_FLAGS_LOOP       RT_BIT(2)
 /** This is the last record because we reached the maximum depth. */
 #define DBGFSTACKFRAME_FLAGS_MAX_DEPTH  RT_BIT(3)
+/** 16-bit frame. */
+#define DBGFSTACKFRAME_FLAGS_16BIT      RT_BIT(4)
+/** 32-bit frame. */
+#define DBGFSTACKFRAME_FLAGS_32BIT      RT_BIT(5)
+/** 64-bit frame. */
+#define DBGFSTACKFRAME_FLAGS_64BIT      RT_BIT(6)
 /** @} */
 
 /** @name DBGFCODETYPE
@@ -875,7 +888,8 @@ VMMR3DECL(int) DBGFR3DisasInstrLogInternal(PVMCPU pVCpu, RTSEL Sel, RTGCPTR GCPt
 #endif
 
 
-VMMR3DECL(int) DBGFR3MemScan(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, RTGCUINTPTR cbRange, const uint8_t *pabNeedle, size_t cbNeedle, PDBGFADDRESS pHitAddress);
+VMMR3DECL(int) DBGFR3MemScan(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, RTGCUINTPTR cbRange, RTGCUINTPTR uAlign,
+                             const void *pvNeedle, size_t cbNeedle, PDBGFADDRESS pHitAddress);
 VMMR3DECL(int) DBGFR3MemRead(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void *pvBuf, size_t cbRead);
 VMMR3DECL(int) DBGFR3MemReadString(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, char *pszBuf, size_t cbBuf);
 VMMR3DECL(int) DBGFR3MemWrite(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void const *pvBuf, size_t cbRead);
@@ -884,10 +898,12 @@ VMMR3DECL(int) DBGFR3MemWrite(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, vo
 /** @name DBGFR3SelQueryInfo flags.
  * @{ */
 /** Get the info from the guest descriptor table. */
-#define DBGFSELQI_FLAGS_DT_GUEST        UINT32_C(0)
+#define DBGFSELQI_FLAGS_DT_GUEST            UINT32_C(0)
 /** Get the info from the shadow descriptor table.
  * Only works in raw-mode.  */
-#define DBGFSELQI_FLAGS_DT_SHADOW       UINT32_C(1)
+#define DBGFSELQI_FLAGS_DT_SHADOW           UINT32_C(1)
+/** If currently executing in in 64-bit mode, blow up data selectors. */
+#define DBGFSELQI_FLAGS_DT_ADJ_64BIT_MODE   UINT32_C(2)
 /** @} */
 VMMR3DECL(int) DBGFR3SelQueryInfo(PVM pVM, VMCPUID idCpu, RTSEL Sel, uint32_t fFlags, PDBGFSELINFO pSelInfo);
 

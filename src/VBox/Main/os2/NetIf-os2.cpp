@@ -1,4 +1,4 @@
-/* $Id: NetIf-os2.cpp $ */
+/* $Id: NetIf-os2.cpp 21878 2009-07-30 12:42:08Z vboxsync $ */
 /** @file
  * Main - NetIfList, OS/2 implementation.
  */
@@ -32,7 +32,7 @@
 #include "HostNetworkInterfaceImpl.h"
 #include "netif.h"
 
-int NetIfList(std::list <ComObjPtr <HostNetworkInterface> > &list)
+int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
 {
     return VERR_NOT_IMPLEMENTED;
 }

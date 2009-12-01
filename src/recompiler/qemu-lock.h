@@ -74,7 +74,8 @@ DECLINLINE(void) resetlock (spinlock_t *p)
 #ifdef VBOX
 DECLINLINE(int) testandset (int *p)
 {
-    return ASMAtomicCmpXchgU32((volatile uint32_t *)p, 1, 0) ? 0 : 1; 
+
+    return ASMAtomicCmpXchgU32((volatile uint32_t *)p, 1, 0) ? 0 : 1;
 }
 #elif defined(__powerpc__)
 static inline int testandset (int *p)

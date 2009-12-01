@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt.c $ */
+/* $Id: VBoxNetFlt.c 24673 2009-11-15 15:39:14Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Common Code.
  */
@@ -1368,9 +1368,9 @@ DECLHIDDEN(int) vboxNetFltInitGlobals(PVBOXNETFLTGLOBALS pGlobals)
         pGlobals->TrunkFactory.pfnRelease = vboxNetFltFactoryRelease;
         pGlobals->TrunkFactory.pfnCreateAndConnect = vboxNetFltFactoryCreateAndConnect;
 #if defined(RT_OS_WINDOWS) && defined(VBOXNETADP)
-        strcpy(pGlobals->SupDrvFactory.szName, "VBoxNetAdp");
+        memcpy(pGlobals->SupDrvFactory.szName, "VBoxNetAdp", sizeof("VBoxNetAdp"));
 #else
-        strcpy(pGlobals->SupDrvFactory.szName, "VBoxNetFlt");
+        memcpy(pGlobals->SupDrvFactory.szName, "VBoxNetFlt", sizeof("VBoxNetFlt"));
 #endif
         pGlobals->SupDrvFactory.pfnQueryFactoryInterface = vboxNetFltQueryFactoryInterface;
         pGlobals->fIDCOpen = false;

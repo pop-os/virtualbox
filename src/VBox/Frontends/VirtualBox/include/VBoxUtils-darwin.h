@@ -21,8 +21,8 @@
  * additional information or have any questions.
  */
 
-#ifndef __VBoxUtils_darwin_h
-#define __VBoxUtils_darwin_h
+#ifndef ___VBoxUtils_darwin_h
+#define ___VBoxUtils_darwin_h
 
 /*
  * Here is some really magic in. The "OS System native" methods are implemented
@@ -40,7 +40,6 @@ typedef NSView *NativeViewRef;
 #else
 
 # include <qglobal.h> /* for QT_MAC_USE_COCOA */
-# include <QRect>
 
 # include <ApplicationServices/ApplicationServices.h>
 
@@ -61,6 +60,7 @@ typedef HIViewRef NativeViewRef;
 #endif /* __OBJC__ */
 
 #include <iprt/cdefs.h> /* for RT_C_DECLS_BEGIN/RT_C_DECLS_END & stuff */
+#include <QRect>
 
 RT_C_DECLS_BEGIN
 
@@ -92,8 +92,20 @@ void darwinWindowAnimateResizeImpl (NativeWindowRef aWindow, int x, int y, int w
 void darwinWindowInvalidateShapeImpl (NativeWindowRef aWindow);
 void darwinWindowInvalidateShadowImpl (NativeWindowRef aWindow);
 int  darwinWindowToolBarHeight (NativeWindowRef aWindow);
+float darwinSmallFontSize();
 
 RT_C_DECLS_END
+
+DECLINLINE(CGRect) darwinToCGRect (const QRect& aRect) { return CGRectMake (aRect.x(), aRect.y(), aRect.width(), aRect.height()); }
+DECLINLINE(CGRect) darwinFlipCGRect (CGRect aRect, int aTargetHeight) { aRect.origin.y = aTargetHeight - aRect.origin.y - aRect.size.height; return aRect; }
+DECLINLINE(CGRect) darwinFlipCGRect (CGRect aRect, const CGRect &aTarget) { return darwinFlipCGRect (aRect, aTarget.size.height); }
+DECLINLINE(CGRect) darwinCenterRectTo (CGRect aRect, const CGRect& aToRect)
+{
+    aRect.origin.x = aToRect.origin.x + (aToRect.size.width  - aRect.size.width)  / 2.0;
+    aRect.origin.y = aToRect.origin.y + (aToRect.size.height - aRect.size.height) / 2.0;
+    return aRect;
+}
+
 
 #ifndef __OBJC__
 /********************************************************************************
@@ -178,16 +190,6 @@ CGImageRef darwinToCGImageRef (const QImage *aImage);
 CGImageRef darwinToCGImageRef (const QPixmap *aPixmap);
 CGImageRef darwinToCGImageRef (const char *aSource);
 
-DECLINLINE(CGRect) darwinToCGRect (const QRect& aRect) { return CGRectMake (aRect.x(), aRect.y(), aRect.width(), aRect.height()); }
-DECLINLINE(CGRect) darwinFlipCGRect (CGRect aRect, int aTargetHeight) { aRect.origin.y = aTargetHeight - aRect.origin.y - aRect.size.height; return aRect; }
-DECLINLINE(CGRect) darwinFlipCGRect (CGRect aRect, const CGRect &aTarget) { return darwinFlipCGRect (aRect, aTarget.size.height); }
-DECLINLINE(CGRect) darwinCenterRectTo (CGRect aRect, const CGRect& aToRect)
-{
-    aRect.origin.x = aToRect.origin.x + (aToRect.size.width  - aRect.size.width)  / 2.0;
-    aRect.origin.y = aToRect.origin.y + (aToRect.size.height - aRect.size.height) / 2.0;
-    return aRect;
-}
-
 
 
 
@@ -203,7 +205,11 @@ DECLINLINE(CGRect) darwinCenterRectTo (CGRect aRect, const CGRect& aToRect)
 # ifndef QT_MAC_USE_COCOA
 
 /* Asserts if a != noErr and prints the error code */
-#  define AssertCarbonOSStatus(a) AssertMsg ((a) == noErr, ("Carbon OSStatus: %d\n", static_cast<int> (a)))
+#  ifdef RT_STRICT
+#   define AssertCarbonOSStatus(a) AssertMsg ((a) == noErr, ("Carbon OSStatus: %d\n", static_cast<int> (a)))
+#  else
+#   define AssertCarbonOSStatus(a) do { NOREF(a); } while (0)
+#  endif
 
 
 /**
@@ -249,5 +255,5 @@ void darwinDebugPrintEvent (const char *aPrefix, EventRef aEvent);
 
 #endif /* !__OBJC__ */
 
-#endif /* __VBoxUtils_darwin_h */
+#endif /* !___VBoxUtils_darwin_h */
 

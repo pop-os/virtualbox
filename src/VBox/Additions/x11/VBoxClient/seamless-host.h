@@ -1,6 +1,6 @@
 /** @file
- *
- * Guest client: seamless mode.
+ * X11 Guest client - seamless mode, missing proper description while using the
+ * potentially confusing word 'host'.
  */
 
 /*
@@ -26,7 +26,7 @@
 #include <vector>                   /* for vector */
 
 #include <VBox/log.h>
-#include <VBox/VBoxGuest.h>         /* for the R3 guest library functions  */
+#include <VBox/VBoxGuestLib.h>      /* for the R3 guest library functions  */
 
 #include "seamless-glue.h"          /* for VBoxGuestSeamlessObserver */
 #include "thread.h"                 /* for VBoxGuestThread */

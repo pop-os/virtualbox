@@ -1,4 +1,4 @@
-/* $Id: REMAll.cpp $ */
+/* $Id: REMAll.cpp 24343 2009-11-04 16:33:12Z vboxsync $ */
 /** @file
  * REM - Recompiled Execution Monitor, all Contexts part.
  */
@@ -95,15 +95,16 @@ static void remNotifyHandlerInsert(PVM pVM, PREMHANDLERNOTIFICATION pRec)
     do
     {
         idxFree = ASMAtomicUoReadU32(&pVM->rem.s.idxFreeList);
-        if (idxFree == (uint32_t)-1)
+        if (idxFree == UINT32_MAX)
         {
             do
             {
-                Assert(cFlushes++ != 128);
+                cFlushes++;
+                Assert(cFlushes != 128);
                 AssertFatal(cFlushes < _1M);
                 VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_REM_REPLAY_HANDLER_NOTIFICATIONS, 0);
                 idxFree = ASMAtomicUoReadU32(&pVM->rem.s.idxFreeList);
-            } while (idxFree == (uint32_t)-1);
+            } while (idxFree == UINT32_MAX);
         }
         pFree = &pVM->rem.s.aHandlerNotifications[idxFree];
     } while (!ASMAtomicCmpXchgU32(&pVM->rem.s.idxFreeList, pFree->idxNext, idxFree));
@@ -210,7 +211,7 @@ VMMDECL(void) REMNotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERTYPE enmType
  */
 VMMDECL(void) REMNotifyHandlerPhysicalFlushIfAlmostFull(PVM pVM, PVMCPU pVCpu)
 {
-    Assert(pVM->cCPUs == 1);
+    Assert(pVM->cCpus == 1);
 
     /*
      * Less than 48 items means we should flush.
@@ -224,9 +225,13 @@ VMMDECL(void) REMNotifyHandlerPhysicalFlushIfAlmostFull(PVM pVM, PVMCPU pVCpu)
         if (++cFree >= 48)
             return;
     }
+    AssertRelease(VM_FF_ISSET(pVM, VM_FF_REM_HANDLER_NOTIFY));
+    AssertRelease(pVM->rem.s.idxPendingList != UINT32_MAX);
 
     /* Ok, we gotta flush them. */
     VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_REM_REPLAY_HANDLER_NOTIFICATIONS, 0);
+
+    AssertRelease(pVM->rem.s.idxPendingList == UINT32_MAX);
 }
 #endif /* IN_RC */
 

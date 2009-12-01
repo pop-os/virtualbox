@@ -1,4 +1,4 @@
-/* $Id: NetworkAdapterImpl.h $ */
+/* $Id: NetworkAdapterImpl.h 25098 2009-11-30 10:01:05Z vboxsync $ */
 
 /** @file
  *
@@ -29,21 +29,26 @@
 class Machine;
 class GuestOSType;
 
+namespace settings
+{
+    struct NetworkAdapter;
+}
+
 class ATL_NO_VTABLE NetworkAdapter :
-    public VirtualBoxBaseNEXT,
-    public VirtualBoxSupportErrorInfoImpl <NetworkAdapter, INetworkAdapter>,
-    public VirtualBoxSupportTranslation <NetworkAdapter>,
+    public VirtualBoxBase,
+    public VirtualBoxSupportErrorInfoImpl<NetworkAdapter, INetworkAdapter>,
+    public VirtualBoxSupportTranslation<NetworkAdapter>,
     VBOX_SCRIPTABLE_IMPL(INetworkAdapter)
 {
 public:
 
     struct Data
     {
-        Data()
-            : mSlot (0), mEnabled (FALSE)
-            , mAttachmentType (NetworkAttachmentType_Null)
-            ,  mCableConnected (TRUE), mLineSpeed (0), mTraceEnabled (FALSE)
-            , mHostInterface ("") /* cannot be null */
+        Data() : mSlot(0), mEnabled(FALSE),
+                 mAttachmentType(NetworkAttachmentType_Null),
+                 mCableConnected(TRUE), mLineSpeed(0), mTraceEnabled(FALSE),
+                 mHostInterface("") /* cannot be null */,
+                 mNATNetwork("") /* cannot be null */
         {}
 
         bool operator== (const Data &that) const
@@ -86,8 +91,6 @@ public:
         COM_INTERFACE_ENTRY  (INetworkAdapter)
         COM_INTERFACE_ENTRY2 (IDispatch, INetworkAdapter)
     END_COM_MAP()
-
-    NS_DECL_ISUPPORTS
 
     DECLARE_EMPTY_CTOR_DTOR (NetworkAdapter)
 
@@ -133,8 +136,8 @@ public:
 
     // public methods only for internal purposes
 
-    HRESULT loadSettings (const settings::Key &aAdapterNode);
-    HRESULT saveSettings (settings::Key &aAdapterNode);
+    HRESULT loadSettings(const settings::NetworkAdapter &data);
+    HRESULT saveSettings(settings::NetworkAdapter &data);
 
     bool isModified() { AutoWriteLock alock (this); return mData.isBackedUp(); }
     bool isReallyModified() { AutoWriteLock alock (this); return mData.hasActualChanges(); }
@@ -142,11 +145,6 @@ public:
     void commit();
     void copyFrom (NetworkAdapter *aThat);
     void applyDefaults (GuestOSType *aOsType);
-
-    // public methods for internal purposes only
-    // (ensure there is a caller and a read lock before calling them!)
-
-    const Backupable <Data> &data() const { return mData; }
 
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"NetworkAdapter"; }
@@ -156,10 +154,10 @@ private:
     void detach();
     void generateMACAddress();
 
-    const ComObjPtr <Machine, ComWeakRef> mParent;
-    const ComObjPtr <NetworkAdapter> mPeer;
+    const ComObjPtr<Machine, ComWeakRef> mParent;
+    const ComObjPtr<NetworkAdapter> mPeer;
 
-    Backupable <Data> mData;
+    Backupable<Data> mData;
 };
 
 #endif // ____H_NETWORKADAPTER

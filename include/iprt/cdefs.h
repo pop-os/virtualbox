@@ -85,6 +85,7 @@
 #define RT_STRICT
 #define Breakpoint
 #define RT_NO_DEPRECATED_MACROS
+#define RT_EXCEPTIONS_ENABLED
 #endif /* DOXYGEN_RUNNING */
 
 /** @def RT_ARCH_X86
@@ -481,6 +482,53 @@
  */
 #define RT_NOTHING
 
+/** @def RT_EXCEPTIONS_ENABLED
+ * Defined when C++ exceptions are enabled.
+ */
+#if !defined(RT_EXCEPTIONS_ENABLED) \
+ &&  defined(__cplusplus) \
+ && (   (defined(_MSC_VER) && defined(_CPPUNWIND)) \
+     || (defined(__GNUC__) && defined(__EXCEPTIONS)))
+# define RT_EXCEPTIONS_ENABLED
+#endif
+
+/** @def RT_NO_THROW
+ * How to express that a function doesn't throw C++ exceptions
+ * and the compiler can thus save itself the bother of trying
+ * to catch any of them. Put this between the closing parenthesis
+ * and the semicolon in function prototypes (and implementation if C++).
+ */
+#ifdef RT_EXCEPTIONS_ENABLED
+# define RT_NO_THROW            throw()
+#else
+# define RT_NO_THROW
+#endif
+
+/** @def RT_THROW
+ * How to express that a method or function throws a type of exceptions. Some
+ * compilers does not want this kind of information and will warning about it.
+ *
+ * @param   type    The type exception.
+ *
+ * @remarks If the actual throwing is done from the header, enclose it by
+ *          \#ifdef RT_EXCEPTIONS_ENABLED ... \#else ... \#endif so the header
+ *          compiles cleanly without exceptions enabled.
+ *
+ *          Do NOT use this for the actual throwing of exceptions!
+ */
+#ifdef RT_EXCEPTIONS_ENABLED
+# ifdef _MSC_VER
+#  if _MSC_VER >= 1400
+#   define RT_THROW(type)
+#  else
+#   define RT_THROW(type)       throw(type)
+#  endif
+# else
+#  define RT_THROW(type)        throw(type)
+# endif
+#else
+# define RT_THROW(type)
+#endif
 
 /** @def RTCALL
  * The standard calling convention for the Runtime interfaces.
@@ -491,20 +539,6 @@
 # define RTCALL     __attribute__((cdecl,regparm(0)))
 #else
 # define RTCALL
-#endif
-
-/** @def RT_NO_THROW
- * How to express that a function doesn't throw C++ exceptions
- * and the compiler can thus save itself the bother of trying
- * to catch any of them. Put this between the closing parenthesis
- * and the semicolon in function prototypes (and implementation if C++).
- */
-#if defined(__cplusplus) \
- && (   (defined(_MSC_VER) && defined(_CPPUNWIND)) \
-     || (defined(__GNUC__) && defined(__EXCEPTIONS)))
-# define RT_NO_THROW    throw()
-#else
-# define RT_NO_THROW
 #endif
 
 /** @def DECLEXPORT
@@ -537,6 +571,20 @@
 # define DECLHIDDEN(type)       type
 #else
 # define DECLHIDDEN(type)       __attribute__((visibility("hidden"))) type
+#endif
+
+/** @def DECL_INVALID
+ * How to declare a function not available for linking in the current context.
+ * The purpose is to create compile or like time errors when used.  This isn't
+ * possible on all platforms.
+ * @param   type    The return type of the function.
+ */
+#if defined(_MSC_VER)
+# define DECL_INVALID(type)     __declspec(dllimport) type __stdcall
+#elif defined(__GNUC__) && defined(__cplusplus)
+# define DECL_INVALID(type)     extern "C++" type
+#else
+# define DECL_INVALID(type)     type
 #endif
 
 /** @def DECLASM
@@ -777,6 +825,19 @@
 # define RTDATADECL(type)   DECLIMPORT(type)
 #endif
 
+/** @def RT_DECL_CLASS
+ * Declares an class living in the runtime.
+ */
+#if defined(IN_RT_R3) || defined(IN_RT_GC) || defined(IN_RT_R0)
+# ifdef IN_RT_STATIC
+#  define RT_DECL_CLASS
+# else
+#  define RT_DECL_CLASS     DECLEXPORT_CLASS
+# endif
+#else
+# define RT_DECL_CLASS      DECLIMPORT_CLASS
+#endif
+
 
 /** @def RT_NOCRT
  * Symbol name wrapper for the No-CRT bits.
@@ -860,6 +921,16 @@
 # define RT_LIKELY(expr)        (expr)
 # define RT_UNLIKELY(expr)      (expr)
 #endif
+
+
+/** @def RT_STR
+ * Returns the argument as a string constant.
+ * @param   str     Argument to stringify.  */
+#define RT_STR(str)             #str
+/** @def RT_XSTR
+ * Returns the expanded argument as a string.
+ * @param   str     Argument to expand and stringy. */
+#define RT_XSTR(str)            RT_STR(str)
 
 
 /** @def RT_BIT
@@ -1030,7 +1101,7 @@
  * @param   Type    Strucutre type.
  * @param   Member  Member name.
  */
-#define RT_FROM_MEMBER(pMem, Type, Member)      ( (Type *) ((uint8_t *)(void *)(pMem) + RT_UOFFSETOF(Type, Member)) )
+#define RT_FROM_MEMBER(pMem, Type, Member)      ( (Type *) ((uint8_t *)(void *)(pMem) - RT_UOFFSETOF(Type, Member)) )
 
 /** @def RT_ELEMENTS
  * Calculates the number of elements in a statically sized array.

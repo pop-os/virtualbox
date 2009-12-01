@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltPt-win.c $ */
+/* $Id: VBoxNetFltPt-win.c 24217 2009-10-30 20:24:36Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Protocol edge of ndis filter driver
  */
@@ -290,6 +290,7 @@ vboxNetFltWinPtDoUnbinding(PADAPT pAdapt, bool bOnUnbind)
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
     uint64_t NanoTS = RTTimeSystemNanoTS();
 #endif
+    int cPPUsage;
 
     LogFlow(("==> vboxNetFltWinPtDoUnbinding: Adapt %p\n", pAdapt));
 
@@ -354,6 +355,14 @@ vboxNetFltWinPtDoUnbinding(PADAPT pAdapt, bool bOnUnbind)
     vboxNetFltWinWaitDereference(&pAdapt->MPState);
 
     vboxNetFltWinWaitDereference(&pAdapt->PTState);
+
+    /* check packet pool is empty */
+    cPPUsage = NdisPacketPoolUsage(pAdapt->hSendPacketPoolHandle);
+    Assert(cPPUsage == 0);
+    cPPUsage = NdisPacketPoolUsage(pAdapt->hRecvPacketPoolHandle);
+    Assert(cPPUsage == 0);
+    /* for debugging only, ignore the err in release */
+    NOREF(cPPUsage);
 
     while (ASMAtomicUoReadBool((volatile bool *)&pAdapt->bOutstandingRequests))
     {
@@ -551,10 +560,24 @@ vboxNetFltWinPtRequestComplete(
         {
             /* save mac options for adaptor below us to use it with the NdisCopyLookaheadData when our ProtocolReceive is called */
             pAdapt->fMacOptions = *(PULONG)NdisRequest->DATA.QUERY_INFORMATION.InformationBuffer;
-
+#ifndef VBOX_LOOPBACK_USEFLAGS
+            /*
+             * Remove the no-loopback bit from mac-options. In essence we are
+             * telling NDIS that we can handle loopback. We don't, but the
+             * interface below us does. If we do not do this, then loopback
+             * processing happens both below us and above us. This is wasteful
+             * at best and if Netmon is running, it will see multiple copies
+             * of loopback packets when sniffing above us.
+             *
+             * Only the lowest miniport is a stack of layered miniports should
+             * ever report this bit set to NDIS.
+             */
+            *(PULONG)NdisRequest->DATA.QUERY_INFORMATION.InformationBuffer &= ~NDIS_MAC_OPTION_NO_LOOPBACK;
+#else
             /* we have to catch loopbacks from the underlying driver, so no duplications will occur,
              * just indicate NDIS to handle loopbacks for the packets coming from the protocol */
             *(PULONG)NdisRequest->DATA.QUERY_INFORMATION.InformationBuffer |= NDIS_MAC_OPTION_NO_LOOPBACK;
+#endif
         }
         if(Oid == OID_GEN_CURRENT_PACKET_FILTER && VBOXNETFLT_PROMISCUOUS_SUPPORTED(pAdapt))
         {
@@ -736,19 +759,11 @@ vboxNetFltWinPtSendComplete(
 
     {
         PSEND_RSVD        SendRsvd;
-#ifdef DEBUG_NETFLT_LOOPBACK
-# error "implement (see comments in the sources below this #error:)"
-        /* @todo FIXME no need for the PPACKET_INFO mechanism here;
-        instead the the NDIS_PACKET.ProtocolReserved + INTERLOCKED_SINGLE_LIST mechanism \
-        similar to that used in TrasferData handling should be used;
-        */
 
-//        PPACKET_INFO pInfo = vboxNetFltWinDoCompleteSend(pAdapt, Packet);
-//
-//        if(pInfo)
-//        {
-//            vboxNetFltWinPpFreePacketInfo(pInfo);
-//        }
+#if defined(DEBUG_NETFLT_PACKETS) || !defined(VBOX_LOOPBACK_USEFLAGS)
+        /* @todo: for optimization we could check only for netflt-mode packets
+         * do it for all for now */
+        vboxNetFltWinLbRemoveSendPacket(pAdapt, Packet);
 #endif
 //        Assert(KeGetCurrentIrql() == DISPATCH_LEVEL);
 
@@ -798,7 +813,7 @@ vboxNetFltWinPtSendComplete(
  */
 static bool vboxNetFltWinRemovePacketFromList(PINTERLOCKED_SINGLE_LIST pList, PNDIS_PACKET pPacket)
 {
-    PTRANSFERDATA_RSVD pTDR = &((PPT_RSVD)pPacket->ProtocolReserved)->u.TransferDataRsvd;
+    PTRANSFERDATA_RSVD pTDR = (PTRANSFERDATA_RSVD)pPacket->ProtocolReserved;
     return vboxNetFltWinInterlockedSearchListEntry(pList, &pTDR->ListEntry,
             true /* remove*/);
 }
@@ -808,156 +823,10 @@ static bool vboxNetFltWinRemovePacketFromList(PINTERLOCKED_SINGLE_LIST pList, PN
  */
 static void vboxNetFltWinPutPacketToList(PINTERLOCKED_SINGLE_LIST pList, PNDIS_PACKET pPacket, PNDIS_BUFFER pOrigBuffer)
 {
-    PTRANSFERDATA_RSVD pTDR = &((PPT_RSVD)pPacket->ProtocolReserved)->u.TransferDataRsvd;
+    PTRANSFERDATA_RSVD pTDR = (PTRANSFERDATA_RSVD)pPacket->ProtocolReserved;
     pTDR->pOriginalBuffer = pOrigBuffer;
     vboxNetFltWinInterlockedPutTail(pList, &pTDR->ListEntry);
 }
-
-#endif
-
-static bool vboxNetFltWinPtTransferDataCompleteActive(IN PADAPT pAdapt,
-        IN PNDIS_PACKET pPacket,
-        IN NDIS_STATUS Status)
-{
-    PVBOXNETFLTINS pNetFltIf = PADAPT_2_PVBOXNETFLTINS(pAdapt);
-    PNDIS_BUFFER pBuffer;
-    PTRANSFERDATA_RSVD pTDR;
-
-    if(!vboxNetFltWinRemovePacketFromList(&pAdapt->TransferDataList, pPacket))
-        return false;
-
-    pTDR = &((PPT_RSVD)pPacket->ProtocolReserved)->u.TransferDataRsvd;
-    Assert(pTDR);
-    Assert(pTDR->pOriginalBuffer);
-
-    do
-    {
-        NdisUnchainBufferAtFront(pPacket, &pBuffer);
-
-        Assert(pBuffer);
-
-        NdisFreeBuffer(pBuffer);
-
-        pBuffer = pTDR->pOriginalBuffer;
-
-        NdisChainBufferAtBack(pPacket, pBuffer);
-
-        /* data transfer was initiated when the netFlt was active
-         * the netFlt is still retained by us
-         * 1. check if loopback
-         * 2. enqueue packet
-         * 3. release netFlt */
-
-        if(Status == NDIS_STATUS_SUCCESS)
-        {
-
-#ifdef DEBUG_NETFLT_LOOPBACK
-# error "implement (see comments in the sources below this #error:)"
-    /* @todo FIXME no need for the PPACKET_INFO mechanism here;
-    instead the the NDIS_PACKET.ProtocolReserved + INTERLOCKED_SINGLE_LIST mechanism \
-    similar to that used in TrasferData handling should be used;
-    */
-
-//                /* 1. if loopback then quit with  NDIS_STATUS_NOT_ACCEPTED */
-//#ifdef VBOX_NETFLT_ONDEMAND_BIND
-//                if(vboxNetFltWinIsLoopedBackPacket(pAdapt, pPacket))
-//#else
-//                if(vboxNetFltWinIsLoopedBackPacket(pAdapt, pPacket, true))
-//#endif
-#else
-            if(vboxNetFltWinIsLoopedBackPacket(pPacket))
-#endif
-            {
-                Assert(0);
-            }
-            else
-            {
-                PRECV_RSVD            pRecvRsvd;
-                /* 2. enqueue */
-                /* use the same packet info to put the packet in the processing packet queue */
-#ifdef VBOX_NETFLT_ONDEMAND_BIND
-                PNDIS_BUFFER pBuffer;
-                PVOID pVA;
-                UINT cbLength;
-                uint32_t fFlags;
-
-                NdisQueryPacket(pPacket, NULL, NULL, &pBuffer, NULL);
-                NdisQueryBufferSafe(pBuffer, &pVA, &cbLength, NormalPagePriority);
-
-                fFlags = MACS_EQUAL(((PRTNETETHERHDR)pVA)->SrcMac, pNetFltIf->u.s.Mac) ?
-                                                PACKET_MINE | PACKET_SRC_HOST : PACKET_MINE;
-                SET_FLAGS_TO_INFO(pInfo, fFlags);
-
-                pRecvRsvd = (PRECV_RSVD)(pPacket->MiniportReserved);
-                pRecvRsvd->pOriginalPkt = NULL;
-                pRecvRsvd->pBufToFree = NULL;
-
-                NdisSetPacketFlags(pPacket, 0);
-
-                Status = vboxNetFltWinQuEnqueuePacket(pNetFltIf, pPacket, fFlags);
-#else
-                pRecvRsvd = (PRECV_RSVD)(pPacket->MiniportReserved);
-                pRecvRsvd->pOriginalPkt = NULL;
-                pRecvRsvd->pBufToFree = NULL;
-
-                NdisSetPacketFlags(pPacket, 0);
-
-                Status = vboxNetFltWinQuEnqueuePacket(pNetFltIf, pPacket, PACKET_MINE);
-#endif
-                if(Status == NDIS_STATUS_SUCCESS)
-                {
-                    break;
-                }
-                Assert(0);
-            }
-        }
-        else
-        {
-            Assert(0);
-        }
-        /* we are here because of error either in data transfer or in enqueueing the packet */
-        vboxNetFltWinFreeSGNdisPacket(pPacket, true);
-        vboxNetFltWinDereferenceNetFlt(pNetFltIf);
-        vboxNetFltWinDereferenceAdapt(pAdapt);
-    } while(0);
-
-    return true;
-}
-
-/**
- * Entry point called by NDIS to indicate completion of a call by us
- * to NdisTransferData.
- *
- * See notes under SendComplete.
- */
-static VOID
-vboxNetFltWinPtTransferDataComplete(
-    IN  NDIS_HANDLE         ProtocolBindingContext,
-    IN  PNDIS_PACKET        pPacket,
-    IN  NDIS_STATUS         Status,
-    IN  UINT                BytesTransferred
-    )
-{
-    PADAPT      pAdapt =(PADAPT)ProtocolBindingContext;
-    if(!vboxNetFltWinPtTransferDataCompleteActive(pAdapt, pPacket, Status))
-    {
-#ifndef VBOX_NETFLT_ONDEMAND_BIND
-        if(pAdapt->hMiniportHandle)
-        {
-            NdisMTransferDataComplete(pAdapt->hMiniportHandle,
-                                      pPacket,
-                                      Status,
-                                      BytesTransferred);
-        }
-
-        vboxNetFltWinDereferenceAdapt(pAdapt);
-#else
-        /* we are here because we've failed to allocate packet info */
-        Assert(0);
-#endif
-    }
-}
-#ifndef VBOX_NETFLT_ONDEMAND_BIND
 
 /**
  * This is to queue the received packets and indicates them up if the given Packet
@@ -1050,6 +919,158 @@ vboxNetFltWinPtQueueReceivedPacket(
     }
 }
 
+#endif
+
+static bool vboxNetFltWinPtTransferDataCompleteActive(IN PADAPT pAdapt,
+        IN PNDIS_PACKET pPacket,
+        IN NDIS_STATUS Status)
+{
+    PVBOXNETFLTINS pNetFltIf = PADAPT_2_PVBOXNETFLTINS(pAdapt);
+    PNDIS_BUFFER pBuffer;
+    PTRANSFERDATA_RSVD pTDR;
+
+    if(!vboxNetFltWinRemovePacketFromList(&pAdapt->TransferDataList, pPacket))
+        return false;
+
+    pTDR = (PTRANSFERDATA_RSVD)pPacket->ProtocolReserved;
+    Assert(pTDR);
+    Assert(pTDR->pOriginalBuffer);
+
+    do
+    {
+        NdisUnchainBufferAtFront(pPacket, &pBuffer);
+
+        Assert(pBuffer);
+
+        NdisFreeBuffer(pBuffer);
+
+        pBuffer = pTDR->pOriginalBuffer;
+
+        NdisChainBufferAtBack(pPacket, pBuffer);
+
+        /* data transfer was initiated when the netFlt was active
+         * the netFlt is still retained by us
+         * 1. check if loopback
+         * 2. enqueue packet
+         * 3. release netFlt */
+
+        if(Status == NDIS_STATUS_SUCCESS)
+        {
+
+#ifdef VBOX_LOOPBACK_USEFLAGS
+            if(vboxNetFltWinIsLoopedBackPacket(pPacket))
+            {
+                /* should not be here */
+                Assert(0);
+            }
+#else
+            PNDIS_PACKET pLb = vboxNetFltWinLbSearchLoopBack(pAdapt, pPacket, false);
+            if(pLb)
+            {
+#ifndef DEBUG_NETFLT_RECV_TRANSFERDATA
+                /* should not be here */
+                Assert(0);
+#endif
+                if(!vboxNetFltWinLbIsFromIntNet(pLb))
+                {
+                    /* the packet is not from int net, need to pass it up to the host */
+                    vboxNetFltWinPtQueueReceivedPacket(pAdapt, pPacket, FALSE);
+                    /* dereference NetFlt, pAdapt will be dereferenced on Packet return */
+                    vboxNetFltWinDereferenceNetFlt(pNetFltIf);
+                    break;
+                }
+            }
+#endif
+            else
+            {
+                PRECV_RSVD            pRecvRsvd;
+                /* 2. enqueue */
+                /* use the same packet info to put the packet in the processing packet queue */
+#ifdef VBOX_NETFLT_ONDEMAND_BIND
+                PNDIS_BUFFER pBuffer;
+                PVOID pVA;
+                UINT cbLength;
+                uint32_t fFlags;
+
+                NdisQueryPacket(pPacket, NULL, NULL, &pBuffer, NULL);
+                NdisQueryBufferSafe(pBuffer, &pVA, &cbLength, NormalPagePriority);
+
+                fFlags = MACS_EQUAL(((PRTNETETHERHDR)pVA)->SrcMac, pNetFltIf->u.s.Mac) ?
+                                                PACKET_MINE | PACKET_SRC_HOST : PACKET_MINE;
+                SET_FLAGS_TO_INFO(pInfo, fFlags);
+
+                pRecvRsvd = (PRECV_RSVD)(pPacket->MiniportReserved);
+                pRecvRsvd->pOriginalPkt = NULL;
+                pRecvRsvd->pBufToFree = NULL;
+
+                NdisSetPacketFlags(pPacket, 0);
+
+                Status = vboxNetFltWinQuEnqueuePacket(pNetFltIf, pPacket, fFlags);
+#else
+                VBOXNETFLT_LBVERIFY(pNetFltIf, pPacket);
+
+                pRecvRsvd = (PRECV_RSVD)(pPacket->MiniportReserved);
+                pRecvRsvd->pOriginalPkt = NULL;
+                pRecvRsvd->pBufToFree = NULL;
+
+                NdisSetPacketFlags(pPacket, 0);
+
+                Status = vboxNetFltWinQuEnqueuePacket(pNetFltIf, pPacket, PACKET_MINE);
+#endif
+                if(Status == NDIS_STATUS_SUCCESS)
+                {
+                    break;
+                }
+                Assert(0);
+            }
+        }
+        else
+        {
+            Assert(0);
+        }
+        /* we are here because of error either in data transfer or in enqueueing the packet */
+        vboxNetFltWinFreeSGNdisPacket(pPacket, true);
+        vboxNetFltWinDereferenceNetFlt(pNetFltIf);
+        vboxNetFltWinDereferenceAdapt(pAdapt);
+    } while(0);
+
+    return true;
+}
+
+/**
+ * Entry point called by NDIS to indicate completion of a call by us
+ * to NdisTransferData.
+ *
+ * See notes under SendComplete.
+ */
+static VOID
+vboxNetFltWinPtTransferDataComplete(
+    IN  NDIS_HANDLE         ProtocolBindingContext,
+    IN  PNDIS_PACKET        pPacket,
+    IN  NDIS_STATUS         Status,
+    IN  UINT                BytesTransferred
+    )
+{
+    PADAPT      pAdapt =(PADAPT)ProtocolBindingContext;
+    if(!vboxNetFltWinPtTransferDataCompleteActive(pAdapt, pPacket, Status))
+    {
+#ifndef VBOX_NETFLT_ONDEMAND_BIND
+        if(pAdapt->hMiniportHandle)
+        {
+            NdisMTransferDataComplete(pAdapt->hMiniportHandle,
+                                      pPacket,
+                                      Status,
+                                      BytesTransferred);
+        }
+
+        vboxNetFltWinDereferenceAdapt(pAdapt);
+#else
+        /* we are here because we've failed to allocate packet info */
+        Assert(0);
+#endif
+    }
+}
+#ifndef VBOX_NETFLT_ONDEMAND_BIND
 /**
  * This routine process the queued the packet, if anything is fine, indicate the packet
  * up, otherwise, return the packet to the underlying miniports.
@@ -1292,54 +1313,70 @@ vboxNetFltWinPtReceiveActive(
         }
 
 #ifndef DEBUG_NETFLT_RECV_TRANSFERDATA
-        /* can check for loopback? check it*/
         if (cbPacket == cbLookaheadBuffer)
         {
             PVBOXNETFLTINS pNetFlt = PADAPT_2_PVBOXNETFLTINS(pAdapt);
             PINTNETSG pSG;
             PUCHAR pRcvData;
-
-#ifdef DEBUG_NETFLT_LOOPBACK
-                /* TODO: can we check for loopback here ?
-                 * for now just get the complete SG and then decide if it is a loopback one */
-                /* if loopback then quit */
+#ifndef VBOX_LOOPBACK_USEFLAGS
+            PNDIS_PACKET pLb;
 #endif
-                /* allocate SG buffer */
-                Status = vboxNetFltWinAllocSG(cbPacket + cbHeaderBuffer, &pSG);
-                if(Status != NDIS_STATUS_SUCCESS)
-                {
-                    Assert(0);
-                    break;
-                }
 
-                pRcvData = (PUCHAR)pSG->aSegs[0].pv;
+            /* allocate SG buffer */
+            Status = vboxNetFltWinAllocSG(cbPacket + cbHeaderBuffer, &pSG);
+            if(Status != NDIS_STATUS_SUCCESS)
+            {
+                Assert(0);
+                break;
+            }
 
-                NdisMoveMappedMemory(pRcvData, pHeaderBuffer, cbHeaderBuffer);
+            pRcvData = (PUCHAR)pSG->aSegs[0].pv;
 
-                NdisCopyLookaheadData(pRcvData+cbHeaderBuffer,
+            NdisMoveMappedMemory(pRcvData, pHeaderBuffer, cbHeaderBuffer);
+
+            NdisCopyLookaheadData(pRcvData+cbHeaderBuffer,
                                                   pLookaheadBuffer,
                                                   cbLookaheadBuffer,
                                                   pAdapt->fMacOptions);
-#ifdef DEBUG_NETFLT_LOOPBACK
-# error "implement (see comments in the sources below this #error:)"
-        /* @todo FIXME no need for the PPACKET_INFO mechanism here;
-        instead the the NDIS_PACKET.ProtocolReserved + INTERLOCKED_SINGLE_LIST mechanism \
-        similar to that used in TrasferData handling should be used;
-        */
+#ifndef VBOX_LOOPBACK_USEFLAGS
+            pLb = vboxNetFltWinLbSearchLoopBackBySG(pAdapt, pSG, false);
+            if(pLb)
+            {
+                /* should not be here */
+                Assert(0);
 
-//                /* check if it is a loopback */
-//# ifdef VBOX_NETFLT_ONDEMAND_BIND
-//                if(vboxNetFltWinIsLoopedBackPacketSG(pAdapt, pSG))
-//# else
-//                if(vboxNetFltWinIsLoopedBackPacketSG(pAdapt, pSG, true))
-//# endif
-//                {
-//                    Assert(0);
-//                    vboxNetFltWinMemFree(pSG);
-//                    Status = NDIS_STATUS_NOT_ACCEPTED;
-//                    break;
-//                }
+                if(!vboxNetFltWinLbIsFromIntNet(pLb))
+                {
+                    PNDIS_PACKET pMyPacket;
+                    pMyPacket = vboxNetFltWinNdisPacketFromSG(pAdapt, /* PADAPT */
+                        pSG, /* PINTNETSG */
+                        pSG, /* PVOID pBufToFree */
+                        false, /* bool bToWire */
+                        false); /* bool bCopyMemory */
+                    if(pMyPacket)
+                    {
+                        vboxNetFltWinPtQueueReceivedPacket(pAdapt, pMyPacket, FALSE);
+                        /* dereference the NetFlt here & indicate SUCCESS, which would mean the caller would not do a dereference
+                         * the pAdapt dereference will be done on packet return */
+                        vboxNetFltWinDereferenceNetFlt(pNetFlt);
+                        Status = NDIS_STATUS_SUCCESS;
+                    }
+                    else
+                    {
+                        vboxNetFltWinMemFree(pSG);
+                        Status = NDIS_STATUS_FAILURE;
+                    }
+                }
+                else
+                {
+                    vboxNetFltWinMemFree(pSG);
+                    Status = NDIS_STATUS_NOT_ACCEPTED;
+                }
+                break;
+            }
 #endif
+            VBOXNETFLT_LBVERIFYSG(pNetFlt, pSG);
+
                 /* enqueue SG */
 #ifdef VBOX_NETFLT_ONDEMAND_BIND
                 {
@@ -1348,14 +1385,14 @@ vboxNetFltWinPtReceiveActive(
                     Status = vboxNetFltWinQuEnqueuePacket(pNetFlt, pSG, fFlags);
                 }
 #else
-                Status = vboxNetFltWinQuEnqueuePacket(pNetFlt, pSG, PACKET_SG | PACKET_MINE);
+            Status = vboxNetFltWinQuEnqueuePacket(pNetFlt, pSG, PACKET_SG | PACKET_MINE);
 #endif
-                if(Status != NDIS_STATUS_SUCCESS)
-                {
-                    Assert(0);
-                    vboxNetFltWinMemFree(pSG);
-                    break;
-                }
+            if(Status != NDIS_STATUS_SUCCESS)
+            {
+                Assert(0);
+                vboxNetFltWinMemFree(pSG);
+                break;
+            }
         }
         else
 #endif /* #ifndef DEBUG_NETFLT_RECV_TRANSFERDATA */
@@ -1365,18 +1402,9 @@ vboxNetFltWinPtReceiveActive(
             PNDIS_BUFFER pOrigBuffer;
             PUCHAR pMemBuf;
             UINT cbBuf = cbPacket + cbHeaderBuffer;
-//            PPACKET_INFO pInfo;
             UINT                    BytesTransferred;
-                /* TODO: can check for loopback here ? */
-                /* for now just get the complete complete packet and then decide if it is a looped back one */
-                /* if loopback then quit with  NDIS_STATUS_NOT_ACCEPTED
-                 * {
-                 *     Status = NDIS_STATUS_NOT_ACCEPTED;
-                 *     break;
-                 * }
-                 * */
 
-                /* allocate NDIS Packet buffer */
+            /* allocate NDIS Packet buffer */
 #ifdef VBOX_NETFLT_ONDEMAND_BIND
             /* use the Send packet pool for packet allocation */
             NdisAllocatePacket(&Status, &pPacket, pAdapt->hSendPacketPoolHandle);
@@ -1389,8 +1417,14 @@ vboxNetFltWinPtReceiveActive(
                 break;
             }
 
+            VBOXNETFLT_OOB_INIT(pPacket);
+
+#ifdef VBOX_LOOPBACK_USEFLAGS
             /* set "don't loopback" flags */
             NdisSetPacketFlags(pPacket, g_fPacketDontLoopBack);
+#else
+            NdisSetPacketFlags(pPacket, 0);
+#endif
 
             Status = vboxNetFltWinMemAlloc(&pMemBuf, cbBuf);
             if(Status != NDIS_STATUS_SUCCESS)
@@ -1600,20 +1634,13 @@ vboxNetFltWinPtReceive(
             pPacket = NdisGetReceivedPacket(pAdapt->hBindingHandle, MacReceiveContext);
             if (pPacket != NULL)
             {
+#ifndef VBOX_LOOPBACK_USEFLAGS
+                PNDIS_PACKET pLb = NULL;
+#endif
                 do
                 {
-#ifdef DEBUG_NETFLT_LOOPBACK
-# error "implement (see comments in the sources below this #error:)"
-        /* @todo FIXME no need for the PPACKET_INFO mechanism here;
-        instead the the NDIS_PACKET.ProtocolReserved + INTERLOCKED_SINGLE_LIST mechanism \
-        similar to that used in TrasferData handling should be used;
-        */
-
-//                    if(vboxNetFltWinIsLoopedBackPacket(pAdapt, pPacket, true))
-#else
+#ifdef VBOX_LOOPBACK_USEFLAGS
                     if(vboxNetFltWinIsLoopedBackPacket(pPacket))
-#endif
-
                     {
                         Assert(0);
                         /* nothing else to do here, just return the packet */
@@ -1622,18 +1649,43 @@ vboxNetFltWinPtReceive(
                         break;
                     }
 
+                    VBOXNETFLT_LBVERIFY(pNetFlt, pPacket);
+#endif
                     if(bNetFltActive)
                     {
-                        Status = vboxNetFltWinQuEnqueuePacket(pNetFlt, pPacket, PACKET_COPY);
-                        if(Status == NDIS_STATUS_SUCCESS)
+#ifndef VBOX_LOOPBACK_USEFLAGS
+                        pLb = vboxNetFltWinLbSearchLoopBack(pAdapt, pPacket, true /* ??? no need to keep it, so remove */);
+                        if(!pLb)
+#endif
                         {
+                            VBOXNETFLT_LBVERIFY(pNetFlt, pPacket);
+
+                            Status = vboxNetFltWinQuEnqueuePacket(pNetFlt, pPacket, PACKET_COPY);
+                            Assert(Status == NDIS_STATUS_SUCCESS);
+                            if(Status == NDIS_STATUS_SUCCESS)
+                            {
+                                //NdisReturnPackets(&pPacket, 1);
+                                fAdaptActive = false;
+                                bNetFltActive = false;
+                                break;
+                            }
+                        }
+#ifndef VBOX_LOOPBACK_USEFLAGS
+                        else if(vboxNetFltWinLbIsFromIntNet(pLb))
+                        {
+                            /* nothing else to do here, just return the packet */
                             //NdisReturnPackets(&pPacket, 1);
-                            fAdaptActive = false;
-                            bNetFltActive = false;
+                            Status = NDIS_STATUS_NOT_ACCEPTED;
                             break;
                         }
+                        /* we are here because this is a looped back packet set not from intnet
+                         * we will post it to the upper protocol */
+#endif
                     }
 
+#ifndef VBOX_LOOPBACK_USEFLAGS
+                    Assert(!pLb || !vboxNetFltWinLbIsFromIntNet(pLb));
+#endif
                     Status = vboxNetFltWinRecvPassThru(pAdapt, pPacket);
                     /* we are done with packet processing, and we will
                      * not receive packet return event for this packet,
@@ -1641,12 +1693,16 @@ vboxNetFltWinPtReceive(
                     Assert(fAdaptActive);
                 } while(FALSE);
 
-                if(Status == NDIS_STATUS_SUCCESS || Status == NDIS_STATUS_NOT_ACCEPTED)
+                if(Status == NDIS_STATUS_SUCCESS || Status == NDIS_STATUS_NOT_ACCEPTED
+#ifndef VBOX_LOOPBACK_USEFLAGS
+                        || pLb
+#endif
+                        )
                 {
                     break;
                 }
             }
-#endif /* todo: remove */
+#endif
             if(bNetFltActive)
             {
                 Status = vboxNetFltWinPtReceiveActive(pAdapt, MacReceiveContext, pHeaderBuffer, cbHeaderBuffer,
@@ -1660,7 +1716,12 @@ vboxNetFltWinPtReceive(
                     }
                     else
                     {
+#ifndef VBOX_LOOPBACK_USEFLAGS
                         /* this is a loopback packet, nothing to do here */
+#else
+                        Assert(0);
+                        /* should not be here */
+#endif
                     }
                     break;
                 }
@@ -1894,18 +1955,8 @@ vboxNetFltWinPtReceivePacket(
     {
         do
         {
-#ifdef DEBUG_NETFLT_LOOPBACK
-# error "implement (see comments in the sources below this #error:)"
-        /* @todo FIXME no need for the PPACKET_INFO mechanism here;
-        instead the the NDIS_PACKET.ProtocolReserved + INTERLOCKED_SINGLE_LIST mechanism \
-        similar to that used in TrasferData handling should be used;
-        */
-
-//            if(vboxNetFltWinIsLoopedBackPacket(pAdapt, pPacket, true))
-#else
+#ifdef VBOX_LOOPBACK_USEFLAGS
             if(vboxNetFltWinIsLoopedBackPacket(pPacket))
-#endif
-
             {
                 Assert(0);
                 Log(("lb_rp"));
@@ -1916,36 +1967,58 @@ vboxNetFltWinPtReceivePacket(
                 break;
             }
 
+            VBOXNETFLT_LBVERIFY(pNetFlt, pPacket);
+#endif
+
             if(bNetFltActive)
             {
-                bool bResources = NDIS_GET_PACKET_STATUS(pPacket) == NDIS_STATUS_RESOURCES;
-                NDIS_STATUS fStatus;
-
-                /*TODO: remove this assert.
-                 * this is a temporary assert for debugging purposes:
-                 * we're probably doing something wrong with the packets if the miniport reports NDIS_STATUS_RESOURCES */
-                Assert(!bResources);
-
-                fStatus = vboxNetFltWinQuEnqueuePacket(pNetFlt, pPacket, bResources ? PACKET_COPY : 0);
-                if(fStatus == NDIS_STATUS_SUCCESS)
+#ifndef VBOX_LOOPBACK_USEFLAGS
+                PNDIS_PACKET pLb = vboxNetFltWinLbSearchLoopBack(pAdapt, pPacket, true /* ??? no need to keep it, so remove */);
+                if(!pLb)
+#endif
                 {
-                    bNetFltActive = false;
-                    fAdaptActive = false;
-                    if(bResources)
+                    NDIS_STATUS fStatus;
+                    bool bResources = NDIS_GET_PACKET_STATUS(pPacket) == NDIS_STATUS_RESOURCES;
+
+                    VBOXNETFLT_LBVERIFY(pNetFlt, pPacket);
+
+                    /*TODO: remove this assert.
+                     * this is a temporary assert for debugging purposes:
+                     * we're probably doing something wrong with the packets if the miniport reports NDIS_STATUS_RESOURCES */
+                    Assert(!bResources);
+
+                    fStatus = vboxNetFltWinQuEnqueuePacket(pNetFlt, pPacket, bResources ? PACKET_COPY : 0);
+                    if(fStatus == NDIS_STATUS_SUCCESS)
                     {
-                        cRefCount = 0;
-                        //NdisReturnPackets(&pPacket, 1);
+                        bNetFltActive = false;
+                        fAdaptActive = false;
+                        if(bResources)
+                        {
+                            cRefCount = 0;
+                            //NdisReturnPackets(&pPacket, 1);
+                        }
+                        else
+                        {
+                            cRefCount = 1;
+                        }
+                        break;
                     }
                     else
                     {
-                        cRefCount = 1;
+                        Assert(0);
                     }
+                }
+#ifndef VBOX_LOOPBACK_USEFLAGS
+                else if(vboxNetFltWinLbIsFromIntNet(pLb))
+                {
+                    /* the packet is from intnet, it has already been set to the host,
+                     * no need for loopng it back to the host again */
+                    /* nothing else to do here, just return the packet */
+                    cRefCount = 0;
+                    //NdisReturnPackets(&pPacket, 1);
                     break;
                 }
-                else
-                {
-                    Assert(0);
-                }
+#endif
             }
 
             cRefCount = vboxNetFltWinRecvPacketPassThru(pAdapt, pPacket);
@@ -2100,6 +2173,7 @@ vboxNetFltWinPtPnPNetEventSetPower(
     NDIS_STATUS                    ReturnStatus;
     PVBOXNETFLTINS pNetFlt = PADAPT_2_PVBOXNETFLTINS(pAdapt);
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
+    int cPPUsage;
 
     ReturnStatus = NDIS_STATUS_SUCCESS;
 
@@ -2160,9 +2234,15 @@ vboxNetFltWinPtPnPNetEventSetPower(
         }
 #endif
 
-        Assert(NdisPacketPoolUsage(pAdapt->hSendPacketPoolHandle) == 0);
+        /* check packet pool is empty */
+        cPPUsage = NdisPacketPoolUsage(pAdapt->hSendPacketPoolHandle);
+        Assert(cPPUsage == 0);
+        cPPUsage = NdisPacketPoolUsage(pAdapt->hRecvPacketPoolHandle);
+        Assert(cPPUsage == 0);
+        /* for debugging only, ignore the err in release */
+        NOREF(cPPUsage);
+
 #ifndef VBOX_NETFLT_ONDEMAND_BIND
-        Assert(NdisPacketPoolUsage(pAdapt->hRecvPacketPoolHandle) == 0);
         Assert(pAdapt->bOutstandingRequests == FALSE);
 #endif
     }

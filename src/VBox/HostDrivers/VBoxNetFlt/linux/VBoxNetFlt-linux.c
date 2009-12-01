@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-linux.c $ */
+/* $Id: VBoxNetFlt-linux.c 21682 2009-07-17 13:20:21Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Linux Specific Code.
  */
@@ -124,21 +124,6 @@ static void     VBoxNetFltLinuxUnload(void);
 /**
  * The (common) global data.
  */
-#ifdef RT_ARCH_AMD64
-/**
- * Memory for the executable memory heap (in IPRT).
- */
-extern uint8_t g_abExecMemory[4096]; /* cannot donate less than one page */
-__asm__(".section execmemory, \"awx\", @progbits\n\t"
-        ".align 32\n\t"
-        ".globl g_abExecMemory\n"
-        "g_abExecMemory:\n\t"
-        ".zero 4096\n\t"
-        ".type g_abExecMemory, @object\n\t"
-        ".size g_abExecMemory, 4096\n\t"
-        ".text\n\t");
-#endif
-
 static VBOXNETFLTGLOBALS g_VBoxNetFltGlobals;
 
 module_init(VBoxNetFltLinuxInit);
@@ -148,15 +133,9 @@ MODULE_AUTHOR("Sun Microsystems, Inc.");
 MODULE_DESCRIPTION("VirtualBox Network Filter Driver");
 MODULE_LICENSE("GPL");
 #ifdef MODULE_VERSION
-# define xstr(s) str(s)
-# define str(s)  #s
-MODULE_VERSION(VBOX_VERSION_STRING " (" xstr(INTNETTRUNKIFPORT_VERSION) ")");
+MODULE_VERSION(VBOX_VERSION_STRING " (" RT_XSTR(INTNETTRUNKIFPORT_VERSION) ")");
 #endif
 
-/**
- * The (common) global data.
- */
-static VBOXNETFLTGLOBALS g_VBoxNetFltGlobals;
 
 /**
  * Initialize module.
@@ -172,14 +151,6 @@ static int __init VBoxNetFltLinuxInit(void)
     rc = RTR0Init(0);
     if (RT_SUCCESS(rc))
     {
-#ifdef RT_ARCH_AMD64
-        rc = RTR0MemExecDonate(&g_abExecMemory[0], sizeof(g_abExecMemory));
-        printk("VBoxNetFlt: dbg - g_abExecMemory=%p\n", (void *)&g_abExecMemory[0]);
-        if (RT_FAILURE(rc))
-        {
-            printk("VBoxNetFlt: failed to donate exec memory, no logging will be available.\n");
-        }
-#endif
         Log(("VBoxNetFltLinuxInit\n"));
 
         /*
@@ -195,8 +166,8 @@ static int __init VBoxNetFltLinuxInit(void)
             LogRel(("VBoxNetFlt: Successfully started.\n"));
             return 0;
         }
-        else
-            LogRel(("VBoxNetFlt: failed to initialize device extension (rc=%d)\n", rc));
+
+        LogRel(("VBoxNetFlt: failed to initialize device extension (rc=%d)\n", rc));
         RTR0Term();
     }
     else

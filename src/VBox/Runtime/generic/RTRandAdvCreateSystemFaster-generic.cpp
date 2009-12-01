@@ -1,4 +1,4 @@
-/* $Id: RTRandAdvCreateSystemFaster-generic.cpp $ */
+/* $Id: RTRandAdvCreateSystemFaster-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Random Numbers, generic RTRandAdvCreateSystemFaster.
  */
@@ -28,10 +28,13 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/rand.h>
+#include "internal/iprt.h"
+
 #include <iprt/err.h>
 
 
@@ -40,5 +43,5 @@ RTDECL(int) RTRandAdvCreateSystemFaster(PRTRAND phRand) RT_NO_THROW
     NOREF(phRand);
     return VERR_NOT_SUPPORTED;
 }
-
+RT_EXPORT_SYMBOL(RTRandAdvCreateSystemFaster);
 

@@ -1,4 +1,4 @@
-/* $Id: DHCPServerImpl.h $ */
+/* $Id: DHCPServerImpl.h 23319 2009-09-25 09:20:29Z vboxsync $ */
 
 /** @file
  *
@@ -25,18 +25,22 @@
 #define ____H_H_DHCPSERVERIMPL
 
 #include "VirtualBoxBase.h"
-#include "VirtualBoxImpl.h"
+
+class VirtualBox;
 
 #ifdef VBOX_WITH_HOSTNETIF_API
-/* class DHCPServer; */
-/* #include "netif.h" */
 struct NETIFINFO;
 #endif
 
+namespace settings
+{
+    struct DHCPServer;
+}
+
 class ATL_NO_VTABLE DHCPServer :
-    public VirtualBoxBaseNEXT,
-    public VirtualBoxSupportErrorInfoImpl <DHCPServer, IDHCPServer>,
-    public VirtualBoxSupportTranslation <DHCPServer>,
+    public VirtualBoxBase,
+    public VirtualBoxSupportErrorInfoImpl<DHCPServer, IDHCPServer>,
+    public VirtualBoxSupportTranslation<DHCPServer>,
     VBOX_SCRIPTABLE_IMPL(IDHCPServer)
 {
 public:
@@ -53,39 +57,39 @@ public:
         COM_INTERFACE_ENTRY (IDispatch)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
     DECLARE_EMPTY_CTOR_DTOR (DHCPServer)
 
     HRESULT FinalConstruct();
     void FinalRelease();
 
-    HRESULT init(VirtualBox *aVirtualBox, IN_BSTR aName);
-    HRESULT init(VirtualBox *aVirtualBox, const settings::Key &aNode);
-    HRESULT saveSettings (settings::Key &aParentNode);
+    HRESULT init(VirtualBox *aVirtualBox,
+                 IN_BSTR aName);
+    HRESULT init(VirtualBox *aVirtualBox,
+                 const settings::DHCPServer &data);
+    HRESULT saveSettings(settings::DHCPServer &data);
 
     void uninit();
 
     // IDHCPServer properties
-    STDMETHOD(COMGETTER(NetworkName)) (BSTR *aName);
-    STDMETHOD(COMGETTER(Enabled)) (BOOL *aEnabled);
-    STDMETHOD(COMSETTER(Enabled)) (BOOL aEnabled);
-    STDMETHOD(COMGETTER(IPAddress)) (BSTR *aIPAddress);
-    STDMETHOD(COMGETTER(NetworkMask)) (BSTR *aNetworkMask);
-    STDMETHOD(COMGETTER(LowerIP)) (BSTR *aIPAddress);
-    STDMETHOD(COMGETTER(UpperIP)) (BSTR *aIPAddress);
+    STDMETHOD(COMGETTER(NetworkName))(BSTR *aName);
+    STDMETHOD(COMGETTER(Enabled))(BOOL *aEnabled);
+    STDMETHOD(COMSETTER(Enabled))(BOOL aEnabled);
+    STDMETHOD(COMGETTER(IPAddress))(BSTR *aIPAddress);
+    STDMETHOD(COMGETTER(NetworkMask))(BSTR *aNetworkMask);
+    STDMETHOD(COMGETTER(LowerIP))(BSTR *aIPAddress);
+    STDMETHOD(COMGETTER(UpperIP))(BSTR *aIPAddress);
 
-    STDMETHOD(SetConfiguration) (IN_BSTR aIPAddress, IN_BSTR aNetworkMask, IN_BSTR aFromIPAddress, IN_BSTR aToIPAddress);
+    STDMETHOD(SetConfiguration)(IN_BSTR aIPAddress, IN_BSTR aNetworkMask, IN_BSTR aFromIPAddress, IN_BSTR aToIPAddress);
 
-    STDMETHOD(Start) (IN_BSTR aNetworkName, IN_BSTR aTrunkName, IN_BSTR aTrunkType);
-    STDMETHOD(Stop) ();
+    STDMETHOD(Start)(IN_BSTR aNetworkName, IN_BSTR aTrunkName, IN_BSTR aTrunkType);
+    STDMETHOD(Stop)();
 
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"DHCPServer"; }
 
 private:
     /** weak VirtualBox parent */
-    const ComObjPtr <VirtualBox, ComWeakRef> mVirtualBox;
+    const ComObjPtr<VirtualBox, ComWeakRef> mVirtualBox;
 
     const Bstr mName;
 
@@ -105,4 +109,3 @@ private:
 };
 
 #endif // ____H_H_DHCPSERVERIMPL
-/* vi: set tabstop=4 shiftwidth=4 expandtab: */

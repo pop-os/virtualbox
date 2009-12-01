@@ -1,4 +1,4 @@
-/* $Id: thread2-r0drv-linux.c $ */
+/* $Id: thread2-r0drv-linux.c 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 2), Ring-0 Driver, Linux.
  */
@@ -28,10 +28,12 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-linux-kernel.h"
+#include "internal/iprt.h"
 
 #include <iprt/assert.h>
 #include <iprt/thread.h>

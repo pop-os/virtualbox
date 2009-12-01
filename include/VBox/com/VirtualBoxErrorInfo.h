@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxErrorInfo.h $ */
+/* $Id: VirtualBoxErrorInfo.h 23223 2009-09-22 15:50:03Z vboxsync $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer:
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,11 +55,7 @@ namespace com
  *       let adding this class to custom type libraries.
  */
 class ATL_NO_VTABLE VirtualBoxErrorInfo
-#if !defined (VBOX_WITH_XPCOM)
     : public CComObjectRootEx <CComMultiThreadModel>
-#else
-    : public CComObjectRootEx
-#endif
     , public IVirtualBoxErrorInfo
 {
 public:
@@ -73,19 +69,19 @@ public:
         COM_INTERFACE_ENTRY (IVirtualBoxErrorInfo)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
     VirtualBoxErrorInfo() : mResultCode (S_OK) {}
 
     // public initializer/uninitializer for internal purposes only
 
-    HRESULT init (HRESULT aResultCode, const GUID *aIID,
-                  const char *aComponent, const char *aText,
-                  IVirtualBoxErrorInfo *aNext = NULL);
+    HRESULT init(HRESULT aResultCode,
+                 const GUID *aIID,
+                 const char *aComponent,
+                 const Utf8Str &strText,
+                 IVirtualBoxErrorInfo *aNext = NULL);
 
     // IVirtualBoxErrorInfo properties
     STDMETHOD(COMGETTER(ResultCode)) (LONG *aResultCode);
-    STDMETHOD(COMGETTER(InterfaceID)) (OUT_GUID aIID);
+    STDMETHOD(COMGETTER(InterfaceID)) (BSTR *aIID);
     STDMETHOD(COMGETTER(Component)) (BSTR *aComponent);
     STDMETHOD(COMGETTER(Text)) (BSTR *aText);
     STDMETHOD(COMGETTER(Next)) (IVirtualBoxErrorInfo **aNext);
@@ -104,7 +100,7 @@ public:
 
     HRESULT init (nsIException *aInfo);
 
-    NS_DECL_NSIEXCEPTION   
+    NS_DECL_NSIEXCEPTION
 #endif
 
 private:
@@ -124,11 +120,7 @@ private:
  * substituting the next attribute implementation.
  */
 class ATL_NO_VTABLE VirtualBoxErrorInfoGlue
-#if !defined (VBOX_WITH_XPCOM)
     : public CComObjectRootEx <CComMultiThreadModel>
-#else
-    : public CComObjectRootEx
-#endif
     , public IVirtualBoxErrorInfo
 {
 public:
@@ -141,8 +133,6 @@ public:
         COM_INTERFACE_ENTRY (IErrorInfo)
         COM_INTERFACE_ENTRY (IVirtualBoxErrorInfo)
     END_COM_MAP()
-
-    NS_DECL_ISUPPORTS
 
     VirtualBoxErrorInfoGlue() {}
 

@@ -1,4 +1,4 @@
-/* $Id: ParallelPortImpl.h $ */
+/* $Id: ParallelPortImpl.h 24989 2009-11-26 11:31:46Z vboxsync $ */
 
 /** @file
  * VirtualBox COM class implementation.
@@ -27,10 +27,15 @@
 
 class Machine;
 
+namespace settings
+{
+    struct ParallelPort;
+}
+
 class ATL_NO_VTABLE ParallelPort :
-    public VirtualBoxBaseNEXT,
-    public VirtualBoxSupportErrorInfoImpl <ParallelPort, IParallelPort>,
-    public VirtualBoxSupportTranslation <ParallelPort>,
+    public VirtualBoxBase,
+    public VirtualBoxSupportErrorInfoImpl<ParallelPort, IParallelPort>,
+    public VirtualBoxSupportTranslation<ParallelPort>,
     VBOX_SCRIPTABLE_IMPL(IParallelPort)
 {
 public:
@@ -73,8 +78,6 @@ public:
         COM_INTERFACE_ENTRY2 (IDispatch, IParallelPort)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
     DECLARE_EMPTY_CTOR_DTOR (ParallelPort)
 
     HRESULT FinalConstruct();
@@ -99,8 +102,8 @@ public:
 
     // public methods only for internal purposes
 
-    HRESULT loadSettings (const settings::Key &aPortNode);
-    HRESULT saveSettings (settings::Key &aPortNode);
+    HRESULT loadSettings(const settings::ParallelPort &data);
+    HRESULT saveSettings(settings::ParallelPort &data);
 
     bool isModified() { AutoWriteLock alock (this); return mData.isBackedUp(); }
     bool isReallyModified() { AutoWriteLock alock (this); return mData.hasActualChanges(); }
@@ -118,10 +121,10 @@ private:
 
     HRESULT checkSetPath (CBSTR aPath);
 
-    const ComObjPtr <Machine, ComWeakRef> mParent;
-    const ComObjPtr <ParallelPort> mPeer;
+    const ComObjPtr<Machine, ComWeakRef> mParent;
+    const ComObjPtr<ParallelPort> mPeer;
 
-    Backupable <Data> mData;
+    Backupable<Data> mData;
 };
 
 #endif // ____H_FLOPPYDRIVEIMPL

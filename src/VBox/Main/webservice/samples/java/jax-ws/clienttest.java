@@ -1,8 +1,9 @@
 /*
- * Sample client for the VirtualBox webservice, written in Java.
+ * Sample client for the VirtualBox web service, written in Java
+ * (object-oriented bindings).
  *
- * Don't forget to run VBOX webserver
- * with 'vboxwebsrv -t 1000' command, to calm down watchdog thread.
+ * Run the VirtualBox web service server first; see the VirtualBox
+ * SDK reference for details.
  *
  * Copyright (C) 2008-2009 Sun Microsystems, Inc.
  *
@@ -30,7 +31,6 @@
  */
 /* Somewhat ugly way to support versioning */
 import com.sun.xml.ws.commons.virtualbox{VBOX_API_SUFFIX}.*;
-import org.virtualbox{VBOX_API_SUFFIX}.*;
 
 import java.util.*;
 import javax.xml.ws.Holder;

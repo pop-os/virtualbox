@@ -2379,7 +2379,7 @@ static DECLCALLBACK(int) fdc_io_read (PPDMDEVINS pDevIns,
     }
 }
 
-static DECLCALLBACK(int) SaveExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle)
+static DECLCALLBACK(int) fdcSaveExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle)
 {
     fdctrl_t *s = PDMINS_2_DATA (pDevIns, fdctrl_t *);
     QEMUFile *f = pSSMHandle;
@@ -2428,18 +2428,17 @@ static DECLCALLBACK(int) SaveExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle)
     return TMR3TimerSave (s->result_timer, pSSMHandle);
 }
 
-static DECLCALLBACK(int) LoadExec (PPDMDEVINS pDevIns,
-                                   PSSMHANDLE pSSMHandle,
-                                   uint32_t u32Version)
+static DECLCALLBACK(int) fdcLoadExec (PPDMDEVINS pDevIns,
+                                      PSSMHANDLE pSSMHandle,
+                                      uint32_t uVersion,
+                                      uint32_t uPass)
 {
     fdctrl_t *s = PDMINS_2_DATA (pDevIns, fdctrl_t *);
     QEMUFile *f = pSSMHandle;
     unsigned int i;
 
-    if (u32Version != 1) {
-        AssertMsgFailed(("u32Version=%d\n", u32Version));
-        return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
-    }
+    AssertMsgReturn(uVersion == 1, ("%d\n", uVersion), VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION);
+    Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
 
     qemu_get_8s (f, &s->version);
     qemu_get_8s (f, &s->irq_lvl);
@@ -2657,12 +2656,16 @@ static int fdConfig (fdrive_t *drv, PPDMDEVINS pDevIns)
  * @param   iLUN        The logical unit which is being detached.
  */
 static DECLCALLBACK(int)  fdcAttach (PPDMDEVINS pDevIns,
-                                     unsigned iLUN)
+                                     unsigned iLUN, uint32_t fFlags)
 {
     fdctrl_t *fdctrl = PDMINS_2_DATA (pDevIns, fdctrl_t *);
     fdrive_t *drv;
     int rc;
     LogFlow (("ideDetach: iLUN=%u\n", iLUN));
+
+    AssertMsgReturn(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG,
+                    ("The FDC device does not support hotplugging\n"),
+                    VERR_INVALID_PARAMETER);
 
     /*
      * Validate.
@@ -2705,7 +2708,7 @@ static DECLCALLBACK(int)  fdcAttach (PPDMDEVINS pDevIns,
  * @param   iLUN        The logical unit which is being detached.
  */
 static DECLCALLBACK(void) fdcDetach (PPDMDEVINS pDevIns,
-                                     unsigned iLUN)
+                                     unsigned iLUN, uint32_t fFlags)
 {
     fdctrl_t *fdctrl = PDMINS_2_DATA (pDevIns, fdctrl_t *);
     LogFlow (("ideDetach: iLUN=%u\n", iLUN));
@@ -2891,8 +2894,7 @@ static DECLCALLBACK(int) fdcConstruct (PPDMDEVINS pDevIns,
     /*
      * Register the saved state data unit.
      */
-    rc = PDMDevHlpSSMRegister (pDevIns, pDevIns->pDevReg->szDeviceName, iInstance, 1, sizeof(*fdctrl),
-                               NULL, SaveExec, NULL, NULL, LoadExec, NULL);
+    rc = PDMDevHlpSSMRegister (pDevIns, 1 /*uVersion*/, sizeof(*fdctrl), fdcSaveExec, fdcLoadExec);
     if (RT_FAILURE(rc))
         return rc;
 

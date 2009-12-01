@@ -1,4 +1,4 @@
-/* $Id: DHCPServerImpl.cpp $ */
+/* $Id: DHCPServerImpl.cpp 23319 2009-09-25 09:20:29Z vboxsync $ */
 
 /** @file
  *
@@ -27,6 +27,8 @@
 
 #include <VBox/settings.h>
 
+#include "VirtualBoxImpl.h"
+
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
 
@@ -45,7 +47,7 @@ void DHCPServer::FinalRelease()
 void DHCPServer::uninit()
 {
     /* Enclose the state transition Ready->InUninit->NotReady */
-    AutoUninitSpan autoUninitSpan (this);
+    AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
         return;
 
@@ -55,18 +57,18 @@ void DHCPServer::uninit()
 
     mVirtualBox->removeDependentChild (this);
 
-    unconst (mVirtualBox).setNull();
+    unconst(mVirtualBox).setNull();
 }
 
 HRESULT DHCPServer::init(VirtualBox *aVirtualBox, IN_BSTR aName)
 {
-    AssertReturn (aName != NULL, E_INVALIDARG);
+    AssertReturn(aName != NULL, E_INVALIDARG);
 
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
     /* share VirtualBox weakly (parent remains NULL so far) */
-    unconst (mVirtualBox) = aVirtualBox;
+    unconst(mVirtualBox) = aVirtualBox;
 
     unconst(mName) = aName;
     m.IPAddress = "0.0.0.0";
@@ -85,51 +87,43 @@ HRESULT DHCPServer::init(VirtualBox *aVirtualBox, IN_BSTR aName)
     return S_OK;
 }
 
-HRESULT DHCPServer::init(VirtualBox *aVirtualBox, const settings::Key &aNode)
+HRESULT DHCPServer::init(VirtualBox *aVirtualBox,
+                         const settings::DHCPServer &data)
 {
-    using namespace settings;
-
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
     /* share VirtualBox weakly (parent remains NULL so far) */
-    unconst (mVirtualBox) = aVirtualBox;
+    unconst(mVirtualBox) = aVirtualBox;
 
     aVirtualBox->addDependentChild (this);
 
-    unconst(mName) = aNode.stringValue ("networkName");
-    m.IPAddress = aNode.stringValue ("IPAddress");
-    m.networkMask = aNode.stringValue ("networkMask");
-    m.enabled = aNode.value <bool> ("enabled");
-    m.lowerIP = aNode.stringValue ("lowerIP");
-    m.upperIP = aNode.stringValue ("upperIP");
+    unconst(mName) = data.strNetworkName;
+    m.IPAddress = data.strIPAddress;
+    m.networkMask = data.strIPNetworkMask;
+    m.enabled = data.fEnabled;
+    m.lowerIP = data.strIPLower;
+    m.upperIP = data.strIPUpper;
 
     autoInitSpan.setSucceeded();
 
     return S_OK;
 }
 
-HRESULT DHCPServer::saveSettings (settings::Key &aParentNode)
+HRESULT DHCPServer::saveSettings(settings::DHCPServer &data)
 {
-    using namespace settings;
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AssertReturn (!aParentNode.isNull(), E_FAIL);
+    AutoReadLock alock(this);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
-
-    AutoReadLock alock (this);
-
-    Key aNode = aParentNode.appendKey ("DHCPServer");
-    /* required */
-    aNode.setValue <Bstr> ("networkName", mName);
-    aNode.setValue <Bstr> ("IPAddress", m.IPAddress);
-    aNode.setValue <Bstr> ("networkMask", m.networkMask);
-    aNode.setValue <Bstr> ("lowerIP", m.lowerIP);
-    aNode.setValue <Bstr> ("upperIP", m.upperIP);
-    /* To force it back to a numeric value; will otherwise break for 2.2.x. */
-    aNode.setValue <ULONG> ("enabled", m.enabled);
+    data.strNetworkName = mName;
+    data.strIPAddress = m.IPAddress;
+    data.strIPNetworkMask = m.networkMask;
+    data.fEnabled = !!m.enabled;
+    data.strIPLower = m.lowerIP;
+    data.strIPUpper = m.upperIP;
 
     return S_OK;
 }
@@ -138,8 +132,8 @@ STDMETHODIMP DHCPServer::COMGETTER(NetworkName) (BSTR *aName)
 {
     CheckComArgOutPointerValid(aName);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     mName.cloneTo(aName);
 
@@ -150,8 +144,8 @@ STDMETHODIMP DHCPServer::COMGETTER(Enabled) (BOOL *aEnabled)
 {
     CheckComArgOutPointerValid(aEnabled);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     *aEnabled = m.enabled;
 
@@ -160,8 +154,8 @@ STDMETHODIMP DHCPServer::COMGETTER(Enabled) (BOOL *aEnabled)
 
 STDMETHODIMP DHCPServer::COMSETTER(Enabled) (BOOL aEnabled)
 {
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* VirtualBox::saveSettings() needs a write lock */
     AutoMultiWriteLock2 alock (mVirtualBox, this);
@@ -177,8 +171,8 @@ STDMETHODIMP DHCPServer::COMGETTER(IPAddress) (BSTR *aIPAddress)
 {
     CheckComArgOutPointerValid(aIPAddress);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     m.IPAddress.cloneTo(aIPAddress);
 
@@ -189,8 +183,8 @@ STDMETHODIMP DHCPServer::COMGETTER(NetworkMask) (BSTR *aNetworkMask)
 {
     CheckComArgOutPointerValid(aNetworkMask);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     m.networkMask.cloneTo(aNetworkMask);
 
@@ -201,8 +195,8 @@ STDMETHODIMP DHCPServer::COMGETTER(LowerIP) (BSTR *aIPAddress)
 {
     CheckComArgOutPointerValid(aIPAddress);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     m.lowerIP.cloneTo(aIPAddress);
 
@@ -213,8 +207,8 @@ STDMETHODIMP DHCPServer::COMGETTER(UpperIP) (BSTR *aIPAddress)
 {
     CheckComArgOutPointerValid(aIPAddress);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     m.upperIP.cloneTo(aIPAddress);
 
@@ -223,13 +217,13 @@ STDMETHODIMP DHCPServer::COMGETTER(UpperIP) (BSTR *aIPAddress)
 
 STDMETHODIMP DHCPServer::SetConfiguration (IN_BSTR aIPAddress, IN_BSTR aNetworkMask, IN_BSTR aLowerIP, IN_BSTR aUpperIP)
 {
-    AssertReturn (aIPAddress != NULL, E_INVALIDARG);
-    AssertReturn (aNetworkMask != NULL, E_INVALIDARG);
-    AssertReturn (aLowerIP != NULL, E_INVALIDARG);
-    AssertReturn (aUpperIP != NULL, E_INVALIDARG);
+    AssertReturn(aIPAddress != NULL, E_INVALIDARG);
+    AssertReturn(aNetworkMask != NULL, E_INVALIDARG);
+    AssertReturn(aLowerIP != NULL, E_INVALIDARG);
+    AssertReturn(aUpperIP != NULL, E_INVALIDARG);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* VirtualBox::saveSettings() needs a write lock */
     AutoMultiWriteLock2 alock (mVirtualBox, this);
@@ -242,17 +236,17 @@ STDMETHODIMP DHCPServer::SetConfiguration (IN_BSTR aIPAddress, IN_BSTR aNetworkM
     return mVirtualBox->saveSettings();
 }
 
-STDMETHODIMP DHCPServer::Start (IN_BSTR aNetworkName, IN_BSTR aTrunkName, IN_BSTR aTrunkType)
+STDMETHODIMP DHCPServer::Start(IN_BSTR aNetworkName, IN_BSTR aTrunkName, IN_BSTR aTrunkType)
 {
     /* Silently ignore attepmts to run disabled servers. */
     if (!m.enabled)
         return S_OK;
 
-    m.dhcp.setOption(DHCPCFG_NETNAME, Utf8Str(aNetworkName));
+    m.dhcp.setOption(DHCPCFG_NETNAME, Utf8Str(aNetworkName), true);
     Bstr tmp(aTrunkName);
     if (!tmp.isEmpty())
-        m.dhcp.setOption(DHCPCFG_TRUNKNAME, Utf8Str(tmp));
-    m.dhcp.setOption(DHCPCFG_TRUNKTYPE, Utf8Str(aTrunkType));
+        m.dhcp.setOption(DHCPCFG_TRUNKNAME, Utf8Str(tmp), true);
+    m.dhcp.setOption(DHCPCFG_TRUNKTYPE, Utf8Str(aTrunkType), true);
     //temporary hack for testing
     //    DHCPCFG_NAME
     char strMAC[13];
@@ -260,19 +254,19 @@ STDMETHODIMP DHCPServer::Start (IN_BSTR aNetworkName, IN_BSTR aTrunkName, IN_BST
     guid.create();
     RTStrPrintf (strMAC, sizeof(strMAC), "080027%02X%02X%02X",
                  guid.ptr()->au8[0], guid.ptr()->au8[1], guid.ptr()->au8[2]);
-    m.dhcp.setOption(DHCPCFG_MACADDRESS, strMAC);
-    m.dhcp.setOption(DHCPCFG_IPADDRESS,  Utf8Str(m.IPAddress));
+    m.dhcp.setOption(DHCPCFG_MACADDRESS, strMAC, true);
+    m.dhcp.setOption(DHCPCFG_IPADDRESS,  Utf8Str(m.IPAddress), true);
     //        DHCPCFG_LEASEDB,
     //        DHCPCFG_VERBOSE,
     //        DHCPCFG_GATEWAY,
-    m.dhcp.setOption(DHCPCFG_LOWERIP,  Utf8Str(m.lowerIP));
-    m.dhcp.setOption(DHCPCFG_UPPERIP,  Utf8Str(m.upperIP));
-    m.dhcp.setOption(DHCPCFG_NETMASK,  Utf8Str(m.networkMask));
+    m.dhcp.setOption(DHCPCFG_LOWERIP,  Utf8Str(m.lowerIP), true);
+    m.dhcp.setOption(DHCPCFG_UPPERIP,  Utf8Str(m.upperIP), true);
+    m.dhcp.setOption(DHCPCFG_NETMASK,  Utf8Str(m.networkMask), true);
 
     //        DHCPCFG_HELP,
     //        DHCPCFG_VERSION,
     //        DHCPCFG_NOTOPT_MAXVAL
-    m.dhcp.setOption(DHCPCFG_BEGINCONFIG,  "");
+    m.dhcp.setOption(DHCPCFG_BEGINCONFIG,  "", true);
 
     return RT_FAILURE(m.dhcp.start()) ? E_FAIL : S_OK;
     //m.dhcp.detachFromServer(); /* need to do this to avoid server shutdown on runner destruction */

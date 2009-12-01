@@ -27,10 +27,12 @@ uncompress_files()
     /usr/sbin/removef $PKGINST "$1/vboxvideo_drv_14.so.Z" 1>/dev/null
     /usr/sbin/removef $PKGINST "$1/vboxvideo_drv_15.so.Z" 1>/dev/null
     /usr/sbin/removef $PKGINST "$1/vboxvideo_drv_16.so.Z" 1>/dev/null
+    /usr/sbin/removef $PKGINST "$1/vboxvideo_drv_17.so.Z" 1>/dev/null
     /usr/sbin/removef $PKGINST "$1/vboxvideo_drv_71.so.Z" 1>/dev/null
     /usr/sbin/removef $PKGINST "$1/vboxmouse_drv_14.so.Z" 1>/dev/null
     /usr/sbin/removef $PKGINST "$1/vboxmouse_drv_15.so.Z" 1>/dev/null
     /usr/sbin/removef $PKGINST "$1/vboxmouse_drv_16.so.Z" 1>/dev/null
+    /usr/sbin/removef $PKGINST "$1/vboxmouse_drv_17.so.Z" 1>/dev/null
     /usr/sbin/removef $PKGINST "$1/vboxmouse_drv_70.so.Z" 1>/dev/null
     /usr/sbin/removef $PKGINST "$1/vboxmouse_drv_71.so.Z" 1>/dev/null
 
@@ -42,10 +44,12 @@ uncompress_files()
     /usr/sbin/installf -c none $PKGINST "$1/vboxvideo_drv_14.so" f
     /usr/sbin/installf -c none $PKGINST "$1/vboxvideo_drv_15.so" f
     /usr/sbin/installf -c none $PKGINST "$1/vboxvideo_drv_16.so" f
+    /usr/sbin/installf -c none $PKGINST "$1/vboxvideo_drv_17.so" f
     /usr/sbin/installf -c none $PKGINST "$1/vboxvideo_drv_71.so" f
     /usr/sbin/installf -c none $PKGINST "$1/vboxmouse_drv_14.so" f
     /usr/sbin/installf -c none $PKGINST "$1/vboxmouse_drv_15.so" f
     /usr/sbin/installf -c none $PKGINST "$1/vboxmouse_drv_16.so" f
+    /usr/sbin/installf -c none $PKGINST "$1/vboxmouse_drv_17.so" f
     /usr/sbin/installf -c none $PKGINST "$1/vboxmouse_drv_70.so" f
     /usr/sbin/installf -c none $PKGINST "$1/vboxmouse_drv_71.so" f
 
@@ -57,18 +61,22 @@ uncompress_files()
     uncompress -f "$1/vboxvideo_drv_14.so.Z" > /dev/null 2>&1
     uncompress -f "$1/vboxvideo_drv_15.so.Z" > /dev/null 2>&1
     uncompress -f "$1/vboxvideo_drv_16.so.Z" > /dev/null 2>&1
+    uncompress -f "$1/vboxvideo_drv_17.so.Z" > /dev/null 2>&1
     uncompress -f "$1/vboxvideo_drv_71.so.Z" > /dev/null 2>&1
     uncompress -f "$1/vboxmouse_drv_14.so.Z" > /dev/null 2>&1
     uncompress -f "$1/vboxmouse_drv_15.so.Z" > /dev/null 2>&1
     uncompress -f "$1/vboxmouse_drv_16.so.Z" > /dev/null 2>&1
+    uncompress -f "$1/vboxmouse_drv_17.so.Z" > /dev/null 2>&1
     uncompress -f "$1/vboxmouse_drv_70.so.Z" > /dev/null 2>&1
     uncompress -f "$1/vboxmouse_drv_71.so.Z" > /dev/null 2>&1
 }
 
 solaris64dir="amd64"
-vboxadditions_path="/opt/VirtualBoxAdditions"
+vboxadditions_path="$BASEDIR/opt/VirtualBoxAdditions"
 vboxadditions64_path=$vboxadditions_path/$solaris64dir
 
+# get the current zone
+currentzone=`zonename`
 # get what ISA the guest is running
 cputype=`isainfo -k`
 if test "$cputype" = "amd64"; then
@@ -76,6 +84,7 @@ if test "$cputype" = "amd64"; then
 else
     isadir=""
 fi
+
 vboxadditionsisa_path=$vboxadditions_path/$isadir
 
 
@@ -90,20 +99,23 @@ if test -f "$vboxadditions_path/VBoxClient.Z" || test -f "$vboxadditions64_path/
     fi
 fi
 
-# vboxguest.sh would've been installed, we just need to call it.
-echo "Configuring VirtualBox guest kernel module..."
-$vboxadditions_path/vboxguest.sh restartall silentunload
 
-sed -e '
-/name=vboxguest/d' /etc/devlink.tab > /etc/devlink.vbox
-echo "type=ddi_pseudo;name=vboxguest	\D" >> /etc/devlink.vbox
-mv -f /etc/devlink.vbox /etc/devlink.tab
+if test "$currentzone" = "global"; then
+    # vboxguest.sh would've been installed, we just need to call it.
+    echo "Configuring VirtualBox guest kernel module..."
+    $vboxadditions_path/vboxguest.sh restartall silentunload
 
-# create the device link
-/usr/sbin/devfsadm -i vboxguest
-sync
+    sed -e '/name=vboxguest/d' /etc/devlink.tab > /etc/devlink.vbox
+    echo "type=ddi_pseudo;name=vboxguest	\D" >> /etc/devlink.vbox
+    mv -f /etc/devlink.vbox /etc/devlink.tab
 
-# check if Xorg exists
+    # create the device link
+    /usr/sbin/devfsadm -i vboxguest
+    sync
+fi
+
+
+# check if X.Org exists
 if test -f "/usr/X11/bin/Xorg"; then
     xorgbin="/usr/X11/bin/Xorg"
 else
@@ -113,7 +125,9 @@ fi
 
 # create links
 echo "Creating links..."
-/usr/sbin/installf -c none $PKGINST /dev/vboxguest=../devices/pci@0,0/pci80ee,cafe@4:vboxguest s
+if test "$currentzone" = "global"; then
+    /usr/sbin/installf -c none $PKGINST /dev/vboxguest=../devices/pci@0,0/pci80ee,cafe@4:vboxguest s
+fi
 if test ! -z "$xorgbin"; then
     /usr/sbin/installf -c none $PKGINST /usr/bin/VBoxClient=$vboxadditions_path/VBox.sh s
     /usr/sbin/installf -c none $PKGINST /usr/bin/VBoxRandR=$vboxadditions_path/VBoxRandR.sh s
@@ -152,6 +166,10 @@ if test ! -z "$xorgbin"; then
             vboxmouse_src="vboxmouse_drv_15.so"
             vboxvideo_src="vboxvideo_drv_15.so"
             ;;
+        1.7.*)
+            vboxmouse_src="vboxmouse_drv_17.so"
+            vboxvideo_src="vboxvideo_drv_17.so"
+            ;;
         7.1.* | *7.2.* )
             vboxmouse_src="vboxmouse_drv_71.so"
             vboxvideo_src="vboxvideo_drv_71.so"
@@ -170,7 +188,7 @@ if test ! -z "$xorgbin"; then
         # Exit as partially failed installation
         retval=2
     else
-        echo "Configuring Xorg..."
+        echo "Configuring X.Org..."
 
         # 32-bit x11 drivers
         if test -f "$vboxadditions_path/$vboxmouse_src"; then
@@ -228,7 +246,7 @@ if test ! -z "$xorgbin"; then
             7.1.* | 7.2.* | 6.9.* | 7.0.* | 1.3.* )
                 $vboxadditions_path/x11config.pl
                 ;;
-            1.5.* | 1.6.* )
+            1.5.* | 1.6.* | 1.7.* )
                 $vboxadditions_path/x11config15sol.pl
                 ;;
         esac
@@ -252,7 +270,7 @@ if test ! -z "$xorgbin"; then
         retval=2
     fi
 else
-    echo "(*) Xorg not found, skipped configuring Xorg guest additions."
+    echo "(*) X.Org not found, skipped configuring X.Org guest additions."
 fi
 
 
@@ -284,7 +302,7 @@ if test -f "$vboxadditions_path/$vboxfsmod"; then
     rm -f $vboxadditions_path/$vboxfsunused
 fi
 
-# install openGL extensions for Xorg
+# install openGL extensions for X.Org
 if test ! -z "$xorgbin"; then
     # 32-bit crogl opengl library replacement
     if test -f "/usr/lib/VBoxOGL.so"; then
@@ -304,26 +322,29 @@ fi
 /usr/sbin/installf -f $PKGINST
 
 
-# Setup our VBoxService SMF service
-echo "Configuring service..."
+if test "$currentzone" = "global"; then
+    # Setup our VBoxService SMF service
+    echo "Configuring service..."
 
-/usr/sbin/svccfg import /var/svc/manifest/system/virtualbox/vboxservice.xml
-/usr/sbin/svcadm enable svc:/system/virtualbox/vboxservice
+    /usr/sbin/svccfg import /var/svc/manifest/system/virtualbox/vboxservice.xml
+    /usr/sbin/svcadm enable svc:/system/virtualbox/vboxservice
 
-/usr/sbin/devfsadm -i vboxguest
+    /usr/sbin/devfsadm -i vboxguest
 
-# Update boot archive
-BOOTADMBIN=/sbin/bootadm
-if test -x "$BOOTADMBIN"; then
-    if test -h "/dev/vboxguest"; then
-        echo "Updating boot archive..."
-        $BOOTADMBIN update-archive > /dev/null
+    # Update boot archive
+    BOOTADMBIN=/sbin/bootadm
+    if test -x "$BOOTADMBIN"; then
+        if test -h "/dev/vboxguest"; then
+            echo "Updating boot archive..."
+            $BOOTADMBIN update-archive > /dev/null
+        else
+            echo "## Guest kernel module doesn't seem to be up. Skipped explicit boot-archive update."
+        fi
     else
-        echo "## Guest kernel module doesn't seem to be up. Skipped explicit boot-archive update."
+        echo "## $BOOTADMBIN not found/executable. Skipped explicit boot-archive update."
     fi
-else
-    echo "## $BOOTADMBIN not found/executable. Skipped explicit boot-archive update."
 fi
+
 
 echo "Done."
 if test $retval -eq 0; then

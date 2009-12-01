@@ -60,7 +60,8 @@ print "\t/* Chromium binding/glue functions */"
 
 for func_name in keys:
     if (func_name == "Writeback" or
-        func_name == "BoundsInfoCR"):
+        func_name == "BoundsInfoCR" or
+        func_name == "GetUniformsLocations"):
         continue
     if apiutil.Category(func_name) == "Chromium":
         print '\t{ "cr%s", (CR_PROC) cr%s },' % (func_name, func_name)
@@ -124,7 +125,7 @@ CR_PROC CR_APIENTRY crGetProcAddress( const char *name )
 
     if (!crStrcmp( name, "wglChoosePixelFormatARB" )) return (CR_PROC) wglChoosePixelFormatEXT;
     if (!crStrcmp( name, "wglGetPixelFormatAttribivARB" )) return (CR_PROC) wglGetPixelFormatAttribivEXT;
-    if (!crStrcmp( name, "wglGetPixelFormatAttribfvARB" )) return (CR_PROC) wglGetPixelFormatAttribfvEXT;  
+    if (!crStrcmp( name, "wglGetPixelFormatAttribfvARB" )) return (CR_PROC) wglGetPixelFormatAttribfvEXT;
 
     crDebug("Returning GetProcAddress:NULL for %s", name);
     return NULL;

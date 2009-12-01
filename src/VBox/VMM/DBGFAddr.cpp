@@ -1,4 +1,4 @@
-/* $Id: DBGFAddr.cpp $ */
+/* $Id: DBGFAddr.cpp 23012 2009-09-14 16:38:13Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility, Mixed Address Methods.
  */
@@ -50,6 +50,47 @@ DECLINLINE(bool) dbgfR3IsHMA(PVM pVM, RTGCUINTPTR FlatPtr)
 
 
 /**
+ * Common worker for DBGFR3AddrFromSelOff and DBGFR3AddrFromSelInfoOff.
+ */
+static int dbgfR3AddrFromSelInfoOffWorker(PDBGFADDRESS pAddress, PCDBGFSELINFO pSelInfo, RTUINTPTR off)
+{
+    if (pSelInfo->fFlags & (DBGFSELINFO_FLAGS_INVALID | DBGFSELINFO_FLAGS_NOT_PRESENT))
+        return pSelInfo->fFlags & DBGFSELINFO_FLAGS_NOT_PRESENT
+             ? VERR_SELECTOR_NOT_PRESENT
+             : VERR_INVALID_SELECTOR;
+
+    /** @todo This all goes voodoo in long mode. */
+    /* check limit. */
+    if (DBGFSelInfoIsExpandDown(pSelInfo))
+    {
+        if (    !pSelInfo->u.Raw.Gen.u1Granularity
+            &&  off > UINT32_C(0xffff))
+            return VERR_OUT_OF_SELECTOR_BOUNDS;
+        if (off <= pSelInfo->cbLimit)
+            return VERR_OUT_OF_SELECTOR_BOUNDS;
+    }
+    else if (off > pSelInfo->cbLimit)
+        return VERR_OUT_OF_SELECTOR_BOUNDS;
+
+    pAddress->FlatPtr = pSelInfo->GCPtrBase + off;
+
+    /** @todo fix all these selector tests! */
+    if (    !pSelInfo->GCPtrBase
+        &&  pSelInfo->u.Raw.Gen.u1Granularity
+        &&  pSelInfo->u.Raw.Gen.u1DefBig)
+        pAddress->fFlags = DBGFADDRESS_FLAGS_FLAT;
+    else if (pSelInfo->cbLimit <= UINT32_C(0xffff))
+        pAddress->fFlags = DBGFADDRESS_FLAGS_FAR16;
+    else if (pSelInfo->cbLimit <= UINT32_C(0xffffffff))
+        pAddress->fFlags = DBGFADDRESS_FLAGS_FAR32;
+    else
+        pAddress->fFlags = DBGFADDRESS_FLAGS_FAR64;
+
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Creates a mixed address from a Sel:off pair.
  *
  * @returns VBox status code.
@@ -61,47 +102,19 @@ DECLINLINE(bool) dbgfR3IsHMA(PVM pVM, RTGCUINTPTR FlatPtr)
  */
 VMMR3DECL(int) DBGFR3AddrFromSelOff(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, RTSEL Sel, RTUINTPTR off)
 {
-    AssertReturn(idCpu < pVM->cCPUs, VERR_INVALID_PARAMETER);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
 
     pAddress->Sel = Sel;
     pAddress->off = off;
     if (Sel != DBGF_SEL_FLAT)
     {
         DBGFSELINFO SelInfo;
-        int rc = DBGFR3SelQueryInfo(pVM, idCpu, Sel, DBGFSELQI_FLAGS_DT_GUEST, &SelInfo);
+        int rc = DBGFR3SelQueryInfo(pVM, idCpu, Sel, DBGFSELQI_FLAGS_DT_GUEST | DBGFSELQI_FLAGS_DT_ADJ_64BIT_MODE, &SelInfo);
         if (RT_FAILURE(rc))
             return rc;
-        if (SelInfo.fFlags & (DBGFSELINFO_FLAGS_INVALID | DBGFSELINFO_FLAGS_NOT_PRESENT))
-            return SelInfo.fFlags & DBGFSELINFO_FLAGS_NOT_PRESENT
-                 ? VERR_SELECTOR_NOT_PRESENT
-                 : VERR_INVALID_SELECTOR;
-
-        /** @todo This all goes voodoo in long mode. */
-        /* check limit. */
-        if (DBGFSelInfoIsExpandDown(&SelInfo))
-        {
-            if (    !SelInfo.u.Raw.Gen.u1Granularity
-                &&  off > UINT32_C(0xffff))
-                return VERR_OUT_OF_SELECTOR_BOUNDS;
-            if (off <= SelInfo.cbLimit)
-                return VERR_OUT_OF_SELECTOR_BOUNDS;
-        }
-        else if (off > SelInfo.cbLimit)
-            return VERR_OUT_OF_SELECTOR_BOUNDS;
-
-        pAddress->FlatPtr = SelInfo.GCPtrBase + off;
-
-        /** @todo fix all these selector tests! */
-        if (    !SelInfo.GCPtrBase
-            &&  SelInfo.u.Raw.Gen.u1Granularity
-            &&  SelInfo.u.Raw.Gen.u1DefBig)
-            pAddress->fFlags = DBGFADDRESS_FLAGS_FLAT;
-        else if (SelInfo.cbLimit <= UINT32_C(0xffff))
-            pAddress->fFlags = DBGFADDRESS_FLAGS_FAR16;
-        else if (SelInfo.cbLimit <= UINT32_C(0xffffffff))
-            pAddress->fFlags = DBGFADDRESS_FLAGS_FAR32;
-        else
-            pAddress->fFlags = DBGFADDRESS_FLAGS_FAR64;
+        rc = dbgfR3AddrFromSelInfoOffWorker(pAddress, &SelInfo, off);
+        if (RT_FAILURE(rc))
+            return rc;
     }
     else
     {
@@ -112,6 +125,31 @@ VMMR3DECL(int) DBGFR3AddrFromSelOff(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddres
     if (dbgfR3IsHMA(pVM, pAddress->FlatPtr))
         pAddress->fFlags |= DBGFADDRESS_FLAGS_HMA;
 
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Creates a mixed address from selector info and an offset into the segment
+ * described by it.
+ *
+ * @returns VBox status code.
+ * @param   pVM         The VM handle.
+ * @param   idCpu       The CPU ID.
+ * @param   pAddress    Where to store the mixed address.
+ * @param   pSelInfo    The selector info.
+ * @param   off         The offset part.
+ */
+VMMR3DECL(int) DBGFR3AddrFromSelInfoOff(PVM pVM, PDBGFADDRESS pAddress, PCDBGFSELINFO pSelInfo, RTUINTPTR off)
+{
+    pAddress->Sel = pSelInfo->Sel;
+    pAddress->off = off;
+    int rc = dbgfR3AddrFromSelInfoOffWorker(pAddress, pSelInfo, off);
+    if (RT_FAILURE(rc))
+        return rc;
+    pAddress->fFlags |= DBGFADDRESS_FLAGS_VALID;
+    if (dbgfR3IsHMA(pVM, pAddress->FlatPtr))
+        pAddress->fFlags |= DBGFADDRESS_FLAGS_HMA;
     return VINF_SUCCESS;
 }
 
@@ -219,7 +257,7 @@ VMMR3DECL(int)  DBGFR3AddrToPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, 
     AssertPtr(pAddress);
     AssertReturn(DBGFADDRESS_IS_VALID(pAddress), VERR_INVALID_PARAMETER);
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_STATE);
-    AssertReturn(idCpu < pVM->cCPUs, VERR_INVALID_PARAMETER);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
 
     /*
      * Convert by address type.
@@ -238,16 +276,8 @@ VMMR3DECL(int)  DBGFR3AddrToPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, 
         if (VMCPU_IS_EMT(pVCpu))
             rc = dbgfR3AddrToPhysOnVCpu(pVCpu, pAddress, pGCPhys);
         else
-        {
-            PVMREQ pReq = NULL;
-            rc = VMR3ReqCall(pVCpu->pVMR3, pVCpu->idCpu, &pReq, RT_INDEFINITE_WAIT,
-                             (PFNRT)dbgfR3AddrToPhysOnVCpu, 3, pVCpu, pAddress, pGCPhys);
-            if (RT_SUCCESS(rc))
-            {
-                rc = pReq->iStatus;
-                VMR3ReqFree(pReq);
-            }
-        }
+            rc = VMR3ReqCallWait(pVCpu->pVMR3, pVCpu->idCpu,
+                                 (PFNRT)dbgfR3AddrToPhysOnVCpu, 3, pVCpu, pAddress, pGCPhys);
     }
     return rc;
 }
@@ -285,7 +315,7 @@ VMMR3DECL(int)  DBGFR3AddrToHostPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddre
     AssertPtr(pAddress);
     AssertReturn(DBGFADDRESS_IS_VALID(pAddress), VERR_INVALID_PARAMETER);
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_STATE);
-    AssertReturn(idCpu < pVM->cCPUs, VERR_INVALID_PARAMETER);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
 
     /*
      * Convert it if we can.
@@ -399,21 +429,12 @@ VMMR3DECL(int)  DBGFR3AddrToVolatileR3Ptr(PVM pVM, VMCPUID idCpu, PDBGFADDRESS p
     AssertPtr(pAddress);
     AssertReturn(DBGFADDRESS_IS_VALID(pAddress), VERR_INVALID_PARAMETER);
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_STATE);
-    AssertReturn(idCpu < pVM->cCPUs, VERR_INVALID_PARAMETER);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
 
     /*
      * Convert it.
      */
-    PVMREQ pReq = NULL;
-    int rc = VMR3ReqCall(pVM, idCpu, &pReq, RT_INDEFINITE_WAIT,
-                         (PFNRT)dbgfR3AddrToVolatileR3PtrOnVCpu, 5, pVM, idCpu, pAddress, fReadOnly, ppvR3Ptr);
-    if (RT_SUCCESS(rc))
-    {
-        rc = pReq->iStatus;
-        VMR3ReqFree(pReq);
-    }
-
-    return rc;
+    return VMR3ReqCallWait(pVM, idCpu, (PFNRT)dbgfR3AddrToVolatileR3PtrOnVCpu, 5, pVM, idCpu, pAddress, fReadOnly, ppvR3Ptr);
 }
 
 

@@ -1,4 +1,4 @@
-/* $Id: mpnotification-r0drv-solaris.c $ */
+/* $Id: mpnotification-r0drv-solaris.c 22073 2009-08-07 15:26:56Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor Event Notifications, Ring-0 Driver, Solaris.
  */
@@ -28,13 +28,14 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-solaris-kernel.h"
-
-#include <iprt/err.h>
+#include "internal/iprt.h"
 #include <iprt/mp.h>
+
 #include <iprt/err.h>
 #include "r0drv/mp-r0drv.h"
 

@@ -1,4 +1,4 @@
-/* $Id: VBoxManageHelp.cpp $ */
+/* $Id: VBoxManageHelp.cpp 24901 2009-11-24 13:57:53Z vboxsync $ */
 /** @file
  * VBoxManage - help and other message output.
  */
@@ -19,10 +19,35 @@
  * additional information or have any questions.
  */
 
-#include <iprt/stream.h>
+
+/*******************************************************************************
+*   Header Files                                                               *
+*******************************************************************************/
+#include <VBox/version.h>
+
+#include <iprt/ctype.h>
+#include <iprt/err.h>
 #include <iprt/getopt.h>
+#include <iprt/stream.h>
 
 #include "VBoxManage.h"
+
+
+
+void showLogo(void)
+{
+    static bool s_fShown; /* show only once */
+
+    if (!s_fShown)
+    {
+        RTPrintf("VirtualBox Command Line Management Interface Version "
+                 VBOX_VERSION_STRING  "\n"
+                 "(C) 2005-2009 Sun Microsystems, Inc.\n"
+                 "All rights reserved.\n"
+                 "\n");
+        s_fShown = true;
+    }
+}
 
 void printUsage(USAGECATEGORY u64Cmd)
 {
@@ -84,9 +109,9 @@ void printUsage(USAGECATEGORY u64Cmd)
 #if defined(VBOX_WITH_NETFLT)
                  "                            bridgedifs|hostonlyifs|dhcpservers|hostinfo|\n"
 #else
-                 "                            bridgedifs|hostinfo|dhcpservers|\n"
+                 "                            bridgedifs|dhcpservers|hostinfo|\n"
 #endif
-                 "                            hddbackends|hdds|dvds|floppies|\n"
+                 "                            hostcpuids|hddbackends|hdds|dvds|floppies|\n"
                  "                            usbhost|usbfilters|systemproperties\n"
                  "\n");
     }
@@ -133,9 +158,16 @@ void printUsage(USAGECATEGORY u64Cmd)
                  "                            [--hwvirtex on|off]\n"
                  "                            [--nestedpaging on|off]\n"
                  "                            [--vtxvpid on|off]\n"
+                 "                            [--cpuidset <leaf> <eax> <ebx> <ecx> <edx>]\n"
+                 "                            [--cpuidremove <leaf>]\n"
+                 "                            [--cpuidremoveall]\n"
                  "                            [--cpus <number>]\n"
                  "                            [--monitorcount <number>]\n"
                  "                            [--accelerate3d <on|off>]\n"
+#ifdef VBOX_WITH_VIDEOHWACCEL
+                 "                            [--accelerate2dvideo <on|off>]\n"
+#endif
+                 "                            [--firmware bios|efi|efi32|efi64]\n"
                  "                            [--bioslogofadein on|off]\n"
                  "                            [--bioslogofadeout on|off]\n"
                  "                            [--bioslogodisplaytime <msec>]\n"
@@ -144,23 +176,6 @@ void printUsage(USAGECATEGORY u64Cmd)
                  "                            [--biossystemtimeoffset <msec>]\n"
                  "                            [--biospxedebug on|off]\n"
                  "                            [--boot<1-4> none|floppy|dvd|disk|net>]\n"
-                 "                            [--hd<a|b|d> none|<uuid>|<filename>]\n"
-                 "                            [--idecontroller PIIX3|PIIX4]\n"
-#ifdef VBOX_WITH_AHCI
-                 "                            [--sata on|off]\n"
-                 "                            [--sataportcount <1-30>]\n"
-                 "                            [--sataport<1-30> none|<uuid>|<filename>]\n"
-                 "                            [--sataideemulation<1-4> <1-30>]\n"
-#endif
-#ifdef VBOX_WITH_SCSI
-                 "                            [--scsi on|off]\n"
-                 "                            [--scsiport<1-16> none|<uuid>|<filename>]\n"
-                 "                            [--scsitype LsiLogic|BusLogic]\n"
-#endif
-                 "                            [--dvd none|<uuid>|<filename>|host:<drive>]\n"
-                 "                            [--dvdpassthrough on|off]\n"
-                 "                            [--floppy disabled|empty|<uuid>|\n"
-                 "                                      <filename>|host:<drive>]\n"
 #if defined(VBOX_WITH_NETFLT)
                  "                            [--nic<1-N> none|null|nat|bridged|intnet|hostonly]\n"
 #else /* !RT_OS_LINUX && !RT_OS_DARWIN */
@@ -170,6 +185,9 @@ void printUsage(USAGECATEGORY u64Cmd)
 #ifdef VBOX_WITH_E1000
               "|\n                                            82540EM|82543GC|82545EM"
 #endif
+#ifdef VBOX_WITH_VIRTIO
+              "|\n                                            virtio"
+#endif /* VBOX_WITH_VIRTIO */
                  "]\n"
                  "                            [--cableconnected<1-N> on|off]\n"
                  "                            [--nictrace<1-N> on|off]\n"
@@ -232,7 +250,7 @@ void printUsage(USAGECATEGORY u64Cmd)
         if (fVRDP)
         {
             RTPrintf("                            [--vrdp on|off]\n"
-                     "                            [--vrdpport default|<port>]\n"
+                     "                            [--vrdpport default|<ports>]\n"
                      "                            [--vrdpaddress <host>]\n"
                      "                            [--vrdpauthtype null|external|guest]\n"
                      "                            [--vrdpmulticon on|off]\n"
@@ -240,14 +258,21 @@ void printUsage(USAGECATEGORY u64Cmd)
         }
         RTPrintf("                            [--usb on|off]\n"
                  "                            [--usbehci on|off]\n"
-                 "                            [--snapshotfolder default|<path>]\n");
+                 "                            [--snapshotfolder default|<path>]\n"
+                 "                            [--teleporter on|off]\n"
+                 "                            [--teleporterport <port>]\n"
+                 "                            [--teleporteraddress <address|empty>\n"
+                 "                            [--teleporterpassword <password>]\n"
+                 "                            [--hardwareuuid <uuid>]\n"
+                );
         RTPrintf("\n");
     }
 
     if (u64Cmd & USAGE_IMPORTAPPLIANCE)
     {
         RTPrintf("VBoxManage import           <ovf> [--dry-run|-n] [more options]\n"
-                 "    (run with -n to have options displayed for a particular OVF)\n\n");
+                 "                            (run with -n to have options displayed\n"
+                 "                             for a particular OVF)\n\n");
     }
 
     if (u64Cmd & USAGE_EXPORTAPPLIANCE)
@@ -287,25 +312,27 @@ void printUsage(USAGECATEGORY u64Cmd)
                  "                            setlinkstate<1-N> on|off |\n"
 #ifdef VBOX_DYNAMIC_NET_ATTACH
 #if defined(VBOX_WITH_NETFLT)
-                 "                            nic<1-N> none|null|nat|bridged|intnet|hostonly\n"
+                 "                            nic<1-N> null|nat|bridged|intnet|hostonly\n"
                  "                                     [<devicename>] |\n"
 #else /* !RT_OS_LINUX && !RT_OS_DARWIN */
-                 "                            nic<1-N> none|null|nat|bridged|intnet\n"
+                 "                            nic<1-N> null|nat|bridged|intnet\n"
                  "                                     [<devicename>] |\n"
 #endif /* !RT_OS_LINUX && !RT_OS_DARWIN  */
+                 "                            nictrace<1-N> on|off\n"
+                 "                            nictracefile<1-N> <filename>\n"
 #endif /* VBOX_DYNAMIC_NET_ATTACH */
                  "                            usbattach <uuid>|<address> |\n"
-                 "                            usbdetach <uuid>|<address> |\n"
-                 "                            dvdattach none|<uuid>|<filename>|host:<drive> |\n"
-                 "                            floppyattach none|<uuid>|<filename>|host:<drive> |\n");
+                 "                            usbdetach <uuid>|<address> |\n");
         if (fVRDP)
         {
-            RTPrintf("                            vrdp on|off] |\n");
-            RTPrintf("                            vrdpport default|<port>] |\n");
+            RTPrintf("                            vrdp on|off |\n");
+            RTPrintf("                            vrdpport default|<ports> |\n");
         }
-        RTPrintf("                            setvideomodehint <xres> <yres> <bpp> [display]|\n"
+        RTPrintf("                            setvideomodehint <xres> <yres> <bpp> [display] |\n"
                  "                            setcredentials <username> <password> <domain>\n"
-                 "                                           [--allowlocallogon <yes|no>]\n"
+                 "                                           [--allowlocallogon <yes|no>] |\n"
+                 "                            teleport --host <name> --port <port>\n"
+                 "                                   [--maxdowntime <msec>] [--password password]\n"
                  "\n");
     }
 
@@ -324,9 +351,9 @@ void printUsage(USAGECATEGORY u64Cmd)
     if (u64Cmd & USAGE_SNAPSHOT)
     {
         RTPrintf("VBoxManage snapshot         <uuid>|<name>\n"
-                 "                            take <name> [--description <desc>] |\n"
-                 "                            discard <uuid>|<name> |\n"
-                 "                            discardcurrent --state|--all |\n"
+                 "                            take <name> [--description <desc>] [--pause] |\n"
+                 "                            delete <uuid>|<name> |\n"
+                 "                            restore <uuid>|<name> |\n"
                  "                            edit <uuid>|<name>|--current\n"
                  "                                 [--name <name>]\n"
                  "                                 [--description <desc>] |\n"
@@ -338,12 +365,40 @@ void printUsage(USAGECATEGORY u64Cmd)
     {
         RTPrintf("VBoxManage openmedium       disk|dvd|floppy <filename>\n"
                  "                            [--type normal|immutable|writethrough] (disk only)\n"
+                 "                            [--uuid <uuid>]\n"
+                 "                            [--parentuuid <uuid>] (disk only)\n"
                  "\n");
     }
 
     if (u64Cmd & USAGE_CLOSEMEDIUM)
     {
         RTPrintf("VBoxManage closemedium      disk|dvd|floppy <uuid>|<filename>\n"
+                 "                            [--delete]\n"
+                 "\n");
+    }
+
+    if (u64Cmd & USAGE_STORAGEATTACH)
+    {
+        RTPrintf("VBoxManage storageattach    <uuid|vmname>\n"
+                 "                            --storagectl <name>\n"
+                 "                            --port <number>\n"
+                 "                            --device <number>\n"
+                 "                            [--type <dvddrive|hdd|fdd>\n"
+                 "                             --medium <none|emptydrive|uuid|filename|host:<drive>>]\n"
+                 "                            [--passthrough <on|off>]\n"
+                 "                            [--forceunmount]\n"
+                 "\n");
+    }
+
+    if (u64Cmd & USAGE_STORAGECONTROLLER)
+    {
+        RTPrintf("VBoxManage storagectl       <uuid|vmname>\n"
+                 "                            --name <name>\n"
+                 "                            [--add <ide/sata/scsi/floppy>]\n"
+                 "                            [--controller <LsiLogic/BusLogic/IntelAhci/PIIX3/PIIX4/ICH6/I82078>]\n"
+                 "                            [--sataideemulation<1-4> <1-30>]\n"
+                 "                            [--sataportcount <1-30>]\n"
+                 "                            [--remove]\n"
                  "\n");
     }
 
@@ -575,6 +630,40 @@ int errorSyntax(USAGECATEGORY u64Cmd, const char *pszFormat, ...)
              "Syntax error: %N\n", pszFormat, &args);
     va_end(args);
     return 1;
+}
+
+/**
+ * errorSyntax for RTGetOpt users.
+ *
+ * @returns 1.
+ *
+ * @param   fUsageCategory  The usage category of the command.
+ * @param   rc              The RTGetOpt return code.
+ * @param   pValueUnion     The value union.
+ */
+int errorGetOpt(USAGECATEGORY fUsageCategory, int rc, union RTGETOPTUNION const *pValueUnion)
+{
+    showLogo(); // show logo even if suppressed
+#ifndef VBOX_ONLY_DOCS
+    if (g_fInternalMode)
+        printUsageInternal(fUsageCategory);
+    else
+        printUsage(fUsageCategory);
+#endif /* !VBOX_ONLY_DOCS */
+
+    if (rc == VINF_GETOPT_NOT_OPTION)
+        return RTPrintf("error: Invalid parameter '%s'\n", pValueUnion->psz);
+    if (rc > 0)
+    {
+        if (RT_C_IS_PRINT(rc))
+            return RTPrintf("error: Invalid option -%c\n", rc);
+        return RTPrintf("error: Invalid option case %i\n", rc);
+    }
+    if (rc == VERR_GETOPT_UNKNOWN_OPTION)
+        return RTPrintf("error: unknown option: %s\n", pValueUnion->psz);
+    if (pValueUnion->pDef)
+        return RTPrintf("error: %s: %Rrs\n", pValueUnion->pDef->pszLong, rc);
+    return RTPrintf("error: %Rrs\n", rc);
 }
 
 /**

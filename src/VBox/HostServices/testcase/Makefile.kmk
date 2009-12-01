@@ -1,0 +1,46 @@
+# $Id: Makefile.kmk 22653 2009-09-01 12:02:32Z vboxsync $
+## @file
+# Sub-Makefile for the HGCM service testcase.
+#
+
+#
+# Copyright (C) 2009 Sun Microsystems, Inc.
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
+# Clara, CA 95054 USA or visit http://www.sun.com if you need
+# additional information or have any questions.
+#
+
+SUB_DEPTH = ../../../..
+include	$(KBUILD_PATH)/subheader.kmk
+
+if defined(VBOX_WITH_TESTCASES) && !defined(VBOX_ONLY_ADDITIONS) && !defined(VBOX_ONLY_SDK)
+
+  #
+  # Set this in LocalConfig.kmk if you are working on HGCM service internals
+  # to automatically run the unit test at build time:
+  #    OTHERS += $(PATH_tstHGCMSvc)/tstHGCMSvc.run
+  #
+  PROGRAMS += tstHGCMSvc
+  TESTING  += $(PATH_tstHGCMSvc)/tstHGCMSvc.run
+  tstHGCMSvc_TEMPLATE = VBOXR3TSTEXE
+  tstHGCMSvc_DEFS     = VBOX_WITH_HGCM VBOX_TEST_HGCM_PARMS
+  tstHGCMSvc_SOURCES  = tstHGCMSvc.cpp
+  tstHGCMSvc_CLEAN    = $(PATH_tstHGCMSvc)/tstHGCMSvc.run
+
+$$(PATH_tstHGCMSvc)/tstHGCMSvc.run: $$(INSTARGET_tstHGCMSvc)
+	export VBOX_LOG_DEST=nofile; $(INSTARGET_tstHGCMSvc) quiet
+	$(QUIET)$(APPEND) -t "$@" "done"
+
+endif # VBOX_WITH_TESTCASES
+
+include	$(KBUILD_PATH)/subfooter.kmk
+

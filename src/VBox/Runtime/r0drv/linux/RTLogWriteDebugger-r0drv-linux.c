@@ -1,4 +1,4 @@
-/* $Id: RTLogWriteDebugger-r0drv-linux.c $ */
+/* $Id: RTLogWriteDebugger-r0drv-linux.c 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Log To Debugger, Ring-0 Driver, Linux.
  */
@@ -28,7 +28,12 @@
  * additional information or have any questions.
  */
 
+
+/*******************************************************************************
+*   Header Files                                                               *
+*******************************************************************************/
 #include "the-linux-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/log.h>
 
 
@@ -36,4 +41,5 @@ RTDECL(void) RTLogWriteDebugger(const char *pch, size_t cb)
 {
     printk("%.*s", (int)cb, pch);
 }
+RT_EXPORT_SYMBOL(RTLogWriteDebugger);
 

@@ -1,4 +1,4 @@
-/* $Id: SSMInternal.h $ */
+/* $Id: SSMInternal.h 24804 2009-11-19 18:15:25Z vboxsync $ */
 /** @file
  * SSM - Internal header file.
  */
@@ -25,6 +25,7 @@
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
 #include <VBox/ssm.h>
+#include <iprt/critsect.h>
 
 RT_C_DECLS_BEGIN
 
@@ -65,6 +66,9 @@ typedef struct SSMUNIT
      * The flag is used to determin whether there is need for a call to
      * done or not. */
     bool                    fCalled;
+    /** Finished its live part.
+     * This is used to handle VERR_SSM_VOTE_FOR_GIVING_UP.  */
+    bool                    fDoneLive;
     /** Callback interface type. */
     SSMUNITTYPE             enmType;
     /** Type specific data. */
@@ -73,6 +77,12 @@ typedef struct SSMUNIT
         /** SSMUNITTYPE_DEV. */
         struct
         {
+            /** Prepare live save. */
+            PFNSSMDEVLIVEPREP   pfnLivePrep;
+            /** Execute live save. */
+            PFNSSMDEVLIVEEXEC   pfnLiveExec;
+            /** Vote live save complete. */
+            PFNSSMDEVLIVEVOTE   pfnLiveVote;
             /** Prepare save. */
             PFNSSMDEVSAVEPREP   pfnSavePrep;
             /** Execute save. */
@@ -92,6 +102,12 @@ typedef struct SSMUNIT
         /** SSMUNITTYPE_DRV. */
         struct
         {
+            /** Prepare live save. */
+            PFNSSMDRVLIVEPREP   pfnLivePrep;
+            /** Execute live save. */
+            PFNSSMDRVLIVEEXEC   pfnLiveExec;
+            /** Vote live save complete. */
+            PFNSSMDRVLIVEVOTE   pfnLiveVote;
             /** Prepare save. */
             PFNSSMDRVSAVEPREP   pfnSavePrep;
             /** Execute save. */
@@ -111,6 +127,12 @@ typedef struct SSMUNIT
         /** SSMUNITTYPE_INTERNAL. */
         struct
         {
+            /** Prepare live save. */
+            PFNSSMINTLIVEPREP   pfnLivePrep;
+            /** Execute live save. */
+            PFNSSMINTLIVEEXEC   pfnLiveExec;
+            /** Vote live save complete. */
+            PFNSSMINTLIVEVOTE   pfnLiveVote;
             /** Prepare save. */
             PFNSSMINTSAVEPREP   pfnSavePrep;
             /** Execute save. */
@@ -128,6 +150,12 @@ typedef struct SSMUNIT
         /** SSMUNITTYPE_EXTERNAL. */
         struct
         {
+            /** Prepare live save. */
+            PFNSSMEXTLIVEPREP   pfnLivePrep;
+            /** Execute live save. */
+            PFNSSMEXTLIVEEXEC   pfnLiveExec;
+            /** Vote live save complete. */
+            PFNSSMEXTLIVEVOTE   pfnLiveVote;
             /** Prepare save. */
             PFNSSMEXTSAVEPREP   pfnSavePrep;
             /** Execute save. */
@@ -141,13 +169,40 @@ typedef struct SSMUNIT
             /** Done load. */
             PFNSSMEXTLOADDONE   pfnLoadDone;
             /** User data. */
-            void                   *pvUser;
+            void               *pvUser;
         } External;
+
+        struct
+        {
+            /** Prepare live save. */
+            PFNRT               pfnLivePrep;
+            /** Execute live save. */
+            PFNRT               pfnLiveExec;
+            /** Vote live save complete. */
+            PFNRT               pfnLiveVote;
+            /** Prepare save. */
+            PFNRT               pfnSavePrep;
+            /** Execute save. */
+            PFNRT               pfnSaveExec;
+            /** Done save. */
+            PFNRT               pfnSaveDone;
+            /** Prepare load. */
+            PFNRT               pfnLoadPrep;
+            /** Execute load. */
+            PFNRT               pfnLoadExec;
+            /** Done load. */
+            PFNRT               pfnLoadDone;
+            /** User data. */
+            void               *pvKey;
+        } Common;
     } u;
     /** Data layout version. */
     uint32_t                u32Version;
     /** Instance number. */
     uint32_t                u32Instance;
+    /** The offset of the final data unit.
+     * This is used for constructing the directory. */
+    RTFOFF                  offStream;
     /** The guessed size of the data unit - used only for progress indication. */
     size_t                  cbGuess;
     /** Name size. (bytes) */
@@ -156,6 +211,48 @@ typedef struct SSMUNIT
     char                    szName[1];
 } SSMUNIT;
 
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLivePrep, u.Dev.pfnLivePrep);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLiveExec, u.Dev.pfnLiveExec);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLiveVote, u.Dev.pfnLiveVote);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnSavePrep, u.Dev.pfnSavePrep);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnSaveExec, u.Dev.pfnSaveExec);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnSaveDone, u.Dev.pfnSaveDone);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLoadPrep, u.Dev.pfnLoadPrep);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLoadExec, u.Dev.pfnLoadExec);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLoadDone, u.Dev.pfnLoadDone);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pvKey,       u.Dev.pDevIns);
+
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLivePrep, u.Drv.pfnLivePrep);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLiveExec, u.Drv.pfnLiveExec);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLiveVote, u.Drv.pfnLiveVote);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnSavePrep, u.Drv.pfnSavePrep);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnSaveExec, u.Drv.pfnSaveExec);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnSaveDone, u.Drv.pfnSaveDone);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLoadPrep, u.Drv.pfnLoadPrep);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLoadExec, u.Drv.pfnLoadExec);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLoadDone, u.Drv.pfnLoadDone);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pvKey,       u.Drv.pDrvIns);
+
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLivePrep, u.Internal.pfnLivePrep);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLiveExec, u.Internal.pfnLiveExec);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLiveVote, u.Internal.pfnLiveVote);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnSavePrep, u.Internal.pfnSavePrep);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnSaveExec, u.Internal.pfnSaveExec);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnSaveDone, u.Internal.pfnSaveDone);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLoadPrep, u.Internal.pfnLoadPrep);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLoadExec, u.Internal.pfnLoadExec);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLoadDone, u.Internal.pfnLoadDone);
+
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLivePrep, u.External.pfnLivePrep);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLiveExec, u.External.pfnLiveExec);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLiveVote, u.External.pfnLiveVote);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnSavePrep, u.External.pfnSavePrep);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnSaveExec, u.External.pfnSaveExec);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnSaveDone, u.External.pfnSaveDone);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLoadPrep, u.External.pfnLoadPrep);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLoadExec, u.External.pfnLoadExec);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pfnLoadDone, u.External.pfnLoadDone);
+AssertCompile2MemberOffsets(SSMUNIT, u.Common.pvKey,       u.External.pvUser);
 
 
 /**
@@ -166,10 +263,21 @@ typedef struct SSMUNIT
  */
 typedef struct SSM
 {
+    /** Critical section for serializing cancellation (pSSM). */
+    RTCRITSECT              CancelCritSect;
+    /** The handle of the current save or load operation.
+     * This is used by SSMR3Cancel.  */
+    PSSMHANDLE volatile     pSSM;
+
     /** FIFO of data entity descriptors. */
     R3PTRTYPE(PSSMUNIT)     pHead;
+    /** The number of register units. */
+    uint32_t                cUnits;
     /** For lazy init. */
     bool                    fInitialized;
+    /** Current pass (for STAM). */
+    uint32_t                uPass;
+    uint32_t                u32Alignment;
 } SSM;
 /** Pointer to SSM VM instance data. */
 typedef SSM *PSSM;

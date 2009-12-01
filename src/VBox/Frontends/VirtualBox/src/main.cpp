@@ -49,6 +49,7 @@
 # include <X11/Xlib.h>
 #endif
 
+#include <iprt/buildconfig.h>
 #include <iprt/err.h>
 #include <iprt/initterm.h>
 #include <iprt/process.h>
@@ -72,7 +73,7 @@ QString g_QStrHintLinuxNoMemory = QApplication::tr(
 
 QString g_QStrHintLinuxNoDriver = QApplication::tr(
   "The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or "
-  "there is a permission problem with /dev/vboxdrv. Re-setup the kernel "
+  "there is a permission problem with /dev/vboxdrv. Please reinstall the kernel "
   "module by executing<br/><br/>"
   "  <font color=blue>'/etc/init.d/vboxdrv setup'</font><br/><br/>"
   "as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS "
@@ -81,18 +82,18 @@ QString g_QStrHintLinuxNoDriver = QApplication::tr(
   );
 
 QString g_QStrHintOtherWrongDriverVersion = QApplication::tr(
-  "The VirtualBox kernel modules do not fit to this version of "
+  "The VirtualBox kernel modules do not match this version of "
   "VirtualBox. The installation of VirtualBox was apparently not "
-  "successful. It may help to completely uninstall and re-install "
+  "successful. Please try completely uninstalling and reinstalling "
   "VirtualBox."
   );
 
 QString g_QStrHintLinuxWrongDriverVersion = QApplication::tr(
-  "The VirtualBox kernel modules do not fit to this version of "
+  "The VirtualBox kernel modules do not match this version of "
   "VirtualBox. The installation of VirtualBox was apparently not "
   "successful. Executing<br/><br/>"
   "  <font color=blue>'/etc/init.d/vboxdrv setup'</font><br/><br/>"
-  "should fix that problem. Make sure that you don't mix the "
+  "may correct this. Make sure that you do not mix the "
   "OSE version and the PUEL version of VirtualBox."
   );
 
@@ -102,7 +103,7 @@ QString g_QStrHintOtherNoDriver = QApplication::tr(
 
 /* I hope this isn't (C), (TM) or (R) Microsoft support ;-) */
 QString g_QStrHintReinstall = QApplication::tr(
-  "It may help to reinstall VirtualBox."
+  "Please try reinstalling VirtualBox."
   );
 
 #if defined(DEBUG) && defined(Q_WS_X11) && defined(RT_OS_LINUX)
@@ -160,17 +161,25 @@ void bt_sighandler (int sig, siginfo_t *info, void *secret) {
 # include <dlfcn.h>
 # include <sys/mman.h>
 # include <iprt/asm.h>
+# include <iprt/system.h>
 
 /** Really ugly hack to shut up a silly check in AppKit. */
 static void ShutUpAppKit(void)
 {
-    /*
-     * Find issetguid() and make it always return 0 by modifying the code.
-     */
-    void *addr = dlsym(RTLD_DEFAULT, "issetugid");
-    int rc = mprotect((void *)((uintptr_t)addr & ~(uintptr_t)0xfff), 0x2000, PROT_WRITE|PROT_READ|PROT_EXEC);
-    if (!rc)
-        ASMAtomicWriteU32((volatile uint32_t *)addr, 0xccc3c031); /* xor eax, eax; ret; int3 */
+    /* Check for Snow Leopard or higher */
+    char szInfo[64];
+    int rc = RTSystemQueryOSInfo (RTSYSOSINFO_RELEASE, szInfo, sizeof(szInfo));
+    if (RT_SUCCESS (rc) &&
+        szInfo[0] == '1') /* higher than 1x.x.x */
+    {
+        /*
+         * Find issetguid() and make it always return 0 by modifying the code.
+         */
+        void *addr = dlsym(RTLD_DEFAULT, "issetugid");
+        int rc = mprotect((void *)((uintptr_t)addr & ~(uintptr_t)0xfff), 0x2000, PROT_WRITE|PROT_READ|PROT_EXEC);
+        if (!rc)
+            ASMAtomicWriteU32((volatile uint32_t *)addr, 0xccc3c031); /* xor eax, eax; ret; int3 */
+    }
 }
 #endif /* DARWIN */
 
@@ -206,7 +215,6 @@ static void QtMessageOutput (QtMsgType type, const char *msg)
     }
 }
 
-#ifndef Q_WS_WIN
 /**
  * Show all available command line parameters.
  */
@@ -241,7 +249,7 @@ static void showHelp()
     dflt = "image";
 #endif
 
-    RTPrintf("Sun VirtualBox Graphical User Interface "VBOX_VERSION_STRING"\n"
+    RTPrintf("Sun VirtualBox Graphical User Interface %s\n"
             "(C) 2005-2009 Sun Microsystems, Inc.\n"
             "All rights reserved.\n"
             "\n"
@@ -263,10 +271,11 @@ static void showHelp()
             "  VBOX_GUI_NO_DEBUGGER       disable the GUI debug menu and debug windows\n"
 # endif
             "\n",
+            RTBldCfgVersion(),
             mode.toLatin1().constData(),
             dflt.toLatin1().constData());
+    /** @todo Show this as a dialog on windows. */
 }
-#endif
 
 extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
 {
@@ -288,9 +297,7 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
     HRESULT hrc = COMBase::InitializeCOM();
 #endif
 
-#ifndef Q_WS_WIN
-    int i;
-    for (i=0; i<argc; i++)
+    for (int i=0; i<argc; i++)
         if (   !strcmp(argv[i], "-h")
             || !strcmp(argv[i], "-?")
             || !strcmp(argv[i], "-help")
@@ -299,7 +306,6 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
             showHelp();
             return 0;
         }
-#endif
 
 #if defined(DEBUG) && defined(Q_WS_X11) && defined(RT_OS_LINUX)
     /* install our signal handler to backtrace the call stack */
@@ -495,11 +501,21 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
             }
             else
             {
-#ifndef DEBUG
+#ifdef VBOX_BLEEDING_EDGE
+                vboxProblem().showBEBWarning();
+#else
+# ifndef DEBUG
                 /* Check for BETA version */
                 QString vboxVersion (vboxGlobal().virtualBox().GetVersion());
                 if (vboxVersion.contains ("BETA"))
-                    vboxProblem().showBETAWarning();
+                {
+                    /* Allow to prevent this message */
+                    QString str = vboxGlobal().virtualBox().
+                        GetExtraData (VBoxDefs::GUI_PreventBetaWarning);
+                    if (str != vboxVersion)
+                        vboxProblem().showBETAWarning();
+                }
+# endif
 #endif
 
                 vboxGlobal().setMainWindow (&vboxGlobal().selectorWnd());
@@ -575,6 +591,13 @@ int main (int argc, char **argv, char **envp)
     if (RT_FAILURE(rc))
     {
         QApplication a (argc, &argv[0]);
+#ifdef Q_OS_SOLARIS
+        /* Solaris have some issue with cleanlooks style which leads to application
+         * crash in case of using it on Qt4.4 version, lets make the same substitute */
+        if (VBoxGlobal::qtRTVersionString().startsWith ("4.4") &&
+            qobject_cast <QCleanlooksStyle*> (QApplication::style()))
+            QApplication::setStyle (new QPlastiqueStyle);
+#endif
         QString msgTitle = QApplication::tr ("VirtualBox - Runtime Error");
         QString msgText = "<html>";
 
@@ -602,11 +625,11 @@ int main (int argc, char **argv, char **envp)
                 msgText += g_QStrHintLinuxWrongDriverVersion;
 # else
                 msgText += g_QStrHintOtherWrongDriverVersion;
-# endif 
+# endif
                 break;
             default:
                 msgText += QApplication::tr (
-                        "Unknown %2 error during initialization of the Runtime"
+                        "Unknown error %2 during initialization of the Runtime"
                         ).arg (rc);
                 break;
         }

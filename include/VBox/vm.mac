@@ -55,7 +55,7 @@ struc VM
     .pVMR0                  RTR0PTR_RES 1
     .pVMRC                  RTRCPTR_RES 1
     .hSelf                  resd 1
-    .cCPUs                  resd 1
+    .cCpus                  resd 1
     .cbSelf                 resd 1
     .offVMCPU               resd 1
     .u32Reserved            resd 6
@@ -95,9 +95,18 @@ struc VM
     .StatSwitcherLldt       resb STAMPROFILEADV_size
     .StatSwitcherTSS        resb STAMPROFILEADV_size
 
+%ifndef HC_ARCH_BITS
+ %error "Missing HC_ARCH_BITS"
+%endif
+%if HC_ARCH_BITS == 32
+    .abAlignment1           resb 48
+%else
+    .abAlignment1           resb 24
+%endif
+
     alignb 64
-    .cpum                   resb 2048
-    .vmm                    resb 1024
+    .cpum                   resb 1472
+    .vmm                    resb 1536
 
 endstruc
 

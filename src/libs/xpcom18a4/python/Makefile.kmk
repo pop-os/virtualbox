@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 21240 2009-07-06 08:35:59Z vboxsync $
 ## @file
 # Sub-Makefile for Python bindings
 #
@@ -76,7 +76,7 @@ VBoxPython23_INCS       = $(VBOX_PYTHON23_INC)
 VBoxPython23_LIBS       = $(VBOX_PYTHON23_LIB)
 
 ifdef VBOX_PYTHON23_INC
- KNOWN_GLUE += VBoxPython23
+  KNOWN_GLUE += VBoxPython23
 endif
 
 # Python 2.4 version

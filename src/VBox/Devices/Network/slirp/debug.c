@@ -158,6 +158,12 @@ icmpstats(PNATState pData)
 void
 mbufstats(PNATState pData)
 {
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
+    /*
+     * (vvl) this static code can't work with mbuf zone anymore 
+     * @todo: make statistic correct
+     */
+#if 0
     struct mbuf *m;
     int i;
 
@@ -177,6 +183,8 @@ mbufstats(PNATState pData)
         i++;
     lprint("  %6d mbufs on used list\n",  i);
     lprint("  %6d mbufs queued as packets\n\n", if_queued);
+#endif
+#endif
 }
 
 void
@@ -193,7 +201,7 @@ sockstats(PNATState pData)
 
     QSOCKET_FOREACH(so, so_next, tcp)
     /* { */
-        n = sprintf(buff, "tcp[%s]", so->so_tcpcb?tcpstates[so->so_tcpcb->t_state]:"NONE");
+        n = RTStrPrintf(buff, sizeof(buff), "tcp[%s]", so->so_tcpcb?tcpstates[so->so_tcpcb->t_state]:"NONE");
         while (n < 17)
             buff[n++] = ' ';
         buff[17] = 0;
@@ -207,7 +215,7 @@ sockstats(PNATState pData)
 
     QSOCKET_FOREACH(so, so_next, udp)
     /* { */
-        n = sprintf(buff, "udp[%d sec]", (so->so_expire - curtime) / 1000);
+        n = RTStrPrintf(buff, sizeof(buff), "udp[%d sec]", (so->so_expire - curtime) / 1000);
         while (n < 17)
             buff[n++] = ' ';
         buff[17] = 0;
@@ -276,7 +284,7 @@ print_socket(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
                 "socket(%d) SS_NODREF",so->s);
     status = getsockname(so->s, &addr, &socklen);
 
-    if (status != 0 || addr.sa_family != AF_INET)
+    if(status != 0 || addr.sa_family != AF_INET)
     {
         return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
                 "socket(%d) is invalid(probably closed)",so->s);

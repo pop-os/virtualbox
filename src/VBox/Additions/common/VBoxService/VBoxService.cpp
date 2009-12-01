@@ -1,4 +1,4 @@
-/* $Id: VBoxService.cpp $ */
+/* $Id: VBoxService.cpp 23029 2009-09-15 11:52:38Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Service Skeleton.
  */
@@ -37,7 +37,7 @@
 #include <iprt/asm.h>
 #include <iprt/path.h>
 #include <VBox/log.h>
-#include <VBox/VBoxGuest.h>
+#include <VBox/VBoxGuestLib.h>
 #include "VBoxServiceInternal.h"
 
 
@@ -280,14 +280,17 @@ int VBoxServiceStartServices(unsigned iMain)
      */
     VBoxServiceVerbose(2, "Initializing services ...\n");
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
-    {
-        rc = g_aServices[j].pDesc->pfnInit();
-        if (RT_FAILURE(rc))
+        if (g_aServices[j].fEnabled)
         {
-            VBoxServiceError("Service '%s' failed pre-init: %Rrc\n", g_aServices[j].pDesc->pszName);
-            return rc;
+
+            rc = g_aServices[j].pDesc->pfnInit();
+            if (RT_FAILURE(rc))
+            {
+                VBoxServiceError("Service '%s' failed to initialize: %Rrc\n",
+                                 g_aServices[j].pDesc->pszName, rc);
+                return rc;
+            }
         }
-    }
 
     /*
      * Start the service(s).
@@ -347,15 +350,16 @@ int VBoxServiceStopServices(void)
         if (g_aServices[j].fStarted)
             g_aServices[j].pDesc->pfnStop();
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
-    {
-        if (g_aServices[j].Thread != NIL_RTTHREAD)
+        if (g_aServices[j].fEnabled)
         {
-            int rc = RTThreadWait(g_aServices[j].Thread, 30*1000, NULL);
-            if (RT_FAILURE(rc))
-                VBoxServiceError("Service '%s' failed to stop. (%Rrc)\n", g_aServices[j].pDesc->pszName, rc);
+            if (g_aServices[j].Thread != NIL_RTTHREAD)
+            {
+                int rc = RTThreadWait(g_aServices[j].Thread, 30*1000, NULL);
+                if (RT_FAILURE(rc))
+                    VBoxServiceError("Service '%s' failed to stop. (%Rrc)\n", g_aServices[j].pDesc->pszName, rc);
+            }
+            g_aServices[j].pDesc->pfnTerm();
         }
-        g_aServices[j].pDesc->pfnTerm();
-    }
 
     VBoxServiceVerbose(2, "Stopping services returned: rc=%Rrc\n", rc);
     return rc;

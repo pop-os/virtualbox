@@ -1,4 +1,4 @@
-' $Id: configure.vbs $
+' $Id: configure.vbs 20258 2009-06-04 10:05:48Z vboxsync $
 '' @file
 ' The purpose of this script is to check for all external tools, headers, and
 ' libraries VBox OSE depends on.

@@ -1,4 +1,4 @@
-/* $Id: utf8-posix.cpp $ */
+/* $Id: utf8-posix.cpp 20822 2009-06-23 12:44:05Z vboxsync $ */
 /** @file
  * IPRT - UTF-8 helpers, POSIX.
  */

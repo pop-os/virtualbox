@@ -29,10 +29,6 @@
 /* Qt includes */
 #include <QPainter>
 
-#ifdef VBOX_WITH_VIDEOHWACCEL
-#include <VBox/VBoxVideo.h>
-#endif
-
 //
 // VBoxFrameBuffer class
 /////////////////////////////////////////////////////////////////////////////
@@ -42,7 +38,9 @@
  *  Base class for all frame buffer implementations.
  */
 
-#if !defined (Q_OS_WIN32)
+#if defined (Q_OS_WIN32)
+static CComModule _Module;
+#else
 NS_DECL_CLASSINFO (VBoxFrameBuffer)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI (VBoxFrameBuffer, IFramebuffer)
 #endif
@@ -270,13 +268,11 @@ STDMETHODIMP VBoxFrameBuffer::ProcessVHWACommand(BYTE *pCommand)
 }
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
-void VBoxFrameBuffer::doProcessVHWACommand(struct _VBOXVHWACMD * pCommand)
+void VBoxFrameBuffer::doProcessVHWACommand(QEvent * pEvent)
 {
-    pCommand->rc = VERR_NOT_IMPLEMENTED;
-    CDisplay display = mView->console().GetDisplay();
-    Assert (!display.isNull());
-
-    display.CompleteVHWACommand((BYTE*)pCommand);
+	Q_UNUSED(pEvent);
+    /* should never be here */
+    AssertBreakpoint();
 }
 #endif
 
@@ -296,6 +292,7 @@ void VBoxFrameBuffer::doProcessVHWACommand(struct _VBOXVHWACMD * pCommand)
 VBoxQImageFrameBuffer::VBoxQImageFrameBuffer (VBoxConsoleView *aView) :
     VBoxFrameBuffer (aView)
 {
+    /* Initialize the framebuffer the first time */
     resizeEvent (new VBoxResizeEvent (FramebufferPixelFormat_Opaque,
                                       NULL, 0, 0, 640, 480));
 }
@@ -371,7 +368,7 @@ void VBoxQImageFrameBuffer::resizeEvent (VBoxResizeEvent *re)
         QImage::Format format;
         switch (re->bitsPerPixel())
         {
-            /* 32-, 8- and 1-bpp are the only depths suported by QImage */
+            /* 32-, 8- and 1-bpp are the only depths supported by QImage */
             case 32:
                 format = QImage::Format_RGB32;
                 break;
@@ -384,6 +381,7 @@ void VBoxQImageFrameBuffer::resizeEvent (VBoxResizeEvent *re)
                 remind = true;
                 break;
             default:
+                format = QImage::Format_Invalid; /* set it to something so gcc keeps quiet. */
                 remind = true;
                 fallback = true;
                 break;

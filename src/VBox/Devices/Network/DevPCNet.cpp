@@ -1,4 +1,4 @@
-/* $Id: DevPCNet.cpp $ */
+/* $Id: DevPCNet.cpp 24880 2009-11-23 17:02:07Z vboxsync $ */
 /** @file
  * DevPCNet - AMD PCnet-PCI II / PCnet-FAST III (Am79C970A / Am79C973) Ethernet Controller Emulation.
  *
@@ -258,9 +258,8 @@ struct PCNetState_st
     /** The shared memory used for the private interface - RC. */
     RCPTRTYPE(PPCNETGUESTSHAREDMEMORY)  pSharedMMIORC;
 
-#if HC_ARCH_BITS == 64
-    uint32_t                            Alignment6;
-#endif
+    /** Error counter for bad receive descriptors. */
+    uint32_t                            uCntBadRMD;
 
     /** True if host and guest admitted to use the private interface. */
     bool                                fPrivIfEnabled;
@@ -329,6 +328,7 @@ struct PCNetState_st
 # endif
 #endif /* VBOX_WITH_STATISTICS */
 };
+AssertCompileMemberAlignment(PCNetState, StatReceiveBytes, 8);
 
 #define PCNETSTATE_2_DEVINS(pPCNet)            ((pPCNet)->CTX_SUFF(pDevIns))
 #define PCIDEV_2_PCNETSTATE(pPciDev)           ((PCNetState *)(pPciDev))
@@ -1731,9 +1731,13 @@ static void pcnetRdtePoll(PCNetState *pThis, bool fSkipCurrent=false)
             else
             {
                 STAM_PROFILE_ADV_STOP(&pThis->CTXSUFF(StatRdtePoll), a);
-                /* This is not problematic since we don't own the descriptor */
-                LogRel(("PCNet#%d: BAD RMD ENTRIES AT %#010x (i=%d)\n",
-                        PCNET_INST_NR, addr, i));
+                /* This is not problematic since we don't own the descriptor
+                 * We actually do own it, otherwise pcnetRmdLoad would have returned false.
+                 * Don't flood the release log with errors.
+                 */
+                if (++pThis->uCntBadRMD < 50)
+                    LogRel(("PCNet#%d: BAD RMD ENTRIES AT %#010x (i=%d)\n",
+                            PCNET_INST_NR, addr, i));
                 return;
             }
         }
@@ -1761,9 +1765,13 @@ static void pcnetRdtePoll(PCNetState *pThis, bool fSkipCurrent=false)
         else
         {
             STAM_PROFILE_ADV_STOP(&pThis->CTXSUFF(StatRdtePoll), a);
-            /* This is not problematic since we don't own the descriptor */
-            LogRel(("PCNet#%d: BAD RMD ENTRIES + AT %#010x (i=%d)\n",
-                    PCNET_INST_NR, addr, i));
+            /* This is not problematic since we don't own the descriptor
+             * We actually do own it, otherwise pcnetRmdLoad would have returned false.
+             * Don't flood the release log with errors.
+             */
+            if (++pThis->uCntBadRMD < 50)
+                LogRel(("PCNet#%d: BAD RMD ENTRIES + AT %#010x (i=%d)\n",
+                        PCNET_INST_NR, addr, i));
             return;
         }
 
@@ -1845,7 +1853,9 @@ static void pcnetReceiveNoSync(PCNetState *pThis, const uint8_t *buf, size_t cbT
     /*
      * Drop packets if the VM is not running yet/anymore.
      */
-    if (PDMDevHlpVMState(pDevIns) != VMSTATE_RUNNING)
+    VMSTATE enmVMState = PDMDevHlpVMState(pDevIns);
+    if (    enmVMState != VMSTATE_RUNNING
+        &&  enmVMState != VMSTATE_RUNNING_LS)
         return;
 
     /*
@@ -3205,6 +3215,9 @@ static void pcnetHardReset(PCNetState *pThis)
     pThis->aBCR[BCR_PCISID] = PCIDevGetSubSystemId(&pThis->PciDev);
     pThis->aBCR[BCR_PCISVID] = PCIDevGetSubSystemVendorId(&pThis->PciDev);
 
+    /* Reset the error counter. */
+    pThis->uCntBadRMD      = 0;
+
     pcnetSoftReset(pThis);
 }
 #endif /* IN_RING3 */
@@ -4018,9 +4031,9 @@ static DECLCALLBACK(void) pcnetInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, cons
      * Show info.
      */
     pHlp->pfnPrintf(pHlp,
-                    "pcnet #%d: port=%RTiop mmio=%RX32 mac-cfg=%.*Rhxs %s\n",
+                    "pcnet #%d: port=%RTiop mmio=%RX32 mac-cfg=%RTmac %s\n",
                     pDevIns->iInstance,
-                    pThis->IOPortBase, pThis->MMIOBase, sizeof(pThis->MacConfigured), &pThis->MacConfigured,
+                    pThis->IOPortBase, pThis->MMIOBase, &pThis->MacConfigured,
                     pThis->fAm79C973 ? "Am79C973" : "Am79C970A", pThis->fGCEnabled ? " GC" : "", pThis->fR0Enabled ? " R0" : "");
 
     PDMCritSectEnter(&pThis->CritSect, VERR_INTERNAL_ERROR); /* Take it here so we know why we're hanging... */
@@ -4245,13 +4258,43 @@ static void pcnetTempLinkDown(PCNetState *pThis)
 
 
 /**
+ * Saves the configuration.
+ *
+ * @param   pThis       The PCNet instance data.
+ * @param   pSSM        The saved state handle.
+ */
+static void pcnetSaveConfig(PCNetState *pThis, PSSMHANDLE pSSM)
+{
+    SSMR3PutMem(pSSM, &pThis->MacConfigured, sizeof(pThis->MacConfigured));
+    SSMR3PutBool(pSSM, pThis->fAm79C973);                   /* >= If version 0.8 */
+    SSMR3PutU32(pSSM, pThis->u32LinkSpeed);
+}
+
+
+/**
+ * Live Save, pass 0.
+ *
+ * @returns VBox status code.
+ * @param   pDevIns     The device instance.
+ * @param   pSSM        The saved state handle.
+ * @param   uPass       The pass number.
+ */
+static DECLCALLBACK(int) pcnetLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
+{
+    PCNetState *pThis = PDMINS_2_DATA(pDevIns, PCNetState *);
+    pcnetSaveConfig(pThis, pSSM);
+    return VINF_SSM_DONT_CALL_AGAIN;
+}
+
+
+/**
  * Serializes the receive thread, it may be working inside the critsect.
  *
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
- * @param   pSSMHandle  The handle to save the state to.
+ * @param   pSSM        The saved state handle.
  */
-static DECLCALLBACK(int) pcnetSavePrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle)
+static DECLCALLBACK(int) pcnetSavePrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
     PCNetState *pThis = PDMINS_2_DATA(pDevIns, PCNetState *);
 
@@ -4268,39 +4311,36 @@ static DECLCALLBACK(int) pcnetSavePrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle
  *
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
- * @param   pSSMHandle  The handle to save the state to.
+ * @param   pSSM        The saved state handle.
  */
-static DECLCALLBACK(int) pcnetSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle)
+static DECLCALLBACK(int) pcnetSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
     PCNetState *pThis = PDMINS_2_DATA(pDevIns, PCNetState *);
-    int rc = VINF_SUCCESS;
 
-    SSMR3PutBool(pSSMHandle, pThis->fLinkUp);
-    SSMR3PutU32(pSSMHandle, pThis->u32RAP);
-    SSMR3PutS32(pSSMHandle, pThis->iISR);
-    SSMR3PutU32(pSSMHandle, pThis->u32Lnkst);
-    SSMR3PutBool(pSSMHandle, pThis->fPrivIfEnabled);              /* >= If version 0.9 */
-    SSMR3PutBool(pSSMHandle, pThis->fSignalRxMiss);               /* >= If version 0.10 */
-    SSMR3PutGCPhys32(pSSMHandle, pThis->GCRDRA);
-    SSMR3PutGCPhys32(pSSMHandle, pThis->GCTDRA);
-    SSMR3PutMem(pSSMHandle, pThis->aPROM, sizeof(pThis->aPROM));
-    SSMR3PutMem(pSSMHandle, pThis->aCSR, sizeof(pThis->aCSR));
-    SSMR3PutMem(pSSMHandle, pThis->aBCR, sizeof(pThis->aBCR));
-    SSMR3PutMem(pSSMHandle, pThis->aMII, sizeof(pThis->aMII));
-    SSMR3PutU16(pSSMHandle, pThis->u16CSR0LastSeenByGuest);
-    SSMR3PutU64(pSSMHandle, pThis->u64LastPoll);
-    SSMR3PutMem(pSSMHandle, &pThis->MacConfigured, sizeof(pThis->MacConfigured));
-    SSMR3PutBool(pSSMHandle, pThis->fAm79C973);                   /* >= If version 0.8 */
-    SSMR3PutU32(pSSMHandle, pThis->u32LinkSpeed);
-#ifdef PCNET_NO_POLLING
-    return VINF_SUCCESS;
-#else
-    rc = TMR3TimerSave(pThis->CTX_SUFF(pTimerPoll), pSSMHandle);
+    SSMR3PutBool(pSSM, pThis->fLinkUp);
+    SSMR3PutU32(pSSM, pThis->u32RAP);
+    SSMR3PutS32(pSSM, pThis->iISR);
+    SSMR3PutU32(pSSM, pThis->u32Lnkst);
+    SSMR3PutBool(pSSM, pThis->fPrivIfEnabled);              /* >= If version 0.9 */
+    SSMR3PutBool(pSSM, pThis->fSignalRxMiss);               /* >= If version 0.10 */
+    SSMR3PutGCPhys32(pSSM, pThis->GCRDRA);
+    SSMR3PutGCPhys32(pSSM, pThis->GCTDRA);
+    SSMR3PutMem(pSSM, pThis->aPROM, sizeof(pThis->aPROM));
+    SSMR3PutMem(pSSM, pThis->aCSR, sizeof(pThis->aCSR));
+    SSMR3PutMem(pSSM, pThis->aBCR, sizeof(pThis->aBCR));
+    SSMR3PutMem(pSSM, pThis->aMII, sizeof(pThis->aMII));
+    SSMR3PutU16(pSSM, pThis->u16CSR0LastSeenByGuest);
+    SSMR3PutU64(pSSM, pThis->u64LastPoll);
+    pcnetSaveConfig(pThis, pSSM);
+
+    int rc = VINF_SUCCESS;
+#ifndef PCNET_NO_POLLING
+    rc = TMR3TimerSave(pThis->CTX_SUFF(pTimerPoll), pSSM);
     if (RT_FAILURE(rc))
         return rc;
 #endif
     if (pThis->fAm79C973)
-        rc = TMR3TimerSave(pThis->CTX_SUFF(pTimerSoftInt), pSSMHandle);
+        rc = TMR3TimerSave(pThis->CTX_SUFF(pTimerSoftInt), pSSM);
     return rc;
 }
 
@@ -4310,9 +4350,9 @@ static DECLCALLBACK(int) pcnetSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle
  *
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
- * @param   pSSMHandle  The handle to save the state to.
+ * @param   pSSM        The saved state handle.
  */
-static DECLCALLBACK(int) pcnetLoadPrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle)
+static DECLCALLBACK(int) pcnetLoadPrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
     PCNetState *pThis = PDMINS_2_DATA(pDevIns, PCNetState *);
 
@@ -4329,74 +4369,101 @@ static DECLCALLBACK(int) pcnetLoadPrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle
  *
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
- * @param   pSSMHandle  The handle to the saved state.
- * @param   u32Version  The data unit version number.
+ * @param   pSSM  The handle to the saved state.
+ * @param   uVersion  The data unit version number.
+ * @param   uPass       The data pass.
  */
-static DECLCALLBACK(int) pcnetLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle, uint32_t u32Version)
+static DECLCALLBACK(int) pcnetLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
     PCNetState *pThis = PDMINS_2_DATA(pDevIns, PCNetState *);
-    RTMAC       Mac;
-    if (   SSM_VERSION_MAJOR_CHANGED(u32Version, PCNET_SAVEDSTATE_VERSION)
-        || SSM_VERSION_MINOR(u32Version) < 7)
+
+    if (   SSM_VERSION_MAJOR_CHANGED(uVersion, PCNET_SAVEDSTATE_VERSION)
+        || SSM_VERSION_MINOR(uVersion) < 7)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
 
-    /* restore data */
-    SSMR3GetBool(pSSMHandle, &pThis->fLinkUp);
-    SSMR3GetU32(pSSMHandle, &pThis->u32RAP);
-    SSMR3GetS32(pSSMHandle, &pThis->iISR);
-    SSMR3GetU32(pSSMHandle, &pThis->u32Lnkst);
-    if (   SSM_VERSION_MAJOR(u32Version) >  0
-        || SSM_VERSION_MINOR(u32Version) >= 9)
+    if (uPass == SSM_PASS_FINAL)
     {
-        SSMR3GetBool(pSSMHandle, &pThis->fPrivIfEnabled);
-        if (pThis->fPrivIfEnabled)
-            LogRel(("PCNet#%d: Enabling private interface\n", PCNET_INST_NR));
+        /* restore data */
+        SSMR3GetBool(pSSM, &pThis->fLinkUp);
+        SSMR3GetU32(pSSM, &pThis->u32RAP);
+        SSMR3GetS32(pSSM, &pThis->iISR);
+        SSMR3GetU32(pSSM, &pThis->u32Lnkst);
+        if (   SSM_VERSION_MAJOR(uVersion) >  0
+            || SSM_VERSION_MINOR(uVersion) >= 9)
+        {
+            SSMR3GetBool(pSSM, &pThis->fPrivIfEnabled);
+            if (pThis->fPrivIfEnabled)
+                LogRel(("PCNet#%d: Enabling private interface\n", PCNET_INST_NR));
+        }
+        if (   SSM_VERSION_MAJOR(uVersion) >  0
+            || SSM_VERSION_MINOR(uVersion) >= 10)
+        {
+            SSMR3GetBool(pSSM, &pThis->fSignalRxMiss);
+        }
+        SSMR3GetGCPhys32(pSSM, &pThis->GCRDRA);
+        SSMR3GetGCPhys32(pSSM, &pThis->GCTDRA);
+        SSMR3GetMem(pSSM, &pThis->aPROM, sizeof(pThis->aPROM));
+        SSMR3GetMem(pSSM, &pThis->aCSR, sizeof(pThis->aCSR));
+        SSMR3GetMem(pSSM, &pThis->aBCR, sizeof(pThis->aBCR));
+        SSMR3GetMem(pSSM, &pThis->aMII, sizeof(pThis->aMII));
+        SSMR3GetU16(pSSM, &pThis->u16CSR0LastSeenByGuest);
+        SSMR3GetU64(pSSM, &pThis->u64LastPoll);
     }
-    if (   SSM_VERSION_MAJOR(u32Version) >  0
-        || SSM_VERSION_MINOR(u32Version) >= 10)
+
+    /* check config */
+    RTMAC       Mac;
+    int rc = SSMR3GetMem(pSSM, &Mac, sizeof(Mac));
+    AssertRCReturn(rc, rc);
+    if (    memcmp(&Mac, &pThis->MacConfigured, sizeof(Mac))
+        && (uPass == 0 || !PDMDevHlpVMTeleportedAndNotFullyResumedYet(pDevIns)) )
+        LogRel(("PCNet#%u: The mac address differs: config=%RTmac saved=%RTmac\n", PCNET_INST_NR, &pThis->MacConfigured, &Mac));
+
+    bool        fAm79C973;
+    rc = SSMR3GetBool(pSSM, &fAm79C973);
+    AssertRCReturn(rc, rc);
+    if (pThis->fAm79C973 != fAm79C973)
+        return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("The fAm79C973 flag differs: config=%RTbool saved=%RTbool"), pThis->fAm79C973, fAm79C973);
+
+    uint32_t    u32LinkSpeed;
+    rc = SSMR3GetU32(pSSM, &u32LinkSpeed);
+    AssertRCReturn(rc, rc);
+    if (    pThis->u32LinkSpeed != u32LinkSpeed
+        && (uPass == 0 || !PDMDevHlpVMTeleportedAndNotFullyResumedYet(pDevIns)) )
+        LogRel(("PCNet#%u: The mac link speed differs: config=%u saved=%u\n", PCNET_INST_NR, pThis->u32LinkSpeed, u32LinkSpeed));
+
+    if (uPass == SSM_PASS_FINAL)
     {
-        SSMR3GetBool(pSSMHandle, &pThis->fSignalRxMiss);
-    }
-    SSMR3GetGCPhys32(pSSMHandle, &pThis->GCRDRA);
-    SSMR3GetGCPhys32(pSSMHandle, &pThis->GCTDRA);
-    SSMR3GetMem(pSSMHandle, &pThis->aPROM, sizeof(pThis->aPROM));
-    SSMR3GetMem(pSSMHandle, &pThis->aCSR, sizeof(pThis->aCSR));
-    SSMR3GetMem(pSSMHandle, &pThis->aBCR, sizeof(pThis->aBCR));
-    SSMR3GetMem(pSSMHandle, &pThis->aMII, sizeof(pThis->aMII));
-    SSMR3GetU16(pSSMHandle, &pThis->u16CSR0LastSeenByGuest);
-    SSMR3GetU64(pSSMHandle, &pThis->u64LastPoll);
-    SSMR3GetMem(pSSMHandle, &Mac, sizeof(Mac));
-    Assert(     !memcmp(&Mac, &pThis->MacConfigured, sizeof(Mac))
-           ||   SSMR3HandleGetAfter(pSSMHandle) == SSMAFTER_DEBUG_IT);
-    SSMR3GetBool(pSSMHandle, &pThis->fAm79C973);
-    SSMR3GetU32(pSSMHandle, &pThis->u32LinkSpeed);
+        /* restore timers and stuff */
 #ifndef PCNET_NO_POLLING
-    TMR3TimerLoad(pThis->CTX_SUFF(pTimerPoll), pSSMHandle);
+        TMR3TimerLoad(pThis->CTX_SUFF(pTimerPoll), pSSM);
 #endif
-    if (pThis->fAm79C973)
-    {
-        if (   SSM_VERSION_MAJOR(u32Version) >  0
-            || SSM_VERSION_MINOR(u32Version) >= 8)
-            TMR3TimerLoad(pThis->CTX_SUFF(pTimerSoftInt), pSSMHandle);
-    }
+        if (pThis->fAm79C973)
+        {
+            if (   SSM_VERSION_MAJOR(uVersion) >  0
+                || SSM_VERSION_MINOR(uVersion) >= 8)
+                TMR3TimerLoad(pThis->CTX_SUFF(pTimerSoftInt), pSSM);
+        }
 
-    pThis->iLog2DescSize = BCR_SWSTYLE(pThis)
-                         ? 4
-                         : 3;
-    pThis->GCUpperPhys   = BCR_SSIZE32(pThis)
-                         ? 0
-                         : (0xff00 & (uint32_t)pThis->aCSR[2]) << 16;
+        pThis->iLog2DescSize = BCR_SWSTYLE(pThis)
+                             ? 4
+                             : 3;
+        pThis->GCUpperPhys   = BCR_SSIZE32(pThis)
+                             ? 0
+                             : (0xff00 & (uint32_t)pThis->aCSR[2]) << 16;
 
-    /* update promiscuous mode. */
-    if (pThis->pDrv)
-        pThis->pDrv->pfnSetPromiscuousMode(pThis->pDrv, CSR_PROM(pThis));
+        /* update promiscuous mode. */
+        if (pThis->pDrv)
+            pThis->pDrv->pfnSetPromiscuousMode(pThis->pDrv, CSR_PROM(pThis));
 
 #ifdef PCNET_NO_POLLING
-    /* Enable physical monitoring again (!) */
-    pcnetUpdateRingHandlers(pThis);
+        /* Enable physical monitoring again (!) */
+        pcnetUpdateRingHandlers(pThis);
 #endif
-    /* Indicate link down to the guest OS that all network connections have been lost. */
-    pcnetTempLinkDown(pThis);
+        /* Indicate link down to the guest OS that all network connections have
+           been lost, unless we've been teleported here. */
+        if (!PDMDevHlpVMTeleportedAndNotFullyResumedYet(pDevIns))
+            pcnetTempLinkDown(pThis);
+    }
 
     return VINF_SUCCESS;
 }
@@ -4484,7 +4551,9 @@ static DECLCALLBACK(int) pcnetWaitReceiveAvail(PPDMINETWORKPORT pInterface, unsi
     rc = VERR_INTERRUPTED;
     ASMAtomicXchgBool(&pThis->fMaybeOutOfSpace, true);
     STAM_PROFILE_START(&pThis->StatRxOverflow, a);
-    while (RT_LIKELY(PDMDevHlpVMState(pThis->CTX_SUFF(pDevIns)) == VMSTATE_RUNNING))
+    VMSTATE enmVMState;
+    while (RT_LIKELY(   (enmVMState = PDMDevHlpVMState(pThis->CTX_SUFF(pDevIns))) == VMSTATE_RUNNING
+                     || enmVMState == VMSTATE_RUNNING_LS))
     {
         int rc2 = pcnetCanReceive(pThis);
         if (RT_SUCCESS(rc2))
@@ -4631,9 +4700,13 @@ static DECLCALLBACK(int) pcnetSetLinkState(PPDMINETWORKCONFIG pInterface, PDMNET
         pThis->fLinkUp = fLinkUp;
         if (fLinkUp)
         {
-            /* connect */
-            pThis->aCSR[0] &= ~(RT_BIT(15) | RT_BIT(13)); /* ERR | CERR - probably not 100% correct either... */
-            pThis->Led.Actual.s.fError = 0;
+            /* connect  with a delay of 5 seconds */
+            pThis->fLinkTempDown = true;
+            pThis->cLinkDownReported = 0;
+            pThis->aCSR[0] |= RT_BIT(15) | RT_BIT(13); /* ERR | CERR (this is probably wrong) */
+            pThis->Led.Asserted.s.fError = pThis->Led.Actual.s.fError = 1;
+            int rc = TMTimerSetMillies(pThis->pTimerRestore, 5000);
+            AssertRC(rc);
         }
         else
         {
@@ -4688,8 +4761,9 @@ static DECLCALLBACK(void) pcnetPowerOff(PPDMDEVINS pDevIns)
  *
  * @param   pDevIns     The device instance.
  * @param   iLUN        The logical unit which is being detached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  */
-static DECLCALLBACK(void) pcnetDetach(PPDMDEVINS pDevIns, unsigned iLUN)
+static DECLCALLBACK(void) pcnetDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
     PCNetState *pThis = PDMINS_2_DATA(pDevIns, PCNetState *);
     Log(("#%d pcnetDetach:\n", PCNET_INST_NR));
@@ -4720,10 +4794,11 @@ static DECLCALLBACK(void) pcnetDetach(PPDMDEVINS pDevIns, unsigned iLUN)
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
  * @param   iLUN        The logical unit which is being attached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  *
  * @remarks This code path is not used during construction.
  */
-static DECLCALLBACK(int) pcnetAttach(PPDMDEVINS pDevIns, unsigned iLUN)
+static DECLCALLBACK(int) pcnetAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
     PCNetState *pThis = PDMINS_2_DATA(pDevIns, PCNetState *);
     LogFlow(("#%d pcnetAttach:\n", PCNET_INST_NR));
@@ -4898,7 +4973,7 @@ static DECLCALLBACK(int) pcnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
      */
     if (!CFGMR3AreValuesValid(pCfgHandle, "MAC\0" "CableConnected\0" "Am79C973\0" "LineSpeed\0" "GCEnabled\0" "R0Enabled\0" "PrivIfEnabled\0"))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
-                                N_("Invalid configuraton for pcnet device"));
+                                N_("Invalid configuration for pcnet device"));
 
     /*
      * Read the configuration.
@@ -5081,10 +5156,10 @@ static DECLCALLBACK(int) pcnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
     if (RT_FAILURE(rc))
         return rc;
 
-    rc = PDMDevHlpSSMRegister(pDevIns, pDevIns->pDevReg->szDeviceName, iInstance,
-                              PCNET_SAVEDSTATE_VERSION, sizeof(*pThis),
-                              pcnetSavePrep, pcnetSaveExec, NULL,
-                              pcnetLoadPrep, pcnetLoadExec, NULL);
+    rc = PDMDevHlpSSMRegisterEx(pDevIns, PCNET_SAVEDSTATE_VERSION, sizeof(*pThis), NULL,
+                                NULL,          pcnetLiveExec, NULL,
+                                pcnetSavePrep, pcnetSaveExec, NULL,
+                                pcnetLoadPrep, pcnetLoadExec, NULL);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -5092,7 +5167,7 @@ static DECLCALLBACK(int) pcnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
      * Create the transmit queue.
      */
     rc = PDMDevHlpPDMQueueCreate(pDevIns, sizeof(PDMQUEUEITEMCORE), 1, 0,
-                                 pcnetXmitQueueConsumer, true, &pThis->pXmitQueueR3);
+                                 pcnetXmitQueueConsumer, true, "PCNet-Xmit", &pThis->pXmitQueueR3);
     if (RT_FAILURE(rc))
         return rc;
     pThis->pXmitQueueR0 = PDMQueueR0Ptr(pThis->pXmitQueueR3);
@@ -5102,7 +5177,7 @@ static DECLCALLBACK(int) pcnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
      * Create the RX notifer signaller.
      */
     rc = PDMDevHlpPDMQueueCreate(pDevIns, sizeof(PDMQUEUEITEMCORE), 1, 0,
-                                 pcnetCanRxQueueConsumer, true, &pThis->pCanRxQueueR3);
+                                 pcnetCanRxQueueConsumer, true, "PCNet-Rcv", &pThis->pCanRxQueueR3);
     if (RT_FAILURE(rc))
         return rc;
     pThis->pCanRxQueueR0 = PDMQueueR0Ptr(pThis->pCanRxQueueR3);

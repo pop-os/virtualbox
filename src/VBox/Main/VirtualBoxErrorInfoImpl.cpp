@@ -49,11 +49,11 @@ STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(ResultCode) (LONG *aResultCode)
     return S_OK;
 }
 
-STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(InterfaceID) (OUT_GUID aIID)
+STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(InterfaceID) (BSTR *aIID)
 {
     CheckComArgOutPointerValid(aIID);
 
-    mIID.cloneTo (aIID);
+    mIID.toUtf16().cloneTo(aIID);
     return S_OK;
 }
 
@@ -61,7 +61,7 @@ STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(Component) (BSTR *aComponent)
 {
     CheckComArgOutPointerValid(aComponent);
 
-    mComponent.cloneTo (aComponent);
+    mComponent.cloneTo(aComponent);
     return S_OK;
 }
 
@@ -69,7 +69,7 @@ STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(Text) (BSTR *aText)
 {
     CheckComArgOutPointerValid(aText);
 
-    mText.cloneTo (aText);
+    mText.cloneTo(aText);
     return S_OK;
 }
 
@@ -78,7 +78,7 @@ STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(Next) (IVirtualBoxErrorInfo **aNext)
     CheckComArgOutPointerValid(aNext);
 
     /* this will set aNext to NULL if mNext is null */
-    return mNext.queryInterfaceTo (aNext);
+    return mNext.queryInterfaceTo(aNext);
 }
 
 #if !defined (VBOX_WITH_XPCOM)
@@ -89,7 +89,7 @@ STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(Next) (IVirtualBoxErrorInfo **aNext)
  */
 HRESULT VirtualBoxErrorInfo::init (IErrorInfo *aInfo)
 {
-    AssertReturn (aInfo, E_FAIL);
+    AssertReturn(aInfo, E_FAIL);
 
     HRESULT rc = S_OK;
 
@@ -118,7 +118,11 @@ STDMETHODIMP VirtualBoxErrorInfo::GetDescription (BSTR *description)
 
 STDMETHODIMP VirtualBoxErrorInfo::GetGUID (GUID *guid)
 {
-    return COMGETTER(InterfaceID) (guid);
+    Bstr iid;
+    HRESULT rc = COMGETTER(InterfaceID) (iid.asOutParam());
+    if (SUCCEEDED(rc))
+        *guid = Guid(iid);
+    return rc;
 }
 
 STDMETHODIMP VirtualBoxErrorInfo::GetHelpContext (DWORD *pdwHelpContext)
@@ -144,7 +148,7 @@ STDMETHODIMP VirtualBoxErrorInfo::GetSource (BSTR *source)
  */
 HRESULT VirtualBoxErrorInfo::init (nsIException *aInfo)
 {
-    AssertReturn (aInfo, E_FAIL);
+    AssertReturn(aInfo, E_FAIL);
 
     HRESULT rc = S_OK;
 
@@ -155,7 +159,8 @@ HRESULT VirtualBoxErrorInfo::init (nsIException *aInfo)
     rc = aInfo->GetResult (&mResultCode);
     AssertComRC (rc);
     Utf8Str message;
-    rc = aInfo->GetMessage (message.asOutParam());
+    rc = aInfo->GetMessage(message.asOutParam());
+    message.jolt();
     AssertComRC (rc);
     mText = message;
 
@@ -170,7 +175,7 @@ NS_IMETHODIMP VirtualBoxErrorInfo::GetMessage (char **aMessage)
 {
     CheckComArgOutPointerValid(aMessage);
 
-    Utf8Str (mText).cloneTo (aMessage);
+    Utf8Str (mText).cloneTo(aMessage);
     return S_OK;
 }
 
@@ -220,10 +225,10 @@ NS_IMETHODIMP VirtualBoxErrorInfo::GetLocation (nsIStackFrame ** /* aLocation */
 /* readonly attribute nsIException inner; */
 NS_IMETHODIMP VirtualBoxErrorInfo::GetInner (nsIException **aInner)
 {
-    ComPtr <IVirtualBoxErrorInfo> info;
+    ComPtr<IVirtualBoxErrorInfo> info;
     nsresult rv = COMGETTER(Next) (info.asOutParam());
-    CheckComRCReturnRC (rv);
-    return info.queryInterfaceTo (aInner);
+    CheckComRCReturnRC(rv);
+    return info.queryInterfaceTo(aInner);
 }
 
 /* readonly attribute nsISupports data; */

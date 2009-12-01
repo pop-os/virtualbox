@@ -151,6 +151,8 @@ typedef struct RTREQQUEUE
      * The request can use this event semaphore to wait/poll for new requests.
      */
     RTSEMEVENT              EventSem;
+    /** Set if busy (pending or processing requests). */
+    bool volatile           fBusy;
 } RTREQQUEUE;
 
 #ifdef IN_RING3
@@ -206,10 +208,9 @@ RTDECL(int) RTReqProcess(PRTREQQUEUE pQueue, unsigned cMillies);
  *                          wait till it's completed.
  * @param   pfnFunction     Pointer to the function to call.
  * @param   cArgs           Number of arguments following in the ellipsis.
- *                          The arguments must be of integer or pointer type and
- *                          not bigger in size than uintptr_t. Do not try pass
- *                          64-bit integers directly in portable code.
  * @param   ...             Function arguments.
+ *
+ * @remarks See remarks on RTReqCallV.
  */
 RTDECL(int) RTReqCall(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, PFNRT pfnFunction, unsigned cArgs, ...);
 
@@ -234,10 +235,9 @@ RTDECL(int) RTReqCall(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, PFNR
  *                          wait till it's completed.
  * @param   pfnFunction     Pointer to the function to call.
  * @param   cArgs           Number of arguments following in the ellipsis.
- *                          The arguments must be of integer or pointer type and
- *                          not bigger in size than uintptr_t. Do not try pass
- *                          64-bit integers directly in portable code.
  * @param   ...             Function arguments.
+ *
+ * @remarks See remarks on RTReqCallV.
  */
 RTDECL(int) RTReqCallVoid(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, PFNRT pfnFunction, unsigned cArgs, ...);
 
@@ -264,10 +264,9 @@ RTDECL(int) RTReqCallVoid(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, 
  * @param   fFlags          A combination of the RTREQFLAGS values.
  * @param   pfnFunction     Pointer to the function to call.
  * @param   cArgs           Number of arguments following in the ellipsis.
- *                          The arguments must be of integer or pointer type and
- *                          not bigger in size than uintptr_t. Do not try pass
- *                          64-bit integers directly in portable code.
  * @param   ...             Function arguments.
+ *
+ * @remarks See remarks on RTReqCallV.
  */
 RTDECL(int) RTReqCallEx(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, ...);
 
@@ -294,10 +293,16 @@ RTDECL(int) RTReqCallEx(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, un
  * @param   fFlags          A combination of the RTREQFLAGS values.
  * @param   pfnFunction     Pointer to the function to call.
  * @param   cArgs           Number of arguments following in the ellipsis.
- *                          The arguments must be of integer or pointer type and
- *                          not bigger in size than uintptr_t. Do not try pass
- *                          64-bit integers directly in portable code.
  * @param   Args            Variable argument vector.
+ *
+ * @remarks Caveats:
+ *              - Do not pass anything which is larger than an uintptr_t.
+ *              - 64-bit integers are larger than uintptr_t on 32-bit hosts.
+ *                Pass integers > 32-bit by reference (pointers).
+ *              - Don't use NULL since it should be the integer 0 in C++ and may
+ *                therefore end up with garbage in the bits 63:32 on 64-bit
+ *                hosts because 'int' is 32-bit.
+ *                Use (void *)NULL or (uintptr_t)0 instead of NULL.
  */
 RTDECL(int) RTReqCallV(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, va_list Args);
 
@@ -362,6 +367,15 @@ RTDECL(int) RTReqQueue(PRTREQ pReq, unsigned cMillies);
  */
 RTDECL(int) RTReqWait(PRTREQ pReq, unsigned cMillies);
 
+/**
+ * Checks if the queue is busy or not.
+ *
+ * The caller is responsible for dealing with any concurrent submitts.
+ *
+ * @returns true if busy, false if idle.
+ * @param   pQueue              The queue.
+ */
+RTDECL(bool) RTReqIsBusy(PRTREQQUEUE pQueue);
 
 #endif /* IN_RING3 */
 

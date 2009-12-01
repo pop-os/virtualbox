@@ -1,4 +1,4 @@
-/** $Id: counters.h $ */
+/** $Id: counters.h 23462 2009-10-01 05:42:19Z vboxsync $ */
 /** @file
  * Counters macro invocation template.
  *
@@ -23,13 +23,46 @@
  * additional information or have any questions.
  */
 
-#ifndef PROFILE_COUNTER
-# error PROFILE_COUNTER is not defied
-#endif
-#ifndef COUNTING_COUNTER
-# error COUNTING_COUNTER is not defined
+/*
+ * COUNTERS_INIT is used before using counters.h to declare helping macro
+ * definitions for (de-)registering counters
+ */
+#ifndef COUNTERS_H
+# define COUNTERS_H
+# if defined(VBOX_WITH_STATISTICS)
+#  define REGISTER_COUNTER(name, storage, type, units, dsc)         \
+    do {                                                            \
+        PDMDrvHlpSTAMRegisterF(pDrvIns,                             \
+                               &(storage)->Stat ## name,   \
+                               type,                                \
+                               STAMVISIBILITY_ALWAYS,               \
+                               units,                               \
+                               dsc,                                 \
+                               "/Drivers/NAT%u/" #name,             \
+                               pDrvIns->iInstance);                 \
+    } while (0)
+#  define DEREGISTER_COUNTER(name, storage) PDMDrvHlpSTAMDeregister(pDrvIns, &(storage)->Stat ## name)
+# else
+#  define REGISTER_COUNTER(name, storage, type, units, dsc) do {} while (0)
+#  define DEREGISTER_COUNTER(name, storage) do {} while (0)
+# endif
+#else
+# undef COUNTERS_INIT
 #endif
 
+#ifndef COUNTERS_INIT
+# if !defined(PROFILE_COUNTER) && !defined(DRV_PROFILE_COUNTER)
+#  error (DRV_)PROFILE_COUNTER is not defied
+# endif
+# if !defined(COUNTING_COUNTER) && !defined(DRV_COUNTING_COUNTER)
+#  error (DRV_)COUNTING_COUNTER is not defined
+# endif
+
+/*
+ * DRV_ prefixed are counters used in DrvNAT the rest are used in Slirp
+ */
+
+# if defined(PROFILE_COUNTER) || defined(COUNTING_COUNTER)
 PROFILE_COUNTER(Fill, "Profiling slirp fills");
 PROFILE_COUNTER(Poll, "Profiling slirp polls");
 PROFILE_COUNTER(FastTimer, "Profiling slirp fast timer");
@@ -70,9 +103,41 @@ COUNTING_COUNTER(IOSBAppendSB, "SB: AppendSB total");
 COUNTING_COUNTER(IOSBAppendSB_w_l_r, "SB: AppendSB (sb_wptr < sb_rptr)");
 COUNTING_COUNTER(IOSBAppendSB_w_ge_r, "SB: AppendSB (sb_wptr >= sb_rptr)");
 COUNTING_COUNTER(IOSBAppendSB_w_alter, "SB: AppendSB (altering of sb_wptr)");
+COUNTING_COUNTER(MBufAllocation,"MBUF::shows number of mbufs in used list");
 
 COUNTING_COUNTER(TCP_retransmit, "TCP::retransmit");
 
 PROFILE_COUNTER(TCP_reassamble, "TCP::reasamble");
 PROFILE_COUNTER(TCP_input, "TCP::input");
+PROFILE_COUNTER(IP_input, "IP::input");
+PROFILE_COUNTER(IP_output, "IP::output");
+PROFILE_COUNTER(IF_encap, "IF::encap");
+PROFILE_COUNTER(ALIAS_input, "ALIAS::input");
+PROFILE_COUNTER(ALIAS_output, "ALIAS::output");
 
+# else
+/*DrvNAT.cpp*/
+DRV_COUNTING_COUNTER(NATRecvWakeups, "counting wakeups of NAT RX thread");
+DRV_PROFILE_COUNTER(NATRecv,"Time spent in NATRecv worker");
+DRV_PROFILE_COUNTER(NATRecvWait,"Time spent in NATRecv worker in waiting of free RX buffers");
+DRV_COUNTING_COUNTER(QueuePktSent, "counting packet sent via PDM Queue");
+DRV_COUNTING_COUNTER(QueuePktDropped, "counting packet drops by PDM Queue");
+DRV_COUNTING_COUNTER(ConsumerFalse, "counting consumer's reject number to process the queue's item");
+# endif
+#endif /*!COUNTERS_INIT*/
+
+#ifdef DRV_COUNTING_COUNTER
+# undef DRV_COUNTING_COUNTER
+#endif
+
+#ifdef DRV_PROFILE_COUNTER
+# undef DRV_PROFILE_COUNTER
+#endif
+
+#ifdef COUNTING_COUNTER
+# undef COUNTING_COUNTER
+#endif
+
+#ifdef PROFILE_COUNTER
+# undef PROFILE_COUNTER
+#endif

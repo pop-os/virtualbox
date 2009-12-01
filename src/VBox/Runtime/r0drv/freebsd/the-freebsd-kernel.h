@@ -1,4 +1,4 @@
-/* $Id: the-freebsd-kernel.h $ */
+/* $Id: the-freebsd-kernel.h 23032 2009-09-15 13:38:28Z vboxsync $ */
 /** @file
  * IPRT - Ring-0 Driver, The FreeBSD Kernel Headers.
  */
@@ -55,6 +55,8 @@
 #include <sys/callout.h>
 #include <sys/cpu.h>
 #include <sys/smp.h>
+#include <sys/sleepqueue.h>
+#include <sys/sx.h>
 #include <vm/vm.h>
 #include <vm/pmap.h>            /* for vtophys */
 #include <vm/vm_map.h>
@@ -63,9 +65,22 @@
 #include <vm/vm_param.h>        /* KERN_SUCCESS ++ */
 #include <vm/vm_page.h>
 #include <sys/resourcevar.h>
+#include <machine/cpu.h>
 
 /*#ifdef __cplusplus
 # error "This header doesn't work for C++ code. Sorry, typical kernel crap."
 #endif*/
+
+#if __FreeBSD_version >= 800026
+# define SLEEPQ_TIMEDWAIT(EventInt) sleepq_timedwait(EventInt, 0)
+# define SLEEPQ_TIMEDWAIT_SIG(EventInt) sleepq_timedwait_sig(EventInt, 0)
+# define SLEEPQ_WAIT(EventInt) sleepq_wait(EventInt, 0)
+# define SLEEPQ_WAIT_SIG(EventInt) sleepq_wait_sig(EventInt, 0)
+#else
+# define SLEEPQ_TIMEDWAIT(EventInt) sleepq_timedwait(EventInt)
+# define SLEEPQ_TIMEDWAIT_SIG(EventInt) sleepq_timedwait_sig(EventInt)
+# define SLEEPQ_WAIT(EventInt) sleepq_wait(EventInt)
+# define SLEEPQ_WAIT_SIG(EventInt) sleepq_wait_sig(EventInt)
+#endif
 
 #endif

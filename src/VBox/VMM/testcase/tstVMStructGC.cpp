@@ -1,4 +1,4 @@
-/* $Id: tstVMStructGC.cpp $ */
+/* $Id: tstVMStructGC.cpp 24730 2009-11-17 16:51:03Z vboxsync $ */
 /** @file
  * tstVMMStructGC - Generate structure member and size checks from the GC perspective.
  *
@@ -52,6 +52,7 @@ AssertCompileSize(RTHCPHYS, 8);
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#define IN_TSTVMSTRUCTGC 1
 #include <VBox/cfgm.h>
 #include <VBox/cpum.h>
 #include <VBox/mm.h>
@@ -354,6 +355,7 @@ int main()
     GEN_CHECK_OFF(PDMDEVINSINT, pVMR0);
     GEN_CHECK_OFF(PDMDEVINSINT, pVMRC);
     GEN_CHECK_OFF(PDMDEVINSINT, pLunsR3);
+    GEN_CHECK_OFF(PDMDEVINSINT, pfnAsyncNotify);
     GEN_CHECK_OFF(PDMDEVINSINT, pCfgHandle);
     GEN_CHECK_OFF(PDMDEVINSINT, pPciDeviceR3);
     GEN_CHECK_OFF(PDMDEVINSINT, pPciDeviceR0);
@@ -361,6 +363,20 @@ int main()
     GEN_CHECK_OFF(PDMDEVINSINT, pPciBusR3);
     GEN_CHECK_OFF(PDMDEVINSINT, pPciBusR0);
     GEN_CHECK_OFF(PDMDEVINSINT, pPciBusRC);
+    GEN_CHECK_OFF(PDMDEVINSINT, fIntFlags);
+    GEN_CHECK_OFF(PDMDEVINS, u32Version);
+    GEN_CHECK_OFF(PDMDEVINS, iInstance);
+    GEN_CHECK_OFF(PDMDEVINS, pDevHlpRC);
+    GEN_CHECK_OFF(PDMDEVINS, pvInstanceDataRC);
+    GEN_CHECK_OFF(PDMDEVINS, pDevHlpR0);
+    GEN_CHECK_OFF(PDMDEVINS, pvInstanceDataR0);
+    GEN_CHECK_OFF(PDMDEVINS, pDevHlpR3);
+    GEN_CHECK_OFF(PDMDEVINS, pvInstanceDataR3);
+    GEN_CHECK_OFF(PDMDEVINS, pDevReg);
+    GEN_CHECK_OFF(PDMDEVINS, pCfgHandle);
+    GEN_CHECK_OFF(PDMDEVINS, IBase);
+    GEN_CHECK_OFF(PDMDEVINS, Internal);
+    GEN_CHECK_OFF(PDMDEVINS, achInstanceData);
     GEN_CHECK_SIZE(PDMCRITSECTINT);
     GEN_CHECK_OFF(PDMCRITSECTINT, Core);
     GEN_CHECK_OFF(PDMCRITSECTINT, pNext);
@@ -395,6 +411,11 @@ int main()
     GEN_CHECK_OFF(PDMQUEUE, pPendingRC);
     GEN_CHECK_OFF(PDMQUEUE, iFreeHead);
     GEN_CHECK_OFF(PDMQUEUE, iFreeTail);
+    GEN_CHECK_OFF(PDMQUEUE, pszName);
+    GEN_CHECK_OFF(PDMQUEUE, StatAllocFailures);
+    GEN_CHECK_OFF(PDMQUEUE, StatInsert);
+    GEN_CHECK_OFF(PDMQUEUE, StatFlush);
+    GEN_CHECK_OFF(PDMQUEUE, StatFlushLeftovers);
     GEN_CHECK_OFF(PDMQUEUE, aFreeItems);
     GEN_CHECK_OFF(PDMQUEUE, aFreeItems[1]);
     GEN_CHECK_OFF(PDMQUEUE, aFreeItems[0].pItemR3);
@@ -481,6 +502,8 @@ int main()
 #ifdef VBOX_WITH_STATISTICS
     GEN_CHECK_OFF(PGMCPU, pStatTrap0eAttributionR0);
     GEN_CHECK_OFF(PGMCPU, pStatTrap0eAttributionRC);
+    GEN_CHECK_OFF(PGMCPU, StatSyncPtPD);
+    GEN_CHECK_OFF(PGMCPU, StatR3Prefetch);
 #endif
     GEN_CHECK_OFF(PGM, offVM);
     GEN_CHECK_OFF(PGM, offVCpuPGM);
@@ -604,7 +627,10 @@ int main()
     GEN_CHECK_OFF(PGMVIRTHANDLER, cPages);
     GEN_CHECK_OFF(PGMVIRTHANDLER, aPhysToVirt);
     GEN_CHECK_SIZE(PGMPAGE);
-    GEN_CHECK_OFF(PGMPAGE, HCPhysX);
+    GEN_CHECK_OFF(PGMPAGE, HCPhysAndPageID);
+    GEN_CHECK_OFF(PGMPAGE, cReadLocksY);
+    GEN_CHECK_OFF(PGMPAGE, cWriteLocksY);
+    GEN_CHECK_OFF(PGMPAGE, u16TrackingY);
     GEN_CHECK_SIZE(PGMRAMRANGE);
     GEN_CHECK_OFF(PGMRAMRANGE, pNextR3);
     GEN_CHECK_OFF(PGMRAMRANGE, pNextR0);
@@ -903,10 +929,12 @@ int main()
     GEN_CHECK_OFF(VMM, pRCLoggerR3);
     GEN_CHECK_OFF(VMM, cbRCLogger);
     GEN_CHECK_OFF(VMM, fRCLoggerFlushingDisabled);
+    GEN_CHECK_OFF(VMM, fStackGuardsStationed);
     GEN_CHECK_OFF(VMM, pYieldTimer);
     GEN_CHECK_OFF(VMM, cYieldResumeMillies);
     GEN_CHECK_OFF(VMM, cYieldEveryMillies);
     GEN_CHECK_OFF(VMM, CritSectSync);
+    GEN_CHECK_OFF(VMM, pahEvtRendezvousEnterOrdered);
     GEN_CHECK_OFF(VMM, hEvtRendezvousEnterOneByOne);
     GEN_CHECK_OFF(VMM, hEvtMulRendezvousEnterAllAtOnce);
     GEN_CHECK_OFF(VMM, hEvtMulRendezvousDone);

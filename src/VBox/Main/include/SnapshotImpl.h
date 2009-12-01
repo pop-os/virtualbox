@@ -26,33 +26,21 @@
 
 #include <iprt/time.h>
 
-#include <list>
-
 class SnapshotMachine;
+class VirtualBox;
+
+namespace settings
+{
+    struct Snapshot;
+}
 
 class ATL_NO_VTABLE Snapshot :
-    public VirtualBoxSupportErrorInfoImpl <Snapshot, ISnapshot>,
-    public VirtualBoxSupportTranslation <Snapshot>,
-    public VirtualBoxBaseWithTypedChildren <Snapshot>,
+    public VirtualBoxSupportErrorInfoImpl<Snapshot, ISnapshot>,
+    public VirtualBoxSupportTranslation<Snapshot>,
+    public VirtualBoxBase, // WithTypedChildren<Snapshot>,
     VBOX_SCRIPTABLE_IMPL(ISnapshot)
 {
 public:
-
-    struct Data
-    {
-        Data();
-        ~Data();
-
-        Guid mId;
-        Bstr mName;
-        Bstr mDescription;
-        RTTIMESPEC mTimeStamp;
-        ComObjPtr <SnapshotMachine> mMachine;
-    };
-
-    typedef VirtualBoxBaseWithTypedChildren <Snapshot>::DependentChildren
-        SnapshotList;
-
     DECLARE_NOT_AGGREGATABLE(Snapshot)
 
     DECLARE_PROTECT_FINAL_CONSTRUCT()
@@ -63,18 +51,26 @@ public:
         COM_INTERFACE_ENTRY2 (IDispatch, ISnapshot)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
+    Snapshot()
+        : m(NULL)
+    { };
+    ~Snapshot()
+    { };
 
     HRESULT FinalConstruct();
     void FinalRelease();
 
     // public initializer/uninitializer only for internal purposes
-    HRESULT init (const Guid &aId, IN_BSTR aName, IN_BSTR aDescription,
-                  RTTIMESPEC aTimeStamp, SnapshotMachine *aMachine,
-                  Snapshot *aParent);
+    HRESULT init(VirtualBox *aVirtualBox,
+                 const Guid &aId,
+                 const Utf8Str &aName,
+                 const Utf8Str &aDescription,
+                 const RTTIMESPEC &aTimeStamp,
+                 SnapshotMachine *aMachine,
+                 Snapshot *aParent);
     void uninit();
 
-    void discard();
+    void beginDiscard();
 
     // ISnapshot properties
     STDMETHOD(COMGETTER(Id)) (BSTR *aId);
@@ -92,36 +88,49 @@ public:
 
     // public methods only for internal purposes
 
-    /** Do |AutoWriteLock alock (this);| before acceessing the returned data! */
-    const Data &data() const { return mData; }
+    const Utf8Str& stateFilePath() const;
 
-    const Bstr &stateFilePath() const;
+    ComObjPtr<Snapshot> parent() const
+    {
+        return (Snapshot*)mParent;
+    }
 
-    ComObjPtr <Snapshot> parent() const { return (Snapshot *) mParent; }
+    ULONG getChildrenCount();
+    ULONG getAllChildrenCount();
+    ULONG getAllChildrenCountImpl();
 
-    /** Shortcut to #dependentChildrenLock() */
-    RWLockHandle *childrenLock() const { return dependentChildrenLock(); }
+    ComPtr<SnapshotMachine> getSnapshotMachine();
 
-    /**
-     *  Shortcut to #dependentChildren().
-     *  Do |AutoWriteLock alock (childrenLock());| before acceessing the returned list!
-     */
-    const SnapshotList &children() const { return dependentChildren(); }
+    Guid getId() const;
+    const Utf8Str& getName() const;
+    RTTIMESPEC getTimeStamp() const;
 
-    ULONG descendantCount();
-    ComObjPtr <Snapshot> findChildOrSelf (IN_GUID aId);
-    ComObjPtr <Snapshot> findChildOrSelf (IN_BSTR aName);
+    ComObjPtr<Snapshot> findChildOrSelf(IN_GUID aId);
+    ComObjPtr<Snapshot> findChildOrSelf(const Utf8Str &aName);
 
-    void updateSavedStatePaths (const char *aOldPath, const char *aNewPath);
+    void updateSavedStatePaths(const char *aOldPath,
+                               const char *aNewPath);
+    void updateSavedStatePathsImpl(const char *aOldPath,
+                                   const char *aNewPath);
+
+    HRESULT saveSnapshot(settings::Snapshot &data, bool aAttrsOnly);
+    HRESULT saveSnapshotImpl(settings::Snapshot &data, bool aAttrsOnly);
 
     // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"Snapshot"; }
+    static const wchar_t *getComponentName()
+    {
+        return L"Snapshot";
+    }
 
 private:
 
-    ComObjPtr <Snapshot, ComWeakRef> mParent;
+    /** weak VirtualBox parent */
+    const ComObjPtr<VirtualBox, ComWeakRef> mVirtualBox;
 
-    Data mData;
+    ComObjPtr<Snapshot, ComWeakRef> mParent;
+
+    struct Data;            // opaque, defined in SnapshotImpl.cpp
+    Data *m;
 };
 
 #endif // ____H_SNAPSHOTIMPL

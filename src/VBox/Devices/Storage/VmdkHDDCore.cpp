@@ -1,4 +1,4 @@
-/* $Id: VmdkHDDCore.cpp $ */
+/* $Id: VmdkHDDCore.cpp 24975 2009-11-25 22:30:34Z vboxsync $ */
 /** @file
  * VMDK Disk image, Core Code.
  */
@@ -23,7 +23,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_VD_VMDK
-#include "VBoxHDD-Internal.h"
+#include <VBox/VBoxHDD-Plugin.h>
 #include <VBox/err.h>
 
 #include <VBox/log.h>
@@ -342,9 +342,11 @@ typedef struct VMDKEXTENT
 
 /**
  * Maximum number of lines in a descriptor file. Not worth the effort of
- * making it variable. Descriptor files are generally very short (~20 lines).
+ * making it variable. Descriptor files are generally very short (~20 lines),
+ * with the exception of sparse files split in 2G chunks, which need for the
+ * maximum size (almost 2T) exactly 1025 lines for the disk database.
  */
-#define VMDK_DESCRIPTOR_LINES_MAX   100U
+#define VMDK_DESCRIPTOR_LINES_MAX   1100U
 
 /**
  * Parsed descriptor information. Allows easy access and update of the
@@ -581,8 +583,8 @@ static int vmdkFileOpen(PVMDKIMAGE pImage, PVMDKFILE *ppVmdkFile,
         rc = pImage->pInterfaceAsyncIOCallbacks->pfnOpen(pImage->pInterfaceAsyncIO->pvUser,
                                                          pszFilename,
                                                          pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY
-                                                           ? true
-                                                           : false,
+                                                           ? VD_INTERFACEASYNCIO_OPEN_FLAGS_READONLY
+                                                           : 0,
                                                          NULL,
                                                          &pVmdkFile->pStorage);
         pVmdkFile->fAsyncIO = true;
@@ -699,10 +701,13 @@ DECLINLINE(int) vmdkFileWriteAt(PVMDKFILE pVmdkFile,
  */
 DECLINLINE(int) vmdkFileGetSize(PVMDKFILE pVmdkFile, uint64_t *pcbSize)
 {
+    PVMDKIMAGE pImage = pVmdkFile->pImage;
+
     if (pVmdkFile->fAsyncIO)
     {
-        AssertMsgFailed(("TODO\n"));
-        return 0;
+        return pImage->pInterfaceAsyncIOCallbacks->pfnGetSize(pImage->pInterfaceAsyncIO->pvUser,
+                                                              pVmdkFile->pStorage,
+                                                              pcbSize);
     }
     else
         return RTFileGetSize(pVmdkFile->File, pcbSize);
@@ -713,10 +718,13 @@ DECLINLINE(int) vmdkFileGetSize(PVMDKFILE pVmdkFile, uint64_t *pcbSize)
  */
 DECLINLINE(int) vmdkFileSetSize(PVMDKFILE pVmdkFile, uint64_t cbSize)
 {
+    PVMDKIMAGE pImage = pVmdkFile->pImage;
+
     if (pVmdkFile->fAsyncIO)
     {
-        AssertMsgFailed(("TODO\n"));
-        return VERR_NOT_SUPPORTED;
+        return pImage->pInterfaceAsyncIOCallbacks->pfnSetSize(pImage->pInterfaceAsyncIO->pvUser,
+                                                              pVmdkFile->pStorage,
+                                                              cbSize);
     }
     else
         return RTFileSetSize(pVmdkFile->File, cbSize);
@@ -1676,16 +1684,17 @@ static int vmdkDescExtInsert(PVMDKIMAGE pImage, PVMDKDESCRIPTOR pDescriptor,
         RTStrPrintf(szExt, sizeof(szExt), "%s %llu %s ", apszAccess[enmAccess],
                     cNominalSectors, apszType[enmType]);
     }
+    else if (enmType == VMDKETYPE_FLAT)
+    {
+        RTStrPrintf(szExt, sizeof(szExt), "%s %llu %s \"%s\" %llu",
+                    apszAccess[enmAccess], cNominalSectors,
+                    apszType[enmType], pszBasename, uSectorOffset);
+    }
     else
     {
-        if (!uSectorOffset)
-            RTStrPrintf(szExt, sizeof(szExt), "%s %llu %s \"%s\"",
-                        apszAccess[enmAccess], cNominalSectors,
-                        apszType[enmType], pszBasename);
-        else
-            RTStrPrintf(szExt, sizeof(szExt), "%s %llu %s \"%s\" %llu",
-                        apszAccess[enmAccess], cNominalSectors,
-                        apszType[enmType], pszBasename, uSectorOffset);
+        RTStrPrintf(szExt, sizeof(szExt), "%s %llu %s \"%s\"",
+                    apszAccess[enmAccess], cNominalSectors,
+                    apszType[enmType], pszBasename);
     }
     cbDiff = strlen(szExt) + 1;
 
@@ -2068,7 +2077,7 @@ static int vmdkParseDescriptor(PVMDKIMAGE pImage, char *pDescData,
         return vmdkError(pImage, VERR_VD_VMDK_UNSUPPORTED_VERSION, RT_SRC_POS, N_("VMDK: unsupported format version in descriptor in '%s'"), pImage->pszFilename);
 
     /* Get image creation type and determine image flags. */
-    const char *pszCreateType;
+    const char *pszCreateType = NULL;   /* initialized to make gcc shut up */
     rc = vmdkDescBaseGetStr(pImage, &pImage->Descriptor, "createType",
                             &pszCreateType);
     if (RT_FAILURE(rc))
@@ -2912,6 +2921,13 @@ static int vmdkOpenImage(PVMDKIMAGE pImage, unsigned uOpenFlags)
     /* Handle the file according to its magic number. */
     if (RT_LE2H_U32(u32Magic) == VMDK_SPARSE_MAGICNUMBER)
     {
+        /* Async I/IO is not supported with these files yet. So fail if opened in async I/O mode. */
+        if (uOpenFlags & VD_OPEN_FLAGS_ASYNC_IO)
+        {
+            rc = VERR_NOT_SUPPORTED;
+            goto out;
+        }
+
         /* It's a hosted single-extent image. */
         rc = vmdkCreateExtents(pImage, 1);
         if (RT_FAILURE(rc))
@@ -2985,7 +3001,20 @@ static int vmdkOpenImage(PVMDKIMAGE pImage, unsigned uOpenFlags)
     }
     else
     {
-        pImage->cbDescAlloc = VMDK_SECTOR2BYTE(20);
+        /* Allocate at least 10K, and make sure that there is 5K free space
+         * in case new entries need to be added to the descriptor. Never
+         * alocate more than 128K, because that's no valid descriptor file
+         * and will result in the correct "truncated read" error handling. */
+        uint64_t cbSize;
+        rc = vmdkFileGetSize(pFile, &cbSize);
+        if (RT_FAILURE(rc))
+            goto out;
+        if (cbSize % VMDK_SECTOR2BYTE(10))
+            cbSize += VMDK_SECTOR2BYTE(20) - cbSize % VMDK_SECTOR2BYTE(10);
+        else
+            cbSize += VMDK_SECTOR2BYTE(10);
+        cbSize = RT_MIN(cbSize, _128K);
+        pImage->cbDescAlloc = RT_MAX(VMDK_SECTOR2BYTE(20), cbSize);
         pImage->pDescData = (char *)RTMemAllocZ(pImage->cbDescAlloc);
         if (!pImage->pDescData)
         {
@@ -4383,7 +4412,7 @@ static int vmdkAllocGrain(PVMDKGTCACHE pCache, PVMDKEXTENT pExtent,
 
 
 /** @copydoc VBOXHDDBACKEND::pfnCheckIfValid */
-static int vmdkCheckIfValid(const char *pszFilename)
+static int vmdkCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk)
 {
     LogFlowFunc(("pszFilename=\"%s\"\n", pszFilename));
     int rc = VINF_SUCCESS;
@@ -4409,7 +4438,7 @@ static int vmdkCheckIfValid(const char *pszFilename)
     pImage->pFiles = NULL;
     pImage->pGTCache = NULL;
     pImage->pDescData = NULL;
-    pImage->pVDIfsDisk = NULL;
+    pImage->pVDIfsDisk = pVDIfsDisk;
     /** @todo speed up this test open (VD_OPEN_FLAGS_INFO) by skipping as
      * much as possible in vmdkOpenImage. */
     rc = vmdkOpenImage(pImage, VD_OPEN_FLAGS_INFO | VD_OPEN_FLAGS_READONLY);
@@ -4541,7 +4570,13 @@ static int vmdkCreate(const char *pszFilename, uint64_t cbSize,
     pImage->pGTCache = NULL;
     pImage->pDescData = NULL;
     pImage->pVDIfsDisk = NULL;
-    pImage->cbDescAlloc = VMDK_SECTOR2BYTE(20);
+    /* Descriptors for split images can be pretty large, especially if the
+     * filename is long. So prepare for the worst, and allocate quite some
+     * memory for the descriptor in this case. */
+    if (uImageFlags & VD_VMDK_IMAGE_FLAGS_SPLIT_2G)
+        pImage->cbDescAlloc = VMDK_SECTOR2BYTE(200);
+    else
+        pImage->cbDescAlloc = VMDK_SECTOR2BYTE(20);
     pImage->pDescData = (char *)RTMemAllocZ(pImage->cbDescAlloc);
     if (!pImage->pDescData)
     {
@@ -5681,14 +5716,14 @@ static void vmdkDump(void *pBackendData)
     AssertPtr(pImage);
     if (pImage)
     {
-        RTLogPrintf("Header: Geometry PCHS=%u/%u/%u LCHS=%u/%u/%u cbSector=%llu\n",
+        pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Header: Geometry PCHS=%u/%u/%u LCHS=%u/%u/%u cbSector=%llu\n",
                     pImage->PCHSGeometry.cCylinders, pImage->PCHSGeometry.cHeads, pImage->PCHSGeometry.cSectors,
                     pImage->LCHSGeometry.cCylinders, pImage->LCHSGeometry.cHeads, pImage->LCHSGeometry.cSectors,
                     VMDK_BYTE2SECTOR(pImage->cbSize));
-        RTLogPrintf("Header: uuidCreation={%RTuuid}\n", &pImage->ImageUuid);
-        RTLogPrintf("Header: uuidModification={%RTuuid}\n", &pImage->ModificationUuid);
-        RTLogPrintf("Header: uuidParent={%RTuuid}\n", &pImage->ParentUuid);
-        RTLogPrintf("Header: uuidParentModification={%RTuuid}\n", &pImage->ParentModificationUuid);
+        pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Header: uuidCreation={%RTuuid}\n", &pImage->ImageUuid);
+        pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Header: uuidModification={%RTuuid}\n", &pImage->ModificationUuid);
+        pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Header: uuidParent={%RTuuid}\n", &pImage->ParentUuid);
+        pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Header: uuidParentModification={%RTuuid}\n", &pImage->ParentModificationUuid);
     }
 }
 
@@ -5813,7 +5848,7 @@ static int vmdkAsyncRead(void *pvBackendData, uint64_t uOffset, size_t cbRead,
             case VMDKETYPE_FLAT:
             {
                 /* Check for enough room first. */
-                if (RT_LIKELY(cSegments >= pImage->cSegments))
+                if (RT_UNLIKELY(cSegments >= pImage->cSegments))
                 {
                     /* We reached maximum, resize array. Try to realloc memory first. */
                     PPDMDATASEG paSegmentsNew = (PPDMDATASEG)RTMemRealloc(pImage->paSegments, (cSegments + 10)*sizeof(PDMDATASEG));
@@ -5941,7 +5976,7 @@ static int vmdkAsyncWrite(void *pvBackendData, uint64_t uOffset, size_t cbWrite,
             case VMDKETYPE_FLAT:
             {
                 /* Check for enough room first. */
-                if (RT_LIKELY(cSegments >= pImage->cSegments))
+                if (RT_UNLIKELY(cSegments >= pImage->cSegments))
                 {
                     /* We reached maximum, resize array. Try to realloc memory first. */
                     PPDMDATASEG paSegmentsNew = (PPDMDATASEG)RTMemRealloc(pImage->paSegments, (cSegments + 10)*sizeof(PDMDATASEG));

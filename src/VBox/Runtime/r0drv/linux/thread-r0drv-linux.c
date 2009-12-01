@@ -1,4 +1,4 @@
-/* $Id: thread-r0drv-linux.c $ */
+/* $Id: thread-r0drv-linux.c 22150 2009-08-11 09:41:58Z vboxsync $ */
 /** @file
  * IPRT - Threads, Ring-0 Driver, Linux.
  */
@@ -28,23 +28,37 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-linux-kernel.h"
-
+#include "internal/iprt.h"
 #include <iprt/thread.h>
-#include <iprt/err.h>
+
+#include <iprt/asm.h>
 #include <iprt/assert.h>
+#include <iprt/err.h>
+#include <iprt/mp.h>
+
+
+/*******************************************************************************
+*   Global Variables                                                           *
+*******************************************************************************/
+#ifndef CONFIG_PREEMPT
+/** Per-cpu preemption counters. */
+static int32_t volatile g_acPreemptDisabled[NR_CPUS];
+#endif
 
 
 RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void)
 {
     return (RTNATIVETHREAD)current;
 }
+RT_EXPORT_SYMBOL(RTThreadNativeSelf);
 
 
-RTDECL(int)   RTThreadSleep(unsigned cMillies)
+RTDECL(int) RTThreadSleep(unsigned cMillies)
 {
     long cJiffies = msecs_to_jiffies(cMillies);
     set_current_state(TASK_INTERRUPTIBLE);
@@ -53,6 +67,7 @@ RTDECL(int)   RTThreadSleep(unsigned cMillies)
         return VINF_SUCCESS;
     return VERR_INTERRUPTED;
 }
+RT_EXPORT_SYMBOL(RTThreadSleep);
 
 
 RTDECL(bool) RTThreadYield(void)
@@ -66,31 +81,51 @@ RTDECL(bool) RTThreadYield(void)
 #endif
     return true;
 }
+RT_EXPORT_SYMBOL(RTThreadYield);
 
 
 RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread)
 {
-    Assert(hThread == NIL_RTTHREAD);
 #ifdef CONFIG_PREEMPT
+    Assert(hThread == NIL_RTTHREAD);
 # ifdef preemptible
     return preemptible();
 # else
     return preempt_count() == 0 && !in_atomic() && !irqs_disabled();
 # endif
 #else
-    return false;
+    int32_t c;
+
+    Assert(hThread == NIL_RTTHREAD);
+    c = g_acPreemptDisabled[smp_processor_id()];
+    AssertMsg(c >= 0 && c < 32, ("%d\n", c));
+    if (c != 0)
+        return false;
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 32)
+    if (in_atomic())
+        return false;
+# endif
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 28)
+    if (irqs_disabled())
+        return false;
+# else
+    if (!ASMIntAreEnabled())
+        return false;
+# endif
+    return true;
 #endif
 }
+RT_EXPORT_SYMBOL(RTThreadPreemptIsEnabled);
 
 
 RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
 {
     Assert(hThread == NIL_RTTHREAD);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 4)
-    return test_tsk_thread_flag(current, TIF_NEED_RESCHED);
+    return !!test_tsk_thread_flag(current, TIF_NEED_RESCHED);
 
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 20)
-    return need_resched();
+    return !!need_resched();
 
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 1, 110)
     return current->need_resched != 0;
@@ -99,6 +134,7 @@ RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
     return need_resched != 0;
 #endif
 }
+RT_EXPORT_SYMBOL(RTThreadPreemptIsPending);
 
 
 RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
@@ -106,29 +142,73 @@ RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
     /* yes, RTThreadPreemptIsPending is reliable. */
     return true;
 }
+RT_EXPORT_SYMBOL(RTThreadPreemptIsPendingTrusty);
+
+
+RTDECL(bool) RTThreadPreemptIsPossible(void)
+{
+#ifdef CONFIG_PREEMPT
+    return true;    /* yes, kernel preemption is possible. */
+#else
+    return false;   /* no kernel preemption */
+#endif
+}
+RT_EXPORT_SYMBOL(RTThreadPreemptIsPossible);
 
 
 RTDECL(void) RTThreadPreemptDisable(PRTTHREADPREEMPTSTATE pState)
 {
+#ifdef CONFIG_PREEMPT
     AssertPtr(pState);
-    Assert(pState->uchDummy != 42);
-    pState->uchDummy = 42;
-
-    /*
-     * Note: This call is a NOP if CONFIG_PREEMPT is not enabled in the Linux kernel
-     * configuration. In that case, schedule() is only called need_resched() is set
-     * which is tested just before we return to R3 (not when returning from R0 to R0).
-     */
+    Assert(pState->u32Reserved == 0);
+    pState->u32Reserved = 42;
     preempt_disable();
+    RT_ASSERT_PREEMPT_CPUID_DISABLE(pState);
+
+#else /* !CONFIG_PREEMPT */
+    int32_t c;
+    AssertPtr(pState);
+    Assert(pState->u32Reserved == 0);
+
+    /* Do our own accounting. */
+    c = ASMAtomicIncS32(&g_acPreemptDisabled[smp_processor_id()]);
+    AssertMsg(c > 0 && c < 32, ("%d\n", c));
+    pState->u32Reserved = c;
+    RT_ASSERT_PREEMPT_CPUID_DISABLE(pState);
+#endif
 }
+RT_EXPORT_SYMBOL(RTThreadPreemptDisable);
 
 
 RTDECL(void) RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState)
 {
+#ifdef CONFIG_PREEMPT
     AssertPtr(pState);
-    Assert(pState->uchDummy == 42);
-    pState->uchDummy = 0;
-
+    Assert(pState->u32Reserved == 42);
+    RT_ASSERT_PREEMPT_CPUID_RESTORE(pState);
     preempt_enable();
+
+#else
+    int32_t volatile *pc;
+    AssertPtr(pState);
+    AssertMsg(pState->u32Reserved > 0 && pState->u32Reserved < 32, ("%d\n", pState->u32Reserved));
+    RT_ASSERT_PREEMPT_CPUID_RESTORE(pState);
+
+    /* Do our own accounting. */
+    pc = &g_acPreemptDisabled[smp_processor_id()];
+    AssertMsg(pState->u32Reserved == (uint32_t)*pc, ("u32Reserved=%d *pc=%d \n", pState->u32Reserved, *pc));
+    ASMAtomicUoWriteS32(pc, pState->u32Reserved - 1);
+#endif
+    pState->u32Reserved = 0;
 }
+RT_EXPORT_SYMBOL(RTThreadPreemptRestore);
+
+
+RTDECL(bool) RTThreadIsInInterrupt(RTTHREAD hThread)
+{
+    Assert(hThread == NIL_RTTHREAD); NOREF(hThread);
+
+    return in_interrupt() != 0;
+}
+RT_EXPORT_SYMBOL(RTThreadIsInInterrupt);
 

@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: RTLogWriteDebugger-r0drv-solaris.c 22556 2009-08-28 16:20:45Z vboxsync $ */
 /** @file
  * IPRT - Log To Debugger, Ring-0 Driver, Solaris.
  */
@@ -28,16 +28,26 @@
  * additional information or have any questions.
  */
 
+
+/*******************************************************************************
+*   Header Files                                                               *
+*******************************************************************************/
 #include "the-solaris-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/log.h>
+
+#include <iprt/asm.h>
 #include <iprt/assert.h>
+
 
 
 RTDECL(void) RTLogWriteDebugger(const char *pch, size_t cb)
 {
     if (pch[cb] != '\0')
         AssertBreakpoint();
-    cmn_err(CE_CONT, pch);
+    if (    !g_frtSolarisSplSetsEIF
+        ||  ASMIntAreEnabled())
+        cmn_err(CE_CONT, pch);
     return;
 }
 

@@ -1,4 +1,4 @@
-/* $Id: tstGetOpt.cpp $ */
+/* $Id: tstGetOpt.cpp 24140 2009-10-28 14:29:34Z vboxsync $ */
 /** @file
  * IPRT Testcase - RTGetOpt
  */
@@ -87,6 +87,17 @@ int main()
         { "nodashval",          388, RTGETOPT_REQ_STRING },
         { "--gateway",          'g', RTGETOPT_REQ_IPV4ADDR },
         { "--mac",              'm', RTGETOPT_REQ_MACADDR },
+        { "--strindex",         400, RTGETOPT_REQ_STRING  | RTGETOPT_FLAG_INDEX },
+        { "strindex",           400, RTGETOPT_REQ_STRING  | RTGETOPT_FLAG_INDEX },
+        { "--intindex",         401, RTGETOPT_REQ_INT32   | RTGETOPT_FLAG_INDEX },
+        { "--macindex",         402, RTGETOPT_REQ_MACADDR | RTGETOPT_FLAG_INDEX },
+        { "--indexnovalue",     403, RTGETOPT_REQ_NOTHING | RTGETOPT_FLAG_INDEX },
+        { "--macindexnegative", 404, RTGETOPT_REQ_NOTHING },
+        { "--twovalues",        405, RTGETOPT_REQ_STRING },
+        { "--twovaluesindex",   406, RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_INDEX },
+        { "--threevalues",      407, RTGETOPT_REQ_UINT32 },
+        { "--boolean",          408, RTGETOPT_REQ_BOOL_ONOFF },
+        { "--booleanindex",     409, RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX },
     };
 
     const char *argv2[] =
@@ -128,6 +139,30 @@ int main()
         "-m08:0:27:00:ab:f3",
         "--mac:1:::::c",
 
+        "--strindex786",    "string4",
+        "--strindex786:string5",
+        "--strindex786=string6",
+        "strindex687",      "string7",
+        "strindex687:string8",
+        "strindex687=string9",
+        "--intindex137",    "1000",
+        "--macindex138",    "08:0:27:00:ab:f3",
+        "--indexnovalue1",
+        "--macindexnegative",
+
+        "--twovalues",       "firstvalue", "secondvalue",
+        "--twovalues:firstvalue",          "secondvalue",
+        "--twovaluesindex4", "1",          "0xA",
+        "--twovaluesindex5=2",             "0xB",
+        "--threevalues",     "1",          "0xC",          "thirdvalue",
+
+        "--boolean",         "on",
+        "--boolean",         "off",
+        "--boolean",         "invalid",
+        "--booleanindex2",   "on",
+        "--booleanindex7",   "off",
+        "--booleanindex9",   "invalid",
+
         NULL
     };
     int argc2 = (int)RT_ELEMENTS(argv2) - 1;
@@ -136,8 +171,10 @@ int main()
 
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 's', 2);
     CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string1"));
+    CHECK(GetState.uIndex == UINT64_MAX);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 's', 2);
     CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string2"));
+    CHECK(GetState.uIndex == UINT64_MAX);
 
     /* -i */
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 'i', 2);
@@ -220,6 +257,107 @@ int main()
           && Val.MacAddr.au8[3] == 0x00
           && Val.MacAddr.au8[4] == 0x00
           && Val.MacAddr.au8[5] == 0x0c);
+
+    /* string with indexed argument */
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 400, 2);
+    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string4"));
+    CHECK(GetState.uIndex == 786);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 400, 1);
+    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string5"));
+    CHECK(GetState.uIndex == 786);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 400, 1);
+    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string6"));
+    CHECK(GetState.uIndex == 786);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 400, 2);
+    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string7"));
+    CHECK(GetState.uIndex == 687);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 400, 1);
+    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string8"));
+    CHECK(GetState.uIndex == 687);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 400, 1);
+    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string9"));
+    CHECK(GetState.uIndex == 687);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 401, 2);
+    CHECK(Val.i32 == 1000);
+    CHECK(GetState.uIndex == 137);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 402, 2);
+    CHECK(   Val.MacAddr.au8[0] == 0x08
+          && Val.MacAddr.au8[1] == 0x00
+          && Val.MacAddr.au8[2] == 0x27
+          && Val.MacAddr.au8[3] == 0x00
+          && Val.MacAddr.au8[4] == 0xab
+          && Val.MacAddr.au8[5] == 0xf3);
+    CHECK(GetState.uIndex == 138);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 403, 1);
+    CHECK(GetState.uIndex == 1);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 404, 1);
+    CHECK(GetState.uIndex == UINT64_MAX);
+
+    /* RTGetOptFetchValue tests */
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 405, 2);
+    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "firstvalue"));
+    CHECK(GetState.uIndex == UINT64_MAX);
+    CHECK_GETOPT(RTGetOptFetchValue(&GetState, &Val, RTGETOPT_REQ_STRING), VINF_SUCCESS, 1);
+    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "secondvalue"));
+    CHECK(GetState.uIndex == UINT64_MAX);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 405, 1);
+    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "firstvalue"));
+    CHECK(GetState.uIndex == UINT64_MAX);
+    CHECK_GETOPT(RTGetOptFetchValue(&GetState, &Val, RTGETOPT_REQ_STRING), VINF_SUCCESS, 1);
+    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "secondvalue"));
+    CHECK(GetState.uIndex == UINT64_MAX);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 406, 2);
+    CHECK(Val.u32 == 1);
+    CHECK(GetState.uIndex == 4);
+    CHECK_GETOPT(RTGetOptFetchValue(&GetState, &Val, RTGETOPT_REQ_UINT32), VINF_SUCCESS, 1);
+    CHECK(Val.u32 == 10);
+    CHECK(GetState.uIndex == 4);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 406, 1);
+    CHECK(Val.u32 == 2);
+    CHECK(GetState.uIndex == 5);
+    CHECK_GETOPT(RTGetOptFetchValue(&GetState, &Val, RTGETOPT_REQ_UINT32), VINF_SUCCESS, 1);
+    CHECK(Val.u32 == 11);
+    CHECK(GetState.uIndex == 5);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 407, 2);
+    CHECK(Val.u32 == 1);
+    CHECK(GetState.uIndex == UINT64_MAX);
+    CHECK_GETOPT(RTGetOptFetchValue(&GetState, &Val, RTGETOPT_REQ_UINT32), VINF_SUCCESS, 1);
+    CHECK(Val.u32 == 12);
+    CHECK(GetState.uIndex == UINT64_MAX);
+    CHECK_GETOPT(RTGetOptFetchValue(&GetState, &Val, RTGETOPT_REQ_STRING), VINF_SUCCESS, 1);
+    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "thirdvalue"));
+    CHECK(GetState.uIndex == UINT64_MAX);
+
+    /* bool on/off tests */
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 408, 2);
+    CHECK(Val.f);
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 408, 2);
+    CHECK(!Val.f);
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), VERR_GETOPT_UNKNOWN_OPTION, 2);
+    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "invalid"));
+
+    /* bool on/off with indexed argument */
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 409, 2);
+    CHECK(Val.f);
+    CHECK(GetState.uIndex == 2);
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 409, 2);
+    CHECK(!Val.f);
+    CHECK(GetState.uIndex == 7);
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), VERR_GETOPT_UNKNOWN_OPTION, 2);
+    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "invalid"));
 
     /* the end */
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 0, 0);

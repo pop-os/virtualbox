@@ -1,4 +1,4 @@
-/* $Id: tstRTStrCache.cpp $ */
+/* $Id: tstRTStrCache.cpp 20647 2009-06-16 21:58:09Z vboxsync $ */
 /** @file
  * IPRT Testcase - StrCache.
  */

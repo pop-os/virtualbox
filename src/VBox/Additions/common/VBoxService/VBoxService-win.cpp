@@ -1,4 +1,4 @@
-/* $Id: VBoxService-win.cpp $ */
+/* $Id: VBoxService-win.cpp 23139 2009-09-18 15:15:58Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Service Skeleton, Windows Specific Parts.
  */
@@ -24,7 +24,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/assert.h>
-#include <VBox/VBoxGuest.h>
+#include <iprt/err.h>
+#include <VBox/VBoxGuestLib.h>
 #include "VBoxServiceInternal.h"
 
 #include <Windows.h>
@@ -231,7 +232,7 @@ int VBoxServiceWinStart()
         VBoxServiceError("AllocateAndInitializeSid: Error %u\n", GetLastError());
     }
     else
-    {  
+    {
         DWORD dwRes = VBoxServiceWinAddAceToObjectsSecurityDescriptor (TEXT("\\\\.\\VBoxMiniRdrDN"),
                                                                        SE_FILE_OBJECT,
                                                                        (LPTSTR)pBuiltinUsersSID,
@@ -368,7 +369,7 @@ void WINAPI VBoxServiceWinMain (DWORD argc, LPTSTR *argv)
             break;
         }
     }
-    else 
+    else
     {
         VBoxServiceVerbose(2, "Service control handler registered.\n");
 

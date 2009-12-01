@@ -1,4 +1,4 @@
-/** $Id: VBoxServiceClipboard-os2.cpp $ */
+/** $Id: VBoxServiceClipboard-os2.cpp 21218 2009-07-05 13:31:56Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Clipboard Service, OS/2.
  */
@@ -36,7 +36,7 @@
 #include <iprt/param.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
-#include <VBox/VBoxGuest.h>
+#include <VBox/VBoxGuestLib.h>
 #include <VBox/HostServices/VBoxClipboardSvc.h>
 #include "VBoxServiceInternal.h"
 

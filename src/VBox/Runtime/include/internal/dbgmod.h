@@ -1,4 +1,4 @@
-/* $Id: dbgmod.h $ */
+/* $Id: dbgmod.h 22115 2009-08-09 23:08:25Z vboxsync $ */
 /** @file
  * IPRT - Internal Header for RTDbgMod and the associated interpreters.
  */
@@ -374,6 +374,8 @@ typedef struct RTDBGMODINT
     /** The number of reference there are to this module.
      * This is used to perform automatic cleanup and sharing. */
     uint32_t volatile   cRefs;
+    /** The module tag. */
+    uint64_t            uTag;
     /** The module name (short). */
     char const         *pszName;
     /** The module filename. Can be NULL. */

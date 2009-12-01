@@ -569,13 +569,19 @@ sorecvfrom(PNATState pData, struct socket *so)
         /* A "normal" UDP packet */
         struct mbuf *m;
         struct ethhdr *eh;
-        size_t len;
+        ssize_t len;
         u_long n = 0;
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
+        int size;
+#endif
+        int rc = 0;
+        static int signalled = 0;
 
         QSOCKET_LOCK(udb);
         SOCKET_LOCK(so);
         QSOCKET_UNLOCK(udb);
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
         if (!(m = m_get(pData)))
         {
             SOCKET_UNLOCK(so);
@@ -590,40 +596,84 @@ sorecvfrom(PNATState pData, struct socket *so)
          */
         len = M_FREEROOM(m);
         /* if (so->so_fport != htons(53)) */
+        rc = ioctlsocket(so->s, FIONREAD, &n);
+        if (   rc == -1
+            && (  errno == EAGAIN
+               || errno == EWOULDBLOCK
+               || errno == EINPROGRESS
+               || errno == ENOTCONN))
         {
-            int rc = 0;
-            static int signaled = 0;
-            rc = ioctlsocket(so->s, FIONREAD, &n);
-            if (   rc == -1
-                && (   errno == EAGAIN
-                    || errno == EWOULDBLOCK
-                    || errno == EINPROGRESS
-                    || errno == ENOTCONN))
-            {
-                m_free(pData, m);
-                return;
-            }
-
-            if (rc == -1 && signaled == 0)
-            {
-                LogRel(("NAT: can't fetch amount of bytes on socket %R[natsock], so message will be truncated.\n", so));
-                signaled = 1;
-                m_free(pData, m);
-                return;
-            }
-
-            if (rc != -1 && n > len)
-            {
-                n = (m->m_data - m->m_dat) + m->m_len + n + 1;
-                m_inc(m, n);
-                len = M_FREEROOM(m);
-            }
+            m_free(pData, m);
+            return;
         }
 
+        Log2(("NAT: %R[natsock] ioctlsocket before read "
+            "(rc:%d errno:%d, n:%d)\n", so, rc, errno, n));
+
+        if (rc == -1 && signalled == 0)
+        {
+            LogRel(("NAT: can't fetch amount of bytes on socket %R[natsock], so message will be truncated.\n", so));
+            signalled = 1;
+            m_free(pData, m);
+            return;
+        }
+
+        if (rc != -1 && n > len)
+        {
+            n = (m->m_data - m->m_dat) + m->m_len + n + 1;
+            m_inc(m, n);
+            len = M_FREEROOM(m);
+        }
         ret = recvfrom(so->s, m->m_data, len, 0,
                             (struct sockaddr *)&addr, &addrlen);
-        Log2((" did recvfrom %d, errno = %d-%s\n",
-                    m->m_len, errno, strerror(errno)));
+        Log2(("NAT: %R[natsock] ioctlsocket after read "
+            "(rc:%d errno:%d, n:%d) ret:%d, len:%d\n", so, 
+             rc, errno, n, ret, len));
+#else
+        /*How many data has been received ?*/
+        /*
+        * 1. calculate how much we can read
+        * 2. read as much as possible
+        * 3. attach buffer to allocated header mbuf
+        */
+        rc = ioctlsocket(so->s, FIONREAD, &n);
+        if (rc == -1 && signalled == 0)
+        {
+            LogRel(("NAT: can't fetch amount of bytes on socket %R[natsock], so message will be truncated.\n", so));
+            signalled = 1;
+        }
+
+        len = sizeof(struct udpiphdr) + ETH_HLEN;
+        len += n;
+
+        if (len < MSIZE)
+        {
+            size = MCLBYTES;
+        }
+        else if (len < MCLBYTES)
+        {
+            size = MCLBYTES;
+        }
+        else if (len < MJUM9BYTES)
+        {
+            size = MJUM9BYTES;
+        }
+        else if (len < MJUM16BYTES)
+        {
+            size = MJUM16BYTES;
+        }
+        else
+        {
+            AssertMsgFailed(("Unsupported size"));
+        }
+        m = m_getjcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR, size);
+        m->m_data += ETH_HLEN;
+        m->m_pkthdr.header = mtod(m, void *);
+        m->m_data += sizeof(struct udpiphdr);
+        ret = recvfrom(so->s, mtod(m, char *), n, 0,
+                            (struct sockaddr *)&addr, &addrlen);
+        /* @todo (r=vvl) check which flags and type should be passed */
+#endif
         m->m_len = ret;
         if (ret < 0)
         {
@@ -664,8 +714,10 @@ sorecvfrom(PNATState pData, struct socket *so)
              *  last argument should be changed if Slirp will inject IP attributes
              *  Note: Here we can't check if dnsproxy's sent initial request
              */
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
             if (so->so_fport == htons(53))
                 dnsproxy_answer(pData, so, m);
+#endif
 
 #if 0
             if (m->m_len == len)
@@ -692,16 +744,26 @@ int
 sosendto(PNATState pData, struct socket *so, struct mbuf *m)
 {
     int ret;
-    struct sockaddr_in addr;
+    struct sockaddr_in *paddr;
+    struct sockaddr addr;
 #if 0
     struct sockaddr_in host_addr;
+#endif
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
+    uint8_t *buf;
+    int mlen;
 #endif
 
     DEBUG_CALL("sosendto");
     DEBUG_ARG("so = %lx", (long)so);
     DEBUG_ARG("m = %lx", (long)m);
 
-    addr.sin_family = AF_INET;
+    memset(&addr, 0, sizeof(struct sockaddr));
+#ifdef RT_OS_DARWIN
+    addr.sa_len = sizeof(struct sockaddr_in);
+#endif
+    paddr = (struct sockaddr_in *)&addr;
+    paddr->sin_family = AF_INET;
     if ((so->so_faddr.s_addr & htonl(pData->netmask)) == special_addr.s_addr)
     {
         /* It's an alias */
@@ -728,22 +790,33 @@ sosendto(PNATState pData, struct socket *so, struct mbuf *m)
             case CTL_ALIAS:
             default:
                 if (last_byte == ~pData->netmask)
-                    addr.sin_addr.s_addr = INADDR_BROADCAST;
+                    paddr->sin_addr.s_addr = INADDR_BROADCAST;
                 else
-                    addr.sin_addr = loopback_addr;
+                    paddr->sin_addr = loopback_addr;
                 break;
         }
     }
     else
-        addr.sin_addr = so->so_faddr;
-    addr.sin_port = so->so_fport;
+        paddr->sin_addr = so->so_faddr;
+    paddr->sin_port = so->so_fport;
 
     DEBUG_MISC((dfd, " sendto()ing, addr.sin_port=%d, addr.sin_addr.s_addr=%.16s\n",
-                ntohs(addr.sin_port), inet_ntoa(addr.sin_addr)));
+                ntohs(paddr->sin_port), inet_ntoa(paddr->sin_addr)));
 
     /* Don't care what port we get */
-    ret = sendto(so->s, m->m_data, m->m_len, 0,
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
+    ret = sendto(so->s, m->m_data, m->m_len, 0, &addr, sizeof (struct sockaddr_in));
+#else
+    mlen = m_length(m, NULL);
+    buf = RTMemAlloc(mlen);
+    if (buf == NULL)
+    {
+        return -1;
+    }
+    m_copydata(m, 0, mlen, buf);
+    ret = sendto(so->s, buf, mlen, 0,
                  (struct sockaddr *)&addr, sizeof (struct sockaddr));
+#endif
     if (ret < 0)
     {
         Log2(("UDP: sendto fails (%s)\n", strerror(errno)));
@@ -1036,8 +1109,12 @@ send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, c
     original_hlen = ip->ip_hl << 2;
     /* saves original ip header and options */
     memcpy(m->m_data + original_hlen, buff + hlen, len - hlen);
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     m->m_len = len - hlen + original_hlen;
     ip->ip_len = m->m_len;
+#else
+    ip->ip_len = m_length(m, NULL);
+#endif
     ip->ip_p = IPPROTO_ICMP; /* the original package could be whatever, but we're response via ICMP*/
 
     icp = (struct icmp *)((char *)ip + (ip->ip_hl << 2));
@@ -1122,7 +1199,11 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
                 so->so_m = NULL;
                 break;
             case IP_SUCCESS: /* echo replied */
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
                 m = m_get(pData);
+#else
+                m = m_gethdr(pData, M_NOWAIT, MT_HEADER);
+#endif
                 m->m_data += if_maxlinkhdr;
                 ip = mtod(m, struct ip *);
                 ip->ip_src.s_addr = icr[i].Address;
@@ -1140,8 +1221,12 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
 
                 data_len += ICMP_MINLEN;
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
                 nbytes = (data_len + icr[i].DataSize > m->m_size? m->m_size - data_len: icr[i].DataSize);
                 memcpy(icp->icmp_data, icr[i].Data, nbytes);
+#else
+                AssertMsgFailed(("ICMP"));
+#endif
 
                 data_len += icr[i].DataSize;
 
@@ -1170,8 +1255,12 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
                 ip_broken->ip_src.s_addr = src; /*it packet sent from host not from guest*/
                 data_len = (ip_broken->ip_hl << 2) + 64;
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
                 nbytes =(hlen + ICMP_MINLEN + data_len > m->m_size? m->m_size - (hlen + ICMP_MINLEN): data_len);
                 memcpy(icp->icmp_data, ip_broken,  nbytes);
+#else
+                AssertMsgFailed(("ICMP"));
+#endif
                 icmp_reflect(pData, m);
                 break;
             default:
@@ -1189,12 +1278,13 @@ static void sorecvfrom_icmp_unix(PNATState pData, struct socket *so)
     int len = 0;
     int rc = 0;
     static int signalled = 0;
+
     rc = ioctlsocket(so->s, FIONREAD, &len);
     if (   rc == -1
-        && (errno == EAGAIN
-        || errno == EWOULDBLOCK
-        || errno == EINPROGRESS
-        || errno == ENOTCONN))
+        && (   errno == EAGAIN
+            || errno == EWOULDBLOCK
+            || errno == EINPROGRESS
+            || errno == ENOTCONN))
     {
         return;
     }
@@ -1215,10 +1305,10 @@ static void sorecvfrom_icmp_unix(PNATState pData, struct socket *so)
     {
         u_char code;
         if (   len == -1
-            && (   errno == EAGAIN
-                || errno == EWOULDBLOCK
-                || errno == EINPROGRESS
-                || errno == ENOTCONN))
+            && (errno == EAGAIN
+            || errno == EWOULDBLOCK
+            || errno == EINPROGRESS
+            || errno == ENOTCONN))
         {
             return;
         }

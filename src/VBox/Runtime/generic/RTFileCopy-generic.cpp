@@ -1,4 +1,4 @@
-/* $Id: RTFileCopy-generic.cpp $ */
+/* $Id: RTFileCopy-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - RTFileCopy, generic implementation.
  */
@@ -33,6 +33,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/file.h>
+#include "internal/iprt.h"
 
 
 /**
@@ -49,4 +50,5 @@ RTDECL(int) RTFileCopy(const char *pszSrc, const char *pszDst)
 {
     return RTFileCopyEx(pszSrc, pszDst, 0, NULL, NULL);
 }
+RT_EXPORT_SYMBOL(RTFileCopy);
 

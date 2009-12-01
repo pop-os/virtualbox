@@ -1,4 +1,4 @@
-/* $Id: HostNetworkInterfaceImpl.h $ */
+/* $Id: HostNetworkInterfaceImpl.h 23223 2009-09-22 15:50:03Z vboxsync $ */
 
 /** @file
  *
@@ -34,9 +34,9 @@ struct NETIFINFO;
 #endif
 
 class ATL_NO_VTABLE HostNetworkInterface :
-    public VirtualBoxBaseNEXT,
-    public VirtualBoxSupportErrorInfoImpl <HostNetworkInterface, IHostNetworkInterface>,
-    public VirtualBoxSupportTranslation <HostNetworkInterface>,
+    public VirtualBoxBase,
+    public VirtualBoxSupportErrorInfoImpl<HostNetworkInterface, IHostNetworkInterface>,
+    public VirtualBoxSupportTranslation<HostNetworkInterface>,
     VBOX_SCRIPTABLE_IMPL(IHostNetworkInterface)
 {
 public:
@@ -52,8 +52,6 @@ public:
         COM_INTERFACE_ENTRY (IHostNetworkInterface)
         COM_INTERFACE_ENTRY (IDispatch)
     END_COM_MAP()
-
-    NS_DECL_ISUPPORTS
 
     DECLARE_EMPTY_CTOR_DTOR (HostNetworkInterface)
 
@@ -96,7 +94,7 @@ private:
     const Guid mGuid;
     HostNetworkInterfaceType_T mIfType;
 
-    ComObjPtr <VirtualBox, ComWeakRef> mVBox;
+    ComObjPtr<VirtualBox, ComWeakRef> mVBox;
 
     struct Data
     {

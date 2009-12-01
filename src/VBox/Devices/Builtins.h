@@ -1,4 +1,4 @@
-/* $Id: Builtins.h $ */
+/* $Id: Builtins.h 22866 2009-09-09 14:39:46Z vboxsync $ */
 /** @file
  * Built-in drivers & devices (part 1) header.
  */
@@ -56,6 +56,9 @@ extern const PDMDEVREG g_DevicePCNet;
 #ifdef VBOX_WITH_E1000
 extern const PDMDEVREG g_DeviceE1000;
 #endif
+#ifdef VBOX_WITH_VIRTIO
+extern const PDMDEVREG g_DeviceVirtioNet;
+#endif
 #ifdef VBOX_WITH_INIP
 extern const PDMDEVREG g_DeviceINIP;
 #endif
@@ -100,7 +103,7 @@ extern const PDMDRVREG g_DrvMediaISO;
 extern const PDMDRVREG g_DrvRawImage;
 extern const PDMDRVREG g_DrvISCSI;
 extern const PDMDRVREG g_DrvISCSITransportTcp;
-#ifdef RT_OS_LINUX
+#if defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)
 extern const PDMDRVREG g_DrvHostInterface;
 #endif
 extern const PDMDRVREG g_DrvIntNet;

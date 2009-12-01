@@ -1,5 +1,5 @@
 /** @file
- * PDM - Pluggable Device Manager, Devices.
+ * PDM - Pluggable Device Manager, Devices. (VMM)
  */
 
 /*
@@ -35,6 +35,7 @@
 #include <VBox/pdmthread.h>
 #include <VBox/pdmifs.h>
 #include <VBox/pdmins.h>
+#include <VBox/pdmcommon.h>
 #include <VBox/iom.h>
 #include <VBox/tm.h>
 #include <VBox/ssm.h>
@@ -149,6 +150,7 @@ typedef FNPDMDEVRESET *PFNPDMDEVRESET;
  *
  * @returns VBox status.
  * @param   pDevIns     The device instance data.
+ * @thread  EMT(0)
  */
 typedef DECLCALLBACK(void)  FNPDMDEVSUSPEND(PPDMDEVINS pDevIns);
 /** Pointer to a FNPDMDEVSUSPEND() function. */
@@ -168,6 +170,7 @@ typedef FNPDMDEVRESUME *PFNPDMDEVRESUME;
  * Power Off notification.
  *
  * @param   pDevIns     The device instance data.
+ * @thread  EMT(0)
  */
 typedef DECLCALLBACK(void)   FNPDMDEVPOWEROFF(PPDMDEVINS pDevIns);
 /** Pointer to a FNPDMDEVPOWEROFF() function. */
@@ -185,8 +188,9 @@ typedef FNPDMDEVPOWEROFF *PFNPDMDEVPOWEROFF;
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
  * @param   iLUN        The logical unit which is being detached.
+ * @param   fFlags      Flags, combination of the PDM_TACH_FLAGS_* \#defines.
  */
-typedef DECLCALLBACK(int)  FNPDMDEVATTACH(PPDMDEVINS pDevIns, unsigned iLUN);
+typedef DECLCALLBACK(int)  FNPDMDEVATTACH(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags);
 /** Pointer to a FNPDMDEVATTACH() function. */
 typedef FNPDMDEVATTACH *PFNPDMDEVATTACH;
 
@@ -201,8 +205,9 @@ typedef FNPDMDEVATTACH *PFNPDMDEVATTACH;
  *
  * @param   pDevIns     The device instance.
  * @param   iLUN        The logical unit which is being detached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  */
-typedef DECLCALLBACK(void)  FNPDMDEVDETACH(PPDMDEVINS pDevIns, unsigned iLUN);
+typedef DECLCALLBACK(void)  FNPDMDEVDETACH(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags);
 /** Pointer to a FNPDMDEVDETACH() function. */
 typedef FNPDMDEVDETACH *PFNPDMDEVDETACH;
 
@@ -402,7 +407,7 @@ typedef PDMDEVREG const *PCPDMDEVREG;
 /** Assert the IRQ (can assume value 1). */
 #define PDM_IRQ_LEVEL_HIGH                      RT_BIT(0)
 /** Deassert the IRQ (can assume value 0). */
-#define PDM_IRQ_LEVEL_LOW           0
+#define PDM_IRQ_LEVEL_LOW                       0
 /** flip-flop - assert and then deassert it again immediately. */
 #define PDM_IRQ_LEVEL_FLIP_FLOP                 (RT_BIT(1) | PDM_IRQ_LEVEL_HIGH)
 /** @} */
@@ -1973,19 +1978,28 @@ typedef struct PDMDEVHLPR3
      * @returns VBox status.
      * @param   pDevIns             Device instance.
      * @param   pszName             Data unit name.
-     * @param   u32Instance         The instance identifier of the data unit.
+     * @param   uInstance           The instance identifier of the data unit.
      *                              This must together with the name be unique.
-     * @param   u32Version          Data layout version number.
+     * @param   uVersion            Data layout version number.
      * @param   cbGuess             The approximate amount of data in the unit.
      *                              Only for progress indicators.
+     * @param   pszBefore           Name of data unit which we should be put in
+     *                              front of. Optional (NULL).
+     *
+     * @param   pfnLivePrep         Prepare live save callback, optional.
+     * @param   pfnLiveExec         Execute live save callback, optional.
+     * @param   pfnLiveVote         Vote live save callback, optional.
+     *
      * @param   pfnSavePrep         Prepare save callback, optional.
      * @param   pfnSaveExec         Execute save callback, optional.
      * @param   pfnSaveDone         Done save callback, optional.
+     *
      * @param   pfnLoadPrep         Prepare load callback, optional.
      * @param   pfnLoadExec         Execute load callback, optional.
      * @param   pfnLoadDone         Done load callback, optional.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSSMRegister,(PPDMDEVINS pDevIns, const char *pszName, uint32_t u32Instance, uint32_t u32Version, size_t cbGuess,
+    DECLR3CALLBACKMEMBER(int, pfnSSMRegister,(PPDMDEVINS pDevIns, uint32_t uVersion, size_t cbGuess, const char *pszBefore,
+                                              PFNSSMDEVLIVEPREP pfnLivePrep, PFNSSMDEVLIVEEXEC pfnLiveExec, PFNSSMDEVLIVEVOTE pfnLiveVote,
                                               PFNSSMDEVSAVEPREP pfnSavePrep, PFNSSMDEVSAVEEXEC pfnSaveExec, PFNSSMDEVSAVEDONE pfnSaveDone,
                                               PFNSSMDEVLOADPREP pfnLoadPrep, PFNSSMDEVLOADEXEC pfnLoadExec, PFNSSMDEVLOADDONE pfnLoadDone));
 
@@ -2183,6 +2197,24 @@ typedef struct PDMDEVHLPR3
     DECLR3CALLBACKMEMBER(int, pfnVMSetRuntimeErrorV,(PPDMDEVINS pDevIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va));
 
     /**
+     * Gets the VM state.
+     *
+     * @returns VM state.
+     * @param   pDevIns             The device instance.
+     * @thread  Any thread (just keep in mind that it's volatile info).
+     */
+    DECLR3CALLBACKMEMBER(VMSTATE, pfnVMState, (PPDMDEVINS pDevIns));
+
+    /**
+     * Checks if the VM was teleported and hasn't been fully resumed yet.
+     *
+     * @returns true / false.
+     * @param   pDevIns             The device instance.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(bool, pfnVMTeleportedAndNotFullyResumedYet,(PPDMDEVINS pDevIns));
+
+    /**
      * Assert that the current thread is the emulation thread.
      *
      * @returns True if correct.
@@ -2309,12 +2341,14 @@ typedef struct PDMDEVHLPR3
      * @param   cMilliesInterval    The number of milliseconds between polling the queue.
      *                              If 0 then the emulation thread will be notified whenever an item arrives.
      * @param   pfnCallback         The consumer function.
-     * @param   fGCEnabled          Set if the queue should work in GC too.
+     * @param   fRZEnabled          Set if the queue should work in RC and R0.
+     * @param   pszName             The queue base name. The instance number will be
+     *                              appended automatically.
      * @param   ppQueue             Where to store the queue handle on success.
      * @thread  The emulation thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnPDMQueueCreate,(PPDMDEVINS pDevIns, RTUINT cbItem, RTUINT cItems, uint32_t cMilliesInterval,
-                                                 PFNPDMQUEUEDEV pfnCallback, bool fGCEnabled, PPDMQUEUE *ppQueue));
+                                                 PFNPDMQUEUEDEV pfnCallback, bool fRZEnabled, const char *pszName, PPDMQUEUE *ppQueue));
 
     /**
      * Initializes a PDM critical section.
@@ -2373,16 +2407,34 @@ typedef struct PDMDEVHLPR3
     DECLR3CALLBACKMEMBER(int, pfnPhysGCPtr2GCPhys, (PPDMDEVINS pDevIns, RTGCPTR GCPtr, PRTGCPHYS pGCPhys));
 
     /**
-     * Gets the VM state.
+     * Set up asynchronous handling of a suspend, reset or power off notification.
      *
-     * @returns VM state.
+     * This shall only be called when getting the notification.  It must be called
+     * for each one.
+     *
+     * @returns VBox status code.
      * @param   pDevIns             The device instance.
-     * @thread  Any thread (just keep in mind that it's volatile info).
+     * @param   pfnAsyncNotify      The callback.
+     * @thread  EMT(0)
      */
-    DECLR3CALLBACKMEMBER(VMSTATE, pfnVMState, (PPDMDEVINS pDevIns));
+    DECLR3CALLBACKMEMBER(int, pfnSetAsyncNotification, (PPDMDEVINS pDevIns, PFNPDMDEVASYNCNOTIFY pfnAsyncNotify));
+
+    /**
+     * Notify EMT(0) that the device has completed the asynchronous notification
+     * handling.
+     *
+     * This can be called at any time, spurious calls will simply be ignored.
+     *
+     * @param   pDevIns             The device instance.
+     * @thread  Any
+     */
+    DECLR3CALLBACKMEMBER(void, pfnAsyncNotificationCompleted, (PPDMDEVINS pDevIns));
 
     /** Space reserved for future members.
      * @{ */
+    DECLR3CALLBACKMEMBER(void, pfnReserved1,(void));
+    DECLR3CALLBACKMEMBER(void, pfnReserved2,(void));
+    DECLR3CALLBACKMEMBER(void, pfnReserved3,(void));
     DECLR3CALLBACKMEMBER(void, pfnReserved4,(void));
     DECLR3CALLBACKMEMBER(void, pfnReserved5,(void));
     DECLR3CALLBACKMEMBER(void, pfnReserved6,(void));
@@ -2891,7 +2943,7 @@ typedef R3PTRTYPE(struct PDMDEVHLPR3 *) PPDMDEVHLPR3;
 typedef R3PTRTYPE(const struct PDMDEVHLPR3 *) PCPDMDEVHLPR3;
 
 /** Current PDMDEVHLP version number. */
-#define PDM_DEVHLP_VERSION  0xf20a0000
+#define PDM_DEVHLP_VERSION  0xf20c0000
 
 
 /**
@@ -3374,6 +3426,14 @@ DECLINLINE(int) PDMDevHlpIOPortRegisterR0(PPDMDEVINS pDevIns, RTIOPORT Port, RTU
 }
 
 /**
+ * @copydoc PDMDEVHLPR3::pfnIOPortDeregister
+ */
+DECLINLINE(int) PDMDevHlpIOPortDeregister(PPDMDEVINS pDevIns, RTIOPORT Port, RTUINT cPorts)
+{
+    return pDevIns->pDevHlpR3->pfnIOPortDeregister(pDevIns, Port, cPorts);
+}
+
+/**
  * @copydoc PDMDEVHLPR3::pfnMMIORegister
  */
 DECLINLINE(int) PDMDevHlpMMIORegister(PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTUINT cbRange, RTHCPTR pvUser,
@@ -3483,15 +3543,58 @@ DECLINLINE(int) PDMDevHlpUnregisterVMMDevHeap(PPDMDEVINS pDevIns, RTGCPHYS GCPhy
 }
 
 /**
+ * Register a save state data unit.
+ *
+ * @returns VBox status.
+ * @param   pDevIns             Device instance.
+ * @param   uVersion            Data layout version number.
+ * @param   cbGuess             The approximate amount of data in the unit.
+ *                              Only for progress indicators.
+ * @param   pfnSaveExec         Execute save callback, optional.
+ * @param   pfnLoadExec         Execute load callback, optional.
+ */
+DECLINLINE(int) PDMDevHlpSSMRegister(PPDMDEVINS pDevIns, uint32_t uVersion, size_t cbGuess,
+                                     PFNSSMDEVSAVEEXEC pfnSaveExec, PFNSSMDEVLOADEXEC pfnLoadExec)
+{
+    return pDevIns->pDevHlpR3->pfnSSMRegister(pDevIns, uVersion, cbGuess, NULL /*pszBefore*/,
+                                              NULL /*pfnLivePrep*/, NULL /*pfnLiveExec*/,  NULL /*pfnLiveDone*/,
+                                              NULL /*pfnSavePrep*/, pfnSaveExec,           NULL /*pfnSaveDone*/,
+                                              NULL /*pfnLoadPrep*/, pfnLoadExec,           NULL /*pfnLoadDone*/);
+}
+
+/**
+ * Register a save state data unit with a live save callback as well.
+ *
+ * @returns VBox status.
+ * @param   pDevIns             Device instance.
+ * @param   uVersion            Data layout version number.
+ * @param   cbGuess             The approximate amount of data in the unit.
+ *                              Only for progress indicators.
+ * @param   pfnLiveExec         Execute live callback, optional.
+ * @param   pfnSaveExec         Execute save callback, optional.
+ * @param   pfnLoadExec         Execute load callback, optional.
+ */
+DECLINLINE(int) PDMDevHlpSSMRegister3(PPDMDEVINS pDevIns, uint32_t uVersion, size_t cbGuess,
+                                      FNSSMDEVLIVEEXEC pfnLiveExec, PFNSSMDEVSAVEEXEC pfnSaveExec, PFNSSMDEVLOADEXEC pfnLoadExec)
+{
+    return pDevIns->pDevHlpR3->pfnSSMRegister(pDevIns, uVersion, cbGuess, NULL /*pszBefore*/,
+                                              NULL /*pfnLivePrep*/, pfnLiveExec,  NULL /*pfnLiveDone*/,
+                                              NULL /*pfnSavePrep*/, pfnSaveExec,  NULL /*pfnSaveDone*/,
+                                              NULL /*pfnLoadPrep*/, pfnLoadExec,  NULL /*pfnLoadDone*/);
+}
+
+/**
  * @copydoc PDMDEVHLPR3::pfnSSMRegister
  */
-DECLINLINE(int) PDMDevHlpSSMRegister(PPDMDEVINS pDevIns, const char *pszName, uint32_t u32Instance, uint32_t u32Version, size_t cbGuess,
-                                     PFNSSMDEVSAVEPREP pfnSavePrep, PFNSSMDEVSAVEEXEC pfnSaveExec, PFNSSMDEVSAVEDONE pfnSaveDone,
-                                     PFNSSMDEVLOADPREP pfnLoadPrep, PFNSSMDEVLOADEXEC pfnLoadExec, PFNSSMDEVLOADDONE pfnLoadDone)
+DECLINLINE(int) PDMDevHlpSSMRegisterEx(PPDMDEVINS pDevIns, uint32_t uVersion, size_t cbGuess, const char *pszBefore,
+                                       PFNSSMDEVLIVEPREP pfnLivePrep, PFNSSMDEVLIVEEXEC pfnLiveExec, PFNSSMDEVLIVEVOTE pfnLiveVote,
+                                       PFNSSMDEVSAVEPREP pfnSavePrep, PFNSSMDEVSAVEEXEC pfnSaveExec, PFNSSMDEVSAVEDONE pfnSaveDone,
+                                       PFNSSMDEVLOADPREP pfnLoadPrep, PFNSSMDEVLOADEXEC pfnLoadExec, PFNSSMDEVLOADDONE pfnLoadDone)
 {
-    return pDevIns->pDevHlpR3->pfnSSMRegister(pDevIns, pszName, u32Instance, u32Version, cbGuess,
-                                            pfnSavePrep, pfnSaveExec, pfnSaveDone,
-                                            pfnLoadPrep, pfnLoadExec, pfnLoadDone);
+    return pDevIns->pDevHlpR3->pfnSSMRegister(pDevIns, uVersion, cbGuess, pszBefore,
+                                              pfnLivePrep, pfnLiveExec, pfnLiveVote,
+                                              pfnSavePrep, pfnSaveExec, pfnSaveDone,
+                                              pfnLoadPrep, pfnLoadExec, pfnLoadDone);
 }
 
 /**
@@ -3592,9 +3695,9 @@ DECLINLINE(void) PDMDevHlpSTAMRegisterF(PPDMDEVINS pDevIns, void *pvSample, STAM
  * @copydoc PDMDEVHLPR3::pfnPDMQueueCreate
  */
 DECLINLINE(int) PDMDevHlpPDMQueueCreate(PPDMDEVINS pDevIns, RTUINT cbItem, RTUINT cItems, uint32_t cMilliesInterval,
-                                        PFNPDMQUEUEDEV pfnCallback, bool fGCEnabled, PPDMQUEUE *ppQueue)
+                                        PFNPDMQUEUEDEV pfnCallback, bool fGCEnabled, const char *pszName, PPDMQUEUE *ppQueue)
 {
-    return pDevIns->pDevHlpR3->pfnPDMQueueCreate(pDevIns, cbItem, cItems, cMilliesInterval, pfnCallback, fGCEnabled, ppQueue);
+    return pDevIns->pDevHlpR3->pfnPDMQueueCreate(pDevIns, cbItem, cItems, cMilliesInterval, pfnCallback, fGCEnabled, pszName, ppQueue);
 }
 
 /**
@@ -3638,11 +3741,35 @@ DECLINLINE(int) PDMDevHlpPhysGCPtr2GCPhys(PPDMDEVINS pDevIns, RTGCPTR GCPtr, PRT
 }
 
 /**
+ * @copydoc PDMDEVHLPR3::pfnSetAsyncNotification
+ */
+DECLINLINE(int) PDMDevHlpSetAsyncNotification(PPDMDEVINS pDevIns, PFNPDMDEVASYNCNOTIFY pfnAsyncNotify)
+{
+    return pDevIns->pDevHlpR3->pfnSetAsyncNotification(pDevIns, pfnAsyncNotify);
+}
+
+/**
+ * @copydoc PDMDEVHLPR3::pfnAsyncNotificationCompleted
+ */
+DECLINLINE(void) PDMDevHlpAsyncNotificationCompleted(PPDMDEVINS pDevIns)
+{
+    pDevIns->pDevHlpR3->pfnAsyncNotificationCompleted(pDevIns);
+}
+
+/**
  * @copydoc PDMDEVHLPR3::pfnVMState
  */
 DECLINLINE(VMSTATE) PDMDevHlpVMState(PPDMDEVINS pDevIns)
 {
     return pDevIns->pDevHlpR3->pfnVMState(pDevIns);
+}
+
+/**
+ * @copydoc PDMDEVHLPR3::pfnVMTeleportedAndNotFullyResumedYet
+ */
+DECLINLINE(bool) PDMDevHlpVMTeleportedAndNotFullyResumedYet(PPDMDEVINS pDevIns)
+{
+    return pDevIns->pDevHlpR3->pfnVMTeleportedAndNotFullyResumedYet(pDevIns);
 }
 
 /**

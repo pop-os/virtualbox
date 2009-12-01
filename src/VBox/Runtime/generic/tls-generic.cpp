@@ -1,4 +1,4 @@
-/* $Id: tls-generic.cpp $ */
+/* $Id: tls-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - Thread Local Storage (TSL), Generic Implementation.
  */
@@ -33,8 +33,9 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_THREAD
-
 #include <iprt/thread.h>
+#include "internal/iprt.h"
+
 #include <iprt/err.h>
 #include <iprt/asm.h>
 #include <iprt/log.h>

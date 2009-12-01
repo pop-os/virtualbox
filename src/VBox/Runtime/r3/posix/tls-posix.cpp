@@ -1,4 +1,4 @@
-/* $Id: tls-posix.cpp $ */
+/* $Id: tls-posix.cpp 22450 2009-08-26 06:49:36Z vboxsync $ */
 /** @file
  * IPRT - Thread Local Storage (TLS), POSIX.
  */
@@ -51,7 +51,7 @@ RTR3DECL(RTTLS) RTTlsAlloc(void)
     int rc = pthread_key_create(&iTls, NULL);
     if (!rc)
     {
-        Assert((RTTLS)iTls != NIL_RTTLS);
+        Assert(iTls != (pthread_key_t)NIL_RTTLS);
         return iTls;
     }
     return NIL_RTTLS;

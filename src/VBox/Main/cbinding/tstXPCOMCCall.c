@@ -1,4 +1,4 @@
-/* $Revision: 48062 $ */
+/* $Revision: 24301 $ */
 /** @file tstXPCOMCGlue.c
  * Demonstrator program to illustrate use of C bindings of Main API.
  *
@@ -75,14 +75,19 @@ static const char *GetStateName(PRUint32 machineState)
         case MachineState_Null:                return "<null>";
         case MachineState_PoweredOff:          return "PoweredOff";
         case MachineState_Saved:               return "Saved";
+        case MachineState_Teleported:          return "Teleported";
         case MachineState_Aborted:             return "Aborted";
         case MachineState_Running:             return "Running";
+        case MachineState_Teleporting:         return "Teleporting";
+        case MachineState_LiveSnapshotting:    return "LiveSnapshotting";
         case MachineState_Paused:              return "Paused";
         case MachineState_Stuck:               return "Stuck";
         case MachineState_Starting:            return "Starting";
         case MachineState_Stopping:            return "Stopping";
         case MachineState_Saving:              return "Saving";
         case MachineState_Restoring:           return "Restoring";
+        case MachineState_TeleportingPausedVM: return "TeleportingPausedVM";
+        case MachineState_TeleportingIn:       return "TeleportingIn";
         case MachineState_Discarding:          return "Discarding";
         case MachineState_SettingUp:           return "SettingUp";
         default:                               return "no idea";
@@ -128,7 +133,11 @@ static nsresult OnStateChange(
 ) {
     printf("OnStateChange: %s\n", GetStateName(state));
     fflush(stdout);
-    if (state == MachineState_PoweredOff)
+    if (   state == MachineState_PoweredOff
+        || state == MachineState_Saved
+        || state == MachineState_Teleported
+        || state == MachineState_Aborted
+       )
         g_fStop = 1;
     return 0;
 }
@@ -136,18 +145,6 @@ static nsresult OnStateChange(
 static nsresult OnAdditionsStateChange(IConsoleCallback *pThis )
 {
     printf("OnAdditionsStateChange\n");
-    return 0;
-}
-
-static nsresult OnDVDDriveChange(IConsoleCallback *pThis )
-{
-    printf("OnDVDDriveChange \n");
-    return 0;
-}
-
-static nsresult OnFloppyDriveChange(IConsoleCallback *pThis )
-{
-    printf("OnFloppyDriveChange \n");
     return 0;
 }
 
@@ -175,9 +172,16 @@ static nsresult OnParallelPortChange(
     return 0;
 }
 
-static nsresult OnStorageControllerChange(IConsoleCallback *pThis )
+static nsresult OnStorageControllerChange(IConsoleCallback *pThis)
 {
     printf("OnStorageControllerChange\n");
+    return 0;
+}
+
+static nsresult OnMediumChange(IConsoleCallback *pThis,
+                               IMediumAttachment *mediumAttachment)
+{
+    printf("OnMediumChange\n");
     return 0;
 }
 
@@ -326,12 +330,11 @@ static void registerCallBack(IVirtualBox *virtualBox, ISession *session, PRUnich
             consoleCallback->vtbl->OnKeyboardLedsChange =&OnKeyboardLedsChange;
             consoleCallback->vtbl->OnStateChange = &OnStateChange;
             consoleCallback->vtbl->OnAdditionsStateChange = &OnAdditionsStateChange;
-            consoleCallback->vtbl->OnDVDDriveChange = &OnDVDDriveChange;
-            consoleCallback->vtbl->OnFloppyDriveChange = &OnFloppyDriveChange;
             consoleCallback->vtbl->OnNetworkAdapterChange = &OnNetworkAdapterChange;
             consoleCallback->vtbl->OnSerialPortChange = &OnSerialPortChange;
             consoleCallback->vtbl->OnParallelPortChange = &OnParallelPortChange;
             consoleCallback->vtbl->OnStorageControllerChange = &OnStorageControllerChange;
+            consoleCallback->vtbl->OnMediumChange = &OnMediumChange;
             consoleCallback->vtbl->OnVRDPServerChange = &OnVRDPServerChange;
             consoleCallback->vtbl->OnUSBControllerChange = &OnUSBControllerChange;
             consoleCallback->vtbl->OnUSBDeviceStateChange = &OnUSBDeviceStateChange;

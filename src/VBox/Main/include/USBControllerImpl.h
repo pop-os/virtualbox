@@ -1,4 +1,4 @@
-/* $Id: USBControllerImpl.h $ */
+/* $Id: USBControllerImpl.h 24989 2009-11-26 11:31:46Z vboxsync $ */
 
 /** @file
  *
@@ -34,6 +34,11 @@
 class Machine;
 class HostUSBDevice;
 
+namespace settings
+{
+    struct USBController;
+}
+
 /**
  *  @note we cannot use VirtualBoxBaseWithTypedChildren <USBDeviceFilter> as a
  *  base class, because we want a quick (map-based) way of validating
@@ -43,8 +48,8 @@ class HostUSBDevice;
 
 class ATL_NO_VTABLE USBController :
     public VirtualBoxBaseWithChildrenNEXT,
-    public VirtualBoxSupportErrorInfoImpl <USBController, IUSBController>,
-    public VirtualBoxSupportTranslation <USBController>,
+    public VirtualBoxSupportErrorInfoImpl<USBController, IUSBController>,
+    public VirtualBoxSupportTranslation<USBController>,
     VBOX_SCRIPTABLE_IMPL(IUSBController)
 {
 private:
@@ -80,8 +85,6 @@ public:
         COM_INTERFACE_ENTRY2 (IDispatch, IUSBController)
     END_COM_MAP()
 
-    NS_DECL_ISUPPORTS
-
     DECLARE_EMPTY_CTOR_DTOR (USBController)
 
     HRESULT FinalConstruct();
@@ -108,8 +111,8 @@ public:
 
     // public methods only for internal purposes
 
-    HRESULT loadSettings (const settings::Key &aMachineNode);
-    HRESULT saveSettings (settings::Key &aMachineNode);
+    HRESULT loadSettings(const settings::USBController &data);
+    HRESULT saveSettings(settings::USBController &data);
 
     bool isModified();
     bool isReallyModified();
@@ -121,7 +124,7 @@ public:
     HRESULT onDeviceFilterChange (USBDeviceFilter *aFilter,
                                   BOOL aActiveChanged = FALSE);
 
-    bool hasMatchingFilter (const ComObjPtr <HostUSBDevice> &aDevice, ULONG *aMaskedIfs);
+    bool hasMatchingFilter (const ComObjPtr<HostUSBDevice> &aDevice, ULONG *aMaskedIfs);
     bool hasMatchingFilter (IUSBDevice *aUSBDevice, ULONG *aMaskedIfs);
 
     HRESULT notifyProxy (bool aInsertFilters);
@@ -131,9 +134,9 @@ public:
     // (ensure there is a caller and a read lock before calling them!)
 
     /** @note this doesn't require a read lock since mParent is constant. */
-    const ComObjPtr <Machine, ComWeakRef> &parent() { return mParent; };
+    const ComObjPtr<Machine, ComWeakRef> &parent() { return mParent; };
 
-    const Backupable<Data> &data() { return mData; }
+    const Backupable<Data>& getData() { return mData; }
 
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"USBController"; }
@@ -142,10 +145,10 @@ private:
 
 #ifdef VBOX_WITH_USB
     /** specialization for IUSBDeviceFilter */
-    ComObjPtr <USBDeviceFilter> getDependentChild (IUSBDeviceFilter *aFilter)
+    ComObjPtr<USBDeviceFilter> getDependentChild (IUSBDeviceFilter *aFilter)
     {
         VirtualBoxBase *child = VirtualBoxBaseWithChildrenNEXT::
-                                getDependentChild (ComPtr <IUnknown> (aFilter));
+                                getDependentChild (ComPtr<IUnknown> (aFilter));
         return child ? static_cast <USBDeviceFilter *> (child)
                      : NULL;
     }
@@ -156,15 +159,15 @@ private:
     /** Parent object. */
     const ComObjPtr<Machine, ComWeakRef> mParent;
     /** Peer object. */
-    const ComObjPtr <USBController> mPeer;
+    const ComObjPtr<USBController> mPeer;
     /** Data. */
-    Backupable <Data> mData;
+    Backupable<Data> mData;
 
 #ifdef VBOX_WITH_USB
     // the following fields need special backup/rollback/commit handling,
     // so they cannot be a part of Data
 
-    typedef std::list <ComObjPtr <USBDeviceFilter> > DeviceFilterList;
+    typedef std::list <ComObjPtr<USBDeviceFilter> > DeviceFilterList;
     Backupable <DeviceFilterList> mDeviceFilters;
 #endif /* VBOX_WITH_USB */
 };

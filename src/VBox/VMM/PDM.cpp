@@ -1,4 +1,4 @@
-/* $Id: PDM.cpp $ */
+/* $Id: PDM.cpp 25008 2009-11-26 14:49:44Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device Manager.
  */
@@ -286,8 +286,9 @@
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-static DECLCALLBACK(int) pdmR3Save(PVM pVM, PSSMHANDLE pSSM);
-static DECLCALLBACK(int) pdmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version);
+static DECLCALLBACK(int) pdmR3LiveExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass);
+static DECLCALLBACK(int) pdmR3SaveExec(PVM pVM, PSSMHANDLE pSSM);
+static DECLCALLBACK(int) pdmR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
 static DECLCALLBACK(int) pdmR3LoadPrep(PVM pVM, PSSMHANDLE pSSM);
 
 
@@ -356,8 +357,9 @@ VMMR3DECL(int) PDMR3Init(PVM pVM)
          * Register the saved state data unit.
          */
         rc = SSMR3RegisterInternal(pVM, "pdm", 1, PDM_SAVED_STATE_VERSION, 128,
-                                   NULL, pdmR3Save, NULL,
-                                   pdmR3LoadPrep, pdmR3Load, NULL);
+                                   NULL, pdmR3LiveExec, NULL,
+                                   NULL, pdmR3SaveExec, NULL,
+                                   pdmR3LoadPrep, pdmR3LoadExec, NULL);
         if (RT_SUCCESS(rc))
         {
             LogFlow(("PDM: Successfully initialized\n"));
@@ -620,39 +622,18 @@ VMMR3DECL(void) PDMR3TermUVM(PUVM pUVM)
 }
 
 
-
-
-
 /**
- * Execute state save operation.
+ * Bits that are saved in pass 0 and in the final pass.
  *
- * @returns VBox status code.
- * @param   pVM             VM Handle.
- * @param   pSSM            SSM operation handle.
+ * @param   pVM             The VM handle.
+ * @param   pSSM            The saved state handle.
  */
-static DECLCALLBACK(int) pdmR3Save(PVM pVM, PSSMHANDLE pSSM)
+static void pdmR3SaveBoth(PVM pVM, PSSMHANDLE pSSM)
 {
-    LogFlow(("pdmR3Save:\n"));
-
     /*
-     * Save interrupt and DMA states.
+     * Save the list of device instances so we can check that they're all still
+     * there when we load the state and that nothing new has been added.
      */
-    for (unsigned idCpu = 0; idCpu < pVM->cCPUs; idCpu++)
-    {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
-        SSMR3PutUInt(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC));
-        SSMR3PutUInt(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC));
-        SSMR3PutUInt(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_NMI));
-        SSMR3PutUInt(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_SMI));
-    }
-    SSMR3PutUInt(pSSM, VM_FF_ISSET(pVM, VM_FF_PDM_DMA));
-
-    /*
-     * Save the list of device instances so we can check that
-     * they're all still there when we load the state and that
-     * nothing new have been added.
-     */
-    /** @todo We might have to filter out some device classes, like USB attached devices. */
     uint32_t i = 0;
     for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3, i++)
     {
@@ -660,7 +641,53 @@ static DECLCALLBACK(int) pdmR3Save(PVM pVM, PSSMHANDLE pSSM)
         SSMR3PutStrZ(pSSM, pDevIns->pDevReg->szDeviceName);
         SSMR3PutU32(pSSM, pDevIns->iInstance);
     }
-    return SSMR3PutU32(pSSM, ~0); /* terminator */
+    SSMR3PutU32(pSSM, UINT32_MAX); /* terminator */
+}
+
+
+/**
+ * Live save.
+ *
+ * @returns VBox status code.
+ * @param   pVM             The VM handle.
+ * @param   pSSM            The saved state handle.
+ * @param   uPass           The pass.
+ */
+static DECLCALLBACK(int) pdmR3LiveExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass)
+{
+    LogFlow(("pdmR3LiveExec:\n"));
+    AssertReturn(uPass == 0, VERR_INTERNAL_ERROR_4);
+    pdmR3SaveBoth(pVM, pSSM);
+    return VINF_SSM_DONT_CALL_AGAIN;
+}
+
+
+/**
+ * Execute state save operation.
+ *
+ * @returns VBox status code.
+ * @param   pVM             The VM handle.
+ * @param   pSSM            The saved state handle.
+ */
+static DECLCALLBACK(int) pdmR3SaveExec(PVM pVM, PSSMHANDLE pSSM)
+{
+    LogFlow(("pdmR3SaveExec:\n"));
+
+    /*
+     * Save interrupt and DMA states.
+     */
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+        SSMR3PutU32(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC));
+        SSMR3PutU32(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC));
+        SSMR3PutU32(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_NMI));
+        SSMR3PutU32(pSSM, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_SMI));
+    }
+    SSMR3PutU32(pSSM, VM_FF_ISSET(pVM, VM_FF_PDM_DMA));
+
+    pdmR3SaveBoth(pVM, pSSM);
+    return VINF_SUCCESS;
 }
 
 
@@ -679,7 +706,7 @@ static DECLCALLBACK(int) pdmR3LoadPrep(PVM pVM, PSSMHANDLE pSSM)
              VM_FF_ISSET(pVM, VM_FF_PDM_QUEUES)     ? " VM_FF_PDM_QUEUES" : "",
              VM_FF_ISSET(pVM, VM_FF_PDM_DMA)        ? " VM_FF_PDM_DMA" : ""));
 #ifdef LOG_ENABLED
-    for (unsigned idCpu=0;idCpu<pVM->cCPUs;idCpu++)
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         PVMCPU pVCpu = &pVM->aCpus[idCpu];
         LogFlow(("pdmR3LoadPrep: VCPU %u %s%s\n", idCpu,
@@ -696,7 +723,7 @@ static DECLCALLBACK(int) pdmR3LoadPrep(PVM pVM, PSSMHANDLE pSSM)
         PDMR3QueueFlushAll(pVM);
 
     /* Clear the FFs. */
-    for (unsigned idCpu=0;idCpu<pVM->cCPUs;idCpu++)
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         PVMCPU pVCpu = &pVM->aCpus[idCpu];
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_APIC);
@@ -716,163 +743,245 @@ static DECLCALLBACK(int) pdmR3LoadPrep(PVM pVM, PSSMHANDLE pSSM)
  * @returns VBox status code.
  * @param   pVM             VM Handle.
  * @param   pSSM            SSM operation handle.
- * @param   u32Version      Data layout version.
+ * @param   uVersion        Data layout version.
+ * @param   uPass           The data pass.
  */
-static DECLCALLBACK(int) pdmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t u32Version)
+static DECLCALLBACK(int) pdmR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
     int rc;
 
-    LogFlow(("pdmR3Load:\n"));
+    LogFlow(("pdmR3LoadExec: uPass=%#x\n", uPass));
 
     /*
      * Validate version.
      */
-    if (    u32Version != PDM_SAVED_STATE_VERSION
-        &&  u32Version != PDM_SAVED_STATE_VERSION_PRE_NMI_FF)
+    if (    uVersion != PDM_SAVED_STATE_VERSION
+        &&  uVersion != PDM_SAVED_STATE_VERSION_PRE_NMI_FF)
     {
-        AssertMsgFailed(("pdmR3Load: Invalid version u32Version=%d!\n", u32Version));
+        AssertMsgFailed(("Invalid version uVersion=%d!\n", uVersion));
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     }
 
-    /*
-     * Load the interrupt and DMA states.
-     */
-    for (unsigned idCpu = 0; idCpu < pVM->cCPUs; idCpu++)
+    if (uPass == SSM_PASS_FINAL)
     {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
-
-        /* APIC interrupt */
-        RTUINT fInterruptPending = 0;
-        rc = SSMR3GetUInt(pSSM, &fInterruptPending);
-        if (RT_FAILURE(rc))
-            return rc;
-        if (fInterruptPending & ~1)
+        /*
+         * Load the interrupt and DMA states.
+         */
+        for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
         {
-            AssertMsgFailed(("fInterruptPending=%#x (APIC)\n", fInterruptPending));
-            return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
-        }
-        AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC));
-        if (fInterruptPending)
-            VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC);
+            PVMCPU pVCpu = &pVM->aCpus[idCpu];
 
-        /* PIC interrupt */
-        fInterruptPending = 0;
-        rc = SSMR3GetUInt(pSSM, &fInterruptPending);
-        if (RT_FAILURE(rc))
-            return rc;
-        if (fInterruptPending & ~1)
-        {
-            AssertMsgFailed(("fInterruptPending=%#x (PIC)\n", fInterruptPending));
-            return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
-        }
-        AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC));
-        if (fInterruptPending)
-            VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC);
-
-        if (u32Version > PDM_SAVED_STATE_VERSION_PRE_NMI_FF)
-        {
-            /* NMI interrupt */
-            RTUINT fInterruptPending = 0;
-            rc = SSMR3GetUInt(pSSM, &fInterruptPending);
+            /* APIC interrupt */
+            uint32_t fInterruptPending = 0;
+            rc = SSMR3GetU32(pSSM, &fInterruptPending);
             if (RT_FAILURE(rc))
                 return rc;
             if (fInterruptPending & ~1)
             {
-                AssertMsgFailed(("fInterruptPending=%#x (NMI)\n", fInterruptPending));
+                AssertMsgFailed(("fInterruptPending=%#x (APIC)\n", fInterruptPending));
                 return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
             }
-            AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_NMI));
+            AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC));
             if (fInterruptPending)
-                VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_NMI);
+                VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC);
 
-            /* SMI interrupt */
+            /* PIC interrupt */
             fInterruptPending = 0;
-            rc = SSMR3GetUInt(pSSM, &fInterruptPending);
+            rc = SSMR3GetU32(pSSM, &fInterruptPending);
             if (RT_FAILURE(rc))
                 return rc;
             if (fInterruptPending & ~1)
             {
-                AssertMsgFailed(("fInterruptPending=%#x (SMI)\n", fInterruptPending));
+                AssertMsgFailed(("fInterruptPending=%#x (PIC)\n", fInterruptPending));
                 return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
             }
-            AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_SMI));
+            AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC));
             if (fInterruptPending)
-                VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_SMI);
-        }
-    }
+                VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC);
 
-    /* DMA pending */
-    RTUINT fDMAPending = 0;
-    rc = SSMR3GetUInt(pSSM, &fDMAPending);
-    if (RT_FAILURE(rc))
-        return rc;
-    if (fDMAPending & ~1)
-    {
-        AssertMsgFailed(("fDMAPending=%#x\n", fDMAPending));
-        return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
+            if (uVersion > PDM_SAVED_STATE_VERSION_PRE_NMI_FF)
+            {
+                /* NMI interrupt */
+                fInterruptPending = 0;
+                rc = SSMR3GetU32(pSSM, &fInterruptPending);
+                if (RT_FAILURE(rc))
+                    return rc;
+                if (fInterruptPending & ~1)
+                {
+                    AssertMsgFailed(("fInterruptPending=%#x (NMI)\n", fInterruptPending));
+                    return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
+                }
+                AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_NMI));
+                if (fInterruptPending)
+                    VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_NMI);
+
+                /* SMI interrupt */
+                fInterruptPending = 0;
+                rc = SSMR3GetU32(pSSM, &fInterruptPending);
+                if (RT_FAILURE(rc))
+                    return rc;
+                if (fInterruptPending & ~1)
+                {
+                    AssertMsgFailed(("fInterruptPending=%#x (SMI)\n", fInterruptPending));
+                    return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
+                }
+                AssertRelease(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_SMI));
+                if (fInterruptPending)
+                    VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_SMI);
+            }
+        }
+
+        /* DMA pending */
+        uint32_t fDMAPending = 0;
+        rc = SSMR3GetU32(pSSM, &fDMAPending);
+        if (RT_FAILURE(rc))
+            return rc;
+        if (fDMAPending & ~1)
+        {
+            AssertMsgFailed(("fDMAPending=%#x\n", fDMAPending));
+            return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
+        }
+        if (fDMAPending)
+            VM_FF_SET(pVM, VM_FF_PDM_DMA);
+        Log(("pdmR3LoadExec: VM_FF_PDM_DMA=%RTbool\n", VM_FF_ISSET(pVM, VM_FF_PDM_DMA)));
     }
-    if (fDMAPending)
-        VM_FF_SET(pVM, VM_FF_PDM_DMA);
-    Log(("pdmR3Load: VM_FF_PDM_DMA=%RTbool\n", VM_FF_ISSET(pVM, VM_FF_PDM_DMA)));
 
     /*
      * Load the list of devices and verify that they are all there.
-     *
-     * We boldly ASSUME that the order is fixed and that it's a good, this
-     * makes it way easier to validate...
      */
-    uint32_t i = 0;
-    PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances;
-    for (;;pDevIns = pDevIns->Internal.s.pNextR3, i++)
+    for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
+        pDevIns->Internal.s.fIntFlags &= ~PDMDEVINSINT_FLAGS_FOUND;
+
+    for (uint32_t i = 0; ; i++)
     {
-        /* Get the separator / terminator. */
+        /* Get the sequence number / terminator. */
         uint32_t    u32Sep;
-        int rc = SSMR3GetU32(pSSM, &u32Sep);
+        rc = SSMR3GetU32(pSSM, &u32Sep);
         if (RT_FAILURE(rc))
             return rc;
-        if (u32Sep == (uint32_t)~0)
+        if (u32Sep == UINT32_MAX)
             break;
         if (u32Sep != i)
             AssertMsgFailedReturn(("Out of seqence. u32Sep=%#x i=%#x\n", u32Sep, i), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
 
-        /* get the name and instance number. */
-        char szDeviceName[sizeof(pDevIns->pDevReg->szDeviceName)];
+        /* Get the name and instance number. */
+        char szDeviceName[RT_SIZEOFMEMB(PDMDEVREG, szDeviceName)];
         rc = SSMR3GetStrZ(pSSM, szDeviceName, sizeof(szDeviceName));
         if (RT_FAILURE(rc))
             return rc;
-        RTUINT iInstance;
-        rc = SSMR3GetUInt(pSSM, &iInstance);
+        uint32_t iInstance;
+        rc = SSMR3GetU32(pSSM, &iInstance);
         if (RT_FAILURE(rc))
             return rc;
 
-        /* compare */
+        /* Try locate it. */
+        PPDMDEVINS pDevIns;
+        for (pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
+            if (   !strcmp(szDeviceName, pDevIns->pDevReg->szDeviceName)
+                && pDevIns->iInstance == iInstance)
+            {
+                AssertLogRelMsgReturn(!(pDevIns->Internal.s.fIntFlags & PDMDEVINSINT_FLAGS_FOUND),
+                                      ("%s/#%u\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance),
+                                      VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+                pDevIns->Internal.s.fIntFlags |= PDMDEVINSINT_FLAGS_FOUND;
+                break;
+            }
         if (!pDevIns)
         {
             LogRel(("Device '%s'/%d not found in current config\n", szDeviceName, iInstance));
             if (SSMR3HandleGetAfter(pSSM) != SSMAFTER_DEBUG_IT)
-                AssertFailedReturn(VERR_SSM_LOAD_CONFIG_MISMATCH);
-            break;
-        }
-        if (    strcmp(szDeviceName, pDevIns->pDevReg->szDeviceName)
-            ||  pDevIns->iInstance != iInstance)
-        {
-            LogRel(("u32Sep=%d loaded '%s'/%d  configured '%s'/%d\n",
-                    u32Sep, szDeviceName, iInstance, pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
-            if (SSMR3HandleGetAfter(pSSM) != SSMAFTER_DEBUG_IT)
-                AssertFailedReturn(VERR_SSM_LOAD_CONFIG_MISMATCH);
+                return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("Device '%s'/%d not found in current config"), szDeviceName, iInstance);
         }
     }
 
     /*
-     * Too many devices?
+     * Check that no additional devices were configured.
      */
-    if (pDevIns)
-    {
-        LogRel(("Device '%s'/%d not found in saved state\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
-        if (SSMR3HandleGetAfter(pSSM) != SSMAFTER_DEBUG_IT)
-            AssertFailedReturn(VERR_SSM_LOAD_CONFIG_MISMATCH);
-    }
+    for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
+        if (!(pDevIns->Internal.s.fIntFlags & PDMDEVINSINT_FLAGS_FOUND))
+        {
+            LogRel(("Device '%s'/%d not found in the saved state\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+            if (SSMR3HandleGetAfter(pSSM) != SSMAFTER_DEBUG_IT)
+                return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("Device '%s'/%d not found in the saved state"),
+                                        pDevIns->pDevReg->szDeviceName, pDevIns->iInstance);
+        }
 
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Worker for PDMR3PowerOn that deals with one driver.
+ *
+ * @param   pDrvIns             The driver instance.
+ * @param   pszDeviceName       The parent device name.
+ * @param   iDevInstance        The parent device instance number.
+ * @param   iLun                The parent LUN number.
+ */
+DECLINLINE(bool) pdmR3PowerOnDrv(PPDMDRVINS pDrvIns, const char *pszDeviceName, uint32_t iDevInstance, uint32_t iLun)
+{
+    Assert(pDrvIns->Internal.s.fVMSuspended);
+    if (pDrvIns->pDrvReg->pfnPowerOn)
+    {
+        LogFlow(("PDMR3PowerOn: Notifying - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
+                 pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, iLun, pszDeviceName, iDevInstance));
+        int rc = VINF_SUCCESS; pDrvIns->pDrvReg->pfnPowerOn(pDrvIns);
+        if (RT_FAILURE(rc))
+        {
+            LogRel(("PDMR3PowerOn: driver '%s'/%d on LUN#%d of device '%s'/%d -> %Rrc\n",
+                    pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, iLun, pszDeviceName, iDevInstance, rc));
+            return rc;
+        }
+    }
+    pDrvIns->Internal.s.fVMSuspended = false;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Worker for PDMR3PowerOn that deals with one USB device instance.
+ *
+ * @returns VBox status code.
+ * @param   pUsbIns             The USB device instance.
+ */
+DECLINLINE(int) pdmR3PowerOnUsb(PPDMUSBINS pUsbIns)
+{
+    Assert(pUsbIns->Internal.s.fVMSuspended);
+    if (pUsbIns->pUsbReg->pfnVMPowerOn)
+    {
+        LogFlow(("PDMR3PowerOn: Notifying - device '%s'/%d\n", pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
+        int rc = VINF_SUCCESS; pUsbIns->pUsbReg->pfnVMPowerOn(pUsbIns);
+        if (RT_FAILURE(rc))
+        {
+            LogRel(("PDMR3PowerOn: device '%s'/%d -> %Rrc\n", pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance, rc));
+            return rc;
+        }
+    }
+    pUsbIns->Internal.s.fVMSuspended = false;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Worker for PDMR3PowerOn that deals with one device instance.
+ *
+ * @returns VBox status code.
+ * @param   pDevIns             The device instance.
+ */
+DECLINLINE(int) pdmR3PowerOnDev(PPDMDEVINS pDevIns)
+{
+    Assert(pDevIns->Internal.s.fIntFlags & PDMDEVINSINT_FLAGS_SUSPENDED);
+    if (pDevIns->pDevReg->pfnPowerOn)
+    {
+        LogFlow(("PDMR3PowerOn: Notifying - device '%s'/%d\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+        int rc = VINF_SUCCESS; pDevIns->pDevReg->pfnPowerOn(pDevIns);
+        if (RT_FAILURE(rc))
+        {
+            LogRel(("PDMR3PowerOn: device '%s'/%d -> %Rrc\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, rc));
+            return rc;
+        }
+    }
+    pDevIns->Internal.s.fIntFlags &= ~PDMDEVINSINT_FLAGS_SUSPENDED;
     return VINF_SUCCESS;
 }
 
@@ -888,64 +997,164 @@ VMMR3DECL(void) PDMR3PowerOn(PVM pVM)
     LogFlow(("PDMR3PowerOn:\n"));
 
     /*
-     * Iterate the device instances.
-     * The attached drivers are processed first.
+     * Iterate thru the device instances and USB device instances,
+     * processing the drivers associated with those.
      */
-    for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
+    int rc = VINF_SUCCESS;
+    for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances;  pDevIns && RT_SUCCESS(rc);  pDevIns = pDevIns->Internal.s.pNextR3)
     {
-        for (PPDMLUN pLun = pDevIns->Internal.s.pLunsR3; pLun; pLun = pLun->pNext)
-            /** @todo Inverse the order here? */
-            for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
-                if (pDrvIns->pDrvReg->pfnPowerOn)
-                {
-                    LogFlow(("PDMR3PowerOn: Notifying - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
-                             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, pLun->iLun, pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
-                    pDrvIns->pDrvReg->pfnPowerOn(pDrvIns);
-                }
-
-        if (pDevIns->pDevReg->pfnPowerOn)
-        {
-            LogFlow(("PDMR3PowerOn: Notifying - device '%s'/%d\n",
-                     pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
-            pDevIns->pDevReg->pfnPowerOn(pDevIns);
-        }
+        for (PPDMLUN pLun = pDevIns->Internal.s.pLunsR3;  pLun && RT_SUCCESS(rc);  pLun = pLun->pNext)
+            for (PPDMDRVINS pDrvIns = pLun->pTop;  pDrvIns && RT_SUCCESS(rc);  pDrvIns = pDrvIns->Internal.s.pDown)
+                rc = pdmR3PowerOnDrv(pDrvIns, pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, pLun->iLun);
+        if (RT_SUCCESS(rc))
+            rc = pdmR3PowerOnDev(pDevIns);
     }
 
 #ifdef VBOX_WITH_USB
-    for (PPDMUSBINS pUsbIns = pVM->pdm.s.pUsbInstances; pUsbIns; pUsbIns = pUsbIns->Internal.s.pNext)
+    for (PPDMUSBINS pUsbIns = pVM->pdm.s.pUsbInstances;  pUsbIns && RT_SUCCESS(rc);  pUsbIns = pUsbIns->Internal.s.pNext)
     {
-        for (PPDMLUN pLun = pUsbIns->Internal.s.pLuns; pLun; pLun = pLun->pNext)
-            for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
-                if (pDrvIns->pDrvReg->pfnPowerOn)
-                {
-                    LogFlow(("PDMR3PowerOn: Notifying - driver '%s'/%d on LUN#%d of usb device '%s'/%d\n",
-                             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, pLun->iLun, pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
-                    pDrvIns->pDrvReg->pfnPowerOn(pDrvIns);
-                }
-
-        if (pUsbIns->pUsbReg->pfnVMPowerOn)
-        {
-            LogFlow(("PDMR3PowerOn: Notifying - device '%s'/%d\n",
-                     pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
-            pUsbIns->pUsbReg->pfnVMPowerOn(pUsbIns);
-        }
+        for (PPDMLUN pLun = pUsbIns->Internal.s.pLuns;  pLun && RT_SUCCESS(rc);  pLun = pLun->pNext)
+            for (PPDMDRVINS pDrvIns = pLun->pTop;  pDrvIns && RT_SUCCESS(rc);  pDrvIns = pDrvIns->Internal.s.pDown)
+                rc = pdmR3PowerOnDrv(pDrvIns, pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance, pLun->iLun);
+        if (RT_SUCCESS(rc))
+            rc = pdmR3PowerOnUsb(pUsbIns);
     }
 #endif
 
     /*
      * Resume all threads.
      */
-    pdmR3ThreadResumeAll(pVM);
+    if (RT_SUCCESS(rc))
+        pdmR3ThreadResumeAll(pVM);
 
-    LogFlow(("PDMR3PowerOn: returns void\n"));
+    /*
+     * On failure, clean up via PDMR3Suspend.
+     */
+    if (RT_FAILURE(rc))
+        PDMR3Suspend(pVM);
+
+    LogFlow(("PDMR3PowerOn: returns %Rrc\n", rc));
+    return /*rc*/;
 }
 
 
+/**
+ * Worker for PDMR3Reset that deals with one driver.
+ *
+ * @param   pDrvIns             The driver instance.
+ * @param   pcAsync             The asynchronous reset notification counter.
+ * @param   pszDeviceName       The parent device name.
+ * @param   iDevInstance        The parent device instance number.
+ * @param   iLun                The parent LUN number.
+ */
+DECLINLINE(bool) pdmR3ResetDrv(PPDMDRVINS pDrvIns, unsigned *pcAsync,
+                               const char *pszDeviceName, uint32_t iDevInstance, uint32_t iLun)
+{
+    if (!pDrvIns->Internal.s.fVMReset)
+    {
+        pDrvIns->Internal.s.fVMReset = true;
+        if (pDrvIns->pDrvReg->pfnReset)
+        {
+            if (!pDrvIns->Internal.s.pfnAsyncNotify)
+            {
+                LogFlow(("PDMR3Reset: Notifying - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
+                         pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, iLun, pszDeviceName, iDevInstance));
+                pDrvIns->pDrvReg->pfnReset(pDrvIns);
+                if (pDrvIns->Internal.s.pfnAsyncNotify)
+                    LogFlow(("PDMR3Reset: Async notification started - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
+                             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, iLun, pszDeviceName, iDevInstance));
+            }
+            else if (pDrvIns->Internal.s.pfnAsyncNotify(pDrvIns))
+            {
+                pDrvIns->Internal.s.pfnAsyncNotify = false;
+                LogFlow(("PDMR3Reset: Async notification completed - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
+                         pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, iLun, pszDeviceName, iDevInstance));
+            }
+            if (pDrvIns->Internal.s.pfnAsyncNotify)
+            {
+                pDrvIns->Internal.s.fVMReset = false;
+                (*pcAsync)++;
+                return false;
+            }
+        }
+    }
+    return true;
+}
 
 
 /**
- * This function will notify all the devices and their
- * attached drivers about the VM now being reset.
+ * Worker for PDMR3Reset that deals with one USB device instance.
+ *
+ * @param   pUsbIns             The USB device instance.
+ * @param   pcAsync             The asynchronous reset notification counter.
+ */
+DECLINLINE(void) pdmR3ResetUsb(PPDMUSBINS pUsbIns, unsigned *pcAsync)
+{
+    if (!pUsbIns->Internal.s.fVMReset)
+    {
+        pUsbIns->Internal.s.fVMReset = true;
+        if (pUsbIns->pUsbReg->pfnVMReset)
+        {
+            if (!pUsbIns->Internal.s.pfnAsyncNotify)
+            {
+                LogFlow(("PDMR3Reset: Notifying - device '%s'/%d\n", pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
+                pUsbIns->pUsbReg->pfnVMReset(pUsbIns);
+                if (pUsbIns->Internal.s.pfnAsyncNotify)
+                    LogFlow(("PDMR3Reset: Async notification started - device '%s'/%d\n", pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
+            }
+            else if (pUsbIns->Internal.s.pfnAsyncNotify(pUsbIns))
+            {
+                LogFlow(("PDMR3Reset: Async notification completed - device '%s'/%d\n", pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
+                pUsbIns->Internal.s.pfnAsyncNotify = NULL;
+            }
+            if (pUsbIns->Internal.s.pfnAsyncNotify)
+            {
+                pUsbIns->Internal.s.fVMReset = false;
+                (*pcAsync)++;
+            }
+        }
+    }
+}
+
+
+/**
+ * Worker for PDMR3Reset that deals with one device instance.
+ *
+ * @param   pDevIns             The device instance.
+ * @param   pcAsync             The asynchronous reset notification counter.
+ */
+DECLINLINE(void) pdmR3ResetDev(PPDMDEVINS pDevIns, unsigned *pcAsync)
+{
+    if (!(pDevIns->Internal.s.fIntFlags & PDMDEVINSINT_FLAGS_RESET))
+    {
+        pDevIns->Internal.s.fIntFlags |= PDMDEVINSINT_FLAGS_RESET;
+        if (pDevIns->pDevReg->pfnReset)
+        {
+            if (!pDevIns->Internal.s.pfnAsyncNotify)
+            {
+                LogFlow(("PDMR3Reset: Notifying - device '%s'/%d\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+                pDevIns->pDevReg->pfnReset(pDevIns);
+                if (pDevIns->Internal.s.pfnAsyncNotify)
+                    LogFlow(("PDMR3Reset: Async notification started - device '%s'/%d\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+            }
+            else if (pDevIns->Internal.s.pfnAsyncNotify(pDevIns))
+            {
+                LogFlow(("PDMR3Reset: Async notification completed - device '%s'/%d\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+                pDevIns->Internal.s.pfnAsyncNotify = NULL;
+            }
+            if (pDevIns->Internal.s.pfnAsyncNotify)
+            {
+                pDevIns->Internal.s.fIntFlags &= ~PDMDEVINSINT_FLAGS_RESET;
+                (*pcAsync)++;
+            }
+        }
+    }
+}
+
+
+/**
+ * This function will notify all the devices and their attached drivers about
+ * the VM now being reset.
  *
  * @param   pVM     VM Handle.
  */
@@ -954,9 +1163,84 @@ VMMR3DECL(void) PDMR3Reset(PVM pVM)
     LogFlow(("PDMR3Reset:\n"));
 
     /*
+     * Clear all the reset flags.
+     */
+    for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
+    {
+        pDevIns->Internal.s.fIntFlags &= ~PDMDEVINSINT_FLAGS_RESET;
+        for (PPDMLUN pLun = pDevIns->Internal.s.pLunsR3; pLun; pLun = pLun->pNext)
+            for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
+                pDrvIns->Internal.s.fVMReset = false;
+    }
+#ifdef VBOX_WITH_USB
+    for (PPDMUSBINS pUsbIns = pVM->pdm.s.pUsbInstances; pUsbIns; pUsbIns = pUsbIns->Internal.s.pNext)
+    {
+        pUsbIns->Internal.s.fVMReset = false;
+        for (PPDMLUN pLun = pUsbIns->Internal.s.pLuns; pLun; pLun = pLun->pNext)
+            for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
+                pDrvIns->Internal.s.fVMReset = false;
+    }
+#endif
+
+    /*
+     * The outer loop repeats until there are no more async requests.
+     */
+    unsigned cAsync;
+    for (unsigned iLoop = 0; ; iLoop++)
+    {
+        /*
+         * Iterate thru the device instances and USB device instances,
+         * processing the drivers associated with those.
+         */
+        cAsync = 0;
+        for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
+        {
+            unsigned const cAsyncStart = cAsync;
+
+            if (cAsync == cAsyncStart)
+                for (PPDMLUN pLun = pDevIns->Internal.s.pLunsR3; pLun; pLun = pLun->pNext)
+                    for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
+                        if (!pdmR3ResetDrv(pDrvIns, &cAsync, pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, pLun->iLun))
+                            break;
+
+                        if (cAsync == cAsyncStart)
+                pdmR3ResetDev(pDevIns, &cAsync);
+        }
+
+#ifdef VBOX_WITH_USB
+        for (PPDMUSBINS pUsbIns = pVM->pdm.s.pUsbInstances; pUsbIns; pUsbIns = pUsbIns->Internal.s.pNext)
+        {
+            unsigned const cAsyncStart = cAsync;
+
+            for (PPDMLUN pLun = pUsbIns->Internal.s.pLuns; pLun; pLun = pLun->pNext)
+                for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
+                    if (!pdmR3ResetDrv(pDrvIns, &cAsync, pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance, pLun->iLun))
+                        break;
+
+            if (cAsync == cAsyncStart)
+                pdmR3ResetUsb(pUsbIns, &cAsync);
+        }
+#endif
+        if (!cAsync)
+            break;
+
+        /*
+         * Process requests.
+         */
+        /** @todo This is utterly nuts and completely unsafe... will get back to it in a
+         *        bit I hope... */
+        int rc = VMR3AsyncPdmNotificationWaitU(&pVM->pUVM->aCpus[0]);
+        AssertReleaseMsg(rc == VINF_SUCCESS, ("%Rrc\n", rc));
+        rc = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY);
+        AssertReleaseMsg(rc == VINF_SUCCESS, ("%Rrc\n", rc));
+        rc = VMR3ReqProcessU(pVM->pUVM, 0/*idDstCpu*/);
+        AssertReleaseMsg(rc == VINF_SUCCESS, ("%Rrc\n", rc));
+    }
+
+    /*
      * Clear all pending interrupts and DMA operations.
      */
-    for (unsigned idCpu=0;idCpu<pVM->cCPUs;idCpu++)
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         PVMCPU pVCpu = &pVM->aCpus[idCpu];
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_APIC);
@@ -966,122 +1250,204 @@ VMMR3DECL(void) PDMR3Reset(PVM pVM)
     }
     VM_FF_CLEAR(pVM, VM_FF_PDM_DMA);
 
-    /*
-     * Iterate the device instances.
-     * The attached drivers are processed first.
-     */
-    for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
-    {
-        for (PPDMLUN pLun = pDevIns->Internal.s.pLunsR3; pLun; pLun = pLun->pNext)
-            /** @todo Inverse the order here? */
-            for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
-                if (pDrvIns->pDrvReg->pfnReset)
-                {
-                    LogFlow(("PDMR3Reset: Notifying - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
-                             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, pLun->iLun, pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
-                    pDrvIns->pDrvReg->pfnReset(pDrvIns);
-                }
-
-        if (pDevIns->pDevReg->pfnReset)
-        {
-            LogFlow(("PDMR3Reset: Notifying - device '%s'/%d\n",
-                     pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
-            pDevIns->pDevReg->pfnReset(pDevIns);
-        }
-    }
-
-#ifdef VBOX_WITH_USB
-    for (PPDMUSBINS pUsbIns = pVM->pdm.s.pUsbInstances; pUsbIns; pUsbIns = pUsbIns->Internal.s.pNext)
-    {
-        for (PPDMLUN pLun = pUsbIns->Internal.s.pLuns; pLun; pLun = pLun->pNext)
-            for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
-                if (pDrvIns->pDrvReg->pfnReset)
-                {
-                    LogFlow(("PDMR3Reset: Notifying - driver '%s'/%d on LUN#%d of usb device '%s'/%d\n",
-                             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, pLun->iLun, pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
-                    pDrvIns->pDrvReg->pfnReset(pDrvIns);
-                }
-
-        if (pUsbIns->pUsbReg->pfnVMReset)
-        {
-            LogFlow(("PDMR3Reset: Notifying - device '%s'/%d\n",
-                     pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
-            pUsbIns->pUsbReg->pfnVMReset(pUsbIns);
-        }
-    }
-#endif
-
     LogFlow(("PDMR3Reset: returns void\n"));
 }
 
 
 /**
- * This function will notify all the devices and their
- * attached drivers about the VM now being reset.
+ * Worker for PDMR3Suspend that deals with one driver.
  *
- * @param   pVM     VM Handle.
+ * @param   pDrvIns             The driver instance.
+ * @param   pcAsync             The asynchronous suspend notification counter.
+ * @param   pszDeviceName       The parent device name.
+ * @param   iDevInstance        The parent device instance number.
+ * @param   iLun                The parent LUN number.
+ */
+DECLINLINE(bool) pdmR3SuspendDrv(PPDMDRVINS pDrvIns, unsigned *pcAsync,
+                                 const char *pszDeviceName, uint32_t iDevInstance, uint32_t iLun)
+{
+    if (!pDrvIns->Internal.s.fVMSuspended)
+    {
+        pDrvIns->Internal.s.fVMSuspended = true;
+        if (pDrvIns->pDrvReg->pfnSuspend)
+        {
+            if (!pDrvIns->Internal.s.pfnAsyncNotify)
+            {
+                LogFlow(("PDMR3Suspend: Notifying - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
+                         pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, iLun, pszDeviceName, iDevInstance));
+                pDrvIns->pDrvReg->pfnSuspend(pDrvIns);
+                if (pDrvIns->Internal.s.pfnAsyncNotify)
+                    LogFlow(("PDMR3Suspend: Async notification started - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
+                             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, iLun, pszDeviceName, iDevInstance));
+            }
+            else if (pDrvIns->Internal.s.pfnAsyncNotify(pDrvIns))
+            {
+                pDrvIns->Internal.s.pfnAsyncNotify = false;
+                LogFlow(("PDMR3Suspend: Async notification completed - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
+                         pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, iLun, pszDeviceName, iDevInstance));
+            }
+            if (pDrvIns->Internal.s.pfnAsyncNotify)
+            {
+                pDrvIns->Internal.s.fVMSuspended = false;
+                (*pcAsync)++;
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+
+/**
+ * Worker for PDMR3Suspend that deals with one USB device instance.
+ *
+ * @param   pUsbIns             The USB device instance.
+ * @param   pcAsync             The asynchronous suspend notification counter.
+ */
+DECLINLINE(void) pdmR3SuspendUsb(PPDMUSBINS pUsbIns, unsigned *pcAsync)
+{
+    if (!pUsbIns->Internal.s.fVMSuspended)
+    {
+        pUsbIns->Internal.s.fVMSuspended = true;
+        if (pUsbIns->pUsbReg->pfnVMSuspend)
+        {
+            if (!pUsbIns->Internal.s.pfnAsyncNotify)
+            {
+                LogFlow(("PDMR3Suspend: Notifying - device '%s'/%d\n", pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
+                pUsbIns->pUsbReg->pfnVMSuspend(pUsbIns);
+                if (pUsbIns->Internal.s.pfnAsyncNotify)
+                    LogFlow(("PDMR3Suspend: Async notification started - device '%s'/%d\n", pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
+            }
+            else if (pUsbIns->Internal.s.pfnAsyncNotify(pUsbIns))
+            {
+                LogFlow(("PDMR3Suspend: Async notification completed - device '%s'/%d\n", pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
+                pUsbIns->Internal.s.pfnAsyncNotify = NULL;
+            }
+            if (pUsbIns->Internal.s.pfnAsyncNotify)
+            {
+                pUsbIns->Internal.s.fVMSuspended = false;
+                (*pcAsync)++;
+            }
+        }
+    }
+}
+
+
+/**
+ * Worker for PDMR3Suspend that deals with one device instance.
+ *
+ * @param   pDevIns             The device instance.
+ * @param   pcAsync             The asynchronous suspend notification counter.
+ */
+DECLINLINE(void) pdmR3SuspendDev(PPDMDEVINS pDevIns, unsigned *pcAsync)
+{
+    if (!(pDevIns->Internal.s.fIntFlags & PDMDEVINSINT_FLAGS_SUSPENDED))
+    {
+        pDevIns->Internal.s.fIntFlags |= PDMDEVINSINT_FLAGS_SUSPENDED;
+        if (pDevIns->pDevReg->pfnSuspend)
+        {
+            if (!pDevIns->Internal.s.pfnAsyncNotify)
+            {
+                LogFlow(("PDMR3Suspend: Notifying - device '%s'/%d\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+                pDevIns->pDevReg->pfnSuspend(pDevIns);
+                if (pDevIns->Internal.s.pfnAsyncNotify)
+                    LogFlow(("PDMR3Suspend: Async notification started - device '%s'/%d\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+            }
+            else if (pDevIns->Internal.s.pfnAsyncNotify(pDevIns))
+            {
+                LogFlow(("PDMR3Suspend: Async notification completed - device '%s'/%d\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+                pDevIns->Internal.s.pfnAsyncNotify = NULL;
+            }
+            if (pDevIns->Internal.s.pfnAsyncNotify)
+            {
+                pDevIns->Internal.s.fIntFlags &= ~PDMDEVINSINT_FLAGS_SUSPENDED;
+                (*pcAsync)++;
+            }
+        }
+    }
+}
+
+
+/**
+ * This function will notify all the devices and their attached drivers about
+ * the VM now being suspended.
+ *
+ * @param   pVM     The VM Handle.
+ * @thread  EMT(0)
  */
 VMMR3DECL(void) PDMR3Suspend(PVM pVM)
 {
     LogFlow(("PDMR3Suspend:\n"));
+    VM_ASSERT_EMT0(pVM);
 
     /*
-     * Iterate the device instances.
-     * The attached drivers are processed first.
+     * The outer loop repeats until there are no more async requests.
+     *
+     * Note! We depend on the suspended indicators to be in the desired state
+     *       and we do not reset them before starting because this allows
+     *       PDMR3PowerOn and PDMR3Resume to use PDMR3Suspend for cleaning up
+     *       on failure.
      */
-    for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
+    unsigned cAsync;
+    for (unsigned iLoop = 0; ; iLoop++)
     {
         /*
-         * Some devices need to be notified first that the VM is suspended to ensure that that there are no pending
-         * requests from the guest which are still processed. Calling the drivers before these requests are finished
-         * might lead to errors otherwise. One example is the SATA controller which might still have I/O requests
-         * pending. But DrvVD sets the files into readonly mode and every request will fail then.
+         * Iterate thru the device instances and USB device instances,
+         * processing the drivers associated with those.
+         *
+         * The attached drivers are normally processed first.  Some devices
+         * (like DevAHCI) though needs to be notified before the drivers so
+         * that it doesn't kick off any new requests after the drivers stopped
+         * taking any. (DrvVD changes to read-only in this particular case.)
          */
-        if (pDevIns->pDevReg->pfnSuspend && (pDevIns->pDevReg->fFlags & PDM_DEVREG_FLAGS_FIRST_SUSPEND_NOTIFICATION))
+        cAsync = 0;
+        for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
         {
-            LogFlow(("PDMR3Suspend: Notifying - device '%s'/%d\n",
-                     pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
-            pDevIns->pDevReg->pfnSuspend(pDevIns);
-        }
+            unsigned const cAsyncStart = cAsync;
 
-        for (PPDMLUN pLun = pDevIns->Internal.s.pLunsR3; pLun; pLun = pLun->pNext)
-            for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
-                if (pDrvIns->pDrvReg->pfnSuspend)
-                {
-                    LogFlow(("PDMR3Suspend: Notifying - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
-                             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, pLun->iLun, pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
-                    pDrvIns->pDrvReg->pfnSuspend(pDrvIns);
-                }
+            if (pDevIns->pDevReg->fFlags & PDM_DEVREG_FLAGS_FIRST_SUSPEND_NOTIFICATION)
+                pdmR3SuspendDev(pDevIns, &cAsync);
 
-        /* Don't call the suspend notification again if it was already called. */
-        if (pDevIns->pDevReg->pfnSuspend && !(pDevIns->pDevReg->fFlags & PDM_DEVREG_FLAGS_FIRST_SUSPEND_NOTIFICATION))
-        {
-            LogFlow(("PDMR3Suspend: Notifying - device '%s'/%d\n",
-                     pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
-            pDevIns->pDevReg->pfnSuspend(pDevIns);
+            if (cAsync == cAsyncStart)
+                for (PPDMLUN pLun = pDevIns->Internal.s.pLunsR3; pLun; pLun = pLun->pNext)
+                    for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
+                        if (!pdmR3SuspendDrv(pDrvIns, &cAsync, pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, pLun->iLun))
+                            break;
+
+            if (    cAsync == cAsyncStart
+                && !(pDevIns->pDevReg->fFlags & PDM_DEVREG_FLAGS_FIRST_SUSPEND_NOTIFICATION))
+                pdmR3SuspendDev(pDevIns, &cAsync);
         }
-    }
 
 #ifdef VBOX_WITH_USB
-    for (PPDMUSBINS pUsbIns = pVM->pdm.s.pUsbInstances; pUsbIns; pUsbIns = pUsbIns->Internal.s.pNext)
-    {
-        for (PPDMLUN pLun = pUsbIns->Internal.s.pLuns; pLun; pLun = pLun->pNext)
-            for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
-                if (pDrvIns->pDrvReg->pfnSuspend)
-                {
-                    LogFlow(("PDMR3Suspend: Notifying - driver '%s'/%d on LUN#%d of usb device '%s'/%d\n",
-                             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, pLun->iLun, pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
-                    pDrvIns->pDrvReg->pfnSuspend(pDrvIns);
-                }
-
-        if (pUsbIns->pUsbReg->pfnVMSuspend)
+        for (PPDMUSBINS pUsbIns = pVM->pdm.s.pUsbInstances; pUsbIns; pUsbIns = pUsbIns->Internal.s.pNext)
         {
-            LogFlow(("PDMR3Suspend: Notifying - device '%s'/%d\n",
-                     pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
-            pUsbIns->pUsbReg->pfnVMSuspend(pUsbIns);
+            unsigned const cAsyncStart = cAsync;
+
+            for (PPDMLUN pLun = pUsbIns->Internal.s.pLuns; pLun; pLun = pLun->pNext)
+                for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
+                    if (!pdmR3SuspendDrv(pDrvIns, &cAsync, pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance, pLun->iLun))
+                        break;
+
+            if (cAsync == cAsyncStart)
+                pdmR3SuspendUsb(pUsbIns, &cAsync);
         }
-    }
 #endif
+        if (!cAsync)
+            break;
+
+        /*
+         * Process requests.
+         */
+        /** @todo This is utterly nuts and completely unsafe... will get back to it in a
+         *        bit I hope... */
+        int rc = VMR3AsyncPdmNotificationWaitU(&pVM->pUVM->aCpus[0]);
+        AssertReleaseMsg(rc == VINF_SUCCESS, ("%Rrc\n", rc));
+        rc = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY);
+        AssertReleaseMsg(rc == VINF_SUCCESS, ("%Rrc\n", rc));
+        rc = VMR3ReqProcessU(pVM->pUVM, 0/*idDstCpu*/);
+        AssertReleaseMsg(rc == VINF_SUCCESS, ("%Rrc\n", rc));
+    }
 
     /*
      * Suspend all threads.
@@ -1089,6 +1455,82 @@ VMMR3DECL(void) PDMR3Suspend(PVM pVM)
     pdmR3ThreadSuspendAll(pVM);
 
     LogFlow(("PDMR3Suspend: returns void\n"));
+}
+
+
+/**
+ * Worker for PDMR3Resume that deals with one driver.
+ *
+ * @param   pDrvIns             The driver instance.
+ * @param   pszDeviceName       The parent device name.
+ * @param   iDevInstance        The parent device instance number.
+ * @param   iLun                The parent LUN number.
+ */
+DECLINLINE(bool) pdmR3ResumeDrv(PPDMDRVINS pDrvIns, const char *pszDeviceName, uint32_t iDevInstance, uint32_t iLun)
+{
+    Assert(pDrvIns->Internal.s.fVMSuspended);
+    if (pDrvIns->pDrvReg->pfnResume)
+    {
+        LogFlow(("PDMR3Resume: Notifying - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
+                 pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, iLun, pszDeviceName, iDevInstance));
+        int rc = VINF_SUCCESS; pDrvIns->pDrvReg->pfnResume(pDrvIns);
+        if (RT_FAILURE(rc))
+        {
+            LogRel(("PDMR3Resume: driver '%s'/%d on LUN#%d of device '%s'/%d -> %Rrc\n",
+                    pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, iLun, pszDeviceName, iDevInstance, rc));
+            return rc;
+        }
+    }
+    pDrvIns->Internal.s.fVMSuspended = false;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Worker for PDMR3Resume that deals with one USB device instance.
+ *
+ * @returns VBox status code.
+ * @param   pUsbIns             The USB device instance.
+ */
+DECLINLINE(int) pdmR3ResumeUsb(PPDMUSBINS pUsbIns)
+{
+    Assert(pUsbIns->Internal.s.fVMSuspended);
+    if (pUsbIns->pUsbReg->pfnVMResume)
+    {
+        LogFlow(("PDMR3Resume: Notifying - device '%s'/%d\n", pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
+        int rc = VINF_SUCCESS; pUsbIns->pUsbReg->pfnVMResume(pUsbIns);
+        if (RT_FAILURE(rc))
+        {
+            LogRel(("PDMR3Resume: device '%s'/%d -> %Rrc\n", pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance, rc));
+            return rc;
+        }
+    }
+    pUsbIns->Internal.s.fVMSuspended = false;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Worker for PDMR3Resume that deals with one device instance.
+ *
+ * @returns VBox status code.
+ * @param   pDevIns             The device instance.
+ */
+DECLINLINE(int) pdmR3ResumeDev(PPDMDEVINS pDevIns)
+{
+    Assert(pDevIns->Internal.s.fIntFlags & PDMDEVINSINT_FLAGS_SUSPENDED);
+    if (pDevIns->pDevReg->pfnResume)
+    {
+        LogFlow(("PDMR3Resume: Notifying - device '%s'/%d\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+        int rc = VINF_SUCCESS; pDevIns->pDevReg->pfnResume(pDevIns);
+        if (RT_FAILURE(rc))
+        {
+            LogRel(("PDMR3Resume: device '%s'/%d -> %Rrc\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, rc));
+            return rc;
+        }
+    }
+    pDevIns->Internal.s.fIntFlags &= ~PDMDEVINSINT_FLAGS_SUSPENDED;
+    return VINF_SUCCESS;
 }
 
 
@@ -1103,55 +1545,158 @@ VMMR3DECL(void) PDMR3Resume(PVM pVM)
     LogFlow(("PDMR3Resume:\n"));
 
     /*
-     * Iterate the device instances.
-     * The attached drivers are processed first.
+     * Iterate thru the device instances and USB device instances,
+     * processing the drivers associated with those.
      */
-    for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
+    int rc = VINF_SUCCESS;
+    for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances;  pDevIns && RT_SUCCESS(rc);  pDevIns = pDevIns->Internal.s.pNextR3)
     {
-        for (PPDMLUN pLun = pDevIns->Internal.s.pLunsR3; pLun; pLun = pLun->pNext)
-            for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
-                if (pDrvIns->pDrvReg->pfnResume)
-                {
-                    LogFlow(("PDMR3Resume: Notifying - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
-                             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, pLun->iLun, pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
-                    pDrvIns->pDrvReg->pfnResume(pDrvIns);
-                }
-
-        if (pDevIns->pDevReg->pfnResume)
-        {
-            LogFlow(("PDMR3Resume: Notifying - device '%s'/%d\n",
-                     pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
-            pDevIns->pDevReg->pfnResume(pDevIns);
-        }
+        for (PPDMLUN pLun = pDevIns->Internal.s.pLunsR3;  pLun && RT_SUCCESS(rc);  pLun    = pLun->pNext)
+            for (PPDMDRVINS pDrvIns = pLun->pTop;  pDrvIns && RT_SUCCESS(rc);  pDrvIns = pDrvIns->Internal.s.pDown)
+                rc = pdmR3ResumeDrv(pDrvIns, pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, pLun->iLun);
+        if (RT_SUCCESS(rc))
+            rc = pdmR3ResumeDev(pDevIns);
     }
 
 #ifdef VBOX_WITH_USB
-    for (PPDMUSBINS pUsbIns = pVM->pdm.s.pUsbInstances; pUsbIns; pUsbIns = pUsbIns->Internal.s.pNext)
+    for (PPDMUSBINS pUsbIns = pVM->pdm.s.pUsbInstances;  pUsbIns && RT_SUCCESS(rc);  pUsbIns = pUsbIns->Internal.s.pNext)
     {
-        for (PPDMLUN pLun = pUsbIns->Internal.s.pLuns; pLun; pLun = pLun->pNext)
-            for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
-                if (pDrvIns->pDrvReg->pfnResume)
-                {
-                    LogFlow(("PDMR3Resume: Notifying - driver '%s'/%d on LUN#%d of usb device '%s'/%d\n",
-                             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, pLun->iLun, pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
-                    pDrvIns->pDrvReg->pfnResume(pDrvIns);
-                }
-
-        if (pUsbIns->pUsbReg->pfnVMResume)
-        {
-            LogFlow(("PDMR3Resume: Notifying - device '%s'/%d\n",
-                     pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
-            pUsbIns->pUsbReg->pfnVMResume(pUsbIns);
-        }
+        for (PPDMLUN pLun = pUsbIns->Internal.s.pLuns;  pLun && RT_SUCCESS(rc);  pLun = pLun->pNext)
+            for (PPDMDRVINS pDrvIns = pLun->pTop;  pDrvIns && RT_SUCCESS(rc);  pDrvIns = pDrvIns->Internal.s.pDown)
+                rc = pdmR3ResumeDrv(pDrvIns, pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance, pLun->iLun);
+        if (RT_SUCCESS(rc))
+            rc = pdmR3ResumeUsb(pUsbIns);
     }
 #endif
 
     /*
      * Resume all threads.
      */
-    pdmR3ThreadResumeAll(pVM);
+    if (RT_SUCCESS(rc))
+        pdmR3ThreadResumeAll(pVM);
 
-    LogFlow(("PDMR3Resume: returns void\n"));
+    /*
+     * On failure, clean up via PDMR3Suspend.
+     */
+    if (RT_FAILURE(rc))
+        PDMR3Suspend(pVM);
+
+    LogFlow(("PDMR3Resume: returns %Rrc\n", rc));
+    return /*rc*/;
+}
+
+
+/**
+ * Worker for PDMR3PowerOff that deals with one driver.
+ *
+ * @param   pDrvIns             The driver instance.
+ * @param   pcAsync             The asynchronous power off notification counter.
+ * @param   pszDeviceName       The parent device name.
+ * @param   iDevInstance        The parent device instance number.
+ * @param   iLun                The parent LUN number.
+ */
+DECLINLINE(bool) pdmR3PowerOffDrv(PPDMDRVINS pDrvIns, unsigned *pcAsync,
+                                  const char *pszDeviceName, uint32_t iDevInstance, uint32_t iLun)
+{
+    if (!pDrvIns->Internal.s.fVMSuspended)
+    {
+        pDrvIns->Internal.s.fVMSuspended = true;
+        if (pDrvIns->pDrvReg->pfnSuspend)
+        {
+            if (!pDrvIns->Internal.s.pfnAsyncNotify)
+            {
+                LogFlow(("PDMR3PowerOff: Notifying - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
+                         pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, iLun, pszDeviceName, iDevInstance));
+                pDrvIns->pDrvReg->pfnPowerOff(pDrvIns);
+                if (pDrvIns->Internal.s.pfnAsyncNotify)
+                    LogFlow(("PDMR3PowerOff: Async notification started - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
+                             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, iLun, pszDeviceName, iDevInstance));
+            }
+            else if (pDrvIns->Internal.s.pfnAsyncNotify(pDrvIns))
+            {
+                pDrvIns->Internal.s.pfnAsyncNotify = false;
+                LogFlow(("PDMR3PowerOff: Async notification completed - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
+                         pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, iLun, pszDeviceName, iDevInstance));
+            }
+            if (pDrvIns->Internal.s.pfnAsyncNotify)
+            {
+                pDrvIns->Internal.s.fVMSuspended = false;
+                (*pcAsync)++;
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+
+/**
+ * Worker for PDMR3PowerOff that deals with one USB device instance.
+ *
+ * @param   pUsbIns             The USB device instance.
+ * @param   pcAsync             The asynchronous power off notification counter.
+ */
+DECLINLINE(void) pdmR3PowerOffUsb(PPDMUSBINS pUsbIns, unsigned *pcAsync)
+{
+    if (!pUsbIns->Internal.s.fVMSuspended)
+    {
+        pUsbIns->Internal.s.fVMSuspended = true;
+        if (pUsbIns->pUsbReg->pfnVMPowerOff)
+        {
+            if (!pUsbIns->Internal.s.pfnAsyncNotify)
+            {
+                LogFlow(("PDMR3PowerOff: Notifying - device '%s'/%d\n", pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
+                pUsbIns->pUsbReg->pfnVMPowerOff(pUsbIns);
+                if (pUsbIns->Internal.s.pfnAsyncNotify)
+                    LogFlow(("PDMR3PowerOff: Async notification started - device '%s'/%d\n", pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
+            }
+            else if (pUsbIns->Internal.s.pfnAsyncNotify(pUsbIns))
+            {
+                LogFlow(("PDMR3PowerOff: Async notification completed - device '%s'/%d\n", pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
+                pUsbIns->Internal.s.pfnAsyncNotify = NULL;
+            }
+            if (pUsbIns->Internal.s.pfnAsyncNotify)
+            {
+                pUsbIns->Internal.s.fVMSuspended = false;
+                (*pcAsync)++;
+            }
+        }
+    }
+}
+
+
+/**
+ * Worker for PDMR3PowerOff that deals with one device instance.
+ *
+ * @param   pDevIns             The device instance.
+ * @param   pcAsync             The asynchronous power off notification counter.
+ */
+DECLINLINE(void) pdmR3PowerOffDev(PPDMDEVINS pDevIns, unsigned *pcAsync)
+{
+    if (!(pDevIns->Internal.s.fIntFlags & PDMDEVINSINT_FLAGS_SUSPENDED))
+    {
+        pDevIns->Internal.s.fIntFlags |= PDMDEVINSINT_FLAGS_SUSPENDED;
+        if (pDevIns->pDevReg->pfnSuspend)
+        {
+            if (!pDevIns->Internal.s.pfnAsyncNotify)
+            {
+                LogFlow(("PDMR3PowerOff: Notifying - device '%s'/%d\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+                pDevIns->pDevReg->pfnPowerOff(pDevIns);
+                if (pDevIns->Internal.s.pfnAsyncNotify)
+                    LogFlow(("PDMR3PowerOff: Async notification started - device '%s'/%d\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+            }
+            else if (pDevIns->Internal.s.pfnAsyncNotify(pDevIns))
+            {
+                LogFlow(("PDMR3PowerOff: Async notification completed - device '%s'/%d\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+                pDevIns->Internal.s.pfnAsyncNotify = NULL;
+            }
+            if (pDevIns->Internal.s.pfnAsyncNotify)
+            {
+                pDevIns->Internal.s.fIntFlags &= ~PDMDEVINSINT_FLAGS_SUSPENDED;
+                (*pcAsync)++;
+            }
+        }
+    }
 }
 
 
@@ -1166,56 +1711,68 @@ VMMR3DECL(void) PDMR3PowerOff(PVM pVM)
     LogFlow(("PDMR3PowerOff:\n"));
 
     /*
-     * Iterate the device instances.
-     * The attached drivers are processed first.
+     * The outer loop repeats until there are no more async requests.
      */
-    for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
+    unsigned cAsync;
+    for (unsigned iLoop = 0; ; iLoop++)
     {
-
-        if (pDevIns->pDevReg->pfnPowerOff && (pDevIns->pDevReg->fFlags & PDM_DEVREG_FLAGS_FIRST_POWEROFF_NOTIFICATION))
+        /*
+         * Iterate thru the device instances and USB device instances,
+         * processing the drivers associated with those.
+         *
+         * The attached drivers are normally processed first.  Some devices
+         * (like DevAHCI) though needs to be notified before the drivers so
+         * that it doesn't kick off any new requests after the drivers stopped
+         * taking any. (DrvVD changes to read-only in this particular case.)
+         */
+        cAsync = 0;
+        for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
         {
-            LogFlow(("PDMR3PowerOff: Notifying - device '%s'/%d\n",
-                     pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
-            pDevIns->pDevReg->pfnPowerOff(pDevIns);
-        }
+            unsigned const cAsyncStart = cAsync;
 
-        for (PPDMLUN pLun = pDevIns->Internal.s.pLunsR3; pLun; pLun = pLun->pNext)
-            for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
-                if (pDrvIns->pDrvReg->pfnPowerOff)
-                {
-                    LogFlow(("PDMR3PowerOff: Notifying - driver '%s'/%d on LUN#%d of device '%s'/%d\n",
-                             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, pLun->iLun, pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
-                    pDrvIns->pDrvReg->pfnPowerOff(pDrvIns);
-                }
+            if (pDevIns->pDevReg->fFlags & PDM_DEVREG_FLAGS_FIRST_POWEROFF_NOTIFICATION)
+                pdmR3PowerOffDev(pDevIns, &cAsync);
 
-        if (pDevIns->pDevReg->pfnPowerOff && !(pDevIns->pDevReg->fFlags & PDM_DEVREG_FLAGS_FIRST_POWEROFF_NOTIFICATION))
-        {
-            LogFlow(("PDMR3PowerOff: Notifying - device '%s'/%d\n",
-                     pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
-            pDevIns->pDevReg->pfnPowerOff(pDevIns);
+            if (cAsync == cAsyncStart)
+                for (PPDMLUN pLun = pDevIns->Internal.s.pLunsR3; pLun; pLun = pLun->pNext)
+                    for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
+                        if (!pdmR3PowerOffDrv(pDrvIns, &cAsync, pDevIns->pDevReg->szDeviceName, pDevIns->iInstance, pLun->iLun))
+                            break;
+
+            if (    cAsync == cAsyncStart
+                && !(pDevIns->pDevReg->fFlags & PDM_DEVREG_FLAGS_FIRST_POWEROFF_NOTIFICATION))
+                pdmR3PowerOffDev(pDevIns, &cAsync);
         }
-    }
 
 #ifdef VBOX_WITH_USB
-    for (PPDMUSBINS pUsbIns = pVM->pdm.s.pUsbInstances; pUsbIns; pUsbIns = pUsbIns->Internal.s.pNext)
-    {
-        for (PPDMLUN pLun = pUsbIns->Internal.s.pLuns; pLun; pLun = pLun->pNext)
-            for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
-                if (pDrvIns->pDrvReg->pfnPowerOff)
-                {
-                    LogFlow(("PDMR3PowerOff: Notifying - driver '%s'/%d on LUN#%d of usb device '%s'/%d\n",
-                             pDrvIns->pDrvReg->szDriverName, pDrvIns->iInstance, pLun->iLun, pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
-                    pDrvIns->pDrvReg->pfnPowerOff(pDrvIns);
-                }
-
-        if (pUsbIns->pUsbReg->pfnVMPowerOff)
+        for (PPDMUSBINS pUsbIns = pVM->pdm.s.pUsbInstances; pUsbIns; pUsbIns = pUsbIns->Internal.s.pNext)
         {
-            LogFlow(("PDMR3PowerOff: Notifying - device '%s'/%d\n",
-                     pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance));
-            pUsbIns->pUsbReg->pfnVMPowerOff(pUsbIns);
+            unsigned const cAsyncStart = cAsync;
+
+            for (PPDMLUN pLun = pUsbIns->Internal.s.pLuns; pLun; pLun = pLun->pNext)
+                for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
+                    if (!pdmR3PowerOffDrv(pDrvIns, &cAsync, pUsbIns->pUsbReg->szDeviceName, pUsbIns->iInstance, pLun->iLun))
+                        break;
+
+            if (cAsync == cAsyncStart)
+                pdmR3PowerOffUsb(pUsbIns, &cAsync);
         }
-    }
 #endif
+        if (!cAsync)
+            break;
+
+        /*
+         * Process requests.
+         */
+        /** @todo This is utterly nuts and completely unsafe... will get back to it in a
+         *        bit I hope... */
+        int rc = VMR3AsyncPdmNotificationWaitU(&pVM->pUVM->aCpus[0]);
+        AssertReleaseMsg(rc == VINF_SUCCESS, ("%Rrc\n", rc));
+        rc = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY);
+        AssertReleaseMsg(rc == VINF_SUCCESS, ("%Rrc\n", rc));
+        rc = VMR3ReqProcessU(pVM->pUVM, 0/*idDstCpu*/);
+        AssertReleaseMsg(rc == VINF_SUCCESS, ("%Rrc\n", rc));
+    }
 
     /*
      * Suspend all threads.

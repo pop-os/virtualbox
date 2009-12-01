@@ -1,10 +1,10 @@
-/* $Id: RTErrConvertFromErrno.cpp $ */
+/* $Id: RTErrConvertFromErrno.cpp 23528 2009-10-03 17:57:25Z vboxsync $ */
 /** @file
  * IPRT - Convert errno to iprt status codes.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,13 +33,16 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/err.h>
+#include "internal/iprt.h"
+
 #include <iprt/assert.h>
-#include <iprt/err.h>
 
 #if defined(RT_OS_DARWIN) && defined(KERNEL)
 # include <sys/errno.h>
 #elif defined(RT_OS_LINUX) && defined(__KERNEL__)
 # include <linux/errno.h>
+#elif defined(RT_OS_FREEBSD) && defined(_KERNEL)
+# include <sys/errno.h>
 #else
 # include <errno.h>
 #endif
@@ -108,7 +111,7 @@ RTDECL(int)  RTErrConvertFromErrno(unsigned uNativeCode)
         //case ENOTBLK:           return VERR_;
 #endif
 #ifdef EBUSY
-        case EBUSY:             return VERR_DEV_IO_ERROR; /**@todo fix duplicate error */
+        case EBUSY:             return VERR_RESOURCE_BUSY;
 #endif
 #ifdef EEXIST
         case EEXIST:            return VERR_ALREADY_EXISTS;
@@ -445,4 +448,5 @@ RTDECL(int)  RTErrConvertFromErrno(unsigned uNativeCode)
             return VERR_UNRESOLVED_ERROR;
     }
 }
+RT_EXPORT_SYMBOL(RTErrConvertFromErrno);
 

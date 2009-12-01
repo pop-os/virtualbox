@@ -186,9 +186,19 @@ static int off_t_preempt        = -1;
 
 /* End of v6 intro */
 
-
+#if 0
 int
 _init(void)
+{
+    int err = vbi_init();
+    if (!err)
+        err = mod_install(&vbi_modlinkage);
+	return (err);
+}
+#endif
+
+int
+vbi_init(void)
 {
 	int err;
 
@@ -265,14 +275,10 @@ _init(void)
 		cmn_err(CE_NOTE, ":Thread structure sanity check failed! OS version mismatch.\n");
 		return EINVAL;
 	}
-
-	err = mod_install(&vbi_modlinkage);
-	if (err != 0)
-		return (err);
-
 	return (0);
 }
 
+#if 0
 int
 _fini(void)
 {
@@ -288,6 +294,8 @@ _info(struct modinfo *modinfop)
 {
 	return (mod_info(&vbi_modlinkage, modinfop));
 }
+#endif
+
 
 static ddi_dma_attr_t base_attr = {
 	DMA_ATTR_V0,		/* Version Number */
@@ -658,7 +666,7 @@ vbi_execute_on_one(void *func, void *arg, int c)
 }
 
 int
-vbi_lock_va(void *addr, size_t len, void **handle)
+vbi_lock_va(void *addr, size_t len, int access, void **handle)
 {
 	faultcode_t err;
 
@@ -668,7 +676,7 @@ vbi_lock_va(void *addr, size_t len, void **handle)
 	*handle = NULL;
 	if (!IS_KERNEL(addr)) {
 		err = as_fault(VBIPROC()->p_as->a_hat, VBIPROC()->p_as,
-		    (caddr_t)addr, len, F_SOFTLOCK, S_WRITE);
+		    (caddr_t)addr, len, F_SOFTLOCK, access);
 		if (err != 0) {
 			VBI_VERBOSE("vbi_lock_va() failed to lock");
 			return (-1);
@@ -679,11 +687,11 @@ vbi_lock_va(void *addr, size_t len, void **handle)
 
 /*ARGSUSED*/
 void
-vbi_unlock_va(void *addr, size_t len, void *handle)
+vbi_unlock_va(void *addr, size_t len, int access, void *handle)
 {
 	if (!IS_KERNEL(addr))
 		as_fault(VBIPROC()->p_as->a_hat, VBIPROC()->p_as,
-		    (caddr_t)addr, len, F_SOFTUNLOCK, S_WRITE);
+		    (caddr_t)addr, len, F_SOFTUNLOCK, access);
 }
 
 uint64_t

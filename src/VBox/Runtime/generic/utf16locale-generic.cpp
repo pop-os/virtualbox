@@ -1,4 +1,4 @@
-/* $Id: utf16locale-generic.cpp $ */
+/* $Id: utf16locale-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - UTF-16 Locale Specific Manipulation, Generic.
  */
@@ -34,10 +34,12 @@
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_UTF16
 #include <iprt/string.h>
+#include "internal/iprt.h"
 
 
 RTDECL(int) RTUtf16LocaleICmp(PCRTUTF16 pusz1, PCRTUTF16 pusz2)
 {
     return RTUtf16ICmp(pusz1, pusz2);
 }
+RT_EXPORT_SYMBOL(RTUtf16LocaleICmp);
 

@@ -22,7 +22,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_VD_VDI
-#include "VBoxHDD-Internal.h"
+#include <VBox/VBoxHDD-Plugin.h>
 #define VBOX_VDICORE_VD /* Signal that the header is included from here. */
 #include "VDICore.h"
 #include <VBox/err.h>
@@ -78,6 +78,149 @@ DECLINLINE(int) vdiError(PVDIIMAGEDESC pImage, int rc, RT_SRC_POS_DECL,
                                                    pszFormat, va);
     va_end(va);
     return rc;
+}
+
+
+static int vdiFileOpen(PVDIIMAGEDESC pImage, bool fReadonly, bool fCreate)
+{
+    int rc = VINF_SUCCESS;
+
+    AssertMsg(!(fReadonly && fCreate), ("Image can't be opened readonly whilebeing created\n"));
+
+#ifndef VBOX_WITH_NEW_IO_CODE
+    uint32_t fOpen = fReadonly ? RTFILE_O_READ      | RTFILE_O_DENY_NONE
+                               : RTFILE_O_READWRITE | RTFILE_O_DENY_WRITE;
+
+    if (fCreate)
+        fOpen |= RTFILE_O_CREATE;
+    else
+        fOpen |= RTFILE_O_OPEN;
+
+    rc = RTFileOpen(&pImage->File, pImage->pszFilename, fOpen);
+#else
+
+    unsigned uOpenFlags = fReadonly ? VD_INTERFACEASYNCIO_OPEN_FLAGS_READONLY : 0;
+
+    if (fCreate)
+        uOpenFlags |= VD_INTERFACEASYNCIO_OPEN_FLAGS_CREATE;
+
+    rc = pImage->pInterfaceAsyncIOCallbacks->pfnOpen(pImage->pInterfaceAsyncIO->pvUser,
+                                                     pImage->pszFilename,
+                                                     uOpenFlags,
+                                                     NULL, &pImage->pvStorage);
+#endif
+
+    return rc;
+}
+
+static int vdiFileClose(PVDIIMAGEDESC pImage)
+{
+    int rc = VINF_SUCCESS;
+
+#ifndef VBOX_WITH_NEW_IO_CODE
+    if (pImage->File != NIL_RTFILE)
+        rc = RTFileClose(pImage->File);
+
+    pImage->File = NIL_RTFILE;
+#else
+    if (pImage->pvStorage)
+        rc = pImage->pInterfaceAsyncIOCallbacks->pfnClose(pImage->pInterfaceAsyncIO->pvUser,
+                                                          pImage->pvStorage);
+
+    pImage->pvStorage = NULL;
+#endif
+
+    return rc;
+}
+
+static int vdiFileFlushSync(PVDIIMAGEDESC pImage)
+{
+    int rc = VINF_SUCCESS;
+
+#ifndef VBOX_WITH_NEW_IO_CODE
+    rc = RTFileFlush(pImage->File);
+#else
+    if (pImage->pvStorage)
+        rc = pImage->pInterfaceAsyncIOCallbacks->pfnFlushSync(pImage->pInterfaceAsyncIO->pvUser,
+                                                              pImage->pvStorage);
+#endif
+
+    return rc;
+}
+
+static int vdiFileGetSize(PVDIIMAGEDESC pImage, uint64_t *pcbSize)
+{
+    int rc = VINF_SUCCESS;
+
+#ifndef VBOX_WITH_NEW_IO_CODE
+    rc = RTFileGetSize(pImage->File, pcbSize);
+#else
+    if (pImage->pvStorage)
+        rc = pImage->pInterfaceAsyncIOCallbacks->pfnGetSize(pImage->pInterfaceAsyncIO->pvUser,
+                                                            pImage->pvStorage,
+                                                            pcbSize);
+#endif
+
+    return rc;
+}
+
+static int vdiFileSetSize(PVDIIMAGEDESC pImage, uint64_t cbSize)
+{
+    int rc = VINF_SUCCESS;
+
+#ifndef VBOX_WITH_NEW_IO_CODE
+    rc = RTFileSetSize(pImage->File, cbSize);
+#else
+    if (pImage->pvStorage)
+        rc = pImage->pInterfaceAsyncIOCallbacks->pfnSetSize(pImage->pInterfaceAsyncIO->pvUser,
+                                                            pImage->pvStorage,
+                                                            cbSize);
+#endif
+
+    return rc;
+}
+
+static int vdiFileWriteSync(PVDIIMAGEDESC pImage, uint64_t off, const void *pcvBuf, size_t cbWrite, size_t *pcbWritten)
+{
+    int rc = VINF_SUCCESS;
+
+#ifndef VBOX_WITH_NEW_IO_CODE
+    rc = RTFileWriteAt(pImage->File, off, pcvBuf, cbWrite, pcbWritten);
+#else
+    if (pImage->pvStorage)
+        rc = pImage->pInterfaceAsyncIOCallbacks->pfnWriteSync(pImage->pInterfaceAsyncIO->pvUser,
+                                                              pImage->pvStorage,
+                                                              off, cbWrite, pcvBuf,
+                                                              pcbWritten);
+#endif
+
+    return rc;
+}
+
+static int vdiFileReadSync(PVDIIMAGEDESC pImage, uint64_t off, void *pvBuf, size_t cbRead, size_t *pcbRead)
+{
+    int rc = VINF_SUCCESS;
+
+#ifndef VBOX_WITH_NEW_IO_CODE
+    rc = RTFileReadAt(pImage->File, off, pvBuf, cbRead, pcbRead);
+#else
+    if (pImage->pvStorage)
+        rc = pImage->pInterfaceAsyncIOCallbacks->pfnReadSync(pImage->pInterfaceAsyncIO->pvUser,
+                                                             pImage->pvStorage,
+                                                             off, cbRead, pvBuf,
+                                                             pcbRead);
+#endif
+
+    return rc;
+}
+
+static bool vdiFileOpened(PVDIIMAGEDESC pImage)
+{
+#ifndef VBOX_WITH_NEW_IO_CODE
+    return pImage->File != NIL_RTFILE;
+#else
+    return pImage->pvStorage != NULL;
+#endif
 }
 
 
@@ -359,7 +502,6 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
                           unsigned uPercentStart, unsigned uPercentSpan)
 {
     int rc;
-    RTFILE File;
     uint64_t cbTotal;
     uint64_t cbFill;
     uint64_t uOff;
@@ -377,6 +519,14 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
     pImage->pInterfaceError = VDInterfaceGet(pImage->pVDIfsDisk, VDINTERFACETYPE_ERROR);
     if (pImage->pInterfaceError)
         pImage->pInterfaceErrorCallbacks = VDGetInterfaceError(pImage->pInterfaceError);
+
+#ifdef VBOX_WITH_NEW_IO_CODE
+    /* Try to get async I/O interface. */
+    pImage->pInterfaceAsyncIO = VDInterfaceGet(pImage->pVDIfsDisk, VDINTERFACETYPE_ASYNCIO);
+    AssertPtr(pImage->pInterfaceAsyncIO);
+    pImage->pInterfaceAsyncIOCallbacks = VDGetInterfaceAsyncIO(pImage->pInterfaceAsyncIO);
+    AssertPtr(pImage->pInterfaceAsyncIOCallbacks);
+#endif
 
     vdiInitPreHeader(&pImage->PreHeader);
     vdiInitHeader(&pImage->Header, uImageFlags, pszComment, cbSize, VDI_IMAGE_DEFAULT_BLOCK_SIZE, 0);
@@ -414,14 +564,12 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
     vdiSetupImageDesc(pImage);
 
     /* Create image file. */
-    rc = RTFileOpen(&File, pImage->pszFilename,
-                    RTFILE_O_READWRITE | RTFILE_O_CREATE | RTFILE_O_DENY_ALL);
+    rc = vdiFileOpen(pImage, false /* fReadonly */, true /* fCreate */);
     if (RT_FAILURE(rc))
     {
         rc = vdiError(pImage, rc, RT_SRC_POS, N_("VDI: cannot create image '%s'"), pImage->pszFilename);
         goto out;
     }
-    pImage->File = File;
 
     cbTotal =   pImage->offStartData
               + (uint64_t)getImageBlocks(&pImage->Header) * pImage->cbTotalBlockData;
@@ -445,12 +593,12 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
          * Allocate & commit whole file if fixed image, it must be more
          * effective than expanding file by write operations.
          */
-        rc = RTFileSetSize(File, cbTotal);
+        rc = vdiFileSetSize(pImage, cbTotal);
     }
     else
     {
         /* Set file size to hold header and blocks array. */
-        rc = RTFileSetSize(pImage->File, pImage->offStartData);
+        rc = vdiFileSetSize(pImage, pImage->offStartData);
     }
     if (RT_FAILURE(rc))
     {
@@ -465,7 +613,7 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
     RTUuidCreate(getImageModificationUUID(&pImage->Header));
 
     /* Write pre-header. */
-    rc = RTFileWriteAt(File, 0, &pImage->PreHeader, sizeof(pImage->PreHeader), NULL);
+    rc = vdiFileWriteSync(pImage, 0, &pImage->PreHeader, sizeof(pImage->PreHeader), NULL);
     if (RT_FAILURE(rc))
     {
         rc = vdiError(pImage, rc, RT_SRC_POS, N_("VDI: writing pre-header failed for '%s'"), pImage->pszFilename);
@@ -473,17 +621,17 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
     }
 
     /* Write header. */
-    rc = RTFileWriteAt(File, sizeof(pImage->PreHeader), &pImage->Header.u.v1plus, sizeof(pImage->Header.u.v1plus), NULL);
+    rc = vdiFileWriteSync(pImage, sizeof(pImage->PreHeader), &pImage->Header.u.v1plus, sizeof(pImage->Header.u.v1plus), NULL);
     if (RT_FAILURE(rc))
     {
         rc = vdiError(pImage, rc, RT_SRC_POS, N_("VDI: writing header failed for '%s'"), pImage->pszFilename);
         goto out;
     }
 
-    rc = RTFileWriteAt(File, pImage->offStartBlocks,
-                       pImage->paBlocks,
-                       getImageBlocks(&pImage->Header) * sizeof(VDIIMAGEBLOCKPOINTER),
-                       NULL);
+    rc = vdiFileWriteSync(pImage, pImage->offStartBlocks,
+                          pImage->paBlocks,
+                          getImageBlocks(&pImage->Header) * sizeof(VDIIMAGEBLOCKPOINTER),
+                          NULL);
     if (RT_FAILURE(rc))
     {
         rc = vdiError(pImage, rc, RT_SRC_POS, N_("VDI: writing block pointers failed for '%s'"), pImage->pszFilename);
@@ -515,8 +663,8 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
         {
             unsigned cbChunk = (unsigned)RT_MIN(cbFill, cbBuf);
 
-            rc = RTFileWriteAt(File, pImage->offStartData + uOff,
-                               pvBuf, cbChunk, NULL);
+            rc = vdiFileWriteSync(pImage, pImage->offStartData + uOff,
+                                  pvBuf, cbChunk, NULL);
             if (RT_FAILURE(rc))
             {
                 rc = vdiError(pImage, rc, RT_SRC_POS, N_("VDI: writing block failed for '%s'"), pImage->pszFilename);
@@ -553,7 +701,6 @@ out:
 static int vdiOpenImage(PVDIIMAGEDESC pImage, unsigned uOpenFlags)
 {
     int rc;
-    RTFILE File;
 
     if (uOpenFlags & VD_OPEN_FLAGS_ASYNC_IO)
         return VERR_NOT_SUPPORTED;
@@ -564,24 +711,28 @@ static int vdiOpenImage(PVDIIMAGEDESC pImage, unsigned uOpenFlags)
     if (pImage->pInterfaceError)
         pImage->pInterfaceErrorCallbacks = VDGetInterfaceError(pImage->pInterfaceError);
 
+#ifdef VBOX_WITH_NEW_IO_CODE
+    /* Try to get async I/O interface. */
+    pImage->pInterfaceAsyncIO = VDInterfaceGet(pImage->pVDIfsDisk, VDINTERFACETYPE_ASYNCIO);
+    AssertPtr(pImage->pInterfaceAsyncIO);
+    pImage->pInterfaceAsyncIOCallbacks = VDGetInterfaceAsyncIO(pImage->pInterfaceAsyncIO);
+    AssertPtr(pImage->pInterfaceAsyncIOCallbacks);
+#endif
+
     /*
      * Open the image.
      */
-    rc = RTFileOpen(&File, pImage->pszFilename,
-                    uOpenFlags & VD_OPEN_FLAGS_READONLY
-                     ? RTFILE_O_READ      | RTFILE_O_OPEN | RTFILE_O_DENY_NONE
-                     : RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
+    rc = vdiFileOpen(pImage, !!(uOpenFlags & VD_OPEN_FLAGS_READONLY), false /* fCreate */);
     if (RT_FAILURE(rc))
     {
         /* Do NOT signal an appropriate error here, as the VD layer has the
          * choice of retrying the open if it failed. */
         goto out;
     }
-    pImage->File = File;
 
     /* Read pre-header. */
-    rc = RTFileReadAt(File, 0, &pImage->PreHeader, sizeof(pImage->PreHeader),
-                      NULL);
+    rc = vdiFileReadSync(pImage, 0, &pImage->PreHeader, sizeof(pImage->PreHeader),
+                         NULL);
     if (RT_FAILURE(rc))
     {
         rc = vdiError(pImage, rc, RT_SRC_POS, N_("VDI: error reading pre-header in '%s'"), pImage->pszFilename);
@@ -599,9 +750,9 @@ static int vdiOpenImage(PVDIIMAGEDESC pImage, unsigned uOpenFlags)
     switch (GET_MAJOR_HEADER_VERSION(&pImage->Header))
     {
         case 0:
-            rc = RTFileReadAt(File, sizeof(pImage->PreHeader),
-                              &pImage->Header.u.v0, sizeof(pImage->Header.u.v0),
-                              NULL);
+            rc = vdiFileReadSync(pImage, sizeof(pImage->PreHeader),
+                                 &pImage->Header.u.v0, sizeof(pImage->Header.u.v0),
+                                 NULL);
             if (RT_FAILURE(rc))
             {
                 rc = vdiError(pImage, rc, RT_SRC_POS, N_("VDI: error reading v0 header in '%s'"), pImage->pszFilename);
@@ -609,9 +760,9 @@ static int vdiOpenImage(PVDIIMAGEDESC pImage, unsigned uOpenFlags)
             }
             break;
         case 1:
-            rc = RTFileReadAt(File, sizeof(pImage->PreHeader),
-                              &pImage->Header.u.v1, sizeof(pImage->Header.u.v1),
-                              NULL);
+            rc = vdiFileReadSync(pImage, sizeof(pImage->PreHeader),
+                                 &pImage->Header.u.v1, sizeof(pImage->Header.u.v1),
+                                 NULL);
             if (RT_FAILURE(rc))
             {
                 rc = vdiError(pImage, rc, RT_SRC_POS, N_("VDI: error reading v1 header in '%s'"), pImage->pszFilename);
@@ -634,7 +785,7 @@ static int vdiOpenImage(PVDIIMAGEDESC pImage, unsigned uOpenFlags)
             else if (pImage->Header.u.v1.cbHeader >= sizeof(pImage->Header.u.v1plus))
             {
                 /* Read the actual VDI 1.1+ header completely. */
-                rc = RTFileReadAt(File, sizeof(pImage->PreHeader), &pImage->Header.u.v1plus, sizeof(pImage->Header.u.v1plus), NULL);
+                rc = vdiFileReadSync(pImage, sizeof(pImage->PreHeader), &pImage->Header.u.v1plus, sizeof(pImage->Header.u.v1plus), NULL);
                 if (RT_FAILURE(rc))
                 {
                     rc = vdiError(pImage, rc, RT_SRC_POS, N_("VDI: error reading v1.1+ header in '%s'"), pImage->pszFilename);
@@ -666,9 +817,9 @@ static int vdiOpenImage(PVDIIMAGEDESC pImage, unsigned uOpenFlags)
     }
 
     /* Read blocks array. */
-    rc = RTFileReadAt(pImage->File, pImage->offStartBlocks, pImage->paBlocks,
-                      getImageBlocks(&pImage->Header) * sizeof(VDIIMAGEBLOCKPOINTER),
-                      NULL);
+    rc = vdiFileReadSync(pImage, pImage->offStartBlocks, pImage->paBlocks,
+                         getImageBlocks(&pImage->Header) * sizeof(VDIIMAGEBLOCKPOINTER),
+                         NULL);
 
 out:
     if (RT_FAILURE(rc))
@@ -685,13 +836,13 @@ static int vdiUpdateHeader(PVDIIMAGEDESC pImage)
     switch (GET_MAJOR_HEADER_VERSION(&pImage->Header))
     {
         case 0:
-            rc = RTFileWriteAt(pImage->File, sizeof(VDIPREHEADER), &pImage->Header.u.v0, sizeof(pImage->Header.u.v0), NULL);
+            rc = vdiFileWriteSync(pImage, sizeof(VDIPREHEADER), &pImage->Header.u.v0, sizeof(pImage->Header.u.v0), NULL);
             break;
         case 1:
             if (pImage->Header.u.v1plus.cbHeader < sizeof(pImage->Header.u.v1plus))
-                rc = RTFileWriteAt(pImage->File, sizeof(VDIPREHEADER), &pImage->Header.u.v1, sizeof(pImage->Header.u.v1), NULL);
+                rc = vdiFileWriteSync(pImage, sizeof(VDIPREHEADER), &pImage->Header.u.v1, sizeof(pImage->Header.u.v1), NULL);
             else
-                rc = RTFileWriteAt(pImage->File, sizeof(VDIPREHEADER), &pImage->Header.u.v1plus, sizeof(pImage->Header.u.v1plus), NULL);
+                rc = vdiFileWriteSync(pImage, sizeof(VDIPREHEADER), &pImage->Header.u.v1plus, sizeof(pImage->Header.u.v1plus), NULL);
             break;
         default:
             rc = VERR_VD_VDI_UNSUPPORTED_VERSION;
@@ -711,11 +862,11 @@ static int vdiUpdateBlockInfo(PVDIIMAGEDESC pImage, unsigned uBlock)
     if (RT_SUCCESS(rc))
     {
         /* write only one block pointer. */
-        rc = RTFileWriteAt(pImage->File,
-                           pImage->offStartBlocks + uBlock * sizeof(VDIIMAGEBLOCKPOINTER),
-                           &pImage->paBlocks[uBlock],
-                           sizeof(VDIIMAGEBLOCKPOINTER),
-                           NULL);
+        rc = vdiFileWriteSync(pImage,
+                              pImage->offStartBlocks + uBlock * sizeof(VDIIMAGEBLOCKPOINTER),
+                              &pImage->paBlocks[uBlock],
+                              sizeof(VDIIMAGEBLOCKPOINTER),
+                              NULL);
         AssertMsgRC(rc, ("vdiUpdateBlockInfo failed to update block=%u, filename=\"%s\", rc=%Rrc\n",
                          uBlock, pImage->pszFilename, rc));
     }
@@ -733,7 +884,7 @@ static void vdiFlushImage(PVDIIMAGEDESC pImage)
         int rc = vdiUpdateHeader(pImage);
         AssertMsgRC(rc, ("vdiUpdateHeader() failed, filename=\"%s\", rc=%Rrc\n",
                          pImage->pszFilename, rc));
-        RTFileFlush(pImage->File);
+        vdiFileFlushSync(pImage);
     }
 }
 
@@ -745,11 +896,10 @@ static void vdiFreeImage(PVDIIMAGEDESC pImage, bool fDelete)
 {
     AssertPtr(pImage);
 
-    if (pImage->File != NIL_RTFILE)
+    if (vdiFileOpened(pImage))
     {
         vdiFlushImage(pImage);
-        RTFileClose(pImage->File);
-        pImage->File = NIL_RTFILE;
+        vdiFileClose(pImage);
     }
     if (pImage->paBlocks)
     {
@@ -762,7 +912,7 @@ static void vdiFreeImage(PVDIIMAGEDESC pImage, bool fDelete)
 
 
 /** @copydoc VBOXHDDBACKEND::pfnCheckIfValid */
-static int vdiCheckIfValid(const char *pszFilename)
+static int vdiCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk)
 {
     LogFlowFunc(("pszFilename=\"%s\"\n", pszFilename));
     int rc = VINF_SUCCESS;
@@ -782,9 +932,13 @@ static int vdiCheckIfValid(const char *pszFilename)
         goto out;
     }
     pImage->pszFilename = pszFilename;
+#ifndef VBOX_WITH_NEW_IO_CODE
     pImage->File = NIL_RTFILE;
+#else
+    pImage->pvStorage = NULL;
+#endif
     pImage->paBlocks = NULL;
-    pImage->pVDIfsDisk = NULL;
+    pImage->pVDIfsDisk = pVDIfsDisk;
 
     rc = vdiOpenImage(pImage, VD_OPEN_FLAGS_INFO | VD_OPEN_FLAGS_READONLY);
     vdiFreeImage(pImage, false);
@@ -826,7 +980,11 @@ static int vdiOpen(const char *pszFilename, unsigned uOpenFlags,
         goto out;
     }
     pImage->pszFilename = pszFilename;
+#ifndef VBOX_WITH_NEW_IO_CODE
     pImage->File = NIL_RTFILE;
+#else
+    pImage->pvStorage = NULL;
+#endif
     pImage->paBlocks = NULL;
     pImage->pVDIfsDisk = pVDIfsDisk;
 
@@ -900,7 +1058,11 @@ static int vdiCreate(const char *pszFilename, uint64_t cbSize,
         goto out;
     }
     pImage->pszFilename = pszFilename;
+#ifndef VBOX_WITH_NEW_IO_CODE
     pImage->File = NIL_RTFILE;
+#else
+    pImage->pvStorage = NULL;
+#endif
     pImage->paBlocks = NULL;
     pImage->pVDIfsDisk = pVDIfsDisk;
 
@@ -1034,7 +1196,7 @@ static int vdiRead(void *pBackendData, uint64_t uOffset, void *pvBuf,
         /* Block present in image file, read relevant data. */
         uint64_t u64Offset = (uint64_t)pImage->paBlocks[uBlock] * pImage->cbTotalBlockData
                            + (pImage->offStartData + pImage->offStartBlockData + offRead);
-        rc = RTFileReadAt(pImage->File, u64Offset, pvBuf, cbToRead, NULL);
+        rc = vdiFileReadSync(pImage, u64Offset, pvBuf, cbToRead, NULL);
     }
 
     if (pcbActuallyRead)
@@ -1114,7 +1276,7 @@ static int vdiWrite(void *pBackendData, uint64_t uOffset, const void *pvBuf,
                 unsigned cBlocksAllocated = getImageBlocksAllocated(&pImage->Header);
                 uint64_t u64Offset = (uint64_t)cBlocksAllocated * pImage->cbTotalBlockData
                                    + (pImage->offStartData + pImage->offStartBlockData);
-                rc = RTFileWriteAt(pImage->File, u64Offset, pvBuf, cbToWrite, NULL);
+                rc = vdiFileWriteSync(pImage, u64Offset, pvBuf, cbToWrite, NULL);
                 if (RT_FAILURE(rc))
                     goto out;
                 pImage->paBlocks[uBlock] = cBlocksAllocated;
@@ -1141,7 +1303,7 @@ static int vdiWrite(void *pBackendData, uint64_t uOffset, const void *pvBuf,
             /* Block present in image file, write relevant data. */
             uint64_t u64Offset = (uint64_t)pImage->paBlocks[uBlock] * pImage->cbTotalBlockData
                                + (pImage->offStartData + pImage->offStartBlockData + offWrite);
-            rc = RTFileWriteAt(pImage->File, u64Offset, pvBuf, cbToWrite, NULL);
+            rc = vdiFileWriteSync(pImage, u64Offset, pvBuf, cbToWrite, NULL);
         }
     } while (0);
 
@@ -1215,9 +1377,9 @@ static uint64_t vdiGetFileSize(void *pBackendData)
     if (pImage)
     {
         uint64_t cbFile;
-        if (pImage->File != NIL_RTFILE)
+        if (vdiFileOpened(pImage))
         {
-            int rc = RTFileGetSize(pImage->File, &cbFile);
+            int rc = vdiFileGetSize(pImage, &cbFile);
             if (RT_SUCCESS(rc))
                 cb += cbFile;
         }
@@ -1720,36 +1882,44 @@ static void vdiDump(void *pBackendData)
 {
     PVDIIMAGEDESC pImage = (PVDIIMAGEDESC)pBackendData;
 
-    RTLogPrintf("Dumping VDI image \"%s\" mode=%s uOpenFlags=%X File=%08X\n",
+#ifndef VBOX_WITH_NEW_IO_CODE
+    pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Dumping VDI image \"%s\" mode=%s uOpenFlags=%X File=%08X\n",
                 pImage->pszFilename,
                 (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY) ? "r/o" : "r/w",
                 pImage->uOpenFlags,
                 pImage->File);
-    RTLogPrintf("Header: Version=%08X Type=%X Flags=%X Size=%llu\n",
+#else
+    pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Dumping VDI image \"%s\" mode=%s uOpenFlags=%X File=%#p\n",
+                pImage->pszFilename,
+                (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY) ? "r/o" : "r/w",
+                pImage->uOpenFlags,
+                pImage->pvStorage);
+#endif
+    pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Header: Version=%08X Type=%X Flags=%X Size=%llu\n",
                 pImage->PreHeader.u32Version,
                 getImageType(&pImage->Header),
                 getImageFlags(&pImage->Header),
                 getImageDiskSize(&pImage->Header));
-    RTLogPrintf("Header: cbBlock=%u cbBlockExtra=%u cBlocks=%u cBlocksAllocated=%u\n",
+    pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Header: cbBlock=%u cbBlockExtra=%u cBlocks=%u cBlocksAllocated=%u\n",
                 getImageBlockSize(&pImage->Header),
                 getImageExtraBlockSize(&pImage->Header),
                 getImageBlocks(&pImage->Header),
                 getImageBlocksAllocated(&pImage->Header));
-    RTLogPrintf("Header: offBlocks=%u offData=%u\n",
+    pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Header: offBlocks=%u offData=%u\n",
                 getImageBlocksOffset(&pImage->Header),
                 getImageDataOffset(&pImage->Header));
     PVDIDISKGEOMETRY pg = getImageLCHSGeometry(&pImage->Header);
     if (pg)
-        RTLogPrintf("Header: Geometry: C/H/S=%u/%u/%u cbSector=%u\n",
+        pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Header: Geometry: C/H/S=%u/%u/%u cbSector=%u\n",
                     pg->cCylinders, pg->cHeads, pg->cSectors, pg->cbSector);
-    RTLogPrintf("Header: uuidCreation={%RTuuid}\n", getImageCreationUUID(&pImage->Header));
-    RTLogPrintf("Header: uuidModification={%RTuuid}\n", getImageModificationUUID(&pImage->Header));
-    RTLogPrintf("Header: uuidParent={%RTuuid}\n", getImageParentUUID(&pImage->Header));
+    pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Header: uuidCreation={%RTuuid}\n", getImageCreationUUID(&pImage->Header));
+    pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Header: uuidModification={%RTuuid}\n", getImageModificationUUID(&pImage->Header));
+    pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Header: uuidParent={%RTuuid}\n", getImageParentUUID(&pImage->Header));
     if (GET_MAJOR_HEADER_VERSION(&pImage->Header) >= 1)
-        RTLogPrintf("Header: uuidParentModification={%RTuuid}\n", getImageParentModificationUUID(&pImage->Header));
-    RTLogPrintf("Image:  fFlags=%08X offStartBlocks=%u offStartData=%u\n",
+        pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Header: uuidParentModification={%RTuuid}\n", getImageParentModificationUUID(&pImage->Header));
+    pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Image:  fFlags=%08X offStartBlocks=%u offStartData=%u\n",
                 pImage->uImageFlags, pImage->offStartBlocks, pImage->offStartData);
-    RTLogPrintf("Image:  uBlockMask=%08X cbTotalBlockData=%u uShiftOffset2Index=%u offStartBlockData=%u\n",
+    pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "Image:  uBlockMask=%08X cbTotalBlockData=%u uShiftOffset2Index=%u offStartBlockData=%u\n",
                 pImage->uBlockMask,
                 pImage->cbTotalBlockData,
                 pImage->uShiftOffset2Index,
@@ -1767,12 +1937,12 @@ static void vdiDump(void *pBackendData)
     }
     if (cBlocksNotFree != getImageBlocksAllocated(&pImage->Header))
     {
-        RTLogPrintf("!! WARNING: %u blocks actually allocated (cBlocksAllocated=%u) !!\n",
+        pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "!! WARNING: %u blocks actually allocated (cBlocksAllocated=%u) !!\n",
                 cBlocksNotFree, getImageBlocksAllocated(&pImage->Header));
     }
     if (cBadBlocks)
     {
-        RTLogPrintf("!! WARNING: %u bad blocks found !!\n",
+        pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser, "!! WARNING: %u bad blocks found !!\n",
                 cBadBlocks);
     }
 }
@@ -1888,7 +2058,7 @@ static int vdiCompact(void *pBackendData, unsigned uPercentStart,
         AssertBreakStmt(VALID_PTR(pvTmp), rc = VERR_NO_MEMORY);
 
         uint64_t cbFile;
-        rc = RTFileGetSize(pImage->File, &cbFile);
+        rc = vdiFileGetSize(pImage, &cbFile);
         AssertRCBreak(rc);
         unsigned cBlocksAllocated = (unsigned)((cbFile - pImage->offStartData - pImage->offStartBlockData) >> pImage->uShiftOffset2Index);
         if (cBlocksAllocated == 0)
@@ -1951,7 +2121,7 @@ static int vdiCompact(void *pBackendData, unsigned uPercentStart,
                 /* Block present in image file, read relevant data. */
                 uint64_t u64Offset = (uint64_t)ptrBlock * pImage->cbTotalBlockData
                                    + (pImage->offStartData + pImage->offStartBlockData);
-                rc = RTFileReadAt(pImage->File, u64Offset, pvTmp, cbBlock, NULL);
+                rc = vdiFileReadSync(pImage, u64Offset, pvTmp, cbBlock, NULL);
                 if (RT_FAILURE(rc))
                     break;
 
@@ -2014,10 +2184,10 @@ static int vdiCompact(void *pBackendData, unsigned uPercentStart,
                     break;
                 uint64_t u64Offset = (uint64_t)uBlockUsedPos * pImage->cbTotalBlockData
                                    + (pImage->offStartData + pImage->offStartBlockData);
-                rc = RTFileReadAt(pImage->File, u64Offset, pvTmp, cbBlock, NULL);
+                rc = vdiFileReadSync(pImage, u64Offset, pvTmp, cbBlock, NULL);
                 u64Offset = (uint64_t)i * pImage->cbTotalBlockData
                           + (pImage->offStartData + pImage->offStartBlockData);
-                rc = RTFileWriteAt(pImage->File, u64Offset, pvTmp, cbBlock, NULL);
+                rc = vdiFileWriteSync(pImage, u64Offset, pvTmp, cbBlock, NULL);
                 pImage->paBlocks[uBlockData] = i;
                 setImageBlocksAllocated(&pImage->Header, cBlocksAllocated - cBlocksMoved);
                 rc = vdiUpdateBlockInfo(pImage, uBlockData);
@@ -2045,7 +2215,7 @@ static int vdiCompact(void *pBackendData, unsigned uPercentStart,
         vdiUpdateHeader(pImage);
 
         /* Truncate the image to the proper size to finish compacting. */
-        rc = RTFileSetSize(pImage->File,
+        rc = vdiFileSetSize(pImage,
                            (uint64_t)uBlockUsedPos * pImage->cbTotalBlockData
                            + (pImage->offStartData + pImage->offStartBlockData));
     } while (0);

@@ -1,4 +1,4 @@
-/* $Id: RTSystemQueryOSInfo-generic.cpp $ */
+/* $Id: RTSystemQueryOSInfo-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - RTSystemQueryOSInfo, generic stub.
  */
@@ -28,10 +28,13 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/system.h>
+#include "internal/iprt.h"
+
 #include <iprt/assert.h>
 #include <iprt/string.h>
 
@@ -53,6 +56,5 @@ RTDECL(int) RTSystemQueryOSInfo(RTSYSOSINFO enmInfo, char *pszInfo, size_t cchIn
     *pszInfo = '\0';
     return VERR_NOT_SUPPORTED;
 }
-
-
+RT_EXPORT_SYMBOL(RTSystemQueryOSInfo);
 

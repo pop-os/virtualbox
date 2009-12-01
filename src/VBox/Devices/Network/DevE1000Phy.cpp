@@ -1,4 +1,4 @@
-/** $Id: DevE1000Phy.cpp $ */
+/** $Id: DevE1000Phy.cpp 23965 2009-10-22 09:56:20Z vboxsync $ */
 /** @file
  * DevE1000Phy - Intel 82540EM Ethernet Controller Internal PHY Emulation.
  *
@@ -405,8 +405,7 @@ int Phy::saveState(PSSMHANDLE pSSMHandle, PPHY pPhy)
  */
 int Phy::loadState(PSSMHANDLE pSSMHandle, PPHY pPhy)
 {
-    SSMR3GetMem(pSSMHandle, pPhy->au16Regs, sizeof(pPhy->au16Regs));
-    return VINF_SUCCESS;
+    return SSMR3GetMem(pSSMHandle, pPhy->au16Regs, sizeof(pPhy->au16Regs));
 }
 #endif /* IN_RING3 */
 

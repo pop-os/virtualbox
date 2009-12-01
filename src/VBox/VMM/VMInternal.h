@@ -1,4 +1,4 @@
-/* $Id: VMInternal.h $ */
+/* $Id: VMInternal.h 24738 2009-11-17 21:33:54Z vboxsync $ */
 /** @file
  * VM - Internal header file.
  */
@@ -24,6 +24,8 @@
 
 #include <VBox/cdefs.h>
 #include <VBox/vmapi.h>
+#include <iprt/assert.h>
+#include <iprt/critsect.h>
 #include <setjmp.h>
 
 
@@ -33,65 +35,6 @@
  * @internal
  * @{
  */
-
-
-/**
- * At-reset callback type.
- */
-typedef enum VMATRESETTYPE
-{
-    /** Device callback. */
-    VMATRESETTYPE_DEV = 1,
-    /** Internal callback . */
-    VMATRESETTYPE_INTERNAL,
-    /** External callback. */
-    VMATRESETTYPE_EXTERNAL
-} VMATRESETTYPE;
-
-
-/** Pointer to at-reset callback. */
-typedef struct VMATRESET *PVMATRESET;
-
-/**
- * At reset callback.
- */
-typedef struct VMATRESET
-{
-    /** Pointer to the next one in the list. */
-    PVMATRESET                      pNext;
-    /** Callback type. */
-    VMATRESETTYPE                   enmType;
-    /** User argument for the callback. */
-    void                           *pvUser;
-    /** Description. */
-    const char                     *pszDesc;
-    /** Type specific data. */
-    union
-    {
-        /** VMATRESETTYPE_DEV. */
-        struct
-        {
-            /** Callback. */
-            PFNVMATRESET            pfnCallback;
-            /** Device instance. */
-            PPDMDEVINS              pDevIns;
-        } Dev;
-
-        /** VMATRESETTYPE_INTERNAL. */
-        struct
-        {
-            /** Callback. */
-            PFNVMATRESETINT         pfnCallback;
-        } Internal;
-
-        /** VMATRESETTYPE_EXTERNAL. */
-        struct
-        {
-            /** Callback. */
-            PFNVMATRESETEXT         pfnCallback;
-        } External;
-    } u;
-} VMATRESET;
 
 
 /**
@@ -222,9 +165,8 @@ typedef struct VMINT
     R3PTRTYPE(PVMERROR)             pErrorR3;
     /** VM Runtime Error Message. */
     R3PTRTYPE(PVMRUNTIMEERROR)      pRuntimeErrorR3;
-    /** Set by VMR3SuspendNoSave; cleared by VMR3Resume; signals the VM is in an
-     * inconsistent state and saving is not allowed. */
-    bool                            fPreventSaveState;
+    /** The VM was/is-being teleported and has not yet been fully resumed. */
+    bool                            fTeleportedAndNotFullyResumedYet;
 } VMINT;
 /** Pointer to the VM Internal Data (part of the VM structure). */
 typedef VMINT *PVMINT;
@@ -255,33 +197,51 @@ typedef struct VMINTUSERPERVM
     STAMCOUNTER                     StatReqFree;
     /** Number of times the request was actually freed. */
     STAMCOUNTER                     StatReqFreeOverflow;
+    /** Number of requests served. */
+    STAMCOUNTER                     StatReqProcessed;
+    /** Number of times there are more than one request and the others needed to be
+     * pushed back onto the list. */
+    STAMCOUNTER                     StatReqMoreThan1;
+    /** Number of times we've raced someone when pushing the other requests back
+     * onto the list. */
+    STAMCOUNTER                     StatReqPushBackRaces;
 #endif
 
     /** Pointer to the support library session.
-     * Mainly for creation and destruction.. */
+     * Mainly for creation and destruction. */
     PSUPDRVSESSION                  pSession;
 
     /** Force EMT to terminate. */
     bool volatile                   fTerminateEMT;
-    /** If set the EMT does the final VM cleanup when it exits.
+    /** If set the EMT(0) does the final VM cleanup when it exits.
      * If clear the VMR3Destroy() caller does so. */
     bool                            fEMTDoesTheCleanup;
 
-    /** List of registered reset callbacks. */
-    PVMATRESET                      pAtReset;
-    /** List of registered reset callbacks. */
-    PVMATRESET                     *ppAtResetNext;
-
+    /** Critical section for pAtState and enmPrevVMState. */
+    RTCRITSECT                      AtStateCritSect;
     /** List of registered state change callbacks. */
     PVMATSTATE                      pAtState;
     /** List of registered state change callbacks. */
     PVMATSTATE                     *ppAtStateNext;
+    /** The previous VM state.
+     * This is mainly used for the 'Resetting' state, but may come in handy later
+     * and when debugging. */
+    VMSTATE                         enmPrevVMState;
+
+    /** Critical section for pAtError and pAtRuntimeError. */
+    RTCRITSECT                      AtErrorCritSect;
 
     /** List of registered error callbacks. */
     PVMATERROR                      pAtError;
     /** List of registered error callbacks. */
     PVMATERROR                     *ppAtErrorNext;
+    /** The error message count.
+     * This is incremented every time an error is raised.  */
+    uint32_t volatile               cErrors;
 
+    /** The runtime error message count.
+     * This is incremented every time a runtime error is raised.  */
+    uint32_t volatile               cRuntimeErrors;
     /** List of registered error callbacks. */
     PVMATRUNTIMEERROR               pAtRuntimeError;
     /** List of registered error callbacks. */
@@ -360,6 +320,8 @@ typedef struct VMINTUSERPERVMCPU
     /** If set the EMT does the final VM cleanup when it exits.
      * If clear the VMR3Destroy() caller does so. */
     bool                            fEMTDoesTheCleanup;
+    /** Align the next bit. */
+    bool                            afAlignment[5];
 
     /** @name Generic Halt data
      * @{
@@ -392,6 +354,8 @@ typedef struct VMINTUSERPERVMCPU
         {
             /** How many times we've blocked while cBlockedNS and cBlockedTooLongNS has been accumulating. */
             uint32_t                cBlocks;
+            /** Align the next member. */
+            uint32_t                u32Alignment;
             /** Avg. time spend oversleeping when blocking. (Re-calculated every so often.) */
             uint64_t                cNSBlockedTooLongAvg;
             /** Total time spend oversleeping when blocking. */
@@ -449,6 +413,11 @@ typedef struct VMINTUSERPERVMCPU
     STAMPROFILE                     StatHaltPoll;
     /** @} */
 } VMINTUSERPERVMCPU;
+#ifdef IN_RING3
+AssertCompileMemberAlignment(VMINTUSERPERVMCPU, u64HaltsStartTS, 8);
+AssertCompileMemberAlignment(VMINTUSERPERVMCPU, Halt.Method12.cNSBlockedTooLongAvg, 8);
+AssertCompileMemberAlignment(VMINTUSERPERVMCPU, StatHaltYield, 8);
+#endif
 
 /** Pointer to the VM internal data kept in the UVM. */
 typedef VMINTUSERPERVMCPU *PVMINTUSERPERVMCPU;
@@ -460,10 +429,11 @@ int                 vmR3SetHaltMethodU(PUVM pUVM, VMHALTMETHOD enmHaltMethod);
 DECLCALLBACK(int)   vmR3Destroy(PVM pVM);
 DECLCALLBACK(void)  vmR3SetErrorUV(PUVM pUVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list *args);
 void                vmSetErrorCopy(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list args);
+DECLCALLBACK(int)   vmR3SetRuntimeError(PVM pVM, uint32_t fFlags, const char *pszErrorId, char *pszMessage);
 DECLCALLBACK(int)   vmR3SetRuntimeErrorV(PVM pVM, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list *pVa);
 void                vmSetRuntimeErrorCopy(PVM pVM, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va);
-void                vmR3DestroyFinalBitFromEMT(PUVM pUVM);
-void                vmR3SetState(PVM pVM, VMSTATE enmStateNew);
+void                vmR3DestroyFinalBitFromEMT(PUVM pUVM, VMCPUID idCpu);
+void                vmR3SetGuruMeditation(PVM pVM);
 
 RT_C_DECLS_END
 

@@ -43,6 +43,10 @@ void PACKSPU_APIENTRY packspu_ChromiumParametervCR(GLenum target, GLenum type, G
 GLboolean packspuSyncOnFlushes()
 {
     GLint buffer;
+
+    /*Seems to still cause issues, always sync for now*/
+    return 1;
+
     crStateGetIntegerv(GL_DRAW_BUFFER, &buffer);
     /*Usually buffer==GL_BACK, so put this extra check to simplify boolean eval on runtime*/
     return  (buffer != GL_BACK)
@@ -56,8 +60,15 @@ GLboolean packspuSyncOnFlushes()
 
 void PACKSPU_APIENTRY packspu_DrawBuffer(GLenum mode)
 {
+    GLboolean hadtoflush;
+
+    hadtoflush = packspuSyncOnFlushes();
+
     crStateDrawBuffer(mode);
     crPackDrawBuffer(mode);
+
+    if (hadtoflush && !packspuSyncOnFlushes())
+        packspu_Flush();
 }
 
 void PACKSPU_APIENTRY packspu_Finish( void )
@@ -76,36 +87,34 @@ void PACKSPU_APIENTRY packspu_Finish( void )
 
     if (packspuSyncOnFlushes())
     {
-        packspuFlush( (void *) thread );
-
         if (writeback)
         {
             if (pack_spu.swap)
                 crPackWritebackSWAP(&writeback);
             else
                 crPackWriteback(&writeback);
-        }
 
-        while (writeback)
-            crNetRecv();
+            packspuFlush( (void *) thread );
+
+            while (writeback)
+                crNetRecv();
+        }
     }
 }
 
 void PACKSPU_APIENTRY packspu_Flush( void )
 {
     GET_THREAD(thread);
-    if (pack_spu.swap)
-    {
-        crPackFlushSWAP();
-    }
-    else
-    {
-        crPackFlush();
-    }
+    int writeback = 1;
+
+    crPackFlush();
 
     if (packspuSyncOnFlushes())
     {
+        crPackWriteback(&writeback);
         packspuFlush( (void *) thread );
+        while (writeback)
+            crNetRecv();
     }
 }
 

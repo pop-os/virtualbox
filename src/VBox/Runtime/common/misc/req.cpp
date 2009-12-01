@@ -1,4 +1,4 @@
-/* $Id: VMReq.cpp $ */
+/* $Id: VMReq.cpp 17451 2007-01-15 14:08:28Z bird $ */
 /** @file
  * IPRT - Request packets
  */
@@ -32,6 +32,8 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#include <iprt/req.h>
+#include "internal/iprt.h"
 
 #include <iprt/assert.h>
 #include <iprt/asm.h>
@@ -39,7 +41,6 @@
 #include <iprt/time.h>
 #include <iprt/semaphore.h>
 #include <iprt/thread.h>
-#include <iprt/req.h>
 #include <iprt/log.h>
 #include <iprt/mem.h>
 
@@ -59,16 +60,20 @@ static int  rtReqProcessOne(PRTREQ pReq);
  */
 RTDECL(int) RTReqCreateQueue(PRTREQQUEUE *ppQueue)
 {
-    *ppQueue = (PRTREQQUEUE)RTMemAllocZ(sizeof(RTREQQUEUE));
-    if (!ppQueue)
+    PRTREQQUEUE pQueue = (PRTREQQUEUE)RTMemAllocZ(sizeof(RTREQQUEUE));
+    if (!pQueue)
         return VERR_NO_MEMORY;
+    int rc = RTSemEventCreate(&pQueue->EventSem);
+    if (RT_SUCCESS(rc))
+    {
+        *ppQueue = pQueue;
+        return VINF_SUCCESS;
+    }
 
-    int rc = RTSemEventCreate(&(*ppQueue)->EventSem);
-    if (rc != VINF_SUCCESS)
-        RTMemFree(*ppQueue);
-
+    RTMemFree(pQueue);
     return rc;
 }
+RT_EXPORT_SYMBOL(RTReqCreateQueue);
 
 
 /**
@@ -83,14 +88,15 @@ RTDECL(int) RTReqDestroyQueue(PRTREQQUEUE pQueue)
      * Check input.
      */
     if (!pQueue)
-    {
-        AssertFailed();
-        return VERR_INVALID_PARAMETER;
-    }
+        return VINF_SUCCESS;
+    AssertPtr(pQueue);
     RTSemEventDestroy(pQueue->EventSem);
+    pQueue->EventSem = NIL_RTSEMEVENT;
     RTMemFree(pQueue);
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTReqDestroyQueue);
+
 
 /**
  * Process one or more request packets
@@ -129,12 +135,15 @@ RTDECL(int) RTReqProcess(PRTREQQUEUE pQueue, unsigned cMillies)
         PRTREQ pReqs = (PRTREQ)ASMAtomicXchgPtr((void * volatile *)&pQueue->pReqs, NULL);
         if (!pReqs)
         {
-            /** @note We currently don't care if the entire time wasted here is larger than cMillies */
+            ASMAtomicWriteBool(&pQueue->fBusy, false); /* this aint 100% perfect, but it's good enough for now... */
+            /** @todo We currently don't care if the entire time wasted here is larger than
+             *        cMillies */
             rc = RTSemEventWait(pQueue->EventSem, cMillies);
             if (rc != VINF_SUCCESS)
                 break;
             continue;
         }
+        ASMAtomicWriteBool(&pQueue->fBusy, true);
 
         /*
          * Reverse the list to process it in FIFO order.
@@ -175,6 +184,7 @@ RTDECL(int) RTReqProcess(PRTREQQUEUE pQueue, unsigned cMillies)
     LogFlow(("RTReqProcess: returns %Rrc\n", rc));
     return rc;
 }
+RT_EXPORT_SYMBOL(RTReqProcess);
 
 /**
  * Allocate and queue a call request.
@@ -196,8 +206,9 @@ RTDECL(int) RTReqProcess(PRTREQQUEUE pQueue, unsigned cMillies)
  *                          wait till it's completed.
  * @param   pfnFunction     Pointer to the function to call.
  * @param   cArgs           Number of arguments following in the ellipsis.
- *                          Not possible to pass 64-bit arguments!
  * @param   ...             Function arguments.
+ *
+ * @remarks See remarks on RTReqCallV.
  */
 RTDECL(int) RTReqCall(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, PFNRT pfnFunction, unsigned cArgs, ...)
 {
@@ -207,6 +218,7 @@ RTDECL(int) RTReqCall(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, PFNR
     va_end(va);
     return rc;
 }
+RT_EXPORT_SYMBOL(RTReqCall);
 
 
 /**
@@ -229,8 +241,9 @@ RTDECL(int) RTReqCall(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, PFNR
  *                          wait till it's completed.
  * @param   pfnFunction     Pointer to the function to call.
  * @param   cArgs           Number of arguments following in the ellipsis.
- *                          Not possible to pass 64-bit arguments!
  * @param   ...             Function arguments.
+ *
+ * @remarks See remarks on RTReqCallV.
  */
 RTDECL(int) RTReqCallVoid(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, PFNRT pfnFunction, unsigned cArgs, ...)
 {
@@ -240,6 +253,7 @@ RTDECL(int) RTReqCallVoid(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, 
     va_end(va);
     return rc;
 }
+RT_EXPORT_SYMBOL(RTReqCallVoid);
 
 
 /**
@@ -264,8 +278,9 @@ RTDECL(int) RTReqCallVoid(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, 
  * @param   fFlags          A combination of the RTREQFLAGS values.
  * @param   pfnFunction     Pointer to the function to call.
  * @param   cArgs           Number of arguments following in the ellipsis.
- *                          Not possible to pass 64-bit arguments!
  * @param   ...             Function arguments.
+ *
+ * @remarks See remarks on RTReqCallV.
  */
 RTDECL(int) RTReqCallEx(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, ...)
 {
@@ -275,6 +290,7 @@ RTDECL(int) RTReqCallEx(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, un
     va_end(va);
     return rc;
 }
+RT_EXPORT_SYMBOL(RTReqCallEx);
 
 
 /**
@@ -299,8 +315,16 @@ RTDECL(int) RTReqCallEx(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, un
  * @param   fFlags          A combination of the RTREQFLAGS values.
  * @param   pfnFunction     Pointer to the function to call.
  * @param   cArgs           Number of arguments following in the ellipsis.
- *                          Not possible to pass 64-bit arguments!
  * @param   Args            Variable argument vector.
+ *
+ * @remarks Caveats:
+ *              - Do not pass anything which is larger than an uintptr_t.
+ *              - 64-bit integers are larger than uintptr_t on 32-bit hosts.
+ *                Pass integers > 32-bit by reference (pointers).
+ *              - Don't use NULL since it should be the integer 0 in C++ and may
+ *                therefore end up with garbage in the bits 63:32 on 64-bit
+ *                hosts because 'int' is 32-bit.
+ *                Use (void *)NULL or (uintptr_t)0 instead of NULL.
  */
 RTDECL(int) RTReqCallV(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, va_list Args)
 {
@@ -362,6 +386,7 @@ RTDECL(int) RTReqCallV(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, uns
     Assert(rc != VERR_INTERRUPTED);
     return rc;
 }
+RT_EXPORT_SYMBOL(RTReqCallV);
 
 
 /**
@@ -431,6 +456,7 @@ static void vmr3ReqJoinFree(PRTREQQUEUE pQueue, PRTREQ pList)
  */
 RTDECL(int) RTReqAlloc(PRTREQQUEUE pQueue, PRTREQ *ppReq, RTREQTYPE enmType)
 {
+    RT_EXPORT_SYMBOL(RTReqAlloc);
     /*
      * Validate input.
      */
@@ -608,6 +634,7 @@ RTDECL(int) RTReqFree(PRTREQ pReq)
     }
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTReqFree);
 
 
 /**
@@ -666,6 +693,7 @@ RTDECL(int) RTReqQueue(PRTREQ pReq, unsigned cMillies)
     {
         pNext = pQueue->pReqs;
         pReq->pNext = pNext;
+        ASMAtomicWriteBool(&pQueue->fBusy, true);
     } while (!ASMAtomicCmpXchgPtr((void * volatile *)&pQueue->pReqs, (void *)pReq, (void *)pNext));
 
     /*
@@ -681,6 +709,7 @@ RTDECL(int) RTReqQueue(PRTREQ pReq, unsigned cMillies)
     LogFlow(("RTReqQueue: returns %Rrc\n", rc));
     return rc;
 }
+RT_EXPORT_SYMBOL(RTReqQueue);
 
 
 /**
@@ -744,6 +773,7 @@ RTDECL(int) RTReqWait(PRTREQ pReq, unsigned cMillies)
     Assert(rc != VERR_INTERRUPTED);
     return rc;
 }
+RT_EXPORT_SYMBOL(RTReqWait);
 
 
 /**
@@ -890,5 +920,24 @@ static int  rtReqProcessOne(PRTREQ pReq)
 }
 
 
+/**
+ * Checks if the queue is busy or not.
+ *
+ * The caller is responsible for dealing with any concurrent submitts.
+ *
+ * @returns true if busy, false if idle.
+ * @param   pQueue              The queue.
+ */
+RTDECL(bool) RTReqIsBusy(PRTREQQUEUE pQueue)
+{
+    AssertPtrReturn(pQueue, false);
 
-
+    if (ASMAtomicReadBool(&pQueue->fBusy))
+        return true;
+    if (ASMAtomicReadPtr((void * volatile *)&pQueue->pReqs) != NULL)
+        return true;
+    if (ASMAtomicReadBool(&pQueue->fBusy))
+        return true;
+    return false;
+}
+RT_EXPORT_SYMBOL(RTReqIsBusy);

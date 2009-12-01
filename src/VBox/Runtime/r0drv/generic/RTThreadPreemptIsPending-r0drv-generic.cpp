@@ -1,4 +1,4 @@
-/* $Id: RTThreadPreemptIsPending-r0drv-generic.cpp $ */
+/* $Id: RTThreadPreemptIsPending-r0drv-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
 /** @file
  * IPRT - RTThreadPreemptIsPending, Generic ring-0 driver implementation.
  */
@@ -28,10 +28,13 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/thread.h>
+#include "internal/iprt.h"
+
 #include <iprt/assert.h>
 
 
@@ -40,4 +43,5 @@ RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
     Assert(hThread == NIL_RTTHREAD);
     return false;
 }
+RT_EXPORT_SYMBOL(RTThreadPreemptIsPending);
 

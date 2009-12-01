@@ -1,4 +1,4 @@
-; $Id: CPUMInternal.mac $
+; $Id: CPUMInternal.mac 23794 2009-10-15 11:50:03Z vboxsync $
 ;; @file
 ; CPUM - Internal header file (asm).
 ;
@@ -63,17 +63,19 @@ struc CPUM
     .CPUFeaturesExt.edx   resd    1
     .CPUFeaturesExt.ecx   resd    1
 
-    .enmCPUVendor         resd    1
+    .enmHostCpuVendor     resd    1
+    .enmGuestCpuVendor    resd    1
 
     ; CR4 masks
     .CR4.AndMask          resd    1
     .CR4.OrMask           resd    1
     ; entered rawmode?
     .fRawEntered          resb    1
+    .fSyntheticCpu        resb    1
 %if RTHCPTR_CB == 8
-    .abPadding            resb    7
+    .abPadding            resb    6
 %else
-    .abPadding            resb    3
+    .abPadding            resb    2
 %endif
 
     ; CPUID leafs

@@ -42,11 +42,8 @@ FORMS = \
     ui/VBoxVMSettingsSystem.ui \
     ui/VBoxVMSettingsDisplay.ui \
     ui/VBoxVMSettingsHD.ui \
-    ui/VBoxVMSettingsCD.ui \
-    ui/VBoxVMSettingsFD.ui \
     ui/VBoxVMSettingsAudio.ui \
     ui/VBoxVMSettingsNetwork.ui \
-    ui/VBoxVMSettingsNetworkDetails.ui \
     ui/VBoxVMSettingsSerial.ui \
     ui/VBoxVMSettingsParallel.ui \
     ui/VBoxVMSettingsUSB.ui \
@@ -93,5 +90,6 @@ TRANSLATIONS = \
 	nls/VirtualBox_zh_TW.ts \
 	nls/VirtualBox_km_KH.ts \
 	nls/VirtualBox_bg.ts \
-	nls/VirtualBox_uk.ts
+	nls/VirtualBox_uk.ts \
+	nls/VirtualBox_da.ts
 

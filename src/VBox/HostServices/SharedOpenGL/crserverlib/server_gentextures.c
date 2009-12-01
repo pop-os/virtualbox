@@ -22,7 +22,7 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGenTextures( GLsizei n, GLuint *te
      * We have to make sure we're going to generate unique texture IDs.
      * That wasn't the case before snapshot loading, because we could just rely on host video drivers.
      * Now we could have a set of loaded texture IDs which aren't already reserved in the host driver.
-     * Note: It seems, that it's easy to reserve ATI/NVidia IDs, by simply calling glGenTextures 
+     * Note: It seems, that it's easy to reserve ATI/NVidia IDs, by simply calling glGenTextures
      * with n==number of loaded textures. But it's really implementation dependant. So can't rely that it'll not change.
      */
     for (i=0; i<n; ++i)
@@ -84,4 +84,21 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGenProgramsARB( GLsizei n, GLuint 
 
     crServerReturnValue( local_progs, n*sizeof( *local_progs ) );
     crFree( local_progs );
+}
+
+void SERVER_DISPATCH_APIENTRY
+crServerDispatchCopyTexImage2D(GLenum target, GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border)
+{
+    GLsizei tw, th;
+
+    cr_server.head_spu->dispatch_table.GetTexLevelParameteriv(target, level, GL_TEXTURE_WIDTH, &tw);
+    cr_server.head_spu->dispatch_table.GetTexLevelParameteriv(target, level, GL_TEXTURE_HEIGHT, &th);
+
+    /* Workaround for a wine or ati bug. Host drivers crash unless we first provide texture bounds. */
+    if (((tw!=width) || (th!=height)) && (internalFormat==GL_DEPTH_COMPONENT24))
+    {
+        crServerDispatchTexImage2D(target, level, internalFormat, width, height, border, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
+    }
+
+    cr_server.head_spu->dispatch_table.CopyTexImage2D(target, level, internalFormat, x, y, width, height, border);
 }

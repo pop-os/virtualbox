@@ -1,4 +1,4 @@
-/* $Id: PDMGCDevice.cpp $ */
+/* $Id: PDMGCDevice.cpp 24139 2009-10-28 13:24:26Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, GC Device parts.
  */
@@ -438,7 +438,7 @@ static DECLCALLBACK(void) pdmRCApicHlp_SetInterruptFF(PPDMDEVINS pDevIns, PDMAPI
     PVM pVM = pDevIns->Internal.s.pVMRC;
     PVMCPU pVCpu = &pVM->aCpus[idCpu];
 
-    AssertReturnVoid(idCpu < pVM->cCPUs);
+    AssertReturnVoid(idCpu < pVM->cCpus);
 
     LogFlow(("pdmRCApicHlp_SetInterruptFF: caller=%p/%d: VM_FF_INTERRUPT %d -> 1\n",
              pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC)));
@@ -470,7 +470,7 @@ static DECLCALLBACK(void) pdmRCApicHlp_ClearInterruptFF(PPDMDEVINS pDevIns, PDMA
     PVM pVM = pDevIns->Internal.s.pVMRC;
     PVMCPU pVCpu = &pVM->aCpus[idCpu];
 
-    AssertReturnVoid(idCpu < pVM->cCPUs);
+    AssertReturnVoid(idCpu < pVM->cCpus);
 
     LogFlow(("pdmRCApicHlp_ClearInterruptFF: caller=%p/%d: VM_FF_INTERRUPT %d -> 0\n",
              pDevIns, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC)));

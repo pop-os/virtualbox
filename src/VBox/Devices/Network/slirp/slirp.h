@@ -127,8 +127,8 @@ typedef unsigned char u_int8_t;
 # include <stdlib.h>
 #endif
 
-#include <stdio.h>
 #include <errno.h>
+
 
 #ifndef HAVE_MEMMOVE
 # define memmove(x, y, z) bcopy(y, x, z)
@@ -263,7 +263,13 @@ void if_start (PNATState);
 int get_dns_addr(PNATState pData, struct in_addr *pdns_addr);
 
 /* cksum.c */
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
 int cksum(struct mbuf *m, int len);
+#else
+typedef uint16_t u_short;
+typedef unsigned int u_int;
+#include "in_cksum.h"
+#endif
 
 /* if.c */
 void if_init (PNATState);
@@ -279,6 +285,7 @@ void ip_stripoptions (register struct mbuf *, struct mbuf *);
 
 /* ip_output.c */
 int ip_output (PNATState, struct socket *, struct mbuf *);
+int ip_output0 (PNATState, struct socket *, struct mbuf *, int urg);
 
 /* tcp_input.c */
 int tcp_reass (PNATState, struct tcpcb *, struct tcphdr *, int *, struct mbuf *);
@@ -307,11 +314,10 @@ int tcp_emu (PNATState, struct socket *, struct mbuf *);
 int tcp_ctl (PNATState, struct socket *);
 struct tcpcb *tcp_drop(PNATState, struct tcpcb *tp, int err);
 
-uint16_t slirp_get_service(int proto, uint16_t dport, uint16_t sport);
-
 /*slirp.c*/
 void slirp_arp_who_has(PNATState pData, uint32_t dst);
-int slirp_update_arp_cache(PNATState pData, uint32_t dst, const uint8_t *mac);
+int slirp_arp_cache_update(PNATState pData, uint32_t dst, const uint8_t *mac);
+void slirp_arp_cache_add(PNATState pData, uint32_t ip, const uint8_t *ether);
 #define MIN_MRU 128
 #define MAX_MRU 16384
 
@@ -330,12 +336,11 @@ int errno_func(const char *file, int line);
 # endif
 #endif
 
-# ifdef VBOX_WITHOUT_SLIRP_CLIENT_ETHER
-#  define ETH_ALEN        6
-#  define ETH_HLEN        14
+# define ETH_ALEN        6
+# define ETH_HLEN        14
 
-#  define ARPOP_REQUEST   1               /* ARP request                  */
-#  define ARPOP_REPLY     2               /* ARP reply                    */
+# define ARPOP_REQUEST   1               /* ARP request                  */
+# define ARPOP_REPLY     2               /* ARP reply                    */
 
 struct ethhdr
 {
@@ -344,8 +349,13 @@ struct ethhdr
     unsigned short  h_proto;                    /* packet type ID field */
 };
 AssertCompileSize(struct ethhdr, 14);
-# endif
-#if defined(VBOX_WITH_SLIRP_ALIAS) && defined(VBOX_SLIRP_ALIAS)
+
+/*
+ * (vvl) externing of sscanf.
+ */
+int sscanf(const char *s, const char *format, ...);
+
+#if defined(VBOX_SLIRP_ALIAS) || defined(VBOX_SLIRP_BSD)
 
 # define ip_next(ip) (void *)((uint8_t *)(ip) + ((ip)->ip_hl << 2))
 # define udp_next(udp) (void *)((uint8_t *)&((struct udphdr *)(udp))[1] )
@@ -354,7 +364,11 @@ AssertCompileSize(struct ethhdr, 14);
 # define NO_FW_PUNCH
 
 # ifdef alias_addr
-#  error  alias_addr has already defined!!!
+#  ifndef VBOX_SLIRP_BSD
+#   error alias_addr has already defined!!!
+#  else
+#   undef alias_addr
+#  endif
 # endif
 
 # define arc4random() RTRandU32()
@@ -369,52 +383,53 @@ AssertCompileSize(struct ethhdr, 14);
 # endif
 
 # define strncasecmp RTStrNICmp
+# define stderr NULL
+# define stdout NULL
 
 # ifdef DEBUG
-# define LIBALIAS_DEBUG
-# ifdef fprintf
-#  undef fprintf
+#  define LIBALIAS_DEBUG
 # endif
-# ifdef fflush
-#  undef fflush
-# endif
-# ifdef printf
-#  undef printf
-# endif
-#define fflush(x) do{}while(0)
-# define fprintf vbox_slirp_fprintf
-# define printf vbox_slirp_printf
-static void vbox_slirp_printV(char *format, va_list args)
-{
-    char buffer[1024];
-    memset(buffer, 0, 1024);
-    RTStrPrintfV(buffer, 1024, format, args);
 
-    Log2(("NAT:ALIAS: %s\n", buffer));
-}
-static void vbox_slirp_printf(char *format, ...)
-{
-    va_list args;
-    va_start(args, format);
-    vbox_slirp_printV(format, args);
-    va_end(args);
-}
-static void vbox_slirp_fprintf(void *ignored, char *format, ...)
-{
-    va_list args;
-    va_start(args, format);
-    vbox_slirp_printV(format, args);
-    va_end(args);
-}
-# endif /* DEBUG */
-#endif /*VBOX_WITH_SLIRP_ALIAS && VBOX_SLIRP_ALIAS*/
+# define fflush(x) do{} while(0)
+# include "ext.h"
+#endif /*VBOX_SLIRP_ALIAS*/
 
-#ifdef VBOX_WITH_SLIRP_ALIAS
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
+/* @todo might be useful to make it configurable,
+ * especially in terms of Intnet behind NAT
+ */
+# define maxusers 32
+# define max_protohdr 0
+/* @todo (r=vvl) for now ignore value,
+ * latter here should be fetching of tuning parameters entered
+ */
+# define TUNABLE_INT_FETCH(name, pval) do { } while (0)
+# define SYSCTL_PROC(a0, a1, a2, a3, a4, a5, a6, a7, a8)
+# define SYSCTL_STRUCT(a0, a1, a2, a3, a4, a5, a6)
+# define SYSINIT(a0, a1, a2, a3, a4)
+# define sysctl_handle_int(a0, a1, a2, a3) 0
+# define EVENTHANDLER_INVOKE(a) do{}while(0)
+# define EVENTHANDLER_REGISTER(a0, a1, a2, a3) do{}while(0)
+# define KASSERT AssertMsg
+
+struct dummy_req
+{
+    void *newptr;
+};
+
+#define SYSCTL_HANDLER_ARGS PNATState pData, void *oidp, struct dummy_req *req
+
+void mbuf_init(void *);
+# define cksum(m, len) in_cksum_skip((m), (len), 0)
+#endif
+
 int ftp_alias_load(PNATState);
 int ftp_alias_unload(PNATState);
 int nbt_alias_load(PNATState);
 int nbt_alias_unload(PNATState);
-#endif /*VBOX_WITH_SLIRP_ALIAS*/
-
+int dns_alias_load(PNATState);
+int dns_alias_unload(PNATState);
+int slirp_arp_lookup_ip_by_ether(PNATState, const uint8_t *, uint32_t *);
+int slirp_arp_lookup_ether_by_ip(PNATState, uint32_t, uint8_t *);
 #endif
 

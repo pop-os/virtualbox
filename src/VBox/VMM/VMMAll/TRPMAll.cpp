@@ -1,4 +1,4 @@
-/* $Id: TRPMAll.cpp $ */
+/* $Id: TRPMAll.cpp 22890 2009-09-09 23:11:31Z vboxsync $ */
 /** @file
  * TRPM - Trap Monitor - Any Context.
  */
@@ -365,7 +365,7 @@ VMMDECL(int) TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGat
 #ifdef TRPM_FORWARD_TRAPS_IN_GC
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     X86EFLAGS eflags;
-    Assert(pVM->cCPUs == 1);
+    Assert(pVM->cCpus == 1);
 
     STAM_PROFILE_ADV_START(&pVM->trpm.s.CTX_SUFF_Z(StatForwardProf), a);
 

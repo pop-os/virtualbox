@@ -1,11 +1,11 @@
-/* $Id: MediumImpl.h $ */
+/* $Id: MediumImpl.h 24989 2009-11-26 11:31:46Z vboxsync $ */
 /** @file
  *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,122 +27,251 @@
 
 #include <VBox/com/SupportErrorInfo.h>
 
-#include <list>
-#include <algorithm>
-
 class VirtualBox;
+class Progress;
+struct VM;
+
+namespace settings
+{
+    struct Medium;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Base component class for all media types.
- *
- * Provides the basic implementation of the IMedium interface.
- *
- * @note Subclasses must initialize the mVirtualBox data member in their init()
- *       implementations with the valid VirtualBox instance because some
- *       MediaBase methods call its methods.
+ * Medium component class for all media types.
  */
-class ATL_NO_VTABLE MediumBase :
-    virtual public VirtualBoxBaseProto,
-    public com::SupportErrorInfoBase,
-    public VirtualBoxSupportTranslation <MediumBase>,
+class ATL_NO_VTABLE Medium :
+    public VirtualBoxBaseWithTypedChildren<Medium>,
+    public com::SupportErrorInfoImpl<Medium, IMedium>,
+    public VirtualBoxSupportTranslation<Medium>,
     VBOX_SCRIPTABLE_IMPL(IMedium)
 {
 public:
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (MediumBase)
+    typedef VirtualBoxBaseWithTypedChildren<Medium>::DependentChildren List;
 
-    DECLARE_EMPTY_CTOR_DTOR (MediumBase)
+    class MergeChain;
+    class ImageChain;
 
-    /** Describes how a machine refers to this image. */
-    struct BackRef
-    {
-        /** Equality predicate for stdc++. */
-        struct EqualsTo : public std::unary_function <BackRef, bool>
-        {
-            explicit EqualsTo (const Guid &aMachineId) : machineId (aMachineId) {}
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Medium)
 
-            bool operator() (const argument_type &aThat) const
-            {
-                return aThat.machineId == machineId;
-            }
+    DECLARE_NOT_AGGREGATABLE(Medium)
 
-            const Guid machineId;
-        };
+    DECLARE_PROTECT_FINAL_CONSTRUCT()
 
-        typedef std::list <Guid> GuidList;
+    BEGIN_COM_MAP(Medium)
+        COM_INTERFACE_ENTRY(ISupportErrorInfo)
+        COM_INTERFACE_ENTRY(IMedium)
+    END_COM_MAP()
 
-        BackRef() : inCurState (false) {}
+    DECLARE_EMPTY_CTOR_DTOR(Medium)
 
-        BackRef (const Guid &aMachineId, const Guid &aSnapshotId = Guid::Empty)
-            : machineId (aMachineId)
-            , inCurState (aSnapshotId.isEmpty())
-        {
-            if (!aSnapshotId.isEmpty())
-                snapshotIds.push_back (aSnapshotId);
-        }
+    enum HDDOpenMode  { OpenReadWrite, OpenReadOnly };
+                // have to use a special enum for the overloaded init() below;
+                // can't use AccessMode_T from XIDL because that's mapped to an int
+                // and would be ambiguous
 
-        Guid machineId;
-        bool inCurState : 1;
-        GuidList snapshotIds;
-    };
-
-    typedef std::list <BackRef> BackRefList;
+    // public initializer/uninitializer for internal purposes only
+    HRESULT init(VirtualBox *aVirtualBox,
+                 CBSTR aFormat,
+                 CBSTR aLocation);
+    HRESULT init(VirtualBox *aVirtualBox,
+                 CBSTR aLocation,
+                 HDDOpenMode enOpenMode,
+                 DeviceType_T aDeviceType,
+                 BOOL aSetImageId,
+                 const Guid &aImageId,
+                 BOOL aSetParentId,
+                 const Guid &aParentId);
+    // initializer used when loading settings
+    HRESULT init(VirtualBox *aVirtualBox,
+                 Medium *aParent,
+                 DeviceType_T aDeviceType,
+                 const settings::Medium &data);
+    // initializer for host floppy/DVD
+    HRESULT init(VirtualBox *aVirtualBox,
+                 DeviceType_T aDeviceType,
+                 CBSTR aLocation,
+                 CBSTR aDescription = NULL);
+    void uninit();
 
     // IMedium properties
-    STDMETHOD(COMGETTER(Id)) (BSTR *aId);
-    STDMETHOD(COMGETTER(Description)) (BSTR *aDescription);
-    STDMETHOD(COMSETTER(Description)) (IN_BSTR aDescription);
-    STDMETHOD(COMGETTER(State)) (MediaState_T *aState);
-    STDMETHOD(COMGETTER(Location)) (BSTR *aLocation);
-    STDMETHOD(COMSETTER(Location)) (IN_BSTR aLocation);
-    STDMETHOD(COMGETTER(Name)) (BSTR *aName);
-    STDMETHOD(COMGETTER(Size)) (ULONG64 *aSize);
-    STDMETHOD(COMGETTER(LastAccessError)) (BSTR *aLastAccessError);
-    STDMETHOD(COMGETTER(MachineIds)) (ComSafeArrayOut (BSTR, aMachineIds));
+    STDMETHOD(COMGETTER(Id))(BSTR *aId);
+    STDMETHOD(COMGETTER(Description))(BSTR *aDescription);
+    STDMETHOD(COMSETTER(Description))(IN_BSTR aDescription);
+    STDMETHOD(COMGETTER(State))(MediumState_T *aState);
+    STDMETHOD(COMGETTER(Location))(BSTR *aLocation);
+    STDMETHOD(COMSETTER(Location))(IN_BSTR aLocation);
+    STDMETHOD(COMGETTER(Name))(BSTR *aName);
+    STDMETHOD(COMGETTER(DeviceType))(DeviceType_T *aDeviceType);
+    STDMETHOD(COMGETTER(HostDrive))(BOOL *aHostDrive);
+    STDMETHOD(COMGETTER(Size))(ULONG64 *aSize);
+    STDMETHOD(COMGETTER(Format))(BSTR *aFormat);
+    STDMETHOD(COMGETTER(Type))(MediumType_T *aType);
+    STDMETHOD(COMSETTER(Type))(MediumType_T aType);
+    STDMETHOD(COMGETTER(Parent))(IMedium **aParent);
+    STDMETHOD(COMGETTER(Children))(ComSafeArrayOut(IMedium *, aChildren));
+    STDMETHOD(COMGETTER(Base))(IMedium **aBase);
+    STDMETHOD(COMGETTER(ReadOnly))(BOOL *aReadOnly);
+    STDMETHOD(COMGETTER(LogicalSize))(ULONG64 *aLogicalSize);
+    STDMETHOD(COMGETTER(AutoReset))(BOOL *aAutoReset);
+    STDMETHOD(COMSETTER(AutoReset))(BOOL aAutoReset);
+    STDMETHOD(COMGETTER(LastAccessError))(BSTR *aLastAccessError);
+    STDMETHOD(COMGETTER(MachineIds))(ComSafeArrayOut(BSTR, aMachineIds));
 
     // IMedium methods
-    STDMETHOD(GetSnapshotIds) (IN_BSTR aMachineId,
-                               ComSafeArrayOut (BSTR, aSnapshotIds));
-    STDMETHOD(LockRead) (MediaState_T *aState);
-    STDMETHOD(UnlockRead) (MediaState_T *aState);
-    STDMETHOD(LockWrite) (MediaState_T *aState);
-    STDMETHOD(UnlockWrite) (MediaState_T *aState);
+    STDMETHOD(RefreshState)(MediumState_T *aState);
+    STDMETHOD(GetSnapshotIds)(IN_BSTR aMachineId,
+                              ComSafeArrayOut(BSTR, aSnapshotIds));
+    STDMETHOD(LockRead)(MediumState_T *aState);
+    STDMETHOD(UnlockRead)(MediumState_T *aState);
+    STDMETHOD(LockWrite)(MediumState_T *aState);
+    STDMETHOD(UnlockWrite)(MediumState_T *aState);
     STDMETHOD(Close)();
+    STDMETHOD(GetProperty)(IN_BSTR aName, BSTR *aValue);
+    STDMETHOD(SetProperty)(IN_BSTR aName, IN_BSTR aValue);
+    STDMETHOD(GetProperties)(IN_BSTR aNames,
+                             ComSafeArrayOut(BSTR, aReturnNames),
+                             ComSafeArrayOut(BSTR, aReturnValues));
+    STDMETHOD(SetProperties)(ComSafeArrayIn(IN_BSTR, aNames),
+                             ComSafeArrayIn(IN_BSTR, aValues));
+    STDMETHOD(CreateBaseStorage)(ULONG64 aLogicalSize,
+                                 MediumVariant_T aVariant,
+                                 IProgress **aProgress);
+    STDMETHOD(DeleteStorage)(IProgress **aProgress);
+    STDMETHOD(CreateDiffStorage)(IMedium *aTarget,
+                                 MediumVariant_T aVariant,
+                                 IProgress **aProgress);
+    STDMETHOD(MergeTo)(IN_BSTR aTargetId, IProgress **aProgress);
+    STDMETHOD(CloneTo)(IMedium *aTarget, MediumVariant_T aVariant,
+                        IMedium *aParent, IProgress **aProgress);
+    STDMETHOD(Compact)(IProgress **aProgress);
+    STDMETHOD(Resize)(ULONG64 aLogicalSize, IProgress **aProgress);
+    STDMETHOD(Reset)(IProgress **aProgress);
 
     // public methods for internal purposes only
 
-    HRESULT updatePath (const char *aOldPath, const char *aNewPath);
+    HRESULT FinalConstruct();
+    void FinalRelease();
 
-    HRESULT attachTo (const Guid &aMachineId,
-                      const Guid &aSnapshotId = Guid::Empty);
-    HRESULT detachFrom (const Guid &aMachineId,
-                        const Guid &aSnapshotId = Guid::Empty);
+    HRESULT updatePath(const char *aOldPath, const char *aNewPath);
+
+    HRESULT attachTo(const Guid &aMachineId,
+                     const Guid &aSnapshotId = Guid::Empty);
+    HRESULT detachFrom(const Guid &aMachineId,
+                       const Guid &aSnapshotId = Guid::Empty);
+
+#ifdef DEBUG
+    void dumpBackRefs();
+#endif
+
+    const Guid& getId() const;
+    MediumState_T getState() const;
+    const Utf8Str& getLocation() const;
+    const Utf8Str& getLocationFull() const;
+    uint64_t getSize() const;
+
+    const Guid* getFirstMachineBackrefId() const;
+    const Guid* getFirstMachineBackrefSnapshotId() const;
+
+    /**
+     * Shortcut to VirtualBoxBaseWithTypedChildrenNEXT::dependentChildren().
+     */
+    const List& getChildren() const { return dependentChildren(); }
+
+    void updatePaths(const char *aOldPath, const char *aNewPath);
+
+    ComObjPtr<Medium> getBase(uint32_t *aLevel = NULL);
+
+    bool isReadOnly();
+
+    HRESULT saveSettings(settings::Medium &data);
+
+    HRESULT compareLocationTo(const char *aLocation, int &aResult);
+
+    /**
+     * Shortcut to #deleteStorage() that doesn't wait for operation completion
+     * and implies the progress object will be used for waiting.
+     */
+    HRESULT deleteStorageNoWait(ComObjPtr<Progress> &aProgress)
+    { return deleteStorage(&aProgress, false /* aWait */); }
+
+    /**
+     * Shortcut to #deleteStorage() that wait for operation completion by
+     * blocking the current thread.
+     */
+    HRESULT deleteStorageAndWait(ComObjPtr<Progress> *aProgress = NULL)
+    { return deleteStorage(aProgress, true /* aWait */); }
+
+    /**
+     * Shortcut to #createDiffStorage() that doesn't wait for operation
+     * completion and implies the progress object will be used for waiting.
+     */
+    HRESULT createDiffStorageNoWait(ComObjPtr<Medium> &aTarget,
+                                    MediumVariant_T aVariant,
+                                    ComObjPtr<Progress> &aProgress)
+    { return createDiffStorage(aTarget, aVariant, &aProgress, false /* aWait */); }
+
+    /**
+     * Shortcut to #createDiffStorage() that wait for operation completion by
+     * blocking the current thread.
+     */
+    HRESULT createDiffStorageAndWait(ComObjPtr<Medium> &aTarget,
+                                     MediumVariant_T aVariant,
+                                     ComObjPtr<Progress> *aProgress = NULL)
+    { return createDiffStorage(aTarget, aVariant, aProgress, true /* aWait */); }
+
+    HRESULT prepareMergeTo(Medium *aTarget, MergeChain * &aChain,
+                            bool aIgnoreAttachments = false);
+
+    /**
+     * Shortcut to #mergeTo() that doesn't wait for operation completion and
+     * implies the progress object will be used for waiting.
+     */
+    HRESULT mergeToNoWait(MergeChain *aChain,
+                          ComObjPtr<Progress> &aProgress)
+    { return mergeTo(aChain, &aProgress, false /* aWait */); }
+
+    /**
+     * Shortcut to #mergeTo() that wait for operation completion by
+     * blocking the current thread.
+     */
+    HRESULT mergeToAndWait(MergeChain *aChain,
+                           ComObjPtr<Progress> *aProgress = NULL)
+    { return mergeTo(aChain, aProgress, true /* aWait */); }
+
+    void cancelMergeTo(MergeChain *aChain);
+
+    Utf8Str getName();
+
+    HRESULT prepareDiscard(MergeChain * &aChain);
+    HRESULT discard(ComObjPtr<Progress> &aProgress, ULONG ulWeight, MergeChain *aChain);
+    void cancelDiscard(MergeChain *aChain);
+
+    /** Returns a preferred format for a differencing hard disk. */
+    Bstr preferredDiffFormat();
 
     // unsafe inline public methods for internal purposes only (ensure there is
     // a caller and a read lock before calling them!)
 
-    const Guid &id() const { return m.id; }
-    MediaState_T state() const { return m.state; }
-    const Bstr &location() const { return m.location; }
-    const Bstr &locationFull() const { return m.locationFull; }
-    const BackRefList &backRefs() const { return m.backRefs; }
+    ComObjPtr<Medium> getParent() const { return static_cast<Medium *>(mParent); }
+    MediumType_T getType() const;
 
-    bool isAttachedTo (const Guid &aMachineId)
-    {
-        BackRefList::iterator it =
-            std::find_if (m.backRefs.begin(), m.backRefs.end(),
-                          BackRef::EqualsTo (aMachineId));
-        return it != m.backRefs.end() && it->inCurState;
-    }
+    /** For com::SupportErrorInfoImpl. */
+    static const char *ComponentName() { return "Medium"; }
 
 protected:
 
-    virtual Utf8Str name();
+    RWLockHandle* getTreeLock();
 
-    virtual HRESULT setLocation (CBSTR aLocation);
-    virtual HRESULT queryInfo();
+    /** Reimplements VirtualBoxWithTypedChildren::childrenLock() to return
+     *  treeLock(). */
+    RWLockHandle *childrenLock() { return getTreeLock(); }
+
+private:
+
+    HRESULT queryInfo();
 
     /**
      * Performs extra checks if the medium can be closed and returns S_OK in
@@ -150,196 +279,59 @@ protected:
      * Close() from within this object's AutoMayUninitSpan and from under
      * mVirtualBox write lock.
      */
-    virtual HRESULT canClose() { return S_OK; }
-
-    /**
-     * Performs extra checks if the medium can be attached to the specified
-     * VM and shapshot at the given time and returns S_OK in this case.
-     * Otherwise, returns a respective error message. Called by attachTo() from
-     * within this object's AutoWriteLock.
-     */
-    virtual HRESULT canAttach (const Guid & /* aMachineId */,
-                               const Guid & /* aSnapshotId */)
-    { return S_OK; }
+    HRESULT canClose();
 
     /**
      * Unregisters this medium with mVirtualBox. Called by Close() from within
      * this object's AutoMayUninitSpan and from under mVirtualBox write lock.
      */
-    virtual HRESULT unregisterWithVirtualBox() = 0;
+    HRESULT unregisterWithVirtualBox();
 
     HRESULT setStateError();
 
     /** weak VirtualBox parent */
-    const ComObjPtr <VirtualBox, ComWeakRef> mVirtualBox;
+    const ComObjPtr<VirtualBox, ComWeakRef> mVirtualBox;
 
-    struct Data
-    {
-        Data() : state (MediaState_NotCreated), size (0), readers (0)
-               , queryInfoSem (NIL_RTSEMEVENTMULTI)
-               , queryInfoCallers (0), accessibleInLock (false) {}
+    HRESULT deleteStorage(ComObjPtr<Progress> *aProgress, bool aWait);
 
-        const Guid id;
-        Bstr description;
-        MediaState_T state;
-        Bstr location;
-        Bstr locationFull;
-        uint64_t size;
-        Bstr lastAccessError;
+    HRESULT createDiffStorage(ComObjPtr<Medium> &aTarget,
+                              MediumVariant_T aVariant,
+                              ComObjPtr<Progress> *aProgress,
+                              bool aWait);
 
-        BackRefList backRefs;
+    HRESULT mergeTo(MergeChain *aChain,
+                    ComObjPtr<Progress> *aProgress,
+                    bool aWait);
 
-        size_t readers;
+    HRESULT setLocation(const Utf8Str &aLocation, const Utf8Str &aFormat = Utf8Str());
+    HRESULT setFormat(CBSTR aFormat);
 
-        RTSEMEVENTMULTI queryInfoSem;
-        size_t queryInfoCallers;
+    Utf8Str vdError(int aVRC);
 
-        bool accessibleInLock : 1;
-    };
+    static DECLCALLBACK(void) vdErrorCall(void *pvUser, int rc, RT_SRC_POS_DECL,
+                                          const char *pszFormat, va_list va);
 
-    Data m;
-};
+    static DECLCALLBACK(int) vdProgressCall(VM* /* pVM */, unsigned uPercent,
+                                            void *pvUser);
 
-////////////////////////////////////////////////////////////////////////////////
+    static DECLCALLBACK(bool) vdConfigAreKeysValid(void *pvUser,
+                                                   const char *pszzValid);
+    static DECLCALLBACK(int) vdConfigQuerySize(void *pvUser, const char *pszName,
+                                               size_t *pcbValue);
+    static DECLCALLBACK(int) vdConfigQuery(void *pvUser, const char *pszName,
+                                           char *pszValue, size_t cchValue);
 
-/**
- * Base component class for simple image file based media such as CD/DVD ISO
- * images or Floppy images.
- *
- * Adds specific protectedInit() and saveSettings() methods that can load image
- * data from the settings files.
- */
-class ATL_NO_VTABLE ImageMediumBase
-    : public MediumBase
-    , public VirtualBoxBaseNEXT
-{
-public:
+    static DECLCALLBACK(int) taskThread(RTTHREAD thread, void *pvUser);
 
-    HRESULT FinalConstruct() { return S_OK; }
-    void FinalRelease() { uninit(); }
+    /** weak parent */
+    ComObjPtr<Medium, ComWeakRef> mParent;
 
-protected:
+    struct Task;
+    friend struct Task;
 
-    // protected initializer/uninitializer for internal purposes only
-    HRESULT protectedInit (VirtualBox *aVirtualBox, CBSTR aLocation,
-                           const Guid &aId);
-    HRESULT protectedInit (VirtualBox *aVirtualBox, const settings::Key &aImageNode);
-    void protectedUninit();
-
-public:
-
-    // public methods for internal purposes only
-    HRESULT saveSettings (settings::Key &aImagesNode);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- * The DVDImage component class implements the IDVDImage interface.
- */
-class ATL_NO_VTABLE DVDImage
-    : public com::SupportErrorInfoDerived<ImageMediumBase, DVDImage, IDVDImage>
-    , public VirtualBoxSupportTranslation<DVDImage>
-    , VBOX_SCRIPTABLE_IMPL(IDVDImage)
-{
-public:
-
-    COM_FORWARD_IMedium_TO_BASE (ImageMediumBase)
-
-    VIRTUALBOXSUPPORTTRANSLATION_OVERRIDE (DVDImage)
-
-    DECLARE_NOT_AGGREGATABLE (DVDImage)
-
-    DECLARE_PROTECT_FINAL_CONSTRUCT()
-
-    BEGIN_COM_MAP (DVDImage)
-        COM_INTERFACE_ENTRY  (ISupportErrorInfo)
-        COM_INTERFACE_ENTRY2 (IMedium, ImageMediumBase)
-        COM_INTERFACE_ENTRY  (IDVDImage)
-        COM_INTERFACE_ENTRY2 (IDispatch, IDVDImage)
-    END_COM_MAP()
-
-    NS_DECL_ISUPPORTS
-
-    DECLARE_EMPTY_CTOR_DTOR (DVDImage)
-
-    // public initializer/uninitializer for internal purposes only
-
-    HRESULT init (VirtualBox *aParent, CBSTR aFilePath,
-                  const Guid &aId)
-    {
-        return protectedInit (aParent, aFilePath, aId);
-    }
-
-    HRESULT init (VirtualBox *aParent, const settings::Key &aImageNode)
-    {
-        return protectedInit (aParent, aImageNode);
-    }
-
-    void uninit() { protectedUninit(); }
-
-    /** For com::SupportErrorInfoImpl. */
-    static const char *ComponentName() { return "DVDImage"; }
-
-private:
-
-    HRESULT unregisterWithVirtualBox();
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- * The FloppyImage component class implements the IFloppyImage interface.
- */
-class ATL_NO_VTABLE FloppyImage
-    : public com::SupportErrorInfoDerived <ImageMediumBase, FloppyImage, IFloppyImage>
-    , public VirtualBoxSupportTranslation <FloppyImage>
-    , VBOX_SCRIPTABLE_IMPL(IFloppyImage)
-{
-public:
-
-    COM_FORWARD_IMedium_TO_BASE (ImageMediumBase)
-
-    VIRTUALBOXSUPPORTTRANSLATION_OVERRIDE (FloppyImage)
-
-    DECLARE_NOT_AGGREGATABLE (FloppyImage)
-
-    DECLARE_PROTECT_FINAL_CONSTRUCT()
-
-    BEGIN_COM_MAP (FloppyImage)
-        COM_INTERFACE_ENTRY  (ISupportErrorInfo)
-        COM_INTERFACE_ENTRY2 (IMedium, ImageMediumBase)
-        COM_INTERFACE_ENTRY  (IFloppyImage)
-        COM_INTERFACE_ENTRY2 (IDispatch, IFloppyImage)
-    END_COM_MAP()
-
-    NS_DECL_ISUPPORTS
-
-    DECLARE_EMPTY_CTOR_DTOR (FloppyImage)
-
-    // public initializer/uninitializer for internal purposes only
-
-    HRESULT init (VirtualBox *aParent, CBSTR aFilePath,
-                  const Guid &aId)
-    {
-        return protectedInit (aParent, aFilePath, aId);
-    }
-
-    HRESULT init (VirtualBox *aParent, const settings::Key &aImageNode)
-    {
-        return protectedInit (aParent, aImageNode);
-    }
-
-    void uninit() { protectedUninit(); }
-
-    /** For com::SupportErrorInfoImpl. */
-    static const char *ComponentName() { return "FloppyImage"; }
-
-private:
-
-    HRESULT unregisterWithVirtualBox();
+    struct Data;            // opaque data struct, defined in MediumImpl.cpp
+    Data *m;
 };
 
 #endif /* ____H_MEDIUMIMPL */
 
-/* vi: set tabstop=4 shiftwidth=4 expandtab: */

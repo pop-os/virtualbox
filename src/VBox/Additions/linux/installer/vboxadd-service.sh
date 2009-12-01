@@ -236,15 +236,17 @@ if [ "$system" = "other" ]; then
     }
 fi
 
-binary=/usr/sbin/vboxadd-service
+binary=/usr/sbin/VBoxService
 
-test -x "$binary" || {
-    echo "Cannot run $binary"
-    exit 1
+testbinary() {
+    test -x "$binary" || {
+        echo "Cannot run $binary"
+        exit 1
+    }
 }
 
 vboxaddrunning() {
-    lsmod | grep -q "vboxadd[^_-]"
+    lsmod | grep -q "vboxguest[^_-]"
 }
 
 start() {
@@ -254,9 +256,10 @@ start() {
             echo "VirtualBox Additions module not loaded!"
             exit 1
         }
+        testbinary
         daemon $binary
         RETVAL=$?
-        test $RETVAL -eq 0 && echo `pidof vboxadd-service` > $PIDFILE
+        test $RETVAL -eq 0 && echo `pidof VBoxService` > $PIDFILE
         succ_msg
     fi
     return $RETVAL
@@ -282,7 +285,7 @@ restart() {
 }
 
     status() {
-        echo -n "Checking for vboxadd-service"
+        echo -n "Checking for VBoxService"
         if [ -f $PIDFILE ]; then
             echo " ...running"
         else
@@ -302,6 +305,10 @@ restart)
     ;;
 status)
     status
+    ;;
+setup)
+    ;;
+cleanup)
     ;;
 *)
     echo "Usage: $0 {start|stop|restart|status}"

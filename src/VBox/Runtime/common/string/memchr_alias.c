@@ -1,4 +1,4 @@
-/* $Id: memchr_alias.c $ */
+/* $Id: memchr_alias.c 8245 2008-04-21 17:24:28Z vboxsync $ */
 /** @file
  * IPRT - No-CRT memchr() alias for gcc.
  */

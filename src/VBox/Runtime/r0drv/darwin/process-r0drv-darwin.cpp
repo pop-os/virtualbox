@@ -1,4 +1,4 @@
-/* $Id: process-r0drv-darwin.cpp $ */
+/* $Id: process-r0drv-darwin.cpp 22052 2009-08-07 09:45:48Z vboxsync $ */
 /** @file
  * IPRT - Process, Ring-0 Driver, Darwin.
  */
@@ -28,10 +28,12 @@
  * additional information or have any questions.
  */
 
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-darwin-kernel.h"
+#include "internal/iprt.h"
 #include <iprt/process.h>
 
 

@@ -27,8 +27,8 @@
 #include "Logging.h"
 
 #include <iprt/param.h>
-#include <iprt/path.h>
 #include <iprt/cpputils.h>
+#include <iprt/path.h>
 
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
@@ -69,15 +69,15 @@ HRESULT SharedFolder::init (Machine *aMachine,
                             CBSTR aName, CBSTR aHostPath, BOOL aWritable)
 {
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst (mMachine) = aMachine;
+    unconst(mMachine) = aMachine;
 
-    HRESULT rc = protectedInit (aMachine, aName, aHostPath, aWritable);
+    HRESULT rc = protectedInit(aMachine, aName, aHostPath, aWritable);
 
     /* Confirm a successful initialization when it's the case */
-    if (SUCCEEDED (rc))
+    if (SUCCEEDED(rc))
         autoInitSpan.setSucceeded();
 
     return rc;
@@ -98,16 +98,16 @@ HRESULT SharedFolder::initCopy (Machine *aMachine, SharedFolder *aThat)
     ComAssertRet (aThat, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst (mMachine) = aMachine;
+    unconst(mMachine) = aMachine;
 
     HRESULT rc = protectedInit (aMachine, aThat->m.name,
                                 aThat->m.hostPath, aThat->m.writable);
 
     /* Confirm a successful initialization when it's the case */
-    if (SUCCEEDED (rc))
+    if (SUCCEEDED(rc))
         autoInitSpan.setSucceeded();
 
     return rc;
@@ -123,19 +123,19 @@ HRESULT SharedFolder::initCopy (Machine *aMachine, SharedFolder *aThat)
  *
  *  @return          COM result indicator
  */
-HRESULT SharedFolder::init (Console *aConsole,
+HRESULT SharedFolder::init(Console *aConsole,
                             CBSTR aName, CBSTR aHostPath, BOOL aWritable)
 {
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst (mConsole) = aConsole;
+    unconst(mConsole) = aConsole;
 
-    HRESULT rc = protectedInit (aConsole, aName, aHostPath, aWritable);
+    HRESULT rc = protectedInit(aConsole, aName, aHostPath, aWritable);
 
     /* Confirm a successful initialization when it's the case */
-    if (SUCCEEDED (rc))
+    if (SUCCEEDED(rc))
         autoInitSpan.setSucceeded();
 
     return rc;
@@ -155,15 +155,15 @@ HRESULT SharedFolder::init (VirtualBox *aVirtualBox,
                             CBSTR aName, CBSTR aHostPath, BOOL aWritable)
 {
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst (mVirtualBox) = aVirtualBox;
+    unconst(mVirtualBox) = aVirtualBox;
 
     HRESULT rc = protectedInit (aVirtualBox, aName, aHostPath, aWritable);
 
     /* Confirm a successful initialization when it's the case */
-    if (SUCCEEDED (rc))
+    if (SUCCEEDED(rc))
         autoInitSpan.setSucceeded();
 
     return rc;
@@ -178,7 +178,7 @@ HRESULT SharedFolder::init (VirtualBox *aVirtualBox,
 HRESULT SharedFolder::protectedInit (VirtualBoxBaseWithChildrenNEXT *aParent,
                                      CBSTR aName, CBSTR aHostPath, BOOL aWritable)
 {
-    LogFlowThisFunc (("aName={%ls}, aHostPath={%ls}, aWritable={%d}\n",
+    LogFlowThisFunc(("aName={%ls}, aHostPath={%ls}, aWritable={%d}\n",
                       aName, aHostPath, aWritable));
 
     ComAssertRet (aParent && aName && aHostPath, E_INVALIDARG);
@@ -198,31 +198,33 @@ HRESULT SharedFolder::protectedInit (VirtualBoxBaseWithChildrenNEXT *aParent,
         RTPATH_IS_VOLSEP (hostPath.raw()[hostPathLen - 2]))
         ;
 #else
-    if (hostPathLen == 1 && RTPATH_IS_SEP (hostPath[0]))
+    if (hostPathLen == 1 && RTPATH_IS_SEP(hostPath[0]))
         ;
 #endif
     else
-        RTPathStripTrailingSlash (hostPath.mutableRaw());
+        hostPath.stripTrailingSlash();
 
     /* Check whether the path is full (absolute) */
     char hostPathFull [RTPATH_MAX];
-    int vrc = RTPathAbsEx (NULL, hostPath,
-                           hostPathFull, sizeof (hostPathFull));
-    if (RT_FAILURE (vrc))
+    int vrc = RTPathAbsEx(NULL,
+                          hostPath.c_str(),
+                          hostPathFull,
+                          sizeof (hostPathFull));
+    if (RT_FAILURE(vrc))
         return setError (E_INVALIDARG,
             tr ("Invalid shared folder path: '%s' (%Rrc)"), hostPath.raw(), vrc);
 
-    if (RTPathCompare (hostPath, hostPathFull) != 0)
+    if (RTPathCompare(hostPath.c_str(), hostPathFull) != 0)
         return setError (E_INVALIDARG,
             tr ("Shared folder path '%s' is not absolute"), hostPath.raw());
 
-    unconst (mParent) = aParent;
+    unconst(mParent) = aParent;
 
     /* register with parent */
     mParent->addDependentChild (this);
 
-    unconst (m.name) = aName;
-    unconst (m.hostPath) = hostPath;
+    unconst(m.name) = aName;
+    unconst(m.hostPath) = hostPath;
     m.writable = aWritable;
 
     return S_OK;
@@ -234,21 +236,21 @@ HRESULT SharedFolder::protectedInit (VirtualBoxBaseWithChildrenNEXT *aParent,
  */
 void SharedFolder::uninit()
 {
-    LogFlowThisFunc (("\n"));
+    LogFlowThisFunc(("\n"));
 
     /* Enclose the state transition Ready->InUninit->NotReady */
-    AutoUninitSpan autoUninitSpan (this);
+    AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
         return;
 
     if (mParent)
         mParent->removeDependentChild (this);
 
-    unconst (mParent) = NULL;
+    unconst(mParent) = NULL;
 
-    unconst (mMachine).setNull();
-    unconst (mConsole).setNull();
-    unconst (mVirtualBox).setNull();
+    unconst(mMachine).setNull();
+    unconst(mConsole).setNull();
+    unconst(mVirtualBox).setNull();
 }
 
 // ISharedFolder properties
@@ -258,11 +260,11 @@ STDMETHODIMP SharedFolder::COMGETTER(Name) (BSTR *aName)
 {
     CheckComArgOutPointerValid(aName);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* mName is constant during life time, no need to lock */
-    m.name.cloneTo (aName);
+    m.name.cloneTo(aName);
 
     return S_OK;
 }
@@ -271,42 +273,43 @@ STDMETHODIMP SharedFolder::COMGETTER(HostPath) (BSTR *aHostPath)
 {
     CheckComArgOutPointerValid(aHostPath);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* mHostPath is constant during life time, no need to lock */
-    m.hostPath.cloneTo (aHostPath);
+    m.hostPath.cloneTo(aHostPath);
 
     return S_OK;
 }
 
 STDMETHODIMP SharedFolder::COMGETTER(Accessible) (BOOL *aAccessible)
 {
-    CheckComArgOutPointerValid (aAccessible);
+    CheckComArgOutPointerValid(aAccessible);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
     /* mName and mHostPath are constant during life time, no need to lock */
 
     /* check whether the host path exists */
-    Utf8Str hostPath = Utf8Str (m.hostPath);
-    char hostPathFull [RTPATH_MAX];
-    int vrc = RTPathExists (hostPath) ? RTPathReal (hostPath, hostPathFull,
-                                                    sizeof (hostPathFull))
+    Utf8Str hostPath = Utf8Str(m.hostPath);
+    char hostPathFull[RTPATH_MAX];
+    int vrc = RTPathExists(hostPath.c_str()) ? RTPathReal(hostPath.c_str(),
+                                                          hostPathFull,
+                                                          sizeof(hostPathFull))
                                       : VERR_PATH_NOT_FOUND;
-    if (RT_SUCCESS (vrc))
+    if (RT_SUCCESS(vrc))
     {
         *aAccessible = TRUE;
         return S_OK;
     }
 
-    AutoWriteLock alock (this);
+    AutoWriteLock alock(this);
 
     m.lastAccessError = BstrFmt (
         tr ("'%s' is not accessible (%Rrc)"), hostPath.raw(), vrc);
 
-    LogWarningThisFunc (("m.lastAccessError=\"%ls\"\n", m.lastAccessError.raw()));
+    LogWarningThisFunc(("m.lastAccessError=\"%ls\"\n", m.lastAccessError.raw()));
 
     *aAccessible = FALSE;
     return S_OK;
@@ -323,17 +326,17 @@ STDMETHODIMP SharedFolder::COMGETTER(Writable) (BOOL *aWritable)
 
 STDMETHODIMP SharedFolder::COMGETTER(LastAccessError) (BSTR *aLastAccessError)
 {
-    CheckComArgOutPointerValid (aLastAccessError);
+    CheckComArgOutPointerValid(aLastAccessError);
 
-    AutoCaller autoCaller (this);
-    CheckComRCReturnRC (autoCaller.rc());
+    AutoCaller autoCaller(this);
+    CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock (this);
+    AutoReadLock alock(this);
 
     if (m.lastAccessError.isEmpty())
         Bstr("").cloneTo(aLastAccessError);
     else
-        m.lastAccessError.cloneTo (aLastAccessError);
+        m.lastAccessError.cloneTo(aLastAccessError);
 
     return S_OK;
 }

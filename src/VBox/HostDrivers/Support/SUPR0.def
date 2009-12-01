@@ -1,4 +1,4 @@
-; $Id: SUPR0.def $
+; $Id: SUPR0.def 23171 2009-09-21 09:34:32Z vboxsync $
 ;; @file
 ; VirtualBox Support Driver - Built-in exports.
 ;
@@ -53,6 +53,7 @@ EXPORTS
     SUPR0MemGetPhys
     SUPR0MemFree
     SUPR0Printf
+    SUPR0QueryVTxSupport
     SUPSemEventCreate
     SUPSemEventClose
     SUPSemEventSignal
@@ -84,6 +85,11 @@ EXPORTS
     RTR0MemObjIsMapping
     RTR0MemObjGetPagePhysAddr
     RTR0MemObjFree
+    RTR0MemUserCopyFrom
+    RTR0MemUserCopyTo
+    RTR0MemUserIsValidAddr
+    RTR0MemKernelIsValidAddr
+    RTR0MemAreKrnlAndUsrDifferent
     RTProcSelf
     ; broken - RTSemMutexCreate
     ; broken - RTSemMutexRequest
@@ -123,6 +129,8 @@ EXPORTS
     RTThreadPreemptIsPendingTrusty
     RTThreadPreemptDisable
     RTThreadPreemptRestore
+    RTThreadPreemptPossible
+    RTThreadIsInInterrupt
     RTMpOnAll
     RTMpOnOthers
     RTMpOnSpecific

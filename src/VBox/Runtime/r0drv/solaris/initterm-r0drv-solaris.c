@@ -1,4 +1,4 @@
-/* $Id: initterm-r0drv-solaris.c $ */
+/* $Id: initterm-r0drv-solaris.c 24386 2009-11-05 14:17:10Z vboxsync $ */
 /** @file
  * IPRT - Initialization & Termination, R0 Driver, Solaris.
  */
@@ -33,22 +33,50 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-solaris-kernel.h"
+#include "internal/iprt.h"
+
 #include <iprt/err.h>
-#include <iprt/assert.h>
+#include <iprt/asm.h>
 #include "internal/initterm.h"
 
 
 /*******************************************************************************
-*   Internal Functions                                                         *
+*   Global Variables                                                           *
 *******************************************************************************/
+/** Indicates that the spl routines (and therefore a bunch of other ones too)
+ * will set EFLAGS::IF and break code that disables interrupts.  */
+bool g_frtSolarisSplSetsEIF = false;
 
 
 int rtR0InitNative(void)
 {
-    return VINF_SUCCESS;
+    /*
+     * Initialize vbi (keeping it separate for now)
+     */
+    int rc = vbi_init();
+    if (!rc)
+    {
+        /*
+         * Detech whether spl*() is preserving the interrupt flag or not.
+         * This is a problem on S10.
+         */
+        RTCCUINTREG uOldFlags = ASMIntDisableFlags();
+        int iOld = splr(DISP_LEVEL);
+        if (ASMIntAreEnabled())
+            g_frtSolarisSplSetsEIF = true;
+        splx(iOld);
+        if (ASMIntAreEnabled())
+            g_frtSolarisSplSetsEIF = true;
+        ASMSetFlags(uOldFlags);
+
+        return VINF_SUCCESS;
+    }
+    cmn_err(CE_NOTE, "vbi_init failed. rc=%d\n", rc);
+    return VERR_GENERAL_FAILURE;
 }
 
 
 void rtR0TermNative(void)
 {
 }
+
