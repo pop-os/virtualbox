@@ -1,19 +1,21 @@
 #!/bin/sh /usr/share/dpatch/dpatch-run
 ## 06-xsession.dpatch by Michael Meskes <meskes@debian.org>
 ##
-## DP: Create a start script in Xsession.d.
+## DP: make Xsession.d script ignore errors.
 
 @DPATCH@
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Additions/x11/Installer/98vboxadd-xclient virtualbox-ose-3.0.8-dfsg/src/VBox/Additions/x11/Installer/98vboxadd-xclient
 --- virtualbox-ose-3.0.8-dfsg~/src/VBox/Additions/x11/Installer/98vboxadd-xclient	2009-10-07 11:27:13.000000000 +0200
 +++ virtualbox-ose-3.0.8-dfsg/src/VBox/Additions/x11/Installer/98vboxadd-xclient	2009-10-07 13:42:27.862988136 +0200
-@@ -17,6 +17,6 @@
- # additional information or have any questions.
- #
+@@ -26,7 +26,7 @@
+   fi
+ done
  
 -/usr/bin/VBoxClient --clipboard
--/usr/bin/VBoxClient --autoresize
+-/usr/bin/VBoxClient --checkhostversion
+-/usr/bin/VBoxClient --display
 -/usr/bin/VBoxClient --seamless
 +/usr/bin/VBoxClient --clipboard || true
-+/usr/bin/VBoxClient --autoresize || true
++/usr/bin/VBoxClient --checkhostversion || true
++/usr/bin/VBoxClient --display || true
 +/usr/bin/VBoxClient --seamless || true

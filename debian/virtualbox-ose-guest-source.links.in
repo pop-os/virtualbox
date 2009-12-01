@@ -1,6 +1,6 @@
-/usr/src/virtualbox-ose-guest-CVERSION/r0drv /usr/src/virtualbox-ose-guest-CVERSION/vboxadd/r0drv
+/usr/src/virtualbox-ose-guest-CVERSION/r0drv /usr/src/virtualbox-ose-guest-CVERSION/vboxguest/r0drv
 /usr/src/virtualbox-ose-guest-CVERSION/r0drv /usr/src/virtualbox-ose-guest-CVERSION/vboxvfs/r0drv
-/usr/src/virtualbox-ose-guest-CVERSION/include /usr/src/virtualbox-ose-guest-CVERSION/vboxadd/include
+/usr/src/virtualbox-ose-guest-CVERSION/include /usr/src/virtualbox-ose-guest-CVERSION/vboxguest/include
 /usr/src/virtualbox-ose-guest-CVERSION/include /usr/src/virtualbox-ose-guest-CVERSION/vboxvfs/include
 
 /usr/share/modass/packages/default.sh   /usr/share/modass/overrides/virtualbox-ose-guest-source

@@ -25,9 +25,8 @@ out/bin/src/vboxnetflt/include/internal/* /usr/src/virtualbox-ose-CVERSION/inclu
 
 out/bin/src/vboxdrv/r0drv /usr/src/virtualbox-ose-CVERSION
 out/bin/src/vboxdrv/alloc /usr/src/virtualbox-ose-CVERSION
-out/bin/src/vboxnetflt/common /usr/src/virtualbox-ose-CVERSION
-out/bin/src/vboxdrv/common/misc /usr/src/virtualbox-ose-CVERSION/common
-out/bin/src/vboxnetflt/generic /usr/src/virtualbox-ose-CVERSION
+out/bin/src/vboxdrv/common /usr/src/virtualbox-ose-CVERSION
+out/bin/src/vboxdrv/generic /usr/src/virtualbox-ose-CVERSION
 out/bin/src/vboxdrv/math /usr/src/virtualbox-ose-CVERSION
 out/bin/src/vboxdrv/VBox /usr/src/virtualbox-ose-CVERSION
 

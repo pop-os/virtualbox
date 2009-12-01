@@ -24,49 +24,38 @@ diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/include/VBo
  
  #ifdef VBOX_WITH_DEBUGGER_GUI
      /* Debugger actions */
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	2009-10-07 11:27:13.000000000 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	2009-10-07 13:43:54.515463037 +0200
-@@ -381,6 +381,10 @@
-         VBoxGlobal::iconSet (":/guesttools_16px.png",
-                              ":/guesttools_disabled_16px.png"));
+diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp virtualbox-ose-3.1.0-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp
+--- virtualbox-ose-3.1.0-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.1.0-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.cpp	2009-10-07 13:43:54.515463037 +0200
+@@ -456,6 +456,10 @@
+     mDevicesInstallGuestToolsAction->setIcon (VBoxGlobal::iconSet (
+         ":/guesttools_16px.png", ":/guesttools_disabled_16px.png"));
  
 +    mDevicesInstallWineD3DAction = new QAction (mRunningActions);
 +    mDevicesInstallWineD3DAction->setIcon (VBoxGlobal::iconSet (":/guesttools_16px.png",
 +                                                                     ":/guesttools_disabled_16px.png"));
 +
  #ifdef VBOX_WITH_DEBUGGER_GUI
+     /* Debug menu actions */
      if (vboxGlobal().isDebuggerEnabled())
-     {
-@@ -478,6 +482,7 @@
-     mDevicesVRDPMenuSeparator = mDevicesMenu->addSeparator();
+@@ -543,6 +547,7 @@
  
+     mDevicesMenu->addSeparator();
      mDevicesMenu->addAction (mDevicesInstallGuestToolsAction);
 +    mDevicesMenu->addAction (mDevicesInstallWineD3DAction);
  
-     /* reset the "context menu" flag */
-     mDevicesMountFloppyMenu->menuAction()->setData (false);
-@@ -652,6 +657,7 @@
-     connect (mDevicesSwitchVrdpAction, SIGNAL(toggled (bool)), this, SLOT(devicesSwitchVrdp (bool)));
-     connect (mDevicesSFDialogAction, SIGNAL(triggered()), this, SLOT(devicesOpenSFDialog()));
-     connect (mDevicesInstallGuestToolsAction, SIGNAL(triggered()), this, SLOT(devicesInstallGuestAdditions()));
+ #ifdef VBOX_WITH_DEBUGGER_GUI
+     /* Debug submenu */
+@@ -707,6 +712,7 @@
+     connect (mDevicesSFDialogAction, SIGNAL (triggered()), this, SLOT (devicesOpenSFDialog()));
+     connect (mDevicesSwitchVrdpAction, SIGNAL (toggled (bool)), this, SLOT (devicesSwitchVrdp (bool)));
+     connect (mDevicesInstallGuestToolsAction, SIGNAL (triggered()), this, SLOT (devicesInstallGuestAdditions()));
 +    connect (mDevicesInstallWineD3DAction, SIGNAL(triggered()), this, SLOT(devicesInstallWineD3D()));
  
- 
-     connect (mDevicesMountFloppyMenu, SIGNAL(aboutToShow()), this, SLOT(prepareFloppyMenu()));
-@@ -1744,6 +1750,10 @@
-     mDevicesInstallGuestToolsAction->setStatusTip (
-         tr ("Mount the Guest Additions installation image"));
- 
-+    mDevicesInstallWineD3DAction->setText (tr ("Update &WineD3D (for Direct3D)..."));
-+    mDevicesInstallWineD3DAction->setStatusTip (
-+        tr ("Download the latest WineD3D installation image. WineD3D provides Direct3D functionality on Windows guests."));
-+
- #ifdef VBOX_WITH_DEBUGGER_GUI
-     /* Debug actions */
- 
-@@ -2994,6 +3004,55 @@
-     }
+     connect (mCDLed, SIGNAL (contextMenuRequested (QIStateIndicator *, QContextMenuEvent *)),
+              this, SLOT (showIndicatorContextMenu (QIStateIndicator *, QContextMenuEvent *)));
+@@ -1061,6 +1067,55 @@
+ #endif
  }
  
 +/* Based on devicesInstallGuestAdditions() */
@@ -94,8 +83,8 @@ diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxCon
 +    CVirtualBox vbox = vboxGlobal().virtualBox();
 +    QString name = QString ("wined3d.iso");
 +
-+    CDVDImageVector vec = vbox.GetDVDImages();
-+    for (CDVDImageVector::ConstIterator it = vec.begin();
++    CMediumVector vec = vbox.GetDVDImages();
++    for (CMediumVector::ConstIterator it = vec.begin();
 +         it != vec.end(); ++ it)
 +    {
 +        QString path = it->GetLocation();
@@ -121,3 +110,14 @@ diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxCon
  void VBoxConsoleWnd::installGuestAdditionsFrom (const QString &aSource)
  {
      CVirtualBox vbox = vboxGlobal().virtualBox();
+@@ -1727,6 +1782,10 @@
+     mDevicesMenu->setTitle (tr ("&Devices"));
+     // mDevicesMenu->setIcon (VBoxGlobal::iconSet (":/settings_16px.png"));
+ 
++    mDevicesInstallWineD3DAction->setText (tr ("Update &WineD3D (for Direct3D)..."));
++    mDevicesInstallWineD3DAction->setStatusTip (
++        tr ("Download the latest WineD3D installation image. WineD3D provides Direct3D functionality on Windows guests."));
++
+ #ifdef VBOX_WITH_DEBUGGER_GUI
+     if (vboxGlobal().isDebuggerEnabled())
+         mDbgMenu->setTitle (tr ("De&bug"));

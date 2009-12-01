@@ -1,25 +1,26 @@
-out/bin/additions/src/vboxadd/*.* /usr/src/virtualbox-ose-guest-CVERSION/vboxadd
-out/bin/additions/src/vboxadd/alloc /usr/src/virtualbox-ose-guest-CVERSION/vboxadd
-out/bin/additions/src/vboxadd/build_in_tmp /usr/src/virtualbox-ose-guest-CVERSION/vboxadd
-out/bin/additions/src/vboxadd/Makefile /usr/src/virtualbox-ose-guest-CVERSION/vboxadd
+out/bin/additions/src/vboxguest/*.* /usr/src/virtualbox-ose-guest-CVERSION/vboxguest
+out/bin/additions/src/vboxguest/common /usr/src/virtualbox-ose-guest-CVERSION/vboxguest
+out/bin/additions/src/vboxguest/generic /usr/src/virtualbox-ose-guest-CVERSION/vboxguest
+out/bin/additions/src/vboxguest/VBox /usr/src/virtualbox-ose-guest-CVERSION/vboxguest
+out/bin/additions/src/vboxguest/build_in_tmp /usr/src/virtualbox-ose-guest-CVERSION/vboxguest
+out/bin/additions/src/vboxguest/Makefile /usr/src/virtualbox-ose-guest-CVERSION/vboxguest
 
 out/bin/additions/src/vboxvfs/*.* /usr/src/virtualbox-ose-guest-CVERSION/vboxvfs
 out/bin/additions/src/vboxvfs/build_in_tmp /usr/src/virtualbox-ose-guest-CVERSION/vboxvfs
 out/bin/additions/src/vboxvfs/Makefile /usr/src/virtualbox-ose-guest-CVERSION/vboxvfs
 
-out/bin/additions/src/vboxvideo_drm/*.* /usr/src/virtualbox-ose-guest-CVERSION/vboxvideo_drm
-out/bin/additions/src/vboxvideo_drm/build_in_tmp /usr/src/virtualbox-ose-guest-CVERSION/vboxvideo_drm
-out/bin/additions/src/vboxvideo_drm/Makefile /usr/src/virtualbox-ose-guest-CVERSION/vboxvideo_drm
+out/bin/additions/src/vboxvideo/*.* /usr/src/virtualbox-ose-guest-CVERSION/vboxvideo
+out/bin/additions/src/vboxvideo/build_in_tmp /usr/src/virtualbox-ose-guest-CVERSION/vboxvideo
+out/bin/additions/src/vboxvideo/Makefile /usr/src/virtualbox-ose-guest-CVERSION/vboxvideo
 
-out/bin/additions/src/vboxadd/include/iprt/* /usr/src/virtualbox-ose-guest-CVERSION/include/iprt
-out/bin/additions/src/vboxadd/include/VBox/* /usr/src/virtualbox-ose-guest-CVERSION/include/VBox
-out/bin/additions/src/vboxadd/include/internal/* /usr/src/virtualbox-ose-guest-CVERSION/include/internal
+out/bin/additions/src/vboxguest/include/iprt/* /usr/src/virtualbox-ose-guest-CVERSION/include/iprt
+out/bin/additions/src/vboxguest/include/VBox/* /usr/src/virtualbox-ose-guest-CVERSION/include/VBox
+out/bin/additions/src/vboxguest/include/internal/* /usr/src/virtualbox-ose-guest-CVERSION/include/internal
 
 out/bin/additions/src/vboxvfs/include/iprt/* /usr/src/virtualbox-ose-guest-CVERSION/include/iprt
 out/bin/additions/src/vboxvfs/include/VBox/* /usr/src/virtualbox-ose-guest-CVERSION/include/VBox
-out/bin/additions/src/vboxvfs/include/internal/* /usr/src/virtualbox-ose-guest-CVERSION/include/internal
 
-out/bin/additions/src/vboxadd/r0drv /usr/src/virtualbox-ose-guest-CVERSION/
+out/bin/additions/src/vboxguest/r0drv /usr/src/virtualbox-ose-guest-CVERSION/
 
 debian/virtualbox-ose-guest-source.files/Makefile /usr/src/virtualbox-ose-guest-CVERSION
 

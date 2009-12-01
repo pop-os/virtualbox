@@ -8,13 +8,13 @@
 ## DP: anyways.
 
 @DPATCH@
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Additions/x11/VBoxClient/Makefile.kmk virtualbox-ose-3.0.8-dfsg/src/VBox/Additions/x11/VBoxClient/Makefile.kmk
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/Additions/x11/VBoxClient/Makefile.kmk	2009-10-07 11:27:13.000000000 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/Additions/x11/VBoxClient/Makefile.kmk	2009-10-07 18:44:29.962989537 +0200
-@@ -62,20 +62,6 @@
- 	Xext Xmu
+diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/x11/VBoxClient/Makefile.kmk virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/x11/VBoxClient/Makefile.kmk
+--- virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/x11/VBoxClient/Makefile.kmk	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/x11/VBoxClient/Makefile.kmk	2009-10-07 18:44:29.962989537 +0200
+@@ -68,20 +68,6 @@
+ ifdef VBOX_WITH_GUEST_PROPS
+  VBoxClient_DEFS += VBOX_WITH_GUEST_PROPS
  endif
- 
 -#
 -# Link aginst libstdc++.a. (http://www.trilithium.com/johan/2005/06/static-libstdc/).
 -# (It would've been preferred to avoid features depending on libstdc++, of course...)
