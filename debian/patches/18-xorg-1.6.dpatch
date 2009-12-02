@@ -168,10 +168,11 @@ diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/x11/vboxvideo/Makefile
  vboxvideo_drv_15_TEMPLATE = VBOXGUESTR3XORGMOD
  vboxvideo_drv_15_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
  vboxvideo_drv_15_DEFS := $(vboxvideo_drv_70_DEFS) NO_ANSIC PCIACCESS \
-@@ -221,24 +215,21 @@
+@@ -220,25 +214,22 @@
+ #
  # vboxvideo_drv_16
  #
- DLLS += vboxvideo_drv_16
+-DLLS += vboxvideo_drv_16
 -vboxvideo_drv_16_TEMPLATE = VBOXGUESTR3XORGMOD
 -vboxvideo_drv_16_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
 -vboxvideo_drv_16_DEFS := $(vboxvideo_drv_15_DEFS)
@@ -184,6 +185,7 @@ diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/x11/vboxvideo/Makefile
 -	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0 \
 -	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
 -vboxvideo_drv_16_SOURCES := $(vboxvideo_drv_15_SOURCES)
++DLLS += vboxvideo_drv
 +vboxvideo_drv_TEMPLATE = VBOXGUESTR3XORGMOD
 +vboxvideo_drv_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
 +vboxvideo_drv_DEFS := $(vboxvideo_drv_15_DEFS)
