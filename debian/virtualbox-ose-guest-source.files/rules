@@ -1,7 +1,5 @@
 #!/usr/bin/make -f
 
-include /usr/share/dpatch/dpatch.make
-
 # The short upstream name, used for the module source directory
 uname:=virtualbox-ose-guest-utils
 
