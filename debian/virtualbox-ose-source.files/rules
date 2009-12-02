@@ -61,6 +61,7 @@ binary-modules: prep-deb-files
 	dh_install vboxdrv/vboxdrv.ko /lib/modules/$(KVERS)/misc/
 	dh_install vboxnetflt/vboxnetflt.ko /lib/modules/$(KVERS)/misc/
 	dh_install vboxnetadp/vboxnetadp.ko /lib/modules/$(KVERS)/misc/
+	dh_installudev
 	dh_installdocs
 	dh_installchangelogs
 	dh_compress

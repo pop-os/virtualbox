@@ -1,5 +1,3 @@
-/usr/share/modass/packages/default.sh   /usr/share/modass/overrides/virtualbox-ose-source
-
 /usr/src/virtualbox-ose-CVERSION/r0drv /usr/src/virtualbox-ose-CVERSION/vboxdrv/r0drv
 /usr/src/virtualbox-ose-CVERSION/r0drv /usr/src/virtualbox-ose-CVERSION/vboxnetflt/r0drv
 /usr/src/virtualbox-ose-CVERSION/r0drv /usr/src/virtualbox-ose-CVERSION/vboxnetadp/r0drv

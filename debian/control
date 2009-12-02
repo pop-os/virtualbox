@@ -75,7 +75,7 @@ Depends: ${shlibs:Depends},
          ${misc:Depends},
          ${python:Depends},
          adduser
-Recommends: virtualbox-ose-source (= ${binary:Version}), 
+Recommends: virtualbox-ose-dkms (= ${binary:Version}) | virtualbox-ose-source (= ${binary:Version}), 
             virtualbox-ose-qt (= ${binary:Version}),
             libgl1
 Suggests: virtualbox-guest-additions,
@@ -88,9 +88,10 @@ Description: x86 virtualization solution - base binaries
  Linux system.
  .
  This package provides the binaries for the Open Source Edition of
- VirtualBox. The virtualbox-ose-source package is also required in order to
- compile the kernel modules needed for virtualbox-ose. A graphical user
- interface for VirtualBox is provided by the package virtualbox-ose-qt.
+ VirtualBox. Either the virtualbox-ose-dksm or the virtualbox-ose-source
+ package is also required in order to compile the kernel modules needed for
+ virtualbox-ose. A graphical user interface for VirtualBox is provided by the
+ package virtualbox-ose-qt.
 
 Package: virtualbox-ose-dbg
 Section: debug
@@ -105,11 +106,26 @@ Description: x86 virtualization solution - debugging symbols
  This package provides the debugging symbols for the Open Source Edition of
  VirtualBox.
 
-Package: virtualbox-ose-source
+Package: virtualbox-ose-dkms
+Replaces: virtualbox-ose-source
 Section: kernel
 Architecture: all
 Depends: ${misc:Depends}, make | build-essential | dpkg-dev
 Recommends: dkms
+Description: x86 virtualization solution - kernel module sources for dkms
+ VirtualBox is a free x86 virtualization solution allowing a wide range
+ of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
+ Linux system.
+ .
+ This package provides the source code for the virtualbox kernel module to be
+ build with dkms.  The virtualbox-ose package is also required in order to make
+ use of these modules. Kernel sources or headers are required to compile this
+ module.
+
+Package: virtualbox-ose-source
+Section: kernel
+Architecture: all
+Depends: ${misc:Depends}, make | build-essential | dpkg-dev
 Suggests: debhelper (>= 5),
           bzip2,
           kbuild,
@@ -123,11 +139,26 @@ Description: x86 virtualization solution - kernel module source
  The virtualbox-ose package is also required in order to make use of these
  modules. Kernel sources or headers are required to compile this module.
 
-Package: virtualbox-ose-guest-source
+Package: virtualbox-ose-guest-dkms
+Replaces: virtualbox-ose-guest-source
 Section: kernel
 Architecture: all
 Depends: ${misc:Depends}, make | build-essential | dpkg-dev
 Recommends: dkms
+Description: x86 virtualization solution - guest addition module source for dkms
+ VirtualBox is a free x86 virtualization solution allowing a wide range
+ of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
+ Linux system.
+ .
+ This package provides the source code for the virtualbox guest addition kernel
+ modules to be build with dkms. The virtualbox-ose-guest-utils package is also
+ required in order to make use of these modules. Kernel sources or headers are
+ required to compile these modules.
+
+Package: virtualbox-ose-guest-source
+Section: kernel
+Architecture: all
+Depends: ${misc:Depends}, make | build-essential | dpkg-dev
 Suggests: debhelper (>= 5),
           bzip2,
           kbuild,
@@ -165,7 +196,7 @@ Architecture: i386 amd64 lpia
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          pciutils
-Recommends: virtualbox-ose-guest-source (= ${binary:Version}),
+Recommends: virtualbox-ose-guest-dkms (= ${binary:Version}), virtualbox-ose-guest-source (= ${binary:Version}),
             virtualbox-ose-guest-x11 (= ${binary:Version})
 Description: x86 virtualization solution - non-X11 guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range

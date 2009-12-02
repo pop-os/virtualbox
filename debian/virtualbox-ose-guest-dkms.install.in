@@ -22,8 +22,5 @@ out/bin/additions/src/vboxvfs/include/VBox/* /usr/src/virtualbox-ose-guest-CVERS
 
 out/bin/additions/src/vboxguest/r0drv /usr/src/virtualbox-ose-guest-CVERSION/
 
-debian/virtualbox-ose-guest-source.files/Makefile /usr/src/virtualbox-ose-guest-CVERSION
+debian/virtualbox-ose-guest-dkms.files/Makefile /usr/src/virtualbox-ose-guest-CVERSION
 
-debian/virtualbox-ose-guest-source.files/control.modules.in /usr/src/virtualbox-ose-guest-CVERSION/debian
-debian/virtualbox-ose-guest-source.files/rules /usr/src/virtualbox-ose-guest-CVERSION/debian
-debian/control debian/changelog debian/copyright debian/compat /usr/src/virtualbox-ose-guest-CVERSION/debian

@@ -1,0 +1,41 @@
+out/bin/src/vboxdrv/*.* /usr/src/modules/virtualbox-ose/vboxdrv
+out/bin/src/vboxdrv/build_in_tmp /usr/src/modules/virtualbox-ose/vboxdrv
+out/bin/src/vboxdrv/linux /usr/src/modules/virtualbox-ose/vboxdrv
+out/bin/src/vboxdrv/Makefile /usr/src/modules/virtualbox-ose/vboxdrv
+
+out/bin/src/vboxnetflt/*.* /usr/src/modules/virtualbox-ose/vboxnetflt
+out/bin/src/vboxnetflt/build_in_tmp /usr/src/modules/virtualbox-ose/vboxnetflt
+out/bin/src/vboxnetflt/linux /usr/src/modules/virtualbox-ose/vboxnetflt
+out/bin/src/vboxnetflt/Makefile /usr/src/modules/virtualbox-ose/vboxnetflt
+
+out/bin/src/vboxnetadp/*.* /usr/src/modules/virtualbox-ose/vboxnetadp
+out/bin/src/vboxnetadp/build_in_tmp /usr/src/modules/virtualbox-ose/vboxnetadp
+out/bin/src/vboxnetadp/linux /usr/src/modules/virtualbox-ose/vboxnetadp
+out/bin/src/vboxnetadp/Makefile /usr/src/modules/virtualbox-ose/vboxnetadp
+
+out/bin/src/vboxdrv/SUPDrvIDC.h /usr/src/modules/virtualbox-ose/include/
+out/bin/src/vboxdrv/version-generated.h /usr/src/modules/virtualbox-ose/include/
+out/bin/src/vboxdrv/include/iprt/* /usr/src/modules/virtualbox-ose/include/iprt
+out/bin/src/vboxdrv/include/VBox/* /usr/src/modules/virtualbox-ose/include/VBox
+out/bin/src/vboxdrv/include/internal/* /usr/src/modules/virtualbox-ose/include/internal
+
+out/bin/src/vboxnetflt/include/iprt/* /usr/src/modules/virtualbox-ose/include/iprt
+out/bin/src/vboxnetflt/include/VBox/* /usr/src/modules/virtualbox-ose/include/VBox
+out/bin/src/vboxnetflt/include/internal/* /usr/src/modules/virtualbox-ose/include/internal
+
+out/bin/src/vboxdrv/r0drv /usr/src/modules/virtualbox-ose
+out/bin/src/vboxdrv/alloc /usr/src/modules/virtualbox-ose
+out/bin/src/vboxdrv/common /usr/src/modules/virtualbox-ose
+out/bin/src/vboxdrv/generic /usr/src/modules/virtualbox-ose
+out/bin/src/vboxdrv/math /usr/src/modules/virtualbox-ose
+out/bin/src/vboxdrv/VBox /usr/src/modules/virtualbox-ose
+
+out/bin/src/vboxnetflt/SUPR0IdcClientInternal.h /usr/src/modules/virtualbox-ose/
+
+debian/control debian/changelog debian/copyright debian/compat /usr/src/modules/virtualbox-ose/debian
+debian/virtualbox-ose-source.files/control.modules.in /usr/src/modules/virtualbox-ose/debian
+debian/virtualbox-ose-source.files/postinst.modules.in /usr/src/modules/virtualbox-ose/debian
+debian/virtualbox-ose-source.files/udev /usr/src/modules/virtualbox-ose/debian
+debian/virtualbox-ose-source.files/rules /usr/src/modules/virtualbox-ose/debian
+
+debian/virtualbox-ose-source.files/Makefile /usr/src/modules/virtualbox-ose

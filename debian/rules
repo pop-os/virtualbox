@@ -5,6 +5,8 @@ include /usr/share/dpatch/dpatch.make
 # Name of the source packages
 psource:=virtualbox-ose-source
 gsource:=virtualbox-ose-guest-source
+pdkms:=virtualbox-ose-dkms
+gdkms:=virtualbox-ose-guest-dkms
 
 # The short upstream name
 sname:=virtualbox-ose
@@ -71,12 +73,12 @@ clean: unpatch
 	rm -rf out
 	rm -f build-stamp
 	rm -f debian/virtualbox-ose.README.Debian debian/README.Debian.html
-	rm -f debian/$(psource).install
-	rm -f debian/$(gsource).install
-	rm -f debian/$(psource).dirs
-	rm -f debian/$(gsource).dirs
-	rm -f debian/$(psource).links
-	rm -f debian/$(gsource).links
+	rm -f debian/$(pdkms).install
+	rm -f debian/$(gdkms).install
+	rm -f debian/$(pdkms).dirs
+	rm -f debian/$(gdkms).dirs
+	rm -f debian/$(pdkms).links
+	rm -f debian/$(gdkms).links
 
 	find . -name "*.pyc" -exec rm -f {} \;
 	dh_clean
@@ -111,20 +113,20 @@ install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
 	dh_testroot
 	dh_clean -k
 
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gsource).dirs.in > debian/$(gsource).dirs
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(psource).dirs.in > debian/$(psource).dirs
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gsource).links.in > debian/$(gsource).links
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(psource).links.in > debian/$(psource).links
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).dirs.in > debian/$(gdkms).dirs
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).dirs.in > debian/$(pdkms).dirs
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).links.in > debian/$(gdkms).links
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).links.in > debian/$(pdkms).links
 
 	dh_installdirs
 
 	# Create DKMS control files
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(psource).files/dkms.conf.in > debian/$(psource)/usr/src/virtualbox-ose-$(upstreamversion)/dkms.conf
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gsource).files/dkms.conf.in > debian/$(gsource)/usr/src/virtualbox-ose-guest-$(upstreamversion)/dkms.conf
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).files/dkms.conf.in > debian/$(pdkms)/usr/src/virtualbox-ose-$(upstreamversion)/dkms.conf
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).files/dkms.conf.in > debian/$(gdkms)/usr/src/virtualbox-ose-guest-$(upstreamversion)/dkms.conf
 
-	#Build install files for the dkms'ified sources
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(psource).install.in > debian/$(psource).install
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gsource).install.in > debian/$(gsource).install
+	# Build install files for the dkms'ified sources
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).install.in > debian/$(pdkms).install
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).install.in > debian/$(gdkms).install
 
 	export VBOX_INSTALL_PATH=/usr/lib/virtualbox && \
 	    cd out/bin/sdk/installer && \
@@ -187,15 +189,13 @@ binary-indep: build install
 	dh_installdocs -i
 	dh_install -i
 	# These files have incorrect permissions, fixing it.
-	chmod 755 debian/$(psource)/usr/src/$(sname)-$(upstreamversion)/debian/rules
-	chmod 755 debian/$(gsource)/usr/src/$(gname)-$(upstreamversion)/debian/rules
+	chmod 755 debian/$(psource)/usr/src/modules/$(sname)/debian/rules
+	chmod 755 debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
 	dh_link -i
 	# Create .tar.bz2 for virtualbox*source
-	cp -a debian/$(psource)/usr/src/$(sname)-$(upstreamversion) debian/$(psource)/usr/src/modules/$(sname)
 	cd debian/$(psource)/usr/src && \
 		tar -cjf $(sname).tar.bz2 modules && \
 		rm -rf modules
-	cp -a debian/$(gsource)/usr/src/$(gname)-$(upstreamversion) debian/$(gsource)/usr/src/modules/$(gname)
 	cd debian/$(gsource)/usr/src && \
 		tar -cjf $(gname).tar.bz2 modules && \
 		rm -rf modules

@@ -22,11 +22,9 @@ The Debian virtualbox-ose-guest-source package can be used in several ways,
 
  -- Michael Meskes <meskes@debian.org>  Sun, 04 Nov 2007 17:32:10 +0100
 
- - Starting with version 3.0.10 virtualbos-ose uses dkms(8) to build the
-   modules automatically. The dkms package recommends the linux-headers
-   package needed to build modules for the current distribution kernel. If this
-   for whatever reason does not work or you are using a non-distribution kernel
-   please make sure the right set of kernel headers is installed.
+ - Starting with version 3.0.10 virtualbox-ose can use dkms(8) to build the
+   modules automatically. If you prefer using dkms, please install
+   virtualbox-ose-dkms instead.
 
- -- Michael Meskes <meskes@debian.org>  01 Nov 2009 11:21:08 +0100
+ -- Michael Meskes <meskes@debian.org>  Wed, 02 Dec 2009 15:29:23 +0100
 
