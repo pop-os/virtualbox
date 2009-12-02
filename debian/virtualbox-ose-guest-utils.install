@@ -1,2 +1,3 @@
 out/bin/additions/VBoxService	/usr/sbin
 out/bin/additions/VBoxControl	/usr/sbin
+out/bin/additions/mount.vboxsf	/sbin
