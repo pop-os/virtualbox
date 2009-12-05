@@ -8,7 +8,7 @@ set -e
 # automatic modules installation depends on dkms being available
 [ -x /usr/sbin/dkms ] || exit 0
 
-CVERSION=`dpkg-query -W -f='${Version}' virtualbox-ose-source | awk -F "-" '{print $1}' | cut -d\: -f2`
+CVERSION=`dpkg-query -W -f='${Version}' virtualbox-ose-dkms | awk -F "-" '{print $1}' | cut -d\: -f2`
 
 case "$1" in
 	configure)
