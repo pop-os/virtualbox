@@ -107,7 +107,7 @@ Description: x86 virtualization solution - debugging symbols
  VirtualBox.
 
 Package: virtualbox-ose-dkms
-Replaces: virtualbox-ose-source
+Replaces: virtualbox-ose-source (<< 3.1.0-dfsg-1)
 Section: kernel
 Architecture: all
 Depends: ${misc:Depends}, make | build-essential | dpkg-dev
@@ -140,7 +140,7 @@ Description: x86 virtualization solution - kernel module source
  modules. Kernel sources or headers are required to compile this module.
 
 Package: virtualbox-ose-guest-dkms
-Replaces: virtualbox-ose-guest-source
+Replaces: virtualbox-ose-guest-source (<< 3.1.0-dfsg-1)
 Section: kernel
 Architecture: all
 Depends: ${misc:Depends}, make | build-essential | dpkg-dev
