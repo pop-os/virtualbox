@@ -1,3 +1,15 @@
+virtualbox-ose (3.1.0-dfsg-2) unstable; urgency=low
+
+  [ Michael Meskes ]
+  * Check for right package in postinst. (Closes: #559502)
+
+  [ Felix Geyer ]
+  * Made *-dkms packages only replace older *-source packages
+  * Promote dkms to a dependency
+  * Build-depend on libqt4-opengl-dev
+
+ -- Michael Meskes <meskes@debian.org>  Tue, 08 Dec 2009 08:11:09 +0100
+
 virtualbox-ose (3.1.0-dfsg-1) experimental; urgency=low
 
   * Imported Upstream version 3.1.0-dfsg (Closes: #559172)
