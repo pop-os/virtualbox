@@ -1,3 +1,11 @@
+virtualbox-ose (3.1.0-dfsg-3) unstable; urgency=low
+
+  * Removed yet another mentioning of upstream's init script. (Closes:
+    #560320)
+  * Adjusted dependencies to new setup. (Closes: #556595)
+
+ -- Michael Meskes <meskes@debian.org>  Fri, 11 Dec 2009 11:45:14 +0100
+
 virtualbox-ose (3.1.0-dfsg-2) unstable; urgency=low
 
   [ Michael Meskes ]
