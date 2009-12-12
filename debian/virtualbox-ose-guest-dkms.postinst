@@ -5,9 +5,6 @@ set -e
 
 #DEBHELPER#
 
-# automatic modules installation depends on dkms being available
-[ -x /usr/sbin/dkms ] || exit 0
-
 CVERSION=`dpkg-query -W -f='${Version}' virtualbox-ose-guest-dkms | awk -F "-" '{print $1}' | cut -d\: -f2`
 
 case "$1" in
