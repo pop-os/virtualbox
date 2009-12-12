@@ -197,7 +197,7 @@ Architecture: i386 amd64 lpia
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          pciutils
-Recommends: virtualbox-ose-guest-dkms (= ${binary:Version}), virtualbox-ose-guest-source (= ${binary:Version}),
+Recommends: virtualbox-ose-guest-dkms (= ${binary:Version}) | virtualbox-ose-guest-source (= ${binary:Version}),
             virtualbox-ose-guest-x11 (= ${binary:Version})
 Description: x86 virtualization solution - non-X11 guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range
