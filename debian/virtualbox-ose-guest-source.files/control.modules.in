@@ -2,15 +2,19 @@ Source: virtualbox-ose
 Section: misc
 Priority: optional
 Maintainer: Debian Virtualbox Team <pkg-virtualbox-devel@lists.alioth.debian.org>
-Uploaders: Philipp Hug <debian@hug.cx>, Marvin Stark <marv@der-marv.de>, Michael Meskes <meskes@debian.org>, Patrick Winnertz <winnie@debian.org>, Hilko Bengen <bengen@debian.org>
+Uploaders: Michael Meskes <meskes@debian.org>,
+           Patrick Winnertz <winnie@debian.org>,
+           Hilko Bengen <bengen@debian.org>,
+           Felix Geyer <debfx-pkg@fobos.de>
 Build-Depends: debhelper (>= 5), kbuild
 Standards-Version: 3.8.3
 Homepage: http://www.virtualbox.org/
-Vcs-Svn: svn://svn.debian.org/svn/pkg-virtualbox/trunk
-Vcs-Browser: http://svn.debian.org/wsvn/pkg-virtualbox/trunk
+Vcs-Git: git://git.debian.org/git/pkg-virtualbox/virtualbox-ose.git
+Vcs-Browser: http://git.debian.org/?p=pkg-virtualbox/virtualbox-ose.git
 
 Package: virtualbox-ose-guest-modules-_KVERS_
-Architecture: i386 amd64
+Section: kernel
+Architecture: amd64 i386
 Depends: linux-modules-_KVERS_ | linux-image-_KVERS_
 Recommends: virtualbox-ose-guest-utils
 Provides: virtualbox-ose-guest-modules
