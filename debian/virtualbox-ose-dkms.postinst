@@ -6,6 +6,7 @@ set -e
 #DEBHELPER#
 
 CVERSION=`dpkg-query -W -f='${Version}' virtualbox-ose-dkms | awk -F "-" '{print $1}' | cut -d\: -f2`
+KERNEL=`uname -r`
 
 case "$1" in
 	configure)
@@ -18,11 +19,22 @@ case "$1" in
 		#Create DKMS modules
 		echo "Adding modules to DKMS build system"
 		dkms add -m virtualbox-ose -v $CVERSION > /dev/null
-		echo "Doing initial module builds"
-		dkms build -m virtualbox-ose -v $CVERSION > /dev/null || true
-		echo "Installing initial modules"
-		dkms install -m virtualbox-ose -v $CVERSION --force > /dev/null || true
-		echo "Done."
+		if [ -e "/lib/modules/$KERNEL/build/include" ]; then
+			echo "Doing initial module builds"
+			dkms build -m virtualbox-ose -v $CVERSION > /dev/null || true
+			echo "Installing initial modules"
+			dkms install -m virtualbox-ose -v $CVERSION --force > /dev/null || true
+			echo "Done."
+		else
+			cat >&2 <<"EOF"
+
+The VirtualBox module build for the currently running kernel was skipped
+since the kernel headers for this kernel do not seem to be installed.  To build
+the kernel module, install the appropriate kernel headers package for your
+kernel.
+
+EOF
+		fi
 
 		# only restart if VirtualBox isn't running
 		if test -x /etc/init.d/virtualbox-ose && ! pidof VBoxSVC > /dev/null; then
