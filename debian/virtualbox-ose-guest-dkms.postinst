@@ -9,18 +9,8 @@ NAME=virtualbox-ose-guest
 PACKAGE_NAME=$NAME-dkms
 CVERSION=`dpkg-query -W -f='${Version}' $PACKAGE_NAME | awk -F "-" '{print $1}' | cut -d\: -f2`
 
-ARCH=`dpkg --print-architecture`
-case $ARCH in
-	amd64)
-		ARCH="x86_64"
-		;;
-	lpia|i?86)
-		ARCH="i686"
-		;;
-esac
-
 case "$1" in
 	configure)
-		/usr/lib/dkms/common.postinst $NAME $CVERSION /usr/share/$PACKAGE_NAME $ARCH $2
+		/usr/lib/dkms/common.postinst $NAME $CVERSION /usr/share/$PACKAGE_NAME "" $2
 	;;
 esac

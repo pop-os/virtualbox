@@ -9,16 +9,6 @@ NAME=virtualbox-ose
 PACKAGE_NAME=$NAME-dkms
 CVERSION=`dpkg-query -W -f='${Version}' $PACKAGE_NAME | awk -F "-" '{print $1}' | cut -d\: -f2`
 
-ARCH=`dpkg --print-architecture`
-case $ARCH in
-	amd64)
-		ARCH="x86_64"
-		;;
-	lpia|i?86)
-		ARCH="i686"
-		;;
-esac
-
 case "$1" in
 	configure)
 		#These are no longer used
@@ -26,7 +16,7 @@ case "$1" in
 		dkms remove -m vboxnetflt -v $CVERSION --all -q || true
 		dkms remove -m vboxnetadp -v $CVERSION --all -q || true
 
-		/usr/lib/dkms/common.postinst $NAME $CVERSION /usr/share/$PACKAGE_NAME $ARCH $2
+		/usr/lib/dkms/common.postinst $NAME $CVERSION /usr/share/$PACKAGE_NAME "" $2
 
 		# only restart if VirtualBox isn't running
 		if test -x /etc/init.d/virtualbox-ose && ! pidof VBoxSVC > /dev/null; then
