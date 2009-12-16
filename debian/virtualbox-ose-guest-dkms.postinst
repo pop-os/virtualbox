@@ -5,31 +5,22 @@ set -e
 
 #DEBHELPER#
 
-CVERSION=`dpkg-query -W -f='${Version}' virtualbox-ose-guest-dkms | awk -F "-" '{print $1}' | cut -d\: -f2`
-KERNEL=`uname -r`
+NAME=virtualbox-ose-guest
+PACKAGE_NAME=$NAME-dkms
+CVERSION=`dpkg-query -W -f='${Version}' $PACKAGE_NAME | awk -F "-" '{print $1}' | cut -d\: -f2`
+
+ARCH=`dpkg --print-architecture`
+case $ARCH in
+	amd64)
+		ARCH="x86_64"
+		;;
+	lpia|i?86)
+		ARCH="i686"
+		;;
+esac
 
 case "$1" in
 	configure)
-		#Silently remove existing modules
-		dkms remove -m virtualbox-ose-guest -v $CVERSION --all > /dev/null 2>&1 || true
-		#Create DKMS modules
-		echo "Adding modules to DKMS build system"
-		dkms add -m virtualbox-ose-guest -v $CVERSION > /dev/null
-		if [ -e "/lib/modules/$KERNEL/build/include" ]; then
-			echo "Doing initial module build"
-			dkms build -m virtualbox-ose-guest -v $CVERSION > /dev/null || true
-			echo "Installing initial modules"
-			dkms install -m virtualbox-ose-guest -v $CVERSION --force > /dev/null || true
-			echo "Done."
-		else
-			cat >&2 <<"EOF"
-
-The VirtualBox guest module build for the currently running kernel was skipped
-since the kernel headers for this kernel do not seem to be installed.  To build
-the kernel module, install the appropriate kernel headers package for your
-kernel.
-
-EOF
-		fi
+		/usr/lib/dkms/common.postinst $NAME $CVERSION /usr/share/$PACKAGE_NAME $ARCH $2
 	;;
 esac

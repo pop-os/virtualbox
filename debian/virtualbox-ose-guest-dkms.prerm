@@ -10,7 +10,7 @@ CVERSION=`dpkg-query -W -f='${Version}' virtualbox-ose-guest-dkms | awk -F "-" '
 case "$1" in
 	remove|upgrade|purge)
 		echo "Removing all DKMS Modules"
-		dkms remove -m virtualbox-ose-guest -v $CVERSION --all > /dev/null || true
+		dkms remove -m virtualbox-ose-guest -v $CVERSION --all -q || true
 		echo "Done."
 	;;
 esac

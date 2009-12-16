@@ -89,7 +89,7 @@ Description: x86 virtualization solution - base binaries
  Linux system.
  .
  This package provides the binaries for the Open Source Edition of
- VirtualBox. Either the virtualbox-ose-dksm or the virtualbox-ose-source
+ VirtualBox. Either the virtualbox-ose-dkms or the virtualbox-ose-source
  package is also required in order to compile the kernel modules needed for
  virtualbox-ose. A graphical user interface for VirtualBox is provided by the
  package virtualbox-ose-qt.
