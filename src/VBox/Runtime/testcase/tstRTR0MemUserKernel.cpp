@@ -1,4 +1,4 @@
-/* $Id: tstRTR0MemUserKernel.cpp 21287 2009-07-07 01:13:54Z vboxsync $ */
+/* $Id: tstRTR0MemUserKernel.cpp $ */
 /** @file
  * IPRT R0 Testcase - Thread Preemption.
  */

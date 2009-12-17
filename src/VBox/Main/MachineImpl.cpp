@@ -1,4 +1,4 @@
-/* $Id: MachineImpl.cpp 24991 2009-11-26 11:37:00Z vboxsync $ */
+/* $Id: MachineImpl.cpp $ */
 
 /** @file
  * Implementation of IMachine in VBoxSVC.
@@ -164,7 +164,11 @@ Machine::HWData::HWData()
     mHWVirtExEnabled = true;
     mHWVirtExNestedPagingEnabled = false;
     mHWVirtExVPIDEnabled = false;
+#if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS)
+    mHWVirtExExclusive = false;
+#else
     mHWVirtExExclusive = true;
+#endif
 #if HC_ARCH_BITS == 64 || defined(RT_OS_WINDOWS) || defined(RT_OS_DARWIN)
     mPAEEnabled = true;
 #else
@@ -6347,7 +6351,8 @@ HRESULT Machine::loadStorageDevices(StorageController *aStorageController,
                                controllerName,
                                dev.lPort,
                                dev.lDevice,
-                               dev.deviceType);
+                               dev.deviceType,
+                               dev.fPassThrough);
         CheckComRCBreakRC(rc);
 
         /* associate the medium with this machine and snapshot */
@@ -7154,7 +7159,7 @@ HRESULT Machine::saveStorageDevices(ComObjPtr<StorageController> aStorageControl
         dev.lDevice = pAttach->getDevice();
         if (pMedium)
         {
-            BOOL fHostDrive = false;
+            BOOL fHostDrive = FALSE;
             rc = pMedium->COMGETTER(HostDrive)(&fHostDrive);
             if (FAILED(rc))
                 return rc;
@@ -9161,7 +9166,7 @@ STDMETHODIMP SessionMachine::AdoptSavedState (IN_BSTR aSavedStateFile)
 {
     LogFlowThisFunc(("\n"));
 
-    AssertReturn(aSavedStateFile, E_INVALIDARG);
+    CheckComArgStrNotEmptyOrNull(aSavedStateFile);
 
     AutoCaller autoCaller(this);
     AssertComRCReturn (autoCaller.rc(), autoCaller.rc());

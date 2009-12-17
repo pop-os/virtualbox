@@ -1,4 +1,4 @@
-/* $Id: semmutex-linux.cpp 22959 2009-09-11 13:45:44Z vboxsync $ */
+/* $Id: semmutex-linux.cpp $ */
 /** @file
  * IPRT - Mutex Semaphore, Linux  (2.6.x+).
  */

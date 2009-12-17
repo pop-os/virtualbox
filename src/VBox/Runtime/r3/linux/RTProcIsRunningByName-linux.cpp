@@ -1,4 +1,4 @@
-/* $Id: RTProcIsRunningByName-linux.cpp 17018 2009-02-23 13:27:43Z vboxsync $ */
+/* $Id: RTProcIsRunningByName-linux.cpp $ */
 /** @file
  * IPRT - RTProcIsRunningByName, Linux implementation.
  */

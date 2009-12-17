@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 22077 2009-08-07 16:01:57Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the SUPLib testcases.
 #

@@ -1,4 +1,4 @@
-/* $Id: assert.cpp 21412 2009-07-08 21:18:57Z vboxsync $ */
+/* $Id: assert.cpp $ */
 /** @file
  * IPRT - Assertion Workers.
  */

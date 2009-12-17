@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxBase.cpp 23279 2009-09-24 10:46:57Z vboxsync $ */
+/* $Id: VirtualBoxBase.cpp $ */
 
 /** @file
  *

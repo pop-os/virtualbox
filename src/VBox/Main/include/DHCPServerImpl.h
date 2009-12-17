@@ -1,4 +1,4 @@
-/* $Id: DHCPServerImpl.h 23319 2009-09-25 09:20:29Z vboxsync $ */
+/* $Id: DHCPServerImpl.h $ */
 
 /** @file
  *

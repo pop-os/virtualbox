@@ -1,4 +1,4 @@
-/* $Id: Virtio.cpp 25007 2009-11-26 14:48:54Z vboxsync $ */
+/* $Id: Virtio.cpp $ */
 /** @file
  * Virtio - Virtio Common Functions (VRing, VQueue, Virtio PCI)
  *
@@ -257,9 +257,9 @@ void vpciReset(PVPCISTATE pState)
  */
 int vpciRaiseInterrupt(VPCISTATE *pState, int rcBusy, uint8_t u8IntCause)
 {
-    int rc = vpciCsEnter(pState, rcBusy);
-    if (RT_UNLIKELY(rc != VINF_SUCCESS))
-        return rc;
+    // int rc = vpciCsEnter(pState, rcBusy);
+    // if (RT_UNLIKELY(rc != VINF_SUCCESS))
+    //     return rc;
 
     STAM_COUNTER_INC(&pState->StatIntsRaised);
     LogFlow(("%s vpciRaiseInterrupt: u8IntCause=%x\n",
@@ -267,7 +267,7 @@ int vpciRaiseInterrupt(VPCISTATE *pState, int rcBusy, uint8_t u8IntCause)
 
     pState->uISR |= u8IntCause;
     PDMDevHlpPCISetIrq(pState->CTX_SUFF(pDevIns), 0, 1);
-    vpciCsLeave(pState);
+    // vpciCsLeave(pState);
     return VINF_SUCCESS;
 }
 
@@ -313,6 +313,22 @@ int vpciIOPortIn(PPDMDEVINS         pDevIns,
     int         rc     = VINF_SUCCESS;
     const char *szInst = INSTANCE(pState);
     STAM_PROFILE_ADV_START(&pState->CTXSUFF(StatIORead), a);
+
+    /*
+     * We probably do not need to enter critical section when reading registers
+     * as the most of them are either constant or being changed during
+     * initialization only, the exception being ISR which can be raced by all
+     * threads but I see no big harm in it. It also happens to be the most read
+     * register as it gets read in interrupt handler. By dropping cs protection
+     * here we gain the ability to deliver RX packets to the guest while TX is
+     * holding cs transmitting queued packets.
+     *
+    rc = vpciCsEnter(pState, VINF_IOM_HC_IOPORT_READ);
+    if (RT_UNLIKELY(rc != VINF_SUCCESS))
+    {
+        STAM_PROFILE_ADV_STOP(&pState->CTXSUFF(StatIORead), a);
+        return rc;
+        }*/
 
     port -= pState->addrIOPort;
     switch (port)
@@ -370,6 +386,7 @@ int vpciIOPortIn(PPDMDEVINS         pDevIns,
     Log3(("%s vpciIOPortIn:  At %RTiop in  %0*x\n",
           szInst, port, cb*2, *pu32));
     STAM_PROFILE_ADV_STOP(&pState->CTXSUFF(StatIORead), a);
+    //vpciCsLeave(pState);
     return rc;
 }
 
@@ -461,7 +478,14 @@ int vpciIOPortOut(PPDMDEVINS                pDevIns,
             u32 &= 0xFFFF;
             if (u32 < pState->nQueues)
                 if (pState->Queues[u32].VRing.addrDescriptors)
-                    pState->Queues[u32].pfnCallback(pState, &pState->Queues[u32]);
+                {
+                    rc = vpciCsEnter(pState, VERR_SEM_BUSY);
+                    if (RT_LIKELY(rc == VINF_SUCCESS))
+                    {
+                        pState->Queues[u32].pfnCallback(pState, &pState->Queues[u32]);
+                        vpciCsLeave(pState);
+                    }
+                }
                 else
                     Log(("%s The queue (#%d) being notified has not been initialized.\n",
                          INSTANCE(pState), u32));
@@ -830,6 +854,8 @@ DECLCALLBACK(int) vpciConstruct(PPDMDEVINS pDevIns, VPCISTATE *pState,
     PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatIOWriteHC,          STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling IO writes in HC",     vpciCounter(pcszNameFmt, "IO/WriteHC"), iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatIntsRaised,         STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "Number of raised interrupts",   vpciCounter(pcszNameFmt, "Interrupts/Raised"), iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatIntsSkipped,        STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "Number of skipped interrupts",   vpciCounter(pcszNameFmt, "Interrupts/Skipped"), iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatCsGC,               STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling CS wait in GC",      vpciCounter(pcszNameFmt, "Cs/CsGC"), iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatCsHC,               STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling CS wait in HC",      vpciCounter(pcszNameFmt, "Cs/CsHC"), iInstance);
 #endif /* VBOX_WITH_STATISTICS */
 
     return rc;

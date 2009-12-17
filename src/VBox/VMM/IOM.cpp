@@ -1,4 +1,4 @@
-/* $Id: IOM.cpp 25006 2009-11-26 14:46:03Z vboxsync $ */
+/* $Id: IOM.cpp $ */
 /** @file
  * IOM - Input / Output Monitor.
  */

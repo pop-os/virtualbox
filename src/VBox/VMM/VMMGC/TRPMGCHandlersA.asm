@@ -1,4 +1,4 @@
-; $Id: TRPMGCHandlersA.asm 23297 2009-09-24 16:38:01Z vboxsync $
+; $Id: TRPMGCHandlersA.asm $
 ;; @file
 ; TRPM - Guest Context Trap Handlers
 ;

@@ -1,4 +1,4 @@
-/* $Id: semfastmutex-r0drv-nt.cpp 12160 2008-09-05 23:23:14Z vboxsync $ */
+/* $Id: semfastmutex-r0drv-nt.cpp $ */
 /** @file
  * IPRT - Fast Mutex Semaphores, Ring-0 Driver, NT.
  */

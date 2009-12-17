@@ -1,4 +1,4 @@
-/* $Id: errorprint.cpp 20928 2009-06-25 11:53:37Z vboxsync $ */
+/* $Id: errorprint.cpp $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer:
@@ -81,6 +81,8 @@ void GlueHandleComError(ComPtr<IUnknown> iface,
     com::ErrorInfo info(iface);
     if (info.isFullAvailable() || info.isBasicAvailable())
         GluePrintErrorInfo(info);
+    else
+        GluePrintRCMessage(rc);
     GluePrintErrorContext(pcszContext, pcszSourceFile, ulLine);
 }
 

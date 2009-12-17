@@ -1,4 +1,4 @@
-/* $Id: PGM.cpp 25015 2009-11-26 15:27:42Z vboxsync $ */
+/* $Id: PGM.cpp $ */
 /** @file
  * PGM - Page Manager and Monitor. (Mixing stuff here, not good?)
  */
@@ -2995,6 +2995,7 @@ static PGMMODE pgmR3CalcShadowMode(PVM pVM, PGMMODE enmGuestMode, SUPPAGINGMODE 
 
         default:
             AssertReleaseMsgFailed(("enmGuestMode=%d\n", enmGuestMode));
+            *penmSwitcher = VMMSWITCHER_INVALID;
             return PGMMODE_INVALID;
     }
     /* Override the shadow mode is nested paging is active. */

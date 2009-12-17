@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3LibGR.cpp 21211 2009-07-03 15:12:24Z vboxsync $ */
+/* $Id: VBoxGuestR3LibGR.cpp $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, GR.
  */

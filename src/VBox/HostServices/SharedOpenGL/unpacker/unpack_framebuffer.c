@@ -1,4 +1,4 @@
-/* $Id: unpack_framebuffer.c 22155 2009-08-11 10:36:56Z vboxsync $ */
+/* $Id: unpack_framebuffer.c $ */
 
 /** @file
  * VBox OpenGL: EXT_framebuffer_object

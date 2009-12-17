@@ -1,4 +1,4 @@
-/* $Id: PGMSavedState.cpp 24876 2009-11-23 16:07:22Z vboxsync $ */
+/* $Id: PGMSavedState.cpp $ */
 /** @file
  * PGM - Page Manager and Monitor, The Saved State Part.
  */

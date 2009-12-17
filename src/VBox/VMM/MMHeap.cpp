@@ -1,4 +1,4 @@
-/* $Id: MMHeap.cpp 20774 2009-06-22 12:59:53Z vboxsync $ */
+/* $Id: MMHeap.cpp $ */
 /** @file
  * MM - Memory Manager - Heap.
  */

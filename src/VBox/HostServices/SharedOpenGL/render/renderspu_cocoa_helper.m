@@ -155,6 +155,7 @@ while(0);
     GLuint           m_FBOThumbTexId;
     GLfloat          m_FBOThumbScaleX;
     GLfloat          m_FBOThumbScaleY;
+    uint64_t         m_uiDockUpdateTime;
 
     /* For clipping */
     GLint            m_cClipRects;
@@ -368,6 +369,13 @@ while(0);
     [m_pPixelFormat release];
 
     [super dealloc];
+}
+
+-(bool)isDoubleBuffer
+{
+    GLint val;
+    [m_pPixelFormat getValues:&val forAttribute:NSOpenGLPFADoubleBuffer forVirtualScreen:0];
+    return val == GL_TRUE ? YES : NO;
 }
 
 -(void)setView:(NSView*)view
@@ -929,7 +937,9 @@ while(0);
     GLint tmpFB;
     glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &tmpFB);
     DEBUG_MSG_1(("Swap GetINT %d\n", tmpFB));
-    [m_pGLCtx flushBuffer];
+    /* Don't use flush buffers cause we are using FBOs here */
+//    [m_pGLCtx flushBuffer];
+    glFlush();
 //    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
 	if (tmpFB == m_FBOId)
     {
@@ -951,7 +961,7 @@ while(0);
     glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &tmpFB);
     glFlush();
 //    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-    DEBUG_MSG_1 (("Flusj GetINT %d\n", tmpFB));
+    DEBUG_MSG_1 (("Flush GetINT %d\n", tmpFB));
 	if (tmpFB == m_FBOId)
     {
         if ([self lockFocusIfCanDraw])
@@ -1015,89 +1025,96 @@ while(0);
             if (m_FBOThumbTexId > 0 &&
                 [m_DockTileView thumbBitmap] != nil)
             {
+                /* Only update after atleast 200 ms, cause glReadPixels is
+                 * heavy performance wise. */
+                uint64_t uiNewTime = RTTimeMilliTS();
+                if (uiNewTime - m_uiDockUpdateTime > 200)
+                {
+                    m_uiDockUpdateTime = uiNewTime;
 #if 0
-                /* todo: check this for optimization */
-                glBindTexture(GL_TEXTURE_RECTANGLE_ARB, myTextureName);
-                glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_STORAGE_HINT_APPLE,
-                                GL_STORAGE_SHARED_APPLE);
-                glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_TRUE);
-                glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA,
-                             sizex, sizey, 0, GL_BGRA,
-                             GL_UNSIGNED_INT_8_8_8_8_REV, myImagePtr);
-                glCopyTexSubImage2D(GL_TEXTURE_RECTANGLE_ARB,
-                                    0, 0, 0, 0, 0, image_width, image_height);
-                glFlush();
-                // Do other work processing here, using a double or triple buffer
-                glGetTexImage(GL_TEXTURE_RECTANGLE_ARB, 0, GL_BGRA,
-                              GL_UNSIGNED_INT_8_8_8_8_REV, pixels);
+                    /* todo: check this for optimization */
+                    glBindTexture(GL_TEXTURE_RECTANGLE_ARB, myTextureName);
+                    glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_STORAGE_HINT_APPLE,
+                                    GL_STORAGE_SHARED_APPLE);
+                    glPixelStorei(GL_UNPACK_CLIENT_STORAGE_APPLE, GL_TRUE);
+                    glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA,
+                                 sizex, sizey, 0, GL_BGRA,
+                                 GL_UNSIGNED_INT_8_8_8_8_REV, myImagePtr);
+                    glCopyTexSubImage2D(GL_TEXTURE_RECTANGLE_ARB,
+                                        0, 0, 0, 0, 0, image_width, image_height);
+                    glFlush();
+                    // Do other work processing here, using a double or triple buffer
+                    glGetTexImage(GL_TEXTURE_RECTANGLE_ARB, 0, GL_BGRA,
+                                  GL_UNSIGNED_INT_8_8_8_8_REV, pixels);
 #endif
 
-                GL_SAVE_STATE;
-                glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, m_FBOThumbId);
+                    GL_SAVE_STATE;
+                    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, m_FBOThumbId);
 
-                /* We like to read from the primary color buffer */
-                glReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
+                    /* We like to read from the primary color buffer */
+                    glReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
 
-                NSRect rr = [m_DockTileView frame];
+                    NSRect rr = [m_DockTileView frame];
 
-                /* Setup all matrices */
-                glMatrixMode(GL_PROJECTION);
-                glLoadIdentity();
-                glViewport(0, 0, rr.size.width, rr.size.height);
-                glOrtho(0, rr.size.width, 0, rr.size.height, -1, 1);
-                glScalef(m_FBOThumbScaleX, m_FBOThumbScaleY, 1.0f);
-                glMatrixMode(GL_TEXTURE);
-                glLoadIdentity();
-                glTranslatef(0.0f, m_RootShift.y, 0.0f);
-                glMatrixMode(GL_MODELVIEW);
-                glLoadIdentity();
+                    /* Setup all matrices */
+                    glMatrixMode(GL_PROJECTION);
+                    glLoadIdentity();
+                    glViewport(0, 0, rr.size.width, rr.size.height);
+                    glOrtho(0, rr.size.width, 0, rr.size.height, -1, 1);
+                    glScalef(m_FBOThumbScaleX, m_FBOThumbScaleY, 1.0f);
+                    glMatrixMode(GL_TEXTURE);
+                    glLoadIdentity();
+                    glTranslatef(0.0f, m_RootShift.y, 0.0f);
+                    glMatrixMode(GL_MODELVIEW);
+                    glLoadIdentity();
 
-                /* Clear background to transparent */
-                glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-                glClear(GL_COLOR_BUFFER_BIT);
+                    /* Clear background to transparent */
+                    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+                    glClear(GL_COLOR_BUFFER_BIT);
 
-                glEnable(GL_TEXTURE_RECTANGLE_ARB);
-                glBindTexture(GL_TEXTURE_RECTANGLE_ARB, m_FBOTexId);
-                GLint i;
-                for (i = 0; i < m_cClipRects; ++i)
-                {
-                    GLint x1 = m_paClipRects[4*i];
-                    GLint y1 = (r.size.height - m_paClipRects[4*i+1]);
-                    GLint x2 = m_paClipRects[4*i+2];
-                    GLint y2 = (r.size.height - m_paClipRects[4*i+3]);
-                    glBegin(GL_QUADS);
+                    glEnable(GL_TEXTURE_RECTANGLE_ARB);
+                    glBindTexture(GL_TEXTURE_RECTANGLE_ARB, m_FBOTexId);
+                    GLint i;
+                    for (i = 0; i < m_cClipRects; ++i)
                     {
-                        glTexCoord2i(x1, y1); glVertex2i(x1, y1);
-                        glTexCoord2i(x1, y2); glVertex2i(x1, y2);
-                        glTexCoord2i(x2, y2); glVertex2i(x2, y2);
-                        glTexCoord2i(x2, y1); glVertex2i(x2, y1);
+                        GLint x1 = m_paClipRects[4*i];
+                        GLint y1 = (r.size.height - m_paClipRects[4*i+1]);
+                        GLint x2 = m_paClipRects[4*i+2];
+                        GLint y2 = (r.size.height - m_paClipRects[4*i+3]);
+                        glBegin(GL_QUADS);
+                        {
+                            glTexCoord2i(x1, y1); glVertex2i(x1, y1);
+                            glTexCoord2i(x1, y2); glVertex2i(x1, y2);
+                            glTexCoord2i(x2, y2); glVertex2i(x2, y2);
+                            glTexCoord2i(x2, y1); glVertex2i(x2, y1);
+                        }
+                        glEnd();
                     }
-                    glEnd();
+                    glFinish();
+
+                    /* Here the magic of reading the FBO content in our own buffer
+                     * happens. We have to lock this access, in the case the dock
+                     * is updated currently. */
+                    [m_DockTileView lock];
+                    glReadPixels(0, 0, rr.size.width, rr.size.height,
+                                 GL_RGBA,
+                                 GL_UNSIGNED_BYTE,
+                                 [[m_DockTileView thumbBitmap] bitmapData]);
+                    [m_DockTileView unlock];
+
+                    NSDockTile *pDT = [[NSApplication sharedApplication] dockTile];
+
+                    /* Send a display message to the dock tile in the main thread */
+                    [[[NSApplication sharedApplication] dockTile] performSelectorOnMainThread:@selector(display) withObject:nil waitUntilDone:NO];
+
+                    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+                    GL_RESTORE_STATE;
                 }
-                glFinish();
-    
-                /* Here the magic of reading the FBO content in our own buffer
-                 * happens. We have to lock this access, in the case the dock
-                 * is updated currently. */
-                [m_DockTileView lock];
-                glReadPixels(0, 0, rr.size.width, rr.size.height,
-                             GL_RGBA,
-                             GL_UNSIGNED_BYTE,
-                             [[m_DockTileView thumbBitmap] bitmapData]);
-                [m_DockTileView unlock];
-
-                NSDockTile *pDT = [[NSApplication sharedApplication] dockTile];
-
-                /* Send a display message to the dock tile in the main thread */
-                [[[NSApplication sharedApplication] dockTile] performSelectorOnMainThread:@selector(display) withObject:nil waitUntilDone:NO];
-
-                glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-                GL_RESTORE_STATE;
             }
 
             /* Clear background to transparent */
             glClear(GL_COLOR_BUFFER_BIT);
-        
+
             /* Blit the content of the FBO to the screen. todo: check for
              * optimization with display lists. */
             GLint i;
@@ -1300,16 +1317,19 @@ void cocoaViewDestroy(NativeViewRef pView)
     [win setContentView: nil];
     [[win parentWindow] removeChildWindow: win];
     int b = [win retainCount];
-    for (; b > 1; --b)
-        [win release];
+//    for (; b > 1; --b)
+//        [win performSelector:@selector(release)]
+    [win performSelectorOnMainThread:@selector(release) withObject:nil waitUntilDone:NO];
+//        [win release];
 
     /* There seems to be a bug in the performSelector method which is called in
      * parentWindowChanged above. The object is retained but not released. This
      * results in an unbalanced reference count, which is here manually
      * decremented. */
     int a = [pView retainCount];
-    for (; a > 1; --a)
-        [pView release];
+//    for (; a > 1; --a)
+    [pView performSelectorOnMainThread:@selector(release) withObject:nil waitUntilDone:NO];
+//        [pView release];
 
     [pPool release];
 }

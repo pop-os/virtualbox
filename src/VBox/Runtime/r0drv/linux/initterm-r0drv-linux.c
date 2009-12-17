@@ -1,4 +1,4 @@
-/* $Id: initterm-r0drv-linux.c 21337 2009-07-07 14:58:27Z vboxsync $ */
+/* $Id: initterm-r0drv-linux.c $ */
 /** @file
  * IPRT - Initialization & Termination, R0 Driver, Linux.
  */

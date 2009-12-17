@@ -1,4 +1,4 @@
-/* $Id: dbgmod.cpp 22114 2009-08-09 23:07:56Z vboxsync $ */
+/* $Id: dbgmod.cpp $ */
 /** @file
  * IPRT - Debug Module Interpreter.
  */

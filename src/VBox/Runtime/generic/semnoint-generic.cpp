@@ -1,4 +1,4 @@
-/* $Id: semnoint-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
+/* $Id: semnoint-generic.cpp $ */
 /** @file
  * IPRT - Generic Non-Interruptable Wait and Request Functions.
  */

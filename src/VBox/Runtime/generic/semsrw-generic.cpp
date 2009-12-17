@@ -1,4 +1,4 @@
-/* $Id: semsrw-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
+/* $Id: semsrw-generic.cpp $ */
 /** @file
  * IPRT - Read-Write Semaphore, Generic.
  *

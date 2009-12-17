@@ -1,4 +1,4 @@
-/* $Id: tstHandleTable.cpp 17093 2009-02-24 19:58:09Z vboxsync $ */
+/* $Id: tstHandleTable.cpp $ */
 /** @file
  * IPRT Testcase - Handle Tables.
  */

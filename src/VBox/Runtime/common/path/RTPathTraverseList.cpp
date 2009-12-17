@@ -1,4 +1,4 @@
-/* $Id: RTPathTraverseList.cpp 22311 2009-08-17 22:15:06Z vboxsync $ */
+/* $Id: RTPathTraverseList.cpp $ */
 /** @file
  * IPRT - RTPathTraverseList
  */

@@ -1,4 +1,4 @@
-/* $Id: RTStrConvertHexBytes.cpp 23507 2009-10-02 12:02:02Z vboxsync $ */
+/* $Id: RTStrConvertHexBytes.cpp $ */
 /** @file
  * IPRT - RTStrConvertHexBytes.
  */

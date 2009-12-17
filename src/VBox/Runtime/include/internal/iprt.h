@@ -1,4 +1,4 @@
-/* $Id: iprt.h 24824 2009-11-20 14:12:35Z vboxsync $ */
+/* $Id: iprt.h $ */
 /** @file
  * IPRT - Internal header for miscellaneous global defs and types.
  */

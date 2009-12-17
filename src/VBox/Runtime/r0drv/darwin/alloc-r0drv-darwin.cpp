@@ -1,4 +1,4 @@
-/* $Id: alloc-r0drv-darwin.cpp 22052 2009-08-07 09:45:48Z vboxsync $ */
+/* $Id: alloc-r0drv-darwin.cpp $ */
 /** @file
  * IPRT - Memory Allocation, Ring-0 Driver, Darwin.
  */

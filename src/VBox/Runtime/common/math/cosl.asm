@@ -1,4 +1,4 @@
-; $Id: cosl.asm 16316 2009-01-28 14:26:48Z vboxsync $
+; $Id: cosl.asm $
 ;; @file
 ; IPRT - No-CRT cosl - AMD64 & X86.
 ;

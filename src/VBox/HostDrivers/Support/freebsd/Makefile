@@ -1,4 +1,4 @@
-# $Id: Makefile 24886 2009-11-23 21:03:00Z vboxsync $
+# $Id: Makefile $
 ## @file
 # Makefile for the VirtualBox FreeBSD Host Driver.
 #

@@ -1,4 +1,4 @@
-/* $Id: com.cpp 22708 2009-09-02 11:40:56Z vboxsync $ */
+/* $Id: com.cpp $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer

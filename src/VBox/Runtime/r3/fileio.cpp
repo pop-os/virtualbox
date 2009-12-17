@@ -1,4 +1,4 @@
-/* $Id: fileio.cpp 24653 2009-11-14 20:14:49Z vboxsync $ */
+/* $Id: fileio.cpp $ */
 /** @file
  * IPRT - File I/O.
  */

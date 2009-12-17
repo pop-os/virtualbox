@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 25059 2009-11-27 18:17:44Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the IPRT testcases.
 #

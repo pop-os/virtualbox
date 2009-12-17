@@ -1,4 +1,4 @@
-/* $Id: the-freebsd-kernel.h 23032 2009-09-15 13:38:28Z vboxsync $ */
+/* $Id: the-freebsd-kernel.h $ */
 /** @file
  * IPRT - Ring-0 Driver, The FreeBSD Kernel Headers.
  */

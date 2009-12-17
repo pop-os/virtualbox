@@ -1,4 +1,4 @@
-/* $Id: SSMInternal.h 24804 2009-11-19 18:15:25Z vboxsync $ */
+/* $Id: SSMInternal.h $ */
 /** @file
  * SSM - Internal header file.
  */

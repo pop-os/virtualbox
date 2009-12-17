@@ -1,4 +1,4 @@
-/* $Id: timeprog.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
+/* $Id: timeprog.cpp $ */
 /** @file
  * IPRT - Time Relative to Program Start.
  */

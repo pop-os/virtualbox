@@ -1,4 +1,4 @@
-/* $Id: tstRTHeapOffset.cpp 25064 2009-11-28 02:28:56Z vboxsync $ */
+/* $Id: tstRTHeapOffset.cpp $ */
 /** @file
  * IPRT Testcase - Offset Based Heap.
  */

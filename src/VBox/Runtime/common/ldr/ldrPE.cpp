@@ -1,4 +1,4 @@
-/* $Id: ldrPE.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
+/* $Id: ldrPE.cpp $ */
 /** @file
  * IPRT - Binary Image Loader, Portable Executable (PE).
  */

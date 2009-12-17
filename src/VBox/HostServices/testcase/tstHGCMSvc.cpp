@@ -1,4 +1,4 @@
-/* $Id: tstHGCMSvc.cpp 22653 2009-09-01 12:02:32Z vboxsync $ */
+/* $Id: tstHGCMSvc.cpp $ */
 /** @file
  * HGCM Service Testcase.
  */

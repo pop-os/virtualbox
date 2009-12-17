@@ -1,4 +1,4 @@
-/* $Id: initterm-r0drv-darwin.cpp 22052 2009-08-07 09:45:48Z vboxsync $ */
+/* $Id: initterm-r0drv-darwin.cpp $ */
 /** @file
  * IPRT - Initialization & Termination, R0 Driver, Darwin.
  */

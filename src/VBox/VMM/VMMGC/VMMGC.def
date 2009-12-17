@@ -1,4 +1,4 @@
-; $Id: VMMGC.def 20824 2009-06-23 12:52:41Z vboxsync $
+; $Id: VMMGC.def $
 ;; @file
 ; VMM Raw-mode Context DLL - Definition file.
 

@@ -1,4 +1,4 @@
-/* $Id: magics.h 25059 2009-11-27 18:17:44Z vboxsync $ */
+/* $Id: magics.h $ */
 /** @file
  * IPRT - Internal header defining The Magic Numbers.
  */

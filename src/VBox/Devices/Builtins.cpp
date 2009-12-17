@@ -1,4 +1,4 @@
-/* $Id: Builtins.cpp 22876 2009-09-09 19:34:07Z vboxsync $ */
+/* $Id: Builtins.cpp $ */
 /** @file
  * Built-in drivers & devices (part 1)
  */

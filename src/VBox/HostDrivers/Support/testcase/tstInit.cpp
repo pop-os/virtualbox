@@ -1,4 +1,4 @@
-/* $Id: tstInit.cpp 22077 2009-08-07 16:01:57Z vboxsync $ */
+/* $Id: tstInit.cpp $ */
 /** @file
  * SUP Testcase - Support Library initialization and termination.
  */

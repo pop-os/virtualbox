@@ -1,4 +1,4 @@
-/* $Id: fs-win.cpp 13837 2008-11-05 02:54:02Z vboxsync $ */
+/* $Id: fs-win.cpp $ */
 /** @file
  * IPRT - File System, Win32.
  */

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 25033 2009-11-27 01:35:26Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Makefile for the VBox Main module.
 #
@@ -62,6 +62,7 @@ VBOX_MAIN_DEFS += \
 	$(if $(VBOX_WITH_NETFLT),VBOX_WITH_NETFLT,) \
 	$(if $(VBOX_WITH_CROGL),VBOX_WITH_CROGL,) \
 	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS,) \
+	$(if $(VBOX_WITH_GUEST_PROPS_RDONLY_GUEST),VBOX_WITH_GUEST_PROPS_RDONLY_GUEST,) \
 	$(if $(VBOX_WITH_HOSTNETIF_API),VBOX_WITH_HOSTNETIF_API,)
 
 # Unconditionally enable the new semaphore key generation code
@@ -484,6 +485,8 @@ if (defined(VBOX_WITH_CROGL) || defined(VBOX_WITH_VIDEOHWACCEL)) && !defined(VBO
    VBoxTestOGL_LDFLAGS.darwin += -framework OpenGL
    VBoxTestOGL_LIBS.win     += $(PATH_SDK_WINPSDK_LIB)/Opengl32.lib
    VBoxTestOGL_LIBS.solaris += GL
+   VBoxTestOGL_LIBS.linux   += GL
+   VBoxTestOGL_LIBS.freebsd += GL
   endif
   VBoxTestOGL_LDFLAGS.win = /SUBSYSTEM:windows
  endif

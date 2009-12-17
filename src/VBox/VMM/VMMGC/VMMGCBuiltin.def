@@ -1,4 +1,4 @@
-; $Id: VMMGCBuiltin.def 19015 2009-04-20 07:54:29Z vboxsync $
+; $Id: VMMGCBuiltin.def $
 ;; @file
 ; VMM Raw-mode Context Builtin DLL - Definition file for generating import library.
 ;

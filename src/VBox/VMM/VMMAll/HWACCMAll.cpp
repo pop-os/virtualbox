@@ -1,4 +1,4 @@
-/* $Id: HWACCMAll.cpp 24833 2009-11-20 16:11:19Z vboxsync $ */
+/* $Id: HWACCMAll.cpp $ */
 /** @file
  * HWACCM - All contexts.
  */

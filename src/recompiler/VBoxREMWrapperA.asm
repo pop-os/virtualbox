@@ -1,4 +1,4 @@
-; $Id: VBoxREMWrapperA.asm 22528 2009-08-27 14:05:09Z vboxsync $
+; $Id: VBoxREMWrapperA.asm $
 ;; @file
 ; VBoxREM Wrapper, Assembly routines and wrapper Templates.
 ;

@@ -1,4 +1,4 @@
-/* $Id: VBGLR3Internal.h 22970 2009-09-12 11:53:35Z vboxsync $ */
+/* $Id: VBGLR3Internal.h $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 support library for the guest additions, Internal header.
  */

@@ -1,4 +1,4 @@
-/* $Id: VBoxManageDisk.cpp 24998 2009-11-26 13:22:55Z vboxsync $ */
+/* $Id: VBoxManageDisk.cpp $ */
 /** @file
  * VBoxManage - The disk delated commands.
  */
@@ -920,8 +920,6 @@ static const RTGETOPTDEF g_aAddiSCSIDiskOptions[] =
     { "-password",      'P', RTGETOPT_REQ_STRING },     // deprecated
     { "--type",         't', RTGETOPT_REQ_STRING },
     { "-type",          't', RTGETOPT_REQ_STRING },     // deprecated
-    { "--comment",      'c', RTGETOPT_REQ_STRING },
-    { "-comment",       'c', RTGETOPT_REQ_STRING },     // deprecated
     { "--intnet",       'I', RTGETOPT_REQ_NOTHING },
     { "-intnet",        'I', RTGETOPT_REQ_NOTHING },    // deprecated
 };
@@ -983,10 +981,6 @@ int handleAddiSCSIDisk(HandlerArg *a)
                     return errorArgument("Invalid hard disk type '%s'", ValueUnion.psz);
                 break;
 
-            case 'c':   // --comment
-                comment = ValueUnion.psz;
-                break;
-
             case 'I':   // --intnet
                 fIntNet = true;
                 break;
@@ -1037,9 +1031,6 @@ int handleAddiSCSIDisk(HandlerArg *a)
                                hardDisk.asOutParam()));
         }
         CheckComRCBreakRC (rc);
-
-        if (!comment.isNull())
-            CHECK_ERROR(hardDisk, COMSETTER(Description)(comment));
 
         if (!port.isNull())
             server = BstrFmt ("%ls:%ls", server.raw(), port.raw());

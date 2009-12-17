@@ -745,7 +745,7 @@ GetSocket(struct libalias *la, u_short port_net, int *sockfd, int link_type)
         fprintf(stderr, "incorrect link type\n");
 #endif
 #ifdef VBOX
-        free(so);
+        RTMemFree(so);
 #endif
         return (0);
     }
@@ -753,7 +753,11 @@ GetSocket(struct libalias *la, u_short port_net, int *sockfd, int link_type)
     if (sock < 0) {
 #ifdef LIBALIAS_DEBUG
         fprintf(stderr, "PacketAlias/GetSocket(): ");
+# ifndef VBOX
         fprintf(stderr, "socket() error %d\n", *sockfd);
+# else
+        fprintf(stderr, "socket() error %d\n", errno);
+# endif
 #endif
         return (0);
     }
@@ -806,7 +810,14 @@ GetSocket(struct libalias *la, u_short port_net, int *sockfd, int link_type)
 #endif
         return (1);
     } else {
-        close(sock);
+#ifdef VBOX
+        if (sock >= 0)
+            closesocket(sock);
+        /* socket wasn't enqueued so we shouldn't use sofree */
+        RTMemFree(so);
+#else
+            close(sock);
+#endif
         return (0);
     }
 }

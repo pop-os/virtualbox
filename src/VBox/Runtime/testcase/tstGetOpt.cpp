@@ -1,4 +1,4 @@
-/* $Id: tstGetOpt.cpp 24140 2009-10-28 14:29:34Z vboxsync $ */
+/* $Id: tstGetOpt.cpp $ */
 /** @file
  * IPRT Testcase - RTGetOpt
  */

@@ -1,4 +1,4 @@
-/* $Id: ministring.cpp 24656 2009-11-14 22:36:32Z vboxsync $ */
+/* $Id: ministring.cpp $ */
 /** @file
  * IPRT - Mini C++ string class.
  *

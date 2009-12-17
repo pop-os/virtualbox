@@ -1,4 +1,4 @@
-/* $Id: DevE1000.cpp 24533 2009-11-10 08:23:13Z vboxsync $ */
+/* $Id: DevE1000.cpp $ */
 /** @file
  * DevE1000 - Intel 82540EM Ethernet Controller Emulation.
  *

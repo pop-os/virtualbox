@@ -1,4 +1,4 @@
-/* $Id: DBGFBp.cpp 23012 2009-09-14 16:38:13Z vboxsync $ */
+/* $Id: DBGFBp.cpp $ */
 /** @file
  * DBGF - Debugger Facility, Breakpoint Management.
  */

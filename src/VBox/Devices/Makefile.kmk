@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 24980 2009-11-26 09:31:14Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Top-level makefile for the devices, drivers and services.
 #
@@ -304,6 +304,9 @@ DevicesR3_SOURCES       = \
 
 ifdef VBOX_DYNAMIC_NET_ATTACH
  DevicesR3_DEFS += VBOX_DYNAMIC_NET_ATTACH
+endif
+ifdef VBOX_BIOS_DMI_FALLBACK
+ DevicesR3_DEFS += VBOX_BIOS_DMI_FALLBACK
 endif
 
 ifdef VBOX_WITH_E1000

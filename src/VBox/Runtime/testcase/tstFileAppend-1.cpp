@@ -1,4 +1,4 @@
-/* $Id: tstFileAppend-1.cpp 23973 2009-10-22 12:34:22Z vboxsync $ */
+/* $Id: tstFileAppend-1.cpp $ */
 /** @file
  * IPRT Testcase - File Appending.
  */

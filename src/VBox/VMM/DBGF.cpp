@@ -1,4 +1,4 @@
-/* $Id: DBGF.cpp 24999 2009-11-26 13:36:37Z vboxsync $ */
+/* $Id: DBGF.cpp $ */
 /** @file
  * DBGF - Debugger Facility.
  */

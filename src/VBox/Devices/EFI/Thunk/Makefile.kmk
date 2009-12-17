@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 23650 2009-10-09 14:30:09Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for EFI thunking ROM image.
 #

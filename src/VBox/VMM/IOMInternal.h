@@ -1,4 +1,4 @@
-/* $Id: IOMInternal.h 22924 2009-09-10 22:00:36Z vboxsync $ */
+/* $Id: IOMInternal.h $ */
 /** @file
  * IOM - Internal header file.
  */

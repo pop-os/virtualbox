@@ -1,4 +1,4 @@
-/* $Id: heapoffset.cpp 25066 2009-11-28 02:30:08Z vboxsync $ */
+/* $Id: heapoffset.cpp $ */
 /** @file
  * IPRT - An Offset Based Heap.
  */
