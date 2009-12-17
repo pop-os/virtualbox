@@ -5,9 +5,9 @@
 ## DP: Add WineD3D guest additions
 
 @DPATCH@
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h	2009-10-07 11:27:13.000000000 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/include/VBoxConsoleWnd.h	2009-10-07 13:43:54.515463037 +0200
+diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.h virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.h
+--- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.h	2009-10-07 11:27:13.000000000 +0200
++++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.h	2009-10-07 13:43:54.515463037 +0200
 @@ -211,6 +211,7 @@
      void devicesSwitchVrdp (bool);
      void devicesOpenSFDialog();
