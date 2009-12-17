@@ -1,4 +1,4 @@
-/* $Id: semspinmutex-r3-generic.cpp 21540 2009-07-13 14:51:23Z vboxsync $ */
+/* $Id: semspinmutex-r3-generic.cpp $ */
 /** @file
  * IPRT - Spinning Mutex Semaphores, Ring-3, Generic.
  */

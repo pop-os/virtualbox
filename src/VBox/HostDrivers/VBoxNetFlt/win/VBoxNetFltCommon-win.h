@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltCommon-win.h 24217 2009-10-30 20:24:36Z vboxsync $ */
+/* $Id: VBoxNetFltCommon-win.h $ */
 /** @file
  * VBoxNetFltCommon.h - Network Filter Driver (Host), Windows Specific Code. Common headeer with commonly used defines and decls
  */

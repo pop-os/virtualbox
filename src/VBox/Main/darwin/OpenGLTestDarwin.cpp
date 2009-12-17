@@ -1,4 +1,4 @@
-/* $Id: OpenGLTestDarwin.cpp 23384 2009-09-28 14:11:08Z vboxsync $ */
+/* $Id: OpenGLTestDarwin.cpp $ */
 
 /** @file
  * VBox host opengl support test

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 22683 2009-09-01 17:53:07Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the common HGSMI library.
 #

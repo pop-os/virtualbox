@@ -1,4 +1,4 @@
-/* $Id: MachineDebuggerImpl.cpp 24301 2009-11-03 22:07:55Z vboxsync $ */
+/* $Id: MachineDebuggerImpl.cpp $ */
 
 /** @file
  *

@@ -1,4 +1,4 @@
-/* $Id: OpenGLTestApp.cpp 24836 2009-11-21 08:31:17Z vboxsync $ */
+/* $Id: OpenGLTestApp.cpp $ */
 /** @file
  * VBox host opengl support test application.
  */
@@ -184,6 +184,8 @@ static int vboxInitLogging(const char *pszFilename, bool bGenNameSuffix)
 
         /* register this logger as the release logger */
         RTLogRelSetDefaultInstance(loggerRelease);
+        
+        return VINF_SUCCESS;
     }
 
     return vrc;

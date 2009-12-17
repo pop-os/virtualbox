@@ -1,4 +1,4 @@
-/* $Id: SUPDrv-win.cpp 24035 2009-10-23 13:07:16Z vboxsync $ */
+/* $Id: SUPDrv-win.cpp $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Windows NT specifics.
  */

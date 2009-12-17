@@ -1,4 +1,4 @@
-/* $Id: sems-win.cpp 10839 2008-07-23 19:48:51Z vboxsync $ */
+/* $Id: sems-win.cpp $ */
 /** @file
  * IPRT - Semaphores, implementation for Windows host platform.
  */

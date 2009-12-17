@@ -1,4 +1,4 @@
-/* $Id: logformat.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
+/* $Id: logformat.cpp $ */
 /** @file
  * IPRT - Log Formatter.
  */

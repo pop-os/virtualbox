@@ -1,4 +1,4 @@
-/* $Id: DevPcBios.cpp 25048 2009-11-27 12:37:09Z vboxsync $ */
+/* $Id: DevPcBios.cpp $ */
 /** @file
  * PC BIOS Device.
  */

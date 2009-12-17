@@ -116,6 +116,8 @@ typedef struct _ADAPTER_SETTINGS
 
 VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinGetAdapterSettings(const GUID * pGuid, PADAPTER_SETTINGS pSettings);
 
+VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinInstallInf(IN LPCWSTR pInfFullPath);
+
 typedef VOID (*LOG_ROUTINE) (LPCWSTR szString);
 VBOXNETCFGWIN_DECL(VOID) VBoxNetCfgWinSetLogging(LOG_ROUTINE Log);
 

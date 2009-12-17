@@ -1,4 +1,4 @@
-/* $Id: tstVMMR0CallHost-1.cpp 21293 2009-07-07 08:01:25Z vboxsync $ */
+/* $Id: tstVMMR0CallHost-1.cpp $ */
 /** @file
  * Testcase for the VMMR0JMPBUF operations.
  */

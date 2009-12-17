@@ -1,4 +1,4 @@
-/* $Id: semspinmutex-r0drv-generic.c 22038 2009-08-06 16:27:13Z vboxsync $ */
+/* $Id: semspinmutex-r0drv-generic.c $ */
 /** @file
  * IPRT - Spinning Mutex Semaphores, Ring-0 Driver, Generic.
  */

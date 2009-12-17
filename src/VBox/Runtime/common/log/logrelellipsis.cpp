@@ -1,4 +1,4 @@
-/* $Id: logrelellipsis.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
+/* $Id: logrelellipsis.cpp $ */
 /** @file
  * Runtime VBox - Logger, the release ellipsis variants.
  */

@@ -1,6 +1,6 @@
 #! /bin/sh
 # Sun VirtualBox
-# Linux Additions X11 setup init script ($Revision: 25100 $)
+# Linux Additions X11 setup init script ($Revision: 56118 $)
 #
 
 #
@@ -289,6 +289,9 @@ setup()
     newmouse=""
     # By default we want to use hal for auto-loading the mouse driver
     usehal="--useHal"
+    # We need to tell our xorg.conf hacking script whether /dev/psaux exists
+    nopsaux="--nopsaux"
+    test -c /dev/psaux && nopsaux=""
     # And on newer servers, we want to test whether dynamic resizing will work
     testrandr="true"
     # The video driver to install for X.Org 6.9+
@@ -328,6 +331,15 @@ setup()
             vboxmouse_src=vboxmouse_drv_16.so
             # SUSE with X.Org Server 1.6 knows about vboxvideo
             test "$system" = "suse" && setupxorgconf=""
+            ;;
+        1.4.99.901 | 1.4.99.902 )
+            echo "Warning: you are using a pre-release version of X.Org server 1.5 which is known"
+            echo "not to work with the VirtualBox Guest Additions.  Please update to a more"
+            echo "recent version (for example by installing all updates in your guest) and then"
+            echo "set up the Guest Additions for X.Org server by running"
+            echo ""
+            echo "  /usr/lib[64]/VBoxGuestAdditions/vboxadd-x11 setup"
+            dox11config=""
             ;;
         1.4.99.* | 1.5.* )
             # Fedora 9 shipped X.Org Server version 1.4.99.9x (1.5.0 RC)
@@ -372,6 +384,8 @@ setup()
         6.7* | 6.8.* | 4.2.* | 4.3.* )
             # Assume X.Org post-fork or XFree86
             begin "Installing XFree86 4.2/4.3 and X.Org 6.7/6.8 modules"
+            rm "$modules_dir/drivers/vboxvideo_drv.o" 2>/dev/null
+            rm "$modules_dir/input/vboxmouse_drv.o" 2>/dev/null
             ln -s "$lib_dir/vboxvideo_drv.o" "$modules_dir/drivers/vboxvideo_drv.o"
             ln -s "$lib_dir/vboxmouse_drv.o" "$modules_dir/input/vboxmouse_drv.o"
             usehal=""
@@ -426,7 +440,7 @@ EOF
                     if grep -q "VirtualBox generated" "$i"; then
                         generated="$generated  `printf "$i\n"`"
                     else
-                        "$lib_dir/x11config-new.pl" $newmouse $usehal "$i"
+                        "$lib_dir/x11config-new.pl" $newmouse $usehal $nopsaux "$i"
                     fi
                     configured="true"
                 fi
@@ -534,7 +548,7 @@ cleanup()
     else
         for i in $x11conf_files; do
             if test -r "$i.vbox"; then
-                if test "$i" -ot "$i.vbox" -o -n "$legacy"; then
+                if test ! "$i" -nt "$i.vbox" -o -n "$legacy"; then
                     mv -f "$i.vbox" "$i"
                     grep -q -E 'vboxvideo|vboxmouse' "$i" &&
                         failed="$failed`printf "  $i\n"`"
@@ -561,7 +575,7 @@ contain references to the Guest Additions drivers.  You may wish to check and
 possibly correct the restored configuration files to be sure that the server
 will continue to work after it is restarted.
 
-$newer
+$failed
 
 EOF
 

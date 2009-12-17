@@ -1,4 +1,4 @@
-/* $Id: VBoxCocoaApplication.h 20374 2009-06-08 00:43:21Z vboxsync $ */
+/* $Id: VBoxCocoaApplication.h $ */
 /** @file
  * VBoxCocoaApplication - NSApplication subclass for handling -sendEvent.
  */
@@ -90,6 +90,7 @@ unsigned long VBoxCocoaApplication_getEventModifierFlags(const void *pvEvent);
 uint32_t VBoxCocoaApplication_getEventModifierFlagsXlated(const void *pvEvent);
 void VBoxCocoaApplication_setMouseCoalescingEnabled(bool fEnabled);
 const char *VBoxCocoaApplication_eventTypeName(unsigned long eEvtType);
+bool VBoxCocoaApplication_isApplicationCommand(const void *pvEvent);
 void VBoxCocoaApplication_printEvent(const char *pszPrefix, const void *pvEvent);
 /** @} */
 

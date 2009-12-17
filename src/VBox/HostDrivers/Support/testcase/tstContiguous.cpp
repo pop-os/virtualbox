@@ -1,4 +1,4 @@
-/* $Id: tstContiguous.cpp 22077 2009-08-07 16:01:57Z vboxsync $ */
+/* $Id: tstContiguous.cpp $ */
 /** @file
  * SUP Testcase - Contiguous Memory Interface (ring-3).
  */

@@ -1,4 +1,4 @@
-/* $Id: tstRTR0MemUserKernel.h 21287 2009-07-07 01:13:54Z vboxsync $ */
+/* $Id: tstRTR0MemUserKernel.h $ */
 /** @file
  * IPRT R0 Testcase - User & Kernel Memory, common header.
  */

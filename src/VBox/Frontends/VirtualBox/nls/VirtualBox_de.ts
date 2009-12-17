@@ -1195,6 +1195,10 @@ p, li { white-space: pre-wrap; }
         <source>&amp;Dock Icon Realtime Preview</source>
         <translation>Echtzeit-Vorschau im &amp;Dock-Icon</translation>
     </message>
+    <message>
+        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
+        <translation>&amp;Automatisch zeige Dock &amp;&amp; Menubar im Fullscreen-Modus</translation>
+    </message>
 </context>
 <context>
     <name>VBoxGLSettingsInput</name>
@@ -2496,6 +2500,52 @@ p, li { white-space: pre-wrap; }
         <comment>medium</comment>
         <translation>Diese Basisfestplatte ist indirekt über die folgenden Differenzfestplatten eingebunden:</translation>
     </message>
+    <message numerus="yes">
+        <source>%n year(s)</source>
+        <translation>
+            <numerusform>%n Jahr</numerusform>
+            <numerusform>%n Jahre</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n month(s)</source>
+        <translation>
+            <numerusform>%n Monat</numerusform>
+            <numerusform>%n Monate</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s)</source>
+        <translation>
+            <numerusform>%n Tag</numerusform>
+            <numerusform>%n Tage</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s)</source>
+        <translation>
+            <numerusform>%n Stunde</numerusform>
+            <numerusform>%n Stunden</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n Minute</numerusform>
+            <numerusform>%n Minuten</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s)</source>
+        <translation>
+            <numerusform>%n Sekunde</numerusform>
+            <numerusform>%n Sekunden</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>(CD/DVD)</source>
+        <translation>(CD/DVD)</translation>
+    </message>
 </context>
 <context>
     <name>VBoxGlobalSettings</name>
@@ -3618,7 +3668,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Eine neue Version von VirtualBox ist verfügbar! Version &lt;b&gt;%1&lt;/b&gt; ist auf &lt;a href=&quot;http//www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt; verfügbar.&lt;/p&gt;&lt;p&gt;Sie können diese Version von der folgenden Adresse herunterladen:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Eine neue Version von VirtualBox ist verfügbar! Version &lt;b&gt;%1&lt;/b&gt; ist auf &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt; verfügbar.&lt;/p&gt;&lt;p&gt;Sie können diese Version von der folgenden Adresse herunterladen:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to release the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;</source>
@@ -3938,55 +3988,55 @@ p, li { white-space: pre-wrap; }
     <name>VBoxProgressDialog</name>
     <message>
         <source>%1 days, %2 hours remaining</source>
-        <translation>noch %1 Tag(e), %2 Stunde(n)</translation>
+        <translation type="obsolete">noch %1 Tag(e), %2 Stunde(n)</translation>
     </message>
     <message>
         <source>%1 days, %2 minutes remaining</source>
-        <translation>noch %1 Tage und %2 Minute(n)</translation>
+        <translation type="obsolete">noch %1 Tage und %2 Minute(n)</translation>
     </message>
     <message>
         <source>%1 days remaining</source>
-        <translation>noch %1 Tage</translation>
+        <translation type="obsolete">noch %1 Tage</translation>
     </message>
     <message>
         <source>1 day, %1 hours remaining</source>
-        <translation>noch einen Tag und %1 Stunde(n)</translation>
+        <translation type="obsolete">noch einen Tag und %1 Stunde(n)</translation>
     </message>
     <message>
         <source>1 day, %1 minutes remaining</source>
-        <translation>noch einen Tag und %1 Minute(n)</translation>
+        <translation type="obsolete">noch einen Tag und %1 Minute(n)</translation>
     </message>
     <message>
         <source>1 day remaining</source>
-        <translation>noch einen Tag</translation>
+        <translation type="obsolete">noch einen Tag</translation>
     </message>
     <message>
         <source>%1 hours, %2 minutes remaining</source>
-        <translation>noch %1 Stunden und %2 Minute(n)</translation>
+        <translation type="obsolete">noch %1 Stunden und %2 Minute(n)</translation>
     </message>
     <message>
         <source>1 hour, %1 minutes remaining</source>
-        <translation>noch eine Stunde und %1 Minute(n)</translation>
+        <translation type="obsolete">noch eine Stunde und %1 Minute(n)</translation>
     </message>
     <message>
         <source>1 hour remaining</source>
-        <translation>noch eine Stunde</translation>
+        <translation type="obsolete">noch eine Stunde</translation>
     </message>
     <message>
         <source>%1 minutes remaining</source>
-        <translation>noch %1 Minuten</translation>
+        <translation type="obsolete">noch %1 Minuten</translation>
     </message>
     <message>
         <source>1 minute, %2 seconds remaining</source>
-        <translation>noch eine Minute und %2 Sekunden</translation>
+        <translation type="obsolete">noch eine Minute und %2 Sekunden</translation>
     </message>
     <message>
         <source>1 minute remaining</source>
-        <translation>noch eine Minute</translation>
+        <translation type="obsolete">noch eine Minute</translation>
     </message>
     <message>
         <source>%1 seconds remaining</source>
-        <translation>noch %1 Sekunden</translation>
+        <translation type="obsolete">noch %1 Sekunden</translation>
     </message>
     <message>
         <source>A few seconds remaining</source>
@@ -4003,6 +4053,16 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Cancel the current operation</source>
         <translation>Aktuelle Operation abbrechen</translation>
+    </message>
+    <message>
+        <source>%1, %2 remaining</source>
+        <comment>You may wish to translate this more like &quot;Time remaining: %1, %2&quot;</comment>
+        <translation>noch %1, %2</translation>
+    </message>
+    <message>
+        <source>%1 remaining</source>
+        <comment>You may wish to translate this more like &quot;Time remaining: %1&quot;</comment>
+        <translation>noch %1</translation>
     </message>
 </context>
 <context>
@@ -4409,28 +4469,28 @@ p, li { white-space: pre-wrap; }
     </message>
     <message numerus="yes">
         <source> (%n day(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (vor %n Tag)</numerusform>
             <numerusform> (vor %n Tagen)</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source> (%n hour(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (vor %n Stunde)</numerusform>
             <numerusform> (vor %n Stunden)</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source> (%n minute(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (vor %n Minute)</numerusform>
             <numerusform> (vor %n Minuten)</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source> (%n second(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (vor %n Sekunde)</numerusform>
             <numerusform> (vor %n Sekunden)</numerusform>
         </translation>
@@ -4450,6 +4510,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Delete the selected snapshot of the virtual machine</source>
         <translation>Der ausgewählte Sicherungspunkt wird gelöscht</translation>
+    </message>
+    <message>
+        <source> (%1 ago)</source>
+        <translation>(vor %1)</translation>
     </message>
 </context>
 <context>
@@ -4476,6 +4540,13 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Snapshot &amp;Description</source>
         <translation>&amp;Beschreibung des Sicherungspunktes</translation>
+    </message>
+    <message numerus="yes">
+        <source>Warning: You are taking a snapshot of a running machine which has %n immutable image(s) attached to it. As long as you are working from this snapshot the immutable image(s) will not be reset to avoid loss of data.</source>
+        <translation>
+            <numerusform>Warnung: Sie erstellen einen Snapshot von einer laufenden Machine, die %n unveränderliches Festplattenabbild angeschlossen hat. So lange Sie mit diesem Sicherungspunkt arbeiten, wird das unveränderliche Festplattenabbild nicht zurück gesetzt, um Datenverlust zu vermeiden.</numerusform>
+            <numerusform>Warnung: Sie erstellen einen Snapshot von einer laufenden Machine, die %n unveränderliche Festplattenabbilder angeschlossen hat. So lange Sie mit diesen Sicherungspunkt arbeiten, werden die unveränderlichen Festplattenabbilder nicht zurück gesetzt, um Datenverlust zu vermeiden.</numerusform>
+        </translation>
     </message>
 </context>
 <context>
@@ -4610,7 +4681,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Eine neue Version von VirtualBox ist verfügbar! Version &lt;b&gt;%1&lt;/b&gt; ist auf &lt;a href=&quot;http//www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt; verfügbar.&lt;/p&gt;&lt;p&gt;Sie können diese Version von der folgenden Adresse herunterladen:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Eine neue Version von VirtualBox ist verfügbar! Version &lt;b&gt;%1&lt;/b&gt; ist auf &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt; verfügbar.&lt;/p&gt;&lt;p&gt;Sie können diese Version von der folgenden Adresse herunterladen:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Unable to obtain the new version information due to the following network error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>

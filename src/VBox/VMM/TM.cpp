@@ -1,4 +1,4 @@
-/* $Id: TM.cpp 23794 2009-10-15 11:50:03Z vboxsync $ */
+/* $Id: TM.cpp $ */
 /** @file
  * TM - Time Manager.
  */
@@ -1969,6 +1969,7 @@ static void tmR3TimerQueueRunVirtualSync(PVM pVM)
                     fStopCatchup = true;
                     off = offSyncGivenUp;
                 }
+                fUpdateStuff = true;
             }
         }
         u64Now = u64VirtualNow - off;

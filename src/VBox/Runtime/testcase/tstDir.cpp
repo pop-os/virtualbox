@@ -1,4 +1,4 @@
-/* $Id: tstDir.cpp 14831 2008-11-30 10:31:16Z vboxsync $ */
+/* $Id: tstDir.cpp $ */
 /** @file
  * IPRT Testcase - Directory listing.
  */
@@ -32,6 +32,7 @@
 #include <iprt/initterm.h>
 #include <iprt/stream.h>
 #include <iprt/err.h>
+#include <iprt/path.h>
 //#include <iprt/
 
 int main(int argc, char **argv)
@@ -105,7 +106,7 @@ int main(int argc, char **argv)
                     for (;;)
                     {
                         RTDIRENTRYEX DirEntry;
-                        rc = RTDirReadEx(pDir, &DirEntry, NULL, RTFSOBJATTRADD_UNIX);
+                        rc = RTDirReadEx(pDir, &DirEntry, NULL, RTFSOBJATTRADD_UNIX, RTPATH_F_ON_LINK);
                         if (RT_FAILURE(rc))
                             break;
 

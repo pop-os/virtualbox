@@ -1,4 +1,4 @@
-# $Id: errmsgcom.sed 18117 2009-03-20 13:33:58Z vboxsync $
+# $Id: errmsgcom.sed $
 ## @file
 # IPRT - SED script for converting COM errors
 #

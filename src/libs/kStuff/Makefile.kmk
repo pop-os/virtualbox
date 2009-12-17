@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 24670 2009-11-15 15:32:24Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for kStuff, for statically linking into VBoxRT.
 #

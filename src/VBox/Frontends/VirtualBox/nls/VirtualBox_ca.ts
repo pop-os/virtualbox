@@ -1964,6 +1964,10 @@ p, li { white-space: pre-wrap; }
         <source>&amp;Show System Tray Icon</source>
         <translation>&amp;Mostra la icona a la safata del sistema</translation>
     </message>
+    <message>
+        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
+        <translation>&amp;Mostra el dock automàticament i la barra de menú al mode de pantalla completa</translation>
+    </message>
 </context>
 <context>
     <name>VBoxGLSettingsInput</name>
@@ -3524,6 +3528,58 @@ p, li { white-space: pre-wrap; }
         <source>This base hard disk is indirectly attached using the following differencing hard disk:</source>
         <comment>medium</comment>
         <translation>Aquest disc dur base es connecta indirectament fent servir el disc dur diferenciat següent:</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n year(s)</source>
+        <translation>
+            <numerusform>%n any</numerusform>
+            <numerusform>%n anys</numerusform>
+            <numerusform>%n anys</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n month(s)</source>
+        <translation>
+            <numerusform>%n mes</numerusform>
+            <numerusform>%n mesos</numerusform>
+            <numerusform>%n mesos</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s)</source>
+        <translation>
+            <numerusform>%n dia</numerusform>
+            <numerusform>%n dies</numerusform>
+            <numerusform>%n dies</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s)</source>
+        <translation>
+            <numerusform>%n hora</numerusform>
+            <numerusform>%n hores</numerusform>
+            <numerusform>%n hores</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n minut</numerusform>
+            <numerusform>%n minuts</numerusform>
+            <numerusform>%n minuts</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s)</source>
+        <translation>
+            <numerusform>%n segon</numerusform>
+            <numerusform>%n segons</numerusform>
+            <numerusform>%n segons</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>(CD/DVD)</source>
+        <translation>(CD/DVD)</translation>
     </message>
 </context>
 <context>
@@ -6051,6 +6107,15 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
         <comment>failed to close ...</comment>
         <translation>disquetera</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to delete the CD/DVD-ROM device?&lt;/p&gt;&lt;p&gt;You will not be able to mount any CDs or ISO images or install the Guest Additions without it!&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Segur que voleu eliminar el dispositiu de CD/DVD?&lt;/p&gt;&lt;p&gt;No podreu muntar cap CD o imatges iso ni tampoc instal·lar les Guest Additions sense ell.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Remove</source>
+        <comment>medium</comment>
+        <translation>&amp;Elimina</translation>
+    </message>
 </context>
 <context>
     <name>VBoxProgressDialog</name>
@@ -6064,55 +6129,55 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
     </message>
     <message>
         <source>%1 days, %2 hours remaining</source>
-        <translation>Resten %1 dies i %2 hores</translation>
+        <translation type="obsolete">Resten %1 dies i %2 hores</translation>
     </message>
     <message>
         <source>%1 days, %2 minutes remaining</source>
-        <translation>Resten %1 dies i %2 minuts</translation>
+        <translation type="obsolete">Resten %1 dies i %2 minuts</translation>
     </message>
     <message>
         <source>%1 days remaining</source>
-        <translation>Resten %1 dies</translation>
+        <translation type="obsolete">Resten %1 dies</translation>
     </message>
     <message>
         <source>1 day, %1 hours remaining</source>
-        <translation>Resta 1 dia i %1 hores</translation>
+        <translation type="obsolete">Resta 1 dia i %1 hores</translation>
     </message>
     <message>
         <source>1 day, %1 minutes remaining</source>
-        <translation>Resta 1 dia i %1 minuts</translation>
+        <translation type="obsolete">Resta 1 dia i %1 minuts</translation>
     </message>
     <message>
         <source>1 day remaining</source>
-        <translation>Resta 1 dia</translation>
+        <translation type="obsolete">Resta 1 dia</translation>
     </message>
     <message>
         <source>%1 hours, %2 minutes remaining</source>
-        <translation>Resten %1 hores i %2 minuts</translation>
+        <translation type="obsolete">Resten %1 hores i %2 minuts</translation>
     </message>
     <message>
         <source>1 hour, %1 minutes remaining</source>
-        <translation>Resta 1 hora i %1 minuts</translation>
+        <translation type="obsolete">Resta 1 hora i %1 minuts</translation>
     </message>
     <message>
         <source>1 hour remaining</source>
-        <translation>Resta 1 hora</translation>
+        <translation type="obsolete">Resta 1 hora</translation>
     </message>
     <message>
         <source>%1 minutes remaining</source>
-        <translation>Resten %1 minuts</translation>
+        <translation type="obsolete">Resten %1 minuts</translation>
     </message>
     <message>
         <source>1 minute, %2 seconds remaining</source>
-        <translation>Resten 1 minut i %2 segons</translation>
+        <translation type="obsolete">Resten 1 minut i %2 segons</translation>
     </message>
     <message>
         <source>1 minute remaining</source>
-        <translation>Resta 1 minut</translation>
+        <translation type="obsolete">Resta 1 minut</translation>
     </message>
     <message>
         <source>%1 seconds remaining</source>
-        <translation>Resten %1 segons</translation>
+        <translation type="obsolete">Resten %1 segons</translation>
     </message>
     <message>
         <source>A few seconds remaining</source>
@@ -6125,6 +6190,16 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
     <message>
         <source>Cancel the current operation</source>
         <translation>Cancel·la l&apos;operació actual</translation>
+    </message>
+    <message>
+        <source>%1, %2 remaining</source>
+        <comment>You may wish to translate this more like &quot;Time remaining: %1, %2&quot;</comment>
+        <translation>Resta %1, %2</translation>
+    </message>
+    <message>
+        <source>%1 remaining</source>
+        <comment>You may wish to translate this more like &quot;Time remaining: %1&quot;</comment>
+        <translation>Resta %1</translation>
     </message>
 </context>
 <context>
@@ -6944,7 +7019,7 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
     </message>
     <message numerus="yes">
         <source> (%n day(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (fa %n dia)</numerusform>
             <numerusform> (fa %n dies)</numerusform>
             <numerusform> (fa %n dies)</numerusform>
@@ -6952,7 +7027,7 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
     </message>
     <message numerus="yes">
         <source> (%n hour(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (fa %n hora)</numerusform>
             <numerusform> (fa %n hores)</numerusform>
             <numerusform> (fa %n hores)</numerusform>
@@ -6960,7 +7035,7 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
     </message>
     <message numerus="yes">
         <source> (%n minute(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (fa %n minut)</numerusform>
             <numerusform> (fa %n minuts)</numerusform>
             <numerusform> (fa %n minuts)</numerusform>
@@ -6968,7 +7043,7 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
     </message>
     <message numerus="yes">
         <source> (%n second(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (fa %n segon)</numerusform>
             <numerusform> (fa %n segons)</numerusform>
             <numerusform> (fa %n segons)</numerusform>
@@ -6989,6 +7064,10 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
     <message>
         <source>Delete the selected snapshot of the virtual machine</source>
         <translation>Elimina la captura seleccionada de la màquina virtual</translation>
+    </message>
+    <message>
+        <source> (%1 ago)</source>
+        <translation> (fa %1)</translation>
     </message>
 </context>
 <context>
@@ -7035,6 +7114,14 @@ per accedir a ella des d&apos;un sistema Linux. Aquesta característica requerei
     <message>
         <source>Take Snapshot of Virtual Machine</source>
         <translation>Fes una captura de la màquina virtual</translation>
+    </message>
+    <message numerus="yes">
+        <source>Warning: You are taking a snapshot of a running machine which has %n immutable image(s) attached to it. As long as you are working from this snapshot the immutable image(s) will not be reset to avoid loss of data.</source>
+        <translation>
+            <numerusform>Avís: esteu fent una captura d&apos;una màquina que té %n imatge immutable connectada. Mentre treballeu amb aquesta captura, la imatge immutable no es reiniciarà per evitar la pèrdua de dades.</numerusform>
+            <numerusform>Avís: esteu fent una captura d&apos;una màquina que té %n imatge immutables connectades. Mentre treballeu amb aquesta captura, les imatges immutables no es reiniciaran per evitar la pèrdua de dades.</numerusform>
+            <numerusform>Avís: esteu fent una captura d&apos;una màquina que té %n imatge immutables connectades. Mentre treballeu amb aquesta captura, les imatges immutables no es reiniciaran per evitar la pèrdua de dades.</numerusform>
+        </translation>
     </message>
 </context>
 <context>

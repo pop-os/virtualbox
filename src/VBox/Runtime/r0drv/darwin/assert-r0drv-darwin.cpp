@@ -1,4 +1,4 @@
-/* $Id: assert-r0drv-darwin.cpp 22052 2009-08-07 09:45:48Z vboxsync $ */
+/* $Id: assert-r0drv-darwin.cpp $ */
 /** @file
  * IPRT -  Assertion Workers, Ring-0 Drivers, Darwin.
  */

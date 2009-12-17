@@ -1,4 +1,4 @@
-/* $Id: DrvVD.cpp 24746 2009-11-17 23:02:47Z vboxsync $ */
+/* $Id: DrvVD.cpp $ */
 /** @file
  * DrvVD - Generic VBox disk media driver.
  */
@@ -1188,8 +1188,11 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns,
         }
     }
 
+/* Async I/O disabled completely for 3.1 because the async I/O code can't determine the size of a block device. */
+#if 0
     if (pThis->pDrvMediaAsyncPort)
         pThis->fAsyncIOSupported = true;
+#endif
 
     while (pCurNode && RT_SUCCESS(rc))
     {

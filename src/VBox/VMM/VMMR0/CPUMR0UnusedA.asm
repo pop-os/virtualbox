@@ -1,4 +1,4 @@
-; $Id: CPUMR0UnusedA.asm 20539 2009-06-13 21:22:54Z vboxsync $
+; $Id: CPUMR0UnusedA.asm $
 ;; @file
 ; CPUM - Guest Context Assembly Routines.
 ;

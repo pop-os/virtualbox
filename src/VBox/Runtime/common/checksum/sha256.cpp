@@ -1,4 +1,4 @@
-/* $Id: sha256.cpp 23501 2009-10-02 10:59:42Z vboxsync $ */
+/* $Id: sha256.cpp $ */
 /** @file
  * IPRT - SHA-256 hash functions.
  */

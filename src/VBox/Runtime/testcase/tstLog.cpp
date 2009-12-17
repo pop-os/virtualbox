@@ -1,4 +1,4 @@
-/* $Id: tstLog.cpp 14831 2008-11-30 10:31:16Z vboxsync $ */
+/* $Id: tstLog.cpp $ */
 /** @file
  * IPRT Testcase - Log Formatting.
  */

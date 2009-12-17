@@ -1,4 +1,4 @@
-/* $Id: RTErrConvertFromDarwinKern.cpp 15459 2008-12-14 11:23:14Z vboxsync $ */
+/* $Id: RTErrConvertFromDarwinKern.cpp $ */
 /** @file
  * IPRT - Convert Darwin Mach returns codes to iprt status codes.
  */

@@ -1,4 +1,4 @@
-/* $Id: CarbonDockIconPreview.cpp 24377 2009-11-05 11:18:52Z vboxsync $ */
+/* $Id: CarbonDockIconPreview.cpp $ */
 /** @file
  * CarbonDockIconPreview class implementation
  */

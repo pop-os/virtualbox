@@ -1,4 +1,4 @@
-/* $Id: strstrip.cpp 24006 2009-10-23 08:02:13Z vboxsync $ */
+/* $Id: strstrip.cpp $ */
 /** @file
  * IPRT - String Stripping and Trimming.
  */

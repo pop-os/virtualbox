@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-win.h 24217 2009-10-30 20:24:36Z vboxsync $ */
+/* $Id: VBoxNetFlt-win.h $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Integration with IntNet/NetFlt
  */

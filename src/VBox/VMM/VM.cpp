@@ -1,4 +1,4 @@
-/* $Id: VM.cpp 25075 2009-11-28 22:29:28Z vboxsync $ */
+/* $Id: VM.cpp $ */
 /** @file
  * VM - Virtual Machine
  */

@@ -54,7 +54,7 @@ void MediumAttachment::FinalRelease()
  * @param aController Controller the hard disk is attached to.
  * @param aPort       Port number.
  * @param aDevice     Device number on the port.
- * @param aImplicit   Wether the attachment contains an implicitly created diff.
+ * @param aPassthrough Wether accesses are directly passed to the host drive.
  */
 HRESULT MediumAttachment::init(Machine *aParent,
                                Medium *aMedium,
@@ -62,10 +62,10 @@ HRESULT MediumAttachment::init(Machine *aParent,
                                LONG aPort,
                                LONG aDevice,
                                DeviceType_T aType,
-                               bool aImplicit /*= false*/)
+                               bool aPassthrough)
 {
     LogFlowThisFuncEnter();
-    LogFlowThisFunc(("aParent=%p aMedium=%p aControllerName=%ls aPort=%d aDevice=%d aType=%d aImplicit=%d\n", aParent, aMedium, aControllerName.raw(), aPort, aDevice, aType, aImplicit));
+    LogFlowThisFunc(("aParent=%p aMedium=%p aControllerName=%ls aPort=%d aDevice=%d aType=%d aPassthrough=%d\n", aParent, aMedium, aControllerName.raw(), aPort, aDevice, aType, aPassthrough));
 
     if (aType == DeviceType_HardDisk)
         AssertReturn(aMedium, E_INVALIDARG);
@@ -82,9 +82,11 @@ HRESULT MediumAttachment::init(Machine *aParent,
     unconst(m->port)   = aPort;
     unconst(m->device) = aDevice;
     unconst(m->type)   = aType;
-    unconst(m->passthrough) = false;
+    unconst(m->passthrough) = aPassthrough;
 
-    m->implicit = aImplicit;
+    /* Newly created attachments never have an implicitly created medium
+     * associated with them. Implicit diff image creation happens later. */
+    m->implicit = false;
 
     /* Confirm a successful initialization when it's the case */
     autoInitSpan.setSucceeded();
@@ -96,7 +98,7 @@ HRESULT MediumAttachment::init(Machine *aParent,
                           this,
                           psz ? psz - ctlName.c_str() : 4, ctlName.c_str(),
                           aPort, aDevice, Global::stringifyDeviceType(aType),
-                          aImplicit ? ":I" : "");
+                          m->implicit ? ":I" : "");
 
     LogFlowThisFunc(("LEAVE - %s\n", getLogName()));
     return S_OK;

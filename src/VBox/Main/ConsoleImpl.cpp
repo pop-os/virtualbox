@@ -1,4 +1,4 @@
-/* $Id: ConsoleImpl.cpp 24989 2009-11-26 11:31:46Z vboxsync $ */
+/* $Id: ConsoleImpl.cpp $ */
 
 /** @file
  *
@@ -2103,7 +2103,7 @@ STDMETHODIMP Console::SaveState(IProgress **aProgress)
 
 STDMETHODIMP Console::AdoptSavedState(IN_BSTR aSavedStateFile)
 {
-    CheckComArgNotNull(aSavedStateFile);
+    CheckComArgStrNotEmptyOrNull(aSavedStateFile);
 
     AutoCaller autoCaller(this);
     CheckComRCReturnRC(autoCaller.rc());

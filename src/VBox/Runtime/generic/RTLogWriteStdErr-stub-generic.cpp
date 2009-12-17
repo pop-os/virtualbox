@@ -1,4 +1,4 @@
-/* $Id: RTLogWriteStdErr-stub-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
+/* $Id: RTLogWriteStdErr-stub-generic.cpp $ */
 /** @file
  * IPRT - Log To StdErr, Generic Dummy.
  */

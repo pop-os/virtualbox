@@ -1,4 +1,4 @@
-/** @file $Id: vboxvideo_dri.c 20877 2009-06-24 06:23:48Z vboxsync $
+/** @file $Id: vboxvideo_dri.c $
  *
  * VirtualBox X11 Additions graphics driver, DRI support
  */

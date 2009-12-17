@@ -1,4 +1,4 @@
-/* $Id: testi.cpp 19944 2009-05-23 21:48:08Z vboxsync $ */
+/* $Id: testi.cpp $ */
 /** @file
  * IPRT - Testcase Framework, the implicit test handle API variation.
  */

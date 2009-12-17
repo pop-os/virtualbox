@@ -1,4 +1,4 @@
-/* $Id: PDMAsyncCompletionFileCache.cpp 24708 2009-11-16 18:18:53Z vboxsync $ */
+/* $Id: PDMAsyncCompletionFileCache.cpp $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  * File data cache.

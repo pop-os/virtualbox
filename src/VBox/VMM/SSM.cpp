@@ -1,4 +1,4 @@
-/* $Id: SSM.cpp 24917 2009-11-24 15:45:00Z vboxsync $ */
+/* $Id: SSM.cpp $ */
 /** @file
  * SSM - Saved State Manager.
  */

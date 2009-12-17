@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceExec.cpp 23653 2009-10-09 15:36:16Z vboxsync $ */
+/* $Id: VBoxServiceExec.cpp $ */
 /** @file
  * VBoxServiceExec - Host-driven Command Execution.
  */
@@ -133,46 +133,11 @@ static int VBoxServiceExecValidateFlags(const char *pszFlags)
  */
 static int VBoxServiceExecReadHostProp(const char *pszPropName, char **ppszValue, uint64_t *puTimestamp)
 {
-    size_t  cbBuf = _1K;
-    void   *pvBuf = NULL;
-    int     rc;
-
-    *ppszValue = NULL;
-
-    for (unsigned cTries = 0; cTries < 10; cTries++)
+    char *pszFlags, *pszValue;
+    uint64_t uTimestamp;
+    int rc = VBoxServiceReadProp(g_uExecGuestPropSvcClientID, pszPropName, ppszValue, &pszFlags, puTimestamp);
+    if (RT_SUCCESS(rc))
     {
-        /*
-         * (Re-)Allocate the buffer and try read the property.
-         */
-        RTMemFree(pvBuf);
-        pvBuf = RTMemAlloc(cbBuf);
-        if (!pvBuf)
-        {
-            VBoxServiceError("Exec: Failed to allocate %zu bytes\n", cbBuf);
-            rc = VERR_NO_MEMORY;
-            break;
-        }
-        char    *pszValue;
-        char    *pszFlags;
-        uint64_t uTimestamp;
-        rc = VbglR3GuestPropRead(g_uExecGuestPropSvcClientID, pszPropName,
-                                 pvBuf, cbBuf,
-                                 &pszValue, &uTimestamp, &pszFlags, NULL);
-        if (RT_FAILURE(rc))
-        {
-            if (rc == VERR_BUFFER_OVERFLOW)
-            {
-                /* try again with a bigger buffer. */
-                cbBuf *= 2;
-                continue;
-            }
-            if (rc == VERR_NOT_FOUND)
-                VBoxServiceVerbose(2, "Exec: %s not found\n", pszPropName);
-            else
-                VBoxServiceError("Exec: Failed to query \"%s\": %Rrc\n", pszPropName, rc);
-            break;
-        }
-
         /*
          * Validate it and set return values on success.
          */
@@ -183,24 +148,22 @@ static int VBoxServiceExecReadHostProp(const char *pszPropName, char **ppszValue
             if (++s_cBitched < 10)
                 VBoxServiceError("Exec: Flag validation failed for \"%s\": %Rrc; flags=\"%s\"\n",
                                  pszPropName, rc, pszFlags);
-            break;
         }
-        VBoxServiceVerbose(2, "Exec: Read \"%s\" = \"%s\", timestamp %RU64n\n",
-                           pszPropName, pszValue, uTimestamp);
-        *ppszValue = RTStrDup(pszValue);
-        if (!*ppszValue)
+        else
         {
-            VBoxServiceError("Exec: RTStrDup failed for \"%s\"\n", pszValue);
-            rc = VERR_NO_MEMORY;
-            break;
+            VBoxServiceVerbose(2, "Exec: Read \"%s\" = \"%s\", timestamp %RU64n\n",
+                               pszPropName, pszValue, uTimestamp);
+            *ppszValue = RTStrDup(pszValue);
+            if (!*ppszValue)
+            {
+                VBoxServiceError("Exec: RTStrDup failed for \"%s\"\n", pszValue);
+                rc = VERR_NO_MEMORY;
+            }
+            if (puTimestamp)
+                *puTimestamp = uTimestamp;
         }
-
-        if (puTimestamp)
-            *puTimestamp = uTimestamp;
-        break; /* done */
+        RTStrFree(pszFlags);
     }
-
-    RTMemFree(pvBuf);
     return rc;
 }
 
@@ -346,7 +309,7 @@ DECLCALLBACK(int) VBoxServiceExecWorker(bool volatile *pfShutdown)
             char szSysprepCmd[RTPATH_MAX] = "C:\\sysprep\\sysprep.exe";
             OSVERSIONINFOEX OSInfoEx;
             RT_ZERO(OSInfoEx);
-            OSInfoEx.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+            OSInfoEx.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
             if (    GetVersionEx((LPOSVERSIONINFO) &OSInfoEx)
                 &&  OSInfoEx.dwPlatformId == VER_PLATFORM_WIN32_NT
                 &&  OSInfoEx.dwMajorVersion >= 6 /* Vista or later */)
@@ -504,8 +467,11 @@ static DECLCALLBACK(void) VBoxServiceExecTerm(void)
     VbglR3GuestPropDisconnect(g_uExecGuestPropSvcClientID);
     g_uExecGuestPropSvcClientID = 0;
 
-    RTSemEventMultiDestroy(g_hExecEvent);
-    g_hExecEvent = NIL_RTSEMEVENTMULTI;
+    if (g_hExecEvent != NIL_RTSEMEVENTMULTI)
+    {
+        RTSemEventMultiDestroy(g_hExecEvent);
+        g_hExecEvent = NIL_RTSEMEVENTMULTI;
+    }
 }
 
 

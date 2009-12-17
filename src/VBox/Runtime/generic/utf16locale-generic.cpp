@@ -1,4 +1,4 @@
-/* $Id: utf16locale-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
+/* $Id: utf16locale-generic.cpp $ */
 /** @file
  * IPRT - UTF-16 Locale Specific Manipulation, Generic.
  */

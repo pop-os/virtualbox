@@ -174,8 +174,8 @@ typedef struct NATState
 #ifdef RT_OS_WINDOWS
     ULONG (WINAPI * pfGetAdaptersAddresses)(ULONG, ULONG, PVOID, PIP_ADAPTER_ADDRESSES, PULONG);
 #endif
-    struct dns_list_head dns_list_head;
-    struct dns_domain_list_head dns_domain_list_head;
+    struct dns_list_head pDnsList;
+    struct dns_domain_list_head pDomainList;
     struct in_addr tftp_server;
     struct in_addr loopback_addr;
     uint32_t netmask;
@@ -317,7 +317,8 @@ typedef struct NATState
     struct libalias *dns_alias;
     LIST_HEAD(handler_chain, proto_handler) handler_chain;
     struct port_forward_rule_list port_forward_rule_head;
-    int port_forwarding_activated;
+    int cRedirectionsActive;
+    int cRedirectionsStored;
     struct arp_cache_head arp_cache;
     /*libalis modules' handlers*/
     struct proto_handler *ftp_module;
@@ -402,7 +403,6 @@ typedef struct NATState
 #else
 # define handler_chain pData->handler_chain
 #endif
-#define special_addr pData->special_addr
 #define dns_addr pData->dns_addr
 #define loopback_addr pData->loopback_addr
 #define client_ethaddr pData->client_ethaddr

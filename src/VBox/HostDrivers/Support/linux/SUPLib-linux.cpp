@@ -1,4 +1,4 @@
-/* $Id: SUPLib-linux.cpp 22632 2009-09-01 07:57:32Z vboxsync $ */
+/* $Id: SUPLib-linux.cpp $ */
 /** @file
  * VirtualBox Support Library - GNU/Linux specific parts.
  */

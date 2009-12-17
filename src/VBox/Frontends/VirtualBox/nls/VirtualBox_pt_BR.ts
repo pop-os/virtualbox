@@ -2109,6 +2109,11 @@ p, li { white-space: pre-wrap; }
         <source>&amp;Dock Icon Realtime Preview</source>
         <translation>Atualização em Tempo Real do Ícone da Barra (&amp;D)</translation>
     </message>
+    <message>
+        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
+        <translatorcomment>Mostrar Dock e Barra de Menus &amp;automaticamente em tela cheia</translatorcomment>
+        <translation></translation>
+    </message>
 </context>
 <context>
     <name>VBoxGLSettingsInput</name>
@@ -3675,6 +3680,52 @@ p, li { white-space: pre-wrap; }
         <source>This base hard disk is indirectly attached using the following differencing hard disk:</source>
         <comment>medium</comment>
         <translation>Este disco rígido de base está indiretamente conectado através do seguinte disco rígido diferencial:</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n year(s)</source>
+        <translation>
+            <numerusform>%n ano(s)</numerusform>
+            <numerusform>%n anos</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n month(s)</source>
+        <translation>
+            <numerusform>%n mês(meses)</numerusform>
+            <numerusform>%n meses</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s)</source>
+        <translation>
+            <numerusform>%n dia(s)</numerusform>
+            <numerusform>%n dias</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s)</source>
+        <translation>
+            <numerusform>%n hora(s)</numerusform>
+            <numerusform>%n horas</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n minuto(s)</numerusform>
+            <numerusform>%n minuto(s)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s)</source>
+        <translation>
+            <numerusform>%n segundo(s)</numerusform>
+            <numerusform>%n segundos</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>(CD/DVD)</source>
+        <translation>(CD/DVD)</translation>
     </message>
 </context>
 <context>
@@ -6248,6 +6299,15 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
         <comment>failed to close ...</comment>
         <translation>dispositivo de disquete</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to delete the CD/DVD-ROM device?&lt;/p&gt;&lt;p&gt;You will not be able to mount any CDs or ISO images or install the Guest Additions without it!&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Você tem certeza de que deseja remover o dispositivo de CD/DVD-ROM?&lt;/p&gt;&lt;p&gt;Você não poderá ler nenhum CD, montar imagens ISO ou instalar os Adicionais para Convidado sem ele!&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Remove</source>
+        <comment>medium</comment>
+        <translation>&amp;Remover</translation>
+    </message>
 </context>
 <context>
     <name>VBoxProgressDialog</name>
@@ -6261,55 +6321,55 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>%1 days, %2 hours remaining</source>
-        <translation>%1 dias, %2 horas restantes</translation>
+        <translation type="obsolete">%1 dias, %2 horas restantes</translation>
     </message>
     <message>
         <source>%1 days, %2 minutes remaining</source>
-        <translation>%1 dias, %2 minutos restantes</translation>
+        <translation type="obsolete">%1 dias, %2 minutos restantes</translation>
     </message>
     <message>
         <source>%1 days remaining</source>
-        <translation>%1 dias restantes</translation>
+        <translation type="obsolete">%1 dias restantes</translation>
     </message>
     <message>
         <source>1 day, %1 hours remaining</source>
-        <translation>1 dia, %1 horas restantes</translation>
+        <translation type="obsolete">1 dia, %1 horas restantes</translation>
     </message>
     <message>
         <source>1 day, %1 minutes remaining</source>
-        <translation>1 dia, %1 minutos restantes</translation>
+        <translation type="obsolete">1 dia, %1 minutos restantes</translation>
     </message>
     <message>
         <source>1 day remaining</source>
-        <translation>1 dia restante</translation>
+        <translation type="obsolete">1 dia restante</translation>
     </message>
     <message>
         <source>%1 hours, %2 minutes remaining</source>
-        <translation>%1 horas, %2 minutos restantes</translation>
+        <translation type="obsolete">%1 horas, %2 minutos restantes</translation>
     </message>
     <message>
         <source>1 hour, %1 minutes remaining</source>
-        <translation>1 hora, %1 minutos restantes</translation>
+        <translation type="obsolete">1 hora, %1 minutos restantes</translation>
     </message>
     <message>
         <source>1 hour remaining</source>
-        <translation>1 hora restante</translation>
+        <translation type="obsolete">1 hora restante</translation>
     </message>
     <message>
         <source>%1 minutes remaining</source>
-        <translation>%1 minutos restantes</translation>
+        <translation type="obsolete">%1 minutos restantes</translation>
     </message>
     <message>
         <source>1 minute, %2 seconds remaining</source>
-        <translation>1 minuto, %2 segundos restantes</translation>
+        <translation type="obsolete">1 minuto, %2 segundos restantes</translation>
     </message>
     <message>
         <source>1 minute remaining</source>
-        <translation>1 minuto restante</translation>
+        <translation type="obsolete">1 minuto restante</translation>
     </message>
     <message>
         <source>%1 seconds remaining</source>
-        <translation>%1 segundos restantes</translation>
+        <translation type="obsolete">%1 segundos restantes</translation>
     </message>
     <message>
         <source>A few seconds remaining</source>
@@ -6322,6 +6382,16 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     <message>
         <source>Cancel the current operation</source>
         <translation>Cancelando a operação atual</translation>
+    </message>
+    <message>
+        <source>%1, %2 remaining</source>
+        <comment>You may wish to translate this more like &quot;Time remaining: %1, %2&quot;</comment>
+        <translation>Tempo restante: %1, %2</translation>
+    </message>
+    <message>
+        <source>%1 remaining</source>
+        <comment>You may wish to translate this more like &quot;Time remaining: %1&quot;</comment>
+        <translation>Tempo restante: %1</translation>
     </message>
 </context>
 <context>
@@ -7195,28 +7265,28 @@ para acessá-lo de um sistema operacional Linux. Este recurso requer a instalaç
     </message>
     <message numerus="yes">
         <source> (%n day(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (%n dia atrás)</numerusform>
             <numerusform> (%n dias atrás)</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source> (%n hour(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (%n hora atrás)</numerusform>
             <numerusform> (%n horas atrás)</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source> (%n minute(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (%n minuto atrás)</numerusform>
             <numerusform> (%n minutos atrás)</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source> (%n second(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (%n segundo atrás)</numerusform>
             <numerusform> (%n segundos atrás)</numerusform>
         </translation>
@@ -7236,6 +7306,10 @@ para acessá-lo de um sistema operacional Linux. Este recurso requer a instalaç
     <message>
         <source>Delete the selected snapshot of the virtual machine</source>
         <translation>Apaga o snapshot selecionado para a máquina virtual</translation>
+    </message>
+    <message>
+        <source> (%1 ago)</source>
+        <translation> (%1 atrás)</translation>
     </message>
 </context>
 <context>
@@ -7286,6 +7360,13 @@ para acessá-lo de um sistema operacional Linux. Este recurso requer a instalaç
     <message>
         <source>Cancel</source>
         <translation type="obsolete">Cancelar</translation>
+    </message>
+    <message numerus="yes">
+        <source>Warning: You are taking a snapshot of a running machine which has %n immutable image(s) attached to it. As long as you are working from this snapshot the immutable image(s) will not be reset to avoid loss of data.</source>
+        <translation>
+            <numerusform>Aviso: Você está criando um snapshot de uma máquina em execução que possui %n imagem imutável associada a ela. Enquanto você estiver trabalhando a partir deste snapshot, a imagem imutável não será reestabelecida para evitar perda de dados.</numerusform>
+            <numerusform>Aviso: Você está criando um snapshot de uma máquina em execução que possui %n imagens imutáveis associadas a ela. Enquanto você estiver trabalhando a partir deste snapshot, as imagens imutáveis não serão reestabelecidas para evitar perda de dados.</numerusform>
+        </translation>
     </message>
 </context>
 <context>
@@ -10047,11 +10128,11 @@ faz com que o convidado veja uma placa de som, mas todos os acessos a ela serão
     </message>
     <message>
         <source>Adds a new controller to the end of the Storage Tree.</source>
-        <translation>Adiciona uma nova controladora ao final da Árvore de Armazenamento</translation>
+        <translation>Adiciona uma nova controladora ao final da Árvore de Armazenamento.</translation>
     </message>
     <message>
         <source>Removes the controller highlighted in the Storage Tree.</source>
-        <translation>Remove a controladora selecionada da Árvore de Armazenamento</translation>
+        <translation>Remove a controladora selecionada da Árvore de Armazenamento.</translation>
     </message>
     <message>
         <source>Adds a new attachment to the Storage Tree using currently selected controller as parent.</source>

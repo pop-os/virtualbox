@@ -1,4 +1,4 @@
-/* $Id: state_framebuffer.c 24569 2009-11-11 08:54:03Z vboxsync $ */
+/* $Id: state_framebuffer.c $ */
 
 /** @file
  * VBox OpenGL: EXT_framebuffer_object state tracking

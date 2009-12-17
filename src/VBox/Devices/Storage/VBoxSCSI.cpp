@@ -1,4 +1,4 @@
-/* $Id: VBoxSCSI.cpp 21321 2009-07-07 12:31:37Z vboxsync $ */
+/* $Id: VBoxSCSI.cpp $ */
 /** @file
  *
  * VBox storage devices:

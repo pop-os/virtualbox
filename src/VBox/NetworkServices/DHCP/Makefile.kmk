@@ -1,4 +1,4 @@
- # $Id: Makefile.kmk 22562 2009-08-28 17:58:24Z vboxsync $
+ # $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for VBoxNetDHCP.
 #

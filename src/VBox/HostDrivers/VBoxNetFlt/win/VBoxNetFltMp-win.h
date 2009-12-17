@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltMp-win.h 21343 2009-07-07 15:30:08Z vboxsync $ */
+/* $Id: VBoxNetFltMp-win.h $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Miniport edge of ndis filter driver
  */

@@ -1,4 +1,4 @@
-; $Id: SrvIntNetR0A-win.asm 21406 2009-07-08 15:28:18Z vboxsync $ */
+; $Id: SrvIntNetR0A-win.asm $ */
 ;; @file
 ; Internal networking - The ring 0 service.
 ;

@@ -1,4 +1,4 @@
-/* $Id: tls-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
+/* $Id: tls-generic.cpp $ */
 /** @file
  * IPRT - Thread Local Storage (TSL), Generic Implementation.
  */

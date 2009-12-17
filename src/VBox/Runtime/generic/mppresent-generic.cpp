@@ -1,4 +1,4 @@
-/* $Id: mppresent-generic.cpp 21337 2009-07-07 14:58:27Z vboxsync $ */
+/* $Id: mppresent-generic.cpp $ */
 /** @file
  * IPRT - Multiprocessor, Stubs for the RTMp*Present* API.
  */

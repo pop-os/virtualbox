@@ -1,4 +1,4 @@
-/* $Id: VMMSwitcher.h 20374 2009-06-08 00:43:21Z vboxsync $ */
+/* $Id: VMMSwitcher.h $ */
 /** @file
  * VMM - World Switchers.
  */

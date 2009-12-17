@@ -1,4 +1,4 @@
-/* $Id: tstUtf8.cpp 25000 2009-11-26 14:22:44Z vboxsync $ */
+/* $Id: tstUtf8.cpp $ */
 /** @file
  * IPRT Testcase - UTF-8 and UTF-16 string conversions.
  */

@@ -1,4 +1,4 @@
-/* $Id: RTDirQueryInfo-generic.cpp 23295 2009-09-24 16:27:51Z vboxsync $ */
+/* $Id: RTDirQueryInfo-generic.cpp $ */
 /** @file
  * IPRT - RTDirQueryInfo, generic implementation.
  */

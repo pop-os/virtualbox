@@ -1,4 +1,4 @@
-/* $Id: TRPMGC.cpp 19141 2009-04-23 13:52:18Z vboxsync $ */
+/* $Id: TRPMGC.cpp $ */
 /** @file
  * TRPM - The Trap Monitor, Guest Context
  */

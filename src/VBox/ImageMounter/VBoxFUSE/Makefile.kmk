@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 23052 2009-09-16 08:28:05Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the VBoxFUSE Program.
 #

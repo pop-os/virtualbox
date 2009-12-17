@@ -1,4 +1,4 @@
-/* $Id: tstDeadlock.cpp 14831 2008-11-30 10:31:16Z vboxsync $ */
+/* $Id: tstDeadlock.cpp $ */
 /** @file
  * IPRT Testcase - deadlock detection. Will never really "work".
  */

@@ -1,4 +1,4 @@
-/* $Id: thread.cpp 25000 2009-11-26 14:22:44Z vboxsync $ */
+/* $Id: thread.cpp $ */
 /** @file
  * IPRT - Threads, common routines.
  */

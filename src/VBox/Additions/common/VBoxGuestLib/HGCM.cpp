@@ -1,4 +1,4 @@
-/* $Revision: 21461 $ */
+/* $Revision: 49879 $ */
 /** @file
  * VBoxGuestLib - Host-Guest Communication Manager.
  *
