@@ -1,5 +1,6 @@
-virtualbox-ose (3.1.2-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (3.1.2-dfsg-1) unstable; urgency=low
 
+  [ Felix Geyer ]
   * New upstream version.
     - Fixes FTBFS with binutils-gold. (Closes: #556918)
   * Adapt patches for new upstream version.
@@ -9,7 +10,7 @@ virtualbox-ose (3.1.2-dfsg-1) UNRELEASED; urgency=low
   * Use common dkms postinst script instead of custom code. (LP: #497149)
   * Check for right package in dkms prerm.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Thu, 17 Dec 2009 21:14:07 +0100
+ -- Michael Meskes <meskes@debian.org>  Fri, 18 Dec 2009 08:23:16 +0100
 
 virtualbox-ose (3.1.0-dfsg-3) unstable; urgency=low
 
