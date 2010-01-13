@@ -1,20 +1,67 @@
 #! /bin/sh /usr/share/dpatch/dpatch-run
-## 16-no-update.dpatch by Michael Meskes <meskes@debian.org>
+## u01-disable-update-action.dpatch by Daniel Hahler <ubuntu@thequod.de>
 ##
 ## All lines beginning with `## DP:' are a description of the patch.
-## DP: Do not check for updates
+## DP: Disable "Check for Updates" action (LP: #272212)
 
 @DPATCH@
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Main/VirtualBoxImpl.cpp virtualbox-ose-3.0.8-dfsg/src/VBox/Main/VirtualBoxImpl.cpp
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/Main/VirtualBoxImpl.cpp	2009-10-07 11:27:14.000000000 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/Main/VirtualBoxImpl.cpp	2009-10-07 13:44:02.835497353 +0200
-@@ -90,6 +90,9 @@
-     "<VirtualBox xmlns=\"" VBOX_XML_NAMESPACE "\" "
-         "version=\"" VBOX_XML_VERSION_FULL "\">" RTFILE_LINEFEED
-     "  <Global>"RTFILE_LINEFEED
-+    "    <ExtraData>"RTFILE_LINEFEED
-+    "      <ExtraDataItem name=\"GUI/UpdateDate\" value=\"never\"/>"RTFILE_LINEFEED
-+    "    </ExtraData>"RTFILE_LINEFEED
-     "    <MachineRegistry/>"RTFILE_LINEFEED
-     "    <MediaRegistry/>"RTFILE_LINEFEED
-     "    <NetserviceRegistry>"RTFILE_LINEFEED
+diff -urNad virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp
+--- virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp	2009-04-29 09:12:58.000000000 +0200
++++ virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp	2009-05-16 16:07:45.094522826 +0200
+@@ -4936,6 +4936,9 @@
+  */
+ void VBoxGlobal::showUpdateDialog (bool aForce)
+ {
++    /* Update dialog disabled in Ubuntu: */
++    return;
++
+     /* Silently check in one day after current time-stamp */
+     QTimer::singleShot (24 /* hours */   * 60   /* minutes */ *
+                         60 /* seconds */ * 1000 /* milliseconds */,
+diff -urNad virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.cpp virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.cpp
+--- virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.cpp	2009-04-29 09:12:58.000000000 +0200
++++ virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.cpp	2009-05-16 16:07:06.586518040 +0200
+@@ -45,7 +45,7 @@
+ {
+     VBoxUpdateData data (vboxGlobal().virtualBox().GetExtraData (VBoxDefs::GUI_UpdateDate));
+ 
+-    mCbCheck->setChecked (!data.isNoNeedToCheck());
++    mCbCheck->setChecked (false);
+     if (mCbCheck->isChecked())
+     {
+         mCbOncePer->setCurrentIndex (data.periodIndex());
+diff -urNad virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp
+--- virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp	2009-04-29 09:12:58.000000000 +0200
++++ virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp	2009-05-16 16:11:47.386517660 +0200
+@@ -87,8 +87,7 @@
+ #endif
+ 
+     aMenu->addAction (updateAction);
+-    updateAction->setEnabled (vboxGlobal().virtualBox().
+-        GetExtraData (VBoxDefs::GUI_UpdateDlgWinID).isEmpty());
++    updateAction->setEnabled (false);
+ 
+ #ifndef Q_WS_MAC
+     aMenu->addSeparator();
+diff -urNad virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.ui virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.ui
+--- virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.ui	2009-04-29 09:12:58.000000000 +0200
++++ virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.ui	2009-05-16 16:12:57.066517714 +0200
+@@ -18,6 +18,9 @@
+  </comment>
+  <class>VBoxGLSettingsUpdate</class>
+  <widget class="QWidget" name="VBoxGLSettingsUpdate" >
++  <property name="enabled" >
++   <bool>false</bool>
++  </property>
+   <property name="geometry" >
+    <rect>
+     <x>0</x>
+@@ -48,7 +51,7 @@
+       <string>&amp;Check for updates</string>
+      </property>
+      <property name="checked" >
+-      <bool>true</bool>
++      <bool>false</bool>
+      </property>
+     </widget>
+    </item>
