@@ -14,6 +14,7 @@ sxname:=virtualbox-ose-qt
 gname:=virtualbox-ose-guest
 uname:=virtualbox-ose-guest-utils
 uxname:=virtualbox-ose-guest-x11
+fname:=virtualbox-ose-fuse
 
 # Some defines needed for X
 SERVERMINVERS = $(shell cat /usr/share/xserver-xorg/serverminver 2>/dev/null)
@@ -64,6 +65,7 @@ build-stamp: out/env.sh
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
 	    $(if $(DH_VERBOSE),KBUILD_VERBOSE=2,)
+	./debian/vdfuse/vdbuild.sh include debian/vdfuse/vdfuse.c
 	touch $@
 
 clean: unpatch
@@ -79,6 +81,7 @@ clean: unpatch
 	rm -f debian/$(gdkms).dirs
 	rm -f debian/$(pdkms).links
 	rm -f debian/$(gdkms).links
+	rm -f debian/vdfuse/vdfuse
 
 	find . -name "*.pyc" -exec rm -f {} \;
 	dh_clean
