@@ -19,6 +19,7 @@ Build-Depends: bcc,
                libcap2-dev,
                libcurl4-openssl-dev | libcurl3-openssl-dev (>= 7.16.1),
                libdrm-dev,
+               libfuse-dev,
                libgl1-mesa-dev,
                libglu1-mesa-dev,
                libidl-dev,
@@ -207,3 +208,17 @@ Description: x86 virtualization solution - non-X11 guest utilities
  VirtualBox. These utilities are meant to be run inside the virtual machine.
  They provide closer integration and allow to share data through shared folders
  between the host system and the virtual machine.
+
+Package: virtualbox-ose-fuse
+Architecture: i386 amd64 lpia
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         virtualbox-ose (= ${binary:Version})
+Description: x86 virtualization solution - virtual filesystem
+ VirtualBox is a free x86 virtualization solution allowing a wide range
+ of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
+ Linux system.
+ .
+ This package provides a FUSE-based VFS (Virtual FileSystem) to mount a
+ VirtualBox disk so all partitions can be loop-mounted.
+
