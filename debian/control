@@ -75,7 +75,7 @@ Depends: ${shlibs:Depends},
          ${misc:Depends},
          ${python:Depends},
          adduser
-Recommends: virtualbox-ose-dkms (= ${binary:Version}) | virtualbox-ose-source (= ${binary:Version}), 
+Recommends: virtualbox-ose-dkms (= ${source:Version}) | virtualbox-ose-source (= ${source:Version}),
             virtualbox-ose-qt (= ${binary:Version}),
             libgl1
 Suggests: virtualbox-guest-additions,
@@ -197,7 +197,7 @@ Architecture: i386 amd64 lpia
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          pciutils
-Recommends: virtualbox-ose-guest-dkms (= ${binary:Version}) | virtualbox-ose-guest-source (= ${binary:Version}),
+Recommends: virtualbox-ose-guest-dkms (= ${source:Version}) | virtualbox-ose-guest-source (= ${source:Version}),
             virtualbox-ose-guest-x11 (= ${binary:Version})
 Description: x86 virtualization solution - non-X11 guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range
