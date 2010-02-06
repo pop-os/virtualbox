@@ -1,7 +1,6 @@
 #!/bin/sh /usr/share/dpatch/dpatch-run
-## 01-build-arch.dpatch by Michael Meskes <meskes@debian.org>
-##
-## DP: Correctly check build architecture.
+# Description: Correctly check build architecture.
+# Author: Michael Meskes <meskes@debian.org>
 
 @DPATCH@
 diff -urNad virtualbox-ose-3.0.8-dfsg~/configure virtualbox-ose-3.0.8-dfsg/configure

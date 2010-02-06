@@ -1,8 +1,6 @@
 #! /bin/sh /usr/share/dpatch/dpatch-run
-## 18-xorg-1.6.dpatch by Michael Meskes <meskes@debian.org>
-##
-## All lines beginning with `## DP:' are a description of the patch.
-## DP: Use XServer-Xorg 1.6
+# Description: Use XServer-Xorg 1.6
+# Author: Michael Meskes <meskes@debian.org>
 
 @DPATCH@
 diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/common/crOpenGL/Makefile.kmk virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/common/crOpenGL/Makefile.kmk

@@ -1,11 +1,10 @@
 #! /bin/sh /usr/share/dpatch/dpatch-run
-## 22-no-static-libstdcpp.dpatch by Lubomir Rintel <lkundrak@v3.sk>
-##
-## All lines beginning with `## DP:' are a description of the patch.
-## DP: Do not include statically linked libstdc++. Not a good idea if we don't need
-## DP: to be binary-compatible across exotic distribution. Doesn't work with trunk
-## DP: glibc heading towards 2.11 anyways. Static linking is not really supported
-## DP: anyways.
+# Description: Do not include statically linked libstdc++.
+#  Not a good idea if we don't need to be binary-compatible across exotic
+#  distribution. Doesn't work with trunk glibc heading towards 2.11 anyways.
+#  Static linking is not really supported anyways.
+# Author: Lubomir Rintel <lkundrak@v3.sk>
+# Origin: http://cvs.rpmfusion.org/viewvc/rpms/VirtualBox-OSE/devel/VirtualBox-OSE-3.1.0-libcxx.patch?root=free&view=markup
 
 @DPATCH@
 diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/x11/VBoxClient/Makefile.kmk virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/x11/VBoxClient/Makefile.kmk

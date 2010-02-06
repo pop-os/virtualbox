@@ -1,8 +1,6 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-## 15-wined3d-guest-addition.dpatch by Robert Millan <rmh@aybabtu.com>
-##
-## All lines beginning with `## DP:' are a description of the patch.
-## DP: Add WineD3D guest additions
+#!/bin/sh /usr/share/dpatch/dpatch-run
+# Description: Add WineD3D guest additions.
+# Author: Robert Millan <rmh@aybabtu.com>
 
 @DPATCH@
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.h virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxConsoleWnd.h

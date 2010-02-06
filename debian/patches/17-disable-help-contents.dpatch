@@ -1,8 +1,7 @@
 #! /bin/sh /usr/share/dpatch/dpatch-run
-## 17-disable-help-contents.dpatch by Daniel Hahler <ubuntu@thequod.de>
-##
-## All lines beginning with `## DP:' are a description of the patch.
-## DP: Disable Help>Contents... menu item (LP: #323988)
+# Description: Disable Help>Contents... menu item.
+# Bug-Ubuntu: https://bugs.launchpad.net/bugs/323988
+# Author: Daniel Hahler <ubuntu@thequod.de>
 
 @DPATCH@
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp

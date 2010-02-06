@@ -1,7 +1,6 @@
 #!/bin/sh /usr/share/dpatch/dpatch-run
-## 13-module-mismatch.dpatch by Daniel Baumann <daniel@debian.org>
-##
-## DP: Adjusts failure message with Debian specific solution.
+# Description: Adjusts failure message with Debian specific solution.
+# Author: Daniel Baumann <daniel@debian.org>
 
 @DPATCH@
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/VMM/VM.cpp virtualbox-ose-3.0.8-dfsg/src/VBox/VMM/VM.cpp

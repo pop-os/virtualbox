@@ -1,7 +1,6 @@
 #!/bin/sh /usr/share/dpatch/dpatch-run
-## 12-make-module.dpatch by Michael Meskes <meskes@debian.org>
-##
-## DP: Fix ARCH setting in modules Makefiles
+# Description: Fix ARCH setting in modules Makefiles.
+# Author: Michael Meskes <meskes@debian.org>
 
 @DPATCH@
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Additions/linux/sharedfolders/Makefile.module virtualbox-ose-3.0.8-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.module

@@ -1,7 +1,6 @@
 #!/bin/sh /usr/share/dpatch/dpatch-run
-## 06-xsession.dpatch by Michael Meskes <meskes@debian.org>
-##
-## DP: make Xsession.d script ignore errors.
+# Description: Make Xsession.d script ignore errors.
+# Author: Michael Meskes <meskes@debian.org>
 
 @DPATCH@
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Additions/x11/Installer/98vboxadd-xclient virtualbox-ose-3.0.8-dfsg/src/VBox/Additions/x11/Installer/98vboxadd-xclient

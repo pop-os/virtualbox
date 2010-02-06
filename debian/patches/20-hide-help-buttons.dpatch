@@ -1,8 +1,6 @@
 #! /bin/sh /usr/share/dpatch/dpatch-run
-## 20-hide-help-buttons.dpatch by Felix Geyer <debfx-pkg@fobos.de>
-##
-## All lines beginning with `## DP:' are a description of the patch.
-## DP: Hide useless help buttons in dialogs
+# Description: Hide useless help buttons in dialogs
+# Author: Felix Geyer <debfx-pkg@fobos.de>
 
 @DPATCH@
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxCloseVMDlg.ui virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxCloseVMDlg.ui
