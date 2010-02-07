@@ -1,5 +1,0 @@
-#!/bin/sh
-
-export LD_LIBRARY_PATH=/usr/lib/virtualbox
-
-exec /usr/share/virtualbox/vdfuse-v60 "$@"

@@ -65,7 +65,7 @@ build-stamp: out/env.sh
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
 	    $(if $(DH_VERBOSE),KBUILD_VERBOSE=2,)
-	( cd debian/vdfuse; gcc vdfuse-v60.c -o vdfuse-v60 -D_FILE_OFFSET_BITS=64 -I/usr/include/fuse -pthread -lfuse -lrt -ldl -I../../include -l:/usr/lib/virtualbox/VBoxDD.so -Wall -pipe )
+	gcc debian/vdfuse/vdfuse-v60.c -o debian/vdfuse/vdfuse -pipe -Wl,--rpath,/usr/lib/virtualbox -Wall $(CFLAGS) $(shell pkg-config --cflags --libs fuse) -Iinclude out/bin/VBoxDD.so out/bin/VBoxDD2.so out/bin/VBoxDDU.so out/bin/VBoxVMM.so out/bin/VBoxREM.so out/bin/VBoxRT.so
 	touch $@
 
 clean: unpatch
@@ -81,7 +81,7 @@ clean: unpatch
 	rm -f debian/$(gdkms).dirs
 	rm -f debian/$(pdkms).links
 	rm -f debian/$(gdkms).links
-	rm -f debian/vdfuse/vdfuse-v60
+	rm -f debian/vdfuse/vdfuse
 
 	find . -name "*.pyc" -exec rm -f {} \;
 	dh_clean
