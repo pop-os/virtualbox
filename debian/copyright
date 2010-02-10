@@ -255,6 +255,16 @@ original X license and the innotek GPL license. The remaining sources under
 ./src/VBox/Additions/Linux only carry the innotek GPL license.
 
 -------------------------------------------------------------------------------
+The following files are licensed under GPLv2+:
+
+debian/vdfuse/vdfuse.c
+	Copyright (C) Terry Ellison and "h2o"
+	http://forums.virtualbox.org/viewtopic.php?f=7&t=17574
+
+On Debian systems, the complete text of the GNU General Public License
+can be found in /usr/share/common-licenses/GPL-2 file.
+
+-------------------------------------------------------------------------------
 
 Due to license issues, parts of the Guest Additions have to be removed from the
 sourcecode. Some of the files were copyright Microsoft with an license which has to be
