@@ -1,1 +1,3 @@
-debian/vdfuse/vdfuse	usr/bin
+debian/vdfuse/vdfuse usr/bin
+
+debian/lintian/virtualbox-ose-fuse /usr/share/lintian/overrides

@@ -16,7 +16,6 @@ virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxREM32.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxREM64.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxRT.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSDL.so
-virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSettings.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedClipboard.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedCrOpenGL.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxSharedFolders.so
