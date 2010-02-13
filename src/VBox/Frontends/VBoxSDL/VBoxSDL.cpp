@@ -973,8 +973,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     SDL_Event EvHKeyDown2;
 
     LogFlow(("SDL GUI started\n"));
-    RTPrintf("Sun VirtualBox SDL GUI version %s\n"
-             "(C) 2005-2009 Sun Microsystems, Inc.\n"
+    RTPrintf(VBOX_PRODUCT " SDL GUI version %s\n"
+             "(C) 2005-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
              "All rights reserved.\n\n",
              VBOX_VERSION_STRING);
 
@@ -984,48 +984,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         show_usage();
         return 1;
     }
-
-    rc = com::Initialize();
-    if (FAILED(rc))
-    {
-        RTPrintf("Error: COM initialization failed, rc = 0x%x!\n", rc);
-        return 1;
-    }
-
-    do
-    {
-    // scopes all the stuff till shutdown
-    ////////////////////////////////////////////////////////////////////////////
-
-    ComPtr <IVirtualBox> virtualBox;
-    ComPtr <ISession> session;
-    bool sessionOpened = false;
-
-    rc = virtualBox.createLocalObject (CLSID_VirtualBox);
-    if (FAILED(rc))
-    {
-        com::ErrorInfo info;
-        if (info.isFullAvailable())
-            PrintError("Failed to create VirtualBox object",
-                       info.getText().raw(), info.getComponent().raw());
-        else
-            RTPrintf("Failed to create VirtualBox object! No error information available (rc = 0x%x).\n", rc);
-        break;
-    }
-    rc = session.createInprocObject (CLSID_Session);
-    if (FAILED(rc))
-    {
-        RTPrintf("Failed to create session object, rc = 0x%x!\n", rc);
-        break;
-    }
-
-    EventQueue* eventQ = com::EventQueue::getMainEventQueue();
-
-    /* Get the number of network adapters */
-    ULONG NetworkAdapterCount = 0;
-    ComPtr <ISystemProperties> sysInfo;
-    virtualBox->COMGETTER(SystemProperties) (sysInfo.asOutParam());
-    sysInfo->COMGETTER (NetworkAdapterCount) (&NetworkAdapterCount);
 
     // command line argument parsing stuff
     for (int curArg = 1; curArg < argc; curArg++)
@@ -1040,8 +998,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: VM not specified (UUID or name)!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             // first check if a UUID was supplied
             if (RT_FAILURE(RTUuidFromStr(uuidVM.ptr(), argv[curArg])))
@@ -1056,8 +1013,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing argument for comment!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
         }
         else if (   !strcmp(argv[curArg], "--boot")
@@ -1066,8 +1022,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing argument for boot drive!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             switch (argv[curArg][0])
             {
@@ -1098,12 +1053,9 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 default:
                 {
                     RTPrintf("Error: wrong argument for boot drive!\n");
-                    rc = E_FAIL;
-                    break;
+                    return 1;
                 }
             }
-            if (FAILED (rc))
-                break;
         }
         else if (   !strcmp(argv[curArg], "--memory")
                  || !strcmp(argv[curArg], "-memory")
@@ -1112,8 +1064,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing argument for memory size!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             memorySize = atoi(argv[curArg]);
         }
@@ -1123,8 +1074,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing argument for vram size!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             vramSize = atoi(argv[curArg]);
         }
@@ -1148,8 +1098,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (curArg + 3 >= argc)
             {
                 RTPrintf("Error: missing arguments for fixed video mode!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             fixedWidth  = atoi(argv[++curArg]);
             fixedHeight = atoi(argv[++curArg]);
@@ -1177,8 +1126,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing a string of disabled hostkey combinations\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             gHostKeyDisabledCombinations = argv[curArg];
             size_t cch = strlen(gHostKeyDisabledCombinations);
@@ -1188,12 +1136,9 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 {
                     RTPrintf("Error: <hostkey> + '%c' is not a valid combination\n",
                              gHostKeyDisabledCombinations[i]);
-                    rc = E_FAIL;
-                    break;
+                    return 1;
                 }
             }
-            if (rc == E_FAIL)
-                break;
         }
         else if (   !strcmp(argv[curArg], "--nograbonclick")
                  || !strcmp(argv[curArg], "-nograbonclick"))
@@ -1211,8 +1156,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing file name for --pidfile!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             gpszPidFile = argv[curArg];
         }
@@ -1222,8 +1166,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing file name for first hard disk!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             /* resolve it. */
             if (RTPathExists(argv[curArg]))
@@ -1231,8 +1174,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (!hdaFile)
             {
                 RTPrintf("Error: The path to the specified harddisk, '%s', could not be resolved.\n", argv[curArg]);
-                rc = E_FAIL;
-                break;
+                return 1;
             }
         }
         else if (   !strcmp(argv[curArg], "--fda")
@@ -1241,8 +1183,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing file/device name for first floppy disk!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             /* resolve it. */
             if (RTPathExists(argv[curArg]))
@@ -1250,8 +1191,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (!fdaFile)
             {
                 RTPrintf("Error: The path to the specified floppy disk, '%s', could not be resolved.\n", argv[curArg]);
-                rc = E_FAIL;
-                break;
+                return 1;
             }
         }
         else if (   !strcmp(argv[curArg], "--cdrom")
@@ -1260,8 +1200,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing file/device name for cdrom!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             /* resolve it. */
             if (RTPathExists(argv[curArg]))
@@ -1269,8 +1208,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (!cdromFile)
             {
                 RTPrintf("Error: The path to the specified cdrom, '%s', could not be resolved.\n", argv[curArg]);
-                rc = E_FAIL;
-                break;
+                return 1;
             }
         }
 #if defined(RT_OS_LINUX) && defined(VBOXSDL_WITH_X11)
@@ -1314,8 +1252,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing font file name for secure label!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             secureLabelFontFile = argv[curArg];
         }
@@ -1325,8 +1262,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing font point size for secure label!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             secureLabelPointSize = atoi(argv[curArg]);
         }
@@ -1336,8 +1272,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing font pixel offset for secure label!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             secureLabelFontOffs = atoi(argv[curArg]);
         }
@@ -1347,8 +1282,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing text color value for secure label!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             sscanf(argv[curArg], "%X", &secureLabelColorFG);
         }
@@ -1358,8 +1292,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing background color value for secure label!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             sscanf(argv[curArg], "%X", &secureLabelColorBG);
         }
@@ -1401,15 +1334,13 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg >= argc)
             {
                 RTPrintf("Error: missing the rate value for the --warpdrive option!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             u32WarpDrive = RTStrToUInt32(argv[curArg]);
             if (u32WarpDrive < 2 || u32WarpDrive > 20000)
             {
                 RTPrintf("Error: the warp drive rate is restricted to [2..20000]. (%d)\n", u32WarpDrive);
-                rc = E_FAIL;
-                break;
+                return 1;
             }
         }
 #endif /* VBOXSDL_ADVANCED_OPTIONS */
@@ -1427,8 +1358,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (++curArg + 1 >= argc)
             {
                 RTPrintf("Error: not enough arguments for host keys!\n");
-                rc = E_FAIL;
-                break;
+                return 1;
             }
             gHostKeySym1 = atoi(argv[curArg++]);
             if (curArg + 1 < argc && (argv[curArg+1][0] == '0' || atoi(argv[curArg+1]) > 0))
@@ -1449,8 +1379,44 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             return 1;
         }
     }
+
+    rc = com::Initialize();
     if (FAILED(rc))
-        break;
+    {
+        RTPrintf("Error: COM initialization failed, rc = 0x%x!\n", rc);
+        return 1;
+    }
+
+    /* NOTE: do not convert the following scope to a "do {} while (0);", as
+     * this would make it all too tempting to use "break;" incorrectly - it
+     * would skip over the cleanup. */
+    {
+    // scopes all the stuff till shutdown
+    ////////////////////////////////////////////////////////////////////////////
+
+    ComPtr <IVirtualBox> virtualBox;
+    ComPtr <ISession> session;
+    bool sessionOpened = false;
+    EventQueue* eventQ = com::EventQueue::getMainEventQueue();
+    const CLSID sessionID = CLSID_Session;
+
+    rc = virtualBox.createLocalObject(CLSID_VirtualBox);
+    if (FAILED(rc))
+    {
+        com::ErrorInfo info;
+        if (info.isFullAvailable())
+            PrintError("Failed to create VirtualBox object",
+                       info.getText().raw(), info.getComponent().raw());
+        else
+            RTPrintf("Failed to create VirtualBox object! No error information available (rc = 0x%x).\n", rc);
+        goto leave;
+    }
+    rc = session.createInprocObject(sessionID);
+    if (FAILED(rc))
+    {
+        RTPrintf("Failed to create session object, rc = 0x%x!\n", rc);
+        goto leave;
+    }
 
     /*
      * Do we have a name but no UUID?
@@ -1782,7 +1748,9 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             gProgress = NULL;
 
             ComPtr<ISnapshot> pCurrentSnapshot;
-            CHECK_ERROR_BREAK(gMachine, COMGETTER(CurrentSnapshot)(pCurrentSnapshot.asOutParam()));
+            CHECK_ERROR(gMachine, COMGETTER(CurrentSnapshot)(pCurrentSnapshot.asOutParam()));
+            if (FAILED(rc))
+                goto leave;
 
             CHECK_ERROR(gConsole, RestoreSnapshot(pCurrentSnapshot, gProgress.asOutParam()));
             rc = gProgress->WaitForCompletion(-1);
@@ -2787,16 +2755,17 @@ leave:
             /** @todo power off paused VMs too? */
            )
        )
+    do
     {
         cbConsoleImpl->ignorePowerOffEvents(true);
-        ComPtr <IProgress> progress;
+        ComPtr<IProgress> progress;
         CHECK_ERROR_BREAK(gConsole, PowerDown(progress.asOutParam()));
-        CHECK_ERROR_BREAK (progress, WaitForCompletion (-1));
+        CHECK_ERROR_BREAK(progress, WaitForCompletion(-1));
         BOOL completed;
-        CHECK_ERROR_BREAK (progress, COMGETTER(Completed) (&completed));
+        CHECK_ERROR_BREAK(progress, COMGETTER(Completed)(&completed));
         ASSERT (completed);
         LONG hrc;
-        CHECK_ERROR_BREAK (progress, COMGETTER(ResultCode) (&hrc));
+        CHECK_ERROR_BREAK(progress, COMGETTER(ResultCode)(&hrc));
         if (FAILED(hrc))
         {
             com::ErrorInfo info;
@@ -2807,7 +2776,7 @@ leave:
                 RTPrintf("Failed to power down virtual machine! No error information available (rc = 0x%x).\n", hrc);
             break;
         }
-    }
+    } while (0);
 
     /*
      * Now we discard all settings so that our changes will
@@ -2896,6 +2865,11 @@ leave:
     if (gLibrarySDL_ttf)
         RTLdrClose(gLibrarySDL_ttf);
 #endif
+
+    /* VirtualBox callback unregistration. */
+    if (!virtualBox.isNull() && !callback.isNull())
+        virtualBox->UnregisterCallback(callback);
+
     LogFlow(("Releasing machine, session...\n"));
     gMachine = NULL;
     session = NULL;
@@ -2905,18 +2879,17 @@ leave:
     // end "all-stuff" scope
     ////////////////////////////////////////////////////////////////////////////
     }
-    while (0);
 
     /* Must be before com::Shutdown() */
     callback.setNull();
     consoleCallback.setNull();
-    
+
     LogFlow(("Uninitializing COM...\n"));
     com::Shutdown();
 
     LogFlow(("Returning from main()!\n"));
     RTLogFlush(NULL);
-    return FAILED (rc) ? 1 : 0;
+    return FAILED(rc) ? 1 : 0;
 }
 
 
@@ -4269,16 +4242,11 @@ static void UpdateTitlebar(TitlebarMode mode, uint32_t u32User)
     char szPrevTitle[1024];
     strcpy(szPrevTitle, szTitle);
 
-
-    strcpy(szTitle, "Sun VirtualBox - ");
-
     Bstr name;
     gMachine->COMGETTER(Name)(name.asOutParam());
-    if (name)
-        strcat(szTitle, Utf8Str(name).raw());
-    else
-        strcat(szTitle, "<noname>");
 
+    RTStrPrintf(szTitle, sizeof(szTitle), "%s - " VBOX_PRODUCT,
+                name ? Utf8Str(name).raw() : "<noname>");
 
     /* which mode are we in? */
     switch (mode)
@@ -4288,15 +4256,15 @@ static void UpdateTitlebar(TitlebarMode mode, uint32_t u32User)
             MachineState_T machineState;
             gMachine->COMGETTER(State)(&machineState);
             if (machineState == MachineState_Paused)
-                strcat(szTitle, " - [Paused]");
+                RTStrPrintf(szTitle + strlen(szTitle), sizeof(szTitle) - strlen(szTitle), " - [Paused]");
 
             if (gfGrabbed)
-                strcat(szTitle, " - [Input captured]");
+                RTStrPrintf(szTitle + strlen(szTitle), sizeof(szTitle) - strlen(szTitle), " - [Input captured]");
 
+#if defined(DEBUG) || defined(VBOX_WITH_STATISTICS)
             // do we have a debugger interface
             if (gMachineDebugger)
             {
-#if defined(DEBUG) || defined(VBOX_WITH_STATISTICS)
                 // query the machine state
                 BOOL recompileSupervisor = FALSE;
                 BOOL recompileUser = FALSE;
@@ -4324,13 +4292,8 @@ static void UpdateTitlebar(TitlebarMode mode, uint32_t u32User)
                     RTStrPrintf(psz, &szTitle[sizeof(szTitle)] - psz, " WD=%d%%]", virtualTimeRate);
                 else
                     RTStrPrintf(psz, &szTitle[sizeof(szTitle)] - psz, "]");
-#else
-                BOOL hwVirtEnabled = FALSE;
-                gMachineDebugger->COMGETTER(HWVirtExEnabled)(&hwVirtEnabled);
-                RTStrPrintf(szTitle + strlen(szTitle), sizeof(szTitle) - strlen(szTitle),
-                            "%s", hwVirtEnabled ? " (HWVirtEx)" : "");
-#endif /* DEBUG */
             }
+#endif /* DEBUG || VBOX_WITH_STATISTICS */
             break;
         }
 
@@ -4342,7 +4305,8 @@ static void UpdateTitlebar(TitlebarMode mode, uint32_t u32User)
             MachineState_T machineState;
             gMachine->COMGETTER(State)(&machineState);
             if (machineState == MachineState_Starting)
-                strcat(szTitle, " - Starting...");
+                RTStrPrintf(szTitle + strlen(szTitle), sizeof(szTitle) - strlen(szTitle),
+                            " - Starting...");
             else if (machineState == MachineState_Restoring)
             {
                 ULONG cPercentNow;
@@ -4402,7 +4366,7 @@ static void UpdateTitlebar(TitlebarMode mode, uint32_t u32User)
 #ifdef VBOX_WIN32_UI
     setUITitle(szTitle);
 #else
-    SDL_WM_SetCaption(szTitle, "Sun VirtualBox");
+    SDL_WM_SetCaption(szTitle, VBOX_PRODUCT);
 #endif
 }
 

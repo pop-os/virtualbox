@@ -154,7 +154,7 @@ VBOX_VERSION_MINOR = 1
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 2
+VBOX_VERSION_BUILD = 4
 # Full version string (may include more than just x.y.z, but no spaces or other problematic chars).
 VBOX_VERSION_STRING = $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD)
 # Force the additions.sh script to get an exact additions build when we're doing the release.
@@ -164,6 +164,11 @@ ifeq ($(int-mod $(VBOX_VERSION_BUILD),2),0)
  export VBOX_DOCUMENTATION_SH_MODE = release
 endif
 
+# Some info on the vendor
+VBOX_VENDOR = Sun Microsystems, Inc.
+VBOX_PRODUCT = Sun VirtualBox
+# maybe we want set this manually
+VBOX_C_YEAR = $(date-utc %Y)
 
 #
 # The VirtualBox package type.
@@ -806,6 +811,7 @@ ifdef VBOX_HEADLESS
  VBOX_WITH_VBOXBFE=
  VBOX_WITH_OGL=
  VBOX_WITH_KCHMVIEWER=
+ VBOX_WITH_VRDP_RDESKTOP=
 endif
 
 #
@@ -1608,6 +1614,18 @@ ifdef VBOX_WITH_CROGL
   VBOX_LIB_OGL_HOSTCRUTIL = $(PATH_BIN)/VBoxOGLhostcrutil$(VBOX_SUFF_DLL)
  endif
 
+ if1of ($(KBUILD_TARGET),linux solaris)
+ # VBOX_PATH_MESA_SOURCE = $(PATH_ROOT)/src/libs/mesa-7.2
+  VBOX_PATH_MESA_SOURCE = $(VBOX_PATH_X11_ROOT)/mesa-7.2
+  VBOX_MESA_INCS = \
+        $(VBOX_PATH_MESA_SOURCE) \
+        $(VBOX_PATH_MESA_SOURCE)/include \
+        $(VBOX_PATH_MESA_SOURCE)/src/mesa/ \
+        $(VBOX_PATH_MESA_SOURCE)/src/mesa/glapi \
+        $(VBOX_PATH_MESA_SOURCE)/src/mesa/main \
+        $(VBOX_PATH_MESA_SOURCE)/src/mesa/drivers/dri/common
+ endif
+
  VBOX_DARWIN_OPENGL_INST     = obj/VBoxOGL/GL/
  VBOX_DARWIN_OPENGL_HEADERS  = gl.h glu.h
  SDK_DARWIN-OPENGL           = Workaround SDK for the darwin OpenGL include directorly layout layout.
@@ -1981,14 +1999,14 @@ endif
 if1of ($(KBUILD_TARGET), linux)
  ifeq ($(origin VBOX_LINUX_SRC),undefined)
   ifneq ($(wildcard /lib/modules/$(shell uname -r)/build/include/linux/autoconf.h),)
-   export VBOX_LINUX_SRC           := /lib/modules/$(shell uname -r)/build
+   export VBOX_LINUX_SRC := /lib/modules/$(shell uname -r)/build
   else
-   export VBOX_LINUX_SRC           := /usr/src/linux
+   export VBOX_LINUX_SRC := /usr/src/linux
   endif
  endif
  ifneq ($(VBOX_LINUX_SRC),)
   ifeq ($(origin VBOX_LINUX_INCS),undefined)
-   export VBOX_LINUX_INCS           := $(VBOX_LINUX_SRC)/include
+   export VBOX_LINUX_INCS := $(VBOX_LINUX_SRC)/include
    # XXX hack alert! support splitted Linux kernels (make O=<build directory>)
    # XXX put this crap elsewhere
    kernelpath := $(shell $(SED_EXT) -ne 's+^KERNELSRC.*= *\(.*\)+\1+p' $(VBOX_LINUX_SRC)/Makefile)
@@ -2004,16 +2022,25 @@ if1of ($(KBUILD_TARGET), linux)
     endif
    endif
    ifneq ($(kernelpath),)
-    VBOX_LINUX_INCS                 += $(VBOX_LINUX_SRC)/include2 $(kernelpath)/include
+    VBOX_LINUX_INCS += $(VBOX_LINUX_SRC)/include2 $(kernelpath)/include
    else
     kernelpath := $(VBOX_LINUX_SRC)
    endif
-   VBOX_LINUX_INCS                  += $(kernelpath)/include/asm-i386/mach-default \
-                                       $(kernelpath)/include/asm-x86/mach-default \
-                                       $(kernelpath)/arch/x86/include \
-                                       $(kernelpath)/arch/x86/include/asm/mach-default \
-                                       $(kernelpath)/include
+   VBOX_LINUX_INCS  += $(kernelpath)/include/asm-i386/mach-default \
+                       $(kernelpath)/include/asm-x86/mach-default \
+                       $(kernelpath)/arch/x86/include \
+                       $(kernelpath)/arch/x86/include/asm/mach-default \
+                       $(kernelpath)/include
   endif
+ endif
+ # Since Linux 2.6.15, <linux/autoconf.h> is included like this. It cannot hurt to do the
+ # same for older Linux kernels
+ ifneq ($(wildcard $(VBOX_LINUX_SRC)/include/linux/autoconf.h),)
+  # Linux < 2.6.33
+  export VBOX_LINUX_INCLUDE := -include $(VBOX_LINUX_SRC)/include/linux/autoconf.h
+ else ifneq ($(wildcard $(VBOX_LINUX_SRC)/include/generated/autoconf.h),)
+  # Linux >= 2.6.33
+  export VBOX_LINUX_INCLUDE := -include $(VBOX_LINUX_SRC)/include/generated/autoconf.h
  endif
 endif
 
@@ -2273,7 +2300,7 @@ ifeq ($(KBUILD_TARGET),linux)
 TEMPLATE_VBOXR0DRV_TOOL                = $(VBOX_GCC_TOOL)
 TEMPLATE_VBOXR0DRV_DEFS                = __KERNEL__ MODULE IN_RING0 IN_RT_R0
 TEMPLATE_VBOXR0DRV_INCS                = $(VBOX_LINUX_INCS)
-TEMPLATE_VBOXR0DRV_CFLAGS              = -nostdinc -iwithprefix include \
+TEMPLATE_VBOXR0DRV_CFLAGS              = -nostdinc -iwithprefix include $(VBOX_LINUX_INCLUDE) \
 	$(VBOX_GCC_WARN) -Wstrict-prototypes $(VBOX_GCC_Wno-pointer-sign) -Wno-sign-compare \
 	$(VBOX_GCC_fno-stack-protector) $(VBOX_GCC_R0_OPT) $(VBOX_GCC_R0_FP) -fno-strict-aliasing -fno-common
 TEMPLATE_VBOXR0DRV_CFLAGS.x86          = -mpreferred-stack-boundary=2 -msoft-float
@@ -3781,7 +3808,8 @@ VBOX_LIB_VBGL_R0                 = $(VBOX_PATH_ADDITIONS_LIB)/VBoxGuestR0Lib$(VB
 # only way to get a really consistent build is to run 'kmk' in the top-level
 # directory. If you don't run it there, you get a consistent sub-tree only.
 #
-VBOX_VERSION_STAMP  = $(PATH_OUT)/version-stamp-$(VBOX_VERSION_STRING)
+VBOX_BAD_CHAR_SET   = ,;:/\$(SP)$(TAB)$(HASH)=![]@%&''()*""<>?^{}|~
+VBOX_VERSION_STAMP  = $(PATH_OUT)/version-stamp-$(translate $(VBOX_VERSION_STRING)-$(VBOX_C_YEAR)-$(VBOX_VENDOR)-$(VBOX_PRODUCT),$(VBOX_BAD_CHAR_SET),,_)
 VBOX_VERSION_HEADER = $(PATH_OUT)/version-generated.h
 VBOX_VERSION_MK     = $(PATH_OUT)/version-generated.mk
 
@@ -3821,6 +3849,22 @@ $(VBOX_PACKAGE_HEADER):
 	$(QUIET)$(APPEND) $@.tmp '#endif'
 	$(QUIET)$(MV) -f $@.tmp $@
 
+VBOX_PRODUCT_HEADER = $(PATH_OUT)/product-generated.h
+
+$(VBOX_PRODUCT_HEADER): $(VBOX_VERSION_STAMP)
+	$(call MSG_GENERATE,,$@)
+	$(QUIET)$(MKDIR) -p $(@D)
+	$(QUIET)$(RM) -f $@ $@.tmp
+	$(QUIET)$(APPEND) $@.tmp '#ifndef ___product_generated_h___'
+	$(QUIET)$(APPEND) $@.tmp '#define ___product_generated_h___'
+	$(QUIET)$(APPEND) $@.tmp ''
+	$(QUIET)$(APPEND) $@.tmp '#define VBOX_VENDOR "$(VBOX_VENDOR)"'
+	$(QUIET)$(APPEND) $@.tmp '#define VBOX_PRODUCT "$(VBOX_PRODUCT)"'
+	$(QUIET)$(APPEND) $@.tmp '#define VBOX_C_YEAR "$(VBOX_C_YEAR)"'
+	$(QUIET)$(APPEND) $@.tmp ''
+	$(QUIET)$(APPEND) $@.tmp '#endif'
+	$(QUIET)$(MV) -f $@.tmp $@
+
 #
 # Used for external makefiles which cannot include Config.kmk
 #
@@ -3832,6 +3876,9 @@ $(VBOX_VERSION_MK): $(VBOX_VERSION_STAMP)
 	$(QUIET)$(APPEND) $@.tmp 'VBOX_VERSION_MINOR = $(VBOX_VERSION_MINOR)'
 	$(QUIET)$(APPEND) $@.tmp 'VBOX_VERSION_BUILD = $(VBOX_VERSION_BUILD)'
 	$(QUIET)$(APPEND) $@.tmp 'VBOX_VERSION_STRING = $(VBOX_VERSION_STRING)'
+	$(QUIET)$(APPEND) $@.tmp 'VBOX_VENDOR = $(VBOX_VENDOR)'
+	$(QUIET)$(APPEND) $@.tmp 'VBOX_PRODUCT = $(VBOX_PRODUCT)'
+	$(QUIET)$(APPEND) $@.tmp 'VBOX_C_YEAR = $(VBOX_C_YEAR)'
 	$(QUIET)$(MV) -f $@.tmp $@
 
 if !defined(VBOX_OSE) && !defined(VBOX_NOINC_LICENSE_VER_KMK)
@@ -3860,7 +3907,7 @@ ifndef VBOX_NOINC_MISC
 # Force building of the version header file as the first thing anywhere in
 # the tree. This eliminates the need for manual dependencies on it.
 ## @todo there gotta be a better way of doing this.
-Makefile.kmk: | $(VBOX_VERSION_HEADER) $(VBOX_VERSION_MK) $(VBOX_PACKAGE_HEADER)
+Makefile.kmk: | $(VBOX_VERSION_HEADER) $(VBOX_VERSION_MK) $(VBOX_PRODUCT_HEADER) $(VBOX_PACKAGE_HEADER)
 endif
 
 
@@ -3874,7 +3921,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 56127 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 57640 $  )
  VBOX_SVN_DEP          := $(wildcard $(PATH_ROOT)/.svn/entries)
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

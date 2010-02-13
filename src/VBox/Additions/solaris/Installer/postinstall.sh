@@ -72,7 +72,9 @@ uncompress_files()
 }
 
 solaris64dir="amd64"
+solaris32dir="i386"
 vboxadditions_path="$BASEDIR/opt/VirtualBoxAdditions"
+vboxadditions32_path=$vboxadditions_path/$solaris32dir
 vboxadditions64_path=$vboxadditions_path/$solaris64dir
 
 # get the current zone
@@ -89,10 +91,10 @@ vboxadditionsisa_path=$vboxadditions_path/$isadir
 
 
 # uncompress if necessary
-if test -f "$vboxadditions_path/VBoxClient.Z" || test -f "$vboxadditions64_path/VBoxClient.Z"; then
+if test -f "$vboxadditions32_path/VBoxClient.Z" || test -f "$vboxadditions64_path/VBoxClient.Z"; then
     echo "Uncompressing files..."
-    if test -f "$vboxadditions_path/VBoxClient.Z"; then
-        uncompress_files "$vboxadditions_path"
+    if test -f "$vboxadditions32_path/VBoxClient.Z"; then
+        uncompress_files "$vboxadditions32_path"
     fi
     if test -f "$vboxadditions64_path/VBoxClient.Z"; then
         uncompress_files "$vboxadditions64_path"
@@ -111,12 +113,13 @@ if test "$currentzone" = "global"; then
 
     # create the device link
     /usr/sbin/devfsadm -i vboxguest
-    sync
 fi
 
 
-# check if X.Org exists
-if test -f "/usr/X11/bin/Xorg"; then
+# check if X.Org exists (snv_130 and higher have /usr/X11/* as /usr/*)
+if test -f "/usr/bin/Xorg"; then
+    xorgbin="/usr/bin/Xorg"
+elif test -f "/usr/X11/bin/Xorg"; then
     xorgbin="/usr/X11/bin/Xorg"
 else
     xorgbin=""
@@ -128,21 +131,13 @@ echo "Creating links..."
 if test "$currentzone" = "global"; then
     /usr/sbin/installf -c none $PKGINST /dev/vboxguest=../devices/pci@0,0/pci80ee,cafe@4:vboxguest s
 fi
-if test ! -z "$xorgbin"; then
-    /usr/sbin/installf -c none $PKGINST /usr/bin/VBoxClient=$vboxadditions_path/VBox.sh s
-    /usr/sbin/installf -c none $PKGINST /usr/bin/VBoxRandR=$vboxadditions_path/VBoxRandR.sh s
-    /usr/sbin/installf -c none $PKGINST /usr/bin/VBoxClient-all=$vboxadditions_path/1099.vboxclient s
-fi
-/usr/sbin/installf -c none $PKGINST /usr/bin/VBoxControl=$vboxadditions_path/VBox.sh s
-/usr/sbin/installf -c none $PKGINST /usr/bin/VBoxService=$vboxadditions_path/VBox.sh s
-
 
 # Install Xorg components to the required places
 if test ! -z "$xorgbin"; then
-    xorgversion_long=`/usr/X11/bin/Xorg -version 2>&1 | grep "X Window System Version"`
+    xorgversion_long=`$xorgbin -version 2>&1 | grep "X Window System Version"`
     xorgversion=`/usr/bin/expr "${xorgversion_long}" : 'X Window System Version \([^ ]*\)'`
     if test -z "$xorgversion_long"; then
-        xorgversion_long=`/usr/X11/bin/Xorg -version 2>&1 | grep "X.Org X Server"`
+        xorgversion_long=`$xorgbin -version 2>&1 | grep "X.Org X Server"`
         xorgversion=`/usr/bin/expr "${xorgversion_long}" : 'X.Org X Server \([^ ]*\)'`
     fi
 
@@ -188,85 +183,110 @@ if test ! -z "$xorgbin"; then
         # Exit as partially failed installation
         retval=2
     else
-        echo "Configuring X.Org..."
+        echo "Installing mouse and video drivers for X.Org $xorgversion..."
 
-        # 32-bit x11 drivers
-        if test -f "$vboxadditions_path/$vboxmouse_src"; then
-            vboxmouse_dest="/usr/X11/lib/modules/input/vboxmouse_drv.so"
-            vboxvideo_dest="/usr/X11/lib/modules/drivers/vboxvideo_drv.so"
-            /usr/sbin/installf -c none $PKGINST "$vboxmouse_dest" f
-            /usr/sbin/installf -c none $PKGINST "$vboxvideo_dest" f
-            cp "$vboxadditions_path/$vboxmouse_src" "$vboxmouse_dest"
-            cp "$vboxadditions_path/$vboxvideo_src" "$vboxvideo_dest"
-
-            # Removing redundent names from pkg and files from disk
-            /usr/sbin/removef $PKGINST $vboxadditions_path/vboxmouse_drv_* 1>/dev/null
-            /usr/sbin/removef $PKGINST $vboxadditions_path/vboxvideo_drv_* 1>/dev/null
-            rm -f $vboxadditions_path/vboxmouse_drv_*
-            rm -f $vboxadditions_path/vboxvideo_drv_*
+        # Determine destination paths (snv_130 and above use "/usr/lib/xorg", older use "/usr/X11/lib"
+        vboxmouse32_dest_base="/usr/lib/xorg/modules/input"
+        if test ! -d $vboxmouse32_dest_base; then
+            vboxmouse32_dest_base="/usr/X11/lib/modules/input"
+        fi
+        vboxvideo32_dest_base="/usr/lib/xorg/modules/drivers"
+        if test ! -d $vboxvideo32_dest_base; then
+            vboxvideo32_dest_base="/usr/X11/lib/modules/drivers"
         fi
 
-        # 64-bit x11 drivers
-        if test -f "$vboxadditions64_path/$vboxmouse_src"; then
-            vboxmouse_dest="/usr/X11/lib/modules/input/$solaris64dir/vboxmouse_drv.so"
-            vboxvideo_dest="/usr/X11/lib/modules/drivers/$solaris64dir/vboxvideo_drv.so"
-            /usr/sbin/installf -c none $PKGINST "$vboxmouse_dest" f
-            /usr/sbin/installf -c none $PKGINST "$vboxvideo_dest" f
-            cp "$vboxadditions64_path/$vboxmouse_src" "$vboxmouse_dest"
-            cp "$vboxadditions64_path/$vboxvideo_src" "$vboxvideo_dest"
+        vboxmouse64_dest_base=$vboxmouse32_dest_base/$solaris64dir
+        vboxvideo64_dest_base=$vboxvideo32_dest_base/$solaris64dir
 
-            # Removing redundent names from pkg and files from disk
-            /usr/sbin/removef $PKGINST $vboxadditions64_path/vboxmouse_drv_* 1>/dev/null
-            /usr/sbin/removef $PKGINST $vboxadditions64_path/vboxvideo_drv_* 1>/dev/null
-            rm -f $vboxadditions64_path/vboxmouse_drv_*
-            rm -f $vboxadditions64_path/vboxvideo_drv_*
-        fi
+        # Make sure destination path exists
+        if test ! -d $vboxmouse32_dest_base || test ! -d $vboxvideo32_dest_base || test ! -d $vboxmouse64_dest_base || test ! -d $vboxvideo64_dest_base; then
+            echo "*** Missing destination paths for mouse or video modules. Aborting."
+            echo "*** Failed to install the VirtualBox X Window System drivers."
 
-        # Some distros like Indiana have no xorg.conf, deal with this
-        if test ! -f '/etc/X11/xorg.conf' && test ! -f '/etc/X11/.xorg.conf'; then
+            # Exit as partially failed installation
+            retval=2
+        else
+            # 32-bit x11 drivers
+            if test -f "$vboxadditions32_path/$vboxmouse_src"; then
+                vboxmouse_dest="$vboxmouse32_dest_base/vboxmouse_drv.so"
+                vboxvideo_dest="$vboxvideo32_dest_base/vboxvideo_drv.so"
+                /usr/sbin/installf -c none $PKGINST "$vboxmouse_dest" f
+                /usr/sbin/installf -c none $PKGINST "$vboxvideo_dest" f
+                cp "$vboxadditions32_path/$vboxmouse_src" "$vboxmouse_dest"
+                cp "$vboxadditions32_path/$vboxvideo_src" "$vboxvideo_dest"
 
-            # Xorg 1.3.x+ should use the modeline less Xorg confs while older should
-            # use ones with all the video modelines in place. Argh.
-            xorgconf_file="solaris_xorg_modeless.conf"
-            xorgconf_unfit="solaris_xorg.conf"
+                # Removing redundent names from pkg and files from disk
+                /usr/sbin/removef $PKGINST $vboxadditions32_path/vboxmouse_drv_* 1>/dev/null
+                /usr/sbin/removef $PKGINST $vboxadditions32_path/vboxvideo_drv_* 1>/dev/null
+                rm -f $vboxadditions32_path/vboxmouse_drv_*
+                rm -f $vboxadditions32_path/vboxvideo_drv_*
+            fi
+
+            # 64-bit x11 drivers
+            if test -f "$vboxadditions64_path/$vboxmouse_src"; then
+                vboxmouse_dest="$vboxmouse64_dest_base/vboxmouse_drv.so"
+                vboxvideo_dest="$vboxvideo64_dest_base/vboxvideo_drv.so"
+                /usr/sbin/installf -c none $PKGINST "$vboxmouse_dest" f
+                /usr/sbin/installf -c none $PKGINST "$vboxvideo_dest" f
+                cp "$vboxadditions64_path/$vboxmouse_src" "$vboxmouse_dest"
+                cp "$vboxadditions64_path/$vboxvideo_src" "$vboxvideo_dest"
+
+                # Removing redundent names from pkg and files from disk
+                /usr/sbin/removef $PKGINST $vboxadditions64_path/vboxmouse_drv_* 1>/dev/null
+                /usr/sbin/removef $PKGINST $vboxadditions64_path/vboxvideo_drv_* 1>/dev/null
+                rm -f $vboxadditions64_path/vboxmouse_drv_*
+                rm -f $vboxadditions64_path/vboxvideo_drv_*
+            fi
+
+            # Some distros like Indiana have no xorg.conf, deal with this
+            if test ! -f '/etc/X11/xorg.conf' && test ! -f '/etc/X11/.xorg.conf'; then
+
+                # Xorg 1.3.x+ should use the modeline less Xorg confs while older should
+                # use ones with all the video modelines in place. Argh.
+                xorgconf_file="solaris_xorg_modeless.conf"
+                xorgconf_unfit="solaris_xorg.conf"
+                case "$xorgversion" in
+                    7.1.* | 7.2.* | 6.9.* | 7.0.* )
+                        xorgconf_file="solaris_xorg.conf"
+                        xorgconf_unfit="solaris_xorg_modeless.conf"
+                        ;;
+                esac
+
+                /usr/sbin/removef $PKGINST $vboxadditions_path/$xorgconf_file 1>/dev/null
+                mv -f $vboxadditions_path/$xorgconf_file /etc/X11/.xorg.conf
+
+                /usr/sbin/removef $PKGINST $vboxadditions_path/$xorgconf_unfit 1>/dev/null
+                rm -f $vboxadditions_path/$xorgconf_unfit
+            fi
             case "$xorgversion" in
-                7.1.* | 7.2.* | 6.9.* | 7.0.* )
-                    xorgconf_file="solaris_xorg.conf"
-                    xorgconf_unfit="solaris_xorg_modeless.conf"
+                7.1.* | 7.2.* | 6.9.* | 7.0.* | 1.3.* )
+                    $vboxadditions_path/x11config.pl
+                    ;;
+                1.5.* | 1.6.* | 1.7.* )
+                    $vboxadditions_path/x11config15sol.pl
                     ;;
             esac
-
-            /usr/sbin/removef $PKGINST $vboxadditions_path/$xorgconf_file 1>/dev/null
-            mv -f $vboxadditions_path/$xorgconf_file /etc/X11/.xorg.conf
-
-            /usr/sbin/removef $PKGINST $vboxadditions_path/$xorgconf_unfit 1>/dev/null
-            rm -f $vboxadditions_path/$xorgconf_unfit
         fi
-        case "$xorgversion" in
-            7.1.* | 7.2.* | 6.9.* | 7.0.* | 1.3.* )
-                $vboxadditions_path/x11config.pl
-                ;;
-            1.5.* | 1.6.* | 1.7.* )
-                $vboxadditions_path/x11config15sol.pl
-                ;;
-        esac
     fi
 
 
     # Setup our VBoxClient
     echo "Configuring client..."
     vboxclient_src=$vboxadditions_path
+    vboxclient_dest="/usr/share/gnome/autostart"
+    clientinstalled=0
+    if test -d "$vboxclient_dest"; then
+        /usr/sbin/installf -c none $PKGINST $vboxclient_dest/vboxclient.desktop=$vboxadditions_path/vboxclient.desktop s
+        clientinstalled=1
+    fi
     vboxclient_dest="/usr/dt/config/Xsession.d"
     if test -d "$vboxclient_dest"; then
-        /usr/sbin/installf -c none $PKGINST "$vboxclient_dest/1099.vboxclient" f
-        cp "$vboxclient_src/1099.vboxclient" "$vboxclient_dest/1099.vboxclient"
-        chmod a+rx "$vboxclient_dest/1099.vboxclient"
-    elif test -d "/usr/share/gnome/autostart"; then
-        vboxclient_dest="/usr/share/gnome/autostart"
-        /usr/sbin/installf -c none $PKGINST "$vboxclient_dest/vboxclient.desktop" f
-        cp "$vboxclient_src/vboxclient.desktop" "$vboxclient_dest/vboxclient.desktop"
-    else
-        echo "*** Failed to configure client!! Couldn't find autostart directory."
+        /usr/sbin/installf -c none $PKGINST $vboxclient_dest/1099.vboxclient=$vboxadditions_path/1099.vboxclient s
+        clientinstalled=1
+    fi
+    if test $clientinstalled -eq 0; then
+        echo "*** Failed to configure client, couldn't find any autostart directory!"
+        # Exit as partially failed installation
         retval=2
     fi
 else
@@ -286,6 +306,7 @@ fi
 # Move the appropriate module to kernel/fs & remove the unused module name from pkg and file from disk
 # 64-bit shared folder module
 if test -f "$vboxadditions64_path/$vboxfsmod"; then
+    echo "Installing 64-bit shared folders module..."
     /usr/sbin/installf -c none $PKGINST "/usr/kernel/fs/$solaris64dir/vboxfs" f
     mv -f $vboxadditions64_path/$vboxfsmod /usr/kernel/fs/$solaris64dir/vboxfs
     /usr/sbin/removef $PKGINST $vboxadditions64_path/$vboxfsmod 1>/dev/null
@@ -294,12 +315,13 @@ if test -f "$vboxadditions64_path/$vboxfsmod"; then
 fi
 
 # 32-bit shared folder module
-if test -f "$vboxadditions_path/$vboxfsmod"; then
+if test -f "$vboxadditions32_path/$vboxfsmod"; then
+    echo "Installing 32-bit shared folders module..."
     /usr/sbin/installf -c none $PKGINST "/usr/kernel/fs/vboxfs" f
-    mv -f $vboxadditions_path/$vboxfsmod /usr/kernel/fs/vboxfs
-    /usr/sbin/removef $PKGINST $vboxadditions_path/$vboxfsmod 1>/dev/null
-    /usr/sbin/removef $PKGINST $vboxadditions_path/$vboxfsunused 1>/dev/null
-    rm -f $vboxadditions_path/$vboxfsunused
+    mv -f $vboxadditions32_path/$vboxfsmod /usr/kernel/fs/vboxfs
+    /usr/sbin/removef $PKGINST $vboxadditions32_path/$vboxfsmod 1>/dev/null
+    /usr/sbin/removef $PKGINST $vboxadditions32_path/$vboxfsunused 1>/dev/null
+    rm -f $vboxadditions32_path/$vboxfsunused
 fi
 
 # install openGL extensions for X.Org

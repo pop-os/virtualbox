@@ -40,9 +40,9 @@ void showLogo(void)
 
     if (!s_fShown)
     {
-        RTPrintf("VirtualBox Command Line Management Interface Version "
+        RTPrintf(VBOX_PRODUCT" Command Line Management Interface Version "
                  VBOX_VERSION_STRING  "\n"
-                 "(C) 2005-2009 Sun Microsystems, Inc.\n"
+                 "(C) 2005-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
                  "All rights reserved.\n"
                  "\n");
         s_fShown = true;
@@ -354,6 +354,7 @@ void printUsage(USAGECATEGORY u64Cmd)
                  "                            take <name> [--description <desc>] [--pause] |\n"
                  "                            delete <uuid>|<name> |\n"
                  "                            restore <uuid>|<name> |\n"
+                 "                            restorecurrent |\n"
                  "                            edit <uuid>|<name>|--current\n"
                  "                                 [--name <name>]\n"
                  "                                 [--description <desc>] |\n"

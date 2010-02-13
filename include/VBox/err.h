@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -464,6 +464,8 @@
 #define VERR_PGM_HANDLER_ALREADY_ALIASED        (-1643)
 /** Already aliased to the same page. */
 #define VINF_PGM_HANDLER_ALREADY_ALIASED        (1643)
+/** PGM pool flush pending - return to ring 3. */
+#define VINF_PGM_POOL_FLUSH_PENDING             (1644)
 /** @} */
 
 
@@ -560,7 +562,7 @@
 #define VERR_SSM_IDE_ASYNC_TIMEOUT              (-1846)
 /** One of the structure magics was wrong. */
 #define VERR_SSM_STRUCTURE_MAGIC                (-1847)
-/** The data in the saved state doesn't confirm to expectations. */
+/** The data in the saved state doesn't conform to expectations. */
 #define VERR_SSM_UNEXPECTED_DATA                (-1848)
 /** Trying to read a 64-bit guest physical address into a 32-bit variable. */
 #define VERR_SSM_GCPHYS_OVERFLOW                (-1849)
@@ -1489,6 +1491,13 @@
 #define VERR_COM_INVALID_SESSION_STATE             (-4611)
 /** Invalid session state. */
 #define VERR_COM_OBJECT_IN_USE                     (-4612)
+/** @} */
+
+/** @name VBox CPU hotplug Status codes
+ * @{
+ */
+/** CPU hotplug events from VMMDev are not monitored by the guest */
+#define VERR_CPU_HOTPLUG_NOT_MONITORED_BY_GUEST    (-4700)
 /** @} */
 
 /* SED-END */

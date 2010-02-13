@@ -66,6 +66,9 @@
 #  ifndef CAP_TO_MASK
 #   define CAP_TO_MASK(cap) RT_BIT(cap)
 #  endif
+# elif defined(RT_OS_FREEBSD)
+#  include <sys/param.h>
+#  include <sys/sysctl.h>
 # elif defined(RT_OS_SOLARIS)
 #  include <priv.h>
 # endif
@@ -136,6 +139,7 @@ static gid_t g_gid;
 static uint32_t g_uCaps;
 # endif
 #endif
+
 
 /*******************************************************************************
 *   Internal Functions                                                         *
@@ -320,12 +324,25 @@ static void supR3HardenedGetFullExePath(void)
 #if defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD) || defined(RT_OS_SOLARIS)
 # ifdef RT_OS_LINUX
     int cchLink = readlink("/proc/self/exe", &g_szSupLibHardenedExePath[0], sizeof(g_szSupLibHardenedExePath) - 1);
+
 # elif defined(RT_OS_SOLARIS)
     char szFileBuf[PATH_MAX + 1];
     sprintf(szFileBuf, "/proc/%ld/path/a.out", (long)getpid());
     int cchLink = readlink(szFileBuf, &g_szSupLibHardenedExePath[0], sizeof(g_szSupLibHardenedExePath) - 1);
-# else /* RT_OS_FREEBSD: */
-    int cchLink = readlink("/proc/curproc/file", &g_szSupLibHardenedExePath[0], sizeof(g_szSupLibHardenedExePath) - 1);
+
+# else /* RT_OS_FREEBSD */
+    int aiName[4];
+    aiName[0] = CTL_KERN;
+    aiName[1] = KERN_PROC;
+    aiName[2] = KERN_PROC_PATHNAME;
+    aiName[3] = getpid();
+
+    size_t cbPath = sizeof(g_szSupLibHardenedExePath);
+    if (sysctl(aiName, RT_ELEMENTS(aiName), g_szSupLibHardenedExePath, &cbPath, NULL, 0) < 0)
+        supR3HardenedFatal("supR3HardenedExecDir: sysctl failed\n");
+    g_szSupLibHardenedExePath[sizeof(g_szSupLibHardenedExePath) - 1] = '\0';
+    int cchLink = strlen(g_szSupLibHardenedExePath); /* paranoid? can't we use cbPath? */
+
 # endif
     if (cchLink < 0 || cchLink == sizeof(g_szSupLibHardenedExePath) - 1)
         supR3HardenedFatal("supR3HardenedExecDir: couldn't read \"%s\", errno=%d cchLink=%d\n",

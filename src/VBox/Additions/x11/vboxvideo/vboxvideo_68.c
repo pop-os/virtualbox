@@ -369,6 +369,8 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
     ClockRange *clockRanges;
     int i;
     DisplayModePtr m_prev;
+    int rc, modes;
+    uint32_t x, y, bpp;
 
     /* Are we really starting the server, or is this just a dummy run? */
     if (flags & PROBE_DETECT)
@@ -475,30 +477,40 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
 
     xf86SetGamma(pScrn, gzeros);
 
+    /* Video mode hint passed? */
+    rc = vboxGetDisplayChangeRequest(pScrn, &x, &y, &bpp, 0, 0);
+    if (rc && (!x || !y))
+        rc = FALSE;
+
     /* To get around the problem of SUSE specifying a single, invalid mode in their
      * Xorg.conf by default, we add an additional mode to the end of the user specified
      * list. This means that if all user modes are invalid, X will try our mode before
      * falling back to its standard mode list. */
     if (pScrn->display->modes == NULL)
     {
-        /* The user specified no modes at all - specify 1024x768 as a default. */
-        pScrn->display->modes    = xnfalloc(4 * sizeof(char*));
-        pScrn->display->modes[0] = "1024x768";
-        pScrn->display->modes[1] = "800x600";
-        pScrn->display->modes[2] = "640x480";
-        pScrn->display->modes[3] = NULL;
+        modes = rc ? 5 : 4;
+        /* The user specified no modes at all - specify default modes. */
+        pScrn->display->modes = xnfalloc(modes * sizeof(char*));
     }
     else
     {
-        /* Add 1024x768 to the end of the mode list in case the others are all invalid. */
-        for (i = 0; pScrn->display->modes[i] != NULL; i++);
-        pScrn->display->modes      = xnfrealloc(pScrn->display->modes, (i + 4)
-                                   * sizeof(char *));
-        pScrn->display->modes[i  ] = "1024x768";
-        pScrn->display->modes[i+1] = "800x600";
-        pScrn->display->modes[i+2] = "640x480";
-        pScrn->display->modes[i+3] = NULL;
+        /* Add default modes to the end of the mode list in case the others are all invalid. */
+        for (i = 0; pScrn->display->modes[i] != NULL; i++)
+            ;
+        modes = rc ? i + 5 : i + 4;
+        pScrn->display->modes = xnfrealloc(pScrn->display->modes,
+                                           modes * sizeof(char*));
     }
+    if (rc)
+    {
+        char mode[32];
+        snprintf(mode, sizeof(mode), "%dx%d", x, y);
+        pScrn->display->modes[modes - 5] = XNFstrdup(mode);
+    }
+    pScrn->display->modes[modes - 4] = "1024x768";
+    pScrn->display->modes[modes - 3] = "800x600";
+    pScrn->display->modes[modes - 2] = "640x480";
+    pScrn->display->modes[modes - 1] = NULL;
 
     /* Create a builtin mode for every specified mode. This allows to specify arbitrary
      * screen resolutions */

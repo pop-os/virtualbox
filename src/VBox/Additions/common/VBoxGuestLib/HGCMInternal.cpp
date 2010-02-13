@@ -1,4 +1,4 @@
-/* $Revision: 53284 $ */
+/* $Revision: 57546 $ */
 /** @file
  * VBoxGuestLib - Host-Guest Communication Manager internal functions, implemented by VBoxGuest
  */
@@ -13,6 +13,15 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ *
+ * The contents of this file may alternatively be used under the terms
+ * of the Common Development and Distribution License Version 1.0
+ * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
+ * VirtualBox OSE distribution, in which case the provisions of the
+ * CDDL are applicable instead of those of the GPL.
+ *
+ * You may elect to license modified versions of this file under the
+ * terms and conditions of either the GPL or the CDDL or both.
  *
  * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
  * Clara, CA 95054 USA or visit http://www.sun.com if you need
@@ -894,11 +903,18 @@ DECLR0VBGL(int) VbglR0HGCMInternalCall(VBoxGuestHGCMCallInfo *pCallInfo, uint32_
                  */
                 rc = vbglR0HGCMInternalCopyBackResult(pCallInfo, pHGCMCall, &ParmInfo, fIsUser, rc);
             }
+            else
+            {
+                if (rc != VERR_INTERRUPTED)
+                    LogRel(("VbglR0HGCMInternalCall: vbglR0HGCMInternalDoCall failed. rc=%Rrc\n", rc));
+            }
 
             if (!fLeakIt)
                 VbglGRFree(&pHGCMCall->header.header);
         }
     }
+    else
+        LogRel(("VbglR0HGCMInternalCall: vbglR0HGCMInternalPreprocessCall failed. rc=%Rrc\n", rc));
 
     /*
      * Release locks and free bounce buffers.
@@ -920,12 +936,12 @@ DECLR0VBGL(int) VbglR0HGCMInternalCall(VBoxGuestHGCMCallInfo *pCallInfo, uint32_
 DECLR0VBGL(int) VbglR0HGCMInternalCall32(VBoxGuestHGCMCallInfo *pCallInfo, uint32_t cbCallInfo, uint32_t fFlags,
                                          PFNVBGLHGCMCALLBACK pfnAsyncCallback, void *pvAsyncData, uint32_t u32AsyncData)
 {
-    VBoxGuestHGCMCallInfo   *pCallInfo64;
-    HGCMFunctionParameter   *pParm64;
-    HGCMFunctionParameter32 *pParm32;
-    uint32_t                 cParms;
-    uint32_t                 iParm;
-    int rc;
+    VBoxGuestHGCMCallInfo   *pCallInfo64 = NULL;
+    HGCMFunctionParameter   *pParm64 = NULL;
+    HGCMFunctionParameter32 *pParm32 = NULL;
+    uint32_t                 cParms = 0;
+    uint32_t                 iParm = 0;
+    int                      rc = VINF_SUCCESS;
 
     /*
      * Input validation.
@@ -939,7 +955,11 @@ DECLR0VBGL(int) VbglR0HGCMInternalCall32(VBoxGuestHGCMCallInfo *pCallInfo, uint3
     AssertReturn(   cbCallInfo >= sizeof(VBoxGuestHGCMCallInfo)
                  || cbCallInfo >= pCallInfo->cParms * sizeof(HGCMFunctionParameter32),
                  VERR_INVALID_PARAMETER);
-    AssertReturn((fFlags & VBGLR0_HGCMCALL_F_MODE_MASK) == VBGLR0_HGCMCALL_F_KERNEL, VERR_INVALID_PARAMETER);
+
+    /* This Assert does not work on Solaris 64/32 mixed mode, not sure why, skipping for now */
+#ifndef RT_OS_SOLARIS
+    AssertReturn((fFlags & VBGLR0_HGCMCALL_F_MODE_MASK) == VBGLR0_HGCMCALL_F_KERNEL, VERR_WRONG_ORDER);
+#endif
 
     cParms = pCallInfo->cParms;
     Log(("VbglR0HGCMInternalCall32: cParms=%d, u32Function=%d, fFlags=%#x\n", cParms, pCallInfo->u32Function, fFlags));
@@ -978,6 +998,7 @@ DECLR0VBGL(int) VbglR0HGCMInternalCall32(VBoxGuestHGCMCallInfo *pCallInfo, uint3
 
             default:
                 rc = VERR_INVALID_PARAMETER;
+                LogRel(("VbglR0HGCMInternalCall32: pParm32 type %#x invalid.\n", pParm32->type));
                 break;
         }
         if (RT_FAILURE(rc))
@@ -988,34 +1009,46 @@ DECLR0VBGL(int) VbglR0HGCMInternalCall32(VBoxGuestHGCMCallInfo *pCallInfo, uint3
         rc = VbglR0HGCMInternalCall(pCallInfo64, sizeof(*pCallInfo64) + cParms * sizeof(HGCMFunctionParameter), fFlags,
                                     pfnAsyncCallback, pvAsyncData, u32AsyncData);
 
-        /*
-         * Copy back.
-         */
-        for (iParm = 0; iParm < cParms; iParm++, pParm32++, pParm64++)
+        if (RT_SUCCESS(rc))
         {
-            switch (pParm32->type)
+            *pCallInfo = *pCallInfo64;
+
+            /*
+             * Copy back.
+             */
+            pParm32 = VBOXGUEST_HGCM_CALL_PARMS32(pCallInfo);
+            pParm64 = VBOXGUEST_HGCM_CALL_PARMS(pCallInfo64);
+            for (iParm = 0; iParm < cParms; iParm++, pParm32++, pParm64++)
             {
-                case VMMDevHGCMParmType_32bit:
-                    pParm32->u.value32 = pParm32->u.value32;
-                    break;
+                switch (pParm64->type)
+                {
+                    case VMMDevHGCMParmType_32bit:
+                        LogRel(("pParm32->u.value32=%d\n", pParm32->u.value32));
+                        pParm32->u.value32 = pParm64->u.value32;
+                        break;
 
-                case VMMDevHGCMParmType_64bit:
-                    pParm32->u.value64 = pParm64->u.value64;
-                    break;
+                    case VMMDevHGCMParmType_64bit:
+                        pParm32->u.value64 = pParm64->u.value64;
+                        break;
 
-                case VMMDevHGCMParmType_LinAddr_Out:
-                case VMMDevHGCMParmType_LinAddr:
-                case VMMDevHGCMParmType_LinAddr_In:
-                    pParm32->u.Pointer.size = pParm64->u.Pointer.size;
-                    break;
+                    case VMMDevHGCMParmType_LinAddr_Out:
+                    case VMMDevHGCMParmType_LinAddr:
+                    case VMMDevHGCMParmType_LinAddr_In:
+                        pParm32->u.Pointer.size = pParm64->u.Pointer.size;
+                        break;
 
-                default:
-                    rc = VERR_INTERNAL_ERROR_3;
-                    break;
+                    default:
+                        LogRel(("VbglR0HGCMInternalCall32: failed invalid pParm32 type %d\n", pParm32->type));
+                        rc = VERR_INTERNAL_ERROR_3;
+                        break;
+                }
             }
         }
-        *pCallInfo = *pCallInfo64;
+        else
+            LogRel(("VbglR0HGCMInternalCall32: VbglR0HGCMInternalCall failed. rc=%Rrc\n", rc));
     }
+    else
+        LogRel(("VbglR0HGCMInternalCall32: failed. rc=%Rrc\n", rc));
 
     RTMemTmpFree(pCallInfo64);
     return rc;

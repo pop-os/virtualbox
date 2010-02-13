@@ -134,7 +134,7 @@ typedef struct _VBOXRec
     pciVideoPtr pciInfo;
     PCITAG pciTag;
     CARD16 maxBytesPerScanline;
-    int mapPhys, mapOff, mapSize;	/* video memory */
+    unsigned long mapPhys, mapOff, mapSize;	/* video memory */
     void *base, *VGAbase;
     CARD8 *state, *pstate;	/* SVGA state */
     int statePage, stateSize, stateMode;
@@ -175,8 +175,23 @@ extern Bool vboxEnableVbva(ScrnInfoPtr pScrn);
 
 extern Bool vboxDisableVbva(ScrnInfoPtr pScrn);
 
-extern Bool vboxGetDisplayChangeRequest(ScrnInfoPtr pScrn, uint32_t *pcx,
-                                        uint32_t *pcy, uint32_t *pcBits,
-                                        uint32_t *piDisplay);
+/**
+ * Query the last display change request.
+ *
+ * @returns boolean success indicator.
+ * @param   pScrn       Pointer to the X screen info structure.
+ * @param   pcx         Where to store the horizontal pixel resolution (0 = do not change).
+ * @param   pcy         Where to store the vertical pixel resolution (0 = do not change).
+ * @param   pcBits      Where to store the bits per pixel (0 = do not change).
+ * @param   fEventAck   Flag that the request is an acknowlegement for the
+ *                      VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST.
+ *                      Values:
+ *                          0                                   - just querying,
+ *                          VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST - event acknowledged.
+ * @param   iDisplay    0 for primary display, 1 for the first secondary, etc.
+ */
+extern Bool
+vboxGetDisplayChangeRequest(ScrnInfoPtr pScrn, uint32_t *pcx, uint32_t *pcy,
+                                    uint32_t *pcBits, uint32_t fEventAck, uint32_t iDisplay);
 
 #endif /* _VBOXVIDEO_H_ */

@@ -42,6 +42,7 @@ BIN_BOOTADM=/sbin/bootadm
 BIN_SVCADM=/usr/sbin/svcadm
 BIN_SVCCFG=/usr/sbin/svccfg
 BIN_IFCONFIG=/sbin/ifconfig
+BIN_ID=/usr/bin/id
 
 # "vboxdrv" is also used in sed lines here (change those as well if it ever changes)
 MOD_VBOXDRV=vboxdrv
@@ -120,7 +121,9 @@ find_bins()
     # Search only for binaries that might be in different locations
     BIN_IFCONFIG=`which ifconfig 2> /dev/null`
     BIN_SVCS=`which svcs 2> /dev/null`
+    BIN_ID=`which id 2> /dev/null`
 
+    check_bin_path "$BIN_ID"
     check_bin_path "$BIN_ADDDRV"
     check_bin_path "$BIN_REMDRV"
     check_bin_path "$BIN_MODLOAD"
@@ -138,18 +141,10 @@ find_bins()
 # !! failure is always fatal
 check_root()
 {
-    idbin=/usr/xpg4/bin/id
-    if test ! -x "$idbin"; then
-        found=`which id 2> /dev/null`
-        if test ! -x "$found"; then
-            errorprint "Failed to find a suitable user id executable."
-            exit 1
-        else
-            idbin=$found
-        fi
-    fi
-
-    if test `$idbin -u` -ne 0; then
+    # Don't use "-u" option as some id binaries don't support it, instead
+    # rely on "uid=101(username) gid=10(groupname) groups=10(staff)" output
+    curuid=`$BIN_ID | cut -f 2 -d '=' | cut -f 1 -d '('`
+    if test "$curuid" -ne 0; then
         errorprint "This script must be run with administrator privileges."
         exit 1
     fi
@@ -197,7 +192,9 @@ module_added()
         exit 1
     fi
 
-    loadentry=`cat /etc/name_to_major | grep $1`
+    # Add a space at end of module name to make sure we have a perfect match to avoid
+    # any substring matches: e.g "vboxusb" & "vboxusbmon"
+    loadentry=`cat /etc/name_to_major | grep "$1 "`
     if test -z "$loadentry"; then
         return 1
     fi
@@ -214,8 +211,8 @@ module_loaded()
     fi
 
     modname=$1
-    # modinfo should now work properly since we prevent module autounloading
-    loadentry=`$BIN_MODINFO | grep $modname`
+    # modinfo should now work properly since we prevent module autounloading.
+    loadentry=`$BIN_MODINFO | grep "$modname "`
     if test -z "$loadentry"; then
         return 1
     fi
@@ -305,13 +302,13 @@ unload_module()
     modname=$1
     moddesc=$2
     fatal=$3
-    modid=`$BIN_MODINFO | grep $modname | cut -f 1 -d ' ' `
+    modid=`$BIN_MODINFO | grep "$modname " | cut -f 1 -d ' ' `
     if test -n "$modid"; then
         $BIN_MODUNLOAD -i $modid
         if test $? -eq 0; then
             subprint "Unloaded: $moddesc module"
         else
-            subprint "Unloading: $moddesc  ...FAILED!"
+            subprint "Unloading: $moddesc module ...FAILED!"
             if test "$fatal" = "$FATALOP"; then
                 exit 1
             fi

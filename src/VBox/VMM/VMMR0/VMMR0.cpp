@@ -464,6 +464,9 @@ static void vmmR0RecordRC(PVM pVM, PVMCPU pVCpu, int rc)
         case VINF_PGM_CHANGE_MODE:
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetPGMChangeMode);
             break;
+        case VINF_PGM_POOL_FLUSH_PENDING:
+            STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetPGMFlushPending);
+            break;
         case VINF_EM_PENDING_REQUEST:
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetPendingRequest);
             break;
@@ -1263,16 +1266,19 @@ DECLEXPORT(bool) RTCALL RTAssertShouldPanic(void)
     {
         PVMCPU pVCpu = VMMGetCpu(pVM);
 
-#ifdef RT_ARCH_X86
-        if (    pVCpu->vmm.s.CallRing3JmpBufR0.eip
-            &&  !pVCpu->vmm.s.CallRing3JmpBufR0.fInRing3Call)
-#else
-        if (    pVCpu->vmm.s.CallRing3JmpBufR0.rip
-            &&  !pVCpu->vmm.s.CallRing3JmpBufR0.fInRing3Call)
-#endif
+        if (pVCpu)
         {
-            int rc = VMMRZCallRing3(pVM, pVCpu, VMMCALLRING3_VM_R0_ASSERTION, 0);
-            return RT_FAILURE_NP(rc);
+#ifdef RT_ARCH_X86
+            if (    pVCpu->vmm.s.CallRing3JmpBufR0.eip
+                &&  !pVCpu->vmm.s.CallRing3JmpBufR0.fInRing3Call)
+#else
+            if (    pVCpu->vmm.s.CallRing3JmpBufR0.rip
+                &&  !pVCpu->vmm.s.CallRing3JmpBufR0.fInRing3Call)
+#endif
+            {
+                int rc = VMMRZCallRing3(pVM, pVCpu, VMMCALLRING3_VM_R0_ASSERTION, 0);
+                return RT_FAILURE_NP(rc);
+            }
         }
     }
 #ifdef RT_OS_LINUX

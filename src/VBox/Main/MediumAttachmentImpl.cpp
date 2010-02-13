@@ -82,8 +82,8 @@ HRESULT MediumAttachment::init(Machine *aParent,
     unconst(m->port)   = aPort;
     unconst(m->device) = aDevice;
     unconst(m->type)   = aType;
-    unconst(m->passthrough) = aPassthrough;
 
+    m->passthrough = aPassthrough;
     /* Newly created attachments never have an implicitly created medium
      * associated with them. Implicit diff image creation happens later. */
     m->implicit = false;

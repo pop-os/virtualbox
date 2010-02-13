@@ -1172,6 +1172,7 @@ DECLEXPORT(int) pgmPoolAccessHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE 
     if (pPage->fDirty)
     {
         Assert(VMCPU_FF_ISSET(pVCpu, VMCPU_FF_TLB_FLUSH));
+        pgmUnlock(pVM);
         return VINF_SUCCESS;    /* SMP guest case where we were blocking on the pgm lock while the same page was being marked dirty. */
     }
 #endif
@@ -2647,6 +2648,14 @@ int pgmPoolSyncCR3(PVMCPU pVCpu)
     {
         LogFlow(("SyncCR3: PGM_SYNC_CLEAR_PGM_POOL is set -> VINF_PGM_SYNC_CR3\n"));
         VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3); /** @todo no need to do global sync, right? */
+
+        /* Make sure all other VCPUs return to ring 3. */
+        if (pVM->cCpus > 1)
+        {
+            VM_FF_SET(pVM, VM_FF_PGM_POOL_FLUSH_PENDING);
+            PGM_INVL_ALL_VCPU_TLBS(pVM);
+        }
+
         return VINF_PGM_SYNC_CR3;
     }
 # endif /* !IN_RING3 */

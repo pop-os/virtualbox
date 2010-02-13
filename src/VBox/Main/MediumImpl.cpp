@@ -1257,7 +1257,7 @@ HRESULT Medium::init(VirtualBox *aVirtualBox,
  * @note All children of this hard disk get uninitialized by calling their
  *       uninit() methods.
  *
- * @note Locks getTreeLock() for writing, VirtualBox for writing.
+ * @note Caller must hold the tree lock of the medium tree this medium is on.
  */
 void Medium::uninit()
 {
@@ -1628,10 +1628,10 @@ STDMETHODIMP Medium::COMGETTER(LogicalSize)(ULONG64 *aLogicalSize)
         AutoCaller autoCaller(this);
         CheckComRCReturnRC(autoCaller.rc());
 
-        AutoReadLock alock(this);
-
         /* we access mParent */
         AutoReadLock treeLock(this->getTreeLock());
+
+        AutoReadLock alock(this);
 
         if (mParent.isNull())
         {
@@ -2963,10 +2963,10 @@ bool Medium::isReadOnly()
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), false);
 
-    AutoReadLock alock(this);
-
     /* we access children */
     AutoReadLock treeLock(this->getTreeLock());
+
+    AutoReadLock alock(this);
 
     switch (m->type)
     {
@@ -3010,10 +3010,10 @@ HRESULT Medium::saveSettings(settings::Medium &data)
     AutoCaller autoCaller(this);
     CheckComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock(this);
-
     /* we access mParent */
     AutoReadLock treeLock(this->getTreeLock());
+
+    AutoReadLock alock(this);
 
     data.uuid = m->id;
     data.strLocation = m->strLocation;
@@ -3115,7 +3115,8 @@ HRESULT Medium::compareLocationTo(const char *aLocation, int &aResult)
 
 /**
  * Checks that this hard disk may be discarded and performs necessary state
- * changes.
+ * changes. Must not be called for writethrough disks because there is nothing
+ * to discard then.
  *
  * This method is to be called prior to calling the #discard() to perform
  * necessary consistency checks and place involved hard disks to appropriate
@@ -3142,7 +3143,9 @@ HRESULT Medium::prepareDiscard(MergeChain * &aChain)
     /* we access mParent & children() */
     AutoReadLock treeLock(this->getTreeLock());
 
-    AssertReturn(m->type == MediumType_Normal, E_FAIL);
+    // Medium must not be writethrough at this point
+    AssertReturn(   m->type == MediumType_Normal
+                 || m->type == MediumType_Immutable, E_FAIL);
 
     if (getChildren().size() == 0)
     {

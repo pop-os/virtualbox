@@ -1249,8 +1249,8 @@ Hardware::Hardware()
         : strVersion("1"),
           fHardwareVirt(true),
           fHardwareVirtExclusive(HWVIRTEXCLUSIVEDEFAULT),
-          fNestedPaging(false),
-          fVPID(false),
+          fNestedPaging(true),
+          fVPID(true),
           fSyntheticCpu(false),
           fPAE(false),
           cCPUs(1),
@@ -1955,7 +1955,7 @@ void MachineConfigFile::readStorageControllers(const xml::ElementNode &elmStorag
             throw ConfigFileError(this, pelmController, N_("Required StorageController/@name attribute is missing"));
         //  canonicalize storage controller names for configs in the switchover
         //  period.
-        if (m->sv <= SettingsVersion_v1_9)
+        if (m->sv < SettingsVersion_v1_9)
         {
             if (sctl.strName == "IDE")
                 sctl.strName = "IDE Controller";
@@ -2914,8 +2914,7 @@ void MachineConfigFile::writeStorageControllers(xml::ElementNode &elmParent,
 
                 case DeviceType_DVD:
                     pcszType = "DVD";
-                    if (att.fPassThrough)
-                        pelmDevice->setAttribute("passthrough", att.fPassThrough);
+                    pelmDevice->setAttribute("passthrough", att.fPassThrough);
                 break;
 
                 case DeviceType_Floppy:

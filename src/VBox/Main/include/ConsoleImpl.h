@@ -575,16 +575,26 @@ private:
     VMMDev * const mVMMDev;
     AudioSniffer * const mAudioSniffer;
 
-    PPDMLED     mapFDLeds[2];
-    PPDMLED     mapIDELeds[4];
-    PPDMLED     mapSATALeds[30];
-    PPDMLED     mapSCSILeds[16];
-    PPDMLED     mapNetworkLeds[SchemaDefs::NetworkAdapterCount];
-    PPDMLED     mapSharedFolderLed;
-    PPDMLED     mapUSBLed[2];
+    enum
+    {
+        iLedFloppy  = 0,
+        cLedFloppy  = 1,
+        iLedIde     = iLedFloppy + cLedFloppy,
+        cLedIde     = 4,
+        iLedSata    = iLedIde + cLedIde,
+        cLedSata    = 30,
+        iLedScsi    = iLedSata + cLedSata,
+        cLedScsi    = 16,
+        cLedStorage = cLedFloppy + cLedIde + cLedSata + cLedScsi,
+    };
+    DeviceType_T maStorageDevType[cLedStorage];
+    PPDMLED      mapStorageLeds[cLedStorage];
+    PPDMLED      mapNetworkLeds[SchemaDefs::NetworkAdapterCount];
+    PPDMLED      mapSharedFolderLed;
+    PPDMLED      mapUSBLed[2];
 #if !defined(VBOX_WITH_NETFLT) && (defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD))
-    Utf8Str     maTAPDeviceName[8];
-    RTFILE      maTapFD[8];
+    Utf8Str      maTAPDeviceName[8];
+    RTFILE       maTapFD[8];
 #endif
 
     bool mVMStateChangeCallbackDisabled;
