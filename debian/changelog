@@ -1,3 +1,31 @@
+virtualbox-ose (3.1.4-dfsg-1) UNRELEASED; urgency=low
+
+  * New upstream version:
+    - Rebuild makes sure all packages share the same version. (Closes: #567030,
+      #568296)
+    - Fixes mouse integration in Lenny. (Closes: #565285)
+
+  [ Felix Geyer ]
+  * Install EFI firmware images
+  * Make the dkms dependency versioned as we require the common postinst
+    script to be present
+  * Pass the architecture to the dkms postinst script
+  * Use ${source:Version} for arch all package dependencies
+  * Bump Standards-Version to 3.8.4, no changes needed.
+  * Make patches DEP-3 compliant
+  * Update vdfuse code as upstream has changed the license to GPLv2+
+  * Adapt 18-xorg-1.6.dpatch for new upstream version.
+  * Add lintian override for virtualbox-ose-fuse
+
+  [ Michael Meskes ]
+  * Merged Ubuntu patch to disable update action into Debian tree.
+  * Removed Uploaders that haven't committed anything for more than a
+    year.
+  * Added virtualbox-ose-fuse package to fuse mount vdi images. (Closes:
+    #565900)
+
+ -- Michael Meskes <meskes@debian.org>  Sat, 13 Feb 2010 21:31:50 +0100
+
 virtualbox-ose (3.1.2-dfsg-1) unstable; urgency=low
 
   [ Felix Geyer ]
