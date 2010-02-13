@@ -6,7 +6,7 @@
 diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/common/crOpenGL/Makefile.kmk virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/common/crOpenGL/Makefile.kmk
 --- virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2009-10-07 11:27:13.000000000 +0200
 +++ virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2009-10-07 13:44:19.145463290 +0200
-@@ -69,21 +69,16 @@
+@@ -67,16 +67,11 @@
  VBoxOGL_INCS           = .
  if1of ($(KBUILD_TARGET),linux solaris)
   VBoxOGL_INCS     += \
@@ -21,17 +21,12 @@ diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/common/crOpenGL/Makefi
 +	/usr/include/x11 \
 +	/usr/include/xorg \
 +	/usr/include/pixman-1 \
- 	$(VBOX_PATH_MESA_SOURCE) \
- 	$(VBOX_PATH_MESA_SOURCE)/include \
- 	$(VBOX_PATH_MESA_SOURCE)/src/mesa/ \
- 	$(VBOX_PATH_MESA_SOURCE)/src/mesa/glapi \
- 	$(VBOX_PATH_MESA_SOURCE)/src/mesa/main \
- 	$(VBOX_PATH_MESA_SOURCE)/src/mesa/drivers/dri/common \
+ 	$(VBOX_MESA_INCS) \
 -	$(PATH_ROOT)/src/VBox/Additions/x11/x11include/libdrm-2.4.13
 +	/usr/include/drm
   VBoxOGL_DEFS     += VBOX_NO_NATIVEGL
  endif
- ifdef VBoxOGL_DRI
+ 
 diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/x11/vboxmouse/Makefile.kmk virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/x11/vboxmouse/Makefile.kmk
 --- virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/x11/vboxmouse/Makefile.kmk	2009-10-07 11:27:13.000000000 +0200
 +++ virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/x11/vboxmouse/Makefile.kmk	2009-10-07 13:44:19.145463290 +0200
