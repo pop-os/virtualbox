@@ -1229,6 +1229,18 @@ void VBoxConsoleWnd::clearMask()
 #endif
 }
 
+void VBoxConsoleWnd::onDisplayResize (ulong aHeight, ulong aWidth)
+{
+    if (mIsSeamless && QApplication::desktop()->availableGeometry (this).size() != QSize (aHeight, aWidth))
+    {
+        mVmSeamlessAction->setChecked (false);
+        /* should be cleared already, but just in case */
+        if (mIsSeamless)
+            toggleFullscreenMode (false, true);
+    }
+}
+
+
 bool VBoxConsoleWnd::event (QEvent *aEvent)
 {
     switch (aEvent->type())
@@ -1447,7 +1459,7 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *aEvent)
                         if (console.isOk())
                         {
                             /* Show the power down progress dialog */
-                            vboxProblem().showModalProgressDialog (progress, machine.GetName(), this, 0);
+                            vboxProblem().showModalProgressDialog (progress, machine.GetName(), this);
                             if (progress.GetResultCode() != 0)
                                 vboxProblem().cannotStopMachine (progress);
                             else
@@ -2790,6 +2802,16 @@ void VBoxConsoleWnd::unlockActionsSwitch()
     }
     mConsole->setMouseCoalescingEnabled (true);
 #endif
+
+#ifdef Q_WS_X11
+    if (vboxGlobal().isKWinManaged() && !mIsSeamless && !mIsFullscreen)
+    {
+        /* Workaround for a KWin bug to let console window to exit
+         * seamless mode correctly. */
+        setWindowFlags(Qt::Window);
+        setVisible(true);
+    }
+#endif
 }
 
 void VBoxConsoleWnd::mtExitMode()
@@ -3493,6 +3515,7 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
     if (wasHidden)
         hide();
 #endif
+
     return true;
 }
 

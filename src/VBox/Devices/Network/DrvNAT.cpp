@@ -329,6 +329,7 @@ static DECLCALLBACK(void) drvNATRecvWorker(PDRVNAT pThis, uint8_t *pu8Buf, int c
     }
 
     rc = RTCritSectEnter(&pThis->csDevAccess);
+    AssertRC(rc);
 
     rc = pThis->pPort->pfnWaitReceiveAvail(pThis->pPort, RT_INDEFINITE_WAIT);
     if (RT_SUCCESS(rc))

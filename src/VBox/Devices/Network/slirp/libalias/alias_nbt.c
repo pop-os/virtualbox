@@ -70,6 +70,7 @@ __FBSDID("$FreeBSD: src/sys/netinet/libalias/alias_nbt.c,v 1.20.8.1 2009/04/15 0
 # include <slirp.h>
 # include "alias_local.h"
 # include "alias_mod.h"
+# define isprint RT_C_IS_PRINT
 #endif /*VBOX*/
 
 #define NETBIOS_NS_PORT_NUMBER 137

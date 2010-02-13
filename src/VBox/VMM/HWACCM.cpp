@@ -45,6 +45,7 @@
 #include <VBox/log.h>
 #include <iprt/asm.h>
 #include <iprt/string.h>
+#include <iprt/env.h>
 #include <iprt/thread.h>
 
 /*******************************************************************************
@@ -652,13 +653,42 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
 {
     int rc;
 
+    /* Hack to allow users to work around broken BIOSes that incorrectly set EFER.SVME, which makes us believe somebody else
+     * is already using AMD-V. 
+     */
+    if (    !pVM->hwaccm.s.vmx.fSupported
+        &&  !pVM->hwaccm.s.svm.fSupported
+        &&  pVM->hwaccm.s.lLastError == VERR_SVM_IN_USE /* implies functional AMD-V */
+        &&  RTEnvGet("VBOX_HWVIRTEX_IGNORE_SVM_IN_USE"))
+    {
+        LogRel(("HWACCM: VBOX_HWVIRTEX_IGNORE_SVM_IN_USE active!\n"));
+        pVM->hwaccm.s.svm.fSupported        = true;
+        pVM->hwaccm.s.svm.fIgnoreInUseError = true;
+    }
+    else
     if (    !pVM->hwaccm.s.vmx.fSupported
         &&  !pVM->hwaccm.s.svm.fSupported)
     {
         LogRel(("HWACCM: No VT-x or AMD-V CPU extension found. Reason %Rrc\n", pVM->hwaccm.s.lLastError));
         LogRel(("HWACCM: VMX MSR_IA32_FEATURE_CONTROL=%RX64\n", pVM->hwaccm.s.vmx.msr.feature_ctrl));
         if (VMMIsHwVirtExtForced(pVM))
-            return VM_SET_ERROR(pVM, VERR_VMX_NO_VMX, "VT-x is not available.");
+        {
+            switch (pVM->hwaccm.s.lLastError)
+            {
+            case VERR_VMX_NO_VMX:
+                return VM_SET_ERROR(pVM, VERR_VMX_NO_VMX, "VT-x is not available.");
+            case VERR_VMX_IN_VMX_ROOT_MODE:
+                return VM_SET_ERROR(pVM, VERR_VMX_IN_VMX_ROOT_MODE, "VT-x is being used by another hypervisor.");
+            case VERR_SVM_IN_USE:
+                return VM_SET_ERROR(pVM, VERR_SVM_IN_USE, "AMD-V is being used by another hypervisor.");
+            case VERR_SVM_NO_SVM:
+                return VM_SET_ERROR(pVM, VERR_SVM_NO_SVM, "AMD-V is not available.");
+            case VERR_SVM_DISABLED:
+                return VM_SET_ERROR(pVM, VERR_SVM_DISABLED, "AMD-V is disabled in the BIOS.");
+            default:
+                return pVM->hwaccm.s.lLastError;
+            }
+        }
         return VINF_SUCCESS;
     }
 
@@ -1097,6 +1127,13 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
                     CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_LAHF);
                     CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NXE);
                 }
+                else
+                /* Turn on NXE if PAE has been enabled *and* the host has turned on NXE (we reuse the host EFER in the switcher) */
+                /* Todo: this needs to be fixed properly!! */
+                if (    CPUMGetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE)
+                    &&  (pVM->hwaccm.s.vmx.hostEFER & MSR_K6_EFER_NXE))
+                    CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NXE);
+
                 LogRel((pVM->hwaccm.s.fAllow64BitGuests
                         ? "HWACCM: 32-bit and 64-bit guests supported.\n"
                         : "HWACCM: 32-bit guests supported.\n"));
@@ -1237,6 +1274,10 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
                     CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NXE);
                     CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_LAHF);
                 }
+                else
+                /* Turn on NXE if PAE has been enabled. */
+                if (CPUMGetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE))
+                    CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NXE);
 #endif
                 LogRel((pVM->hwaccm.s.fAllow64BitGuests
                         ? "HWACCM:    32-bit and 64-bit guest supported.\n"

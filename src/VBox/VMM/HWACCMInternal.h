@@ -173,6 +173,9 @@ typedef struct
     /** Configured for VT-x or AMD-V. */
     bool                fConfigured;
 
+    /** Set if the VBOX_HWVIRTEX_IGNORE_SVM_IN_USE hack is active. */
+    bool                fIgnoreAMDVInUseError;
+
     /** In use by our code. (for power suspend) */
     volatile bool       fInUse;
 } HWACCM_CPUINFO;
@@ -373,6 +376,9 @@ typedef struct HWACCM
         /** Host CR4 value (set by ring-0 VMX init) */
         uint64_t                    hostCR4;
 
+        /** Host EFER value (set by ring-0 VMX init) */
+        uint64_t                    hostEFER;
+
         /** VMX MSR values */
         struct
         {
@@ -405,7 +411,8 @@ typedef struct HWACCM
         bool                        fEnabled;
         /** Set if erratum 170 affects the AMD cpu. */
         bool                        fAlwaysFlushTLB;
-        bool                        u8Alignment;
+        /** Set when the hack to ignore VERR_SVM_IN_USE is active. */
+        bool                        fIgnoreInUseError;
 
         /** R0 memory object for the IO bitmap (12kb). */
         RTR0MEMOBJ                  pMemObjIOBitmap;

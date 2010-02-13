@@ -1988,8 +1988,11 @@ STDMETHODIMP SessionMachine::DeleteSnapshot(IConsole *aInitiator,
             ComObjPtr<Medium> pHD = pAttach->getMedium();
             Assert(pHD);
             AutoReadLock mlock(pHD);
-            if (pHD->getType() == MediumType_Normal)
+
+            MediumType_T type = pHD->getType();
+            if (type != MediumType_Writethrough) // writethrough images are unaffected by snapshots, so do nothing for them
             {
+                // normal or immutable: then this will need to be discarded
                 ++ulOpCount;
                 ulTotalWeight += (ULONG)(pHD->getSize() / _1M);
             }
@@ -2141,7 +2144,18 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
             {
                 Assert(pAttach->getMedium());
                 ComObjPtr<Medium> pHD = pAttach->getMedium();
-                        // do not lock, prepareDiscared() has a write lock which will hang otherwise
+
+                {
+                    // writethrough images are unaffected by snapshots, so do nothing for them
+                    AutoReadLock medlock(pHD);
+                    MediumType_T type = pHD->getType();
+                    if (type == MediumType_Writethrough)
+                        continue;
+                }
+
+                // image is normal or immutable: then this will need to be discarded
+
+                // do not lock medium now, prepareDiscard() has a write lock which will hang otherwise
 
 #ifdef DEBUG
                 pHD->dumpBackRefs();

@@ -64,10 +64,6 @@ RT_C_DECLS_END
 # error "Invalid combination; AMD64 guest implies AMD64 shadow and vice versa"
 #endif
 
-#ifdef IN_RING0 /* no mappings in VT-x and AMD-V mode */
-# define PGM_WITHOUT_MAPPINGS
-#endif
-
 
 #ifndef IN_RING3
 /**
@@ -292,7 +288,7 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
                 /*
                  * The first thing we check is if we've got an undetected conflict.
                  */
-                if (!pVM->pgm.s.fMappingsFixed)
+                if (pgmMapAreMappingsFloating(&pVM->pgm.s))
                 {
                     unsigned iPT = pMapping->cb >> GST_PD_SHIFT;
                     while (iPT-- > 0)
@@ -2625,9 +2621,7 @@ PGM_BTH_DECL(int, SyncPT)(PVMCPU pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, RTGCPTR 
         PdeDst = *pPdeDst;
 #  endif
     }
-# else  /* PGM_WITHOUT_MAPPINGS */
-    Assert(!pgmMapAreMappingsEnabled(&pVM->pgm.s));
-# endif /* PGM_WITHOUT_MAPPINGS */
+# endif /* !PGM_WITHOUT_MAPPINGS */
     Assert(!PdeDst.n.u1Present); /* We're only supposed to call SyncPT on PDE!P and conflicts.*/
 
 # if defined(IN_RC)
@@ -3478,7 +3472,7 @@ PGM_BTH_DECL(int, SyncCR3)(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr
     PGM_GST_NAME(HandlerVirtualUpdate)(pVM, cr4);
     STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_MID_Z(Stat,SyncCR3Handlers), h);
     pgmUnlock(pVM);
-#endif
+#endif /* !NESTED && !EPT */
 
 #if PGM_SHW_TYPE == PGM_TYPE_NESTED || PGM_SHW_TYPE == PGM_TYPE_EPT
     /*
@@ -3486,6 +3480,7 @@ PGM_BTH_DECL(int, SyncCR3)(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr
      */
     /** @todo check if this is really necessary; the call does it as well... */
     HWACCMFlushTLB(pVCpu);
+    Assert(!pgmMapAreMappingsEnabled(&pVM->pgm.s));
     return VINF_SUCCESS;
 
 #elif PGM_SHW_TYPE == PGM_TYPE_AMD64
@@ -3493,25 +3488,28 @@ PGM_BTH_DECL(int, SyncCR3)(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr
      * AMD64 (Shw & Gst) - No need to check all paging levels; we zero
      * out the shadow parts when the guest modifies its tables.
      */
+    Assert(!pgmMapAreMappingsEnabled(&pVM->pgm.s));
     return VINF_SUCCESS;
 
 #else /* PGM_SHW_TYPE != PGM_TYPE_NESTED && PGM_SHW_TYPE != PGM_TYPE_EPT && PGM_SHW_TYPE != PGM_TYPE_AMD64 */
 
-#  ifdef PGM_WITHOUT_MAPPINGS
-    Assert(pVM->pgm.s.fMappingsFixed);
-    return VINF_SUCCESS;
-#  else
-    /* Nothing to do when mappings are fixed. */
-    if (pVM->pgm.s.fMappingsFixed)
-        return VINF_SUCCESS;
-
-    int rc = PGMMapResolveConflicts(pVM);
-    Assert(rc == VINF_SUCCESS || rc == VINF_PGM_SYNC_CR3);
-    if (rc == VINF_PGM_SYNC_CR3)
+#  ifndef PGM_WITHOUT_MAPPINGS
+    /*
+     * Check for and resolve conflicts with our guest mappings if they
+     * are enabled and not fixed.
+     */
+    if (pgmMapAreMappingsFloating(&pVM->pgm.s))
     {
-        LogFlow(("SyncCR3: detected conflict -> VINF_PGM_SYNC_CR3\n"));
-        return VINF_PGM_SYNC_CR3;
+        int rc = pgmMapResolveConflicts(pVM);
+        Assert(rc == VINF_SUCCESS || rc == VINF_PGM_SYNC_CR3);
+        if (rc == VINF_PGM_SYNC_CR3)
+        {
+            LogFlow(("SyncCR3: detected conflict -> VINF_PGM_SYNC_CR3\n"));
+            return VINF_PGM_SYNC_CR3;
+        }
     }
+#  else
+    Assert(!pgmMapAreMappingsEnabled(&pVM->pgm.s));
 #  endif
     return VINF_SUCCESS;
 #endif /* PGM_SHW_TYPE != PGM_TYPE_NESTED && PGM_SHW_TYPE != PGM_TYPE_EPT && PGM_SHW_TYPE != PGM_TYPE_AMD64 */

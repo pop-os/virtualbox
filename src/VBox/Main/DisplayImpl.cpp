@@ -514,7 +514,10 @@ Display::displaySSMLoadScreenshot(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersi
 
         LogFlowFunc(("[%d] type %d, size %d bytes\n", i, typeOfBlock, cbBlock));
 
-        if (cbBlock != 0)
+        /* Note: displaySSMSaveScreenshot writes size of a block = 8 and
+         * does not write any data if the image size was 0.
+         */
+        if (cbBlock > 2 * sizeof (uint32_t))
         {
             rc = SSMR3Skip(pSSM, cbBlock);
             AssertRCBreak(rc);

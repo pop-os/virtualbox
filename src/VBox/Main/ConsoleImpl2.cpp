@@ -823,6 +823,8 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
 
     for (size_t i = 0; i < ctrls.size(); ++ i)
     {
+        DeviceType_T *paLedDevType = NULL;
+
         StorageControllerType_T enmCtrlType;
         rc = ctrls[i]->COMGETTER(ControllerType)(&enmCtrlType);                                 H();
         AssertRelease((unsigned)enmCtrlType < RT_ELEMENTS(aCtrlNodes));
@@ -866,9 +868,11 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
                 rc = CFGMR3InsertNode(pCtlInst, "LUN#999", &pLunL0);                            RC_CHECK();
                 rc = CFGMR3InsertString(pLunL0, "Driver",               "MainStatus");          RC_CHECK();
                 rc = CFGMR3InsertNode(pLunL0,   "Config", &pCfg);                               RC_CHECK();
-                rc = CFGMR3InsertInteger(pCfg,  "papLeds", (uintptr_t)&pConsole->mapSCSILeds[0]); RC_CHECK();
+                rc = CFGMR3InsertInteger(pCfg,  "papLeds", (uintptr_t)&pConsole->mapStorageLeds[iLedScsi]); RC_CHECK();
                 rc = CFGMR3InsertInteger(pCfg,  "First",    0);                                 RC_CHECK();
+                Assert(cLedScsi >= 16);
                 rc = CFGMR3InsertInteger(pCfg,  "Last",     15);                                RC_CHECK();
+                paLedDevType = &pConsole->maStorageDevType[iLedScsi];
                 break;
             }
 
@@ -883,9 +887,11 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
                 rc = CFGMR3InsertNode(pCtlInst, "LUN#999", &pLunL0);                            RC_CHECK();
                 rc = CFGMR3InsertString(pLunL0, "Driver",               "MainStatus");          RC_CHECK();
                 rc = CFGMR3InsertNode(pLunL0,   "Config", &pCfg);                               RC_CHECK();
-                rc = CFGMR3InsertInteger(pCfg,  "papLeds", (uintptr_t)&pConsole->mapSCSILeds[0]); RC_CHECK();
+                rc = CFGMR3InsertInteger(pCfg,  "papLeds", (uintptr_t)&pConsole->mapStorageLeds[iLedScsi]); RC_CHECK();
                 rc = CFGMR3InsertInteger(pCfg,  "First",    0);                                 RC_CHECK();
+                Assert(cLedScsi >= 16);
                 rc = CFGMR3InsertInteger(pCfg,  "Last",     15);                                RC_CHECK();
+                paLedDevType = &pConsole->maStorageDevType[iLedScsi];
                 break;
             }
 
@@ -926,10 +932,11 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
                 rc = CFGMR3InsertNode(pCtlInst, "LUN#999", &pLunL0);                            RC_CHECK();
                 rc = CFGMR3InsertString(pLunL0, "Driver",               "MainStatus");          RC_CHECK();
                 rc = CFGMR3InsertNode(pLunL0,   "Config", &pCfg);                               RC_CHECK();
-                AssertRelease(cPorts <= RT_ELEMENTS(pConsole->mapSATALeds));
-                rc = CFGMR3InsertInteger(pCfg,  "papLeds", (uintptr_t)&pConsole->mapSATALeds[0]); RC_CHECK();
+                AssertRelease(cPorts <= cLedSata);
+                rc = CFGMR3InsertInteger(pCfg,  "papLeds", (uintptr_t)&pConsole->mapStorageLeds[iLedSata]); RC_CHECK();
                 rc = CFGMR3InsertInteger(pCfg,  "First",    0);                                 RC_CHECK();
                 rc = CFGMR3InsertInteger(pCfg,  "Last",     cPorts - 1);                        RC_CHECK();
+                paLedDevType = &pConsole->maStorageDevType[iLedSata];
                 break;
             }
 
@@ -950,9 +957,11 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
                 rc = CFGMR3InsertNode(pCtlInst,    "LUN#999", &pLunL0);                         RC_CHECK();
                 rc = CFGMR3InsertString(pLunL0, "Driver",               "MainStatus");          RC_CHECK();
                 rc = CFGMR3InsertNode(pLunL0,   "Config", &pCfg);                               RC_CHECK();
-                rc = CFGMR3InsertInteger(pCfg,  "papLeds", (uintptr_t)&pConsole->mapIDELeds[0]);RC_CHECK();
+                rc = CFGMR3InsertInteger(pCfg,  "papLeds", (uintptr_t)&pConsole->mapStorageLeds[iLedIde]); RC_CHECK();
                 rc = CFGMR3InsertInteger(pCfg,  "First",    0);                                 RC_CHECK();
+                Assert(cLedIde >= 4);
                 rc = CFGMR3InsertInteger(pCfg,  "Last",     3);                                 RC_CHECK();
+                paLedDevType = &pConsole->maStorageDevType[iLedIde];
 
                 /* IDE flavors */
                 aCtrlNodes[StorageControllerType_PIIX3] = pDev;
@@ -976,9 +985,11 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
                 rc = CFGMR3InsertNode(pCtlInst, "LUN#999", &pLunL0);                            RC_CHECK();
                 rc = CFGMR3InsertString(pLunL0, "Driver",               "MainStatus");          RC_CHECK();
                 rc = CFGMR3InsertNode(pLunL0,   "Config", &pCfg);                               RC_CHECK();
-                rc = CFGMR3InsertInteger(pCfg,  "papLeds", (uintptr_t)&pConsole->mapFDLeds[0]); RC_CHECK();
+                rc = CFGMR3InsertInteger(pCfg,  "papLeds", (uintptr_t)&pConsole->mapStorageLeds[iLedFloppy]); RC_CHECK();
                 rc = CFGMR3InsertInteger(pCfg,  "First",    0);                                 RC_CHECK();
+                Assert(cLedFloppy >= 1);
                 rc = CFGMR3InsertInteger(pCfg,  "Last",     0);                                 RC_CHECK();
+                paLedDevType = &pConsole->maStorageDevType[iLedFloppy];
                 break;
             }
 
@@ -1118,7 +1129,7 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
                             {
                                 Utf8Str name = names[ii];
                                 Utf8Str value = values[ii];
-                                rc = CFGMR3InsertString(pVDC, name.c_str(), value.c_str()); AssertRC(rc); /** @todo r=bird: why not RC_CHECK() here? (I added the AssertRC.)*/
+                                rc = CFGMR3InsertString(pVDC, name.c_str(), value.c_str());     RC_CHECK();
                                 if (    name.compare("HostIPStack") == 0
                                     &&  value.compare("0") == 0)
                                     fHostIP = false;
@@ -1157,11 +1168,11 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
                             rc = CFGMR3InsertNode(pCur, "VDConfig", &pVDC);                     RC_CHECK();
                             for (size_t ii = 0; ii < aNames.size(); ++ii)
                             {
-                                if (aValues[ii])
+                                if (aValues[ii] && *aValues[ii])
                                 {
                                     Utf8Str name = aNames[ii];
                                     Utf8Str value = aValues[ii];
-                                    rc = CFGMR3InsertString(pVDC, name.c_str(), value.c_str()); AssertRC(rc); /** @todo r=bird: why not RC_HCECK here? (I added the AssertRC.)*/
+                                    rc = CFGMR3InsertString(pVDC, name.c_str(), value.c_str()); RC_CHECK();
                                     if (    name.compare("HostIPStack") == 0
                                         &&  value.compare("0") == 0)
                                         fHostIP = false;
@@ -1182,6 +1193,9 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
                     }
                 }
             }
+
+            if (paLedDevType)
+                paLedDevType[uLUN] = lType;
         }
         H();
     }

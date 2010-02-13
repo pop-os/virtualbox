@@ -24,6 +24,7 @@
 #include "VBoxGlobal.h"
 
 #include <iprt/path.h>
+#include <VBox/version.h> /* VBOX_VENDOR */
 
 /* Qt includes */
 #include <QDir>
@@ -70,7 +71,7 @@ void VBoxAboutDlg::retranslateUi()
 #endif
 #if VBOX_OSE
     mAboutText = aboutText + " " + versionText.arg (mVersion) + "\n" +
-                 QString ("%1 2004-2009 Sun Microsystems, Inc.").arg (QChar (0xa9));
+                 QString ("%1 2004-" VBOX_C_YEAR " " VBOX_VENDOR).arg (QChar (0xa9));
 #else /* VBOX_OSE */
     mAboutText = aboutText + "\n" +
                  versionText.arg (mVersion);

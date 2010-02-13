@@ -944,40 +944,51 @@ vboxDisableVbva(ScrnInfoPtr pScrn)
     return TRUE;
 }
 
-
 /**
  * Query the last display change request.
  *
- * @returns iprt status value
- * @param xres     where to store the horizontal pixel resolution requested
- *                 (0 = do not change)
- * @param yres     where to store the vertical pixel resolution requested
- *                 (0 = do not change)
- * @param bpp      where to store the bits per pixel requeste
- *                 (0 = do not change)
- * @param  display Where to store the display number the request was for -
- *                 0 for the primary display, 1 for the first secondary, etc.
+ * @returns boolean success indicator.
+ * @param   pScrn       Pointer to the X screen info structure.
+ * @param   pcx         Where to store the horizontal pixel resolution (0 = do not change).
+ * @param   pcy         Where to store the vertical pixel resolution (0 = do not change).
+ * @param   pcBits      Where to store the bits per pixel (0 = do not change).
+ * @param   fEventAck   Flag that the request is an acknowlegement for the
+ *                      VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST.
+ *                      Values:
+ *                          0                                   - just querying,
+ *                          VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST - event acknowledged.
+ * @param   iDisplay    0 for primary display, 1 for the first secondary, etc.
  */
 Bool
-vboxGetDisplayChangeRequest(ScrnInfoPtr pScrn, uint32_t *px, uint32_t *py,
-                            uint32_t *pbpp, uint32_t *display)
+vboxGetDisplayChangeRequest(ScrnInfoPtr pScrn, uint32_t *pcx, uint32_t *pcy,
+                                    uint32_t *pcBits, uint32_t fEventAck, uint32_t iDisplay)
 {
-    int rc, scrnIndex = pScrn->scrnIndex;
-    VBOXPtr pVBox = pScrn->driverPrivate;
+    VMMDevDisplayChangeRequest2 req;
+    int rc;
+    int fd;
 
-    VMMDevDisplayChangeRequest2 Req = { { 0 } };
-    vmmdevInitRequest(&Req.header, VMMDevReq_GetDisplayChangeRequest2);
-    rc = vbox_vmmcall(pScrn, pVBox, &Req.header);
-    if (RT_SUCCESS(rc))
-    {
-        *px = Req.xres;
-        *py = Req.yres;
-        *pbpp = Req.bpp;
-        *display = Req.display;
-        return TRUE;
-    }
-    xf86DrvMsg(scrnIndex, X_ERROR,
-               "Failed to request the last resolution requested from the guest, rc=%d.\n",
-               rc);
-    return FALSE;
+    req.eventAck = fEventAck;
+    req.display  = iDisplay;
+
+    rc = vmmdevInitRequest ((VMMDevRequestHeader*)&req, VMMDevReq_GetDisplayChangeRequest2);
+    if (VBOX_FAILURE (rc))
+        return FALSE;
+
+    /* open VBOXGUEST_DEVICE_NAME temporarily as we didn't call vbox_open yet when we enter
+     * this function */
+    fd = open (VBOXGUEST_DEVICE_NAME, O_RDWR, 0);
+    if (fd < 0)
+        return FALSE;
+    if (ioctl(fd, VBOXGUEST_IOCTL_VMMREQUEST(sizeof(req)), (void*)&req) < 0)
+        return FALSE;
+    close (fd);
+
+    rc = req.header.rc;
+    if (RT_FAILURE(rc))
+        return FALSE;
+
+    *pcx    = req.xres;
+    *pcy    = req.yres;
+    *pcBits = req.bpp;
+    return TRUE;
 }

@@ -135,6 +135,12 @@
 #  include <Windows.h>
 # elif defined(RT_OS_LINUX)
 #  include <unistd.h>
+# elif defined(RT_OS_FREEBSD)
+#  include <sys/param.h>
+#  include <sys/sysctl.h>
+#  include <sys/user.h>
+#  include <stdlib.h>
+#  include <unistd.h>
 # elif defined(RT_OS_SOLARIS)
 #  define _STRUCTURED_PROC 1
 #  undef _FILE_OFFSET_BITS /* procfs doesn't like this */
@@ -157,6 +163,7 @@
 # include <iprt/path.h>
 # include <iprt/process.h>
 # include <iprt/string.h>
+# include <iprt/mem.h>
 # include <stdio.h>
 #endif
 
@@ -339,12 +346,8 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
             fclose(pFile);
         }
 
-#  elif defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)
-#   ifdef RT_OS_LINUX
+#  elif defined(RT_OS_LINUX)
         FILE *pFile = fopen("/proc/self/cmdline", "r");
-#   else /* RT_OS_FREEBSD: */
-        FILE *pFile = fopen("/proc/curproc/cmdline", "r");
-#   endif
         if (pFile)
         {
             /* braindead */
@@ -369,6 +372,40 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
             if (!fNew)
                 RTLogLoggerEx(pLogger, 0, ~0U, "\n");
             fclose(pFile);
+        }
+
+#  elif defined(RT_OS_FREEBSD)
+        /* Retrieve the required length first */
+        int aiName[4];
+        aiName[0] = CTL_KERN;
+        aiName[1] = KERN_PROC;
+        aiName[2] = KERN_PROC_ARGS;     /* Introduced in FreeBSD 4.0 */
+        aiName[3] = getpid();
+        size_t cchArgs = 0;
+        int rcBSD = sysctl(aiName, RT_ELEMENTS(aiName), NULL, &cchArgs, NULL, 0);
+        if (cchArgs > 0)
+        {
+            char *pszArgFileBuf = (char *)RTMemAllocZ(cchArgs + 1 /* Safety */);
+            if (pszArgFileBuf)
+            {
+                /* Retrieve the argument list */
+                rcBSD = sysctl(aiName, RT_ELEMENTS(aiName), pszArgFileBuf, &cchArgs, NULL, 0);
+                if (!rcBSD)
+                {
+                    unsigned    iArg = 0;
+                    size_t      off = 0;
+                    while (off < cchArgs)
+                    {
+                        size_t cchArg = strlen(&pszArgFileBuf[off]);
+                        RTLogLoggerEx(pLogger, 0, ~0U, "Arg[%u]: %s\n", iArg, &pszArgFileBuf[off]);
+
+                        /* advance */
+                        off += cchArg + 1;
+                        iArg++;
+                    }
+                }
+                RTMemFree(pszArgFileBuf);
+            }
         }
 
 #  elif defined(RT_OS_L4) || defined(RT_OS_OS2) || defined(RT_OS_DARWIN)

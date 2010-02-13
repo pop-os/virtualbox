@@ -185,7 +185,25 @@ static kmutex_t             g_IrqMtx;
 int _init(void)
 {
     LogFlow((DEVICE_NAME ":_init\n"));
-    int rc = ddi_soft_state_init(&g_pVBoxGuestSolarisState, sizeof(vboxguest_state_t), 1);
+
+    /*
+     * Prevent module autounloading.
+     */
+    modctl_t *pModCtl = mod_getctl(&g_VBoxGuestSolarisModLinkage);
+    if (pModCtl)
+        pModCtl->mod_loadflags |= MOD_NOAUTOUNLOAD;
+    else
+        LogRel((DEVICE_NAME ":failed to disable autounloading!\n"));
+
+    PRTLOGGER pRelLogger;
+    static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
+    int rc = RTLogCreate(&pRelLogger, 0 /* fFlags */, "all",
+                     "VBOX_RELEASE_LOG", RT_ELEMENTS(s_apszGroups), s_apszGroups,
+                     RTLOGDEST_STDOUT | RTLOGDEST_DEBUGGER, NULL);
+    if (RT_SUCCESS(rc))
+        RTLogRelSetDefaultInstance(pRelLogger);
+
+    rc = ddi_soft_state_init(&g_pVBoxGuestSolarisState, sizeof(vboxguest_state_t), 1);
     if (!rc)
     {
         rc = mod_install(&g_VBoxGuestSolarisModLinkage);
@@ -202,6 +220,10 @@ int _fini(void)
     int rc = mod_remove(&g_VBoxGuestSolarisModLinkage);
     if (!rc)
         ddi_soft_state_fini(&g_pVBoxGuestSolarisState);
+
+    RTLogDestroy(RTLogRelSetDefaultInstance(NULL));
+    RTLogDestroy(RTLogSetDefaultInstance(NULL));
+
     return rc;
 }
 
@@ -419,7 +441,7 @@ static int VBoxGuestSolarisGetInfo(dev_info_t *pDip, ddi_info_cmd_t enmCmd, void
 static int VBoxGuestSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCred)
 {
     int                 rc;
-    PVBOXGUESTSESSION   pSession;
+    PVBOXGUESTSESSION   pSession = NULL;
 
     LogFlow((DEVICE_NAME "::Open\n"));
 
@@ -471,7 +493,7 @@ static int VBoxGuestSolarisClose(dev_t Dev, int flag, int fType, cred_t *pCred)
 {
     LogFlow((DEVICE_NAME "::Close pid=%d\n", (int)RTProcSelf()));
 
-    PVBOXGUESTSESSION pSession;
+    PVBOXGUESTSESSION pSession = NULL;
     vboxguest_state_t *pState = ddi_get_soft_state(g_pVBoxGuestSolarisState, getminor(Dev));
     if (!pState)
     {
@@ -502,7 +524,6 @@ static int VBoxGuestSolarisRead(dev_t Dev, struct uio *pUio, cred_t *pCred)
 {
     LogFlow((DEVICE_NAME "::Read\n"));
 
-    PVBOXGUESTSESSION pSession;
     vboxguest_state_t *pState = ddi_get_soft_state(g_pVBoxGuestSolarisState, getminor(Dev));
     if (!pState)
     {
@@ -510,6 +531,7 @@ static int VBoxGuestSolarisRead(dev_t Dev, struct uio *pUio, cred_t *pCred)
         return EFAULT;
     }
 
+    PVBOXGUESTSESSION pSession = pState->pSession;
     uint32_t u32CurSeq = ASMAtomicUoReadU32(&g_DevExt.u32MousePosChangedSeq);
     if (pSession->u32MousePosChangedSeq != u32CurSeq)
         pSession->u32MousePosChangedSeq = u32CurSeq;
@@ -556,14 +578,14 @@ static int VBoxGuestSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArg, int Mode, cr
     vboxguest_state_t *pState = ddi_get_soft_state(g_pVBoxGuestSolarisState, getminor(Dev));
     if (!pState)
     {
-        Log((DEVICE_NAME "::IOCtl: no state data for %d\n", getminor(Dev)));
+        LogRel((DEVICE_NAME "::IOCtl: no state data for %d\n", getminor(Dev)));
         return EINVAL;
     }
 
     PVBOXGUESTSESSION pSession = pState->pSession;
     if (!pSession)
     {
-        Log((DEVICE_NAME "::IOCtl: no session data for %d\n", getminor(Dev)));
+        LogRel((DEVICE_NAME "::IOCtl: no session data for %d\n", getminor(Dev)));
         return EINVAL;
     }
 
@@ -580,19 +602,19 @@ static int VBoxGuestSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArg, int Mode, cr
     int rc = ddi_copyin((void *)pArg, &ReqWrap, sizeof(ReqWrap), Mode);
     if (RT_UNLIKELY(rc))
     {
-        LogRel((DEVICE_NAME "::IOCtl: ddi_copyin failed to read header pArg=%p Cmd=%d. rc=%d.\n", pArg, Cmd, rc));
+        LogRel((DEVICE_NAME "::IOCtl: ddi_copyin failed to read header pArg=%p Cmd=%d. rc=%#x.\n", pArg, Cmd, rc));
         return EINVAL;
     }
 
     if (ReqWrap.u32Magic != VBGLBIGREQ_MAGIC)
     {
-        LogRel((DEVICE_NAME "::IOCtl: bad magic %#x; pArg=%p Cmd=%d.\n", ReqWrap.u32Magic, pArg, Cmd));
+        LogRel((DEVICE_NAME "::IOCtl: bad magic %#x; pArg=%p Cmd=%#x.\n", ReqWrap.u32Magic, pArg, Cmd));
         return EINVAL;
     }
     if (RT_UNLIKELY(   ReqWrap.cbData == 0
                     || ReqWrap.cbData > _1M*16))
     {
-        Log((DEVICE_NAME "::IOCtl: bad size %#x; pArg=%p Cmd=%d.\n", ReqWrap.cbData, pArg, Cmd));
+        LogRel((DEVICE_NAME "::IOCtl: bad size %#x; pArg=%p Cmd=%#x.\n", ReqWrap.cbData, pArg, Cmd));
         return EINVAL;
     }
 
@@ -648,7 +670,10 @@ static int VBoxGuestSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArg, int Mode, cr
     }
     else
     {
-        LogRel((DEVICE_NAME "::IOCtl: VBoxGuestCommonIOCtl failed. rc=%d\n", rc));
+        if (rc != VERR_INTERRUPTED)
+            LogRel((DEVICE_NAME "::IOCtl: VBoxGuestCommonIOCtl failed. rc=%d\n", rc));
+        else
+            Log((DEVICE_NAME "::IOCtl: VBoxGuestCommonIOCtl failed. rc=%d\n", rc));
         rc = RTErrConvertToErrno(rc);
     }
     *pVal = rc;

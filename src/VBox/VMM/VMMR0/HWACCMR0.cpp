@@ -89,6 +89,9 @@ static struct
         /** Host CR4 value (set by ring-0 VMX init) */
         uint64_t                    hostCR4;
 
+        /** Host EFER value (set by ring-0 VMX init) */
+        uint64_t                    hostEFER;
+
         /** VMX MSR values */
         struct
         {
@@ -148,7 +151,8 @@ static struct
  */
 VMMR0DECL(int) HWACCMR0Init(void)
 {
-    int        rc;
+    int     rc;
+    bool    fAMDVPresent = false;
 
     memset(&HWACCMR0Globals, 0, sizeof(HWACCMR0Globals));
     HWACCMR0Globals.enmHwAccmState = HWACCMSTATE_UNINITIALIZED;
@@ -268,6 +272,7 @@ VMMR0DECL(int) HWACCMR0Init(void)
                         if (!HWACCMR0Globals.vmx.fUsingSUPR0EnableVTx)
                         {
                             HWACCMR0Globals.vmx.hostCR4             = ASMGetCR4();
+                            HWACCMR0Globals.vmx.hostEFER            = ASMRdMsr(MSR_K6_EFER);
 
                             rc = RTR0MemObjAllocCont(&pScatchMemObj, 1 << PAGE_SHIFT, true /* executable R0 mapping */);
                             if (RT_FAILURE(rc))
@@ -353,6 +358,11 @@ VMMR0DECL(int) HWACCMR0Init(void)
                 int     aRc[RTCPUSET_MAX_CPUS];
                 RTCPUID idCpu = 0;
 
+                fAMDVPresent = true;
+
+                /* Query AMD features. */
+                ASMCpuId(0x8000000A, &HWACCMR0Globals.svm.u32Rev, &HWACCMR0Globals.uMaxASID, &u32Dummy, &HWACCMR0Globals.svm.u32Features);
+
                 /* We need to check if AMD-V has been properly initialized on all CPUs. Some BIOSes might do a poor job. */
                 memset(aRc, 0, sizeof(aRc));
                 rc = RTMpOnAll(HWACCMR0InitCPU, (void *)u32VendorEBX, aRc);
@@ -367,8 +377,6 @@ VMMR0DECL(int) HWACCMR0Init(void)
 #endif
                 if (RT_SUCCESS(rc))
                 {
-                    /* Query AMD features. */
-                    ASMCpuId(0x8000000A, &HWACCMR0Globals.svm.u32Rev, &HWACCMR0Globals.uMaxASID, &u32Dummy, &HWACCMR0Globals.svm.u32Features);
                     /* Read the HWCR msr for diagnostics. */
                     HWACCMR0Globals.svm.msrHWCR    = ASMRdMsr(MSR_K8_HWCR);
                     HWACCMR0Globals.svm.fSupported = true;
@@ -399,7 +407,7 @@ VMMR0DECL(int) HWACCMR0Init(void)
         HWACCMR0Globals.pfnSetupVM          = VMXR0SetupVM;
     }
     else
-    if (HWACCMR0Globals.svm.fSupported)
+    if (fAMDVPresent)
     {
         HWACCMR0Globals.pfnEnterSession     = SVMR0Enter;
         HWACCMR0Globals.pfnLeaveSession     = SVMR0Leave;
@@ -477,7 +485,7 @@ VMMR0DECL(int) HWACCMR0Term(void)
         if (!HWACCMR0Globals.vmx.fUsingSUPR0EnableVTx)
         {
             rc = RTPowerNotificationDeregister(hwaccmR0PowerCallback, 0);
-            Assert(RT_SUCCESS(rc));
+            AssertRC(rc);
         }
         else
             rc = VINF_SUCCESS;
@@ -898,6 +906,7 @@ VMMR0DECL(int) HWACCMR0InitVM(PVM pVM)
 
     pVM->hwaccm.s.vmx.msr.feature_ctrl      = HWACCMR0Globals.vmx.msr.feature_ctrl;
     pVM->hwaccm.s.vmx.hostCR4               = HWACCMR0Globals.vmx.hostCR4;
+    pVM->hwaccm.s.vmx.hostEFER              = HWACCMR0Globals.vmx.hostEFER;
     pVM->hwaccm.s.vmx.msr.vmx_basic_info    = HWACCMR0Globals.vmx.msr.vmx_basic_info;
     pVM->hwaccm.s.vmx.msr.vmx_pin_ctls      = HWACCMR0Globals.vmx.msr.vmx_pin_ctls;
     pVM->hwaccm.s.vmx.msr.vmx_proc_ctls     = HWACCMR0Globals.vmx.msr.vmx_proc_ctls;

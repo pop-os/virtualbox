@@ -5952,6 +5952,49 @@ static int patmR3HandleDirtyInstr(PVM pVM, PCPUMCTX pCtx, PPATMPATCHREC pPatch, 
             pCurPatchInstrHC += CpuNew.opsize;
             pCurPatchInstrGC += CpuNew.opsize;
             cbLeft           -= CpuNew.opsize;
+
+            /* Check if we expanded a complex guest instruction into a patch stream (e.g. call) */
+            if (!cbLeft)
+            {
+                /* If the next patch instruction doesn't correspond to the next guest instruction, then we have some extra room to fill. */
+                if (RTAvlU32Get(&pPatch->patch.Patch2GuestAddrTree, pCurPatchInstrGC - pVM->patm.s.pPatchMemGC) == NULL)
+                {
+                    pRec = (PRECPATCHTOGUEST)RTAvlU32GetBestFit(&pPatch->patch.Patch2GuestAddrTree, pCurPatchInstrGC - pVM->patm.s.pPatchMemGC, true);
+                    if (pRec)
+                    {
+                        unsigned cbFiller  = pRec->Core.Key + pVM->patm.s.pPatchMemGC - pCurPatchInstrGC;
+                        uint8_t *pPatchFillHC = patmPatchGCPtr2PatchHCPtr(pVM, pCurPatchInstrGC);
+
+                        Assert(!pRec->fDirty);
+
+                        Log(("Room left in patched instruction stream (%d bytes)\n", cbFiller));
+                        if (cbFiller >= SIZEOF_NEARJUMP32)
+                        {
+                            pPatchFillHC[0] = 0xE9;
+                             *(uint32_t *)&pPatchFillHC[1] = cbFiller - SIZEOF_NEARJUMP32;
+#ifdef DEBUG
+                            char szBuf[256];
+                            szBuf[0] = '\0';
+                            DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCurPatchInstrGC, 0, szBuf, sizeof(szBuf), NULL);
+                            Log(("FILL:  %s\n", szBuf));
+#endif
+                        }
+                        else
+                        {
+                            for (unsigned i = 0; i < cbFiller; i++)
+                            {
+                                pPatchFillHC[i] = 0x90; /* NOP */
+#ifdef DEBUG
+                                char szBuf[256];
+                                szBuf[0] = '\0';
+                                DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCurPatchInstrGC, 0, szBuf, sizeof(szBuf), NULL);
+                                Log(("FILL:  %s\n", szBuf));
+#endif
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     else

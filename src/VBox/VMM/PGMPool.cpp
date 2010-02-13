@@ -679,6 +679,7 @@ static DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pV
                 case PGMPOOLKIND_PAE_PT_FOR_PAE_2MB:
                 case PGMPOOLKIND_32BIT_PT_FOR_PHYS:
                 case PGMPOOLKIND_PAE_PT_FOR_PHYS:
+                case PGMPOOLKIND_EPT_PT_FOR_PHYS:
                 {
 #ifdef PGMPOOL_WITH_USER_TRACKING
                     if (pPage->cPresent)
@@ -775,10 +776,10 @@ static DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pV
 
     /* Clear the PGM_SYNC_CLEAR_PGM_POOL flag on all VCPUs to prevent redundant flushes. */
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
-    {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
-        pVCpu->pgm.s.fSyncFlags &= ~PGM_SYNC_CLEAR_PGM_POOL;
-    }
+        pVM->aCpus[idCpu].pgm.s.fSyncFlags &= ~PGM_SYNC_CLEAR_PGM_POOL;
+
+    /* Flush job finished. */
+    VM_FF_CLEAR(pVM, VM_FF_PGM_POOL_FLUSH_PENDING);
 
     pPool->cPresent = 0;
     pgmUnlock(pVM);
