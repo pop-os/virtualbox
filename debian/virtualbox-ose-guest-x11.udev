@@ -1,0 +1,1 @@
+ENV{ID_INPUT_MOUSE}=="1", ATTR{[dmi/id]product_name}=="VirtualBox", ENV{x11_driver}="vboxmouse"

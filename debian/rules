@@ -181,7 +181,9 @@ binary-arch: build install serverabi
 	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetDHCP
 	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetAdpCtl
 	chmod +s debian/$(sxname)$(INSTALL_PATH)/VirtualBox
-	dh_installudev -s
+	# Override evdev driver
+	dh_installudev -p$(uxname) --priority=69
+	dh_installudev -s -N$(uxname)
 	dh_installinit -s --no-start
 	dh_installdeb -s
 	dh_shlibdeps -p$(sname) -X debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -- \
