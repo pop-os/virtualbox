@@ -184,7 +184,9 @@ binary-arch: build install serverabi
 	dh_installudev -s
 	dh_installinit -s --no-start
 	dh_installdeb -s
-	dh_shlibdeps -s
+	dh_shlibdeps -p$(sname) -X debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -- \
+	    -dRecommends debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -dDepends
+	dh_shlibdeps -s -N$(sname)
 	dh_gencontrol -s
 	dh_md5sums -s
 	dh_builddeb -s

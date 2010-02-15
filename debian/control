@@ -77,7 +77,7 @@ Depends: ${shlibs:Depends},
          adduser
 Recommends: virtualbox-ose-dkms (= ${source:Version}) | virtualbox-ose-source (= ${source:Version}),
             virtualbox-ose-qt (= ${binary:Version}),
-            libgl1
+            ${shlibs:Recommends}
 Suggests: virtualbox-guest-additions,
           libasound2, libpulse0
 Conflicts: virtualbox, virtualbox-2.0, virtualbox-2.1, virtualbox-2.2, virtualbox-3.0
