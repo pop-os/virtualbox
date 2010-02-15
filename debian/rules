@@ -16,6 +16,8 @@ uname:=virtualbox-ose-guest-utils
 uxname:=virtualbox-ose-guest-x11
 fname:=virtualbox-ose-fuse
 
+INSTALL_PATH:=/usr/lib/virtualbox
+
 # Some defines needed for X
 SERVERMINVERS = $(shell cat /usr/share/xserver-xorg/serverminver 2>/dev/null)
 VIDEOABI = $(shell cat /usr/share/xserver-xorg/videoabiver 2>/dev/null)
@@ -65,7 +67,7 @@ build-stamp: out/env.sh
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
 	    $(if $(DH_VERBOSE),KBUILD_VERBOSE=2,)
-	gcc debian/vdfuse/vdfuse.c -o debian/vdfuse/vdfuse -pipe -Wl,--rpath,/usr/lib/virtualbox -Wall $(CFLAGS) $(LDFLAGS) \
+	gcc debian/vdfuse/vdfuse.c -o debian/vdfuse/vdfuse -pipe -Wl,--rpath,$(INSTALL_PATH) -Wall $(CFLAGS) $(LDFLAGS) \
 	    $(shell pkg-config --cflags --libs fuse) -Iinclude out/bin/VBoxDD.so out/bin/VBoxDD2.so out/bin/VBoxDDU.so \
 	    out/bin/VBoxVMM.so out/bin/VBoxREM.so out/bin/VBoxRT.so
 	touch $@
@@ -133,9 +135,9 @@ install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).install.in > debian/$(pdkms).install
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).install.in > debian/$(gdkms).install
 
-	export VBOX_INSTALL_PATH=/usr/lib/virtualbox && \
+	export VBOX_INSTALL_PATH=$(INSTALL_PATH) && \
 	    cd out/bin/sdk/installer && \
-	    python ./vboxapisetup.py install --root $(CURDIR)/debian/virtualbox-ose
+	    python ./vboxapisetup.py install --root $(CURDIR)/debian/$(sname)
 	# Install helper scripts for vbox* interfaces
 	dh_installifupdown -p$(sname)
 
@@ -156,9 +158,9 @@ binary-arch: build install serverabi
 	dh_installdocs -s
 	dh_installmenu -s
 	dh_install -s
-	-chmod 644 debian/$(sname)/usr/lib/virtualbox/sdk/bindings/xpcom/python/xpcom/*.py
-	-chmod 644 debian/$(sname)/usr/lib/virtualbox/sdk/bindings/xpcom/python/xpcom/server/*.py
-	-chmod 644 debian/$(sname)/usr/lib/virtualbox/sdk/bindings/xpcom/python/xpcom/client/*.py
+	-chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/*.py
+	-chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/server/*.py
+	-chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/client/*.py
 	-chmod 755 debian/$(uxname)/usr/share/virtualbox/x11config.pl
 	-chmod 755 debian/$(uxname)/usr/share/virtualbox/x11config15.pl
 	-install -m 755 src/VBox/Additions/x11/Installer/VBoxRandR.sh debian/$(uxname)/usr/bin/VBoxRandR
@@ -169,16 +171,16 @@ binary-arch: build install serverabi
 	-chrpath -d debian/$(uname)/usr/sbin/VBoxService
 	-chrpath -d debian/$(uname)/usr/sbin/VBoxControl
 	-chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh
-	dh_pycentral -pvirtualbox-ose
+	dh_pycentral -p$(sname)
 	dh_strip -s --dbg-package=$(sname)-dbg
 	dh_link -s
 	dh_compress -s
 	dh_fixperms -s
-	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxSDL
-	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxHeadless
-	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxNetDHCP
-	chmod +s debian/$(sname)/usr/lib/virtualbox/VBoxNetAdpCtl
-	chmod +s debian/$(sxname)/usr/lib/virtualbox/VirtualBox
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxSDL
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxHeadless
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetDHCP
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetAdpCtl
+	chmod +s debian/$(sxname)$(INSTALL_PATH)/VirtualBox
 	dh_installudev -s
 	dh_installinit -s --no-start
 	dh_installdeb -s
