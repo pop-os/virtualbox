@@ -9,8 +9,10 @@ virtualbox-ose (3.1.4-dfsg-2) UNRELEASED; urgency=low
 
   [ Michael Meskes ]
   * Document QT4 usage for virtualbox-ose.
+  * Changed build-dependency from libcap2-dev to libcap-dev. (Closes:
+    #569769)
 
- -- Michael Meskes <meskes@debian.org>  Tue, 16 Feb 2010 15:01:39 +0100
+ -- Michael Meskes <meskes@debian.org>  Tue, 16 Feb 2010 15:03:46 +0100
 
 virtualbox-ose (3.1.4-dfsg-1) unstable; urgency=low
 
