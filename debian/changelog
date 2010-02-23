@@ -5,7 +5,8 @@ virtualbox-ose (3.1.4-dfsg-2) UNRELEASED; urgency=low
   * Downgrade library dependencies of VBoxTestOGL to Recommends.
     (Closes: #567800)
   * Provide an udev instead of hal rule for the mouse driver
-    autodetection.
+    autodetection. (LP: #525558)
+  * Update device names in guest udev rules.
 
   [ Michael Meskes ]
   * Document QT4 usage for virtualbox-ose.
