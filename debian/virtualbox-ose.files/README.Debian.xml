@@ -62,26 +62,36 @@
   </section>
   <section>
     <title>64-bit guests</title>
+    <para>
       Starting with version 2.0.0 VirtualBox also supports 64-bit guest operating systems,
       under the following conditions:
+    </para>
 	<itemizedlist>
 	  <listitem>
+	  <para>
 	    You need a 64-bit processor with hardware virtualization support
 	    and a 64-bit host operating system.
+	  </para>
 	  </listitem>
 	  <listitem>
+	  <para>
 	    You must run a 64-bit version of VirtualBox on that OS. This can
 	    then run both 32-bit and 64-bit VMs; a 32-bit VirtualBox can only run 32-bit
 	    VMs, regardless of the hardware.
+	  </para>
 	  </listitem>
           <listitem>
+          <para>
 	    You must enable hardware virtualization; software virtualization is not supported
 	    for 64-bit VMs.
+	  </para>
 	  </listitem>
 	</itemizedlist>
-	There is no specific setting to enable 64-bit support for a guest.
-	However, you should enable the I/O APIC for virtual machines that you intend to
-	use in 64-bit mode.
+	<para>
+	  There is no specific setting to enable 64-bit support for a guest.
+	  However, you should enable the I/O APIC for virtual machines that you intend to
+	  use in 64-bit mode.
+	</para>
   </section>
   <section>
     <title>How to provide networking to virtual machines</title>
@@ -123,13 +133,6 @@
   </section>
   <section>
     <title>Incompatibilities</title>
-    <para>
-      Unfortunately, the configuration files between version version
-      1.4.0-svn4130 and 1.5.0 the configuration files are
-      incompatible. In order to fix this issue please delete the
-      complete <command><![CDATA[<Uart>]]></command> section in any
-      <filename>~/.VirtualBox/Machines/NAME/NAME.xml</filename> files.
-    </para>
     <para>
       When upgrading from a pre 2.0.0 version to virtualbox might complaing
       about a missing format attribute in the HardDisk tag of
