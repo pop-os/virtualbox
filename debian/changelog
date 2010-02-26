@@ -1,4 +1,4 @@
-virtualbox-ose (3.1.4-dfsg-2) UNRELEASED; urgency=low
+virtualbox-ose (3.1.4-dfsg-2) unstable; urgency=low
 
   [ Felix Geyer ]
   * Add INSTALL_PATH variable
