@@ -175,6 +175,7 @@ Description: x86 virtualization solution - guest addition module source
  these modules.
 
 Package: virtualbox-ose-guest-x11
+Section: x11
 Architecture: i386 amd64 lpia
 Depends: ${shlibs:Depends},
          ${misc:Depends},
