@@ -25,6 +25,7 @@ INPUTABI = $(shell cat /usr/share/xserver-xorg/inputabiver 2>/dev/null)
 SERVER_DEPENDS = xserver-xorg-core (>= $(SERVERMINVERS))
 VIDDRIVER_PROVIDES = xserver-xorg-video-$(VIDEOABI)
 INPDRIVER_PROVIDES = xserver-xorg-input-$(INPUTABI)
+XSERVER_VERSION = 17
 
 MAKE:=kmk
 
@@ -64,6 +65,7 @@ build-stamp: out/env.sh
 	    LOCALCFG=$(abspath debian/LocalConfig.kmk) \
 	    PATH_OUT=$(abspath out) \
 	    TOOL_YASM_AS=yasm \
+	    XSERVER_VERSION=$(XSERVER_VERSION) \
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
 	    $(if $(DH_VERBOSE),KBUILD_VERBOSE=2,)

@@ -1,8 +1,10 @@
 virtualbox-ose (3.1.4-dfsg-3) UNRELEASED; urgency=low
 
   * Move virtualbox-ose-guest-x11 to section x11.
+  * Replace 18-xorg-1.6.dpatch with a new patch that allows to easily
+    switch to a different X Server version.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 01 Mar 2010 01:42:31 +0100
+ -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 01 Mar 2010 01:45:25 +0100
 
 virtualbox-ose (3.1.4-dfsg-2) unstable; urgency=low
 
