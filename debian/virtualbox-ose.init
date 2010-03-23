@@ -75,9 +75,9 @@ start()
 		fi
 	fi
 	
-	if ! running vboxnetadp; then
-		if ! modprobe vboxnetadp > /dev/null 2>&1; then
-			if ! find /lib/modules/`uname -r` -name "vboxnetadp\.*" 2>/dev/null|grep -q vboxnetadp; then
+	if ! running vboxnetflt; then
+		if ! modprobe vboxnetflt > /dev/null 2>&1; then
+			if ! find /lib/modules/`uname -r` -name "vboxnetflt\.*" 2>/dev/null|grep -q vboxnetflt; then
 				log_failure_msg "No suitable vboxnetflt module for running kernel found"
 			else
 				log_failure_msg "modprobe vboxnetflt failed. Please use 'dmesg' to find out why"
@@ -87,9 +87,9 @@ start()
 		fi
 	fi
 	
-	if ! running vboxnetflt; then
-		if ! modprobe vboxnetflt > /dev/null 2>&1; then
-			if ! find /lib/modules/`uname -r` -name "vboxnetflt\.*" 2>/dev/null|grep -q vboxnetflt; then
+	if ! running vboxnetadp; then
+		if ! modprobe vboxnetadp > /dev/null 2>&1; then
+			if ! find /lib/modules/`uname -r` -name "vboxnetadp\.*" 2>/dev/null|grep -q vboxnetadp; then
 				log_failure_msg "No suitable vboxnetadp module for running kernel found"
 			else
 				log_failure_msg "modprobe vboxnetadp failed. Please use 'dmesg' to find out why"

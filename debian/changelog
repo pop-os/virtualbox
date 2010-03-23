@@ -1,11 +1,18 @@
-virtualbox-ose (3.1.4-dfsg-3) UNRELEASED; urgency=low
+virtualbox-ose (3.1.4-dfsg-3) unstable; urgency=low
 
+  [ Felix Geyer ]
   * Move virtualbox-ose-guest-x11 to section x11.
   * Replace 18-xorg-1.6.dpatch with a new patch that allows to easily
     switch to a different X Server version.
   * Remove /usr/share/virtualbox/x11config15.pl as we are at X Server 1.7.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 01 Mar 2010 01:56:37 +0100
+  [ Michael Meskes ]
+  * Apply upstream changeset 27248 to make virtualbox guest additions
+    work with drm code in kernels 2.6.33+. (Closes: #574662)
+  * Applied patch by nutzteil <nutzteil@web.de> to make init script
+    consistent in (Closes: #574831)
+
+ -- Michael Meskes <meskes@debian.org>  Tue, 23 Mar 2010 15:54:49 +0100
 
 virtualbox-ose (3.1.4-dfsg-2) unstable; urgency=low
 
