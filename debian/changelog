@@ -1,4 +1,4 @@
-virtualbox-ose (3.1.6-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (3.1.6-dfsg-1) unstable; urgency=low
 
   * New upstream version.
   * Drop 02-r27248.dpatch as it's applied upstream.
