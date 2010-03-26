@@ -1,5 +1,4 @@
 01-build-arch.dpatch
-02-r27248.dpatch
 04-vboxdrv-references.dpatch
 06-xsession.dpatch
 07-vboxnetflt-reference.dpatch
