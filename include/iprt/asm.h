@@ -33,7 +33,7 @@
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
 #include <iprt/assert.h>
-/** @todo #include <iprt/param.h> for PAGE_SIZE. */
+/** @todo @code #include <iprt/param.h> @endcode for PAGE_SIZE. */
 /** @def RT_INLINE_ASM_USES_INTRIN
  * Defined as 1 if we're using a _MSC_VER 1400.
  * Otherwise defined as 0.
@@ -116,17 +116,6 @@
 # define RT_INLINE_ASM_USES_INTRIN 0
 #endif
 
-/** @def RT_INLINE_ASM_GCC_4_3_X_X86
- * Used to work around some 4.3.x register allocation issues in this version of
- * the compiler. */
-#ifdef __GNUC__
-# define RT_INLINE_ASM_GCC_4_3_X_X86 (__GNUC__ == 4 && __GNUC_MINOR__ == 3 && defined(__i386__))
-#endif
-#ifndef RT_INLINE_ASM_GCC_4_3_X_X86
-# define RT_INLINE_ASM_GCC_4_3_X_X86 0
-#endif
-
-
 
 /** @defgroup grp_asm       ASM - Assembly Routines
  * @ingroup grp_rt
@@ -166,6 +155,32 @@
  *
  * @{
  */
+
+/** @def RT_INLINE_ASM_GCC_4_3_X_X86
+ * Used to work around some 4.3.x register allocation issues in this version of
+ * the compiler. So far this workaround is still required for 4.4 and 4.5. */
+#ifdef __GNUC__
+# define RT_INLINE_ASM_GCC_4_3_X_X86 (__GNUC__ == 4 && __GNUC_MINOR__ >= 3 && defined(__i386__))
+#endif
+#ifndef RT_INLINE_ASM_GCC_4_3_X_X86
+# define RT_INLINE_ASM_GCC_4_3_X_X86 0
+#endif
+
+/** @def RT_INLINE_DONT_USE_CMPXCHG8B
+ * i686-apple-darwin9-gcc-4.0.1 (GCC) 4.0.1 (Apple Inc. build 5493) screws up
+ * RTSemRWRequestWrite semsemrw-lockless-generic.cpp in release builds. PIC
+ * mode, x86.
+ *
+ * Some gcc 4.3.x versions may have register allocation issues with cmpxchg8b
+ * when in PIC mode on x86.
+ */
+#ifndef RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC
+# define RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC \
+    (   (defined(PIC) || defined(__PIC__)) \
+     && defined(RT_ARCH_X86) \
+     && (   RT_INLINE_ASM_GCC_4_3_X_X86 \
+         || defined(RT_OS_DARWIN)) )
+#endif
 
 /** @def RT_INLINE_ASM_EXTERNAL
  * Defined as 1 if the compiler does not support inline assembly.
@@ -1048,7 +1063,6 @@ DECLINLINE(uint32_t) ASMGetCpuFamily(uint32_t uEAX)
  *
  * @returns Model.
  * @param   uEAX    EAX from ASMCpuId(1) or ASMCpuId(0x80000001).
- * @param   fIntel  Whether it's an intel CPU.
  */
 DECLINLINE(uint32_t) ASMGetCpuModelIntel(uint32_t uEAX)
 {
@@ -1063,7 +1077,6 @@ DECLINLINE(uint32_t) ASMGetCpuModelIntel(uint32_t uEAX)
  *
  * @returns Model.
  * @param   uEAX    EAX from ASMCpuId(1) or ASMCpuId(0x80000001).
- * @param   fIntel  Whether it's an intel CPU.
  */
 DECLINLINE(uint32_t) ASMGetCpuModelAMD(uint32_t uEAX)
 {
@@ -2809,7 +2822,8 @@ DECLINLINE(int32_t) ASMAtomicXchgS32(volatile int32_t *pi32, int32_t i32)
  * @param   pu64    Pointer to the 64-bit variable to update.
  * @param   u64     The 64-bit value to assign to *pu64.
  */
-#if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
+#if (RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN) \
+ || RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC
 DECLASM(uint64_t) ASMAtomicXchgU64(volatile uint64_t *pu64, uint64_t u64);
 #else
 DECLINLINE(uint64_t) ASMAtomicXchgU64(volatile uint64_t *pu64, uint64_t u64)
@@ -3031,6 +3045,68 @@ DECLINLINE(RTR3PTR) ASMAtomicXchgR3Ptr(RTR3PTR volatile *ppvR3, RTR3PTR pvR3)
     } while (0)
 
 
+
+/**
+ * Atomically Compare and Exchange an unsigned 8-bit value, ordered.
+ *
+ * @returns true if xchg was done.
+ * @returns false if xchg wasn't done.
+ *
+ * @param   pu8         Pointer to the value to update.
+ * @param   u8New       The new value to assigned to *pu8.
+ * @param   u8Old       The old value to *pu8 compare with.
+ */
+#if RT_INLINE_ASM_EXTERNAL || !RT_INLINE_ASM_GNU_STYLE
+DECLASM(bool) ASMAtomicCmpXchgU8(volatile uint8_t *pu8, const uint8_t u8New, const uint8_t u8Old);
+#else
+DECLINLINE(bool) ASMAtomicCmpXchgU8(volatile uint8_t *pu8, const uint8_t u8New, uint8_t u8Old)
+{
+    uint8_t u8Ret;
+    __asm__ __volatile__("lock; cmpxchgb %3, %0\n\t"
+                         "setz  %1\n\t"
+                         : "=m" (*pu8),
+                           "=qm" (u8Ret),
+                           "=a" (u8Old)
+                         : "q" (u8New),
+                           "2" (u8Old),
+                           "m" (*pu8));
+    return (bool)u8Ret;
+}
+#endif
+
+
+/**
+ * Atomically Compare and Exchange a signed 8-bit value, ordered.
+ *
+ * @returns true if xchg was done.
+ * @returns false if xchg wasn't done.
+ *
+ * @param   pi8         Pointer to the value to update.
+ * @param   i8New       The new value to assigned to *pi8.
+ * @param   i8Old       The old value to *pi8 compare with.
+ */
+DECLINLINE(bool) ASMAtomicCmpXchgS8(volatile int8_t *pi8, const int8_t i8New, const int8_t i8Old)
+{
+    return ASMAtomicCmpXchgU8((volatile uint8_t *)pi8, (const uint8_t)i8New, (const uint8_t)i8Old);
+}
+
+
+/**
+ * Atomically Compare and Exchange a bool value, ordered.
+ *
+ * @returns true if xchg was done.
+ * @returns false if xchg wasn't done.
+ *
+ * @param   pf          Pointer to the value to update.
+ * @param   fNew        The new value to assigned to *pf.
+ * @param   fOld        The old value to *pf compare with.
+ */
+DECLINLINE(bool) ASMAtomicCmpXchgBool(volatile bool *pf, const bool fNew, const bool fOld)
+{
+    return ASMAtomicCmpXchgU8((volatile uint8_t *)pf, (const uint8_t)fNew, (const uint8_t)fOld);
+}
+
+
 /**
  * Atomically Compare and Exchange an unsigned 32-bit value, ordered.
  *
@@ -3114,10 +3190,10 @@ DECLINLINE(bool) ASMAtomicCmpXchgS32(volatile int32_t *pi32, const int32_t i32Ne
  * @param   u64Old  The value to compare with.
  */
 #if (RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN) \
- || (RT_INLINE_ASM_GCC_4_3_X_X86 && defined(IN_RING3) && defined(__PIC__))
+ || RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC
 DECLASM(bool) ASMAtomicCmpXchgU64(volatile uint64_t *pu64, const uint64_t u64New, const uint64_t u64Old);
 #else
-DECLINLINE(bool) ASMAtomicCmpXchgU64(volatile uint64_t *pu64, const uint64_t u64New, uint64_t u64Old)
+DECLINLINE(bool) ASMAtomicCmpXchgU64(volatile uint64_t *pu64, uint64_t u64New, uint64_t u64Old)
 {
 # if RT_INLINE_ASM_USES_INTRIN
    return _InterlockedCompareExchange64((__int64 *)pu64, u64New, u64Old) == u64Old;
@@ -3382,7 +3458,8 @@ DECLINLINE(bool) ASMAtomicCmpXchgExS32(volatile int32_t *pi32, const int32_t i32
  * @param   u64Old  The value to compare with.
  * @param   pu64Old     Pointer store the old value at.
  */
-#if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
+#if (RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN) \
+ || RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC
 DECLASM(bool) ASMAtomicCmpXchgExU64(volatile uint64_t *pu64, const uint64_t u64New, const uint64_t u64Old, uint64_t *pu64Old);
 #else
 DECLINLINE(bool) ASMAtomicCmpXchgExU64(volatile uint64_t *pu64, const uint64_t u64New, const uint64_t u64Old, uint64_t *pu64Old)
@@ -3629,9 +3706,9 @@ DECLINLINE(int32_t) ASMAtomicAddS32(int32_t volatile *pi32, int32_t i32)
  * @param   pu32        Pointer to the value.
  * @param   u32         Number to subtract.
  */
-DECLINLINE(uint32_t) ASMAtomicSubU32(int32_t volatile *pi32, uint32_t u32)
-{
-    return ASMAtomicAddU32((uint32_t volatile *)pi32, (uint32_t)-(int32_t)u32);
+DECLINLINE(uint32_t) ASMAtomicSubU32(int32_t volatile *pi32, uint32_t u32) 
+{ 
+    return ASMAtomicAddU32((uint32_t volatile *)pi32, (uint32_t)-(int32_t)u32); 
 }
 
 
@@ -4161,7 +4238,7 @@ DECLINLINE(int32_t) ASMAtomicUoReadS32(volatile int32_t *pi32)
  * @remark  This will fault if the memory is read-only!
  */
 #if (RT_INLINE_ASM_EXTERNAL && !defined(RT_ARCH_AMD64)) \
- || (RT_INLINE_ASM_GCC_4_3_X_X86 && defined(IN_RING3) && defined(__PIC__))
+ || RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC
 DECLASM(uint64_t) ASMAtomicReadU64(volatile uint64_t *pu64);
 #else
 DECLINLINE(uint64_t) ASMAtomicReadU64(volatile uint64_t *pu64)
@@ -4239,7 +4316,8 @@ DECLINLINE(uint64_t) ASMAtomicReadU64(volatile uint64_t *pu64)
  *                  The memory pointed to must be writable.
  * @remark  This will fault if the memory is read-only!
  */
-#if RT_INLINE_ASM_EXTERNAL && !defined(RT_ARCH_AMD64)
+#if (RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN) \
+ || RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC
 DECLASM(uint64_t) ASMAtomicUoReadU64(volatile uint64_t *pu64);
 #else
 DECLINLINE(uint64_t) ASMAtomicUoReadU64(volatile uint64_t *pu64)
@@ -4283,7 +4361,7 @@ DECLINLINE(uint64_t) ASMAtomicUoReadU64(volatile uint64_t *pu64)
                          : "m" (u32EBX),
                            "S" (pu64));
 #   else /* !PIC */
-    __asm__ __volatile__("cmpxchg8b %1\n\t"
+    __asm__ __volatile__("lock; cmpxchg8b %1\n\t"
                          : "=A" (u64),
                            "+m" (*pu64)
                          : "0" (0),

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE TS><TS version="1.1" language="sr_YU">
-<defaultcodec></defaultcodec>
+<!DOCTYPE TS>
+<TS version="2.0" language="sr_YU">
 <context>
     <name>@@@</name>
     <message>
@@ -26,7 +26,7 @@
     <message>
         <source>Sun Microsystems, Inc.</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>Оzzii.translate@gmail.com</translation>
+        <translation type="obsolete">Оzzii.translate@gmail.com</translation>
     </message>
 </context>
 <context>
@@ -1397,7 +1397,7 @@ p, li { white-space: pre-wrap; }
         <translation>Dock икона реални преглед</translation>
     </message>
     <message>
-        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
+        <source>&amp;Auto show Dock and Menubar in fullscreen</source>
         <translation>Ауто покажи Dock траку у пуном-екрану</translation>
     </message>
 </context>
@@ -4631,7 +4631,7 @@ p, li { white-space: pre-wrap; }
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation>Регистровање VirtualBox-а</translation>
+        <translation type="obsolete">Регистровање VirtualBox-а</translation>
     </message>
     <message>
         <source>&amp;Name</source>
@@ -4639,7 +4639,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation>Унети ваше име користећи латинска слова.</translation>
+        <translation type="obsolete">Унети ваше име користећи латинска слова.</translation>
     </message>
     <message>
         <source>&amp;E-mail</source>
@@ -4647,7 +4647,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation>Унети ваш имејл. Унети важечу адресу.</translation>
+        <translation type="obsolete">Унети ваш имејл. Унети важечу адресу.</translation>
     </message>
     <message>
         <source>&amp;Please do not use this information to contact me</source>
@@ -4655,11 +4655,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation>Добродошли у формулар регистровања VirtualBox -а!</translation>
+        <translation type="obsolete">Добродошли у формулар регистровања VirtualBox -а!</translation>
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation>Неуспешно пријављивање везе.</translation>
+        <translation type="obsolete">Неуспешно пријављивање везе.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -4675,63 +4675,63 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Поништи</translation>
+        <translation type="obsolete">Поништи</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation>Одабрати земљу/територију</translation>
+        <translation type="obsolete">Одабрати земљу/територију</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Молимо вас да попунити овај формулар да би знали да користите VirtualBox и, необавезно, да будете информисани о ажурирања VirtualBox-а.&lt;/p&gt;&lt;p&gt;Унети само латинске карактере. Sun Microsystems користи ове информације само за статистике и да вам пошаље VirtualBox новости. Sun Microsystems неће никада попустити Ваше податке другима. Детаљи о употреби личних информацијама може се наћи у &lt;b&gt;Политика приватности&lt;/b&gt; руковника или на &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Политика приватности&lt;/a&gt; сајта.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Молимо вас да попунити овај формулар да би знали да користите VirtualBox и, необавезно, да будете информисани о ажурирања VirtualBox-а.&lt;/p&gt;&lt;p&gt;Унети само латинске карактере. Sun Microsystems користи ове информације само за статистике и да вам пошаље VirtualBox новости. Sun Microsystems неће никада попустити Ваше податке другима. Детаљи о употреби личних информацијама може се наћи у &lt;b&gt;Политика приватности&lt;/b&gt; руковника или на &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Политика приватности&lt;/a&gt; сајта.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation>Већ имам Sun Online рачун:</translation>
+        <translation type="obsolete">Већ имам Sun Online рачун:</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation>Имејл</translation>
+        <translation type="obsolete">Имејл</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>Лозинка:</translation>
+        <translation type="obsolete">Лозинка:</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation>Желим да креирам нов Sun Online рачун:</translation>
+        <translation type="obsolete">Желим да креирам нов Sun Online рачун:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation>Име:</translation>
+        <translation type="obsolete">Име:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation>Презиме:</translation>
+        <translation type="obsolete">Презиме:</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation>Фирма:</translation>
+        <translation type="obsolete">Фирма:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation>Земља:</translation>
+        <translation type="obsolete">Земља:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation>Имејл:</translation>
+        <translation type="obsolete">Имејл:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation>Лозинка:</translation>
+        <translation type="obsolete">Лозинка:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation>Потврда лозинке:</translation>
+        <translation type="obsolete">Потврда лозинке:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation>Региструј</translation>
+        <translation type="obsolete">Региструј</translation>
     </message>
 </context>
 <context>
@@ -7078,7 +7078,7 @@ p, li { white-space: pre-wrap; }
         <translation>Процесор(и):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
         <translation>Контролише број виртуелних ЦПУ-а у виртуелној машини.</translation>
     </message>
     <message>

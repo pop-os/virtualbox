@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -291,6 +291,12 @@ void *rtMemAlloc(const char *pszOp, RTMEMTYPE enmType, size_t cb, void *pvCaller
         cb = 1;
 #endif
     }
+#ifndef RTALLOC_EFENCE_IN_FRONT
+    /* Alignment decreases fence accuracy, but this is at least partially
+     * counteracted by filling and checking the alignment padding. When the
+     * fence is in front then then no extra alignment is needed. */
+    size_t cbAlign = RT_ALIGN_Z(cb, RTALLOC_EFENCE_ALIGNMENT);
+#endif
 
 #ifdef RTALLOC_EFENCE_TRACE
     /*
@@ -318,10 +324,21 @@ void *rtMemAlloc(const char *pszOp, RTMEMTYPE enmType, size_t cb, void *pvCaller
         #ifdef RTALLOC_EFENCE_IN_FRONT
         void *pvEFence = pvBlock;
         void *pv = (char *)pvEFence + RTALLOC_EFENCE_SIZE;
+#ifdef RTALLOC_EFENCE_NOMAN_FILLER
+        memset((char *)pv + cb, RTALLOC_EFENCE_NOMAN_FILLER, cbBlock - RTALLOC_EFENCE_SIZE - cb);
+#endif
         #else
         void *pvEFence = (char *)pvBlock + (cbBlock - RTALLOC_EFENCE_SIZE);
-        void *pv = (char *)pvEFence - cb;
+        void *pv = (char *)pvEFence - cbAlign;
+#ifdef RTALLOC_EFENCE_NOMAN_FILLER
+        memset(pvBlock, RTALLOC_EFENCE_NOMAN_FILLER, cbBlock - RTALLOC_EFENCE_SIZE - cbAlign);
+        memset((char *)pv + cb, RTALLOC_EFENCE_NOMAN_FILLER, cbAlign - cb);
+#endif
         #endif
+
+#ifdef RTALLOC_EFENCE_FENCE_FILLER
+        memset(pvEFence, RTALLOC_EFENCE_FENCE_FILLER, RTALLOC_EFENCE_SIZE);
+#endif
         int rc = RTMemProtect(pvEFence, RTALLOC_EFENCE_SIZE, RTMEM_PROT_NONE);
         if (!rc)
         {
@@ -378,6 +395,30 @@ void rtMemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *pvCaller, u
     {
         if (gfRTMemFreeLog)
             RTLogPrintf("RTMem %s: pv=%p pvCaller=%p cb=%#x\n", pszOp, pv, pvCaller, pBlock->cb);
+
+#ifdef RTALLOC_EFENCE_NOMAN_FILLER
+        /*
+         * Check whether the no man's land is untouched.
+         */
+# ifdef RTALLOC_EFENCE_IN_FRONT
+        void *p = ASMMemIsAll8((char *)pv + pBlock->cb,
+                               RT_ALIGN_Z(pBlock->cb, PAGE_SIZE) - pBlock->cb,
+                               RTALLOC_EFENCE_NOMAN_FILLER);
+# else
+        /* Alignment must match allocation alignment in rtMemAlloc(). */
+        size_t cbAlign = RT_ALIGN_Z(pBlock->cb, RTALLOC_EFENCE_ALIGNMENT);
+        void *p = ASMMemIsAll8((char *)pv + pBlock->cb,
+                               cbAlign - pBlock->cb,
+                               RTALLOC_EFENCE_NOMAN_FILLER);
+        if (p)
+            RTAssertDoPanic();
+        p = ASMMemIsAll8((void *)((uintptr_t)pv & ~PAGE_OFFSET_MASK),
+                         RT_ALIGN_Z(cbAlign, PAGE_SIZE) - cbAlign,
+                         RTALLOC_EFENCE_NOMAN_FILLER);
+# endif
+        if (p)
+            RTAssertDoPanic();
+#endif
 
     #ifdef RTALLOC_EFENCE_FREE_FILL
         /*

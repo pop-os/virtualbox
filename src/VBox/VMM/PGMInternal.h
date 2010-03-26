@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,7 +59,7 @@
  * Indicates that there are no guest mappings to care about.
  * Currently on raw-mode related code uses mappings, i.e. RC and R3 code.
  */
-#ifdef IN_RING0
+#if defined(IN_RING0) || !defined(VBOX_WITH_RAW_MODE)
 # define PGM_WITHOUT_MAPPINGS
 #endif
 
@@ -3396,7 +3396,6 @@ DECLINLINE(int) pgmPoolTrackFlushGCPhys(PVM pVM, PPGMPAGE pPhysPage, bool *pfFlu
 
 uint16_t        pgmPoolTrackPhysExtAddref(PVM pVM, uint16_t u16, uint16_t iShwPT);
 void            pgmPoolTrackPhysExtDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPoolPage, PPGMPAGE pPhysPage);
-void            pgmPoolTracDerefGCPhysHint(PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTHCPHYS HCPhys, RTGCPHYS GCPhysHint);
 #ifdef PGMPOOL_WITH_MONITORING
 void            pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTGCPHYS GCPhysFault, CTXTYPE(RTGCPTR, RTHCPTR, RTGCPTR) pvAddress, PDISCPUSTATE pCpu);
 int             pgmPoolMonitorChainFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
@@ -3427,6 +3426,10 @@ PX86PML4        pgmGstLazyMapPml4(PPGMCPU pPGM);
 
 RT_C_DECLS_END
 
+/** @todo Split out all the inline stuff into a separate file.  Then we can
+ *        include it later when VM and VMCPU are defined and so avoid all that
+ *        &pVM->pgm.s and &pVCpu->pgm.s stuff.  It also chops ~1600 lines off
+ *        this file and will make it somewhat easier to navigate... */
 
 /**
  * Gets the PGMRAMRANGE structure for a guest page.

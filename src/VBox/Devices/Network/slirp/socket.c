@@ -1056,9 +1056,23 @@ send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, c
     struct icmp_msg *icm;
     uint8_t proto;
     int type = 0;
+    int m_room;
 
     ip = (struct ip *)buff;
+#ifndef RT_OS_DARWIN
+    /* Darwin: send IP.IP_LEN in host format (payload only) */
+    ip->ip_len = RT_N2H_U16(ip->ip_len);
+#endif
+    /* Note: ip->ip_len in host byte order (all OS) */
+#if defined(RT_OS_SOLARIS) || defined(RT_OS_DARWIN)
+    ip->ip_len += (ip->ip_hl << 2); /* Solaris: reports only payload length */
+#endif
     hlen = (ip->ip_hl << 2);
+    if (ip->ip_len < hlen + ICMP_MINLEN)
+    {
+       Log(("send_icmp_to_guest: ICMP header is too small to understand which type/subtype of the datagram\n"));
+       return;
+    }
     icp = (struct icmp *)((char *)ip + hlen);
 
     Log(("ICMP:received msg(t:%d, c:%d)\n", icp->icmp_type, icp->icmp_code));
@@ -1069,10 +1083,30 @@ send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, c
         return;
     }
 
+    /*
+     * ICMP_ECHOREPLY, ICMP_TIMXCEED, ICMP_UNREACH minimal header size is
+     * ICMP_ECHOREPLY assuming data 0
+     * icmp_{type(8), code(8), cksum(16),identifier(16),seqnum(16)}
+     */
+    if (ip->ip_len < hlen + 8)
+    {
+        Log(("send_icmp_to_guest: NAT accept ICMP_{ECHOREPLY, TIMXCEED, UNREACH} the minimum size is 64 (see rfc792)\n"));
+        return;
+    }
+
     type = icp->icmp_type;
     if (   type == ICMP_TIMXCEED
         || type == ICMP_UNREACH)
     {
+        /*
+         * ICMP_TIMXCEED, ICMP_UNREACH minimal header size is
+         * icmp_{type(8), code(8), cksum(16),unused(32)} + IP header + 64 bit of original datagram
+         */
+        if (ip->ip_len < hlen + 2*8 + sizeof(struct ip))
+        {
+            Log(("send_icmp_to_guest: NAT accept ICMP_{TIMXCEED, UNREACH} the minimum size of ipheader + 64 bit of data (see rfc792)\n"));
+            return;
+        }
         ip = &icp->icmp_ip;
     }
 
@@ -1088,7 +1122,31 @@ send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, c
     Assert(m != NULL);
 
     src = addr->sin_addr.s_addr;
+    if (type == ICMP_ECHOREPLY)
+    {
+        struct ip *ip0 = mtod(m, struct ip *);
+        struct icmp *icp0 = (struct icmp *)((char *)ip0 + (ip0->ip_hl << 2));
+        if (icp0->icmp_type != ICMP_ECHO)
+        {
+            Log(("NAT: we haven't found echo for this reply\n"));
+            return;
+        }
+        /*
+         * while combining buffer to send (see ip_icmp.c) we control ICMP header only, 
+         * IP header combined by OS network stack, our local copy of IP header contians values 
+         * in host byte order so no byte order conversion is required. IP headers fields are converting
+         * in ip_output0 routine only.   
+         */
+        if (   (ip->ip_len - hlen )
+            != (ip0->ip_len - (ip0->ip_hl << 2))) 
+        {
+            Log(("NAT: ECHO(%d) lenght doesn't match ECHOREPLY(%d)\n",
+                (ip->ip_len - hlen ), (ip0->ip_len - (ip0->ip_hl << 2))));
+            return;
+        }
+    }
 
+    /* ip points on origianal ip header */
     ip = mtod(m, struct ip *);
     proto = ip->ip_p;
     /* Now ip is pointing on header we've sent from guest */
@@ -1108,12 +1166,25 @@ send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, c
     ip = mtod(m, struct ip *); /* ip is from mbuf we've overrided */
     original_hlen = ip->ip_hl << 2;
     /* saves original ip header and options */
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
+    m_copyback(pData, m, original_hlen, len - hlen, buff + hlen);
+    ip->ip_len = m_length(m, NULL);
+#else
+    /* m_room space in the saved m buffer */
+    m_room = M_ROOM(m);
+    if (m_room < len - hlen + original_hlen)
+    {
+        /* we need involve ether header length into new buffer buffer calculation */
+        m_inc(m, if_maxlinkhdr + len - hlen + original_hlen);
+        if (m->m_size < if_maxlinkhdr + len - hlen + original_hlen)
+        {
+            Log(("send_icmp_to_guest: extending buffer was failed (packet is dropped)\n"));
+            return;
+        }
+    }
     memcpy(m->m_data + original_hlen, buff + hlen, len - hlen);
-#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     m->m_len = len - hlen + original_hlen;
     ip->ip_len = m->m_len;
-#else
-    ip->ip_len = m_length(m, NULL);
 #endif
     ip->ip_p = IPPROTO_ICMP; /* the original package could be whatever, but we're response via ICMP*/
 
@@ -1274,44 +1345,28 @@ static void sorecvfrom_icmp_unix(PNATState pData, struct socket *so)
 {
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(struct sockaddr_in);
+    struct ip ip;
     char *buff;
     int len = 0;
-    int rc = 0;
-    static int signalled = 0;
 
-    rc = ioctlsocket(so->s, FIONREAD, &len);
-    if (   rc == -1
+    /* 1- step: read the ip header */
+    len = recvfrom(so->s, &ip, sizeof(struct ip), MSG_PEEK,
+                   (struct sockaddr *)&addr, &addrlen);
+    if (   len < 0
         && (   errno == EAGAIN
             || errno == EWOULDBLOCK
             || errno == EINPROGRESS
             || errno == ENOTCONN))
     {
+        Log(("sorecvfrom_icmp_unix: 1 - step can't read IP datagramm (would block)\n"));
         return;
     }
-    if (rc == -1 && signalled == 0)
-    {
-        signalled = 1;
-        LogRel(("NAT: fetching number of bits has been failed for ICMP socket (%d: %s)\n",
-            errno, strerror(errno)));
-        return;
-    }
-    len = (len != 0 && rc != -1 ? len : 1500);
-    buff = RTMemAlloc(len);
-    len = recvfrom(so->s, buff, len, 0,
-                   (struct sockaddr *)&addr, &addrlen);
-    /* XXX Check if reply is "correct"? */
 
-    if (len == -1 || len == 0)
+    if (   len < sizeof(struct ip)
+        || len < 0
+        || len == 0)
     {
         u_char code;
-        if (   len == -1
-            && (errno == EAGAIN
-            || errno == EWOULDBLOCK
-            || errno == EINPROGRESS
-            || errno == ENOTCONN))
-        {
-            return;
-        }
         code = ICMP_UNREACH_PORT;
 
         if (errno == EHOSTUNREACH)
@@ -1323,11 +1378,60 @@ static void sorecvfrom_icmp_unix(PNATState pData, struct socket *so)
                     errno, strerror(errno)));
         icmp_error(pData, so->so_m, ICMP_UNREACH, code, 0, strerror(errno));
         so->so_m = NULL;
+        Log(("sorecvfrom_icmp_unix: 1 - step can't read IP datagramm \n"));
+        return;
     }
-    else
+    /* basic check of IP header */
+    if (   ip.ip_v != IPVERSION
+#ifndef RT_OS_DARWIN
+        || ip.ip_p != IPPROTO_ICMP
+#endif
+    )
     {
-        send_icmp_to_guest(pData, buff, len, so, &addr);
+        Log(("sorecvfrom_icmp_unix: 1 - step IP isn't IPv4 \n"));
+        return;
     }
+#ifndef RT_OS_DARWIN
+    /* Darwin reports IP header in host format */
+    ip.ip_len = RT_N2H_U16(ip.ip_len);
+#endif
+#if defined(RT_OS_SOLARIS) || defined(RT_OS_DARWIN)
+    ip.ip_len += (ip.ip_hl << 2); /* Solaris: reports only payload length */
+#endif
+    /* Note: ip->ip_len in host byte order (all OS) */
+    len = ip.ip_len;
+    buff = RTMemAlloc(len);
+    if (buff == NULL)
+    {
+        Log(("sorecvfrom_icmp_unix: 1 - step can't allocate enought room for datagram\n"));
+        return;
+    }
+    /* 2 - step: we're reading rest of the datagramm to the buffer */
+    addrlen = sizeof(struct sockaddr_in);
+    memset(&addr, 0, addrlen);
+    len = recvfrom(so->s, buff, len, 0,
+                   (struct sockaddr *)&addr, &addrlen);
+    if (   len < 0
+        && (   errno == EAGAIN
+            || errno == EWOULDBLOCK
+            || errno == EINPROGRESS
+            || errno == ENOTCONN))
+    {
+        Log(("sorecvfrom_icmp_unix: 2 - step can't read IP body (would block expected:%d)\n",
+            ip.ip_len));
+        RTMemFree(buff);
+        return;
+    }
+    if (   len < 0
+        || len == 0)
+    {
+        Log(("sorecvfrom_icmp_unix: 2 - step read of the rest of datagramm is fallen (errno:%d, len:%d expected: %d)\n",
+             errno, len, (ip.ip_len - sizeof(struct ip))));
+        RTMemFree(buff);
+        return;
+    }
+    /* len is modified in 2nd read, when the rest of the datagramm was read */
+    send_icmp_to_guest(pData, buff, len, so, &addr);
     RTMemFree(buff);
 }
 #endif /* !RT_OS_WINDOWS */

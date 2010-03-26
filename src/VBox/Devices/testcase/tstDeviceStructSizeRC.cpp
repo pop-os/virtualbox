@@ -1,4 +1,4 @@
-/* $Id: tstDeviceStructSizeGC.cpp $ */
+/* $Id: tstDeviceStructSizeRC.cpp $ */
 /** @file
  * tstDeviceStructSizeGC - Generate structure member and size checks from the GC perspective.
  *

@@ -51,6 +51,11 @@
 #include "nsDeque.h"
 #include "xptcall.h"
 
+#ifdef VBOX
+#include <map>
+#include <list>
+#endif /* VBOX */
+
 #if defined(DCONNECT_MULTITHREADED)
 
 #include "nsIThread.h"
@@ -1254,6 +1259,29 @@ NewRequestIndex()
 
 //-----------------------------------------------------------------------------
 
+#ifdef VBOX
+typedef struct ClientDownInfo
+{
+    ClientDownInfo(PRUint32 aClient)
+    {
+        uClient = aClient;
+        uTimestamp = PR_IntervalNow();
+    }
+
+    PRUint32 uClient;
+    PRIntervalTime uTimestamp;
+} ClientDownInfo;
+typedef std::map<PRUint32, ClientDownInfo *> ClientDownMap;
+typedef std::list<ClientDownInfo *> ClientDownList;
+
+#define MAX_CLIENT_DOWN_SIZE 10000
+
+/* Protected by the queue monitor. */
+static ClientDownMap g_ClientDownMap;
+static ClientDownList g_ClientDownList;
+
+#endif /* VBOX */
+
 class DConnectMsgSelector : public ipcIMessageObserver
 {
 public:
@@ -1274,8 +1302,81 @@ public:
   {
     // accept special "client dead" messages for a given peer
     // (empty target id, zero data and data length)
+#ifndef VBOX
     if (aSenderID == mPeer && aTarget.Equals(nsID()) && !aData && !aDataLen)
         return NS_OK;
+#else /* VBOX */
+    if (aSenderID != IPC_SENDER_ANY && aTarget.Equals(nsID()) && !aData && !aDataLen)
+    {
+        // Insert new client down information. Start by expiring outdated
+        // entries and free one element if there's still no space (if needed).
+        PRIntervalTime now = PR_IntervalNow();
+        while (!g_ClientDownList.empty())
+        {
+            ClientDownInfo *cInfo = g_ClientDownList.back();
+            PRInt64 diff = (PRInt64)now - cInfo->uTimestamp;
+            if (diff < 0)
+                diff += (PRInt64)((PRIntervalTime)-1) + 1;
+            if (diff > PR_SecondsToInterval(15 * 60))
+            {
+                g_ClientDownMap.erase(cInfo->uClient);
+                g_ClientDownList.pop_back();
+                NS_ASSERTION(g_ClientDownMap.size() == g_ClientDownList.size(),
+                             "client down info inconsistency during expiry");
+                delete cInfo;
+            }
+            else
+                break;
+        }
+
+        ClientDownMap::iterator it = g_ClientDownMap.find(aSenderID);
+        if (it == g_ClientDownMap.end())
+        {
+            /* Getting size of a map is O(1), size of a list can be O(n). */
+            while (g_ClientDownMap.size() >= MAX_CLIENT_DOWN_SIZE)
+            {
+                ClientDownInfo *cInfo = g_ClientDownList.back();
+                g_ClientDownMap.erase(cInfo->uClient);
+                g_ClientDownList.pop_back();
+                NS_ASSERTION(g_ClientDownMap.size() == g_ClientDownList.size(),
+                             "client down info inconsistency during emergency evicting");
+                delete cInfo;
+            }
+
+            ClientDownInfo *cInfo = new ClientDownInfo(aSenderID);
+            g_ClientDownMap[aSenderID] = cInfo;
+            g_ClientDownList.push_front(cInfo);
+            NS_ASSERTION(g_ClientDownMap.size() == g_ClientDownList.size(),
+                         "client down info inconsistency after adding entry");
+        }
+        return (aSenderID == mPeer) ? NS_OK : IPC_WAIT_NEXT_MESSAGE;
+    }
+    // accept special "client up" messages for a given peer
+    // (empty target id, zero data and data length=1)
+    if (aTarget.Equals(nsID()) && !aData && aDataLen == 1)
+    {
+        ClientDownMap::iterator it = g_ClientDownMap.find(aSenderID);
+        if (it != g_ClientDownMap.end())
+        {
+            ClientDownInfo *cInfo = it->second;
+            g_ClientDownMap.erase(it);
+            g_ClientDownList.remove(cInfo);
+            NS_ASSERTION(g_ClientDownMap.size() == g_ClientDownList.size(),
+                         "client down info inconsistency in client up case");
+            delete cInfo;
+        }
+        return (aSenderID == mPeer) ? NS_OK : IPC_WAIT_NEXT_MESSAGE;
+    }
+    // accept special "client check" messages for an anonymous sender
+    // (invalid sender id, empty target id, zero data and data length
+    if (aSenderID == IPC_SENDER_ANY && aTarget.Equals(nsID()) && !aData && !aDataLen)
+    {
+        LOG(("DConnectMsgSelector::OnMessageAvailable: poll liveness for mPeer=%d\n",
+             mPeer));
+        ClientDownMap::iterator it = g_ClientDownMap.find(mPeer);
+        return (it == g_ClientDownMap.end()) ? IPC_WAIT_NEXT_MESSAGE : NS_OK;
+    }
+#endif /* VBOX */
     const DConnectOp *op = (const DConnectOp *) aData;
     // accept only reply messages with the given peer/opcode/index
     // (to prevent eating replies the other thread might be waiting for)

@@ -378,6 +378,7 @@ void slirp_ext_m_free(PNATState pData, void *arg)
     struct mbuf *m = (struct mbuf *)arg;
     m_free(pData, m);
 }
+
 void slirp_ext_m_append(PNATState pData, void *arg, uint8_t *pu8Buf, size_t cbBuf)
 {
     char *c;

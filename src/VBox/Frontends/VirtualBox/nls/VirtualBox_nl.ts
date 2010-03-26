@@ -26,7 +26,7 @@
     <message>
         <source>Sun Microsystems, Inc.</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>Ebel Geertsema, Alexander L. de Goeij</translation>
+        <translation type="obsolete">Ebel Geertsema, Alexander L. de Goeij</translation>
     </message>
 </context>
 <context>
@@ -1377,7 +1377,7 @@ p, li { white-space: pre-wrap; }
         <translation>Actueel voorbeeld &amp;Dock ikoon</translation>
     </message>
     <message>
-        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
+        <source>&amp;Auto show Dock and Menubar in fullscreen</source>
         <translation>&amp;Automatische Dock laten zien &amp;&amp; Menubarlk bij schermvullend</translation>
     </message>
 </context>
@@ -4468,84 +4468,84 @@ p, li { white-space: pre-wrap; }
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation>VirtualBox registratie</translation>
+        <translation type="obsolete">VirtualBox registratie</translation>
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation>Geef uw volledige naam op.</translation>
+        <translation type="obsolete">Geef uw volledige naam op.</translation>
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation>Geef een geldig e-mail adres op.</translation>
+        <translation type="obsolete">Geef een geldig e-mail adres op.</translation>
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation>Welkom bij hetVirtualBox registratieformulier!</translation>
+        <translation type="obsolete">Welkom bij hetVirtualBox registratieformulier!</translation>
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
         <translatorcomment>handshake?</translatorcomment>
-        <translation>Dan de ... verbinding niet uitvoeren.</translation>
+        <translation type="obsolete">Dan de ... verbinding niet uitvoeren.</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Annuleren</translation>
+        <translation type="obsolete">Annuleren</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Vul aub het registratieformulier in en laat ons daarmee weten dat u VirtualBox gebruikt. We kunnen u dan, als u dat wenst, op de hoogte houden van nieuws en bijgewerkte versies.&lt;p&gt;&lt;p&gt;Gebruikt aub Latijnse letterschrift voor de onderstaande velden. Let op: Sun Microsystems gebruikt deze informatie alleen voor statistische doeleinden over dit product en stuurt u VirtualBox nieuwsbrieven. In geen geval zal Sun Microsystems uw gegeven doorgeven aan derde partijen. Nadere informatie over hoe we uw persoonlijke gegeven gebruiken is te vinden in de &lt;b&gt;Privacy Policy&lt;/b&gt; sectie van het VirtualBox handboek of bijr &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; pagina van de VirtualBox website.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Vul aub het registratieformulier in en laat ons daarmee weten dat u VirtualBox gebruikt. We kunnen u dan, als u dat wenst, op de hoogte houden van nieuws en bijgewerkte versies.&lt;p&gt;&lt;p&gt;Gebruikt aub Latijnse letterschrift voor de onderstaande velden. Let op: Sun Microsystems gebruikt deze informatie alleen voor statistische doeleinden over dit product en stuurt u VirtualBox nieuwsbrieven. In geen geval zal Sun Microsystems uw gegeven doorgeven aan derde partijen. Nadere informatie over hoe we uw persoonlijke gegeven gebruiken is te vinden in de &lt;b&gt;Privacy Policy&lt;/b&gt; sectie van het VirtualBox handboek of bijr &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; pagina van de VirtualBox website.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation>Ik &amp;heb al een online Sun account:</translation>
+        <translation type="obsolete">Ik &amp;heb al een online Sun account:</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation>&amp;E-mail:</translation>
+        <translation type="obsolete">&amp;E-mail:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>&amp;Wachtwoord:</translation>
+        <translation type="obsolete">&amp;Wachtwoord:</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation>Ik &amp;wil me graag registreren en een nieuw online Sun account aanmaken:</translation>
+        <translation type="obsolete">Ik &amp;wil me graag registreren en een nieuw online Sun account aanmaken:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation>&amp;Voornaam:</translation>
+        <translation type="obsolete">&amp;Voornaam:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation>&amp;Achternaam:</translation>
+        <translation type="obsolete">&amp;Achternaam:</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation>&amp;Bedrijf:</translation>
+        <translation type="obsolete">&amp;Bedrijf:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation>&amp;Land:</translation>
+        <translation type="obsolete">&amp;Land:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation>E-&amp;mail:</translation>
+        <translation type="obsolete">E-&amp;mail:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation>W&amp;achtwoord:</translation>
+        <translation type="obsolete">W&amp;achtwoord:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation>Wa&amp;chtwoord bevestigen:</translation>
+        <translation type="obsolete">Wa&amp;chtwoord bevestigen:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation>&amp;Registreren</translation>
+        <translation type="obsolete">&amp;Registreren</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation>Kies het land/gebied</translation>
+        <translation type="obsolete">Kies het land/gebied</translation>
     </message>
 </context>
 <context>
@@ -6661,7 +6661,7 @@ p, li {white-space: pre-wrap; }
         <translation>&amp;Processor(en):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
         <translation>Controleert het aantal virtuele CPU in de virtuele machine.</translation>
     </message>
     <message>

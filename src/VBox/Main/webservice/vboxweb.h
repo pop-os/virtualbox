@@ -2,7 +2,7 @@
  * vboxweb.h:
  *      header file for "real" web server code.
  *
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,10 +35,11 @@ void WebLog(const char *pszFormat, ...);
 
 #include <VBox/err.h>
 
+#include "iprt/lock.h"
+
 #include <iprt/stream.h>
 
 #include <string>
-
 
 /****************************************************************************
  *
@@ -50,6 +51,10 @@ extern ComPtr<IVirtualBox> g_pVirtualBox;
 extern bool g_fVerbose;
 
 extern PRTSTREAM g_pstrLog;
+
+extern RTLockMtx *g_pAuthLibLockHandle;
+
+extern RTLockMtx *g_pSessionsLockHandle;
 
 /****************************************************************************
  *
@@ -223,6 +228,10 @@ int findComPtrFromId(struct soap *soap,
                      ComPtr<T> &pComPtr,
                      bool fNullAllowed)
 {
+    // we're only reading the MOR maps, not modifying them, so a readlock is good enough
+    // (allow concurrency, this code gets called from everywhere in methodmaps.cpp)
+    RTLock lock(*g_pSessionsLockHandle);
+
     int rc;
     ManagedObjectRef *pRef;
     if ((rc = ManagedObjectRef::findRefFromId(id, &pRef, fNullAllowed)))
@@ -269,6 +278,8 @@ WSDLT_ID createOrFindRefFromComPtr(const WSDLT_ID &idParent,
         return "";
     }
 
+    // we might be modifying the MOR maps below, so request write lock now
+    RTLock lock(*g_pSessionsLockHandle);
     WebServiceSession *pSession;
     if ((pSession = WebServiceSession::findSessionFromRef(idParent)))
     {
@@ -280,6 +291,8 @@ WSDLT_ID createOrFindRefFromComPtr(const WSDLT_ID &idParent,
             return pRef->toWSDL();
     }
 
-    return 0;
+    // session has expired, return an empty MOR instead of allocating a
+    // new reference which couldn't be used anyway.
+    return "";
 }
 

@@ -44,7 +44,7 @@ static int initDisplay()
     int rcSystem, rcErrno;
     uint32_t fMouseFeatures = 0;
 
-    LogFlowFunc(("enabling dynamic resizing\n"));
+    LogRelFlowFunc(("enabling dynamic resizing\n"));
     rcSystem = system("VBoxRandR --test");
     if (-1 == rcSystem)
     {
@@ -62,9 +62,9 @@ static int initDisplay()
         VbglR3CtlFilterMask(0, VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST);
     /* Log and ignore the return value, as there is not much we can do with
      * it. */
-    LogFlowFunc(("dynamic resizing: result %Rrc\n", rc));
+    LogRelFlowFunc(("dynamic resizing: result %Rrc\n", rc));
     /* Enable support for switching between hardware and software cursors */
-    LogFlowFunc(("enabling relative mouse re-capturing support\n"));
+    LogRelFlowFunc(("enabling relative mouse re-capturing support\n"));
     rc = VbglR3GetMouseStatus(&fMouseFeatures, NULL, NULL);
     if (RT_SUCCESS(rc))
     {
@@ -86,21 +86,21 @@ static int initDisplay()
         VbglR3SetMouseStatus(  fMouseFeatures
                              | VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR);
     }
-    LogFlowFunc(("mouse re-capturing support: result %Rrc\n", rc));
+    LogRelFlowFunc(("mouse re-capturing support: result %Rrc\n", rc));
     return VINF_SUCCESS;
 }
 
 void cleanupDisplay(void)
 {
     uint32_t fMouseFeatures = 0;
-    LogFlowFunc(("\n"));
+    LogRelFlowFunc(("\n"));
     VbglR3CtlFilterMask(0,   VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST
                            | VMMDEV_EVENT_MOUSE_CAPABILITIES_CHANGED);
     int rc = VbglR3GetMouseStatus(&fMouseFeatures, NULL, NULL);
     if (RT_SUCCESS(rc))
         VbglR3SetMouseStatus(  fMouseFeatures
                              | VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR);
-    LogFlowFunc(("returning\n"));
+    LogRelFlowFunc(("returning\n"));
 }
 
 /** This thread just runs a dummy X11 event loop to be sure that we get
@@ -123,8 +123,7 @@ static int x11ConnectionMonitor(RTTHREAD, void *)
  */
 int runDisplay()
 {
-    LogFlowFunc(("\n"));
-    uint32_t cx0 = 0, cy0 = 0, cBits0 = 0, iDisplay0 = 0;
+    LogRelFlowFunc(("\n"));
     Display *pDisplay = XOpenDisplay(NULL);
     if (pDisplay == NULL)
         return VERR_NOT_FOUND;
@@ -134,7 +133,6 @@ int runDisplay()
                    RTTHREADTYPE_INFREQUENT_POLLER, 0, "X11 monitor");
     if (RT_FAILURE(rc))
         return rc;
-    VbglR3GetDisplayChangeRequest(&cx0, &cy0, &cBits0, &iDisplay0, false);
     while (true)
     {
         uint32_t fEvents = 0, cx = 0, cy = 0, cBits = 0, iDisplay = 0;
@@ -145,20 +143,12 @@ int runDisplay()
         {
             int rc2 = VbglR3GetDisplayChangeRequest(&cx, &cy, &cBits,
                                                     &iDisplay, true);
-            /* Ignore the request if it is stale */
-            if ((cx != cx0) || (cy != cy0) || RT_FAILURE(rc2))
-            {
-	            /* If we are not stopping, sleep for a bit to avoid using up
-	                too much CPU while retrying. */
-	            if (RT_FAILURE(rc2))
-	                RTThreadYield();
-	            else
-	            {
-	                system("VBoxRandR");
-                    cx0 = cx;
-                    cy0 = cy;
-	            }
-            }
+            /* If we are not stopping, sleep for a bit to avoid using up
+                too much CPU while retrying. */
+            if (RT_FAILURE(rc2))
+                RTThreadYield();
+            else
+                system("VBoxRandR");
         }
         if (   RT_SUCCESS(rc)
             && (fEvents & VMMDEV_EVENT_MOUSE_CAPABILITIES_CHANGED))
@@ -175,7 +165,7 @@ int runDisplay()
             XFlush(pDisplay);
         }
     }
-    LogFlowFunc(("returning VINF_SUCCESS\n"));
+    LogRelFlowFunc(("returning VINF_SUCCESS\n"));
     return VINF_SUCCESS;
 }
 

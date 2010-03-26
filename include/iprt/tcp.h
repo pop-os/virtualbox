@@ -33,6 +33,7 @@
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
 #include <iprt/thread.h>
+#include <iprt/net.h>
 
 #ifdef IN_RING0
 # error "There are no RTFile APIs available Ring-0 Host Context!"
@@ -223,6 +224,23 @@ RTR3DECL(int)  RTTcpAccept(RTSOCKET Sock, unsigned uPort, PRTSOCKET pSockAccepte
 
 #endif
 
+/**
+ * Gets the address of the local side.
+ *
+ * @returns IPRT status code.
+ * @param   Sock            Socket descriptor.
+ * @param   pAddr           Where to store the local address on success.
+ */
+RTR3DECL(int) RTTcpGetLocalAddress(RTSOCKET Sock, PRTNETADDR pAddr);
+
+/**
+ * Gets the address of the other party.
+ *
+ * @returns IPRT status code.
+ * @param   Sock            Socket descriptor.
+ * @param   pAddr           Where to store the peer address on success.
+ */
+RTR3DECL(int) RTTcpGetPeerAddress(RTSOCKET Sock, PRTNETADDR pAddr);
 
 /** @} */
 RT_C_DECLS_END

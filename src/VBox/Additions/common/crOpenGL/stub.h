@@ -90,7 +90,7 @@ struct context_info_t
     unsigned long id;          /* the client-visible handle */
     GLint visBits;
     WindowInfo *currentDrawable;
-    WindowInfo *pOwnWindow; /* window created by first call to MakeCurrent with this context */
+
 #ifdef WINDOWS
     HGLRC hglrc;
 #elif defined(DARWIN)
@@ -135,6 +135,7 @@ struct window_info_t
     unsigned int width, height;
     ContextType type;
     GLint spuWindow;       /* returned by head SPU's WindowCreate() */
+    ContextInfo *pOwner;     /* ctx which created this window */
     GLboolean mapped;
 #ifdef WINDOWS
     HDC drawable;

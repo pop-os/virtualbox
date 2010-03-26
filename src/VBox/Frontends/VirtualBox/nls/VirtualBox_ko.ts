@@ -26,7 +26,7 @@
     <message>
         <source>Sun Microsystems, Inc.</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>Park Shinjo</translation>
+        <translation type="obsolete">Park Shinjo</translation>
     </message>
 </context>
 <context>
@@ -1399,7 +1399,7 @@ p, li { white-space: pre-wrap; }
         <translation>실시간으로 독 아이콘 갱신하기(&amp;D)</translation>
     </message>
     <message>
-        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
+        <source>&amp;Auto show Dock and Menubar in fullscreen</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -4493,7 +4493,7 @@ p, li { white-space: pre-wrap; }
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation>VirtualBox 등록 대화상자</translation>
+        <translation type="obsolete">VirtualBox 등록 대화상자</translation>
     </message>
     <message>
         <source>&amp;Name</source>
@@ -4501,7 +4501,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation>영문자를 사용하셔서 전체 이름을 입력하십시오.</translation>
+        <translation type="obsolete">영문자를 사용하셔서 전체 이름을 입력하십시오.</translation>
     </message>
     <message>
         <source>&amp;E-mail</source>
@@ -4509,7 +4509,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation>올바른 전자 우편 주소를 입력해 주십시오.</translation>
+        <translation type="obsolete">올바른 전자 우편 주소를 입력해 주십시오.</translation>
     </message>
     <message>
         <source>&amp;Please do not use this information to contact me</source>
@@ -4517,11 +4517,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation>VirtualBox 등록 양식에 오신 것을 환영합니다!</translation>
+        <translation type="obsolete">VirtualBox 등록 양식에 오신 것을 환영합니다!</translation>
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation>연결 협상을 진행할 수 없습니다.</translation>
+        <translation type="obsolete">연결 협상을 진행할 수 없습니다.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -4537,63 +4537,63 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Cancel</source>
-        <translation>취소</translation>
+        <translation type="obsolete">취소</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation>국가 및 지역 선택</translation>
+        <translation type="obsolete">국가 및 지역 선택</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;이 등록 양식을 작성하셔서 VirtualBox를 사용하고 있다는 것을 알려 주십시오. 선택적으로 VirtualBox 뉴스와 업데이트를 받을 수도 있습니다.&lt;/p&gt;&lt;p&gt;영문자로 전체 이름을 작성하시고 전자 우편 주소를 적어 주십시오. Sun 마이크로시스템즈에서는 수집한 개인 정보를 제 3자에게 보내지 않으며, 이 정보를 사용하여 VirtualBox 사용 통계를 모으고 연락하는 데만 사용할 것입니다. 개인 정보를 어떻게 사용하는가에 대해서 알아보시려면 VirtualBox 설명서의 &lt;b&gt;개인 정보 정책&lt;/b&gt; 섹션이나 VirtualBox 웹 사이트의 &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;개인 정보 정책&lt;/a&gt;을 참고하십시오.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;이 등록 양식을 작성하셔서 VirtualBox를 사용하고 있다는 것을 알려 주십시오. 선택적으로 VirtualBox 뉴스와 업데이트를 받을 수도 있습니다.&lt;/p&gt;&lt;p&gt;영문자로 전체 이름을 작성하시고 전자 우편 주소를 적어 주십시오. Sun 마이크로시스템즈에서는 수집한 개인 정보를 제 3자에게 보내지 않으며, 이 정보를 사용하여 VirtualBox 사용 통계를 모으고 연락하는 데만 사용할 것입니다. 개인 정보를 어떻게 사용하는가에 대해서 알아보시려면 VirtualBox 설명서의 &lt;b&gt;개인 정보 정책&lt;/b&gt; 섹션이나 VirtualBox 웹 사이트의 &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;개인 정보 정책&lt;/a&gt;을 참고하십시오.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation>Sun 온라인 계정이 이미 있습니다(&amp;H):</translation>
+        <translation type="obsolete">Sun 온라인 계정이 이미 있습니다(&amp;H):</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation>전자 우편 주소(&amp;E):</translation>
+        <translation type="obsolete">전자 우편 주소(&amp;E):</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>암호(&amp;P):</translation>
+        <translation type="obsolete">암호(&amp;P):</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation>Sun 온라인 계정을 등록하겠습니다(&amp;W):</translation>
+        <translation type="obsolete">Sun 온라인 계정을 등록하겠습니다(&amp;W):</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation>이름(&amp;F):</translation>
+        <translation type="obsolete">이름(&amp;F):</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation>성(&amp;L):</translation>
+        <translation type="obsolete">성(&amp;L):</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation>회사(&amp;C):</translation>
+        <translation type="obsolete">회사(&amp;C):</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation>국가(&amp;U):</translation>
+        <translation type="obsolete">국가(&amp;U):</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation>전자 우편 주소(&amp;M):</translation>
+        <translation type="obsolete">전자 우편 주소(&amp;M):</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation>암호(&amp;A):</translation>
+        <translation type="obsolete">암호(&amp;A):</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation>암호 확인(&amp;N):</translation>
+        <translation type="obsolete">암호 확인(&amp;N):</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation>등록(&amp;R)</translation>
+        <translation type="obsolete">등록(&amp;R)</translation>
     </message>
 </context>
 <context>
@@ -6941,7 +6941,7 @@ p, li { white-space: pre-wrap; }
         <translation>프로세서 갯수(&amp;P):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
         <translation>가상 머신의 CPU 갯수를 조정합니다.</translation>
     </message>
     <message>

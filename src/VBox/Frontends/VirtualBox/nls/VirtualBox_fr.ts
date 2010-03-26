@@ -26,7 +26,7 @@
     <message>
         <source>Sun Microsystems, Inc.</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>Jean-Jacques Sarton, Sun Microsystems, Inc.</translation>
+        <translation type="obsolete">Jean-Jacques Sarton, Sun Microsystems, Inc.</translation>
     </message>
 </context>
 <context>
@@ -1817,8 +1817,8 @@ p, li { white-space: pre-wrap; }
         <translation>&amp;Icône Dock aperçu temps réel</translation>
     </message>
     <message>
-        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
-        <translation type="unfinished"></translation>
+        <source>&amp;Auto show Dock and Menubar in fullscreen</source>
+        <translation>Démasquer &amp;automatiquement le Dock et la barre des menu en mode plein écran</translation>
     </message>
 </context>
 <context>
@@ -3441,7 +3441,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>(CD/DVD)</source>
-        <translation type="unfinished"></translation>
+        <translation>(périphérique optique)</translation>
     </message>
 </context>
 <context>
@@ -5450,7 +5450,7 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation>Boîte de dialogue d&apos;inscription VirtualBox</translation>
+        <translation type="obsolete">Boîte de dialogue d&apos;inscription VirtualBox</translation>
     </message>
     <message>
         <source>&amp;Name</source>
@@ -5458,7 +5458,7 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation>Entrez votre nom complet en utilisant seulement les caractères latins.</translation>
+        <translation type="obsolete">Entrez votre nom complet en utilisant seulement les caractères latins.</translation>
     </message>
     <message>
         <source>&amp;E-mail</source>
@@ -5466,7 +5466,7 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation>Entrez votre adresse courriel. Prière dEntrez votre adresse courriel.apos;utiliser une adresse valide.</translation>
+        <translation type="obsolete">Entrez votre adresse courriel. Prière dEntrez votre adresse courriel.apos;utiliser une adresse valide.</translation>
     </message>
     <message>
         <source>&amp;Please do not use this information to contact me</source>
@@ -5474,7 +5474,7 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation>Bienvenue sur le formulaire d&apos;inscription VirtualBox !</translation>
+        <translation type="obsolete">Bienvenue sur le formulaire d&apos;inscription VirtualBox !</translation>
     </message>
     <message>
         <source>Connection timed out.</source>
@@ -5486,7 +5486,7 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation>La négociation de la connexion a échoué.</translation>
+        <translation type="obsolete">La négociation de la connexion a échoué.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -5502,63 +5502,63 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Annuler</translation>
+        <translation type="obsolete">Annuler</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation>Choisissez votre pays/territoire</translation>
+        <translation type="obsolete">Choisissez votre pays/territoire</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Veuillez remplir ce formulaire d&apos;enregistrement pour nous dire que vous utilisez VirtualBox et, si vous le souhaitez, pour que nous vous gardions au courrent sur les nouveautés et les actualisations de VirtualBox.&lt;/p&gt;&lt;p&gt;Veuillez utiliser seulement les caractères latins pour remplir les champs ci-dessous. Nous soulignons que Sun Microsystems n&apos;utilisera les informations que pour collectioner des statistiques d&apos;utilisation sur le produit et pour vous envoyer les circulaires informatifs sur VirtualBox. En particulier, Sun Microsystems ne transmettra jamais vos données à de tiers partis. Vous trouverez des informations détaillés sur l&apos;usage que nous font de vos données personnels dans le section &lt;b&gt;Politique de confidentialité&lt;/b&gt; du manuel d&apos;utilisation VirtualBox ou sur la page &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; du site toile VirtualBox.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Veuillez remplir ce formulaire d&apos;enregistrement pour nous dire que vous utilisez VirtualBox et, si vous le souhaitez, pour que nous vous gardions au courrent sur les nouveautés et les actualisations de VirtualBox.&lt;/p&gt;&lt;p&gt;Veuillez utiliser seulement les caractères latins pour remplir les champs ci-dessous. Nous soulignons que Sun Microsystems n&apos;utilisera les informations que pour collectioner des statistiques d&apos;utilisation sur le produit et pour vous envoyer les circulaires informatifs sur VirtualBox. En particulier, Sun Microsystems ne transmettra jamais vos données à de tiers partis. Vous trouverez des informations détaillés sur l&apos;usage que nous font de vos données personnels dans le section &lt;b&gt;Politique de confidentialité&lt;/b&gt; du manuel d&apos;utilisation VirtualBox ou sur la page &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; du site toile VirtualBox.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation>J&apos;ai &amp;déjà un compte Sun Online :</translation>
+        <translation type="obsolete">J&apos;ai &amp;déjà un compte Sun Online :</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation>Courri&amp;el :</translation>
+        <translation type="obsolete">Courri&amp;el :</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>Mot de &amp;passe :</translation>
+        <translation type="obsolete">Mot de &amp;passe :</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation>J&apos;aimerais m&apos;en&amp;register et créer un nouveau compte Sun Online :</translation>
+        <translation type="obsolete">J&apos;aimerais m&apos;en&amp;register et créer un nouveau compte Sun Online :</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation>&amp;Prénom :</translation>
+        <translation type="obsolete">&amp;Prénom :</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation>&amp;Nom :</translation>
+        <translation type="obsolete">&amp;Nom :</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation>&amp;Société :</translation>
+        <translation type="obsolete">&amp;Société :</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation>Pa&amp;ys :</translation>
+        <translation type="obsolete">Pa&amp;ys :</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation>Co&amp;urriel :</translation>
+        <translation type="obsolete">Co&amp;urriel :</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation>Mot de p&amp;asse :</translation>
+        <translation type="obsolete">Mot de p&amp;asse :</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation>Co&amp;nfirmation du mot de passe :</translation>
+        <translation type="obsolete">Co&amp;nfirmation du mot de passe :</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation>En&amp;registrer</translation>
+        <translation type="obsolete">En&amp;registrer</translation>
     </message>
 </context>
 <context>
@@ -8244,7 +8244,7 @@ p, li { white-space: pre-wrap; }
         <translation>&amp;Processeur(s):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
         <translation>Détermine le nombre de processeurs virtuels de la machine virtuelle.</translation>
     </message>
     <message>

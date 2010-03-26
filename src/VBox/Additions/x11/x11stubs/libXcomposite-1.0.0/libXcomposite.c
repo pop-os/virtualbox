@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: libXcomposite.c $ */
 
 /** @file
  * X.Org libXcomposite.so linker stub

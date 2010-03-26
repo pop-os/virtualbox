@@ -26,7 +26,7 @@
     <message>
         <source>Sun Microsystems, Inc.</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>Daniel Nylander.</translation>
+        <translation type="obsolete">Daniel Nylander.</translation>
     </message>
 </context>
 <context>
@@ -1665,7 +1665,7 @@ p, li { white-space: pre-wrap; }
         <translation>Realtidsvisning för &amp;dockningsikon</translation>
     </message>
     <message>
-        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
+        <source>&amp;Auto show Dock and Menubar in fullscreen</source>
         <translation>V&amp;isa automatiskt docka och menyrad i helskärm</translation>
     </message>
 </context>
@@ -5116,7 +5116,7 @@ p, li { white-space: pre-wrap; }
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation>Registreringsdialog för VirtualBox</translation>
+        <translation type="obsolete">Registreringsdialog för VirtualBox</translation>
     </message>
     <message>
         <source>&amp;Name</source>
@@ -5124,7 +5124,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation>Ange ditt fullständiga namn med latinska bokstäver.</translation>
+        <translation type="obsolete">Ange ditt fullständiga namn med latinska bokstäver.</translation>
     </message>
     <message>
         <source>&amp;E-mail</source>
@@ -5132,7 +5132,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation>Ange din giltiga e-postadress.</translation>
+        <translation type="obsolete">Ange din giltiga e-postadress.</translation>
     </message>
     <message>
         <source>&amp;Please do not use this information to contact me</source>
@@ -5140,7 +5140,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation>Välkommen till registreringsformuläret för VirtualBox!</translation>
+        <translation type="obsolete">Välkommen till registreringsformuläret för VirtualBox!</translation>
     </message>
     <message>
         <source>Connection timed out.</source>
@@ -5152,7 +5152,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation>Kunde inte genomföra anslutningshandskakning.</translation>
+        <translation type="obsolete">Kunde inte genomföra anslutningshandskakning.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -5168,63 +5168,63 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Avbryt</translation>
+        <translation type="obsolete">Avbryt</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation>Välj land/region</translation>
+        <translation type="obsolete">Välj land/region</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Fyll i detta registreringsformulär för att informera oss om att du använder VirtualBox och, upp till dig själv, för att hålla dig informerad om nyheter och uppdateringar för VirtualBox.&lt;/p&gt;&lt;p&gt;Observera att Sun Microsystems endast kommer att använda denna information för att samla in statistik om användningen av produkten och för att skicka ut nyhetsbrev om VirtualBox. Sun Microsystems kommer aldrig att skicka vidare din information till tredje part. Detaljerad information om hur vi använder din personliga information kan hittas i &lt;b&gt;Privacy Policy&lt;/b&gt;-avsnittet i VirtualBox-handboken eller på sidan &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; på VirtualBox webbplats.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Fyll i detta registreringsformulär för att informera oss om att du använder VirtualBox och, upp till dig själv, för att hålla dig informerad om nyheter och uppdateringar för VirtualBox.&lt;/p&gt;&lt;p&gt;Observera att Sun Microsystems endast kommer att använda denna information för att samla in statistik om användningen av produkten och för att skicka ut nyhetsbrev om VirtualBox. Sun Microsystems kommer aldrig att skicka vidare din information till tredje part. Detaljerad information om hur vi använder din personliga information kan hittas i &lt;b&gt;Privacy Policy&lt;/b&gt;-avsnittet i VirtualBox-handboken eller på sidan &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; på VirtualBox webbplats.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation>Jag &amp;har ett Sun Online-konto redan:</translation>
+        <translation type="obsolete">Jag &amp;har ett Sun Online-konto redan:</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation>&amp;E-post:</translation>
+        <translation type="obsolete">&amp;E-post:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>&amp;Lösenord:</translation>
+        <translation type="obsolete">&amp;Lösenord:</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation>Jag &amp;vill registrera och skapa ett nytt Sun Online-konto:</translation>
+        <translation type="obsolete">Jag &amp;vill registrera och skapa ett nytt Sun Online-konto:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation>&amp;Förnamn:</translation>
+        <translation type="obsolete">&amp;Förnamn:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation>&amp;Efternamn:</translation>
+        <translation type="obsolete">&amp;Efternamn:</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation>F&amp;öretag:</translation>
+        <translation type="obsolete">F&amp;öretag:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation>La&amp;nd:</translation>
+        <translation type="obsolete">La&amp;nd:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation>E-&amp;post:</translation>
+        <translation type="obsolete">E-&amp;post:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation>&amp;Lösenord:</translation>
+        <translation type="obsolete">&amp;Lösenord:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation>&amp;Bekräfta lösenordet:</translation>
+        <translation type="obsolete">&amp;Bekräfta lösenordet:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation>&amp;Registrera</translation>
+        <translation type="obsolete">&amp;Registrera</translation>
     </message>
 </context>
 <context>
@@ -7772,7 +7772,7 @@ serial ports</comment>
         <translation>&amp;Processor(er):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
         <translation>Kontrollerar antalet virtuella processorer i den virtuella maskinen.</translation>
     </message>
     <message>
