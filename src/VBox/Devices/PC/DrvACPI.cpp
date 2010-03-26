@@ -34,10 +34,10 @@
 #include <iprt/string.h>
 
 #ifdef RT_OS_LINUX
-# include <iprt/string.h>
-# include <sys/types.h>
-# include <dirent.h>
-# include <stdio.h>
+# include <iprt/critsect.h>
+# include <iprt/dir.h>
+# include <iprt/semaphore.h>
+# include <iprt/stream.h>
 #endif
 
 #ifdef RT_OS_DARWIN
@@ -74,6 +74,29 @@ typedef struct DRVACPI
     PPDMIACPIPORT       pPort;
     /** Pointer to the driver instance. */
     PPDMDRVINS          pDrvIns;
+
+#ifdef RT_OS_LINUX
+    /** The current power source. */
+    PDMACPIPOWERSOURCE  enmPowerSource;
+    /** true = one or more batteries preset, false = no battery present. */
+    bool                fBatteryPresent;
+    /** No need to RTThreadPoke the poller when set.  */
+    bool volatile       fDontPokePoller;
+    /** Remaining battery capacity. */
+    PDMACPIBATCAPACITY  enmBatteryRemainingCapacity;
+    /** Battery state. */
+    PDMACPIBATSTATE     enmBatteryState;
+    /** Preset battery charging/discharging rate. */
+    uint32_t            u32BatteryPresentRate;
+    /** The poller thread. */
+    PPDMTHREAD          pPollerThread;
+    /** Synchronize access to the above fields.
+     * XXX A spinlock is probaly cheaper ... */
+    RTCRITSECT          CritSect;
+    /** Event semaphore the poller thread is sleeping on. */
+    RTSEMEVENT          hPollerSleepEvent;
+#endif
+
 } DRVACPI, *PDRVACPI;
 
 
@@ -139,63 +162,14 @@ static DECLCALLBACK(int) drvACPIQueryPowerSource(PPDMIACPICONNECTOR pInterface,
                          GetLastError()));
         *pPowerSource = PDM_ACPI_POWER_SOURCE_UNKNOWN;
     }
-#elif defined (RT_OS_LINUX) /* !RT_OS_WINDOWS */
-    DIR *dfd;
-    struct dirent *dp;
-    FILE *statusFile = NULL;
-    char buff[NAME_MAX+50];
 
-    /* start with no result */
-    *pPowerSource = PDM_ACPI_POWER_SOURCE_UNKNOWN;
+#elif defined (RT_OS_LINUX)
+    PDRVACPI pThis = RT_FROM_MEMBER(pInterface, DRVACPI, IACPIConnector);
+    RTCritSectEnter(&pThis->CritSect);
+    *pPowerSource = pThis->enmPowerSource;
+    RTCritSectLeave(&pThis->CritSect);
 
-    dfd = opendir("/proc/acpi/ac_adapter/");
-    if (dfd)
-    {
-        for (;;)
-        {
-            dp = readdir(dfd);
-            if (dp == 0)
-                break;
-            if (strcmp(dp->d_name, ".") == 0 ||
-                strcmp(dp->d_name, "..") == 0)
-                continue;
-            strcpy(buff, "/proc/acpi/ac_adapter/");
-            strcat(buff, dp->d_name);
-            strcat(buff, "/status");
-            statusFile = fopen(buff, "r");
-            /* there's another possible name for this file */
-            if (!statusFile)
-            {
-                strcpy(buff, "/proc/acpi/ac_adapter/");
-                strcat(buff, dp->d_name);
-                strcat(buff, "/state");
-                statusFile = fopen(buff, "r");
-            }
-            if (statusFile)
-                break;
-        }
-        closedir(dfd);
-    }
-
-    if (statusFile)
-    {
-        for (;;)
-        {
-            char buff2[1024];
-            if (fgets(buff2, sizeof(buff), statusFile) == NULL)
-                break;
-            if (strstr(buff2, "Status:") != NULL ||
-                strstr(buff2, "state:") != NULL)
-            {
-                if (strstr(buff2, "on-line") != NULL)
-                    *pPowerSource = PDM_ACPI_POWER_SOURCE_OUTLET;
-                else
-                    *pPowerSource = PDM_ACPI_POWER_SOURCE_BATTERY;
-            }
-        }
-        fclose(statusFile);
-    }
-#elif defined (RT_OS_DARWIN) /* !RT_OS_LINUX */
+#elif defined (RT_OS_DARWIN)
     *pPowerSource = PDM_ACPI_POWER_SOURCE_UNKNOWN;
 
     CFTypeRef pBlob = IOPSCopyPowerSourcesInfo();
@@ -203,11 +177,11 @@ static DECLCALLBACK(int) drvACPIQueryPowerSource(PPDMIACPICONNECTOR pInterface,
 
     CFDictionaryRef pSource = NULL;
     const void *psValue;
-    bool result;
+    bool fResult;
 
     if (CFArrayGetCount(pSources) > 0)
     {
-        for(int i = 0; i < CFArrayGetCount(pSources); ++i)
+        for (int i = 0; i < CFArrayGetCount(pSources); ++i)
         {
             pSource = IOPSGetPowerSourceDescription(pBlob, CFArrayGetValueAtIndex(pSources, i));
             /* If the source is empty skip over to the next one. */
@@ -218,24 +192,25 @@ static DECLCALLBACK(int) drvACPIQueryPowerSource(PPDMIACPICONNECTOR pInterface,
             if (CFDictionaryGetValue(pSource, CFSTR(kIOPSIsPresentKey)) == kCFBooleanFalse)
                 continue;
             /* Only internal power types are of interest. */
-            result = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSTransportTypeKey), &psValue);
-            if (result &&
-                CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSInternalType), 0) == kCFCompareEqualTo)
+            fResult = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSTransportTypeKey), &psValue);
+            if (   fResult
+                && CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSInternalType), 0) == kCFCompareEqualTo)
             {
                 /* Check which power source we are connect on. */
-                result = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSPowerSourceStateKey), &psValue);
-                if (result &&
-                    CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSACPowerValue), 0) == kCFCompareEqualTo)
+                fResult = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSPowerSourceStateKey), &psValue);
+                if (   fResult
+                    && CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSACPowerValue), 0) == kCFCompareEqualTo)
                     *pPowerSource = PDM_ACPI_POWER_SOURCE_OUTLET;
-                else if (result &&
-                         CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSBatteryPowerValue), 0) == kCFCompareEqualTo)
+                else if (   fResult
+                         && CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSBatteryPowerValue), 0) == kCFCompareEqualTo)
                     *pPowerSource = PDM_ACPI_POWER_SOURCE_BATTERY;
             }
         }
     }
     CFRelease(pBlob);
     CFRelease(pSources);
-#elif defined(RT_OS_FREEBSD) /* !RT_OS_DARWIN */
+
+#elif defined(RT_OS_FREEBSD)
     int fAcLine = 0;
     size_t cbParameter = sizeof(fAcLine);
 
@@ -257,7 +232,8 @@ static DECLCALLBACK(int) drvACPIQueryPowerSource(PPDMIACPICONNECTOR pInterface,
     }
 #else /* !RT_OS_FREEBSD either - what could this be? */
     *pPowerSource = PDM_ACPI_POWER_SOURCE_OUTLET;
-#endif /* !RT_OS_WINDOWS */
+
+#endif /* !RT_OS_FREEBSD */
     return VINF_SUCCESS;
 }
 
@@ -265,9 +241,9 @@ static DECLCALLBACK(int) drvACPIQueryPowerSource(PPDMIACPICONNECTOR pInterface,
  * @copydoc PDMIACPICONNECTOR::pfnQueryBatteryStatus
  */
 static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface, bool *pfPresent,
-                                                   PPDMACPIBATCAPACITY penmRemainingCapacity,
-                                                   PPDMACPIBATSTATE penmBatteryState,
-                                                   uint32_t *pu32PresentRate)
+        PPDMACPIBATCAPACITY penmRemainingCapacity,
+        PPDMACPIBATSTATE penmBatteryState,
+        uint32_t *pu32PresentRate)
 {
     /* default return values for all architectures */
     *pfPresent              = false;   /* no battery present */
@@ -298,208 +274,29 @@ static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface
     else
     {
         AssertMsgFailed(("Could not determine system power status, error: 0x%x\n",
-                        GetLastError()));
+                    GetLastError()));
     }
+
 #elif defined(RT_OS_LINUX)
-    DIR *dfd;
-    struct dirent *dp;
-    FILE *statusFile = NULL;
-    FILE *infoFile = NULL;
-    char buff[NAME_MAX+50];
-    /* the summed up maximum capacity */
-    int  maxCapacityTotal = ~0;
-    /* the summed up total capacity */
-    int  currentCapacityTotal = ~0;
-    int  presentRate = 0;
-    int  presentRateTotal = 0;
-    bool fBatteryPresent = false, fCharging=false, fDischarging=false, fCritical=false;
+    PDRVACPI pThis = RT_FROM_MEMBER(pInterface, DRVACPI, IACPIConnector);
+    RTCritSectEnter(&pThis->CritSect);
+    *pfPresent = pThis->fBatteryPresent;
+    *penmRemainingCapacity = pThis->enmBatteryRemainingCapacity;
+    *penmBatteryState = pThis->enmBatteryState;
+    *pu32PresentRate = pThis->u32BatteryPresentRate;
+    RTCritSectLeave(&pThis->CritSect);
 
-    dfd = opendir("/proc/acpi/battery/");
-    if (dfd)
-    {
-        for (;;)
-        {
-            dp = readdir(dfd);
-            if (dp == 0)
-                break;
-            if (strcmp(dp->d_name, ".") == 0 ||
-                strcmp(dp->d_name, "..") == 0)
-                continue;
-            strcpy(buff, "/proc/acpi/battery/");
-            strcat(buff, dp->d_name);
-            strcat(buff, "/status");
-            statusFile = fopen(buff, "r");
-            /* there is a 2nd variant of that file */
-            if (!statusFile)
-            {
-                strcpy(buff, "/proc/acpi/battery/");
-                strcat(buff, dp->d_name);
-                strcat(buff, "/state");
-                statusFile = fopen(buff, "r");
-            }
-            strcpy(buff, "/proc/acpi/battery/");
-            strcat(buff, dp->d_name);
-            strcat(buff, "/info");
-            infoFile = fopen(buff, "r");
-            /* we need both files */
-            if (!statusFile || !infoFile)
-            {
-                if (statusFile)
-                    fclose(statusFile);
-                if (infoFile)
-                    fclose(infoFile);
-                break;
-            }
-
-            /* get 'present' status from the info file */
-            for (;;)
-            {
-                char buff2[1024];
-                if (fgets(buff2, sizeof(buff), infoFile) == NULL)
-                    break;
-
-                if (strstr(buff2, "present:") != NULL)
-                {
-                    if (strstr(buff2, "yes") != NULL)
-                        fBatteryPresent = true;
-                }
-            }
-
-            /* move file pointer back to start of file */
-            fseek(infoFile, 0, SEEK_SET);
-
-            if (fBatteryPresent)
-            {
-                /* get the maximum capacity from the info file */
-                for (;;)
-                {
-                    char buff2[1024];
-                    int maxCapacity = ~0;
-                    if (fgets(buff2, sizeof(buff), infoFile) == NULL)
-                        break;
-                    if (strstr(buff2, "last full capacity:") != NULL)
-                    {
-                        if (sscanf(buff2 + 19, "%d", &maxCapacity) <= 0)
-                            maxCapacity = ~0;
-
-                        /* did we get a valid capacity and it's the first value we got? */
-                        if (maxCapacityTotal < 0 && maxCapacity > 0)
-                        {
-                            /* take this as the maximum capacity */
-                            maxCapacityTotal = maxCapacity;
-                        }
-                        else
-                        {
-                            /* sum up the maximum capacity */
-                            if (maxCapacityTotal > 0 && maxCapacity > 0)
-                                maxCapacityTotal += maxCapacity;
-                        }
-                        /* we got all we need */
-                        break;
-                    }
-                }
-
-                /* get the current capacity/state from the status file */
-                bool gotRemainingCapacity=false, gotBatteryState=false,
-                     gotCapacityState=false,     gotPresentRate=false;
-                while (!gotRemainingCapacity || !gotBatteryState ||
-                       !gotCapacityState     || !gotPresentRate)
-                {
-                    char buff2[1024];
-                    int currentCapacity = ~0;
-                    if (fgets(buff2, sizeof(buff), statusFile) == NULL)
-                        break;
-                    if (strstr(buff2, "remaining capacity:") != NULL)
-                    {
-                        if (sscanf(buff2 + 19, "%d", &currentCapacity) <= 0)
-                            currentCapacity = ~0;
-
-                        /* is this the first valid value we see? If so, take it! */
-                        if (currentCapacityTotal < 0 && currentCapacity >= 0)
-                        {
-                            currentCapacityTotal = currentCapacity;
-                        }
-                        else
-                        {
-                            /* just sum up the current value */
-                            if (currentCapacityTotal > 0 && currentCapacity > 0)
-                                currentCapacityTotal += currentCapacity;
-                        }
-                        gotRemainingCapacity = true;
-                    }
-                    if (strstr(buff2, "charging state:") != NULL)
-                    {
-                        if (strstr(buff2 + 15, "discharging") != NULL)
-                            fDischarging = true;
-                        else if (strstr(buff2 + 15, "charging") != NULL)
-                            fCharging = true;
-                        gotBatteryState = true;
-                    }
-                    if (strstr(buff2, "capacity state:") != NULL)
-                    {
-                        if (strstr(buff2 + 15, "critical") != NULL)
-                            fCritical = true;
-                        gotCapacityState = true;
-                    }
-                    if (strstr(buff2, "present rate:") != NULL)
-                    {
-                        if (sscanf(buff2 + 13, "%d", &presentRate) <= 0)
-                            presentRate = 0;
-                        gotPresentRate = true;
-                    }
-                }
-            }
-
-            if (presentRate)
-            {
-                if (fDischarging)
-                    presentRateTotal -= presentRate;
-                else
-                    presentRateTotal += presentRate;
-            }
-
-            if (statusFile)
-                fclose(statusFile);
-            if (infoFile)
-                fclose(infoFile);
-
-        }
-        closedir(dfd);
-    }
-
-    *pfPresent = fBatteryPresent;
-
-    /* charging/discharging bits are mutual exclusive */
-    uint32_t uBs = PDM_ACPI_BAT_STATE_CHARGED;
-    if (fDischarging)
-        uBs = PDM_ACPI_BAT_STATE_DISCHARGING;
-    else if (fCharging)
-        uBs = PDM_ACPI_BAT_STATE_CHARGING;
-    if (fCritical)
-        uBs |= PDM_ACPI_BAT_STATE_CRITICAL;
-    *penmBatteryState = (PDMACPIBATSTATE)uBs;
-
-    if (presentRateTotal < 0)
-        presentRateTotal = -presentRateTotal;
-
-    if (maxCapacityTotal > 0 && currentCapacityTotal > 0)
-    {
-        /* calculate the percentage */
-        *penmRemainingCapacity = (PDMACPIBATCAPACITY)(((float)currentCapacityTotal / (float)maxCapacityTotal)
-                                                      * PDM_ACPI_BAT_CAPACITY_MAX);
-        *pu32PresentRate = (uint32_t)(((float)presentRateTotal / (float)maxCapacityTotal) * 1000);
-    }
 #elif defined(RT_OS_DARWIN)
     CFTypeRef pBlob = IOPSCopyPowerSourcesInfo();
     CFArrayRef pSources = IOPSCopyPowerSourcesList(pBlob);
 
     CFDictionaryRef pSource = NULL;
     const void *psValue;
-    bool result;
+    bool fResult;
 
     if (CFArrayGetCount(pSources) > 0)
     {
-        for(int i = 0; i < CFArrayGetCount(pSources); ++i)
+        for (int i = 0; i < CFArrayGetCount(pSources); ++i)
         {
             pSource = IOPSGetPowerSourceDescription(pBlob, CFArrayGetValueAtIndex(pSources, i));
             /* If the source is empty skip over to the next one. */
@@ -510,18 +307,18 @@ static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface
             if (CFDictionaryGetValue(pSource, CFSTR(kIOPSIsPresentKey)) == kCFBooleanFalse)
                 continue;
             /* Only internal power types are of interest. */
-            result = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSTransportTypeKey), &psValue);
-            if (result &&
-                CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSInternalType), 0) == kCFCompareEqualTo)
+            fResult = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSTransportTypeKey), &psValue);
+            if (   fResult
+                    && CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSInternalType), 0) == kCFCompareEqualTo)
             {
                 PDMACPIPOWERSOURCE powerSource = PDM_ACPI_POWER_SOURCE_UNKNOWN;
                 /* First check which power source we are connect on. */
-                result = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSPowerSourceStateKey), &psValue);
-                if (result &&
-                    CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSACPowerValue), 0) == kCFCompareEqualTo)
+                fResult = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSPowerSourceStateKey), &psValue);
+                if (   fResult
+                        && CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSACPowerValue), 0) == kCFCompareEqualTo)
                     powerSource = PDM_ACPI_POWER_SOURCE_OUTLET;
-                else if (result &&
-                         CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSBatteryPowerValue), 0) == kCFCompareEqualTo)
+                else if (   fResult
+                        && CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSBatteryPowerValue), 0) == kCFCompareEqualTo)
                     powerSource = PDM_ACPI_POWER_SOURCE_BATTERY;
 
                 /* At this point the power source is present. */
@@ -533,12 +330,12 @@ static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface
                 float remCapacity = 0.0f;
 
                 /* Fetch the current capacity value of the power source */
-                result = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSCurrentCapacityKey), &psValue);
-                if (result)
+                fResult = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSCurrentCapacityKey), &psValue);
+                if (fResult)
                     CFNumberGetValue((CFNumberRef)psValue, kCFNumberSInt32Type, &curCapacity);
                 /* Fetch the maximum capacity value of the power source */
-                result = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSMaxCapacityKey), &psValue);
-                if (result)
+                fResult = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSMaxCapacityKey), &psValue);
+                if (fResult)
                     CFNumberGetValue((CFNumberRef)psValue, kCFNumberSInt32Type, &maxCapacity);
 
                 /* Calculate the remaining capacity in percent */
@@ -552,16 +349,16 @@ static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface
                     *penmBatteryState = PDM_ACPI_BAT_STATE_DISCHARGING;
                     int timeToEmpty = -1;
                     /* Get the time till the battery source will be empty */
-                    result = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSTimeToEmptyKey), &psValue);
-                    if (result)
+                    fResult = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSTimeToEmptyKey), &psValue);
+                    if (fResult)
                         CFNumberGetValue((CFNumberRef)psValue, kCFNumberSInt32Type, &timeToEmpty);
                     if (timeToEmpty != -1)
                         /* 0...1000 */
                         *pu32PresentRate = (uint32_t)roundf((remCapacity / ((float)timeToEmpty/60.0)) * 10.0);
                 }
 
-                if (powerSource == PDM_ACPI_POWER_SOURCE_OUTLET &&
-                    CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSIsChargingKey), &psValue))
+                if (   powerSource == PDM_ACPI_POWER_SOURCE_OUTLET
+                        && CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSIsChargingKey), &psValue))
                 {
                     /* We are running on an AC power source, but we also have a
                      * battery power source present. */
@@ -571,8 +368,8 @@ static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface
                         *penmBatteryState = PDM_ACPI_BAT_STATE_CHARGING;
                         int timeToFull = -1;
                         /* Get the time till the battery source will be charged */
-                        result = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSTimeToFullChargeKey), &psValue);
-                        if (result)
+                        fResult = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSTimeToFullChargeKey), &psValue);
+                        if (fResult)
                             CFNumberGetValue((CFNumberRef)psValue, kCFNumberSInt32Type, &timeToFull);
                         if (timeToFull != -1)
                             /* 0...1000 */
@@ -582,8 +379,8 @@ static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface
 
                 /* Check for critical */
                 int criticalValue = 20;
-                result = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSDeadWarnLevelKey), &psValue);
-                if (result)
+                fResult = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSDeadWarnLevelKey), &psValue);
+                if (fResult)
                     CFNumberGetValue((CFNumberRef)psValue, kCFNumberSInt32Type, &criticalValue);
                 if (remCapacity < criticalValue)
                     *penmBatteryState = (PDMACPIBATSTATE)(*penmBatteryState | PDM_ACPI_BAT_STATE_CRITICAL);
@@ -592,6 +389,7 @@ static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface
     }
     CFRelease(pBlob);
     CFRelease(pSources);
+
 #elif defined(RT_OS_FREEBSD)
     /* We try to use /dev/acpi first and if that fails use the sysctls. */
     bool fSuccess = true;
@@ -656,7 +454,9 @@ static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface
                              * The rate is in mA so we have to convert it.
                              * The current power rate can be calculated with P = U * I
                              */
-                            *pu32PresentRate = (uint32_t)((((float)BatteryIo.bst.volt/1000.0) * ((float)BatteryIo.bst.rate/1000.0)) * 1000.0);
+                            *pu32PresentRate = (uint32_t)(  (  ((float)BatteryIo.bst.volt/1000.0)
+                                        * ((float)BatteryIo.bst.rate/1000.0))
+                                    * 1000.0);
                         }
                     }
                 }
@@ -696,16 +496,427 @@ static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface
                 int curCapacity = 0;
                 cbParameter = sizeof(curCapacity);
                 rc = sysctlbyname("hw.acpi.battery.life", &curCapacity, &cbParameter, NULL, NULL);
-                if ((!rc) && (curCapacity >= 0))
+                if (!rc && curCapacity >= 0)
                     *penmRemainingCapacity = (PDMACPIBATCAPACITY)curCapacity;
 
                 /* The rate can't be determined with sysctls. */
             }
         }
     }
+
 #endif /* RT_OS_FREEBSD */
+
     return VINF_SUCCESS;
 }
+
+#ifdef RT_OS_LINUX
+/**
+ * Poller thread for /proc/acpi status files.
+ *
+ * Reading these files takes ages (several seconds) on some hosts, therefore
+ * start this thread. The termination of this thread may take some seconds
+ * on such a hosts!
+ *
+ * @param   pDrvIns     The driver instance data.
+ * @param   pThread     The thread.
+ */
+static DECLCALLBACK(int) drvACPIPoller(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+{
+    PDRVACPI pThis = PDMINS_2_DATA(pDrvIns, PDRVACPI);
+
+    if (pThread->enmState == PDMTHREADSTATE_INITIALIZING)
+        return VINF_SUCCESS;
+
+    while (pThread->enmState == PDMTHREADSTATE_RUNNING)
+    {
+        ASMAtomicWriteBool(&pThis->fDontPokePoller, false);
+
+        PDMACPIPOWERSOURCE enmPowerSource = PDM_ACPI_POWER_SOURCE_UNKNOWN;
+        PRTSTREAM  pStrmStatus;
+        PRTSTREAM  pStrmType;
+        PRTDIR     pDir = NULL;
+        RTDIRENTRY DirEntry;
+        char       szLine[1024];
+        bool       fBatteryPresent = false;     /* one or more batteries present */
+        bool       fCharging = false;           /* one or more batteries charging */
+        bool       fDischarging = false;        /* one or more batteries discharging */
+        bool       fCritical = false;           /* one or more batteries in critical state */
+        int32_t    maxCapacityTotal = 0;        /* total capacity of all batteries */
+        int32_t    currentCapacityTotal = 0;    /* total current capacity of all batteries */
+        int32_t    presentRateTotal = 0;        /* total present (dis)charging rate of all batts */
+
+        int rc = RTDirOpen(&pDir, "/sys/class/power_supply/");
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * The new /sys interface introduced with Linux 2.6.25.
+             */
+            while (pThread->enmState == PDMTHREADSTATE_RUNNING)
+            {
+                rc = RTDirRead(pDir, &DirEntry, NULL);
+                if (RT_FAILURE(rc))
+                    break;
+                if (   strcmp(DirEntry.szName, ".") == 0
+                    || strcmp(DirEntry.szName, "..") == 0)
+                    continue;
+#define POWER_OPEN(s, n) RTStrmOpenF("r", s, "/sys/class/power_supply/%s/" n, DirEntry.szName)
+                rc = POWER_OPEN(&pStrmType, "type");
+                if (RT_FAILURE(rc))
+                    continue;
+                rc = RTStrmGetLine(pStrmType, szLine, sizeof(szLine));
+                if (RT_SUCCESS(rc))
+                {
+                    if (strcmp(szLine, "Mains") == 0)
+                    {
+                        /* AC adapter */
+                        rc = POWER_OPEN(&pStrmStatus, "online");
+                        if (RT_SUCCESS(rc))
+                        {
+                            rc = RTStrmGetLine(pStrmStatus, szLine, sizeof(szLine));
+                            if (   RT_SUCCESS(rc)
+                                && strcmp(szLine, "1") == 0)
+                                enmPowerSource = PDM_ACPI_POWER_SOURCE_OUTLET;
+                            else
+                                enmPowerSource = PDM_ACPI_POWER_SOURCE_BATTERY;
+                            RTStrmClose(pStrmStatus);
+                        }
+                    }
+                    else if (strcmp(szLine, "Battery") == 0)
+                    {
+                        /* Battery */
+                        rc = POWER_OPEN(&pStrmStatus, "present");
+                        if (RT_SUCCESS(rc))
+                        {
+                            rc = RTStrmGetLine(pStrmStatus, szLine, sizeof(szLine));
+                            RTStrmClose(pStrmStatus);
+                            if (   RT_SUCCESS(rc)
+                                && strcmp(szLine, "1") == 0)
+                            {
+                                fBatteryPresent = true;
+                                rc = RTStrmOpenF("r", &pStrmStatus,
+                                                 "/sys/class/power_supply/%s/status", DirEntry.szName);
+                                if (RT_SUCCESS(rc))
+                                {
+                                    rc = RTStrmGetLine(pStrmStatus, szLine, sizeof(szLine));
+                                    if (RT_SUCCESS(rc))
+                                    {
+                                        if (strcmp(szLine, "Discharging") == 0)
+                                            fDischarging = true;
+                                        else if (strcmp(szLine, "Charging") == 0)
+                                            fCharging = true;
+                                    }
+                                    RTStrmClose(pStrmStatus);
+                                }
+                                rc = POWER_OPEN(&pStrmStatus, "capacity_level");
+                                if (RT_SUCCESS(rc))
+                                {
+                                    rc = RTStrmGetLine(pStrmStatus, szLine, sizeof(szLine));
+                                    if (   RT_SUCCESS(rc)
+                                        && strcmp(szLine, "Critical") == 0)
+                                        fCritical = true;
+                                    RTStrmClose(pStrmStatus);
+                                }
+                                rc = POWER_OPEN(&pStrmStatus, "energy_full");
+                                if (RT_FAILURE(rc))
+                                    rc = POWER_OPEN(&pStrmStatus, "charge_full");
+                                if (RT_SUCCESS(rc))
+                                {
+                                    rc = RTStrmGetLine(pStrmStatus, szLine, sizeof(szLine));
+                                    if (RT_SUCCESS(rc))
+                                    {
+                                        int32_t maxCapacity = 0;
+                                        rc = RTStrToInt32Full(szLine, 0, &maxCapacity);
+                                        if (   RT_SUCCESS(rc)
+                                            && maxCapacity > 0)
+                                            maxCapacityTotal += maxCapacity;
+                                    }
+                                    RTStrmClose(pStrmStatus);
+                                }
+                                rc = POWER_OPEN(&pStrmStatus, "energy_now");
+                                if (RT_FAILURE(rc))
+                                    rc = POWER_OPEN(&pStrmStatus, "charge_now");
+                                if (RT_SUCCESS(rc))
+                                {
+                                    rc = RTStrmGetLine(pStrmStatus, szLine, sizeof(szLine));
+                                    if (RT_SUCCESS(rc))
+                                    {
+                                        int32_t currentCapacity = 0;
+                                        rc = RTStrToInt32Full(szLine, 0, &currentCapacity);
+                                        if (   RT_SUCCESS(rc)
+                                            && currentCapacity > 0)
+                                            currentCapacityTotal += currentCapacity;
+                                    }
+                                    RTStrmClose(pStrmStatus);
+                                }
+                                rc = POWER_OPEN(&pStrmStatus, "current_now");
+                                if (RT_SUCCESS(rc))
+                                {
+                                    rc = RTStrmGetLine(pStrmStatus, szLine, sizeof(szLine));
+                                    if (RT_SUCCESS(rc))
+                                    {
+                                        int32_t presentRate = 0;
+                                        rc = RTStrToInt32Full(szLine, 0, &presentRate);
+                                        if (   RT_SUCCESS(rc)
+                                            && presentRate > 0)
+                                        {
+                                            if (fDischarging)
+                                                presentRateTotal -= presentRate;
+                                            else
+                                                presentRateTotal += presentRate;
+                                        }
+                                    }
+                                    RTStrmClose(pStrmStatus);
+                                }
+                            }
+                        }
+                    }
+                }
+                RTStrmClose(pStrmType);
+#undef POWER_OPEN
+            }
+            RTDirClose(pDir);
+        }
+        else /* !/sys */
+        {
+            /*
+             * The old /proc/acpi interface
+             */
+            /*
+             * Read the status of the powerline-adapter.
+             */
+            rc = RTDirOpen(&pDir, "/proc/acpi/ac_adapter/");
+            if (RT_SUCCESS(rc))
+            {
+#define POWER_OPEN(s, n) RTStrmOpenF("r", s, "/proc/acpi/ac_adapter/%s/" n, DirEntry.szName)
+                while (pThread->enmState == PDMTHREADSTATE_RUNNING)
+                {
+                    rc = RTDirRead(pDir, &DirEntry, NULL);
+                    if (RT_FAILURE(rc))
+                        break;
+                    if (   strcmp(DirEntry.szName, ".") == 0
+                        || strcmp(DirEntry.szName, "..") == 0)
+                        continue;
+                    rc = POWER_OPEN(&pStrmStatus, "status");
+                    if (RT_FAILURE(rc))
+                        rc = POWER_OPEN(&pStrmStatus, "state");
+                    if (RT_SUCCESS(rc))
+                    {
+                        while (pThread->enmState == PDMTHREADSTATE_RUNNING)
+                        {
+                            rc = RTStrmGetLine(pStrmStatus, szLine, sizeof(szLine));
+                            if (RT_FAILURE(rc))
+                                break;
+                            if (   strstr(szLine, "Status:") != NULL
+                                || strstr(szLine, "state:") != NULL)
+                            {
+                                if (strstr(szLine, "on-line") != NULL)
+                                    enmPowerSource = PDM_ACPI_POWER_SOURCE_OUTLET;
+                                else
+                                    enmPowerSource = PDM_ACPI_POWER_SOURCE_BATTERY;
+                                break;
+                            }
+                        }
+                        RTStrmClose(pStrmStatus);
+                        break;
+                    }
+                }
+                RTDirClose(pDir);
+#undef POWER_OPEN
+            }
+
+            /*
+             * Read the status of all batteries and collect it into one.
+             */
+            rc = RTDirOpen(&pDir, "/proc/acpi/battery/");
+            if (RT_SUCCESS(rc))
+            {
+#define POWER_OPEN(s, n) RTStrmOpenF("r", s, "/proc/acpi/battery/%s/" n, DirEntry.szName)
+                bool fThisBatteryPresent = false;
+                bool fThisDischarging = false;
+
+                while (pThread->enmState == PDMTHREADSTATE_RUNNING)
+                {
+                    rc = RTDirRead(pDir, &DirEntry, NULL);
+                    if (RT_FAILURE(rc))
+                        break;
+                    if (   strcmp(DirEntry.szName, ".") == 0
+                        || strcmp(DirEntry.szName, "..") == 0)
+                        continue;
+
+                    rc = POWER_OPEN(&pStrmStatus, "status");
+                    /* there is a 2nd variant of that file */
+                    if (RT_FAILURE(rc))
+                        rc = POWER_OPEN(&pStrmStatus, "state");
+                    if (RT_FAILURE(rc))
+                        continue;
+
+                    PRTSTREAM pStrmInfo;
+                    rc = POWER_OPEN(&pStrmInfo, "info");
+                    if (RT_FAILURE(rc))
+                    {
+                        RTStrmClose(pStrmStatus);
+                        continue;
+                    }
+
+                    /* get 'present' status from the info file */
+                    while (pThread->enmState == PDMTHREADSTATE_RUNNING)
+                    {
+                        rc = RTStrmGetLine(pStrmInfo, szLine, sizeof(szLine));
+                        if (RT_FAILURE(rc))
+                            break;
+                        if (strstr(szLine, "present:") != NULL)
+                        {
+                            if (strstr(szLine, "yes") != NULL)
+                            {
+                                fThisBatteryPresent = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (fThisBatteryPresent)
+                    {
+                        fBatteryPresent = true;
+                        RTStrmRewind(pStrmInfo);
+
+                        /* get the maximum capacity from the info file */
+                        while (pThread->enmState == PDMTHREADSTATE_RUNNING)
+                        {
+                            rc = RTStrmGetLine(pStrmInfo, szLine, sizeof(szLine));
+                            if (RT_FAILURE(rc))
+                                break;
+                            if (strstr(szLine, "last full capacity:") != NULL)
+                            {
+                                char *psz;
+                                int32_t maxCapacity = 0;
+                                rc = RTStrToInt32Ex(RTStrStripL(&szLine[19]), &psz, 0, &maxCapacity);
+                                if (RT_FAILURE(rc))
+                                    maxCapacity = 0;
+                                maxCapacityTotal += maxCapacity;
+                                break;
+                            }
+                        }
+
+                        /* get the current capacity/state from the status file */
+                        int32_t presentRate = 0;
+                        bool fGotRemainingCapacity = false;
+                        bool fGotBatteryState = false;
+                        bool fGotCapacityState = false;
+                        bool fGotPresentRate = false;
+                        while (  (   !fGotRemainingCapacity
+                                  || !fGotBatteryState
+                                  || !fGotCapacityState
+                                  || !fGotPresentRate)
+                               && pThread->enmState == PDMTHREADSTATE_RUNNING)
+                        {
+                            rc = RTStrmGetLine(pStrmStatus, szLine, sizeof(szLine));
+                            if (RT_FAILURE(rc))
+                                break;
+                            if (strstr(szLine, "remaining capacity:") != NULL)
+                            {
+                                char *psz;
+                                int32_t currentCapacity = 0;
+                                rc = RTStrToInt32Ex(RTStrStripL(&szLine[19]), &psz, 0, &currentCapacity);
+                                if (   RT_SUCCESS(rc)
+                                    && currentCapacity > 0)
+                                    currentCapacityTotal += currentCapacity;
+                                fGotRemainingCapacity = true;
+                            }
+                            else if (strstr(szLine, "charging state:") != NULL)
+                            {
+                                if (strstr(szLine + 15, "discharging") != NULL)
+                                {
+                                    fDischarging = true;
+                                    fThisDischarging = true;
+                                }
+                                else if (strstr(szLine + 15, "charging") != NULL)
+                                    fCharging = true;
+                                fGotBatteryState = true;
+                            }
+                            else if (strstr(szLine, "capacity state:") != NULL)
+                            {
+                                if (strstr(szLine + 15, "critical") != NULL)
+                                    fCritical = true;
+                                fGotCapacityState = true;
+                            }
+                            if (strstr(szLine, "present rate:") != NULL)
+                            {
+                                char *psz;
+                                rc = RTStrToInt32Ex(RTStrStripL(&szLine[13]), &psz, 0, &presentRate);
+                                if (RT_FAILURE(rc))
+                                    presentRate = 0;
+                                fGotPresentRate = true;
+                            }
+                        }
+                        if (fThisDischarging)
+                            presentRateTotal -= presentRate;
+                        else
+                            presentRateTotal += presentRate;
+                    }
+                    RTStrmClose(pStrmStatus);
+                    RTStrmClose(pStrmInfo);
+                }
+                RTDirClose(pDir);
+#undef POWER_OPEN
+            }
+        } /* /proc/acpi */
+
+        /* atomic update of the state */
+        RTCritSectEnter(&pThis->CritSect);
+        pThis->enmPowerSource = enmPowerSource;
+        pThis->fBatteryPresent = fBatteryPresent;
+
+        /* charging/discharging bits are mutual exclusive */
+        uint32_t uBs = PDM_ACPI_BAT_STATE_CHARGED;
+        if (fDischarging)
+            uBs = PDM_ACPI_BAT_STATE_DISCHARGING;
+        else if (fCharging)
+            uBs = PDM_ACPI_BAT_STATE_CHARGING;
+        if (fCritical)
+            uBs |= PDM_ACPI_BAT_STATE_CRITICAL;
+        pThis->enmBatteryState = (PDMACPIBATSTATE)uBs;
+
+        if (maxCapacityTotal > 0 && currentCapacityTotal > 0)
+        {
+            if (presentRateTotal < 0)
+                presentRateTotal = -presentRateTotal;
+
+            /* calculate the percentage */
+            pThis->enmBatteryRemainingCapacity =
+                                 (PDMACPIBATCAPACITY)( (  (float)currentCapacityTotal
+                                                        / (float)maxCapacityTotal)
+                                                      * PDM_ACPI_BAT_CAPACITY_MAX);
+            pThis->u32BatteryPresentRate =
+                                 (uint32_t)((  (float)presentRateTotal
+                                             / (float)maxCapacityTotal) * 1000);
+        }
+        else
+        {
+            /* unknown capacity / state */
+            pThis->enmBatteryRemainingCapacity = PDM_ACPI_BAT_CAPACITY_UNKNOWN;
+            pThis->u32BatteryPresentRate = ~0;
+        }
+        RTCritSectLeave(&pThis->CritSect);
+
+        /* wait a bit (e.g. Ubuntu/GNOME polls every 30 seconds) */
+        ASMAtomicWriteBool(&pThis->fDontPokePoller, true);
+        rc = RTSemEventWait(pThis->hPollerSleepEvent, 20000);
+    }
+
+    return VINF_SUCCESS;
+}
+
+static DECLCALLBACK(int) drvACPIPollerWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+{
+    PDRVACPI pThis = PDMINS_2_DATA(pDrvIns, PDRVACPI);
+
+    RTSemEventSignal(pThis->hPollerSleepEvent);
+    if (!ASMAtomicReadBool(&pThis->fDontPokePoller))
+        RTThreadPoke(pThread->Thread);
+    return VINF_SUCCESS;
+}
+#endif /* RT_OS_LINUX */
+
 
 /**
  * Destruct a driver instance.
@@ -717,7 +928,15 @@ static DECLCALLBACK(int) drvACPIQueryBatteryStatus(PPDMIACPICONNECTOR pInterface
  */
 static DECLCALLBACK(void) drvACPIDestruct(PPDMDRVINS pDrvIns)
 {
+    PDRVACPI pThis = PDMINS_2_DATA(pDrvIns, PDRVACPI);
+
     LogFlow(("drvACPIDestruct\n"));
+
+#ifdef RT_OS_LINUX
+    RTSemEventDestroy(pThis->hPollerSleepEvent);
+    pThis->hPollerSleepEvent = NIL_RTSEMEVENT;
+    RTCritSectDelete(&pThis->CritSect);
+#endif
 }
 
 /**
@@ -728,6 +947,7 @@ static DECLCALLBACK(void) drvACPIDestruct(PPDMDRVINS pDrvIns)
 static DECLCALLBACK(int) drvACPIConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
 {
     PDRVACPI pThis = PDMINS_2_DATA(pDrvIns, PDRVACPI);
+    int rc = VINF_SUCCESS;
 
     /*
      * Init the static parts.
@@ -763,7 +983,23 @@ static DECLCALLBACK(int) drvACPIConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHand
         return VERR_PDM_MISSING_INTERFACE_ABOVE;
     }
 
-    return VINF_SUCCESS;
+#ifdef RT_OS_LINUX
+    /*
+     * Start the poller thread.
+     */
+    rc = PDMDrvHlpPDMThreadCreate(pDrvIns, &pThis->pPollerThread, pThis, drvACPIPoller,
+                                  drvACPIPollerWakeup, 0, RTTHREADTYPE_INFREQUENT_POLLER, "ACPI Poller");
+    if (RT_FAILURE(rc))
+        return rc;
+
+    rc = RTCritSectInit(&pThis->CritSect);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    rc = RTSemEventCreate(&pThis->hPollerSleepEvent);
+#endif
+
+    return rc;
 }
 
 
@@ -811,4 +1047,3 @@ const PDMDRVREG g_DrvACPI =
     /* u32EndVersion */
     PDM_DRVREG_VERSION
 };
-

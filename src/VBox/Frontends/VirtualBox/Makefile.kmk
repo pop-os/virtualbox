@@ -28,11 +28,19 @@ include $(KBUILD_PATH)/subheader.kmk
 VBOX_VIRTUALBOX4_SRC := $(PATH_SUB_CURRENT)
 VBOX_VIRTUALBOX4_OUT_DIR := $(PATH_TARGET)/VirtualBox/misc
 
-VBOX_WITH_REGISTRATION := 1
+# VBOX_WITH_REGISTRATION := 1
 
 # Ask the user to register at Sun. If this setting is disabled the user can
 # still register using the menu if desired.
-VBOX_WITH_REGISTRATION_REQUEST := 1
+# VBOX_WITH_REGISTRATION_REQUEST := 1
+
+# For now this should be disabled in any case
+ifdef VBOX_WITH_REGISTRATION
+ VBOX_WITH_REGISTRATION=
+endif
+ifdef VBOX_WITH_REGISTRATION_REQUEST
+ VBOX_WITH_REGISTRATION_REQUEST=
+endif
 
 # Show the update notifier dialog during startup. If this setting is disabled
 # the user can still update using the menu if desired.
@@ -283,7 +291,6 @@ VirtualBox_QT_MOCHDRS = \
 	src/VBoxConsoleWnd.h \
 	src/VBoxGlobalSettings.h \
 	src/VBoxMediaManagerDlg.h \
-	src/VBoxRegistrationDlg.h \
 	src/VBoxSelectorWnd.h \
 	src/VBoxSnapshotDetailsDlg.h \
 	src/VBoxSnapshotsWgt.h \
@@ -359,6 +366,11 @@ VirtualBox_QT_MOCHDRS = \
 	src/widgets/VBoxSpecialControls.h \
 	src/widgets/VBoxWarningPane.h
 
+ifdef VBOX_WITH_REGISTRATION
+ VirtualBox_QT_MOCHDRS += \
+	src/VBoxRegistrationDlg.h
+endif
+
 # Sources containing local definitions of classes that use the Q_OBJECT macro.
 VirtualBox_QT_MOCSRCS = \
 	src/VBoxSelectorWnd.cpp \
@@ -384,7 +396,6 @@ VirtualBox_SOURCES = \
 	src/VBoxHelpActions.cpp \
 	src/VBoxMediaManagerDlg.cpp \
 	src/VBoxMedium.cpp \
-	src/VBoxRegistrationDlg.cpp \
 	src/VBoxSelectorWnd.cpp \
 	src/VBoxSnapshotDetailsDlg.cpp \
 	src/VBoxSnapshotsWgt.cpp \
@@ -460,6 +471,11 @@ VirtualBox_SOURCES = \
 	src/widgets/VBoxProgressDialog.cpp \
 	src/widgets/VBoxSpecialControls.cpp \
 	src/widgets/VBoxWarningPane.cpp
+
+ifdef VBOX_WITH_REGISTRATION
+ VirtualBox_SOURCES += \
+	src/VBoxRegistrationDlg.cpp
+endif
 
 ifeq ($(filter-out freebsd linux netbsd openbsd solaris,$(KBUILD_TARGET)),) # X11
  ifndef VBOX_OSE

@@ -26,7 +26,7 @@
     <message>
         <source>Sun Microsystems, Inc.</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>Oficina de Software Libre da USC, Enrique Estévez Fernández, Francisco Diéguez Souto, Mancomun, Antón Méixome.</translation>
+        <translation type="obsolete">Oficina de Software Libre da USC, Enrique Estévez Fernández, Francisco Diéguez Souto, Mancomun, Antón Méixome.</translation>
     </message>
 </context>
 <context>
@@ -1372,7 +1372,7 @@ p, li { white-space: pre-wrap; }
         <translation>Previsualización en tempo real &amp;da icona ancorada</translation>
     </message>
     <message>
-        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
+        <source>&amp;Auto show Dock and Menubar in fullscreen</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -4403,83 +4403,83 @@ p, li { white-space: pre-wrap; }
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation>Diálogo de rexistro de VirtualBox</translation>
+        <translation type="obsolete">Diálogo de rexistro de VirtualBox</translation>
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation>Insira o seu nome completo empregando caracteres latinos.</translation>
+        <translation type="obsolete">Insira o seu nome completo empregando caracteres latinos.</translation>
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation>Insira o seu enderezo de correo electrónico válido.</translation>
+        <translation type="obsolete">Insira o seu enderezo de correo electrónico válido.</translation>
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation>Benvida ao formulario de rexistro de VirtualBox!</translation>
+        <translation type="obsolete">Benvida ao formulario de rexistro de VirtualBox!</translation>
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation>Non foi posíbel realizar a negociación da conexión.</translation>
+        <translation type="obsolete">Non foi posíbel realizar a negociación da conexión.</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Cancelar</translation>
+        <translation type="obsolete">Cancelar</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation>Seleccione país/territorio</translation>
+        <translation type="obsolete">Seleccione país/territorio</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Cubra este formulario de rexistro para permitirnos saber que emprega VirtualBox e, opcionalmente, telo informado sobre as novas e actualizacións de VirtualBox.&lt;/p&gt;&lt;p&gt;Empregue caracteres latinos para cubrir os campos de abaixo. Nota que Sun Microsystems soamente empregará esta información para obter estatísticas de uso do produto e para enviarlle boletíns de novas. En particular, Sun Microsystems nunca pasará os seus datos a terceiros. Información detallada sobre como empregamos os seus datos persoais encóntrase na sección &lt;b&gt;Política de privacidade&lt;/b&gt; do manual de VirtualBox ou no sitio web de VirtualBox na páxina &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt;.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Cubra este formulario de rexistro para permitirnos saber que emprega VirtualBox e, opcionalmente, telo informado sobre as novas e actualizacións de VirtualBox.&lt;/p&gt;&lt;p&gt;Empregue caracteres latinos para cubrir os campos de abaixo. Nota que Sun Microsystems soamente empregará esta información para obter estatísticas de uso do produto e para enviarlle boletíns de novas. En particular, Sun Microsystems nunca pasará os seus datos a terceiros. Información detallada sobre como empregamos os seus datos persoais encóntrase na sección &lt;b&gt;Política de privacidade&lt;/b&gt; do manual de VirtualBox ou no sitio web de VirtualBox na páxina &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation>Xa teño un&amp;ha conta en liña de Sun:</translation>
+        <translation type="obsolete">Xa teño un&amp;ha conta en liña de Sun:</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation>Correo &amp;electrónico:</translation>
+        <translation type="obsolete">Correo &amp;electrónico:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>&amp;Contrasinal:</translation>
+        <translation type="obsolete">&amp;Contrasinal:</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation>&amp;Gustaríalle rexistrar a creación dunha nova conta de Sun en liña:</translation>
+        <translation type="obsolete">&amp;Gustaríalle rexistrar a creación dunha nova conta de Sun en liña:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation>No&amp;me:</translation>
+        <translation type="obsolete">No&amp;me:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation>Ape&amp;lido:</translation>
+        <translation type="obsolete">Ape&amp;lido:</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation>&amp;Compañía:</translation>
+        <translation type="obsolete">&amp;Compañía:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation>Paí&amp;s:</translation>
+        <translation type="obsolete">Paí&amp;s:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation>Correo elec&amp;trónico:</translation>
+        <translation type="obsolete">Correo elec&amp;trónico:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation>Contr&amp;asinal:</translation>
+        <translation type="obsolete">Contr&amp;asinal:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation>Co&amp;nfirmar contrasinal:</translation>
+        <translation type="obsolete">Co&amp;nfirmar contrasinal:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation>&amp;Rexistro</translation>
+        <translation type="obsolete">&amp;Rexistro</translation>
     </message>
 </context>
 <context>
@@ -6557,7 +6557,7 @@ p, li { white-space: pre-wrap; }
         <translation>&amp;Procesador(es):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
         <translation>Controla o número de CPU virtuais na máquina virtual.</translation>
     </message>
     <message>

@@ -780,12 +780,14 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
                  * to physical monitored regions, that are no longer valid.
                  * Assume for now it only applies to the read/write flag.
                  */
-                if (RT_SUCCESS(rc) && (uErr & X86_TRAP_PF_RW))
+                if (    RT_SUCCESS(rc) 
+                    &&  (uErr & X86_TRAP_PF_RW))
                 {
                     if (PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED)
                     {
-                        Log(("PGM #PF: Make writable: %RGp %R[pgmpage] pvFault=%RGp uErr=%#x\n",
-                             GCPhys, pPage, pvFault, uErr));
+                        Log(("PGM #PF: Make writable: %RGp %R[pgmpage] pvFault=%RGp uErr=%#x\n", GCPhys, pPage, pvFault, uErr));
+                        Assert(!PGM_PAGE_IS_ZERO(pPage));
+
                         rc = pgmPhysPageMakeWritableUnlocked(pVM, pPage, GCPhys);
                         if (rc != VINF_SUCCESS)
                         {
@@ -1403,9 +1405,13 @@ DECLINLINE(void) PGM_BTH_NAME(SyncPageWorkerTrackDeref)(PVMCPU pVCpu, PPGMPOOLPA
             if (PGM_PAGE_GET_HCPHYS(&pRam->aPages[iPage]) == HCPhys)
             {
                 PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
-                pgmTrackDerefGCPhys(pPool, pShwPage, &pRam->aPages[iPage]);
+
+                Assert(pShwPage->cPresent);
+                Assert(pPool->cPresent);
                 pShwPage->cPresent--;
                 pPool->cPresent--;
+
+                pgmTrackDerefGCPhys(pPool, pShwPage, &pRam->aPages[iPage]);
                 STAM_PROFILE_STOP(&pVM->pgm.s.StatTrackDeref, a);
                 return;
             }
@@ -1503,13 +1509,17 @@ DECLINLINE(void) PGM_BTH_NAME(SyncPageWorker)(PVMCPU pVCpu, PSHWPTE pPteDst, GST
         if (RT_SUCCESS(rc))
         {
 #ifndef VBOX_WITH_NEW_LAZY_PAGE_ALLOC
-            /* Try make the page writable if necessary. */
-            if (    PteSrc.n.u1Write
-                &&  PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED
+            /* Try to make the page writable if necessary. */
+            if (    PGM_PAGE_GET_TYPE(pPage)  == PGMPAGETYPE_RAM
+                &&  (   PGM_PAGE_IS_ZERO(pPage)
+                     || (   PteSrc.n.u1Write
+                         && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED
 # ifdef VBOX_WITH_REAL_WRITE_MONITORED_PAGES
-                &&  PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_WRITE_MONITORED
+                         && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_WRITE_MONITORED
 # endif
-                &&  PGM_PAGE_GET_TYPE(pPage)  == PGMPAGETYPE_RAM)
+                        )
+                     )
+               )
             {
                 rc = pgmPhysPageMakeWritableUnlocked(pVM, pPage, PteSrc.u & GST_PTE_PG_MASK);
                 AssertRC(rc);
@@ -1596,6 +1606,8 @@ DECLINLINE(void) PGM_BTH_NAME(SyncPageWorker)(PVMCPU pVCpu, PSHWPTE pPteDst, GST
                 &&  PteDst.n.u1Present
                 &&  PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED)
             {
+                /* Still applies to shared pages. */
+                Assert(!PGM_PAGE_IS_ZERO(pPage));
                 PteDst.n.u1Write = 0;   /** @todo this isn't quite working yet. */
                 Log3(("SyncPageWorker: write-protecting %RGp pPage=%R[pgmpage]at iPTDst=%d\n", (RTGCPHYS)(PteSrc.u & X86_PTE_PAE_PG_MASK), pPage, iPTDst));
             }
@@ -1896,13 +1908,17 @@ PGM_BTH_DECL(int, SyncPage)(PVMCPU pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPage, unsi
                 if (RT_SUCCESS(rc))
                 {
 # ifndef VBOX_WITH_NEW_LAZY_PAGE_ALLOC
-                    /* Try make the page writable if necessary. */
-                    if (    PdeSrc.n.u1Write
-                        &&  PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED
+                    /* Try to make the page writable if necessary. */
+                    if (    PGM_PAGE_GET_TYPE(pPage)  == PGMPAGETYPE_RAM
+                        &&  (   PGM_PAGE_IS_ZERO(pPage)
+                             || (   PdeSrc.n.u1Write
+                                 && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED
 #  ifdef VBOX_WITH_REAL_WRITE_MONITORED_PAGES
-                        &&  PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_WRITE_MONITORED
+                                 && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_WRITE_MONITORED
 #  endif
-                        &&  PGM_PAGE_GET_TYPE(pPage)  == PGMPAGETYPE_RAM)
+                                )
+                             )
+                       )
                     {
                         rc = pgmPhysPageMakeWritableUnlocked(pVM, pPage, GCPhys);
                         AssertRC(rc);
@@ -1932,6 +1948,8 @@ PGM_BTH_DECL(int, SyncPage)(PVMCPU pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPage, unsi
                         &&  PteDst.n.u1Present
                         &&  PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED)
                     {
+                        /* Still applies to shared pages. */
+                        Assert(!PGM_PAGE_IS_ZERO(pPage));
                         PteDst.n.u1Write = 0;   /** @todo this isn't quite working yet... */
                         Log3(("SyncPage: write-protecting %RGp pPage=%R[pgmpage] at %RGv\n", GCPhys, pPage, GCPtrPage));
                     }
@@ -1949,7 +1967,8 @@ PGM_BTH_DECL(int, SyncPage)(PVMCPU pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPage, unsi
                     /** @todo r=bird: figure out why we need this here, SyncPT should've taken care of this already.
                      * As for invlpg, it simply frees the whole shadow PT.
                      * ...It's possibly because the guest clears it and the guest doesn't really tell us... */
-                    if (!PdeSrc.b.u1Dirty && PdeSrc.b.u1Write)
+                    if (   !PdeSrc.b.u1Dirty
+                        &&  PdeSrc.b.u1Write)
                     {
                         STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_MID_Z(Stat,DirtyPageBig));
                         PdeDst.u |= PGM_PDFLAGS_TRACK_DIRTY;
@@ -2037,7 +2056,14 @@ PGM_BTH_DECL(int, SyncPage)(PVMCPU pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPage, unsi
     Assert(pPDDst);
     PdeDst = pPDDst->a[iPDDst];
 # endif
-    AssertMsg(PdeDst.n.u1Present, ("%#llx\n", (uint64_t)PdeDst.u));
+    /* In the guest SMP case we could have blocked while another VCPU reused this page table. */
+    if (!PdeDst.n.u1Present)
+    {
+        AssertMsg(pVM->cCpus > 1, ("Unexpected missing PDE %RX64\n", (uint64_t)PdeDst.u));
+        Log(("CPU%d: SyncPage: Pde at %RGv changed behind our back!\n", GCPtrPage));
+        return VINF_SUCCESS;    /* force the instruction to be executed again. */
+    }
+
     PPGMPOOLPAGE  pShwPage = pgmPoolGetPage(pPool, PdeDst.u & SHW_PDE_PG_MASK);
     PSHWPT        pPTDst   = (PSHWPT)PGMPOOL_PAGE_2_PTR(pVM, pShwPage);
 
@@ -2703,7 +2729,8 @@ PGM_BTH_DECL(int, SyncPT)(PVMCPU pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, RTGCPTR 
                 PdeDst.u = pShwPage->Core.Key
                          | (PdeSrc.u & ~(GST_PDE_PG_MASK | X86_PDE_AVL_MASK | X86_PDE_PCD | X86_PDE_PWT | X86_PDE_PS | X86_PDE4M_G | X86_PDE4M_D));
                 /* (see explanation and assumptions further down.) */
-                if (!PdeSrc.b.u1Dirty && PdeSrc.b.u1Write)
+                if (    !PdeSrc.b.u1Dirty 
+                    &&  PdeSrc.b.u1Write)
                 {
                     STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_MID_Z(Stat,DirtyPageBig));
                     PdeDst.u |= PGM_PDFLAGS_TRACK_DIRTY;
@@ -2851,7 +2878,8 @@ PGM_BTH_DECL(int, SyncPT)(PVMCPU pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, RTGCPTR 
              */
             /** @todo move the above stuff to a section in the PGM documentation. */
             Assert(!(PdeDst.u & PGM_PDFLAGS_TRACK_DIRTY));
-            if (!PdeSrc.b.u1Dirty && PdeSrc.b.u1Write)
+            if (    !PdeSrc.b.u1Dirty 
+                &&  PdeSrc.b.u1Write)
             {
                 STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_MID_Z(Stat,DirtyPageBig));
                 PdeDst.u |= PGM_PDFLAGS_TRACK_DIRTY;
@@ -2892,13 +2920,17 @@ PGM_BTH_DECL(int, SyncPT)(PVMCPU pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, RTGCPTR 
                         SHWPTE      PteDst;
 
 # ifndef VBOX_WITH_NEW_LAZY_PAGE_ALLOC
-                        /* Try make the page writable if necessary. */
-                        if (    PteDstBase.n.u1Write
-                            &&  PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED
-# ifdef VBOX_WITH_REAL_WRITE_MONITORED_PAGES
-                            &&  PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_WRITE_MONITORED
-# endif
-                            &&  PGM_PAGE_GET_TYPE(pPage)  == PGMPAGETYPE_RAM)
+                        /* Try to make the page writable if necessary. */
+                        if (    PGM_PAGE_GET_TYPE(pPage)  == PGMPAGETYPE_RAM
+                            &&  (   PGM_PAGE_IS_ZERO(pPage)
+                                 || (   PteDstBase.n.u1Write
+                                     && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED
+#  ifdef VBOX_WITH_REAL_WRITE_MONITORED_PAGES
+                                     && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_WRITE_MONITORED
+#  endif
+                                    )
+                                 )
+                           )
                         {
                             rc = pgmPhysPageMakeWritableUnlocked(pVM, pPage, GCPhys);
                             AssertRCReturn(rc, rc);
@@ -2935,6 +2967,8 @@ PGM_BTH_DECL(int, SyncPT)(PVMCPU pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, RTGCPTR 
                             &&  PteDst.n.u1Present
                             &&  PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED)
                         {
+                            /* Still applies to shared pages. */
+                            Assert(!PGM_PAGE_IS_ZERO(pPage));
                             PteDst.n.u1Write = 0;   /** @todo this isn't quite working yet... */
                             Log3(("SyncPT: write-protecting %RGp pPage=%R[pgmpage] at %RGv\n", GCPhys, pPage, (RTGCPTR)(GCPtr | (iPTDst << SHW_PT_SHIFT))));
                         }

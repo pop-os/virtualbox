@@ -310,13 +310,14 @@ static bool sharedfwChecksumOk(const uint8_t * const au8Data, uint32_t u32Length
  * @returns VBox status code.
  * @param   pDevIns             The device instance.
  * @param   pTable              Where to create the DMI table.
- * @param   cbMax               The max size of the DMI table.
+ * @param   cbMax               The maximum size of the DMI table.
  * @param   pUuid               Pointer to the UUID to use if the DmiUuid
  *                              configuration string isn't present.
  * @param   pCfgHandle          The handle to our config node.
  * @param   fPutSmbiosHeaders   Plant SMBIOS headers if true.
  */
-int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, PCRTUUID pUuid, PCFGMNODE pCfgHandle, bool fPutSmbiosHeaders)
+int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, PCRTUUID pUuid,
+                          PCFGMNODE pCfgHandle, bool fPutSmbiosHeaders)
 {
 #define CHECKSIZE(cbWant) \
     { \
@@ -388,6 +389,13 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
                                            N_("Configuration error: Querying \"" # name "\" as an int failed")); \
             } \
         } \
+    }
+
+#define TERM_STRUCT \
+    { \
+        *pszStr++                    = '\0'; /* terminate set of text strings */ \
+        if (iStrNr == 1) \
+            *pszStr++                = '\0'; /* terminate a structure without strings */ \
     }
 
     bool fForceDefault = false;
@@ -491,7 +499,7 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
         pBIOSInf->u8CharacteristicsByte2 = 0
                                          /* any more?? */
                                          ;
-        *pszStr++                    = '\0';
+        TERM_STRUCT;
 
         /***********************************
          * DMI system information (Type 1) *
@@ -532,7 +540,7 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
         pSystemInf->u8WakeupType     = 6; /* Power Switch */
         pSystemInf->u8SKUNumber      = 0;
         READCFGSTR(pSystemInf->u8Family, DmiSystemFamily);
-        *pszStr++                    = '\0';
+        TERM_STRUCT;
 
         /********************************************
          * DMI System Enclosure or Chassis (Type 3) *
@@ -565,7 +573,7 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
         pChassis->u8ContElems        = 0; /* no contained elements */
         pChassis->u8ContElemRecLen   = 0; /* no contained elements */
 # endif
-        *pszStr++                    = '\0';
+        TERM_STRUCT;
 
         /*****************************
          * DMI OEM strings (Type 11) *
@@ -589,7 +597,7 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
         READCFGSTRDEF(pOEMStrings->u8VBoxVersion, "DmiOEMVBoxVer", szTmp);
         RTStrPrintf(szTmp, sizeof(szTmp), "vboxRev_%u", RTBldCfgRevision());
         READCFGSTRDEF(pOEMStrings->u8VBoxRevision, "DmiOEMVBoxRev", szTmp);
-        *pszStr++                    = '\0';
+        TERM_STRUCT;
 
         /* End-of-table marker - includes padding to account for fixed table size. */
         PDMIHDR pEndOfTable          = (PDMIHDR)pszStr;
@@ -672,9 +680,11 @@ AssertCompile(VBOX_DMI_TABLE_ENTR == 5);
  *                              At least one I/O APIC must be enabled.''
  *
  * @param   pDevIns    The device instance data.
- * @param   addr       physical address in guest memory.
+ * @param   pTable     Where to write the table.
+ * @param   cbMax      The maximum size of the MPS table.
+ * @param   cCpus      The number of guest CPUs.
  */
-void FwCommonPlantMpsTable(PPDMDEVINS pDevIns, uint8_t *pTable, uint16_t cCpus)
+void FwCommonPlantMpsTable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, uint16_t cCpus)
 {
     /* configuration table */
     PMPSCFGTBLHEADER pCfgTab      = (MPSCFGTBLHEADER*)pTable;
@@ -755,9 +765,9 @@ void FwCommonPlantMpsTable(PPDMDEVINS pDevIns, uint8_t *pTable, uint16_t cCpus)
     pCfgTab->u16Length             = (uint8_t*)pIrqEntry - pTable;
     pCfgTab->u8Checksum            = fwCommonChecksum(pTable, pCfgTab->u16Length);
 
-    AssertMsg(pCfgTab->u16Length < 0x1000 - 0x100,
+    AssertMsg(pCfgTab->u16Length < cbMax,
               ("VBOX_MPS_TABLE_SIZE=%d, maximum allowed size is %d",
-              pCfgTab->u16Length, 0x1000-0x100));
+              pCfgTab->u16Length, cbMax));
 
     MPSFLOATPTR floatPtr;
     floatPtr.au8Signature[0]       = '_';

@@ -254,8 +254,8 @@ STDMETHODIMP Mouse::PutMouseEvent(LONG dx, LONG dy, LONG dz, LONG dw, LONG butto
  * when the required guest support has been installed.
  *
  * @returns COM status code
- * @param x          X position (pixel)
- * @param y          Y position (pixel)
+ * @param x          X position (pixel), starting from 1
+ * @param y          Y position (pixel), starting from 1
  * @param dz         Z movement
  * @param buttonState The mouse button state
  */
@@ -302,8 +302,8 @@ STDMETHODIMP Mouse::PutMouseEventAbsolute(LONG x, LONG y, LONG dz, LONG dw,
     rc = pDisplay->COMGETTER(Height)(&displayHeight);
     ComAssertComRCRet (rc, rc);
 
-    uint32_t mouseXAbs = displayWidth? (x * 0xFFFF) / displayWidth: 0;
-    uint32_t mouseYAbs = displayHeight? (y * 0xFFFF) / displayHeight: 0;
+    uint32_t mouseXAbs = displayWidth? ((x - 1) * 0xFFFF) / displayWidth: 0;
+    uint32_t mouseYAbs = displayHeight? ((y - 1) * 0xFFFF) / displayHeight: 0;
 
     /*
      * Send the absolute mouse position to the VMM device.

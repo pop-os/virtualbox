@@ -26,7 +26,7 @@
     <message>
         <source>Sun Microsystems, Inc.</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>Sun Microsystems, Inc.</translation>
+        <translation type="obsolete">Sun Microsystems, Inc.</translation>
     </message>
 </context>
 <context>
@@ -1196,8 +1196,8 @@ p, li { white-space: pre-wrap; }
         <translation>Echtzeit-Vorschau im &amp;Dock-Icon</translation>
     </message>
     <message>
-        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
-        <translation>&amp;Automatisch zeige Dock &amp;&amp; Menubar im Fullscreen-Modus</translation>
+        <source>&amp;Auto show Dock and Menubar in fullscreen</source>
+        <translation>&amp;Automatische Anzeige von Dock und Menübar im Vollbildmodus</translation>
     </message>
 </context>
 <context>
@@ -2902,7 +2902,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Exit Full Screen or Seamless Mode</source>
-        <translation>Vollbild / seamless-Modus verlassen</translation>
+        <translation>Vollbild-/Seamless-Modus verlassen</translation>
     </message>
     <message>
         <source>Close VM</source>
@@ -4069,83 +4069,83 @@ p, li { white-space: pre-wrap; }
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation>VirtualBox registrieren</translation>
+        <translation type="obsolete">VirtualBox registrieren</translation>
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation>Geben Sie hier Ihren vollen Namen in lateinischen Buchstaben ein.</translation>
+        <translation type="obsolete">Geben Sie hier Ihren vollen Namen in lateinischen Buchstaben ein.</translation>
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation>Tragen Sie hier eine gültige EMail-Adresse ein.</translation>
+        <translation type="obsolete">Tragen Sie hier eine gültige EMail-Adresse ein.</translation>
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation>VirtualBox registrieren</translation>
+        <translation type="obsolete">VirtualBox registrieren</translation>
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation>Der Server lieferte nicht die erwarteten Daten als Antwort.</translation>
+        <translation type="obsolete">Der Server lieferte nicht die erwarteten Daten als Antwort.</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Abbrechen</translation>
+        <translation type="obsolete">Abbrechen</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Bitte füllen Sie dieses Formular aus, damit wir wissen, dass Sie VirtualBox benutzen. Außerdem möchten wir Sie gern über Updates sowie über Neuigkeiten rund um VirtualBox informieren.&lt;p&gt;&lt;p&gt;Bitte benutzen Sie möglichst lateinische Buchstaben. Sun Microsystems wird diese Daten nur benutzen, um Nutzerstatistiken von VirtualBox zu erstellen und um Ihnen optional Informationen zu VirtualBox zu senden. Insbesondere wird Sun Microsystems Ihre persönlichen Daten niemals an Dritte weitergeben. Detaillierte Informationen über die Nutzung Ihrer persönlichen Daten können Sie im Abschnitt &lt;b&gt;Privacy Policy&lt;/b&gt; des Handbuchs oder unter &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; auf der VirtualBox-Webseite nachlesen.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Bitte füllen Sie dieses Formular aus, damit wir wissen, dass Sie VirtualBox benutzen. Außerdem möchten wir Sie gern über Updates sowie über Neuigkeiten rund um VirtualBox informieren.&lt;p&gt;&lt;p&gt;Bitte benutzen Sie möglichst lateinische Buchstaben. Sun Microsystems wird diese Daten nur benutzen, um Nutzerstatistiken von VirtualBox zu erstellen und um Ihnen optional Informationen zu VirtualBox zu senden. Insbesondere wird Sun Microsystems Ihre persönlichen Daten niemals an Dritte weitergeben. Detaillierte Informationen über die Nutzung Ihrer persönlichen Daten können Sie im Abschnitt &lt;b&gt;Privacy Policy&lt;/b&gt; des Handbuchs oder unter &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; auf der VirtualBox-Webseite nachlesen.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation>Ich &amp;besitze bereits einen Sun-Online-Account:</translation>
+        <translation type="obsolete">Ich &amp;besitze bereits einen Sun-Online-Account:</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation>&amp;E-mail:</translation>
+        <translation type="obsolete">&amp;E-mail:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>&amp;Passwort:</translation>
+        <translation type="obsolete">&amp;Passwort:</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation>Ich &amp;möchte einen neuen Sun-Account für die Registrierung erzeugen:</translation>
+        <translation type="obsolete">Ich &amp;möchte einen neuen Sun-Account für die Registrierung erzeugen:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation>&amp;Vorname:</translation>
+        <translation type="obsolete">&amp;Vorname:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation>&amp;Nachname:</translation>
+        <translation type="obsolete">&amp;Nachname:</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation>&amp;Firma:</translation>
+        <translation type="obsolete">&amp;Firma:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation>&amp;Land:</translation>
+        <translation type="obsolete">&amp;Land:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation>E-&amp;mail:</translation>
+        <translation type="obsolete">E-&amp;mail:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation>P&amp;asswort:</translation>
+        <translation type="obsolete">P&amp;asswort:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation>Pa&amp;sswort bestätigen:</translation>
+        <translation type="obsolete">Pa&amp;sswort bestätigen:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation>&amp;Registrieren</translation>
+        <translation type="obsolete">&amp;Registrieren</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation>Wählen Sie das Land/Gebiet</translation>
+        <translation type="obsolete">Wählen Sie das Land/Gebiet</translation>
     </message>
 </context>
 <context>
@@ -5142,7 +5142,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Storage</source>
-        <translation>Plattenspeicher</translation>
+        <translation>Massenspeicher</translation>
     </message>
     <message>
         <source>Hard Disks</source>
@@ -5198,7 +5198,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>you have selected a 64-bit guest OS type for this VM. As such guests require hardware virtualization (VT-x/AMD-V), this feature will be enabled automatically.</source>
-        <translation>haben Sie ein 64-Bit-Gastbestriebssystem ausgewählt. Da solche Gäste Hardwarevirtualisierung benötigen (VT-x/AMD-V), wird diese VM-Einstellung automatisch aktiviert.</translation>
+        <translation>haben Sie ein 64-Bit-Gastbestriebssystem ausgewählt. Da solche Gäste Hardware-Virtualisierung benötigen (VT-x/AMD-V), wird diese VM-Einstellung automatisch aktiviert.</translation>
     </message>
     <message>
         <source>you have selected a 64-bit guest OS type for this VM. VirtualBox does not currently support more than one virtual CPU for 64-bit guests executed on 32-bit hosts.</source>
@@ -5277,7 +5277,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Show In &amp;Fullscreen/Seamless</source>
-        <translation>Zeige im &amp;Fullscreen/Seamless-Modus</translation>
+        <translation>Zeige im &amp;Vollbild-/Seamless-Modus</translation>
     </message>
     <message>
         <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
@@ -5923,8 +5923,8 @@ p, li { white-space: pre-wrap; }
         <translation>&amp;Prozessoren:</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine.</source>
-        <translation>Legt die Anzahld er virtuellen CPUs dieser VM fest.</translation>
+        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
+        <translation>Legt die Anzahld der virtuellen CPUs dieser VM fest. Der Host muss Hardware-Virtualisierung unterstützen, falls mehr als eine virtuelle CPU emuliert werden soll.</translation>
     </message>
     <message>
         <source>When checked, the Physical Address Extension (PAE) feature of the host CPU will be exposed to the virtual machine.</source>

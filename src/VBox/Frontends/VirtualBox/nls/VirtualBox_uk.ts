@@ -26,7 +26,7 @@
     <message>
         <source>Sun Microsystems, Inc.</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>Daniel Korostil.</translation>
+        <translation type="obsolete">Daniel Korostil.</translation>
     </message>
 </context>
 <context>
@@ -1397,6 +1397,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&amp;Dock Icon Realtime Preview</source>
         <translation>&amp;Попередній перегляд піктограми реального часу</translation>
+    </message>
+    <message>
+        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2868,6 +2872,58 @@ p, li { white-space: pre-wrap; }
         <source>This base hard disk is indirectly attached using the following differencing hard disk:</source>
         <comment>medium</comment>
         <translation>Цей базовий жорсткий диск не напряму під&apos;єднано, використовуючи такі обчислення жорсткого диска:</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n year(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n month(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>(CD/DVD)</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4347,7 +4403,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;By deleting a snapshot, the state information stored in the snapshot will be thrown away, and disk data spread over several image files that VirtualBox has created together with the snapshot will be merged into one file. This can be a lengthy process, and the information in the snapshot cannot be recovered.&lt;/p&gt;&lt;/p&gt;Are you sure you want to delete the selected snapshot &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Вилучивши зріз, інформація про стан, який збережено в зрізі, буде відкинуто, і дані диска розподілено декілька файлів зображення, які VirtualBox створив разом зі зрізом, буде об&apos;єднано в один файл. Це може бути тривалим процесом, та інформацію в зрізі неможливо відновити.&lt;/p&gt;&lt;/p&gt;Ви впевнені, що бажаєте вилучити вибраний зріз &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Вилучивши зріз, інформація про стан, який збережено в зрізі, буде відкинуто, і дані диска розподілено декілька файлів зображення, які VirtualBox створив разом зі зрізом, буде об&apos;єднано в один файл. Це може бути тривалим процесом, та інформацію в зрізі неможливо відновити.&lt;/p&gt;&lt;/p&gt;Ви впевнені, що бажаєте вилучити вибраний зріз &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Delete</source>
@@ -4464,6 +4520,19 @@ p, li { white-space: pre-wrap; }
         <comment>failed to close ...</comment>
         <translation>пристрій дискети</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;Deleting the snapshot will cause the state information saved in it to be lost, and disk data spread over several image files that VirtualBox has created together with the snapshot will be merged into one file. This can be a lengthy process, and the information in the snapshot cannot be recovered.&lt;/p&gt;&lt;/p&gt;Are you sure you want to delete the selected snapshot &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to delete the CD/DVD-ROM device?&lt;/p&gt;&lt;p&gt;You will not be able to mount any CDs or ISO images or install the Guest Additions without it!&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Remove</source>
+        <comment>medium</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxProgressDialog</name>
@@ -4473,55 +4542,55 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>%1 days, %2 hours remaining</source>
-        <translation>залишилось %1 днів, %2 годин</translation>
+        <translation type="obsolete">залишилось %1 днів, %2 годин</translation>
     </message>
     <message>
         <source>%1 days, %2 minutes remaining</source>
-        <translation>залишилось %1 днів, %2 хвилин</translation>
+        <translation type="obsolete">залишилось %1 днів, %2 хвилин</translation>
     </message>
     <message>
         <source>%1 days remaining</source>
-        <translation>залишилось %1 днів</translation>
+        <translation type="obsolete">залишилось %1 днів</translation>
     </message>
     <message>
         <source>1 day, %1 hours remaining</source>
-        <translation>залишився 1 день, %1 годин</translation>
+        <translation type="obsolete">залишився 1 день, %1 годин</translation>
     </message>
     <message>
         <source>1 day, %1 minutes remaining</source>
-        <translation>залишився 1 день, %1 хвилин</translation>
+        <translation type="obsolete">залишився 1 день, %1 хвилин</translation>
     </message>
     <message>
         <source>1 day remaining</source>
-        <translation>залишився 1 день</translation>
+        <translation type="obsolete">залишився 1 день</translation>
     </message>
     <message>
         <source>%1 hours, %2 minutes remaining</source>
-        <translation>залишилось %1 годин, %2 хвилин</translation>
+        <translation type="obsolete">залишилось %1 годин, %2 хвилин</translation>
     </message>
     <message>
         <source>1 hour, %1 minutes remaining</source>
-        <translation>залишилась 1 година, %1 хвилин</translation>
+        <translation type="obsolete">залишилась 1 година, %1 хвилин</translation>
     </message>
     <message>
         <source>1 hour remaining</source>
-        <translation>залишилась 1 година</translation>
+        <translation type="obsolete">залишилась 1 година</translation>
     </message>
     <message>
         <source>%1 minutes remaining</source>
-        <translation>залишилось %1 хвилин</translation>
+        <translation type="obsolete">залишилось %1 хвилин</translation>
     </message>
     <message>
         <source>1 minute, %2 seconds remaining</source>
-        <translation>залишилась 1 хвилина, %2 секунд</translation>
+        <translation type="obsolete">залишилась 1 хвилина, %2 секунд</translation>
     </message>
     <message>
         <source>1 minute remaining</source>
-        <translation>залишилась 1 хвилина</translation>
+        <translation type="obsolete">залишилась 1 хвилина</translation>
     </message>
     <message>
         <source>%1 seconds remaining</source>
-        <translation>залишилось %1 секунд</translation>
+        <translation type="obsolete">залишилось %1 секунд</translation>
     </message>
     <message>
         <source>A few seconds remaining</source>
@@ -4539,12 +4608,22 @@ p, li { white-space: pre-wrap; }
         <source>Cancel the current operation</source>
         <translation>Скасувати поточну операцію</translation>
     </message>
+    <message>
+        <source>%1, %2 remaining</source>
+        <comment>You may wish to translate this more like &quot;Time remaining: %1, %2&quot;</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 remaining</source>
+        <comment>You may wish to translate this more like &quot;Time remaining: %1&quot;</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation>Діалог реєстрації VirtualBox</translation>
+        <translation type="obsolete">Діалог реєстрації VirtualBox</translation>
     </message>
     <message>
         <source>&amp;Name</source>
@@ -4552,7 +4631,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation>Введіть ваше повне ім&apos;я, використовуючи лише латинські символи.</translation>
+        <translation type="obsolete">Введіть ваше повне ім&apos;я, використовуючи лише латинські символи.</translation>
     </message>
     <message>
         <source>&amp;E-mail</source>
@@ -4560,7 +4639,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation>Введіть дійсну адресу вашої електронної пошти.</translation>
+        <translation type="obsolete">Введіть дійсну адресу вашої електронної пошти.</translation>
     </message>
     <message>
         <source>&amp;Please do not use this information to contact me</source>
@@ -4568,11 +4647,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation>Ласкаво просимо до реєстраційної форми VirtualBox!</translation>
+        <translation type="obsolete">Ласкаво просимо до реєстраційної форми VirtualBox!</translation>
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation>Не вдалось здійснити встановлення зв&apos;язку.</translation>
+        <translation type="obsolete">Не вдалось здійснити встановлення зв&apos;язку.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -4588,63 +4667,63 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Скасувати</translation>
+        <translation type="obsolete">Скасувати</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation>Виберіть країну/територію</translation>
+        <translation type="obsolete">Виберіть країну/територію</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Будь ласка, заповніть цю реєстраційну форму, щоб ми знали, що ви використуєте VirtualBox, і, за вашим бажанням, ми триматимемо вас у курсі всіх новин і оновлень щодо VirtualBox.&lt;/p&gt;&lt;p&gt;Будь ласка, використовуйте латинські символи для заповнення полів нижче. Будь ласка, майте на увазі, Sun Microsystems використовуватиме цю інформацію лише для збору статистичної інформації та розсилки новин. Власне, Sun Microsystems ніколи не надасть ваших даних третій особі. Детальна інформація про використання ваших особистих даних можна знайти в довідці VirtualBox у розділі  &lt;b&gt;Privacy Policy&lt;/b&gt; або на &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; сторінці сайта VirtualBox.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Будь ласка, заповніть цю реєстраційну форму, щоб ми знали, що ви використуєте VirtualBox, і, за вашим бажанням, ми триматимемо вас у курсі всіх новин і оновлень щодо VirtualBox.&lt;/p&gt;&lt;p&gt;Будь ласка, використовуйте латинські символи для заповнення полів нижче. Будь ласка, майте на увазі, Sun Microsystems використовуватиме цю інформацію лише для збору статистичної інформації та розсилки новин. Власне, Sun Microsystems ніколи не надасть ваших даних третій особі. Детальна інформація про використання ваших особистих даних можна знайти в довідці VirtualBox у розділі  &lt;b&gt;Privacy Policy&lt;/b&gt; або на &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; сторінці сайта VirtualBox.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation>&amp;Я вже маю зареєстрований акаунт у Sun:</translation>
+        <translation type="obsolete">&amp;Я вже маю зареєстрований акаунт у Sun:</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation>&amp;Електронна пошта:</translation>
+        <translation type="obsolete">&amp;Електронна пошта:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>&amp;Пароль:</translation>
+        <translation type="obsolete">&amp;Пароль:</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation>Я &amp;бажаю зареєструватись, створивши акаунт Sun:</translation>
+        <translation type="obsolete">Я &amp;бажаю зареєструватись, створивши акаунт Sun:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation>&amp;Ім&apos;я:</translation>
+        <translation type="obsolete">&amp;Ім&apos;я:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation>&amp;Прізвище:</translation>
+        <translation type="obsolete">&amp;Прізвище:</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation>&amp;Фірма:</translation>
+        <translation type="obsolete">&amp;Фірма:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation>&amp;Країна:</translation>
+        <translation type="obsolete">&amp;Країна:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation>&amp;Електронна пошта:</translation>
+        <translation type="obsolete">&amp;Електронна пошта:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation>П&amp;ароль:</translation>
+        <translation type="obsolete">П&amp;ароль:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation>Під&amp;твердження паролю:</translation>
+        <translation type="obsolete">Під&amp;твердження паролю:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation>&amp;Зареєструвати</translation>
+        <translation type="obsolete">&amp;Зареєструвати</translation>
     </message>
 </context>
 <context>
@@ -5028,7 +5107,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message numerus="yes">
         <source> (%n day(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (%n день тому)</numerusform>
             <numerusform> (%n дні тому)</numerusform>
             <numerusform> (%n днів тому)</numerusform>
@@ -5036,7 +5115,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message numerus="yes">
         <source> (%n hour(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (%n година тому)</numerusform>
             <numerusform> (%n години тому)</numerusform>
             <numerusform> (%n годин тому)</numerusform>
@@ -5044,7 +5123,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message numerus="yes">
         <source> (%n minute(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (%n хвилина тому)</numerusform>
             <numerusform> (%n хвилини тому)</numerusform>
             <numerusform> (%n хвилин тому)</numerusform>
@@ -5052,7 +5131,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message numerus="yes">
         <source> (%n second(s) ago)</source>
-        <translation>
+        <translation type="obsolete">
             <numerusform> (%n секунда тому)</numerusform>
             <numerusform> (%n секунди тому)</numerusform>
             <numerusform> (%n секунд тому)</numerusform>
@@ -5073,6 +5152,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Delete the selected snapshot of the virtual machine</source>
         <translation>Вилучити вибраний зріз віртуальної машини</translation>
+    </message>
+    <message>
+        <source> (%1 ago)</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5099,6 +5182,14 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Snapshot &amp;Description</source>
         <translation>&amp;Опис зрізу</translation>
+    </message>
+    <message numerus="yes">
+        <source>Warning: You are taking a snapshot of a running machine which has %n immutable image(s) attached to it. As long as you are working from this snapshot the immutable image(s) will not be reset to avoid loss of data.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
     </message>
 </context>
 <context>
@@ -6993,7 +7084,7 @@ p, li { white-space: pre-wrap; }
         <translation>&amp;Процесор(и):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
         <translation>Контролює числом віртуальних процесорів у віртуальній машині.</translation>
     </message>
     <message>

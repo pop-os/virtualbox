@@ -58,6 +58,13 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
+
+/**
+ * @todo: This is a bad hack to prevent freezing the guest during high network
+ *        activity. Windows host only. This needs to be fixed properly.
+ */
+#define VBOX_NAT_DELAY_HACK
+
 #define GET_EXTRADATA(pthis, node, name, rc, type, type_name, var)                                  \
 do {                                                                                                \
     (rc) = CFGMR3Query ## type((node), name, &(var));                                               \
@@ -957,14 +964,17 @@ static DECLCALLBACK(void) drvNATDestruct(PPDMDRVINS pDrvIns)
 
     LogFlow(("drvNATDestruct:\n"));
 
-    slirp_term(pThis->pNATState);
-    slirp_deregister_statistics(pThis->pNATState, pDrvIns);
-    pThis->pNATState = NULL;
+    if (pThis->pNATState)
+    {
+        slirp_term(pThis->pNATState);
+        slirp_deregister_statistics(pThis->pNATState, pDrvIns);
 #ifdef VBOX_WITH_STATISTICS
 # define DRV_PROFILE_COUNTER(name, dsc)     DEREGISTER_COUNTER(name, pThis)
 # define DRV_COUNTING_COUNTER(name, dsc)    DEREGISTER_COUNTER(name, pThis)
 # include "counters.h"
 #endif
+        pThis->pNATState = NULL;
+    }
 }
 
 

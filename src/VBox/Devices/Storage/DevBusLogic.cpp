@@ -1041,7 +1041,7 @@ static int buslogicDataBufferAlloc(PBUSLOGICTASKSTATE pTaskState)
                 GCPhysAddrScatterGatherCurrent += cScatterGatherGCRead * sizeof(ScatterGatherEntry);
             } while (cScatterGatherGCLeft > 0);
 
-            Log((": cbDataToTransfer=%d\n", cbDataToTransfer));
+            Log(("%s: cbDataToTransfer=%d\n", __FUNCTION__, cbDataToTransfer));
 
             /* Allocate buffer */
             pTaskState->DataSeg.cbSeg = cbDataToTransfer;
@@ -1088,7 +1088,8 @@ static int buslogicDataBufferAlloc(PBUSLOGICTASKSTATE pTaskState)
             }
 
         }
-        else if (pTaskState->CommandControlBlockGuest.uOpcode == BUSLOGIC_CCB_OPCODE_INITIATOR_CCB)
+        else if (   pTaskState->CommandControlBlockGuest.uOpcode == BUSLOGIC_CCB_OPCODE_INITIATOR_CCB
+                 || pTaskState->CommandControlBlockGuest.uOpcode == BUSLOGIC_CCB_OPCODE_INITIATOR_CCB_RESIDUAL_DATA_LENGTH)
         {
             /* The buffer is not scattered. */
             RTGCPHYS GCPhysAddrDataBase     = (RTGCPHYS)pTaskState->CommandControlBlockGuest.u32PhysAddrData;
@@ -1169,7 +1170,8 @@ static void buslogicDataBufferFree(PBUSLOGICTASKSTATE pTaskState)
             } while (cScatterGatherGCLeft > 0);
 
         }
-        else if (pTaskState->CommandControlBlockGuest.uOpcode == BUSLOGIC_CCB_OPCODE_INITIATOR_CCB)
+        else if (   pTaskState->CommandControlBlockGuest.uOpcode == BUSLOGIC_CCB_OPCODE_INITIATOR_CCB
+                 || pTaskState->CommandControlBlockGuest.uOpcode == BUSLOGIC_CCB_OPCODE_INITIATOR_CCB_RESIDUAL_DATA_LENGTH)
         {
             /* The buffer is not scattered. */
             RTGCPHYS GCPhysAddrDataBase = (RTGCPHYS)pTaskState->CommandControlBlockGuest.u32PhysAddrData;
@@ -1327,6 +1329,7 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
             pReply->fHostWideSCSI = true;
             pReply->fHostUltraSCSI = true;
             pReply->u16ScatterGatherLimit = 8192;
+            pBusLogic->regStatus |= BUSLOGIC_REGISTER_STATUS_INITIALIZATION_REQUIRED;
 
             break;
         }
@@ -1490,10 +1493,6 @@ static int buslogicRegisterRead(PBUSLOGIC pBusLogic, unsigned iRegister, uint32_
         case BUSLOGIC_REGISTER_INTERRUPT:
         {
             *pu32 = pBusLogic->regInterrupt;
-#if 0
-            if (pBusLogic->uOperationCode == BUSLOGICCOMMAND_DISABLE_HOST_ADAPTER_INTERRUPT)
-                rc = PDMDeviceDBGFStop(pBusLogic->CTX_SUFF(pDevIns), RT_SRC_POS, "Interrupt disable command\n");
-#endif
             break;
         }
         case BUSLOGIC_REGISTER_GEOMETRY:

@@ -19,16 +19,16 @@
 # additional information or have any questions.
 #
 
-my $use_hal = 0;
+my $auto_mouse = 0;
 my $new_mouse = 0;
 my $no_bak = 0;
 my $old_mouse_dev = "/dev/psaux";
 
 foreach $arg (@ARGV)
 {
-    if (lc($arg) eq "--usehal")
+    if (lc($arg) eq "--autoMouse")
     {
-        $use_hal = 1;
+        $auto_mouse = 1;
     }
     elsif (lc($arg) eq "--newmouse")
     {
@@ -48,6 +48,7 @@ foreach $arg (@ARGV)
         my $CFG;
         my $xkbopts = "";
         my $kb_driver = "";
+		my $layout_kb = "";
         if (open(CFG, $cfg))
         {
             my $TMP;
@@ -108,9 +109,10 @@ $xkbopts  Option       "Protocol" "Standard"
   Option       "CoreKeyboard"
 EndSection
 EOF
+				$layout_kb = "  InputDevice  \"Keyboard[0]\" \"CoreKeyboard\"\n"
             }
 
-            if (!$use_hal && !$new_mouse) {
+            if (!$auto_mouse && !$new_mouse) {
                 print TMP <<EOF;
 
 Section "InputDevice"
@@ -127,8 +129,7 @@ EndSection
 
 Section "ServerLayout"
   Identifier   "Layout[all]"
-  InputDevice  "Keyboard[0]" "CoreKeyboard"
-  InputDevice  "Mouse[1]" "CorePointer"
+$layout_kb  InputDevice  "Mouse[1]" "CorePointer"
   Option       "Clone" "off"
   Option       "Xinerama" "off"
   Screen       "Screen[0]"
@@ -136,7 +137,7 @@ EndSection
 EOF
             }
 
-            if (!$use_hal && $new_mouse) {
+            if (!$auto_mouse && $new_mouse) {
                 print TMP <<EOF;
 
 Section "InputDevice"

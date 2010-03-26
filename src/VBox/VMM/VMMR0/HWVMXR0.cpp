@@ -1275,15 +1275,6 @@ static void vmxR0UpdateExceptionBitmap(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         pVCpu->hwaccm.s.fFPUOldStyleOverride = true;
     }
 
-#ifdef DEBUG /* till after branching, enable it by default then. */
-    /* Intercept X86_XCPT_DB if stepping is enabled */
-    if (    DBGFIsStepping(pVCpu)
-        ||  CPUMIsHyperDebugStateActive(pVCpu))
-        u32TrapMask |= RT_BIT(X86_XCPT_DB);
-    /** @todo Don't trap it unless the debugger has armed breakpoints.  */
-    u32TrapMask |= RT_BIT(X86_XCPT_BP);
-#endif
-
 #ifdef VBOX_STRICT
     Assert(u32TrapMask & RT_BIT(X86_XCPT_GP));
 #endif
@@ -2982,17 +2973,18 @@ ResumeExecution:
                 STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitGuestDB);
 
                 /* Note that we don't support guest and host-initiated debugging at the same time. */
-                Assert(DBGFIsStepping(pVCpu) || CPUMIsGuestInRealModeEx(pCtx) || CPUMIsHyperDebugStateActive(pVCpu));
 
                 uDR6  = X86_DR6_INIT_VAL;
                 uDR6 |= (exitQualification & (X86_DR6_B0|X86_DR6_B1|X86_DR6_B2|X86_DR6_B3|X86_DR6_BD|X86_DR6_BS));
                 rc = DBGFRZTrap01Handler(pVM, pVCpu, CPUMCTX2CORE(pCtx), uDR6);
                 if (rc == VINF_EM_RAW_GUEST_TRAP)
                 {
-                    /** @todo this isn't working, but we'll never get here normally. */
-
                     /* Update DR6 here. */
                     pCtx->dr[6]  = uDR6;
+
+                    /* Resync DR6 if the debug state is active. */
+                    if (CPUMIsGuestDebugStateActive(pVCpu))
+                        ASMSetDR6(pCtx->dr[6]);
 
                     /* X86_DR7_GD will be cleared if drx accesses should be trapped inside the guest. */
                     pCtx->dr[7] &= ~X86_DR7_GD;
@@ -3649,6 +3641,13 @@ ResumeExecution:
             rc = CPUMR0LoadGuestDebugState(pVM, pVCpu, pCtx, true /* include DR6 */);
             AssertRC(rc);
 
+#ifdef LOG_ENABLED
+            if (VMX_EXIT_QUALIFICATION_DRX_DIRECTION(exitQualification) == VMX_EXIT_QUALIFICATION_DRX_DIRECTION_WRITE)
+                Log(("VMX_EXIT_DRX_MOVE: write DR%d genreg %d\n", VMX_EXIT_QUALIFICATION_DRX_REGISTER(exitQualification), VMX_EXIT_QUALIFICATION_DRX_GENREG(exitQualification)));
+            else
+                Log(("VMX_EXIT_DRX_MOVE: read DR%d\n", VMX_EXIT_QUALIFICATION_DRX_REGISTER(exitQualification)));
+#endif
+
 #ifdef VBOX_WITH_STATISTICS
             STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatDRxContextSwitch);
             if (VMX_EXIT_QUALIFICATION_DRX_DIRECTION(exitQualification) == VMX_EXIT_QUALIFICATION_DRX_DIRECTION_WRITE)
@@ -4182,6 +4181,7 @@ VMMR0DECL(int) VMXR0Leave(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     if (CPUMIsHyperDebugStateActive(pVCpu))
     {
         CPUMR0LoadHostDebugState(pVM, pVCpu);
+        Assert(pVCpu->hwaccm.s.vmx.proc_ctls & VMX_VMCS_CTRL_PROC_EXEC_CONTROLS_MOV_DR_EXIT);
     }
     else
 #endif

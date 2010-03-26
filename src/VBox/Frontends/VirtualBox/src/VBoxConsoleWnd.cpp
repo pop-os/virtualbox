@@ -957,7 +957,7 @@ bool VBoxConsoleWnd::openView (const CSession &aSession)
     if (usbctl.isNull())
     {
         /* hide usb_menu & usb_separator & usb_status_led */
-        mDevicesUSBMenu->setVisible (false);
+        mDevicesUSBMenu->menuAction()->setVisible (false);
         mUSBLed->setHidden (true);
     }
     else
@@ -1229,14 +1229,20 @@ void VBoxConsoleWnd::clearMask()
 #endif
 }
 
-void VBoxConsoleWnd::onDisplayResize (ulong aHeight, ulong aWidth)
+void VBoxConsoleWnd::onDisplayResize (ulong aWidth, ulong aHeight)
 {
-    if (mIsSeamless && QApplication::desktop()->availableGeometry (this).size() != QSize (aHeight, aWidth))
+    if (mIsSeamless)
     {
-        mVmSeamlessAction->setChecked (false);
-        /* should be cleared already, but just in case */
-        if (mIsSeamless)
-            toggleFullscreenMode (false, true);
+        const QRect & geo = QApplication::desktop()->availableGeometry (this);
+        int dW = geo.width() - (int)aWidth;
+        int dH = geo.height() - (int)aHeight;
+        if (RT_ABS (dW) > 16 || RT_ABS (dH) > 16)
+        {
+            mVmSeamlessAction->setChecked (false);
+            /* should be cleared already, but just in case */
+            if (mIsSeamless)
+                toggleFullscreenMode (false, true);
+        }
     }
 }
 

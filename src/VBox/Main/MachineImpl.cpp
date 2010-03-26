@@ -1368,10 +1368,12 @@ STDMETHODIMP Machine::SetCpuProperty(CpuPropertyType_T property, BOOL aVal)
     switch(property)
     {
     case CpuPropertyType_PAE:
+        mHWData.backup();
         mHWData->mPAEEnabled = !!aVal;
         break;
 
     case CpuPropertyType_Synthetic:
+        mHWData.backup();
         mHWData->mSyntheticCpu = !!aVal;
         break;
 
@@ -1466,6 +1468,7 @@ STDMETHODIMP Machine::SetCpuIdLeaf(ULONG aId, ULONG aValEax, ULONG aValEbx, ULON
         case 0xA:
             AssertCompile(RT_ELEMENTS(mHWData->mCpuIdStdLeafs) == 0xA);
             AssertRelease(aId < RT_ELEMENTS(mHWData->mCpuIdStdLeafs));
+            mHWData.backup();
             mHWData->mCpuIdStdLeafs[aId].ulId  = aId;
             mHWData->mCpuIdStdLeafs[aId].ulEax = aValEax;
             mHWData->mCpuIdStdLeafs[aId].ulEbx = aValEbx;
@@ -1486,6 +1489,7 @@ STDMETHODIMP Machine::SetCpuIdLeaf(ULONG aId, ULONG aValEax, ULONG aValEbx, ULON
         case 0x8000000A:
             AssertCompile(RT_ELEMENTS(mHWData->mCpuIdExtLeafs) == 0xA);
             AssertRelease(aId - 0x80000000 < RT_ELEMENTS(mHWData->mCpuIdExtLeafs));
+            mHWData.backup();
             mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulId  = aId;
             mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulEax = aValEax;
             mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulEbx = aValEbx;
@@ -1524,6 +1528,7 @@ STDMETHODIMP Machine::RemoveCpuIdLeaf(ULONG aId)
         case 0xA:
             AssertCompile(RT_ELEMENTS(mHWData->mCpuIdStdLeafs) == 0xA);
             AssertRelease(aId < RT_ELEMENTS(mHWData->mCpuIdStdLeafs));
+            mHWData.backup();
             /* Invalidate leaf. */
             mHWData->mCpuIdStdLeafs[aId].ulId = UINT32_MAX;
             break;
@@ -1541,6 +1546,7 @@ STDMETHODIMP Machine::RemoveCpuIdLeaf(ULONG aId)
         case 0x8000000A:
             AssertCompile(RT_ELEMENTS(mHWData->mCpuIdExtLeafs) == 0xA);
             AssertRelease(aId - 0x80000000 < RT_ELEMENTS(mHWData->mCpuIdExtLeafs));
+            mHWData.backup();
             /* Invalidate leaf. */
             mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulId = UINT32_MAX;
             break;
@@ -1560,6 +1566,8 @@ STDMETHODIMP Machine::RemoveAllCpuIdLeafs()
 
     HRESULT rc = checkStateDependency(MutableStateDep);
     CheckComRCReturnRC(rc);
+
+    mHWData.backup();
 
     /* Invalidate all standard leafs. */
     for (unsigned i = 0; i < RT_ELEMENTS(mHWData->mCpuIdStdLeafs); i++)
@@ -2290,11 +2298,9 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
     AutoCaller autoCaller(this);
     CheckComRCReturnRC(autoCaller.rc());
 
-    /* VirtualBox::findHardDisk() and the corresponding other methods for
-     * DVD and floppy media need *write* lock (for getting rid of unneeded
-     * host drives which got enumerated); also we want to make sure the
-     * media object we pick up doesn't get unregistered before we finish. */
-    AutoMultiWriteLock2 alock(mParent, this);
+    // request the host lock first, since might be calling Host methods for getting host drives;
+    // next, protect the media tree all the while we're in here, as well as our member variables
+    AutoMultiWriteLock3 alock(mParent->host(), mParent, this);
 
     HRESULT rc = checkStateDependency(MutableStateDep);
     CheckComRCReturnRC(rc);
@@ -6108,11 +6114,6 @@ HRESULT Machine::loadStorageControllers(const settings::Storage &data,
 
     HRESULT rc = S_OK;
 
-    /* Make sure the attached hard disks don't get unregistered until we
-     * associate them with tis machine (important for VMs loaded (opened) after
-     * VirtualBox startup) */
-    AutoReadLock vboxLock(mParent);
-
     for (settings::StorageControllersList::const_iterator it = data.llStorageControllers.begin();
          it != data.llStorageControllers.end();
          ++it)
@@ -9720,7 +9721,6 @@ bool SessionMachine::hasMatchingUSBFilter (const ComObjPtr<HostUSBDevice> &aDevi
     if (!autoCaller.isOk())
         return false;
 
-    AssertReturn(isWriteLockOnCurrentThread(), false);
 
 #ifdef VBOX_WITH_USB
     switch (mData->mMachineState)

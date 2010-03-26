@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2010 Sun Microsystems, Inc.
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -57,7 +57,10 @@ else # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_DOCS
  include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
 
  BLDPROGS += uniread
- LIBRARIES += RuntimeR3 RuntimeR0 RuntimeGC RuntimeEFCPP RuntimeR3NoCRTGCC
+ LIBRARIES += RuntimeR3 RuntimeR0 RuntimeEFCPP RuntimeR3NoCRTGCC
+ ifdef VBOX_WITH_RAW_MODE
+  LIBRARIES += RuntimeGC
+ endif
  ifdef VBOX_WITH_VBOXDRV
   LIBRARIES += RuntimeR0Drv
  endif
@@ -358,8 +361,11 @@ endif
 
 # Some versions of GCC might require this.
 RuntimeR3_SOURCES.x86 += \
+	common/asm/ASMAtomicXchgU64.asm \
 	common/asm/ASMAtomicCmpXchgU64.asm \
-	common/asm/ASMAtomicReadU64.asm
+	common/asm/ASMAtomicCmpXchgExU64.asm \
+	common/asm/ASMAtomicReadU64.asm	\
+	common/asm/ASMAtomicUoReadU64.asm
 
 ifdef IPRT_WITH_KSTUFF
  RuntimeR3_SOURCES += \
@@ -1474,13 +1480,14 @@ RuntimeGuestR0NT4_EXTENDS_BY = appending
 RuntimeGuestR0NT4_DEFS = IPRT_TARGET_NT4
 
 
-#
-# RuntimeGC - Guest context library.
-#
-RuntimeGC_TEMPLATE      = VBOXGC
-RuntimeGC_DEFS          = IN_RT_GC RT_WITH_VBOX
-RuntimeGC_INCS          = include
-RuntimeGC_SOURCES       = \
+ifdef VBOX_WITH_RAW_MODE
+ #
+ # RuntimeGC - Guest context library.
+ #
+ RuntimeGC_TEMPLATE      = VBOXGC
+ RuntimeGC_DEFS          = IN_RT_GC RT_WITH_VBOX
+ RuntimeGC_INCS          = include
+ RuntimeGC_SOURCES       = \
 	common/log/log.cpp \
 	common/log/logellipsis.cpp \
 	common/log/logrel.cpp \
@@ -1516,20 +1523,20 @@ RuntimeGC_SOURCES       = \
 	\
 	$(RuntimeNoCrt_SOURCES)
 
-#if1of ($(KBUILD_TARGET_ARCH),amd64 x86)
-# RuntimeGC_SOURCES += common/time/timesupA.asm
-#else
- RuntimeGC_SOURCES += common/time/timesupref.cpp
-#endif
+ #if1of ($(KBUILD_TARGET_ARCH),amd64 x86)
+ # RuntimeGC_SOURCES += common/time/timesupA.asm
+ #else
+  RuntimeGC_SOURCES += common/time/timesupref.cpp
+ #endif
 
-RuntimeGC_SOURCES.win.x86 = $(RuntimeWin32ASM_SOURCES)
+ RuntimeGC_SOURCES.win.x86 = $(RuntimeWin32ASM_SOURCES)
 
-ifeq ($(VBOX_LDR_FMT32),lx)
- RuntimeGC_SOURCES += os2/sys0.asm
-endif
+ ifeq ($(VBOX_LDR_FMT32),lx)
+  RuntimeGC_SOURCES += os2/sys0.asm
+ endif
 
-if1of ($(KBUILD_TARGET), darwin solaris freebsd)
-RuntimeGC_SOURCES += \
+ if1of ($(KBUILD_TARGET), darwin solaris freebsd)
+ RuntimeGC_SOURCES += \
 	common/math/gcc/adddi3.c \
 	common/math/gcc/anddi3.c \
 	common/math/gcc/ashldi3.c \
@@ -1549,7 +1556,8 @@ RuntimeGC_SOURCES += \
 	common/math/gcc/udivdi3.c \
 	common/math/gcc/umoddi3.c \
 	common/math/gcc/xordi3.c
-endif
+ endif
+endif # VBOX_WITH_RAW_MODE
 
 
 #

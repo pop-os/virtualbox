@@ -76,3 +76,4 @@ resVgaShared
 xf86SetBackingStore
 xf86snprintf
 XNFstrdup
+__stack_chk_fail

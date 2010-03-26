@@ -1190,6 +1190,9 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
     /*
      * Init the structure.
      */
+#ifdef PGM_WITHOUT_MAPPINGS
+    pVM->pgm.s.fMappingsDisabled = true;
+#endif
     pVM->pgm.s.offVM       = RT_OFFSETOF(VM, pgm.s);
     pVM->pgm.s.offVCpuPGM  = RT_OFFSETOF(VMCPU, pgm.s);
 
@@ -3032,6 +3035,8 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
      */
     VMMSWITCHER enmSwitcher;
     PGMMODE     enmShadowMode = pgmR3CalcShadowMode(pVM, enmGuestMode, pVM->pgm.s.enmHostMode, pVCpu->pgm.s.enmShadowMode, &enmSwitcher);
+
+#ifdef VBOX_WITH_RAW_MODE
     if (enmSwitcher != VMMSWITCHER_INVALID)
     {
         /*
@@ -3044,6 +3049,7 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
             return rc;
         }
     }
+#endif
 
     /*
      * Exit old mode(s).

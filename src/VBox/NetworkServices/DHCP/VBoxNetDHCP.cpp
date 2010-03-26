@@ -838,7 +838,9 @@ int VBoxNetDhcp::parseArgs(int argc, char **argv)
                 return 1;
 
             default:
-                break;
+                rc = RTGetOptPrintError(rc, &Val);
+                RTPrintf("Use --help for more information.\n");
+                return rc;
         }
     }
 

@@ -30,8 +30,6 @@
 #include <VBox/com/EventQueue.h>
 #include <VBox/VRDPAuth.h>
 #include <VBox/version.h>
-
-#include <iprt/lock.h>
 #include <iprt/rand.h>
 #include <iprt/initterm.h>
 #include <iprt/getopt.h>
@@ -39,6 +37,7 @@
 #include <iprt/process.h>
 #include <iprt/string.h>
 #include <iprt/ldr.h>
+#include <iprt/semaphore.h>
 
 // workaround for compile problems on gcc 4.1
 #ifdef __GNUC__
@@ -50,6 +49,7 @@
 
 // standard headers
 #include <map>
+#include <list>
 
 #ifdef __GNUC__
 #pragma GCC visibility pop
@@ -99,6 +99,7 @@ int                     g_iWatchdogCheckInterval = 5;
 const char              *g_pcszBindToHost = NULL;       // host; NULL = current machine
 unsigned int            g_uBindToPort = 18083;          // port
 unsigned int            g_uBacklog = 100;               // backlog = max queue size for requests
+unsigned int            g_cMaxWorkerThreads = 100;      // max. no. of worker threads
 
 bool                    g_fVerbose = false;             // be verbose
 PRTSTREAM               g_pstrLog = NULL;
@@ -113,18 +114,27 @@ bool                    g_fDaemonize = false;           // run in background.
  *
  ****************************************************************************/
 
-RTLockMtx           g_mutexAuthLib;
+// The one global SOAP queue created by main().
+class SoapQ;
+SoapQ               *g_pSoapQ = NULL;
+
+// this mutex protects the auth lib and authentication
+RTLockMtx           *g_pAuthLibLockHandle;
 
 // this mutex protects all of the below
-RTLockMtx           g_mutexSessions;
+RTLockMtx           *g_pSessionsLockHandle;
 
 SessionsMap         g_mapSessions;
 ULONG64             g_iMaxManagedObjectID = 0;
 ULONG64             g_cManagedObjects = 0;
 
+// Threads map, so we can quickly map an RTTHREAD struct to a logger prefix
+typedef std::map<RTTHREAD, com::Utf8Str> ThreadsMap;
+ThreadsMap          g_mapThreads;
+
 /****************************************************************************
  *
- *  main
+ *  Command line help
  *
  ****************************************************************************/
 
@@ -138,6 +148,7 @@ static const RTGETOPTDEF g_aOptions[]
         { "--port",             'p', RTGETOPT_REQ_UINT32 },
         { "--timeout",          't', RTGETOPT_REQ_UINT32 },
         { "--check-interval",   'i', RTGETOPT_REQ_UINT32 },
+        { "--threads",          'T', RTGETOPT_REQ_UINT32 },
         { "--verbose",          'v', RTGETOPT_REQ_NOTHING },
         { "--logfile",          'F', RTGETOPT_REQ_STRING },
     };
@@ -180,6 +191,10 @@ void DisplayHelp()
                 pcszDescr = "Session timeout in seconds; 0 = disable timeouts (" DEFAULT_TIMEOUT_SECS_STRING ").";
             break;
 
+            case 'T':
+                pcszDescr = "Maximum number of worker threads to run in parallel (100).";
+            break;
+
             case 'i':
                 pcszDescr = "Frequency of timeout checks in seconds (5).";
             break;
@@ -197,6 +212,229 @@ void DisplayHelp()
     }
 }
 
+/****************************************************************************
+ *
+ * SoapQ, SoapThread (multithreading)
+ *
+ ****************************************************************************/
+
+class SoapQ;
+
+class SoapThread
+{
+public:
+    /**
+     * Constructor. Creates the new thread and makes it call process() for processing the queue.
+     * @param u Thread number. (So we can count from 1 and be readable.)
+     * @param q SoapQ instance which has the queue to process.
+     * @param soap struct soap instance from main() which we copy here.
+     */
+    SoapThread(size_t u,
+               SoapQ &q,
+               const struct soap *soap)
+        : m_u(u),
+          m_pQ(&q)
+    {
+        // make a copy of the soap struct for the new thread
+        m_soap = soap_copy(soap);
+
+        if (!RT_SUCCESS(RTThreadCreate(&m_pThread,
+                                       fntWrapper,
+                                       this,             // pvUser
+                                       0,               // cbStack,
+                                       RTTHREADTYPE_MAIN_HEAVY_WORKER,
+                                       0,
+                                       "SoapQWorker")))
+        {
+            RTStrmPrintf(g_pStdErr, "[!] Cannot start worker thread %d\n", u);
+            exit(1);
+        }
+    }
+
+    void process();
+
+    /**
+     * Static function that can be passed to RTThreadCreate and that calls
+     * process() on the SoapThread instance passed as the thread parameter.
+     * @param pThread
+     * @param pvThread
+     * @return
+     */
+    static int fntWrapper(RTTHREAD pThread, void *pvThread)
+    {
+        SoapThread *pst = (SoapThread*)pvThread;
+        pst->process();     // this never returns really
+        return 0;
+    }
+
+    size_t      m_u;            // thread number
+    SoapQ       *m_pQ;          // the single SOAP queue that all the threads service
+    struct soap *m_soap;        // copy of the soap structure for this thread (from soap_copy())
+    RTTHREAD    m_pThread;      // IPRT thread struct for this thread
+};
+
+/**
+ * SOAP queue encapsulation. There is only one instance of this, to
+ * which add() adds a queue item (called on the main thread),
+ * and from which get() fetch items, called from each queue thread.
+ */
+class SoapQ
+{
+public:
+
+    /**
+     * Constructor. Creates the soap queue.
+     * @param pSoap
+     */
+    SoapQ(const struct soap *pSoap)
+        : m_soap(pSoap),
+          m_cIdleThreads(0)
+    {
+        RTSemEventMultiCreate(&m_event);
+    }
+
+    ~SoapQ()
+    {
+        RTSemEventMultiDestroy(m_event);
+    }
+
+    /**
+     * Adds the given socket to the SOAP queue and posts the
+     * member event sem to wake up the workers. Called on the main thread
+     * whenever a socket has work to do. Creates a new SOAP thread on the
+     * first call or when all existing threads are busy.
+     * @param s Socket from soap_accept() which has work to do.
+     */
+    uint32_t add(int s)
+    {
+        uint32_t cItems;
+        RTLock qlock(m_mutex);
+
+        // if no threads have yet been created, or if all threads are busy,
+        // create a new SOAP thread
+        if (    !m_cIdleThreads
+                // but only if we're not exceeding the global maximum (default is 100)
+             && (m_llAllThreads.size() < g_cMaxWorkerThreads)
+           )
+        {
+            SoapThread *pst = new SoapThread(m_llAllThreads.size() + 1,
+                                             *this,
+                                             m_soap);
+            m_llAllThreads.push_back(pst);
+            g_mapThreads[pst->m_pThread] = com::Utf8StrFmt("[%3u]", pst->m_u);
+            ++m_cIdleThreads;
+        }
+
+        // enqueue the socket of this connection and post eventsem so that
+        // one of the threads (possibly the one just creatd) can pick it up
+        m_llSocketsQ.push_back(s);
+        cItems = m_llSocketsQ.size();
+        qlock.release();
+
+        // unblock one of the worker threads
+        RTSemEventMultiSignal(m_event);
+
+        return cItems;
+    }
+
+    /**
+     * Blocks the current thread until work comes in; then returns
+     * the SOAP socket which has work to do. This reduces m_cIdleThreads
+     * by one, and the caller MUST call done() when it's done processing.
+     * Called from the worker threads.
+     * @param cIdleThreads out: no. of threads which are currently idle (not counting the caller)
+     * @param cThreads out: total no. of SOAP threads running
+     * @return
+     */
+    int get(size_t &cIdleThreads, size_t &cThreads)
+    {
+        while (1)
+        {
+            // wait for something to happen
+            RTSemEventMultiWait(m_event, RT_INDEFINITE_WAIT);
+
+            RTLock qlock(m_mutex);
+            if (m_llSocketsQ.size())
+            {
+                int socket = m_llSocketsQ.front();
+                m_llSocketsQ.pop_front();
+                cIdleThreads = --m_cIdleThreads;
+                cThreads = m_llAllThreads.size();
+
+                // reset the multi event only if the queue is now empty; otherwise
+                // another thread will also wake up when we release the mutex and
+                // process another one
+                if (m_llSocketsQ.size() == 0)
+                    RTSemEventMultiReset(m_event);
+
+                qlock.release();
+
+                return socket;
+            }
+
+            // nothing to do: keep looping
+        }
+    }
+
+    /**
+     * To be called by a worker thread after fetching an item from the
+     * queue via get() and having finished its lengthy processing.
+     */
+    void done()
+    {
+        RTLock qlock(m_mutex);
+        ++m_cIdleThreads;
+    }
+
+    const struct soap       *m_soap;            // soap structure created by main(), passed to constructor
+
+    RTLockMtx               m_mutex;
+    RTSEMEVENTMULTI         m_event;            // posted by add(), blocked on by get()
+
+    std::list<SoapThread*>  m_llAllThreads;     // all the threads created by the constructor
+    size_t                  m_cIdleThreads;     // threads which are currently idle (statistics)
+
+    // A std::list abused as a queue; this contains the actual jobs to do,
+    // each int being a socket from soap_accept()
+    std::list<int>          m_llSocketsQ;
+};
+
+/**
+ * Thread function for each of the SOAP queue worker threads. This keeps
+ * running, blocks on the event semaphore in SoapThread.SoapQ and picks
+ * up a socket from the queue therein, which has been put there by
+ * beginProcessing().
+ */
+void SoapThread::process()
+{
+    WebLog("New SOAP thread started\n");
+
+    while (1)
+    {
+        // wait for a socket to arrive on the queue
+        size_t cIdleThreads, cThreads;
+        m_soap->socket = m_pQ->get(cIdleThreads, cThreads);
+
+        WebLog("Processing connection from IP=%lu.%lu.%lu.%lu socket=%d (%d out of %d threads idle)\n",
+               (m_soap->ip >> 24) & 0xFF,
+               (m_soap->ip >> 16) & 0xFF,
+               (m_soap->ip >> 8)  & 0xFF,
+               m_soap->ip         & 0xFF,
+               m_soap->socket,
+               cIdleThreads,
+               cThreads);
+
+        // process the request; this goes into the COM code in methodmaps.cpp
+        soap_serve(m_soap);
+
+        soap_destroy(m_soap); // clean up class instances
+        soap_end(m_soap); // clean up everything and close socket
+
+        // tell the queue we're idle again
+        m_pQ->done();
+    }
+}
+
 /**
  * Implementation for WEBLOG macro defined in vboxweb.h; this prints a message
  * to the console and optionally to the file that may have been given to the
@@ -211,18 +449,23 @@ void WebLog(const char *pszFormat, ...)
     RTStrAPrintfV(&psz, pszFormat, args);
     va_end(args);
 
+    const char *pcszPrefix = "[   ]";
+    ThreadsMap::iterator it = g_mapThreads.find(RTThreadSelf());
+    if (it != g_mapThreads.end())
+        pcszPrefix = it->second.c_str();
+
     // terminal
-    RTPrintf("%s", psz);
+    RTPrintf("%s %s", pcszPrefix, psz);
 
     // log file
     if (g_pstrLog)
     {
-        RTStrmPrintf(g_pstrLog, "%s", psz);
+        RTStrmPrintf(g_pstrLog, "%s %s", pcszPrefix, psz);
         RTStrmFlush(g_pstrLog);
     }
 
     // logger instance
-    RTLogLoggerEx(LOG_INSTANCE, RTLOGGRPFLAGS_DJ, LOG_GROUP, "%s", psz);
+    RTLogLoggerEx(LOG_INSTANCE, RTLOGGRPFLAGS_DJ, LOG_GROUP, "%s %s", pcszPrefix, psz);
 
     RTStrFree(psz);
 }
@@ -246,6 +489,75 @@ void WebLogSoapError(struct soap *soap)
            (ppcszDetail && *ppcszDetail) ? *ppcszDetail : "no details available");
 }
 
+/****************************************************************************
+ *
+ * SOAP queue pumper thread
+ *
+ ****************************************************************************/
+
+void doQueuesLoop()
+{
+    // set up gSOAP
+    struct soap soap;
+    soap_init(&soap);
+
+    soap.bind_flags |= SO_REUSEADDR;
+            // avoid EADDRINUSE on bind()
+
+    int m, s; // master and slave sockets
+    m = soap_bind(&soap,
+                  g_pcszBindToHost,     // host: current machine
+                  g_uBindToPort,     // port
+                  g_uBacklog);     // backlog = max queue size for requests
+    if (m < 0)
+        WebLogSoapError(&soap);
+    else
+    {
+        WebLog("Socket connection successful: host = %s, port = %u, master socket = %d\n",
+               (g_pcszBindToHost) ? g_pcszBindToHost : "default (localhost)",
+               g_uBindToPort,
+               m);
+
+        // initialize thread queue, mutex and eventsem
+        g_pSoapQ = new SoapQ(&soap);
+
+        // start the SOAP processing thread
+
+        for (uint64_t i = 1;
+             ;
+             i++)
+        {
+            // call gSOAP to handle incoming SOAP connection
+            s = soap_accept(&soap);
+            if (s < 0)
+            {
+                WebLogSoapError(&soap);
+                break;
+            }
+
+            // add the socket to the queue and tell worker threads to
+            // pick up the jobn
+            size_t cItemsOnQ = g_pSoapQ->add(s);
+            WebLog("Request %llu on socket %d queued for processing (%d items on Q)\n", i, s, cItemsOnQ);
+        }
+    }
+    soap_done(&soap); // close master socket and detach environment
+}
+
+/**
+ * Thread function for the "queue pumper" thread started from main(). This implements
+ * the loop that takes SOAP calls from HTTP and serves them by handing sockets to the
+ * SOAP queue worker threads.
+ */
+int fntQPumper(RTTHREAD ThreadSelf, void *pvUser)
+{
+    // store a log prefix for this thread
+    g_mapThreads[RTThreadSelf()] = "[ P ]";
+
+    doQueuesLoop();
+
+    return 0;
+}
 
 /**
  * Start up the webservice server. This keeps running and waits
@@ -264,7 +576,10 @@ int main(int argc, char* argv[])
     // intialize runtime
     RTR3Init();
 
-    RTStrmPrintf(g_pStdErr, VBOX_PRODUCT " Webservice Version " VBOX_VERSION_STRING "\n"
+    // store a log prefix for this thread
+    g_mapThreads[RTThreadSelf()] = "[M  ]";
+
+    RTStrmPrintf(g_pStdErr, VBOX_PRODUCT " web service version " VBOX_VERSION_STRING "\n"
                             "(C) 2005-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
                             "All rights reserved.\n");
 
@@ -304,6 +619,10 @@ int main(int argc, char* argv[])
                 WebLog("Sun VirtualBox Webservice Version %s\n"
                        "Opened log file \"%s\"\n", VBOX_VERSION_STRING, ValueUnion.psz);
             }
+            break;
+
+            case 'T':
+                g_cMaxWorkerThreads = ValueUnion.u32;
             break;
 
             case 'h':
@@ -389,6 +708,25 @@ int main(int argc, char* argv[])
         return rc;
     }
 
+    // create the global mutexes
+    g_pAuthLibLockHandle = new RTLockMtx();
+    g_pSessionsLockHandle = new RTLockMtx();
+
+    // SOAP queue pumper thread
+    RTTHREAD  tQPumper;
+    if (RTThreadCreate(&tQPumper,
+                       fntQPumper,
+                       NULL,        // pvUser
+                       0,           // cbStack (default)
+                       RTTHREADTYPE_MAIN_WORKER,
+                       0,           // flags
+                       "SoapQPumper"))
+    {
+        RTStrmPrintf(g_pStdErr, "[!] Cannot start SOAP queue pumper thread\n");
+        exit(1);
+    }
+
+    // watchdog thread
     if (g_iWatchdogTimeoutSecs > 0)
     {
         // start our watchdog thread
@@ -396,7 +734,7 @@ int main(int argc, char* argv[])
         if (RTThreadCreate(&tWatchdog,
                            fntWatchdog,
                            NULL,
-                           32*1024,
+                           0,
                            RTTHREADTYPE_MAIN_WORKER,
                            0,
                            "Watchdog"))
@@ -406,71 +744,19 @@ int main(int argc, char* argv[])
         }
     }
 
-    // set up gSOAP
-    struct soap soap;
-    soap_init(&soap);
-
-    soap.bind_flags |= SO_REUSEADDR;
-            // avoid EADDRINUSE on bind()
-
-    int m, s; // master and slave sockets
-    m = soap_bind(&soap,
-                  g_pcszBindToHost,     // host: current machine
-                  g_uBindToPort,     // port
-                  g_uBacklog);     // backlog = max queue size for requests
-    if (m < 0)
-        WebLogSoapError(&soap);
-    else
+    com::EventQueue *pQ = com::EventQueue::getMainEventQueue();
+    while (1)
     {
-        WebLog("Socket connection successful: host = %s, port = %u, master socket = %d\n",
-               (g_pcszBindToHost) ? g_pcszBindToHost : "default (localhost)",
-               g_uBindToPort,
-               m);
-
-        for (uint64_t i = 1;
-             ;
-             i++)
-        {
-            // call gSOAP to handle incoming SOAP connection
-            s = soap_accept(&soap);
-            if (s < 0)
-            {
-                WebLogSoapError(&soap);
-                break;
-            }
-
-            WebLog("%llu: accepted connection from IP=%lu.%lu.%lu.%lu socket=%d... ",
-                   i,
-                   (soap.ip>>24)&0xFF,
-                   (soap.ip>>16)&0xFF,
-                   (soap.ip>>8)&0xFF,
-                   soap.ip&0xFF,
-                   s);
-
-            // enclose the entire RPC call in the sessions lock
-            // so that the watchdog cannot destroy COM objects
-            // while the RPC is ongoing
-            RTLock lock(g_mutexSessions);
-            // now process the RPC request (this goes into the
-            // generated code in methodmaps.cpp with all the COM calls)
-            if (soap_serve(&soap) != SOAP_OK)
-            {
-                WebLogSoapError(&soap);
-            }
-            lock.release();
-
-            WebLog("Request served\n");
-
-            soap_destroy(&soap); // clean up class instances
-            soap_end(&soap); // clean up everything and close socket
-
-            // we have to process main event queue
-            int vrc = com::EventQueue::getMainEventQueue()->processEventQueue(0);
-        }
+        // we have to process main event queue
+        WEBDEBUG(("Pumping COM event queue\n"));
+        int vrc = pQ->processEventQueue(RT_INDEFINITE_WAIT);
+        if (FAILED(vrc))
+            com::GluePrintRCMessage(vrc);
     }
-    soap_done(&soap); // close master socket and detach environment
 
     com::Shutdown();
+
+    return 0;
 }
 
 /****************************************************************************
@@ -488,6 +774,9 @@ int main(int argc, char* argv[])
  */
 int fntWatchdog(RTTHREAD ThreadSelf, void *pvUser)
 {
+    // store a log prefix for this thread
+    g_mapThreads[RTThreadSelf()] = "[W  ]";
+
     WEBDEBUG(("Watchdog thread started\n"));
 
     while (1)
@@ -498,12 +787,13 @@ int fntWatchdog(RTTHREAD ThreadSelf, void *pvUser)
         time_t                      tNow;
         time(&tNow);
 
-        RTLock lock(g_mutexSessions);
+        // lock the sessions while we're iterating; this blocks
+        // out the COM code from messing with it
+        RTLock lock(*g_pSessionsLockHandle);
         WEBDEBUG(("Watchdog: checking %d sessions\n", g_mapSessions.size()));
 
-        SessionsMap::iterator
-            it = g_mapSessions.begin(),
-            itEnd = g_mapSessions.end();
+        SessionsMap::iterator it = g_mapSessions.begin(),
+                              itEnd = g_mapSessions.end();
         while (it != itEnd)
         {
             WebServiceSession *pSession = it->second;
@@ -519,7 +809,6 @@ int fntWatchdog(RTTHREAD ThreadSelf, void *pvUser)
             else
                 ++it;
         }
-        lock.release();
     }
 
     WEBDEBUG(("Watchdog thread ending\n"));
@@ -616,8 +905,7 @@ std::string ConvertComString(const com::Bstr &bstr)
  */
 std::string ConvertComString(const com::Guid &uuid)
 {
-    com::Bstr bstr(uuid);
-    com::Utf8Str ustr(bstr);
+    com::Utf8Str ustr(uuid.toString());
     const char *pcsz;
     if ((pcsz = ustr.raw()))
         return pcsz;
@@ -738,7 +1026,7 @@ class WebServiceSessionPrivate
 /**
  * Constructor for the session object.
  *
- * Preconditions: Caller must have locked g_mutexSessions.
+ * Preconditions: Caller must have locked g_pSessionsLockHandle in write mode.
  *
  * @param username
  * @param password
@@ -758,7 +1046,7 @@ WebServiceSession::WebServiceSession()
 /**
  * Destructor. Cleans up and destroys all contained managed object references on the way.
  *
- * Preconditions: Caller must have locked g_mutexSessions.
+ * Preconditions: Caller must have locked g_pSessionsLockHandle in write mode.
  */
 WebServiceSession::~WebServiceSession()
 {
@@ -777,9 +1065,8 @@ WebServiceSession::~WebServiceSession()
     //     _pISession = NULL;
     // }
 
-    ManagedObjectsMapById::iterator
-        it,
-        end = _pp->_mapManagedObjectsById.end();
+    ManagedObjectsMapById::iterator it,
+                                    end = _pp->_mapManagedObjectsById.end();
     for (it = _pp->_mapManagedObjectsById.begin();
          it != end;
          ++it)
@@ -803,7 +1090,7 @@ int WebServiceSession::authenticate(const char *pcszUsername,
 {
     int rc = VERR_WEB_NOT_AUTHENTICATED;
 
-    RTLock lock(g_mutexAuthLib);
+    RTLock lock(*g_pAuthLibLockHandle);
 
     static bool fAuthLibLoaded = false;
     static PVRDPAUTHENTRY pfnAuthEntry = NULL;
@@ -874,6 +1161,8 @@ int WebServiceSession::authenticate(const char *pcszUsername,
         WEBDEBUG(("Could not resolve VRDPAuth2 or VRDPAuth entry point"));
     }
 
+    lock.release();
+
     if (!rc)
     {
         do
@@ -911,13 +1200,15 @@ int WebServiceSession::authenticate(const char *pcszUsername,
  *  ComPtr<IVirtualBox>, for example. As we store the ComPtr<IUnknown> in
  *  our private hash table, we must search for one too.
  *
- *  Preconditions: Caller must have locked g_mutexSessions.
+ * Preconditions: Caller must have locked g_pSessionsLockHandle in read mode.
  *
  * @param pcu pointer to a COM object.
  * @return The existing ManagedObjectRef that represents the COM object, or NULL if there's none yet.
  */
 ManagedObjectRef* WebServiceSession::findRefFromPtr(const ComPtr<IUnknown> &pcu)
 {
+    // Assert(g_pSessionsLockHandle->isReadLockOnCurrentThread());      // @todo
+
     IUnknown *p = pcu;
     uintptr_t ulp = (uintptr_t)p;
     ManagedObjectRef *pRef;
@@ -939,13 +1230,15 @@ ManagedObjectRef* WebServiceSession::findRefFromPtr(const ComPtr<IUnknown> &pcu)
  * object reference was created, by splitting the reference into the session and
  * object IDs and then looking up the session object for that session ID.
  *
- * Preconditions: Caller must have locked g_mutexSessions.
+ * Preconditions: Caller must have locked g_pSessionsLockHandle in read mode.
  *
  * @param id Managed object reference (with combined session and object IDs).
  * @return
  */
 WebServiceSession* WebServiceSession::findSessionFromRef(const WSDLT_ID &id)
 {
+    // Assert(g_pSessionsLockHandle->isReadLockOnCurrentThread()); // @todo
+
     WebServiceSession *pSession = NULL;
     uint64_t sessid;
     if (SplitManagedObjectRef(id,
@@ -1009,7 +1302,7 @@ void WebServiceSession::DumpRefs()
 
 /**
  *  Constructor, which assigns a unique ID to this managed object
- *  reference and stores it two global hashs:
+ *  reference and stores it two global hashes:
  *
  *   a) G_mapManagedObjectsById, which maps ManagedObjectID's to
  *      instances of this class; this hash is then used by the
@@ -1029,7 +1322,7 @@ void WebServiceSession::DumpRefs()
  *  createRefFromObject() template function in vboxweb.h, which
  *  does perform that check.
  *
- *  Preconditions: Caller must have locked g_mutexSessions.
+ * Preconditions: Caller must have locked g_pSessionsLockHandle in write mode.
  *
  * @param pObj
  */
@@ -1063,7 +1356,7 @@ ManagedObjectRef::ManagedObjectRef(WebServiceSession &session,
  * Destructor; removes the instance from the global hash of
  * managed objects.
  *
- * Preconditions: Caller must have locked g_mutexSessions.
+ * Preconditions: Caller must have locked g_pSessionsLockHandle in write mode.
  */
 ManagedObjectRef::~ManagedObjectRef()
 {
@@ -1293,6 +1586,9 @@ int __vbox__IWebsessionManager_USCORElogon(
     WEBDEBUG(("\n-- entering %s\n", __FUNCTION__));
 
     do {
+        // WebServiceSession constructor tinkers with global MOR map and requires a write lock
+        RTLock lock(*g_pSessionsLockHandle);
+
         // create new session; the constructor stores the new session
         // in the global map automatically
         WebServiceSession *pSession = new WebServiceSession();

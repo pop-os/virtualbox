@@ -26,7 +26,7 @@
     <message>
         <source>Sun Microsystems, Inc.</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>Lars Sarauw Hansen, Jeppe Fihl Toustrup</translation>
+        <translation type="obsolete">Lars Sarauw Hansen, Jeppe Fihl Toustrup</translation>
     </message>
 </context>
 <context>
@@ -1379,7 +1379,7 @@ p, li { white-space: pre-wrap; }
         <translation>&amp;Dock-ikon viser indhold af VM</translation>
     </message>
     <message>
-        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
+        <source>&amp;Auto show Dock and Menubar in fullscreen</source>
         <translation>&amp;Automatisk visning af Dok &amp;&amp; Menubjælke i fuldskærm</translation>
     </message>
 </context>
@@ -4469,83 +4469,83 @@ p, li { white-space: pre-wrap; }
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation>Registrering af VirtualBox</translation>
+        <translation type="obsolete">Registrering af VirtualBox</translation>
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation>Indtast dit navn.</translation>
+        <translation type="obsolete">Indtast dit navn.</translation>
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation>Indtast din email-adresse.</translation>
+        <translation type="obsolete">Indtast din email-adresse.</translation>
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation>Velkommen til Registrering af VirtualBox!</translation>
+        <translation type="obsolete">Velkommen til Registrering af VirtualBox!</translation>
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation>Kunne ikke udføre forhandling af forbindelse.</translation>
+        <translation type="obsolete">Kunne ikke udføre forhandling af forbindelse.</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Annullér</translation>
+        <translation type="obsolete">Annullér</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation>Vælg land/område</translation>
+        <translation type="obsolete">Vælg land/område</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Udfyld venligst denne registreringsformular for at lade os vide at du bruger VirtualBox og, hvis du ønsker det, så vi kan holde dig underrettet om VirtualBox-nyheder og opdateringer.&lt;/p&gt;&lt;p&gt;Brug latinske bogstaver i nedenstående felter. Vær opmærksom på at Sun Microsystems kun bruger denne information til at indsamle brugsstatistik og til at sende dig nyhedsbreve om VirtualBox. Sun Microsystems vil aldrig overgive dine data til tredjepart. Detaljeret information om hvad vi bruger dine personlige data til, kan findes i afsnittet &lt;b&gt;Privacy Policy&lt;/b&gt; i VirtualBox&apos; manual eller under &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; på VirtualBox&apos; hjemmeside.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Udfyld venligst denne registreringsformular for at lade os vide at du bruger VirtualBox og, hvis du ønsker det, så vi kan holde dig underrettet om VirtualBox-nyheder og opdateringer.&lt;/p&gt;&lt;p&gt;Brug latinske bogstaver i nedenstående felter. Vær opmærksom på at Sun Microsystems kun bruger denne information til at indsamle brugsstatistik og til at sende dig nyhedsbreve om VirtualBox. Sun Microsystems vil aldrig overgive dine data til tredjepart. Detaljeret information om hvad vi bruger dine personlige data til, kan findes i afsnittet &lt;b&gt;Privacy Policy&lt;/b&gt; i VirtualBox&apos; manual eller under &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; på VirtualBox&apos; hjemmeside.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation>Jeg &amp;har allerede en Sun Online konto:</translation>
+        <translation type="obsolete">Jeg &amp;har allerede en Sun Online konto:</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation>&amp;E-mail:</translation>
+        <translation type="obsolete">&amp;E-mail:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>Kodeord:</translation>
+        <translation type="obsolete">Kodeord:</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation>Jeg vil gerne oprette en Sun Online konto:</translation>
+        <translation type="obsolete">Jeg vil gerne oprette en Sun Online konto:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation>&amp;Fornavn:</translation>
+        <translation type="obsolete">&amp;Fornavn:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation>Efternavn:</translation>
+        <translation type="obsolete">Efternavn:</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation>Firma:</translation>
+        <translation type="obsolete">Firma:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation>Land:</translation>
+        <translation type="obsolete">Land:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation>E-&amp;mail:</translation>
+        <translation type="obsolete">E-&amp;mail:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation>Kodeord:</translation>
+        <translation type="obsolete">Kodeord:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation>Ge&amp;ntag kodeord:</translation>
+        <translation type="obsolete">Ge&amp;ntag kodeord:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation>&amp;Registrér</translation>
+        <translation type="obsolete">&amp;Registrér</translation>
     </message>
 </context>
 <context>
@@ -6655,7 +6655,7 @@ p, li { white-space: pre-wrap; }
         <translation>C&amp;PU&apos;er:</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
         <translation>Angiver antallet af virtuelle CPU&apos;er i den virtuelle maskine.</translation>
     </message>
     <message>

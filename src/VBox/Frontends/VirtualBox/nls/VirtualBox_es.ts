@@ -26,7 +26,7 @@
     <message>
         <source>Sun Microsystems, Inc.</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>Joaquin Duo, David González</translation>
+        <translation type="obsolete">Joaquin Duo, David González</translation>
     </message>
 </context>
 <context>
@@ -2150,7 +2150,7 @@ p, li { white-space: pre-wrap; }
         <translation>&amp;Mostrar icono en el área de notificación</translation>
     </message>
     <message>
-        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
+        <source>&amp;Auto show Dock and Menubar in fullscreen</source>
         <translation>&amp;Automostrar Dock &amp;&amp; Barra de menú a pantalla completa</translation>
     </message>
 </context>
@@ -6364,7 +6364,7 @@ este paso y luego conectar los Discos Duros desde el diálogo de Configuración 
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation>Diálogo de Registro de VirtualBox</translation>
+        <translation type="obsolete">Diálogo de Registro de VirtualBox</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Please note that innotek will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, innotek will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -6376,7 +6376,7 @@ este paso y luego conectar los Discos Duros desde el diálogo de Configuración 
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation>Ingrese su nombre completo usando caracteres latinos.</translation>
+        <translation type="obsolete">Ingrese su nombre completo usando caracteres latinos.</translation>
     </message>
     <message>
         <source>&amp;E-mail</source>
@@ -6384,7 +6384,7 @@ este paso y luego conectar los Discos Duros desde el diálogo de Configuración 
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation>Ingrese su dirección de e-mail válida.</translation>
+        <translation type="obsolete">Ingrese su dirección de e-mail válida.</translation>
     </message>
     <message>
         <source>&amp;Please do not use this information to contact me</source>
@@ -6396,7 +6396,7 @@ este paso y luego conectar los Discos Duros desde el diálogo de Configuración 
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation>¡Bienvenido al Formularion de Registro de VirtualBox!</translation>
+        <translation type="obsolete">¡Bienvenido al Formularion de Registro de VirtualBox!</translation>
     </message>
     <message>
         <source>&amp;Confirm</source>
@@ -6412,7 +6412,7 @@ este paso y luego conectar los Discos Duros desde el diálogo de Configuración 
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation>No se pudo llevar a cabo la negociación de conexión.</translation>
+        <translation type="obsolete">No se pudo llevar a cabo la negociación de conexión.</translation>
     </message>
     <message>
         <source>Check this box if you do not want to receive mail from Sun Microsystems at the e-mail address specified above.</source>
@@ -6420,63 +6420,63 @@ este paso y luego conectar los Discos Duros desde el diálogo de Configuración 
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Cancelar</translation>
+        <translation type="obsolete">Cancelar</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation>Seleccionar país/territorio</translation>
+        <translation type="obsolete">Seleccionar país/territorio</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Por favor, rellene este formulario para informarnos que usa VirtualBox. Opcionalmente puede elegir recibir noticias y actualizaciones.&lt;/p&gt;&lt;p&gt; Use caracteres latinos para rellenar los siguientes campos. Sun Microsystems sólo usará esta información para recolectar estadísticas de uso y para enviarle boletines de noticias. En particular, Sun Microsystems nunca proporcionará sus datos a terceros. Puede leer información más detalla de cómo usamos su información en la sección &lt;p&gt;Privacy Policy&lt;/p&gt; del manual de VirtualBox o en la página web &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; del sitio de VirtualBox.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Por favor, rellene este formulario para informarnos que usa VirtualBox. Opcionalmente puede elegir recibir noticias y actualizaciones.&lt;/p&gt;&lt;p&gt; Use caracteres latinos para rellenar los siguientes campos. Sun Microsystems sólo usará esta información para recolectar estadísticas de uso y para enviarle boletines de noticias. En particular, Sun Microsystems nunca proporcionará sus datos a terceros. Puede leer información más detalla de cómo usamos su información en la sección &lt;p&gt;Privacy Policy&lt;/p&gt; del manual de VirtualBox o en la página web &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; del sitio de VirtualBox.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation>Ya &amp;tengo una cuenta en linea de Sun:</translation>
+        <translation type="obsolete">Ya &amp;tengo una cuenta en linea de Sun:</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation>Correo-&amp;e:</translation>
+        <translation type="obsolete">Correo-&amp;e:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>&amp;Contraseña:</translation>
+        <translation type="obsolete">&amp;Contraseña:</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation>&amp;Registrar creando una cuenta en linea de Sun:</translation>
+        <translation type="obsolete">&amp;Registrar creando una cuenta en linea de Sun:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation>&amp;Nombre:</translation>
+        <translation type="obsolete">&amp;Nombre:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation>&amp;Apellido(s):</translation>
+        <translation type="obsolete">&amp;Apellido(s):</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation>Compa&amp;ñía:</translation>
+        <translation type="obsolete">Compa&amp;ñía:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation>&amp;País:</translation>
+        <translation type="obsolete">&amp;País:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation>Correo-&amp;e:</translation>
+        <translation type="obsolete">Correo-&amp;e:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation>&amp;Contraseña:</translation>
+        <translation type="obsolete">&amp;Contraseña:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation>Co&amp;nfirmar contraseña:</translation>
+        <translation type="obsolete">Co&amp;nfirmar contraseña:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation>&amp;Registrar</translation>
+        <translation type="obsolete">&amp;Registrar</translation>
     </message>
 </context>
 <context>
@@ -10499,7 +10499,7 @@ makes the guest see an audio card, however every access to it will be ignored.&l
         <translation>&amp;Procesador(es):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
         <translation>Controla el número de procesadores virtuales en la máquina virtual.</translation>
     </message>
     <message>

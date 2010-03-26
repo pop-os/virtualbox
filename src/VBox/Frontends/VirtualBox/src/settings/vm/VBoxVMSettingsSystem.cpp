@@ -182,6 +182,10 @@ void VBoxVMSettingsSystem::getFrom (const CMachine &aMachine)
     mCbPae->setEnabled (fPAESupported);
     mCbPae->setChecked (aMachine.GetCpuProperty(KCpuPropertyType_PAE));
 
+    /* VT-x/AMD-V page */
+    if (!fVTxAMDVSupported)
+        mTwSystem->removeTab(2);
+
     /* VT-x/AMD-V */
     mCbVirt->setEnabled (fVTxAMDVSupported);
     mCbVirt->setChecked (aMachine.GetHWVirtExProperty(KHWVirtExPropertyType_Enabled));

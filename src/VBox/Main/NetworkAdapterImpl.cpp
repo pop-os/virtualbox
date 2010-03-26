@@ -435,7 +435,7 @@ STDMETHODIMP NetworkAdapter::COMSETTER(HostInterface)(IN_BSTR aHostInterface)
         /* leave the lock before informing callbacks */
         alock.unlock();
 
-        mParent->onNetworkAdapterChange (this, FALSE);
+        mParent->onNetworkAdapterChange (this, TRUE);
     }
 
     return S_OK;
@@ -483,7 +483,7 @@ STDMETHODIMP NetworkAdapter::COMSETTER(InternalNetwork) (IN_BSTR aInternalNetwor
         /* leave the lock before informing callbacks */
         alock.unlock();
 
-        mParent->onNetworkAdapterChange (this, FALSE);
+        mParent->onNetworkAdapterChange (this, TRUE);
     }
 
     return S_OK;

@@ -40,7 +40,7 @@
 
 #include "VBoxClient.h"
 
-#define TRACE RTPrintf("%s: %d\n", __PRETTY_FUNCTION__, __LINE__); Log(("%s: %d\n", __PRETTY_FUNCTION__, __LINE__))
+#define TRACE RTPrintf("%s: %d\n", __PRETTY_FUNCTION__, __LINE__); LogRel(("%s: %d\n", __PRETTY_FUNCTION__, __LINE__))
 
 static int (*gpfnOldIOErrorHandler)(Display *) = NULL;
 
@@ -74,7 +74,7 @@ void VBoxClient::CleanUp()
  */
 void vboxClientSignalHandler(int cSignal)
 {
-    Log(("VBoxClient: terminated with signal %d\n", cSignal));
+    LogRel(("VBoxClient: terminated with signal %d\n", cSignal));
     /** Disable seamless mode */
     RTPrintf(("VBoxClient: terminating...\n"));
     VBoxClient::CleanUp();
@@ -98,7 +98,7 @@ int vboxClientXLibErrorHandler(Display *pDisplay, XErrorEvent *pError)
  */
 static int vboxClientXLibIOErrorHandler(Display *pDisplay)
 {
-    Log(("VBoxClient: a fatal guest X Window error occurred.  This may just mean that the Window system was shut down while the client was still running.\n"));
+    LogRel(("VBoxClient: a fatal guest X Window error occurred.  This may just mean that the Window system was shut down while the client was still running.\n"));
     VBoxClient::CleanUp();
     return 0;  /* We should never reach this. */
 }
@@ -111,7 +111,7 @@ void vboxClientSetSignalHandlers(void)
 {
     struct sigaction sigAction;
 
-    LogFlowFunc(("\n"));
+    LogRelFlowFunc(("\n"));
     sigAction.sa_handler = vboxClientSignalHandler;
     sigemptyset(&sigAction.sa_mask);
     sigAction.sa_flags = 0;
@@ -124,7 +124,7 @@ void vboxClientSetSignalHandlers(void)
     sigaction(SIGTERM, &sigAction, NULL);
     sigaction(SIGUSR1, &sigAction, NULL);
     sigaction(SIGUSR2, &sigAction, NULL);
-    LogFlowFunc(("returning\n"));
+    LogRelFlowFunc(("returning\n"));
 }
 
 /**
@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
         if (RT_FAILURE(rc))
         {
             RTPrintf("VBoxClient: failed to daemonize.  Exiting.\n");
-            Log(("VBoxClient: failed to daemonize.  Exiting.\n"));
+            LogRel(("VBoxClient: failed to daemonize.  Exiting.\n"));
 # ifdef DEBUG
             RTPrintf("Error %Rrc\n", rc);
 # endif
@@ -233,27 +233,27 @@ int main(int argc, char *argv[])
     if (pszHome == NULL)
     {
         RTPrintf("VBoxClient: failed to get home directory.  Exiting.\n");
-        Log(("VBoxClient: failed to get home directory.  Exiting.\n"));
+        LogRel(("VBoxClient: failed to get home directory.  Exiting.\n"));
         return 1;
     }
     if (RTStrAPrintf(&g_pszPidFile, "%s/%s", pszHome, g_pService->getPidFilePath()) == -1)
     if (pszHome == NULL)
     {
         RTPrintf("VBoxClient: out of memory.  Exiting.\n");
-        Log(("VBoxClient: out of memory.  Exiting.\n"));
+        LogRel(("VBoxClient: out of memory.  Exiting.\n"));
         return 1;
     }
     /* Initialise the guest library. */
     if (RT_FAILURE(VbglR3InitUser()))
     {
         RTPrintf("Failed to connect to the VirtualBox kernel service\n");
-        Log(("Failed to connect to the VirtualBox kernel service\n"));
+        LogRel(("Failed to connect to the VirtualBox kernel service\n"));
         return 1;
     }
     if (g_pszPidFile && RT_FAILURE(VbglR3PidFile(g_pszPidFile, &g_hPidFile)))
     {
         RTPrintf("Failed to create a pidfile.  Exiting.\n");
-        Log(("Failed to create a pidfile.  Exiting.\n"));
+        LogRel(("Failed to create a pidfile.  Exiting.\n"));
         VbglR3Term();
         return 1;
     }

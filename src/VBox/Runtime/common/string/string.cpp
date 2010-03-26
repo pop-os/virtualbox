@@ -113,7 +113,7 @@ RTDECL(char *) RTStrDupN(const char *pszString, size_t cchMax)
     AssertPtr(pszString);
     char  *pszEnd = (char *)memchr(pszString, '\0', cchMax);
     size_t cch    = pszEnd ? (uintptr_t)pszEnd - (uintptr_t)pszString : cchMax;
-    char  *pszDst = (char *)RTMemAlloc(cch);
+    char  *pszDst = (char *)RTMemAlloc(cch + 1);
     if (pszDst)
     {
         memcpy(pszDst, pszString, cch);

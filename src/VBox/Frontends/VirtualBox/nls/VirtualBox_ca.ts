@@ -26,7 +26,7 @@
     <message>
         <source>Sun Microsystems, Inc.</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>Vicent Fornés, Pau Iranzo &lt;info@somgnu.cat&gt;.</translation>
+        <translation type="obsolete">Vicent Fornés, Pau Iranzo &lt;info@somgnu.cat&gt;.</translation>
     </message>
 </context>
 <context>
@@ -1965,7 +1965,7 @@ p, li { white-space: pre-wrap; }
         <translation>&amp;Mostra la icona a la safata del sistema</translation>
     </message>
     <message>
-        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
+        <source>&amp;Auto show Dock and Menubar in fullscreen</source>
         <translation>&amp;Mostra el dock automàticament i la barra de menú al mode de pantalla completa</translation>
     </message>
 </context>
@@ -6226,11 +6226,11 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation>Introduïu el nom complet fent servir caràcters llatins.</translation>
+        <translation type="obsolete">Introduïu el nom complet fent servir caràcters llatins.</translation>
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation>Introduïu una adreça de correu vàlida.</translation>
+        <translation type="obsolete">Introduïu una adreça de correu vàlida.</translation>
     </message>
     <message>
         <source>&amp;Name</source>
@@ -6246,15 +6246,15 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
     </message>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation>Diàleg de registre del VirtualBox</translation>
+        <translation type="obsolete">Diàleg de registre del VirtualBox</translation>
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation>Benvingut al formulari de registre del VirtualBox!</translation>
+        <translation type="obsolete">Benvingut al formulari de registre del VirtualBox!</translation>
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation>No s&apos;ha pogut dur a terme la conformitat de connexió.</translation>
+        <translation type="obsolete">No s&apos;ha pogut dur a terme la conformitat de connexió.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -6270,63 +6270,63 @@ pas i connectar discos durs més endavant, fent servir el diàleg de configuraci
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Cancel·la</translation>
+        <translation type="obsolete">Cancel·la</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation>Seleccioneu un país/territori</translation>
+        <translation type="obsolete">Seleccioneu un país/territori</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Ompliu aquest formulari de registre per permetre&apos;ns conèixer que feu servir el VirtualBox i, opcionalment, mantenir-vos informat sobre novetats i actualitzacions del VirtualBox.&lt;/p&gt;&lt;p&gt;Feu servir caràcters llatins per omplir els camps següents. Tingueu en compte que Sun Microsystems farà servir aquesta informació només per a usos estadístics i per enviar-vos notícies sobre el VirtualBox. Sun Microsystems mai compartirà les vostres dades amb terceres parts. Més informació detallada sobre l&apos;ús de les vostres dades personals poden trobar-se a la secció de &lt;b&gt;Política de privacitat&lt;/b&gt; al manual de VirtualBox o al&lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; lloc web del VirtualBox.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Ompliu aquest formulari de registre per permetre&apos;ns conèixer que feu servir el VirtualBox i, opcionalment, mantenir-vos informat sobre novetats i actualitzacions del VirtualBox.&lt;/p&gt;&lt;p&gt;Feu servir caràcters llatins per omplir els camps següents. Tingueu en compte que Sun Microsystems farà servir aquesta informació només per a usos estadístics i per enviar-vos notícies sobre el VirtualBox. Sun Microsystems mai compartirà les vostres dades amb terceres parts. Més informació detallada sobre l&apos;ús de les vostres dades personals poden trobar-se a la secció de &lt;b&gt;Política de privacitat&lt;/b&gt; al manual de VirtualBox o al&lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; lloc web del VirtualBox.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation>Ja tinc un compte a &amp;Sun Online:</translation>
+        <translation type="obsolete">Ja tinc un compte a &amp;Sun Online:</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation>Corr&amp;eu:</translation>
+        <translation type="obsolete">Corr&amp;eu:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>&amp;Contrasenya:</translation>
+        <translation type="obsolete">&amp;Contrasenya:</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation>Vull &amp;registrar-me creant un nou compte a Sun Online:</translation>
+        <translation type="obsolete">Vull &amp;registrar-me creant un nou compte a Sun Online:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation>&amp;Nom:</translation>
+        <translation type="obsolete">&amp;Nom:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation>&amp;Cognoms:</translation>
+        <translation type="obsolete">&amp;Cognoms:</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation>C&amp;ompanyia:</translation>
+        <translation type="obsolete">C&amp;ompanyia:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation>&amp;País:</translation>
+        <translation type="obsolete">&amp;País:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation>Corre&amp;u:</translation>
+        <translation type="obsolete">Corre&amp;u:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation>Con&amp;trasenya:</translation>
+        <translation type="obsolete">Con&amp;trasenya:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation>Confirmeu la contrasen&amp;ya:</translation>
+        <translation type="obsolete">Confirmeu la contrasen&amp;ya:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation>&amp;Registra</translation>
+        <translation type="obsolete">&amp;Registra</translation>
     </message>
 </context>
 <context>
@@ -10513,7 +10513,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
         <translation>&amp;Processador(s):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
         <translation>Controla el nombre de CPUs virtuals a la màquina virtual.</translation>
     </message>
     <message>

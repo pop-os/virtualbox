@@ -960,7 +960,8 @@ static int kbd_write_data(void *opaque, uint32_t addr, uint32_t val)
     default:
         break;
     }
-    s->write_cmd = 0;
+    if (rc != VINF_IOM_HC_IOPORT_WRITE)
+        s->write_cmd = 0;
     return rc;
 }
 

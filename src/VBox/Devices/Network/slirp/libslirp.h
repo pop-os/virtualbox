@@ -121,7 +121,6 @@ void *slirp_get_queue(PNATState pData);
 void *slirp_ext_m_get(PNATState pData);
 void slirp_ext_m_free(PNATState pData, void *);
 void slirp_ext_m_append(PNATState pData, void *, uint8_t *, size_t);
-void slirp_push_recv_thread(void *pvUser);
 #endif
 
 /*

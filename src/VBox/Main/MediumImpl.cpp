@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2010 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -388,9 +388,12 @@ public:
         {
             AutoWriteLock alock(*it);
             Assert((*it)->m->state == MediumState_LockedWrite ||
+                   (*it)->m->state == MediumState_LockedRead ||
                    (*it)->m->state == MediumState_Deleting);
             if ((*it)->m->state == MediumState_LockedWrite)
                 (*it)->UnlockWrite(NULL);
+            else if ((*it)->m->state == MediumState_LockedRead)
+                (*it)->UnlockRead(NULL);
             else
                 (*it)->m->state = MediumState_Created;
 
@@ -446,6 +449,20 @@ public:
 
                 mParent = aMedium->mParent;
             }
+
+            /* Include all images from base to source. */
+            ComObjPtr <Medium> pParent = aMedium->getParent();
+            while (!pParent.isNull())
+            {
+                rc = pParent->addCaller();
+                if (FAILED(rc)) return rc;
+
+                rc = pParent->LockRead(NULL);
+                if (FAILED(rc)) return rc;
+
+                push_front(pParent);
+                pParent = pParent->getParent();
+            }
         }
         else
         {
@@ -468,6 +485,8 @@ public:
                 mChildren.push_back(pMedium);
             }
         }
+
+        mSource = aMedium;
 
         return S_OK;
     }
@@ -498,6 +517,8 @@ public:
         }
 
         push_front(aMedium);
+
+        mTarget = aMedium;
 
         return S_OK;
     }
@@ -532,15 +553,53 @@ public:
         return S_OK;
     }
 
+    int targetIdx()
+    {
+        Assert(!mTarget.isNull());
+        int idx = 0;
+
+        for (List::const_iterator it = begin(); it != end(); ++it)
+        {
+            ComObjPtr<Medium> pMedium = *it;
+
+            /* Do we have the target? */
+            if (pMedium == mTarget)
+                break;
+
+            idx++;
+        }
+
+        return idx;
+    }
+
+    int sourceIdx()
+    {
+        Assert(!mSource.isNull());
+        int idx = 0;
+
+        for (List::const_iterator it = begin(); it != end(); ++it)
+        {
+            ComObjPtr<Medium> pMedium = *it;
+
+            /* Do we have the source? */
+            if (pMedium == mSource)
+                break;
+
+            idx++;
+        }
+
+        return idx;
+    }
+
     bool isForward() const { return mForward; }
     Medium *parent() const { return mParent; }
     const List &children() const { return mChildren; }
 
     Medium *source() const
-    { AssertReturn(size() > 0, NULL); return mForward ? front() : back(); }
+    { AssertReturn(size() > 0, NULL); return mSource; }
 
     Medium *target() const
-    { AssertReturn(size() > 0, NULL); return mForward ? back() : front(); }
+    { AssertReturn(size() > 0, NULL); return mTarget; }
 
 protected:
 
@@ -606,6 +665,10 @@ private:
     ComObjPtr <Medium> mParent;
     /** Children of the source when backward merge (if any) */
     List mChildren;
+    /** Source image */
+    ComObjPtr <Medium> mSource;
+    /** Target image */
+    ComObjPtr <Medium> mTarget;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -822,6 +885,8 @@ HRESULT Medium::FinalConstruct()
     m->vdIfCallsTcpNet.pfnRead = RTTcpRead;
     m->vdIfCallsTcpNet.pfnWrite = RTTcpWrite;
     m->vdIfCallsTcpNet.pfnFlush = RTTcpFlush;
+    m->vdIfCallsTcpNet.pfnGetLocalAddress = RTTcpGetLocalAddress;
+    m->vdIfCallsTcpNet.pfnGetPeerAddress = RTTcpGetPeerAddress;
 
     /* Initialize the per-disk interface chain */
     int vrc;
@@ -2002,20 +2067,13 @@ STDMETHODIMP Medium::UnlockWrite(MediumState_T *aState)
 
 STDMETHODIMP Medium::Close()
 {
-    AutoMayUninitSpan mayUninitSpan(this);
-    CheckComRCReturnRC(mayUninitSpan.rc());
-
-    if (mayUninitSpan.alreadyInProgress())
-        return S_OK;
-
     /* unregisterWithVirtualBox() is assumed to always need a write mVirtualBox
-     * lock as it is intenede to modify its internal structires. Also, we want
+     * lock as it is intended to modify its internal structires. Also, we want
      * to unregister ourselves atomically after detecting that closure is
      * possible to make sure that we don't do that after another thread has done
      * VirtualBox::find*() but before it starts using us (provided that it holds
-     * a mVirtualBox lock of course). */
-
-    AutoWriteLock vboxLock(mVirtualBox);
+     * a mVirtualBox lock of course). Additionally get hard disk tree lock. */
+    AutoMultiWriteLock2 alock(mVirtualBox->lockHandle(), this->getTreeLock());
 
     bool wasCreated = true;
 
@@ -2049,8 +2107,9 @@ STDMETHODIMP Medium::Close()
         CheckComRCReturnRC(rc);
     }
 
-    /* cause uninit() to happen on success */
-    mayUninitSpan.acceptUninit();
+    /* Keep the locks held, as otherwise the consistency of the medium tree
+     * cannot be guaranteed. Just continue with uninitialization. */
+    uninit();
 
     return S_OK;
 }
@@ -4618,9 +4677,6 @@ HRESULT Medium::setFormat(CBSTR aFormat)
 }
 
 /**
- * @note Called from this object's AutoMayUninitSpan and from under mVirtualBox
- *       write lock.
- *
  * @note Also reused by Medium::Reset().
  *
  * @note Locks getTreeLock() for reading.
@@ -4639,9 +4695,6 @@ HRESULT Medium::canClose()
 }
 
 /**
- * @note Called from within this object's AutoMayUninitSpan (or AutoCaller) and
- *       from under mVirtualBox write lock.
- *
  * @note Locks getTreeLock() for writing.
  */
 HRESULT Medium::unregisterWithVirtualBox()
@@ -5199,28 +5252,41 @@ DECLCALLBACK(int) Medium::taskThread(RTTHREAD thread, void *pvUser)
                     for (MergeChain::const_iterator it = chain->begin();
                          it != chain->end(); ++ it)
                     {
-                        /* complex sanity (sane complexity) */
-                        Assert((chain->isForward() &&
-                                ((*it != chain->back() &&
-                                  (*it)->m->state == MediumState_Deleting) ||
-                                 (*it == chain->back() &&
-                                  (*it)->m->state == MediumState_LockedWrite))) ||
-                               (!chain->isForward() &&
-                                ((*it != chain->front() &&
-                                  (*it)->m->state == MediumState_Deleting) ||
-                                 (*it == chain->front() &&
-                                  (*it)->m->state == MediumState_LockedWrite))));
+                        /*
+                         * complex sanity (sane complexity)
+                         *
+                         * The current image must be in the Deleting (image is merged)
+                         * or LockedRead (parent image) state if it is not the target.
+                         * If it is the target it must be in the LockedWrite state.
+                         */
+                        Assert(   (   *it != chain->target()
+                                   && (   (*it)->m->state == MediumState_Deleting
+                                       || (*it)->m->state == MediumState_LockedRead))
+                               || (   *it == chain->target()
+                                   && (*it)->m->state == MediumState_LockedWrite));
 
-                        Assert(*it == chain->target() ||
-                               (*it)->m->backRefs.size() == 0);
+                        /*
+                         * Image must be the target, in the LockedRead state
+                         * or Deleting state where it is not allowed to be attached
+                         * to a virtual machine.
+                         */
+                        Assert(   *it == chain->target()
+                               || (*it)->m->state == MediumState_LockedRead
+                               || (   (*it)->m->backRefs.size() == 0
+                                   && (*it)->m->state == MediumState_Deleting)
+                              );
 
-                        /* open the first image with VDOPEN_FLAGS_INFO because
-                         * it's not necessarily the base one */
+                        unsigned uOpenFlags = 0;
+
+                        if (   (*it)->m->state == MediumState_LockedRead
+                            || (*it)->m->state == MediumState_Deleting)
+                            uOpenFlags = VD_OPEN_FLAGS_READONLY;
+
+                        /* Open the image */
                         vrc = VDOpen(hdd, (*it)->m->strFormat.c_str(),
-                                      (*it)->m->strLocationFull.c_str(),
-                                      it == chain->begin() ?
-                                          VD_OPEN_FLAGS_INFO : 0,
-                                      (*it)->m->vdDiskIfaces);
+                                     (*it)->m->strLocationFull.c_str(),
+                                     uOpenFlags,
+                                     (*it)->m->vdDiskIfaces);
                         if (RT_FAILURE(vrc))
                             throw vrc;
 #if 0
@@ -5228,29 +5294,17 @@ DECLCALLBACK(int) Medium::taskThread(RTTHREAD thread, void *pvUser)
 #endif
                     }
 
-                    unsigned start = chain->isForward() ?
-                        0 : (unsigned)chain->size() - 1;
-                    unsigned end = chain->isForward() ?
-                        (unsigned)chain->size() - 1 : 0;
 #if 0
-                    LogFlow(("*** MERGE from %d to %d\n", start, end));
+                    LogFlow(("*** MERGE from %d to %d\n", chain->sourceIdx(), chain->targetIdx()));
 #endif
-                    vrc = VDMerge(hdd, start, end, vdOperationIfaces);
+                    vrc = VDMerge(hdd, chain->sourceIdx(), chain->targetIdx(), vdOperationIfaces);
                     if (RT_FAILURE(vrc))
                         throw vrc;
 
                     /* update parent UUIDs */
-                    /// @todo VDMerge should be taught to do so, including the
+                    /// @todo VDMerge should handle the
                     /// multiple children case
-                    if (chain->isForward())
-                    {
-                        /* target's UUID needs to be updated (note that target
-                         * is the only image in the container on success) */
-                        vrc = VDSetParentUuid(hdd, 0, chain->parent()->m->id);
-                        if (RT_FAILURE(vrc))
-                            throw vrc;
-                    }
-                    else
+                    if (!chain->isForward())
                     {
                         /* we need to update UUIDs of all source's children
                          * which cannot be part of the container at once so
@@ -5381,7 +5435,8 @@ DECLCALLBACK(int) Medium::taskThread(RTTHREAD thread, void *pvUser)
                     for (MergeChain::iterator it = chain->begin();
                          it != chain->end();)
                     {
-                        if (*it == chain->target())
+                        if (   *it == chain->target()
+                            || (*it)->m->state == MediumState_LockedRead)
                         {
                             ++ it;
                             continue;

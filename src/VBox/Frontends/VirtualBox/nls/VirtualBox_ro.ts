@@ -26,7 +26,7 @@
     <message>
         <source>Sun Microsystems, Inc.</source>
         <comment>Comma-separated list of translators</comment>
-        <translation>Alex Eftimie</translation>
+        <translation type="obsolete">Alex Eftimie</translation>
     </message>
 </context>
 <context>
@@ -2171,7 +2171,7 @@ Acest director este folosit, dacă nu este explicit specificat altfel, atunci c�
         <translation>Previzualizare în timp re&amp;al</translation>
     </message>
     <message>
-        <source>&amp;Auto show Dock &amp;&amp; Menubar in fullscreen</source>
+        <source>&amp;Auto show Dock and Menubar in fullscreen</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -6393,7 +6393,7 @@ din listă apăsând butonul &lt;b&gt;Existent&lt;/b&gt; (pentru a invoca dialog
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation>Dialog înregistrare VirtualBox</translation>
+        <translation type="obsolete">Dialog înregistrare VirtualBox</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Please note that innotek will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, innotek will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -6405,7 +6405,7 @@ din listă apăsând butonul &lt;b&gt;Existent&lt;/b&gt; (pentru a invoca dialog
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation>Introduceți numele dvs complet utilizând caractere latine.</translation>
+        <translation type="obsolete">Introduceți numele dvs complet utilizând caractere latine.</translation>
     </message>
     <message>
         <source>&amp;E-mail</source>
@@ -6413,7 +6413,7 @@ din listă apăsând butonul &lt;b&gt;Existent&lt;/b&gt; (pentru a invoca dialog
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation>Introduceți adresa dvs de e-mail validă.</translation>
+        <translation type="obsolete">Introduceți adresa dvs de e-mail validă.</translation>
     </message>
     <message>
         <source>&amp;Please do not use this information to contact me</source>
@@ -6425,7 +6425,7 @@ din listă apăsând butonul &lt;b&gt;Existent&lt;/b&gt; (pentru a invoca dialog
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation>Bine ați venit la Formularul de înregistrare al VirtualBox!</translation>
+        <translation type="obsolete">Bine ați venit la Formularul de înregistrare al VirtualBox!</translation>
     </message>
     <message>
         <source>&amp;Confirm</source>
@@ -6441,7 +6441,7 @@ din listă apăsând butonul &lt;b&gt;Existent&lt;/b&gt; (pentru a invoca dialog
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation>Nu am putut efectua strângerea de mâini necesară conexiunii.</translation>
+        <translation type="obsolete">Nu am putut efectua strângerea de mâini necesară conexiunii.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -6461,63 +6461,51 @@ din listă apăsând butonul &lt;b&gt;Existent&lt;/b&gt; (pentru a invoca dialog
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Renunță</translation>
+        <translation type="obsolete">Renunță</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation>Alegeți Țara/Zona</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>I &amp;already have a Sun Online account:</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Alegeți Țara/Zona</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation>&amp;E-mail:</translation>
+        <translation type="obsolete">&amp;E-mail:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>&amp;Parolă:</translation>
-    </message>
-    <message>
-        <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">&amp;Parolă:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation>&amp;Prenume:</translation>
+        <translation type="obsolete">&amp;Prenume:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation>&amp;Nume:</translation>
+        <translation type="obsolete">&amp;Nume:</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation>&amp;Companie:</translation>
+        <translation type="obsolete">&amp;Companie:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation>Ț&amp;ara:</translation>
+        <translation type="obsolete">Ț&amp;ara:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation>E-&amp;mail:</translation>
+        <translation type="obsolete">E-&amp;mail:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation>Pa&amp;rolă:</translation>
+        <translation type="obsolete">Pa&amp;rolă:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation>&amp;Confirmare parolă:</translation>
+        <translation type="obsolete">&amp;Confirmare parolă:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation>&amp;Înregistrare</translation>
+        <translation type="obsolete">&amp;Înregistrare</translation>
     </message>
 </context>
 <context>
@@ -11063,7 +11051,7 @@ makes the guest see an audio card, however every access to it will be ignored.&l
         <translation>&amp;Procesoare:</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
