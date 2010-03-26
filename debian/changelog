@@ -2,8 +2,9 @@ virtualbox-ose (3.1.6-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream version.
   * Drop 02-r27248.dpatch as it's applied upstream.
+  * Use dh_lintian to install overrides.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 26 Mar 2010 10:51:40 +0100
+ -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 26 Mar 2010 11:25:46 +0100
 
 virtualbox-ose (3.1.4-dfsg-3) unstable; urgency=low
 

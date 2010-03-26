@@ -1,7 +1,5 @@
 debian/virtualbox-ose.files/*.sh /usr/share/virtualbox
 
-debian/lintian/virtualbox-ose /usr/share/lintian/overrides
-
 out/bin/components /usr/lib/virtualbox
 out/bin/VBoxREM* /usr/lib/virtualbox
 out/bin/VBox*.so /usr/lib/virtualbox

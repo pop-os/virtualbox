@@ -6,4 +6,4 @@ virtualbox-ose-guest-x11: shlib-without-versioned-soname
 virtualbox-ose-guest-x11: shlib-without-versioned-soname
 virtualbox-ose-guest-x11: shlib-without-versioned-soname
 virtualbox-ose-guest-x11: shlib-without-versioned-soname
-virtualbox-ose-guest-x11: package-name-doesnt-match-sonames 
+virtualbox-ose-guest-x11: package-name-doesnt-match-sonames

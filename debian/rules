@@ -187,6 +187,7 @@ binary-arch: build install serverabi
 	dh_installudev -p$(uxname) --priority=69
 	dh_installudev -s -N$(uxname)
 	dh_installinit -s --no-start
+	dh_lintian -s
 	dh_installdeb -s
 	dh_shlibdeps -p$(sname) -X debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -- \
 	    -dRecommends debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -dDepends
@@ -212,6 +213,7 @@ binary-indep: build install
 	cd debian/$(gsource)/usr/src && \
 		tar -cjf $(gname).tar.bz2 modules && \
 		rm -rf modules
+	dh_lintian -i
 	dh_compress -i
 	dh_fixperms -i
 	dh_installudev -i
