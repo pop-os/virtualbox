@@ -1,77 +1,19 @@
 #! /bin/sh /usr/share/dpatch/dpatch-run
 # Description: Hide useless help buttons in dialogs
 # Author: Felix Geyer <debfx-pkg@fobos.de>
+# Bug: http://www.virtualbox.org/ticket/6442
 
 @DPATCH@
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxCloseVMDlg.ui virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxCloseVMDlg.ui
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxCloseVMDlg.ui	2009-10-07 11:27:13.000000000 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxCloseVMDlg.ui	2009-10-07 13:44:29.935463062 +0200
-@@ -220,7 +220,7 @@
-    <item>
-     <widget class="QIDialogButtonBox" name="mButtonBox" >
-      <property name="standardButtons" >
--      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Help|QDialogButtonBox::NoButton|QDialogButtonBox::Ok</set>
-+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::NoButton|QDialogButtonBox::Ok</set>
-      </property>
-     </widget>
-    </item>
-diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxMediaManagerDlg.ui virtualbox-ose-3.1.0-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxMediaManagerDlg.ui
---- virtualbox-ose-3.1.0-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxMediaManagerDlg.ui	2009-10-07 11:27:13.000000000 +0200
-+++ virtualbox-ose-3.1.0-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxMediaManagerDlg.ui	2009-10-07 13:44:29.935463062 +0200
-@@ -339,7 +339,7 @@
-     <item>
-      <widget class="QIDialogButtonBox" name="mButtonBox" >
-       <property name="standardButtons" >
--       <set>QDialogButtonBox::Cancel|QDialogButtonBox::Help|QDialogButtonBox::Ok</set>
-+       <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
-       </property>
-      </widget>
-     </item>
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/settings/VBoxSettingsDialog.ui virtualbox-ose-3.0.8-dfsg/src/settings/VBox/Frontends/VirtualBox/src/VBoxSettingsDialog.ui
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/settings/VBoxSettingsDialog.ui	2009-10-07 11:27:13.000000000 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/settings/VBoxSettingsDialog.ui	2009-10-07 13:44:29.935463062 +0200
-@@ -145,7 +145,7 @@
-        <item row="3" column="0" colspan="2" >
-         <widget class="QIDialogButtonBox" name="mButtonBox" >
-          <property name="standardButtons" >
--          <set>QDialogButtonBox::Cancel|QDialogButtonBox::Help|QDialogButtonBox::NoButton|QDialogButtonBox::Ok</set>
-+          <set>QDialogButtonBox::Cancel|QDialogButtonBox::NoButton|QDialogButtonBox::Ok</set>
-          </property>
-         </widget>
-        </item>
-diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxSnapshotDetailsDlg.ui virtualbox-ose-3.1.0-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxSnapshotDetailsDlg.ui
---- virtualbox-ose-3.1.0-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxSnapshotDetailsDlg.ui	2009-10-07 11:27:13.000000000 +0200
-+++ virtualbox-ose-3.1.0-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxSnapshotDetailsDlg.ui	2009-10-07 13:44:29.935463062 +0200
-@@ -153,7 +153,7 @@
-    <item row="4" column="0" colspan="3">
-     <widget class="QIDialogButtonBox" name="mButtonBox">
-      <property name="standardButtons">
--      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Help|QDialogButtonBox::NoButton|QDialogButtonBox::Ok</set>
-+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::NoButton|QDialogButtonBox::Ok</set>
-      </property>
-     </widget>
-    </item>
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxTakeSnapshotDlg.ui virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxTakeSnapshotDlg.ui
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxTakeSnapshotDlg.ui	2009-10-07 11:27:13.000000000 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxTakeSnapshotDlg.ui	2009-10-07 13:44:29.935463062 +0200
-@@ -113,7 +113,7 @@
-    <item row="3" column="0" colspan="2">
-     <widget class="QIDialogButtonBox" name="mButtonBox">
-      <property name="standardButtons">
--      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Help|QDialogButtonBox::NoButton|QDialogButtonBox::Ok</set>
-+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::NoButton|QDialogButtonBox::Ok</set>
-      </property>
-     </widget>
-    </item>
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxVMLogViewer.ui virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxVMLogViewer.ui
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/Frontends/VirtualBox/src/VBoxVMLogViewer.ui	2009-10-07 11:27:13.000000000 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxVMLogViewer.ui	2009-10-07 13:44:29.935463062 +0200
-@@ -44,7 +44,7 @@
-     <item>
-      <widget class="QIDialogButtonBox" name="mButtonBox" >
-       <property name="standardButtons" >
--       <set>QDialogButtonBox::Close|QDialogButtonBox::Help|QDialogButtonBox::NoButton|QDialogButtonBox::Save</set>
-+       <set>QDialogButtonBox::Close|QDialogButtonBox::NoButton|QDialogButtonBox::Save</set>
-       </property>
-      </widget>
-     </item>
+diff -Nur virtualbox-ose-3.1.6-dfsg.orig/src/VBox/Frontends/VirtualBox/src/extensions/QIDialogButtonBox.cpp virtualbox-ose-3.1.6-dfsg/src/VBox/Frontends/VirtualBox/src/extensions/QIDialogButtonBox.cpp
+--- virtualbox-ose-3.1.6-dfsg.orig/src/VBox/Frontends/VirtualBox/src/extensions/QIDialogButtonBox.cpp	2010-03-26 11:09:50.000000000 +0100
++++ virtualbox-ose-3.1.6-dfsg/src/VBox/Frontends/VirtualBox/src/extensions/QIDialogButtonBox.cpp	2010-03-27 11:15:33.645861192 +0100
+@@ -64,6 +64,9 @@
+ 
+ void QIDialogButtonBox::setStandardButtons (StandardButtons aButtons)
+ {
++#ifdef VBOX_OSE
++    aButtons &= ~QDialogButtonBox::Help;
++#endif
+     QDialogButtonBox::setStandardButtons (aButtons);
+     retranslateUi();
+ }
