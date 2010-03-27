@@ -1,8 +1,9 @@
 virtualbox-ose (3.1.6-dfsg-2) UNRELEASED; urgency=low
 
   * Improve 20-hide-help-buttons.dpatch so all help buttons are hidden.
+  * Set source format version explicitly to "1.0".
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Sat, 27 Mar 2010 18:29:17 +0100
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sat, 27 Mar 2010 18:33:46 +0100
 
 virtualbox-ose (3.1.6-dfsg-1) unstable; urgency=low
 
