@@ -164,7 +164,6 @@ binary-arch: build install serverabi
 	-chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/server/*.py
 	-chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/client/*.py
 	-chmod 755 debian/$(uxname)/usr/share/virtualbox/x11config.pl
-	-chmod 755 debian/$(uxname)/usr/share/virtualbox/x11config15.pl
 	-install -m 755 src/VBox/Additions/x11/Installer/VBoxRandR.sh debian/$(uxname)/usr/bin/VBoxRandR
 	-chrpath -d debian/$(uxname)/usr/bin/VBoxClient
 	-chrpath -d debian/$(uxname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
