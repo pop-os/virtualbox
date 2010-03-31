@@ -2,8 +2,11 @@ virtualbox-ose (3.1.6-dfsg-2) UNRELEASED; urgency=low
 
   * Improve 20-hide-help-buttons.dpatch so all help buttons are hidden.
   * Set source format version explicitly to "1.0".
+  * Adapt to xserver 1.8 input driver detection. (LP: #546933)
+    - Add 10-vboxmouse.conf
+    - Update virtualbox-ose-guest-x11.udev
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Sat, 27 Mar 2010 18:33:46 +0100
+ -- Felix Geyer <debfx-pkg@fobos.de>  Wed, 31 Mar 2010 15:15:44 +0200
 
 virtualbox-ose (3.1.6-dfsg-1) unstable; urgency=low
 

@@ -1,1 +1,1 @@
-ACTION=="add|change", KERNEL=="vboxguest", ENV{ID_INPUT}="1", ENV{ID_INPUT_MOUSE}="1", ENV{.INPUT_CLASS}="mouse", ENV{x11_driver}="vboxmouse"
+ACTION=="add|change", KERNEL=="vboxguest", ENV{ID_INPUT}="1", ENV{ID_INPUT_MOUSE}="1"
