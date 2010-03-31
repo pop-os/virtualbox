@@ -11,6 +11,7 @@ virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxOGLhosterrorspu.s
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxOGLrenderspu.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxPython.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxPython2_5.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxPython2_6.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxREM.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxREM32.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxREM64.so
