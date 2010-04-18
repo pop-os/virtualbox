@@ -19,12 +19,14 @@ fname:=virtualbox-ose-fuse
 INSTALL_PATH:=/usr/lib/virtualbox
 
 # Some defines needed for X
-SERVERMINVERS = $(shell cat /usr/share/xserver-xorg/serverminver 2>/dev/null)
+VIDEODEP = $(shell cat /usr/share/xserver-xorg/videodrvdep 2>/dev/null)
+INPUTDEP = $(shell cat /usr/share/xserver-xorg/xinputdep 2>/dev/null)
+# these two can be removed post-squeeze
 VIDEOABI = $(shell cat /usr/share/xserver-xorg/videoabiver 2>/dev/null)
 INPUTABI = $(shell cat /usr/share/xserver-xorg/inputabiver 2>/dev/null)
-SERVER_DEPENDS = xserver-xorg-core (>= $(SERVERMINVERS))
 VIDDRIVER_PROVIDES = xserver-xorg-video-$(VIDEOABI)
 INPDRIVER_PROVIDES = xserver-xorg-input-$(INPUTABI)
+
 XSERVER_VERSION = 17
 
 MAKE:=kmk
@@ -144,13 +146,16 @@ install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
 	dh_installifupdown -p$(sname)
 
 serverabi: install
-ifeq ($(SERVERMINVERS),)
-	@echo error: xserver-xorg-dev needs to be installed
+ifeq ($(VIDEODEP),)
+	@echo 'error: xserver-xorg-dev >= 1.7.6.901 needs to be installed'
 	@exit 1
 else
-	echo "xserver:Depends=$(SERVER_DEPENDS)" >> debian/$(uxname).substvars
+	echo "xviddriver:Depends=$(VIDEODEP)" >> debian/$(uxname).substvars
+	echo "xinpdriver:Depends=$(INPUTDEP)" >> debian/$(uxname).substvars
+	# the following is there for compatibility...
 	echo "xviddriver:Provides=$(VIDDRIVER_PROVIDES)" >> debian/$(uxname).substvars
 	echo "xinpdriver:Provides=$(INPDRIVER_PROVIDES)" >> debian/$(uxname).substvars
+	echo "xserver:Depends=$(VIDEODEP), $(INPUTDEP)" >> debian/$(uxname).substvars
 endif
 
 binary-arch: build install serverabi

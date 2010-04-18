@@ -45,7 +45,7 @@ Build-Depends: bcc,
                uuid-dev,
                x11proto-gl-dev,
                x11proto-xf86dri-dev,
-               xserver-xorg-dev,
+               xserver-xorg-dev (>= 2:1.7.6.901),
                xsltproc,
                yasm (>= 0.7.0),
                zlib1g-dev
