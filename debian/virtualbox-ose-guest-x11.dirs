@@ -1,5 +1,5 @@
 usr/share/virtualbox
-usr/lib/X11/xorg.conf.d
+usr/share/X11/xorg.conf.d
 usr/lib/xorg/modules/drivers
 usr/lib/xorg/modules/input
 usr/lib/dri
