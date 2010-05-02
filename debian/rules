@@ -56,7 +56,8 @@ out/env.sh: patch-stamp
 	    --odir=$(abspath out) \
 	    --with-linux="/usr" \
 	    --disable-kmods \
-	    --enable-webservice
+	    --enable-webservice \
+	    --enable-vde
 
 build: build-stamp
 build-stamp: out/env.sh

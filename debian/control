@@ -82,7 +82,8 @@ Recommends: virtualbox-ose-dkms (= ${source:Version}) | virtualbox-ose-source (=
             virtualbox-ose-qt (= ${binary:Version}),
             ${shlibs:Recommends}
 Suggests: virtualbox-guest-additions,
-          libasound2, libpulse0
+          libasound2, libpulse0,
+          vde2
 Conflicts: virtualbox, virtualbox-2.0, virtualbox-2.1, virtualbox-2.2, virtualbox-3.0
 XB-Python-Version: ${python:Versions}
 Description: x86 virtualization solution - base binaries
