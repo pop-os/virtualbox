@@ -9,8 +9,9 @@ virtualbox-ose (3.1.51-dfsg-1) UNRELEASED; urgency=low
   * Build vdfuse with -Wl,--as-needed.
   * Install /usr/bin/VBoxClient-all and make
     /etc/X11/Xsession.d/98vboxadd-xclient a symlink to it.
+  * Install vbox PAM module.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 02 May 2010 17:46:56 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 02 May 2010 18:23:07 +0200
 
 virtualbox-ose (3.1.6-dfsg-3) unstable; urgency=low
 
