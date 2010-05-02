@@ -71,9 +71,9 @@ build-stamp: out/env.sh
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
 	    $(if $(DH_VERBOSE),KBUILD_VERBOSE=2,)
-	gcc debian/vdfuse/vdfuse.c -o debian/vdfuse/vdfuse -pipe -Wl,--rpath,$(INSTALL_PATH) -Wall $(CFLAGS) $(LDFLAGS) \
-	    $(shell pkg-config --cflags --libs fuse) -Iinclude out/bin/VBoxDD.so out/bin/VBoxDD2.so out/bin/VBoxDDU.so \
-	    out/bin/VBoxVMM.so out/bin/VBoxREM.so out/bin/VBoxRT.so
+	gcc debian/vdfuse/vdfuse.c -o debian/vdfuse/vdfuse -pipe -Wl,--as-needed -Wl,--rpath,$(INSTALL_PATH) -Wall \
+	    $(CFLAGS) $(LDFLAGS) $(shell pkg-config --cflags --libs fuse) -Iinclude out/bin/VBoxDD.so out/bin/VBoxDD2.so \
+	    out/bin/VBoxDDU.so out/bin/VBoxVMM.so out/bin/VBoxREM.so out/bin/VBoxRT.so
 	touch $@
 
 clean: unpatch
