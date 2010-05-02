@@ -1,8 +1,10 @@
 virtualbox-ose (3.1.51-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release 3.2.0 Beta 1.
+  * Strip EFI firmware images as they are non-free.
+    - Add 23-dont-install-efi-images.dpatch.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 02 May 2010 13:25:25 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 02 May 2010 14:04:50 +0200
 
 virtualbox-ose (3.1.6-dfsg-3) unstable; urgency=low
 

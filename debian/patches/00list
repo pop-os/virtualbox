@@ -10,3 +10,4 @@
 18-system-xorg.dpatch
 20-hide-help-buttons.dpatch
 22-no-static-libstdcpp.dpatch
+23-dont-install-efi-images.dpatch
