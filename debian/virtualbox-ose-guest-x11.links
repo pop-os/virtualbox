@@ -1,1 +1,2 @@
 /usr/lib/VBoxOGL.so /usr/lib/dri/vboxvideo_dri.so
+/usr/bin/VBoxClient-all /etc/X11/Xsession.d/98vboxadd-xclient
