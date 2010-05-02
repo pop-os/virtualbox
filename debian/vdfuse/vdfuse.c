@@ -24,6 +24,7 @@
  *         05      09 May 09  Change sizes from size_t to uint64_t (size_t is 32-bit on 32-bit systems)
  *                            Fix _FILE_OFFSET_BITS
  *                            Option for older VBox
+ *         07      22 Feb 10  VBOX_SUCCESS macro was removed, replace with RT_SUCCESS
  *
  *
  * DESCRIPTION
@@ -555,7 +556,7 @@ static int VD_read (const char *c, char *out, size_t len, off_t offset, struct f
    int ret = DISKread(offset + p->offset, out, len);
    pthread_mutex_unlock (&disk_mutex);
 
-   return VBOX_SUCCESS(ret) ? (signed) len : -EIO;
+   return RT_SUCCESS(ret) ? (signed) len : -EIO;
 }
 
 static int VD_readdir (const char *p, void *buf, fuse_fill_dir_t filler, off_t offset UNUSED, struct fuse_file_info *i UNUSED){
@@ -584,5 +585,5 @@ static int VD_write (const char *c, const char *in, size_t len, off_t offset, st
    int ret = DISKwrite(offset + p->offset, in, len);
    pthread_mutex_unlock (&disk_mutex);
 
-   return VBOX_SUCCESS(ret) ? (signed) len : -EIO;
+   return RT_SUCCESS(ret) ? (signed) len : -EIO;
 }

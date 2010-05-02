@@ -5,8 +5,9 @@ virtualbox-ose (3.1.51-dfsg-1) UNRELEASED; urgency=low
     - Add 23-dont-install-efi-images.dpatch.
   * Add build-dependencies required by new upstream version.
   * Adapt 18-system-xorg.dpatch to new upstream version.
+  * Update to new upstream release of vdfuse.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 02 May 2010 14:52:28 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 02 May 2010 14:55:04 +0200
 
 virtualbox-ose (3.1.6-dfsg-3) unstable; urgency=low
 
