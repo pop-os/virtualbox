@@ -1,11 +1,11 @@
 01-build-arch.dpatch
 04-vboxdrv-references.dpatch
-06-xsession.dpatch
+#06-xsession.dpatch
 07-vboxnetflt-reference.dpatch
 12-make-module.dpatch
 13-module-mismatch.dpatch
-15-wined3d-guest-addition.dpatch
-16-no-update.dpatch 
+#15-wined3d-guest-addition.dpatch
+16-no-update.dpatch
 17-disable-help-contents.dpatch
 18-system-xorg.dpatch
 20-hide-help-buttons.dpatch
