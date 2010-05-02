@@ -1,10 +1,10 @@
-/* $Id: SUPLoggerCtl.cpp $ */
+/* $Id: SUPLoggerCtl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * SUPLoggerCtl - Support Driver Logger Control.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,16 +22,13 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <VBox/sup.h>
+#include <iprt/buildconfig.h>
 #include <iprt/initterm.h>
 #include <iprt/getopt.h>
 #include <iprt/stream.h>
@@ -78,7 +75,6 @@ int main(int argc, char **argv)
         { "--dest",     'd', RTGETOPT_REQ_STRING },
         { "--what",     'o', RTGETOPT_REQ_STRING },
         { "--which",    'l', RTGETOPT_REQ_STRING },
-        { "--help",     'h', 0 },
     };
 
     const char *pszFlags  = "";
@@ -140,25 +136,16 @@ int main(int argc, char **argv)
             case 'h':
                 return usage();
 
+            case 'V':
+                RTPrintf("%sr%s\n", RTBldCfgVersion(), RTBldCfgRevisionStr());
+                return 0;
+
             case VINF_GETOPT_NOT_OPTION:
                 RTStrmPrintf(g_pStdErr, "SUPLoggerCtl: error: Unexpected argument '%s'.\n", Val.psz);
                 return 1;
 
             default:
-                if (ch > 0)
-                {
-                    if (RT_C_IS_GRAPH(ch))
-                        RTStrmPrintf(g_pStdErr, "SUPLoggerCtl: error: unhandled option: -%c\n", ch);
-                    else
-                        RTStrmPrintf(g_pStdErr, "SUPLoggerCtl: error: unhandled option: %i\n", ch);
-                }
-                else if (ch == VERR_GETOPT_UNKNOWN_OPTION)
-                    RTStrmPrintf(g_pStdErr, "SUPLoggerCtl: error: unknown option: %s\n", Val.psz);
-                else if (Val.pDef)
-                    RTStrmPrintf(g_pStdErr, "SUPLoggerCtl: error: %s: %Rrs\n", Val.pDef->pszLong, ch);
-                else
-                    RTStrmPrintf(g_pStdErr, "SUPLoggerCtl: error: %Rrs\n", ch);
-                return 1;
+                return RTGetOptPrintError(ch, &Val);
         }
     }
 
@@ -188,5 +175,4 @@ int main(int argc, char **argv)
 
     return RT_SUCCESS(rc) ? 0 : 1;
 }
-
 

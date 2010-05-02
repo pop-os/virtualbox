@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #define LOG_GROUP LOG_GROUP_SHARED_CLIPBOARD
@@ -52,7 +48,7 @@ struct _VBOXCLIPBOARDCONTEXT
      * It is an error if a request arrives while another one is pending, and
      * the backend is responsible for ensuring that this does not happen. */
     VBOXCLIPBOARDREQFROMVBOX *pReq;
-    
+
     /** Pointer to the opaque X11 backend structure */
     CLIPBACKEND *pBackend;
     /** Pointer to the VBox host client data structure. */
@@ -221,7 +217,7 @@ struct _CLIPREADCBREQ
  * @note   On success allocates a CLIPREADCBREQ structure which must be
  *         freed in ClipCompleteDataRequestFromX11 when it is called back from
  *         the backend code.
- *         
+ *
  */
 int vboxClipboardReadData (VBOXCLIPBOARDCLIENTDATA *pClient,
                            uint32_t u32Format, void *pv, uint32_t cb,
@@ -229,7 +225,7 @@ int vboxClipboardReadData (VBOXCLIPBOARDCLIENTDATA *pClient,
 {
     LogRelFlowFunc(("pClient=%p, u32Format=%02X, pv=%p, cb=%u, pcbActual=%p",
                  pClient, u32Format, pv, cb, pcbActual));
-    
+
     int rc = VINF_SUCCESS;
     CLIPREADCBREQ *pReq = (CLIPREADCBREQ *) RTMemAlloc(sizeof(CLIPREADCBREQ));
     if (!pReq)
@@ -356,7 +352,7 @@ int ClipRequestDataForX11 (VBOXCLIPBOARDCONTEXT *pCtx,
                                    uint32_t u32Format, void **ppv,
                                    uint32_t *pcb)
 {
-    VBOXCLIPBOARDREQFROMVBOX request = { NULL };
+    VBOXCLIPBOARDREQFROMVBOX request = { NULL, 0, 0, NIL_RTSEMEVENT };
 
     LogRelFlowFunc(("pCtx=%p, u32Format=%02X, ppv=%p, pcb=%p\n", pCtx,
                  u32Format, ppv, pcb));
@@ -412,7 +408,7 @@ void vboxClipboardWriteData (VBOXCLIPBOARDCLIENTDATA *pClient,
             {
                 pReq->cb = cb;
                 pReq->format = u32Format;
-            }            
+            }
         }
         /* Signal that the request has been completed. */
         RTSemEventSignal(pReq->finished);

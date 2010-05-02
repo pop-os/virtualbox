@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_handletable_h
@@ -112,7 +108,7 @@ typedef FNRTHANDLETABLEDELETE *PFNRTHANDLETABLEDELETE;
  * @returns IPRT status code and on success a handle table handle will be stored at the
  *          location phHandleTable points at.
  *
- * @param   pHandleTable    Where to store the handle table handle on success.
+ * @param   phHandleTable   Where to store the handle table handle on success.
  * @param   fFlags          Flags, see RTHANDLETABLE_FLAGS_*.
  * @param   uBase           The handle base value. This is the value of the
  *                          first handle to be returned.
@@ -135,7 +131,7 @@ RTDECL(int)     RTHandleTableCreateEx(PRTHANDLETABLE phHandleTable, uint32_t fFl
  *
  * @returns IPRT status code and *phHandleTable.
  *
- * @param   pHandleTable    Where to store the handle table handle on success.
+ * @param   phHandleTable   Where to store the handle table handle on success.
  */
 RTDECL(int)     RTHandleTableCreate(PRTHANDLETABLE phHandleTable);
 

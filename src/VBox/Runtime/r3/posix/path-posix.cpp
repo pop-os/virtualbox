@@ -1,10 +1,10 @@
-/* $Id: path-posix.cpp $ */
+/* $Id: path-posix.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Path Manipulation, POSIX.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -661,7 +657,7 @@ static bool rtPathSame(const char *pszNativeSrc, const char *pszNativeDst)
  *                      source is a directory. If Its RTFS_TYPE_FILE we'll check that it's
  *                      not a directory (we are NOT checking whether it's a file).
  */
-int rtPathPosixRename(const char *pszSrc, const char *pszDst, unsigned fRename, RTFMODE fFileType)
+DECLHIDDEN(int) rtPathPosixRename(const char *pszSrc, const char *pszDst, unsigned fRename, RTFMODE fFileType)
 {
     /*
      * Convert the paths.
@@ -709,7 +705,7 @@ int rtPathPosixRename(const char *pszSrc, const char *pszDst, unsigned fRename, 
                     Assert(SrcStat.st_ino && DstStat.st_ino);
                     if (    SrcStat.st_dev == DstStat.st_dev
                         &&  SrcStat.st_ino == DstStat.st_ino
-                        &&  (SrcStat.st_mode & S_IFMT) == (SrcStat.st_mode & S_IFMT))
+                        &&  (SrcStat.st_mode & S_IFMT) == (DstStat.st_mode & S_IFMT))
                     {
                         /*
                          * It's likely that we're talking about the same file here.

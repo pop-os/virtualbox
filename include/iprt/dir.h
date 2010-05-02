@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_dir_h
@@ -102,7 +98,7 @@ RTDECL(int) RTDirCreateTemp(char *pszTemplate);
  * Removes a directory if empty.
  *
  * @returns iprt status code.
- * @param   pszPath   Path to the directory to remove.
+ * @param   pszPath         Path to the directory to remove.
  */
 RTDECL(int) RTDirRemove(const char *pszPath);
 
@@ -110,9 +106,45 @@ RTDECL(int) RTDirRemove(const char *pszPath);
  * Removes a directory tree recursively.
  *
  * @returns iprt status code.
- * @param   pszPath   Path to the directory to remove recursively.
+ * @param   pszPath         Path to the directory to remove recursively.
+ * @param   fFlags          Flags, see RTDIRRMREC_F_XXX.
+ *
+ * @remarks This will not work on a root directory.
  */
-RTDECL(int) RTDirRemoveRecursive(const char *pszPath);
+RTDECL(int) RTDirRemoveRecursive(const char *pszPath, uint32_t fFlags);
+
+/** @name   RTDirRemoveRecursive flags.
+ * @{ */
+/** Only delete the content of the directory, omit the directory it self. */
+#define RTDIRRMREC_F_CONTENT_ONLY   RT_BIT_32(0)
+/** Mask of valid flags. */
+#define RTDIRRMREC_F_VALID_MASK     UINT32_C(0x00000001)
+/** @} */
+
+/**
+ * Flushes the specified directory.
+ *
+ * This API is not implemented on all systems.  On some systems it may be
+ * unnecessary if you've already flushed the file.  If you really care for your
+ * data and is entering dangerous territories, it doesn't hurt calling it after
+ * flushing and closing the file.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_IMPLEMENTED must be expected.
+ * @retval  VERR_NOT_SUPPORTED must be expected.
+ * @param   pszPath     Path to the directory.
+ */
+RTDECL(int) RTDirFlush(const char *pszPath);
+
+/**
+ * Flushes the parent directory of the specified file.
+ *
+ * This is just a wrapper around RTDirFlush.
+ *
+ * @returns IPRT status code, see RTDirFlush for details.
+ * @param   pszChild    Path to the file which parent should be flushed.
+ */
+RTDECL(int) RTDirFlushParent(const char *pszChild);
 
 
 /** Pointer to an open directory (sort of handle). */
@@ -183,15 +215,19 @@ typedef enum RTDIRENTRYTYPE
 typedef struct RTDIRENTRY
 {
     /** The unique identifier (within the file system) of this file system object (d_ino).
+     *
      * Together with INodeIdDevice, this field can be used as a OS wide unique id
-     * when both their values are not 0.
-     * This field is 0 if the information is not available. */
+     * when both their values are not 0.  This field is 0 if the information is not
+     * available. */
     RTINODE         INodeId;
     /** The entry type. (d_type)
-     * RTDIRENTRYTYPE_UNKNOWN is a legal return value here and
-     * should be expected by the user. */
+     * RTDIRENTRYTYPE_UNKNOWN is a common return value here since not all file
+     * systems (or Unixes) stores the type of a directory entry and instead
+     * expects the user to use stat() to get it.  So, when you see this you
+     * should use RTPathQueryInfo to get the type, or if if you're lazy, use
+     * RTDirReadEx. */
     RTDIRENTRYTYPE  enmType;
-    /** The length of the filename. */
+    /** The length of the filename, excluding the terminating nul character. */
     uint16_t        cbName;
     /** The filename. (no path)
      * Using the pcbDirEntry parameter of RTDirRead makes this field variable in size. */

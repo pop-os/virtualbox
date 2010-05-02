@@ -1,10 +1,10 @@
-/* $Id: alloc.cpp $ */
+/* $Id: alloc.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,11 +22,16 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
+
+
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
+#ifdef RTMEM_WRAP_TO_EF_APIS
+# undef RTMEM_WRAP_TO_EF_APIS
+# define RTALLOC_USE_EFENCE 1
+#endif
 
 
 /*******************************************************************************
@@ -34,11 +39,24 @@
 *******************************************************************************/
 #include "alloc-ef.h"
 #include <iprt/alloc.h>
+#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/param.h>
 #include <iprt/string.h>
 
 #include <stdlib.h>
+
+#undef RTMemTmpAlloc
+#undef RTMemTmpAllocZ
+#undef RTMemTmpFree
+#undef RTMemAlloc
+#undef RTMemAllocZ
+#undef RTMemAllocVar
+#undef RTMemAllocZVar
+#undef RTMemRealloc
+#undef RTMemFree
+#undef RTMemDup
+#undef RTMemDupEx
 
 
 /**
@@ -95,20 +113,17 @@ RTDECL(void)    RTMemTmpFree(void *pv) RT_NO_THROW
 RTDECL(void *)  RTMemAlloc(size_t cb) RT_NO_THROW
 {
 #ifdef RTALLOC_USE_EFENCE
-    void *pv = rtMemAlloc("Alloc", RTMEMTYPE_RTMEMALLOC, cb, ((void **)&cb)[-1], 0, NULL, NULL);
+    void *pv = rtR3MemAlloc("Alloc", RTMEMTYPE_RTMEMALLOC, cb, cb, ASMReturnAddress(), NULL, 0, NULL);
 
 #else /* !RTALLOC_USE_EFENCE */
 
     AssertMsg(cb, ("Allocating ZERO bytes is really not a good idea! Good luck with the next assertion!\n"));
     void *pv = malloc(cb);
     AssertMsg(pv, ("malloc(%#zx) failed!!!\n", cb));
-#ifdef RT_OS_OS2 /* temporary workaround until libc062. */
-    AssertMsg(   cb < 32
-              || !((uintptr_t)pv & (RTMEM_ALIGNMENT - 1)), ("pv=%p RTMEM_ALIGNMENT=%#x\n", pv, RTMEM_ALIGNMENT));
-#else
     AssertMsg(   cb < RTMEM_ALIGNMENT
-              || !((uintptr_t)pv & (RTMEM_ALIGNMENT - 1)), ("pv=%p RTMEM_ALIGNMENT=%#x\n", pv, RTMEM_ALIGNMENT));
-#endif
+              || !((uintptr_t)pv & (RTMEM_ALIGNMENT - 1))
+              || ( (cb & RTMEM_ALIGNMENT) + ((uintptr_t)pv & RTMEM_ALIGNMENT)) == RTMEM_ALIGNMENT
+              , ("pv=%p RTMEM_ALIGNMENT=%#x\n", pv, RTMEM_ALIGNMENT));
 #endif /* !RTALLOC_USE_EFENCE */
     return pv;
 }
@@ -128,7 +143,7 @@ RTDECL(void *)  RTMemAlloc(size_t cb) RT_NO_THROW
 RTDECL(void *)  RTMemAllocZ(size_t cb) RT_NO_THROW
 {
 #ifdef RTALLOC_USE_EFENCE
-    void *pv = rtMemAlloc("AllocZ", RTMEMTYPE_RTMEMALLOCZ, cb, ((void **)&cb)[-1], 0, NULL, NULL);
+    void *pv = rtR3MemAlloc("AllocZ", RTMEMTYPE_RTMEMALLOCZ, cb, cb, ASMReturnAddress(), NULL, 0, NULL);
 
 #else /* !RTALLOC_USE_EFENCE */
 
@@ -136,14 +151,57 @@ RTDECL(void *)  RTMemAllocZ(size_t cb) RT_NO_THROW
 
     void *pv = calloc(1, cb);
     AssertMsg(pv, ("calloc(1,%#zx) failed!!!\n", cb));
-#ifdef RT_OS_OS2 /* temporary workaround until libc062. */
-    AssertMsg(   cb < 32
-              || !((uintptr_t)pv & (RTMEM_ALIGNMENT - 1)), ("pv=%p RTMEM_ALIGNMENT=%#x\n", pv, RTMEM_ALIGNMENT));
-#else
     AssertMsg(   cb < RTMEM_ALIGNMENT
-              || !((uintptr_t)pv & (RTMEM_ALIGNMENT - 1)), ("pv=%p RTMEM_ALIGNMENT=%#x\n", pv, RTMEM_ALIGNMENT));
-#endif
+              || !((uintptr_t)pv & (RTMEM_ALIGNMENT - 1))
+              || ( (cb & RTMEM_ALIGNMENT) + ((uintptr_t)pv & RTMEM_ALIGNMENT)) == RTMEM_ALIGNMENT
+              , ("pv=%p RTMEM_ALIGNMENT=%#x\n", pv, RTMEM_ALIGNMENT));
 #endif /* !RTALLOC_USE_EFENCE */
+    return pv;
+}
+
+
+/**
+ * Wrapper around RTMemAlloc for automatically aligning variable sized
+ * allocations so that the various electric fence heaps works correctly.
+ *
+ * @returns See RTMemAlloc.
+ * @param   cbUnaligned         The unaligned size.
+ */
+RTDECL(void *) RTMemAllocVar(size_t cbUnaligned)
+{
+    size_t cbAligned;
+    if (cbUnaligned >= 16)
+        cbAligned = RT_ALIGN_Z(cbUnaligned, 16);
+    else
+        cbAligned = RT_ALIGN_Z(cbUnaligned, sizeof(void *));
+#ifdef RTALLOC_USE_EFENCE
+    void *pv = rtR3MemAlloc("AllocVar", RTMEMTYPE_RTMEMALLOC, cbUnaligned, cbAligned, ASMReturnAddress(), NULL, 0, NULL);
+#else
+    void *pv = RTMemAlloc(cbAligned);
+#endif
+    return pv;
+}
+
+
+/**
+ * Wrapper around RTMemAllocZ for automatically aligning variable sized
+ * allocations so that the various electric fence heaps works correctly.
+ *
+ * @returns See RTMemAllocZ.
+ * @param   cbUnaligned         The unaligned size.
+ */
+RTDECL(void *) RTMemAllocZVar(size_t cbUnaligned)
+{
+    size_t cbAligned;
+    if (cbUnaligned >= 16)
+        cbAligned = RT_ALIGN_Z(cbUnaligned, 16);
+    else
+        cbAligned = RT_ALIGN_Z(cbUnaligned, sizeof(void *));
+#ifdef RTALLOC_USE_EFENCE
+    void *pv = rtR3MemAlloc("AllocZVar", RTMEMTYPE_RTMEMALLOCZ, cbUnaligned, cbAligned, ASMReturnAddress(), NULL, 0, NULL);
+#else
+    void *pv = RTMemAllocZ(cbAligned);
+#endif
     return pv;
 }
 
@@ -159,19 +217,16 @@ RTDECL(void *)  RTMemAllocZ(size_t cb) RT_NO_THROW
 RTDECL(void *)  RTMemRealloc(void *pvOld, size_t cbNew) RT_NO_THROW
 {
 #ifdef RTALLOC_USE_EFENCE
-    void *pv = rtMemRealloc("Realloc", RTMEMTYPE_RTMEMREALLOC, pvOld, cbNew, ((void **)&pvOld)[-1], 0, NULL, NULL);
+    void *pv = rtR3MemRealloc("Realloc", RTMEMTYPE_RTMEMREALLOC, pvOld, cbNew, ASMReturnAddress(), NULL, 0, NULL);
 
 #else /* !RTALLOC_USE_EFENCE */
 
     void *pv = realloc(pvOld, cbNew);
     AssertMsg(pv && cbNew, ("realloc(%p, %#zx) failed!!!\n", pvOld, cbNew));
-#ifdef RT_OS_OS2 /* temporary workaround until libc062. */
-    AssertMsg(   cbNew < 32
-              || !((uintptr_t)pv & (RTMEM_ALIGNMENT - 1)), ("pv=%p RTMEM_ALIGNMENT=%#x\n", pv, RTMEM_ALIGNMENT));
-#else
     AssertMsg(   cbNew < RTMEM_ALIGNMENT
-              || !((uintptr_t)pv & (RTMEM_ALIGNMENT - 1)), ("pv=%p RTMEM_ALIGNMENT=%#x\n", pv, RTMEM_ALIGNMENT));
-#endif
+              || !((uintptr_t)pv & (RTMEM_ALIGNMENT - 1))
+              || ( (cbNew & RTMEM_ALIGNMENT) + ((uintptr_t)pv & RTMEM_ALIGNMENT)) == RTMEM_ALIGNMENT
+              , ("pv=%p RTMEM_ALIGNMENT=%#x\n", pv, RTMEM_ALIGNMENT));
 #endif  /* !RTALLOC_USE_EFENCE */
     return pv;
 }
@@ -186,7 +241,7 @@ RTDECL(void)    RTMemFree(void *pv) RT_NO_THROW
 {
     if (pv)
 #ifdef RTALLOC_USE_EFENCE
-        rtMemFree("Free", RTMEMTYPE_RTMEMFREE, pv, ((void **)&pv)[-1], 0, NULL, NULL);
+        rtR3MemFree("Free", RTMEMTYPE_RTMEMFREE, pv, ASMReturnAddress(), NULL, 0, NULL);
 #else
         free(pv);
 #endif

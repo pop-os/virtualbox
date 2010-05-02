@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_types_h
@@ -135,11 +131,11 @@ typedef VMCPUSET const *PCVMCPUSET;
 /** Deletes a CPU from the set. */
 #define VMCPUSET_DEL(pSet, idCpu)           ASMBitClear(&(pSet)->au32Bitmap, (idCpu))
 /** Empties the set. */
-#define VMCPUSET_EMPTY(pSet, idCpu)         memset(&(pSet)->au32Bitmap, '\0', sizeof((pSet)->au32Bitmap))
+#define VMCPUSET_EMPTY(pSet)                memset(&(pSet)->au32Bitmap[0], '\0', sizeof((pSet)->au32Bitmap))
 /** Filles the set. */
-#define VMCPUSET_FILL(pSet, idCpu)          memset(&(pSet)->au32Bitmap, 0xff, sizeof((pSet)->au32Bitmap))
+#define VMCPUSET_FILL(pSet)                 memset(&(pSet)->au32Bitmap[0], 0xff, sizeof((pSet)->au32Bitmap))
 /** Filles the set. */
-#define VMCPUSET_IS_EQUAL(pSet1, pSet2)     (memcmp(&(pSet1)->au32Bitmap, &(pSet2)->au32Bitmap, sizeof((pSet1)->au32Bitmap)) == 0)
+#define VMCPUSET_IS_EQUAL(pSet1, pSet2)     (memcmp(&(pSet1)->au32Bitmap[0], &(pSet2)->au32Bitmap[0], sizeof((pSet1)->au32Bitmap)) == 0)
 
 
 /**
@@ -314,9 +310,9 @@ typedef int32_t VBOXSTRICTRC;
 #define VBOXSTRICTRC_TODO(rcStrict) VBOXSTRICTRC_VAL(rcStrict)
 
 
-/** Pointer to a PDM Driver Base Interface. */
+/** Pointer to a PDM Base Interface. */
 typedef struct PDMIBASE *PPDMIBASE;
-/** Pointer to a pointer to a PDM Driver Base Interface. */
+/** Pointer to a pointer to a PDM Base Interface. */
 typedef PPDMIBASE *PPPDMIBASE;
 
 /** Pointer to a PDM Device Instance. */
@@ -339,6 +335,12 @@ typedef PPDMUSBINS *PPPDMUSBINS;
 typedef struct PDMDRVINS *PPDMDRVINS;
 /** Pointer to a pointer to a PDM Driver Instance. */
 typedef PPDMDRVINS *PPPDMDRVINS;
+/** R3 pointer to a PDM Driver Instance. */
+typedef R3PTRTYPE(PPDMDRVINS) PPDMDRVINSR3;
+/** R0 pointer to a PDM Driver Instance. */
+typedef R0PTRTYPE(PPDMDRVINS) PPDMDRVINSR0;
+/** RC pointer to a PDM Driver Instance. */
+typedef RCPTRTYPE(PPDMDRVINS) PPDMDRVINSRC;
 
 /** Pointer to a PDM Service Instance. */
 typedef struct PDMSRVINS *PPDMSRVINS;
@@ -728,6 +730,68 @@ typedef struct PDMDATASEG
 typedef PDMDATASEG *PPDMDATASEG;
 /** Pointer to a const data transport segment. */
 typedef PDMDATASEG const *PCPDMDATASEG;
+
+
+/**
+ * Forms of generic segment offloading.
+ */
+typedef enum PDMNETWORKGSOTYPE
+{
+    /** Invalid zero value. */
+    PDMNETWORKGSOTYPE_INVALID = 0,
+    /** TCP/IPv4 - no CWR/ECE encoding. */
+    PDMNETWORKGSOTYPE_IPV4_TCP,
+    /** TCP/IPv6 - no CWR/ECE encoding. */
+    PDMNETWORKGSOTYPE_IPV6_TCP,
+    /** UDP/IPv4. */
+    PDMNETWORKGSOTYPE_IPV4_UDP,
+    /** UDP/IPv6. */
+    PDMNETWORKGSOTYPE_IPV6_UDP,
+    /** TCP/IPv6 over IPv4 tunneling - no CWR/ECE encoding.
+     * The header offsets and sizes relates to IPv4 and TCP, the IPv6 header is
+     * figured out as needed.
+     * @todo Needs checking against facts, this is just an outline of the idea. */
+    PDMNETWORKGSOTYPE_IPV4_IPV6_TCP,
+    /** UDP/IPv6 over IPv4 tunneling.
+     * The header offsets and sizes relates to IPv4 and UDP, the IPv6 header is
+     * figured out as needed.
+     * @todo Needs checking against facts, this is just an outline of the idea. */
+    PDMNETWORKGSOTYPE_IPV4_IPV6_UDP,
+    /** The end of valid GSO types. */
+    PDMNETWORKGSOTYPE_END
+} PDMNETWORKGSOTYPE;
+
+
+/**
+ * Generic segment offloading context.
+ *
+ * We generally follow the E1000 specs wrt to which header fields we change.
+ * However the GSO type implies where the checksum fields are and that they are
+ * always updated from scratch (no half done pseudo checksums).
+ *
+ * @remarks This is part of the internal network GSO packets.  Take great care
+ *          when making changes.  The size is expected to be exactly 8 bytes.
+ */
+typedef struct PDMNETWORKGSO
+{
+    /** The type of segmentation offloading we're performing (PDMNETWORKGSOTYPE). */
+    uint8_t             u8Type;
+    /** The total header size. */
+    uint8_t             cbHdrs;
+    /** The max segment size (MSS) to apply. */
+    uint16_t            cbMaxSeg;
+
+    /** Offset of the first header (IPv4 / IPv6).  0 if not not needed. */
+    uint8_t             offHdr1;
+    /** Offset of the second header (TCP / UDP).  0 if not not needed. */
+    uint8_t             offHdr2;
+    /** Unused. */
+    uint8_t             au8Unused[2];
+} PDMNETWORKGSO;
+/** Pointer to a GSO context. */
+typedef PDMNETWORKGSO *PPDMNETWORKGSO;
+/** Pointer to a const GSO context. */
+typedef PDMNETWORKGSO const *PCPDMNETWORKGSO;
 
 
 /**

@@ -1,6 +1,7 @@
 #! /bin/sh
 
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+#
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -10,17 +11,15 @@
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 #
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
-#
 
+#
 # Compare undefined symbols in a shared or static object against a new-line
 # separated list of grep patterns in a text file.
 #
 # Usage: /bin/sh <script name> <object> <allowed undefined symbols> [--static]
 #
 # Currently only works for native objects on Linux platforms
+#
 
 echoerr()
 {
@@ -73,7 +72,7 @@ if test ! -x "$objdumpbin"; then
     exit 1
 fi
 
-undefined=`$objdumpbin $command $target | $grepbin '*UND*' | $grepbin -v -f $symbols | sed -e 's/^.*[ 	]\(.*\)/\1/'`
+undefined=`$objdumpbin $command $target | $grepbin '*UND*' | $grepbin -v -f $symbols | kmk_sed -e 's/^.*[[:blank:]]\(.*\)/\1/'`
 num_undef=`echo $undefined | wc -w`
 
 if test $num_undef -ne 0; then
@@ -83,5 +82,4 @@ if test $num_undef -ne 0; then
 fi
 # Return code
 exit 0
-
 

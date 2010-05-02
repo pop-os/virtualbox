@@ -1,10 +1,10 @@
-/* $Id: DBGFMem.cpp $ */
+/* $Id: DBGFMem.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility, Memory Methods.
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -43,7 +39,7 @@
  * @param   pVM         The VM handle.
  * @param   idCpu       The ID of the CPU context to search in.
  * @param   pAddress    Where to store the mixed address.
- * @param   pu64Align   The alignment restriction imposed on the search result.
+ * @param   puAlign     The alignment restriction imposed on the search result.
  * @param   pcbRange    The number of bytes to scan. Passed as a pointer because
  *                      it may be 64-bit.
  * @param   pabNeedle   What to search for - exact search.
@@ -304,7 +300,7 @@ VMMR3DECL(int) DBGFR3MemReadString(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddres
  * @param   idCpu           The ID of the target CPU context (for the address).
  * @param   pAddress        Where to start writing.
  * @param   pvBuf           The data to write.
- * @param   cbRead          The number of bytes to write.
+ * @param   cbWrite         The number of bytes to write.
  */
 static DECLCALLBACK(int) dbgfR3MemWrite(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void const *pvBuf, size_t cbWrite)
 {
@@ -507,5 +503,4 @@ VMMDECL(int) DBGFR3SelInfoValidateCS(PCDBGFSELINFO pSelInfo, RTSEL SelCPL)
     }
     return VERR_SELECTOR_NOT_PRESENT;
 }
-
 

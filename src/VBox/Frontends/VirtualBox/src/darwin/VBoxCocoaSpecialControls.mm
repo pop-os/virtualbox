@@ -1,3 +1,4 @@
+/* $Id: VBoxCocoaSpecialControls.mm 27690 2010-03-25 10:14:17Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -203,6 +204,7 @@ NSRect darwinCenterRectVerticalTo (NSRect aRect, const NSRect& aToRect)
 VBoxCocoaButton::VBoxCocoaButton (CocoaButtonType aType, QWidget *aParent /* = 0 */)
   : QMacCocoaViewContainer (0, aParent)
 {
+    setContentsMargins(0, 0, 0, 0);
     switch (aType)
     {
         case HelpButton:
@@ -229,6 +231,17 @@ VBoxCocoaButton::VBoxCocoaButton (CocoaButtonType aType, QWidget *aParent /* = 0
             [[mNativeRef cell] setImageScaling: NSImageScaleProportionallyDown];
             break;
         }
+        case ResetButton:
+        {
+            mNativeRef = [[NSButton alloc] initWithFrame: NSMakeRect(0, 0, 13, 13)];
+            [mNativeRef setTitle: @""];
+            [mNativeRef setBezelStyle:NSShadowlessSquareBezelStyle];
+            [mNativeRef setButtonType:NSMomentaryChangeButton];
+            [mNativeRef setImage: [NSImage imageNamed: NSImageNameRefreshFreestandingTemplate]];
+            [mNativeRef setBordered: NO];
+            [[mNativeRef cell] setImageScaling: NSImageScaleProportionallyDown];
+            break;
+        }
     }
 
     NSButtonTarget *bt = [[NSButtonTarget alloc] initWithObject:this];
@@ -247,6 +260,14 @@ QSize VBoxCocoaButton::sizeHint() const
 {
     NSRect frame = [mNativeRef frame];
     return QSize (frame.size.width, frame.size.height);
+}
+
+void VBoxCocoaButton::resizeEvent(QResizeEvent * /* pEvent */)
+{
+    NSRect frame = [mNativeRef frame];
+    frame.size.width = width();
+    frame.size.height = height();
+    [mNativeRef setFrame:frame];
 }
 
 void VBoxCocoaButton::setText (const QString& aText)

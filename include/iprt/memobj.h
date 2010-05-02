@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_memobj_h
@@ -190,6 +186,19 @@ RTR0DECL(int) RTR0MemObjLockKernel(PRTR0MEMOBJ pMemObj, void *pv, size_t cb, uin
 RTR0DECL(int) RTR0MemObjAllocPhys(PRTR0MEMOBJ pMemObj, size_t cb, RTHCPHYS PhysHighest);
 
 /**
+ * Allocates contiguous physical memory without (necessarily) any kernel mapping.
+ *
+ * @returns IPRT status code.
+ * @param   pMemObj         Where to store the ring-0 memory object handle.
+ * @param   cb              Number of bytes to allocate. This is rounded up to nearest page.
+ * @param   PhysHighest     The highest permittable address (inclusive).
+ *                          Pass NIL_RTHCPHYS if any address is acceptable.
+ * @param   uAlignment      The alignment of the reserved memory.
+ *                          Supported values are 0 (alias for PAGE_SIZE), PAGE_SIZE, _2M, _4M and _1G.
+ */
+RTR0DECL(int) RTR0MemObjAllocPhysEx(PRTR0MEMOBJ pMemObj, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment);
+
+/**
  * Allocates non-contiguous page aligned physical memory without (necessarily) any kernel mapping.
  *
  * This API is for allocating huge amounts of pages and will return
@@ -208,6 +217,15 @@ RTR0DECL(int) RTR0MemObjAllocPhys(PRTR0MEMOBJ pMemObj, size_t cb, RTHCPHYS PhysH
  */
 RTR0DECL(int) RTR0MemObjAllocPhysNC(PRTR0MEMOBJ pMemObj, size_t cb, RTHCPHYS PhysHighest);
 
+/** Memory cache policy for RTR0MemObjEnterPhys.
+ * @{
+ */
+/** Default caching policy -- don't care. */
+#define RTMEM_CACHE_POLICY_DONT_CARE    UINT32_C(0)
+/** MMIO caching policy -- uncachable. */
+#define RTMEM_CACHE_POLICY_MMIO         UINT32_C(1)
+/** @} */
+
 /**
  * Creates a page aligned, contiguous, physical memory object.
  *
@@ -218,8 +236,9 @@ RTR0DECL(int) RTR0MemObjAllocPhysNC(PRTR0MEMOBJ pMemObj, size_t cb, RTHCPHYS Phy
  * @param   Phys            The physical address to start at. This is rounded down to the
  *                          nearest page boundrary.
  * @param   cb              The size of the object in bytes. This is rounded up to nearest page boundrary.
+ * @param   CachePolicy     One of the RTMEM_CACHE_XXX modes.
  */
-RTR0DECL(int) RTR0MemObjEnterPhys(PRTR0MEMOBJ pMemObj, RTHCPHYS Phys, size_t cb);
+RTR0DECL(int) RTR0MemObjEnterPhys(PRTR0MEMOBJ pMemObj, RTHCPHYS Phys, size_t cb, unsigned CachePolicy);
 
 /**
  * Reserves kernel virtual address space.

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_net_h
@@ -262,11 +258,49 @@ typedef RTNETIPV4 const *PCRTNETIPV4;
 /** @} */
 
 RTDECL(uint16_t) RTNetIPv4HdrChecksum(PCRTNETIPV4 pIpHdr);
-RTDECL(bool)     RTNetIPv4IsHdrValid(PCRTNETIPV4 pIpHdr, size_t cbHdrMax, size_t cbPktMax);
+RTDECL(bool)     RTNetIPv4IsHdrValid(PCRTNETIPV4 pIpHdr, size_t cbHdrMax, size_t cbPktMax, bool fChecksum);
 RTDECL(uint32_t) RTNetIPv4PseudoChecksum(PCRTNETIPV4 pIpHdr);
 RTDECL(uint32_t) RTNetIPv4PseudoChecksumBits(RTNETADDRIPV4 SrcAddr, RTNETADDRIPV4 DstAddr, uint8_t bProtocol, uint16_t cbPkt);
 RTDECL(uint32_t) RTNetIPv4AddDataChecksum(void const *pvData, size_t cbData, uint32_t u32Sum, bool *pfOdd);
 RTDECL(uint16_t) RTNetIPv4FinalizeChecksum(uint32_t u32Sum);
+
+
+/**
+ * IPv6 header.
+ * All is bigendian on the wire.
+ */
+#pragma pack(1)
+typedef struct RTNETIPV6
+{
+    /** Version (4 bits), Traffic Class (8 bits) and Flow Lable (20 bits).
+     * @todo this is probably mislabeled - ip6_flow vs. ip6_vfc, fix later. */
+    uint32_t        ip6_vfc;
+    /** 04 - Payload length, including extension headers. */
+    uint16_t        ip6_plen;
+    /** 06 - Next header type (RTNETIPV4_PROT_XXX). */
+    uint8_t         ip6_nxt;
+    /** 07 - Hop limit. */
+    uint8_t         ip6_hlim;
+    /** xx - Source address. */
+    RTNETADDRIPV6   ip6_src;
+    /** xx - Destination address. */
+    RTNETADDRIPV6   ip6_dst;
+} RTNETIPV6;
+#pragma pack()
+AssertCompileSize(RTNETIPV6, 8 + 16 + 16);
+/** Pointer to a IPv6 header. */
+typedef RTNETIPV6 *PRTNETIPV6;
+/** Pointer to a const IPv6 header. */
+typedef RTNETIPV6 const *PCRTNETIPV6;
+
+/** The minimum IPv6 header length (in bytes).
+ * Up to and including RTNETIPV6::ip6_dst. */
+#define RTNETIPV6_MIN_LEN   (40)
+
+RTDECL(uint32_t) RTNetIPv6PseudoChecksum(PCRTNETIPV6 pIpHdr);
+RTDECL(uint32_t) RTNetIPv6PseudoChecksumEx(PCRTNETIPV6 pIpHdr, uint8_t bProtocol, uint16_t cbPkt);
+RTDECL(uint32_t) RTNetIPv6PseudoChecksumBits(PCRTNETADDRIPV6 pSrcAddr, PCRTNETADDRIPV6 pDstAddr,
+                                             uint8_t bProtocol, uint16_t cbPkt);
 
 
 /**
@@ -294,10 +328,11 @@ typedef RTNETUDP const *PCRTNETUDP;
 /** The minimum UDP packet length (in bytes). (RTNETUDP::uh_ulen) */
 #define RTNETUDP_MIN_LEN   (8)
 
+RTDECL(uint16_t) RTNetUDPChecksum(uint32_t u32Sum, PCRTNETUDP pUdpHdr);
 RTDECL(uint32_t) RTNetIPv4AddUDPChecksum(PCRTNETUDP pUdpHdr, uint32_t u32Sum);
 RTDECL(uint16_t) RTNetIPv4UDPChecksum(PCRTNETIPV4 pIpHdr, PCRTNETUDP pUdpHdr, void const *pvData);
 RTDECL(bool)     RTNetIPv4IsUDPSizeValid(PCRTNETIPV4 pIpHdr, PCRTNETUDP pUdpHdr, size_t cbPktMax);
-RTDECL(bool)     RTNetIPv4IsUDPValid(PCRTNETIPV4 pIpHdr, PCRTNETUDP pUdpHdr, void const *pvData, size_t cbPktMax);
+RTDECL(bool)     RTNetIPv4IsUDPValid(PCRTNETIPV4 pIpHdr, PCRTNETUDP pUdpHdr, void const *pvData, size_t cbPktMax, bool fChecksum);
 
 /**
  * IPv4 BOOTP / DHCP packet.
@@ -467,7 +502,7 @@ RTDECL(bool) RTNetIPv4IsDHCPValid(PCRTNETUDP pUdpHdr, PCRTNETBOOTP pDhcp, size_t
 
 /**
  * IPv4 DHCP packet.
- * @obsolete Use RTNETBOOTP.
+ * @deprecated Use RTNETBOOTP.
  */
 #pragma pack(1)
 typedef struct RTNETDHCP
@@ -554,10 +589,24 @@ typedef RTNETTCP const *PCRTNETTCP;
 /** The minimum TCP header length (in bytes). (RTNETTCP::th_off * 4) */
 #define RTNETTCP_MIN_LEN    (20)
 
+/** @name TCP flags (RTNETTCP::th_flags)
+ * @{ */
+#define RTNETTCP_F_FIN      0x01
+#define RTNETTCP_F_SYN      0x02
+#define RTNETTCP_F_RST      0x04
+#define RTNETTCP_F_PSH      0x08
+#define RTNETTCP_F_ACK      0x10
+#define RTNETTCP_F_URG      0x20
+#define RTNETTCP_F_ECE      0x40
+#define RTNETTCP_F_CWR      0x80
+/** @} */
+
+RTDECL(uint16_t) RTNetTCPChecksum(uint32_t u32Sum, PCRTNETTCP pTcpHdr, void const *pvData, size_t cbData);
 RTDECL(uint32_t) RTNetIPv4AddTCPChecksum(PCRTNETTCP pTcpHdr, uint32_t u32Sum);
 RTDECL(uint16_t) RTNetIPv4TCPChecksum(PCRTNETIPV4 pIpHdr, PCRTNETTCP pTcpHdr, void const *pvData);
 RTDECL(bool)     RTNetIPv4IsTCPSizeValid(PCRTNETIPV4 pIpHdr, PCRTNETTCP pTcpHdr, size_t cbHdrMax, size_t cbPktMax);
-RTDECL(bool)     RTNetIPv4IsTCPValid(PCRTNETIPV4 pIpHdr, PCRTNETTCP pTcpHdr, size_t cbHdrMax, void const *pvData, size_t cbPktMax);
+RTDECL(bool)     RTNetIPv4IsTCPValid(PCRTNETIPV4 pIpHdr, PCRTNETTCP pTcpHdr, size_t cbHdrMax, void const *pvData,
+                                     size_t cbPktMax, bool fChecksum);
 
 
 /**

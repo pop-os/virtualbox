@@ -1,4 +1,4 @@
-/* $Id: avl_Destroy.cpp.h $ */
+/* $Id: avl_Destroy.cpp.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * kAVLDestroy - Walk the tree calling a callback to destroy all the nodes.
  */
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef _kAVLDestroy_h_
@@ -111,5 +107,4 @@ RTDECL(int) KAVL_FN(Destroy)(PPKAVLNODECORE ppTree, PKAVLCALLBACK pfnCallBack, v
 }
 
 #endif
-
 

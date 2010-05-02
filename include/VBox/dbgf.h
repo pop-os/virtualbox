@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_dbgf_h
@@ -293,7 +289,7 @@ VMMR3DECL(int)  DBGFR3EventAssertion(PVM pVM, DBGFEVENTTYPE enmEvent, const char
 VMMR3DECL(int)  DBGFR3EventBreakpoint(PVM pVM, DBGFEVENTTYPE enmEvent);
 VMMR3DECL(int)  DBGFR3Attach(PVM pVM);
 VMMR3DECL(int)  DBGFR3Detach(PVM pVM);
-VMMR3DECL(int)  DBGFR3EventWait(PVM pVM, unsigned cMillies, PCDBGFEVENT *ppEvent);
+VMMR3DECL(int)  DBGFR3EventWait(PVM pVM, RTMSINTERVAL cMillies, PCDBGFEVENT *ppEvent);
 VMMR3DECL(int)  DBGFR3Halt(PVM pVM);
 VMMR3DECL(bool) DBGFR3IsHalted(PVM pVM);
 VMMR3DECL(bool) DBGFR3CanWait(PVM pVM);
@@ -450,7 +446,7 @@ typedef struct DBGFINFOHLP
 /**
  * Info handler, device version.
  *
- * @param   pDevIns     Device instance which registered the info.
+ * @param   pDevIns     The device instance which registered the info.
  * @param   pHlp        Callback functions for doing output.
  * @param   pszArgs     Argument string. Optional and specific to the handler.
  */
@@ -459,9 +455,20 @@ typedef DECLCALLBACK(void) FNDBGFHANDLERDEV(PPDMDEVINS pDevIns, PCDBGFINFOHLP pH
 typedef FNDBGFHANDLERDEV  *PFNDBGFHANDLERDEV;
 
 /**
+ * Info handler, USB device version.
+ *
+ * @param   pUsbIns     The USB device instance which registered the info.
+ * @param   pHlp        Callback functions for doing output.
+ * @param   pszArgs     Argument string. Optional and specific to the handler.
+ */
+typedef DECLCALLBACK(void) FNDBGFHANDLERUSB(PPDMUSBINS pUsbIns, PCDBGFINFOHLP pHlp, const char *pszArgs);
+/** Pointer to a FNDBGFHANDLERUSB function. */
+typedef FNDBGFHANDLERUSB  *PFNDBGFHANDLERUSB;
+
+/**
  * Info handler, driver version.
  *
- * @param   pDrvIns     Driver instance which registered the info.
+ * @param   pDrvIns     The driver instance which registered the info.
  * @param   pHlp        Callback functions for doing output.
  * @param   pszArgs     Argument string. Optional and specific to the handler.
  */

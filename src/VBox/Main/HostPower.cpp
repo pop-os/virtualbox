@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -35,7 +31,7 @@
 
 HostPowerService::HostPowerService (VirtualBox *aVirtualBox)
 {
-    Assert (aVirtualBox != NULL);
+    Assert(aVirtualBox != NULL);
     mVirtualBox = aVirtualBox;
 }
 
@@ -45,7 +41,7 @@ HostPowerService::~HostPowerService()
 
 void HostPowerService::notify(HostPowerEvent aEvent)
 {
-    VirtualBox::SessionMachineList machines;
+    SessionMachinesList machines;
     VirtualBox::InternalControlList controls;
 
     HRESULT rc = S_OK;
@@ -74,15 +70,15 @@ void HostPowerService::notify(HostPowerEvent aEvent)
 
                 /* get the remote console */
                 ComPtr<IConsole> console;
-                rc = pControl->GetRemoteConsole (console.asOutParam());
+                rc = pControl->GetRemoteConsole(console.asOutParam());
                 /* the VM could have been powered down and closed or whatever */
-                if (FAILED (rc))
+                if (FAILED(rc))
                     continue;
 
                 /* note that Pause() will simply return a failure if the VM is
                  * in an inappropriate state */
                 rc = console->Pause();
-                if (FAILED (rc))
+                if (FAILED(rc))
                     continue;
 
                 /* save the control to un-pause the VM later */
@@ -101,14 +97,14 @@ void HostPowerService::notify(HostPowerEvent aEvent)
             size_t resumed = 0;
 
             /* go through VMs we paused on Suspend */
-            for (size_t i = 0; i < mConsoles.size(); ++ i)
+            for (size_t i = 0; i < mConsoles.size(); ++i)
             {
                 /* note that Resume() will simply return a failure if the VM is
                  * in an inappropriate state (it will also fail if the VM has
                  * been somehow closed by this time already so that the
                  * console reference we have is dead) */
-                rc = mConsoles [i]->Resume();
-                if (FAILED (rc))
+                rc = mConsoles[i]->Resume();
+                if (FAILED(rc))
                     continue;
 
                 ++ resumed;
@@ -147,7 +143,7 @@ void HostPowerService::notify(HostPowerEvent aEvent)
                 ComPtr<IConsole> console;
                 rc = pControl->GetRemoteConsole (console.asOutParam());
                 /* the VM could have been powered down and closed or whatever */
-                if (FAILED (rc))
+                if (FAILED(rc))
                     continue;
 
                 ComPtr<IProgress> progress;
@@ -155,7 +151,7 @@ void HostPowerService::notify(HostPowerEvent aEvent)
                 /* note that SaveState() will simply return a failure if the VM
                  * is in an inappropriate state */
                 rc = console->SaveState (progress.asOutParam());
-                if (FAILED (rc))
+                if (FAILED(rc))
                     continue;
 
                 /* Wait until the operation has been completed. */

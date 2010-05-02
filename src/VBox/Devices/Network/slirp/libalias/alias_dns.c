@@ -1,10 +1,10 @@
-/* $Id: alias_dns.c $ */
+/* $Id: alias_dns.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * libalias helper for using the host resolver instead of dnsproxy.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef RT_OS_WINDOWS
@@ -70,14 +66,14 @@ static int dns_alias_handler(PNATState pData, int type);
 static void CStr2QStr(const char *pcszStr, char *pszQStr, size_t cQStr);
 static void QStr2CStr(const char *pcszQStr, char *pszStr, size_t cStr);
 
-static int 
+static int
 fingerprint(struct libalias *la, struct ip *pip, struct alias_data *ah)
 {
 
     if (!ah->dport || !ah->sport || !ah->lnk)
         return -1;
 
-    fprintf(stderr, "NAT:%s: ah(dport: %hd, sport: %hd) oaddr:%R[IP4] aaddr:%R[IP4]\n", 
+    fprintf(stderr, "NAT:%s: ah(dport: %hd, sport: %hd) oaddr:%R[IP4] aaddr:%R[IP4]\n",
         __FUNCTION__, ntohs(*ah->dport), ntohs(*ah->sport),
         &ah->oaddr, &ah->aaddr);
 
@@ -99,7 +95,7 @@ static void doanswer(struct libalias *la, union dnsmsg_header *hdr,char *qname, 
         hdr->X.aa = 1;
         hdr->X.rd = 1;
         hdr->X.rcode = 3;
-    } 
+    }
     else
     {
         char *query;
@@ -109,14 +105,14 @@ static void doanswer(struct libalias *la, union dnsmsg_header *hdr,char *qname, 
         char *c;
         uint16_t packet_len = 0;
         uint16_t addr_off = (uint16_t)~0;
-        
+
 #if 0
         /* here is no compressed names+answers + new query */
         m_inc(m, h->h_length * sizeof(struct dnsmsg_answer) + strlen(qname) + 2 * sizeof(uint16_t));
 #endif
         packet_len = (pip->ip_hl << 2)
                    + sizeof(struct udphdr)
-                   + sizeof(union dnsmsg_header) 
+                   + sizeof(union dnsmsg_header)
                    + strlen(qname)
                    + 2 * sizeof(uint16_t); /* ip + udp + header + query */
         query = (char *)&hdr[1];
@@ -158,7 +154,7 @@ static void doanswer(struct libalias *la, union dnsmsg_header *hdr,char *qname, 
         for(i = 0; i < h->h_length && h->h_addr_list[i] != NULL; ++i)
         {
             struct dnsmsg_answer *ans = (struct dnsmsg_answer *)answers;
-            
+
             ans->name = htons(off);
             ans->type = htons(1);
             ans->class = htons(1);
@@ -179,7 +175,7 @@ static void doanswer(struct libalias *la, union dnsmsg_header *hdr,char *qname, 
         pip->ip_len = htons(packet_len);
     }
 }
-static int 
+static int
 protohandler(struct libalias *la, struct ip *pip, struct alias_data *ah)
 {
     int i;
@@ -205,7 +201,7 @@ protohandler(struct libalias *la, struct ip *pip, struct alias_data *ah)
     {
         qw_qtype = (uint16_t *)(qw_qname + strlen(qw_qname) + 1);
         qw_qclass = &qw_qtype[1];
-        fprintf(stderr, "qname:%s qtype:%hd qclass:%hd\n", 
+        fprintf(stderr, "qname:%s qtype:%hd qclass:%hd\n",
             qw_qname, ntohs(*qw_qtype), ntohs(*qw_qclass));
     }
 
@@ -214,7 +210,7 @@ protohandler(struct libalias *la, struct ip *pip, struct alias_data *ah)
     fprintf(stderr, "cname:%s\n", cname);
     doanswer(la, hdr, qw_qname, pip, h);
 
-    /* 
+    /*
      * We have changed the size and the content of udp, to avoid double csum calculation
      * will assign to zero
      */
@@ -244,7 +240,7 @@ static void QStr2CStr(const char *pcszQStr, char *pszStr, size_t cStr)
             || *q == '-'
             || *q == '_')
         {
-           *c = *q; 
+           *c = *q;
             c++;
         }
         else if (c != &pszStr[0])
@@ -270,7 +266,7 @@ static void CStr2QStr(const char *pcszStr, char *pszQStr, size_t cQStr)
     for (c = pcszStr, q = pszQStr; *c != '\0' && cLen < cQStr-1; q++, cLen++)
     {
         /* at the begining or at -dot- position */
-        if (*c == '.' || (c == pcszStr && q == pszQStr)) 
+        if (*c == '.' || (c == pcszStr && q == pszQStr))
         {
             if (c != pcszStr)
                 c++;

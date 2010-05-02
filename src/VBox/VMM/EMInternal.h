@@ -1,10 +1,10 @@
-/* $Id: EMInternal.h $ */
+/* $Id: EMInternal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * EM - Internal header file.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___EMInternal_h
@@ -42,8 +38,21 @@ RT_C_DECLS_BEGIN
  */
 
 /** The saved state version. */
-#define EM_SAVED_STATE_VERSION                          3
+#define EM_SAVED_STATE_VERSION                          4
+#define EM_SAVED_STATE_VERSION_PRE_MWAIT                3
 #define EM_SAVED_STATE_VERSION_PRE_SMP                  2
+
+
+/**
+ * MWait state flags.
+ */
+/* MWait activated. */
+#define EMMWAIT_FLAG_ACTIVE             RT_BIT(0)
+/* MWait will continue when an interrupt is pending even when IF=0. */
+#define EMMWAIT_FLAG_BREAKIRQIF0        RT_BIT(1)
+/* Monitor instruction was executed previously. */
+#define EMMWAIT_FLAG_MONITOR_ACTIVE     RT_BIT(2)
+
 
 /**
  * Cli node structure
@@ -51,10 +60,17 @@ RT_C_DECLS_BEGIN
 typedef struct CLISTAT
 {
     /** The key is the cli address. */
-    AVLPVNODECORE           Core;
+    AVLGCPTRNODECORE        Core;
+#if HC_ARCH_BITS == 32 && !defined(RT_OS_WINDOWS)
+    /** Padding. */
+    uint32_t                u32Padding;
+#endif
     /** Occurrences. */
     STAMCOUNTER             Counter;
 } CLISTAT, *PCLISTAT;
+#ifdef IN_RING3
+AssertCompileMemberAlignment(CLISTAT, Counter, 8);
+#endif
 
 
 /**
@@ -335,6 +351,18 @@ typedef struct EMCPU
     RTGCPTR                 aPadding1;
 #endif
 
+    /* MWait halt state. */
+    struct
+    {
+        uint32_t            fWait;          /* type of mwait; see EMMWAIT_FLAG_* */
+        uint32_t            a32Padding[1];
+        RTGCPTR             uMWaitEAX;      /* mwait hints */
+        RTGCPTR             uMWaitECX;      /* mwait extensions */
+        RTGCPTR             uMonitorEAX;    /* monitored address. */
+        RTGCPTR             uMonitorECX;    /* monitor extension. */
+        RTGCPTR             uMonitorEDX;    /* monitor hint. */
+    } mwait;
+
     union
     {
         /** Padding used in the other rings.
@@ -393,7 +421,7 @@ typedef struct EMCPU
 #endif
 
     /** Tree for keeping track of cli occurances (debug only). */
-    R3PTRTYPE(PAVLPVNODECORE)   pCliStatTree;
+    R3PTRTYPE(PAVLGCPTRNODECORE) pCliStatTree;
     STAMCOUNTER             StatTotalClis;
 #if 0
     /** 64-bit Visual C++ rounds the struct size up to 16 byte. */

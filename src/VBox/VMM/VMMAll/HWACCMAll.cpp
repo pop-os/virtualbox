@@ -1,10 +1,10 @@
-/* $Id: HWACCMAll.cpp $ */
+/* $Id: HWACCMAll.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * HWACCM - All contexts.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -25,23 +21,18 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_HWACCM
 #include <VBox/hwaccm.h>
+#include <VBox/pgm.h>
 #include "HWACCMInternal.h"
 #include <VBox/vm.h>
 #include <VBox/x86.h>
 #include <VBox/hwacc_vmx.h>
 #include <VBox/hwacc_svm.h>
-#include <VBox/pgm.h>
-#include <VBox/pdm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
-#include <VBox/selm.h>
-#include <VBox/iom.h>
 #include <iprt/param.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/string.h>
-#include <iprt/memobj.h>
-#include <iprt/cpuset.h>
 
 /**
  * Queues a page for invalidation
@@ -106,7 +97,7 @@ VMMDECL(int) HWACCMFlushTLB(PVMCPU pVCpu)
 
 #ifdef IN_RING0
 /**
- * Dummy RTMpOnSpecific handler since RTMpPokeCpu couldn't be used. 
+ * Dummy RTMpOnSpecific handler since RTMpPokeCpu couldn't be used.
  *
  */
 static DECLCALLBACK(void) hwaccmFlushHandler(RTCPUID idCpu, void *pvUser1, void *pvUser2)
@@ -139,10 +130,9 @@ void hwaccmMpPokeCpu(PVMCPU pVCpu, RTCPUID idHostCpu)
             STAM_PROFILE_ADV_START(&pVCpu->hwaccm.s.StatSpinPoke, z);
         else
             STAM_PROFILE_ADV_START(&pVCpu->hwaccm.s.StatSpinPokeFailed, z);
-            
+
         /* Spin until the VCPU has switched back. */
-        while (     VMCPU_GET_STATE(pVCpu) == VMCPUSTATE_STARTED_EXEC
-               &&   pVCpu->hwaccm.s.fCheckedTLBFlush
+        while (     pVCpu->hwaccm.s.fCheckedTLBFlush
                &&   cWorldSwitchExit == pVCpu->hwaccm.s.cWorldSwitchExit)
         {
             ASMNopPause();
@@ -184,8 +174,7 @@ VMMDECL(int) HWACCMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCPtr)
         else
         {
             hwaccmQueueInvlPage(pVCpu, GCPtr);
-            if (    VMCPU_GET_STATE(pVCpu) == VMCPUSTATE_STARTED_EXEC
-                &&  pVCpu->hwaccm.s.fCheckedTLBFlush)
+            if (pVCpu->hwaccm.s.fCheckedTLBFlush)
             {
                 STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTlbShootdown);
 #ifdef IN_RING0
@@ -232,8 +221,7 @@ VMMDECL(int) HWACCMFlushTLBOnAllVCpus(PVM pVM)
         if (idThisCpu == idCpu)
             continue;
 
-        if (    VMCPU_GET_STATE(pVCpu) == VMCPUSTATE_STARTED_EXEC
-            &&  pVCpu->hwaccm.s.fCheckedTLBFlush)
+        if (pVCpu->hwaccm.s.fCheckedTLBFlush)
         {
             STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTlbShootdownFlush);
 #ifdef IN_RING0
@@ -308,8 +296,7 @@ VMMDECL(int) HWACCMInvalidatePhysPage(PVM pVM, RTGCPHYS GCPhys)
             }
 
             VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
-            if (    VMCPU_GET_STATE(pVCpu) == VMCPUSTATE_STARTED_EXEC
-                &&  pVCpu->hwaccm.s.fCheckedTLBFlush)
+            if (pVCpu->hwaccm.s.fCheckedTLBFlush)
             {
                 STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatTlbShootdownFlush);
 # ifdef IN_RING0
@@ -346,4 +333,3 @@ VMMDECL(bool) HWACCMHasPendingIrq(PVM pVM)
     PVMCPU pVCpu = VMMGetCpu(pVM);
     return !!pVCpu->hwaccm.s.Event.fPending;
 }
-

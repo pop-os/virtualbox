@@ -1,10 +1,10 @@
-/** $Id:  $ */
+/** $Id: VBoxAquaStyle.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Qt GUI - VBox Variation on the QAquaStyle.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "VBoxDefs.h"
@@ -51,7 +47,7 @@ VBoxAquaStyle::VBoxAquaStyle(QStyle &parent)
 }
 
 /**
- * The main purpose here is to make sure the global 
+ * The main purpose here is to make sure the global
  * instance doesn't die on us.
  */
 VBoxAquaStyle::~VBoxAquaStyle()
@@ -154,7 +150,7 @@ void VBoxAquaStyle::drawItem( QPainter *p, const QRect &r, int flags, const QCol
     mparent->drawItem( p, r, flags, g, enabled, pixmap, text, len, penColor );
 }
 
-void VBoxAquaStyle::drawPrimitive( PrimitiveElement pe, QPainter *p, const QRect &r, const QColorGroup &cg, 
+void VBoxAquaStyle::drawPrimitive( PrimitiveElement pe, QPainter *p, const QRect &r, const QColorGroup &cg,
                                    SFlags flags/* = Style_Default*/, const QStyleOption &foo/* = QStyleOption::Default*/ ) const
 {
     //fprintf(stderr, "drawPrimitive %x\n", pe);
@@ -194,7 +190,7 @@ QSize VBoxAquaStyle::sizeFromContents( ContentsType contents, const QWidget *wid
     return mparent->sizeFromContents( contents, widget, contentsSize, foo );
 }
 
-int VBoxAquaStyle::styleHint( StyleHint stylehint, const QWidget *widget/* = 0*/, 
+int VBoxAquaStyle::styleHint( StyleHint stylehint, const QWidget *widget/* = 0*/,
                               const QStyleOption &foo/* = QStyleOption::Default*/,
                               QStyleHintReturn* returnData/* = 0*/) const
 {
@@ -228,5 +224,4 @@ QStyle::SubControl VBoxAquaStyle::querySubControl( ComplexControl control, const
     //fprintf(stderr, "querySubControl %p %x\n", widget, control);
     return mparent->querySubControl( control, widget, pos, foo );
 }
-
 

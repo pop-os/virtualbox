@@ -1,10 +1,10 @@
-/* $Id: VBoxNetDHCP.cpp $ */
+/* $Id: VBoxNetDHCP.cpp 28845 2010-04-27 16:41:56Z vboxsync $ */
 /** @file
  * VBoxNetDHCP - DHCP Service for connecting to IntNet.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_net_dhcp       VBoxNetDHCP
@@ -42,7 +38,9 @@
 
 #include <VBox/sup.h>
 #include <VBox/intnet.h>
+#include <VBox/intnetinline.h>
 #include <VBox/vmm.h>
+#include <VBox/version.h>
 
 #include "../NetLib/VBoxNetLib.h"
 
@@ -659,10 +657,10 @@ void VBoxNetDhcp::explodeConfig(void)
 
             /* Check if it exists and is configured. */
             VBoxNetDhcpLease *pLease = NULL;
-            for (size_t i = 0; i < m_Leases.size(); i++)
-                if (m_Leases[i].m_IPv4Address.u == IPv4Addr.u)
+            for (size_t j = 0; j < m_Leases.size(); j++)
+                if (m_Leases[j].m_IPv4Address.u == IPv4Addr.u)
                 {
-                    pLease = &m_Leases[i];
+                    pLease = &m_Leases[j];
                     break;
                 }
             if (pLease)
@@ -709,13 +707,10 @@ int VBoxNetDhcp::parseArgs(int argc, char **argv)
         { "--lower-ip",       'l',   RTGETOPT_REQ_IPV4ADDR },
         { "--upper-ip",       'u',   RTGETOPT_REQ_IPV4ADDR },
         { "--netmask",        'm',   RTGETOPT_REQ_IPV4ADDR },
-
-        { "--help",           'h',   RTGETOPT_REQ_NOTHING },
-        { "--version ",       'V',   RTGETOPT_REQ_NOTHING },
     };
 
     RTGETOPTSTATE State;
-    int rc = RTGetOptInit(&State, argc, argv, &s_aOptionDefs[0], RT_ELEMENTS(s_aOptionDefs), 0, 0);
+    int rc = RTGetOptInit(&State, argc, argv, &s_aOptionDefs[0], RT_ELEMENTS(s_aOptionDefs), 0, 0 /*fFlags*/);
     AssertRCReturn(rc, 49);
 
     VBoxNetDhcpCfg *pCurCfg = NULL;
@@ -817,12 +812,12 @@ int VBoxNetDhcp::parseArgs(int argc, char **argv)
 
             case 'V':
                 RTPrintf("%sr%u\n", RTBldCfgVersion(), RTBldCfgRevision());
-                return 0;
+                return 1;
 
             case 'h':
                 RTPrintf("VBoxNetDHCP Version %s\n"
-                         "(C) 2009 Sun Microsystems, Inc.\n"
-                         "All rights reserved\n"
+                         "(C) 2009-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
+                         "All rights reserved.\n"
                          "\n"
                          "Usage: VBoxNetDHCP <options>\n"
                          "\n"
@@ -830,11 +825,6 @@ int VBoxNetDhcp::parseArgs(int argc, char **argv)
                          RTBldCfgVersion());
                 for (size_t i = 0; i < RT_ELEMENTS(s_aOptionDefs); i++)
                     RTPrintf("    -%c, %s\n", s_aOptionDefs[i].iShort, s_aOptionDefs[i].pszLong);
-                return 1;
-
-            case VERR_GETOPT_UNKNOWN_OPTION:
-            case VINF_GETOPT_NOT_OPTION:
-                RTPrintf("Unknown option '%s'. Use --help for more information.\n", Val.psz);
                 return 1;
 
             default:
@@ -917,16 +907,17 @@ int VBoxNetDhcp::tryGoOnline(void)
         /*
          * Get the ring-3 address of the shared interface buffer.
          */
-        INTNETIFGETRING3BUFFERREQ GetRing3BufferReq;
-        GetRing3BufferReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-        GetRing3BufferReq.Hdr.cbReq = sizeof(GetRing3BufferReq);
-        GetRing3BufferReq.pSession = m_pSession;
-        GetRing3BufferReq.hIf = m_hIf;
-        GetRing3BufferReq.pRing3Buf = NULL;
-        rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_GET_RING3_BUFFER, 0, &GetRing3BufferReq.Hdr);
+        INTNETIFGETBUFFERPTRSREQ GetBufferPtrsReq;
+        GetBufferPtrsReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+        GetBufferPtrsReq.Hdr.cbReq = sizeof(GetBufferPtrsReq);
+        GetBufferPtrsReq.pSession = m_pSession;
+        GetBufferPtrsReq.hIf = m_hIf;
+        GetBufferPtrsReq.pRing3Buf = NULL;
+        GetBufferPtrsReq.pRing0Buf = NIL_RTR0PTR;
+        rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_GET_BUFFER_PTRS, 0, &GetBufferPtrsReq.Hdr);
         if (RT_SUCCESS(rc))
         {
-            PINTNETBUF pBuf = GetRing3BufferReq.pRing3Buf;
+            PINTNETBUF pBuf = GetBufferPtrsReq.pRing3Buf;
             debugPrint(1, false, "pBuf=%p cbBuf=%d cbSend=%d cbRecv=%d",
                        pBuf, pBuf->cbBuf, pBuf->cbSend, pBuf->cbRecv);
             m_pIfBuf = pBuf;
@@ -948,7 +939,7 @@ int VBoxNetDhcp::tryGoOnline(void)
             RTStrmPrintf(g_pStdErr, "VBoxNetDHCP: SUPR3CallVMMR0Ex(,VMMR0_DO_INTNET_IF_SET_PROMISCUOUS_MODE,) failed, rc=%Rrc\n", rc);
         }
         else
-            RTStrmPrintf(g_pStdErr, "VBoxNetDHCP: SUPR3CallVMMR0Ex(,VMMR0_DO_INTNET_IF_GET_RING3_BUFFER,) failed, rc=%Rrc\n", rc);
+            RTStrmPrintf(g_pStdErr, "VBoxNetDHCP: SUPR3CallVMMR0Ex(,VMMR0_DO_INTNET_IF_GET_BUFFER_PTRS,) failed, rc=%Rrc\n", rc);
     }
     else
         RTStrmPrintf(g_pStdErr, "VBoxNetDHCP: SUPR3CallVMMR0Ex(,VMMR0_DO_INTNET_OPEN,) failed, rc=%Rrc\n", rc);
@@ -992,7 +983,7 @@ int VBoxNetDhcp::run(void)
         /*
          * Process the receive buffer.
          */
-        while (INTNETRingGetReadable(pRingBuf) > 0)
+        while (IntNetRingHasMoreToRead(pRingBuf))
         {
             size_t  cb;
             void   *pv = VBoxNetUDPMatch(m_pIfBuf, RTNETIPV4_PORT_BOOTPS, &m_MacAddress,
@@ -1024,7 +1015,7 @@ int VBoxNetDhcp::run(void)
             }
 
             /* Advance to the next frame. */
-            INTNETRingSkipFrame(m_pIfBuf, pRingBuf);
+            IntNetRingSkipFrame(pRingBuf);
         }
     }
 

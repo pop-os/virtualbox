@@ -1,10 +1,10 @@
-/* $Id: DevFwCommon.cpp $ */
+/* $Id: DevFwCommon.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * FwCommon - Shared firmware code (used by DevPcBios & DevEFI).
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -35,6 +31,7 @@
 #include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/uuid.h>
+#include <iprt/system.h>
 
 #include "../Builtins.h"
 #include "../Builtins2.h"
@@ -65,6 +62,9 @@ static const char   *s_szDefDmiChassisVendor    = "Sun Microsystems, Inc.";
 static const char   *s_szDefDmiChassisVersion   = "";
 static const char   *s_szDefDmiChassisSerial    = "";
 static const char   *s_szDefDmiChassisAssetTag  = "";
+
+static       char    g_szHostDmiSystemProduct[64];
+static       char    g_szHostDmiSystemVersion[64];
 
 
 /*******************************************************************************
@@ -139,6 +139,23 @@ typedef struct DMISYSTEMINF
 } *PDMISYSTEMINF;
 AssertCompileSize(DMISYSTEMINF, 0x1b);
 
+/** DMI board (or module) information (Type 2) */
+typedef struct DMIBOARDINF
+{
+    DMIHDR          header;
+    uint8_t         u8Manufacturer;
+    uint8_t         u8Product;
+    uint8_t         u8Version;
+    uint8_t         u8SerialNumber;
+    uint8_t         u8AssetTag;
+    uint8_t         u8FeatureFlags;
+    uint8_t         u8LocationInChassis;
+    uint16_t        u16ChassisHandle;
+    uint8_t         u8BoardType;
+    uint8_t         u8cObjectHandles;
+} *PDMIBOARDINF;
+AssertCompileSize(DMIBOARDINF, 0x0f);
+
 /** DMI system enclosure or chassis type (Type 3) */
 typedef struct DMICHASSIS
 {
@@ -201,6 +218,44 @@ typedef struct DMIOEMSTRINGS
 } *PDMIOEMSTRINGS;
 AssertCompileSize(DMIOEMSTRINGS, 0x7);
 
+/** Physical memory array (Type 16) */
+typedef struct DMIRAMARRAY
+{
+    DMIHDR          header;
+    uint8_t         u8Location;
+    uint8_t         u8Use;
+    uint8_t         u8MemErrorCorrection;
+    uint32_t        u32MaxCapacity;
+    uint16_t        u16MemErrorHandle;
+    uint16_t        u16NumberOfMemDevices;
+} *PDMIRAMARRAY;
+AssertCompileSize(DMIRAMARRAY, 15);
+
+/** DMI Memory Device (Type 17) */
+typedef struct DMIMEMORYDEV
+{
+    DMIHDR          header;
+    uint16_t        u16PhysMemArrayHandle;
+    uint16_t        u16MemErrHandle;
+    uint16_t        u16TotalWidth;
+    uint16_t        u16DataWidth;
+    uint16_t        u16Size;
+    uint8_t         u8FormFactor;
+    uint8_t         u8DeviceSet;
+    uint8_t         u8DeviceLocator;
+    uint8_t         u8BankLocator;
+    uint8_t         u8MemoryType;
+    uint16_t        u16TypeDetail;
+    uint16_t        u16Speed;
+    uint8_t         u8Manufacturer;
+    uint8_t         u8SerialNumber;
+    uint8_t         u8AssetTag;
+    uint8_t         u8PartNumber;
+    /* v2.6+ */
+    uint8_t         u8Attributes;
+} *PDMIMEMORYDEV;
+AssertCompileSize(DMIMEMORYDEV, 28);
+
 /** MPS floating pointer structure */
 typedef struct MPSFLOATPTR
 {
@@ -227,7 +282,7 @@ typedef struct MPSCFGTBLHEADER
     uint16_t        u16EntryCount;
     uint32_t        u32AddrLocalApic;
     uint16_t        u16ExtTableLength;
-    uint8_t         u8ExtTableChecksxum;
+    uint8_t         u8ExtTableChecksum;
     uint8_t         u8Reserved;
 } *PMPSCFGTBLHEADER;
 AssertCompileSize(MPSCFGTBLHEADER, 0x2c);
@@ -295,14 +350,39 @@ static uint8_t fwCommonChecksum(const uint8_t * const au8Data, uint32_t u32Lengt
     return -u8Sum;
 }
 
-static bool sharedfwChecksumOk(const uint8_t * const au8Data, uint32_t u32Length)
+#if 0 /* unused */
+static bool fwCommonChecksumOk(const uint8_t * const au8Data, uint32_t u32Length)
 {
     uint8_t u8Sum = 0;
     for (size_t i = 0; i < u32Length; i++)
         u8Sum += au8Data[i];
     return (u8Sum == 0);
 }
+#endif
 
+/**
+ * Try fetch the DMI strings from the system.
+ */
+static void fwCommonUseHostDMIStrings(void)
+{
+    int rc;
+
+    rc = RTSystemQueryDmiString(RTSYSDMISTR_PRODUCT_NAME,
+                                g_szHostDmiSystemProduct, sizeof(g_szHostDmiSystemProduct));
+    if (RT_SUCCESS(rc))
+    {
+        s_szDefDmiSystemProduct = g_szHostDmiSystemProduct;
+        LogRel(("DMI: Using DmiSystemProduct from host: %s\n", g_szHostDmiSystemProduct));
+    }
+
+    rc = RTSystemQueryDmiString(RTSYSDMISTR_PRODUCT_VERSION,
+                                g_szHostDmiSystemVersion, sizeof(g_szHostDmiSystemVersion));
+    if (RT_SUCCESS(rc))
+    {
+        s_szDefDmiSystemVersion = g_szHostDmiSystemVersion;
+        LogRel(("DMI: Using DmiSystemVersion from host: %s\n", g_szHostDmiSystemVersion));
+    }
+}
 
 /**
  * Construct the DMI table.
@@ -313,11 +393,9 @@ static bool sharedfwChecksumOk(const uint8_t * const au8Data, uint32_t u32Length
  * @param   cbMax               The maximum size of the DMI table.
  * @param   pUuid               Pointer to the UUID to use if the DmiUuid
  *                              configuration string isn't present.
- * @param   pCfgHandle          The handle to our config node.
- * @param   fPutSmbiosHeaders   Plant SMBIOS headers if true.
+ * @param   pCfg                The handle to our config node.
  */
-int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, PCRTUUID pUuid,
-                          PCFGMNODE pCfgHandle, bool fPutSmbiosHeaders)
+int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, PCRTUUID pUuid, PCFGMNODE pCfg)
 {
 #define CHECKSIZE(cbWant) \
     { \
@@ -340,7 +418,7 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
             pszTmp = default_value; \
         else \
         { \
-            rc = CFGMR3QueryStringDef(pCfgHandle, name, szBuf, sizeof(szBuf), default_value); \
+            rc = CFGMR3QueryStringDef(pCfg, name, szBuf, sizeof(szBuf), default_value); \
             if (RT_FAILURE(rc)) \
             { \
                 if (fHideErrors) \
@@ -377,7 +455,7 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
             variable = s_iDef ## name; \
         else \
         { \
-            rc = CFGMR3QueryS32Def(pCfgHandle, # name, & variable, s_iDef ## name); \
+            rc = CFGMR3QueryS32Def(pCfg, # name, & variable, s_iDef ## name); \
             if (RT_FAILURE(rc)) \
             { \
                 if (fHideErrors) \
@@ -390,6 +468,10 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
             } \
         } \
     }
+
+#define START_STRUCT(tbl)                                       \
+        pszStr                       = (char *)(tbl + 1);       \
+        iStrNr                       = 1;
 
 #define TERM_STRUCT \
     { \
@@ -414,10 +496,25 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
     bool fHideErrors = false;
 #endif
 
+    uint8_t fDmiUseHostInfo;
+    int rc = CFGMR3QueryU8Def(pCfg, "DmiUseHostInfo", &fDmiUseHostInfo, 0);
+    if (RT_FAILURE (rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed to read \"DmiUseHostInfo\""));
+
+    /* Sync up with host default DMI values */
+    if (fDmiUseHostInfo)
+        fwCommonUseHostDMIStrings();
+
+    uint8_t fDmiExposeMemoryTable;
+    rc = CFGMR3QueryU8Def(pCfg, "DmiExposeMemoryTable", &fDmiExposeMemoryTable, 0);
+    if (RT_FAILURE (rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed to read \"DmiExposeMemoryTable\""));
+
     for  (;; fForceDefault = true, fHideErrors = false)
     {
         int  iStrNr;
-        int  rc;
         char szBuf[256];
         char *pszStr = (char *)pTable;
         char szDmiSystemUuid[64];
@@ -428,7 +525,7 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
             pszDmiSystemUuid = NULL;
         else
         {
-            rc = CFGMR3QueryString(pCfgHandle, "DmiSystemUuid", szDmiSystemUuid, sizeof(szDmiSystemUuid));
+            rc = CFGMR3QueryString(pCfg, "DmiSystemUuid", szDmiSystemUuid, sizeof(szDmiSystemUuid));
             if (rc == VERR_CFGM_VALUE_NOT_FOUND)
                 pszDmiSystemUuid = NULL;
             else if (RT_FAILURE(rc))
@@ -575,6 +672,66 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
 # endif
         TERM_STRUCT;
 
+        if (fDmiExposeMemoryTable)
+        {
+            /***************************************
+             * DMI Physical Memory Array (Type 16) *
+             ***************************************/
+            uint64_t u64RamSize;
+            rc = CFGMR3QueryU64(pCfg, "RamSize", &u64RamSize);
+            if (RT_FAILURE (rc))
+                return PDMDEV_SET_ERROR(pDevIns, rc,
+                                        N_("Configuration error: Failed to read \"RamSize\""));
+
+            PDMIRAMARRAY pMemArray = (PDMIRAMARRAY)pszStr;
+            CHECKSIZE(sizeof(*pMemArray));
+
+            START_STRUCT(pMemArray);
+            pMemArray->header.u8Type    = 16; /* Physical Memory Array */
+            pMemArray->header.u8Length  = sizeof(*pMemArray);
+            pMemArray->header.u16Handle = 0x0005;
+            pMemArray->u8Location = 0x03; /* Motherboard */
+            pMemArray->u8Use = 0x03; /* System memory */
+            pMemArray->u8MemErrorCorrection = 0x01; /* Other */
+            uint32_t u32RamSizeK = (uint32_t)(u64RamSize / _1K);
+            pMemArray->u32MaxCapacity = u32RamSizeK; /* RAM size in K */
+            pMemArray->u16MemErrorHandle = 0xfffe; /* No error info structure */
+            pMemArray->u16NumberOfMemDevices = 1;
+            TERM_STRUCT;
+
+            /***************************************
+             * DMI Memory Device (Type 17)         *
+             ***************************************/
+            PDMIMEMORYDEV pMemDev = (PDMIMEMORYDEV)pszStr;
+            CHECKSIZE(sizeof(*pMemDev));
+
+            START_STRUCT(pMemDev);
+            pMemDev->header.u8Type    = 17; /* Memory Device */
+            pMemDev->header.u8Length  = sizeof(*pMemDev);
+            pMemDev->header.u16Handle = 0x0006;
+            pMemDev->u16PhysMemArrayHandle = 0x0005; /* handle of array we belong to */
+            pMemDev->u16MemErrHandle = 0xfffe; /* system doesn't provide this information */
+            pMemDev->u16TotalWidth = 0xffff; /* Unknown */
+            pMemDev->u16DataWidth = 0xffff;  /* Unknown */
+            int16_t u16RamSizeM = (uint16_t)(u64RamSize / _1M);
+            if (u16RamSizeM == 0)
+                u16RamSizeM = 0x400; /* 1G */
+            pMemDev->u16Size = u16RamSizeM; /* RAM size */
+            pMemDev->u8FormFactor = 0x09; /* DIMM */
+            pMemDev->u8DeviceSet = 0x00; /* Not part of a device set */
+            READCFGSTRDEF(pMemDev->u8DeviceLocator, " ", "DIMM 0");
+            READCFGSTRDEF(pMemDev->u8BankLocator, " ", "Bank 0");
+            pMemDev->u8MemoryType = 0x03; /* DRAM */
+            pMemDev->u16TypeDetail = 0; /* Nothing special */
+            pMemDev->u16Speed = 1600; /* Unknown, shall be speed in MHz */
+            READCFGSTR(pMemDev->u8Manufacturer, DmiSystemVendor);
+            READCFGSTRDEF(pMemDev->u8SerialNumber, " ", "00000000");
+            READCFGSTRDEF(pMemDev->u8AssetTag, " ", "00000000");
+            READCFGSTRDEF(pMemDev->u8PartNumber, " ", "00000000");
+            pMemDev->u8Attributes = 0; /* Unknown */
+            TERM_STRUCT;
+        }
+
         /*****************************
          * DMI OEM strings (Type 11) *
          *****************************/
@@ -614,49 +771,56 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
 #undef READCFGSTR
 #undef READCFGINT
 #undef CHECKSIZE
-
-    if (fPutSmbiosHeaders)
-    {
-        struct {
-            struct SMBIOSHDR     smbios;
-            struct DMIMAINHDR    dmi;
-        } aBiosHeaders
-        =
-        {
-            // The SMBIOS header
-            {
-                { 0x5f, 0x53, 0x4d, 0x5f},         // "_SM_" signature
-                0x00,                              // checksum
-                0x1f,                              // EPS length, defined by standard
-                VBOX_SMBIOS_MAJOR_VER,             // SMBIOS major version
-                VBOX_SMBIOS_MINOR_VER,             // SMBIOS minor version
-                VBOX_SMBIOS_MAXSS,                 // Maximum structure size
-                0x00,                              // Entry point revision
-                { 0x00, 0x00, 0x00, 0x00, 0x00 }   // padding
-            },
-            // The DMI header
-            {
-                { 0x5f, 0x44, 0x4d, 0x49, 0x5f },  // "_DMI_" signature
-                0x00,                              // checksum
-                VBOX_DMI_TABLE_SIZE,               // DMI tables length
-                VBOX_DMI_TABLE_BASE,               // DMI tables base
-                VBOX_DMI_TABLE_ENTR,               // DMI tables entries
-                VBOX_DMI_TABLE_VER,                // DMI version
-            }
-        };
-
-        aBiosHeaders.smbios.u8Checksum = fwCommonChecksum((uint8_t*)&aBiosHeaders.smbios, sizeof(aBiosHeaders.smbios));
-        aBiosHeaders.dmi.u8Checksum = fwCommonChecksum((uint8_t*)&aBiosHeaders.dmi, sizeof(aBiosHeaders.dmi));
-
-        PDMDevHlpPhysWrite (pDevIns, 0xfe300, &aBiosHeaders, sizeof(aBiosHeaders));
-    }
-
     return VINF_SUCCESS;
+}
+
+/**
+ * Construct the SMBIOS and DMI headers table pointer at VM construction and
+ * reset.
+ *
+ * @param   pDevIns    The device instance data.
+ */
+void FwCommonPlantSmbiosAndDmiHdrs(PPDMDEVINS pDevIns)
+{
+    struct
+    {
+        struct SMBIOSHDR     smbios;
+        struct DMIMAINHDR    dmi;
+    } aBiosHeaders =
+    {
+        // The SMBIOS header
+        {
+            { 0x5f, 0x53, 0x4d, 0x5f},         // "_SM_" signature
+            0x00,                              // checksum
+            0x1f,                              // EPS length, defined by standard
+            VBOX_SMBIOS_MAJOR_VER,             // SMBIOS major version
+            VBOX_SMBIOS_MINOR_VER,             // SMBIOS minor version
+            VBOX_SMBIOS_MAXSS,                 // Maximum structure size
+            0x00,                              // Entry point revision
+            { 0x00, 0x00, 0x00, 0x00, 0x00 }   // padding
+        },
+        // The DMI header
+        {
+            { 0x5f, 0x44, 0x4d, 0x49, 0x5f },  // "_DMI_" signature
+            0x00,                              // checksum
+            VBOX_DMI_TABLE_SIZE,               // DMI tables length
+            VBOX_DMI_TABLE_BASE,               // DMI tables base
+            VBOX_DMI_TABLE_ENTR,               // DMI tables entries
+            VBOX_DMI_TABLE_VER,                // DMI version
+        }
+    };
+
+    aBiosHeaders.smbios.u8Checksum = fwCommonChecksum((uint8_t*)&aBiosHeaders.smbios, sizeof(aBiosHeaders.smbios));
+    aBiosHeaders.dmi.u8Checksum    = fwCommonChecksum((uint8_t*)&aBiosHeaders.dmi,    sizeof(aBiosHeaders.dmi));
+
+    PDMDevHlpPhysWrite(pDevIns, 0xfe300, &aBiosHeaders, sizeof(aBiosHeaders));
 }
 AssertCompile(VBOX_DMI_TABLE_ENTR == 5);
 
 /**
- * Construct the MPS table. Only applicable if IOAPIC is active!
+ * Construct the MPS table for implanting as a ROM page.
+ *
+ * Only applicable if IOAPIC is active!
  *
  * See ``MultiProcessor Specificatiton Version 1.4 (May 1997)'':
  *   ``1.3 Scope
@@ -668,7 +832,7 @@ AssertCompile(VBOX_DMI_TABLE_ENTR == 5);
  *       family.
  *     * One or more APICs, such as the Intel 82489DX Advanced Programmable
  *       Interrupt Controller or the integrated APIC, such as that on the
- *       Intel Pentium 735\90 and 815\100 processors, together with a discrete
+ *       Intel Pentium 735\\90 and 815\\100 processors, together with a discrete
  *       I/O APIC unit.''
  * and later:
  *   ``4.3.3 I/O APIC Entries
@@ -696,11 +860,13 @@ void FwCommonPlantMpsTable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, 
     pCfgTab->u16OemTableSize       =  0;
     pCfgTab->u16EntryCount         =  cCpus /* Processors */
                                    +  1 /* ISA Bus */
+                                   +  1 /* PCI Bus */
                                    +  1 /* I/O-APIC */
-                                   + 16 /* Interrupts */;
+                                   + 16 /* Interrupts */
+                                   +  1 /* Local interrupts */;
     pCfgTab->u32AddrLocalApic      = 0xfee00000;
     pCfgTab->u16ExtTableLength     =  0;
-    pCfgTab->u8ExtTableChecksxum   =  0;
+    pCfgTab->u8ExtTableChecksum    =  0;
     pCfgTab->u8Reserved            =  0;
 
     uint32_t u32Eax, u32Ebx, u32Ecx, u32Edx;
@@ -721,7 +887,7 @@ void FwCommonPlantMpsTable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, 
     {
         pProcEntry->u8EntryType        = 0; /* processor entry */
         pProcEntry->u8LocalApicId      = i;
-        pProcEntry->u8LocalApicVersion = 0x11;
+        pProcEntry->u8LocalApicVersion = 0x14;
         pProcEntry->u8CPUFlags         = (i == 0 ? 2 /* bootstrap processor */ : 0 /* application processor */) | 1 /* enabled */;
         pProcEntry->u32CPUSignature    = u32CPUSignature;
         pProcEntry->u32CPUFeatureFlags = u32FeatureFlags;
@@ -730,37 +896,63 @@ void FwCommonPlantMpsTable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, 
         pProcEntry++;
     }
 
+    uint32_t iBusIdPci0 = 0;
+    uint32_t iBusIdIsa  = 1;
+
     /* ISA bus */
     PMPSBUSENTRY pBusEntry         = (PMPSBUSENTRY)pProcEntry;
     pBusEntry->u8EntryType         = 1; /* bus entry */
-    pBusEntry->u8BusId             = 0; /* this ID is referenced by the interrupt entries */
+    pBusEntry->u8BusId             = iBusIdIsa; /* this ID is referenced by the interrupt entries */
     memcpy(pBusEntry->au8BusTypeStr, "ISA   ", 6);
+    pBusEntry++;
 
-    /* PCI bus? */
+    /* PCI bus */
+    pBusEntry->u8EntryType         = 1; /* bus entry */
+    pBusEntry->u8BusId             = iBusIdPci0; /* this ID can be referenced by the interrupt entries */
+    memcpy(pBusEntry->au8BusTypeStr, "PCI   ", 6);
+
 
     /* I/O-APIC.
      * MP spec: "The configuration table contains one or more entries for I/O APICs.
      *           ... At least one I/O APIC must be enabled." */
     PMPSIOAPICENTRY pIOAPICEntry   = (PMPSIOAPICENTRY)(pBusEntry+1);
-    uint16_t apicId = cCpus;
+    uint16_t iApicId = 0;
     pIOAPICEntry->u8EntryType      = 2; /* I/O-APIC entry */
-    pIOAPICEntry->u8Id             = apicId; /* this ID is referenced by the interrupt entries */
+    pIOAPICEntry->u8Id             = iApicId; /* this ID is referenced by the interrupt entries */
     pIOAPICEntry->u8Version        = 0x11;
     pIOAPICEntry->u8Flags          = 1 /* enable */;
     pIOAPICEntry->u32Addr          = 0xfec00000;
 
+    /* Interrupt tables */
+    /* Bus vectors */
     PMPSIOIRQENTRY pIrqEntry       = (PMPSIOIRQENTRY)(pIOAPICEntry+1);
-    for (int i = 0; i < 16; i++, pIrqEntry++)
+    for (int iPin = 0; iPin < 16; iPin++, pIrqEntry++)
     {
         pIrqEntry->u8EntryType     = 3; /* I/O interrupt entry */
-        pIrqEntry->u8Type          = 0; /* INT, vectored interrupt */
-        pIrqEntry->u16Flags        = 0; /* polarity of APIC I/O input signal = conforms to bus,
-                                           trigger mode = conforms to bus */
-        pIrqEntry->u8SrcBusId      = 0; /* ISA bus */
-        pIrqEntry->u8SrcBusIrq     = i;
-        pIrqEntry->u8DstIOAPICId   = apicId;
-        pIrqEntry->u8DstIOAPICInt  = i;
+        /*
+         * 0 - INT, vectored interrupt,
+         * 3 - ExtINT, vectored interrupt provided by PIC
+         * As we emulate system with both APIC and PIC, it's needed for their coexistence.
+         */
+        pIrqEntry->u8Type          = (iPin == 0) ? 3 : 0;
+        pIrqEntry->u16Flags        = 0;              /* polarity of APIC I/O input signal = conforms to bus,
+                                                        trigger mode = conforms to bus */
+        pIrqEntry->u8SrcBusId      = iBusIdIsa;      /* ISA bus */
+        /* IRQ0 mapped to pin 2, other are identity mapped */
+        /* If changing, also update PDMIsaSetIrq() and MADT */
+        pIrqEntry->u8SrcBusIrq     = (iPin == 2) ? 0 : iPin; /* IRQ on the bus */
+        pIrqEntry->u8DstIOAPICId   = iApicId;        /* destintion IO-APIC */
+        pIrqEntry->u8DstIOAPICInt  = iPin;           /* pin on destination IO-APIC */
     }
+    /* Local delivery */
+    pIrqEntry->u8EntryType     = 4; /* Local interrupt entry */
+    pIrqEntry->u8Type          = 3; /* ExtINT */
+    pIrqEntry->u16Flags        = (1 << 2) | 1; /* active-high, edge-triggered */
+    pIrqEntry->u8SrcBusId      = iBusIdIsa;
+    pIrqEntry->u8SrcBusIrq     = 0;
+    pIrqEntry->u8DstIOAPICId   = 0xff;
+    pIrqEntry->u8DstIOAPICInt  = 0;
+    pIrqEntry++;
 
     pCfgTab->u16Length             = (uint8_t*)pIrqEntry - pTable;
     pCfgTab->u8Checksum            = fwCommonChecksum(pTable, pCfgTab->u16Length);
@@ -768,7 +960,17 @@ void FwCommonPlantMpsTable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, 
     AssertMsg(pCfgTab->u16Length < cbMax,
               ("VBOX_MPS_TABLE_SIZE=%d, maximum allowed size is %d",
               pCfgTab->u16Length, cbMax));
+}
 
+/**
+ * Construct the MPS table pointer at VM construction and reset.
+ *
+ * Only applicable if IOAPIC is active!
+ *
+ * @param   pDevIns    The device instance data.
+ */
+void FwCommonPlantMpsFloatPtr(PPDMDEVINS pDevIns)
+{
     MPSFLOATPTR floatPtr;
     floatPtr.au8Signature[0]       = '_';
     floatPtr.au8Signature[1]       = 'M';
@@ -784,5 +986,5 @@ void FwCommonPlantMpsTable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, 
     floatPtr.au8Feature[3]         = 0;
     floatPtr.au8Feature[4]         = 0;
     floatPtr.u8Checksum            = fwCommonChecksum((uint8_t*)&floatPtr, 16);
-    PDMDevHlpPhysWrite (pDevIns, 0x9fff0, &floatPtr, 16);
+    PDMDevHlpPhysWrite(pDevIns, 0x9fff0, &floatPtr, 16);
 }

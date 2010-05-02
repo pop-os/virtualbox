@@ -1,10 +1,10 @@
-/* $Id: Pcap.cpp $ */
+/* $Id: Pcap.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Helpers for writing libpcap files.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -28,6 +24,7 @@
 #include <iprt/stream.h>
 #include <iprt/time.h>
 #include <iprt/err.h>
+#include <VBox/pdmnetinline.h>
 
 
 /*******************************************************************************
@@ -92,6 +89,16 @@ static void pcapCalcHeader(struct pcaprec_hdr *pHdr, uint64_t StartNanoTS, size_
 
 
 /**
+ * Internal helper.
+ */
+static void pcapUpdateHeader(struct pcaprec_hdr *pHdr, size_t cbFrame, size_t cbMax)
+{
+    pHdr->incl_len = (uint32_t)RT_MIN(cbFrame, cbMax);
+    pHdr->orig_len = (uint32_t)cbFrame;
+}
+
+
+/**
  * Writes the stream header.
  *
  * @returns IPRT status code, @see RTStrmWrite.
@@ -129,6 +136,49 @@ int PcapStreamFrame(PRTSTREAM pStream, uint64_t StartNanoTS, const void *pvFrame
 
 
 /**
+ * Writes a GSO frame to a stream.
+ *
+ * @returns IPRT status code, @see RTStrmWrite.
+ *
+ * @param   pStream         The stream handle.
+ * @param   StartNanoTS     What to subtract from the RTTimeNanoTS output.
+ * @param   pGso            Pointer to the GSO context.
+ * @param   pvFrame         The start of the GSO frame.
+ * @param   cbFrame         The size of the GSO frame.
+ * @param   cbSegMax        The max number of bytes to include in the file for
+ *                          each segment.
+ */
+int PcapStreamGsoFrame(PRTSTREAM pStream, uint64_t StartNanoTS, PCPDMNETWORKGSO pGso,
+                       const void *pvFrame, size_t cbFrame, size_t cbSegMax)
+{
+    struct pcaprec_hdr Hdr;
+    pcapCalcHeader(&Hdr, StartNanoTS, 0, 0);
+
+    uint8_t const  *pbFrame = (uint8_t const *)pvFrame;
+    uint8_t         abHdrs[256];
+    uint32_t const  cSegs   = PDMNetGsoCalcSegmentCount(pGso, cbFrame);
+    for (uint32_t iSeg = 0; iSeg < cSegs; iSeg++)
+    {
+        uint32_t cbSegPayload;
+        uint32_t offSegPayload = PDMNetGsoCarveSegment(pGso, pbFrame, cbFrame, iSeg, cSegs, abHdrs, &cbSegPayload);
+
+        pcapUpdateHeader(&Hdr, pGso->cbHdrs + cbSegPayload, cbSegMax);
+        int rc = RTStrmWrite(pStream, &Hdr, sizeof(Hdr));
+        if (RT_FAILURE(rc))
+            return rc;
+
+        rc = RTStrmWrite(pStream, abHdrs, RT_MIN(Hdr.incl_len, pGso->cbHdrs));
+        if (RT_SUCCESS(rc) && Hdr.incl_len > pGso->cbHdrs)
+            rc = RTStrmWrite(pStream, pbFrame + offSegPayload, Hdr.incl_len - pGso->cbHdrs);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Writes the file header.
  *
  * @returns IPRT status code, @see RTFileWrite.
@@ -162,5 +212,48 @@ int PcapFileFrame(RTFILE File, uint64_t StartNanoTS, const void *pvFrame, size_t
     int rc1 = RTFileWrite(File, &Hdr, sizeof(Hdr), NULL);
     int rc2 = RTFileWrite(File, pvFrame, Hdr.incl_len, NULL);
     return RT_SUCCESS(rc1) ? rc2 : rc1;
+}
+
+
+/**
+ * Writes a GSO frame to a file.
+ *
+ * @returns IPRT status code, @see RTFileWrite.
+ *
+ * @param   File            The file handle.
+ * @param   StartNanoTS     What to subtract from the RTTimeNanoTS output.
+ * @param   pGso            Pointer to the GSO context.
+ * @param   pvFrame         The start of the GSO frame.
+ * @param   cbFrame         The size of the GSO frame.
+ * @param   cbSegMax        The max number of bytes to include in the file for
+ *                          each segment.
+ */
+int PcapFileGsoFrame(RTFILE File, uint64_t StartNanoTS, PCPDMNETWORKGSO pGso,
+                     const void *pvFrame, size_t cbFrame, size_t cbSegMax)
+{
+    struct pcaprec_hdr Hdr;
+    pcapCalcHeader(&Hdr, StartNanoTS, 0, 0);
+
+    uint8_t const  *pbFrame = (uint8_t const *)pvFrame;
+    uint8_t         abHdrs[256];
+    uint32_t const  cSegs   = PDMNetGsoCalcSegmentCount(pGso, cbFrame);
+    for (uint32_t iSeg = 0; iSeg < cSegs; iSeg++)
+    {
+        uint32_t cbSegPayload;
+        uint32_t offSegPayload = PDMNetGsoCarveSegment(pGso, pbFrame, cbFrame, iSeg, cSegs, abHdrs, &cbSegPayload);
+
+        pcapUpdateHeader(&Hdr, pGso->cbHdrs + cbSegPayload, cbSegMax);
+        int rc = RTFileWrite(File, &Hdr, sizeof(Hdr), NULL);
+        if (RT_FAILURE(rc))
+            return rc;
+
+        rc = RTFileWrite(File, abHdrs, RT_MIN(Hdr.incl_len, pGso->cbHdrs), NULL);
+        if (RT_SUCCESS(rc) && Hdr.incl_len > pGso->cbHdrs)
+            rc = RTFileWrite(File, pbFrame + offSegPayload, Hdr.incl_len - pGso->cbHdrs, NULL);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    return VINF_SUCCESS;
 }
 

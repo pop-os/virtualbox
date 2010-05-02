@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
 ## @file
 # Makefile for the linux guest additions base directory.
 #
 
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2007 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../../../..
@@ -103,8 +99,7 @@ VBOX_ADD_STRIP_BIN.linux += \
 	VBoxClient
 
 VBOX_ADD_BIN.linux += \
-	VBoxClient-all \
-	VBoxRandR
+	VBoxClient-all
 
 VBOX_ADD_STRIP_SBIN += \
 	VBoxService
@@ -126,6 +121,7 @@ VBOX_ADD_STRIP_MOD.linux = \
 	vboxmouse_drv_15.so \
 	vboxmouse_drv_16.so \
 	vboxmouse_drv_17.so \
+	vboxmouse_drv_18.so \
 	vboxvideo_drv_70.so \
 	vboxvideo_drv_71.so \
 	vboxvideo_drv_13.so \
@@ -133,6 +129,8 @@ VBOX_ADD_STRIP_MOD.linux = \
 	vboxvideo_drv_15.so \
 	vboxvideo_drv_16.so \
 	vboxvideo_drv_17.so \
+	vboxvideo_drv_18.so \
+	pam_vbox.so \
 	mount.vboxsf
 
 VBOX_ADD_MOD.linux = \
@@ -367,7 +365,6 @@ ifndef VBOX_OSE
  LnxAdd-Nostrip-Bin_INST    = $(subst $(PATH_TARGET),obj,$(VBOX_LNX_ADD_INST_BIN_DIR))
  LnxAdd-Nostrip-Bin_MODE    = a+rx,u+w
  LnxAdd-Nostrip-Bin_SOURCES = \
-	$(VBOX_REL_X11_ADD_INST)VBoxRandR.sh=>VBoxRandR \
 	$(VBOX_REL_X11_ADD_INST)98vboxadd-xclient=>VBoxClient-all
 
 

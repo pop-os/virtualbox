@@ -1,4 +1,4 @@
-/* $Id: VBoxGuest-os2.cpp $ */
+/* $Id: VBoxGuest-os2.cpp 28854 2010-04-27 19:41:12Z vboxsync $ */
 /** @file
  * VBoxGuest - OS/2 specifics.
  */
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -192,7 +188,7 @@ DECLASM(int) VBoxGuestOS2Init(const char *pszArgs)
                             strcpy(&g_szInitText[0],
                                    "\r\n"
                                    "VirtualBox Guest Additions Driver for OS/2 version " VBOX_VERSION_STRING "\r\n"
-                                   "Copyright (C) 2008 Sun Microsystems, Inc.\r\n");
+                                   "Copyright (C) 2008-2010 Oracle Corporation\r\n");
                             g_cchInitText = strlen(&g_szInitText[0]);
                         }
                         Log(("VBoxGuestOS2Init: Successfully loaded\n%s", g_szInitText));
@@ -253,11 +249,11 @@ static int vboxGuestOS2MapMemory(void)
      * a qualified guess using the VMMDEV_RAM_SIZE.
      */
     size_t cb = RT_ALIGN_Z(VMMDEV_RAM_SIZE, PAGE_SIZE);
-    int rc = RTR0MemObjEnterPhys(&g_MemObjMMIO, PhysMMIOBase, cb);
+    int rc = RTR0MemObjEnterPhys(&g_MemObjMMIO, PhysMMIOBase, cb, RTMEM_CACHE_POLICY_DONT_CARE);
     if (RT_FAILURE(rc))
     {
         cb = _4K;
-        rc = RTR0MemObjEnterPhys(&g_MemObjMMIO, PhysMMIOBase, cb);
+        rc = RTR0MemObjEnterPhys(&g_MemObjMMIO, PhysMMIOBase, cb, RTMEM_CACHE_POLICY_DONT_CARE);
     }
     if (RT_FAILURE(rc))
     {
@@ -299,7 +295,7 @@ static int vboxGuestOS2MapMemory(void)
             rc = RTR0MemObjFree(g_MemObjMMIO, true); AssertRC(rc);
             g_MemObjMMIO = g_MemMapMMIO = NIL_RTR0MEMOBJ;
 
-            rc = RTR0MemObjEnterPhys(&g_MemObjMMIO, PhysMMIOBase, cb);
+            rc = RTR0MemObjEnterPhys(&g_MemObjMMIO, PhysMMIOBase, cb, RTMEM_CACHE_POLICY_DONT_CARE);
             if (RT_SUCCESS(rc))
             {
                 rc = RTR0MemObjMapKernel(&g_MemMapMMIO, g_MemObjMMIO, (void *)-1, 0,

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_gmm_h
@@ -33,6 +29,7 @@
 #include <VBox/types.h>
 #include <VBox/gvmm.h>
 #include <VBox/sup.h>
+#include <VBox/VMMDev.h> /* for VMMDEVSHAREDREGIONDESC */
 
 RT_C_DECLS_BEGIN
 
@@ -75,8 +72,8 @@ RT_C_DECLS_BEGIN
 #endif
 
 
-/** The chunk shift. (2^20 = 1 MB) */
-#define GMM_CHUNK_SHIFT                 20
+/** The chunk shift. (2^21 = 2 MB) */
+#define GMM_CHUNK_SHIFT                 21
 /** The allocation chunk size. */
 #define GMM_CHUNK_SIZE                  (1U << GMM_CHUNK_SHIFT)
 /** The allocation chunk size in pages. */
@@ -186,6 +183,26 @@ typedef enum GMMACCOUNT
 
 
 /**
+ * Balloon actions.
+ */
+typedef enum
+{
+    /** Invalid zero entry. */
+    GMMBALLOONACTION_INVALID = 0,
+    /** Inflate the balloon. */
+    GMMBALLOONACTION_INFLATE,
+    /** Deflate the balloon. */
+    GMMBALLOONACTION_DEFLATE,
+    /** Puncture the balloon because of VM reset. */
+    GMMBALLOONACTION_RESET,
+    /** End of the valid actions. */
+    GMMBALLOONACTION_END,
+    /** hack forcing the size of the enum to 32-bits. */
+    GMMBALLOONACTION_MAKE_32BIT_HACK = 0x7fffffff
+} GMMBALLOONACTION;
+
+
+/**
  * A page descriptor for use when freeing pages.
  * See GMMR0FreePages, GMMR0BalloonedPages.
  */
@@ -270,11 +287,15 @@ GMMR0DECL(int)  GMMR0InitialReservation(PVM pVM, VMCPUID idCpu, uint64_t cBasePa
 GMMR0DECL(int)  GMMR0UpdateReservation(PVM pVM, VMCPUID idCpu, uint64_t cBasePages, uint32_t cShadowPages, uint32_t cFixedPages);
 GMMR0DECL(int)  GMMR0AllocateHandyPages(PVM pVM, VMCPUID idCpu, uint32_t cPagesToUpdate, uint32_t cPagesToAlloc, PGMMPAGEDESC paPages);
 GMMR0DECL(int)  GMMR0AllocatePages(PVM pVM, VMCPUID idCpu, uint32_t cPages, PGMMPAGEDESC paPages, GMMACCOUNT enmAccount);
+GMMR0DECL(int)  GMMR0AllocateLargePage(PVM pVM, VMCPUID idCpu, uint32_t cbPage, uint32_t *pIdPage, RTHCPHYS *pHCPhys);
 GMMR0DECL(int)  GMMR0FreePages(PVM pVM, VMCPUID idCpu, uint32_t cPages, PGMMFREEPAGEDESC paPages, GMMACCOUNT enmAccount);
-GMMR0DECL(int)  GMMR0BalloonedPages(PVM pVM, VMCPUID idCpu, uint32_t cBalloonedPages, uint32_t cPagesToFree, PGMMFREEPAGEDESC paPages, bool fCompleted);
-GMMR0DECL(int)  GMMR0DeflatedBalloon(PVM pVM, VMCPUID idCpu, uint32_t cPages);
+GMMR0DECL(int)  GMMR0FreeLargePage(PVM pVM, VMCPUID idCpu, uint32_t idPage);
+GMMR0DECL(int)  GMMR0BalloonedPages(PVM pVM, VMCPUID idCpu, GMMBALLOONACTION enmAction, uint32_t cBalloonedPages);
 GMMR0DECL(int)  GMMR0MapUnmapChunk(PVM pVM, VMCPUID idCpu, uint32_t idChunkMap, uint32_t idChunkUnmap, PRTR3PTR ppvR3);
 GMMR0DECL(int)  GMMR0SeedChunk(PVM pVM, VMCPUID idCpu, RTR3PTR pvR3);
+GMMR0DECL(int)  GMMR0RegisterSharedModule(PVM pVM, VMCPUID idCpu, char *pszModuleName, char *pszVersion, RTGCPTR GCBaseAddr, uint32_t cbModule, unsigned cRegions, VMMDEVSHAREDREGIONDESC *pRegions);
+GMMR0DECL(int)  GMMR0UnregisterSharedModule(PVM pVM, VMCPUID idCpu, char *pszModuleName, char *pszVersion, RTGCPTR GCBaseAddr, uint32_t cbModule);
+GMMR0DECL(int)  GMMR0CheckSharedModules(PVM pVM, VMCPUID idCpu);
 
 
 
@@ -357,7 +378,6 @@ typedef GMMFREEPAGESREQ *PGMMFREEPAGESREQ;
 
 GMMR0DECL(int)  GMMR0FreePagesReq(PVM pVM, VMCPUID idCpu, PGMMFREEPAGESREQ pReq);
 
-
 /**
  * Request buffer for GMMR0BalloonedPagesReq / VMMR0_DO_GMM_BALLOONED_PAGES.
  * @see GMMR0BalloonedPages.
@@ -365,21 +385,37 @@ GMMR0DECL(int)  GMMR0FreePagesReq(PVM pVM, VMCPUID idCpu, PGMMFREEPAGESREQ pReq)
 typedef struct GMMBALLOONEDPAGESREQ
 {
     /** The header. */
-    SUPVMMR0REQHDR  Hdr;
+    SUPVMMR0REQHDR      Hdr;
     /** The number of ballooned pages. */
-    uint32_t        cBalloonedPages;
-    /** The number of pages to free. */
-    uint32_t        cPagesToFree;
-    /** Whether the ballooning request is completed or more pages are still to come. */
-    bool            fCompleted;
-    /** Array of free page descriptors. */
-    GMMFREEPAGEDESC aPages[1];
+    uint32_t            cBalloonedPages;
+    /** Inflate or deflate the balloon. */
+    GMMBALLOONACTION    enmAction;
 } GMMBALLOONEDPAGESREQ;
 /** Pointer to a GMMR0BalloonedPagesReq / VMMR0_DO_GMM_BALLOONED_PAGES request buffer. */
 typedef GMMBALLOONEDPAGESREQ *PGMMBALLOONEDPAGESREQ;
 
 GMMR0DECL(int)  GMMR0BalloonedPagesReq(PVM pVM, VMCPUID idCpu, PGMMBALLOONEDPAGESREQ pReq);
 
+
+/**
+ * Request buffer for GMMR0QueryVMMMemoryStatsReq / VMMR0_DO_GMM_QUERY_VMM_MEM_STATS.
+ * @see GMMR0QueryVMMMemoryStatsReq.
+ */
+typedef struct GMMMEMSTATSREQ
+{
+    /** The header. */
+    SUPVMMR0REQHDR      Hdr;
+    /** The number of allocated pages (out). */
+    uint64_t            cAllocPages;
+    /** The number of free pages (out). */
+    uint64_t            cFreePages;
+    /** The number of ballooned pages (out). */
+    uint64_t            cBalloonedPages;
+} GMMMEMSTATSREQ;
+/** Pointer to a GMMR0QueryVMMMemoryStatsReq / VMMR0_DO_GMM_QUERY_VMM_MEM_STATS request buffer. */
+typedef GMMMEMSTATSREQ *PGMMMEMSTATSREQ;
+
+GMMR0DECL(int)  GMMR0QueryVMMMemoryStatsReq(PVM pVM, PGMMMEMSTATSREQ pReq);
 
 /**
  * Request buffer for GMMR0MapUnmapChunkReq / VMMR0_DO_GMM_MAP_UNMAP_CHUNK.
@@ -402,6 +438,79 @@ typedef GMMMAPUNMAPCHUNKREQ *PGMMMAPUNMAPCHUNKREQ;
 GMMR0DECL(int)  GMMR0MapUnmapChunkReq(PVM pVM, VMCPUID idCpu, PGMMMAPUNMAPCHUNKREQ pReq);
 
 
+/**
+ * Request buffer for GMMR0FreeLargePageReq / VMMR0_DO_GMM_FREE_LARGE_PAGE.
+ * @see GMMR0FreeLargePage.
+ */
+typedef struct GMMFREELARGEPAGEREQ
+{
+    /** The header. */
+    SUPVMMR0REQHDR  Hdr;
+    /** The Page ID. */
+    uint32_t        idPage;
+} GMMFREELARGEPAGEREQ;
+/** Pointer to a GMMR0FreePagesReq / VMMR0_DO_GMM_FREE_PAGES request buffer. */
+typedef GMMFREELARGEPAGEREQ *PGMMFREELARGEPAGEREQ;
+
+GMMR0DECL(int) GMMR0FreeLargePageReq(PVM pVM, VMCPUID idCpu, PGMMFREELARGEPAGEREQ pReq);
+
+/** Maximum length of the shared module name string. */
+#define GMM_SHARED_MODULE_MAX_NAME_STRING       128
+/** Maximum length of the shared module version string. */
+#define GMM_SHARED_MODULE_MAX_VERSION_STRING    16
+
+/**
+ * Request buffer for GMMR0RegisterSharedModuleReq / VMMR0_DO_GMM_REGISTER_SHARED_MODULE.
+ * @see GMMR0RegisterSharedModule.
+ */
+typedef struct GMMREGISTERSHAREDMODULEREQ
+{
+    /** The header. */
+    SUPVMMR0REQHDR              Hdr;
+    /** Shared module size. */
+    uint32_t                    cbModule;
+    /** Number of included region descriptors */
+    uint32_t                    cRegions;
+    /** Base address of the shared module. */
+    RTGCPTR64                   GCBaseAddr;
+    /** Module name */
+    char                        szName[GMM_SHARED_MODULE_MAX_NAME_STRING];
+    /** Module version */
+    char                        szVersion[GMM_SHARED_MODULE_MAX_VERSION_STRING];
+    /** Shared region descriptor(s). */
+    VMMDEVSHAREDREGIONDESC      aRegions[1];
+} GMMREGISTERSHAREDMODULEREQ;
+/** Pointer to a GMMR0RegisterSharedModuleReq / VMMR0_DO_GMM_REGISTER_SHARED_MODULE request buffer. */
+typedef GMMREGISTERSHAREDMODULEREQ *PGMMREGISTERSHAREDMODULEREQ;
+
+GMMR0DECL(int) GMMR0RegisterSharedModuleReq(PVM pVM, VMCPUID idCpu, PGMMREGISTERSHAREDMODULEREQ pReq);
+
+
+/**
+ * Request buffer for GMMR0UnregisterSharedModuleReq / VMMR0_DO_GMM_UNREGISTER_SHARED_MODULE.
+ * @see GMMR0UnregisterSharedModule.
+ */
+typedef struct GMMUNREGISTERSHAREDMODULEREQ
+{
+    /** The header. */
+    SUPVMMR0REQHDR              Hdr;
+    /** Shared module size. */
+    uint32_t                    cbModule;
+    /** Align at 8 byte boundary. */
+    uint32_t                    u32Alignment;
+    /** Base address of the shared module. */
+    RTGCPTR64                   GCBaseAddr;
+    /** Module name */
+    char                        szName[GMM_SHARED_MODULE_MAX_NAME_STRING];
+    /** Module version */
+    char                        szVersion[GMM_SHARED_MODULE_MAX_VERSION_STRING];
+} GMMUNREGISTERSHAREDMODULEREQ;
+/** Pointer to a GMMR0UnregisterSharedModuleReq / VMMR0_DO_GMM_UNREGISTER_SHARED_MODULE request buffer. */
+typedef GMMUNREGISTERSHAREDMODULEREQ *PGMMUNREGISTERSHAREDMODULEREQ;
+
+GMMR0DECL(int) GMMR0UnregisterSharedModuleReq(PVM pVM, VMCPUID idCpu, PGMMUNREGISTERSHAREDMODULEREQ pReq);
+
+
 #ifdef IN_RING3
 /** @defgroup grp_gmm_r3    The Global Memory Manager Ring-3 API Wrappers
  * @ingroup grp_gmm
@@ -418,9 +527,16 @@ GMMR3DECL(void) GMMR3FreePagesRePrep(PVM pVM, PGMMFREEPAGESREQ pReq, uint32_t cP
 GMMR3DECL(int)  GMMR3FreePagesPerform(PVM pVM, PGMMFREEPAGESREQ pReq, uint32_t cActualPages);
 GMMR3DECL(void) GMMR3FreePagesCleanup(PGMMFREEPAGESREQ pReq);
 GMMR3DECL(void) GMMR3FreeAllocatedPages(PVM pVM, GMMALLOCATEPAGESREQ const *pAllocReq);
-GMMR3DECL(int)  GMMR3DeflatedBalloon(PVM pVM, uint32_t cPages);
+GMMR3DECL(int)  GMMR3AllocateLargePage(PVM pVM,  uint32_t cbPage);
+GMMR3DECL(int)  GMMR3FreeLargePage(PVM pVM,  uint32_t idPage);
 GMMR3DECL(int)  GMMR3MapUnmapChunk(PVM pVM, uint32_t idChunkMap, uint32_t idChunkUnmap, PRTR3PTR ppvR3);
 GMMR3DECL(int)  GMMR3SeedChunk(PVM pVM, RTR3PTR pvR3);
+GMMR3DECL(int)  GMMR3BalloonedPages(PVM pVM, GMMBALLOONACTION enmAction, uint32_t cBalloonedPages);
+GMMR3DECL(int)  GMMR3QueryVMMMemoryStats(PVM pVM, uint64_t *pcTotalAllocPages, uint64_t *pcTotalFreePages, uint64_t *pcTotalBalloonPages);
+GMMR3DECL(int)  GMMR3RegisterSharedModule(PVM pVM, char *pszModuleName, char *pszVersion, RTGCPTR GCBaseAddr, uint32_t cbModule,
+                                          unsigned cRegions, VMMDEVSHAREDREGIONDESC *pRegions);
+GMMR3DECL(int)  GMMR3UnregisterSharedModule(PVM pVM, char *pszModuleName, char *pszVersion, RTGCPTR GCBaseAddr, uint32_t cbModule);
+GMMR3DECL(int)  GMMR3CheckSharedModules(PVM pVM);
 /** @} */
 #endif /* IN_RING3 */
 

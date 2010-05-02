@@ -74,6 +74,7 @@ struct glxpixmap_info_t
     unsigned int w, h, border, depth;
     GLenum format;
     Window root;
+    GLenum target;
     GC gc;
     Pixmap hShmPixmap; /* Shared memory pixmap object, if it's supported*/
     Damage hDamage;    /* damage xserver handle*/
@@ -207,6 +208,8 @@ typedef struct {
     /* Shared memory, used to transfer XServer pixmaps data into client memory */
     XShmSegmentInfo xshmSI;
     GLboolean       bShmInitFailed;
+
+    CRHashTable     *pGLXPixmapsHash;
 #endif
 
 #ifdef WINDOWS

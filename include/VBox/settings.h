@@ -2,9 +2,14 @@
  * Settings file data structures.
  *
  * These structures are created by the settings file loader and filled with values
- * copied from the raw XML data. This allows us to finally make the XML reader
- * version-independent and read VirtualBox XML files from earlier versions without
- * requiring complicated, tedious and error-prone XSLT conversions.
+ * copied from the raw XML data. This was all new with VirtualBox 3.1 and allows us
+ * to finally make the XML reader version-independent and read VirtualBox XML files
+ * from earlier and even newer (future) versions without requiring complicated,
+ * tedious and error-prone XSLT conversions.
+ *
+ * It is this file that defines all structures that map VirtualBox global and
+ * machine settings to XML files. These structures are used by the rest of Main,
+ * even though this header file does not require anything else in Main.
  *
  * Note: Headers in Main code have been tweaked to only declare the structures
  * defined here so that this header need only be included from code files that
@@ -12,7 +17,7 @@
  */
 
 /*
- * Copyright (C) 2007-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2007-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,10 +35,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_settings_h
@@ -48,7 +49,6 @@
 
 #include <list>
 #include <map>
-#include <vector>
 
 namespace xml
 {
@@ -80,6 +80,8 @@ class ConfigFileBase
 public:
     bool fileExists();
 
+    void copyBaseFrom(const ConfigFileBase &b);
+
 protected:
     ConfigFileBase(const com::Utf8Str *pstrFilename);
     ~ConfigFileBase();
@@ -97,6 +99,7 @@ protected:
     void readUSBDeviceFilters(const xml::ElementNode &elmDeviceFilters,
                               USBDeviceFiltersList &ll);
 
+    void setVersionAttribute(xml::ElementNode &elm);
     void createStubDocument();
 
     void writeExtraData(xml::ElementNode &elmParent, const ExtraDataItemsMap &me);
@@ -109,15 +112,27 @@ protected:
     struct Data;
     Data *m;
 
+private:
+    // prohibit copying (Data contains pointers to XML which cannot be copied)
+    ConfigFileBase(const ConfigFileBase&);
+
     friend class ConfigFileError;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-// VirtualBox.xml structures
+// Structures shared between Machine XML and VirtualBox.xml
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * USB device filter definition. This struct is used both in MainConfigFile
+ * (for global USB filters) and MachineConfigFile (for machine filters).
+ *
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct USBDeviceFilter
 {
     USBDeviceFilter()
@@ -125,6 +140,8 @@ struct USBDeviceFilter
           action(USBDeviceFilterAction_Null),
           ulMaskedInterfaces(0)
     {}
+
+    bool operator==(const USBDeviceFilter&u) const;
 
     com::Utf8Str            strName;
     bool                    fActive;
@@ -139,6 +156,12 @@ struct USBDeviceFilter
     com::Utf8Str            strRemote;              // irrelevant for host USB objects
     uint32_t                ulMaskedInterfaces;     // irrelevant for host USB objects
 };
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// VirtualBox.xml structures
+//
+////////////////////////////////////////////////////////////////////////////////
 
 struct Host
 {
@@ -229,6 +252,11 @@ public:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct VRDPSettings
 {
     VRDPSettings()
@@ -236,8 +264,12 @@ struct VRDPSettings
           authType(VRDPAuthType_Null),
           ulAuthTimeout(5000),
           fAllowMultiConnection(false),
-          fReuseSingleConnection(false)
+          fReuseSingleConnection(false),
+          fVideoChannel(false),
+          ulVideoChannelQuality(75)
     {}
+
+    bool operator==(const VRDPSettings& v) const;
 
     bool            fEnabled;
     com::Utf8Str    strPort;
@@ -245,21 +277,30 @@ struct VRDPSettings
     VRDPAuthType_T  authType;
     uint32_t        ulAuthTimeout;
     bool            fAllowMultiConnection,
-                    fReuseSingleConnection;
+                    fReuseSingleConnection,
+                    fVideoChannel;
+    uint32_t        ulVideoChannelQuality;
 };
 
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct BIOSSettings
 {
     BIOSSettings()
         : fACPIEnabled(true),
           fIOAPICEnabled(false),
           fLogoFadeIn(true),
-          fLogoFadeOut(false),
+          fLogoFadeOut(true),
           ulLogoDisplayTime(0),
           biosBootMenuMode(BIOSBootMenuMode_MessageAndMenu),
           fPXEDebugEnabled(false),
           llTimeOffset(0)
     {}
+
+    bool operator==(const BIOSSettings &d) const;
 
     bool            fACPIEnabled,
                     fIOAPICEnabled,
@@ -272,6 +313,11 @@ struct BIOSSettings
     int64_t         llTimeOffset;
 };
 
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct USBController
 {
     USBController()
@@ -279,11 +325,89 @@ struct USBController
           fEnabledEHCI(false)
     {}
 
+    bool operator==(const USBController &u) const;
+
     bool                    fEnabled;
     bool                    fEnabledEHCI;
     USBDeviceFiltersList    llDeviceFilters;
 };
 
+ struct NATRule
+ {
+     NATRule(): u32Proto(0),
+             u16HostPort(0),
+             u16GuestPort(0){}
+     com::Utf8Str            strName;
+     uint32_t                u32Proto;
+     uint16_t                u16HostPort;
+     com::Utf8Str            strHostIP;
+     uint16_t                u16GuestPort;
+     com::Utf8Str            strGuestIP;
+    bool operator==(const NATRule &r) const
+    {
+        return    strName == r.strName
+               && u32Proto == r.u32Proto
+               && u16HostPort == r.u16HostPort
+               && strHostIP == r.strHostIP
+               && u16GuestPort == r.u16GuestPort
+               && strGuestIP == r.strGuestIP;
+    }
+ };
+ typedef std::list<NATRule> NATRuleList;
+
+ struct NAT
+ {
+     NAT(): u32Mtu(0),
+         u32SockRcv(0),
+         u32SockSnd(0),
+         u32TcpRcv(0),
+         u32TcpSnd(0),
+         fDnsPassDomain(true), /* historically this value is true */
+         fDnsProxy(false),
+         fDnsUseHostResolver(false),
+         fAliasLog(false),
+         fAliasProxyOnly(false),
+         fAliasUseSamePorts(false){}
+     com::Utf8Str            strNetwork;
+     com::Utf8Str            strBindIP;
+     uint32_t                u32Mtu;
+     uint32_t                u32SockRcv;
+     uint32_t                u32SockSnd;
+     uint32_t                u32TcpRcv;
+     uint32_t                u32TcpSnd;
+     com::Utf8Str            strTftpPrefix;
+     com::Utf8Str            strTftpBootFile;
+     com::Utf8Str            strTftpNextServer;
+     bool                    fDnsPassDomain;
+     bool                    fDnsProxy;
+     bool                    fDnsUseHostResolver;
+     bool                    fAliasLog;
+     bool                    fAliasProxyOnly;
+     bool                    fAliasUseSamePorts;
+     NATRuleList             llRules;
+     bool operator==(const NAT &n) const
+     {
+        return strNetwork == n.strNetwork
+             && strBindIP == n.strBindIP
+             && u32Mtu == n.u32Mtu
+             && u32SockRcv == n.u32SockRcv
+             && u32SockSnd == n.u32SockSnd
+             && u32TcpSnd == n.u32TcpSnd
+             && u32TcpRcv == n.u32TcpRcv
+             && strTftpPrefix == n.strTftpPrefix
+             && strTftpBootFile == n.strTftpBootFile
+             && strTftpNextServer == n.strTftpNextServer
+             && fDnsPassDomain == n.fDnsPassDomain
+             && fDnsProxy == n.fDnsProxy
+             && fDnsUseHostResolver == n.fDnsUseHostResolver
+             && llRules == n.llRules;
+     }
+ };
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct NetworkAdapter
 {
     NetworkAdapter()
@@ -293,8 +417,12 @@ struct NetworkAdapter
           fCableConnected(false),
           ulLineSpeed(0),
           fTraceEnabled(false),
-          mode(NetworkAttachmentType_Null)
+          mode(NetworkAttachmentType_Null),
+          ulBootPriority(0),
+          fHasDisabledNAT(false)
     {}
+
+    bool operator==(const NetworkAdapter &n) const;
 
     uint32_t                ulSlot;
 
@@ -307,21 +435,32 @@ struct NetworkAdapter
     com::Utf8Str            strTraceFile;
 
     NetworkAttachmentType_T mode;
-    com::Utf8Str            strName;            // with NAT: nat network or empty;
+    NAT                     nat;
+    com::Utf8Str            strName;            // NAT has own attribute
                                                 // with bridged: host interface or empty;
                                                 // otherwise: network name (required)
+    uint32_t                ulBootPriority;
+    bool                    fHasDisabledNAT;
 };
 typedef std::list<NetworkAdapter> NetworkAdaptersList;
 
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct SerialPort
 {
     SerialPort()
-        : fEnabled(false),
-          ulIOBase(0),
-          ulIRQ(0),
+        : ulSlot(0),
+          fEnabled(false),
+          ulIOBase(0x3f8),
+          ulIRQ(4),
           portMode(PortMode_Disconnected),
           fServer(false)
     {}
+
+    bool operator==(const SerialPort &n) const;
 
     uint32_t        ulSlot;
 
@@ -334,13 +473,21 @@ struct SerialPort
 };
 typedef std::list<SerialPort> SerialPortsList;
 
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct ParallelPort
 {
     ParallelPort()
-        : fEnabled(false),
-          ulIOBase(0),
-          ulIRQ(0)
+        : ulSlot(0),
+          fEnabled(false),
+          ulIOBase(0x378),
+          ulIRQ(4)
     {}
+
+    bool operator==(const ParallelPort &d) const;
 
     uint32_t        ulSlot;
 
@@ -351,6 +498,11 @@ struct ParallelPort
 };
 typedef std::list<ParallelPort> ParallelPortsList;
 
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct AudioAdapter
 {
     AudioAdapter()
@@ -359,16 +511,32 @@ struct AudioAdapter
           driverType(AudioDriverType_Null)
     {}
 
+    bool operator==(const AudioAdapter &a) const
+    {
+        return     (this == &a)
+                || (    (fEnabled        == a.fEnabled)
+                     && (controllerType  == a.controllerType)
+                     && (driverType      == a.driverType)
+                   );
+    }
+
     bool                    fEnabled;
     AudioControllerType_T   controllerType;
     AudioDriverType_T       driverType;
 };
 
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct SharedFolder
 {
     SharedFolder()
         : fWritable(false)
     {}
+
+    bool operator==(const SharedFolder &a) const;
 
     com::Utf8Str    strName,
                     strHostPath;
@@ -376,11 +544,18 @@ struct SharedFolder
 };
 typedef std::list<SharedFolder> SharedFoldersList;
 
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct GuestProperty
 {
     GuestProperty()
         : timestamp(0)
     {};
+
+    bool operator==(const GuestProperty &g) const;
 
     com::Utf8Str    strName,
                     strValue;
@@ -391,6 +566,11 @@ typedef std::list<GuestProperty> GuestPropertiesList;
 
 typedef std::map<uint32_t, DeviceType_T> BootOrderMap;
 
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct CpuIdLeaf
 {
     CpuIdLeaf()
@@ -401,6 +581,18 @@ struct CpuIdLeaf
           ulEdx(0)
     {}
 
+    bool operator==(const CpuIdLeaf &c) const
+    {
+        return (    (this == &c)
+                 || (    (ulId      == c.ulId)
+                      && (ulEax     == c.ulEax)
+                      && (ulEbx     == c.ulEbx)
+                      && (ulEcx     == c.ulEcx)
+                      && (ulEdx     == c.ulEdx)
+                    )
+               );
+    }
+
     uint32_t                ulId;
     uint32_t                ulEax;
     uint32_t                ulEbx;
@@ -409,9 +601,64 @@ struct CpuIdLeaf
 };
 typedef std::list<CpuIdLeaf> CpuIdLeafsList;
 
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
+struct Cpu
+{
+    Cpu()
+        : ulId(UINT32_MAX)
+    {}
+
+    bool operator==(const Cpu &c) const
+    {
+        return (ulId == c.ulId);
+    }
+
+    uint32_t                ulId;
+};
+typedef std::list<Cpu> CpuList;
+
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
+struct IoSettings
+{
+    IoSettings();
+
+    bool operator==(const IoSettings &i) const
+    {
+        return (   (ioMgrType        == i.ioMgrType)
+                && (ioBackendType    == i.ioBackendType)
+                && (fIoCacheEnabled  == i.fIoCacheEnabled)
+                && (ulIoCacheSize    == i.ulIoCacheSize)
+                && (ulIoBandwidthMax == i.ulIoBandwidthMax));
+    }
+
+    IoMgrType_T     ioMgrType;
+    IoBackendType_T ioBackendType;
+    bool            fIoCacheEnabled;
+    uint32_t        ulIoCacheSize;
+    uint32_t        ulIoBandwidthMax;
+};
+
+/**
+ * Representation of Machine hardware; this is used in the MachineConfigFile.hardwareMachine
+ * field.
+ *
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct Hardware
 {
     Hardware();
+
+    bool operator==(const Hardware&) const;
 
     com::Utf8Str        strVersion;             // hardware version, optional
     com::Guid           uuid;                   // hardware uuid, optional (null).
@@ -419,10 +666,15 @@ struct Hardware
     bool                fHardwareVirt,
                         fHardwareVirtExclusive,
                         fNestedPaging,
+                        fLargePages,
                         fVPID,
                         fSyntheticCpu,
                         fPAE;
     uint32_t            cCPUs;
+    bool                fCpuHotPlug;            // requires settings version 1.10 (VirtualBox 3.2)
+    CpuList             llCpus;                 // requires settings version 1.10 (VirtualBox 3.2)
+    bool                fHpetEnabled;           // requires settings version 1.10 (VirtualBox 3.2)
+
     CpuIdLeafsList      llCpuIdLeafs;
 
     uint32_t            ulMemorySizeMB;
@@ -434,6 +686,9 @@ struct Hardware
     bool                fAccelerate3D,
                         fAccelerate2DVideo;     // requires settings version 1.8 (VirtualBox 3.1)
     FirmwareType_T      firmwareType;           // requires settings version 1.9 (VirtualBox 3.1)
+
+    PointingHidType_T   pointingHidType;        // requires settings version 1.10 (VirtualBox 3.2)
+    KeyboardHidType_T   keyboardHidType;        // requires settings version 1.10 (VirtualBox 3.2)
 
     VRDPSettings        vrdpSettings;
 
@@ -450,10 +705,11 @@ struct Hardware
     ClipboardMode_T     clipboardMode;
 
     uint32_t            ulMemoryBalloonSize;
-    uint32_t            ulStatisticsUpdateInterval;
 
     GuestPropertiesList llGuestProperties;
     com::Utf8Str        strNotificationPatterns;
+
+    IoSettings          ioSettings;             // requires settings version 1.10 (VirtualBox 3.2)
 };
 
 /**
@@ -461,6 +717,10 @@ struct Hardware
  * hard disk or a DVD drive or a floppy drive and also specifies
  * which medium is "in" the drive; as a result, this is a combination
  * of the Main IMedium and IMediumAttachment interfaces.
+ *
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
  */
 struct AttachedDevice
 {
@@ -470,6 +730,8 @@ struct AttachedDevice
           lPort(0),
           lDevice(0)
     {}
+
+    bool operator==(const AttachedDevice &a) const;
 
     DeviceType_T        deviceType;         // only HardDisk, DVD or Floppy are allowed
 
@@ -489,6 +751,11 @@ struct AttachedDevice
 };
 typedef std::list<AttachedDevice> AttachedDevicesList;
 
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct StorageController
 {
     StorageController()
@@ -496,40 +763,59 @@ struct StorageController
           controllerType(StorageControllerType_PIIX3),
           ulPortCount(2),
           ulInstance(0),
+          ioBackendType(IoBackendType_Buffered),
           lIDE0MasterEmulationPort(0),
           lIDE0SlaveEmulationPort(0),
           lIDE1MasterEmulationPort(0),
           lIDE1SlaveEmulationPort(0)
     {}
 
-    com::Utf8Str        strName;
-    StorageBus_T        storageBus;             // _SATA, _SCSI, _IDE
+    bool operator==(const StorageController &s) const;
+
+    com::Utf8Str            strName;
+    StorageBus_T            storageBus;             // _SATA, _SCSI, _IDE, _SAS
     StorageControllerType_T controllerType;
-    uint32_t            ulPortCount;
-    uint32_t            ulInstance;
+    uint32_t                ulPortCount;
+    uint32_t                ulInstance;
+    IoBackendType_T         ioBackendType;
 
     // only for when controllerType == StorageControllerType_IntelAhci:
-    int32_t             lIDE0MasterEmulationPort,
-                        lIDE0SlaveEmulationPort,
-                        lIDE1MasterEmulationPort,
-                        lIDE1SlaveEmulationPort;
+    int32_t                 lIDE0MasterEmulationPort,
+                            lIDE0SlaveEmulationPort,
+                            lIDE1MasterEmulationPort,
+                            lIDE1SlaveEmulationPort;
 
-    AttachedDevicesList llAttachedDevices;
+    AttachedDevicesList     llAttachedDevices;
 };
 typedef std::list<StorageController> StorageControllersList;
 
-// wrap the list into an extra struct so we can use the struct without
-// having to define the typedef above in headers
+/**
+ * We wrap the storage controllers list into an extra struct so we can
+ * use an undefined struct without needing std::list<> in all the headers.
+ *
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct Storage
 {
+    bool operator==(const Storage &s) const;
+
     StorageControllersList  llStorageControllers;
 };
 
 struct Snapshot;
 typedef std::list<Snapshot> SnapshotsList;
 
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct Snapshot
 {
+    bool operator==(const Snapshot &s) const;
+
     com::Guid       uuid;
     com::Utf8Str    strName,
                     strDescription;             // optional
@@ -543,32 +829,17 @@ struct Snapshot
     SnapshotsList   llChildSnapshots;
 };
 
-
+/**
+ * MachineConfigFile represents an XML machine configuration. All the machine settings
+ * that go out to the XML (or are read from it) are in here.
+ *
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by Machine::saveSettings(), or otherwise your settings
+ * might never get saved.
+ */
 class MachineConfigFile : public ConfigFileBase
 {
 public:
-    MachineConfigFile(const com::Utf8Str *pstrFilename);
-
-    void readNetworkAdapters(const xml::ElementNode &elmHardware, NetworkAdaptersList &ll);
-    void readCpuIdTree(const xml::ElementNode &elmCpuid, CpuIdLeafsList &ll);
-    void readSerialPorts(const xml::ElementNode &elmUART, SerialPortsList &ll);
-    void readParallelPorts(const xml::ElementNode &elmLPT, ParallelPortsList &ll);
-    void readGuestProperties(const xml::ElementNode &elmGuestProperties, Hardware &hw);
-    void readStorageControllerAttributes(const xml::ElementNode &elmStorageController, StorageController &sctl);
-    void readHardware(const xml::ElementNode &elmHardware, Hardware &hw, Storage &strg);
-    void readHardDiskAttachments_pre1_7(const xml::ElementNode &elmHardDiskAttachments, Storage &strg);
-    void readStorageControllers(const xml::ElementNode &elmStorageControllers, Storage &strg);
-    void readDVDAndFloppies_pre1_9(const xml::ElementNode &elmHardware, Storage &strg);
-    void readSnapshot(const xml::ElementNode &elmSnapshot, Snapshot &snap);
-    void convertOldOSType_pre1_5(com::Utf8Str &str);
-    void readMachine(const xml::ElementNode &elmMachine);
-
-    void writeHardware(xml::ElementNode &elmParent, const Hardware &hw, const Storage &strg);
-    void writeStorageControllers(xml::ElementNode &elmParent, const Storage &st);
-    void writeSnapshot(xml::ElementNode &elmParent, const Snapshot &snap);
-    void bumpSettingsVersionIfNeeded();
-    void write(const com::Utf8Str &strFilename);
-
     com::Guid               uuid;
     com::Utf8Str            strName;
     bool                    fNameSync;
@@ -581,6 +852,7 @@ public:
     uint32_t                uTeleporterPort;
     com::Utf8Str            strTeleporterAddress;
     com::Utf8Str            strTeleporterPassword;
+    bool                    fRTCUseUTC;
 
     bool                    fCurrentStateModified;      // optional, default is true
     RTTIMESPEC              timeLastStateChange;        // optional, defaults to now
@@ -592,6 +864,45 @@ public:
     ExtraDataItemsMap       mapExtraDataItems;
 
     SnapshotsList           llFirstSnapshot;            // first snapshot or empty list if there's none
+
+    MachineConfigFile(const com::Utf8Str *pstrFilename);
+
+    bool operator==(const MachineConfigFile &m) const;
+
+    void importMachineXML(const xml::ElementNode &elmMachine);
+
+    void write(const com::Utf8Str &strFilename);
+
+    enum
+    {
+        BuildMachineXML_IncludeSnapshots = 0x01,
+        BuildMachineXML_WriteVboxVersionAttribute = 0x02
+    };
+    void buildMachineXML(xml::ElementNode &elmMachine, uint32_t fl);
+
+private:
+    void readNetworkAdapters(const xml::ElementNode &elmHardware, NetworkAdaptersList &ll);
+    void readAttachedNetworkMode(const xml::ElementNode &pelmMode, bool fEnabled, NetworkAdapter &nic);
+    void readCpuIdTree(const xml::ElementNode &elmCpuid, CpuIdLeafsList &ll);
+    void readCpuTree(const xml::ElementNode &elmCpu, CpuList &ll);
+    void readSerialPorts(const xml::ElementNode &elmUART, SerialPortsList &ll);
+    void readParallelPorts(const xml::ElementNode &elmLPT, ParallelPortsList &ll);
+    void readGuestProperties(const xml::ElementNode &elmGuestProperties, Hardware &hw);
+    void readStorageControllerAttributes(const xml::ElementNode &elmStorageController, StorageController &sctl);
+    void readHardware(const xml::ElementNode &elmHardware, Hardware &hw, Storage &strg);
+    void readHardDiskAttachments_pre1_7(const xml::ElementNode &elmHardDiskAttachments, Storage &strg);
+    void readStorageControllers(const xml::ElementNode &elmStorageControllers, Storage &strg);
+    void readDVDAndFloppies_pre1_9(const xml::ElementNode &elmHardware, Storage &strg);
+    void readSnapshot(const xml::ElementNode &elmSnapshot, Snapshot &snap);
+    void convertOldOSType_pre1_5(com::Utf8Str &str);
+    void readMachine(const xml::ElementNode &elmMachine);
+
+    void buildHardwareXML(xml::ElementNode &elmParent, const Hardware &hw, const Storage &strg);
+    void buildNetworkXML(NetworkAttachmentType_T mode, xml::ElementNode &elmParent, const NetworkAdapter &nic);
+    void buildStorageControllersXML(xml::ElementNode &elmParent, const Storage &st);
+    void buildSnapshotXML(xml::ElementNode &elmParent, const Snapshot &snap);
+
+    void bumpSettingsVersionIfNeeded();
 };
 
 } // namespace settings

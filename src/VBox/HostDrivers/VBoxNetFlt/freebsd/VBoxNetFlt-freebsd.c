@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-freebsd.c $ */
+/* $Id: VBoxNetFlt-freebsd.c 28830 2010-04-27 14:05:25Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), FreeBSD Specific Code.
  */
@@ -60,6 +60,7 @@
 #include <VBox/version.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
+#include <VBox/intnetinline.h>
 #include <iprt/initterm.h>
 #include <iprt/string.h>
 #include <iprt/spinlock.h>
@@ -187,13 +188,7 @@ static void vboxNetFltFreeBSDMBufToSG(PVBOXNETFLTINS pThis, struct mbuf *m, PINT
     unsigned int i;
     struct mbuf *m0;
 
-    pSG->cbTotal = m_length(m, NULL);
-    pSG->pvOwnerData = NULL;
-    pSG->pvUserData = NULL;
-    pSG->pvUserData2 = NULL;
-    pSG->cUsers = 1;
-    pSG->fFlags = INTNETSG_FLAGS_TEMP;
-    pSG->cSegsAlloc = cSegs;
+    IntNetSgInitTempSegs(pSG, m_length(m, NULL), cSegs, 0 /*cSegsUsed*/);
 
     for (m0 = m, i = segOffset; m0; m0 = m0->m_next)
     {
@@ -216,6 +211,7 @@ static void vboxNetFltFreeBSDMBufToSG(PVBOXNETFLTINS pThis, struct mbuf *m, PINT
         i++;
     }
 #endif
+
     pSG->cSegsUsed = i;
 }
 
@@ -228,7 +224,7 @@ static struct mbuf * vboxNetFltFreeBSDSGMBufFromSG(PVBOXNETFLTINS pThis, PINTNET
     int error;
     unsigned int i;
 
-    if (pSG->cbTotal == 0 || pSG->aSegs[0].cb == 0)
+    if (pSG->cbTotal == 0)
         return (NULL);
 
     m = m_getcl(M_WAITOK, MT_DATA, M_PKTHDR);
@@ -319,7 +315,7 @@ static int ng_vboxnetflt_rcvdata(hook_p hook, item_p item)
     struct m_tag *mtag;
     bool fActive;
 
-    fActive = ASMAtomicUoReadBool(&pThis->fActive);
+    fActive = vboxNetFltTryRetainBusyActive(pThis);
 
     NGI_GET_M(item, m);
     NG_FREE_ITEM(item);
@@ -341,6 +337,8 @@ static int ng_vboxnetflt_rcvdata(hook_p hook, item_p item)
         if (mtag != NULL || !fActive)
         {
             ether_demux(ifp, m);
+            if (fActive)
+                vboxNetFltRelease(pThis, true /*fBusy*/);
             return (0);
         }
         mtx_lock_spin(&pThis->u.s.inq.ifq_mtx);
@@ -348,13 +346,18 @@ static int ng_vboxnetflt_rcvdata(hook_p hook, item_p item)
         mtx_unlock_spin(&pThis->u.s.inq.ifq_mtx);
         taskqueue_enqueue_fast(taskqueue_fast, &pThis->u.s.tskin);
     }
-    /**
+    /*
      * Handle mbufs on the outgoing hook, frames going to the interface
      */
     else if (pThis->u.s.output == hook)
     {
         if (mtag != NULL || !fActive)
-            return ether_output_frame(ifp, m);
+        {
+            int rc = ether_output_frame(ifp, m);
+            if (fActive)
+                vboxNetFltRelease(pThis, true /*fBusy*/);
+            return rc;
+        }
         mtx_lock_spin(&pThis->u.s.outq.ifq_mtx);
         _IF_ENQUEUE(&pThis->u.s.outq, m);
         mtx_unlock_spin(&pThis->u.s.outq.ifq_mtx);
@@ -364,6 +367,9 @@ static int ng_vboxnetflt_rcvdata(hook_p hook, item_p item)
     {
         m_freem(m);
     }
+
+    if (fActive)
+        vboxNetFltRelease(pThis, true /*fBusy*/);
     return (0);
 }
 
@@ -373,8 +379,7 @@ static int ng_vboxnetflt_shutdown(node_p node)
     bool fActive;
 
     /* Prevent node shutdown if we're active */
-    fActive = ASMAtomicUoReadBool(&pThis->fActive);
-    if (fActive)
+    if (pThis->enmTrunkState == INTNETTRUNKIFSTATE_ACTIVE)
         return (EBUSY);
     NG_NODE_UNREF(node);
     return (0);
@@ -418,7 +423,7 @@ static void vboxNetFltFreeBSDinput(void *arg, int pending)
         /* Create a copy and deliver to the virtual switch */
         pSG = RTMemTmpAlloc(RT_OFFSETOF(INTNETSG, aSegs[cSegs]));
         vboxNetFltFreeBSDMBufToSG(pThis, m, pSG, cSegs, 0);
-        fDropIt = pThis->pSwitchPort->pfnRecv(pThis->pSwitchPort, pSG, INTNETTRUNKDIR_HOST);
+        fDropIt = pThis->pSwitchPort->pfnRecv(pThis->pSwitchPort, pSG, INTNETTRUNKDIR_WIRE);
         RTMemTmpFree(pSG);
         if (fDropIt)
             m_freem(m);
@@ -528,6 +533,13 @@ int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, PINTNETSG pSG, uint32_t fDst)
     return VINF_SUCCESS;
 }
 
+static bool vboxNetFltFreeBsdIsPromiscuous(PVBOXNETFLTINS pThis)
+{
+    /** @todo This isn't taking into account that we put the interface in
+     *        promiscuous mode.  */
+    return (pThis->u.s.flags & IFF_PROMISC) ? true : false;
+}
+
 int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
 {
     char nam[NG_NODESIZ];
@@ -544,11 +556,13 @@ int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
     if (ng_make_node_common(&ng_vboxnetflt_typestruct, &node) != 0)
         return VERR_INTERNAL_ERROR;
 
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
+
     ASMAtomicUoWritePtr((void * volatile *)&pThis->u.s.ifp, ifp);
     pThis->u.s.node = node;
-    bcopy(IF_LLADDR(ifp), &pThis->u.s.Mac, ETHER_ADDR_LEN);
+    bcopy(IF_LLADDR(ifp), &pThis->u.s.MacAddr, ETHER_ADDR_LEN);
     ASMAtomicUoWriteBool(&pThis->fDisconnectedFromHost, false);
+
     /* Initialize deferred input queue */
     bzero(&pThis->u.s.inq, sizeof(struct ifqueue));
     mtx_init(&pThis->u.s.inq.ifq_mtx, "vboxnetflt inq", NULL, MTX_SPIN);
@@ -559,12 +573,26 @@ int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
     mtx_init(&pThis->u.s.outq.ifq_mtx, "vboxnetflt outq", NULL, MTX_SPIN);
     TASK_INIT(&pThis->u.s.tskout, 0, vboxNetFltFreeBSDoutput, pThis);
 
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     NG_NODE_SET_PRIVATE(node, pThis);
+
     /* Attempt to name it vboxnetflt_<ifname> */
     snprintf(nam, NG_NODESIZ, "vboxnetflt_%s", pThis->szName);
     ng_name_node(node, nam);
+
+    /* Report MAC address, promiscuous mode and GSO capabilities. */
+    /** @todo keep these reports up to date, either by polling for changes or
+     *        intercept some control flow if possible. */
+    if (vboxNetFltTryRetainBusyNotDisconnected(pThis))
+    {
+        Assert(pThis->pSwitchPort);
+        pThis->pSwitchPort->pfnReportMacAddress(pThis->pSwitchPort, &pThis->u.s.MacAddr);
+        pThis->pSwitchPort->pfnReportPromiscuousMode(pThis->pSwitchPort, vboxNetFltFreeBsdIsPromiscuous(pThis));
+        pThis->pSwitchPort->pfnReportGsoCapabilities(pThis->pSwitchPort, 0, INTNETTRUNKDIR_WIRE | INTNETTRUNKDIR_HOST);
+        pThis->pSwitchPort->pfnReportNoPreemptDsts(pThis->pSwitchPort, 0 /* none */);
+        vboxNetFltRelease(pThis, true /*fBusy*/);
+    }
 
     return VINF_SUCCESS;
 }
@@ -705,23 +733,6 @@ void vboxNetFltPortOsSetActive(PVBOXNETFLTINS pThis, bool fActive)
         strlcpy(rm->ourhook, "output", NG_HOOKSIZ);
         NG_SEND_MSG_PATH(error, node, msg, path, 0);
     }
-}
-
-bool vboxNetFltPortOsIsPromiscuous(PVBOXNETFLTINS pThis)
-{
-    return (pThis->u.s.flags & IFF_PROMISC) ? true : false;
-}
-
-void vboxNetFltPortOsGetMacAddress(PVBOXNETFLTINS pThis, PRTMAC pMac)
-{
-    *pMac = pThis->u.s.Mac;
-}
-
-bool vboxNetFltPortOsIsHostMac(PVBOXNETFLTINS pThis, PCRTMAC pMac)
-{
-    return pThis->u.s.Mac.au16[0] == pMac->au16[0]
-        && pThis->u.s.Mac.au16[1] == pMac->au16[1]
-        && pThis->u.s.Mac.au16[2] == pMac->au16[2];
 }
 
 int vboxNetFltOsDisconnectIt(PVBOXNETFLTINS pThis)

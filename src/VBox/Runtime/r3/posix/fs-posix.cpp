@@ -1,10 +1,10 @@
-/* $Id: fs-posix.cpp $ */
+/* $Id: fs-posix.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - File System, Linux.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -37,9 +33,12 @@
 #include <errno.h>
 
 #include <iprt/fs.h>
+#include "internal/iprt.h"
+
+#include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/log.h>
-#include <iprt/assert.h>
+#include <iprt/string.h>
 #include "internal/fs.h"
 #include "internal/path.h"
 
@@ -62,7 +61,8 @@ RTR3DECL(int) RTFsQuerySizes(const char *pszFsPath, RTFOFF *pcbTotal, RTFOFF *pc
     {
         /** @todo I'm not quite sure if statvfs was properly specified by SuS, I have to check my own
          * implementation and FreeBSD before this can eventually be promoted to posix. */
-        struct statvfs StatVFS = {0};
+        struct statvfs StatVFS;
+        RT_ZERO(StatVFS);
         if (!statvfs(pszNativeFsPath, &StatVFS))
         {
             /*
@@ -137,7 +137,8 @@ RTR3DECL(int) RTFsQueryProperties(const char *pszFsPath, PRTFSPROPERTIES pProper
     int rc = rtPathToNative(&pszNativeFsPath, pszFsPath);
     if (RT_SUCCESS(rc))
     {
-        struct statvfs StatVFS = {0};
+        struct statvfs StatVFS;
+        RT_ZERO(StatVFS);
         if (!statvfs(pszNativeFsPath, &StatVFS))
         {
             /*

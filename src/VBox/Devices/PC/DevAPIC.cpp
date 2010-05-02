@@ -1,12 +1,12 @@
 #ifdef VBOX
-/* $Id: DevAPIC.cpp $ */
+/* $Id: DevAPIC.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Advanced Programmable Interrupt Controller (APIC) Device and
  * I/O Advanced Programmable Interrupt Controller (IO-APIC) Device.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -43,9 +39,7 @@
 #define MSR_IA32_APICBASE               0x1b
 #define MSR_IA32_APICBASE_BSP           (1<<8)
 #define MSR_IA32_APICBASE_ENABLE        (1<<11)
-#ifdef VBOX
 #define MSR_IA32_APICBASE_X2ENABLE      (1<<10)
-#endif
 #define MSR_IA32_APICBASE_BASE          (0xfffff<<12)
 
 #ifndef EINVAL
@@ -64,6 +58,8 @@
 /** Some ancient version... */
 #define APIC_SAVED_STATE_VERSION_ANCIENT    1
 
+/* version 0x14: Pentium 4, Xeon; LVT count depends on that */
+#define APIC_HW_VERSION                    0x14
 
 /** @def APIC_LOCK
  * Acquires the PDM lock. */
@@ -168,7 +164,7 @@
 
 /* APIC destination mode */
 #define APIC_DESTMODE_FLAT      0xf
-#define APIC_DESTMODE_CLUSTER   1
+#define APIC_DESTMODE_CLUSTER   0x0
 
 #define APIC_TRIGGER_EDGE  0
 #define APIC_TRIGGER_LEVEL 1
@@ -881,7 +877,9 @@ PDMBOTHCBDECL(int) apicReadMSR(PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Re
             val = apic->id << 24;
             break;
         case 0x03: /* version */
-            val = 0x11 | ((APIC_LVT_NB - 1) << 16); /* version 0x11 */
+            val =   APIC_HW_VERSION                                     |
+                    ((APIC_LVT_NB - 1) << 16) /* Max LVT index */       |
+                    (0 << 24) /* Support for EOI broadcast supression */;
             break;
         case 0x08:
             val = apic->tpr;
@@ -938,8 +936,16 @@ PDMBOTHCBDECL(int) apicReadMSR(PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Re
             /* Self IPI register is write only */
             Log(("apicReadMSR: read from write-only register %d ignored\n", index));
             break;
+        case 0x2f:
+            /**
+             * Correctable machine check exception vector, @todo: implement me!
+             */
         default:
             AssertMsgFailed(("apicReadMSR: unknown index %x\n", index));
+            /**
+             * @todo: according to spec when APIC writes to ESR it msut raise error interrupt,
+             *        i.e. LVT[5]
+             */
             apic->esr |= ESR_ILLEGAL_ADDRESS;
             val = 0;
             break;
@@ -974,7 +980,7 @@ PDMBOTHCBDECL(int) apicLocalInterrupt(PPDMDEVINS pDevIns, uint8_t u8Pin, uint8_t
     APICState       *s = getLapicById(dev, 0);
 
     Assert(PDMCritSectIsOwner(dev->CTX_SUFF(pCritSect)));
-    LogFlow(("apicLocalInterrupt: pDevIns=%p u8Pin=%x\n", pDevIns, u8Pin));
+    LogFlow(("apicLocalInterrupt: pDevIns=%p u8Pin=%x u8Level=%x\n", pDevIns, u8Pin, u8Level));
 
     /* If LAPIC is disabled, go straight to the CPU. */
     if (!(s->spurious_vec & APIC_SV_ENABLE))
@@ -1224,12 +1230,12 @@ static uint32_t apic_get_delivery_bitmask(APICDeviceInfo *dev, uint8_t dest, uin
         /* XXX: cluster mode */
         for(i = 0; i < dev->cCpus; i++)
         {
-            if (apic->dest_mode == 0xf)
+            if (apic->dest_mode == APIC_DESTMODE_FLAT)
             {
                 if (dest & apic->log_dest)
-                    mask |= (1 << apic->id);
+                    mask |= (1 << i);
             }
-            else if (apic->dest_mode == 0x0)
+            else if (apic->dest_mode == APIC_DESTMODE_CLUSTER)
             {
                 if ((dest & 0xf0) == (apic->log_dest & 0xf0)
                     &&
@@ -1708,7 +1714,7 @@ static uint32_t apic_mem_readl(APICDeviceInfo* dev, APICState *s, target_phys_ad
         val = s->id << 24;
         break;
     case 0x03: /* version */
-        val = 0x11 | ((APIC_LVT_NB - 1) << 16); /* version 0x11 */
+        val = APIC_HW_VERSION | ((APIC_LVT_NB - 1) << 16);
         break;
     case 0x08:
         val = s->tpr;
@@ -1782,6 +1788,10 @@ static uint32_t apic_mem_readl(APICDeviceInfo* dev, APICState *s, target_phys_ad
     case 0x3e:
         val = s->divide_conf;
         break;
+    case 0x2f:
+        /**
+         * Correctable machine check exception vector, @todo: implement me!
+         */
     default:
         AssertMsgFailed(("apic_mem_readl: unknown index %x\n", index));
         s->esr |= ESR_ILLEGAL_ADDRESS;
@@ -2407,7 +2417,7 @@ PDMBOTHCBDECL(int) apicMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhy
                 pDevIns->pDevHlpGC->pfnPATMSetMMIOPatchInfo(pDevIns, GCPhysAddr, &s->tpr);
 #else
                 RTGCPTR pDevInsGC = PDMINS2DATA_GCPTR(pDevIns);
-                pDevIns->pDevHlpR0->pfnPATMSetMMIOPatchInfo(pDevIns, GCPhysAddr, pDevIns + RT_OFFSETOF(APICState, tpr));
+                pDevIns->pHlpR0->pfnPATMSetMMIOPatchInfo(pDevIns, GCPhysAddr, pDevIns + RT_OFFSETOF(APICState, tpr));
 #endif
                 return VINF_PATM_HC_MMIO_PATCH_READ;
             }
@@ -2737,7 +2747,7 @@ DECLINLINE(void) initApicData(APICState* apic, uint8_t id)
 /**
  * @copydoc FNPDMDEVCONSTRUCT
  */
-static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     PDMAPICREG      ApicReg;
     int             rc;
@@ -2756,29 +2766,29 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle,
+    if (!CFGMR3AreValuesValid(pCfg,
                               "IOAPIC\0"
                               "GCEnabled\0"
                               "R0Enabled\0"
                               "NumCPUs\0"))
         return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "IOAPIC", &fIoApic, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "IOAPIC", &fIoApic, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"IOAPIC\""));
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "GCEnabled", &fGCEnabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query boolean value \"GCEnabled\""));
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "R0Enabled", &fR0Enabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &fR0Enabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query boolean value \"R0Enabled\""));
 
-    rc = CFGMR3QueryU32Def(pCfgHandle, "NumCPUs", &cCpus, 1);
+    rc = CFGMR3QueryU32Def(pCfg, "NumCPUs", &cCpus, 1);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query integer value \"NumCPUs\""));
@@ -2876,8 +2886,7 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         ApicReg.pszLocalInterruptR0 = NULL;
     }
 
-    Assert(pDevIns->pDevHlpR3->pfnAPICRegister);
-    rc = pDevIns->pDevHlpR3->pfnAPICRegister(pDevIns, &ApicReg, &pThis->pApicHlpR3);
+    rc = PDMDevHlpAPICRegister(pDevIns, &ApicReg, &pThis->pApicHlpR3);
     AssertLogRelRCReturn(rc, rc);
     pThis->pCritSectR3 = pThis->pApicHlpR3->pfnGetR3CritSect(pDevIns);
 
@@ -2913,7 +2922,7 @@ static DECLCALLBACK(int) apicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         pThis->pApicHlpRC  = pThis->pApicHlpR3->pfnGetRCHelpers(pDevIns);
         pThis->pCritSectRC = pThis->pApicHlpR3->pfnGetRCCritSect(pDevIns);
 
-        rc = PDMDevHlpMMIORegisterGC(pDevIns, ApicBase, 0x1000, 0,
+        rc = PDMDevHlpMMIORegisterRC(pDevIns, ApicBase, 0x1000, 0,
                                      "apicMMIOWrite", "apicMMIORead", NULL);
         if (RT_FAILURE(rc))
             return rc;
@@ -2993,7 +3002,7 @@ const PDMDEVREG g_DeviceAPIC =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "apic",
     /* szRCMod */
     "VBoxDD2GC.gc",
@@ -3207,7 +3216,7 @@ static DECLCALLBACK(void) ioapicRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta
 /**
  * @copydoc FNPDMDEVCONSTRUCT
  */
-static DECLCALLBACK(int) ioapicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) ioapicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     IOAPICState *s = PDMINS_2_DATA(pDevIns, IOAPICState *);
     PDMIOAPICREG IoApicReg;
@@ -3220,15 +3229,15 @@ static DECLCALLBACK(int) ioapicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     /*
      * Validate and read the configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "GCEnabled\0" "R0Enabled\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "GCEnabled\0" "R0Enabled\0"))
         return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "GCEnabled", &fGCEnabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query boolean value \"GCEnabled\""));
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "R0Enabled", &fR0Enabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &fR0Enabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query boolean value \"R0Enabled\""));
@@ -3250,7 +3259,7 @@ static DECLCALLBACK(int) ioapicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     IoApicReg.pfnSetIrqR3 = ioapicSetIrq;
     IoApicReg.pszSetIrqRC = fGCEnabled ? "ioapicSetIrq" : NULL;
     IoApicReg.pszSetIrqR0 = fR0Enabled ? "ioapicSetIrq" : NULL;
-    rc = pDevIns->pDevHlpR3->pfnIOAPICRegister(pDevIns, &IoApicReg, &s->pIoApicHlpR3);
+    rc = PDMDevHlpIOAPICRegister(pDevIns, &IoApicReg, &s->pIoApicHlpR3);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("IOAPICRegister -> %Rrc\n", rc));
@@ -3268,7 +3277,7 @@ static DECLCALLBACK(int) ioapicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     if (fGCEnabled) {
         s->pIoApicHlpRC = s->pIoApicHlpR3->pfnGetRCHelpers(pDevIns);
 
-        rc = PDMDevHlpMMIORegisterGC(pDevIns, 0xfec00000, 0x1000, 0,
+        rc = PDMDevHlpMMIORegisterRC(pDevIns, 0xfec00000, 0x1000, 0,
                                      "ioapicMMIOWrite", "ioapicMMIORead", NULL);
         if (RT_FAILURE(rc))
             return rc;
@@ -3314,7 +3323,7 @@ const PDMDEVREG g_DeviceIOAPIC =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "ioapic",
     /* szRCMod */
     "VBoxDD2GC.gc",

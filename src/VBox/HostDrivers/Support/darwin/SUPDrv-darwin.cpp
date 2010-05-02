@@ -1,10 +1,10 @@
-/* $Id: SUPDrv-darwin.cpp $ */
+/* $Id: SUPDrv-darwin.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VirtualBox Support Driver - Darwin Specific Code.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -234,7 +230,7 @@ static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pv
         /*
          * Initialize the device extension.
          */
-        rc = supdrvInitDevExt(&g_DevExt);
+        rc = supdrvInitDevExt(&g_DevExt, sizeof(SUPDRVSESSION));
         if (RT_SUCCESS(rc))
         {
             /*
@@ -400,7 +396,7 @@ static int VBoxDrvDarwinOpen(dev_t Dev, int fFlags, int fDevType, struct proc *p
 #endif /* 10.4 */
     }
     else
-        rc = SUPDRV_ERR_INVALID_PARAM;
+        rc = VERR_INVALID_PARAMETER;
 
 #ifdef DEBUG_DARWIN_GIP
     OSDBGPRINT(("VBoxDrvDarwinOpen: pid=%d '%s' pSession=%p rc=%d\n", proc_pid(pProcess), szName, pSession, rc));
@@ -759,26 +755,53 @@ bool VBOXCALL supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt)
 }
 
 
+int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename)
+{
+    NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
+    return VERR_NOT_SUPPORTED;
+}
+
+
+int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv, const uint8_t *pbImageBits)
+{
+    NOREF(pDevExt); NOREF(pImage); NOREF(pv); NOREF(pbImageBits);
+    return VERR_NOT_SUPPORTED;
+}
+
+
+int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits)
+{
+    NOREF(pDevExt); NOREF(pImage); NOREF(pbImageBits);
+    return VERR_NOT_SUPPORTED;
+}
+
+
+void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
+{
+    NOREF(pDevExt); NOREF(pImage);
+}
+
+
 /**
- * Converts a supdrv error code to a darwin error code.
+ * Converts an IPRT error code to a darwin error code.
  *
  * @returns corresponding darwin error code.
- * @param   rc  supdrv error code (SUPDRV_ERR_* defines).
+ * @param   rc      IPRT status code.
  */
 static int VBoxDrvDarwinErr2DarwinErr(int rc)
 {
     switch (rc)
     {
-        case 0:                             return 0;
-        case SUPDRV_ERR_GENERAL_FAILURE:    return EACCES;
-        case SUPDRV_ERR_INVALID_PARAM:      return EINVAL;
-        case SUPDRV_ERR_INVALID_MAGIC:      return EILSEQ;
-        case SUPDRV_ERR_INVALID_HANDLE:     return ENXIO;
-        case SUPDRV_ERR_INVALID_POINTER:    return EFAULT;
-        case SUPDRV_ERR_LOCK_FAILED:        return ENOLCK;
-        case SUPDRV_ERR_ALREADY_LOADED:     return EEXIST;
-        case SUPDRV_ERR_PERMISSION_DENIED:  return EPERM;
-        case SUPDRV_ERR_VERSION_MISMATCH:   return ENOSYS;
+        case VINF_SUCCESS:              return 0;
+        case VERR_GENERAL_FAILURE:      return EACCES;
+        case VERR_INVALID_PARAMETER:    return EINVAL;
+        case VERR_INVALID_MAGIC:        return EILSEQ;
+        case VERR_INVALID_HANDLE:       return ENXIO;
+        case VERR_INVALID_POINTER:      return EFAULT;
+        case VERR_LOCK_FAILED:          return ENOLCK;
+        case VERR_ALREADY_LOADED:       return EEXIST;
+        case VERR_PERMISSION_DENIED:    return EPERM;
+        case VERR_VERSION_MISMATCH:     return ENOSYS;
     }
 
     return EPERM;

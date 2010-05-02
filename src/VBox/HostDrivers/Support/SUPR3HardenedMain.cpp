@@ -1,10 +1,10 @@
-/* $Id: SUPR3HardenedMain.cpp $ */
+/* $Id: SUPR3HardenedMain.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Hardened main().
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -634,7 +630,8 @@ static void supR3HardenedMainGrabCapabilites(void)
 #  ifdef USE_LIB_PCAP
         /* XXX cap_net_bind_service */
         if (!cap_set_proc(cap_from_text("all-eip cap_net_raw+ep")))
-            prctl(PR_SET_KEEPCAPS, /*keep=*/1, 0, 0, 0);
+            prctl(PR_SET_KEEPCAPS, 1 /*keep=*/, 0, 0, 0);
+        prctl(PR_SET_DUMPABLE, 1 /*dump*/, 0, 0, 0);
 #  else
         cap_user_header_t hdr = (cap_user_header_t)alloca(sizeof(*hdr));
         cap_user_data_t   cap = (cap_user_data_t)alloca(sizeof(*cap));
@@ -644,7 +641,8 @@ static void supR3HardenedMainGrabCapabilites(void)
         cap->effective = g_uCaps;
         cap->permitted = g_uCaps;
         if (!capset(hdr, cap))
-            prctl(PR_SET_KEEPCAPS, /*keep=*/1, 0, 0, 0);
+            prctl(PR_SET_KEEPCAPS, 1 /*keep*/, 0, 0, 0);
+        prctl(PR_SET_DUMPABLE, 1 /*dump*/, 0, 0, 0);
 #  endif /* !USE_LIB_PCAP */
     }
 
@@ -1084,5 +1082,4 @@ DECLHIDDEN(int) SUPR3HardenedMain(const char *pszProgName, uint32_t fFlags, int 
     PFNSUPTRUSTEDMAIN pfnTrustedMain = supR3HardenedMainGetTrustedMain(pszProgName);
     return pfnTrustedMain(argc, argv, envp);
 }
-
 

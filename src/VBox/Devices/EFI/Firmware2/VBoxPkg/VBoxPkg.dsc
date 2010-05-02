@@ -1,4 +1,4 @@
-# $Id: VBoxPkg.dsc $
+# $Id: VBoxPkg.dsc 26453 2010-02-11 19:11:02Z vboxsync $
 ## @file
 # VBoxPkg.dsc - VirtualBox Flash Device.
 #
@@ -255,6 +255,9 @@
   gEfiMdePkgTokenSpaceGuid.PcdDebugPrintErrorLevel|0x8000004F
   gEfiMdePkgTokenSpaceGuid.PcdDebugPropertyMask|0x2F
 
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVendor|L"VBOX 32"|VOID*
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareRevision|0x10001|UINT32
+
 
 [PcdsDynamicDefault.common]
   gEfiMdePkgTokenSpaceGuid.PcdFSBClock|0
@@ -378,7 +381,8 @@
   VBoxPkg/VBoxVgaMiniPortDxe/VBoxVgaMiniPortDxe.inf
   VBoxPkg/VBoxVgaDxe/VBoxVgaDxe.inf
   VBoxPkg/VBoxSysTables/VBoxSysTables.inf
-  VBoxPkg/AcpiTables/AcpiTables.inf
+  VBoxPkg/VBoxAppleSim/VBoxAppleSim.inf
+  VBoxPkg/VBoxConsoleDxe/VBoxConsoleDxe.inf
   # VBOX end
   IntelFrameworkModulePkg/Universal/Console/VgaClassDxe/VgaClassDxe.inf
 
@@ -398,8 +402,9 @@
   MdeModulePkg/Universal/Acpi/AcpiPlatformDxe/AcpiPlatformDxe.inf
 
   #
+  # This module is for debug purposes (breaks build in Windows host). 
   # Don't include it to fdf
-  VBoxPkg/VBoxInterceptorDxe/VBoxInterceptorDxe.inf
+  #VBoxPkg/VBoxInterceptorDxe/VBoxInterceptorDxe.inf
   
  #
  # add -DVBOX
@@ -410,7 +415,7 @@
   # mingw set 0x4000000 as a default image base that is the reason 
   # PCD module loaded in the middle of space grub supposed to load
   # boot images. 
-  # this base address shoosen looking at 
+  # this base address choosen looking at 
   # Shell> memmap 
   # in the place where Image.c locates the rest of the modules.
   GCC:*_*_*_DLINK_FLAGS = --image-base 0x1f000000

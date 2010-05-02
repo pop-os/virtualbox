@@ -1,4 +1,23 @@
+/* $Id: mbuf.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - mbuf handling.
+ */
+
 /*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
  * Copyright (c) 1995 Danny Gasparovski
  *
  * Please read the file COPYRIGHT for the
@@ -19,11 +38,10 @@
 #define MBUF_ZONE_SIZE 100
 static int mbuf_zone_init(PNATState pData)
 {
-    int limit;
     struct mbuf_zone *mzone;
     int i;
     struct mbuf *m;
-    uint8_t *zone = RTMemAlloc(msize * MBUF_ZONE_SIZE);  
+    uint8_t *zone = RTMemAlloc(msize * MBUF_ZONE_SIZE);
     if (zone == NULL)
     {
         LogRel(("NAT: can't allocate new zone\n"));
@@ -37,7 +55,7 @@ static int mbuf_zone_init(PNATState pData)
         return -1;
     }
 
-    for(i = 0; i < MBUF_ZONE_SIZE; ++i)
+    for (i = 0; i < MBUF_ZONE_SIZE; ++i)
     {
         m = (struct mbuf *)((char *)zone + i*msize);
         memset(m, 0, sizeof(struct mbuf));
@@ -51,7 +69,7 @@ static int mbuf_zone_init(PNATState pData)
     pData->mbuf_zone_count++;
     pData->mbuf_water_line_limit = pData->mbuf_zone_count * MBUF_ZONE_SIZE;
     return 0;
-} 
+}
 
 void m_fini(PNATState pData)
 {
@@ -63,10 +81,10 @@ void m_fini(PNATState pData)
     {
         mz = LIST_FIRST(&pData->mbuf_zone_head);
         zone = mz->mbuf_zone_base_addr;
-        for(i = 0; i < MBUF_ZONE_SIZE; ++i)
+        for (i = 0; i < MBUF_ZONE_SIZE; ++i)
         {
             m = (struct mbuf *)((char *)zone + i*msize);
-            if (   (m->m_flags & M_EXT) 
+            if (   (m->m_flags & M_EXT)
                 && m->m_ext != NULL)
                 RTMemFree(m->m_ext);
         }
@@ -79,8 +97,6 @@ void m_fini(PNATState pData)
 void
 m_init(PNATState pData)
 {
-    int i;
-    struct mbuf *m;
     int rc = 0;
     m_freelist.m_next = m_freelist.m_prev = &m_freelist;
     m_usedlist.m_next = m_usedlist.m_prev = &m_usedlist;
@@ -127,7 +143,7 @@ m_get(PNATState pData)
     int rc = 0;
 
     DEBUG_CALL("m_get");
-    
+
     rc = RTCritSectEnter(&pData->cs_mbuf_zone);
     AssertRC(rc);
 
@@ -135,11 +151,12 @@ recheck_zone:
     if (m_freelist.m_next == &m_freelist)
     {
 #if 1
-        int rc = mbuf_zone_init(pData);
+        rc = mbuf_zone_init(pData);
         if (rc == 0)
             goto recheck_zone;
         AssertMsgFailed(("No mbufs on free list\n"));
-        return NULL;
+        m = NULL;
+        goto end_error;
 #else
         m = (struct mbuf *)RTMemAlloc(msize);
         if (m == NULL)
@@ -269,12 +286,12 @@ m_inc(struct mbuf *m, int size)
 
     if (m->m_flags & M_EXT)
     {
+        void *pvNew;
         datasize = m->m_data - m->m_ext;
-        m->m_ext = (char *)RTMemRealloc(m->m_ext, size);
-#if 0
-        if (m->m_ext == NULL)
-            return (struct mbuf *)NULL;
-#endif
+        pvNew = (char *)RTMemRealloc(m->m_ext, size);
+        if (pvNew)
+            return; /** @todo better error reporting. */
+        m->m_ext = (char *)pvNew;
         m->m_data = m->m_ext + datasize;
     }
     else
@@ -282,10 +299,8 @@ m_inc(struct mbuf *m, int size)
         char *dat;
         datasize = m->m_data - m->m_dat;
         dat = (char *)RTMemAlloc(size);
-#if 0
-        if (dat == NULL)
-            return (struct mbuf *)NULL;
-#endif
+        if (!dat)
+            return; /** @todo better error reporting. */
         memcpy(dat, m->m_dat, m->m_size);
 
         m->m_ext = dat;
@@ -367,28 +382,43 @@ dtom(PNATState pData, void *dat)
 
     return (struct mbuf *)0;
 }
+
 #ifndef VBOX_WITH_SLIRP_BSD_MBUF
-void *slirp_ext_m_get(PNATState pData)
+
+/**
+ * Interface that DrvNAT.cpp uses for allocating a buffer.
+ *
+ * @returns Opaque m_buf pointer.
+ *
+ * @param   pData       The NAT state.
+ * @param   cbMin       The minimum buffer size.
+ * @param   ppvBuf      Where to return the pointer to the start of the data
+ *                      buffer.
+ * @param   pcbBuf      Where to return the actual buffer size.
+ */
+struct mbuf *slirp_ext_m_get(PNATState pData, size_t cbMin, void **ppvBuf, size_t *pcbBuf)
 {
-    return (void *)m_get(pData);
+    struct mbuf *m = m_get(pData);
+    if (!m)
+        return NULL;
+    if (cbMin > M_FREEROOM(m))
+    {
+        m_inc(m, cbMin);
+        if (RT_UNLIKELY(cbMin > M_FREEROOM(m)))
+        {
+            m_free(pData, m);
+            return NULL;
+        }
+    }
+
+    *ppvBuf = mtod(m, void *);
+    *pcbBuf = M_FREEROOM(m);
+    return m;
 }
 
-void slirp_ext_m_free(PNATState pData, void *arg)
+void slirp_ext_m_free(PNATState pData, struct mbuf *m)
 {
-    struct mbuf *m = (struct mbuf *)arg;
     m_free(pData, m);
 }
 
-void slirp_ext_m_append(PNATState pData, void *arg, uint8_t *pu8Buf, size_t cbBuf)
-{
-    char *c;
-    struct mbuf *m = (struct mbuf *)arg;
-    if (cbBuf > M_FREEROOM(m))
-    {
-        m_inc(m, cbBuf);
-    } 
-    c = mtod(m, char *);
-    memcpy(c, pu8Buf, cbBuf);
-    m->m_len = cbBuf;
-}
-#endif
+#endif /* VBOX_WITH_SLIRP_BSD_MBUF */

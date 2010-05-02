@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -54,6 +50,7 @@
 #include "xorg-server.h"
 #include "vboxvideo.h"
 #include "version-generated.h"
+#include "product-generated.h"
 #include <xf86.h>
 
 /* All drivers initialising the SW cursor need this */
@@ -203,7 +200,7 @@ VBOXCrtcResize(ScrnInfoPtr scrn, int width, int height)
     Bool rc = TRUE;
 
     TRACE_LOG("width=%d, height=%d\n", width, height);
-    /* We only support horizontal resolutions which are a multiple of 8. 
+    /* We only support horizontal resolutions which are a multiple of 8.
      * Round up if necessary. */
     width = (width + 7) & ~7;
     if (width * height * bpp / 8 >= scrn->videoRam * 1024)
@@ -294,8 +291,11 @@ vbox_crtc_mode_set (xf86CrtcPtr crtc, DisplayModePtr mode,
            adjusted_mode->HDisplay, adjusted_mode->VDisplay, x, y);
     VBOXSetMode(crtc->scrn, adjusted_mode);
     VBOXAdjustFrame(crtc->scrn->scrnIndex, x, y, 0);
-    vboxSaveVideoMode(crtc->scrn, adjusted_mode->HDisplay,
-                      adjusted_mode->VDisplay, crtc->scrn->bitsPerPixel);
+    /* Don't remember any modes set while we are seamless, as they are
+     * just temporary. */
+    if (!vboxGuestIsSeamless(crtc->scrn))
+        vboxSaveVideoMode(crtc->scrn, adjusted_mode->HDisplay,
+                          adjusted_mode->VDisplay, crtc->scrn->bitsPerPixel);
 }
 
 static void
@@ -419,8 +419,8 @@ vbox_output_get_modes (xf86OutputPtr output)
     TRACE_ENTRY();
     if (vbox_device_available(pVBox))
     {
-        uint32_t x, y, bpp, display;
-        rc = vboxGetDisplayChangeRequest(pScrn, &x, &y, &bpp, &display);
+        uint32_t x, y, bpp, iScreen;
+        rc = vboxGetDisplayChangeRequest(pScrn, &x, &y, &bpp, &iScreen);
         /* @todo - check the display number once we support multiple displays. */
         /* If we don't find a display request, see if we have a saved hint
          * from a previous session. */
@@ -478,7 +478,7 @@ static MODULESETUPPROTO(vboxSetup);
 static XF86ModuleVersionInfo vboxVersionRec =
 {
     VBOX_DRIVER_NAME,
-    "Sun Microsystems, Inc.",
+    VBOX_VENDOR,
     MODINFOSTRING1,
     MODINFOSTRING2,
     XORG_VERSION_CURRENT,
@@ -1062,7 +1062,7 @@ VBOXCloseScreen(int scrnIndex, ScreenPtr pScreen)
 	VBOXUnmapVidMem(pScrn);
     }
     pScrn->vtSema = FALSE;
-    
+
     /* Destroy the VGA hardware record */
     vgaHWFreeHWRec(pScrn);
 

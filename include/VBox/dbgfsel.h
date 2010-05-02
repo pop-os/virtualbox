@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -34,7 +30,7 @@
 #include <VBox/types.h>
 #include <VBox/x86.h>
 
-/** @addgroup grp_dbgf
+/** @addtogroup grp_dbgf
  * @{ */
 
 /**
@@ -86,7 +82,7 @@ typedef const DBGFSELINFO *PCDBGFSELINFO;
 /** @}  */
 
 
-/** @def DBGFSELINFO_IS_EXPAND_DOWN
+/**
  * Tests whether the selector info describes an expand-down selector or now.
  *
  * @returns true / false.

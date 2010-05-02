@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /* Note: to automatically run regression tests on the shared clipboard,
@@ -561,7 +557,7 @@ static void clipUninit(CLIPBACKEND *pCtx)
  * thread. */
 static void clipStopEventThreadWorker(XtPointer pUserData, XtIntervalId *)
 {
-    
+
     CLIPBACKEND *pCtx = (CLIPBACKEND *)pUserData;
 
     /* This might mean that we are getting stopped twice. */
@@ -707,7 +703,7 @@ CLIPBACKEND *ClipConstructX11(VBOXCLIPBOARDCONTEXT *pFrontend)
 
     CLIPBACKEND *pCtx = (CLIPBACKEND *)
                     RTMemAllocZ(sizeof(CLIPBACKEND));
-    if (pCtx && !RTEnvGet("DISPLAY"))
+    if (pCtx && !RTEnvExist("DISPLAY"))
     {
         /*
          * If we don't find the DISPLAY environment variable we assume that
@@ -1471,7 +1467,7 @@ static int clipLatin1ToWinTxt(char *pcSrc, unsigned cbSrc,
 
 /** A structure containing information about where to store a request
  * for the X11 clipboard contents. */
-struct _CLIPREADX11CBREQ 
+struct _CLIPREADX11CBREQ
 {
     /** The format VBox would like the data in */
     uint32_t mFormat;
@@ -2574,7 +2570,7 @@ int main()
     rc = VINF_SUCCESS;
     /* We can't test anything without an X session, so just return success
      * in that case. */
-    if (!RTEnvGet("DISPLAY"))
+    if (!RTEnvExist("DISPLAY"))
     {
         RTTestPrintf(hTest, RTTESTLVL_INFO,
                      "X11 not available, not running test\n");

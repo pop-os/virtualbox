@@ -1,10 +1,10 @@
-/* $Id: CSAM.cpp $ */
+/* $Id: CSAM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * CSAM - Guest OS Code Scanning and Analysis Manager
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -306,7 +302,7 @@ VMMR3DECL(int) CSAMR3Init(PVM pVM)
     static bool fRegisteredCmds = false;
     if (!fRegisteredCmds)
     {
-        int rc = DBGCRegisterCommands(&g_aCmds[0], RT_ELEMENTS(g_aCmds));
+        rc = DBGCRegisterCommands(&g_aCmds[0], RT_ELEMENTS(g_aCmds));
         if (RT_SUCCESS(rc))
             fRegisteredCmds = true;
     }
@@ -877,7 +873,7 @@ static int CSAMR3AnalyseCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *
 
             cpu.mode = (fCode32) ? CPUMODE_32BIT : CPUMODE_16BIT;
             rc = CSAMR3DISInstr(pVM, &cpu, pCurInstrGC, pCurInstrHC, &opsize, NULL);
-            Assert(RT_SUCCESS(rc));
+            AssertRC(rc);
             if (RT_FAILURE(rc))
                 break;
         }
@@ -1784,9 +1780,9 @@ static PCSAMPAGE csamCreatePageRecord(PVM pVM, RTRCPTR GCPtr, CSAMTAG enmTag, bo
     case CSAM_TAG_CSAM:
 #endif
     {
-        int rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_WRITE, GCPtr, GCPtr + (PAGE_SIZE - 1) /* inclusive! */,
-                                             (fMonitorInvalidation) ? CSAMCodePageInvalidate : 0, CSAMCodePageWriteHandler, "CSAMGCCodePageWriteHandler", 0,
-                                             csamGetMonitorDescription(enmTag));
+        rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_WRITE, GCPtr, GCPtr + (PAGE_SIZE - 1) /* inclusive! */,
+                                         (fMonitorInvalidation) ? CSAMCodePageInvalidate : 0, CSAMCodePageWriteHandler, "CSAMGCCodePageWriteHandler", 0,
+                                         csamGetMonitorDescription(enmTag));
         AssertMsg(RT_SUCCESS(rc) || rc == VERR_PGM_HANDLER_VIRTUAL_CONFLICT, ("PGMR3HandlerVirtualRegisterEx %RRv failed with %Rrc\n", GCPtr, rc));
         if (RT_FAILURE(rc))
             Log(("PGMR3HandlerVirtualRegisterEx for %RRv failed with %Rrc\n", GCPtr, rc));
@@ -2063,7 +2059,7 @@ static DECLCALLBACK(void) CSAMDelayedWriteHandler(PVM pVM, RTRCPTR GCPtr, size_t
 }
 
 /**
- * #PF Handler callback for virtual access handler ranges.
+ * \#PF Handler callback for virtual access handler ranges.
  *
  * Important to realize that a physical page in a range can have aliases, and
  * for ALL and WRITE handlers these will also trigger.
@@ -2112,7 +2108,7 @@ static DECLCALLBACK(int) CSAMCodePageWriteHandler(PVM pVM, RTGCPTR GCPtr, void *
 }
 
 /**
- * #PF Handler callback for invalidation of virtual access handler ranges.
+ * \#PF Handler callback for invalidation of virtual access handler ranges.
  *
  * @param   pVM             VM Handle.
  * @param   GCPtr           The virtual address the guest has changed.
@@ -2293,7 +2289,8 @@ VMMR3DECL(int) CSAMR3CheckCode(PVM pVM, RTRCPTR pInstrGC)
     if (CSAMIsEnabled(pVM))
     {
         // Cache record for PATMGCVirtToHCVirt
-        CSAMP2GLOOKUPREC cacheRec = {0};
+        CSAMP2GLOOKUPREC cacheRec;
+        RT_ZERO(cacheRec);
 
         STAM_PROFILE_START(&pVM->csam.s.StatTime, a);
         rc = csamAnalyseCallCodeStream(pVM, pInstrGC, pInstrGC, true /* 32 bits code */, CSAMR3AnalyseCallback, pPage, &cacheRec);
@@ -2450,8 +2447,9 @@ VMMR3DECL(int) CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates)
 
             if (pHandler)
             {
-                CSAMP2GLOOKUPREC cacheRec = {0};            /* Cache record for PATMGCVirtToHCVirt. */
                 PCSAMPAGE pPage = NULL;
+                CSAMP2GLOOKUPREC cacheRec;                  /* Cache record for PATMGCVirtToHCVirt. */
+                RT_ZERO(cacheRec);
 
                 Log(("CSAMCheckGates: checking previous call instruction %RRv\n", pHandler));
                 STAM_PROFILE_START(&pVM->csam.s.StatTime, a);
@@ -2517,9 +2515,10 @@ VMMR3DECL(int) CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates)
            )
         {
             RTRCPTR pHandler;
-            CSAMP2GLOOKUPREC cacheRec = {0};            /* Cache record for PATMGCVirtToHCVirt. */
             PCSAMPAGE pPage = NULL;
             DBGFSELINFO selInfo;
+            CSAMP2GLOOKUPREC cacheRec;                  /* Cache record for PATMGCVirtToHCVirt. */
+            RT_ZERO(cacheRec);
 
             pHandler = VBOXIDTE_OFFSET(*pGuestIdte);
             pHandler = SELMToFlatBySel(pVM, pGuestIdte->Gen.u16SegSel, pHandler);
@@ -2546,9 +2545,9 @@ VMMR3DECL(int) CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates)
                 Log(("CSAMCheckGates: check interrupt gate %d at %04X:%08X (flat %RRv)\n", iGate, pGuestIdte->Gen.u16SegSel, VBOXIDTE_OFFSET(*pGuestIdte), pHandler));
             }
 
-            STAM_PROFILE_START(&pVM->csam.s.StatTime, a);
+            STAM_PROFILE_START(&pVM->csam.s.StatTime, b);
             rc = csamAnalyseCodeStream(pVM, pHandler, pHandler, true, CSAMR3AnalyseCallback, pPage, &cacheRec);
-            STAM_PROFILE_STOP(&pVM->csam.s.StatTime, a);
+            STAM_PROFILE_STOP(&pVM->csam.s.StatTime, b);
             if (rc != VINF_SUCCESS)
             {
                 Log(("CSAMCheckGates: csamAnalyseCodeStream failed with %d\n", rc));

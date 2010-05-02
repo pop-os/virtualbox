@@ -1,10 +1,10 @@
-/* $Id: ConsoleImplTeleporter.cpp $ */
+/* $Id: ConsoleImplTeleporter.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBox Console COM Class implementation, The Teleporter Part.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -25,8 +21,10 @@
 *******************************************************************************/
 #include "ConsoleImpl.h"
 #include "Global.h"
-#include "Logging.h"
 #include "ProgressImpl.h"
+
+#include "AutoCaller.h"
+#include "Logging.h"
 
 #include <iprt/err.h>
 #include <iprt/rand.h>
@@ -609,12 +607,12 @@ HRESULT
 Console::teleporterSrc(TeleporterStateSrc *pState)
 {
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /*
      * Wait for Console::Teleport to change the state.
      */
-    { AutoWriteLock autoLock(this); }
+    { AutoWriteLock autoLock(this COMMA_LOCKVAL_SRC_POS); }
 
     BOOL fCancelled = TRUE;
     HRESULT hrc = pState->mptrProgress->COMGETTER(Canceled)(&fCancelled);
@@ -759,7 +757,7 @@ Console::teleporterSrcThreadWrapper(RTTHREAD hThread, void *pvUser)
      * Write lock the console before resetting mptrCancelableProgress and
      * fixing the state.
      */
-    AutoWriteLock autoLock(pState->mptrConsole);
+    AutoWriteLock autoLock(pState->mptrConsole COMMA_LOCKVAL_SRC_POS);
     pState->mptrConsole->mptrCancelableProgress.setNull();
 
     VMSTATE const        enmVMState      = VMR3GetState(pState->mpVM);
@@ -900,14 +898,14 @@ Console::Teleport(IN_BSTR aHostname, ULONG aPort, IN_BSTR aPassword, ULONG aMaxD
      */
     CheckComArgOutPointerValid(aProgress);
     CheckComArgStrNotEmptyOrNull(aHostname);
-    CheckComArgNotNull(aHostname);
+    CheckComArgStrNotEmptyOrNull(aHostname);
     CheckComArgExprMsg(aPort, aPort > 0 && aPort <= 65535, ("is %u", aPort));
     CheckComArgExprMsg(aMaxDowntime, aMaxDowntime > 0, ("is %u", aMaxDowntime));
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock autoLock(this);
+    AutoWriteLock autoLock(this COMMA_LOCKVAL_SRC_POS);
     LogFlowThisFunc(("mMachineState=%d\n", mMachineState));
 
     switch (mMachineState)
@@ -931,9 +929,9 @@ Console::Teleport(IN_BSTR aHostname, ULONG aPort, IN_BSTR aPassword, ULONG aMaxD
 
     ComObjPtr<Progress> ptrProgress;
     HRESULT hrc = ptrProgress.createObject();
-    CheckComRCReturnRC(hrc);
+    if (FAILED(hrc)) return hrc;
     hrc = ptrProgress->init(static_cast<IConsole *>(this), Bstr(tr("Teleporter")), TRUE /*aCancelable*/);
-    CheckComRCReturnRC(hrc);
+    if (FAILED(hrc)) return hrc;
 
     TeleporterStateSrc *pState = new TeleporterStateSrc(this, mpVM, ptrProgress, mMachineState);
     pState->mstrPassword    = aPassword;

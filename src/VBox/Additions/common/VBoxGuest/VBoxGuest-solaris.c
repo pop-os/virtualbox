@@ -1,10 +1,10 @@
-/* $Id: VBoxGuest-solaris.c $ */
+/* $Id: VBoxGuest-solaris.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VirtualBox Guest Additions Driver for Solaris.
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -184,6 +180,16 @@ int _init(void)
 {
     LogFlow((DEVICE_NAME ":_init\n"));
 
+    PRTLOGGER pRelLogger;
+    static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
+    int rc = RTLogCreate(&pRelLogger, 0 /* fFlags */, "all",
+                     "VBOX_RELEASE_LOG", RT_ELEMENTS(s_apszGroups), s_apszGroups,
+                     RTLOGDEST_STDOUT | RTLOGDEST_DEBUGGER, NULL);
+    if (RT_SUCCESS(rc))
+        RTLogRelSetDefaultInstance(pRelLogger);
+    else
+        cmn_err(CE_NOTE, "failed to initialize driver logging rc=%d!\n", rc);
+
     /*
      * Prevent module autounloading.
      */
@@ -193,13 +199,6 @@ int _init(void)
     else
         LogRel((DEVICE_NAME ":failed to disable autounloading!\n"));
 
-    PRTLOGGER pRelLogger;
-    static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
-    int rc = RTLogCreate(&pRelLogger, 0 /* fFlags */, "all",
-                     "VBOX_RELEASE_LOG", RT_ELEMENTS(s_apszGroups), s_apszGroups,
-                     RTLOGDEST_STDOUT | RTLOGDEST_DEBUGGER, NULL);
-    if (RT_SUCCESS(rc))
-        RTLogRelSetDefaultInstance(pRelLogger);
 
     rc = ddi_soft_state_init(&g_pVBoxGuestSolarisState, sizeof(vboxguest_state_t), 1);
     if (!rc)
@@ -671,10 +670,12 @@ static int VBoxGuestSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArg, int Mode, cr
     }
     else
     {
-        if (rc != VERR_INTERRUPTED)
-            LogRel((DEVICE_NAME "::IOCtl: VBoxGuestCommonIOCtl failed. rc=%d\n", rc));
-        else
-            Log((DEVICE_NAME "::IOCtl: VBoxGuestCommonIOCtl failed. rc=%d\n", rc));
+        /*
+         * We Log() instead of LogRel() here because VBOXGUEST_IOCTL_WAITEVENT can return VERR_TIMEOUT,
+         * VBOXGUEST_IOCTL_CANCEL_ALL_EVENTS can return VERR_INTERRUPTED and possibly more in the future;
+         * which are not really failures that require logging.
+         */
+        Log((DEVICE_NAME "::IOCtl: VBoxGuestCommonIOCtl failed. Cmd=%#x rc=%d\n", Cmd, rc));
         rc = RTErrConvertToErrno(rc);
     }
     *pVal = rc;

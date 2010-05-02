@@ -357,7 +357,8 @@ def GetCategoryWrapper(func_name):
 	elif (cat == '1.3' or
           cat == '1.4' or
           cat == '1.5' or
-          cat == '2.0'):
+          cat == '2.0' or
+          cat == '2.1'):
 		# i.e. OpenGL 1.3 or 1.4 or 1.5
 		return "OPENGL_VERSION_" + string.replace(cat, ".", "_")
 	else:
@@ -611,7 +612,8 @@ __lengths = {
 	'GLintptrARB': 4,   # XXX or 8 bytes?
 	'GLsizeiptrARB': 4, # XXX or 8 bytes?
 	'GLhandleARB': 4,
-	'GLcharARB': 1
+	'GLcharARB': 1,
+    'uintptr_t': 4
 }
 
 def sizeof(type):

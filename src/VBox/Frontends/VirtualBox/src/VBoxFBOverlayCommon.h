@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,15 +14,11 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 #ifndef __VBoxFBOverlayCommon_h__
 #define __VBoxFBOverlayCommon_h__
 
-#if defined(DEBUG) && !defined(DEBUG_sandervl) && !defined(DEBUG_bird)
+#if defined(DEBUG_misha)
 # include "iprt/stream.h"
 # define VBOXQGLLOG(_m) RTPrintf _m
 # define VBOXQGLLOGREL(_m) do { RTPrintf _m ; LogRel( _m ); } while(0)
@@ -30,9 +26,9 @@
 # define VBOXQGLLOG(_m)    do {}while(0)
 # define VBOXQGLLOGREL(_m) LogRel( _m )
 #endif
-#define VBOXQGLLOG_ENTER(_m)
+#define VBOXQGLLOG_ENTER(_m) do {}while(0)
 //do{VBOXQGLLOG(("==>[%s]:", __FUNCTION__)); VBOXQGLLOG(_m);}while(0)
-#define VBOXQGLLOG_EXIT(_m)
+#define VBOXQGLLOG_EXIT(_m) do {}while(0)
 //do{VBOXQGLLOG(("<==[%s]:", __FUNCTION__)); VBOXQGLLOG(_m);}while(0)
 #ifdef DEBUG
  #define VBOXQGL_ASSERTNOERR() \
@@ -63,7 +59,7 @@
 #define VBOXGETTIME() RTTimeNanoTS()
 
 #define VBOXPRINTDIF(_nano, _m) do{\
-        uint64_t cur = VBOXGETTIME(); \
+        uint64_t cur = VBOXGETTIME(); NOREF(cur); \
         VBOXQGLLOG(_m); \
         VBOXQGLLOG(("(%Lu)\n", cur - (_nano))); \
     }while(0)
@@ -106,3 +102,4 @@ private:
     }while(0)
 
 #endif /* #ifndef __VBoxFBOverlayCommon_h__ */
+

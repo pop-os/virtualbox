@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -175,23 +171,8 @@ extern Bool vboxEnableVbva(ScrnInfoPtr pScrn);
 
 extern Bool vboxDisableVbva(ScrnInfoPtr pScrn);
 
-/**
- * Query the last display change request.
- *
- * @returns boolean success indicator.
- * @param   pScrn       Pointer to the X screen info structure.
- * @param   pcx         Where to store the horizontal pixel resolution (0 = do not change).
- * @param   pcy         Where to store the vertical pixel resolution (0 = do not change).
- * @param   pcBits      Where to store the bits per pixel (0 = do not change).
- * @param   fEventAck   Flag that the request is an acknowlegement for the
- *                      VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST.
- *                      Values:
- *                          0                                   - just querying,
- *                          VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST - event acknowledged.
- * @param   iDisplay    0 for primary display, 1 for the first secondary, etc.
- */
-extern Bool
-vboxGetDisplayChangeRequest(ScrnInfoPtr pScrn, uint32_t *pcx, uint32_t *pcy,
-                                    uint32_t *pcBits, uint32_t fEventAck, uint32_t iDisplay);
+extern Bool vboxGetDisplayChangeRequest(ScrnInfoPtr pScrn, uint32_t *pcx,
+                                        uint32_t *pcy, uint32_t *pcBits,
+                                        uint32_t *piDisplay);
 
 #endif /* _VBOXVIDEO_H_ */

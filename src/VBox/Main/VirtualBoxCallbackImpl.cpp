@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "VirtualBoxCallbackImpl.h"
@@ -77,7 +73,7 @@ STDMETHODIMP CallbackWrapper::OnMachineStateChange(IN_BSTR machineId, MachineSta
 
 STDMETHODIMP CallbackWrapper::OnMachineDataChange(IN_BSTR machineId)
 {
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (mVBoxCallback.isNull())
         return S_OK;
@@ -137,12 +133,12 @@ STDMETHODIMP CallbackWrapper::OnSnapshotTaken(IN_BSTR aMachineId, IN_BSTR aSnaps
     return mVBoxCallback->OnSnapshotTaken(aMachineId, aSnapshotId);
 }
 
-STDMETHODIMP CallbackWrapper::OnSnapshotDiscarded(IN_BSTR aMachineId, IN_BSTR aSnapshotId)
+STDMETHODIMP CallbackWrapper::OnSnapshotDeleted(IN_BSTR aMachineId, IN_BSTR aSnapshotId)
 {
     if (mVBoxCallback.isNull())
         return S_OK;
 
-    return mVBoxCallback->OnSnapshotDiscarded(aMachineId, aSnapshotId);
+    return mVBoxCallback->OnSnapshotDeleted(aMachineId, aSnapshotId);
 }
 
 STDMETHODIMP CallbackWrapper::OnSnapshotChange(IN_BSTR aMachineId, IN_BSTR aSnapshotId)
@@ -174,12 +170,12 @@ STDMETHODIMP CallbackWrapper::OnMousePointerShapeChange(BOOL visible, BOOL alpha
 }
 
 
-STDMETHODIMP CallbackWrapper::OnMouseCapabilityChange(BOOL supportsAbsolute, BOOL needsHostCursor)
+STDMETHODIMP CallbackWrapper::OnMouseCapabilityChange(BOOL supportsAbsolute, BOOL supportsRelative, BOOL needsHostCursor)
 {
     if (mConsoleCallback.isNull())
         return S_OK;
 
-    return mConsoleCallback->OnMouseCapabilityChange(supportsAbsolute, needsHostCursor);
+    return mConsoleCallback->OnMouseCapabilityChange(supportsAbsolute, supportsRelative, needsHostCursor);
 }
 
 STDMETHODIMP  CallbackWrapper::OnKeyboardLedsChange(BOOL fNumLock, BOOL fCapsLock, BOOL fScrollLock)
@@ -286,6 +282,14 @@ STDMETHODIMP CallbackWrapper::OnMediumChange(IMediumAttachment *aMediumAttachmen
         return S_OK;
 
     return mConsoleCallback->OnMediumChange(aMediumAttachment);
+}
+
+STDMETHODIMP CallbackWrapper::OnCPUChange(ULONG aCPU, BOOL aRemove)
+{
+    if (mConsoleCallback.isNull())
+        return S_OK;
+
+    return mConsoleCallback->OnCPUChange(aCPU, aRemove);
 }
 
 STDMETHODIMP CallbackWrapper::OnRuntimeError(BOOL fFatal, IN_BSTR id, IN_BSTR message)

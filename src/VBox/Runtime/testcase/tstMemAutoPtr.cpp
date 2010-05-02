@@ -1,10 +1,10 @@
-/* $Id: tstMemAutoPtr.cpp $ */
+/* $Id: tstMemAutoPtr.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Testcase the RTMemAutoPtr template.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -112,7 +108,7 @@ void tstMemAutoPtrDestructorCounter(T *aMem)
         RTPrintf("tstMemAutoPtr(%d): Destructor called with a bad handle %p\n", aMem);
         g_cErrors++;
     }
-    RTMemEfFree(aMem);
+    RTMemEfFreeNP(aMem);
     g_cFrees++;
 }
 
@@ -164,7 +160,7 @@ int main()
      * arguments and also check some subscript / reference limit thing.
      */
     {
-        RTMemAutoPtr<char, RTMemEfAutoFree<char>, RTMemEfRealloc> Electric(10);
+        RTMemAutoPtr<char, RTMemEfAutoFree<char>, RTMemEfReallocNP> Electric(10);
         CHECK_EXPR(Electric.get() != NULL);
         Electric[0] = '0';
         CHECK_EXPR(Electric[0]  == '0');
@@ -181,14 +177,14 @@ int main()
      */
     g_cFrees = 0;
     {
-        RTMemAutoPtr<char, tstMemAutoPtrDestructorCounter, RTMemEfRealloc> FreeIt(128);
+        RTMemAutoPtr<char, tstMemAutoPtrDestructorCounter, RTMemEfReallocNP> FreeIt(128);
         FreeIt[127] = '0';
     }
     CHECK_EXPR(g_cFrees == 1);
 
     g_cFrees = 0;
     {
-        RTMemAutoPtr<char, tstMemAutoPtrDestructorCounter, RTMemEfRealloc> FreeIt2(128);
+        RTMemAutoPtr<char, tstMemAutoPtrDestructorCounter, RTMemEfReallocNP> FreeIt2(128);
         FreeIt2[127] = '1';
         FreeIt2.reset();
         FreeIt2.alloc(128);
@@ -199,15 +195,15 @@ int main()
 
     g_cFrees = 0;
     {
-        RTMemAutoPtr<char, tstMemAutoPtrDestructorCounter, RTMemEfRealloc> DontFreeIt(256);
+        RTMemAutoPtr<char, tstMemAutoPtrDestructorCounter, RTMemEfReallocNP> DontFreeIt(256);
         DontFreeIt[255] = '0';
-        RTMemEfFree(DontFreeIt.release());
+        RTMemEfFreeNP(DontFreeIt.release());
     }
     CHECK_EXPR(g_cFrees == 0);
 
     g_cFrees = 0;
     {
-        RTMemAutoPtr<char, tstMemAutoPtrDestructorCounter, RTMemEfRealloc> FreeIt3(128);
+        RTMemAutoPtr<char, tstMemAutoPtrDestructorCounter, RTMemEfReallocNP> FreeIt3(128);
         FreeIt3[127] = '0';
         CHECK_EXPR(FreeIt3.realloc(128));
         FreeIt3[127] = '0';
@@ -222,7 +218,7 @@ int main()
 
     g_cFrees = 0;
     {
-        RTMemAutoPtr<char, tstMemAutoPtrDestructorCounter, RTMemEfRealloc> FreeIt4;
+        RTMemAutoPtr<char, tstMemAutoPtrDestructorCounter, RTMemEfReallocNP> FreeIt4;
         CHECK_EXPR(FreeIt4.alloc(123));
         CHECK_EXPR(FreeIt4.realloc(543));
         FreeIt4 = (char *)NULL;

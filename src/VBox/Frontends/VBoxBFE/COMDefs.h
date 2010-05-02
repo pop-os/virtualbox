@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef COMDefs_H
@@ -41,6 +37,15 @@
 #define NS_FAILED(_nsresult)    (NS_UNLIKELY((_nsresult) & 0x80000000))
 
 #define ATL_NO_VTABLE
+#define DECLARE_CLASSFACTORY(a)
+#define DECLARE_CLASSFACTORY_SINGLETON(a)
+#define DECLARE_REGISTRY_RESOURCEID(a)
+#define DECLARE_NOT_AGGREGATABLE(a)
+#define DECLARE_PROTECT_FINAL_CONSTRUCT()
+#define BEGIN_COM_MAP(a)
+#define COM_INTERFACE_ENTRY(a)
+#define COM_INTERFACE_ENTRY2(a,b)
+#define END_COM_MAP()
 
 #ifndef RT_OS_WINDOWS
   typedef unsigned long  HRESULT;
@@ -60,6 +65,7 @@
 # define E_FAIL         ((unsigned long) 0x80004005L)
 # define E_UNEXPECTED   ((unsigned long) 0x8000ffffL)
 # define E_INVALIDARG   ((unsigned long) 0x80070057L)
+#define E_ACCESSDENIED  ((unsigned long) 0x80070005L)
 
 # if ! defined(FALSE)
 #  define FALSE false
@@ -99,4 +105,6 @@ namespace com
         T *raw() { return &t; }
     };
 }
+
+#define unconst(val) val
 #endif

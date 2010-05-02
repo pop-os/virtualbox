@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_process_h
@@ -136,11 +132,64 @@ RTR3DECL(RTPROCPRIORITY) RTProcGetPriority(void);
  */
 RTR3DECL(int)   RTProcCreate(const char *pszExec, const char * const *papszArgs, RTENV Env, unsigned fFlags, PRTPROCESS pProcess);
 
-/** @name RTProcCreate flags
+
+/**
+ * Create a child process.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   pszExec     Executable image to use to create the child process.
+ * @param   papszArgs   Pointer to an array of arguments to the child.  The
+ *                      array terminated by an entry containing NULL.
+ * @param   hEnv        Handle to the environment block for the child.  Pass
+ *                      RTENV_DEFAULT to use the environment of the current
+ *                      process.
+ * @param   fFlags      Flags, one of the RTPROC_FLAGS_* defines.
+ * @param   phStdIn     The standard in handle to assign the new process. Pass
+ *                      NULL to use the same as the current process.  If the
+ *                      handle is NIL, we'll close the standard input of the
+ *                      guest.
+ * @param   phStdOut    The standard out handle to assign the new process.  Pass
+ *                      NULL to use the same as the current process.  If the
+ *                      handle is NIL, we'll close the standard output of the
+ *                      guest.
+ * @param   phStdErr    The standard error handle to assign the new process.  Pass
+ *                      NULL to use the same as the current process.  If the
+ *                      handle is NIL, we'll close the standard error of the
+ *                      guest.
+ * @param   pszAsUser   User to run the process as.  Pass NULL to use the same
+ *                      user as the current process.
+ *                      Windows: Use user@domain format to specify a domain.
+ * @param   pszPassword Password to use to authenticate @a pszAsUser.  Must be
+ *                      NULL wif pszAsUser is NULL.  Whether this is actually
+ *                      used or not depends on the platform.
+ * @param   phProcess   Where to store the process handle on successful return.
+ *                      The content is not changed on failure.  NULL is allowed.
+ *
+ * @remarks The handles does not have to be created as inheritable, but it
+ *          doesn't hurt if they are as it may avoid race conditions on some
+ *          platforms.
+ *
+ * @remarks The as-user feature isn't supported/implemented on all platforms and
+ *          will cause a-yet-to-be-determined-error-status on these.
+ */
+RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArgs, RTENV hEnv, uint32_t fFlags,
+                               PCRTHANDLE phStdIn, PCRTHANDLE phStdOut, PCRTHANDLE phStdErr, const char *pszAsUser,
+                               const char *pszPassword, PRTPROCESS phProcess);
+
+/** @name RTProcCreate and RTProcCreateEx flags
  * @{ */
+/** Detach the child process from the parents process tree and process group,
+ * session or/and console (depends on the platform what's done applicable).
+ *
+ * The new process will not be a direct decendent of the parent and it will not
+ * be possible to wait for it, i.e. @a phProcess shall be NULL. */
+#define RTPROC_FLAGS_DETACHED               RT_BIT(0)
+
 /** Daemonize the child process, without changing the directory.
- * @remarks Not implemented on all platforms yet... */
-#define RTPROC_FLAGS_DAEMONIZE          RT_BIT(0)
+ * @deprecated Dont use this for new code, it is not portable.  Use
+ *             RTProcDaemonize instead. */
+#define RTPROC_FLAGS_DAEMONIZE_DEPRECATED   RT_BIT(1)
 /** @}  */
 
 
@@ -184,27 +233,34 @@ typedef const RTPROCSTATUS *PCRTPROCSTATUS;
 /**
  * Waits for a process, resumes on interruption.
  *
- * @returns VINF_SUCCESS when the status code for the process was collected and put in *pProcStatus.
+ * @returns VINF_SUCCESS when the status code for the process was collected and
+ *          put in *pProcStatus.
  * @returns VERR_PROCESS_NOT_FOUND if the specified process wasn't found.
- * @returns VERR_PROCESS_RUNNING when the RTPROCWAIT_FLAG_NOBLOCK and the process haven't exited yet.
+ * @returns VERR_PROCESS_RUNNING when the RTPROCWAIT_FLAGS_NOBLOCK and the
+ *          process haven't exited yet.
  *
  * @param   Process         The process to wait for.
  * @param   fFlags          The wait flags, any of the RTPROCWAIT_FLAGS_ \#defines.
  * @param   pProcStatus     Where to store the exit status on success.
+ *                          Optional.
  */
 RTR3DECL(int) RTProcWait(RTPROCESS Process, unsigned fFlags, PRTPROCSTATUS pProcStatus);
 
 /**
  * Waits for a process, returns on interruption.
  *
- * @returns VINF_SUCCESS when the status code for the process was collected and put in *pProcStatus.
+ * @returns VINF_SUCCESS when the status code for the process was collected and
+ *          put in *pProcStatus.
  * @returns VERR_PROCESS_NOT_FOUND if the specified process wasn't found.
- * @returns VERR_PROCESS_RUNNING when the RTPROCWAIT_FLAG_NOBLOCK and the process haven't exited yet.
- * @returns VERR_INTERRUPTED when the wait was interrupted by the arrival of a signal or other async event.
+ * @returns VERR_PROCESS_RUNNING when the RTPROCWAIT_FLAGS_NOBLOCK and the
+ *          process haven't exited yet.
+ * @returns VERR_INTERRUPTED when the wait was interrupted by the arrival of a
+ *          signal or other async event.
  *
  * @param   Process         The process to wait for.
  * @param   fFlags          The wait flags, any of the RTPROCWAIT_FLAGS_ \#defines.
  * @param   pProcStatus     Where to store the exit status on success.
+ *                          Optional.
  */
 RTR3DECL(int) RTProcWaitNoResume(RTPROCESS Process, unsigned fFlags, PRTPROCSTATUS pProcStatus);
 
@@ -235,17 +291,41 @@ RTR3DECL(uint64_t) RTProcGetAffinityMask(void);
 RTR3DECL(char *) RTProcGetExecutableName(char *pszExecName, size_t cchExecName);
 
 /**
+ * Daemonize the current process, making it a background process.
+ *
+ * The way this work is that it will spawn a detached / backgrounded /
+ * daemonized / call-it-what-you-want process that isn't a direct child of the
+ * current process.  The spawned will have the same arguments a the caller,
+ * except that the @a pszDaemonizedOpt is appended to prevent that the new
+ * process calls this API again.
+ *
+ * The new process will have the standard handles directed to/from the
+ * bitbucket.
+ *
+ * @returns IPRT status code.  On success it is normal for the caller to exit
+ *          the process by returning from main().
+ *
+ * @param   papszArgs       The argument vector of the calling process.
+ * @param   pszDaemonized   The daemonized option.  This is appended to the end
+ *                          of the parameter list of the daemonized process.
+ */
+RTR3DECL(int)   RTProcDaemonize(const char * const *papszArgs, const char *pszDaemonizedOpt);
+
+/**
  * Daemonize the current process, making it a background process. The current
  * process will exit if daemonizing is successful.
  *
- * @returns iprt status code.
+ * @returns IPRT status code.   On success it will only return in the child
+ *          process, the parent will exit.  On failure, it will return in the
+ *          parent process and no child has been spawned.
+ *
  * @param   fNoChDir    Pass false to change working directory to "/".
  * @param   fNoClose    Pass false to redirect standard file streams to the null device.
  * @param   pszPidfile  Path to a file to write the process id of the daemon
  *                      process to. Daemonizing will fail if this file already
  *                      exists or cannot be written. May be NULL.
  */
-RTR3DECL(int)   RTProcDaemonize(bool fNoChDir, bool fNoClose, const char *pszPidfile);
+RTR3DECL(int)   RTProcDaemonizeUsingFork(bool fNoChDir, bool fNoClose, const char *pszPidfile);
 
 /**
  * Check if the given process is running on the system.

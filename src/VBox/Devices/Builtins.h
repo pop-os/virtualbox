@@ -1,10 +1,10 @@
-/* $Id: Builtins.h $ */
+/* $Id: Builtins.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Built-in drivers & devices (part 1) header.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___Builtins_h
@@ -106,27 +102,41 @@ extern const PDMDRVREG g_DrvISCSITransportTcp;
 #if defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)
 extern const PDMDRVREG g_DrvHostInterface;
 #endif
+#ifdef VBOX_WITH_VDE
+extern const PDMDRVREG g_DrvVDE;
+#endif
 extern const PDMDRVREG g_DrvIntNet;
+extern const PDMDRVREG g_DrvDedicatedNic;
 extern const PDMDRVREG g_DrvNAT;
 extern const PDMDRVREG g_DrvNetSniffer;
 extern const PDMDRVREG g_DrvAUDIO;
 extern const PDMDRVREG g_DrvACPI;
+extern const PDMDRVREG g_DrvAcpiCpu;
 extern const PDMDRVREG g_DrvVUSBRootHub;
 extern const PDMDRVREG g_DrvChar;
 extern const PDMDRVREG g_DrvNamedPipe;
 extern const PDMDRVREG g_DrvRawFile;
 extern const PDMDRVREG g_DrvHostParallel;
 extern const PDMDRVREG g_DrvHostSerial;
+#ifdef VBOX_WITH_DRV_DISK_INTEGRITY
+extern const PDMDRVREG g_DrvDiskIntegrity;
+#endif
 
 #ifdef VBOX_WITH_USB
 extern const PDMUSBREG g_UsbDevProxy;
+extern const PDMUSBREG g_UsbMsd;
+#endif
+#ifdef VBOX_WITH_VUSB
+extern const PDMUSBREG g_UsbHid;
+extern const PDMUSBREG g_UsbHidKbd;
+extern const PDMUSBREG g_UsbHidMou;
 #endif
 
 #ifdef VBOX_WITH_SCSI
 extern const PDMDRVREG g_DrvSCSI;
-#if defined(RT_OS_LINUX)
+# if defined(RT_OS_LINUX)
 extern const PDMDRVREG g_DrvSCSIHost;
-#endif
+# endif
 #endif
 
 RT_C_DECLS_END

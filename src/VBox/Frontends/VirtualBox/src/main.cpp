@@ -1,3 +1,4 @@
+/* $Id: main.cpp 28843 2010-04-27 16:02:17Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,22 +15,19 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include "precomp.h"
+# ifdef QT_MAC_USE_COCOA
+#  include "darwin/VBoxCocoaApplication.h"
+# endif
+#else /* !VBOX_WITH_PRECOMPILED_HEADERS */
 #include "VBoxGlobal.h"
 #include "VBoxProblemReporter.h"
 #include "VBoxSelectorWnd.h"
 #include "VBoxConsoleWnd.h"
 #include "VBoxUtils.h"
-#if defined(Q_WS_MAC) && !defined(QT_MAC_USE_COCOA)
-# include "QIApplication.h"
-#else
-# define QIApplication QApplication
-#endif
 #ifdef QT_MAC_USE_COCOA
 # include "darwin/VBoxCocoaApplication.h"
 #endif
@@ -56,6 +54,8 @@
 #include <iprt/stream.h>
 #include <VBox/err.h>
 #include <VBox/version.h>
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 #ifdef VBOX_WITH_HARDENING
 # include <VBox/sup.h>
 #endif
@@ -251,11 +251,13 @@ static void showHelp()
 #endif
 
     RTPrintf(VBOX_PRODUCT " Graphical User Interface %s\n"
-            "(C) 2005-2010 " VBOX_VENDOR "\n"
+            "(C) 2005-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
             "All rights reserved.\n"
             "\n"
             "Usage:\n"
             "  --startvm <vmname|UUID>    start a VM by specifying its UUID or name\n"
+            "  --seamless                 switch to seamless mode during startup\n"
+            "  --fullscreen               switch to fullscreen mode during startup\n"
             "  --rmode %-18s select different render mode (default is %s)\n"
 # ifdef VBOX_WITH_DEBUGGER_GUI
             "  --dbg                      enable the GUI debug menu\n"
@@ -265,6 +267,7 @@ static void showHelp()
             "  --no-debug                 disable the GUI debug menu and debug windows\n"
             "  --start-paused             start the VM in the paused state\n"
             "  --start-running            start the VM running (for overriding --debug*)\n"
+            "  --no-startvm-errormsgbox   do not show a message box for VM start errors\n"
             "\n"
             "The following environment variables are evaluated:\n"
             "  VBOX_GUI_DBG_ENABLED       enable the GUI debug menu if set\n"
@@ -329,7 +332,7 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
 
     int rc = 1; /* failure */
 
-    /* scope the QIApplication variable */
+    /* scope the QApplication variable */
     {
 #ifdef Q_WS_X11
         /* Qt has a complex algorithm for selecting the right visual which
@@ -366,9 +369,9 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
                           ? DefaultVisual(pDisplay, DefaultScreen(pDisplay))
                           : NULL;
         /* Now create the application object */
-        QIApplication a (pDisplay, argc, argv, (Qt::HANDLE) pVisual);
+        QApplication a (pDisplay, argc, argv, (Qt::HANDLE) pVisual);
 #else /* Q_WS_X11 */
-        QIApplication a (argc, argv);
+        QApplication a (argc, argv);
 #endif /* Q_WS_X11 */
 
         /* Qt4.3 version has the QProcess bug which freezing the application
@@ -486,7 +489,6 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
 
             if (vboxGlobal().isVMConsoleProcess())
             {
-                vboxGlobal().setMainWindow (&vboxGlobal().consoleWnd());
 #ifdef VBOX_GUI_WITH_SYSTRAY
                 if (vboxGlobal().trayIconInstall())
                 {
@@ -494,7 +496,10 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char ** /*envp*/)
                 }
 #endif
                 if (vboxGlobal().startMachine (vboxGlobal().managedVMUuid()))
+                {
+                    vboxGlobal().setMainWindow (vboxGlobal().vmWindow());
                     rc = a.exec();
+                }
             }
             else if (noSelector)
             {

@@ -1,10 +1,10 @@
-/* $Id: DHCPServerRunner.cpp $ */
+/* $Id: DHCPServerRunner.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VirtualBox Main - interface for VBox DHCP server
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 #include "DHCPServerRunner.h"
 #include <iprt/process.h>
@@ -57,7 +53,7 @@ static const ARGDEF g_aArgDefs[] =
 static const ARGDEF * getArgDef(DHCPCFG type)
 {
     for (unsigned i = 0; i < RT_ELEMENTS(g_aArgDefs); i++)
-        if(g_aArgDefs[i].Type == type)
+        if (g_aArgDefs[i].Type == type)
             return &g_aArgDefs[i];
 
     return NULL;
@@ -85,8 +81,8 @@ int DHCPServerRunner::start()
     const char * args[DHCPCFG_NOTOPT_MAXVAL * 2];
 
     /* get the path to the executable */
-    char exePathBuf [RTPATH_MAX];
-    const char *exePath = RTProcGetExecutableName (exePathBuf, RTPATH_MAX);
+    char exePathBuf[RTPATH_MAX];
+    const char *exePath = RTProcGetExecutableName(exePathBuf, RTPATH_MAX);
     char *substrSl = strrchr(exePathBuf, '/');
     char *substrBs = strrchr(exePathBuf, '\\');
     char *suffix = substrSl ? substrSl : substrBs;
@@ -120,7 +116,7 @@ int DHCPServerRunner::start()
 
     args[index++] = NULL;
 
-    int rc = RTProcCreate (exePath, args, RTENV_DEFAULT, 0, &mProcess);
+    int rc = RTProcCreate(exePath, args, RTENV_DEFAULT, 0, &mProcess);
     if (RT_FAILURE(rc))
         mProcess = NIL_RTPROCESS;
 
@@ -139,13 +135,13 @@ int DHCPServerRunner::stop()
 
 bool DHCPServerRunner::isRunning()
 {
-    if(mProcess == NIL_RTPROCESS)
+    if (mProcess == NIL_RTPROCESS)
         return false;
 
     RTPROCSTATUS status;
     int rc = RTProcWait(mProcess, RTPROCWAIT_FLAGS_NOBLOCK, &status);
 
-    if(rc == VERR_PROCESS_RUNNING)
+    if (rc == VERR_PROCESS_RUNNING)
         return true;
 
     mProcess = NIL_RTPROCESS;

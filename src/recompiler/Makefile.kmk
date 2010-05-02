@@ -1,9 +1,9 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
 ## @file
 # The Recompiler Sub-Makefile.
 #
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2007 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -12,10 +12,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 
@@ -36,6 +32,11 @@ ifeq ($(KBUILD_TARGET_ARCH),x86)
  ifdef VBOX_WITH_64_BITS_GUESTS
    VBOX_USE_REM64 := 1
  endif
+endif
+
+# Workaround for darwin hell.
+ifeq ($(KBUILD_TARGET),darwin)
+ VBOX_WITHOUT_REM_LDR_CYCLE = 1
 endif
 
 
@@ -78,10 +79,8 @@ endif
 #
 ifdef VBOX_USE_REM2
  SYSMODS += VBoxREM2
-else
- ifndef VBOX_USE_REM64
-  DLLS    += VBoxREM
- endif
+else ifndef VBOX_USE_REM64
+ DLLS    += VBoxREM
 endif
 
 
@@ -94,7 +93,7 @@ $(REM_MOD)_TOOL.win.x86    = MINGW32
 $(REM_MOD)_TOOL.win.amd64  = XGCCAMD64LINUX
 $(REM_MOD)_SDKS.win.x86    = W32API
 $(REM_MOD)_ASFLAGS         = -x assembler-with-cpp
-$(REM_MOD)_CFLAGS          = -Wall -g -fno-omit-frame-pointer -fno-strict-aliasing
+$(REM_MOD)_CFLAGS          = -Wall -g -fno-omit-frame-pointer -fno-strict-aliasing -Wno-shadow
 $(REM_MOD)_CFLAGS.debug    = -O0
 $(REM_MOD)_CFLAGS.release += -fno-gcse -O2
 $(REM_MOD)_CFLAGS.profile  = $($(REM_MOD)_CFLAGS.release)
@@ -118,13 +117,13 @@ else
 endif
 $(REM_MOD)_DEFS.freebsd   += _BSD
 
-$(REM_MOD)_INCS            = 		\
-	Sun 				\
-	target-i386 			\
-	tcg 				\
-	fpu 				\
-	$(PATH_$(REM_MOD)) 		\
-	$(PATH_ROOT)/src/VBox/VMM 	\
+$(REM_MOD)_INCS            = \
+	Sun \
+	target-i386 \
+	tcg \
+	fpu \
+	$(PATH_$(REM_MOD)) \
+	$(PATH_ROOT)/src/VBox/VMM \
 	.
 ifn1of ($($(REM_MOD)_DEFS),DEBUG_TMP_LOGGING)
 $(REM_MOD)_DEFS           += LOG_USE_C99
@@ -132,19 +131,19 @@ $(REM_MOD)_INCS           <= \
 	Sun/crt
 endif
 
-$(REM_MOD)_SOURCES         = 		\
-	VBoxRecompiler.c 		\
-	cpu-exec.c	 		\
-	exec.c 				\
-	translate-all.c 		\
-	host-utils.c 			\
-	cutils.c 			\
-	tcg/tcg.c 			\
-	tcg/tcg-dyngen.c 		\
-	tcg/tcg-runtime.c 		\
-	fpu/softfloat-native.c 		\
-	target-i386/op_helper.c 	\
-	target-i386/helper.c 		\
+$(REM_MOD)_SOURCES         = \
+	VBoxRecompiler.c \
+	cpu-exec.c \
+	exec.c \
+	translate-all.c \
+	host-utils.c \
+	cutils.c \
+	tcg/tcg.c \
+	tcg/tcg-dyngen.c \
+	tcg/tcg-runtime.c \
+	fpu/softfloat-native.c \
+	target-i386/op_helper.c \
+	target-i386/helper.c \
 	target-i386/translate.c
 
 ifeq ($(KBUILD_TARGET_ARCH),amd64)
@@ -198,7 +197,7 @@ $(REM_MOD)_LDFLAGS.solaris = -mimpure-text
 
 if defined(VBOX_USE_REM2) || defined(VBOX_USE_REM64)
 #
-# The VBoxREM2 wrapper.
+# The VBoxREM2, VBoxREM32 and VBoxREM64 wrapper.
 #
 DLLS += VBoxREMWrapper
 VBoxREMWrapper_TEMPLATE    = VBOXR3
@@ -207,15 +206,25 @@ VBoxREMWrapper_DEFS        = IN_REM_R3 $(if $(VBOX_WITH_VMI),VBOX_WITH_VMI,)
  ifdef VBOX_USE_REM64
 VBoxREMWrapper_DEFS       += VBOX_USE_BITNESS_SELECTOR
  endif
+ ifdef VBOX_WITHOUT_REM_LDR_CYCLE
+VBoxREMWrapper_DEFS       += VBOX_WITHOUT_REM_LDR_CYCLE
+ endif
 VBoxREMWrapper_SOURCES     = \
-	VBoxREMWrapper.cpp \
-	$(if $(VBOX_USE_REM2),VBoxREMWrapperA.asm)
+	VBoxREMWrapper.cpp
+ ifdef VBOX_USE_REM2
+VBoxREMWrapper_SOURCES    += \
+	VBoxREMWrapperA.asm
+ endif
 VBoxREMWrapper_LIBS        = \
-	$(LIB_VMM) \
-	$(LIB_RUNTIME)
+ 	$(LIB_RUNTIME)
+ ifndef VBOX_WITHOUT_REM_LDR_CYCLE
+VBoxREMWrapper_LIBS       += \
+	$(LIB_VMM)
 VBoxREMWrapper_LIBS.darwin += \
 	$(TARGET_VBoxREMImp)
-#VBoxREMWrapper_LDFLAGS.darwin = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxREM.dylib
+ else
+VBoxREMWrapper_LDFLAGS.darwin = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxREM.dylib
+ endif
 endif
 
 
@@ -262,7 +271,11 @@ VBoxREMImp_CLEAN           = $(PATH_VBoxREMImp)/VBoxREMImp.c
  ifn1of ($(KBUILD_TARGET), darwin os2 win)
 VBoxREMImp_SONAME          = VBoxREM$(SUFF_DLL)
  endif
-VBoxREMImp_LDFLAGS.darwin   = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxREM.dylib
+ifdef VBOX_WITHOUT_REM_LDR_CYCLE
+ VBoxREMImp_LDFLAGS.darwin  = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxREM.dylib
+else
+ VBoxREMImp_LDFLAGS.darwin  = -install_name $(subst @rpath,@executable_path,$(VBOX_DYLD_EXECUTABLE_PATH))/VBoxREM.dylib
+endif
 VBoxREMImp_LDFLAGS.l4       = -T$(L4_LIBDIR)/../main_rel.ld -nostdlib
 
 $$(PATH_VBoxREMImp)/VBoxREMImp.c: $(VBOX_PATH_RECOMPILER_SRC)/VBoxREM.def $(VBOX_PATH_RECOMPILER_SRC)/Sun/deftoimp.sed $(MAKEFILE_CURRENT) | $$(dir $$@)

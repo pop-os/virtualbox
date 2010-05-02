@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "renderspu_cocoa_helper.h"
@@ -137,6 +133,7 @@ while(0);
 {
 @private
     NSView          *m_pParentView;
+    NSWindow        *m_pOverlayWin;
 
     NSOpenGLContext *m_pGLCtx;
     NSOpenGLContext *m_pSharedGLCtx;
@@ -171,6 +168,11 @@ while(0);
 - (id)initWithFrame:(NSRect)frame thread:(RTTHREAD)aThread parentView:(NSView*)pParentView;
 - (void)setGLCtx:(NSOpenGLContext*)pCtx;
 - (NSOpenGLContext*)glCtx;
+
+- (void)setParentView: (NSView*)view;
+- (NSView*)parentView;
+- (void)setOverlayWin: (NSWindow*)win;
+- (NSWindow*)overlayWin;
 
 - (void)setPos:(NSPoint)pos;
 - (NSPoint)pos;
@@ -298,19 +300,23 @@ while(0);
     [self lock];
     [self cleanup];
 
-    /* Create a buffer for our thumbnail image. Its in the size of this view. */
-    m_ThumbBitmap = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
-        pixelsWide:frame.size.width
-        pixelsHigh:frame.size.height
-        bitsPerSample:8
-        samplesPerPixel:4
-        hasAlpha:YES
-        isPlanar:NO
-        colorSpaceName:NSDeviceRGBColorSpace
-        bytesPerRow:frame.size.width * 4
-        bitsPerPixel:8 * 4];
-    m_ThumbImage = [[NSImage alloc] initWithSize:[m_ThumbBitmap size]];
-    [m_ThumbImage addRepresentation:m_ThumbBitmap];
+    if (   frame.size.width > 0
+        && frame.size.height > 0)
+    {
+        /* Create a buffer for our thumbnail image. Its in the size of this view. */
+        m_ThumbBitmap = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
+            pixelsWide:frame.size.width
+            pixelsHigh:frame.size.height
+            bitsPerSample:8
+            samplesPerPixel:4
+            hasAlpha:YES
+            isPlanar:NO
+            colorSpaceName:NSDeviceRGBColorSpace
+            bytesPerRow:frame.size.width * 4
+            bitsPerPixel:8 * 4];
+        m_ThumbImage = [[NSImage alloc] initWithSize:[m_ThumbBitmap size]];
+        [m_ThumbImage addRepresentation:m_ThumbBitmap];
+    }
     [self unlock];
 }
 
@@ -446,6 +452,8 @@ while(0);
         m_pParentView = pParentView;
         m_pOverlayView = pOverlayView;
         m_Thread = [NSThread currentThread];
+
+        [m_pOverlayView setOverlayWin: self];
 
         m_pOverlayHelperView = [[OverlayHelperView alloc] initWithOverlayWindow:self];
         /* Add the helper view as a child of the parent view to get notifications */
@@ -603,6 +611,26 @@ while(0);
 - (NSOpenGLContext*)glCtx
 {
     return m_pGLCtx;
+}
+
+- (NSView*)parentView
+{
+    return m_pParentView;
+}
+
+- (void)setParentView: (NSView*)view
+{
+    m_pParentView = view;
+}
+
+- (void)setOverlayWin: (NSWindow*)win
+{
+    m_pOverlayWin = win;
+}
+
+- (NSWindow*)overlayWin
+{
+    return m_pOverlayWin;
 }
 
 - (void)setPos:(NSPoint)pos
@@ -1025,7 +1053,7 @@ while(0);
             if (m_FBOThumbTexId > 0 &&
                 [m_DockTileView thumbBitmap] != nil)
             {
-                /* Only update after atleast 200 ms, cause glReadPixels is
+                /* Only update after at least 200 ms, cause glReadPixels is
                  * heavy performance wise. */
                 uint64_t uiNewTime = RTTimeMilliTS();
                 if (uiNewTime - m_uiDockUpdateTime > 200)
@@ -1133,6 +1161,7 @@ while(0);
                 }
                 glEnd();
             }
+            glFinish();
             [m_pSharedGLCtx flushBuffer];
             [m_pGLCtx makeCurrentContext];
         }
@@ -1167,23 +1196,32 @@ while(0);
 {
     NSView *contentView = [[[NSApplication sharedApplication] dockTile] contentView];
     NSView *screenContent = nil;
-    if ([contentView respondsToSelector:@selector(screenContent)])
+    /* First try the new variant which checks if this window is within the
+       screen which is previewed in the dock. */
+    if ([contentView respondsToSelector:@selector(screenContentWithParentView:)])
+         screenContent = [contentView performSelector:@selector(screenContentWithParentView:) withObject:(id)m_pParentView];
+    /* If it fails, fall back to the old variant (VBox...) */
+    else if ([contentView respondsToSelector:@selector(screenContent)])
          screenContent = [contentView performSelector:@selector(screenContent)];
     return screenContent;
 }
 
 - (void)reshapeDockTile
 {
-    NSRect dockFrame = [[self dockTileScreen] frame];
-    NSRect parentFrame = [m_pParentView frame];
+    NSView *pView = [self dockTileScreen];
+    if (pView != nil)
+    {
+        NSRect dockFrame = [pView frame];
+        NSRect parentFrame = [m_pParentView frame];
 
-    m_FBOThumbScaleX = (float)dockFrame.size.width / parentFrame.size.width;
-    m_FBOThumbScaleY = (float)dockFrame.size.height / parentFrame.size.height;
-    NSRect newFrame = NSMakeRect ((int)(m_Pos.x * m_FBOThumbScaleX), (int)(dockFrame.size.height - (m_Pos.y + m_Size.height - m_RootShift.y) * m_FBOThumbScaleY), (int)(m_Size.width * m_FBOThumbScaleX), (int)(m_Size.height * m_FBOThumbScaleY));
+        m_FBOThumbScaleX = (float)dockFrame.size.width / parentFrame.size.width;
+        m_FBOThumbScaleY = (float)dockFrame.size.height / parentFrame.size.height;
+        NSRect newFrame = NSMakeRect ((int)(m_Pos.x * m_FBOThumbScaleX), (int)(dockFrame.size.height - (m_Pos.y + m_Size.height - m_RootShift.y) * m_FBOThumbScaleY), (int)(m_Size.width * m_FBOThumbScaleX), (int)(m_Size.height * m_FBOThumbScaleY));
 //    NSRect newFrame = NSMakeRect ((int)roundf(m_Pos.x * m_FBOThumbScaleX), (int)roundf(dockFrame.size.height - (m_Pos.y + m_Size.height) * m_FBOThumbScaleY), (int)roundf(m_Size.width * m_FBOThumbScaleX), (int)roundf(m_Size.height * m_FBOThumbScaleY));
 //      NSRect newFrame = NSMakeRect ((m_Pos.x * m_FBOThumbScaleX), (dockFrame.size.height - (m_Pos.y + m_Size.height) * m_FBOThumbScaleY), (m_Size.width * m_FBOThumbScaleX), (m_Size.height * m_FBOThumbScaleY));
 //    printf ("%f %f %f %f - %f %f\n", newFrame.origin.x, newFrame.origin.y, newFrame.size.width, newFrame.size.height, m_Size.height, m_FBOThumbScaleY);
-    [m_DockTileView setFrame: newFrame];
+        [m_DockTileView setFrame: newFrame];
+    }
 }
 
 @end
@@ -1305,6 +1343,26 @@ void cocoaViewCreate(NativeViewRef *ppView, NativeViewRef pParentView, GLbitfiel
     [pPool release];
 }
 
+void cocoaViewReparent(NativeViewRef pView, NativeViewRef pParentView)
+{
+    NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
+
+    OverlayView* pOView = (OverlayView*)pView;
+
+    if (pOView)
+    {
+        /* Make sure the window is removed from any previous parent window. */
+        [[[pOView overlayWin] parentWindow] removeChildWindow:[pOView overlayWin]];
+        /* Set the new parent view */
+        [pOView setParentView: pParentView];
+        /* Add the overlay window as a child to the new parent window */
+        [[pParentView window] addChildWindow:[pOView overlayWin] ordered:NSWindowAbove];
+        [pOView createFBO];
+    }
+
+    [pPool release];
+}
+
 void cocoaViewDestroy(NativeViewRef pView)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
@@ -1418,7 +1476,6 @@ void cocoaFlush()
     DEBUG_MSG_1(("glFlush called\n"));
 
 #ifdef FBO
-# if 0
     NSOpenGLContext *pCtx = [NSOpenGLContext currentContext];
     if (pCtx)
     {
@@ -1429,7 +1486,6 @@ void cocoaFlush()
                 [pView performSelector:@selector(flushFBO)];
         }
     }
-# endif
 #else
     glFlush();
 #endif

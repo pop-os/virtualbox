@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
 ## @file
 # Sub-Makefile for the support library and the drivers/modules/kexts it uses.
 #
 
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -23,10 +23,6 @@
 # You may elect to license modified versions of this file under the
 # terms and conditions of either the GPL or the CDDL or both.
 #
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
-#
 
 SUB_DEPTH = ../../../..
 include	$(KBUILD_PATH)/subheader.kmk
@@ -34,11 +30,13 @@ include	$(KBUILD_PATH)/subheader.kmk
 #
 # Targets
 #
-LIBRARIES += SUPR3 SUPR3HardenedStatic
+LIBRARIES += SUPR3 SUPR3Static SUPR3HardenedStatic
 ifndef VBOX_ONLY_DOCS
- ifeq ($(filter-out pe lx,$(VBOX_LDR_FMT)),)
+ if1of ($(VBOX_LDR_FMT), pe lx)
   LIBRARIES += SUPR0
  endif
+endif
+if !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_TESTSUITE)
  ifdef VBOX_WITH_SUPSVC
   PROGRAMS += VBoxSupSvc
  endif
@@ -67,7 +65,7 @@ ifndef VBOX_ONLY_DOCS
  ifeq ($(KBUILD_TARGET),freebsd)
   include $(PATH_SUB_CURRENT)/freebsd/files_vboxdrv
  endif
-endif # !VBOX_ONLY_DOCS
+endif # !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_TESTSUITE)
 
 
 #
@@ -92,6 +90,11 @@ SUPR3_SOURCES       = \
 	SUPR3HardenedVerify.cpp \
 	$(KBUILD_TARGET)/SUPLib-$(KBUILD_TARGET).cpp
 
+#
+# Static version of SUPR3.
+#
+SUPR3Static_TEMPLATE = VBOXR3STATIC
+SUPR3Static_EXTENDS = SUPR3
 
 #
 # The static part of the hardened support library (ring-3).
@@ -106,8 +109,6 @@ SUPR3HardenedStatic_SOURCES  = \
 	SUPR3HardenedMain.cpp \
 	SUPR3HardenedVerify.cpp \
 	$(KBUILD_TARGET)/SUPLib-$(KBUILD_TARGET).cpp
-
-ifndef VBOX_ONLY_DOCS
 
 #
 # VBoxSupSvc - The system wide service/daemon.
@@ -132,14 +133,19 @@ VBoxSupSvc_LIBS = \
 #
 # SUPR0 - The Ring-0 Import / Thunk library.
 #
-SUPR0_TEMPLATE      = VBOXR0
+SUPR0_TEMPLATE      = VBoxR0
 ifeq ($(VBOX_LDR_FMT),pe)
  SUPR0_SOURCES     += SUPR0.def
 endif
 ifeq ($(VBOX_LDR_FMT),lx)
 SUPR0_SOURCES      += $$(PATH_SUPR0)/SUPR0.def
 $$(PATH_SUPR0)/SUPR0.def: $(PATH_SUB_CURRENT)/SUPR0.def | $$(dir $$@)
-	$(SED) -e 's/^[ \t][ \t]*\([gA-Z]\)/    _\1/' -e 's/[ \t]DATA[ \t]*/ /' $< > $@.tmp
+	$(SED) \
+		-e 's/^[ \t][ \t]*\([gA-Z]\)/    _\1/' \
+		-e 's/[ \t]DATA[ \t]*/ /' \
+		-e 's/g_pSUPGlobalInfoPage/g_SUPGlobalInfoPage/' \
+		--output $@.tmp\
+		$<
 	$(MV) -f $@.tmp $@
 endif
 
@@ -158,6 +164,8 @@ SUPR0IdcClient_SOURCES = \
 	SUPR0IdcClientStubs.c
 
 
+if !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_TESTSUITE)
+
 #
 # VBoxDrv.sys - The Windows driver.
 #
@@ -168,7 +176,9 @@ ifdef VBOX_SIGNING_MODE
  VBoxDrv_NOINST       = true
 endif
 VBoxDrv_DEFS          = IN_RT_R0 IN_SUP_R0 SUPDRV_WITH_RELEASE_LOGGER
-VBoxDrv_DEFS.amd64    = RT_WITH_W64_UNWIND_HACK
+ifdef VBOX_WITHOUT_NATIVE_R0_LOADER
+ VBoxDrv_DEFS        += VBOX_WITHOUT_NATIVE_R0_LOADER
+endif
 ifdef VBOX_WITH_VMMR0_DISABLE_PREEMPTION
 VBoxDrv_DEFS         += VBOX_WITH_VMMR0_DISABLE_PREEMPTION
 endif
@@ -178,7 +188,7 @@ VBoxDrv_SOURCES       = \
 	win/SUPDrv-win.cpp \
 	win/SUPDrvA-win.asm \
 	SUPDrv.c \
-	SUPDrvAgnostic.c \
+	SUPDrvSem.c \
 	win/VBoxDrv.rc
 VBoxDrv_LDFLAGS.x86   = -Entry:DriverEntry@8
 VBoxDrv_LDFLAGS.amd64 = -Entry:DriverEntry
@@ -235,7 +245,7 @@ vboxdrv_LIBS.debug    = $(vboxdrv_LIBS) $(VBOX_GCC_LIBGCC)
 vboxdrv_SOURCES       = \
 	$(KBUILD_TARGET)/SUPDrv-$(KBUILD_TARGET).c \
 	SUPDrv.c \
-	SUPDrvAgnostic.c
+	SUPDrvSem.c
 ifndef VBOX_LINUX_VERSION_2_4
 vboxdrv_SOURCES      += \
 	$(KBUILD_TARGET)/SUPDrv-$(KBUILD_TARGET).mod.c
@@ -275,7 +285,7 @@ $$(PATH_vboxdrv-sh)/build_in_tmp: \
 		$(VBOX_VERSION_STAMP) \
 		| $$(dir $$@)
 	$(call MSG_TOOL,Creating,,$@)
-	$(QUIET)$(SED) -e "s;_VERSION_;${VBOX_VERSION_STRING};g; s;_MODULE_;vboxdrv;g" --output $@ $<
+	$(QUIET)$(SED) -e "s;_VERSION_;${VBOX_VERSION_STRING};g; s;_MODULE_;vboxdrv;g; s;_BUILDTYPE_;${KBUILD_TYPE};g" --output $@ $<
 	$(QUIET)chmod 0755 $@
 
 $$(PATH_vboxdrv-mod)/dkms.conf: \
@@ -319,7 +329,7 @@ VBoxDrvTiger_LIBS        = $(PATH_LIB)/RuntimeR0Drv$(VBOX_SUFF_LIB)
 #VBoxDrvTiger_LDFLAGS     = -v -Wl,-whyload -Wl,-v -Wl,-whatsloaded
 VBoxDrvTiger_SOURCES     = \
 	SUPDrv.c \
-	SUPDrvAgnostic.c \
+	SUPDrvSem.c \
 	$(KBUILD_TARGET)/SUPDrv-$(KBUILD_TARGET).cpp
 
 INSTALLS += VBoxDrvTiger.kext
@@ -400,7 +410,7 @@ VBoxDrvLib_INCS      := \
 VBoxDrvLib_SOURCES    = \
 	os2/SUPDrv-os2.cpp \
 	SUPDrv.c \
-	SUPDrvAgnostic.c
+	SUPDrvSem.c
 
 endif # os2
 ifeq ($(KBUILD_TARGET),freebsd)
@@ -416,7 +426,7 @@ vboxdrv_SOURCES      := \
 	$(KBUILD_TARGET)/SUPDrv-$(KBUILD_TARGET).c \
 	$(PATH_SUB_CURRENT)/$(KBUILD_TARGET)/SUPDrv-$(KBUILD_TARGET).def \
 	SUPDrv.c \
-	SUPDrvAgnostic.c
+	SUPDrvSem.c
 ## @todo the SUPDrv-freebsd.def is most probably gonna break it and require build system hacking...
 
 #
@@ -459,7 +469,7 @@ vboxdrv_LIBS          = $(PATH_LIB)/RuntimeR0Drv$(VBOX_SUFF_LIB)
 vboxdrv_SOURCES       = \
 	$(KBUILD_TARGET)/SUPDrv-$(KBUILD_TARGET).c \
 	SUPDrv.c \
-	SUPDrvAgnostic.c
+	SUPDrvSem.c
 
 endif # solaris
 
@@ -469,6 +479,6 @@ endif # solaris
 SUPDrv.c_DEFS += VBOX_SVN_REV=$(VBOX_SVN_REV)
 
 
-endif # !VBOX_ONLY_DOCS
+endif # !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_TESTSUITE)
 include $(KBUILD_PATH)/subfooter.kmk
 

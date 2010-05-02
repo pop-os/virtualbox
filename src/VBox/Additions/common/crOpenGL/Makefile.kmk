@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
 ## @file
 # Sub-Makefile for the VirtualBox Guest OpenGL part
 #
 
 #
-# Copyright (C) 2008 Sun Microsystems, Inc.
+# Copyright (C) 2008 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../../../../..
@@ -35,7 +31,7 @@ DLLS.win += \
     VBoxOGLpackspu \
     VBoxOGLfeedbackspu
 
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris freebsd)
 DLLS += \
     VBoxOGL \
     VBoxOGLarrayspu \
@@ -44,16 +40,16 @@ DLLS += \
     VBoxOGLfeedbackspu
 endif
 
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris freebsd)
  #VBoxOGL_DRI = 1
- ifneq ($(KBUILD_TARGET),solaris)   # No DRI on Solaris yet
+ ifn1of ($(KBUILD_TARGET),solaris freebsd)   # No DRI on Solaris yet
   VBoxOGL_FAKEDRI = 1
  endif
 
  # Only Solaris right now needs C stubs because I can't figure out how to
  # generate the GOT based relocation ASM yet.
  ifdef VBoxOGL_FAKEDRI
-  if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),solaris.x86 solaris.amd64 linux.x86 linux.amd64)
+  if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),solaris.x86 solaris.amd64 linux.x86 linux.amd64 freebsd.x86 freebsd.amd64)
    VBOX_OGL_GLX_USE_CSTUBS = 1
   endif
  endif
@@ -65,7 +61,7 @@ endif
 #
 VBoxOGL_TEMPLATE       = VBOXCROGLR3GUESTDLL
 VBoxOGL_INCS           = .
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGL_INCS     += \
 	$(VBOX_PATH_X11_ROOT)/libXdamage-1.1 \
 	$(VBOX_PATH_X11_ROOT)/libXcomposite-0.4.0 \
@@ -109,7 +105,7 @@ VBoxOGL_SOURCES       += \
 	$(VBOX_PATH_CROGL_GENFILES)/NULLfuncs.c \
 	$(VBOX_PATH_CROGL_GENFILES)/tsfuncs.c
 
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGL_SOURCES += \
 	glx.c \
 	xfont.c
@@ -125,27 +121,37 @@ if1of ($(KBUILD_TARGET),linux solaris)
  	$(VBOX_PATH_CROGL_GENFILES)/linux_exports_dri.asm
   VBoxOGL_SOURCES.solaris += \
  	$(VBOX_PATH_CROGL_GENFILES)/solaris_exports_dri.asm
+  VBoxOGL_SOURCES.freebsd += \
+ 	$(VBOX_PATH_CROGL_GENFILES)/freebsd_exports_dri.asm
  else ifdef VBoxOGL_FAKEDRI
   VBoxOGL_SOURCES += \
  	fakedri_drv.c
   ifndef VBOX_OGL_GLX_USE_CSTUBS
    VBoxOGL_SOURCES.solaris += \
  	$(VBOX_PATH_CROGL_GENFILES)/solaris_glxapi_exports.asm \
- 	$(VBOX_PATH_CROGL_GENFILES)/solaris_exports_dri.asm
-  VBoxOGL_SOURCES.linux += \
+ 	$(VBOX_PATH_CROGL_GENFILES)/solaris_exports_dri.asm \
+   VBoxOGL_SOURCES.linux += \
  	$(VBOX_PATH_CROGL_GENFILES)/linux_glxapi_exports.asm \
  	$(VBOX_PATH_CROGL_GENFILES)/linux_exports_dri.asm
+   VBoxOGL_SOURCES.freebsd += \
+ 	$(VBOX_PATH_CROGL_GENFILES)/freebsd_glxapi_exports.asm \
+ 	$(VBOX_PATH_CROGL_GENFILES)/freebsd_exports_dri.asm \
+
   else
    VBoxOGL_SOURCES.solaris += \
-  	$(VBOX_PATH_CROGL_GENFILES)/solaris_exports.c  
+  	$(VBOX_PATH_CROGL_GENFILES)/solaris_exports.c
   VBoxOGL_SOURCES.linux += \
-  	$(VBOX_PATH_CROGL_GENFILES)/linux_exports.c  
+  	$(VBOX_PATH_CROGL_GENFILES)/linux_exports.c
+  VBoxOGL_SOURCES.freebsd += \
+  	$(VBOX_PATH_CROGL_GENFILES)/freebsd_exports.c
   endif
  else
   VBoxOGL_SOURCES.linux += \
   	$(VBOX_PATH_CROGL_GENFILES)/linux_exports.asm
   VBoxOGL_SOURCES.solaris += \
   	$(VBOX_PATH_CROGL_GENFILES)/solaris_exports.c
+  VBoxOGL_SOURCES.freebsd += \
+  	$(VBOX_PATH_CROGL_GENFILES)/freebsd_exports.c
  endif
 endif
 
@@ -166,7 +172,7 @@ VBoxOGL_CLEAN.solaris        += \
 VBoxOGL_CLEAN.win      = \
 	$(VBOX_PATH_CROGL_GENFILES)/windows_exports.asm \
 	$(VBOX_PATH_CROGL_GENFILES)/cropengl.def
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris)
  ifdef VBoxOGL_DRI
   VBoxOGL_CLEAN   += \
  	$(VBOX_PATH_CROGL_GENFILES)/cr_gl.h \
@@ -186,7 +192,7 @@ VBoxOGL_LIBS = \
 	$(VBOX_LIB_VBGL_R3_SHARED) \
 	$(VBOX_LIB_OGL_CRUTIL) \
 	$(PATH_LIB)/additions/VBoxOGLspuload$(VBOX_SUFF_LIB)
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGL_LIBS += \
  	$(PATH_LIB)/libXcomposite.so \
  	$(PATH_LIB)/libXdamage.so \
@@ -224,7 +230,7 @@ $(VBOX_PATH_CROGL_GENFILES)/windows_exports.asm: \
 		| $$(dir $$@)
 	$(call MSG_GENERATE,python,$@,$<)
 	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI)
-else if1of ($(KBUILD_TARGET),linux solaris)
+else if1of ($(KBUILD_TARGET), linux solaris freebsd)
 $(VBOX_PATH_CROGL_GENFILES)/getprocaddress.c: $(PATH_SUB_CURRENT)/getprocaddress.py $(VBOX_CROGL_API_FILES) | $$(dir $$@)
 	$(call MSG_GENERATE,python,$@,$<)
 	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI)
@@ -232,6 +238,13 @@ if !defined(VBoxOGL_DRI) && !defined(VBoxOGL_FAKEDRI)
  ifeq ($(KBUILD_TARGET),solaris)
 $(VBOX_PATH_CROGL_GENFILES)/solaris_exports.c: \
 		$(PATH_SUB_CURRENT)/SunOS_exports.py \
+		$(VBOX_CROGL_API_FILES) $(PATH_SUB_CURRENT)/entrypoints.py \
+		| $$(dir $$@)
+	$(call MSG_GENERATE,python,$@,$<)
+	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI)
+ else  ifeq ($(KBUILD_TARGET),freebsd)
+$(VBOX_PATH_CROGL_GENFILES)/freebsd_exports.c: \
+		$(PATH_SUB_CURRENT)/FreeBSD_exports.py \
 		$(VBOX_CROGL_API_FILES) $(PATH_SUB_CURRENT)/entrypoints.py \
 		| $$(dir $$@)
 	$(call MSG_GENERATE,python,$@,$<)
@@ -260,7 +273,14 @@ $(VBOX_PATH_CROGL_GENFILES)/solaris_exports_dri.asm: \
 		$(VBOX_CROGL_API_FILES) $(PATH_SUB_CURRENT)/entrypoints.py \
 		| $$(dir $$@)
 	$(call MSG_GENERATE,python,$@,$<)
-	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) 
+	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI)
+ else ifeq ($(KBUILD_TARGET),freebsd)
+$(VBOX_PATH_CROGL_GENFILES)/freebsd_exports_dri.asm: \
+		$(PATH_SUB_CURRENT)/FreeBSD_i386_exports_dri.py \
+		$(VBOX_CROGL_API_FILES) $(PATH_SUB_CURRENT)/entrypoints.py \
+		| $$(dir $$@)
+	$(call MSG_GENERATE,python,$@,$<)
+	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI)
  else
 $(VBOX_PATH_CROGL_GENFILES)/linux_exports_dri.asm: \
 		$(PATH_SUB_CURRENT)/Linux_i386_exports_dri.py \
@@ -321,7 +341,7 @@ endif
 VBoxOGLarrayspu_TEMPLATE      = VBOXCROGLR3GUESTDLL
 VBoxOGLarrayspu_INCS          = \
 	array
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLarrayspu_INCS += \
         $(VBOX_MESA_INCS)
 endif
@@ -347,7 +367,7 @@ VBoxOGLarrayspu_LIBS          = \
 VBoxOGLpassthroughspu_TEMPLATE    = VBOXCROGLR3GUESTDLL
 VBoxOGLpassthroughspu_INCS        = \
 	passthrough
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLpassthroughspu_INCS += \
         $(VBOX_MESA_INCS)
 endif
@@ -376,7 +396,7 @@ VBoxOGLpackspu_TEMPLATE      = VBOXCROGLR3GUESTDLL
 VBoxOGLpackspu_DEFS          = TRACKS_STATE=1 PACKS=1
 VBoxOGLpackspu_INCS          = \
 	pack
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLpackspu_INCS += \
         $(VBOX_MESA_INCS)
 endif
@@ -446,7 +466,7 @@ $(VBOX_PATH_CROGL_GENFILES)/packspu_proto.h: $(addprefix $(PATH_SUB_CURRENT)/pac
 VBoxOGLfeedbackspu_TEMPLATE    = VBOXCROGLR3GUESTDLL
 VBoxOGLfeedbackspu_INCS        = \
 	feedback
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLfeedbackspu_INCS += \
         $(VBOX_MESA_INCS)
 endif

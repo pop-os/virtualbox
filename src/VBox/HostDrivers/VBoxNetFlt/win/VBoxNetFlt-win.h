@@ -1,10 +1,10 @@
-/* $Id: VBoxNetFlt-win.h $ */
+/* $Id: VBoxNetFlt-win.h 28830 2010-04-27 14:05:25Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Integration with IntNet/NetFlt
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 /*
  * Based in part on Microsoft DDK sample code for Ndis Intermediate Miniport passthru driver sample.
@@ -426,13 +422,13 @@ extern RTMAC g_vboxNetFltWinVerifyMACGuest;
 # define VBOXNETFLT_LBVERIFY(_pnf, _p) \
     do { \
         Assert(!vboxNetFltWinCheckMACs(_p, NULL, &g_vboxNetFltWinVerifyMACGuest)); \
-        Assert(!vboxNetFltWinCheckMACs(_p, NULL, &(_pnf)->u.s.Mac)); \
+        Assert(!vboxNetFltWinCheckMACs(_p, NULL, &(_pnf)->u.s.MacAddr)); \
     } while(0)
 
 # define VBOXNETFLT_LBVERIFYSG(_pnf, _p) \
     do { \
         Assert(!vboxNetFltWinCheckMACsSG(_p, NULL, &g_vboxNetFltWinVerifyMACGuest)); \
-        Assert(!vboxNetFltWinCheckMACsSG(_p, NULL, &(_pnf)->u.s.Mac)); \
+        Assert(!vboxNetFltWinCheckMACsSG(_p, NULL, &(_pnf)->u.s.MacAddr)); \
     } while(0)
 
 #else
@@ -483,44 +479,44 @@ DECLHIDDEN(void) vboxNetFltWinWaitDereference(PADAPT_DEVICE pState);
 
 DECLINLINE(void) vboxNetFltWinReferenceModeNetFlt(PVBOXNETFLTINS pIns)
 {
-	ASMAtomicIncU32((volatile uint32_t *)&pIns->u.s.cModeNetFltRefs);
+    ASMAtomicIncU32((volatile uint32_t *)&pIns->u.s.cModeNetFltRefs);
 }
 
 DECLINLINE(void) vboxNetFltWinReferenceModePassThru(PVBOXNETFLTINS pIns)
 {
-	ASMAtomicIncU32((volatile uint32_t *)&pIns->u.s.cModePassThruRefs);
+    ASMAtomicIncU32((volatile uint32_t *)&pIns->u.s.cModePassThruRefs);
 }
 
 DECLINLINE(void) vboxNetFltWinIncReferenceModeNetFlt(PVBOXNETFLTINS pIns, uint32_t v)
 {
-	ASMAtomicAddU32((volatile uint32_t *)&pIns->u.s.cModeNetFltRefs, v);
+    ASMAtomicAddU32((volatile uint32_t *)&pIns->u.s.cModeNetFltRefs, v);
 }
 
 DECLINLINE(void) vboxNetFltWinIncReferenceModePassThru(PVBOXNETFLTINS pIns, uint32_t v)
 {
-	ASMAtomicAddU32((volatile uint32_t *)&pIns->u.s.cModePassThruRefs, v);
+    ASMAtomicAddU32((volatile uint32_t *)&pIns->u.s.cModePassThruRefs, v);
 }
 
 DECLINLINE(void) vboxNetFltWinDereferenceModeNetFlt(PVBOXNETFLTINS pIns)
 {
-	ASMAtomicDecU32((volatile uint32_t *)&pIns->u.s.cModeNetFltRefs);
+    ASMAtomicDecU32((volatile uint32_t *)&pIns->u.s.cModeNetFltRefs);
 }
 
 DECLINLINE(void) vboxNetFltWinDereferenceModePassThru(PVBOXNETFLTINS pIns)
 {
-	ASMAtomicDecU32((volatile uint32_t *)&pIns->u.s.cModePassThruRefs);
+    ASMAtomicDecU32((volatile uint32_t *)&pIns->u.s.cModePassThruRefs);
 }
 
 DECLINLINE(void) vboxNetFltWinDecReferenceModeNetFlt(PVBOXNETFLTINS pIns, uint32_t v)
 {
-	Assert(v);
-	ASMAtomicAddU32((volatile uint32_t *)&pIns->u.s.cModeNetFltRefs, (uint32_t)(-((int32_t)v)));
+    Assert(v);
+    ASMAtomicAddU32((volatile uint32_t *)&pIns->u.s.cModeNetFltRefs, (uint32_t)(-((int32_t)v)));
 }
 
 DECLINLINE(void) vboxNetFltWinDecReferenceModePassThru(PVBOXNETFLTINS pIns, uint32_t v)
 {
-	Assert(v);
-	ASMAtomicAddU32((volatile uint32_t *)&pIns->u.s.cModePassThruRefs, (uint32_t)(-((int32_t)v)));
+    Assert(v);
+    ASMAtomicAddU32((volatile uint32_t *)&pIns->u.s.cModePassThruRefs, (uint32_t)(-((int32_t)v)));
 }
 
 DECLINLINE(void) vboxNetFltWinSetPowerState(PADAPT_DEVICE pState, NDIS_DEVICE_POWER_STATE State)
@@ -592,7 +588,7 @@ DECLINLINE(void) vboxNetFltWinDereferenceDevices(PADAPT pAdapt, PADAPT_DEVICE pS
 
 DECLINLINE(void) vboxNetFltWinDecReferenceDevice(PADAPT pAdapt, PADAPT_DEVICE pState, uint32_t v)
 {
-	Assert(v);
+    Assert(v);
     ASMAtomicAddU32((uint32_t volatile *)&pState->cReferences, (uint32_t)(-((int32_t)v)));
 }
 
@@ -606,7 +602,7 @@ DECLINLINE(void) vboxNetFltWinDecReferenceDevices(PADAPT pAdapt, PADAPT_DEVICE p
 
 DECLINLINE(bool) vboxNetFltWinDoIncReferenceDevice(PADAPT pAdapt, PADAPT_DEVICE pState, uint32_t v)
 {
-	Assert(v);
+    Assert(v);
     if (vboxNetFltWinGetPowerState(pState) == NdisDeviceStateD0 && vboxNetFltWinGetOpState(pState) == kVBoxNetDevOpState_Initialized)
     {
         ASMAtomicAddU32((uint32_t volatile *)&pState->cReferences, v);
@@ -639,22 +635,22 @@ DECLINLINE(PVBOXNETFLTINS) vboxNetFltWinReferenceAdaptNetFltFromAdapt(PADAPT pAd
 
     pNetFlt = PADAPT_2_PVBOXNETFLTINS(pAdapt);
 
-    RTSpinlockAcquire((pNetFlt)->hSpinlock, &Tmp);
-    if(!ASMAtomicUoReadBool(&(pNetFlt)->fActive))
+    RTSpinlockAcquireNoInts((pNetFlt)->hSpinlock, &Tmp);
+    if(pNetFlt->enmTrunkState != INTNETTRUNKIFSTATE_ACTIVE)
     {
-        RTSpinlockRelease((pNetFlt)->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts((pNetFlt)->hSpinlock, &Tmp);
         return NULL;
     }
 
     if(!vboxNetFltWinDoReferenceDevice(pAdapt, &pAdapt->PTState))
     {
-        RTSpinlockRelease((pNetFlt)->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts((pNetFlt)->hSpinlock, &Tmp);
         return NULL;
     }
 
     vboxNetFltRetain((pNetFlt), true /* fBusy */);
 
-    RTSpinlockRelease((pNetFlt)->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts((pNetFlt)->hSpinlock, &Tmp);
 
     return pNetFlt;
 }
@@ -663,29 +659,29 @@ DECLINLINE(bool) vboxNetFltWinReferenceAdaptNetFlt(PVBOXNETFLTINS pNetFlt, PADAP
 {
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
 
-    RTSpinlockAcquire((pNetFlt)->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts((pNetFlt)->hSpinlock, &Tmp);
 #ifndef VBOXNETADP
     if(!vboxNetFltWinDoReferenceDevices(pAdapt, &pAdapt->MPState, &pAdapt->PTState))
 #else
     if(!vboxNetFltWinDoReferenceDevice(pAdapt, &pAdapt->MPState))
 #endif
     {
-        RTSpinlockRelease((pNetFlt)->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts((pNetFlt)->hSpinlock, &Tmp);
         *pbNetFltActive = false;
         return false;
     }
 
-    if(!ASMAtomicUoReadBool(&(pNetFlt)->fActive))
+    if(pNetFlt->enmTrunkState != INTNETTRUNKIFSTATE_ACTIVE)
     {
-    	vboxNetFltWinReferenceModePassThru(pNetFlt);
-        RTSpinlockRelease((pNetFlt)->hSpinlock, &Tmp);
+        vboxNetFltWinReferenceModePassThru(pNetFlt);
+        RTSpinlockReleaseNoInts((pNetFlt)->hSpinlock, &Tmp);
         *pbNetFltActive = false;
         return true;
     }
 
     vboxNetFltRetain((pNetFlt), true /* fBusy */);
-	vboxNetFltWinReferenceModeNetFlt(pNetFlt);
-    RTSpinlockRelease((pNetFlt)->hSpinlock, &Tmp);
+    vboxNetFltWinReferenceModeNetFlt(pNetFlt);
+    RTSpinlockReleaseNoInts((pNetFlt)->hSpinlock, &Tmp);
 
     *pbNetFltActive = true;
     return true;
@@ -707,22 +703,22 @@ DECLINLINE(PVBOXNETFLTINS) vboxNetFltWinIncReferenceAdaptNetFltFromAdapt(PADAPT 
 
     pNetFlt = PADAPT_2_PVBOXNETFLTINS(pAdapt);
 
-    RTSpinlockAcquire((pNetFlt)->hSpinlock, &Tmp);
-    if(!ASMAtomicUoReadBool(&(pNetFlt)->fActive))
+    RTSpinlockAcquireNoInts((pNetFlt)->hSpinlock, &Tmp);
+    if(pNetFlt->enmTrunkState != INTNETTRUNKIFSTATE_ACTIVE)
     {
-        RTSpinlockRelease((pNetFlt)->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts((pNetFlt)->hSpinlock, &Tmp);
         return NULL;
     }
 
     if(!vboxNetFltWinDoIncReferenceDevice(pAdapt, &pAdapt->PTState, v))
     {
-        RTSpinlockRelease((pNetFlt)->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts((pNetFlt)->hSpinlock, &Tmp);
         return NULL;
     }
 
     vboxNetFltRetain((pNetFlt), true /* fBusy */);
 
-    RTSpinlockRelease((pNetFlt)->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts((pNetFlt)->hSpinlock, &Tmp);
 
     /* we have marked it as busy, so can do the res references outside the lock */
     for(i = 0; i < v-1; i++)
@@ -745,32 +741,32 @@ DECLINLINE(bool) vboxNetFltWinIncReferenceAdaptNetFlt(PVBOXNETFLTINS pNetFlt, PA
         return false;
     }
 
-    RTSpinlockAcquire((pNetFlt)->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts((pNetFlt)->hSpinlock, &Tmp);
 #ifndef VBOXNETADP
     if(!vboxNetFltWinDoIncReferenceDevices(pAdapt, &pAdapt->MPState, &pAdapt->PTState, v))
 #else
     if(!vboxNetFltWinDoIncReferenceDevice(pAdapt, &pAdapt->MPState, v))
 #endif
     {
-        RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
         *pbNetFltActive = false;
         return false;
     }
 
-    if(!ASMAtomicUoReadBool(&(pNetFlt)->fActive))
+    if(pNetFlt->enmTrunkState != INTNETTRUNKIFSTATE_ACTIVE)
     {
-    	vboxNetFltWinIncReferenceModePassThru(pNetFlt, v);
+        vboxNetFltWinIncReferenceModePassThru(pNetFlt, v);
 
-        RTSpinlockRelease((pNetFlt)->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts((pNetFlt)->hSpinlock, &Tmp);
         *pbNetFltActive = false;
         return true;
     }
 
     vboxNetFltRetain(pNetFlt, true /* fBusy */);
 
-	vboxNetFltWinIncReferenceModeNetFlt(pNetFlt, v);
+    vboxNetFltWinIncReferenceModeNetFlt(pNetFlt, v);
 
-    RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
 
     /* we have marked it as busy, so can do the res references outside the lock */
     for(i = 0; i < v-1; i++)
@@ -793,14 +789,14 @@ DECLINLINE(void) vboxNetFltWinDecReferenceNetFlt(PVBOXNETFLTINS pNetFlt, uint32_
         vboxNetFltRelease(pNetFlt, true);
     }
 
-	vboxNetFltWinDecReferenceModeNetFlt(pNetFlt, n);
+    vboxNetFltWinDecReferenceModeNetFlt(pNetFlt, n);
 }
 
 DECLINLINE(void) vboxNetFltWinDereferenceNetFlt(PVBOXNETFLTINS pNetFlt)
 {
     vboxNetFltRelease(pNetFlt, true);
 
-	vboxNetFltWinDereferenceModeNetFlt(pNetFlt);
+    vboxNetFltWinDereferenceModeNetFlt(pNetFlt);
 }
 
 DECLINLINE(void) vboxNetFltWinDecReferenceAdapt(PADAPT pAdapt, uint32_t v)
@@ -836,7 +832,7 @@ DECLINLINE(bool) vboxNetFltWinIncReferenceAdapt(PADAPT pAdapt, uint32_t v)
         return false;
     }
 
-    RTSpinlockAcquire(pNetFlt->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pNetFlt->hSpinlock, &Tmp);
 #ifdef VBOX_NETFLT_ONDEMAND_BIND
     if(vboxNetFltWinDoIncReferenceDevice(pAdapt, &pAdapt->PTState))
 #elif defined(VBOXNETADP)
@@ -845,11 +841,11 @@ DECLINLINE(bool) vboxNetFltWinIncReferenceAdapt(PADAPT pAdapt, uint32_t v)
     if(vboxNetFltWinDoIncReferenceDevices(pAdapt, &pAdapt->MPState, &pAdapt->PTState, v))
 #endif
     {
-        RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
         return true;
     }
 
-    RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
     return false;
 }
 
@@ -857,7 +853,7 @@ DECLINLINE(bool) vboxNetFltWinReferenceAdapt(PADAPT pAdapt)
 {
     PVBOXNETFLTINS pNetFlt = PADAPT_2_PVBOXNETFLTINS(pAdapt);
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
-    RTSpinlockAcquire(pNetFlt->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pNetFlt->hSpinlock, &Tmp);
 #ifdef VBOX_NETFLT_ONDEMAND_BIND
     if(vboxNetFltWinDoReferenceDevice(pAdapt, &pAdapt->PTState))
 #elif defined(VBOXNETADP)
@@ -866,11 +862,11 @@ DECLINLINE(bool) vboxNetFltWinReferenceAdapt(PADAPT pAdapt)
     if(vboxNetFltWinDoReferenceDevices(pAdapt, &pAdapt->MPState, &pAdapt->PTState))
 #endif
     {
-        RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
         return true;
     }
 
-    RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
     return false;
 }
 

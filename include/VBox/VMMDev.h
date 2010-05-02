@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_VMMDev_h
@@ -91,8 +87,10 @@ RT_C_DECLS_BEGIN
 #define VMMDEV_EVENT_VRDP                                   RT_BIT(8)
 /** New mouse position data available. */
 #define VMMDEV_EVENT_MOUSE_POSITION_CHANGED                 RT_BIT(9)
+/** CPU hotplug event occurred. */
+#define VMMDEV_EVENT_CPU_HOTPLUG                            RT_BIT(10)
 /** The mask of valid events, for sanity checking. */
-#define VMMDEV_EVENT_VALID_EVENT_MASK                       UINT32_C(0x000003ff)
+#define VMMDEV_EVENT_VALID_EVENT_MASK                       UINT32_C(0x000007ff)
 /** @} */
 
 
@@ -144,6 +142,7 @@ typedef enum
     VMMDevReq_GetDisplayChangeRequest2   = 54,
     VMMDevReq_ReportGuestCapabilities    = 55,
     VMMDevReq_SetGuestCapabilities       = 56,
+    VMMDevReq_VideoModeSupported2        = 57,
 #ifdef VBOX_WITH_HGCM
     VMMDevReq_HGCMConnect                = 60,
     VMMDevReq_HGCMDisconnect             = 61,
@@ -168,6 +167,13 @@ typedef enum
     VMMDevReq_ChangeMemBalloon           = 113,
     VMMDevReq_GetVRDPChangeRequest       = 150,
     VMMDevReq_LogString                  = 200,
+    VMMDevReq_GetCpuHotPlugRequest       = 210,
+    VMMDevReq_SetCpuHotPlugStatus        = 211,
+#ifdef VBOX_WITH_PAGE_SHARING
+    VMMDevReq_RegisterSharedModule       = 212,
+    VMMDevReq_UnregisterSharedModule     = 213,
+    VMMDevReq_CheckSharedModules         = 214,
+#endif
     VMMDevReq_SizeHack                   = 0x7fffffff
 } VMMDevRequestType;
 
@@ -259,8 +265,11 @@ AssertCompileSize(VMMDevReqMouseStatus, 24+12);
 /** If the guest changes the status of the
  * VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR bit, the host will honour this */
 #define VMMDEV_MOUSE_HOST_RECHECKS_NEEDS_HOST_CURSOR        RT_BIT(5)
+/** The host supplies an absolute pointing device.  The Guest Additions may
+ * wish to use this to decide whether to install their own driver */
+#define VMMDEV_MOUSE_HOST_HAS_ABS_DEV                       RT_BIT(6)
 /** The mask of all VMMDEV_MOUSE_* flags */
-#define VMMDEV_MOUSE_MASK                                   UINT32_C(0x0000003f)
+#define VMMDEV_MOUSE_MASK                                   UINT32_C(0x0000007f)
 /** The mask of guest capability changes for which notification events should
  * be sent */
 #define VMMDEV_MOUSE_NOTIFY_HOST_MASK \
@@ -268,6 +277,16 @@ AssertCompileSize(VMMDevReqMouseStatus, 24+12);
 /** The mask of all capabilities which the guest can legitimately change */
 #define VMMDEV_MOUSE_GUEST_MASK \
       (VMMDEV_MOUSE_NOTIFY_HOST_MASK | VMMDEV_MOUSE_GUEST_USES_VMMDEV)
+/** The mask of host capability changes for which notification events should
+ * be sent */
+#define VMMDEV_MOUSE_NOTIFY_GUEST_MASK \
+      VMMDEV_MOUSE_HOST_CAN_ABSOLUTE
+/** The mask of all capabilities which the host can legitimately change */
+#define VMMDEV_MOUSE_HOST_MASK \
+      (  VMMDEV_MOUSE_NOTIFY_GUEST_MASK \
+       | VMMDEV_MOUSE_HOST_CANNOT_HWPOINTER \
+       | VMMDEV_MOUSE_HOST_RECHECKS_NEEDS_HOST_CURSOR \
+       | VMMDEV_MOUSE_HOST_HAS_ABS_DEV)
 /** @} */
 
 
@@ -589,6 +608,41 @@ AssertCompileSize(VMMDevReportGuestInfo, 24+8);
 
 
 /**
+ * Guest information structure, version 2.
+ *
+ * Used by VMMDevReportGuestInfo2 and PDMIVMMDEVCONNECTOR::pfnUpdateGuestVersion2.
+ */
+typedef struct VBoxGuestInfo2
+{
+    /** Major version. */
+    uint16_t additionsMajor;
+    /** Minor version. */
+    uint16_t additionsMinor;
+    /** Build number. */
+    uint32_t additionsBuild;
+    /** SVN revision. */
+    uint32_t additionsRevision;
+    /** Feature mask, currently unused. */
+    uint32_t additionsFeatures;
+} VBoxGuestInfo2;
+
+
+/**
+ * Guest information report, version 2.
+ *
+ * Used by VMMDevReq_ReportGuestInfo2.
+ */
+typedef struct
+{
+    /** Header. */
+    VMMDevRequestHeader header;
+    /** Guest information. */
+    VBoxGuestInfo2 guestInfo;
+} VMMDevReportGuestInfo2;
+AssertCompileSize(VMMDevReportGuestInfo2, 24+16);
+
+
+/**
  * Guest statistics structure.
  *
  * Used by VMMDevReportGuestStats and PDMIVMMDEVCONNECTOR::pfnReportStatistics.
@@ -684,9 +738,9 @@ typedef struct
     /** Header. */
     VMMDevRequestHeader header;
     /** Balloon size in megabytes. */
-    uint32_t            u32BalloonSize;
+    uint32_t            cBalloonChunks;
     /** Guest ram size in megabytes. */
-    uint32_t            u32PhysMemSize;
+    uint32_t            cPhysMemChunks;
     /** Setting this to VMMDEV_EVENT_BALLOON_CHANGE_REQUEST indicates that the
      * request is a response to that event.
      * (Don't confuse this with VMMDevReq_AcknowledgeEvents.) */
@@ -880,6 +934,27 @@ typedef struct
 } VMMDevVideoModeSupportedRequest;
 AssertCompileSize(VMMDevVideoModeSupportedRequest, 24+16);
 
+/**
+ * Video mode supported request structure for a specific display.
+ *
+ * Used by VMMDevReq_VideoModeSupported2.
+ */
+typedef struct
+{
+    /** Header. */
+    VMMDevRequestHeader header;
+    /** IN: The guest display number. */
+    uint32_t display;
+    /** IN: Horizontal pixel resolution. */
+    uint32_t width;
+    /** IN: Vertical pixel resolution. */
+    uint32_t height;
+    /** IN: Bits per pixel. */
+    uint32_t bpp;
+    /** OUT: Support indicator. */
+    bool fSupported;
+} VMMDevVideoModeSupportedRequest2;
+AssertCompileSize(VMMDevVideoModeSupportedRequest2, 24+20);
 
 /**
  * Video modes height reduction request structure.
@@ -982,6 +1057,113 @@ typedef struct
 } VMMDevVideoSetVisibleRegion;
 AssertCompileSize(RTRECT, 16);
 AssertCompileSize(VMMDevVideoSetVisibleRegion, 24+4+16);
+
+/**
+ * CPU event types.
+ */
+typedef enum
+{
+    VMMDevCpuStatusType_Invalid  = 0,
+    VMMDevCpuStatusType_Disable  = 1,
+    VMMDevCpuStatusType_Enable   = 2,
+    VMMDevCpuStatusType_SizeHack = 0x7fffffff
+} VMMDevCpuStatusType;
+
+/**
+ * CPU hotplug event status request.
+ */
+typedef struct
+{
+    /** Header. */
+    VMMDevRequestHeader header;
+    /** Status type */
+    VMMDevCpuStatusType enmStatusType;
+} VMMDevCpuHotPlugStatusRequest;
+AssertCompileSize(VMMDevCpuHotPlugStatusRequest, 24+4);
+
+/**
+ * Get the ID of the changed CPU and event type.
+ */
+typedef struct
+{
+    /** Header. */
+    VMMDevRequestHeader header;
+    /** Event type */
+    VMMDevCpuEventType  enmEventType;
+    /** core id of the CPU changed */
+    uint32_t            idCpuCore;
+    /** package id of the CPU changed */
+    uint32_t            idCpuPackage;
+} VMMDevGetCpuHotPlugRequest;
+AssertCompileSize(VMMDevGetCpuHotPlugRequest, 24+4+4+4);
+
+
+/**
+ * Shared region description
+ */
+typedef struct
+{
+    RTGCPTR64           GCRegionAddr;
+    uint32_t            cbRegion;
+    uint32_t            u32Alignment;
+} VMMDEVSHAREDREGIONDESC;
+AssertCompileSize(VMMDEVSHAREDREGIONDESC, 16);
+
+#define VMMDEVSHAREDREGIONDESC_MAX          32
+
+/**
+ * Shared module registration
+ */
+typedef struct
+{
+    /** Header. */
+    VMMDevRequestHeader         header;
+    /** Shared module size. */
+    uint32_t                    cbModule;
+    /** Number of included region descriptors */
+    uint32_t                    cRegions;
+    /** Base address of the shared module. */
+    RTGCPTR64                   GCBaseAddr;
+    /** Module name */
+    char                        szName[128];
+    /** Module version */
+    char                        szVersion[16];
+    /** Shared region descriptor(s). */
+    VMMDEVSHAREDREGIONDESC      aRegions[1];
+} VMMDevSharedModuleRegistrationRequest;
+AssertCompileSize(VMMDevSharedModuleRegistrationRequest, 24+4+4+8+128+16+16);
+
+
+/**
+ * Shared module unregistration
+ */
+typedef struct
+{
+    /** Header. */
+    VMMDevRequestHeader         header;
+    /** Shared module size. */
+    uint32_t                    cbModule;
+    /** Align at 8 byte boundary. */
+    uint32_t                    u32Alignment;
+    /** Base address of the shared module. */
+    RTGCPTR64                   GCBaseAddr;
+    /** Module name */
+    char                        szName[128];
+    /** Module version */
+    char                        szVersion[16];
+} VMMDevSharedModuleUnregistrationRequest;
+AssertCompileSize(VMMDevSharedModuleUnregistrationRequest, 24+4+4+8+128+16);
+
+
+/**
+ * Shared module periodic check
+ */
+typedef struct
+{
+    /** Header. */
+    VMMDevRequestHeader         header;
+} VMMDevSharedModuleCheckRequest;
+AssertCompileSize(VMMDevSharedModuleCheckRequest, 24);
 
 #pragma pack()
 
@@ -1479,6 +1661,19 @@ DECLINLINE(size_t) vmmdevGetRequestSize(VMMDevRequestType requestType)
             return sizeof(VMMDevReqLogString);
         case VMMDevReq_CtlGuestFilterMask:
             return sizeof(VMMDevCtlGuestFilterMask);
+        case VMMDevReq_GetCpuHotPlugRequest:
+            return sizeof(VMMDevGetCpuHotPlugRequest);
+        case VMMDevReq_SetCpuHotPlugStatus:
+            return sizeof(VMMDevCpuHotPlugStatusRequest);
+#ifdef VBOX_WITH_PAGE_SHARING
+        case VMMDevReq_RegisterSharedModule:
+            return sizeof(VMMDevSharedModuleRegistrationRequest);
+        case VMMDevReq_UnregisterSharedModule:
+            return sizeof(VMMDevSharedModuleUnregistrationRequest);
+        case VMMDevReq_CheckSharedModules:
+            return sizeof(VMMDevSharedModuleCheckRequest);
+#endif
+
         default:
             return 0;
     }

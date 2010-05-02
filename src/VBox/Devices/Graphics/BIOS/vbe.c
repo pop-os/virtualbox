@@ -70,37 +70,39 @@ _vbebios_copyright:
 .byte        0x00
 
 _vbebios_vendor_name:
-.ascii       "Sun Microsystems, Inc."
+.ascii       VBOX_VENDOR
 .byte        0x00
 
 _vbebios_product_name:
-.ascii       "VirtualBox VBE Adapter"
+.ascii       VBOX_PRODUCT
+.ascii       " VBE Adapter"
 .byte        0x00
 
 _vbebios_product_revision:
-.ascii       "Sun VirtualBox Version "
+.ascii       VBOX_PRODUCT
+.ascii       " Version "
 .ascii       VBOX_VERSION_STRING
 .byte        0x00
 
 _vbebios_info_string:
 //.ascii      "Bochs VBE Display Adapter enabled"
 .ascii       "VirtualBox VBE Display Adapter enabled"
-.byte	0x0a,0x0d
-.byte	0x0a,0x0d
-.byte	0x00
+.byte        0x0a,0x0d
+.byte        0x0a,0x0d
+.byte        0x00
 
 _no_vbebios_info_string:
 .ascii       "No VirtualBox VBE support available!"
-.byte	0x0a,0x0d
-.byte	0x0a,0x0d
-.byte 0x00
+.byte        0x0a,0x0d
+.byte        0x0a,0x0d
+.byte        0x00
 
 #ifdef DEBUG
 msg_vbe_init:
 .ascii       "VirtualBox Version "
 .ascii       VBOX_VERSION_STRING
 .ascii       " VBE Display Adapter"
-.byte	0x0a,0x0d, 0x00
+.byte        0x0a,0x0d, 0x00
 #endif
 
 
@@ -1206,7 +1208,7 @@ Bit16u *AX;Bit16u ES;Bit16u DI;
         write_word(ES, DI + RT_OFFSETOF(VbeInfoBlock, TotalMemory), in_word(VBE_EXTRA_PORT, 0xffff));
 
         if (vbe2_info)
-	{
+        {
                 // OEM Stuff
                 write_word(ES, DI + RT_OFFSETOF(VbeInfoBlock, OemSoftwareRev), VBE_OEM_SOFTWARE_REV);
                 write_word(ES, DI + RT_OFFSETOF(VbeInfoBlock, OemVendorNamePtr_Seg), 0xc000);
@@ -1267,7 +1269,7 @@ Bit16u *AX;Bit16u ES;Bit16u DI;
         vbe_info_block.TotalMemory = in_word(VBE_EXTRA_PORT, 0xffff);
 
         if (vbe2_info)
-	{
+        {
                 // OEM Stuff
                 vbe_info_block.OemSoftwareRev = VBE_OEM_SOFTWARE_REV;
                 vbe_info_block.OemVendorNamePtr_Seg = 0xc000;
@@ -1280,11 +1282,11 @@ Bit16u *AX;Bit16u ES;Bit16u DI;
                 // copy updates in vbe_info_block back
                 memcpyb(ES, DI, ss, &vbe_info_block, sizeof(vbe_info_block));
         }
-	else
-	{
+        else
+        {
                 // copy updates in vbe_info_block back (VBE 1.x compatibility)
                 memcpyb(ES, DI, ss, &vbe_info_block, 256);
-	}
+        }
 #endif /* !VBOX */
 
 #ifdef VBE_NEW_DYN_LIST

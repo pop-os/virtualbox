@@ -1,12 +1,12 @@
-/* $Id: MachineImpl.h $ */
+/* $Id: MachineImpl.h 28835 2010-04-27 14:46:23Z vboxsync $ */
 
 /** @file
  *
- * VirtualBox COM class declaration
+ * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,20 +15,16 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_MACHINEIMPL
 #define ____H_MACHINEIMPL
 
 #include "VirtualBoxBase.h"
-#include "ProgressImpl.h"
 #include "SnapshotImpl.h"
 #include "VRDPServerImpl.h"
 #include "MediumAttachmentImpl.h"
+#include "MediumLock.h"
 #include "NetworkAdapterImpl.h"
 #include "AudioAdapterImpl.h"
 #include "SerialPortImpl.h"
@@ -37,6 +33,7 @@
 #include "StorageControllerImpl.h"          // required for MachineImpl.h to compile on Windows
 #include "VBox/settings.h"
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
+#include "Performance.h"
 #include "PerformanceImpl.h"
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
 
@@ -57,7 +54,6 @@
 // helper declarations
 ////////////////////////////////////////////////////////////////////////////////
 
-class VirtualBox;
 class Progress;
 class Keyboard;
 class Mouse;
@@ -94,9 +90,10 @@ class ATL_NO_VTABLE Machine :
 
 public:
 
-    enum InstanceType { IsMachine, IsSessionMachine, IsSnapshotMachine };
-
-    enum InitMode { Init_New, Init_Import, Init_Registered };
+    enum StateDependency
+    {
+        AnyStateDep = 0, MutableStateDep, MutableOrSavedStateDep
+    };
 
     /**
      * Internal machine data.
@@ -147,52 +144,45 @@ public:
             /** Session machine object */
             ComObjPtr<SessionMachine> mMachine;
 
-            /**
-             * Successfully locked media list. The 2nd value in the pair is true
-             * if the medium is locked for writing and false if locked for
-             * reading.
-             */
-            typedef std::list<std::pair<ComPtr<IMedium>, bool > > LockedMedia;
-            LockedMedia mLockedMedia;
+            /** Medium object lock collection. */
+            MediumLockListMap mLockedMedia;
         };
 
         Data();
         ~Data();
 
-        const Guid mUuid;
-        BOOL mRegistered;
-        InitMode mInitMode;
+        const Guid          mUuid;
+        BOOL                mRegistered;
 
         /** Flag indicating that the config file is read-only. */
-        BOOL mConfigFileReadonly;
-        Utf8Str m_strConfigFile;
-        Utf8Str m_strConfigFileFull;
+        Utf8Str             m_strConfigFile;
+        Utf8Str             m_strConfigFileFull;
 
         // machine settings XML file
-        settings::MachineConfigFile *m_pMachineConfigFile;
+        settings::MachineConfigFile *pMachineConfigFile;
+        uint32_t            flModifications;
 
-        BOOL mAccessible;
-        com::ErrorInfo mAccessError;
+        BOOL                mAccessible;
+        com::ErrorInfo      mAccessError;
 
-        MachineState_T mMachineState;
-        RTTIMESPEC mLastStateChange;
+        MachineState_T      mMachineState;
+        RTTIMESPEC          mLastStateChange;
 
         /* Note: These are guarded by VirtualBoxBase::stateLockHandle() */
-        uint32_t mMachineStateDeps;
-        RTSEMEVENTMULTI mMachineStateDepsSem;
-        uint32_t mMachineStateChangePending;
+        uint32_t            mMachineStateDeps;
+        RTSEMEVENTMULTI     mMachineStateDepsSem;
+        uint32_t            mMachineStateChangePending;
 
-        BOOL mCurrentStateModified;
+        BOOL                mCurrentStateModified;
+        /** Guest properties have been modified and need saving since the
+         * machine was started, or there are transient properties which need
+         * deleting and the machine is being shut down. */
+        BOOL                mGuestPropertiesModified;
 
-        RTFILE mHandleCfgFile;
-
-        Session mSession;
+        Session             mSession;
 
         ComObjPtr<Snapshot> mFirstSnapshot;
         ComObjPtr<Snapshot> mCurrentSnapshot;
-
-        // protectes the snapshots tree of this machine
-        RWLockHandle mSnapshotsTreeLockHandle;
     };
 
     /**
@@ -226,20 +216,6 @@ public:
         UserData();
         ~UserData();
 
-        bool operator==(const UserData &that) const
-        {
-            return this == &that
-                || (   mName                 == that.mName
-                    && mNameSync             == that.mNameSync
-                    && mDescription          == that.mDescription
-                    && mOSTypeId             == that.mOSTypeId
-                    && mSnapshotFolderFull   == that.mSnapshotFolderFull
-                    && mTeleporterEnabled    == that.mTeleporterEnabled
-                    && mTeleporterPort       == that.mTeleporterPort
-                    && mTeleporterAddress    == that.mTeleporterAddress
-                    && mTeleporterPassword   == that.mTeleporterPassword);
-        }
-
         Bstr    mName;
         BOOL    mNameSync;
         Bstr    mDescription;
@@ -250,6 +226,7 @@ public:
         ULONG   mTeleporterPort;
         Bstr    mTeleporterAddress;
         Bstr    mTeleporterPassword;
+        BOOL    mRTCUseUTC;
     };
 
     /**
@@ -279,41 +256,50 @@ public:
         HWData();
         ~HWData();
 
-        bool operator==(const HWData &that) const;
+        Bstr                 mHWVersion;
+        Guid                 mHardwareUUID;   /**< If Null, use mData.mUuid. */
+        ULONG                mMemorySize;
+        ULONG                mMemoryBalloonSize;
+        ULONG                mVRAMSize;
+        ULONG                mMonitorCount;
+        BOOL                 mHWVirtExEnabled;
+        BOOL                 mHWVirtExExclusive;
+        BOOL                 mHWVirtExNestedPagingEnabled;
+        BOOL                 mHWVirtExLargePagesEnabled;
+        BOOL                 mHWVirtExVPIDEnabled;
+        BOOL                 mAccelerate2DVideoEnabled;
+        BOOL                 mPAEEnabled;
+        BOOL                 mSyntheticCpu;
+        ULONG                mCPUCount;
+        BOOL                 mCPUHotPlugEnabled;
+        BOOL                 mAccelerate3DEnabled;
+        BOOL                 mHpetEnabled;
 
-        Bstr           mHWVersion;
-        Guid           mHardwareUUID;   /**< If Null, use mData.mUuid. */
-        ULONG          mMemorySize;
-        ULONG          mMemoryBalloonSize;
-        ULONG          mStatisticsUpdateInterval;
-        ULONG          mVRAMSize;
-        ULONG          mMonitorCount;
-        BOOL           mHWVirtExEnabled;
-        BOOL           mHWVirtExExclusive;
-        BOOL           mHWVirtExNestedPagingEnabled;
-        BOOL           mHWVirtExVPIDEnabled;
-        BOOL           mAccelerate2DVideoEnabled;
-        BOOL           mPAEEnabled;
-        BOOL           mSyntheticCpu;
-        ULONG          mCPUCount;
-        BOOL           mAccelerate3DEnabled;
+        BOOL                 mCPUAttached[SchemaDefs::MaxCPUCount];
 
-        settings::CpuIdLeaf mCpuIdStdLeafs[10];
-        settings::CpuIdLeaf mCpuIdExtLeafs[10];
+        settings::CpuIdLeaf  mCpuIdStdLeafs[10];
+        settings::CpuIdLeaf  mCpuIdExtLeafs[10];
 
-        DeviceType_T   mBootOrder[SchemaDefs::MaxBootPosition];
+        DeviceType_T         mBootOrder[SchemaDefs::MaxBootPosition];
 
         typedef std::list< ComObjPtr<SharedFolder> > SharedFolderList;
-        SharedFolderList mSharedFolders;
+        SharedFolderList     mSharedFolders;
 
-        ClipboardMode_T mClipboardMode;
+        ClipboardMode_T      mClipboardMode;
 
         typedef std::list<GuestProperty> GuestPropertyList;
-        GuestPropertyList mGuestProperties;
-        BOOL           mPropertyServiceActive;
-        Utf8Str        mGuestPropertyNotificationPatterns;
+        GuestPropertyList    mGuestProperties;
+        Utf8Str              mGuestPropertyNotificationPatterns;
 
-        FirmwareType_T mFirmwareType;
+        FirmwareType_T       mFirmwareType;
+        KeyboardHidType_T    mKeyboardHidType;
+        PointingHidType_T    mPointingHidType;
+
+        IoMgrType_T          mIoMgrType;
+        IoBackendType_T      mIoBackendType;
+        BOOL                 mIoCacheEnabled;
+        ULONG                mIoCacheSize;
+        ULONG                mIoBandwidthMax;
     };
 
     /**
@@ -321,7 +307,7 @@ public:
      *
      *  The usage policy is the same as for HWData, but a separate structure
      *  is necessary because hard disk data requires different procedures when
-     *  taking or discarding snapshots, etc.
+     *  taking or deleting snapshots, etc.
      *
      *  The data variable is |mMediaData|.
      */
@@ -330,155 +316,9 @@ public:
         MediaData();
         ~MediaData();
 
-        bool operator==(const MediaData &that) const;
-
         typedef std::list< ComObjPtr<MediumAttachment> > AttachmentList;
         AttachmentList mAttachments;
     };
-
-    enum StateDependency
-    {
-        AnyStateDep = 0, MutableStateDep, MutableOrSavedStateDep
-    };
-
-    /**
-     *  Helper class that safely manages the machine state dependency by
-     *  calling Machine::addStateDependency() on construction and
-     *  Machine::releaseStateDependency() on destruction. Intended for Machine
-     *  children. The usage pattern is:
-     *
-     *  @code
-     *      AutoCaller autoCaller(this);
-     *      CheckComRCReturnRC(autoCaller.rc());
-     *
-     *      Machine::AutoStateDependency<MutableStateDep> adep(mParent);
-     *      CheckComRCReturnRC(stateDep.rc());
-     *      ...
-     *      // code that depends on the particular machine state
-     *      ...
-     *  @endcode
-     *
-     *  Note that it is more convenient to use the following individual
-     *  shortcut classes instead of using this template directly:
-     *  AutoAnyStateDependency, AutoMutableStateDependency and
-     *  AutoMutableOrSavedStateDependency. The usage pattern is exactly the
-     *  same as above except that there is no need to specify the template
-     *  argument because it is already done by the shortcut class.
-     *
-     *  @param taDepType    Dependecy type to manage.
-     */
-    template <StateDependency taDepType = AnyStateDep>
-    class AutoStateDependency
-    {
-    public:
-
-        AutoStateDependency(Machine *aThat)
-            : mThat(aThat), mRC(S_OK)
-            , mMachineState(MachineState_Null)
-            , mRegistered(FALSE)
-        {
-            Assert(aThat);
-            mRC = aThat->addStateDependency(taDepType, &mMachineState,
-                                            &mRegistered);
-        }
-        ~AutoStateDependency()
-        {
-            if (SUCCEEDED(mRC))
-                mThat->releaseStateDependency();
-        }
-
-        /** Decreases the number of dependencies before the instance is
-         *  destroyed. Note that will reset #rc() to E_FAIL. */
-        void release()
-        {
-            AssertReturnVoid(SUCCEEDED(mRC));
-            mThat->releaseStateDependency();
-            mRC = E_FAIL;
-        }
-
-        /** Restores the number of callers after by #release(). #rc() will be
-         *  reset to the result of calling addStateDependency() and must be
-         *  rechecked to ensure the operation succeeded. */
-        void add()
-        {
-            AssertReturnVoid(!SUCCEEDED(mRC));
-            mRC = mThat->addStateDependency(taDepType, &mMachineState,
-                                            &mRegistered);
-        }
-
-        /** Returns the result of Machine::addStateDependency(). */
-        HRESULT rc() const { return mRC; }
-
-        /** Shortcut to SUCCEEDED(rc()). */
-        bool isOk() const { return SUCCEEDED(mRC); }
-
-        /** Returns the machine state value as returned by
-         *  Machine::addStateDependency(). */
-        MachineState_T machineState() const { return mMachineState; }
-
-        /** Returns the machine state value as returned by
-         *  Machine::addStateDependency(). */
-        BOOL machineRegistered() const { return mRegistered; }
-
-    protected:
-
-        Machine *mThat;
-        HRESULT mRC;
-        MachineState_T mMachineState;
-        BOOL mRegistered;
-
-    private:
-
-        DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoStateDependency)
-        DECLARE_CLS_NEW_DELETE_NOOP(AutoStateDependency)
-    };
-
-    /**
-     *  Shortcut to AutoStateDependency<AnyStateDep>.
-     *  See AutoStateDependency to get the usage pattern.
-     *
-     *  Accepts any machine state and guarantees the state won't change before
-     *  this object is destroyed. If the machine state cannot be protected (as
-     *  a result of the state change currently in progress), this instance's
-     *  #rc() method will indicate a failure, and the caller is not allowed to
-     *  rely on any particular machine state and should return the failed
-     *  result code to the upper level.
-     */
-    typedef AutoStateDependency<AnyStateDep> AutoAnyStateDependency;
-
-    /**
-     *  Shortcut to AutoStateDependency<MutableStateDep>.
-     *  See AutoStateDependency to get the usage pattern.
-     *
-     *  Succeeds only if the machine state is in one of the mutable states, and
-     *  guarantees the given mutable state won't change before this object is
-     *  destroyed. If the machine is not mutable, this instance's #rc() method
-     *  will indicate a failure, and the caller is not allowed to rely on any
-     *  particular machine state and should return the failed result code to
-     *  the upper level.
-     *
-     *  Intended to be used within all setter methods of IMachine
-     *  children objects (DVDDrive, NetworkAdapter, AudioAdapter, etc.) to
-     *  provide data protection and consistency.
-     */
-    typedef AutoStateDependency<MutableStateDep> AutoMutableStateDependency;
-
-    /**
-     *  Shortcut to AutoStateDependency<MutableOrSavedStateDep>.
-     *  See AutoStateDependency to get the usage pattern.
-     *
-     *  Succeeds only if the machine state is in one of the mutable states, or
-     *  if the machine is in the Saved state, and guarantees the given mutable
-     *  state won't change before this object is destroyed. If the machine is
-     *  not mutable, this instance's #rc() method will indicate a failure, and
-     *  the caller is not allowed to rely on any particular machine state and
-     *  should return the failed result code to the upper level.
-     *
-     *  Intended to be used within setter methods of IMachine
-     *  children objects that may also operate on Saved machines.
-     */
-    typedef AutoStateDependency<MutableOrSavedStateDep> AutoMutableOrSavedStateDependency;
-
 
     VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Machine)
 
@@ -497,18 +337,35 @@ public:
     HRESULT FinalConstruct();
     void FinalRelease();
 
-    // public initializer/uninitializer for internal purposes only
+    // public initializer/uninitializer for internal purposes only:
+
+    // initializer for creating a new, empty machine
     HRESULT init(VirtualBox *aParent,
                  const Utf8Str &strConfigFile,
-                 InitMode aMode,
-                 CBSTR aName = NULL,
+                 const Utf8Str &strName,
+                 const Guid &aId,
                  GuestOSType *aOsType = NULL,
-                 BOOL aNameSync = TRUE,
-                 const Guid *aId = NULL);
+                 BOOL aOverride = FALSE,
+                 BOOL aNameSync = TRUE);
+
+    // initializer for loading existing machine XML (either registered or not)
+    HRESULT init(VirtualBox *aParent,
+                 const Utf8Str &strConfigFile,
+                 const Guid *aId);
+
+    // initializer for machine config in memory (OVF import)
+    HRESULT init(VirtualBox *aParent,
+                 const Utf8Str &strName,
+                 const settings::MachineConfigFile &config);
+
     void uninit();
 
 protected:
+    HRESULT initImpl(VirtualBox *aParent,
+                     const Utf8Str &strConfigFile);
     HRESULT initDataAndChildObjects();
+    HRESULT registeredInit();
+    HRESULT tryCreateMachineConfigFile(BOOL aOverride);
     void uninitDataAndChildObjects();
 
 public:
@@ -531,10 +388,12 @@ public:
     STDMETHOD(COMSETTER(MemorySize))(ULONG memorySize);
     STDMETHOD(COMGETTER(CPUCount))(ULONG *cpuCount);
     STDMETHOD(COMSETTER(CPUCount))(ULONG cpuCount);
+    STDMETHOD(COMGETTER(CPUHotPlugEnabled))(BOOL *enabled);
+    STDMETHOD(COMSETTER(CPUHotPlugEnabled))(BOOL enabled);
+    STDMETHOD(COMGETTER(HpetEnabled))(BOOL *enabled);
+    STDMETHOD(COMSETTER(HpetEnabled))(BOOL enabled);
     STDMETHOD(COMGETTER(MemoryBalloonSize))(ULONG *memoryBalloonSize);
     STDMETHOD(COMSETTER(MemoryBalloonSize))(ULONG memoryBalloonSize);
-    STDMETHOD(COMGETTER(StatisticsUpdateInterval))(ULONG *statisticsUpdateInterval);
-    STDMETHOD(COMSETTER(StatisticsUpdateInterval))(ULONG statisticsUpdateInterval);
     STDMETHOD(COMGETTER(VRAMSize))(ULONG *memorySize);
     STDMETHOD(COMSETTER(VRAMSize))(ULONG memorySize);
     STDMETHOD(COMGETTER(MonitorCount))(ULONG *monitorCount);
@@ -576,6 +435,24 @@ public:
     STDMETHOD(COMSETTER(TeleporterAddress))(IN_BSTR aAddress);
     STDMETHOD(COMGETTER(TeleporterPassword))(BSTR *aPassword);
     STDMETHOD(COMSETTER(TeleporterPassword))(IN_BSTR aPassword);
+    STDMETHOD(COMGETTER(RTCUseUTC))(BOOL *aEnabled);
+    STDMETHOD(COMSETTER(RTCUseUTC))(BOOL aEnabled);
+    STDMETHOD(COMGETTER(FirmwareType)) (FirmwareType_T *aFirmware);
+    STDMETHOD(COMSETTER(FirmwareType)) (FirmwareType_T  aFirmware);
+    STDMETHOD(COMGETTER(KeyboardHidType)) (KeyboardHidType_T *aKeyboardHidType);
+    STDMETHOD(COMSETTER(KeyboardHidType)) (KeyboardHidType_T  aKeyboardHidType);
+    STDMETHOD(COMGETTER(PointingHidType)) (PointingHidType_T *aPointingHidType);
+    STDMETHOD(COMSETTER(PointingHidType)) (PointingHidType_T  aPointingHidType);
+    STDMETHOD(COMGETTER(IoMgr)) (IoMgrType_T *aIoMgrType);
+    STDMETHOD(COMSETTER(IoMgr)) (IoMgrType_T  aIoMgrType);
+    STDMETHOD(COMGETTER(IoBackend)) (IoBackendType_T *aIoBackendType);
+    STDMETHOD(COMSETTER(IoBackend)) (IoBackendType_T  aIoBackendType);
+    STDMETHOD(COMGETTER(IoCacheEnabled)) (BOOL *aEnabled);
+    STDMETHOD(COMSETTER(IoCacheEnabled)) (BOOL  aEnabled);
+    STDMETHOD(COMGETTER(IoCacheSize)) (ULONG *aIoCacheSize);
+    STDMETHOD(COMSETTER(IoCacheSize)) (ULONG  aIoCacheSize);
+    STDMETHOD(COMGETTER(IoBandwidthMax)) (ULONG *aIoBandwidthMax);
+    STDMETHOD(COMSETTER(IoBandwidthMax)) (ULONG  aIoBandwidthMax);
 
     // IMachine methods
     STDMETHOD(SetBootOrder)(ULONG aPosition, DeviceType_T aDevice);
@@ -594,12 +471,12 @@ public:
     STDMETHOD(GetExtraDataKeys)(ComSafeArrayOut(BSTR, aKeys));
     STDMETHOD(GetExtraData)(IN_BSTR aKey, BSTR *aValue);
     STDMETHOD(SetExtraData)(IN_BSTR aKey, IN_BSTR aValue);
-    STDMETHOD(GetCpuProperty)(CpuPropertyType_T property, BOOL *aVal);
-    STDMETHOD(SetCpuProperty)(CpuPropertyType_T property, BOOL aVal);
-    STDMETHOD(GetCpuIdLeaf)(ULONG id, ULONG *aValEax, ULONG *aValEbx, ULONG *aValEcx, ULONG *aValEdx);
-    STDMETHOD(SetCpuIdLeaf)(ULONG id, ULONG aValEax, ULONG aValEbx, ULONG aValEcx, ULONG aValEdx);
-    STDMETHOD(RemoveCpuIdLeaf)(ULONG id);
-    STDMETHOD(RemoveAllCpuIdLeafs)();
+    STDMETHOD(GetCPUProperty)(CPUPropertyType_T property, BOOL *aVal);
+    STDMETHOD(SetCPUProperty)(CPUPropertyType_T property, BOOL aVal);
+    STDMETHOD(GetCPUIDLeaf)(ULONG id, ULONG *aValEax, ULONG *aValEbx, ULONG *aValEcx, ULONG *aValEdx);
+    STDMETHOD(SetCPUIDLeaf)(ULONG id, ULONG aValEax, ULONG aValEbx, ULONG aValEcx, ULONG aValEdx);
+    STDMETHOD(RemoveCPUIDLeaf)(ULONG id);
+    STDMETHOD(RemoveAllCPUIDLeaves)();
     STDMETHOD(GetHWVirtExProperty)(HWVirtExPropertyType_T property, BOOL *aVal);
     STDMETHOD(SetHWVirtExProperty)(HWVirtExPropertyType_T property, BOOL aVal);
     STDMETHOD(SaveSettings)();
@@ -625,17 +502,36 @@ public:
     STDMETHOD(RemoveStorageController(IN_BSTR aName));
     STDMETHOD(GetStorageControllerByName(IN_BSTR aName, IStorageController **storageController));
     STDMETHOD(GetStorageControllerByInstance(ULONG aInstance, IStorageController **storageController));
-    STDMETHOD(COMGETTER(FirmwareType)) (FirmwareType_T *aFirmware);
-    STDMETHOD(COMSETTER(FirmwareType)) (FirmwareType_T  aFirmware);
-
     STDMETHOD(QuerySavedThumbnailSize)(ULONG *aSize, ULONG *aWidth, ULONG *aHeight);
     STDMETHOD(ReadSavedThumbnailToArray)(BOOL aBGR, ULONG *aWidth, ULONG *aHeight, ComSafeArrayOut(BYTE, aData));
     STDMETHOD(QuerySavedScreenshotPNGSize)(ULONG *aSize, ULONG *aWidth, ULONG *aHeight);
     STDMETHOD(ReadSavedScreenshotPNGToArray)(ULONG *aWidth, ULONG *aHeight, ComSafeArrayOut(BYTE, aData));
+    STDMETHOD(HotPlugCPU(ULONG aCpu));
+    STDMETHOD(HotUnplugCPU(ULONG aCpu));
+    STDMETHOD(GetCPUStatus(ULONG aCpu, BOOL *aCpuAttached));
+    STDMETHOD(QueryLogFilename(ULONG aIdx, BSTR *aName));
+    STDMETHOD(ReadLog(ULONG aIdx, ULONG64 aOffset, ULONG64 aSize, ComSafeArrayOut(BYTE, aData)));
 
     // public methods only for internal purposes
 
-    InstanceType getType() const { return mType; }
+    /**
+     * Simple run-time type identification without having to enable C++ RTTI.
+     * The class IDs are defined in VirtualBoxBase.h.
+     * @return
+     */
+    virtual VBoxClsID getClassID() const
+    {
+        return clsidMachine;
+    }
+
+    /**
+     * Override of the default locking class to be used for validating lock
+     * order with the standard member lock handle.
+     */
+    virtual VBoxLockingClass getLockingClass() const
+    {
+        return LOCKCLASS_MACHINEOBJECT;
+    }
 
     /// @todo (dmik) add lock and make non-inlined after revising classes
     //  that use it. Note: they should enter Machine lock to keep the returned
@@ -652,7 +548,7 @@ public:
      * used by ready Machine children (whose readiness is bound to the parent's
      * one) or after doing addCaller() manually.
      */
-    const ComObjPtr<VirtualBox, ComWeakRef>& getVirtualBox() const { return mParent; }
+    VirtualBox* getVirtualBox() const { return mParent; }
 
     /**
      * Returns this machine ID.
@@ -691,6 +587,23 @@ public:
      */
     const Bstr& getName() const { return mUserData->mName; }
 
+    enum
+    {
+        IsModified_MachineData          = 0x0001,
+        IsModified_Storage              = 0x0002,
+        IsModified_NetworkAdapters      = 0x0008,
+        IsModified_SerialPorts          = 0x0010,
+        IsModified_ParallelPorts        = 0x0020,
+        IsModified_VRDPServer           = 0x0040,
+        IsModified_AudioAdapter         = 0x0080,
+        IsModified_USB                  = 0x0100,
+        IsModified_BIOS                 = 0x0200,
+        IsModified_SharedFolders        = 0x0400,
+        IsModified_Snapshots            = 0x0800
+    };
+
+    void setModified(uint32_t fl);
+
     // callback handlers
     virtual HRESULT onNetworkAdapterChange(INetworkAdapter * /* networkAdapter */, BOOL /* changeAdapter */) { return S_OK; }
     virtual HRESULT onSerialPortChange(ISerialPort * /* serialPort */) { return S_OK; }
@@ -698,6 +611,7 @@ public:
     virtual HRESULT onVRDPServerChange() { return S_OK; }
     virtual HRESULT onUSBControllerChange() { return S_OK; }
     virtual HRESULT onStorageControllerChange() { return S_OK; }
+    virtual HRESULT onCPUChange(ULONG /* aCPU */, BOOL /* aRemove */) { return S_OK; }
     virtual HRESULT onMediumChange(IMediumAttachment * /* mediumAttachment */, BOOL /* force */) { return S_OK; }
     virtual HRESULT onSharedFolderChange() { return S_OK; }
 
@@ -707,12 +621,26 @@ public:
     void calculateRelativePath(const Utf8Str &strPath, Utf8Str &aResult);
 
     void getLogFolder(Utf8Str &aLogFolder);
+    Utf8Str queryLogFilename(ULONG idx);
 
     HRESULT openSession(IInternalSessionControl *aControl);
     HRESULT openRemoteSession(IInternalSessionControl *aControl,
                               IN_BSTR aType, IN_BSTR aEnvironment,
                               Progress *aProgress);
     HRESULT openExistingSession(IInternalSessionControl *aControl);
+
+    HRESULT getDirectControl(ComPtr<IInternalSessionControl> *directControl)
+    {
+        HRESULT rc;
+        *directControl = mData->mSession.mDirectControl;
+
+        if (!*directControl)
+            rc = E_ACCESSDENIED;
+        else
+            rc = S_OK;
+
+        return rc;
+    }
 
 #if defined(RT_OS_WINDOWS)
 
@@ -760,7 +688,7 @@ public:
                             ComObjPtr<SharedFolder> &aSharedFolder,
                             bool aSetError = false)
     {
-        AutoWriteLock alock(this);
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
         return findSharedFolder(aName, aSharedFolder, aSetError);
     }
 
@@ -772,32 +700,11 @@ public:
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"Machine"; }
 
-    /**
-     * Returns the handle of the snapshots tree lock. This lock is
-     * machine-specific because there is one snapshots tree per
-     * IMachine; the lock protects the "first snapshot" member in
-     * IMachine and all the children and parent links in snapshot
-     * objects pointed to therefrom.
-     *
-     * Locking order:
-     * a) object lock of the machine;
-     * b) snapshots tree lock of the machine;
-     * c) individual snapshot object locks in parent->child order,
-     *    if needed; they are _not_ needed for the tree itself
-     *    (as defined above).
-     */
-    RWLockHandle* snapshotsTreeLockHandle() const
-    {
-        return &mData->mSnapshotsTreeLockHandle;
-    }
-
 protected:
-
-    HRESULT registeredInit();
 
     HRESULT checkStateDependency(StateDependency aDepType);
 
-    inline Machine *getMachine();
+    Machine *getMachine();
 
     void ensureNoStateDependencies();
 
@@ -808,16 +715,15 @@ protected:
                              bool aSetError = false);
 
     HRESULT loadSettings(bool aRegistered);
+    HRESULT loadMachineDataFromSettings(const settings::MachineConfigFile &config);
     HRESULT loadSnapshot(const settings::Snapshot &data,
                          const Guid &aCurSnapshotId,
                          Snapshot *aParentSnapshot);
     HRESULT loadHardware(const settings::Hardware &data);
     HRESULT loadStorageControllers(const settings::Storage &data,
-                                   bool aRegistered,
                                    const Guid *aSnapshotId = NULL);
     HRESULT loadStorageDevices(StorageController *aStorageController,
                                const settings::StorageController &data,
-                               bool aRegistered,
                                const Guid *aSnapshotId = NULL);
 
     HRESULT findSnapshot(const Guid &aId, ComObjPtr<Snapshot> &aSnapshot,
@@ -837,32 +743,30 @@ protected:
         /* flags for #saveSettings() */
         SaveS_ResetCurStateModified = 0x01,
         SaveS_InformCallbacksAnyway = 0x02,
-        /* flags for #saveSnapshotSettings() */
-        SaveSS_CurStateModified = 0x40,
-        SaveSS_CurrentId = 0x80,
+        SaveS_Force = 0x04,
         /* flags for #saveStateSettings() */
         SaveSTS_CurStateModified = 0x20,
         SaveSTS_StateFilePath = 0x40,
         SaveSTS_StateTimeStamp = 0x80,
     };
 
-    HRESULT prepareSaveSettings(bool &aRenamed, bool &aNew);
-    HRESULT saveSettings(int aFlags = 0);
+    HRESULT prepareSaveSettings(bool *pfNeedsGlobalSaveSettings);
+    HRESULT saveSettings(bool *pfNeedsGlobalSaveSettings, int aFlags = 0);
 
-    HRESULT saveAllSnapshots();
-
+    void copyMachineDataToSettings(settings::MachineConfigFile &config);
+    HRESULT saveAllSnapshots(settings::MachineConfigFile &config);
     HRESULT saveHardware(settings::Hardware &data);
     HRESULT saveStorageControllers(settings::Storage &data);
     HRESULT saveStorageDevices(ComObjPtr<StorageController> aStorageController,
                                settings::StorageController &data);
-
     HRESULT saveStateSettings(int aFlags);
 
     HRESULT createImplicitDiffs(const Bstr &aFolder,
                                 IProgress *aProgress,
                                 ULONG aWeight,
-                                bool aOnline);
-    HRESULT deleteImplicitDiffs();
+                                bool aOnline,
+                                bool *pfNeedsSaveSettings);
+    HRESULT deleteImplicitDiffs(bool *pfNeedsSaveSettings);
 
     MediumAttachment* findAttachment(const MediaData::AttachmentList &ll,
                                      IN_BSTR aControllerName,
@@ -873,53 +777,71 @@ protected:
     MediumAttachment* findAttachment(const MediaData::AttachmentList &ll,
                                      Guid &id);
 
-    void fixupMedia(bool aCommit, bool aOnline = false);
+    void commitMedia(bool aOnline = false);
+    void rollbackMedia();
 
-    bool isInOwnDir(Utf8Str *aSettingsDir = NULL);
+    bool isInOwnDir(Utf8Str *aSettingsDir = NULL) const;
 
-    bool isModified();
-    bool isReallyModified(bool aIgnoreUserData = false);
     void rollback(bool aNotify);
     void commit();
     void copyFrom(Machine *aThat);
 
+#ifdef VBOX_WITH_GUEST_PROPS
+    HRESULT getGuestPropertyFromService(IN_BSTR aName, BSTR *aValue,
+                                        ULONG64 *aTimestamp, BSTR *aFlags) const;
+    HRESULT getGuestPropertyFromVM(IN_BSTR aName, BSTR *aValue,
+                                   ULONG64 *aTimestamp, BSTR *aFlags) const;
+    HRESULT setGuestPropertyToService(IN_BSTR aName, IN_BSTR aValue,
+                                      IN_BSTR aFlags);
+    HRESULT setGuestPropertyToVM(IN_BSTR aName, IN_BSTR aValue,
+                                 IN_BSTR aFlags);
+    HRESULT enumerateGuestPropertiesInService
+                (IN_BSTR aPatterns, ComSafeArrayOut(BSTR, aNames),
+                 ComSafeArrayOut(BSTR, aValues),
+                 ComSafeArrayOut(ULONG64, aTimestamps),
+                 ComSafeArrayOut(BSTR, aFlags));
+    HRESULT enumerateGuestPropertiesOnVM
+                (IN_BSTR aPatterns, ComSafeArrayOut(BSTR, aNames),
+                 ComSafeArrayOut(BSTR, aValues),
+                 ComSafeArrayOut(ULONG64, aTimestamps),
+                 ComSafeArrayOut(BSTR, aFlags));
+#endif /* VBOX_WITH_GUEST_PROPS */
+
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
     void registerMetrics(PerformanceCollector *aCollector, Machine *aMachine, RTPROCESS pid);
     void unregisterMetrics(PerformanceCollector *aCollector, Machine *aMachine);
+
+    pm::CollectorGuestHAL  *mGuestHAL;
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
 
-    const InstanceType mType;
+    Machine* const          mPeer;
 
-    const ComObjPtr<Machine, ComWeakRef> mPeer;
+    VirtualBox* const       mParent;
 
-    const ComObjPtr<VirtualBox, ComWeakRef> mParent;
+    Shareable<Data>         mData;
+    Shareable<SSData>       mSSData;
 
-    Shareable<Data> mData;
-    Shareable<SSData> mSSData;
-
-    Backupable<UserData> mUserData;
-    Backupable<HWData> mHWData;
-    Backupable<MediaData> mMediaData;
+    Backupable<UserData>    mUserData;
+    Backupable<HWData>      mHWData;
+    Backupable<MediaData>   mMediaData;
 
     // the following fields need special backup/rollback/commit handling,
     // so they cannot be a part of HWData
 
-    const ComObjPtr<VRDPServer> mVRDPServer;
-    const ComObjPtr<SerialPort>
-        mSerialPorts [SchemaDefs::SerialPortCount];
-    const ComObjPtr<ParallelPort>
-        mParallelPorts [SchemaDefs::ParallelPortCount];
-    const ComObjPtr<AudioAdapter> mAudioAdapter;
-    const ComObjPtr<USBController> mUSBController;
-    const ComObjPtr<BIOSSettings> mBIOSSettings;
-    const ComObjPtr<NetworkAdapter>
-        mNetworkAdapters [SchemaDefs::NetworkAdapterCount];
+    const ComObjPtr<VRDPServer>     mVRDPServer;
+    const ComObjPtr<SerialPort>     mSerialPorts[SchemaDefs::SerialPortCount];
+    const ComObjPtr<ParallelPort>   mParallelPorts[SchemaDefs::ParallelPortCount];
+    const ComObjPtr<AudioAdapter>   mAudioAdapter;
+    const ComObjPtr<USBController>  mUSBController;
+    const ComObjPtr<BIOSSettings>   mBIOSSettings;
+    const ComObjPtr<NetworkAdapter> mNetworkAdapters[SchemaDefs::NetworkAdapterCount];
 
     typedef std::list< ComObjPtr<StorageController> > StorageControllerList;
     Backupable<StorageControllerList> mStorageControllers;
 
     friend class SessionMachine;
     friend class SnapshotMachine;
+    friend class Appliance;
 };
 
 // SessionMachine class
@@ -969,6 +891,7 @@ public:
     STDMETHOD(SetRemoveSavedState)(BOOL aRemove);
     STDMETHOD(UpdateState)(MachineState_T machineState);
     STDMETHOD(GetIPCId)(BSTR *id);
+    STDMETHOD(SetPowerUpInfo)(IVirtualBoxErrorInfo *aError);
     STDMETHOD(RunUSBDeviceFilters)(IUSBDevice *aUSBDevice, BOOL *aMatched, ULONG *aMaskedIfs);
     STDMETHOD(CaptureUSBDevice)(IN_BSTR aId);
     STDMETHOD(DetachUSBDevice)(IN_BSTR aId, BOOL aDone);
@@ -987,20 +910,33 @@ public:
     STDMETHOD(EndTakingSnapshot)(BOOL aSuccess);
     STDMETHOD(DeleteSnapshot)(IConsole *aInitiator, IN_BSTR aId,
                               MachineState_T *aMachineState, IProgress **aProgress);
+    STDMETHOD(FinishOnlineMergeMedium)(IMediumAttachment *aMediumAttachment,
+                                       IMedium *aSource, IMedium *aTarget,
+                                       BOOL fMergeForward,
+                                       IMedium *pParentForTarget,
+                                       ComSafeArrayIn(IMedium *, aChildrenToReparent));
     STDMETHOD(RestoreSnapshot)(IConsole *aInitiator,
                                ISnapshot *aSnapshot,
                                MachineState_T *aMachineState,
                                IProgress **aProgress);
     STDMETHOD(PullGuestProperties)(ComSafeArrayOut(BSTR, aNames), ComSafeArrayOut(BSTR, aValues),
               ComSafeArrayOut(ULONG64, aTimestamps), ComSafeArrayOut(BSTR, aFlags));
-    STDMETHOD(PushGuestProperties)(ComSafeArrayIn(IN_BSTR, aNames), ComSafeArrayIn(IN_BSTR, aValues),
-              ComSafeArrayIn(ULONG64, aTimestamps), ComSafeArrayIn(IN_BSTR, aFlags));
     STDMETHOD(PushGuestProperty)(IN_BSTR aName, IN_BSTR aValue,
                                   ULONG64 aTimestamp, IN_BSTR aFlags);
     STDMETHOD(LockMedia)()   { return lockMedia(); }
     STDMETHOD(UnlockMedia)() { unlockMedia(); return S_OK; }
 
     // public methods only for internal purposes
+
+    /**
+     * Simple run-time type identification without having to enable C++ RTTI.
+     * The class IDs are defined in VirtualBoxBase.h.
+     * @return
+     */
+    virtual VBoxClsID getClassID() const
+    {
+        return clsidSessionMachine;
+    }
 
     bool checkForDeath();
 
@@ -1009,6 +945,7 @@ public:
     HRESULT onMediumChange(IMediumAttachment *aMediumAttachment, BOOL aForce);
     HRESULT onSerialPortChange(ISerialPort *serialPort);
     HRESULT onParallelPortChange(IParallelPort *parallelPort);
+    HRESULT onCPUChange(ULONG aCPU, BOOL aRemove);
     HRESULT onVRDPServerChange();
     HRESULT onUSBControllerChange();
     HRESULT onUSBDeviceAttach(IUSBDevice *aDevice,
@@ -1051,12 +988,40 @@ private:
     void uninit(Uninit::Reason aReason);
 
     HRESULT endSavingState(BOOL aSuccess);
-    HRESULT endTakingSnapshot(BOOL aSuccess);
 
     typedef std::map<ComObjPtr<Machine>, MachineState_T> AffectedMachines;
 
     void deleteSnapshotHandler(DeleteSnapshotTask &aTask);
     void restoreSnapshotHandler(RestoreSnapshotTask &aTask);
+
+    HRESULT prepareDeleteSnapshotMedium(const ComObjPtr<Medium> &aHD,
+                                        const Guid &machineId,
+                                        const Guid &snapshotId,
+                                        bool fOnlineMergePossible,
+                                        MediumLockList *aVMMALockList,
+                                        ComObjPtr<Medium> &aSource,
+                                        ComObjPtr<Medium> &aTarget,
+                                        bool &fMergeForward,
+                                        ComObjPtr<Medium> &pParentForTarget,
+                                        MediaList &aChildrenToReparent,
+                                        bool &fNeedOnlineMerge,
+                                        MediumLockList * &aMediumLockList);
+    void cancelDeleteSnapshotMedium(const ComObjPtr<Medium> &aHD,
+                                    const ComObjPtr<Medium> &aSource,
+                                    const MediaList &aChildrenToReparent,
+                                    bool fNeedsOnlineMerge,
+                                    MediumLockList *aMediumLockList,
+                                    const Guid &aMediumId,
+                                    const Guid &aSnapshotId);
+    HRESULT onlineMergeMedium(const ComObjPtr<MediumAttachment> &aMediumAttachment,
+                              const ComObjPtr<Medium> &aSource,
+                              const ComObjPtr<Medium> &aTarget,
+                              bool fMergeForward,
+                              const ComObjPtr<Medium> &pParentForTarget,
+                              const MediaList &aChildrenToReparent,
+                              MediumLockList *aMediumLockList,
+                              ComObjPtr<Progress> &aProgress,
+                              bool *pfNeedsSaveSettings);
 
     HRESULT lockMedia();
     void unlockMedia();
@@ -1143,6 +1108,16 @@ public:
 
     // public methods only for internal purposes
 
+    /**
+     * Simple run-time type identification without having to enable C++ RTTI.
+     * The class IDs are defined in VirtualBoxBase.h.
+     * @return
+     */
+    virtual VBoxClsID getClassID() const
+    {
+        return clsidSnapshotMachine;
+    }
+
     HRESULT onSnapshotChange(Snapshot *aSnapshot);
 
     // unsafe inline public methods for internal purposes only (ensure there is
@@ -1161,25 +1136,9 @@ private:
 
 inline const Guid &Machine::getSnapshotId() const
 {
-    return mType != IsSnapshotMachine ? Guid::Empty :
-                    static_cast<const SnapshotMachine *>(this)->getSnapshotId();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- *  Returns a pointer to the Machine object for this machine that acts like a
- *  parent for complex machine data objects such as shared folders, etc.
- *
- *  For primary Machine objects and for SnapshotMachine objects, returns this
- *  object's pointer itself. For SessoinMachine objects, returns the peer
- *  (primary) machine pointer.
- */
-inline Machine *Machine::getMachine()
-{
-    if (mType == IsSessionMachine)
-        return mPeer;
-    return this;
+    return getClassID() != clsidSnapshotMachine
+                ? Guid::Empty
+                : static_cast<const SnapshotMachine*>(this)->getSnapshotId();
 }
 
 

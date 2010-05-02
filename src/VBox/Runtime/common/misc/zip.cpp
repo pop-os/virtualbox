@@ -1,10 +1,10 @@
-/* $Id: zip.cpp $ */
+/* $Id: zip.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Compression.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -1725,7 +1721,7 @@ RTDECL(int) RTZipBlockCompress(RTZIPTYPE enmType, RTZIPLEVEL enmLevel, uint32_t 
             }
 # endif
 
-            unsigned cbDstActual = lzf_compress(pvSrc, cbSrc, pvDst, cbDst);
+            unsigned cbDstActual = lzf_compress(pvSrc, (unsigned)cbSrc, pvDst, (unsigned)cbDst);    /** @todo deal with size type overflows */
             if (RT_UNLIKELY(cbDstActual < 1))
                 return VERR_BUFFER_OVERFLOW;
             *pcbDstActual = cbDstActual;
@@ -1817,7 +1813,7 @@ RTDECL(int) RTZipBlockDecompress(RTZIPTYPE enmType, uint32_t fFlags,
         case RTZIPTYPE_LZF:
         {
 #ifdef RTZIP_USE_LZF
-            unsigned cbDstActual = lzf_decompress(pvSrc, cbSrc, pvDst, cbDst);
+            unsigned cbDstActual = lzf_decompress(pvSrc, (unsigned)cbSrc, pvDst, (unsigned)cbDst);  /** @todo deal with size type overflows */
             if (RT_UNLIKELY(cbDstActual < 1))
             {
                 if (errno == E2BIG)

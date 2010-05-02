@@ -1,3 +1,20 @@
+/* $Id: libslirp.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - slirp interface.
+ */
+
+/*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
 #ifndef _LIBSLIRP_H
 #define _LIBSLIRP_H
 
@@ -22,16 +39,13 @@ int inet_aton(const char *cp, struct in_addr *ia);
 #include <VBox/types.h>
 
 typedef struct NATState *PNATState;
+struct mbuf;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#ifndef VBOX_WITH_NAT_SERVICE
-int slirp_init(PNATState *, const char *, uint32_t, bool, bool, void *);
-#else
-int slirp_init(PNATState *, uint32_t, uint32_t, bool, void *);
-#endif
+int slirp_init(PNATState *, uint32_t, uint32_t, bool, bool, int, void *);
 void slirp_register_statistics(PNATState pData, PPDMDRVINS pDrvIns);
 void slirp_deregister_statistics(PNATState pData, PPDMDRVINS pDrvIns);
 void slirp_term(PNATState);
@@ -47,19 +61,14 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls);
 void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs);
 #endif /* !RT_OS_WINDOWS */
 
-#ifdef VBOX_WITH_SLIRP_BSD_MBUF
-void slirp_input(PNATState pData, const uint8_t *pkt, int pkt_len);
-#else
-void slirp_input(PNATState pData, void *pvData);
-#endif
+void slirp_input(PNATState pData, struct mbuf *m, size_t cbBuf);
 void slirp_set_ethaddr_and_activate_port_forwarding(PNATState pData, const uint8_t *ethaddr, uint32_t GuestIP);
 
 /* you must provide the following functions: */
 void slirp_arm_fast_timer(void *pvUser);
-void slirp_arm_slow_timer(void *pvUser);
 int slirp_can_output(void * pvUser);
-void slirp_output(void * pvUser, void *pvArg, const uint8_t *pkt, int pkt_len);
-void slirp_urg_output(void *pvUser, void *pvArg, const uint8_t *pu8Buf, int cb);
+void slirp_output(void * pvUser, struct mbuf *m, const uint8_t *pkt, int pkt_len);
+void slirp_urg_output(void *pvUser, struct mbuf *, const uint8_t *pu8Buf, int cb);
 void slirp_post_sent(PNATState pData, void *pvArg);
 
 int slirp_redir(PNATState pData, int is_udp, struct in_addr host_addr,
@@ -117,10 +126,11 @@ void slirp_register_external_event(PNATState pData, HANDLE hEvent, int index);
 void slirp_process_queue(PNATState pData);
 void *slirp_get_queue(PNATState pData);
 #endif
+
+struct mbuf *slirp_ext_m_get(PNATState pData, size_t cbMin, void **ppvBuf, size_t *pcbBuf);
+void slirp_ext_m_free(PNATState pData, struct mbuf *);
 #ifndef VBOX_WITH_SLIRP_BSD_MBUF
-void *slirp_ext_m_get(PNATState pData);
-void slirp_ext_m_free(PNATState pData, void *);
-void slirp_ext_m_append(PNATState pData, void *, uint8_t *, size_t);
+void slirp_push_recv_thread(void *pvUser);
 #endif
 
 /*

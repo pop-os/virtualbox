@@ -1,10 +1,10 @@
-/* $Id: timer-posix.cpp $ */
+/* $Id: timer-posix.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Timer, POSIX.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -309,7 +305,8 @@ static DECLCALLBACK(int) rttimerThread(RTTHREAD Thread, void *pvArg)
         sigaddset(&SigSet, RT_TIMER_SIGNAL);
         do
         {
-            siginfo_t SigInfo = {0};
+            siginfo_t SigInfo;
+            RT_ZERO(SigInfo);
 #ifdef RT_OS_DARWIN
             if (RT_LIKELY(sigwait(&SigSet, &SigInfo.si_signo) >= 0))
             {
@@ -369,7 +366,8 @@ static DECLCALLBACK(int) rttimerThread(RTTHREAD Thread, void *pvArg)
     sigaddset(&SigSet, RT_TIMER_SIGNAL);
     while (g_cTimerInstances)
     {
-        siginfo_t SigInfo = {0};
+        siginfo_t SigInfo;
+        RT_ZERO(SigInfo);
         if (RT_LIKELY(sigwaitinfo(&SigSet, &SigInfo) >= 0))
         {
             LogFlow(("rttimerThread: signo=%d pTimer=%p\n", SigInfo.si_signo, SigInfo.si_value.sival_ptr));

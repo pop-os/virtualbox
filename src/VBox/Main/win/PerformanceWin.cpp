@@ -1,4 +1,4 @@
-/* $Id: PerformanceWin.cpp $ */
+/* $Id: PerformanceWin.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef _WIN32_WINNT
@@ -56,7 +52,7 @@ class CollectorWin : public CollectorHAL
 public:
     CollectorWin();
     virtual ~CollectorWin();
-    virtual int preCollect(const CollectorHints& hints);
+    virtual int preCollect(const CollectorHints& hints, uint64_t /* iTick */);
     virtual int getHostCpuLoad(ULONG *user, ULONG *kernel, ULONG *idle);
     virtual int getHostCpuMHz(ULONG *mhz);
     virtual int getHostMemoryUsage(ULONG *total, ULONG *used, ULONG *available);
@@ -98,7 +94,7 @@ CollectorHAL *createHAL()
     return new CollectorWin();
 }
 
-CollectorWin::CollectorWin() : mhNtDll(0)
+CollectorWin::CollectorWin() : CollectorHAL(), mhNtDll(0)
 {
     mpfnGetSystemTimes = (PFNGST)GetProcAddress(
         GetModuleHandle(TEXT("kernel32.dll")),
@@ -131,7 +127,7 @@ CollectorWin::~CollectorWin()
 
 #define FILETTIME_TO_100NS(ft) (((uint64_t)ft.dwHighDateTime << 32) + ft.dwLowDateTime)
 
-int CollectorWin::preCollect(const CollectorHints& hints)
+int CollectorWin::preCollect(const CollectorHints& hints, uint64_t /* iTick */)
 {
     LogFlowThisFuncEnter();
 

@@ -24,9 +24,9 @@
         <translation></translation>
     </message>
     <message>
-        <source>Sun Microsystems, Inc.</source>
+        <source>Oracle Corporation</source>
         <comment>Comma-separated list of translators</comment>
-        <translation type="obsolete">Ivan Masár &lt;helix84@centrum.sk&gt;, Jozef Říha &lt;jose1711@gmail.com&gt;</translation>
+        <translation>Ivan Masár &lt;helix84@centrum.sk&gt;, Jozef Říha &lt;jose1711@gmail.com&gt;</translation>
     </message>
 </context>
 <context>
@@ -549,7 +549,7 @@ verzia %1</translation>
     </message>
 </context>
 <context>
-    <name>VBoxAdditionsDownloader</name>
+    <name>UIDownloaderAdditions</name>
     <message>
         <source>Cancel</source>
         <translation>Zrušiť</translation>
@@ -1614,7 +1614,7 @@ verzia %1</translation>
     </message>
 </context>
 <context>
-    <name>VBoxDownloaderWgt</name>
+    <name>UIDownloader</name>
     <message>
         <source>Cancel</source>
         <translation type="obsolete">Zrušiť</translation>
@@ -1668,7 +1668,7 @@ verzia %1</translation>
     </message>
 </context>
 <context>
-    <name>VBoxExportApplianceWzd</name>
+    <name>UIExportApplianceWzd</name>
     <message>
         <source>Select a file to export into</source>
         <translation>Vyberte súbor pre export</translation>
@@ -3967,7 +3967,7 @@ je zobrazený &lt;b&gt;tučným&lt;/b&gt; písmom. Voľbou &lt;i&gt;Štandardný
     </message>
 </context>
 <context>
-    <name>VBoxImportApplianceWzd</name>
+    <name>UIImportApplianceWzd</name>
     <message>
         <source>Select an appliance to import</source>
         <translation type="unfinished"></translation>
@@ -4024,7 +4024,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxImportLicenseViewer</name>
+    <name>UIImportLicenseViewer</name>
     <message>
         <source>&lt;b&gt;The virtual system &quot;%1&quot; requires that you agree to the terms and conditions of the software license agreement shown below.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Click &lt;b&gt;Agree&lt;/b&gt; to continue or click &lt;b&gt;Disagree&lt;/b&gt; to cancel the import.</source>
         <translation type="unfinished"></translation>
@@ -4359,7 +4359,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxNewHDWzd</name>
+    <name>UINewHDWzd</name>
     <message>
         <source>Create New Virtual Disk</source>
         <translation>Vytvoriť nový virtuálny disk</translation>
@@ -4560,7 +4560,7 @@ ako veľkosť virtuálneho pevného disku.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
-    <name>VBoxNewVMWzd</name>
+    <name>UINewVMWzd</name>
     <message>
         <source>Create New Virtual Machine</source>
         <translation>Vytvoriť nový virtuálny stroj</translation>
@@ -5804,7 +5804,7 @@ preskočiť a pripojiť pevné disky neskôr pomocou dialógu Nastavenia virtuá
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation type="obsolete">Registračný formulár pre VirtualBox</translation>
+        <translation>Registračný formulár pre VirtualBox</translation>
     </message>
     <message>
         <source>&amp;Name</source>
@@ -5812,75 +5812,83 @@ preskočiť a pripojiť pevné disky neskôr pomocou dialógu Nastavenia virtuá
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation type="obsolete">Zadajte vaše celé meno bez diakritiky.</translation>
+        <translation>Zadajte vaše celé meno bez diakritiky.</translation>
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation type="obsolete">Zadajte vašu platnú e-mailovú adresu.</translation>
+        <translation>Zadajte vašu platnú e-mailovú adresu.</translation>
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation type="obsolete">Vitajte vo formulári na registráciu VirtualBoxu!</translation>
+        <translation>Vitajte vo formulári na registráciu VirtualBoxu!</translation>
     </message>
     <message>
         <source>Connection timed out.</source>
         <translation type="obsolete">Čas spojenia vypršal.</translation>
     </message>
     <message>
+        <source>Could not perform connection handshake.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Cancel</source>
-        <translation type="obsolete">Zrušiť</translation>
+        <translation>Zrušiť</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation type="obsolete">Vyberte krajinu/teritórium</translation>
+        <translation>Vyberte krajinu/teritórium</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation type="obsolete">Už &amp;som vlastníkom účtu Sun Online:</translation>
+        <translation>Už &amp;som vlastníkom účtu Sun Online:</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation type="obsolete">&amp;E-mail:</translation>
+        <translation>&amp;E-mail:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation type="obsolete">&amp;Heslo:</translation>
+        <translation>&amp;Heslo:</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation type="obsolete">Rá&amp;d by som si vytvoril nový účet u Sun Online:</translation>
+        <translation>Rá&amp;d by som si vytvoril nový účet u Sun Online:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation type="obsolete">&amp;Krstné meno:</translation>
+        <translation>&amp;Krstné meno:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation type="obsolete">&amp;Priezvisko:</translation>
+        <translation>&amp;Priezvisko:</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation type="obsolete">&amp;Spoločnosť:</translation>
+        <translation>&amp;Spoločnosť:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation type="obsolete">Kr&amp;ajina:</translation>
+        <translation>Kr&amp;ajina:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation type="obsolete">E-&amp;mail:</translation>
+        <translation>E-&amp;mail:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation type="obsolete">&amp;Heslo:</translation>
+        <translation>&amp;Heslo:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation type="obsolete">&amp;Potvrdiť heslo:</translation>
+        <translation>&amp;Potvrdiť heslo:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation type="obsolete">&amp;Registrovať sa</translation>
+        <translation>&amp;Registrovať sa</translation>
     </message>
 </context>
 <context>
@@ -6640,8 +6648,6 @@ preskočiť a pripojiť pevné disky neskôr pomocou dialógu Nastavenia virtuá
         <source>Warning: You are taking a snapshot of a running machine which has %n immutable image(s) attached to it. As long as you are working from this snapshot the immutable image(s) will not be reset to avoid loss of data.</source>
         <translation type="unfinished">
             <numerusform></numerusform>
-            <numerusform></numerusform>
-            <numerusform></numerusform>
         </translation>
     </message>
 </context>
@@ -6890,7 +6896,7 @@ preskočiť a pripojiť pevné disky neskôr pomocou dialógu Nastavenia virtuá
     </message>
 </context>
 <context>
-    <name>VBoxVMFirstRunWzd</name>
+    <name>UIFirstRunWzd</name>
     <message>
         <source>First Run Wizard</source>
         <translation>Sprievodca prvým spustením</translation>
@@ -8944,7 +8950,7 @@ preskočiť a pripojiť pevné disky neskôr pomocou dialógu Nastavenia virtuá
     </message>
     <message>
         <source>Port &amp;Number:</source>
-        <translation type="unfinished">Čí&amp;slo portu:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Displays the parallel port number. You can choose one of the standard parallel ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
@@ -8952,11 +8958,11 @@ preskočiť a pripojiť pevné disky neskôr pomocou dialógu Nastavenia virtuá
     </message>
     <message>
         <source>&amp;IRQ:</source>
-        <translation type="unfinished">&amp;IRQ:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>I/O Po&amp;rt:</source>
-        <translation type="unfinished">I/O Po&amp;rt:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Port &amp;Path:</source>
@@ -9275,7 +9281,7 @@ preskočiť a pripojiť pevné disky neskôr pomocou dialógu Nastavenia virtuá
         <translation>P&amp;rocesor(y):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine.</source>
         <translation>Ovláda počet virtuálnych CPU vo virtuálnom stroji.</translation>
     </message>
     <message>

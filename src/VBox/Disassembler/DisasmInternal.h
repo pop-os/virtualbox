@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___DisasmInternal_h___
@@ -73,7 +69,7 @@
 #define IDX_ParseThreeByteEsc5      39
 #define IDX_ParseMax                (IDX_ParseThreeByteEsc5+1)
 
-#ifdef IN_RING0
+#if defined(IN_RING0) || defined(IN_RC)
 #define DIS_THROW(a)                /* Not available. */
 #elif  __L4ENV__
 #define DIS_THROW(a)                longjmp(*pCpu->pJumpBuffer, a)
@@ -160,18 +156,11 @@ void disasmPrintDisp8(POP_PARAMETER pParam);
 void disasmPrintDisp16(POP_PARAMETER pParam);
 
 
-#ifdef IN_RC
-#define  DISReadByte(pCpu,  pAddress) (*(uint8_t *)(pAddress))
-#define  DISReadWord(pCpu,  pAddress) (*(uint16_t *)(pAddress))
-#define  DISReadDWord(pCpu, pAddress) (*(uint32_t *)(pAddress))
-#define  DISReadQWord(pCpu, pAddress) (*(uint64_t *)(pAddress))
-#else
 /* Read functions */
 uint8_t  DISReadByte(PDISCPUSTATE pCpu, RTUINTPTR pAddress);
 uint16_t DISReadWord(PDISCPUSTATE pCpu, RTUINTPTR pAddress);
 uint32_t DISReadDWord(PDISCPUSTATE pCpu, RTUINTPTR pAddress);
 uint64_t DISReadQWord(PDISCPUSTATE pCpu, RTUINTPTR pAddress);
-#endif
 
 size_t disFormatBytes(PCDISCPUSTATE pCpu, char *pszDst, size_t cchDst, uint32_t fFlags);
 

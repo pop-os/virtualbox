@@ -1,4 +1,4 @@
-# $Id: VBoxPkgX64.dsc $
+# $Id: VBoxPkgX64.dsc 26451 2010-02-11 18:40:00Z vboxsync $
 
 #
 # Copyright (C) 2009-2010 Sun Microsystems, Inc.
@@ -222,6 +222,8 @@
 
   gEfiEdkModulePkgTokenSpaceGuid.PcdDxePcdDatabaseTraverseEnabled|TRUE
   gEfiMdeModulePkgTokenSpaceGuid.PcdVpdBaseAddress|0x0
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVendor|L"VBOX 64"|VOID*
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareRevision|0x10001|UINT32
 
 [PcdsFeatureFlag.common]
   gEfiMdeModulePkgTokenSpaceGuid.PcdDxeIplSupportUefiDecompress|FALSE
@@ -352,7 +354,8 @@
   VBoxPkg/VBoxVgaMiniPortDxe/VBoxVgaMiniPortDxe.inf
   VBoxPkg/VBoxVgaDxe/VBoxVgaDxe.inf
   VBoxPkg/VBoxSysTables/VBoxSysTables.inf
-  VBoxPkg/AcpiTables/AcpiTables.inf
+  VBoxPkg/VBoxAppleSim/VBoxAppleSim.inf
+  VBoxPkg/VBoxConsoleDxe/VBoxConsoleDxe.inf
   # VBOX end
 
   #

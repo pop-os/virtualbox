@@ -1,10 +1,10 @@
-/* $Id: tstRTCritSect.cpp $ */
+/* $Id: tstRTCritSect.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT Testcase - Critical Sections.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -42,10 +38,11 @@
 #include <iprt/err.h>
 #include <iprt/initterm.h>
 #include <iprt/getopt.h>
-#include <iprt/lock.h>
+#include <iprt/cpp/lock.h>
 #include <iprt/log.h>
 #include <iprt/mem.h>
 #include <iprt/semaphore.h>
+#include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/test.h>
 #include <iprt/time.h>
@@ -61,6 +58,7 @@
 #define PRTCRITSECT     LPCRITICAL_SECTION
 #define LOCKERS(sect)   (*(LONG volatile *)&(sect).LockCount)
 
+#undef RTCritSectInit
 DECLINLINE(int) RTCritSectInit(PCRITICAL_SECTION pCritSect)
 {
     InitializeCriticalSection(pCritSect);
@@ -493,25 +491,12 @@ int main(int argc, char **argv)
                 RTTestIPrintf(RTTESTLVL_ALWAYS, "%s [--help|-h] [--distribution|-d]\n", argv[0]);
                 return 1;
 
-            case VINF_GETOPT_NOT_OPTION:
-                RTTestIFailed("%Rrs\n", ch);
-                return RTTestSummaryAndDestroy(hTest);
+            case 'V':
+                RTPrintf("$Revision: $\n");
+                return 0;
 
             default:
-                if (ch > 0)
-                {
-                    if (RT_C_IS_GRAPH(ch))
-                        RTTestIFailed("unhandled option: -%c\n", ch);
-                    else
-                        RTTestIFailed("unhandled option: %i\n", ch);
-                }
-                else if (ch == VERR_GETOPT_UNKNOWN_OPTION)
-                    RTTestIFailed("unknown option: %s\n", ValueUnion.psz);
-                else if (ValueUnion.pDef)
-                    RTTestIFailed("%s: %Rrs\n", ValueUnion.pDef->pszLong, ch);
-                else
-                    RTTestIFailed("%Rrs\n", ch);
-                return RTTestSummaryAndDestroy(hTest);
+                return RTGetOptPrintError(ch, &ValueUnion);
         }
     }
 

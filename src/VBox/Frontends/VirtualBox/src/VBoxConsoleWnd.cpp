@@ -1,3 +1,4 @@
+/* $Id: VBoxConsoleWnd.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,13 +15,12 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /* Global includes */
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include "precomp.h"
+#else /* !VBOX_WITH_PRECOMPILED_HEADERS */
 #include <QActionGroup>
 #include <QDesktopWidget>
 #include <QDir>
@@ -43,16 +43,18 @@
 #include "QIStateIndicator.h"
 #include "QIStatusBar.h"
 #include "QIWidgetValidator.h"
+#include "QIHotKeyEdit.h"
 #include "VBoxConsoleWnd.h"
 #include "VBoxConsoleView.h"
 #include "VBoxCloseVMDlg.h"
-#include "VBoxDownloaderWgt.h"
+#include "UIDownloaderAdditions.h"
+#include "UIDownloaderUserManual.h"
 #include "VBoxGlobal.h"
 #include "VBoxMediaManagerDlg.h"
 #include "VBoxMiniToolBar.h"
 #include "VBoxProblemReporter.h"
 #include "VBoxTakeSnapshotDlg.h"
-#include "VBoxVMFirstRunWzd.h"
+#include "UIFirstRunWzd.h"
 #include "VBoxVMSettingsNetwork.h"
 #include "VBoxVMSettingsSF.h"
 #include "VBoxVMInformationDlg.h"
@@ -72,9 +74,11 @@
 #endif
 
 #include <VBox/VMMDev.h> /** @todo @bugref{4084} */
+#include <VBox/version.h>
 #include <iprt/buildconfig.h>
 #include <iprt/param.h>
 #include <iprt/path.h>
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Global forwards */
 extern void qt_set_sequence_auto_mnemonic (bool on);
@@ -95,104 +99,6 @@ public:
         : QEvent ((QEvent::Type) Type), mTip (aTip) {}
 
     QString mTip;
-};
-
-class VBoxAdditionsDownloader : public VBoxDownloaderWgt
-{
-    Q_OBJECT;
-
-public:
-
-    VBoxAdditionsDownloader (const QString &aSource, const QString &aTarget, QAction *aAction)
-        : VBoxDownloaderWgt (aSource, aTarget)
-        , mAction (aAction)
-    {
-        mAction->setEnabled (false);
-        retranslateUi();
-    }
-
-    void start()
-    {
-        acknowledgeStart();
-    }
-
-protected:
-
-    void retranslateUi()
-    {
-        mCancelButton->setText (tr ("Cancel"));
-        mProgressBar->setToolTip (tr ("Downloading the VirtualBox Guest Additions "
-                                      "CD image from <nobr><b>%1</b>...</nobr>")
-                                      .arg (mSource.toString()));
-        mCancelButton->setToolTip (tr ("Cancel the VirtualBox Guest "
-                                       "Additions CD image download"));
-    }
-
-private slots:
-
-    void downloadFinished (bool aError)
-    {
-        if (aError)
-            VBoxDownloaderWgt::downloadFinished (aError);
-        else
-        {
-            QByteArray receivedData (mHttp->readAll());
-            /* Serialize the incoming buffer into the .iso image. */
-            while (true)
-            {
-                QFile file (mTarget);
-                if (file.open (QIODevice::WriteOnly))
-                {
-                    file.write (receivedData);
-                    file.close();
-                    if (vboxProblem().confirmMountAdditions (mSource.toString(),
-                        QDir::toNativeSeparators (mTarget)))
-                        vboxGlobal().consoleWnd().installGuestAdditionsFrom (mTarget);
-                    QTimer::singleShot (0, this, SLOT (suicide()));
-                    break;
-                }
-                else
-                {
-                    vboxProblem().message (window(), VBoxProblemReporter::Error,
-                        tr ("<p>Failed to save the downloaded file as "
-                            "<nobr><b>%1</b>.</nobr></p>")
-                        .arg (QDir::toNativeSeparators (mTarget)));
-                }
-
-                QString target = QIFileDialog::getExistingDirectory (
-                    QFileInfo (mTarget).absolutePath(), this,
-                    tr ("Select folder to save Guest Additions image to"), true);
-                if (target.isNull())
-                    QTimer::singleShot (0, this, SLOT (suicide()));
-                else
-                    mTarget = QDir (target).absoluteFilePath (QFileInfo (mTarget).fileName());
-            }
-        }
-    }
-
-    void suicide()
-    {
-        QStatusBar *sb = qobject_cast <QStatusBar*> (parent());
-        Assert (sb);
-        sb->removeWidget (this);
-        mAction->setEnabled (true);
-        VBoxDownloaderWgt::suicide();
-    }
-
-private:
-
-    bool confirmDownload()
-    {
-        return vboxProblem().confirmDownloadAdditions (mSource.toString(),
-            mHttp->lastResponse().contentLength());
-    }
-
-    void warnAboutError (const QString &aError)
-    {
-        return vboxProblem().cannotDownloadGuestAdditions (mSource.toString(), aError);
-    }
-
-    QAction *mAction;
 };
 
 struct MountTarget
@@ -315,6 +221,7 @@ VBoxConsoleWnd::VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent, Qt::Wi
 #endif
     /* LED Update Timer */
     , mIdleTimer (new QTimer (this))
+    , mNetworkTimer (new QTimer (this))
     /* LEDs */
     , mHDLed (0)
     , mCDLed (0)
@@ -344,8 +251,13 @@ VBoxConsoleWnd::VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent, Qt::Wi
     , mIsWaitingModeResize (false)
     , mWasMax (false)
 {
+#ifdef DEBUG_poetzsch
+    printf("Old code path\n");
+#endif /* DEBUG_poetzsch */
     if (aSelf)
         *aSelf = this;
+
+    vboxGlobal().setMainWindow (this);
 
     /* Cache IMedium data! */
     vboxGlobal().startEnumeratingMedia();
@@ -672,6 +584,31 @@ VBoxConsoleWnd::VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent, Qt::Wi
     mAutoresizeLed->setStateIcon (3, QPixmap (":/auto_resize_on_16px.png"));
 #endif
 
+#ifdef Q_WS_MAC
+    m_pDockMenu = new QMenu(this);
+    /* Add all VM menu entries to the dock menu. Leave out close and stuff like
+     * this. */
+    QList<QAction*> actions = mVMMenu->actions();
+    for (int i=0; i < actions.size(); ++i)
+        if (actions.at(i)->menuRole() == QAction::TextHeuristicRole)
+            m_pDockMenu->addAction(actions.at(i));
+    m_pDockMenu->addSeparator();
+
+    m_pDockSettingsMenu = new QMenu(this);
+    QActionGroup *pDockPreviewModeGroup = new QActionGroup(this);
+    m_pDockEnablePreviewMonitor = new QAction(pDockPreviewModeGroup);
+    m_pDockEnablePreviewMonitor->setCheckable(true);
+    m_pDockDisablePreview = new QAction(pDockPreviewModeGroup);
+    m_pDockDisablePreview->setCheckable(true);
+    m_pDockSettingsMenu->addActions(pDockPreviewModeGroup->actions());
+
+    m_pDockMenu->addMenu(m_pDockSettingsMenu);
+
+    /* Add it to the dock. */
+    extern void qt_mac_set_dock_menu(QMenu *);
+    qt_mac_set_dock_menu(m_pDockMenu);
+#endif /* Q_WS_MAC */
+
     /* add to statusbar */
     statusBar()->addPermanentWidget (indicatorBox, 0);
 
@@ -732,7 +669,10 @@ VBoxConsoleWnd::VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent, Qt::Wi
     /* Watch global settings changes */
     connect (&vboxGlobal().settings(), SIGNAL (propertyChanged (const char *, const char *)),
              this, SLOT (processGlobalSettingChange (const char *, const char *)));
+    connect(&vboxProblem(), SIGNAL(sigDownloaderUserManualCreated()), this, SLOT(sltDownloaderUserManualEmbed()));
 #ifdef Q_WS_MAC
+    connect(pDockPreviewModeGroup, SIGNAL(triggered(QAction*)),
+            this, SLOT(sltDockPreviewModeChanged(QAction*)));
     connect (&vboxGlobal(), SIGNAL (dockIconUpdateChanged (const VBoxChangeDockIconUpdateEvent &)),
              this, SLOT (changeDockIconUpdate (const VBoxChangeDockIconUpdateEvent &)));
     connect (&vboxGlobal(), SIGNAL (presentationModeChanged (const VBoxChangePresentationModeEvent &)),
@@ -771,6 +711,24 @@ VBoxConsoleWnd::~VBoxConsoleWnd()
     dbgDestroy();
 #endif
 }
+
+#ifdef Q_WS_MAC
+void VBoxConsoleWnd::sltDockPreviewModeChanged(QAction *pAction)
+{
+    if (mConsole)
+    {
+        CMachine machine = mSession.GetMachine();
+        if (!machine.isNull())
+        {
+            if (pAction == m_pDockDisablePreview)
+                machine.SetExtraData(VBoxDefs::GUI_RealtimeDockIconUpdateEnabled, "false");
+            else if (pAction == m_pDockEnablePreviewMonitor)
+                machine.SetExtraData(VBoxDefs::GUI_RealtimeDockIconUpdateEnabled, "true");
+            mConsole->updateDockOverlay();
+        }
+    }
+}
+#endif /* Q_WS_MAC */
 
 /**
  *  Opens a new console view to interact with a given VM.
@@ -954,7 +912,9 @@ bool VBoxConsoleWnd::openView (const CSession &aSession)
 
     /* initialize usb stuff */
     CUSBController usbctl = machine.GetUSBController();
-    if (usbctl.isNull())
+    if (   usbctl.isNull()
+        || !usbctl.GetEnabled()
+        || !usbctl.GetProxyAvailable())
     {
         /* hide usb_menu & usb_separator & usb_status_led */
         mDevicesUSBMenu->menuAction()->setVisible (false);
@@ -962,10 +922,9 @@ bool VBoxConsoleWnd::openView (const CSession &aSession)
     }
     else
     {
-        bool isUSBEnabled = usbctl.GetEnabled();
-        mDevicesUSBMenu->setEnabled (isUSBEnabled);
+        mDevicesUSBMenu->setEnabled (true);
         mDevicesUSBMenu->setConsole (console);
-        mUSBLed->setState (isUSBEnabled ? KDeviceActivity_Idle : KDeviceActivity_Null);
+        mUSBLed->setState (true);
     }
 
     /* initialize vrdp stuff */
@@ -983,6 +942,8 @@ bool VBoxConsoleWnd::openView (const CSession &aSession)
     /* start an idle timer that will update device lighths */
     connect (mIdleTimer, SIGNAL (timeout()), SLOT (updateDeviceLights()));
     mIdleTimer->start (50);
+    connect (mNetworkTimer, SIGNAL (timeout()), SLOT (updateNetworkIPs()));
+    mNetworkTimer->start (5000);
 
     connect (mConsole, SIGNAL (mouseStateChanged (int)), this, SLOT (updateMouseState (int)));
     connect (mConsole, SIGNAL (keyboardStateChanged (int)), mHostkeyLed, SLOT (setState (int)));
@@ -996,9 +957,13 @@ bool VBoxConsoleWnd::openView (const CSession &aSession)
     connect (mConsole, SIGNAL (sharedFoldersChanged()), this, SLOT (updateSharedFoldersState()));
 
 #ifdef Q_WS_MAC
-    QString testStr = vboxGlobal().virtualBox().GetExtraData (VBoxDefs::GUI_RealtimeDockIconUpdateEnabled).toLower();
+    QString strTest = machine.GetExtraData(VBoxDefs::GUI_RealtimeDockIconUpdateEnabled).toLower();
     /* Default to true if it is an empty value */
-    bool f = (testStr.isEmpty() || testStr == "true");
+    bool f = (strTest.isEmpty() || strTest == "true");
+    if (f)
+        m_pDockEnablePreviewMonitor->setChecked(true);
+    else
+        m_pDockDisablePreview->setChecked(true);
     mConsole->setDockIconEnabled (f);
     mConsole->updateDockOverlay();
 #endif
@@ -1061,87 +1026,6 @@ void VBoxConsoleWnd::popupMainMenu (bool aCenter)
 #ifdef Q_WS_WIN
     mMainMenu->activateWindow();
 #endif
-}
-
-void VBoxConsoleWnd::installGuestAdditionsFrom (const QString &aSource)
-{
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-    QString uuid;
-
-    CMedium image = vbox.FindDVDImage (aSource);
-    if (image.isNull())
-    {
-        image = vbox.OpenDVDImage (aSource, uuid);
-        if (vbox.isOk())
-            uuid = image.GetId();
-    }
-    else
-        uuid = image.GetId();
-
-    if (!vbox.isOk())
-        return vboxProblem().cannotOpenMedium (this, vbox, VBoxDefs::MediumType_DVD, aSource);
-
-    Assert (!uuid.isNull());
-    CMachine m = mSession.GetMachine();
-
-    QString ctrName;
-    LONG ctrPort = -1, ctrDevice = -1;
-    /* Searching for the first suitable slot */
-    {
-        CStorageControllerVector controllers = m.GetStorageControllers();
-        int i = 0;
-        while (i < controllers.size() && ctrName.isNull())
-        {
-            CStorageController controller = controllers [i];
-            CMediumAttachmentVector attachments = m.GetMediumAttachmentsOfController (controller.GetName());
-            int j = 0;
-            while (j < attachments.size() && ctrName.isNull())
-            {
-                CMediumAttachment attachment = attachments [j];
-                if (attachment.GetType() == KDeviceType_DVD)
-                {
-                    ctrName = controller.GetName();
-                    ctrPort = attachment.GetPort();
-                    ctrDevice = attachment.GetDevice();
-                }
-                ++ j;
-            }
-            ++ i;
-        }
-    }
-
-    if (!ctrName.isNull())
-    {
-        bool isMounted = false;
-
-        /* Mount medium to the predefined port/device */
-        m.MountMedium (ctrName, ctrPort, ctrDevice, uuid, false /* force */);
-        if (m.isOk())
-            isMounted = true;
-        else
-        {
-            /* Ask for force mounting */
-            if (vboxProblem().cannotRemountMedium (this, m, VBoxMedium (image, VBoxDefs::MediumType_DVD), true /* mount? */, true /* retry? */) == QIMessageBox::Ok)
-            {
-                /* Force mount medium to the predefined port/device */
-                m.MountMedium (ctrName, ctrPort, ctrDevice, uuid, true /* force */);
-                if (m.isOk())
-                    isMounted = true;
-                else
-                    vboxProblem().cannotRemountMedium (this, m, VBoxMedium (image, VBoxDefs::MediumType_DVD), true /* mount? */, false /* retry? */);
-            }
-        }
-
-        /* Save medium mounted at runtime */
-        if (isMounted && mIsAutoSaveMedia)
-        {
-            m.SaveSettings();
-            if (!m.isOk())
-                vboxProblem().cannotSaveMachineSettings (m);
-        }
-    }
-    else
-        vboxProblem().cannotMountGuestAdditions (m.GetName());
 }
 
 void VBoxConsoleWnd::setMask (const QRegion &aRegion)
@@ -1353,166 +1237,199 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *aEvent)
         case KMachineState_Paused:
         case KMachineState_TeleportingPausedVM: /** @todo Live Migration: Check out this. */
         case KMachineState_Stuck:
-            /* Start with ignoring the close event */
+            /* Start with ignoring the close event: */
             aEvent->ignore();
 
-            bool isACPIEnabled = mSession.GetConsole().GetGuestEnteredACPIMode();
+            /* Get the machine: */
+            CMachine machine = session().GetMachine();
 
+            /* Prepare close dialog: */
+            VBoxCloseVMDlg dlg (this);
+
+            /* Assign close-dialog pixmap: */
+            dlg.pmIcon->setPixmap (vboxGlobal().vmGuestOSTypeIcon (machine.GetOSTypeId()));
+
+            /* Check which close actions are disallowed: */
+            QStringList restictedActionsList = machine.GetExtraData(VBoxDefs::GUI_RestrictedCloseActions).split(',');
+            bool fIsStateSavingAllowed = !restictedActionsList.contains("SaveState", Qt::CaseInsensitive);
+            bool fIsACPIShutdownAllowed = !restictedActionsList.contains("Shutdown", Qt::CaseInsensitive);
+            bool fIsPowerOffAllowed = !restictedActionsList.contains("PowerOff", Qt::CaseInsensitive);
+            bool fIsPowerOffAndRestoreAllowed = fIsPowerOffAllowed && !restictedActionsList.contains("Restore", Qt::CaseInsensitive);
+
+            /* Make Save State button visible/hidden depending on restriction: */
+            dlg.mRbSave->setVisible(fIsStateSavingAllowed);
+            dlg.mTxSave->setVisible(fIsStateSavingAllowed);
+            /* Make Save State button enabled/disabled depending on machine state: */
+            dlg.mRbSave->setEnabled(mMachineState != KMachineState_Stuck);
+
+            /* Make ACPI shutdown button visible/hidden depending on restriction: */
+            dlg.mRbShutdown->setVisible(fIsACPIShutdownAllowed);
+            dlg.mTxShutdown->setVisible(fIsACPIShutdownAllowed);
+            /* Make ACPI shutdown button enabled/disabled depending on ACPI state & machine state: */
+            bool isACPIEnabled = session().GetConsole().GetGuestEnteredACPIMode();
+            dlg.mRbShutdown->setEnabled(isACPIEnabled && mMachineState != KMachineState_Stuck);
+
+            /* Make Power Off button visible/hidden depending on restriction: */
+            dlg.mRbPowerOff->setVisible(fIsPowerOffAllowed);
+            dlg.mTxPowerOff->setVisible(fIsPowerOffAllowed);
+
+            /* Make the Restore Snapshot checkbox visible/hidden depending on snapshots count & restrictions: */
+            dlg.mCbDiscardCurState->setVisible(fIsPowerOffAndRestoreAllowed && machine.GetSnapshotCount() > 0);
+            if (!machine.GetCurrentSnapshot().isNull())
+                dlg.mCbDiscardCurState->setText(dlg.mCbDiscardCurState->text().arg(machine.GetCurrentSnapshot().GetName()));
+
+            /* Read the last user's choice for the given VM */
+            QStringList lastAction = machine.GetExtraData (VBoxDefs::GUI_LastCloseAction).split (',');
+
+            /* Check which button should be initially chosen: */
+            QRadioButton *pRadioButton = 0;
+
+            /* If chosing 'last choice' is possible: */
+            if (lastAction[0] == kSave && fIsStateSavingAllowed)
+            {
+                pRadioButton = dlg.mRbSave;
+            }
+            else if (lastAction[0] == kShutdown && fIsACPIShutdownAllowed && isACPIEnabled)
+            {
+                pRadioButton = dlg.mRbShutdown;
+            }
+            else if (lastAction[0] == kPowerOff && fIsPowerOffAllowed)
+            {
+                pRadioButton = dlg.mRbPowerOff;
+                if (fIsPowerOffAndRestoreAllowed)
+                    dlg.mCbDiscardCurState->setChecked(lastAction.count() > 1 && lastAction[1] == kDiscardCurState);
+            }
+            /* Else 'default choice' will be used: */
+            else
+            {
+                if (fIsACPIShutdownAllowed && isACPIEnabled)
+                    pRadioButton = dlg.mRbShutdown;
+                else if (fIsPowerOffAllowed)
+                    pRadioButton = dlg.mRbPowerOff;
+                else if (fIsStateSavingAllowed)
+                    pRadioButton = dlg.mRbSave;
+            }
+
+            /* If some radio button was chosen: */
+            if (pRadioButton)
+            {
+                /* Check and focus it: */
+                pRadioButton->setChecked(true);
+                pRadioButton->setFocus();
+            }
+            /* If no one of radio buttons was chosen: */
+            else
+            {
+                /* Just leave: */
+                return;
+            }
+
+            /* This flag will keep the status of every further logical operation: */
             bool success = true;
 
-            bool wasPaused = mMachineState == KMachineState_Paused
-                          || mMachineState == KMachineState_Stuck
-                          || mMachineState == KMachineState_TeleportingPausedVM;
-            if (!wasPaused)
-            {
-                /* Suspend the VM and ignore the close event if failed to do so.
-                 * pause() will show the error message to the user. */
+            /* This flag will remember if we are going to close VM: */
+            bool fCloseVM = false;
+
+            /* Pause before showing dialog if necessary: */
+            bool fWasPaused = mMachineState == KMachineState_Paused ||
+                              mMachineState == KMachineState_TeleportingPausedVM ||
+                              mMachineState == KMachineState_Stuck;
+            if (!fWasPaused)
                 success = mConsole->pause (true);
-            }
 
             if (success)
             {
-                success = false;
-
-                CMachine machine = mSession.GetMachine();
-                VBoxCloseVMDlg dlg (this);
-                QString typeId = machine.GetOSTypeId();
-                dlg.pmIcon->setPixmap (vboxGlobal().vmGuestOSTypeIcon (typeId));
-
-                /* Make the Discard checkbox invisible if there are no snapshots */
-                dlg.mCbDiscardCurState->setVisible (machine.GetSnapshotCount() > 0);
-                if (!machine.GetCurrentSnapshot().isNull())
-                    dlg.mCbDiscardCurState->setText (dlg.mCbDiscardCurState->text().arg (machine.GetCurrentSnapshot().GetName()));
-
-                if (mMachineState != KMachineState_Stuck)
-                {
-                    /* Read the last user's choice for the given VM */
-                    QStringList lastAction = machine.GetExtraData (VBoxDefs::GUI_LastCloseAction).split (',');
-                    AssertWrapperOk (machine);
-                    if (lastAction [0] == kSave)
-                    {
-                        dlg.mRbShutdown->setEnabled (isACPIEnabled);
-                        dlg.mRbSave->setChecked (true);
-                        dlg.mRbSave->setFocus();
-                    }
-                    else if (lastAction [0] == kPowerOff || !isACPIEnabled)
-                    {
-                        dlg.mRbShutdown->setEnabled (isACPIEnabled);
-                        dlg.mRbPowerOff->setChecked (true);
-                        dlg.mRbPowerOff->setFocus();
-                    }
-                    else /* The default is ACPI Shutdown */
-                    {
-                        dlg.mRbShutdown->setChecked (true);
-                        dlg.mRbShutdown->setFocus();
-                    }
-                    dlg.mCbDiscardCurState->setChecked (lastAction.count() > 1 && lastAction [1] == kDiscardCurState);
-                }
-                else
-                {
-                    /* The stuck VM can only be powered off; disable anything else and choose PowerOff */
-                    dlg.mRbSave->setEnabled (false);
-                    dlg.mRbShutdown->setEnabled (false);
-                    dlg.mRbPowerOff->setChecked (true);
-                }
-
-                bool wasShutdown = false;
-
                 if (dlg.exec() == QDialog::Accepted)
                 {
                     /* Disable auto closure because we want to have a chance to show
                      * the error dialog on save state / power off failure. */
                     mNoAutoClose = true;
 
-                    CConsole console = mConsole->console();
+                    /* Get current console: */
+                    CConsole console = session().GetConsole();
+
+                    success = false;
 
                     if (dlg.mRbSave->isChecked())
                     {
                         CProgress progress = console.SaveState();
 
-                        if (console.isOk())
+                        if (!console.isOk())
+                            vboxProblem().cannotSaveMachineState (console);
+                        else
                         {
-                            /* Show the "VM saving" progress dialog */
+                            /* Show the "VM saving" progress dialog: */
                             vboxProblem().showModalProgressDialog (progress, machine.GetName(), this, 0);
                             if (progress.GetResultCode() != 0)
                                 vboxProblem().cannotSaveMachineState (progress);
                             else
                                 success = true;
                         }
-                        else
-                            vboxProblem().cannotSaveMachineState (console);
+
+                        if (success)
+                            fCloseVM = true;
                     }
                     else if (dlg.mRbShutdown->isChecked())
                     {
-                        /* Unpause the VM to let it grab the ACPI shutdown event */
+                        /* Unpause the VM to let it grab the ACPI shutdown event: */
                         mConsole->pause (false);
-                        /* Prevent the subsequent unpause request */
-                        wasPaused = true;
-                        /* Signal ACPI shutdown (if there is no ACPI device, the
-                         * operation will fail) */
+                        /* Prevent the subsequent unpause request: */
+                        fWasPaused = true;
+                        /* Signal ACPI shutdown (if there is no ACPI device, the operation will fail): */
                         console.PowerButton();
-                        wasShutdown = console.isOk();
-                        if (!wasShutdown)
+                        if (!console.isOk())
                             vboxProblem().cannotACPIShutdownMachine (console);
-                        /* Success is always false because we never accept the close
-                         * window action when doing ACPI shutdown */
-                        success = false;
+                        else
+                            success = true;
                     }
                     else if (dlg.mRbPowerOff->isChecked())
                     {
                         CProgress progress = console.PowerDown();
 
-                        if (console.isOk())
+                        if (!console.isOk())
+                            vboxProblem().cannotStopMachine (console);
+                        else
                         {
-                            /* Show the power down progress dialog */
+                            /* Show the power down progress dialog: */
                             vboxProblem().showModalProgressDialog (progress, machine.GetName(), this);
                             if (progress.GetResultCode() != 0)
                                 vboxProblem().cannotStopMachine (progress);
                             else
                                 success = true;
                         }
-                        else
-                            vboxProblem().cannotStopMachine (console);
 
                         if (success)
                         {
-                            /* Note: leave success = true even if we fail to
-                             * discard the current state later -- the console window
-                             * will closed anyway */
-
-                            /* Discard the current state if requested */
+                            /* Discard the current state if requested: */
                             if (dlg.mCbDiscardCurState->isChecked() && dlg.mCbDiscardCurState->isVisibleTo (&dlg))
                             {
                                 CSnapshot snapshot = machine.GetCurrentSnapshot();
                                 CProgress progress = console.RestoreSnapshot (snapshot);
-                                if (console.isOk())
+                                if (!console.isOk())
+                                    vboxProblem().cannotRestoreSnapshot (console, snapshot.GetName());
+                                else
                                 {
-                                    /* Show the progress dialog */
+                                    /* Show the progress dialog: */
                                     vboxProblem().showModalProgressDialog (progress, machine.GetName(), this);
                                     if (progress.GetResultCode() != 0)
                                         vboxProblem().cannotRestoreSnapshot (progress, snapshot.GetName());
                                 }
-                                else
-                                    vboxProblem().cannotRestoreSnapshot (console, snapshot.GetName());
                             }
                         }
+
+                        if (success)
+                            fCloseVM = true;
                     }
 
                     if (success)
                     {
-                        /* Accept the close action on success */
-                        aEvent->accept();
-                    }
-
-                    if (success || wasShutdown)
-                    {
-                        /* Read the last user's choice for the given VM */
+                        /* Read the last user's choice for the given VM: */
                         QStringList prevAction = machine.GetExtraData (VBoxDefs::GUI_LastCloseAction).split (',');
-                        /* Memorize the last user's choice for the given VM */
+                        /* Memorize the last user's choice for the given VM: */
                         QString lastAction = kPowerOff;
                         if (dlg.mRbSave->isChecked())
                             lastAction = kSave;
-                        else if (dlg.mRbShutdown->isChecked() ||
+                        else if ((dlg.mRbShutdown->isChecked()) ||
                                  (dlg.mRbPowerOff->isChecked() && prevAction [0] == kShutdown && !isACPIEnabled))
                             lastAction = kShutdown;
                         else if (dlg.mRbPowerOff->isChecked())
@@ -1522,18 +1439,23 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *aEvent)
                         if (dlg.mCbDiscardCurState->isChecked())
                             (lastAction += ",") += kDiscardCurState;
                         machine.SetExtraData (VBoxDefs::GUI_LastCloseAction, lastAction);
-                        AssertWrapperOk (machine);
                     }
+
+                    if (fCloseVM)
+                    {
+                        /* Accept the close action if necessary: */
+                        aEvent->accept();
+                    }
+
+                    /* Enable auto closure again: */
+                    mNoAutoClose = false;
                 }
             }
 
-            mNoAutoClose = false;
-
-            if (   mMachineState == KMachineState_PoweredOff
-                || mMachineState == KMachineState_Saved
-                || mMachineState == KMachineState_Teleported
-                || mMachineState == KMachineState_Aborted
-               )
+            if (mMachineState == KMachineState_PoweredOff ||
+                mMachineState == KMachineState_Saved ||
+                mMachineState == KMachineState_Teleported ||
+                mMachineState == KMachineState_Aborted)
             {
                 /* The machine has been stopped while showing the Close or the Pause
                  * failure dialog -- accept the close event immediately. */
@@ -1541,13 +1463,11 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *aEvent)
             }
             else
             {
-                if (!success)
-                {
-                    /* Restore the running state if needed */
-                    if (!wasPaused && mMachineState == KMachineState_Paused)
-                        mConsole->pause (false);
-                }
+                /* Restore the running state if needed: */
+                if (success && !fCloseVM && !fWasPaused && mMachineState == KMachineState_Paused)
+                    mConsole->pause (false);
             }
+
             break;
     }
 
@@ -1557,14 +1477,17 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *aEvent)
         vboxGlobal().selectorWnd().show();
 #endif
 
-        /* Stop LED update timer */
+        /* Stop LED update timer: */
         mIdleTimer->stop();
         mIdleTimer->disconnect (SIGNAL (timeout()), this, SLOT (updateDeviceLights()));
+        /* Stop Network timer: */
+        mNetworkTimer->stop();
+        mNetworkTimer->disconnect (SIGNAL (timeout()), this, SLOT (updateNetworkIPs()));
 
-        /* Hide console window */
+        /* Hide console window: */
         hide();
 
-        /* Save the position of the window and some options */
+        /* Save the position of the window and some options: */
         CMachine machine = mSession.GetMachine();
         QString winPos = QString ("%1,%2,%3,%4")
             .arg (mNormalGeo.x()).arg (mNormalGeo.y())
@@ -1584,14 +1507,14 @@ void VBoxConsoleWnd::closeEvent (QCloseEvent *aEvent)
                               mMiniToolBar->isAutoHide() ? "on" : "off");
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
-        /* Close & destroy the debugger GUI */
+        /* Close & destroy the debugger GUI: */
         dbgDestroy();
 #endif
 
-        /* Make sure all events are delievered */
+        /* Make sure all events are delivered: */
         qApp->processEvents();
 
-        /* Notify all the top-level dialogs about closing */
+        /* Notify all the top-level dialogs about closing: */
         emit closing();
     }
 
@@ -1630,7 +1553,7 @@ void VBoxConsoleWnd::retranslateUi()
 #ifdef VBOX_OSE
     mCaptionPrefix = tr ("VirtualBox OSE");
 #else
-    mCaptionPrefix = tr ("Sun VirtualBox");
+    mCaptionPrefix = VBOX_PRODUCT;
 #endif
 
 #ifdef VBOX_BLEEDING_EDGE
@@ -1754,6 +1677,12 @@ void VBoxConsoleWnd::retranslateUi()
     mHelpMenu->setTitle (tr ("&Help"));
     // mHelpMenu->setIcon (VBoxGlobal::iconSet (":/help_16px.png"));
 
+#ifdef Q_WS_MAC
+    m_pDockSettingsMenu->setTitle(tr("Dock Icon"));
+    m_pDockDisablePreview->setText(tr("Show Application Icon"));
+    m_pDockEnablePreviewMonitor->setText(tr("Show Monitor Preview"));
+#endif /* Q_WS_MAC */
+
     /* Status bar widgets */
     mMouseLed->setToolTip (
         tr ("Indicates whether the host mouse pointer is captured by the guest OS:<br>"
@@ -1797,12 +1726,20 @@ void VBoxConsoleWnd::finalizeOpenView()
 
     if (mIsFirstTimeStarted)
     {
-        VBoxVMFirstRunWzd wzd (machine, this);
+        UIFirstRunWzd wzd (this, machine);
         wzd.exec();
 
         /* Remove GUI_FirstRun extra data key from the machine settings
          * file after showing the wizard once. */
         machine.SetExtraData (VBoxDefs::GUI_FirstRun, QString::null);
+    }
+
+    bool fFullscreenActivated = false;
+    QString str = machine.GetExtraData (VBoxDefs::GUI_Fullscreen);
+    if (str == "on")
+    {
+        mVmFullscreenAction->setChecked (true);
+        fFullscreenActivated = true;
     }
 
     /* Start the VM */
@@ -1812,7 +1749,8 @@ void VBoxConsoleWnd::finalizeOpenView()
     /* Check for an immediate failure */
     if (!console.isOk())
     {
-        vboxProblem().cannotStartMachine (console);
+        if (vboxGlobal().showStartVMErrors())
+            vboxProblem().cannotStartMachine (console);
         /* close this window (this will call closeView()) */
         close();
 
@@ -1825,7 +1763,8 @@ void VBoxConsoleWnd::finalizeOpenView()
 
     /* Disable auto closure because we want to have a chance to show the
      * error dialog on startup failure */
-    mNoAutoClose = true;
+    if (vboxGlobal().showStartVMErrors())
+        mNoAutoClose = true;
 
     /* show the "VM starting / restoring" progress dialog */
 
@@ -1836,7 +1775,8 @@ void VBoxConsoleWnd::finalizeOpenView()
 
     if (progress.GetResultCode() != 0)
     {
-        vboxProblem().cannotStartMachine (progress);
+        if (vboxGlobal().showStartVMErrors())
+            vboxProblem().cannotStartMachine (progress);
         /* close this window (this will call closeView()) */
         close();
 
@@ -1845,7 +1785,8 @@ void VBoxConsoleWnd::finalizeOpenView()
         return;
     }
 
-    mNoAutoClose = false;
+    if (vboxGlobal().showStartVMErrors())
+        mNoAutoClose = false;
 
     /* Check if we missed a really quick termination after successful
      * startup, and process it if we did. */
@@ -1862,9 +1803,8 @@ void VBoxConsoleWnd::finalizeOpenView()
 
     /* Currently the machine is started and the guest API could be used...
      * Checking if the fullscreen mode should be activated */
-    QString str = machine.GetExtraData (VBoxDefs::GUI_Fullscreen);
-    if (str == "on")
-        mVmFullscreenAction->setChecked (true);
+    if (fFullscreenActivated)
+        mConsole->toggleFSMode (mConsole->size());
 
     /* If seamless mode should be enabled then check if it is enabled
      * currently and re-enable it if seamless is supported */
@@ -1977,7 +1917,7 @@ void VBoxConsoleWnd::vmAutoresizeGuest (bool on)
     mAutoresizeLed->setState (on ? 3 : 1);
 #endif
 
-    mConsole->setAutoresizeGuest (on);
+    mConsole->setAutoresizeGuest (on, true);
 }
 
 void VBoxConsoleWnd::vmAdjustWindow()
@@ -2189,10 +2129,20 @@ void VBoxConsoleWnd::devicesInstallGuestAdditions()
         QString target = QDir (vboxGlobal().virtualBox().GetHomeFolder())
                                .absoluteFilePath (name);
 
-        VBoxAdditionsDownloader *dl =
-            new VBoxAdditionsDownloader (source, target, mDevicesInstallGuestToolsAction);
-        statusBar()->addWidget (dl, 0);
-        dl->start();
+        UIDownloaderAdditions *pDl = UIDownloaderAdditions::create();
+        /* Configure the additions downloader. */
+        pDl->setSource(source);
+        pDl->setTarget(target);
+        pDl->setAction(mDevicesInstallGuestToolsAction);
+        pDl->setParentWidget(this);
+        /* After the download is finished the user may like to install the
+         * additions.*/
+        connect(pDl, SIGNAL(downloadFinished(const QString&)),
+                this, SLOT(installGuestAdditionsFrom(const QString&)));
+        /* Add the progress bar widget to the statusbar. */
+        statusBar()->addWidget(pDl->processWidget(this), 0);
+        /* Start the download: */
+        pDl->startDownload();
     }
 }
 
@@ -2582,6 +2532,11 @@ void VBoxConsoleWnd::updateDeviceLights()
     }
 }
 
+void VBoxConsoleWnd::updateNetworkIPs()
+{
+    updateAppearanceOf(NetworkStuff);
+}
+
 void VBoxConsoleWnd::updateMachineState (KMachineState aState)
 {
     bool guruMeditation = false;
@@ -2672,8 +2627,12 @@ void VBoxConsoleWnd::updateMachineState (KMachineState aState)
         QString fname = logFolder + "/VBox.png";
 
         CDisplay dsp = console.GetDisplay();
-        QImage shot = QImage (dsp.GetWidth(), dsp.GetHeight(), QImage::Format_RGB32);
-        dsp.TakeScreenShot (shot.bits(), shot.width(), shot.height());
+        ULONG width = 0;
+        ULONG height = 0;
+        ULONG bpp = 0;
+        dsp.GetScreenResolution(0, width, height, bpp);
+        QImage shot = QImage (width, height, QImage::Format_RGB32);
+        dsp.TakeScreenShot (0, shot.bits(), shot.width(), shot.height());
         shot.save (QFile::encodeName (fname), "PNG");
 
         if (vboxProblem().remindAboutGuruMeditation (console, QDir::toNativeSeparators (logFolder)))
@@ -2724,7 +2683,7 @@ void VBoxConsoleWnd::updateAdditionsState (const QString &aVersion,
         if (mVmSeamlessAction->isChecked() && mIsOpenViewFinished && aSeamlessSupported && aGraphicsSupported)
             toggleFullscreenMode (true, true);
         /* Disable auto-resizing if advanced graphics are not available */
-        mConsole->setAutoresizeGuest (mIsGraphicsSupported && mVmAutoresizeGuestAction->isChecked());
+        mConsole->setAutoresizeGuest (mIsGraphicsSupported && mVmAutoresizeGuestAction->isChecked(), false);
         mVmAutoresizeGuestAction->setEnabled (mIsGraphicsSupported);
     }
 
@@ -2886,6 +2845,94 @@ void VBoxConsoleWnd::processGlobalSettingChange (const char * /* aPublicName */,
     mHostkeyName->setText (QIHotKeyEdit::keyName (vboxGlobal().settings().hostKey()));
 }
 
+void VBoxConsoleWnd::installGuestAdditionsFrom (const QString &aSource)
+{
+    CVirtualBox vbox = vboxGlobal().virtualBox();
+    QString uuid;
+
+    CMedium image = vbox.FindDVDImage (aSource);
+    if (image.isNull())
+    {
+        image = vbox.OpenDVDImage (aSource, uuid);
+        if (vbox.isOk())
+            uuid = image.GetId();
+    }
+    else
+        uuid = image.GetId();
+
+    if (!vbox.isOk())
+        return vboxProblem().cannotOpenMedium (this, vbox, VBoxDefs::MediumType_DVD, aSource);
+
+    Assert (!uuid.isNull());
+    CMachine m = mSession.GetMachine();
+
+    QString ctrName;
+    LONG ctrPort = -1, ctrDevice = -1;
+    /* Searching for the first suitable slot */
+    {
+        CStorageControllerVector controllers = m.GetStorageControllers();
+        int i = 0;
+        while (i < controllers.size() && ctrName.isNull())
+        {
+            CStorageController controller = controllers [i];
+            CMediumAttachmentVector attachments = m.GetMediumAttachmentsOfController (controller.GetName());
+            int j = 0;
+            while (j < attachments.size() && ctrName.isNull())
+            {
+                CMediumAttachment attachment = attachments [j];
+                if (attachment.GetType() == KDeviceType_DVD)
+                {
+                    ctrName = controller.GetName();
+                    ctrPort = attachment.GetPort();
+                    ctrDevice = attachment.GetDevice();
+                }
+                ++ j;
+            }
+            ++ i;
+        }
+    }
+
+    if (!ctrName.isNull())
+    {
+        bool isMounted = false;
+
+        /* Mount medium to the predefined port/device */
+        m.MountMedium (ctrName, ctrPort, ctrDevice, uuid, false /* force */);
+        if (m.isOk())
+            isMounted = true;
+        else
+        {
+            /* Ask for force mounting */
+            if (vboxProblem().cannotRemountMedium (this, m, VBoxMedium (image, VBoxDefs::MediumType_DVD), true /* mount? */, true /* retry? */) == QIMessageBox::Ok)
+            {
+                /* Force mount medium to the predefined port/device */
+                m.MountMedium (ctrName, ctrPort, ctrDevice, uuid, true /* force */);
+                if (m.isOk())
+                    isMounted = true;
+                else
+                    vboxProblem().cannotRemountMedium (this, m, VBoxMedium (image, VBoxDefs::MediumType_DVD), true /* mount? */, false /* retry? */);
+            }
+        }
+
+        /* Save medium mounted at runtime */
+        if (isMounted && mIsAutoSaveMedia)
+        {
+            m.SaveSettings();
+            if (!m.isOk())
+                vboxProblem().cannotSaveMachineSettings (m);
+        }
+    }
+    else
+        vboxProblem().cannotMountGuestAdditions (m.GetName());
+}
+
+void VBoxConsoleWnd::sltDownloaderUserManualEmbed()
+{
+    /* If there is User Manual downloader created => show the process bar: */
+    if (UIDownloaderUserManual *pDl = UIDownloaderUserManual::current())
+        statusBar()->addWidget(pDl->processWidget(this), 0);
+}
+
 /**
  *  This function checks the status of required features and
  *  makes a warning and/or some action if something necessary
@@ -2908,13 +2955,15 @@ void VBoxConsoleWnd::checkRequiredFeatures()
     if (fRecommendVirtEx && !isVirtEnabled)
     {
         bool ret;
+        bool fVTxAMDVSupported = vboxGlobal().virtualBox().GetHost()
+                                 .GetProcessorFeature (KProcessorFeature_HWVirtEx);
 
         vmPause (true);
 
         if (is64BitsGuest)
-            ret = vboxProblem().warnAboutVirtNotEnabled64BitsGuest();
+            ret = vboxProblem().warnAboutVirtNotEnabled64BitsGuest(fVTxAMDVSupported);
         else
-            ret = vboxProblem().warnAboutVirtNotEnabledGuestRequired();
+            ret = vboxProblem().warnAboutVirtNotEnabledGuestRequired(fVTxAMDVSupported);
 
         if (ret == true)
             close();
@@ -3072,16 +3121,30 @@ void VBoxConsoleWnd::updateAppearanceOf (int aElement)
                            "network interfaces:</nobr>%1</p>", "Network adapters tooltip");
         QString info;
 
-        for (ulong slot = 0; slot < maxCount; ++ slot)
+        for (ulong slot = 0, uEnabled = 0; slot < maxCount; ++ slot)
         {
-            CNetworkAdapter adapter = machine.GetNetworkAdapter (slot);
+            const CNetworkAdapter &adapter = machine.GetNetworkAdapter (slot);
             if (adapter.GetEnabled())
-                info += tr ("<br><nobr><b>Adapter %1 (%2)</b>: cable %3</nobr>", "Network adapters tooltip")
+            {
+                QString strFlags;
+                QString strCount;
+                ULONG64 timestamp;
+                machine.GetGuestProperty("/VirtualBox/GuestInfo/Net/Count", strCount, timestamp, strFlags);
+                RTTIMESPEC time;
+                uint64_t u64Now = RTTimeSpecGetNano(RTTimeNow(&time));
+                QString strIP;
+                if (   u64Now - timestamp < UINT64_C(60000000000)
+                    && strCount.toInt() > 0)
+                    strIP = machine.GetGuestPropertyValue(QString("/VirtualBox/GuestInfo/Net/%1/V4/IP").arg(uEnabled));
+                info += tr ("<br><nobr><b>Adapter %1 (%2)</b>: %3 cable %4</nobr>", "Network adapters tooltip")
                     .arg (slot + 1)
                     .arg (vboxGlobal().toString (adapter.GetAttachmentType()))
+                    .arg (strIP.isEmpty() ? "" : "IP " + strIP + ", ")
                     .arg (adapter.GetCableConnected() ?
                           tr ("connected", "Network adapters tooltip") :
                           tr ("disconnected", "Network adapters tooltip"));
+                uEnabled++;
+            }
         }
 
         if (info.isNull())
@@ -3242,7 +3305,7 @@ void VBoxConsoleWnd::updateAppearanceOf (int aElement)
             || mMachineState == KMachineState_Teleporting
             || mMachineState == KMachineState_LiveSnapshotting
            )
-            mVmDisableMouseIntegrAction->setEnabled (mConsole->isMouseAbsolute());
+            mVmDisableMouseIntegrAction->setEnabled (mConsole->mouseCanAbsolute() && mConsole->mouseCanRelative() && !mConsole->mouseNeedsHostCursor());
         else
             mVmDisableMouseIntegrAction->setEnabled (false);
     }
@@ -3267,7 +3330,10 @@ bool VBoxConsoleWnd::toggleFullscreenMode (bool aOn, bool aSeamless)
         ULONG64 availBits = mSession.GetMachine().GetVRAMSize() /* vram */
                           * _1M /* mb to bytes */
                           * 8; /* to bits */
-        ULONG guestBpp = mConsole->console().GetDisplay().GetBitsPerPixel();
+        ULONG width = 0;
+        ULONG height = 0;
+        ULONG guestBpp = 0;
+        mConsole->console().GetDisplay().GetScreenResolution(0, width, height, guestBpp);
         ULONG64 usedBits = (screen.width() /* display width */
                          * screen.height() /* display height */
                          * guestBpp
@@ -3866,4 +3932,3 @@ void VBoxSFDialog::showEvent (QShowEvent *aEvent)
     QDialog::showEvent (aEvent);
 }
 
-#include "VBoxConsoleWnd.moc"

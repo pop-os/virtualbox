@@ -1,10 +1,10 @@
-/* $Id: tstIntNet-1.cpp $ */
+/* $Id: tstIntNet-1.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBox - Testcase for internal networking, simple NetFlt trunk creation.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,16 +13,14 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <VBox/intnet.h>
+#include <VBox/intnetinline.h>
+#include <VBox/pdmnetinline.h>
 #include <VBox/sup.h>
 #include <VBox/vmm.h>
 #include <VBox/err.h>
@@ -88,7 +86,7 @@ static void tstIntNetError(PRTSTREAM pErrStrm, const char *pszFormat, ...)
  * @param   cbFrame     The size of the ethernet frame.
  * @param   pErrStrm    The error stream.
  */
-static void tstIntNetTestFrame(void const *pvFrame, size_t cbFrame, PRTSTREAM pErrStrm)
+static void tstIntNetTestFrame(void const *pvFrame, size_t cbFrame, PRTSTREAM pErrStrm, bool fGso)
 {
     /*
      * Ethernet header.
@@ -112,7 +110,7 @@ static void tstIntNetTestFrame(void const *pvFrame, size_t cbFrame, PRTSTREAM pE
             g_cIpv4Pkts++;
 
             PCRTNETIPV4 pIpHdr = (PCRTNETIPV4)pbCur;
-            if (!RTNetIPv4IsHdrValid(pIpHdr, cbLeft, cbLeft))
+            if (!RTNetIPv4IsHdrValid(pIpHdr, cbLeft, cbLeft, !fGso /*fChecksum*/))
                 return tstIntNetError(pErrStrm, "RTNetIPv4IsHdrValid failed\n");
             pbCur += pIpHdr->ip_hl * 4;
             cbLeft -= pIpHdr->ip_hl * 4;
@@ -130,7 +128,7 @@ static void tstIntNetTestFrame(void const *pvFrame, size_t cbFrame, PRTSTREAM pE
                 {
                     g_cUdpPkts++;
                     PCRTNETUDP pUdpHdr = (PCRTNETUDP)pbCur;
-                    if (!RTNetIPv4IsUDPValid(pIpHdr, pUdpHdr, pUdpHdr + 1, cbLeft))
+                    if (!RTNetIPv4IsUDPValid(pIpHdr, pUdpHdr, pUdpHdr + 1, cbLeft, !fGso /*fChecksum*/))
                         return tstIntNetError(pErrStrm, "RTNetIPv4IsUDPValid failed\n");
                     pbCur += sizeof(*pUdpHdr);
                     cbLeft -= sizeof(*pUdpHdr);
@@ -149,7 +147,7 @@ static void tstIntNetTestFrame(void const *pvFrame, size_t cbFrame, PRTSTREAM pE
                 {
                     g_cTcpPkts++;
                     PCRTNETTCP pTcpHdr = (PCRTNETTCP)pbCur;
-                    if (!RTNetIPv4IsTCPValid(pIpHdr, pTcpHdr, cbLeft, NULL, cbLeft))
+                    if (!RTNetIPv4IsTCPValid(pIpHdr, pTcpHdr, cbLeft, NULL, cbLeft, !fGso /*fChecksum*/))
                         return tstIntNetError(pErrStrm, "RTNetIPv4IsTCPValid failed\n");
                     break;
                 }
@@ -162,99 +160,6 @@ static void tstIntNetTestFrame(void const *pvFrame, size_t cbFrame, PRTSTREAM pE
             g_cOtherPkts++;
             break;
     }
-}
-
-
-/**
- * Writes a frame packet to the buffer.
- *
- * @returns VBox status code.
- * @param   pBuf        The buffer.
- * @param   pRingBuf    The ring buffer to read from.
- * @param   pvFrame     The frame to write.
- * @param   cbFrame     The size of the frame.
- * @remark  This is the same as INTNETRingWriteFrame and drvIntNetRingWriteFrame.
- */
-static int tstIntNetWriteFrame(PINTNETBUF pBuf, PINTNETRINGBUF pRingBuf, const void *pvFrame, uint32_t cbFrame)
-{
-    /*
-     * Validate input.
-     */
-    Assert(pBuf);
-    Assert(pRingBuf);
-    Assert(pvFrame);
-    Assert(cbFrame >= sizeof(RTMAC) * 2);
-    uint32_t offWrite = pRingBuf->offWrite;
-    Assert(offWrite == RT_ALIGN_32(offWrite, sizeof(INTNETHDR)));
-    uint32_t offRead = pRingBuf->offRead;
-    Assert(offRead == RT_ALIGN_32(offRead, sizeof(INTNETHDR)));
-
-    const uint32_t cb = RT_ALIGN_32(cbFrame, sizeof(INTNETHDR));
-    if (offRead <= offWrite)
-    {
-        /*
-         * Try fit it all before the end of the buffer.
-         */
-        if (pRingBuf->offEnd - offWrite >= cb + sizeof(INTNETHDR))
-        {
-            PINTNETHDR pHdr = (PINTNETHDR)((uint8_t *)pBuf + offWrite);
-            pHdr->u16Type  = INTNETHDR_TYPE_FRAME;
-            pHdr->cbFrame  = cbFrame;
-            pHdr->offFrame = sizeof(INTNETHDR);
-
-            memcpy(pHdr + 1, pvFrame, cbFrame);
-
-            offWrite += cb + sizeof(INTNETHDR);
-            Assert(offWrite <= pRingBuf->offEnd && offWrite >= pRingBuf->offStart);
-            if (offWrite >= pRingBuf->offEnd)
-                offWrite = pRingBuf->offStart;
-            Log2(("WriteFrame: offWrite: %#x -> %#x (1)\n", pRingBuf->offWrite, offWrite));
-            ASMAtomicXchgU32(&pRingBuf->offWrite, offWrite);
-            return VINF_SUCCESS;
-        }
-
-        /*
-         * Try fit the frame at the start of the buffer.
-         * (The header fits before the end of the buffer because of alignment.)
-         */
-        AssertMsg(pRingBuf->offEnd - offWrite >= sizeof(INTNETHDR), ("offEnd=%x offWrite=%x\n", pRingBuf->offEnd, offWrite));
-        if (offRead - pRingBuf->offStart > cb) /* not >= ! */
-        {
-            PINTNETHDR  pHdr = (PINTNETHDR)((uint8_t *)pBuf + offWrite);
-            void       *pvFrameOut = (PINTNETHDR)((uint8_t *)pBuf + pRingBuf->offStart);
-            pHdr->u16Type  = INTNETHDR_TYPE_FRAME;
-            pHdr->cbFrame  = cbFrame;
-            pHdr->offFrame = (intptr_t)pvFrameOut - (intptr_t)pHdr;
-
-            memcpy(pvFrameOut, pvFrame, cbFrame);
-
-            offWrite = pRingBuf->offStart + cb;
-            ASMAtomicXchgU32(&pRingBuf->offWrite, offWrite);
-            Log2(("WriteFrame: offWrite: %#x -> %#x (2)\n", pRingBuf->offWrite, offWrite));
-            return VINF_SUCCESS;
-        }
-    }
-    /*
-     * The reader is ahead of the writer, try fit it into that space.
-     */
-    else if (offRead - offWrite > cb + sizeof(INTNETHDR)) /* not >= ! */
-    {
-        PINTNETHDR pHdr = (PINTNETHDR)((uint8_t *)pBuf + offWrite);
-        pHdr->u16Type  = INTNETHDR_TYPE_FRAME;
-        pHdr->cbFrame  = cbFrame;
-        pHdr->offFrame = sizeof(INTNETHDR);
-
-        memcpy(pHdr + 1, pvFrame, cbFrame);
-
-        offWrite += cb + sizeof(INTNETHDR);
-        ASMAtomicXchgU32(&pRingBuf->offWrite, offWrite);
-        Log2(("WriteFrame: offWrite: %#x -> %#x (3)\n", pRingBuf->offWrite, offWrite));
-        return VINF_SUCCESS;
-    }
-
-    /* (it didn't fit) */
-    /** @todo stats */
-    return VERR_BUFFER_OVERFLOW;
 }
 
 
@@ -286,7 +191,7 @@ static void doXmitFrame(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, PINTNETBUF 
     /*
      * Run in thru the frame validator to test the RTNet code.
      */
-    tstIntNetTestFrame(pvFrame, cbFrame, pFileText);
+    tstIntNetTestFrame(pvFrame, cbFrame, pFileText, false /*fGso*/);
 
     /*
      * Write the frame and push the queue.
@@ -294,7 +199,7 @@ static void doXmitFrame(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, PINTNETBUF 
      * Don't bother with dealing with overflows like DrvIntNet does, because
      * it's not supposed to happen here in this testcase.
      */
-    int rc = tstIntNetWriteFrame(pBuf, &pBuf->Send, pvFrame, (uint32_t)cbFrame);
+    int rc = IntNetRingWriteFrame(&pBuf->Send, pvFrame, cbFrame);
     if (RT_SUCCESS(rc))
     {
         if (pFileRaw)
@@ -302,7 +207,7 @@ static void doXmitFrame(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, PINTNETBUF 
     }
     else
     {
-        RTPrintf("tstIntNet-1: tstIntNetWriteFrame failed, %Rrc; cbFrame=%d pBuf->cbSend=%d\n", rc, cbFrame, pBuf->cbSend);
+        RTPrintf("tstIntNet-1: IntNetRingWriteFrame failed, %Rrc; cbFrame=%d pBuf->cbSend=%d\n", rc, cbFrame, pBuf->cbSend);
         g_cErrors++;
     }
 
@@ -554,14 +459,14 @@ static void doPacketSniffing(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, PINTNE
         /*
          * Process the receive buffer.
          */
-        while (INTNETRingGetReadable(pRingBuf) > 0)
+        PINTNETHDR pHdr;
+        while ((pHdr = IntNetRingGetNextFrameToRead(pRingBuf)))
         {
-            PINTNETHDR pHdr = (PINTNETHDR)((uintptr_t)pBuf + pRingBuf->offRead);
             if (pHdr->u16Type == INTNETHDR_TYPE_FRAME)
             {
                 size_t      cbFrame = pHdr->cbFrame;
-                const void *pvFrame = INTNETHdrGetFramePtr(pHdr, pBuf);
-                uint64_t    NanoTS = RTTimeNanoTS() - g_StartTS;
+                const void *pvFrame = IntNetHdrGetFramePtr(pHdr, pBuf);
+                uint64_t    NanoTS  = RTTimeNanoTS() - g_StartTS;
 
                 if (pFileRaw)
                     PcapStreamFrame(pFileRaw, g_StartTS, pvFrame, cbFrame, 0xffff);
@@ -572,7 +477,7 @@ static void doPacketSniffing(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, PINTNE
                                  NanoTS / 1000000000, (uint32_t)(NanoTS % 1000000000),
                                  cbFrame, &pEthHdr->DstMac, &pEthHdr->SrcMac, RT_BE2H_U16(pEthHdr->EtherType),
                                  !memcmp(&pEthHdr->DstMac, pSrcMac, sizeof(*pSrcMac)) ? " Mine!" : "");
-                tstIntNetTestFrame(pvFrame, cbFrame, pFileText);
+                tstIntNetTestFrame(pvFrame, cbFrame, pFileText, false /*fGso*/);
 
                 /* Loop for the DHCP reply. */
                 if (    cbFrame > 64
@@ -634,14 +539,43 @@ static void doPacketSniffing(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, PINTNE
                     }
                 }
             }
-            else
+            else if (pHdr->u16Type == INTNETHDR_TYPE_GSO)
+            {
+                PCPDMNETWORKGSO pGso    = IntNetHdrGetGsoContext(pHdr, pBuf);
+                size_t          cbFrame = pHdr->cbFrame;
+                if (PDMNetGsoIsValid(pGso, cbFrame, cbFrame - sizeof(*pGso)))
+                {
+                    const void *pvFrame = pGso + 1;
+                    uint64_t    NanoTS  = RTTimeNanoTS() - g_StartTS;
+                    cbFrame -= sizeof(pGso);
+
+                    if (pFileRaw)
+                        PcapStreamGsoFrame(pFileRaw, g_StartTS, pGso, pvFrame, cbFrame, 0xffff);
+
+                    PCRTNETETHERHDR pEthHdr = (PCRTNETETHERHDR)pvFrame;
+                    if (pFileText)
+                        RTStrmPrintf(pFileText, "%3RU64.%09u: cb=%04x dst=%.6Rhxs src=%.6Rhxs type=%04x%s [GSO]\n",
+                                     NanoTS / 1000000000, (uint32_t)(NanoTS % 1000000000),
+                                     cbFrame, &pEthHdr->DstMac, &pEthHdr->SrcMac, RT_BE2H_U16(pEthHdr->EtherType),
+                                     !memcmp(&pEthHdr->DstMac, pSrcMac, sizeof(*pSrcMac)) ? " Mine!" : "");
+                    tstIntNetTestFrame(pvFrame, cbFrame, pFileText, true /*fGso*/);
+                }
+                else
+                {
+                    RTPrintf("tstIntNet-1: Bad GSO frame: %Rhxs\n", sizeof(*pGso), pGso);
+                    STAM_REL_COUNTER_INC(&pBuf->cStatBadFrames);
+                    g_cErrors++;
+                }
+            }
+            else if (pHdr->u16Type != INTNETHDR_TYPE_PADDING)
             {
                 RTPrintf("tstIntNet-1: Unknown frame type %d\n", pHdr->u16Type);
+                STAM_REL_COUNTER_INC(&pBuf->cStatBadFrames);
                 g_cErrors++;
             }
 
             /* Advance to the next frame. */
-            INTNETRingSkipFrame(pBuf, pRingBuf);
+            IntNetRingSkipFrame(pRingBuf);
         }
     }
 
@@ -649,8 +583,8 @@ static void doPacketSniffing(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, PINTNE
     RTStrmPrintf(pFileText ? pFileText : g_pStdOut,
                  "%3RU64.%09u: stopped. cRecvs=%RU64 cbRecv=%RU64 cLost=%RU64 cOYs=%RU64 cNYs=%RU64\n",
                  NanoTS / 1000000000, (uint32_t)(NanoTS % 1000000000),
-                 pBuf->cStatRecvs.c,
-                 pBuf->cbStatRecv.c,
+                 pBuf->Recv.cStatFrames.c,
+                 pBuf->Recv.cbStatWritten.c,
                  pBuf->cStatLost.c,
                  pBuf->cStatYieldsOk.c,
                  pBuf->cStatYieldsNok.c
@@ -683,8 +617,6 @@ int main(int argc, char **argv)
         { "--text-file",    't', RTGETOPT_REQ_STRING },
         { "--xmit-test",    'x', RTGETOPT_REQ_NOTHING },
         { "--ping-test",    'P', RTGETOPT_REQ_NOTHING },
-        { "--help",         'h', RTGETOPT_REQ_NOTHING },
-        { "--?",            '?', RTGETOPT_REQ_NOTHING },
     };
 
     uint32_t    cMillies = 1000;
@@ -804,7 +736,6 @@ int main(int argc, char **argv)
                 fPingTest = true;
                 break;
 
-            case '?':
             case 'h':
                 RTPrintf("syntax: tstIntNet-1 <options>\n"
                          "\n"
@@ -817,18 +748,12 @@ int main(int argc, char **argv)
                          "    tstIntNet-1 -n VBoxNetDhcp -r 4096 -s 4096 -i \"\" -xS\n");
                 return 1;
 
-            case VINF_GETOPT_NOT_OPTION:
-                RTPrintf("tstIntNetR0: invalid argument: %s\n", Value.psz);
-                return 1;
+            case 'V':
+                RTPrintf("$Revision: 28800 $\n");
+                return 0;
 
             default:
-                if (RT_SUCCESS(ch))
-                    RTPrintf("tstIntNetR0: invalid argument (%#x): %s\n", ch, Value.psz);
-                else if (Value.pDef)
-                    RTPrintf("tstIntNetR0: invalid argument: %Rrc - %s\n", ch, Value.pDef->pszLong);
-                else
-                    RTPrintf("tstIntNetR0: invalid argument: %Rrc - %s\n", ch, argv[iArg]);
-                return 1;
+                return RTGetOptPrintError(ch, &Value);
         }
 
     RTPrintf("tstIntNet-1: TESTING...\n");
@@ -891,16 +816,17 @@ int main(int argc, char **argv)
         /*
          * Get the ring-3 address of the shared interface buffer.
          */
-        INTNETIFGETRING3BUFFERREQ GetRing3BufferReq;
-        GetRing3BufferReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-        GetRing3BufferReq.Hdr.cbReq = sizeof(GetRing3BufferReq);
-        GetRing3BufferReq.pSession = pSession;
-        GetRing3BufferReq.hIf = OpenReq.hIf;
-        GetRing3BufferReq.pRing3Buf = NULL;
-        rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_GET_RING3_BUFFER, 0, &GetRing3BufferReq.Hdr);
+        INTNETIFGETBUFFERPTRSREQ GetBufferPtrsReq;
+        GetBufferPtrsReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+        GetBufferPtrsReq.Hdr.cbReq = sizeof(GetBufferPtrsReq);
+        GetBufferPtrsReq.pSession = pSession;
+        GetBufferPtrsReq.hIf = OpenReq.hIf;
+        GetBufferPtrsReq.pRing3Buf = NULL;
+        GetBufferPtrsReq.pRing0Buf = NIL_RTR0PTR;
+        rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_GET_BUFFER_PTRS, 0, &GetBufferPtrsReq.Hdr);
         if (RT_SUCCESS(rc))
         {
-            PINTNETBUF pBuf = GetRing3BufferReq.pRing3Buf;
+            PINTNETBUF pBuf = GetBufferPtrsReq.pRing3Buf;
             RTPrintf("tstIntNet-1: pBuf=%p cbBuf=%d cbSend=%d cbRecv=%d\n",
                      pBuf, pBuf->cbBuf, pBuf->cbSend, pBuf->cbRecv);
             RTStrmFlush(g_pStdOut);
@@ -983,7 +909,7 @@ int main(int argc, char **argv)
         }
         else
         {
-            RTPrintf("tstIntNet-1: SUPR3CallVMMR0Ex(,VMMR0_DO_INTNET_IF_GET_RING3_BUFFER,) failed, rc=%Rrc\n", rc);
+            RTPrintf("tstIntNet-1: SUPR3CallVMMR0Ex(,VMMR0_DO_INTNET_IF_GET_BUFFER_PTRS,) failed, rc=%Rrc\n", rc);
             g_cErrors++;
         }
     }

@@ -1,3 +1,4 @@
+/* $Id: keyboard-new.c 26714 2010-02-23 15:17:42Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -56,7 +57,7 @@
 
 #define KEYC2SCAN_SIZE 256
 
-/** 
+/**
  * Array containing the current mapping of keycodes to scan codes, detected
  * using the keyboard layout algorithm in X11DRV_InitKeyboardByLayout.
  */
@@ -269,9 +270,9 @@ X11DRV_KEYBOARD_DetectLayout (Display *display, unsigned min_keycode,
  * To deal with this, we compare the different candidate layouts to see in
  * which one the X11 keycodes would be most sequential and hope that they
  * really are layed out more or less sequentially.
- * 
+ *
  * The actual detection of the current layout is done in the sub-function
- * X11DRV_KEYBOARD_DetectLayout.  Once we have determined the layout, since we 
+ * X11DRV_KEYBOARD_DetectLayout.  Once we have determined the layout, since we
  * know which PC scan code corresponds to each key in the layout, we can use
  * this information to associate the scan code with an X11 keycode, which is
  * what the rest of this function does.
@@ -403,8 +404,9 @@ static unsigned
 X11DRV_InitKeyboardByType(Display *display)
 {
     unsigned i = 0, found = 0;
-    
-    keyboard_type hostKB = { 0 };
+
+    keyboard_type hostKB;
+    memset(&hostKB, '\0', sizeof(hostKB));
     hostKB.lctrl    = XKeysymToKeycode(display, XK_Control_L);
     hostKB.capslock = XKeysymToKeycode(display, XK_Caps_Lock);
     hostKB.lshift   = XKeysymToKeycode(display, XK_Shift_L);
@@ -454,7 +456,7 @@ X11DRV_InitKeyboardByType(Display *display)
             found = 1;
     }
     if (found != 0)
-	memcpy(keyc2scan, main_keyboard_type_scans[i - 1], KEYC2SCAN_SIZE);
+    memcpy(keyc2scan, main_keyboard_type_scans[i - 1], KEYC2SCAN_SIZE);
     return found;
 }
 
@@ -463,7 +465,7 @@ X11DRV_InitKeyboardByType(Display *display)
  * to which PC scan codes.  If the keyboard being used is not a PC keyboard,
  * the X11 keycodes will be mapped to the scan codes which the equivalent keys
  * on a PC keyboard would use.
- * 
+ *
  * We use two algorithms to try to determine the mapping.  See the comments
  * attached to the two algorithm functions (X11DRV_InitKeyboardByLayout and
  * X11DRV_InitKeyboardByType) for descriptions of the algorithms used.  Both
@@ -486,8 +488,8 @@ X11DRV_InitKeyboardByType(Display *display)
  */
 unsigned X11DRV_InitKeyboard(Display *display, unsigned *byLayoutOK, unsigned *byTypeOK, int (*remapScancodes)[2])
 {
-    unsigned byLayout; 
-    unsigned byType; 
+    unsigned byLayout;
+    unsigned byType;
 
     byLayout = X11DRV_InitKeyboardByLayout(display);
     *byLayoutOK = byLayout;
@@ -497,9 +499,9 @@ unsigned X11DRV_InitKeyboard(Display *display, unsigned *byLayoutOK, unsigned *b
 
     /* Remap keycodes after initialization. Remapping stops after an
        identity mapping is seen */
-    if(remapScancodes != NULL)
-	for(; (*remapScancodes)[0] != (*remapScancodes)[1]; remapScancodes++) 
-	    keyc2scan[(*remapScancodes)[0]] = (*remapScancodes)[1];
+    if (remapScancodes != NULL)
+        for (; (*remapScancodes)[0] != (*remapScancodes)[1]; remapScancodes++)
+            keyc2scan[(*remapScancodes)[0]] = (*remapScancodes)[1];
 
     return (byLayout || byType) ? 1 : 0;
 }
@@ -511,3 +513,4 @@ unsigned *X11DRV_getKeyc2scan(void)
 {
     return keyc2scan;
 }
+

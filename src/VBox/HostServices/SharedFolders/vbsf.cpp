@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "mappings.h"
@@ -314,34 +310,34 @@ static int vbsfBuildFullPath (SHFLCLIENTDATA *pClient, SHFLROOT root, PSHFLSTRIN
 /** @todo This belongs in rtPathToNative or in the windows shared folder file system driver...
  * The question is simply whether the NFD normalization is actually applied on a (virtaul) file
  * system level in darwin, or just by the user mode application libs. */
-		SHFLSTRING *pPathParameter = pPath;
-		size_t cbPathLength;
-		CFMutableStringRef inStr = ::CFStringCreateMutable(NULL, 0);
-		uint16_t ucs2Length;
-		CFRange rangeCharacters;
+        SHFLSTRING *pPathParameter = pPath;
+        size_t cbPathLength;
+        CFMutableStringRef inStr = ::CFStringCreateMutable(NULL, 0);
+        uint16_t ucs2Length;
+        CFRange rangeCharacters;
 
-		// Is 8 times length enough for decomposed in worst case...?
-		cbPathLength = sizeof(SHFLSTRING) + pPathParameter->u16Length * 8 + 2;
-		pPath = (SHFLSTRING *)RTMemAllocZ (cbPathLength);
-		if (!pPath)
-		{
-			rc = VERR_NO_MEMORY;
-			Log(("RTMemAllocZ %x failed!!\n", cbPathLength));
-			return rc;
-		}
+        // Is 8 times length enough for decomposed in worst case...?
+        cbPathLength = sizeof(SHFLSTRING) + pPathParameter->u16Length * 8 + 2;
+        pPath = (SHFLSTRING *)RTMemAllocZ (cbPathLength);
+        if (!pPath)
+        {
+            rc = VERR_NO_MEMORY;
+            Log(("RTMemAllocZ %x failed!!\n", cbPathLength));
+            return rc;
+        }
 
-		::CFStringAppendCharacters(inStr, (UniChar*)pPathParameter->String.ucs2, pPathParameter->u16Length / sizeof(pPathParameter->String.ucs2[0]));
-		::CFStringNormalize(inStr, kCFStringNormalizationFormD);
-		ucs2Length = ::CFStringGetLength(inStr);
+        ::CFStringAppendCharacters(inStr, (UniChar*)pPathParameter->String.ucs2, pPathParameter->u16Length / sizeof(pPathParameter->String.ucs2[0]));
+        ::CFStringNormalize(inStr, kCFStringNormalizationFormD);
+        ucs2Length = ::CFStringGetLength(inStr);
 
-		rangeCharacters.location = 0;
-		rangeCharacters.length = ucs2Length;
-		::CFStringGetCharacters(inStr, rangeCharacters, pPath->String.ucs2);
-		pPath->String.ucs2[ucs2Length] = 0x0000; // NULL terminated
-		pPath->u16Length = ucs2Length * sizeof(pPath->String.ucs2[0]);
-		pPath->u16Size = pPath->u16Length + sizeof(pPath->String.ucs2[0]);
+        rangeCharacters.location = 0;
+        rangeCharacters.length = ucs2Length;
+        ::CFStringGetCharacters(inStr, rangeCharacters, pPath->String.ucs2);
+        pPath->String.ucs2[ucs2Length] = 0x0000; // NULL terminated
+        pPath->u16Length = ucs2Length * sizeof(pPath->String.ucs2[0]);
+        pPath->u16Size = pPath->u16Length + sizeof(pPath->String.ucs2[0]);
 
-		CFRelease(inStr);
+        CFRelease(inStr);
 #endif
         /* Client sends us UCS2, so convert it to UTF8. */
         Log(("Root %ls path %.*ls\n", pwszRoot, pPath->u16Length/sizeof(pPath->String.ucs2[0]), pPath->String.ucs2));
@@ -1596,26 +1592,26 @@ int vbsfDirList(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, SHFLS
 /** @todo This belongs in rtPathToNative or in the windows shared folder file system driver...
  * The question is simply whether the NFD normalization is actually applied on a (virtaul) file
  * system level in darwin, or just by the user mode application libs. */
-			{
-				// Convert to
-				// Normalization Form C (composed Unicode). We need this because
-				// Mac OS X file system uses NFD (Normalization Form D :decomposed Unicode)
-				// while most other OS', server-side programs usually expect NFC.
-				uint16_t ucs2Length;
-				CFRange rangeCharacters;
-				CFMutableStringRef inStr = ::CFStringCreateMutable(NULL, 0);
+            {
+                // Convert to
+                // Normalization Form C (composed Unicode). We need this because
+                // Mac OS X file system uses NFD (Normalization Form D :decomposed Unicode)
+                // while most other OS', server-side programs usually expect NFC.
+                uint16_t ucs2Length;
+                CFRange rangeCharacters;
+                CFMutableStringRef inStr = ::CFStringCreateMutable(NULL, 0);
 
-				::CFStringAppendCharacters(inStr, (UniChar *)pwszString, RTUtf16Len (pwszString));
-				::CFStringNormalize(inStr, kCFStringNormalizationFormC);
-				ucs2Length = ::CFStringGetLength(inStr);
+                ::CFStringAppendCharacters(inStr, (UniChar *)pwszString, RTUtf16Len (pwszString));
+                ::CFStringNormalize(inStr, kCFStringNormalizationFormC);
+                ucs2Length = ::CFStringGetLength(inStr);
 
-				rangeCharacters.location = 0;
-				rangeCharacters.length = ucs2Length;
-				::CFStringGetCharacters(inStr, rangeCharacters, pwszString);
-				pwszString[ucs2Length] = 0x0000; // NULL terminated
+                rangeCharacters.location = 0;
+                rangeCharacters.length = ucs2Length;
+                ::CFStringGetCharacters(inStr, rangeCharacters, pwszString);
+                pwszString[ucs2Length] = 0x0000; // NULL terminated
 
-				CFRelease(inStr);
-			}
+                CFRelease(inStr);
+            }
 #endif
             pSFDEntry->name.u16Length = (uint32_t)RTUtf16Len (pSFDEntry->name.String.ucs2) * 2;
             pSFDEntry->name.u16Size = pSFDEntry->name.u16Length + 2;

@@ -1,10 +1,10 @@
-/* $Id: VBoxManageMetrics.cpp $ */
+/* $Id: VBoxManageMetrics.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxManage - The 'metrics' command.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef VBOX_ONLY_DOCS
@@ -531,6 +527,91 @@ static int handleMetricsCollect(int argc, char *argv[],
     return 0;
 }
 
+/**
+ * Enable metrics
+ */
+static int handleMetricsEnable(int argc, char *argv[],
+                               ComPtr<IVirtualBox> aVirtualBox,
+                               ComPtr<IPerformanceCollector> performanceCollector)
+{
+    HRESULT rc;
+    com::SafeArray<BSTR>          metrics;
+    com::SafeArray<BSTR>          baseMetrics;
+    com::SafeIfaceArray<IUnknown> objects;
+    bool listMatches = false;
+    int i;
+
+    for (i = 1; i < argc; i++)
+    {
+        if (   !strcmp(argv[i], "--list")
+            || !strcmp(argv[i], "-list"))
+            listMatches = true;
+        else
+            break; /* The rest of params should define the filter */
+    }
+
+    rc = parseFilterParameters(argc - i, &argv[i], aVirtualBox,
+                               ComSafeArrayAsOutParam(metrics),
+                               ComSafeArrayAsOutParam(baseMetrics),
+                               ComSafeArrayAsOutParam(objects));
+    if (FAILED(rc))
+        return 1;
+
+    com::SafeIfaceArray<IPerformanceMetric> affectedMetrics;
+    CHECK_ERROR(performanceCollector,
+        EnableMetrics(ComSafeArrayAsInParam(metrics),
+                      ComSafeArrayAsInParam(objects),
+                      ComSafeArrayAsOutParam(affectedMetrics)));
+    if (listMatches)
+        listAffectedMetrics(aVirtualBox,
+                            ComSafeArrayAsInParam(affectedMetrics));
+
+    return 0;
+}
+
+/**
+ * Disable metrics
+ */
+static int handleMetricsDisable(int argc, char *argv[],
+                                ComPtr<IVirtualBox> aVirtualBox,
+                                ComPtr<IPerformanceCollector> performanceCollector)
+{
+    HRESULT rc;
+    com::SafeArray<BSTR>          metrics;
+    com::SafeArray<BSTR>          baseMetrics;
+    com::SafeIfaceArray<IUnknown> objects;
+    bool listMatches = false;
+    int i;
+
+    for (i = 1; i < argc; i++)
+    {
+        if (   !strcmp(argv[i], "--list")
+            || !strcmp(argv[i], "-list"))
+            listMatches = true;
+        else
+            break; /* The rest of params should define the filter */
+    }
+
+    rc = parseFilterParameters(argc - i, &argv[i], aVirtualBox,
+                               ComSafeArrayAsOutParam(metrics),
+                               ComSafeArrayAsOutParam(baseMetrics),
+                               ComSafeArrayAsOutParam(objects));
+    if (FAILED(rc))
+        return 1;
+
+    com::SafeIfaceArray<IPerformanceMetric> affectedMetrics;
+    CHECK_ERROR(performanceCollector,
+        DisableMetrics(ComSafeArrayAsInParam(metrics),
+                       ComSafeArrayAsInParam(objects),
+                       ComSafeArrayAsOutParam(affectedMetrics)));
+    if (listMatches)
+        listAffectedMetrics(aVirtualBox,
+                            ComSafeArrayAsInParam(affectedMetrics));
+
+    return 0;
+}
+
+
 int handleMetrics(HandlerArg *a)
 {
     int rc;
@@ -550,6 +631,10 @@ int handleMetrics(HandlerArg *a)
         rc = handleMetricsQuery(a->argc, a->argv, a->virtualBox, performanceCollector);
     else if (!strcmp(a->argv[0], "collect"))
         rc = handleMetricsCollect(a->argc, a->argv, a->virtualBox, performanceCollector);
+    else if (!strcmp(a->argv[0], "enable"))
+        rc = handleMetricsEnable(a->argc, a->argv, a->virtualBox, performanceCollector);
+    else if (!strcmp(a->argv[0], "disable"))
+        rc = handleMetricsDisable(a->argc, a->argv, a->virtualBox, performanceCollector);
     else
         return errorSyntax(USAGE_METRICS, "Invalid subcommand '%s'", a->argv[0]);
 

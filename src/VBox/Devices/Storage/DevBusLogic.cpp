@@ -1,10 +1,10 @@
-/* $Id: DevBusLogic.cpp $ */
+/* $Id: DevBusLogic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBox storage devices: BusLogic SCSI host adapter BT-958.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /* Implemented looking at the driver source in the linux kernel (drivers/scsi/BusLogic.[ch]). */
@@ -34,8 +30,9 @@
 #include <iprt/log.h>
 #ifdef IN_RING3
 # include <iprt/alloc.h>
-# include <iprt/cache.h>
+# include <iprt/memcache.h>
 # include <iprt/param.h>
+# include <iprt/uuid.h>
 #endif
 
 #include "VBoxSCSI.h"
@@ -61,8 +58,12 @@
 /** State saved version. */
 #define BUSLOGIC_SAVED_STATE_MINOR_VERSION 1
 
-/*
+/**
  * State of a device attached to the buslogic host adapter.
+ *
+ * @implements  PDMIBASE
+ * @implements  PDMISCSIPORT
+ * @implements  PDMILEDPORTS
  */
 typedef struct BUSLOGICDEVICE
 {
@@ -255,8 +256,11 @@ typedef union HostAdapterLocalRam
 AssertCompileSize(HostAdapterLocalRam, 256);
 #pragma pack()
 
-/*
+/**
  * Main BusLogic device state.
+ *
+ * @extends     PCIDEVICE
+ * @implements  PDMILEDPORTS
  */
 typedef struct BUSLOGIC
 {
@@ -360,7 +364,7 @@ typedef struct BUSLOGIC
 #endif
 
     /** Cache for task states. */
-    R3PTRTYPE(PRTOBJCACHE)          pTaskCache;
+    R3PTRTYPE(RTMEMCACHE)           hTaskCache;
 
     /** Device state for BIOS access. */
     VBOXSCSI                        VBoxSCSI;
@@ -368,7 +372,8 @@ typedef struct BUSLOGIC
     /** BusLogic device states. */
     BUSLOGICDEVICE                  aDeviceStates[BUSLOGIC_MAX_DEVICES];
 
-    /** The base interface */
+    /** The base interface.
+     * @todo use PDMDEVINS::IBase  */
     PDMIBASE                       IBase;
     /** Status Port - Leds interface. */
     PDMILEDPORTS                   ILeds;
@@ -728,7 +733,7 @@ typedef struct BUSLOGICTASKSTATE
     /** The SCSI request we pass to the underlying SCSI engine. */
     PDMSCSIREQUEST      PDMScsiRequest;
     /** Data buffer segment */
-    PDMDATASEG          DataSeg;
+    RTSGSEG             DataSeg;
     /** Pointer to the R3 sense buffer. */
     uint8_t            *pbSenseBuffer;
     /** Flag whether this is a request from the BIOS. */
@@ -1198,15 +1203,17 @@ static void buslogicDataBufferFree(PBUSLOGICTASKSTATE pTaskState)
  *
  * @returns nothing.
  * @param   pTaskState   Pointer to the task state.
+ * @param   fCopy        If sense data should be copied to guest memory.
  */
-static void buslogicSenseBufferFree(PBUSLOGICTASKSTATE pTaskState)
+static void buslogicSenseBufferFree(PBUSLOGICTASKSTATE pTaskState, bool fCopy)
 {
     PPDMDEVINS pDevIns = pTaskState->CTX_SUFF(pTargetDevice)->CTX_SUFF(pBusLogic)->CTX_SUFF(pDevIns);
     RTGCPHYS GCPhysAddrSenseBuffer = (RTGCPHYS)pTaskState->CommandControlBlockGuest.u32PhysAddrSenseData;
     uint32_t cbSenseBuffer = pTaskState->CommandControlBlockGuest.cbSenseData;
 
     /* Copy into guest memory. */
-    PDMDevHlpPhysWrite(pDevIns, GCPhysAddrSenseBuffer, pTaskState->pbSenseBuffer, cbSenseBuffer);
+    if (fCopy)
+        PDMDevHlpPhysWrite(pDevIns, GCPhysAddrSenseBuffer, pTaskState->pbSenseBuffer, cbSenseBuffer);
 
     RTMemFree(pTaskState->pbSenseBuffer);
     pTaskState->pbSenseBuffer = NULL;
@@ -1756,7 +1763,7 @@ static int buslogicPrepareBIOSSCSIRequest(PBUSLOGIC pBusLogic)
     PBUSLOGICTASKSTATE pTaskState;
     uint32_t           uTargetDevice;
 
-    rc = RTCacheRequest(pBusLogic->pTaskCache, (void **)&pTaskState);
+    rc = RTMemCacheAllocEx(pBusLogic->hTaskCache, (void **)&pTaskState);
     AssertMsgRCReturn(rc, ("Getting task from cache failed rc=%Rrc\n", rc), rc);
 
     pTaskState->fBIOS = true;
@@ -1785,8 +1792,7 @@ static int buslogicPrepareBIOSSCSIRequest(PBUSLOGIC pBusLogic)
         rc = vboxscsiRequestFinished(&pBusLogic->VBoxSCSI, &pTaskState->PDMScsiRequest);
         AssertMsgRCReturn(rc, ("Finishing BIOS SCSI request failed rc=%Rrc\n", rc), rc);
 
-        rc = RTCacheInsert(pBusLogic->pTaskCache, pTaskState);
-        AssertMsgRCReturn(rc, ("Getting task from cache failed rc=%Rrc\n", rc), rc);
+        RTMemCacheFree(pBusLogic->hTaskCache, pTaskState);
     }
     else
     {
@@ -1909,7 +1915,7 @@ static DECLCALLBACK(int) buslogicMMIOMap(PPCIDEVICE pPciDev, /*unsigned*/ int iR
 
         if (pThis->fGCEnabled)
         {
-            rc = PDMDevHlpMMIORegisterGC(pDevIns, GCPhysAddress, cb, 0,
+            rc = PDMDevHlpMMIORegisterRC(pDevIns, GCPhysAddress, cb, 0,
                                          "buslogicMMIOWrite", "buslogicMMIORead", NULL);
             if (RT_FAILURE(rc))
                 return rc;
@@ -1934,7 +1940,7 @@ static DECLCALLBACK(int) buslogicMMIOMap(PPCIDEVICE pPciDev, /*unsigned*/ int iR
 
         if (pThis->fGCEnabled)
         {
-            rc = PDMDevHlpIOPortRegisterGC(pDevIns, (RTIOPORT)GCPhysAddress, 32,
+            rc = PDMDevHlpIOPortRegisterRC(pDevIns, (RTIOPORT)GCPhysAddress, 32,
                                            0, "buslogicIOPortWrite", "buslogicIOPortRead", NULL, NULL, "BusLogic");
             if (RT_FAILURE(rc))
                 return rc;
@@ -1969,7 +1975,7 @@ static DECLCALLBACK(int) buslogicDeviceSCSIRequestCompleted(PPDMISCSIPORT pInter
         buslogicDataBufferFree(pTaskState);
 
         if (pTaskState->pbSenseBuffer)
-            buslogicSenseBufferFree(pTaskState);
+            buslogicSenseBufferFree(pTaskState, (rcCompletion != SCSI_STATUS_OK));
 
         buslogicSendIncomingMailbox(pBusLogic, pTaskState,
                                     BUSLOGIC_MAILBOX_INCOMING_ADAPTER_STATUS_CMD_COMPLETED,
@@ -1978,9 +1984,7 @@ static DECLCALLBACK(int) buslogicDeviceSCSIRequestCompleted(PPDMISCSIPORT pInter
     }
 
     /* Add task to the cache. */
-    rc = RTCacheInsert(pBusLogic->pTaskCache, pTaskState);
-    AssertMsgRC(rc, ("Inserting task state into cache failed rc=%Rrc\n", rc));
-
+    RTMemCacheFree(pBusLogic->hTaskCache, pTaskState);
     return VINF_SUCCESS;
 }
 
@@ -1996,7 +2000,7 @@ static int buslogicProcessMailboxNext(PBUSLOGIC pBusLogic)
     RTGCPHYS           GCPhysAddrMailboxCurrent;
     int rc;
 
-    rc = RTCacheRequest(pBusLogic->pTaskCache, (void **)&pTaskState);
+    rc = RTMemCacheAllocEx(pBusLogic->hTaskCache, (void **)&pTaskState);
     AssertMsgReturn(RT_SUCCESS(rc) && (pTaskState != NULL), ("Failed to get task state from cache\n"), rc);
 
     pTaskState->fBIOS = false;
@@ -2062,15 +2066,14 @@ static int buslogicProcessMailboxNext(PBUSLOGIC pBusLogic)
             buslogicDataBufferFree(pTaskState);
 
             if (pTaskState->pbSenseBuffer)
-                buslogicSenseBufferFree(pTaskState);
+                buslogicSenseBufferFree(pTaskState, true);
 
             buslogicSendIncomingMailbox(pBusLogic, pTaskState,
                                         BUSLOGIC_MAILBOX_INCOMING_ADAPTER_STATUS_SCSI_SELECTION_TIMEOUT,
                                         BUSLOGIC_MAILBOX_INCOMING_DEVICE_STATUS_OPERATION_GOOD,
                                         BUSLOGIC_MAILBOX_INCOMING_COMPLETION_WITH_ERROR);
 
-            rc = RTCacheInsert(pBusLogic->pTaskCache, pTaskState);
-            AssertMsgRC(rc, ("Failed to insert task state into cache rc=%Rrc\n", rc));
+            RTMemCacheFree(pBusLogic->hTaskCache, pTaskState);
         }
         else
         {
@@ -2339,26 +2342,15 @@ static DECLCALLBACK(int) buslogicDeviceQueryStatusLed(PPDMILEDPORTS pInterface, 
 }
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the device.
- * @param   pInterface          Pointer to BUSLOGICDEVICE::IBase.
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) buslogicDeviceQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *) buslogicDeviceQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     PBUSLOGICDEVICE pDevice = PDMIBASE_2_PBUSLOGICDEVICE(pInterface);
-
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_SCSI_PORT:
-            return &pDevice->ISCSIPort;
-        case PDMINTERFACE_LED_PORTS:
-            return &pDevice->ILed;
-        default:
-            return NULL;
-    }
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDevice->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMISCSIPORT, &pDevice->ISCSIPort);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMILEDPORTS, &pDevice->ILed);
+    return NULL;
 }
 
 /**
@@ -2382,25 +2374,14 @@ static DECLCALLBACK(int) buslogicStatusQueryStatusLed(PPDMILEDPORTS pInterface, 
 }
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the device.
- * @param   pInterface          Pointer to ATADevState::IBase.
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) buslogicStatusQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *) buslogicStatusQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    PBUSLOGIC pBusLogic = PDMIBASE_2_PBUSLOGIC(pInterface);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pBusLogic->IBase;
-        case PDMINTERFACE_LED_PORTS:
-            return &pBusLogic->ILeds;
-        default:
-            return NULL;
-    }
+    PBUSLOGIC pThis = PDMIBASE_2_PBUSLOGIC(pInterface);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMILEDPORTS, &pThis->ILeds);
+    return NULL;
 }
 
 /**
@@ -2464,7 +2445,7 @@ static DECLCALLBACK(int)  buslogicAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint
     if (RT_SUCCESS(rc))
     {
         /* Get SCSI connector interface. */
-        pDevice->pDrvSCSIConnector = (PPDMISCSICONNECTOR)pDevice->pDrvBase->pfnQueryInterface(pDevice->pDrvBase, PDMINTERFACE_SCSI_CONNECTOR);
+        pDevice->pDrvSCSIConnector = PDMIBASE_QUERY_INTERFACE(pDevice->pDrvBase, PDMISCSICONNECTOR);
         AssertMsgReturn(pDevice->pDrvSCSIConnector, ("Missing SCSI interface below\n"), VERR_PDM_MISSING_INTERFACE);
         pDevice->fPresent = true;
     }
@@ -2519,49 +2500,40 @@ static DECLCALLBACK(void)  buslogicReset(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(int) buslogicDestruct(PPDMDEVINS pDevIns)
 {
-    int rc = VINF_SUCCESS;
     PBUSLOGIC  pThis = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
+    PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
 
-    rc = RTCacheDestroy(pThis->pTaskCache);
+    int rc = RTMemCacheDestroy(pThis->hTaskCache);
     AssertMsgRC(rc, ("Destroying task cache failed rc=%Rrc\n", rc));
 
     return rc;
 }
 
 /**
- * Construct a device instance for a VM.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
- *                      The device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
-static DECLCALLBACK(int) buslogicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) buslogicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     PBUSLOGIC  pThis = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
     int        rc = VINF_SUCCESS;
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
      * Validate and read configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle,
+    if (!CFGMR3AreValuesValid(pCfg,
                               "GCEnabled\0"
                               "R0Enabled\0"))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("BusLogic configuration error: unknown option specified"));
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "GCEnabled", &pThis->fGCEnabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &pThis->fGCEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("BusLogic configuration error: failed to read GCEnabled as boolean"));
     Log(("%s: fGCEnabled=%d\n", __FUNCTION__, pThis->fGCEnabled));
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "R0Enabled", &pThis->fR0Enabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &pThis->fR0Enabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("BusLogic configuration error: failed to read R0Enabled as boolean"));
@@ -2612,14 +2584,15 @@ static DECLCALLBACK(int) buslogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("BusLogic cannot register legacy I/O handlers"));
 
     /* Initialize task cache. */
-    rc = RTCacheCreate(&pThis->pTaskCache, 0 /* unlimited */, sizeof(BUSLOGICTASKSTATE), RTOBJCACHE_PROTECT_INSERT);
+    rc = RTMemCacheCreate(&pThis->hTaskCache, sizeof(BUSLOGICTASKSTATE), 0, UINT32_MAX,
+                          NULL, NULL, NULL, 0);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("BusLogic: Failed to initialize task cache\n"));
 
     /* Intialize task queue. */
-    rc = PDMDevHlpPDMQueueCreate(pDevIns, sizeof(PDMQUEUEITEMCORE), 5, 0,
-                                 buslogicNotifyQueueConsumer, true, "BugLogicTask", &pThis->pNotifierQueueR3);
+    rc = PDMDevHlpQueueCreate(pDevIns, sizeof(PDMQUEUEITEMCORE), 5, 0,
+                              buslogicNotifyQueueConsumer, true, "BugLogicTask", &pThis->pNotifierQueueR3);
     if (RT_FAILURE(rc))
         return rc;
     pThis->pNotifierQueueR0 = PDMQueueR0Ptr(pThis->pNotifierQueueR3);
@@ -2648,7 +2621,7 @@ static DECLCALLBACK(int) buslogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
         if (RT_SUCCESS(rc))
         {
             /* Get SCSI connector interface. */
-            pDevice->pDrvSCSIConnector = (PPDMISCSICONNECTOR)pDevice->pDrvBase->pfnQueryInterface(pDevice->pDrvBase, PDMINTERFACE_SCSI_CONNECTOR);
+            pDevice->pDrvSCSIConnector = PDMIBASE_QUERY_INTERFACE(pDevice->pDrvBase, PDMISCSICONNECTOR);
             AssertMsgReturn(pDevice->pDrvSCSIConnector, ("Missing SCSI interface below\n"), VERR_PDM_MISSING_INTERFACE);
 
             pDevice->fPresent = true;
@@ -2673,7 +2646,7 @@ static DECLCALLBACK(int) buslogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
     PPDMIBASE pBase;
     rc = PDMDevHlpDriverAttach(pDevIns, PDM_STATUS_LUN, &pThis->IBase, &pBase, "Status Port");
     if (RT_SUCCESS(rc))
-        pThis->pLedsConnector = (PDMILEDCONNECTORS *)pBase->pfnQueryInterface(pBase, PDMINTERFACE_LED_CONNECTORS);
+        pThis->pLedsConnector = PDMIBASE_QUERY_INTERFACE(pBase, PDMILEDCONNECTORS);
     else if (rc != VERR_PDM_NO_ATTACHED_DRIVER)
     {
         AssertMsgFailed(("Failed to attach to status driver. rc=%Rrc\n", rc));
@@ -2698,7 +2671,7 @@ const PDMDEVREG g_DeviceBusLogic =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "buslogic",
     /* szRCMod */
     "VBoxDDGC.gc",

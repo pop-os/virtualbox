@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #define LOG_GROUP LOG_GROUP_GUI
@@ -75,21 +71,21 @@ DECLCALLBACK(int) xpcomEventThread(RTTHREAD thread, void *pvUser)
         /* are there any events to process? */
         if ((n > 0) && !g_fTerminateXPCOMQueueThread)
         {
-	    /*
-	     * Wait until all XPCOM events are processed. 1s just for sanity.
+            /*
+             * Wait until all XPCOM events are processed. 1s just for sanity.
              */
-	    int iWait = 1000;
-	    /*
-	     * Don't post an event if there is a pending XPCOM event to prevent an
-	     * overflow of the SDL event queue.
-	     */
-	    if (g_s32XPCOMEventsPending < 1)
-	    {
+            int iWait = 1000;
+            /*
+             * Don't post an event if there is a pending XPCOM event to prevent an
+             * overflow of the SDL event queue.
+             */
+            if (g_s32XPCOMEventsPending < 1)
+            {
                 /*
-		 * Post the event and wait for it to be processed. If we don't wait,
-		 * we'll flood the queue on SMP systems and when the main thread is busy.
-		 * In the event of a push error, we'll yield the timeslice and retry.
-		 */
+                 * Post the event and wait for it to be processed. If we don't wait,
+                 * we'll flood the queue on SMP systems and when the main thread is busy.
+                 * In the event of a push error, we'll yield the timeslice and retry.
+                 */
                 SDL_Event event = {0};
                 event.type = SDL_USEREVENT;
                 event.user.type = SDL_USER_EVENT_XPCOM_EVENTQUEUE;

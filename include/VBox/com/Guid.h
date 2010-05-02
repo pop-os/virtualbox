@@ -1,4 +1,4 @@
-/* $Id: Guid.h $ */
+/* $Id: Guid.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer:
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,10 +24,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_com_Guid_h
@@ -47,7 +43,7 @@
 
 #include "VBox/com/string.h"
 
-#include <iprt/cpputils.h>
+#include <iprt/cpp/utils.h>
 #include <iprt/uuid.h>
 
 namespace com
@@ -95,31 +91,31 @@ public:
 
     Guid(const Bstr &that)
     {
-        ::RTUuidClear (&uuid);
-        if (!that.isNull())
+        ::RTUuidClear(&uuid);
+        if (!that.isEmpty())
            ::RTUuidFromUtf16(&uuid, that.raw());
         refresh();
     }
 
-    Guid &operator=(const Guid &that)
+    Guid& operator=(const Guid &that)
     {
         ::memcpy(&uuid, &that.uuid, sizeof (RTUUID));
         refresh();
         return *this;
     }
-    Guid &operator=(const GUID &guid)
+    Guid& operator=(const GUID &guid)
     {
         ::memcpy(&uuid, &guid, sizeof (GUID));
         refresh();
         return *this;
     }
-    Guid &operator=(const RTUUID &guid)
+    Guid& operator=(const RTUUID &guid)
     {
         ::memcpy(&uuid, &guid, sizeof (RTUUID));
         refresh();
         return *this;
     }
-    Guid &operator=(const char *str)
+    Guid& operator=(const char *str)
     {
         ::RTUuidFromStr(&uuid, str);
         refresh();
@@ -144,7 +140,7 @@ public:
         return Utf8Str(buf);
     }
 
-    Bstr toUtf16 () const
+    Bstr toUtf16() const
     {
         if (isEmpty())
           return Bstr();
@@ -177,7 +173,7 @@ public:
         return *(GUID *) &uuid;
     }
 
-    /* to directly pass instances to RTPrintf("%Vuuid") */
+    /* to directly pass instances to RTPrintf("%RTuuid") */
     PRTUUID ptr()
     {
         return &uuid;

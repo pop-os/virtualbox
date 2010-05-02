@@ -1,10 +1,10 @@
-/* $Id: VBoxNetFltCommon-win.h $ */
+/* $Id: VBoxNetFltCommon-win.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxNetFltCommon.h - Network Filter Driver (Host), Windows Specific Code. Common headeer with commonly used defines and decls
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 /*
  * Based in part on Microsoft DDK sample code for Ndis Intermediate Miniport passthru driver sample.
@@ -26,15 +22,7 @@
 #ifndef ___VBoxNetFltCommon_win_h___
 #define ___VBoxNetFltCommon_win_h___
 
-#ifndef VBOX_NETFLT_ONDEMAND_BIND
-# define NDIS_MINIPORT_DRIVER
-# define NDIS50_MINIPORT 1
-#endif
-
-#define BINARY_COMPATIBLE 0
-#define NDIS_WDM 0
-#define NDIS50 1
-#define NTSTRSAFE_LIB
+//#define NTSTRSAFE_LIB
 
 #ifdef DEBUG
 //# define DEBUG_NETFLT_PACKETS

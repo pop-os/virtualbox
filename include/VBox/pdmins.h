@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_pdmins_h
@@ -39,7 +35,11 @@
  * Macro for declaring a callback which is static in HC and exported in GC.
  */
 #if defined(IN_RC) || defined(IN_RING0)
-# define PDMBOTHCBDECL(type)    DECLEXPORT(type)
+# ifdef __cplusplus
+#  define PDMBOTHCBDECL(type)   extern "C" DECLEXPORT(type)
+# else
+#  define PDMBOTHCBDECL(type)   DECLEXPORT(type)
+# endif
 #else
 # define PDMBOTHCBDECL(type)    static type
 #endif

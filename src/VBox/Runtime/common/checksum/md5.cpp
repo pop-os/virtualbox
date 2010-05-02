@@ -1,10 +1,10 @@
-/* $Id: md5.cpp $ */
+/* $Id: md5.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - MD5 message digest functions.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /* The code is virtually unchanged from the original version (see copyright
@@ -56,6 +52,9 @@
 #include "internal/iprt.h"
 
 #include <iprt/string.h>		 /* for memcpy() */
+#if defined(RT_BIG_ENDIAN)
+# include <iprt/asm.h>                   /* RT_LE2H_U32 uses ASMByteSwapU32. */
+#endif
 
 
 /*******************************************************************************
@@ -195,7 +194,7 @@ static void rtMd5ByteReverse(uint32_t *buf, unsigned int longs)
 {
     uint32_t t;
     do {
-	t = *buf
+	t = *buf;
         t = RT_LE2H_U32(t);
 	*buf = t;
 	buf++;

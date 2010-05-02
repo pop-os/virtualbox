@@ -1,10 +1,10 @@
-/* $Id: DevIchAc97.cpp $ */
+/* $Id: DevIchAc97.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DevIchAc97 - VBox ICH AC97 Audio Controller.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -205,7 +201,7 @@ typedef struct AC97LinkState
     PPDMIAUDIOCONNECTOR     pDrv;
     /** Pointer to the attached audio driver. */
     PPDMIBASE               pDrvBase;
-    /** The base interface. */
+    /** The base interface for LUN\#0. */
     PDMIBASE                IBase;
     /** Base port of the I/O space region. */
     RTIOPORT                IOPortBase[2];
@@ -1537,47 +1533,20 @@ static DECLCALLBACK(void)  ac97Reset (PPDMDEVINS pDevIns)
 }
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the driver.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
- * @thread  Any thread.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
 static DECLCALLBACK(void *) ichac97QueryInterface (struct PDMIBASE *pInterface,
-                                                   PDMINTERFACE enmInterface)
+                                                   const char *pszIID)
 {
-    PCIAC97LinkState *pThis =
-        (PCIAC97LinkState *)((uintptr_t)pInterface
-                             - RT_OFFSETOF(PCIAC97LinkState, ac97.IBase));
+    PCIAC97LinkState *pThis = RT_FROM_MEMBER(pInterface, PCIAC97LinkState, ac97.IBase);
     Assert(&pThis->ac97.IBase == pInterface);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pThis->ac97.IBase;
-        default:
-            return NULL;
-    }
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->ac97.IBase);
+    return NULL;
 }
 
 /**
- * Construct a device instance for a VM.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed,
- *                      pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which
- *                      registers and such to use.
- *                      The device number is also found in pDevIns->iInstance,
- *                      but since it's likely to be freqently used PDM passes
- *                      it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device.
- *                      Use this to obtain the configuration
- *                      of the device instance. It's also found in
- *                      pDevIns->pCfgHandle, but like iInstance it's expected
- *                      to be used a bit in this function.
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
 static DECLCALLBACK(int) ichac97Construct (PPDMDEVINS pDevIns, int iInstance,
                                            PCFGMNODE pCfgHandle)
@@ -1587,6 +1556,7 @@ static DECLCALLBACK(int) ichac97Construct (PPDMDEVINS pDevIns, int iInstance,
     int               rc;
 
     Assert(iInstance == 0);
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
      * Validations.
@@ -1660,12 +1630,10 @@ static DECLCALLBACK(int) ichac97Construct (PPDMDEVINS pDevIns, int iInstance,
 
     ac97Reset (pDevIns);
 
-#ifndef RT_OS_DARWIN /* coreaudio doesn't supply these. */
     if (!s->voice_pi)
         LogRel (("AC97: WARNING: Unable to open PCM IN!\n"));
     if (!s->voice_mc)
         LogRel (("AC97: WARNING: Unable to open PCM MC!\n"));
-#endif
     if (!s->voice_po)
         LogRel (("AC97: WARNING: Unable to open PCM OUT!\n"));
 
@@ -1685,7 +1653,6 @@ static DECLCALLBACK(int) ichac97Construct (PPDMDEVINS pDevIns, int iInstance,
             N_ ("No audio devices could be opened. Selecting the NULL audio backend "
                 "with the consequence that no sound is audible"));
     }
-#ifndef RT_OS_DARWIN
     else if (!s->voice_pi || !s->voice_po || !s->voice_mc)
     {
         char   szMissingVoices[128];
@@ -1703,7 +1670,6 @@ static DECLCALLBACK(int) ichac97Construct (PPDMDEVINS pDevIns, int iInstance,
                 "is working properly. Check the logfile for error messages of the audio "
                 "subsystem"), szMissingVoices);
     }
-#endif
 
     return VINF_SUCCESS;
 }
@@ -1715,7 +1681,7 @@ const PDMDEVREG g_DeviceICHAC97 =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "ichac97",
     /* szRCMod */
     "",

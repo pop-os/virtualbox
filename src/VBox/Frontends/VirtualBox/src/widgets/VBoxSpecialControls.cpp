@@ -1,3 +1,22 @@
+/* $Id: VBoxSpecialControls.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VBoxSpecialButtons implementation
+ */
+
+/*
+ * Copyright (C) 2009 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
 /* VBox includes */
 #include "VBoxSpecialControls.h"
 
@@ -19,6 +38,30 @@ VBoxMiniCancelButton::VBoxMiniCancelButton (QWidget *aParent /* = 0 */)
     connect (mButton, SIGNAL (clicked()),
              this, SIGNAL (clicked()));
     setFixedSize (mButton->size());
+}
+
+void VBoxMiniCancelButton::resizeEvent(QResizeEvent * /* pEvent */)
+{
+    mButton->resize(size());
+}
+
+/********************************************************************************
+ *
+ * A rest button in the native Cocoa version.
+ *
+ ********************************************************************************/
+UIResetButton::UIResetButton(QWidget *pParent /* = 0 */)
+  : QAbstractButton(pParent)
+{
+    m_pButton = new VBoxCocoaButton(VBoxCocoaButton::ResetButton, this);
+    connect(m_pButton, SIGNAL(clicked()),
+            this, SIGNAL(clicked()));
+    setFixedSize(m_pButton->size());
+}
+
+void UIResetButton::resizeEvent(QResizeEvent * /* pEvent */)
+{
+    m_pButton->resize(size());
 }
 
 /********************************************************************************
@@ -79,6 +122,11 @@ VBoxMiniCancelButton::VBoxMiniCancelButton (QWidget *aParent /* = 0 */)
         cancelIcon = VBoxGlobal::iconSet (":/delete_16px.png",
                                           ":/delete_dis_16px.png");
     setIcon (cancelIcon);
+}
+
+void VBoxMiniCancelButton::removeBorder()
+{
+    setStyleSheet("QToolButton { border: 0px }");
 }
 
 /********************************************************************************

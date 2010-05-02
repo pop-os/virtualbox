@@ -1,3 +1,4 @@
+/* $Id: VBoxFrameBuffer.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +15,11 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include "precomp.h"
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 #include "VBoxFrameBuffer.h"
 
 #include "VBoxConsoleView.h"
@@ -28,6 +28,7 @@
 
 /* Qt includes */
 #include <QPainter>
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 //
 // VBoxFrameBuffer class
@@ -270,7 +271,7 @@ STDMETHODIMP VBoxFrameBuffer::ProcessVHWACommand(BYTE *pCommand)
 #ifdef VBOX_WITH_VIDEOHWACCEL
 void VBoxFrameBuffer::doProcessVHWACommand(QEvent * pEvent)
 {
-	Q_UNUSED(pEvent);
+    Q_UNUSED(pEvent);
     /* should never be here */
     AssertBreakpoint();
 }
@@ -313,7 +314,7 @@ STDMETHODIMP VBoxQImageFrameBuffer::NotifyUpdate (ULONG aX, ULONG aY,
 
 void VBoxQImageFrameBuffer::paintEvent (QPaintEvent *pe)
 {
-    const QRect &r = pe->rect().intersected (mView->viewport()->rect());
+    const QRect &r = pe->rect().intersected (QRect (0, 0, mWdt, mHgt));
 
     /* Some outdated rectangle during processing VBoxResizeEvent */
     if (r.isEmpty())
@@ -444,7 +445,7 @@ void VBoxQImageFrameBuffer::resizeEvent (VBoxResizeEvent *re)
 // VBoxQGLFrameBuffer class
 /////////////////////////////////////////////////////////////////////////////
 
-#if defined (VBOX_GUI_USE_QGL)
+#if defined (VBOX_GUI_USE_QGLFB)
 
 /* The class is defined in VBoxFBQGL.cpp */
 
@@ -672,3 +673,4 @@ void VBoxSDLFrameBuffer::resizeEvent (VBoxResizeEvent *re)
 /* The class is defined in VBoxQuartz2D.cpp */
 
 #endif
+

@@ -1,10 +1,10 @@
-/* $Id: PDMAsyncCompletion.cpp $ */
+/* $Id: PDMAsyncCompletion.cpp 28853 2010-04-27 19:20:58Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -29,6 +25,7 @@
 #include <VBox/mm.h>
 #include <VBox/rem.h>
 #include <VBox/vm.h>
+#include <VBox/uvm.h>
 #include <VBox/err.h>
 
 #include <VBox/log.h>
@@ -38,6 +35,7 @@
 #include <iprt/mem.h>
 #include <iprt/critsect.h>
 #include <iprt/tcp.h>
+#include <iprt/path.h>
 
 #include <VBox/pdmasynccompletion.h>
 #include "PDMAsyncCompletionInternal.h"
@@ -114,7 +112,7 @@ typedef struct PDMASYNCCOMPLETIONTEMPLATE
     volatile uint32_t                       cUsed;
 } PDMASYNCCOMPLETIONTEMPLATE;
 
-static void pdmR3AsyncCompletionPutTask(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, PPDMASYNCCOMPLETIONTASK pTask, bool fLocal);
+static void pdmR3AsyncCompletionPutTask(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, PPDMASYNCCOMPLETIONTASK pTask);
 
 /**
  * Internal worker for the creation apis
@@ -125,7 +123,7 @@ static void pdmR3AsyncCompletionPutTask(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, P
  */
 static int pdmR3AsyncCompletionTemplateCreate(PVM pVM, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate, PDMASYNCCOMPLETIONTEMPLATETYPE enmType)
 {
-    int rc = VINF_SUCCESS;
+    PUVM pUVM = pVM->pUVM;
 
     if (ppTemplate == NULL)
     {
@@ -134,7 +132,7 @@ static int pdmR3AsyncCompletionTemplateCreate(PVM pVM, PPPDMASYNCCOMPLETIONTEMPL
     }
 
     PPDMASYNCCOMPLETIONTEMPLATE pTemplate;
-    rc = MMR3HeapAllocZEx(pVM, MM_TAG_PDM_ASYNC_COMPLETION, sizeof(PDMASYNCCOMPLETIONTEMPLATE), (void **)&pTemplate);
+    int rc = MMR3HeapAllocZEx(pVM, MM_TAG_PDM_ASYNC_COMPLETION, sizeof(PDMASYNCCOMPLETIONTEMPLATE), (void **)&pTemplate);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -148,10 +146,12 @@ static int pdmR3AsyncCompletionTemplateCreate(PVM pVM, PPPDMASYNCCOMPLETIONTEMPL
     /*
      * Add template to the global VM template list.
      */
-    pTemplate->pNext = pVM->pdm.s.pAsyncCompletionTemplates;
-    if (pVM->pdm.s.pAsyncCompletionTemplates)
-        pVM->pdm.s.pAsyncCompletionTemplates->pPrev = pTemplate;
-    pVM->pdm.s.pAsyncCompletionTemplates = pTemplate;
+    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
+    pTemplate->pNext = pUVM->pdm.s.pAsyncCompletionTemplates;
+    if (pUVM->pdm.s.pAsyncCompletionTemplates)
+        pUVM->pdm.s.pAsyncCompletionTemplates->pPrev = pTemplate;
+    pUVM->pdm.s.pAsyncCompletionTemplates = pTemplate;
+    RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
 
     *ppTemplate = pTemplate;
     return VINF_SUCCESS;
@@ -229,7 +229,6 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateDriver(PVM pVM, PPDMDRVINS pDrv
     /*
      * Validate input.
      */
-    VM_ASSERT_EMT(pVM);
     if (!pfnCompleted)
     {
         AssertMsgFailed(("No completion callback!\n"));
@@ -394,17 +393,21 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroy(PPDMASYNCCOMPLETIONTEMPLATE p
     /*
      * Unlink the template from the list.
      */
-    PVM pVM = pTemplate->pVM;
+    PUVM pUVM = pTemplate->pVM->pUVM;
+    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
+
     PPDMASYNCCOMPLETIONTEMPLATE pPrev = pTemplate->pPrev;
     PPDMASYNCCOMPLETIONTEMPLATE pNext = pTemplate->pNext;
 
     if (pPrev)
         pPrev->pNext = pNext;
     else
-        pVM->pdm.s.pAsyncCompletionTemplates = pNext;
+        pUVM->pdm.s.pAsyncCompletionTemplates = pNext;
 
     if (pNext)
         pNext->pPrev = pPrev;
+
+    RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
 
     /*
      * Free the template.
@@ -438,7 +441,9 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyDevice(PVM pVM, PPDMDEVINS pDe
     /*
      * Unlink it.
      */
-    PPDMASYNCCOMPLETIONTEMPLATE pTemplate = pVM->pdm.s.pAsyncCompletionTemplates;
+    PUVM pUVM = pVM->pUVM;
+    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
+    PPDMASYNCCOMPLETIONTEMPLATE pTemplate = pUVM->pdm.s.pAsyncCompletionTemplates;
     while (pTemplate)
     {
         if (    pTemplate->enmType == PDMASYNCCOMPLETIONTEMPLATETYPE_DEV
@@ -448,12 +453,16 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyDevice(PVM pVM, PPDMDEVINS pDe
             pTemplate = pTemplate->pNext;
             int rc = PDMR3AsyncCompletionTemplateDestroy(pTemplateDestroy);
             if (RT_FAILURE(rc))
+            {
+                RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
                 return rc;
+            }
         }
         else
             pTemplate = pTemplate->pNext;
     }
 
+    RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
     return VINF_SUCCESS;
 }
 
@@ -481,7 +490,9 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyDriver(PVM pVM, PPDMDRVINS pDr
     /*
      * Unlink it.
      */
-    PPDMASYNCCOMPLETIONTEMPLATE pTemplate = pVM->pdm.s.pAsyncCompletionTemplates;
+    PUVM pUVM = pVM->pUVM;
+    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
+    PPDMASYNCCOMPLETIONTEMPLATE pTemplate = pUVM->pdm.s.pAsyncCompletionTemplates;
     while (pTemplate)
     {
         if (    pTemplate->enmType == PDMASYNCCOMPLETIONTEMPLATETYPE_DRV
@@ -491,12 +502,16 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyDriver(PVM pVM, PPDMDRVINS pDr
             pTemplate = pTemplate->pNext;
             int rc = PDMR3AsyncCompletionTemplateDestroy(pTemplateDestroy);
             if (RT_FAILURE(rc))
+            {
+                RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
                 return rc;
+            }
         }
         else
             pTemplate = pTemplate->pNext;
     }
 
+    RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
     return VINF_SUCCESS;
 }
 
@@ -524,7 +539,9 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyUsb(PVM pVM, PPDMUSBINS pUsbIn
     /*
      * Unlink it.
      */
-    PPDMASYNCCOMPLETIONTEMPLATE pTemplate = pVM->pdm.s.pAsyncCompletionTemplates;
+    PUVM pUVM = pVM->pUVM;
+    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
+    PPDMASYNCCOMPLETIONTEMPLATE pTemplate = pUVM->pdm.s.pAsyncCompletionTemplates;
     while (pTemplate)
     {
         if (    pTemplate->enmType == PDMASYNCCOMPLETIONTEMPLATETYPE_USB
@@ -534,48 +551,55 @@ VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroyUsb(PVM pVM, PPDMUSBINS pUsbIn
             pTemplate = pTemplate->pNext;
             int rc = PDMR3AsyncCompletionTemplateDestroy(pTemplateDestroy);
             if (RT_FAILURE(rc))
+            {
+                RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
                 return rc;
+            }
         }
         else
             pTemplate = pTemplate->pNext;
     }
 
+    RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
     return VINF_SUCCESS;
 }
 
-void pdmR3AsyncCompletionCompleteTask(PPDMASYNCCOMPLETIONTASK pTask)
+void pdmR3AsyncCompletionCompleteTask(PPDMASYNCCOMPLETIONTASK pTask, int rc, bool fCallCompletionHandler)
 {
-    LogFlow(("%s: pTask=%p\n", __FUNCTION__, pTask));
+    LogFlow(("%s: pTask=%#p fCallCompletionHandler=%RTbool\n", __FUNCTION__, pTask, fCallCompletionHandler));
 
-    PPDMASYNCCOMPLETIONTEMPLATE pTemplate = pTask->pEndpoint->pTemplate;
-
-    switch (pTemplate->enmType)
+    if (fCallCompletionHandler)
     {
-        case PDMASYNCCOMPLETIONTEMPLATETYPE_DEV:
+        PPDMASYNCCOMPLETIONTEMPLATE pTemplate = pTask->pEndpoint->pTemplate;
+
+        switch (pTemplate->enmType)
         {
-            pTemplate->u.Dev.pfnCompleted(pTemplate->u.Dev.pDevIns, pTask->pvUser);
-            break;
+            case PDMASYNCCOMPLETIONTEMPLATETYPE_DEV:
+            {
+                pTemplate->u.Dev.pfnCompleted(pTemplate->u.Dev.pDevIns, pTask->pvUser, rc);
+                break;
+            }
+            case PDMASYNCCOMPLETIONTEMPLATETYPE_DRV:
+            {
+                pTemplate->u.Drv.pfnCompleted(pTemplate->u.Drv.pDrvIns, pTemplate->u.Drv.pvTemplateUser, pTask->pvUser, rc);
+                break;
+            }
+            case PDMASYNCCOMPLETIONTEMPLATETYPE_USB:
+            {
+                pTemplate->u.Usb.pfnCompleted(pTemplate->u.Usb.pUsbIns, pTask->pvUser, rc);
+                break;
+            }
+            case PDMASYNCCOMPLETIONTEMPLATETYPE_INTERNAL:
+            {
+                pTemplate->u.Int.pfnCompleted(pTemplate->pVM, pTask->pvUser, pTemplate->u.Int.pvUser, rc);
+                break;
+            }
+            default:
+                AssertMsgFailed(("Unknown template type!\n"));
         }
-        case PDMASYNCCOMPLETIONTEMPLATETYPE_DRV:
-        {
-            pTemplate->u.Drv.pfnCompleted(pTemplate->u.Drv.pDrvIns, pTemplate->u.Drv.pvTemplateUser, pTask->pvUser);
-            break;
-        }
-        case PDMASYNCCOMPLETIONTEMPLATETYPE_USB:
-        {
-            pTemplate->u.Usb.pfnCompleted(pTemplate->u.Usb.pUsbIns, pTask->pvUser);
-            break;
-        }
-        case PDMASYNCCOMPLETIONTEMPLATETYPE_INTERNAL:
-        {
-            pTemplate->u.Int.pfnCompleted(pTemplate->pVM, pTask->pvUser, pTemplate->u.Int.pvUser);
-            break;
-        }
-        default:
-            AssertMsgFailed(("Unknown template type!\n"));
     }
 
-    pdmR3AsyncCompletionPutTask(pTask->pEndpoint, pTask, true);
+    pdmR3AsyncCompletionPutTask(pTask->pEndpoint, pTask);
 }
 
 /**
@@ -615,23 +639,24 @@ int pdmR3AsyncCompletionEpClassInit(PVM pVM, PCPDMASYNCCOMPLETIONEPCLASSOPS pEpC
         {
             PCFGMNODE pCfgNodeClass = CFGMR3GetChild(pCfgHandle, pEpClassOps->pcszName);
 
-            /* Query the common CFGM options */
-            rc = CFGMR3QueryU32Def(pCfgNodeClass, "TaskCachePerEndpoint", &pEndpointClass->cEndpointCacheSize, 5);
-            AssertRCReturn(rc, rc);
-
-            rc = CFGMR3QueryU32Def(pCfgNodeClass, "TaskCachePerClass", &pEndpointClass->cEpClassCacheSize, 50);
-            AssertRCReturn(rc, rc);
-
-            /* Call the specific endpoint class initializer. */
-            rc = pEpClassOps->pfnInitialize(pEndpointClass, pCfgNodeClass);
+            /* Create task cache */
+            rc = RTMemCacheCreate(&pEndpointClass->hMemCacheTasks, pEpClassOps->cbTask,
+                                  0, UINT32_MAX, NULL, NULL, NULL, 0);
             if (RT_SUCCESS(rc))
             {
-                AssertMsg(!pVM->pdm.s.papAsyncCompletionEndpointClass[pEpClassOps->enmClassType],
+                /* Call the specific endpoint class initializer. */
+                rc = pEpClassOps->pfnInitialize(pEndpointClass, pCfgNodeClass);
+                if (RT_SUCCESS(rc))
+                {
+                    PUVM pUVM = pVM->pUVM;
+                    AssertMsg(!pUVM->pdm.s.apAsyncCompletionEndpointClass[pEpClassOps->enmClassType],
                               ("Endpoint class was already initialized\n"));
 
-                pVM->pdm.s.papAsyncCompletionEndpointClass[pEpClassOps->enmClassType] = pEndpointClass;
-                LogFlowFunc((": Initialized endpoint class \"%s\" rc=%Rrc\n", pEpClassOps->pcszName, rc));
-                return VINF_SUCCESS;
+                    pUVM->pdm.s.apAsyncCompletionEndpointClass[pEpClassOps->enmClassType] = pEndpointClass;
+                    LogFlowFunc((": Initialized endpoint class \"%s\" rc=%Rrc\n", pEpClassOps->pcszName, rc));
+                    return VINF_SUCCESS;
+                }
+                RTMemCacheDestroy(pEndpointClass->hMemCacheTasks);
             }
             RTCritSectDelete(&pEndpointClass->CritSect);
         }
@@ -660,26 +685,14 @@ static void pdmR3AsyncCompletionEpClassTerminate(PPDMASYNCCOMPLETIONEPCLASS pEnd
     while (pEndpointClass->pEndpointsHead)
         PDMR3AsyncCompletionEpClose(pEndpointClass->pEndpointsHead);
 
-    /* Destroy all cached tasks. */
-    for (unsigned i = 0; i < RT_ELEMENTS(pEndpointClass->apTaskCache); i++)
-    {
-        PPDMASYNCCOMPLETIONTASK pTask = pEndpointClass->apTaskCache[i];
-
-        while (pTask)
-        {
-            PPDMASYNCCOMPLETIONTASK pTaskFree = pTask;
-            pTask = pTask->pNext;
-            MMR3HeapFree(pTaskFree);
-        }
-    }
-
     /* Call the termination callback of the class. */
     pEndpointClass->pEndpointOps->pfnTerminate(pEndpointClass);
 
+    RTMemCacheDestroy(pEndpointClass->hMemCacheTasks);
     RTCritSectDelete(&pEndpointClass->CritSect);
 
     /* Free the memory of the class finally and clear the entry in the class array. */
-    pVM->pdm.s.papAsyncCompletionEndpointClass[pEndpointClass->pEndpointOps->enmClassType] = NULL;
+    pVM->pUVM->pdm.s.apAsyncCompletionEndpointClass[pEndpointClass->pEndpointOps->enmClassType] = NULL;
     MMR3HeapFree(pEndpointClass);
 }
 
@@ -691,30 +704,17 @@ static void pdmR3AsyncCompletionEpClassTerminate(PPDMASYNCCOMPLETIONEPCLASS pEnd
  */
 int pdmR3AsyncCompletionInit(PVM pVM)
 {
-    int rc = VINF_SUCCESS;
+    int  rc   = VINF_SUCCESS;
+    PUVM pUVM = pVM->pUVM;
 
     LogFlowFunc((": pVM=%p\n", pVM));
 
     VM_ASSERT_EMT(pVM);
 
-    do
-    {
-        /* Allocate array for global class data. */
-        rc = MMR3HeapAllocZEx(pVM, MM_TAG_PDM_ASYNC_COMPLETION,
-                              sizeof(PPDMASYNCCOMPLETIONEPCLASS) * PDMASYNCCOMPLETIONEPCLASSTYPE_MAX,
-                              (void **)&pVM->pdm.s.papAsyncCompletionEndpointClass);
-        if (RT_FAILURE(rc))
-            break;
+    PCFGMNODE pCfgRoot            = CFGMR3GetRoot(pVM);
+    PCFGMNODE pCfgAsyncCompletion = CFGMR3GetChild(CFGMR3GetChild(pCfgRoot, "PDM"), "AsyncCompletion");
 
-        PCFGMNODE pCfgRoot = CFGMR3GetRoot(pVM);
-        PCFGMNODE pCfgAsyncCompletion = CFGMR3GetChild(CFGMR3GetChild(pCfgRoot, "PDM"), "AsyncCompletion");
-
-        rc = pdmR3AsyncCompletionEpClassInit(pVM, &g_PDMAsyncCompletionEndpointClassFile, pCfgAsyncCompletion);
-        if (RT_FAILURE(rc))
-            break;
-
-        /* Put other classes here. */
-    } while (0);
+    rc = pdmR3AsyncCompletionEpClassInit(pVM, &g_PDMAsyncCompletionEndpointClassFile, pCfgAsyncCompletion);
 
     LogFlowFunc((": pVM=%p rc=%Rrc\n", pVM, rc));
 
@@ -730,12 +730,12 @@ int pdmR3AsyncCompletionInit(PVM pVM)
 int pdmR3AsyncCompletionTerm(PVM pVM)
 {
     LogFlowFunc((": pVM=%p\n", pVM));
+    PUVM pUVM = pVM->pUVM;
 
-    if (pVM->pdm.s.papAsyncCompletionEndpointClass)
-    {
-        pdmR3AsyncCompletionEpClassTerminate(pVM->pdm.s.papAsyncCompletionEndpointClass[PDMASYNCCOMPLETIONEPCLASSTYPE_FILE]);
-        MMR3HeapFree(pVM->pdm.s.papAsyncCompletionEndpointClass);
-    }
+    for (size_t i = 0; i < RT_ELEMENTS(pUVM->pdm.s.apAsyncCompletionEndpointClass); i++)
+        if (pUVM->pdm.s.apAsyncCompletionEndpointClass[i])
+            pdmR3AsyncCompletionEpClassTerminate(pUVM->pdm.s.apAsyncCompletionEndpointClass[i]);
+
     return VINF_SUCCESS;
 }
 
@@ -749,81 +749,10 @@ int pdmR3AsyncCompletionTerm(PVM pVM)
  */
 static PPDMASYNCCOMPLETIONTASK pdmR3AsyncCompletionGetTask(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, void *pvUser)
 {
+    PPDMASYNCCOMPLETIONEPCLASS pEndpointClass = pEndpoint->pEpClass;
     PPDMASYNCCOMPLETIONTASK pTask = NULL;
 
-    /* Try the small per endpoint cache first. */
-    uint32_t cTasksCached = ASMAtomicReadU32(&pEndpoint->cTasksCached);
-    if (cTasksCached == 0)
-    {
-        /* Try the bigger per endpoint class cache. */
-        PPDMASYNCCOMPLETIONEPCLASS pEndpointClass = pEndpoint->pEpClass;
-
-        /* We start with the assigned slot id to distribute the load when allocating new tasks. */
-        unsigned iSlot = pEndpoint->iSlotStart;
-        do
-        {
-            pTask = (PPDMASYNCCOMPLETIONTASK)ASMAtomicXchgPtr((void * volatile *)&pEndpointClass->apTaskCache[iSlot], NULL);
-            if (pTask)
-                break;
-
-            iSlot = (iSlot + 1) % RT_ELEMENTS(pEndpointClass->apTaskCache);
-        } while (iSlot != pEndpoint->iSlotStart);
-
-        if (!pTask)
-        {
-            /*
-             * Allocate completely new.
-             * If this fails we return NULL.
-             */
-            int rc = MMR3HeapAllocZEx(pEndpointClass->pVM, MM_TAG_PDM_ASYNC_COMPLETION,
-                                      pEndpointClass->pEndpointOps->cbTask,
-                                      (void **)&pTask);
-            if (RT_FAILURE(rc))
-                pTask = NULL;
-        }
-        else
-        {
-            /* Remove the first element and put the rest into the slot again. */
-            PPDMASYNCCOMPLETIONTASK pTaskHeadNew = pTask->pNext;
-
-            /* Put back into the list adding any new tasks. */
-            while (true)
-            {
-                bool fChanged = ASMAtomicCmpXchgPtr((void * volatile *)&pEndpointClass->apTaskCache[iSlot], pTaskHeadNew, NULL);
-
-                if (fChanged)
-                    break;
-
-                PPDMASYNCCOMPLETIONTASK pTaskHead = (PPDMASYNCCOMPLETIONTASK)ASMAtomicXchgPtr((void * volatile *)&pEndpointClass->apTaskCache[iSlot], NULL);
-
-                /* The new task could be taken inbetween */
-                if (pTaskHead)
-                {
-                    /* Go to the end of the probably much shorter new list. */
-                    PPDMASYNCCOMPLETIONTASK pTaskTail = pTaskHead;
-                    while (pTaskTail->pNext)
-                        pTaskTail = pTaskTail->pNext;
-
-                    /* Concatenate */
-                    pTaskTail->pNext = pTaskHeadNew;
-
-                    pTaskHeadNew = pTaskHead;
-                }
-                /* Another round trying to change the list. */
-            }
-            /* We got a task from the global cache so decrement the counter */
-            ASMAtomicDecU32(&pEndpointClass->cTasksCached);
-        }
-    }
-    else
-    {
-        /* Grab a free task from the head. */
-        AssertMsg(pEndpoint->cTasksCached > 0, ("No tasks cached but list contain more than one element\n"));
-
-        pTask = pEndpoint->pTasksFreeHead;
-        pEndpoint->pTasksFreeHead = pTask->pNext;
-        ASMAtomicDecU32(&pEndpoint->cTasksCached);
-    }
+    pTask = (PPDMASYNCCOMPLETIONTASK)RTMemCacheAlloc(pEndpointClass->hMemCacheTasks);
 
     if (RT_LIKELY(pTask))
     {
@@ -836,6 +765,10 @@ static PPDMASYNCCOMPLETIONTASK pdmR3AsyncCompletionGetTask(PPDMASYNCCOMPLETIONEN
         /* Clear list pointers for safety. */
         pTask->pPrev     = NULL;
         pTask->pNext     = NULL;
+#ifdef VBOX_WITH_STATISTICS
+        pTask->tsNsStart = RTTimeNanoTS();
+        STAM_COUNTER_INC(&pEndpoint->StatIoOpsStarted);
+#endif
     }
 
     return pTask;
@@ -847,39 +780,71 @@ static PPDMASYNCCOMPLETIONTASK pdmR3AsyncCompletionGetTask(PPDMASYNCCOMPLETIONEN
  * @returns nothing.
  * @param   pEndpoint    The endpoint the task belongs to.
  * @param   pTask        The task to cache.
- * @param   fLocal       Whether the per endpoint cache should be tried first.
  */
-static void pdmR3AsyncCompletionPutTask(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, PPDMASYNCCOMPLETIONTASK pTask, bool fLocal)
+static void pdmR3AsyncCompletionPutTask(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, PPDMASYNCCOMPLETIONTASK pTask)
 {
     PPDMASYNCCOMPLETIONEPCLASS pEndpointClass = pEndpoint->pEpClass;
 
-    /* Check whether we can use the per endpoint cache */
-    if (   fLocal
-        && (pEndpoint->cTasksCached < pEndpointClass->cEndpointCacheSize))
-    {
-        /* Add it to the list. */
-        pTask->pPrev = NULL;
-        pEndpoint->pTasksFreeTail->pNext = pTask;
-        pEndpoint->pTasksFreeTail        = pTask;
-        ASMAtomicIncU32(&pEndpoint->cTasksCached);
-    }
-    else if (ASMAtomicReadU32(&pEndpoint->cTasksCached) < pEndpointClass->cEpClassCacheSize)
-    {
-        /* Use the global cache. */
-        ASMAtomicIncU32(&pEndpointClass->cTasksCached);
+#ifdef VBOX_WITH_STATISTICS
+    uint64_t tsRun  = RTTimeNanoTS() - pTask->tsNsStart;
+    uint64_t iStatIdx;
 
-        PPDMASYNCCOMPLETIONTASK pNext;
-        do
-        {
-            pNext = pEndpointClass->apTaskCache[pEndpoint->iSlotStart];
-            pTask->pNext = pNext;
-        } while (!ASMAtomicCmpXchgPtr((void * volatile *)&pEndpointClass->apTaskCache[pEndpoint->iSlotStart], (void *)pTask, (void *)pNext));
+    if (tsRun < 1000)
+    {
+        /* Update nanoseconds statistics */
+        iStatIdx = tsRun / 100;
+        STAM_COUNTER_INC(&pEndpoint->StatTaskRunTimesNs[iStatIdx]);
     }
     else
     {
-        /* Free it */
-        MMR3HeapFree(pTask);
+        tsRun /= 1000;
+
+        if (tsRun < 1000)
+        {
+            /* Update microsecnds statistics */
+            iStatIdx = tsRun / 100;
+            STAM_COUNTER_INC(&pEndpoint->StatTaskRunTimesMicroSec[iStatIdx]);
+        }
+        else
+        {
+            tsRun /= 1000;
+
+            if (tsRun < 1000)
+            {
+                /* Update milliseconds statistics */
+                iStatIdx = tsRun / 100;
+                STAM_COUNTER_INC(&pEndpoint->StatTaskRunTimesMs[iStatIdx]);
+            }
+            else
+            {
+                tsRun /= 1000;
+
+                if (tsRun < 1000)
+                {
+                    /* Update seconds statistics */
+                    iStatIdx = tsRun / 10;
+                    STAM_COUNTER_INC(&pEndpoint->StatTaskRunTimesSec[iStatIdx]);
+                }
+                else
+                    STAM_COUNTER_INC(&pEndpoint->StatTaskRunOver100Sec);
+            }
+        }
     }
+
+    STAM_COUNTER_INC(&pEndpoint->StatIoOpsCompleted);
+    pEndpoint->cIoOpsCompleted++;
+    uint64_t tsMsCur = RTTimeMilliTS();
+    uint64_t tsInterval = tsMsCur - pEndpoint->tsIntervalStartMs;
+
+    if (tsInterval >= 1000)
+    {
+        pEndpoint->StatIoOpsPerSec.c = pEndpoint->cIoOpsCompleted / (tsInterval / 1000);
+        pEndpoint->tsIntervalStartMs = tsMsCur;
+        pEndpoint->cIoOpsCompleted = 0;
+    }
+#endif
+
+    RTMemCacheFree(pEndpointClass->hMemCacheTasks, pTask);
 }
 
 static PPDMASYNCCOMPLETIONENDPOINT pdmR3AsyncCompletionFindEndpointWithUri(PPDMASYNCCOMPLETIONEPCLASS pEndpointClass,
@@ -916,8 +881,9 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpCreateForFile(PPPDMASYNCCOMPLETIONENDPOINT 
     AssertReturn(((~(PDMACEP_FILE_FLAGS_READ_ONLY | PDMACEP_FILE_FLAGS_CACHING) & fFlags) == 0),
                  VERR_INVALID_PARAMETER);
 
-    PVM pVM = pTemplate->pVM;
-    PPDMASYNCCOMPLETIONEPCLASS  pEndpointClass = pVM->pdm.s.papAsyncCompletionEndpointClass[PDMASYNCCOMPLETIONEPCLASSTYPE_FILE];
+    PVM  pVM  = pTemplate->pVM;
+    PUVM pUVM = pVM->pUVM;
+    PPDMASYNCCOMPLETIONEPCLASS  pEndpointClass = pUVM->pdm.s.apAsyncCompletionEndpointClass[PDMASYNCCOMPLETIONEPCLASSTYPE_FILE];
     PPDMASYNCCOMPLETIONENDPOINT pEndpoint = NULL;
 
     AssertMsg(pEndpointClass, ("File endpoint class was not initialized\n"));
@@ -937,56 +903,148 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpCreateForFile(PPPDMASYNCCOMPLETIONENDPOINT 
             pEndpoint->pNext             = NULL;
             pEndpoint->pPrev             = NULL;
             pEndpoint->pEpClass          = pEndpointClass;
-            pEndpoint->pTasksFreeHead    = NULL;
-            pEndpoint->pTasksFreeTail    = NULL;
-            pEndpoint->cTasksCached      = 0;
             pEndpoint->uTaskIdNext       = 0;
             pEndpoint->fTaskIdWraparound = false;
             pEndpoint->pTemplate         = pTemplate;
-            pEndpoint->iSlotStart        = pEndpointClass->cEndpoints % RT_ELEMENTS(pEndpointClass->apTaskCache);
             pEndpoint->pszUri            = RTStrDup(pszFilename);
             pEndpoint->cUsers            = 1;
-            if (pEndpoint->pszUri)
+
+#ifdef VBOX_WITH_STATISTICS
+            /* Init the statistics part */
+            for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesNs); i++)
             {
-                /* Init the cache. */
-                rc = MMR3HeapAllocZEx(pVM, MM_TAG_PDM_ASYNC_COMPLETION,
-                                      pEndpointClass->pEndpointOps->cbTask,
-                                      (void **)&pEndpoint->pTasksFreeHead);
+                rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunTimesNs[i], STAMTYPE_COUNTER,
+                                     STAMVISIBILITY_USED,
+                                     STAMUNIT_OCCURENCES,
+                                     "Nanosecond resolution runtime statistics",
+                                     "/PDM/AsyncCompletion/File/%s/TaskRun1Ns-%u-%u",
+                                     RTPathFilename(pEndpoint->pszUri),
+                                     i*100, i*100+100-1);
+                if (RT_FAILURE(rc))
+                    break;
+            }
+
+            if (RT_SUCCESS(rc))
+            {
+                for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesMicroSec); i++)
+                {
+                    rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunTimesMicroSec[i], STAMTYPE_COUNTER,
+                                         STAMVISIBILITY_USED,
+                                         STAMUNIT_OCCURENCES,
+                                         "Microsecond resolution runtime statistics",
+                                         "/PDM/AsyncCompletion/File/%s/TaskRun2MicroSec-%u-%u",
+                                         RTPathFilename(pEndpoint->pszUri),
+                                        i*100, i*100+100-1);
+                    if (RT_FAILURE(rc))
+                        break;
+                }
+            }
+
+            if (RT_SUCCESS(rc))
+            {
+                for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesMs); i++)
+                {
+                    rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunTimesMs[i], STAMTYPE_COUNTER,
+                                         STAMVISIBILITY_USED,
+                                         STAMUNIT_OCCURENCES,
+                                         "Milliseconds resolution runtime statistics",
+                                         "/PDM/AsyncCompletion/File/%s/TaskRun3Ms-%u-%u",
+                                         RTPathFilename(pEndpoint->pszUri),
+                                        i*100, i*100+100-1);
+                    if (RT_FAILURE(rc))
+                        break;
+                }
+            }
+
+            if (RT_SUCCESS(rc))
+            {
+                for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesMs); i++)
+                {
+                    rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunTimesSec[i], STAMTYPE_COUNTER,
+                                         STAMVISIBILITY_USED,
+                                         STAMUNIT_OCCURENCES,
+                                         "Second resolution runtime statistics",
+                                         "/PDM/AsyncCompletion/File/%s/TaskRun4Sec-%u-%u",
+                                         RTPathFilename(pEndpoint->pszUri),
+                                        i*10, i*10+10-1);
+                    if (RT_FAILURE(rc))
+                        break;
+                }
+            }
+
+            if (RT_SUCCESS(rc))
+            {
+                rc = STAMR3RegisterF(pVM, &pEndpoint->StatTaskRunOver100Sec, STAMTYPE_COUNTER,
+                                     STAMVISIBILITY_USED,
+                                     STAMUNIT_OCCURENCES,
+                                     "Tasks which ran more than 100sec",
+                                     "/PDM/AsyncCompletion/File/%s/TaskRunSecGreater100Sec",
+                                     RTPathFilename(pEndpoint->pszUri));
+            }
+
+            if (RT_SUCCESS(rc))
+            {
+                rc = STAMR3RegisterF(pVM, &pEndpoint->StatIoOpsPerSec, STAMTYPE_COUNTER,
+                                     STAMVISIBILITY_ALWAYS,
+                                     STAMUNIT_OCCURENCES,
+                                     "Processed I/O operations per second",
+                                     "/PDM/AsyncCompletion/File/%s/IoOpsPerSec",
+                                     RTPathFilename(pEndpoint->pszUri));
+            }
+
+            if (RT_SUCCESS(rc))
+            {
+                rc = STAMR3RegisterF(pVM, &pEndpoint->StatIoOpsStarted, STAMTYPE_COUNTER,
+                                     STAMVISIBILITY_ALWAYS,
+                                     STAMUNIT_OCCURENCES,
+                                     "Started I/O operations for this endpoint",
+                                     "/PDM/AsyncCompletion/File/%s/IoOpsStarted",
+                                     RTPathFilename(pEndpoint->pszUri));
+            }
+
+            if (RT_SUCCESS(rc))
+            {
+                rc = STAMR3RegisterF(pVM, &pEndpoint->StatIoOpsCompleted, STAMTYPE_COUNTER,
+                                     STAMVISIBILITY_ALWAYS,
+                                     STAMUNIT_OCCURENCES,
+                                     "Completed I/O operations for this endpoint",
+                                     "/PDM/AsyncCompletion/File/%s/IoOpsCompleted",
+                                     RTPathFilename(pEndpoint->pszUri));
+            }
+
+            pEndpoint->tsIntervalStartMs = RTTimeMilliTS();
+#endif
+
+            if (   pEndpoint->pszUri
+                && RT_SUCCESS(rc))
+            {
+                /* Call the initializer for the endpoint. */
+                rc = pEndpointClass->pEndpointOps->pfnEpInitialize(pEndpoint, pszFilename, fFlags);
                 if (RT_SUCCESS(rc))
                 {
-                    pEndpoint->pTasksFreeTail = pEndpoint->pTasksFreeHead;
+                    /* Link it into the list of endpoints. */
+                    rc = RTCritSectEnter(&pEndpointClass->CritSect);
+                    AssertMsg(RT_SUCCESS(rc), ("Failed to enter critical section rc=%Rrc\n", rc));
 
-                    /* Call the initializer for the endpoint. */
-                    rc = pEndpointClass->pEndpointOps->pfnEpInitialize(pEndpoint, pszFilename, fFlags);
-                    if (RT_SUCCESS(rc))
-                    {
-                        /* Link it into the list of endpoints. */
-                        rc = RTCritSectEnter(&pEndpointClass->CritSect);
-                        AssertMsg(RT_SUCCESS(rc), ("Failed to enter critical section rc=%Rrc\n", rc));
+                    pEndpoint->pNext = pEndpointClass->pEndpointsHead;
+                    if (pEndpointClass->pEndpointsHead)
+                        pEndpointClass->pEndpointsHead->pPrev = pEndpoint;
 
-                        pEndpoint->pNext = pEndpointClass->pEndpointsHead;
-                        if (pEndpointClass->pEndpointsHead)
-                            pEndpointClass->pEndpointsHead->pPrev = pEndpoint;
+                    pEndpointClass->pEndpointsHead = pEndpoint;
+                    pEndpointClass->cEndpoints++;
 
-                        pEndpointClass->pEndpointsHead = pEndpoint;
-                        pEndpointClass->cEndpoints++;
+                    rc = RTCritSectLeave(&pEndpointClass->CritSect);
+                    AssertMsg(RT_SUCCESS(rc), ("Failed to enter critical section rc=%Rrc\n", rc));
 
-                        rc = RTCritSectLeave(&pEndpointClass->CritSect);
-                        AssertMsg(RT_SUCCESS(rc), ("Failed to enter critical section rc=%Rrc\n", rc));
+                    /* Reference the template. */
+                    ASMAtomicIncU32(&pTemplate->cUsed);
 
-                        /* Reference the template. */
-                        ASMAtomicIncU32(&pTemplate->cUsed);
+                    *ppEndpoint = pEndpoint;
 
-                        *ppEndpoint = pEndpoint;
-
-                        LogFlowFunc((": Created endpoint for %s: rc=%Rrc\n", pszFilename, rc));
-                        return VINF_SUCCESS;
-                    }
-                    MMR3HeapFree(pEndpoint->pTasksFreeHead);
-                    RTStrFree(pEndpoint->pszUri);
+                    LogFlowFunc((": Created endpoint for %s: rc=%Rrc\n", pszFilename, rc));
+                    return VINF_SUCCESS;
                 }
-                else
-                    rc = VERR_NO_MEMORY;
+                RTStrFree(pEndpoint->pszUri);
             }
             MMR3HeapFree(pEndpoint);
         }
@@ -1020,16 +1078,6 @@ VMMR3DECL(void) PDMR3AsyncCompletionEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoin
         PPDMASYNCCOMPLETIONEPCLASS pEndpointClass = pEndpoint->pEpClass;
         pEndpointClass->pEndpointOps->pfnEpClose(pEndpoint);
 
-        /* Free cached tasks. */
-        PPDMASYNCCOMPLETIONTASK pTask = pEndpoint->pTasksFreeHead;
-
-        while (pTask)
-        {
-            PPDMASYNCCOMPLETIONTASK pTaskFree = pTask;
-            pTask = pTask->pNext;
-            MMR3HeapFree(pTaskFree);
-        }
-
         /* Drop reference from the template. */
         ASMAtomicDecU32(&pEndpoint->pTemplate->cUsed);
 
@@ -1052,13 +1100,32 @@ VMMR3DECL(void) PDMR3AsyncCompletionEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoin
         rc = RTCritSectLeave(&pEndpointClass->CritSect);
         AssertMsg(RT_SUCCESS(rc), ("Failed to enter critical section rc=%Rrc\n", rc));
 
+#ifdef VBOX_WITH_STATISTICS
+        /* Deregister the statistics part */
+        PVM pVM = pEndpointClass->pVM;
+
+        for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesNs); i++)
+            STAMR3Deregister(pVM, &pEndpoint->StatTaskRunTimesNs[i]);
+        for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesMicroSec); i++)
+            STAMR3Deregister(pVM, &pEndpoint->StatTaskRunTimesMicroSec[i]);
+        for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesMs); i++)
+            STAMR3Deregister(pVM, &pEndpoint->StatTaskRunTimesMs[i]);
+        for (unsigned i = 0; i < RT_ELEMENTS(pEndpoint->StatTaskRunTimesMs); i++)
+            STAMR3Deregister(pVM, &pEndpoint->StatTaskRunTimesSec[i]);
+
+        STAMR3Deregister(pVM, &pEndpoint->StatTaskRunOver100Sec);
+        STAMR3Deregister(pVM, &pEndpoint->StatIoOpsPerSec);
+        STAMR3Deregister(pVM, &pEndpoint->StatIoOpsStarted);
+        STAMR3Deregister(pVM, &pEndpoint->StatIoOpsCompleted);
+#endif
+
         RTStrFree(pEndpoint->pszUri);
         MMR3HeapFree(pEndpoint);
     }
 }
 
 VMMR3DECL(int) PDMR3AsyncCompletionEpRead(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
-                                          PCPDMDATASEG paSegments, size_t cSegments,
+                                          PCRTSGSEG paSegments, unsigned cSegments,
                                           size_t cbRead, void *pvUser,
                                           PPPDMASYNCCOMPLETIONTASK ppTask)
 {
@@ -1084,13 +1151,13 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpRead(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
         *ppTask = pTask;
     }
     else
-        pdmR3AsyncCompletionPutTask(pEndpoint, pTask, false);
+        pdmR3AsyncCompletionPutTask(pEndpoint, pTask);
 
     return rc;
 }
 
 VMMR3DECL(int) PDMR3AsyncCompletionEpWrite(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
-                                           PCPDMDATASEG paSegments, size_t cSegments,
+                                           PCRTSGSEG paSegments, unsigned cSegments,
                                            size_t cbWrite, void *pvUser,
                                            PPPDMASYNCCOMPLETIONTASK ppTask)
 {
@@ -1116,7 +1183,7 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpWrite(PPDMASYNCCOMPLETIONENDPOINT pEndpoint
         *ppTask = pTask;
     }
     else
-        pdmR3AsyncCompletionPutTask(pEndpoint, pTask, false);
+        pdmR3AsyncCompletionPutTask(pEndpoint, pTask);
 
     return rc;
 }
@@ -1142,7 +1209,7 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpFlush(PPDMASYNCCOMPLETIONENDPOINT pEndpoint
         *ppTask = pTask;
     }
     else
-        pdmR3AsyncCompletionPutTask(pEndpoint, pTask, false);
+        pdmR3AsyncCompletionPutTask(pEndpoint, pTask);
 
     return rc;
 }
@@ -1153,7 +1220,21 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpGetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoi
     AssertReturn(VALID_PTR(pEndpoint), VERR_INVALID_POINTER);
     AssertReturn(VALID_PTR(pcbSize), VERR_INVALID_POINTER);
 
-    return pEndpoint->pEpClass->pEndpointOps->pfnEpGetSize(pEndpoint, pcbSize);
+    if (pEndpoint->pEpClass->pEndpointOps->pfnEpGetSize)
+        return pEndpoint->pEpClass->pEndpointOps->pfnEpGetSize(pEndpoint, pcbSize);
+    else
+        return VERR_NOT_SUPPORTED;
+}
+
+VMMR3DECL(int) PDMR3AsyncCompletionEpSetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
+                                             uint64_t cbSize)
+{
+    AssertReturn(VALID_PTR(pEndpoint), VERR_INVALID_POINTER);
+
+    if (pEndpoint->pEpClass->pEndpointOps->pfnEpSetSize)
+        return pEndpoint->pEpClass->pEndpointOps->pfnEpSetSize(pEndpoint, cbSize);
+    else
+        return VERR_NOT_SUPPORTED;
 }
 
 VMMR3DECL(int) PDMR3AsyncCompletionTaskCancel(PPDMASYNCCOMPLETIONTASK pTask)

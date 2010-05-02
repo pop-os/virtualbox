@@ -6,7 +6,7 @@
  *  Sun VirtualBox Settings Schema
  *  Common definitions
 
-     Copyright (C) 2004-2009 Sun Microsystems, Inc.
+     Copyright (C) 2004-2009 Oracle Corporation
 
      This file is part of VirtualBox Open Source Edition (OSE), as
      available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
      Foundation, in version 2 as it comes in the "COPYING" file of the
      VirtualBox OSE distribution. VirtualBox OSE is distributed in the
      hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-
-     Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-     Clara, CA 95054 USA or visit http://www.sun.com if you need
-     additional information or have any questions.
 -->
 
 <xsd:schema
@@ -186,10 +182,13 @@
     <xsd:enumeration value="RedHat"/>
     <xsd:enumeration value="RedHat_64"/>
     <xsd:enumeration value="Turbolinux"/>
+    <xsd:enumeration value="Turbolinux_64"/>
     <xsd:enumeration value="Ubuntu"/>
     <xsd:enumeration value="Ubuntu_64"/>
     <xsd:enumeration value="Xandros"/>
     <xsd:enumeration value="Xandros_64"/>
+    <xsd:enumeration value="Oracle"/>
+    <xsd:enumeration value="Oracle_64"/>
     <xsd:enumeration value="Linux"/>
     <xsd:enumeration value="FreeBSD"/>
     <xsd:enumeration value="FreeBSD_64"/>
@@ -202,6 +201,8 @@
     <xsd:enumeration value="OpenSolaris"/>
     <xsd:enumeration value="OpenSolaris_64"/>
     <xsd:enumeration value="QNX"/>
+    <xsd:enumeration value="MacOS"/>
+    <xsd:enumeration value="MacOS_64"/>
   </xsd:restriction>
 </xsd:simpleType>
 
@@ -521,7 +522,7 @@
     <xsd:simpleType>
       <xsd:restriction base="xsd:unsignedInt">
         <xsd:minInclusive value="1"/>
-        <xsd:maxInclusive value="128"/>
+        <xsd:maxInclusive value="256"/>
       </xsd:restriction>
     </xsd:simpleType>
   </xsd:attribute>
@@ -616,6 +617,7 @@
       <xsd:enumeration value="PIIX3"/>
       <xsd:enumeration value="PIIX4"/>
       <xsd:enumeration value="ICH6"/>
+      <xsd:enumeration value="LsiLogicSas"/>
       </xsd:restriction>
     </xsd:simpleType>
   </xsd:attribute>
@@ -680,6 +682,66 @@
       <xsd:complexType>
         <xsd:attribute name="network" type="xsd:string"/>
       </xsd:complexType>
+      <xsd:complexType>
+        <xsd:attribute name="hostip" type="xsd:string"/>
+      </xsd:complexType>
+      <xsd:complexType>
+        <xsd:attribute name="mtu" type="xsd:unsignedInt"/>
+      </xsd:complexType>
+      <xsd:complexType>
+        <xsd:attribute name="sockrcv" type="xsd:unsignedInt"/>
+      </xsd:complexType>
+      <xsd:complexType>
+        <xsd:attribute name="socksnd" type="xsd:unsignedInt"/>
+      </xsd:complexType>
+      <xsd:complexType>
+        <xsd:attribute name="tcprcv" type="xsd:unsignedInt"/>
+      </xsd:complexType>
+      <xsd:complexType>
+        <xsd:attribute name="tcpsnd" type="xsd:unsignedInt"/>
+      </xsd:complexType>
+      <xsd:element name="DNS">
+        <xsd:complexType>
+          <xsd:attribute name="pass-domain" type="xsd:boolean"/>
+        </xsd:complexType>
+        <xsd:complexType>
+          <xsd:attribute name="use-proxy" type="xsd:boolean"/>
+        </xsd:complexType>
+        <xsd:complexType>
+          <xsd:attribute name="use-host-resolver" type="xsd:boolean"/>
+        </xsd:complexType>
+      </xsd:element>
+      <xsd:element name="TFTP">
+        <xsd:complexType>
+          <xsd:attribute name="prefix" type="xsd:string"/>
+        </xsd:complexType>
+        <xsd:complexType>
+          <xsd:attribute name="boot-file" type="xsd:string"/>
+        </xsd:complexType>
+        <xsd:complexType>
+          <xsd:attribute name="next-server" type="xsd:string"/>
+        </xsd:complexType>
+      </xsd:element>
+      <xsd:element name="Forwarding">
+        <xsd:complexType>
+          <xsd:attribute name="name" type="xsd:string"/>
+        </xsd:complexType>
+        <xsd:complexType>
+          <xsd:attribute name="proto" type="xsd:unsignedInt"/>
+        </xsd:complexType>
+        <xsd:complexType>
+          <xsd:attribute name="hostip" type="xsd:string"/>
+        </xsd:complexType>
+        <xsd:complexType>
+          <xsd:attribute name="hostport" type="xsd:unsignedInt"/>
+        </xsd:complexType>
+        <xsd:complexType>
+          <xsd:attribute name="guestip" type="xsd:string"/>
+        </xsd:complexType>
+        <xsd:complexType>
+          <xsd:attribute name="guestport" type="xsd:unsignedInt"/>
+        </xsd:complexType>
+      </xsd:element>
     </xsd:element>
     <xsd:element name="HostInterface">
       <xsd:complexType>

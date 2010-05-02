@@ -1,11 +1,11 @@
-/* $Id: server_framebuffer.c $ */
+/* $Id: server_framebuffer.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  * VBox OpenGL: EXT_framebuffer_object
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "cr_spu.h"
@@ -83,7 +79,15 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchFramebufferTexture3DEXT(GLenum tar
 void SERVER_DISPATCH_APIENTRY crServerDispatchBindFramebufferEXT(GLenum target, GLuint framebuffer)
 {
 	crStateBindFramebufferEXT(target, framebuffer);
-	cr_server.head_spu->dispatch_table.BindFramebufferEXT(target, crStateGetFramebufferHWID(framebuffer));
+
+    if (0==framebuffer && crServerIsRedirectedToFBO())
+    {
+        cr_server.head_spu->dispatch_table.BindFramebufferEXT(target, cr_server.curClient->currentMural->idFBO);
+    }
+    else
+    {
+        cr_server.head_spu->dispatch_table.BindFramebufferEXT(target, crStateGetFramebufferHWID(framebuffer));
+    }
 }
 
 void SERVER_DISPATCH_APIENTRY crServerDispatchBindRenderbufferEXT(GLenum target, GLuint renderbuffer)

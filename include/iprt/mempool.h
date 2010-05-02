@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_mempool_h
@@ -123,7 +119,7 @@ RTDECL(void *) RTMemPoolRealloc(RTMEMPOOL hMemPool, void *pvOld, size_t cbNew) R
 /**
  * Frees memory allocated from a pool.
  *
- * @param   hMemPool        Handle to the pool containing the memory. Passing
+ * @param   hMemPool        Handle to the pool containing the memory.  Passing
  *                          NIL here is fine, but it may come at a slight
  *                          performance cost.
  * @param   pv              Pointer to memory block.
@@ -145,12 +141,22 @@ RTDECL(uint32_t) RTMemPoolRetain(void *pv) RT_NO_THROW;
 /**
  * Releases a reference to a memory block in a pool.
  *
- * @param   hMemPool        Handle to the pool containing the memory. Passing
+ * @returns New reference count, UINT32_MAX on error (asserted).
+ *
+ * @param   hMemPool        Handle to the pool containing the memory.  Passing
  *                          NIL here is fine, but it may come at a slight
  *                          performance cost.
  * @param   pv              Pointer to memory block.
  */
 RTDECL(uint32_t) RTMemPoolRelease(RTMEMPOOL hMemPool, void *pv) RT_NO_THROW;
+
+/**
+ * Get the current reference count.
+ *
+ * @returns The reference count, UINT32_MAX on error (asserted).
+ * @param   pv              Pointer to memory block.
+ */
+RTDECL(uint32_t) RTMemPoolRefCount(void *pv) RT_NO_THROW;
 
 
 RT_C_DECLS_END

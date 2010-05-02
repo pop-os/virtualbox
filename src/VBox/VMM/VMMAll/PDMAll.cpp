@@ -1,10 +1,10 @@
-/* $Id: PDMAll.cpp $ */
+/* $Id: PDMAll.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * PDM Critical Sections
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -92,7 +88,7 @@ VMMDECL(int) PDMGetInterrupt(PVMCPU pVCpu, uint8_t *pu8Interrupt)
 
 
 /**
- * Sets the pending interrupt.
+ * Sets the pending interrupt coming from ISA source or HPET.
  *
  * @returns VBox status code.
  * @param   pVM             VM handle.
@@ -114,6 +110,19 @@ VMMDECL(int) PDMIsaSetIrq(PVM pVM, uint8_t u8Irq, uint8_t u8Level)
     if (pVM->pdm.s.IoApic.CTX_SUFF(pDevIns))
     {
         Assert(pVM->pdm.s.IoApic.CTX_SUFF(pfnSetIrq));
+
+        /**
+         * Apply Interrupt Source Override rules.
+         * See ACPI 4.0 specification 5.2.12.4 and 5.2.12.5 for details on
+         * interrupt source override.
+         * Shortly, ISA IRQ0 is electically connected to pin 2 on IO-APIC, and some OSes,
+         * notably recent OS X rely upon this configuration.
+         * If changing, also update override rules in MADT and MPS.
+         */
+        /* ISA IRQ0 routed to pin 2, all others ISA sources are identity mapped */
+        if (u8Irq == 0)
+            u8Irq = 2;
+
         pVM->pdm.s.IoApic.CTX_SUFF(pfnSetIrq)(pVM->pdm.s.IoApic.CTX_SUFF(pDevIns), u8Irq, u8Level);
         rc = VINF_SUCCESS;
     }
@@ -378,4 +387,15 @@ VMMDECL(int) PDMVMMDevHeapR3ToGCPhys(PVM pVM, RTR3PTR pv, RTGCPHYS *pGCPhys)
 
     *pGCPhys = (pVM->pdm.s.GCPhysVMMDevHeap + ((RTR3UINTPTR)pv - (RTR3UINTPTR)pVM->pdm.s.pvVMMDevHeap));
     return VINF_SUCCESS;
+}
+
+/**
+ * Checks if the vmm device heap is enabled (== vmm device's pci region mapped)
+ *
+ * @returns dev heap enabled status (true/false)
+ * @param   pVM             VM handle.
+ */
+VMMDECL(bool)   PDMVMMDevHeapIsEnabled(PVM pVM)
+{
+    return (pVM->pdm.s.pvVMMDevHeap != NULL);
 }

@@ -1,10 +1,10 @@
-/* $Id: Debug.cpp $ */
+/* $Id: Debug.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBox storage devices: debug helpers
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -579,8 +575,8 @@ static struct
     uint8_t uASC;
     uint8_t uASCQ;
     const char * const pszSenseText;
-} g_aSCSISenseText[] 
-= 
+} g_aSCSISenseText[]
+=
 {
     { 0x67, 0x02, "A ADD LOGICAL UNIT FAILED" },
     { 0x13, 0x00, "ADDRESS MARK NOT FOUND FOR DATA FIELD" },
@@ -919,7 +915,7 @@ const char * SCSISenseText(uint8_t uSense)
 {
     if (uSense < RT_ELEMENTS(g_apszSCSISenseNames))
         return g_apszSCSISenseNames[uSense];
-    
+
     return "(SCSI sense out of range)";
 }
 

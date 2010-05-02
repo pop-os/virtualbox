@@ -1,10 +1,10 @@
-/* $Id: DrvHostDVD.cpp $ */
+/* $Id: DrvHostDVD.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DrvHostDVD - Host DVD block driver.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -739,7 +735,7 @@ DECLCALLBACK(void) drvHostDvdDestruct(PPDMDRVINS pDrvIns)
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvHostDvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
+static DECLCALLBACK(int) drvHostDvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     PDRVHOSTBASE pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTBASE);
     LogFlow(("drvHostDvdConstruct: iInstance=%d\n", pDrvIns->iInstance));
@@ -747,14 +743,14 @@ static DECLCALLBACK(int) drvHostDvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgH
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "Path\0Interval\0Locked\0BIOSVisible\0AttachFailError\0Passthrough\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "Path\0Interval\0Locked\0BIOSVisible\0AttachFailError\0Passthrough\0"))
         return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
 
 
     /*
      * Init instance data.
      */
-    int rc = DRVHostBaseInitData(pDrvIns, pCfgHandle, PDMBLOCKTYPE_DVD);
+    int rc = DRVHostBaseInitData(pDrvIns, pCfg, PDMBLOCKTYPE_DVD);
     if (RT_SUCCESS(rc))
     {
         /*
@@ -768,7 +764,7 @@ static DECLCALLBACK(int) drvHostDvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgH
 
 #ifndef RT_OS_L4 /* Passthrough is not supported on L4 yet */
         bool fPassthrough;
-        rc = CFGMR3QueryBool(pCfgHandle, "Passthrough", &fPassthrough);
+        rc = CFGMR3QueryBool(pCfg, "Passthrough", &fPassthrough);
         if (RT_SUCCESS(rc) && fPassthrough)
         {
             pThis->IBlock.pfnSendCmd = drvHostDvdSendCmd;
@@ -827,8 +823,12 @@ const PDMDRVREG g_DrvHostDVD =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "HostDVD",
+    /* szRCMod */
+    "",
+    /* szR0Mod */
+    "",
     /* pszDescription */
     "Host DVD Block Driver.",
     /* fFlags */
@@ -843,6 +843,8 @@ const PDMDRVREG g_DrvHostDVD =
     drvHostDvdConstruct,
     /* pfnDestruct */
     drvHostDvdDestruct,
+    /* pfnRelocate */
+    NULL,
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */

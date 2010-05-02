@@ -1,10 +1,10 @@
-/* $Revision: 54587 $ */
+/* $Revision: 28800 $ */
 /** @file
  * VirtualBox Support Driver - IOCtl definitions.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___SUPDrvIOC_h___
@@ -42,9 +38,9 @@
  * The SUP_IOCTL_FLAG macro is used to separate requests from 32-bit
  * and 64-bit processes.
  */
-#ifdef RT_ARCH_AMD64
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_SPARC64)
 # define SUP_IOCTL_FLAG     128
-#elif defined(RT_ARCH_X86)
+#elif defined(RT_ARCH_X86) || defined(RT_ARCH_SPARC)
 # define SUP_IOCTL_FLAG     0
 #else
 # error "dunno which arch this is!"
@@ -195,11 +191,8 @@ typedef SUPREQHDR *PSUPREQHDR;
  *
  * @todo Pending work on next major version change:
  *          - Nothing.
- *
- * @remarks Major version 0x0011YYYY was consumed by the 3.0.12 release. The
- *          next major version used on the trunk will be 0x00120000!
  */
-#define SUPDRV_IOC_VERSION                              0x00100001
+#define SUPDRV_IOC_VERSION                              0x00140001
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE
@@ -291,12 +284,17 @@ typedef struct SUPLDROPEN
     {
         struct
         {
-            /** Size of the image we'll be loading. */
-            uint32_t        cbImage;
+            /** Size of the image we'll be loading (includeing tables). */
+            uint32_t        cbImageWithTabs;
+            /** The size of the image bits. (Less or equal to cbImageWithTabs.) */
+            uint32_t        cbImageBits;
             /** Image name.
              * This is the NAME of the image, not the file name. It is used
              * to share code with other processes. (Max len is 32 chars!)  */
             char            szName[32];
+            /** Image file name.
+             * This can be used to load the image using a native loader. */
+            char            szFilename[196];
         } In;
         struct
         {
@@ -304,6 +302,8 @@ typedef struct SUPLDROPEN
             RTR0PTR         pvImageBase;
             /** Indicate whether or not the image requires loading. */
             bool            fNeedsLoading;
+            /** Indicates that we're using the native ring-0 loader. */
+            bool            fNativeLoader;
         } Out;
     } u;
 } SUPLDROPEN, *PSUPLDROPEN;
@@ -315,8 +315,8 @@ typedef struct SUPLDROPEN
  * @{
  */
 #define SUP_IOCTL_LDR_LOAD                              SUP_CTL_CODE_BIG(4)
-#define SUP_IOCTL_LDR_LOAD_SIZE(cbImage)                RT_UOFFSETOF(SUPLDRLOAD, u.In.achImage[cbImage])
-#define SUP_IOCTL_LDR_LOAD_SIZE_IN(cbImage)             RT_UOFFSETOF(SUPLDRLOAD, u.In.achImage[cbImage])
+#define SUP_IOCTL_LDR_LOAD_SIZE(cbImage)                RT_UOFFSETOF(SUPLDRLOAD, u.In.abImage[cbImage])
+#define SUP_IOCTL_LDR_LOAD_SIZE_IN(cbImage)             RT_UOFFSETOF(SUPLDRLOAD, u.In.abImage[cbImage])
 #define SUP_IOCTL_LDR_LOAD_SIZE_OUT                     sizeof(SUPREQHDR)
 
 /**
@@ -405,6 +405,9 @@ typedef struct SUPLDRLOAD
             RTR0PTR         pvImageBase;
             /** Entry point type. */
             SUPLDRLOADEP    eEPType;
+            /** The size of the image bits (starting at offset 0 and
+             * approaching offSymbols). */
+            uint32_t        cbImageBits;
             /** The offset of the symbol table. */
             uint32_t        offSymbols;
             /** The number of entries in the symbol table. */
@@ -413,10 +416,10 @@ typedef struct SUPLDRLOAD
             uint32_t        offStrTab;
             /** Size of the string table. */
             uint32_t        cbStrTab;
-            /** Size of image (including string and symbol tables). */
-            uint32_t        cbImage;
+            /** Size of image data in achImage. */
+            uint32_t        cbImageWithTabs;
             /** The image data. */
-            char            achImage[1];
+            uint8_t         abImage[1];
         } In;
     } u;
 } SUPLDRLOAD, *PSUPLDRLOAD;

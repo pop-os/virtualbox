@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
 ## @file
 # Sub-Makefile for the VMM testcases.
 #
 
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2007 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../../../..
@@ -47,7 +43,7 @@ ifdef VBOX_WITH_TESTCASES
  endif
  ifdef VBOX_WITH_RAW_MODE
   PROGRAMS += tstMicro
-  SYSMODS  += tstMicroGC
+  SYSMODS  += tstMicroRC
  endif
  ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
   PROGRAMS  += tstPDMAsyncCompletion
@@ -100,8 +96,8 @@ VBOX_PATH_VMM_SRC = $(PATH_ROOT)/src/VBox/VMM
 # Targets
 #
 ifdef VBOX_WITH_RAW_MODE
- tstVMStructRC_TEMPLATE  = VBOXGCEXE
- tstVMStructRC_DEFS      = IN_VMM_RC IN_DIS IN_RT_RC IN_RT_GC VBOX_WITH_RAW_MODE
+ tstVMStructRC_TEMPLATE  = VBoxRcExe
+ tstVMStructRC_DEFS      = IN_VMM_RC IN_DIS IN_RT_RC VBOX_WITH_RAW_MODE
  ifeq ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),darwin.x86)
   tstVMStructRC_DEFS    += \
   	VBOX_WITH_2X_4GB_ADDR_SPACE   VBOX_WITH_2X_4GB_ADDR_SPACE_IN_RC \
@@ -150,8 +146,8 @@ tstAsmStructs_SOURCES   = tstAsmStructs.cpp
 tstAsmStructs.cpp_DEPS  = $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsHC.h
 
 ifdef VBOX_WITH_RAW_MODE
- tstAsmStructsRC_TEMPLATE= VBOXGCEXE
- tstAsmStructsRC_DEFS    = IN_VMM_RC IN_DIS IN_RT_RC IN_RT_GC VBOX_WITH_RAW_MODE
+ tstAsmStructsRC_TEMPLATE= VBoxRcExe
+ tstAsmStructsRC_DEFS    = IN_VMM_RC IN_DIS IN_RT_RC VBOX_WITH_RAW_MODE
  ifdef VBOX_WITH_R0_LOGGING
   tstAsmStructsRC_DEFS  += VBOX_WITH_R0_LOGGING
  endif
@@ -227,23 +223,23 @@ ifdef VBOX_WITH_RAW_MODE
  tstMicro_SOURCES        = tstMicro.cpp
  tstMicro_LIBS           = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
 
- tstMicroGC_TEMPLATE     = VBOXGC
- tstMicroGC_SOURCES      = tstMicroGC.cpp tstMicroGCA.asm
- tstMicroGC_DEFS         =
- tstMicroGC_INCS         = $(VBOX_PATH_VMM_SRC)/testcase
+ tstMicroRC_TEMPLATE     = VBoxRc
+ tstMicroRC_SOURCES      = tstMicroRC.cpp tstMicroRCA.asm
+ tstMicroRC_DEFS         =
+ tstMicroRC_INCS         = $(VBOX_PATH_VMM_SRC)/testcase
  ifeq ($(VBOX_LDR_FMT32),pe)
-  tstMicroGC_LDFLAGS     = -Entry:tstMicroGC
+  tstMicroRC_LDFLAGS     = -Entry:tstMicroRC
  endif
- tstMicroGC_SYSSUFF      = .gc
- tstMicroGC_LIBS         = \
- 	$(PATH_LIB)/DisasmGC$(VBOX_SUFF_LIB) \
- 	$(PATH_LIB)/RuntimeGC$(VBOX_SUFF_LIB)
+ tstMicroRC_SYSSUFF      = .gc
+ tstMicroRC_LIBS         = \
+ 	$(PATH_LIB)/DisasmRC$(VBOX_SUFF_LIB) \
+ 	$(PATH_LIB)/RuntimeRC$(VBOX_SUFF_LIB)
  ifeq ($(filter-out pe lx,$(VBOX_LDR_FMT32)),)
-  tstMicroGC_LIBS        += \
+  tstMicroRC_LIBS        += \
   	$(PATH_LIB)/VMMGCBuiltin$(VBOX_SUFF_LIB) \
   	$(LIB_VMMGC)
  endif
- tstMicroGC_SOURCES.win = tstMicroGC.def
+ tstMicroRC_SOURCES.win = tstMicroRC.def
 
 endif # VBOX_WITH_RAW_MODE
 
@@ -390,5 +386,4 @@ $(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructSize.run: $$(INSTARGET_tstVMStructSize) 
 
 # alias for the two struct tests.
 run-struct-tests: $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructs.run $(VBOX_VMM_TESTCASE_OUT_DIR)/tstVMStructSize.run
-
 

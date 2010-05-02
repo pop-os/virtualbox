@@ -24,9 +24,9 @@
         <translation></translation>
     </message>
     <message>
-        <source>Sun Microsystems, Inc.</source>
+        <source>Oracle Corporation</source>
         <comment>Comma-separated list of translators</comment>
-        <translation type="obsolete">Park Shinjo</translation>
+        <translation>Park Shinjo</translation>
     </message>
 </context>
 <context>
@@ -431,7 +431,7 @@
     </message>
 </context>
 <context>
-    <name>VBoxAdditionsDownloader</name>
+    <name>UIDownloaderAdditions</name>
     <message>
         <source>Cancel</source>
         <translation>취소</translation>
@@ -1118,7 +1118,7 @@
     </message>
 </context>
 <context>
-    <name>VBoxDownloaderWgt</name>
+    <name>UIDownloader</name>
     <message>
         <source>The download process has been cancelled by the user.</source>
         <translation>사용자가 다운로드 과정을 취소했습니다.</translation>
@@ -1132,7 +1132,7 @@
     </message>
 </context>
 <context>
-    <name>VBoxExportApplianceWzd</name>
+    <name>UIExportApplianceWzd</name>
     <message>
         <source>Select a file to export into</source>
         <translation>내보낼 파일 선택하기</translation>
@@ -2929,7 +2929,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxImportApplianceWzd</name>
+    <name>UIImportApplianceWzd</name>
     <message>
         <source>Select an appliance to import</source>
         <translation>가져올 가상 시스템 선택하기</translation>
@@ -2992,7 +2992,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxImportLicenseViewer</name>
+    <name>UIImportLicenseViewer</name>
     <message>
         <source>&lt;b&gt;The virtual system &quot;%1&quot; requires that you agree to the terms and conditions of the software license agreement shown below.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Click &lt;b&gt;Agree&lt;/b&gt; to continue or click &lt;b&gt;Disagree&lt;/b&gt; to cancel the import.</source>
         <translation>&lt;b&gt;가상 시스템 &quot;%1&quot;을(를) 사용하려면 아래의 라이선스 조항에 동의해야 합니다.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;&lt;b&gt;동의합니다&lt;/b&gt; 단추를 누르면 계속 진행하며, &lt;b&gt;동의하지 않습니다&lt;/b&gt; 단추를 누르면 가져오지 않습니다.</translation>
@@ -3276,7 +3276,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxNewHDWzd</name>
+    <name>UINewHDWzd</name>
     <message>
         <source>Create New Virtual Disk</source>
         <translation>새 가상 디스크 만들기</translation>
@@ -3391,7 +3391,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxNewVMWzd</name>
+    <name>UINewVMWzd</name>
     <message>
         <source>Create New Virtual Machine</source>
         <translation>새 가상 머신 만들기</translation>
@@ -4493,7 +4493,7 @@ p, li { white-space: pre-wrap; }
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation type="obsolete">VirtualBox 등록 대화상자</translation>
+        <translation>VirtualBox 등록 대화상자</translation>
     </message>
     <message>
         <source>&amp;Name</source>
@@ -4501,7 +4501,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation type="obsolete">영문자를 사용하셔서 전체 이름을 입력하십시오.</translation>
+        <translation>영문자를 사용하셔서 전체 이름을 입력하십시오.</translation>
     </message>
     <message>
         <source>&amp;E-mail</source>
@@ -4509,7 +4509,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation type="obsolete">올바른 전자 우편 주소를 입력해 주십시오.</translation>
+        <translation>올바른 전자 우편 주소를 입력해 주십시오.</translation>
     </message>
     <message>
         <source>&amp;Please do not use this information to contact me</source>
@@ -4517,11 +4517,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation type="obsolete">VirtualBox 등록 양식에 오신 것을 환영합니다!</translation>
+        <translation>VirtualBox 등록 양식에 오신 것을 환영합니다!</translation>
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation type="obsolete">연결 협상을 진행할 수 없습니다.</translation>
+        <translation>연결 협상을 진행할 수 없습니다.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -4537,63 +4537,63 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="obsolete">취소</translation>
+        <translation>취소</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation type="obsolete">국가 및 지역 선택</translation>
+        <translation>국가 및 지역 선택</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;이 등록 양식을 작성하셔서 VirtualBox를 사용하고 있다는 것을 알려 주십시오. 선택적으로 VirtualBox 뉴스와 업데이트를 받을 수도 있습니다.&lt;/p&gt;&lt;p&gt;영문자로 전체 이름을 작성하시고 전자 우편 주소를 적어 주십시오. Sun 마이크로시스템즈에서는 수집한 개인 정보를 제 3자에게 보내지 않으며, 이 정보를 사용하여 VirtualBox 사용 통계를 모으고 연락하는 데만 사용할 것입니다. 개인 정보를 어떻게 사용하는가에 대해서 알아보시려면 VirtualBox 설명서의 &lt;b&gt;개인 정보 정책&lt;/b&gt; 섹션이나 VirtualBox 웹 사이트의 &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;개인 정보 정책&lt;/a&gt;을 참고하십시오.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;이 등록 양식을 작성하셔서 VirtualBox를 사용하고 있다는 것을 알려 주십시오. 선택적으로 VirtualBox 뉴스와 업데이트를 받을 수도 있습니다.&lt;/p&gt;&lt;p&gt;영문자로 전체 이름을 작성하시고 전자 우편 주소를 적어 주십시오. Sun 마이크로시스템즈에서는 수집한 개인 정보를 제 3자에게 보내지 않으며, 이 정보를 사용하여 VirtualBox 사용 통계를 모으고 연락하는 데만 사용할 것입니다. 개인 정보를 어떻게 사용하는가에 대해서 알아보시려면 VirtualBox 설명서의 &lt;b&gt;개인 정보 정책&lt;/b&gt; 섹션이나 VirtualBox 웹 사이트의 &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;개인 정보 정책&lt;/a&gt;을 참고하십시오.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation type="obsolete">Sun 온라인 계정이 이미 있습니다(&amp;H):</translation>
+        <translation>Sun 온라인 계정이 이미 있습니다(&amp;H):</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation type="obsolete">전자 우편 주소(&amp;E):</translation>
+        <translation>전자 우편 주소(&amp;E):</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation type="obsolete">암호(&amp;P):</translation>
+        <translation>암호(&amp;P):</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation type="obsolete">Sun 온라인 계정을 등록하겠습니다(&amp;W):</translation>
+        <translation>Sun 온라인 계정을 등록하겠습니다(&amp;W):</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation type="obsolete">이름(&amp;F):</translation>
+        <translation>이름(&amp;F):</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation type="obsolete">성(&amp;L):</translation>
+        <translation>성(&amp;L):</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation type="obsolete">회사(&amp;C):</translation>
+        <translation>회사(&amp;C):</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation type="obsolete">국가(&amp;U):</translation>
+        <translation>국가(&amp;U):</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation type="obsolete">전자 우편 주소(&amp;M):</translation>
+        <translation>전자 우편 주소(&amp;M):</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation type="obsolete">암호(&amp;A):</translation>
+        <translation>암호(&amp;A):</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation type="obsolete">암호 확인(&amp;N):</translation>
+        <translation>암호 확인(&amp;N):</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation type="obsolete">등록(&amp;R)</translation>
+        <translation>등록(&amp;R)</translation>
     </message>
 </context>
 <context>
@@ -5186,7 +5186,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxVMFirstRunWzd</name>
+    <name>UIFirstRunWzd</name>
     <message>
         <source>First Run Wizard</source>
         <translation>처음 실행 마법사</translation>
@@ -6941,7 +6941,7 @@ p, li { white-space: pre-wrap; }
         <translation>프로세서 갯수(&amp;P):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine.</source>
         <translation>가상 머신의 CPU 갯수를 조정합니다.</translation>
     </message>
     <message>

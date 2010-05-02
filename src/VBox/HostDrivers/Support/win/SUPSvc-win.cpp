@@ -1,10 +1,10 @@
-/* $Id: SUPSvc-win.cpp $ */
+/* $Id: SUPSvc-win.cpp 28854 2010-04-27 19:41:12Z vboxsync $ */
 /** @file
  * VirtualBox Support Service - Windows Specific Code.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -269,7 +265,7 @@ static int supSvcWinDelete(int argc, char **argv)
     int ch;
     RTGETOPTUNION Value;
     RTGETOPTSTATE GetState;
-    RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions), 0, 0 /* fFlags*/);
+    RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions), 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((ch = RTGetOpt(&GetState, &Value)))
         switch (ch)
         {
@@ -722,7 +718,7 @@ static int supSvcWinShowVersion(int argc, char **argv)
         RTPrintf("%s\n", VBOX_VERSION_STRING);
     else
         RTPrintf("VirtualBox System Service Version %s\n"
-                 "(C) 2008 Sun Microsystems, Inc.\n"
+                 "(C) 2008-2010 Oracle Corporation\n"
                  "All rights reserved.\n",
                  VBOX_VERSION_STRING);
     return 0;
@@ -737,7 +733,7 @@ static int supSvcWinShowVersion(int argc, char **argv)
 static int supSvcWinShowHelp(void)
 {
     RTPrintf("VirtualBox System Service Version %s\n"
-             "(C) 2008 Sun Microsystems, Inc.\n"
+             "(C) 2008-2010 Oracle Corporation\n"
              "All rights reserved.\n"
              "\n",
              VBOX_VERSION_STRING);

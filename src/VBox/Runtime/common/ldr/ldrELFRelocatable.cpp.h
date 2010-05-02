@@ -1,10 +1,10 @@
-/* $Id: ldrELFRelocatable.cpp.h $ */
+/* $Id: ldrELFRelocatable.cpp.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Binary Image Loader, Template for ELF Relocatable Images.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -649,10 +645,10 @@ static DECLCALLBACK(int) RTLDRELF_NAME(GetSymbolEx)(PRTLDRMODINTERNAL pMod, cons
     for (unsigned iSym = 1; iSym < cSyms; iSym++)
     {
         /* Undefined symbols are not exports, they are imports. */
-	if (    paSyms[iSym].st_shndx != SHN_UNDEF
+        if (    paSyms[iSym].st_shndx != SHN_UNDEF
             &&  (   ELF_ST_BIND(paSyms[iSym].st_info) == STB_GLOBAL
                  || ELF_ST_BIND(paSyms[iSym].st_info) == STB_WEAK))
-	{
+        {
             /* Validate the name string and try match with it. */
             if (paSyms[iSym].st_name < pModElf->cbStr)
             {
@@ -681,7 +677,7 @@ static DECLCALLBACK(int) RTLDRELF_NAME(GetSymbolEx)(PRTLDRMODINTERNAL pMod, cons
                 AssertMsgFailed(("String outside string table! iSym=%d paSyms[iSym].st_name=%#x\n", iSym, paSyms[iSym].st_name));
                 return VERR_LDRELF_INVALID_SYMBOL_NAME_OFFSET;
             }
-	}
+        }
     }
 
     return VERR_SYMBOL_NOT_FOUND;

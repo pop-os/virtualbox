@@ -1,10 +1,10 @@
-/* $Id: VBoxGuestInternal.h $ */
+/* $Id: VBoxGuestInternal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxGuest - Guest Additions Driver.
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBoxGuestInternal_h
@@ -77,6 +73,33 @@ typedef VBOXGUESTWAITLIST *PVBOXGUESTWAITLIST;
 
 
 /**
+ * VBox guest memory balloon.
+ */
+typedef struct VBOXGUESTMEMBALLOON
+{
+    /** Mutext protecting the members below from concurrent access.. */
+    RTSEMFASTMUTEX              hMtx;
+    /** The current number of chunks in the balloon. */
+    uint32_t                    cChunks;
+    /** The maximum number of chunks in the balloon (typically the amount of guest
+     * memory / chunksize). */
+    uint32_t                    cMaxChunks;
+    /** This is true if we are using RTR0MemObjAllocPhysNC() / RTR0MemObjGetPagePhysAddr()
+     * and false otherwise. */
+    bool                        fUseKernelAPI;
+    /** The current owner of the balloon.
+     * This is automatically assigned to the first session using the ballooning
+     * API and first released when the session closes. */
+    PVBOXGUESTSESSION           pOwner;
+    /** The pointer to the array of memory objects holding the chunks of the
+     *  balloon.  This array is cMaxChunks in size when present. */
+    PRTR0MEMOBJ                 paMemObj;
+} VBOXGUESTMEMBALLOON;
+/** Pointer to a memory balloon. */
+typedef VBOXGUESTMEMBALLOON *PVBOXGUESTMEMBALLOON;
+
+
+/**
  * VBox guest device (data) extension.
  */
 typedef struct VBOXGUESTDEVEXT
@@ -119,6 +142,10 @@ typedef struct VBOXGUESTDEVEXT
     /** The current clipboard client ID, 0 if no client.
      * For implementing the VBOXGUEST_IOCTL_CLIPBOARD_CONNECT interface. */
     uint32_t                    u32ClipboardClientId;
+
+    /** Memory balloon information for RTR0MemObjAllocPhysNC(). */
+    VBOXGUESTMEMBALLOON         MemBalloon;
+
 } VBOXGUESTDEVEXT;
 /** Pointer to the VBoxGuest driver data. */
 typedef VBOXGUESTDEVEXT *PVBOXGUESTDEVEXT;
@@ -159,6 +186,7 @@ typedef struct VBOXGUESTSESSION
     /** The last consumed VMMDEV_EVENT_MOUSE_POSITION_CHANGED sequence number.
      * Used to implement polling.  */
     uint32_t volatile           u32MousePosChangedSeq;
+
 } VBOXGUESTSESSION;
 
 RT_C_DECLS_BEGIN

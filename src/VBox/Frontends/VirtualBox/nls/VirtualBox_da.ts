@@ -24,9 +24,9 @@
         <translation></translation>
     </message>
     <message>
-        <source>Sun Microsystems, Inc.</source>
+        <source>Oracle Corporation</source>
         <comment>Comma-separated list of translators</comment>
-        <translation type="obsolete">Lars Sarauw Hansen, Jeppe Fihl Toustrup</translation>
+        <translation>Lars Sarauw Hansen, Jeppe Fihl Toustrup</translation>
     </message>
 </context>
 <context>
@@ -413,7 +413,7 @@
     </message>
 </context>
 <context>
-    <name>VBoxAdditionsDownloader</name>
+    <name>UIDownloaderAdditions</name>
     <message>
         <source>Cancel</source>
         <translation>Annullér</translation>
@@ -1102,7 +1102,7 @@
     </message>
 </context>
 <context>
-    <name>VBoxDownloaderWgt</name>
+    <name>UIDownloader</name>
     <message>
         <source>The download process has been cancelled by the user.</source>
         <translation>Filhentning annulleret af bruger.</translation>
@@ -1116,7 +1116,7 @@
     </message>
 </context>
 <context>
-    <name>VBoxExportApplianceWzd</name>
+    <name>UIExportApplianceWzd</name>
     <message>
         <source>Select a file to export into</source>
         <translation>Vælg den fil, der skal eksporteres til</translation>
@@ -2867,7 +2867,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxImportApplianceWzd</name>
+    <name>UIImportApplianceWzd</name>
     <message>
         <source>Select an appliance to import</source>
         <translation>Vælg det Prækonfigurerede system, der skal importeres</translation>
@@ -2930,7 +2930,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxImportLicenseViewer</name>
+    <name>UIImportLicenseViewer</name>
     <message>
         <source>&lt;b&gt;The virtual system &quot;%1&quot; requires that you agree to the terms and conditions of the software license agreement shown below.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Click &lt;b&gt;Agree&lt;/b&gt; to continue or click &lt;b&gt;Disagree&lt;/b&gt; to cancel the import.</source>
         <translation>&lt;b&gt;Det virtuelle system &quot;%1&quot; kræver at du accepterer betingelserne i software-licensaftalen vist herunder.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Vælg &lt;b&gt;Acceptér&lt;/b&gt; for at fortsætte eller &lt;b&gt;Afvis&lt;/b&gt; for at annullere importen.</translation>
@@ -3214,7 +3214,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxNewHDWzd</name>
+    <name>UINewHDWzd</name>
     <message>
         <source>Create New Virtual Disk</source>
         <translation>Opret ny virtuel disk</translation>
@@ -3329,7 +3329,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxNewVMWzd</name>
+    <name>UINewVMWzd</name>
     <message>
         <source>Create New Virtual Machine</source>
         <translation>Opret ny virtuel maskine</translation>
@@ -4469,83 +4469,83 @@ p, li { white-space: pre-wrap; }
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation type="obsolete">Registrering af VirtualBox</translation>
+        <translation>Registrering af VirtualBox</translation>
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation type="obsolete">Indtast dit navn.</translation>
+        <translation>Indtast dit navn.</translation>
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation type="obsolete">Indtast din email-adresse.</translation>
+        <translation>Indtast din email-adresse.</translation>
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation type="obsolete">Velkommen til Registrering af VirtualBox!</translation>
+        <translation>Velkommen til Registrering af VirtualBox!</translation>
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation type="obsolete">Kunne ikke udføre forhandling af forbindelse.</translation>
+        <translation>Kunne ikke udføre forhandling af forbindelse.</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="obsolete">Annullér</translation>
+        <translation>Annullér</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation type="obsolete">Vælg land/område</translation>
+        <translation>Vælg land/område</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Udfyld venligst denne registreringsformular for at lade os vide at du bruger VirtualBox og, hvis du ønsker det, så vi kan holde dig underrettet om VirtualBox-nyheder og opdateringer.&lt;/p&gt;&lt;p&gt;Brug latinske bogstaver i nedenstående felter. Vær opmærksom på at Sun Microsystems kun bruger denne information til at indsamle brugsstatistik og til at sende dig nyhedsbreve om VirtualBox. Sun Microsystems vil aldrig overgive dine data til tredjepart. Detaljeret information om hvad vi bruger dine personlige data til, kan findes i afsnittet &lt;b&gt;Privacy Policy&lt;/b&gt; i VirtualBox&apos; manual eller under &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; på VirtualBox&apos; hjemmeside.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Udfyld venligst denne registreringsformular for at lade os vide at du bruger VirtualBox og, hvis du ønsker det, så vi kan holde dig underrettet om VirtualBox-nyheder og opdateringer.&lt;/p&gt;&lt;p&gt;Brug latinske bogstaver i nedenstående felter. Vær opmærksom på at Sun Microsystems kun bruger denne information til at indsamle brugsstatistik og til at sende dig nyhedsbreve om VirtualBox. Sun Microsystems vil aldrig overgive dine data til tredjepart. Detaljeret information om hvad vi bruger dine personlige data til, kan findes i afsnittet &lt;b&gt;Privacy Policy&lt;/b&gt; i VirtualBox&apos; manual eller under &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; på VirtualBox&apos; hjemmeside.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation type="obsolete">Jeg &amp;har allerede en Sun Online konto:</translation>
+        <translation>Jeg &amp;har allerede en Sun Online konto:</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation type="obsolete">&amp;E-mail:</translation>
+        <translation>&amp;E-mail:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation type="obsolete">Kodeord:</translation>
+        <translation>Kodeord:</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation type="obsolete">Jeg vil gerne oprette en Sun Online konto:</translation>
+        <translation>Jeg vil gerne oprette en Sun Online konto:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation type="obsolete">&amp;Fornavn:</translation>
+        <translation>&amp;Fornavn:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation type="obsolete">Efternavn:</translation>
+        <translation>Efternavn:</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation type="obsolete">Firma:</translation>
+        <translation>Firma:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation type="obsolete">Land:</translation>
+        <translation>Land:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation type="obsolete">E-&amp;mail:</translation>
+        <translation>E-&amp;mail:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation type="obsolete">Kodeord:</translation>
+        <translation>Kodeord:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation type="obsolete">Ge&amp;ntag kodeord:</translation>
+        <translation>Ge&amp;ntag kodeord:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation type="obsolete">&amp;Registrér</translation>
+        <translation>&amp;Registrér</translation>
     </message>
 </context>
 <context>
@@ -5169,7 +5169,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxVMFirstRunWzd</name>
+    <name>UIFirstRunWzd</name>
     <message>
         <source>First Run Wizard</source>
         <translation>Guide til 1.gang</translation>
@@ -6655,7 +6655,7 @@ p, li { white-space: pre-wrap; }
         <translation>C&amp;PU&apos;er:</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine.</source>
         <translation>Angiver antallet af virtuelle CPU&apos;er i den virtuelle maskine.</translation>
     </message>
     <message>

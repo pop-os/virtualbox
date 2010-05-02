@@ -1,10 +1,10 @@
-/* $Id: rand.h $ */
+/* $Id: rand.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Internal RTRand header
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___internal_rand_h
@@ -104,14 +100,14 @@ typedef struct RTRANDINT
      *          will contain the necessary buffer size.
      * @retval  VERR_NOT_SUPPORTED by non-psuedo generators.
      *
-     * @param   hRand       Handle to the random number generator.
+     * @param   pThis       Pointer to the instance data.
      * @param   pszState    Where to store the state. The returned string will be
      *                      null terminated and printable.
      * @param   pcbState    The size of the buffer pszState points to on input, the
      *                      size required / used on return (including the
      *                      terminator, thus the 'cb' instead of 'cch').
      */
-    DECLCALLBACKMEMBER(int, pfnSaveState)(RTRAND hRand, char *pszState, size_t *pcbState);
+    DECLCALLBACKMEMBER(int, pfnSaveState)(PRTRANDINT pThis, char *pszState, size_t *pcbState);
 
     /**
      * Restores the state of a pseudo generator.
@@ -122,10 +118,10 @@ typedef struct RTRANDINT
      * @retval  VERR_PARSE_ERROR if the state string is malformed.
      * @retval  VERR_NOT_SUPPORTED by non-psuedo generators.
      *
-     * @param   hRand       Handle to the random number generator.
+     * @param   pThis       Pointer to the instance data.
      * @param   pszState    The state to load.
      */
-    DECLCALLBACKMEMBER(int, pfnRestoreState)(RTRAND hRand, char const *pszState);
+    DECLCALLBACKMEMBER(int, pfnRestoreState)(PRTRANDINT pThis, char const *pszState);
 
     /**
      * Destroys the instance.

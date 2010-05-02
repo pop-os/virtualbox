@@ -1,10 +1,10 @@
-/* $Id: HostHardwareFreeBSD.cpp $ */
+/* $Id: HostHardwareFreeBSD.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Classes for handling hardware detection under FreeBSD.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN
@@ -340,10 +336,11 @@ static int getDriveInfoFromEnv(const char *pcszVar, DriveInfoList *pList,
                  pList, isDVD, pfSuccess));
     int rc = VINF_SUCCESS;
     bool success = false;
+    char *pszFreeMe = RTEnvDupEx(RTENV_DEFAULT, pcszVar);
 
     try
     {
-        const char *pcszCurrent = RTEnvGet (pcszVar);
+        const char *pcszCurrent = pszFreeMe;
         while (pcszCurrent && *pcszCurrent != '\0')
         {
             const char *pcszNext = strchr(pcszCurrent, ':');
@@ -356,6 +353,8 @@ static int getDriveInfoFromEnv(const char *pcszVar, DriveInfoList *pList,
                 RTStrPrintf(szPath, sizeof(szPath), "%s", pcszCurrent);
             if (RT_SUCCESS(RTPathReal(szPath, szReal, sizeof(szReal))))
             {
+                szUdi[0] = '\0'; /** @todo r=bird: missing a call to devValidateDevice() here and szUdi wasn't
+                                  *        initialized because of that.  Need proper fixing. */
                 pList->push_back(DriveInfo(szReal, szUdi, szDesc));
                 success = true;
             }
@@ -368,7 +367,8 @@ static int getDriveInfoFromEnv(const char *pcszVar, DriveInfoList *pList,
     {
         rc = VERR_NO_MEMORY;
     }
-    LogFlowFunc (("rc=%Rrc, success=%d\n", rc, success));
+    RTStrFree(pszFreeMe);
+    LogFlowFunc(("rc=%Rrc, success=%d\n", rc, success));
     return rc;
 }
 
@@ -467,7 +467,7 @@ VBoxMainHotplugWaiter::~VBoxMainHotplugWaiter ()
 /* Currently this is implemented using a timed out wait on our private DBus
  * connection.  Because the connection is private we don't have to worry about
  * blocking other users. */
-int VBoxMainHotplugWaiter::Wait(unsigned cMillies)
+int VBoxMainHotplugWaiter::Wait(RTMSINTERVAL cMillies)
 {
     int rc = VINF_SUCCESS;
 #if defined RT_OS_LINUX && defined VBOX_WITH_DBUS

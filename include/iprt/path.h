@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_path_h
@@ -255,9 +251,36 @@ RTDECL(void) RTPathStripExt(char *pszPath);
 /**
  * Strips the trailing slashes of a path name.
  *
+ * Won't strip root slashes.
+ *
+ * @returns The new length of pszPath.
  * @param   pszPath     Path to strip.
  */
-RTDECL(void) RTPathStripTrailingSlash(char *pszPath);
+RTDECL(size_t) RTPathStripTrailingSlash(char *pszPath);
+
+/**
+ * Changes all the slahes in the specified path to DOS style.
+ *
+ * Unless @a fForce is set, nothing will be done when on a UNIX flavored system
+ * since paths wont work with DOS style slashes there.
+ *
+ * @returns @a pszPath.
+ * @param   pszPath             The path to modify.
+ * @param   fForce              Whether to force the conversion on non-DOS OSes.
+ */
+RTDECL(char *) RTPathChangeToDosSlashes(char *pszPath, bool fForce);
+
+/**
+ * Changes all the slahes in the specified path to unix style.
+ *
+ * Unless @a fForce is set, nothing will be done when on a UNIX flavored system
+ * since paths wont work with DOS style slashes there.
+ *
+ * @returns @a pszPath.
+ * @param   pszPath             The path to modify.
+ * @param   fForce              Whether to force the conversion on non-DOS OSes.
+ */
+RTDECL(char *) RTPathChangeToUnixSlashes(char *pszPath, bool fForce);
 
 /**
  * Parses a path.
@@ -268,16 +291,14 @@ RTDECL(void) RTPathStripTrailingSlash(char *pszPath);
  * @returns The path length.
  *
  * @param   pszPath     Path to find filename in.
- * @param   pcbDir      Where to put the length of the directory component.
- *                      If no directory, this will be 0. Optional.
+ * @param   pcchDir     Where to put the length of the directory component. If
+ *                      no directory, this will be 0. Optional.
  * @param   poffName    Where to store the filename offset.
  *                      If empty string or if it's ending with a slash this
  *                      will be set to -1. Optional.
  * @param   poffSuff    Where to store the suffix offset (the last dot).
  *                      If empty string or if it's ending with a slash this
  *                      will be set to -1. Optional.
- * @param   pfFlags     Where to set flags returning more information about
- *                      the path. For the future. Optional.
  */
 RTDECL(size_t) RTPathParse(const char *pszPath, size_t *pcchDir, ssize_t *poffName, ssize_t *poffSuff);
 
@@ -316,6 +337,33 @@ RTDECL(bool) RTPathHaveExt(const char *pszPath);
  * @param   pszPath     Path to check.
  */
 RTDECL(bool) RTPathHavePath(const char *pszPath);
+
+/**
+ * Counts the components in the specified path.
+ *
+ * An empty string has zero components.  A lone root slash is considered have
+ * one.  The paths "/init" and "/bin/" are considered having two components.  An
+ * UNC share specifier like "\\myserver\share" will be considered as one single
+ * component.
+ *
+ * @returns The number of path components.
+ * @param   pszPath     The path to parse.
+ */
+RTDECL(size_t) RTPathCountComponents(const char *pszPath);
+
+/**
+ * Copies the specified number of path components from @a pszSrc and into @a
+ * pszDst.
+ *
+ * @returns VINF_SUCCESS or VERR_BUFFER_OVERFLOW.  In the latter case the buffer
+ *          is not touched.
+ *
+ * @param   pszDst      The destination buffer.
+ * @param   cbDst       The size of the destination buffer.
+ * @param   pszSrc      The source path.
+ * @param   cComponents The number of components to copy from @a pszSrc.
+ */
+RTDECL(int) RTPathCopyComponents(char *pszDst, size_t cbDst, const char *pszSrc, size_t cComponents);
 
 /**
  * Compares two paths.
@@ -399,6 +447,28 @@ RTDECL(bool) RTPathStartsWith(const char *pszPath, const char *pszParentPath);
  *          sizeof(szBuf), "bar") will result in "C:bar".
  */
 RTDECL(int) RTPathAppend(char *pszPath, size_t cbPathDst, const char *pszAppend);
+
+/**
+ * Like RTPathAppend, but with the base path as a separate argument instead of
+ * in the path buffer.
+ *
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_BUFFER_OVERFLOW if the result is too big to fit within
+ *          cbPathDst bytes.
+ * @retval  VERR_INVALID_PARAMETER if the string pointed to by pszPath is longer
+ *          than cbPathDst-1 bytes (failed to find terminator). Asserted.
+ *
+ * @param   pszPathDst      Where to store the resulting path.
+ * @param   cbPathDst       The size of the buffer pszPathDst points to,
+ *                          terminator included.
+ * @param   pszPathSrc      The base path to copy into @a pszPathDst before
+ *                          appending @a pszAppend.
+ * @param   pszAppend       The partial path to append to pszPathSrc. This can
+ *                          be NULL, in which case nothing is done.
+ *
+ */
+RTDECL(int) RTPathJoin(char *pszPathDst, size_t cbPathDst, const char *pszPathSrc,
+                       const char *pszAppend);
 
 /**
  * Callback for RTPathTraverseList that's called for each element.

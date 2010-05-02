@@ -1,10 +1,10 @@
-/* $Id: alloc-ef.cpp $ */
+/* $Id: alloc-ef.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, electric fence.
  */
 
 /*
- * Copyright (C) 2006-2010 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -33,6 +29,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "alloc-ef.h"
+#include <iprt/mem.h>
 #include <iprt/log.h>
 #include <iprt/asm.h>
 #include <iprt/thread.h>
@@ -66,7 +63,7 @@ static volatile size_t      g_cbBlocksDelay;
 #endif
 #endif
 /** Array of pointers free watches for. */
-void   *gapvRTMemFreeWatch[4] = {0};
+void   *gapvRTMemFreeWatch[4] = {NULL, NULL, NULL, NULL};
 /** Enable logging of all freed memory. */
 bool    gfRTMemFreeLog = false;
 
@@ -90,7 +87,7 @@ static void rtmemComplain(const char *pszOp, const char *pszFormat, ...)
 /**
  * Log an event.
  */
-static inline void rtmemLog(const char *pszOp, const char *pszFormat, ...)
+DECLINLINE(void) rtmemLog(const char *pszOp, const char *pszFormat, ...)
 {
 #if 0
     va_list args;
@@ -107,7 +104,7 @@ static inline void rtmemLog(const char *pszOp, const char *pszFormat, ...)
 /**
  * Aquires the lock.
  */
-static inline void rtmemBlockLock(void)
+DECLINLINE(void) rtmemBlockLock(void)
 {
     unsigned c = 0;
     while (!ASMAtomicCmpXchgU32(&g_BlocksLock, 1, 0))
@@ -118,7 +115,7 @@ static inline void rtmemBlockLock(void)
 /**
  * Releases the lock.
  */
-static inline void rtmemBlockUnlock(void)
+DECLINLINE(void) rtmemBlockUnlock(void)
 {
     Assert(g_BlocksLock == 1);
     ASMAtomicXchgU32(&g_BlocksLock, 0);
@@ -128,16 +125,18 @@ static inline void rtmemBlockUnlock(void)
 /**
  * Creates a block.
  */
-static inline PRTMEMBLOCK rtmemBlockCreate(RTMEMTYPE enmType, size_t cb, void *pvCaller, unsigned iLine, const char *pszFile, const char *pszFunction)
+DECLINLINE(PRTMEMBLOCK) rtmemBlockCreate(RTMEMTYPE enmType, size_t cbUnaligned, size_t cbAligned,
+                                         void *pvCaller, RT_SRC_POS_DECL)
 {
     PRTMEMBLOCK pBlock = (PRTMEMBLOCK)malloc(sizeof(*pBlock));
     if (pBlock)
     {
-        pBlock->enmType = enmType;
-        pBlock->cb = cb;
-        pBlock->pvCaller = pvCaller;
-        pBlock->iLine = iLine;
-        pBlock->pszFile = pszFile;
+        pBlock->enmType     = enmType;
+        pBlock->cbUnaligned = cbUnaligned;
+        pBlock->cbAligned   = cbAligned;
+        pBlock->pvCaller    = pvCaller;
+        pBlock->iLine       = iLine;
+        pBlock->pszFile     = pszFile;
         pBlock->pszFunction = pszFunction;
     }
     return pBlock;
@@ -147,7 +146,7 @@ static inline PRTMEMBLOCK rtmemBlockCreate(RTMEMTYPE enmType, size_t cb, void *p
 /**
  * Frees a block.
  */
-static inline void rtmemBlockFree(PRTMEMBLOCK pBlock)
+DECLINLINE(void) rtmemBlockFree(PRTMEMBLOCK pBlock)
 {
     free(pBlock);
 }
@@ -156,7 +155,7 @@ static inline void rtmemBlockFree(PRTMEMBLOCK pBlock)
 /**
  * Insert a block from the tree.
  */
-static inline void rtmemBlockInsert(PRTMEMBLOCK pBlock, void *pv)
+DECLINLINE(void) rtmemBlockInsert(PRTMEMBLOCK pBlock, void *pv)
 {
     pBlock->Core.Key = pv;
     rtmemBlockLock();
@@ -169,7 +168,7 @@ static inline void rtmemBlockInsert(PRTMEMBLOCK pBlock, void *pv)
 /**
  * Remove a block from the tree and returns it to the caller.
  */
-static inline PRTMEMBLOCK rtmemBlockRemove(void *pv)
+DECLINLINE(PRTMEMBLOCK) rtmemBlockRemove(void *pv)
 {
     rtmemBlockLock();
     PRTMEMBLOCK pBlock = (PRTMEMBLOCK)RTAvlPVRemove(&g_BlocksTree, pv);
@@ -180,7 +179,7 @@ static inline PRTMEMBLOCK rtmemBlockRemove(void *pv)
 /**
  * Gets a block.
  */
-static inline PRTMEMBLOCK rtmemBlockGet(void *pv)
+DECLINLINE(PRTMEMBLOCK) rtmemBlockGet(void *pv)
 {
     rtmemBlockLock();
     PRTMEMBLOCK pBlock = (PRTMEMBLOCK)RTAvlPVGet(&g_BlocksTree, pv);
@@ -194,9 +193,10 @@ static inline PRTMEMBLOCK rtmemBlockGet(void *pv)
 static DECLCALLBACK(int) RTMemDumpOne(PAVLPVNODECORE pNode, void *pvUser)
 {
     PRTMEMBLOCK pBlock = (PRTMEMBLOCK)pNode;
-    fprintf(stderr, "%p %08lx %p\n",
+    fprintf(stderr, "%p %08lx(+%02lx) %p\n",
             pBlock->Core.Key,
-            (long)pBlock->cb,
+            (unsigned long)pBlock->cbUnaligned,
+            (unsigned long)(pBlock->cbAligned - pBlock->cbUnaligned),
             pBlock->pvCaller);
     return 0;
 }
@@ -208,7 +208,7 @@ static DECLCALLBACK(int) RTMemDumpOne(PAVLPVNODECORE pNode, void *pvUser)
 extern "C" void RTMemDump(void);
 void RTMemDump(void)
 {
-    fprintf(stderr, "address  size     caller\n");
+    fprintf(stderr, "address  size(alg)     caller\n");
     RTAvlPVDoWithAll(&g_BlocksTree, true, RTMemDumpOne, NULL);
 }
 
@@ -217,9 +217,9 @@ void RTMemDump(void)
 /**
  * Insert a delayed block.
  */
-static inline void rtmemBlockDelayInsert(PRTMEMBLOCK pBlock)
+DECLINLINE(void) rtmemBlockDelayInsert(PRTMEMBLOCK pBlock)
 {
-    size_t cbBlock = RT_ALIGN_Z(pBlock->cb, PAGE_SIZE) + RTALLOC_EFENCE_SIZE;
+    size_t cbBlock = RT_ALIGN_Z(pBlock->cbAligned, PAGE_SIZE) + RTALLOC_EFENCE_SIZE;
     pBlock->Core.pRight = NULL;
     pBlock->Core.pLeft = NULL;
     rtmemBlockLock();
@@ -241,7 +241,7 @@ static inline void rtmemBlockDelayInsert(PRTMEMBLOCK pBlock)
 /**
  * Removes a delayed block.
  */
-static inline PRTMEMBLOCK rtmemBlockDelayRemove(void)
+DECLINLINE(PRTMEMBLOCK) rtmemBlockDelayRemove(void)
 {
     PRTMEMBLOCK pBlock = NULL;
     rtmemBlockLock();
@@ -255,7 +255,7 @@ static inline PRTMEMBLOCK rtmemBlockDelayRemove(void)
                 pBlock->Core.pLeft->pRight = NULL;
             else
                 g_pBlocksDelayHead = NULL;
-            g_cbBlocksDelay -= RT_ALIGN_Z(pBlock->cb, PAGE_SIZE) + RTALLOC_EFENCE_SIZE;
+            g_cbBlocksDelay -= RT_ALIGN_Z(pBlock->cbAligned, PAGE_SIZE) + RTALLOC_EFENCE_SIZE;
         }
     }
     rtmemBlockUnlock();
@@ -271,7 +271,8 @@ static inline PRTMEMBLOCK rtmemBlockDelayRemove(void)
 /**
  * Internal allocator.
  */
-void *rtMemAlloc(const char *pszOp, RTMEMTYPE enmType, size_t cb, void *pvCaller, unsigned iLine, const char *pszFile, const char *pszFunction)
+RTDECL(void *) rtR3MemAlloc(const char *pszOp, RTMEMTYPE enmType, size_t cbUnaligned, size_t cbAligned,
+                            void *pvCaller, RT_SRC_POS_DECL)
 {
     /*
      * Sanity.
@@ -282,27 +283,28 @@ void *rtMemAlloc(const char *pszOp, RTMEMTYPE enmType, size_t cb, void *pvCaller
         rtmemComplain(pszOp, "Invalid E-fence size! %#x\n", RTALLOC_EFENCE_SIZE);
         return NULL;
     }
-    if (!cb)
+    if (!cbUnaligned)
     {
 #if 0
         rtmemComplain(pszOp, "Request of ZERO bytes allocation!\n");
         return NULL;
 #else
-        cb = 1;
+        cbAligned = cbUnaligned = 1;
 #endif
     }
+
 #ifndef RTALLOC_EFENCE_IN_FRONT
     /* Alignment decreases fence accuracy, but this is at least partially
      * counteracted by filling and checking the alignment padding. When the
      * fence is in front then then no extra alignment is needed. */
-    size_t cbAlign = RT_ALIGN_Z(cb, RTALLOC_EFENCE_ALIGNMENT);
+    cbAligned = RT_ALIGN_Z(cbAligned, RTALLOC_EFENCE_ALIGNMENT);
 #endif
 
 #ifdef RTALLOC_EFENCE_TRACE
     /*
      * Allocate the trace block.
      */
-    PRTMEMBLOCK pBlock = rtmemBlockCreate(enmType, cb, pvCaller, iLine, pszFile, pszFunction);
+    PRTMEMBLOCK pBlock = rtmemBlockCreate(enmType, cbUnaligned, cbAligned, pvCaller, RT_SRC_POS_ARGS);
     if (!pBlock)
     {
         rtmemComplain(pszOp, "Failed to allocate trace block!\n");
@@ -313,7 +315,7 @@ void *rtMemAlloc(const char *pszOp, RTMEMTYPE enmType, size_t cb, void *pvCaller
     /*
      * Allocate a block with page alignment space + the size of the E-fence.
      */
-    size_t  cbBlock = RT_ALIGN_Z(cb, PAGE_SIZE) + RTALLOC_EFENCE_SIZE;
+    size_t  cbBlock = RT_ALIGN_Z(cbAligned, PAGE_SIZE) + RTALLOC_EFENCE_SIZE;
     void   *pvBlock = RTMemPageAlloc(cbBlock);
     if (pvBlock)
     {
@@ -321,20 +323,20 @@ void *rtMemAlloc(const char *pszOp, RTMEMTYPE enmType, size_t cb, void *pvCaller
          * Calc the start of the fence and the user block
          * and then change the page protection of the fence.
          */
-        #ifdef RTALLOC_EFENCE_IN_FRONT
+#ifdef RTALLOC_EFENCE_IN_FRONT
         void *pvEFence = pvBlock;
-        void *pv = (char *)pvEFence + RTALLOC_EFENCE_SIZE;
-#ifdef RTALLOC_EFENCE_NOMAN_FILLER
-        memset((char *)pv + cb, RTALLOC_EFENCE_NOMAN_FILLER, cbBlock - RTALLOC_EFENCE_SIZE - cb);
-#endif
-        #else
+        void *pv       = (char *)pvEFence + RTALLOC_EFENCE_SIZE;
+# ifdef RTALLOC_EFENCE_NOMAN_FILLER
+        memset((char *)pv + cbUnaligned, RTALLOC_EFENCE_NOMAN_FILLER, cbBlock - RTALLOC_EFENCE_SIZE - cbUnaligned);
+# endif
+#else
         void *pvEFence = (char *)pvBlock + (cbBlock - RTALLOC_EFENCE_SIZE);
-        void *pv = (char *)pvEFence - cbAlign;
-#ifdef RTALLOC_EFENCE_NOMAN_FILLER
-        memset(pvBlock, RTALLOC_EFENCE_NOMAN_FILLER, cbBlock - RTALLOC_EFENCE_SIZE - cbAlign);
-        memset((char *)pv + cb, RTALLOC_EFENCE_NOMAN_FILLER, cbAlign - cb);
+        void *pv       = (char *)pvEFence - cbAligned;
+# ifdef RTALLOC_EFENCE_NOMAN_FILLER
+        memset(pvBlock, RTALLOC_EFENCE_NOMAN_FILLER, cbBlock - RTALLOC_EFENCE_SIZE - cbAligned);
+        memset((char *)pv + cbUnaligned, RTALLOC_EFENCE_NOMAN_FILLER, cbAligned - cbUnaligned);
+# endif
 #endif
-        #endif
 
 #ifdef RTALLOC_EFENCE_FENCE_FILLER
         memset(pvEFence, RTALLOC_EFENCE_FENCE_FILLER, RTALLOC_EFENCE_SIZE);
@@ -342,24 +344,24 @@ void *rtMemAlloc(const char *pszOp, RTMEMTYPE enmType, size_t cb, void *pvCaller
         int rc = RTMemProtect(pvEFence, RTALLOC_EFENCE_SIZE, RTMEM_PROT_NONE);
         if (!rc)
         {
-            #ifdef RTALLOC_EFENCE_TRACE
+#ifdef RTALLOC_EFENCE_TRACE
             rtmemBlockInsert(pBlock, pv);
-            #endif
+#endif
             if (enmType == RTMEMTYPE_RTMEMALLOCZ)
-                memset(pv, 0, cb);
+                memset(pv, 0, cbUnaligned);
 #ifdef RTALLOC_EFENCE_FILLER
             else
-                memset(pv, RTALLOC_EFENCE_FILLER, cb);
+                memset(pv, RTALLOC_EFENCE_FILLER, cbUnaligned);
 #endif
 
-            rtmemLog(pszOp, "returns %p (pvBlock=%p cbBlock=%#x pvEFence=%p cb=%#x)\n", pv, pvBlock, cbBlock, pvEFence, cb);
+            rtmemLog(pszOp, "returns %p (pvBlock=%p cbBlock=%#x pvEFence=%p cbUnaligned=%#x)\n", pv, pvBlock, cbBlock, pvEFence, cbUnaligned);
             return pv;
         }
         rtmemComplain(pszOp, "RTMemProtect failed, pvEFence=%p size %d, rc=%d\n", pvEFence, RTALLOC_EFENCE_SIZE, rc);
-        RTMemPageFree(pvBlock);
+        RTMemPageFree(pvBlock, cbBlock);
     }
     else
-        rtmemComplain(pszOp, "Failed to allocated %d bytes.\n", cb);
+        rtmemComplain(pszOp, "Failed to allocated %lu (%lu) bytes.\n", (unsigned long)cbBlock, (unsigned long)cbUnaligned);
 
 #ifdef RTALLOC_EFENCE_TRACE
     rtmemBlockFree(pBlock);
@@ -371,7 +373,7 @@ void *rtMemAlloc(const char *pszOp, RTMEMTYPE enmType, size_t cb, void *pvCaller
 /**
  * Internal free.
  */
-void rtMemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *pvCaller, unsigned iLine, const char *pszFile, const char *pszFunction)
+RTDECL(void) rtR3MemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *pvCaller, RT_SRC_POS_DECL)
 {
     /*
      * Simple case.
@@ -394,45 +396,44 @@ void rtMemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *pvCaller, u
     if (pBlock)
     {
         if (gfRTMemFreeLog)
-            RTLogPrintf("RTMem %s: pv=%p pvCaller=%p cb=%#x\n", pszOp, pv, pvCaller, pBlock->cb);
+            RTLogPrintf("RTMem %s: pv=%p pvCaller=%p cbUnaligned=%#x\n", pszOp, pv, pvCaller, pBlock->cbUnaligned);
 
-#ifdef RTALLOC_EFENCE_NOMAN_FILLER
+# ifdef RTALLOC_EFENCE_NOMAN_FILLER
         /*
          * Check whether the no man's land is untouched.
          */
-# ifdef RTALLOC_EFENCE_IN_FRONT
-        void *p = ASMMemIsAll8((char *)pv + pBlock->cb,
-                               RT_ALIGN_Z(pBlock->cb, PAGE_SIZE) - pBlock->cb,
-                               RTALLOC_EFENCE_NOMAN_FILLER);
-# else
+#  ifdef RTALLOC_EFENCE_IN_FRONT
+        void *pvWrong = ASMMemIsAll8((char *)pv + pBlock->cbUnaligned,
+                                     RT_ALIGN_Z(pBlock->cbAligned, PAGE_SIZE) - pBlock->cbUnaligned,
+                                     RTALLOC_EFENCE_NOMAN_FILLER);
+#  else
         /* Alignment must match allocation alignment in rtMemAlloc(). */
-        size_t cbAlign = RT_ALIGN_Z(pBlock->cb, RTALLOC_EFENCE_ALIGNMENT);
-        void *p = ASMMemIsAll8((char *)pv + pBlock->cb,
-                               cbAlign - pBlock->cb,
+        void  *pvWrong   = ASMMemIsAll8((char *)pv + pBlock->cbUnaligned,
+                                        pBlock->cbAligned - pBlock->cbUnaligned,
+                                        RTALLOC_EFENCE_NOMAN_FILLER);
+        if (pvWrong)
+            RTAssertDoPanic();
+        pvWrong = ASMMemIsAll8((void *)((uintptr_t)pv & ~PAGE_OFFSET_MASK),
+                               RT_ALIGN_Z(pBlock->cbAligned, PAGE_SIZE) - pBlock->cbAligned,
                                RTALLOC_EFENCE_NOMAN_FILLER);
-        if (p)
+#  endif
+        if (pvWrong)
             RTAssertDoPanic();
-        p = ASMMemIsAll8((void *)((uintptr_t)pv & ~PAGE_OFFSET_MASK),
-                         RT_ALIGN_Z(cbAlign, PAGE_SIZE) - cbAlign,
-                         RTALLOC_EFENCE_NOMAN_FILLER);
 # endif
-        if (p)
-            RTAssertDoPanic();
-#endif
 
-    #ifdef RTALLOC_EFENCE_FREE_FILL
+# ifdef RTALLOC_EFENCE_FREE_FILL
         /*
          * Fill the user part of the block.
          */
-        memset(pv, RTALLOC_EFENCE_FREE_FILL, pBlock->cb);
-    #endif
+        memset(pv, RTALLOC_EFENCE_FREE_FILL, pBlock->cbUnaligned);
+# endif
 
-    #if defined(RTALLOC_EFENCE_FREE_DELAYED) && RTALLOC_EFENCE_FREE_DELAYED > 0
+# if defined(RTALLOC_EFENCE_FREE_DELAYED) && RTALLOC_EFENCE_FREE_DELAYED > 0
         /*
          * We're doing delayed freeing.
          * That means we'll expand the E-fence to cover the entire block.
          */
-        int rc = RTMemProtect(pv, pBlock->cb, RTMEM_PROT_NONE);
+        int rc = RTMemProtect(pv, pBlock->cbAligned, RTMEM_PROT_NONE);
         if (RT_SUCCESS(rc))
         {
             /*
@@ -442,15 +443,15 @@ void rtMemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *pvCaller, u
             while ((pBlock = rtmemBlockDelayRemove()) != NULL)
             {
                 pv = pBlock->Core.Key;
-                #ifdef RTALLOC_EFENCE_IN_FRONT
-                void *pvBlock = (char *)pv - RTALLOC_EFENCE_SIZE;
-                #else
-                void *pvBlock = (void *)((uintptr_t)pv & ~PAGE_OFFSET_MASK);
-                #endif
-                size_t cbBlock = RT_ALIGN_Z(pBlock->cb, PAGE_SIZE) + RTALLOC_EFENCE_SIZE;
+#  ifdef RTALLOC_EFENCE_IN_FRONT
+                void  *pvBlock = (char *)pv - RTALLOC_EFENCE_SIZE;
+#  else
+                void  *pvBlock = (void *)((uintptr_t)pv & ~PAGE_OFFSET_MASK);
+#  endif
+                size_t cbBlock = RT_ALIGN_Z(pBlock->cbAligned, PAGE_SIZE) + RTALLOC_EFENCE_SIZE;
                 rc = RTMemProtect(pvBlock, cbBlock, RTMEM_PROT_READ | RTMEM_PROT_WRITE);
                 if (RT_SUCCESS(rc))
-                    RTMemPageFree(pvBlock);
+                    RTMemPageFree(pvBlock, RT_ALIGN_Z(pBlock->cbAligned, PAGE_SIZE) + RTALLOC_EFENCE_SIZE);
                 else
                     rtmemComplain(pszOp, "RTMemProtect(%p, %#x, RTMEM_PROT_READ | RTMEM_PROT_WRITE) -> %d\n", pvBlock, cbBlock, rc);
                 rtmemBlockFree(pBlock);
@@ -459,26 +460,26 @@ void rtMemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *pvCaller, u
         else
             rtmemComplain(pszOp, "Failed to expand the efence of pv=%p cb=%d, rc=%d.\n", pv, pBlock, rc);
 
-    #else /* !RTALLOC_EFENCE_FREE_DELAYED */
+# else /* !RTALLOC_EFENCE_FREE_DELAYED */
 
         /*
          * Turn of the E-fence and free it.
          */
-        #ifdef RTALLOC_EFENCE_IN_FRONT
+#  ifdef RTALLOC_EFENCE_IN_FRONT
         void *pvBlock = (char *)pv - RTALLOC_EFENCE_SIZE;
         void *pvEFence = pvBlock;
-        #else
+#  else
         void *pvBlock = (void *)((uintptr_t)pv & ~PAGE_OFFSET_MASK);
         void *pvEFence = (char *)pv + pBlock->cb;
-        #endif
+#  endif
         int rc = RTMemProtect(pvEFence, RTALLOC_EFENCE_SIZE, RTMEM_PROT_READ | RTMEM_PROT_WRITE);
         if (RT_SUCCESS(rc))
-            RTMemPageFree(pvBlock);
+            RTMemPageFree(pvBlock, RT_ALIGN_Z(pBlock->cbAligned, PAGE_SIZE) + RTALLOC_EFENCE_SIZE);
         else
             rtmemComplain(pszOp, "RTMemProtect(%p, %#x, RTMEM_PROT_READ | RTMEM_PROT_WRITE) -> %d\n", pvEFence, RTALLOC_EFENCE_SIZE, rc);
         rtmemBlockFree(pBlock);
 
-    #endif /* !RTALLOC_EFENCE_FREE_DELAYED */
+# endif /* !RTALLOC_EFENCE_FREE_DELAYED */
     }
     else
         rtmemComplain(pszOp, "pv=%p not found! Incorrect free!\n", pv);
@@ -497,19 +498,20 @@ void rtMemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *pvCaller, u
 #endif /* !RTALLOC_EFENCE_TRACE */
 }
 
+
 /**
  * Internal realloc.
  */
-void *rtMemRealloc(const char *pszOp, RTMEMTYPE enmType, void *pvOld, size_t cbNew, void *pvCaller, unsigned iLine, const char *pszFile, const char *pszFunction)
+RTDECL(void *) rtR3MemRealloc(const char *pszOp, RTMEMTYPE enmType, void *pvOld, size_t cbNew, void *pvCaller, RT_SRC_POS_DECL)
 {
     /*
      * Allocate new and copy.
      */
     if (!pvOld)
-        return rtMemAlloc(pszOp, enmType, cbNew, pvCaller, iLine, pszFile, pszFunction);
+        return rtR3MemAlloc(pszOp, enmType, cbNew, cbNew, pvCaller, RT_SRC_POS_ARGS);
     if (!cbNew)
     {
-        rtMemFree(pszOp, RTMEMTYPE_RTMEMREALLOC, pvOld, pvCaller, iLine, pszFile, pszFunction);
+        rtR3MemFree(pszOp, RTMEMTYPE_RTMEMREALLOC, pvOld, pvCaller, RT_SRC_POS_ARGS);
         return NULL;
     }
 
@@ -521,11 +523,11 @@ void *rtMemRealloc(const char *pszOp, RTMEMTYPE enmType, void *pvOld, size_t cbN
     PRTMEMBLOCK pBlock = rtmemBlockGet(pvOld);
     if (pBlock)
     {
-        void *pvRet = rtMemAlloc(pszOp, enmType, cbNew, pvCaller, iLine, pszFile, pszFunction);
+        void *pvRet = rtR3MemAlloc(pszOp, enmType, cbNew, cbNew, pvCaller, RT_SRC_POS_ARGS);
         if (pvRet)
         {
-            memcpy(pvRet, pvOld, RT_MIN(cbNew, pBlock->cb));
-            rtMemFree(pszOp, RTMEMTYPE_RTMEMREALLOC, pvOld, pvCaller, iLine, pszFile, pszFunction);
+            memcpy(pvRet, pvOld, RT_MIN(cbNew, pBlock->cbUnaligned));
+            rtR3MemFree(pszOp, RTMEMTYPE_RTMEMREALLOC, pvOld, pvCaller, RT_SRC_POS_ARGS);
         }
         return pvRet;
     }
@@ -544,124 +546,181 @@ void *rtMemRealloc(const char *pszOp, RTMEMTYPE enmType, void *pvOld, size_t cbN
 
 
 
-/**
- * Same as RTMemTmpAlloc() except that it's fenced.
- *
- * @returns Pointer to the allocated memory.
- * @returns NULL on failure.
- * @param   cb      Size in bytes of the memory block to allocate.
- */
-RTDECL(void *)  RTMemEfTmpAlloc(size_t cb) RT_NO_THROW
+RTDECL(void *)  RTMemEfTmpAlloc(size_t cb, RT_SRC_POS_DECL) RT_NO_THROW
 {
-    return RTMemEfAlloc(cb);
+    return rtR3MemAlloc("TmpAlloc", RTMEMTYPE_RTMEMALLOC, cb, cb, ASMReturnAddress(), RT_SRC_POS_ARGS);
 }
 
 
-/**
- * Same as RTMemTmpAllocZ() except that it's fenced.
- *
- * @returns Pointer to the allocated memory.
- * @returns NULL on failure.
- * @param   cb      Size in bytes of the memory block to allocate.
- */
-RTDECL(void *)  RTMemEfTmpAllocZ(size_t cb) RT_NO_THROW
+RTDECL(void *)  RTMemEfTmpAllocZ(size_t cb, RT_SRC_POS_DECL) RT_NO_THROW
 {
-    return RTMemEfAllocZ(cb);
+    return rtR3MemAlloc("TmpAlloc", RTMEMTYPE_RTMEMALLOCZ, cb, cb, ASMReturnAddress(), RT_SRC_POS_ARGS);
 }
 
 
-/**
- * Same as RTMemTmpFree() except that it's for fenced memory.
- *
- * @param   pv      Pointer to memory block.
- */
-RTDECL(void)    RTMemEfTmpFree(void *pv) RT_NO_THROW
-{
-    RTMemEfFree(pv);
-}
-
-
-/**
- * Same as RTMemAlloc() except that it's fenced.
- *
- * @returns Pointer to the allocated memory. Free with RTMemEfFree().
- * @returns NULL on failure.
- * @param   cb      Size in bytes of the memory block to allocate.
- */
-RTDECL(void *)  RTMemEfAlloc(size_t cb) RT_NO_THROW
-{
-    return rtMemAlloc("Alloc", RTMEMTYPE_RTMEMALLOC, cb, ((void **)&cb)[-1], 0, NULL, NULL);
-}
-
-
-/**
- * Same as RTMemAllocZ() except that it's fenced.
- *
- * @returns Pointer to the allocated memory.
- * @returns NULL on failure.
- * @param   cb      Size in bytes of the memory block to allocate.
- */
-RTDECL(void *)  RTMemEfAllocZ(size_t cb) RT_NO_THROW
-{
-    return rtMemAlloc("AllocZ", RTMEMTYPE_RTMEMALLOCZ, cb, ((void **)&cb)[-1], 0, NULL, NULL);
-}
-
-
-/**
- * Same as RTMemRealloc() except that it's fenced.
- *
- * @returns Pointer to the allocated memory.
- * @returns NULL on failure.
- * @param   pvOld   The memory block to reallocate.
- * @param   cbNew   The new block size (in bytes).
- */
-RTDECL(void *)  RTMemEfRealloc(void *pvOld, size_t cbNew) RT_NO_THROW
-{
-    return rtMemRealloc("Realloc", RTMEMTYPE_RTMEMREALLOC, pvOld, cbNew, ((void **)&pvOld)[-1], 0, NULL, NULL);
-}
-
-
-/**
- * Free memory allocated by any of the RTMemEf* allocators.
- *
- * @param   pv      Pointer to memory block.
- */
-RTDECL(void)    RTMemEfFree(void *pv) RT_NO_THROW
+RTDECL(void)    RTMemEfTmpFree(void *pv, RT_SRC_POS_DECL) RT_NO_THROW
 {
     if (pv)
-        rtMemFree("Free", RTMEMTYPE_RTMEMFREE, pv, ((void **)&pv)[-1], 0, NULL, NULL);
+        rtR3MemFree("Free", RTMEMTYPE_RTMEMFREE, pv, ASMReturnAddress(), RT_SRC_POS_ARGS);
 }
 
 
-/**
- * Same as RTMemDup() except that it's fenced.
- *
- * @returns New heap block with the duplicate data.
- * @returns NULL if we're out of memory.
- * @param   pvSrc   The memory to duplicate.
- * @param   cb      The amount of memory to duplicate.
- */
-RTDECL(void *) RTMemEfDup(const void *pvSrc, size_t cb) RT_NO_THROW
+RTDECL(void *)  RTMemEfAlloc(size_t cb, RT_SRC_POS_DECL) RT_NO_THROW
 {
-    void *pvDst = RTMemEfAlloc(cb);
+    return rtR3MemAlloc("Alloc", RTMEMTYPE_RTMEMALLOC, cb, cb, ASMReturnAddress(), RT_SRC_POS_ARGS);
+}
+
+
+RTDECL(void *)  RTMemEfAllocZ(size_t cb, RT_SRC_POS_DECL) RT_NO_THROW
+{
+    return rtR3MemAlloc("AllocZ", RTMEMTYPE_RTMEMALLOCZ, cb, cb, ASMReturnAddress(), RT_SRC_POS_ARGS);
+}
+
+
+RTDECL(void *)  RTMemEfAllocVar(size_t cbUnaligned, RT_SRC_POS_DECL) RT_NO_THROW
+{
+    size_t cbAligned;
+    if (cbUnaligned >= 16)
+        cbAligned = RT_ALIGN_Z(cbUnaligned, 16);
+    else
+        cbAligned = RT_ALIGN_Z(cbUnaligned, sizeof(void *));
+    return rtR3MemAlloc("Alloc", RTMEMTYPE_RTMEMALLOC, cbUnaligned, cbAligned, ASMReturnAddress(), RT_SRC_POS_ARGS);
+}
+
+
+RTDECL(void *)  RTMemEfAllocZVar(size_t cbUnaligned, RT_SRC_POS_DECL) RT_NO_THROW
+{
+    size_t cbAligned;
+    if (cbUnaligned >= 16)
+        cbAligned = RT_ALIGN_Z(cbUnaligned, 16);
+    else
+        cbAligned = RT_ALIGN_Z(cbUnaligned, sizeof(void *));
+    return rtR3MemAlloc("AllocZ", RTMEMTYPE_RTMEMALLOCZ, cbUnaligned, cbAligned, ASMReturnAddress(), RT_SRC_POS_ARGS);
+}
+
+
+RTDECL(void *)  RTMemEfRealloc(void *pvOld, size_t cbNew, RT_SRC_POS_DECL) RT_NO_THROW
+{
+    return rtR3MemRealloc("Realloc", RTMEMTYPE_RTMEMREALLOC, pvOld, cbNew, ASMReturnAddress(), RT_SRC_POS_ARGS);
+}
+
+
+RTDECL(void)    RTMemEfFree(void *pv, RT_SRC_POS_DECL) RT_NO_THROW
+{
+    if (pv)
+        rtR3MemFree("Free", RTMEMTYPE_RTMEMFREE, pv, ASMReturnAddress(), RT_SRC_POS_ARGS);
+}
+
+
+RTDECL(void *) RTMemEfDup(const void *pvSrc, size_t cb, RT_SRC_POS_DECL) RT_NO_THROW
+{
+    void *pvDst = RTMemEfAlloc(cb, RT_SRC_POS_ARGS);
     if (pvDst)
         memcpy(pvDst, pvSrc, cb);
     return pvDst;
 }
 
 
-/**
- * Same as RTMemDupEx except that it's fenced.
- *
- * @returns New heap block with the duplicate data.
- * @returns NULL if we're out of memory.
- * @param   pvSrc   The memory to duplicate.
- * @param   cbSrc   The amount of memory to duplicate.
- * @param   cbExtra The amount of extra memory to allocate and zero.
- */
-RTDECL(void *) RTMemEfDupEx(const void *pvSrc, size_t cbSrc, size_t cbExtra) RT_NO_THROW
+RTDECL(void *) RTMemEfDupEx(const void *pvSrc, size_t cbSrc, size_t cbExtra, RT_SRC_POS_DECL) RT_NO_THROW
 {
-    void *pvDst = RTMemEfAlloc(cbSrc + cbExtra);
+    void *pvDst = RTMemEfAlloc(cbSrc + cbExtra, RT_SRC_POS_ARGS);
+    if (pvDst)
+    {
+        memcpy(pvDst, pvSrc, cbSrc);
+        memset((uint8_t *)pvDst + cbSrc, 0, cbExtra);
+    }
+    return pvDst;
+}
+
+
+
+
+/*
+ *
+ * The NP (no position) versions.
+ *
+ */
+
+
+
+RTDECL(void *)  RTMemEfTmpAllocNP(size_t cb) RT_NO_THROW
+{
+    return rtR3MemAlloc("TmpAlloc", RTMEMTYPE_RTMEMALLOC, cb, cb, ASMReturnAddress(), NULL, 0, NULL);
+}
+
+
+RTDECL(void *)  RTMemEfTmpAllocZNP(size_t cb) RT_NO_THROW
+{
+    return rtR3MemAlloc("TmpAllocZ", RTMEMTYPE_RTMEMALLOCZ, cb, cb, ASMReturnAddress(), NULL, 0, NULL);
+}
+
+
+RTDECL(void)    RTMemEfTmpFreeNP(void *pv) RT_NO_THROW
+{
+    if (pv)
+        rtR3MemFree("Free", RTMEMTYPE_RTMEMFREE, pv, ASMReturnAddress(), NULL, 0, NULL);
+}
+
+
+RTDECL(void *)  RTMemEfAllocNP(size_t cb) RT_NO_THROW
+{
+    return rtR3MemAlloc("Alloc", RTMEMTYPE_RTMEMALLOC, cb, cb, ASMReturnAddress(), NULL, 0, NULL);
+}
+
+
+RTDECL(void *)  RTMemEfAllocZNP(size_t cb) RT_NO_THROW
+{
+    return rtR3MemAlloc("AllocZ", RTMEMTYPE_RTMEMALLOCZ, cb, cb, ASMReturnAddress(), NULL, 0, NULL);
+}
+
+
+RTDECL(void *)  RTMemEfAllocVarNP(size_t cbUnaligned) RT_NO_THROW
+{
+    size_t cbAligned;
+    if (cbUnaligned >= 16)
+        cbAligned = RT_ALIGN_Z(cbUnaligned, 16);
+    else
+        cbAligned = RT_ALIGN_Z(cbUnaligned, sizeof(void *));
+    return rtR3MemAlloc("Alloc", RTMEMTYPE_RTMEMALLOC, cbUnaligned, cbAligned, ASMReturnAddress(), NULL, 0, NULL);
+}
+
+
+RTDECL(void *)  RTMemEfAllocZVarNP(size_t cbUnaligned) RT_NO_THROW
+{
+    size_t cbAligned;
+    if (cbUnaligned >= 16)
+        cbAligned = RT_ALIGN_Z(cbUnaligned, 16);
+    else
+        cbAligned = RT_ALIGN_Z(cbUnaligned, sizeof(void *));
+    return rtR3MemAlloc("AllocZ", RTMEMTYPE_RTMEMALLOCZ, cbUnaligned, cbAligned, ASMReturnAddress(), NULL, 0, NULL);
+}
+
+
+RTDECL(void *)  RTMemEfReallocNP(void *pvOld, size_t cbNew) RT_NO_THROW
+{
+    return rtR3MemRealloc("Realloc", RTMEMTYPE_RTMEMREALLOC, pvOld, cbNew, ASMReturnAddress(), NULL, 0, NULL);
+}
+
+
+RTDECL(void)    RTMemEfFreeNP(void *pv) RT_NO_THROW
+{
+    if (pv)
+        rtR3MemFree("Free", RTMEMTYPE_RTMEMFREE, pv, ASMReturnAddress(), NULL, 0, NULL);
+}
+
+
+RTDECL(void *) RTMemEfDupNP(const void *pvSrc, size_t cb) RT_NO_THROW
+{
+    void *pvDst = RTMemEfAlloc(cb, NULL, 0, NULL);
+    if (pvDst)
+        memcpy(pvDst, pvSrc, cb);
+    return pvDst;
+}
+
+
+RTDECL(void *) RTMemEfDupExNP(const void *pvSrc, size_t cbSrc, size_t cbExtra) RT_NO_THROW
+{
+    void *pvDst = RTMemEfAlloc(cbSrc + cbExtra, NULL, 0, NULL);
     if (pvDst)
     {
         memcpy(pvDst, pvSrc, cbSrc);

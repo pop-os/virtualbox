@@ -1,10 +1,10 @@
-/* $Id: semeventmulti-linux.cpp $ */
+/* $Id: semeventmulti-linux.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Multiple Release Event Semaphore, Linux (2.6.x+).
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -51,12 +47,17 @@ asm volatile (".global epoll_pwait");
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/semaphore.h>
+#include "internal/iprt.h"
+
 #include <iprt/assert.h>
-#include <iprt/alloc.h>
 #include <iprt/asm.h>
 #include <iprt/err.h>
+#include <iprt/lockvalidator.h>
+#include <iprt/mem.h>
 #include <iprt/time.h>
 #include "internal/magics.h"
+#include "internal/strict.h"
+
 
 #include <errno.h>
 #include <limits.h>
@@ -81,13 +82,19 @@ asm volatile (".global epoll_pwait");
 struct RTSEMEVENTMULTIINTERNAL
 {
     /** Magic value. */
-    intptr_t volatile   iMagic;
+    uint32_t volatile   u32Magic;
     /** The futex state variable.
      * -1 means signaled.
      *  0 means not signaled, no waiters.
      *  1 means not signaled and that someone is waiting.
      */
     int32_t volatile    iState;
+#ifdef RTSEMEVENTMULTI_STRICT
+    /** Signallers. */
+    RTLOCKVALRECSHRD    Signallers;
+    /** Indicates that lock validation should be performed. */
+    bool volatile       fEverHadSignallers;
+#endif
 };
 
 
@@ -107,36 +114,67 @@ static long sys_futex(int32_t volatile *uaddr, int op, int val, struct timespec 
 }
 
 
-RTDECL(int)  RTSemEventMultiCreate(PRTSEMEVENTMULTI pEventMultiSem)
+RTDECL(int)  RTSemEventMultiCreate(PRTSEMEVENTMULTI phEventMultiSem)
 {
+    return RTSemEventMultiCreateEx(phEventMultiSem, 0 /*fFlags*/, NIL_RTLOCKVALCLASS, NULL);
+}
+
+
+RTDECL(int)  RTSemEventMultiCreateEx(PRTSEMEVENTMULTI phEventMultiSem, uint32_t fFlags, RTLOCKVALCLASS hClass,
+                                     const char *pszNameFmt, ...)
+{
+    AssertReturn(!(fFlags & ~RTSEMEVENTMULTI_FLAGS_NO_LOCK_VAL), VERR_INVALID_PARAMETER);
+
     /*
      * Allocate semaphore handle.
      */
     struct RTSEMEVENTMULTIINTERNAL *pThis = (struct RTSEMEVENTMULTIINTERNAL *)RTMemAlloc(sizeof(struct RTSEMEVENTMULTIINTERNAL));
     if (pThis)
     {
-        pThis->iMagic = RTSEMEVENTMULTI_MAGIC;
-        pThis->iState = 0;
-        *pEventMultiSem = pThis;
+        pThis->u32Magic = RTSEMEVENTMULTI_MAGIC;
+        pThis->iState   = 0;
+#ifdef RTSEMEVENTMULTI_STRICT
+        if (!pszNameFmt)
+        {
+            static uint32_t volatile s_iSemEventMultiAnon = 0;
+            RTLockValidatorRecSharedInit(&pThis->Signallers, hClass, RTLOCKVAL_SUB_CLASS_ANY, pThis,
+                                         true /*fSignaller*/, !(fFlags & RTSEMEVENTMULTI_FLAGS_NO_LOCK_VAL),
+                                         "RTSemEventMulti-%u", ASMAtomicIncU32(&s_iSemEventMultiAnon) - 1);
+        }
+        else
+        {
+            va_list va;
+            va_start(va, pszNameFmt);
+            RTLockValidatorRecSharedInitV(&pThis->Signallers, hClass, RTLOCKVAL_SUB_CLASS_ANY, pThis,
+                                          true /*fSignaller*/, !(fFlags & RTSEMEVENTMULTI_FLAGS_NO_LOCK_VAL),
+                                          pszNameFmt, va);
+            va_end(va);
+        }
+        pThis->fEverHadSignallers = false;
+#endif
+
+        *phEventMultiSem = pThis;
         return VINF_SUCCESS;
     }
     return  VERR_NO_MEMORY;
 }
 
 
-RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI EventMultiSem)
+RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI hEventMultiSem)
 {
     /*
      * Validate input.
      */
-    struct RTSEMEVENTMULTIINTERNAL *pThis = EventMultiSem;
-    AssertReturn(VALID_PTR(pThis) && pThis->iMagic == RTSEMEVENTMULTI_MAGIC,
-                 VERR_INVALID_HANDLE);
+    struct RTSEMEVENTMULTIINTERNAL *pThis = hEventMultiSem;
+    if (pThis == NIL_RTSEMEVENTMULTI)
+        return VINF_SUCCESS;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC, VERR_INVALID_HANDLE);
 
     /*
      * Invalidate the semaphore and wake up anyone waiting on it.
      */
-    ASMAtomicWriteSize(&pThis->iMagic, RTSEMEVENTMULTI_MAGIC + 1);
+    ASMAtomicWriteSize(&pThis->u32Magic, RTSEMEVENTMULTI_MAGIC + 1);
     if (ASMAtomicXchgS32(&pThis->iState, -1) == 1)
     {
         sys_futex(&pThis->iState, FUTEX_WAKE, INT_MAX, NULL, NULL, 0);
@@ -146,19 +184,33 @@ RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI EventMultiSem)
     /*
      * Free the semaphore memory and be gone.
      */
+#ifdef RTSEMEVENTMULTI_STRICT
+    RTLockValidatorRecSharedDelete(&pThis->Signallers);
+#endif
     RTMemFree(pThis);
     return VINF_SUCCESS;
 }
 
 
-RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI EventMultiSem)
+RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI hEventMultiSem)
 {
     /*
      * Validate input.
      */
-    struct RTSEMEVENTMULTIINTERNAL *pThis = EventMultiSem;
-    AssertReturn(VALID_PTR(pThis) && pThis->iMagic == RTSEMEVENTMULTI_MAGIC,
+    struct RTSEMEVENTMULTIINTERNAL *pThis = hEventMultiSem;
+    AssertReturn(VALID_PTR(pThis) && pThis->u32Magic == RTSEMEVENTMULTI_MAGIC,
                  VERR_INVALID_HANDLE);
+
+#ifdef RTSEMEVENTMULTI_STRICT
+    if (pThis->fEverHadSignallers)
+    {
+        int rc9 = RTLockValidatorRecSharedCheckSignaller(&pThis->Signallers, NIL_RTTHREAD);
+        if (RT_FAILURE(rc9))
+            return rc9;
+    }
+#endif
+
+
     /*
      * Signal it.
      */
@@ -174,13 +226,13 @@ RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI EventMultiSem)
 }
 
 
-RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI EventMultiSem)
+RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
 {
     /*
      * Validate input.
      */
-    struct RTSEMEVENTMULTIINTERNAL *pThis = EventMultiSem;
-    AssertReturn(VALID_PTR(pThis) && pThis->iMagic == RTSEMEVENTMULTI_MAGIC,
+    struct RTSEMEVENTMULTIINTERNAL *pThis = hEventMultiSem;
+    AssertReturn(VALID_PTR(pThis) && pThis->u32Magic == RTSEMEVENTMULTI_MAGIC,
                  VERR_INVALID_HANDLE);
 #ifdef RT_STRICT
     int32_t i = pThis->iState;
@@ -195,13 +247,15 @@ RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI EventMultiSem)
 }
 
 
-static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies, bool fAutoResume)
+static int rtSemEventMultiWait(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies, bool fAutoResume)
 {
+    PCRTLOCKVALSRCPOS pSrcPos = NULL;
+
     /*
      * Validate input.
      */
-    struct RTSEMEVENTMULTIINTERNAL *pThis = EventMultiSem;
-    AssertReturn(VALID_PTR(pThis) && pThis->iMagic == RTSEMEVENTMULTI_MAGIC,
+    struct RTSEMEVENTMULTIINTERNAL *pThis = hEventMultiSem;
+    AssertReturn(VALID_PTR(pThis) && pThis->u32Magic == RTSEMEVENTMULTI_MAGIC,
                  VERR_INVALID_HANDLE);
 
     /*
@@ -220,6 +274,7 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
     uint64_t u64End = 0; /* shut up gcc */
     if (cMillies != RT_INDEFINITE_WAIT)
     {
+        /* If the timeout is zero, then we're done. */
         if (!cMillies)
             return VERR_TIMEOUT;
         ts.tv_sec  = cMillies / 1000;
@@ -231,6 +286,11 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
     /*
      * The wait loop.
      */
+#ifdef RTSEMEVENTMULTI_STRICT
+    RTTHREAD hThreadSelf = RTThreadSelfAutoAdopt();
+#else
+    RTTHREAD hThreadSelf = RTThreadSelf();
+#endif
     for (unsigned i = 0;; i++)
     {
         /*
@@ -251,8 +311,19 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
                 ts.tv_sec  = (uint64_t)i64Diff / UINT32_C(1000000000);
                 ts.tv_nsec = (uint64_t)i64Diff % UINT32_C(1000000000);
             }
+#ifdef RTSEMEVENTMULTI_STRICT
+            if (pThis->fEverHadSignallers)
+            {
+                int rc9 = RTLockValidatorRecSharedCheckBlocking(&pThis->Signallers, hThreadSelf, pSrcPos, false,
+                                                                cMillies, RTTHREADSTATE_EVENT_MULTI, true);
+                if (RT_FAILURE(rc9))
+                    return rc9;
+            }
+#endif
+            RTThreadBlocking(hThreadSelf, RTTHREADSTATE_EVENT_MULTI, true);
             long rc = sys_futex(&pThis->iState, FUTEX_WAIT, 1, pTimeout, NULL, 0);
-            if (RT_UNLIKELY(pThis->iMagic != RTSEMEVENTMULTI_MAGIC))
+            RTThreadUnblocked(hThreadSelf, RTTHREADSTATE_EVENT_MULTI);
+            if (RT_UNLIKELY(pThis->u32Magic != RTSEMEVENTMULTI_MAGIC))
                 return VERR_SEM_DESTROYED;
             if (rc == 0)
                 return VINF_SUCCESS;
@@ -262,7 +333,9 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
              */
             if (rc == -ETIMEDOUT)
             {
-/** @something is broken here. shows up every now and again in the ata code. Should try to run the timeout against RTTimeMilliTS to check that it's doing the right thing... */
+/** @todo something is broken here. shows up every now and again in the ata
+ *        code. Should try to run the timeout against RTTimeMilliTS to
+ *        check that it's doing the right thing... */
                 Assert(pTimeout);
                 return VERR_TIMEOUT;
             }
@@ -286,17 +359,55 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
 }
 
 
-RTDECL(int)  RTSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies)
+RTDECL(int)  RTSemEventMultiWait(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies)
 {
-    int rc = rtSemEventMultiWait(EventMultiSem, cMillies, true);
+    int rc = rtSemEventMultiWait(hEventMultiSem, cMillies, true);
     Assert(rc != VERR_INTERRUPTED);
     return rc;
 }
 
 
-RTDECL(int)  RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies)
+RTDECL(int)  RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies)
 {
-    return rtSemEventMultiWait(EventMultiSem, cMillies, false);
+    return rtSemEventMultiWait(hEventMultiSem, cMillies, false);
+}
+
+
+RTDECL(void) RTSemEventMultiSetSignaller(RTSEMEVENTMULTI hEventMultiSem, RTTHREAD hThread)
+{
+#ifdef RTSEMEVENTMULTI_STRICT
+    struct RTSEMEVENTMULTIINTERNAL *pThis = hEventMultiSem;
+    AssertPtrReturnVoid(pThis);
+    AssertReturnVoid(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC);
+
+    ASMAtomicWriteBool(&pThis->fEverHadSignallers, true);
+    RTLockValidatorRecSharedResetOwner(&pThis->Signallers, hThread, NULL);
+#endif
+}
+
+
+RTDECL(void) RTSemEventMultiAddSignaller(RTSEMEVENTMULTI hEventMultiSem, RTTHREAD hThread)
+{
+#ifdef RTSEMEVENTMULTI_STRICT
+    struct RTSEMEVENTMULTIINTERNAL *pThis = hEventMultiSem;
+    AssertPtrReturnVoid(pThis);
+    AssertReturnVoid(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC);
+
+    ASMAtomicWriteBool(&pThis->fEverHadSignallers, true);
+    RTLockValidatorRecSharedAddOwner(&pThis->Signallers, hThread, NULL);
+#endif
+}
+
+
+RTDECL(void) RTSemEventMultiRemoveSignaller(RTSEMEVENTMULTI hEventMultiSem, RTTHREAD hThread)
+{
+#ifdef RTSEMEVENTMULTI_STRICT
+    struct RTSEMEVENTMULTIINTERNAL *pThis = hEventMultiSem;
+    AssertPtrReturnVoid(pThis);
+    AssertReturnVoid(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC);
+
+    RTLockValidatorRecSharedRemoveOwner(&pThis->Signallers, hThread);
+#endif
 }
 
 #endif /* glibc < 2.6 || IPRT_WITH_FUTEX_BASED_SEMS */

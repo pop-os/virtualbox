@@ -1,10 +1,10 @@
-/** $Id: ext.h $ */
+/** $Id: ext.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
- * some externals helpers
+ * NAT - some externals helpers
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifdef VBOX_WITH_SLIRP_BSD_MBUF
@@ -61,25 +57,21 @@ static inline uma_zone_t slirp_zone_ext_refcnt(PNATState);
 #ifndef vbox_slirp_printfV
 static void vbox_slirp_printV(char *format, va_list args)
 {
-# ifdef LOG_ENABLED
     char buffer[1024];
     memset(buffer, 0, 1024);
     RTStrPrintfV(buffer, 1024, format, args);
 
-    Log2(("NAT:EXT: %s\n", buffer));
-# endif
+    LogRel(("NAT:EXT: %s\n", buffer));
 }
 #endif
 
 #ifndef vbox_slirp_printf
 static void vbox_slirp_printf(char *format, ...)
 {
-# ifdef LOG_ENABLED
     va_list args;
     va_start(args, format);
     vbox_slirp_printV(format, args);
     va_end(args);
-# endif
 }
 #endif
 

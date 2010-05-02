@@ -1,12 +1,13 @@
-/* $Id: HostHardwareLinux.h $ */
+/* $Id: HostHardwareLinux.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
- * Classes for handling hardware detection under Linux.  Please feel free to
- * expand these to work for other systems (Solaris!) or to add new ones for
- * other systems.
+ * Classes for handling hardware detection under Linux.
+ *
+ * Please feel free to expand these to work for other systems (Solaris!) or to
+ * add new ones for other systems.
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,17 +16,13 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_HOSTHARDWARELINUX
 # define ____H_HOSTHARDWARELINUX
 
 #include <iprt/err.h>
-#include <iprt/ministring_cpp.h>
+#include <iprt/cpp/ministring.h>
 #include <vector>
 
 /**
@@ -42,7 +39,9 @@ public:
     {
         /** The device node of the drive. */
         iprt::MiniString mDevice;
-        /** The hal unique device identifier, if available. */
+        /** A unique identifier for the device, if available.  This should be
+         * kept consistant accross different probing methods of a given
+         * platform if at all possible. */
         iprt::MiniString mUdi;
         /** A textual description of the drive. */
         iprt::MiniString mDescription;
@@ -122,18 +121,19 @@ public:
     {
         /** The device node of the device. */
         iprt::MiniString mDevice;
-        /** The sysfs path of the device. */
+        /** The system identifier of the device.  Specific to the probing
+         * method. */
         iprt::MiniString mSysfsPath;
         /** Type for the list of interfaces. */
         typedef std::vector<iprt::MiniString> InterfaceList;
-        /** The sysfs paths of the device's interfaces. */
+        /** The system IDs of the device's interfaces. */
         InterfaceList mInterfaces;
 
         /** Constructors */
         USBDeviceInfo(const iprt::MiniString &aDevice,
-                      const iprt::MiniString &aSysfsPath)
+                      const iprt::MiniString &aSystemID)
             : mDevice(aDevice),
-              mSysfsPath(aSysfsPath)
+              mSysfsPath(aSystemID)
         { }
     };
 
@@ -171,6 +171,18 @@ typedef VBoxMainUSBDeviceInfo::USBDeviceInfo USBDeviceInfo;
 /** Convenience typedef. */
 typedef VBoxMainUSBDeviceInfo::USBDeviceInfo::InterfaceList USBInterfaceList;
 
+/** Implementation of the hotplug waiter class below */
+class VBoxMainHotplugWaiterImpl
+{
+public:
+    VBoxMainHotplugWaiterImpl (void) {}
+    virtual ~VBoxMainHotplugWaiterImpl (void) {}
+    /** @copydoc VBoxMainHotplugWaiter::Wait */
+    virtual int Wait (RTMSINTERVAL cMillies) = 0;
+    /** @copydoc VBoxMainHotplugWaiter::Interrupt */
+    virtual void Interrupt (void) = 0;
+};
+
 /**
  * Class for waiting for a hotplug event.  To use this class, create an
  * instance and call the @a Wait() method, which blocks until an event or a
@@ -179,16 +191,16 @@ typedef VBoxMainUSBDeviceInfo::USBDeviceInfo::InterfaceList USBInterfaceList;
  */
 class VBoxMainHotplugWaiter
 {
-    /** Opaque context struct. */
-    struct Context;
-
-    /** Opaque waiter context. */
-    Context *mContext;
+    /** Class implementation. */
+    VBoxMainHotplugWaiterImpl *mImpl;
 public:
-    /** Constructor */
+    /** Constructor.  Responsible for selecting the implementation. */
     VBoxMainHotplugWaiter (void);
     /** Destructor. */
-    ~VBoxMainHotplugWaiter (void);
+    ~VBoxMainHotplugWaiter (void)
+    {
+        delete mImpl;
+    }
     /**
      * Wait for a hotplug event.
      *
@@ -200,12 +212,18 @@ public:
      * @returns  Possibly other iprt status codes otherwise.
      * @param    cMillies   How long to wait for at most.
      */
-    int Wait (unsigned cMillies);
+    int Wait (RTMSINTERVAL cMillies)
+    {
+        return mImpl->Wait(cMillies);
+    }
     /**
      * Interrupts an active wait.  In the current implementation, the wait
      * may not return until up to two seconds after calling this method.
      */
-    void Interrupt (void);
+    void Interrupt (void)
+    {
+        mImpl->Interrupt();
+    }
 };
 
 #endif /* ____H_HOSTHARDWARELINUX */

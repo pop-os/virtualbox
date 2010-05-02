@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: BIOSSettingsImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_BIOSSETTINGS
@@ -26,7 +22,6 @@
 
 #include "VirtualBoxBase.h"
 
-class Machine;
 class GuestOSType;
 
 namespace settings
@@ -41,46 +36,6 @@ class ATL_NO_VTABLE BIOSSettings :
     VBOX_SCRIPTABLE_IMPL(IBIOSSettings)
 {
 public:
-
-    struct Data
-    {
-        Data()
-        {
-            mLogoFadeIn = true;
-            mLogoFadeOut = true;
-            mLogoDisplayTime = 0;
-            mBootMenuMode = BIOSBootMenuMode_MessageAndMenu;
-            mACPIEnabled = true;
-            mIOAPICEnabled = false;
-            mPXEDebugEnabled = false;
-            mTimeOffset = 0;
-        }
-
-        bool operator== (const Data &that) const
-        {
-            return this == &that ||
-                   (mLogoFadeIn         == that.mLogoFadeIn &&
-                    mLogoFadeOut        == that.mLogoFadeOut &&
-                    mLogoDisplayTime    == that.mLogoDisplayTime &&
-                    mLogoImagePath      == that.mLogoImagePath &&
-                    mBootMenuMode       == that.mBootMenuMode &&
-                    mACPIEnabled        == that.mACPIEnabled &&
-                    mIOAPICEnabled      == that.mIOAPICEnabled &&
-                    mPXEDebugEnabled    == that.mPXEDebugEnabled &&
-                    mTimeOffset         == that.mTimeOffset);
-        }
-
-        BOOL                mLogoFadeIn;
-        BOOL                mLogoFadeOut;
-        ULONG               mLogoDisplayTime;
-        Bstr                mLogoImagePath;
-        BIOSBootMenuMode_T  mBootMenuMode;
-        BOOL                mACPIEnabled;
-        BOOL                mIOAPICEnabled;
-        BOOL                mPXEDebugEnabled;
-        LONG64              mTimeOffset;
-    };
-
     DECLARE_NOT_AGGREGATABLE(BIOSSettings)
 
     DECLARE_PROTECT_FINAL_CONSTRUCT()
@@ -124,9 +79,7 @@ public:
     HRESULT loadSettings(const settings::BIOSSettings &data);
     HRESULT saveSettings(settings::BIOSSettings &data);
 
-    bool isModified() { AutoWriteLock alock (this); return mData.isBackedUp(); }
-    bool isReallyModified() { AutoWriteLock alock (this); return mData.hasActualChanges(); }
-    void rollback() { AutoWriteLock alock (this); mData.rollback(); }
+    void rollback();
     void commit();
     void copyFrom (BIOSSettings *aThat);
     void applyDefaults (GuestOSType *aOsType);
@@ -135,10 +88,8 @@ public:
     static const wchar_t *getComponentName() { return L"BIOSSettings"; }
 
 private:
-
-    ComObjPtr<Machine, ComWeakRef> mParent;
-    ComObjPtr<BIOSSettings> mPeer;
-    Backupable<Data> mData;
+    struct Data;
+    Data *m;
 };
 
 #endif // ____H_BIOSSETTINGS

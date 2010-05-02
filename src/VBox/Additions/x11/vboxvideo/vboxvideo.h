@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -56,11 +52,7 @@
 #ifndef _VBOXVIDEO_H_
 #define _VBOXVIDEO_H_
 
-#ifdef DEBUG_michael
-# define DEBUG_VIDEO 1
-#endif
-
-#ifdef DEBUG_VIDEO
+#ifdef DEBUG
 
 #define TRACE_ENTRY() \
 do { \
@@ -81,14 +73,23 @@ do { \
 { \
     ErrorF ("%s: line %d\n", __FUNCTION__, __LINE__); \
     } while(0)
+# define XF86ASSERT(expr, out) \
+if (!(expr)) \
+{ \
+    ErrorF ("\nAssertion failed!\n\n"); \
+    ErrorF ("%s\n", #expr); \
+    ErrorF ("at %s (%s:%d)\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); \
+    ErrorF out; \
+    FatalError("Aborting"); \
+}
+#else  /* !DEBUG */
 
-#else  /* DEBUG_VIDEO not defined */
+#define TRACE_ENTRY()         do { } while (0)
+#define TRACE_EXIT()          do { } while (0)
+#define TRACE_LOG(...)        do { } while (0)
+#define XF86ASSERT(expr, out) do { } while (0)
 
-#define TRACE_ENTRY()  do { } while(0)
-#define TRACE_EXIT()   do { } while(0)
-#define TRACE_LOG(...) do { } while(0)
-
-#endif  /* DEBUG_VIDEO not defined */
+#endif  /* !DEBUG */
 
 #define BOOL_STR(a) ((a) ? "TRUE" : "FALSE")
 
@@ -201,9 +202,6 @@ typedef struct _VBOXRec
     CARD32 *savedPal;
     CARD8 *fonts;
     vgaRegRec vgaRegs;  /* Space for saving VGA information */
-    /* DGA info */
-    DGAModePtr pDGAMode;
-    int nDGAMode;
     CloseScreenProcPtr CloseScreen;
     /** Default X server procedure for enabling and disabling framebuffer access */
     xf86EnableDisableFBAccessProc *EnableDisableFBAccess;
@@ -211,14 +209,18 @@ typedef struct _VBOXRec
     Bool accessEnabled;
     OptionInfoPtr Options;
     IOADDRESS ioBase;
+    /** The width of the last resolution set, used to avoid resetting modes */
+    int cLastWidth;
+    /** The height of the last resolution set */
+    int cLastHeight;
     VMMDevReqMousePointer *reqp;
     xf86CursorInfoPtr pCurs;
     size_t pointerHeaderSize;
     size_t pointerSize;
     Bool useDevice;
     Bool forceSWCursor;
-    /** Do we know that the guest mouse driver was loaded successfully? */
-    Bool mouseDriverLoaded;
+    /** Do we know that the guest can handle absolute co-ordinates? */
+    Bool guestCanAbsolute;
     /** Are we currently switched to a virtual terminal?  If so, it is not
      * safe to touch the hardware. */
     Bool vtSwitch;
@@ -246,14 +248,19 @@ extern Bool vboxDisableVbva(ScrnInfoPtr pScrn);
 
 extern Bool vboxEnableGraphicsCap(VBOXPtr pVBox);
 extern Bool vboxDisableGraphicsCap(VBOXPtr pVBox);
+extern Bool vboxGuestIsSeamless(ScrnInfoPtr pScrn);
 
 extern Bool vboxGetDisplayChangeRequest(ScrnInfoPtr pScrn, uint32_t *pcx,
                                         uint32_t *pcy, uint32_t *pcBits,
                                         uint32_t *piDisplay);
-
 extern Bool vboxHostLikesVideoMode(ScrnInfoPtr pScrn, uint32_t cx, uint32_t cy, uint32_t cBits);
 extern Bool vboxSaveVideoMode(ScrnInfoPtr pScrn, uint32_t cx, uint32_t cy, uint32_t cBits);
 extern Bool vboxRetrieveVideoMode(ScrnInfoPtr pScrn, uint32_t *pcx, uint32_t *pcy, uint32_t *pcBits);
+extern void vboxGetPreferredMode(ScrnInfoPtr pScrn, uint32_t *pcx,
+                                 uint32_t *pcy, uint32_t *pcBits);
+extern void vboxWriteHostModes(ScrnInfoPtr pScrn, DisplayModePtr pCurrent);
+extern void vboxAddModes(ScrnInfoPtr pScrn, uint32_t cxInit,
+                         uint32_t cyInit);
 
 /* DRI stuff */
 extern Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox);

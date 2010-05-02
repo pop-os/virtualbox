@@ -1,3 +1,4 @@
+/* $Id: VBoxGLSettingsGeneral.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "VBoxGLSettingsGeneral.h"
@@ -33,14 +30,10 @@ VBoxGLSettingsGeneral::VBoxGLSettingsGeneral()
 #ifndef VBOX_GUI_WITH_SYSTRAY
     mCbCheckTrayIcon->hide();
 #endif /* VBOX_GUI_WITH_SYSTRAY */
-#ifndef Q_WS_MAC
-    mCbCheckDockPreview->hide();
-#endif /* Q_WS_MAC */
 #ifndef QT_MAC_USE_COCOA
     mCbCheckPresentationMode->hide();
 #endif /* QT_MAC_USE_COCOA */
     if (   mCbCheckTrayIcon->isHidden()
-        && mCbCheckDockPreview->isHidden()
         && mCbCheckPresentationMode->isHidden())
         mLnSeparator2->hide();
 
@@ -61,7 +54,6 @@ void VBoxGLSettingsGeneral::getFrom (const CSystemProperties &aProps,
     mPsVRDP->setPath (aProps.GetRemoteDisplayAuthLibrary());
     mCbCheckTrayIcon->setChecked (aGs.trayIconEnabled());
 #ifdef Q_WS_MAC
-    mCbCheckDockPreview->setChecked (aGs.dockPreviewEnabled());
     mCbCheckPresentationMode->setChecked (aGs.presentationModeEnabled());
 #endif /* Q_WS_MAC */
 }
@@ -77,7 +69,6 @@ void VBoxGLSettingsGeneral::putBackTo (CSystemProperties &aProps,
         aProps.SetRemoteDisplayAuthLibrary (mPsVRDP->path());
     aGs.setTrayIconEnabled (mCbCheckTrayIcon->isChecked());
 #ifdef Q_WS_MAC
-    aGs.setDockPreviewEnabled (mCbCheckDockPreview->isChecked());
     aGs.setPresentationModeEnabled (mCbCheckPresentationMode->isChecked());
 #endif /* Q_WS_MAC */
 }
@@ -88,9 +79,6 @@ void VBoxGLSettingsGeneral::setOrderAfter (QWidget *aWidget)
     setTabOrder (mPsHardDisk, mPsMach);
     setTabOrder (mPsMach, mPsVRDP);
     setTabOrder (mPsVRDP, mCbCheckTrayIcon);
-#ifdef Q_WS_MAC
-    setTabOrder (mCbCheckTrayIcon, mCbCheckDockPreview);
-#endif /* Q_WS_MAC */
 }
 
 void VBoxGLSettingsGeneral::retranslateUi()

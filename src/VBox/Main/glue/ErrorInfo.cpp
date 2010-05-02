@@ -1,4 +1,4 @@
-/* $Id: ErrorInfo.cpp $ */
+/* $Id: ErrorInfo.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #if !defined (VBOX_WITH_XPCOM)
@@ -87,18 +83,18 @@ void ErrorInfo::init (bool aKeepObj /* = false */)
         }
     }
 
-#else // !defined (VBOX_WITH_XPCOM)
+#else // defined (VBOX_WITH_XPCOM)
 
-    nsCOMPtr <nsIExceptionService> es;
-    es = do_GetService (NS_EXCEPTIONSERVICE_CONTRACTID, &rc);
+    nsCOMPtr<nsIExceptionService> es;
+    es = do_GetService(NS_EXCEPTIONSERVICE_CONTRACTID, &rc);
     if (NS_SUCCEEDED(rc))
     {
-        nsCOMPtr <nsIExceptionManager> em;
-        rc = es->GetCurrentExceptionManager (getter_AddRefs (em));
+        nsCOMPtr<nsIExceptionManager> em;
+        rc = es->GetCurrentExceptionManager(getter_AddRefs (em));
         if (NS_SUCCEEDED(rc))
         {
             ComPtr<nsIException> ex;
-            rc = em->GetCurrentException (ex.asOutParam());
+            rc = em->GetCurrentException(ex.asOutParam());
             if (NS_SUCCEEDED(rc) && ex)
             {
                 if (aKeepObj)
@@ -113,15 +109,17 @@ void ErrorInfo::init (bool aKeepObj /* = false */)
                 {
                     bool gotSomething = false;
 
-                    rc = ex->GetResult (&mResultCode);
+                    rc = ex->GetResult(&mResultCode);
                     gotSomething |= NS_SUCCEEDED(rc);
 
-                    Utf8Str message;
-                    rc = ex->GetMessage(message.asOutParam());
-                    message.jolt();
+                    char *pszMsg;
+                    rc = ex->GetMessage(&pszMsg);
                     gotSomething |= NS_SUCCEEDED(rc);
                     if (NS_SUCCEEDED(rc))
-                        mText = message;
+                    {
+                        mText = Bstr(pszMsg);
+                        nsMemory::Free(mText);
+                    }
 
                     if (gotSomething)
                         mIsBasicAvailable = true;
@@ -139,12 +137,12 @@ void ErrorInfo::init (bool aKeepObj /* = false */)
 
     AssertComRC (rc);
 
-#endif // !defined (VBOX_WITH_XPCOM)
+#endif // defined (VBOX_WITH_XPCOM)
 }
 
 void ErrorInfo::init (IUnknown *aI, const GUID &aIID, bool aKeepObj /* = false */)
 {
-    Assert (aI);
+    Assert(aI);
     if (!aI)
         return;
 
@@ -209,7 +207,7 @@ void ErrorInfo::init (IVirtualBoxErrorInfo *info)
     if (SUCCEEDED(rc) && !next.isNull())
     {
         mNext.reset (new ErrorInfo (next));
-        Assert (mNext.get());
+        Assert(mNext.get());
         if (!mNext.get())
             rc = E_OUTOFMEMORY;
     }
@@ -234,7 +232,7 @@ ErrorInfo::~ErrorInfo()
 ProgressErrorInfo::ProgressErrorInfo (IProgress *progress) :
     ErrorInfo (false /* aDummy */)
 {
-    Assert (progress);
+    Assert(progress);
     if (!progress)
         return;
 

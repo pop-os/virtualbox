@@ -1,10 +1,10 @@
-/* $Id: scsi.c $ */
+/* $Id: scsi.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * SCSI host adapter driver to boot from SCSI disks
  */
 
 /*
- * Copyright (C) 2004-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2004-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /* The I/O port of the BusLogic SCSI adapter. */
@@ -28,6 +24,7 @@
 #define VBOXSCSI_REGISTER_COMMAND  0
 #define VBOXSCSI_REGISTER_DATA_IN  1
 #define VBOXSCSI_REGISTER_IDENTIFY 2
+#define VBOXSCSI_REGISTER_RESET    3
 
 #define VBOXSCSI_MAX_DEVICES 16 /* Maximum number of devices a SCSI device can have. */
 
@@ -187,6 +184,7 @@ int scsi_read_sectors(device_id, count, lba, segment, offset)
     if (device_id > BX_MAX_SCSI_DEVICES)
         BX_PANIC("scsi_read_sectors: device_id out of range %d\n", device_id);
 
+    ebda_seg = read_word(0x0040, 0x000E);
     // Reset count of transferred data
     write_word(ebda_seg, &EbdaData->ata.trsfsectors,0);
     write_dword(ebda_seg, &EbdaData->ata.trsfbytes,0L);
@@ -203,7 +201,6 @@ int scsi_read_sectors(device_id, count, lba, segment, offset)
     write_byte(get_SS(), aCDB + 8, (uint8_t)(count));
     write_byte(get_SS(), aCDB + 9, 0);
 
-    ebda_seg = read_word(0x0040, 0x000E);
     io_base = read_word(ebda_seg, &EbdaData->scsi.devices[device_id].io_base);
     target_id = read_byte(ebda_seg, &EbdaData->scsi.devices[device_id].target_id);
 
@@ -241,6 +238,7 @@ int scsi_write_sectors(device_id, count, lba, segment, offset)
     if (device_id > BX_MAX_SCSI_DEVICES)
         BX_PANIC("scsi_write_sectors: device_id out of range %d\n", device_id);
 
+    ebda_seg = read_word(0x0040, 0x000E);
     // Reset count of transferred data
     write_word(ebda_seg, &EbdaData->ata.trsfsectors,0);
     write_dword(ebda_seg, &EbdaData->ata.trsfbytes,0L);
@@ -257,7 +255,6 @@ int scsi_write_sectors(device_id, count, lba, segment, offset)
     write_byte(get_SS(), aCDB + 8, (uint8_t)(count));
     write_byte(get_SS(), aCDB + 9, 0);
 
-    ebda_seg = read_word(0x0040, 0x000E);
     io_base = read_word(ebda_seg, &EbdaData->scsi.devices[device_id].io_base);
     target_id = read_byte(ebda_seg, &EbdaData->scsi.devices[device_id].target_id);
 
@@ -455,6 +452,7 @@ void scsi_init( )
     {
         /* Detected - Enumerate attached devices. */
         VBOXSCSI_DEBUG("scsi_init: BusLogic SCSI adapter detected\n");
+        outb(BUSLOGIC_ISA_IO_PORT+VBOXSCSI_REGISTER_RESET, 0);
         scsi_enumerate_attached_devices(BUSLOGIC_ISA_IO_PORT);
     }
     else
@@ -470,6 +468,7 @@ void scsi_init( )
     {
         /* Detected - Enumerate attached devices. */
         VBOXSCSI_DEBUG("scsi_init: LsiLogic SCSI adapter detected\n");
+        outb(LSILOGIC_ISA_IO_PORT+VBOXSCSI_REGISTER_RESET, 0);
         scsi_enumerate_attached_devices(LSILOGIC_ISA_IO_PORT);
     }
     else

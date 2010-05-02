@@ -13,10 +13,6 @@
 #include "cr_version.h"
 #include "state_internals.h"
 
-
-#define MAX_MIPMAP_LEVELS 20
-
-
 #define UNUSED(x) ((void) (x))
 
 #define GET_TOBJ(tobj, state, id) \
@@ -204,9 +200,9 @@ crStateTextureInitTextureObj(CRContext *ctx, CRTextureObj *tobj,
 	/* XXX don't always need all six faces */
 	for (face = 0; face < 6; face++) {
 		/* allocate array of mipmap levels */
-		CRASSERT(t->maxLevel < MAX_MIPMAP_LEVELS);
+		CRASSERT(t->maxLevel < CR_MAX_MIPMAP_LEVELS);
 		tobj->level[face] = (CRTextureLevel *)
-			crCalloc(sizeof(CRTextureLevel) * MAX_MIPMAP_LEVELS);
+			crCalloc(sizeof(CRTextureLevel) * CR_MAX_MIPMAP_LEVELS);
 
 		if (!tobj->level[face])
 			return; /* out of memory */
@@ -385,12 +381,22 @@ crStateTextureInitTextureFormat( CRTextureLevel *tl, GLenum internalFormat )
 	case 4:
 	case GL_RGBA:
 	case GL_COMPRESSED_RGBA_ARB:
+#ifdef CR_EXT_texture_sRGB
+    case GL_SRGB_ALPHA_EXT:
+    case GL_SRGB8_ALPHA8_EXT:
+    case GL_COMPRESSED_SRGB_ALPHA_EXT:
+#endif
 		tl->texFormat = &_texformat_rgba8888;
 		break;
 
 	case 3:
 	case GL_RGB:
 	case GL_COMPRESSED_RGB_ARB:
+#ifdef CR_EXT_texture_sRGB
+    case GL_SRGB_EXT:
+    case GL_SRGB8_EXT:
+    case GL_COMPRESSED_SRGB_EXT:
+#endif
 		tl->texFormat = &_texformat_rgb888;
 		break;
 
@@ -432,6 +438,11 @@ crStateTextureInitTextureFormat( CRTextureLevel *tl, GLenum internalFormat )
 	case GL_LUMINANCE12:
 	case GL_LUMINANCE16:
 	case GL_COMPRESSED_LUMINANCE_ARB:
+#ifdef CR_EXT_texture_sRGB
+    case GL_SLUMINANCE_EXT:
+    case GL_SLUMINANCE8_EXT:
+    case GL_COMPRESSED_SLUMINANCE_EXT:
+#endif
 		tl->texFormat = &_texformat_l8;
 		break;
 
@@ -444,6 +455,11 @@ crStateTextureInitTextureFormat( CRTextureLevel *tl, GLenum internalFormat )
 	case GL_LUMINANCE12_ALPHA12:
 	case GL_LUMINANCE16_ALPHA16:
 	case GL_COMPRESSED_LUMINANCE_ALPHA_ARB:
+#ifdef CR_EXT_texture_sRGB
+    case GL_SLUMINANCE_ALPHA_EXT:
+    case GL_SLUMINANCE8_ALPHA8_EXT:
+    case GL_COMPRESSED_SLUMINANCE_ALPHA_EXT:
+#endif
 		tl->texFormat = &_texformat_al88;
 		break;
 
@@ -568,7 +584,7 @@ crStateDeleteTextureObjectData(CRTextureObj *tobj)
 		levels = tobj->level[face];
 		if (levels) {
 			/* free all mipmap levels for this face */
-			for (k = 0; k < MAX_MIPMAP_LEVELS; k++) {
+			for (k = 0; k < CR_MAX_MIPMAP_LEVELS; k++) {
 				CRTextureLevel *tl = levels + k;
 				if (tl->img) {
 					crFree(tl->img);
@@ -624,11 +640,15 @@ void STATE_APIENTRY crStateGenTextures(GLsizei n, GLuint *textures)
 	}
 }
 
-static void crStateTextureCheckFBOAPs(CRFramebufferObject *pFBO, GLuint texture)
+static void crStateTextureCheckFBOAPs(GLenum target, GLuint texture)
 {
     GLuint u;
     CRFBOAttachmentPoint *ap;
+    CRContext *g = GetCurrentContext();
+    CRFramebufferObjectState *fbo = &g->framebufferobject;
+    CRFramebufferObject *pFBO;
 
+    pFBO = GL_READ_FRAMEBUFFER==target ? fbo->readFB : fbo->drawFB;
     if (!pFBO) return;
 
     for (u=0; u<CR_MAX_COLOR_ATTACHMENTS; ++u)
@@ -636,20 +656,20 @@ static void crStateTextureCheckFBOAPs(CRFramebufferObject *pFBO, GLuint texture)
         ap = &pFBO->color[u];
         if (ap->type==GL_TEXTURE && ap->name==texture)
         {
-            crStateFramebufferTexture1DEXT(GL_FRAMEBUFFER_EXT, u+GL_COLOR_ATTACHMENT0_EXT, 0, 0, 0);
+            crStateFramebufferTexture1DEXT(target, u+GL_COLOR_ATTACHMENT0_EXT, 0, 0, 0);
         }
     }
 
     ap = &pFBO->depth;
     if (ap->type==GL_TEXTURE && ap->name==texture)
     {
-        crStateFramebufferTexture1DEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, 0, 0, 0);
+        crStateFramebufferTexture1DEXT(target, GL_DEPTH_ATTACHMENT_EXT, 0, 0, 0);
     }
 
     ap = &pFBO->stencil;
     if (ap->type==GL_TEXTURE && ap->name==texture)
     {
-        crStateFramebufferTexture1DEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, 0, 0, 0);
+        crStateFramebufferTexture1DEXT(target, GL_STENCIL_ATTACHMENT_EXT, 0, 0, 0);
     }
 }
 
@@ -722,8 +742,8 @@ void STATE_APIENTRY crStateDeleteTextures(GLsizei n, const GLuint *textures)
 			}
 
 #ifdef CR_EXT_framebuffer_object
-            crStateTextureCheckFBOAPs(g->framebufferobject.drawFB, name);
-            crStateTextureCheckFBOAPs(g->framebufferobject.readFB, name);
+            crStateTextureCheckFBOAPs(GL_DRAW_FRAMEBUFFER, name);
+            crStateTextureCheckFBOAPs(GL_READ_FRAMEBUFFER, name);
 #endif
 			crStateDeleteTextureObject(tObj);
 		}

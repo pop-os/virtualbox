@@ -1,10 +1,10 @@
-/* $Id: VMReq.cpp $ */
+/* $Id: req.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Request packets
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -108,7 +104,7 @@ RT_EXPORT_SYMBOL(RTReqDestroyQueue);
  * @param   cMillies        Number of milliseconds to wait for a pending request.
  *                          Use RT_INDEFINITE_WAIT to only wait till one is added.
  */
-RTDECL(int) RTReqProcess(PRTREQQUEUE pQueue, unsigned cMillies)
+RTDECL(int) RTReqProcess(PRTREQQUEUE pQueue, RTMSINTERVAL cMillies)
 {
     LogFlow(("RTReqProcess %x\n", pQueue));
     /*
@@ -210,7 +206,7 @@ RT_EXPORT_SYMBOL(RTReqProcess);
  *
  * @remarks See remarks on RTReqCallV.
  */
-RTDECL(int) RTReqCall(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, PFNRT pfnFunction, unsigned cArgs, ...)
+RTDECL(int) RTReqCall(PRTREQQUEUE pQueue, PRTREQ *ppReq, RTMSINTERVAL cMillies, PFNRT pfnFunction, unsigned cArgs, ...)
 {
     va_list va;
     va_start(va, cArgs);
@@ -245,7 +241,7 @@ RT_EXPORT_SYMBOL(RTReqCall);
  *
  * @remarks See remarks on RTReqCallV.
  */
-RTDECL(int) RTReqCallVoid(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, PFNRT pfnFunction, unsigned cArgs, ...)
+RTDECL(int) RTReqCallVoid(PRTREQQUEUE pQueue, PRTREQ *ppReq, RTMSINTERVAL cMillies, PFNRT pfnFunction, unsigned cArgs, ...)
 {
     va_list va;
     va_start(va, cArgs);
@@ -282,7 +278,7 @@ RT_EXPORT_SYMBOL(RTReqCallVoid);
  *
  * @remarks See remarks on RTReqCallV.
  */
-RTDECL(int) RTReqCallEx(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, ...)
+RTDECL(int) RTReqCallEx(PRTREQQUEUE pQueue, PRTREQ *ppReq, RTMSINTERVAL cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, ...)
 {
     va_list va;
     va_start(va, cArgs);
@@ -326,7 +322,7 @@ RT_EXPORT_SYMBOL(RTReqCallEx);
  *                hosts because 'int' is 32-bit.
  *                Use (void *)NULL or (uintptr_t)0 instead of NULL.
  */
-RTDECL(int) RTReqCallV(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, va_list Args)
+RTDECL(int) RTReqCallV(PRTREQQUEUE pQueue, PRTREQ *ppReq, RTMSINTERVAL cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, va_list Args)
 {
     LogFlow(("RTReqCallV: cMillies=%d fFlags=%#x pfnFunction=%p cArgs=%d\n", cMillies, fFlags, pfnFunction, cArgs));
 
@@ -655,7 +651,7 @@ RT_EXPORT_SYMBOL(RTReqFree);
  *                          be completed. Use RT_INDEFINITE_WAIT to only
  *                          wait till it's completed.
  */
-RTDECL(int) RTReqQueue(PRTREQ pReq, unsigned cMillies)
+RTDECL(int) RTReqQueue(PRTREQ pReq, RTMSINTERVAL cMillies)
 {
     LogFlow(("RTReqQueue: pReq=%p cMillies=%d\n", pReq, cMillies));
     /*
@@ -723,7 +719,7 @@ RT_EXPORT_SYMBOL(RTReqQueue);
  * @param   cMillies        Number of milliseconds to wait.
  *                          Use RT_INDEFINITE_WAIT to only wait till it's completed.
  */
-RTDECL(int) RTReqWait(PRTREQ pReq, unsigned cMillies)
+RTDECL(int) RTReqWait(PRTREQ pReq, RTMSINTERVAL cMillies)
 {
     LogFlow(("RTReqWait: pReq=%p cMillies=%d\n", pReq, cMillies));
 
@@ -820,7 +816,7 @@ static int  rtReqProcessOne(PRTREQ pReq)
                 DECLCALLBACKMEMBER(int, pfn12)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
             } u;
             u.pfn = pReq->u.Internal.pfn;
-#ifdef RT_ARCH_AMD64
+#ifndef RT_ARCH_X86
             switch (pReq->u.Internal.cArgs)
             {
                 case 0:  rcRet = u.pfn00(); break;
@@ -841,7 +837,7 @@ static int  rtReqProcessOne(PRTREQ pReq)
                     rcRet = rcReq = VERR_INTERNAL_ERROR;
                     break;
             }
-#else /* x86: */
+#else /* RT_ARCH_X86 */
             size_t cbArgs = pReq->u.Internal.cArgs * sizeof(uintptr_t);
 # ifdef __GNUC__
             __asm__ __volatile__("movl  %%esp, %%edx\n\t"
@@ -878,7 +874,7 @@ static int  rtReqProcessOne(PRTREQ pReq)
                 mov     rcRet, eax
             }
 # endif
-#endif /* x86 */
+#endif /* RT_ARCH_X86 */
             if ((pReq->fFlags & (RTREQFLAGS_RETURN_MASK)) == RTREQFLAGS_VOID)
                 rcRet = VINF_SUCCESS;
             rcReq = rcRet;

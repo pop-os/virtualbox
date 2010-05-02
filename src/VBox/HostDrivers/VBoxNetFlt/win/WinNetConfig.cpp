@@ -1,10 +1,10 @@
-/* $Id: WinNetConfig.cpp $ */
+/* $Id: WinNetConfig.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxNetCfgWin - Briefly describe this file, optionally with a longer description in a separate paragraph.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 /*
  * Based in part on Microsoft DDK sample code for Ndis Intermediate Miniport passthru driver sample.
@@ -1752,7 +1748,7 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinEnumNetDevices(LPWSTR pPnPId, VBOXNETCF
                 winEr = GetLastError();
                 if(winEr != ERROR_INSUFFICIENT_BUFFER)
                 {
-                	Log(L"VBoxNetCfgWinEnumNetDevices: SetupDiGetDeviceRegistryPropertyW (1) failed winErr(%d)\n", winEr);
+                    Log(L"VBoxNetCfgWinEnumNetDevices: SetupDiGetDeviceRegistryPropertyW (1) failed winErr(%d)\n", winEr);
                     hr = HRESULT_FROM_WIN32(winEr);
                     break;
                 }
@@ -1774,7 +1770,7 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinEnumNetDevices(LPWSTR pPnPId, VBOXNETCF
                         ))
                 {
                     winEr = GetLastError();
-                	Log(L"VBoxNetCfgWinEnumNetDevices: SetupDiGetDeviceRegistryPropertyW (2) failed winErr(%d)\n", winEr);
+                    Log(L"VBoxNetCfgWinEnumNetDevices: SetupDiGetDeviceRegistryPropertyW (2) failed winErr(%d)\n", winEr);
                     hr = HRESULT_FROM_WIN32(winEr);
                     break;
                 }
@@ -1808,9 +1804,9 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinEnumNetDevices(LPWSTR pPnPId, VBOXNETCF
     }
     else
     {
-    	DWORD winEr = GetLastError();
-    	Log(L"VBoxNetCfgWinEnumNetDevices: SetupDiGetClassDevsExW failed winErr(%d)\n", winEr);
-    	hr = HRESULT_FROM_WIN32(winEr);
+        DWORD winEr = GetLastError();
+        Log(L"VBoxNetCfgWinEnumNetDevices: SetupDiGetClassDevsExW failed winErr(%d)\n", winEr);
+        hr = HRESULT_FROM_WIN32(winEr);
     }
 
     return hr;
@@ -2310,6 +2306,159 @@ static BOOL vboxNetCfgWinAdjustHostOnlyNetworkInterfacePriority (IN INetCfg *pNc
     return true;
 }
 
+static BOOL vboxNetCfgWinListUpperBindings (IN INetCfg *pNc, IN INetCfgComponent *pNcc, PVOID pContext)
+{
+    INetCfgComponentBindings *pNccb = NULL;
+    IEnumNetCfgBindingPath  *pEnumNccbp;
+    GUID *pGuid = (GUID*)pContext;
+    HRESULT                  hr;
+    LPWSTR pszwCompDisplayName;
+
+    hr = pNcc->GetDisplayName(&pszwCompDisplayName);
+    Assert(hr == S_OK);
+    if ( hr == S_OK )
+    {
+        Log(L" enumerating bindings for component (%s)\n", pszwCompDisplayName);
+        /* Get component's binding. */
+        hr = pNcc->QueryInterface( IID_INetCfgComponentBindings,
+                                   (PVOID *)&pNccb );
+        Assert(hr == S_OK);
+        if ( hr == S_OK )
+        {
+            /* Get binding path enumerator reference. */
+            hr = pNccb->EnumBindingPaths(EBP_ABOVE, &pEnumNccbp);
+            Assert(hr == S_OK);
+            if(hr == S_OK)
+            {
+                INetCfgBindingPath *pNccbp;
+                hr = pEnumNccbp->Reset();
+                Assert(hr == S_OK);
+                do
+                {
+                    hr = VBoxNetCfgWinGetNextBindingPath(pEnumNccbp, &pNccbp);
+                    Assert(hr == S_OK || hr == S_FALSE);
+                    if(hr == S_OK)
+                    {
+                        LPWSTR pszwPathToken;
+                        hr = pNccbp->GetPathToken(&pszwPathToken);
+                        Assert(hr == S_OK);
+                        if(hr == S_OK)
+                        {
+                            Log(L"  enumerating bp (%s), enabled(0x%x)\n", pszwPathToken, pNccbp->IsEnabled());
+                             IEnumNetCfgBindingInterface *pEnumNcbi;
+                             hr = VBoxNetCfgWinGetBindingInterfaceEnum(pNccbp, &pEnumNcbi);
+                             Assert(hr == S_OK);
+                             if ( hr == S_OK )
+                             {
+                                 INetCfgBindingInterface *pNcbi;
+                                 hr = pEnumNcbi->Reset();
+                                 Assert(hr == S_OK);
+                                 do
+                                 {
+                                     hr = VBoxNetCfgWinGetNextBindingInterface(pEnumNcbi, &pNcbi);
+                                     Assert(hr == S_OK || hr == S_FALSE);
+                                     if(hr == S_OK)
+                                     {
+                                         LPWSTR pszwInterfaceName;
+                                         hr = pNcbi->GetName(&pszwInterfaceName);
+                                         if(hr == S_OK)
+                                         {
+                                             Log(L"   enumerating bi (%s)\n", pszwInterfaceName);
+                                             INetCfgComponent * pNccBoud;
+                                             hr = pNcbi->GetUpperComponent(&pNccBoud);
+                                             Assert(hr == S_OK);
+                                             if(hr == S_OK)
+                                             {
+                                                 LPWSTR pszwDisplayName;
+                                                 hr = pNccBoud->GetDisplayName(&pszwDisplayName);
+                                                 Assert(hr == S_OK);
+                                                 if(hr == S_OK)
+                                                 {
+                                                     Log(L"    name (%s)\n", pszwDisplayName);
+                                                     CoTaskMemFree(pszwDisplayName);
+                                                 }
+                                                 else
+                                                 {
+                                                     Log(L"    ERROR getting name (0x%x)\n", hr);
+                                                 }
+
+                                                 VBoxNetCfgWinReleaseRef(pNccBoud);
+                                             }
+                                             VBoxNetCfgWinReleaseRef(pNcbi);
+                                         }
+                                         else
+                                         {
+                                             Log(L"   ERROR getting bi name (0x%x)\n", hr);
+                                         }
+                                     }
+                                     else
+                                     {
+                                         if(hr == S_FALSE)
+                                         {
+                                             hr = S_OK;
+                                             break;
+                                         }
+                                         else
+                                         {
+                                             Log(L"vboxNetCfgWinAdjustHostOnlyNetworkInterfacePriority: VBoxNetCfgWinGetNextBindingInterface failed, hr (0x%x)\n", hr);
+                                         }
+                                         break;
+                                     }
+                                 } while(true);
+                                 VBoxNetCfgWinReleaseRef(pEnumNcbi);
+                             }
+                             else
+                             {
+                                 Log(L"vboxNetCfgWinAdjustHostOnlyNetworkInterfacePriority: VBoxNetCfgWinGetBindingInterfaceEnum failed, hr (0x%x)\n", hr);
+                             }
+                             CoTaskMemFree(pszwPathToken);
+                         }
+                        else
+                        {
+                            Log(L"  ERROR getting bp name (0x%x)\n", hr);
+                        }
+
+                        VBoxNetCfgWinReleaseRef(pNccbp);
+                    }
+                    else
+                    {
+                        if(hr = S_FALSE)
+                        {
+                            hr = S_OK;
+                            break;
+                        }
+                        else
+                        {
+                            Log(L"vboxNetCfgWinAdjustHostOnlyNetworkInterfacePriority: VBoxNetCfgWinGetNextBindingPath failed, hr (0x%x)\n", hr);
+                        }
+                        break;
+                    }
+                } while(true);
+
+                VBoxNetCfgWinReleaseRef(pEnumNccbp);
+            }
+            else
+            {
+                Log(L"vboxNetCfgWinAdjustHostOnlyNetworkInterfacePriority: EnumBindingPaths failed, hr (0x%x)\n", hr);
+            }
+
+            VBoxNetCfgWinReleaseRef( pNccb );
+        }
+        else
+        {
+            Log(L"vboxNetCfgWinAdjustHostOnlyNetworkInterfacePriority: QueryInterface for IID_INetCfgComponentBindings failed, hr (0x%x)\n", hr);
+        }
+
+        CoTaskMemFree(pszwCompDisplayName);
+    }
+    else
+    {
+        Log(L" ERROR getting component name (0x%x)\n", hr);
+    }
+
+    return true;
+}
+
 VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface (LPCWSTR pInfPath, bool bIsInfPathFile, /* <- input params */
         GUID *pGuid, BSTR *lppszName, BSTR *pErrMsg) /* <- output params */
 {
@@ -2769,6 +2918,68 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface (LPCWSTR
 }
 
 #undef SetErrBreak
+
+VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinEnumUpperBindings ()
+{
+    INetCfg *pNc;
+    LPWSTR               lpszApp = NULL;
+    HRESULT hr = VBoxNetCfgWinQueryINetCfgEx( FALSE,
+                       L"VirtualBox Host-Only Creation",
+                       30000, /* on Vista we often get 6to4svc.dll holding the lock, wait for 30 sec,  */
+                       &pNc,  /* TODO: special handling for 6to4svc.dll ???, i.e. several retrieves */
+                       &lpszApp );
+    Assert(hr == S_OK);
+    if(hr == S_OK)
+    {
+        Log(L"Enumerating Net\n");
+        hr = vboxNetCfgWinEnumNetCfgComponents(pNc,
+                &GUID_DEVCLASS_NET,
+                vboxNetCfgWinListUpperBindings,
+                NULL);
+        Assert(hr == S_OK);
+
+        Log(L"Enumerating NetService\n");
+        hr = vboxNetCfgWinEnumNetCfgComponents(pNc,
+                &GUID_DEVCLASS_NETSERVICE,
+                vboxNetCfgWinListUpperBindings,
+                NULL);
+        Assert(hr == S_OK);
+
+        Log(L"Enumerating NetTrans\n");
+        hr = vboxNetCfgWinEnumNetCfgComponents(pNc,
+                &GUID_DEVCLASS_NETTRANS,
+                vboxNetCfgWinListUpperBindings,
+                NULL);
+        Assert(hr == S_OK);
+
+        Log(L"Enumerating NetClient\n");
+        hr = vboxNetCfgWinEnumNetCfgComponents(pNc,
+                &GUID_DEVCLASS_NETCLIENT,
+                vboxNetCfgWinListUpperBindings,
+                NULL);
+        Assert(hr == S_OK);
+
+        if(hr == S_OK)
+        {
+            hr = pNc->Apply();
+            Assert(hr == S_OK);
+        }
+
+        VBoxNetCfgWinReleaseINetCfg(pNc, FALSE);
+    }
+    else if(hr == NETCFG_E_NO_WRITE_LOCK && lpszApp)
+    {
+        Log(L"VBoxNetCfgWinCreateHostOnlyNetworkInterface: app %s is holding the lock, failed\n", lpszApp);
+        CoTaskMemFree(lpszApp);
+    }
+    else
+    {
+        Log(L"VBoxNetCfgWinCreateHostOnlyNetworkInterface: VBoxNetCfgWinQueryINetCfgEx failed, hr 0x%x\n", hr);
+    }
+
+    return hr;
+}
+
 
 #define VBOX_CONNECTION_NAME L"VirtualBox Host-Only Network"
 VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinGenHostonlyConnectionName (PCWSTR DevName, WCHAR *pBuf, PULONG pcbBuf)

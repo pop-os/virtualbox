@@ -1,10 +1,10 @@
-/* $Id: EMHandleRCTmpl.h $ */
+/* $Id: EMHandleRCTmpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * EM - emR3[Raw|Hwaccm]HandleRC template.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___EMHandleRCTmpl_h
@@ -89,7 +85,7 @@ int emR3HwaccmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
             break;
 
         case VINF_PATM_DUPLICATE_FUNCTION:
-            Assert(PATMIsPatchGCAddr(pVM, (RTGCPTR)pCtx->eip));
+            Assert(PATMIsPatchGCAddr(pVM, pCtx->eip));
             rc = PATMR3DuplicateFunctionRequest(pVM, pCtx);
             AssertRC(rc);
             rc = VINF_SUCCESS;
@@ -148,10 +144,18 @@ int emR3HwaccmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
             break;
 
         /*
-         * PGM pool flush pending (guest SMP only)
+         * PGM pool flush pending (guest SMP only).
+         */
+        /** @todo jumping back and forth between ring 0 and 3 can burn a lot of cycles
+         * if the EMT thread that's supposed to handle the flush is currently not active
+         * (e.g. waiting to be scheduled) -> fix this properly!
          *
-         * Todo: jumping back and forth between ring 0 and 3 can burn a lot of cycles if the EMT thread that's supposed to handle
-         *       the flush is currently not active (e.g. waiting to be scheduled) -> fix this properly!
+         * bird: Since the clearing is global and done via a rendezvous any CPU can do
+         *       it. They would have to choose who to call VMMR3EmtRendezvous and send
+         *       the rest to VMMR3EmtRendezvousFF ... Hmm ... that's not going to work
+         *       all that well since the the latter will race the setup done by the
+         *       first.  Guess that means we need some new magic in that area for
+         *       handling this case. :/
          */
         case VINF_PGM_POOL_FLUSH_PENDING:
             rc = VINF_SUCCESS;
@@ -181,7 +185,7 @@ int emR3HwaccmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         case VINF_EM_RAW_INTERRUPT_PENDING:
         case VINF_EM_RAW_RING_SWITCH_INT:
             Assert(TRPMHasTrap(pVCpu));
-            Assert(!PATMIsPatchGCAddr(pVM, (RTGCPTR)pCtx->eip));
+            Assert(!PATMIsPatchGCAddr(pVM, pCtx->eip));
 
             if (TRPMHasTrap(pVCpu))
             {

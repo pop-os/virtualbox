@@ -1,3 +1,4 @@
+/* $Id: VBoxVMLogViewer.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +15,11 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include "precomp.h"
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 #include "VBoxVMLogViewer.h"
 #include "VBoxGlobal.h"
 #include "VBoxProblemReporter.h"
@@ -39,6 +39,7 @@
 #include <QDateTime>
 #include <QPushButton>
 #include <QKeyEvent>
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 VBoxVMLogViewer::LogViewersMap VBoxVMLogViewer::mSelfArray = LogViewersMap();
 
@@ -158,7 +159,7 @@ bool VBoxVMLogViewer::close()
 void VBoxVMLogViewer::refresh()
 {
     /* Clearing old data if any */
-    mLogFilesList.clear();
+    mLogFiles.clear();
     mLogList->setEnabled (true);
     while (mLogList->count())
     {
@@ -169,19 +170,37 @@ void VBoxVMLogViewer::refresh()
 
     bool isAnyLogPresent = false;
 
-    /* Entering log files folder */
-    QString logFilesPath = mMachine.GetLogFolder();
-    QDir logFilesDir (logFilesPath);
-    if (logFilesDir.exists())
+    const CSystemProperties &sys = vboxGlobal().virtualBox().GetSystemProperties();
+    int cMaxLogs = sys.GetLogHistoryCount();
+    for (int i=0; i <= cMaxLogs; ++i)
     {
-        /* Reading log files folder */
-        QStringList filters;
-        filters << "*.log" << "*.log.*";
-        logFilesDir.setNameFilters (filters);
-        QStringList logList = logFilesDir.entryList (QDir::Files);
-        if (!logList.empty()) isAnyLogPresent = true;
-        foreach (QString logFile, logList)
-            loadLogFile (logFilesDir.filePath (logFile));
+        /* Query the log file name for index i */
+        QString file = mMachine.QueryLogFilename(i);
+        if (!file.isEmpty())
+        {
+            /* Try to read the log file with the index i */
+            ULONG uOffset = 0;
+            QString text;
+            while (true)
+            {
+                QVector<BYTE> data = mMachine.ReadLog(i, uOffset, _1M);
+                if (data.size() == 0)
+                    break;
+                text.append(QString::fromUtf8((char*)data.data(), data.size()));
+                uOffset += data.size();
+            }
+            /* Anything read at all? */
+            if (uOffset > 0)
+            {
+                /* Create a log viewer page and append the read text to it */
+                QTextEdit *logViewer = createLogPage(QFileInfo(file).fileName());
+                logViewer->setPlainText(text);
+                /* Add the actual file name and the QTextEdit containing the
+                   content to a list. */
+                mLogFiles << qMakePair(file, logViewer);
+                isAnyLogPresent = true;
+            }
+        }
     }
 
     /* Create an empty log page if there are no logs at all */
@@ -192,7 +211,7 @@ void VBoxVMLogViewer::refresh()
         dummyLog->setHtml (tr ("<p>No log files found. Press the "
             "<b>Refresh</b> button to rescan the log folder "
             "<nobr><b>%1</b></nobr>.</p>")
-            .arg (logFilesPath));
+            .arg (mMachine.GetLogFolder()));
         /* We don't want it to remain white */
         QPalette pal = dummyLog->palette();
         pal.setColor (QPalette::Base, pal.color (QPalette::Window));
@@ -216,7 +235,7 @@ void VBoxVMLogViewer::refresh()
 void VBoxVMLogViewer::save()
 {
     /* Prepare "save as" dialog */
-    QFileInfo fileInfo (mLogFilesList [mLogList->currentIndex()]);
+    QFileInfo fileInfo (mLogFiles.at(mLogList->currentIndex()).first);
     QDateTime dtInfo = fileInfo.lastModified();
     QString dtString = dtInfo.toString ("yyyy-MM-dd-hh-mm-ss");
     QString defaultFileName = QString ("%1-%2.log")
@@ -230,14 +249,12 @@ void VBoxVMLogViewer::save()
     if (!newFileName.isEmpty())
     {
         /* Reread log data */
-        QFile oldFile (mLogFilesList [mLogList->currentIndex()]);
         QFile newFile (newFileName);
-        if (!oldFile.open (QIODevice::ReadOnly) ||
-            !newFile.open (QIODevice::WriteOnly))
+        if (!newFile.open (QIODevice::WriteOnly))
             return;
 
         /* Save log data into the new file */
-        newFile.write (oldFile.readAll());
+        newFile.write (mLogFiles.at(mLogList->currentIndex()).second->toPlainText().toUtf8());
     }
 }
 
@@ -249,8 +266,8 @@ void VBoxVMLogViewer::search()
 void VBoxVMLogViewer::currentLogPageChanged (int aIndex)
 {
     if (aIndex >= 0 &&
-        aIndex < mLogFilesList.count())
-        setFileForProxyIcon (mLogFilesList.at (aIndex));
+        aIndex < mLogFiles.count())
+        setFileForProxyIcon(mLogFiles.at(aIndex).first);
 }
 
 void VBoxVMLogViewer::retranslateUi()
@@ -305,20 +322,6 @@ void VBoxVMLogViewer::showEvent (QShowEvent *aEvent)
     QWidget *w = currentLogPage();
     if (w)
         w->setFocus();
-}
-
-void VBoxVMLogViewer::loadLogFile (const QString &aFileName)
-{
-    /* Prepare log file */
-    QFile logFile (aFileName);
-    if (!logFile.exists() || !logFile.open (QIODevice::ReadOnly))
-        return;
-
-    /* Read log file and write it into the log page */
-    QTextEdit *logViewer = createLogPage (QFileInfo (aFileName).fileName());
-    logViewer->setPlainText (logFile.readAll());
-
-    mLogFilesList << aFileName;
 }
 
 QTextEdit* VBoxVMLogViewer::createLogPage (const QString &aName)
@@ -596,3 +599,4 @@ void VBoxLogSearchPanel::find (int aButton)
     else
         findBack();
 }
+

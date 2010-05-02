@@ -1,10 +1,10 @@
-/* $Id: RTErrConvertFromWin32.cpp $ */
+/* $Id: RTErrConvertFromWin32.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Convert win32 error codes to iprt status codes.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -191,6 +187,8 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
         case ERROR_CANCELLED:               return VERR_CANCELLED;
         case ERROR_DIRECTORY:               return VERR_NOT_A_DIRECTORY;
 
+        case ERROR_LOGON_FAILURE:           return VERR_LOGON_FAILURE;
+
         /*
          * Winsocket errors are mostly BSD errno.h wrappers.
          * This is copied from RTErrConvertFromErrno() and checked against winsock.h.
@@ -285,43 +283,43 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
 #endif
         case WSAENOTEMPTY:         return VERR_CANT_DELETE_DIRECTORY;
         case WSAELOOP:             return VERR_TOO_MANY_SYMLINKS;                  /*  40 */
-        //case WSAENOMSG		42	/* No message of desired type */
-        //case WSAEIDRM		43	/* Identifier removed */
-        //case WSAECHRNG		44	/* Channel number out of range */
-        //case WSAEL2NSYNC	45	/* Level 2 not synchronized */
-        //case WSAEL3HLT		46	/* Level 3 halted */
-        //case WSAEL3RST		47	/* Level 3 reset */
-        //case WSAELNRNG		48	/* Link number out of range */
-        //case WSAEUNATCH		49	/* Protocol driver not attached */
-        //case WSAENOCSI		50	/* No CSI structure available */
-        //case WSAEL2HLT		51	/* Level 2 halted */
-        //case WSAEBADE		52	/* Invalid exchange */
-        //case WSAEBADR		53	/* Invalid request descriptor */
-        //case WSAEXFULL		54	/* Exchange full */
-        //case WSAENOANO		55	/* No anode */
-        //case WSAEBADRQC		56	/* Invalid request code */
-        //case WSAEBADSLT		57	/* Invalid slot */
+        //case WSAENOMSG                42      /* No message of desired type */
+        //case WSAEIDRM                 43      /* Identifier removed */
+        //case WSAECHRNG                44      /* Channel number out of range */
+        //case WSAEL2NSYNC              45      /* Level 2 not synchronized */
+        //case WSAEL3HLT                46      /* Level 3 halted */
+        //case WSAEL3RST                47      /* Level 3 reset */
+        //case WSAELNRNG                48      /* Link number out of range */
+        //case WSAEUNATCH               49      /* Protocol driver not attached */
+        //case WSAENOCSI                50      /* No CSI structure available */
+        //case WSAEL2HLT                51      /* Level 2 halted */
+        //case WSAEBADE                 52      /* Invalid exchange */
+        //case WSAEBADR                 53      /* Invalid request descriptor */
+        //case WSAEXFULL                54      /* Exchange full */
+        //case WSAENOANO                55      /* No anode */
+        //case WSAEBADRQC               56      /* Invalid request code */
+        //case WSAEBADSLT               57      /* Invalid slot */
         //case 58:
-        //case WSAEBFONT		59	/* Bad font file format */
-        //case WSAENOSTR		60	/* Device not a stream */
+        //case WSAEBFONT                59      /* Bad font file format */
+        //case WSAENOSTR                60      /* Device not a stream */
 #ifdef WSAENODATA
         case WSAENODATA:           return  VERR_NO_DATA;
 #endif
-        //case WSAETIME		62	/* Timer expired */
-        //case WSAENOSR		63	/* Out of streams resources */
+        //case WSAETIME                 62      /* Timer expired */
+        //case WSAENOSR                 63      /* Out of streams resources */
 #ifdef WSAENONET
         case WSAENONET:            return VERR_NET_NO_NETWORK;
 #endif
-        //case WSAENOPKG		65	/* Package not installed */
-         //case WSAEREMOTE		66	/* Object is remote */
-        //case WSAENOLINK		67	/* Link has been severed */
-        //case WSAEADV		68	/* Advertise error */
-        //case WSAESRMNT		69	/* Srmount error */
-        //case WSAECOMM		70	/* Communication error on send */
-        //case WSAEPROTO		71	/* Protocol error */
-        //case WSAEMULTIHOP	72	/* Multihop attempted */
-        //case WSAEDOTDOT		73	/* RFS specific error */
-        //case WSAEBADMSG		74	/* Not a data message */
+        //case WSAENOPKG                65      /* Package not installed */
+         //case WSAEREMOTE              66      /* Object is remote */
+        //case WSAENOLINK               67      /* Link has been severed */
+        //case WSAEADV                  68      /* Advertise error */
+        //case WSAESRMNT                69      /* Srmount error */
+        //case WSAECOMM                 70      /* Communication error on send */
+        //case WSAEPROTO                71      /* Protocol error */
+        //case WSAEMULTIHOP             72      /* Multihop attempted */
+        //case WSAEDOTDOT               73      /* RFS specific error */
+        //case WSAEBADMSG               74      /* Not a data message */
 #ifdef WSAEOVERFLOW
         case WSAEOVERFLOW:         return VERR_TOO_MUCH_DATA;
 #endif
@@ -331,20 +329,20 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
 #ifdef WSAEBADFD
         case WSAEBADFD:            return VERR_INVALID_HANDLE;
 #endif
-        //case WSAEREMCHG		78	/* Remote address changed */
-        //case WSAELIBACC		79	/* Can not access a needed shared library */
-        //case WSAELIBBAD		80	/* Accessing a corrupted shared library */
-        //case WSAELIBSCN		81	/* .lib section in a.out corrupted */
-        //case WSAELIBMAX		82	/* Attempting to link in too many shared libraries */
-        //case WSAELIBEXEC	83	/* Cannot exec a shared library directly */
+        //case WSAEREMCHG               78      /* Remote address changed */
+        //case WSAELIBACC               79      /* Can not access a needed shared library */
+        //case WSAELIBBAD               80      /* Accessing a corrupted shared library */
+        //case WSAELIBSCN               81      /* .lib section in a.out corrupted */
+        //case WSAELIBMAX               82      /* Attempting to link in too many shared libraries */
+        //case WSAELIBEXEC              83      /* Cannot exec a shared library directly */
 #ifdef WSAEILSEQ
         case WSAEILSEQ:            return VERR_NO_TRANSLATION;
 #endif
 #ifdef WSAERESTART
         case WSAERESTART:          return VERR_INTERRUPTED;
 #endif
-        //case WSAESTRPIPE	86	/* Streams pipe error */
-        //case WSAEUSERS		87	/* Too many users */
+        //case WSAESTRPIPE              86      /* Streams pipe error */
+        //case WSAEUSERS                87      /* Too many users */
         case WSAENOTSOCK:          return VERR_NET_NOT_SOCKET;
         case WSAEDESTADDRREQ:      return VERR_NET_DEST_ADDRESS_REQUIRED;
         case WSAEMSGSIZE:          return VERR_NET_MSG_SIZE;
@@ -373,12 +371,12 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
         case WSAEHOSTUNREACH:      return VERR_NET_HOST_UNREACHABLE;
         case WSAEALREADY:          return VERR_NET_ALREADY_IN_PROGRESS;
         case WSAEINPROGRESS:       return VERR_NET_IN_PROGRESS;
-        //case WSAESTALE		116	/* Stale NFS file handle */
-        //case WSAEUCLEAN		117	/* Structure needs cleaning */
-        //case WSAENOTNAM		118	/* Not a XENIX named type file */
-        //case WSAENAVAIL		119	/* No XENIX semaphores available */
-        //case WSAEISNAM		120	/* Is a named type file */
-        //case WSAEREMOTEIO	121	/* Remote I/O error */
+        //case WSAESTALE                116     /* Stale NFS file handle */
+        //case WSAEUCLEAN               117     /* Structure needs cleaning */
+        //case WSAENOTNAM               118     /* Not a XENIX named type file */
+        //case WSAENAVAIL               119     /* No XENIX semaphores available */
+        //case WSAEISNAM                120     /* Is a named type file */
+        //case WSAEREMOTEIO             121     /* Remote I/O error */
         case WSAEDQUOT:            return VERR_DISK_FULL;
 #ifdef WSAENOMEDIUM
         case WSAENOMEDIUM:         return VERR_MEDIA_NOT_PRESENT;
@@ -405,5 +403,4 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
 #endif
     return VERR_UNRESOLVED_ERROR;
 }
-
 

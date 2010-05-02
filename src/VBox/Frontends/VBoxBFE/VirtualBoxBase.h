@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_VIRTUALBOXBASEIMPL
@@ -25,6 +21,7 @@
 
 #ifdef VBOXBFE_WITHOUT_COM
 # include "COMDefs.h"  // Our wrapper for COM definitions left in the code
+# include <iprt/uuid.h>
 #else
 # include <VBox/com/defs.h>
 #endif
@@ -39,6 +36,22 @@
 
 #include <list>
 #include <map>
+
+// defines
+////////////////////////////////////////////////////////////////////////////////
+
+#define VBOX_E_OBJECT_NOT_FOUND 0x80BB0001
+#define VBOX_E_INVALID_VM_STATE 0x80BB0002
+#define VBOX_E_VM_ERROR 0x80BB0003
+#define VBOX_E_FILE_ERROR 0x80BB0004
+#define VBOX_E_IPRT_ERROR 0x80BB0005
+#define VBOX_E_PDM_ERROR 0x80BB0006
+#define VBOX_E_INVALID_OBJECT_STATE 0x80BB0007
+#define VBOX_E_HOST_ERROR 0x80BB0008
+#define VBOX_E_NOT_SUPPORTED 0x80BB0009
+#define VBOX_E_XML_ERROR 0x80BB000A
+#define VBOX_E_INVALID_SESSION_STATE 0x80BB000B
+#define VBOX_E_OBJECT_IN_USE 0x80BB000C
 
 // macros and inlines
 ////////////////////////////////////////////////////////////////////////////////
@@ -263,6 +276,8 @@ static inline int setError(int iNum, const char *pszFormat, ...)
 #define DEFINE_EMPTY_CTOR_DTOR(cls) \
     cls::cls () {}; cls::~cls () {};
 
+#define VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(cls)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace stdx
@@ -351,13 +366,10 @@ public:
     {
     public:
 
-        #if defined(DEBUG)
-        # define ___CritSectEnter(cs) \
-            RTCritSectEnterDebug ((cs), \
-                "AutoLock::lock()/enter() return address >>>", 0, \
-                (RTUINTPTR) ASMReturnAddress())
+        #if defined(RT_STRICT)
+        # define ___CritSectEnter(cs) RTCritSectEnterDebug((cs), (RTUINTPTR)ASMReturnAddress(), "return address >>>", 0, __PRETTY_FUNCTION__)
         #else
-        # define ___CritSectEnter(cs) RTCritSectEnter ((cs))
+        # define ___CritSectEnter(cs) RTCritSectEnter((cs))
         #endif
 
         /** Internal lock handle */

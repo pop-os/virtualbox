@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_com_com_h
@@ -38,7 +34,7 @@ namespace com
 
 /**
  *  Initializes the COM runtime.
- *  Must be called on every thread that uses COM, before any COM activity.
+ *  Must be called on the main thread, before any COM activity in any thread.
  *
  *  @return COM result code
  */
@@ -46,8 +42,8 @@ HRESULT Initialize();
 
 /**
  *  Shuts down the COM runtime.
- *  Must be called on every thread before termination.
- *  No COM calls may be made after this method returns.
+ *  Must be called on the main thread before termination.
+ *  No COM calls may be made in any thread after this method returns.
  */
 HRESULT Shutdown();
 

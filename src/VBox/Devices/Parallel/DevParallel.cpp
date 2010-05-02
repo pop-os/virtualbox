@@ -1,4 +1,4 @@
-/* $Id: DevParallel.cpp $ */
+/* $Id: DevParallel.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DevParallel - Parallel (Port) Device Emulation.
  *
@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,10 +16,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -92,6 +88,12 @@
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
+/**
+ * Parallel device state.
+ *
+ * @implements  PDMIBASE
+ * @implements  PDMIHOSTPARALLELPORT
+ */
 typedef struct ParallelState
 {
     /** Access critical section. */
@@ -104,9 +106,9 @@ typedef struct ParallelState
     /** Pointer to the device instance - RC Ptr */
     PPDMDEVINSRC                        pDevInsRC;
     RTRCPTR                             Alignment0; /**< Alignment. */
-    /** The base interface. */
+    /** LUN\#0: The base interface. */
     PDMIBASE                            IBase;
-    /** The host device port interface. */
+    /** LUN\#0: The host device port interface. */
     PDMIHOSTPARALLELPORT                IHostParallelPort;
     /** Pointer to the attached base driver. */
     R3PTRTYPE(PPDMIBASE)                pDrvBase;
@@ -465,7 +467,7 @@ PDMBOTHCBDECL(int) parallelIOPortWrite(PPDMDEVINS pDevIns, void *pvUser,
  * @param   pDevIns     The device instance.
  * @param   pvUser      User argument.
  * @param   Port        Port number used for the IN operation.
- * @param   u32         The value to output.
+ * @param   pu32        Where to return the read value.
  * @param   cb          The value size in bytes.
  */
 PDMBOTHCBDECL(int) parallelIOPortRead(PPDMDEVINS pDevIns, void *pvUser,
@@ -643,19 +645,15 @@ static DECLCALLBACK(void) parallelRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDel
     pThis->pDevInsRC += offDelta;
 }
 
-/** @copyfrom PIBASE::pfnqueryInterface */
-static DECLCALLBACK(void *) parallelQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+/**
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
+ */
+static DECLCALLBACK(void *) parallelQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     ParallelState *pThis = PDMIBASE_2_PARALLELSTATE(pInterface);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pThis->IBase;
-        case PDMINTERFACE_HOST_PARALLEL_PORT:
-            return &pThis->IHostParallelPort;
-        default:
-            return NULL;
-    }
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIHOSTPARALLELPORT, &pThis->IHostParallelPort);
+    return NULL;
 }
 
 /**
@@ -670,6 +668,7 @@ static DECLCALLBACK(void *) parallelQueryInterface(PPDMIBASE pInterface, PDMINTE
 static DECLCALLBACK(int) parallelDestruct(PPDMDEVINS pDevIns)
 {
     ParallelState *pThis = PDMINS_2_DATA(pDevIns, ParallelState *);
+    PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
 
     PDMR3CritSectDelete(&pThis->CritSect);
     RTSemEventDestroy(pThis->ReceiveSem);
@@ -679,26 +678,17 @@ static DECLCALLBACK(int) parallelDestruct(PPDMDEVINS pDevIns)
 
 
 /**
- * Construct a device instance for a VM.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
- *                      The device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
 static DECLCALLBACK(int) parallelConstruct(PPDMDEVINS pDevIns,
                                            int iInstance,
-                                           PCFGMNODE pCfgHandle)
+                                           PCFGMNODE pCfg)
 {
     int            rc;
     ParallelState *pThis = PDMINS_2_DATA(pDevIns, ParallelState*);
 
     Assert(iInstance < 4);
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
      * Init the data so parallelDestruct doesn't choke.
@@ -723,28 +713,28 @@ static DECLCALLBACK(int) parallelConstruct(PPDMDEVINS pDevIns,
     /*
      * Validate and read the configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "IRQ\0" "IOBase\0" "GCEnabled\0" "R0Enabled\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "IRQ\0" "IOBase\0" "GCEnabled\0" "R0Enabled\0"))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("Configuration error: Unknown config key"));
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "GCEnabled", &pThis->fGCEnabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &pThis->fGCEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to get the \"GCEnabled\" value"));
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "R0Enabled", &pThis->fR0Enabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &pThis->fR0Enabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to get the \"R0Enabled\" value"));
 
     uint8_t irq_lvl;
-    rc = CFGMR3QueryU8Def(pCfgHandle, "IRQ", &irq_lvl, 7);
+    rc = CFGMR3QueryU8Def(pCfg, "IRQ", &irq_lvl, 7);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to get the \"IRQ\" value"));
 
     uint16_t io_base;
-    rc = CFGMR3QueryU16Def(pCfgHandle, "IOBase", &io_base, 0x378);
+    rc = CFGMR3QueryU16Def(pCfg, "IOBase", &io_base, 0x378);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to get the \"IOBase\" value"));
@@ -758,9 +748,7 @@ static DECLCALLBACK(int) parallelConstruct(PPDMDEVINS pDevIns,
      * Initialize critical section and event semaphore.
      * This must of course be done before attaching drivers or anything else which can call us back..
      */
-    char szName[24];
-    RTStrPrintf(szName, sizeof(szName), "Parallel#%d", iInstance);
-    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->CritSect, szName);
+    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->CritSect, RT_SRC_POS, "Parallel#%d", iInstance);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -788,7 +776,7 @@ static DECLCALLBACK(int) parallelConstruct(PPDMDEVINS pDevIns,
 
     if (pThis->fGCEnabled)
     {
-        rc = PDMDevHlpIOPortRegisterGC(pDevIns, io_base, 8, 0, "parallelIOPortWrite",
+        rc = PDMDevHlpIOPortRegisterRC(pDevIns, io_base, 8, 0, "parallelIOPortWrite",
                                       "parallelIOPortRead", NULL, NULL, "Parallel");
         if (RT_FAILURE(rc))
             return rc;
@@ -829,13 +817,10 @@ static DECLCALLBACK(int) parallelConstruct(PPDMDEVINS pDevIns,
     rc = PDMDevHlpDriverAttach(pDevIns, 0, &pThis->IBase, &pThis->pDrvBase, "Parallel Host");
     if (RT_SUCCESS(rc))
     {
-        pThis->pDrvHostParallelConnector = (PDMIHOSTPARALLELCONNECTOR *)pThis->pDrvBase->pfnQueryInterface(pThis->pDrvBase,
-                                                                                                           PDMINTERFACE_HOST_PARALLEL_CONNECTOR);
-        if (!pThis->pDrvHostParallelConnector)
-        {
-            AssertMsgFailed(("Configuration error: instance %d has no host parallel interface!\n", iInstance));
-            return VERR_PDM_MISSING_INTERFACE;
-        }
+        pThis->pDrvHostParallelConnector = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMIHOSTPARALLELCONNECTOR);
+        AssertMsgReturn(pThis->pDrvHostParallelConnector,
+                        ("Configuration error: instance %d has no host parallel interface!\n", iInstance),
+                        VERR_PDM_MISSING_INTERFACE);
         /** @todo provide read notification interface!!!! */
     }
     else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
@@ -866,7 +851,7 @@ const PDMDEVREG g_DeviceParallelPort =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "parallel",
     /* szRCMod */
     "VBoxDDGC.gc",

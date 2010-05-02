@@ -1,10 +1,10 @@
-/* $Id: SUPLibInternal.h $ */
+/* $Id: SUPLibInternal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Internal header.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___SUPLibInternal_h___
@@ -52,8 +48,9 @@
 #endif
 
 #ifdef RT_OS_SOLARIS
-/** Number of dummy files to open (2:ip4, 1:ip6, 1:extra) see #4650 */
-#define SUPLIB_FLT_DUMMYFILES 4
+/** Number of dummy files to open (2:ip4, 1:ip6, 1:extra) see
+ *  @bugref{4650}. */
+# define SUPLIB_FLT_DUMMYFILES 4
 #endif
 
 /** @def SUPLIB_EXE_SUFF
@@ -193,8 +190,9 @@ typedef struct SUPLIBDATA
     /** Indicates whether madvise(,,MADV_DONTFORK) works. */
     bool                fSysMadviseWorks;
 #elif defined(RT_OS_SOLARIS)
-    /** Extra dummy file descriptors to prevent growing file-descriptor table on clean up (see #4650) */
-    int                 hDummy[SUPLIB_FLT_DUMMYFILES];
+    /** Extra dummy file descriptors to prevent growing file-descriptor table on
+     *  clean up (see @bugref{4650}). */
+    int                 ahDummy[SUPLIB_FLT_DUMMYFILES];
 #elif defined(RT_OS_WINDOWS)
 #endif
 } SUPLIBDATA;

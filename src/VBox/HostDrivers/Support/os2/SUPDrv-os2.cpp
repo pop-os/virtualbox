@@ -1,4 +1,4 @@
-/* $Id: SUPDrv-os2.cpp $ */
+/* $Id: SUPDrv-os2.cpp 28854 2010-04-27 19:41:12Z vboxsync $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - OS/2 specifics.
  */
@@ -90,18 +90,18 @@ RT_C_DECLS_END
  */
 DECLASM(int) VBoxDrvInit(const char *pszArgs)
 {
-    dprintf(("VBoxDrvInit: pszArgs=%s\n", pszArgs));
-
     /*
      * Initialize the runtime.
      */
     int rc = RTR0Init(0);
     if (RT_SUCCESS(rc))
     {
+        Log(("VBoxDrvInit: pszArgs=%s\n", pszArgs));
+
         /*
          * Initialize the device extension.
          */
-        rc = supdrvInitDevExt(&g_DevExt);
+        rc = supdrvInitDevExt(&g_DevExt, sizeof(SUPDRVSESSION));
         if (RT_SUCCESS(rc))
         {
             /*
@@ -124,7 +124,7 @@ DECLASM(int) VBoxDrvInit(const char *pszArgs)
                            "\r\n"
                            "VirtualBox.org Support Driver for OS/2 version " VBOX_VERSION_STRING "\r\n"
                            "Copyright (C) 2007 Knut St. Osmundsen\r\n"
-                           "Copyright (C) 2007 Sun Microsystems, Inc.\r\n");
+                           "Copyright (C) 2007 Oracle Corporation\r\n");
                     g_cchInitText = strlen(&g_szInitText[0]);
                 }
                 return VINF_SUCCESS;
@@ -166,14 +166,14 @@ DECLASM(int) VBoxDrvOpen(uint16_t sfn)
         RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
     }
 
-    dprintf(("VBoxDrvOpen: g_DevExt=%p pSession=%p rc=%d pid=%d\n", &g_DevExt, pSession, rc, (int)RTProcSelf()));
+    Log(("VBoxDrvOpen: g_DevExt=%p pSession=%p rc=%d pid=%d\n", &g_DevExt, pSession, rc, (int)RTProcSelf()));
     return rc;
 }
 
 
 DECLASM(int) VBoxDrvClose(uint16_t sfn)
 {
-    dprintf(("VBoxDrvClose: pid=%d sfn=%d\n", (int)RTProcSelf(), sfn));
+    Log(("VBoxDrvClose: pid=%d sfn=%d\n", (int)RTProcSelf(), sfn));
 
     /*
      * Remove from the hash table.
@@ -293,7 +293,7 @@ DECLASM(int) VBoxDrvIOCtl(uint16_t sfn, uint8_t iCat, uint8_t iFunction, void *p
      */
     if (RT_LIKELY(iCat == SUP_CTL_CATEGORY))
     {
-        dprintf(("VBoxDrvIOCtl: pSession=%p iFunction=%#x pvParm=%p pvData=%p *pcbParm=%d *pcbData=%d\n", pSession, iFunction, pvParm, pvData, *pcbParm, *pcbData));
+        Log(("VBoxDrvIOCtl: pSession=%p iFunction=%#x pvParm=%p pvData=%p *pcbParm=%d *pcbData=%d\n", pSession, iFunction, pvParm, pvData, *pcbParm, *pcbData));
         Assert(pvParm);
         Assert(!pvData);
 
@@ -351,7 +351,7 @@ DECLASM(int) VBoxDrvIOCtl(uint16_t sfn, uint8_t iCat, uint8_t iFunction, void *p
         int rc2 = KernVMUnlock(&Lock);
         AssertMsg(!rc2, ("rc2=%d\n", rc2)); NOREF(rc2);
 
-        dprintf2(("VBoxDrvIOCtl: returns %d\n", rc));
+        Log2(("VBoxDrvIOCtl: returns %d\n", rc));
         return rc;
     }
     return VERR_NOT_SUPPORTED;
@@ -379,6 +379,33 @@ bool VBOXCALL  supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt)
 {
     NOREF(pDevExt);
     return false;
+}
+
+
+int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename)
+{
+    NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
+    return VERR_NOT_SUPPORTED;
+}
+
+
+int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv, const uint8_t *pbImageBits)
+{
+    NOREF(pDevExt); NOREF(pImage); NOREF(pv); NOREF(pbImageBits);
+    return VERR_NOT_SUPPORTED;
+}
+
+
+int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits)
+{
+    NOREF(pDevExt); NOREF(pImage); NOREF(pbImageBits);
+    return VERR_NOT_SUPPORTED;
+}
+
+
+void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
+{
+    NOREF(pDevExt); NOREF(pImage);
 }
 
 

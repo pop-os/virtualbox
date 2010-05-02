@@ -1,10 +1,10 @@
-/* $Id: TRPMGCHandlers.cpp $ */
+/* $Id: TRPMGCHandlers.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * TRPM - Guest Context Trap Handlers, CPP part
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -27,7 +23,7 @@
 #include <VBox/selm.h>
 #include <VBox/iom.h>
 #include <VBox/pgm.h>
-#include <VBox/pdm.h>
+#include <VBox/pdmapi.h>
 #include <VBox/dbgf.h>
 #include <VBox/em.h>
 #include <VBox/csam.h>
@@ -405,7 +401,7 @@ DECLASM(int) TRPMGCTrap06Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
          * UD2 in a patch?
          */
         if (    Cpu.pCurInstr->opcode == OP_ILLUD2
-            &&  PATMIsPatchGCAddr(pVM, (RTRCPTR)pRegFrame->eip))
+            &&  PATMIsPatchGCAddr(pVM, pRegFrame->eip))
         {
             rc = PATMGCHandleIllegalInstrTrap(pVM, pRegFrame);
             /** @todo  These tests are completely unnecessary, should just follow the
@@ -428,7 +424,7 @@ DECLASM(int) TRPMGCTrap06Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
         {
             Log(("TRPMGCTrap06Handler: pc=%08x op=%d\n", pRegFrame->eip, Cpu.pCurInstr->opcode));
 #ifdef DTRACE_EXPERIMENT /** @todo fix/remove/permanent-enable this when DIS/PATM handles invalid lock sequences. */
-            Assert(!PATMIsPatchGCAddr(pVM, (RTRCPTR)pRegFrame->eip));
+            Assert(!PATMIsPatchGCAddr(pVM, pRegFrame->eip));
             rc = TRPMForwardTrap(pVCpu, pRegFrame, 0x6, 0, TRPM_TRAP_NO_ERRORCODE, TRPM_TRAP, 0x6);
             Assert(rc == VINF_EM_RAW_GUEST_TRAP);
 #else
@@ -617,7 +613,7 @@ static int trpmGCTrap0dHandlerRing0(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
         case OP_INT:
         {
             Assert(pCpu->param1.flags & USE_IMMEDIATE8);
-            Assert(!(PATMIsPatchGCAddr(pVM, (RTRCPTR)PC)));
+            Assert(!(PATMIsPatchGCAddr(pVM, PC)));
             if (pCpu->param1.parval == 3)
             {
                 /* Int 3 replacement patch? */
@@ -645,7 +641,7 @@ static int trpmGCTrap0dHandlerRing0(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
 
         case OP_HLT:
             /* If it's in patch code, defer to ring-3. */
-            if (PATMIsPatchGCAddr(pVM, (RTRCPTR)PC))
+            if (PATMIsPatchGCAddr(pVM, PC))
                 break;
 
             pRegFrame->eip += pCpu->opsize;
@@ -661,8 +657,8 @@ static int trpmGCTrap0dHandlerRing0(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
         case OP_MOV_CR:
         case OP_MOV_DR:
             /* We can safely emulate control/debug register move instructions in patched code. */
-            if (    !PATMIsPatchGCAddr(pVM, (RTRCPTR)PC)
-                &&  !CSAMIsKnownDangerousInstr(pVM, (RTRCPTR)PC))
+            if (    !PATMIsPatchGCAddr(pVM, PC)
+                &&  !CSAMIsKnownDangerousInstr(pVM, PC))
                 break;
         case OP_INVLPG:
         case OP_LLDT:
@@ -844,25 +840,11 @@ static int trpmGCTrap0dHandler(PVM pVM, PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFram
     }
 
     /*
-     * Optimize RDTSC traps.
-     * Some guests (like Solaris) are using RDTSC all over the place and
-     * will end up trapping a *lot* because of that.
-     */
-    if (   !pRegFrame->eflags.Bits.u1VM
-        && ((uint8_t *)PC)[0] == 0x0f
-        && ((uint8_t *)PC)[1] == 0x31)
-    {
-        STAM_PROFILE_STOP(&pVM->trpm.s.StatTrap0dDisasm, a);
-        return trpmGCTrap0dHandlerRdTsc(pVM, pVCpu, pRegFrame);
-    }
-
-    /*
      * Disassemble the instruction.
      */
     DISCPUSTATE Cpu;
     uint32_t    cbOp;
-    rc = DISCoreOneEx((RTGCUINTPTR)PC, cBits == 32 ? CPUMODE_32BIT : cBits == 16 ? CPUMODE_16BIT : CPUMODE_64BIT,
-                      NULL, NULL, &Cpu, &cbOp);
+    rc = EMInterpretDisasOneEx(pVM, pVCpu, (RTGCUINTPTR)PC, pRegFrame, &Cpu, &cbOp);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("DISCoreOneEx failed to PC=%RGv rc=%Rrc\n", PC, rc));
@@ -870,6 +852,16 @@ static int trpmGCTrap0dHandler(PVM pVM, PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFram
         return trpmGCExitTrap(pVM, pVCpu, VINF_EM_RAW_EMULATE_INSTR, pRegFrame);
     }
     STAM_PROFILE_STOP(&pVM->trpm.s.StatTrap0dDisasm, a);
+
+    /*
+     * Optimize RDTSC traps.
+     * Some guests (like Solaris) are using RDTSC all over the place and
+     * will end up trapping a *lot* because of that.
+     *
+     * Note: it's no longer safe to access the instruction opcode directly due to possible stale code TLB entries
+     */
+    if (Cpu.pCurInstr->opcode == OP_RDTSC)
+        return trpmGCTrap0dHandlerRdTsc(pVM, pVCpu, pRegFrame);
 
     /*
      * Deal with I/O port access.
@@ -910,7 +902,7 @@ static int trpmGCTrap0dHandler(PVM pVM, PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFram
     {
         Assert(eflags.Bits.u2IOPL == 0);
 
-        int rc = TRPMForwardTrap(pVCpu, pRegFrame, 0xD, 0, TRPM_TRAP_HAS_ERRORCODE, TRPM_TRAP, 0xd);
+        rc = TRPMForwardTrap(pVCpu, pRegFrame, 0xD, 0, TRPM_TRAP_HAS_ERRORCODE, TRPM_TRAP, 0xd);
         Assert(rc == VINF_EM_RAW_GUEST_TRAP);
         return trpmGCExitTrap(pVM, pVCpu, rc, pRegFrame);
     }
@@ -941,7 +933,7 @@ DECLASM(int) TRPMGCTrap0dHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     {
         case VINF_EM_RAW_GUEST_TRAP:
         case VINF_EM_RAW_EXCEPTION_PRIVILEGED:
-            if (PATMIsPatchGCAddr(pVM, (RTRCPTR)pRegFrame->eip))
+            if (PATMIsPatchGCAddr(pVM, pRegFrame->eip))
                 rc = VINF_PATM_PATCH_TRAP_GP;
             break;
 
@@ -965,7 +957,7 @@ DECLASM(int) TRPMGCTrap0dHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
             break;
 
         default:
-            AssertMsg(PATMIsPatchGCAddr(pVM, (RTRCPTR)pRegFrame->eip) == false, ("return code %d\n", rc));
+            AssertMsg(PATMIsPatchGCAddr(pVM, pRegFrame->eip) == false, ("return code %d\n", rc));
             break;
         }
     Log6(("TRPMGC0d: %Rrc (%04x:%08x)\n", rc, pRegFrame->cs, pRegFrame->eip));
@@ -1006,12 +998,12 @@ DECLASM(int) TRPMGCTrap0eHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
         case VINF_EM_RAW_EMULATE_INSTR_TSS_FAULT:
         case VINF_EM_RAW_EMULATE_INSTR_LDT_FAULT:
         case VINF_EM_RAW_EMULATE_INSTR_IDT_FAULT:
-            if (PATMIsPatchGCAddr(pVM, (RTRCPTR)pRegFrame->eip))
+            if (PATMIsPatchGCAddr(pVM, pRegFrame->eip))
                 rc = VINF_PATCH_EMULATE_INSTR;
             break;
 
         case VINF_EM_RAW_GUEST_TRAP:
-            if (PATMIsPatchGCAddr(pVM, (RTRCPTR)pRegFrame->eip))
+            if (PATMIsPatchGCAddr(pVM, pRegFrame->eip))
                 return VINF_PATM_PATCH_TRAP_PF;
 
             rc = TRPMForwardTrap(pVCpu, pRegFrame, 0xE, 0, TRPM_TRAP_HAS_ERRORCODE, TRPM_TRAP, 0xe);
@@ -1036,7 +1028,7 @@ DECLASM(int) TRPMGCTrap0eHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
             break;
 
         default:
-            AssertMsg(PATMIsPatchGCAddr(pVM, (RTRCPTR)pRegFrame->eip) == false, ("Patch address for return code %d. eip=%08x\n", rc, pRegFrame->eip));
+            AssertMsg(PATMIsPatchGCAddr(pVM, pRegFrame->eip) == false, ("Patch address for return code %d. eip=%08x\n", rc, pRegFrame->eip));
             break;
     }
     rc = trpmGCExitTrap(pVM, pVCpu, rc, pRegFrame);

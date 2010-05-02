@@ -1,10 +1,10 @@
-/* $Id: DrvIntNet.cpp $ */
+/* $Id: DrvIntNet.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DrvIntNet - Internal network transport driver.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -24,22 +20,36 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_INTNET
 #include <VBox/pdmdrv.h>
+#include <VBox/pdmnetinline.h>
+#include <VBox/pdmnetifs.h>
 #include <VBox/cfgm.h>
 #include <VBox/intnet.h>
+#include <VBox/intnetinline.h>
 #include <VBox/vmm.h>
+#include <VBox/sup.h>
 #include <VBox/err.h>
 
+#include <VBox/param.h>
 #include <VBox/log.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
+#include <iprt/memcache.h>
 #include <iprt/net.h>
 #include <iprt/semaphore.h>
 #include <iprt/string.h>
 #include <iprt/time.h>
 #include <iprt/thread.h>
+#include <iprt/uuid.h>
 
 #include "../Builtins.h"
+
+
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
+/** Enables the ring-0 part. */
+#define VBOX_WITH_DRVINTNET_IN_R0
 
 
 /*******************************************************************************
@@ -48,70 +58,132 @@
 /**
  * The state of the asynchronous thread.
  */
-typedef enum ASYNCSTATE
+typedef enum RECVSTATE
 {
     /** The thread is suspended. */
-    ASYNCSTATE_SUSPENDED = 1,
+    RECVSTATE_SUSPENDED = 1,
     /** The thread is running. */
-    ASYNCSTATE_RUNNING,
+    RECVSTATE_RUNNING,
     /** The thread must (/has) terminate. */
-    ASYNCSTATE_TERMINATE,
+    RECVSTATE_TERMINATE,
     /** The usual 32-bit type blowup. */
-    ASYNCSTATE_32BIT_HACK = 0x7fffffff
-} ASYNCSTATE;
+    RECVSTATE_32BIT_HACK = 0x7fffffff
+} RECVSTATE;
 
 /**
- * Block driver instance data.
+ * Internal networking driver instance data.
+ *
+ * @implements  PDMINETWORKUP
  */
 typedef struct DRVINTNET
 {
     /** The network interface. */
-    PDMINETWORKCONNECTOR    INetworkConnector;
+    PDMINETWORKUP                   INetworkUpR3;
     /** The network interface. */
-    PPDMINETWORKPORT        pPort;
+    R3PTRTYPE(PPDMINETWORKDOWN)     pIAboveNet;
     /** The network config interface.
      * Can (in theory at least) be NULL. */
-    PPDMINETWORKCONFIG      pConfigIf;
+    R3PTRTYPE(PPDMINETWORKCONFIG)   pIAboveConfigR3;
+    /** Pointer to the driver instance (ring-3). */
+    PPDMDRVINSR3                    pDrvInsR3;
+    /** Pointer to the communication buffer (ring-3). */
+    R3PTRTYPE(PINTNETBUF)           pBufR3;
+    /** Ring-3 base interface for the ring-0 context. */
+    PDMIBASER0                      IBaseR0;
+    /** Ring-3 base interface for the raw-mode context. */
+    PDMIBASERC                      IBaseRC;
+    RTR3PTR                         R3PtrAlignment;
+
+    /** The network interface for the ring-0 context. */
+    PDMINETWORKUPR0                 INetworkUpR0;
+    /** Pointer to the driver instance (ring-0). */
+    PPDMDRVINSR0                    pDrvInsR0;
+    /** Pointer to the communication buffer (ring-0). */
+    R0PTRTYPE(PINTNETBUF)           pBufR0;
+
+    /** The network interface for the raw-mode context. */
+    PDMINETWORKUPRC                 INetworkUpRC;
     /** Pointer to the driver instance. */
-    PPDMDRVINS              pDrvIns;
+    PPDMDRVINSRC                    pDrvInsRC;
+    RTRCPTR                         RCPtrAlignment;
+
+    /** The transmit lock. */
+    PDMCRITSECT                     XmitLock;
     /** Interface handle. */
-    INTNETIFHANDLE          hIf;
-    /** Pointer to the communication buffer. */
-    PINTNETBUF              pBuf;
-    /** The thread state. */
-    ASYNCSTATE volatile     enmState;
-    /** Reader thread. */
-    RTTHREAD                Thread;
-    /** Event semaphore the Thread waits on while the VM is suspended. */
-    RTSEMEVENT              EventSuspended;
+    INTNETIFHANDLE                  hIf;
+    /** The receive thread state. */
+    RECVSTATE volatile              enmRecvState;
+    /** The receive thread. */
+    RTTHREAD                        hRecvThread;
+    /** The event semaphore that the receive thread waits on.  */
+    RTSEMEVENT                      hRecvEvt;
+    /** The transmit thread.  */
+    PPDMTHREAD                      pXmitThread;
+    /** The event semaphore that the transmit thread waits on.  */
+    SUPSEMEVENT                     hXmitEvt;
+    /** The support driver session handle. */
+    PSUPDRVSESSION                  pSupDrvSession;
+    /** Scatter/gather descriptor cache. */
+    RTMEMCACHE                      hSgCache;
     /** Set if the link is down.
      * When the link is down all incoming packets will be dropped. */
-    bool volatile           fLinkDown;
+    bool volatile                   fLinkDown;
+    /** Set when the xmit thread has been signalled. (atomic) */
+    bool volatile                   fXmitSignalled;
+    /** Set if the transmit thread the one busy transmitting. */
+    bool volatile                   fXmitOnXmitThread;
+    /** The xmit thread should process the ring ASAP. */
+    bool                            fXmitProcessRing;
     /** Set if data transmission should start immediately and deactivate
      * as late as possible. */
-    bool                    fActivateEarlyDeactivateLate;
+    bool                            fActivateEarlyDeactivateLate;
+    /** Padding. */
+    bool                            afReserved[HC_ARCH_BITS == 64 ? 3 : 3];
+    /** Scratch space for holding the ring-0 scatter / gather descriptor.
+     * The PDMSCATTERGATHER::fFlags member is used to indicate whether it is in
+     * use or not.  Always accessed while owning the XmitLock. */
+    union
+    {
+        PDMSCATTERGATHER            Sg;
+        uint8_t                     padding[8 * sizeof(RTUINTPTR)];
+    }                               u;
+    /** The network name. */
+    char                            szNetwork[INTNET_MAX_NETWORK_NAME];
 
-#ifdef LOG_ENABLED
-    /** The nano ts of the last transfer. */
-    uint64_t                u64LastTransferTS;
-    /** The nano ts of the last receive. */
-    uint64_t                u64LastReceiveTS;
-#endif
-
+    /** Number of GSO packets sent. */
+    STAMCOUNTER                     StatSentGso;
+    /** Number of GSO packets recevied. */
+    STAMCOUNTER                     StatReceivedGso;
+    /** Number of packets send from ring-0. */
+    STAMCOUNTER                     StatSentR0;
+    /** The number of times we've had to wake up the xmit thread to contine the
+     *  ring-0 job. */
+    STAMCOUNTER                     StatXmitWakeupR0;
+    /** The number of times we've had to wake up the xmit thread to contine the
+     *  ring-3 job. */
+    STAMCOUNTER                     StatXmitWakeupR3;
+    /** The times the xmit thread has been told to process the ring. */
+    STAMCOUNTER                     StatXmitProcessRing;
 #ifdef VBOX_WITH_STATISTICS
     /** Profiling packet transmit runs. */
-    STAMPROFILE             StatTransmit;
+    STAMPROFILE                     StatTransmit;
     /** Profiling packet receive runs. */
-    STAMPROFILEADV          StatReceive;
+    STAMPROFILEADV                  StatReceive;
 #endif /* VBOX_WITH_STATISTICS */
+#ifdef LOG_ENABLED
+    /** The nano ts of the last transfer. */
+    uint64_t                        u64LastTransferTS;
+    /** The nano ts of the last receive. */
+    uint64_t                        u64LastReceiveTS;
+#endif
+} DRVINTNET;
+AssertCompileMemberAlignment(DRVINTNET, XmitLock, 8);
+AssertCompileMemberAlignment(DRVINTNET, StatSentGso, 8);
+/** Pointer to instance data of the internal networking driver. */
+typedef DRVINTNET *PDRVINTNET;
 
-    /** The network name. */
-    char                    szNetwork[INTNET_MAX_NETWORK_NAME];
-} DRVINTNET, *PDRVINTNET;
 
-
-/** Converts a pointer to DRVINTNET::INetworkConnector to a PDRVINTNET. */
-#define PDMINETWORKCONNECTOR_2_DRVINTNET(pInterface) ( (PDRVINTNET)((uintptr_t)pInterface - RT_OFFSETOF(DRVINTNET, INetworkConnector)) )
+#ifdef IN_RING3
 
 
 /**
@@ -120,9 +192,9 @@ typedef struct DRVINTNET
  * @returns VBox status code.
  * @param   pThis       The driver instance.
  */
-static int drvIntNetUpdateMacAddress(PDRVINTNET pThis)
+static int drvR3IntNetUpdateMacAddress(PDRVINTNET pThis)
 {
-    if (!pThis->pConfigIf)
+    if (!pThis->pIAboveConfigR3)
         return VINF_SUCCESS;
 
     INTNETIFSETMACADDRESSREQ SetMacAddressReq;
@@ -130,12 +202,12 @@ static int drvIntNetUpdateMacAddress(PDRVINTNET pThis)
     SetMacAddressReq.Hdr.cbReq = sizeof(SetMacAddressReq);
     SetMacAddressReq.pSession = NIL_RTR0PTR;
     SetMacAddressReq.hIf = pThis->hIf;
-    int rc = pThis->pConfigIf->pfnGetMac(pThis->pConfigIf, &SetMacAddressReq.Mac);
+    int rc = pThis->pIAboveConfigR3->pfnGetMac(pThis->pIAboveConfigR3, &SetMacAddressReq.Mac);
     if (RT_SUCCESS(rc))
-        rc = pThis->pDrvIns->pDrvHlp->pfnSUPCallVMMR0Ex(pThis->pDrvIns, VMMR0_DO_INTNET_IF_SET_MAC_ADDRESS,
-                                                        &SetMacAddressReq, sizeof(SetMacAddressReq));
+        rc = PDMDrvHlpSUPCallVMMR0Ex(pThis->pDrvInsR3, VMMR0_DO_INTNET_IF_SET_MAC_ADDRESS,
+                                     &SetMacAddressReq, sizeof(SetMacAddressReq));
 
-    Log(("drvIntNetUpdateMacAddress: %.*Rhxs rc=%Rrc\n", sizeof(SetMacAddressReq.Mac), &SetMacAddressReq.Mac, rc));
+    Log(("drvR3IntNetUpdateMacAddress: %.*Rhxs rc=%Rrc\n", sizeof(SetMacAddressReq.Mac), &SetMacAddressReq.Mac, rc));
     return rc;
 }
 
@@ -149,9 +221,9 @@ static int drvIntNetUpdateMacAddress(PDRVINTNET pThis)
  * @param   pThis       The driver instance.
  * @param   fActive     The new state.
  */
-static int drvIntNetSetActive(PDRVINTNET pThis, bool fActive)
+static int drvR3IntNetSetActive(PDRVINTNET pThis, bool fActive)
 {
-    if (!pThis->pConfigIf)
+    if (!pThis->pIAboveConfigR3)
         return VINF_SUCCESS;
 
     INTNETIFSETACTIVEREQ SetActiveReq;
@@ -160,200 +232,316 @@ static int drvIntNetSetActive(PDRVINTNET pThis, bool fActive)
     SetActiveReq.pSession = NIL_RTR0PTR;
     SetActiveReq.hIf = pThis->hIf;
     SetActiveReq.fActive = fActive;
-    int rc = pThis->pDrvIns->pDrvHlp->pfnSUPCallVMMR0Ex(pThis->pDrvIns, VMMR0_DO_INTNET_IF_SET_ACTIVE,
-                                                        &SetActiveReq, sizeof(SetActiveReq));
+    int rc = PDMDrvHlpSUPCallVMMR0Ex(pThis->pDrvInsR3, VMMR0_DO_INTNET_IF_SET_ACTIVE,
+                                     &SetActiveReq, sizeof(SetActiveReq));
 
-    Log(("drvIntNetUpdateMacAddress: fActive=%d rc=%Rrc\n", fActive, rc));
+    Log(("drvR3IntNetSetActive: fActive=%d rc=%Rrc\n", fActive, rc));
     AssertRC(rc);
+    return rc;
+}
+
+#endif /* IN_RING3 */
+
+/* -=-=-=-=- PDMINETWORKUP -=-=-=-=- */
+
+/**
+ * Helper for signalling the xmit thread.
+ *
+ * @returns VERR_TRY_AGAIN (convenience).
+ * @param   pThis               The instance data..
+ */
+DECLINLINE(int) drvIntNetSignalXmit(PDRVINTNET pThis)
+{
+    /// @todo if (!ASMAtomicXchgBool(&pThis->fXmitSignalled, true)) - needs careful optimizing.
+    {
+        int rc = SUPSemEventSignal(pThis->pSupDrvSession, pThis->hXmitEvt);
+        AssertRC(rc);
+        STAM_REL_COUNTER_INC(&pThis->CTX_SUFF(StatXmitWakeup));
+    }
+    return VERR_TRY_AGAIN;
+}
+
+
+/**
+ * Helper for processing the ring-0 consumer side of the xmit ring.
+ *
+ * The caller MUST own the xmit lock.
+ *
+ * @returns Status code from IntNetR0IfSend, except for VERR_TRY_AGAIN.
+ * @param   pThis               The instance data..
+ */
+DECLINLINE(int) drvIntNetProcessXmit(PDRVINTNET pThis)
+{
+    Assert(PDMCritSectIsOwner(&pThis->XmitLock));
+
+#ifdef IN_RING3
+    INTNETIFSENDREQ SendReq;
+    SendReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+    SendReq.Hdr.cbReq = sizeof(SendReq);
+    SendReq.pSession = NIL_RTR0PTR;
+    SendReq.hIf = pThis->hIf;
+    int rc = PDMDrvHlpSUPCallVMMR0Ex(pThis->pDrvInsR3, VMMR0_DO_INTNET_IF_SEND, &SendReq, sizeof(SendReq));
+#else
+    int rc = IntNetR0IfSend(pThis->hIf, pThis->pSupDrvSession);
+    if (rc == VERR_TRY_AGAIN)
+    {
+        ASMAtomicUoWriteBool(&pThis->fXmitProcessRing, true);
+        drvIntNetSignalXmit(pThis);
+        rc = VINF_SUCCESS;
+    }
+#endif
+    return rc;
+}
+
+
+
+/**
+ * @interface_method_impl{PDMINETWORKUP,pfnBeginXmit}
+ */
+PDMBOTHCBDECL(int) drvIntNetUp_BeginXmit(PPDMINETWORKUP pInterface, bool fOnWorkerThread)
+{
+    PDRVINTNET pThis = RT_FROM_MEMBER(pInterface, DRVINTNET, CTX_SUFF(INetworkUp));
+#ifndef IN_RING3
+    Assert(!fOnWorkerThread);
+#endif
+
+    int rc = PDMCritSectTryEnter(&pThis->XmitLock);
+    if (RT_SUCCESS(rc))
+    {
+        if (fOnWorkerThread)
+        {
+            ASMAtomicUoWriteBool(&pThis->fXmitOnXmitThread, true);
+            ASMAtomicWriteBool(&pThis->fXmitSignalled, false);
+        }
+    }
+    else if (rc == VERR_SEM_BUSY)
+    {
+        /** @todo Does this actually make sense if the other dude is an EMT and so
+         *        forth?  I seriously think this is ring-0 only...
+         * We might end up waking up the xmit thread unnecessarily here, even when in
+         * ring-0... This needs some more thought and opitmizations when the ring-0 bits
+         * are working. */
+#ifdef IN_RING3
+        if (    !fOnWorkerThread
+            /*&&  !ASMAtomicUoReadBool(&pThis->fXmitOnXmitThread)
+            &&  ASMAtomicCmpXchgBool(&pThis->fXmitSignalled, true, false)*/)
+        {
+            rc = SUPSemEventSignal(pThis->pSupDrvSession, pThis->hXmitEvt);
+            AssertRC(rc);
+        }
+        rc = VERR_TRY_AGAIN;
+#else  /* IN_RING0 */
+        rc = drvIntNetSignalXmit(pThis);
+#endif /* IN_RING0 */
+    }
     return rc;
 }
 
 
 /**
- * Writes a frame packet to the buffer.
- *
- * @returns VBox status code.
- * @param   pBuf        The buffer.
- * @param   pRingBuf    The ring buffer to read from.
- * @param   pvFrame     The frame to write.
- * @param   cbFrame     The size of the frame.
- * @remark  This is the same as INTNETRingWriteFrame
+ * @interface_method_impl{PDMINETWORKUP,pfnAllocBuf}
  */
-static int drvIntNetRingWriteFrame(PINTNETBUF pBuf, PINTNETRINGBUF pRingBuf, const void *pvFrame, uint32_t cbFrame)
+PDMBOTHCBDECL(int) drvIntNetUp_AllocBuf(PPDMINETWORKUP pInterface, size_t cbMin,
+                                                   PCPDMNETWORKGSO pGso,  PPPDMSCATTERGATHER ppSgBuf)
 {
+    PDRVINTNET  pThis = RT_FROM_MEMBER(pInterface, DRVINTNET, CTX_SUFF(INetworkUp));
+    int         rc    = VINF_SUCCESS;
+    Assert(cbMin < UINT32_MAX / 2);
+    Assert(PDMCritSectIsOwner(&pThis->XmitLock));
+
     /*
-     * Validate input.
+     * Allocate a S/G descriptor.
+     * This shouldn't normally fail as the NICs usually won't allocate more
+     * than one buffer at a time and the SG gets freed on sending.
      */
-    Assert(pBuf);
-    Assert(pRingBuf);
-    Assert(pvFrame);
-    Assert(cbFrame >= sizeof(RTMAC) * 2);
-    uint32_t offWrite = pRingBuf->offWrite;
-    Assert(offWrite == RT_ALIGN_32(offWrite, sizeof(INTNETHDR)));
-    uint32_t offRead = pRingBuf->offRead;
-    Assert(offRead == RT_ALIGN_32(offRead, sizeof(INTNETHDR)));
-
-    const uint32_t cb = RT_ALIGN_32(cbFrame, sizeof(INTNETHDR));
-    if (offRead <= offWrite)
-    {
-        /*
-         * Try fit it all before the end of the buffer.
-         */
-        if (pRingBuf->offEnd - offWrite >= cb + sizeof(INTNETHDR))
-        {
-            PINTNETHDR pHdr = (PINTNETHDR)((uint8_t *)pBuf + offWrite);
-            pHdr->u16Type  = INTNETHDR_TYPE_FRAME;
-            pHdr->cbFrame  = cbFrame;
-            pHdr->offFrame = sizeof(INTNETHDR);
-
-            memcpy(pHdr + 1, pvFrame, cbFrame);
-
-            offWrite += cb + sizeof(INTNETHDR);
-            Assert(offWrite <= pRingBuf->offEnd && offWrite >= pRingBuf->offStart);
-            if (offWrite >= pRingBuf->offEnd)
-                offWrite = pRingBuf->offStart;
-            Log2(("WriteFrame: offWrite: %#x -> %#x (1)\n", pRingBuf->offWrite, offWrite));
-            ASMAtomicXchgU32(&pRingBuf->offWrite, offWrite);
-            return VINF_SUCCESS;
-        }
-
-        /*
-         * Try fit the frame at the start of the buffer.
-         * (The header fits before the end of the buffer because of alignment.)
-         */
-        AssertMsg(pRingBuf->offEnd - offWrite >= sizeof(INTNETHDR), ("offEnd=%x offWrite=%x\n", pRingBuf->offEnd, offWrite));
-        if (offRead - pRingBuf->offStart > cb) /* not >= ! */
-        {
-            PINTNETHDR  pHdr = (PINTNETHDR)((uint8_t *)pBuf + offWrite);
-            void       *pvFrameOut = (PINTNETHDR)((uint8_t *)pBuf + pRingBuf->offStart);
-            pHdr->u16Type  = INTNETHDR_TYPE_FRAME;
-            pHdr->cbFrame  = cbFrame;
-            pHdr->offFrame = (intptr_t)pvFrameOut - (intptr_t)pHdr;
-
-            memcpy(pvFrameOut, pvFrame, cbFrame);
-
-            offWrite = pRingBuf->offStart + cb;
-            ASMAtomicXchgU32(&pRingBuf->offWrite, offWrite);
-            Log2(("WriteFrame: offWrite: %#x -> %#x (2)\n", pRingBuf->offWrite, offWrite));
-            return VINF_SUCCESS;
-        }
-    }
-    /*
-     * The reader is ahead of the writer, try fit it into that space.
-     */
-    else if (offRead - offWrite > cb + sizeof(INTNETHDR)) /* not >= ! */
-    {
-        PINTNETHDR pHdr = (PINTNETHDR)((uint8_t *)pBuf + offWrite);
-        pHdr->u16Type  = INTNETHDR_TYPE_FRAME;
-        pHdr->cbFrame  = cbFrame;
-        pHdr->offFrame = sizeof(INTNETHDR);
-
-        memcpy(pHdr + 1, pvFrame, cbFrame);
-
-        offWrite += cb + sizeof(INTNETHDR);
-        ASMAtomicXchgU32(&pRingBuf->offWrite, offWrite);
-        Log2(("WriteFrame: offWrite: %#x -> %#x (3)\n", pRingBuf->offWrite, offWrite));
-        return VINF_SUCCESS;
-    }
-
-    /* (it didn't fit) */
-    /** @todo stats */
-    return VERR_BUFFER_OVERFLOW;
-}
-
-
-/**
- * Send data to the network.
- *
- * @returns VBox status code.
- * @param   pInterface      Pointer to the interface structure containing the called function pointer.
- * @param   pvBuf           Data to send.
- * @param   cb              Number of bytes to send.
- * @thread  EMT
- */
-static DECLCALLBACK(int) drvIntNetSend(PPDMINETWORKCONNECTOR pInterface, const void *pvBuf, size_t cb)
-{
-    PDRVINTNET pThis = PDMINETWORKCONNECTOR_2_DRVINTNET(pInterface);
-    STAM_PROFILE_START(&pThis->StatTransmit, a);
-
-#ifdef LOG_ENABLED
-    uint64_t u64Now = RTTimeProgramNanoTS();
-    LogFlow(("drvIntNetSend: %-4d bytes at %llu ns  deltas: r=%llu t=%llu\n",
-             cb, u64Now, u64Now - pThis->u64LastReceiveTS, u64Now - pThis->u64LastTransferTS));
-    pThis->u64LastTransferTS = u64Now;
-    Log2(("drvIntNetSend: pvBuf=%p cb=%#x\n"
-          "%.*Rhxd\n",
-          pvBuf, cb, cb, pvBuf));
+#ifdef IN_RING3
+    PPDMSCATTERGATHER pSgBuf = (PPDMSCATTERGATHER)RTMemCacheAlloc(pThis->hSgCache);
+    if (!pSgBuf)
+        return VERR_NO_MEMORY;
+#else
+    PPDMSCATTERGATHER pSgBuf = &pThis->u.Sg;
+    if (RT_UNLIKELY(pSgBuf->fFlags != 0))
+        return drvIntNetSignalXmit(pThis);
 #endif
 
     /*
-     * Add the frame to the send buffer and push it onto the network.
+     * Allocate room in the ring buffer.
+     *
+     * In ring-3 we may have to process the xmit ring before there is
+     * sufficient buffer space since we might've stacked up a few frames to the
+     * trunk while in ring-0.  (There is not point of doing this in ring-0.)
      */
-    int rc = drvIntNetRingWriteFrame(pThis->pBuf, &pThis->pBuf->Send, pvBuf, (uint32_t)cb);
-    if (    rc == VERR_BUFFER_OVERFLOW
-        &&  pThis->pBuf->cbSend < cb)
+    PINTNETHDR pHdr = NULL;             /* gcc silliness */
+    if (pGso)
+        rc = IntNetRingAllocateGsoFrame(&pThis->CTX_SUFF(pBuf)->Send, (uint32_t)cbMin, pGso,
+                                        &pHdr, &pSgBuf->aSegs[0].pvSeg);
+    else
+        rc = IntNetRingAllocateFrame(&pThis->CTX_SUFF(pBuf)->Send, (uint32_t)cbMin,
+                                     &pHdr, &pSgBuf->aSegs[0].pvSeg);
+#ifdef IN_RING3
+    if (    RT_FAILURE(rc)
+        &&  pThis->CTX_SUFF(pBuf)->cbSend >= cbMin * 2 + sizeof(INTNETHDR))
     {
-        INTNETIFSENDREQ SendReq;
-        SendReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-        SendReq.Hdr.cbReq = sizeof(SendReq);
-        SendReq.pSession = NIL_RTR0PTR;
-        SendReq.hIf = pThis->hIf;
-        pThis->pDrvIns->pDrvHlp->pfnSUPCallVMMR0Ex(pThis->pDrvIns, VMMR0_DO_INTNET_IF_SEND, &SendReq, sizeof(SendReq));
-
-        rc = drvIntNetRingWriteFrame(pThis->pBuf, &pThis->pBuf->Send, pvBuf, (uint32_t)cb);
+        drvIntNetProcessXmit(pThis);
+        if (pGso)
+            rc = IntNetRingAllocateGsoFrame(&pThis->CTX_SUFF(pBuf)->Send, (uint32_t)cbMin, pGso,
+                                            &pHdr, &pSgBuf->aSegs[0].pvSeg);
+        else
+            rc = IntNetRingAllocateFrame(&pThis->CTX_SUFF(pBuf)->Send, (uint32_t)cbMin,
+                                         &pHdr, &pSgBuf->aSegs[0].pvSeg);
     }
-
+#endif
     if (RT_SUCCESS(rc))
     {
-        INTNETIFSENDREQ SendReq;
-        SendReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-        SendReq.Hdr.cbReq = sizeof(SendReq);
-        SendReq.pSession = NIL_RTR0PTR;
-        SendReq.hIf = pThis->hIf;
-        rc = pThis->pDrvIns->pDrvHlp->pfnSUPCallVMMR0Ex(pThis->pDrvIns, VMMR0_DO_INTNET_IF_SEND, &SendReq, sizeof(SendReq));
+        /*
+         * Set up the S/G descriptor and return successfully.
+         */
+        pSgBuf->fFlags          = PDMSCATTERGATHER_FLAGS_MAGIC | PDMSCATTERGATHER_FLAGS_OWNER_1;
+        pSgBuf->cbUsed          = 0;
+        pSgBuf->cbAvailable     = cbMin;
+        pSgBuf->pvAllocator     = pHdr;
+        pSgBuf->pvUser          = pGso ? (PPDMNETWORKGSO)pSgBuf->aSegs[0].pvSeg - 1 : NULL;
+        pSgBuf->cSegs           = 1;
+        pSgBuf->aSegs[0].cbSeg  = cbMin;
+
+        *ppSgBuf = pSgBuf;
+        return VINF_SUCCESS;
     }
 
-    STAM_PROFILE_STOP(&pThis->StatTransmit, a);
-    AssertRC(rc);
+#ifdef IN_RING3
+    /*
+     * If the above fails, then we're really out of space.  There are nobody
+     * competing with us here because of the xmit lock.
+     */
+    rc = VERR_NO_MEMORY;
+    RTMemCacheFree(pThis->hSgCache, pSgBuf);
+
+#else  /* IN_RING0 */
+    /*
+     * If the request is reasonable, kick the xmit thread and tell it to
+     * process the xmit ring ASAP.
+     */
+    if (pThis->CTX_SUFF(pBuf)->cbSend >= cbMin * 2 + sizeof(INTNETHDR))
+    {
+        pThis->fXmitProcessRing = true;
+        rc = drvIntNetSignalXmit(pThis);
+    }
+    else
+        rc = VERR_NO_MEMORY;
+    pSgBuf->fFlags = 0;
+#endif /* IN_RING0 */
     return rc;
 }
 
 
 /**
- * Set promiscuous mode.
- *
- * This is called when the promiscuous mode is set. This means that there doesn't have
- * to be a mode change when it's called.
- *
- * @param   pInterface      Pointer to the interface structure containing the called function pointer.
- * @param   fPromiscuous    Set if the adaptor is now in promiscuous mode. Clear if it is not.
- * @thread  EMT
+ * @interface_method_impl{PDMINETWORKUP,pfnFreeBuf}
  */
-static DECLCALLBACK(void) drvIntNetSetPromiscuousMode(PPDMINETWORKCONNECTOR pInterface, bool fPromiscuous)
+PDMBOTHCBDECL(int) drvIntNetUp_FreeBuf(PPDMINETWORKUP pInterface, PPDMSCATTERGATHER pSgBuf)
 {
-    PDRVINTNET pThis = PDMINETWORKCONNECTOR_2_DRVINTNET(pInterface);
+    PDRVINTNET  pThis = RT_FROM_MEMBER(pInterface, DRVINTNET, CTX_SUFF(INetworkUp));
+    PINTNETHDR  pHdr  = (PINTNETHDR)pSgBuf->pvAllocator;
+#ifdef IN_RING0
+    Assert(pSgBuf == &pThis->u.Sg);
+#endif
+    Assert(pSgBuf->fFlags == (PDMSCATTERGATHER_FLAGS_MAGIC | PDMSCATTERGATHER_FLAGS_OWNER_1));
+    Assert(pSgBuf->cbUsed <= pSgBuf->cbAvailable);
+    Assert(   pHdr->u16Type == INTNETHDR_TYPE_FRAME
+           || pHdr->u16Type == INTNETHDR_TYPE_GSO);
+    Assert(PDMCritSectIsOwner(&pThis->XmitLock));
+
+    /** @todo LATER: try unalloc the frame. */
+    pHdr->u16Type = INTNETHDR_TYPE_PADDING;
+    IntNetRingCommitFrame(&pThis->CTX_SUFF(pBuf)->Send, pHdr);
+
+#ifdef IN_RING3
+    RTMemCacheFree(pThis->hSgCache, pSgBuf);
+#else
+    pSgBuf->fFlags = 0;
+#endif
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @interface_method_impl{PDMINETWORKUP,pfnSendBuf}
+ */
+PDMBOTHCBDECL(int) drvIntNetUp_SendBuf(PPDMINETWORKUP pInterface, PPDMSCATTERGATHER pSgBuf, bool fOnWorkerThread)
+{
+    PDRVINTNET  pThis = RT_FROM_MEMBER(pInterface, DRVINTNET, CTX_SUFF(INetworkUp));
+    STAM_PROFILE_START(&pThis->StatTransmit, a);
+
+    AssertPtr(pSgBuf);
+    Assert(pSgBuf->fFlags == (PDMSCATTERGATHER_FLAGS_MAGIC | PDMSCATTERGATHER_FLAGS_OWNER_1));
+    Assert(pSgBuf->cbUsed <= pSgBuf->cbAvailable);
+    Assert(PDMCritSectIsOwner(&pThis->XmitLock));
+
+    if (pSgBuf->pvUser)
+        STAM_COUNTER_INC(&pThis->StatSentGso);
+
+    /*
+     * Commit the frame and push it thru the switch.
+     */
+    PINTNETHDR pHdr = (PINTNETHDR)pSgBuf->pvAllocator;
+    IntNetRingCommitFrameEx(&pThis->CTX_SUFF(pBuf)->Send, pHdr, pSgBuf->cbUsed);
+    int rc = drvIntNetProcessXmit(pThis);
+    STAM_PROFILE_STOP(&pThis->StatTransmit, a);
+
+    /*
+     * Free the descriptor and return.
+     */
+#ifdef IN_RING3
+    RTMemCacheFree(pThis->hSgCache, pSgBuf);
+#else
+    STAM_REL_COUNTER_INC(&pThis->StatSentR0);
+    pSgBuf->fFlags = 0;
+#endif
+    return rc;
+}
+
+
+/**
+ * @interface_method_impl{PDMINETWORKUP,pfnEndXmit}
+ */
+PDMBOTHCBDECL(void) drvIntNetUp_EndXmit(PPDMINETWORKUP pInterface)
+{
+    PDRVINTNET pThis = RT_FROM_MEMBER(pInterface, DRVINTNET, CTX_SUFF(INetworkUp));
+    ASMAtomicUoWriteBool(&pThis->fXmitOnXmitThread, false);
+    PDMCritSectLeave(&pThis->XmitLock);
+}
+
+
+/**
+ * @interface_method_impl{PDMINETWORKUP,pfnSetPromiscuousMode}
+ */
+PDMBOTHCBDECL(void) drvIntNetUp_SetPromiscuousMode(PPDMINETWORKUP pInterface, bool fPromiscuous)
+{
+    PDRVINTNET pThis = RT_FROM_MEMBER(pInterface, DRVINTNET, CTX_SUFF(INetworkUp));
+
+#ifdef IN_RING3
     INTNETIFSETPROMISCUOUSMODEREQ Req;
     Req.Hdr.u32Magic    = SUPVMMR0REQHDR_MAGIC;
     Req.Hdr.cbReq       = sizeof(Req);
     Req.pSession        = NIL_RTR0PTR;
     Req.hIf             = pThis->hIf;
     Req.fPromiscuous    = fPromiscuous;
-    int rc = pThis->pDrvIns->pDrvHlp->pfnSUPCallVMMR0Ex(pThis->pDrvIns, VMMR0_DO_INTNET_IF_SET_PROMISCUOUS_MODE, &Req, sizeof(Req));
-    LogFlow(("drvIntNetSetPromiscuousMode: fPromiscuous=%RTbool\n", fPromiscuous));
+    int rc = PDMDrvHlpSUPCallVMMR0Ex(pThis->pDrvInsR3, VMMR0_DO_INTNET_IF_SET_PROMISCUOUS_MODE, &Req, sizeof(Req));
+#else  /* IN_RING0 */
+    int rc = IntNetR0IfSetPromiscuousMode(pThis->hIf, pThis->pSupDrvSession, fPromiscuous);
+#endif /* IN_RING0 */
+
+    LogFlow(("drvIntNetUp_SetPromiscuousMode: fPromiscuous=%RTbool\n", fPromiscuous));
     AssertRC(rc);
 }
 
+#ifdef IN_RING3
 
 /**
- * Notification on link status changes.
- *
- * @param   pInterface      Pointer to the interface structure containing the called function pointer.
- * @param   enmLinkState    The new link state.
- * @thread  EMT
+ * @interface_method_impl{PDMINETWORKUP,pfnNotifyLinkChanged}
  */
-static DECLCALLBACK(void) drvIntNetNotifyLinkChanged(PPDMINETWORKCONNECTOR pInterface, PDMNETWORKLINKSTATE enmLinkState)
+static DECLCALLBACK(void) drvR3IntNetUp_NotifyLinkChanged(PPDMINETWORKUP pInterface, PDMNETWORKLINKSTATE enmLinkState)
 {
-    PDRVINTNET pThis = PDMINETWORKCONNECTOR_2_DRVINTNET(pInterface);
+    PDRVINTNET pThis = RT_FROM_MEMBER(pInterface, DRVINTNET, CTX_SUFF(INetworkUp));
     bool fLinkDown;
     switch (enmLinkState)
     {
@@ -367,10 +555,77 @@ static DECLCALLBACK(void) drvIntNetNotifyLinkChanged(PPDMINETWORKCONNECTOR pInte
             fLinkDown = false;
             break;
     }
-    LogFlow(("drvIntNetNotifyLinkChanged: enmLinkState=%d %d->%d\n", enmLinkState, pThis->fLinkDown, fLinkDown));
+    LogFlow(("drvR3IntNetUp_NotifyLinkChanged: enmLinkState=%d %d->%d\n", enmLinkState, pThis->fLinkDown, fLinkDown));
     ASMAtomicXchgSize(&pThis->fLinkDown, fLinkDown);
 }
 
+
+/* -=-=-=-=- Transmit Thread -=-=-=-=- */
+
+/**
+ * Async I/O thread for defered packet transmission.
+ *
+ * @returns VBox status code. Returning failure will naturally terminate the thread.
+ * @param   pDrvIns     The internal networking driver instance.
+ * @param   pThread     The thread.
+ */
+static DECLCALLBACK(int) drvR3IntNetXmitThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+{
+    PDRVINTNET pThis = PDMINS_2_DATA(pDrvIns, PDRVINTNET);
+
+    while (pThread->enmState == PDMTHREADSTATE_RUNNING)
+    {
+        /*
+         * Transmit any pending packets.
+         */
+        /** @todo Optimize this. We shouldn't call pfnXmitPending unless asked for.
+         *        Also there is no need to call drvIntNetProcessXmit if we also
+         *        called pfnXmitPending and send one or more frames. */
+        if (ASMAtomicXchgBool(&pThis->fXmitProcessRing, false))
+        {
+            STAM_REL_COUNTER_INC(&pThis->StatXmitProcessRing);
+            PDMCritSectEnter(&pThis->XmitLock, VERR_IGNORED);
+            drvIntNetProcessXmit(pThis);
+            PDMCritSectLeave(&pThis->XmitLock);
+        }
+
+        pThis->pIAboveNet->pfnXmitPending(pThis->pIAboveNet);
+
+        if (ASMAtomicXchgBool(&pThis->fXmitProcessRing, false))
+        {
+            STAM_REL_COUNTER_INC(&pThis->StatXmitProcessRing);
+            PDMCritSectEnter(&pThis->XmitLock, VERR_IGNORED);
+            drvIntNetProcessXmit(pThis);
+            PDMCritSectLeave(&pThis->XmitLock);
+        }
+
+        /*
+         * Block until we've got something to send or is supposed
+         * to leave the running state.
+         */
+        int rc = SUPSemEventWaitNoResume(pThis->pSupDrvSession, pThis->hXmitEvt, RT_INDEFINITE_WAIT);
+        AssertLogRelMsgReturn(RT_SUCCESS(rc) || rc == VERR_INTERRUPTED, ("%Rrc\n", rc), rc);
+        if (RT_UNLIKELY(pThread->enmState != PDMTHREADSTATE_RUNNING))
+            break;
+
+   }
+
+    /* The thread is being initialized, suspended or terminated. */
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @copydoc FNPDMTHREADWAKEUPDRV
+ */
+static DECLCALLBACK(int) drvR3IntNetXmitWakeUp(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+{
+    PDRVINTNET pThis = PDMINS_2_DATA(pDrvIns, PDRVINTNET);
+    return SUPSemEventSignal(pThis->pSupDrvSession, pThis->hXmitEvt);
+}
+
+
+/* -=-=-=-=- Receive Thread -=-=-=-=- */
 
 /**
  * Wait for space to become available up the driver/device chain.
@@ -380,13 +635,13 @@ static DECLCALLBACK(void) drvIntNetNotifyLinkChanged(PPDMINETWORKCONNECTOR pInte
  * @returns VBox status code on other errors.
  * @param   pThis       Pointer to the instance data.
  */
-static int drvIntNetAsyncIoWaitForSpace(PDRVINTNET pThis)
+static int drvR3IntNetRecvWaitForSpace(PDRVINTNET pThis)
 {
-    LogFlow(("drvIntNetAsyncIoWaitForSpace:\n"));
+    LogFlow(("drvR3IntNetRecvWaitForSpace:\n"));
     STAM_PROFILE_ADV_STOP(&pThis->StatReceive, a);
-    int rc = pThis->pPort->pfnWaitReceiveAvail(pThis->pPort, RT_INDEFINITE_WAIT);
+    int rc = pThis->pIAboveNet->pfnWaitReceiveAvail(pThis->pIAboveNet, RT_INDEFINITE_WAIT);
     STAM_PROFILE_ADV_START(&pThis->StatReceive, a);
-    LogFlow(("drvIntNetAsyncIoWaitForSpace: returns %Rrc\n", rc));
+    LogFlow(("drvR3IntNetRecvWaitForSpace: returns %Rrc\n", rc));
     return rc;
 }
 
@@ -398,67 +653,131 @@ static int drvIntNetAsyncIoWaitForSpace(PDRVINTNET pThis)
  * @returns Appropriate VBox status code (error) on fatal error.
  * @param   pThis       The driver instance data.
  */
-static int drvIntNetAsyncIoRun(PDRVINTNET pThis)
+static int drvR3IntNetRecvRun(PDRVINTNET pThis)
 {
-    PPDMDRVINS pDrvIns = pThis->pDrvIns;
-    LogFlow(("drvIntNetAsyncIoRun: pThis=%p\n", pThis));
+    PPDMDRVINS pDrvIns = pThis->pDrvInsR3;
+    LogFlow(("drvR3IntNetRecvRun: pThis=%p\n", pThis));
 
     /*
      * The running loop - processing received data and waiting for more to arrive.
      */
     STAM_PROFILE_ADV_START(&pThis->StatReceive, a);
-    PINTNETBUF      pBuf     = pThis->pBuf;
-    PINTNETRINGBUF  pRingBuf = &pThis->pBuf->Recv;
+    PINTNETBUF      pBuf     = pThis->CTX_SUFF(pBuf);
+    PINTNETRINGBUF  pRingBuf = &pBuf->Recv;
     for (;;)
     {
         /*
          * Process the receive buffer.
          */
-        while (INTNETRingGetReadable(pRingBuf) > 0)
+        PINTNETHDR pHdr;
+        while ((pHdr = IntNetRingGetNextFrameToRead(pRingBuf)) != NULL)
         {
             /*
              * Check the state and then inspect the packet.
              */
-            if (pThis->enmState != ASYNCSTATE_RUNNING)
+            if (pThis->enmRecvState != RECVSTATE_RUNNING)
             {
                 STAM_PROFILE_ADV_STOP(&pThis->StatReceive, a);
-                LogFlow(("drvIntNetAsyncIoRun: returns VERR_STATE_CHANGED (state changed - #0)\n"));
+                LogFlow(("drvR3IntNetRecvRun: returns VERR_STATE_CHANGED (state changed - #0)\n"));
                 return VERR_STATE_CHANGED;
             }
 
-            PINTNETHDR pHdr = (PINTNETHDR)((uintptr_t)pBuf + pRingBuf->offRead);
-            Log2(("pHdr=%p offRead=%#x: %.8Rhxs\n", pHdr, pRingBuf->offRead, pHdr));
-            if (    pHdr->u16Type == INTNETHDR_TYPE_FRAME
+            Log2(("pHdr=%p offRead=%#x: %.8Rhxs\n", pHdr, pRingBuf->offReadX, pHdr));
+            uint16_t u16Type = pHdr->u16Type;
+            if (    (   u16Type == INTNETHDR_TYPE_FRAME
+                     || u16Type == INTNETHDR_TYPE_GSO)
                 &&  !pThis->fLinkDown)
             {
                 /*
                  * Check if there is room for the frame and pass it up.
                  */
                 size_t cbFrame = pHdr->cbFrame;
-                int rc = pThis->pPort->pfnWaitReceiveAvail(pThis->pPort, 0);
+                int rc = pThis->pIAboveNet->pfnWaitReceiveAvail(pThis->pIAboveNet, 0);
                 if (rc == VINF_SUCCESS)
                 {
+                    if (u16Type == INTNETHDR_TYPE_FRAME)
+                    {
+                        /*
+                         * Normal frame.
+                         */
 #ifdef LOG_ENABLED
-                    uint64_t u64Now = RTTimeProgramNanoTS();
-                    LogFlow(("drvIntNetAsyncIoRun: %-4d bytes at %llu ns  deltas: r=%llu t=%llu\n",
-                             cbFrame, u64Now, u64Now - pThis->u64LastReceiveTS, u64Now - pThis->u64LastTransferTS));
-                    pThis->u64LastReceiveTS = u64Now;
-                    Log2(("drvIntNetAsyncIoRun: cbFrame=%#x\n"
-                          "%.*Rhxd\n",
-                          cbFrame, cbFrame, INTNETHdrGetFramePtr(pHdr, pBuf)));
+                        if (LogIsEnabled())
+                        {
+                            uint64_t u64Now = RTTimeProgramNanoTS();
+                            LogFlow(("drvR3IntNetRecvRun: %-4d bytes at %llu ns  deltas: r=%llu t=%llu\n",
+                                     cbFrame, u64Now, u64Now - pThis->u64LastReceiveTS, u64Now - pThis->u64LastTransferTS));
+                            pThis->u64LastReceiveTS = u64Now;
+                            Log2(("drvR3IntNetRecvRun: cbFrame=%#x\n"
+                                  "%.*Rhxd\n",
+                                  cbFrame, cbFrame, IntNetHdrGetFramePtr(pHdr, pBuf)));
+                        }
 #endif
-                    int rc = pThis->pPort->pfnReceive(pThis->pPort, INTNETHdrGetFramePtr(pHdr, pBuf), cbFrame);
-                    AssertRC(rc);
+                        rc = pThis->pIAboveNet->pfnReceive(pThis->pIAboveNet, IntNetHdrGetFramePtr(pHdr, pBuf), cbFrame);
+                        AssertRC(rc);
 
-                    /* skip to the next frame. */
-                    INTNETRingSkipFrame(pBuf, pRingBuf);
+                        /* skip to the next frame. */
+                        IntNetRingSkipFrame(pRingBuf);
+                    }
+                    else
+                    {
+                        /*
+                         * Generic segment offload frame (INTNETHDR_TYPE_GSO).
+                         *
+                         * This is where we do the offloading since we don't
+                         * emulate any NICs with large receive offload (LRO).
+                         */
+                        STAM_COUNTER_INC(&pThis->StatReceivedGso);
+                        PCPDMNETWORKGSO pGso = IntNetHdrGetGsoContext(pHdr, pBuf);
+                        if (PDMNetGsoIsValid(pGso, cbFrame, cbFrame - sizeof(PDMNETWORKGSO)))
+                        {
+                            cbFrame -= sizeof(PDMNETWORKGSO);
+
+                            uint8_t         abHdrScratch[256];
+                            uint32_t const  cSegs = PDMNetGsoCalcSegmentCount(pGso, cbFrame);
+#ifdef LOG_ENABLED
+                            if (LogIsEnabled())
+                            {
+                                uint64_t u64Now = RTTimeProgramNanoTS();
+                                LogFlow(("drvR3IntNetRecvRun: %-4d bytes at %llu ns  deltas: r=%llu t=%llu; GSO - %u segs\n",
+                                         cbFrame, u64Now, u64Now - pThis->u64LastReceiveTS, u64Now - pThis->u64LastTransferTS, cSegs));
+                                pThis->u64LastReceiveTS = u64Now;
+                                Log2(("drvR3IntNetRecvRun: cbFrame=%#x type=%d cbHdrs=%#x Hdr1=%#x Hdr2=%#x MMS=%#x\n"
+                                      "%.*Rhxd\n",
+                                      cbFrame, pGso->u8Type, pGso->cbHdrs, pGso->offHdr1, pGso->offHdr2, pGso->cbMaxSeg,
+                                      cbFrame - sizeof(*pGso), pGso + 1));
+                            }
+#endif
+                            for (size_t iSeg = 0; iSeg < cSegs; iSeg++)
+                            {
+                                uint32_t cbSegFrame;
+                                void    *pvSegFrame = PDMNetGsoCarveSegmentQD(pGso, (uint8_t *)(pGso + 1), cbFrame, abHdrScratch,
+                                                                              iSeg, cSegs, &cbSegFrame);
+                                rc = drvR3IntNetRecvWaitForSpace(pThis);
+                                if (RT_FAILURE(rc))
+                                {
+                                    Log(("drvR3IntNetRecvRun: drvR3IntNetRecvWaitForSpace -> %Rrc; iSeg=%u cSegs=%u\n", iSeg, cSegs));
+                                    break; /* we drop the rest. */
+                                }
+                                rc = pThis->pIAboveNet->pfnReceive(pThis->pIAboveNet, pvSegFrame, cbSegFrame);
+                                AssertRC(rc);
+                            }
+                        }
+                        else
+                        {
+                            AssertMsgFailed(("cbFrame=%#x type=%d cbHdrs=%#x Hdr1=%#x Hdr2=%#x MMS=%#x\n",
+                                             cbFrame, pGso->u8Type, pGso->cbHdrs, pGso->offHdr1, pGso->offHdr2, pGso->cbMaxSeg));
+                            STAM_REL_COUNTER_INC(&pBuf->cStatBadFrames);
+                        }
+
+                        IntNetRingSkipFrame(pRingBuf);
+                    }
                 }
                 else
                 {
                     /*
                      * Wait for sufficient space to become available and then retry.
                      */
-                    rc = drvIntNetAsyncIoWaitForSpace(pThis);
+                    rc = drvR3IntNetRecvWaitForSpace(pThis);
                     if (RT_FAILURE(rc))
                     {
                         if (rc == VERR_INTERRUPTED)
@@ -466,14 +785,13 @@ static int drvIntNetAsyncIoRun(PDRVINTNET pThis)
                             /*
                              * NIC is going down, likely because the VM is being reset. Skip the frame.
                              */
-                            AssertMsg(pHdr->u16Type == INTNETHDR_TYPE_FRAME, ("Unknown frame type %RX16! offRead=%#x\n",
-                                                                              pHdr->u16Type, pRingBuf->offRead));
-                            INTNETRingSkipFrame(pBuf, pRingBuf);
+                            AssertMsg(IntNetIsValidFrameType(pHdr->u16Type), ("Unknown frame type %RX16! offRead=%#x\n", pHdr->u16Type, pRingBuf->offReadX));
+                            IntNetRingSkipFrame(pRingBuf);
                         }
                         else
                         {
                             STAM_PROFILE_ADV_STOP(&pThis->StatReceive, a);
-                            LogFlow(("drvIntNetAsyncIoRun: returns %Rrc (wait-for-space)\n", rc));
+                            LogFlow(("drvR3IntNetRecvRun: returns %Rrc (wait-for-space)\n", rc));
                             return rc;
                         }
                     }
@@ -484,19 +802,19 @@ static int drvIntNetAsyncIoRun(PDRVINTNET pThis)
                 /*
                  * Link down or unknown frame - skip to the next frame.
                  */
-                AssertMsg(pHdr->u16Type == INTNETHDR_TYPE_FRAME, ("Unknown frame type %RX16! offRead=%#x\n",
-                                                                  pHdr->u16Type, pRingBuf->offRead));
-                INTNETRingSkipFrame(pBuf, pRingBuf);
+                AssertMsg(IntNetIsValidFrameType(pHdr->u16Type), ("Unknown frame type %RX16! offRead=%#x\n", pHdr->u16Type, pRingBuf->offReadX));
+                IntNetRingSkipFrame(pRingBuf);
+                STAM_REL_COUNTER_INC(&pBuf->cStatBadFrames);
             }
         } /* while more received data */
 
         /*
          * Wait for data, checking the state before we block.
          */
-        if (pThis->enmState != ASYNCSTATE_RUNNING)
+        if (pThis->enmRecvState != RECVSTATE_RUNNING)
         {
             STAM_PROFILE_ADV_STOP(&pThis->StatReceive, a);
-            LogFlow(("drvIntNetAsyncIoRun: returns VINF_SUCCESS (state changed - #1)\n"));
+            LogFlow(("drvR3IntNetRecvRun: returns VINF_SUCCESS (state changed - #1)\n"));
             return VERR_STATE_CHANGED;
         }
         INTNETIFWAITREQ WaitReq;
@@ -506,12 +824,12 @@ static int drvIntNetAsyncIoRun(PDRVINTNET pThis)
         WaitReq.hIf          = pThis->hIf;
         WaitReq.cMillies     = 30000; /* 30s - don't wait forever, timeout now and then. */
         STAM_PROFILE_ADV_STOP(&pThis->StatReceive, a);
-        int rc = pDrvIns->pDrvHlp->pfnSUPCallVMMR0Ex(pDrvIns, VMMR0_DO_INTNET_IF_WAIT, &WaitReq, sizeof(WaitReq));
+        int rc = PDMDrvHlpSUPCallVMMR0Ex(pDrvIns, VMMR0_DO_INTNET_IF_WAIT, &WaitReq, sizeof(WaitReq));
         if (    RT_FAILURE(rc)
             &&  rc != VERR_TIMEOUT
             &&  rc != VERR_INTERRUPTED)
         {
-            LogFlow(("drvIntNetAsyncIoRun: returns %Rrc\n", rc));
+            LogFlow(("drvR3IntNetRecvRun: returns %Rrc\n", rc));
             return rc;
         }
         STAM_PROFILE_ADV_START(&pThis->StatReceive, a);
@@ -526,10 +844,10 @@ static int drvIntNetAsyncIoRun(PDRVINTNET pThis)
  * @param   ThreadSelf      Thread handle.
  * @param   pvUser          Pointer to a DRVINTNET structure.
  */
-static DECLCALLBACK(int) drvIntNetAsyncIoThread(RTTHREAD ThreadSelf, void *pvUser)
+static DECLCALLBACK(int) drvR3IntNetRecvThread(RTTHREAD ThreadSelf, void *pvUser)
 {
     PDRVINTNET pThis = (PDRVINTNET)pvUser;
-    LogFlow(("drvIntNetAsyncIoThread: pThis=%p\n", pThis));
+    LogFlow(("drvR3IntNetRecvThread: pThis=%p\n", pThis));
     STAM_PROFILE_ADV_START(&pThis->StatReceive, a);
 
     /*
@@ -537,82 +855,145 @@ static DECLCALLBACK(int) drvIntNetAsyncIoThread(RTTHREAD ThreadSelf, void *pvUse
      */
     for (;;)
     {
-        ASYNCSTATE enmState = pThis->enmState;
-        switch (enmState)
+        RECVSTATE enmRecvState = pThis->enmRecvState;
+        switch (enmRecvState)
         {
-            case ASYNCSTATE_SUSPENDED:
+            case RECVSTATE_SUSPENDED:
             {
-                int rc = RTSemEventWait(pThis->EventSuspended, 30000);
+                int rc = RTSemEventWait(pThis->hRecvEvt, 30000);
                 if (    RT_FAILURE(rc)
                     &&  rc != VERR_TIMEOUT)
                 {
-                    LogFlow(("drvIntNetAsyncIoThread: returns %Rrc\n", rc));
+                    LogFlow(("drvR3IntNetRecvThread: returns %Rrc\n", rc));
                     return rc;
                 }
                 break;
             }
 
-            case ASYNCSTATE_RUNNING:
+            case RECVSTATE_RUNNING:
             {
-                int rc = drvIntNetAsyncIoRun(pThis);
+                int rc = drvR3IntNetRecvRun(pThis);
                 if (    rc != VERR_STATE_CHANGED
                     &&  RT_FAILURE(rc))
                 {
-                    LogFlow(("drvIntNetAsyncIoThread: returns %Rrc\n", rc));
+                    LogFlow(("drvR3IntNetRecvThread: returns %Rrc\n", rc));
                     return rc;
                 }
                 break;
             }
 
             default:
-                AssertMsgFailed(("Invalid state %d\n", enmState));
-            case ASYNCSTATE_TERMINATE:
-                LogFlow(("drvIntNetAsyncIoThread: returns VINF_SUCCESS\n"));
+                AssertMsgFailed(("Invalid state %d\n", enmRecvState));
+            case RECVSTATE_TERMINATE:
+                LogFlow(("drvR3IntNetRecvThread: returns VINF_SUCCESS\n"));
                 return VINF_SUCCESS;
         }
     }
 }
 
 
+/* -=-=-=-=- PDMIBASERC -=-=-=-=- */
+
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the driver.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
- * @thread  Any thread.
+ * @interface_method_impl{PDMIBASERC,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) drvIntNetQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(RTRCPTR) drvR3IntNetIBaseRC_QueryInterface(PPDMIBASERC pInterface, const char *pszIID)
 {
-    PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVINTNET pThis = PDMINS_2_DATA(pDrvIns, PDRVINTNET);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pDrvIns->IBase;
-        case PDMINTERFACE_NETWORK_CONNECTOR:
-            return &pThis->INetworkConnector;
-        default:
-            return NULL;
-    }
+    PDRVINTNET pThis = RT_FROM_MEMBER(pInterface, DRVINTNET, IBaseRC);
+
+#if 0
+    PDMIBASERC_RETURN_INTERFACE(pThis->pDrvInsR3, pszIID, PDMINETWORKUP, &pThis->INetworkUpRC);
+#endif
+    return NIL_RTRCPTR;
 }
 
+
+/* -=-=-=-=- PDMIBASER0 -=-=-=-=- */
+
+/**
+ * @interface_method_impl{PDMIBASER0,pfnQueryInterface}
+ */
+static DECLCALLBACK(RTR0PTR) drvR3IntNetIBaseR0_QueryInterface(PPDMIBASER0 pInterface, const char *pszIID)
+{
+    PDRVINTNET pThis = RT_FROM_MEMBER(pInterface, DRVINTNET, IBaseR0);
+#ifdef VBOX_WITH_DRVINTNET_IN_R0
+    PDMIBASER0_RETURN_INTERFACE(pThis->pDrvInsR3, pszIID, PDMINETWORKUP, &pThis->INetworkUpR0);
+#endif
+    return NIL_RTR0PTR;
+}
+
+
+/* -=-=-=-=- PDMIBASE -=-=-=-=- */
+
+/**
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
+ */
+static DECLCALLBACK(void *) drvR3IntNetIBase_QueryInterface(PPDMIBASE pInterface, const char *pszIID)
+{
+    PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
+    PDRVINTNET pThis   = PDMINS_2_DATA(pDrvIns, PDRVINTNET);
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASER0, &pThis->IBaseR0);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASERC, &pThis->IBaseRC);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMINETWORKUP, &pThis->INetworkUpR3);
+    return NULL;
+}
+
+
+/* -=-=-=-=- PDMDRVREG -=-=-=-=- */
 
 /**
  * Power Off notification.
  *
  * @param   pDrvIns     The driver instance.
  */
-static DECLCALLBACK(void) drvIntNetPowerOff(PPDMDRVINS pDrvIns)
+static DECLCALLBACK(void) drvR3IntNetPowerOff(PPDMDRVINS pDrvIns)
 {
-    LogFlow(("drvIntNetPowerOff\n"));
+    LogFlow(("drvR3IntNetPowerOff\n"));
     PDRVINTNET pThis = PDMINS_2_DATA(pDrvIns, PDRVINTNET);
     if (!pThis->fActivateEarlyDeactivateLate)
     {
-        ASMAtomicXchgSize(&pThis->enmState, ASYNCSTATE_SUSPENDED);
-        drvIntNetSetActive(pThis, false /* fActive */);
+        ASMAtomicXchgSize(&pThis->enmRecvState, RECVSTATE_SUSPENDED);
+        drvR3IntNetSetActive(pThis, false /* fActive */);
     }
+}
+
+
+/**
+ * drvR3IntNetResume helper.
+ */
+static int drvR3IntNetResumeSend(PDRVINTNET pThis, const void *pvBuf, size_t cb)
+{
+    /*
+     * Add the frame to the send buffer and push it onto the network.
+     */
+    int rc = IntNetRingWriteFrame(&pThis->pBufR3->Send, pvBuf, (uint32_t)cb);
+    if (    rc == VERR_BUFFER_OVERFLOW
+        &&  pThis->pBufR3->cbSend < cb)
+    {
+        INTNETIFSENDREQ SendReq;
+        SendReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+        SendReq.Hdr.cbReq = sizeof(SendReq);
+        SendReq.pSession = NIL_RTR0PTR;
+        SendReq.hIf = pThis->hIf;
+        PDMDrvHlpSUPCallVMMR0Ex(pThis->pDrvInsR3, VMMR0_DO_INTNET_IF_SEND, &SendReq, sizeof(SendReq));
+
+        rc = IntNetRingWriteFrame(&pThis->pBufR3->Send, pvBuf, (uint32_t)cb);
+    }
+
+    if (RT_SUCCESS(rc))
+    {
+        INTNETIFSENDREQ SendReq;
+        SendReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+        SendReq.Hdr.cbReq = sizeof(SendReq);
+        SendReq.pSession = NIL_RTR0PTR;
+        SendReq.hIf = pThis->hIf;
+        rc = PDMDrvHlpSUPCallVMMR0Ex(pThis->pDrvInsR3, VMMR0_DO_INTNET_IF_SEND, &SendReq, sizeof(SendReq));
+    }
+
+    AssertRC(rc);
+    return rc;
 }
 
 
@@ -621,19 +1002,19 @@ static DECLCALLBACK(void) drvIntNetPowerOff(PPDMDRVINS pDrvIns)
  *
  * @param   pDrvIns     The driver instance.
  */
-static DECLCALLBACK(void) drvIntNetResume(PPDMDRVINS pDrvIns)
+static DECLCALLBACK(void) drvR3IntNetResume(PPDMDRVINS pDrvIns)
 {
-    LogFlow(("drvIntNetPowerResume\n"));
+    LogFlow(("drvR3IntNetPowerResume\n"));
     PDRVINTNET pThis = PDMINS_2_DATA(pDrvIns, PDRVINTNET);
     if (!pThis->fActivateEarlyDeactivateLate)
     {
-        ASMAtomicXchgSize(&pThis->enmState, ASYNCSTATE_RUNNING);
-        RTSemEventSignal(pThis->EventSuspended);
-        drvIntNetUpdateMacAddress(pThis); /* (could be a state restore) */
-        drvIntNetSetActive(pThis, true /* fActive */);
+        ASMAtomicXchgSize(&pThis->enmRecvState, RECVSTATE_RUNNING);
+        RTSemEventSignal(pThis->hRecvEvt);
+        drvR3IntNetUpdateMacAddress(pThis); /* (could be a state restore) */
+        drvR3IntNetSetActive(pThis, true /* fActive */);
     }
     if (   PDMDrvHlpVMTeleportedAndNotFullyResumedYet(pDrvIns)
-        && pThis->pConfigIf)
+        && pThis->pIAboveConfigR3)
     {
         /*
          * We've just been teleported and need to drop a hint to the switch
@@ -651,10 +1032,10 @@ static DECLCALLBACK(void) drvIntNetResume(PPDMDRVINS pDrvIns)
         Frame.Hdr.DstMac.au16[0] = 0xffff;
         Frame.Hdr.DstMac.au16[1] = 0xffff;
         Frame.Hdr.DstMac.au16[2] = 0xffff;
-        Frame.Hdr.EtherType      = RT_H2BE_U16(0x801e);
-        int rc = pThis->pConfigIf->pfnGetMac(pThis->pConfigIf, &Frame.Hdr.SrcMac);
+        Frame.Hdr.EtherType      = RT_H2BE_U16_C(0x801e);
+        int rc = pThis->pIAboveConfigR3->pfnGetMac(pThis->pIAboveConfigR3, &Frame.Hdr.SrcMac);
         if (RT_SUCCESS(rc))
-            rc = drvIntNetSend(&pThis->INetworkConnector, &Frame, sizeof(Frame));
+            rc = drvR3IntNetResumeSend(pThis, &Frame, sizeof(Frame));
         if (RT_FAILURE(rc))
             LogRel(("IntNet#%u: Sending dummy frame failed: %Rrc\n", pDrvIns->iInstance, rc));
     }
@@ -666,14 +1047,14 @@ static DECLCALLBACK(void) drvIntNetResume(PPDMDRVINS pDrvIns)
  *
  * @param   pDrvIns     The driver instance.
  */
-static DECLCALLBACK(void) drvIntNetSuspend(PPDMDRVINS pDrvIns)
+static DECLCALLBACK(void) drvR3IntNetSuspend(PPDMDRVINS pDrvIns)
 {
-    LogFlow(("drvIntNetPowerSuspend\n"));
+    LogFlow(("drvR3IntNetPowerSuspend\n"));
     PDRVINTNET pThis = PDMINS_2_DATA(pDrvIns, PDRVINTNET);
     if (!pThis->fActivateEarlyDeactivateLate)
     {
-        ASMAtomicXchgSize(&pThis->enmState, ASYNCSTATE_SUSPENDED);
-        drvIntNetSetActive(pThis, false /* fActive */);
+        ASMAtomicXchgSize(&pThis->enmRecvState, RECVSTATE_SUSPENDED);
+        drvR3IntNetSetActive(pThis, false /* fActive */);
     }
 }
 
@@ -683,17 +1064,26 @@ static DECLCALLBACK(void) drvIntNetSuspend(PPDMDRVINS pDrvIns)
  *
  * @param   pDrvIns     The driver instance.
  */
-static DECLCALLBACK(void) drvIntNetPowerOn(PPDMDRVINS pDrvIns)
+static DECLCALLBACK(void) drvR3IntNetPowerOn(PPDMDRVINS pDrvIns)
 {
-    LogFlow(("drvIntNetPowerOn\n"));
+    LogFlow(("drvR3IntNetPowerOn\n"));
     PDRVINTNET pThis = PDMINS_2_DATA(pDrvIns, PDRVINTNET);
     if (!pThis->fActivateEarlyDeactivateLate)
     {
-        ASMAtomicXchgSize(&pThis->enmState, ASYNCSTATE_RUNNING);
-        RTSemEventSignal(pThis->EventSuspended);
-        drvIntNetUpdateMacAddress(pThis);
-        drvIntNetSetActive(pThis, true /* fActive */);
+        ASMAtomicXchgSize(&pThis->enmRecvState, RECVSTATE_RUNNING);
+        RTSemEventSignal(pThis->hRecvEvt);
+        drvR3IntNetUpdateMacAddress(pThis);
+        drvR3IntNetSetActive(pThis, true /* fActive */);
     }
+}
+
+
+/**
+ * @interface_method_impl{PDMDRVREG,pfnRelocate}
+ */
+static DECLCALLBACK(void) drvR3IntNetRelocate(PPDMDRVINS pDrvIns, RTGCINTPTR offDelta)
+{
+    /* nothing to do here yet */
 }
 
 
@@ -705,18 +1095,19 @@ static DECLCALLBACK(void) drvIntNetPowerOn(PPDMDRVINS pDrvIns)
  *
  * @param   pDrvIns     The driver instance data.
  */
-static DECLCALLBACK(void) drvIntNetDestruct(PPDMDRVINS pDrvIns)
+static DECLCALLBACK(void) drvR3IntNetDestruct(PPDMDRVINS pDrvIns)
 {
-    LogFlow(("drvIntNetDestruct\n"));
+    LogFlow(("drvR3IntNetDestruct\n"));
     PDRVINTNET pThis = PDMINS_2_DATA(pDrvIns, PDRVINTNET);
+    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
 
     /*
      * Indicate to the thread that it's time to quit.
      */
-    ASMAtomicXchgSize(&pThis->enmState, ASYNCSTATE_TERMINATE);
+    ASMAtomicXchgSize(&pThis->enmRecvState, RECVSTATE_TERMINATE);
     ASMAtomicXchgSize(&pThis->fLinkDown, true);
-    RTSEMEVENT EventSuspended = pThis->EventSuspended;
-    pThis->EventSuspended = NIL_RTSEMEVENT;
+    RTSEMEVENT hRecvEvt = pThis->hRecvEvt;
+    pThis->hRecvEvt = NIL_RTSEMEVENT;
 
     /*
      * Close the interface
@@ -729,39 +1120,66 @@ static DECLCALLBACK(void) drvIntNetDestruct(PPDMDRVINS pDrvIns)
         CloseReq.pSession = NIL_RTR0PTR;
         CloseReq.hIf = pThis->hIf;
         pThis->hIf = INTNET_HANDLE_INVALID;
-        int rc = pDrvIns->pDrvHlp->pfnSUPCallVMMR0Ex(pDrvIns, VMMR0_DO_INTNET_IF_CLOSE, &CloseReq, sizeof(CloseReq));
+        int rc = PDMDrvHlpSUPCallVMMR0Ex(pDrvIns, VMMR0_DO_INTNET_IF_CLOSE, &CloseReq, sizeof(CloseReq));
         AssertRC(rc);
     }
 
     /*
      * Wait for the thread to terminate.
      */
-    if (pThis->Thread != NIL_RTTHREAD)
+    if (hRecvEvt != NIL_RTSEMEVENT)
+        RTSemEventSignal(hRecvEvt);
+
+    if (pThis->pXmitThread)
     {
-        if (EventSuspended != NIL_RTSEMEVENT)
-            RTSemEventSignal(EventSuspended);
-        int rc = RTThreadWait(pThis->Thread, 5000, NULL);
+        int rc = PDMR3ThreadDestroy(pThis->pXmitThread, NULL);
         AssertRC(rc);
-        pThis->Thread = NIL_RTTHREAD;
+        pThis->pXmitThread = NULL;
     }
 
-    /*
-     * Destroy the semaphores.
-     */
-    if (EventSuspended != NIL_RTSEMEVENT)
-        RTSemEventDestroy(EventSuspended);
+    if (pThis->hRecvThread != NIL_RTTHREAD)
+    {
+        int rc = RTThreadWait(pThis->hRecvThread, 5000, NULL);
+        AssertRC(rc);
+        pThis->hRecvThread = NIL_RTTHREAD;
+    }
 
-    if (pThis->pBuf)
+
+    /*
+     * Destroy the semaphores, S/G cache and xmit lock.
+     */
+    if (hRecvEvt != NIL_RTSEMEVENT)
+        RTSemEventDestroy(hRecvEvt);
+
+    if (pThis->hXmitEvt != NIL_SUPSEMEVENT)
+    {
+        SUPSemEventClose(pThis->pSupDrvSession, pThis->hXmitEvt);
+        pThis->hXmitEvt = NIL_SUPSEMEVENT;
+    }
+
+    RTMemCacheDestroy(pThis->hSgCache);
+    pThis->hSgCache = NIL_RTMEMCACHE;
+
+    if (PDMCritSectIsInitialized(&pThis->XmitLock))
+        PDMR3CritSectDelete(&pThis->XmitLock);
+
+    if (pThis->pBufR3)
     {
         /*
          * Deregister statistics in case we're being detached.
          */
-        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBuf->cbStatRecv);
-        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBuf->cbStatSend);
-        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBuf->cStatRecvs);
-        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBuf->cStatSends);
-        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBuf->cStatLost);
-        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBuf->cStatYieldsNok);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->Recv.cStatFrames);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->Recv.cbStatWritten);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->Recv.cOverflows);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->Send.cStatFrames);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->Send.cbStatWritten);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->Send.cOverflows);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->cStatYieldsOk);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->cStatYieldsNok);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->cStatLost);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->cStatBadFrames);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->StatReceivedGso);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->StatSentGso);
 #ifdef VBOX_WITH_STATISTICS
         PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->StatReceive);
         PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->StatTransmit);
@@ -775,31 +1193,42 @@ static DECLCALLBACK(void) drvIntNetDestruct(PPDMDRVINS pDrvIns)
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
+static DECLCALLBACK(int) drvR3IntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     PDRVINTNET pThis = PDMINS_2_DATA(pDrvIns, PDRVINTNET);
     bool f;
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
     /*
      * Init the static parts.
      */
-    pThis->pDrvIns                      = pDrvIns;
-    pThis->hIf                          = INTNET_HANDLE_INVALID;
-    pThis->Thread                       = NIL_RTTHREAD;
-    pThis->EventSuspended               = NIL_RTSEMEVENT;
-    pThis->enmState                     = ASYNCSTATE_SUSPENDED;
-    pThis->fActivateEarlyDeactivateLate = false;
-    /* IBase */
-    pDrvIns->IBase.pfnQueryInterface    = drvIntNetQueryInterface;
-    /* INetwork */
-    pThis->INetworkConnector.pfnSend                = drvIntNetSend;
-    pThis->INetworkConnector.pfnSetPromiscuousMode  = drvIntNetSetPromiscuousMode;
-    pThis->INetworkConnector.pfnNotifyLinkChanged   = drvIntNetNotifyLinkChanged;
+    pThis->pDrvInsR3                                = pDrvIns;
+    pThis->hIf                                      = INTNET_HANDLE_INVALID;
+    pThis->hRecvThread                              = NIL_RTTHREAD;
+    pThis->hRecvEvt                                 = NIL_RTSEMEVENT;
+    pThis->pXmitThread                              = NULL;
+    pThis->hXmitEvt                                 = NIL_SUPSEMEVENT;
+    pThis->pSupDrvSession                           = PDMDrvHlpGetSupDrvSession(pDrvIns);
+    pThis->hSgCache                                 = NIL_RTMEMCACHE;
+    pThis->enmRecvState                             = RECVSTATE_SUSPENDED;
+    pThis->fActivateEarlyDeactivateLate             = false;
+    /* IBase* */
+    pDrvIns->IBase.pfnQueryInterface                = drvR3IntNetIBase_QueryInterface;
+    pThis->IBaseR0.pfnQueryInterface                = drvR3IntNetIBaseR0_QueryInterface;
+    pThis->IBaseRC.pfnQueryInterface                = drvR3IntNetIBaseRC_QueryInterface;
+    /* INetworkUp */
+    pThis->INetworkUpR3.pfnBeginXmit                = drvIntNetUp_BeginXmit;
+    pThis->INetworkUpR3.pfnAllocBuf                 = drvIntNetUp_AllocBuf;
+    pThis->INetworkUpR3.pfnFreeBuf                  = drvIntNetUp_FreeBuf;
+    pThis->INetworkUpR3.pfnSendBuf                  = drvIntNetUp_SendBuf;
+    pThis->INetworkUpR3.pfnEndXmit                  = drvIntNetUp_EndXmit;
+    pThis->INetworkUpR3.pfnSetPromiscuousMode       = drvIntNetUp_SetPromiscuousMode;
+    pThis->INetworkUpR3.pfnNotifyLinkChanged        = drvR3IntNetUp_NotifyLinkChanged;
 
     /*
      * Validate the config.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle,
+    if (!CFGMR3AreValuesValid(pCfg,
                               "Network\0"
                               "Trunk\0"
                               "TrunkType\0"
@@ -828,13 +1257,13 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
     /*
      * Query the network port interface.
      */
-    pThis->pPort = (PPDMINETWORKPORT)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_NETWORK_PORT);
-    if (!pThis->pPort)
+    pThis->pIAboveNet = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMINETWORKDOWN);
+    if (!pThis->pIAboveNet)
     {
         AssertMsgFailed(("Configuration error: the above device/driver didn't export the network port interface!\n"));
         return VERR_PDM_MISSING_INTERFACE_ABOVE;
     }
-    pThis->pConfigIf = (PPDMINETWORKCONFIG)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_NETWORK_CONFIG);
+    pThis->pIAboveConfigR3 = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMINETWORKCONFIG);
 
     /*
      * Read the configuration.
@@ -848,7 +1277,7 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
     /** @cfgm{Network, string}
      * The name of the internal network to connect to.
      */
-    int rc = CFGMR3QueryString(pCfgHandle, "Network", OpenReq.szNetwork, sizeof(OpenReq.szNetwork));
+    int rc = CFGMR3QueryString(pCfg, "Network", OpenReq.szNetwork, sizeof(OpenReq.szNetwork));
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"Network\" value"));
@@ -858,7 +1287,7 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
      * The trunk connection type see INTNETTRUNKTYPE.
      */
     uint32_t u32TrunkType;
-    rc = CFGMR3QueryU32(pCfgHandle, "TrunkType", &u32TrunkType);
+    rc = CFGMR3QueryU32(pCfg, "TrunkType", &u32TrunkType);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         u32TrunkType = kIntNetTrunkType_None;
     else if (RT_FAILURE(rc))
@@ -869,7 +1298,7 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
     /** @cfgm{Trunk, string, ""}
      * The name of the trunk connection.
      */
-    rc = CFGMR3QueryString(pCfgHandle, "Trunk", OpenReq.szTrunk, sizeof(OpenReq.szTrunk));
+    rc = CFGMR3QueryString(pCfg, "Trunk", OpenReq.szTrunk, sizeof(OpenReq.szTrunk));
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         OpenReq.szTrunk[0] = '\0';
     else if (RT_FAILURE(rc))
@@ -881,7 +1310,7 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
      * the computer can connect to a public network. Don't change this.
      */
     bool fRestrictAccess;
-    rc = CFGMR3QueryBool(pCfgHandle, "RestrictAccess", &fRestrictAccess);
+    rc = CFGMR3QueryBool(pCfg, "RestrictAccess", &fRestrictAccess);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         fRestrictAccess = true;
     else if (RT_FAILURE(rc))
@@ -892,7 +1321,7 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
     /** @cfgm{IgnoreAllPromisc, boolean, false}
      * When set all request for operating any interface or trunk in promiscuous
      * mode will be ignored. */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "IgnoreAllPromisc", &f, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "IgnoreAllPromisc", &f, false);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"IgnoreAllPromisc\" value"));
@@ -903,7 +1332,7 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
      * When set all request for operating any interface or trunk in promiscuous
      * mode will be ignored.  This differs from IgnoreAllPromisc in that clients
      * won't get VERR_INTNET_INCOMPATIBLE_FLAGS. */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "QuietlyIgnoreAllPromisc", &f, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "QuietlyIgnoreAllPromisc", &f, false);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"QuietlyIgnoreAllPromisc\" value"));
@@ -913,7 +1342,7 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
     /** @cfgm{IgnoreClientPromisc, boolean, false}
      * When set all request for operating any non-trunk interface in promiscuous
      * mode will be ignored. */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "IgnoreClientPromisc", &f, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "IgnoreClientPromisc", &f, false);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"IgnoreClientPromisc\" value"));
@@ -924,7 +1353,7 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
      * When set all request for operating any non-trunk interface promiscuous mode
      * will be ignored.  This differs from IgnoreClientPromisc in that clients won't
      * get VERR_INTNET_INCOMPATIBLE_FLAGS. */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "QuietlyIgnoreClientPromisc", &f, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "QuietlyIgnoreClientPromisc", &f, false);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"QuietlyIgnoreClientPromisc\" value"));
@@ -934,7 +1363,7 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
     /** @cfgm{IgnoreTrunkWirePromisc, boolean, false}
      * When set all request for operating the trunk-wire connection in promiscuous
      * mode will be ignored. */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "IgnoreTrunkWirePromisc", &f, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "IgnoreTrunkWirePromisc", &f, false);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"IgnoreTrunkWirePromisc\" value"));
@@ -945,7 +1374,7 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
      * When set all request for operating any trunk-wire connection promiscuous mode
      * will be ignored.  This differs from IgnoreTrunkWirePromisc in that clients
      * won't get VERR_INTNET_INCOMPATIBLE_FLAGS. */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "QuietlyIgnoreTrunkWirePromisc", &f, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "QuietlyIgnoreTrunkWirePromisc", &f, false);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"QuietlyIgnoreTrunkWirePromisc\" value"));
@@ -955,7 +1384,7 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
     /** @cfgm{IgnoreTrunkHostPromisc, boolean, false}
      * When set all request for operating the trunk-host connection in promiscuous
      * mode will be ignored. */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "IgnoreTrunkHostPromisc", &f, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "IgnoreTrunkHostPromisc", &f, false);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"IgnoreTrunkHostPromisc\" value"));
@@ -966,7 +1395,7 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
      * When set all request for operating any trunk-host connection promiscuous mode
      * will be ignored.  This differs from IgnoreTrunkHostPromisc in that clients
      * won't get VERR_INTNET_INCOMPATIBLE_FLAGS. */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "QuietlyIgnoreTrunkHostPromisc", &f, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "QuietlyIgnoreTrunkHostPromisc", &f, false);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"QuietlyIgnoreTrunkHostPromisc\" value"));
@@ -982,24 +1411,24 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
      * attaching to a wireless NIC this option is usally a requirement.
      */
     bool fSharedMacOnWire;
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "SharedMacOnWire", &fSharedMacOnWire, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "SharedMacOnWire", &fSharedMacOnWire, false);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"SharedMacOnWire\" value"));
     if (fSharedMacOnWire)
         OpenReq.fFlags |= INTNET_OPEN_FLAGS_SHARED_MAC_ON_WIRE;
 
-    /** @cfgm{ReceiveBufferSize, uint32_t, 218 KB}
+    /** @cfgm{ReceiveBufferSize, uint32_t, 318 KB}
      * The size of the receive buffer.
      */
-    rc = CFGMR3QueryU32(pCfgHandle, "ReceiveBufferSize", &OpenReq.cbRecv);
+    rc = CFGMR3QueryU32(pCfg, "ReceiveBufferSize", &OpenReq.cbRecv);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
-        OpenReq.cbRecv = 218 * _1K ;
+        OpenReq.cbRecv = 318 * _1K ;
     else if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"ReceiveBufferSize\" value"));
 
-    /** @cfgm{SendBufferSize, uint32_t, 36 KB}
+    /** @cfgm{SendBufferSize, uint32_t, 196 KB}
      * The size of the send (transmit) buffer.
      * This should be more than twice the size of the larges frame size because
      * the ring buffer is very simple and doesn't support splitting up frames
@@ -1007,23 +1436,23 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
      * header will fragment the buffer such that the frame won't fit on either
      * side of it and the code will get very upset about it all.
      */
-    rc = CFGMR3QueryU32(pCfgHandle, "SendBufferSize", &OpenReq.cbSend);
+    rc = CFGMR3QueryU32(pCfg, "SendBufferSize", &OpenReq.cbSend);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
-        OpenReq.cbSend = 36*_1K;
+        OpenReq.cbSend = RT_ALIGN_Z(VBOX_MAX_GSO_SIZE * 3, _1K);
     else if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"SendBufferSize\" value"));
-    if (OpenReq.cbSend < 32)
+    if (OpenReq.cbSend < 128)
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: The \"SendBufferSize\" value is too small"));
-    if (OpenReq.cbSend < 16384*2 + 64)
-        LogRel(("DrvIntNet: Warning! SendBufferSize=%u, Recommended minimum size %u butes.\n", OpenReq.cbSend, 16384*2 + 64));
+    if (OpenReq.cbSend < VBOX_MAX_GSO_SIZE * 4)
+        LogRel(("DrvIntNet: Warning! SendBufferSize=%u, Recommended minimum size %u butes.\n", OpenReq.cbSend, VBOX_MAX_GSO_SIZE * 4));
 
     /** @cfgm{IsService, boolean, true}
      * This alterns the way the thread is suspended and resumed. When it's being used by
      * a service such as LWIP/iSCSI it shouldn't suspend immediately like for a NIC.
      */
-    rc = CFGMR3QueryBool(pCfgHandle, "IsService", &pThis->fActivateEarlyDeactivateLate);
+    rc = CFGMR3QueryBool(pCfg, "IsService", &pThis->fActivateEarlyDeactivateLate);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         pThis->fActivateEarlyDeactivateLate = false;
     else if (RT_FAILURE(rc))
@@ -1059,9 +1488,15 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
 #endif /* DARWIN */
 
     /*
-     * Create the event semaphores
+     * Create the event semaphore, S/G cache and xmit critsect.
      */
-    rc = RTSemEventCreate(&pThis->EventSuspended);
+    rc = RTSemEventCreate(&pThis->hRecvEvt);
+    if (RT_FAILURE(rc))
+        return rc;
+    rc = RTMemCacheCreate(&pThis->hSgCache, sizeof(PDMSCATTERGATHER), 0, UINT32_MAX, NULL, NULL, pThis, 0);
+    if (RT_FAILURE(rc))
+        return rc;
+    rc = PDMDrvHlpCritSectInit(pDrvIns, &pThis->XmitLock, RT_SRC_POS, "IntNetXmit");
     if (RT_FAILURE(rc))
         return rc;
 
@@ -1069,7 +1504,7 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
      * Create the interface.
      */
     OpenReq.hIf = INTNET_HANDLE_INVALID;
-    rc = pDrvIns->pDrvHlp->pfnSUPCallVMMR0Ex(pDrvIns, VMMR0_DO_INTNET_OPEN, &OpenReq, sizeof(OpenReq));
+    rc = PDMDrvHlpSUPCallVMMR0Ex(pDrvIns, VMMR0_DO_INTNET_OPEN, &OpenReq, sizeof(OpenReq));
     if (RT_FAILURE(rc))
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
                                    N_("Failed to open/create the internal network '%s'"), pThis->szNetwork);
@@ -1080,39 +1515,72 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
     /*
      * Get default buffer.
      */
-    INTNETIFGETRING3BUFFERREQ GetRing3BufferReq;
-    GetRing3BufferReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-    GetRing3BufferReq.Hdr.cbReq = sizeof(GetRing3BufferReq);
-    GetRing3BufferReq.pSession = NIL_RTR0PTR;
-    GetRing3BufferReq.hIf = pThis->hIf;
-    GetRing3BufferReq.pRing3Buf = NULL;
-    rc = pDrvIns->pDrvHlp->pfnSUPCallVMMR0Ex(pDrvIns, VMMR0_DO_INTNET_IF_GET_RING3_BUFFER, &GetRing3BufferReq, sizeof(GetRing3BufferReq));
+    INTNETIFGETBUFFERPTRSREQ GetBufferPtrsReq;
+    GetBufferPtrsReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+    GetBufferPtrsReq.Hdr.cbReq = sizeof(GetBufferPtrsReq);
+    GetBufferPtrsReq.pSession = NIL_RTR0PTR;
+    GetBufferPtrsReq.hIf = pThis->hIf;
+    GetBufferPtrsReq.pRing3Buf = NULL;
+    GetBufferPtrsReq.pRing0Buf = NULL;
+    rc = PDMDrvHlpSUPCallVMMR0Ex(pDrvIns, VMMR0_DO_INTNET_IF_GET_BUFFER_PTRS, &GetBufferPtrsReq, sizeof(GetBufferPtrsReq));
     if (RT_FAILURE(rc))
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
                                    N_("Failed to get ring-3 buffer for the newly created interface to '%s'"), pThis->szNetwork);
-    AssertRelease(VALID_PTR(GetRing3BufferReq.pRing3Buf));
-    pThis->pBuf = GetRing3BufferReq.pRing3Buf;
+    AssertRelease(VALID_PTR(GetBufferPtrsReq.pRing3Buf));
+    pThis->pBufR3 = GetBufferPtrsReq.pRing3Buf;
+    pThis->pBufR0 = GetBufferPtrsReq.pRing0Buf;
 
     /*
-     * Create the async I/O thread.
+     * Register statistics.
+     */
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Recv.cbStatWritten, "Bytes/Received",       STAMUNIT_BYTES, "Number of received bytes.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Send.cbStatWritten, "Bytes/Sent",           STAMUNIT_BYTES, "Number of sent bytes.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Recv.cOverflows,    "Overflows/Recv",       STAMUNIT_COUNT, "Number overflows.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Send.cOverflows,    "Overflows/Sent",       STAMUNIT_COUNT, "Number overflows.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Recv.cStatFrames,   "Packets/Received",     STAMUNIT_COUNT, "Number of received packets.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Send.cStatFrames,   "Packets/Sent",         STAMUNIT_COUNT, "Number of sent packets.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatReceivedGso,            "Packets/Received-Gso", STAMUNIT_COUNT, "The GSO portion of the received packets.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatSentGso,                "Packets/Sent-Gso",     STAMUNIT_COUNT, "The GSO portion of the sent packets.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatSentR0,                 "Packets/Sent-R0",      STAMUNIT_COUNT, "The ring-0 portion of the sent packets.");
+
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->cStatLost,          "Packets/Lost",         STAMUNIT_COUNT, "Number of lost packets.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->cStatYieldsNok,     "YieldOk",              STAMUNIT_COUNT, "Number of times yielding helped fix an overflow.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->cStatYieldsOk,      "YieldNok",             STAMUNIT_COUNT, "Number of times yielding didn't help fix an overflow.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->cStatBadFrames,     "BadFrames",            STAMUNIT_COUNT, "Number of bad frames seed by the consumers.");
+#ifdef VBOX_WITH_STATISTICS
+    PDMDrvHlpSTAMRegProfileAdv(pDrvIns, &pThis->StatReceive,             "Receive",     STAMUNIT_TICKS_PER_CALL, "Profiling packet receive runs.");
+    PDMDrvHlpSTAMRegProfile(pDrvIns, &pThis->StatTransmit,               "Transmit",    STAMUNIT_TICKS_PER_CALL, "Profiling packet transmit runs.");
+#endif
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatXmitWakeupR0,           "XmitWakeup-R0",        STAMUNIT_COUNT, "Xmit thread wakeups from ring-0.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatXmitWakeupR3,           "XmitWakeup-R3",        STAMUNIT_COUNT, "Xmit thread wakeups from ring-3.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatXmitProcessRing,        "XmitProcessRing",      STAMUNIT_COUNT, "Time xmit thread was told to process the ring.");
+
+    /*
+     * Create the async I/O threads.
      * Note! Using a PDM thread here doesn't fit with the IsService=true operation.
      */
-    rc = RTThreadCreate(&pThis->Thread, drvIntNetAsyncIoThread, pThis, _128K, RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "INTNET");
+    rc = RTThreadCreate(&pThis->hRecvThread, drvR3IntNetRecvThread, pThis, 0,
+                        RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "INTNET-RECV");
     if (RT_FAILURE(rc))
     {
         AssertRC(rc);
         return rc;
     }
 
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->pBuf->cbStatRecv,       STAMTYPE_COUNTER,   STAMVISIBILITY_ALWAYS,  STAMUNIT_BYTES, "Number of received bytes.",    "/Net/IntNet%d/Bytes/Received", pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->pBuf->cbStatSend,       STAMTYPE_COUNTER,   STAMVISIBILITY_ALWAYS,  STAMUNIT_BYTES, "Number of sent bytes.",        "/Net/IntNet%d/Bytes/Sent", pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->pBuf->cStatRecvs,       STAMTYPE_COUNTER,   STAMVISIBILITY_ALWAYS,  STAMUNIT_COUNT, "Number of received packets.",  "/Net/IntNet%d/Packets/Received", pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->pBuf->cStatSends,       STAMTYPE_COUNTER,   STAMVISIBILITY_ALWAYS,  STAMUNIT_COUNT, "Number of sent packets.",      "/Net/IntNet%d/Packets/Sent", pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->pBuf->cStatLost,        STAMTYPE_COUNTER,   STAMVISIBILITY_ALWAYS,  STAMUNIT_COUNT, "Number of sent packets.",      "/Net/IntNet%d/Packets/Lost", pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->pBuf->cStatYieldsNok,   STAMTYPE_COUNTER,   STAMVISIBILITY_ALWAYS,  STAMUNIT_COUNT, "Number of times yielding didn't help fix an overflow.",  "/Net/IntNet%d/YieldNok", pDrvIns->iInstance);
-#ifdef VBOX_WITH_STATISTICS
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReceive,            STAMTYPE_PROFILE,   STAMVISIBILITY_ALWAYS,  STAMUNIT_TICKS_PER_CALL, "Profiling packet receive runs.",  "/Net/IntNet%d/Receive", pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatTransmit,           STAMTYPE_PROFILE,   STAMVISIBILITY_ALWAYS,  STAMUNIT_TICKS_PER_CALL, "Profiling packet transmit runs.", "/Net/IntNet%d/Transmit", pDrvIns->iInstance);
+    rc = SUPSemEventCreate(pThis->pSupDrvSession, &pThis->hXmitEvt);
+    AssertRCReturn(rc, rc);
+
+    rc = PDMDrvHlpThreadCreate(pDrvIns, &pThis->pXmitThread, pThis,
+                               drvR3IntNetXmitThread, drvR3IntNetXmitWakeUp, 0, RTTHREADTYPE_IO, "INTNET-XMIT");
+    AssertRCReturn(rc, rc);
+
+#ifdef VBOX_WITH_DRVINTNET_IN_R0
+    /*
+     * Resolve the ring-0 context interface addresses.
+     */
+    rc = pDrvIns->pHlpR3->pfnLdrGetR0InterfaceSymbols(pDrvIns, &pThis->INetworkUpR0, sizeof(pThis->INetworkUpR0),
+                                                      "drvIntNetUp_", PDMINETWORKUP_SYM_LIST);
+    AssertLogRelRCReturn(rc, rc);
 #endif
 
     /*
@@ -1120,14 +1588,16 @@ static DECLCALLBACK(int) drvIntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHa
      */
     if (pThis->fActivateEarlyDeactivateLate)
     {
-        ASMAtomicXchgSize(&pThis->enmState, ASYNCSTATE_RUNNING);
-        RTSemEventSignal(pThis->EventSuspended);
-        drvIntNetUpdateMacAddress(pThis);
-        drvIntNetSetActive(pThis, true /* fActive */);
+        ASMAtomicXchgSize(&pThis->enmRecvState, RECVSTATE_RUNNING);
+        RTSemEventSignal(pThis->hRecvEvt);
+
+        drvR3IntNetUpdateMacAddress(pThis);
+        drvR3IntNetSetActive(pThis, true /* fActive */);
     }
 
-   return rc;
+    return rc;
 }
+
 
 
 /**
@@ -1137,12 +1607,20 @@ const PDMDRVREG g_DrvIntNet =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "IntNet",
+    /* szRCMod */
+    "VBoxDDGC.rc",
+    /* szR0Mod */
+    "VBoxDDR0.r0",
     /* pszDescription */
     "Internal Networking Transport Driver",
     /* fFlags */
+#ifdef VBOX_WITH_DRVINTNET_IN_R0
+    PDM_DRVREG_FLAGS_HOST_BITS_DEFAULT | PDM_DRVREG_FLAGS_R0,
+#else
     PDM_DRVREG_FLAGS_HOST_BITS_DEFAULT,
+#endif
     /* fClass. */
     PDM_DRVREG_CLASS_NETWORK,
     /* cMaxInstances */
@@ -1150,28 +1628,32 @@ const PDMDRVREG g_DrvIntNet =
     /* cbInstance */
     sizeof(DRVINTNET),
     /* pfnConstruct */
-    drvIntNetConstruct,
+    drvR3IntNetConstruct,
     /* pfnDestruct */
-    drvIntNetDestruct,
+    drvR3IntNetDestruct,
+    /* pfnRelocate */
+    drvR3IntNetRelocate,
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */
-    drvIntNetPowerOn,
+    drvR3IntNetPowerOn,
     /* pfnReset */
     NULL,
     /* pfnSuspend */
-    drvIntNetSuspend,
+    drvR3IntNetSuspend,
     /* pfnResume */
-    drvIntNetResume,
+    drvR3IntNetResume,
     /* pfnAttach */
     NULL,
     /* pfnDetach */
     NULL,
     /* pfnPowerOff */
-    drvIntNetPowerOff,
+    drvR3IntNetPowerOff,
     /* pfnSoftReset */
     NULL,
     /* u32EndVersion */
     PDM_DRVREG_VERSION
 };
+
+#endif /* IN_RING3 */
 
